@@ -779,6 +779,7 @@ BEGIN
     DECLARE @LinkedNewPercentCompleted INT;
     DECLARE @ParentOldPercentCompleted INT;
     DECLARE @ParentNewPercentCompleted INT;
+    DECLARE @CompletionBlockBugTaskId INT;
 
     SET @Title = NULLIF(LTRIM(RTRIM(@Title)), N'');
     SET @TaskType = ISNULL(NULLIF(LTRIM(RTRIM(@TaskType)), N''), N'Dev');
@@ -919,6 +920,35 @@ BEGIN
     IF @TaskType = N'Dev' AND @Status = N'Code Complete'
     BEGIN
         SET @PercentCompleted = 100;
+    END;
+
+    IF @TaskType = N'Dev' AND @PercentCompleted >= 100
+    BEGIN
+        SET @CompletionBlockBugTaskId = @ExistingLinkedBugTaskId;
+
+        IF @CompletionBlockBugTaskId IS NULL
+        BEGIN
+            SELECT TOP (1) @CompletionBlockBugTaskId = [BugTask].[TaskId]
+            FROM [pmt].[SplitIds](@DependencyTaskIdsCsv) AS [Ids]
+            INNER JOIN [pmt].[WorkTasks] AS [BugTask]
+                ON [BugTask].[TaskId] = [Ids].[Id]
+               AND [BugTask].[TaskType] = N'Bug'
+               AND [BugTask].[IsDeleted] = 0
+            ORDER BY [BugTask].[TaskId];
+        END;
+
+        IF @CompletionBlockBugTaskId IS NOT NULL
+           AND NOT EXISTS
+           (
+               SELECT 1
+               FROM [pmt].[WorkTasks]
+               WHERE [TaskId] = @CompletionBlockBugTaskId
+                 AND [Status] IN (N'QA Passed', N'Deployed in SIT', N'Deployed in UAT', N'Deployed in Prod')
+                 AND [IsDeleted] = 0
+           )
+        BEGIN
+            THROW 50052, 'You cannot mark this task as complete until the associated bug is marked as QA Passed.  Once QA has re-tested the bug and passed it, the completion of your Dev Task will be set to 100%%.', 1;
+        END;
     END;
 
     SELECT @ProjectCode = [Code]

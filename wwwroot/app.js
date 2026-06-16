@@ -15,6 +15,7 @@ const fallbackStatuses = [
 const fallbackPriorities = ["Lowest", "Low", "Medium", "High", "Highest"];
 const fallbackSeverities = ["Trivial", "Minor", "Major", "Critical"];
 const fallbackEnvironments = ["local", "Dev", "SIT", "UAT", "Production"];
+const linkedBugCompletionMessage = "You cannot mark this task as complete until the associated bug is marked as QA Passed.  Once QA has re-tested the bug and passed it, the completion of your Dev Task will be set to 100%.";
 let statuses = [...fallbackStatuses];
 let priorities = [...fallbackPriorities];
 let severities = [...fallbackSeverities];
@@ -94,6 +95,7 @@ const userSelect = document.getElementById("currentUser");
 const userAvatar = document.getElementById("currentUserAvatar");
 const userMenuToggle = document.getElementById("userMenuToggle");
 const userMenu = document.getElementById("userMenu");
+const themeToggle = document.getElementById("themeToggle");
 const dialog = document.getElementById("editorDialog");
 const dialogTitle = document.getElementById("dialogTitle");
 const dialogBody = document.getElementById("dialogBody");
@@ -103,6 +105,7 @@ const toast = document.getElementById("toast");
 document.getElementById("closeDialog").addEventListener("click", () => dialog.close());
 document.getElementById("cancelDialog").addEventListener("click", () => dialog.close());
 document.getElementById("logout")?.addEventListener("click", logout);
+applySavedTheme();
 
 if (document.readyState === "loading") {
   document.addEventListener("DOMContentLoaded", initializeApp);
@@ -157,6 +160,12 @@ function bindPageEvents() {
       closeUserMenu();
       renderNav();
       render();
+      return;
+    }
+
+    const themeButton = event.target.closest("button[data-action='toggle-theme']");
+    if (themeButton) {
+      toggleTheme();
       return;
     }
 
@@ -423,6 +432,35 @@ function renderUserPicker() {
   if (userMenuToggle) {
     userMenuToggle.title = user ? `${user.nickname} menu` : "User menu";
   }
+
+  updateThemeToggle();
+}
+
+function applySavedTheme() {
+  const savedTheme = localStorage.getItem("pmt-theme") || "dark";
+  applyTheme(savedTheme === "light" ? "light" : "dark");
+}
+
+function toggleTheme() {
+  const nextTheme = document.documentElement.dataset.theme === "light" ? "dark" : "light";
+  localStorage.setItem("pmt-theme", nextTheme);
+  applyTheme(nextTheme);
+}
+
+function applyTheme(theme) {
+  document.documentElement.dataset.theme = theme;
+  updateThemeToggle();
+}
+
+function updateThemeToggle() {
+  if (!themeToggle) return;
+
+  const isLight = document.documentElement.dataset.theme === "light";
+  const icon = themeToggle.querySelector("[data-theme-icon]");
+  const label = themeToggle.querySelector("[data-theme-label]");
+  if (icon) icon.innerHTML = isLight ? "&#9790;" : "&#9728;";
+  if (label) label.textContent = isLight ? "Dark Theme" : "Light Theme";
+  themeToggle.title = isLight ? "Switch to dark theme" : "Switch to light theme";
 }
 
 function render() {
@@ -528,8 +566,8 @@ function renderBoard() {
   `;
 }
 
-function renderGantt() {
-  if (!ganttPendingFlyBy) stopGanttFlyBy();
+function renderGantt(options = {}) {
+  if (!ganttPendingFlyBy && !options.skipStopFlyBy) stopGanttFlyBy();
 
   if (!ganttProjectId && state.projects.length) ganttProjectId = state.projects[0].id;
   if (!state.projects.some(project => project.id === ganttProjectId) && state.projects.length) ganttProjectId = state.projects[0].id;
@@ -592,7 +630,11 @@ function renderGantt() {
     ${chart.dates.length ? ganttChartHtml(chart) : `<div class="empty">No scheduled items for this project yet.</div>`}
   `;
 
-  scrollGanttToSprintStart(chart, scrollSprint);
+  if (options.restoreScroll) {
+    restoreGanttScroll(options.restoreScroll);
+  } else {
+    scrollGanttToSprintStart(chart, scrollSprint);
+  }
   if (ganttPendingFlyBy) {
     ganttPendingFlyBy = false;
     const flyByRunId = ++ganttFlyByRunId;
@@ -1375,7 +1417,12 @@ async function handleActionClick(event) {
   if (action === "toggle-gantt-days") toggleGanttDays();
   if (action === "gantt-flyby") flyByGantt();
   if (action === "reset-gantt-view") resetGanttView();
-  if (action === "toggle-gantt-task-bugs") toggleGanttTaskBugs(id);
+  if (action === "toggle-gantt-task-bugs") {
+    event.preventDefault();
+    event.stopPropagation();
+    toggleGanttTaskBugs(id);
+    return;
+  }
   if (action === "dashboard-view-task") openTaskReadMode(id);
   if (action === "dashboard-view-sprint") viewSprintTasks(id);
   if (action === "toggle-dashboard-sprint-details") toggleDashboardSprintDetails(id);
@@ -1822,6 +1869,11 @@ function editTask(task = {}) {
       </div>
     </div>
   `, async root => {
+    const status = value(root, "status");
+    const percentCompleted = percentForDevTaskSave(status, numberValue(root, "percentCompleted"));
+    const dependencyTaskIds = checkedNumbers(root, "dependencyTaskIds");
+    validateLinkedBugCompletion(task, percentCompleted, dependencyTaskIds);
+
     const result = await saveJson(task.id ? `/api/tasks/${task.id}` : "/api/tasks", task.id ? "PUT" : "POST", {
       id: task.id || 0,
       projectId: numberValue(root, "projectId"),
@@ -1835,15 +1887,15 @@ function editTask(task = {}) {
       expectedResultHtml: "",
       environment: "",
       severity: "",
-      status: value(root, "status"),
+      status,
       priority: value(root, "priority"),
-      percentCompleted: percentForStatus(value(root, "status"), numberValue(root, "percentCompleted")),
+      percentCompleted,
       url: value(root, "url"),
       startDate: nullableDateValue(root, "startDate"),
       endDate: nullableDateValue(root, "endDate"),
       reporterIds: [],
       assigneeIds: checkedNumbers(root, "assigneeIds"),
-      dependencyTaskIds: checkedNumbers(root, "dependencyTaskIds")
+      dependencyTaskIds
     });
 
     for (const file of root.querySelector("[name='attachments']").files) {
@@ -2787,6 +2839,42 @@ function scrollGanttToSprintStart(chart, sprint) {
   });
 }
 
+function captureGanttScrollPosition() {
+  const scroller = document.querySelector(".gantt-scroll");
+  if (!scroller) return null;
+
+  const sprintId = nearestGanttSprintIdFromScroll();
+  const sprintTop = sprintId ? ganttScrollTopForSprint({ id: sprintId }) : scroller.scrollTop;
+  return {
+    left: scroller.scrollLeft,
+    top: scroller.scrollTop,
+    sprintId,
+    rowOffset: scroller.scrollTop - sprintTop
+  };
+}
+
+function restoreGanttScroll(position) {
+  if (!position) return;
+
+  const applyScroll = () => {
+    const scroller = document.querySelector(".gantt-scroll");
+    if (!scroller) return;
+
+    scroller.scrollLeft = position.left;
+    if (position.sprintId) {
+      const sprintTop = ganttScrollTopForSprint({ id: position.sprintId });
+      scroller.scrollTop = Math.max(0, sprintTop + (position.rowOffset || 0));
+    } else {
+      scroller.scrollTop = position.top;
+    }
+  };
+
+  requestAnimationFrame(() => {
+    applyScroll();
+    requestAnimationFrame(applyScroll);
+  });
+}
+
 function scrollGanttToSprint(chart, sprint) {
   const scroller = document.querySelector(".gantt-scroll");
   if (!scroller || !sprint) return;
@@ -2856,7 +2944,6 @@ async function startGanttFlyBy(chart, runId) {
     finishGanttFlyBy("Sprint Fly-by complete.");
     return;
   }
-  if (!await showGanttFlyByCountdown(runId)) return;
 
   for (let index = 1; index < flyBySprints.length; index++) {
     if (runId !== ganttFlyByRunId) return;
@@ -3288,9 +3375,49 @@ function ganttChartData(project, sprints, selectedSprint = null, scrollSprint = 
     sprints,
     dates,
     holidays,
-    dayWidth: dates.length > 700 ? 12 : dates.length > 365 ? 14 : dates.length > 180 ? 16 : dates.length > 120 ? 18 : dates.length > 60 ? 24 : dates.length > 35 ? 32 : 42,
+    dayWidth: ganttDayWidth(dates, sprints, scrollSprint),
     scrollDate: scrollSprint ? ganttStartDate(scrollSprint) : null
   };
+}
+
+function ganttDayWidth(dates, sprints, focusSprint) {
+  const baseWidth = dates.length > 700 ? 12 : dates.length > 365 ? 14 : dates.length > 180 ? 16 : dates.length > 120 ? 18 : dates.length > 60 ? 24 : dates.length > 35 ? 32 : 42;
+  if (!isTypicalTwoWeekSprintProject(sprints)) return baseWidth;
+
+  const sprint = focusSprint || sprints[0];
+  if (!sprint) return baseWidth;
+  const sprintStart = ganttStartDate(sprint);
+  const sprintEnd = ganttEndDate(sprint);
+  const sprintVisibleDayCount = dates.filter(date => date >= sprintStart && date <= sprintEnd).length || 10;
+  const fitWidth = Math.floor(ganttAvailableTimelineWidth() / Math.max(8, sprintVisibleDayCount));
+
+  // Two-week projects are the normal case, so give those task bars enough
+  // width to read while keeping the focused Sprint inside the viewport.
+  return Math.max(baseWidth, Math.min(72, fitWidth));
+}
+
+function isTypicalTwoWeekSprintProject(sprints) {
+  const durations = sprints
+    .map(sprint => {
+      const start = ganttStartDate(sprint);
+      const end = ganttEndDate(sprint);
+      return start && end ? Math.round((end - start) / 86400000) + 1 : 0;
+    })
+    .filter(days => days > 0)
+    .sort((a, b) => a - b);
+
+  if (!durations.length) return false;
+  const middle = Math.floor(durations.length / 2);
+  const medianDays = durations.length % 2
+    ? durations[middle]
+    : Math.round((durations[middle - 1] + durations[middle]) / 2);
+
+  return medianDays <= 24;
+}
+
+function ganttAvailableTimelineWidth() {
+  const contentWidth = app?.clientWidth || window.innerWidth || 1200;
+  return Math.max(620, contentWidth - 280);
 }
 
 function roadMapProjects() {
@@ -3777,12 +3904,20 @@ function bugsForTask(task, sprintBugs) {
 
 function toggleGanttTaskBugs(taskId) {
   const id = Number(taskId);
+  const scrollPosition = captureGanttScrollPosition();
+  const resumeSprintId = nearestGanttSprintIdFromScroll();
+  if (ganttFlyByActive) {
+    stopGanttFlyBy({ keepResume: true });
+    ganttFlyByResumeSprintId = resumeSprintId || ganttFlyByResumeSprintId;
+    updateGanttFlyByButton();
+  }
+
   if (ganttExpandedBugTaskIds.has(id)) {
     ganttExpandedBugTaskIds.delete(id);
   } else {
     ganttExpandedBugTaskIds.add(id);
   }
-  renderGantt();
+  renderGantt({ restoreScroll: scrollPosition, skipStopFlyBy: true });
 }
 
 function taskButtonsHtml(task) {
@@ -3935,6 +4070,38 @@ function percentForStatus(status, currentValue) {
   const qaPassedIndex = statuses.indexOf("QA Passed");
   if (qaPassedIndex >= 0 && statuses.indexOf(status) >= qaPassedIndex) return 100;
   return Number(currentValue || 0);
+}
+
+function percentForDevTaskSave(status, currentValue) {
+  // The database also treats Code Complete as finished for normal Dev Tasks.
+  if (status === "Code Complete") return 100;
+  return percentForStatus(status, currentValue);
+}
+
+function validateLinkedBugCompletion(task, percentCompleted, dependencyTaskIds) {
+  if (Number(percentCompleted || 0) < 100) return;
+
+  const bug = associatedBugForDevTask(task, dependencyTaskIds);
+  if (bug && !isBugQaPassedOrLater(bug)) {
+    throw new Error(linkedBugCompletionMessage);
+  }
+}
+
+function associatedBugForDevTask(task, dependencyTaskIds = []) {
+  if (task?.linkedBugTaskId) {
+    const linkedBug = taskById(task.linkedBugTaskId);
+    if (linkedBug?.taskType === "Bug") return linkedBug;
+  }
+
+  return (dependencyTaskIds || [])
+    .map(id => taskById(id))
+    .find(item => item?.taskType === "Bug") || null;
+}
+
+function isBugQaPassedOrLater(bug) {
+  const qaPassedIndex = statuses.indexOf("QA Passed");
+  const bugStatusIndex = statuses.indexOf(bug?.status || "");
+  return qaPassedIndex >= 0 && bugStatusIndex >= qaPassedIndex;
 }
 
 function isTaskCompleted(task) {

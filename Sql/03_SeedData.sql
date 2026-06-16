@@ -142,7 +142,7 @@ FROM @HolidaySeed;
 
 INSERT INTO [pmt].[Projects] ([Code], [Title], [Description], [Url], [IconUrl], [StartDate], [EndDate], [CreatedByUserId])
 VALUES
-(N'PMT', N'Project Management Tool', N'The internal task tracking tool used by this development team.', N'https://intranet.local/projects/pmt', N'/assets/project-pmt.svg', DATEADD(DAY, -45, @Today), NULL, @Sin);
+(N'PMT', N'Project Management Tool', N'The internal task tracking tool used by this development team.', N'https://intranet.local/projects/pmt', N'/assets/project-pmt.svg', DATEADD(DAY, -56, @Today), NULL, @Sin);
 
 DECLARE @PmtProject INT = (SELECT [ProjectId] FROM [pmt].[Projects] WHERE [Code] = N'PMT');
 
@@ -154,44 +154,74 @@ VALUES
 INSERT INTO [pmt].[Sprints]
 (
     [ProjectId], [Code], [Title], [Description], [StartDate], [EndDate],
-    [LessonLearnedHtml], [IsFinished], [CreatedByUserId]
+    [LessonLearnedHtml], [IsFinished], [CreatedByUserId], [CreatedAt], [UpdatedAt]
 )
 VALUES
-(@PmtProject, N'PMT-Sprint1', N'Foundation and Dark Theme', N'Initial PMT screens, dark theme, ADO.NET data access, and seed data.', DATEADD(DAY, -28, @Today), DATEADD(DAY, -15, @Today), N'<p>Simple stored procedures made the initial PMT workflow easier to debug.</p>', 1, @Sin),
-(@PmtProject, N'PMT-Sprint2', N'Road Map, Gantt, and Audit Trail', N'Current work for Gantt, Road Map, project flow, and audit logging.', DATEADD(DAY, -14, @Today), DATEADD(DAY, 13, @Today), N'', 0, @Sin);
+(@PmtProject, N'PMT-Sprint01', N'Day 1 Foundation', N'Create the application foundation, database schema, login, ADO.NET data access, and stored procedure-first pattern.', DATEADD(DAY, -56, @Today), DATEADD(DAY, -43, @Today), N'<p>The KISS approach worked well: one small ADO.NET store calling stored procedures was easy to follow and debug.</p>', 1, @Sin, DATEADD(DAY, -56, @Now), DATEADD(DAY, -43, @Now)),
+(@PmtProject, N'PMT-Sprint02', N'Day 2 UX and Kanban', N'Modernize the UI, expand the workflow statuses, add Kanban movement, and clean up dialogs.', DATEADD(DAY, -42, @Today), DATEADD(DAY, -29, @Today), N'<p>Dark theme polish and predictable dialog focus made the app feel less like a prototype.</p>', 1, @Sin, DATEADD(DAY, -42, @Now), DATEADD(DAY, -29, @Now)),
+(@PmtProject, N'PMT-Sprint03', N'Day 3 Scrum and Documentation', N'Add richer filters, Scrum rows, Documentation, project/sprint drill-through, and permanent seed content.', DATEADD(DAY, -28, @Today), DATEADD(DAY, -15, @Today), N'<p>Project and Sprint filters became the backbone for navigating PMT during demos.</p>', 1, @Sin, DATEADD(DAY, -28, @Now), DATEADD(DAY, -15, @Now)),
+(@PmtProject, N'PMT-Sprint04', N'Day 4 Planning Views', N'Add holiday maintenance, Gantt non-working day behavior, and the Road Map view for project planning.', DATEADD(DAY, -14, @Today), DATEADD(DAY, -1, @Today), N'<p>Long-running projects needed compressed timelines, while normal two-week Sprints still needed readable bars.</p>', 1, @Sin, DATEADD(DAY, -14, @Now), DATEADD(DAY, -1, @Now)),
+(@PmtProject, N'PMT-Sprint05', N'Days 5-8 Audit, Settings, and Polish', N'Current Sprint for audit trails, seed restore tools, fly-by fixes, linked Bug Fix validation, and theme support.', @Today, DATEADD(DAY, 13, @Today), N'', 0, @Sin, @Now, @Now);
 
-DECLARE @PmtSprint1 INT = (SELECT [SprintId] FROM [pmt].[Sprints] WHERE [Code] = N'PMT-Sprint1');
-DECLARE @PmtSprint2 INT = (SELECT [SprintId] FROM [pmt].[Sprints] WHERE [Code] = N'PMT-Sprint2');
+DECLARE @PmtSprint1 INT = (SELECT [SprintId] FROM [pmt].[Sprints] WHERE [Code] = N'PMT-Sprint01');
+DECLARE @PmtSprint2 INT = (SELECT [SprintId] FROM [pmt].[Sprints] WHERE [Code] = N'PMT-Sprint02');
+DECLARE @PmtSprint3 INT = (SELECT [SprintId] FROM [pmt].[Sprints] WHERE [Code] = N'PMT-Sprint03');
+DECLARE @PmtSprint4 INT = (SELECT [SprintId] FROM [pmt].[Sprints] WHERE [Code] = N'PMT-Sprint04');
+DECLARE @PmtSprint5 INT = (SELECT [SprintId] FROM [pmt].[Sprints] WHERE [Code] = N'PMT-Sprint05');
 
 INSERT INTO [pmt].[SprintMembers] ([SprintId], [UserId], [CreatedByUserId])
 VALUES
 (@PmtSprint1, @Sin, @Sin), (@PmtSprint1, @Bill, @Sin), (@PmtSprint1, @Sam, @Sin), (@PmtSprint1, @Mark, @Sin), (@PmtSprint1, @Steve, @Sin), (@PmtSprint1, @Lisa, @Sin),
-(@PmtSprint2, @Sin, @Sin), (@PmtSprint2, @Bill, @Sin), (@PmtSprint2, @Sam, @Sin), (@PmtSprint2, @Mark, @Sin), (@PmtSprint2, @Steve, @Sin), (@PmtSprint2, @Lisa, @Sin);
+(@PmtSprint2, @Sin, @Sin), (@PmtSprint2, @Bill, @Sin), (@PmtSprint2, @Sam, @Sin), (@PmtSprint2, @Mark, @Sin), (@PmtSprint2, @Steve, @Sin), (@PmtSprint2, @Lisa, @Sin),
+(@PmtSprint3, @Sin, @Sin), (@PmtSprint3, @Bill, @Sin), (@PmtSprint3, @Sam, @Sin), (@PmtSprint3, @Mark, @Sin), (@PmtSprint3, @Steve, @Sin), (@PmtSprint3, @Lisa, @Sin),
+(@PmtSprint4, @Sin, @Sin), (@PmtSprint4, @Bill, @Sin), (@PmtSprint4, @Sam, @Sin), (@PmtSprint4, @Mark, @Sin), (@PmtSprint4, @Steve, @Sin), (@PmtSprint4, @Lisa, @Sin),
+(@PmtSprint5, @Sin, @Sin), (@PmtSprint5, @Bill, @Sin), (@PmtSprint5, @Sam, @Sin), (@PmtSprint5, @Mark, @Sin), (@PmtSprint5, @Steve, @Sin), (@PmtSprint5, @Lisa, @Sin);
 
 INSERT INTO [pmt].[WorkTasks]
 (
     [ProjectId], [SprintId], [ParentTaskId], [TaskType], [Code], [Title], [DescriptionHtml],
     [Status], [Priority], [PercentCompleted], [Url], [StartDate], [EndDate], [StartedAt],
-    [CreatedByUserId], [LinkedBugTaskId]
+    [CreatedByUserId], [LinkedBugTaskId], [CreatedAt], [UpdatedAt]
 )
 VALUES
-(@PmtProject, @PmtSprint1, NULL, N'Dev', N'PMT-TASK-101', N'Create ADO.NET stored procedure data access', N'<p>Build simple ADO.NET calls and keep Entity Framework out of PMT.</p>', N'QA Passed', N'High', 100, N'https://intranet.local/pmt/tasks/101', DATEADD(DAY, -27, @Today), DATEADD(DAY, -22, @Today), DATEADD(DAY, -27, @Today), @Sin, NULL),
-(@PmtProject, @PmtSprint1, NULL, N'Dev', N'PMT-TASK-102', N'Modernize PMT dark theme screens', N'<p>Apply the modern dark theme across dashboard, tasks, board, documentation, and user dialogs.</p>', N'QA Passed', N'High', 100, N'https://intranet.local/pmt/tasks/102', DATEADD(DAY, -26, @Today), DATEADD(DAY, -18, @Today), DATEADD(DAY, -26, @Today), @Sin, NULL),
-(@PmtProject, @PmtSprint2, NULL, N'Dev', N'PMT-TASK-201', N'Add task and bug audit log', N'<p>Parent task for structured audit fields and the audit popup on Tasks and Bugs.</p>', N'In Progress', N'Highest', 63, N'https://intranet.local/pmt/tasks/201', DATEADD(DAY, -11, @Today), DATEADD(DAY, 4, @Today), DATEADD(DAY, -11, @Today), @Sin, NULL),
-(@PmtProject, @PmtSprint2, NULL, N'Dev', N'PMT-TASK-204', N'Improve dashboard project flow clipping', N'<p>Keep sprint task chips inside their own sprint containers as the browser gets narrower.</p>', N'Ready for QA', N'Medium', 75, N'https://intranet.local/pmt/tasks/204', DATEADD(DAY, -9, @Today), DATEADD(DAY, 2, @Today), DATEADD(DAY, -9, @Today), @Sin, NULL),
-(@PmtProject, NULL, NULL, N'Dev', N'PMT-BACKLOG-1', N'Add stakeholder export package', N'<p>Generate a lightweight stakeholder summary from the dashboard and roadmap views.</p>', N'Todo', N'Medium', 0, N'https://intranet.local/pmt/backlog/1', NULL, NULL, NULL, @Sin, NULL);
+(@PmtProject, @PmtSprint1, NULL, N'Dev', N'PMT-TASK-001', N'Build PMT foundation with stored procedures', N'<p>Create the pmt schema, simple tables, stored procedures, and the ADO.NET access path for the first PMT screens.</p>', N'QA Passed', N'High', 100, N'https://intranet.local/pmt/tasks/001', DATEADD(DAY, -55, @Today), DATEADD(DAY, -50, @Today), DATEADD(DAY, -55, @Today), @Sin, NULL, DATEADD(DAY, -56, @Now), DATEADD(DAY, -50, @Now)),
+(@PmtProject, @PmtSprint1, NULL, N'Dev', N'PMT-TASK-005', N'Create login and password change flow', N'<p>Add the login screen, default Password1 seed password, and a simple password change dialog.</p>', N'QA Passed', N'Low', 100, N'https://intranet.local/pmt/tasks/005', DATEADD(DAY, -53, @Today), DATEADD(DAY, -47, @Today), DATEADD(DAY, -53, @Today), @Sin, NULL, DATEADD(DAY, -54, @Now), DATEADD(DAY, -47, @Now)),
+(@PmtProject, @PmtSprint2, NULL, N'Dev', N'PMT-TASK-006', N'Modernize dark theme and form controls', N'<p>Replace the early plain UI with a modern dark theme, styled dropdowns, cleaner file inputs, and left-aligned checkboxes.</p>', N'QA Passed', N'Low', 100, N'https://intranet.local/pmt/tasks/006', DATEADD(DAY, -41, @Today), DATEADD(DAY, -36, @Today), DATEADD(DAY, -41, @Today), @Sin, NULL, DATEADD(DAY, -42, @Now), DATEADD(DAY, -36, @Now)),
+(@PmtProject, @PmtSprint2, NULL, N'Dev', N'PMT-TASK-009', N'Add Kanban Board drag and task creation', N'<p>Allow Dev Tasks to be created from the Kanban Board and moved across status columns.</p>', N'QA Passed', N'High', 100, N'https://intranet.local/pmt/tasks/009', DATEADD(DAY, -38, @Today), DATEADD(DAY, -31, @Today), DATEADD(DAY, -38, @Today), @Sin, NULL, DATEADD(DAY, -39, @Now), DATEADD(DAY, -31, @Now)),
+(@PmtProject, @PmtSprint3, NULL, N'Dev', N'PMT-TASK-011', N'Add Project, Sprint, and Dev Task filtering', N'<p>Make Projects drill into Sprints, Sprints drill into Dev Tasks, and Tasks refresh by selected Project/Sprint.</p>', N'QA Passed', N'Low', 100, N'https://intranet.local/pmt/tasks/011', DATEADD(DAY, -27, @Today), DATEADD(DAY, -21, @Today), DATEADD(DAY, -27, @Today), @Sin, NULL, DATEADD(DAY, -28, @Now), DATEADD(DAY, -21, @Now)),
+(@PmtProject, @PmtSprint3, NULL, N'Dev', N'PMT-TASK-015', N'Add Scrum and Documentation screens', N'<p>Rename Blogs to Documentation, add Scrum entries, and seed realistic Documentation with local images.</p>', N'QA Passed', N'Low', 100, N'https://intranet.local/pmt/tasks/015', DATEADD(DAY, -24, @Today), DATEADD(DAY, -16, @Today), DATEADD(DAY, -24, @Today), @Sin, NULL, DATEADD(DAY, -25, @Now), DATEADD(DAY, -16, @Now)),
+(@PmtProject, @PmtSprint4, NULL, N'Dev', N'PMT-TASK-016', N'Add Holiday maintenance and Gantt non-working-day rules', N'<p>Add configurable holidays for Philippine deployments and hide weekends/holidays on planning timelines unless work starts there.</p>', N'QA Passed', N'Low', 100, N'https://intranet.local/pmt/tasks/016', DATEADD(DAY, -13, @Today), DATEADD(DAY, -9, @Today), DATEADD(DAY, -13, @Today), @Sin, NULL, DATEADD(DAY, -14, @Now), DATEADD(DAY, -9, @Now)),
+(@PmtProject, @PmtSprint4, NULL, N'Dev', N'PMT-TASK-017', N'Create Road Map planning view', N'<p>Render Projects and Sprints by date with progress, avatars, filtering, sorting, and clickable navigation.</p>', N'QA Passed', N'High', 100, N'https://intranet.local/pmt/tasks/017', DATEADD(DAY, -12, @Today), DATEADD(DAY, -5, @Today), DATEADD(DAY, -12, @Today), @Sin, NULL, DATEADD(DAY, -13, @Now), DATEADD(DAY, -5, @Now)),
+(@PmtProject, @PmtSprint4, NULL, N'Dev', N'PMT-TASK-018', N'Add Gantt Sprint jump and fly-by demo', N'<p>Add Sprint filtering, selected Sprint mode, all-Sprints mode, reset behavior, and the fly-by demo animation.</p>', N'QA Passed', N'Low', 100, N'https://intranet.local/pmt/tasks/018', DATEADD(DAY, -10, @Today), DATEADD(DAY, -2, @Today), DATEADD(DAY, -10, @Today), @Sin, NULL, DATEADD(DAY, -11, @Now), DATEADD(DAY, -2, @Now)),
+(@PmtProject, @PmtSprint5, NULL, N'Dev', N'PMT-TASK-020', N'Add audit logs and Development settings tools', N'<p>Create task/bug audit popups, Development cleanup buttons, and seed restore support for PMT, LMS, and HLS.</p>', N'In Progress', N'Low', 70, N'https://intranet.local/pmt/tasks/020', @Today, DATEADD(DAY, 7, @Today), @Today, @Sin, NULL, @Now, @Now),
+(@PmtProject, @PmtSprint5, NULL, N'Dev', N'PMT-TASK-024', N'Add Light and Dark theme toggle', N'<p>Add a persistent theme toggle under the avatar menu and provide a professional light glassmorphism theme.</p>', N'In Progress', N'Low', 40, N'https://intranet.local/pmt/tasks/024', DATEADD(DAY, 1, @Today), DATEADD(DAY, 5, @Today), DATEADD(DAY, 1, @Today), @Sin, NULL, @Now, @Now),
+(@PmtProject, @PmtSprint5, NULL, N'Dev', N'PMT-TASK-026', N'Tune Gantt sizing for two-week Sprints', N'<p>Keep the HLS multi-year Gantt compressed while making normal two-week Sprint projects readable in one viewport.</p>', N'Todo', N'Low', 0, N'https://intranet.local/pmt/tasks/026', DATEADD(DAY, 2, @Today), DATEADD(DAY, 8, @Today), NULL, @Sin, NULL, @Now, @Now),
+(@PmtProject, NULL, NULL, N'Dev', N'PMT-BACKLOG-001', N'Add stakeholder export package', N'<p>Generate a lightweight stakeholder summary from Dashboard, Road Map, and Gantt views.</p>', N'Todo', N'Low', 0, N'https://intranet.local/pmt/backlog/001', NULL, NULL, NULL, @Sin, NULL, @Now, @Now),
+(@PmtProject, NULL, NULL, N'Dev', N'PMT-BACKLOG-002', N'Add reusable chart module for task and bug analytics', N'<p>Build simple animated charts without a charting library for Dev Task and Bug Report trends.</p>', N'Todo', N'Low', 0, N'https://intranet.local/pmt/backlog/002', NULL, NULL, NULL, @Sin, NULL, @Now, @Now);
 
-DECLARE @PmtAuditParent INT = (SELECT [TaskId] FROM [pmt].[WorkTasks] WHERE [Code] = N'PMT-TASK-201');
+DECLARE @PmtFoundationParent INT = (SELECT [TaskId] FROM [pmt].[WorkTasks] WHERE [Code] = N'PMT-TASK-001');
+DECLARE @PmtThemeParent INT = (SELECT [TaskId] FROM [pmt].[WorkTasks] WHERE [Code] = N'PMT-TASK-006');
+DECLARE @PmtFiltersParent INT = (SELECT [TaskId] FROM [pmt].[WorkTasks] WHERE [Code] = N'PMT-TASK-011');
+DECLARE @PmtAuditParent INT = (SELECT [TaskId] FROM [pmt].[WorkTasks] WHERE [Code] = N'PMT-TASK-020');
 
 INSERT INTO [pmt].[WorkTasks]
 (
     [ProjectId], [SprintId], [ParentTaskId], [TaskType], [Code], [Title], [DescriptionHtml],
     [Status], [Priority], [PercentCompleted], [Url], [StartDate], [EndDate], [StartedAt],
-    [CreatedByUserId], [LinkedBugTaskId]
+    [CreatedByUserId], [LinkedBugTaskId], [CreatedAt], [UpdatedAt]
 )
 VALUES
-(@PmtProject, @PmtSprint2, @PmtAuditParent, N'Dev', N'PMT-TASK-202', N'Add audit fields to database and API DTO', N'<p>Carry old/new status and percent values to the browser.</p>', N'Code Complete', N'High', 100, N'https://intranet.local/pmt/tasks/202', DATEADD(DAY, -11, @Today), DATEADD(DAY, -6, @Today), DATEADD(DAY, -11, @Today), @Sin, NULL),
-(@PmtProject, @PmtSprint2, @PmtAuditParent, N'Dev', N'PMT-TASK-203', N'Create audit popup on task and bug dialogs', N'<p>Show the newest audit rows first in a themed modal dialog.</p>', N'In Progress', N'High', 25, N'https://intranet.local/pmt/tasks/203', DATEADD(DAY, -5, @Today), DATEADD(DAY, 3, @Today), DATEADD(DAY, -5, @Today), @Sin, NULL);
+(@PmtProject, @PmtSprint1, @PmtFoundationParent, N'Dev', N'PMT-TASK-002', N'Create pmt schema and core tables', N'<p>Create all database objects under the pmt schema and prefix all references with it.</p>', N'QA Passed', N'Low', 100, N'https://intranet.local/pmt/tasks/002', DATEADD(DAY, -55, @Today), DATEADD(DAY, -54, @Today), DATEADD(DAY, -55, @Today), @Sin, NULL, DATEADD(DAY, -55, @Now), DATEADD(DAY, -54, @Now)),
+(@PmtProject, @PmtSprint1, @PmtFoundationParent, N'Dev', N'PMT-TASK-003', N'Build ADO.NET store methods', N'<p>Use straightforward SqlCommand calls and stored procedures instead of Entity Framework.</p>', N'QA Passed', N'Low', 100, N'https://intranet.local/pmt/tasks/003', DATEADD(DAY, -54, @Today), DATEADD(DAY, -52, @Today), DATEADD(DAY, -54, @Today), @Sin, NULL, DATEADD(DAY, -54, @Now), DATEADD(DAY, -52, @Now)),
+(@PmtProject, @PmtSprint1, @PmtFoundationParent, N'Dev', N'PMT-TASK-004', N'Create seed script and default users', N'<p>Seed the initial users, Password1 hashes, lookups, PMT project, and starter tasks.</p>', N'QA Passed', N'Low', 100, N'https://intranet.local/pmt/tasks/004', DATEADD(DAY, -52, @Today), DATEADD(DAY, -50, @Today), DATEADD(DAY, -52, @Today), @Sin, NULL, DATEADD(DAY, -52, @Now), DATEADD(DAY, -50, @Now)),
+(@PmtProject, @PmtSprint2, @PmtThemeParent, N'Dev', N'PMT-TASK-007', N'Style dropdowns and file uploads', N'<p>Remove the harsh default control borders and make dropdown menus match the dark UI.</p>', N'QA Passed', N'Low', 100, N'https://intranet.local/pmt/tasks/007', DATEADD(DAY, -41, @Today), DATEADD(DAY, -39, @Today), DATEADD(DAY, -41, @Today), @Sin, NULL, DATEADD(DAY, -41, @Now), DATEADD(DAY, -39, @Now)),
+(@PmtProject, @PmtSprint2, @PmtThemeParent, N'Dev', N'PMT-TASK-008', N'Fix checkbox alignment in dialogs', N'<p>Place checkboxes on the left with labels beside them in Project and User dialogs.</p>', N'QA Passed', N'Low', 100, N'https://intranet.local/pmt/tasks/008', DATEADD(DAY, -39, @Today), DATEADD(DAY, -36, @Today), DATEADD(DAY, -39, @Today), @Sin, NULL, DATEADD(DAY, -39, @Now), DATEADD(DAY, -36, @Now)),
+(@PmtProject, @PmtSprint3, @PmtFiltersParent, N'Dev', N'PMT-TASK-012', N'Project click filters Sprints', N'<p>Clicking a Project opens the Sprints view with that Project already selected.</p>', N'QA Passed', N'Low', 100, N'https://intranet.local/pmt/tasks/012', DATEADD(DAY, -27, @Today), DATEADD(DAY, -25, @Today), DATEADD(DAY, -27, @Today), @Sin, NULL, DATEADD(DAY, -27, @Now), DATEADD(DAY, -25, @Now)),
+(@PmtProject, @PmtSprint3, @PmtFiltersParent, N'Dev', N'PMT-TASK-013', N'Sprint click filters Dev Tasks', N'<p>Clicking a Sprint opens the Dev Tasks view with the Project and Sprint filters applied.</p>', N'QA Passed', N'Low', 100, N'https://intranet.local/pmt/tasks/013', DATEADD(DAY, -25, @Today), DATEADD(DAY, -23, @Today), DATEADD(DAY, -25, @Today), @Sin, NULL, DATEADD(DAY, -25, @Now), DATEADD(DAY, -23, @Now)),
+(@PmtProject, @PmtSprint3, @PmtFiltersParent, N'Dev', N'PMT-TASK-014', N'Add advanced Dev Task filters', N'<p>Add status, assigned-user, completion, newest/oldest, and hide-completed filters.</p>', N'QA Passed', N'Low', 100, N'https://intranet.local/pmt/tasks/014', DATEADD(DAY, -23, @Today), DATEADD(DAY, -21, @Today), DATEADD(DAY, -23, @Today), @Sin, NULL, DATEADD(DAY, -23, @Now), DATEADD(DAY, -21, @Now)),
+(@PmtProject, @PmtSprint5, @PmtAuditParent, N'Dev', N'PMT-TASK-021', N'Create task and bug audit popup', N'<p>Show status and completion changes from newest to oldest on read-only and edit dialogs.</p>', N'QA Passed', N'Low', 100, N'https://intranet.local/pmt/tasks/021', @Today, DATEADD(DAY, 2, @Today), @Today, @Sin, NULL, @Now, @Now),
+(@PmtProject, @PmtSprint5, @PmtAuditParent, N'Dev', N'PMT-TASK-022', N'Add Development cleanup buttons', N'<p>Add Settings tools to clear non-PMT data, clear PMT, clear users, and restore seed data.</p>', N'QA Passed', N'Low', 100, N'https://intranet.local/pmt/tasks/022', DATEADD(DAY, 1, @Today), DATEADD(DAY, 3, @Today), DATEADD(DAY, 1, @Today), @Sin, NULL, @Now, @Now),
+(@PmtProject, @PmtSprint5, @PmtAuditParent, N'Dev', N'PMT-TASK-023', N'Wire seed restore endpoint', N'<p>Replay the PMT, LMS, and HLS seed scripts from the Settings screen.</p>', N'In Progress', N'Low', 60, N'https://intranet.local/pmt/tasks/023', DATEADD(DAY, 3, @Today), DATEADD(DAY, 7, @Today), DATEADD(DAY, 3, @Today), @Sin, NULL, @Now, @Now);
 
 INSERT INTO [pmt].[WorkTasks]
 (
@@ -201,45 +231,49 @@ INSERT INTO [pmt].[WorkTasks]
     [CreatedByUserId], [LinkedBugTaskId]
 )
 VALUES
-(@PmtProject, @PmtSprint2, NULL, N'Bug', N'PMT-BUG-101', N'Dashboard sprint chips spill into adjacent columns', N'<p>Project Flow sprint task chips overflow horizontally on narrower browser widths.</p>', N'<ol><li>Open Dashboard.</li><li>Resize browser to a narrow desktop width.</li><li>Review the Project Flow section.</li></ol>', N'<p>Task chips cross into the neighboring sprint lane.</p>', N'<p>Task chips should clip or wrap inside the current sprint lane.</p>', N'local', N'Major', N'QA Passed', N'High', 100, N'https://intranet.local/pmt/bugs/101', DATEADD(DAY, -8, @Today), DATEADD(DAY, -2, @Today), DATEADD(DAY, -8, @Today), @Sin, NULL);
+(@PmtProject, @PmtSprint2, NULL, N'Bug', N'PMT-BUG-001', N'Dropdown menu stays white in dark theme', N'<p>Native dropdown options keep a white background and look disconnected from the dark UI.</p>', N'<ol><li>Open any edit dialog.</li><li>Open the Status dropdown.</li><li>Review the option list.</li></ol>', N'<p>The open menu is white and visually clashes with the page.</p>', N'<p>The dropdown options should use the PMT dark theme.</p>', N'local', N'Minor', N'QA Passed', N'Low', 100, N'https://intranet.local/pmt/bugs/001', DATEADD(DAY, -37, @Today), DATEADD(DAY, -34, @Today), DATEADD(DAY, -37, @Today), @Sin, NULL),
+(@PmtProject, @PmtSprint4, NULL, N'Bug', N'PMT-BUG-002', N'Gantt day labels overlap on compressed timelines', N'<p>When a long project is shown, day numbers can overlap and become unreadable.</p>', N'<ol><li>Open Gantt.</li><li>Select HLS.</li><li>Show all Sprints.</li></ol>', N'<p>Day labels crowd together on narrow columns.</p>', N'<p>Only enough labels should be shown to keep the header readable.</p>', N'SIT', N'Major', N'QA Passed', N'High', 100, N'https://intranet.local/pmt/bugs/002', DATEADD(DAY, -8, @Today), DATEADD(DAY, -3, @Today), DATEADD(DAY, -8, @Today), @Sin, NULL),
+(@PmtProject, @PmtSprint5, NULL, N'Bug', N'PMT-BUG-003', N'Gantt bug expansion jumps back to current Sprint', N'<p>During a fly-by pause, expanding a task bug row rerenders the chart and jumps back to the selected/current Sprint.</p>', N'<ol><li>Start the Gantt fly-by.</li><li>Wait until the viewport reaches an older Sprint.</li><li>Expand a bug icon.</li></ol>', N'<p>The viewport jumps to the current Sprint instead of staying on the Sprint being reviewed.</p>', N'<p>The bug rows should expand without changing the current scroll position.</p>', N'SIT', N'Major', N'QA Failed', N'High', 100, N'https://intranet.local/pmt/bugs/003', DATEADD(DAY, 1, @Today), DATEADD(DAY, 6, @Today), DATEADD(DAY, 1, @Today), @Sin, NULL);
 
-DECLARE @PmtBug INT = (SELECT [TaskId] FROM [pmt].[WorkTasks] WHERE [Code] = N'PMT-BUG-101');
-
-INSERT INTO [pmt].[WorkTasks]
-(
-    [ProjectId], [SprintId], [ParentTaskId], [TaskType], [Code], [Title], [DescriptionHtml],
-    [Status], [Priority], [PercentCompleted], [Url], [StartDate], [EndDate], [StartedAt],
-    [CreatedByUserId], [LinkedBugTaskId]
-)
-VALUES
-(@PmtProject, @PmtSprint2, NULL, N'Dev', N'PMT-TASK-205', N'Bug Fix: Dashboard sprint chips spill into adjacent columns', N'<p>Constrain each sprint lane and clip long task text.</p>', N'QA Passed', N'High', 100, N'https://intranet.local/pmt/tasks/205', DATEADD(DAY, -7, @Today), DATEADD(DAY, -2, @Today), DATEADD(DAY, -7, @Today), @Sin, @PmtBug);
-
-DECLARE @PmtBugFix INT = (SELECT [TaskId] FROM [pmt].[WorkTasks] WHERE [Code] = N'PMT-TASK-205');
+DECLARE @PmtBugTheme INT = (SELECT [TaskId] FROM [pmt].[WorkTasks] WHERE [Code] = N'PMT-BUG-001');
+DECLARE @PmtBugGanttLabels INT = (SELECT [TaskId] FROM [pmt].[WorkTasks] WHERE [Code] = N'PMT-BUG-002');
+DECLARE @PmtBugGanttJump INT = (SELECT [TaskId] FROM [pmt].[WorkTasks] WHERE [Code] = N'PMT-BUG-003');
 
 INSERT INTO [pmt].[WorkTasks]
 (
     [ProjectId], [SprintId], [ParentTaskId], [TaskType], [Code], [Title], [DescriptionHtml],
     [Status], [Priority], [PercentCompleted], [Url], [StartDate], [EndDate], [StartedAt],
-    [CreatedByUserId], [LinkedBugTaskId]
+    [CreatedByUserId], [LinkedBugTaskId], [CreatedAt], [UpdatedAt]
 )
 VALUES
-(@PmtProject, @PmtSprint1, (SELECT [TaskId] FROM [pmt].[WorkTasks] WHERE [Code] = N'PMT-TASK-101'), N'Dev', N'PMT-TASK-111', N'Create task stored procedures', N'<p>Create the stored procedures used by the PMT Task screens.</p>', N'QA Passed', N'High', 100, N'https://intranet.local/pmt/tasks/111', DATEADD(DAY, -27, @Today), DATEADD(DAY, -24, @Today), DATEADD(DAY, -27, @Today), @Sin, NULL),
-(@PmtProject, @PmtSprint1, (SELECT [TaskId] FROM [pmt].[WorkTasks] WHERE [Code] = N'PMT-TASK-101'), N'Dev', N'PMT-TASK-112', N'Create task API endpoints', N'<p>Expose simple task API endpoints for the browser UI.</p>', N'QA Passed', N'High', 100, N'https://intranet.local/pmt/tasks/112', DATEADD(DAY, -24, @Today), DATEADD(DAY, -22, @Today), DATEADD(DAY, -24, @Today), @Sin, NULL);
+(@PmtProject, @PmtSprint2, NULL, N'Dev', N'PMT-TASK-010', N'Bug Fix: Dropdown menu stays white in dark theme', N'<p>Style native select options and use the themed background for dropdown menus.</p>', N'QA Passed', N'Low', 100, N'https://intranet.local/pmt/tasks/010', DATEADD(DAY, -36, @Today), DATEADD(DAY, -34, @Today), DATEADD(DAY, -36, @Today), @Sin, @PmtBugTheme, DATEADD(DAY, -36, @Now), DATEADD(DAY, -34, @Now)),
+(@PmtProject, @PmtSprint4, NULL, N'Dev', N'PMT-TASK-019', N'Bug Fix: Gantt day labels overlap on compressed timelines', N'<p>Throttle day labels when columns are narrow so the calendar remains readable.</p>', N'QA Passed', N'Low', 100, N'https://intranet.local/pmt/tasks/019', DATEADD(DAY, -7, @Today), DATEADD(DAY, -3, @Today), DATEADD(DAY, -7, @Today), @Sin, @PmtBugGanttLabels, DATEADD(DAY, -7, @Now), DATEADD(DAY, -3, @Now)),
+(@PmtProject, @PmtSprint5, NULL, N'Dev', N'PMT-TASK-025', N'Bug Fix: Gantt bug expansion jumps back to current Sprint', N'<p>Preserve the current scroll position when expanding bug details during fly-by review.</p>', N'In Progress', N'Low', 75, N'https://intranet.local/pmt/tasks/025', DATEADD(DAY, 1, @Today), DATEADD(DAY, 6, @Today), DATEADD(DAY, 1, @Today), @Sin, @PmtBugGanttJump, @Now, @Now);
+
+DECLARE @PmtThemeBugFix INT = (SELECT [TaskId] FROM [pmt].[WorkTasks] WHERE [Code] = N'PMT-TASK-010');
+DECLARE @PmtGanttLabelBugFix INT = (SELECT [TaskId] FROM [pmt].[WorkTasks] WHERE [Code] = N'PMT-TASK-019');
+DECLARE @PmtGanttJumpBugFix INT = (SELECT [TaskId] FROM [pmt].[WorkTasks] WHERE [Code] = N'PMT-TASK-025');
 
 INSERT INTO [pmt].[TaskAssignees] ([TaskId], [UserId], [CreatedByUserId])
-SELECT [TaskId], @Bill, @Sin FROM [pmt].[WorkTasks] WHERE [Code] IN (N'PMT-TASK-101', N'PMT-TASK-111', N'PMT-TASK-112', N'PMT-TASK-202')
-UNION ALL SELECT [TaskId], @Mark, @Sin FROM [pmt].[WorkTasks] WHERE [Code] IN (N'PMT-TASK-102', N'PMT-TASK-203')
-UNION ALL SELECT [TaskId], @Lisa, @Sin FROM [pmt].[WorkTasks] WHERE [Code] IN (N'PMT-TASK-201', N'PMT-TASK-204', N'PMT-TASK-205')
-UNION ALL SELECT [TaskId], @Steve, @Sin FROM [pmt].[WorkTasks] WHERE [Code] IN (N'PMT-BACKLOG-1')
-UNION ALL SELECT [TaskId], @Lisa, @Sin FROM [pmt].[WorkTasks] WHERE [Code] IN (N'PMT-BUG-101');
+SELECT [TaskId], @Bill, @Sin FROM [pmt].[WorkTasks] WHERE [Code] IN (N'PMT-TASK-001', N'PMT-TASK-002', N'PMT-TASK-003', N'PMT-TASK-004', N'PMT-TASK-005', N'PMT-TASK-021', N'PMT-TASK-022')
+UNION ALL SELECT [TaskId], @Mark, @Sin FROM [pmt].[WorkTasks] WHERE [Code] IN (N'PMT-TASK-006', N'PMT-TASK-007', N'PMT-TASK-008', N'PMT-TASK-009', N'PMT-TASK-010', N'PMT-TASK-024')
+UNION ALL SELECT [TaskId], @Lisa, @Sin FROM [pmt].[WorkTasks] WHERE [Code] IN (N'PMT-TASK-011', N'PMT-TASK-012', N'PMT-TASK-013', N'PMT-TASK-014', N'PMT-TASK-015', N'PMT-TASK-017', N'PMT-TASK-018', N'PMT-TASK-019', N'PMT-TASK-025', N'PMT-TASK-026')
+UNION ALL SELECT [TaskId], @Steve, @Sin FROM [pmt].[WorkTasks] WHERE [Code] IN (N'PMT-TASK-016', N'PMT-TASK-020', N'PMT-TASK-023', N'PMT-BACKLOG-001', N'PMT-BACKLOG-002')
+UNION ALL SELECT [TaskId], @Sam, @Sin FROM [pmt].[WorkTasks] WHERE [Code] IN (N'PMT-BUG-001', N'PMT-BUG-002', N'PMT-BUG-003');
 
 INSERT INTO [pmt].[TaskReporters] ([TaskId], [UserId], [CreatedByUserId])
-VALUES (@PmtBug, @Sam, @Sin);
+VALUES
+(@PmtBugTheme, @Sam, @Sin),
+(@PmtBugGanttLabels, @Sam, @Sin),
+(@PmtBugGanttJump, @Sam, @Sin);
 
 INSERT INTO [pmt].[TaskDependencies] ([TaskId], [DependsOnTaskId], [CreatedByUserId])
 VALUES
-(@PmtBugFix, @PmtBug, @Sin),
-((SELECT [TaskId] FROM [pmt].[WorkTasks] WHERE [Code] = N'PMT-TASK-204'), (SELECT [TaskId] FROM [pmt].[WorkTasks] WHERE [Code] = N'PMT-TASK-102'), @Sin);
+(@PmtThemeBugFix, @PmtBugTheme, @Sin),
+(@PmtGanttLabelBugFix, @PmtBugGanttLabels, @Sin),
+(@PmtGanttJumpBugFix, @PmtBugGanttJump, @Sin),
+((SELECT [TaskId] FROM [pmt].[WorkTasks] WHERE [Code] = N'PMT-TASK-024'), (SELECT [TaskId] FROM [pmt].[WorkTasks] WHERE [Code] = N'PMT-TASK-006'), @Sin),
+((SELECT [TaskId] FROM [pmt].[WorkTasks] WHERE [Code] = N'PMT-TASK-026'), (SELECT [TaskId] FROM [pmt].[WorkTasks] WHERE [Code] = N'PMT-TASK-018'), @Sin);
 
 -- Parent task progress stays calculated from its sub-tasks.
 UPDATE [ParentTask]
@@ -268,12 +302,7 @@ WHERE [ChildAverage].[PercentCompleted] IS NOT NULL;
 )
 UPDATE [Task]
 SET
-    [SortOrder] = [OrderedTasks].[RowNumber] * 10,
-    [Priority] = CASE
-        WHEN ([OrderedTasks].[RowNumber] - 1) % 20 = 0 THEN N'High'
-        WHEN ([OrderedTasks].[RowNumber] - 1) % 20 = 1 THEN N'Low'
-        ELSE N'Medium'
-    END
+    [SortOrder] = [OrderedTasks].[RowNumber] * 10
 FROM [pmt].[WorkTasks] AS [Task]
 INNER JOIN OrderedTasks
     ON [OrderedTasks].[TaskId] = [Task].[TaskId];
@@ -292,18 +321,25 @@ INSERT INTO [pmt].[AuditEvents]
     [OldPercentCompleted], [NewPercentCompleted], [UserId], [CreatedByUserId], [CreatedAt]
 )
 VALUES
-(N'Task', @PmtBug, N'Status/Percent Changed', N'QA started testing the dashboard clipping bug.', N'Todo', N'QA in Progress', 0, 0, @Sam, @Sin, DATEADD(DAY, -6, @Now)),
-(N'Task', @PmtBug, N'Status/Percent Changed', N'QA failed the first fix attempt and marked the Bug complete for the developer queue.', N'QA in Progress', N'QA Failed', 0, 100, @Sam, @Sin, DATEADD(DAY, -5, @Now)),
-(N'Task', @PmtBugFix, N'Status/Percent Changed', N'Developer started the Bug Fix task.', N'Todo', N'In Progress', 0, 50, @Lisa, @Sin, DATEADD(DAY, -5, @Now)),
-(N'Task', @PmtBugFix, N'Status/Percent Changed', N'Bug Fix reached Code Complete; Bug percent reset for QA retest.', N'In Progress', N'Code Complete', 50, 100, @Lisa, @Sin, DATEADD(DAY, -4, @Now)),
-(N'Task', @PmtBug, N'Status/Percent Changed', N'Bug percent reset to 0 for QA retest.', N'QA Failed', N'QA Failed', 100, 0, @Lisa, @Sin, DATEADD(DAY, -4, @Now)),
-(N'Task', @PmtBug, N'Status/Percent Changed', N'QA passed the retest.', N'QA Failed', N'QA Passed', 0, 100, @Sam, @Sin, DATEADD(DAY, -3, @Now));
+(N'Task', @PmtThemeParent, N'Status/Percent Changed', N'Parent percent recalculated from dark-theme sub-tasks.', N'In Progress', N'QA Passed', 50, 100, @Mark, @Sin, DATEADD(DAY, -35, @Now)),
+(N'Task', @PmtBugTheme, N'Status/Percent Changed', N'QA reproduced the dropdown contrast issue.', N'Todo', N'QA Failed', 0, 100, @Sam, @Sin, DATEADD(DAY, -36, @Now)),
+(N'Task', @PmtThemeBugFix, N'Status/Percent Changed', N'Developer corrected select option colors.', N'Todo', N'Code Complete', 0, 100, @Mark, @Sin, DATEADD(DAY, -35, @Now)),
+(N'Task', @PmtBugTheme, N'Status/Percent Changed', N'Bug percent reset to 0 for QA retest.', N'QA Failed', N'QA Failed', 100, 0, @Mark, @Sin, DATEADD(DAY, -35, @Now)),
+(N'Task', @PmtBugTheme, N'Status/Percent Changed', N'QA passed the themed dropdown retest.', N'QA Failed', N'QA Passed', 0, 100, @Sam, @Sin, DATEADD(DAY, -34, @Now)),
+(N'Task', @PmtFiltersParent, N'Status/Percent Changed', N'Parent percent recalculated after the filter subtasks passed QA.', N'In Progress', N'QA Passed', 67, 100, @Lisa, @Sin, DATEADD(DAY, -20, @Now)),
+(N'Task', @PmtGanttLabelBugFix, N'Status/Percent Changed', N'Developer reduced crowded day labels on compressed timelines.', N'Todo', N'Code Complete', 0, 100, @Lisa, @Sin, DATEADD(DAY, -4, @Now)),
+(N'Task', @PmtBugGanttLabels, N'Status/Percent Changed', N'QA passed the Gantt header label retest.', N'QA in Progress', N'QA Passed', 0, 100, @Sam, @Sin, DATEADD(DAY, -3, @Now)),
+(N'Task', @PmtAuditParent, N'Status/Percent Changed', N'Parent percent recalculated from audit and Development settings sub-tasks.', N'Todo', N'In Progress', 0, 70, @Steve, @Sin, @Now),
+(N'Task', @PmtBugGanttJump, N'Status/Percent Changed', N'QA failed the fly-by bug expansion behavior and returned it to development.', N'QA in Progress', N'QA Failed', 0, 100, @Sam, @Sin, DATEADD(HOUR, 2, @Now)),
+(N'Task', @PmtGanttJumpBugFix, N'Status/Percent Changed', N'Developer started preserving the Gantt viewport while expanding bug rows.', N'Todo', N'In Progress', 0, 75, @Lisa, @Sin, DATEADD(HOUR, 3, @Now));
 
 INSERT INTO [pmt].[DevLogs] ([ProjectId], [UserId], [LogDate], [BodyHtml], [IsPinned], [CreatedByUserId])
 VALUES
-(@PmtProject, @Sin, DATEADD(DAY, -3, @Today), N'<p><strong>What did you accomplish yesterday?</strong><br>Reviewed the audit-log requirements and mapped the database changes.</p><p><strong>What do you plan to do today?</strong><br>Rebuild the PMT database and verify LMS/HLS seed data.</p><p><strong>Do you have any roadblocks?</strong><br>No blockers.</p>', 1, @Sin),
-(@PmtProject, @Mark, DATEADD(DAY, -4, @Today), N'<p><strong>What did you accomplish yesterday?</strong><br>Checked the dashboard Project Flow clipping behavior.</p><p><strong>What do you plan to do today?</strong><br>Retest the sprint card layout at tablet widths.</p><p><strong>Do you have any roadblocks?</strong><br>No blockers.</p>', 0, @Sin),
-(@PmtProject, @Lisa, DATEADD(DAY, -5, @Today), N'<p><strong>What did you accomplish yesterday?</strong><br>Finished the first bug-fix pass for dashboard sprint chips.</p><p><strong>What do you plan to do today?</strong><br>Support QA retest and clean up any remaining layout issues.</p><p><strong>Do you have any roadblocks?</strong><br>No blockers.</p>', 0, @Sin);
+(@PmtProject, @Bill, DATEADD(DAY, -52, @Today), N'<p><strong>What did you accomplish yesterday?</strong><br>Created the pmt schema and the first stored procedures.</p><p><strong>What do you plan to do today?</strong><br>Wire ADO.NET calls for Projects, Sprints, and Dev Tasks.</p><p><strong>Do you have any roadblocks?</strong><br>No blockers.</p>', 0, @Sin),
+(@PmtProject, @Mark, DATEADD(DAY, -39, @Today), N'<p><strong>What did you accomplish yesterday?</strong><br>Restyled dropdowns and file upload controls for the dark theme.</p><p><strong>What do you plan to do today?</strong><br>Finish the Kanban Board drag behavior.</p><p><strong>Do you have any roadblocks?</strong><br>No blockers.</p>', 0, @Sin),
+(@PmtProject, @Lisa, DATEADD(DAY, -24, @Today), N'<p><strong>What did you accomplish yesterday?</strong><br>Connected Project and Sprint clicks to filtered views.</p><p><strong>What do you plan to do today?</strong><br>Add the advanced Dev Task filters.</p><p><strong>Do you have any roadblocks?</strong><br>Need one more QA pass on filter state.</p>', 0, @Sin),
+(@PmtProject, @Steve, DATEADD(DAY, -12, @Today), N'<p><strong>What did you accomplish yesterday?</strong><br>Added Holiday maintenance and started Road Map rendering.</p><p><strong>What do you plan to do today?</strong><br>Make Projects and Sprints clickable on the Road Map.</p><p><strong>Do you have any roadblocks?</strong><br>No blockers.</p>', 0, @Sin),
+(@PmtProject, @Sin, @Today, N'<p><strong>What did you accomplish yesterday?</strong><br>Verified Development cleanup and seed restore flows.</p><p><strong>What do you plan to do today?</strong><br>Add the linked-bug completion guard and theme toggle.</p><p><strong>Do you have any roadblocks?</strong><br>No blockers.</p>', 1, @Sin);
 
 INSERT INTO [pmt].[Blogs] ([ProjectId], [Title], [BodyHtml], [CreatedByUserId], [UpdatedByUserId], [CreatedAt], [UpdatedAt])
 VALUES

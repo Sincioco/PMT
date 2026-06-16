@@ -16,6 +16,7 @@ Gantt Chart
 3.) Remove the rounded corners on all items rendered on the Gantt Chart and Road Map.
 4.) BUG:  There is a bug in the Gantt Chart.  If you start the fly-by and you are on the next destination Sprint (the Sprint before) or any Sprint earlier than the current Sprint, if you click to expand the bug icon, it switches the viewport back to the current Sprint.  It should stay on the same Sprint that you are currently viewing and just expand the bug details without switching the viewport back to the current Sprint.  Please fix this bug.
 
+
 Dark and Light Themes
 ---------------------
 1.) Under the Avatar menu and make it be the 2nd item in menu add a Dark / Light Theme toggle button.  Use a sun and moon icon.  It should be a toggle button that will switch the theme between Light and Dark mode.
@@ -24,6 +25,10 @@ Dark and Light Themes
 4.) Use the current theme as the Dark Theme.
 5.) For the light theme use a professional and clean color scheme with light backgrounds and dark text.  Implement light shadows for cards and buttons to give a sense of depth.  Use a consistent color palette with accent colors for buttons and important elements.  Ensure that the light theme is visually appealing and provides a good user experience while maintaining readability and accessibility.  Be sure to test the light theme thoroughly to ensure that all elements are styled correctly and that there are no visual issues or inconsistencies in the design.
 6.) For the light theme implement a light glassmorphism effect for the cards and modals, with a subtle blur and transparency to give it a modern and sleek look.  Use light pastel colors for the glassmorphism effect to maintain a clean and professional appearance.  Be sure to test the glassmorphism effect in the light theme to ensure that it looks good and does not cause any readability issues with the text or other elements on the cards and modals.  Adjust the level of blur and transparency as needed to achieve the desired visual effect while maintaining usability and readability in the light theme.
+7.) Be sure the chart has smooth animation.
+
+
+------------------------------------------------------------
 
 Charts and Graphs
 -----------------
@@ -49,6 +54,7 @@ Developer Task Tracking Charts:
 7.) If the user clicks on a chart and that data is associated to one specific element such as a Sprint or a Bug report or a Dev Task, popup a dialog box in read-only mode with details about that item.
 8.) If there are other charts you find useful for tracking our development process, feel free to add them as well.  The goal is to provide as much insight and information as possible to help us improve our development process and ultimately deliver a better product to our users.
 9.) The chart should not use any charting library.  It should be built from scratch using HTML, CSS, and JavaScript.  This will allow for greater customization and flexibility in the design and functionality of the chart.  Create a re-usable charting module that can be used for other types of charts in the future and to make it easier to maintain and update the charts as needed.  The charting module should be designed to handle different types of data and be easily customizable to fit the specific needs of our development process tracking.
+10.) Be sure the chart has smooth animation.
 
 
 Development in Settings

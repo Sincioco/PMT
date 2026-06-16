@@ -4,7 +4,16 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>PMT</title>
-  <link rel="stylesheet" href="/styles.css?v=20260616-devtools1">
+  <script>
+    (function () {
+      try {
+        document.documentElement.dataset.theme = localStorage.getItem("pmt-theme") || "dark";
+      } catch {
+        document.documentElement.dataset.theme = "dark";
+      }
+    }());
+  </script>
+  <link rel="stylesheet" href="/styles.css?v=20260617-theme3">
 </head>
 <body>
   <header class="topbar">
@@ -26,6 +35,10 @@
           <button type="button" data-view="Settings">
             <span class="button-icon" aria-hidden="true">&#9881;</span>
             <span>Settings</span>
+          </button>
+          <button type="button" data-action="toggle-theme" id="themeToggle">
+            <span class="button-icon" aria-hidden="true" data-theme-icon>&#9728;</span>
+            <span data-theme-label>Light Theme</span>
           </button>
           <button type="button" data-action="change-password">
             <span class="button-icon" aria-hidden="true">&#128273;</span>
@@ -63,6 +76,6 @@
   </dialog>
 
   <div id="toast" class="toast" hidden></div>
-  <script src="/app.js?v=20260616-devtools1"></script>
+  <script src="/app.js?v=20260617-theme3"></script>
 </body>
 </html>
