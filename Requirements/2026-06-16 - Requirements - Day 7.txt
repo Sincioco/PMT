@@ -77,3 +77,7 @@ Feedback
 --------
 1.) I tested the drag and drop and it doesn't seem to work at all.  You can re-order 1 item successfully but any other attempt to re-order things afterwards, doesn't work.  Can you re-evaluate your logic and in your smoke testing re-order a few items.  Start with the Kanban board and be sure you can re-order there properly before moving into the Dev Tasks and Bug Reports.
 2.) Also, when you drag and drop, put some sort of visual indicator so the user knows where the card would land in terms of ordering...above the target or below the target.
+
+Git Hub Repository
+------------------
+I just created a new repo:  https://github.com/Sincioco/PMT.  I want you to commit this whole project into that repository be sure that the check-in name is "Sin" and the email is "louiery@gmail.com" whenever you commit changes.
