@@ -1,6 +1,14 @@
 # PMT - Project Management Tool
 
-PMT is an internal JIRA-style project management tool for software engineering teams.
+PMT = JIRA + Confluence + Microsoft Project made for Software Engineering Teams.
+
+Key Features:
+1.) Kanban Board
+2.) Dev Tasks
+3.) QA Bug Reports
+4.) Documentation (blogs)
+5.) Gantt Chart
+6.) Road Map
 
 ## Stack
 
