@@ -3,12 +3,12 @@
 PMT = JIRA + Confluence + Microsoft Project made for Software Engineering Teams.
 
 Key Features:
-1.) Kanban Board
-2.) Dev Tasks
-3.) QA Bug Reports
-4.) Documentation (blogs)
-5.) Gantt Chart
-6.) Road Map
+- Kanban Board
+- Dev Tasks
+- QA Bug Reports
+- Documentation (blogs)
+- Gantt Chart
+-  Road Map
 
 ## Stack
 
