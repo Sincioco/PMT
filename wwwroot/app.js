@@ -965,12 +965,13 @@ function renderBugs() {
 
 function renderSettings() {
   const lookupTypes = [...new Set(["Status", "Priority", "Severity", "Environment", ...(state.lookups || []).map(item => item.lookupType)])].sort();
-  const categories = [...lookupTypes, "Users", "Holidays"];
+  const categories = [...lookupTypes, "Users", "Holidays", "Development"];
   if (!categories.includes(settingsCategory)) settingsCategory = lookupTypes[0] || "Status";
 
   const isUsers = settingsCategory === "Users";
   const isHolidays = settingsCategory === "Holidays";
-  if (!isUsers && !isHolidays) {
+  const isDevelopment = settingsCategory === "Development";
+  if (!isUsers && !isHolidays && !isDevelopment) {
     lookupTypeFilter = settingsCategory;
     localStorage.setItem("pmt-lookup-type", lookupTypeFilter);
   }
@@ -978,12 +979,15 @@ function renderSettings() {
   let actionsHtml = `<button class="primary text-icon-button" type="button" data-action="new-lookup" ${currentUser().isAdmin ? "" : "disabled"}>${buttonContent("&#10010;", "New Setting")}</button>`;
   if (isUsers) actionsHtml = `<button class="primary text-icon-button" type="button" data-action="new-user" ${currentUser().isAdmin ? "" : "disabled"}>${buttonContent("&#10010;", "New User")}</button>`;
   if (isHolidays) actionsHtml = `<button class="primary text-icon-button" type="button" data-action="new-holiday" ${currentUser().isAdmin ? "" : "disabled"}>${buttonContent("&#10010;", "New Holiday")}</button>`;
+  if (isDevelopment) actionsHtml = "";
 
   const contentHtml = isUsers
     ? settingsUsersHtml()
     : isHolidays
       ? settingsHolidaysHtml()
-      : settingsLookupHtml(settingsCategory);
+      : isDevelopment
+        ? settingsDevelopmentHtml()
+        : settingsLookupHtml(settingsCategory);
 
   app.innerHTML = `
     ${sectionHead("Settings", actionsHtml)}
@@ -996,6 +1000,48 @@ function renderSettings() {
         `).join("")}
       </aside>
       ${contentHtml}
+    </div>
+  `;
+}
+
+function settingsDevelopmentHtml() {
+  const canRun = currentUser().isAdmin;
+  return `
+    <div class="panel development-panel">
+      <div>
+        <h2>Development</h2>
+        <p class="muted">These tools reset test data during development. Use the named PMT button when PMT itself should be cleared.</p>
+      </div>
+      <div class="development-actions">
+        <div class="development-action-row">
+          <div>
+            <strong>Clear All Except PMT</strong>
+            <p class="muted">Deletes non-PMT Projects, Sprints, Dev Tasks, Bug Reports, Scrum, and Documentation.</p>
+          </div>
+          <button class="secondary text-icon-button" type="button" data-action="development-clear-non-pmt" ${canRun ? "" : "disabled"}>${buttonContent("&#128465;", "Clear All Except PMT")}</button>
+        </div>
+        <div class="development-action-row danger-row">
+          <div>
+            <strong>Clear PMT</strong>
+            <p class="muted">Deletes the PMT Project, Sprints, Dev Tasks, Bug Reports, Scrum, and Documentation.</p>
+          </div>
+          <button class="danger text-icon-button" type="button" data-action="development-clear-pmt" ${canRun ? "" : "disabled"}>${buttonContent("&#9888;", "Clear PMT")}</button>
+        </div>
+        <div class="development-action-row">
+          <div>
+            <strong>Clear Users</strong>
+            <p class="muted">Deletes every user except Sin and remaps ownership, assignees, reporters, and audit records to Sin.</p>
+          </div>
+          <button class="secondary text-icon-button" type="button" data-action="development-clear-users" ${canRun ? "" : "disabled"}>${buttonContent("&#128100;", "Clear Users")}</button>
+        </div>
+        <div class="development-action-row">
+          <div>
+            <strong>Restore Initial Seed Data</strong>
+            <p class="muted">Restores the PMT, LMS, and HLS demo data from the SQL seed scripts.</p>
+          </div>
+          <button class="primary text-icon-button" type="button" data-action="development-restore-seed-data" ${canRun ? "" : "disabled"}>${buttonContent("&#8635;", "Restore Initial Seed Data")}</button>
+        </div>
+      </div>
     </div>
   `;
 }
@@ -1082,7 +1128,8 @@ function settingsCategoryIcon(type) {
     Severity: "&#9888;",
     Environment: "&#127758;",
     Users: "&#128100;",
-    Holidays: "&#128197;"
+    Holidays: "&#128197;",
+    Development: "&#128295;"
   };
 
   return icons[type] || "&#9881;";
@@ -1297,6 +1344,26 @@ async function handleActionClick(event) {
   if (action === "new-holiday") editHoliday();
   if (action === "edit-holiday") editHoliday(state.holidays.find(item => item.id === id));
   if (action === "delete-holiday") await deleteItem(`/api/holidays/${id}`, "Deactivate this holiday?");
+  if (action === "development-clear-non-pmt") await runDevelopmentAction(
+    "/api/development/clear-non-pmt",
+    "Clear LMS, HLS, and any non-PMT Projects, Sprints, Dev Tasks, Bug Reports, Scrum, and Documentation? PMT will remain intact.",
+    "Non-PMT development data cleared."
+  );
+  if (action === "development-clear-pmt") await runDevelopmentAction(
+    "/api/development/clear-pmt",
+    "Clear the PMT Project, Sprints, Dev Tasks, Bug Reports, Scrum, and Documentation?",
+    "PMT development data cleared."
+  );
+  if (action === "development-clear-users") await runDevelopmentAction(
+    "/api/development/clear-users",
+    "Clear all users except Sin and remap ownership, assignees, reporters, and audit records to Sin?",
+    "Users cleared and remapped to Sin."
+  );
+  if (action === "development-restore-seed-data") await runDevelopmentAction(
+    "/api/development/restore-seed-data",
+    "Restore initial seed data for PMT, LMS, and HLS? Current development data will be replaced.",
+    "Initial seed data restored."
+  );
   if (action === "goto-task") gotoTask(id);
   if (action === "gantt-open-task") openGanttTask(id);
   if (action === "view-project-gantt") viewProjectGantt(id);
@@ -2401,6 +2468,21 @@ async function deleteItem(path, message) {
   }
 }
 
+async function runDevelopmentAction(path, message, successMessage) {
+  if (!await askYesNo(message, "Development")) return;
+
+  try {
+    await api(path, { method: "POST" });
+    await loadState();
+    settingsCategory = "Development";
+    localStorage.setItem("pmt-settings-category", settingsCategory);
+    renderSettings();
+    showToast(successMessage);
+  } catch (error) {
+    showToast(error.message);
+  }
+}
+
 async function finishSprint(id) {
   const options = await askFinishSprintOptions();
   if (!options) return;
@@ -3039,7 +3121,7 @@ function toggleRoadMapSprints() {
 function selectLookupType(type) {
   settingsCategory = type || "Status";
   localStorage.setItem("pmt-settings-category", settingsCategory);
-  if (settingsCategory !== "Users" && settingsCategory !== "Holidays") {
+  if (settingsCategory !== "Users" && settingsCategory !== "Holidays" && settingsCategory !== "Development") {
     lookupTypeFilter = settingsCategory;
     localStorage.setItem("pmt-lookup-type", lookupTypeFilter);
   }

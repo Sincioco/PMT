@@ -81,3 +81,14 @@ Feedback
 Git Hub Repository
 ------------------
 I just created a new repo:  https://github.com/Sincioco/PMT.  I want you to commit this whole project into that repository be sure that the check-in name is "Sin" and the email is "louiery@gmail.com" whenever you commit changes.
+
+
+Settings
+--------
+1.) In settings, create a category/section called "Development" and add a button that clears all of the Projects, Tasks, and Sprints except for PMT.
+2.) In the same "Development" section, add another button that clears PMT.
+3.) In the same "Development" section, add another button that clears All Users and remaps all the users to the Admin account which is the "Louiery Sincioco" account or "Sin", the original Admin account.
+4.) So the desired end result when they click all the buttons is all the users are gone except for the initial Admin user (Sin), all projects, sprints, dev tasks and bugs are gone except except for PMT.
+5.) Add another button that reads "Restore Initial Seed Data" which will restore the initial seed data for PMT, LMS, and HLS.  This will be useful for testing purposes.
+6.) PMT's projects, sprints, tasks, bugs should remain intact at all times except when the user clicks the "Clear PMT" button.
+7.) When "Clear PMT" is clicked, preserve the Blogs/Documentations since that actually functions as the system's changelog and release notes, so we want to keep that intact even if we clear the rest of PMT's data.

@@ -1,4 +1,5 @@
 using System.Data;
+using System.Text;
 using Microsoft.Data.SqlClient;
 using PMT.Models;
 
@@ -359,6 +360,65 @@ public sealed class SqlPmtStore
         }, cancellationToken);
     }
 
+    public Task DevelopmentClearNonPmtAsync(int currentUserId, CancellationToken cancellationToken)
+    {
+        return ExecuteProcedureAsync("[pmt].[DevelopmentClearNonPmt]", command =>
+        {
+            Add(command, "@CurrentUserId", currentUserId);
+        }, cancellationToken);
+    }
+
+    public Task DevelopmentClearPmtAsync(int currentUserId, CancellationToken cancellationToken)
+    {
+        return ExecuteProcedureAsync("[pmt].[DevelopmentClearPmt]", command =>
+        {
+            Add(command, "@CurrentUserId", currentUserId);
+        }, cancellationToken);
+    }
+
+    public Task DevelopmentClearUsersAsync(int currentUserId, CancellationToken cancellationToken)
+    {
+        return ExecuteProcedureAsync("[pmt].[DevelopmentClearUsers]", command =>
+        {
+            Add(command, "@CurrentUserId", currentUserId);
+        }, cancellationToken);
+    }
+
+    public async Task RestoreInitialSeedDataAsync(string contentRootPath, int currentUserId, CancellationToken cancellationToken)
+    {
+        // Restoring seed data means replaying the same scripts used by a clean rebuild.
+        // Keeping this path simple helps junior developers update one source of truth.
+        var scriptPaths = new[]
+        {
+            Path.Combine(contentRootPath, "Sql", "03_SeedData.sql"),
+            Path.Combine(contentRootPath, "Sql", "03_SeedData_LMS.sql"),
+            Path.Combine(contentRootPath, "Sql", "03_SeedData_HLS.sql")
+        };
+
+        await using var connection = await OpenConnectionAsync(cancellationToken);
+        await EnsureCurrentUserIsAdminAsync(connection, currentUserId, cancellationToken);
+
+        foreach (var scriptPath in scriptPaths)
+        {
+            if (!File.Exists(scriptPath))
+            {
+                throw new FileNotFoundException($"Seed script was not found: {scriptPath}");
+            }
+
+            var script = await File.ReadAllTextAsync(scriptPath, cancellationToken);
+            foreach (var batch in SplitSqlBatches(script))
+            {
+                await using var command = new SqlCommand(batch, connection)
+                {
+                    CommandType = CommandType.Text,
+                    CommandTimeout = 180
+                };
+
+                await command.ExecuteNonQueryAsync(cancellationToken);
+            }
+        }
+    }
+
     private async Task<SqlConnection> OpenConnectionAsync(CancellationToken cancellationToken)
     {
         var connection = new SqlConnection(_connectionString);
@@ -395,6 +455,53 @@ public sealed class SqlPmtStore
             CommandType = CommandType.StoredProcedure,
             CommandTimeout = 60
         };
+    }
+
+    private static async Task EnsureCurrentUserIsAdminAsync(SqlConnection connection, int currentUserId, CancellationToken cancellationToken)
+    {
+        await using var command = new SqlCommand("SELECT [pmt].[IsAdmin](@CurrentUserId)", connection)
+        {
+            CommandType = CommandType.Text,
+            CommandTimeout = 60
+        };
+        Add(command, "@CurrentUserId", currentUserId);
+
+        var result = await command.ExecuteScalarAsync(cancellationToken);
+        if (!Convert.ToBoolean(result))
+        {
+            throw new InvalidOperationException("Only an administrator can restore seed data.");
+        }
+    }
+
+    private static IEnumerable<string> SplitSqlBatches(string script)
+    {
+        // SQLCMD uses GO as a batch separator. SqlCommand does not understand GO,
+        // so split the scripts into batches before sending them to SQL Server.
+        var batch = new StringBuilder();
+        using var reader = new StringReader(script);
+
+        while (reader.ReadLine() is { } line)
+        {
+            if (line.Trim().Equals("GO", StringComparison.OrdinalIgnoreCase))
+            {
+                var sql = batch.ToString().Trim();
+                if (!string.IsNullOrWhiteSpace(sql))
+                {
+                    yield return sql;
+                }
+
+                batch.Clear();
+                continue;
+            }
+
+            batch.AppendLine(line);
+        }
+
+        var finalSql = batch.ToString().Trim();
+        if (!string.IsNullOrWhiteSpace(finalSql))
+        {
+            yield return finalSql;
+        }
     }
 
     private static void AddUpload(SqlCommand command, UploadResult upload)

@@ -2547,3 +2547,295 @@ BEGIN
     EXEC [pmt].[WriteAudit] N'Sprint', @SprintId, N'Deleted', N'Sprint hidden and tasks moved out of sprint.', @CurrentUserId;
 END;
 GO
+
+CREATE OR ALTER PROCEDURE [pmt].[DevelopmentClearProjectData]
+    @CurrentUserId INT,
+    @ClearPmtOnly BIT,
+    @DeleteProjects BIT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    SET XACT_ABORT ON;
+
+    IF [pmt].[IsAdmin](@CurrentUserId) = 0
+    BEGIN
+        THROW 50100, 'Only an administrator can run development cleanup.', 1;
+    END;
+
+    DECLARE @PmtProjectId INT =
+    (
+        SELECT [ProjectId]
+        FROM [pmt].[Projects]
+        WHERE [Code] = N'PMT'
+          AND [IsArchived] = 0
+    );
+
+    IF @PmtProjectId IS NULL AND @ClearPmtOnly = 1
+    BEGIN
+        THROW 50101, 'The PMT project was not found.', 1;
+    END;
+
+    DECLARE @ProjectIds TABLE ([ProjectId] INT NOT NULL PRIMARY KEY);
+    DECLARE @SprintIds TABLE ([SprintId] INT NOT NULL PRIMARY KEY);
+    DECLARE @TaskIds TABLE ([TaskId] INT NOT NULL PRIMARY KEY);
+    DECLARE @BlogIds TABLE ([BlogId] INT NOT NULL PRIMARY KEY);
+
+    INSERT INTO @ProjectIds ([ProjectId])
+    SELECT [ProjectId]
+    FROM [pmt].[Projects]
+    WHERE (@ClearPmtOnly = 1 AND [ProjectId] = @PmtProjectId)
+       OR (@ClearPmtOnly = 0 AND (@PmtProjectId IS NULL OR [ProjectId] <> @PmtProjectId));
+
+    INSERT INTO @SprintIds ([SprintId])
+    SELECT [SprintId]
+    FROM [pmt].[Sprints]
+    WHERE [ProjectId] IN (SELECT [ProjectId] FROM @ProjectIds);
+
+    INSERT INTO @TaskIds ([TaskId])
+    SELECT [TaskId]
+    FROM [pmt].[WorkTasks]
+    WHERE [ProjectId] IN (SELECT [ProjectId] FROM @ProjectIds);
+
+    INSERT INTO @BlogIds ([BlogId])
+    SELECT [BlogId]
+    FROM [pmt].[Blogs]
+    WHERE [ProjectId] IN (SELECT [ProjectId] FROM @ProjectIds);
+
+    BEGIN TRANSACTION;
+
+    DELETE FROM [pmt].[AuditEvents]
+    WHERE ([EntityType] = N'Task' AND [EntityId] IN (SELECT [TaskId] FROM @TaskIds))
+       OR ([EntityType] = N'Sprint' AND [EntityId] IN (SELECT [SprintId] FROM @SprintIds))
+       OR ([EntityType] = N'Blog' AND [EntityId] IN (SELECT [BlogId] FROM @BlogIds))
+       OR (@DeleteProjects = 1 AND [EntityType] = N'Project' AND [EntityId] IN (SELECT [ProjectId] FROM @ProjectIds));
+
+    DELETE FROM [pmt].[TaskAttachments]
+    WHERE [TaskId] IN (SELECT [TaskId] FROM @TaskIds);
+
+    DELETE FROM [pmt].[TaskDependencies]
+    WHERE [TaskId] IN (SELECT [TaskId] FROM @TaskIds)
+       OR [DependsOnTaskId] IN (SELECT [TaskId] FROM @TaskIds);
+
+    DELETE FROM [pmt].[TaskReporters]
+    WHERE [TaskId] IN (SELECT [TaskId] FROM @TaskIds);
+
+    DELETE FROM [pmt].[TaskAssignees]
+    WHERE [TaskId] IN (SELECT [TaskId] FROM @TaskIds);
+
+    DELETE FROM [pmt].[BlogAttachments]
+    WHERE [BlogId] IN (SELECT [BlogId] FROM @BlogIds);
+
+    DELETE FROM [pmt].[BlogHistory]
+    WHERE [BlogId] IN (SELECT [BlogId] FROM @BlogIds);
+
+    DELETE FROM [pmt].[DevLogs]
+    WHERE [ProjectId] IN (SELECT [ProjectId] FROM @ProjectIds);
+
+    DELETE FROM [pmt].[Blogs]
+    WHERE [BlogId] IN (SELECT [BlogId] FROM @BlogIds);
+
+    UPDATE [pmt].[WorkTasks]
+    SET [ParentTaskId] = NULL,
+        [LinkedBugTaskId] = CASE WHEN [LinkedBugTaskId] IN (SELECT [TaskId] FROM @TaskIds) THEN NULL ELSE [LinkedBugTaskId] END,
+        [UpdatedByUserId] = @CurrentUserId,
+        [UpdatedAt] = SYSUTCDATETIME()
+    WHERE [TaskId] IN (SELECT [TaskId] FROM @TaskIds)
+       OR [ParentTaskId] IN (SELECT [TaskId] FROM @TaskIds)
+       OR [LinkedBugTaskId] IN (SELECT [TaskId] FROM @TaskIds);
+
+    DELETE FROM [pmt].[WorkTasks]
+    WHERE [TaskId] IN (SELECT [TaskId] FROM @TaskIds);
+
+    DELETE FROM [pmt].[SprintMembers]
+    WHERE [SprintId] IN (SELECT [SprintId] FROM @SprintIds);
+
+    DELETE FROM [pmt].[Sprints]
+    WHERE [SprintId] IN (SELECT [SprintId] FROM @SprintIds);
+
+    IF @DeleteProjects = 1
+    BEGIN
+        DELETE FROM [pmt].[ProjectMembers]
+        WHERE [ProjectId] IN (SELECT [ProjectId] FROM @ProjectIds);
+
+        DELETE FROM [pmt].[Projects]
+        WHERE [ProjectId] IN (SELECT [ProjectId] FROM @ProjectIds);
+    END;
+    ELSE
+    BEGIN
+        UPDATE [pmt].[Projects]
+        SET [UpdatedByUserId] = @CurrentUserId,
+            [UpdatedAt] = SYSUTCDATETIME()
+        WHERE [ProjectId] IN (SELECT [ProjectId] FROM @ProjectIds);
+    END;
+
+    DELETE [Attachment]
+    FROM [pmt].[Attachments] AS [Attachment]
+    WHERE NOT EXISTS (SELECT 1 FROM [pmt].[TaskAttachments] WHERE [TaskAttachments].[AttachmentId] = [Attachment].[AttachmentId])
+      AND NOT EXISTS (SELECT 1 FROM [pmt].[BlogAttachments] WHERE [BlogAttachments].[AttachmentId] = [Attachment].[AttachmentId]);
+
+    DECLARE @AuditDetails NVARCHAR(MAX) =
+        CASE WHEN @ClearPmtOnly = 1 THEN N'Cleared PMT project data.' ELSE N'Cleared non-PMT project data.' END;
+
+    EXEC [pmt].[WriteAudit]
+        N'Development',
+        0,
+        N'Cleanup',
+        @AuditDetails,
+        @CurrentUserId;
+
+    COMMIT TRANSACTION;
+END;
+GO
+
+CREATE OR ALTER PROCEDURE [pmt].[DevelopmentClearNonPmt]
+    @CurrentUserId INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    EXEC [pmt].[DevelopmentClearProjectData]
+        @CurrentUserId = @CurrentUserId,
+        @ClearPmtOnly = 0,
+        @DeleteProjects = 1;
+END;
+GO
+
+CREATE OR ALTER PROCEDURE [pmt].[DevelopmentClearPmt]
+    @CurrentUserId INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    EXEC [pmt].[DevelopmentClearProjectData]
+        @CurrentUserId = @CurrentUserId,
+        @ClearPmtOnly = 1,
+        @DeleteProjects = 1;
+END;
+GO
+
+CREATE OR ALTER PROCEDURE [pmt].[DevelopmentClearUsers]
+    @CurrentUserId INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    SET XACT_ABORT ON;
+
+    IF [pmt].[IsAdmin](@CurrentUserId) = 0
+    BEGIN
+        THROW 50110, 'Only an administrator can clear users.', 1;
+    END;
+
+    DECLARE @AdminUserId INT =
+    (
+        SELECT TOP (1) [UserId]
+        FROM [pmt].[Users]
+        WHERE [Email] = N'louiery@gmail.com'
+           OR ([Nickname] = N'Sin' AND [IsAdmin] = 1)
+        ORDER BY CASE WHEN [Email] = N'louiery@gmail.com' THEN 0 ELSE 1 END, [UserId]
+    );
+
+    IF @AdminUserId IS NULL
+    BEGIN
+        THROW 50111, 'The Sin administrator account was not found.', 1;
+    END;
+
+    BEGIN TRANSACTION;
+
+    UPDATE [pmt].[Users]
+    SET
+        [FirstName] = N'Louiery',
+        [LastName] = N'Sincioco',
+        [Nickname] = N'Sin',
+        [Email] = N'louiery@gmail.com',
+        [AvatarUrl] = N'/assets/avatar-sin.png',
+        [PasswordHash] = HASHBYTES('SHA2_256', CONVERT(NVARCHAR(4000), N'Password1')),
+        [IsAdmin] = 1,
+        [Role] = N'Admin',
+        [IsActive] = 1,
+        [CreatedByUserId] = @AdminUserId,
+        [UpdatedByUserId] = @AdminUserId,
+        [UpdatedAt] = SYSUTCDATETIME()
+    WHERE [UserId] = @AdminUserId;
+
+    INSERT INTO [pmt].[ProjectMembers] ([ProjectId], [UserId], [CreatedByUserId])
+    SELECT DISTINCT [ProjectId], @AdminUserId, @AdminUserId
+    FROM [pmt].[ProjectMembers] AS [Source]
+    WHERE NOT EXISTS
+    (
+        SELECT 1
+        FROM [pmt].[ProjectMembers] AS [Existing]
+        WHERE [Existing].[ProjectId] = [Source].[ProjectId]
+          AND [Existing].[UserId] = @AdminUserId
+    );
+
+    INSERT INTO [pmt].[SprintMembers] ([SprintId], [UserId], [CreatedByUserId])
+    SELECT DISTINCT [SprintId], @AdminUserId, @AdminUserId
+    FROM [pmt].[SprintMembers] AS [Source]
+    WHERE NOT EXISTS
+    (
+        SELECT 1
+        FROM [pmt].[SprintMembers] AS [Existing]
+        WHERE [Existing].[SprintId] = [Source].[SprintId]
+          AND [Existing].[UserId] = @AdminUserId
+    );
+
+    INSERT INTO [pmt].[TaskAssignees] ([TaskId], [UserId], [CreatedByUserId])
+    SELECT DISTINCT [TaskId], @AdminUserId, @AdminUserId
+    FROM [pmt].[TaskAssignees] AS [Source]
+    WHERE NOT EXISTS
+    (
+        SELECT 1
+        FROM [pmt].[TaskAssignees] AS [Existing]
+        WHERE [Existing].[TaskId] = [Source].[TaskId]
+          AND [Existing].[UserId] = @AdminUserId
+    );
+
+    INSERT INTO [pmt].[TaskReporters] ([TaskId], [UserId], [CreatedByUserId])
+    SELECT DISTINCT [TaskId], @AdminUserId, @AdminUserId
+    FROM [pmt].[TaskReporters] AS [Source]
+    WHERE NOT EXISTS
+    (
+        SELECT 1
+        FROM [pmt].[TaskReporters] AS [Existing]
+        WHERE [Existing].[TaskId] = [Source].[TaskId]
+          AND [Existing].[UserId] = @AdminUserId
+    );
+
+    DELETE FROM [pmt].[ProjectMembers] WHERE [UserId] <> @AdminUserId;
+    DELETE FROM [pmt].[SprintMembers] WHERE [UserId] <> @AdminUserId;
+    DELETE FROM [pmt].[TaskAssignees] WHERE [UserId] <> @AdminUserId;
+    DELETE FROM [pmt].[TaskReporters] WHERE [UserId] <> @AdminUserId;
+
+    UPDATE [pmt].[ProjectMembers] SET [CreatedByUserId] = @AdminUserId, [UpdatedByUserId] = @AdminUserId;
+    UPDATE [pmt].[SprintMembers] SET [CreatedByUserId] = @AdminUserId, [UpdatedByUserId] = @AdminUserId;
+    UPDATE [pmt].[TaskAssignees] SET [CreatedByUserId] = @AdminUserId, [UpdatedByUserId] = @AdminUserId;
+    UPDATE [pmt].[TaskReporters] SET [CreatedByUserId] = @AdminUserId, [UpdatedByUserId] = @AdminUserId;
+    UPDATE [pmt].[TaskDependencies] SET [CreatedByUserId] = @AdminUserId, [UpdatedByUserId] = @AdminUserId;
+    UPDATE [pmt].[TaskAttachments] SET [CreatedByUserId] = @AdminUserId, [UpdatedByUserId] = @AdminUserId;
+    UPDATE [pmt].[BlogAttachments] SET [CreatedByUserId] = @AdminUserId, [UpdatedByUserId] = @AdminUserId;
+
+    UPDATE [pmt].[Projects] SET [CreatedByUserId] = @AdminUserId, [UpdatedByUserId] = @AdminUserId;
+    UPDATE [pmt].[Sprints] SET [CreatedByUserId] = @AdminUserId, [UpdatedByUserId] = @AdminUserId;
+    UPDATE [pmt].[WorkTasks] SET [CreatedByUserId] = @AdminUserId, [UpdatedByUserId] = @AdminUserId;
+    UPDATE [pmt].[Attachments] SET [UploadedByUserId] = @AdminUserId, [CreatedByUserId] = @AdminUserId, [UpdatedByUserId] = @AdminUserId;
+    UPDATE [pmt].[DevLogs] SET [UserId] = @AdminUserId, [CreatedByUserId] = @AdminUserId, [UpdatedByUserId] = @AdminUserId;
+    UPDATE [pmt].[Blogs] SET [CreatedByUserId] = @AdminUserId, [UpdatedByUserId] = @AdminUserId;
+    UPDATE [pmt].[BlogHistory] SET [UserId] = @AdminUserId, [CreatedByUserId] = @AdminUserId, [UpdatedByUserId] = @AdminUserId;
+    UPDATE [pmt].[AuditEvents] SET [UserId] = @AdminUserId, [CreatedByUserId] = @AdminUserId, [UpdatedByUserId] = @AdminUserId;
+    UPDATE [pmt].[Lookups] SET [CreatedByUserId] = @AdminUserId, [UpdatedByUserId] = @AdminUserId;
+    UPDATE [pmt].[Holidays] SET [CreatedByUserId] = @AdminUserId, [UpdatedByUserId] = @AdminUserId;
+    UPDATE [pmt].[Users] SET [CreatedByUserId] = @AdminUserId, [UpdatedByUserId] = @AdminUserId;
+
+    DELETE FROM [pmt].[Users]
+    WHERE [UserId] <> @AdminUserId;
+
+    EXEC [pmt].[WriteAudit]
+        N'Development',
+        0,
+        N'Cleanup',
+        N'Cleared users and remapped ownership to Sin.',
+        @AdminUserId;
+
+    COMMIT TRANSACTION;
+END;
+GO

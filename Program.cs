@@ -253,6 +253,30 @@ app.MapPost("/api/blogs/{id:int}/attachments", async (int id, HttpRequest reques
     return Results.Ok(new { id = attachmentId, upload });
 });
 
+app.MapPost("/api/development/clear-non-pmt", async (HttpContext context, SqlPmtStore store, CancellationToken cancellationToken) =>
+{
+    await store.DevelopmentClearNonPmtAsync(CurrentUserId(context), cancellationToken);
+    return Results.Ok(new { cleared = true });
+});
+
+app.MapPost("/api/development/clear-pmt", async (HttpContext context, SqlPmtStore store, CancellationToken cancellationToken) =>
+{
+    await store.DevelopmentClearPmtAsync(CurrentUserId(context), cancellationToken);
+    return Results.Ok(new { cleared = true });
+});
+
+app.MapPost("/api/development/clear-users", async (HttpContext context, SqlPmtStore store, CancellationToken cancellationToken) =>
+{
+    await store.DevelopmentClearUsersAsync(CurrentUserId(context), cancellationToken);
+    return Results.Ok(new { cleared = true });
+});
+
+app.MapPost("/api/development/restore-seed-data", async (HttpContext context, IWebHostEnvironment environment, SqlPmtStore store, CancellationToken cancellationToken) =>
+{
+    await store.RestoreInitialSeedDataAsync(environment.ContentRootPath, CurrentUserId(context), cancellationToken);
+    return Results.Ok(new { restored = true });
+});
+
 app.MapFallbackToFile("index.html");
 
 app.Run();

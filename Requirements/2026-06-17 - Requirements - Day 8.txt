@@ -1,12 +1,9 @@
 Project Management Tool (PMT):  Day 8 of Agentic AI Coding
 ----------------------------------------------------------
 
-Settings
---------
-1.) In settings, create a category/section called "Development" and add a button that clears all of the Projects, Tasks, and Sprints except for PMT.
-2.) In the same "Development" section, add another button that clears PMT.
-3.) In the same "Development" section, add another button that clears All Users and remap all the users to the Admin account which is the "Louiery Sincioco" account or "Sin", the original Admin account.
-4.) So the desired end result when they click all the buttons is all the users are gone except for the initial Admin user (Sin), all projects, sprints, dev tasks and bugs are gone except except for PMT.
+Bug
+---
+1.) A Dev Task with an associated bug should not be able mark the completion to 100, if the associated bug is not marked as QA Passed.  If they try to do that, show a toaster message that says "You cannot mark this task as complete until the associated bug is marked as QA Passed.  Once QA has re-tested the bug and passed it, the completion of your Dev Task will be set to 100%."  The completion can only be marked as 100% if the associated bug is marked as QA Passed.  Please implement this logic and validation.
 
 PMT Data Seed
 -------------
@@ -52,3 +49,8 @@ Developer Task Tracking Charts:
 7.) If the user clicks on a chart and that data is associated to one specific element such as a Sprint or a Bug report or a Dev Task, popup a dialog box in read-only mode with details about that item.
 8.) If there are other charts you find useful for tracking our development process, feel free to add them as well.  The goal is to provide as much insight and information as possible to help us improve our development process and ultimately deliver a better product to our users.
 9.) The chart should not use any charting library.  It should be built from scratch using HTML, CSS, and JavaScript.  This will allow for greater customization and flexibility in the design and functionality of the chart.  Create a re-usable charting module that can be used for other types of charts in the future and to make it easier to maintain and update the charts as needed.  The charting module should be designed to handle different types of data and be easily customizable to fit the specific needs of our development process tracking.
+
+
+Development in Settings
+-----------------------
+When "Clear PMT" is clicked, preserve the Blogs/Documentations since that actually functions as the system's changelog and release notes, so we want to keep that intact even if we clear the rest of PMT's data.
