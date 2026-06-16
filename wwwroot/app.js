@@ -68,6 +68,7 @@ let taskProjectId = Number(localStorage.getItem("pmt-task-project") || 0);
 let taskSprintId = localStorage.getItem("pmt-task-sprint") || "all";
 let taskFilters = JSON.parse(localStorage.getItem("pmt-task-filters") || "{}");
 let bugFilters = JSON.parse(localStorage.getItem("pmt-bug-filters") || "{}");
+let bugChartsVisible = localStorage.getItem("pmt-bug-charts-visible") !== "false";
 const savedBoardStatuses = JSON.parse(localStorage.getItem("pmt-board-statuses") || "null");
 let boardStatuses = Array.isArray(savedBoardStatuses) && savedBoardStatuses.every(status => statuses.includes(status))
   ? savedBoardStatuses
@@ -81,6 +82,7 @@ let dashboardShowAllDetails = false;
 let dashboardExpandedSprintIds = new Set();
 let projectCollapsedIds = new Set();
 let sprintCollapsedIds = new Set();
+let chartTooltip = null;
 
 taskFilters.statuses = normalizeSavedArray(taskFilters.statuses);
 taskFilters.assigneeIds = normalizeSavedArray(taskFilters.assigneeIds);
@@ -178,6 +180,8 @@ function bindPageEvents() {
 
   app.addEventListener("click", handleActionClick);
   app.addEventListener("change", handleFilterChange);
+  app.addEventListener("mousemove", handleChartTooltip);
+  app.addEventListener("mouseleave", hideChartTooltip);
   app.addEventListener("pointerdown", handlePointerDown);
   app.addEventListener("mousedown", handleMouseDown);
   window.addEventListener("pointermove", handlePointerMove);
@@ -944,19 +948,16 @@ function taskCreatedTime(task) {
 }
 
 function renderBugs() {
-  const bugs = state.tasks.filter(task => task.taskType === "Bug");
-  const filteredBugs = bugs
-    .filter(bug => !bugFilters.projectId || bug.projectId === Number(bugFilters.projectId))
-    .filter(bug => !bugFilters.status || bug.status === bugFilters.status)
-    .filter(bug => !bugFilters.priority || bug.priority === bugFilters.priority)
-    .filter(bug => !bugFilters.severity || bug.severity === bugFilters.severity)
-    .filter(bug => !bugFilters.environment || bug.environment === bugFilters.environment)
-    .filter(bug => !bugFilters.reporterIds.length || bug.reporterIds.map(String).some(id => bugFilters.reporterIds.includes(id)))
-    .filter(bug => !bugFilters.assigneeIds.length || bug.assigneeIds.map(String).some(id => bugFilters.assigneeIds.includes(id)))
-    .sort(taskOrderCompare);
+  const filteredBugs = filteredBugReports();
+  const canShowCharts = filteredBugs.length > 0;
+  const showCharts = canShowCharts && bugChartsVisible;
+  const chartToggleLabel = showCharts ? "Hide Charts" : "Show Charts";
 
   app.innerHTML = `
-    ${sectionHead("Bug Reports", `<button class="primary text-icon-button" type="button" data-action="new-bug">${buttonContent("&#9888;", "New Bug Report")}</button>`)}
+    ${sectionHead("Bug Reports", `
+      <button class="secondary text-icon-button ${showCharts ? "is-on" : ""}" type="button" data-action="toggle-bug-charts" aria-pressed="${showCharts}" ${canShowCharts ? "" : "disabled"}>${buttonContent("&#128202;", chartToggleLabel)}</button>
+      <button class="primary text-icon-button" type="button" data-action="new-bug">${buttonContent("&#9888;", "New Bug Report")}</button>
+    `)}
     <div class="panel">
       <div class="filter-row bug-filter-row">
         ${filterSelect("Project", "bug-project", state.projects.map(project => ({ value: project.id, text: `${project.code} - ${project.title}` })), bugFilters.projectId || "", "All projects")}
@@ -970,6 +971,7 @@ function renderBugs() {
         ${filterCheckList("Assignee", "bug-assignee", state.users.map(user => ({ value: user.id, text: user.nickname })), bugFilters.assigneeIds)}
       </div>
     </div>
+    ${showCharts ? bugTrackingChartsHtml(filteredBugs) : ""}
     <div class="panel">
       <table class="table bugs-table">
         <thead>
@@ -1004,6 +1006,295 @@ function renderBugs() {
     </div>
   `;
 }
+
+function filteredBugReports() {
+  return state.tasks
+    .filter(task => task.taskType === "Bug")
+    .filter(bug => !bugFilters.projectId || bug.projectId === Number(bugFilters.projectId))
+    .filter(bug => !bugFilters.status || bug.status === bugFilters.status)
+    .filter(bug => !bugFilters.priority || bug.priority === bugFilters.priority)
+    .filter(bug => !bugFilters.severity || bug.severity === bugFilters.severity)
+    .filter(bug => !bugFilters.environment || bug.environment === bugFilters.environment)
+    .filter(bug => !bugFilters.reporterIds.length || bug.reporterIds.map(String).some(id => bugFilters.reporterIds.includes(id)))
+    .filter(bug => !bugFilters.assigneeIds.length || bug.assigneeIds.map(String).some(id => bugFilters.assigneeIds.includes(id)))
+    .sort(taskOrderCompare);
+}
+
+function toggleBugCharts() {
+  bugChartsVisible = !bugChartsVisible;
+  localStorage.setItem("pmt-bug-charts-visible", String(bugChartsVisible));
+  renderBugs();
+}
+
+function bugTrackingChartsHtml(filteredBugs) {
+  const sprintRows = bugSprintChartRows(filteredBugs);
+  const charts = [
+    bugCurrentSprintChartHtml(filteredBugs),
+    SimpleCharts.card({
+      title: "Bugs Reported per Sprint",
+      subtitle: "Counts use the Bug Reports that match the current filters.",
+      body: SimpleCharts.barChart(sprintRows.map(row => ({
+        label: row.label,
+        value: row.reported,
+        color: "var(--rose)",
+        tooltip: `${row.label}: ${row.reported} bug report${row.reported === 1 ? "" : "s"} reported`,
+        action: row.sprintId ? "chart-open-sprint" : "",
+        id: row.sprintId
+      })), "No reported Bug Reports match the current filters.")
+    }),
+    SimpleCharts.card({
+      title: "Bugs Resolved per Sprint",
+      subtitle: "Resolved means QA Passed or any deployment status after it.",
+      body: SimpleCharts.barChart(sprintRows.map(row => ({
+        label: row.label,
+        value: row.resolved,
+        color: "var(--green)",
+        tooltip: `${row.label}: ${row.resolved} bug report${row.resolved === 1 ? "" : "s"} resolved`,
+        action: row.sprintId ? "chart-open-sprint" : "",
+        id: row.sprintId
+      })), "No resolved Bug Reports match the current filters.")
+    }),
+    bugOpenStatusChartHtml(filteredBugs),
+    bugSeverityChartHtml(filteredBugs)
+  ].filter(Boolean);
+
+  return SimpleCharts.panel(charts);
+}
+
+function bugCurrentSprintChartHtml(filteredBugs) {
+  const currentSprints = bugChartCurrentSprints();
+  const currentSprintIds = new Set(currentSprints.map(sprint => sprint.id));
+  const currentBugs = filteredBugs.filter(bug => currentSprintIds.has(bug.sprintId));
+  const resolvedBugs = currentBugs.filter(isBugResolved);
+  const openBugs = currentBugs.filter(bug => !isBugResolved(bug));
+  const currentSprintNames = currentSprints.map(sprint => sprint.code).join(", ");
+
+  if (!currentSprints.length) {
+    return SimpleCharts.card({
+      title: "Current Sprint Bug Snapshot",
+      subtitle: "No current Sprint is available for the selected project filter.",
+      body: `<div class="empty compact-empty">No current Sprint was found.</div>`
+    });
+  }
+
+  const metrics = [
+    bugChartMetric("Reported", currentBugs, currentSprints, "var(--red)"),
+    bugChartMetric("Resolved", resolvedBugs, currentSprints, "var(--green)"),
+    bugChartMetric("Still Open", openBugs, currentSprints, "var(--amber)")
+  ];
+
+  return SimpleCharts.card({
+    title: "Current Sprint Bug Snapshot",
+    subtitle: currentSprintNames ? `Current Sprint${currentSprints.length === 1 ? "" : "s"}: ${currentSprintNames}` : "",
+    body: SimpleCharts.metricCards(metrics)
+  });
+}
+
+function bugOpenStatusChartHtml(filteredBugs) {
+  const openBugs = filteredBugs.filter(bug => !isBugResolved(bug));
+  if (!openBugs.length) return null;
+
+  const items = statuses
+    .map(status => {
+      const bugs = openBugs.filter(bug => bug.status === status);
+      return bugChartGroupedItem(status, bugs, statusColor(status), `${status}: ${bugs.length} open bug report${bugs.length === 1 ? "" : "s"}`);
+    })
+    .filter(item => item.value > 0);
+
+  return SimpleCharts.card({
+    title: "Open Bugs by Status",
+    subtitle: "Only statuses with open Bug Reports are shown.",
+    body: SimpleCharts.barChart(items, "No open Bug Reports match the current filters.")
+  });
+}
+
+function bugSeverityChartHtml(filteredBugs) {
+  const items = severities
+    .map(severity => {
+      const bugs = filteredBugs.filter(bug => bug.severity === severity);
+      return bugChartGroupedItem(severity, bugs, bugSeverityColor(severity), `${severity}: ${bugs.length} bug report${bugs.length === 1 ? "" : "s"}`);
+    })
+    .filter(item => item.value > 0);
+
+  if (!items.length) return null;
+
+  return SimpleCharts.card({
+    title: "Bugs by Severity",
+    subtitle: "Severity mix helps spot risk concentration before release.",
+    body: SimpleCharts.barChart(items, "No severity data is available.")
+  });
+}
+
+function bugChartMetric(label, bugs, sprints, color) {
+  const actionTarget = bugChartActionForGroup(bugs, sprints);
+  return {
+    label,
+    value: bugs.length,
+    color,
+    tooltip: `${label}: ${bugs.length} bug report${bugs.length === 1 ? "" : "s"}`,
+    ...actionTarget
+  };
+}
+
+function bugChartGroupedItem(label, bugs, color, tooltip) {
+  const actionTarget = bugs.length === 1 ? { action: "view-task", id: bugs[0].id } : {};
+  return {
+    label,
+    value: bugs.length,
+    color,
+    tooltip,
+    ...actionTarget
+  };
+}
+
+function bugChartActionForGroup(bugs, sprints) {
+  if (bugs.length === 1) return { action: "view-task", id: bugs[0].id };
+  if (sprints.length === 1) return { action: "chart-open-sprint", id: sprints[0].id };
+  return {};
+}
+
+function bugSprintChartRows(filteredBugs) {
+  const rows = new Map();
+
+  filteredBugs.forEach(bug => {
+    const sprintId = Number(bug.sprintId || 0);
+    if (!rows.has(sprintId)) {
+      rows.set(sprintId, {
+        sprintId,
+        label: sprintId ? sprintChartLabel(sprintId) : "No Sprint",
+        reported: 0,
+        resolved: 0,
+        open: 0
+      });
+    }
+
+    const row = rows.get(sprintId);
+    row.reported += 1;
+    if (isBugResolved(bug)) {
+      row.resolved += 1;
+    } else {
+      row.open += 1;
+    }
+  });
+
+  return [...rows.values()].sort((a, b) => {
+    if (!a.sprintId) return 1;
+    if (!b.sprintId) return -1;
+    const sprintA = sprintById(a.sprintId);
+    const sprintB = sprintById(b.sprintId);
+    const aTime = sprintA ? ganttStartDate(sprintA)?.getTime() || 0 : 0;
+    const bTime = sprintB ? ganttStartDate(sprintB)?.getTime() || 0 : 0;
+    return aTime - bTime || a.label.localeCompare(b.label);
+  });
+}
+
+function bugChartCurrentSprints() {
+  const projectIds = bugFilters.projectId
+    ? [Number(bugFilters.projectId)]
+    : state.projects.map(project => project.id);
+
+  return projectIds
+    .map(projectId => currentSprintForProject(state.sprints.filter(sprint => sprint.projectId === projectId)))
+    .filter(Boolean);
+}
+
+function sprintChartLabel(sprintId) {
+  const sprint = sprintById(sprintId);
+  if (!sprint) return "Unknown Sprint";
+  const project = projectById(sprint.projectId);
+  return project ? `${project.code} ${sprint.code}` : sprint.code;
+}
+
+function isBugResolved(bug) {
+  const qaPassedIndex = statuses.indexOf("QA Passed");
+  const bugStatusIndex = statuses.indexOf(bug?.status || "");
+  return qaPassedIndex >= 0 && bugStatusIndex >= qaPassedIndex;
+}
+
+function bugSeverityColor(severity) {
+  const colors = {
+    Trivial: "#76A9FF",
+    Minor: "#35C7BD",
+    Major: "#E4A53A",
+    Critical: "#EE6B70"
+  };
+  return colors[severity] || "var(--teal)";
+}
+
+const SimpleCharts = {
+  panel(charts) {
+    // This small helper is intentionally plain HTML/CSS so future charts do not need a dependency.
+    return `
+      <div class="panel chart-panel bug-chart-panel">
+        <div class="chart-grid">
+          ${charts.join("")}
+        </div>
+      </div>
+    `;
+  },
+
+  card(chart) {
+    return `
+      <section class="chart-card">
+        <div class="chart-card-head">
+          <h2>${escapeHtml(chart.title)}</h2>
+          ${chart.subtitle ? `<p>${escapeHtml(chart.subtitle)}</p>` : ""}
+        </div>
+        ${chart.body}
+      </section>
+    `;
+  },
+
+  metricCards(metrics) {
+    const maxValue = Math.max(1, ...metrics.map(metric => metric.value));
+
+    return `
+      <div class="chart-metric-grid">
+        ${metrics.map(metric => {
+          const percent = Math.round((metric.value / maxValue) * 100);
+          return this.point(metric, "chart-metric", `
+            <span class="chart-metric-value">${metric.value}</span>
+            <span class="chart-metric-label">${escapeHtml(metric.label)}</span>
+            <span class="chart-meter"><span style="--value:${percent}%; --chart-color:${escapeAttr(metric.color)}"></span></span>
+          `);
+        }).join("")}
+      </div>
+    `;
+  },
+
+  barChart(items, emptyText) {
+    if (!items.length) return `<div class="empty compact-empty">${escapeHtml(emptyText)}</div>`;
+    const maxValue = Math.max(1, ...items.map(item => item.value));
+
+    return `
+      <div class="simple-chart-bars">
+        ${items.map(item => {
+          const percent = Math.round((item.value / maxValue) * 100);
+          return this.point(item, "simple-chart-row", `
+            <span class="simple-chart-label">${escapeHtml(item.label)}</span>
+            <span class="simple-chart-track">
+              <span class="simple-chart-fill" style="--value:${percent}%; --chart-color:${escapeAttr(item.color)}"></span>
+            </span>
+            <span class="simple-chart-value">${item.value}</span>
+          `);
+        }).join("")}
+      </div>
+    `;
+  },
+
+  point(item, className, innerHtml) {
+    const tag = item.action ? "button" : "div";
+    const actionAttrs = item.action ? ` type="button" data-action="${escapeAttr(item.action)}" data-id="${escapeAttr(item.id)}"` : "";
+    const clickableClass = item.action ? " is-clickable" : "";
+    const tooltip = escapeAttr(item.tooltip || `${item.label}: ${item.value}`);
+
+    return `
+      <${tag}${actionAttrs} class="${className}${clickableClass}" data-chart-tooltip="${tooltip}" title="${tooltip}">
+        ${innerHtml}
+      </${tag}>
+    `;
+  }
+};
 
 function renderSettings() {
   const lookupTypes = [...new Set(["Status", "Priority", "Severity", "Environment", ...(state.lookups || []).map(item => item.lookupType)])].sort();
@@ -1364,6 +1655,8 @@ async function handleActionClick(event) {
   if (action === "new-task") editTask();
   if (action === "new-bug") editBug();
   if (action === "view-task") viewTask(taskById(id));
+  if (action === "chart-open-sprint") viewSprintSummary(sprintById(id));
+  if (action === "toggle-bug-charts") toggleBugCharts();
   if (action === "edit-task") editTask(taskById(id));
   if (action === "show-task-audit") showTaskAudit(id);
   if (action === "duplicate-task") await duplicateTask(id);
@@ -1548,6 +1841,35 @@ function handleFilterChange(event) {
     localStorage.setItem("pmt-bug-filters", JSON.stringify(bugFilters));
     renderBugs();
   }
+}
+
+function handleChartTooltip(event) {
+  const target = event.target.closest("[data-chart-tooltip]");
+  if (!target) {
+    hideChartTooltip();
+    return;
+  }
+
+  if (!chartTooltip) {
+    chartTooltip = document.createElement("div");
+    chartTooltip.className = "chart-tooltip";
+    document.body.appendChild(chartTooltip);
+  }
+
+  chartTooltip.textContent = target.dataset.chartTooltip || "";
+  chartTooltip.hidden = false;
+
+  // Keep the tooltip near the pointer but inside the viewport.
+  const tooltipWidth = chartTooltip.offsetWidth || 180;
+  const tooltipHeight = chartTooltip.offsetHeight || 36;
+  const left = Math.min(window.innerWidth - tooltipWidth - 12, event.clientX + 14);
+  const top = Math.min(window.innerHeight - tooltipHeight - 12, event.clientY + 14);
+  chartTooltip.style.left = `${Math.max(12, left)}px`;
+  chartTooltip.style.top = `${Math.max(12, top)}px`;
+}
+
+function hideChartTooltip() {
+  if (chartTooltip) chartTooltip.hidden = true;
 }
 
 function handleDocumentLinkClick(event) {
@@ -1997,6 +2319,31 @@ function viewTask(task) {
       ${task.attachments.length ? detailField("Attachments", attachmentsHtml(task.attachments), true) : ""}
     </div>
   `, task);
+}
+
+function viewSprintSummary(sprint) {
+  if (!sprint) return;
+
+  const tasks = state.tasks.filter(task => task.sprintId === sprint.id && task.taskType !== "Bug" && !task.parentTaskId);
+  const bugs = state.tasks.filter(task => task.sprintId === sprint.id && task.taskType === "Bug");
+  const resolvedBugs = bugs.filter(isBugResolved);
+  const openBugs = bugs.filter(bug => !isBugResolved(bug));
+  const bugLinks = bugs
+    .sort(taskOrderCompare)
+    .map(bug => `<button type="button" data-action="view-task-inline" data-id="${bug.id}">${escapeHtml(bug.code)} - ${escapeHtml(bug.title)}</button>`)
+    .join("");
+
+  showReadOnlyDialog(`Sprint ${sprint.code}`, `
+    <div class="detail-grid">
+      ${detailField("Title", escapeHtml(sprint.title))}
+      ${detailField("Project", escapeHtml(projectName(sprint.projectId)))}
+      ${detailField("Dates", escapeHtml(`${formatDate(sprint.startDate)} - ${formatDate(sprint.endDate)}`))}
+      ${detailField("Overall Progress", `${sprintOverallPercent(sprint)}%`)}
+      ${detailField("Dev Tasks", String(tasks.length))}
+      ${detailField("Bug Reports", `${bugs.length} total, ${resolvedBugs.length} resolved, ${openBugs.length} open`)}
+      ${bugs.length ? detailField("Bug Reports", `<div class="inline-link-list">${bugLinks}</div>`, true) : ""}
+    </div>
+  `);
 }
 
 function showTaskAudit(taskId) {

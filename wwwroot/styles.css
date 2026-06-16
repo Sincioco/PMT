@@ -1312,6 +1312,155 @@ input[type="checkbox"] {
   margin: 10px 0 14px;
 }
 
+.chart-panel {
+  display: grid;
+  gap: 14px;
+}
+
+.chart-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(360px, 100%), 1fr));
+  gap: 14px;
+}
+
+.chart-card {
+  display: grid;
+  align-content: start;
+  gap: 14px;
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 14px;
+  background: var(--surface-soft);
+}
+
+.chart-card-head {
+  display: grid;
+  gap: 4px;
+}
+
+.chart-card h2 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.chart-card p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.chart-metric-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.chart-metric,
+.simple-chart-row {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.045);
+  color: var(--text);
+}
+
+.chart-metric {
+  display: grid;
+  gap: 6px;
+  padding: 12px;
+  text-align: left;
+}
+
+.chart-metric-value {
+  font-size: 28px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.chart-metric-label,
+.simple-chart-label,
+.simple-chart-value {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.chart-meter,
+.simple-chart-track {
+  display: block;
+  width: 100%;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.09);
+}
+
+.chart-meter {
+  height: 8px;
+}
+
+.chart-meter span,
+.simple-chart-fill {
+  display: block;
+  width: var(--value);
+  height: 100%;
+  background: var(--chart-color);
+}
+
+.simple-chart-bars {
+  display: grid;
+  gap: 8px;
+}
+
+.simple-chart-row {
+  display: grid;
+  grid-template-columns: minmax(92px, 0.9fr) minmax(120px, 2fr) 38px;
+  align-items: center;
+  gap: 10px;
+  min-height: 38px;
+  padding: 8px;
+  text-align: left;
+}
+
+.simple-chart-track {
+  height: 14px;
+}
+
+.simple-chart-fill {
+  min-width: 0;
+}
+
+.simple-chart-value {
+  justify-self: end;
+  color: var(--text);
+  font-weight: 700;
+}
+
+.chart-metric.is-clickable,
+.simple-chart-row.is-clickable {
+  cursor: pointer;
+}
+
+.chart-metric.is-clickable:hover,
+.simple-chart-row.is-clickable:hover {
+  border-color: color-mix(in srgb, var(--teal), white 20%);
+  background: rgba(53, 199, 189, 0.11);
+}
+
+.chart-tooltip {
+  position: fixed;
+  z-index: 40;
+  max-width: 260px;
+  padding: 8px 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background: var(--surface-strong);
+  color: var(--text);
+  box-shadow: var(--shadow);
+  font-size: 12px;
+  pointer-events: none;
+}
+
 .dashboard-project-flow {
   margin-top: 18px;
   min-width: 0;
