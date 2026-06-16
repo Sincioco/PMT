@@ -1,0 +1,54 @@
+Project Management Tool (PMT):  Day 8 of Agentic AI Coding
+----------------------------------------------------------
+
+Settings
+--------
+1.) In settings, create a category/section called "Development" and add a button that clears all of the Projects, Tasks, and Sprints except for PMT.
+2.) In the same "Development" section, add another button that clears PMT.
+3.) In the same "Development" section, add another button that clears All Users and remap all the users to the Admin account which is the "Louiery Sincioco" account or "Sin", the original Admin account.
+4.) So the desired end result when they click all the buttons is all the users are gone except for the initial Admin user (Sin), all projects, sprints, dev tasks and bugs are gone except except for PMT.
+
+PMT Data Seed
+-------------
+1.) Re-do the PMT data seed so it's a realistic data seed based on the Requirements from Day 1-8 that is found in the Requirements subfolder.  Be sure to include realistic audit logs as well as sub-tasks.  And make all tasks priority low, and a couple here and there that are low and high.
+
+Gantt Chart
+-----------
+1.) In the Gantt Chart, when you click to start the Fly-by, remove the toaster that comes up and the delay.  Start it immediately.
+2.) It seems you optimized the Gantt chart for the multi-year project that is HLS.  However, on a normal project with 2 weeks sprints like LMS or PMT, the tasks render in tiny boxes to the point that you can basically fit 4-5 sprints in one viewport.  You may need to add some dynamic logic so on a more normal project with your typical 2 weeks sprint, it looks more like a normal Gantt chart with the tasks rendered in a more reasonable size preferrably fitting the viewport.  The HLS project is an exception, not the norm.  So please add some logic to make it look more like a normal Gantt chart for a typical project with 2 weeks sprints.  You are welcome to redraw the whole Gantt chart every time the user switches project (to redraw the calendar above correctly), if needed to achieve this, as long as it is optimized for both types of projects (the multi-year type and the typical 2-week sprint type).
+3.) Remove the rounded corners on all items rendered on the Gantt Chart and Road Map.
+4.) BUG:  There is a bug in the Gantt Chart.  If you start the fly-by and you are on the next destination Sprint (the Sprint before) or any Sprint earlier than the current Sprint, if you click to expand the bug icon, it switches the viewport back to the current Sprint.  It should stay on the same Sprint that you are currently viewing and just expand the bug details without switching the viewport back to the current Sprint.  Please fix this bug.
+
+Dark and Light Themes
+---------------------
+1.) Under the Avatar menu and make it be the 2nd item in menu add a Dark / Light Theme toggle button.  Use a sun and moon icon.  It should be a toggle button that will switch the theme between Light and Dark mode.
+2.) When the user chooses Light or Dark theme, apply the theme immediately without needing to refresh the page.  The user should be able to see the changes right away.
+3.) When the user toggles the theme, save their preference in local storage so that when they come back to the app, it will remember their last selected theme and apply it automatically without any flicker on-screen that indicate that a theme change is happening.  It should just load with the correct theme right away based on their last preference.
+4.) Use the current theme as the Dark Theme.
+5.) For the light theme use a professional and clean color scheme with light backgrounds and dark text.  Implement light shadows for cards and buttons to give a sense of depth.  Use a consistent color palette with accent colors for buttons and important elements.  Ensure that the light theme is visually appealing and provides a good user experience while maintaining readability and accessibility.  Be sure to test the light theme thoroughly to ensure that all elements are styled correctly and that there are no visual issues or inconsistencies in the design.
+6.) For the light theme implement a light glassmorphism effect for the cards and modals, with a subtle blur and transparency to give it a modern and sleek look.  Use light pastel colors for the glassmorphism effect to maintain a clean and professional appearance.  Be sure to test the glassmorphism effect in the light theme to ensure that it looks good and does not cause any readability issues with the text or other elements on the cards and modals.  Adjust the level of blur and transparency as needed to achieve the desired visual effect while maintaining usability and readability in the light theme.
+
+Charts and Graphs
+-----------------
+Bug Tracking Charts:
+1.) Create a graph button on the Bug View that is a toggle.  When it is enabled, the graphs/charts will appear in between the filter panel and the table of bugs.
+2.) By default the chart view should be enabled (unless there is no data), but the user can toggle it off if they want to hide the charts and just see the table of bugs.
+3.) Create Bug Tracking Charts that shows the number of Bugs reported per Sprint.
+4.) Create another chart that shows and the number of Bugs resolved per Sprint.
+5.) The charts should be interactive, allowing users to hover over data points to see the exact number of Bugs reported and resolved for each Sprint.  This will provide more detailed insights into our bug tracking and resolution process.
+6.) Create a chart specific to the current sprint that shows the number of Bugs reported, resolved, and still open.  This will help us understand the current sprint's bug status and identify any potential issues that need to be addressed before the sprint ends.  This should be the first chart that appears when the user toggles on the chart view.
+7.) If the user clicks on a chart and that data is associated to one specific element such as a Sprint or a Bug report or a Dev Task, popup a dialog box in read-only mode with details about that item.
+8.) If there are other charts you find useful for bug tracking and resolution, feel free to add them as well.  The goal is to provide as much insight and information as possible to help us improve our bug tracking and resolution process and ultimately deliver a better product to our users.
+9.) The chart should not use any charting library.  It should be built from scratch using HTML, CSS, and JavaScript.  This will allow for greater customization and flexibility in the design and functionality of the chart.  Create a re-usable charting module that can be used for other types of charts in the future and to make it easier to maintain and update the charts as needed.  The charting module should be designed to handle different types of data and be easily customizable to fit the specific needs of our bug tracking and resolution process.
+
+Developer Task Tracking Charts:
+-------------------------------
+1.) Create a graph button on the Dev Task View that is a toggle.  When it is enabled, the graphs/charts will appear in between the filter panel and the table of Dev Tasks.
+2.) By default the chart view should be enabled (unless there is no data), but the user can toggle it off if they want to hide the charts and just see the table of Dev Tasks.
+3.) Create Developer Task Tracking Charts that shows the number of Dev Tasks created per Sprint.
+4.) Create another chart that shows and the number of Dev Tasks completed per Sprint.
+5.) The charts should be interactive, allowing users to hover over data points to see the exact number of Dev Tasks created and completed for each Sprint.  This will provide more detailed insights into our development process and help us identify any potential bottlenecks or areas for improvement.
+6.) Create a chart specific to the current sprint that shows the number of Dev Tasks created, completed, and still open.  This will help us understand the current sprint's development status and identify any potential issues that need to be addressed before the sprint ends.  This should be the first chart that appears when the user toggles on the chart view.
+7.) If the user clicks on a chart and that data is associated to one specific element such as a Sprint or a Bug report or a Dev Task, popup a dialog box in read-only mode with details about that item.
+8.) If there are other charts you find useful for tracking our development process, feel free to add them as well.  The goal is to provide as much insight and information as possible to help us improve our development process and ultimately deliver a better product to our users.
+9.) The chart should not use any charting library.  It should be built from scratch using HTML, CSS, and JavaScript.  This will allow for greater customization and flexibility in the design and functionality of the chart.  Create a re-usable charting module that can be used for other types of charts in the future and to make it easier to maintain and update the charts as needed.  The charting module should be designed to handle different types of data and be easily customizable to fit the specific needs of our development process tracking.

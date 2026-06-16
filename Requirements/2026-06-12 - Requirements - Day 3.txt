@@ -1,0 +1,66 @@
+PMT:  Day 3 of Agentic AI Coding
+--------------------------------
+
+1.) Remember this....this project is called "PMT" which stands for Project Management Tool.
+
+2.) Our new target user platform is Chrome and all Chromium-based browsers.  So make sure any JavaScript you write works with those specifically going forward (no need to refactor existing code).  Obviously, if there is a small or simple way to write something that might be cross-browser compatible do that going forward but do not prioritize it.
+
+3.) Going forward or as you refactor code in the future, when you write code that targets Chrome/Chromium-based specifically, add comments stating that is the case so that future iterations of the project can refactor that. Do not go out of your way to write complicated code to make things cross-browser.  Follow KISS, keep it simple stupid and target Chrome and Chromium-based browsers for now.
+
+4.) Create an AGENTS.md at the root level of the project and for each sub-folder so that program logic, rules, preferences are recorded accordingly at each level so that when another developer continues the project on their local machine, the AI (Codex) can re-read these and continue the development with as little friction as possible.  Also, help in minimizing the context that the AI (Codex) would have to remember at each coding session by just having AI (Codex) re-read these AGENTs.md file to speed things along.  In the root level AGENTS.md, summarize a high-level view of the project along with our target platforms both user platform and server deployment platform so future AIsk know exactly how to deal with the project.
+
+5.) I've added a Requirements folder, be sure to never delete this folder.  You can place an AGENTS.md file in and tell future AIs to never delete that folder.
+
+Database Scripts Refactoring
+----------------------------
+1.) Combine 01_CreateDatabase.sql and 02_CreateSchema.sql into one file and include only 1 piece of data.  Create an Admin user:
+
+First Name: Louiery
+Last Name:  Sincioco
+Password:  Password1
+Email:  louiery@gmail.com
+Phone:  +63 (966) 230-4023
+
+2.) 03_CreateStoredProcedures.sql - rename this file to now be 02_CreateStoredProcedures.sql
+3.) 04_SeedData.sql - rename this to now be 03_SeedData.sql and move all seed and test data into here.
+4.) Adjust the seed data for the LMS Project so that it contains a realistic development project that is 3 Sprints into it.
+5.) For the PMT Project, seed it with only 1 Sprint and make seed the sprint tasks with a few realistic tasks we have actually done in this project.
+6.) Try to showcase the sub-task functionality a little (don't go more then 1 level of sub tasks).
+7.) Try to showcase the bug tracking functionality a little and create bugs that have been fixed "QA Passed" to show that the corresponding Dev Task has been 100% completed.
+
+General Changes
+---------------
+1.) Update Dev Logs to be Scrum.
+2.) Introduce a new Backlog screen where we can see all the Todos, where we can add, edit, delete backlog items which may be Dev Tasks or Bugs.
+3.) If a Todo is already in a sprint, be sure to highlight it or at least show the sprint column so we know it's already assigned to a sprint.
+4.) When the user click the Finish button to finish the Sprint, in the dialog box that comes up prompt for "Finish this sprint and carry unfinished tasks forward?" change the dialog box so that it has 2 checkboxes:
+
+	a.) Finish this sprint and carry unfinished tasks forward? (Default this as checked)
+	b.) Carry over the Todos in the next sprint (Default this as unchecked)
+5.) Update the program's logic so it honors in the previous step (Step #4 a and b).
+
+6.) When images are pasted in Descriptions or Steps to Reproduce fields, or any multi-line text editing, be sure they are scaled (non-destructively) to the max width of the text area or container that contain them.  Currently, large images are not scaled and they push the UI text area or the bounding div tag when in read-only mode in some weird way.
+7.) In the Dashboard screen, put the legends for the graph.
+8.) In the Dashboard screen, in the Project flow area, put the task titles next to the tasks of each sprint. If the title gets too long uses ellipses to visually concatenate them.
+9.) In general, I want the editing buttons to be right aligned.  Currently they are left aligned.
+10.) Update the default images for each of the test users. The test users are famous people.  Go on the internet and find a nice profile / portrait picture of them and crop it as needed and assign it as their avatar image.  For Sin, the Admin, his profile picture is stored in the Requirements subfolder in a file named Sin.png.  You may also crop that as needed.  Make these avatar images be the permanent seeded images for these users so we don't have to do this again.
+11.) You do not need to preserve any data both on the backend and frontend.
+12.) In the Dev Log / Scrum, when the user makes a new entry, put a placeholder text that reads:
+What did you accomplish yesterday?
+What do you plan to do today?
+Do you have any roadblocks?
+13.) For the LMS project, include a few realistic Backlog items in the seed data.
+14.) Rename "Blogs" to "Documentation"
+15.) In LMS and PMT, seed a few realistic Documentation with images.  Be sure to download the images so it becomes a permanent part of the project and update the database scripts so it becomes permanent seed data.
+16.) In LMS and PMT, seed a few realistic Scrum entries. Update the database scripts so it becomes permanent seed data.
+17.) Change all of the user's emails (except for Sin) so that their email domain is @sincioco.com. Update the database scripts so it becomes permanent seed data.
+18.) When you are done.  Rebuild the entire database using your updated database scripts so we can verify all the database changes worked.
+19.) Move the existing Password button that is next to the user's name be next to the Lookups button.
+20.) When you are in a Project or a Sprint or when reporting a Bug, the list of Assignees should be limited to the people that were selected for the Project and Sprint.  But the list of Reporters can be any user in the system.  Basically, you can only assign tasks or bugs to people involved in the Sprint or the Project.
+21.) On the Dashboard, it became a bit messy now. Hide the legends and tasks but put a "Shore more Details" button to reveal them to keep the UI clean.  Somewhere on the screen, put a button for "Show All Details" that expands all the details for each Sprint.  Make that into a toggle button so the user can collapse all the details.  Obviously, default the screen where the legends and tasks are hidden.
+22.) On the Dashboard, when I click on a Sprint, it should take me to the Sprint View with the appropriate UI filters applied (such as the correct project already selected).
+23.) On the Dashboard, when I click on a Task, it should take me to the Task view with the appropriate UI filters applied (such as the correct Project, Sprint already selected).
+24.) In the Documentation section, when you click an existing Documentation it should default into read-only mode.
+25.) On the Board put two buttons.  1.) Hides all columns with no items under it.  2.) A Show all columns
+
+With the remaining Codex quota I have left (5%), produce a PDF documentation of the summary of work we have done so far for documentation purposes and to show to Management / Stakeholders the functionality and capabilities of PMT thus far.  If you can include a screen shot or two in the documentation that would be great.   Save the documention in the Requirements subfolder and name it "2026-06-12 - PMT Progress Report.pdf".

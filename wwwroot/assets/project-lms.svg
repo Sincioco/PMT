@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="LMS project icon">
+  <rect width="64" height="64" rx="14" fill="#1c2528"/>
+  <path d="M14 18h36v28H14z" fill="#35c7bd" opacity=".22"/>
+  <path d="M18 22h28v20H18z" fill="#edf3f2"/>
+  <path d="M22 27h20M22 32h16M22 37h12" stroke="#1c2528" stroke-width="3" stroke-linecap="round"/>
+  <path d="M13 48h38" stroke="#e4a53a" stroke-width="4" stroke-linecap="round"/>
+</svg>

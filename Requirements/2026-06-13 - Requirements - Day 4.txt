@@ -1,0 +1,87 @@
+
+Project Management Tool (PMT):  Day 4 of Agentic AI Coding
+----------------------------------------------------------
+
+
+Gantt Chart Preparation
+————————————-
+1.) Universally make sure that Projects, Sprints, Tasks, Bugs, etc. have a start date and end date in preparation for a Gantt chart will produce later.
+2.) Make the start date and end date are optional and universally update the UI, C# and database objects.
+3.) Create a Gantt top button navigation which we’ll call the Gantt view.
+4.) In the Gantt view, have a Project dropdown.  Sort the project so that latest one is at the top and old ones at the bottom.  Pre-select the first (latest) project and render the Gantt chart for that project.
+5.) In the Dashboard view, put a Gantt Chart button / icon in each project and take them to the Gantt View with that project pre-selected and the Gantt Chart rendered for that project.
+
+Gantt Chart
+——————-
+1.) The Gantt chart should have the year at the top going across / horizontally.
+2.) Below the years, the quarters (Q1, Q2, Q3, Q4) for the year above it should be rendered.
+3.) Render the Months and the appropriate days needed for the Gantt charts.  If certain months or days of the month are not needed, or if there’s no data that needs them, don’t render them.
+4.) Note that the Gantt chart may render a multi-year view so be aware of that, in cases where projects go beyond 1 year, or when a project starts on December for example.
+5.) On the left side of the Gantt chart should be a fixed column where the Sprint name is rendered.  Fixed column meaning as the Gantt chart is scrolled to the right, the fixed column (the Sprint names) stay. 
+6.) Vertically center the Sprint name as its height will vary depending on the number of tasks for that Sprint.
+7.) On the right side, will be all the tasks for the sprint.  Render the tasks in the correct start date and end date for that Sprint.
+8.) If one task depends on another task, render them closer together, if possible, and draw a line showing the dependency just like in a normal Gantt chart.
+9.) Show the avatar pictures for each task if it has been assigned.  When a task is clicked take them to the Task View and open the Task in read mode.
+10.) When they click on a Sprint (on the left column), take them to the Task View of that Sprint.
+11.) Render a thin bar graph / line to give a visual clue of the completion state of the task.
+12.) If the task has bugs, show a bug icon with a green background if all the bugs are QA Passed or higher.  Otherwise, show a red background for the bug icon if there are still outstanding bugs.
+13.) Make the bug icon clickable so when it is clicked, the bugs are rendered / shown below the task and in the correct spot in the Gantt chart if it has a start date and end date.  If no start date has been specified, just assume the created by date.
+14.) Create a button on the Gantt chart, at the top, that can expand / collapse all bugs for all the tasks in the Gantt chart.
+15.) If the start date and end date spans a really long time, relatively size the lengths of the tasks so it only needs to be as long as needed to convey the point.  We don’t really want a Gantt chart that goes on forever horizontally.  Logically resize the Gantt Chart as a whole to try to logically fit the Gantt Chart data in as reasonable horizontal width as possible.
+16.) Each Task when rendered should have a minimum length so that a least a portion of the Project Code and Task Name, along with the Avatar Icon (to the left) and Bug Icon (to the right), if there is one, is still legible. 
+17.) If the Task name is too long, show ellipses and truncate them (using CSS).
+18.) When plotting items on the Gantt chart, if no start date is specified, use the Created Date of the item.
+19.) Don't render weekends or known holidays on the Gantt chart unless a task or bug starts on a weekend or a known holiday.
+20.) Introduce a Holiday table because this software may be used in a different country other than the U.S.  It will in fact be used in the Philippines.  Create a simple Holiday maintenance screen.  And put a button of the Holiday View / Screen on the top nav.
+
+Bar Graphs / Statuses
+1.) Make the colors of the bar graphs / statuses configurable in the Lookups section so the user can change the color as it make sense for them.  It can just be one global set of colors for all projects.
+2.) Be sure to update the UI to respect the new user color preferences.
+
+Lookups
+-------
+1.) Update the UI so that on the left, you can easily pick the type (categories).  And on the right, you can edit the values for those types.
+2.) Make it so that when you click on a row, on the right side (the value) it takes the user straight into edit mode.  So they don’t have to explicitly click on the pencil icon.
+3.) Update the Lookups screen to support picking of color for each of the statuses.
+
+
+Board
+-----
+1.) In the Board, as click "Hide Empty Columns" be sure to check or uncheck the correct Columns checkboxes.  Keep the checkboxes and the Hide Empty Columns and Show All Columns button in-sync.
+2.) Move the Hide Empty Columns and Show All Columns buttons to the right of the Project / Sprint / Sort dropdown (since it is just a filter option also).
+3.) Change the Hide Empty Columns and Show All Columns as icons (with tooltips).  Pick an appropriate Hide / Show icon.
+
+
+Database Refactor
+-----------------
+1.) Universally make all tables have the following fields:
+
+[CreatedByUserId] INT NOT NULL,
+[CreatedAt] DATETIME2(0) NOT NULL CONSTRAINT [DF_pmt_Sprints_CreatedAt] DEFAULT (SYSUTCDATETIME()),
+[UpdatedByUserId] INT NULL,
+[UpdatedAt] DATETIME2(0)
+
+2.) Ensure that the CreatedByUserId and UpdatedByUserId are foreign keys to the Users table and that they are populated correctly when records are created and updated.  The CreatedByUserId should be required and the UpdatedByUserId should be optional (nullable) since not all records will have been updated after creation.
+3.) Make all the fields the standard fields in each table going forward (remember that).
+4.) Update all the necessary stored procedures / logic to populate the new fields correctly.
+
+Road Map View
+-------------
+1.) Similar to the Gantt Chart, render the year, quarter, months, day view as appropriate.
+2.) I want to create a Road Map view that shows Projects in the order of earliest projects completing first.
+3.) Show the sprints for the projects under the project.
+4.) Render the Project and Sprints according to their start and end dates.
+5.) If Sprints have no start dates, default them to the start date of the Project.
+6.) If the project has no start date, default it to the created date of the project.
+7.) Be sure to show the calculated percentages graphically of both the Projects and Sprints based on the Sprints' and tasks' and completion states.
+8.) Make the Projects clickable.  When they click a project, take them to the Sprints of that project.
+9.) Make Sprints clickable and take the user to the Task view of that sprint.
+10.) Provide filtering of projects and sprints by default, default them to All.
+11.) Provide sorting so that we can see earlier projects by start date ascending / descending, or project by end date ascending / descending.
+12.) In the Road Map view, there is no fixed column on the left.
+13.) But just like int he Gantt Chart view, optimize the width of the view so we don't have a Gantt Chart that is horizontally long.
+14.) Have a minimum width for both the Projects and Sprints.
+15.) If possible, show the avatar of the individuals involved in the Project and Sprint on the 2nd line of the Project / Sprint Name.
+16.) On the Project and Sprint, show the start and end date in mm/dd/yyyy-mm/dd/yyy or use the user's browser's default date format in small but legible font size.
+17.) Add a toggle icon in the Project / Sprint / Sort section but on the right side to hide/show the start date / end date of the Project and Sprints.
+18.) Add another toggle icon in the same area that hides/shows the avatars and percent completed (the text version only).

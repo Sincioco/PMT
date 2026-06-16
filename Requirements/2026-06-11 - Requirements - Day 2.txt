@@ -1,0 +1,66 @@
+Here are some updates...
+
+Goal:  QA needs to participate in the project and needs to track bug reports independent of the developer's tasks.
+
+For the following changes, you don't need to preserve any data, or the database.  You are free to drop and re-create the database as you see fit.  The same holds true for any browser-related data.  You are free delete any cookie or localstorage values or any data you cache.  Assume this with every future changes I make for the rest of this conversation unless I tell you otherwise.
+
+Bug Tracking
+------------
+1.) Create a new way to create a task, but this task is specific to bugs.
+2.) Keep the existing dev tasks as it is, this new bug task is for QAs only.
+3.) The new bug task should have the following fields typical of a bug ticket:
+
+	Title
+	Description
+	Steps to Reproduce
+	Actual Result
+	Expected Result
+	Environment (local, Dev, SIT, UAT, Production)
+	Severity (Trivial, Minor, Major, Critical)
+	Priority (Lowest, Low, Medium, High, Highest)
+	Status
+	Reporter
+	Attachments	
+	Assignee
+	
+5.) The Description and Steps to Reproduce fields should allow the pasting of multiple pictures if possible and URLs.
+6.) Be sure to store the pictures as an external file that is stored local to the database server, but not in the database itself.  Meaning, do not store it as a blob.
+7.) The database and web servers could be in two separate servers when this application is deployed.
+8.) The Status field can re-use the same status as the developers'.
+9.) This bug task should behave exactly like the dev task.  So on the kanban board, it can be drag to the various columns/status' there just like a Dev Task.
+10.) It should also be included in the calculations of the Sprint completion and Project completion.
+11.) The Sprint and Project summary should show how many bugs are in both text and graph form.
+12.) When a task is assigned to a developer, automatically create a corresponding Dev Task and make the Bug Task a dependency so that the Dev Task cannot be set to 100% completed if the status of this bug task is not at least set to QA Passed.
+
+13.) If you need to re-use the exact same tables and stored procedures, that is fine.  Or if you need to create separate ones that is fine too.
+14.) Create a separate Bug screen for the QA's to see all bugs reported with filters that make sense like by Status, Priority, Severity, Environment, Reporter, Assignee, etc.
+15.) The bug can be assigned to multiple developers to work on.
+16.) The reporter could be one or more person and can be anyone in the system, a Developer, an Admin or a QA.
+
+14.) Create a new security role for QA.
+15.) Make it so that QA cannot modify Dev Tasks directly via the UI.
+16.) Make it so that Dev cannot modify QA Tasks directly via the UI.
+17.) Admins should be able to add, edit and delete everything in the whole application.
+
+Task
+----
+1.) When clicking on a task on the Task screen, pop a dialog box that is the read-only version of the task.
+2.) The read-only dialog box should be separate from the Edit version.  Render the field and values in HTML so that if the description has images or URL links they become visible and clickable.  Be sure URLs opens a new tab when clicked.
+3.) If there are attachments that are images, then render them as thumbnails (fairly large thumbnails) and when the user clicks on them opens a new tab to view the image clicked;
+4.) If it's none-image type or non-pdf type, then render an icon and make the icon clickable and it opens another tab to view that or download it.
+5.) If possible, during edit mode, for the Description to accomodate embeded pictures, as in allow the user to copy and paste a picture into the Description field itself that would be great.  If not, then leave the current attachments method.
+6.) In the Edit screen, after you attach files, show a thumbnail of the files (if they are pictures) below the attachments section or if it is a document, provide a large icon for it, like a PDF, and make it clickable and it opens in a new tab.
+
+Universal UI Changes
+-------------------------
+1.) Don't hide UI elements / buttons anymore.
+2.) For buttons that perform actions, like Edit, Delete and Duplicate, use icons instead and add a tooltip that describes what the button does.  For example "Edit" for the Edit button and "Duplicate" for the duplicate button"
+
+
+Maintenance for Dropdowns
+-------------------------
+1.) Universally, for any dropdowns in the system, store all their values into a master lookup table.
+2.) Create a maintenance screen so that the values in the master lookup table can be edited, deleted or added to.
+3.) For the master lookup table, be sure to add a DisplayOrder field that determines in which order items appear in the UI.
+4.) For the master lookup table, be sure to add a Active field and when set to true that is what gets shown in the UI.
+5.) For the master lookup table, when a row is marked as not Active (Active = false) they do not show up in the dropdown, but old records in the system that references the inactive values still show the correct values.  You prevent them from choosing the item in the future if an item is no longer active, but you render past records that refer to the now inactive items still correctly.

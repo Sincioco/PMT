@@ -1,0 +1,294 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>PMT Progress Report</title>
+  <style>
+    @page {
+      size: letter;
+      margin: 0.55in;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      color: #1f2937;
+      background: #f4f7fb;
+      font-family: "Segoe UI", Arial, sans-serif;
+      font-size: 11.5pt;
+      line-height: 1.45;
+      print-color-adjust: exact;
+      -webkit-print-color-adjust: exact;
+    }
+
+    h1,
+    h2,
+    h3,
+    p {
+      margin-top: 0;
+    }
+
+    h1 {
+      font-size: 30pt;
+      line-height: 1.05;
+      margin-bottom: 12px;
+    }
+
+    h2 {
+      color: #0f766e;
+      font-size: 17pt;
+      margin: 22px 0 8px;
+      border-bottom: 2px solid #99f6e4;
+      padding-bottom: 4px;
+    }
+
+    h3 {
+      font-size: 12.5pt;
+      margin: 0 0 4px;
+    }
+
+    ul {
+      margin: 7px 0 0 20px;
+      padding: 0;
+    }
+
+    li {
+      margin: 4px 0;
+    }
+
+    .hero {
+      color: white;
+      background: linear-gradient(135deg, #0f172a, #0f766e);
+      border-radius: 14px;
+      padding: 30px;
+      margin-bottom: 18px;
+    }
+
+    .hero p {
+      color: #d1fae5;
+      font-size: 13pt;
+      max-width: 7.2in;
+    }
+
+    .meta {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-top: 18px;
+    }
+
+    .pill {
+      color: #083344;
+      background: #ccfbf1;
+      border-radius: 999px;
+      padding: 5px 11px;
+      font-weight: 700;
+      font-size: 9.5pt;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .card {
+      background: white;
+      border: 1px solid #dbe5ef;
+      border-radius: 10px;
+      padding: 14px;
+      box-shadow: 0 8px 22px rgba(15, 23, 42, 0.07);
+      break-inside: avoid;
+    }
+
+    .metric {
+      color: #0f766e;
+      font-size: 22pt;
+      font-weight: 800;
+      line-height: 1;
+      margin-bottom: 5px;
+    }
+
+    .muted {
+      color: #64748b;
+    }
+
+    .screenshot {
+      background: white;
+      border: 1px solid #dbe5ef;
+      border-radius: 12px;
+      padding: 10px;
+      box-shadow: 0 8px 22px rgba(15, 23, 42, 0.08);
+      break-inside: avoid;
+      margin: 12px 0;
+    }
+
+    .screenshot img {
+      display: block;
+      width: 100%;
+      border-radius: 8px;
+      border: 1px solid #cbd5e1;
+    }
+
+    .caption {
+      color: #475569;
+      font-size: 9.5pt;
+      margin-top: 7px;
+    }
+
+    .page-break {
+      break-before: page;
+    }
+  </style>
+</head>
+<body>
+  <section class="hero">
+    <h1>Project Management Tool (PMT)<br>Progress Report</h1>
+    <p>
+      PMT has evolved into a working internal delivery platform for projects, sprints, tasks,
+      bugs, scrum updates, documentation, users, and lookup management. The current build is
+      focused on practical delivery visibility, team assignment control, and a modern dark UI.
+    </p>
+    <div class="meta">
+      <span class="pill">Report Date: June 12, 2026</span>
+      <span class="pill">Audience: Management / Stakeholders</span>
+      <span class="pill">Status: Active Development Build</span>
+    </div>
+  </section>
+
+  <section class="grid">
+    <div class="card">
+      <div class="metric">8+</div>
+      <h3>Primary Work Areas</h3>
+      <p class="muted">Dashboard, Board, Projects, Sprints, Tasks, Bugs, Scrum, Documentation, Users, and Lookups.</p>
+    </div>
+    <div class="card">
+      <div class="metric">11</div>
+      <h3>Status Workflow Steps</h3>
+      <p class="muted">Backlog through Deployed in Prod, including QA and deployment readiness states.</p>
+    </div>
+    <div class="card">
+      <div class="metric">100%</div>
+      <h3>QA Passed Completion Rule</h3>
+      <p class="muted">Tasks automatically complete when they reach QA Passed or a later workflow state.</p>
+    </div>
+    <div class="card">
+      <div class="metric">KISS</div>
+      <h3>Implementation Approach</h3>
+      <p class="muted">Simple ASP.NET Core, ADO.NET, stored procedures, and schema-scoped SQL objects.</p>
+    </div>
+  </section>
+
+  <h2>Executive Summary</h2>
+  <p>
+    PMT now supports a usable project delivery workflow from intake through sprint execution,
+    QA, deployment, documentation, and scrum communication. The application has a modern dark
+    theme, seeded demonstration data for PMT and LMS projects, login/password support, avatar
+    display, and role-based administration features.
+  </p>
+
+  <p>
+    Recent work has improved stakeholder visibility through a cleaner Dashboard, click-through
+    navigation between Dashboard, Sprints, and Tasks, Board controls for hiding empty columns,
+    and read-only-first Documentation viewing. The result is a more practical tool for daily
+    tracking and management review.
+  </p>
+
+  <h2>Current Capabilities</h2>
+  <div class="grid">
+    <div class="card">
+      <h3>Dashboard</h3>
+      <ul>
+        <li>Project and sprint progress summaries.</li>
+        <li>Clean default view with details hidden until requested.</li>
+        <li>Show More Details per sprint and Show All Details toggle.</li>
+        <li>Click-through from sprint/task summaries to filtered views.</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>Kanban Board</h3>
+      <ul>
+        <li>Columns follow the full delivery workflow.</li>
+        <li>Drag-and-drop task status changes.</li>
+        <li>Quick create actions for tasks and bugs.</li>
+        <li>Hide Empty Columns and Show All Columns controls.</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>Tasks and Bugs</h3>
+      <ul>
+        <li>Project, sprint, status, assignee, completion, and age filters.</li>
+        <li>Parent/sub-task rendering with parent percent auto-calculation.</li>
+        <li>Bug Fix task type label and visual bug indicator.</li>
+        <li>Read-only task view with edit transition.</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>Projects and Sprints</h3>
+      <ul>
+        <li>Project-specific teams and sprint-specific member selection.</li>
+        <li>Sprint status graphs based on QA Passed completion.</li>
+        <li>Carry-forward logic for unfinished work and bugs.</li>
+        <li>Assignment lists limited to project/sprint participants.</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>Scrum</h3>
+      <ul>
+        <li>Daily scrum entries by project.</li>
+        <li>Newest entries shown first in table format.</li>
+        <li>Duplicate entry support with date defaulted to today.</li>
+        <li>Prompt placeholder for yesterday, today, and roadblocks.</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>Documentation</h3>
+      <ul>
+        <li>Renamed from Blogs to Documentation for business clarity.</li>
+        <li>Rich text documentation with seeded examples and images.</li>
+        <li>Existing documents open read-only first.</li>
+        <li>Hyperlinks open in a new browser tab.</li>
+      </ul>
+    </div>
+  </div>
+
+  <h2>Technical Foundation</h2>
+  <ul>
+    <li>Built with ASP.NET Core and .NET 6.</li>
+    <li>Uses ADO.NET and stored procedures, not Entity Framework.</li>
+    <li>Database objects are scoped under the <strong>pmt</strong> schema.</li>
+    <li>Seed scripts include users, avatars, projects, sprints, tasks, bugs, scrum entries, and documentation.</li>
+    <li>Default password is <strong>Password1</strong>, with user password change support.</li>
+    <li>Code has been kept intentionally simple and readable for junior developer maintenance.</li>
+  </ul>
+
+  <section class="page-break">
+    <h2>Screenshot: Dashboard</h2>
+    <div class="screenshot">
+      <img src="ProgressReportAssets/dashboard.png" alt="PMT Dashboard screenshot">
+      <div class="caption">
+        Dashboard showing project health, sprint flow, progress bars, team avatars, and detail controls.
+      </div>
+    </div>
+
+    <h2>Screenshot: Board</h2>
+    <div class="screenshot">
+      <img src="ProgressReportAssets/board.png" alt="PMT Board screenshot">
+      <div class="caption">
+        Board view showing the modern dark theme, workflow columns, task cards, assignees, and empty-column controls.
+      </div>
+    </div>
+  </section>
+
+  <h2>Recommended Next Steps</h2>
+  <ul>
+    <li>Continue user acceptance review with stakeholders using LMS and PMT seed data.</li>
+    <li>Add more role/permission scenarios if business ownership rules become more formal.</li>
+    <li>Finalize reports/export needs after management reviews the Dashboard and Board views.</li>
+    <li>Consider moving from .NET 6 to a supported LTS runtime after the active prototype phase.</li>
+  </ul>
+</body>
+</html>

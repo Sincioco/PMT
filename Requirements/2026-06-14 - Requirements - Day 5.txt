@@ -1,0 +1,69 @@
+Project Management Tool (PMT):  Day 5 of Agentic AI Coding
+----------------------------------------------------------
+
+Audit Log
+---------
+1.) Create some sort of Task and Bug Audit Log so that when its status changes or percent completion percent changes, who did it when and state what the previous status was and what it is now as well as what the previous completion percentage was before and after.
+2.) Put an Audit icon button on both the read-only and edit-view of the task and bug that will popup a dialog box that will let us view the audit log from the latest audits to the oldest.
+
+General Refactor and Logic
+--------------------------
+1.) When a Task or Bug's Status is set to Todo, keep its current completion percentage if it's already greater than 0%.
+2.) When a Task is assigned to a Sprint, set it's status to Todo.
+2.) When a Task or Bug is placed in the Backlog, set its Status to Todo and remove any Sprint association.
+4.) When a Bug's Status is set to QA Passed, then set its completion to 100%.  If it's linked to a Dev Task, then set the Dev Task's completion to 100%.
+5.) When a Bug's Status is set to QA Failed, set it's completion to 100%.  If it has already been assigned to a Developer and a Dev Task has already been created / associated with it, set that Dev Task's completion to 50%.
+6.) When a Dev Task's Status is set to Code Complete and there is no dependency, set its completion to 100%.
+7.) When a Dev Task's Status is set to Code Complete, set the completion to 100% and if it is linked to a Bug, set that Bug's completion to 0% (so QA can re-test it).
+
+
+Database Seed Data for the LMS Project
+-------------------------
+1.) Re-do the LMS Project data seed so that Sprints span across 2 years.
+2.) Make it a typical Agile/Scrum project, so each Sprint is 2 weeks long.
+3.) Move all of the seed data for the LMS project into 03_SeedData_LMS.sql
+4.) Also make sure that parent tasks (the ones with sub tasks) are assigned to a developer.
+5.) Be sure you don't create Scrum entries for weekends or Philippine Holidays.
+6.) Be sure to create tasks with sub tasks at least once per Sprint.
+7.) When creating tasks and bug report, be sure to follow the new logic mentioned previously.
+8.) To make things easier, create some bug reports per Sprint and be sure it is assigned to a Developer and the developer finishes / fixes the bug before the Sprint ends.
+9.) Create some realistic back and forth between the Dev and QA so that there is a somewhat realistic audit trail.
+
+Database Seed Data for a New HLS Project
+----------------------------------------
+1.) I would like to create another test/seed project called "HLS" which is more of a Waterfall type project.
+2.) Create another SQL file named 03_SeedData_HLS.sql and store the HLS seed data there.
+3.) Create a new Project named "HLS" which stands for "Hybrid Learning System."
+4.) Make this project span 5 years in time and still ongoing to the present time.
+5.) This HLS project is about AI and Learning.
+6.) Create Sprints spanning 5 years.
+7.) The Sprints are 3 to 4 months in length.
+8.) Create Tasks in the Sprints spanning in weeks from 2-8 weeks.
+9.) Make the initial Sprints busy with 20 tasks, and slowly over time it lessens so that in the present time in only has 4 or 5 tasks.
+10.) Be sure to have bugs in each Sprints.  Of course, there should be more bugs in the earlier Sprints.
+11.) Be sure that when bugs are reported it is assigned to a Developer and that a corresponding Dev Task is created and a dependency exists between the two, and that the Status and completion percentages follow the rules mentioned previously.
+12.) Create Scrum Entries spanning 5 years.  It doesn't have to be long.  It could just be a short sentence or two.
+13.) Be sure you don't create Scrum entries for weekends or Philippine Holidays.
+14.) Be sure to create tasks with sub tasks at least once per Sprint.
+15.) When creating tasks and bug report, be sure to follow the new logic mentioned previously.
+16.) To make things easier, create some bug reports per Sprint and be sure it is assigned to a Developer and the developer finishes / fixes the bug before the Sprint ends.
+17.) Create some realistic back and forth between the Dev and QA so that there is a somewhat realistic audit trail.
+
+Rebuild the Database from Scratch
+----------------------------------------
+1.) Be sure to update 00_DropAndRebuild_PMT.sql so the new .sql files are included in there.
+2.) Once you are done re-building the seed data, re-build the whole database by using the 00_DropAndRebuild_PMT.sql.
+3.) Validate and make sure that the Seed Data for LMS and HLS are present and that it follows the new logic stated previously and realistic audit logs exists.
+4.) If the PMT seed data needs any changes to conform to the new logic and audit logs, then update it first before re-building the database.
+
+Make all the projects still on-going to the present time.
+
+
+Updates to PMT
+------------------
+1.) On the Gantt Chart, can you provide a Sprint dropdown filter?  By default, set it to the current sprint, automatically scroll the viewport to where the Sprint began so the user doesn't have to scroll / hunt for where the Sprint is on the Gantt Chart.  The HLS Gantt Chart is massive and scrolling to find where Sprint's Tasks began in the viewport is a challenge (since HLS is a multi-year project).
+2.) On the Road Map, can you provide a button to hide all the Sprints?  I basically want to have an option to only see just the projects.  When they start, when they ended, and how they stack on the Road Map view.
+
+Minor Bug
+---------
+1.) When you select a Sprint from the new Sprint Dropdown, it does scroll the Gantt Chart to the correct Sprint.  However, it did not factor the fixed column (where the Sprint name is rendered), so the Tasks are appearing behind it.  Could you adjust the viewport so the tasks appear to the right of the Sprint name (to the right of the fixed column)?

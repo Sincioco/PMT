@@ -1,0 +1,53 @@
+Project Management Tool (PMT):  Day 6 of Agentic AI Coding
+----------------------------------------------------------
+
+Gantt Chart Changes
+-------------------
+
+1.) In the Gantt Chart, add a Sort dropdown, similar to what is in the Task View, so that we can view the Sprints in either descending or ascending.
+2.) Change the Gantt Chart slightly, so that when I select a specific Sprint, I still want the entire Gantt Chart rendered but I just want the view of the Gantt Chart to scroll into view the data pertaining to the Sprint I selected.  That way, I can still scroll by holding the middle mouse button to the left, right, top and down if I want to the other sprints easily.
+3.) Add a toggle so I can have it both ways.  1.) Jump to a Sprint and only see that Sprint's data; 2.) Jump to a Sprint and still see all of the other sprints, but the only the viewport jumps to that specific sprint.
+4.) Add a toggle so we can optionally hide/show holidays and weekends.
+5.) Add a fly-by button that will scroll the view port in a "fly by way" from the first Sprint all the way to the last or current Sprint.  This just for a "cool" or "wow" factor for demoing purposes.
+6.) Add a "Reset View" that just defaults Sprint selected to the current Sprint.
+
+7.) The Reset View button should select the Current Sprint, change the sort order to Start Date Descending and show Selected Sprint only.  Be sure to update/sync the UI.
+8.) The Fly By button should Reset the View first, using the logic in #7, and fly-by slowly back in time which means it has to scroll down and to the left.  Make sure the sprints are visible as it "flys by".  Do slow down the fly-by.  It's more important the sprints and tasks are visible as it "flys by".
+9.) Change the "Selected Sprint Only", "Show Weeekends/Holidsy, "Fly BY" and "Reset View" buttons into an icon.  Pick a resonable icon based on their functionality or generate an icon if you cannot find one.
+10.) There seems to be a minor bug on how the days of the months are rendered.  The text seems to be overlapping each other.
+11.) In the Sprint dropdown, reverse the order so that the newer Sprints are at the top and the old ones at the bottom.
+12.) When you select a specific Sprint, and the Show All Sprints option is turned on, the viewport of the Gantt Chart, does not automatically vertically scroll to the selected Sprint.
+
+13.) Bug, the days of the months don't render anymore.  Can you double-check the logic for that.  All I see is an interview of "1" on the days of the month.
+14.) Rework the logic for the Fly-by button, it doesn't work at all as intended.  Perform some calculations, so that you can make sure that the previous sprint becomes visible (as if you jumped to it directly via the Sprint dropdown).  Calculate the necessary animation coordinates so you fly by to the destination Sprint smoothly and slowly.  Then pause for 2 seconds, and then do the same thing for the next destination (previous) sprint.
+15.) Make the Reset button, cancel any fly-by that is still happening.
+
+Good job!  The Gantt Chart and the Flyby works really well now.  I just have some minor changes.
+16.) In the Sprint dropdown, can you add the "All Sprint" option again to show all the sprints and be sure to sync that with the UI button the "Show All Sprints" / "Show Selected Sprints" only.
+17.) Universally change sprint label lowercase "sprint" to always be propercase "Sprint".
+18.) When the fly-by button is clicked, immediately show a message or a toaster indicating, "Sprint fly-by will begin in 1..2..3" have it count from 1 to 3 seconds before the animation begins to build suspense.
+19.) Make the fly-by button also be the "stop fly-by" button when a fly-by is currently in progress.  Make it a toggle.
+
+The Gantt Chart looks amazing now!
+20.) The toaster message that shows the fly by is about to begin, can you make it appear closer to the fly-by button so the user's eyes can see it right away, but don't over lap any of the buttons (put it below the buttons).
+21.) Update the fly-by button so that when it is in the middle of a fly-by and the user clicks to stop/pause, don't pause it mid-animation.  Either pause it where it is in the current sprint that it is on, or if the animation has already started, stop the fly-by when it reaches the destination.  Don't stop mid-animation / mid-sprint.
+
+The Gannt Chart is looking better and better with each iteration!
+22.) Can you make the fly-by button be a start and pause button?  So that if an animation has been started previously and was stopped, it will just resume from where it is now instead of completely starting over.  We'll just have the user click the reset button if they really want to start over.
+23.) When the animation reaches the ultimate final destination, which would be the first sprint, then the fly-by button becomes a start fly-by button again.
+24.) Change the toaster countdown text so it reads like this "Sprint fly-by will begin in 1", "Sprint fly-by will begin in", "Sprint fly-by will begin in 3".  I don't actually want it to display "1..2..3"
+
+Road Map Changes
+----------------
+1.) The Road Map looks good overall, however, since the HLS project spans 5 years, you would have to scroll so far to the right to see the other projects.  Can you optimize the viewport so that if there are pertinent data for a given day, month, year, it just doesn't show them?  I want to be able to see the project in as little horizontal scrolling as possible.  Make each project have a minimum width so they don't become too small, but make the max width dynamic relative to all other items that needs to be displayed on the Road Map so the projects can be, if possible, made visible on one screen if everything could fit reasonably without making the project themselves too small.
+
+Road Map Looks better, but we need so minor adjustments:
+2.) The month names are overlapping each other a little bit.  Maybe shrink the font some more.
+3.) The calendar stopped at Q3 of 2026.  There is still plenty of room to the right of the screen, maybe perform some calculations to see if you can fit more quarters or years?
+
+The Road Map looks fantastic.  One minor change:
+4.) Adjust the tooltip of the projects in the Roadmap so that it includes the name of the project (which it does now) and , the completion percentage and the start date and end date.
+
+Back Button Functionality
+-------------------------
+1.) Universally, make the back button work.

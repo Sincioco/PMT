@@ -1,0 +1,79 @@
+Project Management Tool (PMT):  Day 7 of Agentic AI Coding
+----------------------------------------------------------
+
+1.) In the Sprint view, if any of the chart's legends is not used has a value of 0, remove it from the view.
+2.) Change the top navigation to have an icon and a text next to it.
+3.) Move the Holidays into the Lookups section, so it's just another category on the left.
+4.) Change all the label of Lookups into Settings.
+5.) Move the User's top nav and make it be a part of Lookups as just one of the categories on the left.
+6.) Change the label of "Tasks" to "Dev Tasks".
+7.) Change the label "Bugs" to "Bug Reports"
+8.) In the top right corner, remove the "User" label and just change.
+
+9.) Rename "Board" to "Kanban Board".
+10.) In the Kanban Board, make the "Hide empty columns" and "Show all columns" buttons just one toggle button.
+11.) In the Road Map, the month names are too close to each other.  Add a pixel of padding to the left and right of each month names.
+12.) When creating a new Scrum entry, place the cursor in the text area at the end of the text that reads "What did you accomplish yesterday?"
+13.) When Editing a Dev Task or a Bug Report, on the title / caption of the dialog box, add a ":" at the end and put the Title of the Dev Task or Bug after it.  For example:  "Bug HLS-BUG-0051: Hybrid attendance sync skips late joiners"
+14.) When the Top Nav gets too narrow, turn the last item into a 3 horizontal bar icon that becomes a dropdown menu showing both icons and text on the dropdown menu.  Still show top nav buttons that would fit if possible.  Just collapse the remaining into the menu.
+
+
+Style Changes
+-------------
+1.) When any of the button is on a "pressed" or "active" state change the text color to white;
+2.) Remove the bolding as well when it is active.  I don't want the UI shifting.
+3.) Universally make UI buttons that are not in a card have an icon in front of them;
+4.) If a button is in a card of some kind or a table, then an icon is just fine.
+5.) For Dialog boxes, the main buttons like Save or Can at the bottom should be icon and text.  But any other buttons that are not the main action buttons can just be icons.
+
+Top Navigation
+--------------
+1.) Make the User's avatar clickable and make it dropdown a menu, just like the one in the Top Nav.
+2.) Move the change password under this menu
+3.) Change the Log Out button into a menu item when the user clicks the User's Avatar.
+4.) Hide the current user's name.
+5.) Basically, we only want to see the User's Avatar on the top right-hand corner.
+
+Sprints View
+--------------
+1.) I want to overhaul the graphs.  For each category (status), show a label and a progress bar / graph underneath it.
+2.) If a category / legend contains 0 values, hide that category.  We don't need to see the label or a graph of 0 data.
+3.) The last progress bar / chart is the overall progress for the Sprint factoring in all Dev Tasks and Bugs.
+4.) Have an individual expand/collapse button for each sprint card (just an icon)
+5.) When a sprint is collapsed, hide all the charts but leave the overall progress bar visible.
+6.) Use a thin bar for all the graphs except for the overall progress bar.
+7.) Add a global expand/collapse button at the upper-right corner to the left of the "New Sprint" button that will toggle all of the Sprints expand/collapse state.  Be sure the button has an icon.
+8.) Change the "New Sprint" button into an icon and text button.
+
+More Changes
+----------------
+Everything is looking good.  Good job so far!
+1.) In the Documentation / Blog view, don't show the project's name, show the project code instead.
+2.) We don't need to show the number of edits.
+3.) Show when the documentation was created as well as when it was last edited (if it was edited).
+4.) Align the edit and delete buttons to the right-hand side and at the bottom of the documentation card.
+5.) Flip the order of the edit and delete button, so that it is delete first and edit last.
+6.) In the Projects and Dashboard screen, render the graphs and categories just like how we do in the Sprints view.  So if a category has 0 values, hide it.  Show a progress bar for each category and an overall progress bar as well and include the expand/collapse feature.
+7.) Just like in #4, universally make it so that if a card has buttons at the bottom, align them to the right-hand side and flip the order so that the delete button is first and the edit button is last.  This applies to all cards in the app, such as Dev Tasks, Bugs, Sprints, Projects, etc.  Just make it a universal design pattern for all cards in the app.
+8.) In the Dashboard in the Project Flow section, for each of the Sprint cards change the label on the button that now reads "More Details" to just "More Details", and the toggle version to say "Less Details."
+9.) In the Dashboard in the Project Flow section, when More Details is clicked and it shows the Sprint tasks, show all of the tasks for that sprint.  Set the card with a maximum height and make the card scrollable if there are too many tasks to show.  This way, we can see all of the tasks for that sprint without needing to navigate to the Sprints view.  It will just expand the card to show all of the tasks right there in the Dashboard.
+10.) In the Dashboard in the Project Flow section, for each of the Sprint cards' tasks, add a thin progress bar underneath each task that shows the percentage of completion for that task based on the Dev Tasks and Bugs associated with that task.  This way, we can get a quick visual representation of how much progress has been made on each task right from the Dashboard without needing to navigate to the Sprints view.
+11.) In the Gantt Chart, put a tooltip on the cell that contains the sprint name (the left fixed column) when there are a lot of Tasks in the sprint and the sprint name is rendered out of view the tooltip can remind the user what Sprint they are looking at when they hover over the Sprint cell.
+
+More Changes - Part 2
+---------------------
+So far everything looks great!  I have more changes for you:
+1.) In the Dev Tasks, Bug Report and Kanban Board, I should be able to re-order any of the items by dragging and dropping.  For example, in the Sprints view, I should be able to reorder the Dev Tasks and Bugs within each Sprint by dragging and dropping them into a different order.  In the Kanban Board, I should be able to reorder the tasks within each column by dragging and dropping them.  The backlog should behave the same way.
+2.) In the Gantt Chart view, the browser's vertical scrollbar is appearing because the chart is too tall. Can you make the Gantt Chart's container have a fixed height and make the chart itself scrollable within that container?  This way, we can scroll through the Gantt Chart without needing to use the browser's vertical scrollbar, which will make for a better user experience when viewing large projects with many tasks and sprints in the Gantt Chart.
+3.) In the Road Map, the Names of the Months are still too close to each other.  Can you add a pixel of padding to the left and right of each month name?  This way, the month names will be more spaced out and easier to read on the Road Map view.  Some of the month names are getting clipped.
+4.) In the database seed data for HLS, LMS, PMT, make 90% of the tasks medium priority, 5% high priority, and 5% low priority.  This way we can have a more realistic distribution of task priorities in the seed data.  Drop the current database and re-create everything with the new seed data after you make this change.
+5.) Create realistic blog / documentation entries for this project, PMT.  Be sure to create entries that span across the timeline of the project, starting from the beginning of the project up until the present time.  The entries should reflect realistic updates and progress on the project, such as when certain features were completed, when certain bugs were fixed, when certain milestones were reached, etc.  This will help us have a more realistic set of documentation / blog entries for testing and demonstration purposes.  Be sure to include some edits to the documentation as well to create an audit trail for the documentation entries.  Use the requirements text files in the Requirements folder as a reference for the content of the documentation entries, since they reflect the actual updates and progress on the project.  Be sure to create at least 10 documentation / blog entries for the PMT project, spanning across its timeline.  After creating these entries, make sure to test and validate that they are displayed correctly in the Documentation / Blog view of the app.  Be sure each entry has at least 1 picture on it.  Be sure to download the picture local to the project since we don't want to rely on external image hosting for the pictures in the documentation entries.  After you download the pictures, be sure to update the image URLs in the documentation entries to point to the local copies of the images in the project.  This way, we can ensure that the images will always load correctly in the documentation entries without relying on external sources.
+6.) Move the Backlog in the top view after Documentation.
+7.) Move the Kanban Board just in front of the Projects button.
+8.) In the top nav, move Settings under the User Avatar dropdown menu and rename it to "Settings"
+9.) In the Dashboard, remove the Search Task functionality.
+
+Feedback
+--------
+1.) I tested the drag and drop and it doesn't seem to work at all.  You can re-order 1 item successfully but any other attempt to re-order things afterwards, doesn't work.  Can you re-evaluate your logic and in your smoke testing re-order a few items.  Start with the Kanban board and be sure you can re-order there properly before moving into the Dev Tasks and Bug Reports.
+2.) Also, when you drag and drop, put some sort of visual indicator so the user knows where the card would land in terms of ordering...above the target or below the target.

@@ -1,0 +1,297 @@
+Goal: Task Tracking Tool similar to JIRA to be used in Software Engineering
+
+Front-End:  Pure JavaScript
+
+Server Platform:  .Net 6
+
+Target User Platform:  Edge Browser on Windows 11
+
+Server / Deployment Environment:  Cannot download anything from the Internet.  Server is locked down.  So deployment must be as easy as unzip the whole project and set it up in IIS.  Provide instructions on how to setup in IIS both with and without SSL.  This project will be used internally by the developers and will be deployed in a Dev server.  So, security / SSL certificates may not be required.  But provide instructions for setting up both just in case.
+
+Database:  We have access to SQL Server 2019.  So provide the proper deployment .sql files for the project and provide seed/test data (a starting project with tasks).  For all database objects, create a schema for it and call it "pmt" and prefix all objects with it.  Do NOT use Entity Framework.  Use ADO.Net and stored procedures.
+
+Users:  You can create test users with names like: Sin, DJ, Jenny, Herman, Arnel, Eric.  Generate pictures/avatars for each users as needed.
+Images and Resources:  If you will use images, download them so they become local to the project.  Or generate them.  Do not refer to images or other resources over the internet as the server is locked down.
+
+User Interface:  Modern clean aesthic with glass effect on the UI.  The UI should focus on the data that is presented on-screen.  The UI should get in the way if the mouse cursor is not anywhere near the UI element.  For example, if there is a panel with an edit / save button or icon, if the mouse cursor is not inside that panel, hide the UI elements not needed so the screen's focus is the data and not the UI.  Be sure the UI works on laptops and desktop of various sizes.
+
+Create me a Software that can:
+
+Projects
+--------
+1.) Support multiple projects.
+2.) Each project has its own icon, description, URL and be able to pick which users are in that project.
+3.) Be able to upload the picture / icon for the project.
+4.) Projects are logical containers for sprints and tasks.
+5.) Create a screen where we can see all the projects, along with a percent completed graph based on all the tasks belonging to the project.  For example, if 9 out of 10 tasks in the project has completed, then the project is 90% complete.
+6.) Has a project Code like "HLS" which is used to create all the sprint and tasks for that project.  HLS-Sprint1 for Sprints, HLS-Task1 for Tasks as an example.
+
+Tasks
+-----
+1.) Has a Title;
+2.) Has a Description.  Support rich text editing, if possible, such as bold, underline, bullet points, URL, etc.
+3.) Can have attachments (0, 1 or more);
+4.) Has a Status field:  Backlog, Todo, In Progress, Code Completed, in QA, Deployed in SIT, Deployed in UAT, Deployed in Prod (default to Todo)
+5.) Has a Priority Field:  Low, Medium, High (default to low)
+6.) Percent Completed:  0-100% (default to 0%)
+7.) Has a URL field.
+8.) Tasks can be assigned to 1 or more developers.
+9.) Tasks can have dependency on another task.  That is, before a task can be started, it may need a previous task to be completed first.
+10.) Need to keep track of audit trail / history, such as when the task was started.  Each time the task changes owners (who it was assigned to before).  Have a full history / audit trail about the task.
+11.) Tasks can have sub-tasks.
+12.) When a task has sub-tasks, only when all the sub-tasks are completed can the main task be 100% completed.
+13.) Be able to pick which Sprint this task belongs to.
+14.) When a task is moved from Sprint-to-Sprint and it affects the percent completed of the destination or source Sprint, be sure to re-calculate the percent completed for the involved Sprints, as well as the containing project.
+15.) Provide a way to duplicate a task.
+
+Sprint
+------
+1.) Has a Title;
+2.) Has a Description (optional)
+3.) Has a Start Date;
+4.) Has an End Date.
+5.) Has developers / users assigned to the sprint.
+6.) Has a lesson learned multi-line field.  Support rich text editing, if possible, such as bold, underline, bullet points, URL, etc.
+7.) Be able to pick which tasks belong to a Sprint.
+8.) Has a Percent Completed based on all the tasks in the Sprint.
+9.) Provide a way / button to finish a Sprint.
+10.) When a Sprint is finished, start a new Sprint and carry over the unfinished tasks (those not 100% completed) to the next sprint.
+11.) Unless you are an Admin, previous Sprints are read-only to Users/Developers.
+
+Task Board / Kanban Board
+--------------------------
+Create a board that is configurable so that:
+1.) There is a filter to switch between projects.
+2.) There is a filter to show the latest sprint and older sprints of the current project.
+3.) Allow the users to configure the board so they can see the task statuses as columns and they can choose which status/columns they want to see on the board.
+4.) Provide an option so that tasks that are nearly completed or are completed are sorted at the top (so we see tasks that are completed at the top).  Use the percent compeleted field.
+5.) Provide an option so that tasks that are done or nearly done are at the bottom (so we see the tasks that still needs to be worked on at the top).  Use the percent compeleted field.
+6.) For each task, render a small graph showing percent completed.
+7.) For tasks with sub-tasks, render a tiny graph showing the progress of the sub-tasks along with the overall progress of the task (average all of the sub-tasks percent compeleted field).
+
+Developers / Users
+-----
+1.) Has First Name, Last Name, nickname, email, phone;
+2.) Has picture that can be uploaded by the user;
+3.) Has a small avatar/thumbnail when the user is displayed on screen.
+4.) Has Home Page field for a URL.
+5.) Has a Social Media field for a URL.
+6.) Has a Bio field for a multi-line biography of the user.
+7.) Has a checkbox to indicate if the user is an Admin.
+
+Dev Log
+-------
+1.) Create a simple screen so that each developer can create a multi-line rich-text log entry of what they did that day.
+2.) The Dev log is visible to everyone.  Everyone can see each other's logs.
+3.) Only the person that created the log can edit or modify it.
+4.) Allow for dev logs to be pinned so they appear on top of all other logs.  This is meant to highlight important announcements.
+
+Blogs
+--------
+Similar in Spirit to the Dev Log, this allows the developers to create long blogs for documentation purposes.
+1.) Allow for rich text like Bold, Underline, Font size adjustments, URLs, bullet points, etc.
+2.) If possible allow the pasting of images in the blog;
+3.) If not, allow for attachments (multiple).
+4.) Only Admins can edit or delete blogs.
+5.) Users can read, write, delete edit any blogs they created.
+6.) Be sure to keep track of edit histories.  Not the content, just who created it and when, and who modified it and when, etc.
+
+Dashboard
+---------
+1.) We need a dashboard showing all the projects and their percent completed across (horizontally).
+2.) Graphically show the sprints / tasks underneath each project (vertically).
+3.) Be able to filter by project, by sprint.
+4.) Be able to search for task across all projects.
+5.) When a task is found and the user clicks on it, take the user to the appropriate sprint that task was under.
+
+
+Roles and Security
+------------------
+Let's make things simple and just create 2 roles:  Administrators and Users.
+1.) Administrators can read, write, delete edit anything;
+2.) Users can read, write, delete edit anything they created, but not others.
+
+If there are other elements I missed, feel free to add it.  Again the goal is to create a JIRA like project management tool that is useful to a Software Engineering Team.
+
+When writing code, focus on readability and keep things as simple as possible.
+Add comments to the code to explain the intent of the code.
+Assume that a Jr Developer fresh out of college will maintain the code going forward.  Keep things as simple as possible whenever possible.
+Avoid layers of abstraction.  Keep things as minimal as possible.
+Follow the KISS method.  Keep It Simple Stupid.  Do NOT use the DRY or SOLID principle.  Stick with KISS.
+Be sure to provide LogIn Screen.  And default all user's password to "Password1".  And provide a way for the user to change their passwords.
+
+In this conversation, you are always free to delete and recreate the database in its entirety.  I do not need any data preserved.  fyi.
+
+You are also free to reset the browser state for in this conversation.  I do not need any browser state preserved.
+
+Use D:\Project Management Tool (PMT) as your working folder.  Store everything there.
+
+
+--------------------
+
+Changes to make:
+1.) Update the UI so it uses dark theme and make it look more modern.  It looks like a web site from the 90s right now.  The formatting of the dropsdowns and fileupload control has an ugly black border around it.  Modernize it.
+2.) On the kanban board, allow the user to drag and drop the task from one column (Status) to another.
+3.) Update the Dev Log so each entry is a row in a table.  The newest ones at the top.
+4.) Change the Status dropdown so the choices are (in thi order): Backlog, Todo, In Progress, Code Complete, Ready for QA, QA in Progress, QA Failed, QA Passed, Deployed in SIT, Deployed in UAT, Deployed in Prod.
+5.) Update the neccessary database/UI based on step #4.
+6.) In the Sprints view, create a graph for each status.  Right now, the graph for the Sprint only moves if the task is Deployed to Prod.  Let's change that so the calculation is based on QA Passed instead.
+7.) When you edit the project, the checkbox are centered and the names are on the right.  Fix it so the check boxes are on the left and the names are next to the checkbox.
+8.) In the Kanban board, allow the creation of a new task and default it to Todo.
+9.) In the Edit User dialog box, the checkbox and Admin text are separated.  Put the checkbox on the left (left align) and the word Admin next to it.
+10.) You are free to edit, delete any files or data to make these changes.  You don't need to save or preserve anything.
+
+--------------------
+
+Changes to make:
+1.) The dropdown lists does not appear to be styled correctly.  It still has the white background behind the list items.
+2.) In the Tasks list, add a column that shows the avatar/icons of the developers assigned to the task.  Most of the time it will just be 1 developer, so make the icon take up the height of the task row, but if there are more than 1, scale or overlap them accordingly.
+3.) When adding a new task, scroll the view to the top of the dialog box and put the cursor's focus on the Title textbox.
+
+--------------------
+
+Changes to make:
+1.) In the Tasks View, put the Assigned Column to the left so it is the first column.
+2.) In the Tasks View, flush the action buttons on the right.
+3.) In the Tasks View, you can make the done column (the one with the graph) be flexible so it takes up more space.
+4.) In the Sprints view, make the bar graphs taller (4 times in height).
+5.) In the Projects view, when you click on the the project, it should show a list of Sprints belonging to that project.  Basically, take them to the Sprints view and filter it by the project clicked.
+6.) The Sprints View should have a Project Dropdown on it so you can switch projects and filter to see the Sprints in that project.
+7.) In the Sprints View, when you click on a Sprint, it should take you the the Tasks View but with the Sprint already filter based on what the user clicked.
+8.) The Tasks view should have a Project and Sprints dropdown and the Sprints, Projects and Tasks should refresh accordingly.
+9.) In the Dev Log, provide a way to duplicate an entry.  When an entry is duplicated, default the date to today.
+10.) In the Dev Log and Blogs screens, the rich text editor does not seem to support List.  The List button does not seem to do anything.  The bold and underline works.
+11.) In the Dev Log and Blogs screens, when the user clicks on a hyperlink, make sure it opens in a new tab.  In fact, make this behavior the default for all URLs that the user enters and is clickable.
+12.) Do not use the built in JavaScript alert / prompt dialog boxes.  Create a custom one that fits the theme of the site.
+
+--------------------
+
+Changes to make:
+1.) Is it possible for you to update the 04_SeedData.sql to include the newer requirements in 05_UpdateStatusWorkflow.sql so that they are just one seed script?
+2.) When editing a task anywhere, if the Status changes to QA Passed and above, automatially set the Percent completed to 100.
+3.) In the New Project dialog box, set the focus of the cursor to the Code text field.  In fact, in general do this for all other dialog boxes, set the focus to the first field unless I have specified otherwise previously.
+4.) If a task is a sub-task, render it underneath it's parent and indent it a few spaces to the right.
+5.) When a task's status changes to Todo or Backlog, change its percent complete to 0.
+6.) In the header above (on the right side), show the User's avatar picture next to their name.  Keep where the Logout and Password buttons where they are.
+7.) When a Task has a sub-task, lock the Percent complete on the parent task and auto-calculate the parent's percent complete based on all the sub-tasks percent complete whenever any of the sub-tasks changes it's percent completion.
+8.) In the Task view, the dropdown for the Project and Sprint are too wide.  Put them in one row.  Put a label "Project" before the Project dropdown.  Put a label "Sprint" before the Sprint dropdown.
+
+--------------------
+
+Changes to make:
+1.) On the top nav, change the order so that Sprints comes after Project.  So the order should be:  Dashboard, Board, Projects, Sprints, Tasks, Dev Log, Blogs, Users.
+2.) Rename the "Dev Log" on the top nav to "Dev Logs".
+3.) In the Board view, the dropdown are too wide.  Make them all just 1 row and put a label in front of each dropdown.
+4.) In the Task view, the dropdown height seems smaller than usual.  Adjust the height to a more normal height.
+
+
+
+--------------------
+Here are some updates...
+
+Goal:  QA needs to participate in the project and needs to track bug reports independent of the developer's tasks.
+
+For the following changes, you don't need to preserve any data, or the database.  You are free to drop and re-create the database as you see fit.  The same holds true for any browser-related data.  You are free delete any cookie or localstorage values or any data you cache.  Assume this with every future changes I make for the rest of this conversation unless I tell you otherwise.
+
+Bug Tracking
+------------
+1.) Create a new way to create a task, but this task is specific to bugs.
+2.) Keep the existing dev tasks as it is, this new bug task is for QAs only.
+3.) The new bug task should have the following fields typical of a bug ticket:
+
+	Title
+	Description
+	Steps to Reproduce
+	Actual Result
+	Expected Result
+	Environment (local, Dev, SIT, UAT, Production)
+	Severity (Trivial, Minor, Major, Critical)
+	Priority (Lowest, Low, Medium, High, Highest)
+	Status
+	Reporter
+	Attachments	
+	Assignee
+	
+5.) The Description and Steps to Reproduce fields should allow the pasting of multiple pictures if possible and URLs.
+6.) Be sure to store the pictures as an external file that is stored local to the database server, but not in the database itself.  Meaning, do not store it as a blob.
+7.) The database and web servers could be in two separate servers when this application is deployed.
+8.) The Status field can re-use the same status as the developers'.
+9.) This bug task should behave exactly like the dev task.  So on the kanban board, it can be drag to the various columns/status' there just like a Dev Task.
+10.) It should also be included in the calculations of the Sprint completion and Project completion.
+11.) The Sprint and Project summary should show how many bugs are in both text and graph form.
+12.) When a task is assigned to a developer, automatically create a corresponding Dev Task and make the Bug Task a dependency so that the Dev Task cannot be set to 100% completed if the status of this bug task is not at least set to QA Passed.
+
+13.) If you need to re-use the exact same tables and stored procedures, that is fine.  Or if you need to create separate ones that is fine too.
+14.) Create a separate Bug screen for the QA's to see all bugs reported with filters that make sense like by Status, Priority, Severity, Environment, Reporter, Assignee, etc.
+15.) The bug can be assigned to multiple developers to work on.
+16.) The reporter could be one or more person and can be anyone in the system, a Developer, an Admin or a QA.
+
+14.) Create a new security role for QA.
+15.) Make it so that QA cannot modify Dev Tasks directly via the UI.
+16.) Make it so that Dev cannot modify QA Tasks directly via the UI.
+17.) Admins should be able to add, edit and delete everything in the whole application.
+
+Task
+----
+1.) When clicking on a task on the Task screen, pop a dialog box that is the read-only version of the task.
+2.) The read-only dialog box should be separate from the Edit version.  Render the field and values in HTML so that if the description has images or URL links they become visible and clickable.  Be sure URLs opens a new tab when clicked.
+3.) If there are attachments that are images, then render them as thumbnails (fairly large thumbnails) and when the user clicks on them opens a new tab to view the image clicked;
+4.) If it's none-image type or non-pdf type, then render an icon and make the icon clickable and it opens another tab to view that or download it.
+5.) If possible, during edit mode, for the Description to accomodate embeded pictures, as in allow the user to copy and paste a picture into the Description field itself that would be great.  If not, then leave the current attachments method.
+6.) In the Edit screen, after you attach files, show a thumbnail of the files (if they are pictures) below the attachments section or if it is a document, provide a large icon for it, like a PDF, and make it clickable and it opens in a new tab.
+
+Universal UI Changes
+-------------------------
+1.) Don't hide UI elements / buttons anymore.
+2.) For buttons that perform actions, like Edit, Delete and Duplicate, use icons instead and add a tooltip that describes what the button does.  For example "Edit" for the Edit button and "Duplicate" for the duplicate button"
+
+
+Maintenance for Dropdowns
+-------------------------
+1.) Universally, for any dropdowns in the system, store all their values into a master lookup table.
+2.) Create a maintenance screen so that the values in the master lookup table can be edited, deleted or added to.
+3.) For the master lookup table, be sure to add a DisplayOrder field that determines in which order items appear in the UI.
+4.) For the master lookup table, be sure to add a Active field and when set to true that is what gets shown in the UI.
+5.) For the master lookup table, when a row is marked as not Active (Active = false) they do not show up in the dropdown, but old records in the system that references the inactive values still show the correct values.  You prevent them from choosing the item in the future if an item is no longer active, but you render past records that refer to the now inactive items still correctly.
+
+--------------------
+Here are some updates...
+
+1.) Just like normal Dev Tasks, ensure that Bugs not completed and that are not in the ToDo Status is carried over to the new Sprint when a new one is started.
+2.) In the Tasks view, add more filters, such as by Status, by Assigned (multi-select), highest and lowest completed filter, Newest Tasks, Oldest Tasks, Hide Completed Tasks (if a sub-task is completed, but it's parent is not, keep both the parent and sub-task visible).
+3.) If a Dev Task is a "Fix Bug", change that to "Bug Fix" and put a tiny bug icon in front of it.
+4.) When viewing a Task in its read-only state, put a "Edit" button and switch it to its edit mode.
+5.) In the Bugs View, the Reporter and Assignee filter should be a multi-select checkboxes or at least allow the user to select multiple users.
+
+--------------------
+Here are some updates...
+1.) Rename the users as follows:
+Arnel = Steve Jobs
+DJ = Bill Gates
+Herman = Mark Zuckerberg
+Jenny = Sam Altman
+Eric = Lisa Su
+
+Update both the database seed script and in the existing database.
+
+I'm low on Codex quota (at 4%), so update this as quickly as possible before I exhaust all my quota.
+
+
+
+
+--------------------
+Here are some updates...
+
+1.) Remember this....this project is called "PMT" which stands for Project Management Tool.
+
+2.) Our new target user platform is Chrome and all Chromium-based browsers.  So make sure any JavaScript you write works with those specifically.  Obviously, if there is a small or simple way to write something that might be cross-browser compatible do that but do not prioritize that.
+
+3.) Going forward or as you refactor code in the future, when you write code that targets Chrome/Chromium-based specifically, add comments stating that is the case so that future iterations of the project can refactor that. Do go out of your way to write complicated code to make things cross-browser.  Follow KISS, keep it simple stupid and target Chrome and Chromium-based browsers for now.
+
+4.) Create an AGENTS.md at the root level of the project and for each sub-folder so that program logic, rules, preferences are recorded accordingly at each level so that when another developer continues the project on their local machine, the AI (Codex) can re-read these and continue the development with as little friction as possible.  Also, help in minimizing the context that the AI (Codex) would have to remember at each coding session by just having AI (Codex) re-read these AGENTs.md file to speed things along.
+
+3.) Update Dev Logs to SCRUM.
+1.) Introduce a new Backlog screen where we can see all the Todos, where we can add, edit, delete backlog items which may be Dev Tasks or Bugs.
+2.) If a Todo is already in a sprint, be sure to highlight it or at least show the sprint column so we know it's already assigned to a sprint.
+3.) If a Todo is not completed when a Sprint completes, move the Todos in the backlog.
+4.) When images are pasted in Descriptions or Steps to Reproduce fields, be sure they are scaled to the width of the text area of container that contain them.
