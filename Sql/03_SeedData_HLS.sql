@@ -48,6 +48,7 @@ BEGIN
     DECLARE @MonthsInPhase INT = CASE WHEN @PhaseNumber % 2 = 1 THEN 4 ELSE 3 END;
     DECLARE @PhaseEnd DATE = DATEADD(DAY, -1, DATEADD(MONTH, @MonthsInPhase, @PhaseStart));
     DECLARE @IsFinished BIT = CASE WHEN @PhaseEnd < @Today THEN 1 ELSE 0 END;
+    DECLARE @IsCurrent BIT = CASE WHEN @PhaseStart <= @Today AND @PhaseEnd >= @Today THEN 1 ELSE 0 END;
     DECLARE @PhaseCode NVARCHAR(40) = N'HLS-Phase-' + RIGHT(N'00' + CONVERT(NVARCHAR(12), @PhaseNumber), 2);
     DECLARE @PhaseTitle NVARCHAR(160) = CASE
         WHEN @PhaseNumber <= 3 THEN N'Foundation Platform Build'
@@ -100,8 +101,8 @@ BEGIN
     END;
 
     DECLARE @ParentCode NVARCHAR(40) = N'HLS-TASK-' + RIGHT(N'0000' + CONVERT(NVARCHAR(12), @TaskCounter), 4);
-    DECLARE @ParentStatus NVARCHAR(40) = CASE WHEN @IsFinished = 1 THEN N'Deployed in Prod' ELSE N'In Progress' END;
-    DECLARE @ParentPercent INT = CASE WHEN @IsFinished = 1 THEN 100 ELSE 55 END;
+    DECLARE @ParentStatus NVARCHAR(40) = CASE WHEN @IsFinished = 1 THEN N'Deployed in Prod' WHEN @IsCurrent = 1 THEN N'Deployed in UAT' ELSE N'In Progress' END;
+    DECLARE @ParentPercent INT = CASE WHEN @IsFinished = 1 OR @IsCurrent = 1 THEN 100 ELSE 55 END;
 
     INSERT INTO [pmt].[WorkTasks]
     (
@@ -126,8 +127,14 @@ BEGIN
     WHILE @SubIndex <= 2
     BEGIN
         DECLARE @SubCode NVARCHAR(40) = N'HLS-TASK-' + RIGHT(N'0000' + CONVERT(NVARCHAR(12), @TaskCounter), 4);
-        DECLARE @SubStatus NVARCHAR(40) = CASE WHEN @IsFinished = 1 THEN N'Deployed in Prod' WHEN @SubIndex = 1 THEN N'Ready for QA' ELSE N'In Progress' END;
-        DECLARE @SubPercent INT = CASE WHEN @IsFinished = 1 THEN 100 WHEN @SubIndex = 1 THEN 80 ELSE 30 END;
+        DECLARE @SubStatus NVARCHAR(40) = CASE
+            WHEN @IsFinished = 1 THEN N'Deployed in Prod'
+            WHEN @IsCurrent = 1 AND @SubIndex = 1 THEN N'Deployed in Prod'
+            WHEN @IsCurrent = 1 THEN N'Deployed in UAT'
+            WHEN @SubIndex = 1 THEN N'Ready for QA'
+            ELSE N'In Progress'
+        END;
+        DECLARE @SubPercent INT = CASE WHEN @IsFinished = 1 OR @IsCurrent = 1 THEN 100 WHEN @SubIndex = 1 THEN 80 ELSE 30 END;
         DECLARE @SubStart DATE = DATEADD(DAY, (@SubIndex - 1) * 21, @PhaseStart);
         DECLARE @SubEnd DATE = CASE WHEN DATEADD(DAY, 41, @SubStart) > @PhaseEnd THEN @PhaseEnd ELSE DATEADD(DAY, 41, @SubStart) END;
 
@@ -164,12 +171,14 @@ BEGIN
         IF @FeatureEnd > @PhaseEnd SET @FeatureEnd = @PhaseEnd;
 
         DECLARE @FeatureStatus NVARCHAR(40) = CASE
-            WHEN @IsFinished = 1 THEN CASE WHEN @FeatureIndex % 3 = 0 THEN N'Deployed in Prod' ELSE N'QA Passed' END
+            WHEN @IsFinished = 1 THEN N'Deployed in Prod'
+            WHEN @IsCurrent = 1 AND @FeatureIndex = 1 THEN N'Deployed in UAT'
+            WHEN @IsCurrent = 1 AND @FeatureIndex = 2 THEN N'In Progress'
             WHEN @FeatureIndex = 1 THEN N'In Progress'
             ELSE N'Todo'
         END;
         DECLARE @FeaturePercent INT = CASE
-            WHEN @FeatureStatus IN (N'QA Passed', N'Deployed in Prod') THEN 100
+            WHEN @FeatureStatus IN (N'QA Passed', N'Deployed in UAT', N'Deployed in Prod') THEN 100
             WHEN @FeatureStatus = N'In Progress' THEN 35
             ELSE 0
         END;
@@ -222,6 +231,7 @@ BEGIN
         IF @BugStart > @PhaseEnd SET @BugStart = DATEADD(DAY, -14, @PhaseEnd);
         DECLARE @BugEnd DATE = CASE WHEN DATEADD(DAY, 10, @BugStart) > @PhaseEnd THEN @PhaseEnd ELSE DATEADD(DAY, 10, @BugStart) END;
         DECLARE @BugDeveloperId INT = CASE (@BugIndex + @PhaseNumber) % 4 WHEN 0 THEN @Bill WHEN 1 THEN @Lisa WHEN 2 THEN @Mark ELSE @Steve END;
+        DECLARE @BugStatus NVARCHAR(40) = CASE WHEN @IsFinished = 1 THEN N'Deployed in Prod' WHEN @IsCurrent = 1 THEN N'Deployed in UAT' ELSE N'QA Passed' END;
 
         INSERT INTO [pmt].[WorkTasks]
         (
@@ -238,7 +248,7 @@ BEGIN
             N'<p>The result is inconsistent with the validated learning rule.</p>',
             N'<p>The result should match the approved learning rule and be repeatable.</p>',
             N'UAT', CASE WHEN @PhaseNumber <= 5 THEN N'Critical' ELSE N'Major' END,
-            N'QA Passed', N'High', 100, N'https://intranet.local/hls/bugs/' + CONVERT(NVARCHAR(12), @BugCounter),
+            @BugStatus, N'High', 100, N'https://intranet.local/hls/bugs/' + CONVERT(NVARCHAR(12), @BugCounter),
             @BugStart, @BugEnd, @BugStart, @Sin, @BugStart, @BugEnd
         );
 
@@ -248,6 +258,7 @@ BEGIN
         INSERT INTO [pmt].[TaskAssignees] ([TaskId], [UserId], [CreatedByUserId]) VALUES (@BugTaskId, @BugDeveloperId, @Sin);
 
         DECLARE @BugFixCode NVARCHAR(40) = N'HLS-TASK-' + RIGHT(N'0000' + CONVERT(NVARCHAR(12), @TaskCounter), 4);
+        DECLARE @BugFixStatus NVARCHAR(40) = CASE WHEN @IsFinished = 1 THEN N'Deployed in Prod' WHEN @IsCurrent = 1 THEN N'Deployed in UAT' ELSE N'QA Passed' END;
 
         INSERT INTO [pmt].[WorkTasks]
         (
@@ -259,7 +270,7 @@ BEGIN
         (
             @HlsProject, @SprintId, NULL, N'Dev', @BugFixCode, N'Bug Fix: ' + @BugTitle,
             N'<p>Fix the linked HLS bug, update tests, and prepare QA retest notes.</p>',
-            N'QA Passed', N'High', 100, N'https://intranet.local/hls/tasks/' + CONVERT(NVARCHAR(12), @TaskCounter),
+            @BugFixStatus, N'High', 100, N'https://intranet.local/hls/tasks/' + CONVERT(NVARCHAR(12), @TaskCounter),
             DATEADD(DAY, 1, @BugStart), @BugEnd, DATEADD(DAY, 1, @BugStart),
             @Sin, @BugTaskId, DATEADD(DAY, 1, @BugStart), @BugEnd
         );

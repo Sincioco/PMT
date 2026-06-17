@@ -67,6 +67,8 @@ let sprintProjectId = Number(localStorage.getItem("pmt-sprint-project") || 0);
 let taskProjectId = Number(localStorage.getItem("pmt-task-project") || 0);
 let taskSprintId = localStorage.getItem("pmt-task-sprint") || "all";
 let taskFilters = JSON.parse(localStorage.getItem("pmt-task-filters") || "{}");
+let taskFiltersVisible = localStorage.getItem("pmt-task-filters-visible") !== "false";
+let taskVisualChartsVisible = localStorage.getItem("pmt-task-visual-charts-visible") !== "false";
 let bugFilters = JSON.parse(localStorage.getItem("pmt-bug-filters") || "{}");
 let bugFiltersVisible = localStorage.getItem("pmt-bug-filters-visible") !== "false";
 let bugVisualChartsVisible = localStorage.getItem("pmt-bug-visual-charts-visible") !== "false";
@@ -88,6 +90,7 @@ let chartTooltip = null;
 
 taskFilters.statuses = normalizeSavedArray(taskFilters.statuses);
 taskFilters.assigneeIds = normalizeSavedArray(taskFilters.assigneeIds);
+taskFilters.priorities = normalizeSavedArray(taskFilters.priorities);
 taskFilters.sort = taskFilters.sort || "custom";
 taskFilters.hideCompleted = Boolean(taskFilters.hideCompleted);
 bugFilters.reporterIds = normalizeSavedArray(bugFilters.reporterIds, bugFilters.reporterId);
@@ -763,16 +766,25 @@ function renderTasks() {
     taskSprintId = "all";
   }
 
-  const baseTasks = state.tasks
+  const allProjectDevTasks = state.tasks
     .filter(task => task.projectId === taskProjectId)
-    .filter(task => task.taskType !== "Bug")
+    .filter(task => task.taskType !== "Bug");
+  const baseTasks = allProjectDevTasks
     .filter(task => taskSprintId === "all" || task.sprintId === Number(taskSprintId));
   const visibleTasks = filteredTaskList(baseTasks);
   const taskRows = taskRowsWithSubTasks(visibleTasks);
+  const canShowCharts = allProjectDevTasks.length > 0;
+  const showCharts = canShowCharts && taskVisualChartsVisible;
+  const filterToggleLabel = taskFiltersVisible ? "Hide Filters" : "Show Filters";
+  const chartToggleLabel = showCharts ? "Hide Charts" : "Show Charts";
 
   app.innerHTML = `
-    ${sectionHead("Dev Tasks", `<button class="primary text-icon-button" type="button" data-action="new-task">${buttonContent("&#10010;", "New Dev Task")}</button>`)}
-    <div class="panel">
+    ${sectionHead("Dev Tasks", `
+      <button class="secondary text-icon-button ${taskFiltersVisible ? "is-on" : ""}" type="button" data-action="toggle-task-filters" aria-pressed="${taskFiltersVisible}">${buttonContent(funnelIconHtml(), filterToggleLabel)}</button>
+      <button class="secondary text-icon-button ${showCharts ? "is-on" : ""}" type="button" data-action="toggle-task-visual-charts" aria-pressed="${showCharts}" ${canShowCharts ? "" : "disabled"}>${buttonContent("&#128202;", chartToggleLabel)}</button>
+      <button class="primary text-icon-button" type="button" data-action="new-task">${buttonContent("&#10010;", "New Dev Task")}</button>
+    `)}
+    ${taskFiltersVisible ? `<div class="panel">
       <div class="task-filter-row">
         <label>
           <span>Project</span>
@@ -804,9 +816,11 @@ function renderTasks() {
       </div>
       <div class="filter-stack">
         ${filterCheckList("Status", "task-status", statuses.map(value => ({ value, text: value })), taskFilters.statuses)}
+        ${filterCheckList("Priority", "task-priority", priorities.map(value => ({ value, text: value })), taskFilters.priorities)}
         ${filterCheckList("Assigned", "task-assigned", state.users.map(user => ({ value: user.id, text: user.nickname })), taskFilters.assigneeIds)}
       </div>
-    </div>
+    </div>` : ""}
+    ${showCharts ? taskVisualTrackingChartsHtml(allProjectDevTasks) : ""}
     <div class="panel">
       <table class="table tasks-table">
         <thead>
@@ -927,9 +941,11 @@ function addTaskAncestors(taskId, visibleIds, taskMap) {
 function taskMatchesTaskFiltersWithoutCompletion(task) {
   const selectedStatuses = taskFilters.statuses || [];
   const selectedAssignees = taskFilters.assigneeIds || [];
+  const selectedPriorities = taskFilters.priorities || [];
   const taskAssignees = (task.assigneeIds || []).map(String);
 
   if (selectedStatuses.length && !selectedStatuses.includes(task.status)) return false;
+  if (selectedPriorities.length && !selectedPriorities.includes(task.priority)) return false;
   if (selectedAssignees.length && !taskAssignees.some(id => selectedAssignees.includes(id))) return false;
 
   return true;
@@ -988,28 +1004,28 @@ function renderBugs() {
       <table class="table bugs-table">
         <thead>
           <tr>
+            <th>Reporter</th>
+            <th>Assignee</th>
             <th>Bug Report</th>
             <th>Project</th>
             <th>Sprint</th>
             <th>Status</th>
             <th>Severity</th>
             <th>Priority</th>
-            <th>Reporter</th>
-            <th>Assignee</th>
             <th></th>
           </tr>
         </thead>
         <tbody data-reorder-list="bugs">
           ${filteredBugs.map(bug => `
             <tr class="clickable-row" data-action="view-task" data-id="${bug.id}" data-task-id="${bug.id}" data-can-drag="${canEditTask(bug) ? "true" : "false"}" draggable="false">
+              <td>${taskRowAvatarsHtml(bug.reporters)}</td>
+              <td>${taskRowAvatarsHtml(bug.assignees)}</td>
               <td><strong>${escapeHtml(bug.code)}</strong><br>${escapeHtml(bug.title)}</td>
               <td>${escapeHtml(projectName(bug.projectId))}</td>
               <td>${escapeHtml(sprintName(bug.sprintId))}</td>
               <td>${escapeHtml(bug.status)}</td>
               <td><span class="pill severity-${escapeAttr(bug.severity)}">${escapeHtml(bug.severity || "")}</span></td>
               <td><span class="pill priority-${escapeAttr(bug.priority)}">${escapeHtml(bug.priority)}</span></td>
-              <td>${avatarsHtml(bug.reporters)}</td>
-              <td>${avatarsHtml(bug.assignees)}</td>
               <td class="action-cell">${taskButtonsHtml(bug)}</td>
             </tr>
           `).join("") || `<tr><td colspan="9"><div class="empty">No bug reports match these filters.</div></td></tr>`}
@@ -1042,6 +1058,18 @@ function toggleBugFilters() {
   bugFiltersVisible = !bugFiltersVisible;
   localStorage.setItem("pmt-bug-filters-visible", String(bugFiltersVisible));
   renderBugs();
+}
+
+function toggleTaskVisualCharts() {
+  taskVisualChartsVisible = !taskVisualChartsVisible;
+  localStorage.setItem("pmt-task-visual-charts-visible", String(taskVisualChartsVisible));
+  renderTasks();
+}
+
+function toggleTaskFilters() {
+  taskFiltersVisible = !taskFiltersVisible;
+  localStorage.setItem("pmt-task-filters-visible", String(taskFiltersVisible));
+  renderTasks();
 }
 
 function bugVisualTrackingChartsHtml(filteredBugs) {
@@ -1202,6 +1230,195 @@ function isBugResolved(bug) {
   return qaPassedIndex >= 0 && bugStatusIndex >= qaPassedIndex;
 }
 
+function taskVisualTrackingChartsHtml(devTasks) {
+  const currentSprint = taskChartCurrentSprint();
+  const currentTasks = currentSprint
+    ? devTasks.filter(task => task.sprintId === currentSprint.id)
+    : [];
+  const charts = [
+    taskCurrentSprintPieChartHtml(currentSprint, currentTasks),
+    taskPastSixSprintsColumnChartHtml(devTasks, currentSprint),
+    taskStatusHorizontalChartHtml(currentSprint, currentTasks),
+    taskDeveloperWorkloadChartHtml(currentSprint, currentTasks)
+  ].filter(Boolean);
+
+  return VisualCharts.panel("Dev Task Tracking Charts", charts);
+}
+
+function taskCurrentSprintPieChartHtml(currentSprint, currentTasks) {
+  if (!currentSprint) {
+    return VisualCharts.card({
+      title: "Current Sprint Dev Task Mix",
+      subtitle: "No current Sprint is available for the selected project.",
+      body: `<div class="empty compact-empty">No current Sprint was found.</div>`
+    });
+  }
+
+  const completedTasks = currentTasks.filter(isTaskCompleted);
+  const openTasks = currentTasks.filter(task => !isTaskCompleted(task));
+  const items = [
+    taskChartGroupedItem("Completed", completedTasks, "var(--green)", `Completed: ${completedTasks.length} Dev Task${completedTasks.length === 1 ? "" : "s"}`),
+    taskChartGroupedItem("Still Open", openTasks, "var(--amber)", `Still Open: ${openTasks.length} Dev Task${openTasks.length === 1 ? "" : "s"}`)
+  ].filter(item => item.value > 0);
+
+  return VisualCharts.card({
+    title: "Current Sprint Dev Task Mix",
+    subtitle: currentSprint.code,
+    body: VisualCharts.pieChart(items, `${currentTasks.length} total`, "No Dev Tasks match the current Sprint filter.", { donut: false })
+  });
+}
+
+function taskPastSixSprintsColumnChartHtml(devTasks, currentSprint) {
+  if (!currentSprint) return null;
+
+  const projectSprints = state.sprints
+    .filter(sprint => sprint.projectId === taskProjectId)
+    .sort((a, b) => (ganttStartDate(a)?.getTime() || 0) - (ganttStartDate(b)?.getTime() || 0) || a.code.localeCompare(b.code));
+  const currentIndex = projectSprints.findIndex(sprint => sprint.id === currentSprint.id);
+  const endIndex = currentIndex >= 0 ? currentIndex : projectSprints.length - 1;
+  const sprints = projectSprints.slice(Math.max(0, endIndex - 5), endIndex + 1);
+  const rows = sprints.map(sprint => {
+    const sprintTasks = devTasks.filter(task => task.sprintId === sprint.id);
+    return {
+      sprintId: sprint.id,
+      label: sprint.code,
+      total: sprintTasks.length,
+      completed: sprintTasks.filter(isTaskCompleted).length
+    };
+  }).filter(row => row.total > 0 || row.completed > 0);
+
+  if (!rows.length) return null;
+
+  return VisualCharts.card({
+    title: "Dev Tasks Completed by Sprint",
+    subtitle: "Past 6 Sprints, including the current Sprint.",
+    body: VisualCharts.columnChart(rows, [
+      { key: "total", label: "Dev Tasks", color: "var(--blue)" },
+      { key: "completed", label: "Completed", color: "var(--green)" }
+    ], { itemLabel: "Dev Task" })
+  });
+}
+
+function taskStatusHorizontalChartHtml(currentSprint, currentTasks) {
+  if (!currentSprint) return null;
+
+  const statusItems = statuses
+    .filter(status => !status.toLowerCase().includes("qa") && status.toLowerCase() !== "backlog")
+    .map(status => {
+      const tasks = currentTasks.filter(task => task.status === status);
+      return taskChartGroupedItem(status, tasks, statusColor(status), `${status}: ${tasks.length} Dev Task${tasks.length === 1 ? "" : "s"}`);
+    })
+    .filter(item => item.value > 0);
+
+  return VisualCharts.card({
+    title: "Current Sprint Dev Tasks by Status",
+    subtitle: "QA and Backlog statuses are hidden for this chart.",
+    body: VisualCharts.horizontalBarChart(statusItems, "No non-QA Dev Task statuses are available for the current Sprint.")
+  });
+}
+
+function taskDeveloperWorkloadChartHtml(currentSprint, currentTasks) {
+  if (!currentSprint) return null;
+
+  const rows = state.users.map(user => {
+    const userTasks = currentTasks.filter(task => (task.assigneeIds || []).map(String).includes(String(user.id)));
+    const categories = devTaskWorkloadCategories()
+      .map(category => {
+        const tasks = userTasks.filter(task => devTaskWorkloadCategory(task) === category.label);
+        return taskChartGroupedItem(category.label, tasks, category.color, `${user.nickname} ${category.label}: ${tasks.length} Dev Task${tasks.length === 1 ? "" : "s"}`);
+      })
+      .filter(item => item.value > 0);
+
+    return {
+      user,
+      total: userTasks.length,
+      categories
+    };
+  }).filter(row => row.total > 0);
+
+  return VisualCharts.card({
+    title: "Developer Workload Distribution",
+    subtitle: currentSprint.code,
+    body: developerWorkloadDistributionHtml(rows)
+  });
+}
+
+function developerWorkloadDistributionHtml(rows) {
+  if (!rows.length) return `<div class="empty compact-empty">No assigned Dev Tasks were found for the current Sprint.</div>`;
+
+  const usedCategories = new Set(rows.flatMap(row => row.categories.map(item => item.label)));
+  const legendItems = devTaskWorkloadCategories().filter(category => usedCategories.has(category.label));
+
+  return `
+    <div class="workload-chart">
+      ${rows.map(row => `
+        <div class="workload-row">
+          <div class="workload-person">
+            <img class="avatar" src="${escapeAttr(row.user.avatarUrl || "/assets/avatar-default.svg")}" alt="">
+            <span>${escapeHtml(row.user.nickname)}</span>
+            <b>${row.total}</b>
+          </div>
+          <div class="workload-stack" aria-label="${escapeAttr(row.user.nickname)} workload">
+            ${row.categories.map(item => {
+              const width = Math.max(8, Math.round((item.value / row.total) * 100));
+              const actionAttrs = VisualCharts.chartActionAttributes({ ...item, chartTitle: `${row.user.nickname} ${item.label}` });
+              return `
+                <button type="button" class="workload-segment ${item.action ? "is-clickable" : ""}" style="--value:${width}%; --chart-color:${escapeAttr(item.color)}" ${actionAttrs} data-chart-tooltip="${escapeAttr(item.tooltip)}" title="${escapeAttr(item.tooltip)}">
+                  <span>${item.value}</span>
+                </button>
+              `;
+            }).join("")}
+          </div>
+        </div>
+      `).join("")}
+    </div>
+    ${VisualCharts.legend(legendItems)}
+  `;
+}
+
+function devTaskWorkloadCategories() {
+  return [
+    { label: "Todo", color: "var(--blue)" },
+    { label: "In Progress", color: "var(--teal)" },
+    { label: "Code Complete", color: "var(--green)" },
+    { label: "Ready for QA", color: "var(--amber)" },
+    { label: "QA", color: "var(--rose)" },
+    { label: "Deployed", color: "#c5d35c" }
+  ];
+}
+
+function devTaskWorkloadCategory(task) {
+  if (task.status === "Todo" || task.status === "Backlog") return "Todo";
+  if (task.status === "In Progress") return "In Progress";
+  if (task.status === "Code Complete") return "Code Complete";
+  if (task.status === "Ready for QA") return "Ready for QA";
+  if ((task.status || "").includes("QA")) return "QA";
+  if ((task.status || "").startsWith("Deployed")) return "Deployed";
+  return "In Progress";
+}
+
+function taskChartGroupedItem(label, tasks, color, tooltip) {
+  const taskIds = tasks.map(task => task.id);
+  const actionTarget = tasks.length === 1
+    ? { action: "view-task", id: tasks[0].id }
+    : tasks.length > 1
+      ? { action: "chart-drill-tasks", ids: taskIds.join(","), chartTitle: label }
+      : {};
+
+  return {
+    label,
+    value: tasks.length,
+    color,
+    tooltip,
+    taskIds,
+    ...actionTarget
+  };
+}
+
+function taskChartCurrentSprint() {
+  return currentSprintForProject(state.sprints.filter(sprint => sprint.projectId === taskProjectId));
+}
+
 function bugSeverityColor(severity) {
   const colors = {
     Trivial: "#76A9FF",
@@ -1219,7 +1436,7 @@ const VisualCharts = {
         <div class="chart-panel-head">
           <div>
             <h2>${escapeHtml(title)}</h2>
-            <p>Pie, line, and column visuals using only HTML, CSS, and JavaScript.</p>
+            <p>Pie, line, column, and bar visuals using only HTML, CSS, and JavaScript.</p>
           </div>
         </div>
         <div class="chart-grid visual-chart-grid">
@@ -1369,8 +1586,9 @@ const VisualCharts = {
     `;
   },
 
-  columnChart(rows, series) {
+  columnChart(rows, series, options = {}) {
     const maxValue = Math.max(1, ...rows.flatMap(row => series.map(item => row[item.key] || 0)));
+    const itemLabel = options.itemLabel || "bug report";
 
     return `
       <div class="column-chart-scroll">
@@ -1381,7 +1599,7 @@ const VisualCharts = {
                 ${series.map(item => {
                   const value = row[item.key] || 0;
                   const percent = Math.round((value / maxValue) * 100);
-                  const tooltip = `${row.label}: ${value} ${item.label.toLowerCase()} bug report${value === 1 ? "" : "s"}`;
+                  const tooltip = `${row.label}: ${value} ${item.label.toLowerCase()} ${itemLabel}${value === 1 ? "" : "s"}`;
                   return `
                     <button type="button" class="visual-column" data-action="${row.sprintId ? "chart-open-sprint" : ""}" data-id="${escapeAttr(row.sprintId || "")}" data-chart-tooltip="${escapeAttr(tooltip)}" title="${escapeAttr(tooltip)}" style="--value:${percent}%; --chart-color:${escapeAttr(item.color)}">
                       <span>${value}</span>
@@ -1395,6 +1613,32 @@ const VisualCharts = {
         </div>
       </div>
       ${this.legend(series)}
+    `;
+  },
+
+  horizontalBarChart(items, emptyText) {
+    if (!items.length) return `<div class="empty compact-empty">${escapeHtml(emptyText)}</div>`;
+
+    const maxValue = Math.max(1, ...items.map(item => item.value || 0));
+
+    return `
+      <div class="horizontal-chart">
+        ${items.map(item => {
+          const percent = Math.round((item.value / maxValue) * 100);
+          const tag = item.action ? "button" : "div";
+          const actionAttrs = item.action ? ` type="button" ${this.chartActionAttributes(item)}` : "";
+          const tooltip = escapeAttr(item.tooltip || `${item.label}: ${item.value}`);
+          return `
+            <${tag}${actionAttrs} class="horizontal-chart-row ${item.action ? "is-clickable" : ""}" data-chart-tooltip="${tooltip}" title="${tooltip}">
+              <span class="horizontal-chart-label">${escapeHtml(item.label)}</span>
+              <span class="horizontal-chart-track">
+                <span class="horizontal-chart-fill" style="--value:${percent}%; --chart-color:${escapeAttr(item.color)}"></span>
+              </span>
+              <b>${item.value}</b>
+            </${tag}>
+          `;
+        }).join("")}
+      </div>
     `;
   },
 
@@ -1799,6 +2043,8 @@ async function handleActionClick(event) {
   if (action === "delete-sprint") await deleteItem(`/api/sprints/${id}`, "Delete this Sprint?");
   if (action === "new-task") editTask();
   if (action === "new-bug") editBug();
+  if (action === "toggle-task-filters") toggleTaskFilters();
+  if (action === "toggle-task-visual-charts") toggleTaskVisualCharts();
   if (action === "toggle-bug-filters") toggleBugFilters();
   if (action === "toggle-bug-visual-charts") toggleBugVisualCharts();
   if (action === "edit-task") editTask(taskById(id));
@@ -1893,6 +2139,13 @@ function handleChartAction(element, dialogToClose = null) {
     return true;
   }
 
+  if (action === "chart-drill-tasks") {
+    closeTransientDialog(dialogToClose);
+    const taskIds = splitChartIds(element.dataset.ids);
+    showTaskChartDrilldown(element.dataset.chartTitle || "Dev Tasks", taskIds);
+    return true;
+  }
+
   if (action === "view-task") {
     closeTransientDialog(dialogToClose);
     viewTask(taskById(Number(element.dataset.id || 0)));
@@ -1960,6 +2213,78 @@ function showBugChartDrilldown(title, bugIds) {
           </tbody>
         </table>
       ` : `<div class="empty compact-empty">No bugs were found for this chart segment.</div>`}
+    </div>
+    <div class="dialog-actions">
+      <button type="button" class="primary text-icon-button" data-close>${buttonContent("&#10003;", "Close")}</button>
+    </div>
+  `;
+
+  document.body.appendChild(modal);
+  modal.addEventListener("click", event => {
+    if (event.target.closest("[data-close]")) {
+      closeTransientDialog(modal);
+      return;
+    }
+
+    const actionElement = event.target.closest("[data-action]");
+    if (!actionElement) return;
+
+    // Keep the drilldown list open so the user can view more than one item.
+    if (actionElement.dataset.action === "view-task") {
+      handleChartAction(actionElement);
+      return;
+    }
+
+    handleChartAction(actionElement, modal);
+  });
+  modal.addEventListener("cancel", () => modal.remove());
+  modal.showModal();
+}
+
+function showTaskChartDrilldown(title, taskIds) {
+  const tasks = taskIds
+    .map(id => taskById(id))
+    .filter(Boolean)
+    .sort(taskOrderCompare);
+
+  const modal = document.createElement("dialog");
+  modal.className = "dialog detail-dialog chart-drill-dialog";
+  modal.innerHTML = `
+    <div class="dialog-head">
+      <h2>${escapeHtml(title)} Dev Tasks</h2>
+      <button type="button" class="icon-btn" data-close title="Close">x</button>
+    </div>
+    <div class="dialog-body">
+      ${tasks.length ? `
+        <table class="table chart-drill-table">
+          <thead>
+            <tr>
+              <th>Dev Task</th>
+              <th>Project</th>
+              <th>Sprint</th>
+              <th>Status</th>
+              <th>Priority</th>
+              <th>Assignee</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            ${tasks.map(task => `
+              <tr>
+                <td><b>${escapeHtml(task.code)}</b><br><span>${escapeHtml(task.title)}</span></td>
+                <td>${escapeHtml(projectCode(task.projectId))}</td>
+                <td>${escapeHtml(sprintName(task.sprintId))}</td>
+                <td><span class="pill">${escapeHtml(task.status)}</span></td>
+                <td><span class="pill priority-${escapeAttr(task.priority)}">${escapeHtml(task.priority)}</span></td>
+                <td>${taskRowAvatarsHtml(task.assignees)}</td>
+                <td class="actions-cell">
+                  <button class="icon-action" type="button" data-action="view-task" data-id="${task.id}" title="View Dev Task">&#128065;</button>
+                </td>
+              </tr>
+            `).join("")}
+          </tbody>
+        </table>
+      ` : `<div class="empty compact-empty">No Dev Tasks were found for this chart segment.</div>`}
     </div>
     <div class="dialog-actions">
       <button type="button" class="primary text-icon-button" data-close>${buttonContent("&#10003;", "Close")}</button>
@@ -2118,6 +2443,11 @@ function handleFilterChange(event) {
   }
   if (target.dataset.filter === "task-status") {
     taskFilters.statuses = checkedFilterValues("task-status");
+    saveTaskFilters();
+    renderTasks();
+  }
+  if (target.dataset.filter === "task-priority") {
+    taskFilters.priorities = checkedFilterValues("task-priority");
     saveTaskFilters();
     renderTasks();
   }
@@ -2485,13 +2815,13 @@ function editTask(task = {}) {
       ${field("End", "endDate", toDateInput(task.endDate), "date")}
       ${field("URL", "url", task.url || "", "url")}
       ${richTextField("descriptionHtml", "Description", task.descriptionHtml || "")}
-      <div data-assignee-list></div>
-      ${checkList("Dependencies", "dependencyTaskIds", sameProjectTasks, task.dependencyTaskIds || [], item => `${item.code} ${item.title}`)}
       <div class="field full">
         <label>Attachments</label>
         <input name="attachments" type="file" multiple>
         <div class="attachment-preview" data-preview="attachments"></div>
       </div>
+      <div data-assignee-list></div>
+      ${checkList("Dependencies", "dependencyTaskIds", sameProjectTasks, task.dependencyTaskIds || [], item => `${item.code} ${item.title}`, { className: "scroll-check-list dependency-check-list" })}
     </div>
   `, async root => {
     const status = value(root, "status");
@@ -2552,14 +2882,14 @@ function editBug(bug = {}) {
       ${richTextField("stepsToReproduceHtml", "Steps to Reproduce", bug.stepsToReproduceHtml || "")}
       ${richTextField("actualResultHtml", "Actual Result", bug.actualResultHtml || "")}
       ${richTextField("expectedResultHtml", "Expected Result", bug.expectedResultHtml || "")}
-      ${checkList("Reporters", "reporterIds", state.users, bug.reporterIds?.length ? bug.reporterIds : [currentUserId])}
-      <div data-assignee-list></div>
-      ${checkList("Dependencies", "dependencyTaskIds", sameProjectTasks, bug.dependencyTaskIds || [], item => `${item.code} ${item.title}`)}
       <div class="field full">
         <label>Attachments</label>
         <input name="attachments" type="file" multiple>
         <div class="attachment-preview" data-preview="attachments"></div>
       </div>
+      ${checkList("Reporters", "reporterIds", state.users, bug.reporterIds?.length ? bug.reporterIds : [currentUserId], item => item.nickname, { className: "scroll-check-list avatar-check-list", renderItem: userCheckListLabelHtml })}
+      <div data-assignee-list></div>
+      ${checkList("Dependencies", "dependencyTaskIds", sameProjectTasks, bug.dependencyTaskIds || [], item => `${item.code} ${item.title}`, { className: "scroll-check-list dependency-check-list" })}
     </div>
   `, async root => {
     const result = await saveJson(bug.id ? `/api/tasks/${bug.id}` : "/api/tasks", bug.id ? "PUT" : "POST", {
@@ -5032,23 +5362,46 @@ function richTextField(name, label, html) {
   `;
 }
 
-function checkList(label, name, items, selectedIds, textSelector = item => item.nickname || item.title) {
+function checkList(label, name, items, selectedIds, textSelector = item => item.nickname || item.title, options = {}) {
+  if (typeof textSelector === "object" && textSelector !== null) {
+    options = textSelector;
+    textSelector = item => item.nickname || item.title;
+  }
+
+  const selected = new Set((selectedIds || []).map(String));
+  const fieldsetClass = ["check-list field full", options.className || ""].filter(Boolean).join(" ");
+  const renderItem = options.renderItem || (item => escapeHtml(textSelector(item)));
+
   return `
-    <fieldset class="check-list field full">
-      <legend>${label}</legend>
-      ${items.map(item => `<label><input type="checkbox" name="${name}" value="${item.id}" ${selectedIds.includes(item.id) ? "checked" : ""}> ${escapeHtml(textSelector(item))}</label>`).join("")}
+    <fieldset class="${fieldsetClass}">
+      <legend>${escapeHtml(label)}</legend>
+      ${items.map(item => `
+        <label>
+          <input type="checkbox" name="${name}" value="${escapeAttr(item.id)}" ${selected.has(String(item.id)) ? "checked" : ""}>
+          <span class="check-list-label">${renderItem(item)}</span>
+        </label>
+      `).join("")}
     </fieldset>
   `;
 }
 
-function checkListOrEmpty(label, name, items, selectedIds, emptyText) {
-  if (items.length) return checkList(label, name, items, selectedIds);
+function checkListOrEmpty(label, name, items, selectedIds, emptyText, options = {}) {
+  if (items.length) return checkList(label, name, items, selectedIds, options);
 
   return `
     <fieldset class="check-list field full">
-      <legend>${label}</legend>
+      <legend>${escapeHtml(label)}</legend>
       <span class="muted">${escapeHtml(emptyText)}</span>
     </fieldset>
+  `;
+}
+
+function userCheckListLabelHtml(user) {
+  return `
+    <span class="check-list-user">
+      <img class="check-list-avatar" src="${escapeAttr(user.avatarUrl || "/assets/avatar-default.svg")}" alt="">
+      <span>${escapeHtml(user.nickname)}</span>
+    </span>
   `;
 }
 
@@ -5089,7 +5442,8 @@ function bindAssigneeList(root, initialSelectedIds) {
       "assigneeIds",
       allowedAssigneeUsers(Number(projectSelect.value), sprintSelect?.value || ""),
       selectedIds,
-      "Only project or Sprint members can be assigned."
+      "Only project or Sprint members can be assigned.",
+      { className: "scroll-check-list avatar-check-list", renderItem: userCheckListLabelHtml }
     );
   };
 

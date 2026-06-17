@@ -46,6 +46,7 @@ BEGIN
     DECLARE @SprintStart DATE = DATEADD(DAY, (@SprintNumber - 1) * 14, @LmsStart);
     DECLARE @SprintEnd DATE = DATEADD(DAY, 13, @SprintStart);
     DECLARE @IsFinished BIT = CASE WHEN @SprintEnd < @Today THEN 1 ELSE 0 END;
+    DECLARE @IsCurrent BIT = CASE WHEN @SprintStart <= @Today AND @SprintEnd >= @Today THEN 1 ELSE 0 END;
 
     INSERT INTO [pmt].[Sprints]
     (
@@ -75,8 +76,8 @@ BEGIN
     DECLARE @DeveloperId INT = CASE @SprintNumber % 4 WHEN 0 THEN @Bill WHEN 1 THEN @Mark WHEN 2 THEN @Lisa ELSE @Steve END;
     DECLARE @ParentCode NVARCHAR(40) = N'LMS-TASK-' + RIGHT(N'0000' + CONVERT(NVARCHAR(12), @TaskCounter), 4);
     DECLARE @ParentTitle NVARCHAR(220) = N'Build LMS learning workflow slice ' + CONVERT(NVARCHAR(12), @SprintNumber);
-    DECLARE @ParentStatus NVARCHAR(40) = CASE WHEN @IsFinished = 1 THEN N'QA Passed' ELSE N'In Progress' END;
-    DECLARE @ParentPercent INT = CASE WHEN @IsFinished = 1 THEN 100 ELSE 60 END;
+    DECLARE @ParentStatus NVARCHAR(40) = CASE WHEN @IsFinished = 1 THEN N'Deployed in Prod' WHEN @IsCurrent = 1 THEN N'Deployed in UAT' ELSE N'In Progress' END;
+    DECLARE @ParentPercent INT = CASE WHEN @IsFinished = 1 OR @IsCurrent = 1 THEN 100 ELSE 60 END;
 
     INSERT INTO [pmt].[WorkTasks]
     (
@@ -100,8 +101,8 @@ BEGIN
     SET @TaskCounter += 1;
 
     DECLARE @SubTask1Code NVARCHAR(40) = N'LMS-TASK-' + RIGHT(N'0000' + CONVERT(NVARCHAR(12), @TaskCounter), 4);
-    DECLARE @SubTask1Status NVARCHAR(40) = CASE WHEN @IsFinished = 1 THEN N'QA Passed' ELSE N'Ready for QA' END;
-    DECLARE @SubTask1Percent INT = CASE WHEN @IsFinished = 1 THEN 100 ELSE 80 END;
+    DECLARE @SubTask1Status NVARCHAR(40) = CASE WHEN @IsFinished = 1 THEN N'Deployed in Prod' WHEN @IsCurrent = 1 THEN N'Deployed in Prod' ELSE N'Ready for QA' END;
+    DECLARE @SubTask1Percent INT = CASE WHEN @IsFinished = 1 OR @IsCurrent = 1 THEN 100 ELSE 80 END;
 
     INSERT INTO [pmt].[WorkTasks]
     (
@@ -123,8 +124,8 @@ BEGIN
     SET @TaskCounter += 1;
 
     DECLARE @SubTask2Code NVARCHAR(40) = N'LMS-TASK-' + RIGHT(N'0000' + CONVERT(NVARCHAR(12), @TaskCounter), 4);
-    DECLARE @SubTask2Status NVARCHAR(40) = CASE WHEN @IsFinished = 1 THEN N'QA Passed' ELSE N'In Progress' END;
-    DECLARE @SubTask2Percent INT = CASE WHEN @IsFinished = 1 THEN 100 ELSE 40 END;
+    DECLARE @SubTask2Status NVARCHAR(40) = CASE WHEN @IsFinished = 1 THEN N'Deployed in Prod' WHEN @IsCurrent = 1 THEN N'Deployed in UAT' ELSE N'In Progress' END;
+    DECLARE @SubTask2Percent INT = CASE WHEN @IsFinished = 1 OR @IsCurrent = 1 THEN 100 ELSE 40 END;
 
     INSERT INTO [pmt].[WorkTasks]
     (
@@ -146,8 +147,12 @@ BEGIN
     SET @TaskCounter += 1;
 
     DECLARE @FeatureCode NVARCHAR(40) = N'LMS-TASK-' + RIGHT(N'0000' + CONVERT(NVARCHAR(12), @TaskCounter), 4);
-    DECLARE @FeatureStatus NVARCHAR(40) = CASE WHEN @IsFinished = 1 THEN N'Deployed in UAT' ELSE N'Todo' END;
-    DECLARE @FeaturePercent INT = CASE WHEN @IsFinished = 1 THEN 100 ELSE 0 END;
+    DECLARE @FeatureStatus NVARCHAR(40) = CASE WHEN @IsFinished = 1 THEN N'Deployed in Prod' WHEN @IsCurrent = 1 THEN N'In Progress' ELSE N'Todo' END;
+    DECLARE @FeaturePercent INT = CASE
+        WHEN @FeatureStatus IN (N'Deployed in UAT', N'Deployed in Prod') THEN 100
+        WHEN @FeatureStatus = N'In Progress' THEN 35
+        ELSE 0
+    END;
 
     INSERT INTO [pmt].[WorkTasks]
     (
@@ -183,6 +188,7 @@ BEGIN
         WHEN 2 THEN N'Course completion badge appears twice'
         ELSE N'Roster sync marks inactive learner as active'
     END;
+    DECLARE @BugStatus NVARCHAR(40) = CASE WHEN @IsFinished = 1 THEN N'Deployed in Prod' WHEN @IsCurrent = 1 THEN N'Deployed in UAT' ELSE N'QA Passed' END;
 
     INSERT INTO [pmt].[WorkTasks]
     (
@@ -198,7 +204,7 @@ BEGIN
         N'<ol><li>Open the LMS test course.</li><li>Run the sprint acceptance scenario.</li><li>Compare the result to the expected behavior.</li></ol>',
         N'<p>The workflow result is inconsistent.</p>',
         N'<p>The workflow should be stable and auditable.</p>',
-        N'SIT', N'Major', N'QA Passed', N'High', 100, N'https://intranet.local/lms/bugs/' + CONVERT(NVARCHAR(12), @BugCounter),
+        N'SIT', N'Major', @BugStatus, N'High', 100, N'https://intranet.local/lms/bugs/' + CONVERT(NVARCHAR(12), @BugCounter),
         DATEADD(DAY, 7, @SprintStart), DATEADD(DAY, 12, @SprintStart), DATEADD(DAY, 7, @SprintStart),
         @Sin, DATEADD(DAY, 7, @SprintStart), DATEADD(DAY, 12, @SprintStart)
     );
@@ -210,6 +216,7 @@ BEGIN
 
     SET @BugCounter += 1;
     DECLARE @BugFixCode NVARCHAR(40) = N'LMS-TASK-' + RIGHT(N'0000' + CONVERT(NVARCHAR(12), @TaskCounter), 4);
+    DECLARE @BugFixStatus NVARCHAR(40) = CASE WHEN @IsFinished = 1 THEN N'Deployed in Prod' WHEN @IsCurrent = 1 THEN N'Deployed in UAT' ELSE N'QA Passed' END;
 
     INSERT INTO [pmt].[WorkTasks]
     (
@@ -221,7 +228,7 @@ BEGIN
     (
         @LmsProject, @SprintId, NULL, N'Dev', @BugFixCode, N'Bug Fix: ' + @BugTitle,
         N'<p>Fix, unit test, and prepare QA retest notes for the linked LMS bug.</p>',
-        N'QA Passed', N'High', 100, N'https://intranet.local/lms/tasks/' + CONVERT(NVARCHAR(12), @TaskCounter),
+        @BugFixStatus, N'High', 100, N'https://intranet.local/lms/tasks/' + CONVERT(NVARCHAR(12), @TaskCounter),
         DATEADD(DAY, 8, @SprintStart), DATEADD(DAY, 12, @SprintStart), DATEADD(DAY, 8, @SprintStart),
         @Sin, @BugTaskId, DATEADD(DAY, 8, @SprintStart), DATEADD(DAY, 12, @SprintStart)
     );

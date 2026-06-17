@@ -398,6 +398,10 @@ button[aria-expanded="true"] {
   margin-top: 14px;
 }
 
+.panel + .grid {
+  margin-top: 14px;
+}
+
 .card h3,
 .panel h2,
 .column h2 {
@@ -1169,6 +1173,45 @@ input[type="checkbox"] {
   margin: 5px 14px 5px 0;
 }
 
+.check-list input[type="checkbox"] {
+  flex: 0 0 auto;
+}
+
+.check-list-label {
+  min-width: 0;
+}
+
+.scroll-check-list {
+  max-height: 386px;
+  overflow-y: auto;
+  align-content: flex-start;
+}
+
+.dependency-check-list {
+  max-height: 270px;
+}
+
+.avatar-check-list label {
+  min-width: min(260px, 100%);
+}
+
+.check-list-user {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.check-list-avatar {
+  width: 30px;
+  height: 30px;
+  flex: 0 0 auto;
+  border: 2px solid rgba(17, 20, 22, 0.85);
+  border-radius: 50%;
+  object-fit: cover;
+  background: #2a3336;
+}
+
 .inline-check {
   color: var(--muted);
 }
@@ -1691,6 +1734,123 @@ input[type="checkbox"] {
   transform: rotate(-90deg);
   transform-origin: center;
   white-space: nowrap;
+}
+
+.horizontal-chart {
+  display: grid;
+  gap: 10px;
+}
+
+.horizontal-chart-row {
+  display: grid;
+  grid-template-columns: minmax(120px, 0.9fr) minmax(150px, 2fr) 42px;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 34px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+}
+
+.horizontal-chart-row.is-clickable:hover .horizontal-chart-track {
+  border-color: color-mix(in srgb, var(--teal), white 20%);
+}
+
+.horizontal-chart-label {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.horizontal-chart-track {
+  height: 18px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 0;
+  background: rgba(255, 255, 255, 0.045);
+}
+
+.horizontal-chart-fill {
+  display: block;
+  width: max(4px, var(--value));
+  height: 100%;
+  background: color-mix(in srgb, var(--chart-color), transparent 10%);
+}
+
+.horizontal-chart-row b {
+  color: var(--text);
+  text-align: right;
+}
+
+.workload-chart {
+  display: grid;
+  gap: 12px;
+}
+
+.workload-row {
+  display: grid;
+  grid-template-columns: minmax(150px, 0.9fr) minmax(0, 2fr);
+  align-items: center;
+  gap: 12px;
+}
+
+.workload-person {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.workload-person span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workload-person b {
+  color: var(--text);
+}
+
+.workload-stack {
+  display: flex;
+  min-width: 0;
+  height: 34px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 0;
+  background: rgba(255, 255, 255, 0.045);
+}
+
+.workload-segment {
+  display: flex;
+  flex: 0 0 var(--value);
+  align-items: center;
+  justify-content: center;
+  min-width: 28px;
+  height: 100%;
+  border: 0;
+  border-right: 1px solid rgba(255, 255, 255, 0.26);
+  border-radius: 0;
+  background: color-mix(in srgb, var(--chart-color), transparent 12%);
+  color: #ffffff;
+  font-size: 11px;
+}
+
+.workload-segment:last-child {
+  border-right: 0;
+}
+
+.workload-segment.is-clickable:hover {
+  filter: brightness(1.12);
 }
 
 .column-label {
@@ -2223,6 +2383,10 @@ input[type="checkbox"] {
   .development-action-row {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .workload-row {
+    grid-template-columns: 1fr;
   }
 
   .pie-chart-layout,
