@@ -1,6 +1,14 @@
 Project Management Tool (PMT):  Day 9 of Agentic AI Coding
 ----------------------------------------------------------
 
+Database
+-------------------------------
+1.) In the Data Seeds of all 3 projects, PMT, LMS and HLS, change the previous sprints so that their status is "Deployed to Production."  For the current Sprint, change a few items to Deployed to UAT and an even smaller number to Deployed to Production.  This will help us test the new charting features with more realistic data and ensure that the charts are displaying accurate information about our development process.
+
+Documentation
+-------------------------------
+1.) Add a gap between the Project Filter and the Blogs/Documentation entries below.  Use the same gap in other screens such as the ones in Dev Tasks and Bug Tracking screens.
+
 Developer Task Tracking Visual Charts:
 -------------------------------
 1.) Create a graph button on the Dev Task View that is a toggle.  When it is enabled, the graphs/charts will appear in between the filter panel and the table of Dev Tasks.
