@@ -9,19 +9,27 @@ Documentation
 -------------------------------
 1.) Add a gap between the Project Filter and the Blogs/Documentation entries below.  Use the same gap in other screens such as the ones in Dev Tasks and Bug Tracking screens.
 
+Dev Tasks
+-------------------------------
+1.) In the Dev Tasks screen, Add a Filter by Priority..
+2.) In the Add and Edit Dev Tasks dialog box, put the avatar of each Assignee in front of their names and have a maximum height (enough for 10 people) for the Assignee panel and make it scrollable.
+3.) In the Add and Edit Dev Tasks dialog box, put the File attachment above the Assigness.
+4.) In the Add and Edit Dev Tasks dialog box, put a maximum height on the Dependencies panel and make it scrollabe.
+5.) Add a hide/show Filter using the same Filter icon used in the Bug Tracking screen.
+
+Bug Tracking
+-------------------------------
+1.) Move the Reporter and Assignee columns to the left, as the first and second column.  Make the images larger, same size as the ones in the Dev Task screen.
+2.) In the Add and Edit Bug dialog box, put the avatar of each Assignee and Reporter in front of their names and have a maximum height (enough for 10 people) for the Assignee and Reporter panels and make them scrollable.
+3.) In the Add and Edit Bug dialog box, put the File attachment above the Reporters.
+4.) In the Add and Edit Bug dialog box, put a maximum height on the Dependencies panel and make it scrollabe.
+
+
 Developer Task Tracking Visual Charts:
 -------------------------------
-1.) Create a graph button on the Dev Task View that is a toggle.  When it is enabled, the graphs/charts will appear in between the filter panel and the table of Dev Tasks.
-2.) By default the chart view should be enabled (unless there is no data), but the user can toggle it off if they want to hide the charts and just see the table of Dev Tasks.
-3.) Create Developer Task Tracking Charts that shows the number of Dev Tasks created per Sprint.
-4.) Create another chart that shows and the number of Dev Tasks completed per Sprint.
-5.) The charts should be interactive, allowing users to hover over data points to see the exact number of Dev Tasks created and completed for each Sprint.  This will provide more detailed insights into our development process and help us identify any potential bottlenecks or areas for improvement.
-6.) Create a chart specific to the current sprint that shows the number of Dev Tasks created, completed, and still open.  This will help us understand the current sprint's development status and identify any potential issues that need to be addressed before the sprint ends.  This should be the first chart that appears when the user toggles on the chart view.
-7.) If the user clicks on a chart and that data is associated to one specific element such as a Sprint or a Bug report or a Dev Task, popup a dialog box in read-only mode with details about that item.
-8.) If there are other charts you find useful for tracking our development process, feel free to add them as well.  The goal is to provide as much insight and information as possible to help us improve our development process and ultimately deliver a better product to our users.
-9.) The chart should not use any charting library.  It should be built from scratch using HTML, CSS, and JavaScript.  This will allow for greater customization and flexibility in the design and functionality of the chart.  Create a re-usable charting module that can be used for other types of charts in the future and to make it easier to maintain and update the charts as needed.  The charting module should be designed to handle different types of data and be easily customizable to fit the specific needs of our development process tracking.
-10.) Be sure the chart has smooth animation.
-
-Development in Settings
------------------------
-When "Clear PMT" is clicked, preserve the Blogs/Documentations since that actually functions as the system's changelog and release notes, so we want to keep that intact even if we clear the rest of PMT's data.
+1.) Similar to the visual charts that was done in the Bug Tracking screen, add visual charts to the Dev Tasks screen.
+2.) For the first visual chart, add a pie chart that shows completed dev tasks and Still Open dev tasks for the current sprint.
+3.) For the second visual chart, add a vertical bar chart showing the Dev Tasks vs Completed Dev Tasks for the past 6 sprints, including the current sprint.  The x-axis should be the sprint names and the y-axis should be the number of dev tasks.
+4.) For the third visual chart, add a horizontal bar chart that shows the number of dev tasks in each status (except for the ones that has the word QA in it or backlog) for the current sprint.
+5.) For the 4th visual chart, add a "Developer Workload Distribution" that shows the tasks assigned to each developer for the current sprint by category.
+6.) Use the same drill down behavior as what was done in the Bug Tracking screen.
