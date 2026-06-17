@@ -68,7 +68,9 @@ let taskProjectId = Number(localStorage.getItem("pmt-task-project") || 0);
 let taskSprintId = localStorage.getItem("pmt-task-sprint") || "all";
 let taskFilters = JSON.parse(localStorage.getItem("pmt-task-filters") || "{}");
 let bugFilters = JSON.parse(localStorage.getItem("pmt-bug-filters") || "{}");
-let bugChartsVisible = localStorage.getItem("pmt-bug-charts-visible") !== "false";
+let bugFiltersVisible = localStorage.getItem("pmt-bug-filters-visible") !== "false";
+let bugVisualChartsVisible = localStorage.getItem("pmt-bug-visual-charts-visible") !== "false";
+let documentationProjectId = Number(localStorage.getItem("pmt-documentation-project") || 0);
 const savedBoardStatuses = JSON.parse(localStorage.getItem("pmt-board-statuses") || "null");
 let boardStatuses = Array.isArray(savedBoardStatuses) && savedBoardStatuses.every(status => statuses.includes(status))
   ? savedBoardStatuses
@@ -315,7 +317,7 @@ function renderNav() {
 function viewLabel(view) {
   if (view === "Board") return "Kanban Board";
   if (view === "Tasks") return "Dev Tasks";
-  if (view === "Bugs") return "Bug Reports";
+  if (view === "Bugs") return "Bug Tracking";
   return view;
 }
 
@@ -336,6 +338,14 @@ function navButtonHtml(item, extraClass = "nav-item") {
 
 function buttonContent(icon, label) {
   return `<span class="button-icon" aria-hidden="true">${icon}</span><span>${escapeHtml(label)}</span>`;
+}
+
+function funnelIconHtml() {
+  return `
+    <svg class="button-svg-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path d="M4 5h16l-6.5 7.5V18l-3 1.5v-7L4 5z"></path>
+    </svg>
+  `;
 }
 
 function applyNavOverflow() {
@@ -597,7 +607,7 @@ function renderGantt(options = {}) {
 
   app.innerHTML = `
     ${sectionHead("Gantt", `
-      <button class="secondary text-icon-button" type="button" data-action="toggle-gantt-all-bugs">${buttonContent(ganttShowAllBugs ? "&#9652;" : "&#9662;", ganttShowAllBugs ? "Collapse Bug Reports" : "Expand Bug Reports")}</button>
+      <button class="secondary text-icon-button" type="button" data-action="toggle-gantt-all-bugs">${buttonContent(ganttShowAllBugs ? "&#9652;" : "&#9662;", ganttShowAllBugs ? "Collapse Bugs" : "Expand Bugs")}</button>
     `)}
     <div class="panel">
       <div class="filter-row">
@@ -950,15 +960,17 @@ function taskCreatedTime(task) {
 function renderBugs() {
   const filteredBugs = filteredBugReports();
   const canShowCharts = filteredBugs.length > 0;
-  const showCharts = canShowCharts && bugChartsVisible;
+  const showCharts = canShowCharts && bugVisualChartsVisible;
+  const filterToggleLabel = bugFiltersVisible ? "Hide Filters" : "Show Filters";
   const chartToggleLabel = showCharts ? "Hide Charts" : "Show Charts";
 
   app.innerHTML = `
-    ${sectionHead("Bug Reports", `
-      <button class="secondary text-icon-button ${showCharts ? "is-on" : ""}" type="button" data-action="toggle-bug-charts" aria-pressed="${showCharts}" ${canShowCharts ? "" : "disabled"}>${buttonContent("&#128202;", chartToggleLabel)}</button>
+    ${sectionHead("Bug Tracking", `
+      <button class="secondary text-icon-button ${bugFiltersVisible ? "is-on" : ""}" type="button" data-action="toggle-bug-filters" aria-pressed="${bugFiltersVisible}">${buttonContent(funnelIconHtml(), filterToggleLabel)}</button>
+      <button class="secondary text-icon-button ${showCharts ? "is-on" : ""}" type="button" data-action="toggle-bug-visual-charts" aria-pressed="${showCharts}" ${canShowCharts ? "" : "disabled"}>${buttonContent("&#128202;", chartToggleLabel)}</button>
       <button class="primary text-icon-button" type="button" data-action="new-bug">${buttonContent("&#9888;", "New Bug Report")}</button>
     `)}
-    <div class="panel">
+    ${bugFiltersVisible ? `<div class="panel">
       <div class="filter-row bug-filter-row">
         ${filterSelect("Project", "bug-project", state.projects.map(project => ({ value: project.id, text: `${project.code} - ${project.title}` })), bugFilters.projectId || "", "All projects")}
         ${filterSelect("Status", "bug-status", statuses.map(value => ({ value, text: value })), bugFilters.status || "", "All statuses")}
@@ -970,8 +982,8 @@ function renderBugs() {
         ${filterCheckList("Reporter", "bug-reporter", state.users.map(user => ({ value: user.id, text: user.nickname })), bugFilters.reporterIds)}
         ${filterCheckList("Assignee", "bug-assignee", state.users.map(user => ({ value: user.id, text: user.nickname })), bugFilters.assigneeIds)}
       </div>
-    </div>
-    ${showCharts ? bugTrackingChartsHtml(filteredBugs) : ""}
+    </div>` : ""}
+    ${showCharts ? bugVisualTrackingChartsHtml(filteredBugs) : ""}
     <div class="panel">
       <table class="table bugs-table">
         <thead>
@@ -1020,95 +1032,85 @@ function filteredBugReports() {
     .sort(taskOrderCompare);
 }
 
-function toggleBugCharts() {
-  bugChartsVisible = !bugChartsVisible;
-  localStorage.setItem("pmt-bug-charts-visible", String(bugChartsVisible));
+function toggleBugVisualCharts() {
+  bugVisualChartsVisible = !bugVisualChartsVisible;
+  localStorage.setItem("pmt-bug-visual-charts-visible", String(bugVisualChartsVisible));
   renderBugs();
 }
 
-function bugTrackingChartsHtml(filteredBugs) {
-  const sprintRows = bugSprintChartRows(filteredBugs);
-  const charts = [
-    bugCurrentSprintChartHtml(filteredBugs),
-    SimpleCharts.card({
-      title: "Bugs Reported per Sprint",
-      subtitle: "Counts use the Bug Reports that match the current filters.",
-      body: SimpleCharts.barChart(sprintRows.map(row => ({
-        label: row.label,
-        value: row.reported,
-        color: "var(--rose)",
-        tooltip: `${row.label}: ${row.reported} bug report${row.reported === 1 ? "" : "s"} reported`,
-        action: row.sprintId ? "chart-open-sprint" : "",
-        id: row.sprintId
-      })), "No reported Bug Reports match the current filters.")
-    }),
-    SimpleCharts.card({
-      title: "Bugs Resolved per Sprint",
-      subtitle: "Resolved means QA Passed or any deployment status after it.",
-      body: SimpleCharts.barChart(sprintRows.map(row => ({
-        label: row.label,
-        value: row.resolved,
-        color: "var(--green)",
-        tooltip: `${row.label}: ${row.resolved} bug report${row.resolved === 1 ? "" : "s"} resolved`,
-        action: row.sprintId ? "chart-open-sprint" : "",
-        id: row.sprintId
-      })), "No resolved Bug Reports match the current filters.")
-    }),
-    bugOpenStatusChartHtml(filteredBugs),
-    bugSeverityChartHtml(filteredBugs)
-  ].filter(Boolean);
-
-  return SimpleCharts.panel(charts);
+function toggleBugFilters() {
+  bugFiltersVisible = !bugFiltersVisible;
+  localStorage.setItem("pmt-bug-filters-visible", String(bugFiltersVisible));
+  renderBugs();
 }
 
-function bugCurrentSprintChartHtml(filteredBugs) {
+function bugVisualTrackingChartsHtml(filteredBugs) {
+  const sprintRows = bugSprintChartRows(filteredBugs);
+  const charts = [
+    bugTrendLineChartHtml(sprintRows),
+    bugSeverityPieChartHtml(filteredBugs),
+    bugReportedResolvedColumnChartHtml(sprintRows),
+    bugCurrentSprintPieChartHtml(filteredBugs)
+  ].filter(Boolean);
+
+  return VisualCharts.panel("Bug Tracking Charts", charts);
+}
+
+function bugCurrentSprintPieChartHtml(filteredBugs) {
   const currentSprints = bugChartCurrentSprints();
   const currentSprintIds = new Set(currentSprints.map(sprint => sprint.id));
   const currentBugs = filteredBugs.filter(bug => currentSprintIds.has(bug.sprintId));
   const resolvedBugs = currentBugs.filter(isBugResolved);
   const openBugs = currentBugs.filter(bug => !isBugResolved(bug));
-  const currentSprintNames = currentSprints.map(sprint => sprint.code).join(", ");
 
   if (!currentSprints.length) {
-    return SimpleCharts.card({
-      title: "Current Sprint Bug Snapshot",
+    return VisualCharts.card({
+      title: "Current Sprint Bug Mix",
       subtitle: "No current Sprint is available for the selected project filter.",
       body: `<div class="empty compact-empty">No current Sprint was found.</div>`
     });
   }
 
-  const metrics = [
-    bugChartMetric("Reported", currentBugs, currentSprints, "var(--red)"),
-    bugChartMetric("Resolved", resolvedBugs, currentSprints, "var(--green)"),
-    bugChartMetric("Still Open", openBugs, currentSprints, "var(--amber)")
-  ];
+  const items = [
+    bugChartGroupedItem("Resolved", resolvedBugs, "var(--green)", `Resolved: ${resolvedBugs.length} bug report${resolvedBugs.length === 1 ? "" : "s"}`),
+    bugChartGroupedItem("Still Open", openBugs, "var(--amber)", `Still Open: ${openBugs.length} bug report${openBugs.length === 1 ? "" : "s"}`)
+  ].filter(item => item.value > 0);
 
-  return SimpleCharts.card({
-    title: "Current Sprint Bug Snapshot",
-    subtitle: currentSprintNames ? `Current Sprint${currentSprints.length === 1 ? "" : "s"}: ${currentSprintNames}` : "",
-    body: SimpleCharts.metricCards(metrics)
+  return VisualCharts.card({
+    title: "Current Sprint Bug Mix",
+    subtitle: currentSprints.map(sprint => sprint.code).join(", "),
+    body: VisualCharts.pieChart(items, `${currentBugs.length} total`, "No bugs match the current Sprint filter.", { donut: true })
   });
 }
 
-function bugOpenStatusChartHtml(filteredBugs) {
-  const openBugs = filteredBugs.filter(bug => !isBugResolved(bug));
-  if (!openBugs.length) return null;
+function bugTrendLineChartHtml(sprintRows) {
+  if (!sprintRows.length) return null;
 
-  const items = statuses
-    .map(status => {
-      const bugs = openBugs.filter(bug => bug.status === status);
-      return bugChartGroupedItem(status, bugs, statusColor(status), `${status}: ${bugs.length} open bug report${bugs.length === 1 ? "" : "s"}`);
-    })
-    .filter(item => item.value > 0);
-
-  return SimpleCharts.card({
-    title: "Open Bugs by Status",
-    subtitle: "Only statuses with open Bug Reports are shown.",
-    body: SimpleCharts.barChart(items, "No open Bug Reports match the current filters.")
+  return VisualCharts.card({
+    title: "Bug Trend by Sprint",
+    subtitle: "Line graph compares reported versus resolved bugs over time.",
+    body: VisualCharts.lineChart(sprintRows, [
+      { key: "reported", label: "Reported", color: "var(--rose)" },
+      { key: "resolved", label: "Resolved", color: "var(--green)" }
+    ])
   });
 }
 
-function bugSeverityChartHtml(filteredBugs) {
+function bugReportedResolvedColumnChartHtml(sprintRows) {
+  if (!sprintRows.length) return null;
+
+  return VisualCharts.card({
+    title: "Reported vs Resolved by Sprint",
+    subtitle: "Grouped column chart shows throughput per Sprint.",
+    body: VisualCharts.columnChart(sprintRows, [
+      { key: "reported", label: "Reported", color: "var(--rose)" },
+      { key: "resolved", label: "Resolved", color: "var(--green)" },
+      { key: "open", label: "Open", color: "var(--amber)" }
+    ])
+  });
+}
+
+function bugSeverityPieChartHtml(filteredBugs) {
   const items = severities
     .map(severity => {
       const bugs = filteredBugs.filter(bug => bug.severity === severity);
@@ -1118,39 +1120,28 @@ function bugSeverityChartHtml(filteredBugs) {
 
   if (!items.length) return null;
 
-  return SimpleCharts.card({
-    title: "Bugs by Severity",
-    subtitle: "Severity mix helps spot risk concentration before release.",
-    body: SimpleCharts.barChart(items, "No severity data is available.")
+  return VisualCharts.card({
+    title: "Bug Severity Share",
+    subtitle: "Pie chart shows the severity mix for the current filters.",
+    body: VisualCharts.pieChart(items, `${filteredBugs.length} total`, "No severity data is available.", { donut: false })
   });
 }
 
-function bugChartMetric(label, bugs, sprints, color) {
-  const actionTarget = bugChartActionForGroup(bugs, sprints);
-  return {
-    label,
-    value: bugs.length,
-    color,
-    tooltip: `${label}: ${bugs.length} bug report${bugs.length === 1 ? "" : "s"}`,
-    ...actionTarget
-  };
-}
-
 function bugChartGroupedItem(label, bugs, color, tooltip) {
-  const actionTarget = bugs.length === 1 ? { action: "view-task", id: bugs[0].id } : {};
+  const bugIds = bugs.map(bug => bug.id);
+  const actionTarget = bugs.length === 1
+    ? { action: "view-task", id: bugs[0].id }
+    : bugs.length > 1
+      ? { action: "chart-drill-bugs", ids: bugIds.join(","), chartTitle: label }
+      : {};
   return {
     label,
     value: bugs.length,
     color,
     tooltip,
+    bugIds,
     ...actionTarget
   };
-}
-
-function bugChartActionForGroup(bugs, sprints) {
-  if (bugs.length === 1) return { action: "view-task", id: bugs[0].id };
-  if (sprints.length === 1) return { action: "chart-open-sprint", id: sprints[0].id };
-  return {};
 }
 
 function bugSprintChartRows(filteredBugs) {
@@ -1221,12 +1212,17 @@ function bugSeverityColor(severity) {
   return colors[severity] || "var(--teal)";
 }
 
-const SimpleCharts = {
-  panel(charts) {
-    // This small helper is intentionally plain HTML/CSS so future charts do not need a dependency.
+const VisualCharts = {
+  panel(title, charts) {
     return `
-      <div class="panel chart-panel bug-chart-panel">
-        <div class="chart-grid">
+      <div class="panel chart-panel visual-chart-panel">
+        <div class="chart-panel-head">
+          <div>
+            <h2>${escapeHtml(title)}</h2>
+            <p>Pie, line, and column visuals using only HTML, CSS, and JavaScript.</p>
+          </div>
+        </div>
+        <div class="chart-grid visual-chart-grid">
           ${charts.join("")}
         </div>
       </div>
@@ -1235,62 +1231,193 @@ const SimpleCharts = {
 
   card(chart) {
     return `
-      <section class="chart-card">
+      <section class="chart-card visual-chart-card">
         <div class="chart-card-head">
-          <h2>${escapeHtml(chart.title)}</h2>
-          ${chart.subtitle ? `<p>${escapeHtml(chart.subtitle)}</p>` : ""}
+          <div>
+            <h2>${escapeHtml(chart.title)}</h2>
+            ${chart.subtitle ? `<p>${escapeHtml(chart.subtitle)}</p>` : ""}
+          </div>
+          <button class="icon-action chart-expand-button" type="button" data-action="expand-visual-chart" title="Expand chart" aria-label="Expand chart">&#10530;</button>
         </div>
         ${chart.body}
       </section>
     `;
   },
 
-  metricCards(metrics) {
-    const maxValue = Math.max(1, ...metrics.map(metric => metric.value));
-
-    return `
-      <div class="chart-metric-grid">
-        ${metrics.map(metric => {
-          const percent = Math.round((metric.value / maxValue) * 100);
-          return this.point(metric, "chart-metric", `
-            <span class="chart-metric-value">${metric.value}</span>
-            <span class="chart-metric-label">${escapeHtml(metric.label)}</span>
-            <span class="chart-meter"><span style="--value:${percent}%; --chart-color:${escapeAttr(metric.color)}"></span></span>
-          `);
-        }).join("")}
-      </div>
-    `;
-  },
-
-  barChart(items, emptyText) {
+  pieChart(items, centerText, emptyText, options = {}) {
     if (!items.length) return `<div class="empty compact-empty">${escapeHtml(emptyText)}</div>`;
-    const maxValue = Math.max(1, ...items.map(item => item.value));
+
+    const total = items.reduce((sum, item) => sum + item.value, 0);
+    if (!total) return `<div class="empty compact-empty">${escapeHtml(emptyText)}</div>`;
+
+    const donut = options.donut !== false;
+    const center = 90;
+    const outerRadius = 82;
+    const innerRadius = donut ? 46 : 0;
+    let start = 0;
+    const slices = items.map((item, index) => {
+      const sweep = (item.value / total) * 360;
+      const end = index === items.length - 1 ? 360 : start + sweep;
+      const tooltip = item.tooltip || `${item.label}: ${item.value}`;
+      const actionAttrs = this.chartActionAttributes(item);
+      const interactiveClass = item.action ? " is-clickable" : "";
+      const commonAttrs = `class="pie-chart-slice${interactiveClass}" style="--chart-color:${escapeAttr(item.color)}" data-chart-tooltip="${escapeAttr(tooltip)}" ${actionAttrs}`;
+      const sliceHtml = !donut && end - start >= 359.99
+        ? `<circle ${commonAttrs} cx="${center}" cy="${center}" r="${outerRadius}"><title>${escapeHtml(tooltip)}</title></circle>`
+        : `<path ${commonAttrs} d="${this.pieSlicePath(center, center, outerRadius, innerRadius, start, Math.min(end, 359.99))}"><title>${escapeHtml(tooltip)}</title></path>`;
+      start = end;
+      return sliceHtml;
+    }).join("");
 
     return `
-      <div class="simple-chart-bars">
-        ${items.map(item => {
-          const percent = Math.round((item.value / maxValue) * 100);
-          return this.point(item, "simple-chart-row", `
-            <span class="simple-chart-label">${escapeHtml(item.label)}</span>
-            <span class="simple-chart-track">
-              <span class="simple-chart-fill" style="--value:${percent}%; --chart-color:${escapeAttr(item.color)}"></span>
-            </span>
-            <span class="simple-chart-value">${item.value}</span>
-          `);
-        }).join("")}
+      <div class="pie-chart-layout">
+        <div class="pie-chart ${donut ? "is-donut" : "is-filled"}" data-chart-tooltip="${escapeAttr(centerText)}">
+          <svg class="pie-chart-svg" viewBox="0 0 180 180" role="img" aria-label="${escapeAttr(centerText)}">
+            ${slices}
+            ${donut ? `<circle class="pie-chart-hole" cx="${center}" cy="${center}" r="${innerRadius - 2}"></circle>` : ""}
+            <text class="pie-chart-center-text" x="${center}" y="${center}">${escapeHtml(centerText)}</text>
+          </svg>
+        </div>
+        <div class="chart-legend-list">
+          ${items.map(item => this.legendItem(item, total)).join("")}
+        </div>
       </div>
     `;
   },
 
-  point(item, className, innerHtml) {
+  piePoint(cx, cy, radius, degrees) {
+    const radians = (degrees - 90) * Math.PI / 180;
+    return {
+      x: this.chartNumber(cx + radius * Math.cos(radians)),
+      y: this.chartNumber(cy + radius * Math.sin(radians))
+    };
+  },
+
+  pieSlicePath(cx, cy, outerRadius, innerRadius, startDegrees, endDegrees) {
+    const outerStart = this.piePoint(cx, cy, outerRadius, startDegrees);
+    const outerEnd = this.piePoint(cx, cy, outerRadius, endDegrees);
+    const largeArc = endDegrees - startDegrees > 180 ? 1 : 0;
+
+    if (!innerRadius) {
+      return `M ${cx} ${cy} L ${outerStart.x} ${outerStart.y} A ${outerRadius} ${outerRadius} 0 ${largeArc} 1 ${outerEnd.x} ${outerEnd.y} Z`;
+    }
+
+    const innerStart = this.piePoint(cx, cy, innerRadius, startDegrees);
+    const innerEnd = this.piePoint(cx, cy, innerRadius, endDegrees);
+    return `M ${outerStart.x} ${outerStart.y} A ${outerRadius} ${outerRadius} 0 ${largeArc} 1 ${outerEnd.x} ${outerEnd.y} L ${innerEnd.x} ${innerEnd.y} A ${innerRadius} ${innerRadius} 0 ${largeArc} 0 ${innerStart.x} ${innerStart.y} Z`;
+  },
+
+  chartNumber(value) {
+    return Number(value).toFixed(2).replace(/\.?0+$/, "");
+  },
+
+  chartActionAttributes(item) {
+    if (!item.action) return "";
+
+    const attrs = [
+      `data-action="${escapeAttr(item.action)}"`,
+      item.id ? `data-id="${escapeAttr(item.id)}"` : "",
+      item.ids ? `data-ids="${escapeAttr(item.ids)}"` : "",
+      item.chartTitle ? `data-chart-title="${escapeAttr(item.chartTitle)}"` : ""
+    ].filter(Boolean);
+
+    return attrs.join(" ");
+  },
+
+  lineChart(rows, series) {
+    const chartWidth = Math.max(620, rows.length * 72);
+    const chartHeight = 260;
+    const padding = { left: 42, right: 28, top: 22, bottom: 56 };
+    const plotWidth = chartWidth - padding.left - padding.right;
+    const plotHeight = chartHeight - padding.top - padding.bottom;
+    const maxValue = Math.max(1, ...rows.flatMap(row => series.map(item => row[item.key] || 0)));
+    const xStep = rows.length > 1 ? plotWidth / (rows.length - 1) : 0;
+    const yFor = value => padding.top + plotHeight - ((value || 0) / maxValue) * plotHeight;
+    const xFor = index => rows.length > 1 ? padding.left + (index * xStep) : padding.left + (plotWidth / 2);
+
+    const gridLines = [0, 0.25, 0.5, 0.75, 1].map(step => {
+      const y = padding.top + plotHeight - (plotHeight * step);
+      const label = Math.round(maxValue * step);
+      return `
+        <line class="line-chart-gridline" x1="${padding.left}" y1="${y}" x2="${chartWidth - padding.right}" y2="${y}"></line>
+        <text class="line-chart-axis-label" x="8" y="${y + 4}">${label}</text>
+      `;
+    }).join("");
+
+    return `
+      <div class="visual-chart-scroll">
+        <svg class="line-chart" viewBox="0 0 ${chartWidth} ${chartHeight}" width="${chartWidth}" height="${chartHeight}" role="img" aria-label="Bug trend line graph">
+          ${gridLines}
+          ${series.map(item => {
+            const points = rows.map((row, index) => `${xFor(index)},${yFor(row[item.key])}`).join(" ");
+            return `<polyline class="line-chart-path" points="${points}" style="--chart-color:${escapeAttr(item.color)}"></polyline>`;
+          }).join("")}
+          ${rows.map((row, index) => {
+            const label = rows.length > 12 && index % 2 ? "" : row.label;
+            return label ? `<text class="line-chart-x-label" x="${xFor(index)}" y="${chartHeight - 18}" transform="rotate(-32 ${xFor(index)} ${chartHeight - 18})">${escapeHtml(label)}</text>` : "";
+          }).join("")}
+          ${series.flatMap(item => rows.map((row, index) => {
+            const value = row[item.key] || 0;
+            const tooltip = `${row.label}: ${value} ${item.label.toLowerCase()} bug report${value === 1 ? "" : "s"}`;
+            return `
+              <circle class="line-chart-point" cx="${xFor(index)}" cy="${yFor(value)}" r="5" style="--chart-color:${escapeAttr(item.color)}" data-chart-tooltip="${escapeAttr(tooltip)}" data-action="${row.sprintId ? "chart-open-sprint" : ""}" data-id="${escapeAttr(row.sprintId || "")}"></circle>
+            `;
+          })).join("")}
+        </svg>
+      </div>
+      ${this.legend(series)}
+    `;
+  },
+
+  columnChart(rows, series) {
+    const maxValue = Math.max(1, ...rows.flatMap(row => series.map(item => row[item.key] || 0)));
+
+    return `
+      <div class="column-chart-scroll">
+        <div class="column-chart" style="--column-count:${rows.length}">
+          ${rows.map(row => `
+            <div class="column-group">
+              <div class="column-bars">
+                ${series.map(item => {
+                  const value = row[item.key] || 0;
+                  const percent = Math.round((value / maxValue) * 100);
+                  const tooltip = `${row.label}: ${value} ${item.label.toLowerCase()} bug report${value === 1 ? "" : "s"}`;
+                  return `
+                    <button type="button" class="visual-column" data-action="${row.sprintId ? "chart-open-sprint" : ""}" data-id="${escapeAttr(row.sprintId || "")}" data-chart-tooltip="${escapeAttr(tooltip)}" title="${escapeAttr(tooltip)}" style="--value:${percent}%; --chart-color:${escapeAttr(item.color)}">
+                      <span>${value}</span>
+                    </button>
+                  `;
+                }).join("")}
+              </div>
+              <div class="column-label" title="${escapeAttr(row.label)}">${escapeHtml(row.label)}</div>
+            </div>
+          `).join("")}
+        </div>
+      </div>
+      ${this.legend(series)}
+    `;
+  },
+
+  legend(items) {
+    return `
+      <div class="visual-chart-legend">
+        ${items.map(item => `<span><i style="--chart-color:${escapeAttr(item.color)}"></i>${escapeHtml(item.label)}</span>`).join("")}
+      </div>
+    `;
+  },
+
+  legendItem(item, total) {
+    const percent = Math.round((item.value / total) * 100);
     const tag = item.action ? "button" : "div";
-    const actionAttrs = item.action ? ` type="button" data-action="${escapeAttr(item.action)}" data-id="${escapeAttr(item.id)}"` : "";
-    const clickableClass = item.action ? " is-clickable" : "";
+    const actionAttrs = item.action ? ` type="button" ${this.chartActionAttributes(item)}` : "";
     const tooltip = escapeAttr(item.tooltip || `${item.label}: ${item.value}`);
 
     return `
-      <${tag}${actionAttrs} class="${className}${clickableClass}" data-chart-tooltip="${tooltip}" title="${tooltip}">
-        ${innerHtml}
+      <${tag}${actionAttrs} class="chart-legend-row ${item.action ? "is-clickable" : ""}" data-chart-tooltip="${tooltip}" title="${tooltip}">
+        <i style="--chart-color:${escapeAttr(item.color)}"></i>
+        <span>${escapeHtml(item.label)}</span>
+        <b>${item.value}</b>
+        <em>${percent}%</em>
       </${tag}>
     `;
   }
@@ -1349,14 +1476,14 @@ function settingsDevelopmentHtml() {
         <div class="development-action-row">
           <div>
             <strong>Clear All Except PMT</strong>
-            <p class="muted">Deletes non-PMT Projects, Sprints, Dev Tasks, Bug Reports, Scrum, and Documentation.</p>
+            <p class="muted">Deletes non-PMT Projects, Sprints, Dev Tasks, Bugs, Scrum, and Documentation.</p>
           </div>
           <button class="secondary text-icon-button" type="button" data-action="development-clear-non-pmt" ${canRun ? "" : "disabled"}>${buttonContent("&#128465;", "Clear All Except PMT")}</button>
         </div>
         <div class="development-action-row danger-row">
           <div>
             <strong>Clear PMT</strong>
-            <p class="muted">Deletes the PMT Project, Sprints, Dev Tasks, Bug Reports, Scrum, and Documentation.</p>
+            <p class="muted">Deletes the PMT Project, Sprints, Dev Tasks, Bugs, Scrum, and Documentation.</p>
           </div>
           <button class="danger text-icon-button" type="button" data-action="development-clear-pmt" ${canRun ? "" : "disabled"}>${buttonContent("&#9888;", "Clear PMT")}</button>
         </div>
@@ -1373,6 +1500,13 @@ function settingsDevelopmentHtml() {
             <p class="muted">Restores the PMT, LMS, and HLS demo data from the SQL seed scripts.</p>
           </div>
           <button class="primary text-icon-button" type="button" data-action="development-restore-seed-data" ${canRun ? "" : "disabled"}>${buttonContent("&#8635;", "Restore Initial Seed Data")}</button>
+        </div>
+        <div class="development-action-row">
+          <div>
+            <strong>Clear User Preferences Stored in Local Storage</strong>
+            <p class="muted">Clears this browser's PMT preferences and reloads the app with first-launch defaults.</p>
+          </div>
+          <button class="secondary text-icon-button" type="button" data-action="development-clear-local-storage">${buttonContent("&#9003;", "Clear User Preferences Stored in Local Storage")}</button>
         </div>
       </div>
     </div>
@@ -1602,10 +1736,19 @@ function renderDevLogs() {
 }
 
 function renderDocumentation() {
+  if (documentationProjectId && !projectById(documentationProjectId)) documentationProjectId = 0;
+
+  const filteredBlogs = state.blogs.filter(blog => !documentationProjectId || blog.projectId === documentationProjectId);
+
   app.innerHTML = `
     ${sectionHead("Documentation", `<button class="primary text-icon-button" type="button" data-action="new-blog">${buttonContent("&#10010;", "New Document")}</button>`)}
+    <div class="panel">
+      <div class="filter-row">
+        ${filterSelect("Project", "documentation-project", state.projects.map(project => ({ value: project.id, text: `${project.code} - ${project.title}` })), documentationProjectId || "", "All Projects")}
+      </div>
+    </div>
     <div class="grid">
-      ${state.blogs.map(blog => `
+      ${filteredBlogs.length ? filteredBlogs.map(blog => `
         <article class="card clickable-card documentation-card" data-action="view-blog" data-id="${blog.id}">
           <div class="spread">
             <div>
@@ -1623,7 +1766,7 @@ function renderDocumentation() {
             ${iconButton("edit-blog", blog.id, "Edit", "edit", canEditOwner(blog.createdByUserId))}
           </div>
         </article>
-      `).join("")}
+      `).join("") : `<div class="empty">No Documentation exists for the selected project.</div>`}
     </div>
   `;
 }
@@ -1643,6 +1786,8 @@ async function handleActionClick(event) {
   const id = Number(button.dataset.id || 0);
   const action = button.dataset.action;
 
+  if (handleChartAction(button)) return;
+
   if (action === "new-project") editProject();
   if (action === "edit-project") editProject(projectById(id));
   if (action === "delete-project") await deleteItem(`/api/projects/${id}`, "Delete this project?");
@@ -1654,9 +1799,8 @@ async function handleActionClick(event) {
   if (action === "delete-sprint") await deleteItem(`/api/sprints/${id}`, "Delete this Sprint?");
   if (action === "new-task") editTask();
   if (action === "new-bug") editBug();
-  if (action === "view-task") viewTask(taskById(id));
-  if (action === "chart-open-sprint") viewSprintSummary(sprintById(id));
-  if (action === "toggle-bug-charts") toggleBugCharts();
+  if (action === "toggle-bug-filters") toggleBugFilters();
+  if (action === "toggle-bug-visual-charts") toggleBugVisualCharts();
   if (action === "edit-task") editTask(taskById(id));
   if (action === "show-task-audit") showTaskAudit(id);
   if (action === "duplicate-task") await duplicateTask(id);
@@ -1681,12 +1825,12 @@ async function handleActionClick(event) {
   if (action === "delete-holiday") await deleteItem(`/api/holidays/${id}`, "Deactivate this holiday?");
   if (action === "development-clear-non-pmt") await runDevelopmentAction(
     "/api/development/clear-non-pmt",
-    "Clear LMS, HLS, and any non-PMT Projects, Sprints, Dev Tasks, Bug Reports, Scrum, and Documentation? PMT will remain intact.",
+    "Clear LMS, HLS, and any non-PMT Projects, Sprints, Dev Tasks, Bugs, Scrum, and Documentation? PMT will remain intact.",
     "Non-PMT development data cleared."
   );
   if (action === "development-clear-pmt") await runDevelopmentAction(
     "/api/development/clear-pmt",
-    "Clear the PMT Project, Sprints, Dev Tasks, Bug Reports, Scrum, and Documentation?",
+    "Clear the PMT Project, Sprints, Dev Tasks, Bugs, Scrum, and Documentation?",
     "PMT development data cleared."
   );
   if (action === "development-clear-users") await runDevelopmentAction(
@@ -1699,6 +1843,7 @@ async function handleActionClick(event) {
     "Restore initial seed data for PMT, LMS, and HLS? Current development data will be replaced.",
     "Initial seed data restored."
   );
+  if (action === "development-clear-local-storage") await clearLocalStoragePreferences();
   if (action === "goto-task") gotoTask(id);
   if (action === "gantt-open-task") openGanttTask(id);
   if (action === "view-project-gantt") viewProjectGantt(id);
@@ -1726,6 +1871,159 @@ async function handleActionClick(event) {
   if (action === "toggle-project-card-details") toggleProjectCardDetails(id);
   if (action === "toggle-sprint-card-details") toggleSprintCardDetails(id);
   if (action === "toggle-all-sprint-details") toggleAllSprintDetails();
+}
+
+function handleChartAction(element, dialogToClose = null) {
+  const action = element.dataset.action;
+  if (action === "expand-visual-chart") {
+    expandVisualChartCard(element.closest(".visual-chart-card"));
+    return true;
+  }
+
+  if (action === "chart-open-sprint") {
+    closeTransientDialog(dialogToClose);
+    viewSprintSummary(sprintById(Number(element.dataset.id || 0)));
+    return true;
+  }
+
+  if (action === "chart-drill-bugs") {
+    closeTransientDialog(dialogToClose);
+    const bugIds = splitChartIds(element.dataset.ids);
+    showBugChartDrilldown(element.dataset.chartTitle || "Bugs", bugIds);
+    return true;
+  }
+
+  if (action === "view-task") {
+    closeTransientDialog(dialogToClose);
+    viewTask(taskById(Number(element.dataset.id || 0)));
+    return true;
+  }
+
+  return false;
+}
+
+function splitChartIds(value) {
+  return String(value || "")
+    .split(",")
+    .map(id => Number(id))
+    .filter(id => id > 0);
+}
+
+function closeTransientDialog(modal) {
+  if (!modal) return;
+  hideChartTooltip();
+  if (modal.open) modal.close();
+  modal.remove();
+}
+
+function showBugChartDrilldown(title, bugIds) {
+  const bugs = bugIds
+    .map(id => taskById(id))
+    .filter(Boolean)
+    .sort(taskOrderCompare);
+
+  const modal = document.createElement("dialog");
+  modal.className = "dialog detail-dialog chart-drill-dialog";
+  modal.innerHTML = `
+    <div class="dialog-head">
+      <h2>${escapeHtml(title)} Bugs</h2>
+      <button type="button" class="icon-btn" data-close title="Close">x</button>
+    </div>
+    <div class="dialog-body">
+      ${bugs.length ? `
+        <table class="table chart-drill-table">
+          <thead>
+            <tr>
+              <th>Bug Report</th>
+              <th>Project</th>
+              <th>Sprint</th>
+              <th>Status</th>
+              <th>Severity</th>
+              <th>Assignee</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            ${bugs.map(bug => `
+              <tr>
+                <td><b>${escapeHtml(bug.code)}</b><br><span>${escapeHtml(bug.title)}</span></td>
+                <td>${escapeHtml(projectCode(bug.projectId))}</td>
+                <td>${escapeHtml(sprintName(bug.sprintId))}</td>
+                <td><span class="pill">${escapeHtml(bug.status)}</span></td>
+                <td>${escapeHtml(bug.severity || "")}</td>
+                <td>${avatarsHtml(bug.assignees)}</td>
+                <td class="actions-cell">
+                  <button class="icon-action" type="button" data-action="view-task" data-id="${bug.id}" title="View Bug Report">&#128065;</button>
+                </td>
+              </tr>
+            `).join("")}
+          </tbody>
+        </table>
+      ` : `<div class="empty compact-empty">No bugs were found for this chart segment.</div>`}
+    </div>
+    <div class="dialog-actions">
+      <button type="button" class="primary text-icon-button" data-close>${buttonContent("&#10003;", "Close")}</button>
+    </div>
+  `;
+
+  document.body.appendChild(modal);
+  modal.addEventListener("click", event => {
+    if (event.target.closest("[data-close]")) {
+      closeTransientDialog(modal);
+      return;
+    }
+
+    const actionElement = event.target.closest("[data-action]");
+    if (!actionElement) return;
+
+    // Keep the drilldown list open so the user can view more than one item.
+    if (actionElement.dataset.action === "view-task") {
+      handleChartAction(actionElement);
+      return;
+    }
+
+    handleChartAction(actionElement, modal);
+  });
+  modal.addEventListener("cancel", () => modal.remove());
+  modal.showModal();
+}
+
+function expandVisualChartCard(card) {
+  if (!card) return;
+
+  const title = card.querySelector(".chart-card-head h2")?.textContent || "Chart";
+  const chartCopy = card.cloneNode(true);
+  chartCopy.classList.add("chart-expanded-card");
+  chartCopy.querySelector("[data-action='expand-visual-chart']")?.remove();
+
+  const modal = document.createElement("dialog");
+  modal.className = "dialog chart-expanded-dialog";
+  modal.innerHTML = `
+    <div class="dialog-head">
+      <h2>${escapeHtml(title)}</h2>
+      <button type="button" class="icon-btn" data-close title="Close">x</button>
+    </div>
+    <div class="dialog-body chart-expanded-body"></div>
+  `;
+
+  modal.querySelector(".chart-expanded-body").appendChild(chartCopy);
+  document.body.appendChild(modal);
+  modal.addEventListener("mousemove", handleChartTooltip);
+  modal.addEventListener("mouseleave", hideChartTooltip);
+  modal.addEventListener("click", event => {
+    if (event.target.closest("[data-close]")) {
+      closeTransientDialog(modal);
+      return;
+    }
+
+    const actionElement = event.target.closest("[data-action]");
+    if (actionElement) handleChartAction(actionElement, modal);
+  });
+  modal.addEventListener("cancel", () => {
+    hideChartTooltip();
+    modal.remove();
+  });
+  modal.showModal();
 }
 
 function handleFilterChange(event) {
@@ -1827,6 +2125,11 @@ function handleFilterChange(event) {
     taskFilters.assigneeIds = checkedFilterValues("task-assigned");
     saveTaskFilters();
     renderTasks();
+  }
+  if (target.dataset.filter === "documentation-project") {
+    documentationProjectId = Number(target.value || 0);
+    localStorage.setItem("pmt-documentation-project", documentationProjectId);
+    renderDocumentation();
   }
   if (target.dataset.filter?.startsWith("bug-")) {
     const key = target.dataset.filter.replace("bug-", "");
@@ -2340,8 +2643,8 @@ function viewSprintSummary(sprint) {
       ${detailField("Dates", escapeHtml(`${formatDate(sprint.startDate)} - ${formatDate(sprint.endDate)}`))}
       ${detailField("Overall Progress", `${sprintOverallPercent(sprint)}%`)}
       ${detailField("Dev Tasks", String(tasks.length))}
-      ${detailField("Bug Reports", `${bugs.length} total, ${resolvedBugs.length} resolved, ${openBugs.length} open`)}
-      ${bugs.length ? detailField("Bug Reports", `<div class="inline-link-list">${bugLinks}</div>`, true) : ""}
+      ${detailField("Bugs", `${bugs.length} total, ${resolvedBugs.length} resolved, ${openBugs.length} open`)}
+      ${bugs.length ? detailField("Bugs", `<div class="inline-link-list">${bugLinks}</div>`, true) : ""}
     </div>
   `);
 }
@@ -2880,6 +3183,24 @@ async function runDevelopmentAction(path, message, successMessage) {
   } catch (error) {
     showToast(error.message);
   }
+}
+
+async function clearLocalStoragePreferences() {
+  const confirmed = await askYesNo(
+    "Clear all PMT browser preferences stored in local storage? The app will reload and show first-launch defaults.",
+    "Development"
+  );
+  if (!confirmed) return;
+
+  // Remove only PMT keys so unrelated localStorage values for other sites are left alone.
+  const pmtKeys = [];
+  for (let index = 0; index < localStorage.length; index += 1) {
+    const key = localStorage.key(index);
+    if (key && key.startsWith("pmt-")) pmtKeys.push(key);
+  }
+
+  pmtKeys.forEach(key => localStorage.removeItem(key));
+  window.location.reload();
 }
 
 async function finishSprint(id) {
@@ -4330,7 +4651,7 @@ function sprintOverallPercent(sprint) {
 function averageWorkItemPercent(workItems) {
   if (!workItems.length) return 0;
 
-  // Average Dev Tasks and Bug Reports so the summary reflects the real workload.
+  // Average Dev Tasks and Bugs so the summary reflects the real workload.
   const totalPercent = workItems.reduce((sum, task) => sum + taskDisplayPercent(task), 0);
   return Math.round(totalPercent / workItems.length);
 }
@@ -4356,11 +4677,11 @@ function overallProgressBlockHtml(label, percent) {
 }
 
 function projectStatusMetricsHtml(project) {
-  return workItemStatusMetricsHtml(projectWorkItems(project.id), "No Dev Tasks or Bug Reports.");
+  return workItemStatusMetricsHtml(projectWorkItems(project.id), "No Dev Tasks or Bugs.");
 }
 
 function sprintStatusMetricsHtml(sprint) {
-  return workItemStatusMetricsHtml(sprintWorkItems(sprint.id), "No Dev Tasks or Bug Reports.");
+  return workItemStatusMetricsHtml(sprintWorkItems(sprint.id), "No Dev Tasks or Bugs.");
 }
 
 function workItemStatusMetricsHtml(workItems, emptyText) {

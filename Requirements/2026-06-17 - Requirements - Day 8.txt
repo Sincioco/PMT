@@ -43,20 +43,27 @@ Bug Tracking Charts:
 8.) If there are other charts you find useful for bug tracking and resolution, feel free to add them as well.  The goal is to provide as much insight and information as possible to help us improve our bug tracking and resolution process and ultimately deliver a better product to our users.
 9.) The chart should not use any charting library.  It should be built from scratch using HTML, CSS, and JavaScript.  This will allow for greater customization and flexibility in the design and functionality of the chart.  Create a re-usable charting module that can be used for other types of charts in the future and to make it easier to maintain and update the charts as needed.  The charting module should be designed to handle different types of data and be easily customizable to fit the specific needs of our bug tracking and resolution process.
 
-Developer Task Tracking Charts:
--------------------------------
-1.) Create a graph button on the Dev Task View that is a toggle.  When it is enabled, the graphs/charts will appear in between the filter panel and the table of Dev Tasks.
-2.) By default the chart view should be enabled (unless there is no data), but the user can toggle it off if they want to hide the charts and just see the table of Dev Tasks.
-3.) Create Developer Task Tracking Charts that shows the number of Dev Tasks created per Sprint.
-4.) Create another chart that shows and the number of Dev Tasks completed per Sprint.
-5.) The charts should be interactive, allowing users to hover over data points to see the exact number of Dev Tasks created and completed for each Sprint.  This will provide more detailed insights into our development process and help us identify any potential bottlenecks or areas for improvement.
-6.) Create a chart specific to the current sprint that shows the number of Dev Tasks created, completed, and still open.  This will help us understand the current sprint's development status and identify any potential issues that need to be addressed before the sprint ends.  This should be the first chart that appears when the user toggles on the chart view.
-7.) If the user clicks on a chart and that data is associated to one specific element such as a Sprint or a Bug report or a Dev Task, popup a dialog box in read-only mode with details about that item.
-8.) If there are other charts you find useful for tracking our development process, feel free to add them as well.  The goal is to provide as much insight and information as possible to help us improve our development process and ultimately deliver a better product to our users.
-9.) The chart should not use any charting library.  It should be built from scratch using HTML, CSS, and JavaScript.  This will allow for greater customization and flexibility in the design and functionality of the chart.  Create a re-usable charting module that can be used for other types of charts in the future and to make it easier to maintain and update the charts as needed.  The charting module should be designed to handle different types of data and be easily customizable to fit the specific needs of our development process tracking.
-10.) Be sure the chart has smooth animation.
+
+Corrections
+-----------
+1.) For the Charts...I wanted Pie Charts, Line Graphs, Column Charts....not simple charts....can you make another button that renders a different sets of visual charts?  I want to see the before and after.
+2.) Get rid of the original charts (the before).  I like the icon you chose on the before chart button, use that for the after Chart button.
+3.) Re-order the charts as follows:  Bug Trend by Sprint is first, Bug Severity Share, Reported vs Resolved by Sprint, Current Sprint Bug Mix
+4.) Add a Hide/show Filter button to the left of the chart toggle button.  When clicked, it will hide or show the filter panel.  This will allow users to have more space to view the charts if they want to hide the filter panel.
+
+5.) Make the Bug Severity Share a pie chart (not a donut chart).  Fill in the center.
+6.) The Line Chart and Column charts are clickable, but not the pie / donut charts.  Provide a drill down interaction for the pie/donut charts as well. 
+7.) For the Visual Chart cards, add an expand button that expands to dialog box that display the chart at nearly full screen.  Take up 80% of the height and width of the viewport.  Scale the chart accordingly to fit the larger size of the dialog box.  This will allow users to see the charts in more detail and have a better view of the data.  When the user clicks the expand button, it should open a dialog box with the chart displayed at a larger size, and when they close the dialog box, it should return to the normal view with the chart at its original size.
+8.) Change the hide/show filter button's icon to a funnel icon.
+
+9.) When you drill into a chart, when multiple items needs to be shown it shows a dialog box of the items, when you can pick an item to view.  However, when you close the item the dialog box with the list of items is gone.  Keep the list of items so the user can select another item to view.
+10.) In the Documentation section, add a Project Filter with an "All Projects" option.  Filter the Documentation based  on the selected project.  By default, it should show documentation for all projects, but the user can select a specific project to filter the documentation accordingly.
+11.) Rename the label "Bug Reports" in the UI to "Bug Tracking".  This will better reflect the purpose of that section and the charts that are being displayed, which are focused on tracking the bugs rather than just reporting them.  The new label "Bug Tracking" will provide a clearer and more accurate description of the content and functionality of that section in the UI.
+12.) In Settings in the Developer section, add a button that reads "Clear User Preferences Stored in Local Storage" that clears all browser related settings and preferences for PMT so the Dev / QA / User can get that first time launch experience for testing.
+
+13.) Re-do the Documentation images for PMT so that the images are related to what the Documentation blog is about.  For example:  "PMT Day 4 - Holidays, Gantt, and Road Map" should show a picture of a Gant Chart.  Or "PMT Day 2 - Dark Theme and Kanban Workflow" should show a picture of the Dark Theme and Kanban Workflow.
+14.) For Documentations that do not have images, add a relevant image that represents the content of the documentation.  This will make the documentation more visually appealing and engaging for users, and it will also help to provide a visual context for the information being presented in the documentation.  Be sure to choose images that are relevant and appropriate for the content of each documentation blog post.
+15.) Be sure to update the database seed files as necessary so that when we rebuild the database the updated pictures for the Documentation remain.
 
 
-Development in Settings
------------------------
-When "Clear PMT" is clicked, preserve the Blogs/Documentations since that actually functions as the system's changelog and release notes, so we want to keep that intact even if we clear the rest of PMT's data.
+
