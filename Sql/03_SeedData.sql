@@ -346,7 +346,7 @@ VALUES
 (
     @PmtProject,
     N'PMT Day 1 - Foundation Build and ADO.NET Decision',
-    N'<p><img src="/assets/docs/pmt-doc-day01.png" alt="PMT Day 1 progress graphic"></p><p>Day 1 established the core PMT direction: a simple .NET web application, ADO.NET data access, stored procedures, and a dedicated pmt schema for every database object.</p><ul><li>Created the login screen and default Password1 user setup.</li><li>Started the PMT seed data and schema scripts.</li><li>Kept the code intentionally simple for junior developer handoff.</li></ul>',
+    N'<p><img src="/assets/docs/pmt-doc-day01-v2.png" alt="PMT foundation diagram showing .NET, ADO.NET, stored procedures, and the pmt schema"></p><p>Day 1 established the core PMT direction: a simple .NET web application, ADO.NET data access, stored procedures, and a dedicated pmt schema for every database object.</p><ul><li>Created the login screen and default Password1 user setup.</li><li>Started the PMT seed data and schema scripts.</li><li>Kept the code intentionally simple for junior developer handoff.</li></ul>',
     @Sin,
     @Bill,
     DATEADD(DAY, -45, @Now),
@@ -355,7 +355,7 @@ VALUES
 (
     @PmtProject,
     N'PMT Day 2 - Dark Theme and Kanban Workflow',
-    N'<p><img src="/assets/docs/pmt-doc-day02.png" alt="PMT Day 2 progress graphic"></p><p>The second requirements pass moved PMT away from the original plain layout and into the current dark theme. The Kanban Board gained task creation and status movement.</p><ul><li>Standardized the expanded status workflow.</li><li>Added QA Passed as the sprint completion milestone.</li><li>Cleaned up checkboxes, dropdowns, and dialog focus behavior.</li></ul>',
+    N'<p><img src="/assets/docs/pmt-doc-day02-v2.png" alt="Dark theme Kanban Board showing Todo, In Progress, and QA Passed columns"></p><p>The second requirements pass moved PMT away from the original plain layout and into the current dark theme. The Kanban Board gained task creation and status movement.</p><ul><li>Standardized the expanded status workflow.</li><li>Added QA Passed as the sprint completion milestone.</li><li>Cleaned up checkboxes, dropdowns, and dialog focus behavior.</li></ul>',
     @Mark,
     @Sin,
     DATEADD(DAY, -39, @Now),
@@ -364,7 +364,7 @@ VALUES
 (
     @PmtProject,
     N'PMT Day 3 - Filters, Scrum, and Documentation',
-    N'<p><img src="/assets/docs/pmt-doc-day03.png" alt="PMT Day 3 progress graphic"></p><p>Day 3 focused on making PMT useful during daily development. The Tasks view gained richer filters, Scrum entries became table rows, and Documentation was seeded for LMS and PMT.</p><ul><li>Added project and sprint filters in Sprints and Dev Tasks.</li><li>Added Scrum placeholders for yesterday, today, and roadblocks.</li><li>Renamed Blogs to Documentation.</li></ul>',
+    N'<p><img src="/assets/docs/pmt-doc-day03-v2.png" alt="PMT task filters beside Scrum and Documentation progress cards"></p><p>Day 3 focused on making PMT useful during daily development. The Tasks view gained richer filters, Scrum entries became table rows, and Documentation was seeded for LMS and PMT.</p><ul><li>Added project and sprint filters in Sprints and Dev Tasks.</li><li>Added Scrum placeholders for yesterday, today, and roadblocks.</li><li>Renamed Blogs to Documentation.</li></ul>',
     @Sam,
     @Mark,
     DATEADD(DAY, -34, @Now),
@@ -373,7 +373,7 @@ VALUES
 (
     @PmtProject,
     N'PMT Day 4 - Holidays, Gantt, and Road Map',
-    N'<p><img src="/assets/docs/pmt-doc-day04.png" alt="PMT Day 4 progress graphic"></p><p>The planning views started to mature on Day 4. PMT added Philippine-friendly holiday maintenance, Gantt non-working-day rules, and the first Road Map view for projects and Sprints.</p><ul><li>Created the Holiday maintenance screen under Settings.</li><li>Skipped weekends and holidays unless work starts on those dates.</li><li>Rendered Project and Sprint bars by start and end dates.</li></ul>',
+    N'<p><img src="/assets/docs/pmt-doc-day04-v2.png" alt="PMT Gantt chart and Road Map planning view with holiday badges"></p><p>The planning views started to mature on Day 4. PMT added Philippine-friendly holiday maintenance, Gantt non-working-day rules, and the first Road Map view for projects and Sprints.</p><ul><li>Created the Holiday maintenance screen under Settings.</li><li>Skipped weekends and holidays unless work starts on those dates.</li><li>Rendered Project and Sprint bars by start and end dates.</li></ul>',
     @Lisa,
     @Sin,
     DATEADD(DAY, -28, @Now),
@@ -382,7 +382,7 @@ VALUES
 (
     @PmtProject,
     N'PMT Day 5 - Audit Trails and Seed Expansion',
-    N'<p><img src="/assets/docs/pmt-doc-day05.png" alt="PMT Day 5 progress graphic"></p><p>Day 5 introduced audit logging for Dev Tasks and Bug Reports so status and completion changes tell a clear story during demos and QA reviews.</p><ul><li>Added task and bug audit popups.</li><li>Seeded LMS as a two-year Agile project.</li><li>Seeded HLS as a five-year waterfall-style AI learning project.</li></ul>',
+    N'<p><img src="/assets/docs/pmt-doc-day05-v2.png" alt="PMT audit trail timeline and seed expansion progress bars for PMT, LMS, and HLS"></p><p>Day 5 introduced audit logging for Dev Tasks and bugs so status and completion changes tell a clear story during demos and QA reviews.</p><ul><li>Added task and bug audit popups.</li><li>Seeded LMS as a two-year Agile project.</li><li>Seeded HLS as a five-year waterfall-style AI learning project.</li></ul>',
     @Bill,
     @Sam,
     DATEADD(DAY, -22, @Now),
@@ -391,7 +391,7 @@ VALUES
 (
     @PmtProject,
     N'PMT Day 6 - Gantt Fly-by and Road Map Optimization',
-    N'<p><img src="/assets/docs/pmt-doc-day06.png" alt="PMT Day 6 progress graphic"></p><p>Day 6 turned the Gantt chart into a better demo surface. Sprint jump, selected Sprint mode, show-all mode, and the fly-by animation made long projects easier to present.</p><ul><li>Added Sprint dropdown and reset behavior.</li><li>Improved fly-by positioning and pause/resume behavior.</li><li>Compressed the Road Map so multi-year projects fit better.</li></ul>',
+    N'<p><img src="/assets/docs/pmt-doc-day06-v2.png" alt="PMT Gantt chart with fly-by path and Sprint jump controls"></p><p>Day 6 turned the Gantt chart into a better demo surface. Sprint jump, selected Sprint mode, show-all mode, and the fly-by animation made long projects easier to present.</p><ul><li>Added Sprint dropdown and reset behavior.</li><li>Improved fly-by positioning and pause/resume behavior.</li><li>Compressed the Road Map so multi-year projects fit better.</li></ul>',
     @Steve,
     @Lisa,
     DATEADD(DAY, -16, @Now),
@@ -400,7 +400,7 @@ VALUES
 (
     @PmtProject,
     N'PMT Day 7 - Navigation and Sprint Metrics',
-    N'<p><img src="/assets/docs/pmt-doc-day07.png" alt="PMT Day 7 progress graphic"></p><p>Day 7 cleaned up the top navigation, moved Settings under the user avatar, and made Sprint cards show status progress bars instead of busy legends.</p><ul><li>Renamed Board to Kanban Board and Tasks to Dev Tasks.</li><li>Moved Users and Holidays into Settings.</li><li>Added expand and collapse behavior for Sprint metric cards.</li></ul>',
+    N'<p><img src="/assets/docs/pmt-doc-day07-v2.png" alt="PMT navigation bar and Sprint metric progress bars"></p><p>Day 7 cleaned up the top navigation, moved Settings under the user avatar, and made Sprint cards show status progress bars instead of busy legends.</p><ul><li>Renamed Board to Kanban Board and Tasks to Dev Tasks.</li><li>Moved Users and Holidays into Settings.</li><li>Added expand and collapse behavior for Sprint metric cards.</li></ul>',
     @Sin,
     @Mark,
     DATEADD(DAY, -10, @Now),
@@ -409,7 +409,7 @@ VALUES
 (
     @PmtProject,
     N'PMT Day 8 - Documentation Card Cleanup',
-    N'<p><img src="/assets/docs/pmt-doc-day08.png" alt="PMT Day 8 progress graphic"></p><p>Day 8 made Documentation easier to scan. Cards now show project code, created and edited dates, and right-aligned actions with Delete first and Edit last.</p><ul><li>Removed edit count clutter from cards.</li><li>Aligned card actions consistently.</li><li>Kept existing Documentation entries read-only by default.</li></ul>',
+    N'<p><img src="/assets/docs/pmt-doc-day08-v2.png" alt="PMT Documentation cards showing project codes, dates, and right aligned actions"></p><p>Day 8 made Documentation easier to scan. Cards now show project code, created and edited dates, and right-aligned actions with Delete first and Edit last.</p><ul><li>Removed edit count clutter from cards.</li><li>Aligned card actions consistently.</li><li>Kept existing Documentation entries read-only by default.</li></ul>',
     @Sam,
     NULL,
     DATEADD(DAY, -6, @Now),
@@ -418,7 +418,7 @@ VALUES
 (
     @PmtProject,
     N'PMT Reorder Design Note',
-    N'<p><img src="/assets/docs/pmt-doc-reorder.png" alt="PMT reorder design graphic"></p><p>The latest work adds persistent manual ordering for Backlog, Dev Tasks, Bug Reports, and the Kanban Board. Reordering stays intentionally simple: the browser sends the visible item order and the database stores the new SortOrder values.</p><ul><li>Drag within a list to reprioritize work.</li><li>Drag across Kanban columns to change status and order.</li><li>Use Custom order when demonstrating team priority.</li></ul>',
+    N'<p><img src="/assets/docs/pmt-doc-reorder-v2.png" alt="PMT Kanban drag and drop reorder flow with drop indicator"></p><p>The latest work adds persistent manual ordering for Backlog, Dev Tasks, bugs, and the Kanban Board. Reordering stays intentionally simple: the browser sends the visible item order and the database stores the new SortOrder values.</p><ul><li>Drag within a list to reprioritize work.</li><li>Drag across Kanban columns to change status and order.</li><li>Use Custom order when demonstrating team priority.</li></ul>',
     @Lisa,
     @Sin,
     DATEADD(DAY, -3, @Now),
@@ -427,7 +427,7 @@ VALUES
 (
     @PmtProject,
     N'PMT Current Demo Readiness',
-    N'<p><img src="/assets/docs/pmt-doc-demo.png" alt="PMT demo readiness graphic"></p><p>PMT is now ready for a stakeholder walkthrough that covers Dashboard flow, Road Map planning, Gantt fly-by, Kanban execution, Bug Reports, Scrum, Documentation, and Settings.</p><ul><li>Dashboard emphasizes progress first and details on demand.</li><li>Planning views support long-running HLS data.</li><li>Seed data now tells a realistic story across PMT, LMS, and HLS.</li></ul>',
+    N'<p><img src="/assets/docs/pmt-doc-demo-v2.png" alt="PMT stakeholder demo dashboard with charts, Road Map, and feature badges"></p><p>PMT is now ready for a stakeholder walkthrough that covers Dashboard flow, Road Map planning, Gantt fly-by, Kanban execution, Bug Tracking, Scrum, Documentation, and Settings.</p><ul><li>Dashboard emphasizes progress first and details on demand.</li><li>Planning views support long-running HLS data.</li><li>Seed data now tells a realistic story across PMT, LMS, and HLS.</li></ul>',
     @Sin,
     NULL,
     @Now,

@@ -382,13 +382,13 @@ VALUES
 (
     @HlsProject,
     N'HLS AI Recommendation Design Notes',
-    N'<p>The Hybrid Learning System recommends lessons by combining course prerequisites, assessment performance, classroom attendance, and instructor overrides.</p><ul><li>Keep instructor override reasons auditable.</li><li>Never hide required learning from the learner.</li><li>Review AI recommendation outcomes during every phase gate.</li></ul>',
+    N'<p><img src="/assets/docs/hls-ai-recommendations.png" alt="HLS AI recommendation flow from learner signals to recommended learning path"></p><p>The Hybrid Learning System recommends lessons by combining course prerequisites, assessment performance, classroom attendance, and instructor overrides.</p><ul><li>Keep instructor override reasons auditable.</li><li>Never hide required learning from the learner.</li><li>Review AI recommendation outcomes during every phase gate.</li></ul>',
     @Bill
 ),
 (
     @HlsProject,
     N'HLS Waterfall Phase Gate Checklist',
-    N'<p>Each HLS phase should finish with a design review, QA pass, bug-fix retest, and stakeholder sign-off.</p><ul><li>Validate classroom and remote learner scenarios.</li><li>Confirm analytics totals match source attendance data.</li><li>Capture unresolved risk before the next phase begins.</li></ul>',
+    N'<p><img src="/assets/docs/hls-phase-gate.png" alt="HLS waterfall phase gate checklist with design review, QA pass, bug retest, and sign-off"></p><p>Each HLS phase should finish with a design review, QA pass, bug-fix retest, and stakeholder sign-off.</p><ul><li>Validate classroom and remote learner scenarios.</li><li>Confirm analytics totals match source attendance data.</li><li>Capture unresolved risk before the next phase begins.</li></ul>',
     @Sam
 );
 

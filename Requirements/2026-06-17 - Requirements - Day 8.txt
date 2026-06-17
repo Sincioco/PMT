@@ -65,5 +65,6 @@ Corrections
 14.) For Documentations that do not have images, add a relevant image that represents the content of the documentation.  This will make the documentation more visually appealing and engaging for users, and it will also help to provide a visual context for the information being presented in the documentation.  Be sure to choose images that are relevant and appropriate for the content of each documentation blog post.
 15.) Be sure to update the database seed files as necessary so that when we rebuild the database the updated pictures for the Documentation remain.
 
+16.) The Documentation images for the PMT project did not seem to get the update.  It is still showing the old images.
 
-
+17.) Can you update the Documentation images for the LMS project so it matches the theme of the images in the PMT project?
