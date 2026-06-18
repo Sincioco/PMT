@@ -1,6 +1,7 @@
 import {
   escapeAttr,
-  escapeHtml
+  escapeHtml,
+  normalizeRichHtml
 } from "../shared/text-and-links.js";
 
 export function field(label, name, currentValue, type, min = "", max = "") {
@@ -98,4 +99,30 @@ export function userCheckListLabelHtml(user) {
       <span>${escapeHtml(user.nickname)}</span>
     </span>
   `;
+}
+
+export function value(root, name) {
+  return root.querySelector(`[name='${name}']`)?.value || "";
+}
+
+export function numberValue(root, name) {
+  return Number(value(root, name) || 0);
+}
+
+export function optionalNumberValue(root, name) {
+  const raw = value(root, name);
+  return raw === "" ? null : Number(raw);
+}
+
+export function nullableDateValue(root, name) {
+  const raw = value(root, name);
+  return raw || null;
+}
+
+export function richValue(root, name) {
+  return normalizeRichHtml(root.querySelector(`[data-rich='${name}']`)?.innerHTML || "");
+}
+
+export function checkedNumbers(root, name) {
+  return [...root.querySelectorAll(`[name='${name}']:checked`)].map(input => Number(input.value));
 }

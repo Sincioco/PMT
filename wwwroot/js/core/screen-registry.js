@@ -12,3 +12,21 @@ export const screenRegistry = Object.freeze([
   { view: "Backlog", label: "Backlog", feature: "backlog", showInNavigation: true },
   { view: "Settings", label: "Settings", feature: "settings", showInNavigation: false }
 ]);
+
+const screenHandlers = new Map();
+
+export function registerScreen(view, handlers) {
+  if (!screenRegistry.some(screen => screen.view === view)) {
+    throw new Error(`Unknown screen: ${view}`);
+  }
+
+  screenHandlers.set(view, handlers);
+}
+
+export function screenHandlerFor(view) {
+  return screenHandlers.get(view) || null;
+}
+
+export function registeredScreenHandlers() {
+  return [...screenHandlers.values()];
+}

@@ -3,22 +3,26 @@ import { attachmentsHtml, filePreviewHtml } from "./components/attachments.js";
 import { avatarsHtml, taskRowAvatarsHtml } from "./components/avatars.js";
 import { buttonContent, funnelIconHtml, iconButton } from "./components/buttons.js";
 import { VisualCharts } from "./components/charts.js";
-import { askFinishSprintOptions, askForText, askYesNo } from "./components/dialogs.js";
+import { askForText, askYesNo } from "./components/dialogs.js";
 import { checkedFilterValues, filterCheckList, filterSelect } from "./components/filters.js";
 import {
   checkList,
   checkListOrEmpty,
-  colorField,
+  checkedNumbers,
   field,
+  nullableDateValue,
+  numberValue,
+  optionalNumberValue,
   richTextField,
+  richValue,
   selectField,
   selectOptionsField,
   selectTextField,
+  value,
   userCheckListLabelHtml
 } from "./components/forms.js";
 import {
   configureProgressAndStatus,
-  defaultStatusColor,
   progressHtml,
   projectOverallProgressHtml,
   projectStatusMetricsHtml,
@@ -28,13 +32,13 @@ import {
   statusLegendHtml,
   thinProgressHtml
 } from "./components/progress-and-status.js";
+import { sectionHead } from "./components/sections.js";
 import { createApplicationShell } from "./core/application-shell.js";
 import {
   currentUser,
   currentUserId
 } from "./core/authentication.js";
 import {
-  clearPmtPreferences,
   preferenceKeys,
   readBooleanPreference,
   readJsonPreference,
@@ -45,10 +49,17 @@ import {
 } from "./core/preferences.js";
 import {
   currentView,
-  navigate,
-  savedViewPreference
+  navigate
 } from "./core/router.js";
+import {
+  registeredScreenHandlers,
+  registerScreen,
+  screenHandlerFor
+} from "./core/screen-registry.js";
 import { state } from "./core/store.js";
+import { createProjectsFeature } from "./features/projects/projects.js";
+import { createSettingsFeature } from "./features/settings/settings.js";
+import { createSprintsFeature } from "./features/sprints/sprints.js";
 import {
   fallbackEnvironments,
   fallbackForLookup,
@@ -69,7 +80,7 @@ import {
   toDateInput
 } from "./shared/dates.js";
 import { normalizeSavedArray } from "./shared/filter-values.js";
-import { canEditOwner, canEditTask, canEditUser } from "./shared/permissions.js";
+import { canEditOwner, canEditTask } from "./shared/permissions.js";
 import {
   projectById,
   projectCode,
@@ -84,7 +95,6 @@ import {
   escapeHtml,
   linkifyTextNodes,
   normalizeLinksInElement,
-  normalizeRichHtml,
   normalizeUrl
 } from "./shared/text-and-links.js";
 import {
@@ -101,7 +111,6 @@ let statuses = [...fallbackStatuses];
 let priorities = [...fallbackPriorities];
 let severities = [...fallbackSeverities];
 let environments = [...fallbackEnvironments];
-const savedCurrentView = savedViewPreference;
 let boardProjectId = readNumberPreference(preferenceKeys.boardProject, 0);
 let boardSprintMode = readPreference(preferenceKeys.boardSprint, "latest");
 let boardSort = readPreference(preferenceKeys.boardSort, "custom");
@@ -129,11 +138,6 @@ let ganttFlyByAnimating = false;
 let ganttFlyByStopRequested = false;
 let ganttFlyByResumeSprintId = 0;
 let ganttFlyByCurrentSprintId = 0;
-let lookupTypeFilter = readPreference(preferenceKeys.lookupType, "Status");
-let settingsCategory = readPreference(preferenceKeys.settingsCategory, lookupTypeFilter || "Status");
-if (savedCurrentView === "Users" || savedCurrentView === "Holidays") settingsCategory = savedCurrentView;
-if (savedCurrentView === "Lookups") settingsCategory = lookupTypeFilter;
-let sprintProjectId = readNumberPreference(preferenceKeys.sprintProject, 0);
 let taskProjectId = readNumberPreference(preferenceKeys.taskProject, 0);
 let taskSprintId = readPreference(preferenceKeys.taskSprint, "all");
 let taskFilters = readJsonPreference(preferenceKeys.taskFilters, {});
@@ -154,8 +158,6 @@ let suppressNextClick = false;
 let pageEventsBound = false;
 let dashboardShowAllDetails = false;
 let dashboardExpandedSprintIds = new Set();
-let projectCollapsedIds = new Set();
-let sprintCollapsedIds = new Set();
 let chartTooltip = null;
 
 configureWorkItemRules({
@@ -193,6 +195,41 @@ const {
   toast
 } = shell.elements;
 
+const projectsFeature = createProjectsFeature({
+  app,
+  deleteItem,
+  openEditor,
+  openProjectGantt: viewProjectGantt,
+  openSprintsForProject: viewProjectSprints,
+  render,
+  saveJson,
+  uploadFile
+});
+const sprintsFeature = createSprintsFeature({
+  app,
+  deleteItem,
+  loadState,
+  openEditor,
+  openSprintTasks: viewSprintTasks,
+  render,
+  saveJson,
+  showToast
+});
+const settingsFeature = createSettingsFeature({
+  app,
+  deleteItem,
+  loadState,
+  openEditor,
+  render,
+  saveJson,
+  showToast,
+  uploadFile
+});
+
+registerScreen("Projects", projectsFeature);
+registerScreen("Sprints", sprintsFeature);
+registerScreen("Settings", settingsFeature);
+
 document.getElementById("closeDialog").addEventListener("click", () => dialog.close());
 document.getElementById("cancelDialog").addEventListener("click", () => dialog.close());
 
@@ -229,18 +266,17 @@ function render() {
 }
 
 function renderCurrentScreen() {
-  if (currentView === "Dashboard") renderDashboard();
-  if (currentView === "Projects") renderProjects();
-  if (currentView === "Board") renderBoard();
-  if (currentView === "Road Map") renderRoadMap();
-  if (currentView === "Gantt") renderGantt();
-  if (currentView === "Backlog") renderBacklog();
-  if (currentView === "Tasks") renderTasks();
-  if (currentView === "Bugs") renderBugs();
-  if (currentView === "Sprints") renderSprints();
-  if (currentView === "Scrum") renderDevLogs();
-  if (currentView === "Documentation") renderDocumentation();
-  if (currentView === "Settings") renderSettings();
+  const registeredScreen = screenHandlerFor(currentView);
+  if (registeredScreen?.render) registeredScreen.render();
+  else if (currentView === "Dashboard") renderDashboard();
+  else if (currentView === "Board") renderBoard();
+  else if (currentView === "Road Map") renderRoadMap();
+  else if (currentView === "Gantt") renderGantt();
+  else if (currentView === "Backlog") renderBacklog();
+  else if (currentView === "Tasks") renderTasks();
+  else if (currentView === "Bugs") renderBugs();
+  else if (currentView === "Scrum") renderDevLogs();
+  else if (currentView === "Documentation") renderDocumentation();
   linkifyTextNodes(app);
   normalizeLinksInElement(app);
 }
@@ -251,7 +287,7 @@ function renderDashboard() {
       <button class="text-icon-button" type="button" data-action="toggle-dashboard-all-details">${buttonContent(dashboardShowAllDetails ? "&#8722;" : "&#43;", dashboardShowAllDetails ? "Hide All Details" : "Show All Details")}</button>
     `)}
     <div class="grid">
-      ${state.projects.map(projectCardHtml).join("")}
+      ${state.projects.map(projectsFeature.cardHtml).join("")}
     </div>
     <div class="panel" style="margin-top:16px">
       <div class="spread">
@@ -261,13 +297,6 @@ function renderDashboard() {
       ${dashboardShowAllDetails ? statusLegendHtml() : ""}
       ${state.projects.map(project => dashboardProjectHtml(project)).join("")}
     </div>
-  `;
-}
-
-function renderProjects() {
-  app.innerHTML = `
-    ${sectionHead("Projects", `<button class="primary text-icon-button" type="button" data-action="new-project">${buttonContent("&#10010;", "New Project")}</button>`)}
-    <div class="grid">${state.projects.map(projectCardHtml).join("")}</div>
   `;
 }
 
@@ -1173,273 +1202,6 @@ function bugSeverityColor(severity) {
   return colors[severity] || "var(--teal)";
 }
 
-function renderSettings() {
-  const lookupTypes = [...new Set(["Status", "Priority", "Severity", "Environment", ...(state.lookups || []).map(item => item.lookupType)])].sort();
-  const categories = [...lookupTypes, "Users", "Holidays", "Development"];
-  if (!categories.includes(settingsCategory)) settingsCategory = lookupTypes[0] || "Status";
-
-  const isUsers = settingsCategory === "Users";
-  const isHolidays = settingsCategory === "Holidays";
-  const isDevelopment = settingsCategory === "Development";
-  if (!isUsers && !isHolidays && !isDevelopment) {
-    lookupTypeFilter = settingsCategory;
-    writePreference(preferenceKeys.lookupType, lookupTypeFilter);
-  }
-
-  let actionsHtml = `<button class="primary text-icon-button" type="button" data-action="new-lookup" ${currentUser().isAdmin ? "" : "disabled"}>${buttonContent("&#10010;", "New Setting")}</button>`;
-  if (isUsers) actionsHtml = `<button class="primary text-icon-button" type="button" data-action="new-user" ${currentUser().isAdmin ? "" : "disabled"}>${buttonContent("&#10010;", "New User")}</button>`;
-  if (isHolidays) actionsHtml = `<button class="primary text-icon-button" type="button" data-action="new-holiday" ${currentUser().isAdmin ? "" : "disabled"}>${buttonContent("&#10010;", "New Holiday")}</button>`;
-  if (isDevelopment) actionsHtml = "";
-
-  const contentHtml = isUsers
-    ? settingsUsersHtml()
-    : isHolidays
-      ? settingsHolidaysHtml()
-      : isDevelopment
-        ? settingsDevelopmentHtml()
-        : settingsLookupHtml(settingsCategory);
-
-  app.innerHTML = `
-    ${sectionHead("Settings", actionsHtml)}
-    <div class="lookup-layout">
-      <aside class="panel lookup-picker">
-        ${categories.map(type => `
-          <button type="button" data-action="select-lookup-type" data-id="0" data-type="${escapeAttr(type)}" class="${type === settingsCategory ? "active" : ""}">
-            ${buttonContent(settingsCategoryIcon(type), type)}
-          </button>
-        `).join("")}
-      </aside>
-      ${contentHtml}
-    </div>
-  `;
-}
-
-function settingsDevelopmentHtml() {
-  const canRun = currentUser().isAdmin;
-  return `
-    <div class="panel development-panel">
-      <div>
-        <h2>Development</h2>
-        <p class="muted">These tools reset test data during development. Use the named PMT button when PMT itself should be cleared.</p>
-      </div>
-      <div class="development-actions">
-        <div class="development-action-row">
-          <div>
-            <strong>Clear All Except PMT</strong>
-            <p class="muted">Deletes non-PMT Projects, Sprints, Dev Tasks, Bugs, Scrum, and Documentation.</p>
-          </div>
-          <button class="secondary text-icon-button" type="button" data-action="development-clear-non-pmt" ${canRun ? "" : "disabled"}>${buttonContent("&#128465;", "Clear All Except PMT")}</button>
-        </div>
-        <div class="development-action-row danger-row">
-          <div>
-            <strong>Clear PMT</strong>
-            <p class="muted">Deletes the PMT Project, Sprints, Dev Tasks, Bugs, Scrum, and Documentation.</p>
-          </div>
-          <button class="danger text-icon-button" type="button" data-action="development-clear-pmt" ${canRun ? "" : "disabled"}>${buttonContent("&#9888;", "Clear PMT")}</button>
-        </div>
-        <div class="development-action-row">
-          <div>
-            <strong>Clear Users</strong>
-            <p class="muted">Deletes every user except Sin and remaps ownership, assignees, reporters, and audit records to Sin.</p>
-          </div>
-          <button class="secondary text-icon-button" type="button" data-action="development-clear-users" ${canRun ? "" : "disabled"}>${buttonContent("&#128100;", "Clear Users")}</button>
-        </div>
-        <div class="development-action-row">
-          <div>
-            <strong>Restore Initial Seed Data</strong>
-            <p class="muted">Restores the PMT, LMS, and HLS demo data from the SQL seed scripts.</p>
-          </div>
-          <button class="primary text-icon-button" type="button" data-action="development-restore-seed-data" ${canRun ? "" : "disabled"}>${buttonContent("&#8635;", "Restore Initial Seed Data")}</button>
-        </div>
-        <div class="development-action-row">
-          <div>
-            <strong>Clear User Preferences Stored in Local Storage</strong>
-            <p class="muted">Clears this browser's PMT preferences and reloads the app with first-launch defaults.</p>
-          </div>
-          <button class="secondary text-icon-button" type="button" data-action="development-clear-local-storage">${buttonContent("&#9003;", "Clear User Preferences Stored in Local Storage")}</button>
-        </div>
-      </div>
-    </div>
-  `;
-}
-
-function settingsLookupHtml(type) {
-  const rows = [...(state.lookups || [])]
-    .filter(item => item.lookupType === type)
-    .sort((a, b) => a.displayOrder - b.displayOrder || a.value.localeCompare(b.value));
-
-  return `
-    <div class="panel">
-      <table class="table">
-        <thead>
-          <tr>
-            <th>Value</th>
-            <th>Color</th>
-            <th>Order</th>
-            <th>Active</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody>
-          ${rows.map(item => `
-            <tr class="clickable-row" data-action="edit-lookup" data-id="${item.id}">
-              <td>${escapeHtml(item.value)}</td>
-              <td>${item.lookupType === "Status" ? `<span class="lookup-color" style="--status-color:${escapeAttr(statusColor(item.value))}"></span>` : `<span class="muted">n/a</span>`}</td>
-              <td>${item.displayOrder}</td>
-              <td>${item.isActive ? "Yes" : "No"}</td>
-              <td class="action-cell">
-                ${iconButton("edit-lookup", item.id, "Edit", "edit", currentUser().isAdmin)}
-                ${iconButton("delete-lookup", item.id, "Deactivate", "delete", currentUser().isAdmin, "danger")}
-              </td>
-            </tr>
-          `).join("") || `<tr><td colspan="5"><div class="empty">No setting values in this category.</div></td></tr>`}
-        </tbody>
-      </table>
-    </div>
-  `;
-}
-
-function settingsHolidaysHtml() {
-  const rows = [...(state.holidays || [])].sort((a, b) => new Date(b.holidayDate) - new Date(a.holidayDate) || a.name.localeCompare(b.name));
-
-  return `
-    <div class="panel">
-      <table class="table">
-        <thead>
-          <tr>
-            <th>Date</th>
-            <th>Name</th>
-            <th>Country</th>
-            <th>Active</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody>
-          ${rows.map(holiday => `
-            <tr class="clickable-row" data-action="edit-holiday" data-id="${holiday.id}">
-              <td>${escapeHtml(formatDate(holiday.holidayDate))}</td>
-              <td>${escapeHtml(holiday.name)}</td>
-              <td>${escapeHtml(holiday.countryCode || "PH")}</td>
-              <td>${holiday.isActive ? "Yes" : "No"}</td>
-              <td class="action-cell">
-                ${iconButton("edit-holiday", holiday.id, "Edit", "edit", currentUser().isAdmin)}
-                ${iconButton("delete-holiday", holiday.id, "Deactivate", "delete", currentUser().isAdmin, "danger")}
-              </td>
-            </tr>
-          `).join("") || `<tr><td colspan="5"><div class="empty">No holidays have been configured.</div></td></tr>`}
-        </tbody>
-      </table>
-    </div>
-  `;
-}
-
-function renderHolidays() {
-  settingsCategory = "Holidays";
-  renderSettings();
-}
-
-function settingsCategoryIcon(type) {
-  const icons = {
-    Status: "&#9679;",
-    Priority: "&#9733;",
-    Severity: "&#9888;",
-    Environment: "&#127758;",
-    Users: "&#128100;",
-    Holidays: "&#128197;",
-    Development: "&#128295;"
-  };
-
-  return icons[type] || "&#9881;";
-}
-
-function renderSprints() {
-  if (!sprintProjectId && state.projects.length) sprintProjectId = state.projects[0].id;
-  if (!state.projects.some(project => project.id === sprintProjectId) && state.projects.length) {
-    sprintProjectId = state.projects[0].id;
-  }
-
-  const visibleSprints = state.sprints.filter(sprint => sprint.projectId === sprintProjectId);
-  const allVisibleCollapsed = visibleSprints.length > 0 && visibleSprints.every(sprint => sprintCollapsedIds.has(sprint.id));
-
-  app.innerHTML = `
-    ${sectionHead("Sprints", `
-      <label class="section-filter-label">
-        <span>Project</span>
-        <select data-filter="sprint-project">
-          ${state.projects.map(project => `<option value="${project.id}" ${project.id === sprintProjectId ? "selected" : ""}>${escapeHtml(project.code)} - ${escapeHtml(project.title)}</option>`).join("")}
-        </select>
-      </label>
-      <button class="icon-action" type="button" data-action="toggle-all-sprint-details" title="${allVisibleCollapsed ? "Expand all Sprint charts" : "Collapse all Sprint charts"}" aria-label="${allVisibleCollapsed ? "Expand all Sprint charts" : "Collapse all Sprint charts"}" aria-pressed="${!allVisibleCollapsed}">
-        ${allVisibleCollapsed ? "&#9662;" : "&#9652;"}
-      </button>
-      <button class="primary text-icon-button" type="button" data-action="new-sprint">${buttonContent("&#10010;", "New Sprint")}</button>
-    `)}
-    <div class="grid">
-      ${visibleSprints.map(sprint => {
-        const isCollapsed = sprintCollapsedIds.has(sprint.id);
-        const chartToggleTitle = isCollapsed ? "Expand Sprint charts" : "Collapse Sprint charts";
-
-        return `
-        <article class="card clickable-card sprint-card" data-action="view-sprint-tasks" data-id="${sprint.id}">
-          <div class="spread sprint-card-head">
-            <div>
-              <h3>${escapeHtml(sprint.code)}</h3>
-              <p class="muted">${escapeHtml(projectName(sprint.projectId))}</p>
-            </div>
-            <div class="sprint-card-actions">
-              <span class="pill">${sprint.isFinished ? "Finished" : "Open"}</span>
-              <button class="icon-action" type="button" data-action="toggle-sprint-card-details" data-id="${sprint.id}" title="${chartToggleTitle}" aria-label="${chartToggleTitle}" aria-expanded="${!isCollapsed}">
-                ${isCollapsed ? "&#9662;" : "&#9652;"}
-              </button>
-            </div>
-          </div>
-          <p>${escapeHtml(sprint.title)}</p>
-          <p class="muted">${formatDate(sprint.startDate)} - ${formatDate(sprint.endDate)}</p>
-          <p class="muted">${sprint.completedTaskCount}/${sprint.taskCount} QA Passed+ | ${sprint.openBugCount}/${sprint.bugCount} open bug reports</p>
-          ${sprintOverallProgressHtml(sprint)}
-          ${isCollapsed ? "" : sprintStatusMetricsHtml(sprint)}
-          <div class="row" style="margin-top:10px">${avatarsHtml(sprint.developers)}</div>
-          <div class="toolbar reveal-actions" style="margin-top:12px">
-            ${iconButton("delete-sprint", sprint.id, "Delete", "delete", canEditOwner(sprint.createdByUserId), "danger")}
-            ${iconButton("finish-sprint", sprint.id, "Finish", "finish", canEditOwner(sprint.createdByUserId) && !sprint.isFinished)}
-            ${iconButton("edit-sprint", sprint.id, "Edit", "edit", canEditOwner(sprint.createdByUserId))}
-          </div>
-        </article>
-      `;
-      }).join("") || `<div class="empty">No Sprints for this project.</div>`}
-    </div>
-  `;
-}
-
-function renderUsers() {
-  settingsCategory = "Users";
-  renderSettings();
-}
-
-function settingsUsersHtml() {
-  return `
-    <div class="grid">
-      ${state.users.map(user => `
-        <article class="card">
-          <div class="row">
-            <img class="avatar" src="${escapeAttr(user.avatarUrl || "/assets/avatar-default.svg")}" alt="">
-            <div>
-              <h3>${escapeHtml(user.nickname)}</h3>
-              <p class="muted">${escapeHtml(user.firstName)} ${escapeHtml(user.lastName)} ${escapeHtml(user.role || (user.isAdmin ? "Admin" : "Developer"))}</p>
-            </div>
-          </div>
-          <p>${escapeHtml(user.bio || "")}</p>
-          <p class="muted">${escapeHtml(user.email || "")}</p>
-          <div class="toolbar reveal-actions">
-            ${iconButton("delete-user", user.id, "Delete", "delete", currentUser().isAdmin && user.id !== currentUserId, "danger")}
-            ${iconButton("edit-user", user.id, "Edit", "edit", canEditUser(user.id))}
-          </div>
-        </article>
-      `).join("")}
-    </div>
-  `;
-}
-
 function renderDevLogs() {
   const logs = [...state.devLogs].sort((a, b) => new Date(b.logDate) - new Date(a.logDate) || new Date(b.updatedAt) - new Date(a.updatedAt));
   app.innerHTML = `
@@ -1538,15 +1300,10 @@ async function handleActionClick(event) {
 
   if (handleChartAction(button)) return;
 
-  if (action === "new-project") editProject();
-  if (action === "edit-project") editProject(projectById(id));
-  if (action === "delete-project") await deleteItem(`/api/projects/${id}`, "Delete this project?");
-  if (action === "view-project-sprints") viewProjectSprints(id);
-  if (action === "new-sprint") editSprint();
-  if (action === "edit-sprint") editSprint(sprintById(id));
-  if (action === "view-sprint-tasks") viewSprintTasks(id);
-  if (action === "finish-sprint") await finishSprint(id);
-  if (action === "delete-sprint") await deleteItem(`/api/sprints/${id}`, "Delete this Sprint?");
+  for (const screen of registeredScreenHandlers()) {
+    if (screen.handleAction && await screen.handleAction(action, id, button)) return;
+  }
+
   if (action === "new-task") editTask();
   if (action === "new-bug") editBug();
   if (action === "toggle-task-filters") toggleTaskFilters();
@@ -1557,9 +1314,6 @@ async function handleActionClick(event) {
   if (action === "show-task-audit") showTaskAudit(id);
   if (action === "duplicate-task") await duplicateTask(id);
   if (action === "delete-task") await deleteItem(`/api/tasks/${id}`, "Delete this task?");
-  if (action === "new-user") editUser();
-  if (action === "edit-user") editUser(userById(id));
-  if (action === "delete-user") await deleteItem(`/api/users/${id}`, "Delete this user?");
   if (action === "new-log") editDevLog();
   if (action === "edit-log") editDevLog(state.devLogs.find(log => log.id === id));
   if (action === "duplicate-log") await duplicateDevLog(id);
@@ -1568,34 +1322,6 @@ async function handleActionClick(event) {
   if (action === "view-blog") viewDocumentation(state.blogs.find(blog => blog.id === id));
   if (action === "edit-blog") editBlog(state.blogs.find(blog => blog.id === id));
   if (action === "delete-blog") await deleteItem(`/api/blogs/${id}`, "Delete this document?");
-  if (action === "select-lookup-type") selectLookupType(button.dataset.type || "Status");
-  if (action === "new-lookup") editLookup();
-  if (action === "edit-lookup") editLookup(state.lookups.find(item => item.id === id));
-  if (action === "delete-lookup") await deleteItem(`/api/lookups/${id}`, "Deactivate this setting value?");
-  if (action === "new-holiday") editHoliday();
-  if (action === "edit-holiday") editHoliday(state.holidays.find(item => item.id === id));
-  if (action === "delete-holiday") await deleteItem(`/api/holidays/${id}`, "Deactivate this holiday?");
-  if (action === "development-clear-non-pmt") await runDevelopmentAction(
-    "/api/development/clear-non-pmt",
-    "Clear LMS, HLS, and any non-PMT Projects, Sprints, Dev Tasks, Bugs, Scrum, and Documentation? PMT will remain intact.",
-    "Non-PMT development data cleared."
-  );
-  if (action === "development-clear-pmt") await runDevelopmentAction(
-    "/api/development/clear-pmt",
-    "Clear the PMT Project, Sprints, Dev Tasks, Bugs, Scrum, and Documentation?",
-    "PMT development data cleared."
-  );
-  if (action === "development-clear-users") await runDevelopmentAction(
-    "/api/development/clear-users",
-    "Clear all users except Sin and remap ownership, assignees, reporters, and audit records to Sin?",
-    "Users cleared and remapped to Sin."
-  );
-  if (action === "development-restore-seed-data") await runDevelopmentAction(
-    "/api/development/restore-seed-data",
-    "Restore initial seed data for PMT, LMS, and HLS? Current development data will be replaced.",
-    "Initial seed data restored."
-  );
-  if (action === "development-clear-local-storage") await clearLocalStoragePreferences();
   if (action === "goto-task") gotoTask(id);
   if (action === "gantt-open-task") openGanttTask(id);
   if (action === "view-project-gantt") viewProjectGantt(id);
@@ -1620,9 +1346,6 @@ async function handleActionClick(event) {
   if (action === "toggle-empty-board-columns") toggleEmptyBoardColumns();
   if (action === "hide-empty-board-columns") hideEmptyBoardColumns();
   if (action === "show-all-board-columns") showAllBoardColumns();
-  if (action === "toggle-project-card-details") toggleProjectCardDetails(id);
-  if (action === "toggle-sprint-card-details") toggleSprintCardDetails(id);
-  if (action === "toggle-all-sprint-details") toggleAllSprintDetails();
 }
 
 function handleChartAction(element, dialogToClose = null) {
@@ -1859,6 +1582,10 @@ function expandVisualChartCard(card) {
 
 function handleFilterChange(event) {
   const target = event.target;
+  for (const screen of registeredScreenHandlers()) {
+    if (screen.handleFilterChange && screen.handleFilterChange(target)) return;
+  }
+
   if (target.dataset.filter === "board-project") {
     boardProjectId = Number(target.value);
     writePreference(preferenceKeys.boardProject, boardProjectId);
@@ -1919,11 +1646,6 @@ function handleFilterChange(event) {
     ganttSort = target.value;
     writePreference(preferenceKeys.ganttSort, ganttSort);
     renderGantt();
-  }
-  if (target.dataset.filter === "sprint-project") {
-    sprintProjectId = Number(target.value);
-    writePreference(preferenceKeys.sprintProject, sprintProjectId);
-    renderSprints();
   }
   if (target.dataset.filter === "task-project") {
     taskProjectId = Number(target.value);
@@ -2229,65 +1951,6 @@ function clearDragStyles() {
   document.querySelectorAll(".dragging")
     .forEach(item => item.classList.remove("dragging"));
   clearDropIndicators();
-}
-
-function editProject(project = {}) {
-  openEditor(project.id ? "Edit Project" : "New Project", `
-    <div class="form-grid">
-      ${field("Code", "code", project.code || "", "text")}
-      ${field("Title", "title", project.title || "", "text")}
-      ${field("Start", "startDate", toDateInput(project.startDate), "date")}
-      ${field("End", "endDate", toDateInput(project.endDate), "date")}
-      ${field("URL", "url", project.url || "", "url")}
-      ${field("Icon URL", "iconUrl", project.iconUrl || "", "text")}
-      <div class="field full"><label>Upload Icon</label><input name="iconFile" type="file" accept="image/*"></div>
-      <div class="field full"><label>Description</label><textarea name="description">${escapeHtml(project.description || "")}</textarea></div>
-      ${checkList("Members", "memberIds", state.users, project.memberIds || [])}
-    </div>
-  `, async root => {
-    const iconFile = root.querySelector("[name='iconFile']").files[0];
-    let iconUrl = value(root, "iconUrl");
-    if (iconFile) iconUrl = (await uploadFile("projects", iconFile)).url;
-
-    await saveJson(project.id ? `/api/projects/${project.id}` : "/api/projects", project.id ? "PUT" : "POST", {
-      id: project.id || 0,
-      code: value(root, "code"),
-      title: value(root, "title"),
-      description: value(root, "description"),
-      url: value(root, "url"),
-      iconUrl,
-      startDate: nullableDateValue(root, "startDate"),
-      endDate: nullableDateValue(root, "endDate"),
-      memberIds: checkedNumbers(root, "memberIds")
-    });
-  }, "code");
-}
-
-function editSprint(sprint = {}) {
-  const projectId = sprint.projectId || sprintProjectId || boardProjectId || state.projects[0]?.id;
-
-  openEditor(sprint.id ? "Edit Sprint" : "New Sprint", `
-    <div class="form-grid">
-      ${selectField("Project", "projectId", state.projects, projectId)}
-      ${field("Title", "title", sprint.title || "", "text")}
-      ${field("Start", "startDate", toDateInput(sprint.startDate), "date")}
-      ${field("End", "endDate", toDateInput(sprint.endDate), "date")}
-      <div class="field full"><label>Description</label><textarea name="description">${escapeHtml(sprint.description || "")}</textarea></div>
-      ${richTextField("lessonLearnedHtml", "Lessons Learned", sprint.lessonLearnedHtml || "")}
-      <div data-member-list="developerIds"></div>
-    </div>
-  `, async root => {
-    await saveJson(sprint.id ? `/api/sprints/${sprint.id}` : "/api/sprints", sprint.id ? "PUT" : "POST", {
-      id: sprint.id || 0,
-      projectId: numberValue(root, "projectId"),
-      title: value(root, "title"),
-      description: value(root, "description"),
-      startDate: value(root, "startDate"),
-      endDate: value(root, "endDate"),
-      lessonLearnedHtml: richValue(root, "lessonLearnedHtml"),
-      developerIds: checkedNumbers(root, "developerIds")
-    });
-  }, "", root => bindSprintMemberList(root, sprint.developerIds || []));
 }
 
 function editTask(task = {}) {
@@ -2661,44 +2324,6 @@ function detailField(label, html, full = false) {
   `;
 }
 
-function editUser(user = {}) {
-  openEditor(user.id ? "Edit User" : "New User", `
-    <div class="form-grid">
-      ${field("First Name", "firstName", user.firstName || "", "text")}
-      ${field("Last Name", "lastName", user.lastName || "", "text")}
-      ${field("Nickname", "nickname", user.nickname || "", "text")}
-      ${field("Email", "email", user.email || "", "email")}
-      ${field("Phone", "phone", user.phone || "", "text")}
-      ${field("Avatar URL", "avatarUrl", user.avatarUrl || "", "text")}
-      <div class="field full"><label>Upload Avatar</label><input name="avatarFile" type="file" accept="image/*"></div>
-      ${field("Home Page", "homePageUrl", user.homePageUrl || "", "url")}
-      ${field("Social Media", "socialMediaUrl", user.socialMediaUrl || "", "url")}
-      ${selectTextField("Role", "role", ["Developer", "QA"], user.role === "Admin" ? "Developer" : user.role || "Developer")}
-      <div class="field full"><label>Bio</label><textarea name="bio">${escapeHtml(user.bio || "")}</textarea></div>
-      <label class="inline-check field full"><input name="isAdmin" type="checkbox" ${user.isAdmin ? "checked" : ""} ${currentUser().isAdmin ? "" : "disabled"}><span>Admin</span></label>
-    </div>
-  `, async root => {
-    const avatarFile = root.querySelector("[name='avatarFile']").files[0];
-    let avatarUrl = value(root, "avatarUrl");
-    if (avatarFile) avatarUrl = (await uploadFile("avatars", avatarFile)).url;
-
-    await saveJson(user.id ? `/api/users/${user.id}` : "/api/users", user.id ? "PUT" : "POST", {
-      id: user.id || 0,
-      firstName: value(root, "firstName"),
-      lastName: value(root, "lastName"),
-      nickname: value(root, "nickname"),
-      email: value(root, "email"),
-      phone: value(root, "phone"),
-      avatarUrl,
-      homePageUrl: value(root, "homePageUrl"),
-      socialMediaUrl: value(root, "socialMediaUrl"),
-      bio: value(root, "bio"),
-      isAdmin: root.querySelector("[name='isAdmin']").checked,
-      role: value(root, "role")
-    });
-  });
-}
-
 function editDevLog(log = {}) {
   const scrumPlaceholder = "What did you accomplish yesterday?\nWhat do you plan to do today?\nDo you have any roadblocks?";
   const firstScrumPrompt = "What did you accomplish yesterday?";
@@ -2762,47 +2387,6 @@ function editPassword() {
       newPassword: value(root, "newPassword")
     });
   });
-}
-
-function editLookup(lookup = {}) {
-  openEditor(lookup.id ? "Edit Setting" : "New Setting", `
-    <div class="form-grid">
-      ${selectTextField("Type", "lookupType", ["Status", "Priority", "Severity", "Environment"], lookup.lookupType || "Status")}
-      ${field("Value", "value", lookup.value || "", "text")}
-      ${colorField("Color", "colorHex", lookup.colorHex || defaultStatusColor(lookup.value || "Todo"))}
-      ${field("Display Order", "displayOrder", lookup.displayOrder ?? 0, "number")}
-      <label class="inline-check field full"><input name="isActive" type="checkbox" ${lookup.isActive ?? true ? "checked" : ""}><span>Active</span></label>
-    </div>
-  `, async root => {
-    const lookupType = value(root, "lookupType");
-    await saveJson(lookup.id ? `/api/lookups/${lookup.id}` : "/api/lookups", lookup.id ? "PUT" : "POST", {
-      id: lookup.id || 0,
-      lookupType,
-      value: value(root, "value"),
-      displayOrder: numberValue(root, "displayOrder"),
-      isActive: root.querySelector("[name='isActive']").checked,
-      colorHex: lookupType === "Status" ? value(root, "colorHex") : ""
-    });
-  }, "value");
-}
-
-function editHoliday(holiday = {}) {
-  openEditor(holiday.id ? "Edit Holiday" : "New Holiday", `
-    <div class="form-grid">
-      ${field("Date", "holidayDate", toDateInput(holiday.holidayDate || new Date()), "date")}
-      ${field("Name", "name", holiday.name || "", "text")}
-      ${field("Country Code", "countryCode", holiday.countryCode || "PH", "text")}
-      <label class="inline-check field full"><input name="isActive" type="checkbox" ${holiday.isActive ?? true ? "checked" : ""}><span>Active</span></label>
-    </div>
-  `, async root => {
-    await saveJson(holiday.id ? `/api/holidays/${holiday.id}` : "/api/holidays", holiday.id ? "PUT" : "POST", {
-      id: holiday.id || 0,
-      holidayDate: value(root, "holidayDate"),
-      name: value(root, "name"),
-      countryCode: value(root, "countryCode") || "PH",
-      isActive: root.querySelector("[name='isActive']").checked
-    });
-  }, "holidayDate");
 }
 
 function workItemEditorTitle(item, itemType, newTitle) {
@@ -3006,49 +2590,6 @@ async function deleteItem(path, message) {
   }
 }
 
-async function runDevelopmentAction(path, message, successMessage) {
-  if (!await askYesNo(message, "Development")) return;
-
-  try {
-    await api(path, { method: "POST" });
-    await loadState();
-    settingsCategory = "Development";
-    writePreference(preferenceKeys.settingsCategory, settingsCategory);
-    renderSettings();
-    showToast(successMessage);
-  } catch (error) {
-    showToast(error.message);
-  }
-}
-
-async function clearLocalStoragePreferences() {
-  const confirmed = await askYesNo(
-    "Clear all PMT browser preferences stored in local storage? The app will reload and show first-launch defaults.",
-    "Development"
-  );
-  if (!confirmed) return;
-
-  clearPmtPreferences();
-  window.location.reload();
-}
-
-async function finishSprint(id) {
-  const options = await askFinishSprintOptions();
-  if (!options) return;
-
-  try {
-    await api(`/api/sprints/${id}/finish`, {
-      method: "POST",
-      body: JSON.stringify(options)
-    });
-    await loadState();
-    render();
-    showToast("Sprint finished.");
-  } catch (error) {
-    showToast(error.message);
-  }
-}
-
 async function duplicateTask(id) {
   try {
     await api(`/api/tasks/${id}/duplicate`, { method: "POST" });
@@ -3143,9 +2684,8 @@ function openTaskReadMode(id) {
 }
 
 function viewProjectSprints(projectId) {
-  sprintProjectId = projectId;
+  sprintsFeature.selectProject(projectId);
   navigate("Sprints");
-  writePreference(preferenceKeys.sprintProject, sprintProjectId);
   render();
 }
 
@@ -3153,9 +2693,8 @@ function viewDashboardSprint(sprintId) {
   const sprint = sprintById(sprintId);
   if (!sprint) return;
 
-  sprintProjectId = sprint.projectId;
+  sprintsFeature.selectProject(sprint.projectId);
   navigate("Sprints");
-  writePreference(preferenceKeys.sprintProject, sprintProjectId);
   render();
 }
 
@@ -3204,47 +2743,6 @@ function toggleDashboardAllDetails() {
   dashboardShowAllDetails = !dashboardShowAllDetails;
   dashboardExpandedSprintIds.clear();
   renderDashboard();
-}
-
-function toggleProjectCardDetails(projectId) {
-  const id = Number(projectId);
-
-  if (projectCollapsedIds.has(id)) {
-    projectCollapsedIds.delete(id);
-  } else {
-    projectCollapsedIds.add(id);
-  }
-
-  render();
-}
-
-function toggleSprintCardDetails(sprintId) {
-  const id = Number(sprintId);
-
-  if (sprintCollapsedIds.has(id)) {
-    sprintCollapsedIds.delete(id);
-  } else {
-    sprintCollapsedIds.add(id);
-  }
-
-  renderSprints();
-}
-
-function toggleAllSprintDetails() {
-  const visibleSprintIds = state.sprints
-    .filter(sprint => sprint.projectId === sprintProjectId)
-    .map(sprint => sprint.id);
-  const allVisibleCollapsed = visibleSprintIds.length > 0 && visibleSprintIds.every(id => sprintCollapsedIds.has(id));
-
-  visibleSprintIds.forEach(id => {
-    if (allVisibleCollapsed) {
-      sprintCollapsedIds.delete(id);
-    } else {
-      sprintCollapsedIds.add(id);
-    }
-  });
-
-  renderSprints();
 }
 
 function hideEmptyBoardColumns() {
@@ -3697,59 +3195,9 @@ function toggleRoadMapSprints() {
   renderRoadMap();
 }
 
-function selectLookupType(type) {
-  settingsCategory = type || "Status";
-  writePreference(preferenceKeys.settingsCategory, settingsCategory);
-  if (settingsCategory !== "Users" && settingsCategory !== "Holidays" && settingsCategory !== "Development") {
-    lookupTypeFilter = settingsCategory;
-    writePreference(preferenceKeys.lookupType, lookupTypeFilter);
-  }
-  renderSettings();
-}
-
-function sectionHead(title, actionsHtml) {
-  return `
-    <div class="section-head">
-      <h1>${title}</h1>
-      <div class="toolbar">${actionsHtml || ""}</div>
-    </div>
-  `;
-}
-
-function projectCardHtml(project) {
-  const isCollapsed = projectCollapsedIds.has(project.id);
-  const chartToggleTitle = isCollapsed ? "Expand Project charts" : "Collapse Project charts";
-
-  return `
-    <article class="card clickable-card project-card" data-action="view-project-sprints" data-id="${project.id}">
-      <div class="spread project-card-head">
-        <div class="row">
-          <img class="project-icon" src="${escapeAttr(project.iconUrl || "/assets/project-pmt.svg")}" alt="">
-          <div>
-            <h3>${escapeHtml(project.code)} - ${escapeHtml(project.title)}</h3>
-            <p class="muted">${project.completedTaskCount}/${project.taskCount} QA Passed+ | ${project.openBugCount}/${project.bugCount} open bug reports</p>
-          </div>
-        </div>
-        <button class="icon-action" type="button" data-action="toggle-project-card-details" data-id="${project.id}" title="${chartToggleTitle}" aria-label="${chartToggleTitle}" aria-expanded="${!isCollapsed}">
-          ${isCollapsed ? "&#9662;" : "&#9652;"}
-        </button>
-      </div>
-      <p>${escapeHtml(project.description || "")}</p>
-      ${projectOverallProgressHtml(project)}
-      ${isCollapsed ? "" : projectStatusMetricsHtml(project)}
-      <div class="row" style="margin-top:10px">${avatarsHtml(project.members)}</div>
-      <div class="toolbar reveal-actions" style="margin-top:12px">
-        ${iconButton("delete-project", project.id, "Delete", "delete", canEditOwner(project.createdByUserId), "danger")}
-        ${iconButton("view-project-gantt", project.id, "Gantt", "gantt", true)}
-        ${iconButton("edit-project", project.id, "Edit", "edit", canEditOwner(project.createdByUserId))}
-      </div>
-    </article>
-  `;
-}
-
 function dashboardProjectHtml(project) {
   const sprints = state.sprints.filter(sprint => sprint.projectId === project.id);
-  const isCollapsed = projectCollapsedIds.has(project.id);
+  const isCollapsed = projectsFeature.isCollapsed(project.id);
   const chartToggleTitle = isCollapsed ? "Expand Project charts" : "Collapse Project charts";
 
   return `
@@ -4448,28 +3896,6 @@ function saveTaskFilters() {
   writeJsonPreference(preferenceKeys.taskFilters, taskFilters);
 }
 
-function bindSprintMemberList(root, initialSelectedIds) {
-  const projectSelect = root.querySelector("[name='projectId']");
-  const container = root.querySelector("[data-member-list='developerIds']");
-  if (!projectSelect || !container) return;
-
-  let firstRender = true;
-  const renderMembers = () => {
-    const selectedIds = firstRender ? initialSelectedIds : checkedNumbers(root, "developerIds");
-    firstRender = false;
-    container.innerHTML = checkListOrEmpty(
-      "Sprint Members",
-      "developerIds",
-      projectMemberUsers(Number(projectSelect.value)),
-      selectedIds,
-      "Select project members before adding people to this Sprint."
-    );
-  };
-
-  projectSelect.addEventListener("change", renderMembers);
-  renderMembers();
-}
-
 function bindAssigneeList(root, initialSelectedIds) {
   const projectSelect = root.querySelector("[name='projectId']");
   const sprintSelect = root.querySelector("[name='sprintId']");
@@ -4526,32 +3952,6 @@ function sprintMemberUsers(sprintId) {
 function allowedAssigneeUsers(projectId, sprintId) {
   if (sprintId) return sprintMemberUsers(sprintId);
   return projectMemberUsers(projectId);
-}
-
-function value(root, name) {
-  return root.querySelector(`[name='${name}']`)?.value || "";
-}
-
-function numberValue(root, name) {
-  return Number(value(root, name) || 0);
-}
-
-function optionalNumberValue(root, name) {
-  const raw = value(root, name);
-  return raw === "" ? null : Number(raw);
-}
-
-function nullableDateValue(root, name) {
-  const raw = value(root, name);
-  return raw || null;
-}
-
-function richValue(root, name) {
-  return normalizeRichHtml(root.querySelector(`[data-rich='${name}']`)?.innerHTML || "");
-}
-
-function checkedNumbers(root, name) {
-  return [...root.querySelectorAll(`[name='${name}']:checked`)].map(input => Number(input.value));
 }
 
 function selectedBoardSprintId(projectId) {

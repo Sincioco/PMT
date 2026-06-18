@@ -7,7 +7,7 @@ This document maps the current application and the intended file boundaries for 
 PMT is a single ASP.NET Core .NET 6 web application:
 
 1. `wwwroot/index.html` defines the HTML shell, applies the saved theme through `core/preferences.js` before rendering, and loads `wwwroot/styles.css` and `wwwroot/js/app.js`.
-2. `wwwroot/js/app.js` composes the application shell with the current screen implementation. It still owns screen-specific rendering, actions, drag/drop, and advanced timeline calculations; reusable helpers and UI builders now live under `shared/` and `components/`.
+2. `wwwroot/js/app.js` composes the application shell with the current screen implementation. Projects, Sprints, and Settings now live in feature modules; the entry still owns the remaining legacy screen rendering, actions, drag/drop, and advanced timeline calculations.
 3. `wwwroot/js/core/` owns application-wide browser infrastructure: HTTP requests, state, preferences, authentication, routing, startup, navigation, theme, and user-menu wiring.
 4. `Program.cs` configures middleware, static/uploaded files, 37 minimal API routes, JSON behavior, and the SPA fallback.
 5. `Models/PmtModels.cs` contains the API DTOs and request models.
@@ -99,7 +99,7 @@ Reusable frontend logic now has stable native ES module homes:
 - `shared/work-item-rules.js` owns status-based percent calculations, project/Sprint rollups, task completion checks, and linked-Bug completion validation.
 - `components/attachments.js`, `avatars.js`, `buttons.js`, `charts.js`, `dialogs.js`, `filters.js`, `forms.js`, and `progress-and-status.js` own reusable markup builders while preserving existing CSS classes and HTML output.
 
-The feature folders remain placeholder ownership boundaries for later phases. Endpoint URLs, payloads, screen markup, CSS classes, and preference key names are unchanged.
+Projects, Sprints, and Settings now use feature folders under `wwwroot/js/features/`. The remaining feature folders are placeholder ownership boundaries for later phases. Endpoint URLs, payloads, screen markup, CSS classes, and preference key names are unchanged.
 
 The current frontend dependency flow is:
 
