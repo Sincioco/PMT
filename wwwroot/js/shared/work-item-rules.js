@@ -52,6 +52,15 @@ export function averageWorkItemPercent(workItems) {
   return Math.round(totalPercent / workItems.length);
 }
 
+export function bugsForTask(task, sprintBugs) {
+  return sprintBugs.filter(bug =>
+    bug.id === task.linkedBugTaskId ||
+    task.dependencyTaskIds?.includes(bug.id) ||
+    bug.dependencyTaskIds?.includes(task.id) ||
+    (bug.assigneeIds || []).some(id => (task.assigneeIds || []).includes(id))
+  );
+}
+
 export function taskDisplayPercent(task) {
   if (task.subTasks?.length) return Math.round(task.subTaskAveragePercent ?? task.percentCompleted ?? 0);
   return percentForStatus(task.status, task.percentCompleted ?? 0);

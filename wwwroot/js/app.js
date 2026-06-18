@@ -1,27 +1,15 @@
 import { api } from "./core/api.js";
-import { attachmentsHtml } from "./components/attachments.js";
 import { avatarsHtml, taskRowAvatarsHtml } from "./components/avatars.js";
 import { buttonContent, iconButton } from "./components/buttons.js";
 import { askForText, askYesNo } from "./components/dialogs.js";
-import { filterSelect } from "./components/filters.js";
 import {
   field,
-  optionalNumberValue,
-  richTextField,
-  richValue,
-  selectOptionsField,
   value
 } from "./components/forms.js";
 import {
   configureProgressAndStatus,
   progressHtml,
-  projectOverallProgressHtml,
-  projectStatusMetricsHtml,
-  sprintOverallProgressHtml,
-  sprintStatusMetricsHtml,
-  statusColor,
-  statusLegendHtml,
-  thinProgressHtml
+  statusColor
 } from "./components/progress-and-status.js";
 import { sectionHead } from "./components/sections.js";
 import {
@@ -32,9 +20,6 @@ import {
   viewWorkItem
 } from "./components/work-items.js";
 import { createApplicationShell } from "./core/application-shell.js";
-import {
-  currentUser
-} from "./core/authentication.js";
 import {
   preferenceKeys,
   readBooleanPreference,
@@ -56,7 +41,10 @@ import {
 import { state } from "./core/store.js";
 import { createBacklogFeature } from "./features/backlog/backlog.js";
 import { createBugsFeature } from "./features/bugs/bugs.js";
+import { createDashboardFeature } from "./features/dashboard/dashboard.js";
+import { createDocumentationFeature } from "./features/documentation/documentation.js";
 import { createProjectsFeature } from "./features/projects/projects.js";
+import { createScrumFeature } from "./features/scrum/scrum.js";
 import { createSettingsFeature } from "./features/settings/settings.js";
 import { createSprintsFeature } from "./features/sprints/sprints.js";
 import { createTasksFeature } from "./features/tasks/tasks.js";
@@ -71,22 +59,18 @@ import {
   dateKey,
   dateRange,
   dateRangeLabel,
-  documentationDateLine,
-  documentationWasEdited,
   formatDate,
   monthName,
-  normalizeDate,
-  toDateInput
+  normalizeDate
 } from "./shared/dates.js";
-import { canEditOwner, canEditTask } from "./shared/permissions.js";
+import { canEditTask } from "./shared/permissions.js";
 import {
   projectById,
   projectCode,
   projectName,
   sprintById,
   sprintName,
-  taskById,
-  userById
+  taskById
 } from "./shared/selectors.js";
 import {
   escapeAttr,
@@ -96,7 +80,7 @@ import {
   normalizeUrl
 } from "./shared/text-and-links.js";
 import {
-  averageWorkItemPercent,
+  bugsForTask,
   configureWorkItemRules,
   isBugQaPassedOrLater,
   isTaskCompleted,
@@ -136,7 +120,6 @@ let ganttFlyByAnimating = false;
 let ganttFlyByStopRequested = false;
 let ganttFlyByResumeSprintId = 0;
 let ganttFlyByCurrentSprintId = 0;
-let documentationProjectId = readNumberPreference(preferenceKeys.documentationProject, 0);
 const savedBoardStatuses = readJsonPreference(preferenceKeys.boardStatuses, null);
 let boardStatuses = Array.isArray(savedBoardStatuses) && savedBoardStatuses.every(status => statuses.includes(status))
   ? savedBoardStatuses
@@ -146,8 +129,6 @@ let pointerDrag = null;
 let lastPointerDragEventAt = 0;
 let suppressNextClick = false;
 let pageEventsBound = false;
-let dashboardShowAllDetails = false;
-let dashboardExpandedSprintIds = new Set();
 let chartTooltip = null;
 
 configureWorkItemRules({
@@ -241,13 +222,39 @@ const bugsFeature = createBugsFeature({
   saveJson
 });
 const backlogFeature = createBacklogFeature({ app });
+const dashboardFeature = createDashboardFeature({
+  app,
+  isProjectCollapsed: projectsFeature.isCollapsed,
+  openSprintTasks: viewSprintTasks,
+  openTaskReadMode,
+  projectCardHtml: projectsFeature.cardHtml
+});
+const scrumFeature = createScrumFeature({
+  app,
+  deleteItem,
+  loadState,
+  openEditor,
+  render,
+  saveJson,
+  showToast
+});
+const documentationFeature = createDocumentationFeature({
+  app,
+  attachFile,
+  deleteItem,
+  openEditor,
+  saveJson
+});
 
+registerScreen("Dashboard", dashboardFeature);
 registerScreen("Projects", projectsFeature);
 registerScreen("Sprints", sprintsFeature);
 registerScreen("Settings", settingsFeature);
 registerScreen("Tasks", tasksFeature);
 registerScreen("Bugs", bugsFeature);
 registerScreen("Backlog", backlogFeature);
+registerScreen("Scrum", scrumFeature);
+registerScreen("Documentation", documentationFeature);
 
 document.getElementById("closeDialog").addEventListener("click", () => dialog.close());
 document.getElementById("cancelDialog").addEventListener("click", () => dialog.close());
@@ -287,33 +294,11 @@ function render() {
 function renderCurrentScreen() {
   const registeredScreen = screenHandlerFor(currentView);
   if (registeredScreen?.render) registeredScreen.render();
-  else if (currentView === "Dashboard") renderDashboard();
   else if (currentView === "Board") renderBoard();
   else if (currentView === "Road Map") renderRoadMap();
   else if (currentView === "Gantt") renderGantt();
-  else if (currentView === "Scrum") renderDevLogs();
-  else if (currentView === "Documentation") renderDocumentation();
   linkifyTextNodes(app);
   normalizeLinksInElement(app);
-}
-
-function renderDashboard() {
-  app.innerHTML = `
-    ${sectionHead("Dashboard", `
-      <button class="text-icon-button" type="button" data-action="toggle-dashboard-all-details">${buttonContent(dashboardShowAllDetails ? "&#8722;" : "&#43;", dashboardShowAllDetails ? "Hide All Details" : "Show All Details")}</button>
-    `)}
-    <div class="grid">
-      ${state.projects.map(projectsFeature.cardHtml).join("")}
-    </div>
-    <div class="panel" style="margin-top:16px">
-      <div class="spread">
-        <h2>Project Flow</h2>
-        <span class="muted">${state.tasks.length} tasks across ${state.sprints.length} Sprints</span>
-      </div>
-      ${dashboardShowAllDetails ? statusLegendHtml() : ""}
-      ${state.projects.map(project => dashboardProjectHtml(project)).join("")}
-    </div>
-  `;
 }
 
 function renderBoard() {
@@ -507,87 +492,6 @@ function boardTaskSortCompare(a, b) {
   return taskOrderCompare(a, b);
 }
 
-function renderDevLogs() {
-  const logs = [...state.devLogs].sort((a, b) => new Date(b.logDate) - new Date(a.logDate) || new Date(b.updatedAt) - new Date(a.updatedAt));
-  app.innerHTML = `
-    ${sectionHead("Scrum", `<button class="primary text-icon-button" type="button" data-action="new-log">${buttonContent("&#10010;", "New Scrum")}</button>`)}
-    <div class="panel">
-      <table class="table">
-        <thead>
-          <tr>
-            <th>Date</th>
-            <th>Project</th>
-            <th>Person</th>
-            <th>Scrum</th>
-            <th>Flag</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody>
-      ${logs.map(log => {
-        const user = userById(log.userId);
-        return `
-          <tr>
-            <td>${formatDate(log.logDate)}</td>
-            <td>${log.projectId ? `<span class="pill">${escapeHtml(projectName(log.projectId))}</span>` : ""}</td>
-            <td>
-              <div class="row">
-                <img class="avatar" src="${escapeAttr(user?.avatarUrl || "/assets/avatar-default.svg")}" alt="">
-                <strong>${escapeHtml(user?.nickname || "User")}</strong>
-              </div>
-            </td>
-            <td>${log.bodyHtml}</td>
-            <td>${log.isPinned ? `<span class="pill">Pinned</span>` : ""}</td>
-            <td class="reveal-actions action-cell">
-              ${iconButton("edit-log", log.id, "Edit", "edit", canEditOwner(log.userId))}
-              ${iconButton("duplicate-log", log.id, "Duplicate", "duplicate", true)}
-              ${iconButton("delete-log", log.id, "Delete", "delete", canEditOwner(log.userId), "danger")}
-            </td>
-          </tr>
-        `;
-      }).join("")}
-        </tbody>
-      </table>
-    </div>
-  `;
-}
-
-function renderDocumentation() {
-  if (documentationProjectId && !projectById(documentationProjectId)) documentationProjectId = 0;
-
-  const filteredBlogs = state.blogs.filter(blog => !documentationProjectId || blog.projectId === documentationProjectId);
-
-  app.innerHTML = `
-    ${sectionHead("Documentation", `<button class="primary text-icon-button" type="button" data-action="new-blog">${buttonContent("&#10010;", "New Document")}</button>`)}
-    <div class="panel">
-      <div class="filter-row">
-        ${filterSelect("Project", "documentation-project", state.projects.map(project => ({ value: project.id, text: `${project.code} - ${project.title}` })), documentationProjectId || "", "All Projects")}
-      </div>
-    </div>
-    <div class="grid">
-      ${filteredBlogs.length ? filteredBlogs.map(blog => `
-        <article class="card clickable-card documentation-card" data-action="view-blog" data-id="${blog.id}">
-          <div class="spread">
-            <div>
-              <h3>${escapeHtml(blog.title)}</h3>
-              <p class="muted">${escapeHtml(userById(blog.createdByUserId)?.nickname || "User")} | ${documentationDateLine(blog)}</p>
-            </div>
-            <div class="row">
-              ${blog.projectId ? `<span class="pill">${escapeHtml(projectCode(blog.projectId))}</span>` : ""}
-            </div>
-          </div>
-          <div class="rich-readonly">${blog.bodyHtml}</div>
-          ${blog.attachments.length ? `<p>${blog.attachments.map(file => `<a href="${escapeAttr(file.url)}">${escapeHtml(file.fileName)}</a>`).join(" ")}</p>` : ""}
-          <div class="toolbar reveal-actions">
-            ${iconButton("delete-blog", blog.id, "Delete", "delete", canEditOwner(blog.createdByUserId), "danger")}
-            ${iconButton("edit-blog", blog.id, "Edit", "edit", canEditOwner(blog.createdByUserId))}
-          </div>
-        </article>
-      `).join("") : `<div class="empty">No Documentation exists for the selected project.</div>`}
-    </div>
-  `;
-}
-
 async function handleActionClick(event) {
   if (suppressNextClick) {
     suppressNextClick = false;
@@ -609,14 +513,6 @@ async function handleActionClick(event) {
     if (screen.handleAction && await screen.handleAction(action, id, button)) return;
   }
 
-  if (action === "new-log") editDevLog();
-  if (action === "edit-log") editDevLog(state.devLogs.find(log => log.id === id));
-  if (action === "duplicate-log") await duplicateDevLog(id);
-  if (action === "delete-log") await deleteItem(`/api/devlogs/${id}`, "Delete this log?");
-  if (action === "new-blog") editBlog();
-  if (action === "view-blog") viewDocumentation(state.blogs.find(blog => blog.id === id));
-  if (action === "edit-blog") editBlog(state.blogs.find(blog => blog.id === id));
-  if (action === "delete-blog") await deleteItem(`/api/blogs/${id}`, "Delete this document?");
   if (action === "goto-task") gotoTask(id);
   if (action === "gantt-open-task") openGanttTask(id);
   if (action === "view-project-gantt") viewProjectGantt(id);
@@ -634,10 +530,6 @@ async function handleActionClick(event) {
     toggleGanttTaskBugs(id);
     return;
   }
-  if (action === "dashboard-view-task") openTaskReadMode(id);
-  if (action === "dashboard-view-sprint") viewSprintTasks(id);
-  if (action === "toggle-dashboard-sprint-details") toggleDashboardSprintDetails(id);
-  if (action === "toggle-dashboard-all-details") toggleDashboardAllDetails();
   if (action === "toggle-empty-board-columns") toggleEmptyBoardColumns();
   if (action === "hide-empty-board-columns") hideEmptyBoardColumns();
   if (action === "show-all-board-columns") showAllBoardColumns();
@@ -942,11 +834,6 @@ function handleFilterChange(event) {
     writePreference(preferenceKeys.ganttSort, ganttSort);
     renderGantt();
   }
-  if (target.dataset.filter === "documentation-project") {
-    documentationProjectId = Number(target.value || 0);
-    writePreference(preferenceKeys.documentationProject, documentationProjectId);
-    renderDocumentation();
-  }
 }
 
 function handleChartTooltip(event) {
@@ -1222,52 +1109,6 @@ function viewSprintSummary(sprint) {
   `);
 }
 
-function viewDocumentation(blog) {
-  if (!blog) return;
-  const author = userById(blog.createdByUserId);
-
-  const modal = document.createElement("dialog");
-  modal.className = "dialog detail-dialog";
-  modal.innerHTML = `
-    <div class="dialog-head">
-      <h2>${escapeHtml(blog.title)}</h2>
-      <button type="button" class="icon-btn" data-close title="Close">x</button>
-    </div>
-    <div class="dialog-body">
-      <div class="detail-grid">
-        ${detailField("Project", escapeHtml(projectCode(blog.projectId)))}
-        ${detailField("Created", escapeHtml(formatDate(blog.createdAt)))}
-        ${documentationWasEdited(blog) ? detailField("Last Edited", escapeHtml(formatDate(blog.updatedAt))) : ""}
-        ${detailField("Author", escapeHtml(author?.nickname || "User"))}
-        ${detailField("Body", `<div class="rich-readonly">${blog.bodyHtml || ""}</div>`, true)}
-        ${blog.attachments.length ? detailField("Attachments", attachmentsHtml(blog.attachments), true) : ""}
-      </div>
-    </div>
-    <div class="dialog-actions">
-      <button type="button" class="secondary text-icon-button" data-edit-readonly-blog="${blog.id}" ${canEditOwner(blog.createdByUserId) ? "" : "disabled"}>${buttonContent("&#9998;", "Edit")}</button>
-      <button type="button" class="primary text-icon-button" data-close>${buttonContent("&#10003;", "Close")}</button>
-    </div>
-  `;
-
-  document.body.appendChild(modal);
-  modal.querySelectorAll("[data-close]").forEach(button => button.addEventListener("click", () => {
-    modal.close();
-    modal.remove();
-  }));
-  modal.addEventListener("click", event => {
-    const editButton = event.target.closest("[data-edit-readonly-blog]");
-    if (!editButton) return;
-
-    const selectedBlog = state.blogs.find(item => item.id === Number(editButton.dataset.editReadonlyBlog));
-    modal.close();
-    modal.remove();
-    editBlog(selectedBlog);
-  });
-  modal.addEventListener("cancel", () => modal.remove());
-  modal.showModal();
-  normalizeLinksInElement(modal);
-}
-
 function showReadOnlyDialog(title, html) {
   const modal = document.createElement("dialog");
   modal.className = "dialog detail-dialog";
@@ -1306,57 +1147,6 @@ function detailField(label, html, full = false) {
       <div>${html || `<span class="muted">None</span>`}</div>
     </div>
   `;
-}
-
-function editDevLog(log = {}) {
-  const scrumPlaceholder = "What did you accomplish yesterday?\nWhat do you plan to do today?\nDo you have any roadblocks?";
-  const firstScrumPrompt = "What did you accomplish yesterday?";
-  const scrumHtml = log.bodyHtml || scrumPlaceholder.replaceAll("\n", "<br>");
-
-  openEditor(log.id ? "Edit Scrum" : "New Scrum", `
-    <div class="form-grid">
-      ${field("Date", "logDate", toDateInput(log.logDate || new Date()), "date")}
-      ${selectOptionsField("Project", "projectId", [{ id: "", title: "No project" }, ...state.projects.map(project => ({ id: project.id, title: `${project.code} - ${project.title}` }))], log.projectId || "")}
-      ${richTextField("bodyHtml", "Scrum", scrumHtml)}
-      <label class="inline-check field full"><input name="isPinned" type="checkbox" ${log.isPinned ? "checked" : ""} ${currentUser().isAdmin ? "" : "disabled"}><span>Pinned</span></label>
-    </div>
-  `, async root => {
-    await saveJson(log.id ? `/api/devlogs/${log.id}` : "/api/devlogs", log.id ? "PUT" : "POST", {
-      id: log.id || 0,
-      projectId: optionalNumberValue(root, "projectId"),
-      logDate: value(root, "logDate"),
-      bodyHtml: richValue(root, "bodyHtml"),
-      isPinned: root.querySelector("[name='isPinned']").checked
-    });
-  }, log.id ? "" : "bodyHtml", root => {
-    if (!log.id) focusRichEditorAfterText(root, "bodyHtml", firstScrumPrompt);
-  });
-}
-
-function editBlog(blog = {}) {
-  openEditor(blog.id ? "Edit Document" : "New Document", `
-    <div class="form-grid">
-      ${selectOptionsField("Project", "projectId", [{ id: "", title: "No project" }, ...state.projects.map(project => ({ id: project.id, title: `${project.code} - ${project.title}` }))], blog.projectId || "")}
-      ${field("Title", "title", blog.title || "", "text")}
-      ${richTextField("bodyHtml", "Body", blog.bodyHtml || "")}
-      <div class="field full">
-        <label>Attachments</label>
-        <input name="attachments" type="file" multiple>
-        <div class="attachment-preview" data-preview="attachments"></div>
-      </div>
-    </div>
-  `, async root => {
-    const result = await saveJson(blog.id ? `/api/blogs/${blog.id}` : "/api/blogs", blog.id ? "PUT" : "POST", {
-      id: blog.id || 0,
-      projectId: optionalNumberValue(root, "projectId"),
-      title: value(root, "title"),
-      bodyHtml: richValue(root, "bodyHtml")
-    });
-
-    for (const file of root.querySelector("[name='attachments']").files) {
-      await attachFile(`/api/blogs/${result.id}/attachments`, file);
-    }
-  });
 }
 
 function editPassword() {
@@ -1407,35 +1197,6 @@ function focusEditorField(focusName) {
   const requestedField = focusName ? dialogBody.querySelector(`[name='${focusName}'], [data-rich='${focusName}']`) : null;
   const firstField = dialogBody.querySelector("input:not([type='hidden']):not(:disabled), select:not(:disabled), textarea:not(:disabled), .rich-editor[contenteditable='true']");
   (requestedField || firstField)?.focus();
-}
-
-function focusRichEditorAfterText(root, richName, text) {
-  const editor = root.querySelector(`[data-rich='${richName}']`);
-  if (!editor) return;
-
-  setTimeout(() => {
-    editor.focus();
-    placeCaretAfterText(editor, text);
-  }, 40);
-}
-
-function placeCaretAfterText(container, text) {
-  const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
-  let node = walker.nextNode();
-
-  while (node) {
-    const index = node.nodeValue.indexOf(text);
-    if (index >= 0) {
-      const range = document.createRange();
-      range.setStart(node, index + text.length);
-      range.collapse(true);
-      const selection = window.getSelection();
-      selection.removeAllRanges();
-      selection.addRange(range);
-      return;
-    }
-    node = walker.nextNode();
-  }
 }
 
 function bindTaskPercentRules(root) {
@@ -1568,26 +1329,6 @@ async function duplicateTask(id) {
   }
 }
 
-async function duplicateDevLog(id) {
-  const log = state.devLogs.find(item => item.id === id);
-  if (!log) return;
-
-  try {
-    await saveJson("/api/devlogs", "POST", {
-      id: 0,
-      projectId: log.projectId || null,
-      logDate: toDateInput(new Date()),
-      bodyHtml: log.bodyHtml,
-      isPinned: false
-    });
-    await loadState();
-    render();
-    showToast("Scrum duplicated.");
-  } catch (error) {
-    showToast(error.message);
-  }
-}
-
 async function updateTaskStatus(task, status, renderAfter = true) {
   try {
     await saveJson(`/api/tasks/${task.id}`, "PUT", {
@@ -1686,32 +1427,6 @@ function viewProjectGantt(projectId) {
   writePreference(preferenceKeys.ganttProject, ganttProjectId);
   writePreference(preferenceKeys.ganttSprint, ganttSprintMode);
   render();
-}
-
-function dashboardSprintDetailsVisible(sprintId) {
-  return dashboardShowAllDetails || dashboardExpandedSprintIds.has(Number(sprintId));
-}
-
-function toggleDashboardSprintDetails(sprintId) {
-  const id = Number(sprintId);
-
-  if (dashboardShowAllDetails) {
-    dashboardShowAllDetails = false;
-    dashboardExpandedSprintIds = new Set(state.sprints.map(sprint => sprint.id));
-    dashboardExpandedSprintIds.delete(id);
-  } else if (dashboardExpandedSprintIds.has(id)) {
-    dashboardExpandedSprintIds.delete(id);
-  } else {
-    dashboardExpandedSprintIds.add(id);
-  }
-
-  renderDashboard();
-}
-
-function toggleDashboardAllDetails() {
-  dashboardShowAllDetails = !dashboardShowAllDetails;
-  dashboardExpandedSprintIds.clear();
-  renderDashboard();
 }
 
 function hideEmptyBoardColumns() {
@@ -2162,79 +1877,6 @@ function toggleRoadMapSprints() {
   roadMapShowSprints = !roadMapShowSprints;
   writePreference(preferenceKeys.roadMapShowSprints, roadMapShowSprints);
   renderRoadMap();
-}
-
-function dashboardProjectHtml(project) {
-  const sprints = state.sprints.filter(sprint => sprint.projectId === project.id);
-  const isCollapsed = projectsFeature.isCollapsed(project.id);
-  const chartToggleTitle = isCollapsed ? "Expand Project charts" : "Collapse Project charts";
-
-  return `
-    <div class="dashboard-project-flow">
-      <div class="spread dashboard-project-heading">
-        <div>
-          <strong>${escapeHtml(project.code)} ${escapeHtml(project.title)}</strong>
-        </div>
-        <button class="icon-action" type="button" data-action="toggle-project-card-details" data-id="${project.id}" title="${chartToggleTitle}" aria-label="${chartToggleTitle}" aria-expanded="${!isCollapsed}">
-          ${isCollapsed ? "&#9662;" : "&#9652;"}
-        </button>
-      </div>
-      ${projectOverallProgressHtml(project)}
-      ${isCollapsed ? "" : projectStatusMetricsHtml(project)}
-      <div class="dashboard-sprint-grid">
-        ${sprints.map(sprint => {
-          const sprintTasks = state.tasks.filter(task => task.sprintId === sprint.id);
-          const isExpanded = dashboardSprintDetailsVisible(sprint.id);
-
-          return `
-          <article class="card clickable-card dashboard-sprint-card" data-action="dashboard-view-sprint" data-id="${sprint.id}">
-            <div class="spread">
-              <div>
-                <strong>${escapeHtml(sprint.code)}</strong>
-                <p class="muted">${escapeHtml(sprint.title)}</p>
-              </div>
-              <span class="muted">${sprint.percentCompleted}%</span>
-            </div>
-            ${sprintOverallProgressHtml(sprint)}
-            <div class="dashboard-card-actions">
-              <button type="button" class="secondary text-icon-button" data-action="toggle-dashboard-sprint-details" data-id="${sprint.id}">
-                ${buttonContent(isExpanded ? "&#8722;" : "&#43;", isExpanded ? "Less Details" : "More Details")}
-              </button>
-            </div>
-            ${isExpanded ? `
-              ${sprintStatusMetricsHtml(sprint)}
-              <div class="dashboard-task-list">
-                ${sprintTasks.map(task => dashboardTaskRowHtml(task, sprintTasks)).join("") || `<div class="empty compact-empty">No tasks.</div>`}
-              </div>
-            ` : ""}
-          </article>
-        `;
-        }).join("") || `<div class="empty">No Sprints.</div>`}
-      </div>
-    </div>
-  `;
-}
-
-function dashboardTaskRowHtml(task, sprintTasks) {
-  const percent = dashboardTaskProgressPercent(task, sprintTasks);
-
-  return `
-    <button type="button" class="dashboard-task-row" data-action="dashboard-view-task" data-id="${task.id}">
-      <span class="dashboard-task-summary">
-        <span class="dashboard-task-title">${escapeHtml(task.code)} ${escapeHtml(task.title)}</span>
-        <span class="pill">${percent}%</span>
-      </span>
-      ${thinProgressHtml(percent, statusColor(task.status))}
-    </button>
-  `;
-}
-
-function dashboardTaskProgressPercent(task, sprintTasks) {
-  if (task.taskType === "Bug") return taskDisplayPercent(task);
-
-  const relatedBugs = bugsForTask(task, sprintTasks.filter(item => item.taskType === "Bug"));
-  const workItems = [task, ...relatedBugs];
-  return averageWorkItemPercent(workItems);
 }
 
 function boardColumnHtml(status, tasks) {
@@ -2770,15 +2412,6 @@ function groupedHeader(dates, keySelector) {
     }
   });
   return groups;
-}
-
-function bugsForTask(task, sprintBugs) {
-  return sprintBugs.filter(bug =>
-    bug.id === task.linkedBugTaskId ||
-    task.dependencyTaskIds?.includes(bug.id) ||
-    bug.dependencyTaskIds?.includes(task.id) ||
-    (bug.assigneeIds || []).some(id => (task.assigneeIds || []).includes(id))
-  );
 }
 
 function toggleGanttTaskBugs(taskId) {
