@@ -104,3 +104,53 @@ export function isTaskCompleted(task) {
   const taskStatusIndex = statuses.indexOf(task.status);
   return Number(task.percentCompleted || 0) >= 100 || (qaPassedIndex >= 0 && taskStatusIndex >= qaPassedIndex);
 }
+
+export function taskOrderCompare(a, b) {
+  return Number(a.sortOrder || 0) - Number(b.sortOrder || 0) || a.id - b.id;
+}
+
+export function taskCreatedTime(task) {
+  return new Date(task.createdAt || 0).getTime();
+}
+
+export function taskRowsWithSubTasks(tasks) {
+  const taskIds = new Set(tasks.map(task => task.id));
+  const childTasks = new Map();
+  const rows = [];
+  const rendered = new Set();
+
+  tasks.forEach(task => {
+    if (!task.parentTaskId || !taskIds.has(task.parentTaskId)) return;
+    if (!childTasks.has(task.parentTaskId)) childTasks.set(task.parentTaskId, []);
+    childTasks.get(task.parentTaskId).push(task);
+  });
+
+  const addTaskAndChildren = (task, level) => {
+    if (rendered.has(task.id)) return;
+    rendered.add(task.id);
+    rows.push({ task, level });
+    (childTasks.get(task.id) || []).forEach(child => addTaskAndChildren(child, level + 1));
+  };
+
+  tasks
+    .filter(task => !task.parentTaskId || !taskIds.has(task.parentTaskId))
+    .forEach(task => addTaskAndChildren(task, task.parentTaskId ? 1 : 0));
+
+  // Keep orphaned or cyclic sub-tasks visible instead of silently hiding them.
+  tasks.forEach(task => addTaskAndChildren(task, task.parentTaskId ? 1 : 0));
+
+  return rows;
+}
+
+export function dependencyCandidates(projectId, workItemId = 0) {
+  return currentTasks().filter(task => task.projectId === projectId && task.id !== workItemId);
+}
+
+export function reporterIdsOrDefault(reporterIds, currentUserId) {
+  return reporterIds?.length ? reporterIds : [currentUserId];
+}
+
+export function allowedAssigneeUsers(users, project, sprint = null) {
+  const memberIds = new Set(sprint?.developerIds || project?.memberIds || []);
+  return users.filter(user => user.isActive !== false && memberIds.has(user.id));
+}

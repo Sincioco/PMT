@@ -1,25 +1,16 @@
 import { api } from "./core/api.js";
-import { attachmentsHtml, filePreviewHtml } from "./components/attachments.js";
+import { attachmentsHtml } from "./components/attachments.js";
 import { avatarsHtml, taskRowAvatarsHtml } from "./components/avatars.js";
-import { buttonContent, funnelIconHtml, iconButton } from "./components/buttons.js";
-import { VisualCharts } from "./components/charts.js";
+import { buttonContent, iconButton } from "./components/buttons.js";
 import { askForText, askYesNo } from "./components/dialogs.js";
-import { checkedFilterValues, filterCheckList, filterSelect } from "./components/filters.js";
+import { filterSelect } from "./components/filters.js";
 import {
-  checkList,
-  checkListOrEmpty,
-  checkedNumbers,
   field,
-  nullableDateValue,
-  numberValue,
   optionalNumberValue,
   richTextField,
   richValue,
-  selectField,
   selectOptionsField,
-  selectTextField,
-  value,
-  userCheckListLabelHtml
+  value
 } from "./components/forms.js";
 import {
   configureProgressAndStatus,
@@ -33,10 +24,16 @@ import {
   thinProgressHtml
 } from "./components/progress-and-status.js";
 import { sectionHead } from "./components/sections.js";
+import {
+  bindAttachmentPreview,
+  bugFixIconHtml,
+  showTaskAudit,
+  taskButtonsHtml,
+  viewWorkItem
+} from "./components/work-items.js";
 import { createApplicationShell } from "./core/application-shell.js";
 import {
-  currentUser,
-  currentUserId
+  currentUser
 } from "./core/authentication.js";
 import {
   preferenceKeys,
@@ -57,9 +54,12 @@ import {
   screenHandlerFor
 } from "./core/screen-registry.js";
 import { state } from "./core/store.js";
+import { createBacklogFeature } from "./features/backlog/backlog.js";
+import { createBugsFeature } from "./features/bugs/bugs.js";
 import { createProjectsFeature } from "./features/projects/projects.js";
 import { createSettingsFeature } from "./features/settings/settings.js";
 import { createSprintsFeature } from "./features/sprints/sprints.js";
+import { createTasksFeature } from "./features/tasks/tasks.js";
 import {
   fallbackEnvironments,
   fallbackForLookup,
@@ -74,12 +74,10 @@ import {
   documentationDateLine,
   documentationWasEdited,
   formatDate,
-  formatDateTime,
   monthName,
   normalizeDate,
   toDateInput
 } from "./shared/dates.js";
-import { normalizeSavedArray } from "./shared/filter-values.js";
 import { canEditOwner, canEditTask } from "./shared/permissions.js";
 import {
   projectById,
@@ -100,12 +98,12 @@ import {
 import {
   averageWorkItemPercent,
   configureWorkItemRules,
+  isBugQaPassedOrLater,
   isTaskCompleted,
-  percentForDevTaskSave,
   percentForStatus,
   sprintOverallPercent,
   taskDisplayPercent,
-  validateLinkedBugCompletion
+  taskOrderCompare
 } from "./shared/work-item-rules.js";
 let statuses = [...fallbackStatuses];
 let priorities = [...fallbackPriorities];
@@ -138,14 +136,6 @@ let ganttFlyByAnimating = false;
 let ganttFlyByStopRequested = false;
 let ganttFlyByResumeSprintId = 0;
 let ganttFlyByCurrentSprintId = 0;
-let taskProjectId = readNumberPreference(preferenceKeys.taskProject, 0);
-let taskSprintId = readPreference(preferenceKeys.taskSprint, "all");
-let taskFilters = readJsonPreference(preferenceKeys.taskFilters, {});
-let taskFiltersVisible = readBooleanPreference(preferenceKeys.taskFiltersVisible, true);
-let taskVisualChartsVisible = readBooleanPreference(preferenceKeys.taskVisualChartsVisible, true);
-let bugFilters = readJsonPreference(preferenceKeys.bugFilters, {});
-let bugFiltersVisible = readBooleanPreference(preferenceKeys.bugFiltersVisible, true);
-let bugVisualChartsVisible = readBooleanPreference(preferenceKeys.bugVisualChartsVisible, true);
 let documentationProjectId = readNumberPreference(preferenceKeys.documentationProject, 0);
 const savedBoardStatuses = readJsonPreference(preferenceKeys.boardStatuses, null);
 let boardStatuses = Array.isArray(savedBoardStatuses) && savedBoardStatuses.every(status => statuses.includes(status))
@@ -169,14 +159,6 @@ configureProgressAndStatus({
   getLookups: () => state.lookups,
   getTasks: () => state.tasks
 });
-
-taskFilters.statuses = normalizeSavedArray(taskFilters.statuses);
-taskFilters.assigneeIds = normalizeSavedArray(taskFilters.assigneeIds);
-taskFilters.priorities = normalizeSavedArray(taskFilters.priorities);
-taskFilters.sort = taskFilters.sort || "custom";
-taskFilters.hideCompleted = Boolean(taskFilters.hideCompleted);
-bugFilters.reporterIds = normalizeSavedArray(bugFilters.reporterIds, bugFilters.reporterId);
-bugFilters.assigneeIds = normalizeSavedArray(bugFilters.assigneeIds, bugFilters.assigneeId);
 
 const shell = createApplicationShell({
   bindScreenEvents,
@@ -225,10 +207,47 @@ const settingsFeature = createSettingsFeature({
   showToast,
   uploadFile
 });
+const tasksFeature = createTasksFeature({
+  app,
+  attachFile,
+  deleteItem,
+  duplicateTask,
+  getBoardProjectId: () => boardProjectId,
+  getBoardSprintId: selectedBoardSprintId,
+  getCurrentSprint: currentSprintForProject,
+  getItemStartDate: ganttStartDate,
+  getLookupOptions: lookupOptionsWithCurrent,
+  getPriorities: () => priorities,
+  getStatuses: () => statuses,
+  openEditor,
+  saveJson
+});
+const bugsFeature = createBugsFeature({
+  app,
+  attachFile,
+  deleteItem,
+  duplicateTask,
+  getBoardProjectId: () => boardProjectId,
+  getBoardSprintId: selectedBoardSprintId,
+  getCurrentSprint: currentSprintForProject,
+  getEnvironments: () => environments,
+  getItemStartDate: ganttStartDate,
+  getLookupOptions: lookupOptionsWithCurrent,
+  getPriorities: () => priorities,
+  getSeverities: () => severities,
+  getStatuses: () => statuses,
+  getTaskContext: tasksFeature.getContext,
+  openEditor,
+  saveJson
+});
+const backlogFeature = createBacklogFeature({ app });
 
 registerScreen("Projects", projectsFeature);
 registerScreen("Sprints", sprintsFeature);
 registerScreen("Settings", settingsFeature);
+registerScreen("Tasks", tasksFeature);
+registerScreen("Bugs", bugsFeature);
+registerScreen("Backlog", backlogFeature);
 
 document.getElementById("closeDialog").addEventListener("click", () => dialog.close());
 document.getElementById("cancelDialog").addEventListener("click", () => dialog.close());
@@ -272,9 +291,6 @@ function renderCurrentScreen() {
   else if (currentView === "Board") renderBoard();
   else if (currentView === "Road Map") renderRoadMap();
   else if (currentView === "Gantt") renderGantt();
-  else if (currentView === "Backlog") renderBacklog();
-  else if (currentView === "Tasks") renderTasks();
-  else if (currentView === "Bugs") renderBugs();
   else if (currentView === "Scrum") renderDevLogs();
   else if (currentView === "Documentation") renderDocumentation();
   linkifyTextNodes(app);
@@ -485,721 +501,10 @@ function renderRoadMap() {
   `;
 }
 
-function renderBacklog() {
-  const backlogItems = state.tasks
-    .filter(task => task.status === "Backlog" || task.status === "Todo")
-    .sort(taskOrderCompare);
-
-  app.innerHTML = `
-    ${sectionHead("Backlog", `
-      <button class="primary text-icon-button" type="button" data-action="new-task">${buttonContent("&#10010;", "New Dev Task")}</button>
-      <button class="primary text-icon-button" type="button" data-action="new-bug">${buttonContent("&#9888;", "New Bug Report")}</button>
-    `)}
-    <div class="panel">
-      <table class="table">
-        <thead>
-          <tr>
-            <th>Type</th>
-            <th>Item</th>
-            <th>Project</th>
-            <th>Sprint</th>
-            <th>Status</th>
-            <th>Priority</th>
-            <th>Assigned</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody data-reorder-list="backlog">
-          ${backlogItems.map(task => `
-            <tr class="clickable-row ${task.sprintId ? "assigned-backlog-row" : ""}" data-action="view-task" data-id="${task.id}" data-task-id="${task.id}" data-can-drag="${canEditTask(task) ? "true" : "false"}" draggable="false">
-              <td><span class="pill">${escapeHtml(task.taskType || "Dev")}</span></td>
-              <td><strong>${escapeHtml(task.code)}</strong><br>${bugFixIconHtml(task)}${escapeHtml(task.title)}</td>
-              <td>${escapeHtml(projectName(task.projectId))}</td>
-              <td>${task.sprintId ? `<span class="pill sprint-pill">${escapeHtml(sprintName(task.sprintId))}</span>` : `<span class="muted">Unassigned</span>`}</td>
-              <td><span class="pill">${escapeHtml(task.status)}</span></td>
-              <td><span class="pill priority-${escapeAttr(task.priority)}">${escapeHtml(task.priority)}</span></td>
-              <td>${avatarsHtml(task.assignees)}</td>
-              <td class="reveal-actions action-cell">${taskButtonsHtml(task)}</td>
-            </tr>
-          `).join("") || `<tr><td colspan="8"><div class="empty">No backlog or Todo items yet.</div></td></tr>`}
-        </tbody>
-      </table>
-    </div>
-  `;
-}
-
-function renderTasks() {
-  if (!taskProjectId && state.projects.length) taskProjectId = state.projects[0].id;
-  if (!state.projects.some(project => project.id === taskProjectId) && state.projects.length) {
-    taskProjectId = state.projects[0].id;
-  }
-
-  const projectSprints = state.sprints.filter(sprint => sprint.projectId === taskProjectId);
-  if (taskSprintId !== "all" && !projectSprints.some(sprint => sprint.id === Number(taskSprintId))) {
-    taskSprintId = "all";
-  }
-
-  const allProjectDevTasks = state.tasks
-    .filter(task => task.projectId === taskProjectId)
-    .filter(task => task.taskType !== "Bug");
-  const baseTasks = allProjectDevTasks
-    .filter(task => taskSprintId === "all" || task.sprintId === Number(taskSprintId));
-  const visibleTasks = filteredTaskList(baseTasks);
-  const taskRows = taskRowsWithSubTasks(visibleTasks);
-  const canShowCharts = allProjectDevTasks.length > 0;
-  const showCharts = canShowCharts && taskVisualChartsVisible;
-  const filterToggleLabel = taskFiltersVisible ? "Hide Filters" : "Show Filters";
-  const chartToggleLabel = showCharts ? "Hide Charts" : "Show Charts";
-
-  app.innerHTML = `
-    ${sectionHead("Dev Tasks", `
-      <button class="secondary text-icon-button ${taskFiltersVisible ? "is-on" : ""}" type="button" data-action="toggle-task-filters" aria-pressed="${taskFiltersVisible}">${buttonContent(funnelIconHtml(), filterToggleLabel)}</button>
-      <button class="secondary text-icon-button ${showCharts ? "is-on" : ""}" type="button" data-action="toggle-task-visual-charts" aria-pressed="${showCharts}" ${canShowCharts ? "" : "disabled"}>${buttonContent("&#128202;", chartToggleLabel)}</button>
-      <button class="primary text-icon-button" type="button" data-action="new-task">${buttonContent("&#10010;", "New Dev Task")}</button>
-    `)}
-    ${taskFiltersVisible ? `<div class="panel">
-      <div class="task-filter-row">
-        <label>
-          <span>Project</span>
-          <select data-filter="task-project">
-            ${state.projects.map(project => `<option value="${project.id}" ${project.id === taskProjectId ? "selected" : ""}>${escapeHtml(project.code)} - ${escapeHtml(project.title)}</option>`).join("")}
-          </select>
-        </label>
-        <label>
-          <span>Sprint</span>
-          <select data-filter="task-sprint">
-            <option value="all" ${taskSprintId === "all" ? "selected" : ""}>All Sprints</option>
-            ${projectSprints.map(sprint => `<option value="${sprint.id}" ${String(sprint.id) === taskSprintId ? "selected" : ""}>${escapeHtml(sprint.code)} - ${escapeHtml(sprint.title)}</option>`).join("")}
-          </select>
-        </label>
-        <label>
-          <span>Sort</span>
-          <select data-filter="task-sort">
-            <option value="custom" ${taskFilters.sort === "custom" ? "selected" : ""}>Custom order</option>
-            <option value="newest" ${taskFilters.sort === "newest" ? "selected" : ""}>Newest Dev Tasks</option>
-            <option value="oldest" ${taskFilters.sort === "oldest" ? "selected" : ""}>Oldest Dev Tasks</option>
-            <option value="highest-complete" ${taskFilters.sort === "highest-complete" ? "selected" : ""}>Highest Completed</option>
-            <option value="lowest-complete" ${taskFilters.sort === "lowest-complete" ? "selected" : ""}>Lowest Completed</option>
-          </select>
-        </label>
-        <label class="inline-filter-check">
-          <input type="checkbox" data-filter="task-hide-completed" ${taskFilters.hideCompleted ? "checked" : ""}>
-          <span>Hide Completed Dev Tasks</span>
-        </label>
-      </div>
-      <div class="filter-stack">
-        ${filterCheckList("Status", "task-status", statuses.map(value => ({ value, text: value })), taskFilters.statuses)}
-        ${filterCheckList("Priority", "task-priority", priorities.map(value => ({ value, text: value })), taskFilters.priorities)}
-        ${filterCheckList("Assigned", "task-assigned", state.users.map(user => ({ value: user.id, text: user.nickname })), taskFilters.assigneeIds)}
-      </div>
-    </div>` : ""}
-    ${showCharts ? taskVisualTrackingChartsHtml(allProjectDevTasks) : ""}
-    <div class="panel">
-      <table class="table tasks-table">
-        <thead>
-          <tr>
-            <th>Assigned</th>
-            <th>Dev Task</th>
-            <th>Project</th>
-            <th>Sprint</th>
-            <th>Status</th>
-            <th>Priority</th>
-            <th class="done-cell">Done</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody data-reorder-list="tasks">
-          ${taskRows.map(row => {
-            const task = row.task;
-            const rowClass = row.level ? "subtask-row" : "";
-            const titleClass = row.level ? "task-title-cell subtask-title-cell" : "task-title-cell";
-            const indent = Math.min(row.level, 4) * 24;
-
-            return `
-            <tr class="${rowClass} clickable-row" data-action="view-task" data-id="${task.id}" data-task-id="${task.id}" data-can-drag="${canEditTask(task) ? "true" : "false"}" draggable="false">
-              <td>${taskRowAvatarsHtml(task.assignees)}</td>
-              <td class="${titleClass}" style="--indent:${indent}px">
-                ${row.level ? `<span class="subtask-pill">Sub-task</span>` : ""}
-                <strong>${escapeHtml(task.code)}</strong><br>${bugFixIconHtml(task)}${escapeHtml(task.title)}
-              </td>
-              <td>${escapeHtml(projectName(task.projectId))}</td>
-              <td>${escapeHtml(sprintName(task.sprintId))}</td>
-              <td>${escapeHtml(task.status)}</td>
-              <td><span class="pill priority-${task.priority}">${escapeHtml(task.priority)}</span></td>
-              <td class="done-cell">${progressHtml(taskDisplayPercent(task))}</td>
-              <td class="reveal-actions action-cell">${taskButtonsHtml(task)}</td>
-            </tr>
-          `;
-          }).join("") || `<tr><td colspan="8"><div class="empty">No tasks for this filter.</div></td></tr>`}
-        </tbody>
-      </table>
-    </div>
-  `;
-}
-
-function taskRowsWithSubTasks(tasks) {
-  const taskIds = new Set(tasks.map(task => task.id));
-  const childTasks = new Map();
-  const rows = [];
-  const rendered = new Set();
-
-  tasks.forEach(task => {
-    if (!task.parentTaskId || !taskIds.has(task.parentTaskId)) return;
-    if (!childTasks.has(task.parentTaskId)) childTasks.set(task.parentTaskId, []);
-    childTasks.get(task.parentTaskId).push(task);
-  });
-
-  const addTaskAndChildren = (task, level) => {
-    if (rendered.has(task.id)) return;
-    rendered.add(task.id);
-    rows.push({ task, level });
-    (childTasks.get(task.id) || []).forEach(child => addTaskAndChildren(child, level + 1));
-  };
-
-  tasks
-    .filter(task => !task.parentTaskId || !taskIds.has(task.parentTaskId))
-    .forEach(task => addTaskAndChildren(task, task.parentTaskId ? 1 : 0));
-
-  // Show any orphaned or cyclic sub-tasks instead of hiding them from the table.
-  tasks.forEach(task => addTaskAndChildren(task, task.parentTaskId ? 1 : 0));
-
-  return rows;
-}
-
-function filteredTaskList(tasks) {
-  const taskMap = new Map(tasks.map(task => [task.id, task]));
-  const visibleIds = new Set();
-
-  tasks
-    .filter(taskMatchesTaskFiltersWithoutCompletion)
-    .forEach(task => {
-      const parent = task.parentTaskId ? taskMap.get(task.parentTaskId) : null;
-      const completedSubTaskWithOpenParent = parent && !isTaskCompleted(parent) && isTaskCompleted(task);
-
-      if (!taskFilters.hideCompleted || !isTaskCompleted(task) || completedSubTaskWithOpenParent) {
-        visibleIds.add(task.id);
-      }
-    });
-
-  // Keep completed sub-tasks under an open parent so the parent still tells the
-  // full story when "Hide Completed Tasks" is turned on.
-  if (taskFilters.hideCompleted) {
-    tasks
-      .filter(task => task.parentTaskId)
-      .filter(task => isTaskCompleted(task))
-      .filter(task => taskMatchesTaskFiltersWithoutCompletion(task))
-      .forEach(task => {
-        const parent = taskMap.get(task.parentTaskId);
-        if (parent && visibleIds.has(parent.id) && !isTaskCompleted(parent)) {
-          visibleIds.add(task.id);
-        }
-      });
-  }
-
-  [...visibleIds].forEach(id => addTaskAncestors(id, visibleIds, taskMap));
-
-  return tasks
-    .filter(task => visibleIds.has(task.id))
-    .sort(taskSortCompare);
-}
-
-function addTaskAncestors(taskId, visibleIds, taskMap) {
-  let task = taskMap.get(taskId);
-  while (task?.parentTaskId && taskMap.has(task.parentTaskId)) {
-    task = taskMap.get(task.parentTaskId);
-    visibleIds.add(task.id);
-  }
-}
-
-function taskMatchesTaskFiltersWithoutCompletion(task) {
-  const selectedStatuses = taskFilters.statuses || [];
-  const selectedAssignees = taskFilters.assigneeIds || [];
-  const selectedPriorities = taskFilters.priorities || [];
-  const taskAssignees = (task.assigneeIds || []).map(String);
-
-  if (selectedStatuses.length && !selectedStatuses.includes(task.status)) return false;
-  if (selectedPriorities.length && !selectedPriorities.includes(task.priority)) return false;
-  if (selectedAssignees.length && !taskAssignees.some(id => selectedAssignees.includes(id))) return false;
-
-  return true;
-}
-
-function taskSortCompare(a, b) {
-  if (taskFilters.sort === "custom") return taskOrderCompare(a, b);
-  if (taskFilters.sort === "oldest") return taskCreatedTime(a) - taskCreatedTime(b) || a.id - b.id;
-  if (taskFilters.sort === "highest-complete") return taskDisplayPercent(b) - taskDisplayPercent(a) || taskCreatedTime(b) - taskCreatedTime(a);
-  if (taskFilters.sort === "lowest-complete") return taskDisplayPercent(a) - taskDisplayPercent(b) || taskCreatedTime(b) - taskCreatedTime(a);
-  return taskCreatedTime(b) - taskCreatedTime(a) || b.id - a.id;
-}
-
 function boardTaskSortCompare(a, b) {
   if (boardSort === "doneFirst") return b.percentCompleted - a.percentCompleted || taskOrderCompare(a, b);
   if (boardSort === "openFirst") return a.percentCompleted - b.percentCompleted || taskOrderCompare(a, b);
   return taskOrderCompare(a, b);
-}
-
-function taskOrderCompare(a, b) {
-  return Number(a.sortOrder || 0) - Number(b.sortOrder || 0) || a.id - b.id;
-}
-
-function taskCreatedTime(task) {
-  return new Date(task.createdAt || 0).getTime();
-}
-
-function renderBugs() {
-  const filteredBugs = filteredBugReports();
-  const canShowCharts = filteredBugs.length > 0;
-  const showCharts = canShowCharts && bugVisualChartsVisible;
-  const filterToggleLabel = bugFiltersVisible ? "Hide Filters" : "Show Filters";
-  const chartToggleLabel = showCharts ? "Hide Charts" : "Show Charts";
-
-  app.innerHTML = `
-    ${sectionHead("Bug Tracking", `
-      <button class="secondary text-icon-button ${bugFiltersVisible ? "is-on" : ""}" type="button" data-action="toggle-bug-filters" aria-pressed="${bugFiltersVisible}">${buttonContent(funnelIconHtml(), filterToggleLabel)}</button>
-      <button class="secondary text-icon-button ${showCharts ? "is-on" : ""}" type="button" data-action="toggle-bug-visual-charts" aria-pressed="${showCharts}" ${canShowCharts ? "" : "disabled"}>${buttonContent("&#128202;", chartToggleLabel)}</button>
-      <button class="primary text-icon-button" type="button" data-action="new-bug">${buttonContent("&#9888;", "New Bug Report")}</button>
-    `)}
-    ${bugFiltersVisible ? `<div class="panel">
-      <div class="filter-row bug-filter-row">
-        ${filterSelect("Project", "bug-project", state.projects.map(project => ({ value: project.id, text: `${project.code} - ${project.title}` })), bugFilters.projectId || "", "All projects")}
-        ${filterSelect("Status", "bug-status", statuses.map(value => ({ value, text: value })), bugFilters.status || "", "All statuses")}
-        ${filterSelect("Priority", "bug-priority", priorities.map(value => ({ value, text: value })), bugFilters.priority || "", "All priorities")}
-        ${filterSelect("Severity", "bug-severity", severities.map(value => ({ value, text: value })), bugFilters.severity || "", "All severities")}
-        ${filterSelect("Environment", "bug-environment", environments.map(value => ({ value, text: value })), bugFilters.environment || "", "All environments")}
-      </div>
-      <div class="filter-stack">
-        ${filterCheckList("Reporter", "bug-reporter", state.users.map(user => ({ value: user.id, text: user.nickname })), bugFilters.reporterIds)}
-        ${filterCheckList("Assignee", "bug-assignee", state.users.map(user => ({ value: user.id, text: user.nickname })), bugFilters.assigneeIds)}
-      </div>
-    </div>` : ""}
-    ${showCharts ? bugVisualTrackingChartsHtml(filteredBugs) : ""}
-    <div class="panel">
-      <table class="table bugs-table">
-        <thead>
-          <tr>
-            <th>Reporter</th>
-            <th>Assignee</th>
-            <th>Bug Report</th>
-            <th>Project</th>
-            <th>Sprint</th>
-            <th>Status</th>
-            <th>Severity</th>
-            <th>Priority</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody data-reorder-list="bugs">
-          ${filteredBugs.map(bug => `
-            <tr class="clickable-row" data-action="view-task" data-id="${bug.id}" data-task-id="${bug.id}" data-can-drag="${canEditTask(bug) ? "true" : "false"}" draggable="false">
-              <td>${taskRowAvatarsHtml(bug.reporters)}</td>
-              <td>${taskRowAvatarsHtml(bug.assignees)}</td>
-              <td><strong>${escapeHtml(bug.code)}</strong><br>${escapeHtml(bug.title)}</td>
-              <td>${escapeHtml(projectName(bug.projectId))}</td>
-              <td>${escapeHtml(sprintName(bug.sprintId))}</td>
-              <td>${escapeHtml(bug.status)}</td>
-              <td><span class="pill severity-${escapeAttr(bug.severity)}">${escapeHtml(bug.severity || "")}</span></td>
-              <td><span class="pill priority-${escapeAttr(bug.priority)}">${escapeHtml(bug.priority)}</span></td>
-              <td class="action-cell">${taskButtonsHtml(bug)}</td>
-            </tr>
-          `).join("") || `<tr><td colspan="9"><div class="empty">No bug reports match these filters.</div></td></tr>`}
-        </tbody>
-      </table>
-    </div>
-  `;
-}
-
-function filteredBugReports() {
-  return state.tasks
-    .filter(task => task.taskType === "Bug")
-    .filter(bug => !bugFilters.projectId || bug.projectId === Number(bugFilters.projectId))
-    .filter(bug => !bugFilters.status || bug.status === bugFilters.status)
-    .filter(bug => !bugFilters.priority || bug.priority === bugFilters.priority)
-    .filter(bug => !bugFilters.severity || bug.severity === bugFilters.severity)
-    .filter(bug => !bugFilters.environment || bug.environment === bugFilters.environment)
-    .filter(bug => !bugFilters.reporterIds.length || bug.reporterIds.map(String).some(id => bugFilters.reporterIds.includes(id)))
-    .filter(bug => !bugFilters.assigneeIds.length || bug.assigneeIds.map(String).some(id => bugFilters.assigneeIds.includes(id)))
-    .sort(taskOrderCompare);
-}
-
-function toggleBugVisualCharts() {
-  bugVisualChartsVisible = !bugVisualChartsVisible;
-  writePreference(preferenceKeys.bugVisualChartsVisible, bugVisualChartsVisible);
-  renderBugs();
-}
-
-function toggleBugFilters() {
-  bugFiltersVisible = !bugFiltersVisible;
-  writePreference(preferenceKeys.bugFiltersVisible, bugFiltersVisible);
-  renderBugs();
-}
-
-function toggleTaskVisualCharts() {
-  taskVisualChartsVisible = !taskVisualChartsVisible;
-  writePreference(preferenceKeys.taskVisualChartsVisible, taskVisualChartsVisible);
-  renderTasks();
-}
-
-function toggleTaskFilters() {
-  taskFiltersVisible = !taskFiltersVisible;
-  writePreference(preferenceKeys.taskFiltersVisible, taskFiltersVisible);
-  renderTasks();
-}
-
-function bugVisualTrackingChartsHtml(filteredBugs) {
-  const sprintRows = bugSprintChartRows(filteredBugs);
-  const charts = [
-    bugTrendLineChartHtml(sprintRows),
-    bugSeverityPieChartHtml(filteredBugs),
-    bugReportedResolvedColumnChartHtml(sprintRows),
-    bugCurrentSprintPieChartHtml(filteredBugs)
-  ].filter(Boolean);
-
-  return VisualCharts.panel("Bug Tracking Charts", charts);
-}
-
-function bugCurrentSprintPieChartHtml(filteredBugs) {
-  const currentSprints = bugChartCurrentSprints();
-  const currentSprintIds = new Set(currentSprints.map(sprint => sprint.id));
-  const currentBugs = filteredBugs.filter(bug => currentSprintIds.has(bug.sprintId));
-  const resolvedBugs = currentBugs.filter(isBugResolved);
-  const openBugs = currentBugs.filter(bug => !isBugResolved(bug));
-
-  if (!currentSprints.length) {
-    return VisualCharts.card({
-      title: "Current Sprint Bug Mix",
-      subtitle: "No current Sprint is available for the selected project filter.",
-      body: `<div class="empty compact-empty">No current Sprint was found.</div>`
-    });
-  }
-
-  const items = [
-    bugChartGroupedItem("Resolved", resolvedBugs, "var(--green)", `Resolved: ${resolvedBugs.length} bug report${resolvedBugs.length === 1 ? "" : "s"}`),
-    bugChartGroupedItem("Still Open", openBugs, "var(--amber)", `Still Open: ${openBugs.length} bug report${openBugs.length === 1 ? "" : "s"}`)
-  ].filter(item => item.value > 0);
-
-  return VisualCharts.card({
-    title: "Current Sprint Bug Mix",
-    subtitle: currentSprints.map(sprint => sprint.code).join(", "),
-    body: VisualCharts.pieChart(items, `${currentBugs.length} total`, "No bugs match the current Sprint filter.", { donut: true })
-  });
-}
-
-function bugTrendLineChartHtml(sprintRows) {
-  if (!sprintRows.length) return null;
-
-  return VisualCharts.card({
-    title: "Bug Trend by Sprint",
-    subtitle: "Line graph compares reported versus resolved bugs over time.",
-    body: VisualCharts.lineChart(sprintRows, [
-      { key: "reported", label: "Reported", color: "var(--rose)" },
-      { key: "resolved", label: "Resolved", color: "var(--green)" }
-    ])
-  });
-}
-
-function bugReportedResolvedColumnChartHtml(sprintRows) {
-  if (!sprintRows.length) return null;
-
-  return VisualCharts.card({
-    title: "Reported vs Resolved by Sprint",
-    subtitle: "Grouped column chart shows throughput per Sprint.",
-    body: VisualCharts.columnChart(sprintRows, [
-      { key: "reported", label: "Reported", color: "var(--rose)" },
-      { key: "resolved", label: "Resolved", color: "var(--green)" },
-      { key: "open", label: "Open", color: "var(--amber)" }
-    ])
-  });
-}
-
-function bugSeverityPieChartHtml(filteredBugs) {
-  const items = severities
-    .map(severity => {
-      const bugs = filteredBugs.filter(bug => bug.severity === severity);
-      return bugChartGroupedItem(severity, bugs, bugSeverityColor(severity), `${severity}: ${bugs.length} bug report${bugs.length === 1 ? "" : "s"}`);
-    })
-    .filter(item => item.value > 0);
-
-  if (!items.length) return null;
-
-  return VisualCharts.card({
-    title: "Bug Severity Share",
-    subtitle: "Pie chart shows the severity mix for the current filters.",
-    body: VisualCharts.pieChart(items, `${filteredBugs.length} total`, "No severity data is available.", { donut: false })
-  });
-}
-
-function bugChartGroupedItem(label, bugs, color, tooltip) {
-  const bugIds = bugs.map(bug => bug.id);
-  const actionTarget = bugs.length === 1
-    ? { action: "view-task", id: bugs[0].id }
-    : bugs.length > 1
-      ? { action: "chart-drill-bugs", ids: bugIds.join(","), chartTitle: label }
-      : {};
-  return {
-    label,
-    value: bugs.length,
-    color,
-    tooltip,
-    bugIds,
-    ...actionTarget
-  };
-}
-
-function bugSprintChartRows(filteredBugs) {
-  const rows = new Map();
-
-  filteredBugs.forEach(bug => {
-    const sprintId = Number(bug.sprintId || 0);
-    if (!rows.has(sprintId)) {
-      rows.set(sprintId, {
-        sprintId,
-        label: sprintId ? sprintChartLabel(sprintId) : "No Sprint",
-        reported: 0,
-        resolved: 0,
-        open: 0
-      });
-    }
-
-    const row = rows.get(sprintId);
-    row.reported += 1;
-    if (isBugResolved(bug)) {
-      row.resolved += 1;
-    } else {
-      row.open += 1;
-    }
-  });
-
-  return [...rows.values()].sort((a, b) => {
-    if (!a.sprintId) return 1;
-    if (!b.sprintId) return -1;
-    const sprintA = sprintById(a.sprintId);
-    const sprintB = sprintById(b.sprintId);
-    const aTime = sprintA ? ganttStartDate(sprintA)?.getTime() || 0 : 0;
-    const bTime = sprintB ? ganttStartDate(sprintB)?.getTime() || 0 : 0;
-    return aTime - bTime || a.label.localeCompare(b.label);
-  });
-}
-
-function bugChartCurrentSprints() {
-  const projectIds = bugFilters.projectId
-    ? [Number(bugFilters.projectId)]
-    : state.projects.map(project => project.id);
-
-  return projectIds
-    .map(projectId => currentSprintForProject(state.sprints.filter(sprint => sprint.projectId === projectId)))
-    .filter(Boolean);
-}
-
-function sprintChartLabel(sprintId) {
-  const sprint = sprintById(sprintId);
-  if (!sprint) return "Unknown Sprint";
-  const project = projectById(sprint.projectId);
-  return project ? `${project.code} ${sprint.code}` : sprint.code;
-}
-
-function isBugResolved(bug) {
-  const qaPassedIndex = statuses.indexOf("QA Passed");
-  const bugStatusIndex = statuses.indexOf(bug?.status || "");
-  return qaPassedIndex >= 0 && bugStatusIndex >= qaPassedIndex;
-}
-
-function taskVisualTrackingChartsHtml(devTasks) {
-  const currentSprint = taskChartCurrentSprint();
-  const currentTasks = currentSprint
-    ? devTasks.filter(task => task.sprintId === currentSprint.id)
-    : [];
-  const charts = [
-    taskCurrentSprintPieChartHtml(currentSprint, currentTasks),
-    taskPastSixSprintsColumnChartHtml(devTasks, currentSprint),
-    taskStatusHorizontalChartHtml(currentSprint, currentTasks),
-    taskDeveloperWorkloadChartHtml(currentSprint, currentTasks)
-  ].filter(Boolean);
-
-  return VisualCharts.panel("Dev Task Tracking Charts", charts);
-}
-
-function taskCurrentSprintPieChartHtml(currentSprint, currentTasks) {
-  if (!currentSprint) {
-    return VisualCharts.card({
-      title: "Current Sprint Dev Task Mix",
-      subtitle: "No current Sprint is available for the selected project.",
-      body: `<div class="empty compact-empty">No current Sprint was found.</div>`
-    });
-  }
-
-  const completedTasks = currentTasks.filter(isTaskCompleted);
-  const openTasks = currentTasks.filter(task => !isTaskCompleted(task));
-  const items = [
-    taskChartGroupedItem("Completed", completedTasks, "var(--green)", `Completed: ${completedTasks.length} Dev Task${completedTasks.length === 1 ? "" : "s"}`),
-    taskChartGroupedItem("Still Open", openTasks, "var(--amber)", `Still Open: ${openTasks.length} Dev Task${openTasks.length === 1 ? "" : "s"}`)
-  ].filter(item => item.value > 0);
-
-  return VisualCharts.card({
-    title: "Current Sprint Dev Task Mix",
-    subtitle: currentSprint.code,
-    body: VisualCharts.pieChart(items, `${currentTasks.length} total`, "No Dev Tasks match the current Sprint filter.", { donut: false })
-  });
-}
-
-function taskPastSixSprintsColumnChartHtml(devTasks, currentSprint) {
-  if (!currentSprint) return null;
-
-  const projectSprints = state.sprints
-    .filter(sprint => sprint.projectId === taskProjectId)
-    .sort((a, b) => (ganttStartDate(a)?.getTime() || 0) - (ganttStartDate(b)?.getTime() || 0) || a.code.localeCompare(b.code));
-  const currentIndex = projectSprints.findIndex(sprint => sprint.id === currentSprint.id);
-  const endIndex = currentIndex >= 0 ? currentIndex : projectSprints.length - 1;
-  const sprints = projectSprints.slice(Math.max(0, endIndex - 5), endIndex + 1);
-  const rows = sprints.map(sprint => {
-    const sprintTasks = devTasks.filter(task => task.sprintId === sprint.id);
-    return {
-      sprintId: sprint.id,
-      label: sprint.code,
-      total: sprintTasks.length,
-      completed: sprintTasks.filter(isTaskCompleted).length
-    };
-  }).filter(row => row.total > 0 || row.completed > 0);
-
-  if (!rows.length) return null;
-
-  return VisualCharts.card({
-    title: "Dev Tasks Completed by Sprint",
-    subtitle: "Past 6 Sprints, including the current Sprint.",
-    body: VisualCharts.columnChart(rows, [
-      { key: "total", label: "Dev Tasks", color: "var(--blue)" },
-      { key: "completed", label: "Completed", color: "var(--green)" }
-    ], { itemLabel: "Dev Task" })
-  });
-}
-
-function taskStatusHorizontalChartHtml(currentSprint, currentTasks) {
-  if (!currentSprint) return null;
-
-  const statusItems = statuses
-    .filter(status => !status.toLowerCase().includes("qa") && status.toLowerCase() !== "backlog")
-    .map(status => {
-      const tasks = currentTasks.filter(task => task.status === status);
-      return taskChartGroupedItem(status, tasks, statusColor(status), `${status}: ${tasks.length} Dev Task${tasks.length === 1 ? "" : "s"}`);
-    })
-    .filter(item => item.value > 0);
-
-  return VisualCharts.card({
-    title: "Current Sprint Dev Tasks by Status",
-    subtitle: "QA and Backlog statuses are hidden for this chart.",
-    body: VisualCharts.horizontalBarChart(statusItems, "No non-QA Dev Task statuses are available for the current Sprint.")
-  });
-}
-
-function taskDeveloperWorkloadChartHtml(currentSprint, currentTasks) {
-  if (!currentSprint) return null;
-
-  const rows = state.users.map(user => {
-    const userTasks = currentTasks.filter(task => (task.assigneeIds || []).map(String).includes(String(user.id)));
-    const categories = devTaskWorkloadCategories()
-      .map(category => {
-        const tasks = userTasks.filter(task => devTaskWorkloadCategory(task) === category.label);
-        return taskChartGroupedItem(category.label, tasks, category.color, `${user.nickname} ${category.label}: ${tasks.length} Dev Task${tasks.length === 1 ? "" : "s"}`);
-      })
-      .filter(item => item.value > 0);
-
-    return {
-      user,
-      total: userTasks.length,
-      categories
-    };
-  }).filter(row => row.total > 0);
-
-  return VisualCharts.card({
-    title: "Developer Workload Distribution",
-    subtitle: currentSprint.code,
-    body: developerWorkloadDistributionHtml(rows)
-  });
-}
-
-function developerWorkloadDistributionHtml(rows) {
-  if (!rows.length) return `<div class="empty compact-empty">No assigned Dev Tasks were found for the current Sprint.</div>`;
-
-  const usedCategories = new Set(rows.flatMap(row => row.categories.map(item => item.label)));
-  const legendItems = devTaskWorkloadCategories().filter(category => usedCategories.has(category.label));
-
-  return `
-    <div class="workload-chart">
-      ${rows.map(row => `
-        <div class="workload-row">
-          <div class="workload-person">
-            <img class="avatar" src="${escapeAttr(row.user.avatarUrl || "/assets/avatar-default.svg")}" alt="">
-            <span>${escapeHtml(row.user.nickname)}</span>
-            <b>${row.total}</b>
-          </div>
-          <div class="workload-stack" aria-label="${escapeAttr(row.user.nickname)} workload">
-            ${row.categories.map(item => {
-              const width = Math.max(8, Math.round((item.value / row.total) * 100));
-              const actionAttrs = VisualCharts.chartActionAttributes({ ...item, chartTitle: `${row.user.nickname} ${item.label}` });
-              return `
-                <button type="button" class="workload-segment ${item.action ? "is-clickable" : ""}" style="--value:${width}%; --chart-color:${escapeAttr(item.color)}" ${actionAttrs} data-chart-tooltip="${escapeAttr(item.tooltip)}" title="${escapeAttr(item.tooltip)}">
-                  <span>${item.value}</span>
-                </button>
-              `;
-            }).join("")}
-          </div>
-        </div>
-      `).join("")}
-    </div>
-    ${VisualCharts.legend(legendItems)}
-  `;
-}
-
-function devTaskWorkloadCategories() {
-  return [
-    { label: "Todo", color: "var(--blue)" },
-    { label: "In Progress", color: "var(--teal)" },
-    { label: "Code Complete", color: "var(--green)" },
-    { label: "Ready for QA", color: "var(--amber)" },
-    { label: "QA", color: "var(--rose)" },
-    { label: "Deployed", color: "#c5d35c" }
-  ];
-}
-
-function devTaskWorkloadCategory(task) {
-  if (task.status === "Todo" || task.status === "Backlog") return "Todo";
-  if (task.status === "In Progress") return "In Progress";
-  if (task.status === "Code Complete") return "Code Complete";
-  if (task.status === "Ready for QA") return "Ready for QA";
-  if ((task.status || "").includes("QA")) return "QA";
-  if ((task.status || "").startsWith("Deployed")) return "Deployed";
-  return "In Progress";
-}
-
-function taskChartGroupedItem(label, tasks, color, tooltip) {
-  const taskIds = tasks.map(task => task.id);
-  const actionTarget = tasks.length === 1
-    ? { action: "view-task", id: tasks[0].id }
-    : tasks.length > 1
-      ? { action: "chart-drill-tasks", ids: taskIds.join(","), chartTitle: label }
-      : {};
-
-  return {
-    label,
-    value: tasks.length,
-    color,
-    tooltip,
-    taskIds,
-    ...actionTarget
-  };
-}
-
-function taskChartCurrentSprint() {
-  return currentSprintForProject(state.sprints.filter(sprint => sprint.projectId === taskProjectId));
-}
-
-function bugSeverityColor(severity) {
-  const colors = {
-    Trivial: "#76A9FF",
-    Minor: "#35C7BD",
-    Major: "#E4A53A",
-    Critical: "#EE6B70"
-  };
-  return colors[severity] || "var(--teal)";
 }
 
 function renderDevLogs() {
@@ -1304,16 +609,6 @@ async function handleActionClick(event) {
     if (screen.handleAction && await screen.handleAction(action, id, button)) return;
   }
 
-  if (action === "new-task") editTask();
-  if (action === "new-bug") editBug();
-  if (action === "toggle-task-filters") toggleTaskFilters();
-  if (action === "toggle-task-visual-charts") toggleTaskVisualCharts();
-  if (action === "toggle-bug-filters") toggleBugFilters();
-  if (action === "toggle-bug-visual-charts") toggleBugVisualCharts();
-  if (action === "edit-task") editTask(taskById(id));
-  if (action === "show-task-audit") showTaskAudit(id);
-  if (action === "duplicate-task") await duplicateTask(id);
-  if (action === "delete-task") await deleteItem(`/api/tasks/${id}`, "Delete this task?");
   if (action === "new-log") editDevLog();
   if (action === "edit-log") editDevLog(state.devLogs.find(log => log.id === id));
   if (action === "duplicate-log") await duplicateDevLog(id);
@@ -1377,7 +672,7 @@ function handleChartAction(element, dialogToClose = null) {
 
   if (action === "view-task") {
     closeTransientDialog(dialogToClose);
-    viewTask(taskById(Number(element.dataset.id || 0)));
+    viewWorkItem(taskById(Number(element.dataset.id || 0)), editWorkItem);
     return true;
   }
 
@@ -1647,60 +942,10 @@ function handleFilterChange(event) {
     writePreference(preferenceKeys.ganttSort, ganttSort);
     renderGantt();
   }
-  if (target.dataset.filter === "task-project") {
-    taskProjectId = Number(target.value);
-    taskSprintId = "all";
-    writePreference(preferenceKeys.taskProject, taskProjectId);
-    writePreference(preferenceKeys.taskSprint, taskSprintId);
-    renderTasks();
-  }
-  if (target.dataset.filter === "task-sprint") {
-    taskSprintId = target.value;
-    writePreference(preferenceKeys.taskSprint, taskSprintId);
-    renderTasks();
-  }
-  if (target.dataset.filter === "task-sort") {
-    taskFilters.sort = target.value;
-    saveTaskFilters();
-    renderTasks();
-  }
-  if (target.dataset.filter === "task-hide-completed") {
-    taskFilters.hideCompleted = target.checked;
-    saveTaskFilters();
-    renderTasks();
-  }
-  if (target.dataset.filter === "task-status") {
-    taskFilters.statuses = checkedFilterValues("task-status");
-    saveTaskFilters();
-    renderTasks();
-  }
-  if (target.dataset.filter === "task-priority") {
-    taskFilters.priorities = checkedFilterValues("task-priority");
-    saveTaskFilters();
-    renderTasks();
-  }
-  if (target.dataset.filter === "task-assigned") {
-    taskFilters.assigneeIds = checkedFilterValues("task-assigned");
-    saveTaskFilters();
-    renderTasks();
-  }
   if (target.dataset.filter === "documentation-project") {
     documentationProjectId = Number(target.value || 0);
     writePreference(preferenceKeys.documentationProject, documentationProjectId);
     renderDocumentation();
-  }
-  if (target.dataset.filter?.startsWith("bug-")) {
-    const key = target.dataset.filter.replace("bug-", "");
-    if (key === "project") bugFilters.projectId = target.value;
-    if (key === "status") bugFilters.status = target.value;
-    if (key === "priority") bugFilters.priority = target.value;
-    if (key === "severity") bugFilters.severity = target.value;
-    if (key === "environment") bugFilters.environment = target.value;
-    if (key === "reporter") bugFilters.reporterIds = checkedFilterValues("bug-reporter");
-    if (key === "assignee") bugFilters.assigneeIds = checkedFilterValues("bug-assignee");
-
-    writeJsonPreference(preferenceKeys.bugFilters, bugFilters);
-    renderBugs();
   }
 }
 
@@ -1852,8 +1097,7 @@ async function finishTaskDrag(event) {
     }
 
     if (drop.container.dataset.reorderList === "tasks") {
-      taskFilters.sort = "custom";
-      saveTaskFilters();
+      tasksFeature.useCustomSort();
     }
 
     if (drop.container.dataset.reorderList === "board-column") {
@@ -1953,183 +1197,13 @@ function clearDragStyles() {
   clearDropIndicators();
 }
 
-function editTask(task = {}) {
-  if (task.taskType === "Bug") {
-    editBug(task);
-    return;
-  }
-
-  const projectId = task.projectId || (currentView === "Tasks" ? taskProjectId : boardProjectId) || state.projects[0]?.id;
-  const defaultSprintId = task.sprintId ?? (
-    currentView === "Board"
-      ? selectedBoardSprintId(projectId)
-      : currentView === "Tasks" && taskSprintId !== "all"
-        ? Number(taskSprintId)
-        : ""
-  );
-  const sameProjectTasks = state.tasks.filter(item => item.projectId === projectId && item.id !== task.id);
-  const taskHasSubTasks = Boolean(task.subTasks?.length);
-
-  openEditor(workItemEditorTitle(task, "Dev Task", "New Dev Task"), `
-    <div class="form-grid">
-      ${task.id ? taskAuditPanelHtml(task) : ""}
-      ${selectField("Project", "projectId", state.projects, projectId)}
-      ${field("Title", "title", task.title || "", "text")}
-      ${selectOptionsField("Sprint", "sprintId", [{ id: "", title: "No Sprint" }, ...state.sprints.filter(sprint => sprint.projectId === projectId).map(sprint => ({ id: sprint.id, title: sprint.code }))], defaultSprintId || "")}
-      ${selectOptionsField("Parent Task", "parentTaskId", [{ id: "", title: "No parent" }, ...sameProjectTasks.map(item => ({ id: item.id, title: `${item.code} - ${item.title}` }))], task.parentTaskId || "")}
-      ${selectTextField("Status", "status", lookupOptionsWithCurrent("Status", task.status || "Todo"), task.status || "Todo")}
-      ${selectTextField("Priority", "priority", lookupOptionsWithCurrent("Priority", task.priority || "Low"), task.priority || "Low")}
-      ${taskPercentField(task, taskHasSubTasks)}
-      ${field("Start", "startDate", toDateInput(task.startDate), "date")}
-      ${field("End", "endDate", toDateInput(task.endDate), "date")}
-      ${field("URL", "url", task.url || "", "url")}
-      ${richTextField("descriptionHtml", "Description", task.descriptionHtml || "")}
-      <div class="field full">
-        <label>Attachments</label>
-        <input name="attachments" type="file" multiple>
-        <div class="attachment-preview" data-preview="attachments"></div>
-      </div>
-      <div data-assignee-list></div>
-      ${checkList("Dependencies", "dependencyTaskIds", sameProjectTasks, task.dependencyTaskIds || [], item => `${item.code} ${item.title}`, { className: "scroll-check-list dependency-check-list" })}
-    </div>
-  `, async root => {
-    const status = value(root, "status");
-    const percentCompleted = percentForDevTaskSave(status, numberValue(root, "percentCompleted"));
-    const dependencyTaskIds = checkedNumbers(root, "dependencyTaskIds");
-    validateLinkedBugCompletion(task, percentCompleted, dependencyTaskIds);
-
-    const result = await saveJson(task.id ? `/api/tasks/${task.id}` : "/api/tasks", task.id ? "PUT" : "POST", {
-      id: task.id || 0,
-      projectId: numberValue(root, "projectId"),
-      sprintId: optionalNumberValue(root, "sprintId"),
-      parentTaskId: optionalNumberValue(root, "parentTaskId"),
-      taskType: "Dev",
-      title: value(root, "title"),
-      descriptionHtml: richValue(root, "descriptionHtml"),
-      stepsToReproduceHtml: "",
-      actualResultHtml: "",
-      expectedResultHtml: "",
-      environment: "",
-      severity: "",
-      status,
-      priority: value(root, "priority"),
-      percentCompleted,
-      url: value(root, "url"),
-      startDate: nullableDateValue(root, "startDate"),
-      endDate: nullableDateValue(root, "endDate"),
-      reporterIds: [],
-      assigneeIds: checkedNumbers(root, "assigneeIds"),
-      dependencyTaskIds
-    });
-
-    for (const file of root.querySelector("[name='attachments']").files) {
-      await attachFile(`/api/tasks/${result.id}/attachments`, file);
-    }
-  }, "title", root => bindAssigneeList(root, task.assigneeIds || []));
-}
-
-function editBug(bug = {}) {
-  const projectId = bug.projectId || taskProjectId || boardProjectId || state.projects[0]?.id;
-  const defaultSprintId = bug.sprintId ?? (currentView === "Backlog" ? "" : (taskSprintId !== "all" ? Number(taskSprintId) : selectedBoardSprintId(projectId) || ""));
-  const sameProjectTasks = state.tasks.filter(item => item.projectId === projectId && item.id !== bug.id);
-
-  openEditor(workItemEditorTitle(bug, "Bug", "New Bug Report"), `
-    <div class="form-grid">
-      ${bug.id ? taskAuditPanelHtml(bug) : ""}
-      ${selectField("Project", "projectId", state.projects, projectId)}
-      ${field("Title", "title", bug.title || "", "text")}
-      ${selectOptionsField("Sprint", "sprintId", [{ id: "", title: "No Sprint" }, ...state.sprints.filter(sprint => sprint.projectId === projectId).map(sprint => ({ id: sprint.id, title: sprint.code }))], defaultSprintId || "")}
-      ${selectTextField("Status", "status", lookupOptionsWithCurrent("Status", bug.status || "Todo"), bug.status || "Todo")}
-      ${selectTextField("Environment", "environment", lookupOptionsWithCurrent("Environment", bug.environment || "SIT"), bug.environment || "SIT")}
-      ${selectTextField("Severity", "severity", lookupOptionsWithCurrent("Severity", bug.severity || "Major"), bug.severity || "Major")}
-      ${selectTextField("Priority", "priority", lookupOptionsWithCurrent("Priority", bug.priority || "High"), bug.priority || "High")}
-      ${taskPercentField(bug, false)}
-      ${field("Start", "startDate", toDateInput(bug.startDate), "date")}
-      ${field("End", "endDate", toDateInput(bug.endDate), "date")}
-      ${field("URL", "url", bug.url || "", "url")}
-      ${richTextField("descriptionHtml", "Description", bug.descriptionHtml || "")}
-      ${richTextField("stepsToReproduceHtml", "Steps to Reproduce", bug.stepsToReproduceHtml || "")}
-      ${richTextField("actualResultHtml", "Actual Result", bug.actualResultHtml || "")}
-      ${richTextField("expectedResultHtml", "Expected Result", bug.expectedResultHtml || "")}
-      <div class="field full">
-        <label>Attachments</label>
-        <input name="attachments" type="file" multiple>
-        <div class="attachment-preview" data-preview="attachments"></div>
-      </div>
-      ${checkList("Reporters", "reporterIds", state.users, bug.reporterIds?.length ? bug.reporterIds : [currentUserId], item => item.nickname, { className: "scroll-check-list avatar-check-list", renderItem: userCheckListLabelHtml })}
-      <div data-assignee-list></div>
-      ${checkList("Dependencies", "dependencyTaskIds", sameProjectTasks, bug.dependencyTaskIds || [], item => `${item.code} ${item.title}`, { className: "scroll-check-list dependency-check-list" })}
-    </div>
-  `, async root => {
-    const result = await saveJson(bug.id ? `/api/tasks/${bug.id}` : "/api/tasks", bug.id ? "PUT" : "POST", {
-      id: bug.id || 0,
-      projectId: numberValue(root, "projectId"),
-      sprintId: optionalNumberValue(root, "sprintId"),
-      parentTaskId: null,
-      taskType: "Bug",
-      title: value(root, "title"),
-      descriptionHtml: richValue(root, "descriptionHtml"),
-      stepsToReproduceHtml: richValue(root, "stepsToReproduceHtml"),
-      actualResultHtml: richValue(root, "actualResultHtml"),
-      expectedResultHtml: richValue(root, "expectedResultHtml"),
-      environment: value(root, "environment"),
-      severity: value(root, "severity"),
-      status: value(root, "status"),
-      priority: value(root, "priority"),
-      percentCompleted: percentForStatus(value(root, "status"), numberValue(root, "percentCompleted")),
-      url: value(root, "url"),
-      startDate: nullableDateValue(root, "startDate"),
-      endDate: nullableDateValue(root, "endDate"),
-      reporterIds: checkedNumbers(root, "reporterIds"),
-      assigneeIds: checkedNumbers(root, "assigneeIds"),
-      dependencyTaskIds: checkedNumbers(root, "dependencyTaskIds")
-    });
-
-    for (const file of root.querySelector("[name='attachments']").files) {
-      await attachFile(`/api/tasks/${result.id}/attachments`, file);
-    }
-  }, "title", root => bindAssigneeList(root, bug.assigneeIds || []));
-}
-
-function viewTask(task) {
-  if (!task) return;
-  const dependencyLinks = (task.dependencyTaskIds || [])
-    .map(id => taskById(id))
-    .filter(Boolean)
-    .map(item => `<button type="button" data-action="view-task-inline" data-id="${item.id}">${escapeHtml(item.code)}</button>`)
-    .join(" ");
-
-  showReadOnlyDialog(`${task.taskType === "Bug" ? "Bug Report" : "Dev Task"} ${task.code}`, `
-    <div class="detail-grid">
-      ${detailField("Title", escapeHtml(task.title))}
-      ${detailField("Type", escapeHtml(task.taskType || "Dev"))}
-      ${detailField("Project", escapeHtml(projectName(task.projectId)))}
-      ${detailField("Sprint", escapeHtml(sprintName(task.sprintId)))}
-      ${detailField("Status", escapeHtml(task.status))}
-      ${detailField("Priority", escapeHtml(task.priority))}
-      ${task.taskType === "Bug" ? detailField("Environment", escapeHtml(task.environment || "")) : ""}
-      ${task.taskType === "Bug" ? detailField("Severity", escapeHtml(task.severity || "")) : ""}
-      ${task.taskType === "Bug" ? detailField("Reporter", avatarsHtml(task.reporters)) : ""}
-      ${detailField("Assignee", avatarsHtml(task.assignees))}
-      ${detailField("Percent", `${taskDisplayPercent(task)}%`)}
-      ${task.url ? detailField("URL", `<a href="${escapeAttr(normalizeUrl(task.url))}" target="_blank" rel="noopener noreferrer">${escapeHtml(task.url)}</a>`) : ""}
-      ${dependencyLinks ? detailField("Dependencies", dependencyLinks) : ""}
-      ${detailField("Description", `<div class="rich-readonly">${task.descriptionHtml || ""}</div>`, true)}
-      ${task.taskType === "Bug" ? detailField("Steps to Reproduce", `<div class="rich-readonly">${task.stepsToReproduceHtml || ""}</div>`, true) : ""}
-      ${task.taskType === "Bug" ? detailField("Actual Result", `<div class="rich-readonly">${task.actualResultHtml || ""}</div>`, true) : ""}
-      ${task.taskType === "Bug" ? detailField("Expected Result", `<div class="rich-readonly">${task.expectedResultHtml || ""}</div>`, true) : ""}
-      ${task.attachments.length ? detailField("Attachments", attachmentsHtml(task.attachments), true) : ""}
-    </div>
-  `, task);
-}
-
 function viewSprintSummary(sprint) {
   if (!sprint) return;
 
   const tasks = state.tasks.filter(task => task.sprintId === sprint.id && task.taskType !== "Bug" && !task.parentTaskId);
   const bugs = state.tasks.filter(task => task.sprintId === sprint.id && task.taskType === "Bug");
-  const resolvedBugs = bugs.filter(isBugResolved);
-  const openBugs = bugs.filter(bug => !isBugResolved(bug));
+  const resolvedBugs = bugs.filter(isBugQaPassedOrLater);
+  const openBugs = bugs.filter(bug => !isBugQaPassedOrLater(bug));
   const bugLinks = bugs
     .sort(taskOrderCompare)
     .map(bug => `<button type="button" data-action="view-task-inline" data-id="${bug.id}">${escapeHtml(bug.code)} - ${escapeHtml(bug.title)}</button>`)
@@ -2146,75 +1220,6 @@ function viewSprintSummary(sprint) {
       ${bugs.length ? detailField("Bugs", `<div class="inline-link-list">${bugLinks}</div>`, true) : ""}
     </div>
   `);
-}
-
-function showTaskAudit(taskId) {
-  const task = taskById(taskId);
-  if (!task) return;
-
-  const audits = (state.auditEvents || [])
-    .filter(audit => audit.entityType === "Task" && audit.entityId === taskId)
-    .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt) || b.id - a.id);
-
-  const modal = document.createElement("dialog");
-  modal.className = "dialog detail-dialog audit-dialog";
-  modal.innerHTML = `
-    <div class="dialog-head">
-      <h2>Audit Log - ${escapeHtml(task.code)}</h2>
-      <button type="button" class="icon-btn" data-close title="Close">x</button>
-    </div>
-    <div class="dialog-body">
-      ${audits.length ? `
-        <table class="table audit-table">
-          <thead>
-            <tr>
-              <th>When</th>
-              <th>User</th>
-              <th>Action</th>
-              <th>Status</th>
-              <th>Percent</th>
-              <th>Details</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${audits.map(audit => `
-              <tr>
-                <td>${escapeHtml(formatDateTime(audit.createdAt))}</td>
-                <td>${escapeHtml(userById(audit.userId)?.nickname || "User")}</td>
-                <td>${escapeHtml(audit.action)}</td>
-                <td>${auditChangeHtml(audit.oldStatus, audit.newStatus)}</td>
-                <td>${auditPercentHtml(audit.oldPercentCompleted, audit.newPercentCompleted)}</td>
-                <td>${escapeHtml(audit.details || "")}</td>
-              </tr>
-            `).join("")}
-          </tbody>
-        </table>
-      ` : `<div class="empty">No audit entries have been recorded for this item yet.</div>`}
-    </div>
-    <div class="dialog-actions">
-      <button type="button" class="primary text-icon-button" data-close>${buttonContent("&#10003;", "Close")}</button>
-    </div>
-  `;
-
-  document.body.appendChild(modal);
-  modal.querySelectorAll("[data-close]").forEach(button => button.addEventListener("click", () => {
-    modal.close();
-    modal.remove();
-  }));
-  modal.addEventListener("cancel", () => modal.remove());
-  modal.showModal();
-}
-
-function auditChangeHtml(oldValue, newValue) {
-  if (!oldValue && !newValue) return `<span class="muted">No change</span>`;
-  return `<span class="audit-change">${escapeHtml(oldValue || "None")} <b>&rarr;</b> ${escapeHtml(newValue || "None")}</span>`;
-}
-
-function auditPercentHtml(oldValue, newValue) {
-  if (oldValue == null && newValue == null) return `<span class="muted">No change</span>`;
-  const oldText = oldValue == null ? "None" : `${oldValue}%`;
-  const newText = newValue == null ? "None" : `${newValue}%`;
-  return `<span class="audit-change">${escapeHtml(oldText)} <b>&rarr;</b> ${escapeHtml(newText)}</span>`;
 }
 
 function viewDocumentation(blog) {
@@ -2263,7 +1268,7 @@ function viewDocumentation(blog) {
   normalizeLinksInElement(modal);
 }
 
-function showReadOnlyDialog(title, html, task = null) {
+function showReadOnlyDialog(title, html) {
   const modal = document.createElement("dialog");
   modal.className = "dialog detail-dialog";
   modal.innerHTML = `
@@ -2273,8 +1278,6 @@ function showReadOnlyDialog(title, html, task = null) {
     </div>
     <div class="dialog-body">${html}</div>
     <div class="dialog-actions">
-      ${task ? `<button type="button" class="secondary text-icon-button" data-action="show-task-audit" data-id="${task.id}">${buttonContent("&#128221;", "Audit")}</button>` : ""}
-      ${task ? `<button type="button" class="secondary text-icon-button" data-edit-readonly-task="${task.id}" ${canEditTask(task) ? "" : "disabled"}>${buttonContent("&#9998;", "Edit")}</button>` : ""}
       <button type="button" class="primary text-icon-button" data-close>${buttonContent("&#10003;", "Close")}</button>
     </div>
   `;
@@ -2285,30 +1288,11 @@ function showReadOnlyDialog(title, html, task = null) {
     modal.remove();
   }));
   modal.addEventListener("click", event => {
-    const auditButton = event.target.closest("[data-action='show-task-audit']");
-    if (auditButton) {
-      showTaskAudit(Number(auditButton.dataset.id));
-      return;
-    }
-
-    const editButton = event.target.closest("[data-edit-readonly-task]");
-    if (editButton) {
-      const selectedTask = taskById(Number(editButton.dataset.editReadonlyTask));
-      modal.close();
-      modal.remove();
-      if (selectedTask?.taskType === "Bug") {
-        editBug(selectedTask);
-      } else {
-        editTask(selectedTask);
-      }
-      return;
-    }
-
     const inlineButton = event.target.closest("[data-action='view-task-inline']");
     if (!inlineButton) return;
     modal.close();
     modal.remove();
-    viewTask(taskById(Number(inlineButton.dataset.id)));
+    viewWorkItem(taskById(Number(inlineButton.dataset.id)), editWorkItem);
   });
   modal.addEventListener("cancel", () => modal.remove());
   modal.showModal();
@@ -2389,13 +1373,6 @@ function editPassword() {
   });
 }
 
-function workItemEditorTitle(item, itemType, newTitle) {
-  if (!item?.id) return newTitle;
-  const code = item.code ? ` ${item.code}` : "";
-  const title = item.title ? `: ${item.title}` : "";
-  return `${itemType}${code}${title}`;
-}
-
 function openEditor(title, html, saveAction, focusName = "", afterOpen = null) {
   dialogTitle.textContent = title;
   dialogBody.innerHTML = html;
@@ -2473,16 +1450,6 @@ function bindTaskPercentRules(root) {
 
   status.addEventListener("change", applyPercentRule);
   applyPercentRule();
-}
-
-function bindAttachmentPreview(root) {
-  root.querySelectorAll("input[type='file']").forEach(input => {
-    input.addEventListener("change", () => {
-      const preview = input.closest(".field")?.querySelector("[data-preview]");
-      if (!preview) return;
-      preview.innerHTML = [...input.files].map(filePreviewHtml).join("");
-    });
-  });
 }
 
 function bindAuditButtons(root) {
@@ -2660,14 +1627,19 @@ async function updateTaskStatus(task, status, renderAfter = true) {
   }
 }
 
+function editWorkItem(task) {
+  if (task?.taskType === "Bug") {
+    bugsFeature.edit(task);
+  } else {
+    tasksFeature.edit(task || {});
+  }
+}
+
 function gotoTask(id) {
   const task = taskById(id);
   if (!task) return;
-  taskProjectId = task.projectId;
-  taskSprintId = String(task.sprintId || "all");
+  tasksFeature.selectContext(task.projectId, String(task.sprintId || "all"));
   navigate("Tasks");
-  writePreference(preferenceKeys.taskProject, taskProjectId);
-  writePreference(preferenceKeys.taskSprint, taskSprintId);
   render();
 }
 
@@ -2680,7 +1652,7 @@ function openTaskReadMode(id) {
   if (!task) return;
 
   gotoTask(id);
-  viewTask(task);
+  viewWorkItem(task, editWorkItem);
 }
 
 function viewProjectSprints(projectId) {
@@ -2702,11 +1674,8 @@ function viewSprintTasks(sprintId) {
   const sprint = sprintById(sprintId);
   if (!sprint) return;
 
-  taskProjectId = sprint.projectId;
-  taskSprintId = String(sprint.id);
+  tasksFeature.selectContext(sprint.projectId, String(sprint.id));
   navigate("Tasks");
-  writePreference(preferenceKeys.taskProject, taskProjectId);
-  writePreference(preferenceKeys.taskSprint, taskSprintId);
   render();
 }
 
@@ -3830,42 +2799,6 @@ function toggleGanttTaskBugs(taskId) {
   renderGantt({ restoreScroll: scrollPosition, skipStopFlyBy: true });
 }
 
-function taskButtonsHtml(task) {
-  const canEdit = canEditTask(task);
-  return `
-    ${iconButton("delete-task", task.id, "Delete", "delete", canEdit, "danger")}
-    ${iconButton("duplicate-task", task.id, "Duplicate", "duplicate", canEdit)}
-    ${iconButton("show-task-audit", task.id, "Audit Log", "audit", true)}
-    ${iconButton("view-task", task.id, "View", "view", true)}
-    ${iconButton("edit-task", task.id, "Edit", "edit", canEdit)}
-  `;
-}
-
-function taskAuditPanelHtml(task) {
-  return `
-    <div class="field full audit-editor-row">
-      <button type="button" class="icon-action" data-action="show-task-audit" data-id="${task.id}" title="Audit Log" aria-label="Audit Log">&#128221;</button>
-    </div>
-  `;
-}
-
-function bugFixIconHtml(task) {
-  if (task.taskType === "Bug" || !task.linkedBugTaskId) return "";
-  return `<span class="bug-fix-icon" title="Bug Fix">&#128027;</span>`;
-}
-
-function taskPercentField(task, isLocked) {
-  const percent = taskDisplayPercent({ ...task, subTasks: isLocked ? task.subTasks : [] });
-
-  return `
-    <div class="field">
-      <label>Percent</label>
-      <input name="percentCompleted" type="number" min="0" max="100" value="${escapeAttr(percent)}" ${isLocked ? `disabled data-locked="true"` : ""}>
-      ${isLocked ? `<small class="field-note">Calculated from sub-tasks.</small>` : ""}
-    </div>
-  `;
-}
-
 function refreshLookupOptions() {
   statuses = lookupValues("Status", fallbackStatuses);
   priorities = lookupValues("Priority", fallbackPriorities);
@@ -3890,68 +2823,6 @@ function lookupOptionsWithCurrent(type, currentValue) {
   const options = lookupValues(type, fallbackForLookup(type));
   if (currentValue && !options.includes(currentValue)) return [...options, currentValue];
   return options;
-}
-
-function saveTaskFilters() {
-  writeJsonPreference(preferenceKeys.taskFilters, taskFilters);
-}
-
-function bindAssigneeList(root, initialSelectedIds) {
-  const projectSelect = root.querySelector("[name='projectId']");
-  const sprintSelect = root.querySelector("[name='sprintId']");
-  const container = root.querySelector("[data-assignee-list]");
-  if (!projectSelect || !container) return;
-
-  let firstRender = true;
-  const renderAssignees = () => {
-    const selectedIds = firstRender ? initialSelectedIds : checkedNumbers(root, "assigneeIds");
-    firstRender = false;
-    container.innerHTML = checkListOrEmpty(
-      "Assignees",
-      "assigneeIds",
-      allowedAssigneeUsers(Number(projectSelect.value), sprintSelect?.value || ""),
-      selectedIds,
-      "Only project or Sprint members can be assigned.",
-      { className: "scroll-check-list avatar-check-list", renderItem: userCheckListLabelHtml }
-    );
-  };
-
-  projectSelect.addEventListener("change", () => {
-    refreshSprintOptions(root, Number(projectSelect.value));
-    renderAssignees();
-  });
-  sprintSelect?.addEventListener("change", renderAssignees);
-  renderAssignees();
-}
-
-function refreshSprintOptions(root, projectId) {
-  const sprintSelect = root.querySelector("[name='sprintId']");
-  if (!sprintSelect) return;
-
-  const selectedSprintId = Number(sprintSelect.value || 0);
-  const projectSprints = state.sprints.filter(sprint => sprint.projectId === projectId);
-  const selectedSprintStillValid = projectSprints.some(sprint => sprint.id === selectedSprintId);
-  const nextSelectedId = selectedSprintStillValid ? selectedSprintId : "";
-
-  sprintSelect.innerHTML = [
-    `<option value="">No Sprint</option>`,
-    ...projectSprints.map(sprint => `<option value="${sprint.id}" ${String(sprint.id) === String(nextSelectedId) ? "selected" : ""}>${escapeHtml(sprint.code)}</option>`)
-  ].join("");
-}
-
-function projectMemberUsers(projectId) {
-  const memberIds = new Set(projectById(projectId)?.memberIds || []);
-  return state.users.filter(user => memberIds.has(user.id));
-}
-
-function sprintMemberUsers(sprintId) {
-  const memberIds = new Set(sprintById(Number(sprintId))?.developerIds || []);
-  return state.users.filter(user => memberIds.has(user.id));
-}
-
-function allowedAssigneeUsers(projectId, sprintId) {
-  if (sprintId) return sprintMemberUsers(sprintId);
-  return projectMemberUsers(projectId);
 }
 
 function selectedBoardSprintId(projectId) {
