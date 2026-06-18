@@ -6,12 +6,13 @@ This document maps the current application and the intended file boundaries for 
 
 PMT is a single ASP.NET Core .NET 6 web application:
 
-1. `wwwroot/index.html` defines the shell, applies the saved theme before CSS loads, and loads `wwwroot/styles.css` and `wwwroot/app.js`.
-2. `wwwroot/app.js` owns startup, browser state, API calls, navigation, every screen, dialogs, charts, filters, drag/drop, timeline calculations, and shared helpers.
-3. `Program.cs` configures middleware, static/uploaded files, 37 minimal API routes, JSON behavior, and the SPA fallback.
-4. `Models/PmtModels.cs` contains the API DTOs and request models.
-5. `Data/SqlPmtStore.cs` calls `[pmt]` stored procedures through ADO.NET, maps `[pmt].[GetAppState]`, hydrates relationships, and calculates project/Sprint metrics.
-6. `Sql/01_CreateDatabase.sql`, `Sql/02_CreateStoredProcedures.sql`, and the seed scripts define and populate SQL Server objects under `[pmt]`.
+1. `wwwroot/index.html` defines the shell, applies the saved theme before CSS loads, and loads `wwwroot/styles.css` and `wwwroot/js/app.js`.
+2. `wwwroot/js/app.js` is a native ES module and still owns startup, browser state, API calls, navigation, every screen, dialogs, charts, filters, drag/drop, timeline calculations, and shared helpers.
+3. `wwwroot/js/core/screen-registry.js` lists every current screen and identifies which screens appear in the top navigation.
+4. `Program.cs` configures middleware, static/uploaded files, 37 minimal API routes, JSON behavior, and the SPA fallback.
+5. `Models/PmtModels.cs` contains the API DTOs and request models.
+6. `Data/SqlPmtStore.cs` calls `[pmt]` stored procedures through ADO.NET, maps `[pmt].[GetAppState]`, hydrates relationships, and calculates project/Sprint metrics.
+7. `Sql/01_CreateDatabase.sql`, `Sql/02_CreateStoredProcedures.sql`, and the seed scripts define and populate SQL Server objects under `[pmt]`.
 
 The main read flow is:
 
@@ -71,6 +72,17 @@ wwwroot/
 ```
 
 The entry module composes startup and the screen registry. `core` owns application-wide infrastructure, `shared` owns reusable pure logic, `components` owns reusable UI builders, and each feature owns its rendering, actions, filters, preferences, and feature-only calculations.
+
+## Frontend scaffold established in Phase 03
+
+The native-module scaffold now exists under `wwwroot/js/`:
+
+- `app.js` remains the single implementation entry point so behavior is unchanged.
+- `core/screen-registry.js` is the first extracted core module and lists Dashboard, Road Map, Gantt, Kanban Board, Projects, Sprints, Dev Tasks, Bug Tracking, Scrum, Documentation, Backlog, and Settings.
+- `shared/` and `components/` are present as empty ownership boundaries for later phases.
+- `features/` contains placeholder folders for `dashboard`, `roadmap`, `gantt`, `board`, `projects`, `sprints`, `tasks`, `bugs`, `scrum`, `documentation`, `backlog`, and `settings`.
+
+No screen rendering, API behavior, state, event handling, or CSS was extracted in this phase.
 
 ## Target backend layout
 

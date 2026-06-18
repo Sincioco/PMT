@@ -1,3 +1,5 @@
+import { screenRegistry } from "./core/screen-registry.js";
+
 const fallbackStatuses = [
   "Backlog",
   "Todo",
@@ -20,7 +22,9 @@ let statuses = [...fallbackStatuses];
 let priorities = [...fallbackPriorities];
 let severities = [...fallbackSeverities];
 let environments = [...fallbackEnvironments];
-const views = ["Dashboard", "Road Map", "Gantt", "Board", "Projects", "Sprints", "Tasks", "Bugs", "Scrum", "Documentation", "Backlog"];
+const views = screenRegistry
+  .filter(screen => screen.showInNavigation)
+  .map(screen => screen.view);
 
 let state = { users: [], projects: [], sprints: [], tasks: [], devLogs: [], blogs: [], auditEvents: [], lookups: [], holidays: [] };
 let currentView = localStorage.getItem("pmt-view") || "Dashboard";
