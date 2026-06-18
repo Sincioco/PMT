@@ -7,7 +7,7 @@ This document maps the current application and the intended file boundaries for 
 PMT is a single ASP.NET Core .NET 6 web application:
 
 1. `wwwroot/index.html` defines the HTML shell, applies the saved theme through `core/preferences.js` before rendering, and loads `wwwroot/styles.css` and `wwwroot/js/app.js`.
-2. `wwwroot/js/app.js` composes the application shell with the current screen implementation. It still owns screen-specific rendering, dialogs, charts, filters, drag/drop, timeline calculations, and shared helpers that will move in later phases.
+2. `wwwroot/js/app.js` composes the application shell with the current screen implementation. It still owns screen-specific rendering, actions, drag/drop, and advanced timeline calculations; reusable helpers and UI builders now live under `shared/` and `components/`.
 3. `wwwroot/js/core/` owns application-wide browser infrastructure: HTTP requests, state, preferences, authentication, routing, startup, navigation, theme, and user-menu wiring.
 4. `Program.cs` configures middleware, static/uploaded files, 37 minimal API routes, JSON behavior, and the SPA fallback.
 5. `Models/PmtModels.cs` contains the API DTOs and request models.
@@ -86,7 +86,20 @@ The frontend entry module now depends on focused native ES modules:
 - `core/screen-registry.js` remains the authoritative list of Dashboard, Road Map, Gantt, Kanban Board, Projects, Sprints, Dev Tasks, Bug Tracking, Scrum, Documentation, Backlog, and Settings.
 - `app.js` supplies screen event handlers and the current screen renderer to the application shell; screen-specific code has not moved.
 
-`shared/`, `components/`, and the placeholder feature folders remain ownership boundaries for later phases. Endpoint URLs, payloads, screen markup, CSS classes, and preference key names are unchanged.
+## Shared utilities and components established in Phase 05
+
+Reusable frontend logic now has stable native ES module homes:
+
+- `shared/constants.js` owns fallback lookup values and the linked-Bug completion message.
+- `shared/dates.js` owns reusable date formatting and date-key/range helpers used across Road Map, Gantt, Scrum, Settings, and Documentation.
+- `shared/filter-values.js` owns saved filter value normalization.
+- `shared/permissions.js` owns browser permission checks for owners, work items, and users.
+- `shared/selectors.js` owns state selectors and display names for Projects, Sprints, Tasks, and Users.
+- `shared/text-and-links.js` owns HTML/attribute escaping, rich-text link normalization, text linkification, URL normalization, and plain-text extraction.
+- `shared/work-item-rules.js` owns status-based percent calculations, project/Sprint rollups, task completion checks, and linked-Bug completion validation.
+- `components/attachments.js`, `avatars.js`, `buttons.js`, `charts.js`, `dialogs.js`, `filters.js`, `forms.js`, and `progress-and-status.js` own reusable markup builders while preserving existing CSS classes and HTML output.
+
+The feature folders remain placeholder ownership boundaries for later phases. Endpoint URLs, payloads, screen markup, CSS classes, and preference key names are unchanged.
 
 The current frontend dependency flow is:
 
@@ -100,7 +113,7 @@ The current frontend dependency flow is:
 
 `router -> preferences/screen registry`
 
-`app screen code -> api/store/authentication/router/preferences`
+`app screen code -> components/shared/api/store/authentication/router/preferences`
 
 ## Target backend layout
 

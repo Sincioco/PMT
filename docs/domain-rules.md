@@ -19,6 +19,7 @@ The default status order is:
 11. Deployed in Prod
 
 Active lookup rows can provide labels/colors, but code relies on the workflow meaning and ordering above.
+Browser-side status and percent calculations are centralized in `wwwroot/js/shared/work-item-rules.js`; progress and status markup is centralized in `wwwroot/js/components/progress-and-status.js`.
 
 - Saving `Backlog` stores an unscheduled `Todo` and clears the Sprint.
 - Assigning a new or previously unscheduled Dev Task to a Sprint sets it to `Todo`.
@@ -70,6 +71,7 @@ Roles are `Admin`, `Developer`, and `QA`.
 - Attachment permission follows the owning task type or Documentation ownership.
 
 Browser permission checks control available actions, while `[pmt].[IsAdmin]`, `[pmt].[CanEdit]`, `[pmt].[UserRole]`, and `[pmt].[CanEditTaskType]` enforce the database contract.
+Browser permission checks live in `wwwroot/js/shared/permissions.js` so screens and future feature modules share the same owner, user, and work-item role logic.
 
 ## Sprint lifecycle
 
@@ -99,4 +101,5 @@ Keep key names and defaults stable during refactoring. Clearing PMT preferences 
 
 - Gantt hides weekends and active configured holidays unless the user enables non-working days or an item starts on that date.
 - User-entered and external links are normalized and open in a new tab.
+- Browser link normalization, linkification, and escaping live in `wwwroot/js/shared/text-and-links.js`.
 - Status, percent, Sprint, assignment, attachment, and other significant changes are audited.

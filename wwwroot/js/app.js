@@ -1,4 +1,33 @@
 import { api } from "./core/api.js";
+import { attachmentsHtml, filePreviewHtml } from "./components/attachments.js";
+import { avatarsHtml, taskRowAvatarsHtml } from "./components/avatars.js";
+import { buttonContent, funnelIconHtml, iconButton } from "./components/buttons.js";
+import { VisualCharts } from "./components/charts.js";
+import { askFinishSprintOptions, askForText, askYesNo } from "./components/dialogs.js";
+import { checkedFilterValues, filterCheckList, filterSelect } from "./components/filters.js";
+import {
+  checkList,
+  checkListOrEmpty,
+  colorField,
+  field,
+  richTextField,
+  selectField,
+  selectOptionsField,
+  selectTextField,
+  userCheckListLabelHtml
+} from "./components/forms.js";
+import {
+  configureProgressAndStatus,
+  defaultStatusColor,
+  progressHtml,
+  projectOverallProgressHtml,
+  projectStatusMetricsHtml,
+  sprintOverallProgressHtml,
+  sprintStatusMetricsHtml,
+  statusColor,
+  statusLegendHtml,
+  thinProgressHtml
+} from "./components/progress-and-status.js";
 import { createApplicationShell } from "./core/application-shell.js";
 import {
   currentUser,
@@ -20,25 +49,54 @@ import {
   savedViewPreference
 } from "./core/router.js";
 import { state } from "./core/store.js";
-
-const fallbackStatuses = [
-  "Backlog",
-  "Todo",
-  "In Progress",
-  "Code Complete",
-  "Ready for QA",
-  "QA in Progress",
-  "QA Failed",
-  "QA Passed",
-  "Deployed in SIT",
-  "Deployed in UAT",
-  "Deployed in Prod"
-];
-
-const fallbackPriorities = ["Lowest", "Low", "Medium", "High", "Highest"];
-const fallbackSeverities = ["Trivial", "Minor", "Major", "Critical"];
-const fallbackEnvironments = ["local", "Dev", "SIT", "UAT", "Production"];
-const linkedBugCompletionMessage = "You cannot mark this task as complete until the associated bug is marked as QA Passed.  Once QA has re-tested the bug and passed it, the completion of your Dev Task will be set to 100%.";
+import {
+  fallbackEnvironments,
+  fallbackForLookup,
+  fallbackPriorities,
+  fallbackSeverities,
+  fallbackStatuses
+} from "./shared/constants.js";
+import {
+  dateKey,
+  dateRange,
+  dateRangeLabel,
+  documentationDateLine,
+  documentationWasEdited,
+  formatDate,
+  formatDateTime,
+  monthName,
+  normalizeDate,
+  toDateInput
+} from "./shared/dates.js";
+import { normalizeSavedArray } from "./shared/filter-values.js";
+import { canEditOwner, canEditTask, canEditUser } from "./shared/permissions.js";
+import {
+  projectById,
+  projectCode,
+  projectName,
+  sprintById,
+  sprintName,
+  taskById,
+  userById
+} from "./shared/selectors.js";
+import {
+  escapeAttr,
+  escapeHtml,
+  linkifyTextNodes,
+  normalizeLinksInElement,
+  normalizeRichHtml,
+  normalizeUrl
+} from "./shared/text-and-links.js";
+import {
+  averageWorkItemPercent,
+  configureWorkItemRules,
+  isTaskCompleted,
+  percentForDevTaskSave,
+  percentForStatus,
+  sprintOverallPercent,
+  taskDisplayPercent,
+  validateLinkedBugCompletion
+} from "./shared/work-item-rules.js";
 let statuses = [...fallbackStatuses];
 let priorities = [...fallbackPriorities];
 let severities = [...fallbackSeverities];
@@ -100,6 +158,16 @@ let projectCollapsedIds = new Set();
 let sprintCollapsedIds = new Set();
 let chartTooltip = null;
 
+configureWorkItemRules({
+  getStatuses: () => statuses,
+  getTasks: () => state.tasks
+});
+configureProgressAndStatus({
+  getStatuses: () => statuses,
+  getLookups: () => state.lookups,
+  getTasks: () => state.tasks
+});
+
 taskFilters.statuses = normalizeSavedArray(taskFilters.statuses);
 taskFilters.assigneeIds = normalizeSavedArray(taskFilters.assigneeIds);
 taskFilters.priorities = normalizeSavedArray(taskFilters.priorities);
@@ -154,18 +222,6 @@ function bindScreenEvents() {
 
 async function loadState() {
   return shell.reloadState();
-}
-
-function buttonContent(icon, label) {
-  return `<span class="button-icon" aria-hidden="true">${icon}</span><span>${escapeHtml(label)}</span>`;
-}
-
-function funnelIconHtml() {
-  return `
-    <svg class="button-svg-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-      <path d="M4 5h16l-6.5 7.5V18l-3 1.5v-7L4 5z"></path>
-    </svg>
-  `;
 }
 
 function render() {
@@ -1116,244 +1172,6 @@ function bugSeverityColor(severity) {
   };
   return colors[severity] || "var(--teal)";
 }
-
-const VisualCharts = {
-  panel(title, charts) {
-    return `
-      <div class="panel chart-panel visual-chart-panel">
-        <div class="chart-panel-head">
-          <div>
-            <h2>${escapeHtml(title)}</h2>
-            <p>Pie, line, column, and bar visuals using only HTML, CSS, and JavaScript.</p>
-          </div>
-        </div>
-        <div class="chart-grid visual-chart-grid">
-          ${charts.join("")}
-        </div>
-      </div>
-    `;
-  },
-
-  card(chart) {
-    return `
-      <section class="chart-card visual-chart-card">
-        <div class="chart-card-head">
-          <div>
-            <h2>${escapeHtml(chart.title)}</h2>
-            ${chart.subtitle ? `<p>${escapeHtml(chart.subtitle)}</p>` : ""}
-          </div>
-          <button class="icon-action chart-expand-button" type="button" data-action="expand-visual-chart" title="Expand chart" aria-label="Expand chart">&#10530;</button>
-        </div>
-        ${chart.body}
-      </section>
-    `;
-  },
-
-  pieChart(items, centerText, emptyText, options = {}) {
-    if (!items.length) return `<div class="empty compact-empty">${escapeHtml(emptyText)}</div>`;
-
-    const total = items.reduce((sum, item) => sum + item.value, 0);
-    if (!total) return `<div class="empty compact-empty">${escapeHtml(emptyText)}</div>`;
-
-    const donut = options.donut !== false;
-    const center = 90;
-    const outerRadius = 82;
-    const innerRadius = donut ? 46 : 0;
-    let start = 0;
-    const slices = items.map((item, index) => {
-      const sweep = (item.value / total) * 360;
-      const end = index === items.length - 1 ? 360 : start + sweep;
-      const tooltip = item.tooltip || `${item.label}: ${item.value}`;
-      const actionAttrs = this.chartActionAttributes(item);
-      const interactiveClass = item.action ? " is-clickable" : "";
-      const commonAttrs = `class="pie-chart-slice${interactiveClass}" style="--chart-color:${escapeAttr(item.color)}" data-chart-tooltip="${escapeAttr(tooltip)}" ${actionAttrs}`;
-      const sliceHtml = !donut && end - start >= 359.99
-        ? `<circle ${commonAttrs} cx="${center}" cy="${center}" r="${outerRadius}"><title>${escapeHtml(tooltip)}</title></circle>`
-        : `<path ${commonAttrs} d="${this.pieSlicePath(center, center, outerRadius, innerRadius, start, Math.min(end, 359.99))}"><title>${escapeHtml(tooltip)}</title></path>`;
-      start = end;
-      return sliceHtml;
-    }).join("");
-
-    return `
-      <div class="pie-chart-layout">
-        <div class="pie-chart ${donut ? "is-donut" : "is-filled"}" data-chart-tooltip="${escapeAttr(centerText)}">
-          <svg class="pie-chart-svg" viewBox="0 0 180 180" role="img" aria-label="${escapeAttr(centerText)}">
-            ${slices}
-            ${donut ? `<circle class="pie-chart-hole" cx="${center}" cy="${center}" r="${innerRadius - 2}"></circle>` : ""}
-            <text class="pie-chart-center-text" x="${center}" y="${center}">${escapeHtml(centerText)}</text>
-          </svg>
-        </div>
-        <div class="chart-legend-list">
-          ${items.map(item => this.legendItem(item, total)).join("")}
-        </div>
-      </div>
-    `;
-  },
-
-  piePoint(cx, cy, radius, degrees) {
-    const radians = (degrees - 90) * Math.PI / 180;
-    return {
-      x: this.chartNumber(cx + radius * Math.cos(radians)),
-      y: this.chartNumber(cy + radius * Math.sin(radians))
-    };
-  },
-
-  pieSlicePath(cx, cy, outerRadius, innerRadius, startDegrees, endDegrees) {
-    const outerStart = this.piePoint(cx, cy, outerRadius, startDegrees);
-    const outerEnd = this.piePoint(cx, cy, outerRadius, endDegrees);
-    const largeArc = endDegrees - startDegrees > 180 ? 1 : 0;
-
-    if (!innerRadius) {
-      return `M ${cx} ${cy} L ${outerStart.x} ${outerStart.y} A ${outerRadius} ${outerRadius} 0 ${largeArc} 1 ${outerEnd.x} ${outerEnd.y} Z`;
-    }
-
-    const innerStart = this.piePoint(cx, cy, innerRadius, startDegrees);
-    const innerEnd = this.piePoint(cx, cy, innerRadius, endDegrees);
-    return `M ${outerStart.x} ${outerStart.y} A ${outerRadius} ${outerRadius} 0 ${largeArc} 1 ${outerEnd.x} ${outerEnd.y} L ${innerEnd.x} ${innerEnd.y} A ${innerRadius} ${innerRadius} 0 ${largeArc} 0 ${innerStart.x} ${innerStart.y} Z`;
-  },
-
-  chartNumber(value) {
-    return Number(value).toFixed(2).replace(/\.?0+$/, "");
-  },
-
-  chartActionAttributes(item) {
-    if (!item.action) return "";
-
-    const attrs = [
-      `data-action="${escapeAttr(item.action)}"`,
-      item.id ? `data-id="${escapeAttr(item.id)}"` : "",
-      item.ids ? `data-ids="${escapeAttr(item.ids)}"` : "",
-      item.chartTitle ? `data-chart-title="${escapeAttr(item.chartTitle)}"` : ""
-    ].filter(Boolean);
-
-    return attrs.join(" ");
-  },
-
-  lineChart(rows, series) {
-    const chartWidth = Math.max(620, rows.length * 72);
-    const chartHeight = 260;
-    const padding = { left: 42, right: 28, top: 22, bottom: 56 };
-    const plotWidth = chartWidth - padding.left - padding.right;
-    const plotHeight = chartHeight - padding.top - padding.bottom;
-    const maxValue = Math.max(1, ...rows.flatMap(row => series.map(item => row[item.key] || 0)));
-    const xStep = rows.length > 1 ? plotWidth / (rows.length - 1) : 0;
-    const yFor = value => padding.top + plotHeight - ((value || 0) / maxValue) * plotHeight;
-    const xFor = index => rows.length > 1 ? padding.left + (index * xStep) : padding.left + (plotWidth / 2);
-
-    const gridLines = [0, 0.25, 0.5, 0.75, 1].map(step => {
-      const y = padding.top + plotHeight - (plotHeight * step);
-      const label = Math.round(maxValue * step);
-      return `
-        <line class="line-chart-gridline" x1="${padding.left}" y1="${y}" x2="${chartWidth - padding.right}" y2="${y}"></line>
-        <text class="line-chart-axis-label" x="8" y="${y + 4}">${label}</text>
-      `;
-    }).join("");
-
-    return `
-      <div class="visual-chart-scroll">
-        <svg class="line-chart" viewBox="0 0 ${chartWidth} ${chartHeight}" width="${chartWidth}" height="${chartHeight}" role="img" aria-label="Bug trend line graph">
-          ${gridLines}
-          ${series.map(item => {
-            const points = rows.map((row, index) => `${xFor(index)},${yFor(row[item.key])}`).join(" ");
-            return `<polyline class="line-chart-path" points="${points}" style="--chart-color:${escapeAttr(item.color)}"></polyline>`;
-          }).join("")}
-          ${rows.map((row, index) => {
-            const label = rows.length > 12 && index % 2 ? "" : row.label;
-            return label ? `<text class="line-chart-x-label" x="${xFor(index)}" y="${chartHeight - 18}" transform="rotate(-32 ${xFor(index)} ${chartHeight - 18})">${escapeHtml(label)}</text>` : "";
-          }).join("")}
-          ${series.flatMap(item => rows.map((row, index) => {
-            const value = row[item.key] || 0;
-            const tooltip = `${row.label}: ${value} ${item.label.toLowerCase()} bug report${value === 1 ? "" : "s"}`;
-            return `
-              <circle class="line-chart-point" cx="${xFor(index)}" cy="${yFor(value)}" r="5" style="--chart-color:${escapeAttr(item.color)}" data-chart-tooltip="${escapeAttr(tooltip)}" data-action="${row.sprintId ? "chart-open-sprint" : ""}" data-id="${escapeAttr(row.sprintId || "")}"></circle>
-            `;
-          })).join("")}
-        </svg>
-      </div>
-      ${this.legend(series)}
-    `;
-  },
-
-  columnChart(rows, series, options = {}) {
-    const maxValue = Math.max(1, ...rows.flatMap(row => series.map(item => row[item.key] || 0)));
-    const itemLabel = options.itemLabel || "bug report";
-
-    return `
-      <div class="column-chart-scroll">
-        <div class="column-chart" style="--column-count:${rows.length}">
-          ${rows.map(row => `
-            <div class="column-group">
-              <div class="column-bars">
-                ${series.map(item => {
-                  const value = row[item.key] || 0;
-                  const percent = Math.round((value / maxValue) * 100);
-                  const tooltip = `${row.label}: ${value} ${item.label.toLowerCase()} ${itemLabel}${value === 1 ? "" : "s"}`;
-                  return `
-                    <button type="button" class="visual-column" data-action="${row.sprintId ? "chart-open-sprint" : ""}" data-id="${escapeAttr(row.sprintId || "")}" data-chart-tooltip="${escapeAttr(tooltip)}" title="${escapeAttr(tooltip)}" style="--value:${percent}%; --chart-color:${escapeAttr(item.color)}">
-                      <span>${value}</span>
-                    </button>
-                  `;
-                }).join("")}
-              </div>
-              <div class="column-label" title="${escapeAttr(row.label)}">${escapeHtml(row.label)}</div>
-            </div>
-          `).join("")}
-        </div>
-      </div>
-      ${this.legend(series)}
-    `;
-  },
-
-  horizontalBarChart(items, emptyText) {
-    if (!items.length) return `<div class="empty compact-empty">${escapeHtml(emptyText)}</div>`;
-
-    const maxValue = Math.max(1, ...items.map(item => item.value || 0));
-
-    return `
-      <div class="horizontal-chart">
-        ${items.map(item => {
-          const percent = Math.round((item.value / maxValue) * 100);
-          const tag = item.action ? "button" : "div";
-          const actionAttrs = item.action ? ` type="button" ${this.chartActionAttributes(item)}` : "";
-          const tooltip = escapeAttr(item.tooltip || `${item.label}: ${item.value}`);
-          return `
-            <${tag}${actionAttrs} class="horizontal-chart-row ${item.action ? "is-clickable" : ""}" data-chart-tooltip="${tooltip}" title="${tooltip}">
-              <span class="horizontal-chart-label">${escapeHtml(item.label)}</span>
-              <span class="horizontal-chart-track">
-                <span class="horizontal-chart-fill" style="--value:${percent}%; --chart-color:${escapeAttr(item.color)}"></span>
-              </span>
-              <b>${item.value}</b>
-            </${tag}>
-          `;
-        }).join("")}
-      </div>
-    `;
-  },
-
-  legend(items) {
-    return `
-      <div class="visual-chart-legend">
-        ${items.map(item => `<span><i style="--chart-color:${escapeAttr(item.color)}"></i>${escapeHtml(item.label)}</span>`).join("")}
-      </div>
-    `;
-  },
-
-  legendItem(item, total) {
-    const percent = Math.round((item.value / total) * 100);
-    const tag = item.action ? "button" : "div";
-    const actionAttrs = item.action ? ` type="button" ${this.chartActionAttributes(item)}` : "";
-    const tooltip = escapeAttr(item.tooltip || `${item.label}: ${item.value}`);
-
-    return `
-      <${tag}${actionAttrs} class="chart-legend-row ${item.action ? "is-clickable" : ""}" data-chart-tooltip="${tooltip}" title="${tooltip}">
-        <i style="--chart-color:${escapeAttr(item.color)}"></i>
-        <span>${escapeHtml(item.label)}</span>
-        <b>${item.value}</b>
-        <em>${percent}%</em>
-      </${tag}>
-    `;
-  }
-};
 
 function renderSettings() {
   const lookupTypes = [...new Set(["Status", "Priority", "Severity", "Environment", ...(state.lookups || []).map(item => item.lookupType)])].sort();
@@ -4482,32 +4300,6 @@ function ganttVisibleDateIndex(dates, targetDate, preferEnd) {
   return dates.length - 1;
 }
 
-function normalizeDate(value) {
-  if (!value) return null;
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return null;
-  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
-}
-
-function dateKey(value) {
-  const date = normalizeDate(value);
-  if (!date) return "";
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${date.getFullYear()}-${month}-${day}`;
-}
-
-function dateRange(start, end) {
-  const dates = [];
-  const cursor = normalizeDate(start);
-  const last = normalizeDate(end);
-  while (cursor && last && cursor <= last) {
-    dates.push(new Date(cursor));
-    cursor.setDate(cursor.getDate() + 1);
-  }
-  return dates;
-}
-
 function activeHolidayMap() {
   const holidays = new Map();
   (state.holidays || []).filter(item => item.isActive).forEach(holiday => {
@@ -4563,10 +4355,6 @@ function groupedHeader(dates, keySelector) {
   return groups;
 }
 
-function monthName(date) {
-  return date.toLocaleString(undefined, { month: "short" });
-}
-
 function bugsForTask(task, sprintBugs) {
   return sprintBugs.filter(bug =>
     bug.id === task.linkedBugTaskId ||
@@ -4613,175 +4401,9 @@ function taskAuditPanelHtml(task) {
   `;
 }
 
-function iconButton(action, id, title, icon, enabled = true, extraClass = "") {
-  const icons = { view: "&#128065;", audit: "&#128221;", edit: "&#9998;", duplicate: "&#10697;", delete: "&#10005;", finish: "&#10003;", gantt: "&#128202;" };
-  return `<button type="button" class="icon-action ${extraClass}" data-action="${action}" data-id="${id}" title="${escapeAttr(title)}" ${enabled ? "" : "disabled"}>${icons[icon] || "?"}</button>`;
-}
-
 function bugFixIconHtml(task) {
   if (task.taskType === "Bug" || !task.linkedBugTaskId) return "";
   return `<span class="bug-fix-icon" title="Bug Fix">&#128027;</span>`;
-}
-
-function progressHtml(value) {
-  const safeValue = Math.max(0, Math.min(100, Number(value || 0)));
-  return `<div class="progress" title="${safeValue}%"><span style="--value:${safeValue}%"></span></div>`;
-}
-
-function thinProgressHtml(value, color) {
-  const safeValue = Math.max(0, Math.min(100, Number(value || 0)));
-  return `<span class="thin-progress" title="${safeValue}%"><span style="--value:${safeValue}%; --status-color:${escapeAttr(color || "var(--teal)")};"></span></span>`;
-}
-
-function projectWorkItems(projectId) {
-  return state.tasks.filter(task => task.projectId === projectId && !task.parentTaskId);
-}
-
-function sprintWorkItems(sprintId) {
-  return state.tasks.filter(task => task.sprintId === sprintId && !task.parentTaskId);
-}
-
-function projectOverallPercent(project) {
-  const workItems = projectWorkItems(project.id);
-  if (!workItems.length) return Number(project.percentCompleted || 0);
-  return averageWorkItemPercent(workItems);
-}
-
-function sprintOverallPercent(sprint) {
-  const workItems = sprintWorkItems(sprint.id);
-  if (!workItems.length) return Number(sprint.percentCompleted || 0);
-
-  return averageWorkItemPercent(workItems);
-}
-
-function averageWorkItemPercent(workItems) {
-  if (!workItems.length) return 0;
-
-  // Average Dev Tasks and Bugs so the summary reflects the real workload.
-  const totalPercent = workItems.reduce((sum, task) => sum + taskDisplayPercent(task), 0);
-  return Math.round(totalPercent / workItems.length);
-}
-
-function projectOverallProgressHtml(project) {
-  return overallProgressBlockHtml("Overall Progress", projectOverallPercent(project));
-}
-
-function sprintOverallProgressHtml(sprint) {
-  return overallProgressBlockHtml("Overall Progress", sprintOverallPercent(sprint));
-}
-
-function overallProgressBlockHtml(label, percent) {
-  return `
-    <div class="sprint-overall-progress">
-      <div class="sprint-metric-label">
-        <span>${escapeHtml(label)}</span>
-        <span>${percent}%</span>
-      </div>
-      ${progressHtml(percent)}
-    </div>
-  `;
-}
-
-function projectStatusMetricsHtml(project) {
-  return workItemStatusMetricsHtml(projectWorkItems(project.id), "No Dev Tasks or Bugs.");
-}
-
-function sprintStatusMetricsHtml(sprint) {
-  return workItemStatusMetricsHtml(sprintWorkItems(sprint.id), "No Dev Tasks or Bugs.");
-}
-
-function workItemStatusMetricsHtml(workItems, emptyText) {
-  const total = workItems.length;
-  if (!total) return `<div class="empty compact-empty">${escapeHtml(emptyText)}</div>`;
-
-  const rows = statuses
-    .map(status => ({
-      status,
-      count: workItems.filter(task => task.status === status).length
-    }))
-    .filter(item => item.count > 0);
-
-  return `
-    <div class="sprint-status-metrics">
-      ${rows.map(item => {
-        const percent = Math.round((item.count / total) * 100);
-        return `
-          <div class="sprint-status-metric">
-            <div class="sprint-metric-label">
-              <span>${escapeHtml(item.status)}</span>
-              <span>${item.count} of ${total}</span>
-            </div>
-            ${thinProgressHtml(percent, statusColor(item.status))}
-          </div>
-        `;
-      }).join("")}
-    </div>
-  `;
-}
-
-function statusStyle(status) {
-  return `style="--status-color:${escapeAttr(statusColor(status))}"`;
-}
-
-function statusColor(status) {
-  const lookup = (state.lookups || []).find(item => item.lookupType === "Status" && item.value === status && item.colorHex);
-  return lookup?.colorHex || defaultStatusColor(status);
-}
-
-function defaultStatusColor(status) {
-  const colors = ["#6B7680", "#76A9FF", "#35C7BD", "#8AD17C", "#E4C63A", "#E4A53A", "#EE6B70", "#74C476", "#58B6D6", "#9F9CFF", "#C5D35C"];
-  const index = statuses.indexOf(status);
-  return colors[index >= 0 ? index : 1] || "#76A9FF";
-}
-
-function taskDisplayPercent(task) {
-  if (task.subTasks?.length) return Math.round(task.subTaskAveragePercent ?? task.percentCompleted ?? 0);
-  return percentForStatus(task.status, task.percentCompleted ?? 0);
-}
-
-function percentForStatus(status, currentValue) {
-  if (status === "Backlog" || status === "Todo") return Number(currentValue || 0);
-  const qaPassedIndex = statuses.indexOf("QA Passed");
-  if (qaPassedIndex >= 0 && statuses.indexOf(status) >= qaPassedIndex) return 100;
-  return Number(currentValue || 0);
-}
-
-function percentForDevTaskSave(status, currentValue) {
-  // The database also treats Code Complete as finished for normal Dev Tasks.
-  if (status === "Code Complete") return 100;
-  return percentForStatus(status, currentValue);
-}
-
-function validateLinkedBugCompletion(task, percentCompleted, dependencyTaskIds) {
-  if (Number(percentCompleted || 0) < 100) return;
-
-  const bug = associatedBugForDevTask(task, dependencyTaskIds);
-  if (bug && !isBugQaPassedOrLater(bug)) {
-    throw new Error(linkedBugCompletionMessage);
-  }
-}
-
-function associatedBugForDevTask(task, dependencyTaskIds = []) {
-  if (task?.linkedBugTaskId) {
-    const linkedBug = taskById(task.linkedBugTaskId);
-    if (linkedBug?.taskType === "Bug") return linkedBug;
-  }
-
-  return (dependencyTaskIds || [])
-    .map(id => taskById(id))
-    .find(item => item?.taskType === "Bug") || null;
-}
-
-function isBugQaPassedOrLater(bug) {
-  const qaPassedIndex = statuses.indexOf("QA Passed");
-  const bugStatusIndex = statuses.indexOf(bug?.status || "");
-  return qaPassedIndex >= 0 && bugStatusIndex >= qaPassedIndex;
-}
-
-function isTaskCompleted(task) {
-  const qaPassedIndex = statuses.indexOf("QA Passed");
-  const taskStatusIndex = statuses.indexOf(task.status);
-  return Number(task.percentCompleted || 0) >= 100 || (qaPassedIndex >= 0 && taskStatusIndex >= qaPassedIndex);
 }
 
 function taskPercentField(task, isLocked) {
@@ -4792,76 +4414,6 @@ function taskPercentField(task, isLocked) {
       <label>Percent</label>
       <input name="percentCompleted" type="number" min="0" max="100" value="${escapeAttr(percent)}" ${isLocked ? `disabled data-locked="true"` : ""}>
       ${isLocked ? `<small class="field-note">Calculated from sub-tasks.</small>` : ""}
-    </div>
-  `;
-}
-
-function sprintStatusGraphHtml(sprint, showLegend = true, hideZeroLegend = false) {
-  const sprintTasks = state.tasks.filter(task => task.sprintId === sprint.id && !task.parentTaskId);
-  const total = sprintTasks.length;
-  if (!total) return `<div class="empty">No tasks.</div>`;
-
-  const counts = statuses.map(status => ({
-    status,
-    count: sprintTasks.filter(task => task.status === status).length
-  }));
-  const legendCounts = hideZeroLegend ? counts.filter(item => item.count > 0) : counts;
-
-  return `
-    <div class="status-graph">
-      <div class="status-bar">
-        ${counts.map(item => item.count ? `<span class="status-color-chip" style="--value:${(item.count / total) * 100}%; --status-color:${escapeAttr(statusColor(item.status))}" title="${escapeAttr(item.status)} ${item.count}"></span>` : "").join("")}
-      </div>
-      ${showLegend ? `
-      <div class="status-legend">
-        ${legendCounts.map(item => `<span><i ${statusStyle(item.status)}></i>${escapeHtml(item.status)} ${item.count}</span>`).join("")}
-      </div>
-      ` : ""}
-    </div>
-  `;
-}
-
-function bugStatusGraphHtml(bugs) {
-  if (!bugs.length) return `<div class="empty compact-empty">No bug reports.</div>`;
-
-  const counts = statuses.map(status => ({
-    status,
-    count: bugs.filter(bug => bug.status === status).length
-  }));
-
-  return `
-    <div class="status-graph bug-graph" title="${bugs.length} bug reports">
-      <div class="status-bar">
-        ${counts.map(item => item.count ? `<span class="status-color-chip" style="--value:${(item.count / bugs.length) * 100}%; --status-color:${escapeAttr(statusColor(item.status))}" title="${escapeAttr(item.status)} ${item.count}"></span>` : "").join("")}
-      </div>
-    </div>
-  `;
-}
-
-function statusLegendHtml() {
-  const usedStatuses = statuses.filter(status => state.tasks.some(task => task.status === status));
-
-  return `
-    <div class="status-legend dashboard-status-legend">
-      ${usedStatuses.map(status => `<span><i ${statusStyle(status)}></i>${escapeHtml(status)}</span>`).join("")}
-    </div>
-  `;
-}
-
-function statusClass(status) {
-  return `status-${statuses.indexOf(status) + 1}`;
-}
-
-function avatarsHtml(users) {
-  return `<div class="avatar-stack">${(users || []).map(user => `<img class="avatar" src="${escapeAttr(user.avatarUrl || "/assets/avatar-default.svg")}" title="${escapeAttr(user.nickname)}" alt="">`).join("")}</div>`;
-}
-
-function taskRowAvatarsHtml(users) {
-  if (!users || !users.length) return `<span class="muted">Unassigned</span>`;
-
-  return `
-    <div class="row-avatar-stack">
-      ${users.map(user => `<img class="row-avatar" src="${escapeAttr(user.avatarUrl || "/assets/avatar-default.svg")}" title="${escapeAttr(user.nickname)}" alt="">`).join("")}
     </div>
   `;
 }
@@ -4892,193 +4444,8 @@ function lookupOptionsWithCurrent(type, currentValue) {
   return options;
 }
 
-function fallbackForLookup(type) {
-  if (type === "Status") return fallbackStatuses;
-  if (type === "Priority") return fallbackPriorities;
-  if (type === "Severity") return fallbackSeverities;
-  if (type === "Environment") return fallbackEnvironments;
-  return [];
-}
-
-function filterSelect(label, filterName, items, selectedValue, emptyText) {
-  return `
-    <label>
-      <span>${escapeHtml(label)}</span>
-      <select data-filter="${filterName}">
-        <option value="">${escapeHtml(emptyText)}</option>
-        ${items.map(item => `<option value="${escapeAttr(item.value)}" ${String(item.value) === String(selectedValue) ? "selected" : ""}>${escapeHtml(item.text)}</option>`).join("")}
-      </select>
-    </label>
-  `;
-}
-
-function filterCheckList(label, filterName, items, selectedValues) {
-  const selected = new Set(normalizeSavedArray(selectedValues));
-
-  return `
-    <fieldset class="filter-check-list">
-      <legend>${escapeHtml(label)}</legend>
-      ${items.map(item => `
-        <label>
-          <input type="checkbox" data-filter="${filterName}" value="${escapeAttr(item.value)}" ${selected.has(String(item.value)) ? "checked" : ""}>
-          <span>${escapeHtml(item.text)}</span>
-        </label>
-      `).join("")}
-    </fieldset>
-  `;
-}
-
-function checkedFilterValues(filterName) {
-  return [...document.querySelectorAll(`[data-filter='${filterName}']:checked`)].map(input => String(input.value));
-}
-
 function saveTaskFilters() {
   writeJsonPreference(preferenceKeys.taskFilters, taskFilters);
-}
-
-function normalizeSavedArray(value, legacyValue = "") {
-  if (Array.isArray(value)) {
-    return value.filter(item => item !== null && item !== undefined && item !== "").map(String);
-  }
-
-  if (legacyValue !== null && legacyValue !== undefined && legacyValue !== "") {
-    return [String(legacyValue)];
-  }
-
-  if (value !== null && value !== undefined && value !== "") {
-    return [String(value)];
-  }
-
-  return [];
-}
-
-function attachmentsHtml(files) {
-  return `<div class="attachment-grid">${files.map(file => `
-    <a class="attachment-tile" href="${escapeAttr(file.url)}" target="_blank" rel="noopener noreferrer" title="${escapeAttr(file.fileName)}">
-      ${isImageFile(file) ? `<img src="${escapeAttr(file.url)}" alt="${escapeAttr(file.fileName)}">` : `<span class="file-icon">${fileIcon(file)}</span>`}
-      <span>${escapeHtml(file.fileName)}</span>
-    </a>
-  `).join("")}</div>`;
-}
-
-function filePreviewHtml(file) {
-  const fileUrl = URL.createObjectURL(file);
-  const safeName = escapeHtml(file.name);
-  return `
-    <div class="attachment-tile">
-      ${file.type.startsWith("image/") ? `<img src="${escapeAttr(fileUrl)}" alt="${escapeAttr(file.name)}">` : `<span class="file-icon">${fileIcon(file)}</span>`}
-      <span>${safeName}</span>
-    </div>
-  `;
-}
-
-function isImageFile(file) {
-  return (file.contentType || file.type || "").startsWith("image/");
-}
-
-function fileIcon(file) {
-  const type = file.contentType || file.type || "";
-  if (type.includes("pdf")) return "PDF";
-  if (type.includes("word")) return "DOC";
-  if (type.includes("excel") || type.includes("spreadsheet")) return "XLS";
-  return "FILE";
-}
-
-function field(label, name, currentValue, type, min = "", max = "") {
-  return `<div class="field"><label>${label}</label><input name="${name}" type="${type}" value="${escapeAttr(currentValue ?? "")}" ${min !== "" ? `min="${min}"` : ""} ${max !== "" ? `max="${max}"` : ""}></div>`;
-}
-
-function colorField(label, name, currentValue) {
-  const color = validColor(currentValue) ? currentValue : "#76A9FF";
-  return `<div class="field"><label>${label}</label><input name="${name}" type="color" value="${escapeAttr(color)}"></div>`;
-}
-
-function validColor(value) {
-  return /^#[0-9a-f]{6}$/i.test(String(value || ""));
-}
-
-function selectField(label, name, items, selectedId) {
-  return selectOptionsField(label, name, items.map(item => ({ id: item.id, title: `${item.code || item.nickname || item.title} ${item.title && item.code ? "- " + item.title : ""}` })), selectedId);
-}
-
-function selectOptionsField(label, name, items, selectedId) {
-  return `
-    <div class="field">
-      <label>${label}</label>
-      <select name="${name}">
-        ${items.map(item => `<option value="${item.id}" ${String(item.id) === String(selectedId ?? "") ? "selected" : ""}>${escapeHtml(item.title)}</option>`).join("")}
-      </select>
-    </div>
-  `;
-}
-
-function selectTextField(label, name, items, selectedText) {
-  return `
-    <div class="field">
-      <label>${label}</label>
-      <select name="${name}">
-        ${items.map(item => `<option value="${escapeAttr(item)}" ${item === selectedText ? "selected" : ""}>${escapeHtml(item)}</option>`).join("")}
-      </select>
-    </div>
-  `;
-}
-
-function richTextField(name, label, html) {
-  return `
-    <div class="field full">
-      <label>${label}</label>
-      <div class="rich-tools">
-        <button type="button" data-command="bold" title="Bold"><b>B</b></button>
-        <button type="button" data-command="underline" title="Underline"><u>U</u></button>
-        <button type="button" data-command="insertUnorderedList" title="List" aria-label="List">&#8226;</button>
-        <button type="button" data-command="createLink" title="Link" aria-label="Link">&#128279;</button>
-      </div>
-      <div class="rich-editor" contenteditable="true" data-rich="${name}">${html || ""}</div>
-    </div>
-  `;
-}
-
-function checkList(label, name, items, selectedIds, textSelector = item => item.nickname || item.title, options = {}) {
-  if (typeof textSelector === "object" && textSelector !== null) {
-    options = textSelector;
-    textSelector = item => item.nickname || item.title;
-  }
-
-  const selected = new Set((selectedIds || []).map(String));
-  const fieldsetClass = ["check-list field full", options.className || ""].filter(Boolean).join(" ");
-  const renderItem = options.renderItem || (item => escapeHtml(textSelector(item)));
-
-  return `
-    <fieldset class="${fieldsetClass}">
-      <legend>${escapeHtml(label)}</legend>
-      ${items.map(item => `
-        <label>
-          <input type="checkbox" name="${name}" value="${escapeAttr(item.id)}" ${selected.has(String(item.id)) ? "checked" : ""}>
-          <span class="check-list-label">${renderItem(item)}</span>
-        </label>
-      `).join("")}
-    </fieldset>
-  `;
-}
-
-function checkListOrEmpty(label, name, items, selectedIds, emptyText, options = {}) {
-  if (items.length) return checkList(label, name, items, selectedIds, options);
-
-  return `
-    <fieldset class="check-list field full">
-      <legend>${escapeHtml(label)}</legend>
-      <span class="muted">${escapeHtml(emptyText)}</span>
-    </fieldset>
-  `;
-}
-
-function userCheckListLabelHtml(user) {
-  return `
-    <span class="check-list-user">
-      <img class="check-list-avatar" src="${escapeAttr(user.avatarUrl || "/assets/avatar-default.svg")}" alt="">
-      <span>${escapeHtml(user.nickname)}</span>
-    </span>
-  `;
 }
 
 function bindSprintMemberList(root, initialSelectedIds) {
@@ -5187,203 +4554,6 @@ function checkedNumbers(root, name) {
   return [...root.querySelectorAll(`[name='${name}']:checked`)].map(input => Number(input.value));
 }
 
-function askYesNo(message, title) {
-  return new Promise(resolve => {
-    const modal = document.createElement("dialog");
-    modal.className = "dialog mini-dialog";
-    modal.innerHTML = `
-      <div class="dialog-head">
-        <h2>${escapeHtml(title)}</h2>
-      </div>
-      <div class="dialog-body">
-        <p>${escapeHtml(message)}</p>
-      </div>
-      <div class="dialog-actions">
-        <button type="button" class="secondary text-icon-button" data-result="no">${buttonContent("&#10005;", "Cancel")}</button>
-        <button type="button" class="primary text-icon-button" data-result="yes">${buttonContent("&#10003;", "Continue")}</button>
-      </div>
-    `;
-
-    document.body.appendChild(modal);
-
-    const finish = result => {
-      modal.close();
-      modal.remove();
-      resolve(result);
-    };
-
-    modal.querySelector("[data-result='no']").addEventListener("click", () => finish(false));
-    modal.querySelector("[data-result='yes']").addEventListener("click", () => finish(true));
-    modal.addEventListener("cancel", event => {
-      event.preventDefault();
-      finish(false);
-    });
-
-    modal.showModal();
-  });
-}
-
-function askFinishSprintOptions() {
-  return new Promise(resolve => {
-    const modal = document.createElement("dialog");
-    modal.className = "dialog mini-dialog";
-    modal.innerHTML = `
-      <div class="dialog-head">
-        <h2>Finish Sprint</h2>
-      </div>
-      <div class="dialog-body">
-        <label class="inline-check">
-          <input name="carryUnfinished" type="checkbox" checked>
-          <span>Finish this Sprint and carry unfinished tasks forward?</span>
-        </label>
-        <label class="inline-check">
-          <input name="carryTodos" type="checkbox">
-          <span>Carry over the Todos in the next Sprint</span>
-        </label>
-      </div>
-      <div class="dialog-actions">
-        <button type="button" class="secondary text-icon-button" data-result="cancel">${buttonContent("&#10005;", "Cancel")}</button>
-        <button type="button" class="primary text-icon-button" data-result="finish">${buttonContent("&#10003;", "Finish")}</button>
-      </div>
-    `;
-
-    document.body.appendChild(modal);
-
-    const finish = value => {
-      modal.close();
-      modal.remove();
-      resolve(value);
-    };
-
-    modal.querySelector("[data-result='cancel']").addEventListener("click", () => finish(null));
-    modal.querySelector("[data-result='finish']").addEventListener("click", () => finish({
-      carryUnfinished: modal.querySelector("[name='carryUnfinished']").checked,
-      carryTodos: modal.querySelector("[name='carryTodos']").checked
-    }));
-    modal.addEventListener("cancel", event => {
-      event.preventDefault();
-      finish(null);
-    });
-
-    modal.showModal();
-  });
-}
-
-function askForText(label, title, placeholder = "") {
-  return new Promise(resolve => {
-    const modal = document.createElement("dialog");
-    modal.className = "dialog mini-dialog";
-    modal.innerHTML = `
-      <form method="dialog">
-        <div class="dialog-head">
-          <h2>${escapeHtml(title)}</h2>
-        </div>
-        <div class="dialog-body">
-          <div class="field">
-            <label>${escapeHtml(label)}</label>
-            <input name="dialogText" value="${escapeAttr(placeholder)}">
-          </div>
-        </div>
-        <div class="dialog-actions">
-          <button type="button" class="secondary text-icon-button" data-result="cancel">${buttonContent("&#10005;", "Cancel")}</button>
-          <button type="submit" class="primary text-icon-button">${buttonContent("&#10003;", "Apply")}</button>
-        </div>
-      </form>
-    `;
-
-    document.body.appendChild(modal);
-
-    const finish = value => {
-      modal.close();
-      modal.remove();
-      resolve(value);
-    };
-
-    modal.querySelector("[data-result='cancel']").addEventListener("click", () => finish(""));
-    modal.querySelector("form").addEventListener("submit", event => {
-      event.preventDefault();
-      finish(modal.querySelector("[name='dialogText']").value);
-    });
-    modal.addEventListener("cancel", event => {
-      event.preventDefault();
-      finish("");
-    });
-
-    modal.showModal();
-    setTimeout(() => modal.querySelector("[name='dialogText']").focus(), 0);
-  });
-}
-
-function normalizeRichHtml(html) {
-  const container = document.createElement("div");
-  container.innerHTML = html;
-  linkifyTextNodes(container);
-  normalizeLinksInElement(container);
-  return container.innerHTML;
-}
-
-function normalizeLinksInElement(root) {
-  root.querySelectorAll("a[href]").forEach(link => {
-    link.href = normalizeUrl(link.getAttribute("href"));
-    link.target = "_blank";
-    link.rel = "noopener noreferrer";
-  });
-}
-
-function linkifyTextNodes(root) {
-  const textNodes = [];
-
-  collectTextNodes(root, textNodes);
-  textNodes.forEach(node => {
-    const text = node.nodeValue;
-    const urlPattern = /(https?:\/\/[^\s<]+|www\.[^\s<]+)/gi;
-    if (!urlPattern.test(text)) return;
-
-    const fragment = document.createDocumentFragment();
-    let lastIndex = 0;
-    text.replace(urlPattern, (match, _unused, offset) => {
-      if (offset > lastIndex) {
-        fragment.appendChild(document.createTextNode(text.slice(lastIndex, offset)));
-      }
-
-      const link = document.createElement("a");
-      link.href = normalizeUrl(match);
-      link.target = "_blank";
-      link.rel = "noopener noreferrer";
-      link.textContent = match;
-      fragment.appendChild(link);
-      lastIndex = offset + match.length;
-      return match;
-    });
-
-    if (lastIndex < text.length) {
-      fragment.appendChild(document.createTextNode(text.slice(lastIndex)));
-    }
-
-    node.parentNode.replaceChild(fragment, node);
-  });
-}
-
-function collectTextNodes(node, textNodes) {
-  if (node.nodeType === Node.TEXT_NODE) {
-    if (node.nodeValue.trim() && node.parentElement?.tagName !== "A") {
-      textNodes.push(node);
-    }
-    return;
-  }
-
-  node.childNodes.forEach(child => collectTextNodes(child, textNodes));
-}
-
-function normalizeUrl(value) {
-  const trimmed = String(value || "").trim();
-  if (!trimmed) return "";
-  if (/^[a-z][a-z0-9+.-]*:/i.test(trimmed)) return trimmed;
-  if (trimmed.startsWith("/") || trimmed.startsWith("#") || trimmed.startsWith("./") || trimmed.startsWith("../")) return trimmed;
-  if (trimmed.startsWith("www.")) return `https://${trimmed}`;
-  return `https://${trimmed}`;
-}
-
 function selectedBoardSprintId(projectId) {
   if (boardSprintMode === "all") return 0;
   if (boardSprintMode !== "latest") return Number(boardSprintMode);
@@ -5391,107 +4561,6 @@ function selectedBoardSprintId(projectId) {
     .filter(sprint => sprint.projectId === projectId)
     .sort((a, b) => new Date(b.startDate) - new Date(a.startDate))[0];
   return latest?.id || 0;
-}
-
-function canEditOwner(ownerUserId) {
-  return currentUser().isAdmin || ownerUserId === currentUserId;
-}
-
-function canEditTask(task) {
-  const user = currentUser();
-  if (user.isAdmin || user.role === "Admin") return true;
-  if (task?.taskType === "Bug") return user.role === "QA";
-  return user.role === "Developer";
-}
-
-function canEditUser(userId) {
-  return currentUser().isAdmin || userId === currentUserId;
-}
-
-function projectById(id) {
-  return state.projects.find(project => project.id === id);
-}
-
-function sprintById(id) {
-  return state.sprints.find(sprint => sprint.id === id);
-}
-
-function taskById(id) {
-  return state.tasks.find(task => task.id === id);
-}
-
-function userById(id) {
-  return state.users.find(user => user.id === id);
-}
-
-function projectName(id) {
-  const project = projectById(id);
-  return project ? `${project.code} - ${project.title}` : "No project";
-}
-
-function projectCode(id) {
-  const project = projectById(id);
-  return project?.code || "No project";
-}
-
-function sprintName(id) {
-  const sprint = sprintById(id);
-  return sprint ? sprint.code : "No Sprint";
-}
-
-function formatDate(value) {
-  if (!value) return "";
-  return new Date(value).toLocaleDateString();
-}
-
-function formatDateTime(value) {
-  if (!value) return "";
-  return new Date(value).toLocaleString();
-}
-
-function dateRangeLabel(start, end) {
-  const startText = formatDate(start);
-  const endText = formatDate(end);
-  if (!startText && !endText) return "";
-  if (startText === endText || !endText) return startText;
-  if (!startText) return endText;
-  return `${startText} - ${endText}`;
-}
-
-function documentationDateLine(blog) {
-  const createdText = `Created ${formatDate(blog.createdAt)}`;
-  if (!documentationWasEdited(blog)) return createdText;
-  return `${createdText} | Last edited ${formatDate(blog.updatedAt)}`;
-}
-
-function documentationWasEdited(blog) {
-  const createdTime = new Date(blog.createdAt || 0).getTime();
-  const updatedTime = new Date(blog.updatedAt || 0).getTime();
-  return Boolean(createdTime && updatedTime && Math.abs(updatedTime - createdTime) > 60000);
-}
-
-function toDateInput(value) {
-  const date = value ? new Date(value) : new Date();
-  return date.toISOString().slice(0, 10);
-}
-
-function stripHtml(html) {
-  const div = document.createElement("div");
-  div.innerHTML = html || "";
-  return div.textContent || "";
-}
-
-function escapeHtml(value) {
-  return String(value ?? "")
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#039;");
-}
-
-function escapeAttr(value) {
-  return escapeHtml(value);
 }
 
 function showToast(message, anchorElement = null) {
