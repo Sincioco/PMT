@@ -1,23 +1,34 @@
-# PMT Agent Notes
+# PMT Repository Instructions
 
-PMT is a small internal Project Management Tool for software teams. Keep the code easy for a junior developer to follow.
+PMT is an internal project-management tool for software teams, combining project and Sprint planning, Dev Tasks, Bug tracking, Scrum notes, Documentation, Kanban, Gantt, and Road Map views.
 
-## Project Rules
+## Principles and stack
 
-- Use ASP.NET Core with simple ADO.NET calls.
-- Do not use Entity Framework.
-- Keep database objects in the `pmt` schema.
-- Prefer stored procedures for database writes and reads.
-- Keep changes simple and readable. Avoid extra layers unless they clearly make the code easier to understand.
-- Add short comments when they explain intent that is not obvious from the code.
+- Keep the implementation simple enough for a junior developer to trace.
+- Use native JavaScript ES modules, HTML, and CSS. Do not add a frontend framework, TypeScript, or a bundler.
+- Use ASP.NET Core on .NET 6 with minimal APIs, plain DTOs, and direct ADO.NET.
+- Do not add Entity Framework or unnecessary repository, service, mediator, or mapping layers.
+- All application database objects use `[pmt]`. Application data access must go through stored procedures under `[pmt]`.
 
-## Target Platforms
+## Intended structure
 
-- User browser: Chrome or Chromium.
-- Server app: ASP.NET Core targeting .NET 6.
-- Database: SQL Server.
-- Hosting target: Windows/IIS for internal use.
+- Frontend code moves toward feature folders under `wwwroot/js/features/`, supported by `core`, `shared`, and `components`.
+- Features may depend on those supporting folders but must not directly import another feature.
+- Backend endpoints, models, and `SqlPmtStore` partials should be grouped by cohesive feature without changing public contracts.
+- Put durable detail in `docs/`; keep `AGENTS.md` files concise.
 
-## Current Development Assumption
+## Required verification
 
-This project is still in development. Test data, database state, and browser state can be deleted and recreated when needed.
+- Start with `git status --short` and preserve unrelated changes.
+- At minimum run `dotnet build` and `git diff --check`.
+- For JavaScript changes, syntax-check changed modules and run the relevant browser smoke tests in Chrome or Chromium.
+- For behavioral changes, start the application and execute `docs/manual-smoke-test.md`.
+- Keep endpoint URLs, JSON payloads, `localStorage` keys, SQL procedure names/parameters, and ordered aggregate result sets stable unless a requirement explicitly changes them.
+
+## Detailed references
+
+- [Pre-refactor baseline](docs/baseline.md)
+- [Architecture and impact map](docs/architecture.md)
+- [Durable domain rules](docs/domain-rules.md)
+- [UI design system](docs/ui-design-system.md)
+- [Manual smoke test](docs/manual-smoke-test.md)

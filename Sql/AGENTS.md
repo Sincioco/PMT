@@ -1,11 +1,11 @@
-# SQL Folder Notes
+# SQL Instructions
 
-This folder contains the database setup scripts.
+- Put every application database object under `[pmt]`.
+- Stored procedures remain the application data-access contract; keep names, parameters, and behavior aligned with ADO.NET callers.
+- Treat the result-set order of aggregate procedures, especially `[pmt].[GetAppState]`, as a versioned contract with `SqlPmtStore`.
+- Keep schema, procedure, core seed, LMS seed, HLS seed, and rebuild-orchestrator changes synchronized.
+- Keep scripts explicit, rerunnable where currently supported, and understandable without extra tooling.
+- Deployment and database rebuilds must not require internet access.
+- Do not add Entity Framework migrations or application SQL that bypasses the stored-procedure contract.
 
-- All database objects must be under the `pmt` schema.
-- Keep setup to three scripts:
-  1. `01_CreateDatabase.sql`
-  2. `02_CreateStoredProcedures.sql`
-  3. `03_SeedData.sql`
-- Seed and test data belong in `03_SeedData.sql`.
-- The app uses ADO.NET and stored procedures. Do not add Entity Framework migrations.
+See `docs/architecture.md` and `docs/domain-rules.md`.
