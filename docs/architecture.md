@@ -6,9 +6,9 @@ This document maps the current application and the intended file boundaries for 
 
 PMT is a single ASP.NET Core .NET 6 web application:
 
-1. `wwwroot/index.html` defines the shell, applies the saved theme before CSS loads, and loads `wwwroot/styles.css` and `wwwroot/js/app.js`.
-2. `wwwroot/js/app.js` is a native ES module and still owns startup, browser state, API calls, navigation, every screen, dialogs, charts, filters, drag/drop, timeline calculations, and shared helpers.
-3. `wwwroot/js/core/screen-registry.js` lists every current screen and identifies which screens appear in the top navigation.
+1. `wwwroot/index.html` defines the HTML shell, applies the saved theme through `core/preferences.js` before rendering, and loads `wwwroot/styles.css` and `wwwroot/js/app.js`.
+2. `wwwroot/js/app.js` composes the application shell with the current screen implementation. It still owns screen-specific rendering, dialogs, charts, filters, drag/drop, timeline calculations, and shared helpers that will move in later phases.
+3. `wwwroot/js/core/` owns application-wide browser infrastructure: HTTP requests, state, preferences, authentication, routing, startup, navigation, theme, and user-menu wiring.
 4. `Program.cs` configures middleware, static/uploaded files, 37 minimal API routes, JSON behavior, and the SPA fallback.
 5. `Models/PmtModels.cs` contains the API DTOs and request models.
 6. `Data/SqlPmtStore.cs` calls `[pmt]` stored procedures through ADO.NET, maps `[pmt].[GetAppState]`, hydrates relationships, and calculates project/Sprint metrics.
@@ -73,16 +73,34 @@ wwwroot/
 
 The entry module composes startup and the screen registry. `core` owns application-wide infrastructure, `shared` owns reusable pure logic, `components` owns reusable UI builders, and each feature owns its rendering, actions, filters, preferences, and feature-only calculations.
 
-## Frontend scaffold established in Phase 03
+## Core services established in Phase 04
 
-The native-module scaffold now exists under `wwwroot/js/`:
+The frontend entry module now depends on focused native ES modules:
 
-- `app.js` remains the single implementation entry point so behavior is unchanged.
-- `core/screen-registry.js` is the first extracted core module and lists Dashboard, Road Map, Gantt, Kanban Board, Projects, Sprints, Dev Tasks, Bug Tracking, Scrum, Documentation, Backlog, and Settings.
-- `shared/` and `components/` are present as empty ownership boundaries for later phases.
-- `features/` contains placeholder folders for `dashboard`, `roadmap`, `gantt`, `board`, `projects`, `sprints`, `tasks`, `bugs`, `scrum`, `documentation`, `backlog`, and `settings`.
+- `core/api.js` is the only generic `fetch` wrapper. It applies the current-user header, preserves JSON and `FormData` behavior, and normalizes API errors.
+- `core/store.js` owns the live central state binding plus state loading, replacement, and reset.
+- `core/preferences.js` is the only direct `localStorage` owner. It preserves every existing `pmt-*` key and provides safe string, number, boolean, and JSON defaults.
+- `core/authentication.js` owns login, logout, the authenticated user ID, fallback identity selection after state loads, and current-user lookup.
+- `core/router.js` owns the current view, legacy view-name normalization, persistence, and the navigation screen selection.
+- `core/application-shell.js` owns startup orchestration, login rendering and wiring, state-load error handling, top navigation and overflow, the avatar menu, theme switching, and current-user shell rendering.
+- `core/screen-registry.js` remains the authoritative list of Dashboard, Road Map, Gantt, Kanban Board, Projects, Sprints, Dev Tasks, Bug Tracking, Scrum, Documentation, Backlog, and Settings.
+- `app.js` supplies screen event handlers and the current screen renderer to the application shell; screen-specific code has not moved.
 
-No screen rendering, API behavior, state, event handling, or CSS was extracted in this phase.
+`shared/`, `components/`, and the placeholder feature folders remain ownership boundaries for later phases. Endpoint URLs, payloads, screen markup, CSS classes, and preference key names are unchanged.
+
+The current frontend dependency flow is:
+
+`index.html -> preferences (pre-paint theme)`
+
+`app -> application shell -> authentication/router/store/preferences`
+
+`authentication -> api/preferences/store`
+
+`store -> api`
+
+`router -> preferences/screen registry`
+
+`app screen code -> api/store/authentication/router/preferences`
 
 ## Target backend layout
 

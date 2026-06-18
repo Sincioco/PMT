@@ -1,4 +1,25 @@
-import { screenRegistry } from "./core/screen-registry.js";
+import { api } from "./core/api.js";
+import { createApplicationShell } from "./core/application-shell.js";
+import {
+  currentUser,
+  currentUserId
+} from "./core/authentication.js";
+import {
+  clearPmtPreferences,
+  preferenceKeys,
+  readBooleanPreference,
+  readJsonPreference,
+  readNumberPreference,
+  readPreference,
+  writeJsonPreference,
+  writePreference
+} from "./core/preferences.js";
+import {
+  currentView,
+  navigate,
+  savedViewPreference
+} from "./core/router.js";
+import { state } from "./core/store.js";
 
 const fallbackStatuses = [
   "Backlog",
@@ -22,35 +43,22 @@ let statuses = [...fallbackStatuses];
 let priorities = [...fallbackPriorities];
 let severities = [...fallbackSeverities];
 let environments = [...fallbackEnvironments];
-const views = screenRegistry
-  .filter(screen => screen.showInNavigation)
-  .map(screen => screen.view);
-
-let state = { users: [], projects: [], sprints: [], tasks: [], devLogs: [], blogs: [], auditEvents: [], lookups: [], holidays: [] };
-let currentView = localStorage.getItem("pmt-view") || "Dashboard";
-const savedCurrentView = currentView;
-if (currentView === "Dev Log") currentView = "Dev Logs";
-if (currentView === "Dev Logs") currentView = "Scrum";
-if (currentView === "Blogs") currentView = "Documentation";
-if (currentView === "Lookups") currentView = "Settings";
-if (currentView === "Users") currentView = "Settings";
-if (currentView === "Holidays") currentView = "Settings";
-let currentUserId = Number(localStorage.getItem("pmt-auth-user") || 0);
-let boardProjectId = Number(localStorage.getItem("pmt-board-project") || 0);
-let boardSprintMode = localStorage.getItem("pmt-board-sprint") || "latest";
-let boardSort = localStorage.getItem("pmt-board-sort") || "custom";
+const savedCurrentView = savedViewPreference;
+let boardProjectId = readNumberPreference(preferenceKeys.boardProject, 0);
+let boardSprintMode = readPreference(preferenceKeys.boardSprint, "latest");
+let boardSort = readPreference(preferenceKeys.boardSort, "custom");
 let boardHideEmptyColumns = false;
-let roadMapProjectFilter = localStorage.getItem("pmt-roadmap-project") || "all";
-let roadMapSprintFilter = localStorage.getItem("pmt-roadmap-sprint") || "all";
-let roadMapSort = localStorage.getItem("pmt-roadmap-sort") || "endAsc";
-let roadMapShowDates = localStorage.getItem("pmt-roadmap-show-dates") !== "false";
-let roadMapShowDetails = localStorage.getItem("pmt-roadmap-show-details") !== "false";
-let roadMapShowSprints = localStorage.getItem("pmt-roadmap-show-sprints") !== "false";
-let ganttProjectId = Number(localStorage.getItem("pmt-gantt-project") || 0);
-let ganttSprintMode = localStorage.getItem("pmt-gantt-sprint") || "current";
-let ganttRenderMode = localStorage.getItem("pmt-gantt-render-mode") || "all";
-let ganttSort = localStorage.getItem("pmt-gantt-sort") || "startAsc";
-let ganttShowNonWorkingDays = localStorage.getItem("pmt-gantt-show-non-working-days") === "true";
+let roadMapProjectFilter = readPreference(preferenceKeys.roadMapProject, "all");
+let roadMapSprintFilter = readPreference(preferenceKeys.roadMapSprint, "all");
+let roadMapSort = readPreference(preferenceKeys.roadMapSort, "endAsc");
+let roadMapShowDates = readBooleanPreference(preferenceKeys.roadMapShowDates, true);
+let roadMapShowDetails = readBooleanPreference(preferenceKeys.roadMapShowDetails, true);
+let roadMapShowSprints = readBooleanPreference(preferenceKeys.roadMapShowSprints, true);
+let ganttProjectId = readNumberPreference(preferenceKeys.ganttProject, 0);
+let ganttSprintMode = readPreference(preferenceKeys.ganttSprint, "current");
+let ganttRenderMode = readPreference(preferenceKeys.ganttRenderMode, "all");
+let ganttSort = readPreference(preferenceKeys.ganttSort, "startAsc");
+let ganttShowNonWorkingDays = readBooleanPreference(preferenceKeys.ganttShowNonWorkingDays, false);
 let ganttShowAllBugs = false;
 let ganttExpandedBugTaskIds = new Set();
 let ganttLastChart = null;
@@ -63,21 +71,21 @@ let ganttFlyByAnimating = false;
 let ganttFlyByStopRequested = false;
 let ganttFlyByResumeSprintId = 0;
 let ganttFlyByCurrentSprintId = 0;
-let lookupTypeFilter = localStorage.getItem("pmt-lookup-type") || "Status";
-let settingsCategory = localStorage.getItem("pmt-settings-category") || lookupTypeFilter || "Status";
+let lookupTypeFilter = readPreference(preferenceKeys.lookupType, "Status");
+let settingsCategory = readPreference(preferenceKeys.settingsCategory, lookupTypeFilter || "Status");
 if (savedCurrentView === "Users" || savedCurrentView === "Holidays") settingsCategory = savedCurrentView;
 if (savedCurrentView === "Lookups") settingsCategory = lookupTypeFilter;
-let sprintProjectId = Number(localStorage.getItem("pmt-sprint-project") || 0);
-let taskProjectId = Number(localStorage.getItem("pmt-task-project") || 0);
-let taskSprintId = localStorage.getItem("pmt-task-sprint") || "all";
-let taskFilters = JSON.parse(localStorage.getItem("pmt-task-filters") || "{}");
-let taskFiltersVisible = localStorage.getItem("pmt-task-filters-visible") !== "false";
-let taskVisualChartsVisible = localStorage.getItem("pmt-task-visual-charts-visible") !== "false";
-let bugFilters = JSON.parse(localStorage.getItem("pmt-bug-filters") || "{}");
-let bugFiltersVisible = localStorage.getItem("pmt-bug-filters-visible") !== "false";
-let bugVisualChartsVisible = localStorage.getItem("pmt-bug-visual-charts-visible") !== "false";
-let documentationProjectId = Number(localStorage.getItem("pmt-documentation-project") || 0);
-const savedBoardStatuses = JSON.parse(localStorage.getItem("pmt-board-statuses") || "null");
+let sprintProjectId = readNumberPreference(preferenceKeys.sprintProject, 0);
+let taskProjectId = readNumberPreference(preferenceKeys.taskProject, 0);
+let taskSprintId = readPreference(preferenceKeys.taskSprint, "all");
+let taskFilters = readJsonPreference(preferenceKeys.taskFilters, {});
+let taskFiltersVisible = readBooleanPreference(preferenceKeys.taskFiltersVisible, true);
+let taskVisualChartsVisible = readBooleanPreference(preferenceKeys.taskVisualChartsVisible, true);
+let bugFilters = readJsonPreference(preferenceKeys.bugFilters, {});
+let bugFiltersVisible = readBooleanPreference(preferenceKeys.bugFiltersVisible, true);
+let bugVisualChartsVisible = readBooleanPreference(preferenceKeys.bugVisualChartsVisible, true);
+let documentationProjectId = readNumberPreference(preferenceKeys.documentationProject, 0);
+const savedBoardStatuses = readJsonPreference(preferenceKeys.boardStatuses, null);
 let boardStatuses = Array.isArray(savedBoardStatuses) && savedBoardStatuses.every(status => statuses.includes(status))
   ? savedBoardStatuses
   : statuses;
@@ -100,92 +108,35 @@ taskFilters.hideCompleted = Boolean(taskFilters.hideCompleted);
 bugFilters.reporterIds = normalizeSavedArray(bugFilters.reporterIds, bugFilters.reporterId);
 bugFilters.assigneeIds = normalizeSavedArray(bugFilters.assigneeIds, bugFilters.assigneeId);
 
-const app = document.getElementById("app");
-const nav = document.getElementById("nav");
-const userSelect = document.getElementById("currentUser");
-const userAvatar = document.getElementById("currentUserAvatar");
-const userMenuToggle = document.getElementById("userMenuToggle");
-const userMenu = document.getElementById("userMenu");
-const themeToggle = document.getElementById("themeToggle");
-const dialog = document.getElementById("editorDialog");
-const dialogTitle = document.getElementById("dialogTitle");
-const dialogBody = document.getElementById("dialogBody");
-const editorForm = document.getElementById("editorForm");
-const toast = document.getElementById("toast");
+const shell = createApplicationShell({
+  bindScreenEvents,
+  editPassword,
+  refreshLookupOptions,
+  renderCurrentScreen,
+  showToast
+});
+
+const {
+  app,
+  dialog,
+  dialogTitle,
+  dialogBody,
+  editorForm,
+  toast
+} = shell.elements;
 
 document.getElementById("closeDialog").addEventListener("click", () => dialog.close());
 document.getElementById("cancelDialog").addEventListener("click", () => dialog.close());
-document.getElementById("logout")?.addEventListener("click", logout);
-applySavedTheme();
 
 if (document.readyState === "loading") {
-  document.addEventListener("DOMContentLoaded", initializeApp);
+  document.addEventListener("DOMContentLoaded", shell.initialize);
 } else {
-  initializeApp();
+  shell.initialize();
 }
 
-async function initializeApp() {
-  bindPageEvents();
-  if (!currentUserId) {
-    renderLogin();
-    return;
-  }
-  await startApp();
-}
-
-function bindPageEvents() {
+function bindScreenEvents() {
   if (pageEventsBound) return;
   pageEventsBound = true;
-
-  nav.addEventListener("click", event => {
-    const overflowButton = event.target.closest("button[data-action='nav-overflow-toggle']");
-    if (overflowButton) {
-      toggleNavOverflow();
-      return;
-    }
-
-    const button = event.target.closest("button[data-view]");
-    if (!button) return;
-    closeNavOverflow();
-    currentView = button.dataset.view;
-    localStorage.setItem("pmt-view", currentView);
-    renderNav();
-    render();
-  });
-
-  userSelect.addEventListener("change", () => {
-    currentUserId = Number(userSelect.value);
-    render();
-  });
-
-  userMenuToggle?.addEventListener("click", event => {
-    event.stopPropagation();
-    toggleUserMenu();
-  });
-
-  userMenu?.addEventListener("click", event => {
-    const viewButton = event.target.closest("button[data-view]");
-    if (viewButton) {
-      currentView = viewButton.dataset.view;
-      localStorage.setItem("pmt-view", currentView);
-      closeUserMenu();
-      renderNav();
-      render();
-      return;
-    }
-
-    const themeButton = event.target.closest("button[data-action='toggle-theme']");
-    if (themeButton) {
-      toggleTheme();
-      return;
-    }
-
-    const passwordButton = event.target.closest("button[data-action='change-password']");
-    if (!passwordButton) return;
-
-    closeUserMenu();
-    editPassword();
-  });
 
   app.addEventListener("click", handleActionClick);
   app.addEventListener("change", handleFilterChange);
@@ -199,148 +150,10 @@ function bindPageEvents() {
   window.addEventListener("mouseup", handleMouseUp);
   window.addEventListener("pointercancel", cancelPointerDrag);
   document.addEventListener("click", handleDocumentLinkClick);
-  document.addEventListener("click", event => {
-    if (!event.target.closest("#nav")) closeNavOverflow();
-    if (!event.target.closest(".user-menu")) closeUserMenu();
-  });
-  window.addEventListener("resize", () => requestAnimationFrame(applyNavOverflow));
-}
-
-async function startApp() {
-  document.body.classList.remove("logged-out");
-  renderNav();
-  await loadState();
-  render();
-}
-
-function renderLogin() {
-  document.body.classList.add("logged-out");
-  nav.innerHTML = "";
-  userSelect.innerHTML = "";
-  app.innerHTML = `
-    <section class="login-screen">
-      <div class="panel">
-        <div>
-          <h1>PMT</h1>
-          <p class="muted">Software Engineering</p>
-        </div>
-        <div class="field">
-          <label>Nickname or Email</label>
-          <input id="loginName" autocomplete="username" value="Sin">
-        </div>
-        <div class="field">
-          <label>Password</label>
-          <input id="loginPassword" type="password" autocomplete="current-password" value="Password1">
-        </div>
-        <button class="primary text-icon-button" type="button" id="loginButton">${buttonContent("&#10148;", "Log in")}</button>
-      </div>
-    </section>
-  `;
-
-  document.getElementById("loginButton").addEventListener("click", login);
-  document.getElementById("loginPassword").addEventListener("keydown", event => {
-    if (event.key === "Enter") login();
-  });
-}
-
-async function login() {
-  try {
-    const loginName = document.getElementById("loginName").value;
-    const password = document.getElementById("loginPassword").value;
-    const result = await api("/api/login", {
-      method: "POST",
-      body: JSON.stringify({ login: loginName, password })
-    });
-
-    currentUserId = result.userId;
-    localStorage.setItem("pmt-auth-user", currentUserId);
-    await startApp();
-  } catch (error) {
-    showToast(error.message || "Login failed.");
-  }
-}
-
-function logout() {
-  closeUserMenu();
-  localStorage.removeItem("pmt-auth-user");
-  currentUserId = 0;
-  state = { users: [], projects: [], sprints: [], tasks: [], devLogs: [], blogs: [], auditEvents: [], lookups: [], holidays: [] };
-  renderLogin();
 }
 
 async function loadState() {
-  try {
-    state = await api("/api/state");
-    refreshLookupOptions();
-    if (!state.users.some(user => user.id === currentUserId) && state.users.length) {
-      currentUserId = state.users[0].id;
-      localStorage.setItem("pmt-auth-user", currentUserId);
-    }
-    renderUserPicker();
-  } catch (error) {
-    showToast(error.message);
-    app.innerHTML = `<div class="empty">Database is not ready. Run the SQL scripts in order, then refresh this page.</div>`;
-  }
-}
-
-async function api(path, options = {}) {
-  const headers = { "X-PMT-UserId": String(currentUserId) };
-  const bodyIsForm = options.body instanceof FormData;
-
-  if (!bodyIsForm && options.body !== undefined) {
-    headers["Content-Type"] = "application/json";
-  }
-
-  const response = await fetch(path, { ...options, headers: { ...headers, ...(options.headers || {}) } });
-  if (!response.ok) {
-    const problem = await response.json().catch(() => ({ error: response.statusText }));
-    throw new Error(problem.error || "Request failed.");
-  }
-
-  if (response.status === 204) return null;
-  return response.json();
-}
-
-function renderNav() {
-  const viewButtons = views.map(view => navButtonHtml({
-    view,
-    label: viewLabel(view),
-    icon: navIconHtml(view),
-    active: view === currentView
-  })).join("");
-
-  nav.innerHTML = `
-    ${viewButtons}
-    <div class="nav-overflow" hidden>
-      <button class="nav-overflow-toggle" type="button" data-action="nav-overflow-toggle" title="More navigation" aria-label="More navigation" aria-expanded="false">
-        <span class="nav-icon" aria-hidden="true">&#9776;</span>
-      </button>
-      <div class="nav-overflow-menu" hidden></div>
-    </div>
-  `;
-  requestAnimationFrame(applyNavOverflow);
-}
-
-function viewLabel(view) {
-  if (view === "Board") return "Kanban Board";
-  if (view === "Tasks") return "Dev Tasks";
-  if (view === "Bugs") return "Bug Tracking";
-  return view;
-}
-
-function navButtonHtml(item, extraClass = "nav-item") {
-  const attributes = [
-    item.view ? `data-view="${escapeAttr(item.view)}"` : "",
-    item.action ? `data-action="${escapeAttr(item.action)}"` : "",
-    `class="${`${extraClass} ${item.active ? "active" : ""}`.trim()}"`
-  ].filter(Boolean).join(" ");
-
-  return `
-    <button type="button" ${attributes}>
-      <span class="nav-icon" aria-hidden="true">${item.icon}</span>
-      <span>${escapeHtml(item.label)}</span>
-    </button>
-  `;
+  return shell.reloadState();
 }
 
 function buttonContent(icon, label) {
@@ -355,140 +168,11 @@ function funnelIconHtml() {
   `;
 }
 
-function applyNavOverflow() {
-  const overflow = nav.querySelector(".nav-overflow");
-  const menu = nav.querySelector(".nav-overflow-menu");
-  const toggle = nav.querySelector(".nav-overflow-toggle");
-  if (!overflow || !menu || !toggle) return;
-
-  const items = [...nav.querySelectorAll(":scope > button.nav-item")];
-  items.forEach(item => item.hidden = false);
-  overflow.hidden = true;
-  menu.hidden = true;
-  menu.innerHTML = "";
-  toggle.setAttribute("aria-expanded", "false");
-
-  if (nav.scrollWidth <= nav.clientWidth) return;
-
-  overflow.hidden = false;
-  const hiddenItems = [];
-  for (let index = items.length - 1; index >= 0 && nav.scrollWidth > nav.clientWidth; index--) {
-    const item = items[index];
-    item.hidden = true;
-    hiddenItems.unshift(item);
-  }
-
-  menu.innerHTML = hiddenItems.map(item => {
-    const view = item.dataset.view;
-    const action = item.dataset.action;
-    const label = item.querySelector("span:last-child")?.textContent || "";
-    const icon = item.querySelector(".nav-icon")?.innerHTML || "&#9679;";
-    return navButtonHtml({ view, action, label, icon, active: item.classList.contains("active") }, "nav-menu-item");
-  }).join("");
-}
-
-function toggleNavOverflow() {
-  const overflow = nav.querySelector(".nav-overflow");
-  const menu = nav.querySelector(".nav-overflow-menu");
-  const toggle = nav.querySelector(".nav-overflow-toggle");
-  if (!overflow || !menu || !toggle) return;
-
-  const isOpen = menu.hidden;
-  menu.hidden = !isOpen;
-  toggle.setAttribute("aria-expanded", String(isOpen));
-}
-
-function closeNavOverflow() {
-  const menu = nav.querySelector(".nav-overflow-menu");
-  const toggle = nav.querySelector(".nav-overflow-toggle");
-  if (!menu || !toggle) return;
-  menu.hidden = true;
-  toggle.setAttribute("aria-expanded", "false");
-}
-
-function toggleUserMenu() {
-  if (!userMenu || !userMenuToggle) return;
-
-  const isOpen = userMenu.hidden;
-  userMenu.hidden = !isOpen;
-  userMenuToggle.setAttribute("aria-expanded", String(isOpen));
-  closeNavOverflow();
-}
-
-function closeUserMenu() {
-  if (!userMenu || !userMenuToggle) return;
-
-  userMenu.hidden = true;
-  userMenuToggle.setAttribute("aria-expanded", "false");
-}
-
-function navIconHtml(view) {
-  const icons = {
-    Dashboard: "&#9636;",
-    Board: "&#9638;",
-    "Road Map": "&#8644;",
-    Gantt: "&#8942;",
-    Backlog: "&#9776;",
-    Projects: "&#9635;",
-    Sprints: "&#8635;",
-    Tasks: "&#10003;",
-    Bugs: "&#9888;",
-    Scrum: "&#9719;",
-    Documentation: "&#128196;",
-    Settings: "&#9881;"
-  };
-  return icons[view] || "&#9679;";
-}
-
-function renderUserPicker() {
-  const user = state.users.find(item => item.id === currentUserId);
-  userSelect.innerHTML = user ? `<option value="${user.id}">${escapeHtml(user.nickname)}</option>` : "";
-
-  if (userAvatar) {
-    userAvatar.src = user?.avatarUrl || "/assets/avatar-default.svg";
-    userAvatar.title = user?.nickname || "";
-    userAvatar.alt = user ? `${user.nickname} avatar` : "";
-  }
-
-  if (userMenuToggle) {
-    userMenuToggle.title = user ? `${user.nickname} menu` : "User menu";
-  }
-
-  updateThemeToggle();
-}
-
-function applySavedTheme() {
-  const savedTheme = localStorage.getItem("pmt-theme") || "dark";
-  applyTheme(savedTheme === "light" ? "light" : "dark");
-}
-
-function toggleTheme() {
-  const nextTheme = document.documentElement.dataset.theme === "light" ? "dark" : "light";
-  localStorage.setItem("pmt-theme", nextTheme);
-  applyTheme(nextTheme);
-}
-
-function applyTheme(theme) {
-  document.documentElement.dataset.theme = theme;
-  updateThemeToggle();
-}
-
-function updateThemeToggle() {
-  if (!themeToggle) return;
-
-  const isLight = document.documentElement.dataset.theme === "light";
-  const icon = themeToggle.querySelector("[data-theme-icon]");
-  const label = themeToggle.querySelector("[data-theme-label]");
-  if (icon) icon.innerHTML = isLight ? "&#9790;" : "&#9728;";
-  if (label) label.textContent = isLight ? "Dark Theme" : "Light Theme";
-  themeToggle.title = isLight ? "Switch to dark theme" : "Switch to light theme";
-}
-
 function render() {
-  if (!state.users.length) return;
-  renderNav();
-  renderUserPicker();
+  shell.render();
+}
 
+function renderCurrentScreen() {
   if (currentView === "Dashboard") renderDashboard();
   if (currentView === "Projects") renderProjects();
   if (currentView === "Board") renderBoard();
@@ -597,11 +281,11 @@ function renderGantt(options = {}) {
   const projectSprints = sortGanttSprints(state.sprints.filter(sprint => sprint.projectId === project?.id));
   if (ganttSprintMode === "all") {
     ganttRenderMode = "all";
-    localStorage.setItem("pmt-gantt-render-mode", ganttRenderMode);
+    writePreference(preferenceKeys.ganttRenderMode, ganttRenderMode);
   }
   if (ganttSprintMode !== "all" && ganttSprintMode !== "current" && !projectSprints.some(sprint => sprint.id === Number(ganttSprintMode))) {
     ganttSprintMode = "current";
-    localStorage.setItem("pmt-gantt-sprint", ganttSprintMode);
+    writePreference(preferenceKeys.ganttSprint, ganttSprintMode);
   }
 
   const selectedSprint = selectedGanttSprint(projectSprints);
@@ -672,7 +356,7 @@ function renderRoadMap() {
   const sprintOptions = roadMapSprintOptions();
   if (roadMapSprintFilter !== "all" && !sprintOptions.some(sprint => String(sprint.id) === String(roadMapSprintFilter))) {
     roadMapSprintFilter = "all";
-    localStorage.setItem("pmt-roadmap-sprint", roadMapSprintFilter);
+    writePreference(preferenceKeys.roadMapSprint, roadMapSprintFilter);
   }
 
   const filteredProjects = roadMapProjects();
@@ -1054,25 +738,25 @@ function filteredBugReports() {
 
 function toggleBugVisualCharts() {
   bugVisualChartsVisible = !bugVisualChartsVisible;
-  localStorage.setItem("pmt-bug-visual-charts-visible", String(bugVisualChartsVisible));
+  writePreference(preferenceKeys.bugVisualChartsVisible, bugVisualChartsVisible);
   renderBugs();
 }
 
 function toggleBugFilters() {
   bugFiltersVisible = !bugFiltersVisible;
-  localStorage.setItem("pmt-bug-filters-visible", String(bugFiltersVisible));
+  writePreference(preferenceKeys.bugFiltersVisible, bugFiltersVisible);
   renderBugs();
 }
 
 function toggleTaskVisualCharts() {
   taskVisualChartsVisible = !taskVisualChartsVisible;
-  localStorage.setItem("pmt-task-visual-charts-visible", String(taskVisualChartsVisible));
+  writePreference(preferenceKeys.taskVisualChartsVisible, taskVisualChartsVisible);
   renderTasks();
 }
 
 function toggleTaskFilters() {
   taskFiltersVisible = !taskFiltersVisible;
-  localStorage.setItem("pmt-task-filters-visible", String(taskFiltersVisible));
+  writePreference(preferenceKeys.taskFiltersVisible, taskFiltersVisible);
   renderTasks();
 }
 
@@ -1681,7 +1365,7 @@ function renderSettings() {
   const isDevelopment = settingsCategory === "Development";
   if (!isUsers && !isHolidays && !isDevelopment) {
     lookupTypeFilter = settingsCategory;
-    localStorage.setItem("pmt-lookup-type", lookupTypeFilter);
+    writePreference(preferenceKeys.lookupType, lookupTypeFilter);
   }
 
   let actionsHtml = `<button class="primary text-icon-button" type="button" data-action="new-lookup" ${currentUser().isAdmin ? "" : "disabled"}>${buttonContent("&#10010;", "New Setting")}</button>`;
@@ -2359,47 +2043,47 @@ function handleFilterChange(event) {
   const target = event.target;
   if (target.dataset.filter === "board-project") {
     boardProjectId = Number(target.value);
-    localStorage.setItem("pmt-board-project", boardProjectId);
+    writePreference(preferenceKeys.boardProject, boardProjectId);
     renderBoard();
   }
   if (target.dataset.filter === "board-sprint") {
     boardSprintMode = target.value;
-    localStorage.setItem("pmt-board-sprint", boardSprintMode);
+    writePreference(preferenceKeys.boardSprint, boardSprintMode);
     renderBoard();
   }
   if (target.dataset.filter === "board-sort") {
     boardSort = target.value;
-    localStorage.setItem("pmt-board-sort", boardSort);
+    writePreference(preferenceKeys.boardSort, boardSort);
     renderBoard();
   }
   if (target.dataset.filter === "board-status") {
     boardStatuses = [...document.querySelectorAll("[data-filter='board-status']:checked")].map(item => item.value);
     boardHideEmptyColumns = false;
-    localStorage.setItem("pmt-board-statuses", JSON.stringify(boardStatuses));
+    writeJsonPreference(preferenceKeys.boardStatuses, boardStatuses);
     renderBoard();
   }
   if (target.dataset.filter === "roadmap-project") {
     roadMapProjectFilter = target.value;
     roadMapSprintFilter = "all";
-    localStorage.setItem("pmt-roadmap-project", roadMapProjectFilter);
-    localStorage.setItem("pmt-roadmap-sprint", roadMapSprintFilter);
+    writePreference(preferenceKeys.roadMapProject, roadMapProjectFilter);
+    writePreference(preferenceKeys.roadMapSprint, roadMapSprintFilter);
     renderRoadMap();
   }
   if (target.dataset.filter === "roadmap-sprint") {
     roadMapSprintFilter = target.value;
-    localStorage.setItem("pmt-roadmap-sprint", roadMapSprintFilter);
+    writePreference(preferenceKeys.roadMapSprint, roadMapSprintFilter);
     renderRoadMap();
   }
   if (target.dataset.filter === "roadmap-sort") {
     roadMapSort = target.value;
-    localStorage.setItem("pmt-roadmap-sort", roadMapSort);
+    writePreference(preferenceKeys.roadMapSort, roadMapSort);
     renderRoadMap();
   }
   if (target.dataset.filter === "gantt-project") {
     ganttProjectId = Number(target.value);
     ganttSprintMode = "current";
-    localStorage.setItem("pmt-gantt-project", ganttProjectId);
-    localStorage.setItem("pmt-gantt-sprint", ganttSprintMode);
+    writePreference(preferenceKeys.ganttProject, ganttProjectId);
+    writePreference(preferenceKeys.ganttSprint, ganttSprintMode);
     ganttExpandedBugTaskIds.clear();
     renderGantt();
   }
@@ -2407,32 +2091,32 @@ function handleFilterChange(event) {
     ganttSprintMode = target.value;
     if (ganttSprintMode === "all") {
       ganttRenderMode = "all";
-      localStorage.setItem("pmt-gantt-render-mode", ganttRenderMode);
+      writePreference(preferenceKeys.ganttRenderMode, ganttRenderMode);
     }
-    localStorage.setItem("pmt-gantt-sprint", ganttSprintMode);
+    writePreference(preferenceKeys.ganttSprint, ganttSprintMode);
     ganttExpandedBugTaskIds.clear();
     renderGantt();
   }
   if (target.dataset.filter === "gantt-sort") {
     ganttSort = target.value;
-    localStorage.setItem("pmt-gantt-sort", ganttSort);
+    writePreference(preferenceKeys.ganttSort, ganttSort);
     renderGantt();
   }
   if (target.dataset.filter === "sprint-project") {
     sprintProjectId = Number(target.value);
-    localStorage.setItem("pmt-sprint-project", sprintProjectId);
+    writePreference(preferenceKeys.sprintProject, sprintProjectId);
     renderSprints();
   }
   if (target.dataset.filter === "task-project") {
     taskProjectId = Number(target.value);
     taskSprintId = "all";
-    localStorage.setItem("pmt-task-project", taskProjectId);
-    localStorage.setItem("pmt-task-sprint", taskSprintId);
+    writePreference(preferenceKeys.taskProject, taskProjectId);
+    writePreference(preferenceKeys.taskSprint, taskSprintId);
     renderTasks();
   }
   if (target.dataset.filter === "task-sprint") {
     taskSprintId = target.value;
-    localStorage.setItem("pmt-task-sprint", taskSprintId);
+    writePreference(preferenceKeys.taskSprint, taskSprintId);
     renderTasks();
   }
   if (target.dataset.filter === "task-sort") {
@@ -2462,7 +2146,7 @@ function handleFilterChange(event) {
   }
   if (target.dataset.filter === "documentation-project") {
     documentationProjectId = Number(target.value || 0);
-    localStorage.setItem("pmt-documentation-project", documentationProjectId);
+    writePreference(preferenceKeys.documentationProject, documentationProjectId);
     renderDocumentation();
   }
   if (target.dataset.filter?.startsWith("bug-")) {
@@ -2475,7 +2159,7 @@ function handleFilterChange(event) {
     if (key === "reporter") bugFilters.reporterIds = checkedFilterValues("bug-reporter");
     if (key === "assignee") bugFilters.assigneeIds = checkedFilterValues("bug-assignee");
 
-    localStorage.setItem("pmt-bug-filters", JSON.stringify(bugFilters));
+    writeJsonPreference(preferenceKeys.bugFilters, bugFilters);
     renderBugs();
   }
 }
@@ -2634,7 +2318,7 @@ async function finishTaskDrag(event) {
 
     if (drop.container.dataset.reorderList === "board-column") {
       boardSort = "custom";
-      localStorage.setItem("pmt-board-sort", boardSort);
+      writePreference(preferenceKeys.boardSort, boardSort);
     }
 
     await loadState();
@@ -3511,7 +3195,7 @@ async function runDevelopmentAction(path, message, successMessage) {
     await api(path, { method: "POST" });
     await loadState();
     settingsCategory = "Development";
-    localStorage.setItem("pmt-settings-category", settingsCategory);
+    writePreference(preferenceKeys.settingsCategory, settingsCategory);
     renderSettings();
     showToast(successMessage);
   } catch (error) {
@@ -3526,14 +3210,7 @@ async function clearLocalStoragePreferences() {
   );
   if (!confirmed) return;
 
-  // Remove only PMT keys so unrelated localStorage values for other sites are left alone.
-  const pmtKeys = [];
-  for (let index = 0; index < localStorage.length; index += 1) {
-    const key = localStorage.key(index);
-    if (key && key.startsWith("pmt-")) pmtKeys.push(key);
-  }
-
-  pmtKeys.forEach(key => localStorage.removeItem(key));
+  clearPmtPreferences();
   window.location.reload();
 }
 
@@ -3629,10 +3306,9 @@ function gotoTask(id) {
   if (!task) return;
   taskProjectId = task.projectId;
   taskSprintId = String(task.sprintId || "all");
-  currentView = "Tasks";
-  localStorage.setItem("pmt-view", currentView);
-  localStorage.setItem("pmt-task-project", taskProjectId);
-  localStorage.setItem("pmt-task-sprint", taskSprintId);
+  navigate("Tasks");
+  writePreference(preferenceKeys.taskProject, taskProjectId);
+  writePreference(preferenceKeys.taskSprint, taskSprintId);
   render();
 }
 
@@ -3650,9 +3326,8 @@ function openTaskReadMode(id) {
 
 function viewProjectSprints(projectId) {
   sprintProjectId = projectId;
-  currentView = "Sprints";
-  localStorage.setItem("pmt-view", currentView);
-  localStorage.setItem("pmt-sprint-project", sprintProjectId);
+  navigate("Sprints");
+  writePreference(preferenceKeys.sprintProject, sprintProjectId);
   render();
 }
 
@@ -3661,9 +3336,8 @@ function viewDashboardSprint(sprintId) {
   if (!sprint) return;
 
   sprintProjectId = sprint.projectId;
-  currentView = "Sprints";
-  localStorage.setItem("pmt-view", currentView);
-  localStorage.setItem("pmt-sprint-project", sprintProjectId);
+  navigate("Sprints");
+  writePreference(preferenceKeys.sprintProject, sprintProjectId);
   render();
 }
 
@@ -3673,20 +3347,18 @@ function viewSprintTasks(sprintId) {
 
   taskProjectId = sprint.projectId;
   taskSprintId = String(sprint.id);
-  currentView = "Tasks";
-  localStorage.setItem("pmt-view", currentView);
-  localStorage.setItem("pmt-task-project", taskProjectId);
-  localStorage.setItem("pmt-task-sprint", taskSprintId);
+  navigate("Tasks");
+  writePreference(preferenceKeys.taskProject, taskProjectId);
+  writePreference(preferenceKeys.taskSprint, taskSprintId);
   render();
 }
 
 function viewProjectGantt(projectId) {
   ganttProjectId = projectId;
   ganttSprintMode = "current";
-  currentView = "Gantt";
-  localStorage.setItem("pmt-view", currentView);
-  localStorage.setItem("pmt-gantt-project", ganttProjectId);
-  localStorage.setItem("pmt-gantt-sprint", ganttSprintMode);
+  navigate("Gantt");
+  writePreference(preferenceKeys.ganttProject, ganttProjectId);
+  writePreference(preferenceKeys.ganttSprint, ganttSprintMode);
   render();
 }
 
@@ -3766,14 +3438,14 @@ function hideEmptyBoardColumns() {
     .filter(task => sprintId === 0 || task.sprintId === sprintId);
 
   boardStatuses = statuses.filter(status => visibleTasks.some(task => task.status === status));
-  localStorage.setItem("pmt-board-statuses", JSON.stringify(boardStatuses));
+  writeJsonPreference(preferenceKeys.boardStatuses, boardStatuses);
   renderBoard();
 }
 
 function showAllBoardColumns() {
   boardHideEmptyColumns = false;
   boardStatuses = [...statuses];
-  localStorage.setItem("pmt-board-statuses", JSON.stringify(boardStatuses));
+  writeJsonPreference(preferenceKeys.boardStatuses, boardStatuses);
   renderBoard();
 }
 
@@ -4151,15 +3823,15 @@ function toggleGanttRenderMode() {
   } else if (ganttSprintMode === "all") {
     ganttSprintMode = "current";
   }
-  localStorage.setItem("pmt-gantt-sprint", ganttSprintMode);
-  localStorage.setItem("pmt-gantt-render-mode", ganttRenderMode);
+  writePreference(preferenceKeys.ganttSprint, ganttSprintMode);
+  writePreference(preferenceKeys.ganttRenderMode, ganttRenderMode);
   ganttExpandedBugTaskIds.clear();
   renderGantt();
 }
 
 function toggleGanttDays() {
   ganttShowNonWorkingDays = !ganttShowNonWorkingDays;
-  localStorage.setItem("pmt-gantt-show-non-working-days", String(ganttShowNonWorkingDays));
+  writePreference(preferenceKeys.ganttShowNonWorkingDays, ganttShowNonWorkingDays);
   renderGantt();
 }
 
@@ -4178,9 +3850,9 @@ function applyGanttResetPreset() {
 }
 
 function saveGanttViewSettings() {
-  localStorage.setItem("pmt-gantt-sprint", ganttSprintMode);
-  localStorage.setItem("pmt-gantt-sort", ganttSort);
-  localStorage.setItem("pmt-gantt-render-mode", ganttRenderMode);
+  writePreference(preferenceKeys.ganttSprint, ganttSprintMode);
+  writePreference(preferenceKeys.ganttSort, ganttSort);
+  writePreference(preferenceKeys.ganttRenderMode, ganttRenderMode);
 }
 
 function toggleGanttAllBugs() {
@@ -4191,28 +3863,28 @@ function toggleGanttAllBugs() {
 
 function toggleRoadMapDates() {
   roadMapShowDates = !roadMapShowDates;
-  localStorage.setItem("pmt-roadmap-show-dates", String(roadMapShowDates));
+  writePreference(preferenceKeys.roadMapShowDates, roadMapShowDates);
   renderRoadMap();
 }
 
 function toggleRoadMapDetails() {
   roadMapShowDetails = !roadMapShowDetails;
-  localStorage.setItem("pmt-roadmap-show-details", String(roadMapShowDetails));
+  writePreference(preferenceKeys.roadMapShowDetails, roadMapShowDetails);
   renderRoadMap();
 }
 
 function toggleRoadMapSprints() {
   roadMapShowSprints = !roadMapShowSprints;
-  localStorage.setItem("pmt-roadmap-show-sprints", String(roadMapShowSprints));
+  writePreference(preferenceKeys.roadMapShowSprints, roadMapShowSprints);
   renderRoadMap();
 }
 
 function selectLookupType(type) {
   settingsCategory = type || "Status";
-  localStorage.setItem("pmt-settings-category", settingsCategory);
+  writePreference(preferenceKeys.settingsCategory, settingsCategory);
   if (settingsCategory !== "Users" && settingsCategory !== "Holidays" && settingsCategory !== "Development") {
     lookupTypeFilter = settingsCategory;
-    localStorage.setItem("pmt-lookup-type", lookupTypeFilter);
+    writePreference(preferenceKeys.lookupType, lookupTypeFilter);
   }
   renderSettings();
 }
@@ -5261,7 +4933,7 @@ function checkedFilterValues(filterName) {
 }
 
 function saveTaskFilters() {
-  localStorage.setItem("pmt-task-filters", JSON.stringify(taskFilters));
+  writeJsonPreference(preferenceKeys.taskFilters, taskFilters);
 }
 
 function normalizeSavedArray(value, legacyValue = "") {
@@ -5719,10 +5391,6 @@ function selectedBoardSprintId(projectId) {
     .filter(sprint => sprint.projectId === projectId)
     .sort((a, b) => new Date(b.startDate) - new Date(a.startDate))[0];
   return latest?.id || 0;
-}
-
-function currentUser() {
-  return state.users.find(user => user.id === currentUserId) || state.users[0] || {};
 }
 
 function canEditOwner(ownerUserId) {

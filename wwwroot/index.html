@@ -4,14 +4,9 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>PMT</title>
-  <script>
-    (function () {
-      try {
-        document.documentElement.dataset.theme = localStorage.getItem("pmt-theme") || "dark";
-      } catch {
-        document.documentElement.dataset.theme = "dark";
-      }
-    }());
+  <script type="module" blocking="render">
+    import { preferenceKeys, readPreference } from "/js/core/preferences.js";
+    document.documentElement.dataset.theme = readPreference(preferenceKeys.theme, "dark");
   </script>
   <link rel="stylesheet" href="/styles.css?v=20260617-bugcharts6">
 </head>
@@ -76,6 +71,6 @@
   </dialog>
 
   <div id="toast" class="toast" hidden></div>
-  <script type="module" src="/js/app.js?v=20260618-module-scaffold"></script>
+  <script type="module" src="/js/app.js?v=20260618-core-services"></script>
 </body>
 </html>
