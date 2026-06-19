@@ -1,5 +1,10 @@
 import { buttonContent, iconButton } from "../../components/buttons.js";
 import {
+  checkedFilterValues,
+  filterCheckList,
+  filterSelect
+} from "../../components/filters.js";
+import {
   field,
   optionalNumberValue,
   richTextField,
@@ -9,11 +14,18 @@ import {
 } from "../../components/forms.js";
 import { sectionHead } from "../../components/sections.js";
 import { currentUser } from "../../core/authentication.js";
+import {
+  preferenceKeys,
+  readJsonPreference,
+  writeJsonPreference
+} from "../../core/preferences.js";
 import { state } from "../../core/store.js";
 import {
+  dateKey,
   formatDate,
   toDateInput
 } from "../../shared/dates.js";
+import { normalizeSavedArray } from "../../shared/filter-values.js";
 import { canEditOwner } from "../../shared/permissions.js";
 import {
   projectName,
@@ -33,10 +45,38 @@ export function createScrumFeature({
   saveJson,
   showToast
 }) {
+  let scrumFilters = readJsonPreference(preferenceKeys.scrumFilters, {});
+  scrumFilters.personIds = normalizeSavedArray(scrumFilters.personIds);
+
   function renderDevLogs() {
-    const logs = [...state.devLogs].sort((a, b) => new Date(b.logDate) - new Date(a.logDate) || new Date(b.updatedAt) - new Date(a.updatedAt));
+    if (scrumFilters.projectId && !state.projects.some(project => project.id === Number(scrumFilters.projectId))) {
+      scrumFilters.projectId = "";
+    }
+
+    const validPersonIds = new Set(state.users.map(user => String(user.id)));
+    scrumFilters.personIds = scrumFilters.personIds.filter(id => validPersonIds.has(id));
+
+    const logs = state.devLogs
+      .filter(log => !scrumFilters.projectId || log.projectId === Number(scrumFilters.projectId))
+      .filter(log => !scrumFilters.personIds.length || scrumFilters.personIds.includes(String(log.userId)))
+      .filter(log => !scrumFilters.logDate || dateKey(log.logDate) === scrumFilters.logDate)
+      .sort((a, b) => new Date(b.logDate) - new Date(a.logDate) || new Date(b.updatedAt) - new Date(a.updatedAt));
+
     app.innerHTML = `
       ${sectionHead("Scrum", `<button class="primary text-icon-button" type="button" data-action="new-log">${buttonContent("&#10010;", "New Scrum")}</button>`)}
+      <div class="panel work-item-filter-panel scrum-filter-panel">
+        <h2 class="scrum-filter-title">Filters</h2>
+        <div class="filter-row">
+          ${filterSelect("Project", "scrum-project", state.projects.map(project => ({ value: project.id, text: `${project.code} - ${project.title}` })), scrumFilters.projectId || "", "All projects")}
+          <label>
+            <span>Date</span>
+            <input type="date" data-filter="scrum-date" value="${escapeAttr(scrumFilters.logDate || "")}">
+          </label>
+        </div>
+        <div class="filter-stack">
+          ${filterCheckList("Person", "scrum-person", state.users.map(user => ({ value: user.id, text: user.nickname })), scrumFilters.personIds)}
+        </div>
+      </div>
       <div class="panel scrum-panel">
         <div class="scrum-table-wrap">
         <table class="table scrum-table">
@@ -72,12 +112,26 @@ export function createScrumFeature({
               </td>
             </tr>
           `;
-        }).join("") || `<tr><td colspan="6"><div class="empty">No Scrum entries.</div></td></tr>`}
+        }).join("") || `<tr><td colspan="6"><div class="empty">No Scrum entries match the current filters.</div></td></tr>`}
           </tbody>
         </table>
         </div>
       </div>
     `;
+  }
+
+  function handleFilterChange(eventOrTarget) {
+    const target = eventOrTarget?.target || eventOrTarget;
+    const filter = target?.dataset?.filter;
+    if (!filter?.startsWith("scrum-")) return false;
+
+    if (filter === "scrum-project") scrumFilters.projectId = target.value;
+    if (filter === "scrum-date") scrumFilters.logDate = target.value;
+    if (filter === "scrum-person") scrumFilters.personIds = checkedFilterValues("scrum-person");
+
+    writeJsonPreference(preferenceKeys.scrumFilters, scrumFilters);
+    renderDevLogs();
+    return true;
   }
 
   async function handleAction(action, id) {
@@ -177,6 +231,7 @@ export function createScrumFeature({
 
   return {
     handleAction,
+    handleFilterChange,
     render: renderDevLogs
   };
 }

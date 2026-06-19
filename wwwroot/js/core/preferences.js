@@ -6,6 +6,7 @@ export const preferenceKeys = Object.freeze({
   boardSprint: "pmt-board-sprint",
   boardSort: "pmt-board-sort",
   boardStatuses: "pmt-board-statuses",
+  boardHideEmptyColumns: "pmt-board-hide-empty-columns",
   roadMapProject: "pmt-roadmap-project",
   roadMapSprint: "pmt-roadmap-sprint",
   roadMapSort: "pmt-roadmap-sort",
@@ -28,6 +29,7 @@ export const preferenceKeys = Object.freeze({
   bugFilters: "pmt-bug-filters",
   bugFiltersVisible: "pmt-bug-filters-visible",
   bugVisualChartsVisible: "pmt-bug-visual-charts-visible",
+  scrumFilters: "pmt-scrum-filters",
   documentationProject: "pmt-documentation-project"
 });
 

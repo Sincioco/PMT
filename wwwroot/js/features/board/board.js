@@ -8,6 +8,7 @@ import {
 } from "../../components/work-items.js";
 import {
   preferenceKeys,
+  readBooleanPreference,
   readJsonPreference,
   readNumberPreference,
   readPreference,
@@ -38,7 +39,7 @@ export function createBoardFeature({
   let boardProjectId = readNumberPreference(preferenceKeys.boardProject, 0);
   let boardSprintMode = readPreference(preferenceKeys.boardSprint, "latest");
   let boardSort = readPreference(preferenceKeys.boardSort, "custom");
-  let boardHideEmptyColumns = false;
+  let boardHideEmptyColumns = readBooleanPreference(preferenceKeys.boardHideEmptyColumns, true);
 
   const initialStatuses = getStatuses();
   const savedBoardStatuses = readJsonPreference(preferenceKeys.boardStatuses, null);
@@ -58,9 +59,19 @@ export function createBoardFeature({
     if (!boardProjectId && state.projects.length) boardProjectId = state.projects[0].id;
     const project = state.projects.find(item => item.id === boardProjectId) || state.projects[0];
     const sprintId = selectedSprintId(project?.id);
-    const visibleTasks = state.tasks
+    const projectSprintTasks = state.tasks
       .filter(task => !project || task.projectId === project.id)
-      .filter(task => sprintId === 0 || task.sprintId === sprintId)
+      .filter(task => sprintId === 0 || task.sprintId === sprintId);
+
+    if (boardHideEmptyColumns) {
+      const nonEmptyStatuses = getStatuses().filter(status => projectSprintTasks.some(task => task.status === status));
+      if (!sameValues(boardStatuses, nonEmptyStatuses)) {
+        boardStatuses = nonEmptyStatuses;
+        writeJsonPreference(preferenceKeys.boardStatuses, boardStatuses);
+      }
+    }
+
+    const visibleTasks = projectSprintTasks
       .filter(task => boardStatuses.includes(task.status))
       .sort(boardTaskSortCompare);
     const boardColumnStatuses = boardHideEmptyColumns
@@ -150,6 +161,7 @@ export function createBoardFeature({
       boardStatuses = [...app.querySelectorAll("[data-filter='board-status']:checked")].map(item => item.value);
       boardHideEmptyColumns = false;
       writeJsonPreference(preferenceKeys.boardStatuses, boardStatuses);
+      writePreference(preferenceKeys.boardHideEmptyColumns, boardHideEmptyColumns);
       renderBoard();
       return true;
     }
@@ -158,14 +170,7 @@ export function createBoardFeature({
 
   function hideEmptyBoardColumns() {
     boardHideEmptyColumns = true;
-    const project = state.projects.find(item => item.id === boardProjectId) || state.projects[0];
-    const sprintId = selectedSprintId(project?.id);
-    const visibleTasks = state.tasks
-      .filter(task => !project || task.projectId === project.id)
-      .filter(task => sprintId === 0 || task.sprintId === sprintId);
-
-    boardStatuses = getStatuses().filter(status => visibleTasks.some(task => task.status === status));
-    writeJsonPreference(preferenceKeys.boardStatuses, boardStatuses);
+    writePreference(preferenceKeys.boardHideEmptyColumns, boardHideEmptyColumns);
     renderBoard();
   }
 
@@ -173,6 +178,7 @@ export function createBoardFeature({
     boardHideEmptyColumns = false;
     boardStatuses = [...getStatuses()];
     writeJsonPreference(preferenceKeys.boardStatuses, boardStatuses);
+    writePreference(preferenceKeys.boardHideEmptyColumns, boardHideEmptyColumns);
     renderBoard();
   }
 
@@ -289,7 +295,11 @@ export function createBoardFeature({
     const statuses = getStatuses();
     const saved = Array.isArray(boardStatuses) ? boardStatuses : [];
     boardStatuses = saved.filter(status => statuses.includes(status));
-    if (!boardStatuses.length) boardStatuses = [...statuses];
+    if (!boardStatuses.length && !boardHideEmptyColumns) boardStatuses = [...statuses];
+  }
+
+  function sameValues(left, right) {
+    return left.length === right.length && left.every((value, index) => value === right[index]);
   }
 
   return {

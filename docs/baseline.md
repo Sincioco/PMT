@@ -66,7 +66,7 @@ the `More navigation` menu.
 | Sprints | `Sprints` | Project-filtered Sprint cards, status metrics, progress, finish flow, and Sprint CRUD. |
 | Dev Tasks | `Tasks` | Filterable task table, task charts, hierarchy, assignment, dependencies, audit, and task CRUD. |
 | Bug Tracking | `Bugs` | Filterable Bug table, Bug charts and drilldown, assignment/reporting, audit, and Bug CRUD. |
-| Scrum | `Scrum` | Scrum/Dev Log entries, project filter, duplicate action, and CRUD. |
+| Scrum | `Scrum` | Scrum/Dev Log entries, Project/Person/Date filters, duplicate action, and CRUD. |
 | Documentation | `Documentation` | Project-filtered Documentation cards, read-only view, rich text, attachments, and CRUD. |
 | Backlog | `Backlog` | Unscheduled/Todo Dev Tasks and Bugs with drag/drop ordering and creation actions. |
 
@@ -147,6 +147,7 @@ The application currently uses these `localStorage` keys:
 - `pmt-board-sprint`
 - `pmt-board-sort`
 - `pmt-board-statuses`
+- `pmt-board-hide-empty-columns`
 
 ### Road Map
 
@@ -174,11 +175,12 @@ The application currently uses these `localStorage` keys:
 - `pmt-task-filters-visible`
 - `pmt-task-visual-charts-visible`
 
-### Bug Tracking and Documentation
+### Bug Tracking, Scrum, and Documentation
 
 - `pmt-bug-filters`
 - `pmt-bug-filters-visible`
 - `pmt-bug-visual-charts-visible`
+- `pmt-scrum-filters`
 - `pmt-documentation-project`
 
 ### Settings

@@ -30,7 +30,7 @@ export function createGanttFeature({
   let ganttProjectId = readNumberPreference(preferenceKeys.ganttProject, 0);
   let ganttSprintMode = readPreference(preferenceKeys.ganttSprint, "current");
   let ganttRenderMode = readPreference(preferenceKeys.ganttRenderMode, "all");
-  let ganttSort = readPreference(preferenceKeys.ganttSort, "startAsc");
+  let ganttSort = readPreference(preferenceKeys.ganttSort, "startDesc");
   let ganttShowNonWorkingDays = readBooleanPreference(preferenceKeys.ganttShowNonWorkingDays, false);
   let ganttShowAllBugs = false;
 

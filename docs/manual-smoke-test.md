@@ -77,6 +77,7 @@ Use clearly named temporary records and remove them after validation.
 
 ### Scrum and Documentation
 
+- [ ] Verify Scrum Project, Person, and Date filters work alone and in combination.
 - [ ] Create a Scrum entry and verify the three-question starter text/caret.
 - [ ] Duplicate it and confirm the duplicate date defaults to today.
 - [ ] Edit and delete the temporary Scrum entries.
@@ -96,6 +97,7 @@ Use clearly named temporary records and remove them after validation.
 
 ## Filters and charts
 
+- [ ] With Dev Task preferences cleared, confirm the current or latest past Sprint is selected by default.
 - [ ] Dev Tasks filters work for Project, Sprint, Status, Priority, Assigned, sort, and Hide Completed.
 - [ ] Dev Task filter and chart toggle states work.
 - [ ] All four Dev Task chart cards render and chart drilldown opens records.
@@ -108,6 +110,7 @@ Use clearly named temporary records and remove them after validation.
 
 ## Kanban Board and ordering
 
+- [ ] With Board preferences cleared, confirm empty columns are hidden by default.
 - [ ] Project, Sprint, and Sort controls fit on one row at normal laptop width.
 - [ ] Drag a card to a different status column and verify status persistence.
 - [ ] Reorder at least three cards in one column through multiple consecutive drags.
@@ -118,6 +121,7 @@ Use clearly named temporary records and remove them after validation.
 
 ## Gantt
 
+- [ ] With Gantt preferences cleared, confirm Start date descending is the default sort.
 - [ ] Switch among PMT, LMS, and HLS.
 - [ ] Verify the current Sprint is selected by Reset View.
 - [ ] Verify selected-only and all-Sprints modes remain synchronized.
@@ -130,6 +134,7 @@ Use clearly named temporary records and remove them after validation.
 
 ## Road Map
 
+- [ ] With Road Map preferences cleared, confirm Sprints are collapsed by default.
 - [ ] Projects and Sprints render with dates and progress.
 - [ ] Project and Sprint links navigate with the expected filters.
 - [ ] Toggle Sprint visibility.

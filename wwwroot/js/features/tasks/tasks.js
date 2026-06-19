@@ -78,7 +78,7 @@ export function createTasksFeature({
   saveJson
 }) {
   let taskProjectId = readNumberPreference(preferenceKeys.taskProject, 0);
-  let taskSprintId = readPreference(preferenceKeys.taskSprint, "all");
+  let taskSprintId = readPreference(preferenceKeys.taskSprint, "");
   let taskFilters = readJsonPreference(preferenceKeys.taskFilters, {});
   let taskFiltersVisible = readBooleanPreference(preferenceKeys.taskFiltersVisible, true);
   let taskVisualChartsVisible = readBooleanPreference(preferenceKeys.taskVisualChartsVisible, true);
@@ -96,7 +96,8 @@ export function createTasksFeature({
     const priorities = getPriorities();
     const projectSprints = state.sprints.filter(sprint => sprint.projectId === taskProjectId);
     if (taskSprintId !== "all" && !projectSprints.some(sprint => sprint.id === Number(taskSprintId))) {
-      taskSprintId = "all";
+      taskSprintId = defaultSprintId(projectSprints);
+      writePreference(preferenceKeys.taskSprint, taskSprintId);
     }
 
     const allProjectDevTasks = state.tasks
@@ -244,7 +245,7 @@ export function createTasksFeature({
 
     if (filter === "task-project") {
       taskProjectId = Number(target.value);
-      taskSprintId = "all";
+      taskSprintId = defaultSprintId(state.sprints.filter(sprint => sprint.projectId === taskProjectId));
       writePreference(preferenceKeys.taskProject, taskProjectId);
       writePreference(preferenceKeys.taskSprint, taskSprintId);
     }
@@ -339,6 +340,11 @@ export function createTasksFeature({
     if (!state.projects.some(project => project.id === taskProjectId) && state.projects.length) {
       taskProjectId = state.projects[0].id;
     }
+  }
+
+  function defaultSprintId(projectSprints) {
+    const currentOrLastSprint = getCurrentSprint(projectSprints);
+    return currentOrLastSprint ? String(currentOrLastSprint.id) : "all";
   }
 
   function filteredTaskList(tasks) {

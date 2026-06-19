@@ -1,5 +1,17 @@
 /* CSS ownership: Scrum screen. */
 
+.scrum-filter-panel {
+  padding: var(--space-6);
+  background: var(--color-surface);
+  backdrop-filter: none;
+}
+
+.scrum-filter-title {
+  margin: 0 0 var(--space-5);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-lg);
+}
+
 .scrum-panel {
   padding: var(--space-4);
   background: var(--color-surface);
@@ -115,6 +127,12 @@
 }
 
 @media (max-width: 900px) {
+  .scrum-filter-panel .filter-row label,
+  .scrum-filter-panel .filter-row select,
+  .scrum-filter-panel .filter-row input:not([type="checkbox"]) {
+    width: 100%;
+  }
+
   .scrum-panel {
     padding: 0;
     border: 0;

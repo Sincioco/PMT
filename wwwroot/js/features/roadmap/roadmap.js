@@ -18,7 +18,7 @@ export function createRoadMapFeature({ app }) {
   let roadMapSort = readPreference(preferenceKeys.roadMapSort, "endAsc");
   let roadMapShowDates = readBooleanPreference(preferenceKeys.roadMapShowDates, true);
   let roadMapShowDetails = readBooleanPreference(preferenceKeys.roadMapShowDetails, true);
-  let roadMapShowSprints = readBooleanPreference(preferenceKeys.roadMapShowSprints, true);
+  let roadMapShowSprints = readBooleanPreference(preferenceKeys.roadMapShowSprints, false);
 
   function renderRoadMap() {
     const sprintOptions = roadMapSprintOptions({
