@@ -1,32 +1,138 @@
-/* Phase 11 ownership: tokens. */
+/* Phase 13: shared semantic design-token contract. Theme values live in themes.css. */
 
 :root {
-  color-scheme: dark;
-  --bg: #111416;
-  --surface: rgba(28, 34, 37, 0.82);
-  --surface-strong: rgba(36, 43, 47, 0.96);
-  --surface-soft: rgba(255, 255, 255, 0.055);
-  --line: rgba(255, 255, 255, 0.11);
-  --line-strong: rgba(255, 255, 255, 0.2);
-  --text: #edf3f2;
-  --muted: #a0adb1;
-  --teal: #35c7bd;
-  --green: #74c476;
-  --amber: #e4a53a;
-  --rose: #ee6b70;
-  --blue: #76a9ff;
-  --ink: #0f1315;
-  --shadow: 0 18px 46px rgba(0, 0, 0, 0.38);
-  --body-glow-a: rgba(53, 199, 189, 0.16);
-  --body-glow-b: rgba(228, 165, 58, 0.1);
-  --topbar-bg: rgba(17, 20, 22, 0.78);
-  --dialog-bg: rgba(23, 28, 31, 0.98);
-  --timeline-header-bg: rgba(28, 34, 37, 0.96);
-  --timeline-sticky-bg: rgba(28, 34, 37, 0.98);
-  --timeline-line: rgba(255, 255, 255, 0.07);
-  --timeline-soft-bg: rgba(255, 255, 255, 0.025);
-  --status-bg-mix: #111416;
-  --option-bg: #20272b;
-  --option-selected-bg: #2f5f5c;
-  font-family: "Segoe UI", Arial, sans-serif;
+  /* Typography */
+  --font-family-sans: "Segoe UI Variable", "Segoe UI", Arial, sans-serif;
+  --font-family-mono: "Cascadia Code", "SFMono-Regular", Consolas, monospace;
+  --font-size-xs: 11px;
+  --font-size-sm: 12px;
+  --font-size-md: 13px;
+  --font-size-base: 14px;
+  --font-size-lg: 16px;
+  --font-size-xl: 18px;
+  --font-size-2xl: 22px;
+  --font-size-3xl: 30px;
+  --line-height-tight: 1.15;
+  --line-height-heading: 1.25;
+  --line-height-body: 1.5;
+  --font-weight-regular: 400;
+  --font-weight-medium: 600;
+  --font-weight-bold: 700;
+
+  /* Spacing */
+  --space-0: 0;
+  --space-1: 4px;
+  --space-2: 6px;
+  --space-3: 8px;
+  --space-4: 10px;
+  --space-5: 12px;
+  --space-6: 14px;
+  --space-7: 16px;
+  --space-8: 20px;
+  --space-9: 24px;
+  --space-10: 32px;
+  --space-11: 40px;
+  --space-12: 48px;
+
+  /* Shape, borders, and depth */
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-pill: 999px;
+  --border-width: 1px;
+  --border-width-strong: 2px;
+  --glass-blur: 18px;
+  --glass-blur-dialog: 20px;
+  --glass-saturation: 118%;
+  --shadow-focus: 0 0 0 3px var(--color-focus-halo);
+
+  /* Controls and density */
+  --control-height-sm: 32px;
+  --control-height-md: 40px;
+  --control-height-lg: 44px;
+  --control-padding-inline-sm: 10px;
+  --control-padding-inline-md: 12px;
+  --control-padding-inline-lg: 16px;
+  --touch-target-min: 40px;
+  --icon-size-sm: 14px;
+  --icon-size-md: 16px;
+  --icon-size-lg: 20px;
+  --table-cell-padding-block: 11px;
+  --table-cell-padding-inline: 10px;
+
+  /* Layout */
+  --content-max-width: 1600px;
+  --shell-padding-laptop: 22px;
+  --shell-padding-compact: 14px;
+  --panel-gap: 14px;
+  --topbar-height-min: 68px;
+  --dialog-width-sm: 430px;
+  --dialog-width-md: 900px;
+  --dialog-width-lg: 1020px;
+  --breakpoint-compact: 900px;
+  --z-sticky: 5;
+  --z-toast: 10;
+  --z-menu: 20;
+  --z-dialog: 30;
+  --z-tooltip: 40;
+
+  /* Motion */
+  --duration-instant: 0ms;
+  --duration-fast: 120ms;
+  --duration-normal: 180ms;
+  --duration-slow: 280ms;
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --ease-emphasized: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --transition-control:
+    background-color var(--duration-fast) var(--ease-standard),
+    border-color var(--duration-fast) var(--ease-standard),
+    color var(--duration-fast) var(--ease-standard),
+    box-shadow var(--duration-fast) var(--ease-standard),
+    transform var(--duration-fast) var(--ease-standard);
+
+  /*
+   * Compatibility aliases.
+   * Existing screens keep consuming these names until later screen-by-screen
+   * design phases adopt the expanded semantic contract.
+   */
+  --bg: var(--color-page);
+  --surface: var(--color-surface-glass);
+  --surface-strong: var(--color-surface-raised);
+  --surface-soft: var(--color-surface-subtle);
+  --line: var(--color-border);
+  --line-strong: var(--color-border-strong);
+  --text: var(--color-text-primary);
+  --muted: var(--color-text-secondary);
+  --teal: var(--color-primary);
+  --green: var(--color-success);
+  --amber: var(--color-warning);
+  --rose: var(--color-danger);
+  --blue: var(--color-info);
+  --ink: var(--color-primary-contrast);
+  --shadow: var(--shadow-elevated);
+  --body-glow-a: var(--color-page-glow-primary);
+  --body-glow-b: var(--color-page-glow-secondary);
+  --topbar-bg: var(--color-surface-navigation);
+  --dialog-bg: var(--color-surface-dialog);
+  --timeline-header-bg: var(--color-timeline-header);
+  --timeline-sticky-bg: var(--color-timeline-sticky);
+  --timeline-line: var(--color-timeline-line);
+  --timeline-soft-bg: var(--color-timeline-subtle);
+  --status-bg-mix: var(--color-status-mix);
+  --option-bg: var(--color-option-background);
+  --option-selected-bg: var(--color-option-selected);
+
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-base);
+  line-height: var(--line-height-body);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --duration-fast: 0ms;
+    --duration-normal: 0ms;
+    --duration-slow: 0ms;
+  }
 }

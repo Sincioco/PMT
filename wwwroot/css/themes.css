@@ -1,31 +1,220 @@
-/* Phase 11 ownership: themes. */
+/* Phase 13: complete values for the shared semantic contract in both themes. */
+
+:root,
+html[data-theme="dark"] {
+  color-scheme: dark;
+
+  /* Page and surfaces */
+  --color-page: #111416;
+  --color-page-muted: #171c1f;
+  --color-page-glow-primary: rgba(53, 199, 189, 0.16);
+  --color-page-glow-secondary: rgba(228, 165, 58, 0.1);
+  --color-surface: #1c2225;
+  --color-surface-subtle: rgba(255, 255, 255, 0.055);
+  --color-surface-raised: rgba(36, 43, 47, 0.96);
+  --color-surface-elevated: rgba(43, 51, 55, 0.98);
+  --color-surface-glass: rgba(28, 34, 37, 0.82);
+  --color-surface-glass-highlight: rgba(255, 255, 255, 0.08);
+  --color-surface-navigation: rgba(17, 20, 22, 0.78);
+  --color-surface-dialog: rgba(23, 28, 31, 0.98);
+  --color-overlay: rgba(0, 0, 0, 0.62);
+
+  /* Text hierarchy */
+  --color-text-primary: #edf3f2;
+  --color-text-secondary: #a0adb1;
+  --color-text-tertiary: #7f8d92;
+  --color-text-inverse: #0f1315;
+  --color-text-disabled: #6f7b7f;
+  --color-link: #4bd4ca;
+  --color-link-hover: #75e2da;
+
+  /* Actions and semantic feedback */
+  --color-primary: #35c7bd;
+  --color-primary-hover: #4bd4ca;
+  --color-primary-active: #25aaa2;
+  --color-primary-contrast: #0f1315;
+  --color-secondary: #9f9cff;
+  --color-secondary-hover: #b4b2ff;
+  --color-secondary-active: #8581e8;
+  --color-secondary-contrast: #101022;
+
+  --color-success: #74c476;
+  --color-success-surface: rgba(116, 196, 118, 0.16);
+  --color-success-border: rgba(116, 196, 118, 0.44);
+  --color-success-text: #bde8bd;
+  --color-warning: #e4a53a;
+  --color-warning-surface: rgba(228, 165, 58, 0.18);
+  --color-warning-border: rgba(228, 165, 58, 0.48);
+  --color-warning-text: #ffd98c;
+  --color-danger: #ee6b70;
+  --color-danger-surface: rgba(238, 107, 112, 0.16);
+  --color-danger-border: rgba(238, 107, 112, 0.42);
+  --color-danger-text: #ffc0c2;
+  --color-info: #76a9ff;
+  --color-info-surface: rgba(118, 169, 255, 0.14);
+  --color-info-border: rgba(118, 169, 255, 0.42);
+  --color-info-text: #c9dcff;
+
+  /* Borders, controls, and focus */
+  --color-border-subtle: rgba(255, 255, 255, 0.07);
+  --color-border: rgba(255, 255, 255, 0.11);
+  --color-border-strong: rgba(255, 255, 255, 0.2);
+  --color-border-control: rgba(255, 255, 255, 0.16);
+  --color-control: rgba(255, 255, 255, 0.075);
+  --color-control-hover: rgba(255, 255, 255, 0.11);
+  --color-control-active: rgba(255, 255, 255, 0.14);
+  --color-control-disabled: rgba(255, 255, 255, 0.035);
+  --color-control-selected: rgba(53, 199, 189, 0.18);
+  --color-focus-ring: #5de0d5;
+  --color-focus-halo: rgba(53, 199, 189, 0.24);
+  --color-option-background: #20272b;
+  --color-option-selected: #2f5f5c;
+
+  /* Shadows */
+  --shadow-card: 0 10px 28px rgba(0, 0, 0, 0.24);
+  --shadow-elevated: 0 18px 46px rgba(0, 0, 0, 0.38);
+  --shadow-dialog: 0 28px 80px rgba(0, 0, 0, 0.5);
+
+  /* Charts */
+  --chart-1: #35c7bd;
+  --chart-2: #76a9ff;
+  --chart-3: #74c476;
+  --chart-4: #e4a53a;
+  --chart-5: #ee6b70;
+  --chart-6: #9f9cff;
+  --chart-7: #58b6d6;
+  --chart-8: #c5d35c;
+  --color-chart-gridline: rgba(255, 255, 255, 0.1);
+  --color-chart-axis: #a0adb1;
+  --color-chart-tooltip: rgba(36, 43, 47, 0.98);
+  --color-chart-tooltip-border: rgba(255, 255, 255, 0.2);
+
+  /* Status palette. Lookup-provided colors may override these at runtime. */
+  --status-1: #6b7680;
+  --status-2: #76a9ff;
+  --status-3: #35c7bd;
+  --status-4: #8ad17c;
+  --status-5: #e4c63a;
+  --status-6: #e4a53a;
+  --status-7: #ee6b70;
+  --status-8: #74c476;
+  --status-9: #58b6d6;
+  --status-10: #9f9cff;
+  --status-11: #c5d35c;
+  --color-status-mix: #111416;
+
+  /* Timeline and native controls */
+  --color-timeline-header: rgba(28, 34, 37, 0.96);
+  --color-timeline-sticky: rgba(28, 34, 37, 0.98);
+  --color-timeline-line: rgba(255, 255, 255, 0.07);
+  --color-timeline-subtle: rgba(255, 255, 255, 0.025);
+}
 
 html[data-theme="light"] {
   color-scheme: light;
-  --bg: #eef5f4;
-  --surface: rgba(255, 255, 255, 0.74);
-  --surface-strong: rgba(255, 255, 255, 0.92);
-  --surface-soft: rgba(20, 60, 70, 0.055);
-  --line: rgba(23, 55, 61, 0.14);
-  --line-strong: rgba(23, 55, 61, 0.24);
-  --text: #142124;
-  --muted: #66777b;
-  --teal: #138b84;
-  --green: #4d9a5c;
-  --amber: #b77916;
-  --rose: #c84f58;
-  --blue: #346fc9;
-  --ink: #ffffff;
-  --shadow: 0 18px 42px rgba(38, 64, 68, 0.16);
-  --body-glow-a: rgba(108, 190, 184, 0.28);
-  --body-glow-b: rgba(134, 171, 226, 0.22);
-  --topbar-bg: rgba(246, 250, 249, 0.76);
-  --dialog-bg: rgba(255, 255, 255, 0.9);
-  --timeline-header-bg: rgba(246, 250, 249, 0.94);
-  --timeline-sticky-bg: rgba(255, 255, 255, 0.96);
-  --timeline-line: rgba(28, 75, 82, 0.12);
-  --timeline-soft-bg: rgba(20, 60, 70, 0.035);
-  --status-bg-mix: #ffffff;
-  --option-bg: #ffffff;
-  --option-selected-bg: #d7efeb;
+
+  /* Page and surfaces */
+  --color-page: #eef5f4;
+  --color-page-muted: #e5efed;
+  --color-page-glow-primary: rgba(108, 190, 184, 0.28);
+  --color-page-glow-secondary: rgba(134, 171, 226, 0.22);
+  --color-surface: #ffffff;
+  --color-surface-subtle: rgba(20, 60, 70, 0.055);
+  --color-surface-raised: rgba(255, 255, 255, 0.92);
+  --color-surface-elevated: rgba(255, 255, 255, 0.98);
+  --color-surface-glass: rgba(255, 255, 255, 0.74);
+  --color-surface-glass-highlight: rgba(255, 255, 255, 0.72);
+  --color-surface-navigation: rgba(246, 250, 249, 0.76);
+  --color-surface-dialog: rgba(255, 255, 255, 0.9);
+  --color-overlay: rgba(18, 31, 35, 0.44);
+
+  /* Text hierarchy */
+  --color-text-primary: #142124;
+  --color-text-secondary: #53676c;
+  --color-text-tertiary: #6b7d81;
+  --color-text-inverse: #ffffff;
+  --color-text-disabled: #89989b;
+  --color-link: #0b7771;
+  --color-link-hover: #075d59;
+
+  /* Actions and semantic feedback */
+  --color-primary: #0f7f79;
+  --color-primary-hover: #0b706b;
+  --color-primary-active: #075e5a;
+  --color-primary-contrast: #ffffff;
+  --color-secondary: #685bc2;
+  --color-secondary-hover: #584aa9;
+  --color-secondary-active: #493d91;
+  --color-secondary-contrast: #ffffff;
+
+  --color-success: #3f8a50;
+  --color-success-surface: rgba(63, 138, 80, 0.12);
+  --color-success-border: rgba(63, 138, 80, 0.34);
+  --color-success-text: #256837;
+  --color-warning: #a96c0d;
+  --color-warning-surface: rgba(183, 121, 22, 0.13);
+  --color-warning-border: rgba(169, 108, 13, 0.36);
+  --color-warning-text: #765008;
+  --color-danger: #bd414c;
+  --color-danger-surface: rgba(200, 79, 88, 0.11);
+  --color-danger-border: rgba(189, 65, 76, 0.34);
+  --color-danger-text: #8f2530;
+  --color-info: #346fc9;
+  --color-info-surface: rgba(52, 111, 201, 0.11);
+  --color-info-border: rgba(52, 111, 201, 0.32);
+  --color-info-text: #285da8;
+
+  /* Borders, controls, and focus */
+  --color-border-subtle: rgba(23, 55, 61, 0.09);
+  --color-border: rgba(23, 55, 61, 0.14);
+  --color-border-strong: rgba(23, 55, 61, 0.24);
+  --color-border-control: rgba(23, 55, 61, 0.2);
+  --color-control: rgba(255, 255, 255, 0.76);
+  --color-control-hover: rgba(255, 255, 255, 0.96);
+  --color-control-active: rgba(216, 235, 232, 0.96);
+  --color-control-disabled: rgba(223, 232, 231, 0.72);
+  --color-control-selected: rgba(19, 139, 132, 0.13);
+  --color-focus-ring: #087b75;
+  --color-focus-halo: rgba(19, 139, 132, 0.22);
+  --color-option-background: #ffffff;
+  --color-option-selected: #d7efeb;
+
+  /* Shadows */
+  --shadow-card: 0 10px 28px rgba(38, 64, 68, 0.1);
+  --shadow-elevated: 0 18px 42px rgba(38, 64, 68, 0.16);
+  --shadow-dialog: 0 28px 70px rgba(38, 64, 68, 0.24);
+
+  /* Charts */
+  --chart-1: #138b84;
+  --chart-2: #346fc9;
+  --chart-3: #4d9a5c;
+  --chart-4: #b77916;
+  --chart-5: #c84f58;
+  --chart-6: #685bc2;
+  --chart-7: #2584a4;
+  --chart-8: #718a1a;
+  --color-chart-gridline: rgba(23, 55, 61, 0.14);
+  --color-chart-axis: #53676c;
+  --color-chart-tooltip: rgba(255, 255, 255, 0.98);
+  --color-chart-tooltip-border: rgba(23, 55, 61, 0.24);
+
+  /* Status palette. Lookup-provided colors may override these at runtime. */
+  --status-1: #5f6b73;
+  --status-2: #346fc9;
+  --status-3: #138b84;
+  --status-4: #4d9a5c;
+  --status-5: #9b8210;
+  --status-6: #a96c0d;
+  --status-7: #bd414c;
+  --status-8: #3f8a50;
+  --status-9: #2584a4;
+  --status-10: #685bc2;
+  --status-11: #718a1a;
+  --color-status-mix: #ffffff;
+
+  /* Timeline and native controls */
+  --color-timeline-header: rgba(246, 250, 249, 0.94);
+  --color-timeline-sticky: rgba(255, 255, 255, 0.96);
+  --color-timeline-line: rgba(28, 75, 82, 0.12);
+  --color-timeline-subtle: rgba(20, 60, 70, 0.035);
 }

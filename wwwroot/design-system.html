@@ -1,0 +1,372 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>PMT Design System Showcase</title>
+  <link rel="stylesheet" href="/css/tokens.css">
+  <link rel="stylesheet" href="/css/themes.css">
+  <link rel="stylesheet" href="/css/base.css">
+  <link rel="stylesheet" href="/css/design-system-showcase.css">
+  <script type="module" src="/js/design-system-showcase.js"></script>
+</head>
+<body class="ds-page">
+  <a class="ds-skip-link" href="#showcaseContent">Skip to showcase content</a>
+
+  <header class="ds-topbar">
+    <a class="ds-brand" href="#overview" aria-label="PMT design system overview">
+      <img src="/assets/project-pmt.svg" alt="">
+      <span>
+        <strong>PMT Design System</strong>
+        <small>Phase 13 internal showcase</small>
+      </span>
+    </a>
+
+    <nav class="ds-nav" aria-label="Showcase sections">
+      <a href="#foundations">Foundations</a>
+      <a href="#components">Components</a>
+      <a href="#data">Data</a>
+      <a href="#overlays">Overlays</a>
+    </nav>
+
+    <button class="ds-button ds-button-secondary" type="button" data-theme-switch aria-pressed="false">
+      <span aria-hidden="true" data-theme-icon>☀</span>
+      <span data-theme-label>Use light theme</span>
+    </button>
+  </header>
+
+  <main class="ds-shell" id="showcaseContent">
+    <section class="ds-hero" id="overview">
+      <div>
+        <p class="ds-eyebrow">Reusable visual language</p>
+        <h1>Clear hierarchy, calm glass surfaces, and dependable states.</h1>
+        <p>
+          This unlinked page exercises the shared semantic token contract. It does not
+          change application navigation, feature markup, saved preferences, or business behavior.
+        </p>
+        <div class="ds-button-row">
+          <button class="ds-button ds-button-primary" type="button">Primary action</button>
+          <button class="ds-button ds-button-secondary" type="button">Secondary action</button>
+          <a class="ds-text-link" href="#components">Review components</a>
+        </div>
+      </div>
+      <div class="ds-hero-card" aria-label="Design-system priorities">
+        <span class="ds-kicker">Priorities</span>
+        <strong>AA contrast</strong>
+        <strong>Keyboard-visible focus</strong>
+        <strong>One contract, two themes</strong>
+        <strong>Comfortable laptop density</strong>
+      </div>
+    </section>
+
+    <section class="ds-section" id="foundations">
+      <div class="ds-section-heading">
+        <div>
+          <p class="ds-eyebrow">Foundations</p>
+          <h2>Color and type</h2>
+        </div>
+        <p>Semantic names describe purpose; themes supply the values.</p>
+      </div>
+
+      <div class="ds-grid ds-grid-2">
+        <article class="ds-card">
+          <h3>Surface hierarchy</h3>
+          <div class="ds-surface-stack">
+            <div class="ds-surface-example ds-surface-page">Page</div>
+            <div class="ds-surface-example ds-surface-default">Surface</div>
+            <div class="ds-surface-example ds-surface-raised">Raised</div>
+            <div class="ds-surface-example ds-surface-glass">Glass</div>
+          </div>
+        </article>
+
+        <article class="ds-card">
+          <h3>Semantic palette</h3>
+          <div class="ds-swatches">
+            <div><i style="--swatch: var(--color-primary)"></i><span>Primary</span></div>
+            <div><i style="--swatch: var(--color-secondary)"></i><span>Secondary</span></div>
+            <div><i style="--swatch: var(--color-success)"></i><span>Success</span></div>
+            <div><i style="--swatch: var(--color-warning)"></i><span>Warning</span></div>
+            <div><i style="--swatch: var(--color-danger)"></i><span>Danger</span></div>
+            <div><i style="--swatch: var(--color-info)"></i><span>Information</span></div>
+          </div>
+        </article>
+
+        <article class="ds-card">
+          <h3>Text hierarchy</h3>
+          <div class="ds-type-sample">
+            <span class="ds-type-display">Planning that stays legible.</span>
+            <span class="ds-type-heading">Section heading</span>
+            <span class="ds-type-body">Body text explains the decision and its effect.</span>
+            <span class="ds-type-secondary">Secondary text adds useful context.</span>
+            <span class="ds-type-caption">CAPTION · UPDATED 10:42</span>
+          </div>
+        </article>
+
+        <article class="ds-card">
+          <h3>Spacing and shape</h3>
+          <div class="ds-space-scale" aria-label="Spacing scale samples">
+            <span style="--sample-size: var(--space-1)">4</span>
+            <span style="--sample-size: var(--space-3)">8</span>
+            <span style="--sample-size: var(--space-5)">12</span>
+            <span style="--sample-size: var(--space-7)">16</span>
+            <span style="--sample-size: var(--space-8)">20</span>
+            <span style="--sample-size: var(--space-10)">32</span>
+          </div>
+          <div class="ds-radius-scale">
+            <span class="ds-radius-sm">Small</span>
+            <span class="ds-radius-md">Medium</span>
+            <span class="ds-radius-lg">Large</span>
+            <span class="ds-radius-pill">Pill</span>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <section class="ds-section" id="components">
+      <div class="ds-section-heading">
+        <div>
+          <p class="ds-eyebrow">Components</p>
+          <h2>Actions, cards, and forms</h2>
+        </div>
+        <p>Every interactive state remains visible in light and dark themes.</p>
+      </div>
+
+      <div class="ds-grid ds-grid-2">
+        <article class="ds-card">
+          <h3>Buttons</h3>
+          <div class="ds-button-row">
+            <button class="ds-button ds-button-primary" type="button">Save changes</button>
+            <button class="ds-button ds-button-secondary" type="button">Duplicate</button>
+            <button class="ds-button ds-button-neutral" type="button">Cancel</button>
+            <button class="ds-button ds-button-danger" type="button">Delete</button>
+            <button class="ds-button ds-button-neutral" type="button" disabled>Disabled</button>
+          </div>
+          <p class="ds-help">Use Tab to verify the focus ring. Active buttons move by one pixel only.</p>
+        </article>
+
+        <article class="ds-card ds-card-interactive" tabindex="0">
+          <div class="ds-card-heading">
+            <div>
+              <span class="ds-kicker">Sprint 24</span>
+              <h3>Release readiness</h3>
+            </div>
+            <span class="ds-badge ds-badge-success">On track</span>
+          </div>
+          <p>Cards use a quiet border and shadow. Hover and keyboard focus strengthen the edge without shifting layout.</p>
+          <div class="ds-progress" aria-label="Release readiness 72 percent">
+            <span style="--value: 72%"></span>
+          </div>
+          <small>72% complete</small>
+        </article>
+
+        <article class="ds-card">
+          <h3>Form controls</h3>
+          <form class="ds-form" action="#" data-demo-form>
+            <label>
+              <span>Task title</span>
+              <input type="text" value="Confirm release checklist">
+            </label>
+            <label>
+              <span>Status</span>
+              <select>
+                <option>In Progress</option>
+                <option>Ready for QA</option>
+                <option>Deployed</option>
+              </select>
+            </label>
+            <label class="ds-field-full">
+              <span>Description</span>
+              <textarea rows="3">Capture the final deployment and rollback checks.</textarea>
+            </label>
+            <label>
+              <span>Validation example</span>
+              <input type="text" value="Missing owner" aria-invalid="true" aria-describedby="validationMessage">
+              <small class="ds-error" id="validationMessage">Choose an owner before saving.</small>
+            </label>
+            <label>
+              <span>Disabled control</span>
+              <input type="text" value="Managed by workflow" disabled>
+            </label>
+            <label class="ds-check ds-field-full">
+              <input type="checkbox" checked>
+              <span>Include completed work</span>
+            </label>
+          </form>
+        </article>
+
+        <article class="ds-card">
+          <h3>Feedback and status</h3>
+          <div class="ds-badge-row">
+            <span class="ds-badge ds-badge-neutral">Todo</span>
+            <span class="ds-badge ds-badge-info">In progress</span>
+            <span class="ds-badge ds-badge-success">Complete</span>
+            <span class="ds-badge ds-badge-warning">At risk</span>
+            <span class="ds-badge ds-badge-danger">Blocked</span>
+          </div>
+          <div class="ds-callout ds-callout-info">
+            <strong>Information</strong>
+            <span>Charts and status indicators always include a text label or summary.</span>
+          </div>
+          <div class="ds-callout ds-callout-warning">
+            <strong>Attention needed</strong>
+            <span>Color supports the message; it never carries the message alone.</span>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <section class="ds-section" id="data">
+      <div class="ds-section-heading">
+        <div>
+          <p class="ds-eyebrow">Data display</p>
+          <h2>Tables, navigation, and charts</h2>
+        </div>
+        <p>Dense information keeps breathing room without wasting laptop space.</p>
+      </div>
+
+      <article class="ds-card ds-card-wide">
+        <div class="ds-preview-nav">
+          <strong>Project workspace</strong>
+          <div role="navigation" aria-label="Navigation example">
+            <a href="#data" aria-current="page">Dashboard</a>
+            <a href="#data">Road Map</a>
+            <a href="#data">Gantt</a>
+            <a href="#data">Kanban</a>
+          </div>
+          <button class="ds-icon-button" type="button" aria-label="More navigation">•••</button>
+        </div>
+      </article>
+
+      <div class="ds-grid ds-grid-data">
+        <article class="ds-card ds-table-card">
+          <div class="ds-card-heading">
+            <div>
+              <span class="ds-kicker">Current Sprint</span>
+              <h3>Work items</h3>
+            </div>
+            <button class="ds-button ds-button-neutral ds-button-small" type="button">Filter</button>
+          </div>
+          <div class="ds-table-scroll">
+            <table class="ds-table">
+              <thead>
+                <tr>
+                  <th>Item</th>
+                  <th>Status</th>
+                  <th>Owner</th>
+                  <th>Due</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>Release checklist</strong><small>PMT-248</small></td>
+                  <td><span class="ds-badge ds-badge-info">In progress</span></td>
+                  <td>Jenny</td>
+                  <td>Jun 22</td>
+                </tr>
+                <tr>
+                  <td><strong>QA regression pass</strong><small>PMT-251</small></td>
+                  <td><span class="ds-badge ds-badge-warning">Ready for QA</span></td>
+                  <td>Arnel</td>
+                  <td>Jun 23</td>
+                </tr>
+                <tr>
+                  <td><strong>Publish release notes</strong><small>PMT-255</small></td>
+                  <td><span class="ds-badge ds-badge-neutral">Todo</span></td>
+                  <td>Sin</td>
+                  <td>Jun 24</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </article>
+
+        <article class="ds-card">
+          <div class="ds-card-heading">
+            <div>
+              <span class="ds-kicker">Sprint health</span>
+              <h3>Completion by group</h3>
+            </div>
+            <span class="ds-badge ds-badge-success">68%</span>
+          </div>
+          <div class="ds-chart" aria-label="Completion: API 82 percent, UI 68 percent, QA 44 percent">
+            <div class="ds-chart-row">
+              <span>API</span>
+              <i><b style="--value: 82%; --chart-color: var(--chart-1)"></b></i>
+              <strong>82%</strong>
+            </div>
+            <div class="ds-chart-row">
+              <span>UI</span>
+              <i><b style="--value: 68%; --chart-color: var(--chart-2)"></b></i>
+              <strong>68%</strong>
+            </div>
+            <div class="ds-chart-row">
+              <span>QA</span>
+              <i><b style="--value: 44%; --chart-color: var(--chart-4)"></b></i>
+              <strong>44%</strong>
+            </div>
+          </div>
+          <div class="ds-chart-palette" aria-label="Eight-color chart palette">
+            <i style="--chart-color: var(--chart-1)"></i>
+            <i style="--chart-color: var(--chart-2)"></i>
+            <i style="--chart-color: var(--chart-3)"></i>
+            <i style="--chart-color: var(--chart-4)"></i>
+            <i style="--chart-color: var(--chart-5)"></i>
+            <i style="--chart-color: var(--chart-6)"></i>
+            <i style="--chart-color: var(--chart-7)"></i>
+            <i style="--chart-color: var(--chart-8)"></i>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <section class="ds-section" id="overlays">
+      <div class="ds-section-heading">
+        <div>
+          <p class="ds-eyebrow">Overlays</p>
+          <h2>Dialogs and glass constraints</h2>
+        </div>
+        <p>Blur supports hierarchy only where content remains readable without it.</p>
+      </div>
+
+      <div class="ds-grid ds-grid-2">
+        <article class="ds-card">
+          <h3>Dialog behavior</h3>
+          <p>Dialogs use an opaque-enough elevated surface, a clear border, contained scrolling, and visible actions.</p>
+          <button class="ds-button ds-button-primary" type="button" data-open-dialog>Open dialog example</button>
+        </article>
+        <article class="ds-card ds-glass-example">
+          <span class="ds-kicker">Glass surface</span>
+          <h3>Use it sparingly</h3>
+          <p>Navigation, menus, and bounded overlays may use glass. Data-heavy table cells and long-form reading surfaces should not.</p>
+        </article>
+      </div>
+    </section>
+  </main>
+
+  <footer class="ds-footer">
+    Internal reference only · Unlinked from PMT application navigation
+  </footer>
+
+  <dialog class="ds-dialog" data-showcase-dialog aria-labelledby="dialogTitle">
+    <header>
+      <div>
+        <span class="ds-kicker">Dialog example</span>
+        <h2 id="dialogTitle">Confirm Sprint handoff</h2>
+      </div>
+      <button class="ds-icon-button" type="button" data-close-dialog aria-label="Close dialog">×</button>
+    </header>
+    <div class="ds-dialog-body">
+      <p>The active dialog uses a raised semantic surface and keeps focus inside the native modal.</p>
+      <label class="ds-dialog-field">
+        <span>Handoff note</span>
+        <textarea rows="4">QA may begin after the deployment checklist is complete.</textarea>
+      </label>
+    </div>
+    <footer>
+      <button class="ds-button ds-button-neutral" type="button" data-close-dialog>Cancel</button>
+      <button class="ds-button ds-button-primary" type="button" data-close-dialog>Confirm handoff</button>
+    </footer>
+  </dialog>
+</body>
+</html>
