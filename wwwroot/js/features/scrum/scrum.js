@@ -37,8 +37,9 @@ export function createScrumFeature({
     const logs = [...state.devLogs].sort((a, b) => new Date(b.logDate) - new Date(a.logDate) || new Date(b.updatedAt) - new Date(a.updatedAt));
     app.innerHTML = `
       ${sectionHead("Scrum", `<button class="primary text-icon-button" type="button" data-action="new-log">${buttonContent("&#10010;", "New Scrum")}</button>`)}
-      <div class="panel">
-        <table class="table">
+      <div class="panel scrum-panel">
+        <div class="scrum-table-wrap">
+        <table class="table scrum-table">
           <thead>
             <tr>
               <th>Date</th>
@@ -53,27 +54,28 @@ export function createScrumFeature({
         ${logs.map(log => {
           const user = userById(log.userId);
           return `
-            <tr>
-              <td>${formatDate(log.logDate)}</td>
-              <td>${log.projectId ? `<span class="pill">${escapeHtml(projectName(log.projectId))}</span>` : ""}</td>
-              <td>
-                <div class="row">
+            <tr class="scrum-row">
+              <td class="scrum-date" data-label="Date">${formatDate(log.logDate)}</td>
+              <td class="scrum-project" data-label="Project">${log.projectId ? `<span class="pill">${escapeHtml(projectName(log.projectId))}</span>` : `<span class="muted">No project</span>`}</td>
+              <td class="scrum-person-cell" data-label="Person">
+                <div class="row scrum-person">
                   <img class="avatar" src="${escapeAttr(user?.avatarUrl || "/assets/avatar-default.svg")}" alt="">
                   <strong>${escapeHtml(user?.nickname || "User")}</strong>
                 </div>
               </td>
-              <td>${log.bodyHtml}</td>
-              <td>${log.isPinned ? `<span class="pill">Pinned</span>` : ""}</td>
-              <td class="reveal-actions action-cell">
+              <td class="scrum-body" data-label="Scrum"><div class="scrum-content">${log.bodyHtml}</div></td>
+              <td class="scrum-flag" data-label="Flag">${log.isPinned ? `<span class="pill scrum-pin">Pinned</span>` : `<span class="muted">—</span>`}</td>
+              <td class="reveal-actions action-cell scrum-actions" data-label="Actions">
                 ${iconButton("edit-log", log.id, "Edit", "edit", canEditOwner(log.userId))}
                 ${iconButton("duplicate-log", log.id, "Duplicate", "duplicate", true)}
                 ${iconButton("delete-log", log.id, "Delete", "delete", canEditOwner(log.userId), "danger")}
               </td>
             </tr>
           `;
-        }).join("")}
+        }).join("") || `<tr><td colspan="6"><div class="empty">No Scrum entries.</div></td></tr>`}
           </tbody>
         </table>
+        </div>
       </div>
     `;
   }

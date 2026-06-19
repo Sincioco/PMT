@@ -1,5 +1,125 @@
 /* CSS ownership: Documentation screen. */
 
+.documentation-filter-panel {
+  padding: var(--space-5) var(--space-7);
+  background: var(--color-surface);
+  backdrop-filter: none;
+}
+
+.documentation-filter-panel select {
+  min-width: min(320px, 70vw);
+}
+
+.documentation-grid {
+  grid-template-columns: repeat(auto-fit, minmax(min(360px, 100%), 1fr));
+}
+
 .documentation-card {
-  gap: 10px;
+  position: relative;
+  gap: 0;
+  overflow: hidden;
+  padding: var(--space-7);
+  background: var(--color-surface);
+  backdrop-filter: none;
+}
+
+.documentation-card::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  height: 3px;
+  background: linear-gradient(90deg, var(--color-info), var(--color-secondary));
+}
+
+.documentation-card-head {
+  align-items: flex-start;
+  padding-bottom: var(--space-5);
+  border-bottom: var(--border-width) solid var(--color-border-subtle);
+}
+
+.documentation-title-block {
+  min-width: 0;
+}
+
+.documentation-title-block h3 {
+  overflow-wrap: anywhere;
+}
+
+.documentation-meta {
+  margin: 0;
+  font-size: var(--font-size-md);
+}
+
+.documentation-project {
+  flex: 0 0 auto;
+}
+
+.documentation-card-body {
+  padding: var(--space-6) 0;
+  color: var(--color-text-primary);
+  line-height: 1.65;
+  overflow-wrap: anywhere;
+}
+
+.documentation-card-body > :first-child {
+  margin-top: 0;
+}
+
+.documentation-card-body > :last-child {
+  margin-bottom: 0;
+}
+
+.documentation-card-body h1,
+.documentation-card-body h2,
+.documentation-card-body h3 {
+  line-height: var(--line-height-heading);
+}
+
+.documentation-card-body img {
+  margin-inline: auto;
+  background: var(--color-page-muted);
+}
+
+.documentation-attachments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  padding: var(--space-4) 0;
+  border-top: var(--border-width) solid var(--color-border-subtle);
+}
+
+.documentation-attachments a {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--control-height-sm);
+  padding: var(--space-2) var(--space-4);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-subtle);
+  overflow-wrap: anywhere;
+  text-decoration: none;
+}
+
+.documentation-attachments a:hover,
+.documentation-attachments a:focus-visible {
+  border-color: var(--color-border-strong);
+  background: var(--color-control-hover);
+}
+
+.documentation-actions {
+  margin-top: 0;
+  padding-top: var(--space-5) !important;
+  border-top: var(--border-width) solid var(--color-border-subtle);
+}
+
+@media (max-width: 900px) {
+  .documentation-filter-panel,
+  .documentation-card {
+    padding: var(--space-6);
+  }
+
+  .documentation-filter-panel select {
+    min-width: 0;
+    width: 100%;
+  }
 }

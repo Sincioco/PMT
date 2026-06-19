@@ -1,31 +1,88 @@
 /* CSS ownership: Dashboard screen. */
 
+.dashboard-summary-grid {
+  grid-template-columns: repeat(auto-fit, minmax(min(340px, 100%), 1fr));
+}
+
+.dashboard-flow-panel {
+  margin-top: var(--space-7);
+  padding: var(--space-8);
+  background: var(--color-surface);
+  backdrop-filter: none;
+}
+
+.dashboard-flow-head {
+  align-items: center;
+  padding-bottom: var(--space-6);
+  border-bottom: var(--border-width) solid var(--color-border-subtle);
+}
+
+.dashboard-flow-head h2 {
+  margin: 0;
+}
+
 .dashboard-project-flow {
-  margin-top: 18px;
+  margin-top: var(--space-7);
   min-width: 0;
+  padding: var(--space-7);
+  border: var(--border-width) solid var(--color-border-subtle);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface-subtle);
+}
+
+.dashboard-project-flow + .dashboard-project-flow {
+  margin-top: var(--space-6);
 }
 
 .dashboard-project-heading {
-  margin-bottom: 12px;
+  align-items: center;
+  margin-bottom: var(--space-5);
+}
+
+.dashboard-project-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2);
+  min-width: 0;
+  font-size: var(--font-size-lg);
+}
+
+.dashboard-project-title strong {
+  color: var(--color-primary);
 }
 
 .dashboard-sprint-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(270px, 100%), 1fr));
-  gap: 14px;
-  margin-top: 14px;
+  grid-template-columns: repeat(auto-fit, minmax(min(310px, 100%), 1fr));
+  gap: var(--space-6);
+  margin-top: var(--space-6);
   min-width: 0;
 }
 
 .dashboard-sprint-card {
   min-width: 0;
   overflow: hidden;
+  padding: var(--space-6);
+  border-color: var(--color-border-subtle);
+  background: var(--color-surface);
+  backdrop-filter: none;
+}
+
+.dashboard-sprint-head {
+  align-items: flex-start;
+  padding-bottom: var(--space-4);
+  border-bottom: var(--border-width) solid var(--color-border-subtle);
+}
+
+.dashboard-sprint-head p {
+  margin: var(--space-1) 0 0;
 }
 
 .dashboard-card-actions {
   display: flex;
   justify-content: flex-end;
-  margin-top: 10px;
+  margin-top: var(--space-4);
 }
 
 .dashboard-card-actions button {
@@ -37,13 +94,13 @@
 
 .dashboard-task-list {
   display: grid;
-  gap: 6px;
-  margin-top: 10px;
+  gap: var(--space-2);
+  margin-top: var(--space-4);
   min-width: 0;
   max-width: 100%;
   max-height: 320px;
   overflow-y: auto;
-  padding-right: 4px;
+  padding-right: var(--space-1);
 }
 
 .dashboard-task-row {
@@ -55,8 +112,15 @@
   max-width: 100%;
   margin: 0;
   overflow: hidden;
+  border-color: var(--color-border-subtle);
   text-align: left;
-  background: rgba(255, 255, 255, 0.045);
+  background: var(--color-surface-subtle);
+}
+
+.dashboard-task-row:hover,
+.dashboard-task-row:focus-visible {
+  border-color: var(--color-border-strong);
+  background: var(--color-control-hover);
 }
 
 .dashboard-task-summary {
@@ -83,5 +147,15 @@
 }
 
 .dashboard-status-legend {
-  margin: 10px 0 14px;
+  margin: var(--space-5) 0 var(--space-6);
+}
+
+@media (max-width: 900px) {
+  .dashboard-flow-panel {
+    padding: var(--space-6);
+  }
+
+  .dashboard-project-flow {
+    padding: var(--space-5);
+  }
 }

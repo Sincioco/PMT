@@ -1,7 +1,24 @@
 /* CSS ownership: Projects screen. */
 
+.projects-grid {
+  grid-template-columns: repeat(auto-fit, minmax(min(360px, 100%), 1fr));
+}
+
 .project-card {
-  gap: 10px;
+  position: relative;
+  gap: var(--space-5);
+  overflow: hidden;
+  padding: var(--space-7);
+  background: var(--color-surface);
+  backdrop-filter: none;
+}
+
+.project-card::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  height: 3px;
+  background: linear-gradient(90deg, var(--color-primary), var(--color-success));
 }
 
 .project-card p {
@@ -9,12 +26,64 @@
 }
 
 .project-card-head {
+  gap: var(--space-5);
+  align-items: flex-start;
+  padding-bottom: var(--space-5);
+  border-bottom: var(--border-width) solid var(--color-border-subtle);
+}
+
+.project-identity {
+  min-width: 0;
   align-items: flex-start;
 }
 
+.project-identity > div {
+  min-width: 0;
+}
+
+.project-identity h3 {
+  overflow-wrap: anywhere;
+}
+
+.project-metrics {
+  line-height: var(--line-height-body);
+}
+
 .project-icon {
-  width: 44px;
-  height: 44px;
-  border-radius: 8px;
-  box-shadow: 0 0 0 1px var(--line);
+  flex: 0 0 auto;
+  width: 52px;
+  height: 52px;
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-subtle);
+  box-shadow: var(--shadow-card);
+}
+
+.project-description {
+  min-height: 3em;
+  padding: var(--space-4) var(--space-5);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-subtle);
+  line-height: var(--line-height-body);
+}
+
+.project-members {
+  min-height: 34px;
+  margin-top: var(--space-2);
+  padding-top: var(--space-4);
+  border-top: var(--border-width) solid var(--color-border-subtle);
+}
+
+.project-actions {
+  margin-top: 0;
+}
+
+@media (max-width: 900px) {
+  .project-card {
+    padding: var(--space-6);
+  }
+
+  .project-description {
+    min-height: 0;
+  }
 }

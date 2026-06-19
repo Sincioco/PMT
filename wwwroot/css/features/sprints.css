@@ -1,7 +1,24 @@
 /* CSS ownership: Sprints screen. */
 
+.sprints-grid {
+  grid-template-columns: repeat(auto-fit, minmax(min(330px, 100%), 1fr));
+}
+
 .sprint-card {
-  gap: 10px;
+  position: relative;
+  gap: var(--space-4);
+  overflow: hidden;
+  padding: var(--space-7);
+  background: var(--color-surface);
+  backdrop-filter: none;
+}
+
+.sprint-card::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  height: 3px;
+  background: linear-gradient(90deg, var(--color-secondary), var(--color-primary));
 }
 
 .sprint-card p {
@@ -9,11 +26,74 @@
 }
 
 .sprint-card-head {
+  gap: var(--space-4);
   align-items: flex-start;
+  padding-bottom: var(--space-5);
+  border-bottom: var(--border-width) solid var(--color-border-subtle);
+}
+
+.sprint-title-block {
+  min-width: 0;
+}
+
+.sprint-title-block h3 {
+  overflow-wrap: anywhere;
+}
+
+.sprint-project-name {
+  overflow-wrap: anywhere;
 }
 
 .sprint-card-actions {
   display: inline-flex;
   align-items: center;
   gap: 8px;
+}
+
+.sprint-state {
+  font-weight: var(--font-weight-medium);
+}
+
+.sprint-state-open {
+  border-color: var(--color-info-border);
+  background: var(--color-info-surface);
+  color: var(--color-info-text);
+}
+
+.sprint-state-finished {
+  border-color: var(--color-success-border);
+  background: var(--color-success-surface);
+  color: var(--color-success-text);
+}
+
+.sprint-title {
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-medium);
+}
+
+.sprint-dates {
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-subtle);
+}
+
+.sprint-metrics {
+  line-height: var(--line-height-body);
+}
+
+.sprint-members {
+  min-height: 34px;
+  margin-top: var(--space-2);
+  padding-top: var(--space-4);
+  border-top: var(--border-width) solid var(--color-border-subtle);
+}
+
+.sprint-actions {
+  margin-top: 0;
+}
+
+@media (max-width: 900px) {
+  .sprint-card {
+    padding: var(--space-6);
+  }
 }

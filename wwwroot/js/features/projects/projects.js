@@ -36,7 +36,7 @@ export function createProjectsFeature({
   function renderProjects() {
     app.innerHTML = `
       ${sectionHead("Projects", `<button class="primary text-icon-button" type="button" data-action="new-project">${buttonContent("&#10010;", "New Project")}</button>`)}
-      <div class="grid">${state.projects.map(projectCardHtml).join("")}</div>
+      <div class="grid projects-grid">${state.projects.map(projectCardHtml).join("")}</div>
     `;
   }
 
@@ -47,22 +47,22 @@ export function createProjectsFeature({
     return `
       <article class="card clickable-card project-card" data-action="view-project-sprints" data-id="${project.id}">
         <div class="spread project-card-head">
-          <div class="row">
+          <div class="row project-identity">
             <img class="project-icon" src="${escapeAttr(project.iconUrl || "/assets/project-pmt.svg")}" alt="">
             <div>
               <h3>${escapeHtml(project.code)} - ${escapeHtml(project.title)}</h3>
-              <p class="muted">${project.completedTaskCount}/${project.taskCount} QA Passed+ | ${project.openBugCount}/${project.bugCount} open bug reports</p>
+              <p class="muted project-metrics">${project.completedTaskCount}/${project.taskCount} QA Passed+ | ${project.openBugCount}/${project.bugCount} open bug reports</p>
             </div>
           </div>
           <button class="icon-action" type="button" data-action="toggle-project-card-details" data-id="${project.id}" title="${chartToggleTitle}" aria-label="${chartToggleTitle}" aria-expanded="${!isCollapsed}">
             ${isCollapsed ? "&#9662;" : "&#9652;"}
           </button>
         </div>
-        <p>${escapeHtml(project.description || "")}</p>
+        <p class="project-description">${escapeHtml(project.description || "")}</p>
         ${projectOverallProgressHtml(project)}
         ${isCollapsed ? "" : projectStatusMetricsHtml(project)}
-        <div class="row" style="margin-top:10px">${avatarsHtml(project.members)}</div>
-        <div class="toolbar reveal-actions" style="margin-top:12px">
+        <div class="row project-members">${avatarsHtml(project.members)}</div>
+        <div class="toolbar reveal-actions project-actions">
           ${iconButton("delete-project", project.id, "Delete", "delete", canEditOwner(project.createdByUserId), "danger")}
           ${iconButton("view-project-gantt", project.id, "Gantt", "gantt", true)}
           ${iconButton("edit-project", project.id, "Edit", "edit", canEditOwner(project.createdByUserId))}

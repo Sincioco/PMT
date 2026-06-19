@@ -67,7 +67,7 @@ export function createSprintsFeature({
         </button>
         <button class="primary text-icon-button" type="button" data-action="new-sprint">${buttonContent("&#10010;", "New Sprint")}</button>
       `)}
-      <div class="grid">
+      <div class="grid sprints-grid">
         ${visibleSprints.map(sprintCardHtml).join("") || `<div class="empty">No Sprints for this project.</div>`}
       </div>
     `;
@@ -80,24 +80,24 @@ export function createSprintsFeature({
     return `
       <article class="card clickable-card sprint-card" data-action="view-sprint-tasks" data-id="${sprint.id}">
         <div class="spread sprint-card-head">
-          <div>
+          <div class="sprint-title-block">
             <h3>${escapeHtml(sprint.code)}</h3>
-            <p class="muted">${escapeHtml(projectName(sprint.projectId))}</p>
+            <p class="muted sprint-project-name">${escapeHtml(projectName(sprint.projectId))}</p>
           </div>
           <div class="sprint-card-actions">
-            <span class="pill">${sprint.isFinished ? "Finished" : "Open"}</span>
+            <span class="pill sprint-state ${sprint.isFinished ? "sprint-state-finished" : "sprint-state-open"}">${sprint.isFinished ? "Finished" : "Open"}</span>
             <button class="icon-action" type="button" data-action="toggle-sprint-card-details" data-id="${sprint.id}" title="${chartToggleTitle}" aria-label="${chartToggleTitle}" aria-expanded="${!isCollapsed}">
               ${isCollapsed ? "&#9662;" : "&#9652;"}
             </button>
           </div>
         </div>
-        <p>${escapeHtml(sprint.title)}</p>
-        <p class="muted">${formatDate(sprint.startDate)} - ${formatDate(sprint.endDate)}</p>
-        <p class="muted">${sprint.completedTaskCount}/${sprint.taskCount} QA Passed+ | ${sprint.openBugCount}/${sprint.bugCount} open bug reports</p>
+        <p class="sprint-title">${escapeHtml(sprint.title)}</p>
+        <p class="muted sprint-dates">${formatDate(sprint.startDate)} - ${formatDate(sprint.endDate)}</p>
+        <p class="muted sprint-metrics">${sprint.completedTaskCount}/${sprint.taskCount} QA Passed+ | ${sprint.openBugCount}/${sprint.bugCount} open bug reports</p>
         ${sprintOverallProgressHtml(sprint)}
         ${isCollapsed ? "" : sprintStatusMetricsHtml(sprint)}
-        <div class="row" style="margin-top:10px">${avatarsHtml(sprint.developers)}</div>
-        <div class="toolbar reveal-actions" style="margin-top:12px">
+        <div class="row sprint-members">${avatarsHtml(sprint.developers)}</div>
+        <div class="toolbar reveal-actions sprint-actions">
           ${iconButton("delete-sprint", sprint.id, "Delete", "delete", canEditOwner(sprint.createdByUserId), "danger")}
           ${iconButton("finish-sprint", sprint.id, "Finish", "finish", canEditOwner(sprint.createdByUserId) && !sprint.isFinished)}
           ${iconButton("edit-sprint", sprint.id, "Edit", "edit", canEditOwner(sprint.createdByUserId))}

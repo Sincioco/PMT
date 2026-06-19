@@ -34,11 +34,11 @@ export function createDashboardFeature({
       ${sectionHead("Dashboard", `
         <button class="text-icon-button" type="button" data-action="toggle-dashboard-all-details">${buttonContent(showAllDetails ? "&#8722;" : "&#43;", showAllDetails ? "Hide All Details" : "Show All Details")}</button>
       `)}
-      <div class="grid">
+      <div class="grid dashboard-summary-grid">
         ${state.projects.map(projectCardHtml).join("")}
       </div>
-      <div class="panel" style="margin-top:16px">
-        <div class="spread">
+      <div class="panel dashboard-flow-panel">
+        <div class="spread dashboard-flow-head">
           <h2>Project Flow</h2>
           <span class="muted">${state.tasks.length} tasks across ${state.sprints.length} Sprints</span>
         </div>
@@ -101,10 +101,11 @@ export function createDashboardFeature({
     const chartToggleTitle = isCollapsed ? "Expand Project charts" : "Collapse Project charts";
 
     return `
-      <div class="dashboard-project-flow">
+      <section class="dashboard-project-flow">
         <div class="spread dashboard-project-heading">
-          <div>
-            <strong>${escapeHtml(project.code)} ${escapeHtml(project.title)}</strong>
+          <div class="dashboard-project-title">
+            <strong>${escapeHtml(project.code)}</strong>
+            <span>${escapeHtml(project.title)}</span>
           </div>
           <button class="icon-action" type="button" data-action="toggle-project-card-details" data-id="${project.id}" title="${chartToggleTitle}" aria-label="${chartToggleTitle}" aria-expanded="${!isCollapsed}">
             ${isCollapsed ? "&#9662;" : "&#9652;"}
@@ -119,7 +120,7 @@ export function createDashboardFeature({
 
             return `
             <article class="card clickable-card dashboard-sprint-card" data-action="dashboard-view-sprint" data-id="${sprint.id}">
-              <div class="spread">
+              <div class="spread dashboard-sprint-head">
                 <div>
                   <strong>${escapeHtml(sprint.code)}</strong>
                   <p class="muted">${escapeHtml(sprint.title)}</p>
@@ -142,7 +143,7 @@ export function createDashboardFeature({
           `;
           }).join("") || `<div class="empty">No Sprints.</div>`}
         </div>
-      </div>
+      </section>
     `;
   }
 

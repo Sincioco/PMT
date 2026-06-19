@@ -49,26 +49,26 @@ export function createDocumentationFeature({
 
     app.innerHTML = `
       ${sectionHead("Documentation", `<button class="primary text-icon-button" type="button" data-action="new-blog">${buttonContent("&#10010;", "New Document")}</button>`)}
-      <div class="panel">
+      <div class="panel documentation-filter-panel">
         <div class="filter-row">
           ${filterSelect("Project", "documentation-project", state.projects.map(project => ({ value: project.id, text: `${project.code} - ${project.title}` })), documentationProjectId || "", "All Projects")}
         </div>
       </div>
-      <div class="grid">
+      <div class="grid documentation-grid">
         ${filteredBlogs.length ? filteredBlogs.map(blog => `
           <article class="card clickable-card documentation-card" data-action="view-blog" data-id="${blog.id}">
-            <div class="spread">
-              <div>
+            <div class="spread documentation-card-head">
+              <div class="documentation-title-block">
                 <h3>${escapeHtml(blog.title)}</h3>
-                <p class="muted">${escapeHtml(userById(blog.createdByUserId)?.nickname || "User")} | ${documentationDateLine(blog)}</p>
+                <p class="muted documentation-meta">${escapeHtml(userById(blog.createdByUserId)?.nickname || "User")} | ${documentationDateLine(blog)}</p>
               </div>
-              <div class="row">
-                ${blog.projectId ? `<span class="pill">${escapeHtml(projectCode(blog.projectId))}</span>` : ""}
+              <div class="row documentation-project">
+                ${blog.projectId ? `<span class="pill">${escapeHtml(projectCode(blog.projectId))}</span>` : `<span class="pill">General</span>`}
               </div>
             </div>
-            <div class="rich-readonly">${blog.bodyHtml}</div>
-            ${blog.attachments.length ? `<p>${blog.attachments.map(file => `<a href="${escapeAttr(file.url)}">${escapeHtml(file.fileName)}</a>`).join(" ")}</p>` : ""}
-            <div class="toolbar reveal-actions">
+            <div class="rich-readonly documentation-card-body">${blog.bodyHtml}</div>
+            ${blog.attachments.length ? `<div class="documentation-attachments">${blog.attachments.map(file => `<a href="${escapeAttr(file.url)}">${escapeHtml(file.fileName)}</a>`).join("")}</div>` : ""}
+            <div class="toolbar reveal-actions documentation-actions">
               ${iconButton("delete-blog", blog.id, "Delete", "delete", canEditOwner(blog.createdByUserId), "danger")}
               ${iconButton("edit-blog", blog.id, "Edit", "edit", canEditOwner(blog.createdByUserId))}
             </div>
