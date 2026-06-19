@@ -1,6 +1,6 @@
 # PMT Architecture
 
-This document maps the current application and the intended file boundaries for the phased refactor. Target paths describe ownership; they do not imply that the files already exist.
+This document maps the current application and active file ownership for the phased refactor.
 
 ## Current architecture
 
@@ -9,10 +9,11 @@ PMT is a single ASP.NET Core .NET 6 web application:
 1. `wwwroot/index.html` defines the HTML shell, applies the saved theme through `core/preferences.js` before rendering, loads the ordered CSS foundations, components, and feature stylesheets, and then loads `wwwroot/js/app.js`.
 2. `wwwroot/js/app.js` composes the application shell with the central screen registry. Dashboard, Road Map, Gantt, Kanban Board, Projects, Sprints, Dev Tasks, Bug Tracking, Scrum, Documentation, Backlog, and Settings now live in feature modules; the entry still owns shared editor/dialog orchestration, chart drilldowns, and table reordering.
 3. `wwwroot/js/core/` owns application-wide browser infrastructure: HTTP requests, state, preferences, authentication, routing, startup, navigation, theme, and user-menu wiring.
-4. `Program.cs` configures middleware, static/uploaded files, 37 minimal API routes, JSON behavior, and the SPA fallback.
-5. `Models/PmtModels.cs` contains the API DTOs and request models.
-6. `Data/SqlPmtStore.cs` calls `[pmt]` stored procedures through ADO.NET, maps `[pmt].[GetAppState]`, hydrates relationships, and calculates project/Sprint metrics.
-7. `Sql/01_CreateDatabase.sql`, `Sql/02_CreateStoredProcedures.sql`, and the seed scripts define and populate SQL Server objects under `[pmt]`.
+4. `Program.cs` configures services, JSON behavior, exception handling, static/uploaded files, endpoint-group registration, the SPA fallback, and application startup.
+5. `Endpoints/` maps the 37 minimal API routes by feature while preserving endpoint URLs, HTTP methods, payload shapes, and the simple current-user header/query behavior.
+6. `Models/*.cs` contains cohesive plain DTO and request model groups for state, users, projects/Sprints, work items, content/uploads, and settings.
+7. `Data/SqlPmtStore*.cs` is one partial `SqlPmtStore` that calls `[pmt]` stored procedures through direct ADO.NET. `SqlPmtStore.State.cs` maps `[pmt].[GetAppState]`, hydrates relationships, and calculates project/Sprint metrics.
+8. `Sql/01_CreateDatabase.sql`, `Sql/02_CreateStoredProcedures.sql`, and the seed scripts define and populate SQL Server objects under `[pmt]`.
 
 The main read flow is:
 
@@ -145,14 +146,15 @@ The current frontend dependency flow is:
 
 Phase 16 completes the screen-level visual adoption for Dev Tasks, Bug Tracking, Backlog, Kanban Board, Gantt, Road Map, and Settings. These screens now use shared semantic tokens and shared work-item table/filter treatments while retaining their existing feature ownership, DOM event hooks, calculated timeline geometry, drag/drop lifecycle, endpoint contracts, and `pmt-*` preference keys. Timeline and Board styling remains feature-owned; reusable dense table and filter treatments remain component-owned.
 
-## Target backend layout
+## Backend layout
 
-Phase 17 should split files without adding architectural layers:
+Phase 17 splits backend files without adding architectural layers:
 
 ```text
 Program.cs
 Endpoints/
 |-- AuthenticationEndpoints.cs
+|-- EndpointHelpers.cs
 |-- StateEndpoints.cs
 |-- ProjectEndpoints.cs
 |-- SprintEndpoints.cs
@@ -160,6 +162,7 @@ Endpoints/
 |-- SettingsEndpoints.cs
 |-- ContentEndpoints.cs
 |-- UploadEndpoints.cs
+|-- UploadStorageOptions.cs
 `-- DevelopmentEndpoints.cs
 Data/
 |-- SqlPmtStore.cs
@@ -180,7 +183,7 @@ Models/
 `-- SettingsModels.cs
 ```
 
-`Program.cs` remains responsible for service registration, middleware, static/uploaded file setup, endpoint-group registration, fallback, and startup. Endpoint files map HTTP contracts; `SqlPmtStore` partials remain direct ADO.NET procedure callers; model files remain plain DTO/input groups.
+`Program.cs` remains responsible for service registration, middleware, static/uploaded file setup, endpoint-group registration, fallback, and startup. Endpoint files map HTTP contracts; `SqlPmtStore` partials remain direct ADO.NET procedure callers; model files remain plain DTO/input groups. `/api/state` stays in its own endpoint and state store partial because its ordered aggregate result sets are a key public contract for the frontend.
 
 ## Dependency direction
 
@@ -195,7 +198,7 @@ Models/
 
 ## Feature impact map
 
-All data-backed screens read through `GET /api/state` -> `GetStateAsync` -> `[pmt].[GetAppState]`. The table lists target frontend ownership and additional write contracts.
+All data-backed screens read through `GET /api/state` -> `GetStateAsync` -> `[pmt].[GetAppState]`. The table lists frontend ownership and additional write contracts.
 
 | Feature | Frontend ownership | Endpoints | `SqlPmtStore` methods | Stored procedures or SQL contract |
 | --- | --- | --- | --- | --- |

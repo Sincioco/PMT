@@ -16,7 +16,7 @@ Minor Bug Fixes and Enhancements
 
 9.) In Scrum, in the Filter section, by default all names should be checked.
 10.) Move the Settings menu item from the Avatar dropdown to top Nav as the last time item in the Top Navigation and following the already established rules for when a top nav button becomes a menu item in the nav overflow menu.
-11.) I notice that in Projets when you hover on the Projects card, the card shifts a few pixels.  This should not happen.  The card should stay in the same position and not move when you hover on it.
+11.) I notice that in Projects when you hover on the Projects card, the card shifts a few pixels.  This should not happen.  The card should stay in the same position and not move when you hover on it.
 12.) When I am in the Gantt Chart or Road Map and I bring up the Avatar menu, the top part of the Gantt Chart and Road Map (the header) is floating above the Avatar menu.  Adjust the z-index of the Avatar menu so that it is above the header of the Gantt Chart and Road Map when it is open.  This will ensure that the Avatar menu is fully visible and accessible to the user when they open it from the Gantt Chart or Road Map screens.
 
 
