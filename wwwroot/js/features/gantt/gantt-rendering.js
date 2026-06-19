@@ -38,42 +38,44 @@ export function ganttScreenHtml({
   flyBy
 }) {
   return `
-    ${sectionHead("Gantt", `
-      <button class="secondary text-icon-button" type="button" data-action="toggle-gantt-all-bugs">${buttonContent(showAllBugs ? "&#9652;" : "&#9662;", showAllBugs ? "Collapse Bugs" : "Expand Bugs")}</button>
-    `)}
-    <div class="panel timeline-control-panel gantt-control-panel">
-      <div class="filter-row">
-        <label>
-          <span>Project</span>
-          <select data-filter="gantt-project">
-            ${projects.map(item => `<option value="${item.id}" ${item.id === projectId ? "selected" : ""}>${escapeHtml(item.code)} - ${escapeHtml(item.title)}</option>`).join("")}
-          </select>
-        </label>
-        <label>
-          <span>Sprint</span>
-          <select data-filter="gantt-sprint">
-            <option value="current" ${sprintMode === "current" ? "selected" : ""}>Current Sprint</option>
-            <option value="all" ${sprintMode === "all" ? "selected" : ""}>All Sprints</option>
-            ${sprintOptions.map(sprint => `<option value="${sprint.id}" ${String(sprint.id) === String(sprintMode) ? "selected" : ""}>${escapeHtml(sprint.code)} - ${escapeHtml(sprint.title)}</option>`).join("")}
-          </select>
-        </label>
-        <label>
-          <span>Sort</span>
-          <select data-filter="gantt-sort">
-            <option value="startAsc" ${sort === "startAsc" ? "selected" : ""}>Start date ascending</option>
-            <option value="startDesc" ${sort === "startDesc" ? "selected" : ""}>Start date descending</option>
-          </select>
-        </label>
-        <div class="roadmap-filter-actions gantt-filter-actions">
-          <button class="icon-action ${renderMode === "selected" ? "is-on" : ""}" type="button" data-action="toggle-gantt-render-mode" title="${renderMode === "selected" ? "Show All Sprints" : "Show Selected Sprint Only"}" aria-label="${renderMode === "selected" ? "Show All Sprints" : "Show Selected Sprint Only"}" aria-pressed="${renderMode === "selected"}">${renderMode === "selected" ? "&#9638;" : "&#9673;"}</button>
-          <button class="icon-action ${showNonWorkingDays ? "is-on" : ""}" type="button" data-action="toggle-gantt-days" title="${showNonWorkingDays ? "Hide weekends and holidays" : "Show weekends and holidays"}" aria-label="${showNonWorkingDays ? "Hide weekends and holidays" : "Show weekends and holidays"}" aria-pressed="${showNonWorkingDays}">&#128197;</button>
-          <button class="icon-action ${flyBy.active ? "is-on" : ""}" type="button" data-action="gantt-flyby" title="${flyBy.title}" aria-label="${flyBy.title}" aria-pressed="${flyBy.active}">${flyBy.icon}</button>
-          <button class="icon-action" type="button" data-action="reset-gantt-view" title="Reset Gantt view" aria-label="Reset Gantt view">&#8634;</button>
+    <div class="gantt-screen">
+      ${sectionHead("Gantt", `
+        <button class="secondary text-icon-button" type="button" data-action="toggle-gantt-all-bugs">${buttonContent(showAllBugs ? "&#9652;" : "&#9662;", showAllBugs ? "Collapse Bugs" : "Expand Bugs")}</button>
+      `)}
+      <div class="panel timeline-control-panel gantt-control-panel">
+        <div class="filter-row">
+          <label>
+            <span>Project</span>
+            <select data-filter="gantt-project">
+              ${projects.map(item => `<option value="${item.id}" ${item.id === projectId ? "selected" : ""}>${escapeHtml(item.code)} - ${escapeHtml(item.title)}</option>`).join("")}
+            </select>
+          </label>
+          <label>
+            <span>Sprint</span>
+            <select data-filter="gantt-sprint">
+              <option value="current" ${sprintMode === "current" ? "selected" : ""}>Current Sprint</option>
+              <option value="all" ${sprintMode === "all" ? "selected" : ""}>All Sprints</option>
+              ${sprintOptions.map(sprint => `<option value="${sprint.id}" ${String(sprint.id) === String(sprintMode) ? "selected" : ""}>${escapeHtml(sprint.code)} - ${escapeHtml(sprint.title)}</option>`).join("")}
+            </select>
+          </label>
+          <label>
+            <span>Sort</span>
+            <select data-filter="gantt-sort">
+              <option value="startAsc" ${sort === "startAsc" ? "selected" : ""}>Start date ascending</option>
+              <option value="startDesc" ${sort === "startDesc" ? "selected" : ""}>Start date descending</option>
+            </select>
+          </label>
+          <div class="roadmap-filter-actions gantt-filter-actions">
+            <button class="icon-action ${renderMode === "selected" ? "is-on" : ""}" type="button" data-action="toggle-gantt-render-mode" title="${renderMode === "selected" ? "Show All Sprints" : "Show Selected Sprint Only"}" aria-label="${renderMode === "selected" ? "Show All Sprints" : "Show Selected Sprint Only"}" aria-pressed="${renderMode === "selected"}">${renderMode === "selected" ? "&#9638;" : "&#9673;"}</button>
+            <button class="icon-action ${showNonWorkingDays ? "is-on" : ""}" type="button" data-action="toggle-gantt-days" title="${showNonWorkingDays ? "Hide weekends and holidays" : "Show weekends and holidays"}" aria-label="${showNonWorkingDays ? "Hide weekends and holidays" : "Show weekends and holidays"}" aria-pressed="${showNonWorkingDays}">&#128197;</button>
+            <button class="icon-action ${flyBy.active ? "is-on" : ""}" type="button" data-action="gantt-flyby" title="${flyBy.title}" aria-label="${flyBy.title}" aria-pressed="${flyBy.active}">${flyBy.icon}</button>
+            <button class="icon-action" type="button" data-action="reset-gantt-view" title="Reset Gantt view" aria-label="Reset Gantt view">&#8634;</button>
+          </div>
+          <span class="muted gantt-note">${showNonWorkingDays ? "Weekends and configured holidays are visible." : "Weekends and configured holidays are hidden unless work starts on that date."}</span>
         </div>
-        <span class="muted gantt-note">${showNonWorkingDays ? "Weekends and configured holidays are visible." : "Weekends and configured holidays are hidden unless work starts on that date."}</span>
       </div>
+      ${chart.dates.length ? ganttChartHtml(chart, { tasks, showAllBugs, isTaskExpanded }) : `<div class="empty">No scheduled items for this project yet.</div>`}
     </div>
-    ${chart.dates.length ? ganttChartHtml(chart, { tasks, showAllBugs, isTaskExpanded }) : `<div class="empty">No scheduled items for this project yet.</div>`}
   `;
 }
 

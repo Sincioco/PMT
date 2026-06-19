@@ -129,7 +129,7 @@ export function createGanttFlyBy({ showToast }) {
     const header = document.querySelector(".gantt-header");
     if (!scroller || !row) return 0;
 
-    return Math.max(0, rowTopInScroller(row, scroller) - (header?.offsetHeight || 0) - 8);
+    return Math.max(0, rowTopInScroller(row, scroller) - (header?.offsetHeight || 0));
   }
 
   async function startFlyBy(chart, flyByRunId, startingSprint) {
@@ -310,7 +310,7 @@ export function createGanttFlyBy({ showToast }) {
     if (!scroller) return 0;
 
     const header = document.querySelector(".gantt-header");
-    const targetTop = scroller.scrollTop + (header?.offsetHeight || 0) + 8;
+    const targetTop = scroller.scrollTop + (header?.offsetHeight || 0);
     const rows = [...document.querySelectorAll("[data-gantt-sprint-id]")];
     const nearestRow = rows.reduce((bestRow, row) => {
       if (!bestRow) return row;

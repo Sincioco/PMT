@@ -10,11 +10,25 @@
   font-size: var(--font-size-sm);
 }
 
+.gantt-screen {
+  display: flex;
+  flex-direction: column;
+  height: calc(100dvh - var(--topbar-height-min) - (var(--shell-padding-laptop) * 2));
+  min-height: 0;
+  overflow: hidden;
+}
+
+.gantt-screen .section-head,
+.gantt-control-panel {
+  flex: 0 0 auto;
+}
+
 .gantt {
   display: flex;
   flex-direction: column;
-  height: calc(100vh - 250px);
-  min-height: 420px;
+  flex: 1 1 auto;
+  height: auto;
+  min-height: 0;
   padding: 0;
   overflow: hidden;
   border-color: var(--color-border-subtle);
@@ -163,14 +177,6 @@
   grid-column: 1 / -1;
   grid-template-columns: repeat(var(--date-count, 1), var(--day-width));
   min-height: 36px;
-  border-left: var(--border-width) solid var(--color-timeline-line);
-  background-image: repeating-linear-gradient(
-    to right,
-    transparent 0,
-    transparent calc(var(--day-width) - 1px),
-    var(--color-timeline-line) calc(var(--day-width) - 1px),
-    var(--color-timeline-line) var(--day-width)
-  );
 }
 
 .gantt-bug-lane {
@@ -263,9 +269,12 @@
 }
 
 @media (max-width: 900px) {
+  .gantt-screen {
+    height: calc(100dvh - 132px - (var(--shell-padding-compact) * 2));
+  }
+
   .gantt {
-    height: calc(100vh - 220px);
-    min-height: 380px;
+    min-height: 0;
   }
 
   .gantt-grid {

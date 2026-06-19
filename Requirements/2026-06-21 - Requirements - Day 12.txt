@@ -10,10 +10,9 @@ Minor Bug Fixes and Enhancements
 5.) In Scrum, add a Filter section and add a filter project dropdown.
 6.) In Scrum, in the Filter section add a Person filter checkboxes.
 7.) In Scrum, in the Filter section add Calendar/Date filter.
+8.) The Gantt Chart's fly-by function is completely broken.  When you click the fly-by button, it does not render the last/current sprint into view correctly.  Consequently, the subsequent sprints/destinations do not render into view as well.  Fix it please.
 
 ----Done up to here----
-
-8.) The Gantt Chart's fly-by function is completely broken.  When you click the fly-by button, it does not render the last/current sprint into view correctly.  Consequently, the subsequent sprints/destinations do not render into view as well.  Fix it please.
 
 9.) In Scrum, in the Filter section, by default all names should be checked.
 10.) Move the Settings menu item from the Avatar dropdown to top Nav as the last time item in the Top Navigation and following the already established rules for when a top nav button becomes a menu item in the nav overflow menu.
