@@ -13,14 +13,12 @@
   padding: var(--space-4);
   border-color: var(--color-border-subtle);
   background: var(--color-surface);
-  backdrop-filter: none;
 }
 
 .settings-content-panel {
   min-width: 0;
   border-color: var(--color-border-subtle);
   background: var(--color-surface);
-  backdrop-filter: none;
 }
 
 .settings-table-panel {
@@ -48,7 +46,6 @@
   padding: var(--space-6);
   border-color: var(--color-border-subtle);
   background: var(--color-surface);
-  backdrop-filter: none;
 }
 
 .settings-user-head {
@@ -127,7 +124,6 @@
   background: var(--color-control-selected);
   border-color: var(--color-primary);
   color: var(--color-primary);
-  font-weight: var(--font-weight-bold);
   box-shadow: inset 3px 0 0 var(--color-primary);
 }
 

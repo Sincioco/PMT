@@ -73,6 +73,8 @@ Use clearly named temporary records and remove them after validation.
 - [ ] Verify attachments appear above Assignees.
 - [ ] Verify Assignees show avatars and the list can scroll.
 - [ ] Add/edit assignment, status, percent, dates, dependency, and description.
+- [ ] Confirm Dev Task and Bug rows do not begin dragging from links, buttons, or empty row space.
+- [ ] Hover a reorderable Dev Task and Bug row, confirm the drag handle appears after Edit without shifting the row, then reorder from that handle.
 - [ ] Open the task in read-only mode, then select Edit.
 - [ ] Open its audit dialog and confirm newest entries appear first.
 - [ ] Create a Bug with reporter, assignee, severity, environment, and steps.

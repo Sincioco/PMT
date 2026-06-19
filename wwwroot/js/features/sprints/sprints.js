@@ -14,7 +14,7 @@ import {
 import {
   sprintOverallProgressHtml,
   sprintStatusMetricsHtml
-} from "../../components/progress-and-status.js";
+} from "../../components/progress-and-status.js?v=20260620-ui-theme";
 import { sectionHead } from "../../components/sections.js";
 import { api } from "../../core/api.js";
 import {

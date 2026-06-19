@@ -330,6 +330,9 @@ export function createApplicationShell({
 
   function applyTheme(theme) {
     document.documentElement.dataset.theme = theme;
+    document.documentElement.style.colorScheme = theme;
+    const colorSchemeMeta = document.querySelector('meta[name="color-scheme"]');
+    if (colorSchemeMeta) colorSchemeMeta.content = theme === "light" ? "light dark" : "dark light";
     updateThemeToggle();
   }
 

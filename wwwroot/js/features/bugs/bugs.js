@@ -28,9 +28,10 @@ import {
   showTaskAudit,
   taskAuditPanelHtml,
   taskButtonsHtml,
+  taskDragHandleHtml,
   taskPercentField,
   uploadWorkItemAttachments
-} from "../../components/work-items.js";
+} from "../../components/work-items.js?v=20260620-drag-handles";
 import { currentUserId } from "../../core/authentication.js";
 import {
   preferenceKeys,
@@ -148,7 +149,7 @@ export function createBugsFeature({
                 <td>${escapeHtml(bug.status)}</td>
                 <td><span class="pill severity-${escapeAttr(bug.severity)}">${escapeHtml(bug.severity || "")}</span></td>
                 <td><span class="pill priority-${escapeAttr(bug.priority)}">${escapeHtml(bug.priority)}</span></td>
-                <td class="action-cell">${taskButtonsHtml(bug)}</td>
+                <td class="action-cell">${taskButtonsHtml(bug)}${taskDragHandleHtml(bug)}</td>
               </tr>
             `).join("") || `<tr><td colspan="9"><div class="empty">No bug reports match these filters.</div></td></tr>`}
           </tbody>

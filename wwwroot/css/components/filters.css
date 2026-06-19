@@ -68,7 +68,6 @@
   padding: var(--space-6);
   border-color: var(--color-border-subtle);
   background: var(--color-surface);
-  backdrop-filter: none;
 }
 
 .work-item-filter-panel select,

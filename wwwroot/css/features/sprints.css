@@ -10,24 +10,10 @@
   overflow: hidden;
   padding: var(--space-7);
   background: var(--color-surface);
-  backdrop-filter: none;
-}
-
-.sprint-card::before {
-  content: "";
-  position: absolute;
-  inset: 0 0 auto;
-  height: 3px;
-  background: linear-gradient(90deg, var(--color-secondary), var(--color-primary));
 }
 
 .sprint-card p {
   margin: 0;
-}
-
-.sprint-card.clickable-card:hover,
-.sprint-card.clickable-card:focus-visible {
-  transform: none;
 }
 
 .sprint-card-head {
@@ -52,7 +38,7 @@
 .sprint-card-actions {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-3);
 }
 
 .sprint-state {

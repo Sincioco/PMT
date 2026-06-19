@@ -1,5 +1,6 @@
 import { avatarsHtml } from "../../components/avatars.js";
 import { buttonContent } from "../../components/buttons.js";
+import { completionColor } from "../../components/progress-and-status.js?v=20260620-ui-theme";
 import { sectionHead } from "../../components/sections.js";
 import {
   dateRangeLabel,
@@ -114,7 +115,7 @@ function roadMapProjectHtml(row, chart, options) {
             ${options.showDates ? `<span class="roadmap-date-range">${escapeHtml(dateRangeLabel(row.start, row.end))}</span>` : ""}
           </div>
           ` : ""}
-          <i style="--value:${row.project.percentCompleted}%"></i>
+          <i style="--value:${row.project.percentCompleted}%; --progress-color:${completionColor(row.project.percentCompleted)}"></i>
         </div>
       </div>
       ${options.showSprints ? (row.sprints.map(sprintRow => roadMapSprintHtml(sprintRow, chart, options)).join("") || `<div class="empty compact-empty">No Sprints match the current filter.</div>`) : ""}
@@ -142,7 +143,7 @@ function roadMapSprintHtml(row, chart, options) {
           ${options.showDates ? `<span class="roadmap-date-range">${escapeHtml(dateRangeLabel(row.start, row.end))}</span>` : ""}
         </div>
         ` : ""}
-        <i style="--value:${row.sprint.percentCompleted}%"></i>
+        <i style="--value:${row.sprint.percentCompleted}%; --progress-color:${completionColor(row.sprint.percentCompleted)}"></i>
       </div>
     </div>
   `;

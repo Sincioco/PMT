@@ -39,6 +39,11 @@ export function taskButtonsHtml(task) {
   `;
 }
 
+export function taskDragHandleHtml(task) {
+  if (!canEditTask(task)) return "";
+  return `<button type="button" class="work-item-drag-handle" data-drag-handle title="Drag to reorder" aria-label="Drag to reorder"><span aria-hidden="true">&#8942;&#8942;</span></button>`;
+}
+
 export function taskAuditPanelHtml(task) {
   return `
     <div class="field full audit-editor-row">

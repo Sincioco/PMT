@@ -16,7 +16,7 @@ import {
   selectTextField,
   value
 } from "../../components/forms.js";
-import { progressHtml, statusColor } from "../../components/progress-and-status.js";
+import { progressHtml, statusColor } from "../../components/progress-and-status.js?v=20260620-ui-theme";
 import { sectionHead } from "../../components/sections.js";
 import {
   attachmentEditorFieldHtml,
@@ -25,9 +25,10 @@ import {
   showTaskAudit,
   taskAuditPanelHtml,
   taskButtonsHtml,
+  taskDragHandleHtml,
   taskPercentField,
   uploadWorkItemAttachments
-} from "../../components/work-items.js";
+} from "../../components/work-items.js?v=20260620-drag-handles";
 import {
   preferenceKeys,
   readBooleanPreference,
@@ -189,7 +190,7 @@ export function createTasksFeature({
                 <td>${escapeHtml(task.status)}</td>
                 <td><span class="pill priority-${task.priority}">${escapeHtml(task.priority)}</span></td>
                 <td class="done-cell">${progressHtml(taskDisplayPercent(task))}</td>
-                <td class="reveal-actions action-cell">${taskButtonsHtml(task)}</td>
+                <td class="reveal-actions action-cell">${taskButtonsHtml(task)}${taskDragHandleHtml(task)}</td>
               </tr>
             `;
             }).join("") || `<tr><td colspan="8"><div class="empty">No tasks for this filter.</div></td></tr>`}

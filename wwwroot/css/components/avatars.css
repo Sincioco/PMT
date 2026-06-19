@@ -34,7 +34,7 @@
   object-fit: cover;
   background: var(--color-surface-raised);
   margin-left: -13px;
-  box-shadow: 0 7px 18px color-mix(in srgb, var(--color-page), transparent 45%);
+  box-shadow: var(--shadow-floating-mark);
 }
 
 .row-avatar:first-child {

@@ -10,20 +10,6 @@
   overflow: hidden;
   padding: var(--space-7);
   background: var(--color-surface);
-  backdrop-filter: none;
-}
-
-.project-card:hover,
-.project-card:focus-visible {
-  transform: none;
-}
-
-.project-card::before {
-  content: "";
-  position: absolute;
-  inset: 0 0 auto;
-  height: 3px;
-  background: linear-gradient(90deg, var(--color-primary), var(--color-success));
 }
 
 .project-card p {

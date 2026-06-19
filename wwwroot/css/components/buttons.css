@@ -7,7 +7,7 @@ button {
   background: var(--color-control);
   color: var(--color-text-primary);
   cursor: pointer;
-  padding: 8px var(--control-padding-inline-md);
+  padding: var(--space-3) var(--control-padding-inline-md);
   transition: var(--transition-control);
 }
 
@@ -18,7 +18,6 @@ button:hover:not(:disabled) {
 
 button:active:not(:disabled) {
   background: var(--color-control-active);
-  transform: translateY(1px);
 }
 
 button:focus-visible,
@@ -42,7 +41,7 @@ button:disabled {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 7px;
+  gap: var(--space-3);
 }
 
 .button-icon {
@@ -68,22 +67,14 @@ button:disabled {
 
 .primary {
   border-color: transparent;
-  background: linear-gradient(
-    135deg,
-    var(--color-primary),
-    color-mix(in srgb, var(--color-primary), var(--color-success) 28%)
-  );
+  background: var(--color-primary);
   color: var(--color-primary-contrast);
   font-weight: var(--font-weight-medium);
-  box-shadow: 0 8px 20px color-mix(in srgb, var(--color-primary), transparent 76%);
+  box-shadow: var(--shadow-accent);
 }
 
 .primary:hover:not(:disabled) {
-  background: linear-gradient(
-    135deg,
-    var(--color-primary-hover),
-    color-mix(in srgb, var(--color-primary-hover), var(--color-success) 24%)
-  );
+  background: var(--color-primary-hover);
 }
 
 .secondary {
@@ -119,5 +110,4 @@ button[aria-expanded="true"] {
   border-color: color-mix(in srgb, var(--color-primary), var(--color-border-strong) 28%);
   background: var(--color-control-selected);
   color: var(--color-text-primary);
-  font-weight: var(--font-weight-medium);
 }

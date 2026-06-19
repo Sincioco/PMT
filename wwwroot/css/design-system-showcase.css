@@ -2,10 +2,7 @@
 
 .ds-page {
   min-width: 320px;
-  background:
-    radial-gradient(circle at 12% 2%, var(--color-page-glow-primary), transparent 28rem),
-    radial-gradient(circle at 88% 8%, var(--color-page-glow-secondary), transparent 30rem),
-    var(--color-page);
+  background: var(--color-page);
   color: var(--color-text-primary);
 }
 
@@ -118,9 +115,7 @@
   padding: clamp(var(--space-9), 5vw, 72px);
   border: var(--border-width) solid var(--color-border);
   border-radius: var(--radius-xl);
-  background:
-    linear-gradient(135deg, var(--color-surface-glass-highlight), transparent 48%),
-    var(--color-surface-glass);
+  background: var(--color-surface-glass);
   box-shadow: var(--shadow-elevated);
   backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturation));
 }
@@ -432,14 +427,6 @@
   padding: 0 var(--control-padding-inline-md);
 }
 
-.ds-button:hover:not(:disabled) {
-  transform: translateY(-1px);
-}
-
-.ds-button:active:not(:disabled) {
-  transform: translateY(1px);
-}
-
 .ds-button:disabled {
   border-color: var(--color-border-subtle);
   background: var(--color-control-disabled);
@@ -475,13 +462,13 @@
 
 .ds-button-neutral {
   border-color: var(--color-border-control);
-  background: var(--color-control);
+  background-color: var(--color-control);
   color: var(--color-text-primary);
 }
 
 .ds-button-neutral:hover:not(:disabled) {
   border-color: var(--color-border-strong);
-  background: var(--color-control-hover);
+  background-color: var(--color-control-hover);
 }
 
 .ds-button-neutral:active:not(:disabled) {
@@ -549,7 +536,7 @@
   width: var(--value);
   height: 100%;
   border-radius: inherit;
-  background: linear-gradient(90deg, var(--color-primary), var(--color-success));
+  background: var(--color-success);
 }
 
 .ds-form {
@@ -580,7 +567,7 @@
   padding: var(--space-3) var(--control-padding-inline-md);
   border: var(--border-width) solid var(--color-border-control);
   border-radius: var(--radius-md);
-  background: var(--color-control);
+  background-color: var(--color-control);
   color: var(--color-text-primary);
   outline: 0;
   transition: var(--transition-control);
@@ -591,12 +578,16 @@
   resize: vertical;
 }
 
+.ds-form select {
+  padding-right: calc(var(--space-5) + var(--icon-size-sm) + var(--space-3)) !important;
+}
+
 .ds-form input:hover:not(:disabled),
 .ds-form select:hover:not(:disabled),
 .ds-form textarea:hover:not(:disabled),
 .ds-dialog textarea:hover:not(:disabled) {
   border-color: var(--color-border-strong);
-  background: var(--color-control-hover);
+  background-color: var(--color-control-hover);
 }
 
 .ds-form input:focus,
@@ -733,7 +724,6 @@
 .ds-preview-nav a[aria-current="page"] {
   background: var(--color-primary);
   color: var(--color-primary-contrast);
-  font-weight: var(--font-weight-medium);
 }
 
 .ds-table-card {
@@ -830,9 +820,7 @@
 }
 
 .ds-glass-example {
-  background:
-    linear-gradient(135deg, var(--color-surface-glass-highlight), transparent 60%),
-    var(--color-surface-glass);
+  background: var(--color-surface-glass);
 }
 
 .ds-footer {
@@ -851,12 +839,10 @@
   background: var(--color-surface-dialog);
   color: var(--color-text-primary);
   box-shadow: var(--shadow-dialog);
-  backdrop-filter: blur(var(--glass-blur-dialog)) saturate(var(--glass-saturation));
 }
 
 .ds-dialog::backdrop {
   background: var(--color-overlay);
-  backdrop-filter: blur(3px);
 }
 
 .ds-dialog header,

@@ -33,7 +33,14 @@ function currentTasks() {
 
 export function progressHtml(value) {
   const safeValue = Math.max(0, Math.min(100, Number(value || 0)));
-  return `<div class="progress" title="${safeValue}%"><span style="--value:${safeValue}%"></span></div>`;
+  return `<div class="progress" title="${safeValue}%"><span style="--value:${safeValue}%; --progress-color:${completionColor(safeValue)}"></span></div>`;
+}
+
+export function completionColor(value) {
+  const safeValue = Math.max(0, Math.min(100, Number(value || 0)));
+  if (safeValue >= 80) return "var(--color-success)";
+  if (safeValue <= 30) return "var(--color-danger)";
+  return "var(--color-warning)";
 }
 
 export function thinProgressHtml(value, color) {

@@ -11,6 +11,9 @@ This document defines PMT's reusable light and dark visual language. Phase 13 es
 5. **State is explicit.** Default, hover, active, selected, focus, disabled, validation, loading, and semantic feedback states must be distinguishable in both themes.
 6. **Color supports meaning.** Statuses, charts, warnings, and errors always have text, icons, patterns, or accessible summaries. Color is never the only cue.
 7. **Motion helps orientation.** Use short, subtle transitions for state changes. Respect reduced-motion preferences and avoid decorative motion in data-heavy views.
+8. **Interaction is spatially stable.** Hover, focus, selected, and pressed states may change color, border color, shadow, or outline, but must not move, resize, scale, or shift the element or surrounding layout.
+9. **Solid colors are the default.** Do not use gradients unless a more local requirement explicitly requests one.
+10. **Completion colors are consistent.** Completion or success rates from 0-30% use danger red, 31-79% use warning yellow, and 80-100% use success green unless a more local domain rule overrides the mapping.
 
 ## Token ownership
 
@@ -33,7 +36,7 @@ This document defines PMT's reusable light and dark visual language. Phase 13 es
 | `--color-surface-subtle` | Low-emphasis inset or hover surface |
 | `--color-surface-raised` | Menus, sticky content, and raised controls |
 | `--color-surface-elevated` | Highest non-modal surface |
-| `--color-surface-glass` | Bounded translucent surface |
+| `--color-surface-glass` | Explicitly approved translucent showcase surface |
 | `--color-surface-glass-highlight` | Subtle glass highlight, never body text |
 | `--color-surface-navigation` | Sticky application navigation |
 | `--color-surface-dialog` | Dialog surface with enough opacity for long text |
@@ -43,7 +46,7 @@ Surface order is:
 
 `page -> surface -> raised -> elevated -> dialog`
 
-Glass is a treatment, not an additional elevation level. A glass surface still needs a clear border and a readable fallback color.
+Glass is a treatment, not an additional elevation level. Application cards, panels, menus, and dialogs use opaque surfaces by default. A permitted glass surface still needs a clear border and a readable fallback color.
 
 ### Text hierarchy
 
@@ -75,6 +78,14 @@ Primary is for the main action in a local context. Secondary supports a distinct
 
 Feedback colors do not imply work-item status. Work-item status uses lookup colors or the status palette.
 
+Completion and success-rate visuals use this default threshold mapping:
+
+- 0-30%: `--color-danger`
+- 31-79%: `--color-warning`
+- 80-100%: `--color-success`
+
+These thresholds apply to quantitative completion or success rates. Named workflow statuses continue to use their configured lookup colors.
+
 ### Borders, controls, and focus
 
 | Token | Purpose |
@@ -99,8 +110,12 @@ Focus must be visible on buttons, links, form controls, selectable cards, table 
 | Token | Purpose |
 | --- | --- |
 | `--shadow-card` | Default card separation |
+| `--shadow-compact` | Small cards, timeline headers, and dense nested surfaces |
+| `--shadow-accent` | Primary controls and branded accents |
+| `--shadow-floating-mark` | Avatars and compact chart marks floating over a surface |
 | `--shadow-elevated` | Menus, sticky overlays, and emphasized panels |
 | `--shadow-dialog` | Modal dialogs |
+| `--shadow-inset-highlight`, `--shadow-divider` | One-pixel internal highlights and separators |
 
 Do not combine a strong shadow, strong border, and saturated background unless the element is a modal or critical feedback state.
 
@@ -114,6 +129,8 @@ Additional chart tokens:
 - `--color-chart-axis`
 - `--color-chart-tooltip`
 - `--color-chart-tooltip-border`
+- `--color-chart-mark-text`
+- `--color-chart-mark-outline`
 
 Chart rules:
 
@@ -172,9 +189,9 @@ Avoid using font size alone to express hierarchy. Pair it with weight, spacing, 
 | `--duration-slow` | Large but nonessential transitions |
 | `--ease-standard` | Default UI state changes |
 | `--ease-emphasized` | Deliberate spatial transitions |
-| `--transition-control` | Shared control-state transition |
+| `--transition-control` | Shared non-spatial control-state transition |
 
-When `prefers-reduced-motion: reduce` is active, the duration tokens become zero. Functional scrolling and direct manipulation must still work.
+Shared interaction transitions cover color, border color, and shadow—not transforms or layout dimensions. When `prefers-reduced-motion: reduce` is active, the duration tokens become zero. Functional scrolling and direct manipulation must still work.
 
 ## Component principles and examples
 
@@ -186,6 +203,7 @@ When `prefers-reduced-motion: reduce` is active, the duration tokens become zero
 - Icon-only buttons require an accessible name.
 - Disabled buttons remain legible and visually unavailable; they must not rely on opacity alone in new component work.
 - Hover, active, and focus states must be independently visible.
+- Button interaction states must not translate, scale, resize, or change font metrics.
 
 Example:
 
@@ -200,9 +218,11 @@ Example:
 
 - Cards group one entity, metric, or compact action area.
 - Panels group a larger screen region.
+- Cards and panels use the opaque `--color-surface` default; feature styles should not need to disable blur.
 - Use a single default border and shadow. Strengthen the border for interactive hover/focus rather than increasing layout size.
 - Clickable cards must be keyboard reachable and expose their action semantics.
 - Avoid glass behind dense tables or long documentation text.
+- Card hover and focus may strengthen color, border, outline, or shadow without translating or resizing the card.
 
 ### Tables and lists
 
@@ -216,6 +236,7 @@ Example:
 
 - Every control has a visible label. Placeholder text is not a label.
 - Use the standard control height and border tokens.
+- Select controls use the shared theme-aware SVG chevron, reserve right-side padding around it, and apply the active document color scheme to the native option popup before it opens.
 - Validation places a message next to the field and sets the relevant accessible state.
 - Disabled fields use disabled background and text tokens.
 - Required, invalid, read-only, and disabled are different states and must look different.
@@ -286,14 +307,14 @@ Density rules:
 Glass is allowed for:
 
 - top navigation;
-- bounded menus;
-- cards over the application page background;
-- dialogs when the dialog surface remains sufficiently opaque;
-- small showcase or marketing-like summary regions.
+- small showcase or marketing-like summary regions explicitly designed for it.
 
 Glass is not appropriate for:
 
 - table cells;
+- application cards and panels;
+- menus and dropdowns;
+- dialogs;
 - long-form Documentation content;
 - nested surfaces where the background becomes visually noisy;
 - error, warning, or success states that need immediate clarity;
@@ -331,16 +352,17 @@ Ownership rules:
 
 ## Current audit and adoption boundary
 
-The Phase 13 audit found:
+The current audit confirms:
 
 - shared component ownership is already separated into buttons, cards/panels, forms, dialogs, tables/lists, filters, navigation, avatars, attachments, progress/status, and charts;
 - feature layout ownership is separated under `css/features/`;
-- existing styles consume the original short color tokens but still contain component-specific hard-coded translucent colors, radii, shadows, and transition timings;
-- focus, disabled, hover, and active treatment is not yet uniformly expressed through the expanded contract;
+- application component and feature styles contain no literal theme colors; semantic values are owned by `themes.css`;
+- repeated shadows, radii, spacing, typography, and transitions consume the shared token contract;
+- focus, disabled, hover, active, and selected states are expressed without spatial movement;
 - chart and status colors already support CSS custom properties and can adopt the new palette incrementally;
 - the application uses identical markup for light and dark themes and applies the saved theme before paint.
 
-This phase intentionally does not replace every hard-coded component value. Later screen-by-screen design work should:
+One-off geometry that describes data visualization or timeline layout remains local by design. Later screen-by-screen design work should:
 
 1. preserve existing selectors, markup, behavior, endpoints, payloads, and preference keys;
 2. replace local values with the semantic token that matches their purpose;

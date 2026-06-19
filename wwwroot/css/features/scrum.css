@@ -3,7 +3,6 @@
 .scrum-filter-panel {
   padding: var(--space-6);
   background: var(--color-surface);
-  backdrop-filter: none;
 }
 
 .scrum-filter-title {
@@ -15,7 +14,6 @@
 .scrum-panel {
   padding: var(--space-4);
   background: var(--color-surface);
-  backdrop-filter: none;
 }
 
 .scrum-table-wrap {

@@ -27,7 +27,7 @@
   border: var(--border-width) solid var(--color-border);
   border-radius: var(--radius-lg);
   background: var(--color-surface-raised);
-  box-shadow: 0 12px 28px color-mix(in srgb, var(--color-primary), transparent 78%);
+  box-shadow: var(--shadow-accent);
 }
 
 .login-screen h1 {

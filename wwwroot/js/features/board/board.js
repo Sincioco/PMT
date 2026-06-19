@@ -1,11 +1,11 @@
 import { avatarsHtml } from "../../components/avatars.js";
 import { buttonContent } from "../../components/buttons.js";
-import { progressHtml } from "../../components/progress-and-status.js";
+import { progressHtml } from "../../components/progress-and-status.js?v=20260620-ui-theme";
 import { sectionHead } from "../../components/sections.js";
 import {
   bugFixIconHtml,
   taskButtonsHtml
-} from "../../components/work-items.js";
+} from "../../components/work-items.js?v=20260620-drag-handles";
 import {
   preferenceKeys,
   readBooleanPreference,

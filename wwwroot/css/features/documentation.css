@@ -3,7 +3,6 @@
 .documentation-filter-panel {
   padding: var(--space-5) var(--space-7);
   background: var(--color-surface);
-  backdrop-filter: none;
 }
 
 .documentation-filter-panel select {
@@ -20,15 +19,6 @@
   overflow: hidden;
   padding: var(--space-7);
   background: var(--color-surface);
-  backdrop-filter: none;
-}
-
-.documentation-card::before {
-  content: "";
-  position: absolute;
-  inset: 0 0 auto;
-  height: 3px;
-  background: linear-gradient(90deg, var(--color-info), var(--color-secondary));
 }
 
 .documentation-card-head {

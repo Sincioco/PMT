@@ -1,13 +1,13 @@
 import { buttonContent } from "../../components/buttons.js";
 import {
+  completionColor,
   projectOverallProgressHtml,
   projectStatusMetricsHtml,
   sprintOverallProgressHtml,
   sprintStatusMetricsHtml,
-  statusColor,
   statusLegendHtml,
   thinProgressHtml
-} from "../../components/progress-and-status.js";
+} from "../../components/progress-and-status.js?v=20260620-ui-theme";
 import { sectionHead } from "../../components/sections.js";
 import { state } from "../../core/store.js";
 import {
@@ -156,7 +156,7 @@ export function createDashboardFeature({
           <span class="dashboard-task-title">${escapeHtml(task.code)} ${escapeHtml(task.title)}</span>
           <span class="pill">${percent}%</span>
         </span>
-        ${thinProgressHtml(percent, statusColor(task.status))}
+        ${thinProgressHtml(percent, completionColor(percent))}
       </button>
     `;
   }

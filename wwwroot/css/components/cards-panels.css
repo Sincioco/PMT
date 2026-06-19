@@ -6,7 +6,6 @@
   border-radius: var(--radius-md);
   background: var(--surface);
   box-shadow: var(--shadow-card);
-  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturation));
 }
 
 .card {
@@ -58,7 +57,6 @@
 .clickable-card:focus-visible {
   border-color: color-mix(in srgb, var(--color-primary), var(--color-border-strong) 36%);
   background: color-mix(in srgb, var(--surface), var(--color-primary) 4%);
-  transform: translateY(-1px);
 }
 
 .empty {

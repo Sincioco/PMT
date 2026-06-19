@@ -3,40 +3,51 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark light">
   <title>PMT</title>
-  <script type="module" blocking="render">
-    import { preferenceKeys, readPreference } from "/js/core/preferences.js";
-    document.documentElement.dataset.theme = readPreference(preferenceKeys.theme, "dark");
+  <script>
+    (() => {
+      let theme = "dark";
+      try {
+        if (localStorage.getItem("pmt-theme") === "light") theme = "light";
+      } catch {
+        // Local preferences are optional.
+      }
+      document.documentElement.dataset.theme = theme;
+      document.documentElement.style.colorScheme = theme;
+      document.querySelector('meta[name="color-scheme"]').content =
+        theme === "light" ? "light dark" : "dark light";
+    })();
   </script>
   <!-- CSS loads from broad foundations to shared components, then feature-specific rules. -->
-  <link rel="stylesheet" href="/css/tokens.css?v=20260619-shell-components">
-  <link rel="stylesheet" href="/css/themes.css?v=20260619-shell-components">
-  <link rel="stylesheet" href="/css/base.css?v=20260619-shell-components">
+  <link rel="stylesheet" href="/css/tokens.css?v=20260620-token-depth">
+  <link rel="stylesheet" href="/css/themes.css?v=20260620-native-controls-v2">
+  <link rel="stylesheet" href="/css/base.css?v=20260620-native-controls-v2">
   <link rel="stylesheet" href="/css/layout.css?v=20260619-shell-components">
-  <link rel="stylesheet" href="/css/components/buttons.css?v=20260619-shell-components">
-  <link rel="stylesheet" href="/css/components/cards-panels.css?v=20260619-shell-components">
-  <link rel="stylesheet" href="/css/components/forms.css?v=20260619-day12-defaults-filters">
-  <link rel="stylesheet" href="/css/components/dialogs.css?v=20260619-shell-components">
-  <link rel="stylesheet" href="/css/components/tables-lists.css?v=20260619-advanced-screens-v2">
+  <link rel="stylesheet" href="/css/components/buttons.css?v=20260620-token-depth">
+  <link rel="stylesheet" href="/css/components/cards-panels.css?v=20260620-solid-surfaces">
+  <link rel="stylesheet" href="/css/components/forms.css?v=20260620-select-theme">
+  <link rel="stylesheet" href="/css/components/dialogs.css?v=20260620-solid-surfaces">
+  <link rel="stylesheet" href="/css/components/tables-lists.css?v=20260620-token-depth">
   <link rel="stylesheet" href="/css/components/filters.css?v=20260619-advanced-screens-v2">
-  <link rel="stylesheet" href="/css/components/navigation.css?v=20260619-minor-fixes">
-  <link rel="stylesheet" href="/css/components/avatars.css?v=20260619-shell-components">
+  <link rel="stylesheet" href="/css/components/navigation.css?v=20260620-token-depth">
+  <link rel="stylesheet" href="/css/components/avatars.css?v=20260620-token-depth">
   <link rel="stylesheet" href="/css/components/attachments.css?v=20260619-shell-components">
-  <link rel="stylesheet" href="/css/components/progress-status.css?v=20260619-shell-components">
-  <link rel="stylesheet" href="/css/components/charts.css?v=20260619-shell-components">
-  <link rel="stylesheet" href="/css/features/login.css?v=20260619-shell-components">
-  <link rel="stylesheet" href="/css/features/dashboard.css?v=20260619-content-screens">
-  <link rel="stylesheet" href="/css/features/roadmap.css?v=20260619-minor-fixes">
-  <link rel="stylesheet" href="/css/features/gantt.css?v=20260619-minor-fixes">
-  <link rel="stylesheet" href="/css/features/board.css?v=20260619-advanced-screens-v2">
-  <link rel="stylesheet" href="/css/features/projects.css?v=20260619-minor-fixes">
-  <link rel="stylesheet" href="/css/features/sprints.css?v=20260619-content-screens">
+  <link rel="stylesheet" href="/css/components/progress-status.css?v=20260620-token-depth">
+  <link rel="stylesheet" href="/css/components/charts.css?v=20260620-token-depth">
+  <link rel="stylesheet" href="/css/features/login.css?v=20260620-token-depth">
+  <link rel="stylesheet" href="/css/features/dashboard.css?v=20260620-token-depth">
+  <link rel="stylesheet" href="/css/features/roadmap.css?v=20260620-token-depth">
+  <link rel="stylesheet" href="/css/features/gantt.css?v=20260620-token-depth">
+  <link rel="stylesheet" href="/css/features/board.css?v=20260620-token-depth">
+  <link rel="stylesheet" href="/css/features/projects.css?v=20260620-ui-theme">
+  <link rel="stylesheet" href="/css/features/sprints.css?v=20260620-token-depth">
   <link rel="stylesheet" href="/css/features/tasks.css?v=20260619-advanced-screens-v2">
   <link rel="stylesheet" href="/css/features/bugs.css?v=20260619-advanced-screens-v2">
   <link rel="stylesheet" href="/css/features/scrum.css?v=20260619-minor-fixes">
-  <link rel="stylesheet" href="/css/features/documentation.css?v=20260619-content-screens">
+  <link rel="stylesheet" href="/css/features/documentation.css?v=20260620-ui-theme">
   <link rel="stylesheet" href="/css/features/backlog.css?v=20260619-advanced-screens-v2">
-  <link rel="stylesheet" href="/css/features/settings.css?v=20260619-advanced-screens-v2">
+  <link rel="stylesheet" href="/css/features/settings.css?v=20260620-ui-theme">
 </head>
 <body>
   <header class="topbar">
@@ -95,6 +106,6 @@
   </dialog>
 
   <div id="toast" class="toast" hidden></div>
-  <script type="module" src="/js/app.js?v=20260619-minor-fixes"></script>
+  <script type="module" src="/js/app.js?v=20260620-native-controls-v3"></script>
 </body>
 </html>

@@ -12,7 +12,7 @@
   padding: var(--space-4) var(--shell-padding-laptop);
   border-bottom: var(--border-width) solid var(--color-border);
   background: var(--topbar-bg);
-  box-shadow: 0 1px 0 var(--color-surface-glass-highlight);
+  box-shadow: var(--shadow-inset-highlight);
   backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturation));
 }
 
@@ -29,7 +29,7 @@
   border: var(--border-width) solid var(--color-border);
   border-radius: var(--radius-md);
   background: var(--color-surface-raised);
-  box-shadow: 0 8px 20px color-mix(in srgb, var(--color-primary), transparent 84%);
+  box-shadow: var(--shadow-accent);
 }
 
 .brand strong {
@@ -58,7 +58,8 @@
   align-items: center;
   gap: var(--space-2);
   min-height: var(--control-height-sm);
-  padding: 7px var(--control-padding-inline-sm);
+  padding: var(--space-3) var(--control-padding-inline-sm);
+  font-weight: var(--font-weight-medium);
   white-space: nowrap;
 }
 
@@ -109,11 +110,9 @@
 .nav button.active,
 .nav button[aria-current="page"] {
   border-color: transparent;
-  background:
-    linear-gradient(135deg, var(--color-primary), color-mix(in srgb, var(--color-primary), var(--color-success) 28%));
+  background: var(--color-primary);
   color: var(--color-primary-contrast);
-  font-weight: var(--font-weight-medium);
-  box-shadow: 0 8px 18px color-mix(in srgb, var(--color-primary), transparent 78%);
+  box-shadow: var(--shadow-accent);
 }
 
 .user-actions {

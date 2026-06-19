@@ -9,7 +9,6 @@
   background: var(--dialog-bg);
   color: var(--color-text-primary);
   box-shadow: var(--shadow-dialog);
-  backdrop-filter: blur(var(--glass-blur-dialog)) saturate(var(--glass-saturation));
 }
 
 .dialog::backdrop {

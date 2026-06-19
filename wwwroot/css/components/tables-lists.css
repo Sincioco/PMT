@@ -36,7 +36,7 @@
 }
 
 .action-cell button {
-  margin-left: 6px;
+  margin-left: var(--space-2);
 }
 
 .audit-editor-row {
@@ -50,7 +50,7 @@
 
 .audit-change {
   display: inline-flex;
-  gap: 6px;
+  gap: var(--space-2);
   align-items: center;
   color: var(--text);
   white-space: nowrap;
@@ -65,13 +65,52 @@ tbody.drop-target {
   outline-offset: -3px;
 }
 
-tr[data-task-id][data-can-drag="true"] {
+tbody[data-reorder-list="backlog"] tr[data-task-id][data-can-drag="true"] {
   cursor: grab;
   touch-action: none;
 }
 
-tr[data-task-id][data-can-drag="true"]:active {
+tbody[data-reorder-list="backlog"] tr[data-task-id][data-can-drag="true"]:active {
   cursor: grabbing;
+}
+
+.work-item-drag-handle {
+  width: 30px;
+  min-width: 30px;
+  height: 30px;
+  min-height: 30px;
+  padding: 0;
+  opacity: 0;
+  pointer-events: none;
+  border-color: transparent;
+  background: transparent;
+  color: var(--color-text-secondary);
+  cursor: grab;
+  touch-action: none;
+}
+
+.work-item-drag-handle span {
+  display: block;
+  letter-spacing: -4px;
+  transform: translateX(-2px);
+}
+
+.work-item-table tbody tr:hover .work-item-drag-handle,
+.work-item-table tbody tr:focus-within .work-item-drag-handle,
+.work-item-drag-handle:focus-visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.work-item-drag-handle:active {
+  cursor: grabbing;
+}
+
+@media (hover: none) {
+  .work-item-drag-handle {
+    opacity: 1;
+    pointer-events: auto;
+  }
 }
 
 tr.dragging {
@@ -98,7 +137,6 @@ tr.reorder-after > td {
   overflow: auto;
   border-color: var(--color-border-subtle);
   background: var(--color-surface);
-  backdrop-filter: none;
 }
 
 .work-item-table {
@@ -113,7 +151,7 @@ tr.reorder-after > td {
   height: 42px;
   border-bottom-color: var(--color-border);
   background: var(--color-surface-raised);
-  box-shadow: 0 1px 0 var(--color-border-subtle);
+  box-shadow: var(--shadow-divider);
   white-space: nowrap;
 }
 

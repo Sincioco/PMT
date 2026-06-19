@@ -6,7 +6,6 @@
   border-color: var(--color-border-subtle);
   border-radius: var(--radius-lg);
   background: var(--color-surface);
-  backdrop-filter: none;
 }
 
 .roadmap-scroll {
@@ -27,7 +26,7 @@
   z-index: var(--z-sticky);
   border-bottom: var(--border-width) solid var(--color-border);
   background: var(--color-surface);
-  box-shadow: 0 4px 14px color-mix(in srgb, var(--color-page), transparent 70%);
+  box-shadow: var(--shadow-compact);
 }
 
 .roadmap-row {
@@ -66,7 +65,7 @@
 .roadmap-months > .roadmap-month-label-compact,
 .roadmap-months > .roadmap-month-label-narrow {
     padding: 0;
-    font-size: 10px;
+    font-size: var(--font-size-xs);
     letter-spacing: 0;
 }
 
@@ -106,7 +105,7 @@
   position: relative;
   display: grid;
   align-content: center;
-  gap: 4px;
+  gap: var(--space-1);
   min-height: 40px;
   min-width: 170px;
   padding: var(--space-3) var(--space-5) var(--space-4);
@@ -124,22 +123,17 @@
   z-index: 1;
   border-color: var(--color-primary);
   box-shadow: var(--shadow-elevated);
-  transform: translateY(-1px);
 }
 
 .roadmap-project-bar {
   min-width: 230px;
   min-height: 52px;
-  background:
-    linear-gradient(135deg, var(--color-info-surface), var(--color-control-selected)),
-    var(--color-surface-raised);
+  background: var(--color-info-surface);
 }
 
 .roadmap-sprint-bar {
   margin-left: 18px;
-  background:
-    linear-gradient(135deg, var(--color-control-selected), var(--color-success-surface)),
-    var(--color-surface-raised);
+  background: var(--color-control-selected);
 }
 
 .roadmap-bar strong {
@@ -182,7 +176,7 @@
   inset: auto 0 0 0;
   height: 3px;
   width: var(--value);
-  background: color-mix(in srgb, var(--color-text-primary), transparent 14%);
+  background: var(--progress-color);
 }
 
 @media (max-width: 900px) {

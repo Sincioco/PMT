@@ -6,13 +6,13 @@ import {
   field,
   value
 } from "./components/forms.js";
-import { configureProgressAndStatus } from "./components/progress-and-status.js";
+import { configureProgressAndStatus } from "./components/progress-and-status.js?v=20260620-ui-theme";
 import {
   bindAttachmentPreview,
   showTaskAudit,
   viewWorkItem
-} from "./components/work-items.js";
-import { createApplicationShell } from "./core/application-shell.js?v=20260619-shell-components";
+} from "./components/work-items.js?v=20260620-drag-handles";
+import { createApplicationShell } from "./core/application-shell.js?v=20260620-native-controls-v3";
 import {
   currentView,
   navigate
@@ -23,10 +23,10 @@ import {
   screenHandlerFor
 } from "./core/screen-registry.js";
 import { state } from "./core/store.js";
-import { createBacklogFeature } from "./features/backlog/backlog.js?v=20260619-advanced-screens-v2";
-import { createBoardFeature } from "./features/board/board.js?v=20260619-day12-defaults-filters";
-import { createBugsFeature } from "./features/bugs/bugs.js?v=20260619-advanced-screens-v2";
-import { createDashboardFeature } from "./features/dashboard/dashboard.js?v=20260619-content-screens";
+import { createBacklogFeature } from "./features/backlog/backlog.js?v=20260620-drag-handles";
+import { createBoardFeature } from "./features/board/board.js?v=20260620-drag-handles";
+import { createBugsFeature } from "./features/bugs/bugs.js?v=20260620-drag-handles";
+import { createDashboardFeature } from "./features/dashboard/dashboard.js?v=20260620-ui-theme";
 import { createDocumentationFeature } from "./features/documentation/documentation.js?v=20260619-content-screens";
 import {
   createGanttFeature,
@@ -34,11 +34,11 @@ import {
   ganttStartDate
 } from "./features/gantt/gantt.js?v=20260619-day12-defaults-filters";
 import { createProjectsFeature } from "./features/projects/projects.js?v=20260619-content-screens";
-import { createRoadMapFeature } from "./features/roadmap/roadmap.js?v=20260619-day12-defaults-filters";
+import { createRoadMapFeature } from "./features/roadmap/roadmap.js?v=20260620-ui-theme";
 import { createScrumFeature } from "./features/scrum/scrum.js?v=20260619-minor-fixes";
 import { createSettingsFeature } from "./features/settings/settings.js?v=20260619-advanced-screens-v2";
 import { createSprintsFeature } from "./features/sprints/sprints.js?v=20260619-content-screens";
-import { createTasksFeature } from "./features/tasks/tasks.js?v=20260619-day12-defaults-filters";
+import { createTasksFeature } from "./features/tasks/tasks.js?v=20260620-drag-handles";
 import {
   fallbackEnvironments,
   fallbackForLookup,
@@ -69,6 +69,51 @@ import {
   sprintOverallPercent,
   taskOrderCompare
 } from "./shared/work-item-rules.js";
+
+const nativePickerSelector = [
+  "select",
+  'input[type="date"]',
+  'input[type="datetime-local"]',
+  'input[type="month"]',
+  'input[type="time"]',
+  'input[type="week"]'
+].join(",");
+
+function syncNativePickerTheme(control) {
+  if (!(control instanceof HTMLElement)) return;
+  const theme = document.documentElement.dataset.theme === "light" ? "light" : "dark";
+  control.style.colorScheme = theme;
+  if (control instanceof HTMLSelectElement) {
+    Array.from(control.options).forEach(option => {
+      option.style.colorScheme = theme;
+    });
+  }
+}
+
+function syncNativePickers(root = document) {
+  if (root.matches?.(nativePickerSelector)) syncNativePickerTheme(root);
+  root.querySelectorAll?.(nativePickerSelector).forEach(syncNativePickerTheme);
+}
+
+new MutationObserver(records => {
+  records.forEach(record => {
+    record.addedNodes.forEach(node => {
+      if (node instanceof HTMLElement) syncNativePickers(node);
+    });
+  });
+}).observe(document.documentElement, { childList: true, subtree: true });
+
+document.addEventListener("pointerdown", event => {
+  const control = event.target.closest?.(nativePickerSelector);
+  if (control) syncNativePickerTheme(control);
+}, true);
+
+document.addEventListener("focusin", event => {
+  const control = event.target.closest?.(nativePickerSelector);
+  if (control) syncNativePickerTheme(control);
+});
+
+syncNativePickers();
 let statuses = [...fallbackStatuses];
 let priorities = [...fallbackPriorities];
 let severities = [...fallbackSeverities];
@@ -276,6 +321,7 @@ async function handleActionClick(event) {
     return;
   }
 
+  if (event.target.closest("[data-drag-handle]")) return;
   if (event.target.closest("a")) return;
 
   const button = event.target.closest("[data-action]");
@@ -582,11 +628,15 @@ function handleMouseDown(event) {
 
 function startTaskDrag(event, inputType) {
   if (event.button !== 0) return;
-  if (event.target.closest("button, a, input, select, textarea")) return;
 
   const item = event.target.closest('tr[data-task-id][data-can-drag="true"]');
-  const container = item?.closest('[data-reorder-list="tasks"], [data-reorder-list="backlog"]');
+  const container = item?.closest('[data-reorder-list="tasks"], [data-reorder-list="bugs"], [data-reorder-list="backlog"]');
   if (!item || !container) return;
+
+  const dragHandle = event.target.closest("[data-drag-handle]");
+  const handleRequired = container.matches('[data-reorder-list="tasks"], [data-reorder-list="bugs"]');
+  if (handleRequired && (!dragHandle || !item.contains(dragHandle))) return;
+  if (!handleRequired && event.target.closest("button, a, input, select, textarea")) return;
 
   pointerDrag = {
     taskId: Number(item.dataset.taskId || 0),
@@ -689,7 +739,7 @@ async function finishTaskDrag(event) {
 function pointerDropTarget(clientX, clientY, taskId) {
   const elements = document.elementsFromPoint(clientX, clientY);
   const container = elements
-    .map(item => item.closest?.('[data-reorder-list="tasks"], [data-reorder-list="backlog"]'))
+    .map(item => item.closest?.('[data-reorder-list="tasks"], [data-reorder-list="bugs"], [data-reorder-list="backlog"]'))
     .find(Boolean);
 
   if (!container) return null;
