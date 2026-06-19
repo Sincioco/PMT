@@ -124,11 +124,12 @@ export function createGanttFlyBy({ showToast }) {
   }
 
   function scrollTopForSprint(sprint) {
+    const scroller = document.querySelector(".gantt-scroll");
     const row = document.querySelector(`[data-gantt-sprint-id="${sprint?.id}"]`);
     const header = document.querySelector(".gantt-header");
-    if (!row) return 0;
+    if (!scroller || !row) return 0;
 
-    return Math.max(0, row.offsetTop - (header?.offsetHeight || 0) - 8);
+    return Math.max(0, rowTopInScroller(row, scroller) - (header?.offsetHeight || 0) - 8);
   }
 
   async function startFlyBy(chart, flyByRunId, startingSprint) {
@@ -313,10 +314,14 @@ export function createGanttFlyBy({ showToast }) {
     const rows = [...document.querySelectorAll("[data-gantt-sprint-id]")];
     const nearestRow = rows.reduce((bestRow, row) => {
       if (!bestRow) return row;
-      return Math.abs(row.offsetTop - targetTop) < Math.abs(bestRow.offsetTop - targetTop) ? row : bestRow;
+      return Math.abs(rowTopInScroller(row, scroller) - targetTop) < Math.abs(rowTopInScroller(bestRow, scroller) - targetTop) ? row : bestRow;
     }, null);
 
     return Number(nearestRow?.dataset.ganttSprintId || 0);
+  }
+
+  function rowTopInScroller(row, scroller) {
+    return row.getBoundingClientRect().top - scroller.getBoundingClientRect().top + scroller.scrollTop;
   }
 
   function updateButton() {
