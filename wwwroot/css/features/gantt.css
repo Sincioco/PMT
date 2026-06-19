@@ -1,0 +1,224 @@
+/* CSS ownership: Gantt screen. */
+
+.gantt-filter-actions {
+  flex-wrap: wrap;
+}
+
+.gantt-note {
+  flex-basis: 100%;
+}
+
+.gantt {
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - 250px);
+  min-height: 420px;
+  overflow: hidden;
+}
+
+.gantt-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  max-height: none;
+}
+
+.gantt-grid {
+  display: grid;
+  grid-template-columns: 230px minmax(700px, max-content);
+  min-width: max-content;
+}
+
+.gantt-header {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  background: var(--timeline-header-bg);
+}
+
+.gantt-left-head,
+.gantt-sprint-name {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  border-right: 1px solid var(--line);
+  background: var(--timeline-sticky-bg);
+}
+
+.gantt-left-head {
+  display: grid;
+  place-items: center;
+  min-height: 104px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.gantt-sprint-block {
+  border-top: 1px solid var(--line);
+}
+
+.gantt-sprint-name {
+  display: grid;
+  align-content: center;
+  gap: 4px;
+  min-height: 76px;
+  padding: 12px;
+  text-align: left;
+  border-radius: 0;
+}
+
+.gantt-sprint-name span {
+  color: var(--muted);
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gantt-timeline,
+.gantt-task-stack {
+  display: grid;
+  grid-template-columns: repeat(var(--date-count, 1), var(--day-width));
+}
+
+.gantt-row {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: repeat(var(--date-count, 1), var(--day-width));
+}
+
+.gantt-row > div {
+  min-height: 26px;
+  display: grid;
+  place-items: center;
+  min-width: 0;
+  overflow: hidden;
+  border-left: 1px solid var(--timeline-line);
+  color: var(--muted);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.gantt-years > div,
+.gantt-quarters > div,
+.gantt-months > div {
+  background: rgba(255, 255, 255, 0.045);
+  font-weight: 700;
+}
+
+.gantt-days > div {
+  min-height: 28px;
+  background: var(--timeline-soft-bg);
+  font-size: 9px;
+  font-variant-numeric: tabular-nums;
+}
+
+.gantt-days .weekend-day {
+  color: #718087;
+  background: rgba(255, 255, 255, 0.012);
+}
+
+.gantt-days .holiday-day {
+  color: var(--amber);
+  background: rgba(228, 165, 58, 0.12);
+}
+
+.gantt-task-stack {
+  position: relative;
+  gap: 8px 0;
+  padding: 12px 0;
+}
+
+.gantt-task-group {
+  display: grid;
+  grid-column: 1 / -1;
+  gap: 6px;
+}
+
+.gantt-lane {
+  position: relative;
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: repeat(var(--date-count, 1), var(--day-width));
+  min-height: 36px;
+  border-left: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.gantt-bug-lane {
+  min-height: 30px;
+}
+
+.gantt-bar {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 84px;
+  min-height: 34px;
+  padding: 5px 9px;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--status-color), white 16%);
+  border-radius: 0;
+  background: color-mix(in srgb, var(--status-color), var(--status-bg-mix) 70%);
+  color: var(--text);
+  cursor: pointer;
+  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.22);
+}
+
+.gantt-bar span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.gantt-bar i {
+  position: absolute;
+  inset: auto 0 0 0;
+  height: 3px;
+  width: var(--value);
+  background: rgba(255, 255, 255, 0.78);
+}
+
+.gantt-bar .avatar-stack {
+  flex: 0 0 auto;
+}
+
+.gantt-bug-bar {
+  min-height: 28px;
+  margin-left: 18px;
+  opacity: 0.94;
+}
+
+.gantt-bug-button {
+  flex: 0 0 auto;
+  width: 26px;
+  min-width: 26px;
+  height: 26px;
+  min-height: 26px;
+  padding: 0;
+  border-radius: 0;
+}
+
+.gantt-bug-button.closed-bugs {
+  background: rgba(116, 196, 118, 0.24);
+  border-color: rgba(116, 196, 118, 0.56);
+}
+
+.gantt-bug-button.open-bugs {
+  background: rgba(238, 107, 112, 0.22);
+  border-color: rgba(238, 107, 112, 0.58);
+}
+
+.gantt-dependency {
+  align-self: center;
+  height: 2px;
+  margin: 0 8px;
+  background: rgba(255, 255, 255, 0.42);
+  pointer-events: none;
+}

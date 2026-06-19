@@ -6,7 +6,7 @@ This document maps the current application and the intended file boundaries for 
 
 PMT is a single ASP.NET Core .NET 6 web application:
 
-1. `wwwroot/index.html` defines the HTML shell, applies the saved theme through `core/preferences.js` before rendering, loads the ordered CSS foundations/components plus the temporary `wwwroot/styles.css` compatibility layer, and then loads `wwwroot/js/app.js`.
+1. `wwwroot/index.html` defines the HTML shell, applies the saved theme through `core/preferences.js` before rendering, loads the ordered CSS foundations, components, and feature stylesheets, and then loads `wwwroot/js/app.js`.
 2. `wwwroot/js/app.js` composes the application shell with the central screen registry. Dashboard, Road Map, Gantt, Kanban Board, Projects, Sprints, Dev Tasks, Bug Tracking, Scrum, Documentation, Backlog, and Settings now live in feature modules; the entry still owns shared editor/dialog orchestration, chart drilldowns, and table reordering.
 3. `wwwroot/js/core/` owns application-wide browser infrastructure: HTTP requests, state, preferences, authentication, routing, startup, navigation, theme, and user-menu wiring.
 4. `Program.cs` configures middleware, static/uploaded files, 37 minimal API routes, JSON behavior, and the SPA fallback.
@@ -80,6 +80,19 @@ wwwroot/
     |   |-- progress-status.css
     |   `-- tables-lists.css
     `-- features/
+        |-- backlog.css
+        |-- board.css
+        |-- bugs.css
+        |-- dashboard.css
+        |-- documentation.css
+        |-- gantt.css
+        |-- login.css
+        |-- projects.css
+        |-- roadmap.css
+        |-- scrum.css
+        |-- settings.css
+        |-- sprints.css
+        `-- tasks.css
 ```
 
 The entry module composes startup and the screen registry. `core` owns application-wide infrastructure, `shared` owns reusable pure logic, `components` owns reusable UI builders, and each feature owns its rendering, actions, filters, preferences, and feature-only calculations.

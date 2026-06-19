@@ -1,6 +1,6 @@
 # PMT UI Design System
 
-This document records the current CSS foundations and shared-component ownership. The Phase 11 split changes file ownership only; it does not change the visual design.
+This document records the current CSS foundations, shared-component ownership, and feature stylesheet ownership. The Phase 12 split changes file ownership only; it does not change the visual design.
 
 ## Semantic token categories
 
@@ -33,15 +33,27 @@ Tokens define meaning rather than a specific theme color. Theme files override s
 13. `css/components/attachments.css`
 14. `css/components/progress-status.css`
 15. `css/components/charts.css`
-16. `styles.css`
+16. `css/features/login.css`
+17. `css/features/dashboard.css`
+18. `css/features/roadmap.css`
+19. `css/features/gantt.css`
+20. `css/features/board.css`
+21. `css/features/projects.css`
+22. `css/features/sprints.css`
+23. `css/features/tasks.css`
+24. `css/features/bugs.css`
+25. `css/features/scrum.css`
+26. `css/features/documentation.css`
+27. `css/features/backlog.css`
+28. `css/features/settings.css`
 
 Ownership rules:
 
-- `tokens.css` owns the default semantic values; `themes.css` owns theme-level value overrides.
+- `tokens.css` defines default semantic values; `themes.css` overrides semantic values for each theme.
 - `base.css` owns document-wide element defaults, while `layout.css` owns shared page and shell composition.
-- Each component stylesheet owns the reusable selectors named by that file. Theme-specific native-control behavior may stay with its owning component when it must follow that component's base rule.
-- `styles.css` is the temporary compatibility stylesheet for feature-specific Board, Project/Sprint, Settings, Dashboard, Gantt, and Road Map rules plus the existing mixed responsive overrides.
-- New shared selectors belong in the matching foundation or component file, not in `styles.css`.
+- Each component stylesheet owns reusable UI selectors named by that file. Theme-specific native-control behavior may stay with its owning component when it must follow that component's base rule.
+- Feature stylesheets own screen-specific composition and screen-only selectors for their matching feature.
+- New shared selectors belong in the matching foundation or component file. New screen-specific selectors belong in the matching `css/features/` file.
 - Do not duplicate selectors between stylesheets or use CSS `@import`. Preserve this link order unless a later phase deliberately changes cascade ownership.
 
 ## Shared component categories

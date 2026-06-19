@@ -1,0 +1,19 @@
+/* CSS ownership: Sprints screen. */
+
+.sprint-card {
+  gap: 10px;
+}
+
+.sprint-card p {
+  margin: 0;
+}
+
+.sprint-card-head {
+  align-items: flex-start;
+}
+
+.sprint-card-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}

@@ -28,8 +28,7 @@ button:disabled {
 
 .text-icon-button,
 .section-head button:not(.icon-action),
-.dialog-actions button,
-.dashboard-card-actions button {
+.dialog-actions button {
   display: inline-flex;
   align-items: center;
   justify-content: center;

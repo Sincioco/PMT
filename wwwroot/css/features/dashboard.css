@@ -1,0 +1,87 @@
+/* CSS ownership: Dashboard screen. */
+
+.dashboard-project-flow {
+  margin-top: 18px;
+  min-width: 0;
+}
+
+.dashboard-project-heading {
+  margin-bottom: 12px;
+}
+
+.dashboard-sprint-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(270px, 100%), 1fr));
+  gap: 14px;
+  margin-top: 14px;
+  min-width: 0;
+}
+
+.dashboard-sprint-card {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.dashboard-card-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 10px;
+}
+
+.dashboard-card-actions button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+}
+
+.dashboard-task-list {
+  display: grid;
+  gap: 6px;
+  margin-top: 10px;
+  min-width: 0;
+  max-width: 100%;
+  max-height: 320px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.dashboard-task-row {
+  display: grid;
+  gap: 6px;
+  width: 100%;
+  min-height: 38px;
+  min-width: 0;
+  max-width: 100%;
+  margin: 0;
+  overflow: hidden;
+  text-align: left;
+  background: rgba(255, 255, 255, 0.045);
+}
+
+.dashboard-task-summary {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.dashboard-task-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dashboard-task-row .pill {
+  flex: 0 0 auto;
+}
+
+.dashboard-task-row .thin-progress {
+  width: 100%;
+}
+
+.dashboard-status-legend {
+  margin: 10px 0 14px;
+}

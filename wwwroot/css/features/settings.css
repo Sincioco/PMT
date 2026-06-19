@@ -1,0 +1,70 @@
+/* CSS ownership: Settings screen. */
+
+.lookup-layout {
+  display: grid;
+  grid-template-columns: minmax(170px, 220px) 1fr;
+  gap: 14px;
+  align-items: start;
+}
+
+.development-panel {
+  display: grid;
+  gap: 16px;
+}
+
+.development-actions {
+  display: grid;
+  gap: 10px;
+}
+
+.development-action-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  align-items: center;
+  padding: 13px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.development-action-row p {
+  margin: 4px 0 0;
+}
+
+.development-action-row button {
+  flex: 0 0 auto;
+}
+
+.development-action-row.danger-row {
+  border-color: rgba(238, 107, 112, 0.26);
+  background: rgba(238, 107, 112, 0.055);
+}
+
+.lookup-picker {
+  display: grid;
+  gap: 8px;
+}
+
+.lookup-picker button {
+  justify-content: flex-start;
+  text-align: left;
+}
+
+.lookup-picker button.active {
+  background: rgba(53, 199, 189, 0.18);
+  border-color: rgba(53, 199, 189, 0.52);
+  color: #ffffff;
+  font-weight: 400;
+}
+
+@media (max-width: 900px) {
+  .lookup-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .development-action-row {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}

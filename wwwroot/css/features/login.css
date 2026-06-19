@@ -1,0 +1,16 @@
+/* CSS ownership: login screen. */
+
+.login-screen {
+  width: min(420px, calc(100vw - 32px));
+  margin: 8vh auto 0;
+}
+
+.login-screen .panel {
+  display: grid;
+  gap: 14px;
+}
+
+.login-screen h1 {
+  margin: 0;
+  font-size: 32px;
+}

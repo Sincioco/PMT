@@ -492,3 +492,29 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+@media (max-width: 900px) {
+  .workload-row {
+    grid-template-columns: 1fr;
+  }
+
+  .pie-chart-layout,
+  .chart-expanded-card .pie-chart-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .chart-expanded-dialog {
+    width: 92vw;
+    max-width: 92vw;
+    height: 86vh;
+    max-height: 86vh;
+  }
+
+  .chart-expanded-body {
+    height: calc(86vh - 62px);
+  }
+
+  .chart-expanded-card .pie-chart {
+    width: min(70vw, 360px);
+  }
+}

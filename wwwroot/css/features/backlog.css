@@ -1,0 +1,9 @@
+/* CSS ownership: Backlog screen. */
+
+.assigned-backlog-row td {
+  background: rgba(53, 199, 189, 0.055);
+}
+
+.sprint-pill {
+  border-color: rgba(53, 199, 189, 0.36);
+}

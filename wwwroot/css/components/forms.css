@@ -97,14 +97,6 @@ html[data-theme="light"] select {
   color-scheme: light;
 }
 
-.assigned-backlog-row td {
-  background: rgba(53, 199, 189, 0.055);
-}
-
-.sprint-pill {
-  border-color: rgba(53, 199, 189, 0.36);
-}
-
 input[type="file"]::file-selector-button {
   border: 0;
   border-radius: 7px;
@@ -213,4 +205,10 @@ input[type="checkbox"] {
 
 .detail-dialog {
   width: min(980px, calc(100vw - 24px));
+}
+
+@media (max-width: 900px) {
+  .form-grid {
+    grid-template-columns: 1fr;
+  }
 }

@@ -1,0 +1,25 @@
+/* CSS ownership: Dev Tasks screen. */
+
+.tasks-table .done-cell {
+  width: 30%;
+  min-width: 220px;
+}
+
+.subtask-row td {
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.subtask-title-cell {
+  padding-left: calc(10px + var(--indent, 24px)) !important;
+}
+
+.subtask-pill {
+  display: inline-block;
+  margin-right: 7px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 2px 7px;
+  color: var(--muted);
+  font-size: 11px;
+  text-transform: uppercase;
+}

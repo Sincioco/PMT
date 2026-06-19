@@ -1,8 +1,7 @@
 /* Phase 11 ownership: cards panels. */
 
 .card,
-.panel,
-.column {
+.panel {
   border: 1px solid var(--line);
   border-radius: 8px;
   background: var(--surface);
@@ -29,8 +28,7 @@
 }
 
 .card h3,
-.panel h2,
-.column h2 {
+.panel h2 {
   margin: 0 0 8px;
   font-size: 18px;
 }
@@ -40,8 +38,7 @@
   pointer-events: auto;
 }
 
-.card > .toolbar.reveal-actions,
-.task-card > .toolbar.reveal-actions {
+.card > .toolbar.reveal-actions {
   justify-content: flex-end;
   margin-top: auto !important;
   padding-top: 10px;

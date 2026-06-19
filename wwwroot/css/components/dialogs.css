@@ -89,3 +89,9 @@
 .toast-near-control {
   z-index: 12;
 }
+
+@media (max-width: 900px) {
+  .detail-grid {
+    grid-template-columns: 1fr;
+  }
+}

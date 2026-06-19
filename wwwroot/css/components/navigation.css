@@ -182,3 +182,9 @@ button[aria-expanded="true"] {
 .logged-out .user-actions {
   display: none;
 }
+
+@media (max-width: 900px) {
+  .topbar {
+    grid-template-columns: 1fr;
+  }
+}

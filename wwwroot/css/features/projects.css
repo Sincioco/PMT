@@ -1,0 +1,20 @@
+/* CSS ownership: Projects screen. */
+
+.project-card {
+  gap: 10px;
+}
+
+.project-card p {
+  margin: 0;
+}
+
+.project-card-head {
+  align-items: flex-start;
+}
+
+.project-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 8px;
+  box-shadow: 0 0 0 1px var(--line);
+}
