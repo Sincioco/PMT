@@ -1,0 +1,91 @@
+/* Phase 11 ownership: dialogs. */
+
+.dialog {
+  width: min(900px, calc(100vw - 24px));
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0;
+  background: var(--dialog-bg);
+  color: var(--text);
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(20px);
+}
+
+.dialog::backdrop {
+  background: rgba(0, 0, 0, 0.62);
+}
+
+.mini-dialog {
+  width: min(430px, calc(100vw - 28px));
+}
+
+.dialog-head,
+.dialog-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--line);
+}
+
+.dialog-actions {
+  border-top: 1px solid var(--line);
+  border-bottom: 0;
+  justify-content: flex-end;
+}
+
+.dialog-head h2 {
+  margin: 0;
+  font-size: 20px;
+}
+
+.dialog-body {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  max-height: 72vh;
+  overflow: auto;
+}
+
+.detail-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.detail-field {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px;
+  background: rgba(255, 255, 255, 0.045);
+}
+
+.detail-field.full {
+  grid-column: 1 / -1;
+}
+
+.detail-field > span {
+  display: block;
+  color: var(--muted);
+  font-size: 12px;
+  margin-bottom: 6px;
+  text-transform: uppercase;
+}
+
+.toast {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  z-index: 10;
+  max-width: 420px;
+  border-radius: 8px;
+  background: #f4faf8;
+  color: #111416;
+  padding: 12px 14px;
+  box-shadow: var(--shadow);
+}
+
+.toast-near-control {
+  z-index: 12;
+}

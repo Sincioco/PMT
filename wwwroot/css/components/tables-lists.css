@@ -1,0 +1,79 @@
+/* Phase 11 ownership: tables lists. */
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.table th,
+.table td {
+  border-bottom: 1px solid var(--line);
+  padding: 11px 10px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.table th {
+  color: var(--muted);
+  font-weight: 700;
+  font-size: 12px;
+  text-transform: uppercase;
+}
+
+.table tr:hover td {
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.tasks-table .done-cell {
+  width: 30%;
+  min-width: 220px;
+}
+
+.subtask-row td {
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.subtask-title-cell {
+  padding-left: calc(10px + var(--indent, 24px)) !important;
+}
+
+.subtask-pill {
+  display: inline-block;
+  margin-right: 7px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 2px 7px;
+  color: var(--muted);
+  font-size: 11px;
+  text-transform: uppercase;
+}
+
+.action-cell {
+  text-align: right !important;
+  white-space: nowrap;
+}
+
+.action-cell button {
+  margin-left: 6px;
+}
+
+.audit-editor-row {
+  justify-items: start;
+}
+
+.audit-table td {
+  max-width: 260px;
+  overflow-wrap: anywhere;
+}
+
+.audit-change {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  color: var(--text);
+  white-space: nowrap;
+}
+
+.audit-change b {
+  color: var(--muted);
+}

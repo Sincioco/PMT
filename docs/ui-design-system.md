@@ -1,6 +1,6 @@
 # PMT UI Design System
 
-This is the initial specification for the later CSS split and redesign phases. It defines ownership and quality expectations without changing the current UI.
+This document records the current CSS foundations and shared-component ownership. The Phase 11 split changes file ownership only; it does not change the visual design.
 
 ## Semantic token categories
 
@@ -16,16 +16,33 @@ Tokens define meaning rather than a specific theme color. Theme files override s
 
 ## CSS ownership and loading order
 
-The target deterministic order is:
+`wwwroot/index.html` loads stylesheets in this deterministic order:
 
-1. `tokens.css`
-2. `themes.css`
-3. `base.css`
-4. `layout.css`
-5. shared `components/*.css`
-6. screen-specific `features/*.css`
+1. `css/tokens.css`
+2. `css/themes.css`
+3. `css/base.css`
+4. `css/layout.css`
+5. `css/components/buttons.css`
+6. `css/components/cards-panels.css`
+7. `css/components/forms.css`
+8. `css/components/dialogs.css`
+9. `css/components/tables-lists.css`
+10. `css/components/filters.css`
+11. `css/components/navigation.css`
+12. `css/components/avatars.css`
+13. `css/components/attachments.css`
+14. `css/components/progress-status.css`
+15. `css/components/charts.css`
+16. `styles.css`
 
-Tokens define values, themes override semantic values, base/layout establish document structure, components style reusable UI, and features style screen-specific composition. Avoid duplicate ownership and broad feature overrides of shared components.
+Ownership rules:
+
+- `tokens.css` owns the default semantic values; `themes.css` owns theme-level value overrides.
+- `base.css` owns document-wide element defaults, while `layout.css` owns shared page and shell composition.
+- Each component stylesheet owns the reusable selectors named by that file. Theme-specific native-control behavior may stay with its owning component when it must follow that component's base rule.
+- `styles.css` is the temporary compatibility stylesheet for feature-specific Board, Project/Sprint, Settings, Dashboard, Gantt, and Road Map rules plus the existing mixed responsive overrides.
+- New shared selectors belong in the matching foundation or component file, not in `styles.css`.
+- Do not duplicate selectors between stylesheets or use CSS `@import`. Preserve this link order unless a later phase deliberately changes cascade ownership.
 
 ## Shared component categories
 

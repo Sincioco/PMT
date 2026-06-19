@@ -1,0 +1,26 @@
+/* Phase 11 ownership: base. */
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background:
+    linear-gradient(135deg, var(--body-glow-a), transparent 34%),
+    linear-gradient(315deg, var(--body-glow-b), transparent 38%),
+    var(--bg);
+  color: var(--text);
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+a {
+  color: var(--teal);
+}

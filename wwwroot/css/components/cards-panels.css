@@ -1,0 +1,68 @@
+/* Phase 11 ownership: cards panels. */
+
+.card,
+.panel,
+.column {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(18px);
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  padding: 15px;
+}
+
+.panel {
+  padding: 16px;
+}
+
+.panel + .panel {
+  margin-top: 14px;
+}
+
+.panel + .grid {
+  margin-top: 14px;
+}
+
+.card h3,
+.panel h2,
+.column h2 {
+  margin: 0 0 8px;
+  font-size: 18px;
+}
+
+.reveal-actions {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.card > .toolbar.reveal-actions,
+.task-card > .toolbar.reveal-actions {
+  justify-content: flex-end;
+  margin-top: auto !important;
+  padding-top: 10px;
+}
+
+.clickable-card {
+  cursor: pointer;
+}
+
+.clickable-row {
+  cursor: pointer;
+}
+
+.clickable-card:hover {
+  border-color: rgba(53, 199, 189, 0.46);
+}
+
+.empty {
+  color: var(--muted);
+  padding: 18px;
+  border: 1px dashed var(--line);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.045);
+}

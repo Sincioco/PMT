@@ -1,0 +1,32 @@
+/* Phase 11 ownership: tokens. */
+
+:root {
+  color-scheme: dark;
+  --bg: #111416;
+  --surface: rgba(28, 34, 37, 0.82);
+  --surface-strong: rgba(36, 43, 47, 0.96);
+  --surface-soft: rgba(255, 255, 255, 0.055);
+  --line: rgba(255, 255, 255, 0.11);
+  --line-strong: rgba(255, 255, 255, 0.2);
+  --text: #edf3f2;
+  --muted: #a0adb1;
+  --teal: #35c7bd;
+  --green: #74c476;
+  --amber: #e4a53a;
+  --rose: #ee6b70;
+  --blue: #76a9ff;
+  --ink: #0f1315;
+  --shadow: 0 18px 46px rgba(0, 0, 0, 0.38);
+  --body-glow-a: rgba(53, 199, 189, 0.16);
+  --body-glow-b: rgba(228, 165, 58, 0.1);
+  --topbar-bg: rgba(17, 20, 22, 0.78);
+  --dialog-bg: rgba(23, 28, 31, 0.98);
+  --timeline-header-bg: rgba(28, 34, 37, 0.96);
+  --timeline-sticky-bg: rgba(28, 34, 37, 0.98);
+  --timeline-line: rgba(255, 255, 255, 0.07);
+  --timeline-soft-bg: rgba(255, 255, 255, 0.025);
+  --status-bg-mix: #111416;
+  --option-bg: #20272b;
+  --option-selected-bg: #2f5f5c;
+  font-family: "Segoe UI", Arial, sans-serif;
+}

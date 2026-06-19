@@ -1,0 +1,86 @@
+/* Phase 11 ownership: buttons. */
+
+button {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-soft);
+  color: var(--text);
+  cursor: pointer;
+  min-height: 36px;
+  padding: 8px 11px;
+  transition: background 140ms ease, border-color 140ms ease, transform 140ms ease;
+}
+
+button:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: var(--line-strong);
+}
+
+button:active {
+  color: #ffffff;
+  transform: translateY(1px);
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.text-icon-button,
+.section-head button:not(.icon-action),
+.dialog-actions button,
+.dashboard-card-actions button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+}
+
+.button-icon {
+  display: inline-grid;
+  place-items: center;
+  min-width: 16px;
+  line-height: 1;
+}
+
+.button-svg-icon {
+  display: block;
+  width: 16px;
+  height: 16px;
+}
+
+.button-svg-icon path {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.secondary {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.danger {
+  background: rgba(238, 107, 112, 0.12);
+  color: #ffb8ba;
+  border-color: rgba(238, 107, 112, 0.28);
+}
+
+.icon-action {
+  width: 36px;
+  min-width: 36px;
+  height: 36px;
+  padding: 0;
+  display: inline-grid;
+  place-items: center;
+  font-size: 16px;
+  line-height: 1;
+}
+
+.icon-action.is-on {
+  border-color: rgba(53, 199, 189, 0.56);
+  background: rgba(53, 199, 189, 0.16);
+  color: #ffffff;
+  font-weight: 400;
+}

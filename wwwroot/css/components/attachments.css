@@ -1,0 +1,50 @@
+/* Phase 11 ownership: attachments. */
+
+.attachment-preview,
+.attachment-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.attachment-tile {
+  width: 160px;
+  min-height: 142px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px;
+  background: rgba(255, 255, 255, 0.055);
+  color: var(--text);
+  display: grid;
+  gap: 6px;
+  align-content: start;
+  text-decoration: none;
+}
+
+.attachment-tile img {
+  width: 100%;
+  height: 104px;
+  object-fit: cover;
+  border-radius: 6px;
+}
+
+.attachment-tile span:last-child {
+  overflow-wrap: anywhere;
+  font-size: 12px;
+}
+
+.file-icon {
+  min-height: 104px;
+  border-radius: 6px;
+  display: grid;
+  place-items: center;
+  background: rgba(53, 199, 189, 0.14);
+  color: var(--teal);
+  font-weight: 700;
+}
+
+.compact-empty {
+  padding: 8px;
+  margin-top: 8px;
+}

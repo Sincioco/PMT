@@ -8,7 +8,23 @@
     import { preferenceKeys, readPreference } from "/js/core/preferences.js";
     document.documentElement.dataset.theme = readPreference(preferenceKeys.theme, "dark");
   </script>
-  <link rel="stylesheet" href="/styles.css?v=20260617-bugcharts6">
+  <!-- CSS loads from broad foundations to shared components, then feature compatibility rules. -->
+  <link rel="stylesheet" href="/css/tokens.css?v=20260619-css-foundations">
+  <link rel="stylesheet" href="/css/themes.css?v=20260619-css-foundations">
+  <link rel="stylesheet" href="/css/base.css?v=20260619-css-foundations">
+  <link rel="stylesheet" href="/css/layout.css?v=20260619-css-foundations">
+  <link rel="stylesheet" href="/css/components/buttons.css?v=20260619-css-foundations">
+  <link rel="stylesheet" href="/css/components/cards-panels.css?v=20260619-css-foundations">
+  <link rel="stylesheet" href="/css/components/forms.css?v=20260619-css-foundations">
+  <link rel="stylesheet" href="/css/components/dialogs.css?v=20260619-css-foundations">
+  <link rel="stylesheet" href="/css/components/tables-lists.css?v=20260619-css-foundations">
+  <link rel="stylesheet" href="/css/components/filters.css?v=20260619-css-foundations">
+  <link rel="stylesheet" href="/css/components/navigation.css?v=20260619-css-foundations">
+  <link rel="stylesheet" href="/css/components/avatars.css?v=20260619-css-foundations">
+  <link rel="stylesheet" href="/css/components/attachments.css?v=20260619-css-foundations">
+  <link rel="stylesheet" href="/css/components/progress-status.css?v=20260619-css-foundations">
+  <link rel="stylesheet" href="/css/components/charts.css?v=20260619-css-foundations">
+  <link rel="stylesheet" href="/styles.css?v=20260619-css-foundations">
 </head>
 <body>
   <header class="topbar">

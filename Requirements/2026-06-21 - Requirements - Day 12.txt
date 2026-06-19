@@ -1,0 +1,10 @@
+Project Management Tool (PMT):  Day 12 of Agentic AI Coding
+----------------------------------------------------------
+
+1.) In the Road Map, default the view so that the Sprints are collapsed by default.
+2.) In the Gantt Chart, default the sort order to "Start date descending".
+3.) In the Kanban Board, default the view to "Hide empty columns".
+4.) In the Dev Tasks, default the sprint to the current / last sprint.
+5.) In Scrum, add a Filter section and add a filter project dropdown.
+6.) In Scrum, in the Filter section add a Person filter checkboxes.
+7.) In Scrum, in the Filter section add Calendar/Date filter.

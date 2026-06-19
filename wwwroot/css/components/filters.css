@@ -1,0 +1,57 @@
+/* Phase 11 ownership: filters. */
+
+.filter-row,
+.task-filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+}
+
+.filter-row label,
+.task-filter-row label {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  color: var(--muted);
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.filter-stack {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.filter-check-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.filter-check-list legend {
+  padding: 0 6px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.filter-check-list label,
+.inline-filter-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.filter-check-list input,
+.inline-filter-check input {
+  width: auto;
+}
