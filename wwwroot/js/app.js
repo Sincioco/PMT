@@ -8,25 +8,20 @@ import {
 } from "./components/forms.js";
 import {
   configureProgressAndStatus,
-  progressHtml,
   statusColor
 } from "./components/progress-and-status.js";
 import { sectionHead } from "./components/sections.js";
 import {
   bindAttachmentPreview,
-  bugFixIconHtml,
   showTaskAudit,
-  taskButtonsHtml,
   viewWorkItem
 } from "./components/work-items.js";
 import { createApplicationShell } from "./core/application-shell.js";
 import {
   preferenceKeys,
   readBooleanPreference,
-  readJsonPreference,
   readNumberPreference,
   readPreference,
-  writeJsonPreference,
   writePreference
 } from "./core/preferences.js";
 import {
@@ -40,6 +35,7 @@ import {
 } from "./core/screen-registry.js";
 import { state } from "./core/store.js";
 import { createBacklogFeature } from "./features/backlog/backlog.js";
+import { createBoardFeature } from "./features/board/board.js";
 import { createBugsFeature } from "./features/bugs/bugs.js";
 import { createDashboardFeature } from "./features/dashboard/dashboard.js";
 import { createDocumentationFeature } from "./features/documentation/documentation.js";
@@ -93,10 +89,6 @@ let statuses = [...fallbackStatuses];
 let priorities = [...fallbackPriorities];
 let severities = [...fallbackSeverities];
 let environments = [...fallbackEnvironments];
-let boardProjectId = readNumberPreference(preferenceKeys.boardProject, 0);
-let boardSprintMode = readPreference(preferenceKeys.boardSprint, "latest");
-let boardSort = readPreference(preferenceKeys.boardSort, "custom");
-let boardHideEmptyColumns = false;
 let roadMapProjectFilter = readPreference(preferenceKeys.roadMapProject, "all");
 let roadMapSprintFilter = readPreference(preferenceKeys.roadMapSprint, "all");
 let roadMapSort = readPreference(preferenceKeys.roadMapSort, "endAsc");
@@ -120,16 +112,12 @@ let ganttFlyByAnimating = false;
 let ganttFlyByStopRequested = false;
 let ganttFlyByResumeSprintId = 0;
 let ganttFlyByCurrentSprintId = 0;
-const savedBoardStatuses = readJsonPreference(preferenceKeys.boardStatuses, null);
-let boardStatuses = Array.isArray(savedBoardStatuses) && savedBoardStatuses.every(status => statuses.includes(status))
-  ? savedBoardStatuses
-  : statuses;
-let draggedTaskId = 0;
 let pointerDrag = null;
 let lastPointerDragEventAt = 0;
 let suppressNextClick = false;
 let pageEventsBound = false;
 let chartTooltip = null;
+let boardFeature = null;
 
 configureWorkItemRules({
   getStatuses: () => statuses,
@@ -158,6 +146,14 @@ const {
   toast
 } = shell.elements;
 
+boardFeature = createBoardFeature({
+  app,
+  getStatuses: () => statuses,
+  loadState,
+  render,
+  saveJson,
+  showToast
+});
 const projectsFeature = createProjectsFeature({
   app,
   deleteItem,
@@ -193,8 +189,8 @@ const tasksFeature = createTasksFeature({
   attachFile,
   deleteItem,
   duplicateTask,
-  getBoardProjectId: () => boardProjectId,
-  getBoardSprintId: selectedBoardSprintId,
+  getBoardProjectId: boardFeature.getProjectId,
+  getBoardSprintId: boardFeature.getSprintId,
   getCurrentSprint: currentSprintForProject,
   getItemStartDate: ganttStartDate,
   getLookupOptions: lookupOptionsWithCurrent,
@@ -208,8 +204,8 @@ const bugsFeature = createBugsFeature({
   attachFile,
   deleteItem,
   duplicateTask,
-  getBoardProjectId: () => boardProjectId,
-  getBoardSprintId: selectedBoardSprintId,
+  getBoardProjectId: boardFeature.getProjectId,
+  getBoardSprintId: boardFeature.getSprintId,
   getCurrentSprint: currentSprintForProject,
   getEnvironments: () => environments,
   getItemStartDate: ganttStartDate,
@@ -247,6 +243,7 @@ const documentationFeature = createDocumentationFeature({
 });
 
 registerScreen("Dashboard", dashboardFeature);
+registerScreen("Board", boardFeature);
 registerScreen("Projects", projectsFeature);
 registerScreen("Sprints", sprintsFeature);
 registerScreen("Settings", settingsFeature);
@@ -292,69 +289,13 @@ function render() {
 }
 
 function renderCurrentScreen() {
+  if (currentView !== "Board") boardFeature.deactivate();
   const registeredScreen = screenHandlerFor(currentView);
   if (registeredScreen?.render) registeredScreen.render();
-  else if (currentView === "Board") renderBoard();
   else if (currentView === "Road Map") renderRoadMap();
   else if (currentView === "Gantt") renderGantt();
   linkifyTextNodes(app);
   normalizeLinksInElement(app);
-}
-
-function renderBoard() {
-  if (!boardProjectId && state.projects.length) boardProjectId = state.projects[0].id;
-  const project = state.projects.find(item => item.id === boardProjectId) || state.projects[0];
-  const sprintId = selectedBoardSprintId(project?.id);
-  const visibleTasks = state.tasks
-    .filter(task => !project || task.projectId === project.id)
-    .filter(task => sprintId === 0 || task.sprintId === sprintId)
-    .filter(task => boardStatuses.includes(task.status))
-    .sort(boardTaskSortCompare);
-  // The board normally shows every selected status. This optional filter keeps the board compact.
-  const boardColumnStatuses = boardHideEmptyColumns
-    ? boardStatuses.filter(status => visibleTasks.some(task => task.status === status))
-    : boardStatuses;
-
-  app.innerHTML = `
-    ${sectionHead("Kanban Board", `
-      <button class="primary text-icon-button" type="button" data-action="new-task">${buttonContent("&#10010;", "New Dev Task")}</button>
-      <button class="primary text-icon-button" type="button" data-action="new-bug">${buttonContent("&#9888;", "New Bug Report")}</button>
-    `)}
-    <div class="panel">
-      <div class="filter-row">
-        <label>
-          <span>Project</span>
-          <select data-filter="board-project">
-            ${state.projects.map(item => `<option value="${item.id}" ${item.id === boardProjectId ? "selected" : ""}>${escapeHtml(item.code)} - ${escapeHtml(item.title)}</option>`).join("")}
-          </select>
-        </label>
-        <label>
-          <span>Sprint</span>
-          <select data-filter="board-sprint">
-            <option value="latest" ${boardSprintMode === "latest" ? "selected" : ""}>Latest Sprint</option>
-            <option value="all" ${boardSprintMode === "all" ? "selected" : ""}>All Sprints</option>
-            ${state.sprints.filter(sprint => sprint.projectId === boardProjectId).map(sprint => `<option value="${sprint.id}" ${String(sprint.id) === boardSprintMode ? "selected" : ""}>${escapeHtml(sprint.code)}</option>`).join("")}
-          </select>
-        </label>
-        <label>
-          <span>Sort</span>
-          <select data-filter="board-sort">
-            <option value="custom" ${boardSort === "custom" ? "selected" : ""}>Custom order</option>
-            <option value="openFirst" ${boardSort === "openFirst" ? "selected" : ""}>Open first</option>
-            <option value="doneFirst" ${boardSort === "doneFirst" ? "selected" : ""}>Done first</option>
-          </select>
-        </label>
-        <button class="icon-action ${boardHideEmptyColumns ? "is-on" : ""}" type="button" data-action="toggle-empty-board-columns" title="${boardHideEmptyColumns ? "Show all columns" : "Hide empty columns"}" aria-label="${boardHideEmptyColumns ? "Show all columns" : "Hide empty columns"}" aria-pressed="${boardHideEmptyColumns}">${boardHideEmptyColumns ? "&#9638;" : "&#128065;"}</button>
-      </div>
-      <fieldset class="check-list" style="margin-top:10px">
-        <legend>Columns</legend>
-        ${statuses.map(status => `<label><input type="checkbox" data-filter="board-status" value="${status}" ${boardStatuses.includes(status) ? "checked" : ""}> ${status}</label>`).join("")}
-      </fieldset>
-    </div>
-    <div class="board" style="margin-top:14px">
-      ${boardColumnStatuses.map(status => boardColumnHtml(status, visibleTasks.filter(task => task.status === status))).join("") || `<div class="empty">No columns have tasks for the current filters.</div>`}
-    </div>
-  `;
 }
 
 function renderGantt(options = {}) {
@@ -486,12 +427,6 @@ function renderRoadMap() {
   `;
 }
 
-function boardTaskSortCompare(a, b) {
-  if (boardSort === "doneFirst") return b.percentCompleted - a.percentCompleted || taskOrderCompare(a, b);
-  if (boardSort === "openFirst") return a.percentCompleted - b.percentCompleted || taskOrderCompare(a, b);
-  return taskOrderCompare(a, b);
-}
-
 async function handleActionClick(event) {
   if (suppressNextClick) {
     suppressNextClick = false;
@@ -530,9 +465,6 @@ async function handleActionClick(event) {
     toggleGanttTaskBugs(id);
     return;
   }
-  if (action === "toggle-empty-board-columns") toggleEmptyBoardColumns();
-  if (action === "hide-empty-board-columns") hideEmptyBoardColumns();
-  if (action === "show-all-board-columns") showAllBoardColumns();
 }
 
 function handleChartAction(element, dialogToClose = null) {
@@ -773,27 +705,6 @@ function handleFilterChange(event) {
     if (screen.handleFilterChange && screen.handleFilterChange(target)) return;
   }
 
-  if (target.dataset.filter === "board-project") {
-    boardProjectId = Number(target.value);
-    writePreference(preferenceKeys.boardProject, boardProjectId);
-    renderBoard();
-  }
-  if (target.dataset.filter === "board-sprint") {
-    boardSprintMode = target.value;
-    writePreference(preferenceKeys.boardSprint, boardSprintMode);
-    renderBoard();
-  }
-  if (target.dataset.filter === "board-sort") {
-    boardSort = target.value;
-    writePreference(preferenceKeys.boardSort, boardSort);
-    renderBoard();
-  }
-  if (target.dataset.filter === "board-status") {
-    boardStatuses = [...document.querySelectorAll("[data-filter='board-status']:checked")].map(item => item.value);
-    boardHideEmptyColumns = false;
-    writeJsonPreference(preferenceKeys.boardStatuses, boardStatuses);
-    renderBoard();
-  }
   if (target.dataset.filter === "roadmap-project") {
     roadMapProjectFilter = target.value;
     roadMapSprintFilter = "all";
@@ -887,8 +798,9 @@ function startTaskDrag(event, inputType) {
   if (event.button !== 0) return;
   if (event.target.closest("button, a, input, select, textarea")) return;
 
-  const item = event.target.closest('[data-task-id][data-can-drag="true"]');
-  if (!item) return;
+  const item = event.target.closest('tr[data-task-id][data-can-drag="true"]');
+  const container = item?.closest('[data-reorder-list="tasks"], [data-reorder-list="backlog"]');
+  if (!item || !container) return;
 
   pointerDrag = {
     taskId: Number(item.dataset.taskId || 0),
@@ -928,7 +840,6 @@ function moveTaskDrag(event) {
 
   if (!pointerDrag.started) {
     pointerDrag.started = true;
-    draggedTaskId = pointerDrag.taskId;
     suppressNextClick = true;
     pointerDrag.source.classList.add("dragging");
   }
@@ -969,16 +880,8 @@ async function finishTaskDrag(event) {
   }
 
   const taskIds = taskIdsAfterDrop(drop.container, drag.taskId, drop.target, event.clientY);
-  const statusColumn = drop.container.closest("[data-status]");
-  const newStatus = statusColumn?.dataset.status || "";
-  const statusChanged = newStatus && task.status !== newStatus;
 
   try {
-    if (statusChanged) {
-      const moved = await updateTaskStatus(task, newStatus, false);
-      if (!moved) return;
-    }
-
     if (taskIds.length > 1) {
       await saveJson("/api/tasks/reorder", "POST", { taskIds });
     }
@@ -987,14 +890,9 @@ async function finishTaskDrag(event) {
       tasksFeature.useCustomSort();
     }
 
-    if (drop.container.dataset.reorderList === "board-column") {
-      boardSort = "custom";
-      writePreference(preferenceKeys.boardSort, boardSort);
-    }
-
     await loadState();
     render();
-    showToast(statusChanged ? `Moved to ${newStatus}.` : "Order saved.");
+    showToast("Order saved.");
   } catch (error) {
     showToast(error.message);
   } finally {
@@ -1005,7 +903,7 @@ async function finishTaskDrag(event) {
 function pointerDropTarget(clientX, clientY, taskId) {
   const elements = document.elementsFromPoint(clientX, clientY);
   const container = elements
-    .map(item => item.closest?.("[data-reorder-list], [data-status]"))
+    .map(item => item.closest?.('[data-reorder-list="tasks"], [data-reorder-list="backlog"]'))
     .find(Boolean);
 
   if (!container) return null;
@@ -1078,7 +976,6 @@ function clearDropIndicators() {
 }
 
 function clearDragStyles() {
-  draggedTaskId = 0;
   document.querySelectorAll(".dragging")
     .forEach(item => item.classList.remove("dragging"));
   clearDropIndicators();
@@ -1329,45 +1226,6 @@ async function duplicateTask(id) {
   }
 }
 
-async function updateTaskStatus(task, status, renderAfter = true) {
-  try {
-    await saveJson(`/api/tasks/${task.id}`, "PUT", {
-      id: task.id,
-      projectId: task.projectId,
-      sprintId: task.sprintId,
-      parentTaskId: task.parentTaskId,
-      taskType: task.taskType || "Dev",
-      title: task.title,
-      descriptionHtml: task.descriptionHtml,
-      stepsToReproduceHtml: task.stepsToReproduceHtml || "",
-      actualResultHtml: task.actualResultHtml || "",
-      expectedResultHtml: task.expectedResultHtml || "",
-      environment: task.environment || "",
-      severity: task.severity || "",
-      status,
-      priority: task.priority,
-      percentCompleted: percentForStatus(status, task.percentCompleted),
-      startDate: task.startDate,
-      endDate: task.endDate,
-      url: task.url,
-      reporterIds: task.reporterIds || [],
-      assigneeIds: task.assigneeIds,
-      dependencyTaskIds: task.dependencyTaskIds
-    });
-
-    if (renderAfter) {
-      await loadState();
-      render();
-      showToast(`Moved to ${status}.`);
-    }
-
-    return true;
-  } catch (error) {
-    showToast(error.message);
-    return false;
-  }
-}
-
 function editWorkItem(task) {
   if (task?.taskType === "Bug") {
     bugsFeature.edit(task);
@@ -1427,34 +1285,6 @@ function viewProjectGantt(projectId) {
   writePreference(preferenceKeys.ganttProject, ganttProjectId);
   writePreference(preferenceKeys.ganttSprint, ganttSprintMode);
   render();
-}
-
-function hideEmptyBoardColumns() {
-  boardHideEmptyColumns = true;
-  const project = state.projects.find(item => item.id === boardProjectId) || state.projects[0];
-  const sprintId = selectedBoardSprintId(project?.id);
-  const visibleTasks = state.tasks
-    .filter(task => !project || task.projectId === project.id)
-    .filter(task => sprintId === 0 || task.sprintId === sprintId);
-
-  boardStatuses = statuses.filter(status => visibleTasks.some(task => task.status === status));
-  writeJsonPreference(preferenceKeys.boardStatuses, boardStatuses);
-  renderBoard();
-}
-
-function showAllBoardColumns() {
-  boardHideEmptyColumns = false;
-  boardStatuses = [...statuses];
-  writeJsonPreference(preferenceKeys.boardStatuses, boardStatuses);
-  renderBoard();
-}
-
-function toggleEmptyBoardColumns() {
-  if (boardHideEmptyColumns) {
-    showAllBoardColumns();
-  } else {
-    hideEmptyBoardColumns();
-  }
 }
 
 function sortGanttSprints(sprints) {
@@ -1877,31 +1707,6 @@ function toggleRoadMapSprints() {
   roadMapShowSprints = !roadMapShowSprints;
   writePreference(preferenceKeys.roadMapShowSprints, roadMapShowSprints);
   renderRoadMap();
-}
-
-function boardColumnHtml(status, tasks) {
-  return `
-    <section class="column" data-status="${escapeAttr(status)}" data-reorder-list="board-column">
-      <h2>${escapeHtml(status)} <span class="pill">${tasks.length}</span></h2>
-      ${tasks.map(task => `
-        <article class="task-card ${task.taskType === "Bug" ? "bug-card" : ""}" data-task-id="${task.id}" data-can-drag="${canEditTask(task) ? "true" : "false"}" draggable="false">
-          <div class="spread">
-            <strong>${escapeHtml(task.code)}</strong>
-            <span class="pill">${escapeHtml(task.taskType || "Dev")}</span>
-          </div>
-          <span class="pill priority-${escapeAttr(task.priority)}">${escapeHtml(task.priority)}</span>
-          ${task.taskType === "Bug" ? `<span class="pill severity-${escapeAttr(task.severity)}">${escapeHtml(task.severity || "")}</span>` : ""}
-          <p>${bugFixIconHtml(task)}${escapeHtml(task.title)}</p>
-          <div class="mini-progress">
-            ${progressHtml(task.percentCompleted)}
-            ${task.subTasks.length ? progressHtml(task.subTaskAveragePercent) : ""}
-          </div>
-          <div class="row" style="margin-top:8px">${avatarsHtml(task.assignees)}</div>
-          <div class="toolbar reveal-actions" style="margin-top:10px">${taskButtonsHtml(task)}</div>
-        </article>
-      `).join("") || `<div class="empty">No tasks.</div>`}
-    </section>
-  `;
 }
 
 function ganttChartData(project, sprints, selectedSprint = null, scrollSprint = null, showNonWorkingDays = false) {
@@ -2437,10 +2242,7 @@ function refreshLookupOptions() {
   priorities = lookupValues("Priority", fallbackPriorities);
   severities = lookupValues("Severity", fallbackSeverities);
   environments = lookupValues("Environment", fallbackEnvironments);
-
-  const saved = Array.isArray(boardStatuses) ? boardStatuses : [];
-  boardStatuses = saved.filter(status => statuses.includes(status));
-  if (!boardStatuses.length) boardStatuses = [...statuses];
+  boardFeature?.refreshStatuses();
 }
 
 function lookupValues(type, fallback) {
@@ -2456,15 +2258,6 @@ function lookupOptionsWithCurrent(type, currentValue) {
   const options = lookupValues(type, fallbackForLookup(type));
   if (currentValue && !options.includes(currentValue)) return [...options, currentValue];
   return options;
-}
-
-function selectedBoardSprintId(projectId) {
-  if (boardSprintMode === "all") return 0;
-  if (boardSprintMode !== "latest") return Number(boardSprintMode);
-  const latest = state.sprints
-    .filter(sprint => sprint.projectId === projectId)
-    .sort((a, b) => new Date(b.startDate) - new Date(a.startDate))[0];
-  return latest?.id || 0;
 }
 
 function showToast(message, anchorElement = null) {
