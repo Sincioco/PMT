@@ -91,15 +91,7 @@
 }
 
 .roadmap-lane {
-  min-height: 48px;
-  border-left: var(--border-width) solid var(--color-timeline-line);
-  background-image: repeating-linear-gradient(
-    to right,
-    transparent 0,
-    transparent calc(var(--day-width) - 1px),
-    var(--color-timeline-line) calc(var(--day-width) - 1px),
-    var(--color-timeline-line) var(--day-width)
-  );
+    min-height: 48px;
 }
 
 .roadmap-project-lane {
