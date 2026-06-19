@@ -136,6 +136,12 @@ export function createApplicationShell({
       if (!event.target.closest(".user-menu")) closeUserMenu();
     });
 
+    document.addEventListener("keydown", event => {
+      if (event.key !== "Escape") return;
+      closeNavOverflow();
+      closeUserMenu();
+    });
+
     window.addEventListener("resize", () => requestAnimationFrame(applyNavOverflow));
   }
 
@@ -145,10 +151,13 @@ export function createApplicationShell({
     elements.userSelect.innerHTML = "";
     elements.app.innerHTML = `
       <section class="login-screen">
-        <div class="panel">
-          <div>
-            <h1>PMT</h1>
-            <p class="muted">Software Engineering</p>
+        <div class="panel login-card">
+          <div class="login-brand">
+            <img src="/assets/project-pmt.svg" alt="">
+            <div>
+              <h1>PMT</h1>
+              <p class="muted">Software Engineering</p>
+            </div>
           </div>
           <div class="field">
             <label>Nickname or Email</label>
@@ -193,10 +202,10 @@ export function createApplicationShell({
     elements.nav.innerHTML = `
       ${viewButtons}
       <div class="nav-overflow" hidden>
-        <button class="nav-overflow-toggle" type="button" data-action="nav-overflow-toggle" title="More navigation" aria-label="More navigation" aria-expanded="false">
+        <button class="nav-overflow-toggle" type="button" data-action="nav-overflow-toggle" title="More navigation" aria-label="More navigation" aria-expanded="false" aria-haspopup="menu">
           <span class="nav-icon" aria-hidden="true">&#9776;</span>
         </button>
-        <div class="nav-overflow-menu" hidden></div>
+        <div class="nav-overflow-menu" role="menu" hidden></div>
       </div>
     `;
     requestAnimationFrame(applyNavOverflow);
@@ -206,7 +215,9 @@ export function createApplicationShell({
     const attributes = [
       item.view ? `data-view="${escapeHtml(item.view)}"` : "",
       item.action ? `data-action="${escapeHtml(item.action)}"` : "",
-      `class="${`${extraClass} ${item.active ? "active" : ""}`.trim()}"`
+      `class="${`${extraClass} ${item.active ? "active" : ""}`.trim()}"`,
+      item.active ? `aria-current="page"` : "",
+      extraClass === "nav-menu-item" ? `role="menuitem"` : ""
     ].filter(Boolean).join(" ");
 
     return `

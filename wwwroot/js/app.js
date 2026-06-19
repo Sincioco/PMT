@@ -12,7 +12,7 @@ import {
   showTaskAudit,
   viewWorkItem
 } from "./components/work-items.js";
-import { createApplicationShell } from "./core/application-shell.js";
+import { createApplicationShell } from "./core/application-shell.js?v=20260619-shell-components";
 import {
   currentView,
   navigate

@@ -1,22 +1,28 @@
 /* Phase 11 ownership: dialogs. */
 
 .dialog {
-  width: min(900px, calc(100vw - 24px));
-  border: 1px solid var(--line);
-  border-radius: 8px;
+  width: min(var(--dialog-width-md), calc(100vw - 2 * var(--shell-padding-compact)));
+  max-height: calc(100vh - 2 * var(--shell-padding-compact));
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-lg);
   padding: 0;
   background: var(--dialog-bg);
-  color: var(--text);
-  box-shadow: var(--shadow);
-  backdrop-filter: blur(20px);
+  color: var(--color-text-primary);
+  box-shadow: var(--shadow-dialog);
+  backdrop-filter: blur(var(--glass-blur-dialog)) saturate(var(--glass-saturation));
 }
 
 .dialog::backdrop {
-  background: rgba(0, 0, 0, 0.62);
+  background: var(--color-overlay);
+}
+
+.dialog > form {
+  display: grid;
+  max-height: inherit;
 }
 
 .mini-dialog {
-  width: min(430px, calc(100vw - 28px));
+  width: min(var(--dialog-width-sm), calc(100vw - 2 * var(--shell-padding-compact)));
 }
 
 .dialog-head,
@@ -24,26 +30,27 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 12px;
-  padding: 14px 16px;
-  border-bottom: 1px solid var(--line);
+  gap: var(--space-5);
+  padding: var(--space-6) var(--space-7);
+  border-bottom: var(--border-width) solid var(--color-border);
 }
 
 .dialog-actions {
-  border-top: 1px solid var(--line);
+  border-top: var(--border-width) solid var(--color-border);
   border-bottom: 0;
   justify-content: flex-end;
 }
 
 .dialog-head h2 {
   margin: 0;
-  font-size: 20px;
+  font-size: var(--font-size-2xl);
+  line-height: var(--line-height-heading);
 }
 
 .dialog-body {
   display: grid;
-  gap: 12px;
-  padding: 16px;
+  gap: var(--space-5);
+  padding: var(--space-7);
   max-height: 72vh;
   overflow: auto;
 }
@@ -51,14 +58,14 @@
 .detail-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
+  gap: var(--space-5);
 }
 
 .detail-field {
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  padding: 10px;
-  background: rgba(255, 255, 255, 0.045);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-4);
+  background: var(--color-surface-subtle);
 }
 
 .detail-field.full {
@@ -67,23 +74,24 @@
 
 .detail-field > span {
   display: block;
-  color: var(--muted);
-  font-size: 12px;
-  margin-bottom: 6px;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  margin-bottom: var(--space-2);
   text-transform: uppercase;
 }
 
 .toast {
   position: fixed;
-  right: 16px;
-  bottom: 16px;
-  z-index: 10;
+  right: var(--space-7);
+  bottom: var(--space-7);
+  z-index: var(--z-toast);
   max-width: 420px;
-  border-radius: 8px;
-  background: #f4faf8;
-  color: #111416;
-  padding: 12px 14px;
-  box-shadow: var(--shadow);
+  border: var(--border-width) solid color-mix(in srgb, var(--color-primary), var(--color-border) 55%);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-elevated);
+  color: var(--color-text-primary);
+  padding: var(--space-5) var(--space-6);
+  box-shadow: var(--shadow-elevated);
 }
 
 .toast-near-control {

@@ -3,9 +3,9 @@
 .thin-progress {
   display: block;
   height: 5px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   overflow: hidden;
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--color-surface-subtle);
 }
 
 .thin-progress span {
@@ -17,8 +17,8 @@
 
 .progress {
   height: 9px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.09);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-subtle);
   overflow: hidden;
 }
 
@@ -26,7 +26,7 @@
   display: block;
   height: 100%;
   width: var(--value);
-  background: linear-gradient(90deg, var(--teal), var(--green));
+  background: linear-gradient(90deg, var(--color-primary), var(--color-success));
 }
 
 .mini-progress {
@@ -55,69 +55,77 @@
   display: flex;
   justify-content: space-between;
   gap: 12px;
-  color: var(--muted);
-  font-size: 12px;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
 }
 
 .sprint-metric-label span:first-child {
-  color: var(--text);
+  color: var(--color-text-primary);
 }
 
 .pill {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  border-radius: 999px;
-  padding: 3px 8px;
-  background: rgba(255, 255, 255, 0.09);
-  color: var(--text);
-  font-size: 12px;
+  border: var(--border-width) solid var(--color-border-subtle);
+  border-radius: var(--radius-pill);
+  padding: 3px var(--space-3);
+  background: var(--color-surface-subtle);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-sm);
 }
 
 .priority-High {
-  background: rgba(238, 107, 112, 0.16);
-  color: #ffc0c2;
+  border-color: var(--color-danger-border);
+  background: var(--color-danger-surface);
+  color: var(--color-danger-text);
 }
 
 .priority-Highest,
 .severity-Critical {
-  background: rgba(238, 107, 112, 0.24);
-  color: #ffd6d8;
+  border-color: color-mix(in srgb, var(--color-danger), var(--color-danger-border) 36%);
+  background: color-mix(in srgb, var(--color-danger-surface), var(--color-danger) 8%);
+  color: var(--color-danger-text);
 }
 
 .priority-Medium {
-  background: rgba(228, 165, 58, 0.18);
-  color: #ffd98c;
+  border-color: var(--color-warning-border);
+  background: var(--color-warning-surface);
+  color: var(--color-warning-text);
 }
 
 .priority-Low {
-  background: rgba(116, 196, 118, 0.16);
-  color: #bde8bd;
+  border-color: var(--color-success-border);
+  background: var(--color-success-surface);
+  color: var(--color-success-text);
 }
 
 .priority-Lowest,
 .severity-Trivial {
-  background: rgba(118, 169, 255, 0.14);
-  color: #c9dcff;
+  border-color: var(--color-info-border);
+  background: var(--color-info-surface);
+  color: var(--color-info-text);
 }
 
 .severity-Minor {
-  background: rgba(116, 196, 118, 0.16);
-  color: #bde8bd;
+  border-color: var(--color-success-border);
+  background: var(--color-success-surface);
+  color: var(--color-success-text);
 }
 
 .severity-Major {
-  background: rgba(228, 165, 58, 0.18);
-  color: #ffd98c;
+  border-color: var(--color-warning-border);
+  background: var(--color-warning-surface);
+  color: var(--color-warning-text);
 }
 
 .lookup-color {
   display: inline-block;
   width: 34px;
   height: 18px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: var(--status-color);
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.22);
+  box-shadow: inset 0 0 0 var(--border-width) color-mix(in srgb, white, transparent 72%);
 }
 
 .bug-fix-icon {
@@ -125,11 +133,11 @@
   place-items: center;
   width: 18px;
   height: 18px;
-  margin-right: 6px;
+  margin-right: var(--space-2);
   border-radius: 50%;
-  background: rgba(235, 82, 82, 0.18);
-  color: #ff9a9a;
-  font-size: 11px;
+  background: var(--color-danger-surface);
+  color: var(--color-danger-text);
+  font-size: var(--font-size-xs);
   vertical-align: text-bottom;
 }
 
@@ -143,8 +151,9 @@
   display: flex;
   height: 48px;
   overflow: hidden;
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.08);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-subtle);
 }
 
 .status-bar span {
@@ -159,8 +168,8 @@
   display: flex;
   flex-wrap: wrap;
   gap: 7px 12px;
-  color: var(--muted);
-  font-size: 12px;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
 }
 
 .status-legend span {
@@ -172,28 +181,28 @@
 .status-legend i {
   width: 9px;
   height: 9px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: var(--status-color);
 }
 
-.status-1 { background: #6b7680; }
+.status-1 { background: var(--status-1); }
 
-.status-2 { background: #76a9ff; }
+.status-2 { background: var(--status-2); }
 
-.status-3 { background: #35c7bd; }
+.status-3 { background: var(--status-3); }
 
-.status-4 { background: #8ad17c; }
+.status-4 { background: var(--status-4); }
 
-.status-5 { background: #e4c63a; }
+.status-5 { background: var(--status-5); }
 
-.status-6 { background: #e4a53a; }
+.status-6 { background: var(--status-6); }
 
-.status-7 { background: #ee6b70; }
+.status-7 { background: var(--status-7); }
 
-.status-8 { background: #74c476; }
+.status-8 { background: var(--status-8); }
 
-.status-9 { background: #58b6d6; }
+.status-9 { background: var(--status-9); }
 
-.status-10 { background: #9f9cff; }
+.status-10 { background: var(--status-10); }
 
-.status-11 { background: #c5d35c; }
+.status-11 { background: var(--status-11); }

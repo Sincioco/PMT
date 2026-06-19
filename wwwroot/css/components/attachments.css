@@ -4,47 +4,54 @@
 .attachment-grid {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
-  margin-top: 8px;
+  gap: var(--space-4);
+  margin-top: var(--space-3);
 }
 
 .attachment-tile {
   width: 160px;
   min-height: 142px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  padding: 8px;
-  background: rgba(255, 255, 255, 0.055);
-  color: var(--text);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-3);
+  background: var(--color-surface-subtle);
+  color: var(--color-text-primary);
   display: grid;
-  gap: 6px;
+  gap: var(--space-2);
   align-content: start;
   text-decoration: none;
+  transition: var(--transition-control);
+}
+
+.attachment-tile:hover,
+.attachment-tile:focus-visible {
+  border-color: var(--color-border-strong);
+  background: var(--color-control-hover);
 }
 
 .attachment-tile img {
   width: 100%;
   height: 104px;
   object-fit: cover;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
 }
 
 .attachment-tile span:last-child {
   overflow-wrap: anywhere;
-  font-size: 12px;
+  font-size: var(--font-size-sm);
 }
 
 .file-icon {
   min-height: 104px;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   display: grid;
   place-items: center;
-  background: rgba(53, 199, 189, 0.14);
-  color: var(--teal);
-  font-weight: 700;
+  background: var(--color-control-selected);
+  color: var(--color-primary);
+  font-weight: var(--font-weight-bold);
 }
 
 .compact-empty {
-  padding: 8px;
-  margin-top: 8px;
+  padding: var(--space-3);
+  margin-top: var(--space-3);
 }

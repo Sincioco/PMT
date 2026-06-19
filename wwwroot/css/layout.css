@@ -1,35 +1,38 @@
 /* Phase 11 ownership: layout. */
 
 .app-shell {
-  padding: 22px;
+  width: min(100%, var(--content-max-width));
+  margin: 0 auto;
+  padding: var(--shell-padding-laptop);
 }
 
 .section-head {
   display: flex;
   justify-content: space-between;
-  gap: 16px;
+  gap: var(--space-7);
   align-items: center;
-  margin-bottom: 18px;
+  margin-bottom: var(--space-8);
 }
 
 .section-head h1 {
   margin: 0;
-  font-size: 30px;
-  line-height: 1.1;
+  font-size: var(--font-size-3xl);
+  line-height: var(--line-height-tight);
+  letter-spacing: 0;
 }
 
 .section-filter-label {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  color: var(--muted);
-  font-size: 13px;
+  gap: var(--space-3);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-md);
 }
 
 .toolbar {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: var(--space-3);
   align-items: center;
   justify-content: flex-end;
 }
@@ -37,25 +40,33 @@
 .grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(270px, 1fr));
-  gap: 14px;
+  gap: var(--panel-gap);
 }
 
 .row {
   display: flex;
-  gap: 10px;
+  gap: var(--space-4);
   align-items: center;
 }
 
 .spread {
   display: flex;
   justify-content: space-between;
-  gap: 12px;
+  gap: var(--space-5);
   align-items: flex-start;
 }
 
 @media (max-width: 900px) {
+  .app-shell {
+    padding: var(--shell-padding-compact);
+  }
+
   .section-head,
   .spread {
     display: grid;
+  }
+
+  .toolbar {
+    justify-content: flex-start;
   }
 }

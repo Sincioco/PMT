@@ -4,41 +4,42 @@
 .task-filter-row {
   display: flex;
   flex-wrap: wrap;
-  gap: 12px;
+  gap: var(--space-5);
   align-items: center;
 }
 
 .filter-row label,
 .task-filter-row label {
   display: flex;
-  gap: 8px;
+  gap: var(--space-3);
   align-items: center;
-  color: var(--muted);
-  font-size: 13px;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-md);
   white-space: nowrap;
 }
 
 .filter-stack {
   display: grid;
-  gap: 10px;
-  margin-top: 12px;
+  gap: var(--space-4);
+  margin-top: var(--space-5);
 }
 
 .filter-check-list {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: var(--space-3);
   margin: 0;
-  padding: 10px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
+  padding: var(--space-4);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-subtle);
 }
 
 .filter-check-list legend {
-  padding: 0 6px;
-  color: var(--muted);
-  font-size: 12px;
-  font-weight: 700;
+  padding: 0 var(--space-2);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-bold);
   text-transform: uppercase;
 }
 
@@ -46,9 +47,9 @@
 .inline-filter-check {
   display: inline-flex;
   align-items: center;
-  gap: 7px;
-  color: var(--muted);
-  font-size: 13px;
+  gap: var(--space-2);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-md);
 }
 
 .filter-check-list input,
@@ -58,6 +59,6 @@
 
 .roadmap-filter-actions {
   display: flex;
-  gap: 8px;
+  gap: var(--space-3);
   margin-left: auto;
 }

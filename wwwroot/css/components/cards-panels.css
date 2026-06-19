@@ -2,35 +2,36 @@
 
 .card,
 .panel {
-  border: 1px solid var(--line);
-  border-radius: 8px;
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-md);
   background: var(--surface);
-  box-shadow: var(--shadow);
-  backdrop-filter: blur(18px);
+  box-shadow: var(--shadow-card);
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturation));
 }
 
 .card {
   display: flex;
   flex-direction: column;
-  padding: 15px;
+  padding: var(--space-6);
 }
 
 .panel {
-  padding: 16px;
+  padding: var(--space-7);
 }
 
 .panel + .panel {
-  margin-top: 14px;
+  margin-top: var(--panel-gap);
 }
 
 .panel + .grid {
-  margin-top: 14px;
+  margin-top: var(--panel-gap);
 }
 
 .card h3,
 .panel h2 {
-  margin: 0 0 8px;
-  font-size: 18px;
+  margin: 0 0 var(--space-3);
+  font-size: var(--font-size-xl);
+  line-height: var(--line-height-heading);
 }
 
 .reveal-actions {
@@ -41,25 +42,29 @@
 .card > .toolbar.reveal-actions {
   justify-content: flex-end;
   margin-top: auto !important;
-  padding-top: 10px;
+  padding-top: var(--space-4);
 }
 
 .clickable-card {
   cursor: pointer;
+  transition: var(--transition-control);
 }
 
 .clickable-row {
   cursor: pointer;
 }
 
-.clickable-card:hover {
-  border-color: rgba(53, 199, 189, 0.46);
+.clickable-card:hover,
+.clickable-card:focus-visible {
+  border-color: color-mix(in srgb, var(--color-primary), var(--color-border-strong) 36%);
+  background: color-mix(in srgb, var(--surface), var(--color-primary) 4%);
+  transform: translateY(-1px);
 }
 
 .empty {
-  color: var(--muted);
-  padding: 18px;
-  border: 1px dashed var(--line);
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.045);
+  color: var(--color-text-secondary);
+  padding: var(--space-8);
+  border: var(--border-width) dashed var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-subtle);
 }

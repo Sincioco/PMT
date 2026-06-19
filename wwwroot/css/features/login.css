@@ -1,16 +1,52 @@
 /* CSS ownership: login screen. */
 
 .login-screen {
-  width: min(420px, calc(100vw - 32px));
+  display: grid;
+  place-items: start center;
+  width: min(440px, calc(100vw - 2 * var(--shell-padding-compact)));
   margin: 8vh auto 0;
 }
 
-.login-screen .panel {
+.login-card {
+  width: 100%;
   display: grid;
-  gap: 14px;
+  gap: var(--space-6);
+  padding: var(--space-9);
+}
+
+.login-brand {
+  display: flex;
+  align-items: center;
+  gap: var(--space-5);
+  padding-bottom: var(--space-2);
+}
+
+.login-brand img {
+  width: 52px;
+  height: 52px;
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface-raised);
+  box-shadow: 0 12px 28px color-mix(in srgb, var(--color-primary), transparent 78%);
 }
 
 .login-screen h1 {
   margin: 0;
-  font-size: 32px;
+  font-size: var(--font-size-3xl);
+  line-height: var(--line-height-tight);
+}
+
+.login-brand p {
+  margin: var(--space-1) 0 0;
+}
+
+.login-card .primary {
+  width: 100%;
+  min-height: var(--control-height-lg);
+}
+
+@media (max-width: 900px) {
+  .login-screen {
+    margin-top: var(--space-10);
+  }
 }

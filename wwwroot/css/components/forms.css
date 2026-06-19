@@ -3,12 +3,12 @@
 .form-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
+  gap: var(--space-5);
 }
 
 .field {
   display: grid;
-  gap: 6px;
+  gap: var(--space-2);
 }
 
 .field.full {
@@ -17,13 +17,14 @@
 
 .field label,
 .check-list legend {
-  color: var(--muted);
-  font-size: 13px;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-medium);
 }
 
 .field-note {
-  color: var(--muted);
-  font-size: 12px;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
 }
 
 .field input,
@@ -36,14 +37,15 @@
 .task-filter-row select,
 .section-head input {
   width: 100%;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.075);
-  color: var(--text);
-  min-height: 40px;
-  padding: 9px 11px;
+  min-height: var(--control-height-md);
+  border: var(--border-width) solid var(--color-border-control);
+  border-radius: var(--radius-md);
+  background: var(--color-control);
+  color: var(--color-text-primary);
+  padding: 9px var(--control-padding-inline-md);
   outline: none;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  box-shadow: inset 0 1px 0 var(--color-surface-glass-highlight);
+  transition: var(--transition-control);
 }
 
 .field input:focus,
@@ -54,16 +56,41 @@
 .filter-row select:focus,
 .task-filter-row select:focus,
 .section-head input:focus {
-  border-color: rgba(53, 199, 189, 0.72);
-  box-shadow: 0 0 0 3px rgba(53, 199, 189, 0.14);
+  border-color: var(--color-focus-ring);
+  box-shadow: var(--shadow-focus);
+}
+
+.field input:hover:not(:disabled),
+.field select:hover:not(:disabled),
+.field textarea:hover:not(:disabled),
+.rich-editor:hover,
+.toolbar select:hover:not(:disabled),
+.filter-row select:hover:not(:disabled),
+.task-filter-row select:hover:not(:disabled),
+.section-head input:hover:not(:disabled) {
+  border-color: var(--color-border-strong);
+  background: var(--color-control-hover);
+}
+
+.field input:disabled,
+.field select:disabled,
+.field textarea:disabled,
+.toolbar select:disabled,
+.filter-row select:disabled,
+.task-filter-row select:disabled,
+.section-head input:disabled {
+  border-color: var(--color-border-subtle);
+  background: var(--color-control-disabled);
+  color: var(--color-text-disabled);
+  cursor: not-allowed;
 }
 
 select {
   color-scheme: dark;
   appearance: none;
   background-image:
-    linear-gradient(45deg, transparent 50%, var(--muted) 50%),
-    linear-gradient(135deg, var(--muted) 50%, transparent 50%);
+    linear-gradient(45deg, transparent 50%, var(--color-text-secondary) 50%),
+    linear-gradient(135deg, var(--color-text-secondary) 50%, transparent 50%);
   background-position:
     calc(100% - 16px) 50%,
     calc(100% - 11px) 50%;
@@ -99,17 +126,17 @@ html[data-theme="light"] select {
 
 input[type="file"]::file-selector-button {
   border: 0;
-  border-radius: 7px;
-  background: rgba(53, 199, 189, 0.18);
-  color: var(--text);
-  padding: 8px 10px;
-  margin-right: 12px;
+  border-radius: var(--radius-sm);
+  background: var(--color-control-selected);
+  color: var(--color-text-primary);
+  padding: 8px var(--control-padding-inline-sm);
+  margin-right: var(--space-5);
   cursor: pointer;
 }
 
 input[type="checkbox"] {
   width: auto !important;
-  accent-color: var(--teal);
+  accent-color: var(--color-primary);
 }
 
 .field textarea {
@@ -118,18 +145,19 @@ input[type="checkbox"] {
 }
 
 .check-list {
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  padding: 10px;
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-4);
+  background: var(--color-surface-subtle);
 }
 
 .check-list label,
 .inline-check {
   display: inline-flex;
-  gap: 8px;
+  gap: var(--space-3);
   align-items: center;
   justify-content: flex-start;
-  margin: 5px 14px 5px 0;
+  margin: 5px var(--space-6) 5px 0;
 }
 
 .check-list input[type="checkbox"] {
@@ -157,7 +185,7 @@ input[type="checkbox"] {
 .check-list-user {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-3);
   min-width: 0;
 }
 
@@ -165,20 +193,20 @@ input[type="checkbox"] {
   width: 30px;
   height: 30px;
   flex: 0 0 auto;
-  border: 2px solid rgba(17, 20, 22, 0.85);
+  border: var(--border-width-strong) solid var(--color-page);
   border-radius: 50%;
   object-fit: cover;
-  background: #2a3336;
+  background: var(--color-surface-raised);
 }
 
 .inline-check {
-  color: var(--muted);
+  color: var(--color-text-secondary);
 }
 
 .rich-tools {
   display: flex;
-  gap: 6px;
-  margin-bottom: 6px;
+  gap: var(--space-2);
+  margin-bottom: var(--space-2);
 }
 
 .rich-tools button {
@@ -197,10 +225,10 @@ input[type="checkbox"] {
   width: auto;
   max-height: 360px;
   height: auto;
-  border-radius: 8px;
-  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  border: var(--border-width) solid var(--color-border);
   display: block;
-  margin: 8px 0;
+  margin: var(--space-3) 0;
 }
 
 .detail-dialog {
