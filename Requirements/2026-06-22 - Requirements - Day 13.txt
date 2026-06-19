@@ -1,15 +1,3 @@
 Project Management Tool (PMT):  Day 13 of Agentic AI Coding
 ----------------------------------------------------------
 
-I will do the manual testing of the UI.  Make the code edits.  Make sure JavaScript returns no errors.  You do not need to build the .Net project.  I will build the .net project.
-
-1.) In Dev Tasks and Bug Tracking screens, don't make the rows of the items draggable by default.  Add a drag handler on the right-side of the row, right before the last column, so that the user can drag the row if they want to.  This will prevent accidental dragging of rows when the user is trying to click on a link or button in the row.  Do not move or adjust anything on the row.  Leave the row as-is.  I want this drag handle to be added to the right of the edit button a small handle that only appears when the cursor is on the row.
-
-
-General UI/UX Guidelines
-------------------------
-1.) Remember this rule as a design principle going forward for PMT and please update the appropriate AGENT.md or other .md files that needs updating:  When the user hovers on a card, row, button, or any other element, the element should not move or shift.  The element should stay in the same position and not move when you hover on it.  This is a very important design principle that we need to follow throughout the entire application.
-2.) Remember this rule as a design principle going forward for PMT and please update the appropriate AGENT.md or other .md files that needs updating:  When picking colors or gradients to represent success, completion, or any other positive outcome, we should use green colors or gradients.  When picking colors or gradients to represent failure, incompletion, or any other negative outcome, we should use red colors or gradients.  This is a very important design principle that we need to follow throughout the entire application to ensure that our users can easily understand the meaning of the colors and gradients used in our charts and visualizations.
-3.) Remember this rule as a design principle going forward for PMT and please update the appropriate AGENT.md or other .md files that needs updating:  Unless I override with a more local prompt or instruction, colors that you can represent in green would be those with a success rate or completion rate of equal to or greater than 80% (>= 80).  Red colors are used to represent completion rate or success rates of 0% to 30%.  Between 31% to 79% you can use yellow to represent those visually.
-4.) Remember this rule as a design principle going forward for PMT and please update the appropriate AGENT.md or other .md files that needs updating:  Unless I explicitly tell you to use gradients, do not use gradients for anything.  Keep the colors solid and simple.  This will help us maintain a clean and consistent design throughout the application and avoid any confusion or misinterpretation of the colors used in our charts and visualizations.
-
