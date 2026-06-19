@@ -79,8 +79,8 @@ export function createSettingsFeature({
 
     app.innerHTML = `
       ${sectionHead("Settings", actionsHtml)}
-      <div class="lookup-layout">
-        <aside class="panel lookup-picker">
+      <div class="lookup-layout settings-layout">
+        <aside class="panel lookup-picker settings-category-picker">
           ${categories.map(type => `
             <button type="button" data-action="select-lookup-type" data-id="0" data-type="${escapeAttr(type)}" class="${type === settingsCategory ? "active" : ""}">
               ${buttonContent(settingsCategoryIcon(type), type)}
@@ -176,7 +176,7 @@ export function createSettingsFeature({
   function settingsDevelopmentHtml() {
     const canRun = currentUser().isAdmin;
     return `
-      <div class="panel development-panel">
+      <div class="panel development-panel settings-content-panel">
         <div>
           <h2>Development</h2>
           <p class="muted">These tools reset test data during development. Use the named PMT button when PMT itself should be cleared.</p>
@@ -228,8 +228,8 @@ export function createSettingsFeature({
       .sort((a, b) => a.displayOrder - b.displayOrder || a.value.localeCompare(b.value));
 
     return `
-      <div class="panel">
-        <table class="table">
+      <div class="panel settings-content-panel settings-table-panel">
+        <table class="table settings-table">
           <thead>
             <tr>
               <th>Value</th>
@@ -262,8 +262,8 @@ export function createSettingsFeature({
     const rows = [...(state.holidays || [])].sort((a, b) => new Date(b.holidayDate) - new Date(a.holidayDate) || a.name.localeCompare(b.name));
 
     return `
-      <div class="panel">
-        <table class="table">
+      <div class="panel settings-content-panel settings-table-panel">
+        <table class="table settings-table">
           <thead>
             <tr>
               <th>Date</th>
@@ -294,10 +294,10 @@ export function createSettingsFeature({
 
   function settingsUsersHtml() {
     return `
-      <div class="grid">
+      <div class="grid settings-users-grid">
         ${state.users.map(user => `
-          <article class="card">
-            <div class="row">
+          <article class="card settings-user-card">
+            <div class="row settings-user-head">
               <img class="avatar" src="${escapeAttr(user.avatarUrl || "/assets/avatar-default.svg")}" alt="">
               <div>
                 <h3>${escapeHtml(user.nickname)}</h3>

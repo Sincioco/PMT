@@ -1,7 +1,12 @@
 /* CSS ownership: Road Map screen. */
 
 .roadmap {
+  padding: 0;
   overflow: hidden;
+  border-color: var(--color-border-subtle);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  backdrop-filter: none;
 }
 
 .roadmap-scroll {
@@ -19,8 +24,10 @@
 .roadmap-header {
   position: sticky;
   top: 0;
-  z-index: 2;
-  background: var(--timeline-header-bg);
+  z-index: var(--z-sticky);
+  border-bottom: var(--border-width) solid var(--color-border);
+  background: var(--color-surface);
+  box-shadow: 0 4px 14px color-mix(in srgb, var(--color-page), transparent 70%);
 }
 
 .roadmap-row {
@@ -33,9 +40,9 @@
   min-height: 26px;
   display: grid;
   place-items: center;
-  border-left: 1px solid var(--timeline-line);
-  color: var(--muted);
-  font-size: 11px;
+  border-left: var(--border-width) solid var(--color-timeline-line);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
   min-width: 0;
   overflow: hidden;
   white-space: nowrap;
@@ -44,36 +51,45 @@
 .roadmap-years > div,
 .roadmap-quarters > div,
 .roadmap-months > div {
-  background: rgba(255, 255, 255, 0.045);
-  font-weight: 700;
+  background: var(--color-surface-subtle);
+  font-weight: var(--font-weight-bold);
 }
 
 .roadmap-months > div {
-  font-size: 8px;
-  padding: 0 2px;
+  padding: 0 var(--space-1);
+  font-size: var(--font-size-xs);
 }
 
 .roadmap-days > div {
   min-height: 28px;
-  background: var(--timeline-soft-bg);
+  background: var(--color-timeline-subtle);
+  font-variant-numeric: tabular-nums;
 }
 
 .roadmap-days .holiday-day {
-  color: var(--amber);
-  background: rgba(228, 165, 58, 0.12);
+  color: var(--color-warning-text);
+  background: var(--color-warning-surface);
 }
 
 .roadmap-project-group {
   display: grid;
-  gap: 7px;
+  gap: var(--space-2);
   min-width: max-content;
-  padding: 12px 0;
-  border-top: 1px solid var(--line);
+  padding: var(--space-5) 0;
+  border-top: var(--border-width) solid var(--color-border-subtle);
+  background: var(--color-surface);
 }
 
 .roadmap-lane {
   min-height: 48px;
-  border-left: 1px solid rgba(255, 255, 255, 0.04);
+  border-left: var(--border-width) solid var(--color-timeline-line);
+  background-image: repeating-linear-gradient(
+    to right,
+    transparent 0,
+    transparent calc(var(--day-width) - 1px),
+    var(--color-timeline-line) calc(var(--day-width) - 1px),
+    var(--color-timeline-line) var(--day-width)
+  );
 }
 
 .roadmap-project-lane {
@@ -91,24 +107,37 @@
   gap: 4px;
   min-height: 40px;
   min-width: 170px;
-  padding: 7px 10px 9px;
+  padding: var(--space-3) var(--space-5) var(--space-4);
   overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  border-radius: 0;
-  color: var(--text);
+  border: var(--border-width) solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  color: var(--color-text-primary);
   cursor: pointer;
-  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.22);
+  box-shadow: var(--shadow-card);
+  transition: var(--transition-control);
+}
+
+.roadmap-bar:hover,
+.roadmap-bar:focus-visible {
+  z-index: 1;
+  border-color: var(--color-primary);
+  box-shadow: var(--shadow-elevated);
+  transform: translateY(-1px);
 }
 
 .roadmap-project-bar {
   min-width: 230px;
   min-height: 52px;
-  background: linear-gradient(135deg, rgba(118, 169, 255, 0.34), rgba(53, 199, 189, 0.23));
+  background:
+    linear-gradient(135deg, var(--color-info-surface), var(--color-control-selected)),
+    var(--color-surface-raised);
 }
 
 .roadmap-sprint-bar {
   margin-left: 18px;
-  background: linear-gradient(135deg, rgba(53, 199, 189, 0.24), rgba(116, 196, 118, 0.18));
+  background:
+    linear-gradient(135deg, var(--color-control-selected), var(--color-success-surface)),
+    var(--color-surface-raised);
 }
 
 .roadmap-bar strong {
@@ -116,23 +145,23 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 13px;
+  font-size: var(--font-size-md);
 }
 
 .roadmap-second-line {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-3);
   min-width: 0;
-  color: var(--muted);
-  font-size: 12px;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
 }
 
 .roadmap-date-range {
   flex: 0 0 auto;
-  color: #c7d3d6;
-  font-size: 12px;
-  font-weight: 600;
+  color: var(--color-text-primary);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
   white-space: nowrap;
 }
 
@@ -151,5 +180,15 @@
   inset: auto 0 0 0;
   height: 3px;
   width: var(--value);
-  background: rgba(255, 255, 255, 0.82);
+  background: color-mix(in srgb, var(--color-text-primary), transparent 14%);
+}
+
+@media (max-width: 900px) {
+  .roadmap-scroll {
+    max-height: calc(100vh - 210px);
+  }
+
+  .roadmap-project-bar {
+    min-width: 200px;
+  }
 }

@@ -2,34 +2,94 @@
 
 .lookup-layout {
   display: grid;
-  grid-template-columns: minmax(170px, 220px) 1fr;
-  gap: 14px;
+  grid-template-columns: minmax(190px, 230px) minmax(0, 1fr);
+  gap: var(--panel-gap);
   align-items: start;
+}
+
+.settings-category-picker {
+  position: sticky;
+  top: calc(var(--topbar-height-min) + var(--space-5));
+  padding: var(--space-4);
+  border-color: var(--color-border-subtle);
+  background: var(--color-surface);
+  backdrop-filter: none;
+}
+
+.settings-content-panel {
+  min-width: 0;
+  border-color: var(--color-border-subtle);
+  background: var(--color-surface);
+  backdrop-filter: none;
+}
+
+.settings-table-panel {
+  padding: 0;
+  overflow: auto;
+}
+
+.settings-table {
+  min-width: 680px;
+}
+
+.settings-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--color-surface-raised);
+}
+
+.settings-users-grid {
+  grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr));
+}
+
+.settings-user-card {
+  gap: var(--space-4);
+  padding: var(--space-6);
+  border-color: var(--color-border-subtle);
+  background: var(--color-surface);
+  backdrop-filter: none;
+}
+
+.settings-user-head {
+  align-items: flex-start;
+  padding-bottom: var(--space-4);
+  border-bottom: var(--border-width) solid var(--color-border-subtle);
+}
+
+.settings-user-head > div {
+  min-width: 0;
+}
+
+.settings-user-head h3,
+.settings-user-head p {
+  overflow-wrap: anywhere;
 }
 
 .development-panel {
   display: grid;
-  gap: 16px;
+  gap: var(--space-7);
+  padding: var(--space-7);
 }
 
 .development-actions {
   display: grid;
-  gap: 10px;
+  gap: var(--space-3);
 }
 
 .development-action-row {
   display: flex;
   justify-content: space-between;
-  gap: 14px;
+  gap: var(--space-7);
   align-items: center;
-  padding: 13px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.035);
+  padding: var(--space-6);
+  border: var(--border-width) solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-subtle);
 }
 
 .development-action-row p {
-  margin: 4px 0 0;
+  margin: var(--space-1) 0 0;
 }
 
 .development-action-row button {
@@ -37,30 +97,48 @@
 }
 
 .development-action-row.danger-row {
-  border-color: rgba(238, 107, 112, 0.26);
-  background: rgba(238, 107, 112, 0.055);
+  border-color: var(--color-danger-border);
+  background: var(--color-danger-surface);
 }
 
 .lookup-picker {
   display: grid;
-  gap: 8px;
+  gap: var(--space-2);
 }
 
 .lookup-picker button {
   justify-content: flex-start;
+  width: 100%;
+  min-height: var(--control-height-md);
+  border-color: transparent;
   text-align: left;
+  background: transparent;
+  color: var(--color-text-secondary);
+}
+
+.lookup-picker button:hover,
+.lookup-picker button:focus-visible {
+  border-color: var(--color-border);
+  background: var(--color-control-hover);
+  color: var(--color-text-primary);
 }
 
 .lookup-picker button.active {
-  background: rgba(53, 199, 189, 0.18);
-  border-color: rgba(53, 199, 189, 0.52);
-  color: #ffffff;
-  font-weight: 400;
+  background: var(--color-control-selected);
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+  font-weight: var(--font-weight-bold);
+  box-shadow: inset 3px 0 0 var(--color-primary);
 }
 
 @media (max-width: 900px) {
   .lookup-layout {
     grid-template-columns: 1fr;
+  }
+
+  .settings-category-picker {
+    position: static;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .development-action-row {

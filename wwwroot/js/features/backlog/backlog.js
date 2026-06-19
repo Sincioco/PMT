@@ -28,8 +28,8 @@ export function createBacklogFeature({ app }) {
         <button class="primary text-icon-button" type="button" data-action="new-task">${buttonContent("&#10010;", "New Dev Task")}</button>
         <button class="primary text-icon-button" type="button" data-action="new-bug">${buttonContent("&#9888;", "New Bug Report")}</button>
       `)}
-      <div class="panel">
-        <table class="table">
+      <div class="panel work-item-table-panel backlog-table-panel">
+        <table class="table work-item-table backlog-table">
           <thead>
             <tr>
               <th>Type</th>
@@ -46,7 +46,10 @@ export function createBacklogFeature({ app }) {
             ${backlogItems.map(task => `
               <tr class="clickable-row ${task.sprintId ? "assigned-backlog-row" : ""}" data-action="view-task" data-id="${task.id}" data-task-id="${task.id}" data-can-drag="${canEditTask(task) ? "true" : "false"}" draggable="false">
                 <td><span class="pill">${escapeHtml(task.taskType || "Dev")}</span></td>
-                <td><strong>${escapeHtml(task.code)}</strong><br>${bugFixIconHtml(task)}${escapeHtml(task.title)}</td>
+                <td class="work-item-title-cell">
+                  <strong class="work-item-code">${escapeHtml(task.code)}</strong>
+                  <span class="work-item-title">${bugFixIconHtml(task)}${escapeHtml(task.title)}</span>
+                </td>
                 <td>${escapeHtml(projectName(task.projectId))}</td>
                 <td>${task.sprintId ? `<span class="pill sprint-pill">${escapeHtml(sprintName(task.sprintId))}</span>` : `<span class="muted">Unassigned</span>`}</td>
                 <td><span class="pill">${escapeHtml(task.status)}</span></td>

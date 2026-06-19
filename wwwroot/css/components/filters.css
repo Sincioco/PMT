@@ -62,3 +62,32 @@
   gap: var(--space-3);
   margin-left: auto;
 }
+
+.work-item-filter-panel,
+.timeline-control-panel {
+  padding: var(--space-6);
+  border-color: var(--color-border-subtle);
+  background: var(--color-surface);
+  backdrop-filter: none;
+}
+
+.work-item-filter-panel select,
+.timeline-control-panel select {
+  min-width: 150px;
+}
+
+.timeline-control-panel .filter-row {
+  align-items: flex-end;
+}
+
+@media (max-width: 900px) {
+  .roadmap-filter-actions {
+    width: 100%;
+    margin-left: 0;
+  }
+
+  .work-item-filter-panel select,
+  .timeline-control-panel select {
+    width: 100%;
+  }
+}

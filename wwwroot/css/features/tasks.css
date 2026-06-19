@@ -1,25 +1,53 @@
 /* CSS ownership: Dev Tasks screen. */
 
+.tasks-filter-panel .task-filter-row {
+  align-items: flex-end;
+}
+
+.tasks-filter-panel .inline-filter-check {
+  min-height: var(--control-height-md);
+  padding: 0 var(--space-2);
+}
+
+.tasks-table {
+  min-width: 1180px;
+}
+
+.tasks-table th:first-child,
+.tasks-table td:first-child {
+  width: 92px;
+}
+
 .tasks-table .done-cell {
-  width: 30%;
-  min-width: 220px;
+  width: 26%;
+  min-width: 240px;
 }
 
 .subtask-row td {
-  background: rgba(255, 255, 255, 0.025);
+  background: var(--color-surface-subtle);
 }
 
 .subtask-title-cell {
-  padding-left: calc(10px + var(--indent, 24px)) !important;
+  padding-left: calc(var(--table-cell-padding-inline) + var(--indent, 24px)) !important;
 }
 
 .subtask-pill {
   display: inline-block;
-  margin-right: 7px;
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  padding: 2px 7px;
-  color: var(--muted);
-  font-size: 11px;
+  margin: 0 var(--space-2) var(--space-1) 0;
+  border: var(--border-width) solid var(--color-info-border);
+  border-radius: var(--radius-pill);
+  padding: 2px var(--space-2);
+  color: var(--color-info-text);
+  background: var(--color-info-surface);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-bold);
   text-transform: uppercase;
+}
+
+@media (max-width: 900px) {
+  .tasks-filter-panel .task-filter-row {
+    display: grid;
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
 }

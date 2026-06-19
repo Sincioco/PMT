@@ -17,7 +17,7 @@ import {
   sortGanttSprints
 } from "./gantt-calculations.js";
 import { createGanttFlyBy } from "./gantt-flyby.js";
-import { ganttScreenHtml } from "./gantt-rendering.js";
+import { ganttScreenHtml } from "./gantt-rendering.js?v=20260619-advanced-screens-v2";
 
 export { currentSprintForProject, ganttStartDate } from "./gantt-calculations.js";
 

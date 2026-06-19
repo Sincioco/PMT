@@ -1,1 +1,37 @@
 /* CSS ownership: Bug Tracking screen. */
+
+.bugs-filter-panel .bug-filter-row {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(140px, 1fr));
+  align-items: end;
+}
+
+.bugs-filter-panel .bug-filter-row label,
+.bugs-filter-panel .bug-filter-row select {
+  width: 100%;
+}
+
+.bugs-table {
+  min-width: 1260px;
+}
+
+.bugs-table th:nth-child(-n + 2),
+.bugs-table td:nth-child(-n + 2) {
+  width: 82px;
+}
+
+.bugs-table .work-item-title-cell {
+  min-width: 250px;
+}
+
+@media (max-width: 1200px) {
+  .bugs-filter-panel .bug-filter-row {
+    grid-template-columns: repeat(3, minmax(150px, 1fr));
+  }
+}
+
+@media (max-width: 900px) {
+  .bugs-filter-panel .bug-filter-row {
+    grid-template-columns: 1fr;
+  }
+}

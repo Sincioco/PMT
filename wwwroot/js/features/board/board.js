@@ -72,7 +72,7 @@ export function createBoardFeature({
         <button class="primary text-icon-button" type="button" data-action="new-task">${buttonContent("&#10010;", "New Dev Task")}</button>
         <button class="primary text-icon-button" type="button" data-action="new-bug">${buttonContent("&#9888;", "New Bug Report")}</button>
       `)}
-      <div class="panel">
+      <div class="panel board-controls-panel">
         <div class="filter-row">
           <label>
             <span>Project</span>
@@ -98,12 +98,12 @@ export function createBoardFeature({
           </label>
           <button class="icon-action ${boardHideEmptyColumns ? "is-on" : ""}" type="button" data-action="toggle-empty-board-columns" title="${boardHideEmptyColumns ? "Show all columns" : "Hide empty columns"}" aria-label="${boardHideEmptyColumns ? "Show all columns" : "Hide empty columns"}" aria-pressed="${boardHideEmptyColumns}">${boardHideEmptyColumns ? "&#9638;" : "&#128065;"}</button>
         </div>
-        <fieldset class="check-list" style="margin-top:10px">
+        <fieldset class="check-list board-status-filter">
           <legend>Columns</legend>
           ${getStatuses().map(status => `<label><input type="checkbox" data-filter="board-status" value="${status}" ${boardStatuses.includes(status) ? "checked" : ""}> ${status}</label>`).join("")}
         </fieldset>
       </div>
-      <div class="board" style="margin-top:14px">
+      <div class="board">
         ${boardColumnStatuses.map(status => boardColumnHtml(status, visibleTasks.filter(task => task.status === status))).join("") || `<div class="empty">No columns have tasks for the current filters.</div>`}
       </div>
     `;
@@ -193,22 +193,24 @@ export function createBoardFeature({
   function boardColumnHtml(status, tasks) {
     return `
       <section class="column" data-status="${escapeAttr(status)}" data-reorder-list="board-column">
-        <h2>${escapeHtml(status)} <span class="pill">${tasks.length}</span></h2>
+        <h2 class="board-column-title">${escapeHtml(status)} <span class="pill">${tasks.length}</span></h2>
         ${tasks.map(task => `
           <article class="task-card ${task.taskType === "Bug" ? "bug-card" : ""}" data-task-id="${task.id}" data-can-drag="${canEditTask(task) ? "true" : "false"}" draggable="false">
-            <div class="spread">
-              <strong>${escapeHtml(task.code)}</strong>
+            <div class="spread task-card-head">
+              <strong class="task-card-code">${escapeHtml(task.code)}</strong>
               <span class="pill">${escapeHtml(task.taskType || "Dev")}</span>
             </div>
-            <span class="pill priority-${escapeAttr(task.priority)}">${escapeHtml(task.priority)}</span>
-            ${task.taskType === "Bug" ? `<span class="pill severity-${escapeAttr(task.severity)}">${escapeHtml(task.severity || "")}</span>` : ""}
-            <p>${bugFixIconHtml(task)}${escapeHtml(task.title)}</p>
+            <div class="task-card-tags">
+              <span class="pill priority-${escapeAttr(task.priority)}">${escapeHtml(task.priority)}</span>
+              ${task.taskType === "Bug" ? `<span class="pill severity-${escapeAttr(task.severity)}">${escapeHtml(task.severity || "")}</span>` : ""}
+            </div>
+            <p class="task-card-title">${bugFixIconHtml(task)}${escapeHtml(task.title)}</p>
             <div class="mini-progress">
               ${progressHtml(task.percentCompleted)}
               ${task.subTasks.length ? progressHtml(task.subTaskAveragePercent) : ""}
             </div>
-            <div class="row" style="margin-top:8px">${avatarsHtml(task.assignees)}</div>
-            <div class="toolbar reveal-actions" style="margin-top:10px">${taskButtonsHtml(task)}</div>
+            <div class="row task-card-assignees">${avatarsHtml(task.assignees)}</div>
+            <div class="toolbar reveal-actions task-card-actions">${taskButtonsHtml(task)}</div>
           </article>
         `).join("") || `<div class="empty">No tasks.</div>`}
       </section>

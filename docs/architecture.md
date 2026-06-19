@@ -143,6 +143,8 @@ The current frontend dependency flow is:
 
 `gantt -> gantt calculations/rendering/flyby/bugs-dependencies/components/shared/core/store/preferences`
 
+Phase 16 completes the screen-level visual adoption for Dev Tasks, Bug Tracking, Backlog, Kanban Board, Gantt, Road Map, and Settings. These screens now use shared semantic tokens and shared work-item table/filter treatments while retaining their existing feature ownership, DOM event hooks, calculated timeline geometry, drag/drop lifecycle, endpoint contracts, and `pmt-*` preference keys. Timeline and Board styling remains feature-owned; reusable dense table and filter treatments remain component-owned.
+
 ## Target backend layout
 
 Phase 17 should split files without adding architectural layers:

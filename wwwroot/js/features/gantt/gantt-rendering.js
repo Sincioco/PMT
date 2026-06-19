@@ -41,7 +41,7 @@ export function ganttScreenHtml({
     ${sectionHead("Gantt", `
       <button class="secondary text-icon-button" type="button" data-action="toggle-gantt-all-bugs">${buttonContent(showAllBugs ? "&#9652;" : "&#9662;", showAllBugs ? "Collapse Bugs" : "Expand Bugs")}</button>
     `)}
-    <div class="panel">
+    <div class="panel timeline-control-panel gantt-control-panel">
       <div class="filter-row">
         <label>
           <span>Project</span>

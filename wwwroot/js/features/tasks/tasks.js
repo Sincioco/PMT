@@ -117,7 +117,7 @@ export function createTasksFeature({
         <button class="secondary text-icon-button ${showCharts ? "is-on" : ""}" type="button" data-action="toggle-task-visual-charts" aria-pressed="${showCharts}" ${canShowCharts ? "" : "disabled"}>${buttonContent("&#128202;", chartToggleLabel)}</button>
         <button class="primary text-icon-button" type="button" data-action="new-task">${buttonContent("&#10010;", "New Dev Task")}</button>
       `)}
-      ${taskFiltersVisible ? `<div class="panel">
+      ${taskFiltersVisible ? `<div class="panel work-item-filter-panel tasks-filter-panel">
         <div class="task-filter-row">
           <label>
             <span>Project</span>
@@ -154,8 +154,8 @@ export function createTasksFeature({
         </div>
       </div>` : ""}
       ${showCharts ? taskVisualTrackingChartsHtml(allProjectDevTasks) : ""}
-      <div class="panel">
-        <table class="table tasks-table">
+      <div class="panel work-item-table-panel tasks-table-panel">
+        <table class="table work-item-table tasks-table">
           <thead>
             <tr>
               <th>Assigned</th>
@@ -178,9 +178,10 @@ export function createTasksFeature({
               return `
               <tr class="${rowClass} clickable-row" data-action="view-task" data-id="${task.id}" data-task-id="${task.id}" data-can-drag="${canEditTask(task) ? "true" : "false"}" draggable="false">
                 <td>${taskRowAvatarsHtml(task.assignees)}</td>
-                <td class="${titleClass}" style="--indent:${indent}px">
+                <td class="${titleClass} work-item-title-cell" style="--indent:${indent}px">
                   ${row.level ? `<span class="subtask-pill">Sub-task</span>` : ""}
-                  <strong>${escapeHtml(task.code)}</strong><br>${bugFixIconHtml(task)}${escapeHtml(task.title)}
+                  <strong class="work-item-code">${escapeHtml(task.code)}</strong>
+                  <span class="work-item-title">${bugFixIconHtml(task)}${escapeHtml(task.title)}</span>
                 </td>
                 <td>${escapeHtml(projectName(task.projectId))}</td>
                 <td>${escapeHtml(sprintName(task.sprintId))}</td>

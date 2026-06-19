@@ -105,7 +105,7 @@ export function createBugsFeature({
         <button class="secondary text-icon-button ${showCharts ? "is-on" : ""}" type="button" data-action="toggle-bug-visual-charts" aria-pressed="${showCharts}" ${canShowCharts ? "" : "disabled"}>${buttonContent("&#128202;", chartToggleLabel)}</button>
         <button class="primary text-icon-button" type="button" data-action="new-bug">${buttonContent("&#9888;", "New Bug Report")}</button>
       `)}
-      ${bugFiltersVisible ? `<div class="panel">
+      ${bugFiltersVisible ? `<div class="panel work-item-filter-panel bugs-filter-panel">
         <div class="filter-row bug-filter-row">
           ${filterSelect("Project", "bug-project", state.projects.map(project => ({ value: project.id, text: `${project.code} - ${project.title}` })), bugFilters.projectId || "", "All projects")}
           ${filterSelect("Status", "bug-status", statuses.map(value => ({ value, text: value })), bugFilters.status || "", "All statuses")}
@@ -119,8 +119,8 @@ export function createBugsFeature({
         </div>
       </div>` : ""}
       ${showCharts ? bugVisualTrackingChartsHtml(filteredBugs) : ""}
-      <div class="panel">
-        <table class="table bugs-table">
+      <div class="panel work-item-table-panel bugs-table-panel">
+        <table class="table work-item-table bugs-table">
           <thead>
             <tr>
               <th>Reporter</th>
@@ -139,7 +139,10 @@ export function createBugsFeature({
               <tr class="clickable-row" data-action="view-task" data-id="${bug.id}" data-task-id="${bug.id}" data-can-drag="${canEditTask(bug) ? "true" : "false"}" draggable="false">
                 <td>${taskRowAvatarsHtml(bug.reporters)}</td>
                 <td>${taskRowAvatarsHtml(bug.assignees)}</td>
-                <td><strong>${escapeHtml(bug.code)}</strong><br>${escapeHtml(bug.title)}</td>
+                <td class="work-item-title-cell">
+                  <strong class="work-item-code">${escapeHtml(bug.code)}</strong>
+                  <span class="work-item-title">${escapeHtml(bug.title)}</span>
+                </td>
                 <td>${escapeHtml(projectName(bug.projectId))}</td>
                 <td>${escapeHtml(sprintName(bug.sprintId))}</td>
                 <td>${escapeHtml(bug.status)}</td>

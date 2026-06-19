@@ -28,7 +28,7 @@ export function roadMapScreenHtml({
 }) {
   return `
     ${sectionHead("Road Map", "")}
-    <div class="panel">
+    <div class="panel timeline-control-panel roadmap-control-panel">
       <div class="filter-row">
         <label>
           <span>Project</span>
