@@ -373,7 +373,7 @@ function showBugChartDrilldown(title, bugIds) {
           </thead>
           <tbody>
             ${bugs.map(bug => `
-              <tr>
+              <tr class="clickable-row" data-action="view-task" data-id="${bug.id}">
                 <td><b>${escapeHtml(bug.code)}</b><br><span>${escapeHtml(bug.title)}</span></td>
                 <td>${escapeHtml(projectCode(bug.projectId))}</td>
                 <td>${escapeHtml(sprintName(bug.sprintId))}</td>
@@ -445,7 +445,7 @@ function showTaskChartDrilldown(title, taskIds) {
           </thead>
           <tbody>
             ${tasks.map(task => `
-              <tr>
+              <tr class="clickable-row" data-action="view-task" data-id="${task.id}">
                 <td><b>${escapeHtml(task.code)}</b><br><span>${escapeHtml(task.title)}</span></td>
                 <td>${escapeHtml(projectCode(task.projectId))}</td>
                 <td>${escapeHtml(sprintName(task.sprintId))}</td>

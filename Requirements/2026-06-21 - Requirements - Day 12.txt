@@ -19,7 +19,15 @@ Minor Bug Fixes and Enhancements
 3.) I notice that in Projects when you hover on the Projects card, the card shifts a few pixels.  This should not happen.  The card should stay in the same position and not move when you hover on it.
 4.) When I am in the Gantt Chart or Road Map and I bring up the Avatar menu, the top part of the Gantt Chart and Road Map (the header) is floating above the Avatar menu.  Adjust the z-index of the Avatar menu so that it is above the header of the Gantt Chart and Road Map when it is open.  This will ensure that the Avatar menu is fully visible and accessible to the user when they open it from the Gantt Chart or Road Map screens.
 
+Minor Bug Fixes and Enhancements
+--------------------------------
+1.) In the Chart drilldown, when the user clicks on a chart and a dialog of list of item is presented, make the whole row on the list clickable.
+2.) I notice that in the Sprints view when you hover on a Sprint card, the card shifts a few pixels.  This should not happen.  The card should stay in the same position and not move when you hover on it.
+3.) Adjust the overall layout of the entire PMT application so that when the content is long and the browser's vertical scrollbar appears, the content does not shift to the left.  The content should stay in the same position and not move when the vertical scrollbar appears.
+
 ----Done up to here----
+
+1.) In Dev Tasks and Bug Tracking screens, don't make the rows of the items draggable by default.  Add a drag handler on the right-side of the row, right before the last column, so that the user can drag the row if they want to.  This will prevent accidental dragging of rows when the user is trying to click on a link or button in the row.  Do not move or adjust anything on the row.  Leave the row as-is.  I want this drag handle to be added and flushed to the right of the edit button a small handle that only appears when the cursor is on the row.
 
 1.) Remember this rule as a design principle going forward for PMT and please update the appropriate AGENT.md or other .md files that needs updating:  When the user hovers on a card, row, button, or any other element, the element should not move or shift.  The element should stay in the same position and not move when you hover on it.  This is a very important design principle that we need to follow throughout the entire application.
 2.) Remember this rule as a design principle going forward for PMT and please update the appropriate AGENT.md or other .md files that needs updating:  When picking colors or gradients to represent success, completion, or any other positive outcome, we should use green colors or gradients.  When picking colors or gradients to represent failure, incompletion, or any other negative outcome, we should use red colors or gradients.  This is a very important design principle that we need to follow throughout the entire application to ensure that our users can easily understand the meaning of the colors and gradients used in our charts and visualizations.
@@ -27,8 +35,3 @@ Minor Bug Fixes and Enhancements
 4.) Remember this rule as a design principle going forward for PMT and please update the appropriate AGENT.md or other .md files that needs updating:  Unless I explicitly tell you to use gradients, do not use gradients for anything.  Keep the colors solid and simple.  This will help us maintain a clean and consistent design throughout the application and avoid any confusion or misinterpretation of the colors used in our charts and visualizations.
 
 I will do the manual testing of the UI.  Make the code edits.  Make sure JavaScript returns no errors.  You do not need to build the .Net project.  I will build the .net project.
-
-13.) In Dev Tasks and Bug Tracking screens, don't make the rows of the items draggable by default.  Add a drag handler on the right-side of the row, right before the last column, so that the user can drag the row if they want to.  This will prevent accidental dragging of rows when the user is trying to click on a link or button in the row.  Do not move or adjust anything on the row.  Leave the row as-is.  I want this drag handle to be added and flushed to the right of the edit button a small handle that only appears when the cursor is on the row.
-14.) In the Chart drilldown, when the user clicks on a chart and a dialog of list of item is presented, make the whole row on the list clickable.
-15.) When a chart is expanded, the dialog box that comes up has a vertical scrollbar.  Adjust the content / margin / padding so the dialog box has no vertical scroll bar appears.
-16.) Adjust the overall layout of the entire PMT application so that when the content is long and the browser's vertical scrollbar appears, the content does not shift to the left.  The content should stay in the same position and not move when the vertical scrollbar appears.

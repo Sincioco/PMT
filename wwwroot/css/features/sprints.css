@@ -25,6 +25,11 @@
   margin: 0;
 }
 
+.sprint-card.clickable-card:hover,
+.sprint-card.clickable-card:focus-visible {
+  transform: none;
+}
+
 .sprint-card-head {
   gap: var(--space-4);
   align-items: flex-start;
