@@ -78,7 +78,22 @@ function roadMapChartHtml(chart, options) {
         <div class="roadmap-calendar roadmap-header">
           <div class="roadmap-row roadmap-years">${years.map(group => `<div style="grid-column:span ${group.count}">${escapeHtml(group.label)}</div>`).join("")}</div>
           <div class="roadmap-row roadmap-quarters">${quarters.map(group => `<div style="grid-column:span ${group.count}">${escapeHtml(group.label.split(" ")[1])}</div>`).join("")}</div>
-          <div class="roadmap-row roadmap-months">${months.map(group => `<div style="grid-column:span ${group.count}">${escapeHtml(monthName(group.firstDate))}</div>`).join("")}</div>
+          <div class="roadmap-row roadmap-months">
+  ${months.map(group => {
+      const fullMonthLabel = `${monthName(group.firstDate)} ${group.firstDate.getFullYear()}`;
+      const monthLabel = roadMapMonthHeaderLabel(group.firstDate, chart.dayWidth);
+
+      return `
+      <div
+        class="${roadMapMonthHeaderClass(chart.dayWidth)}"
+        style="grid-column:span ${group.count}"
+        title="${escapeAttr(fullMonthLabel)}"
+      >
+        ${escapeHtml(monthLabel)}
+      </div>
+    `;
+  }).join("")}
+</div>
           ${dayRow}
         </div>
         ${chart.rows.map(row => roadMapProjectHtml(row, chart, options)).join("")}
@@ -142,4 +157,20 @@ function roadMapGridStyle(start, end, chart, isProject) {
   const availableSpan = Math.max(1, chart.dates.length - startIndex);
   const span = Math.min(availableSpan, Math.max(minimumSpan, endIndex - startIndex + 1));
   return `style="grid-column:${startIndex + 1} / span ${span}"`;
+}
+
+function roadMapMonthHeaderLabel(date, dayWidth) {
+    const label = monthName(date);
+
+    if (dayWidth <= 18) return label.slice(0, 1);
+    if (dayWidth <= 28) return label.slice(0, 2);
+
+    return label;
+}
+
+function roadMapMonthHeaderClass(dayWidth) {
+    if (dayWidth <= 18) return "roadmap-month-label roadmap-month-label-narrow";
+    if (dayWidth <= 28) return "roadmap-month-label roadmap-month-label-compact";
+
+    return "roadmap-month-label";
 }
