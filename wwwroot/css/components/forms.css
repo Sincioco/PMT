@@ -144,8 +144,13 @@ input[type="file"]::file-selector-button {
 }
 
 input[type="checkbox"] {
-  width: auto !important;
+  width: 16px !important;
+  min-height: 16px;
+  height: 16px;
+  flex: 0 0 auto;
+  padding: 0;
   accent-color: var(--color-primary);
+  transition: none;
 }
 
 .field textarea {
