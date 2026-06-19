@@ -53,8 +53,7 @@ export function createScrumFeature({
       scrumFilters.projectId = "";
     }
 
-    const validPersonIds = new Set(state.users.map(user => String(user.id)));
-    scrumFilters.personIds = scrumFilters.personIds.filter(id => validPersonIds.has(id));
+    syncScrumPersonFilterWithUsers();
 
     const logs = state.devLogs
       .filter(log => !scrumFilters.projectId || log.projectId === Number(scrumFilters.projectId))
@@ -118,6 +117,16 @@ export function createScrumFeature({
         </div>
       </div>
     `;
+  }
+
+  function syncScrumPersonFilterWithUsers() {
+    const userIds = state.users.map(user => String(user.id));
+    const validPersonIds = new Set(userIds);
+    scrumFilters.personIds = scrumFilters.personIds.filter(id => validPersonIds.has(id));
+
+    if (!scrumFilters.personIds.length && userIds.length) {
+      scrumFilters.personIds = [...userIds];
+    }
   }
 
   function handleFilterChange(eventOrTarget) {
