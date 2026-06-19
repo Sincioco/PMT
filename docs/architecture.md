@@ -7,7 +7,7 @@ This document maps the current application and the intended file boundaries for 
 PMT is a single ASP.NET Core .NET 6 web application:
 
 1. `wwwroot/index.html` defines the HTML shell, applies the saved theme through `core/preferences.js` before rendering, and loads `wwwroot/styles.css` and `wwwroot/js/app.js`.
-2. `wwwroot/js/app.js` composes the application shell with the central screen registry. Dashboard, Kanban Board, Projects, Sprints, Dev Tasks, Bug Tracking, Scrum, Documentation, Backlog, and Settings now live in feature modules; the entry still owns the remaining legacy Road Map, Gantt, table reordering, and advanced timeline calculations.
+2. `wwwroot/js/app.js` composes the application shell with the central screen registry. Dashboard, Road Map, Gantt, Kanban Board, Projects, Sprints, Dev Tasks, Bug Tracking, Scrum, Documentation, Backlog, and Settings now live in feature modules; the entry still owns shared editor/dialog orchestration, chart drilldowns, and table reordering.
 3. `wwwroot/js/core/` owns application-wide browser infrastructure: HTTP requests, state, preferences, authentication, routing, startup, navigation, theme, and user-menu wiring.
 4. `Program.cs` configures middleware, static/uploaded files, 37 minimal API routes, JSON behavior, and the SPA fallback.
 5. `Models/PmtModels.cs` contains the API DTOs and request models.
@@ -91,7 +91,7 @@ The frontend entry module now depends on focused native ES modules:
 Reusable frontend logic now has stable native ES module homes:
 
 - `shared/constants.js` owns fallback lookup values and the linked-Bug completion message.
-- `shared/dates.js` owns reusable date formatting and date-key/range helpers used across Road Map, Gantt, Scrum, Settings, and Documentation.
+- `shared/dates.js` owns reusable date formatting, date-key/range helpers, and shared timeline calendar helpers used across Road Map, Gantt, Scrum, Settings, and Documentation.
 - `shared/filter-values.js` owns saved filter value normalization.
 - `shared/permissions.js` owns browser permission checks for owners, work items, and users.
 - `shared/selectors.js` owns state selectors and display names for Projects, Sprints, Tasks, and Users.
@@ -99,7 +99,7 @@ Reusable frontend logic now has stable native ES module homes:
 - `shared/work-item-rules.js` owns status-based percent calculations, project/Sprint rollups, task completion checks, and linked-Bug completion validation.
 - `components/attachments.js`, `avatars.js`, `buttons.js`, `charts.js`, `dialogs.js`, `filters.js`, `forms.js`, and `progress-and-status.js` own reusable markup builders while preserving existing CSS classes and HTML output.
 
-Dashboard, Kanban Board, Projects, Sprints, Dev Tasks, Bug Tracking, Scrum, Documentation, Backlog, and Settings now use feature folders under `wwwroot/js/features/`. `features/board/board.js` owns Board rendering, selected Project and Sprint mode, sorting, visible and empty-column state, status updates, reorder persistence, and the existing Board preference keys. `features/board/board-drag.js` owns Board-only pointer and mouse drag state; its delegated Board listeners are active only while the Board screen is active, and its window listeners exist only during a drag gesture. The remaining Road Map and Gantt feature folders are placeholder ownership boundaries for later phases. Endpoint URLs, payloads, screen markup, CSS classes, and preference key names are unchanged.
+Dashboard, Road Map, Gantt, Kanban Board, Projects, Sprints, Dev Tasks, Bug Tracking, Scrum, Documentation, Backlog, and Settings now use feature folders under `wwwroot/js/features/`. `features/roadmap/roadmap.js` owns Road Map filters, sorting, display toggles, and existing preference keys, with companion modules for rendering and timeline calculations. `features/gantt/gantt.js` owns Gantt filters, view preferences, bug expansion state, fly-by orchestration, and existing preference keys, with companion modules for rendering, date/layout calculations, fly-by scrolling and timers, and dependency/bug helpers. `features/board/board.js` owns Board rendering, selected Project and Sprint mode, sorting, visible and empty-column state, status updates, reorder persistence, and the existing Board preference keys. `features/board/board-drag.js` owns Board-only pointer and mouse drag state; its delegated Board listeners are active only while the Board screen is active, and its window listeners exist only during a drag gesture. Endpoint URLs, payloads, screen markup, CSS classes, and preference key names are unchanged.
 
 The current frontend dependency flow is:
 
@@ -115,7 +115,9 @@ The current frontend dependency flow is:
 
 `board -> board drag/components/shared/api/store/preferences`
 
-`legacy Road Map/Gantt app screen code -> components/shared/api/store/authentication/router/preferences`
+`roadmap -> roadmap calculations/rendering/components/shared/core/store/preferences`
+
+`gantt -> gantt calculations/rendering/flyby/bugs-dependencies/components/shared/core/store/preferences`
 
 ## Target backend layout
 

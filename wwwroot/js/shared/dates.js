@@ -63,3 +63,71 @@ export function dateRange(start, end) {
 export function monthName(date) {
   return date.toLocaleString(undefined, { month: "short" });
 }
+
+export function activeHolidayMap(holidays = []) {
+  const activeHolidays = new Map();
+  holidays.filter(item => item.isActive).forEach(holiday => {
+    activeHolidays.set(dateKey(holiday.holidayDate), holiday);
+  });
+  return activeHolidays;
+}
+
+export function visibleDateIndex(dates, targetDate, preferEnd) {
+  if (!targetDate || !dates.length) return -1;
+
+  const targetKey = dateKey(targetDate);
+  const exactIndex = dates.findIndex(date => dateKey(date) === targetKey);
+  if (exactIndex >= 0) return exactIndex;
+
+  if (preferEnd) {
+    for (let index = dates.length - 1; index >= 0; index--) {
+      if (dates[index] <= targetDate) return index;
+    }
+    return 0;
+  }
+
+  for (let index = 0; index < dates.length; index++) {
+    if (dates[index] >= targetDate) return index;
+  }
+  return dates.length - 1;
+}
+
+export function shouldShowTimelineDate(date, itemStartDates, holidays, showNonWorkingDays = false) {
+  if (showNonWorkingDays) return true;
+  // Weekends and holidays stay hidden unless an item starts on that exact date.
+  return itemStartDates.has(dateKey(date)) || (!isWeekend(date) && !isHoliday(date, holidays));
+}
+
+export function timelineDateClass(date, holidays) {
+  const classes = [];
+  if (isWeekend(date)) classes.push("weekend-day");
+  if (isHoliday(date, holidays)) classes.push("holiday-day");
+  return classes.join(" ");
+}
+
+export function timelineDateTitle(date, holidays) {
+  const holiday = holidays.get(dateKey(date));
+  return holiday ? `${formatDate(date)} - ${holiday.name}` : formatDate(date);
+}
+
+export function isWeekend(date) {
+  return date.getDay() === 0 || date.getDay() === 6;
+}
+
+export function isHoliday(date, holidays) {
+  return holidays.has(dateKey(date));
+}
+
+export function groupedTimelineHeader(dates, keySelector) {
+  const groups = [];
+  dates.forEach(date => {
+    const label = String(keySelector(date));
+    const last = groups[groups.length - 1];
+    if (last?.label === label) {
+      last.count += 1;
+    } else {
+      groups.push({ label, count: 1, firstDate: date });
+    }
+  });
+  return groups;
+}
