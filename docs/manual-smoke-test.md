@@ -5,8 +5,13 @@ against disposable development data.
 
 ## Setup
 
+- [ ] `npm.cmd install` has restored test dependencies.
+- [ ] `npx.cmd playwright install chromium` has installed the browser used by Playwright, if this machine has not run it before.
 - [ ] `dotnet restore` succeeds.
 - [ ] `dotnet build` succeeds.
+- [ ] `npm.cmd run check:js` succeeds.
+- [ ] `npm.cmd run test:js` succeeds.
+- [ ] `npm.cmd run test:browser` succeeds at `1366 x 768` and `1920 x 1080`.
 - [ ] Start PMT and open `http://localhost:5056`.
 - [ ] Open browser developer tools and keep the Console visible.
 - [ ] Use a laptop-size viewport, approximately `1366 x 768`.
@@ -153,12 +158,16 @@ Use clearly named temporary records and remove them after validation.
 - [ ] Custom confirmation/text dialogs match the active theme.
 - [ ] No built-in browser alert or prompt appears.
 - [ ] At `1366 x 768`, no text, controls, charts, cards, or tables overlap incoherently.
+- [ ] Repeat key navigation, theme, dialog, Board, Gantt, and Road Map checks at `1920 x 1080`.
 
 ## Final checks
 
 - [ ] Browser Console has no uncaught errors.
 - [ ] Network requests used during the test have no unexpected failures.
 - [ ] Refresh the browser and confirm persisted filters/theme/navigation remain valid.
-- [ ] `node --check .\wwwroot\app.js` succeeds.
+- [ ] `npm.cmd run check:js` succeeds.
+- [ ] `npm.cmd run test:js` succeeds.
+- [ ] `npm.cmd run test:browser` succeeds.
 - [ ] `git diff --check` succeeds.
+- [ ] Confirm `test-results/`, `playwright-report/`, `bin/`, `obj/`, and `node_modules/` are not included in the working tree.
 - [ ] Record any skipped destructive checks and the reason.

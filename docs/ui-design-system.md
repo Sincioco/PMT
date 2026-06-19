@@ -253,6 +253,7 @@ Viewport targets:
 - Primary desktop: 1920x1080.
 - Existing compact breakpoint: widths at and below 900px.
 - Narrow safety target for the showcase and basic shell: 320px.
+- Automated browser smoke tests exercise the primary laptop and desktop viewport targets in Chromium.
 
 Density rules:
 
@@ -359,3 +360,13 @@ The page is unlinked from PMT navigation and does not read or write PMT preferen
 - button hover, active, focus, and disabled states;
 - cards, forms, validation, statuses, navigation, tables, charts, and dialogs;
 - laptop, desktop, compact, and reduced-motion behavior.
+
+## Verification commands
+
+Run the automated browser smoke tests after visual or layout changes:
+
+```powershell
+npm.cmd run test:browser
+```
+
+The smoke suite checks light and dark theme switching, primary navigation and overflow behavior, dialogs, filters, Board interaction, Gantt and Road Map rendering, console errors, and the 1366x768 and 1920x1080 viewport targets. Continue using the manual checklist for full data-backed CRUD and visual review.

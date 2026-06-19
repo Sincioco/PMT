@@ -14,6 +14,8 @@ PMT is a single ASP.NET Core .NET 6 web application:
 6. `Models/*.cs` contains cohesive plain DTO and request model groups for state, users, projects/Sprints, work items, content/uploads, and settings.
 7. `Data/SqlPmtStore*.cs` is one partial `SqlPmtStore` that calls `[pmt]` stored procedures through direct ADO.NET. `SqlPmtStore.State.cs` maps `[pmt].[GetAppState]`, hydrates relationships, and calculates project/Sprint metrics.
 8. `Sql/01_CreateDatabase.sql`, `Sql/02_CreateStoredProcedures.sql`, and the seed scripts define and populate SQL Server objects under `[pmt]`.
+9. `tests/js/` contains Node-based ES-module unit tests for pure frontend rules and calculations.
+10. `tests/browser/` contains Playwright smoke tests that serve the real ASP.NET app and mock API responses with deterministic browser-test data.
 
 The main read flow is:
 
@@ -94,6 +96,9 @@ wwwroot/
         |-- settings.css
         |-- sprints.css
         `-- tasks.css
+tests/
+|-- js/
+`-- browser/
 ```
 
 The entry module composes startup and the screen registry. `core` owns application-wide infrastructure, `shared` owns reusable pure logic, `components` owns reusable UI builders, and each feature owns its rendering, actions, filters, preferences, and feature-only calculations.
@@ -145,6 +150,8 @@ The current frontend dependency flow is:
 `gantt -> gantt calculations/rendering/flyby/bugs-dependencies/components/shared/core/store/preferences`
 
 Phase 16 completes the screen-level visual adoption for Dev Tasks, Bug Tracking, Backlog, Kanban Board, Gantt, Road Map, and Settings. These screens now use shared semantic tokens and shared work-item table/filter treatments while retaining their existing feature ownership, DOM event hooks, calculated timeline geometry, drag/drop lifecycle, endpoint contracts, and `pmt-*` preference keys. Timeline and Board styling remains feature-owned; reusable dense table and filter treatments remain component-owned.
+
+Phase 18 adds regression coverage without changing runtime architecture. `package.json` exists only for test scripts and dev dependencies; production frontend code remains native ES modules loaded directly by the browser. The browser smoke suite starts PMT through `dotnet run` unless `PMT_BASE_URL` points to an already running instance.
 
 ## Backend layout
 
@@ -220,3 +227,18 @@ All data-backed screens read through `GET /api/state` -> `GetStateAsync` -> `[pm
 | Settings - development | `features/settings/` | `POST /api/development/clear-non-pmt`; `POST /api/development/clear-pmt`; `POST /api/development/clear-users`; `POST /api/development/restore-seed-data` | `DevelopmentClearNonPmtAsync`; `DevelopmentClearPmtAsync`; `DevelopmentClearUsersAsync`; `RestoreInitialSeedDataAsync` | `[pmt].[DevelopmentClearNonPmt]`; `[pmt].[DevelopmentClearPmt]`; `[pmt].[DevelopmentClearUsers]`; seed scripts for restore |
 
 `POST /api/uploads/{kind}` stores a generic uploaded file without a database call. Task and Documentation attachment routes both store the file and then link its metadata through the relevant `[pmt]` attachment procedure.
+
+## Standard commands
+
+```powershell
+dotnet restore
+dotnet build
+npm.cmd install
+npx.cmd playwright install chromium
+npm.cmd run check:js
+npm.cmd run test:js
+npm.cmd run test:browser
+git diff --check
+```
+
+`npm.cmd run test:browser` covers login, all primary screens, Settings through the avatar menu, light/dark theme switching, dialogs, representative filters, Board drag/status persistence, Gantt rendering, Road Map rendering, console-error detection, and 1366x768 plus 1920x1080 viewport checks. Manual database-backed CRUD and destructive Development actions remain covered by `docs/manual-smoke-test.md`.

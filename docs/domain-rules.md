@@ -20,6 +20,7 @@ The default status order is:
 
 Active lookup rows can provide labels/colors, but code relies on the workflow meaning and ordering above.
 Browser-side status and percent calculations are centralized in `wwwroot/js/shared/work-item-rules.js`; progress and status markup is centralized in `wwwroot/js/components/progress-and-status.js`.
+Regression tests for these rules live in `tests/js/work-item-rules.test.mjs`.
 
 - Saving `Backlog` stores an unscheduled `Todo` and clears the Sprint.
 - Assigning a new or previously unscheduled Dev Task to a Sprint sets it to `Todo`.
@@ -72,6 +73,7 @@ Roles are `Admin`, `Developer`, and `QA`.
 
 Browser permission checks control available actions, while `[pmt].[IsAdmin]`, `[pmt].[CanEdit]`, `[pmt].[UserRole]`, and `[pmt].[CanEditTaskType]` enforce the database contract.
 Browser permission checks live in `wwwroot/js/shared/permissions.js` so screens and future feature modules share the same owner, user, and work-item role logic.
+Permission regressions are covered in `tests/js/permissions.test.mjs`.
 
 ## Sprint lifecycle
 
@@ -103,3 +105,5 @@ Keep key names and defaults stable during refactoring. Clearing PMT preferences 
 - User-entered and external links are normalized and open in a new tab.
 - Browser link normalization, linkification, and escaping live in `wwwroot/js/shared/text-and-links.js`.
 - Status, percent, Sprint, assignment, attachment, and other significant changes are audited.
+
+Date-range, visible-timeline, saved-filter, escaping, URL-normalization, Gantt, and Road Map calculations are covered in `tests/js/date-filter-text.test.mjs` and `tests/js/timeline-calculations.test.mjs`.

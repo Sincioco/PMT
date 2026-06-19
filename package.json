@@ -1,0 +1,14 @@
+{
+  "name": "pmt",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "check:js": "node scripts/check-js-syntax.mjs",
+    "test:js": "node --test tests/js/*.test.mjs",
+    "test:browser": "playwright test",
+    "test": "npm run test:js && npm run test:browser"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.61.0"
+  }
+}

@@ -68,12 +68,6 @@ export function normalizeUrl(value) {
   return `https://${trimmed}`;
 }
 
-export function stripHtml(html) {
-  const div = document.createElement("div");
-  div.innerHTML = html || "";
-  return div.textContent || "";
-}
-
 export function escapeHtml(value) {
   return String(value ?? "")
     .replaceAll("&", "&amp;")

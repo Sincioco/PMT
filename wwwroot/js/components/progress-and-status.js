@@ -113,48 +113,6 @@ export function defaultStatusColor(status) {
   return colors[index >= 0 ? index : 1] || "#76A9FF";
 }
 
-export function sprintStatusGraphHtml(sprint, showLegend = true, hideZeroLegend = false) {
-  const sprintTasks = sprintWorkItems(sprint.id);
-  const total = sprintTasks.length;
-  if (!total) return `<div class="empty">No tasks.</div>`;
-
-  const counts = currentStatuses().map(status => ({
-    status,
-    count: sprintTasks.filter(task => task.status === status).length
-  }));
-  const legendCounts = hideZeroLegend ? counts.filter(item => item.count > 0) : counts;
-
-  return `
-    <div class="status-graph">
-      <div class="status-bar">
-        ${counts.map(item => item.count ? `<span class="status-color-chip" style="--value:${(item.count / total) * 100}%; --status-color:${escapeAttr(statusColor(item.status))}" title="${escapeAttr(item.status)} ${item.count}"></span>` : "").join("")}
-      </div>
-      ${showLegend ? `
-      <div class="status-legend">
-        ${legendCounts.map(item => `<span><i ${statusStyle(item.status)}></i>${escapeHtml(item.status)} ${item.count}</span>`).join("")}
-      </div>
-      ` : ""}
-    </div>
-  `;
-}
-
-export function bugStatusGraphHtml(bugs) {
-  if (!bugs.length) return `<div class="empty compact-empty">No bug reports.</div>`;
-
-  const counts = currentStatuses().map(status => ({
-    status,
-    count: bugs.filter(bug => bug.status === status).length
-  }));
-
-  return `
-    <div class="status-graph bug-graph" title="${bugs.length} bug reports">
-      <div class="status-bar">
-        ${counts.map(item => item.count ? `<span class="status-color-chip" style="--value:${(item.count / bugs.length) * 100}%; --status-color:${escapeAttr(statusColor(item.status))}" title="${escapeAttr(item.status)} ${item.count}"></span>` : "").join("")}
-      </div>
-    </div>
-  `;
-}
-
 export function statusLegendHtml() {
   const usedStatuses = currentStatuses().filter(status => currentTasks().some(task => task.status === status));
 
@@ -163,8 +121,4 @@ export function statusLegendHtml() {
       ${usedStatuses.map(status => `<span><i ${statusStyle(status)}></i>${escapeHtml(status)}</span>`).join("")}
     </div>
   `;
-}
-
-export function statusClass(status) {
-  return `status-${currentStatuses().indexOf(status) + 1}`;
 }
