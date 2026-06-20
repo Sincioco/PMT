@@ -93,6 +93,7 @@ test("login, navigation, themes, dialogs, filters, Board, Gantt, and Road Map sm
   await expect(page.locator("[data-wfh-user-id='2'] [data-day='canWorkMonday']")).toHaveAttribute("aria-pressed", "false");
 
   await openNavView(page, "Scrum", "Scrum");
+  await showFilters(page, "toggle-scrum-filters");
   await expect(page.locator("[data-filter='scrum-person']:checked")).toHaveCount(0);
   await expect(page.locator(".scrum-table tbody")).toContainText("Validated smoke data");
   await expect(page.locator(".scrum-actions .icon-action").nth(0)).toHaveAttribute("title", "Delete");
@@ -147,12 +148,14 @@ test("login, navigation, themes, dialogs, filters, Board, Gantt, and Road Map sm
   await openNavView(page, "Backlog", "Backlog");
 
   await openNavView(page, "Tasks", "Dev Tasks");
+  await showFilters(page, "toggle-task-filters");
   await page.locator("[data-filter='task-sort']").selectOption("newest");
   await expect(page.locator("[data-filter='task-sort']")).toHaveValue("newest");
   await page.locator("[data-filter='task-hide-completed']").check();
   await expect(page.locator("tbody[data-reorder-list='tasks']")).not.toContainText("PMT-TASK-003");
 
   await openNavView(page, "Bugs", "Bug Tracking");
+  await showFilters(page, "toggle-bug-filters");
   await page.locator("[data-filter='bug-severity']").selectOption("Critical");
   await expect(page.locator(".bugs-table")).toContainText("PMT-BUG-001");
 
@@ -172,6 +175,7 @@ test("login, navigation, themes, dialogs, filters, Board, Gantt, and Road Map sm
   await expect(page.locator(".gantt-note")).toContainText("visible");
 
   await openNavView(page, "Board", "Kanban Board");
+  await showFilters(page, "toggle-board-filters");
   await page.locator("[data-filter='board-sort']").selectOption("openFirst");
   await expect(page.locator("[data-filter='board-sort']")).toHaveValue("openFirst");
   await page.locator("[data-action='toggle-empty-board-columns']").click();
@@ -308,6 +312,12 @@ async function openUserMenu(page) {
 
 async function openSettings(page) {
   await openNavView(page, "Settings", "Settings");
+}
+
+async function showFilters(page, action) {
+  const button = page.locator(`[data-action='${action}']`);
+  await expect(button).toBeVisible();
+  if (await button.getAttribute("aria-pressed") !== "true") await button.click();
 }
 
 async function expectShellFitsViewport(page) {

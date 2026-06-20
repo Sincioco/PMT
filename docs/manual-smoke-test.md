@@ -120,6 +120,7 @@ Use clearly named temporary records and remove them after validation.
 - [ ] Bug Tracking filters work, including multi-select Reporter and Assignee.
 - [ ] Bug filter and chart toggle states work.
 - [ ] Bug charts render, expand, and drill down to records.
+- [ ] Kanban Board filter toggle shows and hides Project, Sprint, Sort, empty-column, and Column controls.
 - [ ] Documentation Project filter works, including All Projects.
 - [ ] Sprints Project filter and expand/collapse controls work.
 - [ ] Dashboard/Sprint/Project charts hide zero-value categories.
@@ -128,6 +129,7 @@ Use clearly named temporary records and remove them after validation.
 
 - [ ] With Board preferences cleared, confirm empty columns are hidden by default.
 - [ ] Project, Sprint, and Sort controls fit on one row at normal laptop width.
+- [ ] Navigate away from the Board and return; confirm the last Project, Sprint, and Sort are restored and empty columns auto-hide again.
 - [ ] Drag a card to a different status column and verify status persistence.
 - [ ] Reorder at least three cards in one column through multiple consecutive drags.
 - [ ] Confirm the above/below drop indicator matches the final order.
@@ -144,6 +146,8 @@ Use clearly named temporary records and remove them after validation.
 - [ ] Select a Sprint in all-Sprints mode and confirm horizontal and vertical scrolling reaches it.
 - [ ] Toggle weekends/holidays.
 - [ ] Start, pause, resume, and reset fly-by.
+- [ ] In both Start date descending and ascending sorts, mousewheel over the Gantt viewport animates one Sprint at a time in the expected physical scroll direction.
+- [ ] Click a Dev Task and a Bug in Gantt and confirm each opens read-only details without leaving the Gantt view.
 - [ ] Expand a Bug during fly-by and confirm the viewport does not jump.
 - [ ] Confirm the chart scrolls inside its fixed-height container.
 - [ ] Confirm month/day labels do not overlap.

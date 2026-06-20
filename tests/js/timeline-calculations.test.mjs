@@ -59,7 +59,21 @@ test("Gantt dates fall back safely and chart data hides non-working days by defa
     availableTimelineWidth: 900
   });
 
-  assert.deepEqual(chart.dates.map(dateKey), ["2026-06-19", "2026-06-20", "2026-06-23"]);
+  assert.deepEqual(chart.dates.map(dateKey), [
+    "2026-06-19",
+    "2026-06-20",
+    "2026-06-23",
+    "2026-06-24",
+    "2026-06-25",
+    "2026-06-26",
+    "2026-06-29",
+    "2026-06-30",
+    "2026-07-01",
+    "2026-07-02",
+    "2026-07-03",
+    "2026-07-06",
+    "2026-07-07"
+  ]);
   assert.equal(chart.dayWidth >= 42, true);
 });
 
