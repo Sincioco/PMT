@@ -200,3 +200,5 @@ For the rest of this conversation.  Make only the change I ask for.  Do not perf
 * In the Kanban Board, add a hide/show filter just like what is in the Dev Task screen.
 
 * There seems to be a really large margin to the left and right in all the content areas of PMT, can you fix it so the content to the left is flushed / aligned to where the PMT logo is?  And make it as wide as where the user's avatar icon is.  I want maximum width for the content with still keeping left and right margin already established by the top navigation area.
+
+* Do some house cleaning.  Run your full battery of tests.  Update any .md files that needs updating based on recent code / logic or rule changes.  Make sure code and CSS are in order so we can make more sweeping UI changes later tonight.  Watch my Codex quota, I am currently at 69%.  Stop work at a good point when the quota reaches near 3%.  I'm assuming you can query my Codex quota periodically?  When you are done you have my full permission to commit the code into github.
