@@ -474,6 +474,28 @@ html[data-theme="light"] .tasks-table .work-item-drag-handle {
   gap: var(--space-5);
 }
 
+.tasks-chart-panel .task-mix-chart-card {
+  grid-template-rows: auto minmax(0, 1fr);
+}
+
+.tasks-chart-panel .task-mix-chart-card .pie-chart-layout {
+  grid-template-columns: 1fr;
+  grid-template-rows: minmax(0, 1fr) auto;
+  align-items: center;
+  height: 100%;
+}
+
+.tasks-chart-panel .task-mix-chart-card .pie-chart {
+  width: min(100%, 220px);
+  max-height: 220px;
+}
+
+.tasks-chart-panel .task-mix-chart-card .chart-legend-list {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-self: end;
+  width: 100%;
+}
+
 .tasks-chart-panel .pie-chart {
   width: min(100%, 154px);
   justify-self: center;
@@ -524,7 +546,7 @@ html[data-theme="light"] .tasks-table .work-item-drag-handle {
 }
 
 .tasks-chart-panel .task-mix-insight {
-  display: grid;
+  display: none;
   grid-template-columns: 36px auto;
   gap: var(--space-1) var(--space-4);
   align-items: center;

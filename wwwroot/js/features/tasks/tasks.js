@@ -543,11 +543,8 @@ export function createTasksFeature({
 
     const projectSprints = state.sprints
       .filter(sprint => sprint.projectId === taskProjectId)
-      .sort((a, b) => (getItemStartDate(a)?.getTime() || 0) - (getItemStartDate(b)?.getTime() || 0) || a.code.localeCompare(b.code));
-    const currentIndex = projectSprints.findIndex(sprint => sprint.id === currentSprint.id);
-    const endIndex = currentIndex >= 0 ? currentIndex : projectSprints.length - 1;
-    const sprints = projectSprints.slice(Math.max(0, endIndex - 5), endIndex + 1);
-    const rows = sprints.map(sprint => {
+      .sort((a, b) => (getItemStartDate(b)?.getTime() || 0) - (getItemStartDate(a)?.getTime() || 0) || b.code.localeCompare(a.code));
+    const rows = projectSprints.map(sprint => {
       const sprintTasks = devTasks.filter(task => task.sprintId === sprint.id);
       return {
         sprintId: sprint.id,
@@ -561,7 +558,7 @@ export function createTasksFeature({
 
     return VisualCharts.card({
       title: "Dev Tasks Completed by Sprint",
-      subtitle: "Past 6 Sprints, including the current Sprint.",
+      subtitle: "All Sprints, latest first.",
       className: "task-chart-card task-sprint-chart-card",
       body: VisualCharts.columnChart(rows, [
         { key: "total", label: "Dev Tasks", color: "var(--chart-1)" },
