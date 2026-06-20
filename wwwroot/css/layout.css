@@ -1,8 +1,8 @@
 /* Phase 11 ownership: layout. */
 
 .app-shell {
-  width: min(100%, var(--content-max-width));
-  margin: 0 auto;
+  width: 100%;
+  margin: 0;
   padding: var(--shell-padding-laptop);
 }
 
