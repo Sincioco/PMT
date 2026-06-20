@@ -1,5 +1,10 @@
 /* CSS ownership: Dev Tasks screen. */
 
+.tasks-screen .section-head h1,
+html[data-theme="light"] .tasks-screen.work-item-screen .section-head h1 {
+  color: var(--color-text-secondary);
+}
+
 .tasks-screen .section-head .toolbar > button {
   position: relative;
   display: inline-grid;
@@ -15,6 +20,27 @@
   box-shadow: none;
 }
 
+html[data-theme] .tasks-screen.work-item-screen .section-head .toolbar > button,
+html[data-theme] .tasks-screen.work-item-screen .section-head .toolbar > button.primary,
+html[data-theme] .tasks-screen.work-item-screen .section-head .toolbar > button.secondary,
+html[data-theme] .tasks-screen.work-item-screen .section-head .toolbar > button.is-on,
+html[data-theme] .tasks-screen.work-item-screen .section-head .toolbar > button[aria-pressed="true"],
+html[data-theme] .tasks-screen.work-item-screen .section-head .toolbar > button:focus,
+html[data-theme] .tasks-screen.work-item-screen .section-head .toolbar > button:focus-visible,
+html[data-theme] .tasks-screen.work-item-screen .section-head .toolbar > button:active:not(:hover) {
+  width: var(--touch-target-min);
+  min-width: var(--touch-target-min);
+  height: var(--touch-target-min);
+  min-height: var(--touch-target-min);
+  padding: 0;
+  border-color: transparent;
+  background: transparent;
+  color: var(--color-text-secondary);
+  outline: none;
+  outline-width: 0;
+  box-shadow: none;
+}
+
 .tasks-screen .section-head .toolbar > button.primary,
 .tasks-screen .section-head .toolbar > button.secondary,
 .tasks-screen .section-head .toolbar > button.is-on,
@@ -22,6 +48,8 @@
   border-color: transparent;
   background: transparent;
   color: var(--color-text-secondary);
+  outline: none;
+  outline-width: 0;
   box-shadow: none;
 }
 
@@ -36,8 +64,23 @@
   box-shadow: none;
 }
 
+html[data-theme] .tasks-screen.work-item-screen .section-head .toolbar > button:hover:not(:disabled),
+html[data-theme] .tasks-screen.work-item-screen .section-head .toolbar > button.primary:hover:not(:disabled),
+html[data-theme] .tasks-screen.work-item-screen .section-head .toolbar > button.secondary:hover:not(:disabled),
+html[data-theme] .tasks-screen.work-item-screen .section-head .toolbar > button.is-on:hover:not(:disabled),
+html[data-theme] .tasks-screen.work-item-screen .section-head .toolbar > button[aria-pressed="true"]:hover:not(:disabled) {
+  padding: 0;
+  border-color: var(--color-border-strong);
+  background: var(--color-control-hover);
+  color: var(--color-text-primary);
+  outline: none;
+  outline-width: 0;
+  box-shadow: none;
+}
+
 .tasks-screen .section-head .toolbar > button:active:not(:disabled) {
   background: var(--color-control-hover);
+  outline: none;
   box-shadow: none;
 }
 
@@ -45,6 +88,8 @@
   border-color: transparent;
   background: transparent;
   color: var(--color-text-disabled);
+  outline: none;
+  outline-width: 0;
   box-shadow: none;
 }
 
@@ -54,8 +99,14 @@
   display: grid;
   place-items: center;
   min-width: 0;
+  font-size: 18px;
   line-height: 1;
   text-align: center;
+}
+
+.tasks-screen .section-head .toolbar > button .button-svg-icon {
+  width: 18px;
+  height: 18px;
 }
 
 .tasks-screen .section-head .toolbar > button .button-icon + span {

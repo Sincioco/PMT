@@ -119,10 +119,10 @@ export function createTasksFeature({
     app.innerHTML = `
       <section class="tasks-screen work-item-screen">
       ${sectionHead("Dev Tasks", `
+        <button class="primary text-icon-button" type="button" data-action="new-task" title="New Dev Task" aria-label="New Dev Task">${buttonContent("&#10010;", "New Dev Task")}</button>
         ${taskTableMode.buttonHtml()}
         <button class="secondary text-icon-button" type="button" data-action="open-task-filters" title="Filters" aria-label="Filters" aria-haspopup="dialog">${buttonContent(funnelIconHtml(), "Filters")}</button>
         <button class="secondary text-icon-button" type="button" data-action="toggle-task-visual-charts" title="${chartToggleLabel}" aria-label="${chartToggleLabel}" aria-pressed="${showCharts}" ${canShowCharts ? "" : "disabled"}>${buttonContent("&#128202;", chartToggleLabel)}</button>
-        <button class="primary text-icon-button" type="button" data-action="new-task" title="New Dev Task" aria-label="New Dev Task">${buttonContent("&#10010;", "New Dev Task")}</button>
       `)}
       ${showCharts ? taskVisualTrackingChartsHtml(allProjectDevTasks) : ""}
       <div class="panel work-item-table-panel tasks-table-panel">
