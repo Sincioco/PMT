@@ -384,6 +384,29 @@ html[data-theme="light"] .tasks-table .work-item-drag-handle {
   gap: var(--space-7);
 }
 
+.tasks-chart-panel .task-status-chart-card {
+  grid-template-rows: auto minmax(0, 1fr);
+}
+
+.tasks-chart-panel .task-status-chart-card .horizontal-chart {
+  display: flex;
+  flex-direction: column;
+  align-content: stretch;
+  height: 100%;
+}
+
+.tasks-chart-panel .task-status-chart-card .horizontal-chart-row {
+  flex: 1 1 0;
+}
+
+.tasks-chart-panel .task-status-chart-card .horizontal-chart-track {
+  height: 32px;
+}
+
+.tasks-chart-panel .task-status-chart-card .horizontal-chart-axis {
+  flex: 0 0 auto;
+}
+
 .tasks-chart-panel .horizontal-chart-row {
   grid-template-columns: minmax(92px, 1fr) minmax(110px, 1.8fr) 28px;
   gap: var(--space-4);
