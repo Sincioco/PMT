@@ -49,6 +49,266 @@
   min-width: 310px;
 }
 
+.bugs-chart-panel {
+  gap: 0;
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.bugs-chart-panel .visual-chart-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-5);
+}
+
+.bugs-chart-panel .bug-chart-card {
+  gap: var(--space-7);
+  min-height: 338px;
+  border-color: var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-7);
+  background: var(--color-surface-raised);
+  box-shadow: var(--shadow-compact);
+}
+
+.bugs-chart-panel .chart-card-head {
+  gap: var(--space-4);
+}
+
+.bugs-chart-panel .chart-card h2 {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-bold);
+  letter-spacing: -0.012em;
+}
+
+.bugs-chart-panel .chart-card p {
+  margin-top: var(--space-1);
+  line-height: var(--line-height-body);
+}
+
+.bugs-chart-panel .chart-expand-button {
+  display: none;
+}
+
+.bugs-chart-panel .visual-chart-legend {
+  align-self: end;
+  justify-content: center;
+  gap: var(--space-3) var(--space-5);
+  width: 100%;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+}
+
+.bugs-chart-panel .visual-chart-legend i {
+  width: 9px;
+  height: 9px;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--chart-color), transparent 84%);
+}
+
+.bugs-chart-panel .bug-trend-chart-card,
+.bugs-chart-panel .bug-sprint-chart-card {
+  grid-template-rows: auto minmax(0, 1fr) auto;
+}
+
+.bugs-chart-panel .bug-trend-chart-card .visual-chart-scroll {
+  align-self: center;
+  width: 100%;
+}
+
+.bugs-chart-panel .line-chart-path {
+  stroke-width: 3;
+}
+
+.bugs-chart-panel .line-chart-point {
+  stroke: var(--color-surface-raised);
+}
+
+.bugs-chart-panel .column-chart-axis-layout {
+  display: grid;
+  grid-template-columns: 20px 24px minmax(0, 1fr);
+  min-width: 0;
+}
+
+.bugs-chart-panel .column-chart-axis-title {
+  align-self: center;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+  text-align: center;
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+}
+
+.bugs-chart-panel .column-chart-axis-labels {
+  position: relative;
+  height: 220px;
+  margin-top: var(--space-4);
+  color: var(--color-chart-axis);
+  font-size: var(--font-size-xs);
+}
+
+.bugs-chart-panel .column-chart-axis-labels span {
+  position: absolute;
+  top: var(--tick-position);
+  right: var(--space-2);
+  transform: translateY(-50%);
+}
+
+.bugs-chart-panel .column-chart-content {
+  min-width: 0;
+}
+
+.bugs-chart-panel .column-chart {
+  min-width: max(310px, calc(var(--column-count) * 82px));
+  min-height: 240px;
+  padding: var(--space-4) var(--space-2) 0;
+}
+
+.bugs-chart-panel .column-chart.has-axis {
+  position: relative;
+}
+
+.bugs-chart-panel .column-chart-gridlines {
+  position: absolute;
+  inset: var(--space-4) var(--space-2) 36px;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.bugs-chart-panel .column-chart-gridlines i {
+  position: absolute;
+  top: var(--tick-position);
+  right: 0;
+  left: 0;
+  border-top: 1px dashed var(--color-chart-gridline);
+}
+
+.bugs-chart-panel .column-group {
+  position: relative;
+  z-index: 1;
+  grid-template-rows: 204px auto;
+  gap: var(--space-3);
+}
+
+.bugs-chart-panel .column-bars {
+  height: 204px;
+  gap: var(--space-2);
+  border-bottom-color: var(--color-chart-gridline);
+}
+
+.bugs-chart-panel .visual-column {
+  position: relative;
+  width: 24px;
+  min-width: 24px;
+  overflow: visible;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-xs) var(--radius-xs) 0 0;
+  background: var(--chart-color);
+  box-shadow: 0 5px 12px color-mix(in srgb, var(--chart-color), transparent 78%);
+}
+
+.bugs-chart-panel .visual-column span {
+  position: absolute;
+  top: -19px;
+  color: var(--color-text-primary);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-bold);
+  transform: none;
+}
+
+.bugs-chart-panel .column-label {
+  color: var(--color-text-primary);
+  font-size: var(--font-size-xs);
+}
+
+.bugs-chart-panel .bug-pie-chart-card {
+  grid-template-rows: auto minmax(0, 1fr);
+}
+
+.bugs-chart-panel .bug-pie-chart-card .pie-chart-layout {
+  grid-template-columns: 1fr;
+  grid-template-rows: minmax(0, 1fr) auto;
+  align-items: center;
+  height: 100%;
+}
+
+.bugs-chart-panel .bug-pie-chart-card .pie-chart {
+  width: min(100%, 220px);
+  max-height: 220px;
+  justify-self: center;
+}
+
+.bugs-chart-panel .pie-chart-slice {
+  stroke: var(--color-surface-raised);
+  stroke-width: 3;
+}
+
+.bugs-chart-panel .pie-chart-hole {
+  fill: var(--color-surface-raised);
+  filter: drop-shadow(0 4px 12px color-mix(in srgb, var(--color-text-primary), transparent 88%));
+}
+
+.bugs-chart-panel .pie-chart-center-value,
+.bugs-chart-panel .pie-chart-center-label {
+  fill: var(--color-text-primary);
+  text-anchor: middle;
+  pointer-events: none;
+}
+
+.bugs-chart-panel .pie-chart-center-value {
+  font-size: 24px;
+  font-weight: var(--font-weight-bold);
+}
+
+.bugs-chart-panel .pie-chart-center-label {
+  fill: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+}
+
+.bugs-chart-panel .chart-legend-list {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-self: end;
+  gap: var(--space-3);
+  width: 100%;
+}
+
+.bugs-chart-panel .chart-legend-row {
+  min-height: 38px;
+  padding: var(--space-3) var(--space-4);
+  border-color: var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+}
+
+.bugs-chart-panel .chart-legend-row i {
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--chart-color), transparent 84%);
+}
+
+.bugs-chart-panel .pie-chart-slice.is-clickable:hover {
+  filter: none;
+  stroke: var(--color-surface-raised);
+}
+
+.bugs-chart-panel .chart-legend-row.is-clickable:hover {
+  border-color: var(--color-border);
+  background: var(--color-surface);
+}
+
+.bugs-chart-panel .visual-column[data-action]:hover {
+  border: 0;
+  background: var(--chart-color);
+}
+
+@media (max-width: 1500px) {
+  .bugs-chart-panel .visual-chart-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
 @media (max-width: 1200px) {
   .bugs-filter-panel .bug-filter-row {
     grid-template-columns: repeat(3, minmax(150px, 1fr));
@@ -58,5 +318,17 @@
 @media (max-width: 900px) {
   .bugs-filter-panel .bug-filter-row {
     grid-template-columns: 1fr;
+  }
+
+  .bugs-chart-panel {
+    padding: var(--space-5);
+  }
+
+  .bugs-chart-panel .visual-chart-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .bugs-chart-panel .bug-chart-card {
+    min-height: 0;
   }
 }

@@ -25,7 +25,7 @@ import {
 import { state } from "./core/store.js";
 import { createBacklogFeature } from "./features/backlog/backlog.js?v=20260620-bug-linked-task";
 import { createBoardFeature } from "./features/board/board.js?v=20260620-bug-linked-task";
-import { createBugsFeature } from "./features/bugs/bugs.js?v=20260620-shared-table-edit-mode";
+import { createBugsFeature } from "./features/bugs/bugs.js?v=20260620-dev-task-chart-style";
 import { createDashboardFeature } from "./features/dashboard/dashboard.js?v=20260620-ui-theme";
 import { createDocumentationFeature } from "./features/documentation/documentation.js?v=20260620-document-entry-project";
 import {

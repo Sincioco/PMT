@@ -354,13 +354,16 @@ export function createBugsFeature({
   function bugVisualTrackingChartsHtml(filteredBugs) {
     const sprintRows = bugSprintChartRows(filteredBugs);
     const charts = [
-      bugTrendLineChartHtml(sprintRows),
       bugSeverityPieChartHtml(filteredBugs),
-      bugReportedResolvedColumnChartHtml(sprintRows),
-      bugCurrentSprintPieChartHtml(filteredBugs)
+      bugTrendLineChartHtml(sprintRows),
+      bugCurrentSprintPieChartHtml(filteredBugs),
+      bugReportedResolvedColumnChartHtml(sprintRows)
     ].filter(Boolean);
 
-    return VisualCharts.panel("Bug Tracking Charts", charts);
+    return VisualCharts.panel("Bug Tracking Charts", charts, {
+      className: "bugs-chart-panel",
+      hideHeader: true
+    });
   }
 
   function bugCurrentSprintPieChartHtml(filteredBugs) {
@@ -374,6 +377,7 @@ export function createBugsFeature({
       return VisualCharts.card({
         title: "Current Sprint Bug Mix",
         subtitle: "No current Sprint is available for the selected project filter.",
+        className: "bug-chart-card bug-pie-chart-card bug-mix-chart-card",
         body: `<div class="empty compact-empty">No current Sprint was found.</div>`
       });
     }
@@ -386,7 +390,12 @@ export function createBugsFeature({
     return VisualCharts.card({
       title: "Current Sprint Bug Mix",
       subtitle: currentSprints.map(sprint => sprint.code).join(", "),
-      body: VisualCharts.pieChart(items, `${currentBugs.length} total`, "No bugs match the current Sprint filter.", { donut: true })
+      className: "bug-chart-card bug-pie-chart-card bug-mix-chart-card",
+      body: VisualCharts.pieChart(items, `${currentBugs.length} total`, "No bugs match the current Sprint filter.", {
+        donut: true,
+        centerValue: String(currentBugs.length),
+        centerLabel: "Total"
+      })
     });
   }
 
@@ -396,6 +405,7 @@ export function createBugsFeature({
     return VisualCharts.card({
       title: "Bug Trend by Sprint",
       subtitle: "Line graph compares reported versus resolved bugs over time.",
+      className: "bug-chart-card bug-trend-chart-card",
       body: VisualCharts.lineChart(sprintRows, [
         { key: "reported", label: "Reported", color: "var(--rose)" },
         { key: "resolved", label: "Resolved", color: "var(--green)" }
@@ -409,11 +419,15 @@ export function createBugsFeature({
     return VisualCharts.card({
       title: "Reported vs Resolved by Sprint",
       subtitle: "Grouped column chart shows throughput per Sprint.",
+      className: "bug-chart-card bug-sprint-chart-card",
       body: VisualCharts.columnChart(sprintRows, [
         { key: "reported", label: "Reported", color: "var(--rose)" },
         { key: "resolved", label: "Resolved", color: "var(--green)" },
         { key: "open", label: "Open", color: "var(--amber)" }
-      ])
+      ], {
+        itemLabel: "bug report",
+        axisLabel: "Number of Bugs"
+      })
     });
   }
 
@@ -430,6 +444,7 @@ export function createBugsFeature({
     return VisualCharts.card({
       title: "Bug Severity Share",
       subtitle: "Pie chart shows the severity mix for the current filters.",
+      className: "bug-chart-card bug-pie-chart-card bug-severity-chart-card",
       body: VisualCharts.pieChart(items, `${filteredBugs.length} total`, "No severity data is available.", { donut: false })
     });
   }
@@ -505,12 +520,12 @@ export function createBugsFeature({
 
   function bugSeverityColor(severity) {
     const colors = {
-      Trivial: "#76A9FF",
-      Minor: "#35C7BD",
-      Major: "#E4A53A",
-      Critical: "#EE6B70"
+      Trivial: "var(--chart-2)",
+      Minor: "var(--chart-1)",
+      Major: "var(--chart-4)",
+      Critical: "var(--chart-5)"
     };
-    return colors[severity] || "var(--teal)";
+    return colors[severity] || "var(--chart-7)";
   }
 
   function workItemEditorTitle(item, itemType, newTitle) {
