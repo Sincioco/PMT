@@ -254,7 +254,7 @@ html[data-theme="light"] .tasks-table .work-item-drag-handle {
 }
 
 .tasks-chart-panel .chart-card h2 {
-  color: var(--color-text-primary);
+  color: var(--color-text-secondary);
   font-size: var(--font-size-lg);
   font-weight: var(--font-weight-bold);
   letter-spacing: -0.012em;
@@ -640,6 +640,50 @@ html[data-theme="light"] .tasks-table .work-item-drag-handle {
 
 .tasks-chart-panel .task-workload-chart-card .visual-chart-legend,
 .tasks-chart-panel .task-sprint-chart-card .visual-chart-legend {
+  align-self: end;
+  justify-content: center;
+  width: 100%;
+}
+
+.task-sprint-chart-dialog .chart-expanded-body {
+  padding: var(--space-7);
+  background: var(--color-page-muted);
+}
+
+.task-sprint-chart-dialog .chart-expanded-card.task-sprint-chart-card {
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  gap: var(--space-7);
+  min-height: 100%;
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-7);
+  background: var(--color-surface-raised);
+  box-shadow: var(--shadow-compact);
+}
+
+.task-sprint-chart-dialog .chart-expanded-card .column-chart-axis-labels {
+  height: 370px;
+}
+
+.task-sprint-chart-dialog .chart-expanded-card .column-chart {
+  min-width: max(800px, calc(var(--column-count) * 100px));
+  min-height: 410px;
+}
+
+.task-sprint-chart-dialog .chart-expanded-card .column-group {
+  grid-template-rows: 350px auto;
+}
+
+.task-sprint-chart-dialog .chart-expanded-card .column-bars {
+  height: 350px;
+}
+
+.task-sprint-chart-dialog .chart-expanded-card .visual-column {
+  width: 34px;
+  min-width: 34px;
+}
+
+.task-sprint-chart-dialog .chart-expanded-card .visual-chart-legend {
   align-self: end;
   justify-content: center;
   width: 100%;

@@ -576,6 +576,9 @@ function expandVisualChartCard(card) {
 
   const modal = document.createElement("dialog");
   modal.className = "dialog chart-expanded-dialog";
+  if (card.classList.contains("task-sprint-chart-card")) {
+    modal.classList.add("task-sprint-chart-dialog");
+  }
   modal.innerHTML = `
     <div class="dialog-head">
       <h2>${escapeHtml(title)}</h2>
@@ -587,7 +590,11 @@ function expandVisualChartCard(card) {
     </div>
   `;
 
-  modal.querySelector(".chart-expanded-body").appendChild(chartCopy);
+  const expandedBody = modal.querySelector(".chart-expanded-body");
+  if (card.classList.contains("task-sprint-chart-card")) {
+    expandedBody.classList.add("tasks-chart-panel");
+  }
+  expandedBody.appendChild(chartCopy);
   document.body.appendChild(modal);
   modal.addEventListener("mousemove", handleChartTooltip);
   modal.addEventListener("mouseleave", hideChartTooltip);
