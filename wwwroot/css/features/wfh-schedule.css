@@ -1,0 +1,75 @@
+/* CSS ownership: WFH Schedule screen. */
+
+.wfh-schedule-panel {
+  min-width: 0;
+}
+
+.wfh-schedule-table {
+  min-width: 900px;
+}
+
+.wfh-schedule-table tbody[data-reorder-list="wfh-schedule"] tr {
+  touch-action: none;
+}
+
+.wfh-schedule-table tr.is-hidden td {
+  color: var(--color-text-secondary);
+  background: var(--color-surface-subtle);
+}
+
+.wfh-avatar {
+  display: block;
+}
+
+.wfh-deleted-pill {
+  margin-left: var(--space-2);
+  color: var(--color-danger-text);
+  border-color: var(--color-danger-border);
+  background: var(--color-danger-surface);
+}
+
+.wfh-days-cell {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  min-width: 300px;
+}
+
+.wfh-day-buttons,
+.wfh-row-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.wfh-day-button {
+  display: inline-grid;
+  place-items: center;
+  width: 32px;
+  min-width: 32px;
+  height: 32px;
+  min-height: 32px;
+  padding: 0;
+  border-radius: var(--radius-sm);
+  font-weight: var(--font-weight-bold);
+}
+
+.wfh-day-button.is-on {
+  border-color: color-mix(in srgb, var(--color-primary), var(--color-border-strong) 28%);
+  background: var(--color-control-selected);
+  color: var(--color-text-primary);
+}
+
+.wfh-row-actions .wfh-drag-handle {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+@media (max-width: 900px) {
+  .wfh-days-cell {
+    align-items: flex-start;
+    flex-direction: column;
+    min-width: 0;
+  }
+}

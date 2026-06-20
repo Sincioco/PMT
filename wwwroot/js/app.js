@@ -39,6 +39,7 @@ import { createScrumFeature } from "./features/scrum/scrum.js?v=20260620-readonl
 import { createSettingsFeature } from "./features/settings/settings.js?v=20260620-nav-config-v2";
 import { createSprintsFeature } from "./features/sprints/sprints.js?v=20260619-content-screens";
 import { createTasksFeature } from "./features/tasks/tasks.js?v=20260620-drag-handles";
+import { createWfhScheduleFeature } from "./features/wfh-schedule/wfh-schedule.js?v=20260620-wfh-schedule";
 import {
   fallbackEnvironments,
   fallbackForLookup,
@@ -255,6 +256,11 @@ const documentationFeature = createDocumentationFeature({
   openEditor,
   saveJson
 });
+const wfhScheduleFeature = createWfhScheduleFeature({
+  app,
+  render,
+  showToast
+});
 
 registerScreen("Dashboard", dashboardFeature);
 registerScreen("Road Map", roadMapFeature);
@@ -268,6 +274,7 @@ registerScreen("Bugs", bugsFeature);
 registerScreen("Backlog", backlogFeature);
 registerScreen("Scrum", scrumFeature);
 registerScreen("Documentation", documentationFeature);
+registerScreen("WFH Schedule", wfhScheduleFeature);
 
 document.getElementById("closeDialog").addEventListener("click", () => dialog.close());
 document.getElementById("cancelDialog").addEventListener("click", () => dialog.close());

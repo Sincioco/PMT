@@ -209,6 +209,7 @@ export function createApplicationShell({
         <div class="nav-overflow-menu" role="menu" hidden></div>
       </div>
     `;
+    applyNavOverflow();
     requestAnimationFrame(applyNavOverflow);
   }
 
@@ -233,6 +234,7 @@ export function createApplicationShell({
     const overflow = elements.nav.querySelector(".nav-overflow");
     const menu = elements.nav.querySelector(".nav-overflow-menu");
     const toggle = elements.nav.querySelector(".nav-overflow-toggle");
+    const topbar = elements.nav.closest(".topbar");
     if (!overflow || !menu || !toggle) return;
 
     const items = [...elements.nav.querySelectorAll(":scope > button.nav-item")];
@@ -242,11 +244,15 @@ export function createApplicationShell({
     menu.innerHTML = "";
     toggle.setAttribute("aria-expanded", "false");
 
-    if (elements.nav.scrollWidth <= elements.nav.clientWidth) return;
+    const fits = () =>
+      elements.nav.scrollWidth <= elements.nav.clientWidth + 2
+      && (!topbar || topbar.scrollWidth <= topbar.clientWidth + 2);
+
+    if (fits()) return;
 
     overflow.hidden = false;
     const hiddenItems = [];
-    for (let index = items.length - 1; index >= 0 && elements.nav.scrollWidth > elements.nav.clientWidth; index--) {
+    for (let index = items.length - 1; index >= 0 && !fits(); index--) {
       const item = items[index];
       item.hidden = true;
       hiddenItems.unshift(item);

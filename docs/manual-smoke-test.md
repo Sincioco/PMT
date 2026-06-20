@@ -39,6 +39,7 @@ Open every screen from the top navigation or its overflow menu:
 - [ ] Scrum
 - [ ] Documentation
 - [ ] Backlog
+- [ ] WFH Schedule
 - [ ] Settings from the avatar menu
 
 At laptop width:
@@ -93,6 +94,14 @@ Use clearly named temporary records and remove them after validation.
 - [ ] Edit it and confirm Created and Last Edited dates display correctly.
 - [ ] Confirm links open in a new tab.
 - [ ] Delete the temporary Documentation.
+
+### WFH Schedule
+
+- [ ] Confirm users are sorted by Nickname by default.
+- [ ] Toggle M T W T F buttons for a user, refresh, and confirm the saved days persist.
+- [ ] Drag users into a custom order, refresh, and confirm the order persists.
+- [ ] Delete a user from the WFH list, then use Show Deleted to confirm the user is hidden but still recoverable.
+- [ ] Use Reset and confirm all users return, all WFH days clear, and Nickname sorting is restored.
 
 ### Settings
 

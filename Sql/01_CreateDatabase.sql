@@ -99,6 +99,35 @@ BEGIN
 END;
 GO
 
+IF OBJECT_ID(N'[pmt].[WfhSchedules]', N'U') IS NULL
+BEGIN
+    CREATE TABLE [pmt].[WfhSchedules]
+    (
+        [UserId] INT NOT NULL CONSTRAINT [PK_pmt_WfhSchedules] PRIMARY KEY,
+        [CanWorkMonday] BIT NOT NULL CONSTRAINT [DF_pmt_WfhSchedules_CanWorkMonday] DEFAULT (0),
+        [CanWorkTuesday] BIT NOT NULL CONSTRAINT [DF_pmt_WfhSchedules_CanWorkTuesday] DEFAULT (0),
+        [CanWorkWednesday] BIT NOT NULL CONSTRAINT [DF_pmt_WfhSchedules_CanWorkWednesday] DEFAULT (0),
+        [CanWorkThursday] BIT NOT NULL CONSTRAINT [DF_pmt_WfhSchedules_CanWorkThursday] DEFAULT (0),
+        [CanWorkFriday] BIT NOT NULL CONSTRAINT [DF_pmt_WfhSchedules_CanWorkFriday] DEFAULT (0),
+        [IsHidden] BIT NOT NULL CONSTRAINT [DF_pmt_WfhSchedules_IsHidden] DEFAULT (0),
+        [SortOrder] INT NOT NULL CONSTRAINT [DF_pmt_WfhSchedules_SortOrder] DEFAULT (0),
+        [CreatedByUserId] INT NOT NULL,
+        [UpdatedByUserId] INT NULL,
+        [CreatedAt] DATETIME2(0) NOT NULL CONSTRAINT [DF_pmt_WfhSchedules_CreatedAt] DEFAULT (SYSUTCDATETIME()),
+        [UpdatedAt] DATETIME2(0) NOT NULL CONSTRAINT [DF_pmt_WfhSchedules_UpdatedAt] DEFAULT (SYSUTCDATETIME()),
+        CONSTRAINT [FK_pmt_WfhSchedules_User] FOREIGN KEY ([UserId]) REFERENCES [pmt].[Users]([UserId]),
+        CONSTRAINT [FK_pmt_WfhSchedules_CreatedBy] FOREIGN KEY ([CreatedByUserId]) REFERENCES [pmt].[Users]([UserId]),
+        CONSTRAINT [FK_pmt_WfhSchedules_UpdatedBy] FOREIGN KEY ([UpdatedByUserId]) REFERENCES [pmt].[Users]([UserId])
+    );
+END;
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE [name] = N'IX_pmt_WfhSchedules_SortOrder' AND [object_id] = OBJECT_ID(N'[pmt].[WfhSchedules]'))
+BEGIN
+    CREATE INDEX [IX_pmt_WfhSchedules_SortOrder] ON [pmt].[WfhSchedules]([SortOrder], [UserId]);
+END;
+GO
+
 IF OBJECT_ID(N'[pmt].[Lookups]', N'U') IS NULL
 BEGIN
     CREATE TABLE [pmt].[Lookups]

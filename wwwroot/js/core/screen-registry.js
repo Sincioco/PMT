@@ -10,6 +10,7 @@ export const screenRegistry = Object.freeze([
   { view: "Scrum", label: "Scrum", feature: "scrum", showInNavigation: true },
   { view: "Documentation", label: "Documentation", feature: "documentation", showInNavigation: true },
   { view: "Backlog", label: "Backlog", feature: "backlog", showInNavigation: true },
+  { view: "WFH Schedule", label: "WFH Schedule", feature: "wfh-schedule", showInNavigation: true },
   { view: "Settings", label: "Settings", feature: "settings", showInNavigation: true }
 ]);
 

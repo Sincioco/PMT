@@ -65,6 +65,7 @@ test("login, navigation, themes, dialogs, filters, Board, Gantt, and Road Map sm
     ["Scrum", "Scrum"],
     ["Documentation", "Documentation"],
     ["Backlog", "Backlog"],
+    ["WFH Schedule", "WFH Schedule"],
     ["Settings", "Settings"]
   ];
 
@@ -72,6 +73,24 @@ test("login, navigation, themes, dialogs, filters, Board, Gantt, and Road Map sm
     await openNavView(page, view, heading);
     await expectShellFitsViewport(page);
   }
+
+  await openNavView(page, "WFH Schedule", "WFH Schedule");
+  await expect(page.locator("[data-wfh-schedule-list] tr").first()).toHaveAttribute("data-wfh-user-id", "2");
+  const billMonday = page.locator("[data-wfh-user-id='2'] [data-day='canWorkMonday']");
+  await expect(billMonday).toHaveAttribute("aria-pressed", "false");
+  await billMonday.click();
+  await expect(billMonday).toHaveAttribute("aria-pressed", "true");
+  await dragWfhUserBefore(page, "3", "2");
+  await expect(page.locator("[data-wfh-schedule-list] tr").first()).toHaveAttribute("data-wfh-user-id", "3");
+  await page.locator("[data-wfh-user-id='2'] [data-action='hide-wfh-user']").click();
+  await page.getByRole("button", { name: "Continue" }).click();
+  await expect(page.locator("[data-wfh-user-id='2']")).toHaveCount(0);
+  await page.getByRole("button", { name: /Show Deleted/ }).click();
+  await expect(page.locator("[data-wfh-user-id='2']")).toContainText("Deleted");
+  await page.getByRole("button", { name: "Reset" }).click();
+  await page.getByRole("button", { name: "Continue" }).click();
+  await expect(page.locator("[data-wfh-schedule-list] tr").first()).toHaveAttribute("data-wfh-user-id", "2");
+  await expect(page.locator("[data-wfh-user-id='2'] [data-day='canWorkMonday']")).toHaveAttribute("aria-pressed", "false");
 
   await openNavView(page, "Scrum", "Scrum");
   await expect(page.locator("[data-filter='scrum-person']:checked")).toHaveCount(0);
@@ -164,6 +183,8 @@ test("login, navigation, themes, dialogs, filters, Board, Gantt, and Road Map sm
 });
 
 async function installApiMocks(page, appState) {
+  let wfhSchedule = createWfhScheduleRows(appState.users);
+
   await page.route("**/api/login", async route => {
     const input = requestJson(route);
     if ((input.login || "").toLowerCase() === "sin" && input.password === "Password1") {
@@ -176,6 +197,44 @@ async function installApiMocks(page, appState) {
 
   await page.route("**/api/state", async route => {
     await route.fulfill(jsonResponse(appState));
+  });
+
+  await page.route("**/api/wfh-schedule", async route => {
+    await route.fulfill(jsonResponse(sortWfhRows(wfhSchedule)));
+  });
+
+  await page.route("**/api/wfh-schedule/reset", async route => {
+    wfhSchedule = createWfhScheduleRows(appState.users);
+    await route.fulfill(jsonResponse({ reset: true }));
+  });
+
+  await page.route("**/api/wfh-schedule/reorder", async route => {
+    const input = requestJson(route);
+    (input.userIds || []).forEach((userId, index) => {
+      const row = wfhSchedule.find(item => item.userId === Number(userId));
+      if (row) row.sortOrder = index + 1;
+    });
+    await route.fulfill(jsonResponse({ reordered: true }));
+  });
+
+  await page.route(/\/api\/wfh-schedule\/\d+$/, async route => {
+    const input = requestJson(route);
+    const userId = Number(route.request().url().match(/\/api\/wfh-schedule\/(\d+)$/)?.[1] || 0);
+    const row = wfhSchedule.find(item => item.userId === userId);
+    if (!row) {
+      await route.fulfill(jsonResponse({ error: "WFH user not found" }, 404));
+      return;
+    }
+
+    Object.assign(row, {
+      canWorkMonday: Boolean(input.canWorkMonday),
+      canWorkTuesday: Boolean(input.canWorkTuesday),
+      canWorkWednesday: Boolean(input.canWorkWednesday),
+      canWorkThursday: Boolean(input.canWorkThursday),
+      canWorkFriday: Boolean(input.canWorkFriday),
+      isHidden: Boolean(input.isHidden)
+    });
+    await route.fulfill(jsonResponse({ saved: true }));
   });
 
   await page.route("**/api/change-password", async route => {
@@ -288,6 +347,8 @@ async function dragNavigationItemBefore(page, sourceView, targetView) {
   const target = page.locator(`[data-navigation-list] [data-nav-view='${targetView}']`);
   await expect(source).toBeVisible();
   await expect(target).toBeVisible();
+  await source.scrollIntoViewIfNeeded();
+  await target.scrollIntoViewIfNeeded();
 
   const sourceBox = await source.boundingBox();
   const targetBox = await target.boundingBox();
@@ -298,6 +359,56 @@ async function dragNavigationItemBefore(page, sourceView, targetView) {
   await page.mouse.down();
   await page.mouse.move(targetBox.x + targetBox.width / 2, targetBox.y + 4, { steps: 8 });
   await page.mouse.up();
+}
+
+async function dragWfhUserBefore(page, sourceUserId, targetUserId) {
+  const source = page.locator(`[data-wfh-schedule-list] [data-wfh-user-id='${sourceUserId}'] [data-wfh-drag-handle]`);
+  const target = page.locator(`[data-wfh-schedule-list] [data-wfh-user-id='${targetUserId}']`);
+  await expect(source).toBeVisible();
+  await expect(target).toBeVisible();
+  await source.scrollIntoViewIfNeeded();
+  await target.scrollIntoViewIfNeeded();
+
+  const sourceBox = await source.boundingBox();
+  const targetBox = await target.boundingBox();
+  expect(sourceBox).not.toBeNull();
+  expect(targetBox).not.toBeNull();
+
+  await page.mouse.move(sourceBox.x + sourceBox.width / 2, sourceBox.y + sourceBox.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(targetBox.x + targetBox.width / 2, targetBox.y + 4, { steps: 8 });
+  await page.mouse.up();
+}
+
+function createWfhScheduleRows(users) {
+  return users
+    .map(user => ({
+      userId: user.id,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      nickname: user.nickname,
+      avatarUrl: user.avatarUrl,
+      role: user.role,
+      canWorkMonday: false,
+      canWorkTuesday: false,
+      canWorkWednesday: false,
+      canWorkThursday: false,
+      canWorkFriday: false,
+      isHidden: false,
+      sortOrder: 0
+    }))
+    .sort((a, b) => String(a.nickname || "").localeCompare(String(b.nickname || "")) || (a.userId || 0) - (b.userId || 0))
+    .map((row, index) => ({ ...row, sortOrder: index + 1 }));
+}
+
+function sortWfhRows(rows) {
+  return [...rows].sort(wfhRowCompare);
+}
+
+function wfhRowCompare(a, b) {
+  return (a.sortOrder || 0) - (b.sortOrder || 0)
+    || String(a.nickname || "").localeCompare(String(b.nickname || ""))
+    || (a.userId || 0) - (b.userId || 0);
 }
 
 function createTestState() {

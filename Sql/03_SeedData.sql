@@ -70,6 +70,10 @@ DELETE FROM [pmt].[Sprints];
 DELETE FROM [pmt].[ProjectMembers];
 DELETE FROM [pmt].[Projects];
 DELETE FROM [pmt].[Lookups];
+IF OBJECT_ID(N'[pmt].[WfhSchedules]', N'U') IS NOT NULL
+BEGIN
+    DELETE FROM [pmt].[WfhSchedules];
+END;
 DELETE FROM [pmt].[Users] WHERE [UserId] <> @Sin;
 
 INSERT INTO [pmt].[Users]

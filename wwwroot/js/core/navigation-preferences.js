@@ -51,6 +51,14 @@ export function normalizeNavigationConfig(value = {}) {
 
   defaultNavigationItems().forEach(item => {
     if (seenViews.has(item.view)) return;
+    if (item.view === "WFH Schedule") {
+      const settingsIndex = items.findIndex(entry => entry.view === "Settings");
+      if (settingsIndex >= 0) {
+        items.splice(settingsIndex, 0, item);
+        seenViews.add(item.view);
+        return;
+      }
+    }
     items.push(item);
   });
 
@@ -121,6 +129,7 @@ export function navIconHtml(view) {
     Bugs: "&#9888;",
     Scrum: "&#9719;",
     Documentation: "&#128196;",
+    "WFH Schedule": "&#8962;",
     Settings: "&#9881;"
   };
   return icons[view] || "&#9679;";

@@ -31,10 +31,12 @@ public sealed partial class SqlPmtStore
 
     public async Task RestoreInitialSeedDataAsync(string contentRootPath, int currentUserId, CancellationToken cancellationToken)
     {
-        // Restoring seed data means replaying the same scripts used by a clean rebuild.
-        // Keeping this path simple helps junior developers update one source of truth.
+        // Restoring seed data first refreshes schema/procedures so newer tables
+        // exist even when an older development database is being reused.
         var scriptPaths = new[]
         {
+            Path.Combine(contentRootPath, "Sql", "01_CreateDatabase.sql"),
+            Path.Combine(contentRootPath, "Sql", "02_CreateStoredProcedures.sql"),
             Path.Combine(contentRootPath, "Sql", "03_SeedData.sql"),
             Path.Combine(contentRootPath, "Sql", "03_SeedData_LMS.sql"),
             Path.Combine(contentRootPath, "Sql", "03_SeedData_HLS.sql")

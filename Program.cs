@@ -45,6 +45,7 @@ app.MapStateEndpoints();
 app.MapProjectEndpoints();
 app.MapSprintEndpoints();
 app.MapWorkItemEndpoints();
+app.MapWfhScheduleEndpoints();
 app.MapSettingsEndpoints();
 app.MapContentEndpoints();
 app.MapUploadEndpoints();

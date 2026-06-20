@@ -1886,6 +1886,233 @@ BEGIN
 END;
 GO
 
+CREATE OR ALTER PROCEDURE [pmt].[GetWfhSchedule]
+    @CurrentUserId INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    IF NOT EXISTS (SELECT 1 FROM [pmt].[Users] WHERE [UserId] = @CurrentUserId AND [IsActive] = 1)
+    BEGIN
+        THROW 50060, 'Only active users can view the WFH schedule.', 1;
+    END;
+
+    DECLARE @MaxSortOrder INT = ISNULL((SELECT MAX([SortOrder]) FROM [pmt].[WfhSchedules]), 0);
+
+    ;WITH MissingUsers AS
+    (
+        SELECT
+            [Users].[UserId],
+            [RowNumber] = ROW_NUMBER() OVER (ORDER BY [Users].[Nickname], [Users].[FirstName], [Users].[UserId])
+        FROM [pmt].[Users]
+        WHERE [Users].[IsActive] = 1
+          AND NOT EXISTS
+          (
+              SELECT 1
+              FROM [pmt].[WfhSchedules]
+              WHERE [WfhSchedules].[UserId] = [Users].[UserId]
+          )
+    )
+    INSERT INTO [pmt].[WfhSchedules] ([UserId], [SortOrder], [CreatedByUserId], [CreatedAt], [UpdatedAt])
+    SELECT [UserId], @MaxSortOrder + ([RowNumber] * 10), @CurrentUserId, SYSUTCDATETIME(), SYSUTCDATETIME()
+    FROM MissingUsers;
+
+    SELECT
+        [Users].[UserId],
+        [Users].[FirstName],
+        [Users].[LastName],
+        [Users].[Nickname],
+        [Users].[AvatarUrl],
+        [Role] = CASE WHEN [Users].[IsAdmin] = 1 THEN N'Admin' ELSE [Users].[Role] END,
+        [WfhSchedules].[CanWorkMonday],
+        [WfhSchedules].[CanWorkTuesday],
+        [WfhSchedules].[CanWorkWednesday],
+        [WfhSchedules].[CanWorkThursday],
+        [WfhSchedules].[CanWorkFriday],
+        [WfhSchedules].[IsHidden],
+        [WfhSchedules].[SortOrder]
+    FROM [pmt].[Users]
+    INNER JOIN [pmt].[WfhSchedules]
+        ON [WfhSchedules].[UserId] = [Users].[UserId]
+    WHERE [Users].[IsActive] = 1
+    ORDER BY [WfhSchedules].[SortOrder], [Users].[Nickname], [Users].[FirstName], [Users].[UserId];
+END;
+GO
+
+CREATE OR ALTER PROCEDURE [pmt].[UpdateWfhSchedule]
+    @UserId INT,
+    @CanWorkMonday BIT,
+    @CanWorkTuesday BIT,
+    @CanWorkWednesday BIT,
+    @CanWorkThursday BIT,
+    @CanWorkFriday BIT,
+    @IsHidden BIT,
+    @CurrentUserId INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    IF NOT EXISTS (SELECT 1 FROM [pmt].[Users] WHERE [UserId] = @CurrentUserId AND [IsActive] = 1)
+    BEGIN
+        THROW 50061, 'Only active users can update the WFH schedule.', 1;
+    END;
+
+    IF NOT EXISTS (SELECT 1 FROM [pmt].[Users] WHERE [UserId] = @UserId AND [IsActive] = 1)
+    BEGIN
+        THROW 50062, 'User was not found for the WFH schedule.', 1;
+    END;
+
+    IF NOT EXISTS (SELECT 1 FROM [pmt].[WfhSchedules] WHERE [UserId] = @UserId)
+    BEGIN
+        INSERT INTO [pmt].[WfhSchedules] ([UserId], [SortOrder], [CreatedByUserId], [CreatedAt], [UpdatedAt])
+        VALUES
+        (
+            @UserId,
+            ISNULL((SELECT MAX([SortOrder]) FROM [pmt].[WfhSchedules]), 0) + 10,
+            @CurrentUserId,
+            SYSUTCDATETIME(),
+            SYSUTCDATETIME()
+        );
+    END;
+
+    UPDATE [pmt].[WfhSchedules]
+    SET
+        [CanWorkMonday] = @CanWorkMonday,
+        [CanWorkTuesday] = @CanWorkTuesday,
+        [CanWorkWednesday] = @CanWorkWednesday,
+        [CanWorkThursday] = @CanWorkThursday,
+        [CanWorkFriday] = @CanWorkFriday,
+        [IsHidden] = @IsHidden,
+        [UpdatedByUserId] = @CurrentUserId,
+        [UpdatedAt] = SYSUTCDATETIME()
+    WHERE [UserId] = @UserId;
+
+    DECLARE @AuditAction NVARCHAR(40) = CASE WHEN @IsHidden = 1 THEN N'Hidden' ELSE N'Updated' END;
+
+    EXEC [pmt].[WriteAudit]
+        N'WFH',
+        @UserId,
+        @AuditAction,
+        N'WFH schedule updated.',
+        @CurrentUserId;
+END;
+GO
+
+CREATE OR ALTER PROCEDURE [pmt].[ReorderWfhSchedule]
+    @UserIdsCsv NVARCHAR(MAX),
+    @CurrentUserId INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    IF NOT EXISTS (SELECT 1 FROM [pmt].[Users] WHERE [UserId] = @CurrentUserId AND [IsActive] = 1)
+    BEGIN
+        THROW 50063, 'Only active users can reorder the WFH schedule.', 1;
+    END;
+
+    DECLARE @UserIds TABLE
+    (
+        [UserId] INT NOT NULL PRIMARY KEY,
+        [NewSortOrder] INT NOT NULL
+    );
+
+    DECLARE @Remaining NVARCHAR(MAX) = ISNULL(@UserIdsCsv, N'') + N',';
+    DECLARE @CommaIndex INT;
+    DECLARE @UserIdText NVARCHAR(20);
+    DECLARE @UserIdFromCsv INT;
+    DECLARE @NextSortOrder INT = 10;
+
+    -- Keep the manual order exactly as the browser sent it.
+    WHILE LEN(@Remaining) > 0
+    BEGIN
+        SET @CommaIndex = CHARINDEX(N',', @Remaining);
+        SET @UserIdText = LTRIM(RTRIM(LEFT(@Remaining, @CommaIndex - 1)));
+        SET @UserIdFromCsv = TRY_CONVERT(INT, @UserIdText);
+
+        IF @UserIdFromCsv IS NOT NULL
+           AND NOT EXISTS (SELECT 1 FROM @UserIds WHERE [UserId] = @UserIdFromCsv)
+        BEGIN
+            INSERT INTO @UserIds ([UserId], [NewSortOrder])
+            VALUES (@UserIdFromCsv, @NextSortOrder);
+
+            SET @NextSortOrder += 10;
+        END;
+
+        SET @Remaining = SUBSTRING(@Remaining, @CommaIndex + 1, LEN(@Remaining));
+    END;
+
+    UPDATE [Schedule]
+    SET
+        [SortOrder] = [Ids].[NewSortOrder],
+        [UpdatedByUserId] = @CurrentUserId,
+        [UpdatedAt] = SYSUTCDATETIME()
+    FROM [pmt].[WfhSchedules] AS [Schedule]
+    INNER JOIN @UserIds AS [Ids]
+        ON [Ids].[UserId] = [Schedule].[UserId]
+    INNER JOIN [pmt].[Users]
+        ON [Users].[UserId] = [Schedule].[UserId]
+    WHERE [Users].[IsActive] = 1;
+
+    EXEC [pmt].[WriteAudit] N'WFH', 0, N'Reordered', N'WFH schedule order changed.', @CurrentUserId;
+END;
+GO
+
+CREATE OR ALTER PROCEDURE [pmt].[ResetWfhSchedule]
+    @CurrentUserId INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    IF NOT EXISTS (SELECT 1 FROM [pmt].[Users] WHERE [UserId] = @CurrentUserId AND [IsActive] = 1)
+    BEGIN
+        THROW 50064, 'Only active users can reset the WFH schedule.', 1;
+    END;
+
+    ;WITH OrderedActiveUsers AS
+    (
+        SELECT
+            [Users].[UserId],
+            [NewSortOrder] = ROW_NUMBER() OVER (ORDER BY [Users].[Nickname], [Users].[FirstName], [Users].[UserId]) * 10
+        FROM [pmt].[Users]
+        WHERE [Users].[IsActive] = 1
+    )
+    INSERT INTO [pmt].[WfhSchedules] ([UserId], [SortOrder], [CreatedByUserId], [CreatedAt], [UpdatedAt])
+    SELECT [UserId], [NewSortOrder], @CurrentUserId, SYSUTCDATETIME(), SYSUTCDATETIME()
+    FROM OrderedActiveUsers
+    WHERE NOT EXISTS
+    (
+        SELECT 1
+        FROM [pmt].[WfhSchedules]
+        WHERE [WfhSchedules].[UserId] = [OrderedActiveUsers].[UserId]
+    );
+
+    ;WITH OrderedActiveUsers AS
+    (
+        SELECT
+            [Users].[UserId],
+            [NewSortOrder] = ROW_NUMBER() OVER (ORDER BY [Users].[Nickname], [Users].[FirstName], [Users].[UserId]) * 10
+        FROM [pmt].[Users]
+        WHERE [Users].[IsActive] = 1
+    )
+    UPDATE [Schedule]
+    SET
+        [CanWorkMonday] = 0,
+        [CanWorkTuesday] = 0,
+        [CanWorkWednesday] = 0,
+        [CanWorkThursday] = 0,
+        [CanWorkFriday] = 0,
+        [IsHidden] = 0,
+        [SortOrder] = [OrderedActiveUsers].[NewSortOrder],
+        [UpdatedByUserId] = @CurrentUserId,
+        [UpdatedAt] = SYSUTCDATETIME()
+    FROM [pmt].[WfhSchedules] AS [Schedule]
+    INNER JOIN OrderedActiveUsers
+        ON [OrderedActiveUsers].[UserId] = [Schedule].[UserId];
+
+    EXEC [pmt].[WriteAudit] N'WFH', 0, N'Reset', N'WFH schedule reset to nickname order.', @CurrentUserId;
+END;
+GO
+
 CREATE OR ALTER PROCEDURE [pmt].[UpsertLookup]
     @LookupId INT OUTPUT,
     @LookupType NVARCHAR(60),
@@ -2854,7 +3081,11 @@ BEGIN
     UPDATE [pmt].[AuditEvents] SET [UserId] = @AdminUserId, [CreatedByUserId] = @AdminUserId, [UpdatedByUserId] = @AdminUserId;
     UPDATE [pmt].[Lookups] SET [CreatedByUserId] = @AdminUserId, [UpdatedByUserId] = @AdminUserId;
     UPDATE [pmt].[Holidays] SET [CreatedByUserId] = @AdminUserId, [UpdatedByUserId] = @AdminUserId;
+    UPDATE [pmt].[WfhSchedules] SET [CreatedByUserId] = @AdminUserId, [UpdatedByUserId] = @AdminUserId;
     UPDATE [pmt].[Users] SET [CreatedByUserId] = @AdminUserId, [UpdatedByUserId] = @AdminUserId;
+
+    DELETE FROM [pmt].[WfhSchedules]
+    WHERE [UserId] <> @AdminUserId;
 
     DELETE FROM [pmt].[Users]
     WHERE [UserId] <> @AdminUserId;

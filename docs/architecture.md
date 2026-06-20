@@ -7,11 +7,11 @@ This document maps the current application and active file ownership for the pha
 PMT is a single ASP.NET Core .NET 6 web application:
 
 1. `wwwroot/index.html` defines the HTML shell, applies the saved theme through `core/preferences.js` before rendering, loads the ordered CSS foundations, components, and feature stylesheets, and then loads `wwwroot/js/app.js`.
-2. `wwwroot/js/app.js` composes the application shell with the central screen registry. Dashboard, Road Map, Gantt, Kanban Board, Projects, Sprints, Dev Tasks, Bug Tracking, Scrum, Documentation, Backlog, and Settings now live in feature modules; the entry still owns shared editor/dialog orchestration, chart drilldowns, and table reordering.
+2. `wwwroot/js/app.js` composes the application shell with the central screen registry. Dashboard, Road Map, Gantt, Kanban Board, Projects, Sprints, Dev Tasks, Bug Tracking, Scrum, Documentation, Backlog, WFH Schedule, and Settings now live in feature modules; the entry still owns shared editor/dialog orchestration, chart drilldowns, and table reordering.
 3. `wwwroot/js/core/` owns application-wide browser infrastructure: HTTP requests, state, preferences, authentication, routing, startup, navigation, theme, and user-menu wiring.
 4. `Program.cs` configures services, JSON behavior, exception handling, static/uploaded files, endpoint-group registration, the SPA fallback, and application startup.
-5. `Endpoints/` maps the 37 minimal API routes by feature while preserving endpoint URLs, HTTP methods, payload shapes, and the simple current-user header/query behavior.
-6. `Models/*.cs` contains cohesive plain DTO and request model groups for state, users, projects/Sprints, work items, content/uploads, and settings.
+5. `Endpoints/` maps the 41 minimal API routes by feature while preserving endpoint URLs, HTTP methods, payload shapes, and the simple current-user header/query behavior.
+6. `Models/*.cs` contains cohesive plain DTO and request model groups for state, users, projects/Sprints, work items, content/uploads, WFH schedule, and settings.
 7. `Data/SqlPmtStore*.cs` is one partial `SqlPmtStore` that calls `[pmt]` stored procedures through direct ADO.NET. `SqlPmtStore.State.cs` maps `[pmt].[GetAppState]`, hydrates relationships, and calculates project/Sprint metrics.
 8. `Sql/01_CreateDatabase.sql`, `Sql/02_CreateStoredProcedures.sql`, and the seed scripts define and populate SQL Server objects under `[pmt]`.
 9. `tests/js/` contains Node-based ES-module unit tests for pure frontend rules and calculations.
@@ -64,6 +64,7 @@ wwwroot/
 |       |-- scrum/
 |       |-- documentation/
 |       |-- backlog/
+|       |-- wfh-schedule/
 |       `-- settings/
 `-- css/
     |-- tokens.css
@@ -95,7 +96,8 @@ wwwroot/
         |-- scrum.css
         |-- settings.css
         |-- sprints.css
-        `-- tasks.css
+        |-- tasks.css
+        `-- wfh-schedule.css
 tests/
 |-- js/
 `-- browser/
@@ -113,7 +115,7 @@ The frontend entry module now depends on focused native ES modules:
 - `core/authentication.js` owns login, logout, the authenticated user ID, fallback identity selection after state loads, and current-user lookup.
 - `core/router.js` owns the current view, legacy view-name normalization, persistence, and the navigation screen selection.
 - `core/application-shell.js` owns startup orchestration, login rendering and wiring, state-load error handling, top navigation and overflow, the avatar menu, theme switching, and current-user shell rendering.
-- `core/screen-registry.js` remains the authoritative list of Dashboard, Road Map, Gantt, Kanban Board, Projects, Sprints, Dev Tasks, Bug Tracking, Scrum, Documentation, Backlog, and Settings.
+- `core/screen-registry.js` remains the authoritative list of Dashboard, Road Map, Gantt, Kanban Board, Projects, Sprints, Dev Tasks, Bug Tracking, Scrum, Documentation, Backlog, WFH Schedule, and Settings.
 - `app.js` supplies shared screen event handlers and the current screen renderer to the application shell; feature-specific rendering and actions move behind registered screen handlers.
 
 ## Shared utilities and components established in Phase 05
@@ -129,7 +131,7 @@ Reusable frontend logic now has stable native ES module homes:
 - `shared/work-item-rules.js` owns status-based percent calculations, project/Sprint rollups, task completion checks, and linked-Bug completion validation.
 - `components/attachments.js`, `avatars.js`, `buttons.js`, `charts.js`, `dialogs.js`, `filters.js`, `forms.js`, and `progress-and-status.js` own reusable markup builders while preserving existing CSS classes and HTML output.
 
-Dashboard, Road Map, Gantt, Kanban Board, Projects, Sprints, Dev Tasks, Bug Tracking, Scrum, Documentation, Backlog, and Settings now use feature folders under `wwwroot/js/features/`. `features/roadmap/roadmap.js` owns Road Map filters, sorting, display toggles, and existing preference keys, with companion modules for rendering and timeline calculations. `features/gantt/gantt.js` owns Gantt filters, view preferences, bug expansion state, fly-by orchestration, and existing preference keys, with companion modules for rendering, date/layout calculations, fly-by scrolling and timers, and dependency/bug helpers. `features/board/board.js` owns Board rendering, selected Project and Sprint mode, sorting, visible and empty-column state, status updates, reorder persistence, and the existing Board preference keys. `features/board/board-drag.js` owns Board-only pointer and mouse drag state; its delegated Board listeners are active only while the Board screen is active, and its window listeners exist only during a drag gesture. Endpoint URLs, payloads, screen markup, CSS classes, and preference key names are unchanged.
+Dashboard, Road Map, Gantt, Kanban Board, Projects, Sprints, Dev Tasks, Bug Tracking, Scrum, Documentation, Backlog, WFH Schedule, and Settings now use feature folders under `wwwroot/js/features/`. `features/roadmap/roadmap.js` owns Road Map filters, sorting, display toggles, and existing preference keys, with companion modules for rendering and timeline calculations. `features/gantt/gantt.js` owns Gantt filters, view preferences, bug expansion state, fly-by orchestration, and existing preference keys, with companion modules for rendering, date/layout calculations, fly-by scrolling and timers, and dependency/bug helpers. `features/board/board.js` owns Board rendering, selected Project and Sprint mode, sorting, visible and empty-column state, status updates, reorder persistence, and the existing Board preference keys. `features/board/board-drag.js` owns Board-only pointer and mouse drag state; its delegated Board listeners are active only while the Board screen is active, and its window listeners exist only during a drag gesture. `features/wfh-schedule/wfh-schedule.js` owns WFH day toggles, hidden users, reset, and table order through focused WFH endpoints.
 
 The current frontend dependency flow is:
 
@@ -166,6 +168,7 @@ Endpoints/
 |-- ProjectEndpoints.cs
 |-- SprintEndpoints.cs
 |-- WorkItemEndpoints.cs
+|-- WfhScheduleEndpoints.cs
 |-- SettingsEndpoints.cs
 |-- ContentEndpoints.cs
 |-- UploadEndpoints.cs
@@ -178,6 +181,7 @@ Data/
 |-- SqlPmtStore.Projects.cs
 |-- SqlPmtStore.Sprints.cs
 |-- SqlPmtStore.WorkItems.cs
+|-- SqlPmtStore.WfhSchedule.cs
 |-- SqlPmtStore.Settings.cs
 |-- SqlPmtStore.Content.cs
 `-- SqlPmtStore.Development.cs
@@ -186,6 +190,7 @@ Models/
 |-- UserModels.cs
 |-- ProjectSprintModels.cs
 |-- WorkItemModels.cs
+|-- WfhScheduleModels.cs
 |-- ContentModels.cs
 `-- SettingsModels.cs
 ```
@@ -219,6 +224,7 @@ All data-backed screens read through `GET /api/state` -> `GetStateAsync` -> `[pm
 | Dev Tasks | `features/tasks/` | `POST /api/tasks`; `PUT /api/tasks/{id}`; `POST /api/tasks/reorder`; `POST /api/tasks/{id}/duplicate`; `DELETE /api/tasks/{id}`; `POST /api/tasks/{id}/attachments` | `SaveTaskAsync`; `ReorderTasksAsync`; `DuplicateTaskAsync`; `DeleteTaskAsync`; `AddTaskAttachmentAsync` | `[pmt].[UpsertTask]`; `[pmt].[ReorderTasks]`; `[pmt].[DuplicateTask]`; `[pmt].[DeleteTask]`; `[pmt].[AddTaskAttachment]` |
 | Bugs | `features/bugs/` | `POST /api/tasks`; `PUT /api/tasks/{id}`; `POST /api/tasks/{id}/duplicate`; `DELETE /api/tasks/{id}`; `POST /api/tasks/{id}/attachments` | `SaveTaskAsync`; `DuplicateTaskAsync`; `DeleteTaskAsync`; `AddTaskAttachmentAsync` | `[pmt].[UpsertTask]`; `[pmt].[DuplicateTask]`; `[pmt].[DeleteTask]`; `[pmt].[AddTaskAttachment]`; `UpsertTask` owns Bug/Bug Fix workflow |
 | Backlog | `features/backlog/` | `POST /api/tasks`; `PUT /api/tasks/{id}`; `POST /api/tasks/reorder` | `SaveTaskAsync`; `ReorderTasksAsync` | `[pmt].[UpsertTask]`; `[pmt].[ReorderTasks]` |
+| WFH Schedule | `features/wfh-schedule/` | `GET /api/wfh-schedule`; `PUT /api/wfh-schedule/{userId}`; `POST /api/wfh-schedule/reorder`; `POST /api/wfh-schedule/reset` | `GetWfhScheduleAsync`; `SaveWfhScheduleAsync`; `ReorderWfhScheduleAsync`; `ResetWfhScheduleAsync` | `[pmt].[GetWfhSchedule]`; `[pmt].[UpdateWfhSchedule]`; `[pmt].[ReorderWfhSchedule]`; `[pmt].[ResetWfhSchedule]` |
 | Scrum | `features/scrum/` | `POST /api/devlogs`; `PUT /api/devlogs/{id}`; `DELETE /api/devlogs/{id}` | `SaveDevLogAsync`; `DeleteDevLogAsync` | `[pmt].[UpsertDevLog]`; `[pmt].[DeleteDevLog]` |
 | Documentation | `features/documentation/` | `POST /api/blogs`; `PUT /api/blogs/{id}`; `DELETE /api/blogs/{id}`; `POST /api/blogs/{id}/attachments` | `SaveBlogAsync`; `DeleteBlogAsync`; `AddBlogAttachmentAsync` | `[pmt].[UpsertBlog]`; `[pmt].[DeleteBlog]`; `[pmt].[AddBlogAttachment]` |
 | Settings - users | `features/settings/` | `POST /api/users`; `PUT /api/users/{id}`; `DELETE /api/users/{id}` | `SaveUserAsync`; `DeleteUserAsync` | `[pmt].[UpsertUser]`; `[pmt].[DeleteUser]` |
@@ -241,4 +247,4 @@ npm.cmd run test:browser
 git diff --check
 ```
 
-`npm.cmd run test:browser` covers login, all primary screens, Settings through the avatar menu, light/dark theme switching, dialogs, representative filters, Board drag/status persistence, Gantt rendering, Road Map rendering, console-error detection, and 1366x768 plus 1920x1080 viewport checks. Manual database-backed CRUD and destructive Development actions remain covered by `docs/manual-smoke-test.md`.
+`npm.cmd run test:browser` covers login, all primary screens, WFH Schedule toggles/order/hide/reset, Settings through the avatar menu, light/dark theme switching, dialogs, representative filters, Board drag/status persistence, Gantt rendering, Road Map rendering, console-error detection, and 1366x768 plus 1920x1080 viewport checks. Manual database-backed CRUD and destructive Development actions remain covered by `docs/manual-smoke-test.md`.
