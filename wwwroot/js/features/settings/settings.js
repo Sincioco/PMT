@@ -22,7 +22,7 @@ import {
   readNavigationConfig,
   resetNavigationConfig,
   writeNavigationConfig
-} from "../../core/navigation-preferences.js";
+} from "../../core/navigation-preferences.js?v=20260620-light-reference-1";
 import {
   clearPmtPreferences,
   preferenceKeys,
@@ -324,7 +324,7 @@ export function createSettingsFeature({
       <div class="panel settings-content-panel settings-table-panel settings-navigation-panel">
         <div class="settings-navigation-head">
           <h2>Navigation</h2>
-          <p class="muted">Choose which top navigation items are shown, rename labels, then drag rows into the order you prefer.</p>
+          <p class="muted">Choose which navigation items are available, rename labels, then drag rows into the order you prefer.</p>
         </div>
         <table class="table settings-table settings-navigation-table work-item-table">
           <thead>
@@ -340,8 +340,8 @@ export function createSettingsFeature({
             ${items.map(item => `
               <tr class="clickable-row" data-action="rename-navigation-item" data-nav-view="${escapeAttr(item.view)}" data-view="${escapeAttr(item.view)}">
                 <td>
-                  <label class="settings-nav-toggle" title="${item.visibilityLocked ? "Settings must stay visible so this screen remains reachable." : "Show this item in the top navigation."}">
-                    <input type="checkbox" data-action="toggle-navigation-item" data-view="${escapeAttr(item.view)}" aria-label="Show ${escapeAttr(item.label)} in top navigation" ${item.visible ? "checked" : ""} ${item.visibilityLocked ? "disabled" : ""}>
+                  <label class="settings-nav-toggle" title="${item.visibilityLocked ? "This item must stay available in navigation." : "Show this item in navigation."}">
+                    <input type="checkbox" data-action="toggle-navigation-item" data-view="${escapeAttr(item.view)}" aria-label="Show ${escapeAttr(item.label)} in navigation" ${item.visible ? "checked" : ""} ${item.visibilityLocked ? "disabled" : ""}>
                   </label>
                 </td>
                 <td>

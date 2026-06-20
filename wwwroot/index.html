@@ -21,7 +21,7 @@
   </script>
   <!-- CSS loads from broad foundations to shared components, then feature-specific rules. -->
   <link rel="stylesheet" href="/css/tokens.css?v=20260620-token-depth">
-  <link rel="stylesheet" href="/css/themes.css?v=20260620-native-controls-v2">
+  <link rel="stylesheet" href="/css/themes.css?v=20260620-light-reference-1">
   <link rel="stylesheet" href="/css/base.css?v=20260620-native-controls-v2">
   <link rel="stylesheet" href="/css/layout.css?v=20260619-shell-components">
   <link rel="stylesheet" href="/css/components/buttons.css?v=20260620-token-depth">
@@ -30,7 +30,7 @@
   <link rel="stylesheet" href="/css/components/dialogs.css?v=20260620-bottom-right-toast">
   <link rel="stylesheet" href="/css/components/tables-lists.css?v=20260620-token-depth">
   <link rel="stylesheet" href="/css/components/filters.css?v=20260619-advanced-screens-v2">
-  <link rel="stylesheet" href="/css/components/navigation.css?v=20260620-token-depth">
+  <link rel="stylesheet" href="/css/components/navigation.css?v=20260620-light-reference-1">
   <link rel="stylesheet" href="/css/components/avatars.css?v=20260620-token-depth">
   <link rel="stylesheet" href="/css/components/attachments.css?v=20260619-shell-components">
   <link rel="stylesheet" href="/css/components/progress-status.css?v=20260620-token-depth">
@@ -42,7 +42,7 @@
   <link rel="stylesheet" href="/css/features/board.css?v=20260620-token-depth">
   <link rel="stylesheet" href="/css/features/projects.css?v=20260620-ui-theme">
   <link rel="stylesheet" href="/css/features/sprints.css?v=20260620-token-depth">
-  <link rel="stylesheet" href="/css/features/tasks.css?v=20260619-advanced-screens-v2">
+  <link rel="stylesheet" href="/css/features/tasks.css?v=20260620-light-reference-1">
   <link rel="stylesheet" href="/css/features/bugs.css?v=20260619-advanced-screens-v2">
   <link rel="stylesheet" href="/css/features/scrum.css?v=20260619-minor-fixes">
   <link rel="stylesheet" href="/css/features/documentation.css?v=20260620-ui-theme">
@@ -67,6 +67,10 @@
         </button>
         <select id="currentUser" disabled hidden></select>
         <div id="userMenu" class="user-menu-dropdown" role="menu" hidden>
+          <button type="button" data-view="Settings" role="menuitem">
+            <span class="button-icon" aria-hidden="true">&#9881;</span>
+            <span>Settings</span>
+          </button>
           <button type="button" data-action="toggle-theme" id="themeToggle" role="menuitem">
             <span class="button-icon" aria-hidden="true" data-theme-icon>&#9728;</span>
             <span data-theme-label>Light Theme</span>
@@ -107,6 +111,6 @@
   </dialog>
 
   <div id="toast" class="toast" hidden></div>
-  <script type="module" src="/js/app.js?v=20260620-gantt-flush-sprint"></script>
+  <script type="module" src="/js/app.js?v=20260620-light-reference-1"></script>
 </body>
 </html>
