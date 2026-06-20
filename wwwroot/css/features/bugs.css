@@ -242,8 +242,8 @@
 }
 
 .bugs-chart-panel .pie-chart-slice {
-  stroke: var(--color-surface-raised);
-  stroke-width: 3;
+  stroke: none;
+  stroke-width: 0;
 }
 
 .bugs-chart-panel .pie-chart-hole {
@@ -290,7 +290,7 @@
 
 .bugs-chart-panel .pie-chart-slice.is-clickable:hover {
   filter: none;
-  stroke: var(--color-surface-raised);
+  stroke: none;
 }
 
 .bugs-chart-panel .chart-legend-row.is-clickable:hover {

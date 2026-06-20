@@ -356,8 +356,8 @@
 }
 
 .tasks-chart-panel .pie-chart-slice {
-  stroke: var(--color-surface-raised);
-  stroke-width: 3;
+  stroke: none;
+  stroke-width: 0;
 }
 
 .tasks-chart-panel .pie-chart-hole {
@@ -545,7 +545,7 @@
 
 .tasks-chart-panel .pie-chart-slice.is-clickable:hover {
   filter: none;
-  stroke: var(--color-surface-raised);
+  stroke: none;
 }
 
 .tasks-chart-panel .chart-legend-row.is-clickable:hover {

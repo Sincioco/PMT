@@ -401,12 +401,21 @@ export function createBugsFeature({
 
   function bugTrendLineChartHtml(sprintRows) {
     if (!sprintRows.length) return null;
+    const newestSprintRows = [...sprintRows].sort((a, b) => {
+      if (!a.sprintId) return 1;
+      if (!b.sprintId) return -1;
+      const sprintA = sprintById(a.sprintId);
+      const sprintB = sprintById(b.sprintId);
+      const aTime = sprintA ? getItemStartDate(sprintA)?.getTime() || 0 : 0;
+      const bTime = sprintB ? getItemStartDate(sprintB)?.getTime() || 0 : 0;
+      return bTime - aTime || b.label.localeCompare(a.label);
+    });
 
     return VisualCharts.card({
       title: "Bug Trend by Sprint",
       subtitle: "Line graph compares reported versus resolved bugs over time.",
       className: "bug-chart-card bug-trend-chart-card",
-      body: VisualCharts.lineChart(sprintRows, [
+      body: VisualCharts.lineChart(newestSprintRows, [
         { key: "reported", label: "Reported", color: "var(--rose)" },
         { key: "resolved", label: "Resolved", color: "var(--green)" }
       ])
@@ -432,6 +441,9 @@ export function createBugsFeature({
   }
 
   function bugSeverityPieChartHtml(filteredBugs) {
+    const currentSprintLabel = bugChartCurrentSprints()
+      .map(sprint => sprint.code)
+      .join(", ");
     const items = getSeverities()
       .map(severity => {
         const bugs = filteredBugs.filter(bug => bug.severity === severity);
@@ -443,7 +455,7 @@ export function createBugsFeature({
 
     return VisualCharts.card({
       title: "Bug Severity Share",
-      subtitle: "Pie chart shows the severity mix for the current filters.",
+      subtitle: currentSprintLabel || "No current Sprint is available for the selected project filter.",
       className: "bug-chart-card bug-pie-chart-card bug-severity-chart-card",
       body: VisualCharts.pieChart(items, `${filteredBugs.length} total`, "No severity data is available.", { donut: false })
     });
