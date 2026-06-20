@@ -1,5 +1,103 @@
 /* CSS ownership: Dev Tasks screen. */
 
+.tasks-screen .section-head .toolbar > button {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  width: var(--touch-target-min);
+  min-width: var(--touch-target-min);
+  height: var(--touch-target-min);
+  min-height: var(--touch-target-min);
+  padding: 0;
+  border-color: transparent;
+  background: transparent;
+  color: var(--color-text-secondary);
+  box-shadow: none;
+}
+
+.tasks-screen .section-head .toolbar > button.primary,
+.tasks-screen .section-head .toolbar > button.secondary,
+.tasks-screen .section-head .toolbar > button.is-on,
+.tasks-screen .section-head .toolbar > button[aria-pressed="true"] {
+  border-color: transparent;
+  background: transparent;
+  color: var(--color-text-secondary);
+  box-shadow: none;
+}
+
+.tasks-screen .section-head .toolbar > button:hover:not(:disabled),
+.tasks-screen .section-head .toolbar > button.primary:hover:not(:disabled),
+.tasks-screen .section-head .toolbar > button.secondary:hover:not(:disabled),
+.tasks-screen .section-head .toolbar > button.is-on:hover:not(:disabled),
+.tasks-screen .section-head .toolbar > button[aria-pressed="true"]:hover:not(:disabled) {
+  border-color: var(--color-border-strong);
+  background: var(--color-control-hover);
+  color: var(--color-text-primary);
+  box-shadow: none;
+}
+
+.tasks-screen .section-head .toolbar > button:active:not(:disabled) {
+  background: var(--color-control-hover);
+  box-shadow: none;
+}
+
+.tasks-screen .section-head .toolbar > button:disabled {
+  border-color: transparent;
+  background: transparent;
+  color: var(--color-text-disabled);
+  box-shadow: none;
+}
+
+.tasks-screen .section-head .toolbar > button .button-icon {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  min-width: 0;
+  line-height: 1;
+  text-align: center;
+}
+
+.tasks-screen .section-head .toolbar > button .button-icon + span {
+  display: none;
+}
+
+.task-filter-dialog {
+  width: min(var(--dialog-width-md), calc(100vw - 2 * var(--shell-padding-compact)));
+}
+
+.task-filter-dialog .task-filter-dialog-body {
+  gap: var(--space-6);
+}
+
+.task-filter-dialog .task-filter-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(220px, 1fr));
+  gap: var(--space-5);
+  align-items: end;
+}
+
+.task-filter-dialog .task-filter-row label {
+  display: grid;
+  gap: var(--space-2);
+  align-items: stretch;
+  white-space: normal;
+}
+
+.task-filter-dialog .task-filter-row select {
+  width: 100%;
+}
+
+.task-filter-dialog .inline-filter-check {
+  display: flex;
+  grid-column: 1 / -1;
+  min-height: var(--control-height-md);
+}
+
+.task-filter-dialog .filter-stack {
+  margin-top: var(--space-5);
+}
+
 .tasks-filter-panel .task-filter-row {
   align-items: flex-end;
 }

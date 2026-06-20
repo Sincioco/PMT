@@ -237,3 +237,10 @@ Dev Charts Modernization
 ------------------------
 1.) On all the charts, do not apply any hover color, outline or effects.  Also, the colors in the Current Sprint Dev tasks by Status does not appear the same as the other charts.  It seems more muted.  Can make its colors match the other charts?
 2.) Update the Current Sprint Dev Tasks by Status chart so it uses the correct colors per status as specified in Settings.
+
+
+Dev Tasks Screen
+----------------
+1.) In the Dev Tasks screen, convert the Filter section into a dialog box and wire the Filter button to show it.
+2.) Update all the page-level buttons to just be an icon that shows no borders or background color of any kind.  The buttons only show their border and highlight when the cursor hovers on it.
+3.) Update the Current Sprint Dev Task Mix chart so it's data is filtered based on the Sprint dropdown.  Change the chart title to read "Sprint Dev Task Mix"

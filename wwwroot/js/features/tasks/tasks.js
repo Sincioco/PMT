@@ -84,7 +84,6 @@ export function createTasksFeature({
   let taskEntryProjectId = readNumberPreference(preferenceKeys.taskEntryProject, 0);
   let taskEntrySprintId = readPreference(preferenceKeys.taskEntrySprint, "");
   let taskFilters = readJsonPreference(preferenceKeys.taskFilters, {});
-  let taskFiltersVisible = readBooleanPreference(preferenceKeys.taskFiltersVisible, false);
   let taskVisualChartsVisible = readBooleanPreference(preferenceKeys.taskVisualChartsVisible, true);
   const taskTableMode = createWorkItemTableMode({
     action: "toggle-task-table-edit-mode",
@@ -100,8 +99,6 @@ export function createTasksFeature({
   function renderTasks() {
     ensureSelectedProject();
 
-    const statuses = getStatuses();
-    const priorities = getPriorities();
     const projectSprints = state.sprints.filter(sprint => sprint.projectId === taskProjectId);
     if (taskSprintId !== "all" && !projectSprints.some(sprint => sprint.id === Number(taskSprintId))) {
       taskSprintId = defaultSprintId(projectSprints);
@@ -117,53 +114,16 @@ export function createTasksFeature({
     const taskRows = taskRowsWithSubTasks(visibleTasks);
     const canShowCharts = allProjectDevTasks.length > 0;
     const showCharts = canShowCharts && taskVisualChartsVisible;
-    const filterToggleLabel = taskFiltersVisible ? "Hide Filters" : "Show Filters";
     const chartToggleLabel = showCharts ? "Hide Charts" : "Show Charts";
 
     app.innerHTML = `
       <section class="tasks-screen work-item-screen">
       ${sectionHead("Dev Tasks", `
         ${taskTableMode.buttonHtml()}
-        <button class="secondary text-icon-button ${taskFiltersVisible ? "is-on" : ""}" type="button" data-action="toggle-task-filters" aria-pressed="${taskFiltersVisible}">${buttonContent(funnelIconHtml(), filterToggleLabel)}</button>
-        <button class="secondary text-icon-button ${showCharts ? "is-on" : ""}" type="button" data-action="toggle-task-visual-charts" aria-pressed="${showCharts}" ${canShowCharts ? "" : "disabled"}>${buttonContent("&#128202;", chartToggleLabel)}</button>
-        <button class="primary text-icon-button" type="button" data-action="new-task">${buttonContent("&#10010;", "New Dev Task")}</button>
+        <button class="secondary text-icon-button" type="button" data-action="open-task-filters" title="Filters" aria-label="Filters" aria-haspopup="dialog">${buttonContent(funnelIconHtml(), "Filters")}</button>
+        <button class="secondary text-icon-button" type="button" data-action="toggle-task-visual-charts" title="${chartToggleLabel}" aria-label="${chartToggleLabel}" aria-pressed="${showCharts}" ${canShowCharts ? "" : "disabled"}>${buttonContent("&#128202;", chartToggleLabel)}</button>
+        <button class="primary text-icon-button" type="button" data-action="new-task" title="New Dev Task" aria-label="New Dev Task">${buttonContent("&#10010;", "New Dev Task")}</button>
       `)}
-      ${taskFiltersVisible ? `<div class="panel work-item-filter-panel tasks-filter-panel">
-        <div class="task-filter-row">
-          <label>
-            <span>Project</span>
-            <select data-filter="task-project">
-              ${state.projects.map(project => `<option value="${project.id}" ${project.id === taskProjectId ? "selected" : ""}>${escapeHtml(project.code)} - ${escapeHtml(project.title)}</option>`).join("")}
-            </select>
-          </label>
-          <label>
-            <span>Sprint</span>
-            <select data-filter="task-sprint">
-              <option value="all" ${taskSprintId === "all" ? "selected" : ""}>All Sprints</option>
-              ${projectSprints.map(sprint => `<option value="${sprint.id}" ${String(sprint.id) === taskSprintId ? "selected" : ""}>${escapeHtml(sprint.code)} - ${escapeHtml(sprint.title)}</option>`).join("")}
-            </select>
-          </label>
-          <label>
-            <span>Sort</span>
-            <select data-filter="task-sort">
-              <option value="custom" ${taskFilters.sort === "custom" ? "selected" : ""}>Custom order</option>
-              <option value="newest" ${taskFilters.sort === "newest" ? "selected" : ""}>Newest Dev Tasks</option>
-              <option value="oldest" ${taskFilters.sort === "oldest" ? "selected" : ""}>Oldest Dev Tasks</option>
-              <option value="highest-complete" ${taskFilters.sort === "highest-complete" ? "selected" : ""}>Highest Completed</option>
-              <option value="lowest-complete" ${taskFilters.sort === "lowest-complete" ? "selected" : ""}>Lowest Completed</option>
-            </select>
-          </label>
-          <label class="inline-filter-check">
-            <input type="checkbox" data-filter="task-hide-completed" ${taskFilters.hideCompleted ? "checked" : ""}>
-            <span>Hide Completed Dev Tasks</span>
-          </label>
-        </div>
-        <div class="filter-stack">
-          ${filterCheckList("Status", "task-status", statuses.map(value => ({ value, text: value })), taskFilters.statuses)}
-          ${filterCheckList("Priority", "task-priority", priorities.map(value => ({ value, text: value })), taskFilters.priorities)}
-          ${filterCheckList("Assigned", "task-assigned", state.users.map(user => ({ value: user.id, text: user.nickname })), taskFilters.assigneeIds)}
-        </div>
-      </div>` : ""}
       ${showCharts ? taskVisualTrackingChartsHtml(allProjectDevTasks) : ""}
       <div class="panel work-item-table-panel tasks-table-panel">
         <table class="table work-item-table tasks-table ${taskTableMode.active ? "is-edit-mode" : "is-read-mode"}">
@@ -232,10 +192,8 @@ export function createTasksFeature({
       renderTasks();
       return true;
     }
-    if (action === "toggle-task-filters") {
-      taskFiltersVisible = !taskFiltersVisible;
-      writePreference(preferenceKeys.taskFiltersVisible, taskFiltersVisible);
-      renderTasks();
+    if (action === "open-task-filters" || action === "toggle-task-filters") {
+      openTaskFiltersDialog();
       return true;
     }
     if (action === "toggle-task-visual-charts") {
@@ -266,6 +224,108 @@ export function createTasksFeature({
 
   function handleFilterChange(eventOrTarget) {
     const target = eventOrTarget?.target || eventOrTarget;
+    if (!applyTaskFilterChange(target)) return false;
+
+    renderTasks();
+    return true;
+  }
+
+  function openTaskFiltersDialog() {
+    const existingDialog = document.querySelector("[data-task-filter-dialog]");
+    if (existingDialog) {
+      if (!existingDialog.open) existingDialog.showModal?.();
+      existingDialog.querySelector("[data-filter='task-project']")?.focus({ preventScroll: true });
+      return;
+    }
+
+    const modal = document.createElement("dialog");
+    modal.className = "dialog task-filter-dialog";
+    modal.dataset.taskFilterDialog = "true";
+    modal.innerHTML = `
+      <form method="dialog">
+        <div class="dialog-head">
+          <h2>Dev Task Filters</h2>
+          <button type="button" class="icon-btn" data-close-task-filters title="Close" aria-label="Close">x</button>
+        </div>
+        <div class="dialog-body task-filter-dialog-body" data-task-filter-dialog-body></div>
+        <div class="dialog-actions">
+          <button type="button" class="primary text-icon-button" data-close-task-filters>${buttonContent("&#10003;", "Done")}</button>
+        </div>
+      </form>
+    `;
+
+    renderTaskFiltersDialog(modal);
+    document.body.appendChild(modal);
+    modal.addEventListener("change", event => {
+      const target = event.target;
+      const filter = target?.dataset?.filter || "";
+      if (!applyTaskFilterChange(target)) return;
+
+      renderTasks();
+      if (filter === "task-project") {
+        renderTaskFiltersDialog(modal);
+        modal.querySelector("[data-filter='task-project']")?.focus({ preventScroll: true });
+      }
+    });
+    modal.addEventListener("click", event => {
+      if (event.target.closest("[data-close-task-filters]")) modal.close();
+    });
+    modal.addEventListener("close", () => modal.remove());
+    modal.showModal();
+    modal.querySelector("[data-filter='task-project']")?.focus({ preventScroll: true });
+  }
+
+  function renderTaskFiltersDialog(modal) {
+    const body = modal.querySelector("[data-task-filter-dialog-body]");
+    if (body) body.innerHTML = taskFilterFieldsHtml();
+  }
+
+  function taskFilterFieldsHtml() {
+    const statuses = getStatuses();
+    const priorities = getPriorities();
+    const projectSprints = state.sprints.filter(sprint => sprint.projectId === taskProjectId);
+
+    return `
+      <div class="tasks-filter-panel">
+        <div class="task-filter-row">
+          <label>
+            <span>Project</span>
+            <select data-filter="task-project">
+              ${state.projects.map(project => `<option value="${project.id}" ${project.id === taskProjectId ? "selected" : ""}>${escapeHtml(project.code)} - ${escapeHtml(project.title)}</option>`).join("")}
+            </select>
+          </label>
+          <label>
+            <span>Sprint</span>
+            <select data-filter="task-sprint">
+              <option value="all" ${taskSprintId === "all" ? "selected" : ""}>All Sprints</option>
+              ${projectSprints.map(sprint => `<option value="${sprint.id}" ${String(sprint.id) === taskSprintId ? "selected" : ""}>${escapeHtml(sprint.code)} - ${escapeHtml(sprint.title)}</option>`).join("")}
+            </select>
+          </label>
+          <label>
+            <span>Sort</span>
+            <select data-filter="task-sort">
+              <option value="custom" ${taskFilters.sort === "custom" ? "selected" : ""}>Custom order</option>
+              <option value="newest" ${taskFilters.sort === "newest" ? "selected" : ""}>Newest Dev Tasks</option>
+              <option value="oldest" ${taskFilters.sort === "oldest" ? "selected" : ""}>Oldest Dev Tasks</option>
+              <option value="highest-complete" ${taskFilters.sort === "highest-complete" ? "selected" : ""}>Highest Completed</option>
+              <option value="lowest-complete" ${taskFilters.sort === "lowest-complete" ? "selected" : ""}>Lowest Completed</option>
+            </select>
+          </label>
+          <label class="inline-filter-check">
+            <input type="checkbox" data-filter="task-hide-completed" ${taskFilters.hideCompleted ? "checked" : ""}>
+            <span>Hide Completed Dev Tasks</span>
+          </label>
+        </div>
+        <div class="filter-stack">
+          ${filterCheckList("Status", "task-status", statuses.map(value => ({ value, text: value })), taskFilters.statuses)}
+          ${filterCheckList("Priority", "task-priority", priorities.map(value => ({ value, text: value })), taskFilters.priorities)}
+          ${filterCheckList("Assigned", "task-assigned", state.users.map(user => ({ value: user.id, text: user.nickname })), taskFilters.assigneeIds)}
+        </div>
+      </div>
+    `;
+  }
+
+  function applyTaskFilterChange(target) {
     const filter = target?.dataset?.filter;
     if (!filter?.startsWith("task-")) return false;
 
@@ -286,7 +346,6 @@ export function createTasksFeature({
     if (filter === "task-assigned") taskFilters.assigneeIds = checkedFilterValues("task-assigned");
 
     if (filter !== "task-project" && filter !== "task-sprint") saveTaskFilters();
-    renderTasks();
     return true;
   }
 
@@ -476,9 +535,6 @@ export function createTasksFeature({
 
   function taskVisualTrackingChartsHtml(devTasks) {
     const currentSprint = taskChartCurrentSprint();
-    const currentTasks = currentSprint
-      ? devTasks.filter(task => task.sprintId === currentSprint.id)
-      : [];
     const selectedSprint = taskSelectedSprint();
     const sprintFilterTasks = selectedSprint
       ? devTasks.filter(task => task.sprintId === selectedSprint.id)
@@ -486,7 +542,7 @@ export function createTasksFeature({
     const charts = [
       taskDeveloperWorkloadChartHtml(selectedSprint, sprintFilterTasks),
       taskStatusHorizontalChartHtml(selectedSprint, sprintFilterTasks),
-      taskCurrentSprintPieChartHtml(currentSprint, currentTasks),
+      taskCurrentSprintPieChartHtml(selectedSprint, sprintFilterTasks),
       taskPastSixSprintsColumnChartHtml(devTasks, currentSprint)
     ].filter(Boolean);
 
@@ -496,37 +552,28 @@ export function createTasksFeature({
     });
   }
 
-  function taskCurrentSprintPieChartHtml(currentSprint, currentTasks) {
-    if (!currentSprint) {
-      return VisualCharts.card({
-        title: "Current Sprint Dev Task Mix",
-        subtitle: "No current Sprint is available for the selected project.",
-        className: "task-chart-card task-mix-chart-card",
-        body: `<div class="empty compact-empty">No current Sprint was found.</div>`
-      });
-    }
-
-    const completedTasks = currentTasks.filter(isTaskCompleted);
-    const openTasks = currentTasks.filter(task => !isTaskCompleted(task));
+  function taskCurrentSprintPieChartHtml(selectedSprint, sprintTasks) {
+    const completedTasks = sprintTasks.filter(isTaskCompleted);
+    const openTasks = sprintTasks.filter(task => !isTaskCompleted(task));
     const items = [
       taskChartGroupedItem("Completed", completedTasks, "var(--color-success)", `Completed: ${completedTasks.length} Dev Task${completedTasks.length === 1 ? "" : "s"}`),
       taskChartGroupedItem("Still Open", openTasks, "var(--color-warning)", `Still Open: ${openTasks.length} Dev Task${openTasks.length === 1 ? "" : "s"}`)
     ].filter(item => item.value > 0);
-    const completedPercent = currentTasks.length
-      ? Math.round((completedTasks.length / currentTasks.length) * 100)
+    const completedPercent = sprintTasks.length
+      ? Math.round((completedTasks.length / sprintTasks.length) * 100)
       : 0;
-    const openPercent = currentTasks.length
-      ? Math.round((openTasks.length / currentTasks.length) * 100)
+    const openPercent = sprintTasks.length
+      ? Math.round((openTasks.length / sprintTasks.length) * 100)
       : 0;
 
     return VisualCharts.card({
-      title: "Current Sprint Dev Task Mix",
-      subtitle: currentSprint.code,
+      title: "Sprint Dev Task Mix",
+      subtitle: selectedSprint ? selectedSprint.code : "All Sprints",
       className: "task-chart-card task-mix-chart-card",
       body: `
-        ${VisualCharts.pieChart(items, `${currentTasks.length} total`, "No Dev Tasks match the current Sprint filter.", {
+        ${VisualCharts.pieChart(items, `${sprintTasks.length} total`, "No Dev Tasks match the selected Sprint filter.", {
           donut: true,
-          centerValue: String(currentTasks.length),
+          centerValue: String(sprintTasks.length),
           centerLabel: "Total"
         })}
         <div class="task-mix-insight" aria-label="Completed ${completedPercent} percent; still open ${openPercent} percent">
@@ -695,6 +742,13 @@ export function createTasksFeature({
   }
 
   function deactivateTasks() {
+    document.querySelectorAll("[data-task-filter-dialog]").forEach(dialog => {
+      if (dialog.open) {
+        dialog.close();
+      } else {
+        dialog.remove();
+      }
+    });
     taskTableMode.deactivate();
   }
 
