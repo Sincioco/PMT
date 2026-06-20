@@ -227,8 +227,8 @@ export function createGanttFeature({
   }
 
   function wheelFlyByDirection(event) {
-    if (event.deltaY > 0) return flyBySequenceDirection();
-    if (event.deltaY < 0) return -flyBySequenceDirection();
+    if (event.deltaY > 0) return 1;
+    if (event.deltaY < 0) return -1;
     return 0;
   }
 
@@ -237,8 +237,10 @@ export function createGanttFeature({
   }
 
   function flyByStartSprint(selectedSprint, projectSprints, direction) {
+    const currentSprintId = flyBy.getCurrentSprintId();
     const scrollSprintId = flyBy.nearestSprintIdFromScroll(direction);
-    return projectSprints.find(sprint => sprint.id === scrollSprintId)
+    return projectSprints.find(sprint => sprint.id === currentSprintId)
+      || projectSprints.find(sprint => sprint.id === scrollSprintId)
       || selectedSprint
       || currentSprintForProject(projectSprints);
   }

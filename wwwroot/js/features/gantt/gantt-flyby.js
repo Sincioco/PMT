@@ -43,6 +43,10 @@ export function createGanttFlyBy({ showToast }) {
     return resumeSprintId;
   }
 
+  function getCurrentSprintId() {
+    return currentSprintId;
+  }
+
   function setResumeSprintId(sprintId) {
     resumeSprintId = Number(sprintId || 0);
   }
@@ -265,7 +269,7 @@ export function createGanttFlyBy({ showToast }) {
     animating = false;
     if (!completedMove) return;
     currentSprintId = targetSprint.id;
-    if (flyByRunId === runId) finish("");
+    if (flyByRunId === runId) finish("", { keepCurrent: true });
   }
 
   function flyByStartingSprint(sprints, startingSprint, sprintId = 0, useResume = true) {
@@ -381,12 +385,12 @@ export function createGanttFlyBy({ showToast }) {
     showToast(message);
   }
 
-  function finish(message) {
+  function finish(message, options = {}) {
     active = false;
     animating = false;
     stopRequested = false;
     resumeSprintId = 0;
-    currentSprintId = 0;
+    if (!options.keepCurrent) currentSprintId = 0;
     clearTimers();
     updateButton();
     if (message) showToast(message);
@@ -467,6 +471,7 @@ export function createGanttFlyBy({ showToast }) {
     deactivate: stop,
     flyThroughSprints,
     flyToAdjacentSprint,
+    getCurrentSprintId,
     getResumeSprintId,
     hasPending,
     hasResumeSprint,
