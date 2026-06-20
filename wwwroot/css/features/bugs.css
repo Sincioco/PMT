@@ -15,13 +15,38 @@
   min-width: 1260px;
 }
 
-.bugs-table th:nth-child(-n + 2),
-.bugs-table td:nth-child(-n + 2) {
-  width: 82px;
+.bugs-reporter-column,
+.bugs-assignee-column {
+  width: 92px;
+}
+
+.bugs-title-column {
+  width: 310px;
+}
+
+.bugs-project-column {
+  width: 220px;
+}
+
+.bugs-sprint-column {
+  width: 130px;
+}
+
+.bugs-status-column {
+  width: 140px;
+}
+
+.bugs-severity-column,
+.bugs-priority-column {
+  width: 100px;
+}
+
+.bugs-action-column {
+  width: 272px;
 }
 
 .bugs-table .work-item-title-cell {
-  min-width: 250px;
+  min-width: 310px;
 }
 
 @media (max-width: 1200px) {

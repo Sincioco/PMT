@@ -22,13 +22,14 @@ import {
   attachmentEditorFieldHtml,
   bindAssigneeList,
   bugFixIconHtml,
+  createWorkItemTableMode,
   showTaskAudit,
   taskAuditPanelHtml,
   taskButtonsHtml,
   taskDragHandleHtml,
   taskPercentField,
   uploadWorkItemAttachments
-} from "../../components/work-items.js?v=20260620-light-reference-1-v2";
+} from "../../components/work-items.js?v=20260620-shared-table-edit-mode";
 import {
   preferenceKeys,
   readBooleanPreference,
@@ -85,7 +86,10 @@ export function createTasksFeature({
   let taskFilters = readJsonPreference(preferenceKeys.taskFilters, {});
   let taskFiltersVisible = readBooleanPreference(preferenceKeys.taskFiltersVisible, false);
   let taskVisualChartsVisible = readBooleanPreference(preferenceKeys.taskVisualChartsVisible, true);
-  let taskTableEditMode = false;
+  const taskTableMode = createWorkItemTableMode({
+    action: "toggle-task-table-edit-mode",
+    itemLabel: "Dev Tasks"
+  });
 
   taskFilters.statuses = normalizeSavedArray(taskFilters.statuses);
   taskFilters.assigneeIds = normalizeSavedArray(taskFilters.assigneeIds);
@@ -117,17 +121,9 @@ export function createTasksFeature({
     const chartToggleLabel = showCharts ? "Hide Charts" : "Show Charts";
 
     app.innerHTML = `
-      <section class="tasks-screen">
+      <section class="tasks-screen work-item-screen">
       ${sectionHead("Dev Tasks", `
-        <button
-          class="secondary text-icon-button tasks-table-mode-toggle"
-          type="button"
-          data-action="toggle-task-table-edit-mode"
-          title="${taskTableEditMode ? "Finish editing table" : "Edit table"}"
-          aria-label="${taskTableEditMode ? "Finish editing Dev Tasks table" : "Edit Dev Tasks table"}"
-          aria-pressed="${taskTableEditMode}">
-          ${buttonContent(taskTableEditMode ? "&#10003;" : "&#9998;", taskTableEditMode ? "Done" : "Edit Mode")}
-        </button>
+        ${taskTableMode.buttonHtml()}
         <button class="secondary text-icon-button ${taskFiltersVisible ? "is-on" : ""}" type="button" data-action="toggle-task-filters" aria-pressed="${taskFiltersVisible}">${buttonContent(funnelIconHtml(), filterToggleLabel)}</button>
         <button class="secondary text-icon-button ${showCharts ? "is-on" : ""}" type="button" data-action="toggle-task-visual-charts" aria-pressed="${showCharts}" ${canShowCharts ? "" : "disabled"}>${buttonContent("&#128202;", chartToggleLabel)}</button>
         <button class="primary text-icon-button" type="button" data-action="new-task">${buttonContent("&#10010;", "New Dev Task")}</button>
@@ -170,7 +166,7 @@ export function createTasksFeature({
       </div>` : ""}
       ${showCharts ? taskVisualTrackingChartsHtml(allProjectDevTasks) : ""}
       <div class="panel work-item-table-panel tasks-table-panel">
-        <table class="table work-item-table tasks-table ${taskTableEditMode ? "is-edit-mode" : "is-read-mode"}">
+        <table class="table work-item-table tasks-table ${taskTableMode.active ? "is-edit-mode" : "is-read-mode"}">
           <colgroup>
             <col class="tasks-assigned-column">
             <col class="tasks-title-column">
@@ -179,7 +175,7 @@ export function createTasksFeature({
             <col class="tasks-status-column">
             <col class="tasks-priority-column">
             <col class="tasks-complete-column">
-            ${taskTableEditMode ? `<col class="tasks-action-column">` : ""}
+            ${taskTableMode.active ? `<col class="tasks-action-column">` : ""}
           </colgroup>
           <thead>
             <tr>
@@ -190,7 +186,7 @@ export function createTasksFeature({
               <th>Status</th>
               <th>Priority</th>
               <th class="done-cell">% Complete</th>
-              ${taskTableEditMode ? `<th class="action-cell" aria-label="Actions"></th>` : ""}
+              ${taskTableMode.active ? `<th class="action-cell" aria-label="Actions"></th>` : ""}
             </tr>
           </thead>
           <tbody data-reorder-list="tasks">
@@ -201,22 +197,22 @@ export function createTasksFeature({
               const indent = Math.min(row.level, 4) * 20;
 
               return `
-              <tr class="${rowClass} clickable-row" data-action="view-task" data-id="${task.id}" data-task-id="${task.id}" data-can-drag="${taskTableEditMode && canEditTask(task) ? "true" : "false"}" draggable="false">
+              <tr class="${rowClass} clickable-row" data-action="view-task" data-id="${task.id}" data-task-id="${task.id}" data-can-drag="${taskTableMode.active && canEditTask(task) ? "true" : "false"}" draggable="false">
                 <td>${taskRowAvatarsHtml(task.assignees)}</td>
                 <td class="${titleClass} work-item-title-cell" style="--indent:${indent}px">
                   ${row.level ? `<span class="subtask-pill">Sub-task</span>` : ""}
                   <strong class="work-item-code">${escapeHtml(task.code)}</strong>
                   <span class="work-item-title">${bugFixIconHtml(task)}${escapeHtml(task.title)}</span>
                 </td>
-                <td>${escapeHtml(projectName(task.projectId))}</td>
-                <td>${escapeHtml(sprintName(task.sprintId))}</td>
-                <td>${escapeHtml(task.status)}</td>
+                <td class="work-item-context-cell">${escapeHtml(projectName(task.projectId))}</td>
+                <td class="work-item-context-cell">${escapeHtml(sprintName(task.sprintId))}</td>
+                <td class="work-item-context-cell">${escapeHtml(task.status)}</td>
                 <td><span class="pill priority-${task.priority}">${escapeHtml(task.priority)}</span></td>
                 <td class="done-cell">${progressHtml(taskDisplayPercent(task))}</td>
-                ${taskTableEditMode ? `<td class="reveal-actions action-cell">${taskButtonsHtml(task, { includeView: false })}${taskDragHandleHtml(task)}</td>` : ""}
+                ${taskTableMode.active ? `<td class="reveal-actions action-cell">${taskButtonsHtml(task, { includeView: false })}${taskDragHandleHtml(task)}</td>` : ""}
               </tr>
             `;
-            }).join("") || `<tr><td colspan="${taskTableEditMode ? 8 : 7}"><div class="empty">No tasks for this filter.</div></td></tr>`}
+            }).join("") || `<tr><td colspan="${taskTableMode.active ? 8 : 7}"><div class="empty">No tasks for this filter.</div></td></tr>`}
           </tbody>
         </table>
       </div>
@@ -232,7 +228,7 @@ export function createTasksFeature({
       return true;
     }
     if (action === "toggle-task-table-edit-mode") {
-      taskTableEditMode = !taskTableEditMode;
+      taskTableMode.toggle();
       renderTasks();
       return true;
     }
@@ -694,7 +690,7 @@ export function createTasksFeature({
   }
 
   function deactivateTasks() {
-    taskTableEditMode = false;
+    taskTableMode.deactivate();
   }
 
   function workItemEditorTitle(item, itemType, newTitle) {

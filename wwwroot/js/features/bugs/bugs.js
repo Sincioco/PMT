@@ -25,13 +25,14 @@ import { sectionHead } from "../../components/sections.js";
 import {
   attachmentEditorFieldHtml,
   bindAssigneeList,
+  createWorkItemTableMode,
   showTaskAudit,
   taskAuditPanelHtml,
   taskButtonsHtml,
   taskDragHandleHtml,
   taskPercentField,
   uploadWorkItemAttachments
-} from "../../components/work-items.js?v=20260620-bug-linked-task";
+} from "../../components/work-items.js?v=20260620-shared-table-edit-mode";
 import { currentUserId } from "../../core/authentication.js";
 import {
   preferenceKeys,
@@ -90,6 +91,10 @@ export function createBugsFeature({
   let bugEntryProjectId = readNumberPreference(preferenceKeys.bugEntryProject, 0);
   let bugEntrySprintId = readPreference(preferenceKeys.bugEntrySprint, "");
   let bugEntryEnvironment = readPreference(preferenceKeys.bugEntryEnvironment, "");
+  const bugTableMode = createWorkItemTableMode({
+    action: "toggle-bug-table-edit-mode",
+    itemLabel: "Bug Tracking"
+  });
 
   bugFilters.reporterIds = normalizeSavedArray(bugFilters.reporterIds, bugFilters.reporterId);
   bugFilters.assigneeIds = normalizeSavedArray(bugFilters.assigneeIds, bugFilters.assigneeId);
@@ -106,7 +111,9 @@ export function createBugsFeature({
     const chartToggleLabel = showCharts ? "Hide Charts" : "Show Charts";
 
     app.innerHTML = `
+      <section class="bugs-screen work-item-screen">
       ${sectionHead("Bug Tracking", `
+        ${bugTableMode.buttonHtml()}
         <button class="secondary text-icon-button ${bugFiltersVisible ? "is-on" : ""}" type="button" data-action="toggle-bug-filters" aria-pressed="${bugFiltersVisible}">${buttonContent(funnelIconHtml(), filterToggleLabel)}</button>
         <button class="secondary text-icon-button ${showCharts ? "is-on" : ""}" type="button" data-action="toggle-bug-visual-charts" aria-pressed="${showCharts}" ${canShowCharts ? "" : "disabled"}>${buttonContent("&#128202;", chartToggleLabel)}</button>
         <button class="primary text-icon-button" type="button" data-action="new-bug">${buttonContent("&#9888;", "New Bug Report")}</button>
@@ -126,7 +133,18 @@ export function createBugsFeature({
       </div>` : ""}
       ${showCharts ? bugVisualTrackingChartsHtml(filteredBugs) : ""}
       <div class="panel work-item-table-panel bugs-table-panel">
-        <table class="table work-item-table bugs-table">
+        <table class="table work-item-table bugs-table ${bugTableMode.active ? "is-edit-mode" : "is-read-mode"}">
+          <colgroup>
+            <col class="bugs-reporter-column">
+            <col class="bugs-assignee-column">
+            <col class="bugs-title-column">
+            <col class="bugs-project-column">
+            <col class="bugs-sprint-column">
+            <col class="bugs-status-column">
+            <col class="bugs-severity-column">
+            <col class="bugs-priority-column">
+            ${bugTableMode.active ? `<col class="bugs-action-column">` : ""}
+          </colgroup>
           <thead>
             <tr>
               <th>Reporter</th>
@@ -137,29 +155,30 @@ export function createBugsFeature({
               <th>Status</th>
               <th>Severity</th>
               <th>Priority</th>
-              <th></th>
+              ${bugTableMode.active ? `<th class="action-cell" aria-label="Actions"></th>` : ""}
             </tr>
           </thead>
           <tbody data-reorder-list="bugs">
             ${filteredBugs.map(bug => `
-              <tr class="clickable-row" data-action="view-task" data-id="${bug.id}" data-task-id="${bug.id}" data-can-drag="${canEditTask(bug) ? "true" : "false"}" draggable="false">
+              <tr class="clickable-row" data-action="view-task" data-id="${bug.id}" data-task-id="${bug.id}" data-can-drag="${bugTableMode.active && canEditTask(bug) ? "true" : "false"}" draggable="false">
                 <td>${taskRowAvatarsHtml(bug.reporters)}</td>
                 <td>${taskRowAvatarsHtml(bug.assignees)}</td>
                 <td class="work-item-title-cell">
                   <strong class="work-item-code">${escapeHtml(bug.code)}</strong>
                   <span class="work-item-title">${escapeHtml(bug.title)}</span>
                 </td>
-                <td>${escapeHtml(projectName(bug.projectId))}</td>
-                <td>${escapeHtml(sprintName(bug.sprintId))}</td>
-                <td>${escapeHtml(bug.status)}</td>
+                <td class="work-item-context-cell">${escapeHtml(projectName(bug.projectId))}</td>
+                <td class="work-item-context-cell">${escapeHtml(sprintName(bug.sprintId))}</td>
+                <td class="work-item-context-cell">${escapeHtml(bug.status)}</td>
                 <td><span class="pill severity-${escapeAttr(bug.severity)}">${escapeHtml(bug.severity || "")}</span></td>
                 <td><span class="pill priority-${escapeAttr(bug.priority)}">${escapeHtml(bug.priority)}</span></td>
-                <td class="action-cell">${taskButtonsHtml(bug)}${taskDragHandleHtml(bug)}</td>
+                ${bugTableMode.active ? `<td class="reveal-actions action-cell">${taskButtonsHtml(bug, { includeView: false })}${taskDragHandleHtml(bug)}</td>` : ""}
               </tr>
-            `).join("") || `<tr><td colspan="9"><div class="empty">No bug reports match these filters.</div></td></tr>`}
+            `).join("") || `<tr><td colspan="${bugTableMode.active ? 9 : 8}"><div class="empty">No bug reports match these filters.</div></td></tr>`}
           </tbody>
         </table>
       </div>
+      </section>
     `;
   }
 
@@ -168,6 +187,11 @@ export function createBugsFeature({
 
     if (action === "new-bug") {
       editBug();
+      return true;
+    }
+    if (action === "toggle-bug-table-edit-mode") {
+      bugTableMode.toggle();
+      renderBugs();
       return true;
     }
     if (action === "toggle-bug-filters") {
@@ -496,7 +520,12 @@ export function createBugsFeature({
     return `${itemType}${code}${title}`;
   }
 
+  function deactivateBugs() {
+    bugTableMode.deactivate();
+  }
+
   return {
+    deactivate: deactivateBugs,
     edit: editBug,
     handleAction,
     handleFilterChange,

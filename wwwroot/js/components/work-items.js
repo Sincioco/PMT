@@ -44,6 +44,41 @@ export function taskDragHandleHtml(task) {
   return `<button type="button" class="work-item-drag-handle" data-drag-handle title="Drag to reorder" aria-label="Drag to reorder"><span aria-hidden="true">&#8942;&#8942;</span></button>`;
 }
 
+export function createWorkItemTableMode({
+  action,
+  itemLabel
+}) {
+  let active = false;
+
+  return {
+    get active() {
+      return active;
+    },
+    buttonHtml() {
+      const modeLabel = active ? "Done" : "Edit Mode";
+      const title = active ? "Finish editing table" : "Edit table";
+
+      return `
+        <button
+          class="secondary text-icon-button work-item-table-mode-toggle"
+          type="button"
+          data-action="${escapeAttr(action)}"
+          title="${title}"
+          aria-label="${active ? `Finish editing ${escapeAttr(itemLabel)} table` : `Edit ${escapeAttr(itemLabel)} table`}"
+          aria-pressed="${active}">
+          ${buttonContent(active ? "&#10003;" : "&#9998;", modeLabel)}
+        </button>
+      `;
+    },
+    deactivate() {
+      active = false;
+    },
+    toggle() {
+      active = !active;
+    }
+  };
+}
+
 export function taskAuditPanelHtml(task) {
   return `
     <div class="field full audit-editor-row">
