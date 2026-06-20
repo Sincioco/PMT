@@ -119,8 +119,8 @@ export function createGanttFlyBy({ showToast }) {
   function scrollLeftForDate(chart, date) {
     const startIndex = Math.max(0, visibleDateIndex(chart.dates, date, false));
     // The sprint name column is sticky, so do not add its width to scrollLeft.
-    // This places the sprint start just to the right of the fixed column.
-    return Math.max(0, (startIndex * chart.dayWidth) - 16);
+    // Align the selected Sprint's first date flush with the fixed column.
+    return Math.max(0, startIndex * chart.dayWidth);
   }
 
   function scrollTopForSprint(sprint) {

@@ -15,11 +15,11 @@ import {
   selectedGanttSprint,
   sortGanttSprintOptions,
   sortGanttSprints
-} from "./gantt-calculations.js?v=20260620-render-end-date";
-import { createGanttFlyBy } from "./gantt-flyby.js?v=20260620-render-end-date";
+} from "./gantt-calculations.js?v=20260620-gantt-scaled-buffer";
+import { createGanttFlyBy } from "./gantt-flyby.js?v=20260620-gantt-flush-sprint";
 import { ganttScreenHtml } from "./gantt-rendering.js?v=20260620-gantt-dependency-line";
 
-export { currentSprintForProject, ganttStartDate } from "./gantt-calculations.js?v=20260620-render-end-date";
+export { currentSprintForProject, ganttStartDate } from "./gantt-calculations.js?v=20260620-gantt-scaled-buffer";
 
 export function createGanttFeature({
   app,

@@ -32,7 +32,7 @@ import {
   createGanttFeature,
   currentSprintForProject,
   ganttStartDate
-} from "./features/gantt/gantt.js?v=20260620-gantt-dependency-line";
+} from "./features/gantt/gantt.js?v=20260620-gantt-flush-sprint";
 import { createProjectsFeature } from "./features/projects/projects.js?v=20260620-null-end-date";
 import { createRoadMapFeature } from "./features/roadmap/roadmap.js?v=20260620-render-end-date";
 import { createScrumFeature } from "./features/scrum/scrum.js?v=20260620-scrum-project";

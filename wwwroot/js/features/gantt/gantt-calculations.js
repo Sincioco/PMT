@@ -70,6 +70,9 @@ export function ganttChartData({
 
   const minDate = new Date(Math.min(...scheduledItems.map(row => row.start.getTime())));
   const maxDate = new Date(Math.max(...scheduledItems.map(row => row.end.getTime())));
+  const timelineDaySpan = Math.max(1, Math.ceil((maxDate - minDate) / 86400000));
+  const futureBufferDays = timelineDaySpan > 1095 ? 84 : 14;
+  maxDate.setDate(maxDate.getDate() + futureBufferDays);
   const startDates = new Set(projectTasks.map(task => dateKey(ganttStartDate(task))).filter(Boolean));
   const activeHolidays = activeHolidayMap(holidays);
   const dates = dateRange(minDate, maxDate).filter(date => shouldShowTimelineDate(date, startDates, activeHolidays, showNonWorkingDays));

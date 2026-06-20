@@ -170,3 +170,17 @@ For the rest of this conversation.  Make only the change I ask for.  Do not perf
 * In the Sprint New/Edit dialog box, remember the user's last selected Project, so that the next time they start a new Sprint it is already pre-selected.
 
 * There was a previous logic/rule that stated that if there is no end-date, choose today's date.  Remove that logic.  If there is no end-date selected, keep it as empty in the UI and null in the database.
+
+* Obviously, for logic that requires Created Date or Modified Date and if none is supplied, use today's date.
+
+* If the Gantt Chart or Road Map needs an end-date for rendering, logically at run-time only during rendering, make the end date to today so we don't render a roadmap or Gantt chat that goes on forever.
+
+* In the Gantt Chart, when you select a specific sprint, it doesn't always render the Sprint's data start at the left side of the Gantt Chart.  For example in:
+
+	Project:  HLS, Current Sprint - Sprint data renders mid-way on the Gantt Chart.
+	Project:  LMS, Current Sprint - Sprint data renders mid-way on the Gantt Chart.
+	Project:  PMT, Current Sprint - Sprint data renders mid-way on the Gantt Chart.
+
+	It seems, it's because there isn't enough forward date in time on the Gantt Calendar that's why the items are getting rendered in the middle of the screen.  Perhaps, extend the Gantt Chart's calendar into the future a little bit more?
+
+* In the Gantt Chart, change the behavior of the mousewheel such that if the cursor is in the viewport of the Gantt Chart, scrolling the mousewheel down has the same effect as the fly-by button in that it should animate automatically to the next sprint.  Refer to the fly-by button code and animation for how this is accomplished.  Do the opposite, if the user scroll the mousewheel up, perform a fly-by animation from the current sprint to the next-sprint.  Don't accept any more mousewheel events until all fly-by animations have completed.
