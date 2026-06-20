@@ -11,6 +11,8 @@ export function createGanttFlyBy({ showToast }) {
   let stopRequested = false;
   let resumeSprintId = 0;
   let currentSprintId = 0;
+  let pendingAdjacentDirection = 0;
+  let pendingAdjacentSprintId = 0;
 
   function state() {
     return {
@@ -22,6 +24,10 @@ export function createGanttFlyBy({ showToast }) {
 
   function isActive() {
     return active;
+  }
+
+  function isBusy() {
+    return active || pending || animating;
   }
 
   function hasResumeSprint() {
@@ -44,17 +50,40 @@ export function createGanttFlyBy({ showToast }) {
     active = true;
     stopRequested = false;
     pending = true;
+    pendingAdjacentDirection = 0;
+    pendingAdjacentSprintId = 0;
+  }
+
+  function startAdjacentPending(direction, sprintId) {
+    active = true;
+    stopRequested = false;
+    pending = true;
+    pendingAdjacentDirection = normalizedDirection(direction);
+    pendingAdjacentSprintId = Number(sprintId || 0);
+    currentSprintId = pendingAdjacentSprintId;
   }
 
   function runPending(chart, startingSprint) {
     if (!pending) return;
     pending = false;
+    const adjacentDirection = pendingAdjacentDirection;
+    const adjacentSprintId = pendingAdjacentSprintId;
+    pendingAdjacentDirection = 0;
+    pendingAdjacentSprintId = 0;
     const flyByRunId = ++runId;
     requestAnimationFrame(() => {
       if (flyByRunId !== runId) return;
-      const startSprint = flyByStartingSprint(chart.sprints, startingSprint);
+      const startSprint = adjacentDirection
+        ? chart.sprints.find(sprint => sprint.id === adjacentSprintId) || startingSprint(chart.sprints) || chart.sprints[0] || null
+        : flyByStartingSprint(chart.sprints, startingSprint);
       scrollToSprint(chart, startSprint);
-      requestAnimationFrame(() => startFlyBy(chart, flyByRunId, startingSprint));
+      requestAnimationFrame(() => {
+        if (adjacentDirection) {
+          startAdjacentFlyBy(chart, flyByRunId, adjacentDirection, startSprint);
+        } else {
+          startFlyBy(chart, flyByRunId, startingSprint);
+        }
+      });
     });
   }
 
@@ -132,6 +161,19 @@ export function createGanttFlyBy({ showToast }) {
     return Math.max(0, rowTopInScroller(row, scroller) - (header?.offsetHeight || 0));
   }
 
+  function flyToAdjacentSprint(chart, direction, startingSprint) {
+    if (isBusy()) return false;
+
+    active = true;
+    stopRequested = false;
+    currentSprintId = Number(startingSprint?.id || nearestSprintIdFromScroll() || 0);
+    updateButton();
+
+    const flyByRunId = ++runId;
+    requestAnimationFrame(() => startAdjacentFlyBy(chart, flyByRunId, normalizedDirection(direction), startingSprint));
+    return true;
+  }
+
   async function startFlyBy(chart, flyByRunId, startingSprint) {
     const scroller = document.querySelector(".gantt-scroll");
     if (!chart?.dates?.length || !chart.sprints?.length || !scroller) {
@@ -140,7 +182,7 @@ export function createGanttFlyBy({ showToast }) {
     }
     if (flyByRunId !== runId) return;
 
-    const newestToOldest = [...chart.sprints].sort((a, b) => ganttStartDate(b) - ganttStartDate(a));
+    const newestToOldest = flyBySprintOrder(chart.sprints);
     const currentSprint = flyByStartingSprint(newestToOldest, startingSprint);
     const currentIndex = Math.max(0, newestToOldest.findIndex(sprint => sprint.id === currentSprint?.id));
     const flyBySprints = newestToOldest.slice(currentIndex);
@@ -178,11 +220,51 @@ export function createGanttFlyBy({ showToast }) {
     }
   }
 
+  async function startAdjacentFlyBy(chart, flyByRunId, direction, startingSprint) {
+    const scroller = document.querySelector(".gantt-scroll");
+    if (!chart?.dates?.length || !chart.sprints?.length || !scroller || !direction) {
+      finish("");
+      return;
+    }
+    if (flyByRunId !== runId) return;
+
+    const sprintOrder = flyBySprintOrder(chart.sprints);
+    const currentSprint = sprintOrder.find(sprint => sprint.id === startingSprint?.id)
+      || sprintOrder.find(sprint => sprint.id === nearestSprintIdFromScroll())
+      || sprintOrder[0]
+      || null;
+    const currentIndex = sprintOrder.findIndex(sprint => sprint.id === currentSprint?.id);
+    const targetSprint = sprintOrder[currentIndex + direction];
+    if (!currentSprint || !targetSprint) {
+      finish("");
+      return;
+    }
+
+    currentSprintId = currentSprint.id;
+    scrollToSprint(chart, currentSprint);
+    const fromPosition = currentScrollPosition(scroller);
+    const toPosition = scrollPosition(chart, targetSprint);
+    animating = true;
+    const completedMove = await animateScroll(scroller, fromPosition, toPosition, flyByRunId);
+    animating = false;
+    if (!completedMove) return;
+    currentSprintId = targetSprint.id;
+    if (flyByRunId === runId) finish("");
+  }
+
   function flyByStartingSprint(sprints, startingSprint) {
     return sprints.find(sprint => sprint.id === resumeSprintId)
       || startingSprint(sprints)
       || sprints[0]
       || null;
+  }
+
+  function flyBySprintOrder(sprints) {
+    return [...sprints].sort((a, b) => ganttStartDate(b) - ganttStartDate(a));
+  }
+
+  function normalizedDirection(direction) {
+    return direction < 0 ? -1 : 1;
   }
 
   function scrollPosition(chart, sprint) {
@@ -287,6 +369,8 @@ export function createGanttFlyBy({ showToast }) {
     animating = false;
     stopRequested = false;
     pending = false;
+    pendingAdjacentDirection = 0;
+    pendingAdjacentSprintId = 0;
     if (!options.keepResume) {
       resumeSprintId = 0;
       currentSprintId = 0;
@@ -349,9 +433,11 @@ export function createGanttFlyBy({ showToast }) {
   return {
     captureScrollPosition,
     deactivate: stop,
+    flyToAdjacentSprint,
     getResumeSprintId,
     hasPending,
     hasResumeSprint,
+    isBusy,
     isActive,
     nearestSprintIdFromScroll,
     pause,
@@ -359,6 +445,7 @@ export function createGanttFlyBy({ showToast }) {
     runPending,
     scrollToSprintStart,
     setResumeSprintId,
+    startAdjacentPending,
     startPending,
     state,
     stop,

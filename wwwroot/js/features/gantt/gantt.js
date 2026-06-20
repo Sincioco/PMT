@@ -94,6 +94,7 @@ export function createGanttFeature({
     }
 
     flyBy.runPending(chart, startingFlyBySprint);
+    bindGanttWheelFlyBy(chart, selectedSprint, projectSprints);
   }
 
   function handleAction(action, id) {
@@ -187,6 +188,47 @@ export function createGanttFeature({
     saveViewSettings();
     bugExpansion.clear();
     renderGantt();
+  }
+
+  function bindGanttWheelFlyBy(chart, selectedSprint, projectSprints) {
+    const scroller = app.querySelector(".gantt-scroll");
+    if (!scroller) return;
+
+    scroller.addEventListener("wheel", event => {
+      const direction = wheelFlyByDirection(event);
+      if (!direction) return;
+
+      event.preventDefault();
+      if (flyBy.isBusy()) return;
+
+      const startSprint = wheelFlyByStartSprint(selectedSprint, projectSprints);
+      if (!startSprint) return;
+
+      if (ganttRenderMode !== "all" || ganttSprintMode !== "all" || ganttSort !== "startDesc") {
+        ganttRenderMode = "all";
+        ganttSprintMode = "all";
+        ganttSort = "startDesc";
+        flyBy.startAdjacentPending(direction, startSprint.id);
+        saveViewSettings();
+        renderGantt();
+        return;
+      }
+
+      flyBy.flyToAdjacentSprint(chart, direction, startSprint);
+    }, { passive: false });
+  }
+
+  function wheelFlyByDirection(event) {
+    if (event.deltaY > 0) return 1;
+    if (event.deltaY < 0) return -1;
+    return 0;
+  }
+
+  function wheelFlyByStartSprint(selectedSprint, projectSprints) {
+    const scrollSprintId = flyBy.nearestSprintIdFromScroll();
+    return projectSprints.find(sprint => sprint.id === scrollSprintId)
+      || selectedSprint
+      || currentSprintForProject(projectSprints);
   }
 
   function startingFlyBySprint(sprints) {
