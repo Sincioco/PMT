@@ -28,13 +28,13 @@ import {
   taskDisplayPercent
 } from "../shared/work-item-rules.js";
 
-export function taskButtonsHtml(task) {
+export function taskButtonsHtml(task, { includeView = true } = {}) {
   const canEdit = canEditTask(task);
   return `
     ${iconButton("delete-task", task.id, "Delete", "delete", canEdit, "danger")}
     ${iconButton("duplicate-task", task.id, "Duplicate", "duplicate", canEdit)}
     ${iconButton("show-task-audit", task.id, "Audit Log", "audit", true)}
-    ${iconButton("view-task", task.id, "View", "view", true)}
+    ${includeView ? iconButton("view-task", task.id, "View", "view", true) : ""}
     ${iconButton("edit-task", task.id, "Edit", "edit", canEdit)}
   `;
 }

@@ -11,20 +11,52 @@
 
 .tasks-table {
   min-width: 1180px;
+  table-layout: fixed;
 }
 
 .tasks-table-panel {
   border-radius: var(--radius-lg);
 }
 
-.tasks-table th:first-child,
-.tasks-table td:first-child {
+.tasks-assigned-column {
   width: 92px;
 }
 
+.tasks-title-column {
+  width: 310px;
+}
+
+.tasks-project-column {
+  width: 220px;
+}
+
+.tasks-sprint-column {
+  width: 130px;
+}
+
+.tasks-status-column {
+  width: 140px;
+}
+
+.tasks-priority-column {
+  width: 100px;
+}
+
+.tasks-action-column {
+  width: 272px;
+}
+
 .tasks-table .done-cell {
-  width: 26%;
   min-width: 240px;
+  padding-right: 24px;
+}
+
+.tasks-table th {
+  height: 48px;
+  padding-top: var(--space-3);
+  padding-bottom: var(--space-3);
+  vertical-align: middle;
+  text-transform: none;
 }
 
 .subtask-row td {
@@ -92,7 +124,7 @@ html[data-theme="light"] .tasks-table-panel {
 }
 
 html[data-theme="light"] .tasks-table th {
-  height: 56px;
+  height: 48px;
   border-bottom-color: var(--color-border);
   background: var(--color-surface);
   color: var(--color-text-secondary);

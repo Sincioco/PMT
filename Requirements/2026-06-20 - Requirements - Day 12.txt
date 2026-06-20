@@ -202,3 +202,33 @@ For the rest of this conversation.  Make only the change I ask for.  Do not perf
 * There seems to be a really large margin to the left and right in all the content areas of PMT, can you fix it so the content to the left is flushed / aligned to where the PMT logo is?  And make it as wide as where the user's avatar icon is.  I want maximum width for the content with still keeping left and right margin already established by the top navigation area.
 
 * Do some house cleaning.  Run your full battery of tests.  Update any .md files that needs updating based on recent code / logic or rule changes.  Make sure code and CSS are in order so we can make more sweeping UI changes later tonight.  Watch my Codex quota, I am currently at 69%.  Stop work at a good point when the quota reaches near 3%.  I'm assuming you can query my Codex quota periodically?  When you are done you have my full permission to commit the code into github.
+
+
+Gantt Chart
+-----------
+I have only 6% of Codex Quota left, so make the diagnosis and fix as surgical and quick as you can.  Limit the scope to just the Gantt Chart.
+1. Do not let the Gantt Chart be taller than the viewable area.  Right now, the browser's vertical scrollbar is appearing on the Gantt Chart.
+2.) Remove the vertical lines/marks on the Gantt Chart itself.  Keep the Calendar / Header as they are do not make changes there.  Don't make changes to the fixed Sprint column.
+3.) When the fly-by scrolls to the destination Sprint, it is not flushed to the top of the Sprint column. Fix it so the destination sprint is perfectly aligned to be just below the Gantt Chart header.
+4.) Just make the code modifications and make sure the code compiles.  I can do the visual test.  And I can also run the web server myself.  Just stop once you have fixed the code and it compiles.
+
+
+Dev Tasks
+-----------
+1.) Rename the Dev Tasks table headers to as follow:  Assigned, Tasks, Project, Sprint, Status, Priority, % Complete, Action
+2.) Add a pencil icon / edit on the upper left corner of the Dev Tasks table itself.  When clicked, the table enters in edit mode, and the icon is replaced with a ok/checkmark symbol.  In edit mode, it shows the last column on the table, the actions column as well as the row re-order handle.  And the table function as it does now.
+3.) When the ok/checkmark symbol is clicked, it means edit mode is done and it's back to the table being in read-mode.  When in read mode, all that it means is the action column is not rendered, and the % Complete column (formerly the Done column) extends to take up the rest of the table's width.
+4.) No other changes needs to be made to the table.  It's current click behavior for viewing the details of the Task should be preserved.
+5.) In the action column, you can remove the "view" icon since that is redundant now.
+6.) And by default, the table should be in read-mode.
+
+7.) Don't put the pencil icon above the table's header.  For now, put it in front of the "Show Filters" button. 
+8.) When switching from Read Mode to Edit mode, the Dev Task table should not shift.  The only thing that should happen is the % Compelete column, the graph in particular, extends to occupy the space of where the action buttons (column) were.  There should be padding between the graph and on the right side.
+9.) Remove or hide the label "Action" on the column header.
+10.) The table header is too tall now.  Please shorten it a little bit and vertically align the column header labels.  Also, don't upper case the labels.  I prefer all labels to be proper case.
+
+11.) Leaving everything as-is, don't touch or move or shift anything, simply move the pencil/edit icon on the upper-right corner of the table itself.  That means, float the icon to be at the upper-right corner of the actual table itself.  The pencil icon's borders should only appear when the mouse hovers on it, otherwise, render the edit/pencil icon with no border initially.
+
+12.) Undo the last prompt.  And put the pencil/edit mode icon back at the top next to the "Show Filters" button.  This time, make it a full-pledge page level button, with a pencil icon and the text "Edit Mode" on the right of it.
+
+13.) In the Dev Tasks, re-order the charts as follows:  Dev Tasks Completed by Sprint, Current Sprint Dev Tasks by Status, Current Sprint Dev Task Mix, Developer Workload Distribution

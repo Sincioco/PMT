@@ -11,7 +11,7 @@ import {
   bindAttachmentPreview,
   showTaskAudit,
   viewWorkItem
-} from "./components/work-items.js?v=20260620-light-reference-1";
+} from "./components/work-items.js?v=20260620-light-reference-1-v2";
 import { createApplicationShell } from "./core/application-shell.js?v=20260620-light-reference-1";
 import {
   currentView,
@@ -38,7 +38,7 @@ import { createRoadMapFeature } from "./features/roadmap/roadmap.js?v=20260620-r
 import { createScrumFeature } from "./features/scrum/scrum.js?v=20260620-scrum-project";
 import { createSettingsFeature } from "./features/settings/settings.js?v=20260620-light-reference-1";
 import { createSprintsFeature } from "./features/sprints/sprints.js?v=20260620-null-end-date";
-import { createTasksFeature } from "./features/tasks/tasks.js?v=20260620-light-reference-1";
+import { createTasksFeature } from "./features/tasks/tasks.js?v=20260620-light-reference-1-v7";
 import { createWfhScheduleFeature } from "./features/wfh-schedule/wfh-schedule.js?v=20260620-wfh-schedule";
 import {
   fallbackEnvironments,
@@ -331,6 +331,7 @@ function resolveNavigationView(view) {
 function renderCurrentScreen() {
   if (currentView !== "Board") boardFeature.deactivate();
   if (currentView !== "Gantt") ganttFeature.deactivate();
+  if (currentView !== "Tasks") tasksFeature.deactivate();
 
   const registeredScreen = screenHandlerFor(currentView);
   if (registeredScreen?.render) registeredScreen.render();
