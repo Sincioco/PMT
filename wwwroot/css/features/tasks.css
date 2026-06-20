@@ -13,6 +13,10 @@
   min-width: 1180px;
 }
 
+.tasks-table-panel {
+  border-radius: var(--radius-lg);
+}
+
 .tasks-table th:first-child,
 .tasks-table td:first-child {
   width: 92px;
@@ -24,11 +28,11 @@
 }
 
 .subtask-row td {
-  background: var(--color-surface-subtle);
+  background: var(--color-surface);
 }
 
 .subtask-title-cell {
-  padding-left: calc(var(--table-cell-padding-inline) + var(--indent, 24px)) !important;
+  padding-left: calc(var(--table-cell-padding-inline) + var(--indent, 20px)) !important;
 }
 
 .subtask-pill {
@@ -42,6 +46,134 @@
   font-size: var(--font-size-xs);
   font-weight: var(--font-weight-bold);
   text-transform: uppercase;
+}
+
+html[data-theme="light"] .tasks-screen .section-head h1 {
+  color: var(--color-text-primary);
+  letter-spacing: -0.025em;
+}
+
+html[data-theme="light"] .tasks-screen .section-head .toolbar button {
+  min-height: 44px;
+  border-radius: 10px;
+  padding-inline: var(--space-7);
+}
+
+html[data-theme="light"] .tasks-screen .section-head .toolbar .secondary {
+  border-color: var(--color-border-control);
+  background: var(--color-surface);
+  color: var(--color-text-primary);
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.035);
+}
+
+html[data-theme="light"] .tasks-screen .section-head .toolbar .secondary:hover:not(:disabled) {
+  border-color: rgba(18, 107, 255, 0.22);
+  background: var(--color-control-hover);
+}
+
+html[data-theme="light"] .tasks-screen .section-head .toolbar .secondary.is-on,
+html[data-theme="light"] .tasks-screen .section-head .toolbar .secondary[aria-pressed="true"] {
+  border-color: rgba(18, 107, 255, 0.22);
+  background: var(--color-control-selected);
+  color: var(--color-primary);
+}
+
+html[data-theme="light"] .tasks-screen .section-head .toolbar .primary {
+  border-color: var(--color-primary);
+  background: var(--color-primary);
+  color: var(--color-primary-contrast);
+  box-shadow: var(--shadow-accent);
+}
+
+html[data-theme="light"] .tasks-table-panel {
+  border-color: var(--color-border-subtle);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-card);
+}
+
+html[data-theme="light"] .tasks-table th {
+  height: 56px;
+  border-bottom-color: var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text-secondary);
+  box-shadow: none;
+  letter-spacing: 0.025em;
+}
+
+html[data-theme="light"] .tasks-table td {
+  padding-top: var(--space-7);
+  padding-bottom: var(--space-7);
+  border-bottom-color: var(--color-border-subtle);
+  background: var(--color-surface);
+  color: var(--color-text-primary);
+}
+
+html[data-theme="light"] .tasks-table tbody tr:hover td {
+  background: var(--color-control-hover);
+}
+
+html[data-theme="light"] .tasks-table .work-item-code {
+  color: var(--color-primary);
+  font-weight: var(--font-weight-bold);
+  letter-spacing: 0;
+}
+
+html[data-theme="light"] .tasks-table .work-item-title {
+  color: var(--color-text-primary);
+}
+
+html[data-theme="light"] .tasks-table td:nth-child(3),
+html[data-theme="light"] .tasks-table td:nth-child(4),
+html[data-theme="light"] .tasks-table td:nth-child(5) {
+  white-space: nowrap;
+}
+
+html[data-theme="light"] .tasks-table .pill {
+  padding: 3px var(--space-3);
+  font-weight: var(--font-weight-medium);
+}
+
+html[data-theme="light"] .tasks-table .progress {
+  height: 7px;
+  background: var(--color-page-muted);
+}
+
+html[data-theme="light"] .tasks-table .action-cell {
+  padding-right: var(--space-7);
+}
+
+html[data-theme="light"] .tasks-table .icon-action {
+  width: 40px;
+  min-width: 40px;
+  height: 40px;
+  min-height: 40px;
+  border-color: var(--color-border-control);
+  border-radius: 9px;
+  background: var(--color-surface);
+  color: var(--color-text-primary);
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.025);
+}
+
+html[data-theme="light"] .tasks-table .icon-action:hover:not(:disabled) {
+  border-color: rgba(18, 107, 255, 0.22);
+  background: var(--color-control-hover);
+  color: var(--color-primary);
+}
+
+html[data-theme="light"] .tasks-table .icon-action.danger {
+  border-color: var(--color-border-control);
+  background: var(--color-surface);
+  color: var(--color-danger);
+}
+
+html[data-theme="light"] .tasks-table .icon-action.danger:hover:not(:disabled) {
+  border-color: var(--color-danger-border);
+  background: var(--color-danger-surface);
+  color: var(--color-danger-text);
+}
+
+html[data-theme="light"] .tasks-table .work-item-drag-handle {
+  color: var(--color-text-tertiary);
 }
 
 @media (max-width: 900px) {

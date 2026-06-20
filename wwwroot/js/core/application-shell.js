@@ -5,7 +5,7 @@ import {
   logout,
   setCurrentUserId
 } from "./authentication.js";
-import { navIconHtml } from "./navigation-preferences.js";
+import { navIconHtml } from "./navigation-preferences.js?v=20260620-light-reference-1";
 import {
   preferenceKeys,
   readPreference,
@@ -13,6 +13,8 @@ import {
 } from "./preferences.js";
 import { currentView, getNavigationScreens, navigate } from "./router.js";
 import { loadState, state } from "./store.js";
+
+const fixedOverflowViews = new Set(["WFH Schedule", "Settings"]);
 
 export function createApplicationShell({
   bindScreenEvents,
@@ -196,18 +198,22 @@ export function createApplicationShell({
   }
 
   function renderNavigation() {
-    const viewButtons = getNavigationScreens().map(screen => navButtonHtml({
+    const navigationScreens = getNavigationScreens();
+    const primaryScreens = navigationScreens.filter(screen => !fixedOverflowViews.has(screen.view));
+    const fixedOverflowScreens = navigationScreens.filter(screen => fixedOverflowViews.has(screen.view));
+    const viewButtons = primaryScreens.map(screen => navButtonHtml({
       view: screen.view,
       label: screen.label,
       icon: navIconHtml(screen.view),
       active: screen.view === currentView
     })).join("");
+    const overflowIsActive = fixedOverflowScreens.some(screen => screen.view === currentView);
 
     elements.nav.innerHTML = `
       ${viewButtons}
-      <div class="nav-overflow" hidden>
-        <button class="nav-overflow-toggle" type="button" data-action="nav-overflow-toggle" title="More navigation" aria-label="More navigation" aria-expanded="false" aria-haspopup="menu">
-          <span class="nav-icon" aria-hidden="true">&#9776;</span>
+      <div class="nav-overflow">
+        <button class="nav-overflow-toggle ${overflowIsActive ? "active" : ""}" type="button" data-action="nav-overflow-toggle" title="More navigation" aria-label="More navigation" aria-expanded="false" aria-haspopup="menu">
+          <span class="nav-icon" aria-hidden="true">&#8230;</span>
         </button>
         <div class="nav-overflow-menu" role="menu" hidden></div>
       </div>
@@ -242,32 +248,42 @@ export function createApplicationShell({
 
     const items = [...elements.nav.querySelectorAll(":scope > button.nav-item")];
     items.forEach(item => item.hidden = false);
-    overflow.hidden = true;
+    const fixedOverflowScreens = getNavigationScreens()
+      .filter(screen => fixedOverflowViews.has(screen.view));
+    overflow.hidden = false;
     menu.hidden = true;
-    menu.innerHTML = "";
     toggle.setAttribute("aria-expanded", "false");
 
     const fits = () =>
       elements.nav.scrollWidth <= elements.nav.clientWidth + 2
       && (!topbar || topbar.scrollWidth <= topbar.clientWidth + 2);
 
-    if (fits()) return;
-
-    overflow.hidden = false;
     const hiddenItems = [];
     for (let index = items.length - 1; index >= 0 && !fits(); index--) {
       const item = items[index];
       item.hidden = true;
       hiddenItems.unshift(item);
     }
+    toggle.classList.toggle(
+      "active",
+      fixedOverflowScreens.some(screen => screen.view === currentView)
+        || hiddenItems.some(item => item.classList.contains("active"))
+    );
 
-    menu.innerHTML = hiddenItems.map(item => {
+    const responsiveOverflowHtml = hiddenItems.map(item => {
       const view = item.dataset.view;
       const action = item.dataset.action;
       const label = item.querySelector("span:last-child")?.textContent || "";
       const icon = item.querySelector(".nav-icon")?.innerHTML || "&#9679;";
       return navButtonHtml({ view, action, label, icon, active: item.classList.contains("active") }, "nav-menu-item");
     }).join("");
+    const fixedOverflowHtml = fixedOverflowScreens.map(screen => navButtonHtml({
+      view: screen.view,
+      label: screen.label,
+      icon: navIconHtml(screen.view),
+      active: screen.view === currentView
+    }, "nav-menu-item")).join("");
+    menu.innerHTML = responsiveOverflowHtml + fixedOverflowHtml;
   }
 
   function toggleNavOverflow() {

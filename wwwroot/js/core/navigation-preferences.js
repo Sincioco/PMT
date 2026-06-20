@@ -6,7 +6,7 @@ import {
 import { screenRegistry } from "./screen-registry.js";
 
 const navigationVersion = 1;
-const lockedVisibleViews = new Set(["Settings"]);
+const lockedVisibleViews = new Set(["WFH Schedule", "Settings"]);
 
 function defaultNavigationItems() {
   return screenRegistry

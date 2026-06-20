@@ -11,8 +11,8 @@ import {
   bindAttachmentPreview,
   showTaskAudit,
   viewWorkItem
-} from "./components/work-items.js?v=20260620-bug-linked-task";
-import { createApplicationShell } from "./core/application-shell.js?v=20260620-sprint-navigation";
+} from "./components/work-items.js?v=20260620-light-reference-1";
+import { createApplicationShell } from "./core/application-shell.js?v=20260620-light-reference-1";
 import {
   currentView,
   navigate
@@ -36,9 +36,9 @@ import {
 import { createProjectsFeature } from "./features/projects/projects.js?v=20260620-null-end-date";
 import { createRoadMapFeature } from "./features/roadmap/roadmap.js?v=20260620-render-end-date";
 import { createScrumFeature } from "./features/scrum/scrum.js?v=20260620-scrum-project";
-import { createSettingsFeature } from "./features/settings/settings.js?v=20260620-nav-config-v2";
+import { createSettingsFeature } from "./features/settings/settings.js?v=20260620-light-reference-1";
 import { createSprintsFeature } from "./features/sprints/sprints.js?v=20260620-null-end-date";
-import { createTasksFeature } from "./features/tasks/tasks.js?v=20260620-null-end-date";
+import { createTasksFeature } from "./features/tasks/tasks.js?v=20260620-light-reference-1";
 import { createWfhScheduleFeature } from "./features/wfh-schedule/wfh-schedule.js?v=20260620-wfh-schedule";
 import {
   fallbackEnvironments,

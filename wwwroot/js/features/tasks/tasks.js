@@ -28,7 +28,7 @@ import {
   taskDragHandleHtml,
   taskPercentField,
   uploadWorkItemAttachments
-} from "../../components/work-items.js?v=20260620-bug-linked-task";
+} from "../../components/work-items.js?v=20260620-light-reference-1";
 import {
   preferenceKeys,
   readBooleanPreference,
@@ -116,6 +116,7 @@ export function createTasksFeature({
     const chartToggleLabel = showCharts ? "Hide Charts" : "Show Charts";
 
     app.innerHTML = `
+      <section class="tasks-screen">
       ${sectionHead("Dev Tasks", `
         <button class="secondary text-icon-button ${taskFiltersVisible ? "is-on" : ""}" type="button" data-action="toggle-task-filters" aria-pressed="${taskFiltersVisible}">${buttonContent(funnelIconHtml(), filterToggleLabel)}</button>
         <button class="secondary text-icon-button ${showCharts ? "is-on" : ""}" type="button" data-action="toggle-task-visual-charts" aria-pressed="${showCharts}" ${canShowCharts ? "" : "disabled"}>${buttonContent("&#128202;", chartToggleLabel)}</button>
@@ -177,7 +178,7 @@ export function createTasksFeature({
               const task = row.task;
               const rowClass = row.level ? "subtask-row" : "";
               const titleClass = row.level ? "task-title-cell subtask-title-cell" : "task-title-cell";
-              const indent = Math.min(row.level, 4) * 24;
+              const indent = Math.min(row.level, 4) * 20;
 
               return `
               <tr class="${rowClass} clickable-row" data-action="view-task" data-id="${task.id}" data-task-id="${task.id}" data-can-drag="${canEditTask(task) ? "true" : "false"}" draggable="false">
@@ -199,6 +200,7 @@ export function createTasksFeature({
           </tbody>
         </table>
       </div>
+      </section>
     `;
   }
 

@@ -123,114 +123,114 @@ html[data-theme="light"] {
   --native-color-scheme: light;
 
   /* Page and surfaces */
-  --color-page: #eef5f4;
-  --color-page-muted: #e5efed;
-  --color-page-glow-primary: rgba(108, 190, 184, 0.28);
-  --color-page-glow-secondary: rgba(134, 171, 226, 0.22);
+  --color-page: #f6faff;
+  --color-page-muted: #eef4fb;
+  --color-page-glow-primary: rgba(18, 107, 255, 0.08);
+  --color-page-glow-secondary: rgba(71, 127, 214, 0.06);
   --color-surface: #ffffff;
-  --color-surface-subtle: rgba(20, 60, 70, 0.055);
-  --color-surface-raised: #f8fbfa;
+  --color-surface-subtle: #f8fbff;
+  --color-surface-raised: #ffffff;
   --color-surface-elevated: #ffffff;
-  --color-surface-glass: rgba(255, 255, 255, 0.74);
-  --color-surface-glass-highlight: rgba(255, 255, 255, 0.72);
-  --color-surface-navigation: rgba(246, 250, 249, 0.76);
+  --color-surface-glass: rgba(255, 255, 255, 0.92);
+  --color-surface-glass-highlight: rgba(255, 255, 255, 0.82);
+  --color-surface-navigation: rgba(255, 255, 255, 0.94);
   --color-surface-dialog: #ffffff;
-  --color-overlay: rgba(18, 31, 35, 0.44);
+  --color-overlay: rgba(15, 23, 42, 0.42);
 
   /* Text hierarchy */
-  --color-text-primary: #142124;
-  --color-text-secondary: #53676c;
-  --color-text-tertiary: #6b7d81;
+  --color-text-primary: #0f172a;
+  --color-text-secondary: #475569;
+  --color-text-tertiary: #64748b;
   --color-text-inverse: #ffffff;
-  --color-text-disabled: #89989b;
-  --color-link: #0b7771;
-  --color-link-hover: #075d59;
+  --color-text-disabled: #94a3b8;
+  --color-link: #126bff;
+  --color-link-hover: #0b5ee8;
 
   /* Actions and semantic feedback */
-  --color-primary: #0f7f79;
-  --color-primary-hover: #0b706b;
-  --color-primary-active: #075e5a;
+  --color-primary: #126bff;
+  --color-primary-hover: #0b5ee8;
+  --color-primary-active: #064fc4;
   --color-primary-contrast: #ffffff;
-  --color-secondary: #685bc2;
-  --color-secondary-hover: #584aa9;
-  --color-secondary-active: #493d91;
+  --color-secondary: #475569;
+  --color-secondary-hover: #334155;
+  --color-secondary-active: #1e293b;
   --color-secondary-contrast: #ffffff;
 
-  --color-success: #3f8a50;
-  --color-success-surface: rgba(63, 138, 80, 0.12);
-  --color-success-border: rgba(63, 138, 80, 0.34);
-  --color-success-text: #256837;
-  --color-warning: #a96c0d;
-  --color-warning-surface: rgba(183, 121, 22, 0.13);
-  --color-warning-border: rgba(169, 108, 13, 0.36);
-  --color-warning-text: #765008;
-  --color-danger: #bd414c;
-  --color-danger-surface: rgba(200, 79, 88, 0.11);
-  --color-danger-border: rgba(189, 65, 76, 0.34);
-  --color-danger-text: #8f2530;
-  --color-info: #346fc9;
-  --color-info-surface: rgba(52, 111, 201, 0.11);
-  --color-info-border: rgba(52, 111, 201, 0.32);
-  --color-info-text: #285da8;
+  --color-success: #2f9e44;
+  --color-success-surface: #f0fbf3;
+  --color-success-border: rgba(47, 158, 68, 0.32);
+  --color-success-text: #248238;
+  --color-warning: #e87900;
+  --color-warning-surface: #fff7ed;
+  --color-warning-border: rgba(232, 121, 0, 0.32);
+  --color-warning-text: #b45309;
+  --color-danger: #ef4444;
+  --color-danger-surface: #fff1f2;
+  --color-danger-border: rgba(239, 68, 68, 0.28);
+  --color-danger-text: #dc2626;
+  --color-info: #126bff;
+  --color-info-surface: #eff6ff;
+  --color-info-border: rgba(18, 107, 255, 0.24);
+  --color-info-text: #0b5ee8;
 
   /* Borders, controls, and focus */
-  --color-border-subtle: rgba(23, 55, 61, 0.09);
-  --color-border: rgba(23, 55, 61, 0.14);
-  --color-border-strong: rgba(23, 55, 61, 0.24);
-  --color-border-control: rgba(23, 55, 61, 0.2);
-  --color-control: rgba(255, 255, 255, 0.76);
-  --color-control-hover: rgba(255, 255, 255, 0.96);
-  --color-control-active: rgba(216, 235, 232, 0.96);
-  --color-control-disabled: rgba(223, 232, 231, 0.72);
-  --color-control-selected: rgba(19, 139, 132, 0.13);
-  --color-focus-ring: #087b75;
-  --color-focus-halo: rgba(19, 139, 132, 0.22);
+  --color-border-subtle: rgba(15, 23, 42, 0.08);
+  --color-border: rgba(15, 23, 42, 0.12);
+  --color-border-strong: rgba(15, 23, 42, 0.22);
+  --color-border-control: rgba(15, 23, 42, 0.14);
+  --color-control: #ffffff;
+  --color-control-hover: #f8fbff;
+  --color-control-active: #eff6ff;
+  --color-control-disabled: #f1f5f9;
+  --color-control-selected: #eaf2ff;
+  --color-focus-ring: #126bff;
+  --color-focus-halo: rgba(18, 107, 255, 0.2);
   --color-option-background: #ffffff;
-  --color-option-selected: #d7efeb;
-  --select-arrow-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='8' viewBox='0 0 14 8'%3E%3Cpath d='M1 1l6 6 6-6' fill='none' stroke='%2353676c' stroke-width='1.75' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  --color-option-selected: #eaf2ff;
+  --select-arrow-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='8' viewBox='0 0 14 8'%3E%3Cpath d='M1 1l6 6 6-6' fill='none' stroke='%23475569' stroke-width='1.75' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
 
   /* Shadows */
-  --shadow-accent: 0 8px 20px rgba(15, 127, 121, 0.16);
-  --shadow-compact: 0 4px 14px rgba(38, 64, 68, 0.1);
-  --shadow-floating-mark: 0 7px 18px rgba(38, 64, 68, 0.18);
-  --shadow-card: 0 10px 28px rgba(38, 64, 68, 0.1);
-  --shadow-elevated: 0 18px 42px rgba(38, 64, 68, 0.16);
-  --shadow-dialog: 0 28px 70px rgba(38, 64, 68, 0.24);
+  --shadow-accent: 0 8px 20px rgba(18, 107, 255, 0.2);
+  --shadow-compact: 0 4px 14px rgba(15, 23, 42, 0.06);
+  --shadow-floating-mark: 0 7px 18px rgba(15, 23, 42, 0.14);
+  --shadow-card: 0 10px 30px rgba(15, 23, 42, 0.08);
+  --shadow-elevated: 0 18px 44px rgba(15, 23, 42, 0.12);
+  --shadow-dialog: 0 28px 70px rgba(15, 23, 42, 0.2);
 
   /* Charts */
-  --chart-1: #138b84;
-  --chart-2: #346fc9;
-  --chart-3: #4d9a5c;
-  --chart-4: #b77916;
-  --chart-5: #c84f58;
-  --chart-6: #685bc2;
-  --chart-7: #2584a4;
-  --chart-8: #718a1a;
-  --color-chart-gridline: rgba(23, 55, 61, 0.14);
-  --color-chart-axis: #53676c;
+  --chart-1: #126bff;
+  --chart-2: #6366f1;
+  --chart-3: #2f9e44;
+  --chart-4: #e87900;
+  --chart-5: #ef4444;
+  --chart-6: #8b5cf6;
+  --chart-7: #0891b2;
+  --chart-8: #65a30d;
+  --color-chart-gridline: rgba(15, 23, 42, 0.12);
+  --color-chart-axis: #475569;
   --color-chart-tooltip: rgba(255, 255, 255, 0.98);
-  --color-chart-tooltip-border: rgba(23, 55, 61, 0.24);
+  --color-chart-tooltip-border: rgba(15, 23, 42, 0.2);
   --color-chart-mark-text: #ffffff;
-  --color-chart-mark-outline: rgba(20, 42, 47, 0.32);
+  --color-chart-mark-outline: rgba(15, 23, 42, 0.28);
   --color-status-highlight: rgba(255, 255, 255, 0.48);
 
   /* Status palette. Lookup-provided colors may override these at runtime. */
-  --status-1: #5f6b73;
-  --status-2: #346fc9;
-  --status-3: #138b84;
-  --status-4: #4d9a5c;
-  --status-5: #9b8210;
-  --status-6: #a96c0d;
-  --status-7: #bd414c;
-  --status-8: #3f8a50;
-  --status-9: #2584a4;
-  --status-10: #685bc2;
-  --status-11: #718a1a;
+  --status-1: #64748b;
+  --status-2: #126bff;
+  --status-3: #0891b2;
+  --status-4: #2f9e44;
+  --status-5: #ca8a04;
+  --status-6: #e87900;
+  --status-7: #ef4444;
+  --status-8: #16a34a;
+  --status-9: #0284c7;
+  --status-10: #8b5cf6;
+  --status-11: #65a30d;
   --color-status-mix: #ffffff;
 
   /* Timeline and native controls */
-  --color-timeline-header: rgba(246, 250, 249, 0.94);
+  --color-timeline-header: rgba(248, 251, 255, 0.96);
   --color-timeline-sticky: rgba(255, 255, 255, 0.96);
-  --color-timeline-line: rgba(28, 75, 82, 0.12);
-  --color-timeline-subtle: rgba(20, 60, 70, 0.035);
+  --color-timeline-line: rgba(15, 23, 42, 0.1);
+  --color-timeline-subtle: rgba(18, 107, 255, 0.035);
 }
