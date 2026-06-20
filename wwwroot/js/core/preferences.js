@@ -22,16 +22,25 @@ export const preferenceKeys = Object.freeze({
   lookupType: "pmt-lookup-type",
   settingsCategory: "pmt-settings-category",
   sprintProject: "pmt-sprint-project",
+  sprintEntryProject: "pmt-sprint-entry-project",
   taskProject: "pmt-task-project",
   taskSprint: "pmt-task-sprint",
+  taskEntryProject: "pmt-task-entry-project",
+  taskEntrySprint: "pmt-task-entry-sprint",
   taskFilters: "pmt-task-filters",
   taskFiltersVisible: "pmt-task-filters-visible",
   taskVisualChartsVisible: "pmt-task-visual-charts-visible",
   bugFilters: "pmt-bug-filters",
   bugFiltersVisible: "pmt-bug-filters-visible",
   bugVisualChartsVisible: "pmt-bug-visual-charts-visible",
+  bugEntryProject: "pmt-bug-entry-project",
+  bugEntrySprint: "pmt-bug-entry-sprint",
+  bugEntryEnvironment: "pmt-bug-entry-environment",
   scrumFilters: "pmt-scrum-filters",
-  documentationProject: "pmt-documentation-project"
+  scrumFiltersVisible: "pmt-scrum-filters-visible",
+  scrumEntryProject: "pmt-scrum-entry-project",
+  documentationProject: "pmt-documentation-project",
+  documentationEntryProject: "pmt-documentation-entry-project"
 });
 
 export function readPreference(key, defaultValue = "") {

@@ -218,14 +218,19 @@
   max-width: 80vw;
   height: 80vh;
   max-height: 80vh;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  overflow: hidden;
 }
 
 .chart-expanded-dialog .dialog-body {
-  max-height: calc(80vh - 62px);
+  min-height: 0;
+  max-height: none;
 }
 
 .chart-expanded-body {
-  height: calc(80vh - 62px);
+  height: auto;
+  min-height: 0;
   overflow: auto;
 }
 

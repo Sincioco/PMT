@@ -4,8 +4,8 @@ import {
   normalizeRichHtml
 } from "../shared/text-and-links.js";
 
-export function field(label, name, currentValue, type, min = "", max = "") {
-  return `<div class="field"><label>${label}</label><input name="${name}" type="${type}" value="${escapeAttr(currentValue ?? "")}" ${min !== "" ? `min="${min}"` : ""} ${max !== "" ? `max="${max}"` : ""}></div>`;
+export function field(label, name, currentValue, type, min = "", max = "", maxLength = "") {
+  return `<div class="field"><label>${label}</label><input name="${name}" type="${type}" value="${escapeAttr(currentValue ?? "")}" ${min !== "" ? `min="${min}"` : ""} ${max !== "" ? `max="${max}"` : ""} ${maxLength !== "" ? `maxlength="${maxLength}"` : ""}></div>`;
 }
 
 export function colorField(label, name, currentValue) {
@@ -93,10 +93,12 @@ export function checkListOrEmpty(label, name, items, selectedIds, emptyText, opt
 }
 
 export function userCheckListLabelHtml(user) {
+  const role = user.role || (user.isAdmin ? "Admin" : "Developer");
+
   return `
     <span class="check-list-user">
       <img class="check-list-avatar" src="${escapeAttr(user.avatarUrl || "/assets/avatar-default.svg")}" alt="">
-      <span>${escapeHtml(user.nickname)}</span>
+      <span>${escapeHtml(user.nickname)} (${escapeHtml(role)})</span>
     </span>
   `;
 }

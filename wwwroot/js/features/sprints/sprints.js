@@ -9,8 +9,9 @@ import {
   richTextField,
   richValue,
   selectField,
+  userCheckListLabelHtml,
   value
-} from "../../components/forms.js";
+} from "../../components/forms.js?v=20260620-member-roles";
 import {
   sprintOverallProgressHtml,
   sprintStatusMetricsHtml
@@ -21,7 +22,7 @@ import {
   preferenceKeys,
   readNumberPreference,
   writePreference
-} from "../../core/preferences.js";
+} from "../../core/preferences.js?v=20260620-sprint-entry-project";
 import { state } from "../../core/store.js";
 import {
   formatDate,
@@ -46,6 +47,7 @@ export function createSprintsFeature({
   showToast
 }) {
   let sprintProjectId = readNumberPreference(preferenceKeys.sprintProject, 0);
+  let sprintEntryProjectId = readNumberPreference(preferenceKeys.sprintEntryProject, 0);
   let collapsedIds = new Set();
 
   function renderSprints() {
@@ -161,7 +163,13 @@ export function createSprintsFeature({
   }
 
   function editSprint(sprint = {}) {
-    const projectId = sprint.projectId || sprintProjectId || state.projects[0]?.id;
+    const rememberedProjectId = projectById(sprintEntryProjectId)
+      ? sprintEntryProjectId
+      : 0;
+    const projectId = sprint.projectId
+      || rememberedProjectId
+      || sprintProjectId
+      || state.projects[0]?.id;
 
     openEditor(sprint.id ? "Edit Sprint" : "New Sprint", `
       <div class="form-grid">
@@ -174,17 +182,41 @@ export function createSprintsFeature({
         <div data-member-list="developerIds"></div>
       </div>
     `, async root => {
+      const savedProjectId = numberValue(root, "projectId");
+      const title = value(root, "title");
+      const developerIds = checkedNumbers(root, "developerIds");
+
+      if (!title.trim()) {
+        focusSprintField(root, "title");
+        throw new Error("Sprint title is required.");
+      }
+      if (!developerIds.length) {
+        focusSprintField(root, "developerIds");
+        throw new Error("Select at least one Sprint member.");
+      }
+
       await saveJson(sprint.id ? `/api/sprints/${sprint.id}` : "/api/sprints", sprint.id ? "PUT" : "POST", {
         id: sprint.id || 0,
-        projectId: numberValue(root, "projectId"),
-        title: value(root, "title"),
+        projectId: savedProjectId,
+        title,
         description: value(root, "description"),
         startDate: value(root, "startDate"),
         endDate: value(root, "endDate"),
         lessonLearnedHtml: richValue(root, "lessonLearnedHtml"),
-        developerIds: checkedNumbers(root, "developerIds")
+        developerIds
       });
+
+      sprintEntryProjectId = savedProjectId;
+      writePreference(preferenceKeys.sprintEntryProject, sprintEntryProjectId);
     }, "", root => bindSprintMemberList(root, sprint.developerIds || []));
+  }
+
+  function focusSprintField(root, name) {
+    const control = root.querySelector(`[name='${name}']`);
+    const field = control?.closest(".field") || root.querySelector(`[data-member-list='${name}']`);
+
+    field?.scrollIntoView({ behavior: "smooth", block: "center" });
+    control?.focus({ preventScroll: true });
   }
 
   async function finishSprint(id) {
@@ -247,7 +279,8 @@ export function createSprintsFeature({
         "developerIds",
         projectMemberUsers(Number(projectSelect.value)),
         selectedIds,
-        "Select project members before adding people to this Sprint."
+        "Select project members before adding people to this Sprint.",
+        { className: "scroll-check-list avatar-check-list", renderItem: userCheckListLabelHtml }
       );
     };
 
@@ -263,6 +296,7 @@ export function createSprintsFeature({
   return {
     handleAction,
     handleFilterChange,
+    openCreate: () => editSprint(),
     render: renderSprints,
     selectProject
   };

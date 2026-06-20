@@ -14,7 +14,7 @@ import {
   preferenceKeys,
   readNumberPreference,
   writePreference
-} from "../../core/preferences.js";
+} from "../../core/preferences.js?v=20260620-document-entry-project";
 import { state } from "../../core/store.js";
 import {
   documentationDateLine,
@@ -41,6 +41,7 @@ export function createDocumentationFeature({
   saveJson
 }) {
   let documentationProjectId = readNumberPreference(preferenceKeys.documentationProject, 0);
+  let documentationEntryProjectId = readNumberPreference(preferenceKeys.documentationEntryProject, 0);
 
   function renderDocumentation() {
     if (documentationProjectId && !projectById(documentationProjectId)) documentationProjectId = 0;
@@ -156,9 +157,14 @@ export function createDocumentationFeature({
   }
 
   function editBlog(blog = {}) {
+    const rememberedProjectId = projectById(documentationEntryProjectId)
+      ? documentationEntryProjectId
+      : 0;
+    const selectedProjectId = blog.id ? blog.projectId || "" : rememberedProjectId || "";
+
     openEditor(blog.id ? "Edit Document" : "New Document", `
       <div class="form-grid">
-        ${selectOptionsField("Project", "projectId", [{ id: "", title: "No project" }, ...state.projects.map(project => ({ id: project.id, title: `${project.code} - ${project.title}` }))], blog.projectId || "")}
+        ${selectOptionsField("Project", "projectId", [{ id: "", title: "No project" }, ...state.projects.map(project => ({ id: project.id, title: `${project.code} - ${project.title}` }))], selectedProjectId)}
         ${field("Title", "title", blog.title || "", "text")}
         ${richTextField("bodyHtml", "Body", blog.bodyHtml || "")}
         <div class="field full">
@@ -168,12 +174,16 @@ export function createDocumentationFeature({
         </div>
       </div>
     `, async root => {
+      const projectId = optionalNumberValue(root, "projectId");
       const result = await saveJson(blog.id ? `/api/blogs/${blog.id}` : "/api/blogs", blog.id ? "PUT" : "POST", {
         id: blog.id || 0,
-        projectId: optionalNumberValue(root, "projectId"),
+        projectId,
         title: value(root, "title"),
         bodyHtml: richValue(root, "bodyHtml")
       });
+
+      documentationEntryProjectId = projectId || 0;
+      writePreference(preferenceKeys.documentationEntryProject, documentationEntryProjectId);
 
       for (const file of root.querySelector("[name='attachments']").files) {
         await attachFile(`/api/blogs/${result.id}/attachments`, file);

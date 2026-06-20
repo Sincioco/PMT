@@ -4,7 +4,7 @@ import { sectionHead } from "../../components/sections.js";
 import {
   bugFixIconHtml,
   taskButtonsHtml
-} from "../../components/work-items.js?v=20260620-drag-handles";
+} from "../../components/work-items.js?v=20260620-bug-linked-task";
 import { state } from "../../core/store.js";
 import { canEditTask } from "../../shared/permissions.js";
 import {

@@ -17,8 +17,10 @@ import { loadState, state } from "./store.js";
 export function createApplicationShell({
   bindScreenEvents,
   editPassword,
+  prepareRender,
   refreshLookupOptions,
   renderCurrentScreen,
+  resolveNavigationView,
   showToast
 }) {
   const elements = {
@@ -73,6 +75,7 @@ export function createApplicationShell({
 
   function render() {
     if (!state.users.length) return;
+    prepareRender?.();
     renderNavigation();
     renderUserPicker();
     renderCurrentScreen();
@@ -92,7 +95,7 @@ export function createApplicationShell({
       const button = event.target.closest("button[data-view]");
       if (!button) return;
       closeNavOverflow();
-      navigate(button.dataset.view);
+      navigate(resolveNavigationView?.(button.dataset.view) ?? button.dataset.view);
       render();
     });
 
@@ -109,7 +112,7 @@ export function createApplicationShell({
     elements.userMenu?.addEventListener("click", event => {
       const viewButton = event.target.closest("button[data-view]");
       if (viewButton) {
-        navigate(viewButton.dataset.view);
+        navigate(resolveNavigationView?.(viewButton.dataset.view) ?? viewButton.dataset.view);
         closeUserMenu();
         render();
         return;

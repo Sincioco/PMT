@@ -9,9 +9,11 @@ public sealed partial class SqlPmtStore
     {
         return ExecuteIdProcedureAsync("[pmt].[UpsertProject]", "@ProjectId", input.Id, command =>
         {
-            Add(command, "@Code", SqlDbType.NVarChar, 20, input.Code);
-            Add(command, "@Title", SqlDbType.NVarChar, 160, input.Title);
-            Add(command, "@Description", SqlDbType.NVarChar, -1, input.Description);
+            // Send one extra character so the procedure can reject over-limit
+            // values instead of silently truncating them to the column width.
+            Add(command, "@Code", SqlDbType.NVarChar, 6, input.Code);
+            Add(command, "@Title", SqlDbType.NVarChar, 31, input.Title);
+            Add(command, "@Description", SqlDbType.NVarChar, 101, input.Description);
             Add(command, "@Url", SqlDbType.NVarChar, 500, input.Url);
             Add(command, "@IconUrl", SqlDbType.NVarChar, 500, input.IconUrl);
             AddNullable(command, "@StartDate", input.StartDate);

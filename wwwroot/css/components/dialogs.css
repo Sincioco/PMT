@@ -83,7 +83,7 @@
   position: fixed;
   right: var(--space-7);
   bottom: var(--space-7);
-  z-index: var(--z-toast);
+  z-index: 2147483647;
   max-width: 420px;
   border: var(--border-width) solid color-mix(in srgb, var(--color-primary), var(--color-border) 55%);
   border-radius: var(--radius-md);
@@ -94,7 +94,7 @@
 }
 
 .toast-near-control {
-  z-index: 12;
+  z-index: 2147483647;
 }
 
 @media (max-width: 900px) {

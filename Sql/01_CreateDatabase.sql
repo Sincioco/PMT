@@ -154,9 +154,9 @@ BEGIN
     CREATE TABLE [pmt].[Projects]
     (
         [ProjectId] INT IDENTITY(1,1) NOT NULL CONSTRAINT [PK_pmt_Projects] PRIMARY KEY,
-        [Code] NVARCHAR(20) NOT NULL,
-        [Title] NVARCHAR(160) NOT NULL,
-        [Description] NVARCHAR(MAX) NULL,
+        [Code] NVARCHAR(5) NOT NULL,
+        [Title] NVARCHAR(30) NOT NULL,
+        [Description] NVARCHAR(100) NULL,
         [Url] NVARCHAR(500) NULL,
         [IconUrl] NVARCHAR(500) NULL,
         [StartDate] DATETIME2(0) NULL,

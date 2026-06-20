@@ -405,9 +405,9 @@ GO
 
 CREATE OR ALTER PROCEDURE [pmt].[UpsertProject]
     @ProjectId INT OUTPUT,
-    @Code NVARCHAR(20),
-    @Title NVARCHAR(160),
-    @Description NVARCHAR(MAX),
+    @Code NVARCHAR(6),
+    @Title NVARCHAR(31),
+    @Description NVARCHAR(101),
     @Url NVARCHAR(500),
     @IconUrl NVARCHAR(500),
     @StartDate DATETIME2(0),
@@ -428,9 +428,24 @@ BEGIN
         SET @EndDate = @StartDate;
     END;
 
+    IF LEN(ISNULL(@Code, N'')) > 5
+    BEGIN
+        THROW 50001, 'Project code cannot exceed 5 characters.', 1;
+    END;
+
     IF @Title IS NULL
     BEGIN
         THROW 50001, 'Project title is required.', 1;
+    END;
+
+    IF LEN(@Title) > 30
+    BEGIN
+        THROW 50001, 'Project title cannot exceed 30 characters.', 1;
+    END;
+
+    IF LEN(ISNULL(@Description, N'')) > 100
+    BEGIN
+        THROW 50001, 'Project description cannot exceed 100 characters.', 1;
     END;
 
     IF @Code IS NULL
@@ -447,7 +462,8 @@ BEGIN
     BEGIN
         WHILE EXISTS (SELECT 1 FROM [pmt].[Projects] WHERE [Code] = @Code)
         BEGIN
-            SET @Code = LEFT(@Code, 12) + CONVERT(NVARCHAR(8), ABS(CHECKSUM(NEWID())) % 10000);
+            SET @Code = LEFT(@Code, 1)
+                + RIGHT(N'0000' + CONVERT(NVARCHAR(4), ABS(CHECKSUM(NEWID())) % 10000), 4);
         END;
 
         INSERT INTO [pmt].[Projects]
@@ -772,6 +788,8 @@ BEGIN
     DECLARE @ExistingLinkedBugTaskId INT;
     DECLARE @CodeSuffix NVARCHAR(20);
     DECLARE @LinkedDevTaskId INT;
+    DECLARE @BugProjectId INT;
+    DECLARE @BugSprintId INT;
     DECLARE @LinkedBugToRetestId INT;
     DECLARE @LinkedOldStatus NVARCHAR(40);
     DECLARE @LinkedNewStatus NVARCHAR(40);
@@ -1008,45 +1026,8 @@ BEGIN
         END;
     END;
 
-    -- Assignees must be involved in the sprint when one is selected.
-    -- Backlog items with no sprint use the project member list instead.
-    IF EXISTS
-    (
-        SELECT 1
-        FROM [pmt].[SplitIds](@AssigneeIdsCsv) AS [Ids]
-        WHERE NOT EXISTS
-        (
-            SELECT 1
-            FROM [pmt].[Users]
-            WHERE [UserId] = [Ids].[Id]
-              AND [IsActive] = 1
-        )
-        OR
-        (
-            @SprintId IS NULL
-            AND NOT EXISTS
-            (
-                SELECT 1
-                FROM [pmt].[ProjectMembers]
-                WHERE [ProjectId] = @ProjectId
-                  AND [UserId] = [Ids].[Id]
-            )
-        )
-        OR
-        (
-            @SprintId IS NOT NULL
-            AND NOT EXISTS
-            (
-                SELECT 1
-                FROM [pmt].[SprintMembers]
-                WHERE [SprintId] = @SprintId
-                  AND [UserId] = [Ids].[Id]
-            )
-        )
-    )
-    BEGIN
-        THROW 50032, 'Assignees must be members of the selected sprint or project.', 1;
-    END;
+    -- Assignees are optional for both Dev Tasks and Bug Reports. The filtered
+    -- insert below keeps only active members of the selected Project or Sprint.
 
     IF @TaskId = 0
     BEGIN
@@ -1275,6 +1256,13 @@ BEGIN
 
     IF @TaskType = N'Bug'
     BEGIN
+        SELECT
+            @BugProjectId = [ProjectId],
+            @BugSprintId = [SprintId]
+        FROM [pmt].[WorkTasks]
+        WHERE [TaskId] = @TaskId
+          AND [IsDeleted] = 0;
+
         SELECT TOP (1) @LinkedDevTaskId = [TaskId]
         FROM [pmt].[WorkTasks]
         WHERE [LinkedBugTaskId] = @TaskId
@@ -1286,18 +1274,11 @@ BEGIN
     IF @TaskType = N'Bug'
        AND EXISTS (SELECT 1 FROM [pmt].[TaskAssignees] WHERE [TaskId] = @TaskId)
     BEGIN
-        SELECT TOP (1) @LinkedDevTaskId = [TaskId]
-        FROM [pmt].[WorkTasks]
-        WHERE [LinkedBugTaskId] = @TaskId
-          AND [TaskType] = N'Dev'
-          AND [IsDeleted] = 0
-        ORDER BY [TaskId];
-
         IF @LinkedDevTaskId IS NULL
         BEGIN
             SELECT @NextNumber = COUNT(*) + 1
             FROM [pmt].[WorkTasks]
-            WHERE [ProjectId] = @ProjectId
+            WHERE [ProjectId] = @BugProjectId
               AND [TaskType] = N'Dev';
 
             SET @Code = @ProjectCode + N'-Task' + CONVERT(NVARCHAR(12), @NextNumber);
@@ -1328,8 +1309,8 @@ BEGIN
             )
             VALUES
             (
-                @ProjectId,
-                @SprintId,
+                @BugProjectId,
+                @BugSprintId,
                 N'Dev',
                 @Code,
                 N'Bug Fix: ' + @Title,
@@ -1351,8 +1332,8 @@ BEGIN
         ELSE
         BEGIN
             UPDATE [pmt].[WorkTasks]
-            SET [ProjectId] = @ProjectId,
-                [SprintId] = @SprintId,
+            SET [ProjectId] = @BugProjectId,
+                [SprintId] = @BugSprintId,
                 [Title] = N'Bug Fix: ' + @Title,
                 [Priority] = @Priority,
                 [StartDate] = @StartDate,

@@ -11,8 +11,8 @@ import {
   bindAttachmentPreview,
   showTaskAudit,
   viewWorkItem
-} from "./components/work-items.js?v=20260620-drag-handles";
-import { createApplicationShell } from "./core/application-shell.js?v=20260620-nav-config";
+} from "./components/work-items.js?v=20260620-bug-linked-task";
+import { createApplicationShell } from "./core/application-shell.js?v=20260620-sprint-navigation";
 import {
   currentView,
   navigate
@@ -23,22 +23,22 @@ import {
   screenHandlerFor
 } from "./core/screen-registry.js";
 import { state } from "./core/store.js";
-import { createBacklogFeature } from "./features/backlog/backlog.js?v=20260620-drag-handles";
-import { createBoardFeature } from "./features/board/board.js?v=20260620-drag-handles";
-import { createBugsFeature } from "./features/bugs/bugs.js?v=20260620-drag-handles";
+import { createBacklogFeature } from "./features/backlog/backlog.js?v=20260620-bug-linked-task";
+import { createBoardFeature } from "./features/board/board.js?v=20260620-bug-linked-task";
+import { createBugsFeature } from "./features/bugs/bugs.js?v=20260620-bug-entry-context";
 import { createDashboardFeature } from "./features/dashboard/dashboard.js?v=20260620-ui-theme";
-import { createDocumentationFeature } from "./features/documentation/documentation.js?v=20260619-content-screens";
+import { createDocumentationFeature } from "./features/documentation/documentation.js?v=20260620-document-entry-project";
 import {
   createGanttFeature,
   currentSprintForProject,
   ganttStartDate
 } from "./features/gantt/gantt.js?v=20260619-day12-defaults-filters";
-import { createProjectsFeature } from "./features/projects/projects.js?v=20260619-content-screens";
+import { createProjectsFeature } from "./features/projects/projects.js?v=20260620-member-roles";
 import { createRoadMapFeature } from "./features/roadmap/roadmap.js?v=20260620-ui-theme";
-import { createScrumFeature } from "./features/scrum/scrum.js?v=20260620-readonly-scrum";
+import { createScrumFeature } from "./features/scrum/scrum.js?v=20260620-scrum-project";
 import { createSettingsFeature } from "./features/settings/settings.js?v=20260620-nav-config-v2";
-import { createSprintsFeature } from "./features/sprints/sprints.js?v=20260619-content-screens";
-import { createTasksFeature } from "./features/tasks/tasks.js?v=20260620-drag-handles";
+import { createSprintsFeature } from "./features/sprints/sprints.js?v=20260620-sprint-entry-project";
+import { createTasksFeature } from "./features/tasks/tasks.js?v=20260620-task-entry-context";
 import { createWfhScheduleFeature } from "./features/wfh-schedule/wfh-schedule.js?v=20260620-wfh-schedule";
 import {
   fallbackEnvironments,
@@ -125,6 +125,7 @@ let suppressNextClick = false;
 let pageEventsBound = false;
 let chartTooltip = null;
 let boardFeature = null;
+// let openCreateSprintOnRender = false;
 
 configureWorkItemRules({
   getStatuses: () => statuses,
@@ -139,8 +140,10 @@ configureProgressAndStatus({
 const shell = createApplicationShell({
   bindScreenEvents,
   editPassword,
+  // prepareRender,
   refreshLookupOptions,
   renderCurrentScreen,
+  // resolveNavigationView,
   showToast
 });
 
@@ -311,12 +314,34 @@ function render() {
   shell.render();
 }
 
+/*
+function prepareRender() {
+  if (!state.projects.length) navigate("Projects");
+}
+
+function resolveNavigationView(view) {
+  openCreateSprintOnRender = state.projects.length > 0
+    && !state.sprints.length
+    && (view === "Tasks" || view === "Bugs");
+
+  return openCreateSprintOnRender ? "Sprints" : view;
+}
+*/
+
 function renderCurrentScreen() {
   if (currentView !== "Board") boardFeature.deactivate();
   if (currentView !== "Gantt") ganttFeature.deactivate();
 
   const registeredScreen = screenHandlerFor(currentView);
   if (registeredScreen?.render) registeredScreen.render();
+  /*
+  if (!state.projects.length && currentView === "Projects" && !dialog.open) {
+    projectsFeature.openCreate();
+  } else if (openCreateSprintOnRender && currentView === "Sprints" && !dialog.open) {
+    openCreateSprintOnRender = false;
+    sprintsFeature.openCreate();
+  }
+  */
   linkifyTextNodes(app);
   normalizeLinksInElement(app);
 }
@@ -350,7 +375,7 @@ async function handleActionClick(event) {
   if (action === "view-project-gantt") viewProjectGantt(id);
 }
 
-function handleChartAction(element, dialogToClose = null) {
+function handleChartAction(element) {
   const action = element.dataset.action;
   if (action === "expand-visual-chart") {
     expandVisualChartCard(element.closest(".visual-chart-card"));
@@ -358,27 +383,23 @@ function handleChartAction(element, dialogToClose = null) {
   }
 
   if (action === "chart-open-sprint") {
-    closeTransientDialog(dialogToClose);
     viewSprintSummary(sprintById(Number(element.dataset.id || 0)));
     return true;
   }
 
   if (action === "chart-drill-bugs") {
-    closeTransientDialog(dialogToClose);
     const bugIds = splitChartIds(element.dataset.ids);
     showBugChartDrilldown(element.dataset.chartTitle || "Bugs", bugIds);
     return true;
   }
 
   if (action === "chart-drill-tasks") {
-    closeTransientDialog(dialogToClose);
     const taskIds = splitChartIds(element.dataset.ids);
     showTaskChartDrilldown(element.dataset.chartTitle || "Dev Tasks", taskIds);
     return true;
   }
 
   if (action === "view-task") {
-    closeTransientDialog(dialogToClose);
     viewWorkItem(taskById(Number(element.dataset.id || 0)), editWorkItem);
     return true;
   }
@@ -466,7 +487,7 @@ function showBugChartDrilldown(title, bugIds) {
       return;
     }
 
-    handleChartAction(actionElement, modal);
+    handleChartAction(actionElement);
   });
   modal.addEventListener("cancel", () => modal.remove());
   modal.showModal();
@@ -538,7 +559,7 @@ function showTaskChartDrilldown(title, taskIds) {
       return;
     }
 
-    handleChartAction(actionElement, modal);
+    handleChartAction(actionElement);
   });
   modal.addEventListener("cancel", () => modal.remove());
   modal.showModal();
@@ -560,6 +581,9 @@ function expandVisualChartCard(card) {
       <button type="button" class="icon-btn" data-close title="Close">x</button>
     </div>
     <div class="dialog-body chart-expanded-body"></div>
+    <div class="dialog-actions">
+      <button type="button" class="primary text-icon-button" data-close>${buttonContent("&#10003;", "Close")}</button>
+    </div>
   `;
 
   modal.querySelector(".chart-expanded-body").appendChild(chartCopy);
@@ -573,7 +597,7 @@ function expandVisualChartCard(card) {
     }
 
     const actionElement = event.target.closest("[data-action]");
-    if (actionElement) handleChartAction(actionElement, modal);
+    if (actionElement) handleChartAction(actionElement);
   });
   modal.addEventListener("cancel", () => {
     hideChartTooltip();
@@ -1148,31 +1172,18 @@ function lookupOptionsWithCurrent(type, currentValue) {
 }
 
 function showToast(message, anchorElement = null) {
+  const openDialogs = [...document.querySelectorAll("dialog[open]")];
+  const toastHost = openDialogs.at(-1) || document.body;
+  toastHost.appendChild(toast);
+
   toast.textContent = message;
   toast.hidden = false;
-  toast.classList.toggle("toast-near-control", Boolean(anchorElement));
+  toast.classList.remove("toast-near-control");
   toast.style.left = "";
   toast.style.top = "";
   toast.style.right = "";
   toast.style.bottom = "";
   toast.style.maxWidth = "";
-
-  if (anchorElement) {
-    // Place contextual messages under the control that caused them.
-    const rect = anchorElement.getBoundingClientRect();
-    const maxWidth = Math.min(360, window.innerWidth - 32);
-    toast.style.maxWidth = `${maxWidth}px`;
-
-    const toastWidth = Math.min(toast.offsetWidth || maxWidth, maxWidth);
-    const toastHeight = toast.offsetHeight || 44;
-    const left = Math.max(16, Math.min(rect.left + (rect.width / 2) - (toastWidth / 2), window.innerWidth - toastWidth - 16));
-    const top = Math.max(16, Math.min(rect.bottom + 8, window.innerHeight - toastHeight - 16));
-
-    toast.style.left = `${left}px`;
-    toast.style.top = `${top}px`;
-    toast.style.right = "auto";
-    toast.style.bottom = "auto";
-  }
 
   clearTimeout(showToast.timer);
   showToast.timer = setTimeout(() => {

@@ -5,8 +5,9 @@ import {
   checkedNumbers,
   field,
   nullableDateValue,
+  userCheckListLabelHtml,
   value
-} from "../../components/forms.js";
+} from "../../components/forms.js?v=20260620-member-roles";
 import {
   projectOverallProgressHtml,
   projectStatusMetricsHtml
@@ -103,31 +104,72 @@ export function createProjectsFeature({
   function editProject(project = {}) {
     openEditor(project.id ? "Edit Project" : "New Project", `
       <div class="form-grid">
-        ${field("Code", "code", project.code || "", "text")}
-        ${field("Title", "title", project.title || "", "text")}
+        ${field("Code", "code", project.code || "", "text", "", "", 5)}
+        ${field("Title", "title", project.title || "", "text", "", "", 30)}
         ${field("Start", "startDate", toDateInput(project.startDate), "date")}
         ${field("End", "endDate", toDateInput(project.endDate), "date")}
         ${field("URL", "url", project.url || "", "url")}
         ${field("Icon URL", "iconUrl", project.iconUrl || "", "text")}
         <div class="field full"><label>Upload Icon</label><input name="iconFile" type="file" accept="image/*"></div>
-        <div class="field full"><label>Description</label><textarea name="description">${escapeHtml(project.description || "")}</textarea></div>
-        ${checkList("Members", "memberIds", state.users, project.memberIds || [])}
+        <div class="field full"><label>Description</label><textarea name="description" maxlength="100">${escapeHtml(project.description || "")}</textarea></div>
+        ${checkList("Members", "memberIds", state.users, project.memberIds || [], item => item.nickname, { className: "scroll-check-list avatar-check-list", renderItem: userCheckListLabelHtml })}
       </div>
     `, async root => {
+      const code = value(root, "code");
+      const title = value(root, "title");
+      const description = value(root, "description");
+      const memberIds = checkedNumbers(root, "memberIds");
+
+      if (!project.id) {
+        if (!code.trim()) {
+          root.querySelector("[name='code']")?.focus();
+          throw new Error("Project code is required.");
+        }
+        if (code.length > 5) {
+          root.querySelector("[name='code']")?.focus();
+          throw new Error("Project code cannot exceed 5 characters.");
+        }
+        if (!title.trim()) {
+          root.querySelector("[name='title']")?.focus();
+          throw new Error("Project title is required.");
+        }
+        if (title.length > 30) {
+          root.querySelector("[name='title']")?.focus();
+          throw new Error("Project title cannot exceed 30 characters.");
+        }
+        if (!memberIds.length) {
+          root.querySelector("[name='memberIds']")?.focus();
+          throw new Error("Select at least one Project member.");
+        }
+      }
+
+      if (project.id && code.length > 5) {
+        root.querySelector("[name='code']")?.focus();
+        throw new Error("Project code cannot exceed 5 characters.");
+      }
+      if (project.id && title.length > 30) {
+        root.querySelector("[name='title']")?.focus();
+        throw new Error("Project title cannot exceed 30 characters.");
+      }
+      if (description.length > 100) {
+        root.querySelector("[name='description']")?.focus();
+        throw new Error("Project description cannot exceed 100 characters.");
+      }
+
       const iconFile = root.querySelector("[name='iconFile']").files[0];
       let iconUrl = value(root, "iconUrl");
       if (iconFile) iconUrl = (await uploadFile("projects", iconFile)).url;
 
       await saveJson(project.id ? `/api/projects/${project.id}` : "/api/projects", project.id ? "PUT" : "POST", {
         id: project.id || 0,
-        code: value(root, "code"),
-        title: value(root, "title"),
-        description: value(root, "description"),
+        code,
+        title,
+        description,
         url: value(root, "url"),
         iconUrl,
         startDate: nullableDateValue(root, "startDate"),
         endDate: nullableDateValue(root, "endDate"),
-        memberIds: checkedNumbers(root, "memberIds")
+        memberIds
       });
     }, "code");
   }
@@ -148,6 +190,7 @@ export function createProjectsFeature({
     cardHtml: projectCardHtml,
     handleAction,
     isCollapsed: projectId => collapsedIds.has(Number(projectId)),
+    openCreate: () => editProject(),
     render: renderProjects
   };
 }

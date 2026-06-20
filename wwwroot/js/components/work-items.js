@@ -5,7 +5,7 @@ import {
   checkListOrEmpty,
   checkedNumbers,
   userCheckListLabelHtml
-} from "./forms.js";
+} from "./forms.js?v=20260620-member-roles";
 import { state } from "../core/store.js";
 import { formatDateTime } from "../shared/dates.js";
 import { canEditTask } from "../shared/permissions.js";
@@ -95,7 +95,7 @@ export async function uploadWorkItemAttachments(root, workItemId, attachFile) {
   }
 }
 
-export function bindAssigneeList(root, initialSelectedIds) {
+export function bindAssigneeList(root, initialSelectedIds, label = "Assignees") {
   const projectSelect = root.querySelector("[name='projectId']");
   const sprintSelect = root.querySelector("[name='sprintId']");
   const container = root.querySelector("[data-assignee-list]");
@@ -108,7 +108,7 @@ export function bindAssigneeList(root, initialSelectedIds) {
     const project = projectById(Number(projectSelect.value));
     const sprint = sprintSelect?.value ? sprintById(Number(sprintSelect.value)) : null;
     container.innerHTML = checkListOrEmpty(
-      "Assignees",
+      label,
       "assigneeIds",
       allowedAssigneeUsers(state.users, project, sprint),
       selectedIds,
@@ -142,9 +142,17 @@ export function refreshSprintOptions(root, projectId) {
 
 export function viewWorkItem(task, editWorkItem) {
   if (!task) return;
-  const dependencyLinks = (task.dependencyTaskIds || [])
+  const dependencies = (task.dependencyTaskIds || [])
     .map(id => taskById(id))
-    .filter(Boolean)
+    .filter(Boolean);
+  if (task.taskType === "Bug") {
+    state.tasks
+      .filter(item => item.taskType !== "Bug" && item.linkedBugTaskId === task.id)
+      .forEach(item => {
+        if (!dependencies.some(dependency => dependency.id === item.id)) dependencies.push(item);
+      });
+  }
+  const dependencyLinks = dependencies
     .map(item => `<button type="button" data-action="view-task-inline" data-id="${item.id}">${escapeHtml(item.code)}</button>`)
     .join(" ");
 

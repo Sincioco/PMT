@@ -100,3 +100,73 @@ Goal:  We need to add Work from Home (WFH) screen to keep track of each team mem
 6.) We need to save this permanently in the database as people's WFH schedule typically do not change often.
 7.) We need to add a delete function in case the employee is no longer in the project.  Don't actually delete anything, just hide the user from the list.  Add a button to hide/show "deleted" users.
 8.) Add a Reset button to revert the table to its pre-custom resetted state and show all users.
+
+
+For the rest of this conversation.  Make only the change I ask for.  Do not perform any testing of any kind.  I will do the testing manually and compile .Net manually.
+
+* Make it so that if there are no projects at all in PMT, the navigation will switch to Projects and the New Projects dialog box opens.
+
+* Make it so that if there is no Sprint (but there is a Project), it should navigate to the Sprints view and the New Create Sprint dialog box opens.
+
+* Limit the no Sprint logic to only when clicking the Dev Tasks and Bug Tracking, because those are the only section of PMT that requires a Sprint, is that correct?
+
+* In the New Project dialog box and the New Sprint dialog box, require that at least 1 member is selected.
+
+* Comment out the No Projects and No Sprints logic for now.
+
+* Update it so that when a Bug is reported, the Assignee is not required.
+
+* Update the toaster message that appears at the bottom and move it to the top.  Make the background of the toaster prominent so it cannot be missed (like yellow or something like that).
+
+* I can't see the toast message.  Move it to the center of the screen and above the z-index of all others, such as above the dialog boxes.
+
+* okay, now I can see the toaster message, now place it where it would normally go (at the bottom left) where it was, and re-theme it the way it was but keep the z-index changes.
+
+* Change the validation order in the create project so that it asks for the Project Code first, then title, then members.
+
+* Make the Project Code no longer than 5 characters.  Update the database/stored procedures.
+* Make the Project Title no longer than 30 characters.    Update the database/stored procedures.
+* Make the Project Description no longer than 100 characters.    Update the database/stored procedures.
+
+* For the rest of this conversation, assume you can re-create the database from scratch.  There is absolutely no need to preserve any data on the back-end or front-end, or even in local storage.  
+
+* In the Create / Edit Project Dialog Box, Create / Edit Sprint Dialog Box, update the Assignee section so it shows the avatar of the team members.  Refer to what was previously done in the New/Edit Dev Task dialog box.
+
+* In the New Bug Report dialog box, it is enforcing a logic that an Assignee must be selected and is returning an error that reads "Assignees must be members of the selected sprint or project." when you click the save button.  Remove that and make Assignees optional.
+
+* The Scrum view has no Hide/Show Filters button.  Use the same style/button as in the Dev Task.
+
+* By default in the Dev Tasks, Bug Tracking View and Scrum view, the Filter section should be hidden and would only show for the first time when the user clicks the Show filter button.
+
+* When creating a New Dev Task, update the validation so that it checks for the Project first, then Title.
+
+* In the New / Edit Project dialog box, put the Role of each member/users in parenthesis after their names.  Do this also in the Add/Edit New Spring Dialog Box, in the New/Edit Dev Task, New/Edit Bug Report in both Reporters and Assignees.
+
+* In the Dev Task and Bug Tracking Charts, when you expand to maximize a chart, a dialog box opens, but the scrollbar of that dialog box extends all the way to the top, next to the close button.  Make this dialog box conform to how the New Dev Task dialog box looks like.;
+
+* Also when the chart is expanded / maximize, clicking on the chart which then lists a list of items to choose from for the drill in, makes the chart dialog box disappear.  The chart's dialog box should stay, and the list of items to choose from should popup in front of it.
+
+* In the New/Edit Sprint dialog box, make the validation logic so that the field required are in the order of Title, then Sprint Members.  Put the cursor focus and scroll into view the field.
+
+* In the New/Edit Dev Task dialog box, make the validation logic so that the field required are in the order of Title, then Assignees.  Put the cursor focus and scroll into view the field.
+
+* In the New/Edit Dev Task dialog box, make the Assignee optional so we can create tasks that can go into the Backlog.
+
+* In the New/Edit Dev Task dialog box, if I do not pick an Assignee, it is showing a Toaster message of "Assignees must be members of the selected sprint or project." and it's not letting me save.  Make the Assignee optional and indicate that it is optional in the UI.
+
+* When creating a new bug, default it to Priority Medium.
+* When a bug is assigned to a Developer and the corresponding Dev Task dependency is created, while it shows that Dependency in the Dev Task, from the Bug Report Dialog Box itself, that Dependency is not shown.  Can you add it so the QA person can also visit the Dev Task?  Refer to the Dev Task View/Add/Edit dialog box's implementation for reference.
+
+* When a Bug report is assigned to Developer, the corresponding Dev Task created should also inherit the Project and Sprint from which the Bug Report came from.  Currently, it does not seem to inherit the Sprint of the original Bug Report.
+
+* In the Scrum New/Edit dialog box, remember the Project selection of the user so that the next time they make a Scrum entry, it will default to their last selected Project.
+
+* In the Dev Task New/Edit dialog box, remember the user's last selected Project and Sprint so that the next time they make a new Dev Task entry, it is already pre-selected.
+
+* In the Bug Report New/Edit dialog box, remember the user's last selected Project, Sprint, Environment so that the next time they make a new Bug Report, they are already pre-selected.
+
+* In the New Document New/Edit dialog box, remember the user's last selected Project, so that the next time they start a new blog/Document it is already pre-selected.
+
+* In the Sprint New/Edit dialog box, remember the user's last selected Project, so that the next time they start a new Sprint it is already pre-selected.
+
+* There was a previous logic/rule that stated that if there is no end-date, choose today's date.  Remove that logic.  If there is no end-date selected, keep it as empty in the UI and null in the database.

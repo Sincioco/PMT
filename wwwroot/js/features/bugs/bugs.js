@@ -20,7 +20,7 @@ import {
   selectTextField,
   userCheckListLabelHtml,
   value
-} from "../../components/forms.js";
+} from "../../components/forms.js?v=20260620-member-roles";
 import { sectionHead } from "../../components/sections.js";
 import {
   attachmentEditorFieldHtml,
@@ -31,15 +31,17 @@ import {
   taskDragHandleHtml,
   taskPercentField,
   uploadWorkItemAttachments
-} from "../../components/work-items.js?v=20260620-drag-handles";
+} from "../../components/work-items.js?v=20260620-bug-linked-task";
 import { currentUserId } from "../../core/authentication.js";
 import {
   preferenceKeys,
   readBooleanPreference,
   readJsonPreference,
+  readNumberPreference,
+  readPreference,
   writeJsonPreference,
   writePreference
-} from "../../core/preferences.js";
+} from "../../core/preferences.js?v=20260620-bug-entry-context";
 import { currentView } from "../../core/router.js";
 import { state } from "../../core/store.js";
 import { toDateInput } from "../../shared/dates.js";
@@ -83,8 +85,11 @@ export function createBugsFeature({
   saveJson
 }) {
   let bugFilters = readJsonPreference(preferenceKeys.bugFilters, {});
-  let bugFiltersVisible = readBooleanPreference(preferenceKeys.bugFiltersVisible, true);
+  let bugFiltersVisible = readBooleanPreference(preferenceKeys.bugFiltersVisible, false);
   let bugVisualChartsVisible = readBooleanPreference(preferenceKeys.bugVisualChartsVisible, true);
+  let bugEntryProjectId = readNumberPreference(preferenceKeys.bugEntryProject, 0);
+  let bugEntrySprintId = readPreference(preferenceKeys.bugEntrySprint, "");
+  let bugEntryEnvironment = readPreference(preferenceKeys.bugEntryEnvironment, "");
 
   bugFilters.reporterIds = normalizeSavedArray(bugFilters.reporterIds, bugFilters.reporterId);
   bugFilters.assigneeIds = normalizeSavedArray(bugFilters.assigneeIds, bugFilters.assigneeId);
@@ -218,14 +223,32 @@ export function createBugsFeature({
 
   function editBug(bug = {}) {
     const taskContext = getTaskContext();
-    const projectId = bug.projectId || taskContext.projectId || getBoardProjectId() || state.projects[0]?.id;
+    const rememberedProjectId = state.projects.some(project => project.id === bugEntryProjectId)
+      ? bugEntryProjectId
+      : 0;
+    const projectId = bug.projectId
+      || rememberedProjectId
+      || taskContext.projectId
+      || getBoardProjectId()
+      || state.projects[0]?.id;
+    const rememberedSprintId = state.sprints.some(sprint =>
+      sprint.id === Number(bugEntrySprintId)
+      && sprint.projectId === projectId
+    )
+      ? Number(bugEntrySprintId)
+      : "";
     const defaultSprintId = bug.sprintId ?? (
-      currentView === "Backlog"
-        ? ""
-        : taskContext.sprintId !== "all"
-          ? Number(taskContext.sprintId)
-          : getBoardSprintId(projectId) || ""
+      rememberedProjectId
+        ? rememberedSprintId
+        : currentView === "Backlog"
+          ? ""
+          : taskContext.sprintId !== "all"
+            ? Number(taskContext.sprintId)
+            : getBoardSprintId(projectId) || ""
     );
+    const environments = getLookupOptions("Environment", bug.environment || bugEntryEnvironment || "SIT");
+    const defaultEnvironment = bug.environment
+      || (environments.includes(bugEntryEnvironment) ? bugEntryEnvironment : "SIT");
     const sameProjectTasks = dependencyCandidates(projectId, bug.id);
 
     openEditor(workItemEditorTitle(bug, "Bug", "New Bug Report"), `
@@ -235,9 +258,9 @@ export function createBugsFeature({
         ${field("Title", "title", bug.title || "", "text")}
         ${selectOptionsField("Sprint", "sprintId", [{ id: "", title: "No Sprint" }, ...state.sprints.filter(sprint => sprint.projectId === projectId).map(sprint => ({ id: sprint.id, title: sprint.code }))], defaultSprintId || "")}
         ${selectTextField("Status", "status", getLookupOptions("Status", bug.status || "Todo"), bug.status || "Todo")}
-        ${selectTextField("Environment", "environment", getLookupOptions("Environment", bug.environment || "SIT"), bug.environment || "SIT")}
+        ${selectTextField("Environment", "environment", environments, defaultEnvironment)}
         ${selectTextField("Severity", "severity", getLookupOptions("Severity", bug.severity || "Major"), bug.severity || "Major")}
-        ${selectTextField("Priority", "priority", getLookupOptions("Priority", bug.priority || "High"), bug.priority || "High")}
+        ${selectTextField("Priority", "priority", getLookupOptions("Priority", bug.priority || "Medium"), bug.priority || "Medium")}
         ${taskPercentField(bug, false)}
         ${field("Start", "startDate", toDateInput(bug.startDate), "date")}
         ${field("End", "endDate", toDateInput(bug.endDate), "date")}
@@ -253,10 +276,13 @@ export function createBugsFeature({
       </div>
     `, async root => {
       const status = value(root, "status");
+      const savedProjectId = numberValue(root, "projectId");
+      const savedSprintId = optionalNumberValue(root, "sprintId");
+      const environment = value(root, "environment");
       const result = await saveJson(bug.id ? `/api/tasks/${bug.id}` : "/api/tasks", bug.id ? "PUT" : "POST", {
         id: bug.id || 0,
-        projectId: numberValue(root, "projectId"),
-        sprintId: optionalNumberValue(root, "sprintId"),
+        projectId: savedProjectId,
+        sprintId: savedSprintId,
         parentTaskId: null,
         taskType: "Bug",
         title: value(root, "title"),
@@ -264,7 +290,7 @@ export function createBugsFeature({
         stepsToReproduceHtml: richValue(root, "stepsToReproduceHtml"),
         actualResultHtml: richValue(root, "actualResultHtml"),
         expectedResultHtml: richValue(root, "expectedResultHtml"),
-        environment: value(root, "environment"),
+        environment,
         severity: value(root, "severity"),
         status,
         priority: value(root, "priority"),
@@ -277,8 +303,15 @@ export function createBugsFeature({
         dependencyTaskIds: checkedNumbers(root, "dependencyTaskIds")
       });
 
+      bugEntryProjectId = savedProjectId;
+      bugEntrySprintId = savedSprintId ? String(savedSprintId) : "";
+      bugEntryEnvironment = environment;
+      writePreference(preferenceKeys.bugEntryProject, bugEntryProjectId);
+      writePreference(preferenceKeys.bugEntrySprint, bugEntrySprintId);
+      writePreference(preferenceKeys.bugEntryEnvironment, bugEntryEnvironment);
+
       await uploadWorkItemAttachments(root, result.id, attachFile);
-    }, "title", root => bindAssigneeList(root, bug.assigneeIds || []));
+    }, "title", root => bindAssigneeList(root, bug.assigneeIds || [], bug.id ? "Assignees" : "Assignees (Optional)"));
   }
 
   function filteredBugReports() {

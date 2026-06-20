@@ -5,7 +5,7 @@ import { sectionHead } from "../../components/sections.js";
 import {
   bugFixIconHtml,
   taskButtonsHtml
-} from "../../components/work-items.js?v=20260620-drag-handles";
+} from "../../components/work-items.js?v=20260620-bug-linked-task";
 import {
   preferenceKeys,
   readBooleanPreference,

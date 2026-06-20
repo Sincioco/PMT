@@ -28,7 +28,7 @@ import {
   taskDragHandleHtml,
   taskPercentField,
   uploadWorkItemAttachments
-} from "../../components/work-items.js?v=20260620-drag-handles";
+} from "../../components/work-items.js?v=20260620-bug-linked-task";
 import {
   preferenceKeys,
   readBooleanPreference,
@@ -37,7 +37,7 @@ import {
   readPreference,
   writeJsonPreference,
   writePreference
-} from "../../core/preferences.js";
+} from "../../core/preferences.js?v=20260620-task-entry-context";
 import { currentView } from "../../core/router.js";
 import { state } from "../../core/store.js";
 import { toDateInput } from "../../shared/dates.js";
@@ -80,8 +80,10 @@ export function createTasksFeature({
 }) {
   let taskProjectId = readNumberPreference(preferenceKeys.taskProject, 0);
   let taskSprintId = readPreference(preferenceKeys.taskSprint, "");
+  let taskEntryProjectId = readNumberPreference(preferenceKeys.taskEntryProject, 0);
+  let taskEntrySprintId = readPreference(preferenceKeys.taskEntrySprint, "");
   let taskFilters = readJsonPreference(preferenceKeys.taskFilters, {});
-  let taskFiltersVisible = readBooleanPreference(preferenceKeys.taskFiltersVisible, true);
+  let taskFiltersVisible = readBooleanPreference(preferenceKeys.taskFiltersVisible, false);
   let taskVisualChartsVisible = readBooleanPreference(preferenceKeys.taskVisualChartsVisible, true);
 
   taskFilters.statuses = normalizeSavedArray(taskFilters.statuses);
@@ -266,13 +268,27 @@ export function createTasksFeature({
   }
 
   function editTask(task = {}) {
-    const projectId = task.projectId || (currentView === "Tasks" ? taskProjectId : getBoardProjectId()) || state.projects[0]?.id;
+    const rememberedProjectId = state.projects.some(project => project.id === taskEntryProjectId)
+      ? taskEntryProjectId
+      : 0;
+    const projectId = task.projectId
+      || rememberedProjectId
+      || (currentView === "Tasks" ? taskProjectId : getBoardProjectId())
+      || state.projects[0]?.id;
+    const rememberedSprintId = state.sprints.some(sprint =>
+      sprint.id === Number(taskEntrySprintId)
+      && sprint.projectId === projectId
+    )
+      ? Number(taskEntrySprintId)
+      : "";
     const defaultSprintId = task.sprintId ?? (
-      currentView === "Board"
-        ? getBoardSprintId(projectId)
-        : currentView === "Tasks" && taskSprintId !== "all"
-          ? Number(taskSprintId)
-          : ""
+      rememberedProjectId
+        ? rememberedSprintId
+        : currentView === "Board"
+          ? getBoardSprintId(projectId)
+          : currentView === "Tasks" && taskSprintId !== "all"
+            ? Number(taskSprintId)
+            : ""
     );
     const sameProjectTasks = dependencyCandidates(projectId, task.id);
     const taskHasSubTasks = Boolean(task.subTasks?.length);
@@ -296,18 +312,28 @@ export function createTasksFeature({
         ${checkList("Dependencies", "dependencyTaskIds", sameProjectTasks, task.dependencyTaskIds || [], item => `${item.code} ${item.title}`, { className: "scroll-check-list dependency-check-list" })}
       </div>
     `, async root => {
+      const projectId = numberValue(root, "projectId");
+      const title = value(root, "title");
+      const assigneeIds = checkedNumbers(root, "assigneeIds");
+
+      if (!title.trim()) {
+        focusTaskField(root, "title");
+        throw new Error("Dev Task title is required.");
+      }
+
       const status = value(root, "status");
       const percentCompleted = percentForDevTaskSave(status, numberValue(root, "percentCompleted"));
+      const sprintId = optionalNumberValue(root, "sprintId");
       const dependencyTaskIds = checkedNumbers(root, "dependencyTaskIds");
       validateLinkedBugCompletion(task, percentCompleted, dependencyTaskIds);
 
       const result = await saveJson(task.id ? `/api/tasks/${task.id}` : "/api/tasks", task.id ? "PUT" : "POST", {
         id: task.id || 0,
-        projectId: numberValue(root, "projectId"),
-        sprintId: optionalNumberValue(root, "sprintId"),
+        projectId,
+        sprintId,
         parentTaskId: optionalNumberValue(root, "parentTaskId"),
         taskType: "Dev",
-        title: value(root, "title"),
+        title,
         descriptionHtml: richValue(root, "descriptionHtml"),
         stepsToReproduceHtml: "",
         actualResultHtml: "",
@@ -321,12 +347,25 @@ export function createTasksFeature({
         startDate: nullableDateValue(root, "startDate"),
         endDate: nullableDateValue(root, "endDate"),
         reporterIds: [],
-        assigneeIds: checkedNumbers(root, "assigneeIds"),
+        assigneeIds,
         dependencyTaskIds
       });
 
+      taskEntryProjectId = projectId;
+      taskEntrySprintId = sprintId ? String(sprintId) : "";
+      writePreference(preferenceKeys.taskEntryProject, taskEntryProjectId);
+      writePreference(preferenceKeys.taskEntrySprint, taskEntrySprintId);
+
       await uploadWorkItemAttachments(root, result.id, attachFile);
-    }, "title", root => bindAssigneeList(root, task.assigneeIds || []));
+    }, "title", root => bindAssigneeList(root, task.assigneeIds || [], "Assignees (Optional)"));
+  }
+
+  function focusTaskField(root, name) {
+    const control = root.querySelector(`[name='${name}']`);
+    const field = control?.closest(".field");
+
+    field?.scrollIntoView({ behavior: "smooth", block: "center" });
+    control?.focus({ preventScroll: true });
   }
 
   function selectContext(projectId, sprintId = "all") {

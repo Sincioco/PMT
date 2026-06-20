@@ -29,7 +29,7 @@ DECLARE @HlsStart DATE = DATEFROMPARTS(YEAR(DATEADD(YEAR, -5, @Today)), MONTH(@T
 
 INSERT INTO [pmt].[Projects] ([Code], [Title], [Description], [Url], [IconUrl], [StartDate], [EndDate], [CreatedByUserId])
 VALUES
-(N'HLS', N'Hybrid Learning System', N'AI and Learning platform that blends classroom delivery, remote learning, recommendations, and analytics.', N'https://intranet.local/projects/hls', N'/assets/project-hls.svg', @HlsStart, NULL, @Sin);
+(N'HLS', N'Hybrid Learning System', N'AI learning platform blending classroom delivery, remote learning, recommendations, and analytics.', N'https://intranet.local/projects/hls', N'/assets/project-hls.svg', @HlsStart, NULL, @Sin);
 
 DECLARE @HlsProject INT = (SELECT [ProjectId] FROM [pmt].[Projects] WHERE [Code] = N'HLS');
 

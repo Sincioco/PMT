@@ -1,4 +1,4 @@
-import { buttonContent, iconButton } from "../../components/buttons.js";
+import { buttonContent, funnelIconHtml, iconButton } from "../../components/buttons.js";
 import {
   checkedFilterValues,
   filterCheckList,
@@ -16,9 +16,12 @@ import { sectionHead } from "../../components/sections.js";
 import { currentUser } from "../../core/authentication.js";
 import {
   preferenceKeys,
+  readBooleanPreference,
   readJsonPreference,
-  writeJsonPreference
-} from "../../core/preferences.js";
+  readNumberPreference,
+  writeJsonPreference,
+  writePreference
+} from "../../core/preferences.js?v=20260620-scrum-project";
 import { state } from "../../core/store.js";
 import {
   dateKey,
@@ -47,6 +50,8 @@ export function createScrumFeature({
   showToast
 }) {
   let scrumFilters = readJsonPreference(preferenceKeys.scrumFilters, {});
+  let scrumFiltersVisible = readBooleanPreference(preferenceKeys.scrumFiltersVisible, false);
+  let scrumEntryProjectId = readNumberPreference(preferenceKeys.scrumEntryProject, 0);
   scrumFilters.personIds = normalizeSavedArray(scrumFilters.personIds);
 
   function renderDevLogs() {
@@ -55,6 +60,7 @@ export function createScrumFeature({
     }
 
     syncScrumPersonFilterWithUsers();
+    const filterToggleLabel = scrumFiltersVisible ? "Hide Filters" : "Show Filters";
 
     const logs = state.devLogs
       .filter(log => !scrumFilters.projectId || log.projectId === Number(scrumFilters.projectId))
@@ -63,8 +69,11 @@ export function createScrumFeature({
       .sort((a, b) => new Date(b.logDate) - new Date(a.logDate) || new Date(b.updatedAt) - new Date(a.updatedAt));
 
     app.innerHTML = `
-      ${sectionHead("Scrum", `<button class="primary text-icon-button" type="button" data-action="new-log">${buttonContent("&#10010;", "New Scrum")}</button>`)}
-      <div class="panel work-item-filter-panel scrum-filter-panel">
+      ${sectionHead("Scrum", `
+        <button class="secondary text-icon-button ${scrumFiltersVisible ? "is-on" : ""}" type="button" data-action="toggle-scrum-filters" aria-pressed="${scrumFiltersVisible}">${buttonContent(funnelIconHtml(), filterToggleLabel)}</button>
+        <button class="primary text-icon-button" type="button" data-action="new-log">${buttonContent("&#10010;", "New Scrum")}</button>
+      `)}
+      ${scrumFiltersVisible ? `<div class="panel work-item-filter-panel scrum-filter-panel">
         <h2 class="scrum-filter-title">Filters</h2>
         <div class="filter-row">
           ${filterSelect("Project", "scrum-project", state.projects.map(project => ({ value: project.id, text: `${project.code} - ${project.title}` })), scrumFilters.projectId || "", "All projects")}
@@ -76,7 +85,7 @@ export function createScrumFeature({
         <div class="filter-stack">
           ${filterCheckList("Person", "scrum-person", state.users.map(user => ({ value: user.id, text: user.nickname })), scrumFilters.personIds)}
         </div>
-      </div>
+      </div>` : ""}
       <div class="panel scrum-panel">
         <div class="scrum-table-wrap">
         <table class="table scrum-table">
@@ -149,6 +158,12 @@ export function createScrumFeature({
       editDevLog();
       return true;
     }
+    if (action === "toggle-scrum-filters") {
+      scrumFiltersVisible = !scrumFiltersVisible;
+      writePreference(preferenceKeys.scrumFiltersVisible, scrumFiltersVisible);
+      renderDevLogs();
+      return true;
+    }
     if (action === "view-log") {
       viewDevLog(state.devLogs.find(log => log.id === id));
       return true;
@@ -173,18 +188,26 @@ export function createScrumFeature({
     const scrumPlaceholder = "What did you accomplish yesterday?\nWhat do you plan to do today?\nDo you have any roadblocks?";
     const firstScrumPrompt = "What did you accomplish yesterday?";
     const scrumHtml = log.bodyHtml || scrumPlaceholder.replaceAll("\n", "<br>");
+    const rememberedProjectId = state.projects.some(project => project.id === scrumEntryProjectId)
+      ? scrumEntryProjectId
+      : 0;
+    const selectedProjectId = log.id ? log.projectId || "" : rememberedProjectId || "";
 
     openEditor(log.id ? "Edit Scrum" : "New Scrum", `
       <div class="form-grid">
         ${field("Date", "logDate", toDateInput(log.logDate || new Date()), "date")}
-        ${selectOptionsField("Project", "projectId", [{ id: "", title: "No project" }, ...state.projects.map(project => ({ id: project.id, title: `${project.code} - ${project.title}` }))], log.projectId || "")}
+        ${selectOptionsField("Project", "projectId", [{ id: "", title: "No project" }, ...state.projects.map(project => ({ id: project.id, title: `${project.code} - ${project.title}` }))], selectedProjectId)}
         ${richTextField("bodyHtml", "Scrum", scrumHtml)}
         <label class="inline-check field full"><input name="isPinned" type="checkbox" ${log.isPinned ? "checked" : ""} ${currentUser().isAdmin ? "" : "disabled"}><span>Pinned</span></label>
       </div>
     `, async root => {
+      const projectId = optionalNumberValue(root, "projectId");
+      scrumEntryProjectId = projectId || 0;
+      writePreference(preferenceKeys.scrumEntryProject, scrumEntryProjectId);
+
       await saveJson(log.id ? `/api/devlogs/${log.id}` : "/api/devlogs", log.id ? "PUT" : "POST", {
         id: log.id || 0,
-        projectId: optionalNumberValue(root, "projectId"),
+        projectId,
         logDate: value(root, "logDate"),
         bodyHtml: richValue(root, "bodyHtml"),
         isPinned: root.querySelector("[name='isPinned']").checked
