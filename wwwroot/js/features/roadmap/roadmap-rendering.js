@@ -34,7 +34,7 @@ export function roadMapScreenHtml({
         <label>
           <span>Project</span>
           <select data-filter="roadmap-project">
-            <option value="all" ${projectFilter === "all" ? "selected" : ""}>All projects</option>
+            <option value="all" ${projectFilter === "all" ? "selected" : ""}>All Projects</option>
             ${projects.map(project => `<option value="${project.id}" ${String(project.id) === String(projectFilter) ? "selected" : ""}>${escapeHtml(project.code)} - ${escapeHtml(project.title)}</option>`).join("")}
           </select>
         </label>
