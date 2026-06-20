@@ -66,3 +66,19 @@ Bugs
 2.) When you click on a calendar dropdown, the dropdown background flashes white before the theme is applied to the calendar.
 3.) The bug on the dropdowns is still there both on the normal dropdown and calendar dropdowns.  When you click them the list of items momentarily has a white background and flashes to the correct theme.  I only have 6% Codex quota left, so make this surgical fix and let me test it manually.
 4.) Now the problem is even worst.  The normal dropdown list's background remains white with no theming applied making the text impossible to read, and the calendar dropdown as it shows the actual calendar still visibly flashes white before the theme is applied to the actual calendar that drops down.
+
+Functional Requirements - User Configurable Top Navigation 
+----------------------------------------------------------
+1.) In settings, Add a Navigation category on the left.
+2.) Wire PMT so that the Top Navigation is configurable so the user can hide/show items they don't want to see as well as re-order the items in the Navigation category in Settings by dragging and dropping top navigation items.
+3.) Have the Top navigation and the menu overflow honor the hide/show and order settings set by the user.
+4.) Add a Reset button to default the Navigation to where everything is shown and in the original order.
+5.) Put a checkbox in front of each Navigation item and put the drag handle to the right.  When they click on a Navigation item, allow the user to modify/rename the top nav item.  You can save this in local storage or in the database, whatever makes sense.
+6.) Rename the column header in the Settings Navigation table from "Show" to "Visible" and remove the text "Shown" after each checkboxes.
+7.) Make the whole row clickable without interferring with the drag/drop handler to the right and have it bring up the Rename Navigation Item dialog box.
+
+User Interface Changes
+----------------------------------------------------------
+1.) Universally, change the delete icon from the cross ("x") that it has now to a trash icon.  The cross ("x") should be reserved for closing dialog boxes.
+2.) In the Scrum view, change the order of the icons on each row with the delete icon first, duplicate second and edit third.
+3.) In the Scrum view, update the Person filter to the way it used to be in that it defaults to no person is selected with means "Select All" users internally, and as the user checks each user checkbox, apply the filter to the scrum as per the selected users.

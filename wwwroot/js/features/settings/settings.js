@@ -18,6 +18,12 @@ import {
   currentUserId
 } from "../../core/authentication.js";
 import {
+  navigationSettingsItems,
+  readNavigationConfig,
+  resetNavigationConfig,
+  writeNavigationConfig
+} from "../../core/navigation-preferences.js";
+import {
   clearPmtPreferences,
   preferenceKeys,
   readPreference,
@@ -30,6 +36,7 @@ import {
   toDateInput
 } from "../../shared/dates.js";
 import { canEditUser } from "../../shared/permissions.js";
+import { createReorderDrag } from "../../shared/reorder-drag.js";
 import { userById } from "../../shared/selectors.js";
 import {
   escapeAttr,
@@ -53,13 +60,14 @@ export function createSettingsFeature({
 
   function renderSettings() {
     const lookupTypes = [...new Set(["Status", "Priority", "Severity", "Environment", ...(state.lookups || []).map(item => item.lookupType)])].sort();
-    const categories = [...lookupTypes, "Users", "Holidays", "Development"];
+    const categories = [...lookupTypes, "Users", "Holidays", "Navigation", "Development"];
     if (!categories.includes(settingsCategory)) settingsCategory = lookupTypes[0] || "Status";
 
     const isUsers = settingsCategory === "Users";
     const isHolidays = settingsCategory === "Holidays";
+    const isNavigation = settingsCategory === "Navigation";
     const isDevelopment = settingsCategory === "Development";
-    if (!isUsers && !isHolidays && !isDevelopment) {
+    if (!isUsers && !isHolidays && !isNavigation && !isDevelopment) {
       lookupTypeFilter = settingsCategory;
       writePreference(preferenceKeys.lookupType, lookupTypeFilter);
     }
@@ -67,15 +75,18 @@ export function createSettingsFeature({
     let actionsHtml = `<button class="primary text-icon-button" type="button" data-action="new-lookup" ${currentUser().isAdmin ? "" : "disabled"}>${buttonContent("&#10010;", "New Setting")}</button>`;
     if (isUsers) actionsHtml = `<button class="primary text-icon-button" type="button" data-action="new-user" ${currentUser().isAdmin ? "" : "disabled"}>${buttonContent("&#10010;", "New User")}</button>`;
     if (isHolidays) actionsHtml = `<button class="primary text-icon-button" type="button" data-action="new-holiday" ${currentUser().isAdmin ? "" : "disabled"}>${buttonContent("&#10010;", "New Holiday")}</button>`;
+    if (isNavigation) actionsHtml = `<button class="secondary text-icon-button" type="button" data-action="navigation-reset-defaults">${buttonContent("&#8635;", "Reset")}</button>`;
     if (isDevelopment) actionsHtml = "";
 
     const contentHtml = isUsers
       ? settingsUsersHtml()
       : isHolidays
         ? settingsHolidaysHtml()
-        : isDevelopment
-          ? settingsDevelopmentHtml()
-          : settingsLookupHtml(settingsCategory);
+        : isNavigation
+          ? settingsNavigationHtml()
+          : isDevelopment
+            ? settingsDevelopmentHtml()
+            : settingsLookupHtml(settingsCategory);
 
     app.innerHTML = `
       ${sectionHead("Settings", actionsHtml)}
@@ -90,6 +101,7 @@ export function createSettingsFeature({
         ${contentHtml}
       </div>
     `;
+    bindNavigationDragEvents();
   }
 
   async function handleAction(action, id, button) {
@@ -167,6 +179,20 @@ export function createSettingsFeature({
     }
     if (action === "development-clear-local-storage") {
       await clearLocalStoragePreferences();
+      return true;
+    }
+    if (action === "toggle-navigation-item") {
+      toggleNavigationItem(button.dataset.view, button.checked);
+      return true;
+    }
+    if (action === "rename-navigation-item") {
+      editNavigationItem(button.dataset.view);
+      return true;
+    }
+    if (action === "navigation-reset-defaults") {
+      resetNavigationConfig();
+      render();
+      showToast("Navigation reset to defaults.");
       return true;
     }
 
@@ -292,6 +318,55 @@ export function createSettingsFeature({
     `;
   }
 
+  function settingsNavigationHtml() {
+    const items = navigationSettingsItems();
+    return `
+      <div class="panel settings-content-panel settings-table-panel settings-navigation-panel">
+        <div class="settings-navigation-head">
+          <h2>Navigation</h2>
+          <p class="muted">Choose which top navigation items are shown, rename labels, then drag rows into the order you prefer.</p>
+        </div>
+        <table class="table settings-table settings-navigation-table work-item-table">
+          <thead>
+            <tr>
+              <th>Visible</th>
+              <th>Navigation Item</th>
+              <th>Default</th>
+              <th>Route</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody data-reorder-list="navigation" data-navigation-list>
+            ${items.map(item => `
+              <tr class="clickable-row" data-action="rename-navigation-item" data-nav-view="${escapeAttr(item.view)}" data-view="${escapeAttr(item.view)}">
+                <td>
+                  <label class="settings-nav-toggle" title="${item.visibilityLocked ? "Settings must stay visible so this screen remains reachable." : "Show this item in the top navigation."}">
+                    <input type="checkbox" data-action="toggle-navigation-item" data-view="${escapeAttr(item.view)}" aria-label="Show ${escapeAttr(item.label)} in top navigation" ${item.visible ? "checked" : ""} ${item.visibilityLocked ? "disabled" : ""}>
+                  </label>
+                </td>
+                <td>
+                  <button class="settings-nav-label-button" type="button" data-action="rename-navigation-item" data-view="${escapeAttr(item.view)}" title="Rename ${escapeAttr(item.label)}">
+                    <span class="settings-nav-icon" aria-hidden="true">${item.icon}</span>
+                    <span class="settings-nav-text">
+                      <strong>${escapeHtml(item.label)}</strong>
+                    </span>
+                  </button>
+                </td>
+                <td>${escapeHtml(item.defaultLabel)}</td>
+                <td><span class="muted">${escapeHtml(item.view)}</span></td>
+                <td class="action-cell">
+                  <button class="work-item-drag-handle settings-nav-drag-handle" type="button" data-drag-handle data-navigation-drag-handle title="Drag ${escapeAttr(item.label)}" aria-label="Drag ${escapeAttr(item.label)}">
+                    <span aria-hidden="true">&#8942;&#8942;</span>
+                  </button>
+                </td>
+              </tr>
+            `).join("")}
+          </tbody>
+        </table>
+      </div>
+    `;
+  }
+
   function settingsUsersHtml() {
     return `
       <div class="grid settings-users-grid">
@@ -324,6 +399,7 @@ export function createSettingsFeature({
       Environment: "&#127758;",
       Users: "&#128100;",
       Holidays: "&#128197;",
+      Navigation: "&#9776;",
       Development: "&#128295;"
     };
 
@@ -333,11 +409,69 @@ export function createSettingsFeature({
   function selectLookupType(type) {
     settingsCategory = type || "Status";
     writePreference(preferenceKeys.settingsCategory, settingsCategory);
-    if (settingsCategory !== "Users" && settingsCategory !== "Holidays" && settingsCategory !== "Development") {
+    if (settingsCategory !== "Users" && settingsCategory !== "Holidays" && settingsCategory !== "Navigation" && settingsCategory !== "Development") {
       lookupTypeFilter = settingsCategory;
       writePreference(preferenceKeys.lookupType, lookupTypeFilter);
     }
     renderSettings();
+  }
+
+  function toggleNavigationItem(view, visible) {
+    const config = readNavigationConfig();
+    writeNavigationConfig({
+      ...config,
+      items: config.items.map(item => item.view === view ? { ...item, visible } : item)
+    });
+    render();
+  }
+
+  function editNavigationItem(view) {
+    const item = navigationSettingsItems().find(entry => entry.view === view);
+    if (!item) return;
+
+    openEditor("Rename Navigation Item", `
+      <div class="form-grid">
+        ${field("Navigation Label", "label", item.label || item.defaultLabel, "text")}
+      </div>
+    `, root => {
+      const label = value(root, "label").trim() || item.defaultLabel;
+      const config = readNavigationConfig();
+      writeNavigationConfig({
+        ...config,
+        items: config.items.map(configItem => configItem.view === view ? { ...configItem, label } : configItem)
+      });
+    }, "label");
+  }
+
+  function bindNavigationDragEvents() {
+    const list = app.querySelector('tbody[data-reorder-list="navigation"]');
+    if (!list) return;
+
+    createReorderDrag({
+      root: list,
+      containerSelector: 'tbody[data-reorder-list="navigation"]',
+      itemSelector: "tr[data-nav-view]",
+      getItemKey: item => item.dataset.navView || "",
+      onDrop: ({ orderedKeys }) => {
+        saveNavigationOrder(orderedKeys);
+        showToast("Navigation order saved.");
+      }
+    }).bind();
+  }
+
+  function saveNavigationOrder(orderedViews) {
+    const config = readNavigationConfig();
+    const itemsByView = new Map(config.items.map(item => [item.view, item]));
+    const items = orderedViews
+      .map(view => itemsByView.get(view))
+      .filter(Boolean);
+
+    config.items.forEach(item => {
+      if (!orderedViews.includes(item.view)) items.push(item);
+    });
+
+    writeNavigationConfig({ ...config, items });
+    render();
   }
 
   function editUser(user = {}) {

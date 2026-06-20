@@ -12,7 +12,7 @@ import {
   showTaskAudit,
   viewWorkItem
 } from "./components/work-items.js?v=20260620-drag-handles";
-import { createApplicationShell } from "./core/application-shell.js?v=20260620-native-controls-v3";
+import { createApplicationShell } from "./core/application-shell.js?v=20260620-nav-config";
 import {
   currentView,
   navigate
@@ -36,7 +36,7 @@ import {
 import { createProjectsFeature } from "./features/projects/projects.js?v=20260619-content-screens";
 import { createRoadMapFeature } from "./features/roadmap/roadmap.js?v=20260620-ui-theme";
 import { createScrumFeature } from "./features/scrum/scrum.js?v=20260619-minor-fixes";
-import { createSettingsFeature } from "./features/settings/settings.js?v=20260619-advanced-screens-v2";
+import { createSettingsFeature } from "./features/settings/settings.js?v=20260620-nav-config-v2";
 import { createSprintsFeature } from "./features/sprints/sprints.js?v=20260619-content-screens";
 import { createTasksFeature } from "./features/tasks/tasks.js?v=20260620-drag-handles";
 import {
@@ -326,6 +326,8 @@ async function handleActionClick(event) {
 
   const button = event.target.closest("[data-action]");
   if (!button) return;
+  if (button.matches("tr[data-action]") && event.target.closest("button, input, label, select, textarea")) return;
+
   const id = Number(button.dataset.id || 0);
   const action = button.dataset.action;
 

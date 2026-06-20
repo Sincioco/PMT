@@ -98,6 +98,83 @@
   background: var(--color-danger-surface);
 }
 
+.settings-navigation-head {
+  padding: var(--space-7) var(--space-7) var(--space-5);
+}
+
+.settings-navigation-head h2 {
+  margin-bottom: var(--space-1);
+}
+
+.settings-navigation-table {
+  min-width: 760px;
+}
+
+.settings-navigation-table tbody[data-reorder-list="navigation"] tr {
+  touch-action: none;
+}
+
+.settings-nav-label-button {
+  display: inline-grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  justify-content: stretch;
+  gap: var(--space-4);
+  min-width: 0;
+  min-height: var(--control-height-md);
+  padding: var(--space-3);
+  border-color: transparent;
+  text-align: left;
+  background: transparent;
+}
+
+.settings-nav-label-button:hover,
+.settings-nav-label-button:focus-visible {
+  border-color: var(--color-border);
+  background: var(--color-control-hover);
+}
+
+.settings-navigation-table .settings-nav-drag-handle {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.settings-nav-icon {
+  display: inline-grid;
+  place-items: center;
+  width: var(--icon-size-md);
+  min-width: var(--icon-size-md);
+  color: var(--color-text-secondary);
+  font-size: var(--icon-size-sm);
+  line-height: 1;
+}
+
+.settings-nav-text {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.settings-nav-text strong,
+.settings-nav-text span {
+  overflow-wrap: anywhere;
+}
+
+.settings-nav-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--color-text-primary);
+  white-space: nowrap;
+}
+
+.settings-nav-toggle input {
+  margin: 0;
+}
+
+.settings-nav-toggle input:disabled + span {
+  color: var(--color-text-secondary);
+}
+
 .lookup-picker {
   display: grid;
   gap: var(--space-2);

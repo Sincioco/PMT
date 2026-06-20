@@ -1,4 +1,5 @@
 import { preferenceKeys, readPreference, writePreference } from "./preferences.js";
+import { visibleNavigationScreens } from "./navigation-preferences.js";
 import { screenRegistry } from "./screen-registry.js";
 
 const legacyViews = Object.freeze({
@@ -13,9 +14,9 @@ const legacyViews = Object.freeze({
 export const savedViewPreference = readPreference(preferenceKeys.view, "Dashboard");
 export let currentView = normalizeView(savedViewPreference);
 
-export const navigationScreens = Object.freeze(
-  screenRegistry.filter(screen => screen.showInNavigation)
-);
+export function getNavigationScreens() {
+  return visibleNavigationScreens();
+}
 
 export function normalizeView(view) {
   const normalized = legacyViews[view] || view || "Dashboard";

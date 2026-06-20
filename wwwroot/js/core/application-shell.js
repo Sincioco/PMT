@@ -5,12 +5,13 @@ import {
   logout,
   setCurrentUserId
 } from "./authentication.js";
+import { navIconHtml } from "./navigation-preferences.js";
 import {
   preferenceKeys,
   readPreference,
   writePreference
 } from "./preferences.js";
-import { currentView, navigate, navigationScreens } from "./router.js";
+import { currentView, getNavigationScreens, navigate } from "./router.js";
 import { loadState, state } from "./store.js";
 
 export function createApplicationShell({
@@ -192,7 +193,7 @@ export function createApplicationShell({
   }
 
   function renderNavigation() {
-    const viewButtons = navigationScreens.map(screen => navButtonHtml({
+    const viewButtons = getNavigationScreens().map(screen => navButtonHtml({
       view: screen.view,
       label: screen.label,
       icon: navIconHtml(screen.view),
@@ -353,24 +354,6 @@ export function createApplicationShell({
     reloadState,
     render
   };
-}
-
-function navIconHtml(view) {
-  const icons = {
-    Dashboard: "&#9636;",
-    Board: "&#9638;",
-    "Road Map": "&#8644;",
-    Gantt: "&#8942;",
-    Backlog: "&#9776;",
-    Projects: "&#9635;",
-    Sprints: "&#8635;",
-    Tasks: "&#10003;",
-    Bugs: "&#9888;",
-    Scrum: "&#9719;",
-    Documentation: "&#128196;",
-    Settings: "&#9881;"
-  };
-  return icons[view] || "&#9679;";
 }
 
 function escapeHtml(value) {

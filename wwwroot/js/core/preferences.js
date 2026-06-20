@@ -2,6 +2,7 @@ export const preferenceKeys = Object.freeze({
   authenticatedUser: "pmt-auth-user",
   view: "pmt-view",
   theme: "pmt-theme",
+  navigation: "pmt-navigation",
   boardProject: "pmt-board-project",
   boardSprint: "pmt-board-sprint",
   boardSort: "pmt-board-sort",

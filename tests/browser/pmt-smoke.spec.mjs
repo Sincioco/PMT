@@ -64,7 +64,8 @@ test("login, navigation, themes, dialogs, filters, Board, Gantt, and Road Map sm
     ["Bugs", "Bug Tracking"],
     ["Scrum", "Scrum"],
     ["Documentation", "Documentation"],
-    ["Backlog", "Backlog"]
+    ["Backlog", "Backlog"],
+    ["Settings", "Settings"]
   ];
 
   for (const [view, heading] of screens) {
@@ -76,6 +77,44 @@ test("login, navigation, themes, dialogs, filters, Board, Gantt, and Road Map sm
   await expect(page.getByRole("heading", { name: "Settings", exact: true })).toBeVisible();
   await page.locator("[data-action='select-lookup-type'][data-type='Development']").click();
   await expect(page.getByRole("button", { name: "Restore Initial Seed Data" })).toBeVisible();
+  await page.locator("[data-action='select-lookup-type'][data-type='Navigation']").click();
+  await expect(page.locator("[data-navigation-list]")).toBeVisible();
+  await expect(page.locator("[data-action='toggle-navigation-item'][data-view='Settings']")).toBeDisabled();
+
+  const backlogToggle = page.locator("[data-action='toggle-navigation-item'][data-view='Backlog']");
+  await expect(backlogToggle).toBeChecked();
+  await backlogToggle.click();
+  await expect(page.locator("#nav button[data-view='Backlog']")).toHaveCount(0);
+
+  await dragNavigationItemBefore(page, "Gantt", "Road Map");
+  await expect(page.locator("#nav > button.nav-item").nth(1)).toHaveAttribute("data-view", "Gantt");
+  await expect(page.locator("#nav > button.nav-item").nth(2)).toHaveAttribute("data-view", "Road Map");
+  await page.locator("[data-navigation-list] [data-nav-view='Settings'] [data-action='rename-navigation-item']").click();
+  await expect(page.locator("#dialogTitle")).toHaveText("Rename Navigation Item");
+  await page.locator("#dialogBody [name='label']").fill("Options");
+  await page.locator("#editorForm button[type='submit']").click();
+  await expect.poll(async () => page.locator("#nav button[data-view='Settings']").evaluateAll(buttons => buttons.some(button => (button.textContent || "").includes("Options"))))
+    .toBe(true);
+  const navigationConfig = await page.evaluate(() => JSON.parse(localStorage.getItem("pmt-navigation")));
+  expect(navigationConfig.items[1].view).toBe("Gantt");
+  expect(navigationConfig.items[2].view).toBe("Road Map");
+  expect(navigationConfig.items.find(item => item.view === "Settings").label).toBe("Options");
+  expect(navigationConfig.items.find(item => item.view === "Backlog").visible).toBe(false);
+
+  await page.setViewportSize({ width: 900, height: 768 });
+  await page.waitForTimeout(100);
+  await expectShellFitsViewport(page);
+  await expect(page.locator(".nav-overflow-toggle")).toBeVisible();
+  await page.locator(".nav-overflow-toggle").click();
+  await expect(page.locator(".nav-overflow-menu button[data-view='Backlog']")).toHaveCount(0);
+  await page.mouse.click(20, 20);
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await page.getByRole("button", { name: "Reset" }).click();
+  const resetNavigationConfig = await page.evaluate(() => JSON.parse(localStorage.getItem("pmt-navigation")));
+  expect(resetNavigationConfig.items[0].view).toBe("Dashboard");
+  expect(resetNavigationConfig.items.every(item => item.visible)).toBe(true);
+  expect(resetNavigationConfig.items.find(item => item.view === "Settings").label).toBe("Settings");
+  await openNavView(page, "Backlog", "Backlog");
 
   await openNavView(page, "Tasks", "Dev Tasks");
   await page.locator("[data-filter='task-sort']").selectOption("newest");
@@ -198,8 +237,7 @@ async function openUserMenu(page) {
 }
 
 async function openSettings(page) {
-  await openUserMenu(page);
-  await page.locator("#userMenu button[data-view='Settings']").click();
+  await openNavView(page, "Settings", "Settings");
 }
 
 async function expectShellFitsViewport(page) {
@@ -231,6 +269,23 @@ async function dragFirstTodoCardToInProgress(page) {
   await page.mouse.move(sourceBox.x + sourceBox.width / 2, sourceBox.y + sourceBox.height / 2);
   await page.mouse.down();
   await page.mouse.move(targetBox.x + targetBox.width / 2, targetBox.y + 80, { steps: 8 });
+  await page.mouse.up();
+}
+
+async function dragNavigationItemBefore(page, sourceView, targetView) {
+  const source = page.locator(`[data-navigation-list] [data-nav-view='${sourceView}'] [data-navigation-drag-handle]`);
+  const target = page.locator(`[data-navigation-list] [data-nav-view='${targetView}']`);
+  await expect(source).toBeVisible();
+  await expect(target).toBeVisible();
+
+  const sourceBox = await source.boundingBox();
+  const targetBox = await target.boundingBox();
+  expect(sourceBox).not.toBeNull();
+  expect(targetBox).not.toBeNull();
+
+  await page.mouse.move(sourceBox.x + sourceBox.width / 2, sourceBox.y + sourceBox.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(targetBox.x + targetBox.width / 2, targetBox.y + 4, { steps: 8 });
   await page.mouse.up();
 }
 
