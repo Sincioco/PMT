@@ -1,6 +1,6 @@
 import { attachmentsHtml, filePreviewHtml } from "./attachments.js";
 import { avatarsHtml } from "./avatars.js";
-import { buttonContent, iconButton } from "./buttons.js?v=20260620-light-reference-1";
+import { buttonContent, iconButton } from "./buttons.js?v=20260620-universal-pencil-flip";
 import {
   checkListOrEmpty,
   checkedNumbers,

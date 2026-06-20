@@ -65,6 +65,12 @@ button:disabled {
   stroke-linejoin: round;
 }
 
+button[data-action^="edit-"] > .button-icon,
+button[data-edit-readonly-task] > .button-icon,
+.work-item-table-mode-toggle[aria-pressed="false"] > .button-icon {
+  transform: scaleX(-1);
+}
+
 .primary {
   border-color: transparent;
   background: var(--color-primary);

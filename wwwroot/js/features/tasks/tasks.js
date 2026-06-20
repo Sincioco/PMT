@@ -80,7 +80,7 @@ export function createTasksFeature({
   saveJson
 }) {
   let taskProjectId = readNumberPreference(preferenceKeys.taskProject, 0);
-  let taskSprintId = readPreference(preferenceKeys.taskSprint, "");
+  let taskSprintId = readPreference(preferenceKeys.taskSprint, "current");
   let taskEntryProjectId = readNumberPreference(preferenceKeys.taskEntryProject, 0);
   let taskEntrySprintId = readPreference(preferenceKeys.taskEntrySprint, "");
   let taskFilters = readJsonPreference(preferenceKeys.taskFilters, {});
@@ -100,16 +100,17 @@ export function createTasksFeature({
     ensureSelectedProject();
 
     const projectSprints = state.sprints.filter(sprint => sprint.projectId === taskProjectId);
-    if (taskSprintId !== "all" && !projectSprints.some(sprint => sprint.id === Number(taskSprintId))) {
+    if (taskSprintId !== "all" && taskSprintId !== "current" && !projectSprints.some(sprint => sprint.id === Number(taskSprintId))) {
       taskSprintId = defaultSprintId(projectSprints);
       writePreference(preferenceKeys.taskSprint, taskSprintId);
     }
+    const selectedSprint = taskSelectedSprint(projectSprints);
 
     const allProjectDevTasks = state.tasks
       .filter(task => task.projectId === taskProjectId)
       .filter(task => task.taskType !== "Bug");
     const baseTasks = allProjectDevTasks
-      .filter(task => taskSprintId === "all" || task.sprintId === Number(taskSprintId));
+      .filter(task => taskMatchesSprintFilter(task, selectedSprint));
     const visibleTasks = filteredTaskList(baseTasks);
     const taskRows = taskRowsWithSubTasks(visibleTasks);
     const canShowCharts = allProjectDevTasks.length > 0;
@@ -121,8 +122,8 @@ export function createTasksFeature({
       ${sectionHead("Dev Tasks", `
         <button class="primary text-icon-button" type="button" data-action="new-task" title="New Dev Task" aria-label="New Dev Task">${buttonContent("&#10010;", "New Dev Task")}</button>
         ${taskTableMode.buttonHtml()}
-        <button class="secondary text-icon-button" type="button" data-action="open-task-filters" title="Filters" aria-label="Filters" aria-haspopup="dialog">${buttonContent(funnelIconHtml(), "Filters")}</button>
         <button class="secondary text-icon-button" type="button" data-action="toggle-task-visual-charts" title="${chartToggleLabel}" aria-label="${chartToggleLabel}" aria-pressed="${showCharts}" ${canShowCharts ? "" : "disabled"}>${buttonContent("&#128202;", chartToggleLabel)}</button>
+        <button class="secondary text-icon-button" type="button" data-action="open-task-filters" title="Filters" aria-label="Filters" aria-haspopup="dialog">${buttonContent(funnelIconHtml(), "Filters")}</button>
       `)}
       ${showCharts ? taskVisualTrackingChartsHtml(allProjectDevTasks) : ""}
       <div class="panel work-item-table-panel tasks-table-panel">
@@ -297,6 +298,7 @@ export function createTasksFeature({
           <label>
             <span>Sprint</span>
             <select data-filter="task-sprint">
+              <option value="current" ${taskSprintId === "current" ? "selected" : ""}>Current Sprint</option>
               <option value="all" ${taskSprintId === "all" ? "selected" : ""}>All Sprints</option>
               ${projectSprints.map(sprint => `<option value="${sprint.id}" ${String(sprint.id) === taskSprintId ? "selected" : ""}>${escapeHtml(sprint.code)} - ${escapeHtml(sprint.title)}</option>`).join("")}
             </select>
@@ -363,13 +365,16 @@ export function createTasksFeature({
     )
       ? Number(taskEntrySprintId)
       : "";
+    const selectedTaskFilterSprint = currentView === "Tasks"
+      ? taskSelectedSprint(state.sprints.filter(sprint => sprint.projectId === projectId))
+      : null;
     const defaultSprintId = task.sprintId ?? (
       rememberedProjectId
         ? rememberedSprintId
         : currentView === "Board"
           ? getBoardSprintId(projectId)
-          : currentView === "Tasks" && taskSprintId !== "all"
-            ? Number(taskSprintId)
+          : selectedTaskFilterSprint
+            ? selectedTaskFilterSprint.id
             : ""
     );
     const sameProjectTasks = dependencyCandidates(projectId, task.id);
@@ -465,8 +470,12 @@ export function createTasksFeature({
   }
 
   function defaultSprintId(projectSprints) {
-    const currentOrLastSprint = getCurrentSprint(projectSprints);
-    return currentOrLastSprint ? String(currentOrLastSprint.id) : "all";
+    return projectSprints.length ? "current" : "all";
+  }
+
+  function taskMatchesSprintFilter(task, selectedSprint) {
+    if (taskSprintId === "all") return true;
+    return selectedSprint ? task.sprintId === selectedSprint.id : false;
   }
 
   function filteredTaskList(tasks) {
@@ -538,7 +547,9 @@ export function createTasksFeature({
     const selectedSprint = taskSelectedSprint();
     const sprintFilterTasks = selectedSprint
       ? devTasks.filter(task => task.sprintId === selectedSprint.id)
-      : devTasks;
+      : taskSprintId === "all"
+        ? devTasks
+        : [];
     const charts = [
       taskDeveloperWorkloadChartHtml(selectedSprint, sprintFilterTasks),
       taskStatusHorizontalChartHtml(selectedSprint, sprintFilterTasks),
@@ -732,9 +743,15 @@ export function createTasksFeature({
     return getCurrentSprint(state.sprints.filter(sprint => sprint.projectId === taskProjectId));
   }
 
-  function taskSelectedSprint() {
+  function taskSelectedSprint(projectSprints = state.sprints.filter(sprint => sprint.projectId === taskProjectId)) {
     if (taskSprintId === "all") return null;
-    return state.sprints.find(sprint => sprint.id === Number(taskSprintId)) || null;
+    if (taskSprintId === "current") return getCurrentSprint(projectSprints);
+    return projectSprints.find(sprint => sprint.id === Number(taskSprintId)) || getCurrentSprint(projectSprints);
+  }
+
+  function taskContextSprintId() {
+    const selectedSprint = taskSelectedSprint();
+    return selectedSprint ? selectedSprint.id : "all";
   }
 
   function saveTaskFilters() {
@@ -762,7 +779,7 @@ export function createTasksFeature({
   return {
     deactivate: deactivateTasks,
     edit: editTask,
-    getContext: () => ({ projectId: taskProjectId, sprintId: taskSprintId }),
+    getContext: () => ({ projectId: taskProjectId, sprintId: taskContextSprintId() }),
     handleAction,
     handleFilterChange,
     render: renderTasks,
