@@ -17,11 +17,11 @@ import { taskDisplayPercent } from "../../shared/work-item-rules.js";
 import {
   ganttBugRows,
   ganttDependencyLines
-} from "./gantt-bugs-dependencies.js";
+} from "./gantt-bugs-dependencies.js?v=20260620-gantt-dependency-line";
 import {
   ganttEndDate,
   ganttStartDate
-} from "./gantt-calculations.js";
+} from "./gantt-calculations.js?v=20260620-render-end-date";
 
 export function ganttScreenHtml({
   projects,

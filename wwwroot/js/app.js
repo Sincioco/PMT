@@ -25,20 +25,20 @@ import {
 import { state } from "./core/store.js";
 import { createBacklogFeature } from "./features/backlog/backlog.js?v=20260620-bug-linked-task";
 import { createBoardFeature } from "./features/board/board.js?v=20260620-bug-linked-task";
-import { createBugsFeature } from "./features/bugs/bugs.js?v=20260620-bug-entry-context";
+import { createBugsFeature } from "./features/bugs/bugs.js?v=20260620-null-end-date";
 import { createDashboardFeature } from "./features/dashboard/dashboard.js?v=20260620-ui-theme";
 import { createDocumentationFeature } from "./features/documentation/documentation.js?v=20260620-document-entry-project";
 import {
   createGanttFeature,
   currentSprintForProject,
   ganttStartDate
-} from "./features/gantt/gantt.js?v=20260619-day12-defaults-filters";
-import { createProjectsFeature } from "./features/projects/projects.js?v=20260620-member-roles";
-import { createRoadMapFeature } from "./features/roadmap/roadmap.js?v=20260620-ui-theme";
+} from "./features/gantt/gantt.js?v=20260620-gantt-dependency-line";
+import { createProjectsFeature } from "./features/projects/projects.js?v=20260620-null-end-date";
+import { createRoadMapFeature } from "./features/roadmap/roadmap.js?v=20260620-render-end-date";
 import { createScrumFeature } from "./features/scrum/scrum.js?v=20260620-scrum-project";
 import { createSettingsFeature } from "./features/settings/settings.js?v=20260620-nav-config-v2";
-import { createSprintsFeature } from "./features/sprints/sprints.js?v=20260620-sprint-entry-project";
-import { createTasksFeature } from "./features/tasks/tasks.js?v=20260620-task-entry-context";
+import { createSprintsFeature } from "./features/sprints/sprints.js?v=20260620-null-end-date";
+import { createTasksFeature } from "./features/tasks/tasks.js?v=20260620-null-end-date";
 import { createWfhScheduleFeature } from "./features/wfh-schedule/wfh-schedule.js?v=20260620-wfh-schedule";
 import {
   fallbackEnvironments,

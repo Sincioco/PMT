@@ -40,7 +40,7 @@ import {
 } from "../../core/preferences.js?v=20260620-task-entry-context";
 import { currentView } from "../../core/router.js";
 import { state } from "../../core/store.js";
-import { toDateInput } from "../../shared/dates.js";
+import { toDateInput } from "../../shared/dates.js?v=20260620-null-end-date";
 import { normalizeSavedArray } from "../../shared/filter-values.js";
 import { canEditTask } from "../../shared/permissions.js";
 import {

@@ -5,6 +5,7 @@ import {
   checkListOrEmpty,
   checkedNumbers,
   field,
+  nullableDateValue,
   numberValue,
   richTextField,
   richValue,
@@ -27,7 +28,7 @@ import { state } from "../../core/store.js";
 import {
   formatDate,
   toDateInput
-} from "../../shared/dates.js";
+} from "../../shared/dates.js?v=20260620-null-end-date";
 import { canEditOwner } from "../../shared/permissions.js";
 import {
   projectById,
@@ -200,8 +201,8 @@ export function createSprintsFeature({
         projectId: savedProjectId,
         title,
         description: value(root, "description"),
-        startDate: value(root, "startDate"),
-        endDate: value(root, "endDate"),
+        startDate: nullableDateValue(root, "startDate"),
+        endDate: nullableDateValue(root, "endDate"),
         lessonLearnedHtml: richValue(root, "lessonLearnedHtml"),
         developerIds
       });

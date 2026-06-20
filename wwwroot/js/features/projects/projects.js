@@ -14,7 +14,7 @@ import {
 } from "../../components/progress-and-status.js?v=20260620-ui-theme";
 import { sectionHead } from "../../components/sections.js";
 import { state } from "../../core/store.js";
-import { toDateInput } from "../../shared/dates.js";
+import { toDateInput } from "../../shared/dates.js?v=20260620-null-end-date";
 import { canEditOwner } from "../../shared/permissions.js";
 import { projectById } from "../../shared/selectors.js";
 import {

@@ -8,7 +8,7 @@ import {
 import {
   ganttEndDate,
   ganttStartDate
-} from "./gantt-calculations.js";
+} from "./gantt-calculations.js?v=20260620-render-end-date";
 
 export function createGanttBugExpansion() {
   const expandedTaskIds = new Set();
@@ -38,7 +38,7 @@ export function ganttBugRows(task, sprintBugs) {
 export function ganttDependencyLines(task, chart) {
   return (task.dependencyTaskIds || [])
     .map(id => taskById(id))
-    .filter(Boolean)
+    .filter(dependency => dependency && dependency.sprintId === task.sprintId)
     .map(dependency => {
       const fromIndex = visibleDateIndex(chart.dates, ganttEndDate(dependency), true);
       const toIndex = visibleDateIndex(chart.dates, ganttStartDate(task), false);

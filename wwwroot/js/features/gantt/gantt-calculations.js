@@ -91,7 +91,7 @@ export function ganttStartDate(item) {
 
 export function ganttEndDate(item) {
   const start = ganttStartDate(item);
-  const end = normalizeDate(item?.endDate || item?.startDate || item?.updatedAt || item?.createdAt);
+  const end = normalizeDate(item?.endDate) || normalizeDate(new Date());
   if (!start) return end;
   if (!end || end < start) return start;
   return end;

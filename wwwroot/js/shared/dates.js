@@ -30,7 +30,8 @@ export function documentationWasEdited(blog) {
 }
 
 export function toDateInput(value) {
-  const date = value ? new Date(value) : new Date();
+  if (!value) return "";
+  const date = new Date(value);
   return date.toISOString().slice(0, 10);
 }
 

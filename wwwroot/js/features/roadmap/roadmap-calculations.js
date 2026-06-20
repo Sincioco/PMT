@@ -113,9 +113,7 @@ export function roadMapProjectStart(project) {
 
 export function roadMapProjectEnd(project, projectSprints = []) {
   const start = roadMapProjectStart(project);
-  const sprintEndDates = projectSprints.map(sprint => roadMapSprintEnd(sprint, project)).filter(Boolean);
-  const latestSprintEnd = sprintEndDates.length ? new Date(Math.max(...sprintEndDates.map(date => date.getTime()))) : null;
-  const end = normalizeDate(project.endDate) || latestSprintEnd || start;
+  const end = normalizeDate(project.endDate) || normalizeDate(new Date());
   if (!start) return end;
   if (!end || end < start) return start;
   return end;
@@ -128,7 +126,7 @@ export function roadMapSprintStart(sprint, project) {
 
 export function roadMapSprintEnd(sprint, project) {
   const start = roadMapSprintStart(sprint, project);
-  const end = normalizeDate(sprint.endDate) || start;
+  const end = normalizeDate(sprint.endDate) || normalizeDate(new Date());
   if (!start) return end;
   if (!end || end < start) return start;
   return end;

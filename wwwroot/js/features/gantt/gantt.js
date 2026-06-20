@@ -8,18 +8,18 @@ import {
 import { navigate } from "../../core/router.js";
 import { state } from "../../core/store.js";
 import { projectById } from "../../shared/selectors.js";
-import { createGanttBugExpansion } from "./gantt-bugs-dependencies.js";
+import { createGanttBugExpansion } from "./gantt-bugs-dependencies.js?v=20260620-gantt-dependency-line";
 import {
   currentSprintForProject,
   ganttChartData,
   selectedGanttSprint,
   sortGanttSprintOptions,
   sortGanttSprints
-} from "./gantt-calculations.js";
-import { createGanttFlyBy } from "./gantt-flyby.js";
-import { ganttScreenHtml } from "./gantt-rendering.js?v=20260619-advanced-screens-v2";
+} from "./gantt-calculations.js?v=20260620-render-end-date";
+import { createGanttFlyBy } from "./gantt-flyby.js?v=20260620-render-end-date";
+import { ganttScreenHtml } from "./gantt-rendering.js?v=20260620-gantt-dependency-line";
 
-export { currentSprintForProject, ganttStartDate } from "./gantt-calculations.js";
+export { currentSprintForProject, ganttStartDate } from "./gantt-calculations.js?v=20260620-render-end-date";
 
 export function createGanttFeature({
   app,

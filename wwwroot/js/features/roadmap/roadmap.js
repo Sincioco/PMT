@@ -9,8 +9,8 @@ import {
   roadMapChartData,
   roadMapProjects,
   roadMapSprintOptions
-} from "./roadmap-calculations.js";
-import { roadMapScreenHtml } from "./roadmap-rendering.js?v=20260620-ui-theme";
+} from "./roadmap-calculations.js?v=20260620-render-end-date";
+import { roadMapScreenHtml } from "./roadmap-rendering.js?v=20260620-render-end-date";
 
 export function createRoadMapFeature({ app }) {
   let roadMapProjectFilter = readPreference(preferenceKeys.roadMapProject, "all");

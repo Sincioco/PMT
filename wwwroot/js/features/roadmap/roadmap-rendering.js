@@ -14,7 +14,7 @@ import {
   escapeAttr,
   escapeHtml
 } from "../../shared/text-and-links.js";
-import { roadMapVisibleDateIndex } from "./roadmap-calculations.js";
+import { roadMapVisibleDateIndex } from "./roadmap-calculations.js?v=20260620-render-end-date";
 
 export function roadMapScreenHtml({
   projects,

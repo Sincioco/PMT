@@ -1,5 +1,5 @@
 import { visibleDateIndex } from "../../shared/dates.js";
-import { ganttStartDate } from "./gantt-calculations.js";
+import { ganttStartDate } from "./gantt-calculations.js?v=20260620-render-end-date";
 
 export function createGanttFlyBy({ showToast }) {
   let frameId = 0;
