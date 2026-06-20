@@ -108,6 +108,11 @@ html[data-theme="light"] .tasks-table td {
   color: var(--color-text-primary);
 }
 
+html[data-theme="light"] .tasks-table th:first-child,
+html[data-theme="light"] .tasks-table td:first-child {
+  padding-left: 24px;
+}
+
 html[data-theme="light"] .tasks-table tbody tr:hover td {
   background: var(--color-control-hover);
 }
