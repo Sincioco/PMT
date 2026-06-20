@@ -82,3 +82,21 @@ User Interface Changes
 1.) Universally, change the delete icon from the cross ("x") that it has now to a trash icon.  The cross ("x") should be reserved for closing dialog boxes.
 2.) In the Scrum view, change the order of the icons on each row with the delete icon first, duplicate second and edit third.
 3.) In the Scrum view, update the Person filter to the way it used to be in that it defaults to no person is selected with means "Select All" users internally, and as the user checks each user checkbox, apply the filter to the scrum as per the selected users.
+
+Scrum Screen
+------------
+1.) In the Scrum screen, if the user select a row, open a read-only version of the Scrum entry in a dialog box.
+2.) There is a Flag column, hide the label.
+3.) When a Scrum item is not flagged, a dash or horizontal line of some kind is appearing.  Hide or remove it.
+
+Work from Home (WFH) Schedule Tracker
+--------------------------------------
+Goal:  We need to add Work from Home (WFH) screen to keep track of each team member's WFH schedule.  Just make it basic.
+1.) Create a new screen call WFH Schedule and add it to the Top Navigation in front of Settings.
+2.) It should have a table of everyone in the system (Admin, Devs, QAs, etc) with the table columns as follows:  Avatar, Nickname, First Name, Last Name, Role, Days.
+3.) By default, it is sorted by Nickname.
+4.) Make the Days column a M T W T F mini buttons that can be toggled on/off to visually show what days (plural) the employee can work from home.
+5.) The table should have a drag/drop re-order functionality logic just like what you did in Settings -> Navigation.
+6.) We need to save this permanently in the database as people's WFH schedule typically do not change often.
+7.) We need to add a delete function in case the employee is no longer in the project.  Don't actually delete anything, just hide the user from the list.  Add a button to hide/show "deleted" users.
+8.) Add a Reset button to revert the table to its pre-custom resetted state and show all users.

@@ -35,7 +35,7 @@ import {
 } from "./features/gantt/gantt.js?v=20260619-day12-defaults-filters";
 import { createProjectsFeature } from "./features/projects/projects.js?v=20260619-content-screens";
 import { createRoadMapFeature } from "./features/roadmap/roadmap.js?v=20260620-ui-theme";
-import { createScrumFeature } from "./features/scrum/scrum.js?v=20260619-minor-fixes";
+import { createScrumFeature } from "./features/scrum/scrum.js?v=20260620-readonly-scrum";
 import { createSettingsFeature } from "./features/settings/settings.js?v=20260620-nav-config-v2";
 import { createSprintsFeature } from "./features/sprints/sprints.js?v=20260619-content-screens";
 import { createTasksFeature } from "./features/tasks/tasks.js?v=20260620-drag-handles";
@@ -245,6 +245,7 @@ const scrumFeature = createScrumFeature({
   openEditor,
   render,
   saveJson,
+  showReadOnlyDialog,
   showToast
 });
 const documentationFeature = createDocumentationFeature({

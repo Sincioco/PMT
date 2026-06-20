@@ -43,6 +43,7 @@ export function createScrumFeature({
   openEditor,
   render,
   saveJson,
+  showReadOnlyDialog,
   showToast
 }) {
   let scrumFilters = readJsonPreference(preferenceKeys.scrumFilters, {});
@@ -85,7 +86,7 @@ export function createScrumFeature({
               <th>Project</th>
               <th>Person</th>
               <th>Scrum</th>
-              <th>Flag</th>
+              <th aria-label="Flag"></th>
               <th></th>
             </tr>
           </thead>
@@ -93,7 +94,7 @@ export function createScrumFeature({
         ${logs.map(log => {
           const user = userById(log.userId);
           return `
-            <tr class="scrum-row">
+            <tr class="scrum-row clickable-row" data-action="view-log" data-id="${log.id}">
               <td class="scrum-date" data-label="Date">${formatDate(log.logDate)}</td>
               <td class="scrum-project" data-label="Project">${log.projectId ? `<span class="pill">${escapeHtml(projectName(log.projectId))}</span>` : `<span class="muted">No project</span>`}</td>
               <td class="scrum-person-cell" data-label="Person">
@@ -103,11 +104,11 @@ export function createScrumFeature({
                 </div>
               </td>
               <td class="scrum-body" data-label="Scrum"><div class="scrum-content">${log.bodyHtml}</div></td>
-              <td class="scrum-flag" data-label="Flag">${log.isPinned ? `<span class="pill scrum-pin">Pinned</span>` : `<span class="muted">—</span>`}</td>
+              <td class="scrum-flag" data-label="">${log.isPinned ? `<span class="pill scrum-pin">Pinned</span>` : ""}</td>
               <td class="reveal-actions action-cell scrum-actions" data-label="Actions">
-                ${iconButton("edit-log", log.id, "Edit", "edit", canEditOwner(log.userId))}
-                ${iconButton("duplicate-log", log.id, "Duplicate", "duplicate", true)}
                 ${iconButton("delete-log", log.id, "Delete", "delete", canEditOwner(log.userId), "danger")}
+                ${iconButton("duplicate-log", log.id, "Duplicate", "duplicate", true)}
+                ${iconButton("edit-log", log.id, "Edit", "edit", canEditOwner(log.userId))}
               </td>
             </tr>
           `;
@@ -124,8 +125,8 @@ export function createScrumFeature({
     const validPersonIds = new Set(userIds);
     scrumFilters.personIds = scrumFilters.personIds.filter(id => validPersonIds.has(id));
 
-    if (!scrumFilters.personIds.length && userIds.length) {
-      scrumFilters.personIds = [...userIds];
+    if (userIds.length && scrumFilters.personIds.length === userIds.length) {
+      scrumFilters.personIds = [];
     }
   }
 
@@ -146,6 +147,10 @@ export function createScrumFeature({
   async function handleAction(action, id) {
     if (action === "new-log") {
       editDevLog();
+      return true;
+    }
+    if (action === "view-log") {
+      viewDevLog(state.devLogs.find(log => log.id === id));
       return true;
     }
     if (action === "edit-log") {
@@ -187,6 +192,38 @@ export function createScrumFeature({
     }, log.id ? "" : "bodyHtml", root => {
       if (!log.id) focusRichEditorAfterText(root, "bodyHtml", firstScrumPrompt);
     });
+  }
+
+  function viewDevLog(log) {
+    if (!log) return;
+
+    const user = userById(log.userId);
+    showReadOnlyDialog(`Scrum - ${formatDate(log.logDate)}`, `
+      <div class="detail-grid">
+        <div class="detail-field">
+          <span>Date</span>
+          <div>${escapeHtml(formatDate(log.logDate))}</div>
+        </div>
+        <div class="detail-field">
+          <span>Project</span>
+          <div>${log.projectId ? escapeHtml(projectName(log.projectId)) : `<span class="muted">No project</span>`}</div>
+        </div>
+        <div class="detail-field">
+          <span>Person</span>
+          <div>${escapeHtml(user?.nickname || "User")}</div>
+        </div>
+        ${log.isPinned ? `
+          <div class="detail-field">
+            <span>Flag</span>
+            <div><span class="pill scrum-pin">Pinned</span></div>
+          </div>
+        ` : ""}
+        <div class="detail-field full">
+          <span>Scrum</span>
+          <div class="scrum-content">${log.bodyHtml}</div>
+        </div>
+      </div>
+    `);
   }
 
   async function duplicateDevLog(id) {

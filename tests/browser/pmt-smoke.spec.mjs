@@ -73,6 +73,17 @@ test("login, navigation, themes, dialogs, filters, Board, Gantt, and Road Map sm
     await expectShellFitsViewport(page);
   }
 
+  await openNavView(page, "Scrum", "Scrum");
+  await expect(page.locator("[data-filter='scrum-person']:checked")).toHaveCount(0);
+  await expect(page.locator(".scrum-table tbody")).toContainText("Validated smoke data");
+  await expect(page.locator(".scrum-actions .icon-action").nth(0)).toHaveAttribute("title", "Delete");
+  await expect(page.locator(".scrum-actions .icon-action").nth(1)).toHaveAttribute("title", "Duplicate");
+  await expect(page.locator(".scrum-actions .icon-action").nth(2)).toHaveAttribute("title", "Edit");
+  await page.locator("[data-filter='scrum-person'][value='2']").check();
+  await expect(page.locator(".scrum-table tbody")).toContainText("No Scrum entries match");
+  await page.locator("[data-filter='scrum-person'][value='1']").check();
+  await expect(page.locator(".scrum-table tbody")).toContainText("Validated smoke data");
+
   await openSettings(page);
   await expect(page.getByRole("heading", { name: "Settings", exact: true })).toBeVisible();
   await page.locator("[data-action='select-lookup-type'][data-type='Development']").click();
