@@ -479,9 +479,13 @@ export function createTasksFeature({
     const currentTasks = currentSprint
       ? devTasks.filter(task => task.sprintId === currentSprint.id)
       : [];
+    const selectedSprint = taskSelectedSprint();
+    const sprintFilterTasks = selectedSprint
+      ? devTasks.filter(task => task.sprintId === selectedSprint.id)
+      : devTasks;
     const charts = [
-      taskDeveloperWorkloadChartHtml(currentSprint, currentTasks),
-      taskStatusHorizontalChartHtml(currentSprint, currentTasks),
+      taskDeveloperWorkloadChartHtml(selectedSprint, sprintFilterTasks),
+      taskStatusHorizontalChartHtml(selectedSprint, sprintFilterTasks),
       taskCurrentSprintPieChartHtml(currentSprint, currentTasks),
       taskPastSixSprintsColumnChartHtml(devTasks, currentSprint)
     ].filter(Boolean);
@@ -566,34 +570,30 @@ export function createTasksFeature({
     });
   }
 
-  function taskStatusHorizontalChartHtml(currentSprint, currentTasks) {
-    if (!currentSprint) return null;
-
+  function taskStatusHorizontalChartHtml(selectedSprint, sprintTasks) {
     const statusItems = getStatuses()
       .filter(status => !status.toLowerCase().includes("qa") && status.toLowerCase() !== "backlog")
       .map(status => {
-        const tasks = currentTasks.filter(task => task.status === status);
+        const tasks = sprintTasks.filter(task => task.status === status);
         return taskChartGroupedItem(status, tasks, statusColor(status), `${status}: ${tasks.length} Dev Task${tasks.length === 1 ? "" : "s"}`);
       })
       .filter(item => item.value > 0);
 
     return VisualCharts.card({
-      title: "Current Sprint Dev Tasks by Status",
-      subtitle: currentSprint.code,
+      title: "Sprint Dev Tasks by Status",
+      subtitle: selectedSprint ? selectedSprint.code : "All Sprints",
       className: "task-chart-card task-status-chart-card",
       body: VisualCharts.horizontalBarChart(
         statusItems,
-        "No non-QA Dev Task statuses are available for the current Sprint.",
+        "No non-QA Dev Task statuses are available for the selected Sprint filter.",
         { axisLabel: "Number of Tasks" }
       )
     });
   }
 
-  function taskDeveloperWorkloadChartHtml(currentSprint, currentTasks) {
-    if (!currentSprint) return null;
-
+  function taskDeveloperWorkloadChartHtml(selectedSprint, sprintTasks) {
     const rows = state.users.map(user => {
-      const userTasks = currentTasks.filter(task => (task.assigneeIds || []).map(String).includes(String(user.id)));
+      const userTasks = sprintTasks.filter(task => (task.assigneeIds || []).map(String).includes(String(user.id)));
       const categories = devTaskWorkloadCategories()
         .map(category => {
           const tasks = userTasks.filter(task => devTaskWorkloadCategory(task) === category.label);
@@ -610,14 +610,14 @@ export function createTasksFeature({
 
     return VisualCharts.card({
       title: "Developer Workload Distribution",
-      subtitle: currentSprint.code,
+      subtitle: selectedSprint ? selectedSprint.code : "All Sprints",
       className: "task-chart-card task-workload-chart-card",
       body: developerWorkloadDistributionHtml(rows)
     });
   }
 
   function developerWorkloadDistributionHtml(rows) {
-    if (!rows.length) return `<div class="empty compact-empty">No assigned Dev Tasks were found for the current Sprint.</div>`;
+    if (!rows.length) return `<div class="empty compact-empty">No assigned Dev Tasks were found for the selected Sprint filter.</div>`;
 
     const usedCategories = new Set(rows.flatMap(row => row.categories.map(item => item.label)));
     const legendItems = devTaskWorkloadCategories().filter(category => usedCategories.has(category.label));
@@ -683,6 +683,11 @@ export function createTasksFeature({
 
   function taskChartCurrentSprint() {
     return getCurrentSprint(state.sprints.filter(sprint => sprint.projectId === taskProjectId));
+  }
+
+  function taskSelectedSprint() {
+    if (taskSprintId === "all") return null;
+    return state.sprints.find(sprint => sprint.id === Number(taskSprintId)) || null;
   }
 
   function saveTaskFilters() {

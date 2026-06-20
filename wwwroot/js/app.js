@@ -25,7 +25,7 @@ import {
 import { state } from "./core/store.js";
 import { createBacklogFeature } from "./features/backlog/backlog.js?v=20260620-bug-linked-task";
 import { createBoardFeature } from "./features/board/board.js?v=20260620-bug-linked-task";
-import { createBugsFeature } from "./features/bugs/bugs.js?v=20260620-dev-task-chart-style";
+import { createBugsFeature } from "./features/bugs/bugs.js?v=20260620-bug-sprint-filter";
 import { createDashboardFeature } from "./features/dashboard/dashboard.js?v=20260620-ui-theme";
 import { createDocumentationFeature } from "./features/documentation/documentation.js?v=20260620-document-entry-project";
 import {
@@ -38,7 +38,7 @@ import { createRoadMapFeature } from "./features/roadmap/roadmap.js?v=20260620-r
 import { createScrumFeature } from "./features/scrum/scrum.js?v=20260620-scrum-project";
 import { createSettingsFeature } from "./features/settings/settings.js?v=20260620-light-reference-1";
 import { createSprintsFeature } from "./features/sprints/sprints.js?v=20260620-null-end-date";
-import { createTasksFeature } from "./features/tasks/tasks.js?v=20260620-shared-table-edit-mode";
+import { createTasksFeature } from "./features/tasks/tasks.js?v=20260620-task-workload-sprint-filter";
 import { createWfhScheduleFeature } from "./features/wfh-schedule/wfh-schedule.js?v=20260620-wfh-schedule";
 import {
   fallbackEnvironments,

@@ -50,6 +50,7 @@ import { normalizeSavedArray } from "../../shared/filter-values.js";
 import { canEditTask } from "../../shared/permissions.js";
 import {
   projectById,
+  projectCode,
   projectName,
   sprintById,
   sprintName,
@@ -98,12 +99,18 @@ export function createBugsFeature({
 
   bugFilters.reporterIds = normalizeSavedArray(bugFilters.reporterIds, bugFilters.reporterId);
   bugFilters.assigneeIds = normalizeSavedArray(bugFilters.assigneeIds, bugFilters.assigneeId);
+  const savedBugSprintId = bugFilters.sprintId && bugFilters.sprintId !== "0"
+    ? String(bugFilters.sprintId)
+    : "";
+  bugFilters.sprintId = savedBugSprintId || (bugFilters.projectId ? "" : "all");
 
   function renderBugs() {
     const statuses = getStatuses();
     const priorities = getPriorities();
     const severities = getSeverities();
     const environments = getEnvironments();
+    const sprintFilterSprints = bugSprintFilterSprints();
+    ensureBugSprintFilter(sprintFilterSprints);
     const filteredBugs = filteredBugReports();
     const canShowCharts = filteredBugs.length > 0;
     const showCharts = canShowCharts && bugVisualChartsVisible;
@@ -121,6 +128,7 @@ export function createBugsFeature({
       ${bugFiltersVisible ? `<div class="panel work-item-filter-panel bugs-filter-panel">
         <div class="filter-row bug-filter-row">
           ${filterSelect("Project", "bug-project", state.projects.map(project => ({ value: project.id, text: `${project.code} - ${project.title}` })), bugFilters.projectId || "", "All projects")}
+          ${bugSprintFilterHtml(sprintFilterSprints)}
           ${filterSelect("Status", "bug-status", statuses.map(value => ({ value, text: value })), bugFilters.status || "", "All statuses")}
           ${filterSelect("Priority", "bug-priority", priorities.map(value => ({ value, text: value })), bugFilters.priority || "", "All priorities")}
           ${filterSelect("Severity", "bug-severity", severities.map(value => ({ value, text: value })), bugFilters.severity || "", "All severities")}
@@ -232,7 +240,13 @@ export function createBugsFeature({
     if (!filter?.startsWith("bug-")) return false;
 
     const key = filter.replace("bug-", "");
-    if (key === "project") bugFilters.projectId = target.value;
+    if (key === "project") {
+      bugFilters.projectId = target.value;
+      bugFilters.sprintId = target.value
+        ? defaultSprintId(state.sprints.filter(sprint => sprint.projectId === Number(target.value)))
+        : "all";
+    }
+    if (key === "sprint") bugFilters.sprintId = target.value || "all";
     if (key === "status") bugFilters.status = target.value;
     if (key === "priority") bugFilters.priority = target.value;
     if (key === "severity") bugFilters.severity = target.value;
@@ -247,11 +261,14 @@ export function createBugsFeature({
 
   function editBug(bug = {}) {
     const taskContext = getTaskContext();
+    const selectedFilterSprint = selectedBugSprint();
     const rememberedProjectId = state.projects.some(project => project.id === bugEntryProjectId)
       ? bugEntryProjectId
       : 0;
     const projectId = bug.projectId
       || rememberedProjectId
+      || (currentView === "Bugs" && selectedFilterSprint ? selectedFilterSprint.projectId : 0)
+      || (currentView === "Bugs" && bugFilters.projectId ? Number(bugFilters.projectId) : 0)
       || taskContext.projectId
       || getBoardProjectId()
       || state.projects[0]?.id;
@@ -264,11 +281,13 @@ export function createBugsFeature({
     const defaultSprintId = bug.sprintId ?? (
       rememberedProjectId
         ? rememberedSprintId
-        : currentView === "Backlog"
-          ? ""
-          : taskContext.sprintId !== "all"
-            ? Number(taskContext.sprintId)
-            : getBoardSprintId(projectId) || ""
+        : currentView === "Bugs" && selectedFilterSprint?.projectId === projectId
+          ? selectedFilterSprint.id
+          : currentView === "Backlog"
+            ? ""
+            : taskContext.sprintId !== "all"
+              ? Number(taskContext.sprintId)
+              : getBoardSprintId(projectId) || ""
     );
     const environments = getLookupOptions("Environment", bug.environment || bugEntryEnvironment || "SIT");
     const defaultEnvironment = bug.environment
@@ -342,6 +361,7 @@ export function createBugsFeature({
     return state.tasks
       .filter(task => task.taskType === "Bug")
       .filter(bug => !bugFilters.projectId || bug.projectId === Number(bugFilters.projectId))
+      .filter(bug => !bugFilters.sprintId || bugFilters.sprintId === "all" || bug.sprintId === Number(bugFilters.sprintId))
       .filter(bug => !bugFilters.status || bug.status === bugFilters.status)
       .filter(bug => !bugFilters.priority || bug.priority === bugFilters.priority)
       .filter(bug => !bugFilters.severity || bug.severity === bugFilters.severity)
@@ -367,15 +387,19 @@ export function createBugsFeature({
   }
 
   function bugCurrentSprintPieChartHtml(filteredBugs) {
-    const currentSprints = bugChartCurrentSprints();
-    const currentSprintIds = new Set(currentSprints.map(sprint => sprint.id));
-    const currentBugs = filteredBugs.filter(bug => currentSprintIds.has(bug.sprintId));
-    const resolvedBugs = currentBugs.filter(isBugQaPassedOrLater);
-    const openBugs = currentBugs.filter(bug => !isBugQaPassedOrLater(bug));
+    const selectedSprint = selectedBugSprint();
+    const chartSprints = selectedSprint ? [selectedSprint] : bugChartCurrentSprints();
+    const chartSprintIds = new Set(chartSprints.map(sprint => sprint.id));
+    const chartBugs = selectedSprint
+      ? filteredBugs
+      : filteredBugs.filter(bug => chartSprintIds.has(bug.sprintId));
+    const resolvedBugs = chartBugs.filter(isBugQaPassedOrLater);
+    const openBugs = chartBugs.filter(bug => !isBugQaPassedOrLater(bug));
+    const title = selectedSprint ? "Selected Sprint Bug Mix" : "Current Sprint Bug Mix";
 
-    if (!currentSprints.length) {
+    if (!chartSprints.length) {
       return VisualCharts.card({
-        title: "Current Sprint Bug Mix",
+        title,
         subtitle: "No current Sprint is available for the selected project filter.",
         className: "bug-chart-card bug-pie-chart-card bug-mix-chart-card",
         body: `<div class="empty compact-empty">No current Sprint was found.</div>`
@@ -388,12 +412,12 @@ export function createBugsFeature({
     ].filter(item => item.value > 0);
 
     return VisualCharts.card({
-      title: "Current Sprint Bug Mix",
-      subtitle: currentSprints.map(sprint => sprint.code).join(", "),
+      title,
+      subtitle: chartSprints.map(sprint => sprint.code).join(", "),
       className: "bug-chart-card bug-pie-chart-card bug-mix-chart-card",
-      body: VisualCharts.pieChart(items, `${currentBugs.length} total`, "No bugs match the current Sprint filter.", {
+      body: VisualCharts.pieChart(items, `${chartBugs.length} total`, "No bugs match the current Sprint filter.", {
         donut: true,
-        centerValue: String(currentBugs.length),
+        centerValue: String(chartBugs.length),
         centerLabel: "Total"
       })
     });
@@ -441,9 +465,6 @@ export function createBugsFeature({
   }
 
   function bugSeverityPieChartHtml(filteredBugs) {
-    const currentSprintLabel = bugChartCurrentSprints()
-      .map(sprint => sprint.code)
-      .join(", ");
     const items = getSeverities()
       .map(severity => {
         const bugs = filteredBugs.filter(bug => bug.severity === severity);
@@ -455,7 +476,7 @@ export function createBugsFeature({
 
     return VisualCharts.card({
       title: "Bug Severity Share",
-      subtitle: currentSprintLabel || "No current Sprint is available for the selected project filter.",
+      subtitle: bugSprintFilterSubtitle(),
       className: "bug-chart-card bug-pie-chart-card bug-severity-chart-card",
       body: VisualCharts.pieChart(items, `${filteredBugs.length} total`, "No severity data is available.", { donut: false })
     });
@@ -521,6 +542,54 @@ export function createBugsFeature({
     return projectIds
       .map(projectId => getCurrentSprint(state.sprints.filter(sprint => sprint.projectId === projectId)))
       .filter(Boolean);
+  }
+
+  function bugSprintFilterSprints() {
+    const projectId = Number(bugFilters.projectId || 0);
+    return state.sprints.filter(sprint => !projectId || sprint.projectId === projectId);
+  }
+
+  function ensureBugSprintFilter(sprints) {
+    if (bugFilters.sprintId === "all") return;
+    if (sprints.some(sprint => sprint.id === Number(bugFilters.sprintId))) return;
+
+    bugFilters.sprintId = bugFilters.projectId ? defaultSprintId(sprints) : "all";
+    writeJsonPreference(preferenceKeys.bugFilters, bugFilters);
+  }
+
+  function defaultSprintId(sprints) {
+    const currentOrLastSprint = getCurrentSprint(sprints);
+    return currentOrLastSprint ? String(currentOrLastSprint.id) : "all";
+  }
+
+  function selectedBugSprint() {
+    if (!bugFilters.sprintId || bugFilters.sprintId === "all") return null;
+    return sprintById(Number(bugFilters.sprintId)) || null;
+  }
+
+  function bugSprintFilterHtml(sprints) {
+    return `
+      <label>
+        <span>Sprint</span>
+        <select data-filter="bug-sprint">
+          <option value="all" ${bugFilters.sprintId === "all" ? "selected" : ""}>All Sprints</option>
+          ${sprints.map(sprint => `<option value="${sprint.id}" ${String(sprint.id) === bugFilters.sprintId ? "selected" : ""}>${escapeHtml(bugSprintFilterLabel(sprint))}</option>`).join("")}
+        </select>
+      </label>
+    `;
+  }
+
+  function bugSprintFilterLabel(sprint) {
+    const sprintTitle = sprint.title ? ` - ${sprint.title}` : "";
+    return bugFilters.projectId
+      ? `${sprint.code}${sprintTitle}`
+      : `${projectCode(sprint.projectId)} ${sprint.code}${sprintTitle}`;
+  }
+
+  function bugSprintFilterSubtitle() {
+    const selectedSprint = selectedBugSprint();
+    if (selectedSprint) return selectedSprint.code;
+    return "All Sprints";
   }
 
   function sprintChartLabel(sprintId) {
