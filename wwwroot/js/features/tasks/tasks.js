@@ -1,6 +1,6 @@
 import { taskRowAvatarsHtml } from "../../components/avatars.js";
 import { buttonContent, funnelIconHtml } from "../../components/buttons.js";
-import { VisualCharts } from "../../components/charts.js";
+import { VisualCharts } from "../../components/charts.js?v=20260620-dev-task-charts";
 import { checkedFilterValues, filterCheckList } from "../../components/filters.js";
 import {
   checkList,
@@ -484,13 +484,16 @@ export function createTasksFeature({
       ? devTasks.filter(task => task.sprintId === currentSprint.id)
       : [];
     const charts = [
-      taskPastSixSprintsColumnChartHtml(devTasks, currentSprint),
+      taskDeveloperWorkloadChartHtml(currentSprint, currentTasks),
       taskStatusHorizontalChartHtml(currentSprint, currentTasks),
       taskCurrentSprintPieChartHtml(currentSprint, currentTasks),
-      taskDeveloperWorkloadChartHtml(currentSprint, currentTasks)
+      taskPastSixSprintsColumnChartHtml(devTasks, currentSprint)
     ].filter(Boolean);
 
-    return VisualCharts.panel("Dev Task Tracking Charts", charts);
+    return VisualCharts.panel("Dev Task Tracking Charts", charts, {
+      className: "tasks-chart-panel",
+      hideHeader: true
+    });
   }
 
   function taskCurrentSprintPieChartHtml(currentSprint, currentTasks) {
@@ -498,6 +501,7 @@ export function createTasksFeature({
       return VisualCharts.card({
         title: "Current Sprint Dev Task Mix",
         subtitle: "No current Sprint is available for the selected project.",
+        className: "task-chart-card task-mix-chart-card",
         body: `<div class="empty compact-empty">No current Sprint was found.</div>`
       });
     }
@@ -505,14 +509,32 @@ export function createTasksFeature({
     const completedTasks = currentTasks.filter(isTaskCompleted);
     const openTasks = currentTasks.filter(task => !isTaskCompleted(task));
     const items = [
-      taskChartGroupedItem("Completed", completedTasks, "var(--green)", `Completed: ${completedTasks.length} Dev Task${completedTasks.length === 1 ? "" : "s"}`),
-      taskChartGroupedItem("Still Open", openTasks, "var(--amber)", `Still Open: ${openTasks.length} Dev Task${openTasks.length === 1 ? "" : "s"}`)
+      taskChartGroupedItem("Completed", completedTasks, "var(--color-success)", `Completed: ${completedTasks.length} Dev Task${completedTasks.length === 1 ? "" : "s"}`),
+      taskChartGroupedItem("Still Open", openTasks, "var(--color-warning)", `Still Open: ${openTasks.length} Dev Task${openTasks.length === 1 ? "" : "s"}`)
     ].filter(item => item.value > 0);
+    const completedPercent = currentTasks.length
+      ? Math.round((completedTasks.length / currentTasks.length) * 100)
+      : 0;
+    const openPercent = currentTasks.length
+      ? Math.round((openTasks.length / currentTasks.length) * 100)
+      : 0;
 
     return VisualCharts.card({
       title: "Current Sprint Dev Task Mix",
       subtitle: currentSprint.code,
-      body: VisualCharts.pieChart(items, `${currentTasks.length} total`, "No Dev Tasks match the current Sprint filter.", { donut: false })
+      className: "task-chart-card task-mix-chart-card",
+      body: `
+        ${VisualCharts.pieChart(items, `${currentTasks.length} total`, "No Dev Tasks match the current Sprint filter.", {
+          donut: true,
+          centerValue: String(currentTasks.length),
+          centerLabel: "Total"
+        })}
+        <div class="task-mix-insight" aria-label="Completed ${completedPercent} percent; still open ${openPercent} percent">
+          <span class="task-mix-insight-icon" aria-hidden="true">&#8599;</span>
+          <span>Completed: <b class="is-completed">${completedPercent}%</b></span>
+          <span>Still Open: <b class="is-open">${openPercent}%</b></span>
+        </div>
+      `
     });
   }
 
@@ -540,10 +562,14 @@ export function createTasksFeature({
     return VisualCharts.card({
       title: "Dev Tasks Completed by Sprint",
       subtitle: "Past 6 Sprints, including the current Sprint.",
+      className: "task-chart-card task-sprint-chart-card",
       body: VisualCharts.columnChart(rows, [
-        { key: "total", label: "Dev Tasks", color: "var(--blue)" },
-        { key: "completed", label: "Completed", color: "var(--green)" }
-      ], { itemLabel: "Dev Task" })
+        { key: "total", label: "Dev Tasks", color: "var(--chart-1)" },
+        { key: "completed", label: "Completed", color: "var(--color-success)" }
+      ], {
+        itemLabel: "Dev Task",
+        axisLabel: "Number of Tasks"
+      })
     });
   }
 
@@ -560,8 +586,13 @@ export function createTasksFeature({
 
     return VisualCharts.card({
       title: "Current Sprint Dev Tasks by Status",
-      subtitle: "QA and Backlog statuses are hidden for this chart.",
-      body: VisualCharts.horizontalBarChart(statusItems, "No non-QA Dev Task statuses are available for the current Sprint.")
+      subtitle: currentSprint.code,
+      className: "task-chart-card task-status-chart-card",
+      body: VisualCharts.horizontalBarChart(
+        statusItems,
+        "No non-QA Dev Task statuses are available for the current Sprint.",
+        { axisLabel: "Number of Tasks" }
+      )
     });
   }
 
@@ -587,6 +618,7 @@ export function createTasksFeature({
     return VisualCharts.card({
       title: "Developer Workload Distribution",
       subtitle: currentSprint.code,
+      className: "task-chart-card task-workload-chart-card",
       body: developerWorkloadDistributionHtml(rows)
     });
   }
@@ -626,21 +658,14 @@ export function createTasksFeature({
 
   function devTaskWorkloadCategories() {
     return [
-      { label: "Todo", color: "var(--blue)" },
-      { label: "In Progress", color: "var(--teal)" },
-      { label: "Code Complete", color: "var(--green)" },
-      { label: "Ready for QA", color: "var(--amber)" },
-      { label: "QA", color: "var(--rose)" },
-      { label: "Deployed", color: "#c5d35c" }
+      { label: "Todo", color: "var(--chart-1)" },
+      { label: "In Progress", color: "var(--chart-7)" },
+      { label: "Deployed", color: "var(--color-success)" }
     ];
   }
 
   function devTaskWorkloadCategory(task) {
     if (task.status === "Todo" || task.status === "Backlog") return "Todo";
-    if (task.status === "In Progress") return "In Progress";
-    if (task.status === "Code Complete") return "Code Complete";
-    if (task.status === "Ready for QA") return "Ready for QA";
-    if ((task.status || "").includes("QA")) return "QA";
     if ((task.status || "").startsWith("Deployed")) return "Deployed";
     return "In Progress";
   }

@@ -4,15 +4,17 @@ import {
 } from "../shared/text-and-links.js";
 
 export const VisualCharts = {
-  panel(title, charts) {
+  panel(title, charts, options = {}) {
+    const className = options.className ? ` ${escapeAttr(options.className)}` : "";
+
     return `
-      <div class="panel chart-panel visual-chart-panel">
-        <div class="chart-panel-head">
+      <div class="panel chart-panel visual-chart-panel${className}">
+        ${options.hideHeader ? "" : `<div class="chart-panel-head">
           <div>
             <h2>${escapeHtml(title)}</h2>
             <p>Pie, line, column, and bar visuals using only HTML, CSS, and JavaScript.</p>
           </div>
-        </div>
+        </div>`}
         <div class="chart-grid visual-chart-grid">
           ${charts.join("")}
         </div>
@@ -21,8 +23,10 @@ export const VisualCharts = {
   },
 
   card(chart) {
+    const className = chart.className ? ` ${escapeAttr(chart.className)}` : "";
+
     return `
-      <section class="chart-card visual-chart-card">
+      <section class="chart-card visual-chart-card${className}">
         <div class="chart-card-head">
           <div>
             <h2>${escapeHtml(chart.title)}</h2>
@@ -45,6 +49,12 @@ export const VisualCharts = {
     const center = 90;
     const outerRadius = 82;
     const innerRadius = donut ? 46 : 0;
+    const centerContent = options.centerValue !== undefined
+      ? `
+        <text class="pie-chart-center-value" x="${center}" y="${center - 7}">${escapeHtml(options.centerValue)}</text>
+        <text class="pie-chart-center-label" x="${center}" y="${center + 15}">${escapeHtml(options.centerLabel || "")}</text>
+      `
+      : `<text class="pie-chart-center-text" x="${center}" y="${center}">${escapeHtml(centerText)}</text>`;
     let start = 0;
     const slices = items.map((item, index) => {
       const sweep = (item.value / total) * 360;
@@ -66,7 +76,7 @@ export const VisualCharts = {
           <svg class="pie-chart-svg" viewBox="0 0 180 180" role="img" aria-label="${escapeAttr(centerText)}">
             ${slices}
             ${donut ? `<circle class="pie-chart-hole" cx="${center}" cy="${center}" r="${innerRadius - 2}"></circle>` : ""}
-            <text class="pie-chart-center-text" x="${center}" y="${center}">${escapeHtml(centerText)}</text>
+            ${centerContent}
           </svg>
         </div>
         <div class="chart-legend-list">
@@ -163,16 +173,22 @@ export const VisualCharts = {
   columnChart(rows, series, options = {}) {
     const maxValue = Math.max(1, ...rows.flatMap(row => series.map(item => row[item.key] || 0)));
     const itemLabel = options.itemLabel || "bug report";
-
-    return `
+    const axis = options.axisLabel ? this.chartAxis(maxValue) : null;
+    const scaleMax = axis?.max || maxValue;
+    const chart = `
       <div class="column-chart-scroll">
-        <div class="column-chart" style="--column-count:${rows.length}">
+        <div class="column-chart ${axis ? "has-axis" : ""}" style="--column-count:${rows.length}">
+          ${axis ? `
+            <div class="column-chart-gridlines" aria-hidden="true">
+              ${axis.ticks.map(tick => `<i style="--tick-position:${100 - ((tick / axis.max) * 100)}%"></i>`).join("")}
+            </div>
+          ` : ""}
           ${rows.map(row => `
             <div class="column-group">
               <div class="column-bars">
                 ${series.map(item => {
                   const value = row[item.key] || 0;
-                  const percent = Math.round((value / maxValue) * 100);
+                  const percent = Math.round((value / scaleMax) * 100);
                   const tooltip = `${row.label}: ${value} ${item.label.toLowerCase()} ${itemLabel}${value === 1 ? "" : "s"}`;
                   return `
                     <button type="button" class="visual-column" data-action="${row.sprintId ? "chart-open-sprint" : ""}" data-id="${escapeAttr(row.sprintId || "")}" data-chart-tooltip="${escapeAttr(tooltip)}" title="${escapeAttr(tooltip)}" style="--value:${percent}%; --chart-color:${escapeAttr(item.color)}">
@@ -186,19 +202,35 @@ export const VisualCharts = {
           `).join("")}
         </div>
       </div>
+    `;
+
+    return `
+      <div class="${axis ? "column-chart-axis-layout" : ""}">
+        ${axis ? `<div class="column-chart-axis-title">${escapeHtml(options.axisLabel)}</div>` : ""}
+        ${axis ? `
+          <div class="column-chart-axis-labels" aria-hidden="true">
+            ${axis.ticks.map(tick => `<span style="--tick-position:${100 - ((tick / axis.max) * 100)}%">${tick}</span>`).join("")}
+          </div>
+        ` : ""}
+        <div class="column-chart-content">
+          ${chart}
+        </div>
+      </div>
       ${this.legend(series)}
     `;
   },
 
-  horizontalBarChart(items, emptyText) {
+  horizontalBarChart(items, emptyText, options = {}) {
     if (!items.length) return `<div class="empty compact-empty">${escapeHtml(emptyText)}</div>`;
 
     const maxValue = Math.max(1, ...items.map(item => item.value || 0));
+    const axis = options.axisLabel ? this.chartAxis(maxValue) : null;
+    const scaleMax = axis?.max || maxValue;
 
     return `
-      <div class="horizontal-chart">
+      <div class="horizontal-chart ${axis ? "has-axis" : ""}">
         ${items.map(item => {
-          const percent = Math.round((item.value / maxValue) * 100);
+          const percent = Math.round((item.value / scaleMax) * 100);
           const tag = item.action ? "button" : "div";
           const actionAttrs = item.action ? ` type="button" ${this.chartActionAttributes(item)}` : "";
           const tooltip = escapeAttr(item.tooltip || `${item.label}: ${item.value}`);
@@ -212,8 +244,30 @@ export const VisualCharts = {
             </${tag}>
           `;
         }).join("")}
+        ${axis ? `
+          <div class="horizontal-chart-axis" aria-hidden="true">
+            <span></span>
+            <div>
+              <div class="horizontal-chart-axis-scale">
+                ${axis.ticks.map(tick => `<span style="--tick-position:${(tick / axis.max) * 100}%">${tick}</span>`).join("")}
+              </div>
+              <b>${escapeHtml(options.axisLabel)}</b>
+            </div>
+            <span></span>
+          </div>
+        ` : ""}
       </div>
     `;
+  },
+
+  chartAxis(maxValue) {
+    const step = Math.max(1, Math.ceil(maxValue / 4));
+    const max = Math.max(step * 2, (Math.ceil(maxValue / step) + 1) * step);
+    const ticks = [];
+
+    for (let value = 0; value <= max; value += step) ticks.push(value);
+
+    return { max, ticks };
   },
 
   legend(items) {

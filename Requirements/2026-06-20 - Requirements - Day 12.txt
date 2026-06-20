@@ -232,3 +232,8 @@ Dev Tasks
 12.) Undo the last prompt.  And put the pencil/edit mode icon back at the top next to the "Show Filters" button.  This time, make it a full-pledge page level button, with a pencil icon and the text "Edit Mode" on the right of it.
 
 13.) In the Dev Tasks, re-order the charts as follows:  Dev Tasks Completed by Sprint, Current Sprint Dev Tasks by Status, Current Sprint Dev Task Mix, Developer Workload Distribution
+
+Dev Charts Modernization
+------------------------
+1.) On all the charts, do not apply any hover color, outline or effects.  Also, the colors in the Current Sprint Dev tasks by Status does not appear the same as the other charts.  It seems more muted.  Can make its colors match the other charts?
+2.) Update the Current Sprint Dev Tasks by Status chart so it uses the correct colors per status as specified in Settings.

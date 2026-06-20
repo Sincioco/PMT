@@ -213,10 +213,455 @@ html[data-theme="light"] .tasks-table .work-item-drag-handle {
   color: var(--color-text-tertiary);
 }
 
+.tasks-chart-panel {
+  gap: 0;
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.tasks-chart-panel .chart-panel-head h2 {
+  color: var(--color-text-primary);
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-bold);
+  letter-spacing: -0.015em;
+}
+
+.tasks-chart-panel .chart-panel-head p {
+  margin-top: var(--space-1);
+  line-height: var(--line-height-body);
+}
+
+.tasks-chart-panel .visual-chart-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-5);
+}
+
+.tasks-chart-panel .task-chart-card {
+  gap: var(--space-7);
+  min-height: 338px;
+  border-color: var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-7);
+  background: var(--color-surface-raised);
+  box-shadow: var(--shadow-compact);
+}
+
+.tasks-chart-panel .chart-card-head {
+  gap: var(--space-4);
+}
+
+.tasks-chart-panel .chart-card h2 {
+  color: var(--color-text-primary);
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-bold);
+  letter-spacing: -0.012em;
+}
+
+.tasks-chart-panel .chart-card p {
+  margin-top: var(--space-1);
+  line-height: var(--line-height-body);
+}
+
+.tasks-chart-panel .chart-expand-button {
+  display: none;
+}
+
+.tasks-chart-panel .visual-chart-legend {
+  gap: var(--space-3) var(--space-5);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+}
+
+.tasks-chart-panel .visual-chart-legend i {
+  width: 9px;
+  height: 9px;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--chart-color), transparent 84%);
+}
+
+.tasks-chart-panel .column-chart-axis-layout {
+  display: grid;
+  grid-template-columns: 20px 24px minmax(0, 1fr);
+  min-width: 0;
+}
+
+.tasks-chart-panel .column-chart-axis-title {
+  align-self: center;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+  text-align: center;
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+}
+
+.tasks-chart-panel .column-chart-axis-labels {
+  position: relative;
+  height: 220px;
+  margin-top: var(--space-4);
+  color: var(--color-chart-axis);
+  font-size: var(--font-size-xs);
+}
+
+.tasks-chart-panel .column-chart-axis-labels span {
+  position: absolute;
+  top: var(--tick-position);
+  right: var(--space-2);
+  transform: translateY(-50%);
+}
+
+.tasks-chart-panel .column-chart-content {
+  min-width: 0;
+}
+
+.tasks-chart-panel .column-chart {
+  min-width: max(310px, calc(var(--column-count) * 82px));
+  min-height: 240px;
+  padding: var(--space-4) var(--space-2) 0;
+}
+
+.tasks-chart-panel .column-chart.has-axis {
+  position: relative;
+}
+
+.tasks-chart-panel .column-chart-gridlines {
+  position: absolute;
+  inset: var(--space-4) var(--space-2) 36px;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.tasks-chart-panel .column-chart-gridlines i {
+  position: absolute;
+  top: var(--tick-position);
+  right: 0;
+  left: 0;
+  border-top: 1px dashed var(--color-chart-gridline);
+}
+
+.tasks-chart-panel .column-group {
+  position: relative;
+  z-index: 1;
+  grid-template-rows: 204px auto;
+  gap: var(--space-3);
+}
+
+.tasks-chart-panel .column-bars {
+  height: 204px;
+  gap: var(--space-2);
+  border-bottom-color: var(--color-chart-gridline);
+}
+
+.tasks-chart-panel .visual-column {
+  position: relative;
+  width: 24px;
+  min-width: 24px;
+  overflow: visible;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-xs) var(--radius-xs) 0 0;
+  background: var(--chart-color);
+  box-shadow: 0 5px 12px color-mix(in srgb, var(--chart-color), transparent 78%);
+}
+
+.tasks-chart-panel .visual-column span {
+  position: absolute;
+  top: -19px;
+  color: var(--color-text-primary);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-bold);
+  transform: none;
+}
+
+.tasks-chart-panel .column-label {
+  color: var(--color-text-primary);
+  font-size: var(--font-size-xs);
+}
+
+.tasks-chart-panel .horizontal-chart {
+  align-content: start;
+  gap: var(--space-7);
+}
+
+.tasks-chart-panel .horizontal-chart-row {
+  grid-template-columns: minmax(92px, 1fr) minmax(110px, 1.8fr) 28px;
+  gap: var(--space-4);
+  min-height: 28px;
+}
+
+.tasks-chart-panel .horizontal-chart-label {
+  color: var(--color-text-primary);
+  font-size: var(--font-size-sm);
+}
+
+.tasks-chart-panel .horizontal-chart-track {
+  height: 20px;
+  border: 0;
+  border-radius: var(--radius-xs);
+  background: var(--color-page-muted);
+}
+
+.tasks-chart-panel .horizontal-chart-fill {
+  border-radius: var(--radius-xs);
+  background: var(--chart-color);
+  box-shadow: 0 4px 10px color-mix(in srgb, var(--chart-color), transparent 80%);
+}
+
+.tasks-chart-panel .horizontal-chart-row b {
+  font-size: var(--font-size-sm);
+}
+
+.tasks-chart-panel .horizontal-chart-axis {
+  display: grid;
+  grid-template-columns: minmax(92px, 1fr) minmax(110px, 1.8fr) 28px;
+  gap: var(--space-4);
+  margin-top: calc(var(--space-2) * -1);
+}
+
+.tasks-chart-panel .horizontal-chart-axis > div {
+  display: grid;
+  gap: var(--space-5);
+}
+
+.tasks-chart-panel .horizontal-chart-axis-scale {
+  position: relative;
+  height: 10px;
+  border-top: 1px solid var(--color-chart-gridline);
+}
+
+.tasks-chart-panel .horizontal-chart-axis-scale span {
+  position: absolute;
+  top: var(--space-2);
+  left: var(--tick-position);
+  color: var(--color-chart-axis);
+  font-size: var(--font-size-xs);
+  transform: translateX(-50%);
+}
+
+.tasks-chart-panel .horizontal-chart-axis > div > b {
+  color: var(--color-text-primary);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  text-align: center;
+}
+
+.tasks-chart-panel .pie-chart-layout {
+  grid-template-columns: minmax(130px, 0.85fr) minmax(132px, 1fr);
+  gap: var(--space-5);
+}
+
+.tasks-chart-panel .pie-chart {
+  width: min(100%, 154px);
+  justify-self: center;
+}
+
+.tasks-chart-panel .pie-chart-slice {
+  stroke: var(--color-surface-raised);
+  stroke-width: 3;
+}
+
+.tasks-chart-panel .pie-chart-hole {
+  fill: var(--color-surface-raised);
+  filter: drop-shadow(0 4px 12px color-mix(in srgb, var(--color-text-primary), transparent 88%));
+}
+
+.tasks-chart-panel .pie-chart-center-value,
+.tasks-chart-panel .pie-chart-center-label {
+  fill: var(--color-text-primary);
+  text-anchor: middle;
+  pointer-events: none;
+}
+
+.tasks-chart-panel .pie-chart-center-value {
+  font-size: 24px;
+  font-weight: var(--font-weight-bold);
+}
+
+.tasks-chart-panel .pie-chart-center-label {
+  fill: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+}
+
+.tasks-chart-panel .chart-legend-list {
+  gap: var(--space-3);
+}
+
+.tasks-chart-panel .chart-legend-row {
+  min-height: 38px;
+  padding: var(--space-3) var(--space-4);
+  border-color: var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+}
+
+.tasks-chart-panel .chart-legend-row i {
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--chart-color), transparent 84%);
+}
+
+.tasks-chart-panel .task-mix-insight {
+  display: grid;
+  grid-template-columns: 36px auto;
+  gap: var(--space-1) var(--space-4);
+  align-items: center;
+  margin-top: auto;
+  padding: var(--space-4);
+  border: var(--border-width) solid var(--color-info-border);
+  border-radius: var(--radius-md);
+  background: var(--color-info-surface);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+}
+
+.tasks-chart-panel .task-mix-insight-icon {
+  grid-row: 1 / 3;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-pill);
+  background: var(--color-surface);
+  color: var(--color-primary);
+  font-size: var(--font-size-xl);
+}
+
+.tasks-chart-panel .task-mix-insight b {
+  margin-left: var(--space-2);
+}
+
+.tasks-chart-panel .task-mix-insight .is-completed {
+  color: var(--color-success);
+}
+
+.tasks-chart-panel .task-mix-insight .is-open {
+  color: var(--color-warning);
+}
+
+.tasks-chart-panel .workload-chart {
+  gap: var(--space-5);
+}
+
+.tasks-chart-panel .workload-row {
+  grid-template-columns: minmax(112px, 0.95fr) minmax(120px, 1.7fr);
+  gap: var(--space-4);
+}
+
+.tasks-chart-panel .workload-person {
+  grid-template-columns: 30px minmax(0, 1fr) auto;
+  gap: var(--space-3);
+  color: var(--color-text-primary);
+}
+
+.tasks-chart-panel .workload-person .avatar {
+  width: 30px;
+  height: 30px;
+  box-shadow: var(--shadow-floating-mark);
+}
+
+.tasks-chart-panel .workload-stack {
+  height: 32px;
+  border: 0;
+  border-radius: var(--radius-xs);
+  background: var(--color-page-muted);
+}
+
+.tasks-chart-panel .workload-segment {
+  min-height: 0;
+  padding: 0;
+  border-right-color: color-mix(in srgb, var(--color-surface), transparent 35%);
+  background: var(--chart-color);
+  color: var(--color-chart-mark-text);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-bold);
+  line-height: 1;
+  opacity: 1;
+  filter: none;
+  box-shadow: none;
+  transition: none;
+}
+
+.tasks-chart-panel .workload-segment > span {
+  display: grid;
+  place-items: center;
+  height: 100%;
+  line-height: 1;
+}
+
+.tasks-chart-panel .task-workload-chart-card,
+.tasks-chart-panel .task-sprint-chart-card {
+  grid-template-rows: auto minmax(0, 1fr) auto;
+}
+
+.tasks-chart-panel .task-workload-chart-card .visual-chart-legend,
+.tasks-chart-panel .task-sprint-chart-card .visual-chart-legend {
+  align-self: end;
+  justify-content: center;
+  width: 100%;
+}
+
+.tasks-chart-panel .pie-chart-slice.is-clickable:hover {
+  filter: none;
+  stroke: var(--color-surface-raised);
+}
+
+.tasks-chart-panel .chart-legend-row.is-clickable:hover {
+  border-color: var(--color-border);
+  background: var(--color-surface);
+}
+
+.tasks-chart-panel .visual-column[data-action]:hover {
+  border: 0;
+  background: var(--chart-color);
+}
+
+.tasks-chart-panel .horizontal-chart-row.is-clickable:hover .horizontal-chart-track {
+  border-color: transparent;
+}
+
+.tasks-chart-panel button.workload-segment.is-clickable:hover:not(:disabled),
+.tasks-chart-panel button.workload-segment.is-clickable:active:not(:disabled) {
+  border-color: transparent;
+  border-right-color: color-mix(in srgb, var(--color-surface), transparent 35%);
+  background: var(--chart-color);
+  color: var(--color-chart-mark-text);
+  opacity: 1;
+  filter: none;
+  outline: none;
+  box-shadow: none;
+}
+
+.tasks-chart-panel button.workload-segment.is-clickable:last-child:hover:not(:disabled),
+.tasks-chart-panel button.workload-segment.is-clickable:last-child:active:not(:disabled) {
+  border-right: 0;
+}
+
+@media (max-width: 1500px) {
+  .tasks-chart-panel .visual-chart-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
 @media (max-width: 900px) {
   .tasks-filter-panel .task-filter-row {
     display: grid;
     grid-template-columns: 1fr;
     align-items: stretch;
+  }
+
+  .tasks-chart-panel {
+    padding: var(--space-5);
+  }
+
+  .tasks-chart-panel .visual-chart-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .tasks-chart-panel .task-chart-card {
+    min-height: 0;
+  }
+
+  .tasks-chart-panel .workload-row {
+    grid-template-columns: 1fr;
   }
 }
