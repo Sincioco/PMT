@@ -196,3 +196,5 @@ For the rest of this conversation.  Make only the change I ask for.  Do not perf
 * When in the Gantt Chart and the user clicks on a Task or a Bug, do not leave the Gantt Chart view.  Popup the Task or Bug in a read-only dialog box for the user to view the information.
 
 * In the Kanban Board, every time the view is loaded, trigger the code that automatically hide the columns with no data (and be sure the UI controls remains in-sync, checkboxes and buttons).  And every time the Kanban Board view is loaded, default the Project, Sprint and Sort order to their last setting.
+
+* In the Kanban Board, add a hide/show filter just like what is in the Dev Task screen.

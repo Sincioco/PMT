@@ -159,7 +159,7 @@ const {
 const roadMapFeature = createRoadMapFeature({ app });
 const ganttFeature = createGanttFeature({
   app,
-  openTaskReadMode,
+  openTaskReadMode: id => viewWorkItem(taskById(id), editWorkItem),
   render,
   showToast
 });

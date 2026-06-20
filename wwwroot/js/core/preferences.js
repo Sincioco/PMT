@@ -8,6 +8,7 @@ export const preferenceKeys = Object.freeze({
   boardSort: "pmt-board-sort",
   boardStatuses: "pmt-board-statuses",
   boardHideEmptyColumns: "pmt-board-hide-empty-columns",
+  boardFiltersVisible: "pmt-board-filters-visible",
   roadMapProject: "pmt-roadmap-project",
   roadMapSprint: "pmt-roadmap-sprint",
   roadMapSort: "pmt-roadmap-sort",

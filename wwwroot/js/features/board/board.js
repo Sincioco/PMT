@@ -1,5 +1,5 @@
 import { avatarsHtml } from "../../components/avatars.js";
-import { buttonContent } from "../../components/buttons.js";
+import { buttonContent, funnelIconHtml } from "../../components/buttons.js";
 import { progressHtml } from "../../components/progress-and-status.js?v=20260620-ui-theme";
 import { sectionHead } from "../../components/sections.js";
 import {
@@ -40,6 +40,8 @@ export function createBoardFeature({
   let boardSprintMode = readPreference(preferenceKeys.boardSprint, "latest");
   let boardSort = readPreference(preferenceKeys.boardSort, "custom");
   let boardHideEmptyColumns = readBooleanPreference(preferenceKeys.boardHideEmptyColumns, true);
+  let boardFiltersVisible = readBooleanPreference(preferenceKeys.boardFiltersVisible, false);
+  let boardIsActive = false;
 
   const initialStatuses = getStatuses();
   const savedBoardStatuses = readJsonPreference(preferenceKeys.boardStatuses, null);
@@ -55,6 +57,8 @@ export function createBoardFeature({
 
   function renderBoard() {
     boardDrag.activate();
+    if (!boardIsActive) applyBoardLoadDefaults();
+    boardIsActive = true;
 
     if (!boardProjectId && state.projects.length) boardProjectId = state.projects[0].id;
     const project = state.projects.find(item => item.id === boardProjectId) || state.projects[0];
@@ -77,13 +81,15 @@ export function createBoardFeature({
     const boardColumnStatuses = boardHideEmptyColumns
       ? boardStatuses.filter(status => visibleTasks.some(task => task.status === status))
       : boardStatuses;
+    const filterToggleLabel = boardFiltersVisible ? "Hide Filters" : "Show Filters";
 
     app.innerHTML = `
       ${sectionHead("Kanban Board", `
+        <button class="secondary text-icon-button ${boardFiltersVisible ? "is-on" : ""}" type="button" data-action="toggle-board-filters" aria-pressed="${boardFiltersVisible}">${buttonContent(funnelIconHtml(), filterToggleLabel)}</button>
         <button class="primary text-icon-button" type="button" data-action="new-task">${buttonContent("&#10010;", "New Dev Task")}</button>
         <button class="primary text-icon-button" type="button" data-action="new-bug">${buttonContent("&#9888;", "New Bug Report")}</button>
       `)}
-      <div class="panel board-controls-panel">
+      ${boardFiltersVisible ? `<div class="panel board-controls-panel">
         <div class="filter-row">
           <label>
             <span>Project</span>
@@ -113,7 +119,7 @@ export function createBoardFeature({
           <legend>Columns</legend>
           ${getStatuses().map(status => `<label><input type="checkbox" data-filter="board-status" value="${status}" ${boardStatuses.includes(status) ? "checked" : ""}> ${status}</label>`).join("")}
         </fieldset>
-      </div>
+      </div>` : ""}
       <div class="board">
         ${boardColumnStatuses.map(status => boardColumnHtml(status, visibleTasks.filter(task => task.status === status))).join("") || `<div class="empty">No columns have tasks for the current filters.</div>`}
       </div>
@@ -121,6 +127,12 @@ export function createBoardFeature({
   }
 
   function handleAction(action) {
+    if (action === "toggle-board-filters") {
+      boardFiltersVisible = !boardFiltersVisible;
+      writePreference(preferenceKeys.boardFiltersVisible, boardFiltersVisible);
+      renderBoard();
+      return true;
+    }
     if (action === "toggle-empty-board-columns") {
       toggleEmptyBoardColumns();
       return true;
@@ -188,6 +200,19 @@ export function createBoardFeature({
     } else {
       hideEmptyBoardColumns();
     }
+  }
+
+  function applyBoardLoadDefaults() {
+    boardProjectId = readNumberPreference(preferenceKeys.boardProject, boardProjectId);
+    boardSprintMode = readPreference(preferenceKeys.boardSprint, boardSprintMode);
+    boardSort = readPreference(preferenceKeys.boardSort, boardSort);
+    boardHideEmptyColumns = true;
+    writePreference(preferenceKeys.boardHideEmptyColumns, boardHideEmptyColumns);
+  }
+
+  function deactivateBoard() {
+    boardIsActive = false;
+    boardDrag.deactivate();
   }
 
   function boardTaskSortCompare(a, b) {
@@ -303,7 +328,7 @@ export function createBoardFeature({
   }
 
   return {
-    deactivate: boardDrag.deactivate,
+    deactivate: deactivateBoard,
     getProjectId: () => boardProjectId,
     getSprintId: selectedSprintId,
     handleAction,
