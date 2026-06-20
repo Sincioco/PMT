@@ -11,8 +11,9 @@ export function createGanttFlyBy({ showToast }) {
   let stopRequested = false;
   let resumeSprintId = 0;
   let currentSprintId = 0;
-  let pendingAdjacentDirection = 0;
-  let pendingAdjacentSprintId = 0;
+  let pendingMode = "sequence";
+  let pendingDirection = 1;
+  let pendingSprintId = 0;
 
   function state() {
     return {
@@ -46,42 +47,43 @@ export function createGanttFlyBy({ showToast }) {
     resumeSprintId = Number(sprintId || 0);
   }
 
-  function startPending() {
+  function startPending(direction = 1, sprintId = 0) {
     active = true;
     stopRequested = false;
     pending = true;
-    pendingAdjacentDirection = 0;
-    pendingAdjacentSprintId = 0;
+    pendingMode = "sequence";
+    pendingDirection = normalizedDirection(direction);
+    pendingSprintId = Number(sprintId || 0);
   }
 
   function startAdjacentPending(direction, sprintId) {
     active = true;
     stopRequested = false;
     pending = true;
-    pendingAdjacentDirection = normalizedDirection(direction);
-    pendingAdjacentSprintId = Number(sprintId || 0);
-    currentSprintId = pendingAdjacentSprintId;
+    pendingMode = "adjacent";
+    pendingDirection = normalizedDirection(direction);
+    pendingSprintId = Number(sprintId || 0);
+    currentSprintId = pendingSprintId;
   }
 
   function runPending(chart, startingSprint) {
     if (!pending) return;
     pending = false;
-    const adjacentDirection = pendingAdjacentDirection;
-    const adjacentSprintId = pendingAdjacentSprintId;
-    pendingAdjacentDirection = 0;
-    pendingAdjacentSprintId = 0;
+    const mode = pendingMode;
+    const direction = pendingDirection;
+    const sprintId = pendingSprintId;
+    pendingMode = "sequence";
+    pendingDirection = 1;
+    pendingSprintId = 0;
     const flyByRunId = ++runId;
     requestAnimationFrame(() => {
       if (flyByRunId !== runId) return;
-      const startSprint = adjacentDirection
-        ? chart.sprints.find(sprint => sprint.id === adjacentSprintId) || startingSprint(chart.sprints) || chart.sprints[0] || null
-        : flyByStartingSprint(chart.sprints, startingSprint);
-      scrollToSprint(chart, startSprint);
+      const startSprint = flyByStartingSprint(chart.sprints, startingSprint, sprintId, mode !== "adjacent");
       requestAnimationFrame(() => {
-        if (adjacentDirection) {
-          startAdjacentFlyBy(chart, flyByRunId, adjacentDirection, startSprint);
+        if (mode === "adjacent") {
+          startAdjacentFlyBy(chart, flyByRunId, direction, startSprint);
         } else {
-          startFlyBy(chart, flyByRunId, startingSprint);
+          startFlyBy(chart, flyByRunId, direction, startSprint);
         }
       });
     });
@@ -166,7 +168,7 @@ export function createGanttFlyBy({ showToast }) {
 
     active = true;
     stopRequested = false;
-    currentSprintId = Number(startingSprint?.id || nearestSprintIdFromScroll() || 0);
+    currentSprintId = Number(startingSprint?.id || nearestSprintIdFromScroll(direction) || 0);
     updateButton();
 
     const flyByRunId = ++runId;
@@ -174,7 +176,22 @@ export function createGanttFlyBy({ showToast }) {
     return true;
   }
 
-  async function startFlyBy(chart, flyByRunId, startingSprint) {
+  function flyThroughSprints(chart, direction, startingSprint) {
+    if (isBusy()) return false;
+    if (!chart?.sprints?.length) return false;
+
+    const startSprint = flyByStartingSprint(chart.sprints, startingSprint, Number(startingSprint?.id || 0), true);
+    active = true;
+    stopRequested = false;
+    currentSprintId = Number(startSprint?.id || nearestSprintIdFromScroll(direction) || 0);
+    updateButton();
+
+    const flyByRunId = ++runId;
+    requestAnimationFrame(() => startFlyBy(chart, flyByRunId, normalizedDirection(direction), startSprint));
+    return true;
+  }
+
+  async function startFlyBy(chart, flyByRunId, direction, startingSprint) {
     const scroller = document.querySelector(".gantt-scroll");
     if (!chart?.dates?.length || !chart.sprints?.length || !scroller) {
       finish("");
@@ -182,18 +199,18 @@ export function createGanttFlyBy({ showToast }) {
     }
     if (flyByRunId !== runId) return;
 
-    const newestToOldest = flyBySprintOrder(chart.sprints);
-    const currentSprint = flyByStartingSprint(newestToOldest, startingSprint);
-    const currentIndex = Math.max(0, newestToOldest.findIndex(sprint => sprint.id === currentSprint?.id));
-    const flyBySprints = newestToOldest.slice(currentIndex);
+    const sprintOrder = flyBySprintOrder(chart.sprints);
+    const currentSprint = sprintOrder.find(sprint => sprint.id === startingSprint?.id)
+      || sprintOrder.find(sprint => sprint.id === nearestSprintIdFromScroll(direction))
+      || sprintOrder[0]
+      || null;
+    const flyBySprints = flyBySprintsFrom(sprintOrder, currentSprint, direction);
     if (!flyBySprints.length) {
       finish("");
       return;
     }
 
-    // Start exactly where the Sprint dropdown would jump for the current Sprint.
     currentSprintId = flyBySprints[0].id;
-    scrollToSprint(chart, flyBySprints[0]);
     if (flyBySprints.length === 1) {
       finish("Sprint Fly-by complete.");
       return;
@@ -230,7 +247,7 @@ export function createGanttFlyBy({ showToast }) {
 
     const sprintOrder = flyBySprintOrder(chart.sprints);
     const currentSprint = sprintOrder.find(sprint => sprint.id === startingSprint?.id)
-      || sprintOrder.find(sprint => sprint.id === nearestSprintIdFromScroll())
+      || sprintOrder.find(sprint => sprint.id === nearestSprintIdFromScroll(direction))
       || sprintOrder[0]
       || null;
     const currentIndex = sprintOrder.findIndex(sprint => sprint.id === currentSprint?.id);
@@ -241,7 +258,6 @@ export function createGanttFlyBy({ showToast }) {
     }
 
     currentSprintId = currentSprint.id;
-    scrollToSprint(chart, currentSprint);
     const fromPosition = currentScrollPosition(scroller);
     const toPosition = scrollPosition(chart, targetSprint);
     animating = true;
@@ -252,15 +268,28 @@ export function createGanttFlyBy({ showToast }) {
     if (flyByRunId === runId) finish("");
   }
 
-  function flyByStartingSprint(sprints, startingSprint) {
-    return sprints.find(sprint => sprint.id === resumeSprintId)
-      || startingSprint(sprints)
+  function flyByStartingSprint(sprints, startingSprint, sprintId = 0, useResume = true) {
+    const fallbackSprint = typeof startingSprint === "function" ? startingSprint(sprints) : startingSprint;
+    return (useResume ? sprints.find(sprint => sprint.id === resumeSprintId) : null)
+      || sprints.find(sprint => sprint.id === sprintId)
+      || fallbackSprint
       || sprints[0]
       || null;
   }
 
   function flyBySprintOrder(sprints) {
-    return [...sprints].sort((a, b) => ganttStartDate(b) - ganttStartDate(a));
+    return [...sprints];
+  }
+
+  function flyBySprintsFrom(sprints, currentSprint, direction) {
+    const currentIndex = sprints.findIndex(sprint => sprint.id === currentSprint?.id);
+    if (currentIndex < 0) return [];
+
+    const flyBySprints = [];
+    for (let index = currentIndex; index >= 0 && index < sprints.length; index += direction) {
+      flyBySprints.push(sprints[index]);
+    }
+    return flyBySprints;
   }
 
   function normalizedDirection(direction) {
@@ -369,8 +398,9 @@ export function createGanttFlyBy({ showToast }) {
     animating = false;
     stopRequested = false;
     pending = false;
-    pendingAdjacentDirection = 0;
-    pendingAdjacentSprintId = 0;
+    pendingMode = "sequence";
+    pendingDirection = 1;
+    pendingSprintId = 0;
     if (!options.keepResume) {
       resumeSprintId = 0;
       currentSprintId = 0;
@@ -389,12 +419,14 @@ export function createGanttFlyBy({ showToast }) {
     }
   }
 
-  function nearestSprintIdFromScroll() {
+  function nearestSprintIdFromScroll(direction = 1) {
     const scroller = document.querySelector(".gantt-scroll");
     if (!scroller) return 0;
 
     const header = document.querySelector(".gantt-header");
-    const targetTop = scroller.scrollTop + (header?.offsetHeight || 0);
+    const targetTop = direction < 0
+      ? scroller.scrollTop + scroller.clientHeight
+      : scroller.scrollTop + (header?.offsetHeight || 0);
     const rows = [...document.querySelectorAll("[data-gantt-sprint-id]")];
     const nearestRow = rows.reduce((bestRow, row) => {
       if (!bestRow) return row;
@@ -433,6 +465,7 @@ export function createGanttFlyBy({ showToast }) {
   return {
     captureScrollPosition,
     deactivate: stop,
+    flyThroughSprints,
     flyToAdjacentSprint,
     getResumeSprintId,
     hasPending,

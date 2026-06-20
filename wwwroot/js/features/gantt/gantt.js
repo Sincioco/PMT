@@ -33,6 +33,9 @@ export function createGanttFeature({
   let ganttSort = readPreference(preferenceKeys.ganttSort, "startDesc");
   let ganttShowNonWorkingDays = readBooleanPreference(preferenceKeys.ganttShowNonWorkingDays, false);
   let ganttShowAllBugs = false;
+  let activeChart = null;
+  let activeProjectSprints = [];
+  let activeSelectedSprint = null;
 
   const bugExpansion = createGanttBugExpansion();
   const flyBy = createGanttFlyBy({
@@ -71,6 +74,9 @@ export function createGanttFeature({
       holidays: state.holidays,
       availableTimelineWidth: ganttAvailableTimelineWidth()
     });
+    activeChart = chart;
+    activeProjectSprints = projectSprints;
+    activeSelectedSprint = selectedSprint;
 
     app.innerHTML = ganttScreenHtml({
       projects: state.projects,
@@ -175,19 +181,23 @@ export function createGanttFeature({
       flyBy.pause();
       return;
     }
+    if (flyBy.isBusy()) return;
 
+    const direction = flyBySequenceDirection();
+    const startSprint = flyByStartSprint(activeSelectedSprint, activeProjectSprints, direction);
     const isResuming = flyBy.hasResumeSprint();
     flyBy.stop({ keepResume: isResuming });
-    if (!isResuming) applyResetPreset();
 
-    // Fly-by needs historical rows visible. Reset chooses the current Sprint for
-    // a fresh run, while Resume keeps the last paused Sprint in memory.
-    ganttRenderMode = "all";
-    ganttSprintMode = "all";
-    flyBy.startPending();
-    saveViewSettings();
-    bugExpansion.clear();
-    renderGantt();
+    if (!canAnimateRenderedSprints(activeChart, activeProjectSprints)) {
+      ganttRenderMode = "all";
+      flyBy.startPending(direction, startSprint?.id);
+      saveViewSettings();
+      bugExpansion.clear();
+      renderGantt();
+      return;
+    }
+
+    flyBy.flyThroughSprints(activeChart, direction, startSprint);
   }
 
   function bindGanttWheelFlyBy(chart, selectedSprint, projectSprints) {
@@ -201,13 +211,11 @@ export function createGanttFeature({
       event.preventDefault();
       if (flyBy.isBusy()) return;
 
-      const startSprint = wheelFlyByStartSprint(selectedSprint, projectSprints);
+      const startSprint = flyByStartSprint(selectedSprint, projectSprints, direction);
       if (!startSprint) return;
 
-      if (ganttRenderMode !== "all" || ganttSprintMode !== "all" || ganttSort !== "startDesc") {
+      if (!canAnimateRenderedSprints(chart, projectSprints)) {
         ganttRenderMode = "all";
-        ganttSprintMode = "all";
-        ganttSort = "startDesc";
         flyBy.startAdjacentPending(direction, startSprint.id);
         saveViewSettings();
         renderGantt();
@@ -219,16 +227,26 @@ export function createGanttFeature({
   }
 
   function wheelFlyByDirection(event) {
-    if (event.deltaY > 0) return 1;
-    if (event.deltaY < 0) return -1;
+    if (event.deltaY > 0) return flyBySequenceDirection();
+    if (event.deltaY < 0) return -flyBySequenceDirection();
     return 0;
   }
 
-  function wheelFlyByStartSprint(selectedSprint, projectSprints) {
-    const scrollSprintId = flyBy.nearestSprintIdFromScroll();
+  function flyBySequenceDirection() {
+    return ganttSort === "startAsc" ? -1 : 1;
+  }
+
+  function flyByStartSprint(selectedSprint, projectSprints, direction) {
+    const scrollSprintId = flyBy.nearestSprintIdFromScroll(direction);
     return projectSprints.find(sprint => sprint.id === scrollSprintId)
       || selectedSprint
       || currentSprintForProject(projectSprints);
+  }
+
+  function canAnimateRenderedSprints(chart, projectSprints) {
+    return ganttRenderMode === "all"
+      && chart?.sprints?.length
+      && chart.sprints.length === projectSprints.length;
   }
 
   function startingFlyBySprint(sprints) {
