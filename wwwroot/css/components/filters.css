@@ -45,7 +45,8 @@
 
 .filter-check-list label,
 .inline-filter-check {
-  display: inline-flex;
+  display: inline-grid;
+  grid-template-columns: auto minmax(0, 1fr);
   align-items: center;
   gap: var(--space-2);
   color: var(--color-text-secondary);
@@ -55,6 +56,7 @@
 .filter-check-list input,
 .inline-filter-check input {
   width: auto;
+  margin-top: 0;
 }
 
 .filter-user-option {

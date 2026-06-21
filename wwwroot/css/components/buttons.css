@@ -110,6 +110,30 @@ button[data-edit-readonly-task] > .button-icon,
   line-height: 1;
 }
 
+/*
+ * Paper Design: dialog close controls use a large monochrome mark on the
+ * dialog surface. Their boundary appears only on pointer hover.
+ */
+.dialog-head .icon-btn {
+  border-color: transparent;
+  background: transparent;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xl);
+  box-shadow: none;
+}
+
+.dialog-head .icon-btn:hover:not(:disabled) {
+  border-color: var(--color-border-strong);
+  background: transparent;
+  color: var(--color-text-primary);
+}
+
+.dialog-head .icon-btn:focus-visible,
+.dialog-head .icon-btn:active:not(:hover) {
+  border-color: transparent;
+  background: transparent;
+}
+
 .icon-action.is-on,
 button[aria-pressed="true"],
 button[aria-expanded="true"] {

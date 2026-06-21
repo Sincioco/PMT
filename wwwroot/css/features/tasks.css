@@ -171,12 +171,16 @@ html[data-theme] .tasks-screen.work-item-screen .work-item-table .icon-action:di
   white-space: normal;
 }
 
-.task-filter-dialog .task-filter-row select {
+.task-filter-dialog .task-filter-row > label > select {
   width: 100%;
+  min-width: 0;
+  max-width: none;
 }
 
-.task-filter-dialog .inline-filter-check {
-  display: flex;
+.task-filter-dialog .task-filter-row label.inline-filter-check {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
   min-height: var(--control-height-md);
   padding-inline: var(--space-3);
 }

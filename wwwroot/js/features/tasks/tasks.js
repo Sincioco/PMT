@@ -250,7 +250,7 @@ export function createTasksFeature({
         </div>
         <div class="dialog-body task-filter-dialog-body" data-task-filter-dialog-body></div>
         <div class="dialog-actions">
-          <button type="button" class="primary text-icon-button" data-close-task-filters>${buttonContent("&#10003;", "Done")}</button>
+          <button type="button" class="primary text-icon-button" data-close-task-filters>${buttonContent("&#10003;", "Apply Filter")}</button>
         </div>
       </form>
     `;
@@ -316,7 +316,7 @@ export function createTasksFeature({
           </label>
           <label class="inline-filter-check">
             <input type="checkbox" data-filter="task-hide-completed" ${taskFilters.hideCompleted ? "checked" : ""}>
-            <span>Hide Completed Dev Tasks</span>
+            <span class="checkbox-label-text">Hide Completed Dev Tasks</span>
           </label>
         </div>
         <div class="filter-stack">
@@ -631,7 +631,7 @@ export function createTasksFeature({
 
     return VisualCharts.card({
       title: "Dev Tasks Completed by Sprint",
-      subtitle: "All Sprints, latest first.",
+      subtitle: taskSprintHistorySubtitle(),
       className: "task-chart-card task-sprint-chart-card",
       body: VisualCharts.columnChart(rows, [
         { key: "total", label: "Dev Tasks", color: "var(--chart-1)" },
@@ -690,8 +690,33 @@ export function createTasksFeature({
   }
 
   function taskSprintFilterSubtitle(selectedSprint) {
-    if (taskSprintId === "all") return "All Sprints";
-    return selectedSprint ? selectedSprint.code : "No Sprint";
+    if (taskProjectId === 0 && taskSprintId === "all") return "All Projects and All Sprints";
+
+    const project = selectedSprint
+      ? state.projects.find(item => item.id === selectedSprint.projectId)
+      : state.projects.find(item => item.id === taskProjectId);
+    const sprintLabel = taskSprintId === "all"
+      ? "All Sprints"
+      : taskChartSprintLabel(selectedSprint, project);
+
+    return project ? `${project.code} - ${sprintLabel}` : sprintLabel;
+  }
+
+  function taskChartSprintLabel(sprint, project) {
+    if (!sprint) return "No Sprint";
+    if (!project?.code) return sprint.code;
+
+    const prefix = `${project.code}-`;
+    return sprint.code.toLowerCase().startsWith(prefix.toLowerCase())
+      ? sprint.code.slice(prefix.length)
+      : sprint.code;
+  }
+
+  function taskSprintHistorySubtitle() {
+    if (taskProjectId === 0 && taskSprintId === "all") return "All Projects and All Sprints";
+
+    const project = state.projects.find(item => item.id === taskProjectId);
+    return project ? `${project.code} - All Sprints` : "All Sprints";
   }
 
   function developerWorkloadDistributionHtml(rows) {

@@ -24,6 +24,13 @@ Dev Task Filter Dialog Box
 8.) Change the dialog box "Done" button in "Apply Filter" but keep the checkmark icon.
 9.) Update the close dialog box icon so that it is bigger, same size as the Dev Tasks page-level icons, and make the close icon not have a border unless the cursor hovers over it.  Make this a Universal change across all of PMT in both light and dark themes.  Again, make this a design principal of the "Paper Design" UI principle that PMT is using.
 
+10.) In the Dev Task Filter Dialog Box, if the "All Projects" is selected in the Project dropdown and "All Sprints" is selected in the Sprints dropdown, then the Charts in the Dev Tasks screen should display "All Projects and All Sprints" in their subtitles.  This also applies to the "Dev Tasks Completed by Sprint" chart.  Just note the nuance that the "Dev Tasks Completed by Sprint" chart is designed to always show All Sprints, the filter changes whether it is by project or all projects.
+11.) In the Dev Tasks Completed by Sprint chart, change the text that reads "All Sprints, latest first." into a dynamic text that shows the Project code then "All Sprints" if a project is selected.
+12.) In the Dev Tasks Completed by Sprint chart, conform to the sub-title format of the other charts so they look uniform.
+13.) Update the other charts so it conforms to this new format of "{Project Code} - {Sprint}".  Note the space before and after the dash (-).
+14.) That last update duplicated the Project code in the subtitles of the other 3 charts.  Now it renders something like this: PMT - PMT-Sprint05
+
 Universal UI Change Theme Change
 --------------------------------
 1.) Universally in all buttons and dialog boxes across PMT both light and dark mode, remove the blue (primary class).  I don't want any buttons with a background.
+2.) Universally, in all checkboxes, make sure that checkbox is vertically centered to the label that follows it (height-wise) and factoring the height of an image like an avatar if one is rendered before the label.  Currently, when a checkbox is rendered followed by an avatar and a label, the checkbox remains vertically aligned to the top.  The avatar image is rendered correctly which is vertically centered.
