@@ -244,7 +244,7 @@ export function createBugsFeature({
         </div>
         <div class="dialog-body bug-filter-dialog-body" data-bug-filter-dialog-body></div>
         <div class="dialog-actions">
-          <button type="button" class="primary text-icon-button" data-close-bug-filters>${buttonContent("&#10003;", "Apply Filter")}</button>
+          <button type="button" class="primary text-icon-button" data-close-bug-filters>${buttonContent("&#10003;", "Done")}</button>
         </div>
       </form>
     `;
@@ -280,7 +280,7 @@ export function createBugsFeature({
 
     return `
       <div class="bugs-filter-panel">
-        <div class="bug-filter-row">
+        <div class="task-filter-row bug-filter-row">
           ${bugFilterSelectHtml("Project", "bug-project", state.projects.map(project => ({ value: project.id, text: `${project.code} - ${project.title}` })), bugFilters.projectId || "", "All Projects")}
           ${bugSprintFilterHtml(sprintFilterSprints)}
           ${bugFilterSelectHtml("Status", "bug-status", getStatuses().map(value => ({ value, text: value })), bugFilters.status || "", "All Statuses")}

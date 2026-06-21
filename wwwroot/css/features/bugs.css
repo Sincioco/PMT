@@ -128,7 +128,7 @@ html[data-theme] .bugs-screen.work-item-screen .section-head .toolbar > button:h
   white-space: normal;
 }
 
-.bugs-filter-panel .bug-filter-row select {
+.bug-filter-dialog .bug-filter-row > label > select {
   width: 100%;
   min-width: 0;
   max-width: none;

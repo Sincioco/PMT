@@ -52,8 +52,6 @@ Dev Task Edit Mode
 
 13.) When the Dev Task New/Edit dialog box is open, when I scroll the mousewheel to scroll up or down, when it reaches the end, the main browser's content on the back starts scrolling instead.  Can you fix it?  As part of the "Paper Design" principal, when a dialog box is open, the scrollwheel should operate only on the active dialog box and should not affect anything in the background.
 
-
-
 Universal UI Change Theme Change
 --------------------------------
 1.) Universally in all buttons and dialog boxes across PMT both light and dark mode, remove the blue (primary class).  I don't want any buttons with a background.
@@ -63,3 +61,12 @@ Universal UI Change Theme Change
 Bug Tracking Screen
 -------------------
 1.) Without breaking or touching anything in the Dev Task screen, mirror the Dev Task Screen onto the Bug Tracking Screen to include behavior, theme, UI/UX, chart behavior, table row behavior, etc. so that the two screens appear to share the same code sharing the same design (UI/UX) principles.
+2.) A previous Codex session ran out of quota and did not finish, so I will prompt to re-execute the last instructions I gave to the previous Codex session:
+
+Without breaking or touching anything in the Dev Task screen, mirror the Dev Task Screen onto the Bug Tracking Screen to include behavior, theme, UI/UX, chart behavior, table row behavior, etc. so that the two screens appear to share the same code sharing the same design (UI/UX) principles.
+
+Verify the work and resume where the previous Codex sessoin left off.  I already noticed that the Drop Downs in the Bug Tracking Filters do not have the correct styling.
+
+3.) In both the Bug Tracking Filters and Dev Tasks Filter, change the "Apply Filters" button at the bottom of the dialog box to "Done" but keep the icon.
+
+You may use a browser to test/verify visually that the Dev Task and Bug Tracking screen looks uniformly the same.  But after this task is completed, do not perform any additional action other than code changes.  I will manually test and compile/build the project.

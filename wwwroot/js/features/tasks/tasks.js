@@ -251,7 +251,7 @@ export function createTasksFeature({
         </div>
         <div class="dialog-body task-filter-dialog-body" data-task-filter-dialog-body></div>
         <div class="dialog-actions">
-          <button type="button" class="primary text-icon-button" data-close-task-filters>${buttonContent("&#10003;", "Apply Filter")}</button>
+          <button type="button" class="primary text-icon-button" data-close-task-filters>${buttonContent("&#10003;", "Done")}</button>
         </div>
       </form>
     `;
