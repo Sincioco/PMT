@@ -162,7 +162,7 @@ export function createApplicationShell({
             <img src="/assets/project-pmt.svg" alt="">
             <div>
               <h1>PMT</h1>
-              <p class="muted">Software Engineering</p>
+              <p class="muted">Project Management Tool</p>
             </div>
           </div>
           <div class="field">

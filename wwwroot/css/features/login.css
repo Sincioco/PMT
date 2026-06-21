@@ -24,10 +24,7 @@
 .login-brand img {
   width: 52px;
   height: 52px;
-  border: var(--border-width) solid var(--color-border);
-  border-radius: var(--radius-lg);
-  background: var(--color-surface-raised);
-  box-shadow: var(--shadow-accent);
+  object-fit: contain;
 }
 
 .login-screen h1 {

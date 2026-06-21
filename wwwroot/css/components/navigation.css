@@ -26,10 +26,14 @@
 .brand img {
   width: 40px;
   height: 40px;
-  border: var(--border-width) solid var(--color-border);
-  border-radius: var(--radius-md);
-  background: var(--color-surface-raised);
-  box-shadow: var(--shadow-accent);
+  object-fit: contain;
+}
+
+.brand > div {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  height: 40px;
 }
 
 .brand strong {
@@ -38,7 +42,12 @@
   line-height: var(--line-height-tight);
 }
 
-.brand span,
+.brand span {
+  display: block;
+  font-size: 8pt;
+  line-height: var(--line-height-tight);
+}
+
 .muted {
   color: var(--color-text-secondary);
   font-size: var(--font-size-md);
@@ -187,11 +196,6 @@ html[data-theme="light"] .topbar {
   border-bottom-color: var(--color-border-subtle);
   background: var(--color-surface-navigation);
   box-shadow: 0 1px 0 var(--color-border-subtle), 0 8px 24px rgba(15, 23, 42, 0.035);
-}
-
-html[data-theme="light"] .brand img {
-  border-color: rgba(18, 107, 255, 0.2);
-  box-shadow: 0 7px 18px rgba(18, 107, 255, 0.16);
 }
 
 html[data-theme="light"] .brand strong {

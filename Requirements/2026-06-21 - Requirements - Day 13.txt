@@ -81,3 +81,8 @@ Dark Theme Fixes
 * I Dark Theme, and only in Dark theme, when a button is selected or pressed, render it the original teal background it had before.  Currently, it is not rendering a background so it looks like nothing is selected.
 * The background teal color you selected is pretty muted.  Pick the a style that's bright to indicate the button is selected.  And be sure the text is white when the button is selected.
 
+PMT Logo
+--------
+* There is now a PMT logo stored in "D:\Project Management Tool (PMT)\Requirements\UI\PMT Logo.svg" use that and replace the current PMT logo.  Take a copy of it and store it where it should go for the web and do the appropriate scaling so the Top Nav stays at it is without anything shifting.  Just perform a logo swap.  And delete the old logo, I don't need it anymore.  And change the text "Software Engineering" into "Project Management Tool"
+* Change the font size of the text "Project Management Tool" to font size 8pt;
+* Put the text "PMT" just above the "Project Management Tool" and vertically center them against the height of the PMT logo.
