@@ -6,7 +6,7 @@ export function createAboutFeature({ app }) {
           <img class="about-logo" src="/assets/pmt-logo-full.svg" alt="PMT - Project Management Tool">
         </div>
         <p class="about-credit">
-          Created by <a href="http://sincioco.com" target="_blank" rel="noopener noreferrer">Louiery R. Sincioco</a> on June 2026 to help companies who cannot afford a Task/Project Management Tool have one for free.
+          Created by <a href="http://sincioco.com/resume" target="_blank" rel="noopener noreferrer">Louiery R. Sincioco</a> on June 2026 to help companies who cannot afford a Task/Project Management Tool have one for free.
           Open-source GitHub repository is at <a href="https://github.com/Sincioco/PMT" target="_blank" rel="noopener noreferrer">https://github.com/Sincioco/PMT</a>
         </p>
       </section>

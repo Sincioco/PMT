@@ -19,6 +19,7 @@
   width: min(760px, 88%);
   max-height: calc(100vh - 190px);
   object-fit: contain;
+  transform: translate(-10%, -20%);
 }
 
 .about-credit {

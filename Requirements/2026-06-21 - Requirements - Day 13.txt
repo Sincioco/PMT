@@ -104,3 +104,7 @@ Created by:  Louiery R. Sincioco, June 2026, to help companies who cannot afford
 * Update the About credit text so that hyperlinks are rendered in a blue-ish text color (as per Paper Design).  Also, hyperlinks should be rendered with no underlines until the cursor hovers on it.  Add that in the "Paper Desing" principles and record it in the "paper-design.md" under the docs sub folder.
 
 * Make PMT go to the About page if there is no Project specified in the system.
+* In the About Page, nudge the PMT Logo on the page 20% higher.
+* Nudge the logo 10% to the left.
+
+* The avatar picture on the upper-right of the top nav has a double ring border.  Remove the inner-ring border and just have one outer ring border.
