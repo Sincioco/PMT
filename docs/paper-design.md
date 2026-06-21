@@ -70,6 +70,8 @@ When guidance is missing or ambiguous, follow this document. When a new requirem
 
 ## Color and content exceptions
 
+- Text that resembles default hyperlink blue is reserved for content that is actually hyperlinkable.
+- Non-link identifiers such as Project codes and work-item codes use the normal Paper Design text hierarchy, not hyperlink-like blue.
 - Statuses, charts, progress, warnings, errors, and other data-bearing visuals may use semantic or categorical color.
 - Color used for data must retain a text label, tooltip, legend, icon, pattern, or accessible summary.
 - Data-color exceptions do not permit filled backgrounds on ordinary control buttons.

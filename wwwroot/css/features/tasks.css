@@ -252,6 +252,10 @@ html[data-theme] .tasks-screen.work-item-screen .work-item-table .icon-action:di
   padding-right: var(--space-7);
 }
 
+.tasks-table.is-read-mode .done-cell {
+  padding-right: var(--space-10);
+}
+
 .subtask-row td {
   background: var(--color-surface);
 }
@@ -260,17 +264,38 @@ html[data-theme] .tasks-screen.work-item-screen .work-item-table .icon-action:di
   padding-left: calc(var(--table-cell-padding-inline) + var(--indent, 20px)) !important;
 }
 
+.tasks-table .work-item-code-line {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+  min-height: 18px;
+  margin-bottom: var(--space-1);
+}
+
+.tasks-table .work-item-code,
+.tasks-table .task-project-cell,
+html[data-theme="light"] .tasks-screen.work-item-screen .work-item-table .work-item-code {
+  color: var(--color-text-secondary);
+}
+
+.tasks-table .work-item-code {
+  display: inline;
+  margin-bottom: 0;
+}
+
 .subtask-pill {
-  display: inline-block;
-  margin: 0 var(--space-2) var(--space-1) 0;
+  display: inline-flex;
+  align-items: center;
+  margin: 0;
   border: var(--border-width) solid var(--color-info-border);
   border-radius: var(--radius-pill);
-  padding: 2px var(--space-2);
-  color: var(--color-info-text);
+  padding: 1px var(--space-2);
+  color: var(--color-text-secondary);
   background: var(--color-info-surface);
   font-size: var(--font-size-xs);
   font-weight: var(--font-weight-bold);
-  text-transform: uppercase;
+  line-height: 1.2;
+  white-space: nowrap;
 }
 
 .tasks-chart-panel {

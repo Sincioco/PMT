@@ -10,6 +10,11 @@ Dev Task Screen
 2.) In the Dev Task Screen, when I click on a chart data point like the Sprint Dev Task Mix chart, and a dialog box shows up with a list of items to choose from, remove the last column which only has the view icon.  It is now redundant since clicking on the row views the item as well.
 3.) In the Dev Task Screen, in the Table of tasks, the action buttons for each row, the buttons should not have a border unless the mouse cursor hovers on it.  Scale the icons a little bit bigger, the same size as the page-level icons.  Replace icons that have colors, such as the Delete and Audit log, and replace them with monochrome icons.
 4.) Universally, update all other page titles and dialog box titles to use the same text color as the Dev Task screen's Page Title.
+5.) In the Dev Task Screen, in the table, in each row, the project code and work item code should not be rendered in a blue-ish color because it implies to the user it is a hyperlink.  Make the color of this text the same text color as the Page's Title.  In "Paper Design" we only want text to have a color blue (or looks like the default hyperlink blue) if it is meant to be hyperlinkable.
+6.) For the sub task, render the "sub-task" capsule in the same line as the project code and work item.  Attempt to make the sub-task rows the same height as a normal task rows.
+7.) Make the "sub-task" capsule appear after the project code and work item.  Change the text color of the "sub-task" capsule to use the same text color as the Page's Title.  Proper case it so it reads "Subtask" (no dash).
+8.) The class "subtask-pill" seems to be rendering the text as "SUBTASK".  Please fix that class or any class that is preventing the subtask to render as "Subtask" on-screen.
+9.) When in read-mode, add more padding to the right of the % Completion column.  Currently, the graph appears too close to the right.
 
 Dev Task Filter Dialog Box
 ---------------

@@ -160,11 +160,13 @@ export function createTasksFeature({
               <tr class="${rowClass} clickable-row" data-action="view-task" data-id="${task.id}" data-task-id="${task.id}" data-can-drag="${taskTableMode.active && canEditTask(task) ? "true" : "false"}" draggable="false">
                 <td>${taskRowAvatarsHtml(task.assignees)}</td>
                 <td class="${titleClass} work-item-title-cell" style="--indent:${indent}px">
-                  ${row.level ? `<span class="subtask-pill">Sub-task</span>` : ""}
-                  <strong class="work-item-code">${escapeHtml(task.code)}</strong>
+                  <span class="work-item-code-line">
+                    <strong class="work-item-code">${escapeHtml(task.code)}</strong>
+                    ${row.level ? `<span class="subtask-pill">Subtask</span>` : ""}
+                  </span>
                   <span class="work-item-title">${bugFixIconHtml(task)}${escapeHtml(task.title)}</span>
                 </td>
-                <td class="work-item-context-cell">${escapeHtml(projectName(task.projectId))}</td>
+                <td class="work-item-context-cell task-project-cell">${escapeHtml(projectName(task.projectId))}</td>
                 <td class="work-item-context-cell">${escapeHtml(sprintName(task.sprintId))}</td>
                 <td class="work-item-context-cell">${escapeHtml(task.status)}</td>
                 <td><span class="pill priority-${task.priority}">${escapeHtml(task.priority)}</span></td>
