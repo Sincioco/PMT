@@ -77,6 +77,9 @@ When guidance is missing or ambiguous, follow this document. When a new requirem
 
 ## Color and content exceptions
 
+- Hyperlinks use the theme's blue link color so interactive text is visually distinct from ordinary content.
+- Hyperlinks do not display an underline at rest. The underline appears on pointer hover.
+- Hover may also use the theme's brighter link-hover color, but it must not shift surrounding content.
 - Text that resembles default hyperlink blue is reserved for content that is actually hyperlinkable.
 - Non-link identifiers such as Project codes and work-item codes use the normal Paper Design text hierarchy, not hyperlink-like blue.
 - Statuses, charts, progress, warnings, errors, and other data-bearing visuals may use semantic or categorical color.

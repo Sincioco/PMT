@@ -86,3 +86,21 @@ PMT Logo
 * There is now a PMT logo stored in "D:\Project Management Tool (PMT)\Requirements\UI\PMT Logo.svg" use that and replace the current PMT logo.  Take a copy of it and store it where it should go for the web and do the appropriate scaling so the Top Nav stays at it is without anything shifting.  Just perform a logo swap.  And delete the old logo, I don't need it anymore.  And change the text "Software Engineering" into "Project Management Tool"
 * Change the font size of the text "Project Management Tool" to font size 8pt;
 * Put the text "PMT" just above the "Project Management Tool" and vertically center them against the height of the PMT logo.
+* For the text "PMT", change the color of each letter as follows:  P=#4285F4, M=#EA4335, T=FBBC05
+
+About Page
+----------
+* Create a brand new About page.
+* Center the full PMT logo located in "D:\Project Management Tool (PMT)\Requirements\UI\PMT Logo - Full.svg"
+* Add some small light brown text at the bottom that reads:
+Created by:  Louiery R. Sincioco, June 2026, to help companies who cannot afford a Task/Project Management Tool have one for free.
+
+* Make the background of PMT just white.  No gradients.  Just flat and white.
+
+* Update the Logo subtitle "Project Management Tool" to use font-size: 11px;
+* Update the about credit so that text color is just a dark light gray.  And make "Louiery R. Sincioco" a hyperlink to "http://sincioco.com".  And mention in the credits that the open-source and GitHub repository is located at "https://github.com/Sincioco/PMT"
+
+* I meant for the light theme, universally, make the background of PMT white.
+* Update the About credit text so that hyperlinks are rendered in a blue-ish text color (as per Paper Design).  Also, hyperlinks should be rendered with no underlines until the cursor hovers on it.  Add that in the "Paper Desing" principles and record it in the "paper-design.md" under the docs sub folder.
+
+* Make PMT go to the About page if there is no Project specified in the system.

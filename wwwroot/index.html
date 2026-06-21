@@ -21,8 +21,8 @@
   </script>
   <!-- CSS loads from broad foundations to shared components, then feature-specific rules. -->
   <link rel="stylesheet" href="/css/tokens.css?v=20260620-token-depth">
-  <link rel="stylesheet" href="/css/themes.css?v=20260620-light-reference-1">
-  <link rel="stylesheet" href="/css/base.css?v=20260620-native-controls-v2">
+  <link rel="stylesheet" href="/css/themes.css?v=20260621-paper-links">
+  <link rel="stylesheet" href="/css/base.css?v=20260621-paper-links">
   <link rel="stylesheet" href="/css/layout.css?v=20260621-universal-title-color">
   <link rel="stylesheet" href="/css/components/buttons.css?v=20260621-bright-dark-selected-white-text">
   <link rel="stylesheet" href="/css/components/cards-panels.css?v=20260620-solid-surfaces">
@@ -30,12 +30,13 @@
   <link rel="stylesheet" href="/css/components/dialogs.css?v=20260621-modal-scroll-lock">
   <link rel="stylesheet" href="/css/components/tables-lists.css?v=20260621-bug-row-drag">
   <link rel="stylesheet" href="/css/components/filters.css?v=20260621-centered-checkboxes">
-  <link rel="stylesheet" href="/css/components/navigation.css?v=20260621-pmt-brand-lockup">
+  <link rel="stylesheet" href="/css/components/navigation.css?v=20260621-pmt-subtitle-11px">
   <link rel="stylesheet" href="/css/components/avatars.css?v=20260620-token-depth">
   <link rel="stylesheet" href="/css/components/attachments.css?v=20260619-shell-components">
   <link rel="stylesheet" href="/css/components/progress-status.css?v=20260620-token-depth">
   <link rel="stylesheet" href="/css/components/charts.css?v=20260620-expanded-chart-dialog">
   <link rel="stylesheet" href="/css/features/login.css?v=20260621-pmt-logo-no-frame">
+  <link rel="stylesheet" href="/css/features/about.css?v=20260621-paper-links">
   <link rel="stylesheet" href="/css/features/dashboard.css?v=20260620-token-depth">
   <link rel="stylesheet" href="/css/features/roadmap.css?v=20260620-token-depth">
   <link rel="stylesheet" href="/css/features/gantt.css?v=20260620-token-depth">
@@ -70,6 +71,10 @@
           <button type="button" data-view="Settings" role="menuitem">
             <span class="button-icon" aria-hidden="true">&#9881;</span>
             <span>Settings</span>
+          </button>
+          <button type="button" data-view="About" role="menuitem">
+            <span class="button-icon" aria-hidden="true">&#9432;</span>
+            <span>About</span>
           </button>
           <button type="button" data-action="toggle-theme" id="themeToggle" role="menuitem">
             <span class="button-icon" aria-hidden="true" data-theme-icon>&#9728;</span>
@@ -111,6 +116,6 @@
   </dialog>
 
   <div id="toast" class="toast" hidden></div>
-  <script type="module" src="/js/app.js?v=20260621-bug-screen-parity"></script>
+  <script type="module" src="/js/app.js?v=20260621-empty-project-about"></script>
 </body>
 </html>

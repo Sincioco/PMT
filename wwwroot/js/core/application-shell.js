@@ -58,7 +58,10 @@ export function createApplicationShell({
   async function start() {
     document.body.classList.remove("logged-out");
     renderNavigation();
-    if (await reloadState()) render();
+    if (await reloadState()) {
+      if (!state.projects.length) navigate("About");
+      render();
+    }
   }
 
   async function reloadState() {

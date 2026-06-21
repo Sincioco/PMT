@@ -12,7 +12,7 @@ import {
   showTaskAudit,
   viewWorkItem
 } from "./components/work-items.js?v=20260621-bug-screen-parity";
-import { createApplicationShell } from "./core/application-shell.js?v=20260620-light-reference-1";
+import { createApplicationShell } from "./core/application-shell.js?v=20260621-empty-project-about";
 import {
   currentView,
   navigate
@@ -23,6 +23,7 @@ import {
   screenHandlerFor
 } from "./core/screen-registry.js";
 import { state } from "./core/store.js";
+import { createAboutFeature } from "./features/about/about.js?v=20260621-about-credits";
 import { createBacklogFeature } from "./features/backlog/backlog.js?v=20260620-bug-linked-task";
 import { createBoardFeature } from "./features/board/board.js?v=20260620-bug-linked-task";
 import { createBugsFeature } from "./features/bugs/bugs.js?v=20260621-dev-task-parity";
@@ -157,6 +158,7 @@ const {
 } = shell.elements;
 
 const roadMapFeature = createRoadMapFeature({ app });
+const aboutFeature = createAboutFeature({ app });
 const ganttFeature = createGanttFeature({
   app,
   openTaskReadMode: id => viewWorkItem(taskById(id), editWorkItem),
@@ -266,6 +268,7 @@ const wfhScheduleFeature = createWfhScheduleFeature({
 });
 
 registerScreen("Dashboard", dashboardFeature);
+registerScreen("About", aboutFeature);
 registerScreen("Road Map", roadMapFeature);
 registerScreen("Gantt", ganttFeature);
 registerScreen("Board", boardFeature);

@@ -26,8 +26,8 @@ html[data-theme="dark"] {
   --color-text-tertiary: #7f8d92;
   --color-text-inverse: #0f1315;
   --color-text-disabled: #6f7b7f;
-  --color-link: #4bd4ca;
-  --color-link-hover: #75e2da;
+  --color-link: #76a9ff;
+  --color-link-hover: #9bc2ff;
 
   /* Actions and semantic feedback */
   --color-primary: #35c7bd;
@@ -123,10 +123,10 @@ html[data-theme="light"] {
   --native-color-scheme: light;
 
   /* Page and surfaces */
-  --color-page: #f6faff;
+  --color-page: #ffffff;
   --color-page-muted: #eef4fb;
-  --color-page-glow-primary: rgba(18, 107, 255, 0.08);
-  --color-page-glow-secondary: rgba(71, 127, 214, 0.06);
+  --color-page-glow-primary: transparent;
+  --color-page-glow-secondary: transparent;
   --color-surface: #ffffff;
   --color-surface-subtle: #f8fbff;
   --color-surface-raised: #ffffff;
