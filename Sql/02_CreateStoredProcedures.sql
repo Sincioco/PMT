@@ -1956,6 +1956,13 @@ BEGIN
         THROW 50062, 'User was not found for the WFH schedule.', 1;
     END;
 
+    DECLARE @IsAdmin BIT = [pmt].[IsAdmin](@CurrentUserId);
+
+    IF @IsAdmin = 0 AND @UserId <> @CurrentUserId
+    BEGIN
+        THROW 50065, 'You cannot update another user''s WFH schedule.', 1;
+    END;
+
     IF NOT EXISTS (SELECT 1 FROM [pmt].[WfhSchedules] WHERE [UserId] = @UserId)
     BEGIN
         INSERT INTO [pmt].[WfhSchedules] ([UserId], [SortOrder], [CreatedByUserId], [CreatedAt], [UpdatedAt])
@@ -1976,12 +1983,12 @@ BEGIN
         [CanWorkWednesday] = @CanWorkWednesday,
         [CanWorkThursday] = @CanWorkThursday,
         [CanWorkFriday] = @CanWorkFriday,
-        [IsHidden] = @IsHidden,
+        [IsHidden] = CASE WHEN @IsAdmin = 1 THEN @IsHidden ELSE [IsHidden] END,
         [UpdatedByUserId] = @CurrentUserId,
         [UpdatedAt] = SYSUTCDATETIME()
     WHERE [UserId] = @UserId;
 
-    DECLARE @AuditAction NVARCHAR(40) = CASE WHEN @IsHidden = 1 THEN N'Hidden' ELSE N'Updated' END;
+    DECLARE @AuditAction NVARCHAR(40) = CASE WHEN @IsAdmin = 1 AND @IsHidden = 1 THEN N'Hidden' ELSE N'Updated' END;
 
     EXEC [pmt].[WriteAudit]
         N'WFH',
@@ -2002,6 +2009,11 @@ BEGIN
     IF NOT EXISTS (SELECT 1 FROM [pmt].[Users] WHERE [UserId] = @CurrentUserId AND [IsActive] = 1)
     BEGIN
         THROW 50063, 'Only active users can reorder the WFH schedule.', 1;
+    END;
+
+    IF [pmt].[IsAdmin](@CurrentUserId) = 0
+    BEGIN
+        THROW 50066, 'Only administrators can reorder the WFH schedule.', 1;
     END;
 
     DECLARE @UserIds TABLE
@@ -2060,6 +2072,11 @@ BEGIN
     IF NOT EXISTS (SELECT 1 FROM [pmt].[Users] WHERE [UserId] = @CurrentUserId AND [IsActive] = 1)
     BEGIN
         THROW 50064, 'Only active users can reset the WFH schedule.', 1;
+    END;
+
+    IF [pmt].[IsAdmin](@CurrentUserId) = 0
+    BEGIN
+        THROW 50067, 'Only administrators can reset the WFH schedule.', 1;
     END;
 
     ;WITH OrderedActiveUsers AS

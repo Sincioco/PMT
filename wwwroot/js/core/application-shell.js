@@ -5,7 +5,7 @@ import {
   logout,
   setCurrentUserId
 } from "./authentication.js";
-import { navIconHtml } from "./navigation-preferences.js?v=20260621-settings-avatar-only";
+import { navIconHtml } from "./navigation-preferences.js?v=20260621-bug-icon";
 import {
   preferenceKeys,
   readPreference,
@@ -358,8 +358,8 @@ export function createApplicationShell({
   }
 
   function applySavedTheme() {
-    const savedTheme = readPreference(preferenceKeys.theme, "dark");
-    applyTheme(savedTheme === "light" ? "light" : "dark");
+    const savedTheme = readPreference(preferenceKeys.theme, "light");
+    applyTheme(savedTheme === "dark" ? "dark" : "light");
   }
 
   function toggleTheme() {

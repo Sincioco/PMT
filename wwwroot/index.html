@@ -3,13 +3,13 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="color-scheme" content="dark light">
+  <meta name="color-scheme" content="light dark">
   <title>PMT</title>
   <script>
     (() => {
-      let theme = "dark";
+      let theme = "light";
       try {
-        if (localStorage.getItem("pmt-theme") === "light") theme = "light";
+        if (localStorage.getItem("pmt-theme") === "dark") theme = "dark";
       } catch {
         // Local preferences are optional.
       }
@@ -48,7 +48,7 @@
   <link rel="stylesheet" href="/css/features/scrum.css?v=20260621-regular-text-actions">
   <link rel="stylesheet" href="/css/features/documentation.css?v=20260620-ui-theme">
   <link rel="stylesheet" href="/css/features/backlog.css?v=20260621-dev-task-parity">
-  <link rel="stylesheet" href="/css/features/wfh-schedule.css?v=20260620-wfh-schedule">
+  <link rel="stylesheet" href="/css/features/wfh-schedule.css?v=20260621-role-inline">
   <link rel="stylesheet" href="/css/features/settings.css?v=20260621-icon-size-20">
 </head>
 <body>
@@ -118,6 +118,6 @@
   </dialog>
 
   <div id="toast" class="toast" hidden></div>
-  <script type="module" src="/js/app.js?v=20260621-clickable-brand"></script>
+  <script type="module" src="/js/app.js?v=20260621-light-default"></script>
 </body>
 </html>

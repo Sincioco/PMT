@@ -1,8 +1,11 @@
-import { buttonContent } from "../../components/buttons.js";
+import { buttonContent, iconButton } from "../../components/buttons.js";
 import { askYesNo } from "../../components/dialogs.js";
 import { sectionHead } from "../../components/sections.js";
+import { createWorkItemTableMode } from "../../components/work-items.js?v=20260621-scrum-backlog-parity";
 import { api } from "../../core/api.js";
+import { currentUser } from "../../core/authentication.js";
 import { createReorderDrag } from "../../shared/reorder-drag.js";
+import { canEditOwner } from "../../shared/permissions.js";
 import {
   escapeAttr,
   escapeHtml
@@ -25,55 +28,77 @@ export function createWfhScheduleFeature({
   let isLoading = false;
   let loadError = "";
   let showHiddenUsers = false;
+  const wfhTableMode = createWorkItemTableMode({
+    action: "toggle-wfh-table-edit-mode",
+    itemLabel: "WFH Schedule"
+  });
 
   function renderWfhSchedule() {
     if (!rows && !isLoading) loadSchedule();
 
     const allRows = sortRows(rows || []);
+    const canAdminEdit = canAdminEditWfh();
+    if (!canAdminEdit) showHiddenUsers = false;
+
     const hiddenCount = allRows.filter(row => row.isHidden).length;
     const visibleRows = allRows.filter(row => showHiddenUsers || !row.isHidden);
-    const deletedToggleLabel = showHiddenUsers ? "Hide Deleted" : hiddenCount ? `Show Deleted (${hiddenCount})` : "Show Deleted";
+    const hiddenToggleLabel = showHiddenUsers ? "Hide Hidden" : hiddenCount ? `Show Hidden (${hiddenCount})` : "Show Hidden";
     const actionsHtml = `
-      <button class="secondary text-icon-button ${showHiddenUsers ? "is-on" : ""}" type="button" data-action="toggle-wfh-deleted" aria-pressed="${showHiddenUsers}" ${hiddenCount ? "" : "disabled"}>
-        ${buttonContent("&#128065;", deletedToggleLabel)}
-      </button>
-      <button class="secondary text-icon-button" type="button" data-action="reset-wfh-schedule">
+      ${wfhTableMode.buttonHtml()}
+      ${canAdminEdit ? `<button class="secondary text-icon-button ${showHiddenUsers ? "is-on" : ""}" type="button" data-action="toggle-wfh-deleted" aria-pressed="${showHiddenUsers}" ${hiddenCount ? "" : "disabled"}>
+        ${buttonContent(eyeIconHtml(), hiddenToggleLabel)}
+      </button>` : ""}
+      ${canAdminEdit ? `<button class="secondary text-icon-button" type="button" data-action="reset-wfh-schedule">
         ${buttonContent("&#8635;", "Reset")}
-      </button>
+      </button>` : ""}
     `;
 
     app.innerHTML = `
-      ${sectionHead("WFH Schedule", actionsHtml)}
-      <div class="panel wfh-schedule-panel work-item-table-panel">
-        ${wfhTableHtml(visibleRows)}
-      </div>
+      <section class="wfh-schedule-screen work-item-screen">
+        ${sectionHead("WFH Schedule", actionsHtml)}
+        <div class="panel wfh-schedule-panel work-item-table-panel">
+          ${wfhTableHtml(visibleRows)}
+        </div>
+      </section>
     `;
     bindWfhDragEvents();
   }
 
   async function handleAction(action, id, button) {
     if (action === "toggle-wfh-deleted") {
+      if (!canAdminEditWfh()) return true;
       showHiddenUsers = !showHiddenUsers;
       renderWfhSchedule();
       return true;
     }
 
+    if (action === "toggle-wfh-table-edit-mode") {
+      wfhTableMode.toggle();
+      renderWfhSchedule();
+      return true;
+    }
+
     if (action === "toggle-wfh-day") {
+      if (!wfhTableMode.active) return true;
+      if (!canEditWfhRow(rowByUserId(id))) return true;
       await toggleWfhDay(id, button.dataset.day || "");
       return true;
     }
 
     if (action === "hide-wfh-user") {
+      if (!wfhTableMode.active || !canAdminEditWfh()) return true;
       await hideWfhUser(id);
       return true;
     }
 
     if (action === "restore-wfh-user") {
+      if (!wfhTableMode.active || !canAdminEditWfh()) return true;
       await restoreWfhUser(id);
       return true;
     }
 
     if (action === "reset-wfh-schedule") {
+      if (!canAdminEditWfh()) return true;
       await resetWfhSchedule();
       return true;
     }
@@ -103,20 +128,26 @@ export function createWfhScheduleFeature({
     if (isLoading && !rows) return `<div class="empty">Loading WFH schedule...</div>`;
     if (loadError) return `<div class="empty">WFH schedule could not be loaded.</div>`;
 
+    const showAdminActions = wfhTableMode.active && canAdminEditWfh();
+
     return `
-      <table class="table work-item-table wfh-schedule-table">
+      <table class="table work-item-table wfh-schedule-table ${wfhTableMode.active ? "is-edit-mode" : "is-read-mode"}">
+        <colgroup>
+          <col class="wfh-member-column">
+          <col class="wfh-days-column">
+          <col class="wfh-fill-column">
+          ${showAdminActions ? `<col class="wfh-action-column">` : ""}
+        </colgroup>
         <thead>
           <tr>
-            <th>Avatar</th>
-            <th>Nickname</th>
-            <th>First Name</th>
-            <th>Last Name</th>
-            <th>Role</th>
+            <th>Team Member</th>
             <th>Days</th>
+            <th class="wfh-fill-head" aria-hidden="true"></th>
+            ${showAdminActions ? `<th class="action-cell" aria-label="Actions"></th>` : ""}
           </tr>
         </thead>
         <tbody data-reorder-list="wfh-schedule" data-wfh-schedule-list>
-          ${visibleRows.map(wfhRowHtml).join("") || `<tr><td colspan="6"><div class="empty">No users match the current WFH view.</div></td></tr>`}
+          ${visibleRows.map(wfhRowHtml).join("") || `<tr><td colspan="${showAdminActions ? 4 : 3}"><div class="empty">No team members match the current WFH view.</div></td></tr>`}
         </tbody>
       </table>
     `;
@@ -124,42 +155,47 @@ export function createWfhScheduleFeature({
 
   function wfhRowHtml(row) {
     const displayRole = row.role || "Developer";
+    const showAdminActions = wfhTableMode.active && canAdminEditWfh();
     return `
-      <tr data-wfh-user-id="${row.userId}" class="${row.isHidden ? "is-hidden" : ""}">
-        <td>
-          <img class="row-avatar wfh-avatar" src="${escapeAttr(row.avatarUrl || "/assets/avatar-default.svg")}" alt="">
-        </td>
-        <td>
-          <strong>${escapeHtml(row.nickname)}</strong>
-          ${row.isHidden ? `<span class="pill wfh-deleted-pill">Deleted</span>` : ""}
-        </td>
-        <td>${escapeHtml(row.firstName)}</td>
-        <td>${escapeHtml(row.lastName)}</td>
-        <td>${escapeHtml(displayRole)}</td>
-        <td>
-          <div class="wfh-days-cell">
-            <div class="wfh-day-buttons" aria-label="${escapeAttr(`${row.nickname} WFH days`)}">
-              ${dayDefinitions.map(day => wfhDayButtonHtml(row, day)).join("")}
-            </div>
-            <div class="wfh-row-actions">
-              ${row.isHidden
-                ? `<button class="icon-action" type="button" data-action="restore-wfh-user" data-id="${row.userId}" title="Restore ${escapeAttr(row.nickname)}" aria-label="Restore ${escapeAttr(row.nickname)}">&#8635;</button>`
-                : `<button class="icon-action danger" type="button" data-action="hide-wfh-user" data-id="${row.userId}" title="Delete ${escapeAttr(row.nickname)} from WFH Schedule" aria-label="Delete ${escapeAttr(row.nickname)} from WFH Schedule">&#128465;</button>`}
-              <button class="work-item-drag-handle wfh-drag-handle" type="button" data-drag-handle data-wfh-drag-handle title="Drag ${escapeAttr(row.nickname)}" aria-label="Drag ${escapeAttr(row.nickname)}">
-                <span aria-hidden="true">&#8942;&#8942;</span>
-              </button>
+      <tr data-wfh-user-id="${row.userId}" data-can-drag="${showAdminActions ? "true" : "false"}" class="${row.isHidden ? "is-hidden" : ""}">
+        <td class="wfh-member-cell">
+          <div class="wfh-member">
+            <img class="row-avatar wfh-avatar" src="${escapeAttr(row.avatarUrl || "/assets/avatar-default.svg")}" alt="">
+            <div class="wfh-member-text">
+              <span class="wfh-member-name">${escapeHtml(displayName(row))}</span>
+              <span class="wfh-member-role">${escapeHtml(displayRole)}</span>
+              ${row.isHidden ? `<span class="pill wfh-deleted-pill">Hidden</span>` : ""}
             </div>
           </div>
         </td>
+        <td class="wfh-days-cell">
+          <div class="wfh-day-buttons" aria-label="${escapeAttr(`${row.nickname} WFH days`)}">
+            ${dayDefinitions.map(day => wfhDayButtonHtml(row, day)).join("")}
+          </div>
+        </td>
+        <td class="wfh-fill-cell" aria-hidden="true"></td>
+        ${showAdminActions ? `<td class="reveal-actions action-cell">${wfhRowActionsHtml(row)}</td>` : ""}
       </tr>
     `;
   }
 
   function wfhDayButtonHtml(row, day) {
     const isOn = Boolean(row[day.key]);
+    const isEditable = wfhTableMode.active && !row.isHidden && canEditWfhRow(row);
     return `
-      <button class="wfh-day-button ${isOn ? "is-on" : ""}" type="button" data-action="toggle-wfh-day" data-id="${row.userId}" data-day="${escapeAttr(day.key)}" aria-label="${escapeAttr(`${row.nickname} ${day.name}`)}" aria-pressed="${isOn}" title="${escapeAttr(day.name)}" ${row.isHidden ? "disabled" : ""}>
+      <button class="wfh-day-button ${isOn ? "is-on" : ""}" type="button" data-action="toggle-wfh-day" data-id="${row.userId}" data-day="${escapeAttr(day.key)}" aria-label="${escapeAttr(`${row.nickname} ${day.name}`)}" aria-pressed="${isOn}" title="${escapeAttr(day.name)}" ${isEditable ? "" : "disabled"}>
         ${escapeHtml(day.label)}
+      </button>
+    `;
+  }
+
+  function wfhRowActionsHtml(row) {
+    return `
+      ${row.isHidden
+        ? `<button class="icon-action" type="button" data-action="restore-wfh-user" data-id="${row.userId}" title="Restore ${escapeAttr(row.nickname)}" aria-label="Restore ${escapeAttr(row.nickname)}"><span class="button-icon" aria-hidden="true">&#8635;</span></button>`
+        : iconButton("hide-wfh-user", row.userId, `Delete ${row.nickname} from WFH Schedule`, "delete-monochrome")}
+      <button class="work-item-drag-handle wfh-drag-handle" type="button" data-drag-handle data-wfh-drag-handle title="Drag ${escapeAttr(row.nickname)}" aria-label="Drag ${escapeAttr(row.nickname)}">
+        <span aria-hidden="true">&#8942;&#8942;</span>
       </button>
     `;
   }
@@ -167,6 +203,7 @@ export function createWfhScheduleFeature({
   async function toggleWfhDay(userId, dayKey) {
     const row = rowByUserId(userId);
     if (!row || !dayDefinitions.some(day => day.key === dayKey)) return;
+    if (!canEditWfhRow(row)) return;
 
     await updateRow(row, { [dayKey]: !row[dayKey] }, "WFH day saved.");
   }
@@ -223,6 +260,8 @@ export function createWfhScheduleFeature({
   }
 
   function bindWfhDragEvents() {
+    if (!wfhTableMode.active || !canAdminEditWfh()) return;
+
     const list = app.querySelector('tbody[data-reorder-list="wfh-schedule"]');
     if (!list) return;
 
@@ -231,11 +270,15 @@ export function createWfhScheduleFeature({
       containerSelector: 'tbody[data-reorder-list="wfh-schedule"]',
       itemSelector: "tr[data-wfh-user-id]",
       getItemKey: item => item.dataset.wfhUserId || "",
+      handleRequired: false,
+      interactiveSelector: "button:not([data-drag-handle]), a, input, select, textarea",
       onDrop: ({ orderedKeys }) => saveWfhOrder(orderedKeys)
     }).bind();
   }
 
   async function saveWfhOrder(orderedKeys) {
+    if (!canAdminEditWfh()) return;
+
     const userIds = orderedKeys.map(value => Number(value)).filter(Boolean);
     if (!userIds.length) return;
 
@@ -276,6 +319,28 @@ export function createWfhScheduleFeature({
     handleAction,
     render: renderWfhSchedule
   };
+}
+
+function canAdminEditWfh() {
+  const user = currentUser();
+  return Boolean(user.isAdmin || user.role === "Admin");
+}
+
+function canEditWfhRow(row) {
+  return Boolean(row && canEditOwner(row.userId));
+}
+
+function eyeIconHtml() {
+  return `
+    <svg class="button-svg-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path d="M3 12s3.5-6 9-6 9 6 9 6-3.5 6-9 6-9-6-9-6zM12 9.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5z"></path>
+    </svg>
+  `;
+}
+
+function displayName(row) {
+  const name = [row.firstName, row.lastName].filter(Boolean).join(" ") || row.nickname;
+  return row.nickname ? `${name} (${row.nickname})` : name;
 }
 
 function sortRows(items) {

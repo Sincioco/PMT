@@ -1,15 +1,144 @@
 /* CSS ownership: WFH Schedule screen. */
 
+.wfh-schedule-screen,
+.wfh-schedule-screen * {
+  font-weight: var(--font-weight-regular) !important;
+}
+
+.wfh-schedule-screen .section-head h1,
+html[data-theme="light"] .wfh-schedule-screen.work-item-screen .section-head h1 {
+  color: var(--color-text-secondary);
+}
+
+.wfh-schedule-screen .section-head .toolbar > button {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  width: var(--touch-target-min);
+  min-width: var(--touch-target-min);
+  height: var(--touch-target-min);
+  min-height: var(--touch-target-min);
+  padding: 0;
+  border-color: transparent;
+  background: transparent;
+  color: var(--color-text-secondary);
+  box-shadow: none;
+}
+
+html[data-theme] .wfh-schedule-screen.work-item-screen .section-head .toolbar > button,
+html[data-theme] .wfh-schedule-screen.work-item-screen .section-head .toolbar > button.primary,
+html[data-theme] .wfh-schedule-screen.work-item-screen .section-head .toolbar > button.secondary,
+html[data-theme] .wfh-schedule-screen.work-item-screen .section-head .toolbar > button.is-on,
+html[data-theme] .wfh-schedule-screen.work-item-screen .section-head .toolbar > button[aria-pressed="true"],
+html[data-theme] .wfh-schedule-screen.work-item-screen .section-head .toolbar > button:focus,
+html[data-theme] .wfh-schedule-screen.work-item-screen .section-head .toolbar > button:focus-visible,
+html[data-theme] .wfh-schedule-screen.work-item-screen .section-head .toolbar > button:active:not(:hover) {
+  width: var(--touch-target-min);
+  min-width: var(--touch-target-min);
+  height: var(--touch-target-min);
+  min-height: var(--touch-target-min);
+  padding: 0;
+  border-color: transparent;
+  background: transparent;
+  color: var(--color-text-secondary);
+  outline: none;
+  box-shadow: none;
+}
+
+.wfh-schedule-screen .section-head .toolbar > button:hover:not(:disabled),
+html[data-theme] .wfh-schedule-screen.work-item-screen .section-head .toolbar > button:hover:not(:disabled) {
+  padding: 0;
+  border-color: var(--color-border-strong);
+  background: var(--color-control-hover);
+  color: var(--color-text-primary);
+  outline: none;
+  box-shadow: none;
+}
+
+.wfh-schedule-screen .section-head .toolbar > button:disabled {
+  border-color: transparent;
+  background: transparent;
+  color: var(--color-text-disabled);
+}
+
+.wfh-schedule-screen .section-head .toolbar > button .button-icon {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  min-width: 0;
+  font-size: 18px;
+  line-height: 1;
+}
+
+.wfh-schedule-screen .section-head .toolbar > button .button-svg-icon {
+  width: 18px;
+  height: 18px;
+}
+
+.wfh-schedule-screen .section-head .toolbar > button .button-icon + span {
+  display: none;
+}
+
+html[data-theme] .wfh-schedule-screen.work-item-screen .work-item-table .icon-action {
+  width: var(--touch-target-min);
+  min-width: var(--touch-target-min);
+  height: var(--touch-target-min);
+  min-height: var(--touch-target-min);
+  border-color: transparent;
+  background: transparent;
+  color: var(--color-text-secondary);
+  font-size: 18px;
+  box-shadow: none;
+}
+
+html[data-theme] .wfh-schedule-screen.work-item-screen .work-item-table .icon-action:hover:not(:disabled) {
+  border-color: var(--color-border-strong);
+  background: var(--color-control-hover);
+  color: var(--color-text-primary);
+  box-shadow: none;
+}
+
+.wfh-schedule-screen .work-item-table .icon-action .button-icon {
+  font-size: 18px;
+}
+
+.wfh-schedule-screen .work-item-table .icon-action .button-svg-icon {
+  width: 18px;
+  height: 18px;
+}
+
 .wfh-schedule-panel {
   min-width: 0;
 }
 
 .wfh-schedule-table {
-  min-width: 900px;
+  min-width: 760px;
 }
 
-.wfh-schedule-table tbody[data-reorder-list="wfh-schedule"] tr {
+.wfh-member-column {
+  width: 300px;
+}
+
+.wfh-days-column {
+  width: 210px;
+}
+
+.wfh-fill-column {
+  width: auto;
+}
+
+.wfh-action-column {
+  width: 136px;
+}
+
+.wfh-schedule-table tbody[data-reorder-list="wfh-schedule"] tr[data-can-drag="true"] {
+  cursor: grab;
   touch-action: none;
+}
+
+.wfh-schedule-table tbody[data-reorder-list="wfh-schedule"] tr[data-can-drag="true"]:active {
+  cursor: grabbing;
 }
 
 .wfh-schedule-table tr.is-hidden td {
@@ -17,33 +146,59 @@
   background: var(--color-surface-subtle);
 }
 
+.wfh-member {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
 .wfh-avatar {
   display: block;
+  flex: 0 0 auto;
+}
+
+.wfh-member-text {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-1);
+}
+
+.wfh-member-name,
+html[data-theme="light"] .wfh-schedule-screen.work-item-screen .wfh-member-name {
+  color: var(--color-text-secondary);
+}
+
+.wfh-member-role {
+  color: var(--color-text-primary);
+}
+
+.wfh-member-text span {
+  color: var(--color-text-primary);
+  overflow-wrap: anywhere;
 }
 
 .wfh-deleted-pill {
-  margin-left: var(--space-2);
+  width: max-content;
+  margin-top: var(--space-1);
   color: var(--color-danger-text);
   border-color: var(--color-danger-border);
   background: var(--color-danger-surface);
 }
 
 .wfh-days-cell {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-4);
-  min-width: 300px;
+  min-width: 0;
 }
 
-.wfh-day-buttons,
-.wfh-row-actions {
+.wfh-day-buttons {
   display: inline-flex;
   align-items: center;
-  gap: var(--space-2);
+  gap: var(--space-3);
+  white-space: nowrap;
 }
 
 .wfh-day-button {
+  position: relative;
   display: inline-grid;
   place-items: center;
   width: 32px;
@@ -52,24 +207,51 @@
   min-height: 32px;
   padding: 0;
   border-radius: var(--radius-sm);
-  font-weight: var(--font-weight-bold);
+  border-color: transparent;
+  background: transparent;
+  color: var(--color-text-secondary);
 }
 
 .wfh-day-button.is-on {
-  border-color: color-mix(in srgb, var(--color-primary), var(--color-border-strong) 28%);
-  background: var(--color-control-selected);
-  color: var(--color-text-primary);
+  border-color: transparent;
+  background: transparent;
+  color: var(--color-primary);
 }
 
-.wfh-row-actions .wfh-drag-handle {
+html[data-theme="dark"] .wfh-day-button.is-on[aria-pressed="true"] {
+  border-color: transparent;
+  background-color: transparent !important;
+  color: var(--color-primary);
+}
+
+.wfh-day-button.is-on::after {
+  content: "";
+  position: absolute;
+  right: 6px;
+  bottom: 3px;
+  left: 6px;
+  height: 2px;
+  border-radius: var(--radius-pill);
+  background: var(--color-primary);
+}
+
+.wfh-day-button:disabled {
+  cursor: default;
+}
+
+.wfh-day-button.is-on:disabled {
+  color: var(--color-primary);
+  opacity: 1;
+}
+
+.wfh-schedule-screen .wfh-drag-handle {
   opacity: 1;
   pointer-events: auto;
 }
 
 @media (max-width: 900px) {
-  .wfh-days-cell {
+  .wfh-member {
     align-items: flex-start;
     flex-direction: column;
-    min-width: 0;
   }
 }

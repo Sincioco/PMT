@@ -146,3 +146,5 @@ For all of this conversation / session, I will perform all the manual tests and 
 
 For all of this conversation / session, I will perform all the manual tests and compile the application manually.  Perform only the coding changes required and nothing else.
 * There is a security bug.  If I log on as Bill Gates and go to the Scrum, I can edit and delete other people's Scrum entries.  Bill Gates is not an Admin.  He should only be able to edit and delete his own entries.
+* Can you change the Documentation icon to something else?
+* Update WFH Schedule screen so it more closely conform to the way the Dev Task screen works.  There is no need to add a Filter button on this scren as it is meant to only show a Team members.

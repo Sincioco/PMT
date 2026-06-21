@@ -22,7 +22,7 @@ import {
   readNavigationConfig,
   resetNavigationConfig,
   writeNavigationConfig
-} from "../../core/navigation-preferences.js?v=20260621-settings-avatar-only";
+} from "../../core/navigation-preferences.js?v=20260621-bug-icon";
 import {
   clearPmtPreferences,
   preferenceKeys,

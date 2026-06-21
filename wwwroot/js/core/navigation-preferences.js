@@ -118,11 +118,19 @@ export function navIconHtml(view) {
     Projects: "&#9635;",
     Sprints: "&#8635;",
     Tasks: "&#10003;",
-    Bugs: "&#9888;",
+    Bugs: bugIconHtml(),
     Scrum: "&#9719;",
-    Documentation: "&#128196;",
+    Documentation: "&#128214;",
     "WFH Schedule": "&#8962;",
     Settings: "&#9881;"
   };
   return icons[view] || "&#9679;";
+}
+
+function bugIconHtml() {
+  return `
+    <svg class="button-svg-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path d="M8 9h8M7 13H4M20 13h-3M8 17H5M19 17h-3M9 5l-2-2M15 5l2-2M8 7h8v10a4 4 0 0 1-8 0V7z"></path>
+    </svg>
+  `;
 }
