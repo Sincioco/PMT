@@ -59,3 +59,7 @@ Universal UI Change Theme Change
 1.) Universally in all buttons and dialog boxes across PMT both light and dark mode, remove the blue (primary class).  I don't want any buttons with a background.
 2.) Universally, in all checkboxes, make sure that checkbox is vertically centered to the label that follows it (height-wise) and factoring the height of an image like an avatar if one is rendered before the label.  Currently, when a checkbox is rendered followed by an avatar and a label, the checkbox remains vertically aligned to the top.  The avatar image is rendered correctly which is vertically centered.
 3.) Record in a separate file called "paper-design.md" in the docs that lists everything you remember about the "Paper Design" principle that we have been building.  Update the ui-design-system.md in docs and refer to the "paper-design.md" as the final authority in UI/UX behavior, meaning, it should supersede/override any previous UI principle.  And when in doubt, follow what is in the "paper-design.md" file.  And whenever I mention a new rule/logic/principle regarding "Paper Design" that is now recorded in the "paper-design.md" always add it in the future, remember this.
+
+Bug Tracking Screen
+-------------------
+1.) Without breaking or touching anything in the Dev Task screen, mirror the Dev Task Screen onto the Bug Tracking Screen to include behavior, theme, UI/UX, chart behavior, table row behavior, etc. so that the two screens appear to share the same code sharing the same design (UI/UX) principles.

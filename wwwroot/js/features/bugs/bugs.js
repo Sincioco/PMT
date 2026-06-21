@@ -1,11 +1,10 @@
 import { taskRowAvatarsHtml } from "../../components/avatars.js";
-import { buttonContent, funnelIconHtml } from "../../components/buttons.js";
+import { bugIconHtml, buttonContent, chartIconHtml, funnelIconHtml } from "../../components/buttons.js?v=20260621-bug-screen-parity";
 import { VisualCharts } from "../../components/charts.js";
 import {
   checkedFilterValues,
-  filterCheckList,
-  filterSelect
-} from "../../components/filters.js";
+  filterCheckList
+} from "../../components/filters.js?v=20260621-task-filter-layout";
 import {
   checkList,
   checkedNumbers,
@@ -29,10 +28,9 @@ import {
   showTaskAudit,
   taskAuditPanelHtml,
   taskButtonsHtml,
-  taskDragHandleHtml,
   taskPercentField,
   uploadWorkItemAttachments
-} from "../../components/work-items.js?v=20260620-shared-table-edit-mode";
+} from "../../components/work-items.js?v=20260621-bug-screen-parity";
 import { currentUserId } from "../../core/authentication.js";
 import {
   preferenceKeys,
@@ -87,7 +85,6 @@ export function createBugsFeature({
   saveJson
 }) {
   let bugFilters = readJsonPreference(preferenceKeys.bugFilters, {});
-  let bugFiltersVisible = readBooleanPreference(preferenceKeys.bugFiltersVisible, false);
   let bugVisualChartsVisible = readBooleanPreference(preferenceKeys.bugVisualChartsVisible, true);
   let bugEntryProjectId = readNumberPreference(preferenceKeys.bugEntryProject, 0);
   let bugEntrySprintId = readPreference(preferenceKeys.bugEntrySprint, "");
@@ -105,41 +102,27 @@ export function createBugsFeature({
   bugFilters.sprintId = savedBugSprintId || (bugFilters.projectId ? "" : "all");
 
   function renderBugs() {
-    const statuses = getStatuses();
-    const priorities = getPriorities();
-    const severities = getSeverities();
-    const environments = getEnvironments();
     const sprintFilterSprints = bugSprintFilterSprints();
     ensureBugSprintFilter(sprintFilterSprints);
-    const filteredBugs = filteredBugReports();
-    const canShowCharts = filteredBugs.length > 0;
+    const allProjectBugs = state.tasks
+      .filter(task => task.taskType === "Bug")
+      .filter(bug => !bugFilters.projectId || bug.projectId === Number(bugFilters.projectId));
+    const baseBugs = allProjectBugs
+      .filter(bug => !bugFilters.sprintId || bugFilters.sprintId === "all" || bug.sprintId === Number(bugFilters.sprintId));
+    const filteredBugs = filteredBugReports(baseBugs);
+    const canShowCharts = allProjectBugs.length > 0;
     const showCharts = canShowCharts && bugVisualChartsVisible;
-    const filterToggleLabel = bugFiltersVisible ? "Hide Filters" : "Show Filters";
     const chartToggleLabel = showCharts ? "Hide Charts" : "Show Charts";
 
     app.innerHTML = `
       <section class="bugs-screen work-item-screen">
       ${sectionHead("Bug Tracking", `
+        <button class="primary text-icon-button" type="button" data-action="new-bug" title="New Bug Report" aria-label="New Bug Report">${buttonContent(bugIconHtml(), "New Bug Report")}</button>
         ${bugTableMode.buttonHtml()}
-        <button class="secondary text-icon-button ${bugFiltersVisible ? "is-on" : ""}" type="button" data-action="toggle-bug-filters" aria-pressed="${bugFiltersVisible}">${buttonContent(funnelIconHtml(), filterToggleLabel)}</button>
-        <button class="secondary text-icon-button ${showCharts ? "is-on" : ""}" type="button" data-action="toggle-bug-visual-charts" aria-pressed="${showCharts}" ${canShowCharts ? "" : "disabled"}>${buttonContent("&#128202;", chartToggleLabel)}</button>
-        <button class="primary text-icon-button" type="button" data-action="new-bug">${buttonContent("&#9888;", "New Bug Report")}</button>
+        <button class="secondary text-icon-button" type="button" data-action="toggle-bug-visual-charts" title="${chartToggleLabel}" aria-label="${chartToggleLabel}" aria-pressed="${showCharts}" ${canShowCharts ? "" : "disabled"}>${buttonContent(chartIconHtml(), chartToggleLabel)}</button>
+        <button class="secondary text-icon-button" type="button" data-action="open-bug-filters" title="Filters" aria-label="Filters" aria-haspopup="dialog">${buttonContent(funnelIconHtml(), "Filters")}</button>
       `)}
-      ${bugFiltersVisible ? `<div class="panel work-item-filter-panel bugs-filter-panel">
-        <div class="filter-row bug-filter-row">
-          ${filterSelect("Project", "bug-project", state.projects.map(project => ({ value: project.id, text: `${project.code} - ${project.title}` })), bugFilters.projectId || "", "All projects")}
-          ${bugSprintFilterHtml(sprintFilterSprints)}
-          ${filterSelect("Status", "bug-status", statuses.map(value => ({ value, text: value })), bugFilters.status || "", "All statuses")}
-          ${filterSelect("Priority", "bug-priority", priorities.map(value => ({ value, text: value })), bugFilters.priority || "", "All priorities")}
-          ${filterSelect("Severity", "bug-severity", severities.map(value => ({ value, text: value })), bugFilters.severity || "", "All severities")}
-          ${filterSelect("Environment", "bug-environment", environments.map(value => ({ value, text: value })), bugFilters.environment || "", "All environments")}
-        </div>
-        <div class="filter-stack">
-          ${filterCheckList("Reporter", "bug-reporter", state.users.map(user => ({ value: user.id, text: user.nickname })), bugFilters.reporterIds)}
-          ${filterCheckList("Assignee", "bug-assignee", state.users.map(user => ({ value: user.id, text: user.nickname })), bugFilters.assigneeIds)}
-        </div>
-      </div>` : ""}
-      ${showCharts ? bugVisualTrackingChartsHtml(filteredBugs) : ""}
+      ${showCharts ? bugVisualTrackingChartsHtml(baseBugs, allProjectBugs) : ""}
       <div class="panel work-item-table-panel bugs-table-panel">
         <table class="table work-item-table bugs-table ${bugTableMode.active ? "is-edit-mode" : "is-read-mode"}">
           <colgroup>
@@ -172,15 +155,17 @@ export function createBugsFeature({
                 <td>${taskRowAvatarsHtml(bug.reporters)}</td>
                 <td>${taskRowAvatarsHtml(bug.assignees)}</td>
                 <td class="work-item-title-cell">
-                  <strong class="work-item-code">${escapeHtml(bug.code)}</strong>
+                  <span class="work-item-code-line">
+                    <strong class="work-item-code">${escapeHtml(bug.code)}</strong>
+                  </span>
                   <span class="work-item-title">${escapeHtml(bug.title)}</span>
                 </td>
-                <td class="work-item-context-cell">${escapeHtml(projectName(bug.projectId))}</td>
+                <td class="work-item-context-cell bug-project-cell">${escapeHtml(projectName(bug.projectId))}</td>
                 <td class="work-item-context-cell">${escapeHtml(sprintName(bug.sprintId))}</td>
                 <td class="work-item-context-cell">${escapeHtml(bug.status)}</td>
                 <td><span class="pill severity-${escapeAttr(bug.severity)}">${escapeHtml(bug.severity || "")}</span></td>
                 <td><span class="pill priority-${escapeAttr(bug.priority)}">${escapeHtml(bug.priority)}</span></td>
-                ${bugTableMode.active ? `<td class="reveal-actions action-cell">${taskButtonsHtml(bug, { includeView: false })}${taskDragHandleHtml(bug)}</td>` : ""}
+                ${bugTableMode.active ? `<td class="reveal-actions action-cell">${taskButtonsHtml(bug, { includeView: false, monochrome: true })}</td>` : ""}
               </tr>
             `).join("") || `<tr><td colspan="${bugTableMode.active ? 9 : 8}"><div class="empty">No bug reports match these filters.</div></td></tr>`}
           </tbody>
@@ -202,10 +187,8 @@ export function createBugsFeature({
       renderBugs();
       return true;
     }
-    if (action === "toggle-bug-filters") {
-      bugFiltersVisible = !bugFiltersVisible;
-      writePreference(preferenceKeys.bugFiltersVisible, bugFiltersVisible);
-      renderBugs();
+    if (action === "open-bug-filters" || action === "toggle-bug-filters") {
+      openBugFiltersDialog();
       return true;
     }
     if (action === "toggle-bug-visual-charts") {
@@ -236,6 +219,104 @@ export function createBugsFeature({
 
   function handleFilterChange(eventOrTarget) {
     const target = eventOrTarget?.target || eventOrTarget;
+    if (!applyBugFilterChange(target)) return false;
+
+    renderBugs();
+    return true;
+  }
+
+  function openBugFiltersDialog() {
+    const existingDialog = document.querySelector("[data-bug-filter-dialog]");
+    if (existingDialog) {
+      if (!existingDialog.open) existingDialog.showModal?.();
+      existingDialog.querySelector("[data-filter='bug-project']")?.focus({ preventScroll: true });
+      return;
+    }
+
+    const modal = document.createElement("dialog");
+    modal.className = "dialog bug-filter-dialog";
+    modal.dataset.bugFilterDialog = "true";
+    modal.innerHTML = `
+      <form method="dialog">
+        <div class="dialog-head">
+          <h2>Bug Tracking Filters</h2>
+          <button type="button" class="icon-btn" data-close-bug-filters title="Close" aria-label="Close">x</button>
+        </div>
+        <div class="dialog-body bug-filter-dialog-body" data-bug-filter-dialog-body></div>
+        <div class="dialog-actions">
+          <button type="button" class="primary text-icon-button" data-close-bug-filters>${buttonContent("&#10003;", "Apply Filter")}</button>
+        </div>
+      </form>
+    `;
+
+    renderBugFiltersDialog(modal);
+    document.body.appendChild(modal);
+    modal.addEventListener("change", event => {
+      const target = event.target;
+      const filter = target?.dataset?.filter || "";
+      if (!applyBugFilterChange(target)) return;
+
+      renderBugs();
+      if (filter === "bug-project") {
+        renderBugFiltersDialog(modal);
+        modal.querySelector("[data-filter='bug-project']")?.focus({ preventScroll: true });
+      }
+    });
+    modal.addEventListener("click", event => {
+      if (event.target.closest("[data-close-bug-filters]")) modal.close();
+    });
+    modal.addEventListener("close", () => modal.remove());
+    modal.showModal();
+    modal.querySelector("[data-filter='bug-project']")?.focus({ preventScroll: true });
+  }
+
+  function renderBugFiltersDialog(modal) {
+    const body = modal.querySelector("[data-bug-filter-dialog-body]");
+    if (body) body.innerHTML = bugFilterFieldsHtml();
+  }
+
+  function bugFilterFieldsHtml() {
+    const sprintFilterSprints = bugSprintFilterSprints();
+
+    return `
+      <div class="bugs-filter-panel">
+        <div class="bug-filter-row">
+          ${bugFilterSelectHtml("Project", "bug-project", state.projects.map(project => ({ value: project.id, text: `${project.code} - ${project.title}` })), bugFilters.projectId || "", "All Projects")}
+          ${bugSprintFilterHtml(sprintFilterSprints)}
+          ${bugFilterSelectHtml("Status", "bug-status", getStatuses().map(value => ({ value, text: value })), bugFilters.status || "", "All Statuses")}
+          ${bugFilterSelectHtml("Priority", "bug-priority", getPriorities().map(value => ({ value, text: value })), bugFilters.priority || "", "All Priorities")}
+          ${bugFilterSelectHtml("Severity", "bug-severity", getSeverities().map(value => ({ value, text: value })), bugFilters.severity || "", "All Severities")}
+          ${bugFilterSelectHtml("Environment", "bug-environment", getEnvironments().map(value => ({ value, text: value })), bugFilters.environment || "", "All Environments")}
+        </div>
+        <div class="filter-stack">
+          ${filterCheckList("Reporter", "bug-reporter", state.users.map(user => ({
+            value: user.id,
+            text: user.nickname,
+            avatarUrl: user.avatarUrl
+          })), bugFilters.reporterIds)}
+          ${filterCheckList("Assignee", "bug-assignee", state.users.map(user => ({
+            value: user.id,
+            text: user.nickname,
+            avatarUrl: user.avatarUrl
+          })), bugFilters.assigneeIds)}
+        </div>
+      </div>
+    `;
+  }
+
+  function bugFilterSelectHtml(label, filterName, items, selectedValue, emptyText) {
+    return `
+      <label>
+        <span>${escapeHtml(label)}</span>
+        <select data-filter="${filterName}">
+          <option value="">${escapeHtml(emptyText)}</option>
+          ${items.map(item => `<option value="${escapeAttr(item.value)}" ${String(item.value) === String(selectedValue) ? "selected" : ""}>${escapeHtml(item.text)}</option>`).join("")}
+        </select>
+      </label>
+    `;
+  }
+
+  function applyBugFilterChange(target) {
     const filter = target?.dataset?.filter;
     if (!filter?.startsWith("bug-")) return false;
 
@@ -255,7 +336,6 @@ export function createBugsFeature({
     if (key === "assignee") bugFilters.assigneeIds = checkedFilterValues("bug-assignee");
 
     writeJsonPreference(preferenceKeys.bugFilters, bugFilters);
-    renderBugs();
     return true;
   }
 
@@ -294,8 +374,8 @@ export function createBugsFeature({
       || (environments.includes(bugEntryEnvironment) ? bugEntryEnvironment : "SIT");
     const sameProjectTasks = dependencyCandidates(projectId, bug.id);
 
-    openEditor(workItemEditorTitle(bug, "Bug", "New Bug Report"), `
-      <div class="form-grid">
+    openEditor(workItemEditorTitle(bug, "New Bug Report"), `
+      <div class="form-grid bug-editor-grid">
         ${bug.id ? taskAuditPanelHtml(bug) : ""}
         ${selectField("Project", "projectId", state.projects, projectId)}
         ${field("Title", "title", bug.title || "", "text")}
@@ -313,8 +393,10 @@ export function createBugsFeature({
         ${richTextField("actualResultHtml", "Actual Result", bug.actualResultHtml || "")}
         ${richTextField("expectedResultHtml", "Expected Result", bug.expectedResultHtml || "")}
         ${attachmentEditorFieldHtml()}
-        ${checkList("Reporters", "reporterIds", state.users, reporterIdsOrDefault(bug.reporterIds, currentUserId), item => item.nickname, { className: "scroll-check-list avatar-check-list", renderItem: userCheckListLabelHtml })}
-        <div data-assignee-list></div>
+        <div class="bug-reporter-list">
+          ${checkList("Reporters", "reporterIds", state.users, reporterIdsOrDefault(bug.reporterIds, currentUserId), item => item.nickname, { className: "scroll-check-list avatar-check-list", renderItem: userCheckListLabelHtml })}
+        </div>
+        <div class="bug-assignee-list" data-assignee-list></div>
         ${checkList("Dependencies", "dependencyTaskIds", sameProjectTasks, bug.dependencyTaskIds || [], item => `${item.code} ${item.title}`, { className: "scroll-check-list dependency-check-list" })}
       </div>
     `, async root => {
@@ -357,11 +439,8 @@ export function createBugsFeature({
     }, "title", root => bindAssigneeList(root, bug.assigneeIds || [], bug.id ? "Assignees" : "Assignees (Optional)"));
   }
 
-  function filteredBugReports() {
-    return state.tasks
-      .filter(task => task.taskType === "Bug")
-      .filter(bug => !bugFilters.projectId || bug.projectId === Number(bugFilters.projectId))
-      .filter(bug => !bugFilters.sprintId || bugFilters.sprintId === "all" || bug.sprintId === Number(bugFilters.sprintId))
+  function filteredBugReports(bugs) {
+    return bugs
       .filter(bug => !bugFilters.status || bug.status === bugFilters.status)
       .filter(bug => !bugFilters.priority || bug.priority === bugFilters.priority)
       .filter(bug => !bugFilters.severity || bug.severity === bugFilters.severity)
@@ -371,12 +450,12 @@ export function createBugsFeature({
       .sort(taskOrderCompare);
   }
 
-  function bugVisualTrackingChartsHtml(filteredBugs) {
-    const sprintRows = bugSprintChartRows(filteredBugs);
+  function bugVisualTrackingChartsHtml(sprintFilterBugs, allProjectBugs) {
+    const sprintRows = bugSprintChartRows(allProjectBugs);
     const charts = [
-      bugSeverityPieChartHtml(filteredBugs),
+      bugSeverityPieChartHtml(sprintFilterBugs),
       bugTrendLineChartHtml(sprintRows),
-      bugCurrentSprintPieChartHtml(filteredBugs),
+      bugCurrentSprintPieChartHtml(sprintFilterBugs),
       bugReportedResolvedColumnChartHtml(sprintRows)
     ].filter(Boolean);
 
@@ -388,23 +467,8 @@ export function createBugsFeature({
 
   function bugCurrentSprintPieChartHtml(filteredBugs) {
     const selectedSprint = selectedBugSprint();
-    const chartSprints = selectedSprint ? [selectedSprint] : bugChartCurrentSprints();
-    const chartSprintIds = new Set(chartSprints.map(sprint => sprint.id));
-    const chartBugs = selectedSprint
-      ? filteredBugs
-      : filteredBugs.filter(bug => chartSprintIds.has(bug.sprintId));
-    const resolvedBugs = chartBugs.filter(isBugQaPassedOrLater);
-    const openBugs = chartBugs.filter(bug => !isBugQaPassedOrLater(bug));
-    const title = selectedSprint ? "Selected Sprint Bug Mix" : "Current Sprint Bug Mix";
-
-    if (!chartSprints.length) {
-      return VisualCharts.card({
-        title,
-        subtitle: "No current Sprint is available for the selected project filter.",
-        className: "bug-chart-card bug-pie-chart-card bug-mix-chart-card",
-        body: `<div class="empty compact-empty">No current Sprint was found.</div>`
-      });
-    }
+    const resolvedBugs = filteredBugs.filter(isBugQaPassedOrLater);
+    const openBugs = filteredBugs.filter(bug => !isBugQaPassedOrLater(bug));
 
     const items = [
       bugChartGroupedItem("Resolved", resolvedBugs, "var(--green)", `Resolved: ${resolvedBugs.length} bug report${resolvedBugs.length === 1 ? "" : "s"}`),
@@ -412,12 +476,12 @@ export function createBugsFeature({
     ].filter(item => item.value > 0);
 
     return VisualCharts.card({
-      title,
-      subtitle: chartSprints.map(sprint => sprint.code).join(", "),
+      title: "Sprint Bug Mix",
+      subtitle: bugChartContextSubtitle(selectedSprint),
       className: "bug-chart-card bug-pie-chart-card bug-mix-chart-card",
-      body: VisualCharts.pieChart(items, `${chartBugs.length} total`, "No bugs match the current Sprint filter.", {
+      body: VisualCharts.pieChart(items, `${filteredBugs.length} total`, "No bugs match the selected Sprint filter.", {
         donut: true,
-        centerValue: String(chartBugs.length),
+        centerValue: String(filteredBugs.length),
         centerLabel: "Total"
       })
     });
@@ -425,19 +489,11 @@ export function createBugsFeature({
 
   function bugTrendLineChartHtml(sprintRows) {
     if (!sprintRows.length) return null;
-    const newestSprintRows = [...sprintRows].sort((a, b) => {
-      if (!a.sprintId) return 1;
-      if (!b.sprintId) return -1;
-      const sprintA = sprintById(a.sprintId);
-      const sprintB = sprintById(b.sprintId);
-      const aTime = sprintA ? getItemStartDate(sprintA)?.getTime() || 0 : 0;
-      const bTime = sprintB ? getItemStartDate(sprintB)?.getTime() || 0 : 0;
-      return bTime - aTime || b.label.localeCompare(a.label);
-    });
+    const newestSprintRows = newestBugSprintRows(sprintRows);
 
     return VisualCharts.card({
       title: "Bug Trend by Sprint",
-      subtitle: "Line graph compares reported versus resolved bugs over time.",
+      subtitle: bugSprintHistorySubtitle(),
       className: "bug-chart-card bug-trend-chart-card",
       body: VisualCharts.lineChart(newestSprintRows, [
         { key: "reported", label: "Reported", color: "var(--rose)" },
@@ -448,12 +504,13 @@ export function createBugsFeature({
 
   function bugReportedResolvedColumnChartHtml(sprintRows) {
     if (!sprintRows.length) return null;
+    const newestSprintRows = newestBugSprintRows(sprintRows);
 
     return VisualCharts.card({
       title: "Reported vs Resolved by Sprint",
-      subtitle: "Grouped column chart shows throughput per Sprint.",
+      subtitle: bugSprintHistorySubtitle(),
       className: "bug-chart-card bug-sprint-chart-card",
-      body: VisualCharts.columnChart(sprintRows, [
+      body: VisualCharts.columnChart(newestSprintRows, [
         { key: "reported", label: "Reported", color: "var(--rose)" },
         { key: "resolved", label: "Resolved", color: "var(--green)" },
         { key: "open", label: "Open", color: "var(--amber)" }
@@ -476,7 +533,7 @@ export function createBugsFeature({
 
     return VisualCharts.card({
       title: "Bug Severity Share",
-      subtitle: bugSprintFilterSubtitle(),
+      subtitle: bugChartContextSubtitle(selectedBugSprint()),
       className: "bug-chart-card bug-pie-chart-card bug-severity-chart-card",
       body: VisualCharts.pieChart(items, `${filteredBugs.length} total`, "No severity data is available.", { donut: false })
     });
@@ -534,14 +591,16 @@ export function createBugsFeature({
     });
   }
 
-  function bugChartCurrentSprints() {
-    const projectIds = bugFilters.projectId
-      ? [Number(bugFilters.projectId)]
-      : state.projects.map(project => project.id);
-
-    return projectIds
-      .map(projectId => getCurrentSprint(state.sprints.filter(sprint => sprint.projectId === projectId)))
-      .filter(Boolean);
+  function newestBugSprintRows(sprintRows) {
+    return [...sprintRows].sort((a, b) => {
+      if (!a.sprintId) return 1;
+      if (!b.sprintId) return -1;
+      const sprintA = sprintById(a.sprintId);
+      const sprintB = sprintById(b.sprintId);
+      const aTime = sprintA ? getItemStartDate(sprintA)?.getTime() || 0 : 0;
+      const bTime = sprintB ? getItemStartDate(sprintB)?.getTime() || 0 : 0;
+      return bTime - aTime || b.label.localeCompare(a.label);
+    });
   }
 
   function bugSprintFilterSprints() {
@@ -581,22 +640,50 @@ export function createBugsFeature({
 
   function bugSprintFilterLabel(sprint) {
     const sprintTitle = sprint.title ? ` - ${sprint.title}` : "";
-    return bugFilters.projectId
-      ? `${sprint.code}${sprintTitle}`
-      : `${projectCode(sprint.projectId)} ${sprint.code}${sprintTitle}`;
+    if (bugFilters.projectId) return `${sprint.code}${sprintTitle}`;
+
+    const project = projectById(sprint.projectId);
+    return project
+      ? `${project.code} - ${bugChartSprintLabel(sprint, project)}${sprintTitle}`
+      : `${projectCode(sprint.projectId)} - ${sprint.code}${sprintTitle}`;
   }
 
-  function bugSprintFilterSubtitle() {
-    const selectedSprint = selectedBugSprint();
-    if (selectedSprint) return selectedSprint.code;
-    return "All Sprints";
+  function bugChartContextSubtitle(selectedSprint) {
+    if (!bugFilters.projectId && bugFilters.sprintId === "all") return "All Projects and All Sprints";
+
+    const project = selectedSprint
+      ? projectById(selectedSprint.projectId)
+      : projectById(Number(bugFilters.projectId || 0));
+    const sprintLabel = bugFilters.sprintId === "all"
+      ? "All Sprints"
+      : bugChartSprintLabel(selectedSprint, project);
+
+    return project ? `${project.code} - ${sprintLabel}` : sprintLabel;
+  }
+
+  function bugChartSprintLabel(sprint, project) {
+    if (!sprint) return "No Sprint";
+    if (!project?.code) return sprint.code;
+
+    const prefix = `${project.code}-`;
+    return sprint.code.toLowerCase().startsWith(prefix.toLowerCase())
+      ? sprint.code.slice(prefix.length)
+      : sprint.code;
+  }
+
+  function bugSprintHistorySubtitle() {
+    if (!bugFilters.projectId && bugFilters.sprintId === "all") return "All Projects and All Sprints";
+
+    const project = projectById(Number(bugFilters.projectId || 0));
+    return project ? `${project.code} - All Sprints` : "All Sprints";
   }
 
   function sprintChartLabel(sprintId) {
     const sprint = sprintById(sprintId);
     if (!sprint) return "Unknown Sprint";
     const project = projectById(sprint.projectId);
-    return project ? `${project.code} ${sprint.code}` : sprint.code;
+    if (bugFilters.projectId || !project) return sprint.code;
+    return `${project.code} - ${bugChartSprintLabel(sprint, project)}`;
   }
 
   function bugSeverityColor(severity) {
@@ -609,14 +696,19 @@ export function createBugsFeature({
     return colors[severity] || "var(--chart-7)";
   }
 
-  function workItemEditorTitle(item, itemType, newTitle) {
+  function workItemEditorTitle(item, newTitle) {
     if (!item?.id) return newTitle;
-    const code = item.code ? ` ${item.code}` : "";
-    const title = item.title ? `: ${item.title}` : "";
-    return `${itemType}${code}${title}`;
+    return [item.code, item.title].filter(Boolean).join(" - ");
   }
 
   function deactivateBugs() {
+    document.querySelectorAll("[data-bug-filter-dialog]").forEach(dialog => {
+      if (dialog.open) {
+        dialog.close();
+      } else {
+        dialog.remove();
+      }
+    });
     bugTableMode.deactivate();
   }
 

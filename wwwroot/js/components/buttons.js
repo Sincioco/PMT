@@ -23,6 +23,14 @@ export function chartIconHtml() {
   `;
 }
 
+export function bugIconHtml() {
+  return `
+    <svg class="button-svg-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path d="M8 9h8M7 13H4M20 13h-3M8 17H5M19 17h-3M9 5l-2-2M15 5l2-2M8 7h8v10a4 4 0 0 1-8 0V7z"></path>
+    </svg>
+  `;
+}
+
 export function iconButton(action, id, title, icon, enabled = true, extraClass = "") {
   const icons = {
     view: "&#128065;",

@@ -66,12 +66,14 @@ tbody.drop-target {
 }
 
 tbody[data-reorder-list="tasks"] tr[data-task-id][data-can-drag="true"],
+tbody[data-reorder-list="bugs"] tr[data-task-id][data-can-drag="true"],
 tbody[data-reorder-list="backlog"] tr[data-task-id][data-can-drag="true"] {
   cursor: grab;
   touch-action: none;
 }
 
 tbody[data-reorder-list="tasks"] tr[data-task-id][data-can-drag="true"]:active,
+tbody[data-reorder-list="bugs"] tr[data-task-id][data-can-drag="true"]:active,
 tbody[data-reorder-list="backlog"] tr[data-task-id][data-can-drag="true"]:active {
   cursor: grabbing;
 }

@@ -11,7 +11,7 @@ import {
   bindAttachmentPreview,
   showTaskAudit,
   viewWorkItem
-} from "./components/work-items.js?v=20260621-task-dialog-title";
+} from "./components/work-items.js?v=20260621-bug-screen-parity";
 import { createApplicationShell } from "./core/application-shell.js?v=20260620-light-reference-1";
 import {
   currentView,
@@ -25,7 +25,7 @@ import {
 import { state } from "./core/store.js";
 import { createBacklogFeature } from "./features/backlog/backlog.js?v=20260620-bug-linked-task";
 import { createBoardFeature } from "./features/board/board.js?v=20260620-bug-linked-task";
-import { createBugsFeature } from "./features/bugs/bugs.js?v=20260620-bug-sprint-filter";
+import { createBugsFeature } from "./features/bugs/bugs.js?v=20260621-dev-task-parity";
 import { createDashboardFeature } from "./features/dashboard/dashboard.js?v=20260620-ui-theme";
 import { createDocumentationFeature } from "./features/documentation/documentation.js?v=20260620-document-entry-project";
 import {
@@ -447,7 +447,6 @@ function showBugChartDrilldown(title, bugIds) {
               <th>Status</th>
               <th>Severity</th>
               <th>Assignee</th>
-              <th></th>
             </tr>
           </thead>
           <tbody>
@@ -459,9 +458,6 @@ function showBugChartDrilldown(title, bugIds) {
                 <td><span class="pill">${escapeHtml(bug.status)}</span></td>
                 <td>${escapeHtml(bug.severity || "")}</td>
                 <td>${avatarsHtml(bug.assignees)}</td>
-                <td class="actions-cell">
-                  <button class="icon-action" type="button" data-action="view-task" data-id="${bug.id}" title="View Bug Report">&#128065;</button>
-                </td>
               </tr>
             `).join("")}
           </tbody>
@@ -672,10 +668,7 @@ function startTaskDrag(event, inputType) {
   const container = item?.closest('[data-reorder-list="tasks"], [data-reorder-list="bugs"], [data-reorder-list="backlog"]');
   if (!item || !container) return;
 
-  const dragHandle = event.target.closest("[data-drag-handle]");
-  const handleRequired = container.matches('[data-reorder-list="bugs"]');
-  if (handleRequired && (!dragHandle || !item.contains(dragHandle))) return;
-  if (!handleRequired && event.target.closest("button, a, input, select, textarea")) return;
+  if (event.target.closest("button, a, input, select, textarea")) return;
 
   pointerDrag = {
     taskId: Number(item.dataset.taskId || 0),

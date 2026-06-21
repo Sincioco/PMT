@@ -1,14 +1,232 @@
 /* CSS ownership: Bug Tracking screen. */
 
+.bugs-screen .section-head h1,
+html[data-theme="light"] .bugs-screen.work-item-screen .section-head h1 {
+  color: var(--color-text-secondary);
+}
+
+.bugs-screen .section-head .toolbar > button {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  width: var(--touch-target-min);
+  min-width: var(--touch-target-min);
+  height: var(--touch-target-min);
+  min-height: var(--touch-target-min);
+  padding: 0;
+  border-color: transparent;
+  background: transparent;
+  color: var(--color-text-secondary);
+  box-shadow: none;
+}
+
+html[data-theme] .bugs-screen.work-item-screen .section-head .toolbar > button,
+html[data-theme] .bugs-screen.work-item-screen .section-head .toolbar > button.primary,
+html[data-theme] .bugs-screen.work-item-screen .section-head .toolbar > button.secondary,
+html[data-theme] .bugs-screen.work-item-screen .section-head .toolbar > button.is-on,
+html[data-theme] .bugs-screen.work-item-screen .section-head .toolbar > button[aria-pressed="true"],
+html[data-theme] .bugs-screen.work-item-screen .section-head .toolbar > button:focus,
+html[data-theme] .bugs-screen.work-item-screen .section-head .toolbar > button:focus-visible,
+html[data-theme] .bugs-screen.work-item-screen .section-head .toolbar > button:active:not(:hover) {
+  width: var(--touch-target-min);
+  min-width: var(--touch-target-min);
+  height: var(--touch-target-min);
+  min-height: var(--touch-target-min);
+  padding: 0;
+  border-color: transparent;
+  background: transparent;
+  color: var(--color-text-secondary);
+  outline: none;
+  outline-width: 0;
+  box-shadow: none;
+}
+
+.bugs-screen .section-head .toolbar > button.primary,
+.bugs-screen .section-head .toolbar > button.secondary,
+.bugs-screen .section-head .toolbar > button.is-on,
+.bugs-screen .section-head .toolbar > button[aria-pressed="true"] {
+  border-color: transparent;
+  background: transparent;
+  color: var(--color-text-secondary);
+  outline: none;
+  outline-width: 0;
+  box-shadow: none;
+}
+
+.bugs-screen .section-head .toolbar > button:hover:not(:disabled),
+.bugs-screen .section-head .toolbar > button.primary:hover:not(:disabled),
+.bugs-screen .section-head .toolbar > button.secondary:hover:not(:disabled),
+.bugs-screen .section-head .toolbar > button.is-on:hover:not(:disabled),
+.bugs-screen .section-head .toolbar > button[aria-pressed="true"]:hover:not(:disabled),
+html[data-theme] .bugs-screen.work-item-screen .section-head .toolbar > button:hover:not(:disabled) {
+  padding: 0;
+  border-color: var(--color-border-strong);
+  background: var(--color-control-hover);
+  color: var(--color-text-primary);
+  outline: none;
+  outline-width: 0;
+  box-shadow: none;
+}
+
+.bugs-screen .section-head .toolbar > button:active:not(:disabled) {
+  background: var(--color-control-hover);
+  outline: none;
+  box-shadow: none;
+}
+
+.bugs-screen .section-head .toolbar > button:disabled {
+  border-color: transparent;
+  background: transparent;
+  color: var(--color-text-disabled);
+  outline: none;
+  outline-width: 0;
+  box-shadow: none;
+}
+
+.bugs-screen .section-head .toolbar > button .button-icon {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  min-width: 0;
+  font-size: 18px;
+  line-height: 1;
+  text-align: center;
+}
+
+.bugs-screen .section-head .toolbar > button .button-svg-icon {
+  width: 18px;
+  height: 18px;
+}
+
+.bugs-screen .section-head .toolbar > button .button-icon + span {
+  display: none;
+}
+
+.bug-filter-dialog {
+  width: min(var(--dialog-width-md), calc(100vw - 2 * var(--shell-padding-compact)));
+}
+
+.bug-filter-dialog .bug-filter-dialog-body {
+  gap: var(--space-6);
+}
+
 .bugs-filter-panel .bug-filter-row {
   display: grid;
-  grid-template-columns: repeat(6, minmax(140px, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-6) var(--space-7);
   align-items: end;
 }
 
-.bugs-filter-panel .bug-filter-row label,
+.bugs-filter-panel .bug-filter-row label {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-2);
+  align-items: stretch;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-md);
+  white-space: normal;
+}
+
 .bugs-filter-panel .bug-filter-row select {
   width: 100%;
+  min-width: 0;
+  max-width: none;
+}
+
+.bug-filter-dialog .filter-stack {
+  display: grid;
+  gap: var(--space-6);
+  margin-top: var(--space-5);
+}
+
+.bug-filter-dialog .filter-check-list {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-4) var(--space-6);
+  align-items: center;
+}
+
+.bug-filter-dialog .filter-check-list legend {
+  text-transform: none;
+}
+
+.bug-filter-dialog .filter-check-list label {
+  min-width: 0;
+}
+
+.bug-editor-grid {
+  column-gap: var(--space-9);
+  row-gap: var(--space-5);
+}
+
+.bug-editor-grid input[type="date"] {
+  height: var(--control-height-md);
+  min-height: var(--control-height-md);
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
+.bug-reporter-list,
+.bug-assignee-list {
+  grid-column: 1 / -1;
+  min-width: 0;
+}
+
+.bug-editor-grid .avatar-check-list {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-4) var(--space-6);
+  padding: var(--space-4);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-subtle);
+}
+
+.bug-editor-grid .check-list {
+  margin: 0;
+}
+
+.bug-editor-grid .check-list legend {
+  grid-column: 1 / -1;
+  padding: 0 var(--space-2);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-bold);
+  text-transform: none;
+}
+
+.bug-editor-grid .check-list label {
+  display: inline-grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  min-width: 0;
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-md);
+}
+
+.bug-editor-grid .check-list input[type="checkbox"] {
+  width: auto;
+  margin-top: 0;
+}
+
+.bug-editor-grid .check-list-label {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.bug-editor-grid .check-list-user {
+  display: flex;
+  width: 100%;
+}
+
+.bug-editor-grid .dependency-check-list {
+  gap: var(--space-4) var(--space-6);
+  align-items: center;
 }
 
 .bugs-table {
@@ -42,11 +260,63 @@
 }
 
 .bugs-action-column {
-  width: 272px;
+  width: 224px;
 }
 
 .bugs-table .work-item-title-cell {
   min-width: 310px;
+}
+
+.bugs-table .work-item-code-line {
+  display: flex;
+  align-items: center;
+  min-height: 18px;
+  margin-bottom: var(--space-1);
+}
+
+.bugs-table .work-item-code,
+.bugs-table .bug-project-cell,
+html[data-theme="light"] .bugs-screen.work-item-screen .work-item-table .work-item-code {
+  color: var(--color-text-secondary);
+}
+
+.bugs-table .work-item-code {
+  display: inline;
+  margin-bottom: 0;
+}
+
+html[data-theme] .bugs-screen.work-item-screen .work-item-table .icon-action {
+  width: var(--touch-target-min);
+  min-width: var(--touch-target-min);
+  height: var(--touch-target-min);
+  min-height: var(--touch-target-min);
+  border-color: transparent;
+  background: transparent;
+  color: var(--color-text-secondary);
+  font-size: 18px;
+  box-shadow: none;
+}
+
+html[data-theme] .bugs-screen.work-item-screen .work-item-table .icon-action:hover:not(:disabled) {
+  border-color: var(--color-border-strong);
+  background: var(--color-control-hover);
+  color: var(--color-text-primary);
+  box-shadow: none;
+}
+
+html[data-theme] .bugs-screen.work-item-screen .work-item-table .icon-action:disabled {
+  border-color: transparent;
+  background: transparent;
+  color: var(--color-text-disabled);
+}
+
+.bugs-screen .work-item-table .icon-action .button-icon {
+  font-size: 18px;
+}
+
+.bugs-screen .work-item-table .icon-action .button-svg-icon {
+  width: 18px;
+  height: 18px;
 }
 
 .bugs-chart-panel {
@@ -309,13 +579,11 @@
   }
 }
 
-@media (max-width: 1200px) {
-  .bugs-filter-panel .bug-filter-row {
-    grid-template-columns: repeat(3, minmax(150px, 1fr));
-  }
-}
-
 @media (max-width: 900px) {
+  .bug-editor-grid .avatar-check-list {
+    grid-template-columns: 1fr;
+  }
+
   .bugs-filter-panel .bug-filter-row {
     grid-template-columns: 1fr;
   }
