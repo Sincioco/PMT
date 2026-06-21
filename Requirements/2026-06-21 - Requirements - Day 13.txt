@@ -19,6 +19,11 @@ Dev Task Filter Dialog Box
 4.) In the Status, Priority and Assigned Sections, make those proper case and create a virtual 4-column layout in each of those sections and move the checkboxes so each checkbox falls into their respective columns and warps to the next row.
 5.) In the Assigned section, Render the person's avatar in between the checkbox and the name of the person.
 
+6.) In the Dev Task Filter Dialog Box, widen the Project dropdown so it is the same width as the Sort dropdown.
+7.) In the Dev Task Filter Dialog Box, render the checkbox for the "Hide Completed Dev Tasks" in the same line.  And if the text has to wrap, it should wrap not under the checkbox, but under the first word of the label.  Make this checkbox behavior a universal design of PMT as a part of the "Paper Design" UI principle.
+8.) Change the dialog box "Done" button in "Apply Filter" but keep the checkmark icon.
+9.) Update the close dialog box icon so that it is bigger, same size as the Dev Tasks page-level icons, and make the close icon not have a border unless the cursor hovers over it.  Make this a Universal change across all of PMT in both light and dark themes.  Again, make this a design principal of the "Paper Design" UI principle that PMT is using.
+
 Universal UI Change Theme Change
 --------------------------------
 1.) Universally in all buttons and dialog boxes across PMT both light and dark mode, remove the blue (primary class).  I don't want any buttons with a background.

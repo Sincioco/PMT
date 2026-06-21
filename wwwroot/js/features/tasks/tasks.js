@@ -1,7 +1,7 @@
 import { taskRowAvatarsHtml } from "../../components/avatars.js";
 import { buttonContent, chartIconHtml, funnelIconHtml } from "../../components/buttons.js?v=20260621-dev-task-icons";
 import { VisualCharts } from "../../components/charts.js?v=20260620-dev-task-charts";
-import { checkedFilterValues, filterCheckList } from "../../components/filters.js";
+import { checkedFilterValues, filterCheckList } from "../../components/filters.js?v=20260621-task-filter-layout";
 import {
   checkList,
   checkedNumbers,
@@ -322,7 +322,11 @@ export function createTasksFeature({
         <div class="filter-stack">
           ${filterCheckList("Status", "task-status", statuses.map(value => ({ value, text: value })), taskFilters.statuses)}
           ${filterCheckList("Priority", "task-priority", priorities.map(value => ({ value, text: value })), taskFilters.priorities)}
-          ${filterCheckList("Assigned", "task-assigned", state.users.map(user => ({ value: user.id, text: user.nickname })), taskFilters.assigneeIds)}
+          ${filterCheckList("Assigned", "task-assigned", state.users.map(user => ({
+            value: user.id,
+            text: user.nickname,
+            avatarUrl: user.avatarUrl
+          })), taskFilters.assigneeIds)}
         </div>
       </div>
     `;

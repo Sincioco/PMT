@@ -237,10 +237,10 @@ html[data-theme="light"] .work-item-screen .section-head .toolbar .secondary[ari
 }
 
 html[data-theme="light"] .work-item-screen .section-head .toolbar .primary {
-  border-color: var(--color-primary);
-  background: var(--color-primary);
-  color: var(--color-primary-contrast);
-  box-shadow: var(--shadow-accent);
+  border-color: var(--color-border-control);
+  background: transparent;
+  color: var(--color-text-primary);
+  box-shadow: none;
 }
 
 html[data-theme="light"] .work-item-screen .work-item-table-panel {

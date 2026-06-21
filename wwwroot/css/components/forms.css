@@ -105,9 +105,9 @@
 }
 
 input[type="file"]::file-selector-button {
-  border: 0;
+  border: var(--border-width) solid var(--color-border-control);
   border-radius: var(--radius-sm);
-  background: var(--color-control-selected);
+  background: transparent;
   color: var(--color-text-primary);
   padding: var(--space-3) var(--control-padding-inline-sm);
   margin-right: var(--space-5);

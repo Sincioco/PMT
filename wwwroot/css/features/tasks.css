@@ -158,13 +158,14 @@ html[data-theme] .tasks-screen.work-item-screen .work-item-table .icon-action:di
 
 .task-filter-dialog .task-filter-row {
   display: grid;
-  grid-template-columns: repeat(2, minmax(220px, 1fr));
-  gap: var(--space-5);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-6) var(--space-7);
   align-items: end;
 }
 
 .task-filter-dialog .task-filter-row label {
   display: grid;
+  min-width: 0;
   gap: var(--space-2);
   align-items: stretch;
   white-space: normal;
@@ -176,12 +177,29 @@ html[data-theme] .tasks-screen.work-item-screen .work-item-table .icon-action:di
 
 .task-filter-dialog .inline-filter-check {
   display: flex;
-  grid-column: 1 / -1;
   min-height: var(--control-height-md);
+  padding-inline: var(--space-3);
 }
 
 .task-filter-dialog .filter-stack {
+  display: grid;
+  gap: var(--space-6);
   margin-top: var(--space-5);
+}
+
+.task-filter-dialog .filter-check-list {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-4) var(--space-6);
+  align-items: center;
+}
+
+.task-filter-dialog .filter-check-list legend {
+  text-transform: none;
+}
+
+.task-filter-dialog .filter-check-list label {
+  min-width: 0;
 }
 
 .tasks-filter-panel .task-filter-row {

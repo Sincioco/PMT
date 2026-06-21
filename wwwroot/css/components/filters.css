@@ -57,6 +57,23 @@
   width: auto;
 }
 
+.filter-user-option {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.filter-user-avatar {
+  width: 30px;
+  height: 30px;
+  flex: 0 0 auto;
+  border: var(--border-width-strong) solid var(--color-page);
+  border-radius: 50%;
+  object-fit: cover;
+  background: var(--color-surface-raised);
+}
+
 .roadmap-filter-actions {
   display: flex;
   gap: var(--space-3);

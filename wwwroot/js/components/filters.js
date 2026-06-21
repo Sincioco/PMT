@@ -25,10 +25,23 @@ export function filterCheckList(label, filterName, items, selectedValues) {
       ${items.map(item => `
         <label>
           <input type="checkbox" data-filter="${filterName}" value="${escapeAttr(item.value)}" ${selected.has(String(item.value)) ? "checked" : ""}>
-          <span>${escapeHtml(item.text)}</span>
+          ${filterCheckListItemHtml(item)}
         </label>
       `).join("")}
     </fieldset>
+  `;
+}
+
+function filterCheckListItemHtml(item) {
+  if (!Object.prototype.hasOwnProperty.call(item, "avatarUrl")) {
+    return `<span>${escapeHtml(item.text)}</span>`;
+  }
+
+  return `
+    <span class="filter-user-option">
+      <img class="filter-user-avatar" src="${escapeAttr(item.avatarUrl || "/assets/avatar-default.svg")}" alt="">
+      <span>${escapeHtml(item.text)}</span>
+    </span>
   `;
 }
 
