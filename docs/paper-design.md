@@ -16,6 +16,9 @@ When guidance is missing or ambiguous, follow this document. When a new requirem
 ## Buttons and icon controls
 
 - Ordinary PMT buttons have transparent backgrounds in both light and dark themes.
+- In the Light theme, every button is borderless at rest, including navigation, page-level, card, table, menu, and dialog buttons.
+- A Light-theme button border appears only while the pointer is hovering over that enabled button.
+- Light-theme buttons retain a transparent border of the final hover width at rest so the hover state never changes layout.
 - The `primary` class may identify the main action semantically, but it must not create a blue, teal, or otherwise filled background.
 - Hover, active, selected, and disabled states must not add a filled button background.
 - Button identity and state should be communicated through text, monochrome icons, borders, and accessible labels.
@@ -24,6 +27,13 @@ When guidance is missing or ambiguous, follow this document. When a new requirem
 - Icon-only controls preserve the shared minimum touch target even when the visible icon is smaller.
 - Page-level and row-action icons should use a consistent visual size. The current reference is an 18-pixel icon within the shared 40-pixel touch target.
 - Icon-only actions are borderless at rest. A border may appear on hover without changing the control's dimensions.
+- In the Light theme, ordinary interface icons are monochrome and use the neutral text hierarchy rather than decorative, semantic, or emoji color.
+- This monochrome rule includes navigation, page-level, card, table-row, menu, form-tool, and dialog icons.
+- In the Light theme, button and action icons smaller than the 18-pixel Dev Tasks page-action reference are promoted to 18 pixels.
+- Intentionally larger controls, such as the dialog close mark, retain their larger size.
+- Every Light-theme button label uses regular font weight, including navigation, page-level, card, table, menu, and dialog buttons, as well as buttons marked as primary.
+- A colored interface icon requires an explicit case-by-case Paper Design exception; color must not be introduced merely because the source glyph or emoji supplies it.
+- Brand logos, user avatars, charts, progress indicators, statuses, and other data-bearing visuals are not ordinary interface icons and may retain meaningful color.
 - Chart marks that are implemented as buttons may keep their chart-series fill because their color represents data rather than ordinary button chrome.
 
 ## Dialogs

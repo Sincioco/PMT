@@ -150,7 +150,7 @@
   width: 36px;
   height: 36px;
   border-radius: 50%;
-  border: var(--border-width) solid var(--color-border);
+  border: 0;
   background: var(--color-surface-raised);
   object-fit: cover;
 }

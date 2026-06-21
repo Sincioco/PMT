@@ -162,3 +162,72 @@ html[data-theme="dark"] button[aria-expanded="true"] {
   background-color: var(--color-primary) !important;
   color: #ffffff;
 }
+
+/*
+ * Paper Design: Light-theme buttons reserve their border space but reveal the
+ * border only on pointer hover, regardless of where the button is rendered.
+ */
+html[data-theme="light"] button {
+  border-color: transparent !important;
+}
+
+html[data-theme="light"] button:hover:not(:disabled) {
+  border-color: var(--color-border-strong) !important;
+}
+
+/*
+ * Paper Design: ordinary Light-theme interface icons are monochrome.
+ * Branding, avatars, charts, progress, and status data are not control icons.
+ */
+html[data-theme="light"] :is(
+  .button-icon,
+  .nav-icon,
+  .settings-nav-icon,
+  .bug-fix-icon,
+  .task-mix-insight-icon
+) {
+  color: var(--color-text-secondary) !important;
+  filter: grayscale(1);
+  font-family: "Segoe UI Symbol", "Arial Unicode MS", sans-serif;
+  font-variant-emoji: text;
+}
+
+html[data-theme="light"] :is(
+  button.icon-btn,
+  button.icon-action,
+  button.gantt-bug-button,
+  .rich-tools button
+) {
+  color: var(--color-text-secondary) !important;
+  font-family: "Segoe UI Symbol", "Arial Unicode MS", sans-serif;
+  font-variant-emoji: text;
+}
+
+/*
+ * The Dev Tasks page-level action icon is the Light-theme size reference.
+ * Promote smaller button/action icons to 18px without reducing larger marks.
+ */
+html[data-theme="light"] :is(
+  button .button-icon,
+  button .nav-icon,
+  button .settings-nav-icon,
+  button.icon-action,
+  button.gantt-bug-button,
+  .rich-tools button,
+  button > span[aria-hidden="true"]:only-child
+) {
+  font-size: 18px !important;
+}
+
+html[data-theme="light"] button :is(.button-icon, .nav-icon, .settings-nav-icon) {
+  min-width: 18px;
+}
+
+html[data-theme="light"] button .button-svg-icon {
+  width: 18px !important;
+  height: 18px !important;
+}
+
+html[data-theme="light"] button {
+  font-weight: var(--font-weight-regular) !important;
+}

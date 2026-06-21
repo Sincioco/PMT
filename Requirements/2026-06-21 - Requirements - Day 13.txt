@@ -108,3 +108,13 @@ Created by:  Louiery R. Sincioco, June 2026, to help companies who cannot afford
 * Nudge the logo 10% to the left.
 
 * The avatar picture on the upper-right of the top nav has a double ring border.  Remove the inner-ring border and just have one outer ring border.
+
+Light Theme Tweaks
+------------------
+* Universally for the Light Theme, and only the Light Theme, remove all borders around the Top Navs, and any buttons on the page level, inside cards and dialog boxes.  Basically all buttons.
+* Apply the "Paper Design" principle so that only when the cursor hovers on those buttons do the borders get drawn.
+* Universally for the Light Theme, and only the Light Theme, if there are icons that have colors, make them monochrome.  As part of the "Paper Design" icons should be monochrome unless overriden on a case-by-case basis.
+
+* Universally for the Light Theme, and only the Light Theme, if the button's icons are smaller than the page-level "New Dev Task" button icon, scale them to be the same size.  I want all button/action icons to be the same size as the "New Dev Task" icon.
+* Universally for the Light Theme, and only the Light Theme, do not bold top navigation buttons or dialog boxes buttons.
+* Universally for the Light Theme, and only the Light Theme, do not bold any page level buttons.  Basically for all buttons.
