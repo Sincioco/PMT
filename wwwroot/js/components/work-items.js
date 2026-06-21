@@ -46,9 +46,10 @@ export function taskDragHandleHtml(task) {
 
 export function createWorkItemTableMode({
   action,
-  itemLabel
+  itemLabel,
+  initialActive = false
 }) {
-  let active = false;
+  let active = initialActive;
 
   return {
     get active() {
@@ -72,6 +73,9 @@ export function createWorkItemTableMode({
     },
     deactivate() {
       active = false;
+    },
+    activate() {
+      active = true;
     },
     toggle() {
       active = !active;
@@ -124,9 +128,9 @@ export function bindAttachmentPreview(root) {
   });
 }
 
-export async function uploadWorkItemAttachments(root, workItemId, attachFile) {
+export async function uploadWorkItemAttachments(root, workItemId, attachFile, attachmentPath = `/api/tasks/${workItemId}/attachments`) {
   for (const file of root.querySelector("[name='attachments']")?.files || []) {
-    await attachFile(`/api/tasks/${workItemId}/attachments`, file);
+    await attachFile(attachmentPath, file);
   }
 }
 
@@ -175,8 +179,9 @@ export function refreshSprintOptions(root, projectId) {
   ].join("");
 }
 
-export function viewWorkItem(task, editWorkItem) {
+export function viewWorkItem(task, editWorkItem, options = {}) {
   if (!task) return;
+  const canEdit = options.canEdit ?? canEditTask(task);
   const dependencies = (task.dependencyTaskIds || [])
     .map(id => taskById(id))
     .filter(Boolean);
@@ -223,7 +228,7 @@ export function viewWorkItem(task, editWorkItem) {
     </div>
     <div class="dialog-actions">
       <button type="button" class="secondary text-icon-button" data-action="show-task-audit" data-id="${task.id}">${buttonContent("&#128221;", "Audit")}</button>
-      <button type="button" class="secondary text-icon-button" data-edit-readonly-task="${task.id}" ${canEditTask(task) ? "" : "disabled"}>${buttonContent("&#9998;", "Edit")}</button>
+      <button type="button" class="secondary text-icon-button" data-edit-readonly-task="${task.id}" ${canEdit ? "" : "disabled"}>${buttonContent("&#9998;", "Edit")}</button>
       <button type="button" class="primary text-icon-button" data-close>${buttonContent("&#10003;", "Close")}</button>
     </div>
   `;

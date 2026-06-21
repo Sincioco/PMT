@@ -30,7 +30,7 @@ import {
   taskButtonsHtml,
   taskPercentField,
   uploadWorkItemAttachments
-} from "../../components/work-items.js?v=20260621-bug-screen-parity";
+} from "../../components/work-items.js?v=20260621-scrum-backlog-parity";
 import { currentUserId } from "../../core/authentication.js";
 import {
   preferenceKeys,
@@ -339,7 +339,8 @@ export function createBugsFeature({
     return true;
   }
 
-  function editBug(bug = {}) {
+  function editBug(bug = {}, options = {}) {
+    const apiRoot = options.apiRoot || "/api/tasks";
     const taskContext = getTaskContext();
     const selectedFilterSprint = selectedBugSprint();
     const rememberedProjectId = state.projects.some(project => project.id === bugEntryProjectId)
@@ -404,7 +405,7 @@ export function createBugsFeature({
       const savedProjectId = numberValue(root, "projectId");
       const savedSprintId = optionalNumberValue(root, "sprintId");
       const environment = value(root, "environment");
-      const result = await saveJson(bug.id ? `/api/tasks/${bug.id}` : "/api/tasks", bug.id ? "PUT" : "POST", {
+      const result = await saveJson(bug.id ? `${apiRoot}/${bug.id}` : apiRoot, bug.id ? "PUT" : "POST", {
         id: bug.id || 0,
         projectId: savedProjectId,
         sprintId: savedSprintId,
@@ -435,7 +436,7 @@ export function createBugsFeature({
       writePreference(preferenceKeys.bugEntrySprint, bugEntrySprintId);
       writePreference(preferenceKeys.bugEntryEnvironment, bugEntryEnvironment);
 
-      await uploadWorkItemAttachments(root, result.id, attachFile);
+      await uploadWorkItemAttachments(root, result.id, attachFile, `${apiRoot}/${result.id}/attachments`);
     }, "title", root => bindAssigneeList(root, bug.assigneeIds || [], bug.id ? "Assignees" : "Assignees (Optional)"));
   }
 

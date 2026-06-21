@@ -11,8 +11,8 @@ import {
   bindAttachmentPreview,
   showTaskAudit,
   viewWorkItem
-} from "./components/work-items.js?v=20260621-bug-screen-parity";
-import { createApplicationShell } from "./core/application-shell.js?v=20260621-empty-project-about";
+} from "./components/work-items.js?v=20260621-scrum-backlog-parity";
+import { createApplicationShell } from "./core/application-shell.js?v=20260621-transparent-pmt-logo";
 import {
   currentView,
   navigate
@@ -24,7 +24,7 @@ import {
 } from "./core/screen-registry.js";
 import { state } from "./core/store.js";
 import { createAboutFeature } from "./features/about/about.js?v=20260621-about-credits";
-import { createBacklogFeature } from "./features/backlog/backlog.js?v=20260620-bug-linked-task";
+import { createBacklogFeature } from "./features/backlog/backlog.js?v=20260621-dev-task-parity";
 import { createBoardFeature } from "./features/board/board.js?v=20260620-bug-linked-task";
 import { createBugsFeature } from "./features/bugs/bugs.js?v=20260621-dev-task-parity";
 import { createDashboardFeature } from "./features/dashboard/dashboard.js?v=20260620-ui-theme";
@@ -34,9 +34,9 @@ import {
   currentSprintForProject,
   ganttStartDate
 } from "./features/gantt/gantt.js?v=20260620-gantt-flush-sprint";
-import { createProjectsFeature } from "./features/projects/projects.js?v=20260620-null-end-date";
+import { createProjectsFeature } from "./features/projects/projects.js?v=20260621-project-logos";
 import { createRoadMapFeature } from "./features/roadmap/roadmap.js?v=20260620-all-projects-label";
-import { createScrumFeature } from "./features/scrum/scrum.js?v=20260620-scrum-project";
+import { createScrumFeature } from "./features/scrum/scrum.js?v=20260621-dev-task-parity";
 import { createSettingsFeature } from "./features/settings/settings.js?v=20260620-light-reference-1";
 import { createSprintsFeature } from "./features/sprints/sprints.js?v=20260620-null-end-date";
 import { createTasksFeature } from "./features/tasks/tasks.js?v=20260621-task-editor-layout";
@@ -236,7 +236,15 @@ const bugsFeature = createBugsFeature({
   openEditor,
   saveJson
 });
-const backlogFeature = createBacklogFeature({ app });
+const backlogFeature = createBacklogFeature({
+  app,
+  deleteItem,
+  duplicateTask: duplicateBacklogTask,
+  editBug: bug => bugsFeature.edit(bug || {}, { apiRoot: "/api/backlog/tasks" }),
+  editTask: task => tasksFeature.edit(task || {}, { apiRoot: "/api/backlog/tasks" }),
+  getPriorities: () => priorities,
+  viewTask: viewBacklogWorkItem
+});
 const dashboardFeature = createDashboardFeature({
   app,
   isProjectCollapsed: projectsFeature.isCollapsed,
@@ -336,6 +344,8 @@ function renderCurrentScreen() {
   if (currentView !== "Gantt") ganttFeature.deactivate();
   if (currentView !== "Tasks") tasksFeature.deactivate();
   if (currentView !== "Bugs") bugsFeature.deactivate();
+  if (currentView !== "Backlog") backlogFeature.deactivate();
+  if (currentView !== "Scrum") scrumFeature.deactivate();
 
   const registeredScreen = screenHandlerFor(currentView);
   if (registeredScreen?.render) registeredScreen.render();
@@ -745,7 +755,8 @@ async function finishTaskDrag(event) {
 
   const drop = pointerDropTarget(event.clientX, event.clientY, drag.taskId);
   const task = taskById(drag.taskId);
-  if (!drop || !task || !canEditTask(task)) {
+  const isBacklogReorder = drop?.container?.dataset?.reorderList === "backlog";
+  if (!drop || !task || (!isBacklogReorder && !canEditTask(task))) {
     cancelPointerDrag();
     return;
   }
@@ -1097,12 +1108,35 @@ async function duplicateTask(id) {
   }
 }
 
+async function duplicateBacklogTask(id) {
+  try {
+    await api(`/api/backlog/tasks/${id}/duplicate`, { method: "POST" });
+    await loadState();
+    render();
+    showToast("Backlog item duplicated.");
+  } catch (error) {
+    showToast(error.message);
+  }
+}
+
 function editWorkItem(task) {
   if (task?.taskType === "Bug") {
     bugsFeature.edit(task);
   } else {
     tasksFeature.edit(task || {});
   }
+}
+
+function viewBacklogWorkItem(task) {
+  if (!task) return;
+
+  viewWorkItem(task, selectedTask => {
+    if (selectedTask?.taskType === "Bug") {
+      bugsFeature.edit(selectedTask, { apiRoot: "/api/backlog/tasks" });
+    } else {
+      tasksFeature.edit(selectedTask || {}, { apiRoot: "/api/backlog/tasks" });
+    }
+  }, { canEdit: true });
 }
 
 function gotoTask(id) {

@@ -1,20 +1,204 @@
 /* CSS ownership: Backlog screen. */
 
+.backlog-screen .section-head h1,
+html[data-theme="light"] .backlog-screen.work-item-screen .section-head h1 {
+  color: var(--color-text-secondary);
+}
+
+.backlog-screen .section-head .toolbar > button {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  width: var(--touch-target-min);
+  min-width: var(--touch-target-min);
+  height: var(--touch-target-min);
+  min-height: var(--touch-target-min);
+  padding: 0;
+  border-color: transparent;
+  background: transparent;
+  color: var(--color-text-secondary);
+  box-shadow: none;
+}
+
+html[data-theme] .backlog-screen.work-item-screen .section-head .toolbar > button,
+html[data-theme] .backlog-screen.work-item-screen .section-head .toolbar > button.primary,
+html[data-theme] .backlog-screen.work-item-screen .section-head .toolbar > button.secondary,
+html[data-theme] .backlog-screen.work-item-screen .section-head .toolbar > button[aria-pressed="true"],
+html[data-theme] .backlog-screen.work-item-screen .section-head .toolbar > button:focus,
+html[data-theme] .backlog-screen.work-item-screen .section-head .toolbar > button:focus-visible,
+html[data-theme] .backlog-screen.work-item-screen .section-head .toolbar > button:active:not(:hover) {
+  width: var(--touch-target-min);
+  min-width: var(--touch-target-min);
+  height: var(--touch-target-min);
+  min-height: var(--touch-target-min);
+  padding: 0;
+  border-color: transparent;
+  background: transparent;
+  color: var(--color-text-secondary);
+  outline: none;
+  box-shadow: none;
+}
+
+.backlog-screen .section-head .toolbar > button:hover:not(:disabled),
+html[data-theme] .backlog-screen.work-item-screen .section-head .toolbar > button:hover:not(:disabled) {
+  padding: 0;
+  border-color: var(--color-border-strong);
+  background: var(--color-control-hover);
+  color: var(--color-text-primary);
+  outline: none;
+  box-shadow: none;
+}
+
+.backlog-screen .section-head .toolbar > button:disabled {
+  border-color: transparent;
+  background: transparent;
+  color: var(--color-text-disabled);
+}
+
+.backlog-screen .section-head .toolbar > button .button-icon {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  min-width: 0;
+  font-size: 18px;
+  line-height: 1;
+}
+
+.backlog-screen .section-head .toolbar > button .button-svg-icon {
+  width: 18px;
+  height: 18px;
+}
+
+.backlog-screen .section-head .toolbar > button .button-icon + span {
+  display: none;
+}
+
+html[data-theme] .backlog-screen.work-item-screen .work-item-table .icon-action {
+  width: var(--touch-target-min);
+  min-width: var(--touch-target-min);
+  height: var(--touch-target-min);
+  min-height: var(--touch-target-min);
+  border-color: transparent;
+  background: transparent;
+  color: var(--color-text-secondary);
+  font-size: 18px;
+  box-shadow: none;
+}
+
+html[data-theme] .backlog-screen.work-item-screen .work-item-table .icon-action:hover:not(:disabled) {
+  border-color: var(--color-border-strong);
+  background: var(--color-control-hover);
+  color: var(--color-text-primary);
+  box-shadow: none;
+}
+
+.backlog-screen .work-item-table .icon-action .button-icon {
+  font-size: 18px;
+}
+
+.backlog-screen .work-item-table .icon-action .button-svg-icon {
+  width: 18px;
+  height: 18px;
+}
+
 .backlog-table {
-  min-width: 1120px;
+  min-width: 1180px;
 }
 
-.backlog-table th:first-child,
-.backlog-table td:first-child {
-  width: 84px;
+.backlog-assigned-column {
+  width: 92px;
 }
 
-.assigned-backlog-row td {
-  background: color-mix(in srgb, var(--color-success-surface), transparent 34%);
+.backlog-item-column {
+  width: 310px;
+}
+
+.backlog-type-column {
+  width: 110px;
+}
+
+.backlog-project-column {
+  width: 210px;
+}
+
+.backlog-sprint-column {
+  width: 150px;
+}
+
+.backlog-status-column {
+  width: 120px;
+}
+
+.backlog-priority-column {
+  width: 100px;
+}
+
+.backlog-action-column {
+  width: 192px;
+}
+
+.backlog-table .work-item-code,
+.backlog-table .backlog-project-cell,
+html[data-theme="light"] .backlog-screen.work-item-screen .work-item-table .work-item-code {
+  color: var(--color-text-secondary);
 }
 
 .sprint-pill {
   border-color: var(--color-success-border);
   color: var(--color-success-text);
   background: var(--color-success-surface);
+}
+
+.backlog-filter-dialog {
+  width: min(var(--dialog-width-md), calc(100vw - 2 * var(--shell-padding-compact)));
+}
+
+.backlog-filter-dialog-body {
+  gap: var(--space-6);
+}
+
+.backlog-filter-dialog .backlog-filter-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-6) var(--space-7);
+  align-items: end;
+}
+
+.backlog-filter-dialog .backlog-filter-row label {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-2);
+  align-items: stretch;
+  white-space: normal;
+}
+
+.backlog-filter-dialog .backlog-filter-row select {
+  width: 100%;
+  min-width: 0;
+  max-width: none;
+}
+
+.backlog-filter-dialog .filter-stack {
+  display: grid;
+  gap: var(--space-6);
+  margin-top: var(--space-5);
+}
+
+.backlog-filter-dialog .filter-check-list {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-4) var(--space-6);
+  align-items: center;
+}
+
+.backlog-filter-dialog .filter-check-list legend {
+  text-transform: none;
+}
+
+@media (max-width: 900px) {
+  .backlog-filter-dialog .backlog-filter-row,
+  .backlog-filter-dialog .filter-check-list {
+    grid-template-columns: 1fr;
+  }
 }

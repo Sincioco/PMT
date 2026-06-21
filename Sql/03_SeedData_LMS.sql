@@ -27,7 +27,7 @@ DECLARE @LmsStart DATE = DATEADD(DAY, -727, @Today);
 
 INSERT INTO [pmt].[Projects] ([Code], [Title], [Description], [Url], [IconUrl], [StartDate], [EndDate], [CreatedByUserId])
 VALUES
-(N'LMS', N'Learning Management System', N'Internal LMS for courses, enrollments, assignments, assessments, and learner progress.', N'https://intranet.local/projects/lms', N'/assets/project-lms.svg', @LmsStart, NULL, @Sin);
+(N'LMS', N'Learning Management System', N'Internal LMS for courses, enrollments, assignments, assessments, and learner progress.', N'https://intranet.local/projects/lms', N'/assets/project-lms.svg?v=20260621-new-logo', @LmsStart, NULL, @Sin);
 
 DECLARE @LmsProject INT = (SELECT [ProjectId] FROM [pmt].[Projects] WHERE [Code] = N'LMS');
 

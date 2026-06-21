@@ -766,7 +766,8 @@ CREATE OR ALTER PROCEDURE [pmt].[UpsertTask]
     @ReporterIdsCsv NVARCHAR(MAX),
     @AssigneeIdsCsv NVARCHAR(MAX),
     @DependencyTaskIdsCsv NVARCHAR(MAX),
-    @CurrentUserId INT
+    @CurrentUserId INT,
+    @AllowBacklogAccess BIT = 0
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -828,7 +829,9 @@ BEGIN
         THROW 50030, 'Task type is invalid.', 1;
     END;
 
-    IF @TaskId = 0 AND [pmt].[CanEditTaskType](@TaskType, @CurrentUserId) = 0
+    IF @TaskId = 0
+       AND @AllowBacklogAccess = 0
+       AND [pmt].[CanEditTaskType](@TaskType, @CurrentUserId) = 0
     BEGIN
         THROW 50030, 'Your role cannot edit this kind of task.', 1;
     END;
@@ -853,6 +856,7 @@ BEGIN
         END;
 
         IF [pmt].[CanEditTaskType](@ExistingTaskType, @CurrentUserId) = 0
+           AND NOT (@AllowBacklogAccess = 1 AND @OldStatus IN (N'Backlog', N'Todo'))
         BEGIN
             THROW 50039, 'You cannot edit this task.', 1;
         END;
@@ -1553,7 +1557,8 @@ GO
 CREATE OR ALTER PROCEDURE [pmt].[DuplicateTask]
     @TaskId INT,
     @CurrentUserId INT,
-    @NewTaskId INT OUTPUT
+    @NewTaskId INT OUTPUT,
+    @AllowBacklogAccess BIT = 0
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -1563,13 +1568,15 @@ BEGIN
     DECLARE @NextNumber INT;
     DECLARE @NewCode NVARCHAR(40);
     DECLARE @TaskType NVARCHAR(20);
+    DECLARE @Status NVARCHAR(40);
     DECLARE @CodeSuffix NVARCHAR(20);
     DECLARE @NextSortOrder INT;
 
     SELECT
         @ProjectId = [pmt].[WorkTasks].[ProjectId],
         @ProjectCode = [pmt].[Projects].[Code],
-        @TaskType = [pmt].[WorkTasks].[TaskType]
+        @TaskType = [pmt].[WorkTasks].[TaskType],
+        @Status = [pmt].[WorkTasks].[Status]
     FROM [pmt].[WorkTasks]
     INNER JOIN [pmt].[Projects]
         ON [pmt].[Projects].[ProjectId] = [pmt].[WorkTasks].[ProjectId]
@@ -1582,6 +1589,7 @@ BEGIN
     END;
 
     IF [pmt].[CanEditTaskType](@TaskType, @CurrentUserId) = 0
+       AND NOT (@AllowBacklogAccess = 1 AND @Status IN (N'Backlog', N'Todo'))
     BEGIN
         THROW 50040, 'You cannot duplicate this kind of task.', 1;
     END;
@@ -1680,14 +1688,18 @@ GO
 
 CREATE OR ALTER PROCEDURE [pmt].[DeleteTask]
     @TaskId INT,
-    @CurrentUserId INT
+    @CurrentUserId INT,
+    @AllowBacklogAccess BIT = 0
 AS
 BEGIN
     SET NOCOUNT ON;
 
     DECLARE @TaskType NVARCHAR(20);
+    DECLARE @Status NVARCHAR(40);
 
-    SELECT @TaskType = [TaskType]
+    SELECT
+        @TaskType = [TaskType],
+        @Status = [Status]
     FROM [pmt].[WorkTasks]
     WHERE [TaskId] = @TaskId
       AND [IsDeleted] = 0;
@@ -1698,6 +1710,7 @@ BEGIN
     END;
 
     IF [pmt].[CanEditTaskType](@TaskType, @CurrentUserId) = 0
+       AND NOT (@AllowBacklogAccess = 1 AND @Status IN (N'Backlog', N'Todo'))
     BEGIN
         THROW 50042, 'You cannot delete this task.', 1;
     END;
@@ -2523,7 +2536,8 @@ CREATE OR ALTER PROCEDURE [pmt].[AddTaskAttachment]
     @Url NVARCHAR(500),
     @ContentType NVARCHAR(160),
     @ByteLength BIGINT,
-    @CurrentUserId INT
+    @CurrentUserId INT,
+    @AllowBacklogAccess BIT = 0
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -2540,7 +2554,10 @@ BEGIN
         THROW 50080, 'Task was not found.', 1;
     END;
 
+    -- The Backlog editor uploads after saving, so the item may already have
+    -- moved out of Todo while the same edit operation is still completing.
     IF [pmt].[CanEditTaskType](@TaskType, @CurrentUserId) = 0
+       AND @AllowBacklogAccess = 0
     BEGIN
         THROW 50081, 'You cannot attach files to this task.', 1;
     END;

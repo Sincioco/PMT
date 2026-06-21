@@ -28,7 +28,7 @@ import {
   taskButtonsHtml,
   taskPercentField,
   uploadWorkItemAttachments
-} from "../../components/work-items.js?v=20260621-task-dialog-title";
+} from "../../components/work-items.js?v=20260621-scrum-backlog-parity";
 import {
   preferenceKeys,
   readBooleanPreference,
@@ -357,7 +357,8 @@ export function createTasksFeature({
     return true;
   }
 
-  function editTask(task = {}) {
+  function editTask(task = {}, options = {}) {
+    const apiRoot = options.apiRoot || "/api/tasks";
     const rememberedProjectId = state.projects.some(project => project.id === taskEntryProjectId)
       ? taskEntryProjectId
       : 0;
@@ -424,7 +425,7 @@ export function createTasksFeature({
       const dependencyTaskIds = checkedNumbers(root, "dependencyTaskIds");
       validateLinkedBugCompletion(task, percentCompleted, dependencyTaskIds);
 
-      const result = await saveJson(task.id ? `/api/tasks/${task.id}` : "/api/tasks", task.id ? "PUT" : "POST", {
+      const result = await saveJson(task.id ? `${apiRoot}/${task.id}` : apiRoot, task.id ? "PUT" : "POST", {
         id: task.id || 0,
         projectId,
         sprintId,
@@ -453,7 +454,7 @@ export function createTasksFeature({
       writePreference(preferenceKeys.taskEntryProject, taskEntryProjectId);
       writePreference(preferenceKeys.taskEntrySprint, taskEntrySprintId);
 
-      await uploadWorkItemAttachments(root, result.id, attachFile);
+      await uploadWorkItemAttachments(root, result.id, attachFile, `${apiRoot}/${result.id}/attachments`);
     }, "title", root => bindAssigneeList(root, task.assigneeIds || [], "Assignees (Optional)"));
   }
 

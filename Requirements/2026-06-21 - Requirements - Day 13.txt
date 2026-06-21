@@ -118,3 +118,14 @@ Light Theme Tweaks
 * Universally for the Light Theme, and only the Light Theme, if the button's icons are smaller than the page-level "New Dev Task" button icon, scale them to be the same size.  I want all button/action icons to be the same size as the "New Dev Task" icon.
 * Universally for the Light Theme, and only the Light Theme, do not bold top navigation buttons or dialog boxes buttons.
 * Universally for the Light Theme, and only the Light Theme, do not bold any page level buttons.  Basically for all buttons.
+
+
+Scrum Screen
+------------
+For all of this conversation / session, I will perform all the manual tests and compile the application manually.  Perform only the coding changes required and nothing else.
+* Take the work that was done on the Dev Tasks screen as a reference, for as much as possible and is resonable, apply the same design principle, behavior, UI/UX from the Dev Task Screen, as the reference, onto the Scrum screen and the Back Log Screen.
+* A special logic for the Scrum screen, by default, when you enter the Scrum screen you should be in Edit mode.  And based on your security (Admin can edit everything) normal users can only edit their own entries.  All other entries are read-only.  Following the role/security rules of PMT.
+* For the backlog, no security consideration, anyone can create, edit, and delete any item in the backlog.
+
+* For the LMS project, update it's logo with a new logo located at "D:\Project Management Tool (PMT)\Requirements\UI\LMS Logo.svg"
+* For the HLS project, update it's logo with a new logo located at "D:\Project Management Tool (PMT)\Requirements\UI\HLS Logo.svg"

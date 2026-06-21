@@ -162,7 +162,7 @@ export function createApplicationShell({
       <section class="login-screen">
         <div class="panel login-card">
           <div class="login-brand">
-            <img src="/assets/project-pmt.svg" alt="">
+            <img src="/assets/project-pmt.svg?v=20260621-transparent" alt="">
             <div>
               <h1>PMT</h1>
               <p class="muted">Project Management Tool</p>

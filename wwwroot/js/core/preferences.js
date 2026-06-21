@@ -40,6 +40,7 @@ export const preferenceKeys = Object.freeze({
   scrumFilters: "pmt-scrum-filters",
   scrumFiltersVisible: "pmt-scrum-filters-visible",
   scrumEntryProject: "pmt-scrum-entry-project",
+  backlogFilters: "pmt-backlog-filters",
   documentationProject: "pmt-documentation-project",
   documentationEntryProject: "pmt-documentation-entry-project"
 });
