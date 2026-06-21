@@ -10,6 +10,10 @@ body:has(dialog[open]) {
   overscroll-behavior: none;
 }
 
+body:has(dialog[open]) .app-shell {
+  overflow: hidden;
+}
+
 .dialog {
   width: min(var(--dialog-width-md), calc(100vw - 2 * var(--shell-padding-compact)));
   max-height: calc(100vh - 2 * var(--shell-padding-compact));

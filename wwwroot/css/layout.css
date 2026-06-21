@@ -2,8 +2,12 @@
 
 .app-shell {
   width: 100%;
+  min-height: 0;
   margin: 0;
   padding: var(--shell-padding-laptop);
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
 }
 
 .section-head {

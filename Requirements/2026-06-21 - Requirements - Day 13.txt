@@ -70,3 +70,7 @@ Verify the work and resume where the previous Codex sessoin left off.  I already
 3.) In both the Bug Tracking Filters and Dev Tasks Filter, change the "Apply Filters" button at the bottom of the dialog box to "Done" but keep the icon.
 
 You may use a browser to test/verify visually that the Dev Task and Bug Tracking screen looks uniformly the same.  But after this task is completed, do not perform any additional action other than code changes.  I will manually test and compile/build the project.
+
+Top Navigation and Browser Scrollbar Change
+-------------------------------------------
+As I go from one screen to another in PMT, I notice the Top Nav reserves a space for the scrollbar on screens it is not needed.  Can you make it so that Top Nav always takes up the full width of the browser and the scrollbar, if needed, only appears below the Top Nav?
