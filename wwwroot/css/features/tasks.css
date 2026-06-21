@@ -113,6 +113,41 @@ html[data-theme] .tasks-screen.work-item-screen .section-head .toolbar > button[
   display: none;
 }
 
+html[data-theme] .tasks-screen.work-item-screen .work-item-table .icon-action {
+  width: var(--touch-target-min);
+  min-width: var(--touch-target-min);
+  height: var(--touch-target-min);
+  min-height: var(--touch-target-min);
+  border-color: transparent;
+  background: transparent;
+  color: var(--color-text-secondary);
+  font-size: 18px;
+  box-shadow: none;
+}
+
+html[data-theme] .tasks-screen.work-item-screen .work-item-table .icon-action:hover:not(:disabled) {
+  border-color: var(--color-border-strong);
+  background: var(--color-control-hover);
+  color: var(--color-text-primary);
+  box-shadow: none;
+}
+
+html[data-theme] .tasks-screen.work-item-screen .work-item-table .icon-action:disabled {
+  border-color: transparent;
+  background: transparent;
+  color: var(--color-text-disabled);
+  box-shadow: none;
+}
+
+.tasks-screen .work-item-table .icon-action .button-icon {
+  font-size: 18px;
+}
+
+.tasks-screen .work-item-table .icon-action .button-svg-icon {
+  width: 18px;
+  height: 18px;
+}
+
 .task-filter-dialog {
   width: min(var(--dialog-width-md), calc(100vw - 2 * var(--shell-padding-compact)));
 }

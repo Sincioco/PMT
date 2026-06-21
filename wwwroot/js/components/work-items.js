@@ -1,6 +1,6 @@
 import { attachmentsHtml, filePreviewHtml } from "./attachments.js";
 import { avatarsHtml } from "./avatars.js";
-import { buttonContent, iconButton } from "./buttons.js?v=20260620-universal-pencil-flip";
+import { buttonContent, iconButton } from "./buttons.js?v=20260621-dev-task-icons";
 import {
   checkListOrEmpty,
   checkedNumbers,
@@ -28,12 +28,12 @@ import {
   taskDisplayPercent
 } from "../shared/work-item-rules.js";
 
-export function taskButtonsHtml(task, { includeView = true } = {}) {
+export function taskButtonsHtml(task, { includeView = true, monochrome = false } = {}) {
   const canEdit = canEditTask(task);
   return `
-    ${iconButton("delete-task", task.id, "Delete", "delete", canEdit, "danger")}
+    ${iconButton("delete-task", task.id, "Delete", monochrome ? "delete-monochrome" : "delete", canEdit, monochrome ? "" : "danger")}
     ${iconButton("duplicate-task", task.id, "Duplicate", "duplicate", canEdit)}
-    ${iconButton("show-task-audit", task.id, "Audit Log", "audit", true)}
+    ${iconButton("show-task-audit", task.id, "Audit Log", monochrome ? "audit-monochrome" : "audit", true)}
     ${includeView ? iconButton("view-task", task.id, "View", "view", true) : ""}
     ${iconButton("edit-task", task.id, "Edit", "edit", canEdit)}
   `;

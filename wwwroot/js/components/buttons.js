@@ -15,7 +15,33 @@ export function funnelIconHtml() {
   `;
 }
 
+export function chartIconHtml() {
+  return `
+    <svg class="button-svg-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path d="M4 19V11M10 19V5M16 19v-7M3 19h18"></path>
+    </svg>
+  `;
+}
+
 export function iconButton(action, id, title, icon, enabled = true, extraClass = "") {
-  const icons = { view: "&#128065;", audit: "&#128221;", edit: "&#9998;", duplicate: "&#10697;", delete: "&#128465;", finish: "&#10003;", gantt: "&#128202;" };
+  const icons = {
+    view: "&#128065;",
+    audit: "&#128221;",
+    "audit-monochrome": `
+      <svg class="button-svg-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+        <path d="M7 3h10v4H7zM5 5H3v16h16v-2M8 11h8M8 15h6"></path>
+      </svg>
+    `,
+    edit: "&#9998;",
+    duplicate: "&#10697;",
+    delete: "&#128465;",
+    "delete-monochrome": `
+      <svg class="button-svg-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+        <path d="M4 7h16M9 7V4h6v3M7 7l1 13h8l1-13M10 11v5M14 11v5"></path>
+      </svg>
+    `,
+    finish: "&#10003;",
+    gantt: "&#128202;"
+  };
   return `<button type="button" class="icon-action ${extraClass}" data-action="${action}" data-id="${id}" title="${escapeAttr(title)}" aria-label="${escapeAttr(title)}" ${enabled ? "" : "disabled"}><span class="button-icon" aria-hidden="true">${icons[icon] || "?"}</span></button>`;
 }

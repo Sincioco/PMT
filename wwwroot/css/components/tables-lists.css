@@ -207,7 +207,7 @@ tr.reorder-after > td {
 }
 
 html[data-theme="light"] .work-item-screen .section-head h1 {
-  color: var(--color-text-primary);
+  color: var(--color-text-secondary);
   letter-spacing: -0.025em;
 }
 

@@ -1,5 +1,5 @@
 import { taskRowAvatarsHtml } from "../../components/avatars.js";
-import { buttonContent, funnelIconHtml } from "../../components/buttons.js";
+import { buttonContent, chartIconHtml, funnelIconHtml } from "../../components/buttons.js?v=20260621-dev-task-icons";
 import { VisualCharts } from "../../components/charts.js?v=20260620-dev-task-charts";
 import { checkedFilterValues, filterCheckList } from "../../components/filters.js";
 import {
@@ -29,7 +29,7 @@ import {
   taskDragHandleHtml,
   taskPercentField,
   uploadWorkItemAttachments
-} from "../../components/work-items.js?v=20260620-shared-table-edit-mode";
+} from "../../components/work-items.js?v=20260621-dev-task-icons";
 import {
   preferenceKeys,
   readBooleanPreference,
@@ -122,7 +122,7 @@ export function createTasksFeature({
       ${sectionHead("Dev Tasks", `
         <button class="primary text-icon-button" type="button" data-action="new-task" title="New Dev Task" aria-label="New Dev Task">${buttonContent("&#10010;", "New Dev Task")}</button>
         ${taskTableMode.buttonHtml()}
-        <button class="secondary text-icon-button" type="button" data-action="toggle-task-visual-charts" title="${chartToggleLabel}" aria-label="${chartToggleLabel}" aria-pressed="${showCharts}" ${canShowCharts ? "" : "disabled"}>${buttonContent("&#128202;", chartToggleLabel)}</button>
+        <button class="secondary text-icon-button" type="button" data-action="toggle-task-visual-charts" title="${chartToggleLabel}" aria-label="${chartToggleLabel}" aria-pressed="${showCharts}" ${canShowCharts ? "" : "disabled"}>${buttonContent(chartIconHtml(), chartToggleLabel)}</button>
         <button class="secondary text-icon-button" type="button" data-action="open-task-filters" title="Filters" aria-label="Filters" aria-haspopup="dialog">${buttonContent(funnelIconHtml(), "Filters")}</button>
       `)}
       ${showCharts ? taskVisualTrackingChartsHtml(baseTasks, selectedSprint, allProjectDevTasks) : ""}
@@ -170,7 +170,7 @@ export function createTasksFeature({
                 <td class="work-item-context-cell">${escapeHtml(task.status)}</td>
                 <td><span class="pill priority-${task.priority}">${escapeHtml(task.priority)}</span></td>
                 <td class="done-cell">${progressHtml(taskDisplayPercent(task))}</td>
-                ${taskTableMode.active ? `<td class="reveal-actions action-cell">${taskButtonsHtml(task, { includeView: false })}${taskDragHandleHtml(task)}</td>` : ""}
+                ${taskTableMode.active ? `<td class="reveal-actions action-cell">${taskButtonsHtml(task, { includeView: false, monochrome: true })}${taskDragHandleHtml(task)}</td>` : ""}
               </tr>
             `;
             }).join("") || `<tr><td colspan="${taskTableMode.active ? 8 : 7}"><div class="empty">No tasks for this filter.</div></td></tr>`}

@@ -10,3 +10,15 @@ Dev Task Screen
 2.) In the Dev Task Screen, when I click on a chart data point like the Sprint Dev Task Mix chart, and a dialog box shows up with a list of items to choose from, remove the last column which only has the view icon.  It is now redundant since clicking on the row views the item as well.
 3.) In the Dev Task Screen, in the Table of tasks, the action buttons for each row, the buttons should not have a border unless the mouse cursor hovers on it.  Scale the icons a little bit bigger, the same size as the page-level icons.  Replace icons that have colors, such as the Delete and Audit log, and replace them with monochrome icons.
 4.) Universally, update all other page titles and dialog box titles to use the same text color as the Dev Task screen's Page Title.
+
+Dev Task Filter Dialog Box
+---------------
+1.) Make the Project and Sprint dropdown controls equal length and take up the width of the dialog box in a 2-column layout for the controls with appropriate padding on the left side, right side, and in the middle in between the two controls.
+2.) Make the Sort dropdown have the same size as the Project dropdown (again that 2 column layout in the dialog box).
+3.) Move the checkbox that reads "Hide Completed Dev Tasks" into the 2nd column of the 2nd row, to the right of the Sort dropdown.
+4.) In the Status, Priority and Assigned Sections, make those proper case and create a virtual 4-column layout in each of those sections and move the checkboxes so each checkbox falls into their respective columns and warps to the next row.
+5.) In the Assigned section, Render the person's avatar in between the checkbox and the name of the person.
+
+Universal UI Change Theme Change
+--------------------------------
+1.) Universally in all buttons and dialog boxes across PMT both light and dark mode, remove the blue (primary class).  I don't want any buttons with a background.

@@ -38,7 +38,7 @@ import { createRoadMapFeature } from "./features/roadmap/roadmap.js?v=20260620-a
 import { createScrumFeature } from "./features/scrum/scrum.js?v=20260620-scrum-project";
 import { createSettingsFeature } from "./features/settings/settings.js?v=20260620-light-reference-1";
 import { createSprintsFeature } from "./features/sprints/sprints.js?v=20260620-null-end-date";
-import { createTasksFeature } from "./features/tasks/tasks.js?v=20260620-task-all-sprints-chart-filter";
+import { createTasksFeature } from "./features/tasks/tasks.js?v=20260621-dev-task-icons";
 import { createWfhScheduleFeature } from "./features/wfh-schedule/wfh-schedule.js?v=20260620-wfh-schedule";
 import {
   fallbackEnvironments,
@@ -519,7 +519,6 @@ function showTaskChartDrilldown(title, taskIds) {
               <th>Status</th>
               <th>Priority</th>
               <th>Assignee</th>
-              <th></th>
             </tr>
           </thead>
           <tbody>
@@ -531,9 +530,6 @@ function showTaskChartDrilldown(title, taskIds) {
                 <td><span class="pill">${escapeHtml(task.status)}</span></td>
                 <td><span class="pill priority-${escapeAttr(task.priority)}">${escapeHtml(task.priority)}</span></td>
                 <td>${taskRowAvatarsHtml(task.assignees)}</td>
-                <td class="actions-cell">
-                  <button class="icon-action" type="button" data-action="view-task" data-id="${task.id}" title="View Dev Task">&#128065;</button>
-                </td>
               </tr>
             `).join("")}
           </tbody>
