@@ -26,10 +26,9 @@ import {
   showTaskAudit,
   taskAuditPanelHtml,
   taskButtonsHtml,
-  taskDragHandleHtml,
   taskPercentField,
   uploadWorkItemAttachments
-} from "../../components/work-items.js?v=20260621-dev-task-icons";
+} from "../../components/work-items.js?v=20260621-task-dialog-title";
 import {
   preferenceKeys,
   readBooleanPreference,
@@ -170,7 +169,7 @@ export function createTasksFeature({
                 <td class="work-item-context-cell">${escapeHtml(task.status)}</td>
                 <td><span class="pill priority-${task.priority}">${escapeHtml(task.priority)}</span></td>
                 <td class="done-cell">${progressHtml(taskDisplayPercent(task))}</td>
-                ${taskTableMode.active ? `<td class="reveal-actions action-cell">${taskButtonsHtml(task, { includeView: false, monochrome: true })}${taskDragHandleHtml(task)}</td>` : ""}
+                ${taskTableMode.active ? `<td class="reveal-actions action-cell">${taskButtonsHtml(task, { includeView: false, monochrome: true })}</td>` : ""}
               </tr>
             `;
             }).join("") || `<tr><td colspan="${taskTableMode.active ? 8 : 7}"><div class="empty">No tasks for this filter.</div></td></tr>`}
@@ -389,7 +388,7 @@ export function createTasksFeature({
     const sameProjectTasks = dependencyCandidates(projectId, task.id);
     const taskHasSubTasks = Boolean(task.subTasks?.length);
 
-    openEditor(workItemEditorTitle(task, "Dev Task", "New Dev Task"), `
+    openEditor(workItemEditorTitle(task, "New Dev Task"), `
       <div class="form-grid">
         ${task.id ? taskAuditPanelHtml(task) : ""}
         ${selectField("Project", "projectId", state.projects, projectId)}
@@ -819,11 +818,9 @@ export function createTasksFeature({
     taskTableMode.deactivate();
   }
 
-  function workItemEditorTitle(item, itemType, newTitle) {
+  function workItemEditorTitle(item, newTitle) {
     if (!item?.id) return newTitle;
-    const code = item.code ? ` ${item.code}` : "";
-    const title = item.title ? `: ${item.title}` : "";
-    return `${itemType}${code}${title}`;
+    return [item.code, item.title].filter(Boolean).join(" - ");
   }
 
   return {

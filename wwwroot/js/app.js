@@ -11,7 +11,7 @@ import {
   bindAttachmentPreview,
   showTaskAudit,
   viewWorkItem
-} from "./components/work-items.js?v=20260620-shared-table-edit-mode";
+} from "./components/work-items.js?v=20260621-task-dialog-title";
 import { createApplicationShell } from "./core/application-shell.js?v=20260620-light-reference-1";
 import {
   currentView,
@@ -38,7 +38,7 @@ import { createRoadMapFeature } from "./features/roadmap/roadmap.js?v=20260620-a
 import { createScrumFeature } from "./features/scrum/scrum.js?v=20260620-scrum-project";
 import { createSettingsFeature } from "./features/settings/settings.js?v=20260620-light-reference-1";
 import { createSprintsFeature } from "./features/sprints/sprints.js?v=20260620-null-end-date";
-import { createTasksFeature } from "./features/tasks/tasks.js?v=20260621-deduplicated-chart-context";
+import { createTasksFeature } from "./features/tasks/tasks.js?v=20260621-task-dialog-title";
 import { createWfhScheduleFeature } from "./features/wfh-schedule/wfh-schedule.js?v=20260620-wfh-schedule";
 import {
   fallbackEnvironments,
@@ -673,7 +673,7 @@ function startTaskDrag(event, inputType) {
   if (!item || !container) return;
 
   const dragHandle = event.target.closest("[data-drag-handle]");
-  const handleRequired = container.matches('[data-reorder-list="tasks"], [data-reorder-list="bugs"]');
+  const handleRequired = container.matches('[data-reorder-list="bugs"]');
   if (handleRequired && (!dragHandle || !item.contains(dragHandle))) return;
   if (!handleRequired && event.target.closest("button, a, input, select, textarea")) return;
 

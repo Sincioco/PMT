@@ -1,6 +1,12 @@
 # PMT UI Design System
 
-This document defines PMT's reusable light and dark visual language. Phase 13 establishes the semantic token contract and component rules; it does not redesign individual feature screens.
+This document defines PMT's reusable light and dark semantic tokens and supporting component guidance.
+
+## Paper Design authority
+
+[`paper-design.md`](paper-design.md) is the final authority for PMT UI and UX behavior. It supersedes any conflicting principle, example, recommendation, or historical statement in this document or other PMT documentation.
+
+When this document is silent or ambiguous, follow `paper-design.md`. When a new rule is explicitly identified as Paper Design, update `paper-design.md` as part of the same change. The principles below remain useful only where they do not conflict with Paper Design.
 
 ## Design principles
 
@@ -74,7 +80,7 @@ Each action or feedback family has a stable role:
 | Danger | `--color-danger` | `-surface`, `-border`, `-text` |
 | Information | `--color-info` | `-surface`, `-border`, `-text` |
 
-Primary is for the main action in a local context. Secondary supports a distinct, non-destructive alternative. Neutral controls use the control tokens rather than inventing another accent.
+Primary identifies the main action in a local context semantically. Under Paper Design, primary, secondary, danger, selected, and disabled control buttons remain unfilled. Use text, icons, and borders to communicate their role.
 
 Feedback colors do not imply work-item status. Work-item status uses lookup colors or the status palette.
 
@@ -103,7 +109,7 @@ These thresholds apply to quantitative completion or success rates. Named workfl
 | `--color-focus-halo` | Supporting outer focus halo |
 | `--shadow-focus` | Shared focus halo shadow |
 
-Focus must be visible on buttons, links, form controls, selectable cards, table actions, chart actions, navigation, and dialog controls. Do not remove an outline without replacing it with an equally visible focus treatment.
+Focus must normally be visible on buttons, links, form controls, selectable cards, table actions, chart actions, navigation, and dialog controls. The universal Paper Design exception is the upper-right dialog close control, which never displays a focus outline or halo.
 
 ### Shadows
 
@@ -197,13 +203,16 @@ Shared interaction transitions cover color, border color, and shadow—not trans
 
 ### Buttons
 
-- One primary button per local action group.
+- Ordinary buttons remain transparent in both themes, including buttons carrying the `primary`, `secondary`, or `danger` class.
+- One action may remain semantically primary within a local group, but it is not represented by a filled accent background.
 - Neutral is the default for Cancel, Close, filters, and low-emphasis utilities.
-- Danger requires a clear destructive label; use confirmation when the action is not easily reversible.
+- Danger requires a clear destructive label and may use danger text or borders; use confirmation when the action is not easily reversible.
 - Icon-only buttons require an accessible name.
 - Disabled buttons remain legible and visually unavailable; they must not rely on opacity alone in new component work.
 - Hover, active, and focus states must be independently visible.
 - Button interaction states must not translate, scale, resize, or change font metrics.
+- Icon-only actions are monochrome and borderless at rest; a border may appear on hover.
+- Data-bearing chart marks implemented as buttons may retain chart fill colors.
 
 Example:
 
@@ -241,6 +250,7 @@ Example:
 - Disabled fields use disabled background and text tokens.
 - Required, invalid, read-only, and disabled are different states and must look different.
 - Form layouts may use two columns on wide viewports and one column at or below 900px.
+- Checkbox labels use separate checkbox and content columns. Wrapped text aligns beneath the first word, and the checkbox is vertically centered against the complete content block, including avatars.
 
 ### Dialogs
 
@@ -250,6 +260,8 @@ Example:
 - Scroll the dialog body while keeping the title and actions visible when practical.
 - Place the primary action last in left-to-right action rows.
 - Do not use browser `alert`, `confirm`, or `prompt`.
+- The upper-right close control is a large monochrome `x`, transparent and borderless at rest, with a border only on hover.
+- The upper-right close control never displays a focus outline or halo; this is the explicit exception to the general focus-indicator rule.
 
 ### Navigation
 
@@ -292,8 +304,8 @@ Density rules:
 - Target WCAG 2.1 AA: at least 4.5:1 for normal text and 3:1 for large text, graphical objects, focus indicators, and meaningful control boundaries.
 - Verify primary and secondary text against page, default surface, raised surface, and dialog backgrounds in both themes.
 - Tertiary text is for nonessential metadata only and must still remain readable.
-- Primary, secondary, and semantic buttons require an approved contrast foreground.
-- Focus uses both `--color-focus-ring` and `--color-focus-halo` so it remains visible against page and surface backgrounds.
+- Button text and icons require approved contrast against the underlying surface. Paper Design buttons do not use filled primary backgrounds.
+- Focus normally uses both `--color-focus-ring` and `--color-focus-halo` so it remains visible against page and surface backgrounds. The upper-right dialog close control follows the Paper Design no-focus-indicator exception.
 - Status and chart colors require labels or accessible summaries.
 - All actions must be keyboard reachable.
 - Use semantic HTML and associated labels.

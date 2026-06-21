@@ -244,12 +244,12 @@ html[data-theme] .tasks-screen.work-item-screen .work-item-table .icon-action:di
 }
 
 .tasks-action-column {
-  width: 272px;
+  width: 224px;
 }
 
 .tasks-table .done-cell {
   min-width: 240px;
-  padding-right: 24px;
+  padding-right: var(--space-7);
 }
 
 .subtask-row td {

@@ -30,7 +30,16 @@ Dev Task Filter Dialog Box
 13.) Update the other charts so it conforms to this new format of "{Project Code} - {Sprint}".  Note the space before and after the dash (-).
 14.) That last update duplicated the Project code in the subtitles of the other 3 charts.  Now it renders something like this: PMT - PMT-Sprint05
 
+Dev Task Edit Mode
+------------------
+1.) When the Dev Task is in Edit mode, change the behavior of the table so that the user can drag-and-drop to re-order the tasks without needing to grab the re-order handler on the right.  This drag-and-drop logic only happens during edit mode.  And the cursor should update to the drag-and-drop cursor.
+2.) Remove the re-order handler on the right, as that would be redundant now.
+3.) In the dialog box where you view/edit a Dev Task, change the Title of the dialog box like in this format:  "PMT-TASK-001 - Build PMT foundation with stored procedures".
+4.) In the dialog box where you view/edit a Dev Task, sometimes the close dialog box icon (the x at the upper-right) gets a blue focus.  Never allow the close button of the dialog box at the upper-right to ever get a focus.  Make this a universal change and part of the "Paper Design" principal to remember.
+5.) When the Dev Task is in Edit mode, the % Complete graph has too much gap now between it and the icons to its right.  This was because we remove the drag handler and the graph has not been adjusted to take up more space.
+
 Universal UI Change Theme Change
 --------------------------------
 1.) Universally in all buttons and dialog boxes across PMT both light and dark mode, remove the blue (primary class).  I don't want any buttons with a background.
 2.) Universally, in all checkboxes, make sure that checkbox is vertically centered to the label that follows it (height-wise) and factoring the height of an image like an avatar if one is rendered before the label.  Currently, when a checkbox is rendered followed by an avatar and a label, the checkbox remains vertically aligned to the top.  The avatar image is rendered correctly which is vertically centered.
+3.) Record in a separate file called "paper-design.md" in the docs that lists everything you remember about the "Paper Design" principle that we have been building.  Update the ui-design-system.md in docs and refer to the "paper-design.md" as the final authority in UI/UX behavior, meaning, it should supersede/override any previous UI principle.  And when in doubt, follow what is in the "paper-design.md" file.  And whenever I mention a new rule/logic/principle regarding "Paper Design" that is now recorded in the "paper-design.md" always add it in the future, remember this.

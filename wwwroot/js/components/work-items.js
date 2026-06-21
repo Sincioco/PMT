@@ -193,9 +193,12 @@ export function viewWorkItem(task, editWorkItem) {
 
   const modal = document.createElement("dialog");
   modal.className = "dialog detail-dialog";
+  const dialogTitle = task.taskType === "Bug"
+    ? `Bug Report ${task.code}`
+    : [task.code, task.title].filter(Boolean).join(" - ");
   modal.innerHTML = `
     <div class="dialog-head">
-      <h2>${escapeHtml(`${task.taskType === "Bug" ? "Bug Report" : "Dev Task"} ${task.code}`)}</h2>
+      <h2>${escapeHtml(dialogTitle)}</h2>
       <button type="button" class="icon-btn" data-close title="Close">x</button>
     </div>
     <div class="dialog-body">
