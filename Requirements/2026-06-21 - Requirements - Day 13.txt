@@ -74,3 +74,10 @@ You may use a browser to test/verify visually that the Dev Task and Bug Tracking
 Top Navigation and Browser Scrollbar Change
 -------------------------------------------
 As I go from one screen to another in PMT, I notice the Top Nav reserves a space for the scrollbar on screens it is not needed.  Can you make it so that Top Nav always takes up the full width of the browser and the scrollbar, if needed, only appears below the Top Nav?
+
+
+Dark Theme Fixes
+----------------
+* I Dark Theme, and only in Dark theme, when a button is selected or pressed, render it the original teal background it had before.  Currently, it is not rendering a background so it looks like nothing is selected.
+* The background teal color you selected is pretty muted.  Pick the a style that's bright to indicate the button is selected.  And be sure the text is white when the button is selected.
+
