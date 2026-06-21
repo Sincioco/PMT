@@ -148,3 +148,16 @@ For all of this conversation / session, I will perform all the manual tests and 
 * There is a security bug.  If I log on as Bill Gates and go to the Scrum, I can edit and delete other people's Scrum entries.  Bill Gates is not an Admin.  He should only be able to edit and delete his own entries.
 * Can you change the Documentation icon to something else?
 * Update WFH Schedule screen so it more closely conform to the way the Dev Task screen works.  There is no need to add a Filter button on this scren as it is meant to only show a Team members.
+
+* In the WFH Screen, highlight the days the user is set to WFH with a blue accent below the day similar to how the Top Nav works.
+
+* In the WFH Screen, do not bold anything.  In the first column, change the name format so it displays the person's name and their nickname in parenthesis.
+
+* Update the Bug Tracking top nav icon to use the icon in the New Bug Report button in the Bug Tracking screen.
+* Default the user to "Light Theme" when they first log on the system.
+
+* In the WFH Screen, put the Person's role underneath their name as a 2nd line.  Remove the Role column.  Bring the Days column closer to the Person's name, and just make the 3rd column take up most of the space.
+
+* In the WFH Screen, the security is such that Admin can modify everything in Edit mode but other users can only modify their own WFH schedule.
+
+* In the WFH Screen, only the Admin can see and use the Reset button as well as the "Show Hidden" button.
