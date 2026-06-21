@@ -27,7 +27,7 @@
   font-size: var(--font-size-sm);
 }
 
-.field input,
+.field input:not([type="checkbox"]):not([type="radio"]),
 .field select,
 .field textarea,
 .rich-editor,
@@ -50,7 +50,7 @@
   transition: var(--transition-control);
 }
 
-.field input:focus,
+.field input:not([type="checkbox"]):not([type="radio"]):focus,
 .field select:focus,
 .field textarea:focus,
 .rich-editor:focus,
@@ -64,7 +64,7 @@
   box-shadow: var(--shadow-focus);
 }
 
-.field input:hover:not(:disabled),
+.field input:not([type="checkbox"]):not([type="radio"]):hover:not(:disabled),
 .field select:hover:not(:disabled),
 .field textarea:hover:not(:disabled),
 .rich-editor:hover,
@@ -78,7 +78,7 @@
   background-color: var(--color-control-hover);
 }
 
-.field input:disabled,
+.field input:not([type="checkbox"]):not([type="radio"]):disabled,
 .field select:disabled,
 .field textarea:disabled,
 .toolbar select:disabled,
@@ -203,8 +203,21 @@ input[type="checkbox"] {
 }
 
 .rich-tools button {
-  min-width: 34px;
-  height: 32px;
+  width: var(--touch-target-min);
+  min-width: var(--touch-target-min);
+  height: var(--touch-target-min);
+  min-height: var(--touch-target-min);
+  padding: 0;
+  border-color: transparent;
+  background: transparent;
+  color: var(--color-text-secondary);
+  box-shadow: none;
+}
+
+.rich-tools button:hover:not(:disabled) {
+  border-color: var(--color-border-strong);
+  background: transparent;
+  color: var(--color-text-primary);
 }
 
 .rich-editor {

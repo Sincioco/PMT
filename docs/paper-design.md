@@ -51,10 +51,15 @@ When guidance is missing or ambiguous, follow this document. When a new requirem
 
 - Related controls use equal-width columns and balanced outer and middle spacing.
 - Two-column dialog layouts use `minmax(0, 1fr)` columns so controls can fill their column without intrinsic-width overflow.
+- Paired editor controls use a generous center gutter; the Dev Task editor uses twice the standard compact form gap between its left and right columns.
 - A paired checkbox may occupy the second column beside a select control when the relationship is clear.
 - Repeated checkbox options should use an orderly grid and wrap into subsequent rows.
 - Filter group legends use normal title casing rather than forced uppercase.
 - User filters render the avatar between the checkbox and the person's name.
+- Date and calendar inputs use the same standard control height as text inputs and selects.
+- Rich-text formatting controls follow the icon-button rules: monochrome, transparent, borderless at rest, and bordered on hover.
+- Dev Task assignee choices use a balanced three-column layout on wide screens and collapse to one column on compact screens.
+- Dev Task editor Assignee and Dependencies checklists use the same checkbox spacing, typography, borders, surface, and centered checkbox/content alignment as the Dev Task Filter dialog.
 - Dev Task chart subtitles expose the selected context using `{Project Code} - {Sprint}` with one space on each side of the dash.
 - When all Dev Task projects and all Sprints are selected, the chart context reads `All Projects and All Sprints`.
 

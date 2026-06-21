@@ -38,7 +38,7 @@ import { createRoadMapFeature } from "./features/roadmap/roadmap.js?v=20260620-a
 import { createScrumFeature } from "./features/scrum/scrum.js?v=20260620-scrum-project";
 import { createSettingsFeature } from "./features/settings/settings.js?v=20260620-light-reference-1";
 import { createSprintsFeature } from "./features/sprints/sprints.js?v=20260620-null-end-date";
-import { createTasksFeature } from "./features/tasks/tasks.js?v=20260621-subtask-capsule";
+import { createTasksFeature } from "./features/tasks/tasks.js?v=20260621-task-editor-layout";
 import { createWfhScheduleFeature } from "./features/wfh-schedule/wfh-schedule.js?v=20260620-wfh-schedule";
 import {
   fallbackEnvironments,

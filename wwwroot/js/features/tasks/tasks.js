@@ -391,7 +391,7 @@ export function createTasksFeature({
     const taskHasSubTasks = Boolean(task.subTasks?.length);
 
     openEditor(workItemEditorTitle(task, "New Dev Task"), `
-      <div class="form-grid">
+      <div class="form-grid task-editor-grid">
         ${task.id ? taskAuditPanelHtml(task) : ""}
         ${selectField("Project", "projectId", state.projects, projectId)}
         ${field("Title", "title", task.title || "", "text")}
@@ -405,7 +405,7 @@ export function createTasksFeature({
         ${field("URL", "url", task.url || "", "url")}
         ${richTextField("descriptionHtml", "Description", task.descriptionHtml || "")}
         ${attachmentEditorFieldHtml()}
-        <div data-assignee-list></div>
+        <div class="task-assignee-list" data-assignee-list></div>
         ${checkList("Dependencies", "dependencyTaskIds", sameProjectTasks, task.dependencyTaskIds || [], item => `${item.code} ${item.title}`, { className: "scroll-check-list dependency-check-list" })}
       </div>
     `, async root => {

@@ -42,6 +42,16 @@ Dev Task Edit Mode
 3.) In the dialog box where you view/edit a Dev Task, change the Title of the dialog box like in this format:  "PMT-TASK-001 - Build PMT foundation with stored procedures".
 4.) In the dialog box where you view/edit a Dev Task, sometimes the close dialog box icon (the x at the upper-right) gets a blue focus.  Never allow the close button of the dialog box at the upper-right to ever get a focus.  Make this a universal change and part of the "Paper Design" principal to remember.
 5.) When the Dev Task is in Edit mode, the % Complete graph has too much gap now between it and the icons to its right.  This was because we remove the drag handler and the graph has not been adjusted to take up more space.
+6.) When the Dev Task is in Edit mode dialog box, double the gap between the left and right controls.  In the virtual 2-column layout, simply double the padding so the controls on the left is not so close to the control on the right.
+7.) The Start field, which is a calendar field, has an incorrect height and appears much taller than a normal control.
+8.) Below the description label, there are buttons for formatting.  Format those buttons to conform to "Paper Design".
+9.) In the Assignee section, format the assignee into a 2-column layout.
+10.) In the Assignee section, format the assignee into a 3-column layout.
+11.) Style the checkboxes so they match the checkbox styling in the Dev Task Filter dialog.
+
+12.) There is something wrong with the styling of the Checkboxes in the Add/Edit Dev Task dialog box specifically in the Assignees and Dependencies sections.  Please use the Dev Task Filters dialog box as a reference for what is the desired checkbox formatting, and fix the checkboxes in the Add/Edit Dev Task dialog box.  You have my permission to use a browser for visual inspection/comparison if that would help, but only for this task.
+
+
 
 Universal UI Change Theme Change
 --------------------------------
