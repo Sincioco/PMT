@@ -143,3 +143,6 @@ For all of this conversation / session, I will perform all the manual tests and 
 * In the Avatar menu, move About as the first item.
 * As a special rule to the PMT logo, when you hover on it, do not render a border around it.
 * Make both the PMT Title and Subtitle clickable and take the user to the About page.
+
+For all of this conversation / session, I will perform all the manual tests and compile the application manually.  Perform only the coding changes required and nothing else.
+* There is a security bug.  If I log on as Bill Gates and go to the Scrum, I can edit and delete other people's Scrum entries.  Bill Gates is not an Admin.  He should only be able to edit and delete his own entries.

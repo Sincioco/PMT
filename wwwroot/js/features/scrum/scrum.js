@@ -127,9 +127,11 @@ export function createScrumFeature({
         <td class="scrum-flag" data-label="">${log.isPinned ? `<span class="pill scrum-pin">Pinned</span>` : ""}</td>
         ${scrumTableMode.active ? `
           <td class="reveal-actions action-cell scrum-actions" data-label="Actions">
-            ${iconButton("delete-log", log.id, "Delete", "delete-monochrome", editable)}
-            ${iconButton("duplicate-log", log.id, "Duplicate", "duplicate", editable)}
-            ${iconButton("edit-log", log.id, "Edit", "edit", editable)}
+            ${editable ? `
+              ${iconButton("delete-log", log.id, "Delete", "delete-monochrome")}
+              ${iconButton("duplicate-log", log.id, "Duplicate", "duplicate")}
+              ${iconButton("edit-log", log.id, "Edit", "edit")}
+            ` : ""}
           </td>
         ` : ""}
       </tr>
