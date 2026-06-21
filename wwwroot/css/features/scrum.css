@@ -1,5 +1,14 @@
 /* CSS ownership: Scrum screen. */
 
+.scrum-screen,
+.scrum-screen *,
+.scrum-filter-dialog,
+.scrum-filter-dialog *,
+.scrum-editor-grid,
+.scrum-editor-grid * {
+  font-weight: var(--font-weight-regular) !important;
+}
+
 .scrum-screen .section-head h1,
 html[data-theme="light"] .scrum-screen.work-item-screen .section-head h1 {
   color: var(--color-text-secondary);
@@ -135,17 +144,12 @@ html[data-theme] .scrum-screen.work-item-screen .work-item-table .icon-action:di
 }
 
 .scrum-action-column {
-  width: 144px;
+  width: 176px;
 }
 
 .scrum-date {
   color: var(--color-text-primary);
-  font-weight: var(--font-weight-medium);
   white-space: nowrap;
-}
-
-.scrum-project .pill {
-  white-space: normal;
 }
 
 .scrum-person {
@@ -192,6 +196,7 @@ html[data-theme] .scrum-screen.work-item-screen .work-item-table .icon-action:di
 }
 
 .scrum-actions {
+  padding-right: var(--space-7) !important;
   vertical-align: middle !important;
 }
 

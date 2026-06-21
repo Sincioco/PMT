@@ -12,7 +12,7 @@ import {
   showTaskAudit,
   viewWorkItem
 } from "./components/work-items.js?v=20260621-scrum-backlog-parity";
-import { createApplicationShell } from "./core/application-shell.js?v=20260621-transparent-pmt-logo";
+import { createApplicationShell } from "./core/application-shell.js?v=20260621-clickable-brand";
 import {
   currentView,
   navigate
@@ -36,8 +36,8 @@ import {
 } from "./features/gantt/gantt.js?v=20260620-gantt-flush-sprint";
 import { createProjectsFeature } from "./features/projects/projects.js?v=20260621-project-logos";
 import { createRoadMapFeature } from "./features/roadmap/roadmap.js?v=20260620-all-projects-label";
-import { createScrumFeature } from "./features/scrum/scrum.js?v=20260621-dev-task-parity";
-import { createSettingsFeature } from "./features/settings/settings.js?v=20260620-light-reference-1";
+import { createScrumFeature } from "./features/scrum/scrum.js?v=20260621-regular-text-actions";
+import { createSettingsFeature } from "./features/settings/settings.js?v=20260621-settings-avatar-only";
 import { createSprintsFeature } from "./features/sprints/sprints.js?v=20260620-null-end-date";
 import { createTasksFeature } from "./features/tasks/tasks.js?v=20260621-task-editor-layout";
 import { createWfhScheduleFeature } from "./features/wfh-schedule/wfh-schedule.js?v=20260620-wfh-schedule";

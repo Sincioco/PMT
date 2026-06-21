@@ -22,7 +22,7 @@ import {
   readNavigationConfig,
   resetNavigationConfig,
   writeNavigationConfig
-} from "../../core/navigation-preferences.js?v=20260620-light-reference-1";
+} from "../../core/navigation-preferences.js?v=20260621-settings-avatar-only";
 import {
   clearPmtPreferences,
   preferenceKeys,

@@ -29,11 +29,42 @@
   object-fit: contain;
 }
 
-.brand > div {
+.brand-logo-button {
+  width: 40px;
+  min-width: 40px;
+  height: 40px;
+  min-height: 40px;
+  padding: 0;
+  border-color: transparent;
+  background: transparent;
+}
+
+html[data-theme] button.brand-logo-button:hover:not(:disabled),
+html[data-theme="light"] button.brand-logo-button:hover:not(:disabled) {
+  border-color: transparent !important;
+  background: transparent !important;
+  outline: none;
+  box-shadow: none !important;
+}
+
+.brand-text-button {
   display: flex;
   flex-direction: column;
   justify-content: center;
+  align-items: flex-start;
   height: 40px;
+  min-height: 40px;
+  padding: 0;
+  border-color: transparent;
+  background: transparent;
+  text-align: left;
+}
+
+html[data-theme] button.brand-text-button:hover:not(:disabled),
+html[data-theme="light"] button.brand-text-button:hover:not(:disabled) {
+  border-color: transparent !important;
+  background: transparent !important;
+  box-shadow: none !important;
 }
 
 .brand strong {
@@ -81,8 +112,10 @@
 .nav-icon {
   display: inline-grid;
   place-items: center;
-  min-width: var(--icon-size-md);
-  font-size: var(--icon-size-sm);
+  width: var(--icon-size-lg);
+  min-width: var(--icon-size-lg);
+  height: var(--icon-size-lg);
+  font-size: var(--icon-size-lg);
   line-height: 1;
 }
 

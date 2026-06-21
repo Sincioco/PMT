@@ -5,7 +5,7 @@ import {
   logout,
   setCurrentUserId
 } from "./authentication.js";
-import { navIconHtml } from "./navigation-preferences.js?v=20260620-light-reference-1";
+import { navIconHtml } from "./navigation-preferences.js?v=20260621-settings-avatar-only";
 import {
   preferenceKeys,
   readPreference,
@@ -14,7 +14,7 @@ import {
 import { currentView, getNavigationScreens, navigate } from "./router.js";
 import { loadState, state } from "./store.js";
 
-const fixedOverflowViews = new Set(["WFH Schedule", "Settings"]);
+const fixedOverflowViews = new Set(["WFH Schedule"]);
 
 export function createApplicationShell({
   bindScreenEvents,
@@ -28,6 +28,7 @@ export function createApplicationShell({
   const elements = {
     app: document.getElementById("app"),
     nav: document.getElementById("nav"),
+    brandAboutButtons: document.querySelectorAll("[data-brand-about]"),
     userSelect: document.getElementById("currentUser"),
     userAvatar: document.getElementById("currentUserAvatar"),
     userMenuToggle: document.getElementById("userMenuToggle"),
@@ -89,6 +90,16 @@ export function createApplicationShell({
   function bindHighLevelEvents() {
     if (shellEventsBound) return;
     shellEventsBound = true;
+
+    elements.brandAboutButtons.forEach(button => {
+      button.addEventListener("click", () => {
+        if (!currentUserId) return;
+        closeNavOverflow();
+        closeUserMenu();
+        navigate("About");
+        render();
+      });
+    });
 
     elements.nav.addEventListener("click", event => {
       const overflowButton = event.target.closest("button[data-action='nav-overflow-toggle']");

@@ -6,7 +6,7 @@ import {
 import { screenRegistry } from "./screen-registry.js";
 
 const navigationVersion = 1;
-const lockedVisibleViews = new Set(["WFH Schedule", "Settings"]);
+const lockedVisibleViews = new Set(["WFH Schedule"]);
 
 function defaultNavigationItems() {
   return screenRegistry
@@ -51,14 +51,6 @@ export function normalizeNavigationConfig(value = {}) {
 
   defaultNavigationItems().forEach(item => {
     if (seenViews.has(item.view)) return;
-    if (item.view === "WFH Schedule") {
-      const settingsIndex = items.findIndex(entry => entry.view === "Settings");
-      if (settingsIndex >= 0) {
-        items.splice(settingsIndex, 0, item);
-        seenViews.add(item.view);
-        return;
-      }
-    }
     items.push(item);
   });
 

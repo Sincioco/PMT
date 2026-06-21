@@ -47,14 +47,17 @@ button:disabled {
 .button-icon {
   display: inline-grid;
   place-items: center;
-  min-width: 16px;
+  width: var(--icon-size-lg);
+  min-width: var(--icon-size-lg);
+  height: var(--icon-size-lg);
+  font-size: var(--icon-size-lg);
   line-height: 1;
 }
 
 .button-svg-icon {
   display: block;
-  width: 16px;
-  height: 16px;
+  width: var(--icon-size-lg);
+  height: var(--icon-size-lg);
 }
 
 .button-svg-icon path {
@@ -106,7 +109,7 @@ button[data-edit-readonly-task] > .button-icon,
   padding: 0;
   display: inline-grid;
   place-items: center;
-  font-size: var(--font-size-lg);
+  font-size: var(--icon-size-lg);
   line-height: 1;
 }
 
@@ -119,7 +122,7 @@ button[data-edit-readonly-task] > .button-icon,
   border-color: transparent;
   background: transparent;
   color: var(--color-text-secondary);
-  font-size: var(--font-size-xl);
+  font-size: var(--icon-size-lg);
   box-shadow: none;
 }
 
@@ -203,29 +206,35 @@ html[data-theme="light"] :is(
   font-variant-emoji: text;
 }
 
-/*
- * The Dev Tasks page-level action icon is the Light-theme size reference.
- * Promote smaller button/action icons to 18px without reducing larger marks.
- */
-html[data-theme="light"] :is(
+/* Keep ordinary interface icons at one size in both themes and every screen. */
+html[data-theme] :is(
   button .button-icon,
   button .nav-icon,
   button .settings-nav-icon,
+  button.icon-btn,
   button.icon-action,
   button.gantt-bug-button,
   .rich-tools button,
   button > span[aria-hidden="true"]:only-child
 ) {
-  font-size: 18px !important;
+  font-size: var(--icon-size-lg) !important;
 }
 
-html[data-theme="light"] button :is(.button-icon, .nav-icon, .settings-nav-icon) {
-  min-width: 18px;
+html[data-theme] button :is(.button-icon, .nav-icon, .settings-nav-icon) {
+  width: var(--icon-size-lg);
+  min-width: var(--icon-size-lg);
+  height: var(--icon-size-lg);
 }
 
-html[data-theme="light"] button .button-svg-icon {
-  width: 18px !important;
-  height: 18px !important;
+html[data-theme] .work-item-screen .section-head .toolbar > button .button-icon {
+  width: auto;
+  min-width: 0;
+  height: auto;
+}
+
+html[data-theme] button .button-svg-icon {
+  width: var(--icon-size-lg) !important;
+  height: var(--icon-size-lg) !important;
 }
 
 html[data-theme="light"] button {

@@ -116,7 +116,7 @@ export function createScrumFeature({
     return `
       <tr class="scrum-row clickable-row" data-action="view-log" data-id="${log.id}">
         <td class="scrum-date" data-label="Date">${formatDate(log.logDate)}</td>
-        <td class="scrum-project" data-label="Project">${log.projectId ? `<span class="pill">${escapeHtml(projectName(log.projectId))}</span>` : `<span class="muted">No project</span>`}</td>
+        <td class="scrum-project" data-label="Project">${log.projectId ? escapeHtml(projectName(log.projectId)) : `<span class="muted">No project</span>`}</td>
         <td class="scrum-person-cell" data-label="Person">
           <div class="row scrum-person">
             <img class="avatar" src="${escapeAttr(user?.avatarUrl || "/assets/avatar-default.svg")}" alt="">

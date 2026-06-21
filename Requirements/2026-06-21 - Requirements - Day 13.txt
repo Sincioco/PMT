@@ -129,3 +129,17 @@ For all of this conversation / session, I will perform all the manual tests and 
 
 * For the LMS project, update it's logo with a new logo located at "D:\Project Management Tool (PMT)\Requirements\UI\LMS Logo.svg"
 * For the HLS project, update it's logo with a new logo located at "D:\Project Management Tool (PMT)\Requirements\UI\HLS Logo.svg"
+* In the Scrum screen, in both Light and Dark theme, do not bold any of the text.  Also, remove the capsule/border around the Project Name. And when in edit mode, the action icons are basically flushed right, add some margins just like in Dev Tasks' tables when it is in edit mode.
+
+
+* In the Settings page, in the category section on the left, the icon are nearly overlapping.  There appears to be no gap between them.
+* Universally change the icon sizes to 20px for buttons, top nav, page level icons, basically all icons.
+* Make it so that when you click the PMT Logo, you are taken to the About page.
+* The page-level icons are no longer centered to their buttons in Dev Tasks, Bug Tracking and the Scrum screens.
+
+* In the Dev Tasks screen, I noticed that when I open a dialog box the browser's scrollbar disappears and it's causing the content to shift in order for the dialog box to capture the mousewheel.  Is there a different way of capturing the mousewheel just for the dialog box without shifting content on the main browser content?  If not, then just disable the mousewheel capture logic so that the browser's scrollbar does not dynamically appear/disappear and causing the background content to shift.
+
+* Settings exists in both Top Nav bar and the Avatar menu.  Do we need both?  If you think we need both that is fine, but if we need only one, you decide which one to keep.
+* In the Avatar menu, move About as the first item.
+* As a special rule to the PMT logo, when you hover on it, do not render a border around it.
+* Make both the PMT Title and Subtitle clickable and take the user to the About page.

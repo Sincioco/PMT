@@ -141,10 +141,11 @@
 .settings-nav-icon {
   display: inline-grid;
   place-items: center;
-  width: var(--icon-size-md);
-  min-width: var(--icon-size-md);
+  width: var(--icon-size-lg);
+  min-width: var(--icon-size-lg);
+  height: var(--icon-size-lg);
   color: var(--color-text-secondary);
-  font-size: var(--icon-size-sm);
+  font-size: var(--icon-size-lg);
   line-height: 1;
 }
 
@@ -188,6 +189,19 @@
   text-align: left;
   background: transparent;
   color: var(--color-text-secondary);
+}
+
+.settings-category-picker button {
+  display: grid;
+  grid-template-columns: var(--icon-size-lg) minmax(0, 1fr);
+  align-items: center;
+  column-gap: var(--space-3);
+}
+
+.settings-category-picker .button-icon {
+  width: var(--icon-size-lg);
+  min-width: var(--icon-size-lg);
+  height: var(--icon-size-lg);
 }
 
 .lookup-picker button:hover,
