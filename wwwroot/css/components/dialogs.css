@@ -1,5 +1,15 @@
 /* Phase 11 ownership: dialogs. */
 
+/*
+ * Paper Design: an open modal owns scrolling. The page behind it remains
+ * fixed, and reaching a dialog scroll boundary never chains to the document.
+ */
+html:has(dialog[open]),
+body:has(dialog[open]) {
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
 .dialog {
   width: min(var(--dialog-width-md), calc(100vw - 2 * var(--shell-padding-compact)));
   max-height: calc(100vh - 2 * var(--shell-padding-compact));
@@ -9,6 +19,7 @@
   background: var(--dialog-bg);
   color: var(--color-text-primary);
   box-shadow: var(--shadow-dialog);
+  overscroll-behavior: contain;
 }
 
 .dialog::backdrop {
@@ -53,6 +64,7 @@
   padding: var(--space-7);
   max-height: 72vh;
   overflow: auto;
+  overscroll-behavior: contain;
 }
 
 .detail-grid {

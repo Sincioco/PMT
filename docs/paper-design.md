@@ -29,6 +29,8 @@ When guidance is missing or ambiguous, follow this document. When a new requirem
 ## Dialogs
 
 - Dialog surfaces remain opaque and readable in both themes.
+- While any modal dialog is open, the background page is scroll-locked.
+- Mouse-wheel, trackpad, and touch scrolling belong only to the active dialog. Reaching the top or bottom of dialog content must not chain scrolling to the page behind it.
 - Dialog titles use the same secondary text color as PMT page titles.
 - An existing Dev Task view or edit dialog uses the title format `{Task Code} - {Task Title}`.
 - The upper-right close control uses a large, simple monochrome `x`, matching the visual scale of page-level icons.

@@ -48,8 +48,9 @@ Dev Task Edit Mode
 9.) In the Assignee section, format the assignee into a 2-column layout.
 10.) In the Assignee section, format the assignee into a 3-column layout.
 11.) Style the checkboxes so they match the checkbox styling in the Dev Task Filter dialog.
-
 12.) There is something wrong with the styling of the Checkboxes in the Add/Edit Dev Task dialog box specifically in the Assignees and Dependencies sections.  Please use the Dev Task Filters dialog box as a reference for what is the desired checkbox formatting, and fix the checkboxes in the Add/Edit Dev Task dialog box.  You have my permission to use a browser for visual inspection/comparison if that would help, but only for this task.
+
+13.) When the Dev Task New/Edit dialog box is open, when I scroll the mousewheel to scroll up or down, when it reaches the end, the main browser's content on the back starts scrolling instead.  Can you fix it?  As part of the "Paper Design" principal, when a dialog box is open, the scrollwheel should operate only on the active dialog box and should not affect anything in the background.
 
 
 
