@@ -38,7 +38,7 @@
 }
 
 .settings-users-grid {
-  grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
 .settings-user-card {
@@ -99,6 +99,19 @@
 .settings-user-name {
   color: var(--color-text-primary);
   font-weight: 700;
+}
+
+.settings-user-email,
+.settings-user-email a {
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.settings-user-email a {
+  display: block;
 }
 
 .settings-avatar-dialog {
@@ -320,6 +333,18 @@
   box-shadow: inset 3px 0 0 var(--color-primary);
 }
 
+@media (max-width: 1300px) {
+  .settings-users-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 1050px) {
+  .settings-users-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
 @media (max-width: 900px) {
   .lookup-layout {
     grid-template-columns: 1fr;
@@ -333,5 +358,11 @@
   .development-action-row {
     align-items: stretch;
     flex-direction: column;
+  }
+}
+
+@media (max-width: 640px) {
+  .settings-users-grid {
+    grid-template-columns: 1fr;
   }
 }

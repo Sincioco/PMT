@@ -4,6 +4,7 @@ import { sectionHead } from "../../components/sections.js";
 import { createWorkItemTableMode } from "../../components/work-items.js?v=20260621-scrum-backlog-parity";
 import { api } from "../../core/api.js";
 import { currentUser } from "../../core/authentication.js";
+import { state } from "../../core/store.js";
 import { createReorderDrag } from "../../shared/reorder-drag.js";
 import { canEditOwner } from "../../shared/permissions.js";
 import {
@@ -160,10 +161,11 @@ export function createWfhScheduleFeature({
       <tr data-wfh-user-id="${row.userId}" data-can-drag="${showAdminActions ? "true" : "false"}" class="${row.isHidden ? "is-hidden" : ""}">
         <td class="wfh-member-cell">
           <div class="wfh-member">
-            <img class="row-avatar wfh-avatar" src="${escapeAttr(row.avatarUrl || "/assets/avatar-default.svg")}" alt="">
+            <img class="avatar wfh-avatar" src="${escapeAttr(wfhAvatarUrl(row))}" alt="${escapeAttr(wfhDisplayName(row))} avatar">
             <div class="wfh-member-text">
-              <span class="wfh-member-name">${escapeHtml(displayName(row))}</span>
-              <span class="wfh-member-role">${escapeHtml(displayRole)}</span>
+              <span class="wfh-member-name">${wfhNameHtml(row)}</span>
+              <span class="wfh-member-title muted">${escapeHtml(displayRole)}</span>
+              ${wfhEmailHtml(row)}
               ${row.isHidden ? `<span class="pill wfh-deleted-pill">Hidden</span>` : ""}
             </div>
           </div>
@@ -338,9 +340,34 @@ function eyeIconHtml() {
   `;
 }
 
-function displayName(row) {
-  const name = [row.firstName, row.lastName].filter(Boolean).join(" ") || row.nickname;
-  return row.nickname ? `${name} (${row.nickname})` : name;
+function wfhAvatarUrl(row) {
+  return (row.avatarUrl || "/assets/avatar-default.svg").trim();
+}
+
+function wfhDisplayName(row) {
+  return [row.firstName, row.lastName]
+    .map(part => (part || "").trim())
+    .filter(Boolean)
+    .join(" ") || row.nickname || "User";
+}
+
+function wfhNameHtml(row) {
+  const fullName = wfhDisplayName(row);
+  const nickname = (row.nickname || "").trim();
+  const showNickname = nickname && nickname.toLowerCase() !== fullName.toLowerCase();
+
+  return `${escapeHtml(fullName)}${showNickname ? ` (${escapeHtml(nickname)})` : ""}`;
+}
+
+function wfhEmailHtml(row) {
+  const email = (row.email || wfhUser(row).email || "").trim();
+  if (!email) return "";
+
+  return `<span class="wfh-member-email"><a href="mailto:${escapeAttr(email)}">${escapeHtml(email)}</a></span>`;
+}
+
+function wfhUser(row) {
+  return (state.users || []).find(user => user.id === row.userId) || {};
 }
 
 function sortRows(items) {

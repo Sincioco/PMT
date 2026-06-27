@@ -40,7 +40,7 @@ import { createScrumFeature } from "./features/scrum/scrum.js?v=20260621-regular
 import { createSettingsFeature } from "./features/settings/settings.js?v=20260627-generic-selected-ring";
 import { createSprintsFeature } from "./features/sprints/sprints.js?v=20260627-sprint-member-width";
 import { createTasksFeature } from "./features/tasks/tasks.js?v=20260627-user-card-checklist";
-import { createWfhScheduleFeature } from "./features/wfh-schedule/wfh-schedule.js?v=20260621-wfh-security";
+import { createWfhScheduleFeature } from "./features/wfh-schedule/wfh-schedule.js?v=20260627-wfh-member-card";
 import {
   fallbackEnvironments,
   fallbackForLookup,

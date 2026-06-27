@@ -117,7 +117,7 @@ html[data-theme] .wfh-schedule-screen.work-item-screen .work-item-table .icon-ac
 }
 
 .wfh-member-column {
-  width: 300px;
+  width: 380px;
 }
 
 .wfh-days-column {
@@ -149,33 +149,41 @@ html[data-theme] .wfh-schedule-screen.work-item-screen .work-item-table .icon-ac
 .wfh-member {
   display: flex;
   align-items: center;
-  gap: var(--space-3);
+  gap: var(--space-6);
   min-width: 0;
 }
 
 .wfh-avatar {
   display: block;
-  flex: 0 0 auto;
+  flex: 0 0 80px;
+  width: 80px;
+  height: 80px;
+  margin-left: 0;
 }
 
 .wfh-member-text {
   display: grid;
   min-width: 0;
-  gap: var(--space-1);
+  gap: 0;
 }
 
 .wfh-member-name,
 html[data-theme="light"] .wfh-schedule-screen.work-item-screen .wfh-member-name {
+  color: var(--color-text-primary);
+  font-weight: var(--font-weight-semibold) !important;
+}
+
+.wfh-member-title {
   color: var(--color-text-secondary);
 }
 
-.wfh-member-role {
-  color: var(--color-text-primary);
+.wfh-member-text span {
+  overflow-wrap: anywhere;
 }
 
-.wfh-member-text span {
-  color: var(--color-text-primary);
-  overflow-wrap: anywhere;
+.wfh-member-text :is(.wfh-member-name, .wfh-member-title, .wfh-member-email) {
+  margin: 0;
+  line-height: var(--line-height-tight);
 }
 
 .wfh-deleted-pill {
@@ -247,11 +255,4 @@ html[data-theme="dark"] .wfh-day-button.is-on[aria-pressed="true"] {
 .wfh-schedule-screen .wfh-drag-handle {
   opacity: 1;
   pointer-events: auto;
-}
-
-@media (max-width: 900px) {
-  .wfh-member {
-    align-items: flex-start;
-    flex-direction: column;
-  }
 }
