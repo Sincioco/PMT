@@ -232,6 +232,39 @@ html[data-theme] .work-item-screen .section-head .toolbar > button .button-icon 
   height: auto;
 }
 
+html[data-theme] .dialog-head button.icon-btn {
+  position: relative;
+  overflow: hidden;
+  text-indent: -9999px;
+  font-size: var(--icon-size-lg) !important;
+  line-height: 0;
+}
+
+html[data-theme] .dialog-head button.icon-btn::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 12px;
+  height: 2px;
+  border-radius: 999px;
+  background: currentColor;
+  transform: translate(-50%, -50%) rotate(45deg);
+  text-indent: 0;
+}
+
+html[data-theme] .dialog-head button.icon-btn::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 12px;
+  height: 2px;
+  border-radius: 999px;
+  background: currentColor;
+  transform: translate(-50%, -50%) rotate(-45deg);
+}
+
 html[data-theme] button .button-svg-icon {
   width: var(--icon-size-lg) !important;
   height: var(--icon-size-lg) !important;
