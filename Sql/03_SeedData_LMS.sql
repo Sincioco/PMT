@@ -17,9 +17,9 @@ SET DATEFIRST 7;
 DECLARE @Today DATE = CONVERT(DATE, SYSDATETIME());
 DECLARE @Now DATETIME2(0) = SYSDATETIME();
 DECLARE @Sin INT = (SELECT [UserId] FROM [pmt].[Users] WHERE [Nickname] = N'Sin');
-DECLARE @Bill INT = (SELECT [UserId] FROM [pmt].[Users] WHERE [Nickname] = N'Bill Gates');
-DECLARE @Sam INT = (SELECT [UserId] FROM [pmt].[Users] WHERE [Nickname] = N'Sam Altman');
-DECLARE @Mark INT = (SELECT [UserId] FROM [pmt].[Users] WHERE [Nickname] = N'Mark Zuckerberg');
+DECLARE @Bill INT = (SELECT [UserId] FROM [pmt].[Users] WHERE [Nickname] = N'Bill');
+DECLARE @Sam INT = (SELECT [UserId] FROM [pmt].[Users] WHERE [Nickname] = N'Sam');
+DECLARE @Mark INT = (SELECT [UserId] FROM [pmt].[Users] WHERE [Nickname] = N'Mark');
 DECLARE @Steve INT = (SELECT [UserId] FROM [pmt].[Users] WHERE [Nickname] = N'Steve');
 DECLARE @Jensen INT = (SELECT [UserId] FROM [pmt].[Users] WHERE [Nickname] = N'Jensen Huang');
 

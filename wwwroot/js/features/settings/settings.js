@@ -43,7 +43,7 @@ import {
   escapeHtml
 } from "../../shared/text-and-links.js";
 
-const avatarCacheVersion = "20260627-avatars";
+const avatarCacheVersion = "20260627-steve-avatar";
 const seededAvatarPaths = new Set([
   "/assets/avatar-sin.png",
   "/assets/avatar-bill-gates.png",
