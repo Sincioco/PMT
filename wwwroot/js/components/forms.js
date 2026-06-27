@@ -2,7 +2,7 @@ import {
   escapeAttr,
   escapeHtml,
   normalizeRichHtml
-} from "../shared/text-and-links.js";
+} from "../shared/text-and-links.js?v=20260627-rich-text-toolbar";
 
 export function field(label, name, currentValue, type, min = "", max = "", maxLength = "") {
   return `<div class="field"><label>${label}</label><input name="${name}" type="${type}" value="${escapeAttr(currentValue ?? "")}" ${min !== "" ? `min="${min}"` : ""} ${max !== "" ? `max="${max}"` : ""} ${maxLength !== "" ? `maxlength="${maxLength}"` : ""}></div>`;
@@ -48,10 +48,21 @@ export function richTextField(name, label, html) {
     <div class="field full">
       <label>${label}</label>
       <div class="rich-tools">
+        <select data-rich-format title="Text Style" aria-label="Text Style">
+          <option value="">Style</option>
+          <option value="title">Title</option>
+          <option value="h1">Heading 1</option>
+          <option value="h2">Heading 2</option>
+          <option value="h3">Heading 3</option>
+          <option value="body">Body</option>
+        </select>
         <button type="button" data-command="bold" title="Bold"><b>B</b></button>
         <button type="button" data-command="underline" title="Underline"><u>U</u></button>
-        <button type="button" data-command="insertUnorderedList" title="List" aria-label="List">&#8226;</button>
+        <button type="button" data-command="strikeThrough" title="Strikethrough" aria-label="Strikethrough"><s>S</s></button>
+        <button type="button" data-command="insertUnorderedList" title="Bullet List" aria-label="Bullet List">&#8226;</button>
+        <button type="button" data-command="insertOrderedList" title="Numbered List" aria-label="Numbered List">1.</button>
         <button type="button" data-command="createLink" title="Link" aria-label="Link">&#128279;</button>
+        <button type="button" data-command="insertCodeBlock" title="Code Block" aria-label="Code Block" class="rich-code-tool">&lt;/&gt;</button>
       </div>
       <div class="rich-editor" contenteditable="true" data-rich="${name}">${html || ""}</div>
     </div>

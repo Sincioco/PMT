@@ -5,7 +5,7 @@ import { askForText, askYesNo } from "./components/dialogs.js";
 import {
   field,
   value
-} from "./components/forms.js";
+} from "./components/forms.js?v=20260627-rich-text-toolbar";
 import { configureProgressAndStatus } from "./components/progress-and-status.js?v=20260627-dev-task-status-rules";
 import {
   bindAttachmentPreview,
@@ -26,9 +26,9 @@ import { state } from "./core/store.js";
 import { createAboutFeature } from "./features/about/about.js?v=20260621-about-credits";
 import { createBacklogFeature } from "./features/backlog/backlog.js?v=20260627-dev-task-status-rules";
 import { createBoardFeature } from "./features/board/board.js?v=20260627-dev-task-status-rules";
-import { createBugsFeature } from "./features/bugs/bugs.js?v=20260627-bug-project-sprint-progress";
+import { createBugsFeature } from "./features/bugs/bugs.js?v=20260627-rich-text-toolbar";
 import { createDashboardFeature } from "./features/dashboard/dashboard.js?v=20260627-dev-task-status-rules";
-import { createDocumentationFeature } from "./features/documentation/documentation.js?v=20260627-documentation-card-meta-flow";
+import { createDocumentationFeature } from "./features/documentation/documentation.js?v=20260627-rich-text-toolbar";
 import {
   createGanttFeature,
   currentSprintForProject,
@@ -36,10 +36,10 @@ import {
 } from "./features/gantt/gantt.js?v=20260627-gantt-initial-desc-offset";
 import { createProjectsFeature } from "./features/projects/projects.js?v=20260627-dev-task-status-rules";
 import { createRoadMapFeature } from "./features/roadmap/roadmap.js?v=20260627-roadmap-scrollbar-width";
-import { createScrumFeature } from "./features/scrum/scrum.js?v=20260627-dev-task-status-rules";
+import { createScrumFeature } from "./features/scrum/scrum.js?v=20260627-rich-text-toolbar";
 import { createSettingsFeature } from "./features/settings/settings.js?v=20260627-settings-development-header";
-import { createSprintsFeature } from "./features/sprints/sprints.js?v=20260627-sprint-card-status-mix";
-import { createTasksFeature } from "./features/tasks/tasks.js?v=20260627-task-project-sprint-progress";
+import { createSprintsFeature } from "./features/sprints/sprints.js?v=20260627-rich-text-toolbar";
+import { createTasksFeature } from "./features/tasks/tasks.js?v=20260627-rich-text-toolbar";
 import { createWfhScheduleFeature } from "./features/wfh-schedule/wfh-schedule.js?v=20260627-dev-task-status-rules";
 import {
   fallbackEnvironments,
@@ -63,7 +63,7 @@ import {
   linkifyTextNodes,
   normalizeLinksInElement,
   normalizeUrl
-} from "./shared/text-and-links.js";
+} from "./shared/text-and-links.js?v=20260627-rich-text-toolbar";
 import {
   configureWorkItemRules as configureProjectWorkItemRules
 } from "./shared/work-item-rules.js?v=20260627-dev-task-status-rules";
@@ -83,6 +83,14 @@ const nativePickerSelector = [
   'input[type="time"]',
   'input[type="week"]'
 ].join(",");
+
+const richTextFormats = {
+  title: { tag: "H1", className: "rich-title" },
+  h1: { tag: "H1", className: "" },
+  h2: { tag: "H2", className: "" },
+  h3: { tag: "H3", className: "" },
+  body: { tag: "P", className: "" }
+};
 
 function syncNativePickerTheme(control) {
   if (!(control instanceof HTMLElement)) return;
@@ -1142,6 +1150,16 @@ function bindRichTextButtons(root) {
         return;
       }
 
+      if (command === "insertCodeBlock") {
+        const codeBlock = await askForCodeBlock(editorSelectionText(savedSelection));
+        if (!codeBlock) return;
+
+        editor.focus();
+        restoreEditorSelection(savedSelection);
+        document.execCommand("insertHTML", false, richCodeBlockHtml(codeBlock));
+        return;
+      }
+
       document.execCommand(command, false, null);
 
       // Chrome/Chromium can ignore insertUnorderedList in an empty editor. This gives
@@ -1149,6 +1167,30 @@ function bindRichTextButtons(root) {
       if (command === "insertUnorderedList" && !editor.querySelector("ul")) {
         document.execCommand("insertHTML", false, "<ul><li><br></li></ul>");
       }
+      if (command === "insertOrderedList" && !editor.querySelector("ol")) {
+        document.execCommand("insertHTML", false, "<ol><li><br></li></ol>");
+      }
+    });
+  });
+
+  root.querySelectorAll("[data-rich-format]").forEach(select => {
+    let savedSelection = null;
+
+    select.addEventListener("mousedown", () => {
+      const editor = select.closest(".field")?.querySelector(".rich-editor");
+      savedSelection = editor ? saveEditorSelection(editor) : null;
+    });
+
+    select.addEventListener("change", () => {
+      const editor = select.closest(".field")?.querySelector(".rich-editor");
+      const format = select.value;
+      select.value = "";
+      if (!editor || !format) return;
+
+      editor.focus();
+      restoreEditorSelection(savedSelection || saveEditorSelection(editor));
+      applyRichTextFormat(editor, format);
+      savedSelection = null;
     });
   });
 
@@ -1169,6 +1211,110 @@ function bindRichTextButtons(root) {
       }
     });
   });
+}
+
+function applyRichTextFormat(editor, formatName) {
+  const format = richTextFormats[formatName];
+  if (!format) return;
+
+  document.execCommand("formatBlock", false, format.tag);
+  selectedRichBlocks(editor).forEach(block => {
+    block.classList.remove("rich-title");
+    if (format.className && block.tagName === format.tag) block.classList.add(format.className);
+  });
+}
+
+function selectedRichBlocks(editor) {
+  const selection = window.getSelection();
+  if (!selection || selection.rangeCount === 0) return [];
+
+  const range = selection.getRangeAt(0);
+  if (!editor.contains(range.commonAncestorContainer)) return [];
+
+  const blocks = new Set();
+  const startBlock = closestRichBlock(range.startContainer, editor);
+  const endBlock = closestRichBlock(range.endContainer, editor);
+  if (startBlock) blocks.add(startBlock);
+  if (endBlock) blocks.add(endBlock);
+
+  editor.querySelectorAll("h1, h2, h3, p, div, li").forEach(block => {
+    try {
+      if (range.intersectsNode(block)) blocks.add(block);
+    } catch {
+      // Some browser-generated editing nodes can disappear while formatBlock runs.
+    }
+  });
+
+  return [...blocks];
+}
+
+function closestRichBlock(node, editor) {
+  const element = node?.nodeType === Node.ELEMENT_NODE ? node : node?.parentElement;
+  const block = element?.closest("h1, h2, h3, p, div, li");
+  return block && block !== editor && editor.contains(block) ? block : null;
+}
+
+function editorSelectionText(range) {
+  if (!range || range.collapsed) return "";
+  return range.cloneContents().textContent || "";
+}
+
+function askForCodeBlock(initialCode = "") {
+  return new Promise(resolve => {
+    const modal = document.createElement("dialog");
+    modal.className = "dialog rich-code-dialog";
+    modal.innerHTML = `
+      <form method="dialog">
+        <div class="dialog-head">
+          <h2>Code Block</h2>
+        </div>
+        <div class="dialog-body">
+          <div class="field">
+            <label>Caption</label>
+            <input name="codeCaption" value="Code">
+          </div>
+          <div class="field full">
+            <label>Code</label>
+            <textarea name="codeText" rows="12" spellcheck="false">${escapeHtml(initialCode)}</textarea>
+          </div>
+        </div>
+        <div class="dialog-actions">
+          <button type="button" class="secondary text-icon-button" data-result="cancel">${buttonContent("&#10005;", "Cancel")}</button>
+          <button type="submit" class="primary text-icon-button">${buttonContent("&#10003;", "Insert")}</button>
+        </div>
+      </form>
+    `;
+
+    document.body.appendChild(modal);
+
+    const finish = value => {
+      modal.close();
+      modal.remove();
+      resolve(value);
+    };
+
+    modal.querySelector("[data-result='cancel']").addEventListener("click", () => finish(null));
+    modal.querySelector("form").addEventListener("submit", event => {
+      event.preventDefault();
+      finish({
+        caption: modal.querySelector("[name='codeCaption']").value,
+        code: modal.querySelector("[name='codeText']").value
+      });
+    });
+    modal.addEventListener("cancel", event => {
+      event.preventDefault();
+      finish(null);
+    });
+
+    modal.showModal();
+    setTimeout(() => modal.querySelector("[name='codeText']").focus(), 0);
+  });
+}
+
+function richCodeBlockHtml({ caption, code }) {
+  const summary = escapeHtml((caption || "Code").trim() || "Code");
+  const codeHtml = escapeHtml(code || "") || "<br>";
+  return `<details class="rich-code-block" open><summary>${summary}</summary><pre><code>${codeHtml}</code></pre></details><p><br></p>`;
 }
 
 function saveEditorSelection(editor) {

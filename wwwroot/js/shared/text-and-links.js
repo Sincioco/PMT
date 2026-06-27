@@ -50,7 +50,7 @@ export function linkifyTextNodes(root) {
 
 function collectTextNodes(node, textNodes) {
   if (node.nodeType === Node.TEXT_NODE) {
-    if (node.nodeValue.trim() && node.parentElement?.tagName !== "A") {
+    if (node.nodeValue.trim() && !node.parentElement?.closest("a, pre, code, kbd, samp, textarea, script, style")) {
       textNodes.push(node);
     }
     return;

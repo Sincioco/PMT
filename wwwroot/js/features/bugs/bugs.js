@@ -19,7 +19,7 @@ import {
   selectTextField,
   userCardCheckListLabelHtml,
   value
-} from "../../components/forms.js?v=20260627-user-card-checklist";
+} from "../../components/forms.js?v=20260627-rich-text-toolbar";
 import { progressHtml } from "../../components/progress-and-status.js?v=20260627-dev-task-status-rules";
 import { sectionHead } from "../../components/sections.js";
 import {

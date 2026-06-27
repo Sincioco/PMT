@@ -15,7 +15,7 @@ import {
   selectOptionsField,
   selectTextField,
   value
-} from "../../components/forms.js";
+} from "../../components/forms.js?v=20260627-rich-text-toolbar";
 import { progressHtml, statusColor } from "../../components/progress-and-status.js?v=20260627-dev-task-status-rules";
 import { sectionHead } from "../../components/sections.js";
 import {

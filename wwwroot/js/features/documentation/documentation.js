@@ -8,7 +8,7 @@ import {
   richValue,
   selectOptionsField,
   value
-} from "../../components/forms.js";
+} from "../../components/forms.js?v=20260627-rich-text-toolbar";
 import { sectionHead } from "../../components/sections.js";
 import {
   preferenceKeys,
