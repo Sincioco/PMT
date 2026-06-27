@@ -39,7 +39,7 @@ import { createRoadMapFeature } from "./features/roadmap/roadmap.js?v=20260627-d
 import { createScrumFeature } from "./features/scrum/scrum.js?v=20260627-dev-task-status-rules";
 import { createSettingsFeature } from "./features/settings/settings.js?v=20260627-dev-task-status-rules";
 import { createSprintsFeature } from "./features/sprints/sprints.js?v=20260627-dev-task-status-rules";
-import { createTasksFeature } from "./features/tasks/tasks.js?v=20260627-dev-task-status-rules";
+import { createTasksFeature } from "./features/tasks/tasks.js?v=20260627-task-assignee-gap";
 import { createWfhScheduleFeature } from "./features/wfh-schedule/wfh-schedule.js?v=20260627-dev-task-status-rules";
 import {
   fallbackEnvironments,

@@ -109,3 +109,26 @@ Assignees
 Start|End
 Parent|URL
 Dependencies
+
+
+* There is a minor bug in the Dev Task New/Edit Dialog Box.  The Priority dropdown control is rendering taller than the other controls, can you fix it?
+
+Dev Task Screen
+---------------
+I want to update the Dev Tasks lists (the table).  I want the table to display information this way:
+
+1.) The first column will be 2-lines, it would be "Project/Sprint".  Render the header with Project as the first line, and Sprint as the second line.  Render the cell/column data 2 lines as well.  When you render the Sprint, do not include the project code/name again since that is already on teh first line.
+2.) The second column will be Task (just like the way the task renders now), including the way the subtask capsule renders now.  Be sure to leave the sub task indention logic as-is as it is working correctly.
+3.) The third column will be Priority
+4.) The 4th column is the Assignee(s).  Since you can have multiple assignees, allow the column to expand.  But when it expands, allow it to take up the percent complete column instead.  Leave the other columns alone.
+5.) The 5th column is the percent complete, which is just the progress bar that is there now.
+6.) Keep all the other logic as-is such as the edit mode, the drag and drop, etc.  Don't touch those since those are working well.
+7.) Make the Assignee avatar 60x60 pixels and as they overlap do not shrink the avatar.
+
+8.) Let's move the Assignee back as the first column.  Make it's width dynamic, so that if there is only 1 assignee, there is just enough room for 1 avatar.  As more assignees are assigned and the images overlap, automatically adjust the column width to accommodate.
+9.) Render the avatar with no shadows.
+10.) Do not bold any of the column headers.
+
+11.) Can we make the column header of Assignee dynamic?  If there is only 1 assignee in all the table row's data, then keep it as Assignee.  But if there is more than 1 assignees in any of the rows that got rendered, change the column header to read Assignee(s).
+12.) If the current task/row has an associated bug to it, accent with a slight red so it visually stands out a tiny bit as being a bug task.
+13.) Can you add more padding/gap between column 1 and column 2.  I feel like the avatar pictures are too close to column 2.

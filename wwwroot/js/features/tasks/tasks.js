@@ -54,6 +54,7 @@ import {
 } from "../../shared/text-and-links.js";
 import {
   dependencyCandidates,
+  associatedBugForDevTask,
   isTaskCompleted,
   percentForDevTaskSave,
   taskCreatedTime,
@@ -112,6 +113,8 @@ export function createTasksFeature({
       .filter(task => taskMatchesSprintFilter(task, selectedSprint));
     const visibleTasks = filteredTaskList(baseTasks);
     const taskRows = taskRowsWithSubTasks(visibleTasks);
+    const assigneeColumnWidth = taskAssigneeColumnWidth(taskRows);
+    const assigneeHeader = taskRowsHaveMultipleAssignees(taskRows) ? "Assignee(s)" : "Assignee";
     const canShowCharts = allProjectDevTasks.length > 0;
     const showCharts = canShowCharts && taskVisualChartsVisible;
     const chartToggleLabel = showCharts ? "Hide Charts" : "Show Charts";
@@ -126,24 +129,20 @@ export function createTasksFeature({
       `)}
       ${showCharts ? taskVisualTrackingChartsHtml(baseTasks, selectedSprint, allProjectDevTasks) : ""}
       <div class="panel work-item-table-panel tasks-table-panel">
-        <table class="table work-item-table tasks-table ${taskTableMode.active ? "is-edit-mode" : "is-read-mode"}">
+        <table class="table work-item-table tasks-table ${taskTableMode.active ? "is-edit-mode" : "is-read-mode"}" style="--tasks-assignee-width:${assigneeColumnWidth}px">
           <colgroup>
             <col class="tasks-assigned-column">
+            <col class="tasks-context-column">
             <col class="tasks-title-column">
-            <col class="tasks-project-column">
-            <col class="tasks-sprint-column">
-            <col class="tasks-status-column">
             <col class="tasks-priority-column">
             <col class="tasks-complete-column">
             ${taskTableMode.active ? `<col class="tasks-action-column">` : ""}
           </colgroup>
           <thead>
             <tr>
-              <th>Assigned</th>
-              <th>Tasks</th>
-              <th>Project</th>
-              <th>Sprint</th>
-              <th>Status</th>
+              <th>${assigneeHeader}</th>
+              <th><span class="tasks-two-line-heading"><span>Project</span><span>Sprint</span></span></th>
+              <th>Task</th>
               <th>Priority</th>
               <th class="done-cell">% Complete</th>
               ${taskTableMode.active ? `<th class="action-cell" aria-label="Actions"></th>` : ""}
@@ -152,13 +151,21 @@ export function createTasksFeature({
           <tbody data-reorder-list="tasks">
             ${taskRows.map(row => {
               const task = row.task;
-              const rowClass = row.level ? "subtask-row" : "";
+              const rowClass = [
+                row.level ? "subtask-row" : "",
+                taskHasAssociatedBug(task) ? "bug-associated-row" : "",
+                "clickable-row"
+              ].filter(Boolean).join(" ");
               const titleClass = row.level ? "task-title-cell subtask-title-cell" : "task-title-cell";
               const indent = Math.min(row.level, 4) * 20;
 
               return `
-              <tr class="${rowClass} clickable-row" data-action="view-task" data-id="${task.id}" data-task-id="${task.id}" data-can-drag="${taskTableMode.active && canEditTask(task) ? "true" : "false"}" draggable="false">
-                <td>${taskRowAvatarsHtml(task.assignees)}</td>
+              <tr class="${rowClass}" data-action="view-task" data-id="${task.id}" data-task-id="${task.id}" data-can-drag="${taskTableMode.active && canEditTask(task) ? "true" : "false"}" draggable="false">
+                <td class="tasks-assignee-cell">${taskRowAvatarsHtml(task.assignees)}</td>
+                <td class="work-item-context-cell task-context-cell">
+                  <span class="task-context-project">${escapeHtml(projectName(task.projectId))}</span>
+                  <span class="task-context-sprint">${escapeHtml(taskTableSprintLabel(task))}</span>
+                </td>
                 <td class="${titleClass} work-item-title-cell" style="--indent:${indent}px">
                   <span class="work-item-code-line">
                     <strong class="work-item-code">${escapeHtml(task.code)}</strong>
@@ -166,15 +173,12 @@ export function createTasksFeature({
                   </span>
                   <span class="work-item-title">${bugFixIconHtml(task)}${escapeHtml(task.title)}</span>
                 </td>
-                <td class="work-item-context-cell task-project-cell">${escapeHtml(projectName(task.projectId))}</td>
-                <td class="work-item-context-cell">${escapeHtml(sprintName(task.sprintId))}</td>
-                <td class="work-item-context-cell">${escapeHtml(task.status)}</td>
                 <td><span class="pill priority-${task.priority}">${escapeHtml(task.priority)}</span></td>
                 <td class="done-cell">${progressHtml(taskDisplayPercent(task))}</td>
                 ${taskTableMode.active ? `<td class="reveal-actions action-cell">${taskButtonsHtml(task, { includeView: false, monochrome: true })}</td>` : ""}
               </tr>
             `;
-            }).join("") || `<tr><td colspan="${taskTableMode.active ? 8 : 7}"><div class="empty">No tasks for this filter.</div></td></tr>`}
+            }).join("") || `<tr><td colspan="${taskTableMode.active ? 6 : 5}"><div class="empty">No tasks for this filter.</div></td></tr>`}
           </tbody>
         </table>
       </div>
@@ -520,6 +524,37 @@ export function createTasksFeature({
         .filter(sprint => sprint.projectId === projectId)
         .map(sprint => ({ id: sprint.id, title: sprint.code }))
     ];
+  }
+
+  function taskTableSprintLabel(task) {
+    const sprintLabel = sprintName(task.sprintId);
+    const project = state.projects.find(item => item.id === task.projectId);
+    const prefixes = project?.code ? [`${project.code}-`, `${project.code} - `, `${project.code} `] : [];
+    const prefix = prefixes.find(item => sprintLabel.toLowerCase().startsWith(item.toLowerCase()));
+
+    return prefix
+      ? sprintLabel.slice(prefix.length)
+      : sprintLabel;
+  }
+
+  function taskAssigneeColumnWidth(taskRows) {
+    const avatarSize = 60;
+    const overlapWidth = 42;
+    const cellPadding = 34;
+    const maxAssigneeCount = Math.max(
+      1,
+      ...taskRows.map(row => Array.isArray(row.task.assignees) ? row.task.assignees.length : 0)
+    );
+
+    return cellPadding + avatarSize + ((maxAssigneeCount - 1) * overlapWidth);
+  }
+
+  function taskRowsHaveMultipleAssignees(taskRows) {
+    return taskRows.some(row => Array.isArray(row.task.assignees) && row.task.assignees.length > 1);
+  }
+
+  function taskHasAssociatedBug(task) {
+    return Boolean(associatedBugForDevTask(task, task.dependencyTaskIds));
   }
 
   function defaultSprintId(projectSprints) {
