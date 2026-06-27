@@ -154,3 +154,8 @@ Update the domain-rules.md in the docs folder with the new PMT Logic/Rules.
 
 20.) In the Bug tracking screen, widen the % complete column more so it takes more space.  Make it be the rubber-band column that can expand/shrink as needed.
 21.) In the Bug tracking screen, swap the Reporter and Assignee column in the table.
+
+Project Screen
+--------------
+There is a major bug in the Project Screen.  I just dropped and re-created the database and seeded the database with data.
+1.) It is no longer rendering the Donut Chart and the progress bar per status category.  What happened?  You are free to drop and re-create the database on your own, clear cache, local storage, etc..  Figure out why the Project Card is no longer rendering the Donut Chart and the progress/count per status category.
