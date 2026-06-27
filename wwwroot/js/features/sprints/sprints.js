@@ -1,5 +1,6 @@
 import { avatarsHtml } from "../../components/avatars.js";
 import { buttonContent, iconButton } from "../../components/buttons.js";
+import { VisualCharts } from "../../components/charts.js";
 import { askFinishSprintOptions } from "../../components/dialogs.js";
 import {
   checkListOrEmpty,
@@ -15,7 +16,9 @@ import {
 } from "../../components/forms.js?v=20260627-user-card-checklist";
 import {
   sprintOverallProgressHtml,
-  sprintStatusMetricsHtml
+  sprintStatusMetricsHtml,
+  statusColor,
+  workItemStatusCounts
 } from "../../components/progress-and-status.js?v=20260627-dev-task-status-rules";
 import { sectionHead } from "../../components/sections.js";
 import { api } from "../../core/api.js";
@@ -35,7 +38,11 @@ import {
   projectName,
   sprintById
 } from "../../shared/selectors.js";
-import { escapeHtml } from "../../shared/text-and-links.js";
+import {
+  escapeAttr,
+  escapeHtml
+} from "../../shared/text-and-links.js";
+import { sprintWorkItems } from "../../shared/work-item-rules.js?v=20260627-dev-task-status-rules";
 
 export function createSprintsFeature({
   app,
@@ -79,13 +86,15 @@ export function createSprintsFeature({
   function sprintCardHtml(sprint) {
     const isCollapsed = collapsedIds.has(sprint.id);
     const chartToggleTitle = isCollapsed ? "Expand Sprint charts" : "Collapse Sprint charts";
+    const sprintName = `${sprint.code} - ${sprint.title}`;
 
     return `
-      <article class="card clickable-card sprint-card" data-action="view-sprint-tasks" data-id="${sprint.id}">
+      <article class="card clickable-card sprint-card" data-action="view-sprint-tasks" data-id="${sprint.id}" title="${escapeAttr(sprintName)}">
         <div class="spread sprint-card-head">
           <div class="sprint-title-block">
-            <h3>${escapeHtml(sprint.code)}</h3>
+            <h3>${escapeHtml(sprintName)}</h3>
             <p class="muted sprint-project-name">${escapeHtml(projectName(sprint.projectId))}</p>
+            <p class="muted sprint-metrics">${sprint.completedTaskCount}/${sprint.taskCount} QA Passed+ | ${sprint.openBugCount}/${sprint.bugCount} open bug reports</p>
           </div>
           <div class="sprint-card-actions">
             <span class="pill sprint-state ${sprint.isFinished ? "sprint-state-finished" : "sprint-state-open"}">${sprint.isFinished ? "Finished" : "Open"}</span>
@@ -94,11 +103,10 @@ export function createSprintsFeature({
             </button>
           </div>
         </div>
-        <p class="sprint-title">${escapeHtml(sprint.title)}</p>
         <p class="muted sprint-dates">${formatDate(sprint.startDate)} - ${formatDate(sprint.endDate)}</p>
-        <p class="muted sprint-metrics">${sprint.completedTaskCount}/${sprint.taskCount} QA Passed+ | ${sprint.openBugCount}/${sprint.bugCount} open bug reports</p>
         ${sprintOverallProgressHtml(sprint)}
-        ${isCollapsed ? "" : sprintStatusMetricsHtml(sprint)}
+        ${isCollapsed ? "" : sprintStatusDonutHtml(sprint)}
+        ${isCollapsed ? "" : sprintStatusMetricsHtml(sprint, { showTotal: false })}
         <div class="row sprint-members">${avatarsHtml(sprint.developers)}</div>
         <div class="toolbar reveal-actions sprint-actions">
           ${iconButton("delete-sprint", sprint.id, "Delete", "delete", canEditOwner(sprint.createdByUserId), "danger")}
@@ -106,6 +114,45 @@ export function createSprintsFeature({
           ${iconButton("edit-sprint", sprint.id, "Edit", "edit", canEditOwner(sprint.createdByUserId))}
         </div>
       </article>
+    `;
+  }
+
+  function sprintStatusDonutHtml(sprint) {
+    const workItems = sprintWorkItems(sprint.id);
+    const rows = workItemStatusCounts(workItems);
+    const total = rows.reduce((sum, item) => sum + item.count, 0);
+    if (!total) return "";
+
+    const items = rows.map(item => {
+      const statusWorkItems = workItems.filter(workItem => workItem.status === item.status);
+      const workItemIds = statusWorkItems.map(workItem => workItem.id);
+      const actionTarget = statusWorkItems.length === 1
+        ? { action: "view-task", id: statusWorkItems[0].id }
+        : statusWorkItems.length > 1
+          ? { action: "chart-drill-work-items", ids: workItemIds.join(","), chartTitle: item.status }
+          : {};
+
+      return {
+        label: item.status,
+        value: item.count,
+        color: statusColor(item.status),
+        tooltip: `${item.status}: ${item.count} work item${item.count === 1 ? "" : "s"}`,
+        ...actionTarget
+      };
+    });
+
+    return `
+      <div class="sprint-status-mix">
+        <div class="sprint-status-mix-head">
+          <h4>Task Status Mix</h4>
+          <span>${total} total</span>
+        </div>
+        ${VisualCharts.pieChart(items, `${total} total`, "No Dev Tasks or Bugs.", {
+          donut: true,
+          centerValue: String(total),
+          centerLabel: "Total"
+        })}
+      </div>
     `;
   }
 

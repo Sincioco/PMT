@@ -159,3 +159,12 @@ Project Screen
 --------------
 There is a major bug in the Project Screen.  I just dropped and re-created the database and seeded the database with data.
 1.) It is no longer rendering the Donut Chart and the progress bar per status category.  What happened?  You are free to drop and re-create the database on your own, clear cache, local storage, etc..  Figure out why the Project Card is no longer rendering the Donut Chart and the progress/count per status category.
+
+
+Sprints Screen
+--------------
+1.) With the changes we made to the Projects card, for as much as reasonably possible, update the Sprint Card in the Sprint screen to match the look/style/UI/UX/theme of the Projects card. Definitely put a donut chart where the data for the donut chart is specific to each Sprint's Sprint Card, for that Sprint.
+
+2.) In both the Projects card and Sprints Card, can you make the avatar larger?  Like 60x60 in size (CSS).
+3.) In the Projects screen, can you move the legend of the Donut chart at the bottom of the Donut so that Donart chart can be as wide as possible?
+4.) In both the Projects card and Sprints Card, the avatar needs is nearly touching the left edge of the card, can you add some padding to the left?

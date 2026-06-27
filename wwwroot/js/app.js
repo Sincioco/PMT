@@ -38,7 +38,7 @@ import { createProjectsFeature } from "./features/projects/projects.js?v=2026062
 import { createRoadMapFeature } from "./features/roadmap/roadmap.js?v=20260627-dev-task-status-rules";
 import { createScrumFeature } from "./features/scrum/scrum.js?v=20260627-dev-task-status-rules";
 import { createSettingsFeature } from "./features/settings/settings.js?v=20260627-dev-task-status-rules";
-import { createSprintsFeature } from "./features/sprints/sprints.js?v=20260627-dev-task-status-rules";
+import { createSprintsFeature } from "./features/sprints/sprints.js?v=20260627-sprint-card-status-mix";
 import { createTasksFeature } from "./features/tasks/tasks.js?v=20260627-editor-audit-footer";
 import { createWfhScheduleFeature } from "./features/wfh-schedule/wfh-schedule.js?v=20260627-dev-task-status-rules";
 import {

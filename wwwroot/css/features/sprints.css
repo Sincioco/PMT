@@ -1,12 +1,12 @@
 /* CSS ownership: Sprints screen. */
 
 .sprints-grid {
-  grid-template-columns: repeat(auto-fit, minmax(min(330px, 100%), 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(360px, 100%), 1fr));
 }
 
 .sprint-card {
   position: relative;
-  gap: var(--space-4);
+  gap: var(--space-5);
   overflow: hidden;
   padding: var(--space-7);
   background: var(--color-surface);
@@ -17,22 +17,26 @@
 }
 
 .sprint-card-head {
-  gap: var(--space-4);
+  gap: var(--space-5);
   align-items: flex-start;
   padding-bottom: var(--space-5);
   border-bottom: var(--border-width) solid var(--color-border-subtle);
 }
 
 .sprint-title-block {
+  flex: 1 1 auto;
   min-width: 0;
 }
 
 .sprint-title-block h3 {
-  overflow-wrap: anywhere;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .sprint-project-name {
-  overflow-wrap: anywhere;
+  line-height: var(--line-height-body);
 }
 
 .sprint-card-actions {
@@ -57,11 +61,6 @@
   color: var(--color-success-text);
 }
 
-.sprint-title {
-  font-size: var(--font-size-lg);
-  font-weight: var(--font-weight-medium);
-}
-
 .sprint-dates {
   padding: var(--space-3) var(--space-4);
   border-radius: var(--radius-sm);
@@ -72,11 +71,100 @@
   line-height: var(--line-height-body);
 }
 
+.sprint-status-mix {
+  display: grid;
+  gap: var(--space-4);
+  min-width: 0;
+  padding-bottom: var(--space-5);
+  border-bottom: var(--border-width) solid var(--color-border-subtle);
+}
+
+.sprint-status-mix-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+.sprint-status-mix-head h4 {
+  margin: 0;
+  color: var(--color-text-primary);
+  font-size: var(--font-size-md);
+  line-height: var(--line-height-heading);
+}
+
+.sprint-status-mix-head span {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  white-space: nowrap;
+}
+
+.sprint-status-mix .pie-chart-layout {
+  grid-template-columns: 1fr;
+  gap: var(--space-4);
+  align-items: center;
+}
+
+.sprint-status-mix .pie-chart {
+  width: min(100%, 260px);
+  justify-self: center;
+}
+
+.sprint-status-mix .pie-chart-slice {
+  stroke: none;
+  stroke-width: 0;
+}
+
+.sprint-status-mix .pie-chart-hole {
+  fill: var(--color-surface-raised);
+  filter: drop-shadow(0 4px 12px color-mix(in srgb, var(--color-text-primary), transparent 88%));
+}
+
+.sprint-status-mix .pie-chart-center-value,
+.sprint-status-mix .pie-chart-center-label {
+  fill: var(--color-text-primary);
+  text-anchor: middle;
+  pointer-events: none;
+}
+
+.sprint-status-mix .pie-chart-center-value {
+  font-size: 24px;
+  font-weight: var(--font-weight-bold);
+}
+
+.sprint-status-mix .pie-chart-center-label {
+  fill: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+}
+
+.sprint-status-mix .chart-legend-list {
+  grid-template-columns: repeat(auto-fit, minmax(min(150px, 100%), 1fr));
+  gap: var(--space-2);
+}
+
+.sprint-status-mix .chart-legend-row {
+  min-height: 30px;
+  padding: var(--space-2) var(--space-3);
+  border-color: var(--color-border-subtle);
+}
+
 .sprint-members {
   min-height: 34px;
   margin-top: var(--space-2);
+  padding-left: var(--space-4);
   padding-top: var(--space-4);
   border-top: var(--border-width) solid var(--color-border-subtle);
+}
+
+.sprint-members .avatar-stack {
+  min-height: 60px;
+}
+
+.sprint-members .avatar {
+  width: 60px;
+  height: 60px;
+  margin-left: -15px;
 }
 
 .sprint-actions {

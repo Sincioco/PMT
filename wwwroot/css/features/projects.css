@@ -132,8 +132,19 @@
 .project-members {
   min-height: 34px;
   margin-top: var(--space-2);
+  padding-left: var(--space-4);
   padding-top: var(--space-4);
   border-top: var(--border-width) solid var(--color-border-subtle);
+}
+
+.project-members .avatar-stack {
+  min-height: 60px;
+}
+
+.project-members .avatar {
+  width: 60px;
+  height: 60px;
+  margin-left: -15px;
 }
 
 .project-actions {
