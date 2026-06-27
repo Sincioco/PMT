@@ -1,0 +1,64 @@
+Project Management Tool (PMT):  Day 14 of Codex Agentic AI Coding
+-----------------------------------------------------------------
+Total Dev Time in Hours:  18
+
+Settings User Screen
+----------------------
+1.) In the Settings User's screen, update the avatar of each user to be 80x80 pixels.
+2.) I have a new Avatar for the user Louiery Sincioco (Sin) located in "C:\Temp\avatar-sin.png", copy that into the correct place in the project and replace the existing avatar of Sin for this new one.
+3.) I have a new Avatar for the user Steve Jobs (Steve) located in "C:\Temp\avatar-steve-jobs.jpg", copy that into the correct place in the project and replace the existing avatar of Steve Jobs (Steve) for this new one.
+4.) Be sure to update the database seed SQL script for both Sin and Steve.
+5.) Remove the bolding the user's name in the User's screen.
+6.) On the right side of each user's avatar, put their Name, followed by their nickname in parenthesis if it is different than their name.  Below that should be their title.  And below that their email.  There should equal spacing between the lines of text.
+7.) Remove the email address that is currently displayed below the bio.
+8.) Add the bolding back on the user's name.
+9.) Make the email address hyperlinkable (using mailto:) and follow the "Paper Design" UI/UX for hyperlinks.
+10.) Change Sin's bio to read "PMT creator and administrator."
+
+11.) Change the user Lisa Sue to "Jensen Huang" and with no nickname.  And the email to be "Jensen.Huang@nvidia.com"
+12.) In the folder "C:\Temp\Avatars", I have prepared avatar images for each user, copy all of these images into the correct location in the project and update all the user's avatars using the new images.
+13.) In the User's screen, make it so that when you click on the user's avatar, the popup's up a dialog box that shows the larger/native picture of user's picture, confined to the size of the dialog box.
+14.) Update the database seed script so everything persist.
+15.) Delete old/unnecessary avatars.
+16.) Take care of any UI caching issue that might prevent me from seeing the new avatar images.
+
+17.) Update Bill Gate's nickname so it is "Bill" and fix the seed database script.
+18.) Update Mark Zuckerberg's nickname so it is "Mark" and fix the seed database script.
+19.) Update Sam Altman's nickname so it is "Sam" and fix the seed database script.
+
+20.) I updated Steve Jobs (Steve) avatar image located in "C:\Temp\Avatars\Avatar - Steve Jobs (Steve).png".  Please copy that into the project and update Steve's image and fix any database seed, if needed and take care of any UI caching issue that may prevent me from seeing the updated image.
+
+21.) In the Project New/Edit dialog box, update the list of members so it is a 2-column layout.  Use the User's Screen's user card as a reference, just the top part (not including the bio) and render the members list that way.  Again in 2-column layout.
+
+22.) In the Sprint New/Edit dialog box, update the Sprint Members in the same you did the Project New/Edit dialog box's list of members section.  Also update the Dev Task New/Edit dialog box's Assignees section.  And the Bug Report's New/Edit dialog box's Reporters and Assignees sections.
+
+23.) I have 6 generic avatar pictures located in "C:\Temp\Avatars - Generic".  Copy that in the appropriate location in the project.
+24.) In the User New/Edit dialog box, just above the Upload Avatar control, render the 6 images in an 80x80 size just horizontally one after another with some gaps in between them and allow the user to select one of those generic avatar if they don't want to upload their own avatar.
+
+25.) Let's re-arrange the order of the controls in the New/Edit User.  Still keep the 2-column layout of the dialog box in general.  Re-order the fields as outlined below, if there is only one field in a line, it means it takes up 2 columns.  The pipe (|) denotes the column separator.
+
+First Name|Last Name
+Nickname|Role
+Phone|Email 
+Generic Avatar
+Upload Avatar
+Avatar URL
+Home Page|Social Media
+Bio
+Admin
+
+26.) Make the user either select or upload an avatar before they can hit save.  Make avatar either via selection or uploading a required field.
+27.) When the user is hovering on the generic avatar images, highlight it in exactly the same way you highlight an avatar images on the User card.
+28.) And when the user is editing an existing user and a generic avatar was used, put a circular border around it to denote it is the current avatar in used for the user.
+
+29.) Minor UI/CSS bug, when hovering, the blue circle is being cut off at the top.  And when you select a user, the generic avatar icon shift down.  Please the avatar icon not shift/move when it is selected.
+30.) Make the First Name and Last Name required fields.
+
+31.) Universally in both light theme and dark theme, the dialog box's close button on the upper right (the "X") is not vertically centered.  When I hover on the button, I can see the "X" has more padding at the top than at the bottom.  Can you vertically the "x" on the button?
+
+32.) When the user select a generic avatar, keep the blue circle there to denote it is selected.  Also, when the dialog box loads to edit an existing user with a generic avatar, render the blue circle on that generic avatar to again denote it is the selected avatar image for the user.
+
+33.) In the WFH Schedule screen, render the Team Members column (column 1) to be in-line with the users are rendered using the Users Screen card's top section.
+
+34.) In the Users screen, render only 4 user cards per row.
+35.) In the User card, if the email is too long, instead of wrapping it, can you render ellipses instead?
