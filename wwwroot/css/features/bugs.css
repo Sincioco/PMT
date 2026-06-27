@@ -263,7 +263,7 @@ html[data-theme] .bugs-screen.work-item-screen .section-head .toolbar > button:h
 }
 
 .bugs-complete-column {
-  width: 220px;
+  width: auto;
 }
 
 .bugs-action-column {
@@ -271,7 +271,7 @@ html[data-theme] .bugs-screen.work-item-screen .section-head .toolbar > button:h
 }
 
 .bugs-table .done-cell {
-  min-width: 220px;
+  min-width: 280px;
   padding-right: var(--space-7);
 }
 

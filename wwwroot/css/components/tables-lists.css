@@ -39,10 +39,6 @@
   margin-left: var(--space-2);
 }
 
-.audit-editor-row {
-  justify-items: start;
-}
-
 .audit-table td {
   max-width: 260px;
   overflow-wrap: anywhere;

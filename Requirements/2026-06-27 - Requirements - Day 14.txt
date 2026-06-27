@@ -150,4 +150,7 @@ Update the domain-rules.md in the docs folder with the new PMT Logic/Rules.
 
 18.) On the Bug Tracking screen, replace the icon adding a new bug with the same icon as when adding a new Dev Task so the UI looks uniform between the two screens.
 
-19.) In both the Dev Task screen and Bug Tracking screen, in the Edit dialog box, the Audit Log button is located at the top instead of the button where it should be.  It should be placed to the left of the Cancel button with the audit icon and text "Audit".
+19.) In both the Dev Task screen and Bug Tracking screen, in the Edit dialog box, the Audit Log button is located at the top instead of the bottom where it should be.  It should be placed to the left of the Cancel button with the audit icon and text "Audit".  Actually in both the read and edit Dialog Box, change the label to "Audit Log"
+
+20.) In the Bug tracking screen, widen the % complete column more so it takes more space.  Make it be the rubber-band column that can expand/shrink as needed.
+21.) In the Bug tracking screen, swap the Reporter and Assignee column in the table.

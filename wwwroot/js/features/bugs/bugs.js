@@ -31,7 +31,7 @@ import {
   taskButtonsHtml,
   taskPercentField,
   uploadWorkItemAttachments
-} from "../../components/work-items.js?v=20260627-dev-task-status-rules";
+} from "../../components/work-items.js?v=20260627-editor-audit-footer";
 import { currentUserId } from "../../core/authentication.js";
 import {
   preferenceKeys,
@@ -131,8 +131,8 @@ export function createBugsFeature({
       <div class="panel work-item-table-panel bugs-table-panel">
         <table class="table work-item-table bugs-table ${bugTableMode.active ? "is-edit-mode" : "is-read-mode"}" style="--bugs-assignee-width:${assigneeColumnWidth}px; --bugs-reporter-width:${reporterColumnWidth}px">
           <colgroup>
-            <col class="bugs-assignee-column">
             <col class="bugs-reporter-column">
+            <col class="bugs-assignee-column">
             <col class="bugs-context-column">
             <col class="bugs-title-column">
             <col class="bugs-status-column">
@@ -143,8 +143,8 @@ export function createBugsFeature({
           </colgroup>
           <thead>
             <tr>
-              <th class="bugs-avatar-heading">${assigneeHeader}</th>
               <th class="bugs-avatar-heading">${reporterHeader}</th>
+              <th class="bugs-avatar-heading">${assigneeHeader}</th>
               <th><span class="bugs-two-line-heading"><span>Project</span><span>Sprint</span></span></th>
               <th>Bug Report</th>
               <th>Status</th>
@@ -157,8 +157,8 @@ export function createBugsFeature({
           <tbody data-reorder-list="bugs">
             ${filteredBugs.map(bug => `
               <tr class="clickable-row" data-action="view-task" data-id="${bug.id}" data-task-id="${bug.id}" data-can-drag="${bugTableMode.active && canEditTask(bug) ? "true" : "false"}" draggable="false">
-                <td class="bugs-avatar-cell">${taskRowAvatarsHtml(bug.assignees)}</td>
                 <td class="bugs-avatar-cell">${taskRowAvatarsHtml(bug.reporters)}</td>
+                <td class="bugs-avatar-cell">${taskRowAvatarsHtml(bug.assignees)}</td>
                 <td class="work-item-context-cell bug-context-cell">
                   <span class="bug-context-project">${escapeHtml(projectName(bug.projectId))}</span>
                   <span class="bug-context-sprint">${escapeHtml(bugTableSprintLabel(bug))}</span>

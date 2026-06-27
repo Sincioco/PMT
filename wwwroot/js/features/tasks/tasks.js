@@ -28,7 +28,7 @@ import {
   taskButtonsHtml,
   taskPercentField,
   uploadWorkItemAttachments
-} from "../../components/work-items.js?v=20260627-dev-task-status-rules";
+} from "../../components/work-items.js?v=20260627-editor-audit-footer";
 import {
   preferenceKeys,
   readBooleanPreference,

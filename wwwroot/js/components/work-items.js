@@ -85,9 +85,9 @@ export function createWorkItemTableMode({
 
 export function taskAuditPanelHtml(task) {
   return `
-    <div class="field full audit-editor-row">
-      <button type="button" class="icon-action" data-action="show-task-audit" data-id="${task.id}" title="Audit Log" aria-label="Audit Log">&#128221;</button>
-    </div>
+    <template data-editor-footer-action>
+      <button type="button" class="secondary text-icon-button" data-action="show-task-audit" data-id="${task.id}">${buttonContent("&#128221;", "Audit Log")}</button>
+    </template>
   `;
 }
 
@@ -227,7 +227,7 @@ export function viewWorkItem(task, editWorkItem, options = {}) {
       </div>
     </div>
     <div class="dialog-actions">
-      <button type="button" class="secondary text-icon-button" data-action="show-task-audit" data-id="${task.id}">${buttonContent("&#128221;", "Audit")}</button>
+      <button type="button" class="secondary text-icon-button" data-action="show-task-audit" data-id="${task.id}">${buttonContent("&#128221;", "Audit Log")}</button>
       <button type="button" class="secondary text-icon-button" data-edit-readonly-task="${task.id}" ${canEdit ? "" : "disabled"}>${buttonContent("&#9998;", "Edit")}</button>
       <button type="button" class="primary text-icon-button" data-close>${buttonContent("&#10003;", "Close")}</button>
     </div>
