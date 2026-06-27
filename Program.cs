@@ -29,11 +29,12 @@ app.UseDefaultFiles();
 app.UseStaticFiles();
 
 var uploadStorage = UploadStorageOptions.From(builder.Configuration, app.Environment.ContentRootPath);
+using var uploadStorageConnection = UploadStorageAccess.Connect(uploadStorage);
 Directory.CreateDirectory(uploadStorage.RootPath);
 app.UseStaticFiles(new StaticFileOptions
 {
     // Uploaded files stay outside wwwroot. In production this path can be a
-    // share on the database server, while SQL stores only the URL and metadata.
+    // file share, while SQL stores only the URL and metadata.
     FileProvider = new PhysicalFileProvider(uploadStorage.RootPath),
     RequestPath = uploadStorage.RequestPath
 });

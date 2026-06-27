@@ -172,6 +172,7 @@ Endpoints/
 |-- SettingsEndpoints.cs
 |-- ContentEndpoints.cs
 |-- UploadEndpoints.cs
+|-- UploadStorageAccess.cs
 |-- UploadStorageOptions.cs
 `-- DevelopmentEndpoints.cs
 Data/
@@ -232,7 +233,7 @@ All data-backed screens read through `GET /api/state` -> `GetStateAsync` -> `[pm
 | Settings - holidays | `features/settings/` | `POST /api/holidays`; `PUT /api/holidays/{id}`; `DELETE /api/holidays/{id}` | `SaveHolidayAsync`; `DeleteHolidayAsync` | `[pmt].[UpsertHoliday]`; `[pmt].[DeleteHoliday]` |
 | Settings - development | `features/settings/` | `POST /api/development/clear-non-pmt`; `POST /api/development/clear-pmt`; `POST /api/development/clear-users`; `POST /api/development/restore-seed-data` | `DevelopmentClearNonPmtAsync`; `DevelopmentClearPmtAsync`; `DevelopmentClearUsersAsync`; `RestoreInitialSeedDataAsync` | `[pmt].[DevelopmentClearNonPmt]`; `[pmt].[DevelopmentClearPmt]`; `[pmt].[DevelopmentClearUsers]`; seed scripts for restore |
 
-`POST /api/uploads/{kind}` stores a generic uploaded file without a database call. Task and Documentation attachment routes both store the file and then link its metadata through the relevant `[pmt]` attachment procedure.
+`POST /api/uploads/{kind}` stores a generic uploaded file without a database call. Task and Documentation attachment routes both store the file and then link its metadata through the relevant `[pmt]` attachment procedure. Upload storage is configured by `UploadStorage`. Blank `UserName` and `Password` values keep the root path as a normal local folder or current-identity path. When both credentials are supplied, `RootPath` must be a UNC path such as `\\fileserver\share\folder`; PMT opens a Windows fileshare connection at startup before serving `/uploads` or writing new files.
 
 ## Standard commands
 

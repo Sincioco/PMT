@@ -66,7 +66,7 @@ For a locked-down server, restore and publish on a machine that has package acce
 7. Bind the site to HTTP port `80` or another internal port.
 8. Grant the application pool identity read/write permission to:
    - the published folder
-   - `wwwroot\uploads`
+   - the configured `UploadStorage:RootPath` folder when no fileshare credentials are supplied
 9. Browse to the site.
 
 Default login:
@@ -91,13 +91,31 @@ For internal development servers, a self-signed certificate can work, but each c
 
 ## 6. File Uploads
 
-Uploaded files are stored under:
+Uploaded files are stored under the configured `UploadStorage:RootPath`. The default local setting is:
 
-```text
-wwwroot\uploads
+```json
+"UploadStorage": {
+  "RootPath": "C:\\PMT\\UploadedFiles",
+  "RequestPath": "/uploads",
+  "UserName": "",
+  "Password": ""
+}
 ```
 
-Back up this folder with the SQL Server database.
+When `UserName` and `Password` are blank, PMT uses `RootPath` as-is and the IIS application pool identity must have read/write access to that folder.
+
+For a Windows fileshare, set `RootPath` to the UNC folder and provide the fileshare account:
+
+```json
+"UploadStorage": {
+  "RootPath": "\\\\fileserver\\share\\folder",
+  "RequestPath": "/uploads",
+  "UserName": "DOMAIN\\pmt-files",
+  "Password": "CHANGE_ME"
+}
+```
+
+When both credentials are supplied, PMT connects to the UNC share at startup and uses that connection for uploads and `/uploads` downloads. Back up the configured upload folder with the SQL Server database.
 
 ## 7. Updating PMT
 
