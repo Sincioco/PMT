@@ -28,7 +28,7 @@ import { createBacklogFeature } from "./features/backlog/backlog.js?v=20260627-d
 import { createBoardFeature } from "./features/board/board.js?v=20260627-dev-task-status-rules";
 import { createBugsFeature } from "./features/bugs/bugs.js?v=20260627-bug-reporter-assignee-swap";
 import { createDashboardFeature } from "./features/dashboard/dashboard.js?v=20260627-dev-task-status-rules";
-import { createDocumentationFeature } from "./features/documentation/documentation.js?v=20260620-document-entry-project";
+import { createDocumentationFeature } from "./features/documentation/documentation.js?v=20260627-documentation-card-meta-flow";
 import {
   createGanttFeature,
   currentSprintForProject,

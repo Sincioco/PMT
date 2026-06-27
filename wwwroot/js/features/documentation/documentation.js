@@ -17,7 +17,6 @@ import {
 } from "../../core/preferences.js?v=20260620-document-entry-project";
 import { state } from "../../core/store.js";
 import {
-  documentationDateLine,
   documentationWasEdited,
   formatDate
 } from "../../shared/dates.js";
@@ -56,25 +55,7 @@ export function createDocumentationFeature({
         </div>
       </div>
       <div class="grid documentation-grid">
-        ${filteredBlogs.length ? filteredBlogs.map(blog => `
-          <article class="card clickable-card documentation-card" data-action="view-blog" data-id="${blog.id}">
-            <div class="spread documentation-card-head">
-              <div class="documentation-title-block">
-                <h3>${escapeHtml(blog.title)}</h3>
-                <p class="muted documentation-meta">${escapeHtml(userById(blog.createdByUserId)?.nickname || "User")} | ${documentationDateLine(blog)}</p>
-              </div>
-              <div class="row documentation-project">
-                ${blog.projectId ? `<span class="pill">${escapeHtml(projectCode(blog.projectId))}</span>` : `<span class="pill">General</span>`}
-              </div>
-            </div>
-            <div class="rich-readonly documentation-card-body">${blog.bodyHtml}</div>
-            ${blog.attachments.length ? `<div class="documentation-attachments">${blog.attachments.map(file => `<a href="${escapeAttr(file.url)}">${escapeHtml(file.fileName)}</a>`).join("")}</div>` : ""}
-            <div class="toolbar reveal-actions documentation-actions">
-              ${iconButton("delete-blog", blog.id, "Delete", "delete", canEditOwner(blog.createdByUserId), "danger")}
-              ${iconButton("edit-blog", blog.id, "Edit", "edit", canEditOwner(blog.createdByUserId))}
-            </div>
-          </article>
-        `).join("") : `<div class="empty">No Documentation exists for the selected project.</div>`}
+        ${filteredBlogs.length ? filteredBlogs.map(documentationCardHtml).join("") : `<div class="empty">No Documentation exists for the selected project.</div>`}
       </div>
     `;
   }
@@ -127,7 +108,7 @@ export function createDocumentationFeature({
           ${detailField("Created", escapeHtml(formatDate(blog.createdAt)))}
           ${documentationWasEdited(blog) ? detailField("Last Edited", escapeHtml(formatDate(blog.updatedAt))) : ""}
           ${detailField("Author", escapeHtml(author?.nickname || "User"))}
-          ${detailField("Body", `<div class="rich-readonly">${blog.bodyHtml || ""}</div>`, true)}
+          ${detailField("Body", `<div class="rich-readonly documentation-image-open-area">${blog.bodyHtml || ""}</div>`, true)}
           ${blog.attachments.length ? detailField("Attachments", attachmentsHtml(blog.attachments), true) : ""}
         </div>
       </div>
@@ -154,6 +135,7 @@ export function createDocumentationFeature({
     modal.addEventListener("cancel", () => modal.remove());
     modal.showModal();
     normalizeLinksInElement(modal);
+    bindDocumentationBodyImageOpen(modal);
   }
 
   function editBlog(blog = {}) {
@@ -188,6 +170,9 @@ export function createDocumentationFeature({
       for (const file of root.querySelector("[name='attachments']").files) {
         await attachFile(`/api/blogs/${result.id}/attachments`, file);
       }
+    }, "", root => {
+      root.querySelector("[data-rich='bodyHtml']")?.classList.add("documentation-image-open-area");
+      bindDocumentationBodyImageOpen(root);
     });
   }
 
@@ -205,4 +190,115 @@ export function createDocumentationFeature({
     handleFilterChange,
     render: renderDocumentation
   };
+}
+
+function documentationCardHtml(blog) {
+  const wasEdited = documentationWasEdited(blog);
+
+  return `
+    <article class="card clickable-card documentation-card" data-action="view-blog" data-id="${blog.id}" title="${escapeAttr(blog.title)}">
+      <div class="documentation-card-top">
+        <div class="documentation-card-title-row">
+          <div class="documentation-title-block">
+            <h3>${escapeHtml(blog.title)}</h3>
+          </div>
+          <div class="row documentation-project">
+            ${blog.projectId ? `<span class="pill">${escapeHtml(projectCode(blog.projectId))}</span>` : `<span class="pill">General</span>`}
+          </div>
+        </div>
+        ${wasEdited ? documentationEditedMetaHtml(blog) : documentationCreatedMetaHtml(blog)}
+      </div>
+      <div class="rich-readonly documentation-card-body">${blog.bodyHtml}</div>
+      ${blog.attachments.length ? `<div class="documentation-attachments">${blog.attachments.map(file => `<a href="${escapeAttr(file.url)}">${escapeHtml(file.fileName)}</a>`).join("")}</div>` : ""}
+      <div class="documentation-card-bottom ${wasEdited ? "" : "has-top-created-meta"}">
+        ${wasEdited ? documentationCreatedMetaHtml(blog) : ""}
+        <div class="toolbar reveal-actions documentation-actions">
+          ${iconButton("delete-blog", blog.id, "Delete", "delete", canEditOwner(blog.createdByUserId), "danger")}
+          ${iconButton("edit-blog", blog.id, "Edit", "edit", canEditOwner(blog.createdByUserId))}
+        </div>
+      </div>
+    </article>
+  `;
+}
+
+function documentationEditedMetaHtml(blog) {
+  const history = documentationLatestUpdatedHistory(blog);
+
+  return `
+    <div class="documentation-card-meta documentation-card-edited-meta">
+      <span>Last Edited by: ${escapeHtml(documentationUserName(history?.userId || blog.createdByUserId))}</span>
+      <span>${escapeHtml(documentationCardDateTime(history?.createdAt || blog.updatedAt))}</span>
+    </div>
+  `;
+}
+
+function documentationCreatedMetaHtml(blog) {
+  return `
+    <div class="documentation-card-meta documentation-card-created-meta">
+      <span>Created by: ${escapeHtml(documentationUserName(blog.createdByUserId))}</span>
+      <span>${escapeHtml(documentationCardDateTime(blog.createdAt))}</span>
+    </div>
+  `;
+}
+
+function documentationLatestUpdatedHistory(blog) {
+  return (blog.history || []).find(item => item.action === "Updated") || null;
+}
+
+function documentationUserName(userId) {
+  const user = userById(userId);
+  if (!user) return "User";
+
+  const fullName = [user.firstName, user.lastName]
+    .map(part => (part || "").trim())
+    .filter(Boolean)
+    .join(" ");
+  const nickname = (user.nickname || "").trim();
+  if (fullName && nickname && fullName.toLowerCase() !== nickname.toLowerCase()) return `${fullName} (${nickname})`;
+
+  return fullName || nickname || "User";
+}
+
+function documentationCardDateTime(value) {
+  if (!value) return "";
+
+  return new Date(value).toLocaleString(undefined, {
+    month: "numeric",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit"
+  }).replace(",", "").toLowerCase();
+}
+
+function bindDocumentationBodyImageOpen(root) {
+  if (!root || root.dataset.documentationImageOpenBound === "true") return;
+
+  root.dataset.documentationImageOpenBound = "true";
+  root.addEventListener("click", event => {
+    const image = event.target instanceof Element
+      ? event.target.closest(".documentation-image-open-area img")
+      : null;
+    if (!image || !root.contains(image)) return;
+
+    const imageUrl = image.currentSrc || image.getAttribute("src") || "";
+    if (!imageUrl) return;
+
+    event.preventDefault();
+    event.stopPropagation();
+    openDocumentationImageInNewTab(imageUrl);
+  }, true);
+}
+
+function openDocumentationImageInNewTab(imageUrl) {
+  let targetUrl = imageUrl;
+
+  try {
+    targetUrl = new URL(imageUrl, window.location.href).href;
+  } catch {
+    targetUrl = imageUrl;
+  }
+
+  const opened = window.open(targetUrl, "_blank", "noopener,noreferrer");
+  if (opened) opened.opener = null;
 }

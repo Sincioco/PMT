@@ -182,3 +182,36 @@ Road Map Screen
 
 6.) Resize the avatar icon to be 80x80 when visible.
 7.) Much like what we did for the tooltip's End: section, adjust the Road Map project bar to say "On-going" if there is no end-date specified for the project.
+
+8.) Let's always show the % completion of the project, so the Projet bar will show its text in this format:
+	{Project Code} - {Project Name} - {xx%} complete - {start date} - {end date}
+9.) Bold the Project Code and Project Name just like what it is now, but mute the rest.
+10.) When the member teams Avatar is shown, change the Project Logo to be 100x100 pixels.
+11.) Update the "Hide avatars and percent text" button so it's icon now shows an appropriate icon for hiding/showing an avatar.  Perhaps, a person-like icon.
+
+12.) In this particular case, specific to the Road Map, since there is plenty of room on the Road Map, we don't need to overlap the avatar pictures.
+
+* In the Dev Tasks, if a Dev Task is linked to a Bug Report (there is a dependency to a bug report), tint the whole row in red similar to what was on the Kanban Board board.  Use the same red color/theme if possible so there is a uniform look between the two screens.
+
+* I need the red tint to be much lighter, barely visible.  But revert the red accent on the left to what it was when it was stronger and more visible.
+
+* In the Documentation Screen, allow the user to click on a pasted image in the body and have it open a new browser tab so they can view the image in its larger / native resolution.  Do this in both read-only and edit mode.
+
+
+* In the Documentation Screen, can you render only a maximum of 4 Documentation Cards (width-wise).
+
+* I want the top part of the documentation card to have a fixed height, the cards look visually uniform, can you move the Created by and date at the bottom lower left of the card and format in a 2-line muted way like this:
+
+		Created by:  Louiery R. Sincioco (Sin)
+		6/27/2026 hh:mm am/pm
+
+* At the top of the card, reserve a space for editing info, and format it the same way:
+
+		Last Edited by:  Louiery R. Sincioco (Sin)
+		6/27/2026 hh:mm am/pm
+
+* If the Document's title is too long, don't wrap it, clip it and use ellipses.
+* Again, the goal is to have the Documentation Card not shift its content and for things to align "visually".
+* When the cursor hovers on a Documentation Card, show the full title of the Documentation on the tooltip.
+
+* The top part of the Documentation Card looks pretty empty when no one has edited the card, let's make it dynamic:  1.) If no edits has been done put the created info at the top of the card; 2.) If an edit has been done, put the latest edit info at the top and the created info at the bottom left (where it is now).
