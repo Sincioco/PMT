@@ -57,7 +57,7 @@ export function roadMapScreenHtml({
         <div class="roadmap-filter-actions">
           <button class="secondary text-icon-button" type="button" data-action="toggle-roadmap-sprints">${buttonContent(showSprints ? "&#8722;" : "&#43;", showSprints ? "Hide Sprints" : "Show Sprints")}</button>
           <button class="icon-action ${showDates ? "is-on" : ""}" type="button" data-action="toggle-roadmap-dates" title="${showDates ? "Hide start/end dates" : "Show start/end dates"}" aria-pressed="${showDates}">&#128197;</button>
-          <button class="icon-action ${showDetails ? "is-on" : ""}" type="button" data-action="toggle-roadmap-details" title="${showDetails ? "Hide avatars and percent text" : "Show avatars and percent text"}" aria-pressed="${showDetails}">%</button>
+          <button class="icon-action ${showDetails ? "is-on" : ""}" type="button" data-action="toggle-roadmap-details" title="${showDetails ? "Hide avatars and percent text" : "Show avatars and percent text"}" aria-pressed="${showDetails}">&#128100;</button>
         </div>
       </div>
     </div>
@@ -110,11 +110,12 @@ function roadMapProjectHtml(row, chart, options) {
         <div class="roadmap-bar roadmap-project-bar ${options.showDetails ? "has-project-details" : ""}" role="button" tabindex="0" data-action="view-project-sprints" data-id="${row.project.id}" ${roadMapGridStyle(row.start, row.end, chart, true)} title="${escapeAttr(roadMapProjectTooltip(row))}">
           <img class="roadmap-project-icon" src="${escapeAttr(roadMapProjectIconUrl(row.project))}" alt="">
           <div class="roadmap-project-content">
-            <strong>${escapeHtml(row.project.code)} - ${escapeHtml(row.project.title)}</strong>
-            ${options.showDates || options.showDetails ? `
+            <div class="roadmap-project-title-line">
+              <strong>${escapeHtml(row.project.code)} - ${escapeHtml(row.project.title)}</strong><span class="roadmap-project-muted"> - ${escapeHtml(roadMapProjectSummaryLabel(row))}</span>
+            </div>
+            ${options.showDetails ? `
             <div class="roadmap-second-line">
-              ${options.showDetails ? `${avatarsHtml(row.project.members)}<span>${row.project.percentCompleted}% complete</span>` : ""}
-              ${options.showDates ? `<span class="roadmap-date-range">${escapeHtml(roadMapProjectDateRangeLabel(row))}</span>` : ""}
+              ${avatarsHtml(row.project.members)}
             </div>
             ` : ""}
           </div>
@@ -130,16 +131,21 @@ function roadMapProjectTooltip(row) {
   return [
     `Project: ${row.project.code} - ${row.project.title}`,
     `Completion: ${row.project.percentCompleted}%`,
-    `Start: ${formatDate(row.start) || "Not set"}`,
-    `End: ${row.isOngoing ? "On-going" : (formatDate(row.end) || "Not set")}`
+    `Start: ${roadMapProjectStartLabel(row)}`,
+    `End: ${roadMapProjectEndLabel(row)}`
   ].join("\n");
 }
 
-function roadMapProjectDateRangeLabel(row) {
-  if (!row.isOngoing) return dateRangeLabel(row.start, row.end);
+function roadMapProjectSummaryLabel(row) {
+  return `${row.project.percentCompleted}% complete - ${roadMapProjectStartLabel(row)} - ${roadMapProjectEndLabel(row)}`;
+}
 
-  const startText = formatDate(row.start);
-  return startText ? `${startText} - On-going` : "On-going";
+function roadMapProjectStartLabel(row) {
+  return formatDate(row.start) || "Not set";
+}
+
+function roadMapProjectEndLabel(row) {
+  return row.isOngoing ? "On-going" : (formatDate(row.end) || "Not set");
 }
 
 function roadMapProjectIconUrl(project) {

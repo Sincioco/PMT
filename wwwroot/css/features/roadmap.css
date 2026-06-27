@@ -152,8 +152,8 @@
 }
 
 .roadmap-project-bar.has-project-details .roadmap-project-icon {
-  width: 52px;
-  height: 52px;
+  width: 100px;
+  height: 100px;
 }
 
 .roadmap-sprint-bar {
@@ -167,6 +167,23 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   font-size: var(--font-size-md);
+}
+
+.roadmap-project-title-line {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--font-size-md);
+}
+
+.roadmap-project-title-line strong {
+  font-size: inherit;
+}
+
+.roadmap-project-muted {
+  color: var(--color-text-secondary);
+  font-weight: var(--font-weight-regular);
 }
 
 .roadmap-second-line {
@@ -197,13 +214,14 @@
 }
 
 .roadmap-project-bar.has-project-details .roadmap-second-line .avatar-stack {
+  gap: var(--space-3);
   min-height: 80px;
 }
 
 .roadmap-project-bar.has-project-details .roadmap-second-line .avatar {
   width: 80px;
   height: 80px;
-  margin-left: -20px;
+  margin-left: 0;
 }
 
 .roadmap-project-bar.has-project-details .roadmap-second-line .avatar:first-child {
