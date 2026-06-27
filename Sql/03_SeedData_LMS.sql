@@ -21,7 +21,7 @@ DECLARE @Bill INT = (SELECT [UserId] FROM [pmt].[Users] WHERE [Nickname] = N'Bil
 DECLARE @Sam INT = (SELECT [UserId] FROM [pmt].[Users] WHERE [Nickname] = N'Sam Altman');
 DECLARE @Mark INT = (SELECT [UserId] FROM [pmt].[Users] WHERE [Nickname] = N'Mark Zuckerberg');
 DECLARE @Steve INT = (SELECT [UserId] FROM [pmt].[Users] WHERE [Nickname] = N'Steve');
-DECLARE @Lisa INT = (SELECT [UserId] FROM [pmt].[Users] WHERE [Nickname] = N'Lisa Su');
+DECLARE @Jensen INT = (SELECT [UserId] FROM [pmt].[Users] WHERE [Nickname] = N'Jensen Huang');
 
 DECLARE @LmsStart DATE = DATEADD(DAY, -727, @Today);
 
@@ -34,7 +34,7 @@ DECLARE @LmsProject INT = (SELECT [ProjectId] FROM [pmt].[Projects] WHERE [Code]
 INSERT INTO [pmt].[ProjectMembers] ([ProjectId], [UserId], [CreatedByUserId])
 VALUES
 (@LmsProject, @Sin, @Sin), (@LmsProject, @Bill, @Sin), (@LmsProject, @Sam, @Sin),
-(@LmsProject, @Mark, @Sin), (@LmsProject, @Steve, @Sin), (@LmsProject, @Lisa, @Sin);
+(@LmsProject, @Mark, @Sin), (@LmsProject, @Steve, @Sin), (@LmsProject, @Jensen, @Sin);
 
 DECLARE @SprintNumber INT = 1;
 DECLARE @TaskCounter INT = 1;
@@ -71,9 +71,9 @@ BEGIN
     INSERT INTO [pmt].[SprintMembers] ([SprintId], [UserId], [CreatedByUserId])
     VALUES
     (@SprintId, @Bill, @Sin), (@SprintId, @Sam, @Sin), (@SprintId, @Mark, @Sin),
-    (@SprintId, @Steve, @Sin), (@SprintId, @Lisa, @Sin);
+    (@SprintId, @Steve, @Sin), (@SprintId, @Jensen, @Sin);
 
-    DECLARE @DeveloperId INT = CASE @SprintNumber % 4 WHEN 0 THEN @Bill WHEN 1 THEN @Mark WHEN 2 THEN @Lisa ELSE @Steve END;
+    DECLARE @DeveloperId INT = CASE @SprintNumber % 4 WHEN 0 THEN @Bill WHEN 1 THEN @Mark WHEN 2 THEN @Jensen ELSE @Steve END;
     DECLARE @ParentCode NVARCHAR(40) = N'LMS-TASK-' + RIGHT(N'0000' + CONVERT(NVARCHAR(12), @TaskCounter), 4);
     DECLARE @ParentTitle NVARCHAR(220) = N'Build LMS learning workflow slice ' + CONVERT(NVARCHAR(12), @SprintNumber);
     DECLARE @ParentStatus NVARCHAR(40) = CASE WHEN @IsFinished = 1 THEN N'Deployed in Prod' WHEN @IsCurrent = 1 THEN N'Deployed in UAT' ELSE N'In Progress' END;
@@ -178,7 +178,7 @@ BEGIN
     );
 
     DECLARE @FeatureTaskId INT = SCOPE_IDENTITY();
-    INSERT INTO [pmt].[TaskAssignees] ([TaskId], [UserId], [CreatedByUserId]) VALUES (@FeatureTaskId, CASE WHEN @DeveloperId = @Bill THEN @Lisa ELSE @Bill END, @Sin);
+    INSERT INTO [pmt].[TaskAssignees] ([TaskId], [UserId], [CreatedByUserId]) VALUES (@FeatureTaskId, CASE WHEN @DeveloperId = @Bill THEN @Jensen ELSE @Bill END, @Sin);
     SET @TaskCounter += 1;
 
     DECLARE @BugCode NVARCHAR(40) = N'LMS-BUG-' + RIGHT(N'0000' + CONVERT(NVARCHAR(12), @BugCounter), 4);
@@ -380,7 +380,7 @@ BEGIN
         VALUES
         (
             @LmsProject,
-            CASE @LogCount % 4 WHEN 0 THEN @Bill WHEN 1 THEN @Mark WHEN 2 THEN @Lisa ELSE @Steve END,
+            CASE @LogCount % 4 WHEN 0 THEN @Bill WHEN 1 THEN @Mark WHEN 2 THEN @Jensen ELSE @Steve END,
             @LogDate,
             N'<p><strong>What did you accomplish yesterday?</strong><br>Completed the current LMS sprint slice and reviewed QA notes.</p><p><strong>What do you plan to do today?</strong><br>Continue the next LMS backlog item and keep bug-fix notes current.</p><p><strong>Do you have any roadblocks?</strong><br>No blockers.</p>',
             0,

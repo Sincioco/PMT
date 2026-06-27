@@ -87,7 +87,7 @@ BEGIN
         N'Sin',
         N'louiery@gmail.com',
         N'+63 (966) 230-4023',
-        N'/assets/avatar-sin.png?v=20260627',
+        N'/assets/avatar-sin.png?v=20260627-avatars',
         HASHBYTES('SHA2_256', CONVERT(NVARCHAR(4000), N'Password1')),
         N'',
         N'',

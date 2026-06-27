@@ -55,8 +55,26 @@
   border-bottom: var(--border-width) solid var(--color-border-subtle);
 }
 
-.settings-user-avatar {
+.settings-user-avatar-button {
   flex: 0 0 80px;
+  width: 80px;
+  height: 80px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  line-height: 0;
+  cursor: pointer;
+}
+
+.settings-user-avatar-button:hover,
+.settings-user-avatar-button:focus-visible {
+  outline: var(--border-width-strong) solid var(--color-primary);
+  outline-offset: 3px;
+}
+
+.settings-user-avatar {
+  display: block;
   width: 80px;
   height: 80px;
   margin-left: 0;
@@ -81,6 +99,26 @@
 .settings-user-name {
   color: var(--color-text-primary);
   font-weight: 700;
+}
+
+.settings-avatar-dialog {
+  width: min(820px, calc(100vw - 2 * var(--shell-padding-compact)));
+}
+
+.settings-avatar-dialog-body {
+  place-items: center;
+}
+
+.settings-avatar-preview {
+  display: block;
+  max-width: 100%;
+  max-height: calc(100vh - 220px);
+  width: auto;
+  height: auto;
+  border: var(--border-width) solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  object-fit: contain;
+  background: var(--color-surface-subtle);
 }
 
 .development-panel {

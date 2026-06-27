@@ -23,7 +23,7 @@ DECLARE @Bill INT = (SELECT [UserId] FROM [pmt].[Users] WHERE [Nickname] = N'Bil
 DECLARE @Sam INT = (SELECT [UserId] FROM [pmt].[Users] WHERE [Nickname] = N'Sam Altman');
 DECLARE @Mark INT = (SELECT [UserId] FROM [pmt].[Users] WHERE [Nickname] = N'Mark Zuckerberg');
 DECLARE @Steve INT = (SELECT [UserId] FROM [pmt].[Users] WHERE [Nickname] = N'Steve');
-DECLARE @Lisa INT = (SELECT [UserId] FROM [pmt].[Users] WHERE [Nickname] = N'Lisa Su');
+DECLARE @Jensen INT = (SELECT [UserId] FROM [pmt].[Users] WHERE [Nickname] = N'Jensen Huang');
 
 DECLARE @HlsStart DATE = DATEFROMPARTS(YEAR(DATEADD(YEAR, -5, @Today)), MONTH(@Today), 1);
 
@@ -36,7 +36,7 @@ DECLARE @HlsProject INT = (SELECT [ProjectId] FROM [pmt].[Projects] WHERE [Code]
 INSERT INTO [pmt].[ProjectMembers] ([ProjectId], [UserId], [CreatedByUserId])
 VALUES
 (@HlsProject, @Sin, @Sin), (@HlsProject, @Bill, @Sin), (@HlsProject, @Sam, @Sin),
-(@HlsProject, @Mark, @Sin), (@HlsProject, @Steve, @Sin), (@HlsProject, @Lisa, @Sin);
+(@HlsProject, @Mark, @Sin), (@HlsProject, @Steve, @Sin), (@HlsProject, @Jensen, @Sin);
 
 DECLARE @PhaseNumber INT = 1;
 DECLARE @PhaseStart DATE = @HlsStart;
@@ -81,9 +81,9 @@ BEGIN
     INSERT INTO [pmt].[SprintMembers] ([SprintId], [UserId], [CreatedByUserId])
     VALUES
     (@SprintId, @Bill, @Sin), (@SprintId, @Sam, @Sin), (@SprintId, @Mark, @Sin),
-    (@SprintId, @Steve, @Sin), (@SprintId, @Lisa, @Sin);
+    (@SprintId, @Steve, @Sin), (@SprintId, @Jensen, @Sin);
 
-    DECLARE @DeveloperId INT = CASE @PhaseNumber % 4 WHEN 0 THEN @Bill WHEN 1 THEN @Lisa WHEN 2 THEN @Mark ELSE @Steve END;
+    DECLARE @DeveloperId INT = CASE @PhaseNumber % 4 WHEN 0 THEN @Bill WHEN 1 THEN @Jensen WHEN 2 THEN @Mark ELSE @Steve END;
     DECLARE @FeatureCount INT = CASE
         WHEN @PhaseNumber <= 3 THEN 17
         WHEN @PhaseNumber <= 6 THEN 13
@@ -182,7 +182,7 @@ BEGIN
             WHEN @FeatureStatus = N'In Progress' THEN 35
             ELSE 0
         END;
-        DECLARE @FeatureDeveloperId INT = CASE (@FeatureIndex + @PhaseNumber) % 4 WHEN 0 THEN @Bill WHEN 1 THEN @Mark WHEN 2 THEN @Lisa ELSE @Steve END;
+        DECLARE @FeatureDeveloperId INT = CASE (@FeatureIndex + @PhaseNumber) % 4 WHEN 0 THEN @Bill WHEN 1 THEN @Mark WHEN 2 THEN @Jensen ELSE @Steve END;
 
         INSERT INTO [pmt].[WorkTasks]
         (
@@ -230,7 +230,7 @@ BEGIN
         DECLARE @BugStart DATE = DATEADD(DAY, 14 + (@BugIndex * 7), @PhaseStart);
         IF @BugStart > @PhaseEnd SET @BugStart = DATEADD(DAY, -14, @PhaseEnd);
         DECLARE @BugEnd DATE = CASE WHEN DATEADD(DAY, 10, @BugStart) > @PhaseEnd THEN @PhaseEnd ELSE DATEADD(DAY, 10, @BugStart) END;
-        DECLARE @BugDeveloperId INT = CASE (@BugIndex + @PhaseNumber) % 4 WHEN 0 THEN @Bill WHEN 1 THEN @Lisa WHEN 2 THEN @Mark ELSE @Steve END;
+        DECLARE @BugDeveloperId INT = CASE (@BugIndex + @PhaseNumber) % 4 WHEN 0 THEN @Bill WHEN 1 THEN @Jensen WHEN 2 THEN @Mark ELSE @Steve END;
         DECLARE @BugStatus NVARCHAR(40) = CASE WHEN @IsFinished = 1 THEN N'Deployed in Prod' WHEN @IsCurrent = 1 THEN N'Deployed in UAT' ELSE N'QA Passed' END;
 
         INSERT INTO [pmt].[WorkTasks]
@@ -376,7 +376,7 @@ BEGIN
         VALUES
         (
             @HlsProject,
-            CASE @LogCount % 4 WHEN 0 THEN @Bill WHEN 1 THEN @Lisa WHEN 2 THEN @Mark ELSE @Steve END,
+            CASE @LogCount % 4 WHEN 0 THEN @Bill WHEN 1 THEN @Jensen WHEN 2 THEN @Mark ELSE @Steve END,
             @LogDate,
             N'<p><strong>What did you accomplish yesterday?</strong><br>Advanced the HLS AI learning phase and reviewed QA findings.</p><p><strong>What do you plan to do today?</strong><br>Continue phase work and close any linked Bug Fix retest notes.</p><p><strong>Do you have any roadblocks?</strong><br>No blockers.</p>',
             0,

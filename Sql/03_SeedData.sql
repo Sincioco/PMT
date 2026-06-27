@@ -30,7 +30,7 @@ BEGIN
     VALUES
     (
         N'Louiery', N'Sincioco', N'Sin', N'louiery@gmail.com',
-        N'+63 (966) 230-4023', N'/assets/avatar-sin.png?v=20260627', @PasswordHash,
+        N'+63 (966) 230-4023', N'/assets/avatar-sin.png?v=20260627-avatars', @PasswordHash,
         N'PMT creator and administrator.', 1, N'Admin', 1
     );
 END;
@@ -43,7 +43,7 @@ SET
     [LastName] = N'Sincioco',
     [Nickname] = N'Sin',
     [Phone] = N'+63 (966) 230-4023',
-    [AvatarUrl] = N'/assets/avatar-sin.png?v=20260627',
+    [AvatarUrl] = N'/assets/avatar-sin.png?v=20260627-avatars',
     [PasswordHash] = @PasswordHash,
     [Bio] = N'PMT creator and administrator.',
     [IsAdmin] = 1,
@@ -84,17 +84,17 @@ INSERT INTO [pmt].[Users]
     [Role], [CreatedByUserId]
 )
 VALUES
-(N'Bill', N'Gates', N'Bill Gates', N'bill.gates@sincioco.com', N'555-0102', N'/assets/avatar-bill-gates.jpg', @PasswordHash, N'https://www.gatesnotes.com/', N'https://www.linkedin.com/in/williamhgates/', N'Backend developer focused on APIs and database work.', 0, N'Developer', @Sin),
-(N'Sam', N'Altman', N'Sam Altman', N'sam.altman@sincioco.com', N'555-0103', N'/assets/avatar-sam-altman.jpg', @PasswordHash, N'https://blog.samaltman.com/', N'https://www.linkedin.com/in/samaltman/', N'QA lead who keeps acceptance criteria and bug reports clear.', 0, N'QA', @Sin),
-(N'Mark', N'Zuckerberg', N'Mark Zuckerberg', N'mark.zuckerberg@sincioco.com', N'555-0104', N'/assets/avatar-mark-zuckerberg.jpg', @PasswordHash, N'https://about.meta.com/', N'https://www.linkedin.com/in/zuck/', N'Frontend developer focused on usability and interaction details.', 0, N'Developer', @Sin),
-(N'Steve', N'Jobs', N'Steve', N'steve.jobs@sincioco.com', N'555-0105', N'/assets/avatar-steve-jobs.jpg?v=20260627', @PasswordHash, N'https://www.apple.com/', N'https://www.linkedin.com/', N'Product-minded developer who helps sharpen feature scope.', 0, N'Developer', @Sin),
-(N'Lisa', N'Su', N'Lisa Su', N'lisa.su@sincioco.com', N'555-0106', N'/assets/avatar-lisa-su.jpg', @PasswordHash, N'https://www.amd.com/', N'https://www.linkedin.com/in/lisa-su-82818239/', N'Integration developer who helps with performance and release support.', 0, N'Developer', @Sin);
+(N'Bill', N'Gates', N'Bill Gates', N'bill.gates@sincioco.com', N'555-0102', N'/assets/avatar-bill-gates.png?v=20260627-avatars', @PasswordHash, N'https://www.gatesnotes.com/', N'https://www.linkedin.com/in/williamhgates/', N'Backend developer focused on APIs and database work.', 0, N'Developer', @Sin),
+(N'Sam', N'Altman', N'Sam Altman', N'sam.altman@sincioco.com', N'555-0103', N'/assets/avatar-sam-altman.png?v=20260627-avatars', @PasswordHash, N'https://blog.samaltman.com/', N'https://www.linkedin.com/in/samaltman/', N'QA lead who keeps acceptance criteria and bug reports clear.', 0, N'QA', @Sin),
+(N'Mark', N'Zuckerberg', N'Mark Zuckerberg', N'mark.zuckerberg@sincioco.com', N'555-0104', N'/assets/avatar-mark-zuckerberg.png?v=20260627-avatars', @PasswordHash, N'https://about.meta.com/', N'https://www.linkedin.com/in/zuck/', N'Frontend developer focused on usability and interaction details.', 0, N'Developer', @Sin),
+(N'Steve', N'Jobs', N'Steve', N'steve.jobs@sincioco.com', N'555-0105', N'/assets/avatar-steve-jobs.png?v=20260627-avatars', @PasswordHash, N'https://www.apple.com/', N'https://www.linkedin.com/', N'Product-minded developer who helps sharpen feature scope.', 0, N'Developer', @Sin),
+(N'Jensen', N'Huang', N'Jensen Huang', N'Jensen.Huang@nvidia.com', N'555-0106', N'/assets/avatar-jensen-huang.png?v=20260627-avatars', @PasswordHash, N'https://www.nvidia.com/', N'https://www.linkedin.com/in/jenhsunhuang/', N'Integration developer who helps with performance and release support.', 0, N'Developer', @Sin);
 
 DECLARE @Bill INT = (SELECT [UserId] FROM [pmt].[Users] WHERE [Nickname] = N'Bill Gates');
 DECLARE @Sam INT = (SELECT [UserId] FROM [pmt].[Users] WHERE [Nickname] = N'Sam Altman');
 DECLARE @Mark INT = (SELECT [UserId] FROM [pmt].[Users] WHERE [Nickname] = N'Mark Zuckerberg');
 DECLARE @Steve INT = (SELECT [UserId] FROM [pmt].[Users] WHERE [Nickname] = N'Steve');
-DECLARE @Lisa INT = (SELECT [UserId] FROM [pmt].[Users] WHERE [Nickname] = N'Lisa Su');
+DECLARE @Jensen INT = (SELECT [UserId] FROM [pmt].[Users] WHERE [Nickname] = N'Jensen Huang');
 
 INSERT INTO [pmt].[Lookups] ([LookupType], [Value], [ColorHex], [DisplayOrder], [IsActive], [CreatedByUserId])
 VALUES
@@ -154,7 +154,7 @@ DECLARE @PmtProject INT = (SELECT [ProjectId] FROM [pmt].[Projects] WHERE [Code]
 INSERT INTO [pmt].[ProjectMembers] ([ProjectId], [UserId], [CreatedByUserId])
 VALUES
 (@PmtProject, @Sin, @Sin), (@PmtProject, @Bill, @Sin), (@PmtProject, @Sam, @Sin),
-(@PmtProject, @Mark, @Sin), (@PmtProject, @Steve, @Sin), (@PmtProject, @Lisa, @Sin);
+(@PmtProject, @Mark, @Sin), (@PmtProject, @Steve, @Sin), (@PmtProject, @Jensen, @Sin);
 
 INSERT INTO [pmt].[Sprints]
 (
@@ -176,11 +176,11 @@ DECLARE @PmtSprint5 INT = (SELECT [SprintId] FROM [pmt].[Sprints] WHERE [Code] =
 
 INSERT INTO [pmt].[SprintMembers] ([SprintId], [UserId], [CreatedByUserId])
 VALUES
-(@PmtSprint1, @Sin, @Sin), (@PmtSprint1, @Bill, @Sin), (@PmtSprint1, @Sam, @Sin), (@PmtSprint1, @Mark, @Sin), (@PmtSprint1, @Steve, @Sin), (@PmtSprint1, @Lisa, @Sin),
-(@PmtSprint2, @Sin, @Sin), (@PmtSprint2, @Bill, @Sin), (@PmtSprint2, @Sam, @Sin), (@PmtSprint2, @Mark, @Sin), (@PmtSprint2, @Steve, @Sin), (@PmtSprint2, @Lisa, @Sin),
-(@PmtSprint3, @Sin, @Sin), (@PmtSprint3, @Bill, @Sin), (@PmtSprint3, @Sam, @Sin), (@PmtSprint3, @Mark, @Sin), (@PmtSprint3, @Steve, @Sin), (@PmtSprint3, @Lisa, @Sin),
-(@PmtSprint4, @Sin, @Sin), (@PmtSprint4, @Bill, @Sin), (@PmtSprint4, @Sam, @Sin), (@PmtSprint4, @Mark, @Sin), (@PmtSprint4, @Steve, @Sin), (@PmtSprint4, @Lisa, @Sin),
-(@PmtSprint5, @Sin, @Sin), (@PmtSprint5, @Bill, @Sin), (@PmtSprint5, @Sam, @Sin), (@PmtSprint5, @Mark, @Sin), (@PmtSprint5, @Steve, @Sin), (@PmtSprint5, @Lisa, @Sin);
+(@PmtSprint1, @Sin, @Sin), (@PmtSprint1, @Bill, @Sin), (@PmtSprint1, @Sam, @Sin), (@PmtSprint1, @Mark, @Sin), (@PmtSprint1, @Steve, @Sin), (@PmtSprint1, @Jensen, @Sin),
+(@PmtSprint2, @Sin, @Sin), (@PmtSprint2, @Bill, @Sin), (@PmtSprint2, @Sam, @Sin), (@PmtSprint2, @Mark, @Sin), (@PmtSprint2, @Steve, @Sin), (@PmtSprint2, @Jensen, @Sin),
+(@PmtSprint3, @Sin, @Sin), (@PmtSprint3, @Bill, @Sin), (@PmtSprint3, @Sam, @Sin), (@PmtSprint3, @Mark, @Sin), (@PmtSprint3, @Steve, @Sin), (@PmtSprint3, @Jensen, @Sin),
+(@PmtSprint4, @Sin, @Sin), (@PmtSprint4, @Bill, @Sin), (@PmtSprint4, @Sam, @Sin), (@PmtSprint4, @Mark, @Sin), (@PmtSprint4, @Steve, @Sin), (@PmtSprint4, @Jensen, @Sin),
+(@PmtSprint5, @Sin, @Sin), (@PmtSprint5, @Bill, @Sin), (@PmtSprint5, @Sam, @Sin), (@PmtSprint5, @Mark, @Sin), (@PmtSprint5, @Steve, @Sin), (@PmtSprint5, @Jensen, @Sin);
 
 INSERT INTO [pmt].[WorkTasks]
 (
@@ -262,7 +262,7 @@ DECLARE @PmtGanttJumpBugFix INT = (SELECT [TaskId] FROM [pmt].[WorkTasks] WHERE 
 INSERT INTO [pmt].[TaskAssignees] ([TaskId], [UserId], [CreatedByUserId])
 SELECT [TaskId], @Bill, @Sin FROM [pmt].[WorkTasks] WHERE [Code] IN (N'PMT-TASK-001', N'PMT-TASK-002', N'PMT-TASK-003', N'PMT-TASK-004', N'PMT-TASK-005', N'PMT-TASK-021', N'PMT-TASK-022')
 UNION ALL SELECT [TaskId], @Mark, @Sin FROM [pmt].[WorkTasks] WHERE [Code] IN (N'PMT-TASK-006', N'PMT-TASK-007', N'PMT-TASK-008', N'PMT-TASK-009', N'PMT-TASK-010', N'PMT-TASK-024')
-UNION ALL SELECT [TaskId], @Lisa, @Sin FROM [pmt].[WorkTasks] WHERE [Code] IN (N'PMT-TASK-011', N'PMT-TASK-012', N'PMT-TASK-013', N'PMT-TASK-014', N'PMT-TASK-015', N'PMT-TASK-017', N'PMT-TASK-018', N'PMT-TASK-019', N'PMT-TASK-025', N'PMT-TASK-026')
+UNION ALL SELECT [TaskId], @Jensen, @Sin FROM [pmt].[WorkTasks] WHERE [Code] IN (N'PMT-TASK-011', N'PMT-TASK-012', N'PMT-TASK-013', N'PMT-TASK-014', N'PMT-TASK-015', N'PMT-TASK-017', N'PMT-TASK-018', N'PMT-TASK-019', N'PMT-TASK-025', N'PMT-TASK-026')
 UNION ALL SELECT [TaskId], @Steve, @Sin FROM [pmt].[WorkTasks] WHERE [Code] IN (N'PMT-TASK-016', N'PMT-TASK-020', N'PMT-TASK-023', N'PMT-BACKLOG-001', N'PMT-BACKLOG-002')
 UNION ALL SELECT [TaskId], @Sam, @Sin FROM [pmt].[WorkTasks] WHERE [Code] IN (N'PMT-BUG-001', N'PMT-BUG-002', N'PMT-BUG-003');
 
@@ -331,18 +331,18 @@ VALUES
 (N'Task', @PmtThemeBugFix, N'Status/Percent Changed', N'Developer corrected select option colors.', N'Todo', N'Code Complete', 0, 100, @Mark, @Sin, DATEADD(DAY, -35, @Now)),
 (N'Task', @PmtBugTheme, N'Status/Percent Changed', N'Bug percent reset to 0 for QA retest.', N'QA Failed', N'QA Failed', 100, 0, @Mark, @Sin, DATEADD(DAY, -35, @Now)),
 (N'Task', @PmtBugTheme, N'Status/Percent Changed', N'QA passed the themed dropdown retest.', N'QA Failed', N'QA Passed', 0, 100, @Sam, @Sin, DATEADD(DAY, -34, @Now)),
-(N'Task', @PmtFiltersParent, N'Status/Percent Changed', N'Parent percent recalculated after the filter subtasks passed QA.', N'In Progress', N'QA Passed', 67, 100, @Lisa, @Sin, DATEADD(DAY, -20, @Now)),
-(N'Task', @PmtGanttLabelBugFix, N'Status/Percent Changed', N'Developer reduced crowded day labels on compressed timelines.', N'Todo', N'Code Complete', 0, 100, @Lisa, @Sin, DATEADD(DAY, -4, @Now)),
+(N'Task', @PmtFiltersParent, N'Status/Percent Changed', N'Parent percent recalculated after the filter subtasks passed QA.', N'In Progress', N'QA Passed', 67, 100, @Jensen, @Sin, DATEADD(DAY, -20, @Now)),
+(N'Task', @PmtGanttLabelBugFix, N'Status/Percent Changed', N'Developer reduced crowded day labels on compressed timelines.', N'Todo', N'Code Complete', 0, 100, @Jensen, @Sin, DATEADD(DAY, -4, @Now)),
 (N'Task', @PmtBugGanttLabels, N'Status/Percent Changed', N'QA passed the Gantt header label retest.', N'QA in Progress', N'QA Passed', 0, 100, @Sam, @Sin, DATEADD(DAY, -3, @Now)),
 (N'Task', @PmtAuditParent, N'Status/Percent Changed', N'Parent percent recalculated from audit and Development settings sub-tasks.', N'Todo', N'In Progress', 0, 70, @Steve, @Sin, @Now),
 (N'Task', @PmtBugGanttJump, N'Status/Percent Changed', N'QA failed the fly-by bug expansion behavior and returned it to development.', N'QA in Progress', N'QA Failed', 0, 100, @Sam, @Sin, DATEADD(HOUR, 2, @Now)),
-(N'Task', @PmtGanttJumpBugFix, N'Status/Percent Changed', N'Developer started preserving the Gantt viewport while expanding bug rows.', N'Todo', N'In Progress', 0, 75, @Lisa, @Sin, DATEADD(HOUR, 3, @Now));
+(N'Task', @PmtGanttJumpBugFix, N'Status/Percent Changed', N'Developer started preserving the Gantt viewport while expanding bug rows.', N'Todo', N'In Progress', 0, 75, @Jensen, @Sin, DATEADD(HOUR, 3, @Now));
 
 INSERT INTO [pmt].[DevLogs] ([ProjectId], [UserId], [LogDate], [BodyHtml], [IsPinned], [CreatedByUserId])
 VALUES
 (@PmtProject, @Bill, DATEADD(DAY, -52, @Today), N'<p><strong>What did you accomplish yesterday?</strong><br>Created the pmt schema and the first stored procedures.</p><p><strong>What do you plan to do today?</strong><br>Wire ADO.NET calls for Projects, Sprints, and Dev Tasks.</p><p><strong>Do you have any roadblocks?</strong><br>No blockers.</p>', 0, @Sin),
 (@PmtProject, @Mark, DATEADD(DAY, -39, @Today), N'<p><strong>What did you accomplish yesterday?</strong><br>Restyled dropdowns and file upload controls for the dark theme.</p><p><strong>What do you plan to do today?</strong><br>Finish the Kanban Board drag behavior.</p><p><strong>Do you have any roadblocks?</strong><br>No blockers.</p>', 0, @Sin),
-(@PmtProject, @Lisa, DATEADD(DAY, -24, @Today), N'<p><strong>What did you accomplish yesterday?</strong><br>Connected Project and Sprint clicks to filtered views.</p><p><strong>What do you plan to do today?</strong><br>Add the advanced Dev Task filters.</p><p><strong>Do you have any roadblocks?</strong><br>Need one more QA pass on filter state.</p>', 0, @Sin),
+(@PmtProject, @Jensen, DATEADD(DAY, -24, @Today), N'<p><strong>What did you accomplish yesterday?</strong><br>Connected Project and Sprint clicks to filtered views.</p><p><strong>What do you plan to do today?</strong><br>Add the advanced Dev Task filters.</p><p><strong>Do you have any roadblocks?</strong><br>Need one more QA pass on filter state.</p>', 0, @Sin),
 (@PmtProject, @Steve, DATEADD(DAY, -12, @Today), N'<p><strong>What did you accomplish yesterday?</strong><br>Added Holiday maintenance and started Road Map rendering.</p><p><strong>What do you plan to do today?</strong><br>Make Projects and Sprints clickable on the Road Map.</p><p><strong>Do you have any roadblocks?</strong><br>No blockers.</p>', 0, @Sin),
 (@PmtProject, @Sin, @Today, N'<p><strong>What did you accomplish yesterday?</strong><br>Verified Development cleanup and seed restore flows.</p><p><strong>What do you plan to do today?</strong><br>Add the linked-bug completion guard and theme toggle.</p><p><strong>Do you have any roadblocks?</strong><br>No blockers.</p>', 1, @Sin);
 
@@ -379,7 +379,7 @@ VALUES
     @PmtProject,
     N'PMT Day 4 - Holidays, Gantt, and Road Map',
     N'<p><img src="/assets/docs/pmt-doc-day04-v2.png" alt="PMT Gantt chart and Road Map planning view with holiday badges"></p><p>The planning views started to mature on Day 4. PMT added Philippine-friendly holiday maintenance, Gantt non-working-day rules, and the first Road Map view for projects and Sprints.</p><ul><li>Created the Holiday maintenance screen under Settings.</li><li>Skipped weekends and holidays unless work starts on those dates.</li><li>Rendered Project and Sprint bars by start and end dates.</li></ul>',
-    @Lisa,
+    @Jensen,
     @Sin,
     DATEADD(DAY, -28, @Now),
     DATEADD(DAY, -26, @Now)
@@ -398,7 +398,7 @@ VALUES
     N'PMT Day 6 - Gantt Fly-by and Road Map Optimization',
     N'<p><img src="/assets/docs/pmt-doc-day06-v2.png" alt="PMT Gantt chart with fly-by path and Sprint jump controls"></p><p>Day 6 turned the Gantt chart into a better demo surface. Sprint jump, selected Sprint mode, show-all mode, and the fly-by animation made long projects easier to present.</p><ul><li>Added Sprint dropdown and reset behavior.</li><li>Improved fly-by positioning and pause/resume behavior.</li><li>Compressed the Road Map so multi-year projects fit better.</li></ul>',
     @Steve,
-    @Lisa,
+    @Jensen,
     DATEADD(DAY, -16, @Now),
     DATEADD(DAY, -15, @Now)
 ),
@@ -424,7 +424,7 @@ VALUES
     @PmtProject,
     N'PMT Reorder Design Note',
     N'<p><img src="/assets/docs/pmt-doc-reorder-v2.png" alt="PMT Kanban drag and drop reorder flow with drop indicator"></p><p>The latest work adds persistent manual ordering for Backlog, Dev Tasks, bugs, and the Kanban Board. Reordering stays intentionally simple: the browser sends the visible item order and the database stores the new SortOrder values.</p><ul><li>Drag within a list to reprioritize work.</li><li>Drag across Kanban columns to change status and order.</li><li>Use Custom order when demonstrating team priority.</li></ul>',
-    @Lisa,
+    @Jensen,
     @Sin,
     DATEADD(DAY, -3, @Now),
     DATEADD(DAY, -2, @Now)

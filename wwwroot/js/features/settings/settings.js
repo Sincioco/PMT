@@ -43,9 +43,21 @@ import {
   escapeHtml
 } from "../../shared/text-and-links.js";
 
-const seededAvatarVersions = new Map([
-  ["/assets/avatar-sin.png", "20260627"],
-  ["/assets/avatar-steve-jobs.jpg", "20260627"]
+const avatarCacheVersion = "20260627-avatars";
+const seededAvatarPaths = new Set([
+  "/assets/avatar-sin.png",
+  "/assets/avatar-bill-gates.png",
+  "/assets/avatar-sam-altman.png",
+  "/assets/avatar-mark-zuckerberg.png",
+  "/assets/avatar-steve-jobs.png",
+  "/assets/avatar-jensen-huang.png"
+]);
+const legacySeededAvatarPaths = new Map([
+  ["/assets/avatar-bill-gates.jpg", "/assets/avatar-bill-gates.png"],
+  ["/assets/avatar-sam-altman.jpg", "/assets/avatar-sam-altman.png"],
+  ["/assets/avatar-mark-zuckerberg.jpg", "/assets/avatar-mark-zuckerberg.png"],
+  ["/assets/avatar-steve-jobs.jpg", "/assets/avatar-steve-jobs.png"],
+  ["/assets/avatar-lisa-su.jpg", "/assets/avatar-jensen-huang.png"]
 ]);
 
 export function createSettingsFeature({
@@ -120,6 +132,10 @@ export function createSettingsFeature({
     }
     if (action === "edit-user") {
       editUser(userById(id));
+      return true;
+    }
+    if (action === "preview-user-avatar") {
+      showUserAvatarDialog(userById(id));
       return true;
     }
     if (action === "delete-user") {
@@ -378,7 +394,9 @@ export function createSettingsFeature({
         ${state.users.map(user => `
           <article class="card settings-user-card">
             <div class="row settings-user-head">
-              <img class="avatar settings-user-avatar" src="${escapeAttr(settingsUserAvatarUrl(user))}" alt="">
+              <button class="settings-user-avatar-button" type="button" data-action="preview-user-avatar" data-id="${user.id}" title="View ${escapeAttr(settingsUserDisplayName(user))} avatar" aria-label="View ${escapeAttr(settingsUserDisplayName(user))} avatar">
+                <img class="avatar settings-user-avatar" src="${escapeAttr(settingsUserAvatarUrl(user))}" alt="${escapeAttr(settingsUserDisplayName(user))} avatar">
+              </button>
               <div class="settings-user-summary">
                 <p class="settings-user-name">${settingsUserNameHtml(user)}</p>
                 <p class="settings-user-title muted">${escapeHtml(userTitle(user))}</p>
@@ -398,16 +416,24 @@ export function createSettingsFeature({
 
   function settingsUserAvatarUrl(user) {
     const avatarUrl = (user.avatarUrl || "/assets/avatar-default.svg").trim();
-    const version = seededAvatarVersions.get(avatarUrl);
+    const [pathPart, queryString = ""] = avatarUrl.split("?", 2);
+    const seededPath = legacySeededAvatarPaths.get(pathPart.toLowerCase()) || pathPart;
+    if (!seededAvatarPaths.has(seededPath.toLowerCase())) return avatarUrl;
 
-    return version ? `${avatarUrl}?v=${version}` : avatarUrl;
+    const params = new URLSearchParams(queryString);
+    params.set("v", avatarCacheVersion);
+    return `${seededPath}?${params.toString()}`;
   }
 
-  function settingsUserNameHtml(user) {
-    const fullName = [user.firstName, user.lastName]
+  function settingsUserDisplayName(user) {
+    return [user.firstName, user.lastName]
       .map(part => (part || "").trim())
       .filter(Boolean)
       .join(" ") || user.nickname || "User";
+  }
+
+  function settingsUserNameHtml(user) {
+    const fullName = settingsUserDisplayName(user);
     const nickname = (user.nickname || "").trim();
     const showNickname = nickname && nickname.toLowerCase() !== fullName.toLowerCase();
 
@@ -423,6 +449,37 @@ export function createSettingsFeature({
 
   function userTitle(user) {
     return user.role || (user.isAdmin ? "Admin" : "Developer");
+  }
+
+  function showUserAvatarDialog(user) {
+    if (!user) return;
+
+    const displayName = settingsUserDisplayName(user);
+    const avatarUrl = settingsUserAvatarUrl(user);
+    const modal = document.createElement("dialog");
+    modal.className = "dialog settings-avatar-dialog";
+    modal.innerHTML = `
+      <div class="dialog-head">
+        <h2>${escapeHtml(displayName)}</h2>
+        <button type="button" class="icon-btn" data-close-avatar-dialog title="Close">x</button>
+      </div>
+      <div class="dialog-body settings-avatar-dialog-body">
+        <img class="settings-avatar-preview" src="${escapeAttr(avatarUrl)}" alt="${escapeAttr(displayName)} avatar">
+      </div>
+      <div class="dialog-actions">
+        <button class="secondary text-icon-button" type="button" data-close-avatar-dialog>${buttonContent("&#10005;", "Close")}</button>
+      </div>
+    `;
+
+    document.body.appendChild(modal);
+    modal.querySelectorAll("[data-close-avatar-dialog]").forEach(button => {
+      button.addEventListener("click", () => modal.close());
+    });
+    modal.addEventListener("click", event => {
+      if (event.target === modal) modal.close();
+    });
+    modal.addEventListener("close", () => modal.remove(), { once: true });
+    modal.showModal();
   }
 
   function settingsCategoryIcon(type) {
