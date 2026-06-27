@@ -132,3 +132,22 @@ I want to update the Dev Tasks lists (the table).  I want the table to display i
 11.) Can we make the column header of Assignee dynamic?  If there is only 1 assignee in all the table row's data, then keep it as Assignee.  But if there is more than 1 assignees in any of the rows that got rendered, change the column header to read Assignee(s).
 12.) If the current task/row has an associated bug to it, accent with a slight red so it visually stands out a tiny bit as being a bug task.
 13.) Can you add more padding/gap between column 1 and column 2.  I feel like the avatar pictures are too close to column 2.
+
+14.) For as much as you reasonably can, apply the Dev Tasks table formatting/style/UI/UX onto the Bug Tracking Screens' bug tracking table.  There are columns unique to the Bug Tracking table, so you obviously want to keep those such as Reporter, Severity, etc.  I just want a unified table UI/UX between the two screen.
+
+15.) Let's add a percent complete column just like what the Dev Tasks table has.
+16.) Using the Dev Tasks' New/Edit dialog box, update the Bug Tracking's New/Edit dialog box, so the two are as closer to each other to form a more unified UI/UX experience.
+
+17.) Move the audit log button on the Bug Tracking Edit/New dialog box.  Refer to the Dev Tasks' New/Edit dialog box for the placement.
+
+PMT Logic Rule:  In the Bug Tracking screen in the New/Edit dialog box, if a bug is set to QA Failed, set the percent complete to 100%.  And if there are any Dev Tasks associated to the bug, set those to 50% as well.
+
+PMT Logic Rule:  In the Bug Tracking screen in the New/Edit dialog box, if a bug is set to QA Failed, set the percent complete to 100%.  And if there are any Dev Tasks associated to the bug, set those to 50%.
+
+PMT Logic Rule:  In the Bug Tracking screen in the New/Edit dialog box, if a Bug is set to Deployed in xxx (where xxx is any status that begins with the word "Deployed", mark it as 100% complete. And if there are any Dev Tasks associated to the bug, set those to 100% as well.
+
+Update the domain-rules.md in the docs folder with the new PMT Logic/Rules.
+
+18.) On the Bug Tracking screen, replace the icon adding a new bug with the same icon as when adding a new Dev Task so the UI looks uniform between the two screens.
+
+19.) In both the Dev Task screen and Bug Tracking screen, in the Edit dialog box, the Audit Log button is located at the top instead of the button where it should be.  It should be placed to the left of the Cancel button with the audit icon and text "Audit".

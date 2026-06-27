@@ -71,6 +71,7 @@ export function taskDisplayPercent(task) {
 
 export function percentForStatus(status, currentValue) {
   if (status === "Backlog" || status === "Todo") return Number(currentValue || 0);
+  if (status === "QA Failed") return 100;
   const statuses = currentStatuses();
   const qaPassedIndex = statuses.indexOf("QA Passed");
   if (qaPassedIndex >= 0 && statuses.indexOf(status) >= qaPassedIndex) return 100;
@@ -83,7 +84,7 @@ export function percentForDevTaskSave(status, currentValue, task = null, depende
   if (status === "Todo") return hasAssociatedBug ? Number(currentValue || 0) : 0;
   if (status === "Code Complete") return hasAssociatedBug ? 80 : 100;
   if (status === "Ready for QA") return hasAssociatedBug ? 80 : 100;
-  if (status === "QA Failed" && !hasAssociatedBug) return 50;
+  if (status === "QA Failed") return hasAssociatedBug ? Number(currentValue || 0) : 50;
   if (isDevTaskCompletionStatus(status)) return hasAssociatedBug ? Number(currentValue || 0) : 100;
   return percentForStatus(status, currentValue);
 }

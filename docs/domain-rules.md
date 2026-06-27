@@ -29,7 +29,7 @@ Regression tests for these rules live in `tests/js/work-item-rules.test.mjs`.
 - Dev Task `Ready for QA` sets percent complete to 100 when no Bug is associated, or 80 when a Bug is associated.
 - Dev Task `QA Failed` sets percent complete to 50 when no Bug is associated. If a Bug is associated, the current percent is preserved.
 - Dev Task `QA Passed` and any status beginning with `Deployed` set percent complete to 100 when no Bug is associated. If a Bug is associated, the current percent is preserved and normal completion blocking still applies.
-- For Bugs, `QA Failed`, `QA Passed`, and any status beginning with `Deployed` force 100%.
+- For Bugs, `QA Failed`, `QA Passed`, and any status beginning with `Deployed` force the Bug's percent complete to 100%.
 - Percent inputs are clamped to 0-100.
 - A parent work item's stored percent is the rounded average of its active direct sub-tasks and is recalculated when a sub-task changes. The API also exposes a display average.
 - `StartedAt` is set the first time a work item leaves Backlog/Todo.
@@ -55,8 +55,9 @@ Project and Sprint aggregate progress is separate from stored work-item percent.
 - A Dev Task linked to a Bug cannot reach 100% until that Bug is `QA Passed` or in a deployed status. SQL enforces this even if browser validation is bypassed.
 - A Dev Task is treated as Bug-associated when it has a linked Bug task or an active Bug dependency.
 - Bug-associated Dev Tasks use the Bug-aware percent rules in the Statuses and completion section.
-- Bug `QA Passed` sets the linked Bug Fix percent to 100.
-- Bug `QA Failed` sets the linked Bug Fix percent to 50.
+- For Bug save automation, associated Dev Tasks are Dev Tasks linked to the Bug or connected to the Bug by dependencies in either direction.
+- Bug `QA Failed` sets associated Dev Tasks to 50%.
+- Bug `QA Passed` and any status beginning with `Deployed` set associated Dev Tasks to 100%.
 - When a linked Bug Fix reaches `Code Complete`, the Bug percent resets to 0 for QA retesting.
 - These automatic changes write audit events.
 

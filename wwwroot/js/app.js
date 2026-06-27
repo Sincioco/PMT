@@ -26,7 +26,7 @@ import { state } from "./core/store.js";
 import { createAboutFeature } from "./features/about/about.js?v=20260621-about-credits";
 import { createBacklogFeature } from "./features/backlog/backlog.js?v=20260627-dev-task-status-rules";
 import { createBoardFeature } from "./features/board/board.js?v=20260627-dev-task-status-rules";
-import { createBugsFeature } from "./features/bugs/bugs.js?v=20260627-dev-task-status-rules";
+import { createBugsFeature } from "./features/bugs/bugs.js?v=20260627-bug-new-plus-icon";
 import { createDashboardFeature } from "./features/dashboard/dashboard.js?v=20260627-dev-task-status-rules";
 import { createDocumentationFeature } from "./features/documentation/documentation.js?v=20260620-document-entry-project";
 import {
@@ -70,7 +70,7 @@ import {
   percentForStatus,
   sprintOverallPercent,
   taskOrderCompare
-} from "./shared/work-item-rules.js?v=20260627-dev-task-status-rules";
+} from "./shared/work-item-rules.js?v=20260627-bug-qa-linked-rules";
 
 const nativePickerSelector = [
   "select",

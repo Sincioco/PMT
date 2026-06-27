@@ -1,5 +1,5 @@
 import { taskRowAvatarsHtml } from "../../components/avatars.js";
-import { bugIconHtml, buttonContent, chartIconHtml, funnelIconHtml } from "../../components/buttons.js?v=20260621-bug-screen-parity";
+import { buttonContent, chartIconHtml, funnelIconHtml } from "../../components/buttons.js?v=20260621-bug-screen-parity";
 import { VisualCharts } from "../../components/charts.js";
 import {
   checkedFilterValues,
@@ -20,6 +20,7 @@ import {
   userCardCheckListLabelHtml,
   value
 } from "../../components/forms.js?v=20260627-user-card-checklist";
+import { progressHtml } from "../../components/progress-and-status.js?v=20260627-dev-task-status-rules";
 import { sectionHead } from "../../components/sections.js";
 import {
   attachmentEditorFieldHtml,
@@ -51,7 +52,6 @@ import {
   projectCode,
   projectName,
   sprintById,
-  sprintName,
   taskById
 } from "../../shared/selectors.js";
 import {
@@ -63,8 +63,9 @@ import {
   isBugQaPassedOrLater,
   percentForStatus,
   reporterIdsOrDefault,
+  taskDisplayPercent,
   taskOrderCompare
-} from "../../shared/work-item-rules.js?v=20260627-dev-task-status-rules";
+} from "../../shared/work-item-rules.js?v=20260627-bug-qa-linked-rules";
 
 export function createBugsFeature({
   app,
@@ -110,6 +111,10 @@ export function createBugsFeature({
     const baseBugs = allProjectBugs
       .filter(bug => !bugFilters.sprintId || bugFilters.sprintId === "all" || bug.sprintId === Number(bugFilters.sprintId));
     const filteredBugs = filteredBugReports(baseBugs);
+    const assigneeColumnWidth = bugAvatarColumnWidth(filteredBugs, bug => bug.assignees);
+    const reporterColumnWidth = bugAvatarColumnWidth(filteredBugs, bug => bug.reporters);
+    const assigneeHeader = bugRowsHaveMultipleUsers(filteredBugs, bug => bug.assignees) ? "Assignee(s)" : "Assignee";
+    const reporterHeader = bugRowsHaveMultipleUsers(filteredBugs, bug => bug.reporters) ? "Reporter(s)" : "Reporter";
     const canShowCharts = allProjectBugs.length > 0;
     const showCharts = canShowCharts && bugVisualChartsVisible;
     const chartToggleLabel = showCharts ? "Hide Charts" : "Show Charts";
@@ -117,54 +122,57 @@ export function createBugsFeature({
     app.innerHTML = `
       <section class="bugs-screen work-item-screen">
       ${sectionHead("Bug Tracking", `
-        <button class="primary text-icon-button" type="button" data-action="new-bug" title="New Bug Report" aria-label="New Bug Report">${buttonContent(bugIconHtml(), "New Bug Report")}</button>
+        <button class="primary text-icon-button" type="button" data-action="new-bug" title="New Bug Report" aria-label="New Bug Report">${buttonContent("&#10010;", "New Bug Report")}</button>
         ${bugTableMode.buttonHtml()}
         <button class="secondary text-icon-button" type="button" data-action="toggle-bug-visual-charts" title="${chartToggleLabel}" aria-label="${chartToggleLabel}" aria-pressed="${showCharts}" ${canShowCharts ? "" : "disabled"}>${buttonContent(chartIconHtml(), chartToggleLabel)}</button>
         <button class="secondary text-icon-button" type="button" data-action="open-bug-filters" title="Filters" aria-label="Filters" aria-haspopup="dialog">${buttonContent(funnelIconHtml(), "Filters")}</button>
       `)}
       ${showCharts ? bugVisualTrackingChartsHtml(baseBugs, allProjectBugs) : ""}
       <div class="panel work-item-table-panel bugs-table-panel">
-        <table class="table work-item-table bugs-table ${bugTableMode.active ? "is-edit-mode" : "is-read-mode"}">
+        <table class="table work-item-table bugs-table ${bugTableMode.active ? "is-edit-mode" : "is-read-mode"}" style="--bugs-assignee-width:${assigneeColumnWidth}px; --bugs-reporter-width:${reporterColumnWidth}px">
           <colgroup>
-            <col class="bugs-reporter-column">
             <col class="bugs-assignee-column">
+            <col class="bugs-reporter-column">
+            <col class="bugs-context-column">
             <col class="bugs-title-column">
-            <col class="bugs-project-column">
-            <col class="bugs-sprint-column">
             <col class="bugs-status-column">
             <col class="bugs-severity-column">
             <col class="bugs-priority-column">
+            <col class="bugs-complete-column">
             ${bugTableMode.active ? `<col class="bugs-action-column">` : ""}
           </colgroup>
           <thead>
             <tr>
-              <th>Reporter</th>
-              <th>Assignee</th>
+              <th class="bugs-avatar-heading">${assigneeHeader}</th>
+              <th class="bugs-avatar-heading">${reporterHeader}</th>
+              <th><span class="bugs-two-line-heading"><span>Project</span><span>Sprint</span></span></th>
               <th>Bug Report</th>
-              <th>Project</th>
-              <th>Sprint</th>
               <th>Status</th>
               <th>Severity</th>
               <th>Priority</th>
+              <th class="done-cell">% Complete</th>
               ${bugTableMode.active ? `<th class="action-cell" aria-label="Actions"></th>` : ""}
             </tr>
           </thead>
           <tbody data-reorder-list="bugs">
             ${filteredBugs.map(bug => `
               <tr class="clickable-row" data-action="view-task" data-id="${bug.id}" data-task-id="${bug.id}" data-can-drag="${bugTableMode.active && canEditTask(bug) ? "true" : "false"}" draggable="false">
-                <td>${taskRowAvatarsHtml(bug.reporters)}</td>
-                <td>${taskRowAvatarsHtml(bug.assignees)}</td>
+                <td class="bugs-avatar-cell">${taskRowAvatarsHtml(bug.assignees)}</td>
+                <td class="bugs-avatar-cell">${taskRowAvatarsHtml(bug.reporters)}</td>
+                <td class="work-item-context-cell bug-context-cell">
+                  <span class="bug-context-project">${escapeHtml(projectName(bug.projectId))}</span>
+                  <span class="bug-context-sprint">${escapeHtml(bugTableSprintLabel(bug))}</span>
+                </td>
                 <td class="work-item-title-cell">
                   <span class="work-item-code-line">
                     <strong class="work-item-code">${escapeHtml(bug.code)}</strong>
                   </span>
                   <span class="work-item-title">${escapeHtml(bug.title)}</span>
                 </td>
-                <td class="work-item-context-cell bug-project-cell">${escapeHtml(projectName(bug.projectId))}</td>
-                <td class="work-item-context-cell">${escapeHtml(sprintName(bug.sprintId))}</td>
                 <td class="work-item-context-cell">${escapeHtml(bug.status)}</td>
                 <td><span class="pill severity-${escapeAttr(bug.severity)}">${escapeHtml(bug.severity || "")}</span></td>
                 <td><span class="pill priority-${escapeAttr(bug.priority)}">${escapeHtml(bug.priority)}</span></td>
+                <td class="done-cell">${progressHtml(taskDisplayPercent(bug))}</td>
                 ${bugTableMode.active ? `<td class="reveal-actions action-cell">${taskButtonsHtml(bug, { includeView: false, monochrome: true })}</td>` : ""}
               </tr>
             `).join("") || `<tr><td colspan="${bugTableMode.active ? 9 : 8}"><div class="empty">No bug reports match these filters.</div></td></tr>`}
@@ -379,26 +387,26 @@ export function createBugsFeature({
       <div class="form-grid bug-editor-grid">
         ${bug.id ? taskAuditPanelHtml(bug) : ""}
         ${selectField("Project", "projectId", state.projects, projectId)}
+        ${selectOptionsField("Sprint", "sprintId", bugEditorSprintOptions(projectId), defaultSprintId || "")}
         ${field("Title", "title", bug.title || "", "text")}
-        ${selectOptionsField("Sprint", "sprintId", [{ id: "", title: "No Sprint" }, ...state.sprints.filter(sprint => sprint.projectId === projectId).map(sprint => ({ id: sprint.id, title: sprint.code }))], defaultSprintId || "")}
         ${selectTextField("Status", "status", getLookupOptions("Status", bug.status || "Todo"), bug.status || "Todo")}
-        ${selectTextField("Environment", "environment", environments, defaultEnvironment)}
-        ${selectTextField("Severity", "severity", getLookupOptions("Severity", bug.severity || "Major"), bug.severity || "Major")}
         ${selectTextField("Priority", "priority", getLookupOptions("Priority", bug.priority || "Medium"), bug.priority || "Medium")}
         ${taskPercentField(bug, false)}
-        ${field("Start", "startDate", toDateInput(bug.startDate), "date")}
-        ${field("End", "endDate", toDateInput(bug.endDate), "date")}
-        ${field("URL", "url", bug.url || "", "url")}
+        ${selectTextField("Environment", "environment", environments, defaultEnvironment)}
+        ${selectTextField("Severity", "severity", getLookupOptions("Severity", bug.severity || "Major"), bug.severity || "Major")}
         ${richTextField("descriptionHtml", "Description", bug.descriptionHtml || "")}
-        ${richTextField("stepsToReproduceHtml", "Steps to Reproduce", bug.stepsToReproduceHtml || "")}
-        ${richTextField("actualResultHtml", "Actual Result", bug.actualResultHtml || "")}
-        ${richTextField("expectedResultHtml", "Expected Result", bug.expectedResultHtml || "")}
         ${attachmentEditorFieldHtml()}
+        <div class="bug-assignee-list" data-assignee-list></div>
         <div class="bug-reporter-list">
           ${checkList("Reporters", "reporterIds", state.users, reporterIdsOrDefault(bug.reporterIds, currentUserId), item => item.nickname, { className: "scroll-check-list user-card-check-list", renderItem: userCardCheckListLabelHtml })}
         </div>
-        <div class="bug-assignee-list" data-assignee-list></div>
+        ${field("Start", "startDate", toDateInput(bug.startDate), "date")}
+        ${field("End", "endDate", toDateInput(bug.endDate), "date")}
+        ${bugEditorUrlField(bug)}
         ${checkList("Dependencies", "dependencyTaskIds", sameProjectTasks, bug.dependencyTaskIds || [], item => `${item.code} ${item.title}`, { className: "scroll-check-list dependency-check-list" })}
+        ${richTextField("stepsToReproduceHtml", "Steps to Reproduce", bug.stepsToReproduceHtml || "")}
+        ${richTextField("actualResultHtml", "Actual Result", bug.actualResultHtml || "")}
+        ${richTextField("expectedResultHtml", "Expected Result", bug.expectedResultHtml || "")}
       </div>
     `, async root => {
       const status = value(root, "status");
@@ -437,7 +445,25 @@ export function createBugsFeature({
       writePreference(preferenceKeys.bugEntryEnvironment, bugEntryEnvironment);
 
       await uploadWorkItemAttachments(root, result.id, attachFile, `${apiRoot}/${result.id}/attachments`);
-    }, "title", root => bindAssigneeList(root, bug.assigneeIds || [], bug.id ? "Assignees" : "Assignees (Optional)"));
+    }, "title", root => bindAssigneeList(root, bug.assigneeIds || [], "Assignees (Optional)"));
+  }
+
+  function bugEditorSprintOptions(projectId) {
+    return [
+      { id: "", title: "No Sprint" },
+      ...state.sprints
+        .filter(sprint => sprint.projectId === projectId)
+        .map(sprint => ({ id: sprint.id, title: sprint.code }))
+    ];
+  }
+
+  function bugEditorUrlField(bug) {
+    return `
+      <div class="field full">
+        <label>URL</label>
+        <input name="url" type="url" value="${escapeAttr(bug.url || "")}">
+      </div>
+    `;
   }
 
   function filteredBugReports(bugs) {
@@ -449,6 +475,39 @@ export function createBugsFeature({
       .filter(bug => !bugFilters.reporterIds.length || bug.reporterIds.map(String).some(id => bugFilters.reporterIds.includes(id)))
       .filter(bug => !bugFilters.assigneeIds.length || bug.assigneeIds.map(String).some(id => bugFilters.assigneeIds.includes(id)))
       .sort(taskOrderCompare);
+  }
+
+  function bugAvatarColumnWidth(bugs, usersForBug) {
+    const avatarSize = 60;
+    const overlapWidth = 42;
+    const cellPadding = 34;
+    const maxUserCount = Math.max(
+      1,
+      ...bugs.map(bug => {
+        const users = usersForBug(bug);
+        return Array.isArray(users) ? users.length : 0;
+      })
+    );
+
+    return cellPadding + avatarSize + ((maxUserCount - 1) * overlapWidth);
+  }
+
+  function bugRowsHaveMultipleUsers(bugs, usersForBug) {
+    return bugs.some(bug => {
+      const users = usersForBug(bug);
+      return Array.isArray(users) && users.length > 1;
+    });
+  }
+
+  function bugTableSprintLabel(bug) {
+    const sprintLabel = sprintById(Number(bug.sprintId || 0))?.code || "No Sprint";
+    const project = projectById(bug.projectId);
+    const prefixes = project?.code ? [`${project.code}-`, `${project.code} - `, `${project.code} `] : [];
+    const prefix = prefixes.find(item => sprintLabel.toLowerCase().startsWith(item.toLowerCase()));
+
+    return prefix
+      ? sprintLabel.slice(prefix.length)
+      : sprintLabel;
   }
 
   function bugVisualTrackingChartsHtml(sprintFilterBugs, allProjectBugs) {
