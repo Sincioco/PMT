@@ -1,6 +1,8 @@
 import { visibleDateIndex } from "../../shared/dates.js";
 import { ganttStartDate } from "./gantt-calculations.js?v=20260620-render-end-date";
 
+const FLY_BY_VERTICAL_OFFSET = 1;
+
 export function createGanttFlyBy({ showToast }) {
   let frameId = 0;
   let timeoutId = 0;
@@ -93,7 +95,7 @@ export function createGanttFlyBy({ showToast }) {
     });
   }
 
-  function scrollToSprintStart(chart, sprint, renderMode) {
+  function scrollToSprintStart(chart, sprint, renderMode, verticalOffset = 0) {
     if (!chart?.scrollDate || !chart.dates?.length) return;
 
     requestAnimationFrame(() => {
@@ -102,7 +104,7 @@ export function createGanttFlyBy({ showToast }) {
 
       scroller.scrollLeft = scrollLeftForDate(chart, chart.scrollDate);
       if (renderMode === "all" && sprint) {
-        scroller.scrollTop = scrollTopForSprint(sprint);
+        scroller.scrollTop = Math.max(0, scrollTopForSprint(sprint) + verticalOffset);
       }
     });
   }
@@ -303,7 +305,7 @@ export function createGanttFlyBy({ showToast }) {
   function scrollPosition(chart, sprint) {
     return {
       left: scrollLeftForDate(chart, ganttStartDate(sprint)),
-      top: scrollTopForSprint(sprint)
+      top: Math.max(0, scrollTopForSprint(sprint) + FLY_BY_VERTICAL_OFFSET)
     };
   }
 
@@ -428,9 +430,9 @@ export function createGanttFlyBy({ showToast }) {
     if (!scroller) return 0;
 
     const header = document.querySelector(".gantt-header");
-    const targetTop = direction < 0
+    const targetTop = (direction < 0
       ? scroller.scrollTop + scroller.clientHeight
-      : scroller.scrollTop + (header?.offsetHeight || 0);
+      : scroller.scrollTop + (header?.offsetHeight || 0)) + FLY_BY_VERTICAL_OFFSET;
     const rows = [...document.querySelectorAll("[data-gantt-sprint-id]")];
     const nearestRow = rows.reduce((bestRow, row) => {
       if (!bestRow) return row;

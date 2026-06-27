@@ -33,7 +33,7 @@ import {
   createGanttFeature,
   currentSprintForProject,
   ganttStartDate
-} from "./features/gantt/gantt.js?v=20260627-dev-task-status-rules";
+} from "./features/gantt/gantt.js?v=20260627-gantt-initial-desc-offset";
 import { createProjectsFeature } from "./features/projects/projects.js?v=20260627-dev-task-status-rules";
 import { createRoadMapFeature } from "./features/roadmap/roadmap.js?v=20260627-roadmap-scrollbar-width";
 import { createScrumFeature } from "./features/scrum/scrum.js?v=20260627-dev-task-status-rules";

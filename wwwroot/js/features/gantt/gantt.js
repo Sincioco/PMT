@@ -16,7 +16,7 @@ import {
   sortGanttSprintOptions,
   sortGanttSprints
 } from "./gantt-calculations.js?v=20260620-gantt-scaled-buffer";
-import { createGanttFlyBy } from "./gantt-flyby.js?v=20260620-gantt-flush-sprint";
+import { createGanttFlyBy } from "./gantt-flyby.js?v=20260627-gantt-initial-desc-offset";
 import { ganttScreenHtml } from "./gantt-rendering.js?v=20260627-dev-task-status-rules";
 
 export { currentSprintForProject, ganttStartDate } from "./gantt-calculations.js?v=20260620-gantt-scaled-buffer";
@@ -96,7 +96,7 @@ export function createGanttFeature({
     if (options.restoreScroll) {
       flyBy.restoreScroll(options.restoreScroll);
     } else {
-      flyBy.scrollToSprintStart(chart, scrollSprint, ganttRenderMode);
+      flyBy.scrollToSprintStart(chart, scrollSprint, ganttRenderMode, ganttSort === "startDesc" ? 1 : 0);
     }
 
     flyBy.runPending(chart, startingFlyBySprint);

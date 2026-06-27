@@ -270,3 +270,6 @@ donut chart as a reference.
 29.) In the Road Map screen, the horizontal scrollbar issue is back.  It may be because we reserved the spot for the vertical scrollbar.  Can you fix that please?
 
 30.) In the Gantt screen, there is now a vertical scrollbar appearing.  Can you fix that please?
+31.) In the Gantt screen, when the fly-by animation is happening in both ascending or descending order, it seems to be just off by 1 pixel.  Can you nudge up the final destination so it is 1 pixel higher?  (-1 pixel).
+32.) Oh, #31 had the opposite effect, I think we needed to do a +1 pixel offset, not a -1 pixel offset.
+33.) Okay, #32 worked.  The only thing that needs another +1 pixel offset is when the Sprint is initially rendered on the gantt chart when the sort is set to Start date descending.
