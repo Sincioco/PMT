@@ -43,6 +43,11 @@ import {
   escapeHtml
 } from "../../shared/text-and-links.js";
 
+const seededAvatarVersions = new Map([
+  ["/assets/avatar-sin.png", "20260627"],
+  ["/assets/avatar-steve-jobs.jpg", "20260627"]
+]);
+
 export function createSettingsFeature({
   app,
   deleteItem,
@@ -373,14 +378,14 @@ export function createSettingsFeature({
         ${state.users.map(user => `
           <article class="card settings-user-card">
             <div class="row settings-user-head">
-              <img class="avatar" src="${escapeAttr(user.avatarUrl || "/assets/avatar-default.svg")}" alt="">
-              <div>
-                <h3>${escapeHtml(user.nickname)}</h3>
-                <p class="muted">${escapeHtml(user.firstName)} ${escapeHtml(user.lastName)} ${escapeHtml(user.role || (user.isAdmin ? "Admin" : "Developer"))}</p>
+              <img class="avatar settings-user-avatar" src="${escapeAttr(settingsUserAvatarUrl(user))}" alt="">
+              <div class="settings-user-summary">
+                <p class="settings-user-name">${settingsUserNameHtml(user)}</p>
+                <p class="settings-user-title muted">${escapeHtml(userTitle(user))}</p>
+                <p class="settings-user-email">${settingsUserEmailHtml(user)}</p>
               </div>
             </div>
             <p>${escapeHtml(user.bio || "")}</p>
-            <p class="muted">${escapeHtml(user.email || "")}</p>
             <div class="toolbar reveal-actions">
               ${iconButton("delete-user", user.id, "Delete", "delete", currentUser().isAdmin && user.id !== currentUserId, "danger")}
               ${iconButton("edit-user", user.id, "Edit", "edit", canEditUser(user.id))}
@@ -389,6 +394,35 @@ export function createSettingsFeature({
         `).join("")}
       </div>
     `;
+  }
+
+  function settingsUserAvatarUrl(user) {
+    const avatarUrl = (user.avatarUrl || "/assets/avatar-default.svg").trim();
+    const version = seededAvatarVersions.get(avatarUrl);
+
+    return version ? `${avatarUrl}?v=${version}` : avatarUrl;
+  }
+
+  function settingsUserNameHtml(user) {
+    const fullName = [user.firstName, user.lastName]
+      .map(part => (part || "").trim())
+      .filter(Boolean)
+      .join(" ") || user.nickname || "User";
+    const nickname = (user.nickname || "").trim();
+    const showNickname = nickname && nickname.toLowerCase() !== fullName.toLowerCase();
+
+    return `${escapeHtml(fullName)}${showNickname ? ` (${escapeHtml(nickname)})` : ""}`;
+  }
+
+  function settingsUserEmailHtml(user) {
+    const email = (user.email || "").trim();
+    if (!email) return "";
+
+    return `<a href="mailto:${escapeAttr(email)}">${escapeHtml(email)}</a>`;
+  }
+
+  function userTitle(user) {
+    return user.role || (user.isAdmin ? "Admin" : "Developer");
   }
 
   function settingsCategoryIcon(type) {

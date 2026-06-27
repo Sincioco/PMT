@@ -87,11 +87,11 @@ BEGIN
         N'Sin',
         N'louiery@gmail.com',
         N'+63 (966) 230-4023',
-        N'/assets/avatar-sin.png',
+        N'/assets/avatar-sin.png?v=20260627',
         HASHBYTES('SHA2_256', CONVERT(NVARCHAR(4000), N'Password1')),
         N'',
         N'',
-        N'PMT administrator.',
+        N'PMT creator and administrator.',
         1,
         N'Admin',
         1

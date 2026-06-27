@@ -431,7 +431,7 @@ function createTestState() {
       email: "sin@example.test",
       phone: "",
       avatarUrl: "/assets/avatar-sin.svg",
-      bio: "PMT administrator.",
+      bio: "PMT Creator and Administrator.",
       isAdmin: true,
       role: "Admin",
       isActive: true

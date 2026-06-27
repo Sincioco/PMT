@@ -30,8 +30,8 @@ BEGIN
     VALUES
     (
         N'Louiery', N'Sincioco', N'Sin', N'louiery@gmail.com',
-        N'+63 (966) 230-4023', N'/assets/avatar-sin.png', @PasswordHash,
-        N'PMT administrator.', 1, N'Admin', 1
+        N'+63 (966) 230-4023', N'/assets/avatar-sin.png?v=20260627', @PasswordHash,
+        N'PMT creator and administrator.', 1, N'Admin', 1
     );
 END;
 
@@ -43,8 +43,9 @@ SET
     [LastName] = N'Sincioco',
     [Nickname] = N'Sin',
     [Phone] = N'+63 (966) 230-4023',
-    [AvatarUrl] = N'/assets/avatar-sin.png',
+    [AvatarUrl] = N'/assets/avatar-sin.png?v=20260627',
     [PasswordHash] = @PasswordHash,
+    [Bio] = N'PMT creator and administrator.',
     [IsAdmin] = 1,
     [Role] = N'Admin',
     [IsActive] = 1,
@@ -86,13 +87,13 @@ VALUES
 (N'Bill', N'Gates', N'Bill Gates', N'bill.gates@sincioco.com', N'555-0102', N'/assets/avatar-bill-gates.jpg', @PasswordHash, N'https://www.gatesnotes.com/', N'https://www.linkedin.com/in/williamhgates/', N'Backend developer focused on APIs and database work.', 0, N'Developer', @Sin),
 (N'Sam', N'Altman', N'Sam Altman', N'sam.altman@sincioco.com', N'555-0103', N'/assets/avatar-sam-altman.jpg', @PasswordHash, N'https://blog.samaltman.com/', N'https://www.linkedin.com/in/samaltman/', N'QA lead who keeps acceptance criteria and bug reports clear.', 0, N'QA', @Sin),
 (N'Mark', N'Zuckerberg', N'Mark Zuckerberg', N'mark.zuckerberg@sincioco.com', N'555-0104', N'/assets/avatar-mark-zuckerberg.jpg', @PasswordHash, N'https://about.meta.com/', N'https://www.linkedin.com/in/zuck/', N'Frontend developer focused on usability and interaction details.', 0, N'Developer', @Sin),
-(N'Steve', N'Jobs', N'Steve Jobs', N'steve.jobs@sincioco.com', N'555-0105', N'/assets/avatar-steve-jobs.jpg', @PasswordHash, N'https://www.apple.com/', N'https://www.linkedin.com/', N'Product-minded developer who helps sharpen feature scope.', 0, N'Developer', @Sin),
+(N'Steve', N'Jobs', N'Steve', N'steve.jobs@sincioco.com', N'555-0105', N'/assets/avatar-steve-jobs.jpg?v=20260627', @PasswordHash, N'https://www.apple.com/', N'https://www.linkedin.com/', N'Product-minded developer who helps sharpen feature scope.', 0, N'Developer', @Sin),
 (N'Lisa', N'Su', N'Lisa Su', N'lisa.su@sincioco.com', N'555-0106', N'/assets/avatar-lisa-su.jpg', @PasswordHash, N'https://www.amd.com/', N'https://www.linkedin.com/in/lisa-su-82818239/', N'Integration developer who helps with performance and release support.', 0, N'Developer', @Sin);
 
 DECLARE @Bill INT = (SELECT [UserId] FROM [pmt].[Users] WHERE [Nickname] = N'Bill Gates');
 DECLARE @Sam INT = (SELECT [UserId] FROM [pmt].[Users] WHERE [Nickname] = N'Sam Altman');
 DECLARE @Mark INT = (SELECT [UserId] FROM [pmt].[Users] WHERE [Nickname] = N'Mark Zuckerberg');
-DECLARE @Steve INT = (SELECT [UserId] FROM [pmt].[Users] WHERE [Nickname] = N'Steve Jobs');
+DECLARE @Steve INT = (SELECT [UserId] FROM [pmt].[Users] WHERE [Nickname] = N'Steve');
 DECLARE @Lisa INT = (SELECT [UserId] FROM [pmt].[Users] WHERE [Nickname] = N'Lisa Su');
 
 INSERT INTO [pmt].[Lookups] ([LookupType], [Value], [ColorHex], [DisplayOrder], [IsActive], [CreatedByUserId])

@@ -49,18 +49,38 @@
 }
 
 .settings-user-head {
-  align-items: flex-start;
+  align-items: center;
+  gap: var(--space-6);
   padding-bottom: var(--space-4);
   border-bottom: var(--border-width) solid var(--color-border-subtle);
+}
+
+.settings-user-avatar {
+  flex: 0 0 80px;
+  width: 80px;
+  height: 80px;
+  margin-left: 0;
 }
 
 .settings-user-head > div {
   min-width: 0;
 }
 
-.settings-user-head h3,
-.settings-user-head p {
+.settings-user-summary {
+  display: grid;
+  gap: 0;
+  padding-top: 0;
+}
+
+.settings-user-summary p {
+  margin: 0;
+  line-height: 1.25;
   overflow-wrap: anywhere;
+}
+
+.settings-user-name {
+  color: var(--color-text-primary);
+  font-weight: 700;
 }
 
 .development-panel {

@@ -22,7 +22,7 @@ DECLARE @Sin INT = (SELECT [UserId] FROM [pmt].[Users] WHERE [Nickname] = N'Sin'
 DECLARE @Bill INT = (SELECT [UserId] FROM [pmt].[Users] WHERE [Nickname] = N'Bill Gates');
 DECLARE @Sam INT = (SELECT [UserId] FROM [pmt].[Users] WHERE [Nickname] = N'Sam Altman');
 DECLARE @Mark INT = (SELECT [UserId] FROM [pmt].[Users] WHERE [Nickname] = N'Mark Zuckerberg');
-DECLARE @Steve INT = (SELECT [UserId] FROM [pmt].[Users] WHERE [Nickname] = N'Steve Jobs');
+DECLARE @Steve INT = (SELECT [UserId] FROM [pmt].[Users] WHERE [Nickname] = N'Steve');
 DECLARE @Lisa INT = (SELECT [UserId] FROM [pmt].[Users] WHERE [Nickname] = N'Lisa Su');
 
 DECLARE @HlsStart DATE = DATEFROMPARTS(YEAR(DATEADD(YEAR, -5, @Today)), MONTH(@Today), 1);
