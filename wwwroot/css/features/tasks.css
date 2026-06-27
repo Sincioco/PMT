@@ -220,6 +220,7 @@ html[data-theme] .tasks-screen.work-item-screen .work-item-table .icon-action:di
   row-gap: var(--space-5);
 }
 
+.task-editor-grid select,
 .task-editor-grid input[type="date"] {
   height: var(--control-height-md);
   min-height: var(--control-height-md);
