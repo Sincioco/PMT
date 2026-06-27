@@ -325,17 +325,17 @@ html[data-theme] .tasks-screen.work-item-screen .work-item-table .icon-action:di
   background: var(--color-surface);
 }
 
-.tasks-table tr.bug-associated-row > td {
-  background: color-mix(in srgb, var(--color-danger-surface), transparent 58%);
+html[data-theme] .tasks-screen.work-item-screen .tasks-table tr.bug-associated-row > td {
+  background: color-mix(in srgb, var(--color-danger-surface), transparent 64%);
 }
 
-.tasks-table tr.bug-associated-row > td:first-child {
+html[data-theme] .tasks-screen.work-item-screen .tasks-table tr.bug-associated-row > td:first-child {
   border-left: 3px solid color-mix(in srgb, var(--color-danger), transparent 24%);
   padding-left: calc(var(--table-cell-padding-inline) - 3px);
 }
 
-.tasks-table tr.bug-associated-row:hover > td {
-  background: color-mix(in srgb, var(--color-danger-surface), transparent 42%);
+html[data-theme] .tasks-screen.work-item-screen .tasks-table tr.bug-associated-row:hover > td {
+  background: color-mix(in srgb, var(--color-danger-surface), transparent 52%);
 }
 
 .subtask-title-cell {
