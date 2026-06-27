@@ -34,7 +34,7 @@ import {
   currentSprintForProject,
   ganttStartDate
 } from "./features/gantt/gantt.js?v=20260620-gantt-flush-sprint";
-import { createProjectsFeature } from "./features/projects/projects.js?v=20260621-project-logos";
+import { createProjectsFeature } from "./features/projects/projects.js?v=20260627-member-cards";
 import { createRoadMapFeature } from "./features/roadmap/roadmap.js?v=20260620-all-projects-label";
 import { createScrumFeature } from "./features/scrum/scrum.js?v=20260621-regular-text-actions";
 import { createSettingsFeature } from "./features/settings/settings.js?v=20260627-steve-avatar";

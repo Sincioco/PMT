@@ -5,7 +5,6 @@ import {
   checkedNumbers,
   field,
   nullableDateValue,
-  userCheckListLabelHtml,
   value
 } from "../../components/forms.js?v=20260620-member-roles";
 import {
@@ -21,6 +20,23 @@ import {
   escapeAttr,
   escapeHtml
 } from "../../shared/text-and-links.js";
+
+const memberAvatarCacheVersion = "20260627-steve-avatar";
+const seededMemberAvatarPaths = new Set([
+  "/assets/avatar-sin.png",
+  "/assets/avatar-bill-gates.png",
+  "/assets/avatar-sam-altman.png",
+  "/assets/avatar-mark-zuckerberg.png",
+  "/assets/avatar-steve-jobs.png",
+  "/assets/avatar-jensen-huang.png"
+]);
+const legacyMemberAvatarPaths = new Map([
+  ["/assets/avatar-bill-gates.jpg", "/assets/avatar-bill-gates.png"],
+  ["/assets/avatar-sam-altman.jpg", "/assets/avatar-sam-altman.png"],
+  ["/assets/avatar-mark-zuckerberg.jpg", "/assets/avatar-mark-zuckerberg.png"],
+  ["/assets/avatar-steve-jobs.jpg", "/assets/avatar-steve-jobs.png"],
+  ["/assets/avatar-lisa-su.jpg", "/assets/avatar-jensen-huang.png"]
+]);
 
 export function createProjectsFeature({
   app,
@@ -129,7 +145,7 @@ export function createProjectsFeature({
         ${field("Icon URL", "iconUrl", project.iconUrl || "", "text")}
         <div class="field full"><label>Upload Icon</label><input name="iconFile" type="file" accept="image/*"></div>
         <div class="field full"><label>Description</label><textarea name="description" maxlength="100">${escapeHtml(project.description || "")}</textarea></div>
-        ${checkList("Members", "memberIds", state.users, project.memberIds || [], item => item.nickname, { className: "scroll-check-list avatar-check-list", renderItem: userCheckListLabelHtml })}
+        ${checkList("Members", "memberIds", state.users, project.memberIds || [], item => item.nickname, { className: "scroll-check-list project-member-check-list", renderItem: projectMemberLabelHtml })}
       </div>
     `, async root => {
       const code = value(root, "code");
@@ -189,6 +205,49 @@ export function createProjectsFeature({
         memberIds
       });
     }, "code");
+  }
+
+  function projectMemberLabelHtml(user) {
+    return `
+      <span class="project-member-option">
+        <img class="project-member-avatar" src="${escapeAttr(projectMemberAvatarUrl(user))}" alt="${escapeAttr(projectMemberDisplayName(user))} avatar">
+        <span class="project-member-summary">
+          <span class="project-member-name">${projectMemberNameHtml(user)}</span>
+          <span class="project-member-title muted">${escapeHtml(userTitle(user))}</span>
+          <span class="project-member-email">${escapeHtml(user.email || "")}</span>
+        </span>
+      </span>
+    `;
+  }
+
+  function projectMemberAvatarUrl(user) {
+    const avatarUrl = (user.avatarUrl || "/assets/avatar-default.svg").trim();
+    const [pathPart, queryString = ""] = avatarUrl.split("?", 2);
+    const avatarPath = legacyMemberAvatarPaths.get(pathPart.toLowerCase()) || pathPart;
+    if (!seededMemberAvatarPaths.has(avatarPath.toLowerCase())) return avatarUrl;
+
+    const params = new URLSearchParams(queryString);
+    params.set("v", memberAvatarCacheVersion);
+    return `${avatarPath}?${params.toString()}`;
+  }
+
+  function projectMemberDisplayName(user) {
+    return [user.firstName, user.lastName]
+      .map(part => (part || "").trim())
+      .filter(Boolean)
+      .join(" ") || user.nickname || "User";
+  }
+
+  function projectMemberNameHtml(user) {
+    const fullName = projectMemberDisplayName(user);
+    const nickname = (user.nickname || "").trim();
+    const showNickname = nickname && nickname.toLowerCase() !== fullName.toLowerCase();
+
+    return `${escapeHtml(fullName)}${showNickname ? ` (${escapeHtml(nickname)})` : ""}`;
+  }
+
+  function userTitle(user) {
+    return user.role || (user.isAdmin ? "Admin" : "Developer");
   }
 
   function toggleProjectCardDetails(projectId) {
