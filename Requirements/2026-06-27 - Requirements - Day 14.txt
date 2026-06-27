@@ -179,3 +179,6 @@ Road Map Screen
 
 4.) In the Road Map Screen, render the icon of the project to the left of the project name without making the project block any taller than what it is now.  Always have this icon vertically centered.
 5.) When the project members avatar and the percent complete is shown, render the avatars larger at 40x40 pixels (CSS only) and the project's icon bigger so it occupied 2 lines.  Obviously, make the project icon smaller again when the project members avatar and the percent complete is hidden again.
+
+6.) Resize the avatar icon to be 80x80 when visible.
+7.) Much like what we did for the tooltip's End: section, adjust the Road Map project bar to say "On-going" if there is no end-date specified for the project.

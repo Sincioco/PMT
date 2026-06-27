@@ -35,7 +35,7 @@ import {
   ganttStartDate
 } from "./features/gantt/gantt.js?v=20260627-dev-task-status-rules";
 import { createProjectsFeature } from "./features/projects/projects.js?v=20260627-dev-task-status-rules";
-import { createRoadMapFeature } from "./features/roadmap/roadmap.js?v=20260627-roadmap-ongoing-width";
+import { createRoadMapFeature } from "./features/roadmap/roadmap.js?v=20260627-roadmap-ongoing-bar";
 import { createScrumFeature } from "./features/scrum/scrum.js?v=20260627-dev-task-status-rules";
 import { createSettingsFeature } from "./features/settings/settings.js?v=20260627-dev-task-status-rules";
 import { createSprintsFeature } from "./features/sprints/sprints.js?v=20260627-sprint-card-status-mix";

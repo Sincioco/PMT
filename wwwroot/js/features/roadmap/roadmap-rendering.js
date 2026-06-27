@@ -107,14 +107,17 @@ function roadMapProjectHtml(row, chart, options) {
   return `
     <section class="roadmap-project-group">
       <div class="roadmap-lane roadmap-project-lane">
-        <div class="roadmap-bar roadmap-project-bar" role="button" tabindex="0" data-action="view-project-sprints" data-id="${row.project.id}" ${roadMapGridStyle(row.start, row.end, chart, true)} title="${escapeAttr(roadMapProjectTooltip(row))}">
-          <strong>${escapeHtml(row.project.code)} - ${escapeHtml(row.project.title)}</strong>
-          ${options.showDates || options.showDetails ? `
-          <div class="roadmap-second-line">
-            ${options.showDetails ? `${avatarsHtml(row.project.members)}<span>${row.project.percentCompleted}% complete</span>` : ""}
-            ${options.showDates ? `<span class="roadmap-date-range">${escapeHtml(dateRangeLabel(row.start, row.end))}</span>` : ""}
+        <div class="roadmap-bar roadmap-project-bar ${options.showDetails ? "has-project-details" : ""}" role="button" tabindex="0" data-action="view-project-sprints" data-id="${row.project.id}" ${roadMapGridStyle(row.start, row.end, chart, true)} title="${escapeAttr(roadMapProjectTooltip(row))}">
+          <img class="roadmap-project-icon" src="${escapeAttr(roadMapProjectIconUrl(row.project))}" alt="">
+          <div class="roadmap-project-content">
+            <strong>${escapeHtml(row.project.code)} - ${escapeHtml(row.project.title)}</strong>
+            ${options.showDates || options.showDetails ? `
+            <div class="roadmap-second-line">
+              ${options.showDetails ? `${avatarsHtml(row.project.members)}<span>${row.project.percentCompleted}% complete</span>` : ""}
+              ${options.showDates ? `<span class="roadmap-date-range">${escapeHtml(roadMapProjectDateRangeLabel(row))}</span>` : ""}
+            </div>
+            ` : ""}
           </div>
-          ` : ""}
           <i style="--value:${row.project.percentCompleted}%; --progress-color:${completionColor(row.project.percentCompleted)}"></i>
         </div>
       </div>
@@ -130,6 +133,30 @@ function roadMapProjectTooltip(row) {
     `Start: ${formatDate(row.start) || "Not set"}`,
     `End: ${row.isOngoing ? "On-going" : (formatDate(row.end) || "Not set")}`
   ].join("\n");
+}
+
+function roadMapProjectDateRangeLabel(row) {
+  if (!row.isOngoing) return dateRangeLabel(row.start, row.end);
+
+  const startText = formatDate(row.start);
+  return startText ? `${startText} - On-going` : "On-going";
+}
+
+function roadMapProjectIconUrl(project) {
+  const iconUrl = project.iconUrl || "/assets/project-pmt.svg";
+  const assetPath = iconUrl.split("?")[0];
+
+  if (project.code === "LMS" && assetPath === "/assets/project-lms.svg") {
+    return "/assets/project-lms.svg?v=20260621-new-logo";
+  }
+  if (project.code === "HLS" && assetPath === "/assets/project-hls.svg") {
+    return "/assets/project-hls.svg?v=20260621-new-logo";
+  }
+  if (project.code === "PMT" && assetPath === "/assets/project-pmt.svg") {
+    return "/assets/project-pmt.svg?v=20260621-transparent";
+  }
+
+  return iconUrl;
 }
 
 function roadMapSprintHtml(row, chart, options) {
