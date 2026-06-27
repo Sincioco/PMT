@@ -43,14 +43,20 @@ import {
   escapeHtml
 } from "../../shared/text-and-links.js";
 
-const avatarCacheVersion = "20260627-steve-avatar";
+const avatarCacheVersion = "20260627-generic-avatars";
 const seededAvatarPaths = new Set([
   "/assets/avatar-sin.png",
   "/assets/avatar-bill-gates.png",
   "/assets/avatar-sam-altman.png",
   "/assets/avatar-mark-zuckerberg.png",
   "/assets/avatar-steve-jobs.png",
-  "/assets/avatar-jensen-huang.png"
+  "/assets/avatar-jensen-huang.png",
+  "/assets/avatar-generic-1.png",
+  "/assets/avatar-generic-2.png",
+  "/assets/avatar-generic-3.png",
+  "/assets/avatar-generic-4.png",
+  "/assets/avatar-generic-5.png",
+  "/assets/avatar-generic-6.png"
 ]);
 const legacySeededAvatarPaths = new Map([
   ["/assets/avatar-bill-gates.jpg", "/assets/avatar-bill-gates.png"],
@@ -59,6 +65,14 @@ const legacySeededAvatarPaths = new Map([
   ["/assets/avatar-steve-jobs.jpg", "/assets/avatar-steve-jobs.png"],
   ["/assets/avatar-lisa-su.jpg", "/assets/avatar-jensen-huang.png"]
 ]);
+const genericAvatarOptions = [
+  "/assets/avatar-generic-1.png",
+  "/assets/avatar-generic-2.png",
+  "/assets/avatar-generic-3.png",
+  "/assets/avatar-generic-4.png",
+  "/assets/avatar-generic-5.png",
+  "/assets/avatar-generic-6.png"
+];
 
 export function createSettingsFeature({
   app,
@@ -568,28 +582,44 @@ export function createSettingsFeature({
   function editUser(user = {}) {
     openEditor(user.id ? "Edit User" : "New User", `
       <div class="form-grid">
-        ${field("First Name", "firstName", user.firstName || "", "text")}
-        ${field("Last Name", "lastName", user.lastName || "", "text")}
+        ${requiredUserTextField("First Name", "firstName", user.firstName || "")}
+        ${requiredUserTextField("Last Name", "lastName", user.lastName || "")}
         ${field("Nickname", "nickname", user.nickname || "", "text")}
-        ${field("Email", "email", user.email || "", "email")}
+        ${selectTextField("Role", "role", ["Developer", "QA"], user.role === "Admin" ? "Developer" : user.role || "Developer")}
         ${field("Phone", "phone", user.phone || "", "text")}
-        ${field("Avatar URL", "avatarUrl", user.avatarUrl || "", "text")}
+        ${field("Email", "email", user.email || "", "email")}
+        ${genericAvatarPickerHtml(user)}
         <div class="field full"><label>Upload Avatar</label><input name="avatarFile" type="file" accept="image/*"></div>
+        <div class="field full"><label>Avatar URL</label><input name="avatarUrl" type="text" value="${escapeAttr(user.avatarUrl || "")}"></div>
         ${field("Home Page", "homePageUrl", user.homePageUrl || "", "url")}
         ${field("Social Media", "socialMediaUrl", user.socialMediaUrl || "", "url")}
-        ${selectTextField("Role", "role", ["Developer", "QA"], user.role === "Admin" ? "Developer" : user.role || "Developer")}
         <div class="field full"><label>Bio</label><textarea name="bio">${escapeHtml(user.bio || "")}</textarea></div>
         <label class="inline-check field full"><input name="isAdmin" type="checkbox" ${user.isAdmin ? "checked" : ""} ${currentUser().isAdmin ? "" : "disabled"}><span>Admin</span></label>
       </div>
     `, async root => {
+      const firstName = value(root, "firstName").trim();
+      const lastName = value(root, "lastName").trim();
+      if (!firstName) {
+        focusUserField(root, "firstName");
+        throw new Error("First Name is required.");
+      }
+      if (!lastName) {
+        focusUserField(root, "lastName");
+        throw new Error("Last Name is required.");
+      }
+
       const avatarFile = root.querySelector("[name='avatarFile']").files[0];
       let avatarUrl = value(root, "avatarUrl");
+      if (!avatarFile && !avatarUrl.trim()) {
+        focusUserAvatarField(root);
+        throw new Error("Select or upload an avatar before saving this user.");
+      }
       if (avatarFile) avatarUrl = (await uploadFile("avatars", avatarFile)).url;
 
       await saveJson(user.id ? `/api/users/${user.id}` : "/api/users", user.id ? "PUT" : "POST", {
         id: user.id || 0,
-        firstName: value(root, "firstName"),
-        lastName: value(root, "lastName"),
+        firstName,
+        lastName,
         nickname: value(root, "nickname"),
         email: value(root, "email"),
         phone: value(root, "phone"),
@@ -600,7 +630,73 @@ export function createSettingsFeature({
         isAdmin: root.querySelector("[name='isAdmin']").checked,
         role: value(root, "role")
       });
+    }, "", bindGenericAvatarPicker);
+  }
+
+  function requiredUserTextField(label, name, currentValue) {
+    return `<div class="field"><label>${label}</label><input name="${name}" type="text" value="${escapeAttr(currentValue ?? "")}" required></div>`;
+  }
+
+  function focusUserField(root, name) {
+    const input = root.querySelector(`[name='${name}']`);
+    input?.scrollIntoView({ behavior: "smooth", block: "center" });
+    input?.focus({ preventScroll: true });
+  }
+
+  function focusUserAvatarField(root) {
+    const field = root.querySelector(".settings-generic-avatar-field") || root.querySelector("[name='avatarUrl']")?.closest(".field");
+    field?.scrollIntoView({ behavior: "smooth", block: "center" });
+    field?.querySelector("button, input")?.focus({ preventScroll: true });
+  }
+
+  function genericAvatarPickerHtml(user) {
+    const currentAvatarPath = avatarPathOnly(user.avatarUrl || "");
+
+    return `
+      <div class="field full settings-generic-avatar-field">
+        <label>Generic Avatar</label>
+        <div class="settings-generic-avatar-list" role="radiogroup" aria-label="Generic Avatar">
+          ${genericAvatarOptions.map((avatarUrl, index) => {
+            const selected = currentAvatarPath === avatarUrl;
+            return `
+              <button class="settings-generic-avatar-option ${selected ? "is-selected" : ""}" type="button" data-generic-avatar="${escapeAttr(avatarUrl)}" role="radio" aria-checked="${selected}" title="Use generic avatar ${index + 1}">
+                <img src="${escapeAttr(settingsUserAvatarUrl({ avatarUrl }))}" alt="Generic avatar ${index + 1}">
+              </button>
+            `;
+          }).join("")}
+        </div>
+      </div>
+    `;
+  }
+
+  function bindGenericAvatarPicker(root) {
+    const avatarUrlInput = root.querySelector("[name='avatarUrl']");
+    const avatarFileInput = root.querySelector("[name='avatarFile']");
+    const options = [...root.querySelectorAll("[data-generic-avatar]")];
+    if (!avatarUrlInput || !options.length) return;
+
+    const syncSelectedOption = () => {
+      const selectedPath = avatarPathOnly(avatarUrlInput.value);
+      options.forEach(option => {
+        const selected = option.dataset.genericAvatar === selectedPath;
+        option.classList.toggle("is-selected", selected);
+        option.setAttribute("aria-checked", String(selected));
+      });
+    };
+
+    options.forEach(option => {
+      option.addEventListener("click", () => {
+        avatarUrlInput.value = option.dataset.genericAvatar || "";
+        if (avatarFileInput) avatarFileInput.value = "";
+        syncSelectedOption();
+      });
     });
+    avatarUrlInput.addEventListener("input", syncSelectedOption);
+    syncSelectedOption();
+  }
+
+  function avatarPathOnly(avatarUrl) {
+    return (avatarUrl || "").trim().split("?", 1)[0];
   }
 
   function editLookup(lookup = {}) {
