@@ -7,7 +7,7 @@ import {
   sprintStatusMetricsHtml,
   statusLegendHtml,
   thinProgressHtml
-} from "../../components/progress-and-status.js?v=20260620-ui-theme";
+} from "../../components/progress-and-status.js?v=20260627-project-status-mix";
 import { sectionHead } from "../../components/sections.js";
 import { state } from "../../core/store.js";
 import {
@@ -35,7 +35,10 @@ export function createDashboardFeature({
         <button class="text-icon-button" type="button" data-action="toggle-dashboard-all-details">${buttonContent(showAllDetails ? "&#8722;" : "&#43;", showAllDetails ? "Hide All Details" : "Show All Details")}</button>
       `)}
       <div class="grid dashboard-summary-grid">
-        ${state.projects.map(projectCardHtml).join("")}
+        ${state.projects.map(project => projectCardHtml(project, {
+          showStatusDonut: false,
+          showStatusTotals: true
+        })).join("")}
       </div>
       <div class="panel dashboard-flow-panel">
         <div class="spread dashboard-flow-head">

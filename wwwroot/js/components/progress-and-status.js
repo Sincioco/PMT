@@ -68,34 +68,31 @@ export function overallProgressBlockHtml(label, percent) {
   `;
 }
 
-export function projectStatusMetricsHtml(project) {
-  return workItemStatusMetricsHtml(projectWorkItems(project.id), "No Dev Tasks or Bugs.");
+export function projectStatusMetricsHtml(project, options = {}) {
+  return workItemStatusMetricsHtml(projectWorkItems(project.id), "No Dev Tasks or Bugs.", options);
 }
 
-export function sprintStatusMetricsHtml(sprint) {
-  return workItemStatusMetricsHtml(sprintWorkItems(sprint.id), "No Dev Tasks or Bugs.");
+export function sprintStatusMetricsHtml(sprint, options = {}) {
+  return workItemStatusMetricsHtml(sprintWorkItems(sprint.id), "No Dev Tasks or Bugs.", options);
 }
 
-export function workItemStatusMetricsHtml(workItems, emptyText) {
+export function workItemStatusMetricsHtml(workItems, emptyText, options = {}) {
   const total = workItems.length;
   if (!total) return `<div class="empty compact-empty">${escapeHtml(emptyText)}</div>`;
 
-  const rows = currentStatuses()
-    .map(status => ({
-      status,
-      count: workItems.filter(task => task.status === status).length
-    }))
-    .filter(item => item.count > 0);
+  const rows = workItemStatusCounts(workItems);
+  const showTotal = options.showTotal !== false;
 
   return `
     <div class="sprint-status-metrics">
       ${rows.map(item => {
         const percent = Math.round((item.count / total) * 100);
+        const countText = showTotal ? `${item.count} of ${total}` : String(item.count);
         return `
           <div class="sprint-status-metric">
             <div class="sprint-metric-label">
               <span>${escapeHtml(item.status)}</span>
-              <span>${item.count} of ${total}</span>
+              <span>${countText}</span>
             </div>
             ${thinProgressHtml(percent, statusColor(item.status))}
           </div>
@@ -103,6 +100,19 @@ export function workItemStatusMetricsHtml(workItems, emptyText) {
       }).join("")}
     </div>
   `;
+}
+
+export function projectStatusCounts(project) {
+  return workItemStatusCounts(projectWorkItems(project.id));
+}
+
+export function workItemStatusCounts(workItems) {
+  return currentStatuses()
+    .map(status => ({
+      status,
+      count: workItems.filter(task => task.status === status).length
+    }))
+    .filter(item => item.count > 0);
 }
 
 export function statusStyle(status) {

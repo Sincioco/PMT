@@ -6,7 +6,7 @@ import {
   field,
   value
 } from "./components/forms.js";
-import { configureProgressAndStatus } from "./components/progress-and-status.js?v=20260620-ui-theme";
+import { configureProgressAndStatus } from "./components/progress-and-status.js?v=20260627-project-status-mix";
 import {
   bindAttachmentPreview,
   showTaskAudit,
@@ -25,21 +25,21 @@ import {
 import { state } from "./core/store.js";
 import { createAboutFeature } from "./features/about/about.js?v=20260621-about-credits";
 import { createBacklogFeature } from "./features/backlog/backlog.js?v=20260621-dev-task-parity";
-import { createBoardFeature } from "./features/board/board.js?v=20260620-bug-linked-task";
+import { createBoardFeature } from "./features/board/board.js?v=20260627-project-status-mix";
 import { createBugsFeature } from "./features/bugs/bugs.js?v=20260627-user-card-checklist";
-import { createDashboardFeature } from "./features/dashboard/dashboard.js?v=20260620-ui-theme";
+import { createDashboardFeature } from "./features/dashboard/dashboard.js?v=20260627-project-status-mix";
 import { createDocumentationFeature } from "./features/documentation/documentation.js?v=20260620-document-entry-project";
 import {
   createGanttFeature,
   currentSprintForProject,
   ganttStartDate
-} from "./features/gantt/gantt.js?v=20260620-gantt-flush-sprint";
-import { createProjectsFeature } from "./features/projects/projects.js?v=20260627-user-card-checklist";
-import { createRoadMapFeature } from "./features/roadmap/roadmap.js?v=20260620-all-projects-label";
+} from "./features/gantt/gantt.js?v=20260627-project-status-mix";
+import { createProjectsFeature } from "./features/projects/projects.js?v=20260627-project-donut-drilldown";
+import { createRoadMapFeature } from "./features/roadmap/roadmap.js?v=20260627-project-status-mix";
 import { createScrumFeature } from "./features/scrum/scrum.js?v=20260621-regular-text-actions";
-import { createSettingsFeature } from "./features/settings/settings.js?v=20260627-generic-selected-ring";
-import { createSprintsFeature } from "./features/sprints/sprints.js?v=20260627-sprint-member-width";
-import { createTasksFeature } from "./features/tasks/tasks.js?v=20260627-user-card-checklist";
+import { createSettingsFeature } from "./features/settings/settings.js?v=20260627-project-status-mix";
+import { createSprintsFeature } from "./features/sprints/sprints.js?v=20260627-project-status-mix";
+import { createTasksFeature } from "./features/tasks/tasks.js?v=20260627-project-status-mix";
 import { createWfhScheduleFeature } from "./features/wfh-schedule/wfh-schedule.js?v=20260627-wfh-member-card";
 import {
   fallbackEnvironments,
@@ -414,6 +414,12 @@ function handleChartAction(element) {
     return true;
   }
 
+  if (action === "chart-drill-work-items") {
+    const workItemIds = splitChartIds(element.dataset.ids);
+    showWorkItemChartDrilldown(element.dataset.chartTitle || "Work Items", workItemIds);
+    return true;
+  }
+
   if (action === "view-task") {
     viewWorkItem(taskById(Number(element.dataset.id || 0)), editWorkItem);
     return true;
@@ -570,6 +576,91 @@ function showTaskChartDrilldown(title, taskIds) {
   });
   modal.addEventListener("cancel", () => modal.remove());
   modal.showModal();
+}
+
+function showWorkItemChartDrilldown(title, workItemIds) {
+  const workItems = workItemIds
+    .map(id => taskById(id))
+    .filter(Boolean)
+    .sort(taskOrderCompare);
+
+  const modal = document.createElement("dialog");
+  modal.className = "dialog detail-dialog chart-drill-dialog";
+  modal.innerHTML = `
+    <div class="dialog-head">
+      <h2>${escapeHtml(title)} Work Items</h2>
+      <button type="button" class="icon-btn" data-close title="Close">x</button>
+    </div>
+    <div class="dialog-body">
+      ${workItems.length ? `
+        <table class="table chart-drill-table">
+          <thead>
+            <tr>
+              <th>Work Item</th>
+              <th>Type</th>
+              <th>Project</th>
+              <th>Sprint</th>
+              <th>Status</th>
+              <th>Priority / Severity</th>
+              <th>Assignee</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${workItems.map(workItem => `
+              <tr class="clickable-row" data-action="view-task" data-id="${workItem.id}">
+                <td><b>${escapeHtml(workItem.code)}</b><br><span>${escapeHtml(workItem.title)}</span></td>
+                <td>${escapeHtml(workItemTypeLabel(workItem))}</td>
+                <td>${escapeHtml(projectCode(workItem.projectId))}</td>
+                <td>${escapeHtml(sprintName(workItem.sprintId))}</td>
+                <td><span class="pill">${escapeHtml(workItem.status)}</span></td>
+                <td>${workItemPriorityOrSeverityHtml(workItem)}</td>
+                <td>${taskRowAvatarsHtml(workItem.assignees)}</td>
+              </tr>
+            `).join("")}
+          </tbody>
+        </table>
+      ` : `<div class="empty compact-empty">No work items were found for this chart segment.</div>`}
+    </div>
+    <div class="dialog-actions">
+      <button type="button" class="primary text-icon-button" data-close>${buttonContent("&#10003;", "Close")}</button>
+    </div>
+  `;
+
+  document.body.appendChild(modal);
+  modal.addEventListener("click", event => {
+    if (event.target.closest("[data-close]")) {
+      closeTransientDialog(modal);
+      return;
+    }
+
+    const actionElement = event.target.closest("[data-action]");
+    if (!actionElement) return;
+
+    if (actionElement.dataset.action === "view-task") {
+      handleChartAction(actionElement);
+      return;
+    }
+
+    handleChartAction(actionElement);
+  });
+  modal.addEventListener("cancel", () => modal.remove());
+  modal.showModal();
+}
+
+function workItemTypeLabel(workItem) {
+  return workItem.taskType === "Bug" ? "Bug" : "Dev Task";
+}
+
+function workItemPriorityOrSeverityHtml(workItem) {
+  if (workItem.taskType === "Bug" && workItem.severity) {
+    return `<span class="pill severity-${escapeAttr(workItem.severity)}">${escapeHtml(workItem.severity)}</span>`;
+  }
+
+  if (workItem.priority) {
+    return `<span class="pill priority-${escapeAttr(workItem.priority)}">${escapeHtml(workItem.priority)}</span>`;
+  }
+
+  return `<span class="muted">None</span>`;
 }
 
 function expandVisualChartCard(card) {

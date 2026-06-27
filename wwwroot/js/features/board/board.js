@@ -1,6 +1,6 @@
 import { avatarsHtml } from "../../components/avatars.js";
 import { buttonContent, funnelIconHtml } from "../../components/buttons.js";
-import { progressHtml } from "../../components/progress-and-status.js?v=20260620-ui-theme";
+import { progressHtml } from "../../components/progress-and-status.js?v=20260627-project-status-mix";
 import { sectionHead } from "../../components/sections.js";
 import {
   bugFixIconHtml,

@@ -17,7 +17,7 @@ import {
   sortGanttSprints
 } from "./gantt-calculations.js?v=20260620-gantt-scaled-buffer";
 import { createGanttFlyBy } from "./gantt-flyby.js?v=20260620-gantt-flush-sprint";
-import { ganttScreenHtml } from "./gantt-rendering.js?v=20260620-gantt-dependency-line";
+import { ganttScreenHtml } from "./gantt-rendering.js?v=20260627-project-status-mix";
 
 export { currentSprintForProject, ganttStartDate } from "./gantt-calculations.js?v=20260620-gantt-scaled-buffer";
 

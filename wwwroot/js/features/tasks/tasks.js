@@ -16,7 +16,7 @@ import {
   selectTextField,
   value
 } from "../../components/forms.js";
-import { progressHtml, statusColor } from "../../components/progress-and-status.js?v=20260620-ui-theme";
+import { progressHtml, statusColor } from "../../components/progress-and-status.js?v=20260627-project-status-mix";
 import { sectionHead } from "../../components/sections.js";
 import {
   attachmentEditorFieldHtml,

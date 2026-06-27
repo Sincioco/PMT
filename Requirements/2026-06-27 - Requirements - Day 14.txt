@@ -62,3 +62,13 @@ Admin
 
 34.) In the Users screen, render only 4 user cards per row.
 35.) In the User card, if the email is too long, instead of wrapping it, can you render ellipses instead?
+
+------------------------------------------------------------------------------------------------------
+
+For all of this conversation / session, I will perform all the manual tests and compile the application manually.  Perform only the coding changes required and nothing else.  If making CSS / image changes, ensure that I will encounter no caching issue when testing in the browser.
+
+Project Screen
+--------------
+1.) For each task status like Todo, Code Complete, etc., show only the count and remove the " of 20" at the end.
+2.) Just above the project member, render a donut chart.  Use the Bug Tracking Screen's Sprint Bug Mix as a reference.  Render each task status like Todo, Code Complete, etc.
+3.) For the Donut chart, be sure to use the status color as set in the Settings by the user.

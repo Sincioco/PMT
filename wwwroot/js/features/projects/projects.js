@@ -1,5 +1,6 @@
 import { avatarsHtml } from "../../components/avatars.js";
 import { buttonContent, iconButton } from "../../components/buttons.js";
+import { VisualCharts } from "../../components/charts.js";
 import {
   checkList,
   checkedNumbers,
@@ -10,8 +11,10 @@ import {
 } from "../../components/forms.js?v=20260627-user-card-checklist";
 import {
   projectOverallProgressHtml,
-  projectStatusMetricsHtml
-} from "../../components/progress-and-status.js?v=20260620-ui-theme";
+  projectStatusCounts,
+  projectStatusMetricsHtml,
+  statusColor
+} from "../../components/progress-and-status.js?v=20260627-project-status-mix";
 import { sectionHead } from "../../components/sections.js";
 import { state } from "../../core/store.js";
 import { toDateInput } from "../../shared/dates.js?v=20260620-null-end-date";
@@ -21,6 +24,7 @@ import {
   escapeAttr,
   escapeHtml
 } from "../../shared/text-and-links.js";
+import { projectWorkItems } from "../../shared/work-item-rules.js";
 
 export function createProjectsFeature({
   app,
@@ -41,17 +45,20 @@ export function createProjectsFeature({
     `;
   }
 
-  function projectCardHtml(project) {
+  function projectCardHtml(project, options = {}) {
     const isCollapsed = collapsedIds.has(project.id);
     const chartToggleTitle = isCollapsed ? "Expand Project charts" : "Collapse Project charts";
+    const showStatusDonut = options.showStatusDonut !== false;
+    const statusMetricOptions = { showTotal: options.showStatusTotals === true };
+    const projectName = `${project.code} - ${project.title}`;
 
     return `
-      <article class="card clickable-card project-card" data-action="view-project-sprints" data-id="${project.id}">
+      <article class="card clickable-card project-card" data-action="view-project-sprints" data-id="${project.id}" title="${escapeAttr(projectName)}">
         <div class="spread project-card-head">
           <div class="row project-identity">
             <img class="project-icon" src="${escapeAttr(projectIconUrl(project))}" alt="">
             <div>
-              <h3>${escapeHtml(project.code)} - ${escapeHtml(project.title)}</h3>
+              <h3>${escapeHtml(projectName)}</h3>
               <p class="muted project-metrics">${project.completedTaskCount}/${project.taskCount} QA Passed+ | ${project.openBugCount}/${project.bugCount} open bug reports</p>
             </div>
           </div>
@@ -59,9 +66,9 @@ export function createProjectsFeature({
             ${isCollapsed ? "&#9662;" : "&#9652;"}
           </button>
         </div>
-        <p class="project-description">${escapeHtml(project.description || "")}</p>
         ${projectOverallProgressHtml(project)}
-        ${isCollapsed ? "" : projectStatusMetricsHtml(project)}
+        ${isCollapsed || !showStatusDonut ? "" : projectStatusDonutHtml(project)}
+        ${isCollapsed ? "" : projectStatusMetricsHtml(project, statusMetricOptions)}
         <div class="row project-members">${avatarsHtml(project.members)}</div>
         <div class="toolbar reveal-actions project-actions">
           ${iconButton("delete-project", project.id, "Delete", "delete", canEditOwner(project.createdByUserId), "danger")}
@@ -69,6 +76,45 @@ export function createProjectsFeature({
           ${iconButton("edit-project", project.id, "Edit", "edit", canEditOwner(project.createdByUserId))}
         </div>
       </article>
+    `;
+  }
+
+  function projectStatusDonutHtml(project) {
+    const workItems = projectWorkItems(project.id);
+    const rows = projectStatusCounts(project);
+    const total = rows.reduce((sum, item) => sum + item.count, 0);
+    if (!total) return "";
+
+    const items = rows.map(item => {
+      const statusWorkItems = workItems.filter(workItem => workItem.status === item.status);
+      const workItemIds = statusWorkItems.map(workItem => workItem.id);
+      const actionTarget = statusWorkItems.length === 1
+        ? { action: "view-task", id: statusWorkItems[0].id }
+        : statusWorkItems.length > 1
+          ? { action: "chart-drill-work-items", ids: workItemIds.join(","), chartTitle: item.status }
+          : {};
+
+      return {
+        label: item.status,
+        value: item.count,
+        color: statusColor(item.status),
+        tooltip: `${item.status}: ${item.count} work item${item.count === 1 ? "" : "s"}`,
+        ...actionTarget
+      };
+    });
+
+    return `
+      <div class="project-status-mix">
+        <div class="project-status-mix-head">
+          <h4>Task Status Mix</h4>
+          <span>${total} total</span>
+        </div>
+        ${VisualCharts.pieChart(items, `${total} total`, "No Dev Tasks or Bugs.", {
+          donut: true,
+          centerValue: String(total),
+          centerLabel: "Total"
+        })}
+      </div>
     `;
   }
 

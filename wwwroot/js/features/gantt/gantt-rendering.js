@@ -1,6 +1,6 @@
 import { avatarsHtml } from "../../components/avatars.js";
 import { buttonContent } from "../../components/buttons.js";
-import { statusColor } from "../../components/progress-and-status.js?v=20260620-ui-theme";
+import { statusColor } from "../../components/progress-and-status.js?v=20260627-project-status-mix";
 import { sectionHead } from "../../components/sections.js";
 import {
   groupedTimelineHeader,
