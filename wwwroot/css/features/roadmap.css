@@ -1,6 +1,7 @@
 /* CSS ownership: Road Map screen. */
 
 .roadmap {
+  width: 100%;
   padding: 0;
   overflow: hidden;
   border-color: var(--color-border-subtle);
@@ -9,6 +10,7 @@
 }
 
 .roadmap-scroll {
+  width: 100%;
   overflow: auto;
   max-height: calc(100vh - 230px);
 }

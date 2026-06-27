@@ -14,7 +14,7 @@ import {
   escapeAttr,
   escapeHtml
 } from "../../shared/text-and-links.js";
-import { roadMapVisibleDateIndex } from "./roadmap-calculations.js?v=20260620-render-end-date";
+import { roadMapVisibleDateIndex } from "./roadmap-calculations.js?v=20260627-roadmap-ongoing-width";
 
 export function roadMapScreenHtml({
   projects,
@@ -128,7 +128,7 @@ function roadMapProjectTooltip(row) {
     `Project: ${row.project.code} - ${row.project.title}`,
     `Completion: ${row.project.percentCompleted}%`,
     `Start: ${formatDate(row.start) || "Not set"}`,
-    `End: ${formatDate(row.end) || "Not set"}`
+    `End: ${row.isOngoing ? "On-going" : (formatDate(row.end) || "Not set")}`
   ].join("\n");
 }
 

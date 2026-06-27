@@ -69,13 +69,14 @@ export function roadMapChartData({
     const start = roadMapProjectStart(project);
     const endSourceSprints = showSprints && sprintFilter !== "all" ? projectSprints : allProjectSprints;
     const end = roadMapProjectEnd(project, endSourceSprints);
+    const isOngoing = roadMapProjectIsOngoing(project);
     const sprintRows = projectSprints.map(sprint => ({
       sprint,
       start: roadMapSprintStart(sprint, project),
       end: roadMapSprintEnd(sprint, project)
     }));
 
-    return { project, start, end, sprints: sprintRows };
+    return { project, start, end, isOngoing, sprints: sprintRows };
   }).filter(row => row.start && row.end);
 
   const scheduledItems = rows.flatMap(row => [
@@ -90,6 +91,15 @@ export function roadMapChartData({
   const startDates = new Set(scheduledItems.map(row => dateKey(row.start)).filter(Boolean));
   const activeHolidays = activeHolidayMap(holidays);
   const timeline = roadMapTimeline(minDate, maxDate, startDates, activeHolidays, availableTimelineWidth);
+  const lastVisibleDate = timeline.dates.at(-1);
+
+  if (lastVisibleDate) {
+    rows.forEach(row => {
+      if (row.isOngoing) {
+        row.end = new Date(lastVisibleDate);
+      }
+    });
+  }
 
   return {
     rows,
@@ -113,7 +123,8 @@ export function roadMapProjectStart(project) {
 
 export function roadMapProjectEnd(project, projectSprints = []) {
   const start = roadMapProjectStart(project);
-  const end = normalizeDate(project.endDate) || normalizeDate(new Date());
+  const sprintEnds = projectSprints.map(sprint => roadMapSprintEnd(sprint, project)).filter(Boolean);
+  const end = normalizeDate(project.endDate) || latestDate([...sprintEnds, normalizeDate(new Date())]);
   if (!start) return end;
   if (!end || end < start) return start;
   return end;
@@ -157,7 +168,7 @@ function roadMapTimeline(minDate, maxDate, startDates, holidays, availableTimeli
     return {
       dates,
       granularity: "month",
-      dayWidth: roadMapMonthWidth(dates.length)
+      dayWidth: roadMapMonthWidth(dates.length, availableTimelineWidth)
     };
   }
 
@@ -165,7 +176,7 @@ function roadMapTimeline(minDate, maxDate, startDates, holidays, availableTimeli
   return {
     dates,
     granularity: "day",
-    dayWidth: dates.length > 180 ? 14 : dates.length > 120 ? 18 : dates.length > 60 ? 24 : dates.length > 35 ? 32 : 42
+    dayWidth: roadMapDayWidth(dates.length, availableTimelineWidth)
   };
 }
 
@@ -186,12 +197,30 @@ function padRoadMapMonthsToViewport(dates, availableTimelineWidth) {
   return paddedDates;
 }
 
-function roadMapMonthWidth(monthCount) {
-  if (monthCount > 72) return 14;
-  if (monthCount > 48) return 18;
-  if (monthCount > 30) return 24;
-  if (monthCount > 18) return 32;
-  return 42;
+function roadMapProjectIsOngoing(project) {
+  return !normalizeDate(project?.endDate);
+}
+
+function latestDate(dates) {
+  const times = dates.filter(Boolean).map(date => date.getTime());
+  if (!times.length) return null;
+  return new Date(Math.max(...times));
+}
+
+function roadMapDayWidth(dayCount, availableTimelineWidth) {
+  const baseWidth = dayCount > 180 ? 14 : dayCount > 120 ? 18 : dayCount > 60 ? 24 : dayCount > 35 ? 32 : 42;
+  return fittedTimelineWidth(dayCount, baseWidth, availableTimelineWidth);
+}
+
+function roadMapMonthWidth(monthCount, availableTimelineWidth = 0) {
+  const baseWidth = monthCount > 72 ? 14 : monthCount > 48 ? 18 : monthCount > 30 ? 24 : monthCount > 18 ? 32 : 42;
+  return fittedTimelineWidth(monthCount, baseWidth, availableTimelineWidth);
+}
+
+function fittedTimelineWidth(dateCount, baseWidth, availableTimelineWidth) {
+  if (!dateCount) return baseWidth;
+  const fittedWidth = Math.floor(Number(availableTimelineWidth || 0) / dateCount);
+  return Math.max(baseWidth, fittedWidth);
 }
 
 function monthRange(start, end) {

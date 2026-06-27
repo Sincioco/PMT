@@ -9,8 +9,8 @@ import {
   roadMapChartData,
   roadMapProjects,
   roadMapSprintOptions
-} from "./roadmap-calculations.js?v=20260620-render-end-date";
-import { roadMapScreenHtml } from "./roadmap-rendering.js?v=20260627-dev-task-status-rules";
+} from "./roadmap-calculations.js?v=20260627-roadmap-ongoing-width";
+import { roadMapScreenHtml } from "./roadmap-rendering.js?v=20260627-roadmap-ongoing-width";
 
 export function createRoadMapFeature({ app }) {
   let roadMapProjectFilter = readPreference(preferenceKeys.roadMapProject, "all");
@@ -121,8 +121,8 @@ export function createRoadMapFeature({ app }) {
   }
 
   function roadMapAvailableTimelineWidth() {
-    const contentWidth = app?.clientWidth || window.innerWidth || 1200;
-    return Math.max(560, contentWidth - 48);
+    const shellWidth = app?.getBoundingClientRect?.().width || app?.clientWidth || window.innerWidth || 1200;
+    return Math.max(560, shellWidth - roadMapHorizontalPadding(app));
   }
 
   return {
@@ -130,4 +130,16 @@ export function createRoadMapFeature({ app }) {
     handleFilterChange,
     render: renderRoadMap
   };
+}
+
+function roadMapHorizontalPadding(element) {
+  if (!element || !window.getComputedStyle) return 0;
+
+  const style = window.getComputedStyle(element);
+  return cssPixelValue(style.paddingLeft) + cssPixelValue(style.paddingRight);
+}
+
+function cssPixelValue(value) {
+  const parsed = Number.parseFloat(value);
+  return Number.isFinite(parsed) ? parsed : 0;
 }

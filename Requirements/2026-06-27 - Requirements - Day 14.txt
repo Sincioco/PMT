@@ -168,3 +168,14 @@ Sprints Screen
 2.) In both the Projects card and Sprints Card, can you make the avatar larger?  Like 60x60 in size (CSS).
 3.) In the Projects screen, can you move the legend of the Donut chart at the bottom of the Donut so that Donart chart can be as wide as possible?
 4.) In both the Projects card and Sprints Card, the avatar needs is nearly touching the left edge of the card, can you add some padding to the left?
+5.) Widen the Sprint card so it only renders up to 4 Sprint Cards (width-wise).
+
+
+Road Map Screen
+---------------
+1.) In the Road Map Screen, if a project has no end-date, extend its length to be all the way until the end of the calendar.
+2.) In the Road Map Screen, if a project has no end-date, change the tool tip that appears so that the End: section says "On-going".
+3.) In the Road Map Screen, if possible, render a calendar the extends all the way to the width of the browser.  It's fine if you have to re-draw the calendar every time a new project is selected.
+
+4.) In the Road Map Screen, render the icon of the project to the left of the project name without making the project block any taller than what it is now.  Always have this icon vertically centered.
+5.) When the project members avatar and the percent complete is shown, render the avatars larger at 40x40 pixels (CSS only) and the project's icon bigger so it occupied 2 lines.  Obviously, make the project icon smaller again when the project members avatar and the percent complete is hidden again.
