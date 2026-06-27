@@ -260,3 +260,13 @@ donut chart as a reference.
 22.) Also some of the tables in the Settings screens their columns have bolded text and all upper case.  As part of the "Paper Design" the rule is table headers are never bolded and never all caps.  Remember this rule.  Fix the table column headers so they are not bolded and they are proper case.
 23.) The shifting I mentioned in #21 is still happening.  For this particular task, please launch a browser and visually inspect it.  The category panel itself is shifting up or down depending on the content on the right.  Launch a browser and visually inspect the top position of both the category panel and the content on the right and align them please.
 24.) The shifting has been largely fixed for all categories except for when I click the Development category.  That seems to shift everything up a little bit including the page title, the category panel and the content on the right.
+
+25.) Universally, can you fix the content shifting that happens when the vertical scrollbar appears on the right of the content area.  Maybe permanently reserve the space for the vertical scrollbar so content do not shift?  Do this for both dark and light theme.
+
+26.) The Road Map page title does not seem to be aligned with the other Page Title (top position).
+27.) The Scrum page title does not look like the other Page Title.
+28.) Universally, make the Page Title appear in the same location across all the top level pages in both dark and light theme and render the Page Title the same way (style-wise).  I want to minimize screen / content shifting as I move from one screen to another.
+
+29.) In the Road Map screen, the horizontal scrollbar issue is back.  It may be because we reserved the spot for the vertical scrollbar.  Can you fix that please?
+
+30.) In the Gantt screen, there is now a vertical scrollbar appearing.  Can you fix that please?

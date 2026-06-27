@@ -7,6 +7,7 @@
   padding: var(--shell-padding-laptop);
   overflow-y: auto;
   overflow-x: hidden;
+  scrollbar-gutter: stable;
   overscroll-behavior: contain;
 }
 
@@ -15,15 +16,17 @@
   justify-content: space-between;
   gap: var(--space-7);
   align-items: center;
+  min-height: var(--control-height-lg);
   margin-bottom: var(--space-8);
 }
 
 .section-head h1 {
   margin: 0;
-  color: var(--color-text-secondary);
-  font-size: var(--font-size-3xl);
-  line-height: var(--line-height-tight);
-  letter-spacing: 0;
+  color: var(--color-text-secondary) !important;
+  font-size: var(--font-size-3xl) !important;
+  font-weight: var(--font-weight-bold) !important;
+  line-height: var(--line-height-tight) !important;
+  letter-spacing: 0 !important;
 }
 
 .section-filter-label {

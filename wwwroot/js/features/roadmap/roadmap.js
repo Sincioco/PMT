@@ -121,8 +121,10 @@ export function createRoadMapFeature({ app }) {
   }
 
   function roadMapAvailableTimelineWidth() {
-    const shellWidth = app?.getBoundingClientRect?.().width || app?.clientWidth || window.innerWidth || 1200;
-    return Math.max(560, shellWidth - roadMapHorizontalPadding(app));
+    const shellWidth = app?.clientWidth || app?.getBoundingClientRect?.().width || window.innerWidth || 1200;
+    const roadMapPanelBorders = 2;
+    const roundingAllowance = 1;
+    return Math.max(560, shellWidth - roadMapHorizontalPadding(app) - roadMapScrollbarWidth() - roadMapPanelBorders - roundingAllowance);
   }
 
   return {
@@ -142,4 +144,18 @@ function roadMapHorizontalPadding(element) {
 function cssPixelValue(value) {
   const parsed = Number.parseFloat(value);
   return Number.isFinite(parsed) ? parsed : 0;
+}
+
+let measuredRoadMapScrollbarWidth = null;
+
+function roadMapScrollbarWidth() {
+  if (measuredRoadMapScrollbarWidth !== null) return measuredRoadMapScrollbarWidth;
+  if (!document?.body) return 0;
+
+  const probe = document.createElement("div");
+  probe.style.cssText = "position:absolute;top:-9999px;width:100px;height:100px;overflow:scroll;visibility:hidden;";
+  document.body.appendChild(probe);
+  measuredRoadMapScrollbarWidth = Math.max(0, probe.offsetWidth - probe.clientWidth);
+  probe.remove();
+  return measuredRoadMapScrollbarWidth;
 }

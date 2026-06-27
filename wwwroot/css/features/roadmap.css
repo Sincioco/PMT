@@ -11,7 +11,9 @@
 
 .roadmap-scroll {
   width: 100%;
-  overflow: auto;
+  overflow-x: auto;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
   max-height: calc(100vh - 230px);
 }
 
