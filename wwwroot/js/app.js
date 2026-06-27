@@ -65,6 +65,9 @@ import {
   normalizeUrl
 } from "./shared/text-and-links.js";
 import {
+  configureWorkItemRules as configureProjectWorkItemRules
+} from "./shared/work-item-rules.js?v=20260627-dev-task-status-rules";
+import {
   configureWorkItemRules,
   isBugQaPassedOrLater,
   percentForStatus,
@@ -128,10 +131,15 @@ let chartTooltip = null;
 let boardFeature = null;
 // let openCreateSprintOnRender = false;
 
-configureWorkItemRules({
+const workItemRuleOptions = {
   getStatuses: () => statuses,
   getTasks: () => state.tasks
-});
+};
+
+configureWorkItemRules(workItemRuleOptions);
+// Some screens still import the earlier cache-busted work-item-rules URL.
+// Configure that module instance too so clean-cache reloads keep Project charts populated.
+configureProjectWorkItemRules(workItemRuleOptions);
 configureProgressAndStatus({
   getStatuses: () => statuses,
   getLookups: () => state.lookups,
