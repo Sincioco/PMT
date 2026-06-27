@@ -28,7 +28,7 @@ import {
   taskButtonsHtml,
   taskPercentField,
   uploadWorkItemAttachments
-} from "../../components/work-items.js?v=20260621-scrum-backlog-parity";
+} from "../../components/work-items.js?v=20260627-user-card-checklist";
 import {
   preferenceKeys,
   readBooleanPreference,

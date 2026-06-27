@@ -4,8 +4,8 @@ import { buttonContent, iconButton } from "./buttons.js?v=20260621-dev-task-icon
 import {
   checkListOrEmpty,
   checkedNumbers,
-  userCheckListLabelHtml
-} from "./forms.js?v=20260620-member-roles";
+  userCardCheckListLabelHtml
+} from "./forms.js?v=20260627-user-card-checklist";
 import { state } from "../core/store.js";
 import { formatDateTime } from "../shared/dates.js";
 import { canEditTask } from "../shared/permissions.js";
@@ -152,7 +152,7 @@ export function bindAssigneeList(root, initialSelectedIds, label = "Assignees") 
       allowedAssigneeUsers(state.users, project, sprint),
       selectedIds,
       "Only project or Sprint members can be assigned.",
-      { className: "scroll-check-list avatar-check-list", renderItem: userCheckListLabelHtml }
+      { className: "scroll-check-list user-card-check-list", renderItem: userCardCheckListLabelHtml }
     );
   };
 

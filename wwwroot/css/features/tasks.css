@@ -232,16 +232,6 @@ html[data-theme] .tasks-screen.work-item-screen .work-item-table .icon-action:di
   min-width: 0;
 }
 
-.task-assignee-list .avatar-check-list {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: var(--space-4) var(--space-6);
-  padding: var(--space-4);
-  border: var(--border-width) solid var(--color-border);
-  border-radius: var(--radius-md);
-  background: var(--color-surface-subtle);
-}
-
 .task-editor-grid .check-list {
   margin: 0;
 }
@@ -890,10 +880,6 @@ html[data-theme="light"] .tasks-screen.work-item-screen .work-item-table .work-i
 }
 
 @media (max-width: 900px) {
-  .task-assignee-list .avatar-check-list {
-    grid-template-columns: 1fr;
-  }
-
   .tasks-filter-panel .task-filter-row {
     display: grid;
     grid-template-columns: 1fr;

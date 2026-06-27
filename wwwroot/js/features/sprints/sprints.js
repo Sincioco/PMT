@@ -10,9 +10,9 @@ import {
   richTextField,
   richValue,
   selectField,
-  userCheckListLabelHtml,
+  userCardCheckListLabelHtml,
   value
-} from "../../components/forms.js?v=20260620-member-roles";
+} from "../../components/forms.js?v=20260627-user-card-checklist";
 import {
   sprintOverallProgressHtml,
   sprintStatusMetricsHtml
@@ -180,7 +180,7 @@ export function createSprintsFeature({
         ${field("End", "endDate", toDateInput(sprint.endDate), "date")}
         <div class="field full"><label>Description</label><textarea name="description">${escapeHtml(sprint.description || "")}</textarea></div>
         ${richTextField("lessonLearnedHtml", "Lessons Learned", sprint.lessonLearnedHtml || "")}
-        <div data-member-list="developerIds"></div>
+        <div class="field full" data-member-list="developerIds"></div>
       </div>
     `, async root => {
       const savedProjectId = numberValue(root, "projectId");
@@ -281,7 +281,7 @@ export function createSprintsFeature({
         projectMemberUsers(Number(projectSelect.value)),
         selectedIds,
         "Select project members before adding people to this Sprint.",
-        { className: "scroll-check-list avatar-check-list", renderItem: userCheckListLabelHtml }
+        { className: "scroll-check-list user-card-check-list", renderItem: userCardCheckListLabelHtml }
       );
     };
 

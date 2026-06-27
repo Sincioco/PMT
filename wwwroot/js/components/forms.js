@@ -103,6 +103,66 @@ export function userCheckListLabelHtml(user) {
   `;
 }
 
+const userCardAvatarCacheVersion = "20260627-steve-avatar";
+const seededUserCardAvatarPaths = new Set([
+  "/assets/avatar-sin.png",
+  "/assets/avatar-bill-gates.png",
+  "/assets/avatar-sam-altman.png",
+  "/assets/avatar-mark-zuckerberg.png",
+  "/assets/avatar-steve-jobs.png",
+  "/assets/avatar-jensen-huang.png"
+]);
+const legacyUserCardAvatarPaths = new Map([
+  ["/assets/avatar-bill-gates.jpg", "/assets/avatar-bill-gates.png"],
+  ["/assets/avatar-sam-altman.jpg", "/assets/avatar-sam-altman.png"],
+  ["/assets/avatar-mark-zuckerberg.jpg", "/assets/avatar-mark-zuckerberg.png"],
+  ["/assets/avatar-steve-jobs.jpg", "/assets/avatar-steve-jobs.png"],
+  ["/assets/avatar-lisa-su.jpg", "/assets/avatar-jensen-huang.png"]
+]);
+
+export function userCardCheckListLabelHtml(user) {
+  return `
+    <span class="user-card-check-list-option">
+      <img class="user-card-check-list-avatar" src="${escapeAttr(userCardAvatarUrl(user))}" alt="${escapeAttr(userDisplayName(user))} avatar">
+      <span class="user-card-check-list-summary">
+        <span class="user-card-check-list-name">${userCardNameHtml(user)}</span>
+        <span class="user-card-check-list-title muted">${escapeHtml(userTitle(user))}</span>
+        <span class="user-card-check-list-email">${escapeHtml(user.email || "")}</span>
+      </span>
+    </span>
+  `;
+}
+
+function userCardAvatarUrl(user) {
+  const avatarUrl = (user.avatarUrl || "/assets/avatar-default.svg").trim();
+  const [pathPart, queryString = ""] = avatarUrl.split("?", 2);
+  const avatarPath = legacyUserCardAvatarPaths.get(pathPart.toLowerCase()) || pathPart;
+  if (!seededUserCardAvatarPaths.has(avatarPath.toLowerCase())) return avatarUrl;
+
+  const params = new URLSearchParams(queryString);
+  params.set("v", userCardAvatarCacheVersion);
+  return `${avatarPath}?${params.toString()}`;
+}
+
+function userDisplayName(user) {
+  return [user.firstName, user.lastName]
+    .map(part => (part || "").trim())
+    .filter(Boolean)
+    .join(" ") || user.nickname || "User";
+}
+
+function userCardNameHtml(user) {
+  const fullName = userDisplayName(user);
+  const nickname = (user.nickname || "").trim();
+  const showNickname = nickname && nickname.toLowerCase() !== fullName.toLowerCase();
+
+  return `${escapeHtml(fullName)}${showNickname ? ` (${escapeHtml(nickname)})` : ""}`;
+}
+
+function userTitle(user) {
+  return user.role || (user.isAdmin ? "Admin" : "Developer");
+}
+
 export function value(root, name) {
   return root.querySelector(`[name='${name}']`)?.value || "";
 }

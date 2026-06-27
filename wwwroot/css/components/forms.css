@@ -192,6 +192,71 @@ input[type="checkbox"] {
   background: var(--color-surface-raised);
 }
 
+.user-card-check-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-4);
+}
+
+.user-card-check-list legend {
+  grid-column: 1 / -1;
+}
+
+.user-card-check-list label {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: var(--space-4);
+  min-width: 0;
+  margin: 0;
+  padding: var(--space-4);
+  border: var(--border-width) solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+}
+
+.user-card-check-list label:has(input:checked) {
+  border-color: var(--color-primary);
+  background: var(--color-control-selected);
+}
+
+.user-card-check-list-option {
+  display: grid;
+  grid-template-columns: 80px minmax(0, 1fr);
+  align-items: center;
+  gap: var(--space-6);
+  min-width: 0;
+}
+
+.user-card-check-list-avatar {
+  width: 80px;
+  height: 80px;
+  border: var(--border-width-strong) solid var(--color-page);
+  border-radius: 50%;
+  object-fit: cover;
+  background: var(--color-surface-raised);
+}
+
+.user-card-check-list-summary {
+  display: grid;
+  gap: 0;
+  min-width: 0;
+}
+
+.user-card-check-list-summary span {
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+.user-card-check-list-name {
+  color: var(--color-text-primary);
+  font-weight: 700;
+}
+
+.user-card-check-list-email {
+  color: var(--color-text-secondary);
+}
+
 .inline-check {
   color: var(--color-text-secondary);
 }
@@ -243,6 +308,10 @@ input[type="checkbox"] {
 
 @media (max-width: 900px) {
   .form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .user-card-check-list {
     grid-template-columns: 1fr;
   }
 }

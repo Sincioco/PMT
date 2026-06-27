@@ -11,7 +11,7 @@ import {
   bindAttachmentPreview,
   showTaskAudit,
   viewWorkItem
-} from "./components/work-items.js?v=20260621-scrum-backlog-parity";
+} from "./components/work-items.js?v=20260627-user-card-checklist";
 import { createApplicationShell } from "./core/application-shell.js?v=20260621-light-default";
 import {
   currentView,
@@ -26,7 +26,7 @@ import { state } from "./core/store.js";
 import { createAboutFeature } from "./features/about/about.js?v=20260621-about-credits";
 import { createBacklogFeature } from "./features/backlog/backlog.js?v=20260621-dev-task-parity";
 import { createBoardFeature } from "./features/board/board.js?v=20260620-bug-linked-task";
-import { createBugsFeature } from "./features/bugs/bugs.js?v=20260621-dev-task-parity";
+import { createBugsFeature } from "./features/bugs/bugs.js?v=20260627-user-card-checklist";
 import { createDashboardFeature } from "./features/dashboard/dashboard.js?v=20260620-ui-theme";
 import { createDocumentationFeature } from "./features/documentation/documentation.js?v=20260620-document-entry-project";
 import {
@@ -34,12 +34,12 @@ import {
   currentSprintForProject,
   ganttStartDate
 } from "./features/gantt/gantt.js?v=20260620-gantt-flush-sprint";
-import { createProjectsFeature } from "./features/projects/projects.js?v=20260627-member-cards";
+import { createProjectsFeature } from "./features/projects/projects.js?v=20260627-user-card-checklist";
 import { createRoadMapFeature } from "./features/roadmap/roadmap.js?v=20260620-all-projects-label";
 import { createScrumFeature } from "./features/scrum/scrum.js?v=20260621-regular-text-actions";
 import { createSettingsFeature } from "./features/settings/settings.js?v=20260627-steve-avatar";
-import { createSprintsFeature } from "./features/sprints/sprints.js?v=20260620-null-end-date";
-import { createTasksFeature } from "./features/tasks/tasks.js?v=20260621-task-editor-layout";
+import { createSprintsFeature } from "./features/sprints/sprints.js?v=20260627-sprint-member-width";
+import { createTasksFeature } from "./features/tasks/tasks.js?v=20260627-user-card-checklist";
 import { createWfhScheduleFeature } from "./features/wfh-schedule/wfh-schedule.js?v=20260621-wfh-security";
 import {
   fallbackEnvironments,

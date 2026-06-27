@@ -173,16 +173,6 @@ html[data-theme] .bugs-screen.work-item-screen .section-head .toolbar > button:h
   min-width: 0;
 }
 
-.bug-editor-grid .avatar-check-list {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: var(--space-4) var(--space-6);
-  padding: var(--space-4);
-  border: var(--border-width) solid var(--color-border);
-  border-radius: var(--radius-md);
-  background: var(--color-surface-subtle);
-}
-
 .bug-editor-grid .check-list {
   margin: 0;
 }
@@ -580,10 +570,6 @@ html[data-theme] .bugs-screen.work-item-screen .work-item-table .icon-action:dis
 }
 
 @media (max-width: 900px) {
-  .bug-editor-grid .avatar-check-list {
-    grid-template-columns: 1fr;
-  }
-
   .bugs-filter-panel .bug-filter-row {
     grid-template-columns: 1fr;
   }

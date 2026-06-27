@@ -17,9 +17,9 @@ import {
   selectField,
   selectOptionsField,
   selectTextField,
-  userCheckListLabelHtml,
+  userCardCheckListLabelHtml,
   value
-} from "../../components/forms.js?v=20260620-member-roles";
+} from "../../components/forms.js?v=20260627-user-card-checklist";
 import { sectionHead } from "../../components/sections.js";
 import {
   attachmentEditorFieldHtml,
@@ -30,7 +30,7 @@ import {
   taskButtonsHtml,
   taskPercentField,
   uploadWorkItemAttachments
-} from "../../components/work-items.js?v=20260621-scrum-backlog-parity";
+} from "../../components/work-items.js?v=20260627-user-card-checklist";
 import { currentUserId } from "../../core/authentication.js";
 import {
   preferenceKeys,
@@ -395,7 +395,7 @@ export function createBugsFeature({
         ${richTextField("expectedResultHtml", "Expected Result", bug.expectedResultHtml || "")}
         ${attachmentEditorFieldHtml()}
         <div class="bug-reporter-list">
-          ${checkList("Reporters", "reporterIds", state.users, reporterIdsOrDefault(bug.reporterIds, currentUserId), item => item.nickname, { className: "scroll-check-list avatar-check-list", renderItem: userCheckListLabelHtml })}
+          ${checkList("Reporters", "reporterIds", state.users, reporterIdsOrDefault(bug.reporterIds, currentUserId), item => item.nickname, { className: "scroll-check-list user-card-check-list", renderItem: userCardCheckListLabelHtml })}
         </div>
         <div class="bug-assignee-list" data-assignee-list></div>
         ${checkList("Dependencies", "dependencyTaskIds", sameProjectTasks, bug.dependencyTaskIds || [], item => `${item.code} ${item.title}`, { className: "scroll-check-list dependency-check-list" })}
