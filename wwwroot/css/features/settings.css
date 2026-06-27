@@ -7,9 +7,14 @@
   align-items: start;
 }
 
+.settings-layout > .settings-content-panel,
+.settings-layout > .settings-users-grid {
+  align-self: start;
+  margin-top: 0;
+  min-width: 0;
+}
+
 .settings-category-picker {
-  position: sticky;
-  top: calc(var(--topbar-height-min) + var(--space-5));
   padding: var(--space-4);
   border-color: var(--color-border-subtle);
   background: var(--color-surface);
@@ -19,6 +24,13 @@
   min-width: 0;
   border-color: var(--color-border-subtle);
   background: var(--color-surface);
+}
+
+.settings-action-spacer {
+  display: block;
+  width: 0;
+  height: var(--control-height-md);
+  overflow: hidden;
 }
 
 .settings-table-panel {
@@ -35,6 +47,8 @@
   top: 0;
   z-index: 1;
   background: var(--color-surface-raised);
+  font-weight: var(--font-weight-regular);
+  text-transform: none;
 }
 
 .settings-users-grid {

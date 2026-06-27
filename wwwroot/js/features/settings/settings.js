@@ -91,7 +91,7 @@ export function createSettingsFeature({
 
   function renderSettings() {
     const lookupTypes = [...new Set(["Status", "Priority", "Severity", "Environment", ...(state.lookups || []).map(item => item.lookupType)])].sort();
-    const categories = [...lookupTypes, "Users", "Holidays", "Navigation", "Development"];
+    const categories = ["Users", "Navigation", "Holidays", ...lookupTypes, "Development"];
     if (!categories.includes(settingsCategory)) settingsCategory = lookupTypes[0] || "Status";
 
     const isUsers = settingsCategory === "Users";
@@ -107,7 +107,7 @@ export function createSettingsFeature({
     if (isUsers) actionsHtml = `<button class="primary text-icon-button" type="button" data-action="new-user" ${currentUser().isAdmin ? "" : "disabled"}>${buttonContent("&#10010;", "New User")}</button>`;
     if (isHolidays) actionsHtml = `<button class="primary text-icon-button" type="button" data-action="new-holiday" ${currentUser().isAdmin ? "" : "disabled"}>${buttonContent("&#10010;", "New Holiday")}</button>`;
     if (isNavigation) actionsHtml = `<button class="secondary text-icon-button" type="button" data-action="navigation-reset-defaults">${buttonContent("&#8635;", "Reset")}</button>`;
-    if (isDevelopment) actionsHtml = "";
+    if (isDevelopment) actionsHtml = `<span class="settings-action-spacer" aria-hidden="true"></span>`;
 
     const contentHtml = isUsers
       ? settingsUsersHtml()

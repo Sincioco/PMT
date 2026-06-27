@@ -254,3 +254,9 @@ donut chart as a reference.
 
 18.) Render the percent label above the progress bar.
 19.) The plus sign for the expand/collapse is now being clipped by the Assignee column.
+
+20.) In the Settings screen, move the Users as the first item in category on the left, followed by Navigation, then Holidays.
+21.) In the Settings screen, can you vertically align the category panel on the left to the content on the right.  Depending on which category I click, the content on the right sometimes appears lower or higher.  I'd like the category panel and the content on the right to be vertically the same so the content on the right is not visually shifting up or down relative to the top position of the category panel.  For example, if I click Users, the User Card is higher than the category panel.  If I click Environment, the Environment table is lower than the Category panel.  Go through all the categories and examine the content and be sure they align with the category panel to prevent UI / panel shifting.
+22.) Also some of the tables in the Settings screens their columns have bolded text and all upper case.  As part of the "Paper Design" the rule is table headers are never bolded and never all caps.  Remember this rule.  Fix the table column headers so they are not bolded and they are proper case.
+23.) The shifting I mentioned in #21 is still happening.  For this particular task, please launch a browser and visually inspect it.  The category panel itself is shifting up or down depending on the content on the right.  Launch a browser and visually inspect the top position of both the category panel and the content on the right and align them please.
+24.) The shifting has been largely fixed for all categories except for when I click the Development category.  That seems to shift everything up a little bit including the page title, the category panel and the content on the right.
