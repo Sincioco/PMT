@@ -361,6 +361,19 @@ html[data-theme="light"] .bugs-screen.work-item-screen .work-item-table .work-it
   margin-bottom: 0;
 }
 
+.work-item-table-progress {
+  display: grid;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.work-item-table-progress-label {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-regular);
+  line-height: var(--line-height-heading);
+}
+
 html[data-theme] .bugs-screen.work-item-screen .work-item-table .icon-action {
   width: var(--touch-target-min);
   min-width: var(--touch-target-min);
@@ -554,6 +567,12 @@ html[data-theme] .bugs-screen.work-item-screen .work-item-table .icon-action:dis
   border-radius: var(--radius-xs) var(--radius-xs) 0 0;
   background: var(--chart-color);
   box-shadow: 0 5px 12px color-mix(in srgb, var(--chart-color), transparent 78%);
+}
+
+.bugs-chart-panel .bug-sprint-chart-card,
+.bugs-chart-panel .bug-sprint-chart-card .visual-column,
+.bugs-chart-panel .bug-sprint-chart-card .visual-chart-legend i {
+  box-shadow: none;
 }
 
 .bugs-chart-panel .visual-column span {

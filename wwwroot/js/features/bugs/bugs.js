@@ -30,8 +30,9 @@ import {
   taskAuditPanelHtml,
   taskButtonsHtml,
   taskPercentField,
+  workItemDialogMetaHtml,
   uploadWorkItemAttachments
-} from "../../components/work-items.js?v=20260627-editor-audit-footer";
+} from "../../components/work-items.js?v=20260627-task-dialog-meta";
 import { currentUserId } from "../../core/authentication.js";
 import {
   preferenceKeys,
@@ -145,7 +146,7 @@ export function createBugsFeature({
             <tr>
               <th class="bugs-avatar-heading">${reporterHeader}</th>
               <th class="bugs-avatar-heading">${assigneeHeader}</th>
-              <th><span class="bugs-two-line-heading"><span>Project</span><span>Sprint</span></span></th>
+              <th>Project/Sprint</th>
               <th>Bug Report</th>
               <th>Status</th>
               <th>Severity</th>
@@ -172,7 +173,7 @@ export function createBugsFeature({
                 <td class="work-item-context-cell">${escapeHtml(bug.status)}</td>
                 <td><span class="pill severity-${escapeAttr(bug.severity)}">${escapeHtml(bug.severity || "")}</span></td>
                 <td><span class="pill priority-${escapeAttr(bug.priority)}">${escapeHtml(bug.priority)}</span></td>
-                <td class="done-cell">${progressHtml(taskDisplayPercent(bug))}</td>
+                <td class="done-cell">${workItemTableProgressHtml(taskDisplayPercent(bug))}</td>
                 ${bugTableMode.active ? `<td class="reveal-actions action-cell">${taskButtonsHtml(bug, { includeView: false, monochrome: true })}</td>` : ""}
               </tr>
             `).join("") || `<tr><td colspan="${bugTableMode.active ? 9 : 8}"><div class="empty">No bug reports match these filters.</div></td></tr>`}
@@ -408,6 +409,7 @@ export function createBugsFeature({
         ${richTextField("actualResultHtml", "Actual Result", bug.actualResultHtml || "")}
         ${richTextField("expectedResultHtml", "Expected Result", bug.expectedResultHtml || "")}
       </div>
+      ${bug.id ? workItemDialogMetaHtml(bug) : ""}
     `, async root => {
       const status = value(root, "status");
       const savedProjectId = numberValue(root, "projectId");
@@ -497,6 +499,17 @@ export function createBugsFeature({
       const users = usersForBug(bug);
       return Array.isArray(users) && users.length > 1;
     });
+  }
+
+  function workItemTableProgressHtml(percent) {
+    const safePercent = Math.max(0, Math.min(100, Number(percent || 0)));
+
+    return `
+      <div class="work-item-table-progress">
+        <span class="work-item-table-progress-label">${safePercent}%</span>
+        ${progressHtml(safePercent)}
+      </div>
+    `;
   }
 
   function bugTableSprintLabel(bug) {
@@ -595,7 +608,11 @@ export function createBugsFeature({
       title: "Bug Severity Share",
       subtitle: bugChartContextSubtitle(selectedBugSprint()),
       className: "bug-chart-card bug-pie-chart-card bug-severity-chart-card",
-      body: VisualCharts.pieChart(items, `${filteredBugs.length} total`, "No severity data is available.", { donut: false })
+      body: VisualCharts.pieChart(items, `${filteredBugs.length} total`, "No severity data is available.", {
+        donut: true,
+        centerValue: String(filteredBugs.length),
+        centerLabel: "Total"
+      })
     });
   }
 

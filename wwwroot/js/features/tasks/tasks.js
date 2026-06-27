@@ -27,8 +27,9 @@ import {
   taskAuditPanelHtml,
   taskButtonsHtml,
   taskPercentField,
+  workItemDialogMetaHtml,
   uploadWorkItemAttachments
-} from "../../components/work-items.js?v=20260627-editor-audit-footer";
+} from "../../components/work-items.js?v=20260627-task-dialog-meta";
 import {
   preferenceKeys,
   readBooleanPreference,
@@ -37,7 +38,7 @@ import {
   readPreference,
   writeJsonPreference,
   writePreference
-} from "../../core/preferences.js?v=20260620-task-entry-context";
+} from "../../core/preferences.js?v=20260627-task-collapse-state";
 import { currentView } from "../../core/router.js";
 import { state } from "../../core/store.js";
 import { toDateInput } from "../../shared/dates.js?v=20260620-null-end-date";
@@ -85,6 +86,7 @@ export function createTasksFeature({
   let taskEntrySprintId = readPreference(preferenceKeys.taskEntrySprint, "");
   let taskFilters = readJsonPreference(preferenceKeys.taskFilters, {});
   let taskVisualChartsVisible = readBooleanPreference(preferenceKeys.taskVisualChartsVisible, true);
+  let taskCollapsedSubTasks = readJsonPreference(preferenceKeys.taskCollapsedSubTasks, {});
   const taskTableMode = createWorkItemTableMode({
     action: "toggle-task-table-edit-mode",
     itemLabel: "Dev Tasks"
@@ -95,6 +97,9 @@ export function createTasksFeature({
   taskFilters.priorities = normalizeSavedArray(taskFilters.priorities);
   taskFilters.sort = taskFilters.sort || "custom";
   taskFilters.hideCompleted = Boolean(taskFilters.hideCompleted);
+  if (!taskCollapsedSubTasks || Array.isArray(taskCollapsedSubTasks) || typeof taskCollapsedSubTasks !== "object") {
+    taskCollapsedSubTasks = {};
+  }
 
   function renderTasks() {
     ensureSelectedProject();
@@ -112,7 +117,8 @@ export function createTasksFeature({
     const baseTasks = allProjectDevTasks
       .filter(task => taskMatchesSprintFilter(task, selectedSprint));
     const visibleTasks = filteredTaskList(baseTasks);
-    const taskRows = taskRowsWithSubTasks(visibleTasks);
+    const taskChildrenByParent = taskChildTasksByParent(visibleTasks);
+    const taskRows = taskRowsWithVisibleSubTasks(visibleTasks);
     const assigneeColumnWidth = taskAssigneeColumnWidth(taskRows);
     const assigneeHeader = taskRowsHaveMultipleAssignees(taskRows) ? "Assignee(s)" : "Assignee";
     const canShowCharts = allProjectDevTasks.length > 0;
@@ -131,19 +137,23 @@ export function createTasksFeature({
       <div class="panel work-item-table-panel tasks-table-panel">
         <table class="table work-item-table tasks-table ${taskTableMode.active ? "is-edit-mode" : "is-read-mode"}" style="--tasks-assignee-width:${assigneeColumnWidth}px">
           <colgroup>
+            <col class="tasks-expand-column">
             <col class="tasks-assigned-column">
             <col class="tasks-context-column">
             <col class="tasks-title-column">
             <col class="tasks-priority-column">
+            <col class="tasks-status-column">
             <col class="tasks-complete-column">
             ${taskTableMode.active ? `<col class="tasks-action-column">` : ""}
           </colgroup>
           <thead>
             <tr>
+              <th class="tasks-expand-heading" aria-label="Expand or collapse sub-tasks"></th>
               <th>${assigneeHeader}</th>
-              <th><span class="tasks-two-line-heading"><span>Project</span><span>Sprint</span></span></th>
+              <th>Project/Sprint</th>
               <th>Task</th>
               <th>Priority</th>
+              <th>Status</th>
               <th class="done-cell">% Complete</th>
               ${taskTableMode.active ? `<th class="action-cell" aria-label="Actions"></th>` : ""}
             </tr>
@@ -151,34 +161,44 @@ export function createTasksFeature({
           <tbody data-reorder-list="tasks">
             ${taskRows.map(row => {
               const task = row.task;
+              const hasVisibleSubTasks = taskHasVisibleSubTasks(task, taskChildrenByParent);
+              const isSubTasksCollapsed = taskSubTasksCollapsed(task.id);
               const rowClass = [
                 row.level ? "subtask-row" : "",
                 taskHasAssociatedBug(task) ? "bug-associated-row" : "",
+                hasVisibleSubTasks ? "has-subtasks" : "",
+                hasVisibleSubTasks && isSubTasksCollapsed ? "is-subtasks-collapsed" : "",
                 "clickable-row"
               ].filter(Boolean).join(" ");
               const titleClass = row.level ? "task-title-cell subtask-title-cell" : "task-title-cell";
               const indent = Math.min(row.level, 4) * 20;
 
               return `
-              <tr class="${rowClass}" data-action="view-task" data-id="${task.id}" data-task-id="${task.id}" data-can-drag="${taskTableMode.active && canEditTask(task) ? "true" : "false"}" draggable="false">
+              <tr class="${rowClass}" data-action="view-task" data-id="${task.id}" data-task-id="${task.id}" data-can-drag="${taskTableMode.active && canEditTask(task) ? "true" : "false"}" draggable="false" style="--indent:${indent}px">
+                <td class="tasks-expand-cell">${hasVisibleSubTasks ? taskSubTaskToggleHtml(task, isSubTasksCollapsed) : ""}</td>
                 <td class="tasks-assignee-cell">${taskRowAvatarsHtml(task.assignees)}</td>
                 <td class="work-item-context-cell task-context-cell">
                   <span class="task-context-project">${escapeHtml(projectName(task.projectId))}</span>
                   <span class="task-context-sprint">${escapeHtml(taskTableSprintLabel(task))}</span>
                 </td>
-                <td class="${titleClass} work-item-title-cell" style="--indent:${indent}px">
-                  <span class="work-item-code-line">
-                    <strong class="work-item-code">${escapeHtml(task.code)}</strong>
-                    ${row.level ? `<span class="subtask-pill">Subtask</span>` : ""}
-                  </span>
-                  <span class="work-item-title">${bugFixIconHtml(task)}${escapeHtml(task.title)}</span>
+                <td class="${titleClass} work-item-title-cell">
+                  <div class="task-title-layout">
+                    <div class="task-title-content">
+                      <span class="work-item-code-line">
+                        <strong class="work-item-code">${escapeHtml(task.code)}</strong>
+                        ${row.level ? `<span class="subtask-pill">Subtask</span>` : ""}
+                      </span>
+                      <span class="work-item-title">${bugFixIconHtml(task)}${escapeHtml(task.title)}</span>
+                    </div>
+                  </div>
                 </td>
                 <td><span class="pill priority-${task.priority}">${escapeHtml(task.priority)}</span></td>
-                <td class="done-cell">${progressHtml(taskDisplayPercent(task))}</td>
+                <td class="tasks-status-cell">${taskStatusHtml(task.status)}</td>
+                <td class="done-cell">${workItemTableProgressHtml(taskDisplayPercent(task))}</td>
                 ${taskTableMode.active ? `<td class="reveal-actions action-cell">${taskButtonsHtml(task, { includeView: false, monochrome: true })}</td>` : ""}
               </tr>
             `;
-            }).join("") || `<tr><td colspan="${taskTableMode.active ? 6 : 5}"><div class="empty">No tasks for this filter.</div></td></tr>`}
+            }).join("") || `<tr><td colspan="${taskTableMode.active ? 8 : 7}"><div class="empty">No tasks for this filter.</div></td></tr>`}
           </tbody>
         </table>
       </div>
@@ -205,6 +225,11 @@ export function createTasksFeature({
     if (action === "toggle-task-visual-charts") {
       taskVisualChartsVisible = !taskVisualChartsVisible;
       writePreference(preferenceKeys.taskVisualChartsVisible, taskVisualChartsVisible);
+      renderTasks();
+      return true;
+    }
+    if (action === "toggle-task-subtasks" && task?.taskType !== "Bug") {
+      toggleTaskSubTasks(task.id);
       renderTasks();
       return true;
     }
@@ -413,6 +438,7 @@ export function createTasksFeature({
         ${field("URL", "url", task.url || "", "url")}
         ${checkList("Dependencies", "dependencyTaskIds", sameProjectTasks, task.dependencyTaskIds || [], item => `${item.code} ${item.title}`, { className: "scroll-check-list dependency-check-list" })}
       </div>
+      ${task.id ? workItemDialogMetaHtml(task) : ""}
     `, async root => {
       const projectId = numberValue(root, "projectId");
       const title = value(root, "title");
@@ -555,6 +581,95 @@ export function createTasksFeature({
 
   function taskHasAssociatedBug(task) {
     return Boolean(associatedBugForDevTask(task, task.dependencyTaskIds));
+  }
+
+  function workItemTableProgressHtml(percent) {
+    const safePercent = Math.max(0, Math.min(100, Number(percent || 0)));
+
+    return `
+      <div class="work-item-table-progress">
+        <span class="work-item-table-progress-label">${safePercent}%</span>
+        ${progressHtml(safePercent)}
+      </div>
+    `;
+  }
+
+  function taskStatusHtml(status) {
+    return `
+      <span class="task-status-text" style="--status-color:${escapeAttr(statusColor(status))}">
+        <i aria-hidden="true"></i>
+        ${escapeHtml(status || "")}
+      </span>
+    `;
+  }
+
+  function taskSubTaskToggleHtml(task, isCollapsed) {
+    const label = isCollapsed ? "Expand sub-tasks" : "Collapse sub-tasks";
+
+    return `
+      <button
+        type="button"
+        class="task-subtask-toggle"
+        data-action="toggle-task-subtasks"
+        data-id="${task.id}"
+        title="${label}"
+        aria-label="${label}"
+        aria-expanded="${!isCollapsed}">
+        <span aria-hidden="true">${isCollapsed ? "&#43;" : "&#8722;"}</span>
+      </button>
+    `;
+  }
+
+  function taskChildTasksByParent(tasks) {
+    const taskIds = new Set(tasks.map(task => task.id));
+    const childrenByParent = new Map();
+
+    tasks.forEach(task => {
+      if (!task.parentTaskId || !taskIds.has(task.parentTaskId)) return;
+      if (!childrenByParent.has(task.parentTaskId)) childrenByParent.set(task.parentTaskId, []);
+      childrenByParent.get(task.parentTaskId).push(task);
+    });
+
+    return childrenByParent;
+  }
+
+  function taskRowsWithVisibleSubTasks(tasks) {
+    const taskMap = new Map(tasks.map(task => [task.id, task]));
+
+    return taskRowsWithSubTasks(tasks)
+      .filter(row => !row.level || !taskHasCollapsedAncestor(row.task, taskMap));
+  }
+
+  function taskHasVisibleSubTasks(task, childrenByParent) {
+    return Boolean(childrenByParent.get(task.id)?.length);
+  }
+
+  function taskHasCollapsedAncestor(task, taskMap) {
+    let parentId = task.parentTaskId;
+    const visited = new Set();
+
+    while (parentId && taskMap.has(parentId) && !visited.has(parentId)) {
+      if (taskSubTasksCollapsed(parentId)) return true;
+      visited.add(parentId);
+      parentId = taskMap.get(parentId)?.parentTaskId;
+    }
+
+    return false;
+  }
+
+  function taskSubTasksCollapsed(taskId) {
+    return taskCollapsedSubTasks[String(taskId)] === true;
+  }
+
+  function toggleTaskSubTasks(taskId) {
+    const key = String(taskId);
+    if (taskCollapsedSubTasks[key]) {
+      delete taskCollapsedSubTasks[key];
+    } else {
+      taskCollapsedSubTasks[key] = true;
+    }
+
+    writeJsonPreference(preferenceKeys.taskCollapsedSubTasks, taskCollapsedSubTasks);
   }
 
   function defaultSprintId(projectSprints) {

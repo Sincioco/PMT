@@ -218,3 +218,39 @@ Road Map Screen
 
 
 * In appsettings.json, there is a section for UploadStorage and its path (RootPath) is currently set to a local folder of "C:\\PMT\\UploadedFiles".  When PMT is deployed to a server, the files will be stored in a fileshare and a username and password would need to be supplied.  1.) Provide a setting to store username and password; 2.) If a username and password is supplied, assume that RootPath will need to use it to a read/write files in the fileshare.  3.)  Update PMT to use the username and password when accessing the fileshare; 4.) The fileshare path will be in this format:  "\\\\fileserver\\share\\folder".  The username and password will be used to access the fileshare. 5.) Be sure the user can upload and download/read files when using both local path and fileshare path. 6.) Update the documentation to reflect this new feature.  7.) If no username and password is supplied, assume that the RootPath is a local folder and use it as-is.
+
+
+------------------------------------------------------------------------------------------------------
+
+For all of this conversation / session, I will perform all the manual tests and compile the application manually.  Perform only the coding changes required and nothing else.  If making CSS / image changes, ensure that I will encounter no caching issue when testing in the browser.
+
+Dev Tasks Screen
+----------------
+1.) In the Dev Task Screen, add a Status Column in the tasks table right after the Priority.
+2.) In the % Complete column, display the text above the progress bar of the percent completion number.
+3.) For the rows that are bug fix rows, don't modify the left margin/padding of the avatar.  Keep it aligned with all the other avatar icons.
+4.) For the rows that are sub tasks, indent both the avatar and the Project/Sprint clumn by the same amount task (column) 3 is indented by.
+5.) For rows that have sub-tasks, when you hover on the row, show a expand/collapse icon that lets you expand or collapse the sub-tasks and try to remember this expand/collapse setting for that main task (store it in localstorage?).
+6.) When viewing the task in a Dialog Box in either read-only mode or edit mode, put the Created By info and last modified by info at the bottom of the dialog box content (not at the footer of the dialog box), similar to the way the Document Cards display them.
+7.) In the Dev Tasks Completed by Sprint chart, there seems to be some sort of shadow on the chart.  Remove all shadows on this chart.  The same goes for the chart Reported vs Resolved by Sprint in Bug Tracking.  Remove the shadows there.
+
+8.) In Bug tracking screen, you can also show the percent label for the progress bar for each row.
+9.) In Bug tracking screen, change the Bug Severity Share into a Donu chart, use the Sprint Bug Mix
+donut chart as a reference.
+
+10.) In the Dev Task Screen, can you move the expand/collapse icon for the main task to the left of the Assignee column?
+
+11.) For the percent complete label, can you center it on the progress bar?  Do this in both the Dev Tasks and Bug Tracking screens.
+
+12.) In Bug tracking screen, the expand / collapse icon is not vertically aligned to its button border.  Make the expand/collapse icon take up virtually no horizontal space so that the Assignee column is much more flushed to the left, like it used to be before we added the expand/collapse icon.  You can remove the button border when you hover on the expand/collapse icon so it takes up even less horizontal space.  The expand/collapse is a special case, so don't render a button border around it on hover.
+
+
+13.) Permanently show the expand/collapse icon for the main tasks row.  Change it to a plus/minus sign.  And without shifting the Assignee column, move the plus/minus sign towards the right a little bit so there is more padding to the left so the icon is not so flushed to the left.
+14.) For the percent label, move it above the progress bar and render the text in the same color as all the other text in the table.
+
+15.) Nudge the plus/minus sign just two more pixel to the right.
+16.) For the percent label, center it on top of the progress bar and make the text look like the formatting of the Status text.
+17.) Also, change the label of the ProjectSprint column to Project/Sprint.  Do this in the Bug Tracking screen as well.
+
+18.) Render the percent label above the progress bar.
+19.) The plus sign for the expand/collapse is now being clipped by the Assignee column.

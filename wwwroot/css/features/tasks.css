@@ -280,16 +280,40 @@ html[data-theme] .tasks-screen.work-item-screen .work-item-table .icon-action:di
 }
 
 .tasks-table {
-  min-width: 1120px;
+  min-width: 1274px;
 }
 
 .tasks-table th {
   font-weight: var(--font-weight-regular);
 }
 
-.tasks-table th:first-child,
-.tasks-table td:first-child {
+.tasks-table th:nth-child(2),
+.tasks-table .tasks-assignee-cell {
   padding-right: var(--space-9);
+}
+
+.tasks-expand-column {
+  width: 16px;
+}
+
+.tasks-table .tasks-expand-heading,
+.tasks-table .tasks-expand-cell {
+  width: 16px;
+  padding-left: 0;
+  padding-right: 0;
+  text-align: center;
+}
+
+.tasks-table .tasks-expand-cell {
+  position: relative;
+  z-index: 4;
+  overflow: visible;
+}
+
+html[data-theme="light"] .tasks-screen.work-item-screen .tasks-table .tasks-expand-heading,
+html[data-theme="light"] .tasks-screen.work-item-screen .tasks-table .tasks-expand-cell {
+  padding-left: 0;
+  padding-right: 0;
 }
 
 .tasks-context-column {
@@ -302,6 +326,10 @@ html[data-theme] .tasks-screen.work-item-screen .work-item-table .icon-action:di
 
 .tasks-priority-column {
   width: 110px;
+}
+
+.tasks-status-column {
+  width: 150px;
 }
 
 .tasks-assigned-column {
@@ -330,16 +358,21 @@ html[data-theme] .tasks-screen.work-item-screen .tasks-table tr.bug-associated-r
 }
 
 html[data-theme] .tasks-screen.work-item-screen .tasks-table tr.bug-associated-row > td:first-child {
-  border-left: 3px solid color-mix(in srgb, var(--color-danger), transparent 24%);
-  padding-left: calc(var(--table-cell-padding-inline) - 3px);
+  box-shadow: inset 3px 0 0 color-mix(in srgb, var(--color-danger), transparent 24%);
 }
 
 html[data-theme] .tasks-screen.work-item-screen .tasks-table tr.bug-associated-row:hover > td {
   background: color-mix(in srgb, var(--color-danger-surface), transparent 52%);
 }
 
+.subtask-row .tasks-assignee-cell,
+.subtask-row .task-context-cell,
 .subtask-title-cell {
   padding-left: calc(var(--table-cell-padding-inline) + var(--indent, 20px)) !important;
+}
+
+html[data-theme="light"] .tasks-table .subtask-row .tasks-assignee-cell {
+  padding-left: calc(24px + var(--indent, 20px)) !important;
 }
 
 .tasks-two-line-heading,
@@ -420,6 +453,53 @@ html[data-theme="light"] .tasks-screen.work-item-screen .work-item-table .work-i
   margin-bottom: 0;
 }
 
+.task-title-layout {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  min-width: 0;
+}
+
+.task-title-content {
+  min-width: 0;
+}
+
+.task-subtask-toggle {
+  position: relative;
+  z-index: 5;
+  display: grid;
+  place-items: center;
+  width: 16px;
+  min-width: 16px;
+  height: 20px;
+  min-height: 20px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  opacity: 1;
+  pointer-events: auto;
+  background: transparent;
+  color: var(--color-text-secondary);
+  font-size: 16px;
+  line-height: 1;
+  box-shadow: none;
+  transform: translateX(6px);
+}
+
+.task-subtask-toggle:hover:not(:disabled),
+.task-subtask-toggle:focus-visible {
+  border: 0;
+  background: transparent;
+  color: var(--color-text-primary);
+  outline: none;
+  box-shadow: none;
+}
+
+.task-subtask-toggle span {
+  display: block;
+  line-height: 1;
+}
+
 .subtask-pill {
   display: inline-flex;
   align-items: center;
@@ -433,6 +513,37 @@ html[data-theme="light"] .tasks-screen.work-item-screen .work-item-table .work-i
   font-weight: var(--font-weight-bold);
   line-height: 1.2;
   white-space: nowrap;
+}
+
+.task-status-text {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  max-width: 100%;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-heading);
+}
+
+.task-status-text i {
+  flex: 0 0 auto;
+  width: 9px;
+  height: 9px;
+  border-radius: var(--radius-pill);
+  background: var(--status-color);
+}
+
+.work-item-table-progress {
+  display: grid;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.work-item-table-progress-label {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-regular);
+  line-height: var(--line-height-heading);
 }
 
 .tasks-chart-panel {
@@ -585,6 +696,15 @@ html[data-theme="light"] .tasks-screen.work-item-screen .work-item-table .work-i
   border-radius: var(--radius-xs) var(--radius-xs) 0 0;
   background: var(--chart-color);
   box-shadow: 0 5px 12px color-mix(in srgb, var(--chart-color), transparent 78%);
+}
+
+.tasks-chart-panel .task-sprint-chart-card,
+.task-sprint-chart-dialog .chart-expanded-card.task-sprint-chart-card,
+.tasks-chart-panel .task-sprint-chart-card .visual-column,
+.task-sprint-chart-dialog .chart-expanded-card.task-sprint-chart-card .visual-column,
+.tasks-chart-panel .task-sprint-chart-card .visual-chart-legend i,
+.task-sprint-chart-dialog .chart-expanded-card.task-sprint-chart-card .visual-chart-legend i {
+  box-shadow: none;
 }
 
 .tasks-chart-panel .visual-column span {
@@ -880,7 +1000,7 @@ html[data-theme="light"] .tasks-screen.work-item-screen .work-item-table .work-i
   border-radius: var(--radius-lg);
   padding: var(--space-7);
   background: var(--color-surface-raised);
-  box-shadow: var(--shadow-compact);
+  box-shadow: none;
 }
 
 .task-sprint-chart-dialog .chart-expanded-card .column-chart-axis-labels {

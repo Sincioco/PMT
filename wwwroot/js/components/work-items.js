@@ -225,6 +225,7 @@ export function viewWorkItem(task, editWorkItem, options = {}) {
         ${task.taskType === "Bug" ? detailField("Expected Result", `<div class="rich-readonly">${task.expectedResultHtml || ""}</div>`, true) : ""}
         ${task.attachments.length ? detailField("Attachments", attachmentsHtml(task.attachments), true) : ""}
       </div>
+      ${workItemDialogMetaHtml(task)}
     </div>
     <div class="dialog-actions">
       <button type="button" class="secondary text-icon-button" data-action="show-task-audit" data-id="${task.id}">${buttonContent("&#128221;", "Audit Log")}</button>
@@ -259,6 +260,28 @@ export function viewWorkItem(task, editWorkItem, options = {}) {
   modal.addEventListener("cancel", () => modal.remove());
   modal.showModal();
   normalizeLinksInElement(modal);
+}
+
+export function workItemDialogMetaHtml(task) {
+  if (!task?.id) return "";
+
+  const createdBy = workItemUserName(task.createdByUserId);
+  const modifiedBy = workItemUserName(task.updatedByUserId || task.createdByUserId);
+  const createdAt = formatDateTime(task.createdAt);
+  const modifiedAt = formatDateTime(task.updatedAt || task.createdAt);
+
+  return `
+    <div class="work-item-dialog-meta">
+      <div class="work-item-dialog-meta-group">
+        <span>Created by: ${escapeHtml(createdBy)}</span>
+        <span>${escapeHtml(createdAt)}</span>
+      </div>
+      <div class="work-item-dialog-meta-group">
+        <span>Last Modified by: ${escapeHtml(modifiedBy)}</span>
+        <span>${escapeHtml(modifiedAt)}</span>
+      </div>
+    </div>
+  `;
 }
 
 export function showTaskAudit(taskId) {
@@ -322,6 +345,20 @@ function detailField(label, html, full = false) {
       <div>${html || `<span class="muted">None</span>`}</div>
     </div>
   `;
+}
+
+function workItemUserName(userId) {
+  const user = userById(Number(userId || 0));
+  if (!user) return "User";
+
+  const fullName = [user.firstName, user.lastName]
+    .map(part => (part || "").trim())
+    .filter(Boolean)
+    .join(" ") || (user.name || "").trim();
+  const nickname = (user.nickname || "").trim();
+  if (fullName && nickname && fullName.toLowerCase() !== nickname.toLowerCase()) return `${fullName} (${nickname})`;
+
+  return fullName || nickname || "User";
 }
 
 function auditChangeHtml(oldValue, newValue) {

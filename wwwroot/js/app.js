@@ -11,7 +11,7 @@ import {
   bindAttachmentPreview,
   showTaskAudit,
   viewWorkItem
-} from "./components/work-items.js?v=20260627-editor-audit-footer";
+} from "./components/work-items.js?v=20260627-task-dialog-meta";
 import { createApplicationShell } from "./core/application-shell.js?v=20260621-light-default";
 import {
   currentView,
@@ -26,7 +26,7 @@ import { state } from "./core/store.js";
 import { createAboutFeature } from "./features/about/about.js?v=20260621-about-credits";
 import { createBacklogFeature } from "./features/backlog/backlog.js?v=20260627-dev-task-status-rules";
 import { createBoardFeature } from "./features/board/board.js?v=20260627-dev-task-status-rules";
-import { createBugsFeature } from "./features/bugs/bugs.js?v=20260627-bug-reporter-assignee-swap";
+import { createBugsFeature } from "./features/bugs/bugs.js?v=20260627-bug-project-sprint-progress";
 import { createDashboardFeature } from "./features/dashboard/dashboard.js?v=20260627-dev-task-status-rules";
 import { createDocumentationFeature } from "./features/documentation/documentation.js?v=20260627-documentation-card-meta-flow";
 import {
@@ -39,7 +39,7 @@ import { createRoadMapFeature } from "./features/roadmap/roadmap.js?v=20260627-r
 import { createScrumFeature } from "./features/scrum/scrum.js?v=20260627-dev-task-status-rules";
 import { createSettingsFeature } from "./features/settings/settings.js?v=20260627-dev-task-status-rules";
 import { createSprintsFeature } from "./features/sprints/sprints.js?v=20260627-sprint-card-status-mix";
-import { createTasksFeature } from "./features/tasks/tasks.js?v=20260627-editor-audit-footer";
+import { createTasksFeature } from "./features/tasks/tasks.js?v=20260627-task-project-sprint-progress";
 import { createWfhScheduleFeature } from "./features/wfh-schedule/wfh-schedule.js?v=20260627-dev-task-status-rules";
 import {
   fallbackEnvironments,
