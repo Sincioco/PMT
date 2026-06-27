@@ -10,7 +10,7 @@ import {
   roadMapProjects,
   roadMapSprintOptions
 } from "./roadmap-calculations.js?v=20260620-render-end-date";
-import { roadMapScreenHtml } from "./roadmap-rendering.js?v=20260627-project-status-mix";
+import { roadMapScreenHtml } from "./roadmap-rendering.js?v=20260627-dev-task-status-rules";
 
 export function createRoadMapFeature({ app }) {
   let roadMapProjectFilter = readPreference(preferenceKeys.roadMapProject, "all");

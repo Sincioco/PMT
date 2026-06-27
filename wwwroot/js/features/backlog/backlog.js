@@ -8,7 +8,7 @@ import { sectionHead } from "../../components/sections.js";
 import {
   bugFixIconHtml,
   createWorkItemTableMode
-} from "../../components/work-items.js?v=20260621-scrum-backlog-parity";
+} from "../../components/work-items.js?v=20260627-dev-task-status-rules";
 import {
   preferenceKeys,
   readJsonPreference,
@@ -28,7 +28,7 @@ import {
 import {
   taskCreatedTime,
   taskOrderCompare
-} from "../../shared/work-item-rules.js";
+} from "../../shared/work-item-rules.js?v=20260627-dev-task-status-rules";
 
 export function createBacklogFeature({
   app,

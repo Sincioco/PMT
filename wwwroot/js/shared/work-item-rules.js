@@ -63,6 +63,9 @@ export function bugsForTask(task, sprintBugs) {
 
 export function taskDisplayPercent(task) {
   if (task.subTasks?.length) return Math.round(task.subTaskAveragePercent ?? task.percentCompleted ?? 0);
+  if ((task.taskType || "Dev") !== "Bug") {
+    return percentForDevTaskSave(task.status, task.percentCompleted ?? 0, task, task.dependencyTaskIds || []);
+  }
   return percentForStatus(task.status, task.percentCompleted ?? 0);
 }
 
@@ -74,10 +77,19 @@ export function percentForStatus(status, currentValue) {
   return Number(currentValue || 0);
 }
 
-export function percentForDevTaskSave(status, currentValue) {
-  // The database also treats Code Complete as finished for normal Dev Tasks.
-  if (status === "Code Complete") return 100;
+export function percentForDevTaskSave(status, currentValue, task = null, dependencyTaskIds = []) {
+  const hasAssociatedBug = Boolean(associatedBugForDevTask(task, dependencyTaskIds));
+
+  if (status === "Todo") return hasAssociatedBug ? Number(currentValue || 0) : 0;
+  if (status === "Code Complete") return hasAssociatedBug ? 80 : 100;
+  if (status === "Ready for QA") return hasAssociatedBug ? 80 : 100;
+  if (status === "QA Failed" && !hasAssociatedBug) return 50;
+  if (isDevTaskCompletionStatus(status)) return hasAssociatedBug ? Number(currentValue || 0) : 100;
   return percentForStatus(status, currentValue);
+}
+
+function isDevTaskCompletionStatus(status) {
+  return status === "Ready for QA" || status === "QA Passed" || String(status || "").startsWith("Deployed");
 }
 
 export function validateLinkedBugCompletion(task, percentCompleted, dependencyTaskIds) {

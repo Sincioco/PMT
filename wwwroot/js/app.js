@@ -6,12 +6,12 @@ import {
   field,
   value
 } from "./components/forms.js";
-import { configureProgressAndStatus } from "./components/progress-and-status.js?v=20260627-project-status-mix";
+import { configureProgressAndStatus } from "./components/progress-and-status.js?v=20260627-dev-task-status-rules";
 import {
   bindAttachmentPreview,
   showTaskAudit,
   viewWorkItem
-} from "./components/work-items.js?v=20260627-user-card-checklist";
+} from "./components/work-items.js?v=20260627-dev-task-status-rules";
 import { createApplicationShell } from "./core/application-shell.js?v=20260621-light-default";
 import {
   currentView,
@@ -24,23 +24,23 @@ import {
 } from "./core/screen-registry.js";
 import { state } from "./core/store.js";
 import { createAboutFeature } from "./features/about/about.js?v=20260621-about-credits";
-import { createBacklogFeature } from "./features/backlog/backlog.js?v=20260621-dev-task-parity";
-import { createBoardFeature } from "./features/board/board.js?v=20260627-project-status-mix";
-import { createBugsFeature } from "./features/bugs/bugs.js?v=20260627-user-card-checklist";
-import { createDashboardFeature } from "./features/dashboard/dashboard.js?v=20260627-project-status-mix";
+import { createBacklogFeature } from "./features/backlog/backlog.js?v=20260627-dev-task-status-rules";
+import { createBoardFeature } from "./features/board/board.js?v=20260627-dev-task-status-rules";
+import { createBugsFeature } from "./features/bugs/bugs.js?v=20260627-dev-task-status-rules";
+import { createDashboardFeature } from "./features/dashboard/dashboard.js?v=20260627-dev-task-status-rules";
 import { createDocumentationFeature } from "./features/documentation/documentation.js?v=20260620-document-entry-project";
 import {
   createGanttFeature,
   currentSprintForProject,
   ganttStartDate
-} from "./features/gantt/gantt.js?v=20260627-project-status-mix";
-import { createProjectsFeature } from "./features/projects/projects.js?v=20260627-project-donut-drilldown";
-import { createRoadMapFeature } from "./features/roadmap/roadmap.js?v=20260627-project-status-mix";
-import { createScrumFeature } from "./features/scrum/scrum.js?v=20260621-regular-text-actions";
-import { createSettingsFeature } from "./features/settings/settings.js?v=20260627-project-status-mix";
-import { createSprintsFeature } from "./features/sprints/sprints.js?v=20260627-project-status-mix";
-import { createTasksFeature } from "./features/tasks/tasks.js?v=20260627-project-status-mix";
-import { createWfhScheduleFeature } from "./features/wfh-schedule/wfh-schedule.js?v=20260627-wfh-member-card";
+} from "./features/gantt/gantt.js?v=20260627-dev-task-status-rules";
+import { createProjectsFeature } from "./features/projects/projects.js?v=20260627-dev-task-status-rules";
+import { createRoadMapFeature } from "./features/roadmap/roadmap.js?v=20260627-dev-task-status-rules";
+import { createScrumFeature } from "./features/scrum/scrum.js?v=20260627-dev-task-status-rules";
+import { createSettingsFeature } from "./features/settings/settings.js?v=20260627-dev-task-status-rules";
+import { createSprintsFeature } from "./features/sprints/sprints.js?v=20260627-dev-task-status-rules";
+import { createTasksFeature } from "./features/tasks/tasks.js?v=20260627-dev-task-status-rules";
+import { createWfhScheduleFeature } from "./features/wfh-schedule/wfh-schedule.js?v=20260627-dev-task-status-rules";
 import {
   fallbackEnvironments,
   fallbackForLookup,
@@ -70,7 +70,7 @@ import {
   percentForStatus,
   sprintOverallPercent,
   taskOrderCompare
-} from "./shared/work-item-rules.js";
+} from "./shared/work-item-rules.js?v=20260627-dev-task-status-rules";
 
 const nativePickerSelector = [
   "select",
@@ -1035,6 +1035,7 @@ function editPassword() {
 
 function openEditor(title, html, saveAction, focusName = "", afterOpen = null) {
   dialogTitle.textContent = title;
+  delete dialogBody.dataset.devTaskPercentRules;
   dialogBody.innerHTML = html;
   if (afterOpen) afterOpen(dialogBody);
   bindRichTextButtons(dialogBody);
@@ -1070,6 +1071,8 @@ function focusEditorField(focusName) {
 }
 
 function bindTaskPercentRules(root) {
+  if (root.dataset.devTaskPercentRules === "true") return;
+
   const status = root.querySelector("[name='status']");
   const percent = root.querySelector("[name='percentCompleted']");
   if (!status || !percent) return;

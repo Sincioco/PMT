@@ -929,22 +929,7 @@ BEGIN
         END;
     END;
 
-    IF @TaskType = N'Bug' AND @Status IN (N'QA Failed', N'QA Passed')
-    BEGIN
-        SET @PercentCompleted = 100;
-    END;
-
-    IF @Status IN (N'QA Passed', N'Deployed in SIT', N'Deployed in UAT', N'Deployed in Prod')
-    BEGIN
-        SET @PercentCompleted = 100;
-    END;
-
-    IF @TaskType = N'Dev' AND @Status = N'Code Complete'
-    BEGIN
-        SET @PercentCompleted = 100;
-    END;
-
-    IF @TaskType = N'Dev' AND @PercentCompleted >= 100
+    IF @TaskType = N'Dev'
     BEGIN
         SET @CompletionBlockBugTaskId = @ExistingLinkedBugTaskId;
 
@@ -958,7 +943,47 @@ BEGIN
                AND [BugTask].[IsDeleted] = 0
             ORDER BY [BugTask].[TaskId];
         END;
+    END;
 
+    IF @TaskType = N'Bug' AND @Status IN (N'QA Failed', N'QA Passed')
+    BEGIN
+        SET @PercentCompleted = 100;
+    END;
+
+    IF @TaskType <> N'Dev' AND (@Status = N'QA Passed' OR @Status LIKE N'Deployed%')
+    BEGIN
+        SET @PercentCompleted = 100;
+    END;
+
+    IF @TaskType = N'Dev' AND @Status = N'Todo' AND @CompletionBlockBugTaskId IS NULL
+    BEGIN
+        SET @PercentCompleted = 0;
+    END;
+
+    IF @TaskType = N'Dev' AND @Status = N'Ready for QA'
+    BEGIN
+        SET @PercentCompleted = CASE WHEN @CompletionBlockBugTaskId IS NULL THEN 100 ELSE 80 END;
+    END;
+
+    IF @TaskType = N'Dev' AND @Status = N'QA Failed' AND @CompletionBlockBugTaskId IS NULL
+    BEGIN
+        SET @PercentCompleted = 50;
+    END;
+
+    IF @TaskType = N'Dev'
+       AND (@Status = N'QA Passed' OR @Status LIKE N'Deployed%')
+       AND @CompletionBlockBugTaskId IS NULL
+    BEGIN
+        SET @PercentCompleted = 100;
+    END;
+
+    IF @TaskType = N'Dev' AND @Status = N'Code Complete'
+    BEGIN
+        SET @PercentCompleted = CASE WHEN @CompletionBlockBugTaskId IS NULL THEN 100 ELSE 80 END;
+    END;
+
+    IF @TaskType = N'Dev' AND @PercentCompleted >= 100
+    BEGIN
         IF @CompletionBlockBugTaskId IS NOT NULL
            AND NOT EXISTS
            (

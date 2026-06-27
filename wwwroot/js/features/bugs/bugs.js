@@ -30,7 +30,7 @@ import {
   taskButtonsHtml,
   taskPercentField,
   uploadWorkItemAttachments
-} from "../../components/work-items.js?v=20260627-user-card-checklist";
+} from "../../components/work-items.js?v=20260627-dev-task-status-rules";
 import { currentUserId } from "../../core/authentication.js";
 import {
   preferenceKeys,
@@ -64,7 +64,7 @@ import {
   percentForStatus,
   reporterIdsOrDefault,
   taskOrderCompare
-} from "../../shared/work-item-rules.js";
+} from "../../shared/work-item-rules.js?v=20260627-dev-task-status-rules";
 
 export function createBugsFeature({
   app,

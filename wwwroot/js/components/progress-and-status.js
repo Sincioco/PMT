@@ -3,7 +3,7 @@ import {
   projectWorkItems,
   sprintOverallPercent,
   sprintWorkItems
-} from "../shared/work-item-rules.js";
+} from "../shared/work-item-rules.js?v=20260627-dev-task-status-rules";
 import {
   escapeAttr,
   escapeHtml

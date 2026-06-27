@@ -1,11 +1,11 @@
 import { avatarsHtml } from "../../components/avatars.js";
 import { buttonContent, funnelIconHtml } from "../../components/buttons.js";
-import { progressHtml } from "../../components/progress-and-status.js?v=20260627-project-status-mix";
+import { progressHtml } from "../../components/progress-and-status.js?v=20260627-dev-task-status-rules";
 import { sectionHead } from "../../components/sections.js";
 import {
   bugFixIconHtml,
   taskButtonsHtml
-} from "../../components/work-items.js?v=20260620-bug-linked-task";
+} from "../../components/work-items.js?v=20260627-dev-task-status-rules";
 import {
   preferenceKeys,
   readBooleanPreference,
@@ -23,9 +23,10 @@ import {
   escapeHtml
 } from "../../shared/text-and-links.js";
 import {
+  percentForDevTaskSave,
   percentForStatus,
   taskOrderCompare
-} from "../../shared/work-item-rules.js";
+} from "../../shared/work-item-rules.js?v=20260627-dev-task-status-rules";
 import { createBoardDrag } from "./board-drag.js";
 
 export function createBoardFeature({
@@ -292,7 +293,7 @@ export function createBoardFeature({
         severity: task.severity || "",
         status,
         priority: task.priority,
-        percentCompleted: percentForStatus(status, task.percentCompleted),
+        percentCompleted: percentForTaskStatus(task, status),
         startDate: task.startDate,
         endDate: task.endDate,
         url: task.url,
@@ -305,6 +306,14 @@ export function createBoardFeature({
       showToast(error.message);
       return false;
     }
+  }
+
+  function percentForTaskStatus(task, status) {
+    if ((task.taskType || "Dev") !== "Bug") {
+      return percentForDevTaskSave(status, task.percentCompleted, task, task.dependencyTaskIds || []);
+    }
+
+    return percentForStatus(status, task.percentCompleted);
   }
 
   function selectedSprintId(projectId) {

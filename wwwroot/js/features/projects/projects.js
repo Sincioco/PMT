@@ -14,7 +14,7 @@ import {
   projectStatusCounts,
   projectStatusMetricsHtml,
   statusColor
-} from "../../components/progress-and-status.js?v=20260627-project-status-mix";
+} from "../../components/progress-and-status.js?v=20260627-dev-task-status-rules";
 import { sectionHead } from "../../components/sections.js";
 import { state } from "../../core/store.js";
 import { toDateInput } from "../../shared/dates.js?v=20260620-null-end-date";
@@ -24,7 +24,7 @@ import {
   escapeAttr,
   escapeHtml
 } from "../../shared/text-and-links.js";
-import { projectWorkItems } from "../../shared/work-item-rules.js";
+import { projectWorkItems } from "../../shared/work-item-rules.js?v=20260627-dev-task-status-rules";
 
 export function createProjectsFeature({
   app,

@@ -38,6 +38,23 @@ test("status percent rules preserve in-progress values and force QA-passed statu
   assert.equal(percentForStatus("QA Passed", 60), 100);
   assert.equal(percentForStatus("Deployed in Prod", 0), 100);
   assert.equal(percentForDevTaskSave("Code Complete", 50), 100);
+
+  const bug = { id: 100, taskType: "Bug", status: "QA in Progress" };
+  const linkedDevTask = { id: 200, taskType: "Dev", linkedBugTaskId: bug.id };
+  const dependencyDevTask = { id: 201, taskType: "Dev" };
+  configure([bug, linkedDevTask, dependencyDevTask]);
+  assert.equal(percentForDevTaskSave("Todo", 45, dependencyDevTask), 0);
+  assert.equal(percentForDevTaskSave("Todo", 45, dependencyDevTask, [bug.id]), 45);
+  assert.equal(percentForDevTaskSave("Code Complete", 50, linkedDevTask), 80);
+  assert.equal(percentForDevTaskSave("Code Complete", 60, dependencyDevTask, [bug.id]), 80);
+  assert.equal(percentForDevTaskSave("Ready for QA", 40, dependencyDevTask), 100);
+  assert.equal(percentForDevTaskSave("Ready for QA", 40, dependencyDevTask, [bug.id]), 80);
+  assert.equal(percentForDevTaskSave("QA Failed", 40, dependencyDevTask), 50);
+  assert.equal(percentForDevTaskSave("QA Failed", 40, dependencyDevTask, [bug.id]), 40);
+  assert.equal(percentForDevTaskSave("QA Passed", 40, dependencyDevTask), 100);
+  assert.equal(percentForDevTaskSave("Deployed in UAT", 40, dependencyDevTask), 100);
+  assert.equal(percentForDevTaskSave("QA Passed", 40, dependencyDevTask, [bug.id]), 40);
+  assert.equal(percentForDevTaskSave("Deployed in Prod", 70, dependencyDevTask, [bug.id]), 70);
 });
 
 test("top-level project and sprint percentages average visible work items", () => {

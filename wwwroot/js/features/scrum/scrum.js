@@ -12,7 +12,7 @@ import {
   value
 } from "../../components/forms.js";
 import { sectionHead } from "../../components/sections.js";
-import { createWorkItemTableMode } from "../../components/work-items.js?v=20260621-scrum-backlog-parity";
+import { createWorkItemTableMode } from "../../components/work-items.js?v=20260627-dev-task-status-rules";
 import { currentUser } from "../../core/authentication.js";
 import {
   preferenceKeys,

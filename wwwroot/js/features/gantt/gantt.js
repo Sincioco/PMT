@@ -8,7 +8,7 @@ import {
 import { navigate } from "../../core/router.js";
 import { state } from "../../core/store.js";
 import { projectById } from "../../shared/selectors.js";
-import { createGanttBugExpansion } from "./gantt-bugs-dependencies.js?v=20260620-gantt-dependency-line";
+import { createGanttBugExpansion } from "./gantt-bugs-dependencies.js?v=20260627-dev-task-status-rules";
 import {
   currentSprintForProject,
   ganttChartData,
@@ -17,7 +17,7 @@ import {
   sortGanttSprints
 } from "./gantt-calculations.js?v=20260620-gantt-scaled-buffer";
 import { createGanttFlyBy } from "./gantt-flyby.js?v=20260620-gantt-flush-sprint";
-import { ganttScreenHtml } from "./gantt-rendering.js?v=20260627-project-status-mix";
+import { ganttScreenHtml } from "./gantt-rendering.js?v=20260627-dev-task-status-rules";
 
 export { currentSprintForProject, ganttStartDate } from "./gantt-calculations.js?v=20260620-gantt-scaled-buffer";
 

@@ -16,7 +16,7 @@ import {
   selectTextField,
   value
 } from "../../components/forms.js";
-import { progressHtml, statusColor } from "../../components/progress-and-status.js?v=20260627-project-status-mix";
+import { progressHtml, statusColor } from "../../components/progress-and-status.js?v=20260627-dev-task-status-rules";
 import { sectionHead } from "../../components/sections.js";
 import {
   attachmentEditorFieldHtml,
@@ -28,7 +28,7 @@ import {
   taskButtonsHtml,
   taskPercentField,
   uploadWorkItemAttachments
-} from "../../components/work-items.js?v=20260627-user-card-checklist";
+} from "../../components/work-items.js?v=20260627-dev-task-status-rules";
 import {
   preferenceKeys,
   readBooleanPreference,
@@ -61,7 +61,7 @@ import {
   taskOrderCompare,
   taskRowsWithSubTasks,
   validateLinkedBugCompletion
-} from "../../shared/work-item-rules.js";
+} from "../../shared/work-item-rules.js?v=20260627-dev-task-status-rules";
 
 export function createTasksFeature({
   app,
@@ -395,18 +395,18 @@ export function createTasksFeature({
       <div class="form-grid task-editor-grid">
         ${task.id ? taskAuditPanelHtml(task) : ""}
         ${selectField("Project", "projectId", state.projects, projectId)}
-        ${field("Title", "title", task.title || "", "text")}
         ${selectOptionsField("Sprint", "sprintId", taskEditorSprintOptions(projectId), defaultSprintId || "")}
-        ${selectOptionsField("Parent Task", "parentTaskId", [{ id: "", title: "No parent" }, ...sameProjectTasks.map(item => ({ id: item.id, title: `${item.code} - ${item.title}` }))], task.parentTaskId || "")}
+        ${field("Title", "title", task.title || "", "text")}
         ${selectTextField("Status", "status", getLookupOptions("Status", task.status || "Todo"), task.status || "Todo")}
         ${selectTextField("Priority", "priority", getLookupOptions("Priority", task.priority || "Low"), task.priority || "Low")}
         ${taskPercentField(task, taskHasSubTasks)}
-        ${field("Start", "startDate", toDateInput(task.startDate), "date")}
-        ${field("End", "endDate", toDateInput(task.endDate), "date")}
-        ${field("URL", "url", task.url || "", "url")}
         ${richTextField("descriptionHtml", "Description", task.descriptionHtml || "")}
         ${attachmentEditorFieldHtml()}
         <div class="task-assignee-list" data-assignee-list></div>
+        ${field("Start", "startDate", toDateInput(task.startDate), "date")}
+        ${field("End", "endDate", toDateInput(task.endDate), "date")}
+        ${selectOptionsField("Parent", "parentTaskId", [{ id: "", title: "No parent" }, ...sameProjectTasks.map(item => ({ id: item.id, title: `${item.code} - ${item.title}` }))], task.parentTaskId || "")}
+        ${field("URL", "url", task.url || "", "url")}
         ${checkList("Dependencies", "dependencyTaskIds", sameProjectTasks, task.dependencyTaskIds || [], item => `${item.code} ${item.title}`, { className: "scroll-check-list dependency-check-list" })}
       </div>
     `, async root => {
@@ -420,9 +420,9 @@ export function createTasksFeature({
       }
 
       const status = value(root, "status");
-      const percentCompleted = percentForDevTaskSave(status, numberValue(root, "percentCompleted"));
       const sprintId = optionalNumberValue(root, "sprintId");
       const dependencyTaskIds = checkedNumbers(root, "dependencyTaskIds");
+      const percentCompleted = percentForDevTaskSave(status, numberValue(root, "percentCompleted"), task, dependencyTaskIds);
       validateLinkedBugCompletion(task, percentCompleted, dependencyTaskIds);
 
       const result = await saveJson(task.id ? `${apiRoot}/${task.id}` : apiRoot, task.id ? "PUT" : "POST", {
@@ -455,7 +455,36 @@ export function createTasksFeature({
       writePreference(preferenceKeys.taskEntrySprint, taskEntrySprintId);
 
       await uploadWorkItemAttachments(root, result.id, attachFile, `${apiRoot}/${result.id}/attachments`);
-    }, "title", root => bindAssigneeList(root, task.assigneeIds || [], "Assignees (Optional)"));
+    }, "title", root => bindTaskEditorRules(root, task));
+  }
+
+  function bindTaskEditorRules(root, task) {
+    root.dataset.devTaskPercentRules = "true";
+    bindAssigneeList(root, task.assigneeIds || [], "Assignees (Optional)");
+    bindDevTaskPercentRule(root, task);
+  }
+
+  function bindDevTaskPercentRule(root, task) {
+    const status = root.querySelector("[name='status']");
+    const percent = root.querySelector("[name='percentCompleted']");
+    if (!status || !percent) return;
+
+    const applyDevTaskPercentRule = () => {
+      if (percent.dataset.locked === "true") return;
+
+      percent.value = percentForDevTaskSave(
+        status.value,
+        numberValue(root, "percentCompleted"),
+        task,
+        checkedNumbers(root, "dependencyTaskIds")
+      );
+    };
+
+    status.addEventListener("change", applyDevTaskPercentRule);
+    root.querySelectorAll("[name='dependencyTaskIds']").forEach(input => {
+      input.addEventListener("change", applyDevTaskPercentRule);
+    });
+    applyDevTaskPercentRule();
   }
 
   function focusTaskField(root, name) {

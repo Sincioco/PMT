@@ -72,3 +72,40 @@ Project Screen
 1.) For each task status like Todo, Code Complete, etc., show only the count and remove the " of 20" at the end.
 2.) Just above the project member, render a donut chart.  Use the Bug Tracking Screen's Sprint Bug Mix as a reference.  Render each task status like Todo, Code Complete, etc.
 3.) For the Donut chart, be sure to use the status color as set in the Settings by the user.
+4.) Can you move the legend of the Donut chart at the bottom of the Donut so that Donart chart can be as wide as possible?
+5.) Move the Donut chart above the Sprint Metrics but below the Overall progress bar.
+6.) Remove the Project description in the Project card.
+7.) Put a section divider (thin horizontal line, like what you do at the top of the card) after the Donut Chart.
+8.) For titles that are too long, instead of wrapping them, put elippess instead.  When you hover on a project card, show the project name on the tooltip.
+9.) Make the Donut Chart a drill down.  Use the Bug Tracking Screen's Sprint Bug Mix as a reference. 
+
+PMT Logic/Rule
+--------------
+PMT Logic Rule:  If a Dev Task is set to Code Complete and there is not associated bug task to it, set the Percent Complete field to 100%.
+
+PMT Logic Rule:  If a Dev Task is set to QA Passed, Deployed in xxx (where xxx is any status that begins with the word "Deployed", mark it as 100% complete if there is no bug associated to the Dev Task.
+PMT Logic Rule:  If a Dev Task is set to Code Complete AND there is a Bug Task associated to it, set it to 80% only.
+
+PMT Logic Rule:  If a Dev Task is set to Todo and there is a no Bug Task associated to it, set it to 0% complete.
+
+PMT Logic Rule:  If a Dev Task is set to Ready for QA and there is a no Bug Task associated to it, set it to 100% complete.
+
+PMT Logic Rule:  If a Dev Task is set to Ready for QA and there is a Bug Task associated to it, set it to 80% complete.
+
+PMT Logic Rule:  If a Dev Task is set to QA Failed and there is a Bug no Task associated to it, set it to 50% complete.
+
+Update the domain-rules.md in the docs folder with the PMT Logic/Rules.  And also update any other AGENTS.md or any other .md file if you need to.
+
+Dev Task New/Edit Dialog Box
+----------------------------
+Let's re-arrange the order of the controls in the Dev Task New/Edit Dialog Box.  Still keep the 2-column layout of the dialog box in general.  Re-order the fields as outlined below, if there is only one field in a line, it means it takes up 2 columns.  The pipe (|) denotes the column separator.
+
+Project|Sprint
+Title|Status
+Priority|Percent
+Description
+Attachments
+Assignees
+Start|End
+Parent|URL
+Dependencies

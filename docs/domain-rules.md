@@ -24,15 +24,17 @@ Regression tests for these rules live in `tests/js/work-item-rules.test.mjs`.
 
 - Saving `Backlog` stores an unscheduled `Todo` and clears the Sprint.
 - Assigning a new or previously unscheduled Dev Task to a Sprint sets it to `Todo`.
-- Moving to `Todo` preserves an existing nonzero percent; otherwise it uses 0.
-- `QA Passed` and all deployed statuses force 100%.
-- Dev Task `Code Complete` forces 100%.
-- Bug `QA Failed` and `QA Passed` force 100%.
+- Moving a non-Bug-associated Dev Task to `Todo` sets percent complete to 0. Moving a Bug-associated Dev Task to `Todo` preserves its current percent.
+- Dev Task `Code Complete` sets percent complete to 100 when no Bug is associated, or 80 when a Bug is associated.
+- Dev Task `Ready for QA` sets percent complete to 100 when no Bug is associated, or 80 when a Bug is associated.
+- Dev Task `QA Failed` sets percent complete to 50 when no Bug is associated. If a Bug is associated, the current percent is preserved.
+- Dev Task `QA Passed` and any status beginning with `Deployed` set percent complete to 100 when no Bug is associated. If a Bug is associated, the current percent is preserved and normal completion blocking still applies.
+- For Bugs, `QA Failed`, `QA Passed`, and any status beginning with `Deployed` force 100%.
 - Percent inputs are clamped to 0-100.
 - A parent work item's stored percent is the rounded average of its active direct sub-tasks and is recalculated when a sub-task changes. The API also exposes a display average.
 - `StartedAt` is set the first time a work item leaves Backlog/Todo.
 
-Project and Sprint progress does not use arbitrary entered percent. `SqlPmtStore` counts top-level work items whose status is `QA Passed`, `Deployed in SIT`, `Deployed in UAT`, or `Deployed in Prod`, then calculates:
+Project and Sprint aggregate progress is separate from stored work-item percent. `SqlPmtStore` counts top-level work items whose status is `QA Passed`, `Deployed in SIT`, `Deployed in UAT`, or `Deployed in Prod`, then calculates:
 
 `completed top-level work items / all top-level work items * 100`
 
@@ -51,6 +53,8 @@ Project and Sprint progress does not use arbitrary entered percent. `SqlPmtStore
 - Assigning a Bug creates or updates one linked Dev Task titled `Bug Fix: <bug title>`.
 - The linked Bug Fix follows the Bug's Project, Sprint, priority, dates, and assignees and depends on the Bug.
 - A Dev Task linked to a Bug cannot reach 100% until that Bug is `QA Passed` or in a deployed status. SQL enforces this even if browser validation is bypassed.
+- A Dev Task is treated as Bug-associated when it has a linked Bug task or an active Bug dependency.
+- Bug-associated Dev Tasks use the Bug-aware percent rules in the Statuses and completion section.
 - Bug `QA Passed` sets the linked Bug Fix percent to 100.
 - Bug `QA Failed` sets the linked Bug Fix percent to 50.
 - When a linked Bug Fix reaches `Code Complete`, the Bug percent resets to 0 for QA retesting.

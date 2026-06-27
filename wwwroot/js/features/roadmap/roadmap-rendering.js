@@ -1,6 +1,6 @@
 import { avatarsHtml } from "../../components/avatars.js";
 import { buttonContent } from "../../components/buttons.js";
-import { completionColor } from "../../components/progress-and-status.js?v=20260627-project-status-mix";
+import { completionColor } from "../../components/progress-and-status.js?v=20260627-dev-task-status-rules";
 import { sectionHead } from "../../components/sections.js";
 import {
   dateRangeLabel,

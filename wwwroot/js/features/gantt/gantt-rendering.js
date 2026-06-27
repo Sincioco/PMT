@@ -1,6 +1,6 @@
 import { avatarsHtml } from "../../components/avatars.js";
 import { buttonContent } from "../../components/buttons.js";
-import { statusColor } from "../../components/progress-and-status.js?v=20260627-project-status-mix";
+import { statusColor } from "../../components/progress-and-status.js?v=20260627-dev-task-status-rules";
 import { sectionHead } from "../../components/sections.js";
 import {
   groupedTimelineHeader,
@@ -13,11 +13,11 @@ import {
   escapeAttr,
   escapeHtml
 } from "../../shared/text-and-links.js";
-import { taskDisplayPercent } from "../../shared/work-item-rules.js";
+import { taskDisplayPercent } from "../../shared/work-item-rules.js?v=20260627-dev-task-status-rules";
 import {
   ganttBugRows,
   ganttDependencyLines
-} from "./gantt-bugs-dependencies.js?v=20260620-gantt-dependency-line";
+} from "./gantt-bugs-dependencies.js?v=20260627-dev-task-status-rules";
 import {
   ganttEndDate,
   ganttStartDate

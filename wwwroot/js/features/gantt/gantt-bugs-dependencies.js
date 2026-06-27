@@ -4,7 +4,7 @@ import { escapeAttr } from "../../shared/text-and-links.js";
 import {
   bugsForTask,
   isTaskCompleted
-} from "../../shared/work-item-rules.js";
+} from "../../shared/work-item-rules.js?v=20260627-dev-task-status-rules";
 import {
   ganttEndDate,
   ganttStartDate

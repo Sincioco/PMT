@@ -16,7 +16,7 @@ import {
 import {
   sprintOverallProgressHtml,
   sprintStatusMetricsHtml
-} from "../../components/progress-and-status.js?v=20260627-project-status-mix";
+} from "../../components/progress-and-status.js?v=20260627-dev-task-status-rules";
 import { sectionHead } from "../../components/sections.js";
 import { api } from "../../core/api.js";
 import {
