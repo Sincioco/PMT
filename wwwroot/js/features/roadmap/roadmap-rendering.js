@@ -22,7 +22,6 @@ export function roadMapScreenHtml({
   projectFilter,
   sprintFilter,
   sort,
-  showDates,
   showDetails,
   showSprints,
   chart
@@ -56,12 +55,11 @@ export function roadMapScreenHtml({
         </label>
         <div class="roadmap-filter-actions">
           <button class="secondary text-icon-button" type="button" data-action="toggle-roadmap-sprints">${buttonContent(showSprints ? "&#8722;" : "&#43;", showSprints ? "Hide Sprints" : "Show Sprints")}</button>
-          <button class="icon-action ${showDates ? "is-on" : ""}" type="button" data-action="toggle-roadmap-dates" title="${showDates ? "Hide start/end dates" : "Show start/end dates"}" aria-pressed="${showDates}">&#128197;</button>
           <button class="icon-action ${showDetails ? "is-on" : ""}" type="button" data-action="toggle-roadmap-details" title="${showDetails ? "Hide avatars and percent text" : "Show avatars and percent text"}" aria-pressed="${showDetails}">&#128100;</button>
         </div>
       </div>
     </div>
-    ${chart.dates.length ? roadMapChartHtml(chart, { showDates, showDetails, showSprints }) : `<div class="empty">No Project or Sprint dates are available yet.</div>`}
+    ${chart.dates.length ? roadMapChartHtml(chart, { showDates: true, showDetails, showSprints }) : `<div class="empty">No Project or Sprint dates are available yet.</div>`}
   `;
 }
 

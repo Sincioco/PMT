@@ -7,3 +7,18 @@ For all of this conversation / session, I will perform all the manual tests and 
 1.) In PMT, all the visual charts already have a custom tooltip, remove the normal tooltip since the custom tooltip is already present.
 
 2.) In the Project and Sprint Screen, remove the normal tooltip on the visual charts since the custom tooltip is already present.
+
+3.) In the Road Map screen, remove the hide/show start/end date button since it is no longer needed as the start / end date is now always visible.
+
+4.) In the Dev Tasks and Bug Tracking tables, make the column header clickable.  When the user clicks the column header, it sorts the table in that column as ascending, descending or no sort.  And provide a small up/down arrow indicator so the user has a visual indicator which column the table is sorted by and in which direction.
+5.) Be sure to factor in main tasks with sub-tasks, as we only want to sort the main tasks.  That is, exclude the sub-tasks in the sorting since it will just follow the main task anyway.
+6.) Adjust the Sort dropdown in the Filter dialog box so it reflects the correct sort order.  If it is Custom Order, then put "Custom Order (xxx)" where xxx is the actual column the table is sorted by.
+
+7.) Be sure to persist the user's preferred sorting by storing it in localstorage.
+8.) Add a "Reset View" button on the page-level at the top right that resets the Dev Task or Bug Tracking view to its default state....basically, remove all the user preferences and treat it as if it's their first time being in Dev Task or Bug Tracking view.
+
+
+9.) Put the column header's sort indicator next to the column header label and make it muted.
+
+10.) In the Dev Task' Dev Tasks Completed by Sprint chart, make it horizontally scroll left and right in response to the mousewheel when the user is on the chart.
+11.) In the Bug Tracking's "Reported vs Resolved by Sprint" and "Bug Trend by Sprint" chart, make them horizontally scroll left and right in response to the mousewheel when the user is on those charts.

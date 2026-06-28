@@ -40,6 +40,7 @@ import {
   readJsonPreference,
   readNumberPreference,
   readPreference,
+  removePreference,
   writeJsonPreference,
   writePreference
 } from "../../core/preferences.js?v=20260620-bug-entry-context";
@@ -65,6 +66,7 @@ import {
   percentForStatus,
   reporterIdsOrDefault,
   taskDisplayPercent,
+  taskCreatedTime,
   taskOrderCompare
 } from "../../shared/work-item-rules.js?v=20260627-bug-qa-linked-rules";
 
@@ -86,7 +88,7 @@ export function createBugsFeature({
   openEditor,
   saveJson
 }) {
-  let bugFilters = readJsonPreference(preferenceKeys.bugFilters, {});
+  let bugFilters = normalizeBugFilters(readJsonPreference(preferenceKeys.bugFilters, {}));
   let bugVisualChartsVisible = readBooleanPreference(preferenceKeys.bugVisualChartsVisible, true);
   let bugEntryProjectId = readNumberPreference(preferenceKeys.bugEntryProject, 0);
   let bugEntrySprintId = readPreference(preferenceKeys.bugEntrySprint, "");
@@ -95,13 +97,6 @@ export function createBugsFeature({
     action: "toggle-bug-table-edit-mode",
     itemLabel: "Bug Tracking"
   });
-
-  bugFilters.reporterIds = normalizeSavedArray(bugFilters.reporterIds, bugFilters.reporterId);
-  bugFilters.assigneeIds = normalizeSavedArray(bugFilters.assigneeIds, bugFilters.assigneeId);
-  const savedBugSprintId = bugFilters.sprintId && bugFilters.sprintId !== "0"
-    ? String(bugFilters.sprintId)
-    : "";
-  bugFilters.sprintId = savedBugSprintId || (bugFilters.projectId ? "" : "all");
 
   function renderBugs() {
     const sprintFilterSprints = bugSprintFilterSprints();
@@ -127,6 +122,7 @@ export function createBugsFeature({
         ${bugTableMode.buttonHtml()}
         <button class="secondary text-icon-button" type="button" data-action="toggle-bug-visual-charts" title="${chartToggleLabel}" aria-label="${chartToggleLabel}" aria-pressed="${showCharts}" ${canShowCharts ? "" : "disabled"}>${buttonContent(chartIconHtml(), chartToggleLabel)}</button>
         <button class="secondary text-icon-button" type="button" data-action="open-bug-filters" title="Filters" aria-label="Filters" aria-haspopup="dialog">${buttonContent(funnelIconHtml(), "Filters")}</button>
+        <button class="secondary text-icon-button" type="button" data-action="reset-bug-view" title="Reset View" aria-label="Reset View">${buttonContent("&#8634;", "Reset View")}</button>
       `)}
       ${showCharts ? bugVisualTrackingChartsHtml(baseBugs, allProjectBugs) : ""}
       <div class="panel work-item-table-panel bugs-table-panel">
@@ -144,14 +140,14 @@ export function createBugsFeature({
           </colgroup>
           <thead>
             <tr>
-              <th class="bugs-avatar-heading">${reporterHeader}</th>
-              <th class="bugs-avatar-heading">${assigneeHeader}</th>
-              <th>Project/Sprint</th>
-              <th>Bug Report</th>
-              <th>Status</th>
-              <th>Severity</th>
-              <th>Priority</th>
-              <th class="done-cell">% Complete</th>
+              ${bugSortHeaderHtml("reporter", reporterHeader, "bugs-avatar-heading")}
+              ${bugSortHeaderHtml("assignee", assigneeHeader, "bugs-avatar-heading")}
+              ${bugSortHeaderHtml("context", "Project/Sprint")}
+              ${bugSortHeaderHtml("bug", "Bug Report")}
+              ${bugSortHeaderHtml("status", "Status")}
+              ${bugSortHeaderHtml("severity", "Severity")}
+              ${bugSortHeaderHtml("priority", "Priority")}
+              ${bugSortHeaderHtml("percent", "% Complete", "done-cell")}
               ${bugTableMode.active ? `<th class="action-cell" aria-label="Actions"></th>` : ""}
             </tr>
           </thead>
@@ -184,7 +180,7 @@ export function createBugsFeature({
     `;
   }
 
-  async function handleAction(action, id) {
+  async function handleAction(action, id, element) {
     const bug = id ? taskById(id) : null;
 
     if (action === "new-bug") {
@@ -194,6 +190,13 @@ export function createBugsFeature({
     if (action === "toggle-bug-table-edit-mode") {
       bugTableMode.toggle();
       renderBugs();
+      return true;
+    }
+    if (action === "sort-bug-table") {
+      return updateBugTableSort(element);
+    }
+    if (action === "reset-bug-view") {
+      resetBugView();
       return true;
     }
     if (action === "open-bug-filters" || action === "toggle-bug-filters") {
@@ -292,6 +295,12 @@ export function createBugsFeature({
         <div class="task-filter-row bug-filter-row">
           ${bugFilterSelectHtml("Project", "bug-project", state.projects.map(project => ({ value: project.id, text: `${project.code} - ${project.title}` })), bugFilters.projectId || "", "All Projects")}
           ${bugSprintFilterHtml(sprintFilterSprints)}
+          <label>
+            <span>Sort</span>
+            <select data-filter="bug-sort">
+              ${bugSortOptionsHtml()}
+            </select>
+          </label>
           ${bugFilterSelectHtml("Status", "bug-status", getStatuses().map(value => ({ value, text: value })), bugFilters.status || "", "All Statuses")}
           ${bugFilterSelectHtml("Priority", "bug-priority", getPriorities().map(value => ({ value, text: value })), bugFilters.priority || "", "All Priorities")}
           ${bugFilterSelectHtml("Severity", "bug-severity", getSeverities().map(value => ({ value, text: value })), bugFilters.severity || "", "All Severities")}
@@ -341,6 +350,7 @@ export function createBugsFeature({
     if (key === "priority") bugFilters.priority = target.value;
     if (key === "severity") bugFilters.severity = target.value;
     if (key === "environment") bugFilters.environment = target.value;
+    if (key === "sort") bugFilters.sort = target.value;
     if (key === "reporter") bugFilters.reporterIds = checkedFilterValues("bug-reporter");
     if (key === "assignee") bugFilters.assigneeIds = checkedFilterValues("bug-assignee");
 
@@ -476,7 +486,168 @@ export function createBugsFeature({
       .filter(bug => !bugFilters.environment || bug.environment === bugFilters.environment)
       .filter(bug => !bugFilters.reporterIds.length || bug.reporterIds.map(String).some(id => bugFilters.reporterIds.includes(id)))
       .filter(bug => !bugFilters.assigneeIds.length || bug.assigneeIds.map(String).some(id => bugFilters.assigneeIds.includes(id)))
-      .sort(taskOrderCompare);
+      .sort(bugSortCompare);
+  }
+
+  function normalizeBugFilters(filters = {}) {
+    const normalized = {
+      ...filters,
+      reporterIds: normalizeSavedArray(filters.reporterIds, filters.reporterId),
+      assigneeIds: normalizeSavedArray(filters.assigneeIds, filters.assigneeId),
+      sort: filters.sort || "custom"
+    };
+    const savedBugSprintId = normalized.sprintId && normalized.sprintId !== "0"
+      ? String(normalized.sprintId)
+      : "";
+    normalized.sprintId = savedBugSprintId || (normalized.projectId ? "" : "all");
+    return normalized;
+  }
+
+  function bugSortCompare(a, b) {
+    const state = bugTableSortState();
+
+    if (state.column && state.direction) {
+      const result = compareBugSortColumn(a, b, state.column);
+      if (result) return state.direction === "asc" ? result : -result;
+      return taskOrderCompare(a, b);
+    }
+
+    if (bugFilters.sort === "oldest") return taskCreatedTime(a) - taskCreatedTime(b) || a.id - b.id;
+    if (bugFilters.sort === "newest") return taskCreatedTime(b) - taskCreatedTime(a) || b.id - a.id;
+
+    return taskOrderCompare(a, b);
+  }
+
+  function compareBugSortColumn(a, b, column) {
+    if (column === "percent") return taskDisplayPercent(a) - taskDisplayPercent(b);
+    if (column === "priority") return compareLookupSortValue(a.priority, b.priority, getPriorities());
+    if (column === "severity") return compareLookupSortValue(a.severity, b.severity, getSeverities());
+    if (column === "status") return compareLookupSortValue(a.status, b.status, getStatuses());
+
+    return bugSortTextValue(a, column).localeCompare(bugSortTextValue(b, column), undefined, {
+      numeric: true,
+      sensitivity: "base"
+    });
+  }
+
+  function bugSortTextValue(bug, column) {
+    if (column === "reporter") return userNames(bug.reporters);
+    if (column === "assignee") return userNames(bug.assignees);
+    if (column === "context") return `${projectName(bug.projectId)} ${bugTableSprintLabel(bug)}`;
+    if (column === "bug") return `${bug.code || ""} ${bug.title || ""}`;
+    return "";
+  }
+
+  function compareLookupSortValue(a, b, orderedValues) {
+    const aIndex = orderedValues.indexOf(a);
+    const bIndex = orderedValues.indexOf(b);
+    const aSort = aIndex >= 0 ? aIndex : Number.MAX_SAFE_INTEGER;
+    const bSort = bIndex >= 0 ? bIndex : Number.MAX_SAFE_INTEGER;
+    return aSort - bSort || String(a || "").localeCompare(String(b || ""), undefined, { sensitivity: "base" });
+  }
+
+  function userNames(users) {
+    return (users || [])
+      .map(user => user.nickname || "")
+      .filter(Boolean)
+      .sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }))
+      .join(", ");
+  }
+
+  function bugSortHeaderHtml(column, label, className = "") {
+    const state = bugTableSortState();
+    const isSorted = state.column === column && Boolean(state.direction);
+    const ariaSort = isSorted ? (state.direction === "asc" ? "ascending" : "descending") : "none";
+    const arrow = isSorted ? (state.direction === "asc" ? "&#9650;" : "&#9660;") : "";
+    const classes = [className, isSorted ? "is-sorted" : ""].filter(Boolean).join(" ");
+
+    return `
+      <th class="${classes}" aria-sort="${ariaSort}">
+        <button type="button" class="table-sort-button" data-action="sort-bug-table" data-column="${escapeAttr(column)}" title="${escapeAttr(bugNextSortLabel(column, label))}">
+          <span>${escapeHtml(label)}</span>
+          <span class="table-sort-indicator" aria-hidden="true">${arrow}</span>
+        </button>
+      </th>
+    `;
+  }
+
+  function updateBugTableSort(button) {
+    const column = button?.dataset?.column || "";
+    if (!bugTableSortColumns().some(item => item.column === column)) return false;
+
+    bugFilters.sort = nextBugSort(column);
+    writeJsonPreference(preferenceKeys.bugFilters, bugFilters);
+    renderBugs();
+    return true;
+  }
+
+  function nextBugSort(column) {
+    const state = bugTableSortState();
+    if (state.column !== column || !state.direction) return `${column}-asc`;
+    if (state.direction === "asc") return `${column}-desc`;
+    return "custom";
+  }
+
+  function bugTableSortState(sortValue = bugFilters.sort) {
+    const match = /^(.+)-(asc|desc)$/.exec(sortValue || "");
+    if (!match) return { column: "", direction: "" };
+    return { column: match[1], direction: match[2] };
+  }
+
+  function bugSortOptionsHtml() {
+    const selectedSort = bugFilters.sort || "custom";
+    const options = [
+      { value: "custom", text: "Custom Order (Saved Order)" },
+      { value: "newest", text: "Newest Bug Reports" },
+      { value: "oldest", text: "Oldest Bug Reports" },
+      ...bugTableSortColumns().flatMap(column => [
+        { value: `${column.column}-asc`, text: `Custom Order (${column.label} ascending)` },
+        { value: `${column.column}-desc`, text: `Custom Order (${column.label} descending)` }
+      ])
+    ];
+
+    return options
+      .map(option => `<option value="${escapeAttr(option.value)}" ${selectedSort === option.value ? "selected" : ""}>${escapeHtml(option.text)}</option>`)
+      .join("");
+  }
+
+  function bugTableSortColumns() {
+    return [
+      { column: "reporter", label: "Reporter" },
+      { column: "assignee", label: "Assignee" },
+      { column: "context", label: "Project/Sprint" },
+      { column: "bug", label: "Bug Report" },
+      { column: "status", label: "Status" },
+      { column: "severity", label: "Severity" },
+      { column: "priority", label: "Priority" },
+      { column: "percent", label: "% Complete" }
+    ];
+  }
+
+  function bugNextSortLabel(column, label) {
+    const state = bugTableSortState();
+    if (state.column === column && state.direction === "asc") return `Sort ${label} descending`;
+    if (state.column === column && state.direction === "desc") return `Clear ${label} sort`;
+    return `Sort ${label} ascending`;
+  }
+
+  function resetBugView() {
+    [
+      preferenceKeys.bugFilters,
+      preferenceKeys.bugFiltersVisible,
+      preferenceKeys.bugVisualChartsVisible,
+      preferenceKeys.bugEntryProject,
+      preferenceKeys.bugEntrySprint,
+      preferenceKeys.bugEntryEnvironment
+    ].forEach(removePreference);
+
+    bugFilters = normalizeBugFilters({});
+    bugVisualChartsVisible = true;
+    bugEntryProjectId = 0;
+    bugEntrySprintId = "";
+    bugEntryEnvironment = "";
+    bugTableMode.deactivate();
+    renderBugs();
   }
 
   function bugAvatarColumnWidth(bugs, usersForBug) {

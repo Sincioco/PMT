@@ -10,13 +10,12 @@ import {
   roadMapProjects,
   roadMapSprintOptions
 } from "./roadmap-calculations.js?v=20260627-roadmap-ongoing-width";
-import { roadMapScreenHtml } from "./roadmap-rendering.js?v=20260627-roadmap-project-summary";
+import { roadMapScreenHtml } from "./roadmap-rendering.js?v=20260628-roadmap-always-show-dates";
 
 export function createRoadMapFeature({ app }) {
   let roadMapProjectFilter = readPreference(preferenceKeys.roadMapProject, "all");
   let roadMapSprintFilter = readPreference(preferenceKeys.roadMapSprint, "all");
   let roadMapSort = readPreference(preferenceKeys.roadMapSort, "endAsc");
-  let roadMapShowDates = readBooleanPreference(preferenceKeys.roadMapShowDates, true);
   let roadMapShowDetails = readBooleanPreference(preferenceKeys.roadMapShowDetails, true);
   let roadMapShowSprints = readBooleanPreference(preferenceKeys.roadMapShowSprints, false);
 
@@ -53,7 +52,6 @@ export function createRoadMapFeature({ app }) {
       projectFilter: roadMapProjectFilter,
       sprintFilter: roadMapSprintFilter,
       sort: roadMapSort,
-      showDates: roadMapShowDates,
       showDetails: roadMapShowDetails,
       showSprints: roadMapShowSprints,
       chart
@@ -61,10 +59,6 @@ export function createRoadMapFeature({ app }) {
   }
 
   function handleAction(action) {
-    if (action === "toggle-roadmap-dates") {
-      toggleDates();
-      return true;
-    }
     if (action === "toggle-roadmap-details") {
       toggleDetails();
       return true;
@@ -100,12 +94,6 @@ export function createRoadMapFeature({ app }) {
       return true;
     }
     return false;
-  }
-
-  function toggleDates() {
-    roadMapShowDates = !roadMapShowDates;
-    writePreference(preferenceKeys.roadMapShowDates, roadMapShowDates);
-    renderRoadMap();
   }
 
   function toggleDetails() {

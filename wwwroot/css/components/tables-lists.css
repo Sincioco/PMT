@@ -171,6 +171,51 @@ tr.reorder-after > td {
   text-transform: none;
 }
 
+.work-item-table th.is-sorted {
+  color: var(--color-text-primary);
+}
+
+.table-sort-button {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: var(--space-2);
+  width: 100%;
+  min-height: 30px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  box-shadow: none;
+}
+
+.table-sort-button:hover,
+.table-sort-button:focus-visible {
+  color: var(--color-text-primary);
+  outline: none;
+}
+
+.table-sort-indicator {
+  display: inline-grid;
+  place-items: center;
+  width: 14px;
+  min-width: 14px;
+  color: var(--color-text-tertiary);
+  font-size: var(--font-size-xs);
+  line-height: 1;
+}
+
+.table-sort-indicator:empty::before {
+  content: "";
+}
+
+.work-item-table th.done-cell .table-sort-button {
+  text-align: right;
+}
+
 .work-item-table td {
   vertical-align: middle;
 }

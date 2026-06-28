@@ -36,6 +36,7 @@ import {
   readJsonPreference,
   readNumberPreference,
   readPreference,
+  removePreference,
   writeJsonPreference,
   writePreference
 } from "../../core/preferences.js?v=20260627-task-collapse-state";
@@ -84,7 +85,7 @@ export function createTasksFeature({
   let taskSprintId = readPreference(preferenceKeys.taskSprint, "current");
   let taskEntryProjectId = readNumberPreference(preferenceKeys.taskEntryProject, 0);
   let taskEntrySprintId = readPreference(preferenceKeys.taskEntrySprint, "");
-  let taskFilters = readJsonPreference(preferenceKeys.taskFilters, {});
+  let taskFilters = normalizeTaskFilters(readJsonPreference(preferenceKeys.taskFilters, {}));
   let taskVisualChartsVisible = readBooleanPreference(preferenceKeys.taskVisualChartsVisible, true);
   let taskCollapsedSubTasks = readJsonPreference(preferenceKeys.taskCollapsedSubTasks, {});
   const taskTableMode = createWorkItemTableMode({
@@ -92,11 +93,6 @@ export function createTasksFeature({
     itemLabel: "Dev Tasks"
   });
 
-  taskFilters.statuses = normalizeSavedArray(taskFilters.statuses);
-  taskFilters.assigneeIds = normalizeSavedArray(taskFilters.assigneeIds);
-  taskFilters.priorities = normalizeSavedArray(taskFilters.priorities);
-  taskFilters.sort = taskFilters.sort || "custom";
-  taskFilters.hideCompleted = Boolean(taskFilters.hideCompleted);
   if (!taskCollapsedSubTasks || Array.isArray(taskCollapsedSubTasks) || typeof taskCollapsedSubTasks !== "object") {
     taskCollapsedSubTasks = {};
   }
@@ -132,6 +128,7 @@ export function createTasksFeature({
         ${taskTableMode.buttonHtml()}
         <button class="secondary text-icon-button" type="button" data-action="toggle-task-visual-charts" title="${chartToggleLabel}" aria-label="${chartToggleLabel}" aria-pressed="${showCharts}" ${canShowCharts ? "" : "disabled"}>${buttonContent(chartIconHtml(), chartToggleLabel)}</button>
         <button class="secondary text-icon-button" type="button" data-action="open-task-filters" title="Filters" aria-label="Filters" aria-haspopup="dialog">${buttonContent(funnelIconHtml(), "Filters")}</button>
+        <button class="secondary text-icon-button" type="button" data-action="reset-task-view" title="Reset View" aria-label="Reset View">${buttonContent("&#8634;", "Reset View")}</button>
       `)}
       ${showCharts ? taskVisualTrackingChartsHtml(baseTasks, selectedSprint, allProjectDevTasks) : ""}
       <div class="panel work-item-table-panel tasks-table-panel">
@@ -149,12 +146,12 @@ export function createTasksFeature({
           <thead>
             <tr>
               <th class="tasks-expand-heading" aria-label="Expand or collapse sub-tasks"></th>
-              <th>${assigneeHeader}</th>
-              <th>Project/Sprint</th>
-              <th>Task</th>
-              <th>Priority</th>
-              <th>Status</th>
-              <th class="done-cell">% Complete</th>
+              ${taskSortHeaderHtml("assignee", assigneeHeader)}
+              ${taskSortHeaderHtml("context", "Project/Sprint")}
+              ${taskSortHeaderHtml("task", "Task")}
+              ${taskSortHeaderHtml("priority", "Priority")}
+              ${taskSortHeaderHtml("status", "Status")}
+              ${taskSortHeaderHtml("percent", "% Complete", "done-cell")}
               ${taskTableMode.active ? `<th class="action-cell" aria-label="Actions"></th>` : ""}
             </tr>
           </thead>
@@ -206,7 +203,7 @@ export function createTasksFeature({
     `;
   }
 
-  async function handleAction(action, id) {
+  async function handleAction(action, id, element) {
     const task = id ? taskById(id) : null;
 
     if (action === "new-task") {
@@ -216,6 +213,13 @@ export function createTasksFeature({
     if (action === "toggle-task-table-edit-mode") {
       taskTableMode.toggle();
       renderTasks();
+      return true;
+    }
+    if (action === "sort-task-table") {
+      return updateTaskTableSort(element);
+    }
+    if (action === "reset-task-view") {
+      resetTaskView();
       return true;
     }
     if (action === "open-task-filters" || action === "toggle-task-filters") {
@@ -337,11 +341,7 @@ export function createTasksFeature({
           <label>
             <span>Sort</span>
             <select data-filter="task-sort">
-              <option value="custom" ${taskFilters.sort === "custom" ? "selected" : ""}>Custom order</option>
-              <option value="newest" ${taskFilters.sort === "newest" ? "selected" : ""}>Newest Dev Tasks</option>
-              <option value="oldest" ${taskFilters.sort === "oldest" ? "selected" : ""}>Oldest Dev Tasks</option>
-              <option value="highest-complete" ${taskFilters.sort === "highest-complete" ? "selected" : ""}>Highest Completed</option>
-              <option value="lowest-complete" ${taskFilters.sort === "lowest-complete" ? "selected" : ""}>Lowest Completed</option>
+              ${taskSortOptionsHtml()}
             </select>
           </label>
           <label class="inline-filter-check">
@@ -713,7 +713,24 @@ export function createTasksFeature({
 
     return tasks
       .filter(task => visibleIds.has(task.id))
-      .sort(taskSortCompare);
+      .sort(taskMainTaskSortCompare);
+  }
+
+  function normalizeTaskFilters(filters = {}) {
+    const sort = filters.sort === "highest-complete"
+      ? "percent-desc"
+      : filters.sort === "lowest-complete"
+        ? "percent-asc"
+        : filters.sort || "custom";
+
+    return {
+      ...filters,
+      statuses: normalizeSavedArray(filters.statuses),
+      assigneeIds: normalizeSavedArray(filters.assigneeIds),
+      priorities: normalizeSavedArray(filters.priorities),
+      sort,
+      hideCompleted: Boolean(filters.hideCompleted)
+    };
   }
 
   function addTaskAncestors(taskId, visibleIds, taskMap) {
@@ -737,12 +754,167 @@ export function createTasksFeature({
     return true;
   }
 
+  function taskMainTaskSortCompare(a, b) {
+    const aIsSubTask = Boolean(a.parentTaskId);
+    const bIsSubTask = Boolean(b.parentTaskId);
+
+    if (aIsSubTask && bIsSubTask) return taskOrderCompare(a, b);
+    if (aIsSubTask) return 1;
+    if (bIsSubTask) return -1;
+
+    return taskSortCompare(a, b);
+  }
+
   function taskSortCompare(a, b) {
-    if (taskFilters.sort === "custom") return taskOrderCompare(a, b);
+    const state = taskTableSortState();
+
+    if (state.column && state.direction) {
+      const result = compareTaskSortColumn(a, b, state.column);
+      if (result) return state.direction === "asc" ? result : -result;
+      return taskOrderCompare(a, b);
+    }
+
     if (taskFilters.sort === "oldest") return taskCreatedTime(a) - taskCreatedTime(b) || a.id - b.id;
+    if (taskFilters.sort === "newest") return taskCreatedTime(b) - taskCreatedTime(a) || b.id - a.id;
     if (taskFilters.sort === "highest-complete") return taskDisplayPercent(b) - taskDisplayPercent(a) || taskCreatedTime(b) - taskCreatedTime(a);
     if (taskFilters.sort === "lowest-complete") return taskDisplayPercent(a) - taskDisplayPercent(b) || taskCreatedTime(b) - taskCreatedTime(a);
-    return taskCreatedTime(b) - taskCreatedTime(a) || b.id - a.id;
+
+    return taskOrderCompare(a, b);
+  }
+
+  function compareTaskSortColumn(a, b, column) {
+    if (column === "percent") return taskDisplayPercent(a) - taskDisplayPercent(b);
+    if (column === "priority") return compareLookupSortValue(a.priority, b.priority, getPriorities());
+    if (column === "status") return compareLookupSortValue(a.status, b.status, getStatuses());
+
+    return taskSortTextValue(a, column).localeCompare(taskSortTextValue(b, column), undefined, {
+      numeric: true,
+      sensitivity: "base"
+    });
+  }
+
+  function taskSortTextValue(task, column) {
+    if (column === "assignee") return userNames(task.assignees);
+    if (column === "context") return `${projectName(task.projectId)} ${taskTableSprintLabel(task)}`;
+    if (column === "task") return `${task.code || ""} ${task.title || ""}`;
+    return "";
+  }
+
+  function compareLookupSortValue(a, b, orderedValues) {
+    const aIndex = orderedValues.indexOf(a);
+    const bIndex = orderedValues.indexOf(b);
+    const aSort = aIndex >= 0 ? aIndex : Number.MAX_SAFE_INTEGER;
+    const bSort = bIndex >= 0 ? bIndex : Number.MAX_SAFE_INTEGER;
+    return aSort - bSort || String(a || "").localeCompare(String(b || ""), undefined, { sensitivity: "base" });
+  }
+
+  function userNames(users) {
+    return (users || [])
+      .map(user => user.nickname || "")
+      .filter(Boolean)
+      .sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }))
+      .join(", ");
+  }
+
+  function taskSortHeaderHtml(column, label, className = "") {
+    const state = taskTableSortState();
+    const isSorted = state.column === column && Boolean(state.direction);
+    const ariaSort = isSorted ? (state.direction === "asc" ? "ascending" : "descending") : "none";
+    const arrow = isSorted ? (state.direction === "asc" ? "&#9650;" : "&#9660;") : "";
+    const classes = [className, isSorted ? "is-sorted" : ""].filter(Boolean).join(" ");
+
+    return `
+      <th class="${classes}" aria-sort="${ariaSort}">
+        <button type="button" class="table-sort-button" data-action="sort-task-table" data-column="${escapeAttr(column)}" title="${escapeAttr(taskNextSortLabel(column, label))}">
+          <span>${escapeHtml(label)}</span>
+          <span class="table-sort-indicator" aria-hidden="true">${arrow}</span>
+        </button>
+      </th>
+    `;
+  }
+
+  function updateTaskTableSort(button) {
+    const column = button?.dataset?.column || "";
+    if (!taskTableSortColumns().some(item => item.column === column)) return false;
+
+    taskFilters.sort = nextTaskSort(column);
+    saveTaskFilters();
+    renderTasks();
+    return true;
+  }
+
+  function nextTaskSort(column) {
+    const state = taskTableSortState();
+    if (state.column !== column || !state.direction) return `${column}-asc`;
+    if (state.direction === "asc") return `${column}-desc`;
+    return "custom";
+  }
+
+  function taskTableSortState(sortValue = taskFilters.sort) {
+    if (sortValue === "highest-complete") return { column: "percent", direction: "desc" };
+    if (sortValue === "lowest-complete") return { column: "percent", direction: "asc" };
+
+    const match = /^(.+)-(asc|desc)$/.exec(sortValue || "");
+    if (!match) return { column: "", direction: "" };
+    return { column: match[1], direction: match[2] };
+  }
+
+  function taskSortOptionsHtml() {
+    const selectedSort = taskFilters.sort || "custom";
+    const options = [
+      { value: "custom", text: "Custom Order (Saved Order)" },
+      { value: "newest", text: "Newest Dev Tasks" },
+      { value: "oldest", text: "Oldest Dev Tasks" },
+      ...taskTableSortColumns().flatMap(column => [
+        { value: `${column.column}-asc`, text: `Custom Order (${column.label} ascending)` },
+        { value: `${column.column}-desc`, text: `Custom Order (${column.label} descending)` }
+      ])
+    ];
+
+    return options
+      .map(option => `<option value="${escapeAttr(option.value)}" ${selectedSort === option.value ? "selected" : ""}>${escapeHtml(option.text)}</option>`)
+      .join("");
+  }
+
+  function taskTableSortColumns() {
+    return [
+      { column: "assignee", label: "Assignee" },
+      { column: "context", label: "Project/Sprint" },
+      { column: "task", label: "Task" },
+      { column: "priority", label: "Priority" },
+      { column: "status", label: "Status" },
+      { column: "percent", label: "% Complete" }
+    ];
+  }
+
+  function taskNextSortLabel(column, label) {
+    const state = taskTableSortState();
+    if (state.column === column && state.direction === "asc") return `Sort ${label} descending`;
+    if (state.column === column && state.direction === "desc") return `Clear ${label} sort`;
+    return `Sort ${label} ascending`;
+  }
+
+  function resetTaskView() {
+    [
+      preferenceKeys.taskProject,
+      preferenceKeys.taskSprint,
+      preferenceKeys.taskEntryProject,
+      preferenceKeys.taskEntrySprint,
+      preferenceKeys.taskFilters,
+      preferenceKeys.taskFiltersVisible,
+      preferenceKeys.taskVisualChartsVisible,
+      preferenceKeys.taskCollapsedSubTasks
+    ].forEach(removePreference);
+
+    taskProjectId = 0;
+    taskSprintId = "current";
+    taskEntryProjectId = 0;
+    taskEntrySprintId = "";
+    taskFilters = normalizeTaskFilters({});
+    taskVisualChartsVisible = true;
+    taskCollapsedSubTasks = {};
+    taskTableMode.deactivate();
+    renderTasks();
   }
 
   function taskVisualTrackingChartsHtml(sprintFilterTasks, selectedSprint, devTasks) {

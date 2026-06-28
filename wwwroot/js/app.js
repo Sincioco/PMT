@@ -26,7 +26,7 @@ import { state } from "./core/store.js";
 import { createAboutFeature } from "./features/about/about.js?v=20260621-about-credits";
 import { createBacklogFeature } from "./features/backlog/backlog.js?v=20260627-dev-task-status-rules";
 import { createBoardFeature } from "./features/board/board.js?v=20260627-dev-task-status-rules";
-import { createBugsFeature } from "./features/bugs/bugs.js?v=20260628-chart-native-tooltips";
+import { createBugsFeature } from "./features/bugs/bugs.js?v=20260629-task-bug-table-sorts";
 import { createDashboardFeature } from "./features/dashboard/dashboard.js?v=20260627-dev-task-status-rules";
 import { createDocumentationFeature } from "./features/documentation/documentation.js?v=20260627-rich-text-toolbar";
 import {
@@ -35,11 +35,11 @@ import {
   ganttStartDate
 } from "./features/gantt/gantt.js?v=20260627-gantt-initial-desc-offset";
 import { createProjectsFeature } from "./features/projects/projects.js?v=20260628-project-sprint-chart-tooltips";
-import { createRoadMapFeature } from "./features/roadmap/roadmap.js?v=20260627-roadmap-scrollbar-width";
+import { createRoadMapFeature } from "./features/roadmap/roadmap.js?v=20260628-roadmap-always-show-dates";
 import { createScrumFeature } from "./features/scrum/scrum.js?v=20260627-rich-text-toolbar";
 import { createSettingsFeature } from "./features/settings/settings.js?v=20260627-settings-development-header";
 import { createSprintsFeature } from "./features/sprints/sprints.js?v=20260628-project-sprint-chart-tooltips";
-import { createTasksFeature } from "./features/tasks/tasks.js?v=20260628-chart-native-tooltips";
+import { createTasksFeature } from "./features/tasks/tasks.js?v=20260629-task-bug-table-sorts";
 import { createWfhScheduleFeature } from "./features/wfh-schedule/wfh-schedule.js?v=20260627-dev-task-status-rules";
 import {
   fallbackEnvironments,
@@ -324,6 +324,7 @@ function bindScreenEvents() {
   app.addEventListener("change", handleFilterChange);
   app.addEventListener("mousemove", handleChartTooltip);
   app.addEventListener("mouseleave", hideChartTooltip);
+  app.addEventListener("wheel", handleVisualChartWheel, { passive: false });
   app.addEventListener("pointerdown", handlePointerDown);
   app.addEventListener("mousedown", handleMouseDown);
   window.addEventListener("pointermove", handlePointerMove);
@@ -758,6 +759,18 @@ function handleChartTooltip(event) {
   const top = Math.min(window.innerHeight - tooltipHeight - 12, event.clientY + 14);
   chartTooltip.style.left = `${Math.max(12, left)}px`;
   chartTooltip.style.top = `${Math.max(12, top)}px`;
+}
+
+function handleVisualChartWheel(event) {
+  const scrollArea = event.target.closest(".visual-chart-scroll, .column-chart-scroll");
+  if (!scrollArea) return;
+  if (Math.abs(event.deltaY) <= Math.abs(event.deltaX)) return;
+
+  const maxScrollLeft = scrollArea.scrollWidth - scrollArea.clientWidth;
+  if (maxScrollLeft <= 0) return;
+
+  event.preventDefault();
+  scrollArea.scrollLeft += event.deltaY;
 }
 
 function hideChartTooltip() {
