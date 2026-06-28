@@ -439,7 +439,7 @@ export function createSettingsFeature({
     });
 
     const modal = document.createElement("dialog");
-    modal.className = "dialog settings-filter-dialog";
+    modal.className = "dialog task-filter-dialog settings-filter-dialog";
     modal.dataset.settingsFilterDialog = "true";
     modal.dataset.settingsFilterCategory = filterCategory;
     modal.innerHTML = `
@@ -448,7 +448,7 @@ export function createSettingsFeature({
           <h2>${escapeHtml(settingsFilterDialogTitle(filterCategory))}</h2>
           <button type="button" class="icon-btn" data-close-settings-filters title="Close" aria-label="Close">x</button>
         </div>
-        <div class="dialog-body settings-filter-dialog-body">
+        <div class="dialog-body task-filter-dialog-body settings-filter-dialog-body">
           ${settingsFilterFieldsHtml(filterCategory)}
         </div>
         <div class="dialog-actions">
@@ -478,8 +478,8 @@ export function createSettingsFeature({
     const filters = settingsFiltersFor(category);
 
     return `
-      <div class="settings-filter-fields">
-        <div class="settings-filter-row">
+      <div class="tasks-filter-panel settings-filter-fields">
+        <div class="task-filter-row settings-filter-row">
           <label>
             <span>Search</span>
             <input type="text" data-filter="settings-search" data-category="${escapeAttr(category)}" value="${escapeAttr(filters.search)}">

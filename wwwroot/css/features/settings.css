@@ -55,30 +55,7 @@
   color: var(--color-text-primary);
 }
 
-.settings-filter-dialog {
-  width: min(var(--dialog-width-md), calc(100vw - 2 * var(--shell-padding-compact)));
-}
-
-.settings-filter-dialog-body {
-  gap: var(--space-6);
-}
-
-.settings-filter-row {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--space-6) var(--space-7);
-  align-items: end;
-}
-
-.settings-filter-row label {
-  display: grid;
-  min-width: 0;
-  gap: var(--space-2);
-  align-items: stretch;
-  white-space: normal;
-}
-
-.settings-filter-row :is(input, select) {
+.settings-filter-dialog .settings-filter-row > label > :is(input, select) {
   width: 100%;
   min-width: 0;
   max-width: none;
