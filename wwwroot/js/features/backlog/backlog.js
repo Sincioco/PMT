@@ -13,7 +13,7 @@ import {
   preferenceKeys,
   readJsonPreference,
   writeJsonPreference
-} from "../../core/preferences.js?v=20260621-backlog-filters";
+} from "../../core/preferences.js?v=20260629-backlog-subtasks";
 import { state } from "../../core/store.js";
 import { normalizeSavedArray } from "../../shared/filter-values.js";
 import {
@@ -27,7 +27,8 @@ import {
 } from "../../shared/text-and-links.js";
 import {
   taskCreatedTime,
-  taskOrderCompare
+  taskOrderCompare,
+  taskRowsWithSubTasks
 } from "../../shared/work-item-rules.js?v=20260627-dev-task-status-rules";
 
 export function createBacklogFeature({
@@ -40,6 +41,7 @@ export function createBacklogFeature({
   viewTask
 }) {
   let backlogFilters = readJsonPreference(preferenceKeys.backlogFilters, {});
+  let backlogCollapsedSubTasks = readJsonPreference(preferenceKeys.backlogCollapsedSubTasks, {});
   const backlogTableMode = createWorkItemTableMode({
     action: "toggle-backlog-table-edit-mode",
     itemLabel: "Backlog"
@@ -50,10 +52,17 @@ export function createBacklogFeature({
   backlogFilters.assigneeIds = normalizeSavedArray(backlogFilters.assigneeIds);
   backlogFilters.sprintId = backlogFilters.sprintId || "all";
   backlogFilters.sort = backlogFilters.sort || "custom";
+  if (!backlogCollapsedSubTasks || Array.isArray(backlogCollapsedSubTasks) || typeof backlogCollapsedSubTasks !== "object") {
+    backlogCollapsedSubTasks = {};
+  }
 
   function renderBacklog() {
     ensureBacklogFilters();
     const backlogItems = filteredBacklogItems();
+    const backlogChildrenByParent = backlogChildTasksByParent(backlogItems);
+    const backlogRows = backlogRowsWithVisibleSubTasks(backlogItems);
+    const assigneeColumnWidth = backlogAssigneeColumnWidth(backlogRows);
+    const assigneeHeader = backlogRowsHaveMultipleAssignees(backlogRows) ? "Assignee(s)" : "Assignee";
 
     app.innerHTML = `
       <section class="backlog-screen work-item-screen">
@@ -64,8 +73,9 @@ export function createBacklogFeature({
           <button class="secondary text-icon-button" type="button" data-action="open-backlog-filters" title="Filters" aria-label="Filters" aria-haspopup="dialog">${buttonContent(funnelIconHtml(), "Filters")}</button>
         `)}
         <div class="panel work-item-table-panel backlog-table-panel">
-          <table class="table work-item-table backlog-table ${backlogTableMode.active ? "is-edit-mode" : "is-read-mode"}">
+          <table class="table work-item-table backlog-table ${backlogTableMode.active ? "is-edit-mode" : "is-read-mode"}" style="--backlog-assignee-width:${assigneeColumnWidth}px">
             <colgroup>
+              <col class="backlog-expand-column">
               <col class="backlog-assigned-column">
               <col class="backlog-item-column">
               <col class="backlog-type-column">
@@ -77,23 +87,39 @@ export function createBacklogFeature({
             </colgroup>
             <thead>
               <tr>
-                <th>Assigned</th>
-                <th>Item</th>
-                <th>Type</th>
-                <th>Project</th>
-                <th>Sprint</th>
-                <th>Status</th>
-                <th>Priority</th>
+                <th class="backlog-expand-heading" aria-label="Expand or collapse sub-tasks"></th>
+                ${backlogSortHeaderHtml("assigned", assigneeHeader)}
+                ${backlogSortHeaderHtml("item", "Item")}
+                ${backlogSortHeaderHtml("type", "Type")}
+                ${backlogSortHeaderHtml("project", "Project")}
+                ${backlogSortHeaderHtml("sprint", "Sprint")}
+                ${backlogSortHeaderHtml("status", "Status")}
+                ${backlogSortHeaderHtml("priority", "Priority")}
                 ${backlogTableMode.active ? `<th class="action-cell" aria-label="Actions"></th>` : ""}
               </tr>
             </thead>
             <tbody data-reorder-list="backlog">
-              ${backlogItems.map(task => `
-                <tr class="clickable-row" data-action="view-backlog-task" data-id="${task.id}" data-task-id="${task.id}" data-can-drag="${backlogTableMode.active ? "true" : "false"}" draggable="false">
-                  <td>${taskRowAvatarsHtml(task.assignees)}</td>
-                  <td class="work-item-title-cell">
+              ${backlogRows.map(row => {
+                const task = row.task;
+                const hasVisibleSubTasks = backlogHasVisibleSubTasks(task, backlogChildrenByParent);
+                const isSubTasksCollapsed = backlogSubTasksCollapsed(task.id);
+                const rowClass = [
+                  row.level ? "subtask-row" : "",
+                  hasVisibleSubTasks ? "has-subtasks" : "",
+                  hasVisibleSubTasks && isSubTasksCollapsed ? "is-subtasks-collapsed" : "",
+                  "clickable-row"
+                ].filter(Boolean).join(" ");
+                const titleClass = row.level ? "work-item-title-cell backlog-subtask-title-cell" : "work-item-title-cell";
+                const indent = Math.min(row.level, 4) * 20;
+
+                return `
+                <tr class="${rowClass}" data-action="view-backlog-task" data-id="${task.id}" data-task-id="${task.id}" data-can-drag="${backlogTableMode.active ? "true" : "false"}" draggable="false" style="--indent:${indent}px">
+                  <td class="backlog-expand-cell">${hasVisibleSubTasks ? backlogSubTaskToggleHtml(task, isSubTasksCollapsed) : ""}</td>
+                  <td class="backlog-assignee-cell">${taskRowAvatarsHtml(task.assignees)}</td>
+                  <td class="${titleClass}">
                     <span class="work-item-code-line">
                       <strong class="work-item-code">${escapeHtml(task.code)}</strong>
+                      ${row.level ? `<span class="subtask-pill">Subtask</span>` : ""}
                     </span>
                     <span class="work-item-title">${bugFixIconHtml(task)}${escapeHtml(task.title)}</span>
                   </td>
@@ -104,7 +130,8 @@ export function createBacklogFeature({
                   <td><span class="pill priority-${escapeAttr(task.priority)}">${escapeHtml(task.priority)}</span></td>
                   ${backlogTableMode.active ? `<td class="reveal-actions action-cell">${backlogTaskButtonsHtml(task)}</td>` : ""}
                 </tr>
-              `).join("") || `<tr><td colspan="${backlogTableMode.active ? 8 : 7}"><div class="empty">No backlog items match the current filters.</div></td></tr>`}
+              `;
+              }).join("") || `<tr><td colspan="${backlogTableMode.active ? 9 : 8}"><div class="empty">No backlog items match the current filters.</div></td></tr>`}
             </tbody>
           </table>
         </div>
@@ -121,7 +148,7 @@ export function createBacklogFeature({
     `;
   }
 
-  async function handleAction(action, id) {
+  async function handleAction(action, id, element) {
     const task = id ? taskById(id) : null;
 
     if (action === "new-backlog-task") {
@@ -137,8 +164,16 @@ export function createBacklogFeature({
       renderBacklog();
       return true;
     }
+    if (action === "sort-backlog-table") {
+      return updateBacklogTableSort(element);
+    }
     if (action === "open-backlog-filters") {
       openBacklogFiltersDialog();
+      return true;
+    }
+    if (action === "toggle-backlog-subtasks" && task) {
+      toggleBacklogSubTasks(task.id);
+      renderBacklog();
       return true;
     }
     if (action === "view-backlog-task") {
@@ -240,9 +275,7 @@ export function createBacklogFeature({
           <label>
             <span>Sort</span>
             <select data-filter="backlog-sort">
-              <option value="custom" ${backlogFilters.sort === "custom" ? "selected" : ""}>Custom order</option>
-              <option value="newest" ${backlogFilters.sort === "newest" ? "selected" : ""}>Newest Items</option>
-              <option value="oldest" ${backlogFilters.sort === "oldest" ? "selected" : ""}>Oldest Items</option>
+              ${backlogSortOptionsHtml()}
             </select>
           </label>
         </div>
@@ -307,9 +340,228 @@ export function createBacklogFeature({
       .filter(task => !backlogFilters.priorities.length || backlogFilters.priorities.includes(task.priority))
       .filter(task => !backlogFilters.assigneeIds.length || (task.assigneeIds || []).map(String).some(id => backlogFilters.assigneeIds.includes(id)));
 
-    if (backlogFilters.sort === "newest") return items.sort((a, b) => taskCreatedTime(b) - taskCreatedTime(a) || b.id - a.id);
-    if (backlogFilters.sort === "oldest") return items.sort((a, b) => taskCreatedTime(a) - taskCreatedTime(b) || a.id - b.id);
-    return items.sort(taskOrderCompare);
+    return items.sort(backlogMainTaskSortCompare);
+  }
+
+  function backlogChildTasksByParent(tasks) {
+    const taskIds = new Set(tasks.map(task => task.id));
+    const childrenByParent = new Map();
+
+    tasks.forEach(task => {
+      if (!task.parentTaskId || !taskIds.has(task.parentTaskId)) return;
+      if (!childrenByParent.has(task.parentTaskId)) childrenByParent.set(task.parentTaskId, []);
+      childrenByParent.get(task.parentTaskId).push(task);
+    });
+
+    return childrenByParent;
+  }
+
+  function backlogRowsWithVisibleSubTasks(tasks) {
+    const taskMap = new Map(tasks.map(task => [task.id, task]));
+
+    return taskRowsWithSubTasks(tasks)
+      .filter(row => !row.level || !backlogHasCollapsedAncestor(row.task, taskMap));
+  }
+
+  function backlogHasVisibleSubTasks(task, childrenByParent) {
+    return Boolean(childrenByParent.get(task.id)?.length);
+  }
+
+  function backlogHasCollapsedAncestor(task, taskMap) {
+    let parentId = task.parentTaskId;
+    const visited = new Set();
+
+    while (parentId && taskMap.has(parentId) && !visited.has(parentId)) {
+      if (backlogSubTasksCollapsed(parentId)) return true;
+      visited.add(parentId);
+      parentId = taskMap.get(parentId)?.parentTaskId;
+    }
+
+    return false;
+  }
+
+  function backlogSubTasksCollapsed(taskId) {
+    return backlogCollapsedSubTasks[String(taskId)] === true;
+  }
+
+  function toggleBacklogSubTasks(taskId) {
+    const key = String(taskId);
+    if (backlogCollapsedSubTasks[key]) {
+      delete backlogCollapsedSubTasks[key];
+    } else {
+      backlogCollapsedSubTasks[key] = true;
+    }
+
+    writeJsonPreference(preferenceKeys.backlogCollapsedSubTasks, backlogCollapsedSubTasks);
+  }
+
+  function backlogSubTaskToggleHtml(task, isCollapsed) {
+    const label = isCollapsed ? "Expand sub-tasks" : "Collapse sub-tasks";
+
+    return `
+      <button
+        type="button"
+        class="task-subtask-toggle"
+        data-action="toggle-backlog-subtasks"
+        data-id="${task.id}"
+        title="${label}"
+        aria-label="${label}"
+        aria-expanded="${!isCollapsed}">
+        <span aria-hidden="true">${isCollapsed ? "&#43;" : "&#8722;"}</span>
+      </button>
+    `;
+  }
+
+  function backlogAssigneeColumnWidth(backlogRows) {
+    const avatarSize = 60;
+    const overlapWidth = 42;
+    const cellPadding = 34;
+    const maxAssigneeCount = Math.max(
+      1,
+      ...backlogRows.map(row => Array.isArray(row.task.assignees) ? row.task.assignees.length : 0)
+    );
+
+    return cellPadding + avatarSize + ((maxAssigneeCount - 1) * overlapWidth);
+  }
+
+  function backlogRowsHaveMultipleAssignees(backlogRows) {
+    return backlogRows.some(row => Array.isArray(row.task.assignees) && row.task.assignees.length > 1);
+  }
+
+  function backlogMainTaskSortCompare(a, b) {
+    const aIsSubTask = Boolean(a.parentTaskId);
+    const bIsSubTask = Boolean(b.parentTaskId);
+
+    if (aIsSubTask && bIsSubTask) return taskOrderCompare(a, b);
+    if (aIsSubTask) return 1;
+    if (bIsSubTask) return -1;
+
+    return backlogSortCompare(a, b);
+  }
+
+  function backlogSortCompare(a, b) {
+    const state = backlogTableSortState();
+
+    if (state.column && state.direction) {
+      const result = compareBacklogSortColumn(a, b, state.column);
+      if (result) return state.direction === "asc" ? result : -result;
+      return taskOrderCompare(a, b);
+    }
+
+    if (backlogFilters.sort === "newest") return taskCreatedTime(b) - taskCreatedTime(a) || b.id - a.id;
+    if (backlogFilters.sort === "oldest") return taskCreatedTime(a) - taskCreatedTime(b) || a.id - b.id;
+    return taskOrderCompare(a, b);
+  }
+
+  function compareBacklogSortColumn(a, b, column) {
+    if (column === "priority") return compareLookupSortValue(a.priority, b.priority, getPriorities());
+    if (column === "type") return compareLookupSortValue(a.taskType || "Dev", b.taskType || "Dev", ["Dev", "Bug"]);
+
+    return backlogSortTextValue(a, column).localeCompare(backlogSortTextValue(b, column), undefined, {
+      numeric: true,
+      sensitivity: "base"
+    });
+  }
+
+  function backlogSortTextValue(task, column) {
+    if (column === "assigned") return userNames(task.assignees);
+    if (column === "item") return `${task.code || ""} ${task.title || ""}`;
+    if (column === "project") return projectName(task.projectId);
+    if (column === "sprint") return task.sprintId ? sprintName(task.sprintId) : "Unassigned";
+    if (column === "status") return task.status || "";
+    return "";
+  }
+
+  function compareLookupSortValue(a, b, orderedValues) {
+    const aIndex = orderedValues.indexOf(a);
+    const bIndex = orderedValues.indexOf(b);
+    const aSort = aIndex >= 0 ? aIndex : Number.MAX_SAFE_INTEGER;
+    const bSort = bIndex >= 0 ? bIndex : Number.MAX_SAFE_INTEGER;
+    return aSort - bSort || String(a || "").localeCompare(String(b || ""), undefined, { sensitivity: "base" });
+  }
+
+  function userNames(users) {
+    return (users || [])
+      .map(user => user.nickname || "")
+      .filter(Boolean)
+      .sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }))
+      .join(", ");
+  }
+
+  function backlogSortHeaderHtml(column, label) {
+    const state = backlogTableSortState();
+    const isSorted = state.column === column && Boolean(state.direction);
+    const ariaSort = isSorted ? (state.direction === "asc" ? "ascending" : "descending") : "none";
+    const arrow = isSorted ? (state.direction === "asc" ? "&#9650;" : "&#9660;") : "";
+    const className = isSorted ? "is-sorted" : "";
+
+    return `
+      <th class="${className}" aria-sort="${ariaSort}">
+        <button type="button" class="table-sort-button" data-action="sort-backlog-table" data-column="${escapeAttr(column)}" title="${escapeAttr(backlogNextSortLabel(column, label))}">
+          <span>${escapeHtml(label)}</span>
+          <span class="table-sort-indicator" aria-hidden="true">${arrow}</span>
+        </button>
+      </th>
+    `;
+  }
+
+  function updateBacklogTableSort(button) {
+    const column = button?.dataset?.column || "";
+    if (!backlogTableSortColumns().some(item => item.column === column)) return false;
+
+    backlogFilters.sort = nextBacklogSort(column);
+    writeJsonPreference(preferenceKeys.backlogFilters, backlogFilters);
+    renderBacklog();
+    return true;
+  }
+
+  function nextBacklogSort(column) {
+    const state = backlogTableSortState();
+    if (state.column !== column || !state.direction) return `${column}-asc`;
+    if (state.direction === "asc") return `${column}-desc`;
+    return "custom";
+  }
+
+  function backlogTableSortState(sortValue = backlogFilters.sort) {
+    const match = /^(.+)-(asc|desc)$/.exec(sortValue || "");
+    if (!match) return { column: "", direction: "" };
+    return { column: match[1], direction: match[2] };
+  }
+
+  function backlogSortOptionsHtml() {
+    const selectedSort = backlogFilters.sort || "custom";
+    const options = [
+      { value: "custom", text: "Custom Order (Saved Order)" },
+      { value: "newest", text: "Newest Items" },
+      { value: "oldest", text: "Oldest Items" },
+      ...backlogTableSortColumns().flatMap(column => [
+        { value: `${column.column}-asc`, text: `Custom Order (${column.label} ascending)` },
+        { value: `${column.column}-desc`, text: `Custom Order (${column.label} descending)` }
+      ])
+    ];
+
+    return options
+      .map(option => `<option value="${escapeAttr(option.value)}" ${selectedSort === option.value ? "selected" : ""}>${escapeHtml(option.text)}</option>`)
+      .join("");
+  }
+
+  function backlogTableSortColumns() {
+    return [
+      { column: "assigned", label: "Assigned" },
+      { column: "item", label: "Item" },
+      { column: "type", label: "Type" },
+      { column: "project", label: "Project" },
+      { column: "sprint", label: "Sprint" },
+      { column: "status", label: "Status" },
+      { column: "priority", label: "Priority" }
+    ];
+  }
+
+  function backlogNextSortLabel(column, label) {
+    const state = backlogTableSortState();
+    if (state.column === column && state.direction === "asc") return `Sort ${label} descending`;
+    if (state.column === column && state.direction === "desc") return `Clear ${label} sort`;
+    return `Sort ${label} ascending`;
   }
 
   function deactivateBacklog() {

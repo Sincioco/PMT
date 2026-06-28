@@ -24,7 +24,7 @@ import {
 } from "./core/screen-registry.js";
 import { state } from "./core/store.js";
 import { createAboutFeature } from "./features/about/about.js?v=20260621-about-credits";
-import { createBacklogFeature } from "./features/backlog/backlog.js?v=20260627-dev-task-status-rules";
+import { createBacklogFeature } from "./features/backlog/backlog.js?v=20260629-settings-backlog-scrum-polish";
 import { createBoardFeature } from "./features/board/board.js?v=20260627-dev-task-status-rules";
 import { createBugsFeature } from "./features/bugs/bugs.js?v=20260629-task-bug-table-sorts";
 import { createDashboardFeature } from "./features/dashboard/dashboard.js?v=20260627-dev-task-status-rules";
@@ -36,8 +36,8 @@ import {
 } from "./features/gantt/gantt.js?v=20260627-gantt-initial-desc-offset";
 import { createProjectsFeature } from "./features/projects/projects.js?v=20260628-project-sprint-chart-tooltips";
 import { createRoadMapFeature } from "./features/roadmap/roadmap.js?v=20260628-roadmap-always-show-dates";
-import { createScrumFeature } from "./features/scrum/scrum.js?v=20260627-rich-text-toolbar";
-import { createSettingsFeature } from "./features/settings/settings.js?v=20260627-settings-development-header";
+import { createScrumFeature } from "./features/scrum/scrum.js?v=20260629-settings-backlog-scrum-polish";
+import { createSettingsFeature } from "./features/settings/settings.js?v=20260629-settings-backlog-scrum-polish";
 import { createSprintsFeature } from "./features/sprints/sprints.js?v=20260628-project-sprint-chart-tooltips";
 import { createTasksFeature } from "./features/tasks/tasks.js?v=20260629-task-bug-table-sorts";
 import { createWfhScheduleFeature } from "./features/wfh-schedule/wfh-schedule.js?v=20260627-dev-task-status-rules";

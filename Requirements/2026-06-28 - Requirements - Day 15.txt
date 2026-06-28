@@ -22,3 +22,9 @@ For all of this conversation / session, I will perform all the manual tests and 
 
 10.) In the Dev Task' Dev Tasks Completed by Sprint chart, make it horizontally scroll left and right in response to the mousewheel when the user is on the chart.
 11.) In the Bug Tracking's "Reported vs Resolved by Sprint" and "Bug Trend by Sprint" chart, make them horizontally scroll left and right in response to the mousewheel when the user is on those charts.
+
+12.) Give the Backlog table, Scrum table the same column header sorting/logic treatment. Note that the Scrum filter currently has no Sort dropdown filter, please add one, so all the Filter dialog box uniformly work the same way.
+
+13.) In the following Categories in Settings which has a table, please extend the same column header sorting/logic and add an appropriate Filter dialog box as needed:  Navigation list, Holiday list, Environment list, Priority list, Severity list, Status list.  The goal is to make all the tables have the same behavior and experience.
+14.) In the Scrum view, change user's avatar to 80x80 and vertically align top all the columns in the rows (excluding column header). This is a special rule for the Scrum view since the Scrum entries can get vertically long.
+15.) In the Backlog view, remove the shadows on the Avatar.  Render the rows like the way you render the Dev Tasks, which should include rendering sub-tasks.

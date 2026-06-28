@@ -147,16 +147,22 @@ html[data-theme] .scrum-screen.work-item-screen .work-item-table .icon-action:di
   width: 176px;
 }
 
+.scrum-table tbody td {
+  vertical-align: top;
+}
+
 .scrum-date {
   color: var(--color-text-primary);
   white-space: nowrap;
 }
 
 .scrum-person {
-  align-items: center;
+  align-items: flex-start;
 }
 
 .scrum-person .avatar {
+  width: 80px;
+  height: 80px;
   margin-left: 0;
 }
 
@@ -197,7 +203,7 @@ html[data-theme] .scrum-screen.work-item-screen .work-item-table .icon-action:di
 
 .scrum-actions {
   padding-right: var(--space-7) !important;
-  vertical-align: middle !important;
+  vertical-align: top !important;
 }
 
 .scrum-filter-dialog {

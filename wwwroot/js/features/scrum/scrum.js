@@ -48,15 +48,13 @@ export function createScrumFeature({
   showReadOnlyDialog,
   showToast
 }) {
-  let scrumFilters = readJsonPreference(preferenceKeys.scrumFilters, {});
+  let scrumFilters = normalizeScrumFilters(readJsonPreference(preferenceKeys.scrumFilters, {}));
   let scrumEntryProjectId = readNumberPreference(preferenceKeys.scrumEntryProject, 0);
   const scrumTableMode = createWorkItemTableMode({
     action: "toggle-scrum-table-edit-mode",
     itemLabel: "Scrum",
     initialActive: true
   });
-
-  scrumFilters.personIds = normalizeSavedArray(scrumFilters.personIds);
 
   function renderDevLogs() {
     if (scrumFilters.projectId && !state.projects.some(project => project.id === Number(scrumFilters.projectId))) {
@@ -69,7 +67,7 @@ export function createScrumFeature({
       .filter(log => !scrumFilters.projectId || log.projectId === Number(scrumFilters.projectId))
       .filter(log => !scrumFilters.personIds.length || scrumFilters.personIds.includes(String(log.userId)))
       .filter(log => !scrumFilters.logDate || dateKey(log.logDate) === scrumFilters.logDate)
-      .sort((a, b) => new Date(b.logDate) - new Date(a.logDate) || new Date(b.updatedAt) - new Date(a.updatedAt));
+      .sort(scrumSortCompare);
 
     app.innerHTML = `
       <section class="scrum-screen work-item-screen">
@@ -91,11 +89,11 @@ export function createScrumFeature({
               </colgroup>
               <thead>
                 <tr>
-                  <th>Date</th>
-                  <th>Project</th>
-                  <th>Person</th>
-                  <th>Scrum</th>
-                  <th aria-label="Flag"></th>
+                  ${scrumSortHeaderHtml("date", "Date")}
+                  ${scrumSortHeaderHtml("project", "Project")}
+                  ${scrumSortHeaderHtml("person", "Person")}
+                  ${scrumSortHeaderHtml("scrum", "Scrum")}
+                  ${scrumSortHeaderHtml("flag", "Flag")}
                   ${scrumTableMode.active ? `<th class="action-cell" aria-label="Actions"></th>` : ""}
                 </tr>
               </thead>
@@ -162,13 +160,14 @@ export function createScrumFeature({
 
     if (filter === "scrum-project") scrumFilters.projectId = target.value;
     if (filter === "scrum-date") scrumFilters.logDate = target.value;
+    if (filter === "scrum-sort") scrumFilters.sort = target.value;
     if (filter === "scrum-person") scrumFilters.personIds = checkedFilterValues("scrum-person");
 
     writeJsonPreference(preferenceKeys.scrumFilters, scrumFilters);
     return true;
   }
 
-  async function handleAction(action, id) {
+  async function handleAction(action, id, element) {
     const log = id ? state.devLogs.find(item => item.id === id) : null;
 
     if (action === "new-log") {
@@ -179,6 +178,9 @@ export function createScrumFeature({
       scrumTableMode.toggle();
       renderDevLogs();
       return true;
+    }
+    if (action === "sort-scrum-table") {
+      return updateScrumTableSort(element);
     }
     if (action === "open-scrum-filters" || action === "toggle-scrum-filters") {
       openScrumFiltersDialog();
@@ -265,6 +267,12 @@ export function createScrumFeature({
             <span>Date</span>
             <input type="date" data-filter="scrum-date" value="${escapeAttr(scrumFilters.logDate || "")}">
           </label>
+          <label>
+            <span>Sort</span>
+            <select data-filter="scrum-sort">
+              ${scrumSortOptionsHtml()}
+            </select>
+          </label>
         </div>
         <div class="filter-stack">
           ${filterCheckList("Person", "scrum-person", state.users.map(user => ({
@@ -313,6 +321,135 @@ export function createScrumFeature({
     }, log.id ? "" : "bodyHtml", root => {
       if (!log.id) focusRichEditorAfterText(root, "bodyHtml", firstScrumPrompt);
     });
+  }
+
+  function normalizeScrumFilters(filters = {}) {
+    return {
+      ...filters,
+      personIds: normalizeSavedArray(filters.personIds),
+      sort: filters.sort || "custom"
+    };
+  }
+
+  function scrumSortCompare(a, b) {
+    const state = scrumTableSortState();
+
+    if (state.column && state.direction) {
+      const result = compareScrumSortColumn(a, b, state.column);
+      if (result) return state.direction === "asc" ? result : -result;
+      return defaultScrumSortCompare(a, b);
+    }
+
+    if (scrumFilters.sort === "oldest") return scrumDateCompare(a, b);
+    if (scrumFilters.sort === "newest") return scrumDateCompare(b, a);
+    return defaultScrumSortCompare(a, b);
+  }
+
+  function defaultScrumSortCompare(a, b) {
+    return scrumDateCompare(b, a);
+  }
+
+  function scrumDateCompare(a, b) {
+    return new Date(a.logDate) - new Date(b.logDate)
+      || new Date(a.updatedAt) - new Date(b.updatedAt)
+      || a.id - b.id;
+  }
+
+  function compareScrumSortColumn(a, b, column) {
+    if (column === "date") return scrumDateCompare(a, b);
+    if (column === "flag") return Number(Boolean(a.isPinned)) - Number(Boolean(b.isPinned));
+
+    return scrumSortTextValue(a, column).localeCompare(scrumSortTextValue(b, column), undefined, {
+      numeric: true,
+      sensitivity: "base"
+    });
+  }
+
+  function scrumSortTextValue(log, column) {
+    if (column === "project") return log.projectId ? projectName(log.projectId) : "No project";
+    if (column === "person") return userById(log.userId)?.nickname || "";
+    if (column === "scrum") return textFromHtml(log.bodyHtml || "");
+    return "";
+  }
+
+  function textFromHtml(html) {
+    const container = document.createElement("div");
+    container.innerHTML = html;
+    return container.textContent || "";
+  }
+
+  function scrumSortHeaderHtml(column, label) {
+    const state = scrumTableSortState();
+    const isSorted = state.column === column && Boolean(state.direction);
+    const ariaSort = isSorted ? (state.direction === "asc" ? "ascending" : "descending") : "none";
+    const arrow = isSorted ? (state.direction === "asc" ? "&#9650;" : "&#9660;") : "";
+    const className = isSorted ? "is-sorted" : "";
+
+    return `
+      <th class="${className}" aria-sort="${ariaSort}">
+        <button type="button" class="table-sort-button" data-action="sort-scrum-table" data-column="${escapeAttr(column)}" title="${escapeAttr(scrumNextSortLabel(column, label))}">
+          <span>${escapeHtml(label)}</span>
+          <span class="table-sort-indicator" aria-hidden="true">${arrow}</span>
+        </button>
+      </th>
+    `;
+  }
+
+  function updateScrumTableSort(button) {
+    const column = button?.dataset?.column || "";
+    if (!scrumTableSortColumns().some(item => item.column === column)) return false;
+
+    scrumFilters.sort = nextScrumSort(column);
+    writeJsonPreference(preferenceKeys.scrumFilters, scrumFilters);
+    renderDevLogs();
+    return true;
+  }
+
+  function nextScrumSort(column) {
+    const state = scrumTableSortState();
+    if (state.column !== column || !state.direction) return `${column}-asc`;
+    if (state.direction === "asc") return `${column}-desc`;
+    return "custom";
+  }
+
+  function scrumTableSortState(sortValue = scrumFilters.sort) {
+    const match = /^(.+)-(asc|desc)$/.exec(sortValue || "");
+    if (!match) return { column: "", direction: "" };
+    return { column: match[1], direction: match[2] };
+  }
+
+  function scrumSortOptionsHtml() {
+    const selectedSort = scrumFilters.sort || "custom";
+    const options = [
+      { value: "custom", text: "Custom Order (Date descending)" },
+      { value: "newest", text: "Newest Scrum" },
+      { value: "oldest", text: "Oldest Scrum" },
+      ...scrumTableSortColumns().flatMap(column => [
+        { value: `${column.column}-asc`, text: `Custom Order (${column.label} ascending)` },
+        { value: `${column.column}-desc`, text: `Custom Order (${column.label} descending)` }
+      ])
+    ];
+
+    return options
+      .map(option => `<option value="${escapeAttr(option.value)}" ${selectedSort === option.value ? "selected" : ""}>${escapeHtml(option.text)}</option>`)
+      .join("");
+  }
+
+  function scrumTableSortColumns() {
+    return [
+      { column: "date", label: "Date" },
+      { column: "project", label: "Project" },
+      { column: "person", label: "Person" },
+      { column: "scrum", label: "Scrum" },
+      { column: "flag", label: "Flag" }
+    ];
+  }
+
+  function scrumNextSortLabel(column, label) {
+    const state = scrumTableSortState();
+    if (state.column === column && state.direction === "asc") return `Sort ${label} descending`;
+    if (state.column === column && state.direction === "desc") return `Clear ${label} sort`;
+    return `Sort ${label} ascending`;
   }
 
   function scrumDialogTitle(log, newTitle) {

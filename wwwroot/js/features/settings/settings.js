@@ -1,4 +1,4 @@
-import { buttonContent, iconButton } from "../../components/buttons.js";
+import { buttonContent, funnelIconHtml, iconButton } from "../../components/buttons.js";
 import { askYesNo } from "../../components/dialogs.js";
 import {
   colorField,
@@ -26,9 +26,11 @@ import {
 import {
   clearPmtPreferences,
   preferenceKeys,
+  readJsonPreference,
   readPreference,
+  writeJsonPreference,
   writePreference
-} from "../../core/preferences.js";
+} from "../../core/preferences.js?v=20260629-settings-table-filters";
 import { savedViewPreference } from "../../core/router.js";
 import { state } from "../../core/store.js";
 import {
@@ -86,6 +88,7 @@ export function createSettingsFeature({
 }) {
   let lookupTypeFilter = readPreference(preferenceKeys.lookupType, "Status");
   let settingsCategory = readPreference(preferenceKeys.settingsCategory, lookupTypeFilter || "Status");
+  let settingsTableFilters = normalizeSettingsTableFilters(readJsonPreference(preferenceKeys.settingsTableFilters, {}));
   if (savedViewPreference === "Users" || savedViewPreference === "Holidays") settingsCategory = savedViewPreference;
   if (savedViewPreference === "Lookups") settingsCategory = lookupTypeFilter;
 
@@ -103,10 +106,19 @@ export function createSettingsFeature({
       writePreference(preferenceKeys.lookupType, lookupTypeFilter);
     }
 
-    let actionsHtml = `<button class="primary text-icon-button" type="button" data-action="new-lookup" ${currentUser().isAdmin ? "" : "disabled"}>${buttonContent("&#10010;", "New Setting")}</button>`;
+    let actionsHtml = `
+      <button class="primary text-icon-button" type="button" data-action="new-lookup" ${currentUser().isAdmin ? "" : "disabled"}>${buttonContent("&#10010;", "New Setting")}</button>
+      ${settingsTableFilterButtonHtml(settingsCategory)}
+    `;
     if (isUsers) actionsHtml = `<button class="primary text-icon-button" type="button" data-action="new-user" ${currentUser().isAdmin ? "" : "disabled"}>${buttonContent("&#10010;", "New User")}</button>`;
-    if (isHolidays) actionsHtml = `<button class="primary text-icon-button" type="button" data-action="new-holiday" ${currentUser().isAdmin ? "" : "disabled"}>${buttonContent("&#10010;", "New Holiday")}</button>`;
-    if (isNavigation) actionsHtml = `<button class="secondary text-icon-button" type="button" data-action="navigation-reset-defaults">${buttonContent("&#8635;", "Reset")}</button>`;
+    if (isHolidays) actionsHtml = `
+      <button class="primary text-icon-button" type="button" data-action="new-holiday" ${currentUser().isAdmin ? "" : "disabled"}>${buttonContent("&#10010;", "New Holiday")}</button>
+      ${settingsTableFilterButtonHtml(settingsCategory)}
+    `;
+    if (isNavigation) actionsHtml = `
+      <button class="secondary text-icon-button" type="button" data-action="navigation-reset-defaults">${buttonContent("&#8635;", "Reset")}</button>
+      ${settingsTableFilterButtonHtml(settingsCategory)}
+    `;
     if (isDevelopment) actionsHtml = `<span class="settings-action-spacer" aria-hidden="true"></span>`;
 
     const contentHtml = isUsers
@@ -179,6 +191,13 @@ export function createSettingsFeature({
     if (action === "delete-holiday") {
       await deleteItem(`/api/holidays/${id}`, "Deactivate this holiday?");
       return true;
+    }
+    if (action === "open-settings-filters") {
+      openSettingsFiltersDialog(button.dataset.category || settingsCategory);
+      return true;
+    }
+    if (action === "sort-settings-table") {
+      return updateSettingsTableSort(button);
     }
     if (action === "development-clear-non-pmt") {
       await runDevelopmentAction(
@@ -286,17 +305,18 @@ export function createSettingsFeature({
   function settingsLookupHtml(type) {
     const rows = [...(state.lookups || [])]
       .filter(item => item.lookupType === type)
-      .sort((a, b) => a.displayOrder - b.displayOrder || a.value.localeCompare(b.value));
+      .filter(item => settingsLookupMatchesFilters(item, type))
+      .sort((a, b) => settingsLookupSortCompare(a, b, type));
 
     return `
       <div class="panel settings-content-panel settings-table-panel">
         <table class="table settings-table">
           <thead>
             <tr>
-              <th>Value</th>
-              <th>Color</th>
-              <th>Order</th>
-              <th>Active</th>
+              ${settingsSortHeaderHtml(type, "value", "Value")}
+              ${settingsSortHeaderHtml(type, "color", "Color")}
+              ${settingsSortHeaderHtml(type, "order", "Order")}
+              ${settingsSortHeaderHtml(type, "active", "Active")}
               <th></th>
             </tr>
           </thead>
@@ -320,17 +340,19 @@ export function createSettingsFeature({
   }
 
   function settingsHolidaysHtml() {
-    const rows = [...(state.holidays || [])].sort((a, b) => new Date(b.holidayDate) - new Date(a.holidayDate) || a.name.localeCompare(b.name));
+    const rows = [...(state.holidays || [])]
+      .filter(settingsHolidayMatchesFilters)
+      .sort(settingsHolidaySortCompare);
 
     return `
       <div class="panel settings-content-panel settings-table-panel">
         <table class="table settings-table">
           <thead>
             <tr>
-              <th>Date</th>
-              <th>Name</th>
-              <th>Country</th>
-              <th>Active</th>
+              ${settingsSortHeaderHtml("Holidays", "date", "Date")}
+              ${settingsSortHeaderHtml("Holidays", "name", "Name")}
+              ${settingsSortHeaderHtml("Holidays", "country", "Country")}
+              ${settingsSortHeaderHtml("Holidays", "active", "Active")}
               <th></th>
             </tr>
           </thead>
@@ -353,8 +375,436 @@ export function createSettingsFeature({
     `;
   }
 
+  function settingsTableFilterButtonHtml(category) {
+    if (!settingsHasTableFilters(category)) return "";
+
+    return `<button class="secondary text-icon-button" type="button" data-action="open-settings-filters" data-category="${escapeAttr(category)}" title="Filters" aria-label="Filters" aria-haspopup="dialog">${buttonContent(funnelIconHtml(), "Filters")}</button>`;
+  }
+
+  function normalizeSettingsTableFilters(filters = {}) {
+    if (!filters || Array.isArray(filters) || typeof filters !== "object") return {};
+
+    return Object.fromEntries(
+      Object.entries(filters).map(([category, values]) => [category, normalizeSettingsTableFilterValues(category, values)])
+    );
+  }
+
+  function normalizeSettingsTableFilterValues(category, values = {}) {
+    return {
+      search: typeof values.search === "string" ? values.search : "",
+      active: ["all", "active", "inactive"].includes(values.active) ? values.active : "all",
+      visible: ["all", "visible", "hidden"].includes(values.visible) ? values.visible : "all",
+      country: values.country || "all",
+      sort: values.sort || "custom"
+    };
+  }
+
+  function settingsFiltersFor(category) {
+    const key = settingsFilterCategory(category);
+    return normalizeSettingsTableFilterValues(key, settingsTableFilters[key] || {});
+  }
+
+  function updateSettingsFilters(category, updates) {
+    const key = settingsFilterCategory(category);
+    settingsTableFilters = {
+      ...settingsTableFilters,
+      [key]: normalizeSettingsTableFilterValues(key, {
+        ...settingsFiltersFor(key),
+        ...updates
+      })
+    };
+    writeJsonPreference(preferenceKeys.settingsTableFilters, settingsTableFilters);
+  }
+
+  function settingsFilterCategory(category = settingsCategory) {
+    return category || settingsCategory || "Status";
+  }
+
+  function settingsHasTableFilters(category) {
+    const key = settingsFilterCategory(category);
+    return key === "Navigation" || key === "Holidays" || settingsIsLookupCategory(key);
+  }
+
+  function settingsIsLookupCategory(category) {
+    return Boolean(category) && !["Users", "Navigation", "Holidays", "Development"].includes(category);
+  }
+
+  function openSettingsFiltersDialog(category = settingsCategory) {
+    const filterCategory = settingsFilterCategory(category);
+    if (!settingsHasTableFilters(filterCategory)) return;
+
+    document.querySelectorAll("[data-settings-filter-dialog]").forEach(dialog => {
+      if (dialog.open) dialog.close();
+      else dialog.remove();
+    });
+
+    const modal = document.createElement("dialog");
+    modal.className = "dialog settings-filter-dialog";
+    modal.dataset.settingsFilterDialog = "true";
+    modal.dataset.settingsFilterCategory = filterCategory;
+    modal.innerHTML = `
+      <form method="dialog">
+        <div class="dialog-head">
+          <h2>${escapeHtml(settingsFilterDialogTitle(filterCategory))}</h2>
+          <button type="button" class="icon-btn" data-close-settings-filters title="Close" aria-label="Close">x</button>
+        </div>
+        <div class="dialog-body settings-filter-dialog-body">
+          ${settingsFilterFieldsHtml(filterCategory)}
+        </div>
+        <div class="dialog-actions">
+          <button type="button" class="primary text-icon-button" data-close-settings-filters>${buttonContent("&#10003;", "Done")}</button>
+        </div>
+      </form>
+    `;
+
+    document.body.appendChild(modal);
+    modal.addEventListener("input", event => {
+      if (!applySettingsFilterChange(event.target)) return;
+      renderSettings();
+    });
+    modal.addEventListener("change", event => {
+      if (!applySettingsFilterChange(event.target)) return;
+      renderSettings();
+    });
+    modal.addEventListener("click", event => {
+      if (event.target.closest("[data-close-settings-filters]")) modal.close();
+    });
+    modal.addEventListener("close", () => modal.remove());
+    modal.showModal();
+    modal.querySelector("[data-filter='settings-search'], [data-filter='settings-sort']")?.focus({ preventScroll: true });
+  }
+
+  function settingsFilterFieldsHtml(category) {
+    const filters = settingsFiltersFor(category);
+
+    return `
+      <div class="settings-filter-fields">
+        <div class="settings-filter-row">
+          <label>
+            <span>Search</span>
+            <input type="text" data-filter="settings-search" data-category="${escapeAttr(category)}" value="${escapeAttr(filters.search)}">
+          </label>
+          <label>
+            <span>Sort</span>
+            <select data-filter="settings-sort" data-category="${escapeAttr(category)}">
+              ${settingsSortOptionsHtml(category)}
+            </select>
+          </label>
+          ${settingsCategoryFilterFieldsHtml(category)}
+        </div>
+      </div>
+    `;
+  }
+
+  function settingsCategoryFilterFieldsHtml(category) {
+    const filters = settingsFiltersFor(category);
+
+    if (category === "Navigation") {
+      return `
+        <label>
+          <span>Visible</span>
+          <select data-filter="settings-visible" data-category="${escapeAttr(category)}">
+            <option value="all" ${filters.visible === "all" ? "selected" : ""}>All Items</option>
+            <option value="visible" ${filters.visible === "visible" ? "selected" : ""}>Visible</option>
+            <option value="hidden" ${filters.visible === "hidden" ? "selected" : ""}>Hidden</option>
+          </select>
+        </label>
+      `;
+    }
+
+    if (category === "Holidays") {
+      return `
+        <label>
+          <span>Country</span>
+          <select data-filter="settings-country" data-category="${escapeAttr(category)}">
+            <option value="all" ${filters.country === "all" ? "selected" : ""}>All Countries</option>
+            ${settingsHolidayCountryOptionsHtml(filters.country)}
+          </select>
+        </label>
+        ${settingsActiveFilterHtml(category, filters.active)}
+      `;
+    }
+
+    return settingsActiveFilterHtml(category, filters.active);
+  }
+
+  function settingsActiveFilterHtml(category, selectedValue) {
+    return `
+      <label>
+        <span>Active</span>
+        <select data-filter="settings-active" data-category="${escapeAttr(category)}">
+          <option value="all" ${selectedValue === "all" ? "selected" : ""}>All Values</option>
+          <option value="active" ${selectedValue === "active" ? "selected" : ""}>Active</option>
+          <option value="inactive" ${selectedValue === "inactive" ? "selected" : ""}>Inactive</option>
+        </select>
+      </label>
+    `;
+  }
+
+  function settingsHolidayCountryOptionsHtml(selectedCountry) {
+    const countries = [...new Set((state.holidays || []).map(holiday => holiday.countryCode || "PH"))]
+      .filter(Boolean)
+      .sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
+
+    if (selectedCountry && selectedCountry !== "all" && !countries.includes(selectedCountry)) countries.push(selectedCountry);
+
+    return countries
+      .map(country => `<option value="${escapeAttr(country)}" ${country === selectedCountry ? "selected" : ""}>${escapeHtml(country)}</option>`)
+      .join("");
+  }
+
+  function settingsFilterDialogTitle(category) {
+    if (category === "Holidays") return "Holiday Filters";
+    if (category === "Navigation") return "Navigation Filters";
+    return `${category} Filters`;
+  }
+
+  function applySettingsFilterChange(target) {
+    const filter = target?.dataset?.filter || "";
+    if (!filter.startsWith("settings-")) return false;
+
+    const category = settingsFilterCategory(target.dataset.category);
+    if (filter === "settings-search") updateSettingsFilters(category, { search: target.value });
+    if (filter === "settings-sort") updateSettingsFilters(category, { sort: target.value });
+    if (filter === "settings-active") updateSettingsFilters(category, { active: target.value });
+    if (filter === "settings-visible") updateSettingsFilters(category, { visible: target.value });
+    if (filter === "settings-country") updateSettingsFilters(category, { country: target.value || "all" });
+    return true;
+  }
+
+  function settingsLookupMatchesFilters(item, category) {
+    const filters = settingsFiltersFor(category);
+    if (!settingsMatchesActiveFilter(item.isActive, filters.active)) return false;
+
+    return settingsMatchesSearch([
+      item.value,
+      settingsLookupColorText(item),
+      item.displayOrder,
+      item.isActive ? "Yes" : "No"
+    ], filters.search);
+  }
+
+  function settingsHolidayMatchesFilters(holiday) {
+    const filters = settingsFiltersFor("Holidays");
+    if (!settingsMatchesActiveFilter(holiday.isActive, filters.active)) return false;
+    if (filters.country !== "all" && (holiday.countryCode || "PH") !== filters.country) return false;
+
+    return settingsMatchesSearch([
+      formatDate(holiday.holidayDate),
+      holiday.name,
+      holiday.countryCode || "PH",
+      holiday.isActive ? "Yes" : "No"
+    ], filters.search);
+  }
+
+  function settingsNavigationMatchesFilters(item) {
+    const filters = settingsFiltersFor("Navigation");
+    if (filters.visible === "visible" && !item.visible) return false;
+    if (filters.visible === "hidden" && item.visible) return false;
+
+    return settingsMatchesSearch([
+      item.label,
+      item.defaultLabel,
+      item.view,
+      item.visible ? "Visible" : "Hidden"
+    ], filters.search);
+  }
+
+  function settingsMatchesActiveFilter(isActive, filterValue) {
+    if (filterValue === "active") return Boolean(isActive);
+    if (filterValue === "inactive") return !isActive;
+    return true;
+  }
+
+  function settingsMatchesSearch(values, search) {
+    const term = String(search || "").trim().toLowerCase();
+    if (!term) return true;
+
+    return values
+      .map(value => String(value ?? "").toLowerCase())
+      .some(value => value.includes(term));
+  }
+
+  function settingsLookupSortCompare(a, b, category) {
+    return settingsTableSortCompare(category, a, b, settingsDefaultLookupSortCompare, settingsCompareLookupColumn);
+  }
+
+  function settingsHolidaySortCompare(a, b) {
+    return settingsTableSortCompare("Holidays", a, b, settingsDefaultHolidaySortCompare, settingsCompareHolidayColumn);
+  }
+
+  function settingsNavigationSortCompare(a, b) {
+    return settingsTableSortCompare("Navigation", a, b, settingsDefaultNavigationSortCompare, settingsCompareNavigationColumn);
+  }
+
+  function settingsTableSortCompare(category, a, b, defaultCompare, columnCompare) {
+    const state = settingsTableSortState(category);
+
+    if (state.column && state.direction) {
+      const result = columnCompare(a, b, state.column);
+      if (result) return state.direction === "asc" ? result : -result;
+      return defaultCompare(a, b);
+    }
+
+    return defaultCompare(a, b);
+  }
+
+  function settingsDefaultLookupSortCompare(a, b) {
+    return Number(a.displayOrder || 0) - Number(b.displayOrder || 0)
+      || String(a.value || "").localeCompare(String(b.value || ""), undefined, { numeric: true, sensitivity: "base" })
+      || a.id - b.id;
+  }
+
+  function settingsDefaultHolidaySortCompare(a, b) {
+    return new Date(b.holidayDate) - new Date(a.holidayDate)
+      || String(a.name || "").localeCompare(String(b.name || ""), undefined, { numeric: true, sensitivity: "base" })
+      || a.id - b.id;
+  }
+
+  function settingsDefaultNavigationSortCompare(a, b) {
+    return Number(a.customOrder || 0) - Number(b.customOrder || 0);
+  }
+
+  function settingsCompareLookupColumn(a, b, column) {
+    if (column === "order") return Number(a.displayOrder || 0) - Number(b.displayOrder || 0);
+    if (column === "active") return settingsBooleanCompare(a.isActive, b.isActive);
+    if (column === "color") return settingsLookupColorText(a).localeCompare(settingsLookupColorText(b), undefined, { numeric: true, sensitivity: "base" });
+    return String(a.value || "").localeCompare(String(b.value || ""), undefined, { numeric: true, sensitivity: "base" });
+  }
+
+  function settingsCompareHolidayColumn(a, b, column) {
+    if (column === "date") return new Date(a.holidayDate) - new Date(b.holidayDate);
+    if (column === "active") return settingsBooleanCompare(a.isActive, b.isActive);
+    if (column === "country") return String(a.countryCode || "PH").localeCompare(String(b.countryCode || "PH"), undefined, { numeric: true, sensitivity: "base" });
+    return String(a.name || "").localeCompare(String(b.name || ""), undefined, { numeric: true, sensitivity: "base" });
+  }
+
+  function settingsCompareNavigationColumn(a, b, column) {
+    if (column === "visible") return settingsBooleanCompare(a.visible, b.visible);
+    if (column === "default") return String(a.defaultLabel || "").localeCompare(String(b.defaultLabel || ""), undefined, { numeric: true, sensitivity: "base" });
+    if (column === "route") return String(a.view || "").localeCompare(String(b.view || ""), undefined, { numeric: true, sensitivity: "base" });
+    return String(a.label || "").localeCompare(String(b.label || ""), undefined, { numeric: true, sensitivity: "base" });
+  }
+
+  function settingsBooleanCompare(a, b) {
+    return Number(Boolean(a)) - Number(Boolean(b));
+  }
+
+  function settingsLookupColorText(item) {
+    return item.lookupType === "Status" ? statusColor(item.value) : "n/a";
+  }
+
+  function settingsSortHeaderHtml(category, column, label) {
+    const state = settingsTableSortState(category);
+    const isSorted = state.column === column && Boolean(state.direction);
+    const ariaSort = isSorted ? (state.direction === "asc" ? "ascending" : "descending") : "none";
+    const arrow = isSorted ? (state.direction === "asc" ? "&#9650;" : "&#9660;") : "";
+    const className = isSorted ? "is-sorted" : "";
+
+    return `
+      <th class="${className}" aria-sort="${ariaSort}">
+        <button type="button" class="table-sort-button" data-action="sort-settings-table" data-category="${escapeAttr(category)}" data-column="${escapeAttr(column)}" title="${escapeAttr(settingsNextSortLabel(category, column, label))}">
+          <span>${escapeHtml(label)}</span>
+          <span class="table-sort-indicator" aria-hidden="true">${arrow}</span>
+        </button>
+      </th>
+    `;
+  }
+
+  function updateSettingsTableSort(button) {
+    const category = settingsFilterCategory(button?.dataset?.category);
+    const column = button?.dataset?.column || "";
+    if (!settingsTableSortColumns(category).some(item => item.column === column)) return false;
+
+    updateSettingsFilters(category, { sort: settingsNextSort(category, column) });
+    renderSettings();
+    return true;
+  }
+
+  function settingsNextSort(category, column) {
+    const state = settingsTableSortState(category);
+    if (state.column !== column || !state.direction) return `${column}-asc`;
+    if (state.direction === "asc") return `${column}-desc`;
+    return "custom";
+  }
+
+  function settingsTableSortState(category) {
+    const sortValue = settingsFiltersFor(category).sort;
+    const match = /^(.+)-(asc|desc)$/.exec(sortValue || "");
+    if (!match) return { column: "", direction: "" };
+
+    const column = match[1];
+    const direction = match[2];
+    if (!settingsTableSortColumns(category).some(item => item.column === column)) return { column: "", direction: "" };
+    return { column, direction };
+  }
+
+  function settingsSortOptionsHtml(category) {
+    const selectedSort = settingsFiltersFor(category).sort || "custom";
+    const options = [
+      { value: "custom", text: settingsCustomSortLabel(category) },
+      ...settingsTableSortColumns(category).flatMap(column => [
+        { value: `${column.column}-asc`, text: `Custom Order (${column.label} ascending)` },
+        { value: `${column.column}-desc`, text: `Custom Order (${column.label} descending)` }
+      ])
+    ];
+
+    return options
+      .map(option => `<option value="${escapeAttr(option.value)}" ${selectedSort === option.value ? "selected" : ""}>${escapeHtml(option.text)}</option>`)
+      .join("");
+  }
+
+  function settingsCustomSortLabel(category) {
+    if (category === "Navigation") return "Custom Order (Saved Order)";
+    if (category === "Holidays") return "Custom Order (Date descending)";
+    return "Custom Order (Order ascending)";
+  }
+
+  function settingsTableSortColumns(category) {
+    if (category === "Navigation") {
+      return [
+        { column: "visible", label: "Visible" },
+        { column: "item", label: "Navigation Item" },
+        { column: "default", label: "Default" },
+        { column: "route", label: "Route" }
+      ];
+    }
+
+    if (category === "Holidays") {
+      return [
+        { column: "date", label: "Date" },
+        { column: "name", label: "Name" },
+        { column: "country", label: "Country" },
+        { column: "active", label: "Active" }
+      ];
+    }
+
+    return [
+      { column: "value", label: "Value" },
+      { column: "color", label: "Color" },
+      { column: "order", label: "Order" },
+      { column: "active", label: "Active" }
+    ];
+  }
+
+  function settingsNextSortLabel(category, column, label) {
+    const state = settingsTableSortState(category);
+    if (state.column === column && state.direction === "asc") return `Sort ${label} descending`;
+    if (state.column === column && state.direction === "desc") return `Clear ${label} sort`;
+    return `Sort ${label} ascending`;
+  }
+
+  function settingsNavigationCanDrag() {
+    const filters = settingsFiltersFor("Navigation");
+    return filters.sort === "custom" && !filters.search.trim() && filters.visible === "all";
+  }
+
   function settingsNavigationHtml() {
-    const items = navigationSettingsItems();
+    const canDrag = settingsNavigationCanDrag();
+    const items = navigationSettingsItems()
+      .map((item, index) => ({ ...item, customOrder: index }))
+      .filter(settingsNavigationMatchesFilters)
+      .sort(settingsNavigationSortCompare);
     return `
       <div class="panel settings-content-panel settings-table-panel settings-navigation-panel">
         <div class="settings-navigation-head">
@@ -364,10 +814,10 @@ export function createSettingsFeature({
         <table class="table settings-table settings-navigation-table work-item-table">
           <thead>
             <tr>
-              <th>Visible</th>
-              <th>Navigation Item</th>
-              <th>Default</th>
-              <th>Route</th>
+              ${settingsSortHeaderHtml("Navigation", "visible", "Visible")}
+              ${settingsSortHeaderHtml("Navigation", "item", "Navigation Item")}
+              ${settingsSortHeaderHtml("Navigation", "default", "Default")}
+              ${settingsSortHeaderHtml("Navigation", "route", "Route")}
               <th></th>
             </tr>
           </thead>
@@ -390,7 +840,7 @@ export function createSettingsFeature({
                 <td>${escapeHtml(item.defaultLabel)}</td>
                 <td><span class="muted">${escapeHtml(item.view)}</span></td>
                 <td class="action-cell">
-                  <button class="work-item-drag-handle settings-nav-drag-handle" type="button" data-drag-handle data-navigation-drag-handle title="Drag ${escapeAttr(item.label)}" aria-label="Drag ${escapeAttr(item.label)}">
+                  <button class="work-item-drag-handle settings-nav-drag-handle" type="button" ${canDrag ? "data-drag-handle data-navigation-drag-handle" : "disabled"} title="Drag ${escapeAttr(item.label)}" aria-label="Drag ${escapeAttr(item.label)}">
                     <span aria-hidden="true">&#8942;&#8942;</span>
                   </button>
                 </td>
@@ -549,6 +999,8 @@ export function createSettingsFeature({
   }
 
   function bindNavigationDragEvents() {
+    if (!settingsNavigationCanDrag()) return;
+
     const list = app.querySelector('tbody[data-reorder-list="navigation"]');
     if (!list) return;
 

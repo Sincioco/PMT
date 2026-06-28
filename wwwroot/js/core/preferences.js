@@ -22,6 +22,7 @@ export const preferenceKeys = Object.freeze({
   ganttShowNonWorkingDays: "pmt-gantt-show-non-working-days",
   lookupType: "pmt-lookup-type",
   settingsCategory: "pmt-settings-category",
+  settingsTableFilters: "pmt-settings-table-filters",
   sprintProject: "pmt-sprint-project",
   sprintEntryProject: "pmt-sprint-entry-project",
   taskProject: "pmt-task-project",
@@ -42,6 +43,7 @@ export const preferenceKeys = Object.freeze({
   scrumFiltersVisible: "pmt-scrum-filters-visible",
   scrumEntryProject: "pmt-scrum-entry-project",
   backlogFilters: "pmt-backlog-filters",
+  backlogCollapsedSubTasks: "pmt-backlog-collapsed-subtasks",
   documentationProject: "pmt-documentation-project",
   documentationEntryProject: "pmt-documentation-entry-project"
 });
