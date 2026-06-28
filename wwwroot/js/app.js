@@ -26,7 +26,7 @@ import { state } from "./core/store.js";
 import { createAboutFeature } from "./features/about/about.js?v=20260621-about-credits";
 import { createBacklogFeature } from "./features/backlog/backlog.js?v=20260627-dev-task-status-rules";
 import { createBoardFeature } from "./features/board/board.js?v=20260627-dev-task-status-rules";
-import { createBugsFeature } from "./features/bugs/bugs.js?v=20260627-rich-text-toolbar";
+import { createBugsFeature } from "./features/bugs/bugs.js?v=20260628-chart-native-tooltips";
 import { createDashboardFeature } from "./features/dashboard/dashboard.js?v=20260627-dev-task-status-rules";
 import { createDocumentationFeature } from "./features/documentation/documentation.js?v=20260627-rich-text-toolbar";
 import {
@@ -34,12 +34,12 @@ import {
   currentSprintForProject,
   ganttStartDate
 } from "./features/gantt/gantt.js?v=20260627-gantt-initial-desc-offset";
-import { createProjectsFeature } from "./features/projects/projects.js?v=20260627-dev-task-status-rules";
+import { createProjectsFeature } from "./features/projects/projects.js?v=20260628-project-sprint-chart-tooltips";
 import { createRoadMapFeature } from "./features/roadmap/roadmap.js?v=20260627-roadmap-scrollbar-width";
 import { createScrumFeature } from "./features/scrum/scrum.js?v=20260627-rich-text-toolbar";
 import { createSettingsFeature } from "./features/settings/settings.js?v=20260627-settings-development-header";
-import { createSprintsFeature } from "./features/sprints/sprints.js?v=20260627-rich-text-toolbar";
-import { createTasksFeature } from "./features/tasks/tasks.js?v=20260627-rich-text-toolbar";
+import { createSprintsFeature } from "./features/sprints/sprints.js?v=20260628-project-sprint-chart-tooltips";
+import { createTasksFeature } from "./features/tasks/tasks.js?v=20260628-chart-native-tooltips";
 import { createWfhScheduleFeature } from "./features/wfh-schedule/wfh-schedule.js?v=20260627-dev-task-status-rules";
 import {
   fallbackEnvironments,

@@ -1,6 +1,6 @@
 import { avatarsHtml } from "../../components/avatars.js";
 import { buttonContent, iconButton } from "../../components/buttons.js";
-import { VisualCharts } from "../../components/charts.js";
+import { VisualCharts } from "../../components/charts.js?v=20260628-chart-native-tooltips";
 import {
   checkList,
   checkedNumbers,
@@ -104,7 +104,7 @@ export function createProjectsFeature({
     });
 
     return `
-      <div class="project-status-mix">
+      <div class="project-status-mix" title="">
         <div class="project-status-mix-head">
           <h4>Task Status Mix</h4>
           <span>${total} total</span>

@@ -1,6 +1,6 @@
 import { avatarsHtml } from "../../components/avatars.js";
 import { buttonContent, iconButton } from "../../components/buttons.js";
-import { VisualCharts } from "../../components/charts.js";
+import { VisualCharts } from "../../components/charts.js?v=20260628-chart-native-tooltips";
 import { askFinishSprintOptions } from "../../components/dialogs.js";
 import {
   checkListOrEmpty,
@@ -142,7 +142,7 @@ export function createSprintsFeature({
     });
 
     return `
-      <div class="sprint-status-mix">
+      <div class="sprint-status-mix" title="">
         <div class="sprint-status-mix-head">
           <h4>Task Status Mix</h4>
           <span>${total} total</span>

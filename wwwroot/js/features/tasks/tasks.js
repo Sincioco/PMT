@@ -1,6 +1,6 @@
 import { taskRowAvatarsHtml } from "../../components/avatars.js";
 import { buttonContent, chartIconHtml, funnelIconHtml } from "../../components/buttons.js?v=20260621-dev-task-icons";
-import { VisualCharts } from "../../components/charts.js?v=20260620-dev-task-charts";
+import { VisualCharts } from "../../components/charts.js?v=20260628-chart-native-tooltips";
 import { checkedFilterValues, filterCheckList } from "../../components/filters.js?v=20260621-task-filter-layout";
 import {
   checkList,
@@ -920,7 +920,7 @@ export function createTasksFeature({
                 const width = Math.max(8, Math.round((item.value / row.total) * 100));
                 const actionAttrs = VisualCharts.chartActionAttributes({ ...item, chartTitle: `${row.user.nickname} ${item.label}` });
                 return `
-                  <button type="button" class="workload-segment ${item.action ? "is-clickable" : ""}" style="--value:${width}%; --chart-color:${escapeAttr(item.color)}" ${actionAttrs} data-chart-tooltip="${escapeAttr(item.tooltip)}" title="${escapeAttr(item.tooltip)}">
+                  <button type="button" class="workload-segment ${item.action ? "is-clickable" : ""}" style="--value:${width}%; --chart-color:${escapeAttr(item.color)}" ${actionAttrs} data-chart-tooltip="${escapeAttr(item.tooltip)}">
                     <span>${item.value}</span>
                   </button>
                 `;

@@ -1,6 +1,6 @@
 import { taskRowAvatarsHtml } from "../../components/avatars.js";
 import { buttonContent, chartIconHtml, funnelIconHtml } from "../../components/buttons.js?v=20260621-bug-screen-parity";
-import { VisualCharts } from "../../components/charts.js";
+import { VisualCharts } from "../../components/charts.js?v=20260628-chart-native-tooltips";
 import {
   checkedFilterValues,
   filterCheckList

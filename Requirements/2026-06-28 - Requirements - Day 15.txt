@@ -1,0 +1,9 @@
+Project Management Tool (PMT):  Day 15 of Codex Agentic AI Coding
+-----------------------------------------------------------------
+Total Dev Time in Hours:  19
+
+For all of this conversation / session, I will perform all the manual tests and compile the application manually.  Perform only the coding changes required and nothing else.  If making CSS / image changes, ensure that I will encounter no caching issue when testing in the browser.
+
+1.) In PMT, all the visual charts already have a custom tooltip, remove the normal tooltip since the custom tooltip is already present.
+
+2.) In the Project and Sprint Screen, remove the normal tooltip on the visual charts since the custom tooltip is already present.

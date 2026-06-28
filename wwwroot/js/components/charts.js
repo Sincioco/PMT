@@ -64,8 +64,8 @@ export const VisualCharts = {
       const interactiveClass = item.action ? " is-clickable" : "";
       const commonAttrs = `class="pie-chart-slice${interactiveClass}" style="--chart-color:${escapeAttr(item.color)}" data-chart-tooltip="${escapeAttr(tooltip)}" ${actionAttrs}`;
       const sliceHtml = !donut && end - start >= 359.99
-        ? `<circle ${commonAttrs} cx="${center}" cy="${center}" r="${outerRadius}"><title>${escapeHtml(tooltip)}</title></circle>`
-        : `<path ${commonAttrs} d="${this.pieSlicePath(center, center, outerRadius, innerRadius, start, Math.min(end, 359.99))}"><title>${escapeHtml(tooltip)}</title></path>`;
+        ? `<circle ${commonAttrs} cx="${center}" cy="${center}" r="${outerRadius}"></circle>`
+        : `<path ${commonAttrs} d="${this.pieSlicePath(center, center, outerRadius, innerRadius, start, Math.min(end, 359.99))}"></path>`;
       start = end;
       return sliceHtml;
     }).join("");
@@ -191,7 +191,7 @@ export const VisualCharts = {
                   const percent = Math.round((value / scaleMax) * 100);
                   const tooltip = `${row.label}: ${value} ${item.label.toLowerCase()} ${itemLabel}${value === 1 ? "" : "s"}`;
                   return `
-                    <button type="button" class="visual-column" data-action="${row.sprintId ? "chart-open-sprint" : ""}" data-id="${escapeAttr(row.sprintId || "")}" data-chart-tooltip="${escapeAttr(tooltip)}" title="${escapeAttr(tooltip)}" style="--value:${percent}%; --chart-color:${escapeAttr(item.color)}">
+                    <button type="button" class="visual-column" data-action="${row.sprintId ? "chart-open-sprint" : ""}" data-id="${escapeAttr(row.sprintId || "")}" data-chart-tooltip="${escapeAttr(tooltip)}" style="--value:${percent}%; --chart-color:${escapeAttr(item.color)}">
                       <span>${value}</span>
                     </button>
                   `;
@@ -235,7 +235,7 @@ export const VisualCharts = {
           const actionAttrs = item.action ? ` type="button" ${this.chartActionAttributes(item)}` : "";
           const tooltip = escapeAttr(item.tooltip || `${item.label}: ${item.value}`);
           return `
-            <${tag}${actionAttrs} class="horizontal-chart-row ${item.action ? "is-clickable" : ""}" data-chart-tooltip="${tooltip}" title="${tooltip}">
+            <${tag}${actionAttrs} class="horizontal-chart-row ${item.action ? "is-clickable" : ""}" data-chart-tooltip="${tooltip}">
               <span class="horizontal-chart-label">${escapeHtml(item.label)}</span>
               <span class="horizontal-chart-track">
                 <span class="horizontal-chart-fill" style="--value:${percent}%; --chart-color:${escapeAttr(item.color)}"></span>
@@ -285,7 +285,7 @@ export const VisualCharts = {
     const tooltip = escapeAttr(item.tooltip || `${item.label}: ${item.value}`);
 
     return `
-      <${tag}${actionAttrs} class="chart-legend-row ${item.action ? "is-clickable" : ""}" data-chart-tooltip="${tooltip}" title="${tooltip}">
+      <${tag}${actionAttrs} class="chart-legend-row ${item.action ? "is-clickable" : ""}" data-chart-tooltip="${tooltip}">
         <i style="--chart-color:${escapeAttr(item.color)}"></i>
         <span>${escapeHtml(item.label)}</span>
         <b>${item.value}</b>
