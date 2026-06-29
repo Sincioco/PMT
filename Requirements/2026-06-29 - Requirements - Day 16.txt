@@ -61,3 +61,5 @@ Seed Data
 
 
 1.) Bug:  There seems to be a Bug in the Dev Task's Project Filter.  If "All Projects" is selected and the "Current Sprint" is selected, it seems to only return the HLS Project's current Sprint.  Can you double-check the logic for "All Projects" and why it is only returning the Dev Tasks for 1 project out of 3?
+
+2.) In the Filter dialog box's Sort dropdown, it looks like many of the column names have the word "Custom Order" in front of it.  Except for the first one that reads "Custom Order (Saved Order)", remove the "Custom Order" and the parethesis surrounding the column name be sorted.  Also, display Ascending and Descending with the first letter capitalized.  Universally fix this across all of the Filter Dialog's Sort dropdown.  Basically, for standard columns on the table, there is no need to put "Custom Order" in front of the column name in the Sort dropdown.

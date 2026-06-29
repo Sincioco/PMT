@@ -552,8 +552,8 @@ export function createBacklogFeature({
       { value: "newest", text: "Newest Items" },
       { value: "oldest", text: "Oldest Items" },
       ...backlogTableSortColumns().flatMap(column => [
-        { value: `${column.column}-asc`, text: `Custom Order (${column.label} ascending)` },
-        { value: `${column.column}-desc`, text: `Custom Order (${column.label} descending)` }
+        { value: `${column.column}-asc`, text: `${column.label} Ascending` },
+        { value: `${column.column}-desc`, text: `${column.label} Descending` }
       ])
     ];
 

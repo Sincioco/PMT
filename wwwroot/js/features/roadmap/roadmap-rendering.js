@@ -47,10 +47,10 @@ export function roadMapScreenHtml({
         <label>
           <span>Sort</span>
           <select data-filter="roadmap-sort">
-            <option value="endAsc" ${sort === "endAsc" ? "selected" : ""}>End date ascending</option>
-            <option value="endDesc" ${sort === "endDesc" ? "selected" : ""}>End date descending</option>
-            <option value="startAsc" ${sort === "startAsc" ? "selected" : ""}>Start date ascending</option>
-            <option value="startDesc" ${sort === "startDesc" ? "selected" : ""}>Start date descending</option>
+            <option value="endAsc" ${sort === "endAsc" ? "selected" : ""}>End Date Ascending</option>
+            <option value="endDesc" ${sort === "endDesc" ? "selected" : ""}>End Date Descending</option>
+            <option value="startAsc" ${sort === "startAsc" ? "selected" : ""}>Start Date Ascending</option>
+            <option value="startDesc" ${sort === "startDesc" ? "selected" : ""}>Start Date Descending</option>
           </select>
         </label>
         <div class="roadmap-filter-actions">

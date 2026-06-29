@@ -744,8 +744,8 @@ export function createSettingsFeature({
     const options = [
       { value: "custom", text: settingsCustomSortLabel(category) },
       ...settingsTableSortColumns(category).flatMap(column => [
-        { value: `${column.column}-asc`, text: `Custom Order (${column.label} ascending)` },
-        { value: `${column.column}-desc`, text: `Custom Order (${column.label} descending)` }
+        { value: `${column.column}-asc`, text: `${column.label} Ascending` },
+        { value: `${column.column}-desc`, text: `${column.label} Descending` }
       ])
     ];
 
@@ -756,8 +756,8 @@ export function createSettingsFeature({
 
   function settingsCustomSortLabel(category) {
     if (category === "Navigation") return "Custom Order (Saved Order)";
-    if (category === "Holidays") return "Custom Order (Date descending)";
-    return "Custom Order (Order ascending)";
+    if (category === "Holidays") return "Date Descending";
+    return "Order Ascending";
   }
 
   function settingsTableSortColumns(category) {

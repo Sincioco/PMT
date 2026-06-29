@@ -81,8 +81,8 @@ export function ganttFilterFieldsHtml({
         <label>
           <span>Sort</span>
           <select data-filter="gantt-sort">
-            <option value="startAsc" ${sort === "startAsc" ? "selected" : ""}>Start date ascending</option>
-            <option value="startDesc" ${sort === "startDesc" ? "selected" : ""}>Start date descending</option>
+            <option value="startAsc" ${sort === "startAsc" ? "selected" : ""}>Start Date Ascending</option>
+            <option value="startDesc" ${sort === "startDesc" ? "selected" : ""}>Start Date Descending</option>
           </select>
         </label>
         <label class="inline-filter-check">

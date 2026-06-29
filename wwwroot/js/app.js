@@ -24,22 +24,22 @@ import {
 } from "./core/screen-registry.js";
 import { state } from "./core/store.js";
 import { createAboutFeature } from "./features/about/about.js?v=20260621-about-credits";
-import { createBacklogFeature } from "./features/backlog/backlog.js?v=20260629-backlog-percent-column";
-import { createBoardFeature } from "./features/board/board.js?v=20260629-kanban-followup";
-import { createBugsFeature } from "./features/bugs/bugs.js?v=20260629-task-bug-table-sorts";
+import { createBacklogFeature } from "./features/backlog/backlog.js?v=20260629-sort-dropdown-labels";
+import { createBoardFeature } from "./features/board/board.js?v=20260629-sort-dropdown-labels";
+import { createBugsFeature } from "./features/bugs/bugs.js?v=20260629-sort-dropdown-labels";
 import { createDashboardFeature } from "./features/dashboard/dashboard.js?v=20260627-dev-task-status-rules";
 import { createDocumentationFeature } from "./features/documentation/documentation.js?v=20260627-rich-text-toolbar";
 import {
   createGanttFeature,
   currentSprintForProject,
   ganttStartDate
-} from "./features/gantt/gantt.js?v=20260629-gantt-bugs-filter";
+} from "./features/gantt/gantt.js?v=20260629-sort-dropdown-labels";
 import { createProjectsFeature } from "./features/projects/projects.js?v=20260628-project-sprint-chart-tooltips";
-import { createRoadMapFeature } from "./features/roadmap/roadmap.js?v=20260628-roadmap-always-show-dates";
-import { createScrumFeature } from "./features/scrum/scrum.js?v=20260629-settings-backlog-scrum-polish";
-import { createSettingsFeature } from "./features/settings/settings.js?v=20260629-settings-filter-theme";
+import { createRoadMapFeature } from "./features/roadmap/roadmap.js?v=20260629-sort-dropdown-labels";
+import { createScrumFeature } from "./features/scrum/scrum.js?v=20260629-sort-dropdown-labels";
+import { createSettingsFeature } from "./features/settings/settings.js?v=20260629-sort-dropdown-labels";
 import { createSprintsFeature } from "./features/sprints/sprints.js?v=20260628-project-sprint-chart-tooltips";
-import { createTasksFeature } from "./features/tasks/tasks.js?v=20260629-all-projects-current-sprint";
+import { createTasksFeature } from "./features/tasks/tasks.js?v=20260629-sort-dropdown-labels";
 import { createWfhScheduleFeature } from "./features/wfh-schedule/wfh-schedule.js?v=20260627-dev-task-status-rules";
 import {
   fallbackEnvironments,

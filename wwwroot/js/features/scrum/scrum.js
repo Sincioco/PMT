@@ -421,12 +421,12 @@ export function createScrumFeature({
   function scrumSortOptionsHtml() {
     const selectedSort = scrumFilters.sort || "custom";
     const options = [
-      { value: "custom", text: "Custom Order (Date descending)" },
+      { value: "custom", text: "Date Descending" },
       { value: "newest", text: "Newest Scrum" },
       { value: "oldest", text: "Oldest Scrum" },
       ...scrumTableSortColumns().flatMap(column => [
-        { value: `${column.column}-asc`, text: `Custom Order (${column.label} ascending)` },
-        { value: `${column.column}-desc`, text: `Custom Order (${column.label} descending)` }
+        { value: `${column.column}-asc`, text: `${column.label} Ascending` },
+        { value: `${column.column}-desc`, text: `${column.label} Descending` }
       ])
     ];
 

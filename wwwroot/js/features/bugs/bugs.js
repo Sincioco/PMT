@@ -601,8 +601,8 @@ export function createBugsFeature({
       { value: "newest", text: "Newest Bug Reports" },
       { value: "oldest", text: "Oldest Bug Reports" },
       ...bugTableSortColumns().flatMap(column => [
-        { value: `${column.column}-asc`, text: `Custom Order (${column.label} ascending)` },
-        { value: `${column.column}-desc`, text: `Custom Order (${column.label} descending)` }
+        { value: `${column.column}-asc`, text: `${column.label} Ascending` },
+        { value: `${column.column}-desc`, text: `${column.label} Descending` }
       ])
     ];
 

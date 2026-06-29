@@ -219,9 +219,9 @@ export function createBoardFeature({
           <label>
             <span>Sort</span>
             <select data-filter="board-sort">
-              <option value="custom" ${boardSort === "custom" ? "selected" : ""}>Custom order</option>
-              <option value="openFirst" ${boardSort === "openFirst" ? "selected" : ""}>Open first</option>
-              <option value="doneFirst" ${boardSort === "doneFirst" ? "selected" : ""}>Done first</option>
+              <option value="custom" ${boardSort === "custom" ? "selected" : ""}>Custom Order (Saved Order)</option>
+              <option value="openFirst" ${boardSort === "openFirst" ? "selected" : ""}>Open First</option>
+              <option value="doneFirst" ${boardSort === "doneFirst" ? "selected" : ""}>Done First</option>
             </select>
           </label>
           <label class="inline-filter-check">
