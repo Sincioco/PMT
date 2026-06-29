@@ -397,13 +397,13 @@ VALUES
 (
     @LmsProject,
     N'LMS Course Catalog Release Notes',
-    N'<p><img src="/assets/docs/lms-course-catalog-v2.png" alt="LMS course catalog screen with searchable course cards and enrollment status"></p><p>The LMS course catalog helps learners find required training quickly. Keep the first release focused on searchable course cards, enrollment status, and clear calls to action.</p><ul><li>Show required and optional courses separately.</li><li>Display estimated duration and due date.</li><li>Keep enrollment changes audited.</li></ul>',
+    N'<p><img src="/assets/docs/lms-course-catalog-v2.jpg" alt="LMS course catalog screen with searchable course cards and enrollment status"></p><p>The LMS course catalog helps learners find required training quickly. Keep the first release focused on searchable course cards, enrollment status, and clear calls to action.</p><ul><li>Show required and optional courses separately.</li><li>Display estimated duration and due date.</li><li>Keep enrollment changes audited.</li></ul>',
     @Sin
 ),
 (
     @LmsProject,
     N'LMS Computer Lab Rollout Checklist',
-    N'<p><img src="/assets/docs/lms-computer-lab-v2.png" alt="LMS computer lab rollout checklist with workstation readiness and QA checks"></p><p>Use this checklist when rolling the LMS into shared training rooms.</p><ul><li>Confirm Chrome is installed and up to date.</li><li>Verify SSO login from a learner workstation.</li><li>Run one quiz and one assignment upload before class starts.</li></ul>',
+    N'<p><img src="/assets/docs/lms-computer-lab-v2.jpg" alt="LMS computer lab rollout checklist with workstation readiness and QA checks"></p><p>Use this checklist when rolling the LMS into shared training rooms.</p><ul><li>Confirm Chrome is installed and up to date.</li><li>Verify SSO login from a learner workstation.</li><li>Run one quiz and one assignment upload before class starts.</li></ul>',
     @Sam
 );
 

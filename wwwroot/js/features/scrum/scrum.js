@@ -10,9 +10,9 @@ import {
   richValue,
   selectOptionsField,
   value
-} from "../../components/forms.js?v=20260627-rich-text-toolbar";
+} from "../../components/forms.js?v=20260629-avatar-jpg-assets";
 import { sectionHead } from "../../components/sections.js";
-import { createWorkItemTableMode } from "../../components/work-items.js?v=20260627-dev-task-status-rules";
+import { createWorkItemTableMode } from "../../components/work-items.js?v=20260629-avatar-jpg-assets";
 import { currentUser } from "../../core/authentication.js";
 import {
   preferenceKeys,

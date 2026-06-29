@@ -19,7 +19,7 @@ import {
   selectTextField,
   userCardCheckListLabelHtml,
   value
-} from "../../components/forms.js?v=20260627-rich-text-toolbar";
+} from "../../components/forms.js?v=20260629-avatar-jpg-assets";
 import { progressHtml } from "../../components/progress-and-status.js?v=20260627-dev-task-status-rules";
 import { sectionHead } from "../../components/sections.js";
 import {
@@ -32,7 +32,7 @@ import {
   taskPercentField,
   workItemDialogMetaHtml,
   uploadWorkItemAttachments
-} from "../../components/work-items.js?v=20260627-task-dialog-meta";
+} from "../../components/work-items.js?v=20260629-avatar-jpg-assets";
 import { currentUserId } from "../../core/authentication.js";
 import {
   preferenceKeys,

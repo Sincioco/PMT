@@ -6,7 +6,7 @@ import {
   numberValue,
   selectTextField,
   value
-} from "../../components/forms.js";
+} from "../../components/forms.js?v=20260629-avatar-jpg-assets";
 import {
   defaultStatusColor,
   statusColor
@@ -45,35 +45,43 @@ import {
   escapeHtml
 } from "../../shared/text-and-links.js";
 
-const avatarCacheVersion = "20260627-generic-avatars";
+const avatarCacheVersion = "20260629-avatar-jpg-assets";
 const seededAvatarPaths = new Set([
-  "/assets/avatar-sin.png",
-  "/assets/avatar-bill-gates.png",
-  "/assets/avatar-sam-altman.png",
-  "/assets/avatar-mark-zuckerberg.png",
-  "/assets/avatar-steve-jobs.png",
-  "/assets/avatar-jensen-huang.png",
-  "/assets/avatar-generic-1.png",
-  "/assets/avatar-generic-2.png",
-  "/assets/avatar-generic-3.png",
-  "/assets/avatar-generic-4.png",
-  "/assets/avatar-generic-5.png",
-  "/assets/avatar-generic-6.png"
+  "/assets/avatar-sin.jpg",
+  "/assets/avatar-bill-gates.jpg",
+  "/assets/avatar-sam-altman.jpg",
+  "/assets/avatar-mark-zuckerberg.jpg",
+  "/assets/avatar-steve-jobs.jpg",
+  "/assets/avatar-jensen-huang.jpg",
+  "/assets/avatar-generic-1.jpg",
+  "/assets/avatar-generic-2.jpg",
+  "/assets/avatar-generic-3.jpg",
+  "/assets/avatar-generic-4.jpg",
+  "/assets/avatar-generic-5.jpg",
+  "/assets/avatar-generic-6.jpg"
 ]);
 const legacySeededAvatarPaths = new Map([
-  ["/assets/avatar-bill-gates.jpg", "/assets/avatar-bill-gates.png"],
-  ["/assets/avatar-sam-altman.jpg", "/assets/avatar-sam-altman.png"],
-  ["/assets/avatar-mark-zuckerberg.jpg", "/assets/avatar-mark-zuckerberg.png"],
-  ["/assets/avatar-steve-jobs.jpg", "/assets/avatar-steve-jobs.png"],
-  ["/assets/avatar-lisa-su.jpg", "/assets/avatar-jensen-huang.png"]
+  ["/assets/avatar-sin.png", "/assets/avatar-sin.jpg"],
+  ["/assets/avatar-bill-gates.png", "/assets/avatar-bill-gates.jpg"],
+  ["/assets/avatar-sam-altman.png", "/assets/avatar-sam-altman.jpg"],
+  ["/assets/avatar-mark-zuckerberg.png", "/assets/avatar-mark-zuckerberg.jpg"],
+  ["/assets/avatar-steve-jobs.png", "/assets/avatar-steve-jobs.jpg"],
+  ["/assets/avatar-jensen-huang.png", "/assets/avatar-jensen-huang.jpg"],
+  ["/assets/avatar-generic-1.png", "/assets/avatar-generic-1.jpg"],
+  ["/assets/avatar-generic-2.png", "/assets/avatar-generic-2.jpg"],
+  ["/assets/avatar-generic-3.png", "/assets/avatar-generic-3.jpg"],
+  ["/assets/avatar-generic-4.png", "/assets/avatar-generic-4.jpg"],
+  ["/assets/avatar-generic-5.png", "/assets/avatar-generic-5.jpg"],
+  ["/assets/avatar-generic-6.png", "/assets/avatar-generic-6.jpg"],
+  ["/assets/avatar-lisa-su.jpg", "/assets/avatar-jensen-huang.jpg"]
 ]);
 const genericAvatarOptions = [
-  "/assets/avatar-generic-1.png",
-  "/assets/avatar-generic-2.png",
-  "/assets/avatar-generic-3.png",
-  "/assets/avatar-generic-4.png",
-  "/assets/avatar-generic-5.png",
-  "/assets/avatar-generic-6.png"
+  "/assets/avatar-generic-1.jpg",
+  "/assets/avatar-generic-2.jpg",
+  "/assets/avatar-generic-3.jpg",
+  "/assets/avatar-generic-4.jpg",
+  "/assets/avatar-generic-5.jpg",
+  "/assets/avatar-generic-6.jpg"
 ];
 
 export function createSettingsFeature({

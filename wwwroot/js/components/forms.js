@@ -114,21 +114,23 @@ export function userCheckListLabelHtml(user) {
   `;
 }
 
-const userCardAvatarCacheVersion = "20260627-steve-avatar";
+const userCardAvatarCacheVersion = "20260629-avatar-jpg-assets";
 const seededUserCardAvatarPaths = new Set([
-  "/assets/avatar-sin.png",
-  "/assets/avatar-bill-gates.png",
-  "/assets/avatar-sam-altman.png",
-  "/assets/avatar-mark-zuckerberg.png",
-  "/assets/avatar-steve-jobs.png",
-  "/assets/avatar-jensen-huang.png"
+  "/assets/avatar-sin.jpg",
+  "/assets/avatar-bill-gates.jpg",
+  "/assets/avatar-sam-altman.jpg",
+  "/assets/avatar-mark-zuckerberg.jpg",
+  "/assets/avatar-steve-jobs.jpg",
+  "/assets/avatar-jensen-huang.jpg"
 ]);
 const legacyUserCardAvatarPaths = new Map([
-  ["/assets/avatar-bill-gates.jpg", "/assets/avatar-bill-gates.png"],
-  ["/assets/avatar-sam-altman.jpg", "/assets/avatar-sam-altman.png"],
-  ["/assets/avatar-mark-zuckerberg.jpg", "/assets/avatar-mark-zuckerberg.png"],
-  ["/assets/avatar-steve-jobs.jpg", "/assets/avatar-steve-jobs.png"],
-  ["/assets/avatar-lisa-su.jpg", "/assets/avatar-jensen-huang.png"]
+  ["/assets/avatar-sin.png", "/assets/avatar-sin.jpg"],
+  ["/assets/avatar-bill-gates.png", "/assets/avatar-bill-gates.jpg"],
+  ["/assets/avatar-sam-altman.png", "/assets/avatar-sam-altman.jpg"],
+  ["/assets/avatar-mark-zuckerberg.png", "/assets/avatar-mark-zuckerberg.jpg"],
+  ["/assets/avatar-steve-jobs.png", "/assets/avatar-steve-jobs.jpg"],
+  ["/assets/avatar-jensen-huang.png", "/assets/avatar-jensen-huang.jpg"],
+  ["/assets/avatar-lisa-su.jpg", "/assets/avatar-jensen-huang.jpg"]
 ]);
 
 export function userCardCheckListLabelHtml(user) {

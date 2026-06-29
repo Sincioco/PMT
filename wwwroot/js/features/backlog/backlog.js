@@ -9,7 +9,7 @@ import { sectionHead } from "../../components/sections.js";
 import {
   bugFixIconHtml,
   createWorkItemTableMode
-} from "../../components/work-items.js?v=20260627-dev-task-status-rules";
+} from "../../components/work-items.js?v=20260629-avatar-jpg-assets";
 import {
   preferenceKeys,
   readJsonPreference,

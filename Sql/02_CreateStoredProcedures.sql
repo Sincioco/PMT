@@ -3105,7 +3105,7 @@ BEGIN
         [LastName] = N'Sincioco',
         [Nickname] = N'Sin',
         [Email] = N'louiery@gmail.com',
-        [AvatarUrl] = N'/assets/avatar-sin.png?v=20260627-avatars',
+        [AvatarUrl] = N'/assets/avatar-sin.jpg?v=20260629-avatar-jpg-assets',
         [PasswordHash] = HASHBYTES('SHA2_256', CONVERT(NVARCHAR(4000), N'Password1')),
         [Bio] = N'PMT creator and administrator.',
         [IsAdmin] = 1,

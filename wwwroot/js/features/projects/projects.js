@@ -8,7 +8,7 @@ import {
   nullableDateValue,
   userCardCheckListLabelHtml,
   value
-} from "../../components/forms.js?v=20260627-user-card-checklist";
+} from "../../components/forms.js?v=20260629-avatar-jpg-assets";
 import {
   projectOverallProgressHtml,
   projectStatusCounts,

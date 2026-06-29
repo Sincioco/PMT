@@ -13,7 +13,7 @@ import {
   selectField,
   userCardCheckListLabelHtml,
   value
-} from "../../components/forms.js?v=20260627-rich-text-toolbar";
+} from "../../components/forms.js?v=20260629-avatar-jpg-assets";
 import {
   sprintOverallProgressHtml,
   sprintStatusMetricsHtml,

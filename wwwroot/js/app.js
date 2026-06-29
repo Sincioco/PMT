@@ -9,13 +9,13 @@ import {
 import {
   field,
   value
-} from "./components/forms.js?v=20260627-rich-text-toolbar";
+} from "./components/forms.js?v=20260629-avatar-jpg-assets";
 import { configureProgressAndStatus } from "./components/progress-and-status.js?v=20260627-dev-task-status-rules";
 import {
   bindAttachmentPreview,
   showTaskAudit,
   viewWorkItem
-} from "./components/work-items.js?v=20260627-task-dialog-meta";
+} from "./components/work-items.js?v=20260629-avatar-jpg-assets";
 import { createApplicationShell } from "./core/application-shell.js?v=20260621-light-default";
 import {
   currentView,
@@ -28,23 +28,23 @@ import {
 } from "./core/screen-registry.js";
 import { state } from "./core/store.js";
 import { createAboutFeature } from "./features/about/about.js?v=20260621-about-credits";
-import { createBacklogFeature } from "./features/backlog/backlog.js?v=20260629-sort-dropdown-labels";
-import { createBoardFeature } from "./features/board/board.js?v=20260629-sort-dropdown-labels";
-import { createBugsFeature } from "./features/bugs/bugs.js?v=20260629-sort-dropdown-labels";
+import { createBacklogFeature } from "./features/backlog/backlog.js?v=20260629-avatar-jpg-assets";
+import { createBoardFeature } from "./features/board/board.js?v=20260629-avatar-jpg-assets";
+import { createBugsFeature } from "./features/bugs/bugs.js?v=20260629-avatar-jpg-assets";
 import { createDashboardFeature } from "./features/dashboard/dashboard.js?v=20260627-dev-task-status-rules";
-import { createDocumentationFeature } from "./features/documentation/documentation.js?v=20260627-rich-text-toolbar";
+import { createDocumentationFeature } from "./features/documentation/documentation.js?v=20260629-avatar-jpg-assets";
 import {
   createGanttFeature,
   currentSprintForProject,
   ganttStartDate
 } from "./features/gantt/gantt.js?v=20260629-sort-dropdown-labels";
-import { createProjectsFeature } from "./features/projects/projects.js?v=20260628-project-sprint-chart-tooltips";
+import { createProjectsFeature } from "./features/projects/projects.js?v=20260629-avatar-jpg-assets";
 import { createRoadMapFeature } from "./features/roadmap/roadmap.js?v=20260629-sort-dropdown-labels";
-import { createScrumFeature } from "./features/scrum/scrum.js?v=20260629-sort-dropdown-labels";
-import { createSettingsFeature } from "./features/settings/settings.js?v=20260629-sort-dropdown-labels";
-import { createSprintsFeature } from "./features/sprints/sprints.js?v=20260628-project-sprint-chart-tooltips";
-import { createTasksFeature } from "./features/tasks/tasks.js?v=20260629-sort-dropdown-labels";
-import { createWfhScheduleFeature } from "./features/wfh-schedule/wfh-schedule.js?v=20260627-dev-task-status-rules";
+import { createScrumFeature } from "./features/scrum/scrum.js?v=20260629-avatar-jpg-assets";
+import { createSettingsFeature } from "./features/settings/settings.js?v=20260629-avatar-jpg-assets";
+import { createSprintsFeature } from "./features/sprints/sprints.js?v=20260629-avatar-jpg-assets";
+import { createTasksFeature } from "./features/tasks/tasks.js?v=20260629-avatar-jpg-assets";
+import { createWfhScheduleFeature } from "./features/wfh-schedule/wfh-schedule.js?v=20260629-avatar-jpg-assets";
 import {
   fallbackEnvironments,
   fallbackForLookup,
