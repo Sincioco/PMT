@@ -84,10 +84,10 @@ INSERT INTO [pmt].[Users]
     [Role], [CreatedByUserId]
 )
 VALUES
-(N'Bill', N'Gates', N'Bill', N'bill.gates@sincioco.com', N'555-0102', N'/assets/avatar-bill-gates.png?v=20260627-avatars', @PasswordHash, N'https://www.gatesnotes.com/', N'https://www.linkedin.com/in/williamhgates/', N'Backend developer focused on APIs and database work.', 0, N'Developer', @Sin),
-(N'Sam', N'Altman', N'Sam', N'sam.altman@sincioco.com', N'555-0103', N'/assets/avatar-sam-altman.png?v=20260627-avatars', @PasswordHash, N'https://blog.samaltman.com/', N'https://www.linkedin.com/in/samaltman/', N'QA lead who keeps acceptance criteria and bug reports clear.', 0, N'QA', @Sin),
-(N'Mark', N'Zuckerberg', N'Mark', N'mark.zuckerberg@sincioco.com', N'555-0104', N'/assets/avatar-mark-zuckerberg.png?v=20260627-avatars', @PasswordHash, N'https://about.meta.com/', N'https://www.linkedin.com/in/zuck/', N'Frontend developer focused on usability and interaction details.', 0, N'Developer', @Sin),
-(N'Steve', N'Jobs', N'Steve', N'steve.jobs@sincioco.com', N'555-0105', N'/assets/avatar-steve-jobs.png?v=20260627-steve-avatar', @PasswordHash, N'https://www.apple.com/', N'https://www.linkedin.com/', N'Product-minded developer who helps sharpen feature scope.', 0, N'Developer', @Sin),
+(N'Bill', N'Gates', N'Bill', N'bill.gates@microsoft.com', N'555-0102', N'/assets/avatar-bill-gates.png?v=20260627-avatars', @PasswordHash, N'https://www.gatesnotes.com/', N'https://www.linkedin.com/in/williamhgates/', N'Backend developer focused on APIs and database work.', 0, N'Developer', @Sin),
+(N'Sam', N'Altman', N'Sam', N'sam.altman@openai.com', N'555-0103', N'/assets/avatar-sam-altman.png?v=20260627-avatars', @PasswordHash, N'https://blog.samaltman.com/', N'https://www.linkedin.com/in/samaltman/', N'QA lead who keeps acceptance criteria and bug reports clear.', 0, N'QA', @Sin),
+(N'Mark', N'Zuckerberg', N'Mark', N'mark.zuckerberg@meta.com', N'555-0104', N'/assets/avatar-mark-zuckerberg.png?v=20260627-avatars', @PasswordHash, N'https://about.meta.com/', N'https://www.linkedin.com/in/zuck/', N'Frontend developer focused on usability and interaction details.', 0, N'Developer', @Sin),
+(N'Steve', N'Jobs', N'Steve', N'steve.jobs@apple.com', N'555-0105', N'/assets/avatar-steve-jobs.png?v=20260627-steve-avatar', @PasswordHash, N'https://www.apple.com/', N'https://www.linkedin.com/', N'Product-minded developer who helps sharpen feature scope.', 0, N'Developer', @Sin),
 (N'Jensen', N'Huang', N'Jensen Huang', N'Jensen.Huang@nvidia.com', N'555-0106', N'/assets/avatar-jensen-huang.png?v=20260627-avatars', @PasswordHash, N'https://www.nvidia.com/', N'https://www.linkedin.com/in/jenhsunhuang/', N'Integration developer who helps with performance and release support.', 0, N'Developer', @Sin);
 
 DECLARE @Bill INT = (SELECT [UserId] FROM [pmt].[Users] WHERE [Nickname] = N'Bill');

@@ -51,3 +51,10 @@ Dev Task Screen
 
 3.) Put back the red accent that was on the left of the Bug Task row.
 4.) Put some margin on the Bug Task icon on the upper-right of the row so it's not so close to the top and right edge of the row.
+
+Seed Data
+---------
+1.) Update Bill Gate's email to be:  bill.gates@microsoft.com
+2.) Update Mark Zuckerberg's email to be:  mark.zuckerberg@meta.com
+3.) Update Sam Altman's email to be:  sam.altman@openai.com
+4.) Update Steve Job's email to be:  steve.jobs@apple.com
