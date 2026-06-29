@@ -103,7 +103,7 @@ html[data-theme] .backlog-screen.work-item-screen .work-item-table .icon-action:
 }
 
 .backlog-table {
-  min-width: 1180px;
+  min-width: 1400px;
 }
 
 .backlog-expand-column {
@@ -138,6 +138,10 @@ html[data-theme] .backlog-screen.work-item-screen .work-item-table .icon-action:
   width: 100px;
 }
 
+.backlog-complete-column {
+  width: 220px;
+}
+
 .backlog-action-column {
   width: 192px;
 }
@@ -154,6 +158,24 @@ html[data-theme] .backlog-screen.work-item-screen .work-item-table .icon-action:
   position: relative;
   z-index: 4;
   overflow: visible;
+}
+
+.backlog-table .backlog-expand-cell .task-subtask-toggle {
+  position: absolute;
+  top: 50%;
+  left: 10px;
+  transform: translateY(-50%);
+}
+
+.backlog-table .done-cell {
+  min-width: 220px;
+  padding-right: var(--space-7);
+  position: relative;
+  z-index: 1;
+}
+
+.backlog-table.is-read-mode .done-cell {
+  padding-right: var(--space-10);
 }
 
 .backlog-table .work-item-code,

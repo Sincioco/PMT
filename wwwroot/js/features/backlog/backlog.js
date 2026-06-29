@@ -4,6 +4,7 @@ import {
   checkedFilterValues,
   filterCheckList
 } from "../../components/filters.js";
+import { progressHtml } from "../../components/progress-and-status.js?v=20260627-dev-task-status-rules";
 import { sectionHead } from "../../components/sections.js";
 import {
   bugFixIconHtml,
@@ -27,6 +28,7 @@ import {
 } from "../../shared/text-and-links.js";
 import {
   taskCreatedTime,
+  taskDisplayPercent,
   taskOrderCompare,
   taskRowsWithSubTasks
 } from "../../shared/work-item-rules.js?v=20260627-dev-task-status-rules";
@@ -83,6 +85,7 @@ export function createBacklogFeature({
               <col class="backlog-sprint-column">
               <col class="backlog-status-column">
               <col class="backlog-priority-column">
+              <col class="backlog-complete-column">
               ${backlogTableMode.active ? `<col class="backlog-action-column">` : ""}
             </colgroup>
             <thead>
@@ -95,6 +98,7 @@ export function createBacklogFeature({
                 ${backlogSortHeaderHtml("sprint", "Sprint")}
                 ${backlogSortHeaderHtml("status", "Status")}
                 ${backlogSortHeaderHtml("priority", "Priority")}
+                ${backlogSortHeaderHtml("percent", "% Complete", "done-cell")}
                 ${backlogTableMode.active ? `<th class="action-cell" aria-label="Actions"></th>` : ""}
               </tr>
             </thead>
@@ -128,10 +132,11 @@ export function createBacklogFeature({
                   <td class="work-item-context-cell">${task.sprintId ? `<span class="pill sprint-pill">${escapeHtml(sprintName(task.sprintId))}</span>` : `<span class="muted">Unassigned</span>`}</td>
                   <td class="work-item-context-cell">${escapeHtml(task.status)}</td>
                   <td><span class="pill priority-${escapeAttr(task.priority)}">${escapeHtml(task.priority)}</span></td>
+                  <td class="done-cell">${workItemTableProgressHtml(taskDisplayPercent(task))}</td>
                   ${backlogTableMode.active ? `<td class="reveal-actions action-cell">${backlogTaskButtonsHtml(task)}</td>` : ""}
                 </tr>
               `;
-              }).join("") || `<tr><td colspan="${backlogTableMode.active ? 9 : 8}"><div class="empty">No backlog items match the current filters.</div></td></tr>`}
+              }).join("") || `<tr><td colspan="${backlogTableMode.active ? 10 : 9}"><div class="empty">No backlog items match the current filters.</div></td></tr>`}
             </tbody>
           </table>
         </div>
@@ -343,6 +348,17 @@ export function createBacklogFeature({
     return items.sort(backlogMainTaskSortCompare);
   }
 
+  function workItemTableProgressHtml(percent) {
+    const safePercent = Math.max(0, Math.min(100, Number(percent || 0)));
+
+    return `
+      <div class="work-item-table-progress">
+        <span class="work-item-table-progress-label">${safePercent}%</span>
+        ${progressHtml(safePercent)}
+      </div>
+    `;
+  }
+
   function backlogChildTasksByParent(tasks) {
     const taskIds = new Set(tasks.map(task => task.id));
     const childrenByParent = new Map();
@@ -454,6 +470,7 @@ export function createBacklogFeature({
   }
 
   function compareBacklogSortColumn(a, b, column) {
+    if (column === "percent") return taskDisplayPercent(a) - taskDisplayPercent(b);
     if (column === "priority") return compareLookupSortValue(a.priority, b.priority, getPriorities());
     if (column === "type") return compareLookupSortValue(a.taskType || "Dev", b.taskType || "Dev", ["Dev", "Bug"]);
 
@@ -488,15 +505,15 @@ export function createBacklogFeature({
       .join(", ");
   }
 
-  function backlogSortHeaderHtml(column, label) {
+  function backlogSortHeaderHtml(column, label, className = "") {
     const state = backlogTableSortState();
     const isSorted = state.column === column && Boolean(state.direction);
     const ariaSort = isSorted ? (state.direction === "asc" ? "ascending" : "descending") : "none";
     const arrow = isSorted ? (state.direction === "asc" ? "&#9650;" : "&#9660;") : "";
-    const className = isSorted ? "is-sorted" : "";
+    const classes = [className, isSorted ? "is-sorted" : ""].filter(Boolean).join(" ");
 
     return `
-      <th class="${className}" aria-sort="${ariaSort}">
+      <th class="${classes}" aria-sort="${ariaSort}">
         <button type="button" class="table-sort-button" data-action="sort-backlog-table" data-column="${escapeAttr(column)}" title="${escapeAttr(backlogNextSortLabel(column, label))}">
           <span>${escapeHtml(label)}</span>
           <span class="table-sort-indicator" aria-hidden="true">${arrow}</span>
@@ -553,7 +570,8 @@ export function createBacklogFeature({
       { column: "project", label: "Project" },
       { column: "sprint", label: "Sprint" },
       { column: "status", label: "Status" },
-      { column: "priority", label: "Priority" }
+      { column: "priority", label: "Priority" },
+      { column: "percent", label: "% Complete" }
     ];
   }
 

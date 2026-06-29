@@ -35,5 +35,11 @@ Gantt Chart
 4.) Make sure the Gantt chart's fly-by animation or mousewheel behavior is not affected because the dimensions of the Gantt Chart itself will now change because the existing Filter section at the top will now disappear.
 5.) In the Gantt Chart, let's move the Expand / Hide Bugs functionality as a checkbox in the Filter dialog box.
 6.) In the Kanban Board, let's remove the red tint on the Bug Task Cards.
-
 7.) In the Gantt Chart, swap the reset and filter page-level buttons.
+
+Backlog Screen
+-----------
+1.) In the Backlog screen, the expand / collapse for the sub-task is overlapping with the icon of the Assignee avatar.  You need to shift the expand / collapse icon to the left without moving anything else.
+2.) In the Backlog screen, the expand / collapse icon for the sub-task is shifting as I resize the browser's window and at times still overlaps the Assignee avatar.  Can you fix the expand / collapse icon so it's does not move?  The way it is imlemented in the Dev Task table is flawless.  Maybe use that as a reference?
+3.) Also, add a % Completed column in the Backlog.  Again, use the Dev Task table as a reference.  I really would like the Backlog table to behave / work in the same way as the Dev Tasks table.
+4.) In the Backlog screen, move the the expand / collapse to the right by 10px without shifting anything else.
