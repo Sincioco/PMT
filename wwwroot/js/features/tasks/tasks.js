@@ -685,6 +685,10 @@ export function createTasksFeature({
 
   function taskMatchesSprintFilter(task, selectedSprint) {
     if (taskSprintId === "all") return true;
+    if (taskSprintId === "current" && !taskProjectId) {
+      const projectCurrentSprint = getCurrentSprint(taskProjectSprints(task.projectId));
+      return projectCurrentSprint ? task.sprintId === projectCurrentSprint.id : false;
+    }
     return selectedSprint ? task.sprintId === selectedSprint.id : false;
   }
 
@@ -1051,6 +1055,7 @@ export function createTasksFeature({
 
   function taskSprintFilterSubtitle(selectedSprint) {
     if (taskProjectId === 0 && taskSprintId === "all") return "All Projects and All Sprints";
+    if (taskProjectId === 0 && taskSprintId === "current") return "All Projects - Current Sprint";
 
     const project = selectedSprint
       ? state.projects.find(item => item.id === selectedSprint.projectId)

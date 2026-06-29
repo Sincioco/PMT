@@ -58,3 +58,6 @@ Seed Data
 2.) Update Mark Zuckerberg's email to be:  mark.zuckerberg@meta.com
 3.) Update Sam Altman's email to be:  sam.altman@openai.com
 4.) Update Steve Job's email to be:  steve.jobs@apple.com
+
+
+1.) Bug:  There seems to be a Bug in the Dev Task's Project Filter.  If "All Projects" is selected and the "Current Sprint" is selected, it seems to only return the HLS Project's current Sprint.  Can you double-check the logic for "All Projects" and why it is only returning the Dev Tasks for 1 project out of 3?

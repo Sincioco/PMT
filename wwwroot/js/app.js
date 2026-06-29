@@ -39,7 +39,7 @@ import { createRoadMapFeature } from "./features/roadmap/roadmap.js?v=20260628-r
 import { createScrumFeature } from "./features/scrum/scrum.js?v=20260629-settings-backlog-scrum-polish";
 import { createSettingsFeature } from "./features/settings/settings.js?v=20260629-settings-filter-theme";
 import { createSprintsFeature } from "./features/sprints/sprints.js?v=20260628-project-sprint-chart-tooltips";
-import { createTasksFeature } from "./features/tasks/tasks.js?v=20260629-dev-task-bug-icon-row";
+import { createTasksFeature } from "./features/tasks/tasks.js?v=20260629-all-projects-current-sprint";
 import { createWfhScheduleFeature } from "./features/wfh-schedule/wfh-schedule.js?v=20260627-dev-task-status-rules";
 import {
   fallbackEnvironments,
