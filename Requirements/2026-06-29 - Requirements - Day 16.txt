@@ -20,3 +20,8 @@ Kanban Board
 7.) If a task card (a main task) has sub-tasks, show a progress bar for each sub-tasks below the progress bar of the main-task.  Indent the sub-tasks' progress bar to denote that they are sub-tasks.
 8.) Replace the "bug" capsule with the new bug icon.
 9.) Render the Avatar icons of Assignees on the upper-left corner of the card at 80x80 pixels.  Vertically center the Card Head, Car Title and Card Tag relative to the Avatar.
+
+10.) Put back the Show All Columns / Hide Empty Columns button as a page-level button.  Put the button in front of the edit button.
+11.) For the sub-tasks progress bar, I want to bring the progress bar labels closer to the progress bar (visually).  Without moving or shifting anything else, on the card, move down the sub-task progress bar's labels (project code, task #, percent completed, closer to the progress bar itself.  Maybe only have a 2px gap between their labels and the progress bar.  Again, I only want to move the labels down closer to the progress bar itself.  Do not move or shift anything else on the Task card.
+12.) Do not render any shadows on the avatars.
+

@@ -211,7 +211,7 @@ html[data-theme] .board-screen.work-item-screen .section-head .toolbar > button:
   height: 80px;
   margin-left: -56px;
   border-color: var(--color-surface);
-  box-shadow: var(--shadow-floating-mark);
+  box-shadow: none;
 }
 
 .task-card-avatar .avatar:first-child {
@@ -284,6 +284,7 @@ html[data-theme] .board-screen.work-item-screen .section-head .toolbar > button:
   color: var(--color-text-secondary);
   font-size: var(--font-size-xs);
   line-height: var(--line-height-tight);
+  transform: translateY(2px);
 }
 
 .task-card-subtask-label span:first-child {

@@ -91,11 +91,13 @@ export function createBoardFeature({
     const boardColumnStatuses = boardHideEmptyColumns
       ? boardStatuses.filter(status => visibleTasks.some(task => task.status === status))
       : boardStatuses;
+    const columnToggleLabel = boardHideEmptyColumns ? "Show All Columns" : "Hide Empty Columns";
     app.innerHTML = `
       <section class="board-screen work-item-screen">
         ${sectionHead("Kanban Board", `
           <button class="primary text-icon-button" type="button" data-action="new-task" title="New Dev Task" aria-label="New Dev Task">${buttonContent("&#10010;", "New Dev Task")}</button>
           <button class="primary text-icon-button" type="button" data-action="new-bug" title="New Bug Report" aria-label="New Bug Report">${buttonIconImgHtml("board-action-bug-icon")}<span>New Bug Report</span></button>
+          <button class="secondary text-icon-button ${boardHideEmptyColumns ? "is-on" : ""}" type="button" data-action="toggle-empty-board-columns" title="${columnToggleLabel}" aria-label="${columnToggleLabel}" aria-pressed="${boardHideEmptyColumns}">${buttonContent(boardHideEmptyColumns ? "&#9638;" : "&#128065;", columnToggleLabel)}</button>
           ${boardEditMode.buttonHtml()}
           <button class="secondary text-icon-button" type="button" data-action="open-board-filters" title="Filters" aria-label="Filters" aria-haspopup="dialog">${buttonContent(funnelIconHtml(), "Filters")}</button>
           <button class="secondary text-icon-button" type="button" data-action="reset-board-view" title="Reset View" aria-label="Reset View">${buttonContent("&#8634;", "Reset View")}</button>
