@@ -48,3 +48,6 @@ Dev Task Screen
 ---------------
 1.) In the Dev Task Screen, remove the red tint on a Task that is a "Bug Fix" (a task that has a dependency / link to a Bug).  Also, remove the Bug Fix icon that is there now (which is the old bug icon).
 2.) For the same Bug Fix task (row) in question, add a the new Bug Icon to the upper-right of the current row similar to what was done on the Task Card in the Kanban Board (for the Bug tasks).
+
+3.) Put back the red accent that was on the left of the Bug Task row.
+4.) Put some margin on the Bug Task icon on the upper-right of the row so it's not so close to the top and right edge of the row.
