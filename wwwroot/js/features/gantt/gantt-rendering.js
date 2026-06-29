@@ -1,5 +1,5 @@
 import { avatarsHtml } from "../../components/avatars.js";
-import { buttonContent } from "../../components/buttons.js";
+import { buttonContent, funnelIconHtml } from "../../components/buttons.js";
 import { statusColor } from "../../components/progress-and-status.js?v=20260627-dev-task-status-rules";
 import { sectionHead } from "../../components/sections.js";
 import {
@@ -40,43 +40,56 @@ export function ganttScreenHtml({
   flyBy
 }) {
   return `
-    <div class="gantt-screen">
+    <div class="gantt-screen work-item-screen">
       ${sectionHead("Gantt", `
-        <button class="secondary text-icon-button" type="button" data-action="toggle-gantt-all-bugs">${buttonContent(showAllBugs ? "&#9652;" : "&#9662;", showAllBugs ? "Collapse Bugs" : "Expand Bugs")}</button>
+        <button class="secondary text-icon-button ${renderMode === "selected" ? "is-on" : ""}" type="button" data-action="toggle-gantt-render-mode" title="${renderMode === "selected" ? "Show All Sprints" : "Show Selected Sprint Only"}" aria-label="${renderMode === "selected" ? "Show All Sprints" : "Show Selected Sprint Only"}" aria-pressed="${renderMode === "selected"}">${buttonContent(renderMode === "selected" ? "&#9638;" : "&#9673;", renderMode === "selected" ? "Show All Sprints" : "Show Selected Sprint Only")}</button>
+        <button class="secondary text-icon-button ${showNonWorkingDays ? "is-on" : ""}" type="button" data-action="toggle-gantt-days" title="${showNonWorkingDays ? "Hide weekends and holidays" : "Show weekends and holidays"}" aria-label="${showNonWorkingDays ? "Hide weekends and holidays" : "Show weekends and holidays"}" aria-pressed="${showNonWorkingDays}">${buttonContent("&#128197;", showNonWorkingDays ? "Hide weekends and holidays" : "Show weekends and holidays")}</button>
+        <button class="secondary text-icon-button ${flyBy.active ? "is-on" : ""}" type="button" data-action="gantt-flyby" title="${flyBy.title}" aria-label="${flyBy.title}" aria-pressed="${flyBy.active}">${buttonContent(flyBy.icon, flyBy.title)}</button>
+        <button class="secondary text-icon-button" type="button" data-action="open-gantt-filters" title="Filters" aria-label="Filters" aria-haspopup="dialog">${buttonContent(funnelIconHtml(), "Filters")}</button>
+        <button class="secondary text-icon-button" type="button" data-action="reset-gantt-view" title="Reset Gantt view" aria-label="Reset Gantt view">${buttonContent("&#8634;", "Reset Gantt view")}</button>
       `)}
-      <div class="panel timeline-control-panel gantt-control-panel">
-        <div class="filter-row">
-          <label>
-            <span>Project</span>
-            <select data-filter="gantt-project">
-              ${projects.map(item => `<option value="${item.id}" ${item.id === projectId ? "selected" : ""}>${escapeHtml(item.code)} - ${escapeHtml(item.title)}</option>`).join("")}
-            </select>
-          </label>
-          <label>
-            <span>Sprint</span>
-            <select data-filter="gantt-sprint">
-              <option value="current" ${sprintMode === "current" ? "selected" : ""}>Current Sprint</option>
-              <option value="all" ${sprintMode === "all" ? "selected" : ""}>All Sprints</option>
-              ${sprintOptions.map(sprint => `<option value="${sprint.id}" ${String(sprint.id) === String(sprintMode) ? "selected" : ""}>${escapeHtml(sprint.code)} - ${escapeHtml(sprint.title)}</option>`).join("")}
-            </select>
-          </label>
-          <label>
-            <span>Sort</span>
-            <select data-filter="gantt-sort">
-              <option value="startAsc" ${sort === "startAsc" ? "selected" : ""}>Start date ascending</option>
-              <option value="startDesc" ${sort === "startDesc" ? "selected" : ""}>Start date descending</option>
-            </select>
-          </label>
-          <div class="roadmap-filter-actions gantt-filter-actions">
-            <button class="icon-action ${renderMode === "selected" ? "is-on" : ""}" type="button" data-action="toggle-gantt-render-mode" title="${renderMode === "selected" ? "Show All Sprints" : "Show Selected Sprint Only"}" aria-label="${renderMode === "selected" ? "Show All Sprints" : "Show Selected Sprint Only"}" aria-pressed="${renderMode === "selected"}">${renderMode === "selected" ? "&#9638;" : "&#9673;"}</button>
-            <button class="icon-action ${showNonWorkingDays ? "is-on" : ""}" type="button" data-action="toggle-gantt-days" title="${showNonWorkingDays ? "Hide weekends and holidays" : "Show weekends and holidays"}" aria-label="${showNonWorkingDays ? "Hide weekends and holidays" : "Show weekends and holidays"}" aria-pressed="${showNonWorkingDays}">&#128197;</button>
-            <button class="icon-action ${flyBy.active ? "is-on" : ""}" type="button" data-action="gantt-flyby" title="${flyBy.title}" aria-label="${flyBy.title}" aria-pressed="${flyBy.active}">${flyBy.icon}</button>
-            <button class="icon-action" type="button" data-action="reset-gantt-view" title="Reset Gantt view" aria-label="Reset Gantt view">&#8634;</button>
-          </div>
-          <span class="muted gantt-note">${showNonWorkingDays ? "Weekends and configured holidays are visible." : "Weekends and configured holidays are hidden unless work starts on that date."}</span>
-        </div>
-      </div>
       ${chart.dates.length ? ganttChartHtml(chart, { tasks, showAllBugs, isTaskExpanded }) : `<div class="empty">No scheduled items for this project yet.</div>`}
+    </div>
+  `;
+}
+
+export function ganttFilterFieldsHtml({
+  projects,
+  projectId,
+  sprintMode,
+  sort,
+  sprintOptions,
+  showAllBugs
+}) {
+  return `
+    <div class="tasks-filter-panel gantt-filter-panel">
+      <div class="task-filter-row gantt-filter-row">
+        <label>
+          <span>Project</span>
+          <select data-filter="gantt-project">
+            ${projects.map(item => `<option value="${item.id}" ${item.id === projectId ? "selected" : ""}>${escapeHtml(item.code)} - ${escapeHtml(item.title)}</option>`).join("")}
+          </select>
+        </label>
+        <label>
+          <span>Sprint</span>
+          <select data-filter="gantt-sprint">
+            <option value="current" ${sprintMode === "current" ? "selected" : ""}>Current Sprint</option>
+            <option value="all" ${sprintMode === "all" ? "selected" : ""}>All Sprints</option>
+            ${sprintOptions.map(sprint => `<option value="${sprint.id}" ${String(sprint.id) === String(sprintMode) ? "selected" : ""}>${escapeHtml(sprint.code)} - ${escapeHtml(sprint.title)}</option>`).join("")}
+          </select>
+        </label>
+        <label>
+          <span>Sort</span>
+          <select data-filter="gantt-sort">
+            <option value="startAsc" ${sort === "startAsc" ? "selected" : ""}>Start date ascending</option>
+            <option value="startDesc" ${sort === "startDesc" ? "selected" : ""}>Start date descending</option>
+          </select>
+        </label>
+        <label class="inline-filter-check">
+          <input type="checkbox" data-filter="gantt-show-all-bugs" ${showAllBugs ? "checked" : ""}>
+          <span class="checkbox-label-text">Expand Bugs</span>
+        </label>
+      </div>
     </div>
   `;
 }

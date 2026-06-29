@@ -33,7 +33,7 @@ import {
   createGanttFeature,
   currentSprintForProject,
   ganttStartDate
-} from "./features/gantt/gantt.js?v=20260629-kanban-gantt-bug-icon";
+} from "./features/gantt/gantt.js?v=20260629-gantt-bugs-filter";
 import { createProjectsFeature } from "./features/projects/projects.js?v=20260628-project-sprint-chart-tooltips";
 import { createRoadMapFeature } from "./features/roadmap/roadmap.js?v=20260628-roadmap-always-show-dates";
 import { createScrumFeature } from "./features/scrum/scrum.js?v=20260629-settings-backlog-scrum-polish";

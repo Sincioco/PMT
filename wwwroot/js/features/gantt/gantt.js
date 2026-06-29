@@ -5,6 +5,7 @@ import {
   readPreference,
   writePreference
 } from "../../core/preferences.js";
+import { buttonContent } from "../../components/buttons.js";
 import { navigate } from "../../core/router.js";
 import { state } from "../../core/store.js";
 import { projectById } from "../../shared/selectors.js";
@@ -17,7 +18,10 @@ import {
   sortGanttSprints
 } from "./gantt-calculations.js?v=20260620-gantt-scaled-buffer";
 import { createGanttFlyBy } from "./gantt-flyby.js?v=20260627-gantt-initial-desc-offset";
-import { ganttScreenHtml } from "./gantt-rendering.js?v=20260629-kanban-gantt-bug-icon";
+import {
+  ganttFilterFieldsHtml,
+  ganttScreenHtml
+} from "./gantt-rendering.js?v=20260629-gantt-bugs-filter";
 
 export { currentSprintForProject, ganttStartDate } from "./gantt-calculations.js?v=20260620-gantt-scaled-buffer";
 
@@ -108,6 +112,10 @@ export function createGanttFeature({
       openTaskReadMode(id);
       return true;
     }
+    if (action === "open-gantt-filters" || action === "toggle-gantt-filters") {
+      openGanttFiltersDialog();
+      return true;
+    }
     if (action === "toggle-gantt-all-bugs") {
       toggleAllBugs();
       return true;
@@ -133,6 +141,66 @@ export function createGanttFeature({
       return true;
     }
     return false;
+  }
+
+  function openGanttFiltersDialog() {
+    const existingDialog = document.querySelector("[data-gantt-filter-dialog]");
+    if (existingDialog) {
+      if (!existingDialog.open) existingDialog.showModal?.();
+      existingDialog.querySelector("[data-filter='gantt-project']")?.focus({ preventScroll: true });
+      return;
+    }
+
+    const modal = document.createElement("dialog");
+    modal.className = "dialog task-filter-dialog gantt-filter-dialog";
+    modal.dataset.ganttFilterDialog = "true";
+    modal.innerHTML = `
+      <form method="dialog">
+        <div class="dialog-head">
+          <h2>Gantt Filters</h2>
+          <button type="button" class="icon-btn" data-close-gantt-filters title="Close" aria-label="Close">x</button>
+        </div>
+        <div class="dialog-body task-filter-dialog-body gantt-filter-dialog-body" data-gantt-filter-dialog-body></div>
+        <div class="dialog-actions">
+          <button type="button" class="primary text-icon-button" data-close-gantt-filters>${buttonContent("&#10003;", "Done")}</button>
+        </div>
+      </form>
+    `;
+
+    renderGanttFiltersDialog(modal);
+    document.body.appendChild(modal);
+    modal.addEventListener("change", event => {
+      const target = event.target;
+      const filter = target?.dataset?.filter || "";
+      if (!handleFilterChange(target)) return;
+
+      if (filter === "gantt-project") {
+        renderGanttFiltersDialog(modal);
+        modal.querySelector("[data-filter='gantt-project']")?.focus({ preventScroll: true });
+      }
+    });
+    modal.addEventListener("click", event => {
+      if (event.target.closest("[data-close-gantt-filters]")) modal.close();
+    });
+    modal.addEventListener("close", () => modal.remove());
+    modal.showModal();
+    modal.querySelector("[data-filter='gantt-project']")?.focus({ preventScroll: true });
+  }
+
+  function renderGanttFiltersDialog(modal) {
+    const body = modal.querySelector("[data-gantt-filter-dialog-body]");
+    if (body) body.innerHTML = ganttFilterFieldsHtml(ganttFilterState());
+  }
+
+  function ganttFilterState() {
+    return {
+      projects: state.projects,
+      projectId: ganttProjectId,
+      sprintMode: ganttSprintMode,
+      sort: ganttSort,
+      sprintOptions: sortGanttSprintOptions(activeProjectSprints),
+      showAllBugs: ganttShowAllBugs
+    };
   }
 
   function handleFilterChange(eventOrTarget) {
@@ -161,6 +229,12 @@ export function createGanttFeature({
     if (target.dataset.filter === "gantt-sort") {
       ganttSort = target.value;
       writePreference(preferenceKeys.ganttSort, ganttSort);
+      renderGantt();
+      return true;
+    }
+    if (target.dataset.filter === "gantt-show-all-bugs") {
+      ganttShowAllBugs = target.checked;
+      bugExpansion.clear();
       renderGantt();
       return true;
     }
@@ -319,8 +393,23 @@ export function createGanttFeature({
     return Math.max(620, contentWidth - 280);
   }
 
+  function deactivateGantt() {
+    closeGanttFilterDialogs();
+    flyBy.deactivate();
+  }
+
+  function closeGanttFilterDialogs() {
+    document.querySelectorAll("[data-gantt-filter-dialog]").forEach(dialog => {
+      if (dialog.open) {
+        dialog.close();
+      } else {
+        dialog.remove();
+      }
+    });
+  }
+
   return {
-    deactivate: flyBy.deactivate,
+    deactivate: deactivateGantt,
     handleAction,
     handleFilterChange,
     openProject,

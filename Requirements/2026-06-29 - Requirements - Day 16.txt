@@ -25,3 +25,15 @@ Kanban Board
 11.) For the sub-tasks progress bar, I want to bring the progress bar labels closer to the progress bar (visually).  Without moving or shifting anything else, on the card, move down the sub-task progress bar's labels (project code, task #, percent completed, closer to the progress bar itself.  Maybe only have a 2px gap between their labels and the progress bar.  Again, I only want to move the labels down closer to the progress bar itself.  Do not move or shift anything else on the Task card.
 12.) Do not render any shadows on the avatars.
 
+
+Gantt Chart
+-----------
+
+1.) In the Gantt Chart, the Bug icon that hides/shows the individual bugs (on the Gantt Chart iteself), remove the circular outline when you hover on it.
+2.) In the Gantt Chart screen, add a page-level Filter button.  Give it the same treatment as the Filter button in the Dev Task Screen.
+3.) Move all the existing buttons in the current Filter section as a top-level button, such as the Reset, Start Fly-by, etc.
+4.) Make sure the Gantt chart's fly-by animation or mousewheel behavior is not affected because the dimensions of the Gantt Chart itself will now change because the existing Filter section at the top will now disappear.
+5.) In the Gantt Chart, let's move the Expand / Hide Bugs functionality as a checkbox in the Filter dialog box.
+6.) In the Kanban Board, let's remove the red tint on the Bug Task Cards.
+
+7.) In the Gantt Chart, swap the reset and filter page-level buttons.

@@ -19,6 +19,98 @@
   overflow: hidden;
 }
 
+.gantt-screen .section-head h1,
+html[data-theme="light"] .gantt-screen.work-item-screen .section-head h1 {
+  color: var(--color-text-secondary);
+}
+
+.gantt-screen .section-head .toolbar > button {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  width: var(--touch-target-min);
+  min-width: var(--touch-target-min);
+  height: var(--touch-target-min);
+  min-height: var(--touch-target-min);
+  padding: 0;
+  border-color: transparent;
+  background: transparent;
+  color: var(--color-text-secondary);
+  box-shadow: none;
+}
+
+html[data-theme] .gantt-screen.work-item-screen .section-head .toolbar > button,
+html[data-theme] .gantt-screen.work-item-screen .section-head .toolbar > button.primary,
+html[data-theme] .gantt-screen.work-item-screen .section-head .toolbar > button.secondary,
+html[data-theme] .gantt-screen.work-item-screen .section-head .toolbar > button.is-on,
+html[data-theme] .gantt-screen.work-item-screen .section-head .toolbar > button[aria-pressed="true"],
+html[data-theme] .gantt-screen.work-item-screen .section-head .toolbar > button:focus,
+html[data-theme] .gantt-screen.work-item-screen .section-head .toolbar > button:focus-visible,
+html[data-theme] .gantt-screen.work-item-screen .section-head .toolbar > button:active:not(:hover) {
+  width: var(--touch-target-min);
+  min-width: var(--touch-target-min);
+  height: var(--touch-target-min);
+  min-height: var(--touch-target-min);
+  padding: 0;
+  border-color: transparent;
+  background: transparent;
+  color: var(--color-text-secondary);
+  outline: none;
+  outline-width: 0;
+  box-shadow: none;
+}
+
+.gantt-screen .section-head .toolbar > button:hover:not(:disabled),
+html[data-theme] .gantt-screen.work-item-screen .section-head .toolbar > button:hover:not(:disabled) {
+  padding: 0;
+  border-color: var(--color-border-strong);
+  background: var(--color-control-hover);
+  color: var(--color-text-primary);
+  outline: none;
+  outline-width: 0;
+  box-shadow: none;
+}
+
+.gantt-screen .section-head .toolbar > button:disabled {
+  border-color: transparent;
+  background: transparent;
+  color: var(--color-text-disabled);
+  outline: none;
+  outline-width: 0;
+  box-shadow: none;
+}
+
+.gantt-screen .section-head .toolbar > button .button-icon {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  width: 18px;
+  min-width: 18px;
+  height: 18px;
+  margin: auto;
+  font-size: 18px;
+  line-height: 1;
+  text-align: center;
+}
+
+.gantt-screen .section-head .toolbar > button .button-svg-icon {
+  width: 18px;
+  height: 18px;
+}
+
+.gantt-screen .section-head .toolbar > button .button-icon + span {
+  display: none;
+}
+
+.gantt-filter-dialog {
+  width: min(var(--dialog-width-md), calc(100vw - 2 * var(--shell-padding-compact)));
+}
+
+.gantt-filter-dialog .gantt-filter-dialog-body {
+  gap: var(--space-6);
+}
+
 .gantt-screen .section-head,
 .gantt-control-panel {
   flex: 0 0 auto;
@@ -265,6 +357,20 @@
   color: var(--color-danger-text);
   background: var(--color-danger-surface);
   border-color: var(--color-danger-border);
+}
+
+.gantt-bug-button:hover:not(:disabled),
+.gantt-bug-button:focus,
+.gantt-bug-button:focus-visible,
+.gantt-bug-button:active:not(:disabled),
+html[data-theme] .gantt-bug-button:hover:not(:disabled),
+html[data-theme] .gantt-bug-button:focus,
+html[data-theme] .gantt-bug-button:focus-visible,
+html[data-theme] .gantt-bug-button:active:not(:disabled) {
+  border-color: transparent !important;
+  outline: none;
+  outline-width: 0;
+  box-shadow: none !important;
 }
 
 .gantt-dependency {

@@ -305,8 +305,8 @@ html[data-theme] .board-screen.work-item-screen .section-head .toolbar > button:
 }
 
 .bug-card {
-  border-color: var(--color-danger-border);
-  background: var(--color-danger-surface);
+  border-color: var(--color-border-subtle);
+  background: var(--color-surface);
 }
 
 .task-card[data-can-drag="true"] {
