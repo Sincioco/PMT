@@ -36,6 +36,20 @@
   border-bottom: var(--border-width) solid var(--color-border);
 }
 
+.dialog-head {
+  cursor: move;
+  user-select: none;
+  touch-action: none;
+}
+
+.dialog-head :is(button, a, input, select, textarea, label) {
+  cursor: auto;
+}
+
+.dialog.is-dialog-dragging {
+  user-select: none;
+}
+
 .dialog-actions {
   border-top: var(--border-width) solid var(--color-border);
   border-bottom: 0;

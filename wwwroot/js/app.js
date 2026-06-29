@@ -1,7 +1,11 @@
 import { api } from "./core/api.js";
 import { avatarsHtml, taskRowAvatarsHtml } from "./components/avatars.js";
 import { buttonContent } from "./components/buttons.js";
-import { askForText, askYesNo } from "./components/dialogs.js";
+import {
+  askForText,
+  askYesNo,
+  initializeDraggableDialogs
+} from "./components/dialogs.js?v=20260629-dialog-drag";
 import {
   field,
   value
@@ -83,6 +87,8 @@ const nativePickerSelector = [
   'input[type="time"]',
   'input[type="week"]'
 ].join(",");
+
+initializeDraggableDialogs();
 
 const richTextFormats = {
   title: { tag: "H1", className: "rich-title" },

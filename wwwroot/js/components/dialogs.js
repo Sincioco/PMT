@@ -4,6 +4,144 @@ import {
   escapeHtml
 } from "../shared/text-and-links.js";
 
+const dialogDragIgnoreSelector = "button, a, input, select, textarea, label, [contenteditable='true'], [data-dialog-drag-ignore]";
+let dialogDragInitialized = false;
+let activeDialogDrag = null;
+
+export function initializeDraggableDialogs() {
+  if (dialogDragInitialized) return;
+  dialogDragInitialized = true;
+
+  document.addEventListener("pointerdown", startDialogDrag);
+  document.addEventListener("close", event => resetDialogPosition(event.target), true);
+  window.addEventListener("resize", () => requestAnimationFrame(clampOpenDraggedDialogs));
+}
+
+function startDialogDrag(event) {
+  if (event.button !== 0) return;
+
+  const head = event.target.closest(".dialog-head");
+  if (!head || event.target.closest(dialogDragIgnoreSelector)) return;
+
+  const dialog = head.closest("dialog.dialog");
+  if (!dialog?.open) return;
+
+  const rect = dialog.getBoundingClientRect();
+  const origin = clampDialogPosition(dialog, rect.left, rect.top);
+  positionDialog(dialog, origin.left, origin.top);
+
+  activeDialogDrag = {
+    dialog,
+    head,
+    pointerId: event.pointerId,
+    originLeft: origin.left,
+    originTop: origin.top,
+    startX: event.clientX,
+    startY: event.clientY
+  };
+
+  dialog.classList.add("is-dialog-dragging");
+  try {
+    head.setPointerCapture(event.pointerId);
+  } catch {
+    // Pointer capture is a progressive enhancement here.
+  }
+
+  document.addEventListener("pointermove", dragDialog);
+  document.addEventListener("pointerup", stopDialogDrag);
+  document.addEventListener("pointercancel", stopDialogDrag);
+  event.preventDefault();
+}
+
+function dragDialog(event) {
+  if (!activeDialogDrag || event.pointerId !== activeDialogDrag.pointerId) return;
+
+  const nextLeft = activeDialogDrag.originLeft + event.clientX - activeDialogDrag.startX;
+  const nextTop = activeDialogDrag.originTop + event.clientY - activeDialogDrag.startY;
+  const position = clampDialogPosition(activeDialogDrag.dialog, nextLeft, nextTop);
+  positionDialog(activeDialogDrag.dialog, position.left, position.top);
+}
+
+function stopDialogDrag(event) {
+  if (!activeDialogDrag || event.pointerId !== activeDialogDrag.pointerId) return;
+  finishDialogDrag(event.pointerId);
+}
+
+function finishDialogDrag(pointerId = activeDialogDrag?.pointerId) {
+  if (!activeDialogDrag) return;
+
+  activeDialogDrag.dialog.classList.remove("is-dialog-dragging");
+  try {
+    activeDialogDrag.head.releasePointerCapture(pointerId);
+  } catch {
+    // The pointer may already have been released by the browser.
+  }
+
+  activeDialogDrag = null;
+  document.removeEventListener("pointermove", dragDialog);
+  document.removeEventListener("pointerup", stopDialogDrag);
+  document.removeEventListener("pointercancel", stopDialogDrag);
+}
+
+function clampOpenDraggedDialogs() {
+  document.querySelectorAll("dialog.dialog[data-dialog-dragged][open]").forEach(dialog => {
+    const rect = dialog.getBoundingClientRect();
+    const position = clampDialogPosition(dialog, rect.left, rect.top);
+    positionDialog(dialog, position.left, position.top);
+  });
+}
+
+function clampDialogPosition(dialog, left, top) {
+  const head = dialog.querySelector(".dialog-head");
+  const dialogRect = dialog.getBoundingClientRect();
+  const headRect = head?.getBoundingClientRect();
+  const viewportWidth = window.innerWidth || document.documentElement.clientWidth;
+  const viewportHeight = window.innerHeight || document.documentElement.clientHeight;
+
+  if (!headRect || !viewportWidth || !viewportHeight) return { left, top };
+
+  const headOffsetLeft = headRect.left - dialogRect.left;
+  const headOffsetTop = headRect.top - dialogRect.top;
+  const minVisibleWidth = Math.min(96, Math.max(32, headRect.width * 0.2), viewportWidth);
+  const minVisibleHeight = Math.min(40, Math.max(24, headRect.height * 0.5), viewportHeight);
+
+  const minLeft = minVisibleWidth - headOffsetLeft - headRect.width;
+  const maxLeft = viewportWidth - minVisibleWidth - headOffsetLeft;
+  const minTop = minVisibleHeight - headOffsetTop - headRect.height;
+  const maxTop = viewportHeight - minVisibleHeight - headOffsetTop;
+
+  return {
+    left: clamp(left, Math.min(minLeft, maxLeft), Math.max(minLeft, maxLeft)),
+    top: clamp(top, Math.min(minTop, maxTop), Math.max(minTop, maxTop))
+  };
+}
+
+function positionDialog(dialog, left, top) {
+  dialog.dataset.dialogDragged = "true";
+  dialog.style.position = "fixed";
+  dialog.style.inset = "auto";
+  dialog.style.margin = "0";
+  dialog.style.left = `${Math.round(left)}px`;
+  dialog.style.top = `${Math.round(top)}px`;
+}
+
+function resetDialogPosition(dialog) {
+  if (!(dialog instanceof HTMLDialogElement) || !dialog.classList.contains("dialog")) return;
+  if (activeDialogDrag?.dialog === dialog) finishDialogDrag();
+
+  dialog.classList.remove("is-dialog-dragging");
+  delete dialog.dataset.dialogDragged;
+  dialog.style.position = "";
+  dialog.style.inset = "";
+  dialog.style.margin = "";
+  dialog.style.left = "";
+  dialog.style.top = "";
+}
+
+function clamp(value, min, max) {
+  return Math.min(Math.max(value, min), max);
+}
+
 export function askYesNo(message, title) {
   return new Promise(resolve => {
     const modal = document.createElement("dialog");
