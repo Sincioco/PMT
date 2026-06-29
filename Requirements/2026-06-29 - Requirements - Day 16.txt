@@ -1,0 +1,22 @@
+Project Management Tool (PMT):  Day 16 of Codex Agentic AI Coding
+-----------------------------------------------------------------
+Total Dev Time in Hours:  20
+
+For all of this conversation / session, I will perform all the manual tests and compile the application manually.  Perform only the coding changes required and nothing else.  If making CSS / image changes, ensure that I will encounter no caching issue when testing in the browser.
+
+1.) Take the new bug icon located in "C:\Temp\bug.svg" and copy it into the project and replace the existing bug icon used in the Gantt Screen on the Gantt Chart.  Do this for both the Light and Dark Theme.
+
+Kanban Board
+------------
+
+1.) In the Kanban Board, remove the text on the page-level buttons on the upper-right of the content area.  Just leave the icons so it matches the UI/UX of the Dev Tasks screen.
+2.) Add a Reset button so that Kanban board can be resetted like the user is seeing the Kanban Board for the first time.
+3.) Give the Filter button a dialog box.  Give it the same treatment as the Filter button in the Dev Tasks so the UI/UX is consistent.
+4.) Add an "Edit Mode" on the Kanban Board so it behaves similar to the "Edit Mode" in the Dev Task screen.  Only in edit mode can we drag and drop the Task cards.  In in read-only mode, clicking on the card brings up the read-only dialog box of the item clicked.
+5.) Only show the action icons at the bottom of the card when in Edit mode, so the Kanban Board looks clean without having so many UI elements/icons on it.
+4.) Switch the Card Tag and Card Title so the Title goes first.
+5.) Right align the Card Tags.
+6.) Above the Progress Bar for the main task, put the percent complete label centered align.
+7.) If a task card (a main task) has sub-tasks, show a progress bar for each sub-tasks below the progress bar of the main-task.  Indent the sub-tasks' progress bar to denote that they are sub-tasks.
+8.) Replace the "bug" capsule with the new bug icon.
+9.) Render the Avatar icons of Assignees on the upper-left corner of the card at 80x80 pixels.  Vertically center the Card Head, Car Title and Card Tag relative to the Avatar.

@@ -247,6 +247,14 @@
   border-radius: var(--radius-pill);
 }
 
+.gantt-bug-icon {
+  display: block;
+  width: 18px;
+  height: 18px;
+  border-radius: var(--radius-sm);
+  object-fit: contain;
+}
+
 .gantt-bug-button.closed-bugs {
   color: var(--color-success-text);
   background: var(--color-success-surface);

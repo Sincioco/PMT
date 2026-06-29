@@ -25,7 +25,7 @@ import {
 import { state } from "./core/store.js";
 import { createAboutFeature } from "./features/about/about.js?v=20260621-about-credits";
 import { createBacklogFeature } from "./features/backlog/backlog.js?v=20260629-settings-backlog-scrum-polish";
-import { createBoardFeature } from "./features/board/board.js?v=20260627-dev-task-status-rules";
+import { createBoardFeature } from "./features/board/board.js?v=20260629-kanban-edit-mode";
 import { createBugsFeature } from "./features/bugs/bugs.js?v=20260629-task-bug-table-sorts";
 import { createDashboardFeature } from "./features/dashboard/dashboard.js?v=20260627-dev-task-status-rules";
 import { createDocumentationFeature } from "./features/documentation/documentation.js?v=20260627-rich-text-toolbar";
@@ -33,7 +33,7 @@ import {
   createGanttFeature,
   currentSprintForProject,
   ganttStartDate
-} from "./features/gantt/gantt.js?v=20260627-gantt-initial-desc-offset";
+} from "./features/gantt/gantt.js?v=20260629-kanban-gantt-bug-icon";
 import { createProjectsFeature } from "./features/projects/projects.js?v=20260628-project-sprint-chart-tooltips";
 import { createRoadMapFeature } from "./features/roadmap/roadmap.js?v=20260628-roadmap-always-show-dates";
 import { createScrumFeature } from "./features/scrum/scrum.js?v=20260629-settings-backlog-scrum-polish";

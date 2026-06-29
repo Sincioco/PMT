@@ -1,9 +1,11 @@
 import { avatarsHtml } from "../../components/avatars.js";
 import { buttonContent, funnelIconHtml } from "../../components/buttons.js";
+import { checkedFilterValues, filterCheckList } from "../../components/filters.js?v=20260621-task-filter-layout";
 import { progressHtml } from "../../components/progress-and-status.js?v=20260627-dev-task-status-rules";
 import { sectionHead } from "../../components/sections.js";
 import {
   bugFixIconHtml,
+  createWorkItemTableMode,
   taskButtonsHtml
 } from "../../components/work-items.js?v=20260627-dev-task-status-rules";
 import {
@@ -12,6 +14,7 @@ import {
   readJsonPreference,
   readNumberPreference,
   readPreference,
+  removePreference,
   writeJsonPreference,
   writePreference
 } from "../../core/preferences.js";
@@ -25,9 +28,12 @@ import {
 import {
   percentForDevTaskSave,
   percentForStatus,
+  taskDisplayPercent,
   taskOrderCompare
 } from "../../shared/work-item-rules.js?v=20260627-dev-task-status-rules";
 import { createBoardDrag } from "./board-drag.js";
+
+const bugIconUrl = "/assets/bug.svg?v=20260629-kanban-gantt-bug-icon";
 
 export function createBoardFeature({
   app,
@@ -41,8 +47,11 @@ export function createBoardFeature({
   let boardSprintMode = readPreference(preferenceKeys.boardSprint, "latest");
   let boardSort = readPreference(preferenceKeys.boardSort, "custom");
   let boardHideEmptyColumns = readBooleanPreference(preferenceKeys.boardHideEmptyColumns, true);
-  let boardFiltersVisible = readBooleanPreference(preferenceKeys.boardFiltersVisible, false);
   let boardIsActive = false;
+  const boardEditMode = createWorkItemTableMode({
+    action: "toggle-board-edit-mode",
+    itemLabel: "Kanban Board"
+  });
 
   const initialStatuses = getStatuses();
   const savedBoardStatuses = readJsonPreference(preferenceKeys.boardStatuses, null);
@@ -82,56 +91,34 @@ export function createBoardFeature({
     const boardColumnStatuses = boardHideEmptyColumns
       ? boardStatuses.filter(status => visibleTasks.some(task => task.status === status))
       : boardStatuses;
-    const filterToggleLabel = boardFiltersVisible ? "Hide Filters" : "Show Filters";
-
     app.innerHTML = `
-      ${sectionHead("Kanban Board", `
-        <button class="secondary text-icon-button ${boardFiltersVisible ? "is-on" : ""}" type="button" data-action="toggle-board-filters" aria-pressed="${boardFiltersVisible}">${buttonContent(funnelIconHtml(), filterToggleLabel)}</button>
-        <button class="primary text-icon-button" type="button" data-action="new-task">${buttonContent("&#10010;", "New Dev Task")}</button>
-        <button class="primary text-icon-button" type="button" data-action="new-bug">${buttonContent("&#9888;", "New Bug Report")}</button>
-      `)}
-      ${boardFiltersVisible ? `<div class="panel board-controls-panel">
-        <div class="filter-row">
-          <label>
-            <span>Project</span>
-            <select data-filter="board-project">
-              ${state.projects.map(item => `<option value="${item.id}" ${item.id === boardProjectId ? "selected" : ""}>${escapeHtml(item.code)} - ${escapeHtml(item.title)}</option>`).join("")}
-            </select>
-          </label>
-          <label>
-            <span>Sprint</span>
-            <select data-filter="board-sprint">
-              <option value="latest" ${boardSprintMode === "latest" ? "selected" : ""}>Latest Sprint</option>
-              <option value="all" ${boardSprintMode === "all" ? "selected" : ""}>All Sprints</option>
-              ${state.sprints.filter(sprint => sprint.projectId === boardProjectId).map(sprint => `<option value="${sprint.id}" ${String(sprint.id) === boardSprintMode ? "selected" : ""}>${escapeHtml(sprint.code)}</option>`).join("")}
-            </select>
-          </label>
-          <label>
-            <span>Sort</span>
-            <select data-filter="board-sort">
-              <option value="custom" ${boardSort === "custom" ? "selected" : ""}>Custom order</option>
-              <option value="openFirst" ${boardSort === "openFirst" ? "selected" : ""}>Open first</option>
-              <option value="doneFirst" ${boardSort === "doneFirst" ? "selected" : ""}>Done first</option>
-            </select>
-          </label>
-          <button class="icon-action ${boardHideEmptyColumns ? "is-on" : ""}" type="button" data-action="toggle-empty-board-columns" title="${boardHideEmptyColumns ? "Show all columns" : "Hide empty columns"}" aria-label="${boardHideEmptyColumns ? "Show all columns" : "Hide empty columns"}" aria-pressed="${boardHideEmptyColumns}">${boardHideEmptyColumns ? "&#9638;" : "&#128065;"}</button>
+      <section class="board-screen work-item-screen">
+        ${sectionHead("Kanban Board", `
+          <button class="primary text-icon-button" type="button" data-action="new-task" title="New Dev Task" aria-label="New Dev Task">${buttonContent("&#10010;", "New Dev Task")}</button>
+          <button class="primary text-icon-button" type="button" data-action="new-bug" title="New Bug Report" aria-label="New Bug Report">${buttonIconImgHtml("board-action-bug-icon")}<span>New Bug Report</span></button>
+          ${boardEditMode.buttonHtml()}
+          <button class="secondary text-icon-button" type="button" data-action="open-board-filters" title="Filters" aria-label="Filters" aria-haspopup="dialog">${buttonContent(funnelIconHtml(), "Filters")}</button>
+          <button class="secondary text-icon-button" type="button" data-action="reset-board-view" title="Reset View" aria-label="Reset View">${buttonContent("&#8634;", "Reset View")}</button>
+        `)}
+        <div class="board">
+          ${boardColumnStatuses.map(status => boardColumnHtml(status, visibleTasks.filter(task => task.status === status))).join("") || `<div class="empty">No columns have tasks for the current filters.</div>`}
         </div>
-        <fieldset class="check-list board-status-filter">
-          <legend>Columns</legend>
-          ${getStatuses().map(status => `<label><input type="checkbox" data-filter="board-status" value="${status}" ${boardStatuses.includes(status) ? "checked" : ""}> ${status}</label>`).join("")}
-        </fieldset>
-      </div>` : ""}
-      <div class="board">
-        ${boardColumnStatuses.map(status => boardColumnHtml(status, visibleTasks.filter(task => task.status === status))).join("") || `<div class="empty">No columns have tasks for the current filters.</div>`}
-      </div>
+      </section>
     `;
   }
 
   function handleAction(action) {
-    if (action === "toggle-board-filters") {
-      boardFiltersVisible = !boardFiltersVisible;
-      writePreference(preferenceKeys.boardFiltersVisible, boardFiltersVisible);
+    if (action === "open-board-filters" || action === "toggle-board-filters") {
+      openBoardFiltersDialog();
+      return true;
+    }
+    if (action === "toggle-board-edit-mode") {
+      boardEditMode.toggle();
       renderBoard();
+      return true;
+    }
+    if (action === "reset-board-view") {
+      resetBoardView();
       return true;
     }
     if (action === "toggle-empty-board-columns") {
@@ -151,31 +138,135 @@ export function createBoardFeature({
 
   function handleFilterChange(eventOrTarget) {
     const target = eventOrTarget?.target || eventOrTarget;
+    if (!applyBoardFilterChange(target)) return false;
 
-    if (target.dataset.filter === "board-project") {
+    renderBoard();
+    return true;
+  }
+
+  function openBoardFiltersDialog() {
+    const existingDialog = document.querySelector("[data-board-filter-dialog]");
+    if (existingDialog) {
+      if (!existingDialog.open) existingDialog.showModal?.();
+      existingDialog.querySelector("[data-filter='board-project']")?.focus({ preventScroll: true });
+      return;
+    }
+
+    const modal = document.createElement("dialog");
+    modal.className = "dialog task-filter-dialog board-filter-dialog";
+    modal.dataset.boardFilterDialog = "true";
+    modal.innerHTML = `
+      <form method="dialog">
+        <div class="dialog-head">
+          <h2>Kanban Board Filters</h2>
+          <button type="button" class="icon-btn" data-close-board-filters title="Close" aria-label="Close">x</button>
+        </div>
+        <div class="dialog-body task-filter-dialog-body board-filter-dialog-body" data-board-filter-dialog-body></div>
+        <div class="dialog-actions">
+          <button type="button" class="primary text-icon-button" data-close-board-filters>${buttonContent("&#10003;", "Done")}</button>
+        </div>
+      </form>
+    `;
+
+    renderBoardFiltersDialog(modal);
+    document.body.appendChild(modal);
+    modal.addEventListener("change", event => {
+      const target = event.target;
+      const filter = target?.dataset?.filter || "";
+      if (!applyBoardFilterChange(target)) return;
+
+      renderBoard();
+      if (filter === "board-project" || filter === "board-hide-empty-columns") {
+        renderBoardFiltersDialog(modal);
+        modal.querySelector(`[data-filter='${filter}']`)?.focus({ preventScroll: true });
+      }
+    });
+    modal.addEventListener("click", event => {
+      if (event.target.closest("[data-close-board-filters]")) modal.close();
+    });
+    modal.addEventListener("close", () => modal.remove());
+    modal.showModal();
+    modal.querySelector("[data-filter='board-project']")?.focus({ preventScroll: true });
+  }
+
+  function renderBoardFiltersDialog(modal) {
+    const body = modal.querySelector("[data-board-filter-dialog-body]");
+    if (body) body.innerHTML = boardFilterFieldsHtml();
+  }
+
+  function boardFilterFieldsHtml() {
+    const project = state.projects.find(item => item.id === boardProjectId) || state.projects[0];
+
+    return `
+      <div class="tasks-filter-panel board-filter-panel">
+        <div class="task-filter-row board-filter-row">
+          <label>
+            <span>Project</span>
+            <select data-filter="board-project">
+              ${state.projects.map(item => `<option value="${item.id}" ${item.id === boardProjectId ? "selected" : ""}>${escapeHtml(item.code)} - ${escapeHtml(item.title)}</option>`).join("")}
+            </select>
+          </label>
+          <label>
+            <span>Sprint</span>
+            <select data-filter="board-sprint">
+              <option value="latest" ${boardSprintMode === "latest" ? "selected" : ""}>Latest Sprint</option>
+              <option value="all" ${boardSprintMode === "all" ? "selected" : ""}>All Sprints</option>
+              ${state.sprints.filter(sprint => sprint.projectId === project?.id).map(sprint => `<option value="${sprint.id}" ${String(sprint.id) === boardSprintMode ? "selected" : ""}>${escapeHtml(sprint.code)}</option>`).join("")}
+            </select>
+          </label>
+          <label>
+            <span>Sort</span>
+            <select data-filter="board-sort">
+              <option value="custom" ${boardSort === "custom" ? "selected" : ""}>Custom order</option>
+              <option value="openFirst" ${boardSort === "openFirst" ? "selected" : ""}>Open first</option>
+              <option value="doneFirst" ${boardSort === "doneFirst" ? "selected" : ""}>Done first</option>
+            </select>
+          </label>
+          <label class="inline-filter-check">
+            <input type="checkbox" data-filter="board-hide-empty-columns" ${boardHideEmptyColumns ? "checked" : ""}>
+            <span class="checkbox-label-text">Hide Empty Columns</span>
+          </label>
+        </div>
+        <div class="filter-stack">
+          ${filterCheckList("Columns", "board-status", getStatuses().map(value => ({ value, text: value })), boardStatuses)}
+        </div>
+      </div>
+    `;
+  }
+
+  function applyBoardFilterChange(target) {
+    const filter = target?.dataset?.filter;
+    if (!filter?.startsWith("board-")) return false;
+
+    if (filter === "board-project") {
       boardProjectId = Number(target.value);
       writePreference(preferenceKeys.boardProject, boardProjectId);
-      renderBoard();
       return true;
     }
-    if (target.dataset.filter === "board-sprint") {
+    if (filter === "board-sprint") {
       boardSprintMode = target.value;
       writePreference(preferenceKeys.boardSprint, boardSprintMode);
-      renderBoard();
       return true;
     }
-    if (target.dataset.filter === "board-sort") {
+    if (filter === "board-sort") {
       boardSort = target.value;
       writePreference(preferenceKeys.boardSort, boardSort);
-      renderBoard();
       return true;
     }
-    if (target.dataset.filter === "board-status") {
-      boardStatuses = [...app.querySelectorAll("[data-filter='board-status']:checked")].map(item => item.value);
+    if (filter === "board-hide-empty-columns") {
+      if (target.checked) {
+        boardHideEmptyColumns = true;
+        writePreference(preferenceKeys.boardHideEmptyColumns, boardHideEmptyColumns);
+      } else {
+        showAllBoardColumns({ renderAfterChange: false });
+      }
+      return true;
+    }
+    if (filter === "board-status") {
+      boardStatuses = checkedFilterValues("board-status");
       boardHideEmptyColumns = false;
       writeJsonPreference(preferenceKeys.boardStatuses, boardStatuses);
       writePreference(preferenceKeys.boardHideEmptyColumns, boardHideEmptyColumns);
-      renderBoard();
       return true;
     }
     return false;
@@ -187,12 +278,13 @@ export function createBoardFeature({
     renderBoard();
   }
 
-  function showAllBoardColumns() {
+  function showAllBoardColumns(options = {}) {
+    const { renderAfterChange = true } = options;
     boardHideEmptyColumns = false;
     boardStatuses = [...getStatuses()];
     writeJsonPreference(preferenceKeys.boardStatuses, boardStatuses);
     writePreference(preferenceKeys.boardHideEmptyColumns, boardHideEmptyColumns);
-    renderBoard();
+    if (renderAfterChange) renderBoard();
   }
 
   function toggleEmptyBoardColumns() {
@@ -214,6 +306,8 @@ export function createBoardFeature({
   function deactivateBoard() {
     boardIsActive = false;
     boardDrag.deactivate();
+    boardEditMode.deactivate();
+    closeBoardFilterDialogs();
   }
 
   function boardTaskSortCompare(a, b) {
@@ -226,27 +320,77 @@ export function createBoardFeature({
     return `
       <section class="column" data-status="${escapeAttr(status)}" data-reorder-list="board-column">
         <h2 class="board-column-title">${escapeHtml(status)} <span class="pill">${tasks.length}</span></h2>
-        ${tasks.map(task => `
-          <article class="task-card ${task.taskType === "Bug" ? "bug-card" : ""}" data-task-id="${task.id}" data-can-drag="${canEditTask(task) ? "true" : "false"}" draggable="false">
+        ${tasks.map(taskCardHtml).join("") || `<div class="empty">No tasks.</div>`}
+      </section>
+    `;
+  }
+
+  function taskCardHtml(task) {
+    const canDrag = boardEditMode.active && canEditTask(task);
+    const readOnlyActionAttrs = boardEditMode.active
+      ? ""
+      : `data-action="view-task" data-id="${task.id}" role="button" tabindex="0"`;
+
+    return `
+      <article class="task-card ${task.taskType === "Bug" ? "bug-card" : ""}" ${readOnlyActionAttrs} data-task-id="${task.id}" data-can-drag="${canDrag ? "true" : "false"}" draggable="false">
+        <div class="task-card-top">
+          <div class="task-card-avatar">${avatarsHtml(task.assignees)}</div>
+          <div class="task-card-summary">
             <div class="spread task-card-head">
               <strong class="task-card-code">${escapeHtml(task.code)}</strong>
-              <span class="pill">${escapeHtml(task.taskType || "Dev")}</span>
+              ${taskTypeMarkHtml(task)}
             </div>
+            <p class="task-card-title">${bugFixIconHtml(task)}${escapeHtml(task.title)}</p>
             <div class="task-card-tags">
               <span class="pill priority-${escapeAttr(task.priority)}">${escapeHtml(task.priority)}</span>
               ${task.taskType === "Bug" ? `<span class="pill severity-${escapeAttr(task.severity)}">${escapeHtml(task.severity || "")}</span>` : ""}
             </div>
-            <p class="task-card-title">${bugFixIconHtml(task)}${escapeHtml(task.title)}</p>
-            <div class="mini-progress">
-              ${progressHtml(task.percentCompleted)}
-              ${task.subTasks.length ? progressHtml(task.subTaskAveragePercent) : ""}
-            </div>
-            <div class="row task-card-assignees">${avatarsHtml(task.assignees)}</div>
-            <div class="toolbar reveal-actions task-card-actions">${taskButtonsHtml(task)}</div>
-          </article>
-        `).join("") || `<div class="empty">No tasks.</div>`}
-      </section>
+          </div>
+        </div>
+        ${taskCardProgressHtml(task)}
+        ${boardEditMode.active ? `<div class="toolbar reveal-actions task-card-actions">${taskButtonsHtml(task)}</div>` : ""}
+      </article>
     `;
+  }
+
+  function taskTypeMarkHtml(task) {
+    if (task.taskType === "Bug") {
+      return `<img class="task-card-bug-icon" src="${bugIconUrl}" title="Bug" alt="Bug">`;
+    }
+
+    return `<span class="pill">${escapeHtml(task.taskType || "Dev")}</span>`;
+  }
+
+  function taskCardProgressHtml(task) {
+    const percent = taskDisplayPercent(task);
+    const subTasks = task.subTasks || [];
+
+    return `
+      <div class="task-card-progress">
+        <div class="task-card-progress-label">${percent}%</div>
+        ${progressHtml(percent)}
+        ${subTasks.map(taskCardSubTaskProgressHtml).join("")}
+      </div>
+    `;
+  }
+
+  function taskCardSubTaskProgressHtml(subTask) {
+    const percent = taskDisplayPercent(subTask);
+    const label = [subTask.code, subTask.title].filter(Boolean).join(" - ");
+
+    return `
+      <div class="task-card-subtask-progress" title="${escapeAttr(`${label} ${percent}%`)}">
+        <div class="task-card-subtask-label">
+          <span>${escapeHtml(subTask.code || "Sub-task")}</span>
+          <span>${percent}%</span>
+        </div>
+        ${progressHtml(percent)}
+      </div>
+    `;
+  }
+
+  function buttonIconImgHtml(className) {
+    return `<img class="${className}" src="${bugIconUrl}" alt="" aria-hidden="true">`;
   }
 
   async function saveBoardDrop({
@@ -330,6 +474,36 @@ export function createBoardFeature({
     const saved = Array.isArray(boardStatuses) ? boardStatuses : [];
     boardStatuses = saved.filter(status => statuses.includes(status));
     if (!boardStatuses.length && !boardHideEmptyColumns) boardStatuses = [...statuses];
+  }
+
+  function resetBoardView() {
+    [
+      preferenceKeys.boardProject,
+      preferenceKeys.boardSprint,
+      preferenceKeys.boardSort,
+      preferenceKeys.boardStatuses,
+      preferenceKeys.boardHideEmptyColumns,
+      preferenceKeys.boardFiltersVisible
+    ].forEach(removePreference);
+
+    boardProjectId = 0;
+    boardSprintMode = "latest";
+    boardSort = "custom";
+    boardHideEmptyColumns = true;
+    boardStatuses = [...getStatuses()];
+    boardEditMode.deactivate();
+    closeBoardFilterDialogs();
+    renderBoard();
+  }
+
+  function closeBoardFilterDialogs() {
+    document.querySelectorAll("[data-board-filter-dialog]").forEach(dialog => {
+      if (dialog.open) {
+        dialog.close();
+      } else {
+        dialog.remove();
+      }
+    });
   }
 
   function sameValues(left, right) {

@@ -23,6 +23,8 @@ import {
   ganttStartDate
 } from "./gantt-calculations.js?v=20260620-render-end-date";
 
+const bugIconUrl = "/assets/bug.svg?v=20260629-kanban-gantt-bug-icon";
+
 export function ganttScreenHtml({
   projects,
   projectId,
@@ -133,7 +135,7 @@ function ganttTaskHtml(task, sprintBugs, chart, options) {
         <div class="gantt-bar" role="button" tabindex="0" data-action="gantt-open-task" data-id="${task.id}" ${ganttGridStyle(task, chart)} title="${escapeAttr(task.code + " " + task.title)}">
           ${avatarsHtml(task.assignees)}
           <span>${escapeHtml(task.code)} ${escapeHtml(task.title)}</span>
-          ${bugTasks.length ? `<button type="button" class="gantt-bug-button ${hasOpenBugs ? "open-bugs" : "closed-bugs"}" data-action="toggle-gantt-task-bugs" data-id="${task.id}" title="Show bug reports">&#128027;</button>` : ""}
+          ${bugTasks.length ? `<button type="button" class="gantt-bug-button ${hasOpenBugs ? "open-bugs" : "closed-bugs"}" data-action="toggle-gantt-task-bugs" data-id="${task.id}" title="Show bug reports" aria-label="Show bug reports"><img class="gantt-bug-icon" src="${bugIconUrl}" alt="" aria-hidden="true"></button>` : ""}
           <i style="--value:${taskDisplayPercent(task)}%"></i>
         </div>
       </div>
