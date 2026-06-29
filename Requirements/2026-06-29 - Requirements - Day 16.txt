@@ -38,8 +38,13 @@ Gantt Chart
 7.) In the Gantt Chart, swap the reset and filter page-level buttons.
 
 Backlog Screen
------------
+--------------
 1.) In the Backlog screen, the expand / collapse for the sub-task is overlapping with the icon of the Assignee avatar.  You need to shift the expand / collapse icon to the left without moving anything else.
 2.) In the Backlog screen, the expand / collapse icon for the sub-task is shifting as I resize the browser's window and at times still overlaps the Assignee avatar.  Can you fix the expand / collapse icon so it's does not move?  The way it is imlemented in the Dev Task table is flawless.  Maybe use that as a reference?
 3.) Also, add a % Completed column in the Backlog.  Again, use the Dev Task table as a reference.  I really would like the Backlog table to behave / work in the same way as the Dev Tasks table.
 4.) In the Backlog screen, move the the expand / collapse to the right by 10px without shifting anything else.
+
+Dev Task Screen
+---------------
+1.) In the Dev Task Screen, remove the red tint on a Task that is a "Bug Fix" (a task that has a dependency / link to a Bug).  Also, remove the Bug Fix icon that is there now (which is the old bug icon).
+2.) For the same Bug Fix task (row) in question, add a the new Bug Icon to the upper-right of the current row similar to what was done on the Task Card in the Kanban Board (for the Bug tasks).

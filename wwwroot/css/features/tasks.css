@@ -353,18 +353,6 @@ html[data-theme="light"] .tasks-screen.work-item-screen .tasks-table .tasks-expa
   background: var(--color-surface);
 }
 
-html[data-theme] .tasks-screen.work-item-screen .tasks-table tr.bug-associated-row > td {
-  background: color-mix(in srgb, var(--color-danger-surface), transparent 64%);
-}
-
-html[data-theme] .tasks-screen.work-item-screen .tasks-table tr.bug-associated-row > td:first-child {
-  box-shadow: inset 3px 0 0 color-mix(in srgb, var(--color-danger), transparent 24%);
-}
-
-html[data-theme] .tasks-screen.work-item-screen .tasks-table tr.bug-associated-row:hover > td {
-  background: color-mix(in srgb, var(--color-danger-surface), transparent 52%);
-}
-
 .subtask-row .tasks-assignee-cell,
 .subtask-row .task-context-cell,
 .subtask-title-cell {
@@ -431,6 +419,19 @@ html[data-theme="light"] .tasks-table .subtask-row .tasks-assignee-cell {
 .tasks-table .done-cell {
   position: relative;
   z-index: 1;
+}
+
+.tasks-table .task-bug-fix-row-icon {
+  position: absolute;
+  top: 4px;
+  right: 6px;
+  z-index: 2;
+  width: 24px;
+  height: 24px;
+  border-radius: var(--radius-sm);
+  object-fit: contain;
+  pointer-events: none;
+  box-shadow: none;
 }
 
 .tasks-table .work-item-code-line {

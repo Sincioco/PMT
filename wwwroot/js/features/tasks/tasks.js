@@ -21,7 +21,6 @@ import { sectionHead } from "../../components/sections.js";
 import {
   attachmentEditorFieldHtml,
   bindAssigneeList,
-  bugFixIconHtml,
   createWorkItemTableMode,
   showTaskAudit,
   taskAuditPanelHtml,
@@ -65,6 +64,8 @@ import {
   taskRowsWithSubTasks,
   validateLinkedBugCompletion
 } from "../../shared/work-item-rules.js?v=20260627-dev-task-status-rules";
+
+const taskBugFixIconUrl = "/assets/bug.svg?v=20260629-kanban-gantt-bug-icon";
 
 export function createTasksFeature({
   app,
@@ -160,9 +161,11 @@ export function createTasksFeature({
               const task = row.task;
               const hasVisibleSubTasks = taskHasVisibleSubTasks(task, taskChildrenByParent);
               const isSubTasksCollapsed = taskSubTasksCollapsed(task.id);
+              const hasAssociatedBug = taskHasAssociatedBug(task);
+              const bugFixRowIcon = hasAssociatedBug ? taskBugFixRowIconHtml() : "";
               const rowClass = [
                 row.level ? "subtask-row" : "",
-                taskHasAssociatedBug(task) ? "bug-associated-row" : "",
+                hasAssociatedBug ? "bug-associated-row" : "",
                 hasVisibleSubTasks ? "has-subtasks" : "",
                 hasVisibleSubTasks && isSubTasksCollapsed ? "is-subtasks-collapsed" : "",
                 "clickable-row"
@@ -185,13 +188,13 @@ export function createTasksFeature({
                         <strong class="work-item-code">${escapeHtml(task.code)}</strong>
                         ${row.level ? `<span class="subtask-pill">Subtask</span>` : ""}
                       </span>
-                      <span class="work-item-title">${bugFixIconHtml(task)}${escapeHtml(task.title)}</span>
+                      <span class="work-item-title">${escapeHtml(task.title)}</span>
                     </div>
                   </div>
                 </td>
                 <td><span class="pill priority-${task.priority}">${escapeHtml(task.priority)}</span></td>
                 <td class="tasks-status-cell">${taskStatusHtml(task.status)}</td>
-                <td class="done-cell">${workItemTableProgressHtml(taskDisplayPercent(task))}</td>
+                <td class="done-cell">${workItemTableProgressHtml(taskDisplayPercent(task))}${bugFixRowIcon}</td>
                 ${taskTableMode.active ? `<td class="reveal-actions action-cell">${taskButtonsHtml(task, { includeView: false, monochrome: true })}</td>` : ""}
               </tr>
             `;
@@ -581,6 +584,10 @@ export function createTasksFeature({
 
   function taskHasAssociatedBug(task) {
     return Boolean(associatedBugForDevTask(task, task.dependencyTaskIds));
+  }
+
+  function taskBugFixRowIconHtml() {
+    return `<img class="task-bug-fix-row-icon" src="${taskBugFixIconUrl}" title="Bug Fix" alt="Bug Fix">`;
   }
 
   function workItemTableProgressHtml(percent) {
