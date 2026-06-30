@@ -71,7 +71,7 @@ import {
   uniqueIds,
   workItemImportHash,
   workItemSystemColumns
-} from "../../shared/table-export.js?v=20260630-left-edit-import";
+} from "../../shared/table-export.js?v=20260630-export-icons-centered";
 import { canEditTask } from "../../shared/permissions.js";
 import {
   projectById,
@@ -1287,23 +1287,29 @@ export function createBugsFeature({
   }
 
   function exportBugCsv() {
-    const rows = bugExportRows();
-    const headers = {
-      reporterHeader: bugRowsHaveMultipleUsers(rows, bug => bug.reporters) ? "Reporters" : "Reporter",
-      assigneeHeader: bugRowsHaveMultipleUsers(rows, bug => bug.assignees) ? "Assignees" : "Assignee"
-    };
-    const columns = bugExportColumns(bugVisibleTableColumns(headers));
+    const rows = bugExportImportRows();
+    const columns = bugExportImportColumns(rows);
 
     downloadCsv(exportFileName("pmt-bug-tracking"), columns, rows);
   }
 
   function exportBugExcel() {
-    const rows = bugExportRows().map(bug => ({ task: bug }));
+    const rows = bugExportImportRows();
+    const columns = bugExportImportColumns(rows);
+
+    downloadXlsx(exportFileName("pmt-bug-tracking", "xlsx"), "Bug Tracking", columns, rows);
+  }
+
+  function bugExportImportRows() {
+    return bugExportRows().map(bug => ({ task: bug }));
+  }
+
+  function bugExportImportColumns(rows) {
     const headers = {
       reporterHeader: bugRowsHaveMultipleUsers(rows.map(row => row.task), bug => bug.reporters) ? "Reporters" : "Reporter",
       assigneeHeader: bugRowsHaveMultipleUsers(rows.map(row => row.task), bug => bug.assignees) ? "Assignees" : "Assignee"
     };
-    const columns = [
+    return [
       ...bugExportColumns(bugVisibleTableColumns(headers)).map(column => ({
         header: column.header,
         value: row => column.value(row.task)
@@ -1315,8 +1321,6 @@ export function createBugsFeature({
         assigneeLabel: bug => userNames(bug.assignees)
       })
     ];
-
-    downloadXlsx(exportFileName("pmt-bug-tracking", "xlsx"), "Bug Tracking", columns, rows);
   }
 
   function openBugImport() {

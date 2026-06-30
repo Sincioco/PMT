@@ -67,7 +67,7 @@ import {
   uniqueIds,
   workItemImportHash,
   workItemSystemColumns
-} from "../../shared/table-export.js?v=20260630-left-edit-import";
+} from "../../shared/table-export.js?v=20260630-export-icons-centered";
 import { canEditTask } from "../../shared/permissions.js";
 import {
   projectName,
@@ -1575,16 +1575,21 @@ export function createTasksFeature({
 
   function exportTaskCsv() {
     const rows = taskExportRows();
-    const assigneeHeader = taskRowsHaveMultipleAssignees(rows) ? "Assignees" : "Assignee";
-    const columns = taskExportColumns(taskVisibleTableColumns(assigneeHeader));
+    const columns = taskExportImportColumns(rows);
 
     downloadCsv(exportFileName("pmt-dev-tasks"), columns, rows);
   }
 
   function exportTaskExcel() {
     const rows = taskExportRows();
+    const columns = taskExportImportColumns(rows);
+
+    downloadXlsx(exportFileName("pmt-dev-tasks", "xlsx"), "Dev Tasks", columns, rows);
+  }
+
+  function taskExportImportColumns(rows) {
     const assigneeHeader = taskRowsHaveMultipleAssignees(rows) ? "Assignees" : "Assignee";
-    const columns = [
+    return [
       ...taskExportColumns(taskVisibleTableColumns(assigneeHeader)),
       ...workItemSystemColumns({
         nameHeader: "PMT Update Task Name",
@@ -1593,8 +1598,6 @@ export function createTasksFeature({
         assigneeLabel: task => userNames(task.assignees)
       })
     ];
-
-    downloadXlsx(exportFileName("pmt-dev-tasks", "xlsx"), "Dev Tasks", columns, rows);
   }
 
   function openTaskImport() {

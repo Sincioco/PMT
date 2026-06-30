@@ -5,6 +5,10 @@ import {
   readXlsxObjects
 } from "./xlsx.js?v=20260630-native-xlsx";
 
+const exportIconAssetVersion = "20260630-export-file-icons";
+const csvIconUrl = `/assets/export-csv.svg?v=${exportIconAssetVersion}`;
+const excelIconUrl = `/assets/export-excel.svg?v=${exportIconAssetVersion}`;
+
 export function exportIconHtml() {
   return `
     <svg class="button-svg-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
@@ -133,8 +137,8 @@ export function importWorkbookTypeError(records, allowedTypes, screenLabel) {
   const targetLabel = importWorkbookScreenLabel(types);
   const targetHelp = targetLabel
     ? ` Use the ${targetLabel} Import button for this file.`
-    : " Export a fresh PMT workbook from this screen and try again.";
-  return `This Excel workbook contains ${typeList} rows and cannot be imported from ${screenLabel}.${targetHelp}`;
+    : " Export a fresh PMT file from this screen and try again.";
+  return `This PMT export file contains ${typeList} rows and cannot be imported from ${screenLabel}.${targetHelp}`;
 }
 
 export function sameNumberList(left, right) {
@@ -166,12 +170,16 @@ export function openExportDialog({ title, onCsvExport, onExcelExport }) {
       </div>
       <div class="dialog-body">
         <div class="export-format-grid">
-          <button type="button" class="primary text-icon-button export-format-button" data-export-format="csv">${buttonContent(csvIconHtml(), "CSV File")}</button>
-          <button type="button" class="secondary text-icon-button export-format-button" data-export-format="excel">${buttonContent(excelIconHtml(), "Excel File")}</button>
+          <button type="button" class="primary export-format-button" data-export-format="csv" title="CSV File" aria-label="CSV File">
+            <span class="button-icon" aria-hidden="true">${csvIconHtml()}</span>
+          </button>
+          <button type="button" class="secondary export-format-button" data-export-format="excel" title="Excel File" aria-label="Excel File">
+            <span class="button-icon" aria-hidden="true">${excelIconHtml()}</span>
+          </button>
         </div>
       </div>
       <div class="dialog-actions">
-        <button type="button" class="secondary text-icon-button" data-close-export-dialog>${buttonContent("x", "Cancel")}</button>
+        <button type="button" class="secondary" data-close-export-dialog>Cancel</button>
       </div>
     </form>
   `;
@@ -243,7 +251,7 @@ export function downloadXlsx(filename, sheetName, columns, rows) {
 export function openExcelImport({ onImport, onError }) {
   const input = document.createElement("input");
   input.type = "file";
-  input.accept = ".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+  input.accept = ".xlsx,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv";
   input.hidden = true;
   input.addEventListener("change", async () => {
     const file = input.files?.[0];
@@ -251,7 +259,7 @@ export function openExcelImport({ onImport, onError }) {
     if (!file) return;
 
     try {
-      const rows = await readXlsxObjects(file);
+      const rows = await readImportObjects(file);
       await onImport(rows);
     } catch (error) {
       if (onError) onError(error);
@@ -308,7 +316,7 @@ function importErrorsHtml(errors) {
       <table class="table import-error-table">
         <thead>
           <tr>
-            <th>Excel Row</th>
+            <th>File Row</th>
             <th>Item</th>
             <th>Error</th>
           </tr>
@@ -329,7 +337,7 @@ function importErrorsHtml(errors) {
 
 function downloadImportErrors(errors) {
   downloadCsv(exportFileName("pmt-import-errors"), [
-    { header: "Excel Row", value: error => error.rowNumber || "" },
+    { header: "File Row", value: error => error.rowNumber || "" },
     { header: "Item Code", value: error => error.code || "" },
     { header: "Item Name", value: error => error.title || "" },
     { header: "Error", value: error => error.message || "" }
@@ -337,20 +345,15 @@ function downloadImportErrors(errors) {
 }
 
 function csvIconHtml() {
-  return `
-    <svg class="button-svg-icon export-format-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-      <path d="M6 3h9l3 3v15H6zM14 3v4h4M8 11h8M8 15h8M8 18h5"></path>
-      <path d="M8 8h3"></path>
-    </svg>
-  `;
+  return exportFormatImageIconHtml(csvIconUrl);
 }
 
 function excelIconHtml() {
-  return `
-    <svg class="button-svg-icon export-format-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-      <path d="M6 3h9l3 3v15H6zM14 3v4h4M9 10l5 7M14 10l-5 7"></path>
-    </svg>
-  `;
+  return exportFormatImageIconHtml(excelIconUrl);
+}
+
+function exportFormatImageIconHtml(src) {
+  return `<img class="button-svg-icon export-format-icon" src="${src}" alt="" aria-hidden="true" draggable="false">`;
 }
 
 function csvCell(value) {
@@ -358,6 +361,82 @@ function csvCell(value) {
   return /[",\n]/.test(text)
     ? `"${text.replaceAll('"', '""')}"`
     : text;
+}
+
+async function readImportObjects(file) {
+  if (isCsvImportFile(file)) return readCsvObjects(file);
+  if (isXlsxImportFile(file)) return readXlsxObjects(file);
+  throw new Error("Select a .csv or .xlsx file exported from PMT.");
+}
+
+function isCsvImportFile(file) {
+  return /\.csv$/i.test(file?.name || "") || /(^|\/)(csv|comma-separated-values)$/i.test(file?.type || "");
+}
+
+function isXlsxImportFile(file) {
+  return /\.xlsx$/i.test(file?.name || "")
+    || file?.type === "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+}
+
+async function readCsvObjects(file) {
+  const rows = parseCsvRows((await file.text()).replace(/^\uFEFF/, ""));
+  if (!rows.length) return [];
+
+  const headers = rows[0].map(header => String(header || "").trim());
+  return rows.slice(1)
+    .filter(row => row.some(value => String(value ?? "").trim()))
+    .map(row => {
+      const record = {};
+      headers.forEach((header, index) => {
+        if (header) record[header] = row[index] ?? "";
+      });
+      return record;
+    });
+}
+
+function parseCsvRows(text) {
+  const rows = [];
+  let row = [];
+  let cell = "";
+  let inQuotes = false;
+
+  for (let index = 0; index < text.length; index += 1) {
+    const char = text[index];
+    const nextChar = text[index + 1];
+
+    if (inQuotes) {
+      if (char === '"' && nextChar === '"') {
+        cell += '"';
+        index += 1;
+      } else if (char === '"') {
+        inQuotes = false;
+      } else {
+        cell += char;
+      }
+      continue;
+    }
+
+    if (char === '"') {
+      inQuotes = true;
+    } else if (char === ",") {
+      row.push(cell);
+      cell = "";
+    } else if (char === "\n") {
+      row.push(cell);
+      rows.push(row);
+      row = [];
+      cell = "";
+    } else if (char !== "\r") {
+      cell += char;
+    }
+  }
+
+  if (cell || row.length) {
+    row.push(cell);
+    rows.push(row);
+  }
+
+  return rows;
 }
 
 function padDatePart(value) {

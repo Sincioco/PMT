@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+  <title id="title">PMT Excel Icon</title>
+  <desc id="desc">A modern Excel spreadsheet icon with a green app tile, grid sheet, and X label.</desc>
+  <defs>
+    <linearGradient id="bg" x1="72" y1="40" x2="440" y2="472" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#22C55E"/>
+      <stop offset="1" stop-color="#15803D"/>
+    </linearGradient>
+    <linearGradient id="sheet" x1="188" y1="88" x2="392" y2="420" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FFFFFF"/>
+      <stop offset="1" stop-color="#F0FDF4"/>
+    </linearGradient>
+    <filter id="shadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="18" stdDeviation="18" flood-color="#052E16" flood-opacity="0.28"/>
+    </filter>
+  </defs>
+
+  <rect x="32" y="32" width="448" height="448" rx="104" fill="url(#bg)"/>
+
+  <g filter="url(#shadow)">
+    <rect x="176" y="82" width="228" height="348" rx="28" fill="url(#sheet)"/>
+    <rect x="176" y="82" width="228" height="348" rx="28" fill="none" stroke="#052E16" stroke-opacity="0.14" stroke-width="8"/>
+    <rect x="204" y="128" width="172" height="46" rx="12" fill="#BBF7D0"/>
+    <g stroke="#16A34A" stroke-width="8" stroke-linecap="round" opacity="0.55">
+      <path d="M204 214h172M204 262h172M204 310h172M204 358h172"/>
+      <path d="M252 128v254M306 128v254"/>
+    </g>
+  </g>
+
+  <g filter="url(#shadow)">
+    <rect x="92" y="146" width="168" height="220" rx="34" fill="#14532D"/>
+    <path d="M143 204l66 104M210 204l-68 104" stroke="#FFFFFF" stroke-width="32" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+</svg>

@@ -83,9 +83,10 @@
 }
 
 .export-format-button {
-  min-height: 88px;
-  flex-direction: column;
-  gap: var(--space-3);
+  min-height: 140px;
+  display: inline-grid;
+  place-items: center;
+  padding: var(--space-5);
   border-color: var(--color-border);
   background: var(--color-surface-subtle);
 }
@@ -95,13 +96,28 @@
 }
 
 .export-format-button .button-icon {
-  width: 32px;
-  height: 32px;
+  width: 80px;
+  min-width: 80px;
+  height: 80px;
+  filter: none !important;
 }
 
 .export-format-button .export-format-icon {
-  width: 32px;
-  height: 32px;
+  width: 80px !important;
+  height: 80px !important;
+  filter: none !important;
+}
+
+html[data-theme] button.export-format-button .button-svg-icon.export-format-icon {
+  width: 80px !important;
+  height: 80px !important;
+}
+
+html[data-theme] button.export-format-button .button-icon {
+  width: 80px !important;
+  min-width: 80px !important;
+  height: 80px !important;
+  filter: none !important;
 }
 
 .import-result-summary {

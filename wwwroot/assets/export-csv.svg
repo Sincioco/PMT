@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+  <title id="title">PMT CSV Icon</title>
+  <desc id="desc">A modern CSV document icon with a folded corner, table rows, and CSV label.</desc>
+  <defs>
+    <linearGradient id="bg" x1="92" y1="40" x2="420" y2="472" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#10B981"/>
+      <stop offset="1" stop-color="#0F766E"/>
+    </linearGradient>
+    <linearGradient id="paper" x1="152" y1="72" x2="360" y2="440" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FFFFFF"/>
+      <stop offset="1" stop-color="#ECFDF5"/>
+    </linearGradient>
+    <filter id="shadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="18" stdDeviation="18" flood-color="#064E3B" flood-opacity="0.28"/>
+    </filter>
+  </defs>
+
+  <rect x="32" y="32" width="448" height="448" rx="104" fill="url(#bg)"/>
+  <g filter="url(#shadow)">
+    <path d="M150 74h156l82 82v282H150z" fill="url(#paper)"/>
+    <path d="M306 74v82h82z" fill="#A7F3D0"/>
+    <path d="M306 74v82h82" fill="none" stroke="#059669" stroke-width="10" stroke-linejoin="round" opacity="0.35"/>
+    <rect x="150" y="74" width="238" height="364" rx="22" fill="none" stroke="#065F46" stroke-opacity="0.16" stroke-width="8"/>
+  </g>
+
+  <g opacity="0.95">
+    <rect x="184" y="186" width="144" height="32" rx="10" fill="#D1FAE5"/>
+    <rect x="184" y="236" width="144" height="32" rx="10" fill="#D1FAE5"/>
+    <rect x="184" y="286" width="144" height="32" rx="10" fill="#D1FAE5"/>
+    <path d="M234 178v148M184 228h144M184 278h144" stroke="#059669" stroke-width="8" stroke-linecap="round" opacity="0.65"/>
+  </g>
+
+  <rect x="108" y="342" width="296" height="84" rx="24" fill="#064E3B"/>
+  <text x="256" y="398" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="52" font-weight="800" letter-spacing="3" fill="#FFFFFF">CSV</text>
+</svg>

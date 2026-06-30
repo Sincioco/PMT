@@ -1,6 +1,6 @@
 Project Management Tool (PMT):  Day 17 of Codex Agentic AI Coding
 -----------------------------------------------------------------
-Total Dev Time in Hours:  21
+Total Dev Time in Hours:  22
 
 For all of this conversation / session, I will perform all the manual tests and compile the application manually.  Perform only the coding changes required and nothing else.  If making CSS / image changes, ensure that I will encounter no caching issue when testing in the browser.
 
@@ -51,3 +51,8 @@ Export
 10.) I downloaded PMT's Sprint 5 and updated all the Assignees to "Steve".  When I uploaded it to PMT, it detected no changes.
 11.) The user will only edit the left side of the spreadsheet, not the right part where it stores internal information for importing back into PMT.
 12.) When exporting to Excel, don't add a blank column between the visible data and the metadata.  That way, in case the user sorts the data, the metadata will get sorted along with the visible data.
+
+13.) Great the Excel Export and Import work.  Now can you give the same treatment to the CSV path?  Let's allow the user to Export CSV and Import CSV as well, just like an Excel file.
+
+14.) There are 2 .svg files in "C:\Temp".  One is an Excel icon, the other a CSV icon.  Copy them in the correct spot in the project.  Update the Export Dialog Box to use these 2 new icons.
+15.) Make the icons large like 80x80 pixels.

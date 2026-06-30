@@ -44,7 +44,7 @@ import {
   uniqueIds,
   workItemImportHash,
   workItemSystemColumns
-} from "../../shared/table-export.js?v=20260630-left-edit-import";
+} from "../../shared/table-export.js?v=20260630-export-icons-centered";
 import {
   projectName,
   sprintName,
@@ -1346,16 +1346,21 @@ export function createBacklogFeature({
 
   function exportBacklogCsv() {
     const rows = backlogExportRows();
-    const assigneeHeader = backlogRowsHaveMultipleAssignees(rows) ? "Assignees" : "Assignee";
-    const columns = backlogExportColumns(backlogVisibleTableColumns(assigneeHeader));
+    const columns = backlogExportImportColumns(rows);
 
     downloadCsv(exportFileName("pmt-backlog"), columns, rows);
   }
 
   function exportBacklogExcel() {
     const rows = backlogExportRows();
+    const columns = backlogExportImportColumns(rows);
+
+    downloadXlsx(exportFileName("pmt-backlog", "xlsx"), "Backlog", columns, rows);
+  }
+
+  function backlogExportImportColumns(rows) {
     const assigneeHeader = backlogRowsHaveMultipleAssignees(rows) ? "Assignees" : "Assignee";
-    const columns = [
+    return [
       ...backlogExportColumns(backlogVisibleTableColumns(assigneeHeader)),
       ...workItemSystemColumns({
         nameHeader: "PMT Update Item Name",
@@ -1364,8 +1369,6 @@ export function createBacklogFeature({
         assigneeLabel: task => userNames(task.assignees)
       })
     ];
-
-    downloadXlsx(exportFileName("pmt-backlog", "xlsx"), "Backlog", columns, rows);
   }
 
   function openBacklogImport() {
