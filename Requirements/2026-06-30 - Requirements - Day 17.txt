@@ -31,3 +31,15 @@ Bug Tracking Screen
 Backlog Screen
 -------------------
 1.) Give the same treatment to the Backlog Screen.
+2.) In the Backlog Screen, add a Reset View button.  Refer to the Dev Task Screen's Reset View button as a reference.
+3.) In the Backlog screen, if a task is bug related, give it the same treatment as what is in the Dev Task's screen.  Red accent on the left of the row, and a bug icon on the right.
+4.) In the Backlog screen, if the item is of type "Bug" like the item "LMS-BUG-0001", treat it as a bug row, complete with the red accent on its left and the bug icon on its right.
+
+Export
+-------------------
+1.) We need to create an Export button at the page level of Dev Tasks, Bug Tracking and the Backlog screens.
+2.) When the Export button is clicked, present a dialog box that asks the user if they want to export a .CSV file or an Excel file.
+3.) If a CSV file, simply export whatever is presently on the grid as best as you can into a .CSV file. Preferrably, each column only contains 1 piece of information (that means, for the Project/Sprint column, separate them).
+4.) If an Excel file, do the same as in the CSV except make it a native .xlsx file so the user does not get prompted to improt it in Excel like a .csv file would.
+
+5.) Additionally, in both the CSV and Excel file, I would like you to include additional columns that would allow the user to import the CSV and Excel file back into PMT and update the necessary records.

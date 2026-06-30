@@ -16,6 +16,7 @@ import {
 import {
   preferenceKeys,
   readJsonPreference,
+  removePreference,
   writeJsonPreference
 } from "../../core/preferences.js?v=20260630-backlog-task-parity";
 import { state } from "../../core/store.js";
@@ -41,6 +42,8 @@ import {
   taskRowsWithSubTasks,
   associatedBugForDevTask
 } from "../../shared/work-item-rules.js?v=20260627-dev-task-status-rules";
+
+const backlogBugFixIconUrl = "/assets/bug.svg?v=20260629-kanban-gantt-bug-icon";
 
 export function createBacklogFeature({
   app,
@@ -86,6 +89,7 @@ export function createBacklogFeature({
           <button class="primary text-icon-button" type="button" data-action="new-backlog-bug" title="New Bug Report" aria-label="New Bug Report">${buttonContent(bugIconHtml(), "New Bug Report")}</button>
           ${backlogTableMode.buttonHtml()}
           <button class="secondary text-icon-button" type="button" data-action="open-backlog-filters" title="Filters" aria-label="Filters" aria-haspopup="dialog">${buttonContent(funnelIconHtml(), "Filters")}</button>
+          <button class="secondary text-icon-button" type="button" data-action="reset-backlog-view" title="Reset View" aria-label="Reset View">${buttonContent("&#8634;", "Reset View")}</button>
         `)}
         <div class="panel work-item-table-panel backlog-table-panel">
           <table class="table work-item-table backlog-table ${backlogTableMode.active ? "is-edit-mode" : "is-read-mode"}" style="--backlog-assignee-width:${assigneeColumnWidth}px; --backlog-table-min-width:${backlogTableMinWidth(visibleBacklogColumns)}px">
@@ -106,8 +110,11 @@ export function createBacklogFeature({
                 const task = row.task;
                 const hasVisibleSubTasks = backlogHasVisibleSubTasks(task, backlogChildrenByParent);
                 const isSubTasksCollapsed = backlogSubTasksCollapsed(task.id);
+                const hasBugTreatment = backlogHasBugTreatment(task);
+                const bugFixRowIcon = hasBugTreatment ? backlogBugFixRowIconHtml(task) : "";
                 const rowClass = [
                   row.level ? "subtask-row" : "",
+                  hasBugTreatment ? "bug-associated-row" : "",
                   hasVisibleSubTasks ? "has-subtasks" : "",
                   hasVisibleSubTasks && isSubTasksCollapsed ? "is-subtasks-collapsed" : "",
                   "clickable-row"
@@ -117,7 +124,7 @@ export function createBacklogFeature({
                 return `
                 <tr class="${rowClass}" data-action="view-backlog-task" data-id="${task.id}" data-task-id="${task.id}" data-can-drag="${backlogTableMode.active ? "true" : "false"}" draggable="false" style="--indent:${indent}px">
                   <td class="backlog-expand-cell">${hasVisibleSubTasks ? backlogSubTaskToggleHtml(task, isSubTasksCollapsed) : ""}</td>
-                  ${visibleBacklogColumns.map((column, index) => backlogTableColumnCellHtml(column, task, row, backlogColumnIsRubber(visibleBacklogColumns, index))).join("")}
+                  ${visibleBacklogColumns.map((column, index) => backlogTableColumnCellHtml(column, task, row, { bugFixRowIcon }, backlogColumnIsRubber(visibleBacklogColumns, index))).join("")}
                   ${backlogTableMode.active ? `<td class="reveal-actions action-cell">${backlogTaskButtonsHtml(task)}</td>` : ""}
                 </tr>
               `;
@@ -159,6 +166,10 @@ export function createBacklogFeature({
     }
     if (action === "open-backlog-filters") {
       openBacklogFiltersDialog();
+      return true;
+    }
+    if (action === "reset-backlog-view") {
+      resetBacklogView();
       return true;
     }
     if (action === "toggle-backlog-subtasks" && task) {
@@ -546,6 +557,15 @@ export function createBacklogFeature({
     return backlogRows.some(row => Array.isArray(row.task.assignees) && row.task.assignees.length > 1);
   }
 
+  function backlogHasBugTreatment(task) {
+    return task?.taskType === "Bug" || Boolean(associatedBugForDevTask(task, task.dependencyTaskIds));
+  }
+
+  function backlogBugFixRowIconHtml(task) {
+    const label = task?.taskType === "Bug" ? "Bug" : "Bug Fix";
+    return `<img class="task-bug-fix-row-icon" src="${backlogBugFixIconUrl}" title="${label}" alt="${label}">`;
+  }
+
   function backlogMainTaskSortCompare(a, b) {
     const aIsSubTask = Boolean(a.parentTaskId);
     const bIsSubTask = Boolean(b.parentTaskId);
@@ -721,7 +741,7 @@ export function createBacklogFeature({
         width: 180,
         rubberMinWidth: 120,
         defaultVisible: true,
-        cellHtml: task => workItemTableProgressHtml(taskDisplayPercent(task))
+        cellHtml: (task, row, context) => `${workItemTableProgressHtml(taskDisplayPercent(task))}${context.bugFixRowIcon}`
       },
       {
         key: "reporter",
@@ -885,7 +905,7 @@ export function createBacklogFeature({
     return `<col class="${escapeAttr(className)}">`;
   }
 
-  function backlogTableColumnCellHtml(column, task, row, isRubber = false) {
+  function backlogTableColumnCellHtml(column, task, row, context = {}, isRubber = false) {
     const baseClassName = typeof column.cellClass === "function"
       ? column.cellClass(task, row)
       : column.cellClass || "";
@@ -893,7 +913,7 @@ export function createBacklogFeature({
       .filter(Boolean)
       .join(" ");
 
-    return `<td class="${escapeAttr(className)}">${column.cellHtml(task, row)}</td>`;
+    return `<td class="${escapeAttr(className)}">${column.cellHtml(task, row, context)}</td>`;
   }
 
   function backlogColumnHeaderHtml(column, isRubber = false) {
@@ -1277,6 +1297,21 @@ export function createBacklogFeature({
     if (state.column === column && state.direction === "asc") return `Sort ${label} descending`;
     if (state.column === column && state.direction === "desc") return `Clear ${label} sort`;
     return `Sort ${label} ascending`;
+  }
+
+  function resetBacklogView() {
+    [
+      preferenceKeys.backlogFilters,
+      preferenceKeys.backlogCollapsedSubTasks,
+      preferenceKeys.backlogTableColumns
+    ].forEach(removePreference);
+
+    backlogFilters = normalizeBacklogFilters({});
+    backlogCollapsedSubTasks = {};
+    backlogColumnPrefs = normalizeBacklogColumnPrefs({});
+    backlogTableMode.deactivate();
+    cancelBacklogColumnDrag();
+    renderBacklog();
   }
 
   function deactivateBacklog() {

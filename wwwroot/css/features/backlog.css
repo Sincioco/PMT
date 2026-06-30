@@ -221,6 +221,23 @@ html[data-theme] .backlog-screen.work-item-screen .work-item-table .icon-action:
   z-index: 1;
 }
 
+html[data-theme] .backlog-screen.work-item-screen .backlog-table tr.bug-associated-row > td:first-child {
+  box-shadow: inset 3px 0 0 color-mix(in srgb, var(--color-danger), transparent 24%);
+}
+
+.backlog-table .task-bug-fix-row-icon {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  z-index: 2;
+  width: 24px;
+  height: 24px;
+  border-radius: var(--radius-sm);
+  object-fit: contain;
+  pointer-events: none;
+  box-shadow: none;
+}
+
 .backlog-rubber-column {
   width: 100%;
 }
