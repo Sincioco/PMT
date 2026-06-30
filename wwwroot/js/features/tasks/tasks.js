@@ -256,7 +256,7 @@ export function createTasksFeature({
     const existingDialog = document.querySelector("[data-task-filter-dialog]");
     if (existingDialog) {
       if (!existingDialog.open) existingDialog.showModal?.();
-      existingDialog.querySelector("[data-filter='task-project']")?.focus({ preventScroll: true });
+      existingDialog.querySelector("[data-filter='task-search']")?.focus({ preventScroll: true });
       return;
     }
 
@@ -278,6 +278,10 @@ export function createTasksFeature({
 
     renderTaskFiltersDialog(modal);
     document.body.appendChild(modal);
+    modal.addEventListener("input", event => {
+      if (!applyTaskFilterChange(event.target)) return;
+      renderTasks();
+    });
     modal.addEventListener("change", event => {
       const target = event.target;
       const filter = target?.dataset?.filter || "";
@@ -294,7 +298,7 @@ export function createTasksFeature({
     });
     modal.addEventListener("close", () => modal.remove());
     modal.showModal();
-    modal.querySelector("[data-filter='task-project']")?.focus({ preventScroll: true });
+    modal.querySelector("[data-filter='task-search']")?.focus({ preventScroll: true });
   }
 
   function renderTaskFiltersDialog(modal) {
@@ -326,11 +330,17 @@ export function createTasksFeature({
             </select>
           </label>
           <label>
+            <span>Search</span>
+            <input type="text" data-filter="task-search" value="${escapeAttr(taskFilters.search)}">
+          </label>
+          <label>
             <span>Sort</span>
             <select data-filter="task-sort">
               ${taskSortOptionsHtml()}
             </select>
           </label>
+        </div>
+        <div class="task-filter-check-row">
           <label class="inline-filter-check">
             <input type="checkbox" data-filter="task-hide-completed" ${taskFilters.hideCompleted ? "checked" : ""}>
             <span class="checkbox-label-text">Hide Completed Dev Tasks</span>
@@ -364,6 +374,7 @@ export function createTasksFeature({
       taskSprintId = target.value;
       writePreference(preferenceKeys.taskSprint, taskSprintId);
     }
+    if (filter === "task-search") taskFilters.search = target.value;
     if (filter === "task-sort") taskFilters.sort = target.value;
     if (filter === "task-hide-completed") taskFilters.hideCompleted = target.checked;
     if (filter === "task-status") taskFilters.statuses = checkedFilterValues("task-status");
@@ -375,8 +386,10 @@ export function createTasksFeature({
         target.checked = true;
         return false;
       }
+      const addedColumns = visibleColumns.filter(column => !taskColumnPrefs.visible.includes(column));
       taskColumnPrefs = normalizeTaskColumnPrefs({
         ...taskColumnPrefs,
+        order: taskColumnOrderWithAddedColumns(taskColumnPrefs.order, addedColumns),
         visible: visibleColumns
       });
       saveTaskColumnPrefs();
@@ -667,8 +680,8 @@ export function createTasksFeature({
         key: "percent",
         label: "% Complete",
         colClass: "tasks-complete-column",
-        headerClass: "done-cell",
-        cellClass: "done-cell",
+        headerClass: "done-cell tasks-complete-cell",
+        cellClass: "done-cell tasks-complete-cell",
         width: 180,
         rubberMinWidth: 120,
         defaultVisible: true,
@@ -885,6 +898,22 @@ export function createTasksFeature({
     taskTableColumnDefinitions().forEach(column => {
       if (!orderedKeys.includes(column.key)) orderedKeys.push(column.key);
     });
+
+    return orderedKeys;
+  }
+
+  function taskColumnOrderWithAddedColumns(order, addedColumns) {
+    const orderedKeys = normalizedTaskColumnOrder(order);
+
+    addedColumns
+      .filter(column => column !== "percent" && taskColumnKeySet().has(column))
+      .forEach(column => {
+        const existingIndex = orderedKeys.indexOf(column);
+        if (existingIndex >= 0) orderedKeys.splice(existingIndex, 1);
+
+        const percentIndex = orderedKeys.indexOf("percent");
+        orderedKeys.splice(percentIndex >= 0 ? percentIndex : orderedKeys.length, 0, column);
+      });
 
     return orderedKeys;
   }
@@ -1279,6 +1308,7 @@ export function createTasksFeature({
       assigneeIds: normalizeSavedArray(filters.assigneeIds),
       priorities: normalizeSavedArray(filters.priorities),
       sort,
+      search: String(filters.search || ""),
       hideCompleted: Boolean(filters.hideCompleted)
     };
   }
@@ -1297,11 +1327,44 @@ export function createTasksFeature({
     const selectedPriorities = taskFilters.priorities || [];
     const taskAssignees = (task.assigneeIds || []).map(String);
 
+    if (!taskMatchesSearchFilter(task)) return false;
     if (selectedStatuses.length && !selectedStatuses.includes(task.status)) return false;
     if (selectedPriorities.length && !selectedPriorities.includes(task.priority)) return false;
     if (selectedAssignees.length && !taskAssignees.some(id => selectedAssignees.includes(id))) return false;
 
     return true;
+  }
+
+  function taskMatchesSearchFilter(task) {
+    const term = String(taskFilters.search || "").trim().toLowerCase();
+    if (!term) return true;
+
+    return taskSearchValues(task)
+      .map(value => String(value ?? "").toLowerCase())
+      .some(value => value.includes(term));
+  }
+
+  function taskSearchValues(task) {
+    return [
+      task.code,
+      task.title,
+      projectName(task.projectId),
+      taskTableSprintLabel(task),
+      task.status,
+      task.priority,
+      userNames(task.assignees),
+      taskRelatedTaskLabel(task.parentTaskId),
+      taskLinkedBugLabel(task),
+      taskDependencyLabel(task),
+      task.url,
+      task.sortOrder,
+      taskUserName(task.createdByUserId),
+      taskUserName(task.updatedByUserId),
+      formatDate(task.startDate),
+      formatDate(task.endDate),
+      formatDateTime(task.createdAt),
+      formatDateTime(task.updatedAt)
+    ];
   }
 
   function taskMainTaskSortCompare(a, b) {

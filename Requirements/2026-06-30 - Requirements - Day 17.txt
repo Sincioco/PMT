@@ -12,3 +12,13 @@ Dev Task Screen
 
 4.) Great everything worked as expected!  Let's make a minor adjustment.  Whichever column is the last column on the Dev Task list, by default the % Complete column, let that be the rubber band column that occupies the most space so that the other columns are a little tighter and in edit mode, when the action buttons appear on each row, let the last column be the one that shrinks so the rest of the columns (table) do not shift too much.
 5.) In the Developer Workload Distribution chart, remove the shadows of the user's avatar , and if possible dynamically (if there is space) render them bigger if there is space, or smaller if the chart needs to render more data.
+
+6.) Great!  Everything is working good so far.  For key columns like Project/Sprint and Task, when they are visible, let's make those never wrap.  I always want those to take up as much width as they need as they are the key columns.
+7.) In the Filter dialog box, add a Search feature.  Use the Navigation screen's Filter as a reference.  It has a search feature.
+8.) Put the Sort drop down where the "Hide Completed Dev Tasks" checkbox is located.  Move the "Hide Completed Dev Tasks" into its own row.
+9.) Put the new Search text box where the Sort dropdown was originally located.  And when the Filter dialog box opens, put the focus on the Search text box so content is filtered as the user types (as it behaves in the Navigation screen's Filter dialog box).
+
+10.) Let's make the % Column take up 30% of the table's width by default, but allow it to shrink as needed.
+
+11.) Let's make the % Column take up 40% of the table's width by default, but allow it to shrink as needed.
+12.) When adding a new column into the table, don't add it to the last spot where the % Column is, add it just before.
