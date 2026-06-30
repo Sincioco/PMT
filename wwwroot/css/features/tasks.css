@@ -317,23 +317,23 @@ html[data-theme="light"] .tasks-screen.work-item-screen .tasks-table .tasks-expa
 }
 
 .tasks-context-column {
-  width: 220px;
+  width: 190px;
 }
 
 .tasks-title-column {
-  width: 390px;
+  width: 320px;
 }
 
 .tasks-priority-column {
-  width: 110px;
+  width: 96px;
 }
 
 .tasks-status-column {
-  width: 150px;
+  width: 136px;
 }
 
 .tasks-complete-column {
-  width: 220px;
+  width: 180px;
 }
 
 .tasks-assigned-column {
@@ -341,31 +341,31 @@ html[data-theme="light"] .tasks-screen.work-item-screen .tasks-table .tasks-expa
 }
 
 .tasks-date-column {
-  width: 132px;
+  width: 116px;
 }
 
 .tasks-date-time-column {
-  width: 172px;
+  width: 156px;
 }
 
 .tasks-related-column {
-  width: 190px;
+  width: 170px;
 }
 
 .tasks-url-column {
-  width: 220px;
+  width: 180px;
 }
 
 .tasks-count-column {
-  width: 112px;
+  width: 104px;
 }
 
 .tasks-number-column {
-  width: 110px;
+  width: 96px;
 }
 
 .tasks-user-column {
-  width: 150px;
+  width: 132px;
 }
 
 .tasks-action-column {
@@ -373,8 +373,20 @@ html[data-theme="light"] .tasks-screen.work-item-screen .tasks-table .tasks-expa
 }
 
 .tasks-table .done-cell {
-  min-width: 220px;
+  min-width: 180px;
   padding-right: var(--space-7);
+}
+
+.tasks-rubber-column {
+  width: 100%;
+}
+
+.tasks-table .tasks-rubber-cell {
+  min-width: 0;
+}
+
+.tasks-table .tasks-rubber-cell.done-cell {
+  min-width: 0;
 }
 
 .tasks-table.is-read-mode .done-cell {
@@ -1033,7 +1045,7 @@ html[data-theme="light"] .tasks-screen.work-item-screen .work-item-table .work-i
 }
 
 .tasks-chart-panel .workload-chart {
-  gap: var(--space-5);
+  gap: var(--space-4);
 }
 
 .tasks-chart-panel .workload-row {
@@ -1042,15 +1054,15 @@ html[data-theme="light"] .tasks-screen.work-item-screen .work-item-table .work-i
 }
 
 .tasks-chart-panel .workload-person {
-  grid-template-columns: 30px minmax(0, 1fr) auto;
+  grid-template-columns: var(--workload-avatar-size, 30px) minmax(0, 1fr) auto;
   gap: var(--space-3);
   color: var(--color-text-primary);
 }
 
 .tasks-chart-panel .workload-person .avatar {
-  width: 30px;
-  height: 30px;
-  box-shadow: var(--shadow-floating-mark);
+  width: var(--workload-avatar-size, 30px);
+  height: var(--workload-avatar-size, 30px);
+  box-shadow: none;
 }
 
 .tasks-chart-panel .workload-stack {

@@ -149,13 +149,13 @@ export function createTasksFeature({
         <table class="table work-item-table tasks-table ${taskTableMode.active ? "is-edit-mode" : "is-read-mode"}" style="--tasks-assignee-width:${assigneeColumnWidth}px; --tasks-table-min-width:${taskTableMinWidth(visibleTaskColumns)}px">
           <colgroup>
             <col class="tasks-expand-column">
-            ${visibleTaskColumns.map(taskTableColumnColHtml).join("")}
+            ${visibleTaskColumns.map((column, index) => taskTableColumnColHtml(column, taskColumnIsRubber(visibleTaskColumns, index))).join("")}
             ${taskTableMode.active ? `<col class="tasks-action-column">` : ""}
           </colgroup>
           <thead>
             <tr>
               <th class="tasks-expand-heading" aria-label="Expand or collapse sub-tasks"></th>
-              ${visibleTaskColumns.map(taskColumnHeaderHtml).join("")}
+              ${visibleTaskColumns.map((column, index) => taskColumnHeaderHtml(column, taskColumnIsRubber(visibleTaskColumns, index))).join("")}
               ${taskTableMode.active ? `<th class="action-cell" aria-label="Actions"></th>` : ""}
             </tr>
           </thead>
@@ -178,7 +178,7 @@ export function createTasksFeature({
               return `
               <tr class="${rowClass}" data-action="view-task" data-id="${task.id}" data-task-id="${task.id}" data-can-drag="${taskTableMode.active && canEditTask(task) ? "true" : "false"}" draggable="false" style="--indent:${indent}px">
                 <td class="tasks-expand-cell">${hasVisibleSubTasks ? taskSubTaskToggleHtml(task, isSubTasksCollapsed) : ""}</td>
-                ${visibleTaskColumns.map(column => taskTableColumnCellHtml(column, task, row, { bugFixRowIcon })).join("")}
+                ${visibleTaskColumns.map((column, index) => taskTableColumnCellHtml(column, task, row, { bugFixRowIcon }, taskColumnIsRubber(visibleTaskColumns, index))).join("")}
                 ${taskTableMode.active ? `<td class="reveal-actions action-cell">${taskButtonsHtml(task, { includeView: false, monochrome: true })}</td>` : ""}
               </tr>
             `;
@@ -606,7 +606,8 @@ export function createTasksFeature({
         headerLabel: assigneeHeader,
         colClass: "tasks-assigned-column",
         cellClass: "tasks-assignee-cell",
-        width: 120,
+        width: 112,
+        rubberMinWidth: 88,
         defaultVisible: true,
         cellHtml: task => taskRowAvatarsHtml(task.assignees)
       },
@@ -615,7 +616,8 @@ export function createTasksFeature({
         label: "Project/Sprint",
         colClass: "tasks-context-column",
         cellClass: "work-item-context-cell task-context-cell",
-        width: 220,
+        width: 190,
+        rubberMinWidth: 140,
         defaultVisible: true,
         cellHtml: task => `
           <span class="task-context-project">${escapeHtml(projectName(task.projectId))}</span>
@@ -627,7 +629,8 @@ export function createTasksFeature({
         label: "Task",
         colClass: "tasks-title-column",
         cellClass: (task, row) => `${row.level ? "task-title-cell subtask-title-cell" : "task-title-cell"} work-item-title-cell`,
-        width: 390,
+        width: 320,
+        rubberMinWidth: 180,
         defaultVisible: true,
         cellHtml: (task, row) => `
           <div class="task-title-layout">
@@ -645,7 +648,8 @@ export function createTasksFeature({
         key: "priority",
         label: "Priority",
         colClass: "tasks-priority-column",
-        width: 110,
+        width: 96,
+        rubberMinWidth: 86,
         defaultVisible: true,
         cellHtml: task => `<span class="pill priority-${escapeAttr(task.priority)}">${escapeHtml(task.priority)}</span>`
       },
@@ -654,7 +658,8 @@ export function createTasksFeature({
         label: "Status",
         colClass: "tasks-status-column",
         cellClass: "tasks-status-cell",
-        width: 150,
+        width: 136,
+        rubberMinWidth: 110,
         defaultVisible: true,
         cellHtml: task => taskStatusHtml(task.status)
       },
@@ -664,7 +669,8 @@ export function createTasksFeature({
         colClass: "tasks-complete-column",
         headerClass: "done-cell",
         cellClass: "done-cell",
-        width: 220,
+        width: 180,
+        rubberMinWidth: 120,
         defaultVisible: true,
         cellHtml: (task, row, context) => `${workItemTableProgressHtml(taskDisplayPercent(task))}${context.bugFixRowIcon}`
       },
@@ -673,7 +679,8 @@ export function createTasksFeature({
         label: "Start Date",
         colClass: "tasks-date-column",
         cellClass: "tasks-date-cell",
-        width: 132,
+        width: 116,
+        rubberMinWidth: 96,
         cellHtml: task => escapeHtml(formatDate(task.startDate))
       },
       {
@@ -681,7 +688,8 @@ export function createTasksFeature({
         label: "End Date",
         colClass: "tasks-date-column",
         cellClass: "tasks-date-cell",
-        width: 132,
+        width: 116,
+        rubberMinWidth: 96,
         cellHtml: task => escapeHtml(formatDate(task.endDate))
       },
       {
@@ -689,7 +697,8 @@ export function createTasksFeature({
         label: "Started Date/Time",
         colClass: "tasks-date-time-column",
         cellClass: "tasks-date-cell",
-        width: 172,
+        width: 156,
+        rubberMinWidth: 124,
         cellHtml: task => escapeHtml(formatDateTime(task.startedAt))
       },
       {
@@ -697,7 +706,8 @@ export function createTasksFeature({
         label: "Parent Task",
         colClass: "tasks-related-column",
         cellClass: "tasks-compact-text-cell",
-        width: 190,
+        width: 170,
+        rubberMinWidth: 130,
         cellHtml: task => escapeHtml(taskRelatedTaskLabel(task.parentTaskId))
       },
       {
@@ -705,7 +715,8 @@ export function createTasksFeature({
         label: "Linked Bug",
         colClass: "tasks-related-column",
         cellClass: "tasks-compact-text-cell",
-        width: 190,
+        width: 170,
+        rubberMinWidth: 130,
         cellHtml: task => escapeHtml(taskLinkedBugLabel(task))
       },
       {
@@ -713,7 +724,8 @@ export function createTasksFeature({
         label: "Dependencies",
         colClass: "tasks-related-column",
         cellClass: "tasks-compact-text-cell",
-        width: 190,
+        width: 170,
+        rubberMinWidth: 130,
         cellHtml: task => escapeHtml(taskDependencyLabel(task))
       },
       {
@@ -721,7 +733,8 @@ export function createTasksFeature({
         label: "URL",
         colClass: "tasks-url-column",
         cellClass: "tasks-url-cell",
-        width: 220,
+        width: 180,
+        rubberMinWidth: 130,
         cellHtml: task => escapeHtml(task.url || "")
       },
       {
@@ -729,7 +742,8 @@ export function createTasksFeature({
         label: "Attachments",
         colClass: "tasks-count-column",
         cellClass: "tasks-number-cell",
-        width: 112,
+        width: 104,
+        rubberMinWidth: 88,
         cellHtml: task => task.attachments?.length ? String(task.attachments.length) : ""
       },
       {
@@ -737,7 +751,8 @@ export function createTasksFeature({
         label: "Sort Order",
         colClass: "tasks-number-column",
         cellClass: "tasks-number-cell",
-        width: 110,
+        width: 96,
+        rubberMinWidth: 80,
         cellHtml: task => String(task.sortOrder ?? "")
       },
       {
@@ -745,7 +760,8 @@ export function createTasksFeature({
         label: "Created By",
         colClass: "tasks-user-column",
         cellClass: "tasks-compact-text-cell",
-        width: 150,
+        width: 132,
+        rubberMinWidth: 110,
         cellHtml: task => escapeHtml(taskUserName(task.createdByUserId))
       },
       {
@@ -753,7 +769,8 @@ export function createTasksFeature({
         label: "Created Date/Time",
         colClass: "tasks-date-time-column",
         cellClass: "tasks-date-cell",
-        width: 172,
+        width: 156,
+        rubberMinWidth: 124,
         cellHtml: task => escapeHtml(formatDateTime(task.createdAt))
       },
       {
@@ -761,7 +778,8 @@ export function createTasksFeature({
         label: "Updated By",
         colClass: "tasks-user-column",
         cellClass: "tasks-compact-text-cell",
-        width: 150,
+        width: 132,
+        rubberMinWidth: 110,
         cellHtml: task => escapeHtml(taskUserName(task.updatedByUserId))
       },
       {
@@ -769,7 +787,8 @@ export function createTasksFeature({
         label: "Last Updated Date/Time",
         colClass: "tasks-date-time-column",
         cellClass: "tasks-date-cell",
-        width: 172,
+        width: 156,
+        rubberMinWidth: 124,
         cellHtml: task => escapeHtml(formatDateTime(task.updatedAt))
       }
     ];
@@ -780,20 +799,31 @@ export function createTasksFeature({
       .map(column => ({ value: column.key, text: column.label }));
   }
 
-  function taskTableColumnColHtml(column) {
-    return `<col class="${escapeAttr(column.colClass)}">`;
+  function taskTableColumnColHtml(column, isRubber = false) {
+    const className = [column.colClass, isRubber ? "tasks-rubber-column" : ""]
+      .filter(Boolean)
+      .join(" ");
+
+    return `<col class="${escapeAttr(className)}">`;
   }
 
-  function taskTableColumnCellHtml(column, task, row, context) {
-    const className = typeof column.cellClass === "function"
+  function taskTableColumnCellHtml(column, task, row, context, isRubber = false) {
+    const baseClassName = typeof column.cellClass === "function"
       ? column.cellClass(task, row)
       : column.cellClass || "";
+    const className = [baseClassName, isRubber ? "tasks-rubber-cell" : ""]
+      .filter(Boolean)
+      .join(" ");
 
     return `<td class="${escapeAttr(className)}">${column.cellHtml(task, row, context)}</td>`;
   }
 
-  function taskColumnHeaderHtml(column) {
-    return taskSortHeaderHtml(column.key, column.headerLabel || column.label, column.headerClass || "", {
+  function taskColumnHeaderHtml(column, isRubber = false) {
+    const className = [column.headerClass || "", isRubber ? "tasks-rubber-cell" : ""]
+      .filter(Boolean)
+      .join(" ");
+
+    return taskSortHeaderHtml(column.key, column.headerLabel || column.label, className, {
       draggable: taskTableMode.active
     });
   }
@@ -819,8 +849,19 @@ export function createTasksFeature({
 
   function taskTableMinWidth(columns) {
     const fixedWidth = 16 + (taskTableMode.active ? 224 : 0);
-    const columnsWidth = columns.reduce((total, column) => total + (column.width || 140), 0);
-    return Math.max(1040, fixedWidth + columnsWidth);
+    const lastColumnIndex = columns.length - 1;
+    const columnsWidth = columns.reduce((total, column, index) =>
+      total + taskColumnMinimumWidth(column, index === lastColumnIndex), 0);
+    return Math.max(960, fixedWidth + columnsWidth);
+  }
+
+  function taskColumnMinimumWidth(column, isRubber) {
+    if (isRubber) return column.rubberMinWidth || Math.min(column.width || 140, 140);
+    return column.width || 140;
+  }
+
+  function taskColumnIsRubber(columns, index) {
+    return index === columns.length - 1;
   }
 
   function normalizeTaskColumnPrefs(preferences = {}) {
@@ -1608,9 +1649,10 @@ export function createTasksFeature({
 
     const usedCategories = new Set(rows.flatMap(row => row.categories.map(item => item.label)));
     const legendItems = devTaskWorkloadCategories().filter(category => usedCategories.has(category.label));
+    const avatarSize = developerWorkloadAvatarSize(rows.length);
 
     return `
-      <div class="workload-chart">
+      <div class="workload-chart" style="--workload-avatar-size:${avatarSize}px">
         ${rows.map(row => `
           <div class="workload-row">
             <div class="workload-person">
@@ -1634,6 +1676,14 @@ export function createTasksFeature({
       </div>
       ${VisualCharts.legend(legendItems)}
     `;
+  }
+
+  function developerWorkloadAvatarSize(rowCount) {
+    if (rowCount <= 2) return 44;
+    if (rowCount <= 4) return 38;
+    if (rowCount <= 6) return 32;
+    if (rowCount <= 8) return 28;
+    return 24;
   }
 
   function devTaskWorkloadCategories() {
