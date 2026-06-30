@@ -26,10 +26,25 @@ import {
 } from "../../shared/dates.js?v=20260620-null-end-date";
 import { normalizeSavedArray } from "../../shared/filter-values.js";
 import {
+  downloadXlsx,
   downloadCsv,
+  exportIconHtml,
   exportFileName,
-  openExportDialog
-} from "../../shared/table-export.js?v=20260630-csv-export";
+  assertImportItemCode,
+  importCell,
+  importWorkbookTypeError,
+  importIconHtml,
+  openExcelImport,
+  openExportDialog,
+  parseImportAssigneeIds,
+  parseImportItemId,
+  parseImportPercent,
+  showImportResultDialog,
+  sameNumberList,
+  uniqueIds,
+  workItemImportHash,
+  workItemSystemColumns
+} from "../../shared/table-export.js?v=20260630-left-edit-import";
 import {
   projectName,
   sprintName,
@@ -45,7 +60,11 @@ import {
   taskDisplayPercent,
   taskOrderCompare,
   taskRowsWithSubTasks,
-  associatedBugForDevTask
+  associatedBugForDevTask,
+  allowedAssigneeUsers,
+  percentForDevTaskSave,
+  percentForStatus,
+  validateLinkedBugCompletion
 } from "../../shared/work-item-rules.js?v=20260627-dev-task-status-rules";
 
 const backlogBugFixIconUrl = "/assets/bug.svg?v=20260629-kanban-gantt-bug-icon";
@@ -57,6 +76,9 @@ export function createBacklogFeature({
   editBug,
   editTask,
   getPriorities,
+  getStatuses,
+  refreshAfterImport,
+  saveJson,
   viewTask
 }) {
   let backlogFilters = readJsonPreference(preferenceKeys.backlogFilters, {});
@@ -94,7 +116,8 @@ export function createBacklogFeature({
           <button class="primary text-icon-button" type="button" data-action="new-backlog-bug" title="New Bug Report" aria-label="New Bug Report">${buttonContent(bugIconHtml(), "New Bug Report")}</button>
           ${backlogTableMode.buttonHtml()}
           <button class="secondary text-icon-button" type="button" data-action="open-backlog-filters" title="Filters" aria-label="Filters" aria-haspopup="dialog">${buttonContent(funnelIconHtml(), "Filters")}</button>
-          <button class="secondary text-icon-button" type="button" data-action="export-backlog-view" title="Export" aria-label="Export" aria-haspopup="dialog">${buttonContent("&#8681;", "Export")}</button>
+          <button class="secondary text-icon-button" type="button" data-action="export-backlog-view" title="Export" aria-label="Export" aria-haspopup="dialog">${buttonContent(exportIconHtml(), "Export")}</button>
+          <button class="secondary text-icon-button" type="button" data-action="import-backlog-view" title="Import" aria-label="Import">${buttonContent(importIconHtml(), "Import")}</button>
           <button class="secondary text-icon-button" type="button" data-action="reset-backlog-view" title="Reset View" aria-label="Reset View">${buttonContent("&#8634;", "Reset View")}</button>
         `)}
         <div class="panel work-item-table-panel backlog-table-panel">
@@ -176,6 +199,10 @@ export function createBacklogFeature({
     }
     if (action === "export-backlog-view") {
       openBacklogExportDialog();
+      return true;
+    }
+    if (action === "import-backlog-view") {
+      openBacklogImport();
       return true;
     }
     if (action === "reset-backlog-view") {
@@ -1312,7 +1339,8 @@ export function createBacklogFeature({
   function openBacklogExportDialog() {
     openExportDialog({
       title: "Export Backlog",
-      onCsvExport: exportBacklogCsv
+      onCsvExport: exportBacklogCsv,
+      onExcelExport: exportBacklogExcel
     });
   }
 
@@ -1322,6 +1350,167 @@ export function createBacklogFeature({
     const columns = backlogExportColumns(backlogVisibleTableColumns(assigneeHeader));
 
     downloadCsv(exportFileName("pmt-backlog"), columns, rows);
+  }
+
+  function exportBacklogExcel() {
+    const rows = backlogExportRows();
+    const assigneeHeader = backlogRowsHaveMultipleAssignees(rows) ? "Assignees" : "Assignee";
+    const columns = [
+      ...backlogExportColumns(backlogVisibleTableColumns(assigneeHeader)),
+      ...workItemSystemColumns({
+        nameHeader: "PMT Update Item Name",
+        itemTypeLabel: task => backlogTaskTypeLabel(task),
+        percentValue: task => taskDisplayPercent(task),
+        assigneeLabel: task => userNames(task.assignees)
+      })
+    ];
+
+    downloadXlsx(exportFileName("pmt-backlog", "xlsx"), "Backlog", columns, rows);
+  }
+
+  function openBacklogImport() {
+    openExcelImport({
+      onImport: importBacklogExcel,
+      onError: error => showImportResultDialog({
+        title: "Import Backlog",
+        totalRows: 0,
+        updatedRows: 0,
+        errors: [{ rowNumber: "File", message: error.message }]
+      })
+    });
+  }
+
+  async function importBacklogExcel(records) {
+    const workbookError = importWorkbookTypeError(records, ["Dev", "Bug"], "Backlog");
+    if (workbookError) {
+      showImportResultDialog({
+        title: "Import Backlog",
+        totalRows: records.length,
+        updatedRows: 0,
+        errors: [{ rowNumber: "File", message: workbookError }]
+      });
+      return;
+    }
+
+    const errors = [];
+    let updatedRows = 0;
+
+    for (let index = 0; index < records.length; index += 1) {
+      const record = records[index];
+      const rowNumber = index + 2;
+      try {
+        if (await importBacklogRecord(record)) updatedRows += 1;
+      } catch (error) {
+        const id = parseImportItemId(record);
+        const task = id ? taskById(id) : null;
+        errors.push({
+          rowNumber,
+          code: importCell(record, "PMT Item Code") || task?.code || "",
+          title: importCell(record, "PMT Update Item Name", "PMT Update Task Name", "PMT Update Bug Name") || task?.title || "",
+          message: error.message
+        });
+      }
+    }
+
+    if (updatedRows && refreshAfterImport) await refreshAfterImport();
+    showImportResultDialog({
+      title: "Import Backlog",
+      totalRows: records.length,
+      updatedRows,
+      errors
+    });
+  }
+
+  async function importBacklogRecord(record) {
+    const task = taskById(parseImportItemId(record));
+    if (!task) throw new Error("PMT Item Id does not match an existing row.");
+    if (task.status !== "Backlog" && task.status !== "Todo") {
+      throw new Error("This row is no longer in the Backlog.");
+    }
+
+    assertImportItemCode(record, task.code, "Item Code", "Task Code", "Bug Code");
+    assertBacklogImportHash(record, task);
+
+    const title = importCell(record, "Item Name", "Task Name", "Bug Name", "PMT Update Item Name", "PMT Update Task Name", "PMT Update Bug Name").trim();
+    const status = importCell(record, "Status", "PMT Update Status").trim();
+    const priority = importCell(record, "Priority", "PMT Update Priority").trim();
+    const requestedPercent = parseImportPercent(record, "% Complete");
+    const assigneeIds = uniqueIds(parseImportAssigneeIds(record, state.users, "Assigned", "Assignee", "Assignees"));
+
+    if (!title) throw new Error("Item Name is required.");
+    if (!getStatuses().includes(status)) throw new Error(`Status "${status}" is not a PMT status.`);
+    if (!getPriorities().includes(priority)) throw new Error(`Priority "${priority}" is not a PMT priority.`);
+    validateBacklogImportAssignees(task, assigneeIds);
+    if (task.subTasks?.length && requestedPercent !== taskDisplayPercent(task)) {
+      throw new Error("Percent Completed is calculated from sub-tasks for this row.");
+    }
+
+    const percentCompleted = task.taskType === "Bug"
+      ? percentForStatus(status, requestedPercent)
+      : percentForDevTaskSave(status, requestedPercent, task, task.dependencyTaskIds || []);
+    if (task.taskType !== "Bug") validateLinkedBugCompletion(task, percentCompleted, task.dependencyTaskIds || []);
+
+    if (!backlogImportChanged(task, { title, status, priority, percentCompleted, assigneeIds })) return false;
+
+    await saveJson(`/api/backlog/tasks/${task.id}`, "PUT", backlogImportPayload(task, {
+      title,
+      status,
+      priority,
+      percentCompleted,
+      assigneeIds
+    }));
+    return true;
+  }
+
+  function assertBacklogImportHash(record, task) {
+    const hash = importCell(record, "PMT Row Hash").trim();
+    if (hash && hash !== workItemImportHash(task, taskDisplayPercent(task))) {
+      throw new Error("This row is stale. Re-export the grid before importing this row.");
+    }
+  }
+
+  function validateBacklogImportAssignees(task, assigneeIds) {
+    const project = state.projects.find(item => item.id === task.projectId);
+    const sprint = task.sprintId ? state.sprints.find(item => item.id === task.sprintId) : null;
+    const allowedIds = new Set(allowedAssigneeUsers(state.users, project, sprint).map(user => user.id));
+    const invalid = assigneeIds.filter(id => !allowedIds.has(id));
+    if (invalid.length) throw new Error(`Assignee ids are not valid for this Project/Sprint: ${invalid.join(", ")}.`);
+  }
+
+  function backlogImportChanged(task, updates) {
+    return task.title !== updates.title
+      || task.status !== updates.status
+      || task.priority !== updates.priority
+      || Number(task.percentCompleted || 0) !== Number(updates.percentCompleted || 0)
+      || !sameNumberList(task.assigneeIds || [], updates.assigneeIds || []);
+  }
+
+  function backlogImportPayload(task, updates) {
+    const isBug = task.taskType === "Bug";
+
+    return {
+      id: task.id,
+      projectId: task.projectId,
+      sprintId: task.sprintId || null,
+      parentTaskId: isBug ? null : task.parentTaskId || null,
+      taskType: isBug ? "Bug" : "Dev",
+      title: updates.title,
+      descriptionHtml: task.descriptionHtml || "",
+      stepsToReproduceHtml: isBug ? task.stepsToReproduceHtml || "" : "",
+      actualResultHtml: isBug ? task.actualResultHtml || "" : "",
+      expectedResultHtml: isBug ? task.expectedResultHtml || "" : "",
+      environment: isBug ? task.environment || "" : "",
+      severity: isBug ? task.severity || "" : "",
+      status: updates.status,
+      priority: updates.priority,
+      percentCompleted: updates.percentCompleted,
+      url: task.url || "",
+      startDate: task.startDate || null,
+      endDate: task.endDate || null,
+      reporterIds: isBug ? task.reporterIds || [] : [],
+      assigneeIds: updates.assigneeIds,
+      dependencyTaskIds: task.dependencyTaskIds || []
+    };
   }
 
   function backlogExportRows() {

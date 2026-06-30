@@ -76,6 +76,72 @@
   overscroll-behavior: contain;
 }
 
+.export-format-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-4);
+}
+
+.export-format-button {
+  min-height: 88px;
+  flex-direction: column;
+  gap: var(--space-3);
+  border-color: var(--color-border);
+  background: var(--color-surface-subtle);
+}
+
+.export-format-button:hover:not(:disabled) {
+  background: var(--color-control-hover);
+}
+
+.export-format-button .button-icon {
+  width: 32px;
+  height: 32px;
+}
+
+.export-format-button .export-format-icon {
+  width: 32px;
+  height: 32px;
+}
+
+.import-result-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-4);
+}
+
+.import-result-summary > div {
+  display: grid;
+  gap: var(--space-1);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-4);
+  background: var(--color-surface-subtle);
+}
+
+.import-result-summary strong {
+  font-size: var(--font-size-2xl);
+  line-height: 1;
+}
+
+.import-result-summary span {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+}
+
+.import-error-panel {
+  overflow: auto;
+}
+
+.import-error-table {
+  min-width: 680px;
+}
+
+.import-error-table td:last-child {
+  min-width: 280px;
+  white-space: normal;
+}
+
 .detail-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

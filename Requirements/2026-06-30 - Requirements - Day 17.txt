@@ -44,3 +44,10 @@ Export
 5.) For the Excel file export, I would like you to include additional columns that would allow the user to import the Excel file back into PMT and update the necessary rows in bulk.  Include whatever extra columns, hash, etc, you need in order to be able to import the file back in PMT.  So, if it is a Dev Task, to be able to update, Task Name, Percent Completed, Status and Priority, Assignees.  Place a blank column between the real data that the user exported (what is displayed on the curren table of the Dev Task table, Bug Tracking table or Backlog table) and the additional information you need for the import process, so the user can visually distinguish between data columns and system/import related columns.
 6.) Add an Import button so the user can import an Excel file.
 7.) Just so I don't run out of Codex quota mid-way through this task, do the Export to CSV path first, and do the Excel export/import after.
+8.) When you are done, pretty up the Export dialog box across all 3 screens.  Put a CSV icon and an Excel icon for the buttons.  Also, change the Export icon at the page-level of all 3 screens to something different.  I'm not fond of the current export icon.
+9.) If during the Excel Import process certain rows cannot be imported due to changes the user made the violates rules in PMT, collect those errors but keep processing the entire spreadsheet.  Once the import has finished, report back to the user which offending rows did not import so they can fix those rows.  Offer to download the report of the errors so the user has them as a reference.
+
+
+10.) I downloaded PMT's Sprint 5 and updated all the Assignees to "Steve".  When I uploaded it to PMT, it detected no changes.
+11.) The user will only edit the left side of the spreadsheet, not the right part where it stores internal information for importing back into PMT.
+12.) When exporting to Excel, don't add a blank column between the visible data and the metadata.  That way, in case the user sorts the data, the metadata will get sorted along with the visible data.

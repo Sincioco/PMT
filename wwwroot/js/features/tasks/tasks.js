@@ -49,10 +49,25 @@ import {
 } from "../../shared/dates.js?v=20260620-null-end-date";
 import { normalizeSavedArray } from "../../shared/filter-values.js";
 import {
+  downloadXlsx,
   downloadCsv,
+  exportIconHtml,
   exportFileName,
-  openExportDialog
-} from "../../shared/table-export.js?v=20260630-csv-export";
+  assertImportItemCode,
+  importCell,
+  importWorkbookTypeError,
+  importIconHtml,
+  openExcelImport,
+  openExportDialog,
+  parseImportAssigneeIds,
+  parseImportItemId,
+  parseImportPercent,
+  showImportResultDialog,
+  sameNumberList,
+  uniqueIds,
+  workItemImportHash,
+  workItemSystemColumns
+} from "../../shared/table-export.js?v=20260630-left-edit-import";
 import { canEditTask } from "../../shared/permissions.js";
 import {
   projectName,
@@ -66,6 +81,7 @@ import {
 } from "../../shared/text-and-links.js";
 import {
   dependencyCandidates,
+  allowedAssigneeUsers,
   associatedBugForDevTask,
   isTaskCompleted,
   percentForDevTaskSave,
@@ -91,6 +107,7 @@ export function createTasksFeature({
   getPriorities,
   getStatuses,
   openEditor,
+  refreshAfterImport,
   saveJson
 }) {
   let taskProjectId = readNumberPreference(preferenceKeys.taskProject, 0);
@@ -148,7 +165,8 @@ export function createTasksFeature({
         ${taskTableMode.buttonHtml()}
         <button class="secondary text-icon-button" type="button" data-action="toggle-task-visual-charts" title="${chartToggleLabel}" aria-label="${chartToggleLabel}" aria-pressed="${showCharts}" ${canShowCharts ? "" : "disabled"}>${buttonContent(chartIconHtml(), chartToggleLabel)}</button>
         <button class="secondary text-icon-button" type="button" data-action="open-task-filters" title="Filters" aria-label="Filters" aria-haspopup="dialog">${buttonContent(funnelIconHtml(), "Filters")}</button>
-        <button class="secondary text-icon-button" type="button" data-action="export-task-view" title="Export" aria-label="Export" aria-haspopup="dialog">${buttonContent("&#8681;", "Export")}</button>
+        <button class="secondary text-icon-button" type="button" data-action="export-task-view" title="Export" aria-label="Export" aria-haspopup="dialog">${buttonContent(exportIconHtml(), "Export")}</button>
+        <button class="secondary text-icon-button" type="button" data-action="import-task-view" title="Import" aria-label="Import">${buttonContent(importIconHtml(), "Import")}</button>
         <button class="secondary text-icon-button" type="button" data-action="reset-task-view" title="Reset View" aria-label="Reset View">${buttonContent("&#8634;", "Reset View")}</button>
       `)}
       ${showCharts ? taskVisualTrackingChartsHtml(baseTasks, selectedSprint, allProjectDevTasks) : ""}
@@ -222,6 +240,10 @@ export function createTasksFeature({
     }
     if (action === "export-task-view") {
       openTaskExportDialog();
+      return true;
+    }
+    if (action === "import-task-view") {
+      openTaskImport();
       return true;
     }
     if (action === "toggle-task-visual-charts") {
@@ -1546,7 +1568,8 @@ export function createTasksFeature({
   function openTaskExportDialog() {
     openExportDialog({
       title: "Export Dev Tasks",
-      onCsvExport: exportTaskCsv
+      onCsvExport: exportTaskCsv,
+      onExcelExport: exportTaskExcel
     });
   }
 
@@ -1556,6 +1579,161 @@ export function createTasksFeature({
     const columns = taskExportColumns(taskVisibleTableColumns(assigneeHeader));
 
     downloadCsv(exportFileName("pmt-dev-tasks"), columns, rows);
+  }
+
+  function exportTaskExcel() {
+    const rows = taskExportRows();
+    const assigneeHeader = taskRowsHaveMultipleAssignees(rows) ? "Assignees" : "Assignee";
+    const columns = [
+      ...taskExportColumns(taskVisibleTableColumns(assigneeHeader)),
+      ...workItemSystemColumns({
+        nameHeader: "PMT Update Task Name",
+        itemTypeLabel: () => "Dev Task",
+        percentValue: task => taskDisplayPercent(task),
+        assigneeLabel: task => userNames(task.assignees)
+      })
+    ];
+
+    downloadXlsx(exportFileName("pmt-dev-tasks", "xlsx"), "Dev Tasks", columns, rows);
+  }
+
+  function openTaskImport() {
+    openExcelImport({
+      onImport: importTaskExcel,
+      onError: error => showImportResultDialog({
+        title: "Import Dev Tasks",
+        totalRows: 0,
+        updatedRows: 0,
+        errors: [{ rowNumber: "File", message: error.message }]
+      })
+    });
+  }
+
+  async function importTaskExcel(records) {
+    const workbookError = importWorkbookTypeError(records, ["Dev"], "Dev Tasks");
+    if (workbookError) {
+      showImportResultDialog({
+        title: "Import Dev Tasks",
+        totalRows: records.length,
+        updatedRows: 0,
+        errors: [{ rowNumber: "File", message: workbookError }]
+      });
+      return;
+    }
+
+    const errors = [];
+    let updatedRows = 0;
+
+    for (let index = 0; index < records.length; index += 1) {
+      const record = records[index];
+      const rowNumber = index + 2;
+      try {
+        if (await importTaskRecord(record)) updatedRows += 1;
+      } catch (error) {
+        const id = parseImportItemId(record);
+        const task = id ? taskById(id) : null;
+        errors.push({
+          rowNumber,
+          code: importCell(record, "PMT Item Code") || task?.code || "",
+          title: importCell(record, "PMT Update Task Name", "Task Name") || task?.title || "",
+          message: error.message
+        });
+      }
+    }
+
+    if (updatedRows && refreshAfterImport) await refreshAfterImport();
+    showImportResultDialog({
+      title: "Import Dev Tasks",
+      totalRows: records.length,
+      updatedRows,
+      errors
+    });
+  }
+
+  async function importTaskRecord(record) {
+    const task = taskById(parseImportItemId(record));
+    if (!task) throw new Error("PMT Item Id does not match an existing row.");
+    if (task.taskType === "Bug") throw new Error("This row is a Bug, not a Dev Task.");
+
+    assertImportItemCode(record, task.code, "Task Code");
+    assertTaskImportHash(record, task);
+
+    const title = importCell(record, "Task Name", "PMT Update Task Name", "PMT Update Item Name").trim();
+    const status = importCell(record, "Status", "PMT Update Status").trim();
+    const priority = importCell(record, "Priority", "PMT Update Priority").trim();
+    const requestedPercent = parseImportPercent(record, "% Complete");
+    const assigneeIds = uniqueIds(parseImportAssigneeIds(record, state.users, "Assignee", "Assignees", "Assigned"));
+
+    if (!title) throw new Error("Task Name is required.");
+    if (!getStatuses().includes(status)) throw new Error(`Status "${status}" is not a PMT status.`);
+    if (!getPriorities().includes(priority)) throw new Error(`Priority "${priority}" is not a PMT priority.`);
+    validateTaskImportAssignees(task, assigneeIds);
+    if (task.subTasks?.length && requestedPercent !== taskDisplayPercent(task)) {
+      throw new Error("Percent Completed is calculated from sub-tasks for this row.");
+    }
+
+    const percentCompleted = percentForDevTaskSave(status, requestedPercent, task, task.dependencyTaskIds || []);
+    validateLinkedBugCompletion(task, percentCompleted, task.dependencyTaskIds || []);
+
+    if (!taskImportChanged(task, { title, status, priority, percentCompleted, assigneeIds })) return false;
+
+    await saveJson(`/api/tasks/${task.id}`, "PUT", taskImportPayload(task, {
+      title,
+      status,
+      priority,
+      percentCompleted,
+      assigneeIds
+    }));
+    return true;
+  }
+
+  function assertTaskImportHash(record, task) {
+    const hash = importCell(record, "PMT Row Hash").trim();
+    if (hash && hash !== workItemImportHash(task, taskDisplayPercent(task))) {
+      throw new Error("This row is stale. Re-export the grid before importing this row.");
+    }
+  }
+
+  function validateTaskImportAssignees(task, assigneeIds) {
+    const project = state.projects.find(item => item.id === task.projectId);
+    const sprint = task.sprintId ? state.sprints.find(item => item.id === task.sprintId) : null;
+    const allowedIds = new Set(allowedAssigneeUsers(state.users, project, sprint).map(user => user.id));
+    const invalid = assigneeIds.filter(id => !allowedIds.has(id));
+    if (invalid.length) throw new Error(`Assignee ids are not valid for this Project/Sprint: ${invalid.join(", ")}.`);
+  }
+
+  function taskImportChanged(task, updates) {
+    return task.title !== updates.title
+      || task.status !== updates.status
+      || task.priority !== updates.priority
+      || Number(task.percentCompleted || 0) !== Number(updates.percentCompleted || 0)
+      || !sameNumberList(task.assigneeIds || [], updates.assigneeIds || []);
+  }
+
+  function taskImportPayload(task, updates) {
+    return {
+      id: task.id,
+      projectId: task.projectId,
+      sprintId: task.sprintId || null,
+      parentTaskId: task.parentTaskId || null,
+      taskType: "Dev",
+      title: updates.title,
+      descriptionHtml: task.descriptionHtml || "",
+      stepsToReproduceHtml: "",
+      actualResultHtml: "",
+      expectedResultHtml: "",
+      environment: "",
+      severity: "",
+      status: updates.status,
+      priority: updates.priority,
+      percentCompleted: updates.percentCompleted,
+      url: task.url || "",
+      startDate: task.startDate || null,
+      endDate: task.endDate || null,
+      reporterIds: [],
+      assigneeIds: updates.assigneeIds,
+      dependencyTaskIds: task.dependencyTaskIds || []
+    };
   }
 
   function taskExportRows() {

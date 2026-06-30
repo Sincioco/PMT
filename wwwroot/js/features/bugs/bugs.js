@@ -53,10 +53,25 @@ import {
 } from "../../shared/dates.js?v=20260620-null-end-date";
 import { normalizeSavedArray } from "../../shared/filter-values.js";
 import {
+  downloadXlsx,
   downloadCsv,
+  exportIconHtml,
   exportFileName,
-  openExportDialog
-} from "../../shared/table-export.js?v=20260630-csv-export";
+  assertImportItemCode,
+  importCell,
+  importWorkbookTypeError,
+  importIconHtml,
+  openExcelImport,
+  openExportDialog,
+  parseImportAssigneeIds,
+  parseImportItemId,
+  parseImportPercent,
+  showImportResultDialog,
+  sameNumberList,
+  uniqueIds,
+  workItemImportHash,
+  workItemSystemColumns
+} from "../../shared/table-export.js?v=20260630-left-edit-import";
 import { canEditTask } from "../../shared/permissions.js";
 import {
   projectById,
@@ -72,6 +87,7 @@ import {
 } from "../../shared/text-and-links.js";
 import {
   dependencyCandidates,
+  allowedAssigneeUsers,
   isBugQaPassedOrLater,
   percentForStatus,
   reporterIdsOrDefault,
@@ -96,6 +112,7 @@ export function createBugsFeature({
   getStatuses,
   getTaskContext,
   openEditor,
+  refreshAfterImport,
   saveJson
 }) {
   let bugFilters = normalizeBugFilters(readJsonPreference(preferenceKeys.bugFilters, {}));
@@ -140,7 +157,8 @@ export function createBugsFeature({
         ${bugTableMode.buttonHtml()}
         <button class="secondary text-icon-button" type="button" data-action="toggle-bug-visual-charts" title="${chartToggleLabel}" aria-label="${chartToggleLabel}" aria-pressed="${showCharts}" ${canShowCharts ? "" : "disabled"}>${buttonContent(chartIconHtml(), chartToggleLabel)}</button>
         <button class="secondary text-icon-button" type="button" data-action="open-bug-filters" title="Filters" aria-label="Filters" aria-haspopup="dialog">${buttonContent(funnelIconHtml(), "Filters")}</button>
-        <button class="secondary text-icon-button" type="button" data-action="export-bug-view" title="Export" aria-label="Export" aria-haspopup="dialog">${buttonContent("&#8681;", "Export")}</button>
+        <button class="secondary text-icon-button" type="button" data-action="export-bug-view" title="Export" aria-label="Export" aria-haspopup="dialog">${buttonContent(exportIconHtml(), "Export")}</button>
+        <button class="secondary text-icon-button" type="button" data-action="import-bug-view" title="Import" aria-label="Import">${buttonContent(importIconHtml(), "Import")}</button>
         <button class="secondary text-icon-button" type="button" data-action="reset-bug-view" title="Reset View" aria-label="Reset View">${buttonContent("&#8634;", "Reset View")}</button>
       `)}
       ${showCharts ? bugVisualTrackingChartsHtml(baseBugs, allProjectBugs) : ""}
@@ -195,6 +213,10 @@ export function createBugsFeature({
     }
     if (action === "export-bug-view") {
       openBugExportDialog();
+      return true;
+    }
+    if (action === "import-bug-view") {
+      openBugImport();
       return true;
     }
     if (action === "toggle-bug-visual-charts") {
@@ -1259,7 +1281,8 @@ export function createBugsFeature({
   function openBugExportDialog() {
     openExportDialog({
       title: "Export Bug Tracking",
-      onCsvExport: exportBugCsv
+      onCsvExport: exportBugCsv,
+      onExcelExport: exportBugExcel
     });
   }
 
@@ -1272,6 +1295,162 @@ export function createBugsFeature({
     const columns = bugExportColumns(bugVisibleTableColumns(headers));
 
     downloadCsv(exportFileName("pmt-bug-tracking"), columns, rows);
+  }
+
+  function exportBugExcel() {
+    const rows = bugExportRows().map(bug => ({ task: bug }));
+    const headers = {
+      reporterHeader: bugRowsHaveMultipleUsers(rows.map(row => row.task), bug => bug.reporters) ? "Reporters" : "Reporter",
+      assigneeHeader: bugRowsHaveMultipleUsers(rows.map(row => row.task), bug => bug.assignees) ? "Assignees" : "Assignee"
+    };
+    const columns = [
+      ...bugExportColumns(bugVisibleTableColumns(headers)).map(column => ({
+        header: column.header,
+        value: row => column.value(row.task)
+      })),
+      ...workItemSystemColumns({
+        nameHeader: "PMT Update Bug Name",
+        itemTypeLabel: () => "Bug",
+        percentValue: bug => taskDisplayPercent(bug),
+        assigneeLabel: bug => userNames(bug.assignees)
+      })
+    ];
+
+    downloadXlsx(exportFileName("pmt-bug-tracking", "xlsx"), "Bug Tracking", columns, rows);
+  }
+
+  function openBugImport() {
+    openExcelImport({
+      onImport: importBugExcel,
+      onError: error => showImportResultDialog({
+        title: "Import Bug Tracking",
+        totalRows: 0,
+        updatedRows: 0,
+        errors: [{ rowNumber: "File", message: error.message }]
+      })
+    });
+  }
+
+  async function importBugExcel(records) {
+    const workbookError = importWorkbookTypeError(records, ["Bug"], "Bug Tracking");
+    if (workbookError) {
+      showImportResultDialog({
+        title: "Import Bug Tracking",
+        totalRows: records.length,
+        updatedRows: 0,
+        errors: [{ rowNumber: "File", message: workbookError }]
+      });
+      return;
+    }
+
+    const errors = [];
+    let updatedRows = 0;
+
+    for (let index = 0; index < records.length; index += 1) {
+      const record = records[index];
+      const rowNumber = index + 2;
+      try {
+        if (await importBugRecord(record)) updatedRows += 1;
+      } catch (error) {
+        const id = parseImportItemId(record);
+        const bug = id ? taskById(id) : null;
+        errors.push({
+          rowNumber,
+          code: importCell(record, "PMT Item Code") || bug?.code || "",
+          title: importCell(record, "PMT Update Bug Name", "Bug Name") || bug?.title || "",
+          message: error.message
+        });
+      }
+    }
+
+    if (updatedRows && refreshAfterImport) await refreshAfterImport();
+    showImportResultDialog({
+      title: "Import Bug Tracking",
+      totalRows: records.length,
+      updatedRows,
+      errors
+    });
+  }
+
+  async function importBugRecord(record) {
+    const bug = taskById(parseImportItemId(record));
+    if (!bug) throw new Error("PMT Item Id does not match an existing row.");
+    if (bug.taskType !== "Bug") throw new Error("This row is not a Bug.");
+
+    assertImportItemCode(record, bug.code, "Bug Code");
+    assertBugImportHash(record, bug);
+
+    const title = importCell(record, "Bug Name", "PMT Update Bug Name", "PMT Update Item Name").trim();
+    const status = importCell(record, "Status", "PMT Update Status").trim();
+    const priority = importCell(record, "Priority", "PMT Update Priority").trim();
+    const requestedPercent = parseImportPercent(record, "% Complete");
+    const assigneeIds = uniqueIds(parseImportAssigneeIds(record, state.users, "Assignee", "Assignees", "Assigned"));
+
+    if (!title) throw new Error("Bug Name is required.");
+    if (!getStatuses().includes(status)) throw new Error(`Status "${status}" is not a PMT status.`);
+    if (!getPriorities().includes(priority)) throw new Error(`Priority "${priority}" is not a PMT priority.`);
+    validateBugImportAssignees(bug, assigneeIds);
+
+    const percentCompleted = percentForStatus(status, requestedPercent);
+    if (!bugImportChanged(bug, { title, status, priority, percentCompleted, assigneeIds })) return false;
+
+    await saveJson(`/api/tasks/${bug.id}`, "PUT", bugImportPayload(bug, {
+      title,
+      status,
+      priority,
+      percentCompleted,
+      assigneeIds
+    }));
+    return true;
+  }
+
+  function assertBugImportHash(record, bug) {
+    const hash = importCell(record, "PMT Row Hash").trim();
+    if (hash && hash !== workItemImportHash(bug, taskDisplayPercent(bug))) {
+      throw new Error("This row is stale. Re-export the grid before importing this row.");
+    }
+  }
+
+  function validateBugImportAssignees(bug, assigneeIds) {
+    const project = state.projects.find(item => item.id === bug.projectId);
+    const sprint = bug.sprintId ? state.sprints.find(item => item.id === bug.sprintId) : null;
+    const allowedIds = new Set(allowedAssigneeUsers(state.users, project, sprint).map(user => user.id));
+    const invalid = assigneeIds.filter(id => !allowedIds.has(id));
+    if (invalid.length) throw new Error(`Assignee ids are not valid for this Project/Sprint: ${invalid.join(", ")}.`);
+  }
+
+  function bugImportChanged(bug, updates) {
+    return bug.title !== updates.title
+      || bug.status !== updates.status
+      || bug.priority !== updates.priority
+      || Number(bug.percentCompleted || 0) !== Number(updates.percentCompleted || 0)
+      || !sameNumberList(bug.assigneeIds || [], updates.assigneeIds || []);
+  }
+
+  function bugImportPayload(bug, updates) {
+    return {
+      id: bug.id,
+      projectId: bug.projectId,
+      sprintId: bug.sprintId || null,
+      parentTaskId: null,
+      taskType: "Bug",
+      title: updates.title,
+      descriptionHtml: bug.descriptionHtml || "",
+      stepsToReproduceHtml: bug.stepsToReproduceHtml || "",
+      actualResultHtml: bug.actualResultHtml || "",
+      expectedResultHtml: bug.expectedResultHtml || "",
+      environment: bug.environment || "",
+      severity: bug.severity || "",
+      status: updates.status,
+      priority: updates.priority,
+      percentCompleted: updates.percentCompleted,
+      url: bug.url || "",
+      startDate: bug.startDate || null,
+      endDate: bug.endDate || null,
+      reporterIds: bug.reporterIds || [],
+      assigneeIds: updates.assigneeIds,
+      dependencyTaskIds: bug.dependencyTaskIds || []
+    };
   }
 
   function bugExportRows() {

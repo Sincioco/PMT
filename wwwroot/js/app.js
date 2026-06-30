@@ -28,9 +28,9 @@ import {
 } from "./core/screen-registry.js";
 import { state } from "./core/store.js";
 import { createAboutFeature } from "./features/about/about.js?v=20260621-about-credits";
-import { createBacklogFeature } from "./features/backlog/backlog.js?v=20260630-csv-export";
+import { createBacklogFeature } from "./features/backlog/backlog.js?v=20260630-left-edit-import";
 import { createBoardFeature } from "./features/board/board.js?v=20260629-avatar-jpg-assets";
-import { createBugsFeature } from "./features/bugs/bugs.js?v=20260630-csv-export";
+import { createBugsFeature } from "./features/bugs/bugs.js?v=20260630-left-edit-import";
 import { createDashboardFeature } from "./features/dashboard/dashboard.js?v=20260627-dev-task-status-rules";
 import { createDocumentationFeature } from "./features/documentation/documentation.js?v=20260629-avatar-jpg-assets";
 import {
@@ -43,7 +43,7 @@ import { createRoadMapFeature } from "./features/roadmap/roadmap.js?v=20260629-s
 import { createScrumFeature } from "./features/scrum/scrum.js?v=20260629-avatar-jpg-assets";
 import { createSettingsFeature } from "./features/settings/settings.js?v=20260629-avatar-jpg-assets";
 import { createSprintsFeature } from "./features/sprints/sprints.js?v=20260629-avatar-jpg-assets";
-import { createTasksFeature } from "./features/tasks/tasks.js?v=20260630-csv-export";
+import { createTasksFeature } from "./features/tasks/tasks.js?v=20260630-left-edit-import";
 import { createWfhScheduleFeature } from "./features/wfh-schedule/wfh-schedule.js?v=20260629-avatar-jpg-assets";
 import {
   fallbackEnvironments,
@@ -239,6 +239,7 @@ const tasksFeature = createTasksFeature({
   getPriorities: () => priorities,
   getStatuses: () => statuses,
   openEditor,
+  refreshAfterImport,
   saveJson
 });
 const bugsFeature = createBugsFeature({
@@ -257,6 +258,7 @@ const bugsFeature = createBugsFeature({
   getStatuses: () => statuses,
   getTaskContext: tasksFeature.getContext,
   openEditor,
+  refreshAfterImport,
   saveJson
 });
 const backlogFeature = createBacklogFeature({
@@ -266,6 +268,9 @@ const backlogFeature = createBacklogFeature({
   editBug: bug => bugsFeature.edit(bug || {}, { apiRoot: "/api/backlog/tasks" }),
   editTask: task => tasksFeature.edit(task || {}, { apiRoot: "/api/backlog/tasks" }),
   getPriorities: () => priorities,
+  getStatuses: () => statuses,
+  refreshAfterImport,
+  saveJson,
   viewTask: viewBacklogWorkItem
 });
 const dashboardFeature = createDashboardFeature({
@@ -1354,6 +1359,11 @@ function restoreEditorSelection(range) {
 
 async function saveJson(path, method, payload) {
   return api(path, { method, body: JSON.stringify(payload) });
+}
+
+async function refreshAfterImport() {
+  await loadState();
+  render();
 }
 
 async function uploadFile(kind, file) {

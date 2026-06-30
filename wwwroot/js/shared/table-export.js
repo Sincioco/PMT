@@ -1,7 +1,154 @@
 import { buttonContent } from "../components/buttons.js";
 import { escapeHtml } from "./text-and-links.js";
+import {
+  createXlsxBlob,
+  readXlsxObjects
+} from "./xlsx.js?v=20260630-native-xlsx";
 
-export function openExportDialog({ title, onCsvExport }) {
+export function exportIconHtml() {
+  return `
+    <svg class="button-svg-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path d="M12 3v11M8 10l4 4 4-4M5 17v3h14v-3"></path>
+    </svg>
+  `;
+}
+
+export function importIconHtml() {
+  return `
+    <svg class="button-svg-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path d="M12 21V10M8 14l4-4 4 4M5 7V4h14v3"></path>
+    </svg>
+  `;
+}
+
+export function workItemImportHash(item, percentCompleted) {
+  return stableHash([
+    item?.id || "",
+    item?.taskType || "Dev",
+    item?.title || "",
+    percentCompleted ?? item?.percentCompleted ?? "",
+    item?.status || "",
+    item?.priority || "",
+    [...(item?.assigneeIds || [])].map(Number).sort((a, b) => a - b).join(";")
+  ].join("|"));
+}
+
+export function workItemSystemColumns({ nameHeader, itemTypeLabel, percentValue, assigneeLabel }) {
+  return [
+    { header: "PMT Item Id", value: row => row.task.id },
+    { header: "PMT Item Code", value: row => row.task.code },
+    { header: "PMT Item Type", value: row => itemTypeLabel(row.task) },
+    { header: "PMT Row Hash", value: row => workItemImportHash(row.task, percentValue(row.task)) },
+    { header: nameHeader, value: row => row.task.title },
+    { header: "PMT Update Percent Completed", value: row => percentValue(row.task) },
+    { header: "PMT Update Status", value: row => row.task.status },
+    { header: "PMT Update Priority", value: row => row.task.priority },
+    { header: "PMT Update Assignee IDs", value: row => (row.task.assigneeIds || []).join(";") },
+    { header: "PMT Update Assignees", value: row => assigneeLabel(row.task) }
+  ];
+}
+
+export function importCell(record, ...headers) {
+  for (const header of headers) {
+    if (Object.prototype.hasOwnProperty.call(record, header)) return String(record[header] ?? "");
+  }
+  return "";
+}
+
+export function importCellExists(record, ...headers) {
+  return headers.some(header => Object.prototype.hasOwnProperty.call(record, header));
+}
+
+export function parseImportItemId(record) {
+  const id = Number(importCell(record, "PMT Item Id").trim());
+  return Number.isInteger(id) && id > 0 ? id : 0;
+}
+
+export function assertImportItemCode(record, expectedCode, ...visibleCodeHeaders) {
+  const expected = normalizeImportCode(expectedCode);
+  const visibleCode = normalizeImportCode(importCell(record, ...visibleCodeHeaders));
+  const metadataCode = normalizeImportCode(importCell(record, "PMT Item Code"));
+
+  if (visibleCode && expected && visibleCode !== expected) {
+    throw new Error("The visible item code does not match the PMT metadata for this row. Re-export the grid and keep each row together when sorting.");
+  }
+  if (metadataCode && expected && metadataCode !== expected) {
+    throw new Error("PMT Item Code does not match PMT Item Id for this row.");
+  }
+}
+
+export function parseImportPercent(record, ...headers) {
+  const value = importCell(record, ...headers, "PMT Update Percent Completed").trim();
+  const percent = Number(value);
+  if (!value || !Number.isFinite(percent) || percent < 0 || percent > 100) {
+    throw new Error("Percent Completed must be a number from 0 to 100.");
+  }
+  return Math.round(percent);
+}
+
+export function parseImportAssigneeIds(record, users, ...nameHeaders) {
+  if (importCellExists(record, ...nameHeaders)) {
+    return parseImportAssigneeNames(importCell(record, ...nameHeaders), users);
+  }
+
+  const idsText = importCell(record, "PMT Update Assignee IDs").trim();
+  if (idsText) {
+    return splitImportList(idsText).map(value => {
+      const id = Number(value);
+      if (!Number.isInteger(id) || !users.some(user => user.id === id)) {
+        throw new Error(`Unknown assignee id "${value}".`);
+      }
+      return id;
+    });
+  }
+
+  return parseImportAssigneeNames(importCell(record, "PMT Update Assignees"), users);
+}
+
+function parseImportAssigneeNames(value, users) {
+  return splitImportList(value).map(name => {
+    const normalized = name.toLowerCase();
+    const user = users.find(candidate => importUserNameMatches(candidate, normalized));
+    if (!user) throw new Error(`Unknown assignee "${name}".`);
+    return user.id;
+  });
+}
+
+function importUserNameMatches(user, normalizedName) {
+  return [
+    user.nickname,
+    [user.firstName, user.lastName].filter(Boolean).join(" ")
+  ].some(value => String(value || "").toLowerCase() === normalizedName);
+}
+
+export function importWorkbookTypeError(records, allowedTypes, screenLabel) {
+  const allowed = new Set(allowedTypes);
+  const types = [...new Set((records || [])
+    .map(record => normalizeImportItemType(importCell(record, "PMT Item Type")))
+    .filter(Boolean))];
+  const disallowedTypes = types.filter(type => !allowed.has(type));
+  if (!disallowedTypes.length) return "";
+
+  const typeList = disallowedTypes.map(importItemTypeLabel).join(", ");
+  const targetLabel = importWorkbookScreenLabel(types);
+  const targetHelp = targetLabel
+    ? ` Use the ${targetLabel} Import button for this file.`
+    : " Export a fresh PMT workbook from this screen and try again.";
+  return `This Excel workbook contains ${typeList} rows and cannot be imported from ${screenLabel}.${targetHelp}`;
+}
+
+export function sameNumberList(left, right) {
+  const leftValues = [...(left || [])].map(Number).sort((a, b) => a - b);
+  const rightValues = [...(right || [])].map(Number).sort((a, b) => a - b);
+  return leftValues.length === rightValues.length
+    && leftValues.every((value, index) => value === rightValues[index]);
+}
+
+export function uniqueIds(values) {
+  return [...new Set((values || []).map(Number).filter(value => Number.isInteger(value) && value > 0))];
+}
+
+export function openExportDialog({ title, onCsvExport, onExcelExport }) {
   const existingDialog = document.querySelector("[data-export-dialog]");
   if (existingDialog) {
     if (!existingDialog.open) existingDialog.showModal?.();
@@ -9,7 +156,7 @@ export function openExportDialog({ title, onCsvExport }) {
   }
 
   const modal = document.createElement("dialog");
-  modal.className = "dialog mini-dialog";
+  modal.className = "dialog mini-dialog export-dialog";
   modal.dataset.exportDialog = "true";
   modal.innerHTML = `
     <form method="dialog">
@@ -18,13 +165,13 @@ export function openExportDialog({ title, onCsvExport }) {
         <button type="button" class="icon-btn" data-close-export-dialog title="Close" aria-label="Close">x</button>
       </div>
       <div class="dialog-body">
-        <div class="dialog-actions">
-          <button type="button" class="primary text-icon-button" data-export-format="csv">${buttonContent("CSV", "CSV File")}</button>
-          <button type="button" class="secondary text-icon-button" data-export-format="excel" title="Excel export will be added in the next pass" aria-label="Excel File" disabled>${buttonContent("XLSX", "Excel File")}</button>
+        <div class="export-format-grid">
+          <button type="button" class="primary text-icon-button export-format-button" data-export-format="csv">${buttonContent(csvIconHtml(), "CSV File")}</button>
+          <button type="button" class="secondary text-icon-button export-format-button" data-export-format="excel">${buttonContent(excelIconHtml(), "Excel File")}</button>
         </div>
       </div>
       <div class="dialog-actions">
-        <button type="button" class="secondary text-icon-button" data-close-export-dialog>${buttonContent("&#10005;", "Cancel")}</button>
+        <button type="button" class="secondary text-icon-button" data-close-export-dialog>${buttonContent("x", "Cancel")}</button>
       </div>
     </form>
   `;
@@ -40,11 +187,79 @@ export function openExportDialog({ title, onCsvExport }) {
       onCsvExport();
       modal.close();
     }
+    if (formatButton?.dataset.exportFormat === "excel") {
+      onExcelExport();
+      modal.close();
+    }
   });
   modal.addEventListener("close", () => modal.remove());
   document.body.appendChild(modal);
   modal.showModal();
   modal.querySelector("[data-export-format='csv']")?.focus({ preventScroll: true });
+}
+
+export function showImportResultDialog({ title, totalRows, updatedRows, errors = [] }) {
+  const modal = document.createElement("dialog");
+  modal.className = "dialog detail-dialog import-result-dialog";
+  modal.innerHTML = `
+    <div class="dialog-head">
+      <h2>${escapeHtml(title)}</h2>
+      <button type="button" class="icon-btn" data-close-import-result title="Close" aria-label="Close">x</button>
+    </div>
+    <div class="dialog-body">
+      <div class="import-result-summary">
+        <div><strong>${updatedRows}</strong><span>Updated</span></div>
+        <div><strong>${Math.max(0, totalRows - updatedRows - errors.length)}</strong><span>Unchanged</span></div>
+        <div><strong>${errors.length}</strong><span>Errors</span></div>
+      </div>
+      ${errors.length ? importErrorsHtml(errors) : `<div class="empty">Import completed with no row errors.</div>`}
+    </div>
+    <div class="dialog-actions">
+      ${errors.length ? `<button type="button" class="secondary text-icon-button" data-download-import-errors>${buttonContent(csvIconHtml(), "Download Error Report")}</button>` : ""}
+      <button type="button" class="primary text-icon-button" data-close-import-result>${buttonContent("&#10003;", "Done")}</button>
+    </div>
+  `;
+
+  modal.addEventListener("click", event => {
+    if (event.target.closest("[data-close-import-result]")) {
+      modal.close();
+      return;
+    }
+
+    if (event.target.closest("[data-download-import-errors]")) {
+      downloadImportErrors(errors);
+    }
+  });
+  modal.addEventListener("close", () => modal.remove());
+  document.body.appendChild(modal);
+  modal.showModal();
+}
+
+export function downloadXlsx(filename, sheetName, columns, rows) {
+  const blob = createXlsxBlob({ sheetName, columns, rows });
+  downloadBlob(filename, blob);
+}
+
+export function openExcelImport({ onImport, onError }) {
+  const input = document.createElement("input");
+  input.type = "file";
+  input.accept = ".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+  input.hidden = true;
+  input.addEventListener("change", async () => {
+    const file = input.files?.[0];
+    input.remove();
+    if (!file) return;
+
+    try {
+      const rows = await readXlsxObjects(file);
+      await onImport(rows);
+    } catch (error) {
+      if (onError) onError(error);
+      else throw error;
+    }
+  }, { once: true });
+  document.body.appendChild(input);
+  input.click();
 }
 
 export function downloadCsv(filename, columns, rows) {
@@ -73,6 +288,10 @@ export function exportFileName(prefix, extension = "csv") {
 
 function downloadTextFile(filename, content, type) {
   const blob = new Blob([content], { type });
+  downloadBlob(filename, blob);
+}
+
+function downloadBlob(filename, blob) {
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
@@ -81,6 +300,57 @@ function downloadTextFile(filename, content, type) {
   link.click();
   link.remove();
   URL.revokeObjectURL(url);
+}
+
+function importErrorsHtml(errors) {
+  return `
+    <div class="import-error-panel">
+      <table class="table import-error-table">
+        <thead>
+          <tr>
+            <th>Excel Row</th>
+            <th>Item</th>
+            <th>Error</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${errors.map(error => `
+            <tr>
+              <td>${escapeHtml(error.rowNumber || "")}</td>
+              <td>${escapeHtml([error.code, error.title].filter(Boolean).join(" - "))}</td>
+              <td>${escapeHtml(error.message || "")}</td>
+            </tr>
+          `).join("")}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+function downloadImportErrors(errors) {
+  downloadCsv(exportFileName("pmt-import-errors"), [
+    { header: "Excel Row", value: error => error.rowNumber || "" },
+    { header: "Item Code", value: error => error.code || "" },
+    { header: "Item Name", value: error => error.title || "" },
+    { header: "Error", value: error => error.message || "" }
+  ], errors);
+}
+
+function csvIconHtml() {
+  return `
+    <svg class="button-svg-icon export-format-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path d="M6 3h9l3 3v15H6zM14 3v4h4M8 11h8M8 15h8M8 18h5"></path>
+      <path d="M8 8h3"></path>
+    </svg>
+  `;
+}
+
+function excelIconHtml() {
+  return `
+    <svg class="button-svg-icon export-format-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path d="M6 3h9l3 3v15H6zM14 3v4h4M9 10l5 7M14 10l-5 7"></path>
+    </svg>
+  `;
 }
 
 function csvCell(value) {
@@ -99,4 +369,47 @@ function safeDownloadName(filename) {
     .replace(/[\\/:*?"<>|]+/g, "-")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+function splitImportList(value) {
+  return String(value || "")
+    .split(/[;,]/)
+    .map(item => item.trim())
+    .filter(Boolean);
+}
+
+function normalizeImportCode(value) {
+  return String(value || "").trim().toUpperCase();
+}
+
+function normalizeImportItemType(value) {
+  const text = String(value || "").trim().toLowerCase();
+  if (!text) return "";
+  if (text.includes("bug")) return "Bug";
+  if (text.includes("dev") || text.includes("task")) return "Dev";
+  return text;
+}
+
+function importItemTypeLabel(type) {
+  if (type === "Dev") return "Dev Task";
+  if (type === "Bug") return "Bug";
+  return type;
+}
+
+function importWorkbookScreenLabel(types) {
+  const normalizedTypes = new Set(types);
+  if (normalizedTypes.has("Dev") && normalizedTypes.has("Bug")) return "Backlog";
+  if (normalizedTypes.has("Dev")) return "Dev Tasks";
+  if (normalizedTypes.has("Bug")) return "Bug Tracking";
+  return "";
+}
+
+function stableHash(value) {
+  let hash = 2166136261;
+  const text = String(value ?? "");
+  for (let index = 0; index < text.length; index += 1) {
+    hash ^= text.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0).toString(16).padStart(8, "0");
 }
