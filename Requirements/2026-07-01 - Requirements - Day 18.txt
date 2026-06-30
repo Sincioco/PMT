@@ -45,3 +45,5 @@ What do you plan to do today?
 Do you have any roadblocks?
 
 13.) Everything is working fine now.  Can you move the Person column as the first column in the table?  That way, it looks and lines up with the rest of the other table like Dev Task and Bug Tracking.
+
+14.) I noticed that in the New/Edit Scrum dialog box, there is no Scrum dropdown.  There is a S
