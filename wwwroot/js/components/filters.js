@@ -16,16 +16,22 @@ export function filterSelect(label, filterName, items, selectedValue, emptyText)
   `;
 }
 
-export function filterCheckList(label, filterName, items, selectedValues) {
+export function filterCheckList(label, filterName, items, selectedValues, options = {}) {
   const selected = new Set(normalizeSavedArray(selectedValues));
+  const className = ["filter-check-list", options.className || ""]
+    .filter(Boolean)
+    .join(" ");
+  const renderItem = typeof options.renderItem === "function"
+    ? options.renderItem
+    : filterCheckListItemHtml;
 
   return `
-    <fieldset class="filter-check-list">
+    <fieldset class="${escapeAttr(className)}">
       <legend>${escapeHtml(label)}</legend>
       ${items.map(item => `
         <label>
           <input type="checkbox" data-filter="${filterName}" value="${escapeAttr(item.value)}" ${selected.has(String(item.value)) ? "checked" : ""}>
-          ${filterCheckListItemHtml(item)}
+          ${renderItem(item)}
         </label>
       `).join("")}
     </fieldset>

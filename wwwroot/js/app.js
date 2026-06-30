@@ -30,7 +30,7 @@ import { state } from "./core/store.js";
 import { createAboutFeature } from "./features/about/about.js?v=20260621-about-credits";
 import { createBacklogFeature } from "./features/backlog/backlog.js?v=20260629-avatar-jpg-assets";
 import { createBoardFeature } from "./features/board/board.js?v=20260629-avatar-jpg-assets";
-import { createBugsFeature } from "./features/bugs/bugs.js?v=20260629-avatar-jpg-assets";
+import { createBugsFeature } from "./features/bugs/bugs.js?v=20260630-bug-task-parity";
 import { createDashboardFeature } from "./features/dashboard/dashboard.js?v=20260627-dev-task-status-rules";
 import { createDocumentationFeature } from "./features/documentation/documentation.js?v=20260629-avatar-jpg-assets";
 import {
@@ -43,7 +43,7 @@ import { createRoadMapFeature } from "./features/roadmap/roadmap.js?v=20260629-s
 import { createScrumFeature } from "./features/scrum/scrum.js?v=20260629-avatar-jpg-assets";
 import { createSettingsFeature } from "./features/settings/settings.js?v=20260629-avatar-jpg-assets";
 import { createSprintsFeature } from "./features/sprints/sprints.js?v=20260629-avatar-jpg-assets";
-import { createTasksFeature } from "./features/tasks/tasks.js?v=20260630-task-percent-40";
+import { createTasksFeature } from "./features/tasks/tasks.js?v=20260630-bug-task-parity";
 import { createWfhScheduleFeature } from "./features/wfh-schedule/wfh-schedule.js?v=20260629-avatar-jpg-assets";
 import {
   fallbackEnvironments,

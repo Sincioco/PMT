@@ -4,7 +4,7 @@ import { VisualCharts } from "../../components/charts.js?v=20260628-chart-native
 import {
   checkedFilterValues,
   filterCheckList
-} from "../../components/filters.js?v=20260621-task-filter-layout";
+} from "../../components/filters.js?v=20260630-filter-renderer";
 import {
   checkList,
   checkedNumbers,
@@ -43,10 +43,14 @@ import {
   removePreference,
   writeJsonPreference,
   writePreference
-} from "../../core/preferences.js?v=20260620-bug-entry-context";
+} from "../../core/preferences.js?v=20260630-bug-table-columns";
 import { currentView } from "../../core/router.js";
 import { state } from "../../core/store.js";
-import { toDateInput } from "../../shared/dates.js?v=20260620-null-end-date";
+import {
+  formatDate,
+  formatDateTime,
+  toDateInput
+} from "../../shared/dates.js?v=20260620-null-end-date";
 import { normalizeSavedArray } from "../../shared/filter-values.js";
 import { canEditTask } from "../../shared/permissions.js";
 import {
@@ -54,7 +58,8 @@ import {
   projectCode,
   projectName,
   sprintById,
-  taskById
+  taskById,
+  userById
 } from "../../shared/selectors.js";
 import {
   escapeAttr,
@@ -93,10 +98,16 @@ export function createBugsFeature({
   let bugEntryProjectId = readNumberPreference(preferenceKeys.bugEntryProject, 0);
   let bugEntrySprintId = readPreference(preferenceKeys.bugEntrySprint, "");
   let bugEntryEnvironment = readPreference(preferenceKeys.bugEntryEnvironment, "");
+  let bugColumnPrefs = normalizeBugColumnPrefs(readJsonPreference(preferenceKeys.bugTableColumns, {}));
+  let bugColumnDrag = null;
+  let lastBugColumnPointerDragAt = 0;
+  let suppressNextBugColumnClick = false;
   const bugTableMode = createWorkItemTableMode({
     action: "toggle-bug-table-edit-mode",
     itemLabel: "Bug Tracking"
   });
+
+  bindBugColumnDragEvents();
 
   function renderBugs() {
     const sprintFilterSprints = bugSprintFilterSprints();
@@ -111,6 +122,8 @@ export function createBugsFeature({
     const reporterColumnWidth = bugAvatarColumnWidth(filteredBugs, bug => bug.reporters);
     const assigneeHeader = bugRowsHaveMultipleUsers(filteredBugs, bug => bug.assignees) ? "Assignee(s)" : "Assignee";
     const reporterHeader = bugRowsHaveMultipleUsers(filteredBugs, bug => bug.reporters) ? "Reporter(s)" : "Reporter";
+    const visibleBugColumns = bugVisibleTableColumns({ reporterHeader, assigneeHeader });
+    const emptyTableColspan = visibleBugColumns.length + (bugTableMode.active ? 1 : 0);
     const canShowCharts = allProjectBugs.length > 0;
     const showCharts = canShowCharts && bugVisualChartsVisible;
     const chartToggleLabel = showCharts ? "Hide Charts" : "Show Charts";
@@ -126,53 +139,24 @@ export function createBugsFeature({
       `)}
       ${showCharts ? bugVisualTrackingChartsHtml(baseBugs, allProjectBugs) : ""}
       <div class="panel work-item-table-panel bugs-table-panel">
-        <table class="table work-item-table bugs-table ${bugTableMode.active ? "is-edit-mode" : "is-read-mode"}" style="--bugs-assignee-width:${assigneeColumnWidth}px; --bugs-reporter-width:${reporterColumnWidth}px">
+        <table class="table work-item-table bugs-table ${bugTableMode.active ? "is-edit-mode" : "is-read-mode"}" style="--bugs-assignee-width:${assigneeColumnWidth}px; --bugs-reporter-width:${reporterColumnWidth}px; --bugs-table-min-width:${bugTableMinWidth(visibleBugColumns)}px">
           <colgroup>
-            <col class="bugs-reporter-column">
-            <col class="bugs-assignee-column">
-            <col class="bugs-context-column">
-            <col class="bugs-title-column">
-            <col class="bugs-status-column">
-            <col class="bugs-severity-column">
-            <col class="bugs-priority-column">
-            <col class="bugs-complete-column">
+            ${visibleBugColumns.map((column, index) => bugTableColumnColHtml(column, bugColumnIsRubber(visibleBugColumns, index))).join("")}
             ${bugTableMode.active ? `<col class="bugs-action-column">` : ""}
           </colgroup>
           <thead>
             <tr>
-              ${bugSortHeaderHtml("reporter", reporterHeader, "bugs-avatar-heading")}
-              ${bugSortHeaderHtml("assignee", assigneeHeader, "bugs-avatar-heading")}
-              ${bugSortHeaderHtml("context", "Project/Sprint")}
-              ${bugSortHeaderHtml("bug", "Bug Report")}
-              ${bugSortHeaderHtml("status", "Status")}
-              ${bugSortHeaderHtml("severity", "Severity")}
-              ${bugSortHeaderHtml("priority", "Priority")}
-              ${bugSortHeaderHtml("percent", "% Complete", "done-cell")}
+              ${visibleBugColumns.map((column, index) => bugColumnHeaderHtml(column, bugColumnIsRubber(visibleBugColumns, index))).join("")}
               ${bugTableMode.active ? `<th class="action-cell" aria-label="Actions"></th>` : ""}
             </tr>
           </thead>
           <tbody data-reorder-list="bugs">
             ${filteredBugs.map(bug => `
               <tr class="clickable-row" data-action="view-task" data-id="${bug.id}" data-task-id="${bug.id}" data-can-drag="${bugTableMode.active && canEditTask(bug) ? "true" : "false"}" draggable="false">
-                <td class="bugs-avatar-cell">${taskRowAvatarsHtml(bug.reporters)}</td>
-                <td class="bugs-avatar-cell">${taskRowAvatarsHtml(bug.assignees)}</td>
-                <td class="work-item-context-cell bug-context-cell">
-                  <span class="bug-context-project">${escapeHtml(projectName(bug.projectId))}</span>
-                  <span class="bug-context-sprint">${escapeHtml(bugTableSprintLabel(bug))}</span>
-                </td>
-                <td class="work-item-title-cell">
-                  <span class="work-item-code-line">
-                    <strong class="work-item-code">${escapeHtml(bug.code)}</strong>
-                  </span>
-                  <span class="work-item-title">${escapeHtml(bug.title)}</span>
-                </td>
-                <td class="work-item-context-cell">${escapeHtml(bug.status)}</td>
-                <td><span class="pill severity-${escapeAttr(bug.severity)}">${escapeHtml(bug.severity || "")}</span></td>
-                <td><span class="pill priority-${escapeAttr(bug.priority)}">${escapeHtml(bug.priority)}</span></td>
-                <td class="done-cell">${workItemTableProgressHtml(taskDisplayPercent(bug))}</td>
+                ${visibleBugColumns.map((column, index) => bugTableColumnCellHtml(column, bug, bugColumnIsRubber(visibleBugColumns, index))).join("")}
                 ${bugTableMode.active ? `<td class="reveal-actions action-cell">${taskButtonsHtml(bug, { includeView: false, monochrome: true })}</td>` : ""}
               </tr>
-            `).join("") || `<tr><td colspan="${bugTableMode.active ? 9 : 8}"><div class="empty">No bug reports match these filters.</div></td></tr>`}
+            `).join("") || `<tr><td colspan="${emptyTableColspan}"><div class="empty">No bug reports match these filters.</div></td></tr>`}
           </tbody>
         </table>
       </div>
@@ -241,12 +225,12 @@ export function createBugsFeature({
     const existingDialog = document.querySelector("[data-bug-filter-dialog]");
     if (existingDialog) {
       if (!existingDialog.open) existingDialog.showModal?.();
-      existingDialog.querySelector("[data-filter='bug-project']")?.focus({ preventScroll: true });
+      existingDialog.querySelector("[data-filter='bug-search']")?.focus({ preventScroll: true });
       return;
     }
 
     const modal = document.createElement("dialog");
-    modal.className = "dialog bug-filter-dialog";
+    modal.className = "dialog task-filter-dialog bug-filter-dialog";
     modal.dataset.bugFilterDialog = "true";
     modal.innerHTML = `
       <form method="dialog">
@@ -254,7 +238,7 @@ export function createBugsFeature({
           <h2>Bug Tracking Filters</h2>
           <button type="button" class="icon-btn" data-close-bug-filters title="Close" aria-label="Close">x</button>
         </div>
-        <div class="dialog-body bug-filter-dialog-body" data-bug-filter-dialog-body></div>
+        <div class="dialog-body task-filter-dialog-body bug-filter-dialog-body" data-bug-filter-dialog-body></div>
         <div class="dialog-actions">
           <button type="button" class="primary text-icon-button" data-close-bug-filters>${buttonContent("&#10003;", "Done")}</button>
         </div>
@@ -263,6 +247,10 @@ export function createBugsFeature({
 
     renderBugFiltersDialog(modal);
     document.body.appendChild(modal);
+    modal.addEventListener("input", event => {
+      if (!applyBugFilterChange(event.target)) return;
+      renderBugs();
+    });
     modal.addEventListener("change", event => {
       const target = event.target;
       const filter = target?.dataset?.filter || "";
@@ -279,7 +267,7 @@ export function createBugsFeature({
     });
     modal.addEventListener("close", () => modal.remove());
     modal.showModal();
-    modal.querySelector("[data-filter='bug-project']")?.focus({ preventScroll: true });
+    modal.querySelector("[data-filter='bug-search']")?.focus({ preventScroll: true });
   }
 
   function renderBugFiltersDialog(modal) {
@@ -296,6 +284,10 @@ export function createBugsFeature({
           ${bugFilterSelectHtml("Project", "bug-project", state.projects.map(project => ({ value: project.id, text: `${project.code} - ${project.title}` })), bugFilters.projectId || "", "All Projects")}
           ${bugSprintFilterHtml(sprintFilterSprints)}
           <label>
+            <span>Search</span>
+            <input type="text" data-filter="bug-search" value="${escapeAttr(bugFilters.search)}">
+          </label>
+          <label>
             <span>Sort</span>
             <select data-filter="bug-sort">
               ${bugSortOptionsHtml()}
@@ -307,19 +299,26 @@ export function createBugsFeature({
           ${bugFilterSelectHtml("Environment", "bug-environment", getEnvironments().map(value => ({ value, text: value })), bugFilters.environment || "", "All Environments")}
         </div>
         <div class="filter-stack">
-          ${filterCheckList("Reporter", "bug-reporter", state.users.map(user => ({
-            value: user.id,
-            text: user.nickname,
-            avatarUrl: user.avatarUrl
-          })), bugFilters.reporterIds)}
-          ${filterCheckList("Assignee", "bug-assignee", state.users.map(user => ({
-            value: user.id,
-            text: user.nickname,
-            avatarUrl: user.avatarUrl
-          })), bugFilters.assigneeIds)}
+          ${filterCheckList("Reporters", "bug-reporter", bugUserFilterItems(), bugFilters.reporterIds, {
+            className: "user-card-check-list",
+            renderItem: userCardCheckListLabelHtml
+          })}
+          ${filterCheckList("Assignees", "bug-assignee", bugUserFilterItems(), bugFilters.assigneeIds, {
+            className: "user-card-check-list",
+            renderItem: userCardCheckListLabelHtml
+          })}
+          ${filterCheckList("Columns", "bug-column", bugColumnFilterItems(), bugColumnPrefs.visible)}
         </div>
       </div>
     `;
+  }
+
+  function bugUserFilterItems() {
+    return state.users.map(user => ({
+      ...user,
+      value: user.id,
+      text: user.nickname
+    }));
   }
 
   function bugFilterSelectHtml(label, filterName, items, selectedValue, emptyText) {
@@ -350,9 +349,25 @@ export function createBugsFeature({
     if (key === "priority") bugFilters.priority = target.value;
     if (key === "severity") bugFilters.severity = target.value;
     if (key === "environment") bugFilters.environment = target.value;
+    if (key === "search") bugFilters.search = target.value;
     if (key === "sort") bugFilters.sort = target.value;
     if (key === "reporter") bugFilters.reporterIds = checkedFilterValues("bug-reporter");
     if (key === "assignee") bugFilters.assigneeIds = checkedFilterValues("bug-assignee");
+    if (key === "column") {
+      const visibleColumns = checkedFilterValues("bug-column");
+      if (!visibleColumns.length) {
+        target.checked = true;
+        return false;
+      }
+      const addedColumns = visibleColumns.filter(column => !bugColumnPrefs.visible.includes(column));
+      bugColumnPrefs = normalizeBugColumnPrefs({
+        ...bugColumnPrefs,
+        order: bugColumnOrderWithAddedColumns(bugColumnPrefs.order, addedColumns),
+        visible: visibleColumns
+      });
+      saveBugColumnPrefs();
+      return true;
+    }
 
     writeJsonPreference(preferenceKeys.bugFilters, bugFilters);
     return true;
@@ -480,6 +495,7 @@ export function createBugsFeature({
 
   function filteredBugReports(bugs) {
     return bugs
+      .filter(bug => bugMatchesSearchFilter(bug))
       .filter(bug => !bugFilters.status || bug.status === bugFilters.status)
       .filter(bug => !bugFilters.priority || bug.priority === bugFilters.priority)
       .filter(bug => !bugFilters.severity || bug.severity === bugFilters.severity)
@@ -494,13 +510,48 @@ export function createBugsFeature({
       ...filters,
       reporterIds: normalizeSavedArray(filters.reporterIds, filters.reporterId),
       assigneeIds: normalizeSavedArray(filters.assigneeIds, filters.assigneeId),
-      sort: filters.sort || "custom"
+      sort: filters.sort || "custom",
+      search: String(filters.search || "")
     };
     const savedBugSprintId = normalized.sprintId && normalized.sprintId !== "0"
       ? String(normalized.sprintId)
       : "";
     normalized.sprintId = savedBugSprintId || (normalized.projectId ? "" : "all");
     return normalized;
+  }
+
+  function bugMatchesSearchFilter(bug) {
+    const term = String(bugFilters.search || "").trim().toLowerCase();
+    if (!term) return true;
+
+    return bugSearchValues(bug)
+      .map(value => String(value ?? "").toLowerCase())
+      .some(value => value.includes(term));
+  }
+
+  function bugSearchValues(bug) {
+    return [
+      bug.code,
+      bug.title,
+      projectName(bug.projectId),
+      bugTableSprintLabel(bug),
+      bug.status,
+      bug.priority,
+      bug.severity,
+      bug.environment,
+      userNames(bug.reporters),
+      userNames(bug.assignees),
+      bugLinkedDevTasksLabel(bug),
+      bugDependencyLabel(bug),
+      bug.url,
+      bug.sortOrder,
+      bugUserName(bug.createdByUserId),
+      bugUserName(bug.updatedByUserId),
+      formatDate(bug.startDate),
+      formatDate(bug.endDate),
+      formatDateTime(bug.createdAt),
+      formatDateTime(bug.updatedAt)
+    ];
   }
 
   function bugSortCompare(a, b) {
@@ -520,6 +571,13 @@ export function createBugsFeature({
 
   function compareBugSortColumn(a, b, column) {
     if (column === "percent") return taskDisplayPercent(a) - taskDisplayPercent(b);
+    if (column === "sortOrder") return Number(a.sortOrder || 0) - Number(b.sortOrder || 0);
+    if (column === "attachmentCount") return Number(a.attachments?.length || 0) - Number(b.attachments?.length || 0);
+    if (column === "startDate") return compareBugDateValue(a.startDate, b.startDate);
+    if (column === "endDate") return compareBugDateValue(a.endDate, b.endDate);
+    if (column === "startedAt") return compareBugDateValue(a.startedAt, b.startedAt);
+    if (column === "createdAt") return compareBugDateValue(a.createdAt, b.createdAt);
+    if (column === "updatedAt") return compareBugDateValue(a.updatedAt, b.updatedAt);
     if (column === "priority") return compareLookupSortValue(a.priority, b.priority, getPriorities());
     if (column === "severity") return compareLookupSortValue(a.severity, b.severity, getSeverities());
     if (column === "status") return compareLookupSortValue(a.status, b.status, getStatuses());
@@ -535,7 +593,21 @@ export function createBugsFeature({
     if (column === "assignee") return userNames(bug.assignees);
     if (column === "context") return `${projectName(bug.projectId)} ${bugTableSprintLabel(bug)}`;
     if (column === "bug") return `${bug.code || ""} ${bug.title || ""}`;
+    if (column === "environment") return bug.environment || "";
+    if (column === "linkedDevTasks") return bugLinkedDevTasksLabel(bug);
+    if (column === "dependencies") return bugDependencyLabel(bug);
+    if (column === "url") return bug.url || "";
+    if (column === "createdBy") return bugUserName(bug.createdByUserId);
+    if (column === "updatedBy") return bugUserName(bug.updatedByUserId);
     return "";
+  }
+
+  function compareBugDateValue(a, b) {
+    const leftTime = a ? new Date(a).getTime() : 0;
+    const rightTime = b ? new Date(b).getTime() : 0;
+    const left = Number.isFinite(leftTime) ? leftTime : 0;
+    const right = Number.isFinite(rightTime) ? rightTime : 0;
+    return left - right;
   }
 
   function compareLookupSortValue(a, b, orderedValues) {
@@ -554,15 +626,566 @@ export function createBugsFeature({
       .join(", ");
   }
 
-  function bugSortHeaderHtml(column, label, className = "") {
+  function bugTableColumnDefinitions(headers = {}) {
+    const reporterHeader = headers.reporterHeader || "Reporter";
+    const assigneeHeader = headers.assigneeHeader || "Assignee";
+
+    return [
+      {
+        key: "reporter",
+        label: "Reporter",
+        headerLabel: reporterHeader,
+        colClass: "bugs-reporter-column",
+        headerClass: "bugs-avatar-heading",
+        cellClass: "bugs-avatar-cell",
+        width: 112,
+        rubberMinWidth: 88,
+        defaultVisible: true,
+        cellHtml: bug => taskRowAvatarsHtml(bug.reporters)
+      },
+      {
+        key: "assignee",
+        label: "Assignee",
+        headerLabel: assigneeHeader,
+        colClass: "bugs-assignee-column",
+        headerClass: "bugs-avatar-heading",
+        cellClass: "bugs-avatar-cell",
+        width: 112,
+        rubberMinWidth: 88,
+        defaultVisible: true,
+        cellHtml: bug => taskRowAvatarsHtml(bug.assignees)
+      },
+      {
+        key: "context",
+        label: "Project/Sprint",
+        colClass: "bugs-context-column",
+        cellClass: "work-item-context-cell bug-context-cell",
+        width: 190,
+        rubberMinWidth: 140,
+        defaultVisible: true,
+        cellHtml: bug => `
+          <span class="bug-context-project">${escapeHtml(projectName(bug.projectId))}</span>
+          <span class="bug-context-sprint">${escapeHtml(bugTableSprintLabel(bug))}</span>
+        `
+      },
+      {
+        key: "bug",
+        label: "Bug Report",
+        colClass: "bugs-title-column",
+        cellClass: "bug-title-cell work-item-title-cell",
+        width: 320,
+        rubberMinWidth: 180,
+        defaultVisible: true,
+        cellHtml: bug => `
+          <span class="work-item-code-line">
+            <strong class="work-item-code">${escapeHtml(bug.code)}</strong>
+          </span>
+          <span class="work-item-title">${escapeHtml(bug.title)}</span>
+        `
+      },
+      {
+        key: "status",
+        label: "Status",
+        colClass: "bugs-status-column",
+        cellClass: "bugs-compact-text-cell",
+        width: 136,
+        rubberMinWidth: 110,
+        defaultVisible: true,
+        cellHtml: bug => escapeHtml(bug.status)
+      },
+      {
+        key: "severity",
+        label: "Severity",
+        colClass: "bugs-severity-column",
+        width: 96,
+        rubberMinWidth: 86,
+        defaultVisible: true,
+        cellHtml: bug => `<span class="pill severity-${escapeAttr(bug.severity)}">${escapeHtml(bug.severity || "")}</span>`
+      },
+      {
+        key: "priority",
+        label: "Priority",
+        colClass: "bugs-priority-column",
+        width: 96,
+        rubberMinWidth: 86,
+        defaultVisible: true,
+        cellHtml: bug => `<span class="pill priority-${escapeAttr(bug.priority)}">${escapeHtml(bug.priority)}</span>`
+      },
+      {
+        key: "percent",
+        label: "% Complete",
+        colClass: "bugs-complete-column",
+        headerClass: "done-cell bugs-complete-cell",
+        cellClass: "done-cell bugs-complete-cell",
+        width: 180,
+        rubberMinWidth: 120,
+        defaultVisible: true,
+        cellHtml: bug => workItemTableProgressHtml(taskDisplayPercent(bug))
+      },
+      {
+        key: "environment",
+        label: "Environment",
+        colClass: "bugs-environment-column",
+        cellClass: "bugs-compact-text-cell",
+        width: 132,
+        rubberMinWidth: 104,
+        cellHtml: bug => escapeHtml(bug.environment || "")
+      },
+      {
+        key: "startDate",
+        label: "Start Date",
+        colClass: "bugs-date-column",
+        cellClass: "bugs-date-cell",
+        width: 116,
+        rubberMinWidth: 96,
+        cellHtml: bug => escapeHtml(formatDate(bug.startDate))
+      },
+      {
+        key: "endDate",
+        label: "End Date",
+        colClass: "bugs-date-column",
+        cellClass: "bugs-date-cell",
+        width: 116,
+        rubberMinWidth: 96,
+        cellHtml: bug => escapeHtml(formatDate(bug.endDate))
+      },
+      {
+        key: "startedAt",
+        label: "Started Date/Time",
+        colClass: "bugs-date-time-column",
+        cellClass: "bugs-date-cell",
+        width: 156,
+        rubberMinWidth: 124,
+        cellHtml: bug => escapeHtml(formatDateTime(bug.startedAt))
+      },
+      {
+        key: "linkedDevTasks",
+        label: "Linked Dev Tasks",
+        colClass: "bugs-related-column",
+        cellClass: "bugs-compact-text-cell",
+        width: 170,
+        rubberMinWidth: 130,
+        cellHtml: bug => escapeHtml(bugLinkedDevTasksLabel(bug))
+      },
+      {
+        key: "dependencies",
+        label: "Dependencies",
+        colClass: "bugs-related-column",
+        cellClass: "bugs-compact-text-cell",
+        width: 170,
+        rubberMinWidth: 130,
+        cellHtml: bug => escapeHtml(bugDependencyLabel(bug))
+      },
+      {
+        key: "url",
+        label: "URL",
+        colClass: "bugs-url-column",
+        cellClass: "bugs-url-cell",
+        width: 180,
+        rubberMinWidth: 130,
+        cellHtml: bug => escapeHtml(bug.url || "")
+      },
+      {
+        key: "attachmentCount",
+        label: "Attachments",
+        colClass: "bugs-count-column",
+        cellClass: "bugs-number-cell",
+        width: 104,
+        rubberMinWidth: 88,
+        cellHtml: bug => bug.attachments?.length ? String(bug.attachments.length) : ""
+      },
+      {
+        key: "sortOrder",
+        label: "Sort Order",
+        colClass: "bugs-number-column",
+        cellClass: "bugs-number-cell",
+        width: 96,
+        rubberMinWidth: 80,
+        cellHtml: bug => String(bug.sortOrder ?? "")
+      },
+      {
+        key: "createdBy",
+        label: "Created By",
+        colClass: "bugs-user-column",
+        cellClass: "bugs-compact-text-cell",
+        width: 132,
+        rubberMinWidth: 110,
+        cellHtml: bug => escapeHtml(bugUserName(bug.createdByUserId))
+      },
+      {
+        key: "createdAt",
+        label: "Created Date/Time",
+        colClass: "bugs-date-time-column",
+        cellClass: "bugs-date-cell",
+        width: 156,
+        rubberMinWidth: 124,
+        cellHtml: bug => escapeHtml(formatDateTime(bug.createdAt))
+      },
+      {
+        key: "updatedBy",
+        label: "Updated By",
+        colClass: "bugs-user-column",
+        cellClass: "bugs-compact-text-cell",
+        width: 132,
+        rubberMinWidth: 110,
+        cellHtml: bug => escapeHtml(bugUserName(bug.updatedByUserId))
+      },
+      {
+        key: "updatedAt",
+        label: "Last Updated Date/Time",
+        colClass: "bugs-date-time-column",
+        cellClass: "bugs-date-cell",
+        width: 156,
+        rubberMinWidth: 124,
+        cellHtml: bug => escapeHtml(formatDateTime(bug.updatedAt))
+      }
+    ];
+  }
+
+  function bugColumnFilterItems() {
+    return bugOrderedTableColumns({ reporterHeader: "Reporter", assigneeHeader: "Assignee" })
+      .map(column => ({ value: column.key, text: column.label }));
+  }
+
+  function bugTableColumnColHtml(column, isRubber = false) {
+    const className = [column.colClass, isRubber ? "bugs-rubber-column" : ""]
+      .filter(Boolean)
+      .join(" ");
+
+    return `<col class="${escapeAttr(className)}">`;
+  }
+
+  function bugTableColumnCellHtml(column, bug, isRubber = false) {
+    const className = [column.cellClass || "", isRubber ? "bugs-rubber-cell" : ""]
+      .filter(Boolean)
+      .join(" ");
+
+    return `<td class="${escapeAttr(className)}">${column.cellHtml(bug)}</td>`;
+  }
+
+  function bugColumnHeaderHtml(column, isRubber = false) {
+    const className = [column.headerClass || "", isRubber ? "bugs-rubber-cell" : ""]
+      .filter(Boolean)
+      .join(" ");
+
+    return bugSortHeaderHtml(column.key, column.headerLabel || column.label, className, {
+      draggable: bugTableMode.active
+    });
+  }
+
+  function bugVisibleTableColumns(headers) {
+    const visibleKeys = new Set(bugColumnPrefs.visible);
+    const columns = bugOrderedTableColumns(headers)
+      .filter(column => visibleKeys.has(column.key));
+
+    return columns.length
+      ? columns
+      : bugTableColumnDefinitions(headers).filter(column => column.key === "bug");
+  }
+
+  function bugOrderedTableColumns(headers) {
+    const definitions = bugTableColumnDefinitions(headers);
+    const columnsByKey = new Map(definitions.map(column => [column.key, column]));
+
+    return normalizedBugColumnOrder(bugColumnPrefs.order)
+      .map(key => columnsByKey.get(key))
+      .filter(Boolean);
+  }
+
+  function bugTableMinWidth(columns) {
+    const fixedWidth = bugTableMode.active ? 224 : 0;
+    const lastColumnIndex = columns.length - 1;
+    const columnsWidth = columns.reduce((total, column, index) =>
+      total + bugColumnMinimumWidth(column, index === lastColumnIndex), 0);
+    return Math.max(960, fixedWidth + columnsWidth);
+  }
+
+  function bugColumnMinimumWidth(column, isRubber) {
+    if (isRubber) return column.rubberMinWidth || Math.min(column.width || 140, 140);
+    return column.width || 140;
+  }
+
+  function bugColumnIsRubber(columns, index) {
+    return index === columns.length - 1;
+  }
+
+  function normalizeBugColumnPrefs(preferences = {}) {
+    const savedPreferences = preferences && typeof preferences === "object" && !Array.isArray(preferences)
+      ? preferences
+      : {};
+    const visibleKeys = normalizeSavedArray(savedPreferences.visible)
+      .filter(key => bugColumnKeySet().has(key));
+
+    return {
+      order: normalizedBugColumnOrder(savedPreferences.order),
+      visible: visibleKeys.length ? visibleKeys : bugDefaultVisibleColumnKeys()
+    };
+  }
+
+  function normalizedBugColumnOrder(order = []) {
+    const allowedKeys = bugColumnKeySet();
+    const orderedKeys = normalizeSavedArray(order)
+      .filter(key => allowedKeys.has(key));
+
+    bugTableColumnDefinitions().forEach(column => {
+      if (!orderedKeys.includes(column.key)) orderedKeys.push(column.key);
+    });
+
+    return orderedKeys;
+  }
+
+  function bugColumnOrderWithAddedColumns(order, addedColumns) {
+    const orderedKeys = normalizedBugColumnOrder(order);
+
+    addedColumns
+      .filter(column => column !== "percent" && bugColumnKeySet().has(column))
+      .forEach(column => {
+        const existingIndex = orderedKeys.indexOf(column);
+        if (existingIndex >= 0) orderedKeys.splice(existingIndex, 1);
+
+        const percentIndex = orderedKeys.indexOf("percent");
+        orderedKeys.splice(percentIndex >= 0 ? percentIndex : orderedKeys.length, 0, column);
+      });
+
+    return orderedKeys;
+  }
+
+  function bugColumnKeySet() {
+    return new Set(bugTableColumnDefinitions().map(column => column.key));
+  }
+
+  function bugDefaultVisibleColumnKeys() {
+    return bugTableColumnDefinitions()
+      .filter(column => column.defaultVisible)
+      .map(column => column.key);
+  }
+
+  function saveBugColumnPrefs() {
+    writeJsonPreference(preferenceKeys.bugTableColumns, bugColumnPrefs);
+  }
+
+  function bindBugColumnDragEvents() {
+    app.addEventListener("pointerdown", handleBugColumnPointerDown);
+    app.addEventListener("mousedown", handleBugColumnMouseDown);
+    app.addEventListener("click", suppressBugColumnDraggedClick, true);
+  }
+
+  function handleBugColumnPointerDown(event) {
+    lastBugColumnPointerDragAt = Date.now();
+    startBugColumnDrag(event, "pointer");
+  }
+
+  function handleBugColumnMouseDown(event) {
+    if (Date.now() - lastBugColumnPointerDragAt < 500) return;
+    startBugColumnDrag(event, "mouse");
+  }
+
+  function startBugColumnDrag(event, inputType) {
+    if (event.button !== 0) return;
+    if (!bugTableMode.active) return;
+
+    const header = event.target.closest('.bugs-table th[data-bug-column][data-column-draggable="true"]');
+    const table = header?.closest(".bugs-table");
+    if (!header || !table || !app.contains(header)) return;
+
+    const columnKey = header.dataset.bugColumn || "";
+    if (!bugColumnPrefs.visible.includes(columnKey)) return;
+
+    bugColumnDrag = {
+      columnKey,
+      source: header,
+      table,
+      startX: event.clientX,
+      startY: event.clientY,
+      started: false,
+      inputType,
+      pointerId: event.pointerId
+    };
+
+    if (inputType === "pointer" && header.setPointerCapture && event.pointerId !== undefined) {
+      try {
+        header.setPointerCapture(event.pointerId);
+      } catch {
+        // Pointer capture is optional; the window listeners still finish the drag.
+      }
+    }
+
+    if (inputType === "pointer") {
+      window.addEventListener("pointermove", handleBugColumnPointerMove);
+      window.addEventListener("pointerup", handleBugColumnPointerUp, { once: true });
+      window.addEventListener("pointercancel", cancelBugColumnDrag, { once: true });
+    } else {
+      window.addEventListener("mousemove", handleBugColumnMouseMove);
+      window.addEventListener("mouseup", handleBugColumnMouseUp, { once: true });
+    }
+  }
+
+  function handleBugColumnPointerMove(event) {
+    lastBugColumnPointerDragAt = Date.now();
+    moveBugColumnDrag(event);
+  }
+
+  function handleBugColumnMouseMove(event) {
+    if (bugColumnDrag?.inputType === "pointer") return;
+    moveBugColumnDrag(event);
+  }
+
+  function moveBugColumnDrag(event) {
+    if (!bugColumnDrag) return;
+
+    const movedEnough = Math.hypot(event.clientX - bugColumnDrag.startX, event.clientY - bugColumnDrag.startY) > 5;
+    if (!bugColumnDrag.started && !movedEnough) return;
+
+    if (!bugColumnDrag.started) {
+      bugColumnDrag.started = true;
+      suppressNextBugColumnClick = true;
+      bugColumnDrag.source.classList.add("column-dragging");
+      bugColumnDrag.table.classList.add("is-column-dragging");
+    }
+
+    event.preventDefault();
+    updateBugColumnDropIndicator(event.clientX, event.clientY);
+  }
+
+  function handleBugColumnPointerUp(event) {
+    lastBugColumnPointerDragAt = Date.now();
+    finishBugColumnDrag(event);
+  }
+
+  function handleBugColumnMouseUp(event) {
+    if (bugColumnDrag?.inputType === "pointer") return;
+    finishBugColumnDrag(event);
+  }
+
+  function finishBugColumnDrag(event) {
+    if (!bugColumnDrag || bugColumnDrag.finishing) return;
+    bugColumnDrag.finishing = true;
+
+    if (!bugColumnDrag.started) {
+      cancelBugColumnDrag();
+      return;
+    }
+
+    event.preventDefault();
+    suppressNextBugColumnClick = true;
+
+    const drag = bugColumnDrag;
+    const drop = bugColumnDropTarget(event.clientX, event.clientY);
+    if (drop) {
+      const order = bugColumnKeysAfterDrop(drag.columnKey, drop.target.dataset.bugColumn || "", drop.placement);
+      if (bugColumnOrderChanged(order)) {
+        bugColumnPrefs = normalizeBugColumnPrefs({ ...bugColumnPrefs, order });
+        saveBugColumnPrefs();
+        cancelBugColumnDrag();
+        renderBugs();
+        return;
+      }
+    }
+
+    cancelBugColumnDrag();
+  }
+
+  function bugColumnDropTarget(clientX, clientY) {
+    if (!bugColumnDrag) return null;
+
+    const headerRow = bugColumnDrag.table.querySelector("thead tr");
+    const headerRect = headerRow?.getBoundingClientRect();
+    if (!headerRect || clientY < headerRect.top - 32 || clientY > headerRect.bottom + 64) return null;
+
+    const headers = [...bugColumnDrag.table.querySelectorAll('thead th[data-bug-column][data-column-draggable="true"]')]
+      .filter(header => (header.dataset.bugColumn || "") !== bugColumnDrag.columnKey);
+    if (!headers.length) return null;
+
+    const firstRect = headers[0].getBoundingClientRect();
+    if (clientX <= firstRect.left + (firstRect.width / 2)) {
+      return { target: headers[0], placement: "before" };
+    }
+
+    for (const header of headers) {
+      const rect = header.getBoundingClientRect();
+      if (clientX < rect.left + (rect.width / 2)) {
+        return { target: header, placement: "before" };
+      }
+    }
+
+    return { target: headers[headers.length - 1], placement: "after" };
+  }
+
+  function updateBugColumnDropIndicator(clientX, clientY) {
+    clearBugColumnDropIndicators();
+
+    const drop = bugColumnDropTarget(clientX, clientY);
+    if (!drop) return;
+
+    bugColumnDrag.table.classList.add("column-drop-target");
+    drop.target.classList.add(drop.placement === "after" ? "column-reorder-after" : "column-reorder-before");
+  }
+
+  function bugColumnKeysAfterDrop(draggedKey, targetKey, placement) {
+    const orderedKeys = normalizedBugColumnOrder(bugColumnPrefs.order)
+      .filter(key => key !== draggedKey);
+    let insertIndex = orderedKeys.indexOf(targetKey);
+    if (insertIndex < 0) return normalizedBugColumnOrder(bugColumnPrefs.order);
+    if (placement === "after") insertIndex += 1;
+    orderedKeys.splice(insertIndex, 0, draggedKey);
+    return orderedKeys;
+  }
+
+  function bugColumnOrderChanged(order) {
+    const currentOrder = normalizedBugColumnOrder(bugColumnPrefs.order);
+    return order.length !== currentOrder.length || order.some((key, index) => key !== currentOrder[index]);
+  }
+
+  function cancelBugColumnDrag() {
+    window.removeEventListener("pointermove", handleBugColumnPointerMove);
+    window.removeEventListener("mousemove", handleBugColumnMouseMove);
+    window.removeEventListener("pointerup", handleBugColumnPointerUp);
+    window.removeEventListener("mouseup", handleBugColumnMouseUp);
+    window.removeEventListener("pointercancel", cancelBugColumnDrag);
+
+    if (bugColumnDrag?.inputType === "pointer" && bugColumnDrag.source.releasePointerCapture && bugColumnDrag.pointerId !== undefined) {
+      try {
+        bugColumnDrag.source.releasePointerCapture(bugColumnDrag.pointerId);
+      } catch {
+        // The browser may already have released pointer capture.
+      }
+    }
+
+    bugColumnDrag = null;
+    app.querySelectorAll(".column-dragging, .is-column-dragging, .column-drop-target, .column-reorder-before, .column-reorder-after")
+      .forEach(item => item.classList.remove(
+        "column-dragging",
+        "is-column-dragging",
+        "column-drop-target",
+        "column-reorder-before",
+        "column-reorder-after"
+      ));
+  }
+
+  function clearBugColumnDropIndicators() {
+    app.querySelectorAll(".column-drop-target, .column-reorder-before, .column-reorder-after")
+      .forEach(item => item.classList.remove("column-drop-target", "column-reorder-before", "column-reorder-after"));
+  }
+
+  function suppressBugColumnDraggedClick(event) {
+    if (!suppressNextBugColumnClick) return;
+    suppressNextBugColumnClick = false;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+  }
+
+  function bugSortHeaderHtml(column, label, className = "", options = {}) {
     const state = bugTableSortState();
     const isSorted = state.column === column && Boolean(state.direction);
     const ariaSort = isSorted ? (state.direction === "asc" ? "ascending" : "descending") : "none";
     const arrow = isSorted ? (state.direction === "asc" ? "&#9650;" : "&#9660;") : "";
     const classes = [className, isSorted ? "is-sorted" : ""].filter(Boolean).join(" ");
+    const columnDragAttrs = `
+      data-bug-column="${escapeAttr(column)}"
+      data-column-draggable="${options.draggable ? "true" : "false"}"`;
 
     return `
-      <th class="${classes}" aria-sort="${ariaSort}">
+      <th class="${classes}" aria-sort="${ariaSort}" ${columnDragAttrs}>
         <button type="button" class="table-sort-button" data-action="sort-bug-table" data-column="${escapeAttr(column)}" title="${escapeAttr(bugNextSortLabel(column, label))}">
           <span>${escapeHtml(label)}</span>
           <span class="table-sort-indicator" aria-hidden="true">${arrow}</span>
@@ -612,16 +1235,8 @@ export function createBugsFeature({
   }
 
   function bugTableSortColumns() {
-    return [
-      { column: "reporter", label: "Reporter" },
-      { column: "assignee", label: "Assignee" },
-      { column: "context", label: "Project/Sprint" },
-      { column: "bug", label: "Bug Report" },
-      { column: "status", label: "Status" },
-      { column: "severity", label: "Severity" },
-      { column: "priority", label: "Priority" },
-      { column: "percent", label: "% Complete" }
-    ];
+    return bugTableColumnDefinitions({ reporterHeader: "Reporter", assigneeHeader: "Assignee" })
+      .map(column => ({ column: column.key, label: column.label }));
   }
 
   function bugNextSortLabel(column, label) {
@@ -638,7 +1253,8 @@ export function createBugsFeature({
       preferenceKeys.bugVisualChartsVisible,
       preferenceKeys.bugEntryProject,
       preferenceKeys.bugEntrySprint,
-      preferenceKeys.bugEntryEnvironment
+      preferenceKeys.bugEntryEnvironment,
+      preferenceKeys.bugTableColumns
     ].forEach(removePreference);
 
     bugFilters = normalizeBugFilters({});
@@ -646,7 +1262,9 @@ export function createBugsFeature({
     bugEntryProjectId = 0;
     bugEntrySprintId = "";
     bugEntryEnvironment = "";
+    bugColumnPrefs = normalizeBugColumnPrefs({});
     bugTableMode.deactivate();
+    cancelBugColumnDrag();
     renderBugs();
   }
 
@@ -681,6 +1299,31 @@ export function createBugsFeature({
         ${progressHtml(safePercent)}
       </div>
     `;
+  }
+
+  function bugLinkedDevTasksLabel(bug) {
+    return state.tasks
+      .filter(task => task.taskType !== "Bug")
+      .filter(task => task.linkedBugTaskId === bug.id || (task.dependencyTaskIds || []).includes(bug.id))
+      .map(bugDisplayLabel)
+      .join(", ");
+  }
+
+  function bugDependencyLabel(bug) {
+    return (bug.dependencyTaskIds || [])
+      .map(taskId => taskById(taskId))
+      .filter(Boolean)
+      .map(bugDisplayLabel)
+      .join(", ");
+  }
+
+  function bugDisplayLabel(task) {
+    return [task.code, task.title].filter(Boolean).join(" - ");
+  }
+
+  function bugUserName(userId) {
+    const user = userId ? userById(Number(userId)) : null;
+    return user?.nickname || [user?.firstName, user?.lastName].filter(Boolean).join(" ");
   }
 
   function bugTableSprintLabel(bug) {
@@ -957,6 +1600,7 @@ export function createBugsFeature({
         dialog.remove();
       }
     });
+    cancelBugColumnDrag();
     bugTableMode.deactivate();
   }
 

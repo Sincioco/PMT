@@ -128,7 +128,7 @@ html[data-theme] .bugs-screen.work-item-screen .section-head .toolbar > button:h
   white-space: normal;
 }
 
-.bug-filter-dialog .bug-filter-row > label > select {
+.bug-filter-dialog .bug-filter-row > label > :is(input, select) {
   width: 100%;
   min-width: 0;
   max-width: none;
@@ -153,6 +153,15 @@ html[data-theme] .bugs-screen.work-item-screen .section-head .toolbar > button:h
 
 .bug-filter-dialog .filter-check-list label {
   min-width: 0;
+}
+
+.bug-filter-dialog .filter-check-list.user-card-check-list {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: stretch;
+}
+
+.bug-filter-dialog .filter-check-list.user-card-check-list label {
+  align-items: center;
 }
 
 .bug-editor-grid {
@@ -221,11 +230,11 @@ html[data-theme] .bugs-screen.work-item-screen .section-head .toolbar > button:h
 }
 
 .bugs-table {
-  min-width: max(1480px, calc(1170px + var(--bugs-assignee-width, 94px) + var(--bugs-reporter-width, 94px)));
+  min-width: var(--bugs-table-min-width, 1274px);
 }
 
-.bugs-table.is-edit-mode {
-  min-width: max(1580px, calc(1394px + var(--bugs-assignee-width, 94px) + var(--bugs-reporter-width, 94px)));
+.bugs-screen .bugs-table {
+  table-layout: auto;
 }
 
 .bugs-table th {
@@ -246,24 +255,62 @@ html[data-theme] .bugs-screen.work-item-screen .section-head .toolbar > button:h
 }
 
 .bugs-context-column {
-  width: 220px;
+  width: 190px;
 }
 
 .bugs-title-column {
-  width: 390px;
+  width: 320px;
 }
 
 .bugs-status-column {
-  width: 140px;
+  width: 136px;
 }
 
 .bugs-severity-column,
 .bugs-priority-column {
-  width: 110px;
+  width: 96px;
 }
 
 .bugs-complete-column {
-  width: auto;
+  width: 180px;
+}
+
+.bugs-complete-column.bugs-rubber-column {
+  width: 40%;
+  min-width: 10%;
+  max-width: 40%;
+}
+
+.bugs-environment-column {
+  width: 132px;
+}
+
+.bugs-date-column {
+  width: 116px;
+}
+
+.bugs-date-time-column {
+  width: 156px;
+}
+
+.bugs-related-column {
+  width: 170px;
+}
+
+.bugs-url-column {
+  width: 180px;
+}
+
+.bugs-count-column {
+  width: 104px;
+}
+
+.bugs-number-column {
+  width: 96px;
+}
+
+.bugs-user-column {
+  width: 132px;
 }
 
 .bugs-action-column {
@@ -271,16 +318,100 @@ html[data-theme] .bugs-screen.work-item-screen .section-head .toolbar > button:h
 }
 
 .bugs-table .done-cell {
-  min-width: 280px;
+  min-width: 180px;
   padding-right: var(--space-7);
+}
+
+.bugs-rubber-column {
+  width: 100%;
+}
+
+.bugs-table .bugs-rubber-cell {
+  min-width: 0;
+}
+
+.bugs-table .bugs-rubber-cell.done-cell {
+  min-width: 0;
+}
+
+.bugs-table .bugs-complete-cell.bugs-rubber-cell {
+  width: 40%;
+  min-width: 10%;
+  max-width: 40%;
 }
 
 .bugs-table.is-read-mode .done-cell {
   padding-right: var(--space-10);
 }
 
-.bugs-table .work-item-title-cell {
-  min-width: 390px;
+.bugs-table.is-edit-mode th[data-column-draggable="true"] {
+  cursor: grab;
+  user-select: none;
+  touch-action: none;
+}
+
+.bugs-table.is-edit-mode th[data-column-draggable="true"]:active,
+.bugs-table.is-edit-mode th.column-dragging {
+  cursor: grabbing;
+}
+
+.bugs-table th[data-column-draggable="true"] .table-sort-button {
+  cursor: inherit;
+}
+
+.bugs-table th.column-dragging {
+  color: var(--color-text-primary);
+  opacity: 0.62;
+  outline: var(--border-width-strong) solid var(--color-primary);
+  outline-offset: -3px;
+}
+
+.bugs-table th.column-reorder-before::before,
+.bugs-table th.column-reorder-after::after {
+  content: "";
+  position: absolute;
+  top: var(--space-2);
+  bottom: var(--space-2);
+  z-index: 6;
+  width: 3px;
+  border-radius: var(--radius-pill);
+  background: var(--color-primary);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-primary), transparent 82%);
+  pointer-events: none;
+}
+
+.bugs-table th.column-reorder-before::before {
+  left: 0;
+}
+
+.bugs-table th.column-reorder-after::after {
+  right: 0;
+}
+
+.bugs-table .bugs-date-cell,
+.bugs-table .bugs-number-cell {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  white-space: nowrap;
+}
+
+.bugs-table .bugs-number-cell {
+  text-align: right;
+}
+
+.bugs-table .bugs-compact-text-cell,
+.bugs-table .bugs-url-cell {
+  min-width: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-heading);
+  overflow-wrap: anywhere;
+}
+
+.bugs-table .bugs-url-cell {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .bugs-two-line-heading,
@@ -294,13 +425,35 @@ html[data-theme] .bugs-screen.work-item-screen .section-head .toolbar > button:h
 
 .bug-context-project,
 .bug-context-sprint {
-  overflow: hidden;
-  text-overflow: ellipsis;
+  overflow: visible;
+  text-overflow: clip;
   white-space: nowrap;
 }
 
 .bug-context-sprint {
   margin-top: var(--space-1);
+}
+
+.bugs-table .bug-context-cell,
+.bugs-table .bug-title-cell,
+.bugs-table .work-item-code-line,
+.bugs-table .work-item-title {
+  white-space: nowrap;
+}
+
+.bugs-table .bug-title-cell {
+  width: max-content;
+  min-width: max-content;
+}
+
+.bugs-table .bug-context-cell {
+  width: max-content;
+  min-width: max-content;
+  max-width: none;
+}
+
+.bugs-table .work-item-title {
+  overflow-wrap: normal;
 }
 
 .bugs-avatar-cell {

@@ -22,3 +22,9 @@ Dev Task Screen
 
 11.) Let's make the % Column take up 40% of the table's width by default, but allow it to shrink as needed.
 12.) When adding a new column into the table, don't add it to the last spot where the % Column is, add it just before.
+13.) Update the Filter's Assigned section to be the same as the New/Edit dialog box's Assignees section.
+
+Bug Tracking Screen
+-------------------
+1.) For everything we have done so far in this conversation on the Dev Task screen and the Filter dialog box, apply the same treatment on the Bug Tracking Screen.
+

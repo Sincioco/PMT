@@ -206,6 +206,15 @@ html[data-theme] .tasks-screen.work-item-screen .work-item-table .icon-action:di
   min-width: 0;
 }
 
+.task-filter-dialog .filter-check-list.user-card-check-list {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: stretch;
+}
+
+.task-filter-dialog .filter-check-list.user-card-check-list label {
+  align-items: center;
+}
+
 .tasks-filter-panel .task-filter-row {
   align-items: flex-end;
 }

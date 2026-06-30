@@ -1,7 +1,7 @@
 import { taskRowAvatarsHtml } from "../../components/avatars.js";
 import { buttonContent, chartIconHtml, funnelIconHtml } from "../../components/buttons.js?v=20260621-dev-task-icons";
 import { VisualCharts } from "../../components/charts.js?v=20260628-chart-native-tooltips";
-import { checkedFilterValues, filterCheckList } from "../../components/filters.js?v=20260621-task-filter-layout";
+import { checkedFilterValues, filterCheckList } from "../../components/filters.js?v=20260630-filter-renderer";
 import {
   checkList,
   checkedNumbers,
@@ -14,6 +14,7 @@ import {
   selectField,
   selectOptionsField,
   selectTextField,
+  userCardCheckListLabelHtml,
   value
 } from "../../components/forms.js?v=20260629-avatar-jpg-assets";
 import { progressHtml, statusColor } from "../../components/progress-and-status.js?v=20260627-dev-task-status-rules";
@@ -349,15 +350,22 @@ export function createTasksFeature({
         <div class="filter-stack">
           ${filterCheckList("Status", "task-status", statuses.map(value => ({ value, text: value })), taskFilters.statuses)}
           ${filterCheckList("Priority", "task-priority", priorities.map(value => ({ value, text: value })), taskFilters.priorities)}
-          ${filterCheckList("Assigned", "task-assigned", state.users.map(user => ({
-            value: user.id,
-            text: user.nickname,
-            avatarUrl: user.avatarUrl
-          })), taskFilters.assigneeIds)}
+          ${filterCheckList("Assignees", "task-assigned", taskUserFilterItems(), taskFilters.assigneeIds, {
+            className: "user-card-check-list",
+            renderItem: userCardCheckListLabelHtml
+          })}
           ${filterCheckList("Columns", "task-column", taskColumnFilterItems(), taskColumnPrefs.visible)}
         </div>
       </div>
     `;
+  }
+
+  function taskUserFilterItems() {
+    return state.users.map(user => ({
+      ...user,
+      value: user.id,
+      text: user.nickname
+    }));
   }
 
   function applyTaskFilterChange(target) {
