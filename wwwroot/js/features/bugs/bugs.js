@@ -52,6 +52,11 @@ import {
   toDateInput
 } from "../../shared/dates.js?v=20260620-null-end-date";
 import { normalizeSavedArray } from "../../shared/filter-values.js";
+import {
+  downloadCsv,
+  exportFileName,
+  openExportDialog
+} from "../../shared/table-export.js?v=20260630-csv-export";
 import { canEditTask } from "../../shared/permissions.js";
 import {
   projectById,
@@ -135,6 +140,7 @@ export function createBugsFeature({
         ${bugTableMode.buttonHtml()}
         <button class="secondary text-icon-button" type="button" data-action="toggle-bug-visual-charts" title="${chartToggleLabel}" aria-label="${chartToggleLabel}" aria-pressed="${showCharts}" ${canShowCharts ? "" : "disabled"}>${buttonContent(chartIconHtml(), chartToggleLabel)}</button>
         <button class="secondary text-icon-button" type="button" data-action="open-bug-filters" title="Filters" aria-label="Filters" aria-haspopup="dialog">${buttonContent(funnelIconHtml(), "Filters")}</button>
+        <button class="secondary text-icon-button" type="button" data-action="export-bug-view" title="Export" aria-label="Export" aria-haspopup="dialog">${buttonContent("&#8681;", "Export")}</button>
         <button class="secondary text-icon-button" type="button" data-action="reset-bug-view" title="Reset View" aria-label="Reset View">${buttonContent("&#8634;", "Reset View")}</button>
       `)}
       ${showCharts ? bugVisualTrackingChartsHtml(baseBugs, allProjectBugs) : ""}
@@ -185,6 +191,10 @@ export function createBugsFeature({
     }
     if (action === "open-bug-filters" || action === "toggle-bug-filters") {
       openBugFiltersDialog();
+      return true;
+    }
+    if (action === "export-bug-view") {
+      openBugExportDialog();
       return true;
     }
     if (action === "toggle-bug-visual-charts") {
@@ -1244,6 +1254,78 @@ export function createBugsFeature({
     if (state.column === column && state.direction === "asc") return `Sort ${label} descending`;
     if (state.column === column && state.direction === "desc") return `Clear ${label} sort`;
     return `Sort ${label} ascending`;
+  }
+
+  function openBugExportDialog() {
+    openExportDialog({
+      title: "Export Bug Tracking",
+      onCsvExport: exportBugCsv
+    });
+  }
+
+  function exportBugCsv() {
+    const rows = bugExportRows();
+    const headers = {
+      reporterHeader: bugRowsHaveMultipleUsers(rows, bug => bug.reporters) ? "Reporters" : "Reporter",
+      assigneeHeader: bugRowsHaveMultipleUsers(rows, bug => bug.assignees) ? "Assignees" : "Assignee"
+    };
+    const columns = bugExportColumns(bugVisibleTableColumns(headers));
+
+    downloadCsv(exportFileName("pmt-bug-tracking"), columns, rows);
+  }
+
+  function bugExportRows() {
+    const sprintFilterSprints = bugSprintFilterSprints();
+    ensureBugSprintFilter(sprintFilterSprints);
+    const allProjectBugs = state.tasks
+      .filter(task => task.taskType === "Bug")
+      .filter(bug => !bugFilters.projectId || bug.projectId === Number(bugFilters.projectId));
+    const baseBugs = allProjectBugs
+      .filter(bug => !bugFilters.sprintId || bugFilters.sprintId === "all" || bug.sprintId === Number(bugFilters.sprintId));
+
+    return filteredBugReports(baseBugs);
+  }
+
+  function bugExportColumns(visibleColumns) {
+    return visibleColumns.flatMap(column => {
+      if (column.key === "reporter") return [{ header: column.headerLabel || column.label, value: bug => userNames(bug.reporters) }];
+      if (column.key === "assignee") return [{ header: column.headerLabel || column.label, value: bug => userNames(bug.assignees) }];
+      if (column.key === "context") {
+        return [
+          { header: "Project", value: bug => projectName(bug.projectId) },
+          { header: "Sprint", value: bug => bugTableSprintLabel(bug) }
+        ];
+      }
+      if (column.key === "bug") {
+        return [
+          { header: "Bug Code", value: bug => bug.code },
+          { header: "Bug Name", value: bug => bug.title }
+        ];
+      }
+
+      return [{ header: column.label, value: bug => bugExportValue(column.key, bug) }];
+    });
+  }
+
+  function bugExportValue(columnKey, bug) {
+    if (columnKey === "status") return bug.status;
+    if (columnKey === "severity") return bug.severity || "";
+    if (columnKey === "priority") return bug.priority;
+    if (columnKey === "percent") return taskDisplayPercent(bug);
+    if (columnKey === "environment") return bug.environment || "";
+    if (columnKey === "startDate") return formatDate(bug.startDate);
+    if (columnKey === "endDate") return formatDate(bug.endDate);
+    if (columnKey === "startedAt") return formatDateTime(bug.startedAt);
+    if (columnKey === "linkedDevTasks") return bugLinkedDevTasksLabel(bug);
+    if (columnKey === "dependencies") return bugDependencyLabel(bug);
+    if (columnKey === "url") return bug.url || "";
+    if (columnKey === "attachmentCount") return bug.attachments?.length || "";
+    if (columnKey === "sortOrder") return bug.sortOrder ?? "";
+    if (columnKey === "createdBy") return bugUserName(bug.createdByUserId);
+    if (columnKey === "createdAt") return formatDateTime(bug.createdAt);
+    if (columnKey === "updatedBy") return bugUserName(bug.updatedByUserId);
+    if (columnKey === "updatedAt") return formatDateTime(bug.updatedAt);
+    return "";
   }
 
   function resetBugView() {

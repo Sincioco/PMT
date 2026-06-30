@@ -26,6 +26,11 @@ import {
 } from "../../shared/dates.js?v=20260620-null-end-date";
 import { normalizeSavedArray } from "../../shared/filter-values.js";
 import {
+  downloadCsv,
+  exportFileName,
+  openExportDialog
+} from "../../shared/table-export.js?v=20260630-csv-export";
+import {
   projectName,
   sprintName,
   taskById,
@@ -89,6 +94,7 @@ export function createBacklogFeature({
           <button class="primary text-icon-button" type="button" data-action="new-backlog-bug" title="New Bug Report" aria-label="New Bug Report">${buttonContent(bugIconHtml(), "New Bug Report")}</button>
           ${backlogTableMode.buttonHtml()}
           <button class="secondary text-icon-button" type="button" data-action="open-backlog-filters" title="Filters" aria-label="Filters" aria-haspopup="dialog">${buttonContent(funnelIconHtml(), "Filters")}</button>
+          <button class="secondary text-icon-button" type="button" data-action="export-backlog-view" title="Export" aria-label="Export" aria-haspopup="dialog">${buttonContent("&#8681;", "Export")}</button>
           <button class="secondary text-icon-button" type="button" data-action="reset-backlog-view" title="Reset View" aria-label="Reset View">${buttonContent("&#8634;", "Reset View")}</button>
         `)}
         <div class="panel work-item-table-panel backlog-table-panel">
@@ -166,6 +172,10 @@ export function createBacklogFeature({
     }
     if (action === "open-backlog-filters") {
       openBacklogFiltersDialog();
+      return true;
+    }
+    if (action === "export-backlog-view") {
+      openBacklogExportDialog();
       return true;
     }
     if (action === "reset-backlog-view") {
@@ -1297,6 +1307,67 @@ export function createBacklogFeature({
     if (state.column === column && state.direction === "asc") return `Sort ${label} descending`;
     if (state.column === column && state.direction === "desc") return `Clear ${label} sort`;
     return `Sort ${label} ascending`;
+  }
+
+  function openBacklogExportDialog() {
+    openExportDialog({
+      title: "Export Backlog",
+      onCsvExport: exportBacklogCsv
+    });
+  }
+
+  function exportBacklogCsv() {
+    const rows = backlogExportRows();
+    const assigneeHeader = backlogRowsHaveMultipleAssignees(rows) ? "Assignees" : "Assignee";
+    const columns = backlogExportColumns(backlogVisibleTableColumns(assigneeHeader));
+
+    downloadCsv(exportFileName("pmt-backlog"), columns, rows);
+  }
+
+  function backlogExportRows() {
+    ensureBacklogFilters();
+    return backlogRowsWithVisibleSubTasks(filteredBacklogItems());
+  }
+
+  function backlogExportColumns(visibleColumns) {
+    return visibleColumns.flatMap(column => {
+      if (column.key === "assigned") return [{ header: column.headerLabel || column.label, value: row => userNames(row.task.assignees) }];
+      if (column.key === "item") {
+        return [
+          { header: "Item Code", value: row => row.task.code },
+          { header: "Item Name", value: row => row.task.title },
+          { header: "Row Type", value: row => row.level ? "Subtask" : "Item" }
+        ];
+      }
+      if (column.key === "reporter") return [{ header: column.headerLabel || column.label, value: row => userNames(row.task.reporters) }];
+
+      return [{ header: column.label, value: row => backlogExportValue(column.key, row.task) }];
+    });
+  }
+
+  function backlogExportValue(columnKey, task) {
+    if (columnKey === "type") return backlogTaskTypeLabel(task);
+    if (columnKey === "project") return projectName(task.projectId);
+    if (columnKey === "sprint") return backlogSprintLabel(task);
+    if (columnKey === "status") return task.status;
+    if (columnKey === "priority") return task.priority;
+    if (columnKey === "percent") return taskDisplayPercent(task);
+    if (columnKey === "severity") return task.taskType === "Bug" ? task.severity || "" : "";
+    if (columnKey === "environment") return task.environment || "";
+    if (columnKey === "startDate") return formatDate(task.startDate);
+    if (columnKey === "endDate") return formatDate(task.endDate);
+    if (columnKey === "startedAt") return formatDateTime(task.startedAt);
+    if (columnKey === "parentTask") return backlogRelatedTaskLabel(task.parentTaskId);
+    if (columnKey === "linkedBug") return backlogLinkedBugLabel(task);
+    if (columnKey === "dependencies") return backlogDependencyLabel(task);
+    if (columnKey === "url") return task.url || "";
+    if (columnKey === "attachmentCount") return task.attachments?.length || "";
+    if (columnKey === "sortOrder") return task.sortOrder ?? "";
+    if (columnKey === "createdBy") return backlogUserName(task.createdByUserId);
+    if (columnKey === "createdAt") return formatDateTime(task.createdAt);
+    if (columnKey === "updatedBy") return backlogUserName(task.updatedByUserId);
+    if (columnKey === "updatedAt") return formatDateTime(task.updatedAt);
+    return "";
   }
 
   function resetBacklogView() {

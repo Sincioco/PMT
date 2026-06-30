@@ -41,5 +41,6 @@ Export
 2.) When the Export button is clicked, present a dialog box that asks the user if they want to export a .CSV file or an Excel file.
 3.) If a CSV file, simply export whatever is presently on the grid as best as you can into a .CSV file. Preferrably, each column only contains 1 piece of information (that means, for the Project/Sprint column, separate them).
 4.) If an Excel file, do the same as in the CSV except make it a native .xlsx file so the user does not get prompted to improt it in Excel like a .csv file would.
-
-5.) Additionally, in both the CSV and Excel file, I would like you to include additional columns that would allow the user to import the CSV and Excel file back into PMT and update the necessary records.
+5.) For the Excel file export, I would like you to include additional columns that would allow the user to import the Excel file back into PMT and update the necessary rows in bulk.  Include whatever extra columns, hash, etc, you need in order to be able to import the file back in PMT.  So, if it is a Dev Task, to be able to update, Task Name, Percent Completed, Status and Priority, Assignees.  Place a blank column between the real data that the user exported (what is displayed on the curren table of the Dev Task table, Bug Tracking table or Backlog table) and the additional information you need for the import process, so the user can visually distinguish between data columns and system/import related columns.
+6.) Add an Import button so the user can import an Excel file.
+7.) Just so I don't run out of Codex quota mid-way through this task, do the Export to CSV path first, and do the Excel export/import after.

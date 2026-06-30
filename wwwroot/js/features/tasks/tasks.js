@@ -48,6 +48,11 @@ import {
   toDateInput
 } from "../../shared/dates.js?v=20260620-null-end-date";
 import { normalizeSavedArray } from "../../shared/filter-values.js";
+import {
+  downloadCsv,
+  exportFileName,
+  openExportDialog
+} from "../../shared/table-export.js?v=20260630-csv-export";
 import { canEditTask } from "../../shared/permissions.js";
 import {
   projectName,
@@ -143,6 +148,7 @@ export function createTasksFeature({
         ${taskTableMode.buttonHtml()}
         <button class="secondary text-icon-button" type="button" data-action="toggle-task-visual-charts" title="${chartToggleLabel}" aria-label="${chartToggleLabel}" aria-pressed="${showCharts}" ${canShowCharts ? "" : "disabled"}>${buttonContent(chartIconHtml(), chartToggleLabel)}</button>
         <button class="secondary text-icon-button" type="button" data-action="open-task-filters" title="Filters" aria-label="Filters" aria-haspopup="dialog">${buttonContent(funnelIconHtml(), "Filters")}</button>
+        <button class="secondary text-icon-button" type="button" data-action="export-task-view" title="Export" aria-label="Export" aria-haspopup="dialog">${buttonContent("&#8681;", "Export")}</button>
         <button class="secondary text-icon-button" type="button" data-action="reset-task-view" title="Reset View" aria-label="Reset View">${buttonContent("&#8634;", "Reset View")}</button>
       `)}
       ${showCharts ? taskVisualTrackingChartsHtml(baseTasks, selectedSprint, allProjectDevTasks) : ""}
@@ -212,6 +218,10 @@ export function createTasksFeature({
     }
     if (action === "open-task-filters" || action === "toggle-task-filters") {
       openTaskFiltersDialog();
+      return true;
+    }
+    if (action === "export-task-view") {
+      openTaskExportDialog();
       return true;
     }
     if (action === "toggle-task-visual-charts") {
@@ -1531,6 +1541,75 @@ export function createTasksFeature({
     if (state.column === column && state.direction === "asc") return `Sort ${label} descending`;
     if (state.column === column && state.direction === "desc") return `Clear ${label} sort`;
     return `Sort ${label} ascending`;
+  }
+
+  function openTaskExportDialog() {
+    openExportDialog({
+      title: "Export Dev Tasks",
+      onCsvExport: exportTaskCsv
+    });
+  }
+
+  function exportTaskCsv() {
+    const rows = taskExportRows();
+    const assigneeHeader = taskRowsHaveMultipleAssignees(rows) ? "Assignees" : "Assignee";
+    const columns = taskExportColumns(taskVisibleTableColumns(assigneeHeader));
+
+    downloadCsv(exportFileName("pmt-dev-tasks"), columns, rows);
+  }
+
+  function taskExportRows() {
+    ensureSelectedProject();
+    const projectSprints = taskProjectSprints();
+    const selectedSprint = taskSelectedSprint(projectSprints);
+    const allProjectDevTasks = state.tasks
+      .filter(task => !taskProjectId || task.projectId === taskProjectId)
+      .filter(task => task.taskType !== "Bug");
+    const baseTasks = allProjectDevTasks
+      .filter(task => taskMatchesSprintFilter(task, selectedSprint));
+
+    return taskRowsWithVisibleSubTasks(filteredTaskList(baseTasks));
+  }
+
+  function taskExportColumns(visibleColumns) {
+    return visibleColumns.flatMap(column => {
+      if (column.key === "assignee") return [{ header: column.headerLabel || column.label, value: row => userNames(row.task.assignees) }];
+      if (column.key === "context") {
+        return [
+          { header: "Project", value: row => projectName(row.task.projectId) },
+          { header: "Sprint", value: row => taskTableSprintLabel(row.task) }
+        ];
+      }
+      if (column.key === "task") {
+        return [
+          { header: "Task Code", value: row => row.task.code },
+          { header: "Task Name", value: row => row.task.title },
+          { header: "Row Type", value: row => row.level ? "Subtask" : "Task" }
+        ];
+      }
+
+      return [{ header: column.label, value: row => taskExportValue(column.key, row.task) }];
+    });
+  }
+
+  function taskExportValue(columnKey, task) {
+    if (columnKey === "priority") return task.priority;
+    if (columnKey === "status") return task.status;
+    if (columnKey === "percent") return taskDisplayPercent(task);
+    if (columnKey === "startDate") return formatDate(task.startDate);
+    if (columnKey === "endDate") return formatDate(task.endDate);
+    if (columnKey === "startedAt") return formatDateTime(task.startedAt);
+    if (columnKey === "parentTask") return taskRelatedTaskLabel(task.parentTaskId);
+    if (columnKey === "linkedBug") return taskLinkedBugLabel(task);
+    if (columnKey === "dependencies") return taskDependencyLabel(task);
+    if (columnKey === "url") return task.url || "";
+    if (columnKey === "attachmentCount") return task.attachments?.length || "";
+    if (columnKey === "sortOrder") return task.sortOrder ?? "";
+    if (columnKey === "createdBy") return taskUserName(task.createdByUserId);
+    if (columnKey === "createdAt") return formatDateTime(task.createdAt);
+    if (columnKey === "updatedBy") return taskUserName(task.updatedByUserId);
+    if (columnKey === "updatedAt") return formatDateTime(task.updatedAt);
+    return "";
   }
 
   function resetTaskView() {
