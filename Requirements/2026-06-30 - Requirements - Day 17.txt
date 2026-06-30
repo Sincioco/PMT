@@ -28,3 +28,6 @@ Bug Tracking Screen
 -------------------
 1.) For everything we have done so far in this conversation on the Dev Task screen and the Filter dialog box, apply the same treatment on the Bug Tracking Screen.
 
+Backlog Screen
+-------------------
+1.) Give the same treatment to the Backlog Screen.

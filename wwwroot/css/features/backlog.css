@@ -103,7 +103,11 @@ html[data-theme] .backlog-screen.work-item-screen .work-item-table .icon-action:
 }
 
 .backlog-table {
-  min-width: 1400px;
+  min-width: var(--backlog-table-min-width, 1274px);
+}
+
+.backlog-screen .backlog-table {
+  table-layout: auto;
 }
 
 .backlog-expand-column {
@@ -115,15 +119,15 @@ html[data-theme] .backlog-screen.work-item-screen .work-item-table .icon-action:
 }
 
 .backlog-item-column {
-  width: 310px;
+  width: 320px;
 }
 
 .backlog-type-column {
-  width: 110px;
+  width: 96px;
 }
 
 .backlog-project-column {
-  width: 210px;
+  width: 190px;
 }
 
 .backlog-sprint-column {
@@ -135,11 +139,54 @@ html[data-theme] .backlog-screen.work-item-screen .work-item-table .icon-action:
 }
 
 .backlog-priority-column {
-  width: 100px;
+  width: 96px;
 }
 
 .backlog-complete-column {
-  width: 220px;
+  width: 180px;
+}
+
+.backlog-complete-column.backlog-rubber-column {
+  width: 40%;
+  min-width: 10%;
+  max-width: 40%;
+}
+
+.backlog-reporter-column {
+  width: 112px;
+}
+
+.backlog-severity-column {
+  width: 96px;
+}
+
+.backlog-environment-column,
+.backlog-user-column {
+  width: 132px;
+}
+
+.backlog-date-column {
+  width: 116px;
+}
+
+.backlog-date-time-column {
+  width: 156px;
+}
+
+.backlog-related-column {
+  width: 170px;
+}
+
+.backlog-url-column {
+  width: 180px;
+}
+
+.backlog-count-column {
+  width: 104px;
+}
+
+.backlog-number-column {
+  width: 96px;
 }
 
 .backlog-action-column {
@@ -168,14 +215,102 @@ html[data-theme] .backlog-screen.work-item-screen .work-item-table .icon-action:
 }
 
 .backlog-table .done-cell {
-  min-width: 220px;
+  min-width: 180px;
   padding-right: var(--space-7);
   position: relative;
   z-index: 1;
 }
 
+.backlog-rubber-column {
+  width: 100%;
+}
+
+.backlog-table .backlog-rubber-cell {
+  min-width: 0;
+}
+
+.backlog-table .backlog-rubber-cell.done-cell {
+  min-width: 0;
+}
+
+.backlog-table .backlog-complete-cell.backlog-rubber-cell {
+  width: 40%;
+  min-width: 10%;
+  max-width: 40%;
+}
+
 .backlog-table.is-read-mode .done-cell {
   padding-right: var(--space-10);
+}
+
+.backlog-table.is-edit-mode th[data-column-draggable="true"] {
+  cursor: grab;
+  user-select: none;
+  touch-action: none;
+}
+
+.backlog-table.is-edit-mode th[data-column-draggable="true"]:active,
+.backlog-table.is-edit-mode th.column-dragging {
+  cursor: grabbing;
+}
+
+.backlog-table th[data-column-draggable="true"] .table-sort-button {
+  cursor: inherit;
+}
+
+.backlog-table th.column-dragging {
+  color: var(--color-text-primary);
+  opacity: 0.62;
+  outline: var(--border-width-strong) solid var(--color-primary);
+  outline-offset: -3px;
+}
+
+.backlog-table th.column-reorder-before::before,
+.backlog-table th.column-reorder-after::after {
+  content: "";
+  position: absolute;
+  top: var(--space-2);
+  bottom: var(--space-2);
+  z-index: 6;
+  width: 3px;
+  border-radius: var(--radius-pill);
+  background: var(--color-primary);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-primary), transparent 82%);
+  pointer-events: none;
+}
+
+.backlog-table th.column-reorder-before::before {
+  left: 0;
+}
+
+.backlog-table th.column-reorder-after::after {
+  right: 0;
+}
+
+.backlog-table .backlog-date-cell,
+.backlog-table .backlog-number-cell {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  white-space: nowrap;
+}
+
+.backlog-table .backlog-number-cell {
+  text-align: right;
+}
+
+.backlog-table .backlog-compact-text-cell,
+.backlog-table .backlog-url-cell {
+  min-width: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-heading);
+  overflow-wrap: anywhere;
+}
+
+.backlog-table .backlog-url-cell {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .backlog-table .work-item-code,
@@ -185,6 +320,18 @@ html[data-theme="light"] .backlog-screen.work-item-screen .work-item-table .work
 }
 
 .backlog-assignee-cell {
+  position: relative;
+  z-index: 2;
+  overflow: visible;
+}
+
+.backlog-table .backlog-avatar-heading,
+.backlog-table .backlog-assignee-cell,
+.backlog-table .backlog-reporter-cell {
+  padding-right: var(--space-9);
+}
+
+.backlog-reporter-cell {
   position: relative;
   z-index: 2;
   overflow: visible;
@@ -223,6 +370,30 @@ html[data-theme="light"] .backlog-screen.work-item-screen .work-item-table .work
   align-items: center;
   min-height: 18px;
   margin-bottom: var(--space-1);
+}
+
+.backlog-table .backlog-title-cell,
+.backlog-table .backlog-project-cell,
+.backlog-table .backlog-sprint-cell,
+.backlog-table .work-item-code-line,
+.backlog-table .work-item-title {
+  white-space: nowrap;
+}
+
+.backlog-table .backlog-title-cell {
+  width: max-content;
+  min-width: max-content;
+}
+
+.backlog-table .backlog-project-cell,
+.backlog-table .backlog-sprint-cell {
+  width: max-content;
+  min-width: max-content;
+  max-width: none;
+}
+
+.backlog-table .work-item-title {
+  overflow-wrap: normal;
 }
 
 .subtask-row .backlog-assignee-cell,
@@ -264,7 +435,7 @@ html[data-theme="light"] .backlog-table .subtask-row .backlog-assignee-cell {
   white-space: normal;
 }
 
-.backlog-filter-dialog .backlog-filter-row select {
+.backlog-filter-dialog .backlog-filter-row > label > :is(input, select) {
   width: 100%;
   min-width: 0;
   max-width: none;
@@ -287,9 +458,26 @@ html[data-theme="light"] .backlog-table .subtask-row .backlog-assignee-cell {
   text-transform: none;
 }
 
+.backlog-filter-dialog .filter-check-list label {
+  min-width: 0;
+}
+
+.backlog-filter-dialog .filter-check-list.user-card-check-list {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: stretch;
+}
+
+.backlog-filter-dialog .filter-check-list.user-card-check-list label {
+  align-items: center;
+}
+
 @media (max-width: 900px) {
   .backlog-filter-dialog .backlog-filter-row,
   .backlog-filter-dialog .filter-check-list {
+    grid-template-columns: 1fr;
+  }
+
+  .backlog-filter-dialog .filter-check-list.user-card-check-list {
     grid-template-columns: 1fr;
   }
 }

@@ -28,7 +28,7 @@ import {
 } from "./core/screen-registry.js";
 import { state } from "./core/store.js";
 import { createAboutFeature } from "./features/about/about.js?v=20260621-about-credits";
-import { createBacklogFeature } from "./features/backlog/backlog.js?v=20260629-avatar-jpg-assets";
+import { createBacklogFeature } from "./features/backlog/backlog.js?v=20260630-backlog-task-parity";
 import { createBoardFeature } from "./features/board/board.js?v=20260629-avatar-jpg-assets";
 import { createBugsFeature } from "./features/bugs/bugs.js?v=20260630-bug-task-parity";
 import { createDashboardFeature } from "./features/dashboard/dashboard.js?v=20260627-dev-task-status-rules";

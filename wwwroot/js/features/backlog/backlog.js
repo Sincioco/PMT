@@ -3,7 +3,10 @@ import { bugIconHtml, buttonContent, funnelIconHtml, iconButton } from "../../co
 import {
   checkedFilterValues,
   filterCheckList
-} from "../../components/filters.js";
+} from "../../components/filters.js?v=20260630-filter-renderer";
+import {
+  userCardCheckListLabelHtml
+} from "../../components/forms.js?v=20260629-avatar-jpg-assets";
 import { progressHtml } from "../../components/progress-and-status.js?v=20260627-dev-task-status-rules";
 import { sectionHead } from "../../components/sections.js";
 import {
@@ -14,13 +17,18 @@ import {
   preferenceKeys,
   readJsonPreference,
   writeJsonPreference
-} from "../../core/preferences.js?v=20260629-backlog-subtasks";
+} from "../../core/preferences.js?v=20260630-backlog-task-parity";
 import { state } from "../../core/store.js";
+import {
+  formatDate,
+  formatDateTime
+} from "../../shared/dates.js?v=20260620-null-end-date";
 import { normalizeSavedArray } from "../../shared/filter-values.js";
 import {
   projectName,
   sprintName,
-  taskById
+  taskById,
+  userById
 } from "../../shared/selectors.js";
 import {
   escapeAttr,
@@ -30,7 +38,8 @@ import {
   taskCreatedTime,
   taskDisplayPercent,
   taskOrderCompare,
-  taskRowsWithSubTasks
+  taskRowsWithSubTasks,
+  associatedBugForDevTask
 } from "../../shared/work-item-rules.js?v=20260627-dev-task-status-rules";
 
 export function createBacklogFeature({
@@ -44,19 +53,21 @@ export function createBacklogFeature({
 }) {
   let backlogFilters = readJsonPreference(preferenceKeys.backlogFilters, {});
   let backlogCollapsedSubTasks = readJsonPreference(preferenceKeys.backlogCollapsedSubTasks, {});
+  let backlogColumnPrefs = normalizeBacklogColumnPrefs(readJsonPreference(preferenceKeys.backlogTableColumns, {}));
+  let backlogColumnDrag = null;
+  let lastBacklogColumnPointerDragAt = 0;
+  let suppressNextBacklogColumnClick = false;
   const backlogTableMode = createWorkItemTableMode({
     action: "toggle-backlog-table-edit-mode",
     itemLabel: "Backlog"
   });
 
-  backlogFilters.taskTypes = normalizeSavedArray(backlogFilters.taskTypes);
-  backlogFilters.priorities = normalizeSavedArray(backlogFilters.priorities);
-  backlogFilters.assigneeIds = normalizeSavedArray(backlogFilters.assigneeIds);
-  backlogFilters.sprintId = backlogFilters.sprintId || "all";
-  backlogFilters.sort = backlogFilters.sort || "custom";
+  backlogFilters = normalizeBacklogFilters(backlogFilters);
   if (!backlogCollapsedSubTasks || Array.isArray(backlogCollapsedSubTasks) || typeof backlogCollapsedSubTasks !== "object") {
     backlogCollapsedSubTasks = {};
   }
+
+  bindBacklogColumnDragEvents();
 
   function renderBacklog() {
     ensureBacklogFilters();
@@ -65,6 +76,8 @@ export function createBacklogFeature({
     const backlogRows = backlogRowsWithVisibleSubTasks(backlogItems);
     const assigneeColumnWidth = backlogAssigneeColumnWidth(backlogRows);
     const assigneeHeader = backlogRowsHaveMultipleAssignees(backlogRows) ? "Assignee(s)" : "Assignee";
+    const visibleBacklogColumns = backlogVisibleTableColumns(assigneeHeader);
+    const emptyTableColspan = visibleBacklogColumns.length + (backlogTableMode.active ? 2 : 1);
 
     app.innerHTML = `
       <section class="backlog-screen work-item-screen">
@@ -75,30 +88,16 @@ export function createBacklogFeature({
           <button class="secondary text-icon-button" type="button" data-action="open-backlog-filters" title="Filters" aria-label="Filters" aria-haspopup="dialog">${buttonContent(funnelIconHtml(), "Filters")}</button>
         `)}
         <div class="panel work-item-table-panel backlog-table-panel">
-          <table class="table work-item-table backlog-table ${backlogTableMode.active ? "is-edit-mode" : "is-read-mode"}" style="--backlog-assignee-width:${assigneeColumnWidth}px">
+          <table class="table work-item-table backlog-table ${backlogTableMode.active ? "is-edit-mode" : "is-read-mode"}" style="--backlog-assignee-width:${assigneeColumnWidth}px; --backlog-table-min-width:${backlogTableMinWidth(visibleBacklogColumns)}px">
             <colgroup>
               <col class="backlog-expand-column">
-              <col class="backlog-assigned-column">
-              <col class="backlog-item-column">
-              <col class="backlog-type-column">
-              <col class="backlog-project-column">
-              <col class="backlog-sprint-column">
-              <col class="backlog-status-column">
-              <col class="backlog-priority-column">
-              <col class="backlog-complete-column">
+              ${visibleBacklogColumns.map((column, index) => backlogTableColumnColHtml(column, backlogColumnIsRubber(visibleBacklogColumns, index))).join("")}
               ${backlogTableMode.active ? `<col class="backlog-action-column">` : ""}
             </colgroup>
             <thead>
               <tr>
                 <th class="backlog-expand-heading" aria-label="Expand or collapse sub-tasks"></th>
-                ${backlogSortHeaderHtml("assigned", assigneeHeader)}
-                ${backlogSortHeaderHtml("item", "Item")}
-                ${backlogSortHeaderHtml("type", "Type")}
-                ${backlogSortHeaderHtml("project", "Project")}
-                ${backlogSortHeaderHtml("sprint", "Sprint")}
-                ${backlogSortHeaderHtml("status", "Status")}
-                ${backlogSortHeaderHtml("priority", "Priority")}
-                ${backlogSortHeaderHtml("percent", "% Complete", "done-cell")}
+                ${visibleBacklogColumns.map((column, index) => backlogColumnHeaderHtml(column, backlogColumnIsRubber(visibleBacklogColumns, index))).join("")}
                 ${backlogTableMode.active ? `<th class="action-cell" aria-label="Actions"></th>` : ""}
               </tr>
             </thead>
@@ -113,30 +112,16 @@ export function createBacklogFeature({
                   hasVisibleSubTasks && isSubTasksCollapsed ? "is-subtasks-collapsed" : "",
                   "clickable-row"
                 ].filter(Boolean).join(" ");
-                const titleClass = row.level ? "work-item-title-cell backlog-subtask-title-cell" : "work-item-title-cell";
                 const indent = Math.min(row.level, 4) * 20;
 
                 return `
                 <tr class="${rowClass}" data-action="view-backlog-task" data-id="${task.id}" data-task-id="${task.id}" data-can-drag="${backlogTableMode.active ? "true" : "false"}" draggable="false" style="--indent:${indent}px">
                   <td class="backlog-expand-cell">${hasVisibleSubTasks ? backlogSubTaskToggleHtml(task, isSubTasksCollapsed) : ""}</td>
-                  <td class="backlog-assignee-cell">${taskRowAvatarsHtml(task.assignees)}</td>
-                  <td class="${titleClass}">
-                    <span class="work-item-code-line">
-                      <strong class="work-item-code">${escapeHtml(task.code)}</strong>
-                      ${row.level ? `<span class="subtask-pill">Subtask</span>` : ""}
-                    </span>
-                    <span class="work-item-title">${bugFixIconHtml(task)}${escapeHtml(task.title)}</span>
-                  </td>
-                  <td><span class="pill">${escapeHtml(task.taskType || "Dev")}</span></td>
-                  <td class="work-item-context-cell backlog-project-cell">${escapeHtml(projectName(task.projectId))}</td>
-                  <td class="work-item-context-cell">${task.sprintId ? `<span class="pill sprint-pill">${escapeHtml(sprintName(task.sprintId))}</span>` : `<span class="muted">Unassigned</span>`}</td>
-                  <td class="work-item-context-cell">${escapeHtml(task.status)}</td>
-                  <td><span class="pill priority-${escapeAttr(task.priority)}">${escapeHtml(task.priority)}</span></td>
-                  <td class="done-cell">${workItemTableProgressHtml(taskDisplayPercent(task))}</td>
+                  ${visibleBacklogColumns.map((column, index) => backlogTableColumnCellHtml(column, task, row, backlogColumnIsRubber(visibleBacklogColumns, index))).join("")}
                   ${backlogTableMode.active ? `<td class="reveal-actions action-cell">${backlogTaskButtonsHtml(task)}</td>` : ""}
                 </tr>
               `;
-              }).join("") || `<tr><td colspan="${backlogTableMode.active ? 10 : 9}"><div class="empty">No backlog items match the current filters.</div></td></tr>`}
+              }).join("") || `<tr><td colspan="${emptyTableColspan}"><div class="empty">No backlog items match the current filters.</div></td></tr>`}
             </tbody>
           </table>
         </div>
@@ -214,12 +199,12 @@ export function createBacklogFeature({
     const existingDialog = document.querySelector("[data-backlog-filter-dialog]");
     if (existingDialog) {
       if (!existingDialog.open) existingDialog.showModal?.();
-      existingDialog.querySelector("[data-filter='backlog-project']")?.focus({ preventScroll: true });
+      existingDialog.querySelector("[data-filter='backlog-search']")?.focus({ preventScroll: true });
       return;
     }
 
     const modal = document.createElement("dialog");
-    modal.className = "dialog backlog-filter-dialog";
+    modal.className = "dialog task-filter-dialog backlog-filter-dialog";
     modal.dataset.backlogFilterDialog = "true";
     modal.innerHTML = `
       <form method="dialog">
@@ -227,7 +212,7 @@ export function createBacklogFeature({
           <h2>Backlog Filters</h2>
           <button type="button" class="icon-btn" data-close-backlog-filters title="Close" aria-label="Close">x</button>
         </div>
-        <div class="dialog-body backlog-filter-dialog-body" data-backlog-filter-dialog-body></div>
+        <div class="dialog-body task-filter-dialog-body backlog-filter-dialog-body" data-backlog-filter-dialog-body></div>
         <div class="dialog-actions">
           <button type="button" class="primary text-icon-button" data-close-backlog-filters>${buttonContent("&#10003;", "Done")}</button>
         </div>
@@ -236,6 +221,10 @@ export function createBacklogFeature({
 
     renderBacklogFiltersDialog(modal);
     document.body.appendChild(modal);
+    modal.addEventListener("input", event => {
+      if (!applyBacklogFilterChange(event.target)) return;
+      renderBacklog();
+    });
     modal.addEventListener("change", event => {
       const filter = event.target?.dataset?.filter || "";
       if (!applyBacklogFilterChange(event.target)) return;
@@ -251,7 +240,7 @@ export function createBacklogFeature({
     });
     modal.addEventListener("close", () => modal.remove());
     modal.showModal();
-    modal.querySelector("[data-filter='backlog-project']")?.focus({ preventScroll: true });
+    modal.querySelector("[data-filter='backlog-search']")?.focus({ preventScroll: true });
   }
 
   function renderBacklogFiltersDialog(modal) {
@@ -278,6 +267,10 @@ export function createBacklogFeature({
             </select>
           </label>
           <label>
+            <span>Search</span>
+            <input type="text" data-filter="backlog-search" value="${escapeAttr(backlogFilters.search)}">
+          </label>
+          <label>
             <span>Sort</span>
             <select data-filter="backlog-sort">
               ${backlogSortOptionsHtml()}
@@ -290,14 +283,22 @@ export function createBacklogFeature({
             { value: "Bug", text: "Bug Report" }
           ], backlogFilters.taskTypes)}
           ${filterCheckList("Priority", "backlog-priority", getPriorities().map(priority => ({ value: priority, text: priority })), backlogFilters.priorities)}
-          ${filterCheckList("Assigned", "backlog-assigned", state.users.map(user => ({
-            value: user.id,
-            text: user.nickname,
-            avatarUrl: user.avatarUrl
-          })), backlogFilters.assigneeIds)}
+          ${filterCheckList("Assignees", "backlog-assigned", backlogUserFilterItems(), backlogFilters.assigneeIds, {
+            className: "user-card-check-list",
+            renderItem: userCardCheckListLabelHtml
+          })}
+          ${filterCheckList("Columns", "backlog-column", backlogColumnFilterItems(), backlogColumnPrefs.visible)}
         </div>
       </div>
     `;
+  }
+
+  function backlogUserFilterItems() {
+    return state.users.map(user => ({
+      ...user,
+      value: user.id,
+      text: user.nickname
+    }));
   }
 
   function applyBacklogFilterChange(target) {
@@ -309,13 +310,41 @@ export function createBacklogFeature({
       backlogFilters.sprintId = "all";
     }
     if (filter === "backlog-sprint") backlogFilters.sprintId = target.value || "all";
+    if (filter === "backlog-search") backlogFilters.search = target.value;
     if (filter === "backlog-sort") backlogFilters.sort = target.value;
     if (filter === "backlog-type") backlogFilters.taskTypes = checkedFilterValues("backlog-type");
     if (filter === "backlog-priority") backlogFilters.priorities = checkedFilterValues("backlog-priority");
     if (filter === "backlog-assigned") backlogFilters.assigneeIds = checkedFilterValues("backlog-assigned");
+    if (filter === "backlog-column") {
+      const visibleColumns = checkedFilterValues("backlog-column");
+      if (!visibleColumns.length) {
+        target.checked = true;
+        return false;
+      }
+      const addedColumns = visibleColumns.filter(column => !backlogColumnPrefs.visible.includes(column));
+      backlogColumnPrefs = normalizeBacklogColumnPrefs({
+        ...backlogColumnPrefs,
+        order: backlogColumnOrderWithAddedColumns(backlogColumnPrefs.order, addedColumns),
+        visible: visibleColumns
+      });
+      saveBacklogColumnPrefs();
+      return true;
+    }
 
     writeJsonPreference(preferenceKeys.backlogFilters, backlogFilters);
     return true;
+  }
+
+  function normalizeBacklogFilters(filters = {}) {
+    return {
+      ...filters,
+      taskTypes: normalizeSavedArray(filters.taskTypes),
+      priorities: normalizeSavedArray(filters.priorities),
+      assigneeIds: normalizeSavedArray(filters.assigneeIds),
+      sprintId: filters.sprintId || "all",
+      sort: filters.sort || "custom",
+      search: String(filters.search || "")
+    };
   }
 
   function ensureBacklogFilters() {
@@ -335,6 +364,7 @@ export function createBacklogFeature({
   function filteredBacklogItems() {
     const items = state.tasks
       .filter(task => task.status === "Backlog" || task.status === "Todo")
+      .filter(task => backlogMatchesSearchFilter(task))
       .filter(task => !backlogFilters.projectId || task.projectId === Number(backlogFilters.projectId))
       .filter(task => {
         if (backlogFilters.sprintId === "all") return true;
@@ -348,6 +378,42 @@ export function createBacklogFeature({
     return items.sort(backlogMainTaskSortCompare);
   }
 
+  function backlogMatchesSearchFilter(task) {
+    const term = String(backlogFilters.search || "").trim().toLowerCase();
+    if (!term) return true;
+
+    return backlogSearchValues(task)
+      .map(value => String(value ?? "").toLowerCase())
+      .some(value => value.includes(term));
+  }
+
+  function backlogSearchValues(task) {
+    return [
+      task.code,
+      task.title,
+      backlogTaskTypeLabel(task),
+      projectName(task.projectId),
+      backlogSprintLabel(task),
+      task.status,
+      task.priority,
+      task.severity,
+      task.environment,
+      userNames(task.assignees),
+      userNames(task.reporters),
+      backlogRelatedTaskLabel(task.parentTaskId),
+      backlogLinkedBugLabel(task),
+      backlogDependencyLabel(task),
+      task.url,
+      task.sortOrder,
+      backlogUserName(task.createdByUserId),
+      backlogUserName(task.updatedByUserId),
+      formatDate(task.startDate),
+      formatDate(task.endDate),
+      formatDateTime(task.createdAt),
+      formatDateTime(task.updatedAt)
+    ];
+  }
+
   function workItemTableProgressHtml(percent) {
     const safePercent = Math.max(0, Math.min(100, Number(percent || 0)));
 
@@ -357,6 +423,42 @@ export function createBacklogFeature({
         ${progressHtml(safePercent)}
       </div>
     `;
+  }
+
+  function backlogTaskTypeLabel(task) {
+    return task.taskType === "Bug" ? "Bug" : "Dev";
+  }
+
+  function backlogSprintLabel(task) {
+    return task.sprintId ? sprintName(task.sprintId) : "Unassigned";
+  }
+
+  function backlogRelatedTaskLabel(taskId) {
+    const task = taskId ? taskById(taskId) : null;
+    return task ? backlogDisplayLabel(task) : "";
+  }
+
+  function backlogLinkedBugLabel(task) {
+    if (task.taskType === "Bug") return "";
+    const bug = associatedBugForDevTask(task, task.dependencyTaskIds);
+    return bug ? backlogDisplayLabel(bug) : "";
+  }
+
+  function backlogDependencyLabel(task) {
+    return (task.dependencyTaskIds || [])
+      .map(taskId => taskById(taskId))
+      .filter(Boolean)
+      .map(backlogDisplayLabel)
+      .join(", ");
+  }
+
+  function backlogDisplayLabel(task) {
+    return [task.code, task.title].filter(Boolean).join(" - ");
+  }
+
+  function backlogUserName(userId) {
+    const user = userId ? userById(Number(userId)) : null;
+    return user?.nickname || [user?.firstName, user?.lastName].filter(Boolean).join(" ");
   }
 
   function backlogChildTasksByParent(tasks) {
@@ -471,6 +573,13 @@ export function createBacklogFeature({
 
   function compareBacklogSortColumn(a, b, column) {
     if (column === "percent") return taskDisplayPercent(a) - taskDisplayPercent(b);
+    if (column === "sortOrder") return Number(a.sortOrder || 0) - Number(b.sortOrder || 0);
+    if (column === "attachmentCount") return Number(a.attachments?.length || 0) - Number(b.attachments?.length || 0);
+    if (column === "startDate") return compareBacklogDateValue(a.startDate, b.startDate);
+    if (column === "endDate") return compareBacklogDateValue(a.endDate, b.endDate);
+    if (column === "startedAt") return compareBacklogDateValue(a.startedAt, b.startedAt);
+    if (column === "createdAt") return compareBacklogDateValue(a.createdAt, b.createdAt);
+    if (column === "updatedAt") return compareBacklogDateValue(a.updatedAt, b.updatedAt);
     if (column === "priority") return compareLookupSortValue(a.priority, b.priority, getPriorities());
     if (column === "type") return compareLookupSortValue(a.taskType || "Dev", b.taskType || "Dev", ["Dev", "Bug"]);
 
@@ -482,11 +591,29 @@ export function createBacklogFeature({
 
   function backlogSortTextValue(task, column) {
     if (column === "assigned") return userNames(task.assignees);
+    if (column === "reporter") return userNames(task.reporters);
     if (column === "item") return `${task.code || ""} ${task.title || ""}`;
+    if (column === "type") return backlogTaskTypeLabel(task);
     if (column === "project") return projectName(task.projectId);
-    if (column === "sprint") return task.sprintId ? sprintName(task.sprintId) : "Unassigned";
+    if (column === "sprint") return backlogSprintLabel(task);
     if (column === "status") return task.status || "";
+    if (column === "severity") return task.severity || "";
+    if (column === "environment") return task.environment || "";
+    if (column === "parentTask") return backlogRelatedTaskLabel(task.parentTaskId);
+    if (column === "linkedBug") return backlogLinkedBugLabel(task);
+    if (column === "dependencies") return backlogDependencyLabel(task);
+    if (column === "url") return task.url || "";
+    if (column === "createdBy") return backlogUserName(task.createdByUserId);
+    if (column === "updatedBy") return backlogUserName(task.updatedByUserId);
     return "";
+  }
+
+  function compareBacklogDateValue(a, b) {
+    const leftTime = a ? new Date(a).getTime() : 0;
+    const rightTime = b ? new Date(b).getTime() : 0;
+    const left = Number.isFinite(leftTime) ? leftTime : 0;
+    const right = Number.isFinite(rightTime) ? rightTime : 0;
+    return left - right;
   }
 
   function compareLookupSortValue(a, b, orderedValues) {
@@ -505,15 +632,593 @@ export function createBacklogFeature({
       .join(", ");
   }
 
-  function backlogSortHeaderHtml(column, label, className = "") {
+  function backlogTableColumnDefinitions(assigneeHeader = "Assigned") {
+    return [
+      {
+        key: "assigned",
+        label: "Assigned",
+        headerLabel: assigneeHeader,
+        colClass: "backlog-assigned-column",
+        headerClass: "backlog-avatar-heading",
+        cellClass: "backlog-assignee-cell",
+        width: 112,
+        rubberMinWidth: 88,
+        defaultVisible: true,
+        cellHtml: task => taskRowAvatarsHtml(task.assignees)
+      },
+      {
+        key: "item",
+        label: "Item",
+        colClass: "backlog-item-column",
+        cellClass: (task, row) => `${row.level ? "backlog-title-cell backlog-subtask-title-cell" : "backlog-title-cell"} work-item-title-cell`,
+        width: 320,
+        rubberMinWidth: 180,
+        defaultVisible: true,
+        cellHtml: (task, row) => `
+          <span class="work-item-code-line">
+            <strong class="work-item-code">${escapeHtml(task.code)}</strong>
+            ${row.level ? `<span class="subtask-pill">Subtask</span>` : ""}
+          </span>
+          <span class="work-item-title">${bugFixIconHtml(task)}${escapeHtml(task.title)}</span>
+        `
+      },
+      {
+        key: "type",
+        label: "Type",
+        colClass: "backlog-type-column",
+        width: 96,
+        rubberMinWidth: 86,
+        defaultVisible: true,
+        cellHtml: task => `<span class="pill">${escapeHtml(backlogTaskTypeLabel(task))}</span>`
+      },
+      {
+        key: "project",
+        label: "Project",
+        colClass: "backlog-project-column",
+        cellClass: "work-item-context-cell backlog-project-cell",
+        width: 190,
+        rubberMinWidth: 140,
+        defaultVisible: true,
+        cellHtml: task => escapeHtml(projectName(task.projectId))
+      },
+      {
+        key: "sprint",
+        label: "Sprint",
+        colClass: "backlog-sprint-column",
+        cellClass: "work-item-context-cell backlog-sprint-cell",
+        width: 150,
+        rubberMinWidth: 120,
+        defaultVisible: true,
+        cellHtml: task => task.sprintId
+          ? `<span class="pill sprint-pill">${escapeHtml(sprintName(task.sprintId))}</span>`
+          : `<span class="muted">Unassigned</span>`
+      },
+      {
+        key: "status",
+        label: "Status",
+        colClass: "backlog-status-column",
+        cellClass: "backlog-compact-text-cell",
+        width: 120,
+        rubberMinWidth: 100,
+        defaultVisible: true,
+        cellHtml: task => escapeHtml(task.status)
+      },
+      {
+        key: "priority",
+        label: "Priority",
+        colClass: "backlog-priority-column",
+        width: 96,
+        rubberMinWidth: 86,
+        defaultVisible: true,
+        cellHtml: task => `<span class="pill priority-${escapeAttr(task.priority)}">${escapeHtml(task.priority)}</span>`
+      },
+      {
+        key: "percent",
+        label: "% Complete",
+        colClass: "backlog-complete-column",
+        headerClass: "done-cell backlog-complete-cell",
+        cellClass: "done-cell backlog-complete-cell",
+        width: 180,
+        rubberMinWidth: 120,
+        defaultVisible: true,
+        cellHtml: task => workItemTableProgressHtml(taskDisplayPercent(task))
+      },
+      {
+        key: "reporter",
+        label: "Reporter",
+        headerClass: "backlog-avatar-heading",
+        colClass: "backlog-reporter-column",
+        cellClass: "backlog-reporter-cell",
+        width: 112,
+        rubberMinWidth: 88,
+        cellHtml: task => taskRowAvatarsHtml(task.reporters)
+      },
+      {
+        key: "severity",
+        label: "Severity",
+        colClass: "backlog-severity-column",
+        width: 96,
+        rubberMinWidth: 86,
+        cellHtml: task => task.taskType === "Bug"
+          ? `<span class="pill severity-${escapeAttr(task.severity)}">${escapeHtml(task.severity || "")}</span>`
+          : ""
+      },
+      {
+        key: "environment",
+        label: "Environment",
+        colClass: "backlog-environment-column",
+        cellClass: "backlog-compact-text-cell",
+        width: 132,
+        rubberMinWidth: 104,
+        cellHtml: task => escapeHtml(task.environment || "")
+      },
+      {
+        key: "startDate",
+        label: "Start Date",
+        colClass: "backlog-date-column",
+        cellClass: "backlog-date-cell",
+        width: 116,
+        rubberMinWidth: 96,
+        cellHtml: task => escapeHtml(formatDate(task.startDate))
+      },
+      {
+        key: "endDate",
+        label: "End Date",
+        colClass: "backlog-date-column",
+        cellClass: "backlog-date-cell",
+        width: 116,
+        rubberMinWidth: 96,
+        cellHtml: task => escapeHtml(formatDate(task.endDate))
+      },
+      {
+        key: "startedAt",
+        label: "Started Date/Time",
+        colClass: "backlog-date-time-column",
+        cellClass: "backlog-date-cell",
+        width: 156,
+        rubberMinWidth: 124,
+        cellHtml: task => escapeHtml(formatDateTime(task.startedAt))
+      },
+      {
+        key: "parentTask",
+        label: "Parent Task",
+        colClass: "backlog-related-column",
+        cellClass: "backlog-compact-text-cell",
+        width: 170,
+        rubberMinWidth: 130,
+        cellHtml: task => escapeHtml(backlogRelatedTaskLabel(task.parentTaskId))
+      },
+      {
+        key: "linkedBug",
+        label: "Linked Bug",
+        colClass: "backlog-related-column",
+        cellClass: "backlog-compact-text-cell",
+        width: 170,
+        rubberMinWidth: 130,
+        cellHtml: task => escapeHtml(backlogLinkedBugLabel(task))
+      },
+      {
+        key: "dependencies",
+        label: "Dependencies",
+        colClass: "backlog-related-column",
+        cellClass: "backlog-compact-text-cell",
+        width: 170,
+        rubberMinWidth: 130,
+        cellHtml: task => escapeHtml(backlogDependencyLabel(task))
+      },
+      {
+        key: "url",
+        label: "URL",
+        colClass: "backlog-url-column",
+        cellClass: "backlog-url-cell",
+        width: 180,
+        rubberMinWidth: 130,
+        cellHtml: task => escapeHtml(task.url || "")
+      },
+      {
+        key: "attachmentCount",
+        label: "Attachments",
+        colClass: "backlog-count-column",
+        cellClass: "backlog-number-cell",
+        width: 104,
+        rubberMinWidth: 88,
+        cellHtml: task => task.attachments?.length ? String(task.attachments.length) : ""
+      },
+      {
+        key: "sortOrder",
+        label: "Sort Order",
+        colClass: "backlog-number-column",
+        cellClass: "backlog-number-cell",
+        width: 96,
+        rubberMinWidth: 80,
+        cellHtml: task => String(task.sortOrder ?? "")
+      },
+      {
+        key: "createdBy",
+        label: "Created By",
+        colClass: "backlog-user-column",
+        cellClass: "backlog-compact-text-cell",
+        width: 132,
+        rubberMinWidth: 110,
+        cellHtml: task => escapeHtml(backlogUserName(task.createdByUserId))
+      },
+      {
+        key: "createdAt",
+        label: "Created Date/Time",
+        colClass: "backlog-date-time-column",
+        cellClass: "backlog-date-cell",
+        width: 156,
+        rubberMinWidth: 124,
+        cellHtml: task => escapeHtml(formatDateTime(task.createdAt))
+      },
+      {
+        key: "updatedBy",
+        label: "Updated By",
+        colClass: "backlog-user-column",
+        cellClass: "backlog-compact-text-cell",
+        width: 132,
+        rubberMinWidth: 110,
+        cellHtml: task => escapeHtml(backlogUserName(task.updatedByUserId))
+      },
+      {
+        key: "updatedAt",
+        label: "Last Updated Date/Time",
+        colClass: "backlog-date-time-column",
+        cellClass: "backlog-date-cell",
+        width: 156,
+        rubberMinWidth: 124,
+        cellHtml: task => escapeHtml(formatDateTime(task.updatedAt))
+      }
+    ];
+  }
+
+  function backlogColumnFilterItems() {
+    return backlogOrderedTableColumns("Assigned")
+      .map(column => ({ value: column.key, text: column.label }));
+  }
+
+  function backlogTableColumnColHtml(column, isRubber = false) {
+    const className = [column.colClass, isRubber ? "backlog-rubber-column" : ""]
+      .filter(Boolean)
+      .join(" ");
+
+    return `<col class="${escapeAttr(className)}">`;
+  }
+
+  function backlogTableColumnCellHtml(column, task, row, isRubber = false) {
+    const baseClassName = typeof column.cellClass === "function"
+      ? column.cellClass(task, row)
+      : column.cellClass || "";
+    const className = [baseClassName, isRubber ? "backlog-rubber-cell" : ""]
+      .filter(Boolean)
+      .join(" ");
+
+    return `<td class="${escapeAttr(className)}">${column.cellHtml(task, row)}</td>`;
+  }
+
+  function backlogColumnHeaderHtml(column, isRubber = false) {
+    const className = [column.headerClass || "", isRubber ? "backlog-rubber-cell" : ""]
+      .filter(Boolean)
+      .join(" ");
+
+    return backlogSortHeaderHtml(column.key, column.headerLabel || column.label, className, {
+      draggable: backlogTableMode.active
+    });
+  }
+
+  function backlogVisibleTableColumns(assigneeHeader) {
+    const visibleKeys = new Set(backlogColumnPrefs.visible);
+    const columns = backlogOrderedTableColumns(assigneeHeader)
+      .filter(column => visibleKeys.has(column.key));
+
+    return columns.length
+      ? columns
+      : backlogTableColumnDefinitions(assigneeHeader).filter(column => column.key === "item");
+  }
+
+  function backlogOrderedTableColumns(assigneeHeader) {
+    const definitions = backlogTableColumnDefinitions(assigneeHeader);
+    const columnsByKey = new Map(definitions.map(column => [column.key, column]));
+
+    return normalizedBacklogColumnOrder(backlogColumnPrefs.order)
+      .map(key => columnsByKey.get(key))
+      .filter(Boolean);
+  }
+
+  function backlogTableMinWidth(columns) {
+    const fixedWidth = 16 + (backlogTableMode.active ? 192 : 0);
+    const lastColumnIndex = columns.length - 1;
+    const columnsWidth = columns.reduce((total, column, index) =>
+      total + backlogColumnMinimumWidth(column, index === lastColumnIndex), 0);
+    return Math.max(960, fixedWidth + columnsWidth);
+  }
+
+  function backlogColumnMinimumWidth(column, isRubber) {
+    if (isRubber) return column.rubberMinWidth || Math.min(column.width || 140, 140);
+    return column.width || 140;
+  }
+
+  function backlogColumnIsRubber(columns, index) {
+    return index === columns.length - 1;
+  }
+
+  function normalizeBacklogColumnPrefs(preferences = {}) {
+    const savedPreferences = preferences && typeof preferences === "object" && !Array.isArray(preferences)
+      ? preferences
+      : {};
+    const visibleKeys = normalizeSavedArray(savedPreferences.visible)
+      .filter(key => backlogColumnKeySet().has(key));
+
+    return {
+      order: normalizedBacklogColumnOrder(savedPreferences.order),
+      visible: visibleKeys.length ? visibleKeys : backlogDefaultVisibleColumnKeys()
+    };
+  }
+
+  function normalizedBacklogColumnOrder(order = []) {
+    const allowedKeys = backlogColumnKeySet();
+    const orderedKeys = normalizeSavedArray(order)
+      .filter(key => allowedKeys.has(key));
+
+    backlogTableColumnDefinitions().forEach(column => {
+      if (!orderedKeys.includes(column.key)) orderedKeys.push(column.key);
+    });
+
+    return orderedKeys;
+  }
+
+  function backlogColumnOrderWithAddedColumns(order, addedColumns) {
+    const orderedKeys = normalizedBacklogColumnOrder(order);
+
+    addedColumns
+      .filter(column => column !== "percent" && backlogColumnKeySet().has(column))
+      .forEach(column => {
+        const existingIndex = orderedKeys.indexOf(column);
+        if (existingIndex >= 0) orderedKeys.splice(existingIndex, 1);
+
+        const percentIndex = orderedKeys.indexOf("percent");
+        orderedKeys.splice(percentIndex >= 0 ? percentIndex : orderedKeys.length, 0, column);
+      });
+
+    return orderedKeys;
+  }
+
+  function backlogColumnKeySet() {
+    return new Set(backlogTableColumnDefinitions().map(column => column.key));
+  }
+
+  function backlogDefaultVisibleColumnKeys() {
+    return backlogTableColumnDefinitions()
+      .filter(column => column.defaultVisible)
+      .map(column => column.key);
+  }
+
+  function saveBacklogColumnPrefs() {
+    writeJsonPreference(preferenceKeys.backlogTableColumns, backlogColumnPrefs);
+  }
+
+  function bindBacklogColumnDragEvents() {
+    app.addEventListener("pointerdown", handleBacklogColumnPointerDown);
+    app.addEventListener("mousedown", handleBacklogColumnMouseDown);
+    app.addEventListener("click", suppressBacklogColumnDraggedClick, true);
+  }
+
+  function handleBacklogColumnPointerDown(event) {
+    lastBacklogColumnPointerDragAt = Date.now();
+    startBacklogColumnDrag(event, "pointer");
+  }
+
+  function handleBacklogColumnMouseDown(event) {
+    if (Date.now() - lastBacklogColumnPointerDragAt < 500) return;
+    startBacklogColumnDrag(event, "mouse");
+  }
+
+  function startBacklogColumnDrag(event, inputType) {
+    if (event.button !== 0) return;
+    if (!backlogTableMode.active) return;
+
+    const header = event.target.closest('.backlog-table th[data-backlog-column][data-column-draggable="true"]');
+    const table = header?.closest(".backlog-table");
+    if (!header || !table || !app.contains(header)) return;
+
+    const columnKey = header.dataset.backlogColumn || "";
+    if (!backlogColumnPrefs.visible.includes(columnKey)) return;
+
+    backlogColumnDrag = {
+      columnKey,
+      source: header,
+      table,
+      startX: event.clientX,
+      startY: event.clientY,
+      started: false,
+      inputType,
+      pointerId: event.pointerId
+    };
+
+    if (inputType === "pointer" && header.setPointerCapture && event.pointerId !== undefined) {
+      try {
+        header.setPointerCapture(event.pointerId);
+      } catch {
+        // Pointer capture is optional; the window listeners still finish the drag.
+      }
+    }
+
+    if (inputType === "pointer") {
+      window.addEventListener("pointermove", handleBacklogColumnPointerMove);
+      window.addEventListener("pointerup", handleBacklogColumnPointerUp, { once: true });
+      window.addEventListener("pointercancel", cancelBacklogColumnDrag, { once: true });
+    } else {
+      window.addEventListener("mousemove", handleBacklogColumnMouseMove);
+      window.addEventListener("mouseup", handleBacklogColumnMouseUp, { once: true });
+    }
+  }
+
+  function handleBacklogColumnPointerMove(event) {
+    lastBacklogColumnPointerDragAt = Date.now();
+    moveBacklogColumnDrag(event);
+  }
+
+  function handleBacklogColumnMouseMove(event) {
+    if (backlogColumnDrag?.inputType === "pointer") return;
+    moveBacklogColumnDrag(event);
+  }
+
+  function moveBacklogColumnDrag(event) {
+    if (!backlogColumnDrag) return;
+
+    const movedEnough = Math.hypot(event.clientX - backlogColumnDrag.startX, event.clientY - backlogColumnDrag.startY) > 5;
+    if (!backlogColumnDrag.started && !movedEnough) return;
+
+    if (!backlogColumnDrag.started) {
+      backlogColumnDrag.started = true;
+      suppressNextBacklogColumnClick = true;
+      backlogColumnDrag.source.classList.add("column-dragging");
+      backlogColumnDrag.table.classList.add("is-column-dragging");
+    }
+
+    event.preventDefault();
+    updateBacklogColumnDropIndicator(event.clientX, event.clientY);
+  }
+
+  function handleBacklogColumnPointerUp(event) {
+    lastBacklogColumnPointerDragAt = Date.now();
+    finishBacklogColumnDrag(event);
+  }
+
+  function handleBacklogColumnMouseUp(event) {
+    if (backlogColumnDrag?.inputType === "pointer") return;
+    finishBacklogColumnDrag(event);
+  }
+
+  function finishBacklogColumnDrag(event) {
+    if (!backlogColumnDrag || backlogColumnDrag.finishing) return;
+    backlogColumnDrag.finishing = true;
+
+    if (!backlogColumnDrag.started) {
+      cancelBacklogColumnDrag();
+      return;
+    }
+
+    event.preventDefault();
+    suppressNextBacklogColumnClick = true;
+
+    const drag = backlogColumnDrag;
+    const drop = backlogColumnDropTarget(event.clientX, event.clientY);
+    if (drop) {
+      const order = backlogColumnKeysAfterDrop(drag.columnKey, drop.target.dataset.backlogColumn || "", drop.placement);
+      if (backlogColumnOrderChanged(order)) {
+        backlogColumnPrefs = normalizeBacklogColumnPrefs({ ...backlogColumnPrefs, order });
+        saveBacklogColumnPrefs();
+        cancelBacklogColumnDrag();
+        renderBacklog();
+        return;
+      }
+    }
+
+    cancelBacklogColumnDrag();
+  }
+
+  function backlogColumnDropTarget(clientX, clientY) {
+    if (!backlogColumnDrag) return null;
+
+    const headerRow = backlogColumnDrag.table.querySelector("thead tr");
+    const headerRect = headerRow?.getBoundingClientRect();
+    if (!headerRect || clientY < headerRect.top - 32 || clientY > headerRect.bottom + 64) return null;
+
+    const headers = [...backlogColumnDrag.table.querySelectorAll('thead th[data-backlog-column][data-column-draggable="true"]')]
+      .filter(header => (header.dataset.backlogColumn || "") !== backlogColumnDrag.columnKey);
+    if (!headers.length) return null;
+
+    const firstRect = headers[0].getBoundingClientRect();
+    if (clientX <= firstRect.left + (firstRect.width / 2)) {
+      return { target: headers[0], placement: "before" };
+    }
+
+    for (const header of headers) {
+      const rect = header.getBoundingClientRect();
+      if (clientX < rect.left + (rect.width / 2)) {
+        return { target: header, placement: "before" };
+      }
+    }
+
+    return { target: headers[headers.length - 1], placement: "after" };
+  }
+
+  function updateBacklogColumnDropIndicator(clientX, clientY) {
+    clearBacklogColumnDropIndicators();
+
+    const drop = backlogColumnDropTarget(clientX, clientY);
+    if (!drop) return;
+
+    backlogColumnDrag.table.classList.add("column-drop-target");
+    drop.target.classList.add(drop.placement === "after" ? "column-reorder-after" : "column-reorder-before");
+  }
+
+  function backlogColumnKeysAfterDrop(draggedKey, targetKey, placement) {
+    const orderedKeys = normalizedBacklogColumnOrder(backlogColumnPrefs.order)
+      .filter(key => key !== draggedKey);
+    let insertIndex = orderedKeys.indexOf(targetKey);
+    if (insertIndex < 0) return normalizedBacklogColumnOrder(backlogColumnPrefs.order);
+    if (placement === "after") insertIndex += 1;
+    orderedKeys.splice(insertIndex, 0, draggedKey);
+    return orderedKeys;
+  }
+
+  function backlogColumnOrderChanged(order) {
+    const currentOrder = normalizedBacklogColumnOrder(backlogColumnPrefs.order);
+    return order.length !== currentOrder.length || order.some((key, index) => key !== currentOrder[index]);
+  }
+
+  function cancelBacklogColumnDrag() {
+    window.removeEventListener("pointermove", handleBacklogColumnPointerMove);
+    window.removeEventListener("mousemove", handleBacklogColumnMouseMove);
+    window.removeEventListener("pointerup", handleBacklogColumnPointerUp);
+    window.removeEventListener("mouseup", handleBacklogColumnMouseUp);
+    window.removeEventListener("pointercancel", cancelBacklogColumnDrag);
+
+    if (backlogColumnDrag?.inputType === "pointer" && backlogColumnDrag.source.releasePointerCapture && backlogColumnDrag.pointerId !== undefined) {
+      try {
+        backlogColumnDrag.source.releasePointerCapture(backlogColumnDrag.pointerId);
+      } catch {
+        // The browser may already have released pointer capture.
+      }
+    }
+
+    backlogColumnDrag = null;
+    app.querySelectorAll(".column-dragging, .is-column-dragging, .column-drop-target, .column-reorder-before, .column-reorder-after")
+      .forEach(item => item.classList.remove(
+        "column-dragging",
+        "is-column-dragging",
+        "column-drop-target",
+        "column-reorder-before",
+        "column-reorder-after"
+      ));
+  }
+
+  function clearBacklogColumnDropIndicators() {
+    app.querySelectorAll(".column-drop-target, .column-reorder-before, .column-reorder-after")
+      .forEach(item => item.classList.remove("column-drop-target", "column-reorder-before", "column-reorder-after"));
+  }
+
+  function suppressBacklogColumnDraggedClick(event) {
+    if (!suppressNextBacklogColumnClick) return;
+    suppressNextBacklogColumnClick = false;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+  }
+
+  function backlogSortHeaderHtml(column, label, className = "", options = {}) {
     const state = backlogTableSortState();
     const isSorted = state.column === column && Boolean(state.direction);
     const ariaSort = isSorted ? (state.direction === "asc" ? "ascending" : "descending") : "none";
     const arrow = isSorted ? (state.direction === "asc" ? "&#9650;" : "&#9660;") : "";
     const classes = [className, isSorted ? "is-sorted" : ""].filter(Boolean).join(" ");
+    const columnDragAttrs = `
+      data-backlog-column="${escapeAttr(column)}"
+      data-column-draggable="${options.draggable ? "true" : "false"}"`;
 
     return `
-      <th class="${classes}" aria-sort="${ariaSort}">
+      <th class="${classes}" aria-sort="${ariaSort}" ${columnDragAttrs}>
         <button type="button" class="table-sort-button" data-action="sort-backlog-table" data-column="${escapeAttr(column)}" title="${escapeAttr(backlogNextSortLabel(column, label))}">
           <span>${escapeHtml(label)}</span>
           <span class="table-sort-indicator" aria-hidden="true">${arrow}</span>
@@ -563,16 +1268,8 @@ export function createBacklogFeature({
   }
 
   function backlogTableSortColumns() {
-    return [
-      { column: "assigned", label: "Assigned" },
-      { column: "item", label: "Item" },
-      { column: "type", label: "Type" },
-      { column: "project", label: "Project" },
-      { column: "sprint", label: "Sprint" },
-      { column: "status", label: "Status" },
-      { column: "priority", label: "Priority" },
-      { column: "percent", label: "% Complete" }
-    ];
+    return backlogTableColumnDefinitions("Assigned")
+      .map(column => ({ column: column.key, label: column.label }));
   }
 
   function backlogNextSortLabel(column, label) {
@@ -587,6 +1284,7 @@ export function createBacklogFeature({
       if (dialog.open) dialog.close();
       else dialog.remove();
     });
+    cancelBacklogColumnDrag();
     backlogTableMode.deactivate();
   }
 
