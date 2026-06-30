@@ -441,7 +441,12 @@ public sealed partial class SqlPmtStore
         state.Projects = state.Projects.OrderByDescending(project => project.StartDate ?? project.CreatedAt).ThenByDescending(project => project.Id).ToList();
         state.Sprints = state.Sprints.OrderByDescending(sprint => sprint.StartDate ?? sprint.CreatedAt).ThenByDescending(sprint => sprint.Id).ToList();
         state.Tasks = state.Tasks.OrderBy(task => task.SortOrder).ThenBy(task => task.Id).ToList();
-        state.DevLogs = state.DevLogs.OrderByDescending(log => log.IsPinned).ThenByDescending(log => log.LogDate).ThenByDescending(log => log.UpdatedAt).ToList();
+        state.DevLogs = state.DevLogs
+            .OrderByDescending(log => log.IsPinned)
+            .ThenByDescending(log => log.IsPinned ? log.CreatedAt : DateTime.MinValue)
+            .ThenByDescending(log => log.LogDate)
+            .ThenByDescending(log => log.UpdatedAt)
+            .ToList();
         state.Blogs = state.Blogs.OrderByDescending(blog => blog.UpdatedAt).ToList();
         // Keep enough history for seeded LMS/HLS audit trails without sending an unbounded list.
         state.AuditEvents = state.AuditEvents.OrderByDescending(audit => audit.CreatedAt).Take(2000).ToList();

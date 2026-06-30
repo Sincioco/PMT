@@ -191,6 +191,11 @@ html[data-theme] .scrum-screen.work-item-screen .work-item-table .icon-action:di
   display: block;
 }
 
+.scrum-content :is(b, strong, [style*="font-weight"]),
+.scrum-editor-grid .rich-editor :is(b, strong, [style*="font-weight"]) {
+  font-weight: var(--font-weight-bold) !important;
+}
+
 .scrum-content strong + br {
   display: none;
 }

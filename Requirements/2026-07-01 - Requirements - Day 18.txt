@@ -1,0 +1,47 @@
+Project Management Tool (PMT):  Day 18 of Codex Agentic AI Coding
+-----------------------------------------------------------------
+Total Dev Time in Hours:  23
+
+For all of this conversation / session, I will perform all the manual tests and compile the application manually.  Perform only the coding changes required and nothing else.  If making CSS / image changes, ensure that I will encounter no caching issue when testing in the browser.
+
+Scrum Screen
+------------
+1.) Prevent the user from making Scrum entries before the Project has started.
+2.) Prevent the user from making Scrum entries no more than 1 day into the future.
+3.) Change the default text so that each section already has a blank bullet point undearneath the:
+
+What did you accomplish yesterday?
+
+What do you plan to do today?
+
+Do you have any roadblocks?
+
+3.) When adding a new Scrum entries, look at the previous entry of the user and automatically fill in the section "What did you do yesterday? in bullet points from what they listed in the "What do you plan to do today?" section from the previous entry. Then put the cursor in the empty bullet point of the section "What do you plan to do today?".
+4.) When a Scrum entry if Pinned, be sure it is always rendered on the top.  If multiple items are Pinned to the top, sort it by date created so that the newest one is at the top.
+
+5.) Update the rule so that users can't make entries or change entries up to 2 weeks into the past.
+6.) Obviously, all these date restrictions do not apply to an Admin who should be able to make any entries in the past, present or future.
+
+
+7.) Update the database seed data SQL script for the Scrum entries so that there are bullet points (1, 2 or up to 3 bullet points) in each section of:
+
+What did you accomplish yesterday?
+
+What do you plan to do today?
+
+8.) Make sure it makes sense from day to day as the Scrum entries move forward in time.  That is, their plan for one day, is their accomplishments the next day.  Add some randomness so they don't always accomplish everything they plan.  Let some items carry forward in time on occasion.
+9.) Update the database seed data SQL script for the Scrum entries so that there is on occasion an entry or two under the "Do you have any roadblocks?" to make the entries realistic.  Maybe just put 1 or 2 per month.
+
+10.) Again, be sure entries under each section are bullet points to make it easy for the user to read it.
+
+11.) Everything is working great!  One minor bug, in the New/Edit dialog box for the Scrum screen, if I Bold an item, it does not render it as Bold.  Underline and strikethru works though.
+
+12.) Great, I can bold again, but is there a special rule for the sections below because I cannot bold them, but I can bold normal text in the bullet points under them:
+
+What did you accomplish yesterday?
+
+What do you plan to do today?
+
+Do you have any roadblocks?
+
+13.) Everything is working fine now.  Can you move the Person column as the first column in the table?  That way, it looks and lines up with the rest of the other table like Dev Task and Bug Tracking.

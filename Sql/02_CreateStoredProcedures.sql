@@ -278,7 +278,11 @@ BEGIN
         [UpdatedAt]
     FROM [pmt].[DevLogs]
     WHERE [IsDeleted] = 0
-    ORDER BY [IsPinned] DESC, [LogDate] DESC, [UpdatedAt] DESC;
+    ORDER BY
+        [IsPinned] DESC,
+        CASE WHEN [IsPinned] = 1 THEN [CreatedAt] END DESC,
+        [LogDate] DESC,
+        [UpdatedAt] DESC;
 
     SELECT
         [BlogId],
@@ -2399,18 +2403,49 @@ BEGIN
 
     DECLARE @Now DATETIME2(0) = SYSUTCDATETIME();
     DECLARE @OwnerUserId INT;
+    DECLARE @ProjectStartDate DATE;
+    DECLARE @LogDateOnly DATE;
+    DECLARE @CurrentUserIsAdmin BIT = [pmt].[IsAdmin](@CurrentUserId);
 
     IF NULLIF(LTRIM(RTRIM(@BodyHtml)), N'') IS NULL
     BEGIN
         THROW 50060, 'Dev log text is required.', 1;
     END;
 
-    IF @LogDate < '2000-01-01'
+    IF @LogDate < '2000-01-01' AND @CurrentUserIsAdmin = 0
     BEGIN
         SET @LogDate = CONVERT(DATE, SYSUTCDATETIME());
     END;
 
-    IF [pmt].[IsAdmin](@CurrentUserId) = 0
+    SET @LogDateOnly = CONVERT(DATE, @LogDate);
+
+    IF @CurrentUserIsAdmin = 0
+    BEGIN
+        IF @ProjectId IS NOT NULL
+        BEGIN
+            SELECT @ProjectStartDate = CONVERT(DATE, [StartDate])
+            FROM [pmt].[Projects]
+            WHERE [ProjectId] = @ProjectId
+              AND [IsArchived] = 0;
+
+            IF @ProjectStartDate IS NOT NULL AND @LogDateOnly < @ProjectStartDate
+            BEGIN
+                THROW 50063, 'Scrum entries cannot be dated before the project start date.', 1;
+            END;
+        END;
+
+        IF @LogDateOnly < DATEADD(DAY, -14, CONVERT(DATE, SYSUTCDATETIME()))
+        BEGIN
+            THROW 50065, 'Scrum entries cannot be dated more than 2 weeks in the past.', 1;
+        END;
+
+        IF @LogDateOnly > DATEADD(DAY, 1, CONVERT(DATE, SYSUTCDATETIME()))
+        BEGIN
+            THROW 50064, 'Scrum entries cannot be dated more than 1 day in the future.', 1;
+        END;
+    END;
+
+    IF @CurrentUserIsAdmin = 0
     BEGIN
         SET @IsPinned = 0;
     END;
@@ -2465,7 +2500,7 @@ BEGIN
             [ProjectId] = @ProjectId,
             [LogDate] = @LogDate,
             [BodyHtml] = @BodyHtml,
-            [IsPinned] = CASE WHEN [pmt].[IsAdmin](@CurrentUserId) = 1 THEN @IsPinned ELSE [IsPinned] END,
+            [IsPinned] = CASE WHEN @CurrentUserIsAdmin = 1 THEN @IsPinned ELSE [IsPinned] END,
             [UpdatedByUserId] = @CurrentUserId,
             [UpdatedAt] = @Now
         WHERE [DevLogId] = @DevLogId;

@@ -354,6 +354,9 @@ INNER JOIN OrderedTasks
 
 DECLARE @LogDate DATE = @LmsStart;
 DECLARE @LogCount INT = 1;
+DECLARE @YesterdayHtml NVARCHAR(MAX);
+DECLARE @TodayHtml NVARCHAR(MAX);
+DECLARE @RoadblocksHtml NVARCHAR(MAX);
 
 WHILE @LogDate <= @Today
 BEGIN
@@ -376,13 +379,41 @@ BEGIN
 
     IF @LogDate <= @Today
     BEGIN
+        SET @YesterdayHtml = CASE @LogCount % 8
+            WHEN 1 THEN N'<ul><li>Audited certificate reminder timing.</li><li>Carried the mobile transcript defect into today''s QA lane.</li><li>Drafted the release-note outline for the next LMS drop.</li></ul>'
+            WHEN 2 THEN N'<ul><li>Built the course roster import path.</li><li>Tightened enrollment audit details.</li><li>Moved QA notes into Documentation.</li></ul>'
+            WHEN 3 THEN N'<ul><li>Connected instructor dashboard metrics.</li><li>Retested roster import edge cases.</li><li>Kept CSV validation open for one more sample file.</li></ul>'
+            WHEN 4 THEN N'<ul><li>Refined learner progress charts.</li><li>Paired with QA on completion rules.</li></ul>'
+            WHEN 5 THEN N'<ul><li>Fixed transcript export formatting.</li><li>Added regression notes for course archive.</li><li>Carried chart empty-state cleanup forward.</li></ul>'
+            WHEN 6 THEN N'<ul><li>Finished course archive cleanup.</li><li>Reviewed copied enrollment permissions.</li><li>Retested transcript export.</li></ul>'
+            WHEN 7 THEN N'<ul><li>Polished admin lookup labels.</li><li>Documented course publishing steps.</li></ul>'
+            ELSE N'<ul><li>Ran the sprint demo path.</li><li>Closed stale QA retest notes.</li><li>Prepared the next backlog slice.</li></ul>'
+        END;
+
+        SET @TodayHtml = CASE @LogCount % 8
+            WHEN 1 THEN N'<ul><li>Build the course roster import path.</li><li>Tighten enrollment audit details.</li><li>Move QA notes into Documentation.</li></ul>'
+            WHEN 2 THEN N'<ul><li>Connect instructor dashboard metrics.</li><li>Retest roster import edge cases.</li><li>Carry CSV validation forward.</li></ul>'
+            WHEN 3 THEN N'<ul><li>Refine learner progress charts.</li><li>Pair with QA on completion rules.</li></ul>'
+            WHEN 4 THEN N'<ul><li>Fix transcript export formatting.</li><li>Add regression notes for course archive.</li><li>Carry chart empty-state cleanup.</li></ul>'
+            WHEN 5 THEN N'<ul><li>Finish course archive cleanup.</li><li>Review copied enrollment permissions.</li><li>Retest transcript export.</li></ul>'
+            WHEN 6 THEN N'<ul><li>Polish admin lookup labels.</li><li>Document course publishing steps.</li></ul>'
+            WHEN 7 THEN N'<ul><li>Run the sprint demo path.</li><li>Close stale QA retest notes.</li><li>Prepare the next backlog slice.</li></ul>'
+            ELSE N'<ul><li>Audit certificate reminder timing.</li><li>Carry the mobile transcript defect into QA.</li><li>Draft release notes for the next LMS drop.</li></ul>'
+        END;
+
+        SET @RoadblocksHtml = CASE
+            WHEN @LogCount % 9 = 0 THEN N'<ul><li>Waiting on a final sample CSV from the training team.</li><li>Need QA to confirm the copied enrollment edge case.</li></ul>'
+            WHEN @LogCount % 4 = 0 THEN N'<ul><li>Need one more dataset from QA before closing the roster import checks.</li></ul>'
+            ELSE N'<ul><li>No blockers.</li></ul>'
+        END;
+
         INSERT INTO [pmt].[DevLogs] ([ProjectId], [UserId], [LogDate], [BodyHtml], [IsPinned], [CreatedByUserId])
         VALUES
         (
             @LmsProject,
             CASE @LogCount % 4 WHEN 0 THEN @Bill WHEN 1 THEN @Mark WHEN 2 THEN @Jensen ELSE @Steve END,
             @LogDate,
-            N'<p><strong>What did you accomplish yesterday?</strong><br>Completed the current LMS sprint slice and reviewed QA notes.</p><p><strong>What do you plan to do today?</strong><br>Continue the next LMS backlog item and keep bug-fix notes current.</p><p><strong>Do you have any roadblocks?</strong><br>No blockers.</p>',
+            CONCAT(N'<p><strong>What did you accomplish yesterday?</strong></p>', @YesterdayHtml, N'<p><strong>What do you plan to do today?</strong></p>', @TodayHtml, N'<p><strong>Do you have any roadblocks?</strong></p>', @RoadblocksHtml),
             0,
             @Sin
         );

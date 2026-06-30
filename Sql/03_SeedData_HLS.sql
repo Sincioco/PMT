@@ -350,6 +350,9 @@ INNER JOIN OrderedTasks
 
 DECLARE @LogDate DATE = @HlsStart;
 DECLARE @LogCount INT = 1;
+DECLARE @YesterdayHtml NVARCHAR(MAX);
+DECLARE @TodayHtml NVARCHAR(MAX);
+DECLARE @RoadblocksHtml NVARCHAR(MAX);
 
 WHILE @LogDate <= @Today
 BEGIN
@@ -372,13 +375,37 @@ BEGIN
 
     IF @LogDate <= @Today
     BEGIN
+        SET @YesterdayHtml = CASE @LogCount % 6
+            WHEN 1 THEN N'<ul><li>Closed UAT feedback from the previous AI learning slice.</li><li>Documented model evaluation results.</li><li>Planned the next adaptive learning phase.</li></ul>'
+            WHEN 2 THEN N'<ul><li>Reviewed adaptive pathway telemetry.</li><li>Updated AI prompt safety notes.</li><li>Queued learning-object QA checks.</li></ul>'
+            WHEN 3 THEN N'<ul><li>Tuned recommendation thresholds.</li><li>Carried telemetry anomaly review into today.</li><li>Drafted facilitator release notes.</li></ul>'
+            WHEN 4 THEN N'<ul><li>Wired phase dashboard metrics.</li><li>Retested recommendation thresholds.</li></ul>'
+            WHEN 5 THEN N'<ul><li>Fixed the offline lesson sync defect.</li><li>Reviewed accessibility notes.</li><li>Carried the dashboard empty state forward.</li></ul>'
+            ELSE N'<ul><li>Prepared the pilot UAT checklist.</li><li>Validated the offline lesson retry path.</li></ul>'
+        END;
+
+        SET @TodayHtml = CASE @LogCount % 6
+            WHEN 1 THEN N'<ul><li>Review adaptive pathway telemetry.</li><li>Update AI prompt safety notes.</li><li>Queue learning-object QA checks.</li></ul>'
+            WHEN 2 THEN N'<ul><li>Tune recommendation thresholds.</li><li>Carry telemetry anomaly review.</li><li>Draft facilitator release notes.</li></ul>'
+            WHEN 3 THEN N'<ul><li>Wire phase dashboard metrics.</li><li>Retest recommendation thresholds.</li></ul>'
+            WHEN 4 THEN N'<ul><li>Fix the offline lesson sync defect.</li><li>Review accessibility notes.</li><li>Carry dashboard empty-state cleanup.</li></ul>'
+            WHEN 5 THEN N'<ul><li>Prepare the pilot UAT checklist.</li><li>Validate the offline lesson retry path.</li></ul>'
+            ELSE N'<ul><li>Close UAT feedback items.</li><li>Document model evaluation results.</li><li>Plan the next AI learning phase.</li></ul>'
+        END;
+
+        SET @RoadblocksHtml = CASE
+            WHEN @LogCount % 5 = 0 THEN N'<ul><li>Waiting on the pilot facilitator to confirm two accessibility notes.</li><li>Need one more anonymized telemetry export for the model review.</li></ul>'
+            WHEN @LogCount % 2 = 0 THEN N'<ul><li>Need QA confirmation on the offline lesson retry behavior.</li></ul>'
+            ELSE N'<ul><li>No blockers.</li></ul>'
+        END;
+
         INSERT INTO [pmt].[DevLogs] ([ProjectId], [UserId], [LogDate], [BodyHtml], [IsPinned], [CreatedByUserId])
         VALUES
         (
             @HlsProject,
             CASE @LogCount % 4 WHEN 0 THEN @Bill WHEN 1 THEN @Jensen WHEN 2 THEN @Mark ELSE @Steve END,
             @LogDate,
-            N'<p><strong>What did you accomplish yesterday?</strong><br>Advanced the HLS AI learning phase and reviewed QA findings.</p><p><strong>What do you plan to do today?</strong><br>Continue phase work and close any linked Bug Fix retest notes.</p><p><strong>Do you have any roadblocks?</strong><br>No blockers.</p>',
+            CONCAT(N'<p><strong>What did you accomplish yesterday?</strong></p>', @YesterdayHtml, N'<p><strong>What do you plan to do today?</strong></p>', @TodayHtml, N'<p><strong>Do you have any roadblocks?</strong></p>', @RoadblocksHtml),
             0,
             @Sin
         );

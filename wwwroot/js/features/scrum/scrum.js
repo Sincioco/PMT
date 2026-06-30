@@ -24,8 +24,7 @@ import {
 import { state } from "../../core/store.js";
 import {
   dateKey,
-  formatDate,
-  toDateInput
+  formatDate
 } from "../../shared/dates.js";
 import { normalizeSavedArray } from "../../shared/filter-values.js";
 import { canEditOwner } from "../../shared/permissions.js";
@@ -37,6 +36,15 @@ import {
   escapeAttr,
   escapeHtml
 } from "../../shared/text-and-links.js";
+
+const scrumYesterdayPrompt = "What did you accomplish yesterday?";
+const scrumTodayPrompt = "What do you plan to do today?";
+const scrumRoadblocksPrompt = "Do you have any roadblocks?";
+const scrumPrompts = [
+  scrumYesterdayPrompt,
+  scrumTodayPrompt,
+  scrumRoadblocksPrompt
+];
 
 export function createScrumFeature({
   app,
@@ -80,18 +88,18 @@ export function createScrumFeature({
           <div class="scrum-table-wrap">
             <table class="table work-item-table scrum-table ${scrumTableMode.active ? "is-edit-mode" : "is-read-mode"}">
               <colgroup>
+                <col class="scrum-person-column">
                 <col class="scrum-date-column">
                 <col class="scrum-project-column">
-                <col class="scrum-person-column">
                 <col class="scrum-body-column">
                 <col class="scrum-flag-column">
                 ${scrumTableMode.active ? `<col class="scrum-action-column">` : ""}
               </colgroup>
               <thead>
                 <tr>
+                  ${scrumSortHeaderHtml("person", "Person")}
                   ${scrumSortHeaderHtml("date", "Date")}
                   ${scrumSortHeaderHtml("project", "Project")}
-                  ${scrumSortHeaderHtml("person", "Person")}
                   ${scrumSortHeaderHtml("scrum", "Scrum")}
                   ${scrumSortHeaderHtml("flag", "Flag")}
                   ${scrumTableMode.active ? `<th class="action-cell" aria-label="Actions"></th>` : ""}
@@ -113,14 +121,14 @@ export function createScrumFeature({
 
     return `
       <tr class="scrum-row clickable-row" data-action="view-log" data-id="${log.id}">
-        <td class="scrum-date" data-label="Date">${formatDate(log.logDate)}</td>
-        <td class="scrum-project" data-label="Project">${log.projectId ? escapeHtml(projectName(log.projectId)) : `<span class="muted">No project</span>`}</td>
         <td class="scrum-person-cell" data-label="Person">
           <div class="row scrum-person">
             <img class="avatar" src="${escapeAttr(user?.avatarUrl || "/assets/avatar-default.svg")}" alt="">
             <strong>${escapeHtml(user?.nickname || "User")}</strong>
           </div>
         </td>
+        <td class="scrum-date" data-label="Date">${formatDate(log.logDate)}</td>
+        <td class="scrum-project" data-label="Project">${log.projectId ? escapeHtml(projectName(log.projectId)) : `<span class="muted">No project</span>`}</td>
         <td class="scrum-body" data-label="Scrum"><div class="scrum-content">${log.bodyHtml}</div></td>
         <td class="scrum-flag" data-label="">${log.isPinned ? `<span class="pill scrum-pin">Pinned</span>` : ""}</td>
         ${scrumTableMode.active ? `
@@ -291,17 +299,16 @@ export function createScrumFeature({
       return;
     }
 
-    const scrumPlaceholder = "What did you accomplish yesterday?\nWhat do you plan to do today?\nDo you have any roadblocks?";
-    const firstScrumPrompt = "What did you accomplish yesterday?";
-    const scrumHtml = log.bodyHtml || scrumPlaceholder.replaceAll("\n", "<br>");
     const rememberedProjectId = state.projects.some(project => project.id === scrumEntryProjectId)
       ? scrumEntryProjectId
       : 0;
     const selectedProjectId = log.id ? log.projectId || "" : rememberedProjectId || "";
+    const selectedLogDate = scrumDateInputValue(log.logDate || new Date());
+    const scrumHtml = log.bodyHtml || newScrumEntryHtml(selectedProjectId, selectedLogDate);
 
     openEditor(scrumDialogTitle(log, "New Scrum"), `
       <div class="form-grid scrum-editor-grid">
-        ${field("Date", "logDate", toDateInput(log.logDate || new Date()), "date")}
+        ${field("Date", "logDate", selectedLogDate, "date", scrumMinDateKey(selectedProjectId), scrumMaxDateKey())}
         ${selectOptionsField("Project", "projectId", [{ id: "", title: "No project" }, ...state.projects.map(project => ({ id: project.id, title: `${project.code} - ${project.title}` }))], selectedProjectId)}
         ${richTextField("bodyHtml", "Scrum", scrumHtml)}
         <label class="inline-check field full"><input name="isPinned" type="checkbox" ${log.isPinned ? "checked" : ""} ${currentUser().isAdmin ? "" : "disabled"}><span>Pinned</span></label>
@@ -311,15 +318,20 @@ export function createScrumFeature({
       scrumEntryProjectId = projectId || 0;
       writePreference(preferenceKeys.scrumEntryProject, scrumEntryProjectId);
 
+      const logDate = value(root, "logDate");
+      const dateError = scrumDateValidationMessage(projectId, logDate);
+      if (dateError) throw new Error(dateError);
+
       await saveJson(log.id ? `/api/devlogs/${log.id}` : "/api/devlogs", log.id ? "PUT" : "POST", {
         id: log.id || 0,
         projectId,
-        logDate: value(root, "logDate"),
+        logDate,
         bodyHtml: richValue(root, "bodyHtml"),
         isPinned: root.querySelector("[name='isPinned']").checked
       });
     }, log.id ? "" : "bodyHtml", root => {
-      if (!log.id) focusRichEditorAfterText(root, "bodyHtml", firstScrumPrompt);
+      bindScrumDateBounds(root);
+      if (!log.id) focusRichEditorEmptyBullet(root, "bodyHtml", scrumTodayPrompt);
     });
   }
 
@@ -332,6 +344,9 @@ export function createScrumFeature({
   }
 
   function scrumSortCompare(a, b) {
+    const pinnedResult = comparePinnedScrum(a, b);
+    if (pinnedResult) return pinnedResult;
+
     const state = scrumTableSortState();
 
     if (state.column && state.direction) {
@@ -345,14 +360,38 @@ export function createScrumFeature({
     return defaultScrumSortCompare(a, b);
   }
 
+  function comparePinnedScrum(a, b) {
+    if (Boolean(a.isPinned) !== Boolean(b.isPinned)) {
+      return Number(Boolean(b.isPinned)) - Number(Boolean(a.isPinned));
+    }
+
+    if (a.isPinned && b.isPinned) {
+      return scrumCreatedCompare(b, a);
+    }
+
+    return 0;
+  }
+
   function defaultScrumSortCompare(a, b) {
     return scrumDateCompare(b, a);
   }
 
   function scrumDateCompare(a, b) {
-    return new Date(a.logDate) - new Date(b.logDate)
-      || new Date(a.updatedAt) - new Date(b.updatedAt)
+    return scrumTimeValue(a.logDate) - scrumTimeValue(b.logDate)
+      || scrumTimeValue(a.updatedAt) - scrumTimeValue(b.updatedAt)
       || a.id - b.id;
+  }
+
+  function scrumCreatedCompare(a, b) {
+    return scrumTimeValue(a.createdAt) - scrumTimeValue(b.createdAt)
+      || scrumTimeValue(a.updatedAt) - scrumTimeValue(b.updatedAt)
+      || scrumTimeValue(a.logDate) - scrumTimeValue(b.logDate)
+      || a.id - b.id;
+  }
+
+  function scrumTimeValue(value) {
+    const time = new Date(value || 0).getTime();
+    return Number.isNaN(time) ? 0 : time;
   }
 
   function compareScrumSortColumn(a, b, column) {
@@ -495,10 +534,17 @@ export function createScrumFeature({
     if (!log) return;
 
     try {
+      const logDate = scrumDateInputValue(new Date());
+      const dateError = scrumDateValidationMessage(log.projectId || null, logDate);
+      if (dateError) {
+        showToast(dateError);
+        return;
+      }
+
       await saveJson("/api/devlogs", "POST", {
         id: 0,
         projectId: log.projectId || null,
-        logDate: toDateInput(new Date()),
+        logDate,
         bodyHtml: log.bodyHtml,
         isPinned: false
       });
@@ -510,14 +556,221 @@ export function createScrumFeature({
     }
   }
 
-  function focusRichEditorAfterText(root, richName, text) {
+  function newScrumEntryHtml(projectId, logDate) {
+    return [
+      scrumSectionHtml(scrumYesterdayPrompt, previousScrumTodayItems(projectId, logDate)),
+      scrumSectionHtml(scrumTodayPrompt, []),
+      scrumSectionHtml(scrumRoadblocksPrompt, [])
+    ].join("");
+  }
+
+  function scrumSectionHtml(prompt, items) {
+    const bulletItems = items.length ? items : [""];
+    const listHtml = bulletItems
+      .map(item => `<li>${item ? escapeHtml(item) : "<br>"}</li>`)
+      .join("");
+
+    return `<p><strong>${escapeHtml(prompt)}</strong></p><ul>${listHtml}</ul>`;
+  }
+
+  function previousScrumTodayItems(projectId, logDate) {
+    const previousLog = previousScrumLog(projectId, logDate);
+    return previousLog ? scrumSectionItems(previousLog.bodyHtml, scrumTodayPrompt) : [];
+  }
+
+  function previousScrumLog(projectId, logDate) {
+    const userId = currentUser().id;
+    const selectedProjectId = Number(projectId || 0);
+    const selectedDate = scrumDateInputValue(logDate);
+    const userLogs = state.devLogs
+      .filter(item => item.userId === userId)
+      .filter(item => !selectedDate || scrumDateInputValue(item.logDate) < selectedDate);
+    const projectLogs = selectedProjectId
+      ? userLogs.filter(item => item.projectId === selectedProjectId)
+      : userLogs;
+    const preferredLog = sortPreviousScrumLogs(projectLogs)[0];
+
+    return preferredLog || (selectedProjectId ? sortPreviousScrumLogs(userLogs)[0] : null) || null;
+  }
+
+  function sortPreviousScrumLogs(logs) {
+    return [...logs].sort((a, b) => {
+      return scrumTimeValue(b.logDate) - scrumTimeValue(a.logDate)
+        || scrumTimeValue(b.updatedAt) - scrumTimeValue(a.updatedAt)
+        || scrumTimeValue(b.createdAt) - scrumTimeValue(a.createdAt)
+        || b.id - a.id;
+    });
+  }
+
+  function scrumSectionItems(html, prompt) {
+    const lines = scrumTextLines(html);
+    const startIndex = lines.findIndex(line => scrumPromptMatches(line, prompt));
+    if (startIndex < 0) return [];
+
+    const items = [];
+    for (const line of lines.slice(startIndex + 1)) {
+      if (scrumPrompts.some(candidate => scrumPromptMatches(line, candidate))) break;
+      if (line) items.push(line);
+    }
+
+    return items;
+  }
+
+  function scrumTextLines(html) {
+    const container = document.createElement("div");
+    container.innerHTML = html || "";
+    container.querySelectorAll("br").forEach(element => {
+      element.replaceWith(document.createTextNode("\n"));
+    });
+    container.querySelectorAll("li").forEach(element => {
+      element.prepend(document.createTextNode("\n"));
+      element.appendChild(document.createTextNode("\n"));
+    });
+    container.querySelectorAll("p, div, h1, h2, h3").forEach(element => {
+      element.appendChild(document.createTextNode("\n"));
+    });
+
+    return container.textContent
+      .split(/\n+/)
+      .map(line => line.replace(/\s+/g, " ").trim())
+      .filter(Boolean);
+  }
+
+  function scrumPromptMatches(line, prompt) {
+    return normalizeScrumPrompt(line) === normalizeScrumPrompt(prompt);
+  }
+
+  function normalizeScrumPrompt(value) {
+    return String(value || "")
+      .replace(/\s+/g, " ")
+      .replace(/:$/, "")
+      .trim()
+      .toLowerCase();
+  }
+
+  function bindScrumDateBounds(root) {
+    const dateInput = root.querySelector("[name='logDate']");
+    const projectSelect = root.querySelector("[name='projectId']");
+    if (!dateInput) return;
+
+    const applyBounds = () => {
+      const projectId = optionalNumberValue(root, "projectId");
+      const minDate = scrumMinDateKey(projectId);
+      const maxDate = scrumMaxDateKey();
+
+      if (minDate) dateInput.min = minDate;
+      else dateInput.removeAttribute("min");
+
+      if (maxDate) dateInput.max = maxDate;
+      else dateInput.removeAttribute("max");
+    };
+
+    projectSelect?.addEventListener("change", applyBounds);
+    applyBounds();
+  }
+
+  function scrumDateValidationMessage(projectId, logDate) {
+    const selectedDate = scrumDateInputValue(logDate);
+    if (!selectedDate) return "Scrum date is required.";
+    if (currentUser().isAdmin) return "";
+
+    const projectStartDate = scrumProjectStartDateKey(projectId);
+    if (projectStartDate && selectedDate < projectStartDate) {
+      return `Scrum entries cannot be dated before ${projectName(projectId)} starts on ${scrumDisplayDateKey(projectStartDate)}.`;
+    }
+
+    if (selectedDate < scrumPastLimitDateKey()) {
+      return "Scrum entries cannot be dated more than 2 weeks in the past.";
+    }
+
+    if (selectedDate > scrumMaxDateKey()) {
+      return "Scrum entries cannot be dated more than 1 day in the future.";
+    }
+
+    return "";
+  }
+
+  function scrumProjectStartDateKey(projectId) {
+    const project = state.projects.find(item => item.id === Number(projectId || 0));
+    return project?.startDate ? scrumDateInputValue(project.startDate) : "";
+  }
+
+  function scrumMinDateKey(projectId) {
+    if (currentUser().isAdmin) return "";
+
+    const projectStartDate = scrumProjectStartDateKey(projectId);
+    const pastLimitDate = scrumPastLimitDateKey();
+    if (!projectStartDate) return pastLimitDate;
+
+    return projectStartDate > pastLimitDate ? projectStartDate : pastLimitDate;
+  }
+
+  function scrumPastLimitDateKey() {
+    const date = new Date();
+    date.setDate(date.getDate() - 14);
+    return scrumDateInputValue(date);
+  }
+
+  function scrumMaxDateKey() {
+    if (currentUser().isAdmin) return "";
+
+    const date = new Date();
+    date.setDate(date.getDate() + 1);
+    return scrumDateInputValue(date);
+  }
+
+  function scrumDateInputValue(value) {
+    if (!value) return "";
+    if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
+    return dateKey(value);
+  }
+
+  function scrumDisplayDateKey(value) {
+    const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value || "");
+    if (!match) return formatDate(value);
+
+    return formatDate(new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3])));
+  }
+
+  function focusRichEditorEmptyBullet(root, richName, prompt) {
     const editor = root.querySelector(`[data-rich='${richName}']`);
     if (!editor) return;
 
     setTimeout(() => {
       editor.focus();
-      placeCaretAfterText(editor, text);
+      const bullet = emptyBulletAfterPrompt(editor, prompt);
+      if (bullet) placeCaretInside(bullet);
+      else placeCaretAfterText(editor, prompt);
     }, 40);
+  }
+
+  function emptyBulletAfterPrompt(editor, prompt) {
+    const headings = [...editor.querySelectorAll("p, strong, b, h1, h2, h3")];
+    const heading = headings.find(element => scrumPromptMatches(element.textContent, prompt));
+    let next = heading?.closest("p, h1, h2, h3")?.nextElementSibling || heading?.nextElementSibling;
+
+    while (next) {
+      if (scrumPrompts.some(candidate => scrumPromptMatches(next.textContent, candidate))) return null;
+
+      if (next.matches("ul, ol")) {
+        return [...next.querySelectorAll("li")].find(item => !item.textContent.trim())
+          || next.querySelector("li");
+      }
+
+      if (next.matches("li") && !next.textContent.trim()) return next;
+      next = next.nextElementSibling;
+    }
+
+    return null;
+  }
+
+  function placeCaretInside(element) {
+    const range = document.createRange();
+    range.selectNodeContents(element);
+    range.collapse(true);
+    const selection = window.getSelection();
+    selection.removeAllRanges();
+    selection.addRange(range);
   }
 
   function placeCaretAfterText(container, text) {
