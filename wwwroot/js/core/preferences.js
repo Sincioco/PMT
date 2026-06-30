@@ -33,6 +33,7 @@ export const preferenceKeys = Object.freeze({
   taskFiltersVisible: "pmt-task-filters-visible",
   taskVisualChartsVisible: "pmt-task-visual-charts-visible",
   taskCollapsedSubTasks: "pmt-task-collapsed-subtasks",
+  taskTableColumns: "pmt-task-table-columns",
   bugFilters: "pmt-bug-filters",
   bugFiltersVisible: "pmt-bug-filters-visible",
   bugVisualChartsVisible: "pmt-bug-visual-charts-visible",

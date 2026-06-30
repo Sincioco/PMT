@@ -1,0 +1,11 @@
+Project Management Tool (PMT):  Day 17 of Codex Agentic AI Coding
+-----------------------------------------------------------------
+Total Dev Time in Hours:  21
+
+For all of this conversation / session, I will perform all the manual tests and compile the application manually.  Perform only the coding changes required and nothing else.  If making CSS / image changes, ensure that I will encounter no caching issue when testing in the browser.
+
+Dev Task Screen
+---------------
+1.) Take a look at the Dev Task table (list of tasks).  In Edit mode, I want you to be able to drag the column to re-order the columns on the table.  Keep the plus/minus expand/collapse fixed to the left.
+2.) Just like the drag and drop behavior in the Kanban Board, the dragging of the table's column header should provide some sort of visual cue to the user on where the column header you are dragging will land.  Save the user's preferences in the local storage.
+3.) In the Filter dialog box, create a new section called "Columns" with checkboxes for each columns that can be reasonably displayed in the Dev Tasks table.  Include columns that are not visible in the Task list table now such as Created By (the user' name), Created Date/Time, Updated By (the user's name), Last Updated date/time, Sort Order (the integer) and other columns that are in the database but are not currently surfaced in the UI that would make sense to some users to see in a Dev Task.

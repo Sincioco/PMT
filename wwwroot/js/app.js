@@ -43,7 +43,7 @@ import { createRoadMapFeature } from "./features/roadmap/roadmap.js?v=20260629-s
 import { createScrumFeature } from "./features/scrum/scrum.js?v=20260629-avatar-jpg-assets";
 import { createSettingsFeature } from "./features/settings/settings.js?v=20260629-avatar-jpg-assets";
 import { createSprintsFeature } from "./features/sprints/sprints.js?v=20260629-avatar-jpg-assets";
-import { createTasksFeature } from "./features/tasks/tasks.js?v=20260629-avatar-jpg-assets";
+import { createTasksFeature } from "./features/tasks/tasks.js?v=20260630-task-table-columns";
 import { createWfhScheduleFeature } from "./features/wfh-schedule/wfh-schedule.js?v=20260629-avatar-jpg-assets";
 import {
   fallbackEnvironments,

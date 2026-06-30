@@ -38,16 +38,21 @@ import {
   removePreference,
   writeJsonPreference,
   writePreference
-} from "../../core/preferences.js?v=20260627-task-collapse-state";
+} from "../../core/preferences.js?v=20260630-task-table-columns";
 import { currentView } from "../../core/router.js";
 import { state } from "../../core/store.js";
-import { toDateInput } from "../../shared/dates.js?v=20260620-null-end-date";
+import {
+  formatDate,
+  formatDateTime,
+  toDateInput
+} from "../../shared/dates.js?v=20260620-null-end-date";
 import { normalizeSavedArray } from "../../shared/filter-values.js";
 import { canEditTask } from "../../shared/permissions.js";
 import {
   projectName,
   sprintName,
-  taskById
+  taskById,
+  userById
 } from "../../shared/selectors.js";
 import {
   escapeAttr,
@@ -89,6 +94,10 @@ export function createTasksFeature({
   let taskFilters = normalizeTaskFilters(readJsonPreference(preferenceKeys.taskFilters, {}));
   let taskVisualChartsVisible = readBooleanPreference(preferenceKeys.taskVisualChartsVisible, true);
   let taskCollapsedSubTasks = readJsonPreference(preferenceKeys.taskCollapsedSubTasks, {});
+  let taskColumnPrefs = normalizeTaskColumnPrefs(readJsonPreference(preferenceKeys.taskTableColumns, {}));
+  let taskColumnDrag = null;
+  let lastTaskColumnPointerDragAt = 0;
+  let suppressNextTaskColumnClick = false;
   const taskTableMode = createWorkItemTableMode({
     action: "toggle-task-table-edit-mode",
     itemLabel: "Dev Tasks"
@@ -97,6 +106,8 @@ export function createTasksFeature({
   if (!taskCollapsedSubTasks || Array.isArray(taskCollapsedSubTasks) || typeof taskCollapsedSubTasks !== "object") {
     taskCollapsedSubTasks = {};
   }
+
+  bindTaskColumnDragEvents();
 
   function renderTasks() {
     ensureSelectedProject();
@@ -118,6 +129,8 @@ export function createTasksFeature({
     const taskRows = taskRowsWithVisibleSubTasks(visibleTasks);
     const assigneeColumnWidth = taskAssigneeColumnWidth(taskRows);
     const assigneeHeader = taskRowsHaveMultipleAssignees(taskRows) ? "Assignee(s)" : "Assignee";
+    const visibleTaskColumns = taskVisibleTableColumns(assigneeHeader);
+    const emptyTableColspan = visibleTaskColumns.length + (taskTableMode.active ? 2 : 1);
     const canShowCharts = allProjectDevTasks.length > 0;
     const showCharts = canShowCharts && taskVisualChartsVisible;
     const chartToggleLabel = showCharts ? "Hide Charts" : "Show Charts";
@@ -133,26 +146,16 @@ export function createTasksFeature({
       `)}
       ${showCharts ? taskVisualTrackingChartsHtml(baseTasks, selectedSprint, allProjectDevTasks) : ""}
       <div class="panel work-item-table-panel tasks-table-panel">
-        <table class="table work-item-table tasks-table ${taskTableMode.active ? "is-edit-mode" : "is-read-mode"}" style="--tasks-assignee-width:${assigneeColumnWidth}px">
+        <table class="table work-item-table tasks-table ${taskTableMode.active ? "is-edit-mode" : "is-read-mode"}" style="--tasks-assignee-width:${assigneeColumnWidth}px; --tasks-table-min-width:${taskTableMinWidth(visibleTaskColumns)}px">
           <colgroup>
             <col class="tasks-expand-column">
-            <col class="tasks-assigned-column">
-            <col class="tasks-context-column">
-            <col class="tasks-title-column">
-            <col class="tasks-priority-column">
-            <col class="tasks-status-column">
-            <col class="tasks-complete-column">
+            ${visibleTaskColumns.map(taskTableColumnColHtml).join("")}
             ${taskTableMode.active ? `<col class="tasks-action-column">` : ""}
           </colgroup>
           <thead>
             <tr>
               <th class="tasks-expand-heading" aria-label="Expand or collapse sub-tasks"></th>
-              ${taskSortHeaderHtml("assignee", assigneeHeader)}
-              ${taskSortHeaderHtml("context", "Project/Sprint")}
-              ${taskSortHeaderHtml("task", "Task")}
-              ${taskSortHeaderHtml("priority", "Priority")}
-              ${taskSortHeaderHtml("status", "Status")}
-              ${taskSortHeaderHtml("percent", "% Complete", "done-cell")}
+              ${visibleTaskColumns.map(taskColumnHeaderHtml).join("")}
               ${taskTableMode.active ? `<th class="action-cell" aria-label="Actions"></th>` : ""}
             </tr>
           </thead>
@@ -170,35 +173,16 @@ export function createTasksFeature({
                 hasVisibleSubTasks && isSubTasksCollapsed ? "is-subtasks-collapsed" : "",
                 "clickable-row"
               ].filter(Boolean).join(" ");
-              const titleClass = row.level ? "task-title-cell subtask-title-cell" : "task-title-cell";
               const indent = Math.min(row.level, 4) * 20;
 
               return `
               <tr class="${rowClass}" data-action="view-task" data-id="${task.id}" data-task-id="${task.id}" data-can-drag="${taskTableMode.active && canEditTask(task) ? "true" : "false"}" draggable="false" style="--indent:${indent}px">
                 <td class="tasks-expand-cell">${hasVisibleSubTasks ? taskSubTaskToggleHtml(task, isSubTasksCollapsed) : ""}</td>
-                <td class="tasks-assignee-cell">${taskRowAvatarsHtml(task.assignees)}</td>
-                <td class="work-item-context-cell task-context-cell">
-                  <span class="task-context-project">${escapeHtml(projectName(task.projectId))}</span>
-                  <span class="task-context-sprint">${escapeHtml(taskTableSprintLabel(task))}</span>
-                </td>
-                <td class="${titleClass} work-item-title-cell">
-                  <div class="task-title-layout">
-                    <div class="task-title-content">
-                      <span class="work-item-code-line">
-                        <strong class="work-item-code">${escapeHtml(task.code)}</strong>
-                        ${row.level ? `<span class="subtask-pill">Subtask</span>` : ""}
-                      </span>
-                      <span class="work-item-title">${escapeHtml(task.title)}</span>
-                    </div>
-                  </div>
-                </td>
-                <td><span class="pill priority-${task.priority}">${escapeHtml(task.priority)}</span></td>
-                <td class="tasks-status-cell">${taskStatusHtml(task.status)}</td>
-                <td class="done-cell">${workItemTableProgressHtml(taskDisplayPercent(task))}${bugFixRowIcon}</td>
+                ${visibleTaskColumns.map(column => taskTableColumnCellHtml(column, task, row, { bugFixRowIcon })).join("")}
                 ${taskTableMode.active ? `<td class="reveal-actions action-cell">${taskButtonsHtml(task, { includeView: false, monochrome: true })}</td>` : ""}
               </tr>
             `;
-            }).join("") || `<tr><td colspan="${taskTableMode.active ? 8 : 7}"><div class="empty">No tasks for this filter.</div></td></tr>`}
+            }).join("") || `<tr><td colspan="${emptyTableColspan}"><div class="empty">No tasks for this filter.</div></td></tr>`}
           </tbody>
         </table>
       </div>
@@ -360,6 +344,7 @@ export function createTasksFeature({
             text: user.nickname,
             avatarUrl: user.avatarUrl
           })), taskFilters.assigneeIds)}
+          ${filterCheckList("Columns", "task-column", taskColumnFilterItems(), taskColumnPrefs.visible)}
         </div>
       </div>
     `;
@@ -384,8 +369,20 @@ export function createTasksFeature({
     if (filter === "task-status") taskFilters.statuses = checkedFilterValues("task-status");
     if (filter === "task-priority") taskFilters.priorities = checkedFilterValues("task-priority");
     if (filter === "task-assigned") taskFilters.assigneeIds = checkedFilterValues("task-assigned");
+    if (filter === "task-column") {
+      const visibleColumns = checkedFilterValues("task-column");
+      if (!visibleColumns.length) {
+        target.checked = true;
+        return false;
+      }
+      taskColumnPrefs = normalizeTaskColumnPrefs({
+        ...taskColumnPrefs,
+        visible: visibleColumns
+      });
+      saveTaskColumnPrefs();
+    }
 
-    if (filter !== "task-project" && filter !== "task-sprint") saveTaskFilters();
+    if (filter !== "task-project" && filter !== "task-sprint" && filter !== "task-column") saveTaskFilters();
     return true;
   }
 
@@ -601,6 +598,507 @@ export function createTasksFeature({
     `;
   }
 
+  function taskTableColumnDefinitions(assigneeHeader = "Assigned") {
+    return [
+      {
+        key: "assignee",
+        label: "Assigned",
+        headerLabel: assigneeHeader,
+        colClass: "tasks-assigned-column",
+        cellClass: "tasks-assignee-cell",
+        width: 120,
+        defaultVisible: true,
+        cellHtml: task => taskRowAvatarsHtml(task.assignees)
+      },
+      {
+        key: "context",
+        label: "Project/Sprint",
+        colClass: "tasks-context-column",
+        cellClass: "work-item-context-cell task-context-cell",
+        width: 220,
+        defaultVisible: true,
+        cellHtml: task => `
+          <span class="task-context-project">${escapeHtml(projectName(task.projectId))}</span>
+          <span class="task-context-sprint">${escapeHtml(taskTableSprintLabel(task))}</span>
+        `
+      },
+      {
+        key: "task",
+        label: "Task",
+        colClass: "tasks-title-column",
+        cellClass: (task, row) => `${row.level ? "task-title-cell subtask-title-cell" : "task-title-cell"} work-item-title-cell`,
+        width: 390,
+        defaultVisible: true,
+        cellHtml: (task, row) => `
+          <div class="task-title-layout">
+            <div class="task-title-content">
+              <span class="work-item-code-line">
+                <strong class="work-item-code">${escapeHtml(task.code)}</strong>
+                ${row.level ? `<span class="subtask-pill">Subtask</span>` : ""}
+              </span>
+              <span class="work-item-title">${escapeHtml(task.title)}</span>
+            </div>
+          </div>
+        `
+      },
+      {
+        key: "priority",
+        label: "Priority",
+        colClass: "tasks-priority-column",
+        width: 110,
+        defaultVisible: true,
+        cellHtml: task => `<span class="pill priority-${escapeAttr(task.priority)}">${escapeHtml(task.priority)}</span>`
+      },
+      {
+        key: "status",
+        label: "Status",
+        colClass: "tasks-status-column",
+        cellClass: "tasks-status-cell",
+        width: 150,
+        defaultVisible: true,
+        cellHtml: task => taskStatusHtml(task.status)
+      },
+      {
+        key: "percent",
+        label: "% Complete",
+        colClass: "tasks-complete-column",
+        headerClass: "done-cell",
+        cellClass: "done-cell",
+        width: 220,
+        defaultVisible: true,
+        cellHtml: (task, row, context) => `${workItemTableProgressHtml(taskDisplayPercent(task))}${context.bugFixRowIcon}`
+      },
+      {
+        key: "startDate",
+        label: "Start Date",
+        colClass: "tasks-date-column",
+        cellClass: "tasks-date-cell",
+        width: 132,
+        cellHtml: task => escapeHtml(formatDate(task.startDate))
+      },
+      {
+        key: "endDate",
+        label: "End Date",
+        colClass: "tasks-date-column",
+        cellClass: "tasks-date-cell",
+        width: 132,
+        cellHtml: task => escapeHtml(formatDate(task.endDate))
+      },
+      {
+        key: "startedAt",
+        label: "Started Date/Time",
+        colClass: "tasks-date-time-column",
+        cellClass: "tasks-date-cell",
+        width: 172,
+        cellHtml: task => escapeHtml(formatDateTime(task.startedAt))
+      },
+      {
+        key: "parentTask",
+        label: "Parent Task",
+        colClass: "tasks-related-column",
+        cellClass: "tasks-compact-text-cell",
+        width: 190,
+        cellHtml: task => escapeHtml(taskRelatedTaskLabel(task.parentTaskId))
+      },
+      {
+        key: "linkedBug",
+        label: "Linked Bug",
+        colClass: "tasks-related-column",
+        cellClass: "tasks-compact-text-cell",
+        width: 190,
+        cellHtml: task => escapeHtml(taskLinkedBugLabel(task))
+      },
+      {
+        key: "dependencies",
+        label: "Dependencies",
+        colClass: "tasks-related-column",
+        cellClass: "tasks-compact-text-cell",
+        width: 190,
+        cellHtml: task => escapeHtml(taskDependencyLabel(task))
+      },
+      {
+        key: "url",
+        label: "URL",
+        colClass: "tasks-url-column",
+        cellClass: "tasks-url-cell",
+        width: 220,
+        cellHtml: task => escapeHtml(task.url || "")
+      },
+      {
+        key: "attachmentCount",
+        label: "Attachments",
+        colClass: "tasks-count-column",
+        cellClass: "tasks-number-cell",
+        width: 112,
+        cellHtml: task => task.attachments?.length ? String(task.attachments.length) : ""
+      },
+      {
+        key: "sortOrder",
+        label: "Sort Order",
+        colClass: "tasks-number-column",
+        cellClass: "tasks-number-cell",
+        width: 110,
+        cellHtml: task => String(task.sortOrder ?? "")
+      },
+      {
+        key: "createdBy",
+        label: "Created By",
+        colClass: "tasks-user-column",
+        cellClass: "tasks-compact-text-cell",
+        width: 150,
+        cellHtml: task => escapeHtml(taskUserName(task.createdByUserId))
+      },
+      {
+        key: "createdAt",
+        label: "Created Date/Time",
+        colClass: "tasks-date-time-column",
+        cellClass: "tasks-date-cell",
+        width: 172,
+        cellHtml: task => escapeHtml(formatDateTime(task.createdAt))
+      },
+      {
+        key: "updatedBy",
+        label: "Updated By",
+        colClass: "tasks-user-column",
+        cellClass: "tasks-compact-text-cell",
+        width: 150,
+        cellHtml: task => escapeHtml(taskUserName(task.updatedByUserId))
+      },
+      {
+        key: "updatedAt",
+        label: "Last Updated Date/Time",
+        colClass: "tasks-date-time-column",
+        cellClass: "tasks-date-cell",
+        width: 172,
+        cellHtml: task => escapeHtml(formatDateTime(task.updatedAt))
+      }
+    ];
+  }
+
+  function taskColumnFilterItems() {
+    return taskOrderedTableColumns("Assigned")
+      .map(column => ({ value: column.key, text: column.label }));
+  }
+
+  function taskTableColumnColHtml(column) {
+    return `<col class="${escapeAttr(column.colClass)}">`;
+  }
+
+  function taskTableColumnCellHtml(column, task, row, context) {
+    const className = typeof column.cellClass === "function"
+      ? column.cellClass(task, row)
+      : column.cellClass || "";
+
+    return `<td class="${escapeAttr(className)}">${column.cellHtml(task, row, context)}</td>`;
+  }
+
+  function taskColumnHeaderHtml(column) {
+    return taskSortHeaderHtml(column.key, column.headerLabel || column.label, column.headerClass || "", {
+      draggable: taskTableMode.active
+    });
+  }
+
+  function taskVisibleTableColumns(assigneeHeader) {
+    const visibleKeys = new Set(taskColumnPrefs.visible);
+    const columns = taskOrderedTableColumns(assigneeHeader)
+      .filter(column => visibleKeys.has(column.key));
+
+    return columns.length
+      ? columns
+      : taskTableColumnDefinitions(assigneeHeader).filter(column => column.key === "task");
+  }
+
+  function taskOrderedTableColumns(assigneeHeader) {
+    const definitions = taskTableColumnDefinitions(assigneeHeader);
+    const columnsByKey = new Map(definitions.map(column => [column.key, column]));
+
+    return normalizedTaskColumnOrder(taskColumnPrefs.order)
+      .map(key => columnsByKey.get(key))
+      .filter(Boolean);
+  }
+
+  function taskTableMinWidth(columns) {
+    const fixedWidth = 16 + (taskTableMode.active ? 224 : 0);
+    const columnsWidth = columns.reduce((total, column) => total + (column.width || 140), 0);
+    return Math.max(1040, fixedWidth + columnsWidth);
+  }
+
+  function normalizeTaskColumnPrefs(preferences = {}) {
+    const savedPreferences = preferences && typeof preferences === "object" && !Array.isArray(preferences)
+      ? preferences
+      : {};
+    const visibleKeys = normalizeSavedArray(savedPreferences.visible)
+      .filter(key => taskColumnKeySet().has(key));
+
+    return {
+      order: normalizedTaskColumnOrder(savedPreferences.order),
+      visible: visibleKeys.length ? visibleKeys : taskDefaultVisibleColumnKeys()
+    };
+  }
+
+  function normalizedTaskColumnOrder(order = []) {
+    const allowedKeys = taskColumnKeySet();
+    const orderedKeys = normalizeSavedArray(order)
+      .filter(key => allowedKeys.has(key));
+
+    taskTableColumnDefinitions().forEach(column => {
+      if (!orderedKeys.includes(column.key)) orderedKeys.push(column.key);
+    });
+
+    return orderedKeys;
+  }
+
+  function taskColumnKeySet() {
+    return new Set(taskTableColumnDefinitions().map(column => column.key));
+  }
+
+  function taskDefaultVisibleColumnKeys() {
+    return taskTableColumnDefinitions()
+      .filter(column => column.defaultVisible)
+      .map(column => column.key);
+  }
+
+  function saveTaskColumnPrefs() {
+    writeJsonPreference(preferenceKeys.taskTableColumns, taskColumnPrefs);
+  }
+
+  function bindTaskColumnDragEvents() {
+    app.addEventListener("pointerdown", handleTaskColumnPointerDown);
+    app.addEventListener("mousedown", handleTaskColumnMouseDown);
+    app.addEventListener("click", suppressTaskColumnDraggedClick, true);
+  }
+
+  function handleTaskColumnPointerDown(event) {
+    lastTaskColumnPointerDragAt = Date.now();
+    startTaskColumnDrag(event, "pointer");
+  }
+
+  function handleTaskColumnMouseDown(event) {
+    if (Date.now() - lastTaskColumnPointerDragAt < 500) return;
+    startTaskColumnDrag(event, "mouse");
+  }
+
+  function startTaskColumnDrag(event, inputType) {
+    if (event.button !== 0) return;
+    if (!taskTableMode.active) return;
+
+    const header = event.target.closest('.tasks-table th[data-task-column][data-column-draggable="true"]');
+    const table = header?.closest(".tasks-table");
+    if (!header || !table || !app.contains(header)) return;
+
+    const columnKey = header.dataset.taskColumn || "";
+    if (!taskColumnPrefs.visible.includes(columnKey)) return;
+
+    taskColumnDrag = {
+      columnKey,
+      source: header,
+      table,
+      startX: event.clientX,
+      startY: event.clientY,
+      started: false,
+      inputType,
+      pointerId: event.pointerId
+    };
+
+    if (inputType === "pointer" && header.setPointerCapture && event.pointerId !== undefined) {
+      try {
+        header.setPointerCapture(event.pointerId);
+      } catch {
+        // Pointer capture is optional; the window listeners still finish the drag.
+      }
+    }
+
+    if (inputType === "pointer") {
+      window.addEventListener("pointermove", handleTaskColumnPointerMove);
+      window.addEventListener("pointerup", handleTaskColumnPointerUp, { once: true });
+      window.addEventListener("pointercancel", cancelTaskColumnDrag, { once: true });
+    } else {
+      window.addEventListener("mousemove", handleTaskColumnMouseMove);
+      window.addEventListener("mouseup", handleTaskColumnMouseUp, { once: true });
+    }
+  }
+
+  function handleTaskColumnPointerMove(event) {
+    lastTaskColumnPointerDragAt = Date.now();
+    moveTaskColumnDrag(event);
+  }
+
+  function handleTaskColumnMouseMove(event) {
+    if (taskColumnDrag?.inputType === "pointer") return;
+    moveTaskColumnDrag(event);
+  }
+
+  function moveTaskColumnDrag(event) {
+    if (!taskColumnDrag) return;
+
+    const movedEnough = Math.hypot(event.clientX - taskColumnDrag.startX, event.clientY - taskColumnDrag.startY) > 5;
+    if (!taskColumnDrag.started && !movedEnough) return;
+
+    if (!taskColumnDrag.started) {
+      taskColumnDrag.started = true;
+      suppressNextTaskColumnClick = true;
+      taskColumnDrag.source.classList.add("column-dragging");
+      taskColumnDrag.table.classList.add("is-column-dragging");
+    }
+
+    event.preventDefault();
+    updateTaskColumnDropIndicator(event.clientX, event.clientY);
+  }
+
+  async function handleTaskColumnPointerUp(event) {
+    lastTaskColumnPointerDragAt = Date.now();
+    finishTaskColumnDrag(event);
+  }
+
+  async function handleTaskColumnMouseUp(event) {
+    if (taskColumnDrag?.inputType === "pointer") return;
+    finishTaskColumnDrag(event);
+  }
+
+  function finishTaskColumnDrag(event) {
+    if (!taskColumnDrag || taskColumnDrag.finishing) return;
+    taskColumnDrag.finishing = true;
+
+    if (!taskColumnDrag.started) {
+      cancelTaskColumnDrag();
+      return;
+    }
+
+    event.preventDefault();
+    suppressNextTaskColumnClick = true;
+
+    const drag = taskColumnDrag;
+    const drop = taskColumnDropTarget(event.clientX, event.clientY);
+    if (drop) {
+      const order = taskColumnKeysAfterDrop(drag.columnKey, drop.target.dataset.taskColumn || "", drop.placement);
+      if (taskColumnOrderChanged(order)) {
+        taskColumnPrefs = normalizeTaskColumnPrefs({ ...taskColumnPrefs, order });
+        saveTaskColumnPrefs();
+        cancelTaskColumnDrag();
+        renderTasks();
+        return;
+      }
+    }
+
+    cancelTaskColumnDrag();
+  }
+
+  function taskColumnDropTarget(clientX, clientY) {
+    if (!taskColumnDrag) return null;
+
+    const headerRow = taskColumnDrag.table.querySelector("thead tr");
+    const headerRect = headerRow?.getBoundingClientRect();
+    if (!headerRect || clientY < headerRect.top - 32 || clientY > headerRect.bottom + 64) return null;
+
+    const headers = [...taskColumnDrag.table.querySelectorAll('thead th[data-task-column][data-column-draggable="true"]')]
+      .filter(header => (header.dataset.taskColumn || "") !== taskColumnDrag.columnKey);
+    if (!headers.length) return null;
+
+    const firstRect = headers[0].getBoundingClientRect();
+    if (clientX <= firstRect.left + (firstRect.width / 2)) {
+      return { target: headers[0], placement: "before" };
+    }
+
+    for (const header of headers) {
+      const rect = header.getBoundingClientRect();
+      if (clientX < rect.left + (rect.width / 2)) {
+        return { target: header, placement: "before" };
+      }
+    }
+
+    return { target: headers[headers.length - 1], placement: "after" };
+  }
+
+  function updateTaskColumnDropIndicator(clientX, clientY) {
+    clearTaskColumnDropIndicators();
+
+    const drop = taskColumnDropTarget(clientX, clientY);
+    if (!drop) return;
+
+    taskColumnDrag.table.classList.add("column-drop-target");
+    drop.target.classList.add(drop.placement === "after" ? "column-reorder-after" : "column-reorder-before");
+  }
+
+  function taskColumnKeysAfterDrop(draggedKey, targetKey, placement) {
+    const orderedKeys = normalizedTaskColumnOrder(taskColumnPrefs.order)
+      .filter(key => key !== draggedKey);
+    let insertIndex = orderedKeys.indexOf(targetKey);
+    if (insertIndex < 0) return normalizedTaskColumnOrder(taskColumnPrefs.order);
+    if (placement === "after") insertIndex += 1;
+    orderedKeys.splice(insertIndex, 0, draggedKey);
+    return orderedKeys;
+  }
+
+  function taskColumnOrderChanged(order) {
+    const currentOrder = normalizedTaskColumnOrder(taskColumnPrefs.order);
+    return order.length !== currentOrder.length || order.some((key, index) => key !== currentOrder[index]);
+  }
+
+  function cancelTaskColumnDrag() {
+    window.removeEventListener("pointermove", handleTaskColumnPointerMove);
+    window.removeEventListener("mousemove", handleTaskColumnMouseMove);
+    window.removeEventListener("pointerup", handleTaskColumnPointerUp);
+    window.removeEventListener("mouseup", handleTaskColumnMouseUp);
+    window.removeEventListener("pointercancel", cancelTaskColumnDrag);
+
+    if (taskColumnDrag?.inputType === "pointer" && taskColumnDrag.source.releasePointerCapture && taskColumnDrag.pointerId !== undefined) {
+      try {
+        taskColumnDrag.source.releasePointerCapture(taskColumnDrag.pointerId);
+      } catch {
+        // The browser may already have released pointer capture.
+      }
+    }
+
+    taskColumnDrag = null;
+    app.querySelectorAll(".column-dragging, .is-column-dragging, .column-drop-target, .column-reorder-before, .column-reorder-after")
+      .forEach(item => item.classList.remove(
+        "column-dragging",
+        "is-column-dragging",
+        "column-drop-target",
+        "column-reorder-before",
+        "column-reorder-after"
+      ));
+  }
+
+  function clearTaskColumnDropIndicators() {
+    app.querySelectorAll(".column-drop-target, .column-reorder-before, .column-reorder-after")
+      .forEach(item => item.classList.remove("column-drop-target", "column-reorder-before", "column-reorder-after"));
+  }
+
+  function suppressTaskColumnDraggedClick(event) {
+    if (!suppressNextTaskColumnClick) return;
+    suppressNextTaskColumnClick = false;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+  }
+
+  function taskRelatedTaskLabel(taskId) {
+    const task = taskId ? taskById(taskId) : null;
+    return task ? taskDisplayLabel(task) : "";
+  }
+
+  function taskLinkedBugLabel(task) {
+    const bug = associatedBugForDevTask(task, task.dependencyTaskIds);
+    return bug ? taskDisplayLabel(bug) : "";
+  }
+
+  function taskDependencyLabel(task) {
+    return (task.dependencyTaskIds || [])
+      .map(taskId => taskById(taskId))
+      .filter(Boolean)
+      .map(taskDisplayLabel)
+      .join(", ");
+  }
+
+  function taskDisplayLabel(task) {
+    return [task.code, task.title].filter(Boolean).join(" - ");
+  }
+
+  function taskUserName(userId) {
+    const user = userId ? userById(Number(userId)) : null;
+    return user?.nickname || [user?.firstName, user?.lastName].filter(Boolean).join(" ");
+  }
+
   function taskStatusHtml(status) {
     return `
       <span class="task-status-text" style="--status-color:${escapeAttr(statusColor(status))}">
@@ -795,6 +1293,13 @@ export function createTasksFeature({
 
   function compareTaskSortColumn(a, b, column) {
     if (column === "percent") return taskDisplayPercent(a) - taskDisplayPercent(b);
+    if (column === "sortOrder") return Number(a.sortOrder || 0) - Number(b.sortOrder || 0);
+    if (column === "attachmentCount") return Number(a.attachments?.length || 0) - Number(b.attachments?.length || 0);
+    if (column === "startDate") return compareTaskDateValue(a.startDate, b.startDate);
+    if (column === "endDate") return compareTaskDateValue(a.endDate, b.endDate);
+    if (column === "startedAt") return compareTaskDateValue(a.startedAt, b.startedAt);
+    if (column === "createdAt") return compareTaskDateValue(a.createdAt, b.createdAt);
+    if (column === "updatedAt") return compareTaskDateValue(a.updatedAt, b.updatedAt);
     if (column === "priority") return compareLookupSortValue(a.priority, b.priority, getPriorities());
     if (column === "status") return compareLookupSortValue(a.status, b.status, getStatuses());
 
@@ -808,7 +1313,21 @@ export function createTasksFeature({
     if (column === "assignee") return userNames(task.assignees);
     if (column === "context") return `${projectName(task.projectId)} ${taskTableSprintLabel(task)}`;
     if (column === "task") return `${task.code || ""} ${task.title || ""}`;
+    if (column === "parentTask") return taskRelatedTaskLabel(task.parentTaskId);
+    if (column === "linkedBug") return taskLinkedBugLabel(task);
+    if (column === "dependencies") return taskDependencyLabel(task);
+    if (column === "url") return task.url || "";
+    if (column === "createdBy") return taskUserName(task.createdByUserId);
+    if (column === "updatedBy") return taskUserName(task.updatedByUserId);
     return "";
+  }
+
+  function compareTaskDateValue(a, b) {
+    const leftTime = a ? new Date(a).getTime() : 0;
+    const rightTime = b ? new Date(b).getTime() : 0;
+    const left = Number.isFinite(leftTime) ? leftTime : 0;
+    const right = Number.isFinite(rightTime) ? rightTime : 0;
+    return left - right;
   }
 
   function compareLookupSortValue(a, b, orderedValues) {
@@ -827,15 +1346,18 @@ export function createTasksFeature({
       .join(", ");
   }
 
-  function taskSortHeaderHtml(column, label, className = "") {
+  function taskSortHeaderHtml(column, label, className = "", options = {}) {
     const state = taskTableSortState();
     const isSorted = state.column === column && Boolean(state.direction);
     const ariaSort = isSorted ? (state.direction === "asc" ? "ascending" : "descending") : "none";
     const arrow = isSorted ? (state.direction === "asc" ? "&#9650;" : "&#9660;") : "";
     const classes = [className, isSorted ? "is-sorted" : ""].filter(Boolean).join(" ");
+    const columnDragAttrs = `
+      data-task-column="${escapeAttr(column)}"
+      data-column-draggable="${options.draggable ? "true" : "false"}"`;
 
     return `
-      <th class="${classes}" aria-sort="${ariaSort}">
+      <th class="${classes}" aria-sort="${ariaSort}" ${columnDragAttrs}>
         <button type="button" class="table-sort-button" data-action="sort-task-table" data-column="${escapeAttr(column)}" title="${escapeAttr(taskNextSortLabel(column, label))}">
           <span>${escapeHtml(label)}</span>
           <span class="table-sort-indicator" aria-hidden="true">${arrow}</span>
@@ -888,14 +1410,8 @@ export function createTasksFeature({
   }
 
   function taskTableSortColumns() {
-    return [
-      { column: "assignee", label: "Assignee" },
-      { column: "context", label: "Project/Sprint" },
-      { column: "task", label: "Task" },
-      { column: "priority", label: "Priority" },
-      { column: "status", label: "Status" },
-      { column: "percent", label: "% Complete" }
-    ];
+    return taskTableColumnDefinitions("Assigned")
+      .map(column => ({ column: column.key, label: column.label }));
   }
 
   function taskNextSortLabel(column, label) {
@@ -914,7 +1430,8 @@ export function createTasksFeature({
       preferenceKeys.taskFilters,
       preferenceKeys.taskFiltersVisible,
       preferenceKeys.taskVisualChartsVisible,
-      preferenceKeys.taskCollapsedSubTasks
+      preferenceKeys.taskCollapsedSubTasks,
+      preferenceKeys.taskTableColumns
     ].forEach(removePreference);
 
     taskProjectId = 0;
@@ -924,7 +1441,9 @@ export function createTasksFeature({
     taskFilters = normalizeTaskFilters({});
     taskVisualChartsVisible = true;
     taskCollapsedSubTasks = {};
+    taskColumnPrefs = normalizeTaskColumnPrefs({});
     taskTableMode.deactivate();
+    cancelTaskColumnDrag();
     renderTasks();
   }
 
@@ -1181,6 +1700,7 @@ export function createTasksFeature({
         dialog.remove();
       }
     });
+    cancelTaskColumnDrag();
     taskTableMode.deactivate();
   }
 
