@@ -23,6 +23,47 @@ export function chartIconHtml() {
   `;
 }
 
+export function overflowIconHtml() {
+  return "&#8942;";
+}
+
+export function pageActionsMenuHtml(items = []) {
+  return `
+    <details class="page-actions-menu">
+      <summary class="secondary text-icon-button page-actions-summary" title="More actions" aria-label="More actions">
+        ${buttonContent(overflowIconHtml(), "More")}
+      </summary>
+      <div class="page-actions-list" role="menu">
+        ${items.map(pageActionsMenuItemHtml).join("")}
+      </div>
+    </details>
+  `;
+}
+
+function pageActionsMenuItemHtml(item) {
+  if (item?.separator) return `<div class="page-actions-separator" role="separator"></div>`;
+
+  const isCheckable = typeof item?.checked === "boolean";
+  const attributes = [
+    `class="page-actions-item ${item?.checked ? "is-checked" : ""}"`,
+    item?.action ? `data-action="${escapeAttr(item.action)}"` : "",
+    `title="${escapeAttr(item?.title || item?.label || "")}"`,
+    `aria-label="${escapeAttr(item?.label || "")}"`,
+    isCheckable ? `aria-checked="${item.checked ? "true" : "false"}"` : "",
+    item?.disabled ? "disabled" : "",
+    `role="${isCheckable ? "menuitemcheckbox" : "menuitem"}"`
+  ].filter(Boolean).join(" ");
+
+  return `
+    ${item?.separatorBefore ? `<div class="page-actions-separator" role="separator"></div>` : ""}
+    <button type="button" ${attributes}>
+      <span class="page-actions-icon" aria-hidden="true">${item?.icon || ""}</span>
+      <span class="page-actions-check" aria-hidden="true">${item?.checked ? "&#10003;" : ""}</span>
+      <span class="page-actions-label">${escapeHtml(item?.label || "")}</span>
+    </button>
+  `;
+}
+
 export function bugIconHtml() {
   return `
     <svg class="button-svg-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">

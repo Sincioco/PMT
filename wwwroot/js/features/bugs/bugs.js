@@ -1,5 +1,5 @@
 import { taskRowAvatarsHtml } from "../../components/avatars.js";
-import { buttonContent, chartIconHtml, funnelIconHtml } from "../../components/buttons.js?v=20260621-bug-screen-parity";
+import { buttonContent, chartIconHtml, funnelIconHtml, pageActionsMenuHtml } from "../../components/buttons.js?v=20260701-page-actions-menu";
 import { VisualCharts } from "../../components/charts.js?v=20260628-chart-native-tooltips";
 import {
   checkedFilterValues,
@@ -21,7 +21,7 @@ import {
   value
 } from "../../components/forms.js?v=20260629-avatar-jpg-assets";
 import { progressHtml } from "../../components/progress-and-status.js?v=20260627-dev-task-status-rules";
-import { sectionHead } from "../../components/sections.js";
+import { sectionHead } from "../../components/sections.js?v=20260701-nav-title-preferences";
 import {
   attachmentEditorFieldHtml,
   bindAssigneeList,
@@ -157,12 +157,14 @@ export function createBugsFeature({
       <section class="bugs-screen work-item-screen">
       ${sectionHead("Bug Tracking", `
         <button class="primary text-icon-button" type="button" data-action="new-bug" title="New Bug Report" aria-label="New Bug Report">${buttonContent("&#10010;", "New Bug Report")}</button>
-        ${bugTableMode.buttonHtml()}
-        <button class="secondary text-icon-button" type="button" data-action="toggle-bug-visual-charts" title="${chartToggleLabel}" aria-label="${chartToggleLabel}" aria-pressed="${showCharts}" ${canShowCharts ? "" : "disabled"}>${buttonContent(chartIconHtml(), chartToggleLabel)}</button>
         <button class="secondary text-icon-button" type="button" data-action="open-bug-filters" title="Filters" aria-label="Filters" aria-haspopup="dialog">${buttonContent(funnelIconHtml(), "Filters")}</button>
-        <button class="secondary text-icon-button" type="button" data-action="export-bug-view" title="Export" aria-label="Export" aria-haspopup="dialog">${buttonContent(exportIconHtml(), "Export")}</button>
-        <button class="secondary text-icon-button" type="button" data-action="import-bug-view" title="Import" aria-label="Import">${buttonContent(importIconHtml(), "Import")}</button>
-        <button class="secondary text-icon-button" type="button" data-action="reset-bug-view" title="Reset View" aria-label="Reset View">${buttonContent("&#8634;", "Reset View")}</button>
+        ${pageActionsMenuHtml([
+          { action: "toggle-bug-table-edit-mode", icon: "&#9998;", label: "Edit Mode", title: "Edit Mode", checked: bugTableMode.active },
+          { action: "toggle-bug-visual-charts", icon: chartIconHtml(), label: "Graphs", title: chartToggleLabel, checked: showCharts, disabled: !canShowCharts, separatorBefore: true },
+          { action: "export-bug-view", icon: exportIconHtml(), label: "Export", title: "Export", separatorBefore: true },
+          { action: "import-bug-view", icon: importIconHtml(), label: "Import", title: "Import" },
+          { action: "reset-bug-view", icon: "&#8634;", label: "Reset View", title: "Reset View", separatorBefore: true }
+        ])}
       `)}
       ${showCharts ? bugVisualTrackingChartsHtml(baseBugs, allProjectBugs) : ""}
       <div class="panel work-item-table-panel bugs-table-panel">

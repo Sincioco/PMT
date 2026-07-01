@@ -5,6 +5,7 @@ import {
   logout,
   setCurrentUserId
 } from "./authentication.js";
+import { overflowIconHtml } from "../components/buttons.js?v=20260701-page-actions-menu";
 import { navIconHtml } from "./navigation-preferences.js?v=20260621-bug-icon";
 import {
   preferenceKeys,
@@ -227,7 +228,7 @@ export function createApplicationShell({
       ${viewButtons}
       <div class="nav-overflow">
         <button class="nav-overflow-toggle ${overflowIsActive ? "active" : ""}" type="button" data-action="nav-overflow-toggle" title="More navigation" aria-label="More navigation" aria-expanded="false" aria-haspopup="menu">
-          <span class="nav-icon" aria-hidden="true">&#8230;</span>
+          <span class="nav-icon" aria-hidden="true">${overflowIconHtml()}</span>
         </button>
         <div class="nav-overflow-menu" role="menu" hidden></div>
       </div>

@@ -1,6 +1,6 @@
 import { buttonContent, iconButton } from "../../components/buttons.js";
 import { askYesNo } from "../../components/dialogs.js";
-import { sectionHead } from "../../components/sections.js";
+import { sectionHead } from "../../components/sections.js?v=20260701-nav-title-preferences";
 import { createWorkItemTableMode } from "../../components/work-items.js?v=20260629-avatar-jpg-assets";
 import { api } from "../../core/api.js";
 import { currentUser } from "../../core/authentication.js";

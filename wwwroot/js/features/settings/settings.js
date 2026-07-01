@@ -11,7 +11,7 @@ import {
   defaultStatusColor,
   statusColor
 } from "../../components/progress-and-status.js?v=20260627-dev-task-status-rules";
-import { sectionHead } from "../../components/sections.js";
+import { sectionHead } from "../../components/sections.js?v=20260701-nav-title-preferences";
 import { api } from "../../core/api.js";
 import {
   currentUser,

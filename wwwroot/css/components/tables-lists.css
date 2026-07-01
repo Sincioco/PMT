@@ -143,6 +143,11 @@ tr.reorder-after > td {
   border-radius: var(--radius-lg);
 }
 
+.work-item-screen .work-item-table-panel:has(.work-item-table.is-edit-mode) {
+  border-color: var(--color-warning-border);
+  box-shadow: 0 0 16px color-mix(in srgb, var(--color-warning), transparent 82%);
+}
+
 .work-item-table {
   min-width: 1040px;
   font-size: var(--font-size-md);
@@ -150,6 +155,12 @@ tr.reorder-after > td {
 
 .work-item-screen .work-item-table {
   table-layout: fixed;
+}
+
+.work-item-screen .work-item-table.is-edit-mode {
+  box-shadow:
+    0 0 0 1px var(--color-warning-border),
+    0 0 14px color-mix(in srgb, var(--color-warning), transparent 72%);
 }
 
 .work-item-table th {

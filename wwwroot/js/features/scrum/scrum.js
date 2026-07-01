@@ -1,4 +1,4 @@
-import { buttonContent, funnelIconHtml, iconButton } from "../../components/buttons.js";
+import { buttonContent, chartIconHtml, funnelIconHtml, iconButton, pageActionsMenuHtml } from "../../components/buttons.js?v=20260701-page-actions-menu";
 import {
   checkedFilterValues,
   filterCheckList
@@ -12,7 +12,7 @@ import {
   userCardCheckListLabelHtml,
   value
 } from "../../components/forms.js?v=20260629-avatar-jpg-assets";
-import { sectionHead } from "../../components/sections.js";
+import { sectionHead } from "../../components/sections.js?v=20260701-nav-title-preferences";
 import { createWorkItemTableMode } from "../../components/work-items.js?v=20260629-avatar-jpg-assets";
 import { currentUser } from "../../core/authentication.js";
 import {
@@ -106,11 +106,14 @@ export function createScrumFeature({
       <section class="scrum-screen work-item-screen">
         ${sectionHead("Scrum", `
           <button class="primary text-icon-button" type="button" data-action="new-log" title="New Scrum" aria-label="New Scrum">${buttonContent("&#10010;", "New Scrum")}</button>
-          ${scrumTableMode.buttonHtml()}
           <button class="secondary text-icon-button" type="button" data-action="open-scrum-filters" title="Filters" aria-label="Filters" aria-haspopup="dialog">${buttonContent(funnelIconHtml(), "Filters")}</button>
-          <button class="secondary text-icon-button" type="button" data-action="export-scrum-view" title="Export" aria-label="Export" aria-haspopup="dialog">${buttonContent(exportIconHtml(), "Export")}</button>
-          <button class="secondary text-icon-button" type="button" data-action="import-scrum-view" title="Import" aria-label="Import">${buttonContent(importIconHtml(), "Import")}</button>
-          <button class="secondary text-icon-button" type="button" data-action="reset-scrum-view" title="Reset View" aria-label="Reset View">${buttonContent("&#8634;", "Reset View")}</button>
+          ${pageActionsMenuHtml([
+            { action: "toggle-scrum-table-edit-mode", icon: "&#9998;", label: "Edit Mode", title: "Edit Mode", checked: scrumTableMode.active },
+            { icon: chartIconHtml(), label: "Graphs", title: "Graphs", disabled: true, separatorBefore: true },
+            { action: "export-scrum-view", icon: exportIconHtml(), label: "Export", title: "Export", separatorBefore: true },
+            { action: "import-scrum-view", icon: importIconHtml(), label: "Import", title: "Import" },
+            { action: "reset-scrum-view", icon: "&#8634;", label: "Reset View", title: "Reset View", separatorBefore: true }
+          ])}
         `)}
         <div class="panel work-item-table-panel scrum-table-panel">
           <div class="scrum-table-wrap">

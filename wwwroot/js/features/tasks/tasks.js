@@ -1,5 +1,5 @@
 import { taskRowAvatarsHtml } from "../../components/avatars.js";
-import { buttonContent, chartIconHtml, funnelIconHtml } from "../../components/buttons.js?v=20260621-dev-task-icons";
+import { buttonContent, chartIconHtml, funnelIconHtml, pageActionsMenuHtml } from "../../components/buttons.js?v=20260701-page-actions-menu";
 import { VisualCharts } from "../../components/charts.js?v=20260628-chart-native-tooltips";
 import { checkedFilterValues, filterCheckList } from "../../components/filters.js?v=20260630-filter-renderer";
 import {
@@ -18,7 +18,7 @@ import {
   value
 } from "../../components/forms.js?v=20260629-avatar-jpg-assets";
 import { progressHtml, statusColor } from "../../components/progress-and-status.js?v=20260627-dev-task-status-rules";
-import { sectionHead } from "../../components/sections.js";
+import { sectionHead } from "../../components/sections.js?v=20260701-nav-title-preferences";
 import {
   attachmentEditorFieldHtml,
   bindAssigneeList,
@@ -165,12 +165,14 @@ export function createTasksFeature({
       <section class="tasks-screen work-item-screen">
       ${sectionHead("Dev Tasks", `
         <button class="primary text-icon-button" type="button" data-action="new-task" title="New Dev Task" aria-label="New Dev Task">${buttonContent("&#10010;", "New Dev Task")}</button>
-        ${taskTableMode.buttonHtml()}
-        <button class="secondary text-icon-button" type="button" data-action="toggle-task-visual-charts" title="${chartToggleLabel}" aria-label="${chartToggleLabel}" aria-pressed="${showCharts}" ${canShowCharts ? "" : "disabled"}>${buttonContent(chartIconHtml(), chartToggleLabel)}</button>
         <button class="secondary text-icon-button" type="button" data-action="open-task-filters" title="Filters" aria-label="Filters" aria-haspopup="dialog">${buttonContent(funnelIconHtml(), "Filters")}</button>
-        <button class="secondary text-icon-button" type="button" data-action="export-task-view" title="Export" aria-label="Export" aria-haspopup="dialog">${buttonContent(exportIconHtml(), "Export")}</button>
-        <button class="secondary text-icon-button" type="button" data-action="import-task-view" title="Import" aria-label="Import">${buttonContent(importIconHtml(), "Import")}</button>
-        <button class="secondary text-icon-button" type="button" data-action="reset-task-view" title="Reset View" aria-label="Reset View">${buttonContent("&#8634;", "Reset View")}</button>
+        ${pageActionsMenuHtml([
+          { action: "toggle-task-table-edit-mode", icon: "&#9998;", label: "Edit Mode", title: "Edit Mode", checked: taskTableMode.active },
+          { action: "toggle-task-visual-charts", icon: chartIconHtml(), label: "Graphs", title: chartToggleLabel, checked: showCharts, disabled: !canShowCharts, separatorBefore: true },
+          { action: "export-task-view", icon: exportIconHtml(), label: "Export", title: "Export", separatorBefore: true },
+          { action: "import-task-view", icon: importIconHtml(), label: "Import", title: "Import" },
+          { action: "reset-task-view", icon: "&#8634;", label: "Reset View", title: "Reset View", separatorBefore: true }
+        ])}
       `)}
       ${showCharts ? taskVisualTrackingChartsHtml(baseTasks, selectedSprint, allProjectDevTasks) : ""}
       <div class="panel work-item-table-panel tasks-table-panel">

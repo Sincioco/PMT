@@ -8,7 +8,7 @@ import {
   userCardCheckListLabelHtml
 } from "../../components/forms.js?v=20260629-avatar-jpg-assets";
 import { progressHtml } from "../../components/progress-and-status.js?v=20260627-dev-task-status-rules";
-import { sectionHead } from "../../components/sections.js";
+import { sectionHead } from "../../components/sections.js?v=20260701-nav-title-preferences";
 import {
   bugFixIconHtml,
   createWorkItemTableMode

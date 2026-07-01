@@ -56,5 +56,23 @@ Do you have any roadblocks?
 21.) Also, for as much reasonably possible, make the Scrum table behave similarly to the Dev Task table, including Export capability, allow only Import if you are an admin, edit mode, the ability to drag and drop to re-order column headers, etc.
 22.) Universally, update the Import logic across all views so that only Admin can import data without restrictions.  If a normal user Imports data, only allow them to re-import / update their own data and be sure to update the audit log of each item touched by the import process so there is a record that data was modified by an import process.
 23.) In the Scrum screen, make it so that Scrum entries older than 31 days are no longer modifiable, unless you are an Admin.
-
 24.) In the Scrum screen, Add a Reset View button.  Refer to the Dev Task's Reset View button.
+
+25.) In the Dev Task, Bug Tracking Screen, Scrum Screen, change the page-level buttons as follows:
+
+		a.) Keep the New button and Filter button.
+		b.) Everything else, fold it into an overflow icon, so when they click on this button, a dropdown menu comes down.
+		c.) Render the menu items with icons and text.
+		d.) The first menu item is "Edit Mode".  Render a checkmark to the left of the menu label, in between the icon and the menu label.  Do not shift the menu item as the checkmark appears and disappears.
+		e.) The second menu item is "Graphs".  Put a menu seperator between the graph menu item and the previous menu item.
+		f.) Put the Export menu item next, followed by the Import.  Put a menu seprator before the Export menu item and after the Import menu Item.
+		g.) Make the last menu item Reset View.
+
+26.) Also, when a table is in "Edit" mode, render an slight orange glow border so the user knows it is in Edit mode.
+27.) In the Settings, the user can rename the top level Navigation items.  Please make the Page Titles that pertain to those Navigation items, reflect the user's preferred name.  For example, if the user renamed "Dev Tasks" to be "Developer's Tasks", then the Dev Task page's title should read "Developer's Task."
+
+28.) When the new page-level overflow menu is open, if you click outside of the menu's rectangular area, the menu does not dismiss.
+29.) Make the overflow button behave like the "Paper Design" UX, that is, the border around it is only visible when the mouse cursor is hovering on it.  Remember this for all buttons and file this in paper-design.md under the docs sub-folder.  Basically, make it behave like the already existing page-level buttons, except it dropdown a menu.
+30.) If you could enlarge the Pencil and Reset icon on the overflow menu without shifting anything that would be great as they visually appear smaller than the Graph, Export and Import icons.
+
+31.) Update the top navigation's overflow icon and use the same icon as on the page-level overflow icon.

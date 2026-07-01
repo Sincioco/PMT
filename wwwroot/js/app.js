@@ -16,7 +16,7 @@ import {
   showTaskAudit,
   viewWorkItem
 } from "./components/work-items.js?v=20260629-avatar-jpg-assets";
-import { createApplicationShell } from "./core/application-shell.js?v=20260621-light-default";
+import { createApplicationShell } from "./core/application-shell.js?v=20260701-top-nav-overflow-icon";
 import {
   currentView,
   navigate
@@ -28,23 +28,23 @@ import {
 } from "./core/screen-registry.js";
 import { state } from "./core/store.js";
 import { createAboutFeature } from "./features/about/about.js?v=20260621-about-credits";
-import { createBacklogFeature } from "./features/backlog/backlog.js?v=20260701-import-audit-owner";
-import { createBoardFeature } from "./features/board/board.js?v=20260629-avatar-jpg-assets";
-import { createBugsFeature } from "./features/bugs/bugs.js?v=20260701-import-audit-owner";
-import { createDashboardFeature } from "./features/dashboard/dashboard.js?v=20260627-dev-task-status-rules";
-import { createDocumentationFeature } from "./features/documentation/documentation.js?v=20260629-avatar-jpg-assets";
+import { createBacklogFeature } from "./features/backlog/backlog.js?v=20260701-nav-title-preferences";
+import { createBoardFeature } from "./features/board/board.js?v=20260701-nav-title-preferences";
+import { createBugsFeature } from "./features/bugs/bugs.js?v=20260701-page-actions-menu";
+import { createDashboardFeature } from "./features/dashboard/dashboard.js?v=20260701-nav-title-preferences";
+import { createDocumentationFeature } from "./features/documentation/documentation.js?v=20260701-nav-title-preferences";
 import {
   createGanttFeature,
   currentSprintForProject,
   ganttStartDate
-} from "./features/gantt/gantt.js?v=20260629-sort-dropdown-labels";
-import { createProjectsFeature } from "./features/projects/projects.js?v=20260629-avatar-jpg-assets";
-import { createRoadMapFeature } from "./features/roadmap/roadmap.js?v=20260629-sort-dropdown-labels";
-import { createScrumFeature } from "./features/scrum/scrum.js?v=20260701-scrum-reset-view";
-import { createSettingsFeature } from "./features/settings/settings.js?v=20260629-avatar-jpg-assets";
-import { createSprintsFeature } from "./features/sprints/sprints.js?v=20260629-avatar-jpg-assets";
-import { createTasksFeature } from "./features/tasks/tasks.js?v=20260701-import-audit-owner";
-import { createWfhScheduleFeature } from "./features/wfh-schedule/wfh-schedule.js?v=20260629-avatar-jpg-assets";
+} from "./features/gantt/gantt.js?v=20260701-nav-title-preferences";
+import { createProjectsFeature } from "./features/projects/projects.js?v=20260701-nav-title-preferences";
+import { createRoadMapFeature } from "./features/roadmap/roadmap.js?v=20260701-nav-title-preferences";
+import { createScrumFeature } from "./features/scrum/scrum.js?v=20260701-page-actions-menu";
+import { createSettingsFeature } from "./features/settings/settings.js?v=20260701-nav-title-preferences";
+import { createSprintsFeature } from "./features/sprints/sprints.js?v=20260701-nav-title-preferences";
+import { createTasksFeature } from "./features/tasks/tasks.js?v=20260701-page-actions-menu";
+import { createWfhScheduleFeature } from "./features/wfh-schedule/wfh-schedule.js?v=20260701-nav-title-preferences";
 import {
   fallbackEnvironments,
   fallbackForLookup,
@@ -343,6 +343,7 @@ function bindScreenEvents() {
   window.addEventListener("pointerup", handlePointerUp);
   window.addEventListener("mouseup", handleMouseUp);
   window.addEventListener("pointercancel", cancelPointerDrag);
+  document.addEventListener("pointerdown", handlePageActionsOutsidePointer);
   document.addEventListener("click", handleDocumentLinkClick);
 }
 
@@ -352,6 +353,16 @@ async function loadState() {
 
 function render() {
   shell.render();
+}
+
+function handlePageActionsOutsidePointer(event) {
+  const openMenus = document.querySelectorAll(".page-actions-menu[open]");
+  if (!openMenus.length) return;
+
+  const activeMenu = event.target.closest?.(".page-actions-menu");
+  openMenus.forEach(menu => {
+    if (menu !== activeMenu) menu.removeAttribute("open");
+  });
 }
 
 /*
@@ -404,6 +415,7 @@ async function handleActionClick(event) {
   const button = event.target.closest("[data-action]");
   if (!button) return;
   if (button.matches("tr[data-action]") && event.target.closest("button, input, label, select, textarea")) return;
+  button.closest(".page-actions-menu")?.removeAttribute("open");
 
   const id = Number(button.dataset.id || 0);
   const action = button.dataset.action;

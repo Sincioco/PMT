@@ -19,6 +19,7 @@ When guidance is missing or ambiguous, follow this document. When a new requirem
 - In the Light theme, every button is borderless at rest, including navigation, page-level, card, table, menu, and dialog buttons.
 - A Light-theme button border appears only while the pointer is hovering over that enabled button.
 - Light-theme buttons retain a transparent border of the final hover width at rest so the hover state never changes layout.
+- Page-level overflow buttons follow the same borderless-at-rest rule as other page-level buttons. Opening the menu must not reveal a persistent button border; the border appears only while the pointer is hovering over the overflow button.
 - The `primary` class may identify the main action semantically, but it must not create a blue, teal, or otherwise filled background.
 - Hover, active, selected, and disabled states must not add a filled button background.
 - Button identity and state should be communicated through text, monochrome icons, borders, and accessible labels.
