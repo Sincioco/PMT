@@ -34,7 +34,8 @@ import {
 import {
   escapeAttr,
   escapeHtml,
-  normalizeLinksInElement
+  normalizeLinksInElement,
+  normalizeRichHtml
 } from "../../shared/text-and-links.js";
 
 const documentationViewModes = new Set(["cards", "tree"]);
@@ -171,8 +172,12 @@ export function createDocumentationFeature({
       return true;
     }
     if (action === "select-documentation-tree-blog") {
+      if (editingTreeBlogId && editingTreeBlogId !== id) {
+        await handleDocumentationTreeSelectionWhileEditing(id);
+        return true;
+      }
+
       selectedTreeBlogId = id;
-      if (editingTreeBlogId && editingTreeBlogId !== id) editingTreeBlogId = 0;
       renderDocumentation();
       return true;
     }
@@ -536,37 +541,115 @@ export function createDocumentationFeature({
 
     form.addEventListener("submit", async event => {
       event.preventDefault();
+      await saveDocumentationInlineEditor(form);
+    });
+  }
 
-      const blogId = Number(form.dataset.blogId || 0);
-      const projectId = optionalNumberValue(form, "projectId");
-      const sprintId = projectId ? optionalNumberValue(form, "sprintId") : null;
+  async function handleDocumentationTreeSelectionWhileEditing(nextBlogId) {
+    const form = app.querySelector("[data-documentation-inline-editor]");
+    const blog = state.blogs.find(item => item.id === editingTreeBlogId);
 
-      try {
-        const result = await saveJson(`/api/blogs/${blogId}`, "PUT", {
-          id: blogId,
-          projectId,
-          sprintId,
-          parentBlogId: optionalNumberValue(form, "parentBlogId"),
-          title: value(form, "title"),
-          bodyHtml: richValue(form, "bodyHtml")
-        });
+    if (!form || !blog || !documentationInlineEditorHasChanges(form, blog)) {
+      selectedTreeBlogId = nextBlogId;
+      editingTreeBlogId = 0;
+      renderDocumentation();
+      return;
+    }
 
-        for (const file of form.querySelector("[name='attachments']")?.files || []) {
-          await attachFile(`/api/blogs/${blogId}/attachments`, file);
-        }
+    const result = await askDocumentationUnsavedAction();
+    if (result === "save") {
+      await saveDocumentationInlineEditor(form, { selectedBlogIdAfterSave: nextBlogId });
+      return;
+    }
 
-        selectedTreeBlogId = result?.id || blogId;
-        editingTreeBlogId = 0;
-        await loadState?.();
-        if (render) {
-          render();
-        } else {
-          renderDocumentation();
-        }
-        showToast?.("Saved.");
-      } catch (error) {
-        showToast?.(error.message);
+    if (result === "discard") {
+      selectedTreeBlogId = nextBlogId;
+      editingTreeBlogId = 0;
+      renderDocumentation();
+    }
+  }
+
+  function documentationInlineEditorHasChanges(form, blog) {
+    const projectId = optionalNumberValue(form, "projectId");
+    const sprintId = projectId ? optionalNumberValue(form, "sprintId") : null;
+
+    return (projectId || null) !== (blog.projectId || null)
+      || (sprintId || null) !== (blog.sprintId || null)
+      || (optionalNumberValue(form, "parentBlogId") || null) !== (blog.parentBlogId || null)
+      || value(form, "title") !== (blog.title || "")
+      || richValue(form, "bodyHtml") !== normalizeRichHtml(blog.bodyHtml || "")
+      || (form.querySelector("[name='attachments']")?.files?.length || 0) > 0;
+  }
+
+  async function saveDocumentationInlineEditor(form, options = {}) {
+    const blogId = Number(form.dataset.blogId || 0);
+    const projectId = optionalNumberValue(form, "projectId");
+    const sprintId = projectId ? optionalNumberValue(form, "sprintId") : null;
+
+    try {
+      const result = await saveJson(`/api/blogs/${blogId}`, "PUT", {
+        id: blogId,
+        projectId,
+        sprintId,
+        parentBlogId: optionalNumberValue(form, "parentBlogId"),
+        title: value(form, "title"),
+        bodyHtml: richValue(form, "bodyHtml")
+      });
+
+      for (const file of form.querySelector("[name='attachments']")?.files || []) {
+        await attachFile(`/api/blogs/${blogId}/attachments`, file);
       }
+
+      selectedTreeBlogId = options.selectedBlogIdAfterSave || result?.id || blogId;
+      editingTreeBlogId = 0;
+      await loadState?.();
+      if (render) {
+        render();
+      } else {
+        renderDocumentation();
+      }
+      showToast?.("Saved.");
+      return true;
+    } catch (error) {
+      showToast?.(error.message);
+      return false;
+    }
+  }
+
+  function askDocumentationUnsavedAction() {
+    return new Promise(resolve => {
+      const modal = document.createElement("dialog");
+      modal.className = "dialog mini-dialog";
+      modal.innerHTML = `
+        <div class="dialog-head">
+          <h2>Unsaved Changes</h2>
+        </div>
+        <div class="dialog-body">
+          <p>Save changes before switching documents?</p>
+        </div>
+        <div class="dialog-actions">
+          <button type="button" class="secondary text-icon-button" data-result="cancel">${buttonContent("&#10005;", "Cancel")}</button>
+          <button type="button" class="secondary text-icon-button" data-result="discard">${buttonContent("&#8634;", "Discard")}</button>
+          <button type="button" class="primary text-icon-button" data-result="save">${buttonContent("&#10003;", "Save")}</button>
+        </div>
+      `;
+
+      document.body.appendChild(modal);
+
+      const finish = result => {
+        modal.close();
+        modal.remove();
+        resolve(result);
+      };
+
+      modal.querySelectorAll("[data-result]").forEach(button => {
+        button.addEventListener("click", () => finish(button.dataset.result));
+      });
+      modal.addEventListener("cancel", event => {
+        event.preventDefault();
+        finish("cancel");
+      });
+      modal.showModal();
     });
   }
 

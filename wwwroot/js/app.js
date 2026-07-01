@@ -32,7 +32,7 @@ import { createBacklogFeature } from "./features/backlog/backlog.js?v=20260701-n
 import { createBoardFeature } from "./features/board/board.js?v=20260701-nav-title-preferences";
 import { createBugsFeature } from "./features/bugs/bugs.js?v=20260701-unified-dropdowns";
 import { createDashboardFeature } from "./features/dashboard/dashboard.js?v=20260701-nav-title-preferences";
-import { createDocumentationFeature } from "./features/documentation/documentation.js?v=20260701-documentation-sticky-toolbar";
+import { createDocumentationFeature } from "./features/documentation/documentation.js?v=20260701-documentation-unsaved-tree-edit";
 import {
   createGanttFeature,
   currentSprintForProject,

@@ -123,3 +123,5 @@ I want to focus on the Documentation screen and making it a more fleshed out pla
 26.) Let's also fix the Title's textbox when in edit mode in the TreeNav as it looks shorter now than the Project's dropdown control.  Revert it back so it follows the flow of a 2-column layout, but only take up 1 column (same dynamic dimensions as the Project dropdown).
 27.) When the toolbar is in its sticky mode, there is a gap between it and the top view port.  I want the toolbar flushed to the top (or bottom) of its viewport when it is in sticky mode.
 28.) Also, lessen the splitter's width to just 4 pixels.
+
+29.) While in Treeview mode, if I edit a document and click on another item on the treeview, I don't get prompted to save my work, I simply just lose my edits to the document.
