@@ -27,6 +27,8 @@ public sealed class BlogPostDto
 {
     public int Id { get; set; }
     public int? ProjectId { get; set; }
+    public int? SprintId { get; set; }
+    public int? ParentBlogId { get; set; }
     public string Title { get; set; } = "";
     public string BodyHtml { get; set; } = "";
     public int CreatedByUserId { get; set; }
@@ -59,6 +61,8 @@ public sealed class BlogInput
 {
     public int Id { get; set; }
     public int? ProjectId { get; set; }
+    public int? SprintId { get; set; }
+    public int? ParentBlogId { get; set; }
     public string Title { get; set; } = "";
     public string BodyHtml { get; set; } = "";
 }

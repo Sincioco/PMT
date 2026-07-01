@@ -32,7 +32,7 @@ import { createBacklogFeature } from "./features/backlog/backlog.js?v=20260701-n
 import { createBoardFeature } from "./features/board/board.js?v=20260701-nav-title-preferences";
 import { createBugsFeature } from "./features/bugs/bugs.js?v=20260701-unified-dropdowns";
 import { createDashboardFeature } from "./features/dashboard/dashboard.js?v=20260701-nav-title-preferences";
-import { createDocumentationFeature } from "./features/documentation/documentation.js?v=20260701-nav-title-preferences";
+import { createDocumentationFeature } from "./features/documentation/documentation.js?v=20260701-documentation-sticky-toolbar";
 import {
   createGanttFeature,
   currentSprintForProject,
@@ -293,9 +293,14 @@ const scrumFeature = createScrumFeature({
 const documentationFeature = createDocumentationFeature({
   app,
   attachFile,
+  bindAttachmentPreview,
+  bindRichTextButtons,
   deleteItem,
+  loadState,
   openEditor,
-  saveJson
+  render,
+  saveJson,
+  showToast
 });
 const wfhScheduleFeature = createWfhScheduleFeature({
   app,
@@ -1168,7 +1173,7 @@ function bindRichTextButtons(root) {
     button.addEventListener("mousedown", event => event.preventDefault());
     button.addEventListener("click", async () => {
       const command = button.dataset.command;
-      const editor = button.closest(".field")?.querySelector(".rich-editor");
+      const editor = richEditorForControl(button);
       if (!editor) return;
 
       const savedSelection = saveEditorSelection(editor);
@@ -1213,12 +1218,12 @@ function bindRichTextButtons(root) {
     let savedSelection = null;
 
     select.addEventListener("mousedown", () => {
-      const editor = select.closest(".field")?.querySelector(".rich-editor");
+      const editor = richEditorForControl(select);
       savedSelection = editor ? saveEditorSelection(editor) : null;
     });
 
     select.addEventListener("change", () => {
-      const editor = select.closest(".field")?.querySelector(".rich-editor");
+      const editor = richEditorForControl(select);
       const format = select.value;
       select.value = "";
       if (!editor || !format) return;
@@ -1247,6 +1252,12 @@ function bindRichTextButtons(root) {
       }
     });
   });
+}
+
+function richEditorForControl(control) {
+  return control.closest(".field")?.querySelector(".rich-editor")
+    || control.closest("[data-rich-editor-root]")?.querySelector(".rich-editor")
+    || null;
 }
 
 function applyRichTextFormat(editor, formatName) {

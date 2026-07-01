@@ -48,7 +48,15 @@ export const preferenceKeys = Object.freeze({
   backlogCollapsedSubTasks: "pmt-backlog-collapsed-subtasks",
   backlogTableColumns: "pmt-backlog-table-columns",
   documentationProject: "pmt-documentation-project",
-  documentationEntryProject: "pmt-documentation-entry-project"
+  documentationEntryProject: "pmt-documentation-entry-project",
+  documentationEntrySprint: "pmt-documentation-entry-sprint",
+  documentationViewMode: "pmt-documentation-view-mode",
+  documentationTreeGroup: "pmt-documentation-tree-group",
+  documentationTreeLayout: "pmt-documentation-tree-layout",
+  documentationTreeSort: "pmt-documentation-tree-sort",
+  documentationTreeSearch: "pmt-documentation-tree-search",
+  documentationTreePaneWidth: "pmt-documentation-tree-pane-width",
+  documentationTreePaneHidden: "pmt-documentation-tree-pane-hidden"
 });
 
 export function readPreference(key, defaultValue = "") {

@@ -243,6 +243,8 @@ public sealed partial class SqlPmtStore
             {
                 Id = reader.GetInt32("BlogId"),
                 ProjectId = reader.GetNullableInt32("ProjectId"),
+                SprintId = reader.GetNullableInt32("SprintId"),
+                ParentBlogId = reader.GetNullableInt32("ParentBlogId"),
                 Title = reader.GetStringOrEmpty("Title"),
                 BodyHtml = reader.GetStringOrEmpty("BodyHtml"),
                 CreatedByUserId = reader.GetInt32("CreatedByUserId"),

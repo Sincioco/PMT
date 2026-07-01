@@ -2,7 +2,7 @@ Project Management Tool (PMT):  Day 18 of Codex Agentic AI Coding
 -----------------------------------------------------------------
 Total Dev Time in Hours:  23
 
-For all of this conversation / session, I will perform all the manual tests and compile the application manually.  Perform only the coding changes required and nothing else.  If making CSS / image changes, ensure that I will encounter no caching issue when testing in the browser.
+For all of this conversation / session, I will perform all the manual tests and compile the application manually.  Perform only the coding changes required and nothing else.  If making CSS / image changes, ensure that I will encounter no caching issue when testing in the browser.  Be sure to inform me if I have to recompile the .Net portion of the project or just Press Ctrl + F5 on the browser to reload to see the latest changes.
 
 Scrum Screen
 ------------
@@ -86,3 +86,40 @@ Do you have any roadblocks?
 36.) For this specific task (#36), use a browser and visually inspect the user's avatar.  It's overflowed past the top-nav, and the hover circle is the wrong size.  Can you size the user's Avatar so it is as large as what could visually fit at the top nav, while still fixing the hover outline.  See the attached picture for a screenshot of the issue.
 37.) Without shifting anything in the top navigation, resize the User's Avatar icon to be 50x50 pixels and be sure it is vertically centered on the top nav and be sure the circle that gets drawn around it when the mouse cursor hovers on it is perfect centered to the user's avatar image.
 
+Documentation Screen
+---------------------
+I want to focus on the Documentation screen and making it a more fleshed out place to store documents overtime.  Keep the existing Documentation Card view as-is.  I would like an option to be able to toggle into a Tree View.
+
+1.) Allow documents to have a parent, and allow parents to have 0 or more children.  That way a parent-child relationship or a hierarchy can be created.
+2.) Create a left pane, a Tree Navigation, sort of like File Explorer, that will allow the user to explore and expand/collapse the parent-child related documents.
+3.) I want to have the ability to create documents under a Project and a Sprint.  Currently, you can create a document and you can select a project, I would like to also create documents under a Project's specific Sprint.
+4.) In the Tree Navigation, allow the user to see documents via it's parent child relationships with the parent folders being the Project, then by Sprints.
+5.) Since the user can create documents not belonging to a Project (or a Sprint), let's treat them as Global documents, and create a logical Global parent folder for them (the default parent).
+6.) In the New/Edit Document dialog box, rename the "No project" choice in the the Project dropdown to read "Global".
+7.) In the Tree Navigation, give the user an option so they can see all documents under a project.  Basically, give them an option to render the Tree View without the Sprints, in case they just want to see all documents pertaining to a project.
+8.) In the Tree Navigation, give the user an option to they can see all documents without regards to Projects or Sprints.  Basically, render the tree without their parent Project or Sprint.
+9.) In the Tree Navigation, give the user the ability to sort documents so they can see the latest or oldest first.
+10.) Put a search function so they can search for documents in the TreeNav.
+11.) In the Tree Navigation, give the user an option to just see the documents in a flat view, no parent-child relationship.  In general, keep the parent-child relationships unless the user chooses the flat view.
+12.) You are free to drop and re-create the database.  There is no need to save any data both at the database level or in the front-end at the browser level.
+13.) You have my full permission to do what you need to implement this Tree Navigation functionality.
+
+14.) When in TreeView, clicking on an item in the tree renders the content on the right-side (right pane).
+15.) Have a splitter between the left pane (tree view) and right pane (content) so the user can choose to widen or shorten the TreeNav.
+16.) Also, provide a way to temporarily hide the TreeView so the user can view the content more.
+17.) Render the content (right pane) not as a dialog box, but actual page content, so the user can scroll up and down on the document.
+
+18.) If there are no Global documents, don't render any Global nodes on the tree.
+
+19.) When I scroll up and down a long document, the TreeNav is scrolling too.  Can you make it the TreeNav fixed?  Give it its own scrollbar?  Just like File Explorer's left and right panes have separate vertical scrollbars.
+
+20) Also, in both the TreeView and Card View, add a Filter button just like what we did in the Dev Tasks and move all the Filtering options there to make more room for the TreeNav and Document view (right pane).
+
+21.) The Filter dialog box did not get the same theme/styling as the Dev Task's Filter dilaog box.  The controls look plain and unstyled.
+22.) When in TreeView mode and the user clicks the Edit button to edit the document, I would like to edit the document in-place (in the right pane) instead of popping a dialog box.  That way, the user can have a nearly full-page document editing experience (when they hide the Treeview).  Float a toolbar that would normally contain all the formatting options that's found in the dialog box version.  For now, float this toolbar just beside (to the right) of the Page Title without covering the Page Title.
+23.) There is a large white gap between the bottom edge of the TreeNav and right pane, and the bottom of the browser's content area.  About the same height as the top of the content area to the top of the TreeNav's top position.  Can you remove the white gap at the bottom so the vertical scrollbars of the treenav and right pane are basically nearly touching the bottom area of the browser?
+24.) For the floating toolbar, I literally meant for it to appear in the same area as the page-level buttons, so they do not disappear when you scroll down on a long document to edit it.  Float it just right after the Page Title of "Documentation".
+25.) Okay, the toolbar looks weird just floating next to the Page's Title.  Let's put the Toolbar back where it originally was located, just above the body (just like where it was in the Dialog box version), so when the user scrolls up and down it moves like all the other UI elements except, as the user scrolls the document down (or up), the toolbar becomes sticky when it's about to go out of view.  Basically, allow the toolbar to move within the right pane's viewport, but never allow it to leave.  Stick it to the top or bottom of the right pane's view port so it never goes out of view.
+26.) Let's also fix the Title's textbox when in edit mode in the TreeNav as it looks shorter now than the Project's dropdown control.  Revert it back so it follows the flow of a 2-column layout, but only take up 1 column (same dynamic dimensions as the Project dropdown).
+27.) When the toolbar is in its sticky mode, there is a gap between it and the top view port.  I want the toolbar flushed to the top (or bottom) of its viewport when it is in sticky mode.
+28.) Also, lessen the splitter's width to just 4 pixels.

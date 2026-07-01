@@ -34,6 +34,8 @@ public sealed partial class SqlPmtStore
             Add(command, "@Title", SqlDbType.NVarChar, 220, input.Title);
             Add(command, "@BodyHtml", SqlDbType.NVarChar, -1, input.BodyHtml);
             AddNullable(command, "@ProjectId", input.ProjectId);
+            AddNullable(command, "@SprintId", input.SprintId);
+            AddNullable(command, "@ParentBlogId", input.ParentBlogId);
             Add(command, "@CurrentUserId", currentUserId);
         }, cancellationToken);
     }

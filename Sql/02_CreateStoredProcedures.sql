@@ -287,6 +287,8 @@ BEGIN
     SELECT
         [BlogId],
         [ProjectId],
+        [SprintId],
+        [ParentBlogId],
         [Title],
         [BodyHtml],
         [CreatedByUserId],
@@ -2593,6 +2595,8 @@ CREATE OR ALTER PROCEDURE [pmt].[UpsertBlog]
     @Title NVARCHAR(220),
     @BodyHtml NVARCHAR(MAX),
     @ProjectId INT,
+    @SprintId INT = NULL,
+    @ParentBlogId INT = NULL,
     @CurrentUserId INT
 AS
 BEGIN
@@ -2600,6 +2604,11 @@ BEGIN
 
     DECLARE @Now DATETIME2(0) = SYSUTCDATETIME();
     DECLARE @OwnerUserId INT;
+    DECLARE @OldProjectId INT;
+    DECLARE @OldSprintId INT;
+    DECLARE @ParentProjectId INT;
+    DECLARE @ParentSprintId INT;
+    DECLARE @CycleBlogId INT;
     DECLARE @Action NVARCHAR(80);
 
     SET @Title = NULLIF(LTRIM(RTRIM(@Title)), N'');
@@ -2614,11 +2623,74 @@ BEGIN
         THROW 50071, 'Blog text is required.', 1;
     END;
 
+    IF @ProjectId IS NULL
+    BEGIN
+        SET @SprintId = NULL;
+    END;
+
+    IF @SprintId IS NOT NULL
+       AND NOT EXISTS
+       (
+            SELECT 1
+            FROM [pmt].[Sprints]
+            WHERE [SprintId] = @SprintId
+              AND [ProjectId] = @ProjectId
+              AND [IsDeleted] = 0
+       )
+    BEGIN
+        THROW 50076, 'Selected Sprint does not belong to this Project.', 1;
+    END;
+
+    IF @ParentBlogId = @BlogId AND @BlogId <> 0
+    BEGIN
+        THROW 50077, 'A document cannot be its own parent.', 1;
+    END;
+
+    IF @ParentBlogId IS NOT NULL
+    BEGIN
+        SELECT
+            @ParentProjectId = [ProjectId],
+            @ParentSprintId = [SprintId]
+        FROM [pmt].[Blogs]
+        WHERE [BlogId] = @ParentBlogId
+          AND [IsDeleted] = 0;
+
+        IF @ParentProjectId IS NULL AND @ParentSprintId IS NULL AND NOT EXISTS (SELECT 1 FROM [pmt].[Blogs] WHERE [BlogId] = @ParentBlogId AND [IsDeleted] = 0)
+        BEGIN
+            THROW 50078, 'Parent document was not found.', 1;
+        END;
+
+        IF ISNULL(@ParentProjectId, 0) <> ISNULL(@ProjectId, 0)
+           OR ISNULL(@ParentSprintId, 0) <> ISNULL(@SprintId, 0)
+        BEGIN
+            THROW 50079, 'Parent document must be in the same Project and Sprint.', 1;
+        END;
+
+        SET @CycleBlogId = @ParentBlogId;
+        WHILE @BlogId <> 0 AND @CycleBlogId IS NOT NULL
+        BEGIN
+            IF @CycleBlogId = @BlogId
+            BEGIN
+                THROW 50080, 'A document cannot use one of its children as its parent.', 1;
+            END;
+
+            SELECT @CycleBlogId =
+            (
+                SELECT [ParentBlogId]
+                FROM [pmt].[Blogs]
+                WHERE [BlogId] = @CycleBlogId
+                  AND [IsDeleted] = 0
+            );
+        END;
+    END;
+
     IF @BlogId = 0
     BEGIN
         INSERT INTO [pmt].[Blogs]
         (
             [ProjectId],
+            [SprintId],
+            [ParentBlogId],
             [Title],
             [BodyHtml],
             [CreatedByUserId],
@@ -2628,6 +2700,8 @@ BEGIN
         VALUES
         (
             @ProjectId,
+            @SprintId,
+            @ParentBlogId,
             @Title,
             @BodyHtml,
             @CurrentUserId,
@@ -2640,7 +2714,10 @@ BEGIN
     END
     ELSE
     BEGIN
-        SELECT @OwnerUserId = [CreatedByUserId]
+        SELECT
+            @OwnerUserId = [CreatedByUserId],
+            @OldProjectId = [ProjectId],
+            @OldSprintId = [SprintId]
         FROM [pmt].[Blogs]
         WHERE [BlogId] = @BlogId
           AND [IsDeleted] = 0;
@@ -2658,11 +2735,24 @@ BEGIN
         UPDATE [pmt].[Blogs]
         SET
             [ProjectId] = @ProjectId,
+            [SprintId] = @SprintId,
+            [ParentBlogId] = @ParentBlogId,
             [Title] = @Title,
             [BodyHtml] = @BodyHtml,
             [UpdatedByUserId] = @CurrentUserId,
             [UpdatedAt] = @Now
         WHERE [BlogId] = @BlogId;
+
+        IF ISNULL(@OldProjectId, 0) <> ISNULL(@ProjectId, 0)
+           OR ISNULL(@OldSprintId, 0) <> ISNULL(@SprintId, 0)
+        BEGIN
+            UPDATE [pmt].[Blogs]
+            SET [ParentBlogId] = NULL,
+                [UpdatedByUserId] = @CurrentUserId,
+                [UpdatedAt] = @Now
+            WHERE [ParentBlogId] = @BlogId
+              AND [IsDeleted] = 0;
+        END;
 
         SET @Action = N'Updated';
     END;
@@ -2703,6 +2793,13 @@ BEGIN
         [UpdatedByUserId] = @CurrentUserId,
         [UpdatedAt] = SYSUTCDATETIME()
     WHERE [BlogId] = @BlogId;
+
+    UPDATE [pmt].[Blogs]
+    SET [ParentBlogId] = NULL,
+        [UpdatedByUserId] = @CurrentUserId,
+        [UpdatedAt] = SYSUTCDATETIME()
+    WHERE [ParentBlogId] = @BlogId
+      AND [IsDeleted] = 0;
 
     INSERT INTO [pmt].[BlogHistory] ([BlogId], [Action], [UserId], [CreatedByUserId])
     VALUES (@BlogId, N'Deleted', @CurrentUserId, @CurrentUserId);
@@ -2975,6 +3072,13 @@ BEGIN
         [UpdatedAt] = SYSUTCDATETIME()
     WHERE [SprintId] = @SprintId;
 
+    UPDATE [pmt].[Blogs]
+    SET [SprintId] = NULL,
+        [UpdatedByUserId] = @CurrentUserId,
+        [UpdatedAt] = SYSUTCDATETIME()
+    WHERE [SprintId] = @SprintId
+      AND [IsDeleted] = 0;
+
     UPDATE [pmt].[Sprints]
     SET [IsDeleted] = 1,
         [UpdatedByUserId] = @CurrentUserId,
@@ -3067,6 +3171,10 @@ BEGIN
 
     DELETE FROM [pmt].[DevLogs]
     WHERE [ProjectId] IN (SELECT [ProjectId] FROM @ProjectIds);
+
+    UPDATE [pmt].[Blogs]
+    SET [ParentBlogId] = NULL
+    WHERE [ParentBlogId] IN (SELECT [BlogId] FROM @BlogIds);
 
     DELETE FROM [pmt].[Blogs]
     WHERE [BlogId] IN (SELECT [BlogId] FROM @BlogIds);

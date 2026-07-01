@@ -464,6 +464,8 @@ BEGIN
     (
         [BlogId] INT IDENTITY(1,1) NOT NULL CONSTRAINT [PK_pmt_Blogs] PRIMARY KEY,
         [ProjectId] INT NULL,
+        [SprintId] INT NULL,
+        [ParentBlogId] INT NULL,
         [Title] NVARCHAR(220) NOT NULL,
         [BodyHtml] NVARCHAR(MAX) NOT NULL,
         [CreatedByUserId] INT NOT NULL,
@@ -472,6 +474,8 @@ BEGIN
         [CreatedAt] DATETIME2(0) NOT NULL CONSTRAINT [DF_pmt_Blogs_CreatedAt] DEFAULT (SYSUTCDATETIME()),
         [UpdatedAt] DATETIME2(0) NOT NULL CONSTRAINT [DF_pmt_Blogs_UpdatedAt] DEFAULT (SYSUTCDATETIME()),
         CONSTRAINT [FK_pmt_Blogs_Project] FOREIGN KEY ([ProjectId]) REFERENCES [pmt].[Projects]([ProjectId]),
+        CONSTRAINT [FK_pmt_Blogs_Sprint] FOREIGN KEY ([SprintId]) REFERENCES [pmt].[Sprints]([SprintId]),
+        CONSTRAINT [FK_pmt_Blogs_ParentBlog] FOREIGN KEY ([ParentBlogId]) REFERENCES [pmt].[Blogs]([BlogId]),
         CONSTRAINT [FK_pmt_Blogs_CreatedBy] FOREIGN KEY ([CreatedByUserId]) REFERENCES [pmt].[Users]([UserId]),
         CONSTRAINT [FK_pmt_Blogs_UpdatedBy] FOREIGN KEY ([UpdatedByUserId]) REFERENCES [pmt].[Users]([UserId])
     );
@@ -484,10 +488,36 @@ BEGIN
 END;
 GO
 
+IF COL_LENGTH(N'pmt.Blogs', N'SprintId') IS NULL
+BEGIN
+    ALTER TABLE [pmt].[Blogs] ADD [SprintId] INT NULL;
+END;
+GO
+
+IF COL_LENGTH(N'pmt.Blogs', N'ParentBlogId') IS NULL
+BEGIN
+    ALTER TABLE [pmt].[Blogs] ADD [ParentBlogId] INT NULL;
+END;
+GO
+
 IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE [name] = N'FK_pmt_Blogs_Project')
 BEGIN
     ALTER TABLE [pmt].[Blogs]
     ADD CONSTRAINT [FK_pmt_Blogs_Project] FOREIGN KEY ([ProjectId]) REFERENCES [pmt].[Projects]([ProjectId]);
+END;
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE [name] = N'FK_pmt_Blogs_Sprint')
+BEGIN
+    ALTER TABLE [pmt].[Blogs]
+    ADD CONSTRAINT [FK_pmt_Blogs_Sprint] FOREIGN KEY ([SprintId]) REFERENCES [pmt].[Sprints]([SprintId]);
+END;
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE [name] = N'FK_pmt_Blogs_ParentBlog')
+BEGIN
+    ALTER TABLE [pmt].[Blogs]
+    ADD CONSTRAINT [FK_pmt_Blogs_ParentBlog] FOREIGN KEY ([ParentBlogId]) REFERENCES [pmt].[Blogs]([BlogId]);
 END;
 GO
 
@@ -608,6 +638,12 @@ GO
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE [name] = N'IX_pmt_WorkTasks_TypeStatus' AND [object_id] = OBJECT_ID(N'[pmt].[WorkTasks]'))
 BEGIN
     CREATE INDEX [IX_pmt_WorkTasks_TypeStatus] ON [pmt].[WorkTasks]([TaskType], [Status], [IsDeleted]);
+END;
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE [name] = N'IX_pmt_Blogs_ProjectSprintParent' AND [object_id] = OBJECT_ID(N'[pmt].[Blogs]'))
+BEGIN
+    CREATE INDEX [IX_pmt_Blogs_ProjectSprintParent] ON [pmt].[Blogs]([ProjectId], [SprintId], [ParentBlogId], [IsDeleted]);
 END;
 GO
 
