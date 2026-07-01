@@ -19,6 +19,7 @@ import {
   preferenceKeys,
   readJsonPreference,
   readNumberPreference,
+  removePreference,
   writeJsonPreference,
   writePreference
 } from "../../core/preferences.js?v=20260621-scrum-dev-task-parity";
@@ -109,6 +110,7 @@ export function createScrumFeature({
           <button class="secondary text-icon-button" type="button" data-action="open-scrum-filters" title="Filters" aria-label="Filters" aria-haspopup="dialog">${buttonContent(funnelIconHtml(), "Filters")}</button>
           <button class="secondary text-icon-button" type="button" data-action="export-scrum-view" title="Export" aria-label="Export" aria-haspopup="dialog">${buttonContent(exportIconHtml(), "Export")}</button>
           <button class="secondary text-icon-button" type="button" data-action="import-scrum-view" title="Import" aria-label="Import">${buttonContent(importIconHtml(), "Import")}</button>
+          <button class="secondary text-icon-button" type="button" data-action="reset-scrum-view" title="Reset View" aria-label="Reset View">${buttonContent("&#8634;", "Reset View")}</button>
         `)}
         <div class="panel work-item-table-panel scrum-table-panel">
           <div class="scrum-table-wrap">
@@ -644,6 +646,10 @@ export function createScrumFeature({
     }
     if (action === "sort-scrum-table") {
       return updateScrumTableSort(element);
+    }
+    if (action === "reset-scrum-view") {
+      resetScrumView();
+      return true;
     }
     if (action === "open-scrum-filters" || action === "toggle-scrum-filters") {
       openScrumFiltersDialog();
@@ -1515,6 +1521,21 @@ export function createScrumFeature({
       }
       node = walker.nextNode();
     }
+  }
+
+  function resetScrumView() {
+    [
+      preferenceKeys.scrumFilters,
+      preferenceKeys.scrumEntryProject,
+      scrumTableColumnPreferenceKey
+    ].forEach(removePreference);
+
+    scrumFilters = normalizeScrumFilters({});
+    scrumEntryProjectId = 0;
+    scrumColumnPrefs = normalizeScrumColumnPrefs({});
+    scrumTableMode.deactivate();
+    cancelScrumColumnDrag();
+    renderDevLogs();
   }
 
   function deactivateScrum() {

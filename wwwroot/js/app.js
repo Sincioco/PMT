@@ -40,7 +40,7 @@ import {
 } from "./features/gantt/gantt.js?v=20260629-sort-dropdown-labels";
 import { createProjectsFeature } from "./features/projects/projects.js?v=20260629-avatar-jpg-assets";
 import { createRoadMapFeature } from "./features/roadmap/roadmap.js?v=20260629-sort-dropdown-labels";
-import { createScrumFeature } from "./features/scrum/scrum.js?v=20260701-scrum-table-parity";
+import { createScrumFeature } from "./features/scrum/scrum.js?v=20260701-scrum-reset-view";
 import { createSettingsFeature } from "./features/settings/settings.js?v=20260629-avatar-jpg-assets";
 import { createSprintsFeature } from "./features/sprints/sprints.js?v=20260629-avatar-jpg-assets";
 import { createTasksFeature } from "./features/tasks/tasks.js?v=20260701-import-audit-owner";

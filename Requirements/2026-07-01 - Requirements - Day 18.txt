@@ -56,3 +56,5 @@ Do you have any roadblocks?
 21.) Also, for as much reasonably possible, make the Scrum table behave similarly to the Dev Task table, including Export capability, allow only Import if you are an admin, edit mode, the ability to drag and drop to re-order column headers, etc.
 22.) Universally, update the Import logic across all views so that only Admin can import data without restrictions.  If a normal user Imports data, only allow them to re-import / update their own data and be sure to update the audit log of each item touched by the import process so there is a record that data was modified by an import process.
 23.) In the Scrum screen, make it so that Scrum entries older than 31 days are no longer modifiable, unless you are an Admin.
+
+24.) In the Scrum screen, Add a Reset View button.  Refer to the Dev Task's Reset View button.
