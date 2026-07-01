@@ -84,3 +84,5 @@ Do you have any roadblocks?
 
 35.) Without shifting anything in the top-nav, can we make the user's avatar size be 60x60 pixels?
 36.) For this specific task (#36), use a browser and visually inspect the user's avatar.  It's overflowed past the top-nav, and the hover circle is the wrong size.  Can you size the user's Avatar so it is as large as what could visually fit at the top nav, while still fixing the hover outline.  See the attached picture for a screenshot of the issue.
+37.) Without shifting anything in the top navigation, resize the User's Avatar icon to be 50x50 pixels and be sure it is vertically centered on the top nav and be sure the circle that gets drawn around it when the mouse cursor hovers on it is perfect centered to the user's avatar image.
+
