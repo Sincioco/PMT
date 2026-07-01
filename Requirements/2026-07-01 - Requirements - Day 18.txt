@@ -125,3 +125,11 @@ I want to focus on the Documentation screen and making it a more fleshed out pla
 28.) Also, lessen the splitter's width to just 4 pixels.
 
 29.) While in Treeview mode, if I edit a document and click on another item on the treeview, I don't get prompted to save my work, I simply just lose my edits to the document.
+
+30.) Everything is working great!  Now, I just want to tighten the visual presentation of the TreeNav.
+	a.) Can remove the border outline highlight and instead replace it with a background color highlight.
+	b.) I want to lessen the margin/gaps between items so we can see more content.
+	c.) Use the same and same size expand/collapse icon between folders and docouments.  You seem to be using 2 different sizes, one for folders and one for documents
+	d.) When an item on the treenav is clicked, leave a background highlight for that item.
+
+31.) Without shifting anything, can we make the vertical scrollbar of the TreeNav less noticeable when the cursor is not on the treenav?  Currently the vertical scrollbar is so prominent.
