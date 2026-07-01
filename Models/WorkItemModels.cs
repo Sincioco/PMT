@@ -61,6 +61,7 @@ public sealed class WorkTaskInput
     public List<int> ReporterIds { get; set; } = new();
     public List<int> AssigneeIds { get; set; } = new();
     public List<int> DependencyTaskIds { get; set; } = new();
+    public string AuditContext { get; set; } = "";
 }
 
 public sealed class ReorderTasksInput

@@ -33,7 +33,10 @@ import {
   workItemDialogMetaHtml,
   uploadWorkItemAttachments
 } from "../../components/work-items.js?v=20260629-avatar-jpg-assets";
-import { currentUserId } from "../../core/authentication.js";
+import {
+  currentUser,
+  currentUserId
+} from "../../core/authentication.js";
 import {
   preferenceKeys,
   readBooleanPreference,
@@ -1380,6 +1383,7 @@ export function createBugsFeature({
     const bug = taskById(parseImportItemId(record));
     if (!bug) throw new Error("PMT Item Id does not match an existing row.");
     if (bug.taskType !== "Bug") throw new Error("This row is not a Bug.");
+    assertBugImportAllowed(bug);
 
     assertImportItemCode(record, bug.code, "Bug Code");
     assertBugImportHash(record, bug);
@@ -1453,8 +1457,17 @@ export function createBugsFeature({
       endDate: bug.endDate || null,
       reporterIds: bug.reporterIds || [],
       assigneeIds: updates.assigneeIds,
-      dependencyTaskIds: bug.dependencyTaskIds || []
+      dependencyTaskIds: bug.dependencyTaskIds || [],
+      auditContext: "Import"
     };
+  }
+
+  function assertBugImportAllowed(bug) {
+    const user = currentUser();
+    if (user.isAdmin || user.role === "Admin") return;
+    if (bug.createdByUserId !== user.id) {
+      throw new Error("Only an Admin can import updates for another user's bug report.");
+    }
   }
 
   function bugExportRows() {

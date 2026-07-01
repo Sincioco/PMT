@@ -14,6 +14,7 @@ public sealed partial class SqlPmtStore
             AddNullable(command, "@ProjectId", input.ProjectId);
             Add(command, "@IsPinned", input.IsPinned);
             Add(command, "@CurrentUserId", currentUserId);
+            Add(command, "@AuditContext", SqlDbType.NVarChar, 80, input.AuditContext);
         }, cancellationToken);
     }
 

@@ -45,5 +45,14 @@ What do you plan to do today?
 Do you have any roadblocks?
 
 13.) Everything is working fine now.  Can you move the Person column as the first column in the table?  That way, it looks and lines up with the rest of the other table like Dev Task and Bug Tracking.
+14.) In the Scrum table, render the Person's name under their avatar.
+15.) Let's give the Scrum Filter dialog box the same treat as the Dev Task's Filter dialog box.
+16.) Universally, unique to the Filter dialog box, make the mousewheel work both in the foreground as well as the background.
 
-14.) I noticed that in the New/Edit Scrum dialog box, there is no Scrum dropdown.  There is a S
+17.) Universally, remove any mousewheel restrictions or logic for all dialog boxes.  I just want the mousewheel to work in its default state.
+18.) In the Scrum Filter dialog box, add a Search feature just like in the Dev Task Filter.
+19.) In the Scrum Filter dialog box, format / render the Person section the same as the Assignee in the Dev Task Filter.
+20.) Basically, take the Dev Task Filter as a reference, and update the Scrum Filter so they work nearly the same with regards to UI/UX/theme.  For example, add the Columns section/feature.
+21.) Also, for as much reasonably possible, make the Scrum table behave similarly to the Dev Task table, including Export capability, allow only Import if you are an admin, edit mode, the ability to drag and drop to re-order column headers, etc.
+22.) Universally, update the Import logic across all views so that only Admin can import data without restrictions.  If a normal user Imports data, only allow them to re-import / update their own data and be sure to update the audit log of each item touched by the import process so there is a record that data was modified by an import process.
+23.) In the Scrum screen, make it so that Scrum entries older than 31 days are no longer modifiable, unless you are an Admin.

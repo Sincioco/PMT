@@ -19,6 +19,7 @@ import {
   removePreference,
   writeJsonPreference
 } from "../../core/preferences.js?v=20260630-backlog-task-parity";
+import { currentUser } from "../../core/authentication.js";
 import { state } from "../../core/store.js";
 import {
   formatDate,
@@ -1430,6 +1431,7 @@ export function createBacklogFeature({
     if (task.status !== "Backlog" && task.status !== "Todo") {
       throw new Error("This row is no longer in the Backlog.");
     }
+    assertBacklogImportAllowed(task);
 
     assertImportItemCode(record, task.code, "Item Code", "Task Code", "Bug Code");
     assertBacklogImportHash(record, task);
@@ -1512,8 +1514,17 @@ export function createBacklogFeature({
       endDate: task.endDate || null,
       reporterIds: isBug ? task.reporterIds || [] : [],
       assigneeIds: updates.assigneeIds,
-      dependencyTaskIds: task.dependencyTaskIds || []
+      dependencyTaskIds: task.dependencyTaskIds || [],
+      auditContext: "Import"
     };
+  }
+
+  function assertBacklogImportAllowed(task) {
+    const user = currentUser();
+    if (user.isAdmin || user.role === "Admin") return;
+    if (task.createdByUserId !== user.id) {
+      throw new Error("Only an Admin can import updates for another user's backlog item.");
+    }
   }
 
   function backlogExportRows() {

@@ -41,6 +41,7 @@ public sealed partial class SqlPmtStore
             Add(command, "@DependencyTaskIdsCsv", SqlDbType.NVarChar, -1, Csv(input.DependencyTaskIds));
             Add(command, "@CurrentUserId", currentUserId);
             Add(command, "@AllowBacklogAccess", allowBacklogAccess);
+            Add(command, "@AuditContext", SqlDbType.NVarChar, 80, input.AuditContext);
         }, cancellationToken);
     }
 

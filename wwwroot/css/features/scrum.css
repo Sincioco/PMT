@@ -2,8 +2,6 @@
 
 .scrum-screen,
 .scrum-screen *,
-.scrum-filter-dialog,
-.scrum-filter-dialog *,
 .scrum-editor-grid,
 .scrum-editor-grid * {
   font-weight: var(--font-weight-regular) !important;
@@ -124,7 +122,7 @@ html[data-theme] .scrum-screen.work-item-screen .work-item-table .icon-action:di
 }
 
 .scrum-table {
-  min-width: 1120px;
+  min-width: var(--scrum-table-min-width, 1120px);
 }
 
 .scrum-date-column {
@@ -143,6 +141,10 @@ html[data-theme] .scrum-screen.work-item-screen .work-item-table .icon-action:di
   width: 90px;
 }
 
+.scrum-date-time-column {
+  width: 156px;
+}
+
 .scrum-action-column {
   width: 176px;
 }
@@ -157,7 +159,11 @@ html[data-theme] .scrum-screen.work-item-screen .work-item-table .icon-action:di
 }
 
 .scrum-person {
-  align-items: flex-start;
+  display: inline-grid;
+  justify-items: center;
+  align-items: center;
+  gap: var(--space-2);
+  text-align: center;
 }
 
 .scrum-person .avatar {
@@ -211,50 +217,47 @@ html[data-theme] .scrum-screen.work-item-screen .work-item-table .icon-action:di
   vertical-align: top !important;
 }
 
-.scrum-filter-dialog {
-  width: min(var(--dialog-width-md), calc(100vw - 2 * var(--shell-padding-compact)));
+.scrum-table.is-edit-mode th[data-column-draggable="true"] {
+  cursor: grab;
+  user-select: none;
 }
 
-.scrum-filter-dialog-body {
-  gap: var(--space-6);
+.scrum-table.is-edit-mode th[data-column-draggable="true"]:active,
+.scrum-table.is-edit-mode th.column-dragging {
+  cursor: grabbing;
 }
 
-.scrum-filter-dialog .scrum-filter-row {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--space-6) var(--space-7);
-  align-items: end;
+.scrum-table th[data-column-draggable="true"] .table-sort-button {
+  cursor: inherit;
 }
 
-.scrum-filter-dialog .scrum-filter-row label {
-  display: grid;
-  min-width: 0;
-  gap: var(--space-2);
-  align-items: stretch;
-  white-space: normal;
+.scrum-table th.column-dragging {
+  opacity: 0.6;
 }
 
-.scrum-filter-dialog .scrum-filter-row :is(select, input[type="date"]) {
-  width: 100%;
-  min-width: 0;
-  max-width: none;
+.scrum-table th.column-reorder-before,
+.scrum-table th.column-reorder-after {
+  position: relative;
 }
 
-.scrum-filter-dialog .filter-stack {
-  display: grid;
-  gap: var(--space-6);
-  margin-top: var(--space-5);
+.scrum-table th.column-reorder-before::before,
+.scrum-table th.column-reorder-after::after {
+  content: "";
+  position: absolute;
+  top: var(--space-2);
+  bottom: var(--space-2);
+  z-index: 3;
+  width: 3px;
+  border-radius: var(--radius-pill);
+  background: var(--color-accent);
 }
 
-.scrum-filter-dialog .filter-check-list {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: var(--space-4) var(--space-6);
-  align-items: center;
+.scrum-table th.column-reorder-before::before {
+  left: 0;
 }
 
-.scrum-filter-dialog .filter-check-list legend {
-  text-transform: none;
+.scrum-table th.column-reorder-after::after {
+  right: 0;
 }
 
 .scrum-editor-grid {
@@ -270,11 +273,6 @@ html[data-theme] .scrum-screen.work-item-screen .work-item-table .icon-action:di
 }
 
 @media (max-width: 900px) {
-  .scrum-filter-dialog .scrum-filter-row,
-  .scrum-filter-dialog .filter-check-list {
-    grid-template-columns: 1fr;
-  }
-
   .scrum-table-wrap {
     overflow-x: auto;
   }

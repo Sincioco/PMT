@@ -31,6 +31,9 @@ import {
   uploadWorkItemAttachments
 } from "../../components/work-items.js?v=20260629-avatar-jpg-assets";
 import {
+  currentUser
+} from "../../core/authentication.js";
+import {
   preferenceKeys,
   readBooleanPreference,
   readJsonPreference,
@@ -1657,6 +1660,7 @@ export function createTasksFeature({
     const task = taskById(parseImportItemId(record));
     if (!task) throw new Error("PMT Item Id does not match an existing row.");
     if (task.taskType === "Bug") throw new Error("This row is a Bug, not a Dev Task.");
+    assertTaskImportAllowed(task);
 
     assertImportItemCode(record, task.code, "Task Code");
     assertTaskImportHash(record, task);
@@ -1735,8 +1739,17 @@ export function createTasksFeature({
       endDate: task.endDate || null,
       reporterIds: [],
       assigneeIds: updates.assigneeIds,
-      dependencyTaskIds: task.dependencyTaskIds || []
+      dependencyTaskIds: task.dependencyTaskIds || [],
+      auditContext: "Import"
     };
+  }
+
+  function assertTaskImportAllowed(task) {
+    const user = currentUser();
+    if (user.isAdmin || user.role === "Admin") return;
+    if (task.createdByUserId !== user.id) {
+      throw new Error("Only an Admin can import updates for another user's task.");
+    }
   }
 
   function taskExportRows() {

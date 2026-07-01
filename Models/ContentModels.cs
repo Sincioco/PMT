@@ -52,6 +52,7 @@ public sealed class DevLogInput
     public DateTime LogDate { get; set; }
     public string BodyHtml { get; set; } = "";
     public bool IsPinned { get; set; }
+    public string AuditContext { get; set; } = "";
 }
 
 public sealed class BlogInput

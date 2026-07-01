@@ -771,12 +771,14 @@ CREATE OR ALTER PROCEDURE [pmt].[UpsertTask]
     @AssigneeIdsCsv NVARCHAR(MAX),
     @DependencyTaskIdsCsv NVARCHAR(MAX),
     @CurrentUserId INT,
-    @AllowBacklogAccess BIT = 0
+    @AllowBacklogAccess BIT = 0,
+    @AuditContext NVARCHAR(80) = NULL
 AS
 BEGIN
     SET NOCOUNT ON;
 
     DECLARE @Now DATETIME2(0) = SYSUTCDATETIME();
+    DECLARE @IsImport BIT = CASE WHEN LOWER(LTRIM(RTRIM(ISNULL(@AuditContext, N'')))) = N'import' THEN 1 ELSE 0 END;
     DECLARE @OwnerUserId INT;
     DECLARE @ProjectCode NVARCHAR(20);
     DECLARE @Code NVARCHAR(40);
@@ -868,6 +870,13 @@ BEGIN
         IF @OwnerUserId IS NULL
         BEGIN
             THROW 50038, 'Task was not found.', 1;
+        END;
+
+        IF @IsImport = 1
+           AND [pmt].[IsAdmin](@CurrentUserId) = 0
+           AND @OwnerUserId <> @CurrentUserId
+        BEGIN
+            THROW 50053, 'Only an Admin can import updates for another user''s task.', 1;
         END;
 
         IF [pmt].[CanEditTaskType](@ExistingTaskType, @CurrentUserId) = 0
@@ -1232,7 +1241,14 @@ BEGIN
             EXEC [pmt].[WriteAudit] N'Task', @TaskId, N'Sprint Changed', N'Task moved between sprints.', @CurrentUserId;
         END;
 
-        EXEC [pmt].[WriteAudit] N'Task', @TaskId, N'Updated', @Title, @CurrentUserId;
+        IF @IsImport = 1
+        BEGIN
+            EXEC [pmt].[WriteAudit] N'Task', @TaskId, N'Imported', N'Task updated by import process.', @CurrentUserId;
+        END
+        ELSE
+        BEGIN
+            EXEC [pmt].[WriteAudit] N'Task', @TaskId, N'Updated', @Title, @CurrentUserId;
+        END;
     END;
 
     DELETE FROM [pmt].[TaskAssignees]
@@ -2396,15 +2412,18 @@ CREATE OR ALTER PROCEDURE [pmt].[UpsertDevLog]
     @BodyHtml NVARCHAR(MAX),
     @ProjectId INT,
     @IsPinned BIT,
-    @CurrentUserId INT
+    @CurrentUserId INT,
+    @AuditContext NVARCHAR(80) = NULL
 AS
 BEGIN
     SET NOCOUNT ON;
 
     DECLARE @Now DATETIME2(0) = SYSUTCDATETIME();
+    DECLARE @IsImport BIT = CASE WHEN LOWER(LTRIM(RTRIM(ISNULL(@AuditContext, N'')))) = N'import' THEN 1 ELSE 0 END;
     DECLARE @OwnerUserId INT;
     DECLARE @ProjectStartDate DATE;
     DECLARE @LogDateOnly DATE;
+    DECLARE @ExistingLogDateOnly DATE;
     DECLARE @CurrentUserIsAdmin BIT = [pmt].[IsAdmin](@CurrentUserId);
 
     IF NULLIF(LTRIM(RTRIM(@BodyHtml)), N'') IS NULL
@@ -2480,7 +2499,9 @@ BEGIN
     END
     ELSE
     BEGIN
-        SELECT @OwnerUserId = [UserId]
+        SELECT
+            @OwnerUserId = [UserId],
+            @ExistingLogDateOnly = CONVERT(DATE, [LogDate])
         FROM [pmt].[DevLogs]
         WHERE [DevLogId] = @DevLogId
           AND [IsDeleted] = 0;
@@ -2495,6 +2516,12 @@ BEGIN
             THROW 50062, 'You cannot edit this dev log.', 1;
         END;
 
+        IF @CurrentUserIsAdmin = 0
+           AND @ExistingLogDateOnly < DATEADD(DAY, -31, CONVERT(DATE, SYSUTCDATETIME()))
+        BEGIN
+            THROW 50066, 'Scrum entries older than 31 days are read-only for users.', 1;
+        END;
+
         UPDATE [pmt].[DevLogs]
         SET
             [ProjectId] = @ProjectId,
@@ -2505,7 +2532,14 @@ BEGIN
             [UpdatedAt] = @Now
         WHERE [DevLogId] = @DevLogId;
 
-        EXEC [pmt].[WriteAudit] N'DevLog', @DevLogId, N'Updated', N'Dev log updated.', @CurrentUserId;
+        IF @IsImport = 1
+        BEGIN
+            EXEC [pmt].[WriteAudit] N'DevLog', @DevLogId, N'Imported', N'Scrum entry updated by import process.', @CurrentUserId;
+        END
+        ELSE
+        BEGIN
+            EXEC [pmt].[WriteAudit] N'DevLog', @DevLogId, N'Updated', N'Dev log updated.', @CurrentUserId;
+        END;
     END;
 END;
 GO
@@ -2518,8 +2552,12 @@ BEGIN
     SET NOCOUNT ON;
 
     DECLARE @OwnerUserId INT;
+    DECLARE @ExistingLogDateOnly DATE;
+    DECLARE @CurrentUserIsAdmin BIT = [pmt].[IsAdmin](@CurrentUserId);
 
-    SELECT @OwnerUserId = [UserId]
+    SELECT
+        @OwnerUserId = [UserId],
+        @ExistingLogDateOnly = CONVERT(DATE, [LogDate])
     FROM [pmt].[DevLogs]
     WHERE [DevLogId] = @DevLogId
       AND [IsDeleted] = 0;
@@ -2532,6 +2570,12 @@ BEGIN
     IF [pmt].[CanEdit](@OwnerUserId, @CurrentUserId) = 0
     BEGIN
         THROW 50064, 'You cannot delete this dev log.', 1;
+    END;
+
+    IF @CurrentUserIsAdmin = 0
+       AND @ExistingLogDateOnly < DATEADD(DAY, -31, CONVERT(DATE, SYSUTCDATETIME()))
+    BEGIN
+        THROW 50066, 'Scrum entries older than 31 days are read-only for users.', 1;
     END;
 
     UPDATE [pmt].[DevLogs]
