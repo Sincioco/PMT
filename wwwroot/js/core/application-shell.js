@@ -5,7 +5,7 @@ import {
   logout,
   setCurrentUserId
 } from "./authentication.js";
-import { overflowIconHtml } from "../components/buttons.js?v=20260701-page-actions-menu";
+import { overflowIconHtml } from "../components/buttons.js?v=20260701-unified-dropdowns";
 import { navIconHtml } from "./navigation-preferences.js?v=20260621-bug-icon";
 import {
   preferenceKeys,
@@ -230,7 +230,7 @@ export function createApplicationShell({
         <button class="nav-overflow-toggle ${overflowIsActive ? "active" : ""}" type="button" data-action="nav-overflow-toggle" title="More navigation" aria-label="More navigation" aria-expanded="false" aria-haspopup="menu">
           <span class="nav-icon" aria-hidden="true">${overflowIconHtml()}</span>
         </button>
-        <div class="nav-overflow-menu" role="menu" hidden></div>
+        <div class="nav-overflow-menu dropdown-menu" role="menu" hidden></div>
       </div>
     `;
     applyNavOverflow();
@@ -238,10 +238,11 @@ export function createApplicationShell({
   }
 
   function navButtonHtml(item, extraClass = "nav-item") {
+    const labelClass = extraClass === "nav-menu-item" ? ` class="dropdown-menu-label"` : "";
     const attributes = [
       item.view ? `data-view="${escapeHtml(item.view)}"` : "",
       item.action ? `data-action="${escapeHtml(item.action)}"` : "",
-      `class="${`${extraClass} ${item.active ? "active" : ""}`.trim()}"`,
+      `class="${`${extraClass} ${extraClass === "nav-menu-item" ? "dropdown-menu-item" : ""} ${item.active ? "active" : ""}`.trim()}"`,
       item.active ? `aria-current="page"` : "",
       extraClass === "nav-menu-item" ? `role="menuitem"` : ""
     ].filter(Boolean).join(" ");
@@ -249,7 +250,7 @@ export function createApplicationShell({
     return `
       <button type="button" ${attributes}>
         <span class="nav-icon" aria-hidden="true">${item.icon}</span>
-        <span>${escapeHtml(item.label)}</span>
+        <span${labelClass}>${escapeHtml(item.label)}</span>
       </button>
     `;
   }

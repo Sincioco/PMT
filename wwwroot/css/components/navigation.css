@@ -105,7 +105,8 @@ html[data-theme="light"] button.brand-text-button:hover:not(:disabled) {
 
 .nav button[hidden],
 .nav-overflow[hidden],
-.nav-overflow-menu[hidden] {
+.nav-overflow-menu[hidden],
+.dropdown-menu[hidden] {
   display: none !important;
 }
 
@@ -129,26 +130,6 @@ html[data-theme="light"] button.brand-text-button:hover:not(:disabled) {
   justify-content: center;
 }
 
-.nav-overflow-menu {
-  position: absolute;
-  top: calc(100% + var(--space-3));
-  right: 0;
-  z-index: calc(var(--z-menu) + 1);
-  display: grid;
-  gap: var(--space-2);
-  min-width: 210px;
-  padding: var(--space-3);
-  border: var(--border-width) solid var(--color-border);
-  border-radius: var(--radius-md);
-  background: var(--color-surface-raised);
-  box-shadow: var(--shadow-elevated);
-}
-
-.nav-overflow-menu button {
-  justify-content: flex-start;
-  width: 100%;
-}
-
 .nav button.active,
 .nav button[aria-current="page"] {
   border-color: transparent;
@@ -168,11 +149,12 @@ html[data-theme="light"] button.brand-text-button:hover:not(:disabled) {
 }
 
 .user-menu-toggle {
-  width: 44px;
-  min-width: 44px;
-  height: 44px;
-  min-height: 44px;
-  padding: 3px;
+  width: 64px;
+  min-width: 64px;
+  height: 64px;
+  min-height: 64px;
+  margin: -10px;
+  padding: 2px;
   display: grid;
   place-items: center;
   border-radius: 50%;
@@ -180,8 +162,8 @@ html[data-theme="light"] button.brand-text-button:hover:not(:disabled) {
 }
 
 .user-menu-toggle img {
-  width: 36px;
-  height: 36px;
+  width: 60px;
+  height: 60px;
   border-radius: 50%;
   border: 0;
   background: var(--color-surface-raised);
@@ -192,32 +174,29 @@ html[data-theme="light"] button.brand-text-button:hover:not(:disabled) {
   border-color: color-mix(in srgb, var(--color-primary), var(--color-border-strong) 28%);
 }
 
-.user-menu-dropdown {
-  position: absolute;
-  top: calc(100% + var(--space-3));
-  right: 0;
-  z-index: calc(var(--z-menu) + 1);
-  display: grid;
-  gap: var(--space-2);
-  min-width: 210px;
-  padding: var(--space-3);
-  border: var(--border-width) solid var(--color-border);
-  border-radius: var(--radius-md);
-  background: var(--color-surface-raised);
-  box-shadow: var(--shadow-elevated);
-}
-
 .user-menu-dropdown[hidden] {
   display: none !important;
 }
 
+.nav-overflow-menu button,
 .user-menu-dropdown button {
-  display: inline-flex;
-  justify-content: flex-start;
+  display: grid;
+  grid-template-columns: var(--icon-size-lg) minmax(0, 1fr) 18px;
+  justify-content: stretch;
   align-items: center;
-  gap: var(--space-3);
+  column-gap: var(--control-padding-inline-sm);
+  row-gap: var(--space-3);
   width: 100%;
   color: var(--color-text-primary);
+  text-align: left;
+}
+
+.nav-overflow-menu .dropdown-menu-item.active,
+.nav-overflow-menu .dropdown-menu-item[aria-current="page"] {
+  border-color: transparent;
+  background: var(--color-control-hover);
+  color: var(--color-text-primary);
+  box-shadow: none;
 }
 
 .logged-out .nav,
@@ -280,17 +259,11 @@ html[data-theme="light"] .nav-overflow-toggle {
   padding: 0;
 }
 
-html[data-theme="light"] .nav-overflow-menu,
-html[data-theme="light"] .user-menu-dropdown {
-  border-color: var(--color-border);
-  background: var(--color-surface-elevated);
-}
-
 html[data-theme="light"] .nav-overflow-menu button.active,
 html[data-theme="light"] .nav-overflow-menu button[aria-current="page"] {
-  border-color: rgba(18, 107, 255, 0.16);
-  background: var(--color-control-selected);
-  color: var(--color-primary);
+  border-color: transparent;
+  background: var(--color-control-hover);
+  color: var(--color-text-primary);
   box-shadow: none;
 }
 

@@ -33,7 +33,7 @@ export function pageActionsMenuHtml(items = []) {
       <summary class="secondary text-icon-button page-actions-summary" title="More actions" aria-label="More actions">
         ${buttonContent(overflowIconHtml(), "More")}
       </summary>
-      <div class="page-actions-list" role="menu">
+      <div class="page-actions-list dropdown-menu" role="menu">
         ${items.map(pageActionsMenuItemHtml).join("")}
       </div>
     </details>
@@ -45,7 +45,7 @@ function pageActionsMenuItemHtml(item) {
 
   const isCheckable = typeof item?.checked === "boolean";
   const attributes = [
-    `class="page-actions-item ${item?.checked ? "is-checked" : ""}"`,
+    `class="page-actions-item dropdown-menu-item ${item?.checked ? "is-checked" : ""}"`,
     item?.action ? `data-action="${escapeAttr(item.action)}"` : "",
     `title="${escapeAttr(item?.title || item?.label || "")}"`,
     `aria-label="${escapeAttr(item?.label || "")}"`,
@@ -57,9 +57,9 @@ function pageActionsMenuItemHtml(item) {
   return `
     ${item?.separatorBefore ? `<div class="page-actions-separator" role="separator"></div>` : ""}
     <button type="button" ${attributes}>
-      <span class="page-actions-icon" aria-hidden="true">${item?.icon || ""}</span>
-      <span class="page-actions-check" aria-hidden="true">${item?.checked ? "&#10003;" : ""}</span>
-      <span class="page-actions-label">${escapeHtml(item?.label || "")}</span>
+      <span class="page-actions-icon dropdown-menu-icon" aria-hidden="true">${item?.icon || ""}</span>
+      <span class="page-actions-label dropdown-menu-label">${escapeHtml(item?.label || "")}</span>
+      <span class="page-actions-check dropdown-menu-check" aria-hidden="true">${item?.checked ? "&#10003;" : ""}</span>
     </button>
   `;
 }

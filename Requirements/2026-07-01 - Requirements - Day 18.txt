@@ -76,3 +76,11 @@ Do you have any roadblocks?
 30.) If you could enlarge the Pencil and Reset icon on the overflow menu without shifting anything that would be great as they visually appear smaller than the Graph, Export and Import icons.
 
 31.) Update the top navigation's overflow icon and use the same icon as on the page-level overflow icon.
+
+32.) Using the User's menu (on the top nav's upper-right page that appears when you click the user's avatar) as the master reference, make the top-level menu and the page-level menus look virtually the same as it.  So the user gets the same menu experience universally.  For the page-level menus that has to render a checkmark, place those on the right-side of the menu item label.  Basically, create one unified dropdown menu system used by all 3.
+
+33.) In the top nav, where the user's avatar is, make the user's avatar/picture larger, if possible, without shifting anything.
+34.) Put a littl bit more gab between the menu icon and the menu item labels.  Basically, whatever "visual" gap exist between the left edge and the icon, do the same on the right side of the icon.  Basically, I want the same "visual distance" between the left and right side of the menu icon.
+
+35.) Without shifting anything in the top-nav, can we make the user's avatar size be 60x60 pixels?
+36.) For this specific task (#36), use a browser and visually inspect the user's avatar.  It's overflowed past the top-nav, and the hover circle is the wrong size.  Can you size the user's Avatar so it is as large as what could visually fit at the top nav, while still fixing the hover outline.  See the attached picture for a screenshot of the issue.
