@@ -3,11 +3,11 @@ import {
   readJsonPreference,
   writeJsonPreference
 } from "./preferences.js";
-import { screenRegistry } from "./screen-registry.js?v=20260706-navigation-wfh-unlocked";
+import { screenRegistry } from "./screen-registry.js?v=20260707-log-about-nav";
 
 const navigationVersion = 2;
 const betaNavigationViews = new Set(["Dashboard", "Road Map", "Gantt"]);
-const lockedVisibleViews = new Set(["Settings"]);
+const lockedVisibleViews = new Set(["About", "Settings"]);
 
 function defaultNavigationItems() {
   return screenRegistry
@@ -127,14 +127,26 @@ function defaultNavigationVisible(screen) {
 
 function enforceFixedNavigationOrder(items) {
   const boardItem = items.find(item => item.view === "Board");
+  const logItem = items.find(item => item.view === "Log");
+  const aboutItem = items.find(item => item.view === "About");
   const settingsItem = items.find(item => item.view === "Settings");
-  const orderedItems = items.filter(item => item.view !== "Board" && item.view !== "Settings");
+  const orderedItems = items.filter(item =>
+    item.view !== "Board"
+    && item.view !== "Log"
+    && item.view !== "About"
+    && item.view !== "Settings");
 
   if (boardItem) {
     const sprintIndex = orderedItems.findIndex(item => item.view === "Sprints");
     orderedItems.splice(sprintIndex >= 0 ? sprintIndex + 1 : orderedItems.length, 0, boardItem);
   }
 
+  if (logItem) {
+    const documentationIndex = orderedItems.findIndex(item => item.view === "Documentation");
+    orderedItems.splice(documentationIndex >= 0 ? documentationIndex + 1 : orderedItems.length, 0, logItem);
+  }
+
+  if (aboutItem) orderedItems.push(aboutItem);
   if (settingsItem) orderedItems.push(settingsItem);
   return orderedItems;
 }
@@ -151,8 +163,10 @@ export function navIconHtml(view) {
     Tasks: "&#10003;",
     Bugs: bugIconHtml(),
     Scrum: "&#9719;",
+    Log: "&#9776;",
     Documentation: "&#128214;",
     "WFH Schedule": "&#8962;",
+    About: "&#9432;",
     Settings: "&#9881;"
   };
   return icons[view] || "&#9679;";

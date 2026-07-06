@@ -14,6 +14,7 @@ public sealed class AttachmentDto
 public sealed class DevLogDto
 {
     public int Id { get; set; }
+    public string LogType { get; set; } = "Scrum";
     public int? ProjectId { get; set; }
     public int UserId { get; set; }
     public DateTime LogDate { get; set; }
@@ -50,6 +51,7 @@ public sealed class BlogHistoryDto
 public sealed class DevLogInput
 {
     public int Id { get; set; }
+    public string LogType { get; set; } = "Scrum";
     public int? ProjectId { get; set; }
     public DateTime LogDate { get; set; }
     public string BodyHtml { get; set; } = "";

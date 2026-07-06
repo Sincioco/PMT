@@ -9,6 +9,7 @@ public sealed partial class SqlPmtStore
     {
         return ExecuteIdProcedureAsync("[pmt].[UpsertDevLog]", "@DevLogId", input.Id, command =>
         {
+            Add(command, "@LogType", SqlDbType.NVarChar, 20, input.LogType);
             Add(command, "@LogDate", input.LogDate.Date);
             Add(command, "@BodyHtml", SqlDbType.NVarChar, -1, input.BodyHtml);
             AddNullable(command, "@ProjectId", input.ProjectId);

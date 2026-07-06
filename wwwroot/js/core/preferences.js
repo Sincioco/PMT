@@ -44,6 +44,8 @@ export const preferenceKeys = Object.freeze({
   scrumFilters: "pmt-scrum-filters",
   scrumFiltersVisible: "pmt-scrum-filters-visible",
   scrumEntryProject: "pmt-scrum-entry-project",
+  logFilters: "pmt-log-filters",
+  logEntryProject: "pmt-log-entry-project",
   backlogFilters: "pmt-backlog-filters",
   backlogCollapsedSubTasks: "pmt-backlog-collapsed-subtasks",
   backlogTableColumns: "pmt-backlog-table-columns",

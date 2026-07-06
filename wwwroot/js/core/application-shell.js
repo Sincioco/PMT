@@ -6,16 +6,16 @@ import {
   setCurrentUserId
 } from "./authentication.js";
 import { overflowIconHtml } from "../components/buttons.js?v=20260701-unified-dropdowns";
-import { navIconHtml } from "./navigation-preferences.js?v=20260706-navigation-wfh-unlocked";
+import { navIconHtml } from "./navigation-preferences.js?v=20260707-log-about-nav";
 import {
   preferenceKeys,
   readPreference,
   writePreference
 } from "./preferences.js";
-import { currentView, getNavigationScreens, navigate } from "./router.js?v=20260706-navigation-wfh-unlocked";
+import { currentView, getNavigationScreens, navigate } from "./router.js?v=20260707-log-about-nav";
 import { loadState, state } from "./store.js";
 
-const fixedOverflowViews = new Set();
+const fixedOverflowViews = new Set(["About"]);
 
 export function createApplicationShell({
   bindScreenEvents,
@@ -238,19 +238,19 @@ export function createApplicationShell({
   }
 
   function navButtonHtml(item, extraClass = "nav-item") {
-    const labelClass = extraClass === "nav-menu-item" ? ` class="dropdown-menu-label"` : "";
+    const isMenuItem = extraClass === "nav-menu-item";
     const attributes = [
       item.view ? `data-view="${escapeHtml(item.view)}"` : "",
       item.action ? `data-action="${escapeHtml(item.action)}"` : "",
-      `class="${`${extraClass} ${extraClass === "nav-menu-item" ? "dropdown-menu-item" : ""} ${item.active ? "active" : ""}`.trim()}"`,
+      `class="${`${extraClass} ${isMenuItem ? "dropdown-menu-item" : ""} ${item.active ? "active" : ""}`.trim()}"`,
       item.active ? `aria-current="page"` : "",
-      extraClass === "nav-menu-item" ? `role="menuitem"` : ""
+      isMenuItem ? `role="menuitem"` : ""
     ].filter(Boolean).join(" ");
 
     return `
       <button type="button" ${attributes}>
         <span class="nav-icon" aria-hidden="true">${item.icon}</span>
-        <span${labelClass}>${escapeHtml(item.label)}</span>
+        <span>${escapeHtml(item.label)}</span>
       </button>
     `;
   }

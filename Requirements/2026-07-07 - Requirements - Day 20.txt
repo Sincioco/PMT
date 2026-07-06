@@ -1,0 +1,21 @@
+Project Management Tool (PMT):  Day 19 of Codex Agentic AI Coding
+-----------------------------------------------------------------
+Total Dev Time in Hours:  26
+
+For all of this conversation / session, I will perform all the manual tests and compile the application manually.  Perform only the coding changes required and nothing else.  If making CSS / image changes, ensure that I will encounter no caching issue when testing in the browser.  Be sure to inform me if I have to recompile the .Net portion of the project or just Press Ctrl + F5 on the browser to reload to see the latest changes.
+
+Log Screen
+----------
+1.) Create a new Top Level Navigation called "Log".
+2.) Just clone the Scrum screen and call the clone "Log".
+3.) The main difference is, the Log is to be used only by that user.  It is not a shared log.
+4.) You can remove the default text that shows up when you create a Log.
+5.) In the Log Filter dialog box, you can remove the person list, so it will always be the current user logged on.
+6.) So, this is basically a clone of "Scrum" just with very minor changes.
+7.) Remove an date restrictions with regards to editing.  The user can edit anything at any time.
+8.) When the logs are shown in the logs list, at the bottom of the log itself, put a very tiny/muted text that shows when it was created date/time and when it was last edited (if at all) and a date/time.
+9.) In the Top Nav, put Log just after Scrum.
+
+
+10.) Move the Log Top nav button after Documentation.
+11.) Move the "About" menu item from the Avatar's menu into the Top Nav.  Always keep it in the Top Nav's overflow menu item.  Never show it at the top as a regular Top Nav button.

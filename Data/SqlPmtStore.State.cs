@@ -5,12 +5,13 @@ namespace PMT.Data;
 
 public sealed partial class SqlPmtStore
 {
-    public async Task<AppState> GetStateAsync(CancellationToken cancellationToken)
+    public async Task<AppState> GetStateAsync(int currentUserId, CancellationToken cancellationToken)
     {
         // The UI needs many related lists at once. One stored procedure returns
         // simple result sets, then this class connects those sets into DTOs.
         await using var connection = await OpenConnectionAsync(cancellationToken);
         await using var command = StoredProcedure(connection, "[pmt].[GetAppState]");
+        Add(command, "@CurrentUserId", currentUserId);
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
 
         var state = new AppState();
@@ -221,6 +222,7 @@ public sealed partial class SqlPmtStore
             logs.Add(new DevLogDto
             {
                 Id = reader.GetInt32("DevLogId"),
+                LogType = reader.GetStringOrEmpty("LogType"),
                 ProjectId = reader.GetNullableInt32("ProjectId"),
                 UserId = reader.GetInt32("UserId"),
                 LogDate = reader.GetDateTime("LogDate"),

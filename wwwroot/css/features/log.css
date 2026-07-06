@@ -1,0 +1,296 @@
+/* CSS ownership: Log screen. */
+
+.log-screen,
+.log-screen *,
+.log-editor-grid,
+.log-editor-grid * {
+  font-weight: var(--font-weight-regular) !important;
+}
+
+.log-screen .section-head h1,
+html[data-theme="light"] .log-screen.work-item-screen .section-head h1 {
+  color: var(--color-text-secondary);
+}
+
+.log-screen .section-head .toolbar > button {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  width: var(--touch-target-min);
+  min-width: var(--touch-target-min);
+  height: var(--touch-target-min);
+  min-height: var(--touch-target-min);
+  padding: 0;
+  border-color: transparent;
+  background: transparent;
+  color: var(--color-text-secondary);
+  box-shadow: none;
+}
+
+html[data-theme] .log-screen.work-item-screen .section-head .toolbar > button,
+html[data-theme] .log-screen.work-item-screen .section-head .toolbar > button.primary,
+html[data-theme] .log-screen.work-item-screen .section-head .toolbar > button.secondary,
+html[data-theme] .log-screen.work-item-screen .section-head .toolbar > button[aria-pressed="true"],
+html[data-theme] .log-screen.work-item-screen .section-head .toolbar > button:focus,
+html[data-theme] .log-screen.work-item-screen .section-head .toolbar > button:focus-visible,
+html[data-theme] .log-screen.work-item-screen .section-head .toolbar > button:active:not(:hover) {
+  width: var(--touch-target-min);
+  min-width: var(--touch-target-min);
+  height: var(--touch-target-min);
+  min-height: var(--touch-target-min);
+  padding: 0;
+  border-color: transparent;
+  background: transparent;
+  color: var(--color-text-secondary);
+  outline: none;
+  box-shadow: none;
+}
+
+.log-screen .section-head .toolbar > button:hover:not(:disabled),
+html[data-theme] .log-screen.work-item-screen .section-head .toolbar > button:hover:not(:disabled) {
+  padding: 0;
+  border-color: var(--color-border-strong);
+  background: var(--color-control-hover);
+  color: var(--color-text-primary);
+  outline: none;
+  box-shadow: none;
+}
+
+.log-screen .section-head .toolbar > button:disabled {
+  border-color: transparent;
+  background: transparent;
+  color: var(--color-text-disabled);
+}
+
+.log-screen .section-head .toolbar > button .button-icon {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  min-width: 0;
+  font-size: 18px;
+  line-height: 1;
+}
+
+.log-screen .section-head .toolbar > button .button-svg-icon {
+  width: 18px;
+  height: 18px;
+}
+
+.log-screen .section-head .toolbar > button .button-icon + span {
+  display: none;
+}
+
+html[data-theme] .log-screen.work-item-screen .work-item-table .icon-action {
+  width: var(--touch-target-min);
+  min-width: var(--touch-target-min);
+  height: var(--touch-target-min);
+  min-height: var(--touch-target-min);
+  border-color: transparent;
+  background: transparent;
+  color: var(--color-text-secondary);
+  font-size: 18px;
+  box-shadow: none;
+}
+
+html[data-theme] .log-screen.work-item-screen .work-item-table .icon-action:hover:not(:disabled) {
+  border-color: var(--color-border-strong);
+  background: var(--color-control-hover);
+  color: var(--color-text-primary);
+  box-shadow: none;
+}
+
+html[data-theme] .log-screen.work-item-screen .work-item-table .icon-action:disabled {
+  border-color: transparent;
+  background: transparent;
+  color: var(--color-text-disabled);
+  box-shadow: none;
+}
+
+.log-screen .work-item-table .icon-action .button-icon {
+  font-size: 18px;
+}
+
+.log-screen .work-item-table .icon-action .button-svg-icon {
+  width: 18px;
+  height: 18px;
+}
+
+.log-table-wrap {
+  min-width: 0;
+  overflow-x: auto;
+}
+
+.log-table {
+  min-width: var(--log-table-min-width, 1120px);
+}
+
+.log-date-column {
+  width: 112px;
+}
+
+.log-project-column {
+  width: 220px;
+}
+
+.log-person-column {
+  width: 180px;
+}
+
+.log-flag-column {
+  width: 90px;
+}
+
+.log-date-time-column {
+  width: 156px;
+}
+
+.log-action-column {
+  width: 176px;
+}
+
+.log-table tbody td {
+  vertical-align: top;
+}
+
+.log-date {
+  color: var(--color-text-primary);
+  white-space: nowrap;
+}
+
+.log-person {
+  display: inline-grid;
+  justify-items: center;
+  align-items: center;
+  gap: var(--space-2);
+  text-align: center;
+}
+
+.log-person .avatar {
+  width: 80px;
+  height: 80px;
+  margin-left: 0;
+}
+
+.log-body {
+  min-width: 420px;
+}
+
+.log-content {
+  color: var(--color-text-primary);
+  line-height: var(--line-height-body);
+}
+
+.log-content > :first-child {
+  margin-top: 0;
+}
+
+.log-content > :last-child {
+  margin-bottom: 0;
+}
+
+.log-entry-meta {
+  margin-top: var(--space-2);
+  color: var(--color-text-tertiary);
+  font-size: var(--font-size-xs);
+  line-height: 1.3;
+}
+
+.log-content p {
+  margin: 0 0 var(--space-3);
+}
+
+.log-content strong {
+  display: block;
+}
+
+.log-content :is(b, strong, [style*="font-weight"]),
+.log-editor-grid .rich-editor :is(b, strong, [style*="font-weight"]) {
+  font-weight: var(--font-weight-bold) !important;
+}
+
+.log-content strong + br {
+  display: none;
+}
+
+.log-pin {
+  border-color: var(--color-warning-border);
+  background: var(--color-warning-surface);
+  color: var(--color-warning-text);
+}
+
+.log-detail-grid {
+  align-content: start;
+  align-items: start;
+  grid-auto-rows: max-content;
+}
+
+.log-detail-grid .detail-field {
+  align-self: start;
+}
+
+.log-actions {
+  padding-right: var(--space-7) !important;
+  vertical-align: top !important;
+}
+
+.log-table.is-edit-mode th[data-column-draggable="true"] {
+  cursor: grab;
+  user-select: none;
+}
+
+.log-table.is-edit-mode th[data-column-draggable="true"]:active,
+.log-table.is-edit-mode th.column-dragging {
+  cursor: grabbing;
+}
+
+.log-table th[data-column-draggable="true"] .table-sort-button {
+  cursor: inherit;
+}
+
+.log-table th.column-dragging {
+  opacity: 0.6;
+}
+
+.log-table th.column-reorder-before,
+.log-table th.column-reorder-after {
+  position: relative;
+}
+
+.log-table th.column-reorder-before::before,
+.log-table th.column-reorder-after::after {
+  content: "";
+  position: absolute;
+  top: var(--space-2);
+  bottom: var(--space-2);
+  z-index: 3;
+  width: 3px;
+  border-radius: var(--radius-pill);
+  background: var(--color-accent);
+}
+
+.log-table th.column-reorder-before::before {
+  left: 0;
+}
+
+.log-table th.column-reorder-after::after {
+  right: 0;
+}
+
+.log-editor-grid {
+  column-gap: var(--space-9);
+  row-gap: var(--space-5);
+}
+
+.log-editor-grid input[type="date"] {
+  height: var(--control-height-md);
+  min-height: var(--control-height-md);
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
+@media (max-width: 900px) {
+  .log-table-wrap {
+    overflow-x: auto;
+  }
+}

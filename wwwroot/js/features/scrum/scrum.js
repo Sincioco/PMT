@@ -61,6 +61,7 @@ const scrumPrompts = [
   scrumTodayPrompt,
   scrumRoadblocksPrompt
 ];
+const sharedScrumLogType = "Scrum";
 const scrumTableColumnPreferenceKey = "pmt-scrum-table-columns";
 
 export function createScrumFeature({
@@ -94,6 +95,7 @@ export function createScrumFeature({
     syncScrumPersonFilterWithUsers();
 
     const logs = state.devLogs
+      .filter(isSharedScrumLog)
       .filter(log => !scrumFilters.projectId || log.projectId === Number(scrumFilters.projectId))
       .filter(log => !scrumFilters.personIds.length || scrumFilters.personIds.includes(String(log.userId)))
       .filter(log => !scrumFilters.logDate || dateKey(log.logDate) === scrumFilters.logDate)
@@ -173,6 +175,10 @@ export function createScrumFeature({
     if (!canEditOwner(log.userId)) return false;
     if (scrumLogIsOlderThanModificationWindow(log)) return false;
     return !scrumDateValidationMessage(log.projectId, scrumDateInputValue(log.logDate));
+  }
+
+  function isSharedScrumLog(log) {
+    return (log?.logType || sharedScrumLogType) === sharedScrumLogType;
   }
 
   function scrumLogIsOlderThanModificationWindow(log) {
@@ -636,7 +642,7 @@ export function createScrumFeature({
   }
 
   async function handleAction(action, id, element) {
-    const log = id ? state.devLogs.find(item => item.id === id) : null;
+    const log = id ? state.devLogs.find(item => item.id === id && isSharedScrumLog(item)) : null;
 
     if (action === "new-log") {
       editDevLog();
@@ -815,6 +821,7 @@ export function createScrumFeature({
 
       await saveJson(log.id ? `/api/devlogs/${log.id}` : "/api/devlogs", log.id ? "PUT" : "POST", {
         id: log.id || 0,
+        logType: sharedScrumLogType,
         projectId,
         logDate,
         bodyHtml,
@@ -1033,6 +1040,7 @@ export function createScrumFeature({
   function scrumExportRows() {
     syncScrumPersonFilterWithUsers();
     return state.devLogs
+      .filter(isSharedScrumLog)
       .filter(log => !scrumFilters.projectId || log.projectId === Number(scrumFilters.projectId))
       .filter(log => !scrumFilters.personIds.length || scrumFilters.personIds.includes(String(log.userId)))
       .filter(log => !scrumFilters.logDate || dateKey(log.logDate) === scrumFilters.logDate)
@@ -1094,7 +1102,7 @@ export function createScrumFeature({
         if (await importScrumRecord(record)) updatedRows += 1;
       } catch (error) {
         const id = parseScrumImportId(record);
-        const log = id ? state.devLogs.find(item => item.id === id) : null;
+        const log = id ? state.devLogs.find(item => item.id === id && isSharedScrumLog(item)) : null;
         errors.push({
           rowNumber,
           code: id ? `Scrum ${id}` : "",
@@ -1117,7 +1125,7 @@ export function createScrumFeature({
   }
 
   async function importScrumRecord(record) {
-    const log = state.devLogs.find(item => item.id === parseScrumImportId(record));
+    const log = state.devLogs.find(item => item.id === parseScrumImportId(record) && isSharedScrumLog(item));
     if (!log) throw new Error("PMT Scrum Id does not match an existing row.");
     assertScrumImportAllowed(log);
     assertScrumImportHash(record, log);
@@ -1134,6 +1142,7 @@ export function createScrumFeature({
 
     await saveJson(`/api/devlogs/${log.id}`, "PUT", {
       id: log.id,
+      logType: sharedScrumLogType,
       projectId,
       logDate,
       bodyHtml,
@@ -1267,7 +1276,7 @@ export function createScrumFeature({
   }
 
   async function duplicateDevLog(id) {
-    const log = state.devLogs.find(item => item.id === id);
+    const log = state.devLogs.find(item => item.id === id && isSharedScrumLog(item));
     if (!log) return;
 
     try {
@@ -1280,6 +1289,7 @@ export function createScrumFeature({
 
       await saveJson("/api/devlogs", "POST", {
         id: 0,
+        logType: sharedScrumLogType,
         projectId: log.projectId || null,
         logDate,
         bodyHtml: log.bodyHtml,
@@ -1320,6 +1330,7 @@ export function createScrumFeature({
     const selectedProjectId = Number(projectId || 0);
     const selectedDate = scrumDateInputValue(logDate);
     const userLogs = state.devLogs
+      .filter(isSharedScrumLog)
       .filter(item => item.userId === userId)
       .filter(item => !selectedDate || scrumDateInputValue(item.logDate) < selectedDate);
     const projectLogs = selectedProjectId

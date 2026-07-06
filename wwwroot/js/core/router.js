@@ -1,6 +1,6 @@
 import { preferenceKeys, readPreference, writePreference } from "./preferences.js";
-import { visibleNavigationScreens } from "./navigation-preferences.js?v=20260706-navigation-wfh-unlocked";
-import { screenRegistry } from "./screen-registry.js?v=20260706-navigation-wfh-unlocked";
+import { visibleNavigationScreens } from "./navigation-preferences.js?v=20260707-log-about-nav";
+import { screenRegistry } from "./screen-registry.js?v=20260707-log-about-nav";
 
 const legacyViews = Object.freeze({
   "Dev Log": "Scrum",

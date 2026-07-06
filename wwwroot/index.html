@@ -45,7 +45,8 @@
   <link rel="stylesheet" href="/css/features/sprints.css?v=20260627-sprint-card-four-columns">
   <link rel="stylesheet" href="/css/features/tasks.css?v=20260630-bug-task-parity">
   <link rel="stylesheet" href="/css/features/bugs.css?v=20260630-bug-task-parity">
-  <link rel="stylesheet" href="/css/features/scrum.css?v=20260706-scrum-direct-edit">
+  <link rel="stylesheet" href="/css/features/scrum.css?v=20260707-log-screen">
+  <link rel="stylesheet" href="/css/features/log.css?v=20260707-log-screen">
   <link rel="stylesheet" href="/css/features/documentation.css?v=20260706-export-dialog-icons">
   <link rel="stylesheet" href="/css/features/backlog.css?v=20260630-backlog-bug-related">
   <link rel="stylesheet" href="/css/features/wfh-schedule.css?v=20260627-wfh-member-card">
@@ -70,10 +71,6 @@
         </button>
         <select id="currentUser" disabled hidden></select>
         <div id="userMenu" class="user-menu-dropdown dropdown-menu" role="menu" hidden>
-          <button class="dropdown-menu-item" type="button" data-view="About" role="menuitem">
-            <span class="button-icon" aria-hidden="true">&#9432;</span>
-            <span class="dropdown-menu-label">About</span>
-          </button>
           <button class="dropdown-menu-item" type="button" data-action="toggle-theme" id="themeToggle" role="menuitem">
             <span class="button-icon" aria-hidden="true" data-theme-icon>&#9728;</span>
             <span class="dropdown-menu-label" data-theme-label>Light Theme</span>
@@ -119,6 +116,6 @@
   </dialog>
 
   <div id="toast" class="toast" hidden></div>
-  <script type="module" src="/js/app.js?v=20260706-settings-table-format"></script>
+  <script type="module" src="/js/app.js?v=20260707-log-about-nav-label-fix"></script>
 </body>
 </html>

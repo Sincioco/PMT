@@ -22,7 +22,7 @@ import {
   readNavigationConfig,
   resetNavigationConfig,
   writeNavigationConfig
-} from "../../core/navigation-preferences.js?v=20260706-navigation-wfh-unlocked";
+} from "../../core/navigation-preferences.js?v=20260707-log-about-nav";
 import {
   clearPmtPreferences,
   preferenceKeys,

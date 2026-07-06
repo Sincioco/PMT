@@ -21,16 +21,16 @@ import {
   showTaskAudit,
   viewWorkItem
 } from "./components/work-items.js?v=20260706-convert-document";
-import { createApplicationShell } from "./core/application-shell.js?v=20260706-navigation-responsive-overflow";
+import { createApplicationShell } from "./core/application-shell.js?v=20260707-log-about-nav-label-fix";
 import {
   currentView,
   navigate
-} from "./core/router.js?v=20260706-navigation-wfh-unlocked";
+} from "./core/router.js?v=20260707-log-about-nav";
 import {
   registeredScreenHandlers,
   registerScreen,
   screenHandlerFor
-} from "./core/screen-registry.js?v=20260706-navigation-wfh-unlocked";
+} from "./core/screen-registry.js?v=20260707-log-about-nav";
 import { state } from "./core/store.js";
 import { createAboutFeature } from "./features/about/about.js?v=20260621-about-credits";
 import { createBacklogFeature } from "./features/backlog/backlog.js?v=20260706-convert-document";
@@ -45,8 +45,9 @@ import {
 } from "./features/gantt/gantt.js?v=20260701-nav-title-preferences";
 import { createProjectsFeature } from "./features/projects/projects.js?v=20260701-nav-title-preferences";
 import { createRoadMapFeature } from "./features/roadmap/roadmap.js?v=20260701-nav-title-preferences";
-import { createScrumFeature } from "./features/scrum/scrum.js?v=20260706-convert-document";
-import { createSettingsFeature } from "./features/settings/settings.js?v=20260706-settings-table-format";
+import { createLogFeature } from "./features/personal-log/log.js?v=20260707-log-screen";
+import { createScrumFeature } from "./features/scrum/scrum.js?v=20260707-log-screen";
+import { createSettingsFeature } from "./features/settings/settings.js?v=20260707-log-about-nav";
 import { createSprintsFeature } from "./features/sprints/sprints.js?v=20260701-nav-title-preferences";
 import { createTasksFeature } from "./features/tasks/tasks.js?v=20260706-convert-document";
 import { createWfhScheduleFeature } from "./features/wfh-schedule/wfh-schedule.js?v=20260706-readonly-windowing";
@@ -297,6 +298,16 @@ const scrumFeature = createScrumFeature({
   showReadOnlyDialog,
   showToast
 });
+const logFeature = createLogFeature({
+  app,
+  deleteItem,
+  loadState,
+  openEditor,
+  render,
+  saveJson,
+  showReadOnlyDialog,
+  showToast
+});
 const documentationFeature = createDocumentationFeature({
   app,
   attachFile,
@@ -327,6 +338,7 @@ registerScreen("Tasks", tasksFeature);
 registerScreen("Bugs", bugsFeature);
 registerScreen("Backlog", backlogFeature);
 registerScreen("Scrum", scrumFeature);
+registerScreen("Log", logFeature);
 registerScreen("Documentation", documentationFeature);
 registerScreen("WFH Schedule", wfhScheduleFeature);
 
@@ -402,6 +414,7 @@ function renderCurrentScreen() {
   if (currentView !== "Bugs") bugsFeature.deactivate();
   if (currentView !== "Backlog") backlogFeature.deactivate();
   if (currentView !== "Scrum") scrumFeature.deactivate();
+  if (currentView !== "Log") logFeature.deactivate();
 
   const registeredScreen = screenHandlerFor(currentView);
   if (registeredScreen?.render) registeredScreen.render();
@@ -1221,6 +1234,7 @@ function editorDialogLayoutKey(title) {
   if (dialogBody.querySelector(".task-editor-grid")) return "editor:dev-task";
   if (dialogBody.querySelector(".bug-editor-grid")) return "editor:bug-report";
   if (dialogBody.querySelector(".scrum-editor-grid")) return "editor:scrum";
+  if (dialogBody.querySelector(".log-editor-grid")) return "editor:log";
   if (dialogBody.querySelector("[name='parentBlogId'], .documentation-image-open-area")) return "editor:documentation";
   if (dialogBody.querySelector("[name='firstName'], [name='lastName'], [name='nickname']")) return "editor:user";
   if (dialogBody.querySelector("[name='lookupType'], [name='lookupValue']")) return "editor:setting";

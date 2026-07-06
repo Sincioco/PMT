@@ -433,6 +433,7 @@ BEGIN
     CREATE TABLE [pmt].[DevLogs]
     (
         [DevLogId] INT IDENTITY(1,1) NOT NULL CONSTRAINT [PK_pmt_DevLogs] PRIMARY KEY,
+        [LogType] NVARCHAR(20) NOT NULL CONSTRAINT [DF_pmt_DevLogs_LogType] DEFAULT (N'Scrum'),
         [ProjectId] INT NULL,
         [UserId] INT NOT NULL,
         [LogDate] DATETIME2(0) NOT NULL,
@@ -448,6 +449,12 @@ BEGIN
         CONSTRAINT [FK_pmt_DevLogs_CreatedBy] FOREIGN KEY ([CreatedByUserId]) REFERENCES [pmt].[Users]([UserId]),
         CONSTRAINT [FK_pmt_DevLogs_UpdatedBy] FOREIGN KEY ([UpdatedByUserId]) REFERENCES [pmt].[Users]([UserId])
     );
+END;
+GO
+
+IF COL_LENGTH(N'pmt.DevLogs', N'LogType') IS NULL
+BEGIN
+    ALTER TABLE [pmt].[DevLogs] ADD [LogType] NVARCHAR(20) NOT NULL CONSTRAINT [DF_pmt_DevLogs_LogType] DEFAULT (N'Scrum');
 END;
 GO
 

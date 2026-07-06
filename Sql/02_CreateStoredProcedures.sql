@@ -131,6 +131,7 @@ END;
 GO
 
 CREATE OR ALTER PROCEDURE [pmt].[GetAppState]
+    @CurrentUserId INT = 1
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -270,6 +271,7 @@ BEGIN
 
     SELECT
         [DevLogId],
+        [LogType],
         [ProjectId],
         [UserId],
         [LogDate],
@@ -279,6 +281,7 @@ BEGIN
         [UpdatedAt]
     FROM [pmt].[DevLogs]
     WHERE [IsDeleted] = 0
+      AND ([LogType] <> N'Log' OR [UserId] = @CurrentUserId)
     ORDER BY
         [IsPinned] DESC,
         CASE WHEN [IsPinned] = 1 THEN [CreatedAt] END DESC,
@@ -2416,7 +2419,8 @@ CREATE OR ALTER PROCEDURE [pmt].[UpsertDevLog]
     @ProjectId INT,
     @IsPinned BIT,
     @CurrentUserId INT,
-    @AuditContext NVARCHAR(80) = NULL
+    @AuditContext NVARCHAR(80) = NULL,
+    @LogType NVARCHAR(20) = N'Scrum'
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -2424,24 +2428,30 @@ BEGIN
     DECLARE @Now DATETIME2(0) = SYSUTCDATETIME();
     DECLARE @IsImport BIT = CASE WHEN LOWER(LTRIM(RTRIM(ISNULL(@AuditContext, N'')))) = N'import' THEN 1 ELSE 0 END;
     DECLARE @OwnerUserId INT;
+    DECLARE @ExistingLogType NVARCHAR(20);
     DECLARE @ProjectStartDate DATE;
     DECLARE @LogDateOnly DATE;
     DECLARE @ExistingLogDateOnly DATE;
     DECLARE @CurrentUserIsAdmin BIT = [pmt].[IsAdmin](@CurrentUserId);
+
+    SET @LogType = CASE
+        WHEN LOWER(LTRIM(RTRIM(ISNULL(@LogType, N'')))) = N'log' THEN N'Log'
+        ELSE N'Scrum'
+    END;
 
     IF NULLIF(LTRIM(RTRIM(@BodyHtml)), N'') IS NULL
     BEGIN
         THROW 50060, 'Dev log text is required.', 1;
     END;
 
-    IF @LogDate < '2000-01-01' AND @CurrentUserIsAdmin = 0
+    IF @LogDate < '2000-01-01' AND @CurrentUserIsAdmin = 0 AND @LogType = N'Scrum'
     BEGIN
         SET @LogDate = CONVERT(DATE, SYSUTCDATETIME());
     END;
 
     SET @LogDateOnly = CONVERT(DATE, @LogDate);
 
-    IF @CurrentUserIsAdmin = 0
+    IF @CurrentUserIsAdmin = 0 AND @LogType = N'Scrum'
     BEGIN
         IF @ProjectId IS NOT NULL
         BEGIN
@@ -2476,6 +2486,7 @@ BEGIN
     BEGIN
         INSERT INTO [pmt].[DevLogs]
         (
+            [LogType],
             [ProjectId],
             [UserId],
             [LogDate],
@@ -2487,6 +2498,7 @@ BEGIN
         )
         VALUES
         (
+            @LogType,
             @ProjectId,
             @CurrentUserId,
             @LogDate,
@@ -2504,6 +2516,7 @@ BEGIN
     BEGIN
         SELECT
             @OwnerUserId = [UserId],
+            @ExistingLogType = [LogType],
             @ExistingLogDateOnly = CONVERT(DATE, [LogDate])
         FROM [pmt].[DevLogs]
         WHERE [DevLogId] = @DevLogId
@@ -2514,12 +2527,23 @@ BEGIN
             THROW 50061, 'Dev log was not found.', 1;
         END;
 
+        IF @ExistingLogType <> @LogType
+        BEGIN
+            THROW 50067, 'This dev log type cannot be changed.', 1;
+        END;
+
+        IF @ExistingLogType = N'Log' AND @OwnerUserId <> @CurrentUserId
+        BEGIN
+            THROW 50068, 'You cannot edit another user''s log.', 1;
+        END;
+
         IF [pmt].[CanEdit](@OwnerUserId, @CurrentUserId) = 0
         BEGIN
             THROW 50062, 'You cannot edit this dev log.', 1;
         END;
 
         IF @CurrentUserIsAdmin = 0
+           AND @ExistingLogType = N'Scrum'
            AND @ExistingLogDateOnly < DATEADD(DAY, -31, CONVERT(DATE, SYSUTCDATETIME()))
         BEGIN
             THROW 50066, 'Scrum entries older than 31 days are read-only for users.', 1;
@@ -2555,11 +2579,13 @@ BEGIN
     SET NOCOUNT ON;
 
     DECLARE @OwnerUserId INT;
+    DECLARE @ExistingLogType NVARCHAR(20);
     DECLARE @ExistingLogDateOnly DATE;
     DECLARE @CurrentUserIsAdmin BIT = [pmt].[IsAdmin](@CurrentUserId);
 
     SELECT
         @OwnerUserId = [UserId],
+        @ExistingLogType = [LogType],
         @ExistingLogDateOnly = CONVERT(DATE, [LogDate])
     FROM [pmt].[DevLogs]
     WHERE [DevLogId] = @DevLogId
@@ -2570,12 +2596,18 @@ BEGIN
         THROW 50063, 'Dev log was not found.', 1;
     END;
 
+    IF @ExistingLogType = N'Log' AND @OwnerUserId <> @CurrentUserId
+    BEGIN
+        THROW 50067, 'You cannot delete another user''s log.', 1;
+    END;
+
     IF [pmt].[CanEdit](@OwnerUserId, @CurrentUserId) = 0
     BEGIN
         THROW 50064, 'You cannot delete this dev log.', 1;
     END;
 
     IF @CurrentUserIsAdmin = 0
+       AND @ExistingLogType = N'Scrum'
        AND @ExistingLogDateOnly < DATEADD(DAY, -31, CONVERT(DATE, SYSUTCDATETIME()))
     BEGIN
         THROW 50066, 'Scrum entries older than 31 days are read-only for users.', 1;
