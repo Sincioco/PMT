@@ -6,6 +6,10 @@
   gap: var(--space-5);
 }
 
+.editor-dialog .form-grid {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, var(--editor-dialog-column-min)), 1fr));
+}
+
 .field {
   display: grid;
   gap: var(--space-2);
@@ -91,6 +95,18 @@
   background-color: var(--color-control-disabled);
   color: var(--color-text-disabled);
   cursor: not-allowed;
+}
+
+.dialog .field input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
+.dialog .field select,
+.dialog .filter-row select,
+.dialog .filter-row input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
+.dialog .task-filter-row select,
+.dialog .task-filter-row input:not([type="checkbox"]):not([type="radio"]):not([type="file"]) {
+  height: var(--control-height-md);
+  min-height: var(--control-height-md);
+  padding-top: 0;
+  padding-bottom: 0;
 }
 
 .filter-row select,

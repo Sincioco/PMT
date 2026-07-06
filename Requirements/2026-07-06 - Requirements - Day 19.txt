@@ -7,3 +7,15 @@ For all of this conversation / session, I will perform all the manual tests and 
 Universal Toolbar Behavior for HTML Editor
 ------------------------------------------
 1.) In the Documentation Screen, when the Treeview is hidden, and a document is in edit mode, we get a nearly full-screen (width-wise) of the document for us to edit.  Notice, how the toolbar for the body stays visible (sticky) at either the top or bottom of the viewport.  Verify that you see this logic, and once you have, implement this across the board whenever an HTML editor is used in PMT, such as in Dev Tasks, Bug Tracking, Scrum and Documentation (the New/Edit Document dialog box needs this update as well).
+
+Universal New/Edit Dialog Boxes Changes
+------------------------------------------
+1.) For screens with New/Edit dialog boxes, such as Dev Task, Bug Tracking, Scrum, Documentation put a "maximize" button to the left of the close ("x") button on the upper-right.
+2.) When maximized, make the dialog boxes occupy almost the entire content area of the browser.  Leave some margins around, maybe 5% on all 4 corners so the user can still somewhat see the background.
+3.) The maximize buttons then becomes the "restore" button so the dialog box can be reverted back to it's initial state.
+4.) Obivously, resize the HTML Editor to match the new width of the dialog box.
+5.) If possible, reflow the controls above and below the HTML Editor based on the width of the dialog box.  By default, keep its current width as the starting width--I like it the way it is in its 2-column layout and its present dimension.
+6.) Allow the user to resize the dialog box, but never smaller than the initial/default dimension.
+7.) So, as the user resizes the dialog box, it will never be smaller than it's default/initial size, so that's the two-column layout, but as the user makes the dialog box wider, allow for a three-column or 4-column layout, etc.  Keep the layout width as-is, but just add more columns when it's possible to fit another column.
+
+8.) I noticed on high-resolution monitors or when you zoom out on the browser, the Title and Percent textboxes in the New Dev Task dialog box becomes taller compared the dropdown.  Please keep the height of the dropdowns and text boxes (excluding the HTML Editor) the same.  I've attached an image, so you can visually see the issue.  Please universally fix this across all dialog boxes.

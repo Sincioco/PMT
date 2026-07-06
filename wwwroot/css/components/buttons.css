@@ -265,6 +265,35 @@ html[data-theme] .dialog-head button.icon-btn::after {
   transform: translate(-50%, -50%) rotate(-45deg);
 }
 
+html[data-theme] .dialog-head button.dialog-maximize-button::before,
+html[data-theme] .dialog-head button.dialog-maximize-button::after {
+  box-sizing: border-box;
+  width: 12px;
+  height: 12px;
+  border: 2px solid currentColor;
+  border-radius: 2px;
+  background: transparent;
+  transform: translate(-50%, -50%);
+}
+
+html[data-theme] .dialog-head button.dialog-maximize-button::after {
+  display: none;
+}
+
+html[data-theme] .editor-dialog.is-maximized .dialog-head button.dialog-maximize-button::before {
+  width: 10px;
+  height: 10px;
+  transform: translate(-35%, -65%);
+}
+
+html[data-theme] .editor-dialog.is-maximized .dialog-head button.dialog-maximize-button::after {
+  display: block;
+  width: 10px;
+  height: 10px;
+  background: var(--dialog-bg);
+  transform: translate(-65%, -35%);
+}
+
 html[data-theme] button .button-svg-icon {
   width: var(--icon-size-lg) !important;
   height: var(--icon-size-lg) !important;

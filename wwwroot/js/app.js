@@ -5,7 +5,7 @@ import {
   askForText,
   askYesNo,
   initializeDraggableDialogs
-} from "./components/dialogs.js?v=20260701-dialog-default-wheel";
+} from "./components/dialogs.js?v=20260706-editor-dialog-windowing";
 import {
   field,
   value
@@ -179,6 +179,7 @@ const {
   toast
 } = shell.elements;
 const editorDialogSecondaryActions = document.getElementById("editorDialogSecondaryActions");
+const maximizeDialogButton = document.getElementById("maximizeDialog");
 
 const roadMapFeature = createRoadMapFeature({ app });
 const aboutFeature = createAboutFeature({ app });
@@ -325,6 +326,8 @@ registerScreen("WFH Schedule", wfhScheduleFeature);
 
 document.getElementById("closeDialog").addEventListener("click", () => dialog.close());
 document.getElementById("cancelDialog").addEventListener("click", () => dialog.close());
+maximizeDialogButton?.addEventListener("click", toggleEditorDialogMaximized);
+dialog.addEventListener("close", resetEditorDialogWindow);
 
 if (document.readyState === "loading") {
   document.addEventListener("DOMContentLoaded", shell.initialize);
@@ -1092,6 +1095,7 @@ function editPassword() {
 }
 
 function openEditor(title, html, saveAction, focusName = "", afterOpen = null) {
+  resetEditorDialogWindow();
   dialogTitle.textContent = title;
   delete dialogBody.dataset.devTaskPercentRules;
   dialogBody.innerHTML = html;
@@ -1117,11 +1121,57 @@ function openEditor(title, html, saveAction, focusName = "", afterOpen = null) {
   };
 
   dialog.showModal();
+  sizeEditorDialogFromDefault();
   dialogBody.scrollTop = 0;
   dialog.scrollTop = 0;
 
   // Start each dialog on the most useful field so users can type right away.
   setTimeout(() => focusEditorField(focusName), 0);
+}
+
+function sizeEditorDialogFromDefault() {
+  const rect = dialog.getBoundingClientRect();
+  const width = Math.ceil(rect.width);
+  const height = Math.ceil(rect.height);
+
+  dialog.style.setProperty("--editor-dialog-default-width", `${width}px`);
+  dialog.style.setProperty("--editor-dialog-default-height", `${height}px`);
+  dialog.style.width = `${width}px`;
+  dialog.style.height = `${height}px`;
+  dialog.dataset.editorDialogSized = "true";
+}
+
+function resetEditorDialogWindow() {
+  dialog.classList.remove("is-maximized");
+  delete dialog.dataset.editorDialogSized;
+  dialog.style.removeProperty("--editor-dialog-default-width");
+  dialog.style.removeProperty("--editor-dialog-default-height");
+  dialog.style.width = "";
+  dialog.style.height = "";
+  updateEditorDialogMaximizeButton(false);
+}
+
+function toggleEditorDialogMaximized() {
+  if (!dialog.open) return;
+
+  const shouldMaximize = !dialog.classList.contains("is-maximized");
+  if (shouldMaximize) {
+    const rect = dialog.getBoundingClientRect();
+    dialog.style.width = `${Math.ceil(rect.width)}px`;
+    dialog.style.height = `${Math.ceil(rect.height)}px`;
+  }
+
+  dialog.classList.toggle("is-maximized", shouldMaximize);
+  updateEditorDialogMaximizeButton(shouldMaximize);
+}
+
+function updateEditorDialogMaximizeButton(isMaximized) {
+  if (!maximizeDialogButton) return;
+
+  const label = isMaximized ? "Restore" : "Maximize";
+  maximizeDialogButton.title = label;
+  maximizeDialogButton.setAttribute("aria-label", label);
+  maximizeDialogButton.textContent = label;
 }
 
 function moveEditorFooterActions() {

@@ -25,6 +25,7 @@ function startDialogDrag(event) {
 
   const dialog = head.closest("dialog.dialog");
   if (!dialog?.open) return;
+  if (dialog.classList.contains("is-maximized")) return;
 
   const rect = dialog.getBoundingClientRect();
   const origin = clampDialogPosition(dialog, rect.left, rect.top);
