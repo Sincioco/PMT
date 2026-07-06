@@ -55,3 +55,33 @@ Documentation Export Functionality
 6.) For the PDF, implement PDF export using the browser Print Preview approach only.  If opening a new tab is easier to accomplish this, you may do so.
 7.) As a reminder, do not use any third party library or framework.
 8.) I would like to be able to re-import either the Word, HTML (self contained) or PDF back into PMT, so if you need to add meta data / extra information on the last page of the export, you may do so.  Write as many meta data / information you need for a future import process.  Just put a title on the page / section that reads "PMT Import Process Meta Data" so the user knows to either not touch it or just delete it.
+
+9.) They worked pretty great!  I have some changes.  When you export as a PDF, on the lower left of the PDF it reads "about:blank".  Can we change that to read "PMT by Sin"?
+10.) On the exported .doc file, the image goes off way past the right margin, it seems it is not being scaled to the width of the page?
+
+11.) Can you undo my last prompt regarding adding "PMT by Sin"?  We don't need it.  Leave the PDF as it was.
+12.) On the exported HTML both the self contained and the one with images in a folder, can you make it so that when an image is clicked it opens it in its own tab so that the user can view the image in its full high resolution, as long as that would not interfere with the future import process.
+
+13.) In the Document Treeview, when a document is selected and in read-only mode, put an "Export" button in between the delete icon and the Edit icon.  And make the Export button behave in the same was as in the Document Card's Read-Only dialog box.
+14.) Don't display the word "Export", just the icon is fine.
+
+
+Dev Task + Documentation Integration
+------------------------------------
+1.) In the Dev Task screen, I would like to add a "Convert to Document" button that turns the body (the HTML Description of the task) and turn it into a Document that goes in the Document screen.  Take the Dev Task's title as the Document Title, and the Dev Tasks' description as the body of the new Document.  Put the project in the correct Project / Sprint in the Document screen.  If the Project or Sprint does not yet exists in the Document screen, create them before turning the Dev Task's description into a Document.  At the bottom of the newly created document, add a section separator (like a HTML <hr> tag or similar) and at the bottom put something along the lines of "This document originally came from {xxx}".  Where {xxx} is source which could be a Dev Task or a Bug Task etc.  Make it hyperlinkable so the user can navigate back to the original source of the Documentation.
+2.) Once the Dev Task's description has become a document, delete the original content on the Dev Tasks' description and place a hyperlink that popups up a read-only dialog box to the newly created Document.
+3.) If it is possible to maintain an internal link between the Dev Task and the newly created document beyond just the hyperlink on the Description that would be great, sort of similar to how we link a Bug to a Dev Task.  Are we able to link a Dev Task to a Document?  That way we can also filter / find Dev Tasks with corresponding documents.
+4.) Also, In the Bug Tracking screen, I would like to add a "Convert to Document" button as well.
+5.) The "Convert to Document" should only be available on the read-mode of the Dev Task or Bug Report.  Put it on the lower-right corner of the dialog box.
+6.) Correction, place the button on the lower-left of the read-only dialog box.
+7.) Can you move the audit button to the left as well, please.
+8.) Export first, audit second in that order.
+
+9.) When I click on "Conver to Document" on the Dev Task's read-only dialog box, I get a toaster error message that reads "Not Found".  I have re-created the database and re-seeded the database.
+
+Top Navigation
+--------------
+1.) Let's change the initial load/state of the Top Navigation by hiding Dashboard, Road Map and Gantt for now (set their visible property to false and be sure it is reflected in Settings -> Navigation), but still allow the user to turn them back on in Settings -> Navigation
+2.) Let's permanently put the Kanban Board after the Sprint both in the Top Nav and in the Settings -> Navigation.
+3.) Let's move Settings on the Avatar menu now into the Top navigation, but place it as the last item in the Top Nav (so let it overflow in the overflow menu).
+4.) For the Navigation Items:  Dashboard, Road Map, and Gantt when viewing them in Settings -> Navigation, append " (beta)" at the end of them.  But if the user selects them (makes them visible), don't render "(beta") in the actual Top Navigation.

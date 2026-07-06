@@ -14,6 +14,7 @@ import {
 
 const importMetadataTitle = "PMT Import Process Meta Data";
 const exportSchema = "pmt.documentation.export.v1";
+const wordImageMaxWidthPx = 624;
 
 export function documentationExportIconHtml() {
   return `
@@ -123,7 +124,7 @@ async function exportDocumentation(blog, format, printWindow) {
 }
 
 async function downloadWordDocument(blog) {
-  const parts = await buildDocumentationExportParts(blog, "inline");
+  const parts = await buildDocumentationExportParts(blog, "word");
   const html = documentationHtmlDocument(blog, parts, { word: true });
   downloadBlob(
     exportFileName(documentationExportBaseName(blog), "doc"),
@@ -133,7 +134,7 @@ async function downloadWordDocument(blog) {
 
 async function downloadSelfContainedHtml(blog) {
   const parts = await buildDocumentationExportParts(blog, "inline");
-  const html = documentationHtmlDocument(blog, parts);
+  const html = documentationHtmlDocument(blog, parts, { imageClick: true });
   downloadBlob(
     exportFileName(documentationExportBaseName(blog), "html"),
     new Blob([html], { type: "text/html;charset=utf-8" })
@@ -143,7 +144,7 @@ async function downloadSelfContainedHtml(blog) {
 async function downloadHtmlImageZip(blog) {
   const parts = await buildDocumentationExportParts(blog, "folder");
   const baseName = documentationExportBaseName(blog);
-  const html = documentationHtmlDocument(blog, parts);
+  const html = documentationHtmlDocument(blog, parts, { imageClick: true });
   const entries = [
     { name: `${baseName}.html`, text: html },
     ...parts.images.map(image => ({ name: `images/${image.fileName}`, bytes: image.bytes }))
@@ -189,6 +190,10 @@ async function buildDocumentationExportParts(blog, imageMode) {
     image.removeAttribute("sizes");
     image.setAttribute("src", imageMode === "folder" ? exportedImage.exportPath : exportedImage.dataUrl);
     if (!image.getAttribute("alt")) image.setAttribute("alt", exportedImage.fileName);
+
+    if (imageMode === "word") {
+      applyWordImageDisplaySize(image, exportedImage);
+    }
   }
 
   const metadata = documentationImportMetadata(blog, images);
@@ -203,6 +208,7 @@ async function buildDocumentationExportParts(blog, imageMode) {
 async function loadExportImage(source, index, usedNames) {
   if (/^data:/i.test(source)) {
     const parsedData = parseDataUrl(source);
+    const dimensions = await imageDimensions(source);
     const fileName = uniqueFileName(`image-${index + 1}.${extensionForContentType(parsedData.contentType)}`, usedNames);
     return {
       id: `image-${index + 1}`,
@@ -211,6 +217,8 @@ async function loadExportImage(source, index, usedNames) {
       fileName,
       contentType: parsedData.contentType,
       bytes: parsedData.bytes,
+      naturalWidth: dimensions.width,
+      naturalHeight: dimensions.height,
       dataUrl: source
     };
   }
@@ -223,6 +231,8 @@ async function loadExportImage(source, index, usedNames) {
   const bytes = new Uint8Array(await blob.arrayBuffer());
   const contentType = blob.type || contentTypeFromPath(absoluteSource);
   const fileName = uniqueFileName(fileNameFromSource(absoluteSource, contentType, index), usedNames);
+  const dataUrl = await blobToDataUrl(new Blob([bytes], { type: contentType }));
+  const dimensions = await imageDimensions(dataUrl);
 
   return {
     id: `image-${index + 1}`,
@@ -231,7 +241,9 @@ async function loadExportImage(source, index, usedNames) {
     fileName,
     contentType,
     bytes,
-    dataUrl: await blobToDataUrl(new Blob([bytes], { type: contentType }))
+    naturalWidth: dimensions.width,
+    naturalHeight: dimensions.height,
+    dataUrl
   };
 }
 
@@ -239,7 +251,11 @@ function documentationHtmlDocument(blog, parts, options = {}) {
   const wordAttributes = options.word
     ? ` xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word"`
     : "";
-  const classes = ["pmt-export-document", options.word ? "pmt-word-document" : ""].filter(Boolean).join(" ");
+  const classes = [
+    "pmt-export-document",
+    options.word ? "pmt-word-document" : "",
+    options.imageClick ? "pmt-html-document" : ""
+  ].filter(Boolean).join(" ");
 
   return `<!doctype html>
 <html lang="en"${wordAttributes}>
@@ -260,6 +276,7 @@ ${documentationExportCss(options)}
     ${documentationMetadataSectionHtml(parts.metadata)}
   </main>
   <script type="application/json" id="pmt-import-metadata">${jsonForScript(parts.metadata)}</script>
+  ${options.imageClick ? imageOpenScript() : ""}
   ${options.print ? printPreviewScript() : ""}
 </body>
 </html>`;
@@ -456,6 +473,15 @@ function documentationExportCss(options = {}) {
       margin: 16px auto;
     }
 
+    .pmt-word-document .pmt-document-body img {
+      max-width: ${wordImageMaxWidthPx}px;
+      height: auto;
+    }
+
+    .pmt-html-document .pmt-document-body img {
+      cursor: zoom-in;
+    }
+
     .pmt-document-body h1,
     .pmt-document-body h2,
     .pmt-document-body h3,
@@ -579,8 +605,78 @@ function writePrintWindowMessage(printWindow, title, message) {
   printWindow.document.close();
 }
 
+function applyWordImageDisplaySize(image, exportedImage) {
+  const naturalWidth = Number(exportedImage.naturalWidth || 0);
+  const displayWidth = Math.min(wordImageMaxWidthPx, naturalWidth || wordImageMaxWidthPx);
+  const existingStyle = image.getAttribute("style") || "";
+  const nextStyle = `${existingStyle}; max-width:${wordImageMaxWidthPx}px; width:${displayWidth}px; height:auto;`;
+
+  image.setAttribute("width", String(displayWidth));
+  image.removeAttribute("height");
+  image.setAttribute("style", nextStyle);
+}
+
+function imageDimensions(source) {
+  return new Promise(resolve => {
+    const image = new Image();
+    image.addEventListener("load", () => {
+      resolve({
+        width: image.naturalWidth || image.width || 0,
+        height: image.naturalHeight || image.height || 0
+      });
+    }, { once: true });
+    image.addEventListener("error", () => resolve({ width: 0, height: 0 }), { once: true });
+    image.src = source;
+  });
+}
+
 function writePrintWindowError(printWindow, message) {
   writePrintWindowMessage(printWindow, "PMT Documentation Export", message);
+}
+
+function imageOpenScript() {
+  return `
+  <script>
+    (() => {
+      const openImage = async image => {
+        const source = image.currentSrc || image.getAttribute("src") || "";
+        if (!source) return;
+
+        const opened = window.open("", "_blank");
+        if (!opened) return;
+        opened.opener = null;
+
+        let targetUrl = source;
+        let revokeUrl = "";
+
+        try {
+          if (/^data:/i.test(source)) {
+            const blob = await fetch(source).then(response => response.blob());
+            targetUrl = URL.createObjectURL(blob);
+            revokeUrl = targetUrl;
+          } else {
+            targetUrl = new URL(source, window.location.href).href;
+          }
+        } catch {
+          targetUrl = source;
+        }
+
+        opened.location.href = targetUrl;
+        if (revokeUrl) window.setTimeout(() => URL.revokeObjectURL(revokeUrl), 60000);
+      };
+
+      document.addEventListener("click", event => {
+        const image = event.target instanceof Element
+          ? event.target.closest(".pmt-document-body img")
+          : null;
+        if (!image) return;
+
+        event.preventDefault();
+        openImage(image);
+      });
+    })();
+  </script>
+  `;
 }
 
 function printPreviewScript() {

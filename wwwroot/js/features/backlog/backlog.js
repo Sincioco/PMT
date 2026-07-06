@@ -13,7 +13,7 @@ import { sectionHead } from "../../components/sections.js?v=20260701-nav-title-p
 import {
   bugFixIconHtml,
   createWorkItemTableMode
-} from "../../components/work-items.js?v=20260706-dialog-persistence";
+} from "../../components/work-items.js?v=20260706-convert-document";
 import {
   preferenceKeys,
   readJsonPreference,

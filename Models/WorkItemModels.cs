@@ -27,6 +27,7 @@ public sealed class WorkTaskDto
     public int CreatedByUserId { get; set; }
     public int? UpdatedByUserId { get; set; }
     public int? LinkedBugTaskId { get; set; }
+    public int? LinkedBlogId { get; set; }
     public List<int> ReporterIds { get; set; } = new();
     public List<UserSummaryDto> Reporters { get; set; } = new();
     public List<int> AssigneeIds { get; set; } = new();

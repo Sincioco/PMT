@@ -226,6 +226,7 @@ BEGIN
         [CreatedByUserId],
         [UpdatedByUserId],
         [LinkedBugTaskId],
+        [LinkedBlogId],
         [CreatedAt],
         [UpdatedAt]
     FROM [pmt].[WorkTasks]
@@ -2764,6 +2765,179 @@ BEGIN
 END;
 GO
 
+CREATE OR ALTER PROCEDURE [pmt].[ConvertTaskToBlog]
+    @TaskId INT,
+    @CurrentUserId INT,
+    @BlogId INT OUTPUT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    SET XACT_ABORT ON;
+
+    DECLARE @Now DATETIME2(0) = SYSUTCDATETIME();
+    DECLARE @ProjectId INT;
+    DECLARE @SprintId INT;
+    DECLARE @TaskType NVARCHAR(20);
+    DECLARE @Code NVARCHAR(40);
+    DECLARE @Title NVARCHAR(220);
+    DECLARE @DescriptionHtml NVARCHAR(MAX);
+    DECLARE @LinkedBlogId INT;
+    DECLARE @SourceType NVARCHAR(40);
+    DECLARE @SourceLabel NVARCHAR(400);
+    DECLARE @EscapedTitle NVARCHAR(MAX);
+    DECLARE @EscapedSourceLabel NVARCHAR(MAX);
+    DECLARE @TaskIdText NVARCHAR(20) = CONVERT(NVARCHAR(20), @TaskId);
+    DECLARE @BlogIdText NVARCHAR(20);
+    DECLARE @DocumentBody NVARCHAR(MAX);
+    DECLARE @TaskLinkHtml NVARCHAR(MAX);
+
+    SELECT
+        @ProjectId = [ProjectId],
+        @SprintId = [SprintId],
+        @TaskType = [TaskType],
+        @Code = [Code],
+        @Title = [Title],
+        @DescriptionHtml = [DescriptionHtml],
+        @LinkedBlogId = [LinkedBlogId]
+    FROM [pmt].[WorkTasks]
+    WHERE [TaskId] = @TaskId
+      AND [IsDeleted] = 0;
+
+    IF @Title IS NULL
+    BEGIN
+        THROW 50083, 'Task was not found.', 1;
+    END;
+
+    IF [pmt].[CanEditTaskType](@TaskType, @CurrentUserId) = 0
+    BEGIN
+        THROW 50084, 'You cannot convert this task to documentation.', 1;
+    END;
+
+    IF @LinkedBlogId IS NOT NULL
+       AND EXISTS (SELECT 1 FROM [pmt].[Blogs] WHERE [BlogId] = @LinkedBlogId AND [IsDeleted] = 0)
+    BEGIN
+        SET @BlogId = @LinkedBlogId;
+        RETURN;
+    END;
+
+    IF NULLIF(LTRIM(RTRIM(REPLACE(REPLACE(REPLACE(ISNULL(@DescriptionHtml, N''), N'&nbsp;', N' '), N'<p><br></p>', N''), N'<br>', N''))), N'') IS NULL
+    BEGIN
+        THROW 50085, 'Task description is empty.', 1;
+    END;
+
+    BEGIN TRY
+        BEGIN TRANSACTION;
+
+        SELECT
+            @ProjectId = [ProjectId],
+            @SprintId = [SprintId],
+            @TaskType = [TaskType],
+            @Code = [Code],
+            @Title = [Title],
+            @DescriptionHtml = [DescriptionHtml],
+            @LinkedBlogId = [LinkedBlogId]
+        FROM [pmt].[WorkTasks] WITH (UPDLOCK, HOLDLOCK)
+        WHERE [TaskId] = @TaskId
+          AND [IsDeleted] = 0;
+
+        IF @@ROWCOUNT = 0
+        BEGIN
+            THROW 50083, 'Task was not found.', 1;
+        END;
+
+        IF @LinkedBlogId IS NOT NULL
+           AND EXISTS (SELECT 1 FROM [pmt].[Blogs] WHERE [BlogId] = @LinkedBlogId AND [IsDeleted] = 0)
+        BEGIN
+            SET @BlogId = @LinkedBlogId;
+            COMMIT TRANSACTION;
+            RETURN;
+        END;
+
+        IF NULLIF(LTRIM(RTRIM(REPLACE(REPLACE(REPLACE(ISNULL(@DescriptionHtml, N''), N'&nbsp;', N' '), N'<p><br></p>', N''), N'<br>', N''))), N'') IS NULL
+        BEGIN
+            THROW 50085, 'Task description is empty.', 1;
+        END;
+
+        SET @SourceType = CASE WHEN @TaskType = N'Bug' THEN N'Bug Report' ELSE N'Dev Task' END;
+        SET @SourceLabel = @SourceType + N' ' + ISNULL(@Code, N'') + N' - ' + @Title;
+        SET @EscapedTitle = @Title;
+        SET @EscapedSourceLabel = @SourceLabel;
+
+        SET @EscapedTitle = REPLACE(@EscapedTitle, N'&', N'&amp;');
+        SET @EscapedTitle = REPLACE(@EscapedTitle, N'<', N'&lt;');
+        SET @EscapedTitle = REPLACE(@EscapedTitle, N'>', N'&gt;');
+        SET @EscapedTitle = REPLACE(@EscapedTitle, N'"', N'&quot;');
+        SET @EscapedTitle = REPLACE(@EscapedTitle, N'''', N'&#39;');
+
+        SET @EscapedSourceLabel = REPLACE(@EscapedSourceLabel, N'&', N'&amp;');
+        SET @EscapedSourceLabel = REPLACE(@EscapedSourceLabel, N'<', N'&lt;');
+        SET @EscapedSourceLabel = REPLACE(@EscapedSourceLabel, N'>', N'&gt;');
+        SET @EscapedSourceLabel = REPLACE(@EscapedSourceLabel, N'"', N'&quot;');
+        SET @EscapedSourceLabel = REPLACE(@EscapedSourceLabel, N'''', N'&#39;');
+
+        SET @DocumentBody =
+            ISNULL(@DescriptionHtml, N'') +
+            N'<hr>' +
+            N'<p><em>This document originally came from <a href="#work-item-' + @TaskIdText +
+            N'" data-work-item-link="' + @TaskIdText + N'">' + @EscapedSourceLabel +
+            N'</a>.</em></p>';
+
+        INSERT INTO [pmt].[Blogs]
+        (
+            [ProjectId],
+            [SprintId],
+            [Title],
+            [BodyHtml],
+            [CreatedByUserId],
+            [UpdatedByUserId],
+            [CreatedAt],
+            [UpdatedAt]
+        )
+        VALUES
+        (
+            @ProjectId,
+            @SprintId,
+            @Title,
+            @DocumentBody,
+            @CurrentUserId,
+            @CurrentUserId,
+            @Now,
+            @Now
+        );
+
+        SET @BlogId = SCOPE_IDENTITY();
+        SET @BlogIdText = CONVERT(NVARCHAR(20), @BlogId);
+        SET @TaskLinkHtml =
+            N'<p><a href="#documentation-blog-' + @BlogIdText +
+            N'" data-documentation-link="' + @BlogIdText +
+            N'">View generated Documentation: ' + @EscapedTitle + N'</a></p>';
+
+        INSERT INTO [pmt].[BlogHistory] ([BlogId], [Action], [UserId], [CreatedByUserId], [CreatedAt])
+        VALUES (@BlogId, N'Created', @CurrentUserId, @CurrentUserId, @Now);
+
+        UPDATE [pmt].[WorkTasks]
+        SET [DescriptionHtml] = @TaskLinkHtml,
+            [LinkedBlogId] = @BlogId,
+            [UpdatedByUserId] = @CurrentUserId,
+            [UpdatedAt] = @Now
+        WHERE [TaskId] = @TaskId;
+
+        EXEC [pmt].[WriteAudit] N'Blog', @BlogId, N'Created', @Title, @CurrentUserId;
+        EXEC [pmt].[WriteAudit] N'Task', @TaskId, N'Converted to Document', @Title, @CurrentUserId;
+
+        COMMIT TRANSACTION;
+    END TRY
+    BEGIN CATCH
+        IF XACT_STATE() <> 0
+        BEGIN
+            ROLLBACK TRANSACTION;
+        END;
+
+        THROW;
+    END CATCH;
+END;
+GO
+
 CREATE OR ALTER PROCEDURE [pmt].[DeleteBlog]
     @BlogId INT,
     @CurrentUserId INT
@@ -2799,6 +2973,13 @@ BEGIN
         [UpdatedByUserId] = @CurrentUserId,
         [UpdatedAt] = SYSUTCDATETIME()
     WHERE [ParentBlogId] = @BlogId
+      AND [IsDeleted] = 0;
+
+    UPDATE [pmt].[WorkTasks]
+    SET [LinkedBlogId] = NULL,
+        [UpdatedByUserId] = @CurrentUserId,
+        [UpdatedAt] = SYSUTCDATETIME()
+    WHERE [LinkedBlogId] = @BlogId
       AND [IsDeleted] = 0;
 
     INSERT INTO [pmt].[BlogHistory] ([BlogId], [Action], [UserId], [CreatedByUserId])
@@ -3175,6 +3356,12 @@ BEGIN
     UPDATE [pmt].[Blogs]
     SET [ParentBlogId] = NULL
     WHERE [ParentBlogId] IN (SELECT [BlogId] FROM @BlogIds);
+
+    UPDATE [pmt].[WorkTasks]
+    SET [LinkedBlogId] = NULL,
+        [UpdatedByUserId] = @CurrentUserId,
+        [UpdatedAt] = SYSUTCDATETIME()
+    WHERE [LinkedBlogId] IN (SELECT [BlogId] FROM @BlogIds);
 
     DELETE FROM [pmt].[Blogs]
     WHERE [BlogId] IN (SELECT [BlogId] FROM @BlogIds);

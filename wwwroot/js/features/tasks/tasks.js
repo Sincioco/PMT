@@ -30,7 +30,7 @@ import {
   taskPercentField,
   workItemDialogMetaHtml,
   uploadWorkItemAttachments
-} from "../../components/work-items.js?v=20260706-dialog-persistence";
+} from "../../components/work-items.js?v=20260706-convert-document";
 import {
   currentUser
 } from "../../core/authentication.js";

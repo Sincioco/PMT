@@ -5,7 +5,7 @@ import { filterSelect } from "../../components/filters.js";
 import {
   documentationExportIconHtml,
   openDocumentationExportDialog
-} from "./documentation-export.js?v=20260706-documentation-export";
+} from "./documentation-export.js?v=20260706-documentation-export-html-image-open";
 import {
   field,
   optionalNumberValue,
@@ -192,6 +192,10 @@ export function createDocumentationFeature({
     }
     if (action === "view-blog") {
       viewDocumentation(state.blogs.find(blog => blog.id === id));
+      return true;
+    }
+    if (action === "export-blog") {
+      openDocumentationExportDialog(state.blogs.find(blog => blog.id === id), { showToast });
       return true;
     }
     if (action === "edit-blog") {
@@ -404,6 +408,14 @@ export function createDocumentationFeature({
     modal.showModal();
     normalizeLinksInElement(modal);
     bindDocumentationBodyImageOpen(modal);
+  }
+
+  function viewDocumentationById(blogId) {
+    const blog = state.blogs.find(item => item.id === Number(blogId || 0));
+    if (!blog) return false;
+
+    viewDocumentation(blog);
+    return true;
   }
 
   function editBlog(blog = {}) {
@@ -669,7 +681,8 @@ export function createDocumentationFeature({
   return {
     handleAction,
     handleFilterChange,
-    render: renderDocumentation
+    render: renderDocumentation,
+    view: viewDocumentationById
   };
 }
 
@@ -867,6 +880,7 @@ function documentationTreePreviewHtml(blog) {
       </div>
       <div class="toolbar documentation-tree-preview-actions">
         ${iconButton("delete-blog", blog.id, "Delete", "delete", canEditOwner(blog.createdByUserId), "danger")}
+        <button class="icon-action" type="button" data-action="export-blog" data-id="${blog.id}" title="Export" aria-label="Export"><span class="button-icon" aria-hidden="true">${documentationExportIconHtml()}</span></button>
         ${iconButton("edit-blog", blog.id, "Edit", "edit", canEditOwner(blog.createdByUserId))}
       </div>
     </div>

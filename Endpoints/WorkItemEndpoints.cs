@@ -60,6 +60,12 @@ internal static class WorkItemEndpoints
             return Results.Ok(new { id = newTaskId });
         });
 
+        app.MapPost("/api/tasks/{id:int}/convert-to-document", async (int id, HttpContext context, SqlPmtStore store, CancellationToken cancellationToken) =>
+        {
+            var blogId = await store.ConvertTaskToBlogAsync(id, CurrentUserId(context), cancellationToken);
+            return Results.Ok(new { blogId });
+        });
+
         app.MapDelete("/api/tasks/{id:int}", async (int id, HttpContext context, SqlPmtStore store, CancellationToken cancellationToken) =>
         {
             await store.DeleteTaskAsync(id, CurrentUserId(context), cancellationToken);

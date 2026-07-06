@@ -343,6 +343,12 @@ BEGIN
 END;
 GO
 
+IF COL_LENGTH(N'pmt.WorkTasks', N'LinkedBlogId') IS NULL
+BEGIN
+    ALTER TABLE [pmt].[WorkTasks] ADD [LinkedBlogId] INT NULL;
+END;
+GO
+
 IF OBJECT_ID(N'[pmt].[TaskReporters]', N'U') IS NULL
 BEGIN
     CREATE TABLE [pmt].[TaskReporters]
@@ -518,6 +524,13 @@ IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE [name] = N'FK_pmt_Blogs_Pare
 BEGIN
     ALTER TABLE [pmt].[Blogs]
     ADD CONSTRAINT [FK_pmt_Blogs_ParentBlog] FOREIGN KEY ([ParentBlogId]) REFERENCES [pmt].[Blogs]([BlogId]);
+END;
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE [name] = N'FK_pmt_WorkTasks_LinkedBlog')
+BEGIN
+    ALTER TABLE [pmt].[WorkTasks]
+    ADD CONSTRAINT [FK_pmt_WorkTasks_LinkedBlog] FOREIGN KEY ([LinkedBlogId]) REFERENCES [pmt].[Blogs]([BlogId]);
 END;
 GO
 

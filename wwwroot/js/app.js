@@ -20,7 +20,7 @@ import {
   bindAttachmentPreview,
   showTaskAudit,
   viewWorkItem
-} from "./components/work-items.js?v=20260706-dialog-persistence";
+} from "./components/work-items.js?v=20260706-convert-document";
 import { createApplicationShell } from "./core/application-shell.js?v=20260701-unified-dropdowns";
 import {
   currentView,
@@ -33,11 +33,11 @@ import {
 } from "./core/screen-registry.js";
 import { state } from "./core/store.js";
 import { createAboutFeature } from "./features/about/about.js?v=20260621-about-credits";
-import { createBacklogFeature } from "./features/backlog/backlog.js?v=20260706-dialog-persistence";
+import { createBacklogFeature } from "./features/backlog/backlog.js?v=20260706-convert-document";
 import { createBoardFeature } from "./features/board/board.js?v=20260706-readonly-windowing";
-import { createBugsFeature } from "./features/bugs/bugs.js?v=20260706-dialog-persistence";
+import { createBugsFeature } from "./features/bugs/bugs.js?v=20260706-convert-document";
 import { createDashboardFeature } from "./features/dashboard/dashboard.js?v=20260701-nav-title-preferences";
-import { createDocumentationFeature } from "./features/documentation/documentation.js?v=20260706-documentation-export";
+import { createDocumentationFeature } from "./features/documentation/documentation.js?v=20260706-convert-document";
 import {
   createGanttFeature,
   currentSprintForProject,
@@ -45,10 +45,10 @@ import {
 } from "./features/gantt/gantt.js?v=20260701-nav-title-preferences";
 import { createProjectsFeature } from "./features/projects/projects.js?v=20260701-nav-title-preferences";
 import { createRoadMapFeature } from "./features/roadmap/roadmap.js?v=20260701-nav-title-preferences";
-import { createScrumFeature } from "./features/scrum/scrum.js?v=20260706-scrum-direct-edit";
+import { createScrumFeature } from "./features/scrum/scrum.js?v=20260706-convert-document";
 import { createSettingsFeature } from "./features/settings/settings.js?v=20260701-nav-title-preferences";
 import { createSprintsFeature } from "./features/sprints/sprints.js?v=20260701-nav-title-preferences";
-import { createTasksFeature } from "./features/tasks/tasks.js?v=20260706-dialog-persistence";
+import { createTasksFeature } from "./features/tasks/tasks.js?v=20260706-convert-document";
 import { createWfhScheduleFeature } from "./features/wfh-schedule/wfh-schedule.js?v=20260706-readonly-windowing";
 import {
   fallbackEnvironments,
@@ -191,7 +191,7 @@ const roadMapFeature = createRoadMapFeature({ app });
 const aboutFeature = createAboutFeature({ app });
 const ganttFeature = createGanttFeature({
   app,
-  openTaskReadMode: id => viewWorkItem(taskById(id), editWorkItem),
+  openTaskReadMode: id => viewWorkItem(taskById(id), editWorkItem, workItemDialogOptions()),
   render,
   showToast
 });
@@ -478,7 +478,7 @@ function handleChartAction(element) {
   }
 
   if (action === "view-task") {
-    viewWorkItem(taskById(Number(element.dataset.id || 0)), editWorkItem);
+    viewWorkItem(taskById(Number(element.dataset.id || 0)), editWorkItem, workItemDialogOptions());
     return true;
   }
 
@@ -821,9 +821,29 @@ function hideChartTooltip() {
 }
 
 function handleDocumentLinkClick(event) {
-  const link = event.target.closest("a[href]");
+  const link = event.target instanceof Element ? event.target.closest("a") : null;
   if (!link) return;
 
+  const documentationLink = Number(link.dataset.documentationLink || 0);
+  if (documentationLink) {
+    event.preventDefault();
+    openDocumentationById(documentationLink);
+    return;
+  }
+
+  const workItemLink = Number(link.dataset.workItemLink || 0);
+  if (workItemLink) {
+    event.preventDefault();
+    const task = taskById(workItemLink);
+    if (task) {
+      viewWorkItem(task, editWorkItem, workItemDialogOptions());
+    } else {
+      showToast("Work item was not found.");
+    }
+    return;
+  }
+
+  if (!link.hasAttribute("href")) return;
   link.target = "_blank";
   link.rel = "noopener noreferrer";
 }
@@ -1077,7 +1097,7 @@ function showReadOnlyDialog(title, html) {
     if (!inlineButton) return;
     modal.close();
     modal.remove();
-    viewWorkItem(taskById(Number(inlineButton.dataset.id)), editWorkItem);
+    viewWorkItem(taskById(Number(inlineButton.dataset.id)), editWorkItem, workItemDialogOptions());
   });
   modal.addEventListener("cancel", () => modal.remove());
   modal.showModal();
@@ -1521,6 +1541,36 @@ async function duplicateBacklogTask(id) {
   }
 }
 
+function workItemDialogOptions(extra = {}) {
+  return {
+    onConvertToDocument: convertWorkItemToDocument,
+    onViewDocument: openDocumentationById,
+    ...extra
+  };
+}
+
+async function convertWorkItemToDocument(task) {
+  if (!task?.id) return false;
+
+  try {
+    const result = await api(`/api/tasks/${task.id}/convert-to-document`, { method: "POST" });
+    const blogId = Number(result.blogId || 0);
+    await loadState();
+    render();
+    showToast("Document ready.");
+    return blogId || result;
+  } catch (error) {
+    showToast(error.message);
+    return false;
+  }
+}
+
+function openDocumentationById(blogId) {
+  const opened = documentationFeature.view?.(Number(blogId || 0));
+  if (!opened) showToast("Document was not found.");
+  return opened;
+}
+
 function editWorkItem(task) {
   if (task?.taskType === "Bug") {
     bugsFeature.edit(task);
@@ -1538,7 +1588,7 @@ function viewBacklogWorkItem(task) {
     } else {
       tasksFeature.edit(selectedTask || {}, { apiRoot: "/api/backlog/tasks" });
     }
-  }, { canEdit: true });
+  }, { canEdit: true, onConvertToDocument: null, onViewDocument: openDocumentationById });
 }
 
 function gotoTask(id) {
@@ -1554,7 +1604,7 @@ function openTaskReadMode(id) {
   if (!task) return;
 
   gotoTask(id);
-  viewWorkItem(task, editWorkItem);
+  viewWorkItem(task, editWorkItem, workItemDialogOptions());
 }
 
 function viewProjectSprints(projectId) {

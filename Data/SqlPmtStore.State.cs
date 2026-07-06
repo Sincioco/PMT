@@ -182,6 +182,7 @@ public sealed partial class SqlPmtStore
                 CreatedByUserId = reader.GetInt32("CreatedByUserId"),
                 UpdatedByUserId = reader.GetNullableInt32("UpdatedByUserId"),
                 LinkedBugTaskId = reader.GetNullableInt32("LinkedBugTaskId"),
+                LinkedBlogId = reader.GetNullableInt32("LinkedBlogId"),
                 CreatedAt = reader.GetDateTime("CreatedAt"),
                 UpdatedAt = reader.GetDateTime("UpdatedAt")
             });

@@ -74,6 +74,15 @@ public sealed partial class SqlPmtStore
         }, cancellationToken);
     }
 
+    public Task<int> ConvertTaskToBlogAsync(int taskId, int currentUserId, CancellationToken cancellationToken)
+    {
+        return ExecuteIdProcedureAsync("[pmt].[ConvertTaskToBlog]", "@BlogId", 0, command =>
+        {
+            Add(command, "@TaskId", taskId);
+            Add(command, "@CurrentUserId", currentUserId);
+        }, cancellationToken);
+    }
+
     public Task DeleteTaskAsync(int taskId, int currentUserId, CancellationToken cancellationToken)
     {
         return DeleteTaskAsync(taskId, currentUserId, false, cancellationToken);

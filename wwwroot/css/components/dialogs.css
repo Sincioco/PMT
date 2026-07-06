@@ -60,6 +60,17 @@
   display: contents;
 }
 
+.dialog-action-group {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.dialog-action-group.is-left {
+  margin-right: auto;
+}
+
 .dialog-head h2 {
   min-width: 0;
   margin: 0;

@@ -183,6 +183,14 @@ export function refreshSprintOptions(root, projectId) {
 export function viewWorkItem(task, editWorkItem, options = {}) {
   if (!task) return;
   const canEdit = options.canEdit ?? canEditTask(task);
+  const linkedDocumentHtml = workItemLinkedDocumentHtml(task.linkedBlogId);
+  const canConvertToDocument = Boolean(
+    options.onConvertToDocument
+    && canEdit
+    && (task.taskType === "Dev" || task.taskType === "Bug")
+    && !task.linkedBlogId
+    && richTextHasContent(task.descriptionHtml)
+  );
   const dependencies = (task.dependencyTaskIds || [])
     .map(id => taskById(id))
     .filter(Boolean);
@@ -220,6 +228,7 @@ export function viewWorkItem(task, editWorkItem, options = {}) {
         ${detailField("Percent", `${taskDisplayPercent(task)}%`)}
         ${task.url ? detailField("URL", `<a href="${escapeAttr(normalizeUrl(task.url))}" target="_blank" rel="noopener noreferrer">${escapeHtml(task.url)}</a>`) : ""}
         ${dependencyLinks ? detailField("Dependencies", dependencyLinks) : ""}
+        ${linkedDocumentHtml ? detailField("Document", linkedDocumentHtml) : ""}
         ${detailField("Description", `<div class="rich-readonly">${task.descriptionHtml || ""}</div>`, true)}
         ${task.taskType === "Bug" ? detailField("Steps to Reproduce", `<div class="rich-readonly">${task.stepsToReproduceHtml || ""}</div>`, true) : ""}
         ${task.taskType === "Bug" ? detailField("Actual Result", `<div class="rich-readonly">${task.actualResultHtml || ""}</div>`, true) : ""}
@@ -229,16 +238,45 @@ export function viewWorkItem(task, editWorkItem, options = {}) {
       ${workItemDialogMetaHtml(task)}
     </div>
     <div class="dialog-actions">
-      <button type="button" class="secondary text-icon-button" data-action="show-task-audit" data-id="${task.id}">${buttonContent("&#128221;", "Audit Log")}</button>
-      <button type="button" class="secondary text-icon-button" data-edit-readonly-task="${task.id}" ${canEdit ? "" : "disabled"}>${buttonContent("&#9998;", "Edit")}</button>
-      <button type="button" class="primary text-icon-button" data-close>${buttonContent("&#10003;", "Close")}</button>
+      <div class="dialog-action-group is-left">
+        ${canConvertToDocument ? `<button type="button" class="secondary text-icon-button" data-convert-task-document="${task.id}">${buttonContent("&#128196;", "Convert to Document")}</button>` : ""}
+        <button type="button" class="secondary text-icon-button" data-action="show-task-audit" data-id="${task.id}">${buttonContent("&#128221;", "Audit Log")}</button>
+      </div>
+      <div class="dialog-action-group">
+        <button type="button" class="secondary text-icon-button" data-edit-readonly-task="${task.id}" ${canEdit ? "" : "disabled"}>${buttonContent("&#9998;", "Edit")}</button>
+        <button type="button" class="primary text-icon-button" data-close>${buttonContent("&#10003;", "Close")}</button>
+      </div>
     </div>
   `;
 
   document.body.appendChild(modal);
   initializeWindowedDialog(modal);
   modal.querySelectorAll("[data-close]").forEach(button => button.addEventListener("click", () => closeDialog(modal)));
-  modal.addEventListener("click", event => {
+  modal.addEventListener("click", async event => {
+    const convertButton = event.target.closest("[data-convert-task-document]");
+    if (convertButton && options.onConvertToDocument) {
+      if (convertButton.disabled) return;
+
+      convertButton.disabled = true;
+      convertButton.setAttribute("aria-busy", "true");
+      const result = await options.onConvertToDocument(task);
+      const blogId = typeof result === "object"
+        ? Number(result?.blogId || result?.id || 0)
+        : Number(result || 0);
+
+      if (result !== false) {
+        closeDialog(modal);
+        if (blogId && options.onViewDocument) options.onViewDocument(blogId);
+        return;
+      }
+
+      if (modal.isConnected) {
+        convertButton.disabled = false;
+        convertButton.removeAttribute("aria-busy");
+      }
+      return;
+    }
+
     const auditButton = event.target.closest("[data-action='show-task-audit']");
     if (auditButton) {
       showTaskAudit(Number(auditButton.dataset.id));
@@ -257,11 +295,32 @@ export function viewWorkItem(task, editWorkItem, options = {}) {
     if (!inlineButton) return;
     const selectedTask = taskById(Number(inlineButton.dataset.id));
     closeDialog(modal);
-    viewWorkItem(selectedTask, editWorkItem);
+    viewWorkItem(selectedTask, editWorkItem, options);
   });
   modal.addEventListener("cancel", () => modal.remove());
   modal.showModal();
   normalizeLinksInElement(modal);
+}
+
+function workItemLinkedDocumentHtml(blogId) {
+  const numericBlogId = Number(blogId || 0);
+  if (!numericBlogId) return "";
+
+  const blog = state.blogs.find(item => item.id === numericBlogId);
+  const title = blog?.title || "Open linked document";
+  return `<a href="#documentation-blog-${numericBlogId}" data-documentation-link="${numericBlogId}">${escapeHtml(title)}</a>`;
+}
+
+function richTextHasContent(html) {
+  const source = String(html || "");
+  if (!source.trim()) return false;
+
+  const template = document.createElement("template");
+  template.innerHTML = source;
+  const text = (template.content.textContent || "").replace(/\u00a0/g, " ").trim();
+  if (text) return true;
+
+  return Boolean(template.content.querySelector("img, table, video, iframe, pre, code, blockquote, ul, ol"));
 }
 
 export function workItemDialogMetaHtml(task) {
