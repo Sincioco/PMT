@@ -667,7 +667,8 @@ export function createScrumFeature({
       return true;
     }
     if (action === "view-log") {
-      viewDevLog(log);
+      if (log && canModifyScrumLog(log)) editDevLog(log);
+      else viewDevLog(log);
       return true;
     }
     if (action === "edit-log") {
@@ -810,12 +811,13 @@ export function createScrumFeature({
       const logDate = value(root, "logDate");
       const dateError = scrumDateValidationMessage(projectId, logDate);
       if (dateError) throw new Error(dateError);
+      const bodyHtml = scrumBodyHtmlForSave(root);
 
       await saveJson(log.id ? `/api/devlogs/${log.id}` : "/api/devlogs", log.id ? "PUT" : "POST", {
         id: log.id || 0,
         projectId,
         logDate,
-        bodyHtml: richValue(root, "bodyHtml"),
+        bodyHtml,
         isPinned: root.querySelector("[name='isPinned']").checked
       });
     }, log.id ? "" : "bodyHtml", root => {
@@ -1237,7 +1239,7 @@ export function createScrumFeature({
 
     const user = userById(log.userId);
     showReadOnlyDialog(scrumDialogTitle(log, "Scrum"), `
-      <div class="detail-grid">
+      <div class="detail-grid scrum-detail-grid">
         <div class="detail-field">
           <span>Date</span>
           <div>${escapeHtml(formatDate(log.logDate))}</div>
@@ -1349,6 +1351,36 @@ export function createScrumFeature({
     }
 
     return items;
+  }
+
+  function scrumBodyHtmlForSave(root) {
+    const bodyHtml = richValue(root, "bodyHtml");
+    if (scrumSectionItems(bodyHtml, scrumRoadblocksPrompt).length) return bodyHtml;
+
+    const container = document.createElement("div");
+    container.innerHTML = bodyHtml;
+    const heading = [...container.querySelectorAll("p, div, h1, h2, h3, strong, b")]
+      .find(element => scrumPromptMatches(element.textContent, scrumRoadblocksPrompt));
+    const sectionRoot = heading?.closest("p, div, h1, h2, h3") || heading;
+    const list = sectionRoot ? nextScrumSectionList(sectionRoot) : null;
+
+    if (list) {
+      list.innerHTML = "<li>None</li>";
+      return container.innerHTML;
+    }
+
+    return `${bodyHtml}${scrumSectionHtml(scrumRoadblocksPrompt, ["None"])}`;
+  }
+
+  function nextScrumSectionList(sectionRoot) {
+    let next = sectionRoot.nextElementSibling;
+    while (next) {
+      if (scrumPrompts.some(candidate => scrumPromptMatches(next.textContent, candidate))) return null;
+      if (next.matches("ul, ol")) return next;
+      next = next.nextElementSibling;
+    }
+
+    return null;
   }
 
   function scrumTextLines(html) {

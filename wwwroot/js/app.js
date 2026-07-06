@@ -45,7 +45,7 @@ import {
 } from "./features/gantt/gantt.js?v=20260701-nav-title-preferences";
 import { createProjectsFeature } from "./features/projects/projects.js?v=20260701-nav-title-preferences";
 import { createRoadMapFeature } from "./features/roadmap/roadmap.js?v=20260701-nav-title-preferences";
-import { createScrumFeature } from "./features/scrum/scrum.js?v=20260706-doc-scrum-fixes";
+import { createScrumFeature } from "./features/scrum/scrum.js?v=20260706-scrum-direct-edit";
 import { createSettingsFeature } from "./features/settings/settings.js?v=20260701-nav-title-preferences";
 import { createSprintsFeature } from "./features/sprints/sprints.js?v=20260701-nav-title-preferences";
 import { createTasksFeature } from "./features/tasks/tasks.js?v=20260706-dialog-persistence";

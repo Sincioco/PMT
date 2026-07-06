@@ -212,6 +212,16 @@ html[data-theme] .scrum-screen.work-item-screen .work-item-table .icon-action:di
   color: var(--color-warning-text);
 }
 
+.scrum-detail-grid {
+  align-content: start;
+  align-items: start;
+  grid-auto-rows: max-content;
+}
+
+.scrum-detail-grid .detail-field {
+  align-self: start;
+}
+
 .scrum-actions {
   padding-right: var(--space-7) !important;
   vertical-align: top !important;

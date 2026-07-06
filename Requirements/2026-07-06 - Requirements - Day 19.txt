@@ -38,3 +38,8 @@ Universal New/Edit Dialog Boxes Changes
 
 18.) When creating a new Documentation, place the cursor on the Title field.
 19.) There seems to be a bug in the Scrum screen, it seems to always be in Edit mode when you go to that screen.
+
+20.) In Scrum, when the user saves their entry and they did not put anything in the section "Do you have any roadblocks?", save "None" in the bullet point under it as most of the time the user would not have a roadblock.  Let's save them the typing.
+
+21.) In Scrum, when I click my own Scrum entry, it should allow me to edit it without having to go to Edit mode first following the allowable date edit rule set previously.
+22.) The Date, Project and Person field at the top is getting taller as I resize the dialog box.  See screen shot.
