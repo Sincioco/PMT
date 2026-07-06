@@ -1,0 +1,9 @@
+Project Management Tool (PMT):  Day 19 of Codex Agentic AI Coding
+-----------------------------------------------------------------
+Total Dev Time in Hours:  24
+
+For all of this conversation / session, I will perform all the manual tests and compile the application manually.  Perform only the coding changes required and nothing else.  If making CSS / image changes, ensure that I will encounter no caching issue when testing in the browser.  Be sure to inform me if I have to recompile the .Net portion of the project or just Press Ctrl + F5 on the browser to reload to see the latest changes.
+
+Universal Toolbar Behavior for HTML Editor
+------------------------------------------
+1.) In the Documentation Screen, when the Treeview is hidden, and a document is in edit mode, we get a nearly full-screen (width-wise) of the document for us to edit.  Notice, how the toolbar for the body stays visible (sticky) at either the top or bottom of the viewport.  Verify that you see this logic, and once you have, implement this across the board whenever an HTML editor is used in PMT, such as in Dev Tasks, Bug Tracking, Scrum and Documentation (the New/Edit Document dialog box needs this update as well).

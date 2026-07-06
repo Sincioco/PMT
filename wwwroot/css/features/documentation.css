@@ -477,19 +477,6 @@ html[data-theme] .documentation-tree-node-toggle > span[aria-hidden="true"]:only
   min-height: 0;
 }
 
-.documentation-inline-body-field .rich-tools {
-  position: sticky;
-  top: calc(-1 * var(--space-7));
-  bottom: calc(-1 * var(--space-7));
-  z-index: var(--z-sticky);
-  margin-bottom: var(--space-2);
-  padding: var(--space-2);
-  border: var(--border-width) solid var(--color-border);
-  border-radius: var(--radius-md);
-  background: var(--color-surface);
-  box-shadow: var(--shadow-panel);
-}
-
 .documentation-inline-body-editor {
   min-height: 420px;
   line-height: 1.7;
