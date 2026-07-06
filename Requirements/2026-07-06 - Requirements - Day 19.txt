@@ -22,3 +22,6 @@ Universal New/Edit Dialog Boxes Changes
 
 9.) Apply the same maximize/restore, resize and control re-flow logic you did on the Edit dialog boxes on the Read-only dialog boxes.
 
+10.) Whenever an Edit dialog box has a user selection (checkboxes) option, such as in the New/Edit Dev Task's Assignees section, or in the Bug Tracking Assignees and Reporters sections, etc., reflow the user's list.  By default they are in a 2-column layout, reflow them like you did the controls above and below the HTML Editor, so keep their current size as their minimum size, but if you can fit a 3rd column, or a 4th column, and so forth, allow them to flow.
+
+11.) I prefer that the User list maintain/preserve their original 2-column layout and it never becomes a 1-column layout.  I've attached an image of how you are rendering the user list now.  It has become a 1-column layout on initial load of the dialog box instead of the 2-column layout like it used to be.

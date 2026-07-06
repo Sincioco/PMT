@@ -10,6 +10,11 @@
   grid-template-columns: repeat(auto-fit, minmax(min(100%, var(--editor-dialog-column-min)), 1fr));
 }
 
+.editor-dialog .user-card-check-list {
+  --user-card-check-list-column-min: min(420px, calc((100% - var(--space-4)) / 2));
+  grid-template-columns: repeat(auto-fit, minmax(var(--user-card-check-list-column-min), 1fr));
+}
+
 .field {
   display: grid;
   gap: var(--space-2);
