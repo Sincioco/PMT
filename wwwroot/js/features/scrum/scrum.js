@@ -3,6 +3,7 @@ import {
   checkedFilterValues,
   filterCheckList
 } from "../../components/filters.js";
+import { initializeWindowedDialog } from "../../components/dialogs.js?v=20260706-filter-windowing";
 import {
   field,
   optionalNumberValue,
@@ -717,6 +718,7 @@ export function createScrumFeature({
 
     renderScrumFiltersDialog(modal);
     document.body.appendChild(modal);
+    initializeWindowedDialog(modal);
     modal.addEventListener("input", event => {
       if (!applyScrumFilterChange(event.target)) return;
       renderDevLogs();

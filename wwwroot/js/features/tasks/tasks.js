@@ -1,6 +1,7 @@
 import { taskRowAvatarsHtml } from "../../components/avatars.js";
 import { buttonContent, chartIconHtml, funnelIconHtml, pageActionsMenuHtml } from "../../components/buttons.js?v=20260701-unified-dropdowns";
 import { VisualCharts } from "../../components/charts.js?v=20260628-chart-native-tooltips";
+import { initializeWindowedDialog } from "../../components/dialogs.js?v=20260706-filter-windowing";
 import { checkedFilterValues, filterCheckList } from "../../components/filters.js?v=20260630-filter-renderer";
 import {
   checkList,
@@ -316,6 +317,7 @@ export function createTasksFeature({
 
     renderTaskFiltersDialog(modal);
     document.body.appendChild(modal);
+    initializeWindowedDialog(modal);
     modal.addEventListener("input", event => {
       if (!applyTaskFilterChange(event.target)) return;
       renderTasks();

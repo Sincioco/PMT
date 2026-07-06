@@ -109,6 +109,11 @@
   grid-template-rows: auto minmax(0, 1fr) auto;
 }
 
+.windowed-dialog[data-windowed-dialog-sized="true"] > form {
+  height: 100%;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+}
+
 .windowed-dialog[data-windowed-dialog-sized="true"][open] {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr) auto;

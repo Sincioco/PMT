@@ -27,3 +27,5 @@ Universal New/Edit Dialog Boxes Changes
 11.) I prefer that the User list maintain/preserve their original 2-column layout and it never becomes a 1-column layout.  I've attached an image of how you are rendering the user list now.  It has become a 1-column layout on initial load of the dialog box instead of the 2-column layout like it used to be.
 
 12.) There is a minor flaw in the way you have implemented the resizing handle on the lower-right corner of the dialog box.  When I click it to drag it, the mouse cursor is drifting farther and farther away from it as I drag to the right.  I'm expecting the dialog box and resize handle to remain under the cursor (follow the cursor) instead of falling behind.
+
+13.) Update the Dev Task Filter dialog box, Bug Tracking Filter dialog box, Scrum Filter dialog box, Backlog Filter dialog box, and give it the same control reflow and user list reflow like you did with the other dialog boxes earlier.

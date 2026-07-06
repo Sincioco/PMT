@@ -29,9 +29,9 @@ import {
 } from "./core/screen-registry.js";
 import { state } from "./core/store.js";
 import { createAboutFeature } from "./features/about/about.js?v=20260621-about-credits";
-import { createBacklogFeature } from "./features/backlog/backlog.js?v=20260706-readonly-windowing";
+import { createBacklogFeature } from "./features/backlog/backlog.js?v=20260706-filter-windowing";
 import { createBoardFeature } from "./features/board/board.js?v=20260706-readonly-windowing";
-import { createBugsFeature } from "./features/bugs/bugs.js?v=20260706-readonly-windowing";
+import { createBugsFeature } from "./features/bugs/bugs.js?v=20260706-filter-windowing";
 import { createDashboardFeature } from "./features/dashboard/dashboard.js?v=20260701-nav-title-preferences";
 import { createDocumentationFeature } from "./features/documentation/documentation.js?v=20260706-readonly-windowing";
 import {
@@ -41,10 +41,10 @@ import {
 } from "./features/gantt/gantt.js?v=20260701-nav-title-preferences";
 import { createProjectsFeature } from "./features/projects/projects.js?v=20260701-nav-title-preferences";
 import { createRoadMapFeature } from "./features/roadmap/roadmap.js?v=20260701-nav-title-preferences";
-import { createScrumFeature } from "./features/scrum/scrum.js?v=20260706-readonly-windowing";
+import { createScrumFeature } from "./features/scrum/scrum.js?v=20260706-filter-windowing";
 import { createSettingsFeature } from "./features/settings/settings.js?v=20260701-nav-title-preferences";
 import { createSprintsFeature } from "./features/sprints/sprints.js?v=20260701-nav-title-preferences";
-import { createTasksFeature } from "./features/tasks/tasks.js?v=20260706-readonly-windowing";
+import { createTasksFeature } from "./features/tasks/tasks.js?v=20260706-filter-windowing";
 import { createWfhScheduleFeature } from "./features/wfh-schedule/wfh-schedule.js?v=20260706-readonly-windowing";
 import {
   fallbackEnvironments,

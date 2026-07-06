@@ -1,5 +1,6 @@
 import { taskRowAvatarsHtml } from "../../components/avatars.js";
 import { bugIconHtml, buttonContent, funnelIconHtml, iconButton } from "../../components/buttons.js";
+import { initializeWindowedDialog } from "../../components/dialogs.js?v=20260706-filter-windowing";
 import {
   checkedFilterValues,
   filterCheckList
@@ -270,6 +271,7 @@ export function createBacklogFeature({
 
     renderBacklogFiltersDialog(modal);
     document.body.appendChild(modal);
+    initializeWindowedDialog(modal);
     modal.addEventListener("input", event => {
       if (!applyBacklogFilterChange(event.target)) return;
       renderBacklog();

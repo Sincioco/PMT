@@ -59,6 +59,21 @@
   margin-top: 0;
 }
 
+.task-filter-dialog.windowed-dialog .task-filter-row {
+  --filter-control-column-min: 360px;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, var(--filter-control-column-min)), 1fr));
+}
+
+.task-filter-dialog.windowed-dialog .filter-check-list:not(.user-card-check-list) {
+  --filter-option-column-min: 180px;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, var(--filter-option-column-min)), 1fr));
+}
+
+.task-filter-dialog.windowed-dialog .filter-check-list.user-card-check-list {
+  --filter-user-column-min: min(420px, calc((100% - var(--space-6)) / 2));
+  grid-template-columns: repeat(auto-fit, minmax(var(--filter-user-column-min), 1fr));
+}
+
 .filter-user-option {
   display: inline-flex;
   align-items: center;
