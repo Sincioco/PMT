@@ -81,8 +81,7 @@ export function createScrumFeature({
   let suppressNextScrumColumnClick = false;
   const scrumTableMode = createWorkItemTableMode({
     action: "toggle-scrum-table-edit-mode",
-    itemLabel: "Scrum",
-    initialActive: true
+    itemLabel: "Scrum"
   });
 
   bindScrumColumnDragEvents();
@@ -1549,7 +1548,7 @@ export function createScrumFeature({
       else dialog.remove();
     });
     cancelScrumColumnDrag();
-    scrumTableMode.activate();
+    scrumTableMode.deactivate();
   }
 
   return {

@@ -35,3 +35,6 @@ Universal New/Edit Dialog Boxes Changes
 16.) For the "Reset" icon, use the same icon you used in the Dev Tasks' Reset View menu item.
 
 17.) I noticed in the updated Filter dialog boxes, the "Done" button at the bottom of the dialog box is no longer visible and the vertical scrollbar's down arrow is no longer visible.  In fact, trying to resize the dialog box causes the dialog to scroll down because it's pressing on the scrollbar also.  Can you put back the dialog buttons at the bottom please?  See attached image for the problem.
+
+18.) When creating a new Documentation, place the cursor on the Title field.
+19.) There seems to be a bug in the Scrum screen, it seems to always be in Edit mode when you go to that screen.

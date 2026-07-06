@@ -37,7 +37,7 @@ import { createBacklogFeature } from "./features/backlog/backlog.js?v=20260706-d
 import { createBoardFeature } from "./features/board/board.js?v=20260706-readonly-windowing";
 import { createBugsFeature } from "./features/bugs/bugs.js?v=20260706-dialog-persistence";
 import { createDashboardFeature } from "./features/dashboard/dashboard.js?v=20260701-nav-title-preferences";
-import { createDocumentationFeature } from "./features/documentation/documentation.js?v=20260706-dialog-persistence";
+import { createDocumentationFeature } from "./features/documentation/documentation.js?v=20260706-doc-scrum-fixes";
 import {
   createGanttFeature,
   currentSprintForProject,
@@ -45,7 +45,7 @@ import {
 } from "./features/gantt/gantt.js?v=20260701-nav-title-preferences";
 import { createProjectsFeature } from "./features/projects/projects.js?v=20260701-nav-title-preferences";
 import { createRoadMapFeature } from "./features/roadmap/roadmap.js?v=20260701-nav-title-preferences";
-import { createScrumFeature } from "./features/scrum/scrum.js?v=20260706-dialog-persistence";
+import { createScrumFeature } from "./features/scrum/scrum.js?v=20260706-doc-scrum-fixes";
 import { createSettingsFeature } from "./features/settings/settings.js?v=20260701-nav-title-preferences";
 import { createSprintsFeature } from "./features/sprints/sprints.js?v=20260701-nav-title-preferences";
 import { createTasksFeature } from "./features/tasks/tasks.js?v=20260706-dialog-persistence";

@@ -442,7 +442,7 @@ export function createDocumentationFeature({
       for (const file of root.querySelector("[name='attachments']").files) {
         await attachFile(`/api/blogs/${result.id}/attachments`, file);
       }
-    }, "", root => {
+    }, blog.id ? "" : "title", root => {
       root.querySelector("[data-rich='bodyHtml']")?.classList.add("documentation-image-open-area");
       bindDocumentationBodyImageOpen(root);
       bindDocumentationEditorRules(root, blog);
