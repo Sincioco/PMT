@@ -1,4 +1,5 @@
 import { buttonContent } from "../components/buttons.js";
+import { initializeWindowedDialog } from "../components/dialogs.js?v=20260706-readonly-windowing";
 import { escapeHtml } from "./text-and-links.js";
 import {
   createXlsxBlob,
@@ -240,6 +241,7 @@ export function showImportResultDialog({ title, totalRows, updatedRows, errors =
   });
   modal.addEventListener("close", () => modal.remove());
   document.body.appendChild(modal);
+  initializeWindowedDialog(modal);
   modal.showModal();
 }
 

@@ -4,8 +4,9 @@ import { buttonContent } from "./components/buttons.js";
 import {
   askForText,
   askYesNo,
-  initializeDraggableDialogs
-} from "./components/dialogs.js?v=20260706-editor-dialog-windowing";
+  initializeDraggableDialogs,
+  initializeWindowedDialog
+} from "./components/dialogs.js?v=20260706-readonly-windowing";
 import {
   field,
   value
@@ -15,7 +16,7 @@ import {
   bindAttachmentPreview,
   showTaskAudit,
   viewWorkItem
-} from "./components/work-items.js?v=20260629-avatar-jpg-assets";
+} from "./components/work-items.js?v=20260706-readonly-windowing";
 import { createApplicationShell } from "./core/application-shell.js?v=20260701-unified-dropdowns";
 import {
   currentView,
@@ -28,11 +29,11 @@ import {
 } from "./core/screen-registry.js";
 import { state } from "./core/store.js";
 import { createAboutFeature } from "./features/about/about.js?v=20260621-about-credits";
-import { createBacklogFeature } from "./features/backlog/backlog.js?v=20260701-nav-title-preferences";
-import { createBoardFeature } from "./features/board/board.js?v=20260701-nav-title-preferences";
-import { createBugsFeature } from "./features/bugs/bugs.js?v=20260701-unified-dropdowns";
+import { createBacklogFeature } from "./features/backlog/backlog.js?v=20260706-readonly-windowing";
+import { createBoardFeature } from "./features/board/board.js?v=20260706-readonly-windowing";
+import { createBugsFeature } from "./features/bugs/bugs.js?v=20260706-readonly-windowing";
 import { createDashboardFeature } from "./features/dashboard/dashboard.js?v=20260701-nav-title-preferences";
-import { createDocumentationFeature } from "./features/documentation/documentation.js?v=20260701-documentation-unsaved-tree-edit";
+import { createDocumentationFeature } from "./features/documentation/documentation.js?v=20260706-readonly-windowing";
 import {
   createGanttFeature,
   currentSprintForProject,
@@ -40,11 +41,11 @@ import {
 } from "./features/gantt/gantt.js?v=20260701-nav-title-preferences";
 import { createProjectsFeature } from "./features/projects/projects.js?v=20260701-nav-title-preferences";
 import { createRoadMapFeature } from "./features/roadmap/roadmap.js?v=20260701-nav-title-preferences";
-import { createScrumFeature } from "./features/scrum/scrum.js?v=20260701-unified-dropdowns";
+import { createScrumFeature } from "./features/scrum/scrum.js?v=20260706-readonly-windowing";
 import { createSettingsFeature } from "./features/settings/settings.js?v=20260701-nav-title-preferences";
 import { createSprintsFeature } from "./features/sprints/sprints.js?v=20260701-nav-title-preferences";
-import { createTasksFeature } from "./features/tasks/tasks.js?v=20260701-unified-dropdowns";
-import { createWfhScheduleFeature } from "./features/wfh-schedule/wfh-schedule.js?v=20260701-nav-title-preferences";
+import { createTasksFeature } from "./features/tasks/tasks.js?v=20260706-readonly-windowing";
+import { createWfhScheduleFeature } from "./features/wfh-schedule/wfh-schedule.js?v=20260706-readonly-windowing";
 import {
   fallbackEnvironments,
   fallbackForLookup,
@@ -538,6 +539,7 @@ function showBugChartDrilldown(title, bugIds) {
   `;
 
   document.body.appendChild(modal);
+  initializeWindowedDialog(modal);
   modal.addEventListener("click", event => {
     if (event.target.closest("[data-close]")) {
       closeTransientDialog(modal);
@@ -606,6 +608,7 @@ function showTaskChartDrilldown(title, taskIds) {
   `;
 
   document.body.appendChild(modal);
+  initializeWindowedDialog(modal);
   modal.addEventListener("click", event => {
     if (event.target.closest("[data-close]")) {
       closeTransientDialog(modal);
@@ -676,6 +679,7 @@ function showWorkItemChartDrilldown(title, workItemIds) {
   `;
 
   document.body.appendChild(modal);
+  initializeWindowedDialog(modal);
   modal.addEventListener("click", event => {
     if (event.target.closest("[data-close]")) {
       closeTransientDialog(modal);
@@ -742,6 +746,7 @@ function expandVisualChartCard(card) {
   }
   expandedBody.appendChild(chartCopy);
   document.body.appendChild(modal);
+  initializeWindowedDialog(modal);
   modal.addEventListener("mousemove", handleChartTooltip);
   modal.addEventListener("mouseleave", hideChartTooltip);
   modal.addEventListener("click", event => {
@@ -1055,6 +1060,7 @@ function showReadOnlyDialog(title, html) {
   `;
 
   document.body.appendChild(modal);
+  initializeWindowedDialog(modal);
   modal.querySelectorAll("[data-close]").forEach(button => button.addEventListener("click", () => {
     modal.close();
     modal.remove();

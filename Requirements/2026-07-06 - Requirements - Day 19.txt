@@ -19,3 +19,6 @@ Universal New/Edit Dialog Boxes Changes
 7.) So, as the user resizes the dialog box, it will never be smaller than it's default/initial size, so that's the two-column layout, but as the user makes the dialog box wider, allow for a three-column or 4-column layout, etc.  Keep the layout width as-is, but just add more columns when it's possible to fit another column.
 
 8.) I noticed on high-resolution monitors or when you zoom out on the browser, the Title and Percent textboxes in the New Dev Task dialog box becomes taller compared the dropdown.  Please keep the height of the dropdowns and text boxes (excluding the HTML Editor) the same.  I've attached an image, so you can visually see the issue.  Please universally fix this across all dialog boxes.
+
+9.) Apply the same maximize/restore, resize and control re-flow logic you did on the Edit dialog boxes on the Read-only dialog boxes.
+

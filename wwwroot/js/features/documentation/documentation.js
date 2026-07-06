@@ -1,5 +1,6 @@
 import { attachmentsHtml } from "../../components/attachments.js";
 import { buttonContent, funnelIconHtml, iconButton } from "../../components/buttons.js";
+import { initializeWindowedDialog } from "../../components/dialogs.js?v=20260706-readonly-windowing";
 import { filterSelect } from "../../components/filters.js";
 import {
   field,
@@ -374,6 +375,7 @@ export function createDocumentationFeature({
     `;
 
     document.body.appendChild(modal);
+    initializeWindowedDialog(modal);
     modal.querySelectorAll("[data-close]").forEach(button => button.addEventListener("click", () => {
       modal.close();
       modal.remove();

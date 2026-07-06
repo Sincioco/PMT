@@ -1,6 +1,7 @@
 import { attachmentsHtml, filePreviewHtml } from "./attachments.js";
 import { avatarsHtml } from "./avatars.js";
 import { buttonContent, iconButton } from "./buttons.js?v=20260621-dev-task-icons";
+import { initializeWindowedDialog } from "./dialogs.js?v=20260706-readonly-windowing";
 import {
   checkListOrEmpty,
   checkedNumbers,
@@ -235,6 +236,7 @@ export function viewWorkItem(task, editWorkItem, options = {}) {
   `;
 
   document.body.appendChild(modal);
+  initializeWindowedDialog(modal);
   modal.querySelectorAll("[data-close]").forEach(button => button.addEventListener("click", () => closeDialog(modal)));
   modal.addEventListener("click", event => {
     const auditButton = event.target.closest("[data-action='show-task-audit']");
@@ -333,6 +335,7 @@ export function showTaskAudit(taskId) {
   `;
 
   document.body.appendChild(modal);
+  initializeWindowedDialog(modal);
   modal.querySelectorAll("[data-close]").forEach(button => button.addEventListener("click", () => closeDialog(modal)));
   modal.addEventListener("cancel", () => modal.remove());
   modal.showModal();

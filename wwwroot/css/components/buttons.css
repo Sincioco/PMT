@@ -280,13 +280,13 @@ html[data-theme] .dialog-head button.dialog-maximize-button::after {
   display: none;
 }
 
-html[data-theme] .editor-dialog.is-maximized .dialog-head button.dialog-maximize-button::before {
+html[data-theme] :is(.editor-dialog, .windowed-dialog).is-maximized .dialog-head button.dialog-maximize-button::before {
   width: 10px;
   height: 10px;
   transform: translate(-35%, -65%);
 }
 
-html[data-theme] .editor-dialog.is-maximized .dialog-head button.dialog-maximize-button::after {
+html[data-theme] :is(.editor-dialog, .windowed-dialog).is-maximized .dialog-head button.dialog-maximize-button::after {
   display: block;
   width: 10px;
   height: 10px;

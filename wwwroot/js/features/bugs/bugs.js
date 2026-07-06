@@ -32,7 +32,7 @@ import {
   taskPercentField,
   workItemDialogMetaHtml,
   uploadWorkItemAttachments
-} from "../../components/work-items.js?v=20260629-avatar-jpg-assets";
+} from "../../components/work-items.js?v=20260706-readonly-windowing";
 import {
   currentUser,
   currentUserId
@@ -74,7 +74,7 @@ import {
   uniqueIds,
   workItemImportHash,
   workItemSystemColumns
-} from "../../shared/table-export.js?v=20260630-export-icons-centered";
+} from "../../shared/table-export.js?v=20260706-readonly-windowing";
 import { canEditTask } from "../../shared/permissions.js";
 import {
   projectById,

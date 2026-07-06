@@ -7,7 +7,7 @@ import {
   bugFixIconHtml,
   createWorkItemTableMode,
   taskButtonsHtml
-} from "../../components/work-items.js?v=20260629-avatar-jpg-assets";
+} from "../../components/work-items.js?v=20260706-readonly-windowing";
 import {
   preferenceKeys,
   readBooleanPreference,

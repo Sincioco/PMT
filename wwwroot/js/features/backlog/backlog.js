@@ -12,7 +12,7 @@ import { sectionHead } from "../../components/sections.js?v=20260701-nav-title-p
 import {
   bugFixIconHtml,
   createWorkItemTableMode
-} from "../../components/work-items.js?v=20260629-avatar-jpg-assets";
+} from "../../components/work-items.js?v=20260706-readonly-windowing";
 import {
   preferenceKeys,
   readJsonPreference,
@@ -45,7 +45,7 @@ import {
   uniqueIds,
   workItemImportHash,
   workItemSystemColumns
-} from "../../shared/table-export.js?v=20260630-export-icons-centered";
+} from "../../shared/table-export.js?v=20260706-readonly-windowing";
 import {
   projectName,
   sprintName,

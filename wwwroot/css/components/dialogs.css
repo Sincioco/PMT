@@ -95,12 +95,31 @@
   resize: both;
 }
 
+.windowed-dialog {
+  --windowed-dialog-column-min: 360px;
+  min-width: var(--windowed-dialog-default-width, min(var(--dialog-width-md), calc(100vw - 2 * var(--shell-padding-compact))));
+  min-height: var(--windowed-dialog-default-height, 320px);
+  max-width: calc(100vw - 2 * var(--shell-padding-compact));
+  max-height: calc(100vh - 2 * var(--shell-padding-compact));
+  resize: both;
+}
+
 .editor-dialog[data-editor-dialog-sized="true"] > form {
   height: 100%;
   grid-template-rows: auto minmax(0, 1fr) auto;
 }
 
+.windowed-dialog[data-windowed-dialog-sized="true"][open] {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+}
+
 .editor-dialog[data-editor-dialog-sized="true"] .dialog-body {
+  min-height: 0;
+  max-height: none;
+}
+
+.windowed-dialog[data-windowed-dialog-sized="true"] .dialog-body {
   min-height: 0;
   max-height: none;
 }
@@ -110,6 +129,19 @@
   inset: 5vh 5vw !important;
   min-width: min(var(--editor-dialog-default-width, 0px), 90vw);
   min-height: min(var(--editor-dialog-default-height, 0px), 90vh);
+  width: auto !important;
+  height: auto !important;
+  max-width: none;
+  max-height: none;
+  margin: 0 !important;
+  resize: none;
+}
+
+.windowed-dialog.is-maximized {
+  position: fixed !important;
+  inset: 5vh 5vw !important;
+  min-width: min(var(--windowed-dialog-default-width, 0px), 90vw);
+  min-height: min(var(--windowed-dialog-default-height, 0px), 90vh);
   width: auto !important;
   height: auto !important;
   max-width: none;
@@ -206,6 +238,10 @@ html[data-theme] button.export-format-button .button-icon {
   gap: var(--space-5);
 }
 
+.windowed-dialog .detail-grid {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, var(--windowed-dialog-column-min)), 1fr));
+}
+
 .detail-field {
   border: var(--border-width) solid var(--color-border);
   border-radius: var(--radius-md);
@@ -231,6 +267,10 @@ html[data-theme] button.export-format-button .button-icon {
   gap: var(--space-4) var(--space-7);
   padding-top: var(--space-5);
   border-top: var(--border-width) solid var(--color-border-subtle);
+}
+
+.windowed-dialog .work-item-dialog-meta {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, var(--windowed-dialog-column-min)), 1fr));
 }
 
 .work-item-dialog-meta-group {

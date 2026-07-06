@@ -17,6 +17,96 @@ export function initializeDraggableDialogs() {
   window.addEventListener("resize", () => requestAnimationFrame(clampOpenDraggedDialogs));
 }
 
+export function initializeWindowedDialog(dialog) {
+  if (!(dialog instanceof HTMLDialogElement)) return;
+
+  dialog.classList.add("windowed-dialog");
+  const maximizeButton = ensureWindowedDialogButton(dialog);
+  updateWindowedDialogButton(maximizeButton, false);
+
+  if (dialog.dataset.windowedDialogInitialized !== "true") {
+    dialog.dataset.windowedDialogInitialized = "true";
+    dialog.addEventListener("close", () => resetWindowedDialog(dialog));
+  }
+
+  requestAnimationFrame(() => {
+    if (dialog.open) sizeWindowedDialogFromDefault(dialog);
+  });
+}
+
+function ensureWindowedDialogButton(dialog) {
+  const head = dialog.querySelector(".dialog-head");
+  if (!head) return null;
+
+  let actions = head.querySelector(":scope > .dialog-head-actions");
+  if (!actions) {
+    actions = document.createElement("div");
+    actions.className = "dialog-head-actions";
+    head.querySelectorAll(":scope > button.icon-btn").forEach(button => actions.appendChild(button));
+    head.appendChild(actions);
+  }
+
+  let button = actions.querySelector("[data-windowed-dialog-toggle]");
+  if (!button) {
+    button = document.createElement("button");
+    button.type = "button";
+    button.className = "icon-btn dialog-maximize-button";
+    button.dataset.windowedDialogToggle = "true";
+    actions.insertBefore(button, actions.firstChild);
+    button.addEventListener("click", () => toggleWindowedDialogMaximized(dialog));
+  }
+
+  return button;
+}
+
+function sizeWindowedDialogFromDefault(dialog) {
+  if (dialog.dataset.windowedDialogSized === "true") return;
+
+  const rect = dialog.getBoundingClientRect();
+  const width = Math.ceil(rect.width);
+  const height = Math.ceil(rect.height);
+  if (!width || !height) return;
+
+  dialog.style.setProperty("--windowed-dialog-default-width", `${width}px`);
+  dialog.style.setProperty("--windowed-dialog-default-height", `${height}px`);
+  dialog.style.width = `${width}px`;
+  dialog.style.height = `${height}px`;
+  dialog.dataset.windowedDialogSized = "true";
+}
+
+function resetWindowedDialog(dialog) {
+  dialog.classList.remove("is-maximized");
+  delete dialog.dataset.windowedDialogSized;
+  dialog.style.removeProperty("--windowed-dialog-default-width");
+  dialog.style.removeProperty("--windowed-dialog-default-height");
+  dialog.style.width = "";
+  dialog.style.height = "";
+  updateWindowedDialogButton(dialog.querySelector("[data-windowed-dialog-toggle]"), false);
+}
+
+function toggleWindowedDialogMaximized(dialog) {
+  if (!dialog.open) return;
+
+  const shouldMaximize = !dialog.classList.contains("is-maximized");
+  if (shouldMaximize) {
+    const rect = dialog.getBoundingClientRect();
+    dialog.style.width = `${Math.ceil(rect.width)}px`;
+    dialog.style.height = `${Math.ceil(rect.height)}px`;
+  }
+
+  dialog.classList.toggle("is-maximized", shouldMaximize);
+  updateWindowedDialogButton(dialog.querySelector("[data-windowed-dialog-toggle]"), shouldMaximize);
+}
+
+function updateWindowedDialogButton(button, isMaximized) {
+  if (!button) return;
+
+  const label = isMaximized ? "Restore" : "Maximize";
+  button.title = label;
+  button.setAttribute("aria-label", label);
+  button.textContent = label;
+}
+
 function startDialogDrag(event) {
   if (event.button !== 0) return;
 
