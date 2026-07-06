@@ -318,6 +318,7 @@ export function createSettingsFeature({
 
     return `
       <div class="panel settings-content-panel settings-table-panel">
+        ${settingsTableHeadHtml(type, settingsLookupTableDescription(type))}
         <table class="table settings-table">
           <thead>
             <tr>
@@ -354,6 +355,7 @@ export function createSettingsFeature({
 
     return `
       <div class="panel settings-content-panel settings-table-panel">
+        ${settingsTableHeadHtml("Holidays", "Choose which holidays are available for scheduling, then edit dates, countries, and active state.")}
         <table class="table settings-table">
           <thead>
             <tr>
@@ -381,6 +383,23 @@ export function createSettingsFeature({
         </table>
       </div>
     `;
+  }
+
+  function settingsTableHeadHtml(title, description) {
+    return `
+      <div class="settings-table-head">
+        <h2>${escapeHtml(title)}</h2>
+        <p class="muted">${escapeHtml(description)}</p>
+      </div>
+    `;
+  }
+
+  function settingsLookupTableDescription(type) {
+    if (type === "Environment") return "Choose which environments are available, then edit labels, display order, and active state.";
+    if (type === "Priority") return "Choose which priorities are available, then edit labels, display order, and active state.";
+    if (type === "Severity") return "Choose which severities are available, then edit labels, display order, and active state.";
+    if (type === "Status") return "Choose which statuses are available, then edit labels, display order, color, and active state.";
+    return "Choose which values are available, then edit labels, display order, and active state.";
   }
 
   function settingsTableFilterButtonHtml(category) {
@@ -702,17 +721,19 @@ export function createSettingsFeature({
     return item.lookupType === "Status" ? statusColor(item.value) : "n/a";
   }
 
-  function settingsSortHeaderHtml(category, column, label) {
+  function settingsSortHeaderHtml(category, column, label, options = {}) {
     const state = settingsTableSortState(category);
     const isSorted = state.column === column && Boolean(state.direction);
     const ariaSort = isSorted ? (state.direction === "asc" ? "ascending" : "descending") : "none";
     const arrow = isSorted ? (state.direction === "asc" ? "&#9650;" : "&#9660;") : "";
-    const className = isSorted ? "is-sorted" : "";
+    const className = [isSorted ? "is-sorted" : "", options.className || ""].filter(Boolean).join(" ");
+    const nextSortLabel = settingsNextSortLabel(category, column, label);
+    const labelHtml = options.hideLabel ? "" : `<span>${escapeHtml(label)}</span>`;
 
     return `
       <th class="${className}" aria-sort="${ariaSort}">
-        <button type="button" class="table-sort-button" data-action="sort-settings-table" data-category="${escapeAttr(category)}" data-column="${escapeAttr(column)}" title="${escapeAttr(settingsNextSortLabel(category, column, label))}">
-          <span>${escapeHtml(label)}</span>
+        <button type="button" class="table-sort-button" data-action="sort-settings-table" data-category="${escapeAttr(category)}" data-column="${escapeAttr(column)}" title="${escapeAttr(nextSortLabel)}" aria-label="${escapeAttr(nextSortLabel)}">
+          ${labelHtml}
           <span class="table-sort-indicator" aria-hidden="true">${arrow}</span>
         </button>
       </th>
@@ -772,8 +793,8 @@ export function createSettingsFeature({
     if (category === "Navigation") {
       return [
         { column: "visible", label: "Visible" },
-        { column: "item", label: "Navigation Item" },
         { column: "default", label: "Default" },
+        { column: "item", label: "Navigation Item" },
         { column: "route", label: "Route" }
       ];
     }
@@ -815,16 +836,13 @@ export function createSettingsFeature({
       .sort(settingsNavigationSortCompare);
     return `
       <div class="panel settings-content-panel settings-table-panel settings-navigation-panel">
-        <div class="settings-navigation-head">
-          <h2>Navigation</h2>
-          <p class="muted">Choose which navigation items are available, rename labels, then drag rows into the order you prefer.</p>
-        </div>
+        ${settingsTableHeadHtml("Navigation", "Choose which navigation items are available, rename labels, then drag rows into the order you prefer.")}
         <table class="table settings-table settings-navigation-table work-item-table">
           <thead>
             <tr>
-              ${settingsSortHeaderHtml("Navigation", "visible", "Visible")}
-              ${settingsSortHeaderHtml("Navigation", "item", "Navigation Item")}
-              ${settingsSortHeaderHtml("Navigation", "default", "Default")}
+              ${settingsSortHeaderHtml("Navigation", "visible", "Visible", { hideLabel: true, className: "settings-nav-visible-column" })}
+              ${settingsSortHeaderHtml("Navigation", "default", "Default", { className: "settings-nav-default-column" })}
+              ${settingsSortHeaderHtml("Navigation", "item", "Navigation Item", { className: "settings-nav-item-column" })}
               ${settingsSortHeaderHtml("Navigation", "route", "Route")}
               <th></th>
             </tr>
@@ -835,20 +853,20 @@ export function createSettingsFeature({
               const defaultLabel = settingsNavigationDefaultLabel(item);
               return `
               <tr class="clickable-row" data-action="rename-navigation-item" data-nav-view="${escapeAttr(item.view)}" data-view="${escapeAttr(item.view)}">
-                <td>
+                <td class="settings-nav-visible-cell">
                   <label class="settings-nav-toggle" title="${item.visibilityLocked ? "This item must stay available in navigation." : "Show this item in navigation."}">
                     <input type="checkbox" data-action="toggle-navigation-item" data-view="${escapeAttr(item.view)}" aria-label="Show ${escapeAttr(itemLabel)} in navigation" ${item.visible ? "checked" : ""} ${item.visibilityLocked ? "disabled" : ""}>
                   </label>
                 </td>
-                <td>
+                <td class="settings-nav-default-cell">${escapeHtml(defaultLabel)}</td>
+                <td class="settings-nav-item-cell">
                   <button class="settings-nav-label-button" type="button" data-action="rename-navigation-item" data-view="${escapeAttr(item.view)}" title="Rename ${escapeAttr(itemLabel)}">
                     <span class="settings-nav-icon" aria-hidden="true">${item.icon}</span>
                     <span class="settings-nav-text">
-                      <strong>${escapeHtml(itemLabel)}</strong>
+                      <span>${escapeHtml(itemLabel)}</span>
                     </span>
                   </button>
                 </td>
-                <td>${escapeHtml(defaultLabel)}</td>
                 <td><span class="muted">${escapeHtml(item.view)}</span></td>
                 <td class="action-cell">
                   <button class="work-item-drag-handle settings-nav-drag-handle" type="button" ${canDrag ? "data-drag-handle data-navigation-drag-handle" : "disabled"} title="Drag ${escapeAttr(itemLabel)}" aria-label="Drag ${escapeAttr(itemLabel)}">
