@@ -3,15 +3,16 @@ import {
   readJsonPreference,
   writeJsonPreference
 } from "./preferences.js";
-import { screenRegistry } from "./screen-registry.js";
+import { screenRegistry } from "./screen-registry.js?v=20260706-navigation-wfh-unlocked";
 
-const navigationVersion = 1;
-const lockedVisibleViews = new Set(["WFH Schedule"]);
+const navigationVersion = 2;
+const betaNavigationViews = new Set(["Dashboard", "Road Map", "Gantt"]);
+const lockedVisibleViews = new Set(["Settings"]);
 
 function defaultNavigationItems() {
   return screenRegistry
     .filter(screen => screen.showInNavigation)
-    .map(screen => ({ view: screen.view, label: screen.label, visible: true }));
+    .map(screen => ({ view: screen.view, label: screen.label, visible: defaultNavigationVisible(screen) }));
 }
 
 function navigationScreenMap() {
@@ -28,6 +29,7 @@ export function isNavigationVisibilityLocked(view) {
 
 export function normalizeNavigationConfig(value = {}) {
   const screensByView = navigationScreenMap();
+  const savedVersion = Array.isArray(value) ? 0 : Number(value?.version || 0);
   const savedItems = Array.isArray(value)
     ? value
     : Array.isArray(value?.items)
@@ -44,7 +46,7 @@ export function normalizeNavigationConfig(value = {}) {
     items.push({
       view,
       label: navigationLabelFor(item, screensByView.get(view)),
-      visible: isNavigationVisibilityLocked(view) ? true : item?.visible !== false
+      visible: navigationVisibleFor(item, screensByView.get(view), savedVersion)
     });
     seenViews.add(view);
   });
@@ -56,7 +58,7 @@ export function normalizeNavigationConfig(value = {}) {
 
   return {
     version: navigationVersion,
-    items
+    items: enforceFixedNavigationOrder(items)
   };
 }
 
@@ -85,6 +87,7 @@ export function navigationSettingsItems() {
         defaultLabel: screen.label,
         label: item.label,
         visible: item.visible,
+        beta: Boolean(screen.beta),
         icon: navIconHtml(item.view),
         visibilityLocked: isNavigationVisibilityLocked(item.view)
       };
@@ -106,6 +109,34 @@ export function visibleNavigationScreens() {
 function navigationLabelFor(item, screen) {
   const label = typeof item?.label === "string" ? item.label.trim() : "";
   return label || screen?.label || item?.view || "";
+}
+
+function navigationVisibleFor(item, screen, savedVersion) {
+  if (!screen) return false;
+  if (isNavigationVisibilityLocked(screen.view)) return true;
+  if (savedVersion < navigationVersion && betaNavigationViews.has(screen.view)) return false;
+  if (typeof item?.visible === "boolean") return item.visible;
+  return defaultNavigationVisible(screen);
+}
+
+function defaultNavigationVisible(screen) {
+  if (!screen) return false;
+  if (isNavigationVisibilityLocked(screen.view)) return true;
+  return screen.defaultVisible !== false;
+}
+
+function enforceFixedNavigationOrder(items) {
+  const boardItem = items.find(item => item.view === "Board");
+  const settingsItem = items.find(item => item.view === "Settings");
+  const orderedItems = items.filter(item => item.view !== "Board" && item.view !== "Settings");
+
+  if (boardItem) {
+    const sprintIndex = orderedItems.findIndex(item => item.view === "Sprints");
+    orderedItems.splice(sprintIndex >= 0 ? sprintIndex + 1 : orderedItems.length, 0, boardItem);
+  }
+
+  if (settingsItem) orderedItems.push(settingsItem);
+  return orderedItems;
 }
 
 export function navIconHtml(view) {

@@ -22,7 +22,7 @@ import {
   readNavigationConfig,
   resetNavigationConfig,
   writeNavigationConfig
-} from "../../core/navigation-preferences.js?v=20260621-bug-icon";
+} from "../../core/navigation-preferences.js?v=20260706-navigation-wfh-unlocked";
 import {
   clearPmtPreferences,
   preferenceKeys,
@@ -611,8 +611,8 @@ export function createSettingsFeature({
     if (filters.visible === "hidden" && item.visible) return false;
 
     return settingsMatchesSearch([
-      item.label,
-      item.defaultLabel,
+      settingsNavigationLabel(item),
+      settingsNavigationDefaultLabel(item),
       item.view,
       item.visible ? "Visible" : "Hidden"
     ], filters.search);
@@ -689,9 +689,9 @@ export function createSettingsFeature({
 
   function settingsCompareNavigationColumn(a, b, column) {
     if (column === "visible") return settingsBooleanCompare(a.visible, b.visible);
-    if (column === "default") return String(a.defaultLabel || "").localeCompare(String(b.defaultLabel || ""), undefined, { numeric: true, sensitivity: "base" });
+    if (column === "default") return settingsNavigationDefaultLabel(a).localeCompare(settingsNavigationDefaultLabel(b), undefined, { numeric: true, sensitivity: "base" });
     if (column === "route") return String(a.view || "").localeCompare(String(b.view || ""), undefined, { numeric: true, sensitivity: "base" });
-    return String(a.label || "").localeCompare(String(b.label || ""), undefined, { numeric: true, sensitivity: "base" });
+    return settingsNavigationLabel(a).localeCompare(settingsNavigationLabel(b), undefined, { numeric: true, sensitivity: "base" });
   }
 
   function settingsBooleanCompare(a, b) {
@@ -830,34 +830,46 @@ export function createSettingsFeature({
             </tr>
           </thead>
           <tbody data-reorder-list="navigation" data-navigation-list>
-            ${items.map(item => `
+            ${items.map(item => {
+              const itemLabel = settingsNavigationLabel(item);
+              const defaultLabel = settingsNavigationDefaultLabel(item);
+              return `
               <tr class="clickable-row" data-action="rename-navigation-item" data-nav-view="${escapeAttr(item.view)}" data-view="${escapeAttr(item.view)}">
                 <td>
                   <label class="settings-nav-toggle" title="${item.visibilityLocked ? "This item must stay available in navigation." : "Show this item in navigation."}">
-                    <input type="checkbox" data-action="toggle-navigation-item" data-view="${escapeAttr(item.view)}" aria-label="Show ${escapeAttr(item.label)} in navigation" ${item.visible ? "checked" : ""} ${item.visibilityLocked ? "disabled" : ""}>
+                    <input type="checkbox" data-action="toggle-navigation-item" data-view="${escapeAttr(item.view)}" aria-label="Show ${escapeAttr(itemLabel)} in navigation" ${item.visible ? "checked" : ""} ${item.visibilityLocked ? "disabled" : ""}>
                   </label>
                 </td>
                 <td>
-                  <button class="settings-nav-label-button" type="button" data-action="rename-navigation-item" data-view="${escapeAttr(item.view)}" title="Rename ${escapeAttr(item.label)}">
+                  <button class="settings-nav-label-button" type="button" data-action="rename-navigation-item" data-view="${escapeAttr(item.view)}" title="Rename ${escapeAttr(itemLabel)}">
                     <span class="settings-nav-icon" aria-hidden="true">${item.icon}</span>
                     <span class="settings-nav-text">
-                      <strong>${escapeHtml(item.label)}</strong>
+                      <strong>${escapeHtml(itemLabel)}</strong>
                     </span>
                   </button>
                 </td>
-                <td>${escapeHtml(item.defaultLabel)}</td>
+                <td>${escapeHtml(defaultLabel)}</td>
                 <td><span class="muted">${escapeHtml(item.view)}</span></td>
                 <td class="action-cell">
-                  <button class="work-item-drag-handle settings-nav-drag-handle" type="button" ${canDrag ? "data-drag-handle data-navigation-drag-handle" : "disabled"} title="Drag ${escapeAttr(item.label)}" aria-label="Drag ${escapeAttr(item.label)}">
+                  <button class="work-item-drag-handle settings-nav-drag-handle" type="button" ${canDrag ? "data-drag-handle data-navigation-drag-handle" : "disabled"} title="Drag ${escapeAttr(itemLabel)}" aria-label="Drag ${escapeAttr(itemLabel)}">
                     <span aria-hidden="true">&#8942;&#8942;</span>
                   </button>
                 </td>
               </tr>
-            `).join("")}
+            `;
+            }).join("")}
           </tbody>
         </table>
       </div>
     `;
+  }
+
+  function settingsNavigationLabel(item) {
+    return item?.beta ? `${item.label} (beta)` : item?.label || "";
+  }
+
+  function settingsNavigationDefaultLabel(item) {
+    return item?.beta ? `${item.defaultLabel} (beta)` : item?.defaultLabel || "";
   }
 
   function settingsUsersHtml() {

@@ -85,3 +85,6 @@ Top Navigation
 2.) Let's permanently put the Kanban Board after the Sprint both in the Top Nav and in the Settings -> Navigation.
 3.) Let's move Settings on the Avatar menu now into the Top navigation, but place it as the last item in the Top Nav (so let it overflow in the overflow menu).
 4.) For the Navigation Items:  Dashboard, Road Map, and Gantt when viewing them in Settings -> Navigation, append " (beta)" at the end of them.  But if the user selects them (makes them visible), don't render "(beta") in the actual Top Navigation.
+5.) Why is WFH locked in the Settings -> Navigation?  Can you unlock it?
+6.) If there is enough room to render WFH Schedule and Settings at the Top Navigation, you may do so.  Right now, it seems to always be rendering it in the overflow menu even though there is space to render them at the top.
+

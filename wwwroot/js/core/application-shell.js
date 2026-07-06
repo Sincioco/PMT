@@ -6,16 +6,16 @@ import {
   setCurrentUserId
 } from "./authentication.js";
 import { overflowIconHtml } from "../components/buttons.js?v=20260701-unified-dropdowns";
-import { navIconHtml } from "./navigation-preferences.js?v=20260621-bug-icon";
+import { navIconHtml } from "./navigation-preferences.js?v=20260706-navigation-wfh-unlocked";
 import {
   preferenceKeys,
   readPreference,
   writePreference
 } from "./preferences.js";
-import { currentView, getNavigationScreens, navigate } from "./router.js";
+import { currentView, getNavigationScreens, navigate } from "./router.js?v=20260706-navigation-wfh-unlocked";
 import { loadState, state } from "./store.js";
 
-const fixedOverflowViews = new Set(["WFH Schedule"]);
+const fixedOverflowViews = new Set();
 
 export function createApplicationShell({
   bindScreenEvents,

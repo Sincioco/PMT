@@ -1,10 +1,10 @@
 export const screenRegistry = Object.freeze([
-  { view: "Dashboard", label: "Dashboard", feature: "dashboard", showInNavigation: true },
-  { view: "Road Map", label: "Road Map", feature: "roadmap", showInNavigation: true },
-  { view: "Gantt", label: "Gantt", feature: "gantt", showInNavigation: true },
-  { view: "Board", label: "Kanban Board", feature: "board", showInNavigation: true },
+  { view: "Dashboard", label: "Dashboard", feature: "dashboard", showInNavigation: true, defaultVisible: false, beta: true },
+  { view: "Road Map", label: "Road Map", feature: "roadmap", showInNavigation: true, defaultVisible: false, beta: true },
+  { view: "Gantt", label: "Gantt", feature: "gantt", showInNavigation: true, defaultVisible: false, beta: true },
   { view: "Projects", label: "Projects", feature: "projects", showInNavigation: true },
   { view: "Sprints", label: "Sprints", feature: "sprints", showInNavigation: true },
+  { view: "Board", label: "Kanban Board", feature: "board", showInNavigation: true },
   { view: "Tasks", label: "Dev Tasks", feature: "tasks", showInNavigation: true },
   { view: "Bugs", label: "Bug Tracking", feature: "bugs", showInNavigation: true },
   { view: "Scrum", label: "Scrum", feature: "scrum", showInNavigation: true },
@@ -12,7 +12,7 @@ export const screenRegistry = Object.freeze([
   { view: "Backlog", label: "Backlog", feature: "backlog", showInNavigation: true },
   { view: "WFH Schedule", label: "WFH Schedule", feature: "wfh-schedule", showInNavigation: true },
   { view: "About", label: "About", feature: "about", showInNavigation: false },
-  { view: "Settings", label: "Settings", feature: "settings", showInNavigation: false }
+  { view: "Settings", label: "Settings", feature: "settings", showInNavigation: true }
 ]);
 
 const screenHandlers = new Map();

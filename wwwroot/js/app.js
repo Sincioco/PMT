@@ -21,16 +21,16 @@ import {
   showTaskAudit,
   viewWorkItem
 } from "./components/work-items.js?v=20260706-convert-document";
-import { createApplicationShell } from "./core/application-shell.js?v=20260701-unified-dropdowns";
+import { createApplicationShell } from "./core/application-shell.js?v=20260706-navigation-responsive-overflow";
 import {
   currentView,
   navigate
-} from "./core/router.js";
+} from "./core/router.js?v=20260706-navigation-wfh-unlocked";
 import {
   registeredScreenHandlers,
   registerScreen,
   screenHandlerFor
-} from "./core/screen-registry.js";
+} from "./core/screen-registry.js?v=20260706-navigation-wfh-unlocked";
 import { state } from "./core/store.js";
 import { createAboutFeature } from "./features/about/about.js?v=20260621-about-credits";
 import { createBacklogFeature } from "./features/backlog/backlog.js?v=20260706-convert-document";
@@ -46,7 +46,7 @@ import {
 import { createProjectsFeature } from "./features/projects/projects.js?v=20260701-nav-title-preferences";
 import { createRoadMapFeature } from "./features/roadmap/roadmap.js?v=20260701-nav-title-preferences";
 import { createScrumFeature } from "./features/scrum/scrum.js?v=20260706-convert-document";
-import { createSettingsFeature } from "./features/settings/settings.js?v=20260701-nav-title-preferences";
+import { createSettingsFeature } from "./features/settings/settings.js?v=20260706-navigation-wfh-unlocked";
 import { createSprintsFeature } from "./features/sprints/sprints.js?v=20260701-nav-title-preferences";
 import { createTasksFeature } from "./features/tasks/tasks.js?v=20260706-convert-document";
 import { createWfhScheduleFeature } from "./features/wfh-schedule/wfh-schedule.js?v=20260706-readonly-windowing";
