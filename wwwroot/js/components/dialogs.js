@@ -5,6 +5,7 @@ import {
 } from "../shared/text-and-links.js";
 
 const dialogDragIgnoreSelector = "button, a, input, select, textarea, label, [contenteditable='true'], [data-dialog-drag-ignore]";
+const dialogResizeHandleSize = 24;
 let dialogDragInitialized = false;
 let activeDialogDrag = null;
 
@@ -13,6 +14,7 @@ export function initializeDraggableDialogs() {
   dialogDragInitialized = true;
 
   document.addEventListener("pointerdown", startDialogDrag);
+  document.addEventListener("pointerdown", anchorDialogResize, true);
   document.addEventListener("close", event => resetDialogPosition(event.target), true);
   window.addEventListener("resize", () => requestAnimationFrame(clampOpenDraggedDialogs));
 }
@@ -105,6 +107,32 @@ function updateWindowedDialogButton(button, isMaximized) {
   button.title = label;
   button.setAttribute("aria-label", label);
   button.textContent = label;
+}
+
+function anchorDialogResize(event) {
+  if (event.button !== 0) return;
+
+  const dialog = event.target.closest?.("dialog.dialog");
+  if (!dialog?.open || dialog.classList.contains("is-maximized")) return;
+
+  const rect = dialog.getBoundingClientRect();
+  const isResizeHandle = event.clientX >= rect.right - dialogResizeHandleSize
+    && event.clientY >= rect.bottom - dialogResizeHandleSize;
+  if (!isResizeHandle) return;
+
+  anchorDialogAtCurrentRect(dialog, rect);
+}
+
+function anchorDialogAtCurrentRect(dialog, rect = dialog.getBoundingClientRect()) {
+  const width = Math.ceil(rect.width);
+  const height = Math.ceil(rect.height);
+  if (!width || !height) return;
+
+  dialog.style.width = `${width}px`;
+  dialog.style.height = `${height}px`;
+
+  const position = clampDialogPosition(dialog, rect.left, rect.top);
+  positionDialog(dialog, position.left, position.top);
 }
 
 function startDialogDrag(event) {

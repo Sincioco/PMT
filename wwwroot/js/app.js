@@ -6,7 +6,7 @@ import {
   askYesNo,
   initializeDraggableDialogs,
   initializeWindowedDialog
-} from "./components/dialogs.js?v=20260706-readonly-windowing";
+} from "./components/dialogs.js?v=20260706-resize-anchor";
 import {
   field,
   value
