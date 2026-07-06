@@ -1,5 +1,5 @@
 import { buttonContent } from "../components/buttons.js";
-import { initializeWindowedDialog } from "../components/dialogs.js?v=20260706-readonly-windowing";
+import { initializeWindowedDialog } from "../components/dialogs.js?v=20260706-dialog-persistence";
 import { escapeHtml } from "./text-and-links.js";
 import {
   createXlsxBlob,

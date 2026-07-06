@@ -1,6 +1,6 @@
 import { attachmentsHtml } from "../../components/attachments.js";
 import { buttonContent, funnelIconHtml, iconButton } from "../../components/buttons.js";
-import { initializeWindowedDialog } from "../../components/dialogs.js?v=20260706-readonly-windowing";
+import { initializeWindowedDialog } from "../../components/dialogs.js?v=20260706-dialog-persistence";
 import { filterSelect } from "../../components/filters.js";
 import {
   field,

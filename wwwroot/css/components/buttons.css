@@ -280,6 +280,22 @@ html[data-theme] .dialog-head button.dialog-maximize-button::after {
   display: none;
 }
 
+html[data-theme] .dialog-head button.dialog-reset-button::before {
+  content: "\21BA";
+  width: auto;
+  height: auto;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  font-size: var(--icon-size-lg);
+  line-height: 1;
+  transform: translate(-50%, -50%);
+}
+
+html[data-theme] .dialog-head button.dialog-reset-button::after {
+  display: none;
+}
+
 html[data-theme] :is(.editor-dialog, .windowed-dialog).is-maximized .dialog-head button.dialog-maximize-button::before {
   width: 10px;
   height: 10px;

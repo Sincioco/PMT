@@ -29,3 +29,9 @@ Universal New/Edit Dialog Boxes Changes
 12.) There is a minor flaw in the way you have implemented the resizing handle on the lower-right corner of the dialog box.  When I click it to drag it, the mouse cursor is drifting farther and farther away from it as I drag to the right.  I'm expecting the dialog box and resize handle to remain under the cursor (follow the cursor) instead of falling behind.
 
 13.) Update the Dev Task Filter dialog box, Bug Tracking Filter dialog box, Scrum Filter dialog box, Backlog Filter dialog box, and give it the same control reflow and user list reflow like you did with the other dialog boxes earlier.
+
+14.) For the dialog boxes you have updated/modified in this conversation so far, when the user resizes or moves any of the updated dialog boxes, save their preferred location and dimensions in localstorage so the next time the dialog box is brought up it is exactly where the user had move/placed it.
+15.) Add a "Reset" icon on the left side of the "maximize" button so the user an reset the dialog box in its initial/default state.
+16.) For the "Reset" icon, use the same icon you used in the Dev Tasks' Reset View menu item.
+
+17.) I noticed in the updated Filter dialog boxes, the "Done" button at the bottom of the dialog box is no longer visible and the vertical scrollbar's down arrow is no longer visible.  In fact, trying to resize the dialog box causes the dialog to scroll down because it's pressing on the scrollbar also.  Can you put back the dialog buttons at the bottom please?  See attached image for the problem.

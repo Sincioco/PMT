@@ -4,9 +4,13 @@ import { buttonContent } from "./components/buttons.js";
 import {
   askForText,
   askYesNo,
+  initializeDialogLayoutPersistence,
   initializeDraggableDialogs,
-  initializeWindowedDialog
-} from "./components/dialogs.js?v=20260706-resize-anchor";
+  initializeWindowedDialog,
+  resetDialogLayoutPreference,
+  restoreDialogLayout,
+  setDialogLayoutStorageKey
+} from "./components/dialogs.js?v=20260706-dialog-persistence";
 import {
   field,
   value
@@ -16,7 +20,7 @@ import {
   bindAttachmentPreview,
   showTaskAudit,
   viewWorkItem
-} from "./components/work-items.js?v=20260706-readonly-windowing";
+} from "./components/work-items.js?v=20260706-dialog-persistence";
 import { createApplicationShell } from "./core/application-shell.js?v=20260701-unified-dropdowns";
 import {
   currentView,
@@ -29,11 +33,11 @@ import {
 } from "./core/screen-registry.js";
 import { state } from "./core/store.js";
 import { createAboutFeature } from "./features/about/about.js?v=20260621-about-credits";
-import { createBacklogFeature } from "./features/backlog/backlog.js?v=20260706-filter-windowing";
+import { createBacklogFeature } from "./features/backlog/backlog.js?v=20260706-dialog-persistence";
 import { createBoardFeature } from "./features/board/board.js?v=20260706-readonly-windowing";
-import { createBugsFeature } from "./features/bugs/bugs.js?v=20260706-filter-windowing";
+import { createBugsFeature } from "./features/bugs/bugs.js?v=20260706-dialog-persistence";
 import { createDashboardFeature } from "./features/dashboard/dashboard.js?v=20260701-nav-title-preferences";
-import { createDocumentationFeature } from "./features/documentation/documentation.js?v=20260706-readonly-windowing";
+import { createDocumentationFeature } from "./features/documentation/documentation.js?v=20260706-dialog-persistence";
 import {
   createGanttFeature,
   currentSprintForProject,
@@ -41,10 +45,10 @@ import {
 } from "./features/gantt/gantt.js?v=20260701-nav-title-preferences";
 import { createProjectsFeature } from "./features/projects/projects.js?v=20260701-nav-title-preferences";
 import { createRoadMapFeature } from "./features/roadmap/roadmap.js?v=20260701-nav-title-preferences";
-import { createScrumFeature } from "./features/scrum/scrum.js?v=20260706-filter-windowing";
+import { createScrumFeature } from "./features/scrum/scrum.js?v=20260706-dialog-persistence";
 import { createSettingsFeature } from "./features/settings/settings.js?v=20260701-nav-title-preferences";
 import { createSprintsFeature } from "./features/sprints/sprints.js?v=20260701-nav-title-preferences";
-import { createTasksFeature } from "./features/tasks/tasks.js?v=20260706-filter-windowing";
+import { createTasksFeature } from "./features/tasks/tasks.js?v=20260706-dialog-persistence";
 import { createWfhScheduleFeature } from "./features/wfh-schedule/wfh-schedule.js?v=20260706-readonly-windowing";
 import {
   fallbackEnvironments,
@@ -180,6 +184,7 @@ const {
   toast
 } = shell.elements;
 const editorDialogSecondaryActions = document.getElementById("editorDialogSecondaryActions");
+const resetDialogButton = document.getElementById("resetDialog");
 const maximizeDialogButton = document.getElementById("maximizeDialog");
 
 const roadMapFeature = createRoadMapFeature({ app });
@@ -327,6 +332,8 @@ registerScreen("WFH Schedule", wfhScheduleFeature);
 
 document.getElementById("closeDialog").addEventListener("click", () => dialog.close());
 document.getElementById("cancelDialog").addEventListener("click", () => dialog.close());
+initializeDialogLayoutPersistence(dialog);
+resetDialogButton?.addEventListener("click", resetEditorDialogLayout);
 maximizeDialogButton?.addEventListener("click", toggleEditorDialogMaximized);
 dialog.addEventListener("close", resetEditorDialogWindow);
 
@@ -1112,6 +1119,7 @@ function openEditor(title, html, saveAction, focusName = "", afterOpen = null) {
   bindAttachmentPreview(dialogBody);
   bindAuditButtons(dialogBody);
   bindAuditButtons(editorDialogSecondaryActions);
+  setDialogLayoutStorageKey(dialog, editorDialogLayoutKey(title));
 
   editorForm.onsubmit = async event => {
     event.preventDefault();
@@ -1145,6 +1153,7 @@ function sizeEditorDialogFromDefault() {
   dialog.style.width = `${width}px`;
   dialog.style.height = `${height}px`;
   dialog.dataset.editorDialogSized = "true";
+  restoreDialogLayout(dialog);
 }
 
 function resetEditorDialogWindow() {
@@ -1155,6 +1164,14 @@ function resetEditorDialogWindow() {
   dialog.style.width = "";
   dialog.style.height = "";
   updateEditorDialogMaximizeButton(false);
+}
+
+function resetEditorDialogLayout() {
+  if (!dialog.open) return;
+
+  resetDialogLayoutPreference(dialog);
+  resetEditorDialogWindow();
+  requestAnimationFrame(sizeEditorDialogFromDefault);
 }
 
 function toggleEditorDialogMaximized() {
@@ -1178,6 +1195,19 @@ function updateEditorDialogMaximizeButton(isMaximized) {
   maximizeDialogButton.title = label;
   maximizeDialogButton.setAttribute("aria-label", label);
   maximizeDialogButton.textContent = label;
+}
+
+function editorDialogLayoutKey(title) {
+  if (dialogBody.querySelector(".task-editor-grid")) return "editor:dev-task";
+  if (dialogBody.querySelector(".bug-editor-grid")) return "editor:bug-report";
+  if (dialogBody.querySelector(".scrum-editor-grid")) return "editor:scrum";
+  if (dialogBody.querySelector("[name='parentBlogId'], .documentation-image-open-area")) return "editor:documentation";
+  if (dialogBody.querySelector("[name='firstName'], [name='lastName'], [name='nickname']")) return "editor:user";
+  if (dialogBody.querySelector("[name='lookupType'], [name='lookupValue']")) return "editor:setting";
+  if (dialogBody.querySelector("[name='holidayDate']")) return "editor:holiday";
+  if (/^(new|edit) project$/i.test(title || "")) return "editor:project";
+  if (/^(new|edit) sprint$/i.test(title || "")) return "editor:sprint";
+  return `editor:${title || "general"}`;
 }
 
 function moveEditorFooterActions() {

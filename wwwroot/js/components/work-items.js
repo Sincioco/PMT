@@ -1,7 +1,7 @@
 import { attachmentsHtml, filePreviewHtml } from "./attachments.js";
 import { avatarsHtml } from "./avatars.js";
 import { buttonContent, iconButton } from "./buttons.js?v=20260621-dev-task-icons";
-import { initializeWindowedDialog } from "./dialogs.js?v=20260706-readonly-windowing";
+import { initializeWindowedDialog } from "./dialogs.js?v=20260706-dialog-persistence";
 import {
   checkListOrEmpty,
   checkedNumbers,

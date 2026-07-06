@@ -24,10 +24,10 @@
   <link rel="stylesheet" href="/css/themes.css?v=20260621-paper-links">
   <link rel="stylesheet" href="/css/base.css?v=20260621-paper-links">
   <link rel="stylesheet" href="/css/layout.css?v=20260627-stable-page-title">
-  <link rel="stylesheet" href="/css/components/buttons.css?v=20260706-readonly-windowing">
+  <link rel="stylesheet" href="/css/components/buttons.css?v=20260706-dialog-persistence">
   <link rel="stylesheet" href="/css/components/cards-panels.css?v=20260620-solid-surfaces">
   <link rel="stylesheet" href="/css/components/forms.css?v=20260706-user-list-two-column">
-  <link rel="stylesheet" href="/css/components/dialogs.css?v=20260706-filter-windowing">
+  <link rel="stylesheet" href="/css/components/dialogs.css?v=20260706-dialog-footer">
   <link rel="stylesheet" href="/css/components/tables-lists.css?v=20260701-edit-mode-glow">
   <link rel="stylesheet" href="/css/components/filters.css?v=20260706-filter-windowing">
   <link rel="stylesheet" href="/css/components/navigation.css?v=20260701-user-avatar-fit-50">
@@ -102,6 +102,7 @@
       <div class="dialog-head">
         <h2 id="dialogTitle"></h2>
         <div class="dialog-head-actions">
+          <button type="button" class="icon-btn dialog-reset-button" id="resetDialog" title="Reset" aria-label="Reset">Reset</button>
           <button type="button" class="icon-btn dialog-maximize-button" id="maximizeDialog" title="Maximize" aria-label="Maximize">Maximize</button>
           <button type="button" class="icon-btn" id="closeDialog" title="Close" aria-label="Close">x</button>
         </div>
@@ -122,6 +123,6 @@
   </dialog>
 
   <div id="toast" class="toast" hidden></div>
-  <script type="module" src="/js/app.js?v=20260706-filter-windowing"></script>
+  <script type="module" src="/js/app.js?v=20260706-dialog-persistence"></script>
 </body>
 </html>

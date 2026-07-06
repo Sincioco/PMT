@@ -3,7 +3,7 @@ import {
   checkedFilterValues,
   filterCheckList
 } from "../../components/filters.js";
-import { initializeWindowedDialog } from "../../components/dialogs.js?v=20260706-filter-windowing";
+import { initializeWindowedDialog } from "../../components/dialogs.js?v=20260706-dialog-persistence";
 import {
   field,
   optionalNumberValue,
@@ -14,7 +14,7 @@ import {
   value
 } from "../../components/forms.js?v=20260629-avatar-jpg-assets";
 import { sectionHead } from "../../components/sections.js?v=20260701-nav-title-preferences";
-import { createWorkItemTableMode } from "../../components/work-items.js?v=20260706-readonly-windowing";
+import { createWorkItemTableMode } from "../../components/work-items.js?v=20260706-dialog-persistence";
 import { currentUser } from "../../core/authentication.js";
 import {
   preferenceKeys,
@@ -51,7 +51,7 @@ import {
   openExcelImport,
   openExportDialog,
   showImportResultDialog
-} from "../../shared/table-export.js?v=20260706-readonly-windowing";
+} from "../../shared/table-export.js?v=20260706-dialog-persistence";
 
 const scrumYesterdayPrompt = "What did you accomplish yesterday?";
 const scrumTodayPrompt = "What do you plan to do today?";

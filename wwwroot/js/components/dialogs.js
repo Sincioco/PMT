@@ -6,6 +6,11 @@ import {
 
 const dialogDragIgnoreSelector = "button, a, input, select, textarea, label, [contenteditable='true'], [data-dialog-drag-ignore]";
 const dialogResizeHandleSize = 24;
+const dialogLayoutStoragePrefix = "pmt-dialog-layout:";
+const dialogLayoutStorageVersion = 1;
+const dialogLayoutTransientClasses = new Set(["dialog", "windowed-dialog", "detail-dialog", "is-maximized", "is-dialog-dragging"]);
+const dialogResizeFinishers = new WeakMap();
+const dialogResizeObservers = new WeakMap();
 let dialogDragInitialized = false;
 let activeDialogDrag = null;
 
@@ -23,7 +28,8 @@ export function initializeWindowedDialog(dialog) {
   if (!(dialog instanceof HTMLDialogElement)) return;
 
   dialog.classList.add("windowed-dialog");
-  const maximizeButton = ensureWindowedDialogButton(dialog);
+  initializeDialogLayoutPersistence(dialog);
+  const maximizeButton = ensureWindowedDialogControls(dialog);
   updateWindowedDialogButton(maximizeButton, false);
 
   if (dialog.dataset.windowedDialogInitialized !== "true") {
@@ -36,7 +42,69 @@ export function initializeWindowedDialog(dialog) {
   });
 }
 
-function ensureWindowedDialogButton(dialog) {
+export function initializeDialogLayoutPersistence(dialog, storageKey = "") {
+  if (!(dialog instanceof HTMLDialogElement)) return;
+  if (storageKey) setDialogLayoutStorageKey(dialog, storageKey);
+  if (dialog.dataset.dialogLayoutPersistenceInitialized === "true") return;
+
+  dialog.dataset.dialogLayoutPersistenceInitialized = "true";
+  if (typeof ResizeObserver === "function") {
+    const observer = new ResizeObserver(() => {
+      if (!dialog.open || dialog.dataset.dialogLayoutApplying === "true") return;
+      if (dialog.dataset.dialogResizeActive === "true") saveDialogLayout(dialog);
+    });
+    observer.observe(dialog);
+    dialogResizeObservers.set(dialog, observer);
+  }
+
+  dialog.addEventListener("close", () => {
+    dialogResizeFinishers.get(dialog)?.();
+    delete dialog.dataset.dialogResizeActive;
+    if (!dialog.id) {
+      dialogResizeObservers.get(dialog)?.disconnect();
+      dialogResizeObservers.delete(dialog);
+    }
+  });
+}
+
+export function setDialogLayoutStorageKey(dialog, storageKey) {
+  if (!(dialog instanceof HTMLDialogElement)) return;
+  dialog.dataset.dialogLayoutKey = normalizeDialogLayoutKey(storageKey);
+}
+
+export function restoreDialogLayout(dialog) {
+  const layout = readDialogLayout(dialog);
+  if (!layout) return false;
+
+  const viewportWidth = window.innerWidth || document.documentElement.clientWidth;
+  const viewportHeight = window.innerHeight || document.documentElement.clientHeight;
+  const minWidth = dialogDefaultSize(dialog, "width");
+  const minHeight = dialogDefaultSize(dialog, "height");
+  const maxWidth = Math.max(minWidth || 0, viewportWidth - 8);
+  const maxHeight = Math.max(minHeight || 0, viewportHeight - 8);
+  const width = clamp(Math.round(layout.width), minWidth || 0, maxWidth);
+  const height = clamp(Math.round(layout.height), minHeight || 0, maxHeight);
+  const left = Number.isFinite(layout.left) ? layout.left : dialog.getBoundingClientRect().left;
+  const top = Number.isFinite(layout.top) ? layout.top : dialog.getBoundingClientRect().top;
+
+  runWithoutDialogLayoutSave(dialog, () => {
+    dialog.classList.remove("is-maximized");
+    dialog.style.width = `${width}px`;
+    dialog.style.height = `${height}px`;
+    const position = clampDialogPosition(dialog, left, top);
+    positionDialog(dialog, position.left, position.top);
+  });
+  return true;
+}
+
+export function resetDialogLayoutPreference(dialog) {
+  if (!(dialog instanceof HTMLDialogElement)) return;
+
+  removeDialogLayout(dialog);
+  runWithoutDialogLayoutSave(dialog, () => resetDialogPosition(dialog));
+}
+
+function ensureWindowedDialogControls(dialog) {
   const head = dialog.querySelector(".dialog-head");
   if (!head) return null;
 
@@ -58,6 +126,19 @@ function ensureWindowedDialogButton(dialog) {
     button.addEventListener("click", () => toggleWindowedDialogMaximized(dialog));
   }
 
+  let resetButton = actions.querySelector("[data-windowed-dialog-reset]");
+  if (!resetButton) {
+    resetButton = document.createElement("button");
+    resetButton.type = "button";
+    resetButton.className = "icon-btn dialog-reset-button";
+    resetButton.dataset.windowedDialogReset = "true";
+    resetButton.textContent = "Reset";
+    resetButton.title = "Reset";
+    resetButton.setAttribute("aria-label", "Reset");
+    actions.insertBefore(resetButton, button);
+    resetButton.addEventListener("click", () => resetWindowedDialogLayout(dialog));
+  }
+
   return button;
 }
 
@@ -74,6 +155,7 @@ function sizeWindowedDialogFromDefault(dialog) {
   dialog.style.width = `${width}px`;
   dialog.style.height = `${height}px`;
   dialog.dataset.windowedDialogSized = "true";
+  restoreDialogLayout(dialog);
 }
 
 function resetWindowedDialog(dialog) {
@@ -84,6 +166,21 @@ function resetWindowedDialog(dialog) {
   dialog.style.width = "";
   dialog.style.height = "";
   updateWindowedDialogButton(dialog.querySelector("[data-windowed-dialog-toggle]"), false);
+}
+
+function resetWindowedDialogLayout(dialog) {
+  if (!dialog.open) return;
+
+  resetDialogLayoutPreference(dialog);
+  dialog.classList.remove("is-maximized");
+  updateWindowedDialogButton(dialog.querySelector("[data-windowed-dialog-toggle]"), false);
+
+  const defaultWidth = dialog.style.getPropertyValue("--windowed-dialog-default-width");
+  const defaultHeight = dialog.style.getPropertyValue("--windowed-dialog-default-height");
+  runWithoutDialogLayoutSave(dialog, () => {
+    dialog.style.width = defaultWidth || "";
+    dialog.style.height = defaultHeight || "";
+  });
 }
 
 function toggleWindowedDialogMaximized(dialog) {
@@ -120,7 +217,25 @@ function anchorDialogResize(event) {
     && event.clientY >= rect.bottom - dialogResizeHandleSize;
   if (!isResizeHandle) return;
 
+  startDialogResizeSave(dialog);
   anchorDialogAtCurrentRect(dialog, rect);
+}
+
+function startDialogResizeSave(dialog) {
+  dialogResizeFinishers.get(dialog)?.();
+  dialog.dataset.dialogResizeActive = "true";
+
+  const finish = () => {
+    delete dialog.dataset.dialogResizeActive;
+    saveDialogLayout(dialog);
+    document.removeEventListener("pointerup", finish);
+    document.removeEventListener("pointercancel", finish);
+    dialogResizeFinishers.delete(dialog);
+  };
+
+  dialogResizeFinishers.set(dialog, finish);
+  document.addEventListener("pointerup", finish);
+  document.addEventListener("pointercancel", finish);
 }
 
 function anchorDialogAtCurrentRect(dialog, rect = dialog.getBoundingClientRect()) {
@@ -189,6 +304,7 @@ function stopDialogDrag(event) {
 function finishDialogDrag(pointerId = activeDialogDrag?.pointerId) {
   if (!activeDialogDrag) return;
 
+  const dialog = activeDialogDrag.dialog;
   activeDialogDrag.dialog.classList.remove("is-dialog-dragging");
   try {
     activeDialogDrag.head.releasePointerCapture(pointerId);
@@ -196,6 +312,7 @@ function finishDialogDrag(pointerId = activeDialogDrag?.pointerId) {
     // The pointer may already have been released by the browser.
   }
 
+  saveDialogLayout(dialog);
   activeDialogDrag = null;
   document.removeEventListener("pointermove", dragDialog);
   document.removeEventListener("pointerup", stopDialogDrag);
@@ -255,6 +372,119 @@ function resetDialogPosition(dialog) {
   dialog.style.margin = "";
   dialog.style.left = "";
   dialog.style.top = "";
+}
+
+function saveDialogLayout(dialog) {
+  if (!shouldPersistDialogLayout(dialog) || dialog.dataset.dialogLayoutApplying === "true" || dialog.classList.contains("is-maximized")) return;
+
+  const storageKey = dialogLayoutStorageKey(dialog);
+  if (!storageKey) return;
+
+  const rect = dialog.getBoundingClientRect();
+  const layout = {
+    version: dialogLayoutStorageVersion,
+    left: Math.round(rect.left),
+    top: Math.round(rect.top),
+    width: Math.round(rect.width),
+    height: Math.round(rect.height)
+  };
+
+  if (!layout.width || !layout.height) return;
+
+  try {
+    localStorage.setItem(`${dialogLayoutStoragePrefix}${storageKey}`, JSON.stringify(layout));
+  } catch {
+    // Local storage is optional for dialog convenience preferences.
+  }
+}
+
+function readDialogLayout(dialog) {
+  const storageKey = dialogLayoutStorageKey(dialog);
+  if (!storageKey) return null;
+
+  try {
+    const value = localStorage.getItem(`${dialogLayoutStoragePrefix}${storageKey}`);
+    if (!value) return null;
+
+    const layout = JSON.parse(value);
+    if (!layout || layout.version !== dialogLayoutStorageVersion) return null;
+    if (![layout.left, layout.top, layout.width, layout.height].every(Number.isFinite)) return null;
+    return layout;
+  } catch {
+    return null;
+  }
+}
+
+function removeDialogLayout(dialog) {
+  const storageKey = dialogLayoutStorageKey(dialog);
+  if (!storageKey) return;
+
+  try {
+    localStorage.removeItem(`${dialogLayoutStoragePrefix}${storageKey}`);
+  } catch {
+    // Local storage is optional for dialog convenience preferences.
+  }
+}
+
+function shouldPersistDialogLayout(dialog) {
+  return dialog instanceof HTMLDialogElement
+    && dialog.classList.contains("dialog")
+    && (dialog.classList.contains("editor-dialog") || dialog.classList.contains("windowed-dialog"));
+}
+
+function dialogLayoutStorageKey(dialog) {
+  const explicitKey = normalizeDialogLayoutKey(dialog.dataset.dialogLayoutKey || "");
+  if (explicitKey) return explicitKey;
+
+  const dataDialogKey = Object.keys(dialog.dataset)
+    .find(key => key.endsWith("Dialog") && dialog.dataset[key] === "true");
+  if (dataDialogKey) return normalizeDialogLayoutKey(kebabCase(dataDialogKey));
+
+  const classKey = Array.from(dialog.classList)
+    .filter(className => !dialogLayoutTransientClasses.has(className))
+    .find(className => className.endsWith("-filter-dialog") || className.endsWith("-dialog"));
+  if (classKey) return normalizeDialogLayoutKey(classKey);
+
+  if (dialog.classList.contains("detail-dialog")) return "detail-dialog";
+
+  const title = dialog.querySelector(".dialog-head h2")?.textContent || "";
+  return normalizeDialogLayoutKey(title ? `dialog:${title}` : "");
+}
+
+function normalizeDialogLayoutKey(value) {
+  return String(value || "")
+    .trim()
+    .replace(/([a-z0-9])([A-Z])/g, "$1-$2")
+    .toLowerCase()
+    .replace(/[^a-z0-9:_-]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+function kebabCase(value) {
+  return String(value || "").replace(/([a-z0-9])([A-Z])/g, "$1-$2").toLowerCase();
+}
+
+function dialogDefaultSize(dialog, dimension) {
+  const editorProperty = dimension === "width" ? "--editor-dialog-default-width" : "--editor-dialog-default-height";
+  const windowedProperty = dimension === "width" ? "--windowed-dialog-default-width" : "--windowed-dialog-default-height";
+  return cssPixelValue(dialog, editorProperty) || cssPixelValue(dialog, windowedProperty) || 0;
+}
+
+function cssPixelValue(element, propertyName) {
+  const value = element.style.getPropertyValue(propertyName) || getComputedStyle(element).getPropertyValue(propertyName);
+  const number = Number.parseFloat(value);
+  return Number.isFinite(number) ? number : 0;
+}
+
+function runWithoutDialogLayoutSave(dialog, action) {
+  dialog.dataset.dialogLayoutApplying = "true";
+  try {
+    action();
+  } finally {
+    requestAnimationFrame(() => {
+      delete dialog.dataset.dialogLayoutApplying;
+    });
+  }
 }
 
 function clamp(value, min, max) {

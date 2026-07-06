@@ -1,6 +1,6 @@
 import { taskRowAvatarsHtml } from "../../components/avatars.js";
 import { bugIconHtml, buttonContent, funnelIconHtml, iconButton } from "../../components/buttons.js";
-import { initializeWindowedDialog } from "../../components/dialogs.js?v=20260706-filter-windowing";
+import { initializeWindowedDialog } from "../../components/dialogs.js?v=20260706-dialog-persistence";
 import {
   checkedFilterValues,
   filterCheckList
@@ -13,7 +13,7 @@ import { sectionHead } from "../../components/sections.js?v=20260701-nav-title-p
 import {
   bugFixIconHtml,
   createWorkItemTableMode
-} from "../../components/work-items.js?v=20260706-readonly-windowing";
+} from "../../components/work-items.js?v=20260706-dialog-persistence";
 import {
   preferenceKeys,
   readJsonPreference,
@@ -46,7 +46,7 @@ import {
   uniqueIds,
   workItemImportHash,
   workItemSystemColumns
-} from "../../shared/table-export.js?v=20260706-readonly-windowing";
+} from "../../shared/table-export.js?v=20260706-dialog-persistence";
 import {
   projectName,
   sprintName,
