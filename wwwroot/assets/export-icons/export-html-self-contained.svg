@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128" role="img" aria-labelledby="title desc">
+  <title id="title">Export Self-Contained HTML</title>
+  <desc id="desc">A document export icon with HTML code brackets and an embedded image symbol.</desc>
+  <defs>
+    <linearGradient id="page" x1="26" y1="12" x2="103" y2="116" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#fff3e8"/>
+    </linearGradient>
+    <linearGradient id="badge" x1="19" y1="43" x2="88" y2="104" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ff8a3d"/>
+      <stop offset="1" stop-color="#d85a18"/>
+    </linearGradient>
+  </defs>
+  <path d="M34 12h42l24 24v72a8 8 0 0 1-8 8H34a8 8 0 0 1-8-8V20a8 8 0 0 1 8-8Z" fill="url(#page)" stroke="#5b331b" stroke-width="4" stroke-linejoin="round"/>
+  <path d="M76 12v24h24" fill="#ffe0c2" stroke="#5b331b" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+  <rect x="17" y="45" width="72" height="50" rx="10" fill="url(#badge)" stroke="#8f3b0c" stroke-width="4"/>
+  <path d="M43 60L31 70l12 10" fill="none" stroke="#ffffff" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M63 60l12 10-12 10" fill="none" stroke="#ffffff" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M56 57l-8 27" fill="none" stroke="#ffffff" stroke-width="6" stroke-linecap="round"/>
+  <rect x="78" y="73" width="28" height="22" rx="5" fill="#ffffff" stroke="#8f3b0c" stroke-width="4"/>
+  <circle cx="88" cy="82" r="3" fill="#d85a18"/>
+  <path d="M82 91l7-6 5 4 4-4 5 6" fill="none" stroke="#d85a18" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="101" cy="54" r="8" fill="#1f9d72" stroke="#0d6649" stroke-width="4"/>
+  <path d="M97 54l3 3 5-6" fill="none" stroke="#ffffff" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

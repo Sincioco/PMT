@@ -73,15 +73,7 @@
 
 .documentation-export-format-button {
   gap: var(--space-3);
-  min-height: 132px;
   text-align: center;
-}
-
-.documentation-export-format-icon,
-.documentation-export-format-icon .button-svg-icon {
-  width: 52px;
-  min-width: 52px;
-  height: 52px;
 }
 
 .documentation-export-format-label {

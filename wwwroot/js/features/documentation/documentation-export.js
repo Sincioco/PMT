@@ -14,6 +14,8 @@ import {
 
 const importMetadataTitle = "PMT Import Process Meta Data";
 const exportSchema = "pmt.documentation.export.v1";
+const exportDialogIconAssetVersion = "20260706-export-dialog-icons";
+const exportDialogIconBasePath = "/assets/export-icons";
 const wordImageMaxWidthPx = 624;
 
 export function documentationExportIconHtml() {
@@ -93,7 +95,7 @@ export function openDocumentationExportDialog(blog, { showToast } = {}) {
 function documentationExportFormatButton(format, label, icon, tone) {
   return `
     <button type="button" class="${tone} export-format-button documentation-export-format-button" data-documentation-export-format="${escapeAttr(format)}" title="${escapeAttr(label)}" aria-label="${escapeAttr(label)}">
-      <span class="documentation-export-format-icon" aria-hidden="true">${icon}</span>
+      <span class="button-icon" aria-hidden="true">${icon}</span>
       <span class="documentation-export-format-label">${escapeHtml(label)}</span>
     </button>
   `;
@@ -864,33 +866,22 @@ function jsonForScript(value) {
 }
 
 function wordIconHtml() {
-  return `
-    <svg class="button-svg-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-      <path d="M6 3h9l3 3v15H6zM15 3v4h4M8 10l1.5 7 2-5 2 5L15 10"></path>
-    </svg>
-  `;
+  return exportFormatImageIconHtml("export-word-document.svg");
 }
 
 function htmlIconHtml() {
-  return `
-    <svg class="button-svg-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-      <path d="M8 8l-4 4 4 4M16 8l4 4-4 4M14 5l-4 14"></path>
-    </svg>
-  `;
+  return exportFormatImageIconHtml("export-html-self-contained.svg");
 }
 
 function zipIconHtml() {
-  return `
-    <svg class="button-svg-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-      <path d="M5 4h6l2 2h6v14H5zM12 6v14M10 8h4M10 11h4M10 14h4"></path>
-    </svg>
-  `;
+  return exportFormatImageIconHtml("export-html-image-folder.svg");
 }
 
 function pdfIconHtml() {
-  return `
-    <svg class="button-svg-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-      <path d="M6 3h9l3 3v15H6zM15 3v4h4M8 16h8M8 12h8M8 8h4"></path>
-    </svg>
-  `;
+  return exportFormatImageIconHtml("export-pdf-print-preview.svg");
+}
+
+function exportFormatImageIconHtml(fileName) {
+  const src = `${exportDialogIconBasePath}/${fileName}?v=${exportDialogIconAssetVersion}`;
+  return `<img class="button-svg-icon export-format-icon" src="${escapeAttr(src)}" alt="" aria-hidden="true" draggable="false">`;
 }

@@ -5,7 +5,7 @@ import { filterSelect } from "../../components/filters.js";
 import {
   documentationExportIconHtml,
   openDocumentationExportDialog
-} from "./documentation-export.js?v=20260706-documentation-export-html-image-open";
+} from "./documentation-export.js?v=20260706-export-dialog-icons";
 import {
   field,
   optionalNumberValue,

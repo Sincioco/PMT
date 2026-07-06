@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128" role="img" aria-labelledby="title desc">
+  <title id="title">Export Word Document</title>
+  <desc id="desc">A document export icon with a folded page corner and a Word-style W mark.</desc>
+  <defs>
+    <linearGradient id="page" x1="28" y1="14" x2="101" y2="114" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#edf4ff"/>
+    </linearGradient>
+    <linearGradient id="badge" x1="18" y1="43" x2="74" y2="99" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#3178c6"/>
+      <stop offset="1" stop-color="#1f4f96"/>
+    </linearGradient>
+  </defs>
+  <path d="M34 12h42l24 24v72a8 8 0 0 1-8 8H34a8 8 0 0 1-8-8V20a8 8 0 0 1 8-8Z" fill="url(#page)" stroke="#1f3b64" stroke-width="4" stroke-linejoin="round"/>
+  <path d="M76 12v24h24" fill="#d8e8ff" stroke="#1f3b64" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M47 51h37" stroke="#9ab3d6" stroke-width="5" stroke-linecap="round"/>
+  <path d="M47 66h37" stroke="#9ab3d6" stroke-width="5" stroke-linecap="round"/>
+  <path d="M47 81h29" stroke="#9ab3d6" stroke-width="5" stroke-linecap="round"/>
+  <rect x="14" y="45" width="56" height="50" rx="10" fill="url(#badge)" stroke="#173d74" stroke-width="4"/>
+  <path d="M26 59l7 23 7-23 7 23 7-23" fill="none" stroke="#ffffff" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

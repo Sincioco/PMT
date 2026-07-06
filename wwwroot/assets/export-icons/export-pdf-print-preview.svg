@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128" role="img" aria-labelledby="title desc">
+  <title id="title">Export PDF Using Print Preview</title>
+  <desc id="desc">A PDF export icon with a print preview page and magnifier.</desc>
+  <defs>
+    <linearGradient id="page" x1="29" y1="13" x2="99" y2="113" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#ffecec"/>
+    </linearGradient>
+    <linearGradient id="badge" x1="16" y1="45" x2="75" y2="100" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#f55353"/>
+      <stop offset="1" stop-color="#c62828"/>
+    </linearGradient>
+  </defs>
+  <path d="M34 12h42l24 24v72a8 8 0 0 1-8 8H34a8 8 0 0 1-8-8V20a8 8 0 0 1 8-8Z" fill="url(#page)" stroke="#5d1f1f" stroke-width="4" stroke-linejoin="round"/>
+  <path d="M76 12v24h24" fill="#ffd7d7" stroke="#5d1f1f" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+  <rect x="41" y="49" width="48" height="34" rx="6" fill="#ffffff" stroke="#b46a6a" stroke-width="4"/>
+  <path d="M49 58h31M49 69h23" stroke="#d99a9a" stroke-width="4" stroke-linecap="round"/>
+  <rect x="15" y="47" width="60" height="48" rx="10" fill="url(#badge)" stroke="#8e1c1c" stroke-width="4"/>
+  <path d="M30 82V60h13a8 8 0 0 1 0 16H30" fill="none" stroke="#ffffff" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M51 82V60h8c8 0 13 4 13 11s-5 11-13 11h-8Z" fill="none" stroke="#ffffff" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="92" cy="86" r="16" fill="#ffffff" fill-opacity="0.92" stroke="#5d1f1f" stroke-width="5"/>
+  <path d="M103 98l12 12" stroke="#5d1f1f" stroke-width="6" stroke-linecap="round"/>
+  <path d="M84 86h16" stroke="#c62828" stroke-width="4" stroke-linecap="round"/>
+  <path d="M92 78v16" stroke="#c62828" stroke-width="4" stroke-linecap="round"/>
+</svg>

@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128" role="img" aria-labelledby="title desc">
+  <title id="title">Export HTML With Image Folder</title>
+  <desc id="desc">An HTML export icon with a separate image folder.</desc>
+  <defs>
+    <linearGradient id="page" x1="24" y1="13" x2="93" y2="99" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#fff3e8"/>
+    </linearGradient>
+    <linearGradient id="folder" x1="34" y1="61" x2="110" y2="113" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ffd36a"/>
+      <stop offset="1" stop-color="#f0a72b"/>
+    </linearGradient>
+    <linearGradient id="html" x1="20" y1="42" x2="73" y2="91" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ff8a3d"/>
+      <stop offset="1" stop-color="#d85a18"/>
+    </linearGradient>
+  </defs>
+  <path d="M31 12h37l21 21v66a7 7 0 0 1-7 7H31a7 7 0 0 1-7-7V19a7 7 0 0 1 7-7Z" fill="url(#page)" stroke="#5b331b" stroke-width="4" stroke-linejoin="round"/>
+  <path d="M68 12v21h21" fill="#ffe0c2" stroke="#5b331b" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+  <rect x="15" y="43" width="59" height="43" rx="9" fill="url(#html)" stroke="#8f3b0c" stroke-width="4"/>
+  <path d="M39 56L29 65l10 8" fill="none" stroke="#ffffff" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M51 56l10 9-10 8" fill="none" stroke="#ffffff" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M47 54l-7 23" fill="none" stroke="#ffffff" stroke-width="5" stroke-linecap="round"/>
+  <path d="M39 65h26a8 8 0 0 1 6 3l4 5h30a9 9 0 0 1 9 9v23a9 9 0 0 1-9 9H39a9 9 0 0 1-9-9V74a9 9 0 0 1 9-9Z" fill="url(#folder)" stroke="#8a5a08" stroke-width="4" stroke-linejoin="round"/>
+  <rect x="47" y="80" width="45" height="24" rx="5" fill="#fff8df" stroke="#8a5a08" stroke-width="4"/>
+  <circle cx="59" cy="89" r="3.5" fill="#f0a72b"/>
+  <path d="M52 100l10-9 8 6 6-6 10 9" fill="none" stroke="#8a5a08" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
