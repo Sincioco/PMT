@@ -45,6 +45,57 @@
   max-width: none;
 }
 
+.documentation-readonly-grid {
+  align-items: start;
+}
+
+.documentation-readonly-meta-field {
+  align-self: start;
+  height: 72px;
+  min-height: 72px;
+  overflow: hidden;
+}
+
+.documentation-readonly-meta-field > div {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.documentation-readonly-actions .documentation-dialog-export-button {
+  margin-right: auto;
+}
+
+.documentation-export-dialog {
+  width: min(620px, calc(100vw - 2 * var(--shell-padding-compact)));
+}
+
+.documentation-export-format-button {
+  gap: var(--space-3);
+  min-height: 132px;
+  text-align: center;
+}
+
+.documentation-export-format-icon,
+.documentation-export-format-icon .button-svg-icon {
+  width: 52px;
+  min-width: 52px;
+  height: 52px;
+}
+
+.documentation-export-format-label {
+  max-width: 100%;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+
+.documentation-export-status {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+}
+
 .documentation-grid {
   grid-template-columns: repeat(4, minmax(0, 1fr));
   align-items: stretch;
@@ -541,6 +592,10 @@ html[data-theme] .documentation-tree-node-toggle > span[aria-hidden="true"]:only
 
 @media (max-width: 760px) {
   .documentation-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .documentation-export-format-grid {
     grid-template-columns: 1fr;
   }
 

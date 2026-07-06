@@ -37,7 +37,7 @@ import { createBacklogFeature } from "./features/backlog/backlog.js?v=20260706-d
 import { createBoardFeature } from "./features/board/board.js?v=20260706-readonly-windowing";
 import { createBugsFeature } from "./features/bugs/bugs.js?v=20260706-dialog-persistence";
 import { createDashboardFeature } from "./features/dashboard/dashboard.js?v=20260701-nav-title-preferences";
-import { createDocumentationFeature } from "./features/documentation/documentation.js?v=20260706-doc-scrum-fixes";
+import { createDocumentationFeature } from "./features/documentation/documentation.js?v=20260706-documentation-export";
 import {
   createGanttFeature,
   currentSprintForProject,

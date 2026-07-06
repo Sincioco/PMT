@@ -3,6 +3,10 @@ import { buttonContent, funnelIconHtml, iconButton } from "../../components/butt
 import { initializeWindowedDialog } from "../../components/dialogs.js?v=20260706-dialog-persistence";
 import { filterSelect } from "../../components/filters.js";
 import {
+  documentationExportIconHtml,
+  openDocumentationExportDialog
+} from "./documentation-export.js?v=20260706-documentation-export";
+import {
   field,
   optionalNumberValue,
   richTextField,
@@ -350,25 +354,26 @@ export function createDocumentationFeature({
     const parent = state.blogs.find(item => item.id === blog.parentBlogId);
 
     const modal = document.createElement("dialog");
-    modal.className = "dialog detail-dialog";
+    modal.className = "dialog detail-dialog documentation-readonly-dialog";
     modal.innerHTML = `
       <div class="dialog-head">
         <h2>${escapeHtml(blog.title)}</h2>
         <button type="button" class="icon-btn" data-close title="Close">x</button>
       </div>
       <div class="dialog-body">
-        <div class="detail-grid">
-          ${detailField("Project", escapeHtml(documentationProjectLabel(blog.projectId)))}
-          ${blog.sprintId ? detailField("Sprint", escapeHtml(sprintName(blog.sprintId))) : ""}
-          ${parent ? detailField("Parent", escapeHtml(parent.title)) : ""}
-          ${detailField("Created", escapeHtml(formatDate(blog.createdAt)))}
-          ${documentationWasEdited(blog) ? detailField("Last Edited", escapeHtml(formatDate(blog.updatedAt))) : ""}
-          ${detailField("Author", escapeHtml(author?.nickname || "User"))}
+        <div class="detail-grid documentation-readonly-grid">
+          ${detailField("Project", escapeHtml(documentationProjectLabel(blog.projectId)), false, "documentation-readonly-meta-field")}
+          ${blog.sprintId ? detailField("Sprint", escapeHtml(sprintName(blog.sprintId)), false, "documentation-readonly-meta-field") : ""}
+          ${parent ? detailField("Parent", escapeHtml(parent.title), false, "documentation-readonly-meta-field") : ""}
+          ${detailField("Created", escapeHtml(formatDate(blog.createdAt)), false, "documentation-readonly-meta-field")}
+          ${documentationWasEdited(blog) ? detailField("Last Edited", escapeHtml(formatDate(blog.updatedAt)), false, "documentation-readonly-meta-field") : ""}
+          ${detailField("Author", escapeHtml(author?.nickname || "User"), false, "documentation-readonly-meta-field")}
           ${detailField("Body", `<div class="rich-readonly documentation-image-open-area">${blog.bodyHtml || ""}</div>`, true)}
           ${blog.attachments.length ? detailField("Attachments", attachmentsHtml(blog.attachments), true) : ""}
         </div>
       </div>
-      <div class="dialog-actions">
+      <div class="dialog-actions documentation-readonly-actions">
+        <button type="button" class="secondary text-icon-button documentation-dialog-export-button" data-export-readonly-blog="${blog.id}">${buttonContent(documentationExportIconHtml(), "Export")}</button>
         <button type="button" class="secondary text-icon-button" data-edit-readonly-blog="${blog.id}" ${canEditOwner(blog.createdByUserId) ? "" : "disabled"}>${buttonContent("&#9998;", "Edit")}</button>
         <button type="button" class="primary text-icon-button" data-close>${buttonContent("&#10003;", "Close")}</button>
       </div>
@@ -381,6 +386,12 @@ export function createDocumentationFeature({
       modal.remove();
     }));
     modal.addEventListener("click", event => {
+      const exportButton = event.target.closest("[data-export-readonly-blog]");
+      if (exportButton) {
+        openDocumentationExportDialog(blog, { showToast });
+        return;
+      }
+
       const editButton = event.target.closest("[data-edit-readonly-blog]");
       if (!editButton) return;
 
@@ -479,9 +490,9 @@ export function createDocumentationFeature({
     syncSprintOptions();
   }
 
-  function detailField(label, html, full = false) {
+  function detailField(label, html, full = false, extraClass = "") {
     return `
-      <div class="detail-field ${full ? "full" : ""}">
+      <div class="detail-field ${full ? "full" : ""} ${extraClass}">
         <span>${escapeHtml(label)}</span>
         <div>${html || `<span class="muted">None</span>`}</div>
       </div>

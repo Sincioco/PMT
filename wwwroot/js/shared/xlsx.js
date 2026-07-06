@@ -25,6 +25,10 @@ export function createXlsxBlob({ sheetName = "Export", columns = [], rows = [] }
   });
 }
 
+export function createZipBlob(entries, type = "application/zip") {
+  return new Blob([buildZip(entries)], { type });
+}
+
 export async function readXlsxObjects(file) {
   const bytes = new Uint8Array(await file.arrayBuffer());
   const entries = await unzipEntries(bytes);
@@ -146,7 +150,7 @@ function buildZip(entries) {
 
   entries.forEach(entry => {
     const nameBytes = encodeText(entry.name);
-    const dataBytes = encodeText(entry.text || "");
+    const dataBytes = entryBytes(entry);
     const crc = crc32(dataBytes);
     const localHeader = zipLocalHeader(nameBytes, dataBytes, crc);
     const centralHeader = zipCentralHeader(nameBytes, dataBytes, crc, offset);
@@ -159,6 +163,18 @@ function buildZip(entries) {
   const centralSize = centralParts.reduce((total, part) => total + part.length, 0);
   const endRecord = zipEndRecord(entries.length, centralSize, offset);
   return concatBytes([...localParts, ...centralParts, endRecord]);
+}
+
+function entryBytes(entry) {
+  if (Object.prototype.hasOwnProperty.call(entry, "bytes")) {
+    if (entry.bytes instanceof Uint8Array) return entry.bytes;
+    if (entry.bytes instanceof ArrayBuffer) return new Uint8Array(entry.bytes);
+    if (ArrayBuffer.isView(entry.bytes)) {
+      return new Uint8Array(entry.bytes.buffer, entry.bytes.byteOffset, entry.bytes.byteLength);
+    }
+  }
+
+  return encodeText(entry.text || "");
 }
 
 function zipLocalHeader(nameBytes, dataBytes, crc) {

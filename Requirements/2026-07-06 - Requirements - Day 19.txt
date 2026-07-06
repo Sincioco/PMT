@@ -43,3 +43,15 @@ Universal New/Edit Dialog Boxes Changes
 
 21.) In Scrum, when I click my own Scrum entry, it should allow me to edit it without having to go to Edit mode first following the allowable date edit rule set previously.
 22.) The Date, Project and Person field at the top is getting taller as I resize the dialog box.  See screen shot.
+
+
+Documentation Export Functionality
+----------------------------------
+1.) In the Card View of the Documentation, when I click on a document and the read-only dialog box opens, I noticed that as I resize the dialog box, the Project, Created and Author read-only fields at the top are getting taller.  Can you fix their height so they don't grow taller?
+2.) Add an Export button on the lower-left corner of the dialog box.  Similar to what was done on the Dev Task's Export menu item, show a dialog box showing two options:  1.) Word Document; 2.) HTML (self contained); 3.) HTML + Image Folder; 4.) PDF (Print Preview)
+3.) Export the Document on either Word or HTML format.  When exporting, be sure the images retain their original high resolution versions.  Preserve the original bytes of the images and only put a cap on the width for display/rendering purposes.
+4.) For the self contained HTML, base64 encode images, and include the CSS along with it, so that everything is self contained as one .html file.
+5.) For the HTML + Image, let the user download it as a .zip file so the HTML and the images are together.  Put the images in a folder.
+6.) For the PDF, implement PDF export using the browser Print Preview approach only.  If opening a new tab is easier to accomplish this, you may do so.
+7.) As a reminder, do not use any third party library or framework.
+8.) I would like to be able to re-import either the Word, HTML (self contained) or PDF back into PMT, so if you need to add meta data / extra information on the last page of the export, you may do so.  Write as many meta data / information you need for a future import process.  Just put a title on the page / section that reads "PMT Import Process Meta Data" so the user knows to either not touch it or just delete it.
