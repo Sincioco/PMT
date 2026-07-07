@@ -30,7 +30,7 @@ import {
   taskPercentField,
   workItemDialogMetaHtml,
   uploadWorkItemAttachments
-} from "../../components/work-items.js?v=20260707-linked-bug-qa-sync";
+} from "../../components/work-items.js?v=20260707-deep-links";
 import {
   currentUser
 } from "../../core/authentication.js";
@@ -44,7 +44,7 @@ import {
   writeJsonPreference,
   writePreference
 } from "../../core/preferences.js?v=20260630-task-table-columns";
-import { currentView } from "../../core/router.js";
+import { currentView } from "../../core/router.js?v=20260707-deep-links";
 import { state } from "../../core/store.js";
 import {
   formatDate,

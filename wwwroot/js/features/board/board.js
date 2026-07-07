@@ -7,7 +7,7 @@ import {
   bugFixIconHtml,
   createWorkItemTableMode,
   taskButtonsHtml
-} from "../../components/work-items.js?v=20260707-linked-bug-qa-sync";
+} from "../../components/work-items.js?v=20260707-deep-links";
 import {
   preferenceKeys,
   readBooleanPreference,

@@ -14,7 +14,7 @@ import {
   value
 } from "../../components/forms.js?v=20260629-avatar-jpg-assets";
 import { sectionHead } from "../../components/sections.js?v=20260701-nav-title-preferences";
-import { createWorkItemTableMode } from "../../components/work-items.js?v=20260707-linked-bug-qa-sync";
+import { createWorkItemTableMode } from "../../components/work-items.js?v=20260707-deep-links";
 import { currentUser } from "../../core/authentication.js";
 import {
   preferenceKeys,
@@ -1275,6 +1275,14 @@ export function createScrumFeature({
     `);
   }
 
+  function viewDevLogById(id) {
+    const log = state.devLogs.find(item => item.id === Number(id || 0) && isSharedScrumLog(item));
+    if (!log) return false;
+
+    viewDevLog(log);
+    return true;
+  }
+
   async function duplicateDevLog(id) {
     const log = state.devLogs.find(item => item.id === id && isSharedScrumLog(item));
     if (!log) return;
@@ -1598,6 +1606,7 @@ export function createScrumFeature({
     deactivate: deactivateScrum,
     handleAction,
     handleFilterChange,
-    render: renderDevLogs
+    render: renderDevLogs,
+    view: viewDevLogById
   };
 }

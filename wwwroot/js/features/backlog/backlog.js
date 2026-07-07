@@ -13,7 +13,7 @@ import { sectionHead } from "../../components/sections.js?v=20260701-nav-title-p
 import {
   bugFixIconHtml,
   createWorkItemTableMode
-} from "../../components/work-items.js?v=20260707-linked-bug-qa-sync";
+} from "../../components/work-items.js?v=20260707-deep-links";
 import {
   preferenceKeys,
   readJsonPreference,

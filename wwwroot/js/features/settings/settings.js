@@ -31,7 +31,7 @@ import {
   writeJsonPreference,
   writePreference
 } from "../../core/preferences.js?v=20260629-settings-table-filters";
-import { savedViewPreference } from "../../core/router.js";
+import { savedViewPreference } from "../../core/router.js?v=20260707-deep-links";
 import { state } from "../../core/store.js";
 import {
   formatDate,

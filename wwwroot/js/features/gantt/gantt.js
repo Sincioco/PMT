@@ -6,7 +6,7 @@ import {
   writePreference
 } from "../../core/preferences.js";
 import { buttonContent } from "../../components/buttons.js";
-import { navigate } from "../../core/router.js";
+import { navigate } from "../../core/router.js?v=20260707-deep-links";
 import { state } from "../../core/store.js";
 import { projectById } from "../../shared/selectors.js";
 import { createGanttBugExpansion } from "./gantt-bugs-dependencies.js?v=20260707-linked-bug-qa-sync";

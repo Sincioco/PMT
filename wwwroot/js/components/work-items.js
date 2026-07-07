@@ -294,6 +294,7 @@ export function viewWorkItem(task, editWorkItem, options = {}) {
     const inlineButton = event.target.closest("[data-action='view-task-inline']");
     if (!inlineButton) return;
     const selectedTask = taskById(Number(inlineButton.dataset.id));
+    options.onViewWorkItem?.(selectedTask);
     closeDialog(modal);
     viewWorkItem(selectedTask, editWorkItem, options);
   });

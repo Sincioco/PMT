@@ -20,12 +20,17 @@ import {
   bindAttachmentPreview,
   showTaskAudit,
   viewWorkItem
-} from "./components/work-items.js?v=20260707-linked-bug-qa-sync";
-import { createApplicationShell } from "./core/application-shell.js?v=20260707-log-about-nav-label-fix";
+} from "./components/work-items.js?v=20260707-deep-links";
+import { createApplicationShell } from "./core/application-shell.js?v=20260707-deep-links";
 import {
   currentView,
-  navigate
-} from "./core/router.js?v=20260707-log-about-nav";
+  ensureCurrentViewRoute,
+  navigate,
+  parseRouteFromLocation,
+  routeForContent,
+  routeForView,
+  updateBrowserUrl
+} from "./core/router.js?v=20260707-deep-links";
 import {
   registeredScreenHandlers,
   registerScreen,
@@ -33,24 +38,24 @@ import {
 } from "./core/screen-registry.js?v=20260707-log-about-nav";
 import { state } from "./core/store.js";
 import { createAboutFeature } from "./features/about/about.js?v=20260621-about-credits";
-import { createBacklogFeature } from "./features/backlog/backlog.js?v=20260707-linked-bug-qa-sync";
-import { createBoardFeature } from "./features/board/board.js?v=20260707-linked-bug-qa-sync";
-import { createBugsFeature } from "./features/bugs/bugs.js?v=20260707-linked-bug-qa-sync";
+import { createBacklogFeature } from "./features/backlog/backlog.js?v=20260707-deep-links";
+import { createBoardFeature } from "./features/board/board.js?v=20260707-deep-links";
+import { createBugsFeature } from "./features/bugs/bugs.js?v=20260707-deep-links";
 import { createDashboardFeature } from "./features/dashboard/dashboard.js?v=20260707-linked-bug-qa-sync";
 import { createDocumentationFeature } from "./features/documentation/documentation.js?v=20260707-documentation-tree-project";
 import {
   createGanttFeature,
   currentSprintForProject,
   ganttStartDate
-} from "./features/gantt/gantt.js?v=20260707-linked-bug-qa-sync";
+} from "./features/gantt/gantt.js?v=20260707-deep-links";
 import { createProjectsFeature } from "./features/projects/projects.js?v=20260707-linked-bug-qa-sync";
 import { createRoadMapFeature } from "./features/roadmap/roadmap.js?v=20260707-linked-bug-qa-sync";
-import { createLogFeature } from "./features/personal-log/log.js?v=20260707-linked-bug-qa-sync";
-import { createScrumFeature } from "./features/scrum/scrum.js?v=20260707-linked-bug-qa-sync";
-import { createSettingsFeature } from "./features/settings/settings.js?v=20260707-linked-bug-qa-sync";
+import { createLogFeature } from "./features/personal-log/log.js?v=20260707-deep-links";
+import { createScrumFeature } from "./features/scrum/scrum.js?v=20260707-deep-links";
+import { createSettingsFeature } from "./features/settings/settings.js?v=20260707-deep-links";
 import { createSprintsFeature } from "./features/sprints/sprints.js?v=20260707-linked-bug-qa-sync";
-import { createTasksFeature } from "./features/tasks/tasks.js?v=20260707-linked-bug-qa-sync";
-import { createWfhScheduleFeature } from "./features/wfh-schedule/wfh-schedule.js?v=20260707-linked-bug-qa-sync";
+import { createTasksFeature } from "./features/tasks/tasks.js?v=20260707-deep-links";
+import { createWfhScheduleFeature } from "./features/wfh-schedule/wfh-schedule.js?v=20260707-deep-links";
 import {
   fallbackEnvironments,
   fallbackForLookup,
@@ -146,6 +151,8 @@ let suppressNextClick = false;
 let pageEventsBound = false;
 let chartTooltip = null;
 let boardFeature = null;
+let handlingBrowserRouteChange = false;
+let lastOpenedContentRouteKey = "";
 // let openCreateSprintOnRender = false;
 
 const workItemRuleOptions = {
@@ -186,7 +193,13 @@ const roadMapFeature = createRoadMapFeature({ app });
 const aboutFeature = createAboutFeature({ app });
 const ganttFeature = createGanttFeature({
   app,
-  openTaskReadMode: id => viewWorkItem(taskById(id), editWorkItem, workItemDialogOptions()),
+  openTaskReadMode: id => {
+    const task = taskById(id);
+    if (!task) return;
+    updateBrowserUrl(workItemContentRoute(id));
+    lastOpenedContentRouteKey = contentRouteKey(parseRouteFromLocation());
+    viewWorkItem(task, editWorkItem, workItemDialogOptions());
+  },
   render,
   showToast
 });
@@ -365,7 +378,10 @@ function bindScreenEvents() {
   window.addEventListener("pointerup", handlePointerUp);
   window.addEventListener("mouseup", handleMouseUp);
   window.addEventListener("pointercancel", cancelPointerDrag);
+  window.addEventListener("popstate", handleBrowserRouteChange);
+  window.addEventListener("hashchange", handleBrowserRouteChange);
   document.addEventListener("pointerdown", handlePageActionsOutsidePointer);
+  document.addEventListener("close", handleDeepLinkDialogClose, true);
   document.addEventListener("click", handleRichTextImageClick, true);
   document.addEventListener("click", handleDocumentLinkClick);
 }
@@ -388,6 +404,112 @@ function handlePageActionsOutsidePointer(event) {
   });
 }
 
+function handleBrowserRouteChange() {
+  if (handlingBrowserRouteChange) return;
+
+  handlingBrowserRouteChange = true;
+  requestAnimationFrame(() => {
+    const route = parseRouteFromLocation();
+    closeRoutedDetailDialogs();
+    navigate(route.view || "Dashboard", { updateUrl: false });
+    render();
+    handlingBrowserRouteChange = false;
+  });
+}
+
+function handleDeepLinkDialogClose(event) {
+  if (handlingBrowserRouteChange) return;
+  if (!isRoutedDialog(event.target)) return;
+
+  requestAnimationFrame(() => {
+    const route = parseRouteFromLocation();
+    if (!route.contentType) return;
+    if (document.querySelector(routedOpenDialogSelector())) return;
+
+    lastOpenedContentRouteKey = "";
+    updateBrowserUrl(routeForView(currentView), { replace: true });
+  });
+}
+
+function openCurrentRouteContent() {
+  const route = parseRouteFromLocation();
+  const routeKey = contentRouteKey(route);
+  if (!routeKey) {
+    lastOpenedContentRouteKey = "";
+    return;
+  }
+
+  if (dialog.open) return;
+
+  if (routeKey === lastOpenedContentRouteKey && document.querySelector(routedOpenDialogSelector())) return;
+
+  closeRoutedDetailDialogs();
+  if (openRouteContent(route)) {
+    lastOpenedContentRouteKey = routeKey;
+    return;
+  }
+
+  lastOpenedContentRouteKey = "";
+  showToast("Shared item was not found or you do not have access.");
+  updateBrowserUrl(routeForView(currentView), { replace: true });
+}
+
+function openRouteContent(route) {
+  const id = Number(route.id || 0);
+  if (!id) return false;
+
+  if (route.contentType === "tasks") return openWorkItemRoute(id, "Dev");
+  if (route.contentType === "bugs") return openWorkItemRoute(id, "Bug");
+  if (route.contentType === "backlog") return openBacklogRoute(id);
+  if (route.contentType === "documentation") return openDocumentationById(id, { showMissingToast: false, updateUrl: false });
+  if (route.contentType === "log") return logFeature.view?.(id) === true;
+  if (route.contentType === "scrum") return scrumFeature.view?.(id) === true;
+
+  return false;
+}
+
+function openWorkItemRoute(id, taskType) {
+  const task = taskById(id);
+  if (!task) return false;
+  if (taskType === "Bug" && task.taskType !== "Bug") return false;
+  if (taskType === "Dev" && task.taskType === "Bug") return false;
+
+  viewWorkItem(task, editWorkItem, workItemDialogOptions());
+  return true;
+}
+
+function openBacklogRoute(id) {
+  const task = taskById(id);
+  if (!task) return false;
+
+  viewBacklogWorkItem(task);
+  return true;
+}
+
+function contentRouteKey(route) {
+  return route?.contentType && route.id ? `${route.contentType}:${route.id}` : "";
+}
+
+function routedDialogSelector() {
+  return "dialog.detail-dialog, dialog.documentation-readonly-dialog";
+}
+
+function routedOpenDialogSelector() {
+  return "dialog.detail-dialog[open], dialog.documentation-readonly-dialog[open], #editorDialog[open]";
+}
+
+function isRoutedDialog(target) {
+  return target instanceof HTMLDialogElement
+    && (target === dialog || target.classList.contains("detail-dialog") || target.classList.contains("documentation-readonly-dialog"));
+}
+
+function closeRoutedDetailDialogs() {
+  document.querySelectorAll(routedDialogSelector()).forEach(modal => {
+    if (modal.open) modal.close();
+    modal.remove();
+  });
+}
+
 /*
 function prepareRender() {
   if (!state.projects.length) navigate("Projects");
@@ -403,6 +525,8 @@ function resolveNavigationView(view) {
 */
 
 function renderCurrentScreen() {
+  ensureCurrentViewRoute();
+
   if (currentView !== "Board") boardFeature.deactivate();
   if (currentView !== "Gantt") ganttFeature.deactivate();
   if (currentView !== "Tasks") tasksFeature.deactivate();
@@ -423,6 +547,7 @@ function renderCurrentScreen() {
   */
   linkifyTextNodes(app);
   normalizeLinksInElement(app);
+  openCurrentRouteContent();
 }
 
 async function handleActionClick(event) {
@@ -446,6 +571,8 @@ async function handleActionClick(event) {
 
   if (handleChartAction(button)) return;
 
+  updateContentUrlForAction(action, id);
+
   for (const screen of registeredScreenHandlers()) {
     if (screen.handleAction && await screen.handleAction(action, id, button)) return;
   }
@@ -453,6 +580,46 @@ async function handleActionClick(event) {
   if (action === "goto-task") gotoTask(id);
   if (action === "gantt-open-task") openTaskReadMode(id);
   if (action === "view-project-gantt") viewProjectGantt(id);
+}
+
+function updateContentUrlForAction(action, id) {
+  const route = contentRouteForAction(action, id);
+  if (!route) return;
+
+  updateBrowserUrl(route);
+  lastOpenedContentRouteKey = contentRouteKey(parseRouteFromLocation());
+}
+
+function contentRouteForAction(action, id) {
+  if (!id) return "";
+
+  if (action === "view-blog" || action === "select-documentation-tree-blog") {
+    return state.blogs.some(blog => blog.id === id) ? routeForContent("documentation", id) : "";
+  }
+
+  if (action === "view-personal-log") {
+    return state.devLogs.some(log => log.id === id) ? routeForContent("log", id) : "";
+  }
+
+  if (action === "view-log") {
+    return state.devLogs.some(log => log.id === id) ? routeForContent("scrum", id) : "";
+  }
+
+  if (action === "view-backlog-task") {
+    return taskById(id) ? routeForContent("backlog", id) : "";
+  }
+
+  if (["view-task", "gantt-open-task", "dashboard-view-task"].includes(action)) {
+    return workItemContentRoute(id);
+  }
+
+  return "";
+}
+
+function workItemContentRoute(id) {
+  const task = taskById(id);
+  if (!task) return "";
+  return routeForContent(task.taskType === "Bug" ? "bugs" : "tasks", id);
 }
 
 function handleChartAction(element) {
@@ -486,6 +653,7 @@ function handleChartAction(element) {
   }
 
   if (action === "view-task") {
+    updateContentUrlForAction(action, Number(element.dataset.id || 0));
     viewWorkItem(taskById(Number(element.dataset.id || 0)), editWorkItem, workItemDialogOptions());
     return true;
   }
@@ -844,6 +1012,8 @@ function handleDocumentLinkClick(event) {
     event.preventDefault();
     const task = taskById(workItemLink);
     if (task) {
+      updateBrowserUrl(workItemContentRoute(workItemLink));
+      lastOpenedContentRouteKey = contentRouteKey(parseRouteFromLocation());
       viewWorkItem(task, editWorkItem, workItemDialogOptions());
     } else {
       showToast("Work item was not found.");
@@ -1331,9 +1501,11 @@ function showReadOnlyDialog(title, html) {
   modal.addEventListener("click", event => {
     const inlineButton = event.target.closest("[data-action='view-task-inline']");
     if (!inlineButton) return;
+    const task = taskById(Number(inlineButton.dataset.id));
+    updateWorkItemContentUrl(task);
     modal.close();
     modal.remove();
-    viewWorkItem(taskById(Number(inlineButton.dataset.id)), editWorkItem, workItemDialogOptions());
+    viewWorkItem(task, editWorkItem, workItemDialogOptions());
   });
   modal.addEventListener("cancel", () => modal.remove());
   modal.showModal();
@@ -1782,8 +1954,16 @@ function workItemDialogOptions(extra = {}) {
   return {
     onConvertToDocument: convertWorkItemToDocument,
     onViewDocument: openDocumentationById,
+    onViewWorkItem: updateWorkItemContentUrl,
     ...extra
   };
+}
+
+function updateWorkItemContentUrl(task) {
+  if (!task?.id) return;
+
+  updateBrowserUrl(workItemContentRoute(task.id));
+  lastOpenedContentRouteKey = contentRouteKey(parseRouteFromLocation());
 }
 
 async function convertWorkItemToDocument(task) {
@@ -1802,9 +1982,13 @@ async function convertWorkItemToDocument(task) {
   }
 }
 
-function openDocumentationById(blogId) {
+function openDocumentationById(blogId, options = {}) {
   const opened = documentationFeature.view?.(Number(blogId || 0));
-  if (!opened) showToast("Document was not found.");
+  if (opened && options.updateUrl !== false) {
+    updateBrowserUrl(routeForContent("documentation", blogId));
+    lastOpenedContentRouteKey = contentRouteKey(parseRouteFromLocation());
+  }
+  if (!opened && options.showMissingToast !== false) showToast("Document was not found.");
   return opened;
 }
 
@@ -1828,11 +2012,11 @@ function viewBacklogWorkItem(task) {
   }, { canEdit: true, onConvertToDocument: null, onViewDocument: openDocumentationById });
 }
 
-function gotoTask(id) {
+function gotoTask(id, options = {}) {
   const task = taskById(id);
   if (!task) return;
   tasksFeature.selectContext(task.projectId, String(task.sprintId || "all"));
-  navigate("Tasks");
+  navigate("Tasks", { updateUrl: options.updateUrl !== false });
   render();
 }
 
@@ -1840,8 +2024,9 @@ function openTaskReadMode(id) {
   const task = taskById(id);
   if (!task) return;
 
-  gotoTask(id);
-  viewWorkItem(task, editWorkItem, workItemDialogOptions());
+  lastOpenedContentRouteKey = "";
+  updateBrowserUrl(workItemContentRoute(id));
+  gotoTask(id, { updateUrl: false });
 }
 
 function viewProjectSprints(projectId) {

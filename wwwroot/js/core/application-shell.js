@@ -12,7 +12,7 @@ import {
   readPreference,
   writePreference
 } from "./preferences.js";
-import { currentView, getNavigationScreens, navigate } from "./router.js?v=20260707-log-about-nav";
+import { currentView, getNavigationScreens, navigate } from "./router.js?v=20260707-deep-links";
 import { loadState, state } from "./store.js";
 
 const fixedOverflowViews = new Set(["About"]);
