@@ -532,7 +532,6 @@ export function createDocumentationFeature({
     documentationViewMode = "tree";
     selectedTreeBlogId = newDocumentationInlineBlogId;
     editingTreeBlogId = newDocumentationInlineBlogId;
-    showDocumentationTreeFullScreen();
     writePreference(preferenceKeys.documentationViewMode, documentationViewMode);
     renderDocumentation();
     focusDocumentationInlineTitle();
@@ -547,7 +546,6 @@ export function createDocumentationFeature({
     documentationTreeSearch = "";
     selectedTreeBlogId = blog.id;
     editingTreeBlogId = blog.id;
-    showDocumentationTreeFullScreen();
     expandDocumentationTreePath(blog);
 
     writePreference(preferenceKeys.documentationViewMode, documentationViewMode);

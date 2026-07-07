@@ -101,3 +101,8 @@ Bugs in the Filter Dialog Box Reset
 33.) In the Scrum screen, the Filter Dialog Box's reset button (on the upper-right) does not reset the filter to its initial state which should be "All Projects", "Date Descending"
 34.) In the Backlog screen, the Filter Dialog Box's reset button (on the upper-right) does not reset the filter to its initial state which should be "All Projects", "All Sprints", and "Custom Order (Saved Order)".
 35.) I also want the dimension of the Dialog Filter to be resetted when the reset button is clicked.
+
+Documentation
+-------------
+36.) In the Document screen in Tree View, when I click the New document button it is automatically hiding the Tree.  Don't hide the Tree when I click the New document button.
+37.) In the Document screen in Tree View, when I click an item in the tree view and click the edit button, the Tree automatically hide.  Don't do that.
