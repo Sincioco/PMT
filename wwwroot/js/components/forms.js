@@ -53,7 +53,7 @@ export function richTextField(name, label, html) {
   `;
 }
 
-export function richTextToolsHtml() {
+export function richTextToolsHtml(options = {}) {
   return `
     <div class="rich-tools">
       <select data-rich-format title="Text Style" aria-label="Text Style">
@@ -71,6 +71,7 @@ export function richTextToolsHtml() {
       <button type="button" data-command="insertOrderedList" title="Numbered List" aria-label="Numbered List">1.</button>
       <button type="button" data-command="createLink" title="Link" aria-label="Link">&#128279;</button>
       <button type="button" data-command="insertCodeBlock" title="Code Block" aria-label="Code Block" class="rich-code-tool">&lt;/&gt;</button>
+      ${options.actionsHtml || ""}
     </div>
   `;
 }

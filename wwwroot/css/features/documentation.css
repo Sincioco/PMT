@@ -4,6 +4,10 @@
   min-width: 0;
 }
 
+#app:has(.documentation-screen.is-tree-view) {
+  overflow-y: hidden;
+}
+
 .documentation-screen .section-head {
   position: relative;
 }
@@ -68,8 +72,9 @@
 .documentation-screen.is-tree-view {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
-  height: calc(100dvh - var(--topbar-height-min) - (2 * var(--shell-padding-laptop)));
-  min-height: 360px;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .documentation-filter-dialog {
@@ -563,7 +568,7 @@ html[data-theme] .documentation-tree-node-toggle > span[aria-hidden="true"]:only
 
 .documentation-tree-preview {
   min-height: 0;
-  padding: var(--space-7);
+  padding: 0 var(--space-7) var(--space-7);
   overflow-x: hidden;
   overflow-y: auto;
   overscroll-behavior: contain;
@@ -577,7 +582,8 @@ html[data-theme] .documentation-tree-node-toggle > span[aria-hidden="true"]:only
   justify-content: space-between;
   gap: var(--space-7);
   align-items: flex-start;
-  padding-bottom: var(--space-5);
+  margin: 0 calc(-1 * var(--space-7)) 0;
+  padding: var(--space-7) var(--space-7) var(--space-5);
   border-bottom: var(--border-width) solid var(--color-border-subtle);
   background: var(--color-surface);
 }
@@ -631,10 +637,11 @@ html[data-theme] .documentation-tree-node-toggle > span[aria-hidden="true"]:only
   display: grid;
   gap: var(--space-6);
   min-height: 100%;
-  padding-bottom: calc(var(--control-height-md) + var(--space-8));
 }
 
 .documentation-inline-editor-head {
+  position: static;
+  z-index: auto;
   align-items: flex-start;
 }
 
@@ -646,26 +653,74 @@ html[data-theme] .documentation-tree-node-toggle > span[aria-hidden="true"]:only
   min-height: 0;
 }
 
+.documentation-inline-editor .rich-tools {
+  top: 0;
+}
+
 .documentation-inline-body-editor {
   min-height: 420px;
   line-height: 1.7;
 }
 
-.documentation-inline-attachments {
-  gap: var(--space-3);
+.documentation-inline-rich-actions {
+  display: none;
+  gap: var(--space-2);
+  align-items: center;
+  margin-left: auto;
 }
 
-.documentation-inline-floating-actions {
-  position: fixed;
-  right: calc(var(--shell-padding-laptop) + var(--space-7));
-  bottom: var(--shell-padding-laptop);
-  z-index: 20;
-  justify-content: flex-end;
-  padding: var(--space-3);
-  border: var(--border-width) solid var(--color-border);
-  border-radius: var(--radius-md);
-  background: var(--color-surface-elevated);
-  box-shadow: var(--shadow-elevated);
+.documentation-inline-editor.is-rich-actions-visible .documentation-inline-rich-actions {
+  display: inline-flex;
+}
+
+html[data-theme] .documentation-inline-editor .rich-tools .documentation-inline-rich-actions > button.documentation-inline-rich-action-button {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  flex: 0 0 auto !important;
+  gap: var(--space-2) !important;
+  width: auto !important;
+  min-width: 0 !important;
+  height: var(--control-height-sm) !important;
+  min-height: var(--control-height-sm) !important;
+  padding: 0 var(--control-padding-inline-sm) !important;
+  border-color: transparent !important;
+  border-radius: var(--radius-md) !important;
+  background: transparent !important;
+  color: var(--color-text-primary) !important;
+  font-family: var(--font-family-sans) !important;
+  font-size: var(--font-size-md) !important;
+  line-height: 1 !important;
+  font-weight: var(--font-weight-regular) !important;
+  box-shadow: none !important;
+}
+
+html[data-theme] .documentation-inline-editor .rich-tools .documentation-inline-rich-actions > button.documentation-inline-rich-action-button:hover:not(:disabled) {
+  border-color: var(--color-border-strong) !important;
+  background: var(--color-control-hover) !important;
+  color: var(--color-text-primary) !important;
+}
+
+html[data-theme] .documentation-inline-editor .rich-tools .documentation-inline-rich-actions > button.documentation-inline-rich-action-button > .button-icon {
+  display: inline-grid !important;
+  place-items: center !important;
+  width: var(--icon-size-md) !important;
+  min-width: var(--icon-size-md) !important;
+  height: var(--icon-size-md) !important;
+  font-size: var(--icon-size-md) !important;
+  line-height: 1 !important;
+  font-weight: var(--font-weight-regular) !important;
+}
+
+html[data-theme] .documentation-inline-editor .rich-tools .documentation-inline-rich-actions > button.documentation-inline-rich-action-button > span:not(.button-icon) {
+  font-family: var(--font-family-sans) !important;
+  font-size: var(--font-size-md) !important;
+  line-height: 1 !important;
+  font-weight: var(--font-weight-regular) !important;
+}
+
+.documentation-inline-attachments {
+  gap: var(--space-3);
 }
 
 @media (max-width: 1400px) {
@@ -682,9 +737,11 @@ html[data-theme] .documentation-tree-node-toggle > span[aria-hidden="true"]:only
 
 @media (max-width: 900px) {
   .documentation-screen.is-tree-view {
-    display: block;
-    height: auto;
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr);
+    height: 100%;
     min-height: 0;
+    overflow: hidden;
   }
 
   .documentation-screen .section-head .toolbar {
@@ -724,8 +781,9 @@ html[data-theme] .documentation-tree-node-toggle > span[aria-hidden="true"]:only
   .documentation-tree-layout,
   .documentation-tree-layout.is-tree-hidden {
     grid-template-columns: 1fr;
-    height: auto;
-    overflow: visible;
+    height: 100%;
+    min-height: 0;
+    overflow: hidden;
   }
 
   .documentation-tree-splitter {
@@ -735,7 +793,8 @@ html[data-theme] .documentation-tree-node-toggle > span[aria-hidden="true"]:only
   .documentation-tree-pane,
   .documentation-tree-preview {
     max-height: none;
-    overflow: visible;
+    overflow-x: hidden;
+    overflow-y: auto;
   }
 
   .documentation-tree-pane[hidden] {
@@ -746,11 +805,6 @@ html[data-theme] .documentation-tree-node-toggle > span[aria-hidden="true"]:only
     display: grid;
   }
 
-  .documentation-inline-floating-actions {
-    right: var(--shell-padding-compact);
-    bottom: var(--shell-padding-compact);
-    left: var(--shell-padding-compact);
-  }
 }
 
 @media (max-width: 760px) {

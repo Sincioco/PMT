@@ -65,3 +65,24 @@ Documentation Screen
 9.) In the Documentation screen, change the "Tree" in the Documentation View toggle to read "Treeview".  When the user clicks this "Treeview" button, always show the Treeview and be sure to update the "Show Tree" / "Hide Tree" top nav toggle button.
 10.) Rename that "Show Tree" / "Hide Tree" to "Show Left Pane" / "Hide Left Pane".
 11.) Change the order of the page level buttons to:  New Document, Show/Hide Left Pane, Filters.
+
+12.) In the Documentation screen when in the TreeView and the document is in edit mode, there is visible gap between the toolbar and the top edge of the viewport...you can see the document through the gap.  Can you push the toolbar all the way to the top?
+13.) In the Document screen in Card view, default the initial filter so to All Projects and All Documents.  Be sure the reset view button resets to this default as well as when the user first sees the Document Card view for the first time.
+14.) In the Group downdown, re-order the items like this:  All Documents, Project Only, Project and Sprint.
+15.) In the Document screen in Card view, if a card has an expandable/collapsable Code section, allow the user to expand/collapse it without triggering the read-only dialog box of the Document.
+16.) Change the "Show Left Pane" and "Hide Left Pane" to "Show Tree" and "Hide Tree"
+
+17.) Bug:  In the Documentation screen when in the TreeView and the document is in edit mode, the main toolbar at the top and the top section (where the document Title is located) are now over lapping.  Allow the top section go off-screen.  Remove the floating toolbar you recently added with the cancel / save button that is on the lower right.  When the top section goes off-screen, just add the cancel / save button on the existing sticky toolbar.
+
+18.) You put the Cancel and Save button at the page-level, I wanted you to put it on the toolbar where the Style dropdown is, the bold, underline, etc.
+19.) The style and formatting of the Cancel and Save button you just added is larger than the original.  Also, show only the one on the rich text toolbar if the original is off-screen so the user doesn't see two sets of Cancel and Save buttons.
+
+20.) The behavior is correct now, the user no longer sees two sets of Cancel and Save button, but the styling is still incorrect.  The new Cancel and Save buttons are still larger than the original.  If you attempted to correct it previously, it had no effect.
+
+21.) You are still not getting the styling of the new Cancel and Save button correctly.  For this task alone (#21), you have my permission to launch a browser and visually inspect the output and correct it please.
+22.) In the Documentation screen when in the TreeView and the document is in read mode, as you scroll down the document, there is a gap between the top edge and the toolbar and you can see the document through.  Move the toolbar to the top so there is no distance between the toolbar and the top.
+23.) If the User is already in Treeview and they click on New Document, instead of popping a dialog box, just use the full-screen in-place version.
+24.) Make this a general rule, if we are in Treeview, any document action such as New, Edit or Viewing read-only should be done "full-screen" in-place and not use the dialog box.
+
+25.) If the User is already in Treeview and they click on New Document, move the cursor to the Title control so the user can start typing.
+26.) Bug:  In the Documentation screen when in the TreeView and the document is in new or edit mode, 2 vertical scrollsbars are appearing.  One is the general scrollbar for when the content of the browser is long, the other is New/Edit document.  I'm not expecting the general browser scrollbar to appear.

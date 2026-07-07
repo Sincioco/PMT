@@ -14,7 +14,7 @@ import {
   richValue,
   selectOptionsField,
   value
-} from "../../components/forms.js?v=20260701-documentation-inline-edit";
+} from "../../components/forms.js?v=20260707-documentation-tree-inplace-actions-4";
 import { sectionHead } from "../../components/sections.js?v=20260701-nav-title-preferences";
 import {
   preferenceKeys,
@@ -44,9 +44,10 @@ import {
 } from "../../shared/text-and-links.js";
 
 const documentationViewModes = new Set(["cards", "tree"]);
-const documentationTreeGroups = new Set(["project-sprint", "project", "all"]);
+const documentationTreeGroups = new Set(["all", "project", "project-sprint"]);
 const documentationTreeLayouts = new Set(["hierarchy", "flat"]);
 const documentationTreeSorts = new Set(["latest", "oldest"]);
+const newDocumentationInlineBlogId = -1;
 let documentationProjectId = 0;
 let documentationEntryProjectId = 0;
 let documentationEntrySprintId = 0;
@@ -61,6 +62,7 @@ let selectedTreeBlogId = 0;
 let editingTreeBlogId = 0;
 const collapsedTreeKeys = new Set();
 const expandedDocumentationCardIds = new Set();
+let documentationCardDefaultsApplied = false;
 
 export function createDocumentationFeature({
   app,
@@ -86,6 +88,7 @@ export function createDocumentationFeature({
 
   function renderDocumentation() {
     if (documentationProjectId && !projectById(documentationProjectId)) documentationProjectId = 0;
+    if (documentationViewMode === "cards" && !documentationCardDefaultsApplied) applyDocumentationCardDefaultFilters();
 
     const filteredBlogs = documentationCardBlogs();
 
@@ -117,7 +120,7 @@ export function createDocumentationFeature({
         <button class="primary text-icon-button" type="button" data-action="new-blog">${buttonContent("&#10010;", "New Document")}</button>
         ${documentationViewMode === "tree" ? `
           <button class="secondary text-icon-button" type="button" data-action="toggle-documentation-tree-pane" aria-pressed="${documentationTreePaneHidden}">
-            ${buttonContent(documentationTreePaneHidden ? "&#9776;" : "&#10005;", documentationTreePaneHidden ? "Show Left Pane" : "Hide Left Pane")}
+            ${buttonContent(documentationTreePaneHidden ? "&#9776;" : "&#10005;", documentationTreePaneHidden ? "Show Tree" : "Hide Tree")}
           </button>
         ` : ""}
         <button class="secondary text-icon-button" type="button" data-action="open-documentation-filters" title="Filters" aria-label="Filters" aria-haspopup="dialog">
@@ -140,9 +143,12 @@ export function createDocumentationFeature({
   function documentationTreeViewHtml() {
     const visibleBlogs = documentationTreeBlogs();
     const visibleIds = new Set(visibleBlogs.map(blog => blog.id));
-    if (!visibleIds.has(selectedTreeBlogId)) selectedTreeBlogId = visibleBlogs[0]?.id || 0;
-    if (!visibleIds.has(editingTreeBlogId)) editingTreeBlogId = 0;
-    const selectedBlog = state.blogs.find(blog => blog.id === selectedTreeBlogId && visibleIds.has(blog.id));
+    const isCreatingTreeBlog = editingTreeBlogId === newDocumentationInlineBlogId;
+    if (!isCreatingTreeBlog && !visibleIds.has(selectedTreeBlogId)) selectedTreeBlogId = visibleBlogs[0]?.id || 0;
+    if (!isCreatingTreeBlog && !visibleIds.has(editingTreeBlogId)) editingTreeBlogId = 0;
+    const selectedBlog = isCreatingTreeBlog
+      ? documentationNewInlineDraft()
+      : state.blogs.find(blog => blog.id === selectedTreeBlogId && visibleIds.has(blog.id));
     collapsedTreeKeysForRender = collapsedTreeKeys;
     selectedTreeBlogIdForRender = selectedTreeBlogId;
 
@@ -197,6 +203,10 @@ export function createDocumentationFeature({
       renderDocumentation();
       return true;
     }
+    if (action === "toggle-documentation-card-code") {
+      requestAnimationFrame(bindDocumentationCardOverflowControls);
+      return true;
+    }
     if (action === "select-documentation-tree-blog") {
       if (editingTreeBlogId && editingTreeBlogId !== id) {
         await handleDocumentationTreeSelectionWhileEditing(id);
@@ -204,14 +214,26 @@ export function createDocumentationFeature({
       }
 
       selectedTreeBlogId = id;
+      editingTreeBlogId = 0;
+      showDocumentationTreeFullScreen();
       renderDocumentation();
       return true;
     }
     if (action === "new-blog") {
+      if (documentationViewMode === "tree") {
+        startDocumentationInlineNew();
+        return true;
+      }
+
       editBlog();
       return true;
     }
     if (action === "view-blog") {
+      if (documentationViewMode === "tree") {
+        openDocumentationFullScreen(id);
+        return true;
+      }
+
       viewDocumentation(state.blogs.find(blog => blog.id === id));
       return true;
     }
@@ -221,9 +243,7 @@ export function createDocumentationFeature({
     }
     if (action === "edit-blog") {
       if (documentationViewMode === "tree") {
-        selectedTreeBlogId = id;
-        editingTreeBlogId = id;
-        renderDocumentation();
+        startDocumentationInlineEdit(id);
         return true;
       }
 
@@ -269,7 +289,7 @@ export function createDocumentationFeature({
     }
 
     if (filter === "documentation-tree-group") {
-      documentationTreeGroup = documentationTreeGroups.has(target.value) ? target.value : "project-sprint";
+      documentationTreeGroup = documentationTreeGroups.has(target.value) ? target.value : "all";
       writePreference(preferenceKeys.documentationTreeGroup, documentationTreeGroup);
       renderDocumentation();
       return true;
@@ -311,6 +331,9 @@ export function createDocumentationFeature({
         </div>
         <div class="dialog-body task-filter-dialog-body documentation-filter-dialog-body" data-documentation-filter-dialog-body></div>
         <div class="dialog-actions">
+          <div class="dialog-action-group is-left">
+            <button type="button" class="secondary text-icon-button" data-reset-documentation-view>${buttonContent("&#8634;", "Reset View")}</button>
+          </div>
           <button type="button" class="primary text-icon-button" data-close-documentation-filters>${buttonContent("&#10003;", "Done")}</button>
         </div>
       </form>
@@ -326,6 +349,14 @@ export function createDocumentationFeature({
       handleFilterChange(event.target);
     });
     modal.addEventListener("click", event => {
+      if (event.target.closest("[data-reset-documentation-view]")) {
+        applyDocumentationCardDefaultFilters();
+        renderDocumentationFiltersDialog(modal);
+        renderDocumentation();
+        modal.querySelector("[data-filter='documentation-tree-search'], [data-filter='documentation-project']")?.focus({ preventScroll: true });
+        return;
+      }
+
       if (event.target.closest("[data-close-documentation-filters]")) modal.close();
     });
     modal.addEventListener("close", () => modal.remove());
@@ -341,9 +372,9 @@ export function createDocumentationFeature({
   function documentationFilterFieldsHtml() {
     const projectSelect = filterSelect("Project", "documentation-project", state.projects.map(project => ({ value: project.id, text: `${project.code} - ${project.title}` })), documentationProjectId || "", "All Projects");
     const groupSelect = documentationTreeSelect("Group", "documentation-tree-group", [
-      { value: "project-sprint", text: "Project and Sprint" },
+      { value: "all", text: "All Documents" },
       { value: "project", text: "Project Only" },
-      { value: "all", text: "All Documents" }
+      { value: "project-sprint", text: "Project and Sprint" }
     ], documentationTreeGroup);
     const layoutSelect = documentationTreeSelect("Layout", "documentation-tree-layout", [
       { value: "hierarchy", text: "Hierarchy" },
@@ -460,7 +491,7 @@ export function createDocumentationFeature({
     if (!blog) return;
 
     documentationViewMode = "tree";
-    documentationTreePaneHidden = true;
+    showDocumentationTreeFullScreen();
     documentationProjectId = blog.projectId || 0;
     documentationTreeSearch = "";
     selectedTreeBlogId = blog.id;
@@ -468,7 +499,6 @@ export function createDocumentationFeature({
     expandDocumentationTreePath(blog);
 
     writePreference(preferenceKeys.documentationViewMode, documentationViewMode);
-    writePreference(preferenceKeys.documentationTreePaneHidden, documentationTreePaneHidden);
     writePreference(preferenceKeys.documentationProject, documentationProjectId);
     writePreference(preferenceKeys.documentationTreeSearch, documentationTreeSearch);
 
@@ -479,8 +509,54 @@ export function createDocumentationFeature({
     const blog = state.blogs.find(item => item.id === Number(blogId || 0));
     if (!blog) return false;
 
+    if (documentationViewMode === "tree") {
+      openDocumentationFullScreen(blog.id);
+      return true;
+    }
+
     viewDocumentation(blog);
     return true;
+  }
+
+  function showDocumentationTreeFullScreen() {
+    documentationTreePaneHidden = true;
+    writePreference(preferenceKeys.documentationTreePaneHidden, documentationTreePaneHidden);
+  }
+
+  function startDocumentationInlineNew() {
+    documentationViewMode = "tree";
+    selectedTreeBlogId = newDocumentationInlineBlogId;
+    editingTreeBlogId = newDocumentationInlineBlogId;
+    showDocumentationTreeFullScreen();
+    writePreference(preferenceKeys.documentationViewMode, documentationViewMode);
+    renderDocumentation();
+    focusDocumentationInlineTitle();
+  }
+
+  function startDocumentationInlineEdit(blogId) {
+    const blog = state.blogs.find(item => item.id === Number(blogId || 0));
+    if (!blog) return;
+
+    documentationViewMode = "tree";
+    documentationProjectId = blog.projectId || 0;
+    documentationTreeSearch = "";
+    selectedTreeBlogId = blog.id;
+    editingTreeBlogId = blog.id;
+    showDocumentationTreeFullScreen();
+    expandDocumentationTreePath(blog);
+
+    writePreference(preferenceKeys.documentationViewMode, documentationViewMode);
+    writePreference(preferenceKeys.documentationProject, documentationProjectId);
+    writePreference(preferenceKeys.documentationTreeSearch, documentationTreeSearch);
+
+    renderDocumentation();
+  }
+
+  function focusDocumentationInlineTitle() {
+    requestAnimationFrame(() => {
+      const titleInput = app.querySelector("[data-documentation-inline-editor] [name='title']");
+      titleInput?.focus({ preventScroll: true });
+    });
   }
 
   function editBlog(blog = {}) {
@@ -621,13 +697,14 @@ export function createDocumentationFeature({
     const form = app.querySelector("[data-documentation-inline-editor]");
     if (!form) return;
 
-    const blog = state.blogs.find(item => item.id === Number(form.dataset.blogId || 0));
+    const blog = documentationInlineEditorBlog(form);
     if (!blog) return;
 
     bindRichTextButtons?.(form);
     bindAttachmentPreview?.(form);
     bindDocumentationEditorRules(form, blog);
     bindDocumentationBodyImageOpen(form);
+    bindDocumentationInlineRichActions(form);
 
     form.addEventListener("submit", async event => {
       event.preventDefault();
@@ -635,13 +712,51 @@ export function createDocumentationFeature({
     });
   }
 
+  function bindDocumentationInlineRichActions(form) {
+    const originalActions = form.querySelector(".documentation-inline-editor-head .documentation-tree-preview-actions");
+    const preview = form.closest(".documentation-tree-preview");
+    if (!originalActions || !preview) return;
+
+    const controller = new AbortController();
+    const syncActions = () => {
+      if (!form.isConnected) {
+        controller.abort();
+        return;
+      }
+
+      const previewRect = preview.getBoundingClientRect();
+      const actionsRect = originalActions.getBoundingClientRect();
+      const previewStyle = getComputedStyle(preview);
+      const previewClipsVertically = previewStyle.overflowY !== "visible";
+      const actionsVisibleInViewport = actionsRect.bottom > 0
+        && actionsRect.top < window.innerHeight
+        && actionsRect.right > 0
+        && actionsRect.left < window.innerWidth;
+      const actionsVisibleInPreview = !previewClipsVertically
+        || (actionsRect.bottom > previewRect.top
+          && actionsRect.top < previewRect.bottom
+          && actionsRect.right > previewRect.left
+          && actionsRect.left < previewRect.right);
+      const actionsVisible = actionsVisibleInViewport && actionsVisibleInPreview;
+
+      form.classList.toggle("is-rich-actions-visible", !actionsVisible);
+    };
+
+    app.addEventListener("scroll", syncActions, { passive: true, signal: controller.signal });
+    preview.addEventListener("scroll", syncActions, { passive: true, signal: controller.signal });
+    window.addEventListener("scroll", syncActions, { passive: true, signal: controller.signal });
+    window.addEventListener("resize", syncActions, { signal: controller.signal });
+    requestAnimationFrame(syncActions);
+  }
+
   async function handleDocumentationTreeSelectionWhileEditing(nextBlogId) {
     const form = app.querySelector("[data-documentation-inline-editor]");
-    const blog = state.blogs.find(item => item.id === editingTreeBlogId);
+    const blog = form ? documentationInlineEditorBlog(form) : null;
 
     if (!form || !blog || !documentationInlineEditorHasChanges(form, blog)) {
       selectedTreeBlogId = nextBlogId;
       editingTreeBlogId = 0;
+      showDocumentationTreeFullScreen();
       renderDocumentation();
       return;
     }
@@ -655,8 +770,15 @@ export function createDocumentationFeature({
     if (result === "discard") {
       selectedTreeBlogId = nextBlogId;
       editingTreeBlogId = 0;
+      showDocumentationTreeFullScreen();
       renderDocumentation();
     }
+  }
+
+  function documentationInlineEditorBlog(form) {
+    const blogId = Number(form.dataset.blogId || 0);
+    if (blogId === newDocumentationInlineBlogId) return documentationNewInlineDraft();
+    return state.blogs.find(item => item.id === blogId);
   }
 
   function documentationInlineEditorHasChanges(form, blog) {
@@ -673,26 +795,41 @@ export function createDocumentationFeature({
 
   async function saveDocumentationInlineEditor(form, options = {}) {
     const blogId = Number(form.dataset.blogId || 0);
+    const isNewBlog = blogId === newDocumentationInlineBlogId || blogId <= 0;
     const projectId = optionalNumberValue(form, "projectId");
     const sprintId = projectId ? optionalNumberValue(form, "sprintId") : null;
 
     try {
-      const result = await saveJson(`/api/blogs/${blogId}`, "PUT", {
-        id: blogId,
+      const result = await saveJson(isNewBlog ? "/api/blogs" : `/api/blogs/${blogId}`, isNewBlog ? "POST" : "PUT", {
+        id: isNewBlog ? 0 : blogId,
         projectId,
         sprintId,
         parentBlogId: optionalNumberValue(form, "parentBlogId"),
         title: value(form, "title"),
         bodyHtml: richValue(form, "bodyHtml")
       });
+      const savedBlogId = Number(result?.id || blogId || 0);
 
       for (const file of form.querySelector("[name='attachments']")?.files || []) {
-        await attachFile(`/api/blogs/${blogId}/attachments`, file);
+        await attachFile(`/api/blogs/${savedBlogId}/attachments`, file);
       }
 
-      selectedTreeBlogId = options.selectedBlogIdAfterSave || result?.id || blogId;
+      selectedTreeBlogId = options.selectedBlogIdAfterSave || savedBlogId;
       editingTreeBlogId = 0;
+      showDocumentationTreeFullScreen();
+      documentationEntryProjectId = projectId || 0;
+      documentationEntrySprintId = sprintId || 0;
+      writePreference(preferenceKeys.documentationEntryProject, documentationEntryProjectId);
+      writePreference(preferenceKeys.documentationEntrySprint, documentationEntrySprintId);
       await loadState?.();
+      const selectedBlog = state.blogs.find(item => item.id === selectedTreeBlogId);
+      if (selectedBlog) {
+        documentationProjectId = selectedBlog.projectId || 0;
+        documentationTreeSearch = "";
+        expandDocumentationTreePath(selectedBlog);
+        writePreference(preferenceKeys.documentationProject, documentationProjectId);
+        writePreference(preferenceKeys.documentationTreeSearch, documentationTreeSearch);
+      }
       renderDocumentation();
       showToast?.("Saved.");
       return true;
@@ -749,6 +886,9 @@ export function createDocumentationFeature({
       });
     };
 
+    app.querySelectorAll(".documentation-card details > summary").forEach(summary => {
+      summary.dataset.action = "toggle-documentation-card-code";
+    });
     requestAnimationFrame(updateOverflow);
     app.querySelectorAll(".documentation-card img").forEach(image => {
       if (image.complete) return;
@@ -762,6 +902,45 @@ export function createDocumentationFeature({
     handleFilterChange,
     render: renderDocumentation,
     view: viewDocumentationById
+  };
+}
+
+function applyDocumentationCardDefaultFilters() {
+  documentationCardDefaultsApplied = true;
+  documentationProjectId = 0;
+  documentationTreeGroup = "all";
+  documentationTreeSearch = "";
+  documentationTreeSort = "latest";
+  expandedDocumentationCardIds.clear();
+  writePreference(preferenceKeys.documentationProject, documentationProjectId);
+  writePreference(preferenceKeys.documentationTreeGroup, documentationTreeGroup);
+  writePreference(preferenceKeys.documentationTreeSearch, documentationTreeSearch);
+  writePreference(preferenceKeys.documentationTreeSort, documentationTreeSort);
+}
+
+function documentationNewInlineDraft() {
+  const currentProjectId = projectById(documentationProjectId) ? documentationProjectId : 0;
+  const rememberedProjectId = projectById(documentationEntryProjectId) ? documentationEntryProjectId : 0;
+  const selectedProjectId = currentProjectId || rememberedProjectId || null;
+  const selectedSprintId = state.sprints.some(sprint =>
+    sprint.id === documentationEntrySprintId
+    && sprint.projectId === Number(selectedProjectId || 0)
+  )
+    ? documentationEntrySprintId
+    : null;
+
+  return {
+    id: newDocumentationInlineBlogId,
+    projectId: selectedProjectId,
+    sprintId: selectedSprintId,
+    parentBlogId: null,
+    title: "",
+    bodyHtml: "",
+    attachments: [],
+    history: [],
+    createdAt: "",
+    updatedAt: "",
+    createdByUserId: 0
   };
 }
 
@@ -1042,7 +1221,10 @@ let selectedTreeBlogIdForRender = 0;
 function documentationTreePreviewHtml(blog) {
   selectedTreeBlogIdForRender = blog?.id || 0;
   if (!blog) return `<div class="empty">No document selected.</div>`;
-  if (editingTreeBlogId === blog.id && canEditOwner(blog.createdByUserId)) return documentationTreeInlineEditorHtml(blog);
+  if (
+    editingTreeBlogId === blog.id
+    && (blog.id === newDocumentationInlineBlogId || canEditOwner(blog.createdByUserId))
+  ) return documentationTreeInlineEditorHtml(blog);
 
   const wasEdited = documentationWasEdited(blog);
   const parent = state.blogs.find(item => item.id === blog.parentBlogId);
@@ -1070,21 +1252,27 @@ function documentationTreePreviewHtml(blog) {
 }
 
 function documentationTreeInlineEditorHtml(blog) {
+  const isNewBlog = blog.id === newDocumentationInlineBlogId;
   const wasEdited = documentationWasEdited(blog);
   const parent = state.blogs.find(item => item.id === blog.parentBlogId);
   const selectedProjectId = blog.projectId || "";
   const selectedSprintId = blog.sprintId || "";
+  const metaHtml = isNewBlog
+    ? `<span>New document</span>`
+    : `
+      <span>${escapeHtml(documentationProjectLabel(blog.projectId))}</span>
+      ${blog.sprintId ? `<span>${escapeHtml(sprintName(blog.sprintId))}</span>` : ""}
+      ${parent ? `<span>Parent: ${escapeHtml(parent.title)}</span>` : ""}
+      <span>${wasEdited ? "Updated" : "Created"} ${escapeHtml(formatDate(wasEdited ? blog.updatedAt : blog.createdAt))}</span>
+    `;
 
   return `
     <form class="documentation-inline-editor" data-documentation-inline-editor data-blog-id="${blog.id}">
       <div class="documentation-tree-preview-head documentation-inline-editor-head">
         <div class="documentation-tree-preview-title documentation-inline-title">
-          <h2>${escapeHtml(blog.title || "Edit Document")}</h2>
+          <h2>${escapeHtml(blog.title || (isNewBlog ? "New Document" : "Edit Document"))}</h2>
           <div class="documentation-tree-preview-meta">
-            <span>${escapeHtml(documentationProjectLabel(blog.projectId))}</span>
-            ${blog.sprintId ? `<span>${escapeHtml(sprintName(blog.sprintId))}</span>` : ""}
-            ${parent ? `<span>Parent: ${escapeHtml(parent.title)}</span>` : ""}
-            <span>${wasEdited ? "Updated" : "Created"} ${escapeHtml(formatDate(wasEdited ? blog.updatedAt : blog.createdAt))}</span>
+            ${metaHtml}
           </div>
         </div>
         <div class="toolbar documentation-tree-preview-actions">
@@ -1100,7 +1288,7 @@ function documentationTreeInlineEditorHtml(blog) {
       </div>
       <div class="field full documentation-inline-body-field">
         <label>Body</label>
-        ${richTextToolsHtml()}
+        ${richTextToolsHtml({ actionsHtml: documentationInlineRichTextActionsHtml() })}
         <div class="rich-editor documentation-inline-body-editor documentation-image-open-area" contenteditable="true" data-rich="bodyHtml">${blog.bodyHtml || ""}</div>
       </div>
       <div class="field full documentation-inline-attachments">
@@ -1109,11 +1297,16 @@ function documentationTreeInlineEditorHtml(blog) {
         <input name="attachments" type="file" multiple>
         <div class="attachment-preview" data-preview="attachments"></div>
       </div>
-      <div class="toolbar documentation-inline-floating-actions" aria-label="Document edit actions">
-        <button class="secondary text-icon-button" type="button" data-action="cancel-documentation-inline-edit">${buttonContent("&#10005;", "Cancel")}</button>
-        <button class="primary text-icon-button" type="button" data-action="save-documentation-inline-edit">${buttonContent("&#10003;", "Save")}</button>
-      </div>
     </form>
+  `;
+}
+
+function documentationInlineRichTextActionsHtml() {
+  return `
+    <span class="documentation-inline-rich-actions">
+      <button class="documentation-inline-rich-action-button" type="button" data-action="cancel-documentation-inline-edit">${buttonContent("&#10005;", "Cancel")}</button>
+      <button class="documentation-inline-rich-action-button is-primary" type="button" data-action="save-documentation-inline-edit">${buttonContent("&#10003;", "Save")}</button>
+    </span>
   `;
 }
 
