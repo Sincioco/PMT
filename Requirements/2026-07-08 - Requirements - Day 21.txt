@@ -1,0 +1,21 @@
+Project Management Tool (PMT):  Day 21 of Codex Agentic AI Coding
+-----------------------------------------------------------------
+Total Dev Time in Hours:  27
+
+For all of this conversation / session, I will perform all the manual tests and compile the application manually.  Perform only the coding changes required and nothing else.  If making CSS / image changes, ensure that I will encounter no caching issue when testing in the browser.  Be sure to inform me if I have to recompile the .Net portion of the project or just Press Ctrl + F5 on the browser to reload to see the latest changes.
+
+Documentation Screen
+--------------------
+1.) In the documentation screen, add an Import page-level button.
+2.) When the Import button is clicked, it should open a file dialog to select a file.
+3.) We only want to allow a .html file (the self contained one that we exported) or;
+4.) We only want to allow a .doc file (the .doc file we exported which is really a .html file with a .doc extension).
+5.) Verify that the content of either file is valid by looking for a section in the file that contains "PMT Import Process Meta Data".
+6.) If it does not contain the text as stated in #5, inform the user that the file cannot be imported and that it is not a valid PMT export file.
+7.) If the file is valid, parse the content and import it into the application, replacing the current documentation content with the imported content or adding a new one if it is a new document.
+8.) In the folder "C:\Temp\PMT Exported" there are 2 files in there.  One is a .html file and the other .doc.  Both were exported using PMT.
+9.) Use the files stated in #8 to test the import functionality.  The .doc file is really a .html file with a .doc extension, so it should be treated as a valid PMT export file and actually import those 2 files for testing.
+10.) If updating/replacing an existing document, be sure to update the document's metadata (like last modified date, etc.) to reflect the import action and record it in the audit trail.  Also, ensure basic security so that you can only update documents you created.  Otherwise, import it as a new document.  Admins are exempted form this rule.  They should be allowed to import any document and update it regardless of who created it.
+
+11.) In the Documentation Screen, add a new "Private" checkbox in the New/Edit dialog box and "full screen" in-place editor in the TreeNav view.  When checked, the document will be private and only visible to the user who created it.  If unchecked, it will be public and visible to all users.  The default should be checked (private).
+12.) In  the Documentation Screen Filters (both Card and TreeNav), include an option to filter by "Both", Private or Public documents.  The default should be "Both".  If the user is an Admins, add a third option for "Admin See All" that will allow admins to see all documents regardless of the private/public settings of the user.

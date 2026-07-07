@@ -47,6 +47,10 @@ const documentationViewModes = new Set(["cards", "tree"]);
 const documentationTreeGroups = new Set(["all", "project", "project-sprint"]);
 const documentationTreeLayouts = new Set(["hierarchy", "flat"]);
 const documentationTreeSorts = new Set(["latest", "oldest"]);
+const documentationImportMetadataTitle = "PMT Import Process Meta Data";
+const documentationImportSchema = "pmt.documentation.export.v1";
+const documentationInvalidImportMessage = "The file cannot be imported because it is not a valid PMT export file.";
+const documentationImportFileExtensions = new Set(["html", "doc"]);
 const newDocumentationInlineBlogId = -1;
 let documentationProjectId = 0;
 let documentationEntryProjectId = 0;
@@ -118,6 +122,7 @@ export function createDocumentationFeature({
       </div>
       <div class="documentation-header-actions">
         <button class="primary text-icon-button" type="button" data-action="new-blog">${buttonContent("&#10010;", "New Document")}</button>
+        <button class="secondary text-icon-button" type="button" data-action="import-documentation">${buttonContent(documentationImportIconHtml(), "Import")}</button>
         ${documentationViewMode === "tree" ? `
           <button class="secondary text-icon-button" type="button" data-action="toggle-documentation-tree-pane" aria-pressed="${documentationTreePaneHidden}">
             ${buttonContent(documentationTreePaneHidden ? "&#9776;" : "&#10005;", documentationTreePaneHidden ? "Show Tree" : "Hide Tree")}
@@ -222,6 +227,10 @@ export function createDocumentationFeature({
       }
 
       editBlog();
+      return true;
+    }
+    if (action === "import-documentation") {
+      openDocumentationImportFilePicker();
       return true;
     }
     if (action === "view-blog") {
@@ -646,6 +655,57 @@ export function createDocumentationFeature({
     syncSprintOptions();
   }
 
+  function openDocumentationImportFilePicker() {
+    let input = document.querySelector("[data-documentation-import-input]");
+    if (!input) {
+      input = document.createElement("input");
+      input.type = "file";
+      input.accept = ".html,.doc,text/html,application/msword";
+      input.hidden = true;
+      input.dataset.documentationImportInput = "true";
+      input.addEventListener("change", async () => {
+        const file = input.files?.[0] || null;
+        input.value = "";
+        if (file) await importDocumentationFile(file);
+      });
+      document.body.appendChild(input);
+    }
+
+    input.click();
+  }
+
+  async function importDocumentationFile(file) {
+    if (!isDocumentationImportFile(file)) {
+      showToast?.("Only .html and .doc PMT export files can be imported.");
+      return;
+    }
+
+    try {
+      const text = await file.text();
+      const importParts = parseDocumentationImportFile(text);
+      const payload = documentationImportPayload(importParts.metadata, importParts.document);
+      const isReplacement = payload.id > 0;
+      const result = await saveJson(isReplacement ? `/api/blogs/${payload.id}` : "/api/blogs", isReplacement ? "PUT" : "POST", payload);
+      const savedBlogId = Number(result?.id || payload.id || 0);
+
+      selectedTreeBlogId = savedBlogId;
+      editingTreeBlogId = 0;
+      documentationProjectId = payload.projectId || 0;
+      documentationTreeSearch = "";
+      writePreference(preferenceKeys.documentationProject, documentationProjectId);
+      writePreference(preferenceKeys.documentationTreeSearch, documentationTreeSearch);
+      await loadState?.();
+
+      const importedBlog = state.blogs.find(blog => blog.id === selectedTreeBlogId);
+      if (importedBlog) expandDocumentationTreePath(importedBlog);
+
+      renderDocumentation();
+      showToast?.(isReplacement ? "Document imported and replaced." : "Document imported.");
+    } catch (error) {
+      showToast?.(error?.isInvalidPmtImport ? documentationInvalidImportMessage : error.message || "Import failed.");
+    }
+  }
+
   function detailField(label, html, full = false, extraClass = "") {
     return `
       <div class="detail-field ${full ? "full" : ""} ${extraClass}">
@@ -900,6 +960,206 @@ export function createDocumentationFeature({
     render: renderDocumentation,
     view: viewDocumentationById
   };
+}
+
+function documentationImportIconHtml() {
+  return `
+    <svg class="button-svg-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path d="M12 21V10M8 14l4-4 4 4M5 3h14v4H5z"></path>
+    </svg>
+  `;
+}
+
+function isDocumentationImportFile(file) {
+  const extension = String(file?.name || "").split(".").pop()?.toLowerCase() || "";
+  return documentationImportFileExtensions.has(extension);
+}
+
+function parseDocumentationImportFile(htmlText) {
+  const source = String(htmlText || "");
+  const parsedDocument = new DOMParser().parseFromString(source, "text/html");
+  const parsedText = parsedDocument.body?.textContent || "";
+  const hasImportMarker = source.includes(documentationImportMetadataTitle)
+    || parsedText.includes(documentationImportMetadataTitle);
+
+  if (!hasImportMarker) throw invalidDocumentationImportError();
+
+  const metadataText = parsedDocument.querySelector("#pmt-import-metadata")?.textContent
+    || parsedDocument.querySelector(".pmt-import-metadata pre")?.textContent
+    || "";
+  if (!metadataText.trim()) throw invalidDocumentationImportError();
+
+  let metadata = null;
+  try {
+    metadata = JSON.parse(metadataText);
+  } catch {
+    throw invalidDocumentationImportError();
+  }
+
+  if (metadata?.schema !== documentationImportSchema || !metadata.document) {
+    throw invalidDocumentationImportError();
+  }
+
+  return { metadata, document: parsedDocument };
+}
+
+function documentationImportPayload(metadata, parsedDocument) {
+  const sourceDocument = metadata.document || {};
+  const existingBlog = documentationImportExistingBlog(sourceDocument);
+  const projectId = documentationImportProjectId(sourceDocument.project);
+  const sprintId = documentationImportSprintId(sourceDocument.sprint, projectId);
+  const targetBlogId = existingBlog?.id || 0;
+  const parentBlogId = documentationImportParentBlogId(sourceDocument.parent, {
+    projectId,
+    sprintId,
+    targetBlogId
+  });
+  const title = documentationImportTitle(sourceDocument, parsedDocument);
+  const bodyHtml = documentationImportBodyHtml(sourceDocument.bodyHtml, metadata, parsedDocument);
+
+  if (!title || !bodyHtml) throw invalidDocumentationImportError();
+
+  return {
+    id: targetBlogId,
+    projectId,
+    sprintId,
+    parentBlogId,
+    title,
+    bodyHtml
+  };
+}
+
+function documentationImportExistingBlog(sourceDocument) {
+  const sourceBlogId = Number(sourceDocument?.id || 0);
+  const existingBlog = sourceBlogId ? state.blogs.find(blog => blog.id === sourceBlogId) || null : null;
+  return existingBlog && canEditOwner(existingBlog.createdByUserId) ? existingBlog : null;
+}
+
+function documentationImportProjectId(projectMetadata) {
+  if (!projectMetadata) return null;
+
+  const sourceId = Number(projectMetadata.id || 0);
+  const sourceCode = normalizeDocumentationImportText(projectMetadata.code);
+  const sourceTitle = normalizeDocumentationImportText(projectMetadata.title);
+  const project = state.projects.find(item =>
+    sourceCode
+    && sourceTitle
+    && normalizeDocumentationImportText(item.code) === sourceCode
+    && normalizeDocumentationImportText(item.title) === sourceTitle
+  )
+    || state.projects.find(item => sourceCode && normalizeDocumentationImportText(item.code) === sourceCode)
+    || state.projects.find(item => sourceTitle && normalizeDocumentationImportText(item.title) === sourceTitle)
+    || state.projects.find(item => sourceId && item.id === sourceId);
+
+  return project?.id || null;
+}
+
+function documentationImportSprintId(sprintMetadata, projectId) {
+  if (!sprintMetadata || !projectId) return null;
+
+  const sourceId = Number(sprintMetadata.id || 0);
+  const sourceCode = normalizeDocumentationImportText(sprintMetadata.code);
+  const sourceTitle = normalizeDocumentationImportText(sprintMetadata.title);
+  const candidates = state.sprints.filter(sprint => sprint.projectId === projectId);
+  const sprint = candidates.find(item =>
+    sourceCode
+    && sourceTitle
+    && normalizeDocumentationImportText(item.code) === sourceCode
+    && normalizeDocumentationImportText(item.title) === sourceTitle
+  )
+    || candidates.find(item => sourceCode && normalizeDocumentationImportText(item.code) === sourceCode)
+    || candidates.find(item => sourceTitle && normalizeDocumentationImportText(item.title) === sourceTitle)
+    || candidates.find(item => sourceId && item.id === sourceId);
+
+  return sprint?.id || null;
+}
+
+function documentationImportParentBlogId(parentMetadata, { projectId, sprintId, targetBlogId }) {
+  if (!parentMetadata) return null;
+
+  const sourceId = Number(parentMetadata.id || 0);
+  const sourceTitle = normalizeDocumentationImportText(parentMetadata.title);
+  const candidates = state.blogs.filter(blog =>
+    blog.id !== targetBlogId
+    && Number(blog.projectId || 0) === Number(projectId || 0)
+    && Number(blog.sprintId || 0) === Number(sprintId || 0)
+  );
+  const parent = candidates.find(blog => sourceId && blog.id === sourceId)
+    || candidates.find(blog => sourceTitle && normalizeDocumentationImportText(blog.title) === sourceTitle);
+
+  return parent?.id || null;
+}
+
+function documentationImportTitle(sourceDocument, parsedDocument) {
+  return String(sourceDocument.title || parsedDocument.querySelector("title")?.textContent || "Imported PMT Document").trim();
+}
+
+function documentationImportBodyHtml(bodyHtml, metadata, parsedDocument) {
+  const container = document.createElement("div");
+  container.innerHTML = String(bodyHtml || "").trim();
+
+  if (!container.innerHTML.trim()) {
+    container.innerHTML = parsedDocument.querySelector(".pmt-document-body")?.innerHTML || "";
+  }
+
+  container.querySelectorAll("script").forEach(node => node.remove());
+  applyDocumentationImportInlineImages(container, metadata, parsedDocument);
+  container.querySelectorAll("[data-pmt-export-image]").forEach(node => node.removeAttribute("data-pmt-export-image"));
+
+  return normalizeRichHtml(container.innerHTML).trim();
+}
+
+function applyDocumentationImportInlineImages(container, metadata, parsedDocument) {
+  const imageDataUrlsById = documentationImportImageDataUrlsById(parsedDocument);
+  const sourceReplacements = new Map();
+
+  (metadata.images || []).forEach(image => {
+    const dataUrl = imageDataUrlsById.get(String(image.id || ""));
+    if (!dataUrl) return;
+
+    documentationImportImageSourceKeys(image).forEach(source => {
+      sourceReplacements.set(source, dataUrl);
+    });
+  });
+
+  if (!sourceReplacements.size) return;
+
+  container.querySelectorAll("img[src]").forEach(image => {
+    const source = image.getAttribute("src") || "";
+    const replacement = sourceReplacements.get(source);
+    if (replacement) image.setAttribute("src", replacement);
+  });
+}
+
+function documentationImportImageDataUrlsById(parsedDocument) {
+  const imageDataUrlsById = new Map();
+  parsedDocument.querySelectorAll(".pmt-document-body img[data-pmt-export-image]").forEach(image => {
+    const imageId = image.getAttribute("data-pmt-export-image") || "";
+    const source = image.getAttribute("src") || "";
+    if (imageId && /^data:image\//i.test(source)) imageDataUrlsById.set(imageId, source);
+  });
+  return imageDataUrlsById;
+}
+
+function documentationImportImageSourceKeys(image) {
+  return [
+    image.source,
+    image.absoluteSource,
+    image.exportPath,
+    image.fileName
+  ]
+    .map(value => String(value || "").trim())
+    .filter(Boolean);
+}
+
+function normalizeDocumentationImportText(value) {
+  return String(value || "").trim().replace(/\s+/g, " ").toLowerCase();
+}
+
+function invalidDocumentationImportError() {
+  const error = new Error(documentationInvalidImportMessage);
+  error.isInvalidPmtImport = true;
+  return error;
 }
 
 function applyDocumentationDefaultFilters() {
