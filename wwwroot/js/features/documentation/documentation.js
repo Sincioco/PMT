@@ -52,7 +52,7 @@ let documentationProjectId = 0;
 let documentationEntryProjectId = 0;
 let documentationEntrySprintId = 0;
 let documentationViewMode = "cards";
-let documentationTreeGroup = "project-sprint";
+let documentationTreeGroup = "all";
 let documentationTreeLayout = "hierarchy";
 let documentationTreeSort = "latest";
 let documentationTreeSearch = "";
@@ -62,7 +62,7 @@ let selectedTreeBlogId = 0;
 let editingTreeBlogId = 0;
 const collapsedTreeKeys = new Set();
 const expandedDocumentationCardIds = new Set();
-let documentationCardDefaultsApplied = false;
+let documentationDefaultFiltersApplied = false;
 
 export function createDocumentationFeature({
   app,
@@ -79,7 +79,7 @@ export function createDocumentationFeature({
   documentationEntryProjectId = readNumberPreference(preferenceKeys.documentationEntryProject, 0);
   documentationEntrySprintId = readNumberPreference(preferenceKeys.documentationEntrySprint, 0);
   documentationViewMode = readKnownPreference(preferenceKeys.documentationViewMode, "cards", documentationViewModes);
-  documentationTreeGroup = readKnownPreference(preferenceKeys.documentationTreeGroup, "project-sprint", documentationTreeGroups);
+  documentationTreeGroup = readKnownPreference(preferenceKeys.documentationTreeGroup, "all", documentationTreeGroups);
   documentationTreeLayout = readKnownPreference(preferenceKeys.documentationTreeLayout, "hierarchy", documentationTreeLayouts);
   documentationTreeSort = readKnownPreference(preferenceKeys.documentationTreeSort, "latest", documentationTreeSorts);
   documentationTreeSearch = readPreference(preferenceKeys.documentationTreeSearch, "");
@@ -88,7 +88,7 @@ export function createDocumentationFeature({
 
   function renderDocumentation() {
     if (documentationProjectId && !projectById(documentationProjectId)) documentationProjectId = 0;
-    if (documentationViewMode === "cards" && !documentationCardDefaultsApplied) applyDocumentationCardDefaultFilters();
+    if (!documentationDefaultFiltersApplied) applyDocumentationDefaultFilters();
 
     const filteredBlogs = documentationCardBlogs();
 
@@ -213,11 +213,7 @@ export function createDocumentationFeature({
         return true;
       }
 
-      selectedTreeBlogId = id;
-      editingTreeBlogId = 0;
-      showDocumentationTreeFullScreen();
-      renderDocumentation();
-      return true;
+      return selectDocumentationTreeBlog(id);
     }
     if (action === "new-blog") {
       if (documentationViewMode === "tree") {
@@ -327,13 +323,13 @@ export function createDocumentationFeature({
       <form method="dialog">
         <div class="dialog-head">
           <h2>Documentation Filters</h2>
-          <button type="button" class="icon-btn" data-close-documentation-filters title="Close" aria-label="Close">x</button>
+          <div class="dialog-head-actions">
+            <button type="button" class="icon-btn dialog-reset-button" data-reset-documentation-view title="Reset" aria-label="Reset">Reset</button>
+            <button type="button" class="icon-btn" data-close-documentation-filters title="Close" aria-label="Close">x</button>
+          </div>
         </div>
         <div class="dialog-body task-filter-dialog-body documentation-filter-dialog-body" data-documentation-filter-dialog-body></div>
         <div class="dialog-actions">
-          <div class="dialog-action-group is-left">
-            <button type="button" class="secondary text-icon-button" data-reset-documentation-view>${buttonContent("&#8634;", "Reset View")}</button>
-          </div>
           <button type="button" class="primary text-icon-button" data-close-documentation-filters>${buttonContent("&#10003;", "Done")}</button>
         </div>
       </form>
@@ -341,7 +337,6 @@ export function createDocumentationFeature({
 
     renderDocumentationFiltersDialog(modal);
     document.body.appendChild(modal);
-    initializeWindowedDialog(modal);
     modal.addEventListener("input", event => {
       handleFilterChange(event.target);
     });
@@ -350,7 +345,7 @@ export function createDocumentationFeature({
     });
     modal.addEventListener("click", event => {
       if (event.target.closest("[data-reset-documentation-view]")) {
-        applyDocumentationCardDefaultFilters();
+        applyDocumentationDefaultFilters();
         renderDocumentationFiltersDialog(modal);
         renderDocumentation();
         modal.querySelector("[data-filter='documentation-tree-search'], [data-filter='documentation-project']")?.focus({ preventScroll: true });
@@ -492,17 +487,10 @@ export function createDocumentationFeature({
 
     documentationViewMode = "tree";
     showDocumentationTreeFullScreen();
-    documentationProjectId = blog.projectId || 0;
-    documentationTreeSearch = "";
-    selectedTreeBlogId = blog.id;
-    editingTreeBlogId = 0;
-    expandDocumentationTreePath(blog);
 
     writePreference(preferenceKeys.documentationViewMode, documentationViewMode);
-    writePreference(preferenceKeys.documentationProject, documentationProjectId);
-    writePreference(preferenceKeys.documentationTreeSearch, documentationTreeSearch);
 
-    renderDocumentation();
+    selectDocumentationTreeBlog(blog.id, { syncFilters: true });
   }
 
   function viewDocumentationById(blogId) {
@@ -510,11 +498,28 @@ export function createDocumentationFeature({
     if (!blog) return false;
 
     if (documentationViewMode === "tree") {
-      openDocumentationFullScreen(blog.id);
-      return true;
+      return selectDocumentationTreeBlog(blog.id, { syncFilters: true });
     }
 
     viewDocumentation(blog);
+    return true;
+  }
+
+  function selectDocumentationTreeBlog(blogId, options = {}) {
+    const blog = state.blogs.find(item => item.id === Number(blogId || 0));
+    if (!blog) return false;
+
+    if (options.syncFilters) {
+      documentationProjectId = blog.projectId || 0;
+      documentationTreeSearch = "";
+      writePreference(preferenceKeys.documentationProject, documentationProjectId);
+      writePreference(preferenceKeys.documentationTreeSearch, documentationTreeSearch);
+    }
+
+    selectedTreeBlogId = blog.id;
+    editingTreeBlogId = 0;
+    expandDocumentationTreePath(blog);
+    renderDocumentation();
     return true;
   }
 
@@ -754,24 +759,18 @@ export function createDocumentationFeature({
     const blog = form ? documentationInlineEditorBlog(form) : null;
 
     if (!form || !blog || !documentationInlineEditorHasChanges(form, blog)) {
-      selectedTreeBlogId = nextBlogId;
-      editingTreeBlogId = 0;
-      showDocumentationTreeFullScreen();
-      renderDocumentation();
+      selectDocumentationTreeBlog(nextBlogId);
       return;
     }
 
     const result = await askDocumentationUnsavedAction();
     if (result === "save") {
-      await saveDocumentationInlineEditor(form, { selectedBlogIdAfterSave: nextBlogId });
+      await saveDocumentationInlineEditor(form, { selectedBlogIdAfterSave: nextBlogId, preserveTreePane: true });
       return;
     }
 
     if (result === "discard") {
-      selectedTreeBlogId = nextBlogId;
-      editingTreeBlogId = 0;
-      showDocumentationTreeFullScreen();
-      renderDocumentation();
+      selectDocumentationTreeBlog(nextBlogId);
     }
   }
 
@@ -816,7 +815,7 @@ export function createDocumentationFeature({
 
       selectedTreeBlogId = options.selectedBlogIdAfterSave || savedBlogId;
       editingTreeBlogId = 0;
-      showDocumentationTreeFullScreen();
+      if (!options.preserveTreePane) showDocumentationTreeFullScreen();
       documentationEntryProjectId = projectId || 0;
       documentationEntrySprintId = sprintId || 0;
       writePreference(preferenceKeys.documentationEntryProject, documentationEntryProjectId);
@@ -905,8 +904,8 @@ export function createDocumentationFeature({
   };
 }
 
-function applyDocumentationCardDefaultFilters() {
-  documentationCardDefaultsApplied = true;
+function applyDocumentationDefaultFilters() {
+  documentationDefaultFiltersApplied = true;
   documentationProjectId = 0;
   documentationTreeGroup = "all";
   documentationTreeSearch = "";

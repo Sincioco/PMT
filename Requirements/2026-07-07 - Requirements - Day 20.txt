@@ -86,3 +86,11 @@ Documentation Screen
 
 25.) If the User is already in Treeview and they click on New Document, move the cursor to the Title control so the user can start typing.
 26.) Bug:  In the Documentation screen when in the TreeView and the document is in new or edit mode, 2 vertical scrollsbars are appearing.  One is the general scrollbar for when the content of the browser is long, the other is New/Edit document.  I'm not expecting the general browser scrollbar to appear.
+
+27.) Bug:  In the Documentation screen when in the TreeView, whenever I click an item in the Treeview, it automatically hides.  That is not the desired behavior.  If I am purpose in the Treeview and navigating through the tree, I don't want it to close every time I click an item on the tree.  I think, this is a competing logic with when we are in the Card view and we are on the read-only Dialog Box of the Document in card view, there is a "View Full-Screen" button on the lower-left of that dialog box that might be forcing the Treenav to always close whenever I click an item.  Can you separate / double check these logic?
+
+28.) Bug:  In the Document screen Card and Treeview, default the initial filter should be set to All Projects and All Documents and the Reset button should revert to this state.  The sort order should be set to Latest First, and obviously the Search text field should be blanked out.
+
+29.) You seem to have added a new "Reset View" button on the lower left corner of the Filter Dialog box for the Document Card and Treeview which works correctly.  There is already a Reset button on the upper-right of the dialog box next Maximize and Close button.  Wire that reset button so it works correctly and remove the "Reset View" button on the lower left of the dialog box.
+30.) In the Document screen Card and Treeview's Filter Dialog Box, remove the Maximize button and disable resizing of the dialog box as it's content is small enough that it does not need to be maximized nor resized.  Keep this as a special rule for the Document screen Card and Treeview's Filter Dialog Box, do not modify or touch the other scren's Filter Dialog box.
+

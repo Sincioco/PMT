@@ -42,7 +42,7 @@ import { createBacklogFeature } from "./features/backlog/backlog.js?v=20260707-d
 import { createBoardFeature } from "./features/board/board.js?v=20260707-deep-links";
 import { createBugsFeature } from "./features/bugs/bugs.js?v=20260707-deep-links";
 import { createDashboardFeature } from "./features/dashboard/dashboard.js?v=20260707-linked-bug-qa-sync";
-import { createDocumentationFeature } from "./features/documentation/documentation.js?v=20260707-documentation-tree-inplace-actions-4";
+import { createDocumentationFeature } from "./features/documentation/documentation.js?v=20260707-documentation-filter-dialog-controls";
 import {
   createGanttFeature,
   currentSprintForProject,
