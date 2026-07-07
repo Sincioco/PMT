@@ -21,7 +21,7 @@ import {
   userCardCheckListLabelHtml,
   value
 } from "../../components/forms.js?v=20260629-avatar-jpg-assets";
-import { progressHtml } from "../../components/progress-and-status.js?v=20260627-dev-task-status-rules";
+import { progressHtml } from "../../components/progress-and-status.js?v=20260707-linked-bug-qa-sync";
 import { sectionHead } from "../../components/sections.js?v=20260701-nav-title-preferences";
 import {
   attachmentEditorFieldHtml,
@@ -33,7 +33,7 @@ import {
   taskPercentField,
   workItemDialogMetaHtml,
   uploadWorkItemAttachments
-} from "../../components/work-items.js?v=20260706-convert-document";
+} from "../../components/work-items.js?v=20260707-linked-bug-qa-sync";
 import {
   currentUser,
   currentUserId
@@ -98,7 +98,7 @@ import {
   taskDisplayPercent,
   taskCreatedTime,
   taskOrderCompare
-} from "../../shared/work-item-rules.js?v=20260627-bug-qa-linked-rules";
+} from "../../shared/work-item-rules.js?v=20260707-linked-bug-qa-sync";
 
 export function createBugsFeature({
   app,

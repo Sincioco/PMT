@@ -1,6 +1,6 @@
 import { avatarsHtml } from "../../components/avatars.js";
 import { buttonContent, funnelIconHtml } from "../../components/buttons.js";
-import { statusColor } from "../../components/progress-and-status.js?v=20260627-dev-task-status-rules";
+import { statusColor } from "../../components/progress-and-status.js?v=20260707-linked-bug-qa-sync";
 import { sectionHead } from "../../components/sections.js?v=20260701-nav-title-preferences";
 import {
   groupedTimelineHeader,
@@ -13,11 +13,11 @@ import {
   escapeAttr,
   escapeHtml
 } from "../../shared/text-and-links.js";
-import { taskDisplayPercent } from "../../shared/work-item-rules.js?v=20260627-dev-task-status-rules";
+import { taskDisplayPercent } from "../../shared/work-item-rules.js?v=20260707-linked-bug-qa-sync";
 import {
   ganttBugRows,
   ganttDependencyLines
-} from "./gantt-bugs-dependencies.js?v=20260627-dev-task-status-rules";
+} from "./gantt-bugs-dependencies.js?v=20260707-linked-bug-qa-sync";
 import {
   ganttEndDate,
   ganttStartDate

@@ -19,7 +19,7 @@ import {
   sprintStatusMetricsHtml,
   statusColor,
   workItemStatusCounts
-} from "../../components/progress-and-status.js?v=20260627-dev-task-status-rules";
+} from "../../components/progress-and-status.js?v=20260707-linked-bug-qa-sync";
 import { sectionHead } from "../../components/sections.js?v=20260701-nav-title-preferences";
 import { api } from "../../core/api.js";
 import {
@@ -42,7 +42,7 @@ import {
   escapeAttr,
   escapeHtml
 } from "../../shared/text-and-links.js";
-import { sprintWorkItems } from "../../shared/work-item-rules.js?v=20260627-dev-task-status-rules";
+import { sprintWorkItems } from "../../shared/work-item-rules.js?v=20260707-linked-bug-qa-sync";
 
 export function createSprintsFeature({
   app,

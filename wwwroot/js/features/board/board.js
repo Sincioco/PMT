@@ -1,13 +1,13 @@
 import { avatarsHtml } from "../../components/avatars.js";
 import { buttonContent, funnelIconHtml } from "../../components/buttons.js";
 import { checkedFilterValues, filterCheckList } from "../../components/filters.js?v=20260621-task-filter-layout";
-import { progressHtml } from "../../components/progress-and-status.js?v=20260627-dev-task-status-rules";
+import { progressHtml } from "../../components/progress-and-status.js?v=20260707-linked-bug-qa-sync";
 import { sectionHead } from "../../components/sections.js?v=20260701-nav-title-preferences";
 import {
   bugFixIconHtml,
   createWorkItemTableMode,
   taskButtonsHtml
-} from "../../components/work-items.js?v=20260706-readonly-windowing";
+} from "../../components/work-items.js?v=20260707-linked-bug-qa-sync";
 import {
   preferenceKeys,
   readBooleanPreference,
@@ -30,7 +30,7 @@ import {
   percentForStatus,
   taskDisplayPercent,
   taskOrderCompare
-} from "../../shared/work-item-rules.js?v=20260627-dev-task-status-rules";
+} from "../../shared/work-item-rules.js?v=20260707-linked-bug-qa-sync";
 import { createBoardDrag } from "./board-drag.js";
 
 const bugIconUrl = "/assets/bug.svg?v=20260629-kanban-gantt-bug-icon";

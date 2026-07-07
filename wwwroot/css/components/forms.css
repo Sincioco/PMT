@@ -416,15 +416,42 @@ input[type="checkbox"] {
 }
 
 .rich-editor img,
-.rich-readonly img {
+.rich-readonly img,
+.log-content img,
+.scrum-content img {
   max-width: 100%;
-  width: auto;
-  max-height: 360px;
   height: auto;
   border-radius: var(--radius-md);
   border: var(--border-width) solid var(--color-border);
   display: block;
   margin: var(--space-3) 0;
+}
+
+.rich-editor img {
+  cursor: pointer;
+}
+
+.rich-readonly img,
+.log-content img,
+.scrum-content img {
+  cursor: zoom-in;
+}
+
+.rich-image-menu-actions {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.rich-image-resize-preview {
+  max-height: 220px;
+  overflow: auto;
+}
+
+.rich-image-resize-preview img {
+  max-width: 100%;
+  height: auto;
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-md);
 }
 
 .rich-code-dialog {

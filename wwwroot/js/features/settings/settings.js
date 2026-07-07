@@ -10,7 +10,7 @@ import {
 import {
   defaultStatusColor,
   statusColor
-} from "../../components/progress-and-status.js?v=20260627-dev-task-status-rules";
+} from "../../components/progress-and-status.js?v=20260707-linked-bug-qa-sync";
 import { sectionHead } from "../../components/sections.js?v=20260701-nav-title-preferences";
 import { api } from "../../core/api.js";
 import {

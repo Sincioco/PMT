@@ -15,12 +15,12 @@ import {
   field,
   value
 } from "./components/forms.js?v=20260629-avatar-jpg-assets";
-import { configureProgressAndStatus } from "./components/progress-and-status.js?v=20260627-dev-task-status-rules";
+import { configureProgressAndStatus } from "./components/progress-and-status.js?v=20260707-linked-bug-qa-sync";
 import {
   bindAttachmentPreview,
   showTaskAudit,
   viewWorkItem
-} from "./components/work-items.js?v=20260706-convert-document";
+} from "./components/work-items.js?v=20260707-linked-bug-qa-sync";
 import { createApplicationShell } from "./core/application-shell.js?v=20260707-log-about-nav-label-fix";
 import {
   currentView,
@@ -33,24 +33,24 @@ import {
 } from "./core/screen-registry.js?v=20260707-log-about-nav";
 import { state } from "./core/store.js";
 import { createAboutFeature } from "./features/about/about.js?v=20260621-about-credits";
-import { createBacklogFeature } from "./features/backlog/backlog.js?v=20260706-convert-document";
-import { createBoardFeature } from "./features/board/board.js?v=20260706-readonly-windowing";
-import { createBugsFeature } from "./features/bugs/bugs.js?v=20260706-convert-document";
-import { createDashboardFeature } from "./features/dashboard/dashboard.js?v=20260701-nav-title-preferences";
-import { createDocumentationFeature } from "./features/documentation/documentation.js?v=20260706-export-dialog-icons";
+import { createBacklogFeature } from "./features/backlog/backlog.js?v=20260707-linked-bug-qa-sync";
+import { createBoardFeature } from "./features/board/board.js?v=20260707-linked-bug-qa-sync";
+import { createBugsFeature } from "./features/bugs/bugs.js?v=20260707-linked-bug-qa-sync";
+import { createDashboardFeature } from "./features/dashboard/dashboard.js?v=20260707-linked-bug-qa-sync";
+import { createDocumentationFeature } from "./features/documentation/documentation.js?v=20260707-documentation-tree-project";
 import {
   createGanttFeature,
   currentSprintForProject,
   ganttStartDate
-} from "./features/gantt/gantt.js?v=20260701-nav-title-preferences";
-import { createProjectsFeature } from "./features/projects/projects.js?v=20260701-nav-title-preferences";
-import { createRoadMapFeature } from "./features/roadmap/roadmap.js?v=20260701-nav-title-preferences";
-import { createLogFeature } from "./features/personal-log/log.js?v=20260707-log-screen";
-import { createScrumFeature } from "./features/scrum/scrum.js?v=20260707-log-screen";
-import { createSettingsFeature } from "./features/settings/settings.js?v=20260707-log-about-nav";
-import { createSprintsFeature } from "./features/sprints/sprints.js?v=20260701-nav-title-preferences";
-import { createTasksFeature } from "./features/tasks/tasks.js?v=20260706-convert-document";
-import { createWfhScheduleFeature } from "./features/wfh-schedule/wfh-schedule.js?v=20260706-readonly-windowing";
+} from "./features/gantt/gantt.js?v=20260707-linked-bug-qa-sync";
+import { createProjectsFeature } from "./features/projects/projects.js?v=20260707-linked-bug-qa-sync";
+import { createRoadMapFeature } from "./features/roadmap/roadmap.js?v=20260707-linked-bug-qa-sync";
+import { createLogFeature } from "./features/personal-log/log.js?v=20260707-linked-bug-qa-sync";
+import { createScrumFeature } from "./features/scrum/scrum.js?v=20260707-linked-bug-qa-sync";
+import { createSettingsFeature } from "./features/settings/settings.js?v=20260707-linked-bug-qa-sync";
+import { createSprintsFeature } from "./features/sprints/sprints.js?v=20260707-linked-bug-qa-sync";
+import { createTasksFeature } from "./features/tasks/tasks.js?v=20260707-linked-bug-qa-sync";
+import { createWfhScheduleFeature } from "./features/wfh-schedule/wfh-schedule.js?v=20260707-linked-bug-qa-sync";
 import {
   fallbackEnvironments,
   fallbackForLookup,
@@ -75,15 +75,12 @@ import {
   normalizeUrl
 } from "./shared/text-and-links.js?v=20260627-rich-text-toolbar";
 import {
-  configureWorkItemRules as configureProjectWorkItemRules
-} from "./shared/work-item-rules.js?v=20260627-dev-task-status-rules";
-import {
   configureWorkItemRules,
   isBugQaPassedOrLater,
   percentForStatus,
   sprintOverallPercent,
   taskOrderCompare
-} from "./shared/work-item-rules.js?v=20260627-bug-qa-linked-rules";
+} from "./shared/work-item-rules.js?v=20260707-linked-bug-qa-sync";
 
 const nativePickerSelector = [
   "select",
@@ -157,9 +154,6 @@ const workItemRuleOptions = {
 };
 
 configureWorkItemRules(workItemRuleOptions);
-// Some screens still import the earlier cache-busted work-item-rules URL.
-// Configure that module instance too so clean-cache reloads keep Project charts populated.
-configureProjectWorkItemRules(workItemRuleOptions);
 configureProgressAndStatus({
   getStatuses: () => statuses,
   getLookups: () => state.lookups,
@@ -372,6 +366,7 @@ function bindScreenEvents() {
   window.addEventListener("mouseup", handleMouseUp);
   window.addEventListener("pointercancel", cancelPointerDrag);
   document.addEventListener("pointerdown", handlePageActionsOutsidePointer);
+  document.addEventListener("click", handleRichTextImageClick, true);
   document.addEventListener("click", handleDocumentLinkClick);
 }
 
@@ -859,6 +854,234 @@ function handleDocumentLinkClick(event) {
   if (!link.hasAttribute("href")) return;
   link.target = "_blank";
   link.rel = "noopener noreferrer";
+}
+
+function handleRichTextImageClick(event) {
+  if (event.defaultPrevented || !(event.target instanceof Element)) return;
+
+  const image = event.target.closest(".rich-editor img, .rich-readonly img, .log-content img, .scrum-content img");
+  if (!image) return;
+
+  const editor = image.closest(".rich-editor");
+  const readonlyContent = image.closest(".rich-readonly, .log-content, .scrum-content");
+  if (!editor && !readonlyContent) return;
+
+  event.preventDefault();
+  event.stopPropagation();
+
+  if (editor) {
+    showRichTextImageMenu(image);
+    return;
+  }
+
+  openRichTextImageInNewTab(image);
+}
+
+function showRichTextImageMenu(image) {
+  const modal = document.createElement("dialog");
+  modal.className = "dialog mini-dialog rich-image-menu";
+  modal.innerHTML = `
+    <div class="dialog-head">
+      <h2>Image</h2>
+    </div>
+    <div class="dialog-body">
+      <div class="rich-image-menu-actions">
+        <button type="button" class="secondary text-icon-button" data-rich-image-action="zoom">${buttonContent("&#128269;", "Zoom")}</button>
+        <button type="button" class="secondary text-icon-button" data-rich-image-action="resize">${buttonContent("&#8596;", "Resize")}</button>
+      </div>
+    </div>
+    <div class="dialog-actions">
+      <button type="button" class="primary text-icon-button" data-rich-image-action="cancel">${buttonContent("&#10003;", "Done")}</button>
+    </div>
+  `;
+
+  document.body.appendChild(modal);
+
+  const finish = () => {
+    if (modal.open) modal.close();
+    modal.remove();
+  };
+
+  modal.addEventListener("click", event => {
+    const actionButton = event.target.closest("[data-rich-image-action]");
+    if (!actionButton) return;
+
+    const action = actionButton.dataset.richImageAction;
+    if (action === "zoom") {
+      openRichTextImageInNewTab(image);
+      finish();
+      return;
+    }
+
+    if (action === "resize") {
+      finish();
+      requestAnimationFrame(() => showRichTextImageResizeDialog(image));
+      return;
+    }
+
+    finish();
+  });
+  modal.addEventListener("cancel", event => {
+    event.preventDefault();
+    finish();
+  });
+
+  modal.showModal();
+}
+
+function showRichTextImageResizeDialog(image) {
+  if (!image?.isConnected) return;
+
+  const currentWidth = richTextImageDisplayWidth(image);
+  const naturalWidth = richTextImageNaturalWidth(image, currentWidth);
+  const currentScale = richTextImageScaleSelectValue(currentWidth, naturalWidth);
+  const source = richTextImageSource(image);
+  const modal = document.createElement("dialog");
+  modal.className = "dialog mini-dialog rich-image-resize-dialog";
+  modal.innerHTML = `
+    <form method="dialog">
+      <div class="dialog-head">
+        <h2>Resize Image</h2>
+      </div>
+      <div class="dialog-body">
+        <div class="field">
+          <label>Width (px)</label>
+          <input name="imageWidth" type="number" min="1" max="4000" step="1" value="${escapeAttr(currentWidth)}">
+        </div>
+        <div class="field rich-image-scale-field">
+          <label>Scale</label>
+          <select name="imageScale">
+            ${richTextImageScaleOptionsHtml(currentScale)}
+          </select>
+        </div>
+        ${source ? `<div class="rich-image-resize-preview"><img src="${escapeAttr(source)}" alt=""></div>` : ""}
+      </div>
+      <div class="dialog-actions">
+        <button type="button" class="secondary text-icon-button" data-rich-image-resize-reset>${buttonContent("&#8634;", "Full Width")}</button>
+        <button type="button" class="secondary text-icon-button" data-rich-image-resize-cancel>${buttonContent("&#10005;", "Cancel")}</button>
+        <button type="submit" class="primary text-icon-button">${buttonContent("&#10003;", "Apply")}</button>
+      </div>
+    </form>
+  `;
+
+  document.body.appendChild(modal);
+
+  const widthInput = modal.querySelector("[name='imageWidth']");
+  const scaleInput = modal.querySelector("[name='imageScale']");
+  const finish = () => {
+    if (modal.open) modal.close();
+    modal.remove();
+  };
+
+  scaleInput.addEventListener("change", () => {
+    if (scaleInput.value === "custom") return;
+    widthInput.value = String(richTextImageWidthForScale(scaleInput.value, naturalWidth));
+  });
+  widthInput.addEventListener("input", () => {
+    scaleInput.value = "custom";
+  });
+  modal.querySelector("[data-rich-image-resize-reset]").addEventListener("click", () => {
+    resetRichTextImageSize(image);
+    finish();
+  });
+  modal.querySelector("[data-rich-image-resize-cancel]").addEventListener("click", finish);
+  modal.querySelector("form").addEventListener("submit", event => {
+    event.preventDefault();
+    const width = richTextImageWidthValue(widthInput.value);
+    if (width) applyRichTextImageWidth(image, width);
+    finish();
+  });
+  modal.addEventListener("cancel", event => {
+    event.preventDefault();
+    finish();
+  });
+
+  modal.showModal();
+  setTimeout(() => {
+    widthInput?.focus();
+    widthInput?.select();
+  }, 0);
+}
+
+function richTextImageDisplayWidth(image) {
+  const rectWidth = Math.round(image.getBoundingClientRect().width || 0);
+  const attrWidth = richTextImageWidthValue(image.getAttribute("width"));
+  const naturalWidth = Math.round(image.naturalWidth || 0);
+  return rectWidth || attrWidth || naturalWidth || 640;
+}
+
+function richTextImageNaturalWidth(image, fallbackWidth = 640) {
+  const naturalWidth = Math.round(image?.naturalWidth || 0);
+  return naturalWidth || richTextImageWidthValue(image?.getAttribute("width")) || fallbackWidth || 640;
+}
+
+function richTextImageWidthForScale(scaleValue, naturalWidth) {
+  const scale = Number(scaleValue || 100);
+  return richTextImageWidthValue((naturalWidth * scale) / 100);
+}
+
+function richTextImageScaleSelectValue(width, naturalWidth) {
+  if (!naturalWidth) return 100;
+
+  const percent = Math.round((Number(width || 0) / naturalWidth) * 100);
+  return percent >= 10 && percent <= 100 && percent % 10 === 0 ? percent : "custom";
+}
+
+function richTextImageScaleOptionsHtml(selectedValue) {
+  const selected = String(selectedValue || "custom");
+  const options = [{ value: "custom", label: "Custom" }];
+  for (let percent = 10; percent <= 100; percent += 10) {
+    options.push({ value: String(percent), label: `${percent}%` });
+  }
+
+  return options
+    .map(option => `<option value="${escapeAttr(option.value)}" ${option.value === selected ? "selected" : ""}>${escapeHtml(option.label)}</option>`)
+    .join("");
+}
+
+function richTextImageWidthValue(value) {
+  const width = Math.round(Number.parseFloat(value));
+  if (!Number.isFinite(width) || width <= 0) return 0;
+  return Math.max(1, Math.min(4000, width));
+}
+
+function applyRichTextImageWidth(image, width) {
+  if (!image?.isConnected) return;
+
+  image.style.width = `${width}px`;
+  image.style.height = "auto";
+  image.setAttribute("width", String(width));
+  image.removeAttribute("height");
+  image.dataset.richImageResized = "true";
+}
+
+function resetRichTextImageSize(image) {
+  if (!image?.isConnected) return;
+
+  image.style.removeProperty("width");
+  image.style.removeProperty("height");
+  image.removeAttribute("width");
+  image.removeAttribute("height");
+  delete image.dataset.richImageResized;
+}
+
+function openRichTextImageInNewTab(image) {
+  const source = richTextImageSource(image);
+  if (!source) return;
+
+  let targetUrl = source;
+  try {
+    targetUrl = new URL(source, window.location.href).href;
+  } catch {
+    targetUrl = source;
+  }
+
+  const opened = window.open(targetUrl, "_blank", "noopener,noreferrer");
+  if (opened) opened.opener = null;
+}
+
+function richTextImageSource(image) {
+  return image?.currentSrc || image?.getAttribute("src") || "";
 }
 
 function handlePointerDown(event) {

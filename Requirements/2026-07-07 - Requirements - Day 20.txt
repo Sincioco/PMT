@@ -19,3 +19,29 @@ Log Screen
 
 10.) Move the Log Top nav button after Documentation.
 11.) Move the "About" menu item from the Avatar's menu into the Top Nav.  Always keep it in the Top Nav's overflow menu item.  Never show it at the top as a regular Top Nav button.
+
+------------------------------------------------------------------------------
+
+For all of this conversation / session, I will perform all the manual tests and compile the application manually.  Perform only the coding changes required and nothing else.  If making CSS / image changes, ensure that I will encounter no caching issue when testing in the browser.  Be sure to inform me if I have to recompile the .Net portion of the project or just Press Ctrl + F5 on the browser to reload to see the latest changes.
+
+
+1.) When a bug is assigned to a developer and a corresponding Dev Task is created, copy the content of the Bug report's description into the newly created Dev Task so the Dev can see the screen shots and the content of the report without needing to go to the original bug report.
+
+2.) In the Document screen, when you are in TreeView, you cannot filter the TreeNav by Project.  Place the Project Filter after the Search text field.  Use the Documentation's Card View's Filter dialog box and see how the Project dropdown there works and use that as a reference.
+
+3.) In the read-only dialog box of Dev Task, Bug Tracking, make the pasted image in the HTML Rich Text editor clickable and let it open a new tab to view the image in its full high-resolution.  This is already being done in the Document screen, when in card view, the read-only and New/Edit dialog box already has this behavior.  Make this a universal behavior across all dialog boxes that is rendering HTML Rich Text editor content.
+
+4.) When editing content of a HTML Rich Text editor, when an image is clicked, present a menu option to Zoom (open in new tab) or Resize.  If resize is selected, allow the user to resize the image.  And when rendering in read-mode, honor the user's desired image size, if possible.  Otherwise, the default behavior is let the image expand to occupy the width of its container.  If the user's desired image size is larger than the width of its rendering container, if it is possible, add logic to scale the image to only occupy up to the width of its container.
+
+5.) When viewing a Dev Task, Bug Track, Documentation, or any content/dialog box that has a Rich Text Editor, it would be nice if the image took up the width of its content area by default, so user's can see the images, especially screen shots with small text, better.
+
+6.) When a Dev Task linked to a Bug Report is Code Complete or “Ready for QA”, change the Percent Complete to 50%.  Update the linked Bug Track's status as well to "Ready for QA" and its Percent Complete to 50%.
+
+7.) If the Bug is set to QA passed, set it to 100% complete.  Also set the linked Dev Task (if any) to QA Passed and set it 100% complete.
+
+8.) In the Log Screen, right align the muted date/time created/edited at the bottom of each log entry.
+
+9.) When scalling image to take up the width of its container, do not scale the image past its 100% width because the image starts to look blurry--unless the user explicitly set a resize size to go beyond 100%.
+10.) In the new Resize Image dialog box you added, keep everything as-is but add a slider below the width text field.  The slider has 4 notches for 25%, 50%, 75% and 100% to make it easier for the user to scale the image without having to manually type a value.  Be sure to sync/update the value of the current width text field.
+
+11.) The new slider you added in the Resize Image dialog box does not appear to be working as intended.  A validation rule is preventing me from saving.  Keep the validation rule simple.  Let's replace that slider with a Scale dropdown instead with values going from Custom, to 10%, 20%, 30% all the way to 100%.  As the user select a value from the drop down, update the original Width text field to match.  If the user types in a specific value in the Width text field, set the Scale dropdown to Custom.

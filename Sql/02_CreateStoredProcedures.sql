@@ -819,6 +819,7 @@ BEGIN
     (
         [TaskId] INT NOT NULL PRIMARY KEY,
         [OldStatus] NVARCHAR(40) NOT NULL,
+        [NewStatus] NVARCHAR(40) NOT NULL,
         [OldPercentCompleted] INT NOT NULL,
         [NewPercentCompleted] INT NOT NULL
     );
@@ -992,7 +993,7 @@ BEGIN
 
     IF @TaskType = N'Dev' AND @Status = N'Ready for QA'
     BEGIN
-        SET @PercentCompleted = CASE WHEN @CompletionBlockBugTaskId IS NULL THEN 100 ELSE 80 END;
+        SET @PercentCompleted = CASE WHEN @CompletionBlockBugTaskId IS NULL THEN 100 ELSE 50 END;
     END;
 
     IF @TaskType = N'Dev' AND @Status = N'QA Failed' AND @CompletionBlockBugTaskId IS NULL
@@ -1009,7 +1010,7 @@ BEGIN
 
     IF @TaskType = N'Dev' AND @Status = N'Code Complete'
     BEGIN
-        SET @PercentCompleted = CASE WHEN @CompletionBlockBugTaskId IS NULL THEN 100 ELSE 80 END;
+        SET @PercentCompleted = CASE WHEN @CompletionBlockBugTaskId IS NULL THEN 100 ELSE 50 END;
     END;
 
     IF @TaskType = N'Dev' AND @PercentCompleted >= 100
@@ -1380,7 +1381,7 @@ BEGIN
                 N'Dev',
                 @Code,
                 N'Bug Fix: ' + @Title,
-                N'<p>Created automatically from bug ' + CONVERT(NVARCHAR(20), @TaskId) + N'.</p>',
+                ISNULL(@DescriptionHtml, N''),
                 N'Todo',
                 @Priority,
                 0,
@@ -1439,12 +1440,14 @@ BEGIN
         (
             [TaskId],
             [OldStatus],
+            [NewStatus],
             [OldPercentCompleted],
             [NewPercentCompleted]
         )
         SELECT DISTINCT
             [DevTask].[TaskId],
             [DevTask].[Status],
+            CASE WHEN @Status = N'QA Passed' THEN N'QA Passed' ELSE [DevTask].[Status] END,
             [DevTask].[PercentCompleted],
             @LinkedNewPercentCompleted
         FROM [pmt].[WorkTasks] AS [DevTask]
@@ -1468,10 +1471,15 @@ BEGIN
                     AND [Dependency].[DependsOnTaskId] = [DevTask].[TaskId]
               )
           )
-          AND ISNULL([DevTask].[PercentCompleted], -1) <> @LinkedNewPercentCompleted;
+          AND
+          (
+              ISNULL([DevTask].[PercentCompleted], -1) <> @LinkedNewPercentCompleted
+              OR (@Status = N'QA Passed' AND [DevTask].[Status] <> N'QA Passed')
+          );
 
         UPDATE [DevTask]
         SET
+            [Status] = [Updates].[NewStatus],
             [PercentCompleted] = [Updates].[NewPercentCompleted],
             [UpdatedByUserId] = @CurrentUserId,
             [UpdatedAt] = @Now
@@ -1483,6 +1491,7 @@ BEGIN
             SELECT
                 [TaskId],
                 [OldStatus],
+                [NewStatus],
                 [OldPercentCompleted],
                 [NewPercentCompleted]
             FROM @AssociatedDevTaskUpdates
@@ -1490,12 +1499,14 @@ BEGIN
 
         OPEN AssociatedDevTaskAudit;
         FETCH NEXT FROM AssociatedDevTaskAudit
-            INTO @AssociatedDevTaskId, @AssociatedOldStatus, @AssociatedOldPercentCompleted, @AssociatedNewPercentCompleted;
+            INTO @AssociatedDevTaskId, @AssociatedOldStatus, @LinkedNewStatus, @AssociatedOldPercentCompleted, @AssociatedNewPercentCompleted;
 
         WHILE @@FETCH_STATUS = 0
         BEGIN
             SET @AuditDetails =
-                N'Associated Bug result set Dev Task percent: ' +
+                N'Associated Bug result set Dev Task status/percent: ' +
+                ISNULL(@AssociatedOldStatus, N'') + N' -> ' + ISNULL(@LinkedNewStatus, N'') +
+                N'; Percent: ' +
                 CONVERT(NVARCHAR(12), ISNULL(@AssociatedOldPercentCompleted, 0)) +
                 N'% -> ' + CONVERT(NVARCHAR(12), @AssociatedNewPercentCompleted) + N'%';
 
@@ -1506,20 +1517,20 @@ BEGIN
                 @AuditDetails,
                 @CurrentUserId,
                 @AssociatedOldStatus,
-                @AssociatedOldStatus,
+                @LinkedNewStatus,
                 @AssociatedOldPercentCompleted,
                 @AssociatedNewPercentCompleted;
 
             FETCH NEXT FROM AssociatedDevTaskAudit
-                INTO @AssociatedDevTaskId, @AssociatedOldStatus, @AssociatedOldPercentCompleted, @AssociatedNewPercentCompleted;
+                INTO @AssociatedDevTaskId, @AssociatedOldStatus, @LinkedNewStatus, @AssociatedOldPercentCompleted, @AssociatedNewPercentCompleted;
         END;
 
         CLOSE AssociatedDevTaskAudit;
         DEALLOCATE AssociatedDevTaskAudit;
     END;
 
-    -- A completed Bug Fix is ready for QA to retest, so the linked Bug goes back to 0%.
-    IF @TaskType = N'Dev' AND @Status = N'Code Complete'
+    -- A Bug Fix at Code Complete or Ready for QA sends the linked Bug back to QA at 50%.
+    IF @TaskType = N'Dev' AND @Status IN (N'Code Complete', N'Ready for QA')
     BEGIN
         SET @LinkedBugToRetestId = @ExistingLinkedBugTaskId;
 
@@ -1536,24 +1547,31 @@ BEGIN
 
         IF @LinkedBugToRetestId IS NOT NULL
         BEGIN
+            SET @LinkedNewStatus = N'Ready for QA';
+            SET @LinkedNewPercentCompleted = 50;
+
             SELECT
                 @LinkedOldStatus = [Status],
                 @LinkedOldPercentCompleted = [PercentCompleted]
             FROM [pmt].[WorkTasks]
             WHERE [TaskId] = @LinkedBugToRetestId;
 
-            IF ISNULL(@LinkedOldPercentCompleted, -1) <> 0
+            IF ISNULL(@LinkedOldStatus, N'') <> @LinkedNewStatus
+               OR ISNULL(@LinkedOldPercentCompleted, -1) <> @LinkedNewPercentCompleted
             BEGIN
                 UPDATE [pmt].[WorkTasks]
                 SET
-                    [PercentCompleted] = 0,
+                    [Status] = @LinkedNewStatus,
+                    [PercentCompleted] = @LinkedNewPercentCompleted,
                     [UpdatedByUserId] = @CurrentUserId,
                     [UpdatedAt] = @Now
                 WHERE [TaskId] = @LinkedBugToRetestId;
 
                 SET @AuditDetails =
-                    N'Linked Bug Fix reached Code Complete; Bug percent reset for QA retest: ' +
-                    CONVERT(NVARCHAR(12), ISNULL(@LinkedOldPercentCompleted, 0)) + N'% -> 0%';
+                    N'Linked Bug Fix ready for QA; Bug status/percent updated: ' +
+                    ISNULL(@LinkedOldStatus, N'') + N' -> ' + @LinkedNewStatus +
+                    N'; Percent: ' + CONVERT(NVARCHAR(12), ISNULL(@LinkedOldPercentCompleted, 0)) +
+                    N'% -> ' + CONVERT(NVARCHAR(12), @LinkedNewPercentCompleted) + N'%';
 
                 EXEC [pmt].[WriteAudit]
                     N'Task',
@@ -1562,9 +1580,9 @@ BEGIN
                     @AuditDetails,
                     @CurrentUserId,
                     @LinkedOldStatus,
-                    @LinkedOldStatus,
+                    @LinkedNewStatus,
                     @LinkedOldPercentCompleted,
-                    0;
+                    @LinkedNewPercentCompleted;
             END;
         END;
     END;

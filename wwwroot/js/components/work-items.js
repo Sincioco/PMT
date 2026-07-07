@@ -27,7 +27,7 @@ import {
 import {
   allowedAssigneeUsers,
   taskDisplayPercent
-} from "../shared/work-item-rules.js?v=20260627-dev-task-status-rules";
+} from "../shared/work-item-rules.js?v=20260707-linked-bug-qa-sync";
 
 export function taskButtonsHtml(task, { includeView = true, monochrome = false } = {}) {
   const canEdit = canEditTask(task);

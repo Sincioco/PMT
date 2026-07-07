@@ -325,6 +325,7 @@ export function createDocumentationFeature({
               <span>Search</span>
               <input data-filter="documentation-tree-search" type="search" value="${escapeAttr(documentationTreeSearch)}">
             </label>
+            ${filterSelect("Project", "documentation-project", state.projects.map(project => ({ value: project.id, text: `${project.code} - ${project.title}` })), documentationProjectId || "", "All Projects")}
             ${documentationTreeSelect("Group", "documentation-tree-group", [
               { value: "project-sprint", text: "Project and Sprint" },
               { value: "project", text: "Project Only" },
@@ -699,13 +700,14 @@ function documentationTreeSelect(label, filterName, items, selectedValue) {
 
 function documentationTreeBlogs() {
   const searchText = documentationSearchText();
+  const sourceBlogs = state.blogs.filter(blog => !documentationProjectId || blog.projectId === documentationProjectId);
   const matchedBlogs = searchText
-    ? state.blogs.filter(blog => documentationBlogMatchesSearch(blog, searchText))
-    : [...state.blogs];
+    ? sourceBlogs.filter(blog => documentationBlogMatchesSearch(blog, searchText))
+    : [...sourceBlogs];
 
   if (!searchText || documentationTreeLayout === "flat") return matchedBlogs.sort(documentationBlogCompare);
 
-  const byId = new Map(state.blogs.map(blog => [blog.id, blog]));
+  const byId = new Map(sourceBlogs.map(blog => [blog.id, blog]));
   const included = new Map();
   matchedBlogs.forEach(blog => {
     let current = blog;
@@ -1113,6 +1115,7 @@ function bindDocumentationBodyImageOpen(root) {
       ? event.target.closest(".documentation-image-open-area img")
       : null;
     if (!image || !root.contains(image)) return;
+    if (image.closest(".rich-editor")) return;
 
     const imageUrl = image.currentSrc || image.getAttribute("src") || "";
     if (!imageUrl) return;

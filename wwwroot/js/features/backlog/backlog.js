@@ -8,12 +8,12 @@ import {
 import {
   userCardCheckListLabelHtml
 } from "../../components/forms.js?v=20260629-avatar-jpg-assets";
-import { progressHtml } from "../../components/progress-and-status.js?v=20260627-dev-task-status-rules";
+import { progressHtml } from "../../components/progress-and-status.js?v=20260707-linked-bug-qa-sync";
 import { sectionHead } from "../../components/sections.js?v=20260701-nav-title-preferences";
 import {
   bugFixIconHtml,
   createWorkItemTableMode
-} from "../../components/work-items.js?v=20260706-convert-document";
+} from "../../components/work-items.js?v=20260707-linked-bug-qa-sync";
 import {
   preferenceKeys,
   readJsonPreference,
@@ -67,7 +67,7 @@ import {
   percentForDevTaskSave,
   percentForStatus,
   validateLinkedBugCompletion
-} from "../../shared/work-item-rules.js?v=20260627-dev-task-status-rules";
+} from "../../shared/work-item-rules.js?v=20260707-linked-bug-qa-sync";
 
 const backlogBugFixIconUrl = "/assets/bug.svg?v=20260629-kanban-gantt-bug-icon";
 
