@@ -1,7 +1,7 @@
 import { taskRowAvatarsHtml } from "../../components/avatars.js";
 import { buttonContent, chartIconHtml, funnelIconHtml, pageActionsMenuHtml } from "../../components/buttons.js?v=20260701-unified-dropdowns";
 import { VisualCharts } from "../../components/charts.js?v=20260628-chart-native-tooltips";
-import { initializeWindowedDialog } from "../../components/dialogs.js?v=20260706-dialog-persistence";
+import { initializeWindowedDialog } from "../../components/dialogs.js?v=20260707-filter-reset-dialogs";
 import { checkedFilterValues, filterCheckList } from "../../components/filters.js?v=20260630-filter-renderer";
 import {
   checkList,
@@ -115,7 +115,7 @@ export function createTasksFeature({
   saveJson
 }) {
   let taskProjectId = readNumberPreference(preferenceKeys.taskProject, 0);
-  let taskSprintId = readPreference(preferenceKeys.taskSprint, "current");
+  let taskSprintId = readPreference(preferenceKeys.taskSprint, "all");
   let taskEntryProjectId = readNumberPreference(preferenceKeys.taskEntryProject, 0);
   let taskEntrySprintId = readPreference(preferenceKeys.taskEntrySprint, "");
   let taskFilters = normalizeTaskFilters(readJsonPreference(preferenceKeys.taskFilters, {}));
@@ -317,7 +317,7 @@ export function createTasksFeature({
 
     renderTaskFiltersDialog(modal);
     document.body.appendChild(modal);
-    initializeWindowedDialog(modal);
+    initializeWindowedDialog(modal, { onReset: () => resetTaskFiltersDialog(modal) });
     modal.addEventListener("input", event => {
       if (!applyTaskFilterChange(event.target)) return;
       renderTasks();
@@ -344,6 +344,18 @@ export function createTasksFeature({
   function renderTaskFiltersDialog(modal) {
     const body = modal.querySelector("[data-task-filter-dialog-body]");
     if (body) body.innerHTML = taskFilterFieldsHtml();
+  }
+
+  function resetTaskFiltersDialog(modal) {
+    removePreference(preferenceKeys.taskProject);
+    removePreference(preferenceKeys.taskSprint);
+    removePreference(preferenceKeys.taskFilters);
+    taskProjectId = 0;
+    taskSprintId = "all";
+    taskFilters = normalizeTaskFilters({});
+    renderTasks();
+    renderTaskFiltersDialog(modal);
+    modal.querySelector("[data-filter='task-project']")?.focus({ preventScroll: true });
   }
 
   function taskFilterFieldsHtml() {
@@ -1824,7 +1836,7 @@ export function createTasksFeature({
     ].forEach(removePreference);
 
     taskProjectId = 0;
-    taskSprintId = "current";
+    taskSprintId = "all";
     taskEntryProjectId = 0;
     taskEntrySprintId = "";
     taskFilters = normalizeTaskFilters({});

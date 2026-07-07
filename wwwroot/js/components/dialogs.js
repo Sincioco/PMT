@@ -11,6 +11,7 @@ const dialogLayoutStorageVersion = 1;
 const dialogLayoutTransientClasses = new Set(["dialog", "windowed-dialog", "detail-dialog", "is-maximized", "is-dialog-dragging"]);
 const dialogResizeFinishers = new WeakMap();
 const dialogResizeObservers = new WeakMap();
+const dialogResetHandlers = new WeakMap();
 let dialogDragInitialized = false;
 let activeDialogDrag = null;
 
@@ -24,8 +25,14 @@ export function initializeDraggableDialogs() {
   window.addEventListener("resize", () => requestAnimationFrame(clampOpenDraggedDialogs));
 }
 
-export function initializeWindowedDialog(dialog) {
+export function initializeWindowedDialog(dialog, options = {}) {
   if (!(dialog instanceof HTMLDialogElement)) return;
+
+  if (typeof options.onReset === "function") {
+    dialogResetHandlers.set(dialog, options.onReset);
+  } else {
+    dialogResetHandlers.delete(dialog);
+  }
 
   dialog.classList.add("windowed-dialog");
   initializeDialogLayoutPersistence(dialog);
@@ -136,7 +143,14 @@ function ensureWindowedDialogControls(dialog) {
     resetButton.title = "Reset";
     resetButton.setAttribute("aria-label", "Reset");
     actions.insertBefore(resetButton, button);
-    resetButton.addEventListener("click", () => resetWindowedDialogLayout(dialog));
+    resetButton.addEventListener("click", () => {
+      const customReset = dialogResetHandlers.get(dialog);
+      if (customReset) {
+        customReset(dialog);
+      }
+
+      resetWindowedDialogLayout(dialog);
+    });
   }
 
   return button;

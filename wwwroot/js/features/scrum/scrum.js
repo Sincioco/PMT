@@ -3,7 +3,7 @@ import {
   checkedFilterValues,
   filterCheckList
 } from "../../components/filters.js";
-import { initializeWindowedDialog } from "../../components/dialogs.js?v=20260706-dialog-persistence";
+import { initializeWindowedDialog } from "../../components/dialogs.js?v=20260707-filter-reset-dialogs";
 import {
   field,
   optionalNumberValue,
@@ -724,7 +724,7 @@ export function createScrumFeature({
 
     renderScrumFiltersDialog(modal);
     document.body.appendChild(modal);
-    initializeWindowedDialog(modal);
+    initializeWindowedDialog(modal, { onReset: () => resetScrumFiltersDialog(modal) });
     modal.addEventListener("input", event => {
       if (!applyScrumFilterChange(event.target)) return;
       renderDevLogs();
@@ -779,6 +779,14 @@ export function createScrumFeature({
         </div>
       </div>
     `;
+  }
+
+  function resetScrumFiltersDialog(modal) {
+    removePreference(preferenceKeys.scrumFilters);
+    scrumFilters = normalizeScrumFilters({});
+    renderDevLogs();
+    renderScrumFiltersDialog(modal);
+    modal.querySelector("[data-filter='scrum-project']")?.focus({ preventScroll: true });
   }
 
   function scrumUserFilterItems() {

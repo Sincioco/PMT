@@ -1,6 +1,6 @@
 import { taskRowAvatarsHtml } from "../../components/avatars.js";
 import { bugIconHtml, buttonContent, funnelIconHtml, iconButton } from "../../components/buttons.js";
-import { initializeWindowedDialog } from "../../components/dialogs.js?v=20260706-dialog-persistence";
+import { initializeWindowedDialog } from "../../components/dialogs.js?v=20260707-filter-reset-dialogs";
 import {
   checkedFilterValues,
   filterCheckList
@@ -271,7 +271,7 @@ export function createBacklogFeature({
 
     renderBacklogFiltersDialog(modal);
     document.body.appendChild(modal);
-    initializeWindowedDialog(modal);
+    initializeWindowedDialog(modal, { onReset: () => resetBacklogFiltersDialog(modal) });
     modal.addEventListener("input", event => {
       if (!applyBacklogFilterChange(event.target)) return;
       renderBacklog();
@@ -342,6 +342,14 @@ export function createBacklogFeature({
         </div>
       </div>
     `;
+  }
+
+  function resetBacklogFiltersDialog(modal) {
+    removePreference(preferenceKeys.backlogFilters);
+    backlogFilters = normalizeBacklogFilters({});
+    renderBacklog();
+    renderBacklogFiltersDialog(modal);
+    modal.querySelector("[data-filter='backlog-project']")?.focus({ preventScroll: true });
   }
 
   function backlogUserFilterItems() {

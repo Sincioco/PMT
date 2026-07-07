@@ -1,7 +1,7 @@
 import { taskRowAvatarsHtml } from "../../components/avatars.js";
 import { buttonContent, chartIconHtml, funnelIconHtml, pageActionsMenuHtml } from "../../components/buttons.js?v=20260701-unified-dropdowns";
 import { VisualCharts } from "../../components/charts.js?v=20260628-chart-native-tooltips";
-import { initializeWindowedDialog } from "../../components/dialogs.js?v=20260706-dialog-persistence";
+import { initializeWindowedDialog } from "../../components/dialogs.js?v=20260707-filter-reset-dialogs";
 import {
   checkedFilterValues,
   filterCheckList
@@ -285,7 +285,7 @@ export function createBugsFeature({
 
     renderBugFiltersDialog(modal);
     document.body.appendChild(modal);
-    initializeWindowedDialog(modal);
+    initializeWindowedDialog(modal, { onReset: () => resetBugFiltersDialog(modal) });
     modal.addEventListener("input", event => {
       if (!applyBugFilterChange(event.target)) return;
       renderBugs();
@@ -312,6 +312,14 @@ export function createBugsFeature({
   function renderBugFiltersDialog(modal) {
     const body = modal.querySelector("[data-bug-filter-dialog-body]");
     if (body) body.innerHTML = bugFilterFieldsHtml();
+  }
+
+  function resetBugFiltersDialog(modal) {
+    removePreference(preferenceKeys.bugFilters);
+    bugFilters = normalizeBugFilters({});
+    renderBugs();
+    renderBugFiltersDialog(modal);
+    modal.querySelector("[data-filter='bug-project']")?.focus({ preventScroll: true });
   }
 
   function bugFilterFieldsHtml() {

@@ -10,7 +10,7 @@ import {
   resetDialogLayoutPreference,
   restoreDialogLayout,
   setDialogLayoutStorageKey
-} from "./components/dialogs.js?v=20260706-dialog-persistence";
+} from "./components/dialogs.js?v=20260707-filter-reset-dialogs";
 import {
   field,
   value
@@ -38,9 +38,9 @@ import {
 } from "./core/screen-registry.js?v=20260707-log-about-nav";
 import { state } from "./core/store.js";
 import { createAboutFeature } from "./features/about/about.js?v=20260621-about-credits";
-import { createBacklogFeature } from "./features/backlog/backlog.js?v=20260707-deep-links";
+import { createBacklogFeature } from "./features/backlog/backlog.js?v=20260707-filter-reset-dialogs";
 import { createBoardFeature } from "./features/board/board.js?v=20260707-deep-links";
-import { createBugsFeature } from "./features/bugs/bugs.js?v=20260707-deep-links";
+import { createBugsFeature } from "./features/bugs/bugs.js?v=20260707-filter-reset-dialogs";
 import { createDashboardFeature } from "./features/dashboard/dashboard.js?v=20260707-linked-bug-qa-sync";
 import { createDocumentationFeature } from "./features/documentation/documentation.js?v=20260707-documentation-filter-dialog-controls";
 import {
@@ -51,10 +51,10 @@ import {
 import { createProjectsFeature } from "./features/projects/projects.js?v=20260707-linked-bug-qa-sync";
 import { createRoadMapFeature } from "./features/roadmap/roadmap.js?v=20260707-linked-bug-qa-sync";
 import { createLogFeature } from "./features/personal-log/log.js?v=20260707-deep-links";
-import { createScrumFeature } from "./features/scrum/scrum.js?v=20260707-deep-links";
+import { createScrumFeature } from "./features/scrum/scrum.js?v=20260707-filter-reset-dialogs";
 import { createSettingsFeature } from "./features/settings/settings.js?v=20260707-deep-links";
 import { createSprintsFeature } from "./features/sprints/sprints.js?v=20260707-linked-bug-qa-sync";
-import { createTasksFeature } from "./features/tasks/tasks.js?v=20260707-deep-links";
+import { createTasksFeature } from "./features/tasks/tasks.js?v=20260707-filter-reset-dialogs";
 import { createWfhScheduleFeature } from "./features/wfh-schedule/wfh-schedule.js?v=20260707-deep-links";
 import {
   fallbackEnvironments,
