@@ -60,6 +60,7 @@ let documentationTreePaneHidden = false;
 let selectedTreeBlogId = 0;
 let editingTreeBlogId = 0;
 const collapsedTreeKeys = new Set();
+const expandedDocumentationCardIds = new Set();
 
 export function createDocumentationFeature({
   app,
@@ -69,7 +70,6 @@ export function createDocumentationFeature({
   deleteItem,
   loadState,
   openEditor,
-  render,
   saveJson,
   showToast
 }) {
@@ -87,7 +87,7 @@ export function createDocumentationFeature({
   function renderDocumentation() {
     if (documentationProjectId && !projectById(documentationProjectId)) documentationProjectId = 0;
 
-    const filteredBlogs = state.blogs.filter(blog => !documentationProjectId || blog.projectId === documentationProjectId);
+    const filteredBlogs = documentationCardBlogs();
 
     app.innerHTML = `<div class="documentation-screen ${documentationViewMode === "tree" ? "is-tree-view" : "is-card-view"}">
       ${sectionHead("Documentation", documentationHeaderActionsHtml())}
@@ -98,35 +98,43 @@ export function createDocumentationFeature({
       bindDocumentationTreeSplitter();
       bindDocumentationInlineEditor();
       bindDocumentationBodyImageOpen(app);
+    } else {
+      bindDocumentationCardOverflowControls();
     }
   }
 
   function documentationHeaderActionsHtml() {
     return `
-      <button class="secondary text-icon-button ${documentationViewMode === "cards" ? "is-on" : ""}" type="button" data-action="set-documentation-view" data-mode="cards" aria-pressed="${documentationViewMode === "cards"}">
-        ${buttonContent("&#9638;", "Cards")}
-      </button>
-      <button class="secondary text-icon-button ${documentationViewMode === "tree" ? "is-on" : ""}" type="button" data-action="set-documentation-view" data-mode="tree" aria-pressed="${documentationViewMode === "tree"}">
-        ${buttonContent("&#9776;", "Tree")}
-      </button>
-      <button class="secondary text-icon-button" type="button" data-action="open-documentation-filters" title="Filters" aria-label="Filters" aria-haspopup="dialog">
-        ${buttonContent(funnelIconHtml(), "Filters")}
-      </button>
-      ${documentationViewMode === "tree" ? `
-        <button class="secondary text-icon-button" type="button" data-action="toggle-documentation-tree-pane" aria-pressed="${documentationTreePaneHidden}">
-          ${buttonContent(documentationTreePaneHidden ? "&#9776;" : "&#10005;", documentationTreePaneHidden ? "Show Tree" : "Hide Tree")}
+      <div class="documentation-view-toggle" aria-label="Documentation view">
+        <button class="secondary text-icon-button documentation-view-toggle-button ${documentationViewMode === "cards" ? "is-on" : ""}" type="button" data-action="set-documentation-view" data-mode="cards" aria-pressed="${documentationViewMode === "cards"}">
+          ${buttonContent("&#9638;", "Cards")}
         </button>
-      ` : ""}
-      <button class="primary text-icon-button" type="button" data-action="new-blog">${buttonContent("&#10010;", "New Document")}</button>
+        <button class="secondary text-icon-button documentation-view-toggle-button ${documentationViewMode === "tree" ? "is-on" : ""}" type="button" data-action="set-documentation-view" data-mode="tree" aria-pressed="${documentationViewMode === "tree"}">
+          ${buttonContent("&#9776;", "Treeview")}
+        </button>
+      </div>
+      <div class="documentation-header-actions">
+        <button class="primary text-icon-button" type="button" data-action="new-blog">${buttonContent("&#10010;", "New Document")}</button>
+        ${documentationViewMode === "tree" ? `
+          <button class="secondary text-icon-button" type="button" data-action="toggle-documentation-tree-pane" aria-pressed="${documentationTreePaneHidden}">
+            ${buttonContent(documentationTreePaneHidden ? "&#9776;" : "&#10005;", documentationTreePaneHidden ? "Show Left Pane" : "Hide Left Pane")}
+          </button>
+        ` : ""}
+        <button class="secondary text-icon-button" type="button" data-action="open-documentation-filters" title="Filters" aria-label="Filters" aria-haspopup="dialog">
+          ${buttonContent(funnelIconHtml(), "Filters")}
+        </button>
+      </div>
     `;
   }
 
   function documentationCardViewHtml(filteredBlogs) {
-    return `
-      <div class="grid documentation-grid">
-        ${filteredBlogs.length ? filteredBlogs.map(documentationCardHtml).join("") : `<div class="empty">No Documentation exists for the selected project.</div>`}
-      </div>
-    `;
+    if (!filteredBlogs.length) return `<div class="empty">No documents match the selected filters.</div>`;
+
+    if (documentationTreeGroup === "all") {
+      return `<div class="grid documentation-grid">${filteredBlogs.map(documentationCardHtml).join("")}</div>`;
+    }
+
+    return `<div class="documentation-card-sections">${documentationCardSectionsHtml(filteredBlogs)}</div>`;
   }
 
   function documentationTreeViewHtml() {
@@ -157,6 +165,10 @@ export function createDocumentationFeature({
     if (action === "set-documentation-view") {
       const mode = button?.dataset?.mode || "cards";
       documentationViewMode = documentationViewModes.has(mode) ? mode : "cards";
+      if (documentationViewMode === "tree") {
+        documentationTreePaneHidden = false;
+        writePreference(preferenceKeys.documentationTreePaneHidden, documentationTreePaneHidden);
+      }
       writePreference(preferenceKeys.documentationViewMode, documentationViewMode);
       renderDocumentation();
       return true;
@@ -173,6 +185,15 @@ export function createDocumentationFeature({
     if (action === "toggle-documentation-tree-pane") {
       documentationTreePaneHidden = !documentationTreePaneHidden;
       writePreference(preferenceKeys.documentationTreePaneHidden, documentationTreePaneHidden);
+      renderDocumentation();
+      return true;
+    }
+    if (action === "toggle-documentation-card-expanded") {
+      if (expandedDocumentationCardIds.has(id)) {
+        expandedDocumentationCardIds.delete(id);
+      } else {
+        expandedDocumentationCardIds.add(id);
+      }
       renderDocumentation();
       return true;
     }
@@ -297,6 +318,7 @@ export function createDocumentationFeature({
 
     renderDocumentationFiltersDialog(modal);
     document.body.appendChild(modal);
+    initializeWindowedDialog(modal);
     modal.addEventListener("input", event => {
       handleFilterChange(event.target);
     });
@@ -317,6 +339,21 @@ export function createDocumentationFeature({
   }
 
   function documentationFilterFieldsHtml() {
+    const projectSelect = filterSelect("Project", "documentation-project", state.projects.map(project => ({ value: project.id, text: `${project.code} - ${project.title}` })), documentationProjectId || "", "All Projects");
+    const groupSelect = documentationTreeSelect("Group", "documentation-tree-group", [
+      { value: "project-sprint", text: "Project and Sprint" },
+      { value: "project", text: "Project Only" },
+      { value: "all", text: "All Documents" }
+    ], documentationTreeGroup);
+    const layoutSelect = documentationTreeSelect("Layout", "documentation-tree-layout", [
+      { value: "hierarchy", text: "Hierarchy" },
+      { value: "flat", text: "Flat" }
+    ], documentationTreeLayout);
+    const sortSelect = documentationTreeSelect("Sort", "documentation-tree-sort", [
+      { value: "latest", text: "Latest First" },
+      { value: "oldest", text: "Oldest First" }
+    ], documentationTreeSort);
+
     if (documentationViewMode === "tree") {
       return `
         <div class="tasks-filter-panel documentation-filter-fields">
@@ -325,20 +362,10 @@ export function createDocumentationFeature({
               <span>Search</span>
               <input data-filter="documentation-tree-search" type="search" value="${escapeAttr(documentationTreeSearch)}">
             </label>
-            ${filterSelect("Project", "documentation-project", state.projects.map(project => ({ value: project.id, text: `${project.code} - ${project.title}` })), documentationProjectId || "", "All Projects")}
-            ${documentationTreeSelect("Group", "documentation-tree-group", [
-              { value: "project-sprint", text: "Project and Sprint" },
-              { value: "project", text: "Project Only" },
-              { value: "all", text: "All Documents" }
-            ], documentationTreeGroup)}
-            ${documentationTreeSelect("Layout", "documentation-tree-layout", [
-              { value: "hierarchy", text: "Hierarchy" },
-              { value: "flat", text: "Flat" }
-            ], documentationTreeLayout)}
-            ${documentationTreeSelect("Sort", "documentation-tree-sort", [
-              { value: "latest", text: "Latest First" },
-              { value: "oldest", text: "Oldest First" }
-            ], documentationTreeSort)}
+            ${projectSelect}
+            ${groupSelect}
+            ${layoutSelect}
+            ${sortSelect}
           </div>
         </div>
       `;
@@ -347,7 +374,13 @@ export function createDocumentationFeature({
     return `
       <div class="tasks-filter-panel documentation-filter-fields">
         <div class="task-filter-row documentation-filter-row">
-          ${filterSelect("Project", "documentation-project", state.projects.map(project => ({ value: project.id, text: `${project.code} - ${project.title}` })), documentationProjectId || "", "All Projects")}
+          <label>
+            <span>Search</span>
+            <input data-filter="documentation-tree-search" type="search" value="${escapeAttr(documentationTreeSearch)}">
+          </label>
+          ${projectSelect}
+          ${groupSelect}
+          ${sortSelect}
         </div>
       </div>
     `;
@@ -378,7 +411,10 @@ export function createDocumentationFeature({
         </div>
       </div>
       <div class="dialog-actions documentation-readonly-actions">
-        <button type="button" class="secondary text-icon-button documentation-dialog-export-button" data-export-readonly-blog="${blog.id}">${buttonContent(documentationExportIconHtml(), "Export")}</button>
+        <div class="dialog-action-group is-left documentation-readonly-left-actions">
+          <button type="button" class="secondary text-icon-button" data-view-full-screen-readonly-blog="${blog.id}">${buttonContent("&#9974;", "View Full-Screen")}</button>
+          <button type="button" class="secondary text-icon-button documentation-dialog-export-button" data-export-readonly-blog="${blog.id}">${buttonContent(documentationExportIconHtml(), "Export")}</button>
+        </div>
         <button type="button" class="secondary text-icon-button" data-edit-readonly-blog="${blog.id}" ${canEditOwner(blog.createdByUserId) ? "" : "disabled"}>${buttonContent("&#9998;", "Edit")}</button>
         <button type="button" class="primary text-icon-button" data-close>${buttonContent("&#10003;", "Close")}</button>
       </div>
@@ -391,6 +427,14 @@ export function createDocumentationFeature({
       modal.remove();
     }));
     modal.addEventListener("click", event => {
+      const fullScreenButton = event.target.closest("[data-view-full-screen-readonly-blog]");
+      if (fullScreenButton) {
+        modal.close();
+        modal.remove();
+        openDocumentationFullScreen(Number(fullScreenButton.dataset.viewFullScreenReadonlyBlog || 0));
+        return;
+      }
+
       const exportButton = event.target.closest("[data-export-readonly-blog]");
       if (exportButton) {
         openDocumentationExportDialog(blog, { showToast });
@@ -409,6 +453,26 @@ export function createDocumentationFeature({
     modal.showModal();
     normalizeLinksInElement(modal);
     bindDocumentationBodyImageOpen(modal);
+  }
+
+  function openDocumentationFullScreen(blogId) {
+    const blog = state.blogs.find(item => item.id === Number(blogId || 0));
+    if (!blog) return;
+
+    documentationViewMode = "tree";
+    documentationTreePaneHidden = true;
+    documentationProjectId = blog.projectId || 0;
+    documentationTreeSearch = "";
+    selectedTreeBlogId = blog.id;
+    editingTreeBlogId = 0;
+    expandDocumentationTreePath(blog);
+
+    writePreference(preferenceKeys.documentationViewMode, documentationViewMode);
+    writePreference(preferenceKeys.documentationTreePaneHidden, documentationTreePaneHidden);
+    writePreference(preferenceKeys.documentationProject, documentationProjectId);
+    writePreference(preferenceKeys.documentationTreeSearch, documentationTreeSearch);
+
+    renderDocumentation();
   }
 
   function viewDocumentationById(blogId) {
@@ -436,8 +500,8 @@ export function createDocumentationFeature({
       <div class="form-grid">
         ${selectOptionsField("Project", "projectId", [{ id: "", title: "Global" }, ...state.projects.map(project => ({ id: project.id, title: `${project.code} - ${project.title}` }))], selectedProjectId)}
         ${selectOptionsField("Sprint", "sprintId", documentationSprintOptions(selectedProjectId), selectedSprintId)}
-        ${selectOptionsField("Parent", "parentBlogId", documentationParentOptions(selectedProjectId, selectedSprintId, blog.id), blog.parentBlogId || "")}
         ${field("Title", "title", blog.title || "", "text")}
+        ${selectOptionsField("Parent", "parentBlogId", documentationParentOptions(selectedProjectId, selectedSprintId, blog.id), blog.parentBlogId || "")}
         ${richTextField("bodyHtml", "Body", blog.bodyHtml || "")}
         <div class="field full">
           <label>Attachments</label>
@@ -629,11 +693,7 @@ export function createDocumentationFeature({
       selectedTreeBlogId = options.selectedBlogIdAfterSave || result?.id || blogId;
       editingTreeBlogId = 0;
       await loadState?.();
-      if (render) {
-        render();
-      } else {
-        renderDocumentation();
-      }
+      renderDocumentation();
       showToast?.("Saved.");
       return true;
     } catch (error) {
@@ -679,6 +739,24 @@ export function createDocumentationFeature({
     });
   }
 
+  function bindDocumentationCardOverflowControls() {
+    const updateOverflow = () => {
+      app.querySelectorAll(".documentation-card").forEach(card => {
+        const blogId = Number(card.dataset.id || 0);
+        const expanded = expandedDocumentationCardIds.has(blogId);
+        card.classList.toggle("is-expanded", expanded);
+        card.classList.toggle("has-overflow", expanded || card.scrollHeight > card.clientHeight + 1);
+      });
+    };
+
+    requestAnimationFrame(updateOverflow);
+    app.querySelectorAll(".documentation-card img").forEach(image => {
+      if (image.complete) return;
+      image.addEventListener("load", updateOverflow, { once: true });
+      image.addEventListener("error", updateOverflow, { once: true });
+    });
+  }
+
   return {
     handleAction,
     handleFilterChange,
@@ -696,6 +774,106 @@ function documentationTreeSelect(label, filterName, items, selectedValue) {
       </select>
     </label>
   `;
+}
+
+function documentationCardBlogs() {
+  const searchText = documentationSearchText();
+  return state.blogs
+    .filter(blog => !documentationProjectId || blog.projectId === documentationProjectId)
+    .filter(blog => !searchText || documentationBlogMatchesSearch(blog, searchText))
+    .sort(documentationBlogCompare);
+}
+
+function documentationCardSectionsHtml(blogs) {
+  return documentationCardGroups(blogs).map(group => `
+    <section class="documentation-card-section">
+      <h2>${escapeHtml(group.label)}</h2>
+      <div class="grid documentation-grid">
+        ${group.blogs.map(documentationCardHtml).join("")}
+      </div>
+    </section>
+  `).join("");
+}
+
+function documentationCardGroups(blogs) {
+  const groups = new Map();
+  blogs.forEach(blog => {
+    const group = documentationCardGroup(blog);
+    const existing = groups.get(group.key);
+    if (existing) {
+      existing.blogs.push(blog);
+    } else {
+      groups.set(group.key, { ...group, blogs: [blog] });
+    }
+  });
+
+  return [...groups.values()];
+}
+
+function documentationCardGroup(blog) {
+  if (documentationTreeGroup === "project") {
+    if (!blog.projectId) return { key: "global", label: "Global" };
+
+    const project = projectById(blog.projectId);
+    return {
+      key: `project:${blog.projectId}`,
+      label: project ? `${project.code} - ${project.title}` : documentationProjectLabel(blog.projectId)
+    };
+  }
+
+  if (!blog.projectId) return { key: "global", label: "Global" };
+
+  const project = projectById(blog.projectId);
+  const projectLabel = project ? `${project.code} - ${project.title}` : documentationProjectLabel(blog.projectId);
+  const sprint = sprintById(blog.sprintId);
+  if (sprint && sprint.projectId === blog.projectId) {
+    return {
+      key: `sprint:${sprint.id}`,
+      label: `${projectLabel} / ${sprint.code} - ${sprint.title}`
+    };
+  }
+
+  return {
+    key: `project:${blog.projectId}:direct`,
+    label: `${projectLabel} / Project Documents`
+  };
+}
+
+function expandDocumentationTreePath(blog) {
+  if (!blog) return;
+
+  if (documentationTreeGroup !== "all") {
+    if (!blog.projectId) {
+      collapsedTreeKeys.delete("global");
+    } else {
+      collapsedTreeKeys.delete(`project:${blog.projectId}`);
+      if (documentationTreeGroup === "project-sprint") {
+        const sprint = sprintById(blog.sprintId);
+        collapsedTreeKeys.delete(sprint && sprint.projectId === blog.projectId
+          ? `sprint:${sprint.id}`
+          : `project:${blog.projectId}:direct`);
+      }
+    }
+  }
+
+  const keyPrefix = documentationTreeKeyPrefixForBlog(blog);
+  const byId = new Map(state.blogs.map(item => [item.id, item]));
+  let current = blog;
+  while (current) {
+    collapsedTreeKeys.delete(`${keyPrefix}:doc:${current.id}`);
+    current = byId.get(current.parentBlogId);
+  }
+}
+
+function documentationTreeKeyPrefixForBlog(blog) {
+  if (documentationTreeGroup === "all") return "all";
+  if (!blog.projectId) return "global";
+  if (documentationTreeGroup === "project") return `project:${blog.projectId}`;
+
+  const sprint = sprintById(blog.sprintId);
+  return sprint && sprint.projectId === blog.projectId
+    ? `sprint:${sprint.id}`
+    : `project:${blog.projectId}:direct`;
 }
 
 function documentationTreeBlogs() {
@@ -931,15 +1109,20 @@ function documentationTreeInlineEditorHtml(blog) {
         <input name="attachments" type="file" multiple>
         <div class="attachment-preview" data-preview="attachments"></div>
       </div>
+      <div class="toolbar documentation-inline-floating-actions" aria-label="Document edit actions">
+        <button class="secondary text-icon-button" type="button" data-action="cancel-documentation-inline-edit">${buttonContent("&#10005;", "Cancel")}</button>
+        <button class="primary text-icon-button" type="button" data-action="save-documentation-inline-edit">${buttonContent("&#10003;", "Save")}</button>
+      </div>
     </form>
   `;
 }
 
 function documentationCardHtml(blog) {
   const wasEdited = documentationWasEdited(blog);
+  const isExpanded = expandedDocumentationCardIds.has(blog.id);
 
   return `
-    <article class="card clickable-card documentation-card" data-action="view-blog" data-id="${blog.id}" title="${escapeAttr(blog.title)}">
+    <article class="card clickable-card documentation-card ${isExpanded ? "is-expanded" : ""}" data-action="view-blog" data-id="${blog.id}" title="${escapeAttr(blog.title)}">
       <div class="documentation-card-top">
         <div class="documentation-card-title-row">
           <div class="documentation-title-block">
@@ -960,6 +1143,9 @@ function documentationCardHtml(blog) {
           ${iconButton("edit-blog", blog.id, "Edit", "edit", canEditOwner(blog.createdByUserId))}
         </div>
       </div>
+      <button class="secondary text-icon-button documentation-card-overflow-toggle" type="button" data-action="toggle-documentation-card-expanded" data-id="${blog.id}" aria-expanded="${isExpanded}" title="${isExpanded ? "Collapse document card" : "Show more of this document card"}">
+        ${buttonContent(isExpanded ? "&#9652;" : "&#9662;", isExpanded ? "Show Less" : "More")}
+      </button>
     </article>
   `;
 }
