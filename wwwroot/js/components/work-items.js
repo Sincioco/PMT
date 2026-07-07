@@ -28,6 +28,7 @@ import {
   allowedAssigneeUsers,
   taskDisplayPercent
 } from "../shared/work-item-rules.js?v=20260707-linked-bug-qa-sync";
+import { exportWorkItemHtml } from "../shared/work-item-transfer.js?v=20260708-work-item-html-transfer";
 
 export function taskButtonsHtml(task, { includeView = true, monochrome = false } = {}) {
   const canEdit = canEditTask(task);
@@ -241,6 +242,7 @@ export function viewWorkItem(task, editWorkItem, options = {}) {
       <div class="dialog-action-group is-left">
         ${canConvertToDocument ? `<button type="button" class="secondary text-icon-button" data-convert-task-document="${task.id}">${buttonContent("&#128196;", "Convert to Document")}</button>` : ""}
         <button type="button" class="secondary text-icon-button" data-action="show-task-audit" data-id="${task.id}">${buttonContent("&#128221;", "Audit Log")}</button>
+        <button type="button" class="secondary text-icon-button" data-export-readonly-work-item="${task.id}">${buttonContent("&#8681;", "Export")}</button>
       </div>
       <div class="dialog-action-group">
         <button type="button" class="secondary text-icon-button" data-edit-readonly-task="${task.id}" ${canEdit ? "" : "disabled"}>${buttonContent("&#9998;", "Edit")}</button>
@@ -280,6 +282,12 @@ export function viewWorkItem(task, editWorkItem, options = {}) {
     const auditButton = event.target.closest("[data-action='show-task-audit']");
     if (auditButton) {
       showTaskAudit(Number(auditButton.dataset.id));
+      return;
+    }
+
+    const exportButton = event.target.closest("[data-export-readonly-work-item]");
+    if (exportButton) {
+      exportWorkItemHtml(taskById(Number(exportButton.dataset.exportReadonlyWorkItem)) || task);
       return;
     }
 

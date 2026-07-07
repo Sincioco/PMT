@@ -33,7 +33,7 @@ import {
   taskPercentField,
   workItemDialogMetaHtml,
   uploadWorkItemAttachments
-} from "../../components/work-items.js?v=20260707-deep-links";
+} from "../../components/work-items.js?v=20260708-work-item-html-transfer";
 import {
   currentUser,
   currentUserId
@@ -99,6 +99,7 @@ import {
   taskCreatedTime,
   taskOrderCompare
 } from "../../shared/work-item-rules.js?v=20260707-linked-bug-qa-sync";
+import { openWorkItemHtmlImport } from "../../shared/work-item-transfer.js?v=20260708-work-item-html-transfer";
 
 export function createBugsFeature({
   app,
@@ -162,8 +163,9 @@ export function createBugsFeature({
         ${pageActionsMenuHtml([
           { action: "toggle-bug-table-edit-mode", icon: "&#9998;", label: "Edit Mode", title: "Edit Mode", checked: bugTableMode.active },
           { action: "toggle-bug-visual-charts", icon: chartIconHtml(), label: "Graphs", title: chartToggleLabel, checked: showCharts, disabled: !canShowCharts, separatorBefore: true },
-          { action: "export-bug-view", icon: exportIconHtml(), label: "Export", title: "Export", separatorBefore: true },
-          { action: "import-bug-view", icon: importIconHtml(), label: "Import", title: "Import" },
+          { action: "import-bug-html", icon: importIconHtml(), label: "Import HTML", title: "Import PMT HTML", separatorBefore: true },
+          { action: "export-bug-view", icon: exportIconHtml(), label: "Export Grid", title: "Export Grid", separatorBefore: true },
+          { action: "import-bug-view", icon: importIconHtml(), label: "Import Grid", title: "Import Grid" },
           { action: "reset-bug-view", icon: "&#8634;", label: "Reset View", title: "Reset View", separatorBefore: true }
         ])}
       `)}
@@ -215,6 +217,10 @@ export function createBugsFeature({
     }
     if (action === "open-bug-filters" || action === "toggle-bug-filters") {
       openBugFiltersDialog();
+      return true;
+    }
+    if (action === "import-bug-html") {
+      openBugHtmlImport();
       return true;
     }
     if (action === "export-bug-view") {
@@ -1348,6 +1354,47 @@ export function createBugsFeature({
         errors: [{ rowNumber: "File", message: error.message }]
       })
     });
+  }
+
+  function openBugHtmlImport() {
+    openWorkItemHtmlImport({
+      screenLabel: "Bug Tracking",
+      allowedTaskTypes: ["Bug"],
+      defaultTaskType: "Bug",
+      defaultStatus: "Todo",
+      routeType: "bugs",
+      apiRoot: "/api/tasks",
+      saveJson,
+      refreshAfterImport,
+      getFallbackContext: bugImportFallbackContext
+    });
+  }
+
+  function bugImportFallbackContext() {
+    const taskContext = getTaskContext();
+    const selectedSprint = selectedBugSprint();
+    const rememberedProjectId = state.projects.some(project => project.id === bugEntryProjectId)
+      ? bugEntryProjectId
+      : 0;
+    const projectId = Number(bugFilters.projectId || 0)
+      || selectedSprint?.projectId
+      || rememberedProjectId
+      || taskContext.projectId
+      || state.projects[0]?.id
+      || 0;
+    const rememberedSprint = state.sprints.find(sprint =>
+      sprint.id === Number(bugEntrySprintId || 0)
+      && sprint.projectId === projectId
+    );
+    const sprint = selectedSprint?.projectId === projectId
+      ? selectedSprint
+      : rememberedSprint;
+
+    return {
+      projectId,
+      sprintId: sprint?.id || null,
+      status: "Todo"
+    };
   }
 
   async function importBugExcel(records) {

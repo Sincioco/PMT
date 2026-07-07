@@ -20,7 +20,7 @@ import {
   bindAttachmentPreview,
   showTaskAudit,
   viewWorkItem
-} from "./components/work-items.js?v=20260707-deep-links";
+} from "./components/work-items.js?v=20260708-work-item-html-transfer";
 import { createApplicationShell } from "./core/application-shell.js?v=20260707-deep-links";
 import {
   currentView,
@@ -38,9 +38,9 @@ import {
 } from "./core/screen-registry.js?v=20260707-log-about-nav";
 import { state } from "./core/store.js";
 import { createAboutFeature } from "./features/about/about.js?v=20260621-about-credits";
-import { createBacklogFeature } from "./features/backlog/backlog.js?v=20260707-filter-reset-dialogs";
+import { createBacklogFeature } from "./features/backlog/backlog.js?v=20260708-work-item-html-transfer";
 import { createBoardFeature } from "./features/board/board.js?v=20260707-deep-links";
-import { createBugsFeature } from "./features/bugs/bugs.js?v=20260707-filter-reset-dialogs";
+import { createBugsFeature } from "./features/bugs/bugs.js?v=20260708-work-item-html-transfer";
 import { createDashboardFeature } from "./features/dashboard/dashboard.js?v=20260707-linked-bug-qa-sync";
 import { createDocumentationFeature } from "./features/documentation/documentation.js?v=20260708-documentation-privacy";
 import {
@@ -54,7 +54,7 @@ import { createLogFeature } from "./features/personal-log/log.js?v=20260707-deep
 import { createScrumFeature } from "./features/scrum/scrum.js?v=20260707-filter-reset-dialogs";
 import { createSettingsFeature } from "./features/settings/settings.js?v=20260707-deep-links";
 import { createSprintsFeature } from "./features/sprints/sprints.js?v=20260707-linked-bug-qa-sync";
-import { createTasksFeature } from "./features/tasks/tasks.js?v=20260707-filter-reset-dialogs";
+import { createTasksFeature } from "./features/tasks/tasks.js?v=20260708-work-item-html-transfer";
 import { createWfhScheduleFeature } from "./features/wfh-schedule/wfh-schedule.js?v=20260707-deep-links";
 import {
   fallbackEnvironments,

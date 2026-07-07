@@ -30,7 +30,7 @@ import {
   taskPercentField,
   workItemDialogMetaHtml,
   uploadWorkItemAttachments
-} from "../../components/work-items.js?v=20260707-deep-links";
+} from "../../components/work-items.js?v=20260708-work-item-html-transfer";
 import {
   currentUser
 } from "../../core/authentication.js";
@@ -95,6 +95,7 @@ import {
   taskRowsWithSubTasks,
   validateLinkedBugCompletion
 } from "../../shared/work-item-rules.js?v=20260707-linked-bug-qa-sync";
+import { openWorkItemHtmlImport } from "../../shared/work-item-transfer.js?v=20260708-work-item-html-transfer";
 
 const taskBugFixIconUrl = "/assets/bug.svg?v=20260629-kanban-gantt-bug-icon";
 
@@ -170,8 +171,9 @@ export function createTasksFeature({
         ${pageActionsMenuHtml([
           { action: "toggle-task-table-edit-mode", icon: "&#9998;", label: "Edit Mode", title: "Edit Mode", checked: taskTableMode.active },
           { action: "toggle-task-visual-charts", icon: chartIconHtml(), label: "Graphs", title: chartToggleLabel, checked: showCharts, disabled: !canShowCharts, separatorBefore: true },
-          { action: "export-task-view", icon: exportIconHtml(), label: "Export", title: "Export", separatorBefore: true },
-          { action: "import-task-view", icon: importIconHtml(), label: "Import", title: "Import" },
+          { action: "import-task-html", icon: importIconHtml(), label: "Import HTML", title: "Import PMT HTML", separatorBefore: true },
+          { action: "export-task-view", icon: exportIconHtml(), label: "Export Grid", title: "Export Grid", separatorBefore: true },
+          { action: "import-task-view", icon: importIconHtml(), label: "Import Grid", title: "Import Grid" },
           { action: "reset-task-view", icon: "&#8634;", label: "Reset View", title: "Reset View", separatorBefore: true }
         ])}
       `)}
@@ -242,6 +244,10 @@ export function createTasksFeature({
     }
     if (action === "open-task-filters" || action === "toggle-task-filters") {
       openTaskFiltersDialog();
+      return true;
+    }
+    if (action === "import-task-html") {
+      openTaskHtmlImport();
       return true;
     }
     if (action === "export-task-view") {
@@ -1629,6 +1635,46 @@ export function createTasksFeature({
         errors: [{ rowNumber: "File", message: error.message }]
       })
     });
+  }
+
+  function openTaskHtmlImport() {
+    openWorkItemHtmlImport({
+      screenLabel: "Dev Tasks",
+      allowedTaskTypes: ["Dev"],
+      defaultTaskType: "Dev",
+      defaultStatus: "Todo",
+      routeType: "tasks",
+      apiRoot: "/api/tasks",
+      saveJson,
+      refreshAfterImport,
+      getFallbackContext: taskImportFallbackContext
+    });
+  }
+
+  function taskImportFallbackContext() {
+    ensureSelectedProject();
+    const selectedSprint = taskSelectedSprint(taskProjectSprints());
+    const rememberedProjectId = state.projects.some(project => project.id === taskEntryProjectId)
+      ? taskEntryProjectId
+      : 0;
+    const projectId = taskProjectId
+      || selectedSprint?.projectId
+      || rememberedProjectId
+      || state.projects[0]?.id
+      || 0;
+    const rememberedSprint = state.sprints.find(sprint =>
+      sprint.id === Number(taskEntrySprintId || 0)
+      && sprint.projectId === projectId
+    );
+    const sprint = selectedSprint?.projectId === projectId
+      ? selectedSprint
+      : rememberedSprint;
+
+    return {
+      projectId,
+      sprintId: sprint?.id || null,
+      status: "Todo"
+    };
   }
 
   async function importTaskExcel(records) {

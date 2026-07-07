@@ -1,5 +1,5 @@
 import { taskRowAvatarsHtml } from "../../components/avatars.js";
-import { bugIconHtml, buttonContent, funnelIconHtml, iconButton } from "../../components/buttons.js";
+import { bugIconHtml, buttonContent, funnelIconHtml, iconButton, pageActionsMenuHtml } from "../../components/buttons.js?v=20260701-unified-dropdowns";
 import { initializeWindowedDialog } from "../../components/dialogs.js?v=20260707-filter-reset-dialogs";
 import {
   checkedFilterValues,
@@ -13,7 +13,7 @@ import { sectionHead } from "../../components/sections.js?v=20260701-nav-title-p
 import {
   bugFixIconHtml,
   createWorkItemTableMode
-} from "../../components/work-items.js?v=20260707-deep-links";
+} from "../../components/work-items.js?v=20260708-work-item-html-transfer";
 import {
   preferenceKeys,
   readJsonPreference,
@@ -68,6 +68,7 @@ import {
   percentForStatus,
   validateLinkedBugCompletion
 } from "../../shared/work-item-rules.js?v=20260707-linked-bug-qa-sync";
+import { openWorkItemHtmlImport } from "../../shared/work-item-transfer.js?v=20260708-work-item-html-transfer";
 
 const backlogBugFixIconUrl = "/assets/bug.svg?v=20260629-kanban-gantt-bug-icon";
 
@@ -116,11 +117,14 @@ export function createBacklogFeature({
         ${sectionHead("Backlog", `
           <button class="primary text-icon-button" type="button" data-action="new-backlog-task" title="New Dev Task" aria-label="New Dev Task">${buttonContent("&#10010;", "New Dev Task")}</button>
           <button class="primary text-icon-button" type="button" data-action="new-backlog-bug" title="New Bug Report" aria-label="New Bug Report">${buttonContent(bugIconHtml(), "New Bug Report")}</button>
-          ${backlogTableMode.buttonHtml()}
           <button class="secondary text-icon-button" type="button" data-action="open-backlog-filters" title="Filters" aria-label="Filters" aria-haspopup="dialog">${buttonContent(funnelIconHtml(), "Filters")}</button>
-          <button class="secondary text-icon-button" type="button" data-action="export-backlog-view" title="Export" aria-label="Export" aria-haspopup="dialog">${buttonContent(exportIconHtml(), "Export")}</button>
-          <button class="secondary text-icon-button" type="button" data-action="import-backlog-view" title="Import" aria-label="Import">${buttonContent(importIconHtml(), "Import")}</button>
-          <button class="secondary text-icon-button" type="button" data-action="reset-backlog-view" title="Reset View" aria-label="Reset View">${buttonContent("&#8634;", "Reset View")}</button>
+          ${pageActionsMenuHtml([
+            { action: "toggle-backlog-table-edit-mode", icon: "&#9998;", label: "Edit Mode", title: "Edit Mode", checked: backlogTableMode.active },
+            { action: "import-backlog-html", icon: importIconHtml(), label: "Import HTML", title: "Import PMT HTML", separatorBefore: true },
+            { action: "export-backlog-view", icon: exportIconHtml(), label: "Export Grid", title: "Export Grid", separatorBefore: true },
+            { action: "import-backlog-view", icon: importIconHtml(), label: "Import Grid", title: "Import Grid" },
+            { action: "reset-backlog-view", icon: "&#8634;", label: "Reset View", title: "Reset View", separatorBefore: true }
+          ])}
         `)}
         <div class="panel work-item-table-panel backlog-table-panel">
           <table class="table work-item-table backlog-table ${backlogTableMode.active ? "is-edit-mode" : "is-read-mode"}" style="--backlog-assignee-width:${assigneeColumnWidth}px; --backlog-table-min-width:${backlogTableMinWidth(visibleBacklogColumns)}px">
@@ -197,6 +201,10 @@ export function createBacklogFeature({
     }
     if (action === "open-backlog-filters") {
       openBacklogFiltersDialog();
+      return true;
+    }
+    if (action === "import-backlog-html") {
+      openBacklogHtmlImport();
       return true;
     }
     if (action === "export-backlog-view") {
@@ -1392,6 +1400,36 @@ export function createBacklogFeature({
         errors: [{ rowNumber: "File", message: error.message }]
       })
     });
+  }
+
+  function openBacklogHtmlImport() {
+    openWorkItemHtmlImport({
+      screenLabel: "Backlog",
+      allowedTaskTypes: ["Dev", "Bug"],
+      defaultTaskType: "Dev",
+      defaultStatus: "Backlog",
+      routeType: "backlog",
+      apiRoot: "/api/backlog/tasks",
+      saveJson,
+      refreshAfterImport,
+      getFallbackContext: backlogImportFallbackContext
+    });
+  }
+
+  function backlogImportFallbackContext() {
+    const projectId = Number(backlogFilters.projectId || 0)
+      || state.projects[0]?.id
+      || 0;
+    const selectedSprint = sprintById(Number(backlogFilters.sprintId || 0));
+    const sprintId = selectedSprint?.projectId === projectId
+      ? selectedSprint.id
+      : null;
+
+    return {
+      projectId,
+      sprintId,
+      status: "Backlog"
+    };
   }
 
   async function importBacklogExcel(records) {
