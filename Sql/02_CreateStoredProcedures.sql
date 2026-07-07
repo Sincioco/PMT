@@ -135,6 +135,7 @@ CREATE OR ALTER PROCEDURE [pmt].[GetAppState]
 AS
 BEGIN
     SET NOCOUNT ON;
+    DECLARE @CurrentUserIsAdmin BIT = [pmt].[IsAdmin](@CurrentUserId);
 
     -- The API reads these result sets in this exact order.
     SELECT
@@ -295,27 +296,45 @@ BEGIN
         [ParentBlogId],
         [Title],
         [BodyHtml],
+        [IsPrivate],
         [CreatedByUserId],
         [CreatedAt],
         [UpdatedAt]
     FROM [pmt].[Blogs]
     WHERE [IsDeleted] = 0
+      AND ([IsPrivate] = 0 OR [CreatedByUserId] = @CurrentUserId OR @CurrentUserIsAdmin = 1)
     ORDER BY [UpdatedAt] DESC;
 
     SELECT
-        [BlogId],
-        [AttachmentId]
-    FROM [pmt].[BlogAttachments]
-    ORDER BY [BlogId], [AttachmentId];
+        [BlogAttachment].[BlogId],
+        [BlogAttachment].[AttachmentId]
+    FROM [pmt].[BlogAttachments] AS [BlogAttachment]
+    WHERE EXISTS
+    (
+        SELECT 1
+        FROM [pmt].[Blogs] AS [Blog]
+        WHERE [Blog].[BlogId] = [BlogAttachment].[BlogId]
+          AND [Blog].[IsDeleted] = 0
+          AND ([Blog].[IsPrivate] = 0 OR [Blog].[CreatedByUserId] = @CurrentUserId OR @CurrentUserIsAdmin = 1)
+    )
+    ORDER BY [BlogAttachment].[BlogId], [BlogAttachment].[AttachmentId];
 
     SELECT
-        [BlogHistoryId],
-        [BlogId],
-        [Action],
-        [UserId],
-        [CreatedAt]
-    FROM [pmt].[BlogHistory]
-    ORDER BY [CreatedAt] DESC;
+        [BlogHistory].[BlogHistoryId],
+        [BlogHistory].[BlogId],
+        [BlogHistory].[Action],
+        [BlogHistory].[UserId],
+        [BlogHistory].[CreatedAt]
+    FROM [pmt].[BlogHistory] AS [BlogHistory]
+    WHERE EXISTS
+    (
+        SELECT 1
+        FROM [pmt].[Blogs] AS [Blog]
+        WHERE [Blog].[BlogId] = [BlogHistory].[BlogId]
+          AND [Blog].[IsDeleted] = 0
+          AND ([Blog].[IsPrivate] = 0 OR [Blog].[CreatedByUserId] = @CurrentUserId OR @CurrentUserIsAdmin = 1)
+    )
+    ORDER BY [BlogHistory].[CreatedAt] DESC;
 
     SELECT TOP (2000)
         [AuditEventId],
@@ -329,8 +348,17 @@ BEGIN
         [NewPercentCompleted],
         [UserId],
         [CreatedAt]
-    FROM [pmt].[AuditEvents]
-    ORDER BY [CreatedAt] DESC, [AuditEventId] DESC;
+    FROM [pmt].[AuditEvents] AS [AuditEvent]
+    WHERE [AuditEvent].[EntityType] <> N'Blog'
+       OR EXISTS
+       (
+            SELECT 1
+            FROM [pmt].[Blogs] AS [Blog]
+            WHERE [Blog].[BlogId] = [AuditEvent].[EntityId]
+              AND [Blog].[IsDeleted] = 0
+              AND ([Blog].[IsPrivate] = 0 OR [Blog].[CreatedByUserId] = @CurrentUserId OR @CurrentUserIsAdmin = 1)
+       )
+    ORDER BY [AuditEvent].[CreatedAt] DESC, [AuditEvent].[AuditEventId] DESC;
 
     SELECT
         [LookupId],
@@ -2648,6 +2676,7 @@ CREATE OR ALTER PROCEDURE [pmt].[UpsertBlog]
     @ProjectId INT,
     @SprintId INT = NULL,
     @ParentBlogId INT = NULL,
+    @IsPrivate BIT = 1,
     @CurrentUserId INT
 AS
 BEGIN
@@ -2744,6 +2773,7 @@ BEGIN
             [ParentBlogId],
             [Title],
             [BodyHtml],
+            [IsPrivate],
             [CreatedByUserId],
             [CreatedAt],
             [UpdatedAt]
@@ -2755,6 +2785,7 @@ BEGIN
             @ParentBlogId,
             @Title,
             @BodyHtml,
+            @IsPrivate,
             @CurrentUserId,
             @Now,
             @Now
@@ -2790,6 +2821,7 @@ BEGIN
             [ParentBlogId] = @ParentBlogId,
             [Title] = @Title,
             [BodyHtml] = @BodyHtml,
+            [IsPrivate] = @IsPrivate,
             [UpdatedByUserId] = @CurrentUserId,
             [UpdatedAt] = @Now
         WHERE [BlogId] = @BlogId;
@@ -2938,6 +2970,7 @@ BEGIN
             [SprintId],
             [Title],
             [BodyHtml],
+            [IsPrivate],
             [CreatedByUserId],
             [UpdatedByUserId],
             [CreatedAt],
@@ -2949,6 +2982,7 @@ BEGIN
             @SprintId,
             @Title,
             @DocumentBody,
+            1,
             @CurrentUserId,
             @CurrentUserId,
             @Now,

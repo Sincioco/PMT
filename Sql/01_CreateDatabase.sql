@@ -481,6 +481,7 @@ BEGIN
         [ParentBlogId] INT NULL,
         [Title] NVARCHAR(220) NOT NULL,
         [BodyHtml] NVARCHAR(MAX) NOT NULL,
+        [IsPrivate] BIT NOT NULL CONSTRAINT [DF_pmt_Blogs_IsPrivate] DEFAULT (1),
         [CreatedByUserId] INT NOT NULL,
         [UpdatedByUserId] INT NULL,
         [IsDeleted] BIT NOT NULL CONSTRAINT [DF_pmt_Blogs_IsDeleted] DEFAULT (0),
@@ -510,6 +511,13 @@ GO
 IF COL_LENGTH(N'pmt.Blogs', N'ParentBlogId') IS NULL
 BEGIN
     ALTER TABLE [pmt].[Blogs] ADD [ParentBlogId] INT NULL;
+END;
+GO
+
+IF COL_LENGTH(N'pmt.Blogs', N'IsPrivate') IS NULL
+BEGIN
+    ALTER TABLE [pmt].[Blogs]
+    ADD [IsPrivate] BIT NOT NULL CONSTRAINT [DF_pmt_Blogs_IsPrivate] DEFAULT (1) WITH VALUES;
 END;
 GO
 

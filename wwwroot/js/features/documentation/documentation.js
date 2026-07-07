@@ -5,7 +5,7 @@ import { filterSelect } from "../../components/filters.js";
 import {
   documentationExportIconHtml,
   openDocumentationExportDialog
-} from "./documentation-export.js?v=20260706-export-dialog-icons";
+} from "./documentation-export.js?v=20260708-documentation-privacy";
 import {
   field,
   optionalNumberValue,
@@ -22,7 +22,11 @@ import {
   readNumberPreference,
   readPreference,
   writePreference
-} from "../../core/preferences.js?v=20260701-documentation-tree";
+} from "../../core/preferences.js?v=20260708-documentation-privacy";
+import {
+  currentUser,
+  currentUserId
+} from "../../core/authentication.js";
 import { state } from "../../core/store.js";
 import {
   documentationWasEdited,
@@ -47,6 +51,7 @@ const documentationViewModes = new Set(["cards", "tree"]);
 const documentationTreeGroups = new Set(["all", "project", "project-sprint"]);
 const documentationTreeLayouts = new Set(["hierarchy", "flat"]);
 const documentationTreeSorts = new Set(["latest", "oldest"]);
+const documentationVisibilityModes = new Set(["both", "private", "public", "admin-all"]);
 const documentationImportMetadataTitle = "PMT Import Process Meta Data";
 const documentationImportSchema = "pmt.documentation.export.v1";
 const documentationInvalidImportMessage = "The file cannot be imported because it is not a valid PMT export file.";
@@ -55,6 +60,7 @@ const newDocumentationInlineBlogId = -1;
 let documentationProjectId = 0;
 let documentationEntryProjectId = 0;
 let documentationEntrySprintId = 0;
+let documentationVisibilityFilter = "both";
 let documentationViewMode = "cards";
 let documentationTreeGroup = "all";
 let documentationTreeLayout = "hierarchy";
@@ -82,6 +88,7 @@ export function createDocumentationFeature({
   documentationProjectId = readNumberPreference(preferenceKeys.documentationProject, 0);
   documentationEntryProjectId = readNumberPreference(preferenceKeys.documentationEntryProject, 0);
   documentationEntrySprintId = readNumberPreference(preferenceKeys.documentationEntrySprint, 0);
+  documentationVisibilityFilter = readKnownPreference(preferenceKeys.documentationVisibility, "both", documentationVisibilityModes);
   documentationViewMode = readKnownPreference(preferenceKeys.documentationViewMode, "cards", documentationViewModes);
   documentationTreeGroup = readKnownPreference(preferenceKeys.documentationTreeGroup, "all", documentationTreeGroups);
   documentationTreeLayout = readKnownPreference(preferenceKeys.documentationTreeLayout, "hierarchy", documentationTreeLayouts);
@@ -92,6 +99,7 @@ export function createDocumentationFeature({
 
   function renderDocumentation() {
     if (documentationProjectId && !projectById(documentationProjectId)) documentationProjectId = 0;
+    normalizeDocumentationVisibilityFilter();
     if (!documentationDefaultFiltersApplied) applyDocumentationDefaultFilters();
 
     const filteredBlogs = documentationCardBlogs();
@@ -286,6 +294,13 @@ export function createDocumentationFeature({
       return true;
     }
 
+    if (filter === "documentation-visibility") {
+      documentationVisibilityFilter = documentationVisibilityValue(target.value);
+      writePreference(preferenceKeys.documentationVisibility, documentationVisibilityFilter);
+      renderDocumentation();
+      return true;
+    }
+
     if (filter === "documentation-tree-search") {
       documentationTreeSearch = target.value || "";
       writePreference(preferenceKeys.documentationTreeSearch, documentationTreeSearch);
@@ -375,6 +390,7 @@ export function createDocumentationFeature({
 
   function documentationFilterFieldsHtml() {
     const projectSelect = filterSelect("Project", "documentation-project", state.projects.map(project => ({ value: project.id, text: `${project.code} - ${project.title}` })), documentationProjectId || "", "All Projects");
+    const visibilitySelect = documentationTreeSelect("Visibility", "documentation-visibility", documentationVisibilityOptions(), documentationVisibilityFilter);
     const groupSelect = documentationTreeSelect("Group", "documentation-tree-group", [
       { value: "all", text: "All Documents" },
       { value: "project", text: "Project Only" },
@@ -398,6 +414,7 @@ export function createDocumentationFeature({
               <input data-filter="documentation-tree-search" type="search" value="${escapeAttr(documentationTreeSearch)}">
             </label>
             ${projectSelect}
+            ${visibilitySelect}
             ${groupSelect}
             ${layoutSelect}
             ${sortSelect}
@@ -414,6 +431,7 @@ export function createDocumentationFeature({
             <input data-filter="documentation-tree-search" type="search" value="${escapeAttr(documentationTreeSearch)}">
           </label>
           ${projectSelect}
+          ${visibilitySelect}
           ${groupSelect}
           ${sortSelect}
         </div>
@@ -590,6 +608,7 @@ export function createDocumentationFeature({
         ${selectOptionsField("Sprint", "sprintId", documentationSprintOptions(selectedProjectId), selectedSprintId)}
         ${field("Title", "title", blog.title || "", "text")}
         ${selectOptionsField("Parent", "parentBlogId", documentationParentOptions(selectedProjectId, selectedSprintId, blog.id), blog.parentBlogId || "")}
+        ${documentationPrivateField(blog)}
         ${richTextField("bodyHtml", "Body", blog.bodyHtml || "")}
         <div class="field full">
           <label>Attachments</label>
@@ -606,6 +625,7 @@ export function createDocumentationFeature({
         sprintId,
         parentBlogId: optionalNumberValue(root, "parentBlogId"),
         title: value(root, "title"),
+        isPrivate: documentationPrivateValue(root),
         bodyHtml: richValue(root, "bodyHtml")
       });
 
@@ -846,6 +866,7 @@ export function createDocumentationFeature({
       || (sprintId || null) !== (blog.sprintId || null)
       || (optionalNumberValue(form, "parentBlogId") || null) !== (blog.parentBlogId || null)
       || value(form, "title") !== (blog.title || "")
+      || documentationPrivateValue(form) !== documentationIsPrivateForForm(blog)
       || richValue(form, "bodyHtml") !== normalizeRichHtml(blog.bodyHtml || "")
       || (form.querySelector("[name='attachments']")?.files?.length || 0) > 0;
   }
@@ -863,6 +884,7 @@ export function createDocumentationFeature({
         sprintId,
         parentBlogId: optionalNumberValue(form, "parentBlogId"),
         title: value(form, "title"),
+        isPrivate: documentationPrivateValue(form),
         bodyHtml: richValue(form, "bodyHtml")
       });
       const savedBlogId = Number(result?.id || blogId || 0);
@@ -1016,6 +1038,7 @@ function documentationImportPayload(metadata, parsedDocument) {
   });
   const title = documentationImportTitle(sourceDocument, parsedDocument);
   const bodyHtml = documentationImportBodyHtml(sourceDocument.bodyHtml, metadata, parsedDocument);
+  const isPrivate = documentationImportIsPrivate(sourceDocument, existingBlog);
 
   if (!title || !bodyHtml) throw invalidDocumentationImportError();
 
@@ -1025,6 +1048,7 @@ function documentationImportPayload(metadata, parsedDocument) {
     sprintId,
     parentBlogId,
     title,
+    isPrivate,
     bodyHtml
   };
 }
@@ -1033,6 +1057,12 @@ function documentationImportExistingBlog(sourceDocument) {
   const sourceBlogId = Number(sourceDocument?.id || 0);
   const existingBlog = sourceBlogId ? state.blogs.find(blog => blog.id === sourceBlogId) || null : null;
   return existingBlog && canEditOwner(existingBlog.createdByUserId) ? existingBlog : null;
+}
+
+function documentationImportIsPrivate(sourceDocument, existingBlog) {
+  if (typeof sourceDocument?.isPrivate === "boolean") return sourceDocument.isPrivate;
+  if (existingBlog) return existingBlog.isPrivate !== false;
+  return true;
 }
 
 function documentationImportProjectId(projectMetadata) {
@@ -1165,14 +1195,59 @@ function invalidDocumentationImportError() {
 function applyDocumentationDefaultFilters() {
   documentationDefaultFiltersApplied = true;
   documentationProjectId = 0;
+  documentationVisibilityFilter = "both";
   documentationTreeGroup = "all";
   documentationTreeSearch = "";
   documentationTreeSort = "latest";
   expandedDocumentationCardIds.clear();
   writePreference(preferenceKeys.documentationProject, documentationProjectId);
+  writePreference(preferenceKeys.documentationVisibility, documentationVisibilityFilter);
   writePreference(preferenceKeys.documentationTreeGroup, documentationTreeGroup);
   writePreference(preferenceKeys.documentationTreeSearch, documentationTreeSearch);
   writePreference(preferenceKeys.documentationTreeSort, documentationTreeSort);
+}
+
+function normalizeDocumentationVisibilityFilter() {
+  const normalized = documentationVisibilityValue(documentationVisibilityFilter);
+  if (normalized === documentationVisibilityFilter) return;
+
+  documentationVisibilityFilter = normalized;
+  writePreference(preferenceKeys.documentationVisibility, documentationVisibilityFilter);
+}
+
+function documentationVisibilityValue(value) {
+  const nextValue = documentationVisibilityModes.has(value) ? value : "both";
+  if (nextValue === "admin-all" && !currentUser().isAdmin) return "both";
+  return nextValue;
+}
+
+function documentationVisibilityOptions() {
+  const options = [
+    { value: "both", text: "Both" },
+    { value: "private", text: "Private" },
+    { value: "public", text: "Public" }
+  ];
+
+  if (currentUser().isAdmin) {
+    options.push({ value: "admin-all", text: "Admin See All" });
+  }
+
+  return options;
+}
+
+function documentationBlogVisibleByPrivacyFilter(blog) {
+  const isPrivate = blog.isPrivate !== false;
+  const isOwner = documentationOwnedByCurrentUser(blog);
+
+  if (documentationVisibilityFilter === "admin-all" && currentUser().isAdmin) return true;
+  if (documentationVisibilityFilter === "private") return isPrivate && isOwner;
+  if (documentationVisibilityFilter === "public") return !isPrivate;
+
+  return !isPrivate || isOwner;
+}
+
+function documentationOwnedByCurrentUser(blog) {
+  return Number(blog?.createdByUserId || 0) === Number(currentUserId || 0);
 }
 
 function documentationNewInlineDraft() {
@@ -1193,6 +1268,7 @@ function documentationNewInlineDraft() {
     parentBlogId: null,
     title: "",
     bodyHtml: "",
+    isPrivate: true,
     attachments: [],
     history: [],
     createdAt: "",
@@ -1212,9 +1288,27 @@ function documentationTreeSelect(label, filterName, items, selectedValue) {
   `;
 }
 
+function documentationPrivateField(blog = {}) {
+  return `
+    <label class="inline-check field full">
+      <input name="isPrivate" type="checkbox" ${documentationIsPrivateForForm(blog) ? "checked" : ""}>
+      <span>Private</span>
+    </label>
+  `;
+}
+
+function documentationPrivateValue(root) {
+  return root.querySelector("[name='isPrivate']")?.checked ?? true;
+}
+
+function documentationIsPrivateForForm(blog = {}) {
+  return blog?.id ? blog.isPrivate !== false : true;
+}
+
 function documentationCardBlogs() {
   const searchText = documentationSearchText();
   return state.blogs
+    .filter(documentationBlogVisibleByPrivacyFilter)
     .filter(blog => !documentationProjectId || blog.projectId === documentationProjectId)
     .filter(blog => !searchText || documentationBlogMatchesSearch(blog, searchText))
     .sort(documentationBlogCompare);
@@ -1314,7 +1408,9 @@ function documentationTreeKeyPrefixForBlog(blog) {
 
 function documentationTreeBlogs() {
   const searchText = documentationSearchText();
-  const sourceBlogs = state.blogs.filter(blog => !documentationProjectId || blog.projectId === documentationProjectId);
+  const sourceBlogs = state.blogs
+    .filter(documentationBlogVisibleByPrivacyFilter)
+    .filter(blog => !documentationProjectId || blog.projectId === documentationProjectId);
   const matchedBlogs = searchText
     ? sourceBlogs.filter(blog => documentationBlogMatchesSearch(blog, searchText))
     : [...sourceBlogs];
@@ -1542,6 +1638,7 @@ function documentationTreeInlineEditorHtml(blog) {
         ${selectOptionsField("Project", "projectId", [{ id: "", title: "Global" }, ...state.projects.map(project => ({ id: project.id, title: `${project.code} - ${project.title}` }))], selectedProjectId)}
         ${selectOptionsField("Sprint", "sprintId", documentationSprintOptions(selectedProjectId), selectedSprintId)}
         ${selectOptionsField("Parent", "parentBlogId", documentationParentOptions(selectedProjectId, selectedSprintId, blog.id), blog.parentBlogId || "")}
+        ${documentationPrivateField(blog)}
       </div>
       <div class="field full documentation-inline-body-field">
         <label>Body</label>

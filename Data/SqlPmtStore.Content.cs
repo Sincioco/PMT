@@ -37,6 +37,7 @@ public sealed partial class SqlPmtStore
             AddNullable(command, "@ProjectId", input.ProjectId);
             AddNullable(command, "@SprintId", input.SprintId);
             AddNullable(command, "@ParentBlogId", input.ParentBlogId);
+            Add(command, "@IsPrivate", input.IsPrivate);
             Add(command, "@CurrentUserId", currentUserId);
         }, cancellationToken);
     }

@@ -19,3 +19,4 @@ Documentation Screen
 
 11.) In the Documentation Screen, add a new "Private" checkbox in the New/Edit dialog box and "full screen" in-place editor in the TreeNav view.  When checked, the document will be private and only visible to the user who created it.  If unchecked, it will be public and visible to all users.  The default should be checked (private).
 12.) In  the Documentation Screen Filters (both Card and TreeNav), include an option to filter by "Both", Private or Public documents.  The default should be "Both".  If the user is an Admins, add a third option for "Admin See All" that will allow admins to see all documents regardless of the private/public settings of the user.
+

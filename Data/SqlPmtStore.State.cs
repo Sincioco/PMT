@@ -250,6 +250,7 @@ public sealed partial class SqlPmtStore
                 ParentBlogId = reader.GetNullableInt32("ParentBlogId"),
                 Title = reader.GetStringOrEmpty("Title"),
                 BodyHtml = reader.GetStringOrEmpty("BodyHtml"),
+                IsPrivate = reader.GetBoolean("IsPrivate"),
                 CreatedByUserId = reader.GetInt32("CreatedByUserId"),
                 CreatedAt = reader.GetDateTime("CreatedAt"),
                 UpdatedAt = reader.GetDateTime("UpdatedAt")

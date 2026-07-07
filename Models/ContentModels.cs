@@ -32,6 +32,7 @@ public sealed class BlogPostDto
     public int? ParentBlogId { get; set; }
     public string Title { get; set; } = "";
     public string BodyHtml { get; set; } = "";
+    public bool IsPrivate { get; set; } = true;
     public int CreatedByUserId { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
@@ -67,6 +68,7 @@ public sealed class BlogInput
     public int? ParentBlogId { get; set; }
     public string Title { get; set; } = "";
     public string BodyHtml { get; set; } = "";
+    public bool IsPrivate { get; set; } = true;
 }
 
 public sealed class UploadResult

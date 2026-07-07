@@ -52,6 +52,7 @@ export const preferenceKeys = Object.freeze({
   documentationProject: "pmt-documentation-project",
   documentationEntryProject: "pmt-documentation-entry-project",
   documentationEntrySprint: "pmt-documentation-entry-sprint",
+  documentationVisibility: "pmt-documentation-visibility",
   documentationViewMode: "pmt-documentation-view-mode",
   documentationTreeGroup: "pmt-documentation-tree-group",
   documentationTreeLayout: "pmt-documentation-tree-layout",
