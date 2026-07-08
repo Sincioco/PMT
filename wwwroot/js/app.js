@@ -14,7 +14,7 @@ import {
 import {
   field,
   value
-} from "./components/forms.js?v=20260709-muted-icons-indent";
+} from "./components/forms.js?v=20260709-rich-color-label-text";
 import { configureProgressAndStatus } from "./components/progress-and-status.js?v=20260707-linked-bug-qa-sync";
 import {
   bindAttachmentPreview,
@@ -41,9 +41,9 @@ import { appUrl } from "./shared/app-urls.js";
 import { createAboutFeature } from "./features/about/about.js?v=20260621-about-credits";
 import { createBacklogFeature } from "./features/backlog/backlog.js?v=20260709-muted-icons-indent";
 import { createBoardFeature } from "./features/board/board.js?v=20260709-muted-icons-indent";
-import { createBugsFeature } from "./features/bugs/bugs.js?v=20260709-muted-icons-indent";
+import { createBugsFeature } from "./features/bugs/bugs.js?v=20260709-rich-color-label-text";
 import { createDashboardFeature } from "./features/dashboard/dashboard.js?v=20260707-linked-bug-qa-sync";
-import { createDocumentationFeature } from "./features/documentation/documentation.js?v=20260709-visibility-all";
+import { createDocumentationFeature } from "./features/documentation/documentation.js?v=20260709-rich-color-label-text";
 import {
   createGanttFeature,
   currentSprintForProject,
@@ -51,11 +51,11 @@ import {
 } from "./features/gantt/gantt.js?v=20260707-deep-links";
 import { createProjectsFeature } from "./features/projects/projects.js?v=20260709-muted-icons-indent";
 import { createRoadMapFeature } from "./features/roadmap/roadmap.js?v=20260707-linked-bug-qa-sync";
-import { createLogFeature } from "./features/personal-log/log.js?v=20260709-muted-icons-indent";
-import { createScrumFeature } from "./features/scrum/scrum.js?v=20260709-muted-icons-indent";
+import { createLogFeature } from "./features/personal-log/log.js?v=20260709-rich-color-label-text";
+import { createScrumFeature } from "./features/scrum/scrum.js?v=20260709-rich-color-label-text";
 import { createSettingsFeature } from "./features/settings/settings.js?v=20260709-muted-icons-indent";
-import { createSprintsFeature } from "./features/sprints/sprints.js?v=20260709-muted-icons-indent";
-import { createTasksFeature } from "./features/tasks/tasks.js?v=20260709-task-assignee-blank";
+import { createSprintsFeature } from "./features/sprints/sprints.js?v=20260709-rich-color-label-text";
+import { createTasksFeature } from "./features/tasks/tasks.js?v=20260709-rich-color-label-text";
 import { createWfhScheduleFeature } from "./features/wfh-schedule/wfh-schedule.js?v=20260709-wfh-undo-large-days";
 import {
   fallbackEnvironments,
@@ -106,6 +106,8 @@ const richTextFormats = {
   h3: { tag: "H3", className: "" },
   body: { tag: "P", className: "" }
 };
+const richCustomColorStorageKey = "pmt-rich-custom-colors";
+const richCustomColorLimit = 10;
 
 function syncNativePickerTheme(control) {
   if (!(control instanceof HTMLElement)) return;
@@ -1819,33 +1821,97 @@ function bindRichTextButtons(root) {
     });
   });
 
-  root.querySelectorAll("[data-rich-color-command]").forEach(input => {
-    let savedSelection = null;
-    const syncColorSwatch = () => {
-      input.closest(".rich-color-tool")?.style.setProperty("--rich-selected-color", input.value || "");
-    };
-    syncColorSwatch();
+  const richColorTools = [...root.querySelectorAll(".rich-color-tool")];
+  richColorTools.forEach(tool => {
+    const trigger = tool.querySelector("[data-rich-color-command]");
+    const palette = tool.querySelector("[data-rich-color-palette]");
+    if (!trigger || !palette) return;
 
-    input.addEventListener("mousedown", () => {
-      const editor = richEditorForControl(input);
+    let savedSelection = null;
+    const defaultColor = trigger.dataset.richColorDefault || "#111827";
+    const command = trigger.dataset.richColorCommand || "foreColor";
+    const syncColorSwatch = color => {
+      const nextColor = color || defaultColor;
+      tool.style.setProperty("--rich-selected-color", nextColor);
+      trigger.dataset.richSelectedColor = nextColor;
+    };
+    const applyColor = color => {
+      const editor = richEditorForControl(trigger);
+      if (!editor || !color) return;
+
+      syncColorSwatch(color);
+      editor.focus();
+      restoreEditorSelection(savedSelection || saveEditorSelection(editor));
+      applyRichColorCommand(command, color);
+      closeRichColorTool(tool);
+      savedSelection = null;
+    };
+    syncColorSwatch(defaultColor);
+
+    trigger.addEventListener("mousedown", event => {
+      event.preventDefault();
+      const editor = richEditorForControl(trigger);
       savedSelection = editor ? saveEditorSelection(editor) : null;
     });
 
-    input.addEventListener("input", () => {
-      const editor = richEditorForControl(input);
-      if (!editor || !input.value) return;
-
-      syncColorSwatch();
-      editor.focus();
-      restoreEditorSelection(savedSelection || saveEditorSelection(editor));
-      applyRichColorCommand(input.dataset.richColorCommand || "foreColor", input.value);
+    trigger.addEventListener("click", event => {
+      event.preventDefault();
+      const shouldOpen = !tool.classList.contains("is-open");
+      closeRichColorPalettes(root);
+      if (shouldOpen) openRichColorTool(tool);
     });
 
-    input.addEventListener("change", () => {
-      syncColorSwatch();
-      savedSelection = null;
+    renderRichCustomColorPalettes(root);
+
+    palette.addEventListener("mousedown", event => {
+      if (event.target.closest("[data-rich-color-value], [data-rich-color-custom]")) event.preventDefault();
+    });
+
+    palette.addEventListener("click", event => {
+      const colorButton = event.target.closest("[data-rich-color-value]");
+      if (!colorButton || !palette.contains(colorButton)) return;
+
+      event.preventDefault();
+      applyColor(colorButton.dataset.richColorValue || defaultColor);
+    });
+
+    palette.querySelector("[data-rich-color-custom]")?.addEventListener("click", async event => {
+      event.preventDefault();
+      closeRichColorTool(tool);
+
+      const currentColor = trigger.dataset.richSelectedColor || defaultColor;
+      const customColor = await askForText("HEX (#126BFF) or RGB (18, 107, 255)", "Custom Color", currentColor);
+      if (!customColor) {
+        savedSelection = null;
+        return;
+      }
+
+      const normalizedColor = normalizeRichCustomColor(customColor);
+      if (!normalizedColor) {
+        savedSelection = null;
+        showToast("Enter a valid HEX or RGB color.");
+        return;
+      }
+
+      rememberRichCustomColor(normalizedColor);
+      renderRichCustomColorPalettes(root);
+      applyColor(normalizedColor);
     });
   });
+
+  if (richColorTools.length && root.dataset.richColorPaletteBound !== "true") {
+    root.dataset.richColorPaletteBound = "true";
+    root.addEventListener("mousedown", event => {
+      if (!event.target.closest(".rich-color-tool")) closeRichColorPalettes(root);
+    });
+    root.addEventListener("keydown", event => {
+      if (event.key !== "Escape" || !root.querySelector(".rich-color-tool.is-open")) return;
+
+      event.preventDefault();
+      event.stopPropagation();
+      closeRichColorPalettes(root);
+    });
+  }
 
   root.querySelectorAll(".rich-editor").forEach(editor => {
     editor.addEventListener("paste", async event => {
@@ -1871,6 +1937,130 @@ function applyRichColorCommand(command, color) {
   if (!applied && command === "hiliteColor") {
     document.execCommand("backColor", false, color);
   }
+}
+
+function openRichColorTool(tool) {
+  const palette = tool.querySelector("[data-rich-color-palette]");
+  if (!palette) return;
+
+  tool.classList.add("is-open");
+  tool.closest("dialog")?.classList.add("rich-color-palette-open");
+  palette.removeAttribute("hidden");
+  tool.querySelector("[data-rich-color-command]")?.setAttribute("aria-expanded", "true");
+  positionRichColorPalette(tool);
+}
+
+function closeRichColorTool(tool) {
+  const palette = tool.querySelector("[data-rich-color-palette]");
+  tool.classList.remove("is-open");
+  palette?.setAttribute("hidden", "");
+  palette?.style.removeProperty("--rich-palette-left");
+  palette?.style.removeProperty("--rich-palette-top");
+  tool.querySelector("[data-rich-color-command]")?.setAttribute("aria-expanded", "false");
+
+  const dialog = tool.closest("dialog");
+  if (dialog && !dialog.querySelector(".rich-color-tool.is-open")) {
+    dialog.classList.remove("rich-color-palette-open");
+  }
+}
+
+function closeRichColorPalettes(scope) {
+  scope.querySelectorAll(".rich-color-tool.is-open").forEach(closeRichColorTool);
+}
+
+function positionRichColorPalette(tool) {
+  const trigger = tool.querySelector("[data-rich-color-command]");
+  const palette = tool.querySelector("[data-rich-color-palette]");
+  if (!trigger || !palette || palette.hidden) return;
+
+  const triggerRect = trigger.getBoundingClientRect();
+  const paletteRect = palette.getBoundingClientRect();
+  const gap = 4;
+  const viewportPadding = 8;
+  const maxLeft = window.innerWidth - paletteRect.width - viewportPadding;
+  const maxTop = window.innerHeight - paletteRect.height - viewportPadding;
+  const spaceBelow = window.innerHeight - triggerRect.bottom - viewportPadding;
+  const spaceAbove = triggerRect.top - viewportPadding;
+  const shouldOpenAbove = spaceBelow < paletteRect.height && spaceAbove > spaceBelow;
+  const left = clampNumber(triggerRect.left, viewportPadding, Math.max(viewportPadding, maxLeft));
+  const preferredTop = shouldOpenAbove
+    ? triggerRect.top - paletteRect.height - gap
+    : triggerRect.bottom + gap;
+  const top = clampNumber(preferredTop, viewportPadding, Math.max(viewportPadding, maxTop));
+
+  palette.style.setProperty("--rich-palette-left", `${Math.round(left)}px`);
+  palette.style.setProperty("--rich-palette-top", `${Math.round(top)}px`);
+}
+
+function clampNumber(value, min, max) {
+  return Math.min(Math.max(value, min), max);
+}
+
+function renderRichCustomColorPalettes(scope) {
+  const colors = readRichCustomColors();
+  scope.querySelectorAll("[data-rich-custom-colors]").forEach(container => {
+    const title = container.closest(".rich-color-tool")?.querySelector("[data-rich-color-command]")?.getAttribute("aria-label") || "Color";
+    container.hidden = colors.length === 0;
+    container.innerHTML = colors.map(color => richCustomColorSwatchHtml(color, title)).join("");
+  });
+}
+
+function richCustomColorSwatchHtml(color, title) {
+  return `<button type="button" class="rich-color-swatch" data-rich-color-value="${escapeAttr(color)}" title="${escapeAttr(`${title} ${color}`)}" aria-label="${escapeAttr(`${title} ${color}`)}" style="--rich-swatch-color: ${escapeAttr(color)}"></button>`;
+}
+
+function readRichCustomColors() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(richCustomColorStorageKey) || "[]");
+    if (!Array.isArray(parsed)) return [];
+
+    return uniqueRichColors(parsed.map(normalizeRichCustomColor).filter(Boolean)).slice(0, richCustomColorLimit);
+  } catch {
+    return [];
+  }
+}
+
+function rememberRichCustomColor(color) {
+  const normalizedColor = normalizeRichCustomColor(color);
+  if (!normalizedColor) return;
+
+  const colors = [normalizedColor, ...readRichCustomColors().filter(item => item !== normalizedColor)].slice(0, richCustomColorLimit);
+  try {
+    localStorage.setItem(richCustomColorStorageKey, JSON.stringify(colors));
+  } catch {
+    // Remembered custom colors are optional when browser storage is unavailable.
+  }
+}
+
+function uniqueRichColors(colors) {
+  const seen = new Set();
+  return colors.filter(color => {
+    if (seen.has(color)) return false;
+
+    seen.add(color);
+    return true;
+  });
+}
+
+function normalizeRichCustomColor(value) {
+  const text = String(value || "").trim();
+  const hexMatch = text.match(/^#?([0-9a-f]{3}|[0-9a-f]{6})$/i);
+  if (hexMatch) {
+    const hex = hexMatch[1];
+    const expandedHex = hex.length === 3
+      ? hex.split("").map(character => character + character).join("")
+      : hex;
+    return `#${expandedHex.toUpperCase()}`;
+  }
+
+  const rgbMatch = text.match(/^rgb\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})\s*\)$/i)
+    || text.match(/^(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})$/);
+  if (!rgbMatch) return "";
+
+  const rgbValues = rgbMatch.slice(1).map(Number);
+  if (rgbValues.some(component => !Number.isInteger(component) || component < 0 || component > 255)) return "";
+
+  return `#${rgbValues.map(component => component.toString(16).padStart(2, "0")).join("").toUpperCase()}`;
 }
 
 function richEditorForControl(control) {
@@ -1988,31 +2178,97 @@ function openRichSourceDialog(editor) {
       </div>
       <div class="dialog-body">
         <div class="field full">
-          <label>HTML</label>
-          <textarea name="sourceHtml" rows="16" spellcheck="false">${escapeHtml(editor.innerHTML || "")}</textarea>
+          <div class="rich-source-dialog-toolbar">
+            <span class="rich-source-dialog-label">HTML</span>
+            <label class="inline-check rich-source-wrap-option">
+              <input type="checkbox" data-rich-source-wrap>
+              <span>Word wrap source code</span>
+            </label>
+          </div>
+          <textarea name="sourceHtml" rows="16" spellcheck="false" wrap="off">${escapeHtml(editor.innerHTML || "")}</textarea>
         </div>
       </div>
       <div class="dialog-actions">
-        <button type="button" class="secondary text-icon-button" data-close-rich-source>${buttonContent("&#10005;", "Cancel")}</button>
-        <button type="submit" class="primary text-icon-button">${buttonContent("&#10003;", "Apply")}</button>
+        <div class="dialog-action-group is-left">
+          <button type="button" class="secondary" data-copy-rich-source>Copy to Clipboard</button>
+        </div>
+        <div class="dialog-action-group">
+          <button type="button" class="secondary text-icon-button" data-close-rich-source>${buttonContent("&#10005;", "Cancel")}</button>
+          <button type="submit" class="primary text-icon-button">${buttonContent("&#10003;", "Apply")}</button>
+        </div>
       </div>
     </form>
   `;
 
   document.body.appendChild(modal);
   initializeWindowedDialog(modal);
+  const sourceTextarea = modal.querySelector("[name='sourceHtml']");
+  modal.querySelector("[data-rich-source-wrap]")?.addEventListener("change", event => {
+    const wrapped = event.target.checked;
+    sourceTextarea?.classList.toggle("is-word-wrapped", wrapped);
+    sourceTextarea?.setAttribute("wrap", wrapped ? "soft" : "off");
+  });
+  modal.querySelector("[data-copy-rich-source]")?.addEventListener("click", async () => {
+    const copied = await copyTextToClipboard(sourceTextarea?.value || "", sourceTextarea);
+    showToast(copied ? "Copied source to clipboard." : "Unable to copy source.");
+  });
   modal.querySelectorAll("[data-close-rich-source]").forEach(button => {
     button.addEventListener("click", () => modal.close());
   });
   modal.querySelector("form")?.addEventListener("submit", event => {
     event.preventDefault();
-    editor.innerHTML = modal.querySelector("[name='sourceHtml']")?.value || "";
+    editor.innerHTML = sourceTextarea?.value || "";
     normalizeLinksInElement(editor);
     modal.close();
   });
   modal.addEventListener("close", () => modal.remove());
   modal.showModal();
   setTimeout(() => modal.querySelector("[name='sourceHtml']")?.focus({ preventScroll: true }), 0);
+}
+
+async function copyTextToClipboard(text, sourceControl = null) {
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+  } catch {
+    // Fall back to the selection-based copy path below.
+  }
+
+  return copyTextToClipboardFallback(text, sourceControl);
+}
+
+function copyTextToClipboardFallback(text, sourceControl = null) {
+  const textarea = sourceControl || document.createElement("textarea");
+  const selectionStart = typeof textarea.selectionStart === "number" ? textarea.selectionStart : null;
+  const selectionEnd = typeof textarea.selectionEnd === "number" ? textarea.selectionEnd : null;
+  if (!sourceControl) {
+    textarea.value = text;
+    textarea.setAttribute("readonly", "");
+    textarea.style.position = "fixed";
+    textarea.style.top = "-1000px";
+    textarea.style.left = "-1000px";
+    (document.querySelector("dialog[open]") || document.body).appendChild(textarea);
+  }
+
+  textarea.focus({ preventScroll: true });
+  textarea.select();
+
+  let copied = false;
+  try {
+    copied = document.execCommand("copy");
+  } catch {
+    copied = false;
+  }
+
+  if (sourceControl && selectionStart !== null && selectionEnd !== null) {
+    textarea.setSelectionRange(selectionStart, selectionEnd);
+  } else {
+    textarea.remove();
+  }
+
+  return copied;
 }
 
 function richCodeBlockHtml({ caption, code }) {

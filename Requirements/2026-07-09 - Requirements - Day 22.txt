@@ -1,0 +1,31 @@
+Project Management Tool (PMT):  Day 21 of Codex Agentic AI Coding
+-----------------------------------------------------------------
+Total Dev Time in Hours:  29
+
+For all of this conversation / session, I will perform all the manual tests and compile the application manually.  Perform only the coding changes required and nothing else.  If making CSS / image changes, ensure that I will encounter no caching issue when testing in the browser.  Be sure to inform me if I have to recompile the .Net portion of the project or just Press Ctrl + F5 on the browser to reload to see the latest changes.
+
+If making changes to the database, that affects existing users see database-versioning.md under the docs folder.
+
+
+HTML Rich Editor
+----------------
+1.) In the Rich Text Editor toolbar, change the Font Color picker to look similar the attached picture.
+2.) Use the same Color picker for the Background Color picker.
+3.) Add a custom link/option so the user can specify their own RGB or HEX value.
+4.) Update the Background color picker icon so that:
+		a.) It has no background color (as it does now);
+		b.) Pick an icon that is a bucket spilling.
+
+5.) Bug:  I don't see the colors.
+6.) Make the "Custom Color" link the same size as "Theme Colors"
+
+7.) The label for Custom Color is still really big, make the same style as the "Theme Colors" label/section.
+8.) As the user chooses their own colors, remember their last 10 color choices.  Present it as color options under "Custom Color"
+9.) Store their custom color in localstorage.
+
+10.) Bug:  The font and background color pictures are getting clipped by the dialog box.
+11.) Bug:  The words "Automatic" and "Custom Color" is still too big.  Make it the same size as the other text.
+
+12.) In the Rich Text Editor Toolbar's View Source dialog box, add an option to word wrap the source code and a Copy to Clipboard button on the lower-left corner of the dialog box.
+
+

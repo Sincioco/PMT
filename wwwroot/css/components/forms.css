@@ -314,7 +314,7 @@ input[type="checkbox"] {
   min-height: var(--touch-target-min);
 }
 
-.rich-tools button,
+.rich-tools button:not(.rich-color-trigger):not(.rich-color-automatic):not(.rich-color-swatch):not(.rich-color-custom),
 .rich-color-tool {
   width: var(--touch-target-min);
   min-width: var(--touch-target-min);
@@ -366,8 +366,19 @@ input[type="checkbox"] {
   cursor: pointer;
 }
 
-.rich-background-tool {
-  background: var(--color-surface-subtle);
+.rich-color-trigger {
+  display: inline-grid;
+  place-items: center;
+  width: 100%;
+  min-width: 100%;
+  height: 100%;
+  min-height: 100%;
+  padding: 0;
+  border: 0;
+  border-radius: inherit;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
 }
 
 .rich-color-button-icon {
@@ -424,36 +435,147 @@ input[type="checkbox"] {
   stroke-linejoin: round;
 }
 
-.rich-color-tool input[type="color"] {
-  position: absolute;
-  inset: 0;
-  width: 100% !important;
-  min-width: 100%;
-  height: 100%;
-  min-height: 100%;
-  padding: 0;
-  border: 0;
-  border-radius: var(--radius-md);
+.rich-color-palette {
+  position: fixed;
+  top: var(--rich-palette-top, 0);
+  left: var(--rich-palette-left, 0);
+  z-index: calc(var(--z-dialog) + var(--z-menu));
+  display: grid;
+  gap: var(--space-2);
+  width: min(286px, calc(100vw - 32px));
+  max-height: calc(100vh - 16px);
+  overflow: auto;
+  padding: var(--space-3);
+  border: var(--border-width) solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-raised);
+  color: var(--color-text-primary);
+  box-shadow: var(--shadow-elevated);
+  cursor: default;
+}
+
+.rich-color-palette[hidden] {
+  display: none;
+}
+
+.dialog.rich-color-palette-open {
+  overflow: visible;
+}
+
+.rich-color-palette button {
+  box-shadow: none;
+}
+
+.rich-color-automatic,
+.rich-color-custom {
+  width: 100%;
+  min-width: 0;
+  height: 30px;
+  min-height: 30px;
+  padding: 0 var(--space-2);
+  border: var(--border-width) solid transparent;
+  border-radius: var(--radius-xs);
   background: transparent;
+  color: var(--color-text-primary);
+  font-size: var(--font-size-sm) !important;
+  font-weight: var(--font-weight-regular);
+  text-align: left;
   cursor: pointer;
-  opacity: 0;
 }
 
-.rich-color-tool input[type="color"]::-webkit-color-swatch-wrapper {
+.rich-color-automatic {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  gap: var(--space-3);
+  align-items: center;
+  border-bottom-color: var(--color-border-subtle);
+  border-radius: 0;
+}
+
+.rich-color-automatic-swatch {
+  width: 14px;
+  height: 14px;
+  border: var(--border-width) solid var(--color-border);
+  background: var(--rich-swatch-color);
+}
+
+.rich-color-section-title {
+  color: var(--color-text-primary);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-bold);
+  line-height: var(--line-height-tight);
+}
+
+html[data-theme] .rich-color-palette .rich-color-section-title,
+html[data-theme] .rich-color-palette button.rich-color-automatic,
+html[data-theme] .rich-color-palette button.rich-color-custom,
+html[data-theme] .rich-color-palette .rich-color-label-text {
+  font-family: var(--font-family-sans) !important;
+  font-size: var(--font-size-sm) !important;
+  font-variant-emoji: normal;
+  line-height: var(--line-height-tight);
+}
+
+.rich-color-theme-grid,
+.rich-color-standard-grid,
+.rich-color-custom-grid {
+  display: grid;
+  grid-template-columns: repeat(10, 22px);
+  gap: var(--space-1);
+}
+
+.rich-color-custom-grid[hidden] {
+  display: none;
+}
+
+.rich-color-column {
+  display: grid;
+  gap: 2px;
+}
+
+.rich-color-column .rich-color-swatch:first-child {
+  margin-bottom: var(--space-1);
+}
+
+.rich-color-palette button.rich-color-swatch {
+  width: 22px;
+  min-width: 22px;
+  height: 22px;
+  min-height: 22px;
   padding: 0;
+  border: var(--border-width) solid var(--color-border-subtle) !important;
+  border-radius: 1px;
+  background-color: var(--rich-swatch-color) !important;
+  cursor: pointer;
 }
 
-.rich-color-tool input[type="color"]::-webkit-color-swatch {
-  border: 0;
-  border-radius: var(--radius-pill);
+html[data-theme] .rich-color-palette button.rich-color-custom {
+  color: var(--color-link) !important;
 }
 
-.rich-tools button:hover:not(:disabled),
+.rich-tools button:not(.rich-color-trigger):not(.rich-color-automatic):not(.rich-color-swatch):not(.rich-color-custom):hover:not(:disabled),
 .rich-color-tool:hover,
 .rich-color-tool:focus-within {
   border-color: var(--color-border-strong);
   background: transparent;
   color: var(--color-text-primary);
+}
+
+.rich-color-palette .rich-color-automatic:hover,
+.rich-color-palette .rich-color-automatic:focus-visible,
+.rich-color-palette .rich-color-custom:hover,
+.rich-color-palette .rich-color-custom:focus-visible {
+  border-color: var(--color-border-control);
+  background: var(--color-control-hover);
+  color: var(--color-text-primary);
+  outline: none;
+}
+
+.rich-color-palette .rich-color-swatch:hover,
+.rich-color-palette .rich-color-swatch:focus-visible {
+  border-color: var(--color-focus-ring);
+  outline: var(--border-width-strong) solid var(--color-focus-halo);
+  outline-offset: 1px;
 }
 
 .rich-editor {
@@ -585,12 +707,38 @@ input[type="checkbox"] {
   width: min(900px, calc(100vw - 2 * var(--shell-padding-compact)));
 }
 
+.rich-source-dialog-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+  align-items: center;
+  justify-content: space-between;
+}
+
+.rich-source-dialog-label {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-medium);
+}
+
+.rich-source-wrap-option {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-regular);
+}
+
 .rich-code-dialog textarea,
 .rich-source-dialog textarea {
   min-height: 260px;
   font-family: var(--font-family-mono);
   font-size: var(--font-size-sm);
   white-space: pre;
+  overflow-x: auto;
+}
+
+.rich-source-dialog textarea.is-word-wrapped {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  overflow-x: hidden;
 }
 
 .detail-dialog {

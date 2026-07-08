@@ -17,6 +17,32 @@ export function validColor(value) {
   return /^#[0-9a-f]{6}$/i.test(String(value || ""));
 }
 
+const richThemeColorColumns = [
+  ["#FFFFFF", "#F2F2F2", "#D9D9D9", "#BFBFBF", "#A6A6A6", "#808080"],
+  ["#000000", "#7F7F7F", "#595959", "#3F3F3F", "#262626", "#0D0D0D"],
+  ["#E7E6E6", "#D0CECE", "#AEAAAA", "#757171", "#3A3838", "#161616"],
+  ["#17365D", "#D9EAF7", "#9DC3E6", "#5B9BD5", "#2F75B5", "#1F4E79"],
+  ["#0F4C5C", "#DDEBF7", "#9BC2E6", "#5B9BD5", "#1F4E79", "#073642"],
+  ["#F4B183", "#FCE4D6", "#F8CBAD", "#ED7D31", "#C65911", "#833C0C"],
+  ["#548235", "#E2F0D9", "#A9D18E", "#70AD47", "#548235", "#375623"],
+  ["#00B0F0", "#DDEBF7", "#B4C7E7", "#5B9BD5", "#2F75B5", "#1F4E79"],
+  ["#A02B93", "#F2CEEF", "#E49EDD", "#C55A9D", "#8E2F8D", "#5F1B5D"],
+  ["#4EA72E", "#E2F0D9", "#C6E0B4", "#A9D18E", "#70AD47", "#375623"]
+];
+
+const richStandardColors = [
+  "#C00000",
+  "#FF0000",
+  "#FFC000",
+  "#FFFF00",
+  "#92D050",
+  "#00B050",
+  "#00B0F0",
+  "#0070C0",
+  "#002060",
+  "#7030A0"
+];
+
 export function selectField(label, name, items, selectedId) {
   return selectOptionsField(label, name, items.map(item => ({ id: item.id, title: `${item.code || item.nickname || item.title} ${item.title && item.code ? "- " + item.title : ""}` })), selectedId);
 }
@@ -83,26 +109,20 @@ export function richTextToolsHtml(options = {}) {
           <option value="5">Extra Large</option>
           <option value="6">Huge</option>
         </select>
-        <label class="rich-color-tool rich-font-color-tool" title="Font Color" aria-label="Font Color" style="--rich-selected-color: #111827">
-          <span class="rich-color-button-icon rich-font-color-icon" aria-hidden="true">
-            <span class="rich-font-color-letter">A</span>
-            <span class="rich-color-bar"></span>
-            <span class="rich-color-chevron"></span>
-          </span>
-          <input type="color" data-rich-color-command="foreColor" value="#111827" title="Font Color" aria-label="Font Color">
-        </label>
-        <label class="rich-color-tool rich-background-tool" title="Background Color" aria-label="Background Color" style="--rich-selected-color: #fff3bf">
-          <span class="rich-color-button-icon rich-background-color-icon" aria-hidden="true">
-            <svg viewBox="0 0 24 24" focusable="false">
-              <path d="M5 16.5 13.5 8l3 3L8 19.5H5z"></path>
-              <path d="m12.5 7 1.8-1.8a1.4 1.4 0 0 1 2 0l2.5 2.5a1.4 1.4 0 0 1 0 2L17 11.5"></path>
-              <path d="M4 20h16"></path>
-            </svg>
-            <span class="rich-color-bar"></span>
-            <span class="rich-color-chevron"></span>
-          </span>
-          <input type="color" data-rich-color-command="hiliteColor" value="#fff3bf" title="Background Color" aria-label="Background Color">
-        </label>
+        ${richColorToolHtml({
+          className: "rich-font-color-tool",
+          title: "Font Color",
+          command: "foreColor",
+          selectedColor: "#111827",
+          iconHtml: richFontColorIconHtml()
+        })}
+        ${richColorToolHtml({
+          className: "rich-background-tool",
+          title: "Background Color",
+          command: "hiliteColor",
+          selectedColor: "#FFF3BF",
+          iconHtml: richBackgroundColorIconHtml()
+        })}
         <button type="button" data-rich-source title="View Source" aria-label="View Source" class="rich-source-tool">{}</button>
         <button type="button" data-rich-clear-formatting title="Clear Formatting" aria-label="Clear Formatting" class="rich-clear-formatting-tool">
           <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
@@ -165,6 +185,72 @@ export function richTextToolsHtml(options = {}) {
         ${options.actionsHtml || ""}
       </div>
     </div>
+  `;
+}
+
+function richColorToolHtml({ className, title, command, selectedColor, iconHtml }) {
+  return `
+        <div class="rich-color-tool ${className}" style="--rich-selected-color: ${escapeAttr(selectedColor)}">
+          <button type="button" class="rich-color-trigger" data-rich-color-command="${escapeAttr(command)}" data-rich-color-default="${escapeAttr(selectedColor)}" title="${escapeAttr(title)}" aria-label="${escapeAttr(title)}" aria-haspopup="true" aria-expanded="false">
+            ${iconHtml}
+          </button>
+          ${richColorPaletteHtml(title, selectedColor)}
+        </div>
+  `;
+}
+
+function richColorPaletteHtml(title, automaticColor) {
+  return `
+          <div class="rich-color-palette" data-rich-color-palette hidden>
+            <button type="button" class="rich-color-automatic" data-rich-color-value="${escapeAttr(automaticColor)}" aria-label="${escapeAttr(`${title} Automatic`)}">
+              <span class="rich-color-automatic-swatch" style="--rich-swatch-color: ${escapeAttr(automaticColor)}"></span>
+              <span class="rich-color-label-text">Automatic</span>
+            </button>
+            <span class="rich-color-section-title">Theme Colors</span>
+            <div class="rich-color-theme-grid">
+              ${richThemeColorColumns.map(column => `
+                <span class="rich-color-column">
+                  ${column.map(color => richColorSwatchHtml(color, title)).join("")}
+                </span>
+              `).join("")}
+            </div>
+            <span class="rich-color-section-title">Standard Colors</span>
+            <div class="rich-color-standard-grid">
+              ${richStandardColors.map(color => richColorSwatchHtml(color, title)).join("")}
+            </div>
+            <span class="rich-color-section-title">Custom Color</span>
+            <div class="rich-color-custom-grid" data-rich-custom-colors hidden></div>
+            <button type="button" class="rich-color-custom" data-rich-color-custom><span class="rich-color-label-text">Add custom color...</span></button>
+          </div>
+  `;
+}
+
+function richColorSwatchHtml(color, title) {
+  return `<button type="button" class="rich-color-swatch" data-rich-color-value="${escapeAttr(color)}" title="${escapeAttr(`${title} ${color}`)}" aria-label="${escapeAttr(`${title} ${color}`)}" style="--rich-swatch-color: ${escapeAttr(color)}"></button>`;
+}
+
+function richFontColorIconHtml() {
+  return `
+            <span class="rich-color-button-icon rich-font-color-icon" aria-hidden="true">
+              <span class="rich-font-color-letter">A</span>
+              <span class="rich-color-bar"></span>
+              <span class="rich-color-chevron"></span>
+            </span>
+  `;
+}
+
+function richBackgroundColorIconHtml() {
+  return `
+            <span class="rich-color-button-icon rich-background-color-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" focusable="false">
+                <path d="m5 13 7-7 6 6-7 7a2 2 0 0 1-2.8 0L5 15.8a2 2 0 0 1 0-2.8z"></path>
+                <path d="M9 9 5 5"></path>
+                <path d="M15 19h5"></path>
+                <path d="M19 13.5c1.1 1.4 1.8 2.4 1.8 3.3a1.8 1.8 0 1 1-3.6 0c0-.9.7-1.9 1.8-3.3z"></path>
+              </svg>
+              <span class="rich-color-bar"></span>
+              <span class="rich-color-chevron"></span>
+            </span>
   `;
 }
 

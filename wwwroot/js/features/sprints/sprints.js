@@ -13,7 +13,7 @@ import {
   selectField,
   userCardCheckListLabelHtml,
   value
-} from "../../components/forms.js?v=20260709-muted-icons-indent";
+} from "../../components/forms.js?v=20260709-rich-color-label-text";
 import {
   sprintOverallProgressHtml,
   sprintStatusMetricsHtml,

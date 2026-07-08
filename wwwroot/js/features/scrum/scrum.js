@@ -12,7 +12,7 @@ import {
   selectOptionsField,
   userCardCheckListLabelHtml,
   value
-} from "../../components/forms.js?v=20260709-muted-icons-indent";
+} from "../../components/forms.js?v=20260709-rich-color-label-text";
 import { sectionHead } from "../../components/sections.js?v=20260701-nav-title-preferences";
 import { createWorkItemTableMode } from "../../components/work-items.js?v=20260709-muted-icons-indent";
 import { currentUser } from "../../core/authentication.js";

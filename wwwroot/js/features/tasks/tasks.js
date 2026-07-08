@@ -17,7 +17,7 @@ import {
   selectTextField,
   userCardCheckListLabelHtml,
   value
-} from "../../components/forms.js?v=20260709-muted-icons-indent";
+} from "../../components/forms.js?v=20260709-rich-color-label-text";
 import { progressHtml, statusColor } from "../../components/progress-and-status.js?v=20260707-linked-bug-qa-sync";
 import { sectionHead } from "../../components/sections.js?v=20260701-nav-title-preferences";
 import {
