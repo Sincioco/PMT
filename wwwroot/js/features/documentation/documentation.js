@@ -1240,7 +1240,7 @@ function documentationVisibilityOptions() {
   ];
 
   if (currentUser().isAdmin) {
-    options.push({ value: "admin-all", text: "Admin See All" });
+    options.push({ value: "admin-all", text: "All" });
   }
 
   return options;

@@ -1,4 +1,4 @@
-import { taskRowAvatarsHtml } from "../../components/avatars.js";
+import { taskRowAvatarsHtml } from "../../components/avatars.js?v=20260709-task-assignee-blank";
 import { buttonContent, chartIconHtml, funnelIconHtml, pageActionsMenuHtml } from "../../components/buttons.js?v=20260701-unified-dropdowns";
 import { VisualCharts } from "../../components/charts.js?v=20260628-chart-native-tooltips";
 import { initializeWindowedDialog } from "../../components/dialogs.js?v=20260707-filter-reset-dialogs";

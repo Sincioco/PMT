@@ -9,6 +9,7 @@ PMT is an internal project-management tool for software teams, combining project
 - Use ASP.NET Core on .NET 6 with minimal APIs, plain DTOs, and direct ADO.NET.
 - Do not add Entity Framework or unnecessary repository, service, mediator, or mapping layers.
 - All application database objects use `[pmt]`. Application data access must go through stored procedures under `[pmt]`.
+- Treat the current SQL database contract as PMT Database Version 1.0. Future SQL changes that affect existing 1.0 installs must include migration scripts; see `docs/database-versioning.md`.
 
 ## Intended structure
 
@@ -30,5 +31,6 @@ PMT is an internal project-management tool for software teams, combining project
 - [Pre-refactor baseline](docs/baseline.md)
 - [Architecture and impact map](docs/architecture.md)
 - [Durable domain rules](docs/domain-rules.md)
+- [Database versioning and migrations](docs/database-versioning.md)
 - [UI design system](docs/ui-design-system.md)
 - [Manual smoke test](docs/manual-smoke-test.md)

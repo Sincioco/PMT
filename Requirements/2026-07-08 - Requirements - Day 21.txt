@@ -100,3 +100,20 @@ HTML Rich Editor
 26.) The new Font Color and Background Color icons look darker than the other icons....mute the colors a little or just follow the color of the other icons.  Also the "A" symbol on the font color button is off-centered.  Can you center it on the button?  The background color icon looks weird.  Can you pick another icon?
 27.) Add an Indent and Unindent icon/button right before the insert hyperlink button.
 
+
+Dev Tasks
+------------
+28.) In the Dev Task screen, in the list of tasks, if there is no Assignee for that task, don't render the word "Unassigned" on the table cell.  Just leave it blank.
+
+
+WFH Schedule
+------------
+29.) In the WFH Schedule screen, when a day is selected, render a redicilously large text on the right that is light gray (muted) for the days that they work from home, such as "Monday", "Tuesday" so it's very visible what days each person works from home.
+
+Documentation
+-------------
+30.) In the Documentation Filter, change the wording on the Visiblity dropdown from "Admin See All" to just "All".
+
+Database Versioning and Future Database Migrations
+--------------------------------------------------
+31.) I need to version the current database schema as PMT Version 1.0 so that in future changes you (Codex) make that impacts schema of Version 1.0, you'd have to provide a migration SQL script for existing users.  PMT will be deployed to real users so future changes from now on can only be done if a migration script is provided for backwards compatibility or to upgrade 1.0 into the newest version.  How can we record it in some .md or AGENTS.md file somewhere so that you (Codex) can remember to provide/supply migration scripts for future SQL changes that might impact Version 1.0 users when we update their PMT to a newer build with a newer schema, stored procedures, etc.?

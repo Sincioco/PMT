@@ -1,5 +1,5 @@
 import { api } from "./core/api.js";
-import { avatarsHtml, taskRowAvatarsHtml } from "./components/avatars.js";
+import { avatarsHtml, taskRowAvatarsHtml } from "./components/avatars.js?v=20260709-task-assignee-blank";
 import { buttonContent } from "./components/buttons.js";
 import {
   askForText,
@@ -43,7 +43,7 @@ import { createBacklogFeature } from "./features/backlog/backlog.js?v=20260709-m
 import { createBoardFeature } from "./features/board/board.js?v=20260709-muted-icons-indent";
 import { createBugsFeature } from "./features/bugs/bugs.js?v=20260709-muted-icons-indent";
 import { createDashboardFeature } from "./features/dashboard/dashboard.js?v=20260707-linked-bug-qa-sync";
-import { createDocumentationFeature } from "./features/documentation/documentation.js?v=20260709-muted-icons-indent";
+import { createDocumentationFeature } from "./features/documentation/documentation.js?v=20260709-visibility-all";
 import {
   createGanttFeature,
   currentSprintForProject,
@@ -55,8 +55,8 @@ import { createLogFeature } from "./features/personal-log/log.js?v=20260709-mute
 import { createScrumFeature } from "./features/scrum/scrum.js?v=20260709-muted-icons-indent";
 import { createSettingsFeature } from "./features/settings/settings.js?v=20260709-muted-icons-indent";
 import { createSprintsFeature } from "./features/sprints/sprints.js?v=20260709-muted-icons-indent";
-import { createTasksFeature } from "./features/tasks/tasks.js?v=20260709-muted-icons-indent";
-import { createWfhScheduleFeature } from "./features/wfh-schedule/wfh-schedule.js?v=20260709-muted-icons-indent";
+import { createTasksFeature } from "./features/tasks/tasks.js?v=20260709-task-assignee-blank";
+import { createWfhScheduleFeature } from "./features/wfh-schedule/wfh-schedule.js?v=20260709-wfh-undo-large-days";
 import {
   fallbackEnvironments,
   fallbackForLookup,

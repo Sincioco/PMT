@@ -8,7 +8,7 @@ export function avatarsHtml(users) {
 }
 
 export function taskRowAvatarsHtml(users) {
-  if (!users || !users.length) return `<span class="muted">Unassigned</span>`;
+  if (!users || !users.length) return "";
 
   return `
     <div class="row-avatar-stack">
