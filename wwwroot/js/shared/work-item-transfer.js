@@ -18,6 +18,7 @@ import {
   escapeHtml,
   normalizeRichHtml
 } from "./text-and-links.js";
+import { externalizeImportedHtmlImagesInPayload } from "./imported-html-images.js";
 import { taskDisplayPercent } from "./work-item-rules.js?v=20260707-linked-bug-qa-sync";
 
 const workItemImportMarker = "PMT Import Process Meta Data";
@@ -178,6 +179,14 @@ async function saveImportedWorkItem(item, options, rowNumber) {
     defaultStatus: fallbackContext.status || options.defaultStatus,
     notes
   });
+  const imageResult = await externalizeImportedHtmlImagesInPayload(payload, [
+    "descriptionHtml",
+    "stepsToReproduceHtml",
+    "actualResultHtml",
+    "expectedResultHtml"
+  ]);
+  if (imageResult.uploaded) notes.push(`${imageResult.uploaded} embedded image${imageResult.uploaded === 1 ? "" : "s"} moved to uploads.`);
+  if (imageResult.failed) notes.push(`${imageResult.failed} embedded image${imageResult.failed === 1 ? "" : "s"} could not be moved to uploads.`);
   const isUpdate = payload.id > 0;
   const apiRoot = options.apiRoot || "/api/tasks";
   const result = await options.saveJson(isUpdate ? `${apiRoot}/${payload.id}` : apiRoot, isUpdate ? "PUT" : "POST", payload);

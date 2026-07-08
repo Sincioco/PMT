@@ -291,7 +291,8 @@ with matching browser-side behavior where useful for immediate feedback.
 - Assigning a Dev Task to a Sprint sets it to `Todo`.
 - Moving to `Todo` preserves a nonzero existing percent; otherwise it is 0.
 - `QA Passed` and deployed statuses force 100%.
-- Dev Task `Code Complete` forces 100%.
+- Dev Task `Code Complete` and `Ready for QA` force 100% when no Bug is
+  associated, or 50% when a Bug is associated.
 - A Dev Task linked to a Bug cannot reach 100% until that Bug is QA Passed or
   later.
 - A Bug set to QA Passed or QA Failed is set to 100%.

@@ -45,10 +45,10 @@ test("status percent rules preserve in-progress values and force QA-passed statu
   configure([bug, linkedDevTask, dependencyDevTask]);
   assert.equal(percentForDevTaskSave("Todo", 45, dependencyDevTask), 0);
   assert.equal(percentForDevTaskSave("Todo", 45, dependencyDevTask, [bug.id]), 45);
-  assert.equal(percentForDevTaskSave("Code Complete", 50, linkedDevTask), 80);
-  assert.equal(percentForDevTaskSave("Code Complete", 60, dependencyDevTask, [bug.id]), 80);
+  assert.equal(percentForDevTaskSave("Code Complete", 50, linkedDevTask), 50);
+  assert.equal(percentForDevTaskSave("Code Complete", 60, dependencyDevTask, [bug.id]), 50);
   assert.equal(percentForDevTaskSave("Ready for QA", 40, dependencyDevTask), 100);
-  assert.equal(percentForDevTaskSave("Ready for QA", 40, dependencyDevTask, [bug.id]), 80);
+  assert.equal(percentForDevTaskSave("Ready for QA", 40, dependencyDevTask, [bug.id]), 50);
   assert.equal(percentForDevTaskSave("QA Failed", 40, dependencyDevTask), 50);
   assert.equal(percentForDevTaskSave("QA Failed", 40, dependencyDevTask, [bug.id]), 40);
   assert.equal(percentForDevTaskSave("QA Passed", 40, dependencyDevTask), 100);

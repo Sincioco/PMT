@@ -57,19 +57,18 @@ import {
   downloadCsv,
   exportIconHtml,
   exportFileName,
-  assertImportItemCode,
-  importCell,
-  importWorkbookTypeError,
+  importFirstNonEmptyCell,
   importIconHtml,
   openExcelImport,
   openExportDialog,
-  parseImportAssigneeIds,
-  parseImportItemId,
-  parseImportPercent,
+  parseImportPercentOrDefault,
+  resolveImportLookupValue,
+  resolveImportProjectId,
+  resolveImportSprintId,
+  resolveImportUserIds,
+  resolveImportWorkItem,
   showImportResultDialog,
   sameNumberList,
-  uniqueIds,
-  workItemImportHash,
   workItemSystemColumns
 } from "../../shared/table-export.js?v=20260706-dialog-persistence";
 import { canEditTask } from "../../shared/permissions.js";
@@ -1681,97 +1680,132 @@ export function createTasksFeature({
   }
 
   async function importTaskExcel(records) {
-    const workbookError = importWorkbookTypeError(records, ["Dev"], "Dev Tasks");
-    if (workbookError) {
-      showImportResultDialog({
-        title: "Import Dev Tasks",
-        totalRows: records.length,
-        updatedRows: 0,
-        errors: [{ rowNumber: "File", message: workbookError }]
-      });
-      return;
-    }
-
     const errors = [];
     let updatedRows = 0;
+    let createdRows = 0;
 
     for (let index = 0; index < records.length; index += 1) {
       const record = records[index];
       const rowNumber = index + 2;
       try {
-        if (await importTaskRecord(record)) updatedRows += 1;
+        const result = await importTaskRecord(record);
+        if (result === "updated") updatedRows += 1;
+        if (result === "created") createdRows += 1;
       } catch (error) {
-        const id = parseImportItemId(record);
-        const task = id ? taskById(id) : null;
+        const task = resolveTaskImportTarget(record).matchedTask;
         errors.push({
           rowNumber,
-          code: importCell(record, "PMT Item Code") || task?.code || "",
-          title: importCell(record, "PMT Update Task Name", "Task Name") || task?.title || "",
+          code: importFirstNonEmptyCell(record, "PMT Item Code", "Task Code") || task?.code || "",
+          title: importFirstNonEmptyCell(record, "PMT Update Task Name", "Task Name") || task?.title || "",
           message: error.message
         });
       }
     }
 
-    if (updatedRows && refreshAfterImport) await refreshAfterImport();
+    if ((updatedRows || createdRows) && refreshAfterImport) await refreshAfterImport();
     showImportResultDialog({
       title: "Import Dev Tasks",
       totalRows: records.length,
       updatedRows,
+      createdRows,
       errors
     });
   }
 
   async function importTaskRecord(record) {
-    const task = taskById(parseImportItemId(record));
-    if (!task) throw new Error("PMT Item Id does not match an existing row.");
-    if (task.taskType === "Bug") throw new Error("This row is a Bug, not a Dev Task.");
-    assertTaskImportAllowed(task);
+    const target = resolveTaskImportTarget(record);
+    const task = target.task;
 
-    assertImportItemCode(record, task.code, "Task Code");
-    assertTaskImportHash(record, task);
+    if (task) {
+      const updates = taskImportValues(record, task);
+      if (!taskImportChanged(task, updates)) return "";
 
-    const title = importCell(record, "Task Name", "PMT Update Task Name", "PMT Update Item Name").trim();
-    const status = importCell(record, "Status", "PMT Update Status").trim();
-    const priority = importCell(record, "Priority", "PMT Update Priority").trim();
-    const requestedPercent = parseImportPercent(record, "% Complete");
-    const assigneeIds = uniqueIds(parseImportAssigneeIds(record, state.users, "Assignee", "Assignees", "Assigned"));
-
-    if (!title) throw new Error("Task Name is required.");
-    if (!getStatuses().includes(status)) throw new Error(`Status "${status}" is not a PMT status.`);
-    if (!getPriorities().includes(priority)) throw new Error(`Priority "${priority}" is not a PMT priority.`);
-    validateTaskImportAssignees(task, assigneeIds);
-    if (task.subTasks?.length && requestedPercent !== taskDisplayPercent(task)) {
-      throw new Error("Percent Completed is calculated from sub-tasks for this row.");
+      try {
+        await saveJson(`/api/tasks/${task.id}`, "PUT", taskImportPayload(task, updates));
+        return "updated";
+      } catch {
+        // If the original row can no longer be updated, still import the data as a new task.
+      }
     }
 
-    const percentCompleted = percentForDevTaskSave(status, requestedPercent, task, task.dependencyTaskIds || []);
-    validateLinkedBugCompletion(task, percentCompleted, task.dependencyTaskIds || []);
+    const createValues = taskImportValues(record, null);
+    await saveJson("/api/tasks", "POST", taskImportPayload(null, createValues));
+    return "created";
+  }
 
-    if (!taskImportChanged(task, { title, status, priority, percentCompleted, assigneeIds })) return false;
+  function resolveTaskImportTarget(record) {
+    return resolveImportWorkItem(record, state.tasks, {
+      allowedTaskTypes: ["Dev"],
+      codeHeaders: ["Task Code", "Item Code"],
+      titleHeaders: ["Task Name", "PMT Update Task Name", "PMT Update Item Name"],
+      canUpdate: canUpdateImportedTask
+    });
+  }
 
-    await saveJson(`/api/tasks/${task.id}`, "PUT", taskImportPayload(task, {
-      title,
+  function taskImportValues(record, task) {
+    const context = taskImportContext(record, task);
+    const status = resolveImportLookupValue(importFirstNonEmptyCell(record, "Status", "PMT Update Status"), getStatuses(), task?.status || context.status || "Todo");
+    const requestedPercent = task?.subTasks?.length
+      ? taskDisplayPercent(task)
+      : parseImportPercentOrDefault(record, task ? taskDisplayPercent(task) : 0, "% Complete");
+    return {
+      projectId: context.projectId,
+      sprintId: context.sprintId,
+      title: importFirstNonEmptyCell(record, "Task Name", "PMT Update Task Name", "PMT Update Item Name").trim() || task?.title || "Imported Dev Task",
       status,
-      priority,
-      percentCompleted,
-      assigneeIds
-    }));
-    return true;
+      priority: resolveImportLookupValue(importFirstNonEmptyCell(record, "Priority", "PMT Update Priority"), getPriorities(), task?.priority || "Low"),
+      percentCompleted: taskImportPercentForSave(task, status, requestedPercent),
+      assigneeIds: taskImportAssigneeIds(record, task, context)
+    };
   }
 
-  function assertTaskImportHash(record, task) {
-    const hash = importCell(record, "PMT Row Hash").trim();
-    if (hash && hash !== workItemImportHash(task, taskDisplayPercent(task))) {
-      throw new Error("This row is stale. Re-export the grid before importing this row.");
+  function taskImportContext(record, task) {
+    if (task) return { projectId: task.projectId, sprintId: task.sprintId || null, status: task.status || "Todo" };
+
+    const fallback = taskImportFallbackContext();
+    const projectId = resolveImportProjectId(record, state.projects, fallback.projectId);
+    const sprintId = resolveImportSprintId(record, state.sprints, {
+      projectId,
+      fallbackSprintId: fallback.sprintId,
+      isSprintAllowed: sprintAllowedForImport
+    });
+    return { projectId, sprintId, status: fallback.status || "Todo" };
+  }
+
+  function taskImportAssigneeIds(record, task, context) {
+    const project = state.projects.find(item => item.id === context.projectId);
+    const sprint = context.sprintId ? state.sprints.find(item => item.id === context.sprintId) : null;
+    const allowedIds = new Set(allowedAssigneeUsers(state.users, project, sprint).map(user => user.id));
+    return resolveImportUserIds(record, state.users, {
+      nameHeaders: ["Assignee", "Assignees", "Assigned"],
+      fallbackIds: task?.assigneeIds || [],
+      defaultUserId: currentUser().id,
+      allowedIds
+    });
+  }
+
+  function taskImportPercentForSave(task, status, requestedPercent) {
+    if (!task) return percentForDevTaskSave(status, requestedPercent, null, []);
+    const percentCompleted = percentForDevTaskSave(status, requestedPercent, task, task.dependencyTaskIds || []);
+    try {
+      validateLinkedBugCompletion(task, percentCompleted, task.dependencyTaskIds || []);
+      return percentCompleted;
+    } catch {
+      return Math.min(99, taskDisplayPercent(task), percentCompleted);
     }
   }
 
-  function validateTaskImportAssignees(task, assigneeIds) {
-    const project = state.projects.find(item => item.id === task.projectId);
+  function sprintAllowedForImport(sprint) {
+    const user = currentUser();
+    return user.isAdmin || user.role === "Admin" || !sprint.isFinished;
+  }
+
+  function canUpdateImportedTask(task) {
+    const user = currentUser();
+    const isAdmin = user.isAdmin || user.role === "Admin";
     const sprint = task.sprintId ? state.sprints.find(item => item.id === task.sprintId) : null;
-    const allowedIds = new Set(allowedAssigneeUsers(state.users, project, sprint).map(user => user.id));
-    const invalid = assigneeIds.filter(id => !allowedIds.has(id));
-    if (invalid.length) throw new Error(`Assignee ids are not valid for this Project/Sprint: ${invalid.join(", ")}.`);
+    return (isAdmin || task.createdByUserId === user.id)
+      && (isAdmin || !sprint?.isFinished);
   }
 
   function taskImportChanged(task, updates) {
@@ -1784,13 +1818,13 @@ export function createTasksFeature({
 
   function taskImportPayload(task, updates) {
     return {
-      id: task.id,
-      projectId: task.projectId,
-      sprintId: task.sprintId || null,
-      parentTaskId: task.parentTaskId || null,
+      id: task?.id || 0,
+      projectId: task?.projectId || updates.projectId,
+      sprintId: task ? task.sprintId || null : updates.sprintId || null,
+      parentTaskId: task ? task.parentTaskId || null : null,
       taskType: "Dev",
       title: updates.title,
-      descriptionHtml: task.descriptionHtml || "",
+      descriptionHtml: task?.descriptionHtml || "<p>Imported from PMT grid import.</p>",
       stepsToReproduceHtml: "",
       actualResultHtml: "",
       expectedResultHtml: "",
@@ -1799,22 +1833,14 @@ export function createTasksFeature({
       status: updates.status,
       priority: updates.priority,
       percentCompleted: updates.percentCompleted,
-      url: task.url || "",
-      startDate: task.startDate || null,
-      endDate: task.endDate || null,
+      url: task?.url || "",
+      startDate: task?.startDate || null,
+      endDate: task?.endDate || null,
       reporterIds: [],
       assigneeIds: updates.assigneeIds,
-      dependencyTaskIds: task.dependencyTaskIds || [],
+      dependencyTaskIds: task ? task.dependencyTaskIds || [] : [],
       auditContext: "Import"
     };
-  }
-
-  function assertTaskImportAllowed(task) {
-    const user = currentUser();
-    if (user.isAdmin || user.role === "Admin") return;
-    if (task.createdByUserId !== user.id) {
-      throw new Error("Only an Admin can import updates for another user's task.");
-    }
   }
 
   function taskExportRows() {

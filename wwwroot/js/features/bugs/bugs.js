@@ -61,19 +61,18 @@ import {
   downloadCsv,
   exportIconHtml,
   exportFileName,
-  assertImportItemCode,
-  importCell,
-  importWorkbookTypeError,
+  importFirstNonEmptyCell,
   importIconHtml,
   openExcelImport,
   openExportDialog,
-  parseImportAssigneeIds,
-  parseImportItemId,
-  parseImportPercent,
+  parseImportPercentOrDefault,
+  resolveImportLookupValue,
+  resolveImportProjectId,
+  resolveImportSprintId,
+  resolveImportUserIds,
+  resolveImportWorkItem,
   showImportResultDialog,
   sameNumberList,
-  uniqueIds,
-  workItemImportHash,
   workItemSystemColumns
 } from "../../shared/table-export.js?v=20260706-dialog-persistence";
 import { canEditTask } from "../../shared/permissions.js";
@@ -1398,135 +1397,158 @@ export function createBugsFeature({
   }
 
   async function importBugExcel(records) {
-    const workbookError = importWorkbookTypeError(records, ["Bug"], "Bug Tracking");
-    if (workbookError) {
-      showImportResultDialog({
-        title: "Import Bug Tracking",
-        totalRows: records.length,
-        updatedRows: 0,
-        errors: [{ rowNumber: "File", message: workbookError }]
-      });
-      return;
-    }
-
     const errors = [];
     let updatedRows = 0;
+    let createdRows = 0;
 
     for (let index = 0; index < records.length; index += 1) {
       const record = records[index];
       const rowNumber = index + 2;
       try {
-        if (await importBugRecord(record)) updatedRows += 1;
+        const result = await importBugRecord(record);
+        if (result === "updated") updatedRows += 1;
+        if (result === "created") createdRows += 1;
       } catch (error) {
-        const id = parseImportItemId(record);
-        const bug = id ? taskById(id) : null;
+        const bug = resolveBugImportTarget(record).matchedTask;
         errors.push({
           rowNumber,
-          code: importCell(record, "PMT Item Code") || bug?.code || "",
-          title: importCell(record, "PMT Update Bug Name", "Bug Name") || bug?.title || "",
+          code: importFirstNonEmptyCell(record, "PMT Item Code", "Bug Code") || bug?.code || "",
+          title: importFirstNonEmptyCell(record, "PMT Update Bug Name", "Bug Name") || bug?.title || "",
           message: error.message
         });
       }
     }
 
-    if (updatedRows && refreshAfterImport) await refreshAfterImport();
+    if ((updatedRows || createdRows) && refreshAfterImport) await refreshAfterImport();
     showImportResultDialog({
       title: "Import Bug Tracking",
       totalRows: records.length,
       updatedRows,
+      createdRows,
       errors
     });
   }
 
   async function importBugRecord(record) {
-    const bug = taskById(parseImportItemId(record));
-    if (!bug) throw new Error("PMT Item Id does not match an existing row.");
-    if (bug.taskType !== "Bug") throw new Error("This row is not a Bug.");
-    assertBugImportAllowed(bug);
+    const target = resolveBugImportTarget(record);
+    const bug = target.task;
 
-    assertImportItemCode(record, bug.code, "Bug Code");
-    assertBugImportHash(record, bug);
+    if (bug) {
+      const updates = bugImportValues(record, bug);
+      if (!bugImportChanged(bug, updates)) return "";
 
-    const title = importCell(record, "Bug Name", "PMT Update Bug Name", "PMT Update Item Name").trim();
-    const status = importCell(record, "Status", "PMT Update Status").trim();
-    const priority = importCell(record, "Priority", "PMT Update Priority").trim();
-    const requestedPercent = parseImportPercent(record, "% Complete");
-    const assigneeIds = uniqueIds(parseImportAssigneeIds(record, state.users, "Assignee", "Assignees", "Assigned"));
-
-    if (!title) throw new Error("Bug Name is required.");
-    if (!getStatuses().includes(status)) throw new Error(`Status "${status}" is not a PMT status.`);
-    if (!getPriorities().includes(priority)) throw new Error(`Priority "${priority}" is not a PMT priority.`);
-    validateBugImportAssignees(bug, assigneeIds);
-
-    const percentCompleted = percentForStatus(status, requestedPercent);
-    if (!bugImportChanged(bug, { title, status, priority, percentCompleted, assigneeIds })) return false;
-
-    await saveJson(`/api/tasks/${bug.id}`, "PUT", bugImportPayload(bug, {
-      title,
-      status,
-      priority,
-      percentCompleted,
-      assigneeIds
-    }));
-    return true;
-  }
-
-  function assertBugImportHash(record, bug) {
-    const hash = importCell(record, "PMT Row Hash").trim();
-    if (hash && hash !== workItemImportHash(bug, taskDisplayPercent(bug))) {
-      throw new Error("This row is stale. Re-export the grid before importing this row.");
+      try {
+        await saveJson(`/api/tasks/${bug.id}`, "PUT", bugImportPayload(bug, updates));
+        return "updated";
+      } catch {
+        // If the original bug can no longer be updated, still import the data as a new bug.
+      }
     }
+
+    const createValues = bugImportValues(record, null);
+    await saveJson("/api/tasks", "POST", bugImportPayload(null, createValues));
+    return "created";
   }
 
-  function validateBugImportAssignees(bug, assigneeIds) {
-    const project = state.projects.find(item => item.id === bug.projectId);
-    const sprint = bug.sprintId ? state.sprints.find(item => item.id === bug.sprintId) : null;
+  function resolveBugImportTarget(record) {
+    return resolveImportWorkItem(record, state.tasks, {
+      allowedTaskTypes: ["Bug"],
+      codeHeaders: ["Bug Code", "Item Code"],
+      titleHeaders: ["Bug Name", "PMT Update Bug Name", "PMT Update Item Name"],
+      canUpdate: canUpdateImportedBug
+    });
+  }
+
+  function bugImportValues(record, bug) {
+    const context = bugImportContext(record, bug);
+    const status = resolveImportLookupValue(importFirstNonEmptyCell(record, "Status", "PMT Update Status"), getStatuses(), bug?.status || context.status || "Todo");
+    const requestedPercent = parseImportPercentOrDefault(record, bug ? taskDisplayPercent(bug) : 0, "% Complete");
+    return {
+      projectId: context.projectId,
+      sprintId: context.sprintId,
+      title: importFirstNonEmptyCell(record, "Bug Name", "PMT Update Bug Name", "PMT Update Item Name").trim() || bug?.title || "Imported Bug Report",
+      status,
+      priority: resolveImportLookupValue(importFirstNonEmptyCell(record, "Priority", "PMT Update Priority"), getPriorities(), bug?.priority || "Medium"),
+      percentCompleted: percentForStatus(status, requestedPercent),
+      assigneeIds: bugImportAssigneeIds(record, bug, context),
+      environment: resolveImportLookupValue(importFirstNonEmptyCell(record, "Environment", "PMT Update Environment"), getEnvironments(), bug?.environment || "SIT"),
+      severity: resolveImportLookupValue(importFirstNonEmptyCell(record, "Severity", "PMT Update Severity"), getSeverities(), bug?.severity || "Major")
+    };
+  }
+
+  function bugImportContext(record, bug) {
+    if (bug) return { projectId: bug.projectId, sprintId: bug.sprintId || null, status: bug.status || "Todo" };
+
+    const fallback = bugImportFallbackContext();
+    const projectId = resolveImportProjectId(record, state.projects, fallback.projectId);
+    const sprintId = resolveImportSprintId(record, state.sprints, {
+      projectId,
+      fallbackSprintId: fallback.sprintId,
+      isSprintAllowed: sprintAllowedForBugImport
+    });
+    return { projectId, sprintId, status: fallback.status || "Todo" };
+  }
+
+  function bugImportAssigneeIds(record, bug, context) {
+    const project = state.projects.find(item => item.id === context.projectId);
+    const sprint = context.sprintId ? state.sprints.find(item => item.id === context.sprintId) : null;
     const allowedIds = new Set(allowedAssigneeUsers(state.users, project, sprint).map(user => user.id));
-    const invalid = assigneeIds.filter(id => !allowedIds.has(id));
-    if (invalid.length) throw new Error(`Assignee ids are not valid for this Project/Sprint: ${invalid.join(", ")}.`);
+    return resolveImportUserIds(record, state.users, {
+      nameHeaders: ["Assignee", "Assignees", "Assigned"],
+      fallbackIds: bug?.assigneeIds || [],
+      defaultUserId: currentUserId,
+      allowedIds
+    });
+  }
+
+  function sprintAllowedForBugImport(sprint) {
+    const user = currentUser();
+    return user.isAdmin || user.role === "Admin" || !sprint.isFinished;
+  }
+
+  function canUpdateImportedBug(bug) {
+    const user = currentUser();
+    const isAdmin = user.isAdmin || user.role === "Admin";
+    const sprint = bug.sprintId ? state.sprints.find(item => item.id === bug.sprintId) : null;
+    return (isAdmin || bug.createdByUserId === user.id)
+      && (isAdmin || !sprint?.isFinished);
   }
 
   function bugImportChanged(bug, updates) {
     return bug.title !== updates.title
       || bug.status !== updates.status
       || bug.priority !== updates.priority
+      || bug.environment !== updates.environment
+      || bug.severity !== updates.severity
       || Number(bug.percentCompleted || 0) !== Number(updates.percentCompleted || 0)
       || !sameNumberList(bug.assigneeIds || [], updates.assigneeIds || []);
   }
 
   function bugImportPayload(bug, updates) {
     return {
-      id: bug.id,
-      projectId: bug.projectId,
-      sprintId: bug.sprintId || null,
+      id: bug?.id || 0,
+      projectId: bug?.projectId || updates.projectId,
+      sprintId: bug ? bug.sprintId || null : updates.sprintId || null,
       parentTaskId: null,
       taskType: "Bug",
       title: updates.title,
-      descriptionHtml: bug.descriptionHtml || "",
-      stepsToReproduceHtml: bug.stepsToReproduceHtml || "",
-      actualResultHtml: bug.actualResultHtml || "",
-      expectedResultHtml: bug.expectedResultHtml || "",
-      environment: bug.environment || "",
-      severity: bug.severity || "",
+      descriptionHtml: bug?.descriptionHtml || "<p>Imported from PMT grid import.</p>",
+      stepsToReproduceHtml: bug?.stepsToReproduceHtml || "",
+      actualResultHtml: bug?.actualResultHtml || "",
+      expectedResultHtml: bug?.expectedResultHtml || "",
+      environment: updates.environment || bug?.environment || "SIT",
+      severity: updates.severity || bug?.severity || "Major",
       status: updates.status,
       priority: updates.priority,
       percentCompleted: updates.percentCompleted,
-      url: bug.url || "",
-      startDate: bug.startDate || null,
-      endDate: bug.endDate || null,
-      reporterIds: bug.reporterIds || [],
+      url: bug?.url || "",
+      startDate: bug?.startDate || null,
+      endDate: bug?.endDate || null,
+      reporterIds: bug ? bug.reporterIds || [] : reporterIdsOrDefault([], currentUserId),
       assigneeIds: updates.assigneeIds,
-      dependencyTaskIds: bug.dependencyTaskIds || [],
+      dependencyTaskIds: bug ? bug.dependencyTaskIds || [] : [],
       auditContext: "Import"
     };
-  }
-
-  function assertBugImportAllowed(bug) {
-    const user = currentUser();
-    if (user.isAdmin || user.role === "Admin") return;
-    if (bug.createdByUserId !== user.id) {
-      throw new Error("Only an Admin can import updates for another user's bug report.");
-    }
   }
 
   function bugExportRows() {

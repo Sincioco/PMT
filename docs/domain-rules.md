@@ -25,8 +25,8 @@ Regression tests for these rules live in `tests/js/work-item-rules.test.mjs`.
 - Saving `Backlog` stores an unscheduled `Todo` and clears the Sprint.
 - Assigning a new or previously unscheduled Dev Task to a Sprint sets it to `Todo`.
 - Moving a non-Bug-associated Dev Task to `Todo` sets percent complete to 0. Moving a Bug-associated Dev Task to `Todo` preserves its current percent.
-- Dev Task `Code Complete` sets percent complete to 100 when no Bug is associated, or 80 when a Bug is associated.
-- Dev Task `Ready for QA` sets percent complete to 100 when no Bug is associated, or 80 when a Bug is associated.
+- Dev Task `Code Complete` sets percent complete to 100 when no Bug is associated, or 50 when a Bug is associated.
+- Dev Task `Ready for QA` sets percent complete to 100 when no Bug is associated, or 50 when a Bug is associated.
 - Dev Task `QA Failed` sets percent complete to 50 when no Bug is associated. If a Bug is associated, the current percent is preserved.
 - Dev Task `QA Passed` and any status beginning with `Deployed` set percent complete to 100 when no Bug is associated. If a Bug is associated, the current percent is preserved and normal completion blocking still applies.
 - For Bugs, `QA Failed`, `QA Passed`, and any status beginning with `Deployed` force the Bug's percent complete to 100%.

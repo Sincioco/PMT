@@ -61,6 +61,15 @@ export function importCell(record, ...headers) {
   return "";
 }
 
+export function importFirstNonEmptyCell(record, ...headers) {
+  for (const header of headers) {
+    if (!Object.prototype.hasOwnProperty.call(record, header)) continue;
+    const value = String(record[header] ?? "");
+    if (value.trim()) return value;
+  }
+  return importCell(record, ...headers);
+}
+
 export function importCellExists(record, ...headers) {
   return headers.some(header => Object.prototype.hasOwnProperty.call(record, header));
 }
@@ -68,6 +77,34 @@ export function importCellExists(record, ...headers) {
 export function parseImportItemId(record) {
   const id = Number(importCell(record, "PMT Item Id").trim());
   return Number.isInteger(id) && id > 0 ? id : 0;
+}
+
+export function resolveImportWorkItem(record, tasks, {
+  allowedTaskTypes = ["Dev", "Bug"],
+  codeHeaders = [],
+  titleHeaders = [],
+  canUpdate = () => true
+} = {}) {
+  const allowedTypes = new Set(allowedTaskTypes.map(normalizeImportItemType).filter(Boolean));
+  const candidates = [];
+  const addCandidate = task => {
+    if (!task || candidates.some(candidate => candidate.id === task.id)) return;
+    const type = normalizeImportItemType(task.taskType || "Dev");
+    if (allowedTypes.size && !allowedTypes.has(type)) return;
+    candidates.push(task);
+  };
+  const id = parseImportItemId(record);
+  const code = normalizeImportCode(importFirstNonEmptyCell(record, "PMT Item Code", ...codeHeaders));
+  const title = normalizeImportText(importFirstNonEmptyCell(record, ...titleHeaders));
+
+  addCandidate(id ? tasks.find(task => task.id === id) : null);
+  addCandidate(code ? tasks.find(task => normalizeImportCode(task.code) === code) : null);
+  addCandidate(title ? tasks.find(task => normalizeImportText(task.title) === title) : null);
+
+  return {
+    task: candidates.find(task => canUpdate(task)) || null,
+    matchedTask: candidates[0] || null
+  };
 }
 
 export function assertImportItemCode(record, expectedCode, ...visibleCodeHeaders) {
@@ -92,6 +129,13 @@ export function parseImportPercent(record, ...headers) {
   return Math.round(percent);
 }
 
+export function parseImportPercentOrDefault(record, fallbackValue = 0, ...headers) {
+  const value = importCell(record, ...headers, "PMT Update Percent Completed").trim();
+  const percent = Number(value);
+  const fallback = Number(fallbackValue);
+  return clampPercent(value && Number.isFinite(percent) ? percent : fallback);
+}
+
 export function parseImportAssigneeIds(record, users, ...nameHeaders) {
   if (importCellExists(record, ...nameHeaders)) {
     return parseImportAssigneeNames(importCell(record, ...nameHeaders), users);
@@ -111,9 +155,84 @@ export function parseImportAssigneeIds(record, users, ...nameHeaders) {
   return parseImportAssigneeNames(importCell(record, "PMT Update Assignees"), users);
 }
 
+export function resolveImportUserIds(record, users, {
+  nameHeaders = [],
+  idHeaders = ["PMT Update Assignee IDs"],
+  fallbackIds = [],
+  defaultUserId = 0,
+  allowedIds = null
+} = {}) {
+  const descriptors = importUserDescriptors(record, nameHeaders, idHeaders);
+  const allowed = allowedIds ? new Set([...allowedIds].map(Number)) : null;
+  const ids = [];
+
+  descriptors.forEach(descriptor => {
+    const user = resolveImportUser(descriptor, users);
+    if (user && (!allowed || allowed.has(user.id))) ids.push(user.id);
+  });
+
+  const fallback = uniqueImportIds(fallbackIds).filter(id => !allowed || allowed.has(id));
+  if (!ids.length && fallback.length) return fallback;
+  const defaultId = Number(defaultUserId || 0);
+  if (!ids.length && defaultId && (!allowed || allowed.has(defaultId))) return [defaultId];
+  return uniqueImportIds(ids);
+}
+
+export function resolveImportLookupValue(requestedValue, values, fallbackValue = "") {
+  const requested = String(requestedValue || "").trim();
+  const fallback = String(fallbackValue || "").trim();
+  const candidates = Array.isArray(values) ? values : [];
+  return candidates.find(value => normalizeImportText(value) === normalizeImportText(requested))
+    || candidates.find(value => normalizeImportText(value) === normalizeImportText(fallback))
+    || candidates[0]
+    || fallback
+    || requested;
+}
+
+export function resolveImportProjectId(record, projects, fallbackProjectId = 0) {
+  const id = Number(importFirstNonEmptyCell(record, "PMT Update Project Id", "PMT Project Id", "Project Id").trim());
+  const text = normalizeImportText(importFirstNonEmptyCell(record, "Project", "PMT Project", "PMT Update Project"));
+  const project = (Number.isInteger(id) && id > 0 ? projects.find(item => item.id === id) : null)
+    || projects.find(item => text && normalizeProjectImportText(item) === text)
+    || projects.find(item => text && normalizeImportText(item.code) === text)
+    || projects.find(item => text && normalizeImportText(item.title) === text)
+    || projects.find(item => item.id === Number(fallbackProjectId || 0))
+    || projects[0]
+    || null;
+  return project?.id || 0;
+}
+
+export function resolveImportSprintId(record, sprints, {
+  projectId = 0,
+  fallbackSprintId = 0,
+  isSprintAllowed = () => true
+} = {}) {
+  const id = Number(importFirstNonEmptyCell(record, "PMT Update Sprint Id", "PMT Sprint Id", "Sprint Id").trim());
+  const text = normalizeImportText(importFirstNonEmptyCell(record, "Sprint", "PMT Sprint", "PMT Update Sprint"));
+  const candidates = sprints.filter(sprint =>
+    (!projectId || sprint.projectId === projectId)
+    && isSprintAllowed(sprint)
+  );
+  const sprint = (Number.isInteger(id) && id > 0 ? candidates.find(item => item.id === id) : null)
+    || candidates.find(item => text && normalizeSprintImportText(item) === text)
+    || candidates.find(item => text && normalizeImportText(item.code) === text)
+    || candidates.find(item => text && normalizeImportText(item.title) === text)
+    || candidates.find(item => item.id === Number(fallbackSprintId || 0))
+    || null;
+  return sprint?.id || null;
+}
+
+export function importWorkItemType(record, allowedTaskTypes = ["Dev", "Bug"], fallbackType = "Dev") {
+  const allowed = new Set(allowedTaskTypes.map(normalizeImportItemType).filter(Boolean));
+  const type = normalizeImportItemType(importCell(record, "PMT Item Type", "Type", "Row Type"));
+  if (type && (!allowed.size || allowed.has(type))) return type;
+  const fallback = normalizeImportItemType(fallbackType);
+  return allowed.has(fallback) ? fallback : [...allowed][0] || fallback || "Dev";
+}
+
 function parseImportAssigneeNames(value, users) {
   return splitImportList(value).map(name => {
-    const normalized = name.toLowerCase();
+    const normalized = normalizeImportText(name);
     const user = users.find(candidate => importUserNameMatches(candidate, normalized));
     if (!user) throw new Error(`Unknown assignee "${name}".`);
     return user.id;
@@ -124,7 +243,7 @@ function importUserNameMatches(user, normalizedName) {
   return [
     user.nickname,
     [user.firstName, user.lastName].filter(Boolean).join(" ")
-  ].some(value => String(value || "").toLowerCase() === normalizedName);
+  ].some(value => normalizeImportText(value) === normalizedName);
 }
 
 export function importWorkbookTypeError(records, allowedTypes, screenLabel) {
@@ -208,9 +327,10 @@ export function openExportDialog({ title, onCsvExport, onExcelExport }) {
   modal.querySelector("[data-export-format='csv']")?.focus({ preventScroll: true });
 }
 
-export function showImportResultDialog({ title, totalRows, updatedRows, errors = [] }) {
+export function showImportResultDialog({ title, totalRows, updatedRows, createdRows = 0, errors = [] }) {
   const modal = document.createElement("dialog");
   modal.className = "dialog detail-dialog import-result-dialog";
+  const unchangedRows = Math.max(0, totalRows - updatedRows - createdRows - errors.length);
   modal.innerHTML = `
     <div class="dialog-head">
       <h2>${escapeHtml(title)}</h2>
@@ -219,7 +339,8 @@ export function showImportResultDialog({ title, totalRows, updatedRows, errors =
     <div class="dialog-body">
       <div class="import-result-summary">
         <div><strong>${updatedRows}</strong><span>Updated</span></div>
-        <div><strong>${Math.max(0, totalRows - updatedRows - errors.length)}</strong><span>Unchanged</span></div>
+        ${createdRows ? `<div><strong>${createdRows}</strong><span>Created</span></div>` : ""}
+        <div><strong>${unchangedRows}</strong><span>Unchanged</span></div>
         <div><strong>${errors.length}</strong><span>Errors</span></div>
       </div>
       ${errors.length ? importErrorsHtml(errors) : `<div class="empty">Import completed with no row errors.</div>`}
@@ -460,7 +581,7 @@ function splitImportList(value) {
     .filter(Boolean);
 }
 
-function normalizeImportCode(value) {
+export function normalizeImportCode(value) {
   return String(value || "").trim().toUpperCase();
 }
 
@@ -470,6 +591,44 @@ function normalizeImportItemType(value) {
   if (text.includes("bug")) return "Bug";
   if (text.includes("dev") || text.includes("task")) return "Dev";
   return text;
+}
+
+export function normalizeImportText(value) {
+  return String(value || "").trim().replace(/\s+/g, " ").toLowerCase();
+}
+
+function clampPercent(value) {
+  const percent = Number(value);
+  if (!Number.isFinite(percent)) return 0;
+  return Math.max(0, Math.min(100, Math.round(percent)));
+}
+
+function importUserDescriptors(record, nameHeaders, idHeaders) {
+  if (importCellExists(record, ...nameHeaders)) return splitImportList(importCell(record, ...nameHeaders));
+  const idsText = importCell(record, ...idHeaders).trim();
+  if (idsText) return splitImportList(idsText);
+  return splitImportList(importCell(record, "PMT Update Assignees"));
+}
+
+function resolveImportUser(descriptor, users) {
+  const text = String(descriptor || "").trim();
+  const id = Number(text);
+  return (Number.isInteger(id) && id > 0 ? users.find(user => user.id === id) : null)
+    || users.find(user => importUserNameMatches(user, normalizeImportText(text)))
+    || users.find(user => normalizeImportText(user.email) === normalizeImportText(text))
+    || null;
+}
+
+function uniqueImportIds(values) {
+  return [...new Set((values || []).map(Number).filter(value => Number.isInteger(value) && value > 0))];
+}
+
+function normalizeProjectImportText(project) {
+  return normalizeImportText([project?.code, project?.title].filter(Boolean).join(" - "));
+}
+
+function normalizeSprintImportText(sprint) {
+  return normalizeImportText([sprint?.code, sprint?.title].filter(Boolean).join(" - "));
 }
 
 function importItemTypeLabel(type) {

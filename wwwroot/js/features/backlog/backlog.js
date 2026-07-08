@@ -32,19 +32,19 @@ import {
   downloadCsv,
   exportIconHtml,
   exportFileName,
-  assertImportItemCode,
-  importCell,
-  importWorkbookTypeError,
+  importFirstNonEmptyCell,
+  importWorkItemType,
   importIconHtml,
   openExcelImport,
   openExportDialog,
-  parseImportAssigneeIds,
-  parseImportItemId,
-  parseImportPercent,
+  parseImportPercentOrDefault,
+  resolveImportLookupValue,
+  resolveImportProjectId,
+  resolveImportSprintId,
+  resolveImportUserIds,
+  resolveImportWorkItem,
   showImportResultDialog,
   sameNumberList,
-  uniqueIds,
-  workItemImportHash,
   workItemSystemColumns
 } from "../../shared/table-export.js?v=20260706-dialog-persistence";
 import {
@@ -1433,146 +1433,185 @@ export function createBacklogFeature({
   }
 
   async function importBacklogExcel(records) {
-    const workbookError = importWorkbookTypeError(records, ["Dev", "Bug"], "Backlog");
-    if (workbookError) {
-      showImportResultDialog({
-        title: "Import Backlog",
-        totalRows: records.length,
-        updatedRows: 0,
-        errors: [{ rowNumber: "File", message: workbookError }]
-      });
-      return;
-    }
-
     const errors = [];
     let updatedRows = 0;
+    let createdRows = 0;
 
     for (let index = 0; index < records.length; index += 1) {
       const record = records[index];
       const rowNumber = index + 2;
       try {
-        if (await importBacklogRecord(record)) updatedRows += 1;
+        const result = await importBacklogRecord(record);
+        if (result === "updated") updatedRows += 1;
+        if (result === "created") createdRows += 1;
       } catch (error) {
-        const id = parseImportItemId(record);
-        const task = id ? taskById(id) : null;
+        const task = resolveBacklogImportTarget(record).matchedTask;
         errors.push({
           rowNumber,
-          code: importCell(record, "PMT Item Code") || task?.code || "",
-          title: importCell(record, "PMT Update Item Name", "PMT Update Task Name", "PMT Update Bug Name") || task?.title || "",
+          code: importFirstNonEmptyCell(record, "PMT Item Code", "Item Code", "Task Code", "Bug Code") || task?.code || "",
+          title: importFirstNonEmptyCell(record, "PMT Update Item Name", "PMT Update Task Name", "PMT Update Bug Name", "Item Name", "Task Name", "Bug Name") || task?.title || "",
           message: error.message
         });
       }
     }
 
-    if (updatedRows && refreshAfterImport) await refreshAfterImport();
+    if ((updatedRows || createdRows) && refreshAfterImport) await refreshAfterImport();
     showImportResultDialog({
       title: "Import Backlog",
       totalRows: records.length,
       updatedRows,
+      createdRows,
       errors
     });
   }
 
   async function importBacklogRecord(record) {
-    const task = taskById(parseImportItemId(record));
-    if (!task) throw new Error("PMT Item Id does not match an existing row.");
-    if (task.status !== "Backlog" && task.status !== "Todo") {
-      throw new Error("This row is no longer in the Backlog.");
-    }
-    assertBacklogImportAllowed(task);
+    const target = resolveBacklogImportTarget(record);
+    const task = target.task;
 
-    assertImportItemCode(record, task.code, "Item Code", "Task Code", "Bug Code");
-    assertBacklogImportHash(record, task);
+    if (task) {
+      const updates = backlogImportValues(record, task);
+      if (!backlogImportChanged(task, updates)) return "";
 
-    const title = importCell(record, "Item Name", "Task Name", "Bug Name", "PMT Update Item Name", "PMT Update Task Name", "PMT Update Bug Name").trim();
-    const status = importCell(record, "Status", "PMT Update Status").trim();
-    const priority = importCell(record, "Priority", "PMT Update Priority").trim();
-    const requestedPercent = parseImportPercent(record, "% Complete");
-    const assigneeIds = uniqueIds(parseImportAssigneeIds(record, state.users, "Assigned", "Assignee", "Assignees"));
-
-    if (!title) throw new Error("Item Name is required.");
-    if (!getStatuses().includes(status)) throw new Error(`Status "${status}" is not a PMT status.`);
-    if (!getPriorities().includes(priority)) throw new Error(`Priority "${priority}" is not a PMT priority.`);
-    validateBacklogImportAssignees(task, assigneeIds);
-    if (task.subTasks?.length && requestedPercent !== taskDisplayPercent(task)) {
-      throw new Error("Percent Completed is calculated from sub-tasks for this row.");
+      try {
+        await saveJson(`/api/backlog/tasks/${task.id}`, "PUT", backlogImportPayload(task, updates));
+        return "updated";
+      } catch {
+        // If the original backlog item can no longer be updated, still import a new item.
+      }
     }
 
-    const percentCompleted = task.taskType === "Bug"
-      ? percentForStatus(status, requestedPercent)
-      : percentForDevTaskSave(status, requestedPercent, task, task.dependencyTaskIds || []);
-    if (task.taskType !== "Bug") validateLinkedBugCompletion(task, percentCompleted, task.dependencyTaskIds || []);
+    const createValues = backlogImportValues(record, null, target.matchedTask?.taskType);
+    await saveJson("/api/backlog/tasks", "POST", backlogImportPayload(null, createValues));
+    return "created";
+  }
 
-    if (!backlogImportChanged(task, { title, status, priority, percentCompleted, assigneeIds })) return false;
+  function resolveBacklogImportTarget(record) {
+    return resolveImportWorkItem(record, state.tasks, {
+      allowedTaskTypes: ["Dev", "Bug"],
+      codeHeaders: ["Item Code", "Task Code", "Bug Code"],
+      titleHeaders: ["Item Name", "Task Name", "Bug Name", "PMT Update Item Name", "PMT Update Task Name", "PMT Update Bug Name"],
+      canUpdate: canUpdateImportedBacklogItem
+    });
+  }
 
-    await saveJson(`/api/backlog/tasks/${task.id}`, "PUT", backlogImportPayload(task, {
-      title,
+  function backlogImportValues(record, task, fallbackTaskType = "Dev") {
+    const taskType = task?.taskType || importWorkItemType(record, ["Dev", "Bug"], fallbackTaskType);
+    const context = backlogImportContext(record, task);
+    const status = resolveImportLookupValue(importFirstNonEmptyCell(record, "Status", "PMT Update Status"), getStatuses(), task?.status || context.status || "Backlog");
+    const requestedPercent = task?.subTasks?.length
+      ? taskDisplayPercent(task)
+      : parseImportPercentOrDefault(record, task ? taskDisplayPercent(task) : 0, "% Complete");
+    return {
+      taskType,
+      projectId: context.projectId,
+      sprintId: context.sprintId,
+      title: importFirstNonEmptyCell(record, "Item Name", "Task Name", "Bug Name", "PMT Update Item Name", "PMT Update Task Name", "PMT Update Bug Name").trim()
+        || task?.title
+        || (taskType === "Bug" ? "Imported Bug Report" : "Imported Backlog Item"),
       status,
-      priority,
-      percentCompleted,
-      assigneeIds
-    }));
-    return true;
+      priority: resolveImportLookupValue(importFirstNonEmptyCell(record, "Priority", "PMT Update Priority"), getPriorities(), task?.priority || "Low"),
+      percentCompleted: backlogImportPercentForSave(task, taskType, status, requestedPercent),
+      assigneeIds: backlogImportAssigneeIds(record, task, context),
+      environment: resolveImportLookupValue(importFirstNonEmptyCell(record, "Environment", "PMT Update Environment"), backlogLookupValues("Environment"), task?.environment || "SIT"),
+      severity: resolveImportLookupValue(importFirstNonEmptyCell(record, "Severity", "PMT Update Severity"), backlogLookupValues("Severity"), task?.severity || "Major")
+    };
   }
 
-  function assertBacklogImportHash(record, task) {
-    const hash = importCell(record, "PMT Row Hash").trim();
-    if (hash && hash !== workItemImportHash(task, taskDisplayPercent(task))) {
-      throw new Error("This row is stale. Re-export the grid before importing this row.");
+  function backlogImportContext(record, task) {
+    if (task) return { projectId: task.projectId, sprintId: task.sprintId || null, status: task.status || "Backlog" };
+
+    const fallback = backlogImportFallbackContext();
+    const projectId = resolveImportProjectId(record, state.projects, fallback.projectId);
+    const sprintId = resolveImportSprintId(record, state.sprints, {
+      projectId,
+      fallbackSprintId: fallback.sprintId,
+      isSprintAllowed: sprintAllowedForBacklogImport
+    });
+    return { projectId, sprintId, status: fallback.status || "Backlog" };
+  }
+
+  function backlogImportAssigneeIds(record, task, context) {
+    const project = state.projects.find(item => item.id === context.projectId);
+    const sprint = context.sprintId ? state.sprints.find(item => item.id === context.sprintId) : null;
+    const allowedIds = new Set(allowedAssigneeUsers(state.users, project, sprint).map(user => user.id));
+    return resolveImportUserIds(record, state.users, {
+      nameHeaders: ["Assigned", "Assignee", "Assignees"],
+      fallbackIds: task?.assigneeIds || [],
+      defaultUserId: currentUser().id,
+      allowedIds
+    });
+  }
+
+  function backlogImportPercentForSave(task, taskType, status, requestedPercent) {
+    if (taskType === "Bug") return percentForStatus(status, requestedPercent);
+    const percentCompleted = percentForDevTaskSave(status, requestedPercent, task, task?.dependencyTaskIds || []);
+    if (!task) return percentCompleted;
+    try {
+      validateLinkedBugCompletion(task, percentCompleted, task.dependencyTaskIds || []);
+      return percentCompleted;
+    } catch {
+      return Math.min(99, taskDisplayPercent(task), percentCompleted);
     }
   }
 
-  function validateBacklogImportAssignees(task, assigneeIds) {
-    const project = state.projects.find(item => item.id === task.projectId);
+  function sprintAllowedForBacklogImport(sprint) {
+    const user = currentUser();
+    return user.isAdmin || user.role === "Admin" || !sprint.isFinished;
+  }
+
+  function canUpdateImportedBacklogItem(task) {
+    const user = currentUser();
+    const isAdmin = user.isAdmin || user.role === "Admin";
     const sprint = task.sprintId ? state.sprints.find(item => item.id === task.sprintId) : null;
-    const allowedIds = new Set(allowedAssigneeUsers(state.users, project, sprint).map(user => user.id));
-    const invalid = assigneeIds.filter(id => !allowedIds.has(id));
-    if (invalid.length) throw new Error(`Assignee ids are not valid for this Project/Sprint: ${invalid.join(", ")}.`);
+    return (isAdmin || task.createdByUserId === user.id)
+      && (isAdmin || !sprint?.isFinished);
+  }
+
+  function backlogLookupValues(type) {
+    return state.lookups
+      .filter(lookup => lookup.lookupType === type && lookup.isActive)
+      .sort((a, b) => a.displayOrder - b.displayOrder || a.value.localeCompare(b.value))
+      .map(lookup => lookup.value);
   }
 
   function backlogImportChanged(task, updates) {
     return task.title !== updates.title
       || task.status !== updates.status
       || task.priority !== updates.priority
+      || (task.taskType === "Bug" && task.environment !== updates.environment)
+      || (task.taskType === "Bug" && task.severity !== updates.severity)
       || Number(task.percentCompleted || 0) !== Number(updates.percentCompleted || 0)
       || !sameNumberList(task.assigneeIds || [], updates.assigneeIds || []);
   }
 
   function backlogImportPayload(task, updates) {
-    const isBug = task.taskType === "Bug";
+    const isBug = (task?.taskType || updates.taskType) === "Bug";
 
     return {
-      id: task.id,
-      projectId: task.projectId,
-      sprintId: task.sprintId || null,
-      parentTaskId: isBug ? null : task.parentTaskId || null,
+      id: task?.id || 0,
+      projectId: task?.projectId || updates.projectId,
+      sprintId: task ? task.sprintId || null : updates.sprintId || null,
+      parentTaskId: isBug || !task ? null : task.parentTaskId || null,
       taskType: isBug ? "Bug" : "Dev",
       title: updates.title,
-      descriptionHtml: task.descriptionHtml || "",
-      stepsToReproduceHtml: isBug ? task.stepsToReproduceHtml || "" : "",
-      actualResultHtml: isBug ? task.actualResultHtml || "" : "",
-      expectedResultHtml: isBug ? task.expectedResultHtml || "" : "",
-      environment: isBug ? task.environment || "" : "",
-      severity: isBug ? task.severity || "" : "",
+      descriptionHtml: task?.descriptionHtml || "<p>Imported from PMT grid import.</p>",
+      stepsToReproduceHtml: isBug ? task?.stepsToReproduceHtml || "" : "",
+      actualResultHtml: isBug ? task?.actualResultHtml || "" : "",
+      expectedResultHtml: isBug ? task?.expectedResultHtml || "" : "",
+      environment: isBug ? updates.environment || task?.environment || "SIT" : "",
+      severity: isBug ? updates.severity || task?.severity || "Major" : "",
       status: updates.status,
       priority: updates.priority,
       percentCompleted: updates.percentCompleted,
-      url: task.url || "",
-      startDate: task.startDate || null,
-      endDate: task.endDate || null,
-      reporterIds: isBug ? task.reporterIds || [] : [],
+      url: task?.url || "",
+      startDate: task?.startDate || null,
+      endDate: task?.endDate || null,
+      reporterIds: isBug && task ? task.reporterIds || [] : [],
       assigneeIds: updates.assigneeIds,
-      dependencyTaskIds: task.dependencyTaskIds || [],
+      dependencyTaskIds: task ? task.dependencyTaskIds || [] : [],
       auditContext: "Import"
     };
-  }
-
-  function assertBacklogImportAllowed(task) {
-    const user = currentUser();
-    if (user.isAdmin || user.role === "Admin") return;
-    if (task.createdByUserId !== user.id) {
-      throw new Error("Only an Admin can import updates for another user's backlog item.");
-    }
   }
 
   function backlogExportRows() {

@@ -47,8 +47,11 @@ import {
   exportIconHtml,
   importCell,
   importCellExists,
+  importFirstNonEmptyCell,
   importIconHtml,
+  normalizeImportText,
   openExcelImport,
+  resolveImportProjectId,
   openExportDialog,
   showImportResultDialog
 } from "../../shared/table-export.js?v=20260706-dialog-persistence";
@@ -1102,25 +1105,28 @@ export function createScrumFeature({
   async function importScrumExcel(records) {
     const errors = [];
     let updatedRows = 0;
+    let createdRows = 0;
 
     for (let index = 0; index < records.length; index += 1) {
       const record = records[index];
       const rowNumber = index + 2;
       try {
-        if (await importScrumRecord(record)) updatedRows += 1;
+        const result = await importScrumRecord(record);
+        if (result === "updated") updatedRows += 1;
+        if (result === "created") createdRows += 1;
       } catch (error) {
-        const id = parseScrumImportId(record);
-        const log = id ? state.devLogs.find(item => item.id === id && isSharedScrumLog(item)) : null;
+        const target = resolveScrumImportTarget(record);
+        const log = target.matchedLog;
         errors.push({
           rowNumber,
-          code: id ? `Scrum ${id}` : "",
-          title: log ? [formatDate(log.logDate), scrumUserName(log.userId)].join(" - ") : "",
+          code: log?.id ? `Scrum ${log.id}` : "",
+          title: log ? [formatDate(log.logDate), scrumUserName(log.userId)].join(" - ") : importFirstNonEmptyCell(record, "Date", "PMT Update Date"),
           message: error.message
         });
       }
     }
 
-    if (updatedRows) {
+    if (updatedRows || createdRows) {
       await loadState();
       render();
     }
@@ -1128,54 +1134,86 @@ export function createScrumFeature({
       title: "Import Scrum",
       totalRows: records.length,
       updatedRows,
+      createdRows,
       errors
     });
   }
 
   async function importScrumRecord(record) {
-    const log = state.devLogs.find(item => item.id === parseScrumImportId(record) && isSharedScrumLog(item));
-    if (!log) throw new Error("PMT Scrum Id does not match an existing row.");
-    assertScrumImportAllowed(log);
-    assertScrumImportHash(record, log);
+    const target = resolveScrumImportTarget(record);
+    const log = target.log;
 
-    const projectId = parseScrumImportProjectId(record, log);
-    const logDate = parseScrumImportDate(record, log);
+    if (log) {
+      const updates = scrumImportValues(record, log);
+      if (!scrumImportChanged(log, updates)) return "";
+
+      try {
+        await saveJson(`/api/devlogs/${log.id}`, "PUT", scrumImportPayload(log, updates));
+        return "updated";
+      } catch {
+        // If the original Scrum row can no longer be updated, still import it as a new current-user row.
+      }
+    }
+
+    const createValues = scrumImportValues(record, null);
+    await saveJson("/api/devlogs", "POST", scrumImportPayload(null, createValues));
+    return "created";
+  }
+
+  function resolveScrumImportTarget(record) {
+    const candidates = [];
+    const addCandidate = log => {
+      if (!log || !isSharedScrumLog(log) || candidates.some(candidate => candidate.id === log.id)) return;
+      candidates.push(log);
+    };
+    const id = parseScrumImportId(record);
+    const bodyText = normalizeImportText(scrumImportBodyText(record));
+    const dateText = parseScrumImportDateText(record);
+    const projectId = parseScrumImportProjectId(record, null, { useFallback: false });
+
+    addCandidate(id ? state.devLogs.find(item => item.id === id) : null);
+    addCandidate(bodyText ? state.devLogs.find(log =>
+      isSharedScrumLog(log)
+      && normalizeImportText(textFromHtml(log.bodyHtml || "")) === bodyText
+      && (!dateText || scrumDateInputValue(log.logDate) === dateText)
+      && (!projectId || Number(log.projectId || 0) === Number(projectId))
+    ) : null);
+
+    return {
+      log: candidates.find(canUpdateImportedScrumLog) || null,
+      matchedLog: candidates[0] || null
+    };
+  }
+
+  function scrumImportValues(record, log) {
+    const projectId = parseScrumImportProjectId(record, log, { useFallback: true });
+    const dateResult = coerceScrumImportDate(projectId, parseScrumImportDateText(record) || scrumDateInputValue(log?.logDate));
     const bodyHtml = parseScrumImportBodyHtml(record, log);
-    const isPinned = currentUser().isAdmin ? parseScrumImportPinned(record, log) : log.isPinned;
-    const dateError = scrumDateValidationMessage(projectId, logDate);
-    if (dateError) throw new Error(dateError);
-    if (!bodyHtml) throw new Error("Scrum text is required.");
 
-    if (!scrumImportChanged(log, { projectId, logDate, bodyHtml, isPinned })) return false;
-
-    await saveJson(`/api/devlogs/${log.id}`, "PUT", {
-      id: log.id,
-      logType: sharedScrumLogType,
-      projectId,
-      logDate,
+    return {
+      projectId: dateResult.projectId,
+      logDate: dateResult.logDate,
       bodyHtml,
-      isPinned,
+      isPinned: currentUser().isAdmin ? parseScrumImportPinned(record, log) : Boolean(log?.isPinned)
+    };
+  }
+
+  function scrumImportPayload(log, updates) {
+    return {
+      id: log?.id || 0,
+      logType: sharedScrumLogType,
+      projectId: updates.projectId,
+      logDate: updates.logDate,
+      bodyHtml: updates.bodyHtml,
+      isPinned: updates.isPinned,
       auditContext: "Import"
-    });
-    return true;
+    };
   }
 
-  function assertScrumImportAllowed(log) {
+  function canUpdateImportedScrumLog(log) {
     const user = currentUser();
-    if (user.isAdmin) return;
-    if (log.userId !== user.id) {
-      throw new Error("Only an Admin can import updates for another user's Scrum entry.");
-    }
-    if (scrumLogIsOlderThanModificationWindow(log)) {
-      throw new Error("Scrum entries older than 31 days are read-only for users.");
-    }
-  }
-
-  function assertScrumImportHash(record, log) {
-    const hash = importCell(record, "PMT Scrum Row Hash").trim();
-    if (hash && hash !== scrumImportHash(log)) {
-      throw new Error("This Scrum row is stale. Re-export the grid before importing this row.");
-    }
+    if (user.isAdmin) return true;
+    return log.userId === user.id && !scrumLogIsOlderThanModificationWindow(log);
   }
 
   function parseScrumImportId(record) {
@@ -1183,38 +1221,63 @@ export function createScrumFeature({
     return Number.isInteger(id) && id > 0 ? id : 0;
   }
 
-  function parseScrumImportProjectId(record, log) {
-    if (!importCellExists(record, "PMT Update Project Id")) return log.projectId || null;
-
-    const value = importCell(record, "PMT Update Project Id").trim();
-    if (!value) return null;
-
-    const projectId = Number(value);
-    if (!Number.isInteger(projectId) || !state.projects.some(project => project.id === projectId)) {
-      throw new Error(`Unknown project id "${value}".`);
+  function parseScrumImportProjectId(record, log, options = {}) {
+    const hasProjectColumn = importCellExists(record, "PMT Update Project Id", "Project Id", "Project");
+    if (!hasProjectColumn) {
+      if (log) return log.projectId || null;
+      if (!options.useFallback) return null;
+      return scrumImportFallbackProjectId();
     }
-    return projectId;
+
+    const text = importFirstNonEmptyCell(record, "PMT Update Project Id", "Project Id", "Project").trim();
+    if (/^no project$/i.test(text)) return null;
+    const fallbackProjectId = log?.projectId || (options.useFallback ? scrumImportFallbackProjectId() : 0);
+    return resolveImportProjectId(record, state.projects, fallbackProjectId) || null;
   }
 
-  function parseScrumImportDate(record, log) {
-    const value = importCell(record, "PMT Update Date", "Date").trim();
-    const selectedDate = value || scrumDateInputValue(log.logDate);
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(selectedDate)) {
-      throw new Error("Scrum import dates must use YYYY-MM-DD.");
-    }
-    return selectedDate;
+  function parseScrumImportDateText(record) {
+    const selectedDate = importFirstNonEmptyCell(record, "PMT Update Date", "Date").trim();
+    return /^\d{4}-\d{2}-\d{2}$/.test(selectedDate) ? selectedDate : "";
   }
 
   function parseScrumImportBodyHtml(record, log) {
-    if (!importCellExists(record, "PMT Update Scrum Html")) return log.bodyHtml || "";
-    return importCell(record, "PMT Update Scrum Html").trim();
+    const bodyHtml = importFirstNonEmptyCell(record, "PMT Update Scrum Html").trim();
+    if (bodyHtml) return bodyHtml;
+
+    const bodyText = importFirstNonEmptyCell(record, "Scrum").trim();
+    if (bodyText) return `<p>${escapeHtml(bodyText)}</p>`;
+    return log?.bodyHtml || "<p>Imported Scrum entry.</p>";
   }
 
   function parseScrumImportPinned(record, log) {
-    if (!importCellExists(record, "PMT Update Pinned")) return Boolean(log.isPinned);
+    if (!importCellExists(record, "PMT Update Pinned")) return Boolean(log?.isPinned);
 
     const value = importCell(record, "PMT Update Pinned", "Flag").trim().toLowerCase();
     return ["1", "true", "yes", "y", "pinned"].includes(value);
+  }
+
+  function scrumImportBodyText(record) {
+    const bodyHtml = importFirstNonEmptyCell(record, "PMT Update Scrum Html").trim();
+    if (bodyHtml) return textFromHtml(bodyHtml);
+    return importFirstNonEmptyCell(record, "Scrum").trim();
+  }
+
+  function scrumImportFallbackProjectId() {
+    const filterProjectId = Number(scrumFilters.projectId || 0);
+    if (state.projects.some(project => project.id === filterProjectId)) return filterProjectId;
+    if (state.projects.some(project => project.id === scrumEntryProjectId)) return scrumEntryProjectId;
+    return null;
+  }
+
+  function coerceScrumImportDate(projectId, requestedDate) {
+    const today = scrumDateInputValue(new Date());
+    const selectedDate = /^\d{4}-\d{2}-\d{2}$/.test(requestedDate || "") ? requestedDate : today;
+
+    if (!scrumDateValidationMessage(projectId, selectedDate)) return { projectId, logDate: selectedDate };
+    if (projectId && !scrumDateValidationMessage(null, selectedDate)) return { projectId: null, logDate: selectedDate };
+    if (!scrumDateValidationMessage(projectId, today)) return { projectId, logDate: today };
+    if (projectId && !scrumDateValidationMessage(null, today)) return { projectId: null, logDate: today };
+    return { projectId: null, logDate: today };
   }
 
   function scrumImportChanged(log, updates) {

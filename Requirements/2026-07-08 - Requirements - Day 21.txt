@@ -119,3 +119,16 @@ Database Versioning and Future Database Migrations
 31.) I need to version the current database schema as PMT Version 1.0 so that in future changes you (Codex) make that impacts schema of Version 1.0, you'd have to provide a migration SQL script for existing users.  PMT will be deployed to real users so future changes from now on can only be done if a migration script is provided for backwards compatibility or to upgrade 1.0 into the newest version.  How can we record it in some .md or AGENTS.md file somewhere so that you (Codex) can remember to provide/supply migration scripts for future SQL changes that might impact Version 1.0 users when we update their PMT to a newer build with a newer schema, stored procedures, etc.?
 
 You know what, never mind, undo #29.
+
+
+Data Import Permissive Logic
+----------------------------
+32.) Examine all the Data Import logic in PMT.  Make the logic very permissive so that:
+	a.) If the IDs matched in the incoming meta data info, it can update the existing record in the system;
+	b.) If the IDs don't match, try to match by text;
+	c.) If IDs and text matching doesn't work, just import the data as a new record.
+	d.) Don't fail to import the data.  The goal when importing is to get the data into the system, so losen the importing rules/logic so the import can succeed without violating any database or PMT's rules/logic.
+	e.) Substitute values if possible for missing data, such as if the Project or Sprint doesn't exist any more, import it in the user's current Project / Sprint, and so forth.
+	f.) Again, the goal is to find ways to import the data.
+
+33.) When importing .html files that have base64 encoded images, extract those and save them in the uploaded folder as though the user uploaded the file so that the database does not grow substantially over time due to many base64 encoded images.  Obviously, fix the reference in the uploaded content so it now points to the file in the uploaded folder as the source so the image is not broken for that content uploaded.

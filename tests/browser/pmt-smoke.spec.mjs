@@ -27,7 +27,29 @@ test("login, navigation, themes, dialogs, filters, Board, Gantt, and Road Map sm
     await dialog.dismiss();
   });
 
-  await page.addInitScript(() => localStorage.clear());
+  await page.addInitScript(() => {
+    localStorage.clear();
+    localStorage.setItem("pmt-navigation", JSON.stringify({
+      version: 2,
+      items: [
+        ["Dashboard", "Dashboard"],
+        ["Road Map", "Road Map"],
+        ["Gantt", "Gantt"],
+        ["Projects", "Projects"],
+        ["Sprints", "Sprints"],
+        ["Board", "Kanban Board"],
+        ["Tasks", "Dev Tasks"],
+        ["Bugs", "Bug Tracking"],
+        ["Scrum", "Scrum"],
+        ["Documentation", "Documentation"],
+        ["Log", "Log"],
+        ["Backlog", "Backlog"],
+        ["WFH Schedule", "WFH Schedule"],
+        ["About", "About"],
+        ["Settings", "Settings"]
+      ].map(([view, label]) => ({ view, label, visible: true }))
+    }));
+  });
   await installApiMocks(page, appState);
 
   await page.goto("/");
@@ -37,14 +59,15 @@ test("login, navigation, themes, dialogs, filters, Board, Gantt, and Road Map sm
   await expect(page.locator(".dashboard-summary-grid")).toBeVisible();
   await expectShellFitsViewport(page);
 
-  await openUserMenu(page);
-  await page.locator("#themeToggle").click();
   await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
-  await page.mouse.click(20, 20);
   await openUserMenu(page);
   await page.locator("#themeToggle").click();
   await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
-  await page.mouse.click(20, 20);
+  await page.keyboard.press("Escape");
+  await openUserMenu(page);
+  await page.locator("#themeToggle").click();
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+  await page.keyboard.press("Escape");
 
   await openUserMenu(page);
   await page.getByRole("menuitem", { name: /change password/i }).click();
@@ -75,8 +98,10 @@ test("login, navigation, themes, dialogs, filters, Board, Gantt, and Road Map sm
   }
 
   await openNavView(page, "WFH Schedule", "WFH Schedule");
+  await page.locator("[data-action='toggle-wfh-table-edit-mode']").click();
   await expect(page.locator("[data-wfh-schedule-list] tr").first()).toHaveAttribute("data-wfh-user-id", "2");
   const billMonday = page.locator("[data-wfh-user-id='2'] [data-day='canWorkMonday']");
+  await expect(billMonday).toBeEnabled();
   await expect(billMonday).toHaveAttribute("aria-pressed", "false");
   await billMonday.click();
   await expect(billMonday).toHaveAttribute("aria-pressed", "true");
@@ -85,24 +110,26 @@ test("login, navigation, themes, dialogs, filters, Board, Gantt, and Road Map sm
   await page.locator("[data-wfh-user-id='2'] [data-action='hide-wfh-user']").click();
   await page.getByRole("button", { name: "Continue" }).click();
   await expect(page.locator("[data-wfh-user-id='2']")).toHaveCount(0);
-  await page.getByRole("button", { name: /Show Deleted/ }).click();
-  await expect(page.locator("[data-wfh-user-id='2']")).toContainText("Deleted");
-  await page.getByRole("button", { name: "Reset" }).click();
+  await page.locator("[data-action='toggle-wfh-deleted']").click();
+  await expect(page.locator("[data-wfh-user-id='2']")).toContainText("Hidden");
+  await page.locator("[data-action='reset-wfh-schedule']").click();
   await page.getByRole("button", { name: "Continue" }).click();
   await expect(page.locator("[data-wfh-schedule-list] tr").first()).toHaveAttribute("data-wfh-user-id", "2");
   await expect(page.locator("[data-wfh-user-id='2'] [data-day='canWorkMonday']")).toHaveAttribute("aria-pressed", "false");
 
   await openNavView(page, "Scrum", "Scrum");
-  await showFilters(page, "toggle-scrum-filters");
+  await showFilters(page, "open-scrum-filters");
   await expect(page.locator("[data-filter='scrum-person']:checked")).toHaveCount(0);
   await expect(page.locator(".scrum-table tbody")).toContainText("Validated smoke data");
-  await expect(page.locator(".scrum-actions .icon-action").nth(0)).toHaveAttribute("title", "Delete");
-  await expect(page.locator(".scrum-actions .icon-action").nth(1)).toHaveAttribute("title", "Duplicate");
-  await expect(page.locator(".scrum-actions .icon-action").nth(2)).toHaveAttribute("title", "Edit");
   await page.locator("[data-filter='scrum-person'][value='2']").check();
   await expect(page.locator(".scrum-table tbody")).toContainText("No Scrum entries match");
   await page.locator("[data-filter='scrum-person'][value='1']").check();
   await expect(page.locator(".scrum-table tbody")).toContainText("Validated smoke data");
+  await page.getByRole("button", { name: "Done" }).click();
+  await clickPageAction(page, "toggle-scrum-table-edit-mode");
+  await expect(page.locator(".scrum-actions .icon-action").nth(0)).toHaveAttribute("title", "Delete");
+  await expect(page.locator(".scrum-actions .icon-action").nth(1)).toHaveAttribute("title", "Duplicate");
+  await expect(page.locator(".scrum-actions .icon-action").nth(2)).toHaveAttribute("title", "Edit");
 
   await openSettings(page);
   await expect(page.getByRole("heading", { name: "Settings", exact: true })).toBeVisible();
@@ -138,13 +165,23 @@ test("login, navigation, themes, dialogs, filters, Board, Gantt, and Road Map sm
   await expect(page.locator(".nav-overflow-toggle")).toBeVisible();
   await page.locator(".nav-overflow-toggle").click();
   await expect(page.locator(".nav-overflow-menu button[data-view='Backlog']")).toHaveCount(0);
-  await page.mouse.click(20, 20);
+  await page.keyboard.press("Escape");
   await page.setViewportSize({ width: 1280, height: 720 });
-  await page.getByRole("button", { name: "Reset" }).click();
+  await expect(page.locator("[data-action='navigation-reset-defaults']")).toBeVisible();
+  await page.locator("[data-action='navigation-reset-defaults']").click();
   const resetNavigationConfig = await page.evaluate(() => JSON.parse(localStorage.getItem("pmt-navigation")));
+  const resetNavigationByView = Object.fromEntries(resetNavigationConfig.items.map(item => [item.view, item]));
   expect(resetNavigationConfig.items[0].view).toBe("Dashboard");
-  expect(resetNavigationConfig.items.every(item => item.visible)).toBe(true);
-  expect(resetNavigationConfig.items.find(item => item.view === "Settings").label).toBe("Settings");
+  expect(resetNavigationByView.Dashboard.visible).toBe(false);
+  expect(resetNavigationByView["Road Map"].visible).toBe(false);
+  expect(resetNavigationByView.Gantt.visible).toBe(false);
+  expect(resetNavigationByView.Backlog.visible).toBe(true);
+  expect(resetNavigationByView.Settings.label).toBe("Settings");
+  for (const view of ["Dashboard", "Road Map", "Gantt"]) {
+    const toggle = page.locator(`[data-action='toggle-navigation-item'][data-view='${view}']`);
+    await expect(toggle).not.toBeChecked();
+    await toggle.click();
+  }
   await openNavView(page, "Backlog", "Backlog");
 
   await openNavView(page, "Tasks", "Dev Tasks");
@@ -153,11 +190,13 @@ test("login, navigation, themes, dialogs, filters, Board, Gantt, and Road Map sm
   await expect(page.locator("[data-filter='task-sort']")).toHaveValue("newest");
   await page.locator("[data-filter='task-hide-completed']").check();
   await expect(page.locator("tbody[data-reorder-list='tasks']")).not.toContainText("PMT-TASK-003");
+  await closeFilterDialog(page, "task");
 
   await openNavView(page, "Bugs", "Bug Tracking");
   await showFilters(page, "toggle-bug-filters");
   await page.locator("[data-filter='bug-severity']").selectOption("Critical");
   await expect(page.locator(".bugs-table")).toContainText("PMT-BUG-001");
+  await closeFilterDialog(page, "bug");
 
   await openNavView(page, "Road Map", "Road Map");
   await expect(page.locator(".roadmap")).toBeVisible();
@@ -170,16 +209,21 @@ test("login, navigation, themes, dialogs, filters, Board, Gantt, and Road Map sm
   await openNavView(page, "Gantt", "Gantt");
   await expect(page.locator(".gantt")).toBeVisible();
   await expectTimelineHasSize(page, ".gantt");
+  await showFilters(page, "open-gantt-filters");
   await page.locator("[data-filter='gantt-sort']").selectOption("startAsc");
+  await closeFilterDialog(page, "gantt");
   await page.locator("[data-action='toggle-gantt-days']").click();
-  await expect(page.locator(".gantt-note")).toContainText("visible");
+  await expect(page.locator("[data-action='toggle-gantt-days']")).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByRole("button", { name: "Hide weekends and holidays" })).toBeVisible();
 
   await openNavView(page, "Board", "Kanban Board");
   await showFilters(page, "toggle-board-filters");
   await page.locator("[data-filter='board-sort']").selectOption("openFirst");
   await expect(page.locator("[data-filter='board-sort']")).toHaveValue("openFirst");
+  await closeFilterDialog(page, "board");
   await page.locator("[data-action='toggle-empty-board-columns']").click();
   await expect(page.locator(".column")).toHaveCount(statuses.length);
+  await page.locator("[data-action='toggle-board-edit-mode']").click();
   await dragFirstTodoCardToInProgress(page);
   await expect(page.locator(".column[data-status='In Progress']")).toContainText("PMT-TASK-001");
 
@@ -290,6 +334,9 @@ function jsonResponse(data, status = 200) {
 
 async function openNavView(page, view, heading) {
   await page.waitForTimeout(50);
+  const headingLocator = page.getByRole("heading", { name: heading, exact: true });
+  if (await headingLocator.isVisible()) return;
+
   const selector = `button[data-view='${view}']`;
   const direct = page.locator(`#nav > ${selector}`);
 
@@ -302,7 +349,7 @@ async function openNavView(page, view, heading) {
     await page.locator(`.nav-overflow-menu ${selector}`).click();
   }
 
-  await expect(page.getByRole("heading", { name: heading, exact: true })).toBeVisible();
+  await expect(headingLocator).toBeVisible();
 }
 
 async function openUserMenu(page) {
@@ -315,9 +362,29 @@ async function openSettings(page) {
 }
 
 async function showFilters(page, action) {
-  const button = page.locator(`[data-action='${action}']`);
-  await expect(button).toBeVisible();
-  if (await button.getAttribute("aria-pressed") !== "true") await button.click();
+  const actions = action.startsWith("toggle-")
+    ? [action.replace(/^toggle-/, "open-"), action]
+    : [action];
+  for (const candidate of actions) {
+    const button = page.locator(`[data-action='${candidate}']`).first();
+    if (await button.count() && await button.isVisible()) {
+      await button.click();
+      return;
+    }
+  }
+  await clickPageAction(page, actions[0]);
+}
+
+async function closeFilterDialog(page, feature) {
+  const closeButton = page.locator(`[data-close-${feature}-filters]`).last();
+  await expect(closeButton).toBeVisible();
+  await closeButton.click();
+  await expect(page.locator(`[data-${feature}-filter-dialog]`)).toHaveCount(0);
+}
+
+async function clickPageAction(page, action) {
+  await page.locator(".page-actions-summary").click();
+  await page.locator(`.page-actions-list [data-action='${action}']`).click();
 }
 
 async function expectShellFitsViewport(page) {
@@ -430,7 +497,7 @@ function createTestState() {
       nickname: "Sin",
       email: "sin@example.test",
       phone: "",
-      avatarUrl: "/assets/avatar-sin.svg",
+      avatarUrl: "/assets/avatar-sin.jpg",
       bio: "PMT Creator and Administrator.",
       isAdmin: true,
       role: "Admin",
