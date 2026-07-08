@@ -117,3 +117,5 @@ Documentation
 Database Versioning and Future Database Migrations
 --------------------------------------------------
 31.) I need to version the current database schema as PMT Version 1.0 so that in future changes you (Codex) make that impacts schema of Version 1.0, you'd have to provide a migration SQL script for existing users.  PMT will be deployed to real users so future changes from now on can only be done if a migration script is provided for backwards compatibility or to upgrade 1.0 into the newest version.  How can we record it in some .md or AGENTS.md file somewhere so that you (Codex) can remember to provide/supply migration scripts for future SQL changes that might impact Version 1.0 users when we update their PMT to a newer build with a newer schema, stored procedures, etc.?
+
+You know what, never mind, undo #29.
