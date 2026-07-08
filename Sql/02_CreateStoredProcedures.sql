@@ -273,6 +273,7 @@ BEGIN
     SELECT
         [DevLogId],
         [LogType],
+        [Category],
         [ProjectId],
         [UserId],
         [LogDate],
@@ -297,6 +298,7 @@ BEGIN
         [Title],
         [BodyHtml],
         [IsPrivate],
+        [IsPinned],
         [CreatedByUserId],
         [CreatedAt],
         [UpdatedAt]
@@ -2466,7 +2468,8 @@ CREATE OR ALTER PROCEDURE [pmt].[UpsertDevLog]
     @IsPinned BIT,
     @CurrentUserId INT,
     @AuditContext NVARCHAR(80) = NULL,
-    @LogType NVARCHAR(20) = N'Scrum'
+    @LogType NVARCHAR(20) = N'Scrum',
+    @Category NVARCHAR(60) = N'General'
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -2484,6 +2487,8 @@ BEGIN
         WHEN LOWER(LTRIM(RTRIM(ISNULL(@LogType, N'')))) = N'log' THEN N'Log'
         ELSE N'Scrum'
     END;
+    SET @Category = NULLIF(LTRIM(RTRIM(@Category)), N'');
+    IF @Category IS NULL SET @Category = N'General';
 
     IF NULLIF(LTRIM(RTRIM(@BodyHtml)), N'') IS NULL
     BEGIN
@@ -2533,6 +2538,7 @@ BEGIN
         INSERT INTO [pmt].[DevLogs]
         (
             [LogType],
+            [Category],
             [ProjectId],
             [UserId],
             [LogDate],
@@ -2545,6 +2551,7 @@ BEGIN
         VALUES
         (
             @LogType,
+            @Category,
             @ProjectId,
             @CurrentUserId,
             @LogDate,
@@ -2598,6 +2605,7 @@ BEGIN
         UPDATE [pmt].[DevLogs]
         SET
             [ProjectId] = @ProjectId,
+            [Category] = @Category,
             [LogDate] = @LogDate,
             [BodyHtml] = @BodyHtml,
             [IsPinned] = CASE WHEN @CurrentUserIsAdmin = 1 THEN @IsPinned ELSE [IsPinned] END,
@@ -2677,6 +2685,7 @@ CREATE OR ALTER PROCEDURE [pmt].[UpsertBlog]
     @SprintId INT = NULL,
     @ParentBlogId INT = NULL,
     @IsPrivate BIT = 1,
+    @IsPinned BIT = 0,
     @CurrentUserId INT
 AS
 BEGIN
@@ -2774,6 +2783,7 @@ BEGIN
             [Title],
             [BodyHtml],
             [IsPrivate],
+            [IsPinned],
             [CreatedByUserId],
             [CreatedAt],
             [UpdatedAt]
@@ -2786,6 +2796,7 @@ BEGIN
             @Title,
             @BodyHtml,
             @IsPrivate,
+            @IsPinned,
             @CurrentUserId,
             @Now,
             @Now
@@ -2822,6 +2833,7 @@ BEGIN
             [Title] = @Title,
             [BodyHtml] = @BodyHtml,
             [IsPrivate] = @IsPrivate,
+            [IsPinned] = @IsPinned,
             [UpdatedByUserId] = @CurrentUserId,
             [UpdatedAt] = @Now
         WHERE [BlogId] = @BlogId;

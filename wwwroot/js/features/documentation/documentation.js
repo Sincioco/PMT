@@ -5,7 +5,7 @@ import { filterSelect } from "../../components/filters.js";
 import {
   documentationExportIconHtml,
   openDocumentationExportDialog
-} from "./documentation-export.js?v=20260708-documentation-privacy";
+} from "./documentation-export.js?v=20260709-muted-icons-indent";
 import {
   field,
   optionalNumberValue,
@@ -14,7 +14,7 @@ import {
   richValue,
   selectOptionsField,
   value
-} from "../../components/forms.js?v=20260707-documentation-tree-inplace-actions-4";
+} from "../../components/forms.js?v=20260709-muted-icons-indent";
 import { sectionHead } from "../../components/sections.js?v=20260701-nav-title-preferences";
 import {
   preferenceKeys,
@@ -609,6 +609,7 @@ export function createDocumentationFeature({
         ${field("Title", "title", blog.title || "", "text")}
         ${selectOptionsField("Parent", "parentBlogId", documentationParentOptions(selectedProjectId, selectedSprintId, blog.id), blog.parentBlogId || "")}
         ${documentationPrivateField(blog)}
+        ${documentationPinnedField(blog)}
         ${richTextField("bodyHtml", "Body", blog.bodyHtml || "")}
         <div class="field full">
           <label>Attachments</label>
@@ -626,6 +627,7 @@ export function createDocumentationFeature({
         parentBlogId: optionalNumberValue(root, "parentBlogId"),
         title: value(root, "title"),
         isPrivate: documentationPrivateValue(root),
+        isPinned: documentationPinnedValue(root),
         bodyHtml: richValue(root, "bodyHtml")
       });
 
@@ -867,6 +869,7 @@ export function createDocumentationFeature({
       || (optionalNumberValue(form, "parentBlogId") || null) !== (blog.parentBlogId || null)
       || value(form, "title") !== (blog.title || "")
       || documentationPrivateValue(form) !== documentationIsPrivateForForm(blog)
+      || documentationPinnedValue(form) !== documentationIsPinnedForForm(blog)
       || richValue(form, "bodyHtml") !== normalizeRichHtml(blog.bodyHtml || "")
       || (form.querySelector("[name='attachments']")?.files?.length || 0) > 0;
   }
@@ -885,6 +888,7 @@ export function createDocumentationFeature({
         parentBlogId: optionalNumberValue(form, "parentBlogId"),
         title: value(form, "title"),
         isPrivate: documentationPrivateValue(form),
+        isPinned: documentationPinnedValue(form),
         bodyHtml: richValue(form, "bodyHtml")
       });
       const savedBlogId = Number(result?.id || blogId || 0);
@@ -895,7 +899,6 @@ export function createDocumentationFeature({
 
       selectedTreeBlogId = options.selectedBlogIdAfterSave || savedBlogId;
       editingTreeBlogId = 0;
-      if (!options.preserveTreePane) showDocumentationTreeFullScreen();
       documentationEntryProjectId = projectId || 0;
       documentationEntrySprintId = sprintId || 0;
       writePreference(preferenceKeys.documentationEntryProject, documentationEntryProjectId);
@@ -1039,6 +1042,7 @@ function documentationImportPayload(metadata, parsedDocument) {
   const title = documentationImportTitle(sourceDocument, parsedDocument);
   const bodyHtml = documentationImportBodyHtml(sourceDocument.bodyHtml, metadata, parsedDocument);
   const isPrivate = documentationImportIsPrivate(sourceDocument, existingBlog);
+  const isPinned = documentationImportIsPinned(sourceDocument, existingBlog);
 
   if (!title || !bodyHtml) throw invalidDocumentationImportError();
 
@@ -1049,6 +1053,7 @@ function documentationImportPayload(metadata, parsedDocument) {
     parentBlogId,
     title,
     isPrivate,
+    isPinned,
     bodyHtml
   };
 }
@@ -1063,6 +1068,12 @@ function documentationImportIsPrivate(sourceDocument, existingBlog) {
   if (typeof sourceDocument?.isPrivate === "boolean") return sourceDocument.isPrivate;
   if (existingBlog) return existingBlog.isPrivate !== false;
   return true;
+}
+
+function documentationImportIsPinned(sourceDocument, existingBlog) {
+  if (typeof sourceDocument?.isPinned === "boolean") return sourceDocument.isPinned;
+  if (existingBlog) return Boolean(existingBlog.isPinned);
+  return false;
 }
 
 function documentationImportProjectId(projectMetadata) {
@@ -1269,6 +1280,7 @@ function documentationNewInlineDraft() {
     title: "",
     bodyHtml: "",
     isPrivate: true,
+    isPinned: false,
     attachments: [],
     history: [],
     createdAt: "",
@@ -1297,12 +1309,29 @@ function documentationPrivateField(blog = {}) {
   `;
 }
 
+function documentationPinnedField(blog = {}) {
+  return `
+    <label class="inline-check field full">
+      <input name="isPinned" type="checkbox" ${documentationIsPinnedForForm(blog) ? "checked" : ""}>
+      <span>Pinned</span>
+    </label>
+  `;
+}
+
 function documentationPrivateValue(root) {
   return root.querySelector("[name='isPrivate']")?.checked ?? true;
 }
 
+function documentationPinnedValue(root) {
+  return root.querySelector("[name='isPinned']")?.checked ?? false;
+}
+
 function documentationIsPrivateForForm(blog = {}) {
   return blog?.id ? blog.isPrivate !== false : true;
+}
+
+function documentationIsPinnedForForm(blog = {}) {
+  return blog?.id ? Boolean(blog.isPinned) : false;
 }
 
 function documentationCardBlogs() {
@@ -1311,7 +1340,7 @@ function documentationCardBlogs() {
     .filter(documentationBlogVisibleByPrivacyFilter)
     .filter(blog => !documentationProjectId || blog.projectId === documentationProjectId)
     .filter(blog => !searchText || documentationBlogMatchesSearch(blog, searchText))
-    .sort(documentationBlogCompare);
+    .sort(documentationCardBlogCompare);
 }
 
 function documentationCardSectionsHtml(blogs) {
@@ -1639,6 +1668,7 @@ function documentationTreeInlineEditorHtml(blog) {
         ${selectOptionsField("Sprint", "sprintId", documentationSprintOptions(selectedProjectId), selectedSprintId)}
         ${selectOptionsField("Parent", "parentBlogId", documentationParentOptions(selectedProjectId, selectedSprintId, blog.id), blog.parentBlogId || "")}
         ${documentationPrivateField(blog)}
+        ${documentationPinnedField(blog)}
       </div>
       <div class="field full documentation-inline-body-field">
         <label>Body</label>
@@ -1675,7 +1705,8 @@ function documentationCardHtml(blog) {
           <div class="documentation-title-block">
             <h3>${escapeHtml(blog.title)}</h3>
           </div>
-          <div class="row documentation-project">
+          <div class="row documentation-project documentation-card-badges">
+            ${documentationCardIndicatorsHtml(blog)}
             ${blog.projectId ? `<span class="pill">${escapeHtml(projectCode(blog.projectId))}</span>` : `<span class="pill">General</span>`}
           </div>
         </div>
@@ -1694,6 +1725,39 @@ function documentationCardHtml(blog) {
         ${buttonContent(isExpanded ? "&#9652;" : "&#9662;", isExpanded ? "Show Less" : "More")}
       </button>
     </article>
+  `;
+}
+
+function documentationCardIndicatorsHtml(blog) {
+  return [
+    blog.isPinned ? documentationCardIndicatorHtml("Pinned", documentationPinIconHtml()) : "",
+    blog.isPrivate !== false ? documentationCardIndicatorHtml("Private", documentationLockIconHtml()) : ""
+  ].filter(Boolean).join("");
+}
+
+function documentationCardIndicatorHtml(label, iconHtml) {
+  return `
+    <span class="documentation-card-indicator" title="${escapeAttr(label)}" aria-label="${escapeAttr(label)}">
+      ${iconHtml}
+    </span>
+  `;
+}
+
+function documentationLockIconHtml() {
+  return `
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <rect x="5" y="10" width="14" height="10" rx="2"></rect>
+      <path d="M8 10V7a4 4 0 0 1 8 0v3"></path>
+      <path d="M12 14v3"></path>
+    </svg>
+  `;
+}
+
+function documentationPinIconHtml() {
+  return `
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path d="M9 3h6l-1 6 4 4v2h-5v6h-2v-6H6v-2l4-4z"></path>
+    </svg>
   `;
 }
 
@@ -1809,6 +1873,14 @@ function documentationBlogCompare(a, b) {
   const right = Date.parse(b.updatedAt || b.createdAt || "") || 0;
   const dateCompare = documentationTreeSort === "oldest" ? left - right : right - left;
   return dateCompare || a.title.localeCompare(b.title) || a.id - b.id;
+}
+
+function documentationCardBlogCompare(a, b) {
+  if (Boolean(a.isPinned) !== Boolean(b.isPinned)) {
+    return Number(Boolean(b.isPinned)) - Number(Boolean(a.isPinned));
+  }
+
+  return documentationBlogCompare(a, b);
 }
 
 function documentationBlogMatchesSearch(blog, searchText) {

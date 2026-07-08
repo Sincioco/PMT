@@ -17,7 +17,7 @@ import {
   selectTextField,
   userCardCheckListLabelHtml,
   value
-} from "../../components/forms.js?v=20260629-avatar-jpg-assets";
+} from "../../components/forms.js?v=20260709-muted-icons-indent";
 import { progressHtml, statusColor } from "../../components/progress-and-status.js?v=20260707-linked-bug-qa-sync";
 import { sectionHead } from "../../components/sections.js?v=20260701-nav-title-preferences";
 import {
@@ -30,7 +30,7 @@ import {
   taskPercentField,
   workItemDialogMetaHtml,
   uploadWorkItemAttachments
-} from "../../components/work-items.js?v=20260708-work-item-html-transfer";
+} from "../../components/work-items.js?v=20260709-muted-icons-indent";
 import {
   currentUser
 } from "../../core/authentication.js";
@@ -530,7 +530,10 @@ export function createTasksFeature({
       const status = value(root, "status");
       const sprintId = optionalNumberValue(root, "sprintId");
       const dependencyTaskIds = checkedNumbers(root, "dependencyTaskIds");
-      const percentCompleted = percentForDevTaskSave(status, numberValue(root, "percentCompleted"), task, dependencyTaskIds);
+      const requestedPercentCompleted = numberValue(root, "percentCompleted");
+      const percentCompleted = task.id
+        ? percentForDevTaskSave(status, requestedPercentCompleted, task, dependencyTaskIds)
+        : requestedPercentCompleted;
       validateLinkedBugCompletion(task, percentCompleted, dependencyTaskIds);
 
       const result = await saveJson(task.id ? `${apiRoot}/${task.id}` : apiRoot, task.id ? "PUT" : "POST", {
@@ -569,7 +572,7 @@ export function createTasksFeature({
   function bindTaskEditorRules(root, task) {
     root.dataset.devTaskPercentRules = "true";
     bindAssigneeList(root, task.assigneeIds || [], "Assignees (Optional)");
-    bindDevTaskPercentRule(root, task);
+    if (task.id) bindDevTaskPercentRule(root, task);
   }
 
   function bindDevTaskPercentRule(root, task) {

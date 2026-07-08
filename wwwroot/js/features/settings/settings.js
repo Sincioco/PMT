@@ -6,7 +6,7 @@ import {
   numberValue,
   selectTextField,
   value
-} from "../../components/forms.js?v=20260629-avatar-jpg-assets";
+} from "../../components/forms.js?v=20260709-muted-icons-indent";
 import {
   defaultStatusColor,
   statusColor
@@ -84,6 +84,7 @@ const genericAvatarOptions = [
   "/assets/avatar-generic-5.jpg",
   "/assets/avatar-generic-6.jpg"
 ];
+const coreLookupTypes = ["Status", "Priority", "Severity", "Environment", "LogCategory"];
 
 export function createSettingsFeature({
   app,
@@ -102,7 +103,7 @@ export function createSettingsFeature({
   if (savedViewPreference === "Lookups") settingsCategory = lookupTypeFilter;
 
   function renderSettings() {
-    const lookupTypes = [...new Set(["Status", "Priority", "Severity", "Environment", ...(state.lookups || []).map(item => item.lookupType)])].sort();
+    const lookupTypes = settingsLookupTypes();
     const categories = ["Users", "Navigation", "Holidays", ...lookupTypes, "Development"];
     if (!categories.includes(settingsCategory)) settingsCategory = lookupTypes[0] || "Status";
 
@@ -116,7 +117,7 @@ export function createSettingsFeature({
     }
 
     let actionsHtml = `
-      <button class="primary text-icon-button" type="button" data-action="new-lookup" ${currentUser().isAdmin ? "" : "disabled"}>${buttonContent("&#10010;", "New Setting")}</button>
+      <button class="primary text-icon-button" type="button" data-action="new-lookup" ${currentUser().isAdmin ? "" : "disabled"}>${buttonContent("&#10010;", settingsNewLookupButtonLabel(settingsCategory))}</button>
       ${settingsTableFilterButtonHtml(settingsCategory)}
     `;
     if (isUsers) actionsHtml = `<button class="primary text-icon-button" type="button" data-action="new-user" ${currentUser().isAdmin ? "" : "disabled"}>${buttonContent("&#10010;", "New User")}</button>`;
@@ -146,7 +147,7 @@ export function createSettingsFeature({
         <aside class="panel lookup-picker settings-category-picker">
           ${categories.map(type => `
             <button type="button" data-action="select-lookup-type" data-id="0" data-type="${escapeAttr(type)}" class="${type === settingsCategory ? "active" : ""}">
-              ${buttonContent(settingsCategoryIcon(type), type)}
+              ${buttonContent(settingsCategoryIcon(type), settingsCategoryLabel(type))}
             </button>
           `).join("")}
         </aside>
@@ -178,7 +179,7 @@ export function createSettingsFeature({
       return true;
     }
     if (action === "new-lookup") {
-      editLookup();
+      editLookup({ lookupType: settingsIsLookupCategory(settingsCategory) ? settingsCategory : "Status" });
       return true;
     }
     if (action === "edit-lookup") {
@@ -319,7 +320,7 @@ export function createSettingsFeature({
 
     return `
       <div class="panel settings-content-panel settings-table-panel">
-        ${settingsTableHeadHtml(type, settingsLookupTableDescription(type))}
+        ${settingsTableHeadHtml(settingsCategoryLabel(type), settingsLookupTableDescription(type))}
         <table class="table settings-table">
           <thead>
             <tr>
@@ -397,10 +398,27 @@ export function createSettingsFeature({
 
   function settingsLookupTableDescription(type) {
     if (type === "Environment") return "Choose which environments are available, then edit labels, display order, and active state.";
+    if (type === "LogCategory") return "Choose which Log categories are available, then edit labels, display order, and active state.";
     if (type === "Priority") return "Choose which priorities are available, then edit labels, display order, and active state.";
     if (type === "Severity") return "Choose which severities are available, then edit labels, display order, and active state.";
     if (type === "Status") return "Choose which statuses are available, then edit labels, display order, color, and active state.";
     return "Choose which values are available, then edit labels, display order, and active state.";
+  }
+
+  function settingsLookupTypes() {
+    return [...new Set([...coreLookupTypes, ...(state.lookups || []).map(item => item.lookupType)])]
+      .filter(Boolean)
+      .sort((a, b) => settingsCategoryLabel(a).localeCompare(settingsCategoryLabel(b), undefined, { sensitivity: "base" }));
+  }
+
+  function settingsCategoryLabel(type) {
+    if (type === "LogCategory") return "Log Categories";
+    return type || "";
+  }
+
+  function settingsNewLookupButtonLabel(category) {
+    if (category === "LogCategory") return "New Log Category";
+    return "New Setting";
   }
 
   function settingsTableFilterButtonHtml(category) {
@@ -584,7 +602,7 @@ export function createSettingsFeature({
   function settingsFilterDialogTitle(category) {
     if (category === "Holidays") return "Holiday Filters";
     if (category === "Navigation") return "Navigation Filters";
-    return `${category} Filters`;
+    return `${settingsCategoryLabel(category)} Filters`;
   }
 
   function applySettingsFilterChange(target) {
@@ -992,6 +1010,7 @@ export function createSettingsFeature({
       Priority: "&#9733;",
       Severity: "&#9888;",
       Environment: "&#127758;",
+      LogCategory: "&#9776;",
       Users: "&#128100;",
       Holidays: "&#128197;",
       Navigation: "&#9776;",
@@ -1157,6 +1176,10 @@ export function createSettingsFeature({
             `;
           }).join("")}
         </div>
+        <div class="settings-avatar-file-preview" data-avatar-file-preview hidden>
+          <img src="" alt="Selected avatar preview">
+          <span data-avatar-file-name></span>
+        </div>
       </div>
     `;
   }
@@ -1164,8 +1187,30 @@ export function createSettingsFeature({
   function bindGenericAvatarPicker(root) {
     const avatarUrlInput = root.querySelector("[name='avatarUrl']");
     const avatarFileInput = root.querySelector("[name='avatarFile']");
+    const avatarFilePreview = root.querySelector("[data-avatar-file-preview]");
+    const avatarFilePreviewImage = avatarFilePreview?.querySelector("img");
+    const avatarFilePreviewName = avatarFilePreview?.querySelector("[data-avatar-file-name]");
     const options = [...root.querySelectorAll("[data-generic-avatar]")];
     if (!avatarUrlInput || !options.length) return;
+    let previewObjectUrl = "";
+
+    const clearFilePreview = () => {
+      if (previewObjectUrl) URL.revokeObjectURL(previewObjectUrl);
+      previewObjectUrl = "";
+      if (avatarFilePreviewImage) avatarFilePreviewImage.src = "";
+      if (avatarFilePreviewName) avatarFilePreviewName.textContent = "";
+      if (avatarFilePreview) avatarFilePreview.hidden = true;
+    };
+
+    const showFilePreview = file => {
+      clearFilePreview();
+      if (!file || !file.type.startsWith("image/") || !avatarFilePreview || !avatarFilePreviewImage) return;
+
+      previewObjectUrl = URL.createObjectURL(file);
+      avatarFilePreviewImage.src = previewObjectUrl;
+      if (avatarFilePreviewName) avatarFilePreviewName.textContent = file.name;
+      avatarFilePreview.hidden = false;
+    };
 
     const syncSelectedOption = () => {
       const selectedPath = avatarPathOnly(avatarUrlInput.value);
@@ -1180,10 +1225,18 @@ export function createSettingsFeature({
       option.addEventListener("click", () => {
         avatarUrlInput.value = option.dataset.genericAvatar || "";
         if (avatarFileInput) avatarFileInput.value = "";
+        clearFilePreview();
         syncSelectedOption();
       });
     });
     avatarUrlInput.addEventListener("input", syncSelectedOption);
+    avatarFileInput?.addEventListener("change", () => {
+      const file = avatarFileInput.files?.[0] || null;
+      if (file) avatarUrlInput.value = "";
+      showFilePreview(file);
+      syncSelectedOption();
+    });
+    root.closest("dialog")?.addEventListener("close", clearFilePreview, { once: true });
     syncSelectedOption();
   }
 
@@ -1194,7 +1247,7 @@ export function createSettingsFeature({
   function editLookup(lookup = {}) {
     openEditor(lookup.id ? "Edit Setting" : "New Setting", `
       <div class="form-grid">
-        ${selectTextField("Type", "lookupType", ["Status", "Priority", "Severity", "Environment"], lookup.lookupType || "Status")}
+        ${selectTextField("Type", "lookupType", settingsLookupTypes(), lookup.lookupType || "Status")}
         ${field("Value", "value", lookup.value || "", "text")}
         ${colorField("Color", "colorHex", lookup.colorHex || defaultStatusColor(lookup.value || "Todo"))}
         ${field("Display Order", "displayOrder", lookup.displayOrder ?? 0, "number")}

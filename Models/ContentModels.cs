@@ -15,6 +15,7 @@ public sealed class DevLogDto
 {
     public int Id { get; set; }
     public string LogType { get; set; } = "Scrum";
+    public string Category { get; set; } = "General";
     public int? ProjectId { get; set; }
     public int UserId { get; set; }
     public DateTime LogDate { get; set; }
@@ -33,6 +34,7 @@ public sealed class BlogPostDto
     public string Title { get; set; } = "";
     public string BodyHtml { get; set; } = "";
     public bool IsPrivate { get; set; } = true;
+    public bool IsPinned { get; set; }
     public int CreatedByUserId { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
@@ -53,6 +55,7 @@ public sealed class DevLogInput
 {
     public int Id { get; set; }
     public string LogType { get; set; } = "Scrum";
+    public string Category { get; set; } = "General";
     public int? ProjectId { get; set; }
     public DateTime LogDate { get; set; }
     public string BodyHtml { get; set; } = "";
@@ -69,6 +72,7 @@ public sealed class BlogInput
     public string Title { get; set; } = "";
     public string BodyHtml { get; set; } = "";
     public bool IsPrivate { get; set; } = true;
+    public bool IsPinned { get; set; }
 }
 
 public sealed class UploadResult

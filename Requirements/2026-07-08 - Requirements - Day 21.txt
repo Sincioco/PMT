@@ -36,3 +36,67 @@ Support Main URL, Sub URL, IIS Application URL Deployment Schemes
 2.) Can PMT be adjust so that it can be deployed both as the main site (root) in a domain and also a sub site?  In this case /pmt?  Currently, we have deployed PMT as a sub site (sub URL), but the images, css, javascript are broken because they have root (/) references.
 
 3.) Can PMT be configured to support both types of deployments?  root (/) and sub sites (/pmt)?  If so, can update PMT?
+
+
+
+For all of this conversation / session, I will perform all the manual tests and compile the application manually.  Perform only the coding changes required and nothing else.  If making CSS / image changes, ensure that I will encounter no caching issue when testing in the browser.  Be sure to inform me if I have to recompile the .Net portion of the project or just Press Ctrl + F5 on the browser to reload to see the latest changes.
+
+
+User Creation
+------------
+1.) When creating a user and you upload a picture for the user, show a preview (if possible) of the file selected below the list of Generic Avatars.
+
+Sprint Creation
+---------------
+2.) When creating a new Sprint, default the cursor’s focus on the Title text field.  By default, select all users in the Sprint Members section.
+
+Dev Task
+--------
+3.) When creating a new Dev Task, it seems that there is a rule that automatically sets the Status to ToDo and the Completion % to 0%.  If the user specifies a different Status and a different % Complete when a Dev Task is created, use what the user specified.
+
+Bug Tracking
+------------
+4.) In the Bug Tracking screen, in the list of bugs, if there is no Assignee for that bug, don't render the word "Unassigned" on the table cell.  Just leave it blank.
+
+Documentation
+-------------
+6.) When in Treeview and creating a new document, when I hit Save the Tree on the left is automatically hidden.  Remove that logic.  Saving should not affect the visibility of the tree on the left.
+7.) When in Card view, if a document is private, show lock icon somewhere on the upper-right.
+8.) Add an ability to Pin a documentation so that when in Card View, it shows up above all others first followed by the user’s desired sorting order.
+
+HTML Rich Editor
+----------------
+10.) On the toolbar of Rich Text Editor control, add an icon/button for "View Source".  Once the user clicks it, pop open a dialog box and show the HTML code of the Rich Text Editor's content so the user can make HTML-edits / corrections.
+11.) On the toolbar of the Rich Text Editor control, add a Font dropdown and a Font size dropdown so the user can customize the font in the editor.
+12.) On the toolbar of the Rich Text Editor control, add a way for the user to change the color of the font (a color palette for fonts) for the text they have selected.
+13.) On the toolbar of the Rich Text Editor control, add a way for the user to change the color of the background (a color palette) for the text block they have selected.
+
+Log Screen
+----------
+14.) In the Log Screen, add Log categories such as:  General, Knowledge, Notes.
+15.) In the Log Screen's Filter dialog box, put a section that lists the new log categories as checkboxes to let the user select multiple Log categories to filter at at ime.
+16.) In the Settings, add a new section (category on the left) so the user can add, edit and delete Log categories.
+
+In Settings
+-----------
+17.) In Settings, many of the Categories / Screens such as Holidays, Environment, Priority, Severity and Status, the table for these are too close to the left edge.  Put some left margin / padding so that they are left aligned to the Table title's header.
+18.) In Settings, in the Navigation category / screen, put more margin to the left of the checkbox (on the first column).  The checkbox still appears visually too close to the left edge.
+
+HTML Rich Editor
+----------------
+19.) On the toolbar of Rich Text Editor control, arrange the buttons in this 2-row order:
+		Style | Font | Font Size | Font Color | Background Color | View Source | Clear Formatting
+		Bold | Underline | Strikethru | Bullet | Number list | Hyperlink | Insert Code
+20.) For the Font Color and Background color, find an icon representing them.
+21.) Add a Clear Formatting button on the toolbar, when clicked prompt the user if they truly want to clear all formatting on the body.  If they say yes, effectively turn the content of the Rich Text control into plain text, removing bold, underlines, etc.
+
+HTML Rich Editor
+----------------
+22.) On the toolbar of Rich Text Editor toolbar, convert the Font Color and  Background Color buttons into icons that looks like a color palette just vary them slightly one for font and one for background.  Keep the dropdown functionality as they are but put some sort of label on top of the color picker like "Font Color" so the user knows what color they are picking for.
+23.) Change the Clear Formatting icon to like an eraser icon.
+24.) After the Number lists icon, add icons and functionality for text align left, text center, text right aligned.
+25.) I've attached a screen shot of Microsoft Word's toolbar which has all of the same elements as on the Rich Text Editor's toolbar.  Perhaps use it as a reference for the icons.
+
+26.) The new Font Color and Background Color icons look darker than the other icons....mute the colors a little or just follow the color of the other icons.  Also the "A" symbol on the font color button is off-centered.  Can you center it on the button?  The background color icon looks weird.  Can you pick another icon?
+27.) Add an Indent and Unindent icon/button right before the insert hyperlink button.
+

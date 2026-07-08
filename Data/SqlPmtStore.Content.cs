@@ -10,6 +10,7 @@ public sealed partial class SqlPmtStore
         return ExecuteIdProcedureAsync("[pmt].[UpsertDevLog]", "@DevLogId", input.Id, command =>
         {
             Add(command, "@LogType", SqlDbType.NVarChar, 20, input.LogType);
+            Add(command, "@Category", SqlDbType.NVarChar, 60, input.Category);
             Add(command, "@LogDate", input.LogDate.Date);
             Add(command, "@BodyHtml", SqlDbType.NVarChar, -1, input.BodyHtml);
             AddNullable(command, "@ProjectId", input.ProjectId);
@@ -38,6 +39,7 @@ public sealed partial class SqlPmtStore
             AddNullable(command, "@SprintId", input.SprintId);
             AddNullable(command, "@ParentBlogId", input.ParentBlogId);
             Add(command, "@IsPrivate", input.IsPrivate);
+            Add(command, "@IsPinned", input.IsPinned);
             Add(command, "@CurrentUserId", currentUserId);
         }, cancellationToken);
     }

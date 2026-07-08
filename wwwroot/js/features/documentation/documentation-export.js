@@ -362,6 +362,7 @@ function documentationImportMetadata(blog, images) {
       id: blog.id,
       title: blog.title || "",
       isPrivate: blog.isPrivate !== false,
+      isPinned: Boolean(blog.isPinned),
       project: project ? { id: project.id, code: project.code, title: project.title } : null,
       sprint: sprint ? { id: sprint.id, code: sprint.code, title: sprint.title } : null,
       parent,

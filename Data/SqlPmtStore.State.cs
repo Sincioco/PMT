@@ -223,6 +223,7 @@ public sealed partial class SqlPmtStore
             {
                 Id = reader.GetInt32("DevLogId"),
                 LogType = reader.GetStringOrEmpty("LogType"),
+                Category = reader.GetStringOrEmpty("Category"),
                 ProjectId = reader.GetNullableInt32("ProjectId"),
                 UserId = reader.GetInt32("UserId"),
                 LogDate = reader.GetDateTime("LogDate"),
@@ -251,6 +252,7 @@ public sealed partial class SqlPmtStore
                 Title = reader.GetStringOrEmpty("Title"),
                 BodyHtml = reader.GetStringOrEmpty("BodyHtml"),
                 IsPrivate = reader.GetBoolean("IsPrivate"),
+                IsPinned = reader.GetBoolean("IsPinned"),
                 CreatedByUserId = reader.GetInt32("CreatedByUserId"),
                 CreatedAt = reader.GetDateTime("CreatedAt"),
                 UpdatedAt = reader.GetDateTime("UpdatedAt")

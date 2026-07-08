@@ -262,6 +262,29 @@
   flex: 0 0 auto;
 }
 
+.documentation-card-badges {
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.documentation-card-indicator {
+  display: inline-grid;
+  place-items: center;
+  width: var(--icon-size-lg);
+  height: var(--icon-size-lg);
+  color: var(--color-text-secondary);
+}
+
+.documentation-card-indicator svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
 .documentation-card-meta {
   display: grid;
   gap: 2px;

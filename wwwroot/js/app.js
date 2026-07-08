@@ -14,13 +14,13 @@ import {
 import {
   field,
   value
-} from "./components/forms.js?v=20260629-avatar-jpg-assets";
+} from "./components/forms.js?v=20260709-muted-icons-indent";
 import { configureProgressAndStatus } from "./components/progress-and-status.js?v=20260707-linked-bug-qa-sync";
 import {
   bindAttachmentPreview,
   showTaskAudit,
   viewWorkItem
-} from "./components/work-items.js?v=20260708-work-item-html-transfer";
+} from "./components/work-items.js?v=20260709-muted-icons-indent";
 import { createApplicationShell } from "./core/application-shell.js?v=20260707-deep-links";
 import {
   currentView,
@@ -39,24 +39,24 @@ import {
 import { state } from "./core/store.js";
 import { appUrl } from "./shared/app-urls.js";
 import { createAboutFeature } from "./features/about/about.js?v=20260621-about-credits";
-import { createBacklogFeature } from "./features/backlog/backlog.js?v=20260708-work-item-html-transfer";
-import { createBoardFeature } from "./features/board/board.js?v=20260707-deep-links";
-import { createBugsFeature } from "./features/bugs/bugs.js?v=20260708-work-item-html-transfer";
+import { createBacklogFeature } from "./features/backlog/backlog.js?v=20260709-muted-icons-indent";
+import { createBoardFeature } from "./features/board/board.js?v=20260709-muted-icons-indent";
+import { createBugsFeature } from "./features/bugs/bugs.js?v=20260709-muted-icons-indent";
 import { createDashboardFeature } from "./features/dashboard/dashboard.js?v=20260707-linked-bug-qa-sync";
-import { createDocumentationFeature } from "./features/documentation/documentation.js?v=20260708-documentation-privacy";
+import { createDocumentationFeature } from "./features/documentation/documentation.js?v=20260709-muted-icons-indent";
 import {
   createGanttFeature,
   currentSprintForProject,
   ganttStartDate
 } from "./features/gantt/gantt.js?v=20260707-deep-links";
-import { createProjectsFeature } from "./features/projects/projects.js?v=20260707-linked-bug-qa-sync";
+import { createProjectsFeature } from "./features/projects/projects.js?v=20260709-muted-icons-indent";
 import { createRoadMapFeature } from "./features/roadmap/roadmap.js?v=20260707-linked-bug-qa-sync";
-import { createLogFeature } from "./features/personal-log/log.js?v=20260707-deep-links";
-import { createScrumFeature } from "./features/scrum/scrum.js?v=20260707-filter-reset-dialogs";
-import { createSettingsFeature } from "./features/settings/settings.js?v=20260707-deep-links";
-import { createSprintsFeature } from "./features/sprints/sprints.js?v=20260707-linked-bug-qa-sync";
-import { createTasksFeature } from "./features/tasks/tasks.js?v=20260708-work-item-html-transfer";
-import { createWfhScheduleFeature } from "./features/wfh-schedule/wfh-schedule.js?v=20260707-deep-links";
+import { createLogFeature } from "./features/personal-log/log.js?v=20260709-muted-icons-indent";
+import { createScrumFeature } from "./features/scrum/scrum.js?v=20260709-muted-icons-indent";
+import { createSettingsFeature } from "./features/settings/settings.js?v=20260709-muted-icons-indent";
+import { createSprintsFeature } from "./features/sprints/sprints.js?v=20260709-muted-icons-indent";
+import { createTasksFeature } from "./features/tasks/tasks.js?v=20260709-muted-icons-indent";
+import { createWfhScheduleFeature } from "./features/wfh-schedule/wfh-schedule.js?v=20260709-muted-icons-indent";
 import {
   fallbackEnvironments,
   fallbackForLookup,
@@ -1689,6 +1689,28 @@ function bindRichTextButtons(root) {
   // Rich text is kept simple and browser-native. The mousedown handler keeps
   // focus in the editor so list/bold/underline commands apply to the right text.
   // PMT targets Chrome/Chromium, so these browser-native commands are tested there first.
+  root.querySelectorAll("[data-rich-source]").forEach(button => {
+    button.addEventListener("mousedown", event => event.preventDefault());
+    button.addEventListener("click", () => {
+      const editor = richEditorForControl(button);
+      if (editor) openRichSourceDialog(editor);
+    });
+  });
+
+  root.querySelectorAll("[data-rich-clear-formatting]").forEach(button => {
+    button.addEventListener("mousedown", event => event.preventDefault());
+    button.addEventListener("click", async () => {
+      const editor = richEditorForControl(button);
+      if (!editor) return;
+
+      const confirmed = await askYesNo("Clear all formatting from this body and keep only plain text?", "Clear Formatting");
+      if (!confirmed) return;
+
+      editor.innerHTML = richPlainTextHtml(editor.innerText || editor.textContent || "");
+      editor.focus();
+    });
+  });
+
   root.querySelectorAll("[data-command]").forEach(button => {
     button.addEventListener("mousedown", event => event.preventDefault());
     button.addEventListener("click", async () => {
@@ -1755,6 +1777,76 @@ function bindRichTextButtons(root) {
     });
   });
 
+  root.querySelectorAll("[data-rich-font]").forEach(select => {
+    let savedSelection = null;
+
+    select.addEventListener("mousedown", () => {
+      const editor = richEditorForControl(select);
+      savedSelection = editor ? saveEditorSelection(editor) : null;
+    });
+
+    select.addEventListener("change", () => {
+      const editor = richEditorForControl(select);
+      const fontName = select.value;
+      select.value = "";
+      if (!editor || !fontName) return;
+
+      editor.focus();
+      restoreEditorSelection(savedSelection || saveEditorSelection(editor));
+      document.execCommand("fontName", false, fontName);
+      savedSelection = null;
+    });
+  });
+
+  root.querySelectorAll("[data-rich-font-size]").forEach(select => {
+    let savedSelection = null;
+
+    select.addEventListener("mousedown", () => {
+      const editor = richEditorForControl(select);
+      savedSelection = editor ? saveEditorSelection(editor) : null;
+    });
+
+    select.addEventListener("change", () => {
+      const editor = richEditorForControl(select);
+      const fontSize = select.value;
+      select.value = "";
+      if (!editor || !fontSize) return;
+
+      editor.focus();
+      restoreEditorSelection(savedSelection || saveEditorSelection(editor));
+      document.execCommand("fontSize", false, fontSize);
+      savedSelection = null;
+    });
+  });
+
+  root.querySelectorAll("[data-rich-color-command]").forEach(input => {
+    let savedSelection = null;
+    const syncColorSwatch = () => {
+      input.closest(".rich-color-tool")?.style.setProperty("--rich-selected-color", input.value || "");
+    };
+    syncColorSwatch();
+
+    input.addEventListener("mousedown", () => {
+      const editor = richEditorForControl(input);
+      savedSelection = editor ? saveEditorSelection(editor) : null;
+    });
+
+    input.addEventListener("input", () => {
+      const editor = richEditorForControl(input);
+      if (!editor || !input.value) return;
+
+      syncColorSwatch();
+      editor.focus();
+      restoreEditorSelection(savedSelection || saveEditorSelection(editor));
+      applyRichColorCommand(input.dataset.richColorCommand || "foreColor", input.value);
+    });
+
+    input.addEventListener("change", () => {
+      syncColorSwatch();
+      savedSelection = null;
+    });
+  });
+
   root.querySelectorAll(".rich-editor").forEach(editor => {
     editor.addEventListener("paste", async event => {
       const imageItems = [...(event.clipboardData?.items || [])].filter(item => item.type.startsWith("image/"));
@@ -1772,6 +1864,13 @@ function bindRichTextButtons(root) {
       }
     });
   });
+}
+
+function applyRichColorCommand(command, color) {
+  const applied = document.execCommand(command, false, color);
+  if (!applied && command === "hiliteColor") {
+    document.execCommand("backColor", false, color);
+  }
 }
 
 function richEditorForControl(control) {
@@ -1878,10 +1977,56 @@ function askForCodeBlock(initialCode = "") {
   });
 }
 
+function openRichSourceDialog(editor) {
+  const modal = document.createElement("dialog");
+  modal.className = "dialog rich-source-dialog";
+  modal.innerHTML = `
+    <form method="dialog">
+      <div class="dialog-head">
+        <h2>View Source</h2>
+        <button type="button" class="icon-btn" data-close-rich-source title="Close" aria-label="Close">x</button>
+      </div>
+      <div class="dialog-body">
+        <div class="field full">
+          <label>HTML</label>
+          <textarea name="sourceHtml" rows="16" spellcheck="false">${escapeHtml(editor.innerHTML || "")}</textarea>
+        </div>
+      </div>
+      <div class="dialog-actions">
+        <button type="button" class="secondary text-icon-button" data-close-rich-source>${buttonContent("&#10005;", "Cancel")}</button>
+        <button type="submit" class="primary text-icon-button">${buttonContent("&#10003;", "Apply")}</button>
+      </div>
+    </form>
+  `;
+
+  document.body.appendChild(modal);
+  initializeWindowedDialog(modal);
+  modal.querySelectorAll("[data-close-rich-source]").forEach(button => {
+    button.addEventListener("click", () => modal.close());
+  });
+  modal.querySelector("form")?.addEventListener("submit", event => {
+    event.preventDefault();
+    editor.innerHTML = modal.querySelector("[name='sourceHtml']")?.value || "";
+    normalizeLinksInElement(editor);
+    modal.close();
+  });
+  modal.addEventListener("close", () => modal.remove());
+  modal.showModal();
+  setTimeout(() => modal.querySelector("[name='sourceHtml']")?.focus({ preventScroll: true }), 0);
+}
+
 function richCodeBlockHtml({ caption, code }) {
   const summary = escapeHtml((caption || "Code").trim() || "Code");
   const codeHtml = escapeHtml(code || "") || "<br>";
   return `<details class="rich-code-block" open><summary>${summary}</summary><pre><code>${codeHtml}</code></pre></details><p><br></p>`;
+}
+
+function richPlainTextHtml(text) {
+  return String(text || "")
+    .replace(/\r\n?/g, "\n")
+    .split("\n")
+    .map(line => line.trim() ? escapeHtml(line) : "<br>")
+    .join("<br>");
 }
 
 function saveEditorSelection(editor) {

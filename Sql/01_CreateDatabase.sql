@@ -434,6 +434,7 @@ BEGIN
     (
         [DevLogId] INT IDENTITY(1,1) NOT NULL CONSTRAINT [PK_pmt_DevLogs] PRIMARY KEY,
         [LogType] NVARCHAR(20) NOT NULL CONSTRAINT [DF_pmt_DevLogs_LogType] DEFAULT (N'Scrum'),
+        [Category] NVARCHAR(60) NOT NULL CONSTRAINT [DF_pmt_DevLogs_Category] DEFAULT (N'General'),
         [ProjectId] INT NULL,
         [UserId] INT NOT NULL,
         [LogDate] DATETIME2(0) NOT NULL,
@@ -455,6 +456,12 @@ GO
 IF COL_LENGTH(N'pmt.DevLogs', N'LogType') IS NULL
 BEGIN
     ALTER TABLE [pmt].[DevLogs] ADD [LogType] NVARCHAR(20) NOT NULL CONSTRAINT [DF_pmt_DevLogs_LogType] DEFAULT (N'Scrum');
+END;
+GO
+
+IF COL_LENGTH(N'pmt.DevLogs', N'Category') IS NULL
+BEGIN
+    ALTER TABLE [pmt].[DevLogs] ADD [Category] NVARCHAR(60) NOT NULL CONSTRAINT [DF_pmt_DevLogs_Category] DEFAULT (N'General') WITH VALUES;
 END;
 GO
 
@@ -482,6 +489,7 @@ BEGIN
         [Title] NVARCHAR(220) NOT NULL,
         [BodyHtml] NVARCHAR(MAX) NOT NULL,
         [IsPrivate] BIT NOT NULL CONSTRAINT [DF_pmt_Blogs_IsPrivate] DEFAULT (1),
+        [IsPinned] BIT NOT NULL CONSTRAINT [DF_pmt_Blogs_IsPinned] DEFAULT (0),
         [CreatedByUserId] INT NOT NULL,
         [UpdatedByUserId] INT NULL,
         [IsDeleted] BIT NOT NULL CONSTRAINT [DF_pmt_Blogs_IsDeleted] DEFAULT (0),
@@ -518,6 +526,13 @@ IF COL_LENGTH(N'pmt.Blogs', N'IsPrivate') IS NULL
 BEGIN
     ALTER TABLE [pmt].[Blogs]
     ADD [IsPrivate] BIT NOT NULL CONSTRAINT [DF_pmt_Blogs_IsPrivate] DEFAULT (1) WITH VALUES;
+END;
+GO
+
+IF COL_LENGTH(N'pmt.Blogs', N'IsPinned') IS NULL
+BEGIN
+    ALTER TABLE [pmt].[Blogs]
+    ADD [IsPinned] BIT NOT NULL CONSTRAINT [DF_pmt_Blogs_IsPinned] DEFAULT (0) WITH VALUES;
 END;
 GO
 

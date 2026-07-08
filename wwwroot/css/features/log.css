@@ -133,6 +133,10 @@ html[data-theme] .log-screen.work-item-screen .work-item-table .icon-action:disa
   width: 220px;
 }
 
+.log-category-column {
+  width: 140px;
+}
+
 .log-person-column {
   width: 180px;
 }
@@ -218,6 +222,12 @@ html[data-theme] .log-screen.work-item-screen .work-item-table .icon-action:disa
   border-color: var(--color-warning-border);
   background: var(--color-warning-surface);
   color: var(--color-warning-text);
+}
+
+.log-category-pill {
+  border-color: var(--color-border);
+  background: var(--color-surface-subtle);
+  color: var(--color-text-secondary);
 }
 
 .log-detail-grid {

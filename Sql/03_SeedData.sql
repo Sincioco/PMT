@@ -122,7 +122,10 @@ VALUES
 (N'Environment', N'Dev', NULL, 20, 1, @Sin),
 (N'Environment', N'SIT', NULL, 30, 1, @Sin),
 (N'Environment', N'UAT', NULL, 40, 1, @Sin),
-(N'Environment', N'Production', NULL, 50, 1, @Sin);
+(N'Environment', N'Production', NULL, 50, 1, @Sin),
+(N'LogCategory', N'General', NULL, 10, 1, @Sin),
+(N'LogCategory', N'Knowledge', NULL, 20, 1, @Sin),
+(N'LogCategory', N'Notes', NULL, 30, 1, @Sin);
 
 DECLARE @HolidaySeed TABLE
 (

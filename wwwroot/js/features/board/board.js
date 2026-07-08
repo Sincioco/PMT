@@ -7,7 +7,7 @@ import {
   bugFixIconHtml,
   createWorkItemTableMode,
   taskButtonsHtml
-} from "../../components/work-items.js?v=20260707-deep-links";
+} from "../../components/work-items.js?v=20260709-muted-icons-indent";
 import {
   preferenceKeys,
   readBooleanPreference,

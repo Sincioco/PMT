@@ -13,7 +13,7 @@ import {
   selectField,
   userCardCheckListLabelHtml,
   value
-} from "../../components/forms.js?v=20260629-avatar-jpg-assets";
+} from "../../components/forms.js?v=20260709-muted-icons-indent";
 import {
   sprintOverallProgressHtml,
   sprintStatusMetricsHtml,
@@ -256,7 +256,7 @@ export function createSprintsFeature({
 
       sprintEntryProjectId = savedProjectId;
       writePreference(preferenceKeys.sprintEntryProject, sprintEntryProjectId);
-    }, "", root => bindSprintMemberList(root, sprint.developerIds || []));
+    }, "title", root => bindSprintMemberList(root, sprint.developerIds || [], { selectAllByDefault: !sprint.id }));
   }
 
   function focusSprintField(root, name) {
@@ -313,27 +313,32 @@ export function createSprintsFeature({
     renderSprints();
   }
 
-  function bindSprintMemberList(root, initialSelectedIds) {
+  function bindSprintMemberList(root, initialSelectedIds, options = {}) {
     const projectSelect = root.querySelector("[name='projectId']");
     const container = root.querySelector("[data-member-list='developerIds']");
     if (!projectSelect || !container) return;
 
     let firstRender = true;
-    const renderMembers = () => {
-      const selectedIds = firstRender ? initialSelectedIds : checkedNumbers(root, "developerIds");
+    const renderMembers = (selectAll = false) => {
+      const members = projectMemberUsers(Number(projectSelect.value));
+      const selectedIds = selectAll
+        ? members.map(user => user.id)
+        : firstRender
+          ? initialSelectedIds
+          : checkedNumbers(root, "developerIds");
       firstRender = false;
       container.innerHTML = checkListOrEmpty(
         "Sprint Members",
         "developerIds",
-        projectMemberUsers(Number(projectSelect.value)),
+        members,
         selectedIds,
         "Select project members before adding people to this Sprint.",
         { className: "scroll-check-list user-card-check-list", renderItem: userCardCheckListLabelHtml }
       );
     };
 
-    projectSelect.addEventListener("change", renderMembers);
-    renderMembers();
+    projectSelect.addEventListener("change", () => renderMembers(Boolean(options.selectAllByDefault)));
+    renderMembers(Boolean(options.selectAllByDefault));
   }
 
   function projectMemberUsers(projectId) {

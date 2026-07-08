@@ -6,7 +6,7 @@ import {
   checkListOrEmpty,
   checkedNumbers,
   userCardCheckListLabelHtml
-} from "./forms.js?v=20260629-avatar-jpg-assets";
+} from "./forms.js?v=20260709-muted-icons-indent";
 import { state } from "../core/store.js";
 import { formatDateTime } from "../shared/dates.js";
 import { canEditTask } from "../shared/permissions.js";

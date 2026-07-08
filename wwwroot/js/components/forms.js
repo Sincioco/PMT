@@ -56,22 +56,114 @@ export function richTextField(name, label, html) {
 export function richTextToolsHtml(options = {}) {
   return `
     <div class="rich-tools">
-      <select data-rich-format title="Text Style" aria-label="Text Style">
-        <option value="">Style</option>
-        <option value="title">Title</option>
-        <option value="h1">Heading 1</option>
-        <option value="h2">Heading 2</option>
-        <option value="h3">Heading 3</option>
-        <option value="body">Body</option>
-      </select>
-      <button type="button" data-command="bold" title="Bold"><b>B</b></button>
-      <button type="button" data-command="underline" title="Underline"><u>U</u></button>
-      <button type="button" data-command="strikeThrough" title="Strikethrough" aria-label="Strikethrough"><s>S</s></button>
-      <button type="button" data-command="insertUnorderedList" title="Bullet List" aria-label="Bullet List">&#8226;</button>
-      <button type="button" data-command="insertOrderedList" title="Numbered List" aria-label="Numbered List">1.</button>
-      <button type="button" data-command="createLink" title="Link" aria-label="Link">&#128279;</button>
-      <button type="button" data-command="insertCodeBlock" title="Code Block" aria-label="Code Block" class="rich-code-tool">&lt;/&gt;</button>
-      ${options.actionsHtml || ""}
+      <div class="rich-tools-row">
+        <select data-rich-format title="Text Style" aria-label="Text Style">
+          <option value="">Style</option>
+          <option value="title">Title</option>
+          <option value="h1">Heading 1</option>
+          <option value="h2">Heading 2</option>
+          <option value="h3">Heading 3</option>
+          <option value="body">Body</option>
+        </select>
+        <select data-rich-font title="Font" aria-label="Font">
+          <option value="">Font</option>
+          <option value="Arial">Arial</option>
+          <option value="Georgia">Georgia</option>
+          <option value="Times New Roman">Times New Roman</option>
+          <option value="Verdana">Verdana</option>
+          <option value="Tahoma">Tahoma</option>
+          <option value="Trebuchet MS">Trebuchet MS</option>
+          <option value="Courier New">Courier New</option>
+        </select>
+        <select data-rich-font-size title="Font Size" aria-label="Font Size">
+          <option value="">Size</option>
+          <option value="2">Small</option>
+          <option value="3">Normal</option>
+          <option value="4">Large</option>
+          <option value="5">Extra Large</option>
+          <option value="6">Huge</option>
+        </select>
+        <label class="rich-color-tool rich-font-color-tool" title="Font Color" aria-label="Font Color" style="--rich-selected-color: #111827">
+          <span class="rich-color-button-icon rich-font-color-icon" aria-hidden="true">
+            <span class="rich-font-color-letter">A</span>
+            <span class="rich-color-bar"></span>
+            <span class="rich-color-chevron"></span>
+          </span>
+          <input type="color" data-rich-color-command="foreColor" value="#111827" title="Font Color" aria-label="Font Color">
+        </label>
+        <label class="rich-color-tool rich-background-tool" title="Background Color" aria-label="Background Color" style="--rich-selected-color: #fff3bf">
+          <span class="rich-color-button-icon rich-background-color-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" focusable="false">
+              <path d="M5 16.5 13.5 8l3 3L8 19.5H5z"></path>
+              <path d="m12.5 7 1.8-1.8a1.4 1.4 0 0 1 2 0l2.5 2.5a1.4 1.4 0 0 1 0 2L17 11.5"></path>
+              <path d="M4 20h16"></path>
+            </svg>
+            <span class="rich-color-bar"></span>
+            <span class="rich-color-chevron"></span>
+          </span>
+          <input type="color" data-rich-color-command="hiliteColor" value="#fff3bf" title="Background Color" aria-label="Background Color">
+        </label>
+        <button type="button" data-rich-source title="View Source" aria-label="View Source" class="rich-source-tool">{}</button>
+        <button type="button" data-rich-clear-formatting title="Clear Formatting" aria-label="Clear Formatting" class="rich-clear-formatting-tool">
+          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <path d="M4 15l8.5-8.5a2 2 0 0 1 2.8 0l2.2 2.2a2 2 0 0 1 0 2.8L10 19H4z"></path>
+            <path d="M9 19h11"></path>
+            <path d="M8.5 10.5l5 5"></path>
+          </svg>
+        </button>
+      </div>
+      <div class="rich-tools-row">
+        <button type="button" data-command="bold" title="Bold"><b>B</b></button>
+        <button type="button" data-command="underline" title="Underline"><u>U</u></button>
+        <button type="button" data-command="strikeThrough" title="Strikethrough" aria-label="Strikethrough"><s>S</s></button>
+        <button type="button" data-command="insertUnorderedList" title="Bullet List" aria-label="Bullet List">&#8226;</button>
+        <button type="button" data-command="insertOrderedList" title="Numbered List" aria-label="Numbered List">1.</button>
+        <button type="button" data-command="justifyLeft" title="Align Left" aria-label="Align Left" class="rich-align-tool">
+          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <path d="M4 6h14"></path>
+            <path d="M4 10h10"></path>
+            <path d="M4 14h14"></path>
+            <path d="M4 18h10"></path>
+          </svg>
+        </button>
+        <button type="button" data-command="justifyCenter" title="Align Center" aria-label="Align Center" class="rich-align-tool">
+          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <path d="M5 6h14"></path>
+            <path d="M8 10h8"></path>
+            <path d="M5 14h14"></path>
+            <path d="M8 18h8"></path>
+          </svg>
+        </button>
+        <button type="button" data-command="justifyRight" title="Align Right" aria-label="Align Right" class="rich-align-tool">
+          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <path d="M6 6h14"></path>
+            <path d="M10 10h10"></path>
+            <path d="M6 14h14"></path>
+            <path d="M10 18h10"></path>
+          </svg>
+        </button>
+        <button type="button" data-command="outdent" title="Unindent" aria-label="Unindent" class="rich-indent-tool">
+          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <path d="M10 6h10"></path>
+            <path d="M10 10h10"></path>
+            <path d="M4 14h16"></path>
+            <path d="M4 18h16"></path>
+            <path d="M8 8 4 12l4 4"></path>
+          </svg>
+        </button>
+        <button type="button" data-command="indent" title="Indent" aria-label="Indent" class="rich-indent-tool">
+          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <path d="M10 6h10"></path>
+            <path d="M10 10h10"></path>
+            <path d="M4 14h16"></path>
+            <path d="M4 18h16"></path>
+            <path d="m4 8 4 4-4 4"></path>
+          </svg>
+        </button>
+        <button type="button" data-command="createLink" title="Link" aria-label="Link">&#128279;</button>
+        <button type="button" data-command="insertCodeBlock" title="Code Block" aria-label="Code Block" class="rich-code-tool">&lt;/&gt;</button>
+        ${options.actionsHtml || ""}
+      </div>
     </div>
   `;
 }

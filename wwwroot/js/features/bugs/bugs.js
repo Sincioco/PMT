@@ -20,7 +20,7 @@ import {
   selectTextField,
   userCardCheckListLabelHtml,
   value
-} from "../../components/forms.js?v=20260629-avatar-jpg-assets";
+} from "../../components/forms.js?v=20260709-muted-icons-indent";
 import { progressHtml } from "../../components/progress-and-status.js?v=20260707-linked-bug-qa-sync";
 import { sectionHead } from "../../components/sections.js?v=20260701-nav-title-preferences";
 import {
@@ -33,7 +33,7 @@ import {
   taskPercentField,
   workItemDialogMetaHtml,
   uploadWorkItemAttachments
-} from "../../components/work-items.js?v=20260708-work-item-html-transfer";
+} from "../../components/work-items.js?v=20260709-muted-icons-indent";
 import {
   currentUser,
   currentUserId
@@ -706,7 +706,7 @@ export function createBugsFeature({
         width: 112,
         rubberMinWidth: 88,
         defaultVisible: true,
-        cellHtml: bug => taskRowAvatarsHtml(bug.assignees)
+        cellHtml: bug => (bug.assignees || []).length ? taskRowAvatarsHtml(bug.assignees) : ""
       },
       {
         key: "context",

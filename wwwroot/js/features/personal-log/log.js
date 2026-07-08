@@ -11,9 +11,9 @@ import {
   richValue,
   selectOptionsField,
   value
-} from "../../components/forms.js?v=20260629-avatar-jpg-assets";
+} from "../../components/forms.js?v=20260709-muted-icons-indent";
 import { sectionHead } from "../../components/sections.js?v=20260701-nav-title-preferences";
-import { createWorkItemTableMode } from "../../components/work-items.js?v=20260707-deep-links";
+import { createWorkItemTableMode } from "../../components/work-items.js?v=20260709-muted-icons-indent";
 import { currentUser } from "../../core/authentication.js";
 import {
   preferenceKeys,
@@ -53,6 +53,8 @@ import {
 
 const personalLogType = "Log";
 const logTableColumnPreferenceKey = "pmt-log-table-columns";
+const fallbackLogCategories = ["General", "Knowledge", "Notes"];
+const logCategoryLookupType = "LogCategory";
 
 export function createLogFeature({
   app,
@@ -86,6 +88,7 @@ export function createLogFeature({
       .filter(isPersonalLog)
       .filter(log => !logFilters.projectId || log.projectId === Number(logFilters.projectId))
       .filter(log => !logFilters.logDate || dateKey(log.logDate) === logFilters.logDate)
+      .filter(logMatchesCategoryFilter)
       .filter(logMatchesSearchFilter)
       .sort(logSortCompare);
     const visibleLogColumns = logVisibleTableColumns();
@@ -185,6 +188,15 @@ export function createLogFeature({
         cellHtml: log => log.projectId ? escapeHtml(projectName(log.projectId)) : `<span class="muted">No project</span>`
       },
       {
+        key: "category",
+        label: "Category",
+        colClass: "log-category-column",
+        cellClass: "log-category",
+        width: 140,
+        defaultVisible: true,
+        cellHtml: log => `<span class="pill log-category-pill">${escapeHtml(logCategory(log))}</span>`
+      },
+      {
         key: "log",
         label: "Log",
         colClass: "log-body-column",
@@ -260,6 +272,34 @@ export function createLogFeature({
       .map(column => ({ value: column.key, text: column.label }));
   }
 
+  function logCategoryFilterItems() {
+    const values = new Set(logCategoryOptions());
+    state.devLogs
+      .filter(isPersonalLog)
+      .forEach(log => values.add(logCategory(log)));
+
+    return [...values]
+      .filter(Boolean)
+      .sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }))
+      .map(category => ({ value: category, text: category }));
+  }
+
+  function logCategoryOptions(currentValue = "") {
+    const values = (state.lookups || [])
+      .filter(item => item.lookupType === logCategoryLookupType && item.isActive)
+      .sort((a, b) => Number(a.displayOrder || 0) - Number(b.displayOrder || 0) || a.value.localeCompare(b.value))
+      .map(item => item.value)
+      .filter(Boolean);
+    const categories = values.length ? values : fallbackLogCategories;
+    const uniqueCategories = [...new Set(categories)];
+    if (currentValue && !uniqueCategories.includes(currentValue)) uniqueCategories.push(currentValue);
+    return uniqueCategories;
+  }
+
+  function logCategory(log = {}) {
+    return String(log.category || fallbackLogCategories[0]).trim() || fallbackLogCategories[0];
+  }
+
   function logTableColumnColHtml(column, isRubber = false) {
     const className = [column.colClass, isRubber ? "log-rubber-column" : ""]
       .filter(Boolean)
@@ -328,10 +368,13 @@ export function createLogFeature({
       : {};
     const visibleKeys = normalizeSavedArray(savedPreferences.visible)
       .filter(key => logColumnKeySet().has(key));
+    const defaultVisibleKeys = logDefaultVisibleColumnKeys();
 
     return {
       order: normalizedLogColumnOrder(savedPreferences.order),
-      visible: visibleKeys.length ? visibleKeys : logDefaultVisibleColumnKeys()
+      visible: visibleKeys.length
+        ? [...visibleKeys, ...defaultVisibleKeys.filter(key => !visibleKeys.includes(key))]
+        : defaultVisibleKeys
     };
   }
 
@@ -601,6 +644,7 @@ export function createLogFeature({
     if (filter === "log-date") logFilters.logDate = target.value;
     if (filter === "log-search") logFilters.search = target.value;
     if (filter === "log-sort") logFilters.sort = target.value;
+    if (filter === "log-category") logFilters.categories = checkedFilterValues("log-category");
     if (filter === "log-column") {
       const visibleColumns = checkedFilterValues("log-column");
       if (!visibleColumns.length) {
@@ -750,6 +794,7 @@ export function createLogFeature({
           </label>
         </div>
         <div class="filter-stack">
+          ${filterCheckList("Categories", "log-category", logCategoryFilterItems(), logFilters.categories)}
           ${filterCheckList("Columns", "log-column", logColumnFilterItems(), logColumnPrefs.visible)}
         </div>
       </div>
@@ -767,12 +812,14 @@ export function createLogFeature({
       : 0;
     const selectedProjectId = log.id ? log.projectId || "" : rememberedProjectId || "";
     const selectedLogDate = logDateInputValue(log.logDate || new Date());
+    const selectedCategory = logCategory(log);
     const logHtml = log.bodyHtml || "";
 
     openEditor(logDialogTitle(log, "New Log"), `
       <div class="form-grid log-editor-grid">
         ${field("Date", "logDate", selectedLogDate, "date")}
         ${selectOptionsField("Project", "projectId", [{ id: "", title: "No project" }, ...state.projects.map(project => ({ id: project.id, title: `${project.code} - ${project.title}` }))], selectedProjectId)}
+        ${selectOptionsField("Category", "category", logCategoryOptions(selectedCategory).map(category => ({ id: category, title: category })), selectedCategory)}
         ${richTextField("bodyHtml", "Log", logHtml)}
         <label class="inline-check field full"><input name="isPinned" type="checkbox" ${log.isPinned ? "checked" : ""} ${currentUser().isAdmin ? "" : "disabled"}><span>Pinned</span></label>
       </div>
@@ -789,6 +836,7 @@ export function createLogFeature({
       await saveJson(log.id ? `/api/devlogs/${log.id}` : "/api/devlogs", log.id ? "PUT" : "POST", {
         id: log.id || 0,
         logType: personalLogType,
+        category: value(root, "category") || fallbackLogCategories[0],
         projectId,
         logDate,
         bodyHtml,
@@ -801,9 +849,14 @@ export function createLogFeature({
     return {
       ...filters,
       personIds: [],
+      categories: normalizeSavedArray(filters.categories),
       sort: filters.sort || "custom",
       search: String(filters.search || "")
     };
+  }
+
+  function logMatchesCategoryFilter(log) {
+    return !logFilters.categories.length || logFilters.categories.includes(logCategory(log));
   }
 
   function logMatchesSearchFilter(log) {
@@ -822,6 +875,7 @@ export function createLogFeature({
       [user?.firstName, user?.lastName].filter(Boolean).join(" "),
       user?.email,
       projectName(log.projectId),
+      logCategory(log),
       formatDate(log.logDate),
       logDateInputValue(log.logDate),
       textFromHtml(log.bodyHtml || ""),
@@ -897,6 +951,7 @@ export function createLogFeature({
   function logSortTextValue(log, column) {
     if (column === "project") return log.projectId ? projectName(log.projectId) : "No project";
     if (column === "person") return userById(log.userId)?.nickname || "";
+    if (column === "category") return logCategory(log);
     if (column === "log") return textFromHtml(log.bodyHtml || "");
     return "";
   }
@@ -1006,6 +1061,7 @@ export function createLogFeature({
       .filter(isPersonalLog)
       .filter(log => !logFilters.projectId || log.projectId === Number(logFilters.projectId))
       .filter(log => !logFilters.logDate || dateKey(log.logDate) === logFilters.logDate)
+      .filter(logMatchesCategoryFilter)
       .filter(logMatchesSearchFilter)
       .sort(logSortCompare);
   }
@@ -1017,6 +1073,7 @@ export function createLogFeature({
       { header: "PMT Log Owner User Id", value: log => log.userId },
       { header: "PMT Log Row Hash", value: log => logImportHash(log) },
       { header: "PMT Update Date", value: log => logDateInputValue(log.logDate) },
+      { header: "PMT Update Category", value: log => logCategory(log) },
       { header: "PMT Update Project Id", value: log => log.projectId || "" },
       { header: "PMT Update Log Html", value: log => log.bodyHtml || "" },
       { header: "PMT Update Pinned", value: log => log.isPinned ? "Yes" : "No" }
@@ -1034,6 +1091,7 @@ export function createLogFeature({
     if (columnKey === "person") return logUserName(log.userId);
     if (columnKey === "date") return logDateInputValue(log.logDate);
     if (columnKey === "project") return log.projectId ? projectName(log.projectId) : "";
+    if (columnKey === "category") return logCategory(log);
     if (columnKey === "log") return textFromHtml(log.bodyHtml || "");
     if (columnKey === "flag") return log.isPinned ? "Pinned" : "";
     if (columnKey === "createdAt") return formatDateTime(log.createdAt);
@@ -1094,17 +1152,19 @@ export function createLogFeature({
 
     const projectId = parseLogImportProjectId(record, log);
     const logDate = parseLogImportDate(record, log);
+    const category = parseLogImportCategory(record, log);
     const bodyHtml = parseLogImportBodyHtml(record, log);
     const isPinned = currentUser().isAdmin ? parseLogImportPinned(record, log) : log.isPinned;
     const dateError = logDateValidationMessage(logDate);
     if (dateError) throw new Error(dateError);
     if (!bodyHtml) throw new Error("Log text is required.");
 
-    if (!logImportChanged(log, { projectId, logDate, bodyHtml, isPinned })) return false;
+    if (!logImportChanged(log, { projectId, logDate, category, bodyHtml, isPinned })) return false;
 
     await saveJson(`/api/devlogs/${log.id}`, "PUT", {
       id: log.id,
       logType: personalLogType,
+      category,
       projectId,
       logDate,
       bodyHtml,
@@ -1155,6 +1215,17 @@ export function createLogFeature({
     return selectedDate;
   }
 
+  function parseLogImportCategory(record, log) {
+    if (!importCellExists(record, "PMT Update Category")) return logCategory(log);
+
+    const category = importCell(record, "PMT Update Category", "Category").trim() || fallbackLogCategories[0];
+    if (!logCategoryOptions(logCategory(log)).includes(category)) {
+      throw new Error(`Unknown Log category "${category}".`);
+    }
+
+    return category;
+  }
+
   function parseLogImportBodyHtml(record, log) {
     if (!importCellExists(record, "PMT Update Log Html")) return log.bodyHtml || "";
     return importCell(record, "PMT Update Log Html").trim();
@@ -1170,6 +1241,7 @@ export function createLogFeature({
   function logImportChanged(log, updates) {
     return Number(log.projectId || 0) !== Number(updates.projectId || 0)
       || logDateInputValue(log.logDate) !== updates.logDate
+      || logCategory(log) !== updates.category
       || String(log.bodyHtml || "") !== String(updates.bodyHtml || "")
       || Boolean(log.isPinned) !== Boolean(updates.isPinned);
   }
@@ -1179,6 +1251,7 @@ export function createLogFeature({
       log?.id || "",
       log?.userId || "",
       logDateInputValue(log?.logDate),
+      logCategory(log),
       log?.projectId || "",
       log?.bodyHtml || "",
       log?.isPinned ? "1" : "0"
@@ -1216,6 +1289,10 @@ export function createLogFeature({
           <div>${log.projectId ? escapeHtml(projectName(log.projectId)) : `<span class="muted">No project</span>`}</div>
         </div>
         <div class="detail-field">
+          <span>Category</span>
+          <div>${escapeHtml(logCategory(log))}</div>
+        </div>
+        <div class="detail-field">
           <span>Person</span>
           <div>${escapeHtml(user?.nickname || "User")}</div>
         </div>
@@ -1251,6 +1328,7 @@ export function createLogFeature({
       await saveJson("/api/devlogs", "POST", {
         id: 0,
         logType: personalLogType,
+        category: logCategory(log),
         projectId: log.projectId || null,
         logDate,
         bodyHtml: log.bodyHtml,
