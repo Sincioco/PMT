@@ -14,10 +14,31 @@ builder.Services.Configure<Microsoft.AspNetCore.Http.Json.JsonOptions>(options =
 var app = builder.Build();
 var configuredPathBase = NormalizePathBase(builder.Configuration["Deployment:PathBase"]);
 
-if (!string.IsNullOrEmpty(configuredPathBase))
+app.Use(async (context, next) =>
 {
-    app.UsePathBase(configuredPathBase);
-}
+    if (string.IsNullOrEmpty(configuredPathBase)
+        || !string.IsNullOrEmpty(context.Request.PathBase.Value)
+        || !context.Request.Path.StartsWithSegments(configuredPathBase, out var remainingPath))
+    {
+        await next();
+        return;
+    }
+
+    var originalPath = context.Request.Path;
+    var originalPathBase = context.Request.PathBase;
+    context.Request.Path = remainingPath;
+    context.Request.PathBase = configuredPathBase;
+
+    try
+    {
+        await next();
+    }
+    finally
+    {
+        context.Request.Path = originalPath;
+        context.Request.PathBase = originalPathBase;
+    }
+});
 
 app.UseExceptionHandler(errorApp =>
 {
