@@ -14,6 +14,7 @@ import {
 } from "./preferences.js";
 import { currentView, getNavigationScreens, navigate } from "./router.js?v=20260707-deep-links";
 import { loadState, state } from "./store.js";
+import { appUrl } from "../shared/app-urls.js";
 
 const fixedOverflowViews = new Set(["About"]);
 
@@ -174,7 +175,7 @@ export function createApplicationShell({
       <section class="login-screen">
         <div class="panel login-card">
           <div class="login-brand">
-            <img src="/assets/project-pmt.svg?v=20260621-transparent" alt="">
+            <img src="${appUrl("/assets/project-pmt.svg?v=20260621-transparent")}" alt="">
             <div>
               <h1>PMT</h1>
               <p class="muted">Project Management Tool</p>
@@ -347,7 +348,7 @@ export function createApplicationShell({
     }
 
     if (elements.userAvatar) {
-      elements.userAvatar.src = user?.avatarUrl || "/assets/avatar-default.svg";
+      elements.userAvatar.src = appUrl(user?.avatarUrl || "/assets/avatar-default.svg");
       elements.userAvatar.title = user?.nickname || "";
       elements.userAvatar.alt = user ? `${user.nickname} avatar` : "";
     }

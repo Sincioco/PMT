@@ -1,17 +1,37 @@
+import {
+  appUrl,
+  storageUrl
+} from "./app-urls.js";
+
 export function normalizeRichHtml(html) {
   const container = document.createElement("div");
   container.innerHTML = html;
   linkifyTextNodes(container);
-  normalizeLinksInElement(container);
+  normalizeLinksInElement(container, { forStorage: true });
   return container.innerHTML;
 }
 
-export function normalizeLinksInElement(root) {
-  root.querySelectorAll("a[href]").forEach(link => {
-    link.href = normalizeUrl(link.getAttribute("href"));
+export function normalizeLinksInElement(root, options = {}) {
+  matchingElements(root, "a[href]").forEach(link => {
+    link.href = normalizeUrl(link.getAttribute("href"), options);
     link.target = "_blank";
     link.rel = "noopener noreferrer";
   });
+
+  matchingElements(root, "img[src], audio[src], video[src], source[src], iframe[src], embed[src]").forEach(element => {
+    element.setAttribute("src", normalizeUrl(element.getAttribute("src"), options));
+  });
+
+  matchingElements(root, "object[data]").forEach(element => {
+    element.setAttribute("data", normalizeUrl(element.getAttribute("data"), options));
+  });
+}
+
+function matchingElements(root, selector) {
+  const matches = [];
+  if (root?.matches?.(selector)) matches.push(root);
+  root?.querySelectorAll?.(selector).forEach(element => matches.push(element));
+  return matches;
 }
 
 export function linkifyTextNodes(root) {
@@ -59,11 +79,12 @@ function collectTextNodes(node, textNodes) {
   node.childNodes.forEach(child => collectTextNodes(child, textNodes));
 }
 
-export function normalizeUrl(value) {
+export function normalizeUrl(value, options = {}) {
   const trimmed = String(value || "").trim();
   if (!trimmed) return "";
-  if (/^[a-z][a-z0-9+.-]*:/i.test(trimmed)) return trimmed;
-  if (trimmed.startsWith("/") || trimmed.startsWith("#") || trimmed.startsWith("./") || trimmed.startsWith("../")) return trimmed;
+  if (/^[a-z][a-z0-9+.-]*:/i.test(trimmed) || trimmed.startsWith("//")) return options.forStorage ? storageUrl(trimmed) : trimmed;
+  if (trimmed.startsWith("/")) return options.forStorage ? storageUrl(trimmed) : appUrl(trimmed);
+  if (trimmed.startsWith("#") || trimmed.startsWith("./") || trimmed.startsWith("../")) return trimmed;
   if (trimmed.startsWith("www.")) return `https://${trimmed}`;
   return `https://${trimmed}`;
 }

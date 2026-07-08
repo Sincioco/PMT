@@ -28,3 +28,11 @@ Dev Tasks, Bug Tracking, Backlog
 4.) Relax the importing rules for the Dev Tasks, Bug Tracking and Backlog screens.  The only requirement is that the file must contain the text "PMT Import Process Meta Data" in it.  If it does not, do not allow the import to proceed.  If there are issues that can be fixed, for example, if the user no longer exists, map it to the current user and allow the import to proceed.  Or if the Project / Sprint does not exist, map it to the last project/sprint the user was working on and allow the import to proceed.  Basically, the goal is to simply get the data in the system, it can be corrected later by the person importing.  First try to import by matching IDs stored in the "PMT Import Process Meta Data", but if no matches are found try to resolve things by name (string).  For example, if the user "Bill" used to be id 1 but is now id 10, just remap it to the new "Bill".  Do the same for the Project/Sprint etc.  Basically, we want a lose import process.  When all else fails, default to the current user and the last project/sprint they were working on.  The goal is to get the data in the system, it can be corrected later by the person importing.
 5.) Once done importing, present a dialog box with the list and hyperlinks to the items imported and allow the user to download it for later review/auditing.
 6.) For this export, only export as HTML.
+
+Support Main URL, Sub URL, IIS Application URL Deployment Schemes
+-----------------------------------------------------------------
+1.) PMT will be deployed in a Web Server but it will be a IIS Application so it will not be the root web site.  The web site's URL will be http://domain/mainsite/PMT. 
+
+2.) Can PMT be adjust so that it can be deployed both as the main site (root) in a domain and also a sub site?  In this case /pmt?  Currently, we have deployed PMT as a sub site (sub URL), but the images, css, javascript are broken because they have root (/) references.
+
+3.) Can PMT be configured to support both types of deployments?  root (/) and sub sites (/pmt)?  If so, can update PMT?

@@ -5,6 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="light dark">
   <title>PMT</title>
+  <meta name="pmt-path-base" content="">
+  <base href="/">
   <script>
     (() => {
       let theme = "light";
@@ -20,43 +22,43 @@
     })();
   </script>
   <!-- CSS loads from broad foundations to shared components, then feature-specific rules. -->
-  <link rel="stylesheet" href="/css/tokens.css?v=20260620-token-depth">
-  <link rel="stylesheet" href="/css/themes.css?v=20260621-paper-links">
-  <link rel="stylesheet" href="/css/base.css?v=20260621-paper-links">
-  <link rel="stylesheet" href="/css/layout.css?v=20260627-stable-page-title">
-  <link rel="stylesheet" href="/css/components/buttons.css?v=20260706-dialog-persistence">
-  <link rel="stylesheet" href="/css/components/cards-panels.css?v=20260620-solid-surfaces">
-  <link rel="stylesheet" href="/css/components/forms.css?v=20260707-rich-image-scale-select">
-  <link rel="stylesheet" href="/css/components/dialogs.css?v=20260706-convert-document">
-  <link rel="stylesheet" href="/css/components/tables-lists.css?v=20260701-edit-mode-glow">
-  <link rel="stylesheet" href="/css/components/filters.css?v=20260706-filter-windowing">
-  <link rel="stylesheet" href="/css/components/navigation.css?v=20260701-user-avatar-fit-50">
-  <link rel="stylesheet" href="/css/components/avatars.css?v=20260620-token-depth">
-  <link rel="stylesheet" href="/css/components/attachments.css?v=20260619-shell-components">
-  <link rel="stylesheet" href="/css/components/progress-status.css?v=20260621-icon-size-20">
-  <link rel="stylesheet" href="/css/components/charts.css?v=20260620-expanded-chart-dialog">
-  <link rel="stylesheet" href="/css/features/login.css?v=20260621-pmt-logo-no-frame">
-  <link rel="stylesheet" href="/css/features/about.css?v=20260621-logo-position">
-  <link rel="stylesheet" href="/css/features/dashboard.css?v=20260620-token-depth">
-  <link rel="stylesheet" href="/css/features/roadmap.css?v=20260627-roadmap-scrollbar-width">
-  <link rel="stylesheet" href="/css/features/gantt.css?v=20260629-gantt-filter-dialog">
-  <link rel="stylesheet" href="/css/features/board.css?v=20260629-kanban-bug-neutral">
-  <link rel="stylesheet" href="/css/features/projects.css?v=20260627-project-sprint-avatar-pad">
-  <link rel="stylesheet" href="/css/features/sprints.css?v=20260627-sprint-card-four-columns">
-  <link rel="stylesheet" href="/css/features/tasks.css?v=20260630-bug-task-parity">
-  <link rel="stylesheet" href="/css/features/bugs.css?v=20260630-bug-task-parity">
-  <link rel="stylesheet" href="/css/features/scrum.css?v=20260707-log-screen">
-  <link rel="stylesheet" href="/css/features/log.css?v=20260707-log-meta-align">
-  <link rel="stylesheet" href="/css/features/documentation.css?v=20260707-documentation-tree-inplace-actions-4">
-  <link rel="stylesheet" href="/css/features/backlog.css?v=20260630-backlog-bug-related">
-  <link rel="stylesheet" href="/css/features/wfh-schedule.css?v=20260627-wfh-member-card">
-  <link rel="stylesheet" href="/css/features/settings.css?v=20260706-settings-table-format">
+  <link rel="stylesheet" href="css/tokens.css?v=20260620-token-depth">
+  <link rel="stylesheet" href="css/themes.css?v=20260621-paper-links">
+  <link rel="stylesheet" href="css/base.css?v=20260621-paper-links">
+  <link rel="stylesheet" href="css/layout.css?v=20260627-stable-page-title">
+  <link rel="stylesheet" href="css/components/buttons.css?v=20260706-dialog-persistence">
+  <link rel="stylesheet" href="css/components/cards-panels.css?v=20260620-solid-surfaces">
+  <link rel="stylesheet" href="css/components/forms.css?v=20260707-rich-image-scale-select">
+  <link rel="stylesheet" href="css/components/dialogs.css?v=20260706-convert-document">
+  <link rel="stylesheet" href="css/components/tables-lists.css?v=20260701-edit-mode-glow">
+  <link rel="stylesheet" href="css/components/filters.css?v=20260706-filter-windowing">
+  <link rel="stylesheet" href="css/components/navigation.css?v=20260701-user-avatar-fit-50">
+  <link rel="stylesheet" href="css/components/avatars.css?v=20260620-token-depth">
+  <link rel="stylesheet" href="css/components/attachments.css?v=20260619-shell-components">
+  <link rel="stylesheet" href="css/components/progress-status.css?v=20260621-icon-size-20">
+  <link rel="stylesheet" href="css/components/charts.css?v=20260620-expanded-chart-dialog">
+  <link rel="stylesheet" href="css/features/login.css?v=20260621-pmt-logo-no-frame">
+  <link rel="stylesheet" href="css/features/about.css?v=20260621-logo-position">
+  <link rel="stylesheet" href="css/features/dashboard.css?v=20260620-token-depth">
+  <link rel="stylesheet" href="css/features/roadmap.css?v=20260627-roadmap-scrollbar-width">
+  <link rel="stylesheet" href="css/features/gantt.css?v=20260629-gantt-filter-dialog">
+  <link rel="stylesheet" href="css/features/board.css?v=20260629-kanban-bug-neutral">
+  <link rel="stylesheet" href="css/features/projects.css?v=20260627-project-sprint-avatar-pad">
+  <link rel="stylesheet" href="css/features/sprints.css?v=20260627-sprint-card-four-columns">
+  <link rel="stylesheet" href="css/features/tasks.css?v=20260630-bug-task-parity">
+  <link rel="stylesheet" href="css/features/bugs.css?v=20260630-bug-task-parity">
+  <link rel="stylesheet" href="css/features/scrum.css?v=20260707-log-screen">
+  <link rel="stylesheet" href="css/features/log.css?v=20260707-log-meta-align">
+  <link rel="stylesheet" href="css/features/documentation.css?v=20260707-documentation-tree-inplace-actions-4">
+  <link rel="stylesheet" href="css/features/backlog.css?v=20260630-backlog-bug-related">
+  <link rel="stylesheet" href="css/features/wfh-schedule.css?v=20260627-wfh-member-card">
+  <link rel="stylesheet" href="css/features/settings.css?v=20260706-settings-table-format">
 </head>
 <body>
   <header class="topbar">
     <div class="brand">
       <button type="button" class="brand-logo-button" data-brand-about aria-label="Open About page" title="About PMT">
-        <img src="/assets/project-pmt.svg?v=20260621-transparent" alt="">
+        <img src="assets/project-pmt.svg?v=20260621-transparent" alt="">
       </button>
       <button type="button" class="brand-text-button" data-brand-about aria-label="Open About page" title="About PMT">
         <strong>PMT</strong>
@@ -67,7 +69,7 @@
     <div class="user-actions">
       <div class="current-user user-menu">
         <button type="button" id="userMenuToggle" class="user-menu-toggle" aria-label="User menu" aria-expanded="false" aria-haspopup="menu">
-          <img id="currentUserAvatar" src="/assets/avatar-default.svg" alt="">
+          <img id="currentUserAvatar" src="assets/avatar-default.svg" alt="">
         </button>
         <select id="currentUser" disabled hidden></select>
         <div id="userMenu" class="user-menu-dropdown dropdown-menu" role="menu" hidden>
@@ -116,6 +118,6 @@
   </dialog>
 
   <div id="toast" class="toast" hidden></div>
-  <script type="module" src="/js/app.js?v=20260708-work-item-html-transfer"></script>
+  <script type="module" src="js/app.js?v=20260708-work-item-html-transfer"></script>
 </body>
 </html>

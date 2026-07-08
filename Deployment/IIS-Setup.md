@@ -38,7 +38,37 @@ Example using SQL authentication:
 }
 ```
 
-## 3. Publish the App
+## 3. Configure Root or Sub-Application URL
+
+PMT can run from the domain root, a first-level path, or a deeper IIS Application path. Set `Deployment:PathBase` in the deployed `appsettings.json` to match the public URL path before PMT.
+
+For PMT as the root web site, such as `http://domain/`, keep the path base blank:
+
+```json
+"Deployment": {
+  "PathBase": ""
+}
+```
+
+For PMT under a first-level path, such as `http://domain/pmt/`, set:
+
+```json
+"Deployment": {
+  "PathBase": "/pmt"
+}
+```
+
+For PMT as a nested IIS Application, such as `http://domain/mainurl/pmt/`, set:
+
+```json
+"Deployment": {
+  "PathBase": "/mainurl/pmt"
+}
+```
+
+The same setting is used by the ASP.NET Core middleware and by the browser shell. CSS, JavaScript, built-in images, API calls, uploaded files, and stored internal `/assets` or `/uploads` URLs are resolved under the configured path base at runtime. `UploadStorage:RequestPath` should stay as `/uploads`; externally it is served under the path base, for example `/pmt/uploads/...`.
+
+## 4. Publish the App
 
 On a build machine with the .NET 6 SDK available:
 
@@ -55,7 +85,7 @@ D:\Sites\PMT
 
 For a locked-down server, restore and publish on a machine that has package access, then transfer only the published folder.
 
-## 4. IIS Without SSL
+## 5. IIS Without SSL
 
 1. Install the ASP.NET Core Hosting Bundle for .NET 6 on the IIS server.
 2. Open IIS Manager.
@@ -76,7 +106,7 @@ User: Sin
 Password: Password1
 ```
 
-## 5. IIS With SSL
+## 6. IIS With SSL
 
 1. Complete the non-SSL setup first.
 2. Import or create a server certificate in IIS.
@@ -89,7 +119,7 @@ Password: Password1
 
 For internal development servers, a self-signed certificate can work, but each client machine must trust it to avoid browser warnings.
 
-## 6. File Uploads
+## 7. File Uploads
 
 Uploaded files are stored under the configured `UploadStorage:RootPath`. The default local setting is:
 
@@ -117,7 +147,7 @@ For a Windows fileshare, set `RootPath` to the UNC folder and provide the filesh
 
 When both credentials are supplied, PMT connects to the UNC share at startup and uses that connection for uploads and `/uploads` downloads. Back up the configured upload folder with the SQL Server database.
 
-## 7. Updating PMT
+## 8. Updating PMT
 
 1. Stop the IIS site or app pool.
 2. Back up the current published folder and database.

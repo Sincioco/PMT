@@ -5,6 +5,7 @@ import {
   currentUserId
 } from "../core/authentication.js";
 import { state } from "../core/store.js";
+import { appAbsoluteUrl } from "./app-urls.js";
 import { formatDateTime } from "./dates.js";
 import {
   projectById,
@@ -583,7 +584,7 @@ function workItemExportMetadata(task) {
     schema: workItemExportSchema,
     exportedAt: new Date().toISOString(),
     sourceApplication: "PMT",
-    sourceUrl: window.location.origin,
+    sourceUrl: appAbsoluteUrl("/"),
     items: [workItemMetadata(task, project, sprint)]
   };
 }

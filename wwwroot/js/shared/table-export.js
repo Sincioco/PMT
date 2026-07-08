@@ -1,5 +1,6 @@
 import { buttonContent } from "../components/buttons.js";
 import { initializeWindowedDialog } from "../components/dialogs.js?v=20260706-dialog-persistence";
+import { appUrl } from "./app-urls.js";
 import { escapeHtml } from "./text-and-links.js";
 import {
   createXlsxBlob,
@@ -7,8 +8,8 @@ import {
 } from "./xlsx.js?v=20260630-native-xlsx";
 
 const exportIconAssetVersion = "20260630-export-file-icons";
-const csvIconUrl = `/assets/export-csv.svg?v=${exportIconAssetVersion}`;
-const excelIconUrl = `/assets/export-excel.svg?v=${exportIconAssetVersion}`;
+const csvIconUrl = appUrl(`/assets/export-csv.svg?v=${exportIconAssetVersion}`);
+const excelIconUrl = appUrl(`/assets/export-excel.svg?v=${exportIconAssetVersion}`);
 
 export function exportIconHtml() {
   return `

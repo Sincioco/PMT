@@ -1,3 +1,5 @@
+import { appUrl } from "../shared/app-urls.js";
+
 let currentUserIdProvider = () => 0;
 
 export function setCurrentUserIdProvider(provider) {
@@ -12,7 +14,7 @@ export async function api(path, options = {}) {
     headers["Content-Type"] = "application/json";
   }
 
-  const response = await fetch(path, {
+  const response = await fetch(appUrl(path), {
     ...options,
     headers: { ...headers, ...(options.headers || {}) }
   });

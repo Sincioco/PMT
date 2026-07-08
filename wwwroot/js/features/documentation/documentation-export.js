@@ -11,11 +11,15 @@ import {
   escapeAttr,
   escapeHtml
 } from "../../shared/text-and-links.js";
+import {
+  appAbsoluteUrl,
+  appUrl
+} from "../../shared/app-urls.js";
 
 const importMetadataTitle = "PMT Import Process Meta Data";
 const exportSchema = "pmt.documentation.export.v1";
 const exportDialogIconAssetVersion = "20260706-export-dialog-icons";
-const exportDialogIconBasePath = "/assets/export-icons";
+const exportDialogIconBasePath = appUrl("/assets/export-icons");
 const wordImageMaxWidthPx = 624;
 
 export function documentationExportIconHtml() {
@@ -353,7 +357,7 @@ function documentationImportMetadata(blog, images) {
     schema: exportSchema,
     exportedAt: new Date().toISOString(),
     sourceApplication: "PMT",
-    sourceUrl: window.location.origin,
+    sourceUrl: appAbsoluteUrl("/"),
     document: {
       id: blog.id,
       title: blog.title || "",
@@ -826,13 +830,7 @@ function pathExtension(source) {
 }
 
 function absoluteUrl(value) {
-  if (!value) return "";
-
-  try {
-    return new URL(value, window.location.href).href;
-  } catch {
-    return value;
-  }
+  return appAbsoluteUrl(value);
 }
 
 function decodePathPart(value) {

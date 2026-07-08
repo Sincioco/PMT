@@ -42,7 +42,8 @@ import { createReorderDrag } from "../../shared/reorder-drag.js";
 import { userById } from "../../shared/selectors.js";
 import {
   escapeAttr,
-  escapeHtml
+  escapeHtml,
+  normalizeLinksInElement
 } from "../../shared/text-and-links.js";
 
 const avatarCacheVersion = "20260629-avatar-jpg-assets";
@@ -981,6 +982,7 @@ export function createSettingsFeature({
       if (event.target === modal) modal.close();
     });
     modal.addEventListener("close", () => modal.remove(), { once: true });
+    normalizeLinksInElement(modal);
     modal.showModal();
   }
 

@@ -1,3 +1,4 @@
+using System.Net;
 using Microsoft.Extensions.FileProviders;
 using PMT.Data;
 using PMT.Endpoints;
@@ -11,6 +12,12 @@ builder.Services.Configure<Microsoft.AspNetCore.Http.Json.JsonOptions>(options =
 });
 
 var app = builder.Build();
+var configuredPathBase = NormalizePathBase(builder.Configuration["Deployment:PathBase"]);
+
+if (!string.IsNullOrEmpty(configuredPathBase))
+{
+    app.UsePathBase(configuredPathBase);
+}
 
 app.UseExceptionHandler(errorApp =>
 {
@@ -25,7 +32,20 @@ app.UseExceptionHandler(errorApp =>
     });
 });
 
-app.UseDefaultFiles();
+app.Use(async (context, next) =>
+{
+    if (HttpMethods.IsGet(context.Request.Method)
+        && (string.IsNullOrEmpty(context.Request.Path.Value)
+            || context.Request.Path == "/"
+            || context.Request.Path == "/index.html"))
+    {
+        await ServeIndexAsync(context);
+        return;
+    }
+
+    await next();
+});
+
 app.UseStaticFiles();
 
 var uploadStorage = UploadStorageOptions.From(builder.Configuration, app.Environment.ContentRootPath);
@@ -52,6 +72,35 @@ app.MapContentEndpoints();
 app.MapUploadEndpoints();
 app.MapDevelopmentEndpoints();
 
-app.MapFallbackToFile("index.html");
+app.MapFallback(ServeIndexAsync);
 
 app.Run();
+
+async Task ServeIndexAsync(HttpContext context)
+{
+    var indexPath = Path.Combine(app.Environment.WebRootPath, "index.html");
+    var html = await File.ReadAllTextAsync(indexPath, context.RequestAborted);
+    var pathBase = EffectivePathBase(context);
+    var baseHref = string.IsNullOrEmpty(pathBase) ? "/" : $"{pathBase}/";
+
+    html = html
+        .Replace("<meta name=\"pmt-path-base\" content=\"\">", $"<meta name=\"pmt-path-base\" content=\"{WebUtility.HtmlEncode(pathBase)}\">")
+        .Replace("<base href=\"/\">", $"<base href=\"{WebUtility.HtmlEncode(baseHref)}\">");
+
+    context.Response.ContentType = "text/html; charset=utf-8";
+    await context.Response.WriteAsync(html, context.RequestAborted);
+}
+
+string EffectivePathBase(HttpContext context)
+{
+    if (!string.IsNullOrEmpty(configuredPathBase)) return configuredPathBase;
+    return NormalizePathBase(context.Request.PathBase.Value);
+}
+
+static string NormalizePathBase(string? pathBase)
+{
+    var value = (pathBase ?? string.Empty).Trim().Replace('\\', '/');
+    if (string.IsNullOrEmpty(value) || value == "/") return string.Empty;
+    if (!value.StartsWith('/')) value = $"/{value}";
+    return value.TrimEnd('/');
+}

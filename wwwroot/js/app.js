@@ -37,6 +37,7 @@ import {
   screenHandlerFor
 } from "./core/screen-registry.js?v=20260707-log-about-nav";
 import { state } from "./core/store.js";
+import { appUrl } from "./shared/app-urls.js";
 import { createAboutFeature } from "./features/about/about.js?v=20260621-about-credits";
 import { createBacklogFeature } from "./features/backlog/backlog.js?v=20260708-work-item-html-transfer";
 import { createBoardFeature } from "./features/board/board.js?v=20260707-deep-links";
@@ -125,7 +126,10 @@ function syncNativePickers(root = document) {
 new MutationObserver(records => {
   records.forEach(record => {
     record.addedNodes.forEach(node => {
-      if (node instanceof HTMLElement) syncNativePickers(node);
+      if (node instanceof HTMLElement) {
+        syncNativePickers(node);
+        normalizeLinksInElement(node);
+      }
     });
   });
 }).observe(document.documentElement, { childList: true, subtree: true });
@@ -1540,6 +1544,7 @@ function openEditor(title, html, saveAction, focusName = "", afterOpen = null) {
   dialogTitle.textContent = title;
   delete dialogBody.dataset.devTaskPercentRules;
   dialogBody.innerHTML = html;
+  normalizeLinksInElement(dialogBody);
   moveEditorFooterActions();
   if (afterOpen) afterOpen(dialogBody);
   bindRichTextButtons(dialogBody);
@@ -1763,7 +1768,7 @@ function bindRichTextButtons(root) {
         if (!file) continue;
 
         const upload = await uploadFile("richtext", file);
-        document.execCommand("insertHTML", false, `<img src="${escapeAttr(upload.url)}" alt="${escapeAttr(upload.fileName)}">`);
+        document.execCommand("insertHTML", false, `<img src="${escapeAttr(appUrl(upload.url))}" alt="${escapeAttr(upload.fileName)}">`);
       }
     });
   });

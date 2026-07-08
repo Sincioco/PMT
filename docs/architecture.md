@@ -6,10 +6,10 @@ This document maps the current application and active file ownership for the pha
 
 PMT is a single ASP.NET Core .NET 6 web application:
 
-1. `wwwroot/index.html` defines the HTML shell, applies the saved theme through `core/preferences.js` before rendering, loads the ordered CSS foundations, components, and feature stylesheets, and then loads `wwwroot/js/app.js`.
+1. `wwwroot/index.html` defines the HTML shell, receives the effective deployment base path from `Program.cs`, applies the saved theme through `core/preferences.js` before rendering, loads the ordered CSS foundations, components, and feature stylesheets, and then loads `wwwroot/js/app.js`.
 2. `wwwroot/js/app.js` composes the application shell with the central screen registry. Dashboard, Road Map, Gantt, Kanban Board, Projects, Sprints, Dev Tasks, Bug Tracking, Scrum, Documentation, Backlog, WFH Schedule, and Settings now live in feature modules; the entry still owns shared editor/dialog orchestration, chart drilldowns, and table reordering.
 3. `wwwroot/js/core/` owns application-wide browser infrastructure: HTTP requests, state, preferences, authentication, routing, startup, navigation, theme, and user-menu wiring.
-4. `Program.cs` configures services, JSON behavior, exception handling, static/uploaded files, endpoint-group registration, the SPA fallback, and application startup.
+4. `Program.cs` configures services, JSON behavior, deployment path-base handling, exception handling, static/uploaded files, endpoint-group registration, the SPA fallback, and application startup.
 5. `Endpoints/` maps the 41 minimal API routes by feature while preserving endpoint URLs, HTTP methods, payload shapes, and the simple current-user header/query behavior.
 6. `Models/*.cs` contains cohesive plain DTO and request model groups for state, users, projects/Sprints, work items, content/uploads, WFH schedule, and settings.
 7. `Data/SqlPmtStore*.cs` is one partial `SqlPmtStore` that calls `[pmt]` stored procedures through direct ADO.NET. `SqlPmtStore.State.cs` maps `[pmt].[GetAppState]`, hydrates relationships, and calculates project/Sprint metrics.
@@ -127,7 +127,8 @@ Reusable frontend logic now has stable native ES module homes:
 - `shared/filter-values.js` owns saved filter value normalization.
 - `shared/permissions.js` owns browser permission checks for owners, work items, and users.
 - `shared/selectors.js` owns state selectors and display names for Projects, Sprints, Tasks, and Users.
-- `shared/text-and-links.js` owns HTML/attribute escaping, rich-text link normalization, text linkification, URL normalization, and plain-text extraction.
+- `shared/app-urls.js` owns deployment path-base URL resolution for browser-rendered app assets, API calls, and portable stored `/assets` or `/uploads` values.
+- `shared/text-and-links.js` owns HTML/attribute escaping, rich-text link normalization, text linkification, URL normalization, media URL normalization, and plain-text extraction.
 - `shared/work-item-rules.js` owns status-based percent calculations, project/Sprint rollups, task completion checks, and linked-Bug completion validation.
 - `components/attachments.js`, `avatars.js`, `buttons.js`, `charts.js`, `dialogs.js`, `filters.js`, `forms.js`, and `progress-and-status.js` own reusable markup builders while preserving existing CSS classes and HTML output.
 
@@ -196,7 +197,7 @@ Models/
 `-- SettingsModels.cs
 ```
 
-`Program.cs` remains responsible for service registration, middleware, static/uploaded file setup, endpoint-group registration, fallback, and startup. Endpoint files map HTTP contracts; `SqlPmtStore` partials remain direct ADO.NET procedure callers; model files remain plain DTO/input groups. `/api/state` stays in its own endpoint and state store partial because its ordered aggregate result sets are a key public contract for the frontend.
+`Program.cs` remains responsible for service registration, middleware, deployment path-base setup, static/uploaded file setup, endpoint-group registration, fallback, and startup. `Deployment:PathBase` is blank for root deployment, `/pmt` for a first-level sub-site, or a deeper value such as `/mainurl/pmt` for a nested IIS Application. Endpoint files map HTTP contracts; `SqlPmtStore` partials remain direct ADO.NET procedure callers; model files remain plain DTO/input groups. `/api/state` stays in its own endpoint and state store partial because its ordered aggregate result sets are a key public contract for the frontend.
 
 ## Dependency direction
 
