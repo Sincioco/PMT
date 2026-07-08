@@ -29,3 +29,7 @@ HTML Rich Editor
 12.) In the Rich Text Editor Toolbar's View Source dialog box, add an option to word wrap the source code and a Copy to Clipboard button on the lower-left corner of the dialog box.
 
 
+Documentation
+----------------
+13.) In the Documentation screen when in Card View, for the Pinned check box in the New/Edit Dialog box, move it to the right (2nd column) of the Private checkbox.
+14.) In the Documentation screen when in Tree View, for the Pinned check box in the header section of the body/content, move it to the right (2nd column) of the Private checkbox.

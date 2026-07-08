@@ -43,7 +43,7 @@ import { createBacklogFeature } from "./features/backlog/backlog.js?v=20260709-m
 import { createBoardFeature } from "./features/board/board.js?v=20260709-muted-icons-indent";
 import { createBugsFeature } from "./features/bugs/bugs.js?v=20260709-rich-color-label-text";
 import { createDashboardFeature } from "./features/dashboard/dashboard.js?v=20260707-linked-bug-qa-sync";
-import { createDocumentationFeature } from "./features/documentation/documentation.js?v=20260709-rich-color-label-text";
+import { createDocumentationFeature } from "./features/documentation/documentation.js?v=20260709-documentation-pinned-layout";
 import {
   createGanttFeature,
   currentSprintForProject,

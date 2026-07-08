@@ -1344,7 +1344,7 @@ function documentationTreeSelect(label, filterName, items, selectedValue) {
 
 function documentationPrivateField(blog = {}) {
   return `
-    <label class="inline-check field full">
+    <label class="inline-check field">
       <input name="isPrivate" type="checkbox" ${documentationIsPrivateForForm(blog) ? "checked" : ""}>
       <span>Private</span>
     </label>
@@ -1353,7 +1353,7 @@ function documentationPrivateField(blog = {}) {
 
 function documentationPinnedField(blog = {}) {
   return `
-    <label class="inline-check field full">
+    <label class="inline-check field">
       <input name="isPinned" type="checkbox" ${documentationIsPinnedForForm(blog) ? "checked" : ""}>
       <span>Pinned</span>
     </label>
