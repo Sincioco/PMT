@@ -1,7 +1,7 @@
 import { avatarsHtml } from "../../components/avatars.js";
 import { buttonContent, funnelIconHtml } from "../../components/buttons.js";
 import { checkedFilterValues, filterCheckList } from "../../components/filters.js?v=20260621-task-filter-layout";
-import { userCardCheckListLabelHtml } from "../../components/forms.js?v=20260710-rte-table-percent-kanban";
+import { userCardCheckListLabelHtml } from "../../components/forms.js?v=20260710-rte-table-shortcuts";
 import { progressHtml } from "../../components/progress-and-status.js?v=20260710-export-rich-kanban";
 import { sectionHead } from "../../components/sections.js?v=20260701-nav-title-preferences";
 import {

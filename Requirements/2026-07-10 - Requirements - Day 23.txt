@@ -57,4 +57,24 @@ If making changes to the database, that affects existing users see database-vers
 26.) In the RTE, make the checkbox itself (the rectangle box) only clickable during New/Edit mode to make the target smaller, but make the whole thing checkbox and label clickable during read mode.
 27.) Bug:  In the RTE editor, while in Edit mode, if you click at the end of the line of a checkbox (as in click to the right of the label, the end of the line), the cursor is placed to the left of the checkbox.
 28.) Can you persist the state of the checkboxes, permanently.  So that if someone checks or unchecks a checkbox in read-mode it counts as an edit to the document?  All users, not just the currently logged on user changing the checkbox, should see the correct state/value of the checkbox.  This will be used by the QA team to check off use-cases they have done.
+29.) Bug:  The read-mode RTE checkbox persistence UX is weird. If you check a checkbox, the page reloads and the content scrolls back to the top.
+
 29.) The UX behavior is weird.  If you check a checkbox, the page reloads and the content scrolls back to the top.
+
+30.) I do a lot of diagram for work and make them using draw.io.  Would it be possible for me to copy the image as an SVG from draw.io (select objects, right click and select Copy as SVG) and paste them into the RTE and retain what I pasted image as a native .svg file?  I don't want them embedded in the text of the HTML/editor since SVG diagram can get big.  Can it detect that I am pasting a SVG, quickly save the .svg file in the server and re-write the reference in the RTE to point to the uploaded .svg file?  If that is not possible or is not easily done, I am okay with adding a Insert SVG button on the toolbar where it can popup a dialog box where the SVG is pasted and you can save it to the server in the server first and then reference it in the RTE when the user dismisses the dialog box.  Whatever you think is best.
+31.) In the RTE while in edit mode, if I select an image and the dialog box comes up prompting the user to Zoom or Resize, change the title of the dialog box to "Image Actions".  Also add a 3rd action which is "Delete" that simply removes the image from the Editor without actually removing the file on the server.
+
+32.) I noticed that when I paste a SVG from draw.io into the RTE, it puts a gray outline around the image.  Can you remove that?
+33.) In reference to #31, add another Image Actions just above the "Delete" option.  Call this "Select" which when selected just selects the image in the editor.
+
+
+
+34.) In the Image Resize dialog box, in the Scale dropdown, can you add more options from 110% to 200% in increments of 10%.  Also, left-align the "Full Width" button.
+35.) In the RTE, can you add some sort of shortcut so that if the user types "[] " and (including the space), it becomes a checkbox (followed by a space)?  But if they hit Ctrl + Z to undo, turn it back to "[] "?
+
+36.) The "[] " shortcut works as expected, except why does the font for the label changes?  It should not apply any special formatting for the label to follow.  It should just keep whatever was the text style before the checkbox was inserted.
+37.) In the RTE, when the cursor is inside the last cell on the table and it is at the end of the cell's text (to the right of the last character) and they hit the tab key, automatically insert a new row below and put the cursor on the first cell of the new row.
+38.) Bug:  In the RTE, if you delete a row on the table using the toolbar, you cannot undo it.
+39.) On the RTE toolbar, swap the Indent and Unindent positions.
+40.) In the RTE in edit mode, if the cursor in a table and the cursor is at the last position in the cell (it could be the first position if the cell is empty) and they hit tab, it should go to the next column.  Keep the logic in #37.
+41.) Let's update the table tab rule so that if the user hits the tab key in a cell and the cursor is either in the first or last position in the cell, go to the next cell.

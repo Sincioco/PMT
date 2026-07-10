@@ -169,15 +169,6 @@ export function richTextToolsHtml(options = {}) {
             <path d="M10 18h10"></path>
           </svg>
         </button>
-        <button type="button" data-command="outdent" title="Unindent" aria-label="Unindent" class="rich-indent-tool">
-          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-            <path d="M10 6h10"></path>
-            <path d="M10 10h10"></path>
-            <path d="M4 14h16"></path>
-            <path d="M4 18h16"></path>
-            <path d="M8 8 4 12l4 4"></path>
-          </svg>
-        </button>
         <button type="button" data-command="indent" title="Indent" aria-label="Indent" class="rich-indent-tool">
           <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
             <path d="M10 6h10"></path>
@@ -185,6 +176,15 @@ export function richTextToolsHtml(options = {}) {
             <path d="M4 14h16"></path>
             <path d="M4 18h16"></path>
             <path d="m4 8 4 4-4 4"></path>
+          </svg>
+        </button>
+        <button type="button" data-command="outdent" title="Unindent" aria-label="Unindent" class="rich-indent-tool">
+          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <path d="M10 6h10"></path>
+            <path d="M10 10h10"></path>
+            <path d="M4 14h16"></path>
+            <path d="M4 18h16"></path>
+            <path d="M8 8 4 12l4 4"></path>
           </svg>
         </button>
         <button type="button" data-command="createLink" title="Link" aria-label="Link">&#128279;</button>
@@ -201,6 +201,17 @@ export function richTextToolsHtml(options = {}) {
           <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
             <rect x="4" y="5" width="14" height="14" rx="2"></rect>
             <path d="m8 12 3 3 7-8"></path>
+          </svg>
+        </button>
+        <button type="button" data-command="insertSvg" title="Insert SVG" aria-label="Insert SVG" class="rich-svg-insert-tool">
+          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <path d="M5 4h10l4 4v12H5z"></path>
+            <path d="M15 4v5h5"></path>
+            <path d="M7 12h3"></path>
+            <path d="M7 14h2.5"></path>
+            <path d="M7 16h3"></path>
+            <path d="m12 12 1.4 4 1.4-4"></path>
+            <path d="M19 12h-2a1 1 0 0 0-1 1v2a1 1 0 0 0 1 1h2v-2h-1"></path>
           </svg>
         </button>
         <button type="button" data-command="insertHorizontalRule" title="Horizontal Divider" aria-label="Horizontal Divider" class="rich-divider-tool">

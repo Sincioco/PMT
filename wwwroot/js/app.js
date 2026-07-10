@@ -15,7 +15,7 @@ import {
 import {
   field,
   value
-} from "./components/forms.js?v=20260710-rte-table-percent-kanban";
+} from "./components/forms.js?v=20260710-rte-table-shortcuts";
 import { configureProgressAndStatus } from "./components/progress-and-status.js?v=20260710-rich-bug-layout";
 import {
   bindAttachmentPreview,
@@ -1073,12 +1073,14 @@ function showRichTextImageMenu(image) {
   modal.className = "dialog mini-dialog rich-image-menu";
   modal.innerHTML = `
     <div class="dialog-head">
-      <h2>Image</h2>
+      <h2>Image Actions</h2>
     </div>
     <div class="dialog-body">
       <div class="rich-image-menu-actions">
         <button type="button" class="secondary text-icon-button" data-rich-image-action="zoom">${buttonContent("&#128269;", "Zoom")}</button>
         <button type="button" class="secondary text-icon-button" data-rich-image-action="resize">${buttonContent("&#8596;", "Resize")}</button>
+        <button type="button" class="secondary text-icon-button" data-rich-image-action="select">${buttonContent("&#9635;", "Select")}</button>
+        <button type="button" class="secondary text-icon-button" data-rich-image-action="delete">${buttonContent("&#128465;", "Delete")}</button>
       </div>
     </div>
     <div class="dialog-actions">
@@ -1110,6 +1112,18 @@ function showRichTextImageMenu(image) {
       return;
     }
 
+    if (action === "select") {
+      finish();
+      requestAnimationFrame(() => selectRichTextImage(image));
+      return;
+    }
+
+    if (action === "delete") {
+      deleteRichTextImage(image);
+      finish();
+      return;
+    }
+
     finish();
   });
   modal.addEventListener("cancel", event => {
@@ -1118,6 +1132,28 @@ function showRichTextImageMenu(image) {
   });
 
   modal.showModal();
+}
+
+function selectRichTextImage(image) {
+  const editor = image?.closest(".rich-editor");
+  if (!image?.isConnected || !editor) return;
+
+  editor.focus({ preventScroll: true });
+  const range = document.createRange();
+  range.selectNode(image);
+  const selection = window.getSelection();
+  selection.removeAllRanges();
+  selection.addRange(range);
+}
+
+function deleteRichTextImage(image) {
+  const editor = image?.closest(".rich-editor");
+  if (!image?.isConnected || !editor) return;
+
+  const placeholder = document.createElement("br");
+  image.replaceWith(placeholder);
+  editor.focus();
+  showToast("Image removed.");
 }
 
 function showRichTextImageResizeDialog(image) {
@@ -1148,9 +1184,13 @@ function showRichTextImageResizeDialog(image) {
         ${source ? `<div class="rich-image-resize-preview"><img src="${escapeAttr(source)}" alt=""></div>` : ""}
       </div>
       <div class="dialog-actions">
-        <button type="button" class="secondary text-icon-button" data-rich-image-resize-reset>${buttonContent("&#8634;", "Full Width")}</button>
-        <button type="button" class="secondary text-icon-button" data-rich-image-resize-cancel>${buttonContent("&#10005;", "Cancel")}</button>
-        <button type="submit" class="primary text-icon-button">${buttonContent("&#10003;", "Apply")}</button>
+        <div class="dialog-action-group is-left">
+          <button type="button" class="secondary text-icon-button" data-rich-image-resize-reset>${buttonContent("&#8634;", "Full Width")}</button>
+        </div>
+        <div class="dialog-action-group">
+          <button type="button" class="secondary text-icon-button" data-rich-image-resize-cancel>${buttonContent("&#10005;", "Cancel")}</button>
+          <button type="submit" class="primary text-icon-button">${buttonContent("&#10003;", "Apply")}</button>
+        </div>
       </div>
     </form>
   `;
@@ -1215,13 +1255,13 @@ function richTextImageScaleSelectValue(width, naturalWidth) {
   if (!naturalWidth) return 100;
 
   const percent = Math.round((Number(width || 0) / naturalWidth) * 100);
-  return percent >= 10 && percent <= 100 && percent % 10 === 0 ? percent : "custom";
+  return percent >= 10 && percent <= 200 && percent % 10 === 0 ? percent : "custom";
 }
 
 function richTextImageScaleOptionsHtml(selectedValue) {
   const selected = String(selectedValue || "custom");
   const options = [{ value: "custom", label: "Custom" }];
-  for (let percent = 10; percent <= 100; percent += 10) {
+  for (let percent = 10; percent <= 200; percent += 10) {
     options.push({ value: String(percent), label: `${percent}%` });
   }
 
@@ -1797,6 +1837,20 @@ function bindRichTextButtons(root) {
         return;
       }
 
+      if (command === "insertSvg") {
+        const svgFile = await askRichSvgFile();
+        if (!svgFile) return;
+
+        editor.focus();
+        restoreEditorSelection(savedSelection);
+        try {
+          await insertRichUploadedImage(editor, svgFile);
+        } catch (error) {
+          showToast(error.message || "SVG could not be inserted.");
+        }
+        return;
+      }
+
       document.execCommand(command, false, null);
 
       // Chrome/Chromium can ignore insertUnorderedList in an empty editor. This gives
@@ -1991,8 +2045,21 @@ function bindRichTextButtons(root) {
   root.querySelectorAll(".rich-editor").forEach(editor => {
     bindRichCheckboxes(editor);
     bindRichTableSelectionTracking(editor);
+    bindRichCheckboxShortcut(editor);
 
     editor.addEventListener("paste", async event => {
+      const svgFile = richSvgFileFromClipboard(event.clipboardData);
+      if (svgFile) {
+        event.preventDefault();
+        editor.focus();
+        try {
+          await insertRichUploadedImage(editor, svgFile);
+        } catch (error) {
+          showToast(error.message || "SVG could not be inserted.");
+        }
+        return;
+      }
+
       const imageItems = [...(event.clipboardData?.items || [])].filter(item => item.type.startsWith("image/"));
       if (!imageItems.length) return;
 
@@ -2003,8 +2070,11 @@ function bindRichTextButtons(root) {
         const file = item.getAsFile();
         if (!file) continue;
 
-        const upload = await uploadFile("richtext", file);
-        document.execCommand("insertHTML", false, `<img src="${escapeAttr(appUrl(upload.url))}" alt="${escapeAttr(upload.fileName)}">`);
+        try {
+          await insertRichUploadedImage(editor, file);
+        } catch (error) {
+          showToast(error.message || "Image could not be inserted.");
+        }
       }
     });
   });
@@ -2024,6 +2094,175 @@ function richTableHtml(rows, columns) {
 
 function richCheckboxHtml() {
   return `<label class="rich-check-item"><input type="checkbox"> <span>Checkbox item</span></label><p><br></p>`;
+}
+
+function richCheckboxShortcutHtml(markerId, wrappers = [], styleText = "") {
+  const styleAttr = styleText ? ` style="${escapeAttr(styleText)}"` : "";
+  const labelTextHtml = richInlineWrapperHtml(wrappers, `<span${styleAttr}>&nbsp;<span data-rich-checkbox-shortcut-caret="${escapeAttr(markerId)}"></span></span>`);
+  return `<label class="rich-check-item"><input type="checkbox"> <span>${labelTextHtml}</span></label>`;
+}
+
+function bindRichCheckboxShortcut(editor) {
+  if (editor.dataset.richCheckboxShortcutBound === "true") return;
+
+  editor.dataset.richCheckboxShortcutBound = "true";
+  editor.addEventListener("input", event => {
+    if (event.inputType !== "insertText" || event.data !== " ") return;
+    applyRichCheckboxShortcut(editor);
+  });
+}
+
+function applyRichCheckboxShortcut(editor) {
+  const range = richSelectionRangeForEditor(editor);
+  if (!range?.collapsed) return false;
+
+  const selectionElement = range.endContainer.nodeType === Node.ELEMENT_NODE
+    ? range.endContainer
+    : range.endContainer.parentElement;
+  if (selectionElement?.closest(".rich-check-item")) return false;
+
+  const shortcutRange = richRangeForTextBeforeCaret(editor, range, "[] ");
+  if (!shortcutRange) return false;
+
+  const markerId = `richCheckboxShortcut${Date.now()}${Math.floor(Math.random() * 100000)}`;
+  const wrappers = richInlineWrappersForRange(editor, range);
+  const styleText = richInlineComputedStyleForRange(editor, range);
+  const selection = window.getSelection();
+  selection.removeAllRanges();
+  selection.addRange(shortcutRange);
+  document.execCommand("insertHTML", false, richCheckboxShortcutHtml(markerId, wrappers, styleText));
+  bindRichCheckboxes(editor);
+  placeRichCheckboxShortcutCaret(editor, markerId);
+  return true;
+}
+
+function richInlineComputedStyleForRange(editor, range) {
+  const element = range.endContainer.nodeType === Node.ELEMENT_NODE
+    ? range.endContainer
+    : range.endContainer.parentElement;
+  const target = element && editor.contains(element) ? element : editor;
+  const style = getComputedStyle(target);
+  const properties = ["font-family", "font-size", "font-weight", "font-style", "color"];
+  const backgroundColor = style.getPropertyValue("background-color");
+  const textDecoration = style.getPropertyValue("text-decoration-line");
+  const inlineStyles = properties
+    .map(property => `${property}: ${style.getPropertyValue(property)}`)
+    .filter(value => !value.endsWith(": "));
+
+  if (backgroundColor && !["transparent", "rgba(0, 0, 0, 0)"].includes(backgroundColor)) {
+    inlineStyles.push(`background-color: ${backgroundColor}`);
+  }
+  if (textDecoration && textDecoration !== "none") {
+    inlineStyles.push(`text-decoration-line: ${textDecoration}`);
+  }
+
+  return inlineStyles.join("; ");
+}
+
+function richInlineWrappersForRange(editor, range) {
+  const wrappers = [];
+  let element = range.endContainer.nodeType === Node.ELEMENT_NODE
+    ? range.endContainer
+    : range.endContainer.parentElement;
+
+  while (element && element !== editor) {
+    if (element.closest(".rich-check-item")) break;
+    if (richInlineStyleElementNames.has(element.localName)) {
+      wrappers.push({
+        name: element.localName,
+        attrs: richInlineWrapperAttributes(element)
+      });
+    }
+    element = element.parentElement;
+  }
+
+  return wrappers;
+}
+
+const richInlineStyleElementNames = new Set(["b", "strong", "i", "em", "u", "s", "strike", "sub", "sup", "font", "span"]);
+
+function richInlineWrapperAttributes(element) {
+  const attrs = [];
+  ["class", "style", "color", "face", "size"].forEach(name => {
+    const value = element.getAttribute(name);
+    if (value) attrs.push({ name, value });
+  });
+  return attrs;
+}
+
+function richInlineWrapperHtml(wrappers, innerHtml) {
+  return wrappers.reduce((html, wrapper) => {
+    const attrs = wrapper.attrs
+      .map(attr => ` ${attr.name}="${escapeAttr(attr.value)}"`)
+      .join("");
+    return `<${wrapper.name}${attrs}>${html}</${wrapper.name}>`;
+  }, innerHtml);
+}
+
+function richRangeForTextBeforeCaret(editor, caretRange, text) {
+  const targetText = String(text || "");
+  if (!targetText) return null;
+
+  const prefixRange = document.createRange();
+  prefixRange.selectNodeContents(editor);
+  try {
+    prefixRange.setEnd(caretRange.endContainer, caretRange.endOffset);
+  } catch {
+    return null;
+  }
+
+  if (!prefixRange.toString().replace(/\u00a0/g, " ").endsWith(targetText)) return null;
+
+  const textNodes = [];
+  const walker = document.createTreeWalker(editor, NodeFilter.SHOW_TEXT);
+  while (walker.nextNode()) {
+    const node = walker.currentNode;
+    if (!prefixRange.intersectsNode(node)) continue;
+
+    const endOffset = node === prefixRange.endContainer ? prefixRange.endOffset : node.nodeValue.length;
+    if (endOffset > 0) textNodes.push({ node, endOffset });
+  }
+
+  let remaining = targetText.length;
+  for (let index = textNodes.length - 1; index >= 0; index -= 1) {
+    const { node, endOffset } = textNodes[index];
+    const take = Math.min(remaining, endOffset);
+    remaining -= take;
+
+    if (remaining === 0) {
+      const range = document.createRange();
+      range.setStart(node, endOffset - take);
+      range.setEnd(caretRange.endContainer, caretRange.endOffset);
+      return range;
+    }
+  }
+
+  return null;
+}
+
+function placeRichCheckboxShortcutCaret(editor, markerId) {
+  const marker = editor.querySelector(`[data-rich-checkbox-shortcut-caret="${markerId}"]`);
+  if (!marker) return;
+
+  const caretHost = marker.parentNode;
+  marker.remove();
+
+  const range = document.createRange();
+  const textNode = [...(caretHost?.childNodes || [])].reverse()
+    .find(node => node.nodeType === Node.TEXT_NODE);
+  if (textNode) {
+    range.setStart(textNode, textNode.nodeValue.length);
+  } else if (caretHost) {
+    range.selectNodeContents(caretHost);
+    range.collapse(false);
+  } else {
+    return;
+  }
+  range.collapse(true);
+
+  const selection = window.getSelection();
+  selection.removeAllRanges();
+  selection.addRange(range);
 }
 
 function bindRichCheckboxes(root) {
@@ -2330,11 +2569,28 @@ function bindRichTableSelectionTracking(editor) {
   ["click", "keyup", "mouseup", "focus"].forEach(eventName => {
     editor.addEventListener(eventName, () => syncRichTableToolbars());
   });
+  editor.addEventListener("keydown", event => handleRichTableKeyDown(editor, event));
 
   if (document.body.dataset.richTableSelectionBound !== "true") {
     document.body.dataset.richTableSelectionBound = "true";
     document.addEventListener("selectionchange", () => syncRichTableToolbars());
   }
+}
+
+function handleRichTableKeyDown(editor, event) {
+  if (event.key !== "Tab" || event.shiftKey || event.ctrlKey || event.metaKey || event.altKey) return;
+
+  const cell = richTableCellForEditor(editor);
+  if (!cell || !richSelectionAtCellBoundary(editor, cell)) return;
+
+  event.preventDefault();
+  const nextCell = richTableNextCell(cell);
+  if (nextCell) {
+    focusRichTableCell(editor, nextCell);
+  } else {
+    insertRichTableRow(editor, cell, "below", { focusCellIndex: 0 });
+  }
+  syncRichTableToolbars();
 }
 
 function syncRichTableToolbars(scope = document) {
@@ -2400,15 +2656,14 @@ async function applyRichTableCommand(editor, command) {
   }
 
   if (command === "deleteTable") {
-    cell.closest("table")?.remove();
-    editor.focus();
+    deleteRichTableWithUndo(editor, cell.closest("table"));
     return true;
   }
 
   return false;
 }
 
-function insertRichTableRow(editor, cell, placement) {
+function insertRichTableRow(editor, cell, placement, options = {}) {
   const row = cell.closest("tr");
   const table = cell.closest("table");
   if (!row || !table) return;
@@ -2425,7 +2680,8 @@ function insertRichTableRow(editor, cell, placement) {
     row.parentNode.insertBefore(newRow, row.nextSibling);
   }
 
-  focusRichTableCell(editor, newRow.cells[Math.min(cell.cellIndex, newRow.cells.length - 1)]);
+  const focusCellIndex = Number.isInteger(options.focusCellIndex) ? options.focusCellIndex : cell.cellIndex;
+  focusRichTableCell(editor, newRow.cells[Math.min(focusCellIndex, newRow.cells.length - 1)]);
 }
 
 function deleteRichTableRow(editor, cell) {
@@ -2433,16 +2689,126 @@ function deleteRichTableRow(editor, cell) {
   const table = cell.closest("table");
   if (!row || !table) return;
 
-  const nextFocus = row.nextElementSibling?.cells[Math.min(cell.cellIndex, row.nextElementSibling.cells.length - 1)]
-    || row.previousElementSibling?.cells[Math.min(cell.cellIndex, row.previousElementSibling.cells.length - 1)];
   if (table.rows.length <= 1) {
-    table.remove();
+    deleteRichTableWithUndo(editor, table);
+    return;
+  }
+
+  const rowIndex = [...table.rows].indexOf(row);
+  const columnIndex = cell.cellIndex;
+  const markerId = `richTableFocus${Date.now()}${Math.floor(Math.random() * 100000)}`;
+  const clone = table.cloneNode(true);
+  clone.rows[rowIndex]?.remove();
+
+  const focusRowIndex = Math.min(rowIndex, clone.rows.length - 1);
+  const focusCell = clone.rows[focusRowIndex]?.cells[Math.min(columnIndex, clone.rows[focusRowIndex].cells.length - 1)];
+  focusCell?.setAttribute("data-rich-table-focus", markerId);
+
+  replaceRichNodeWithHtml(editor, table, clone.outerHTML);
+  focusRichTableMarkerCell(editor, markerId);
+}
+
+function deleteRichTableWithUndo(editor, table) {
+  if (!table) return;
+
+  const markerId = `richTableFocus${Date.now()}${Math.floor(Math.random() * 100000)}`;
+  replaceRichNodeWithHtml(editor, table, `<p><span data-rich-table-focus="${escapeAttr(markerId)}"></span><br></p>`);
+  focusRichTableMarker(editor, markerId);
+}
+
+function replaceRichNodeWithHtml(editor, node, html) {
+  if (!node?.isConnected) return false;
+
+  editor.focus();
+  const range = document.createRange();
+  range.selectNode(node);
+  const selection = window.getSelection();
+  selection.removeAllRanges();
+  selection.addRange(range);
+  return document.execCommand("insertHTML", false, html);
+}
+
+function focusRichTableMarkerCell(editor, markerId) {
+  const markerCell = editor.querySelector(`[data-rich-table-focus="${markerId}"]`);
+  if (!markerCell) {
     editor.focus();
     return;
   }
 
-  row.remove();
-  focusRichTableCell(editor, nextFocus);
+  markerCell.removeAttribute("data-rich-table-focus");
+  focusRichTableCell(editor, markerCell);
+}
+
+function focusRichTableMarker(editor, markerId) {
+  const marker = editor.querySelector(`[data-rich-table-focus="${markerId}"]`);
+  if (!marker) {
+    editor.focus();
+    return;
+  }
+
+  const parent = marker.parentNode;
+  const offset = parent ? [...parent.childNodes].indexOf(marker) : 0;
+  marker.remove();
+  if (!parent) {
+    editor.focus();
+    return;
+  }
+
+  const range = document.createRange();
+  range.setStart(parent, Math.max(0, offset));
+  range.collapse(true);
+  editor.focus();
+  const selection = window.getSelection();
+  selection.removeAllRanges();
+  selection.addRange(range);
+}
+
+function richTableIsLastCell(cell) {
+  const row = cell.closest("tr");
+  const table = cell.closest("table");
+  const lastRow = table?.rows[table.rows.length - 1];
+  return !!lastRow && row === lastRow && cell === lastRow.cells[lastRow.cells.length - 1];
+}
+
+function richTableNextCell(cell) {
+  if (richTableIsLastCell(cell)) return null;
+
+  const row = cell.closest("tr");
+  const table = cell.closest("table");
+  if (!row || !table) return null;
+
+  const nextCellInRow = row.cells[cell.cellIndex + 1];
+  if (nextCellInRow) return nextCellInRow;
+
+  const nextRow = table.rows[row.rowIndex + 1];
+  return nextRow?.cells[0] || null;
+}
+
+function richSelectionAtCellBoundary(editor, cell) {
+  const range = richSelectionRangeForEditor(editor);
+  if (!range?.collapsed || !cell.contains(range.endContainer)) return false;
+
+  return richSelectionEdgeIsEmpty(cell, range, "start")
+    || richSelectionEdgeIsEmpty(cell, range, "end");
+}
+
+function richSelectionEdgeIsEmpty(cell, range, edge) {
+  const edgeRange = document.createRange();
+  try {
+    if (edge === "start") {
+      edgeRange.setStart(cell, 0);
+      edgeRange.setEnd(range.startContainer, range.startOffset);
+    } else {
+      edgeRange.setStart(range.endContainer, range.endOffset);
+      edgeRange.setEnd(cell, cell.childNodes.length);
+    }
+  } catch {
+    return false;
+  }
+
+  if (edgeRange.toString().replace(/\u00a0/g, " ").trim()) return false;
+  const fragment = edgeRange.cloneContents();
+  return !fragment.querySelector("img, table, input, hr, svg, iframe, video, audio");
 }
 
 function moveRichTableRow(editor, cell, direction) {
@@ -3053,6 +3419,58 @@ function askForCodeBlock(initialCode = "") {
   });
 }
 
+function askRichSvgFile() {
+  return new Promise(resolve => {
+    const modal = document.createElement("dialog");
+    modal.className = "dialog rich-code-dialog rich-svg-dialog";
+    modal.innerHTML = `
+      <form method="dialog">
+        <div class="dialog-head">
+          <h2>Insert SVG</h2>
+        </div>
+        <div class="dialog-body">
+          <div class="field full">
+            <label>SVG</label>
+            <textarea name="svgMarkup" rows="12" spellcheck="false"></textarea>
+          </div>
+        </div>
+        <div class="dialog-actions">
+          <button type="button" class="secondary text-icon-button" data-result="cancel">${buttonContent("&#10005;", "Cancel")}</button>
+          <button type="submit" class="primary text-icon-button">${buttonContent("&#10003;", "Insert")}</button>
+        </div>
+      </form>
+    `;
+
+    document.body.appendChild(modal);
+
+    const finish = value => {
+      modal.close();
+      modal.remove();
+      resolve(value);
+    };
+
+    modal.querySelector("[data-result='cancel']").addEventListener("click", () => finish(null));
+    modal.querySelector("form").addEventListener("submit", event => {
+      event.preventDefault();
+      const svgFile = richSvgFileFromMarkup(modal.querySelector("[name='svgMarkup']")?.value || "");
+      if (!svgFile) {
+        showToast("Paste valid SVG markup.");
+        modal.querySelector("[name='svgMarkup']")?.focus();
+        return;
+      }
+
+      finish(svgFile);
+    });
+    modal.addEventListener("cancel", event => {
+      event.preventDefault();
+      finish(null);
+    });
+
+    modal.showModal();
+    setTimeout(() => modal.querySelector("[name='svgMarkup']")?.focus(), 0);
+  });
+}
+
 function openRichSourceDialog(editor) {
   const modal = document.createElement("dialog");
   modal.className = "dialog rich-source-dialog";
@@ -3155,6 +3573,146 @@ function copyTextToClipboardFallback(text, sourceControl = null) {
   }
 
   return copied;
+}
+
+async function insertRichUploadedImage(editor, file) {
+  const upload = await uploadFile("richtext", file);
+  editor.focus();
+  document.execCommand("insertHTML", false, richUploadedImageHtml(upload));
+}
+
+function richUploadedImageHtml(upload) {
+  const classAttr = richUploadIsSvg(upload) ? ` class="rich-svg-image"` : "";
+  return `<img${classAttr} src="${escapeAttr(appUrl(upload.url))}" alt="${escapeAttr(upload.fileName)}">`;
+}
+
+function richUploadIsSvg(upload) {
+  const contentType = upload?.contentType || "";
+  const fileName = upload?.fileName || "";
+  const url = upload?.url || "";
+  return /^image\/svg(?:\+xml)?$/i.test(contentType) || /\.svg$/i.test(fileName) || /\.svg(?:[?#]|$)/i.test(url);
+}
+
+function richSvgFileFromClipboard(clipboardData) {
+  if (!clipboardData) return null;
+
+  const files = [...(clipboardData.files || [])];
+  const file = files.find(richFileIsSvg);
+  if (file) return file;
+
+  const svgItem = [...(clipboardData.items || [])]
+    .find(item => item.kind === "file" && /^image\/svg(?:\+xml)?$/i.test(item.type || ""));
+  const itemFile = svgItem?.getAsFile();
+  if (richFileIsSvg(itemFile)) return itemFile;
+
+  const directSvg = clipboardData.getData("image/svg+xml");
+  const directSvgFile = richSvgFileFromMarkup(directSvg);
+  if (directSvgFile) return directSvgFile;
+
+  const htmlSvgFile = richSvgFileFromMarkup(richSvgMarkupFromText(clipboardData.getData("text/html")));
+  if (htmlSvgFile) return htmlSvgFile;
+
+  return richSvgFileFromMarkup(richSvgMarkupFromText(clipboardData.getData("text/plain")));
+}
+
+function richFileIsSvg(file) {
+  return !!file && (/^image\/svg(?:\+xml)?$/i.test(file.type || "") || /\.svg$/i.test(file.name || ""));
+}
+
+function richSvgFileFromMarkup(markup, fileName = richSvgFileName()) {
+  const normalized = normalizeRichSvgMarkup(markup);
+  if (!normalized) return null;
+
+  return new File([normalized], fileName, { type: "image/svg+xml" });
+}
+
+function richSvgFileName() {
+  const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+  return `drawio-diagram-${stamp}.svg`;
+}
+
+function richSvgMarkupFromText(value) {
+  const source = String(value || "");
+  if (!source.trim()) return "";
+
+  const dataUrlSvg = richSvgMarkupFromDataUrl(source);
+  if (dataUrlSvg) return dataUrlSvg;
+
+  const candidates = [source];
+  if (source.includes("&lt;svg") || source.includes("&lt;SVG")) {
+    candidates.push(decodeRichHtmlEntities(source));
+  }
+
+  for (const candidate of candidates) {
+    const start = candidate.search(/<svg(?:\s|>)/i);
+    if (start < 0) continue;
+
+    const end = candidate.toLowerCase().indexOf("</svg>", start);
+    if (end < 0) continue;
+
+    return candidate.slice(start, end + "</svg>".length);
+  }
+
+  return "";
+}
+
+function richSvgMarkupFromDataUrl(value) {
+  const match = String(value || "").match(/data:image\/svg\+xml(?:;charset=[^;,]+)?(;base64)?,([^"'\s<>]+)/i);
+  if (!match) return "";
+
+  const payload = (match[2] || "").replace(/&amp;/g, "&");
+  if (!payload) return "";
+
+  if (match[1]) {
+    try {
+      return atob(payload);
+    } catch {
+      return "";
+    }
+  }
+
+  try {
+    return decodeURIComponent(payload);
+  } catch {
+    return payload;
+  }
+}
+
+function decodeRichHtmlEntities(value) {
+  const textarea = document.createElement("textarea");
+  textarea.innerHTML = value;
+  return textarea.value;
+}
+
+function normalizeRichSvgMarkup(markup) {
+  const source = String(markup || "").trim();
+  if (!source) return "";
+
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(source, "image/svg+xml");
+  if (doc.querySelector("parsererror")) return "";
+
+  const root = doc.documentElement;
+  const svg = root?.localName?.toLowerCase() === "svg" ? root : doc.querySelector("svg");
+  if (!svg) return "";
+
+  if (!svg.getAttribute("xmlns")) svg.setAttribute("xmlns", "http://www.w3.org/2000/svg");
+  sanitizeRichSvgElement(svg);
+
+  return new XMLSerializer().serializeToString(svg);
+}
+
+function sanitizeRichSvgElement(svg) {
+  svg.querySelectorAll("script").forEach(element => element.remove());
+  svg.querySelectorAll("*").forEach(element => {
+    [...element.attributes].forEach(attribute => {
+      const name = attribute.name.toLowerCase();
+      const value = attribute.value || "";
+      if (name.startsWith("on") || /^\s*javascript:/i.test(value)) {
+        element.removeAttribute(attribute.name);
+      }
+    });
+  });
 }
 
 function richCodeBlockHtml({ caption, code }) {

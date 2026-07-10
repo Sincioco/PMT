@@ -11,7 +11,7 @@ import {
   richValue,
   selectOptionsField,
   value
-} from "../../components/forms.js?v=20260710-rte-table-percent-kanban";
+} from "../../components/forms.js?v=20260710-rte-table-shortcuts";
 import { sectionHead } from "../../components/sections.js?v=20260701-nav-title-preferences";
 import { createWorkItemTableMode } from "../../components/work-items.js?v=20260710-rte-checkbox-persist";
 import { currentUser } from "../../core/authentication.js";

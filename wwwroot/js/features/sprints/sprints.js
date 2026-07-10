@@ -13,7 +13,7 @@ import {
   selectField,
   userCardCheckListLabelHtml,
   value
-} from "../../components/forms.js?v=20260710-rte-table-percent-kanban";
+} from "../../components/forms.js?v=20260710-rte-table-shortcuts";
 import {
   sprintOverallProgressHtml,
   sprintStatusMetricsHtml,

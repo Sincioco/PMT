@@ -8,7 +8,7 @@ import {
   nullableDateValue,
   userCardCheckListLabelHtml,
   value
-} from "../../components/forms.js?v=20260710-rte-table-percent-kanban";
+} from "../../components/forms.js?v=20260710-rte-table-shortcuts";
 import {
   projectOverallProgressHtml,
   projectStatusCounts,

@@ -719,7 +719,11 @@ html[data-theme] .rich-color-palette button.rich-color-custom {
 }
 
 .rich-editor .rich-check-item {
+  color: inherit;
   cursor: text;
+  font-family: inherit;
+  font-size: inherit;
+  font-weight: inherit;
 }
 
 .rich-editor input[type="checkbox"],
@@ -732,7 +736,11 @@ html[data-theme] .rich-color-palette button.rich-color-custom {
 .rich-readonly .rich-check-item,
 .log-content .rich-check-item,
 .scrum-content .rich-check-item {
+  color: inherit;
   cursor: pointer;
+  font-family: inherit;
+  font-size: inherit;
+  font-weight: inherit;
 }
 
 .rich-code-block {
@@ -787,6 +795,18 @@ html[data-theme] .rich-color-palette button.rich-color-custom {
 .log-content img,
 .scrum-content img {
   cursor: zoom-in;
+}
+
+.rich-editor img.rich-svg-image,
+.rich-readonly img.rich-svg-image,
+.log-content img.rich-svg-image,
+.scrum-content img.rich-svg-image,
+.rich-editor img[src$=".svg" i],
+.rich-readonly img[src$=".svg" i],
+.log-content img[src$=".svg" i],
+.scrum-content img[src$=".svg" i] {
+  border: 0;
+  border-radius: 0;
 }
 
 .rich-image-menu-actions {
