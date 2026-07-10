@@ -5,7 +5,7 @@ import { filterSelect } from "../../components/filters.js";
 import {
   documentationExportIconHtml,
   openDocumentationExportDialog
-} from "./documentation-export.js?v=20260709-muted-icons-indent";
+} from "./documentation-export.js?v=20260710-export-rich-kanban";
 import {
   field,
   optionalNumberValue,
@@ -14,7 +14,7 @@ import {
   richValue,
   selectOptionsField,
   value
-} from "../../components/forms.js?v=20260709-rich-color-label-text";
+} from "../../components/forms.js?v=20260710-export-rich-kanban";
 import { sectionHead } from "../../components/sections.js?v=20260701-nav-title-preferences";
 import {
   preferenceKeys,
@@ -51,7 +51,7 @@ import { externalizeImportedHtmlImagesInPayload } from "../../shared/imported-ht
 const documentationViewModes = new Set(["cards", "tree"]);
 const documentationTreeGroups = new Set(["all", "project", "project-sprint"]);
 const documentationTreeLayouts = new Set(["hierarchy", "flat"]);
-const documentationTreeSorts = new Set(["latest", "oldest"]);
+const documentationTreeSorts = new Set(["latest", "oldest", "name"]);
 const documentationVisibilityModes = new Set(["both", "private", "public", "admin-all"]);
 const documentationImportMetadataTitle = "PMT Import Process Meta Data";
 const documentationImportSchema = "pmt.documentation.export.v1";
@@ -403,7 +403,8 @@ export function createDocumentationFeature({
     ], documentationTreeLayout);
     const sortSelect = documentationTreeSelect("Sort", "documentation-tree-sort", [
       { value: "latest", text: "Latest First" },
-      { value: "oldest", text: "Oldest First" }
+      { value: "oldest", text: "Oldest First" },
+      { value: "name", text: "Name (Alphabetically)" }
     ], documentationTreeSort);
 
     if (documentationViewMode === "tree") {
@@ -1911,6 +1912,10 @@ function documentationCardDateTime(value) {
 }
 
 function documentationBlogCompare(a, b) {
+  if (documentationTreeSort === "name") {
+    return a.title.localeCompare(b.title) || a.id - b.id;
+  }
+
   const left = Date.parse(a.updatedAt || a.createdAt || "") || 0;
   const right = Date.parse(b.updatedAt || b.createdAt || "") || 0;
   const dateCompare = documentationTreeSort === "oldest" ? left - right : right - left;

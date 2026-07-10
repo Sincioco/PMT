@@ -9,7 +9,7 @@ import { buttonContent } from "../../components/buttons.js";
 import { navigate } from "../../core/router.js?v=20260707-deep-links";
 import { state } from "../../core/store.js";
 import { projectById } from "../../shared/selectors.js";
-import { createGanttBugExpansion } from "./gantt-bugs-dependencies.js?v=20260707-linked-bug-qa-sync";
+import { createGanttBugExpansion } from "./gantt-bugs-dependencies.js?v=20260710-export-rich-kanban";
 import {
   currentSprintForProject,
   ganttChartData,
@@ -21,7 +21,7 @@ import { createGanttFlyBy } from "./gantt-flyby.js?v=20260627-gantt-initial-desc
 import {
   ganttFilterFieldsHtml,
   ganttScreenHtml
-} from "./gantt-rendering.js?v=20260707-linked-bug-qa-sync";
+} from "./gantt-rendering.js?v=20260710-export-rich-kanban";
 
 export { currentSprintForProject, ganttStartDate } from "./gantt-calculations.js?v=20260620-gantt-scaled-buffer";
 

@@ -83,6 +83,13 @@ export function richTextToolsHtml(options = {}) {
   return `
     <div class="rich-tools">
       <div class="rich-tools-row">
+        <button type="button" data-rich-toolbar-toggle title="Collapse Toolbar" aria-label="Collapse Toolbar" aria-pressed="false" class="rich-toolbar-toggle">
+          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <path d="M5 7h14"></path>
+            <path d="M5 12h14"></path>
+            <path d="M5 17h14"></path>
+          </svg>
+        </button>
         <select data-rich-format title="Text Style" aria-label="Text Style">
           <option value="">Style</option>
           <option value="title">Title</option>
@@ -181,6 +188,11 @@ export function richTextToolsHtml(options = {}) {
           </svg>
         </button>
         <button type="button" data-command="createLink" title="Link" aria-label="Link">&#128279;</button>
+        <button type="button" data-command="insertHorizontalRule" title="Horizontal Divider" aria-label="Horizontal Divider" class="rich-divider-tool">
+          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <path d="M4 12h16"></path>
+          </svg>
+        </button>
         <button type="button" data-command="insertCodeBlock" title="Code Block" aria-label="Code Block" class="rich-code-tool">&lt;/&gt;</button>
         ${options.actionsHtml || ""}
       </div>

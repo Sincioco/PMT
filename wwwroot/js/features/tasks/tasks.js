@@ -17,8 +17,8 @@ import {
   selectTextField,
   userCardCheckListLabelHtml,
   value
-} from "../../components/forms.js?v=20260709-rich-color-label-text";
-import { progressHtml, statusColor } from "../../components/progress-and-status.js?v=20260707-linked-bug-qa-sync";
+} from "../../components/forms.js?v=20260710-export-rich-kanban";
+import { progressHtml, statusColor } from "../../components/progress-and-status.js?v=20260710-export-rich-kanban";
 import { sectionHead } from "../../components/sections.js?v=20260701-nav-title-preferences";
 import {
   attachmentEditorFieldHtml,
@@ -30,7 +30,7 @@ import {
   taskPercentField,
   workItemDialogMetaHtml,
   uploadWorkItemAttachments
-} from "../../components/work-items.js?v=20260709-muted-icons-indent";
+} from "../../components/work-items.js?v=20260710-bug-dialog-order";
 import {
   currentUser
 } from "../../core/authentication.js";
@@ -70,7 +70,7 @@ import {
   showImportResultDialog,
   sameNumberList,
   workItemSystemColumns
-} from "../../shared/table-export.js?v=20260706-dialog-persistence";
+} from "../../shared/table-export.js?v=20260710-export-rich-kanban";
 import { canEditTask } from "../../shared/permissions.js";
 import {
   projectName,
@@ -93,8 +93,8 @@ import {
   taskOrderCompare,
   taskRowsWithSubTasks,
   validateLinkedBugCompletion
-} from "../../shared/work-item-rules.js?v=20260707-linked-bug-qa-sync";
-import { openWorkItemHtmlImport } from "../../shared/work-item-transfer.js?v=20260708-work-item-html-transfer";
+} from "../../shared/work-item-rules.js?v=20260710-export-rich-kanban";
+import { openWorkItemHtmlImport } from "../../shared/work-item-transfer.js?v=20260710-export-rich-kanban";
 
 const taskBugFixIconUrl = "/assets/bug.svg?v=20260629-kanban-gantt-bug-icon";
 
@@ -1600,30 +1600,30 @@ export function createTasksFeature({
     });
   }
 
-  function exportTaskCsv() {
+  function exportTaskCsv(options = {}) {
     const rows = taskExportRows();
-    const columns = taskExportImportColumns(rows);
+    const columns = taskExportImportColumns(rows, options);
 
     downloadCsv(exportFileName("pmt-dev-tasks"), columns, rows);
   }
 
-  function exportTaskExcel() {
+  function exportTaskExcel(options = {}) {
     const rows = taskExportRows();
-    const columns = taskExportImportColumns(rows);
+    const columns = taskExportImportColumns(rows, options);
 
     downloadXlsx(exportFileName("pmt-dev-tasks", "xlsx"), "Dev Tasks", columns, rows);
   }
 
-  function taskExportImportColumns(rows) {
+  function taskExportImportColumns(rows, options = {}) {
     const assigneeHeader = taskRowsHaveMultipleAssignees(rows) ? "Assignees" : "Assignee";
     return [
       ...taskExportColumns(taskVisibleTableColumns(assigneeHeader)),
-      ...workItemSystemColumns({
+      ...(options.includeMetadata ? workItemSystemColumns({
         nameHeader: "PMT Update Task Name",
         itemTypeLabel: () => "Dev Task",
         percentValue: task => taskDisplayPercent(task),
         assigneeLabel: task => userNames(task.assignees)
-      })
+      }) : [])
     ];
   }
 

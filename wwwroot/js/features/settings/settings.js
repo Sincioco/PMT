@@ -6,11 +6,11 @@ import {
   numberValue,
   selectTextField,
   value
-} from "../../components/forms.js?v=20260709-muted-icons-indent";
+} from "../../components/forms.js?v=20260710-export-rich-kanban";
 import {
   defaultStatusColor,
   statusColor
-} from "../../components/progress-and-status.js?v=20260707-linked-bug-qa-sync";
+} from "../../components/progress-and-status.js?v=20260710-export-rich-kanban";
 import { sectionHead } from "../../components/sections.js?v=20260701-nav-title-preferences";
 import { api } from "../../core/api.js";
 import {

@@ -7,13 +7,13 @@ import {
 } from "../../components/filters.js?v=20260630-filter-renderer";
 import {
   userCardCheckListLabelHtml
-} from "../../components/forms.js?v=20260709-muted-icons-indent";
-import { progressHtml } from "../../components/progress-and-status.js?v=20260707-linked-bug-qa-sync";
+} from "../../components/forms.js?v=20260710-export-rich-kanban";
+import { progressHtml } from "../../components/progress-and-status.js?v=20260710-export-rich-kanban";
 import { sectionHead } from "../../components/sections.js?v=20260701-nav-title-preferences";
 import {
   bugFixIconHtml,
   createWorkItemTableMode
-} from "../../components/work-items.js?v=20260709-muted-icons-indent";
+} from "../../components/work-items.js?v=20260710-bug-dialog-order";
 import {
   preferenceKeys,
   readJsonPreference,
@@ -46,7 +46,7 @@ import {
   showImportResultDialog,
   sameNumberList,
   workItemSystemColumns
-} from "../../shared/table-export.js?v=20260706-dialog-persistence";
+} from "../../shared/table-export.js?v=20260710-export-rich-kanban";
 import {
   projectName,
   sprintName,
@@ -67,8 +67,8 @@ import {
   percentForDevTaskSave,
   percentForStatus,
   validateLinkedBugCompletion
-} from "../../shared/work-item-rules.js?v=20260707-linked-bug-qa-sync";
-import { openWorkItemHtmlImport } from "../../shared/work-item-transfer.js?v=20260708-work-item-html-transfer";
+} from "../../shared/work-item-rules.js?v=20260710-export-rich-kanban";
+import { openWorkItemHtmlImport } from "../../shared/work-item-transfer.js?v=20260710-export-rich-kanban";
 
 const backlogBugFixIconUrl = "/assets/bug.svg?v=20260629-kanban-gantt-bug-icon";
 
@@ -1363,30 +1363,30 @@ export function createBacklogFeature({
     });
   }
 
-  function exportBacklogCsv() {
+  function exportBacklogCsv(options = {}) {
     const rows = backlogExportRows();
-    const columns = backlogExportImportColumns(rows);
+    const columns = backlogExportImportColumns(rows, options);
 
     downloadCsv(exportFileName("pmt-backlog"), columns, rows);
   }
 
-  function exportBacklogExcel() {
+  function exportBacklogExcel(options = {}) {
     const rows = backlogExportRows();
-    const columns = backlogExportImportColumns(rows);
+    const columns = backlogExportImportColumns(rows, options);
 
     downloadXlsx(exportFileName("pmt-backlog", "xlsx"), "Backlog", columns, rows);
   }
 
-  function backlogExportImportColumns(rows) {
+  function backlogExportImportColumns(rows, options = {}) {
     const assigneeHeader = backlogRowsHaveMultipleAssignees(rows) ? "Assignees" : "Assignee";
     return [
       ...backlogExportColumns(backlogVisibleTableColumns(assigneeHeader)),
-      ...workItemSystemColumns({
+      ...(options.includeMetadata ? workItemSystemColumns({
         nameHeader: "PMT Update Item Name",
         itemTypeLabel: task => backlogTaskTypeLabel(task),
         percentValue: task => taskDisplayPercent(task),
         assigneeLabel: task => userNames(task.assignees)
-      })
+      }) : [])
     ];
   }
 

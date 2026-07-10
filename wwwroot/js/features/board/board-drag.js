@@ -9,6 +9,7 @@ export function createBoardDrag({
   let pointerDrag = null;
   let lastPointerDragEventAt = 0;
   let suppressNextClick = false;
+  let suppressClicksUntil = 0;
   let windowEventsBound = false;
 
   function activate() {
@@ -24,6 +25,7 @@ export function createBoardDrag({
     active = false;
     cancelDrag();
     suppressNextClick = false;
+    suppressClicksUntil = 0;
     root.removeEventListener("pointerdown", handlePointerDown);
     root.removeEventListener("mousedown", handleMouseDown);
     root.removeEventListener("click", suppressDraggedClick, true);
@@ -106,7 +108,7 @@ export function createBoardDrag({
 
     if (!pointerDrag.started) {
       pointerDrag.started = true;
-      suppressNextClick = true;
+      armClickSuppression();
       pointerDrag.source.classList.add("dragging");
     }
 
@@ -135,7 +137,7 @@ export function createBoardDrag({
     }
 
     event.preventDefault();
-    suppressNextClick = true;
+    armClickSuppression();
 
     const drop = pointerDropTarget(event.clientX, event.clientY, drag.taskId);
     const task = getTask(drag.taskId);
@@ -215,10 +217,16 @@ export function createBoardDrag({
   }
 
   function suppressDraggedClick(event) {
-    if (!suppressNextClick) return;
+    if (!suppressNextClick && Date.now() > suppressClicksUntil) return;
+
     suppressNextClick = false;
     event.preventDefault();
     event.stopImmediatePropagation();
+  }
+
+  function armClickSuppression() {
+    suppressNextClick = true;
+    suppressClicksUntil = Date.now() + 700;
   }
 
   function cancelDrag() {

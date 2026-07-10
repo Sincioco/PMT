@@ -13,13 +13,13 @@ import {
   selectField,
   userCardCheckListLabelHtml,
   value
-} from "../../components/forms.js?v=20260709-rich-color-label-text";
+} from "../../components/forms.js?v=20260710-export-rich-kanban";
 import {
   sprintOverallProgressHtml,
   sprintStatusMetricsHtml,
   statusColor,
   workItemStatusCounts
-} from "../../components/progress-and-status.js?v=20260707-linked-bug-qa-sync";
+} from "../../components/progress-and-status.js?v=20260710-export-rich-kanban";
 import { sectionHead } from "../../components/sections.js?v=20260701-nav-title-preferences";
 import { api } from "../../core/api.js";
 import {
@@ -42,7 +42,7 @@ import {
   escapeAttr,
   escapeHtml
 } from "../../shared/text-and-links.js";
-import { sprintWorkItems } from "../../shared/work-item-rules.js?v=20260707-linked-bug-qa-sync";
+import { sprintWorkItems } from "../../shared/work-item-rules.js?v=20260710-export-rich-kanban";
 
 export function createSprintsFeature({
   app,

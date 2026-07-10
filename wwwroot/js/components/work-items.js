@@ -6,7 +6,7 @@ import {
   checkListOrEmpty,
   checkedNumbers,
   userCardCheckListLabelHtml
-} from "./forms.js?v=20260709-muted-icons-indent";
+} from "./forms.js?v=20260710-export-rich-kanban";
 import { state } from "../core/store.js";
 import { formatDateTime } from "../shared/dates.js";
 import { canEditTask } from "../shared/permissions.js";
@@ -27,8 +27,8 @@ import {
 import {
   allowedAssigneeUsers,
   taskDisplayPercent
-} from "../shared/work-item-rules.js?v=20260707-linked-bug-qa-sync";
-import { exportWorkItemHtml } from "../shared/work-item-transfer.js?v=20260708-work-item-html-transfer";
+} from "../shared/work-item-rules.js?v=20260710-export-rich-kanban";
+import { exportWorkItemHtml } from "../shared/work-item-transfer.js?v=20260710-export-rich-kanban";
 
 export function taskButtonsHtml(task, { includeView = true, monochrome = false } = {}) {
   const canEdit = canEditTask(task);
@@ -224,17 +224,19 @@ export function viewWorkItem(task, editWorkItem, options = {}) {
         ${detailField("Priority", escapeHtml(task.priority))}
         ${task.taskType === "Bug" ? detailField("Environment", escapeHtml(task.environment || "")) : ""}
         ${task.taskType === "Bug" ? detailField("Severity", escapeHtml(task.severity || "")) : ""}
-        ${task.taskType === "Bug" ? detailField("Reporter", avatarsHtml(task.reporters)) : ""}
-        ${detailField("Assignee", avatarsHtml(task.assignees))}
+        ${task.taskType !== "Bug" ? detailField("Assignee", avatarsHtml(task.assignees)) : ""}
         ${detailField("Percent", `${taskDisplayPercent(task)}%`)}
-        ${task.url ? detailField("URL", `<a href="${escapeAttr(normalizeUrl(task.url))}" target="_blank" rel="noopener noreferrer">${escapeHtml(task.url)}</a>`) : ""}
-        ${dependencyLinks ? detailField("Dependencies", dependencyLinks) : ""}
+        ${task.taskType !== "Bug" && task.url ? detailField("URL", `<a href="${escapeAttr(normalizeUrl(task.url))}" target="_blank" rel="noopener noreferrer">${escapeHtml(task.url)}</a>`) : ""}
         ${linkedDocumentHtml ? detailField("Document", linkedDocumentHtml) : ""}
         ${detailField("Description", `<div class="rich-readonly">${task.descriptionHtml || ""}</div>`, true)}
         ${task.taskType === "Bug" ? detailField("Steps to Reproduce", `<div class="rich-readonly">${task.stepsToReproduceHtml || ""}</div>`, true) : ""}
         ${task.taskType === "Bug" ? detailField("Actual Result", `<div class="rich-readonly">${task.actualResultHtml || ""}</div>`, true) : ""}
         ${task.taskType === "Bug" ? detailField("Expected Result", `<div class="rich-readonly">${task.expectedResultHtml || ""}</div>`, true) : ""}
+        ${task.taskType === "Bug" && task.url ? detailField("URL", `<a href="${escapeAttr(normalizeUrl(task.url))}" target="_blank" rel="noopener noreferrer">${escapeHtml(task.url)}</a>`) : ""}
         ${task.attachments.length ? detailField("Attachments", attachmentsHtml(task.attachments), true) : ""}
+        ${task.taskType === "Bug" ? detailField("Assignee", avatarsHtml(task.assignees)) : ""}
+        ${task.taskType === "Bug" ? detailField("Reporter", avatarsHtml(task.reporters)) : ""}
+        ${dependencyLinks ? detailField("Dependencies", dependencyLinks) : ""}
       </div>
       ${workItemDialogMetaHtml(task)}
     </div>

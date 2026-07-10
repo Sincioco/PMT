@@ -11,9 +11,9 @@ import {
   richValue,
   selectOptionsField,
   value
-} from "../../components/forms.js?v=20260709-rich-color-label-text";
+} from "../../components/forms.js?v=20260710-export-rich-kanban";
 import { sectionHead } from "../../components/sections.js?v=20260701-nav-title-preferences";
-import { createWorkItemTableMode } from "../../components/work-items.js?v=20260709-muted-icons-indent";
+import { createWorkItemTableMode } from "../../components/work-items.js?v=20260710-bug-dialog-order";
 import { currentUser } from "../../core/authentication.js";
 import {
   preferenceKeys,
@@ -49,7 +49,7 @@ import {
   openExcelImport,
   openExportDialog,
   showImportResultDialog
-} from "../../shared/table-export.js?v=20260706-dialog-persistence";
+} from "../../shared/table-export.js?v=20260710-export-rich-kanban";
 
 const personalLogType = "Log";
 const logTableColumnPreferenceKey = "pmt-log-table-columns";
@@ -1042,16 +1042,16 @@ export function createLogFeature({
     });
   }
 
-  function exportLogCsv() {
+  function exportLogCsv(options = {}) {
     const rows = logExportRows();
-    const columns = logExportImportColumns();
+    const columns = logExportImportColumns(options);
 
     downloadCsv(exportFileName("pmt-log"), columns, rows);
   }
 
-  function exportLogExcel() {
+  function exportLogExcel(options = {}) {
     const rows = logExportRows();
-    const columns = logExportImportColumns();
+    const columns = logExportImportColumns(options);
 
     downloadXlsx(exportFileName("pmt-log", "xlsx"), "Log", columns, rows);
   }
@@ -1066,17 +1066,19 @@ export function createLogFeature({
       .sort(logSortCompare);
   }
 
-  function logExportImportColumns() {
+  function logExportImportColumns(options = {}) {
     return [
       ...logExportColumns(logVisibleTableColumns()),
-      { header: "PMT Log Id", value: log => log.id },
-      { header: "PMT Log Owner User Id", value: log => log.userId },
-      { header: "PMT Log Row Hash", value: log => logImportHash(log) },
-      { header: "PMT Update Date", value: log => logDateInputValue(log.logDate) },
-      { header: "PMT Update Category", value: log => logCategory(log) },
-      { header: "PMT Update Project Id", value: log => log.projectId || "" },
-      { header: "PMT Update Log Html", value: log => log.bodyHtml || "" },
-      { header: "PMT Update Pinned", value: log => log.isPinned ? "Yes" : "No" }
+      ...(options.includeMetadata ? [
+        { header: "PMT Log Id", value: log => log.id },
+        { header: "PMT Log Owner User Id", value: log => log.userId },
+        { header: "PMT Log Row Hash", value: log => logImportHash(log) },
+        { header: "PMT Update Date", value: log => logDateInputValue(log.logDate) },
+        { header: "PMT Update Category", value: log => logCategory(log) },
+        { header: "PMT Update Project Id", value: log => log.projectId || "" },
+        { header: "PMT Update Log Html", value: log => log.bodyHtml || "" },
+        { header: "PMT Update Pinned", value: log => log.isPinned ? "Yes" : "No" }
+      ] : [])
     ];
   }
 

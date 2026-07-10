@@ -179,6 +179,10 @@
   gap: var(--space-4);
 }
 
+.export-metadata-option {
+  margin-top: var(--space-3);
+}
+
 .export-format-button {
   min-height: 140px;
   display: inline-grid;

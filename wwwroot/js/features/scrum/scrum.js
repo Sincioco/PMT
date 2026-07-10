@@ -12,9 +12,9 @@ import {
   selectOptionsField,
   userCardCheckListLabelHtml,
   value
-} from "../../components/forms.js?v=20260709-rich-color-label-text";
+} from "../../components/forms.js?v=20260710-export-rich-kanban";
 import { sectionHead } from "../../components/sections.js?v=20260701-nav-title-preferences";
-import { createWorkItemTableMode } from "../../components/work-items.js?v=20260709-muted-icons-indent";
+import { createWorkItemTableMode } from "../../components/work-items.js?v=20260710-bug-dialog-order";
 import { currentUser } from "../../core/authentication.js";
 import {
   preferenceKeys,
@@ -54,7 +54,7 @@ import {
   resolveImportProjectId,
   openExportDialog,
   showImportResultDialog
-} from "../../shared/table-export.js?v=20260706-dialog-persistence";
+} from "../../shared/table-export.js?v=20260710-export-rich-kanban";
 
 const scrumYesterdayPrompt = "What did you accomplish yesterday?";
 const scrumTodayPrompt = "What do you plan to do today?";
@@ -1034,16 +1034,16 @@ export function createScrumFeature({
     });
   }
 
-  function exportScrumCsv() {
+  function exportScrumCsv(options = {}) {
     const rows = scrumExportRows();
-    const columns = scrumExportImportColumns();
+    const columns = scrumExportImportColumns(options);
 
     downloadCsv(exportFileName("pmt-scrum"), columns, rows);
   }
 
-  function exportScrumExcel() {
+  function exportScrumExcel(options = {}) {
     const rows = scrumExportRows();
-    const columns = scrumExportImportColumns();
+    const columns = scrumExportImportColumns(options);
 
     downloadXlsx(exportFileName("pmt-scrum", "xlsx"), "Scrum", columns, rows);
   }
@@ -1059,16 +1059,18 @@ export function createScrumFeature({
       .sort(scrumSortCompare);
   }
 
-  function scrumExportImportColumns() {
+  function scrumExportImportColumns(options = {}) {
     return [
       ...scrumExportColumns(scrumVisibleTableColumns()),
-      { header: "PMT Scrum Id", value: log => log.id },
-      { header: "PMT Scrum Owner User Id", value: log => log.userId },
-      { header: "PMT Scrum Row Hash", value: log => scrumImportHash(log) },
-      { header: "PMT Update Date", value: log => scrumDateInputValue(log.logDate) },
-      { header: "PMT Update Project Id", value: log => log.projectId || "" },
-      { header: "PMT Update Scrum Html", value: log => log.bodyHtml || "" },
-      { header: "PMT Update Pinned", value: log => log.isPinned ? "Yes" : "No" }
+      ...(options.includeMetadata ? [
+        { header: "PMT Scrum Id", value: log => log.id },
+        { header: "PMT Scrum Owner User Id", value: log => log.userId },
+        { header: "PMT Scrum Row Hash", value: log => scrumImportHash(log) },
+        { header: "PMT Update Date", value: log => scrumDateInputValue(log.logDate) },
+        { header: "PMT Update Project Id", value: log => log.projectId || "" },
+        { header: "PMT Update Scrum Html", value: log => log.bodyHtml || "" },
+        { header: "PMT Update Pinned", value: log => log.isPinned ? "Yes" : "No" }
+      ] : [])
     ];
   }
 

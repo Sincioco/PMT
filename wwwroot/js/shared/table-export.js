@@ -298,6 +298,10 @@ export function openExportDialog({ title, onCsvExport, onExcelExport }) {
             <span class="button-icon" aria-hidden="true">${excelIconHtml()}</span>
           </button>
         </div>
+        <label class="inline-check export-metadata-option">
+          <input type="checkbox" data-export-include-metadata>
+          <span class="checkbox-label-text">Include PMT Meta Data Info</span>
+        </label>
       </div>
       <div class="dialog-actions">
         <button type="button" class="secondary" data-close-export-dialog>Cancel</button>
@@ -312,12 +316,15 @@ export function openExportDialog({ title, onCsvExport, onExcelExport }) {
     }
 
     const formatButton = event.target.closest("[data-export-format]");
+    const options = {
+      includeMetadata: modal.querySelector("[data-export-include-metadata]")?.checked === true
+    };
     if (formatButton?.dataset.exportFormat === "csv") {
-      onCsvExport();
+      onCsvExport(options);
       modal.close();
     }
     if (formatButton?.dataset.exportFormat === "excel") {
-      onExcelExport();
+      onExcelExport(options);
       modal.close();
     }
   });

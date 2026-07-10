@@ -838,6 +838,8 @@ BEGIN
     DECLARE @LinkedNewStatus NVARCHAR(40);
     DECLARE @LinkedOldPercentCompleted INT;
     DECLARE @LinkedNewPercentCompleted INT;
+    DECLARE @ParentOldStatus NVARCHAR(40);
+    DECLARE @ParentNewStatus NVARCHAR(40);
     DECLARE @ParentOldPercentCompleted INT;
     DECLARE @ParentNewPercentCompleted INT;
     DECLARE @CompletionBlockBugTaskId INT;
@@ -941,7 +943,7 @@ BEGIN
     IF @TaskType = N'Bug'
     BEGIN
         SET @Environment = ISNULL(@Environment, N'SIT');
-        SET @Severity = ISNULL(@Severity, N'Major');
+        SET @Severity = ISNULL(@Severity, N'Minor');
 
         IF NOT EXISTS (SELECT 1 FROM [pmt].[Lookups] WHERE [LookupType] = N'Environment' AND [Value] = @Environment AND [IsActive] = 1)
         BEGIN
@@ -1617,12 +1619,20 @@ BEGIN
         END;
     END;
 
-    -- When a sub-task changes, refresh the parent task's calculated percent.
+    -- When a sub-task changes, refresh the parent task's calculated percent and
+    -- make sure active child work lifts a Todo parent into active work too.
     IF @ParentTaskId IS NOT NULL
     BEGIN
-        SELECT @ParentOldPercentCompleted = [PercentCompleted]
+        SELECT
+            @ParentOldStatus = [Status],
+            @ParentOldPercentCompleted = [PercentCompleted]
         FROM [pmt].[WorkTasks]
         WHERE [TaskId] = @ParentTaskId;
+
+        SET @ParentNewStatus = CASE
+            WHEN @Status NOT IN (N'Backlog', N'Todo') AND @ParentOldStatus IN (N'Backlog', N'Todo') THEN N'In Progress'
+            ELSE @ParentOldStatus
+        END;
 
         SELECT @ParentNewPercentCompleted = CONVERT(INT, ROUND(AVG(CONVERT(DECIMAL(10, 2), [PercentCompleted])), 0))
         FROM [pmt].[WorkTasks]
@@ -1630,17 +1640,28 @@ BEGIN
           AND [IsDeleted] = 0;
 
         IF @ParentNewPercentCompleted IS NOT NULL
-           AND ISNULL(@ParentOldPercentCompleted, -1) <> @ParentNewPercentCompleted
+           AND
+           (
+               ISNULL(@ParentOldPercentCompleted, -1) <> @ParentNewPercentCompleted
+               OR ISNULL(@ParentOldStatus, N'') <> ISNULL(@ParentNewStatus, N'')
+           )
         BEGIN
             UPDATE [pmt].[WorkTasks]
             SET
+                [Status] = @ParentNewStatus,
                 [PercentCompleted] = @ParentNewPercentCompleted,
+                [StartedAt] = CASE
+                    WHEN [StartedAt] IS NULL AND @ParentNewStatus NOT IN (N'Backlog', N'Todo') THEN @Now
+                    ELSE [StartedAt]
+                END,
                 [UpdatedByUserId] = @CurrentUserId,
                 [UpdatedAt] = @Now
             WHERE [TaskId] = @ParentTaskId;
 
             SET @AuditDetails =
-                N'Parent percent recalculated from sub-tasks: ' +
+                N'Parent status/percent recalculated from sub-tasks: ' +
+                ISNULL(@ParentOldStatus, N'') + N' -> ' + ISNULL(@ParentNewStatus, N'') +
+                N'; Percent: ' +
                 CONVERT(NVARCHAR(12), ISNULL(@ParentOldPercentCompleted, 0)) +
                 N'% -> ' + CONVERT(NVARCHAR(12), @ParentNewPercentCompleted) + N'%';
 
@@ -1650,8 +1671,8 @@ BEGIN
                 N'Status/Percent Changed',
                 @AuditDetails,
                 @CurrentUserId,
-                NULL,
-                NULL,
+                @ParentOldStatus,
+                @ParentNewStatus,
                 @ParentOldPercentCompleted,
                 @ParentNewPercentCompleted;
         END;

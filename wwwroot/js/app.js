@@ -14,13 +14,13 @@ import {
 import {
   field,
   value
-} from "./components/forms.js?v=20260709-rich-color-label-text";
-import { configureProgressAndStatus } from "./components/progress-and-status.js?v=20260707-linked-bug-qa-sync";
+} from "./components/forms.js?v=20260710-rich-bug-layout";
+import { configureProgressAndStatus } from "./components/progress-and-status.js?v=20260710-rich-bug-layout";
 import {
   bindAttachmentPreview,
   showTaskAudit,
   viewWorkItem
-} from "./components/work-items.js?v=20260709-muted-icons-indent";
+} from "./components/work-items.js?v=20260710-bug-dialog-order";
 import { createApplicationShell } from "./core/application-shell.js?v=20260707-deep-links";
 import {
   currentView,
@@ -36,26 +36,31 @@ import {
   registerScreen,
   screenHandlerFor
 } from "./core/screen-registry.js?v=20260707-log-about-nav";
+import {
+  preferenceKeys,
+  readBooleanPreference,
+  writePreference
+} from "./core/preferences.js?v=20260710-rich-dialog-pref";
 import { state } from "./core/store.js";
 import { appUrl } from "./shared/app-urls.js";
 import { createAboutFeature } from "./features/about/about.js?v=20260710-about-logo-png";
-import { createBacklogFeature } from "./features/backlog/backlog.js?v=20260709-muted-icons-indent";
-import { createBoardFeature } from "./features/board/board.js?v=20260709-muted-icons-indent";
-import { createBugsFeature } from "./features/bugs/bugs.js?v=20260709-rich-color-label-text";
-import { createDashboardFeature } from "./features/dashboard/dashboard.js?v=20260707-linked-bug-qa-sync";
-import { createDocumentationFeature } from "./features/documentation/documentation.js?v=20260709-documentation-pinned-layout";
+import { createBacklogFeature } from "./features/backlog/backlog.js?v=20260710-rich-bug-layout";
+import { createBoardFeature } from "./features/board/board.js?v=20260710-rich-bug-layout";
+import { createBugsFeature } from "./features/bugs/bugs.js?v=20260710-bug-dialog-order";
+import { createDashboardFeature } from "./features/dashboard/dashboard.js?v=20260710-rich-bug-layout";
+import { createDocumentationFeature } from "./features/documentation/documentation.js?v=20260710-rich-bug-layout";
 import {
   createGanttFeature,
   currentSprintForProject,
   ganttStartDate
 } from "./features/gantt/gantt.js?v=20260707-deep-links";
-import { createProjectsFeature } from "./features/projects/projects.js?v=20260709-muted-icons-indent";
-import { createRoadMapFeature } from "./features/roadmap/roadmap.js?v=20260707-linked-bug-qa-sync";
-import { createLogFeature } from "./features/personal-log/log.js?v=20260709-rich-color-label-text";
-import { createScrumFeature } from "./features/scrum/scrum.js?v=20260709-rich-color-label-text";
-import { createSettingsFeature } from "./features/settings/settings.js?v=20260709-muted-icons-indent";
-import { createSprintsFeature } from "./features/sprints/sprints.js?v=20260709-rich-color-label-text";
-import { createTasksFeature } from "./features/tasks/tasks.js?v=20260709-rich-color-label-text";
+import { createProjectsFeature } from "./features/projects/projects.js?v=20260710-rich-bug-layout";
+import { createRoadMapFeature } from "./features/roadmap/roadmap.js?v=20260710-rich-bug-layout";
+import { createLogFeature } from "./features/personal-log/log.js?v=20260710-rich-bug-layout";
+import { createScrumFeature } from "./features/scrum/scrum.js?v=20260710-rich-bug-layout";
+import { createSettingsFeature } from "./features/settings/settings.js?v=20260710-rich-bug-layout";
+import { createSprintsFeature } from "./features/sprints/sprints.js?v=20260710-rich-bug-layout";
+import { createTasksFeature } from "./features/tasks/tasks.js?v=20260710-rich-bug-layout";
 import { createWfhScheduleFeature } from "./features/wfh-schedule/wfh-schedule.js?v=20260709-wfh-undo-large-days";
 import {
   fallbackEnvironments,
@@ -86,7 +91,7 @@ import {
   percentForStatus,
   sprintOverallPercent,
   taskOrderCompare
-} from "./shared/work-item-rules.js?v=20260707-linked-bug-qa-sync";
+} from "./shared/work-item-rules.js?v=20260710-rich-bug-layout";
 
 const nativePickerSelector = [
   "select",
@@ -194,6 +199,7 @@ const {
 const editorDialogSecondaryActions = document.getElementById("editorDialogSecondaryActions");
 const resetDialogButton = document.getElementById("resetDialog");
 const maximizeDialogButton = document.getElementById("maximizeDialog");
+const toggleAllRichToolsButton = document.getElementById("toggleAllRichTools");
 
 const roadMapFeature = createRoadMapFeature({ app });
 const aboutFeature = createAboutFeature({ app });
@@ -360,6 +366,7 @@ document.getElementById("cancelDialog").addEventListener("click", () => dialog.c
 initializeDialogLayoutPersistence(dialog);
 resetDialogButton?.addEventListener("click", resetEditorDialogLayout);
 maximizeDialogButton?.addEventListener("click", toggleEditorDialogMaximized);
+toggleAllRichToolsButton?.addEventListener("click", toggleAllEditorRichToolbars);
 dialog.addEventListener("close", resetEditorDialogWindow);
 
 if (document.readyState === "loading") {
@@ -1550,6 +1557,7 @@ function openEditor(title, html, saveAction, focusName = "", afterOpen = null) {
   moveEditorFooterActions();
   if (afterOpen) afterOpen(dialogBody);
   bindRichTextButtons(dialogBody);
+  configureEditorDialogRichToolbarToggle();
   bindTaskPercentRules(dialogBody);
   bindAttachmentPreview(dialogBody);
   bindAuditButtons(dialogBody);
@@ -1599,6 +1607,7 @@ function resetEditorDialogWindow() {
   dialog.style.width = "";
   dialog.style.height = "";
   updateEditorDialogMaximizeButton(false);
+  if (toggleAllRichToolsButton) toggleAllRichToolsButton.hidden = true;
 }
 
 function resetEditorDialogLayout() {
@@ -1691,6 +1700,19 @@ function bindRichTextButtons(root) {
   // Rich text is kept simple and browser-native. The mousedown handler keeps
   // focus in the editor so list/bold/underline commands apply to the right text.
   // PMT targets Chrome/Chromium, so these browser-native commands are tested there first.
+  root.querySelectorAll("[data-rich-toolbar-toggle]").forEach(button => {
+    const toolbar = button.closest(".rich-tools");
+    if (!toolbar) return;
+
+    syncRichToolbarToggle(toolbar);
+    button.addEventListener("mousedown", event => event.preventDefault());
+    button.addEventListener("click", event => {
+      event.preventDefault();
+      setRichToolbarCollapsed(toolbar, !toolbar.classList.contains("is-collapsed"));
+      syncEditorDialogRichToolbarToggle();
+    });
+  });
+
   root.querySelectorAll("[data-rich-source]").forEach(button => {
     button.addEventListener("mousedown", event => event.preventDefault());
     button.addEventListener("click", () => {
@@ -1742,6 +1764,11 @@ function bindRichTextButtons(root) {
         editor.focus();
         restoreEditorSelection(savedSelection);
         document.execCommand("insertHTML", false, richCodeBlockHtml(codeBlock));
+        return;
+      }
+
+      if (command === "insertHorizontalRule") {
+        document.execCommand("insertHTML", false, "<hr><p><br></p>");
         return;
       }
 
@@ -1930,6 +1957,61 @@ function bindRichTextButtons(root) {
       }
     });
   });
+}
+
+function configureEditorDialogRichToolbarToggle() {
+  if (!toggleAllRichToolsButton) return;
+
+  const toolbars = editorDialogRichToolbars();
+  toggleAllRichToolsButton.hidden = toolbars.length < 2;
+  if (toolbars.length < 2) return;
+
+  const shouldCollapse = readBooleanPreference(preferenceKeys.richTextDialogToolbarsCollapsed, false);
+  toolbars.forEach(toolbar => setRichToolbarCollapsed(toolbar, shouldCollapse, { hideToolbar: shouldCollapse }));
+  syncEditorDialogRichToolbarToggle();
+}
+
+function editorDialogRichToolbars() {
+  return [...dialogBody.querySelectorAll(".rich-tools")];
+}
+
+function toggleAllEditorRichToolbars() {
+  const toolbars = editorDialogRichToolbars();
+  if (toolbars.length < 2) return;
+
+  const shouldCollapse = toolbars.some(toolbar => !toolbar.classList.contains("is-dialog-collapsed"));
+  toolbars.forEach(toolbar => setRichToolbarCollapsed(toolbar, shouldCollapse, { hideToolbar: shouldCollapse }));
+  writePreference(preferenceKeys.richTextDialogToolbarsCollapsed, shouldCollapse);
+  syncEditorDialogRichToolbarToggle();
+}
+
+function syncEditorDialogRichToolbarToggle() {
+  if (!toggleAllRichToolsButton || toggleAllRichToolsButton.hidden) return;
+
+  const toolbars = editorDialogRichToolbars();
+  const allCollapsed = toolbars.length > 0 && toolbars.every(toolbar => toolbar.classList.contains("is-dialog-collapsed"));
+  const label = allCollapsed ? "Expand All Rich Text Toolbars" : "Collapse All Rich Text Toolbars";
+  toggleAllRichToolsButton.title = label;
+  toggleAllRichToolsButton.setAttribute("aria-label", label);
+  toggleAllRichToolsButton.setAttribute("aria-pressed", String(allCollapsed));
+  toggleAllRichToolsButton.textContent = label;
+}
+
+function setRichToolbarCollapsed(toolbar, collapsed, options = {}) {
+  toolbar.classList.toggle("is-dialog-collapsed", collapsed && options.hideToolbar === true);
+  toolbar.classList.toggle("is-collapsed", collapsed);
+  syncRichToolbarToggle(toolbar);
+}
+
+function syncRichToolbarToggle(toolbar) {
+  const button = toolbar.querySelector("[data-rich-toolbar-toggle]");
+  if (!button) return;
+
+  const collapsed = toolbar.classList.contains("is-collapsed");
+  const label = collapsed ? "Expand Toolbar" : "Collapse Toolbar";
+  button.title = label;
+  button.setAttribute("aria-label", label);
+  button.setAttribute("aria-pressed", String(collapsed));
 }
 
 function applyRichColorCommand(command, color) {

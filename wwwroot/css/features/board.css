@@ -284,10 +284,9 @@ html[data-theme] .board-screen.work-item-screen .section-head .toolbar > button:
   color: var(--color-text-secondary);
   font-size: var(--font-size-xs);
   line-height: var(--line-height-tight);
-  transform: translateY(2px);
 }
 
-.task-card-subtask-label span:first-child {
+.task-card-subtask-name {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;

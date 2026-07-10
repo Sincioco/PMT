@@ -19,7 +19,7 @@ import {
   normalizeRichHtml
 } from "./text-and-links.js";
 import { externalizeImportedHtmlImagesInPayload } from "./imported-html-images.js";
-import { taskDisplayPercent } from "./work-item-rules.js?v=20260707-linked-bug-qa-sync";
+import { taskDisplayPercent } from "./work-item-rules.js?v=20260710-export-rich-kanban";
 
 const workItemImportMarker = "PMT Import Process Meta Data";
 const workItemExportSchema = "pmt.work-item.export.v1";
@@ -210,7 +210,7 @@ function workItemImportPayload(rawItem, context) {
   const isBug = taskType === "Bug";
   const title = importedTitle(rawItem) || context.fallbackTitle || existing?.title || (isBug ? "Imported Bug Report" : "Imported Dev Task");
   const status = resolveLookupValue("Status", rawItem.status, existing?.status, context.defaultStatus || "Todo");
-  const priority = resolveLookupValue("Priority", rawItem.priority, existing?.priority, isBug ? "Medium" : "Low");
+  const priority = resolveLookupValue("Priority", rawItem.priority, existing?.priority, "Low");
   const assigneeIds = resolveImportUsers(firstDefined(rawItem.assigneeUsers, rawItem.assignees, rawItem.assigneeIds), {
     existingIds: existing?.assigneeIds,
     defaultToCurrentUser: true,
@@ -240,7 +240,7 @@ function workItemImportPayload(rawItem, context) {
     actualResultHtml: isBug ? importedRichHtml(rawItem.actualResultHtml, "", existing?.actualResultHtml) : "",
     expectedResultHtml: isBug ? importedRichHtml(rawItem.expectedResultHtml, "", existing?.expectedResultHtml) : "",
     environment: isBug ? resolveLookupValue("Environment", rawItem.environment, existing?.environment, "SIT") : "",
-    severity: isBug ? resolveLookupValue("Severity", rawItem.severity, existing?.severity, "Major") : "",
+    severity: isBug ? resolveLookupValue("Severity", rawItem.severity, existing?.severity, "Minor") : "",
     status,
     priority,
     percentCompleted: resolveImportPercent(rawItem, existing),

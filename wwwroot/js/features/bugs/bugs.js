@@ -20,8 +20,8 @@ import {
   selectTextField,
   userCardCheckListLabelHtml,
   value
-} from "../../components/forms.js?v=20260709-rich-color-label-text";
-import { progressHtml } from "../../components/progress-and-status.js?v=20260707-linked-bug-qa-sync";
+} from "../../components/forms.js?v=20260710-rich-bug-layout";
+import { progressHtml } from "../../components/progress-and-status.js?v=20260710-rich-bug-layout";
 import { sectionHead } from "../../components/sections.js?v=20260701-nav-title-preferences";
 import {
   attachmentEditorFieldHtml,
@@ -33,7 +33,7 @@ import {
   taskPercentField,
   workItemDialogMetaHtml,
   uploadWorkItemAttachments
-} from "../../components/work-items.js?v=20260709-muted-icons-indent";
+} from "../../components/work-items.js?v=20260710-bug-dialog-order";
 import {
   currentUser,
   currentUserId
@@ -74,7 +74,7 @@ import {
   showImportResultDialog,
   sameNumberList,
   workItemSystemColumns
-} from "../../shared/table-export.js?v=20260706-dialog-persistence";
+} from "../../shared/table-export.js?v=20260710-rich-bug-layout";
 import { canEditTask } from "../../shared/permissions.js";
 import {
   projectById,
@@ -97,8 +97,8 @@ import {
   taskDisplayPercent,
   taskCreatedTime,
   taskOrderCompare
-} from "../../shared/work-item-rules.js?v=20260707-linked-bug-qa-sync";
-import { openWorkItemHtmlImport } from "../../shared/work-item-transfer.js?v=20260708-work-item-html-transfer";
+} from "../../shared/work-item-rules.js?v=20260710-rich-bug-layout";
+import { openWorkItemHtmlImport } from "../../shared/work-item-transfer.js?v=20260710-rich-bug-layout";
 
 export function createBugsFeature({
   app,
@@ -468,23 +468,23 @@ export function createBugsFeature({
         ${selectOptionsField("Sprint", "sprintId", bugEditorSprintOptions(projectId), defaultSprintId || "")}
         ${field("Title", "title", bug.title || "", "text")}
         ${selectTextField("Status", "status", getLookupOptions("Status", bug.status || "Todo"), bug.status || "Todo")}
-        ${selectTextField("Priority", "priority", getLookupOptions("Priority", bug.priority || "Medium"), bug.priority || "Medium")}
+        ${selectTextField("Priority", "priority", getLookupOptions("Priority", bug.priority || "Low"), bug.priority || "Low")}
         ${taskPercentField(bug, false)}
         ${selectTextField("Environment", "environment", environments, defaultEnvironment)}
-        ${selectTextField("Severity", "severity", getLookupOptions("Severity", bug.severity || "Major"), bug.severity || "Major")}
+        ${selectTextField("Severity", "severity", getLookupOptions("Severity", bug.severity || "Minor"), bug.severity || "Minor")}
         ${richTextField("descriptionHtml", "Description", bug.descriptionHtml || "")}
+        ${bugEditorUrlField(bug)}
         ${attachmentEditorFieldHtml()}
+        ${field("Start", "startDate", toDateInput(bug.startDate), "date")}
+        ${field("End", "endDate", toDateInput(bug.endDate), "date")}
+        ${richTextField("stepsToReproduceHtml", "Steps to Reproduce", bug.stepsToReproduceHtml || "")}
+        ${richTextField("actualResultHtml", "Actual Result", bug.actualResultHtml || "")}
+        ${richTextField("expectedResultHtml", "Expected Result", bug.expectedResultHtml || "")}
         <div class="bug-assignee-list" data-assignee-list></div>
         <div class="bug-reporter-list">
           ${checkList("Reporters", "reporterIds", state.users, reporterIdsOrDefault(bug.reporterIds, currentUserId), item => item.nickname, { className: "scroll-check-list user-card-check-list", renderItem: userCardCheckListLabelHtml })}
         </div>
-        ${field("Start", "startDate", toDateInput(bug.startDate), "date")}
-        ${field("End", "endDate", toDateInput(bug.endDate), "date")}
-        ${bugEditorUrlField(bug)}
         ${checkList("Dependencies", "dependencyTaskIds", sameProjectTasks, bug.dependencyTaskIds || [], item => `${item.code} ${item.title}`, { className: "scroll-check-list dependency-check-list" })}
-        ${richTextField("stepsToReproduceHtml", "Steps to Reproduce", bug.stepsToReproduceHtml || "")}
-        ${richTextField("actualResultHtml", "Actual Result", bug.actualResultHtml || "")}
-        ${richTextField("expectedResultHtml", "Expected Result", bug.expectedResultHtml || "")}
       </div>
       ${bug.id ? workItemDialogMetaHtml(bug) : ""}
     `, async root => {
@@ -1306,16 +1306,16 @@ export function createBugsFeature({
     });
   }
 
-  function exportBugCsv() {
+  function exportBugCsv(options = {}) {
     const rows = bugExportImportRows();
-    const columns = bugExportImportColumns(rows);
+    const columns = bugExportImportColumns(rows, options);
 
     downloadCsv(exportFileName("pmt-bug-tracking"), columns, rows);
   }
 
-  function exportBugExcel() {
+  function exportBugExcel(options = {}) {
     const rows = bugExportImportRows();
-    const columns = bugExportImportColumns(rows);
+    const columns = bugExportImportColumns(rows, options);
 
     downloadXlsx(exportFileName("pmt-bug-tracking", "xlsx"), "Bug Tracking", columns, rows);
   }
@@ -1324,7 +1324,7 @@ export function createBugsFeature({
     return bugExportRows().map(bug => ({ task: bug }));
   }
 
-  function bugExportImportColumns(rows) {
+  function bugExportImportColumns(rows, options = {}) {
     const headers = {
       reporterHeader: bugRowsHaveMultipleUsers(rows.map(row => row.task), bug => bug.reporters) ? "Reporters" : "Reporter",
       assigneeHeader: bugRowsHaveMultipleUsers(rows.map(row => row.task), bug => bug.assignees) ? "Assignees" : "Assignee"
@@ -1334,12 +1334,12 @@ export function createBugsFeature({
         header: column.header,
         value: row => column.value(row.task)
       })),
-      ...workItemSystemColumns({
+      ...(options.includeMetadata ? workItemSystemColumns({
         nameHeader: "PMT Update Bug Name",
         itemTypeLabel: () => "Bug",
         percentValue: bug => taskDisplayPercent(bug),
         assigneeLabel: bug => userNames(bug.assignees)
-      })
+      }) : [])
     ];
   }
 
@@ -1468,11 +1468,11 @@ export function createBugsFeature({
       sprintId: context.sprintId,
       title: importFirstNonEmptyCell(record, "Bug Name", "PMT Update Bug Name", "PMT Update Item Name").trim() || bug?.title || "Imported Bug Report",
       status,
-      priority: resolveImportLookupValue(importFirstNonEmptyCell(record, "Priority", "PMT Update Priority"), getPriorities(), bug?.priority || "Medium"),
+      priority: resolveImportLookupValue(importFirstNonEmptyCell(record, "Priority", "PMT Update Priority"), getPriorities(), bug?.priority || "Low"),
       percentCompleted: percentForStatus(status, requestedPercent),
       assigneeIds: bugImportAssigneeIds(record, bug, context),
       environment: resolveImportLookupValue(importFirstNonEmptyCell(record, "Environment", "PMT Update Environment"), getEnvironments(), bug?.environment || "SIT"),
-      severity: resolveImportLookupValue(importFirstNonEmptyCell(record, "Severity", "PMT Update Severity"), getSeverities(), bug?.severity || "Major")
+      severity: resolveImportLookupValue(importFirstNonEmptyCell(record, "Severity", "PMT Update Severity"), getSeverities(), bug?.severity || "Minor")
     };
   }
 
@@ -1537,7 +1537,7 @@ export function createBugsFeature({
       actualResultHtml: bug?.actualResultHtml || "",
       expectedResultHtml: bug?.expectedResultHtml || "",
       environment: updates.environment || bug?.environment || "SIT",
-      severity: updates.severity || bug?.severity || "Major",
+      severity: updates.severity || bug?.severity || "Minor",
       status: updates.status,
       priority: updates.priority,
       percentCompleted: updates.percentCompleted,

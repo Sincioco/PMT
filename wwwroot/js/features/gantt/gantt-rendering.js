@@ -1,6 +1,6 @@
 import { avatarsHtml } from "../../components/avatars.js";
 import { buttonContent, funnelIconHtml } from "../../components/buttons.js";
-import { statusColor } from "../../components/progress-and-status.js?v=20260707-linked-bug-qa-sync";
+import { statusColor } from "../../components/progress-and-status.js?v=20260710-export-rich-kanban";
 import { sectionHead } from "../../components/sections.js?v=20260701-nav-title-preferences";
 import {
   groupedTimelineHeader,
@@ -13,11 +13,11 @@ import {
   escapeAttr,
   escapeHtml
 } from "../../shared/text-and-links.js";
-import { taskDisplayPercent } from "../../shared/work-item-rules.js?v=20260707-linked-bug-qa-sync";
+import { taskDisplayPercent } from "../../shared/work-item-rules.js?v=20260710-export-rich-kanban";
 import {
   ganttBugRows,
   ganttDependencyLines
-} from "./gantt-bugs-dependencies.js?v=20260707-linked-bug-qa-sync";
+} from "./gantt-bugs-dependencies.js?v=20260710-export-rich-kanban";
 import {
   ganttEndDate,
   ganttStartDate

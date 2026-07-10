@@ -1,13 +1,14 @@
 import { avatarsHtml } from "../../components/avatars.js";
 import { buttonContent, funnelIconHtml } from "../../components/buttons.js";
 import { checkedFilterValues, filterCheckList } from "../../components/filters.js?v=20260621-task-filter-layout";
-import { progressHtml } from "../../components/progress-and-status.js?v=20260707-linked-bug-qa-sync";
+import { userCardCheckListLabelHtml } from "../../components/forms.js?v=20260710-export-rich-kanban";
+import { progressHtml } from "../../components/progress-and-status.js?v=20260710-export-rich-kanban";
 import { sectionHead } from "../../components/sections.js?v=20260701-nav-title-preferences";
 import {
   bugFixIconHtml,
   createWorkItemTableMode,
   taskButtonsHtml
-} from "../../components/work-items.js?v=20260709-muted-icons-indent";
+} from "../../components/work-items.js?v=20260710-bug-dialog-order";
 import {
   preferenceKeys,
   readBooleanPreference,
@@ -19,6 +20,7 @@ import {
   writePreference
 } from "../../core/preferences.js";
 import { state } from "../../core/store.js";
+import { normalizeSavedArray } from "../../shared/filter-values.js";
 import { canEditTask } from "../../shared/permissions.js";
 import { taskById } from "../../shared/selectors.js";
 import {
@@ -30,8 +32,8 @@ import {
   percentForStatus,
   taskDisplayPercent,
   taskOrderCompare
-} from "../../shared/work-item-rules.js?v=20260707-linked-bug-qa-sync";
-import { createBoardDrag } from "./board-drag.js";
+} from "../../shared/work-item-rules.js?v=20260710-export-rich-kanban";
+import { createBoardDrag } from "./board-drag.js?v=20260710-export-rich-kanban";
 
 const bugIconUrl = "/assets/bug.svg?v=20260629-kanban-gantt-bug-icon";
 
@@ -47,6 +49,7 @@ export function createBoardFeature({
   let boardSprintMode = readPreference(preferenceKeys.boardSprint, "latest");
   let boardSort = readPreference(preferenceKeys.boardSort, "custom");
   let boardHideEmptyColumns = readBooleanPreference(preferenceKeys.boardHideEmptyColumns, true);
+  let boardUserIds = normalizeSavedArray(readJsonPreference(preferenceKeys.boardUsers, []));
   let boardIsActive = false;
   const boardEditMode = createWorkItemTableMode({
     action: "toggle-board-edit-mode",
@@ -87,6 +90,7 @@ export function createBoardFeature({
 
     const visibleTasks = projectSprintTasks
       .filter(task => boardStatuses.includes(task.status))
+      .filter(boardTaskMatchesUserFilter)
       .sort(boardTaskSortCompare);
     const boardColumnStatuses = boardHideEmptyColumns
       ? boardStatuses.filter(status => visibleTasks.some(task => task.status === status))
@@ -231,6 +235,10 @@ export function createBoardFeature({
         </div>
         <div class="filter-stack">
           ${filterCheckList("Columns", "board-status", getStatuses().map(value => ({ value, text: value })), boardStatuses)}
+          ${filterCheckList("Assignees", "board-user", boardUserFilterItems(), boardUserIds, {
+            className: "user-card-check-list",
+            renderItem: userCardCheckListLabelHtml
+          })}
         </div>
       </div>
     `;
@@ -271,7 +279,27 @@ export function createBoardFeature({
       writePreference(preferenceKeys.boardHideEmptyColumns, boardHideEmptyColumns);
       return true;
     }
+    if (filter === "board-user") {
+      boardUserIds = checkedFilterValues("board-user");
+      writeJsonPreference(preferenceKeys.boardUsers, boardUserIds);
+      return true;
+    }
     return false;
+  }
+
+  function boardUserFilterItems() {
+    return state.users.map(user => ({
+      ...user,
+      value: user.id,
+      text: user.nickname
+    }));
+  }
+
+  function boardTaskMatchesUserFilter(task) {
+    if (!boardUserIds.length) return true;
+
+    const selectedIds = new Set(boardUserIds.map(String));
+    return (task.assigneeIds || []).map(String).some(id => selectedIds.has(id));
   }
 
   function hideEmptyBoardColumns() {
@@ -378,12 +406,12 @@ export function createBoardFeature({
 
   function taskCardSubTaskProgressHtml(subTask) {
     const percent = taskDisplayPercent(subTask);
-    const label = [subTask.code, subTask.title].filter(Boolean).join(" - ");
+    const label = [subTask.code || "Sub-task", subTask.title].filter(Boolean).join(" - ");
 
     return `
       <div class="task-card-subtask-progress" title="${escapeAttr(`${label} ${percent}%`)}">
         <div class="task-card-subtask-label">
-          <span>${escapeHtml(subTask.code || "Sub-task")}</span>
+          <span class="task-card-subtask-name">${escapeHtml(label)}</span>
           <span>${percent}%</span>
         </div>
         ${progressHtml(percent)}
@@ -485,6 +513,7 @@ export function createBoardFeature({
       preferenceKeys.boardSort,
       preferenceKeys.boardStatuses,
       preferenceKeys.boardHideEmptyColumns,
+      preferenceKeys.boardUsers,
       preferenceKeys.boardFiltersVisible
     ].forEach(removePreference);
 
@@ -492,6 +521,7 @@ export function createBoardFeature({
     boardSprintMode = "latest";
     boardSort = "custom";
     boardHideEmptyColumns = true;
+    boardUserIds = [];
     boardStatuses = [...getStatuses()];
     boardEditMode.deactivate();
     closeBoardFilterDialogs();

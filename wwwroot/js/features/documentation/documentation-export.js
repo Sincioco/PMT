@@ -1,5 +1,5 @@
 import { createZipBlob } from "../../shared/xlsx.js?v=20260706-documentation-export";
-import { exportFileName } from "../../shared/table-export.js?v=20260706-dialog-persistence";
+import { exportFileName } from "../../shared/table-export.js?v=20260710-export-rich-kanban";
 import { state } from "../../core/store.js";
 import { formatDate } from "../../shared/dates.js";
 import {
@@ -55,6 +55,10 @@ export function openDocumentationExportDialog(blog, { showToast } = {}) {
           ${documentationExportFormatButton("html-zip", "HTML + Image Folder", zipIconHtml(), "secondary")}
           ${documentationExportFormatButton("pdf", "PDF (Print Preview)", pdfIconHtml(), "secondary")}
         </div>
+        <label class="inline-check export-metadata-option">
+          <input type="checkbox" data-documentation-export-include-metadata>
+          <span class="checkbox-label-text">Include PMT Meta Data Info</span>
+        </label>
         <p class="documentation-export-status" data-documentation-export-status hidden></p>
       </div>
       <div class="dialog-actions">
@@ -73,12 +77,15 @@ export function openDocumentationExportDialog(blog, { showToast } = {}) {
     if (!formatButton || formatButton.disabled) return;
 
     const format = formatButton.dataset.documentationExportFormat || "";
+    const options = {
+      includeMetadata: modal.querySelector("[data-documentation-export-include-metadata]")?.checked === true
+    };
     let printWindow = null;
 
     try {
       if (format === "pdf") printWindow = openPrintPreviewWindow(blog);
       setExportDialogBusy(modal, true, "Preparing export...");
-      await exportDocumentation(blog, format, printWindow);
+      await exportDocumentation(blog, format, printWindow, options);
       modal.close();
     } catch (error) {
       const message = error?.message || "Export failed.";
@@ -105,32 +112,32 @@ function documentationExportFormatButton(format, label, icon, tone) {
   `;
 }
 
-async function exportDocumentation(blog, format, printWindow) {
+async function exportDocumentation(blog, format, printWindow, options = {}) {
   if (format === "word") {
-    await downloadWordDocument(blog);
+    await downloadWordDocument(blog, options);
     return;
   }
 
   if (format === "html-inline") {
-    await downloadSelfContainedHtml(blog);
+    await downloadSelfContainedHtml(blog, options);
     return;
   }
 
   if (format === "html-zip") {
-    await downloadHtmlImageZip(blog);
+    await downloadHtmlImageZip(blog, options);
     return;
   }
 
   if (format === "pdf") {
-    await openPdfPrintPreview(blog, printWindow);
+    await openPdfPrintPreview(blog, printWindow, options);
     return;
   }
 
   throw new Error("Unknown export format.");
 }
 
-async function downloadWordDocument(blog) {
-  const parts = await buildDocumentationExportParts(blog, "word");
+async function downloadWordDocument(blog, options = {}) {
+  const parts = await buildDocumentationExportParts(blog, "word", options);
   const html = documentationHtmlDocument(blog, parts, { word: true });
   downloadBlob(
     exportFileName(documentationExportBaseName(blog), "doc"),
@@ -138,8 +145,8 @@ async function downloadWordDocument(blog) {
   );
 }
 
-async function downloadSelfContainedHtml(blog) {
-  const parts = await buildDocumentationExportParts(blog, "inline");
+async function downloadSelfContainedHtml(blog, options = {}) {
+  const parts = await buildDocumentationExportParts(blog, "inline", options);
   const html = documentationHtmlDocument(blog, parts, { imageClick: true });
   downloadBlob(
     exportFileName(documentationExportBaseName(blog), "html"),
@@ -147,8 +154,8 @@ async function downloadSelfContainedHtml(blog) {
   );
 }
 
-async function downloadHtmlImageZip(blog) {
-  const parts = await buildDocumentationExportParts(blog, "folder");
+async function downloadHtmlImageZip(blog, options = {}) {
+  const parts = await buildDocumentationExportParts(blog, "folder", options);
   const baseName = documentationExportBaseName(blog);
   const html = documentationHtmlDocument(blog, parts, { imageClick: true });
   const entries = [
@@ -159,11 +166,11 @@ async function downloadHtmlImageZip(blog) {
   downloadBlob(exportFileName(baseName, "zip"), createZipBlob(entries));
 }
 
-async function openPdfPrintPreview(blog, printWindow) {
+async function openPdfPrintPreview(blog, printWindow, options = {}) {
   if (!printWindow || printWindow.closed) throw new Error("Allow pop-ups to open the PDF print preview.");
 
   writePrintWindowMessage(printWindow, blog.title, "Preparing print preview...");
-  const parts = await buildDocumentationExportParts(blog, "inline");
+  const parts = await buildDocumentationExportParts(blog, "inline", options);
   const html = documentationHtmlDocument(blog, parts, { print: true });
   printWindow.document.open();
   printWindow.document.write(html);
@@ -171,7 +178,7 @@ async function openPdfPrintPreview(blog, printWindow) {
   printWindow.focus();
 }
 
-async function buildDocumentationExportParts(blog, imageMode) {
+async function buildDocumentationExportParts(blog, imageMode, options = {}) {
   const parsed = document.implementation.createHTMLDocument("");
   const body = parsed.createElement("div");
   body.innerHTML = blog.bodyHtml || "";
@@ -191,7 +198,7 @@ async function buildDocumentationExportParts(blog, imageMode) {
     exportedImage.exportPath = `images/${exportedImage.fileName}`;
     images.push(exportedImage);
 
-    image.setAttribute("data-pmt-export-image", exportedImage.id);
+    if (options.includeMetadata) image.setAttribute("data-pmt-export-image", exportedImage.id);
     image.removeAttribute("srcset");
     image.removeAttribute("sizes");
     image.setAttribute("src", imageMode === "folder" ? exportedImage.exportPath : exportedImage.dataUrl);
@@ -202,7 +209,7 @@ async function buildDocumentationExportParts(blog, imageMode) {
     }
   }
 
-  const metadata = documentationImportMetadata(blog, images);
+  const metadata = options.includeMetadata ? documentationImportMetadata(blog, images) : null;
 
   return {
     bodyHtml: body.innerHTML,
@@ -279,9 +286,9 @@ ${documentationExportCss(options)}
       ${parts.bodyHtml || `<p class="muted">No content.</p>`}
     </section>
     ${documentationExportAttachmentsHtml(blog)}
-    ${documentationMetadataSectionHtml(parts.metadata)}
+    ${parts.metadata ? documentationMetadataSectionHtml(parts.metadata) : ""}
   </main>
-  <script type="application/json" id="pmt-import-metadata">${jsonForScript(parts.metadata)}</script>
+  ${parts.metadata ? `<script type="application/json" id="pmt-import-metadata">${jsonForScript(parts.metadata)}</script>` : ""}
   ${options.imageClick ? imageOpenScript() : ""}
   ${options.print ? printPreviewScript() : ""}
 </body>

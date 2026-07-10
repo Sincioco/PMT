@@ -1,0 +1,38 @@
+Project Management Tool (PMT):  Day 21 of Codex Agentic AI Coding
+-----------------------------------------------------------------
+Total Dev Time in Hours:  30
+
+For all of this conversation / session, I will perform all the manual tests and compile the application manually.  Perform only the coding changes required and nothing else.  If making CSS / image changes, ensure that I will encounter no caching issue when testing in the browser.  Be sure to inform me if I have to recompile the .Net portion of the project or just Press Ctrl + F5 on the browser to reload to see the latest changes.
+
+If making changes to the database, that affects existing users see database-versioning.md under the docs folder.
+
+
+1.) In Documentation, in the Filter Dialog box, can you add an option in the Sort dropdown to sort by "Name (Alphabetically)".
+
+2.) Universally in all the Export dialog boxes, have a checkbox that toggles on/off the PMT Meta Data Info if that would be or could be included in the export.  By default have it checked off (turned off) so that PMT Meata Data Info is not included.
+
+3.) In the Rich Text Editor, add button that inserts a horizontal divider (basically a <hr> tag) into where the cursor is.
+
+4.) In the Kanban Board, when a Task has sub tasks it is currently rendering the sub tasks' ID/Number on top of the sub-tasks' progress bar.  Append a label after that and also include the Title of each of the sub-tasks.
+
+5.) In the Kanban Board's Filter Dialog box, add a section so you can filter by user.  Refer to the Dev Tasks' Filter Dialog box so you can see how I want users rendered.
+
+6.) In the Kanban Board, when it is in edit mode and a user is dragging a card from one column to another, on his Edge browser on Windows 11, after he drops the card into a new column, it seems to automatically fire a click event and the card's read-only dialog box pops-up.  This does not happen in Chrome, but happens (it seems) on Edge.  Can you double-check the logic for the drag and drop of the Kanban board's card and investigate why it might or would behave differently on Edge?
+
+7.) In the Kanban board, when a user dragged a task/card to the QA Passed column, it moved it but it did not set the completion to 100%
+
+8.) If any of the sub tasks' status changes and is not "Backlog" or "Todo", do not leave the Parent Task cannot be in a "Todo" state.  At a minimum it should be "In Progress".  A user reports that his sub-task is at 40% but the main task's status was still set to "To do".
+
+9.) When creating a new bug report, default the priority to Low and the severity to Minor.
+
+10.) In all the Rich Text Editor's toolbar, add a toggle to so the user can minimize the toolbar if they don't use it.  If a dialog has multiple Rich Text Editor toolbar, put a button on the top of the dialog (on the upper-right in the area where the close/maximize buttons are) that will allow the user to collapse all the Rich Text Editor's toolbar in the entire dialog box.
+
+11.) Referring to #10, if the user clicks the expand all/collapse all for the Rich Text Editor's toolbar for that dialog, remove the button that you added that allows the user to expand each toolbar individually.  The users do not want any vertical space taken up by the toolbar in some cases.
+
+12.) In the Bug Report New/Edit/Read dialog box, move the Dependency section at the bottom.  And above the Dependency move the Reporter section.
+
+13.) When the user collapses/expands all of the RTE on the dialog box, remember that as their preferred setting.  Save it in LocalStorage.
+
+14.) In the Bug Report New/Edit/Read dialog box, move the Assignees just above the Reporter section.
+
+15.) In the Bug Report New/Edit/Read dialog box, move the URL just above the Attachments.
