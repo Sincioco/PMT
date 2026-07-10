@@ -38,7 +38,7 @@ import {
 } from "./core/screen-registry.js?v=20260707-log-about-nav";
 import { state } from "./core/store.js";
 import { appUrl } from "./shared/app-urls.js";
-import { createAboutFeature } from "./features/about/about.js?v=20260621-about-credits";
+import { createAboutFeature } from "./features/about/about.js?v=20260710-about-logo-png";
 import { createBacklogFeature } from "./features/backlog/backlog.js?v=20260709-muted-icons-indent";
 import { createBoardFeature } from "./features/board/board.js?v=20260709-muted-icons-indent";
 import { createBugsFeature } from "./features/bugs/bugs.js?v=20260709-rich-color-label-text";
