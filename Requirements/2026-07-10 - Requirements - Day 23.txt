@@ -78,3 +78,5 @@ If making changes to the database, that affects existing users see database-vers
 39.) On the RTE toolbar, swap the Indent and Unindent positions.
 40.) In the RTE in edit mode, if the cursor in a table and the cursor is at the last position in the cell (it could be the first position if the cell is empty) and they hit tab, it should go to the next column.  Keep the logic in #37.
 41.) Let's update the table tab rule so that if the user hits the tab key in a cell and the cursor is either in the first or last position in the cell, go to the next cell.
+
+42.) In the RTE when in Edit mode, if you click an image, let Select be the first Image Actions.
