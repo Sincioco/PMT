@@ -159,12 +159,12 @@
 
 .sprint-members .avatar-stack {
   min-height: 60px;
+  --avatar-overlap: -15px;
 }
 
 .sprint-members .avatar {
   width: 60px;
   height: 60px;
-  margin-left: -15px;
 }
 
 .sprint-actions {

@@ -1,4 +1,4 @@
-import { avatarsHtml } from "../../components/avatars.js";
+import { avatarsHtml, syncAvatarStackFit } from "../../components/avatars.js?v=20260710-nav-avatar-fit";
 import { buttonContent, iconButton } from "../../components/buttons.js";
 import { VisualCharts } from "../../components/charts.js?v=20260628-chart-native-tooltips";
 import {
@@ -8,7 +8,7 @@ import {
   nullableDateValue,
   userCardCheckListLabelHtml,
   value
-} from "../../components/forms.js?v=20260710-export-rich-kanban";
+} from "../../components/forms.js?v=20260710-rte-table-percent-kanban";
 import {
   projectOverallProgressHtml,
   projectStatusCounts,
@@ -43,6 +43,7 @@ export function createProjectsFeature({
       ${sectionHead("Projects", `<button class="primary text-icon-button" type="button" data-action="new-project">${buttonContent("&#10010;", "New Project")}</button>`)}
       <div class="grid projects-grid">${state.projects.map(projectCardHtml).join("")}</div>
     `;
+    syncAvatarStackFit(app);
   }
 
   function projectCardHtml(project, options = {}) {
@@ -69,7 +70,7 @@ export function createProjectsFeature({
         ${projectOverallProgressHtml(project)}
         ${isCollapsed || !showStatusDonut ? "" : projectStatusDonutHtml(project)}
         ${isCollapsed ? "" : projectStatusMetricsHtml(project, statusMetricOptions)}
-        <div class="row project-members">${avatarsHtml(project.members)}</div>
+        <div class="row project-members">${avatarsHtml(project.members, { fit: "auto" })}</div>
         <div class="toolbar reveal-actions project-actions">
           ${iconButton("delete-project", project.id, "Delete", "delete", canEditOwner(project.createdByUserId), "danger")}
           ${iconButton("view-project-gantt", project.id, "Gantt", "gantt", true)}

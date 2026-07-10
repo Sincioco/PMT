@@ -1,4 +1,4 @@
-import { avatarsHtml } from "../../components/avatars.js";
+import { avatarsHtml, syncAvatarStackFit } from "../../components/avatars.js?v=20260710-nav-avatar-fit";
 import { buttonContent, iconButton } from "../../components/buttons.js";
 import { VisualCharts } from "../../components/charts.js?v=20260628-chart-native-tooltips";
 import { askFinishSprintOptions } from "../../components/dialogs.js";
@@ -13,7 +13,7 @@ import {
   selectField,
   userCardCheckListLabelHtml,
   value
-} from "../../components/forms.js?v=20260710-export-rich-kanban";
+} from "../../components/forms.js?v=20260710-rte-table-percent-kanban";
 import {
   sprintOverallProgressHtml,
   sprintStatusMetricsHtml,
@@ -81,6 +81,7 @@ export function createSprintsFeature({
         ${visibleSprints.map(sprintCardHtml).join("") || `<div class="empty">No Sprints for this project.</div>`}
       </div>
     `;
+    syncAvatarStackFit(app);
   }
 
   function sprintCardHtml(sprint) {
@@ -107,7 +108,7 @@ export function createSprintsFeature({
         ${sprintOverallProgressHtml(sprint)}
         ${isCollapsed ? "" : sprintStatusDonutHtml(sprint)}
         ${isCollapsed ? "" : sprintStatusMetricsHtml(sprint, { showTotal: false })}
-        <div class="row sprint-members">${avatarsHtml(sprint.developers)}</div>
+        <div class="row sprint-members">${avatarsHtml(sprint.developers, { fit: "auto" })}</div>
         <div class="toolbar reveal-actions sprint-actions">
           ${iconButton("delete-sprint", sprint.id, "Delete", "delete", canEditOwner(sprint.createdByUserId), "danger")}
           ${iconButton("finish-sprint", sprint.id, "Finish", "finish", canEditOwner(sprint.createdByUserId) && !sprint.isFinished)}

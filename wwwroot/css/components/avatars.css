@@ -20,6 +20,26 @@
   margin-left: 0;
 }
 
+.avatar-stack[data-avatar-fit="auto"] {
+  width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  gap: var(--space-2);
+}
+
+.avatar-stack[data-avatar-fit="auto"] .avatar {
+  flex: 0 0 auto;
+  margin-left: 0;
+}
+
+.avatar-stack[data-avatar-fit="auto"].is-overlapping {
+  gap: 0;
+}
+
+.avatar-stack[data-avatar-fit="auto"].is-overlapping .avatar:not(:first-child) {
+  margin-left: var(--avatar-overlap, -7px);
+}
+
 .row-avatar-stack {
   display: flex;
   align-items: center;

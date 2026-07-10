@@ -14,7 +14,7 @@ import {
   richValue,
   selectOptionsField,
   value
-} from "../../components/forms.js?v=20260710-export-rich-kanban";
+} from "../../components/forms.js?v=20260710-rte-table-percent-kanban";
 import { sectionHead } from "../../components/sections.js?v=20260701-nav-title-preferences";
 import {
   preferenceKeys,
@@ -461,7 +461,7 @@ export function createDocumentationFeature({
           ${detailField("Created", escapeHtml(formatDate(blog.createdAt)), false, "documentation-readonly-meta-field")}
           ${documentationWasEdited(blog) ? detailField("Last Edited", escapeHtml(formatDate(blog.updatedAt)), false, "documentation-readonly-meta-field") : ""}
           ${detailField("Author", escapeHtml(author?.nickname || "User"), false, "documentation-readonly-meta-field")}
-          ${detailField("Body", `<div class="rich-readonly documentation-image-open-area">${blog.bodyHtml || ""}</div>`, true)}
+          ${detailField("Body", `<div class="rich-readonly documentation-image-open-area" ${documentationRichPersistAttrs(blog)}>${blog.bodyHtml || ""}</div>`, true)}
           ${blog.attachments.length ? detailField("Attachments", attachmentsHtml(blog.attachments), true) : ""}
         </div>
       </div>
@@ -1671,7 +1671,7 @@ function documentationTreePreviewHtml(blog) {
         ${iconButton("edit-blog", blog.id, "Edit", "edit", canEditOwner(blog.createdByUserId))}
       </div>
     </div>
-    <div class="rich-readonly documentation-tree-preview-body documentation-image-open-area">${blog.bodyHtml || ""}</div>
+    <div class="rich-readonly documentation-tree-preview-body documentation-image-open-area" ${documentationRichPersistAttrs(blog)}>${blog.bodyHtml || ""}</div>
     ${blog.attachments.length ? `<div class="documentation-attachments">${blog.attachments.map(file => `<a href="${escapeAttr(file.url)}">${escapeHtml(file.fileName)}</a>`).join("")}</div>` : ""}
   `;
 }
@@ -1755,7 +1755,7 @@ function documentationCardHtml(blog) {
         </div>
         ${wasEdited ? documentationEditedMetaHtml(blog) : documentationCreatedMetaHtml(blog)}
       </div>
-      <div class="rich-readonly documentation-card-body">${blog.bodyHtml}</div>
+      <div class="rich-readonly documentation-card-body" ${documentationRichPersistAttrs(blog)}>${blog.bodyHtml}</div>
       ${blog.attachments.length ? `<div class="documentation-attachments">${blog.attachments.map(file => `<a href="${escapeAttr(file.url)}">${escapeHtml(file.fileName)}</a>`).join("")}</div>` : ""}
       <div class="documentation-card-bottom ${wasEdited ? "" : "has-top-created-meta"}">
         ${wasEdited ? documentationCreatedMetaHtml(blog) : ""}
@@ -1769,6 +1769,14 @@ function documentationCardHtml(blog) {
       </button>
     </article>
   `;
+}
+
+function documentationRichPersistAttrs(blog) {
+  return [
+    `data-rich-persist-type="blog"`,
+    `data-rich-persist-id="${escapeAttr(blog.id)}"`,
+    `data-rich-persist-field="bodyHtml"`
+  ].join(" ");
 }
 
 function documentationCardIndicatorsHtml(blog) {

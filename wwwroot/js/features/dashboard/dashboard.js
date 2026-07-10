@@ -1,3 +1,4 @@
+import { syncAvatarStackFit } from "../../components/avatars.js?v=20260710-nav-avatar-fit";
 import { buttonContent } from "../../components/buttons.js";
 import {
   completionColor,
@@ -49,6 +50,7 @@ export function createDashboardFeature({
         ${state.projects.map(project => dashboardProjectHtml(project)).join("")}
       </div>
     `;
+    syncAvatarStackFit(app);
   }
 
   async function handleAction(action, id) {

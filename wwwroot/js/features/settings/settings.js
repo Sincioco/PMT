@@ -6,7 +6,7 @@ import {
   numberValue,
   selectTextField,
   value
-} from "../../components/forms.js?v=20260710-export-rich-kanban";
+} from "../../components/forms.js?v=20260710-rte-table-percent-kanban";
 import {
   defaultStatusColor,
   statusColor
@@ -22,7 +22,7 @@ import {
   readNavigationConfig,
   resetNavigationConfig,
   writeNavigationConfig
-} from "../../core/navigation-preferences.js?v=20260707-log-about-nav";
+} from "../../core/navigation-preferences.js?v=20260710-nav-avatar-fit";
 import {
   clearPmtPreferences,
   preferenceKeys,

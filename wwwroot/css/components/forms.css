@@ -306,6 +306,15 @@ input[type="checkbox"] {
   min-width: 0;
 }
 
+.rich-table-tools {
+  padding-top: var(--space-2);
+  border-top: var(--border-width) solid var(--color-border-subtle);
+}
+
+.rich-table-tools[hidden] {
+  display: none;
+}
+
 .rich-tools.is-collapsed {
   display: inline-grid;
   width: max-content;
@@ -540,12 +549,14 @@ html[data-theme] .rich-color-palette .rich-color-label-text {
 
 .rich-color-theme-grid,
 .rich-color-standard-grid,
+.rich-color-last-grid,
 .rich-color-custom-grid {
   display: grid;
   grid-template-columns: repeat(10, 22px);
   gap: var(--space-1);
 }
 
+.rich-color-last-grid[hidden],
 .rich-color-custom-grid[hidden] {
   display: none;
 }
@@ -655,6 +666,73 @@ html[data-theme] .rich-color-palette button.rich-color-custom {
   margin: var(--space-5) 0;
   border: 0;
   border-top: var(--border-width) solid var(--color-border-strong);
+}
+
+.rich-editor table,
+.rich-readonly table,
+.log-content table,
+.scrum-content table {
+  width: 100%;
+  margin: var(--space-5) 0;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.rich-editor th,
+.rich-editor td,
+.rich-readonly th,
+.rich-readonly td,
+.log-content th,
+.log-content td,
+.scrum-content th,
+.scrum-content td {
+  min-width: 96px;
+  padding: var(--space-3);
+  border: var(--border-width) solid var(--color-border-strong);
+  vertical-align: top;
+}
+
+.rich-editor th,
+.rich-readonly th,
+.log-content th,
+.scrum-content th {
+  background: var(--color-surface-subtle);
+  font-weight: var(--font-weight-bold);
+}
+
+.rich-editor td:focus,
+.rich-editor th:focus {
+  outline: var(--border-width-strong) solid var(--color-focus-ring);
+  outline-offset: -2px;
+}
+
+.rich-check-item {
+  display: flex;
+  gap: var(--space-2);
+  align-items: flex-start;
+  margin: 0 0 var(--space-3);
+}
+
+.rich-check-item input[type="checkbox"] {
+  flex: 0 0 auto;
+  margin-top: .2em;
+}
+
+.rich-editor .rich-check-item {
+  cursor: text;
+}
+
+.rich-editor input[type="checkbox"],
+.rich-readonly input[type="checkbox"],
+.log-content input[type="checkbox"],
+.scrum-content input[type="checkbox"] {
+  cursor: pointer;
+}
+
+.rich-readonly .rich-check-item,
+.log-content .rich-check-item,
+.scrum-content .rich-check-item {
+  cursor: pointer;
 }
 
 .rich-code-block {

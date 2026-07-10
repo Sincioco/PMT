@@ -12,9 +12,9 @@ import {
   selectOptionsField,
   userCardCheckListLabelHtml,
   value
-} from "../../components/forms.js?v=20260710-export-rich-kanban";
+} from "../../components/forms.js?v=20260710-rte-table-percent-kanban";
 import { sectionHead } from "../../components/sections.js?v=20260701-nav-title-preferences";
-import { createWorkItemTableMode } from "../../components/work-items.js?v=20260710-bug-dialog-order";
+import { createWorkItemTableMode } from "../../components/work-items.js?v=20260710-rte-checkbox-persist";
 import { currentUser } from "../../core/authentication.js";
 import {
   preferenceKeys,
@@ -231,7 +231,7 @@ export function createScrumFeature({
         width: 420,
         rubberMinWidth: 260,
         defaultVisible: true,
-        cellHtml: log => `<div class="scrum-content">${log.bodyHtml}</div>`
+        cellHtml: log => `<div class="scrum-content" ${devLogRichPersistAttrs(log)}>${log.bodyHtml}</div>`
       },
       {
         key: "flag",
@@ -1342,7 +1342,7 @@ export function createScrumFeature({
         ` : ""}
         <div class="detail-field full">
           <span>Scrum</span>
-          <div class="scrum-content">${log.bodyHtml}</div>
+          <div class="scrum-content" ${devLogRichPersistAttrs(log)}>${log.bodyHtml}</div>
         </div>
       </div>
     `);
@@ -1354,6 +1354,14 @@ export function createScrumFeature({
 
     viewDevLog(log);
     return true;
+  }
+
+  function devLogRichPersistAttrs(log) {
+    return [
+      `data-rich-persist-type="devLog"`,
+      `data-rich-persist-id="${escapeAttr(log.id)}"`,
+      `data-rich-persist-field="bodyHtml"`
+    ].join(" ");
   }
 
   async function duplicateDevLog(id) {

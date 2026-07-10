@@ -1,5 +1,6 @@
 import { api } from "./core/api.js";
-import { avatarsHtml, taskRowAvatarsHtml } from "./components/avatars.js?v=20260709-task-assignee-blank";
+import { currentUserId } from "./core/authentication.js";
+import { avatarsHtml, taskRowAvatarsHtml } from "./components/avatars.js?v=20260710-nav-avatar-fit";
 import { buttonContent } from "./components/buttons.js";
 import {
   askForText,
@@ -14,14 +15,14 @@ import {
 import {
   field,
   value
-} from "./components/forms.js?v=20260710-rich-bug-layout";
+} from "./components/forms.js?v=20260710-rte-table-percent-kanban";
 import { configureProgressAndStatus } from "./components/progress-and-status.js?v=20260710-rich-bug-layout";
 import {
   bindAttachmentPreview,
   showTaskAudit,
   viewWorkItem
-} from "./components/work-items.js?v=20260710-bug-dialog-order";
-import { createApplicationShell } from "./core/application-shell.js?v=20260707-deep-links";
+} from "./components/work-items.js?v=20260710-rte-checkbox-persist";
+import { createApplicationShell } from "./core/application-shell.js?v=20260710-nav-avatar-fit";
 import {
   currentView,
   ensureCurrentViewRoute,
@@ -45,21 +46,21 @@ import { state } from "./core/store.js";
 import { appUrl } from "./shared/app-urls.js";
 import { createAboutFeature } from "./features/about/about.js?v=20260710-about-logo-png";
 import { createBacklogFeature } from "./features/backlog/backlog.js?v=20260710-rich-bug-layout";
-import { createBoardFeature } from "./features/board/board.js?v=20260710-rich-bug-layout";
+import { createBoardFeature } from "./features/board/board.js?v=20260710-rte-table-percent-kanban";
 import { createBugsFeature } from "./features/bugs/bugs.js?v=20260710-bug-dialog-order";
-import { createDashboardFeature } from "./features/dashboard/dashboard.js?v=20260710-rich-bug-layout";
-import { createDocumentationFeature } from "./features/documentation/documentation.js?v=20260710-rich-bug-layout";
+import { createDashboardFeature } from "./features/dashboard/dashboard.js?v=20260710-nav-avatar-fit";
+import { createDocumentationFeature } from "./features/documentation/documentation.js?v=20260710-rte-checkbox-persist";
 import {
   createGanttFeature,
   currentSprintForProject,
   ganttStartDate
 } from "./features/gantt/gantt.js?v=20260707-deep-links";
-import { createProjectsFeature } from "./features/projects/projects.js?v=20260710-rich-bug-layout";
+import { createProjectsFeature } from "./features/projects/projects.js?v=20260710-nav-avatar-fit";
 import { createRoadMapFeature } from "./features/roadmap/roadmap.js?v=20260710-rich-bug-layout";
-import { createLogFeature } from "./features/personal-log/log.js?v=20260710-rich-bug-layout";
-import { createScrumFeature } from "./features/scrum/scrum.js?v=20260710-rich-bug-layout";
-import { createSettingsFeature } from "./features/settings/settings.js?v=20260710-rich-bug-layout";
-import { createSprintsFeature } from "./features/sprints/sprints.js?v=20260710-rich-bug-layout";
+import { createLogFeature } from "./features/personal-log/log.js?v=20260710-rte-checkbox-persist";
+import { createScrumFeature } from "./features/scrum/scrum.js?v=20260710-rte-checkbox-persist";
+import { createSettingsFeature } from "./features/settings/settings.js?v=20260710-nav-avatar-fit";
+import { createSprintsFeature } from "./features/sprints/sprints.js?v=20260710-nav-avatar-fit";
 import { createTasksFeature } from "./features/tasks/tasks.js?v=20260710-rich-bug-layout";
 import { createWfhScheduleFeature } from "./features/wfh-schedule/wfh-schedule.js?v=20260709-wfh-undo-large-days";
 import {
@@ -69,7 +70,7 @@ import {
   fallbackSeverities,
   fallbackStatuses
 } from "./shared/constants.js";
-import { formatDate } from "./shared/dates.js";
+import { formatDate, toDateInput } from "./shared/dates.js";
 import { canEditTask } from "./shared/permissions.js";
 import {
   projectCode,
@@ -103,6 +104,7 @@ const nativePickerSelector = [
 ].join(",");
 
 initializeDraggableDialogs();
+bindGlobalRichCheckboxSync();
 
 const richTextFormats = {
   title: { tag: "H1", className: "rich-title" },
@@ -112,7 +114,12 @@ const richTextFormats = {
   body: { tag: "P", className: "" }
 };
 const richCustomColorStorageKey = "pmt-rich-custom-colors";
+const richLastColorStorageKey = "pmt-rich-last-colors";
+const richLastColorCommandStoragePrefix = "pmt-rich-last-color-";
 const richCustomColorLimit = 10;
+const richTableMaxSize = 10;
+const richReadonlyCheckboxSaveDelayMs = 350;
+const richReadonlyCheckboxSaveTimers = new WeakMap();
 
 function syncNativePickerTheme(control) {
   if (!(control instanceof HTMLElement)) return;
@@ -573,6 +580,7 @@ async function handleActionClick(event) {
 
   if (event.target.closest("[data-drag-handle]")) return;
   if (event.target.closest("a")) return;
+  if (event.target.closest(".rich-readonly .rich-check-item, .log-content .rich-check-item, .scrum-content .rich-check-item")) return;
 
   const button = event.target.closest("[data-action]");
   if (!button) return;
@@ -1772,6 +1780,23 @@ function bindRichTextButtons(root) {
         return;
       }
 
+      if (command === "insertRichTable") {
+        const size = await askRichTableSize();
+        if (!size) return;
+
+        editor.focus();
+        restoreEditorSelection(savedSelection);
+        document.execCommand("insertHTML", false, richTableHtml(size.rows, size.columns));
+        syncRichTableToolbars();
+        return;
+      }
+
+      if (command === "insertCheckbox") {
+        document.execCommand("insertHTML", false, richCheckboxHtml());
+        bindRichCheckboxes(editor);
+        return;
+      }
+
       document.execCommand(command, false, null);
 
       // Chrome/Chromium can ignore insertUnorderedList in an empty editor. This gives
@@ -1848,6 +1873,21 @@ function bindRichTextButtons(root) {
     });
   });
 
+  root.querySelectorAll("[data-rich-table-command]").forEach(button => {
+    button.addEventListener("mousedown", event => event.preventDefault());
+    button.addEventListener("click", async event => {
+      event.preventDefault();
+
+      const editor = richEditorForControl(button);
+      if (!editor) return;
+
+      editor.focus();
+      const handled = await applyRichTableCommand(editor, button.dataset.richTableCommand);
+      if (!handled) showToast("Place the cursor inside a table first.");
+      syncRichTableToolbars();
+    });
+  });
+
   const richColorTools = [...root.querySelectorAll(".rich-color-tool")];
   richColorTools.forEach(tool => {
     const trigger = tool.querySelector("[data-rich-color-command]");
@@ -1858,7 +1898,7 @@ function bindRichTextButtons(root) {
     const defaultColor = trigger.dataset.richColorDefault || "#111827";
     const command = trigger.dataset.richColorCommand || "foreColor";
     const syncColorSwatch = color => {
-      const nextColor = color || defaultColor;
+      const nextColor = normalizeRichCustomColor(color) || defaultColor;
       tool.style.setProperty("--rich-selected-color", nextColor);
       trigger.dataset.richSelectedColor = nextColor;
     };
@@ -1866,14 +1906,17 @@ function bindRichTextButtons(root) {
       const editor = richEditorForControl(trigger);
       if (!editor || !color) return;
 
-      syncColorSwatch(color);
+      const nextColor = normalizeRichCustomColor(color) || defaultColor;
+      syncColorSwatch(nextColor);
       editor.focus();
       restoreEditorSelection(savedSelection || saveEditorSelection(editor));
-      applyRichColorCommand(command, color);
+      applyRichColorCommand(command, nextColor, editor);
+      rememberRichLastColor(command, nextColor);
+      renderRichColorMemoryPalettes(root);
       closeRichColorTool(tool);
       savedSelection = null;
     };
-    syncColorSwatch(defaultColor);
+    syncColorSwatch(readRichLastColor(command, defaultColor));
 
     trigger.addEventListener("mousedown", event => {
       event.preventDefault();
@@ -1883,12 +1926,17 @@ function bindRichTextButtons(root) {
 
     trigger.addEventListener("click", event => {
       event.preventDefault();
+      if (richColorTriggerApplyHalf(event, trigger)) {
+        applyColor(readRichLastColor(command, trigger.dataset.richSelectedColor || defaultColor));
+        return;
+      }
+
       const shouldOpen = !tool.classList.contains("is-open");
       closeRichColorPalettes(root);
       if (shouldOpen) openRichColorTool(tool);
     });
 
-    renderRichCustomColorPalettes(root);
+    renderRichColorMemoryPalettes(root);
 
     palette.addEventListener("mousedown", event => {
       if (event.target.closest("[data-rich-color-value], [data-rich-color-custom]")) event.preventDefault();
@@ -1921,7 +1969,7 @@ function bindRichTextButtons(root) {
       }
 
       rememberRichCustomColor(normalizedColor);
-      renderRichCustomColorPalettes(root);
+      renderRichColorMemoryPalettes(root);
       applyColor(normalizedColor);
     });
   });
@@ -1941,6 +1989,9 @@ function bindRichTextButtons(root) {
   }
 
   root.querySelectorAll(".rich-editor").forEach(editor => {
+    bindRichCheckboxes(editor);
+    bindRichTableSelectionTracking(editor);
+
     editor.addEventListener("paste", async event => {
       const imageItems = [...(event.clipboardData?.items || [])].filter(item => item.type.startsWith("image/"));
       if (!imageItems.length) return;
@@ -1956,6 +2007,681 @@ function bindRichTextButtons(root) {
         document.execCommand("insertHTML", false, `<img src="${escapeAttr(appUrl(upload.url))}" alt="${escapeAttr(upload.fileName)}">`);
       }
     });
+  });
+
+  bindRichCheckboxes(root);
+  bindGlobalRichCheckboxSync();
+}
+
+function richTableHtml(rows, columns) {
+  const safeRows = clampNumber(Number(rows || 0), 1, richTableMaxSize);
+  const safeColumns = clampNumber(Number(columns || 0), 1, richTableMaxSize);
+  const cells = Array.from({ length: safeColumns }, () => `<td><p><br></p></td>`).join("");
+  const bodyRows = Array.from({ length: safeRows }, () => `<tr>${cells}</tr>`).join("");
+
+  return `<table class="rich-table"><tbody>${bodyRows}</tbody></table><p><br></p>`;
+}
+
+function richCheckboxHtml() {
+  return `<label class="rich-check-item"><input type="checkbox"> <span>Checkbox item</span></label><p><br></p>`;
+}
+
+function bindRichCheckboxes(root) {
+  root.querySelectorAll(".rich-editor input[type='checkbox'], .rich-readonly input[type='checkbox'], .log-content input[type='checkbox'], .scrum-content input[type='checkbox']").forEach(syncRichCheckboxAttribute);
+}
+
+function bindGlobalRichCheckboxSync() {
+  if (document.body.dataset.richCheckboxSyncBound === "true") return;
+
+  document.body.dataset.richCheckboxSyncBound = "true";
+  document.addEventListener("click", event => {
+    const checkItem = event.target.closest?.(".rich-editor .rich-check-item");
+    if (!checkItem || event.target.closest?.("input[type='checkbox']")) return;
+
+    event.preventDefault();
+    placeRichCheckboxCaret(checkItem, event);
+  }, true);
+  document.addEventListener("change", event => {
+    const checkbox = event.target.closest?.(".rich-editor input[type='checkbox'], .rich-readonly input[type='checkbox'], .log-content input[type='checkbox'], .scrum-content input[type='checkbox']");
+    if (!checkbox) return;
+
+    syncRichCheckboxAttribute(checkbox);
+    if (!checkbox.closest(".rich-editor")) scheduleRichReadonlyCheckboxPersist(checkbox);
+  });
+}
+
+function syncRichCheckboxAttribute(checkbox) {
+  if (checkbox.checked) {
+    checkbox.setAttribute("checked", "checked");
+  } else {
+    checkbox.removeAttribute("checked");
+  }
+}
+
+function scheduleRichReadonlyCheckboxPersist(checkbox) {
+  const container = checkbox.closest("[data-rich-persist-type][data-rich-persist-id][data-rich-persist-field]");
+  if (!container) return;
+
+  const existingTimer = richReadonlyCheckboxSaveTimers.get(container);
+  if (existingTimer) clearTimeout(existingTimer);
+
+  container.dataset.richCheckboxSaveState = "pending";
+  const timer = setTimeout(() => {
+    richReadonlyCheckboxSaveTimers.delete(container);
+    persistRichReadonlyCheckboxContainer(container);
+  }, richReadonlyCheckboxSaveDelayMs);
+  richReadonlyCheckboxSaveTimers.set(container, timer);
+}
+
+async function persistRichReadonlyCheckboxContainer(container) {
+  const bodyHtml = container.innerHTML;
+  const previousHtml = richReadonlyPersistedHtml(container);
+  const request = richReadonlyCheckboxSaveRequest(container, bodyHtml);
+  if (!request) return;
+
+  container.dataset.richCheckboxSaveState = "saving";
+  try {
+    await saveJson(request.path, "PUT", request.payload);
+    updateRichReadonlyPersistedState(container, bodyHtml);
+    syncMatchingRichReadonlyContainers(container, bodyHtml);
+    delete container.dataset.richCheckboxSaveState;
+    showToast("Checkbox saved.");
+  } catch (error) {
+    container.dataset.richCheckboxSaveState = "error";
+    if (previousHtml !== null) {
+      container.innerHTML = previousHtml;
+      bindRichCheckboxes(container);
+    }
+    showToast(error.message || "Checkbox could not be saved.");
+  }
+}
+
+function richReadonlyPersistedHtml(container) {
+  const record = richReadonlyPersistedRecord(container);
+  const field = container.dataset.richPersistField || "";
+  if (!record || !field || !Object.prototype.hasOwnProperty.call(record, field)) return null;
+
+  return record[field] || "";
+}
+
+function richReadonlyPersistedRecord(container) {
+  const type = container.dataset.richPersistType;
+  const id = Number(container.dataset.richPersistId || 0);
+  if (!id) return null;
+
+  if (type === "blog") return state.blogs.find(item => item.id === id) || null;
+  if (type === "devLog") return state.devLogs.find(item => item.id === id) || null;
+  if (type === "workItem") return state.tasks.find(item => item.id === id) || null;
+  return null;
+}
+
+function updateRichReadonlyPersistedState(container, bodyHtml) {
+  const record = richReadonlyPersistedRecord(container);
+  const field = container.dataset.richPersistField || "";
+  if (!record || !field || !Object.prototype.hasOwnProperty.call(record, field)) return;
+
+  record[field] = bodyHtml;
+  record.updatedAt = new Date().toISOString();
+  if (Object.prototype.hasOwnProperty.call(record, "updatedByUserId")) {
+    record.updatedByUserId = currentUserId || record.updatedByUserId || record.createdByUserId || null;
+  }
+
+  if (container.dataset.richPersistType === "workItem") {
+    syncNestedWorkItemRichState(record.id, field, bodyHtml);
+  }
+}
+
+function syncNestedWorkItemRichState(taskId, field, bodyHtml) {
+  state.tasks.forEach(task => {
+    const subTask = (task.subTasks || []).find(item => item.id === taskId);
+    if (!subTask || !Object.prototype.hasOwnProperty.call(subTask, field)) return;
+
+    subTask[field] = bodyHtml;
+    subTask.updatedAt = new Date().toISOString();
+    subTask.updatedByUserId = currentUserId || subTask.updatedByUserId || subTask.createdByUserId || null;
+  });
+}
+
+function syncMatchingRichReadonlyContainers(sourceContainer, bodyHtml) {
+  const { richPersistType: type, richPersistId: id, richPersistField: field } = sourceContainer.dataset;
+  document.querySelectorAll("[data-rich-persist-type][data-rich-persist-id][data-rich-persist-field]").forEach(container => {
+    if (container === sourceContainer) return;
+    if (container.dataset.richPersistType !== type || container.dataset.richPersistId !== id || container.dataset.richPersistField !== field) return;
+    if (container.dataset.richCheckboxSaveState === "pending" || container.dataset.richCheckboxSaveState === "saving") return;
+
+    container.innerHTML = bodyHtml;
+    bindRichCheckboxes(container);
+  });
+}
+
+function richReadonlyCheckboxSaveRequest(container, bodyHtml) {
+  const type = container.dataset.richPersistType;
+  const id = Number(container.dataset.richPersistId || 0);
+  const field = container.dataset.richPersistField || "";
+  if (!id || !field) return null;
+
+  if (type === "blog") return blogRichReadonlySaveRequest(id, field, bodyHtml);
+  if (type === "devLog") return devLogRichReadonlySaveRequest(id, field, bodyHtml);
+  if (type === "workItem") return workItemRichReadonlySaveRequest(id, field, bodyHtml, container.dataset.richPersistApiRoot);
+  return null;
+}
+
+function blogRichReadonlySaveRequest(id, field, bodyHtml) {
+  const blog = state.blogs.find(item => item.id === id);
+  if (!blog || field !== "bodyHtml") return null;
+
+  return {
+    path: `/api/blogs/${id}`,
+    payload: {
+      id,
+      projectId: blog.projectId || null,
+      sprintId: blog.sprintId || null,
+      parentBlogId: blog.parentBlogId || null,
+      title: blog.title,
+      bodyHtml,
+      isPrivate: blog.isPrivate !== false,
+      isPinned: Boolean(blog.isPinned)
+    }
+  };
+}
+
+function devLogRichReadonlySaveRequest(id, field, bodyHtml) {
+  const log = state.devLogs.find(item => item.id === id);
+  if (!log || field !== "bodyHtml") return null;
+
+  return {
+    path: `/api/devlogs/${id}`,
+    payload: {
+      id,
+      logType: log.logType || "Scrum",
+      category: log.category || "General",
+      projectId: log.projectId || null,
+      logDate: toDateInput(log.logDate),
+      bodyHtml,
+      isPinned: Boolean(log.isPinned),
+      auditContext: "RTE checkbox"
+    }
+  };
+}
+
+function workItemRichReadonlySaveRequest(id, field, bodyHtml, apiRoot = "/api/tasks") {
+  const task = state.tasks.find(item => item.id === id);
+  if (!task || !["descriptionHtml", "stepsToReproduceHtml", "actualResultHtml", "expectedResultHtml"].includes(field)) return null;
+
+  return {
+    path: `${apiRoot || "/api/tasks"}/${id}`,
+    payload: {
+      id,
+      projectId: task.projectId,
+      sprintId: task.sprintId || null,
+      parentTaskId: task.parentTaskId || null,
+      taskType: task.taskType || "Dev",
+      title: task.title,
+      descriptionHtml: field === "descriptionHtml" ? bodyHtml : task.descriptionHtml || "",
+      stepsToReproduceHtml: field === "stepsToReproduceHtml" ? bodyHtml : task.stepsToReproduceHtml || "",
+      actualResultHtml: field === "actualResultHtml" ? bodyHtml : task.actualResultHtml || "",
+      expectedResultHtml: field === "expectedResultHtml" ? bodyHtml : task.expectedResultHtml || "",
+      environment: task.environment || "",
+      severity: task.severity || "",
+      status: task.status,
+      priority: task.priority,
+      percentCompleted: task.percentCompleted || 0,
+      url: task.url || "",
+      startDate: task.startDate || null,
+      endDate: task.endDate || null,
+      reporterIds: task.reporterIds || [],
+      assigneeIds: task.assigneeIds || [],
+      dependencyTaskIds: task.dependencyTaskIds || [],
+      auditContext: "RTE checkbox"
+    }
+  };
+}
+
+function placeRichCheckboxCaret(checkItem, event) {
+  const editor = checkItem.closest(".rich-editor");
+  if (!editor) return;
+
+  editor.focus();
+  const range = richCheckboxEndRangeForClick(checkItem, event)
+    || richCaretRangeFromPoint(event.clientX, event.clientY);
+  if (!range || !editor.contains(range.commonAncestorContainer)) return;
+
+  const selection = window.getSelection();
+  selection.removeAllRanges();
+  selection.addRange(range);
+}
+
+function richCheckboxEndRangeForClick(checkItem, event) {
+  const textRight = richCheckboxTextRight(checkItem, event.clientY);
+  if (!Number.isFinite(textRight) || event.clientX <= textRight + 1) return null;
+
+  return richRangeAtEndOfElement(checkItem);
+}
+
+function richCheckboxTextRight(checkItem, clientY) {
+  const range = document.createRange();
+  let right = Number.NEGATIVE_INFINITY;
+  let fallbackRight = Number.NEGATIVE_INFINITY;
+
+  richCheckboxTextNodes(checkItem).forEach(node => {
+    range.selectNodeContents(node);
+    [...range.getClientRects()].forEach(rect => {
+      fallbackRight = Math.max(fallbackRight, rect.right);
+      if (clientY >= rect.top - 1 && clientY <= rect.bottom + 1) {
+        right = Math.max(right, rect.right);
+      }
+    });
+  });
+  range.detach?.();
+
+  return Number.isFinite(right) ? right : fallbackRight;
+}
+
+function richCheckboxTextNodes(root) {
+  const nodes = [];
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+    acceptNode(node) {
+      if (!node.nodeValue.trim()) return NodeFilter.FILTER_REJECT;
+      if (node.parentElement?.closest("input, button, select, textarea")) return NodeFilter.FILTER_REJECT;
+      return NodeFilter.FILTER_ACCEPT;
+    }
+  });
+
+  while (walker.nextNode()) {
+    nodes.push(walker.currentNode);
+  }
+
+  return nodes;
+}
+
+function richRangeAtEndOfElement(element) {
+  const textNodes = richCheckboxTextNodes(element);
+  const lastTextNode = textNodes[textNodes.length - 1];
+  const range = document.createRange();
+
+  if (lastTextNode) {
+    range.setStart(lastTextNode, lastTextNode.nodeValue.length);
+  } else {
+    range.selectNodeContents(element);
+    range.collapse(false);
+    return range;
+  }
+
+  range.collapse(true);
+  return range;
+}
+
+function richCaretRangeFromPoint(clientX, clientY) {
+  if (document.caretRangeFromPoint) return document.caretRangeFromPoint(clientX, clientY);
+
+  const position = document.caretPositionFromPoint?.(clientX, clientY);
+  if (!position) return null;
+
+  const range = document.createRange();
+  range.setStart(position.offsetNode, position.offset);
+  range.collapse(true);
+  return range;
+}
+
+function bindRichTableSelectionTracking(editor) {
+  if (editor.dataset.richTableTrackingBound === "true") return;
+
+  editor.dataset.richTableTrackingBound = "true";
+  ["click", "keyup", "mouseup", "focus"].forEach(eventName => {
+    editor.addEventListener(eventName, () => syncRichTableToolbars());
+  });
+
+  if (document.body.dataset.richTableSelectionBound !== "true") {
+    document.body.dataset.richTableSelectionBound = "true";
+    document.addEventListener("selectionchange", () => syncRichTableToolbars());
+  }
+}
+
+function syncRichTableToolbars(scope = document) {
+  scope.querySelectorAll(".rich-tools").forEach(toolbar => {
+    const editor = richEditorForControl(toolbar);
+    const tableTools = toolbar.querySelector("[data-rich-table-tools]");
+    if (!tableTools || !editor) return;
+
+    tableTools.hidden = !richTableCellForEditor(editor);
+  });
+}
+
+async function applyRichTableCommand(editor, command) {
+  const cell = richTableCellForEditor(editor);
+  if (!cell) return false;
+
+  if (command === "insertRow") {
+    const placement = await askRichTablePlacement("Insert Row", "Where should the new row go?", [
+      { value: "above", label: "Above" },
+      { value: "below", label: "Below" }
+    ]);
+    if (placement) insertRichTableRow(editor, cell, placement);
+    return true;
+  }
+
+  if (command === "deleteRow") {
+    deleteRichTableRow(editor, cell);
+    return true;
+  }
+
+  if (command === "moveRowUp") {
+    moveRichTableRow(editor, cell, "up");
+    return true;
+  }
+
+  if (command === "moveRowDown") {
+    moveRichTableRow(editor, cell, "down");
+    return true;
+  }
+
+  if (command === "insertColumn") {
+    const placement = await askRichTablePlacement("Insert Column", "Where should the new column go?", [
+      { value: "left", label: "Left" },
+      { value: "right", label: "Right" }
+    ]);
+    if (placement) insertRichTableColumn(editor, cell, placement);
+    return true;
+  }
+
+  if (command === "deleteColumn") {
+    deleteRichTableColumn(editor, cell);
+    return true;
+  }
+
+  if (command === "moveColumnLeft") {
+    moveRichTableColumn(editor, cell, "left");
+    return true;
+  }
+
+  if (command === "moveColumnRight") {
+    moveRichTableColumn(editor, cell, "right");
+    return true;
+  }
+
+  if (command === "deleteTable") {
+    cell.closest("table")?.remove();
+    editor.focus();
+    return true;
+  }
+
+  return false;
+}
+
+function insertRichTableRow(editor, cell, placement) {
+  const row = cell.closest("tr");
+  const table = cell.closest("table");
+  if (!row || !table) return;
+
+  const columnCount = richTableColumnCount(table);
+  const newRow = document.createElement("tr");
+  for (let index = 0; index < columnCount; index += 1) {
+    newRow.appendChild(createRichTableCell());
+  }
+
+  if (placement === "above") {
+    row.parentNode.insertBefore(newRow, row);
+  } else {
+    row.parentNode.insertBefore(newRow, row.nextSibling);
+  }
+
+  focusRichTableCell(editor, newRow.cells[Math.min(cell.cellIndex, newRow.cells.length - 1)]);
+}
+
+function deleteRichTableRow(editor, cell) {
+  const row = cell.closest("tr");
+  const table = cell.closest("table");
+  if (!row || !table) return;
+
+  const nextFocus = row.nextElementSibling?.cells[Math.min(cell.cellIndex, row.nextElementSibling.cells.length - 1)]
+    || row.previousElementSibling?.cells[Math.min(cell.cellIndex, row.previousElementSibling.cells.length - 1)];
+  if (table.rows.length <= 1) {
+    table.remove();
+    editor.focus();
+    return;
+  }
+
+  row.remove();
+  focusRichTableCell(editor, nextFocus);
+}
+
+function moveRichTableRow(editor, cell, direction) {
+  const row = cell.closest("tr");
+  if (!row) return;
+
+  const target = direction === "up" ? row.previousElementSibling : row.nextElementSibling;
+  if (!target) {
+    showToast(direction === "up" ? "Row is already at the top." : "Row is already at the bottom.");
+    return;
+  }
+
+  if (direction === "up") {
+    row.parentNode.insertBefore(row, target);
+  } else {
+    row.parentNode.insertBefore(target, row);
+  }
+
+  focusRichTableCell(editor, row.cells[Math.min(cell.cellIndex, row.cells.length - 1)]);
+}
+
+function insertRichTableColumn(editor, cell, placement) {
+  const table = cell.closest("table");
+  if (!table) return;
+
+  const insertIndex = cell.cellIndex + (placement === "right" ? 1 : 0);
+  let focusCell = null;
+  [...table.rows].forEach(row => {
+    const newCell = createRichTableCell();
+    if (insertIndex >= row.cells.length) {
+      row.appendChild(newCell);
+    } else {
+      row.insertBefore(newCell, row.cells[insertIndex]);
+    }
+    if (row === cell.parentElement) focusCell = newCell;
+  });
+
+  focusRichTableCell(editor, focusCell);
+}
+
+function deleteRichTableColumn(editor, cell) {
+  const table = cell.closest("table");
+  if (!table) return;
+
+  const columnIndex = cell.cellIndex;
+  const columnCount = richTableColumnCount(table);
+  if (columnCount <= 1) {
+    table.remove();
+    editor.focus();
+    return;
+  }
+
+  let focusCell = null;
+  [...table.rows].forEach(row => {
+    const nextFocusIndex = Math.min(columnIndex, row.cells.length - 2);
+    if (row === cell.parentElement) focusCell = row.cells[nextFocusIndex] || null;
+    row.cells[columnIndex]?.remove();
+  });
+
+  focusRichTableCell(editor, focusCell);
+}
+
+function moveRichTableColumn(editor, cell, direction) {
+  const table = cell.closest("table");
+  if (!table) return;
+
+  const columnIndex = cell.cellIndex;
+  const columnCount = richTableColumnCount(table);
+  if ((direction === "left" && columnIndex <= 0) || (direction === "right" && columnIndex >= columnCount - 1)) {
+    showToast(direction === "left" ? "Column is already at the left edge." : "Column is already at the right edge.");
+    return;
+  }
+
+  const nextIndex = direction === "left" ? columnIndex - 1 : columnIndex + 1;
+  [...table.rows].forEach(row => {
+    const movingCell = row.cells[columnIndex];
+    const targetCell = row.cells[nextIndex];
+    if (!movingCell || !targetCell) return;
+
+    if (direction === "left") {
+      row.insertBefore(movingCell, targetCell);
+    } else {
+      row.insertBefore(targetCell, movingCell);
+    }
+  });
+
+  focusRichTableCell(editor, cell.parentElement?.cells[nextIndex]);
+}
+
+function richTableColumnCount(table) {
+  return Math.max(1, ...[...table.rows].map(row => row.cells.length));
+}
+
+function createRichTableCell() {
+  const cell = document.createElement("td");
+  cell.innerHTML = "<p><br></p>";
+  return cell;
+}
+
+function focusRichTableCell(editor, cell) {
+  if (!cell) {
+    editor.focus();
+    return;
+  }
+
+  editor.focus();
+  const range = document.createRange();
+  range.selectNodeContents(cell);
+  range.collapse(true);
+  const selection = window.getSelection();
+  selection.removeAllRanges();
+  selection.addRange(range);
+}
+
+function richTableCellForEditor(editor) {
+  const selection = window.getSelection();
+  if (!selection || selection.rangeCount === 0) return null;
+
+  const node = selection.anchorNode;
+  if (!node || !editor.contains(node)) return null;
+
+  const element = node.nodeType === Node.ELEMENT_NODE ? node : node.parentElement;
+  const cell = element?.closest("td, th");
+  return cell && editor.contains(cell) ? cell : null;
+}
+
+function selectedRichTableCells(editor) {
+  const range = richSelectionRangeForEditor(editor);
+  if (!range) return [];
+
+  const cells = [...editor.querySelectorAll("td, th")]
+    .filter(cell => {
+      try {
+        return range.intersectsNode(cell);
+      } catch {
+        return false;
+      }
+    });
+
+  if (cells.length) return cells;
+
+  const currentCell = richTableCellForEditor(editor);
+  return currentCell ? [currentCell] : [];
+}
+
+function richSelectionRangeForEditor(editor) {
+  const selection = window.getSelection();
+  if (!selection || selection.rangeCount === 0) return null;
+
+  const range = selection.getRangeAt(0);
+  return editor.contains(range.commonAncestorContainer) ? range : null;
+}
+
+function askRichTableSize() {
+  return new Promise(resolve => {
+    const modal = document.createElement("dialog");
+    modal.className = "dialog mini-dialog";
+    const options = Array.from({ length: richTableMaxSize }, (_, index) => index + 1)
+      .map(value => `<option value="${value}" ${value === 3 ? "selected" : ""}>${value}</option>`)
+      .join("");
+    modal.innerHTML = `
+      <form method="dialog">
+        <div class="dialog-head">
+          <h2>Insert Table</h2>
+        </div>
+        <div class="dialog-body two-column-fields">
+          <div class="field">
+            <label>Rows</label>
+            <select name="rows">${options}</select>
+          </div>
+          <div class="field">
+            <label>Columns</label>
+            <select name="columns">${options}</select>
+          </div>
+        </div>
+        <div class="dialog-actions">
+          <button type="button" class="secondary text-icon-button" data-result="cancel">${buttonContent("&#10005;", "Cancel")}</button>
+          <button type="submit" class="primary text-icon-button">${buttonContent("&#10003;", "Insert")}</button>
+        </div>
+      </form>
+    `;
+
+    document.body.appendChild(modal);
+    const finish = value => {
+      modal.close();
+      modal.remove();
+      resolve(value);
+    };
+
+    modal.querySelector("[data-result='cancel']").addEventListener("click", () => finish(null));
+    modal.querySelector("form").addEventListener("submit", event => {
+      event.preventDefault();
+      finish({
+        rows: Number(modal.querySelector("[name='rows']").value),
+        columns: Number(modal.querySelector("[name='columns']").value)
+      });
+    });
+    modal.addEventListener("cancel", event => {
+      event.preventDefault();
+      finish(null);
+    });
+
+    modal.showModal();
+  });
+}
+
+function askRichTablePlacement(title, message, choices) {
+  return new Promise(resolve => {
+    const modal = document.createElement("dialog");
+    modal.className = "dialog mini-dialog";
+    modal.innerHTML = `
+      <div class="dialog-head">
+        <h2>${escapeHtml(title)}</h2>
+      </div>
+      <div class="dialog-body">
+        <p>${escapeHtml(message)}</p>
+      </div>
+      <div class="dialog-actions">
+        <button type="button" class="secondary text-icon-button" data-result="">${buttonContent("&#10005;", "Cancel")}</button>
+        ${choices.map(choice => `<button type="button" class="primary text-icon-button" data-result="${escapeAttr(choice.value)}">${buttonContent("&#10003;", choice.label)}</button>`).join("")}
+      </div>
+    `;
+
+    document.body.appendChild(modal);
+    const finish = value => {
+      modal.close();
+      modal.remove();
+      resolve(value || "");
+    };
+
+    modal.querySelectorAll("[data-result]").forEach(button => {
+      button.addEventListener("click", () => finish(button.dataset.result));
+    });
+    modal.addEventListener("cancel", event => {
+      event.preventDefault();
+      finish("");
+    });
+
+    modal.showModal();
   });
 }
 
@@ -2014,7 +2740,16 @@ function syncRichToolbarToggle(toolbar) {
   button.setAttribute("aria-pressed", String(collapsed));
 }
 
-function applyRichColorCommand(command, color) {
+function applyRichColorCommand(command, color, editor = null) {
+  const tableCells = editor ? selectedRichTableCells(editor) : [];
+  if (tableCells.length) {
+    const property = command === "foreColor" ? "color" : "backgroundColor";
+    tableCells.forEach(cell => {
+      cell.style[property] = color;
+    });
+    return;
+  }
+
   const applied = document.execCommand(command, false, color);
   if (!applied && command === "hiliteColor") {
     document.execCommand("backColor", false, color);
@@ -2078,17 +2813,86 @@ function clampNumber(value, min, max) {
   return Math.min(Math.max(value, min), max);
 }
 
+function richColorTriggerApplyHalf(event, trigger) {
+  if (!event.clientX) return false;
+
+  const rect = trigger.getBoundingClientRect();
+  return event.clientX <= rect.left + (rect.width / 2);
+}
+
+function renderRichColorMemoryPalettes(scope) {
+  renderRichLastColorPalettes(scope);
+  renderRichCustomColorPalettes(scope);
+}
+
+function renderRichLastColorPalettes(scope) {
+  const colors = readRichLastColors();
+  scope.querySelectorAll("[data-rich-last-colors]").forEach(container => {
+    const title = container.closest(".rich-color-tool")?.querySelector("[data-rich-color-command]")?.getAttribute("aria-label") || "Color";
+    const sectionTitle = container.closest(".rich-color-palette")?.querySelector("[data-rich-last-colors-title]");
+    container.hidden = colors.length === 0;
+    if (sectionTitle) sectionTitle.hidden = colors.length === 0;
+    container.innerHTML = colors.map(color => richStoredColorSwatchHtml(color, title)).join("");
+  });
+}
+
 function renderRichCustomColorPalettes(scope) {
   const colors = readRichCustomColors();
   scope.querySelectorAll("[data-rich-custom-colors]").forEach(container => {
     const title = container.closest(".rich-color-tool")?.querySelector("[data-rich-color-command]")?.getAttribute("aria-label") || "Color";
     container.hidden = colors.length === 0;
-    container.innerHTML = colors.map(color => richCustomColorSwatchHtml(color, title)).join("");
+    container.innerHTML = colors.map(color => richStoredColorSwatchHtml(color, title)).join("");
   });
 }
 
-function richCustomColorSwatchHtml(color, title) {
-  return `<button type="button" class="rich-color-swatch" data-rich-color-value="${escapeAttr(color)}" title="${escapeAttr(`${title} ${color}`)}" aria-label="${escapeAttr(`${title} ${color}`)}" style="--rich-swatch-color: ${escapeAttr(color)}"></button>`;
+function richStoredColorSwatchHtml(color, title) {
+  const normalizedColor = normalizeRichCustomColor(color);
+  const label = richColorTooltip(title, normalizedColor);
+  return `<button type="button" class="rich-color-swatch" data-rich-color-value="${escapeAttr(normalizedColor)}" title="${escapeAttr(label)}" aria-label="${escapeAttr(label)}" style="--rich-swatch-color: ${escapeAttr(normalizedColor)}"></button>`;
+}
+
+function richColorTooltip(title, color) {
+  return [title, color, richRgbText(color)].filter(Boolean).join(" ");
+}
+
+function richRgbText(color) {
+  const normalizedColor = normalizeRichCustomColor(color);
+  if (!normalizedColor) return "";
+
+  const value = normalizedColor.slice(1);
+  return `rgb(${Number.parseInt(value.slice(0, 2), 16)}, ${Number.parseInt(value.slice(2, 4), 16)}, ${Number.parseInt(value.slice(4, 6), 16)})`;
+}
+
+function readRichLastColor(command, defaultColor) {
+  try {
+    return normalizeRichCustomColor(localStorage.getItem(`${richLastColorCommandStoragePrefix}${command}`)) || defaultColor;
+  } catch {
+    return defaultColor;
+  }
+}
+
+function readRichLastColors() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(richLastColorStorageKey) || "[]");
+    if (!Array.isArray(parsed)) return [];
+
+    return uniqueRichColors(parsed.map(normalizeRichCustomColor).filter(Boolean)).slice(0, richCustomColorLimit);
+  } catch {
+    return [];
+  }
+}
+
+function rememberRichLastColor(command, color) {
+  const normalizedColor = normalizeRichCustomColor(color);
+  if (!normalizedColor) return;
+
+  const colors = [normalizedColor, ...readRichLastColors().filter(item => item !== normalizedColor)].slice(0, richCustomColorLimit);
+  try {
+    localStorage.setItem(richLastColorStorageKey, JSON.stringify(colors));
+    localStorage.setItem(`${richLastColorCommandStoragePrefix}${command}`, normalizedColor);
+  } catch {
+    // Remembered colors are optional when browser storage is unavailable.
+  }
 }
 
 function readRichCustomColors() {
@@ -2440,6 +3244,7 @@ async function duplicateBacklogTask(id) {
 
 function workItemDialogOptions(extra = {}) {
   return {
+    apiRoot: "/api/tasks",
     onConvertToDocument: convertWorkItemToDocument,
     onViewDocument: openDocumentationById,
     onViewWorkItem: updateWorkItemContentUrl,
@@ -2497,7 +3302,7 @@ function viewBacklogWorkItem(task) {
     } else {
       tasksFeature.edit(selectedTask || {}, { apiRoot: "/api/backlog/tasks" });
     }
-  }, { canEdit: true, onConvertToDocument: null, onViewDocument: openDocumentationById });
+  }, { apiRoot: "/api/backlog/tasks", canEdit: true, onConvertToDocument: null, onViewDocument: openDocumentationById });
 }
 
 function gotoTask(id, options = {}) {

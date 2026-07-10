@@ -1,14 +1,14 @@
 import { avatarsHtml } from "../../components/avatars.js";
 import { buttonContent, funnelIconHtml } from "../../components/buttons.js";
 import { checkedFilterValues, filterCheckList } from "../../components/filters.js?v=20260621-task-filter-layout";
-import { userCardCheckListLabelHtml } from "../../components/forms.js?v=20260710-export-rich-kanban";
+import { userCardCheckListLabelHtml } from "../../components/forms.js?v=20260710-rte-table-percent-kanban";
 import { progressHtml } from "../../components/progress-and-status.js?v=20260710-export-rich-kanban";
 import { sectionHead } from "../../components/sections.js?v=20260701-nav-title-preferences";
 import {
   bugFixIconHtml,
   createWorkItemTableMode,
   taskButtonsHtml
-} from "../../components/work-items.js?v=20260710-bug-dialog-order";
+} from "../../components/work-items.js?v=20260710-rte-checkbox-persist";
 import {
   preferenceKeys,
   readBooleanPreference,
@@ -429,6 +429,7 @@ export function createBoardFeature({
     newStatus,
     statusChanged
   }) {
+    const boardScrollLeft = currentBoardScrollLeft();
     try {
       if (statusChanged) {
         const moved = await updateTaskStatus(task, newStatus);
@@ -444,10 +445,20 @@ export function createBoardFeature({
 
       await loadState();
       render();
+      restoreBoardScrollLeft(boardScrollLeft);
       showToast(statusChanged ? `Moved to ${newStatus}.` : "Order saved.");
     } catch (error) {
       showToast(error.message);
     }
+  }
+
+  function currentBoardScrollLeft() {
+    return app.querySelector(".board")?.scrollLeft || 0;
+  }
+
+  function restoreBoardScrollLeft(scrollLeft) {
+    const board = app.querySelector(".board");
+    if (board) board.scrollLeft = scrollLeft;
   }
 
   async function updateTaskStatus(task, status) {

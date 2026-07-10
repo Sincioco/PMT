@@ -36,3 +36,25 @@ If making changes to the database, that affects existing users see database-vers
 14.) In the Bug Report New/Edit/Read dialog box, move the Assignees just above the Reporter section.
 
 15.) In the Bug Report New/Edit/Read dialog box, move the URL just above the Attachments.
+
+16.) In the RTE, provide an option to insert a table and the UI mechanisms to add/delete/move rows and columns.  Allow the user to move rows above or below.  And columns left or right.  When inserting rows, ask if above or below.  When inserting columns ask if to the left or right.  Maybe when the cursor is on a table, show a 3rd row on the toolbar dynamically with all the table related features/actions.  Be sure that the exiting background fill color also works in the table so the user can select multiple cells to change the background color or cells/rows.  Be sure the font color works in the same way.  If it’s easier to have a specific font and background color specific to the table, you may do so.
+
+17.) In the RTE toolbar, add a way to insert a checkbox and actually make this checkbox behave and work like a normal checkbox in both read, edit and new modes.
+
+18.) In the RTE toolbar, update the behavior of the font and background color buttons so that if I click the left half of the button it will reapply the last color the user picked.
+
+19.) In the RTE toolbar, update the behavior of the font and background color picker and add a Last Colors Used section above the Custom Colors section and display the last 10 colors the user used. Also, when the user hovers in any of the colors, display its hexadecimal and RGB values.
+
+20.) Universally in all the New/Edit dialog boxes with a Percent Completion numeric text box, replace it with a dropdown that goes from 0% to 100% in 5% increments.
+
+21.) Bug:  On the Kanban Board, if all the columns are visible and the view port is scrolled to the right-most.  If I drag a card from one column to the next, after the card is moved, the viewport scrolls back / resets back to the left of the Kanban Board.
+
+
+22.) Change the Log icon on the Top Nav into a book or paper like icon with a pencil / pen writing on it.
+23.) Change the Backlog icon on the Top Nav to some sort of filing cabinet icon.
+24.) Change the Sprints icon on the Top Nav into some sort of runner / running or shoes like icon.
+25.) In the Dashboard, Projects and Sprints screen, only overlap the avatars of the people if they do not fit in their container horizontally.
+26.) In the RTE, make the checkbox itself (the rectangle box) only clickable during New/Edit mode to make the target smaller, but make the whole thing checkbox and label clickable during read mode.
+27.) Bug:  In the RTE editor, while in Edit mode, if you click at the end of the line of a checkbox (as in click to the right of the label, the end of the line), the cursor is placed to the left of the checkbox.
+28.) Can you persist the state of the checkboxes, permanently.  So that if someone checks or unchecks a checkbox in read-mode it counts as an edit to the document?  All users, not just the currently logged on user changing the checkbox, should see the correct state/value of the checkbox.  This will be used by the QA team to check off use-cases they have done.
+29.) The UX behavior is weird.  If you check a checkbox, the page reloads and the content scrolls back to the top.

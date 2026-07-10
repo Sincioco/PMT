@@ -188,6 +188,21 @@ export function richTextToolsHtml(options = {}) {
           </svg>
         </button>
         <button type="button" data-command="createLink" title="Link" aria-label="Link">&#128279;</button>
+        <button type="button" data-command="insertRichTable" title="Insert Table" aria-label="Insert Table" class="rich-table-insert-tool">
+          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <rect x="4" y="5" width="16" height="14" rx="1"></rect>
+            <path d="M4 10h16"></path>
+            <path d="M4 15h16"></path>
+            <path d="M9 5v14"></path>
+            <path d="M15 5v14"></path>
+          </svg>
+        </button>
+        <button type="button" data-command="insertCheckbox" title="Checkbox" aria-label="Checkbox" class="rich-checkbox-insert-tool">
+          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <rect x="4" y="5" width="14" height="14" rx="2"></rect>
+            <path d="m8 12 3 3 7-8"></path>
+          </svg>
+        </button>
         <button type="button" data-command="insertHorizontalRule" title="Horizontal Divider" aria-label="Horizontal Divider" class="rich-divider-tool">
           <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
             <path d="M4 12h16"></path>
@@ -195,6 +210,17 @@ export function richTextToolsHtml(options = {}) {
         </button>
         <button type="button" data-command="insertCodeBlock" title="Code Block" aria-label="Code Block" class="rich-code-tool">&lt;/&gt;</button>
         ${options.actionsHtml || ""}
+      </div>
+      <div class="rich-tools-row rich-table-tools" data-rich-table-tools hidden>
+        <button type="button" data-rich-table-command="insertRow" title="Insert Row" aria-label="Insert Row">R+</button>
+        <button type="button" data-rich-table-command="deleteRow" title="Delete Row" aria-label="Delete Row">R-</button>
+        <button type="button" data-rich-table-command="moveRowUp" title="Move Row Up" aria-label="Move Row Up">R^</button>
+        <button type="button" data-rich-table-command="moveRowDown" title="Move Row Down" aria-label="Move Row Down">Rv</button>
+        <button type="button" data-rich-table-command="insertColumn" title="Insert Column" aria-label="Insert Column">C+</button>
+        <button type="button" data-rich-table-command="deleteColumn" title="Delete Column" aria-label="Delete Column">C-</button>
+        <button type="button" data-rich-table-command="moveColumnLeft" title="Move Column Left" aria-label="Move Column Left">C&lt;</button>
+        <button type="button" data-rich-table-command="moveColumnRight" title="Move Column Right" aria-label="Move Column Right">C&gt;</button>
+        <button type="button" data-rich-table-command="deleteTable" title="Delete Table" aria-label="Delete Table">T-</button>
       </div>
     </div>
   `;
@@ -230,7 +256,9 @@ function richColorPaletteHtml(title, automaticColor) {
             <div class="rich-color-standard-grid">
               ${richStandardColors.map(color => richColorSwatchHtml(color, title)).join("")}
             </div>
-            <span class="rich-color-section-title">Custom Color</span>
+            <span class="rich-color-section-title" data-rich-last-colors-title hidden>Last Colors Used</span>
+            <div class="rich-color-last-grid" data-rich-last-colors hidden></div>
+            <span class="rich-color-section-title">Custom Colors</span>
             <div class="rich-color-custom-grid" data-rich-custom-colors hidden></div>
             <button type="button" class="rich-color-custom" data-rich-color-custom><span class="rich-color-label-text">Add custom color...</span></button>
           </div>
@@ -238,7 +266,33 @@ function richColorPaletteHtml(title, automaticColor) {
 }
 
 function richColorSwatchHtml(color, title) {
-  return `<button type="button" class="rich-color-swatch" data-rich-color-value="${escapeAttr(color)}" title="${escapeAttr(`${title} ${color}`)}" aria-label="${escapeAttr(`${title} ${color}`)}" style="--rich-swatch-color: ${escapeAttr(color)}"></button>`;
+  const normalizedColor = normalizeColorHex(color) || color;
+  const label = richColorSwatchLabel(title, normalizedColor);
+  return `<button type="button" class="rich-color-swatch" data-rich-color-value="${escapeAttr(normalizedColor)}" title="${escapeAttr(label)}" aria-label="${escapeAttr(label)}" style="--rich-swatch-color: ${escapeAttr(normalizedColor)}"></button>`;
+}
+
+function richColorSwatchLabel(title, color) {
+  const rgbText = richColorRgbText(color);
+  return [title, color, rgbText].filter(Boolean).join(" ");
+}
+
+function richColorRgbText(color) {
+  const normalizedColor = normalizeColorHex(color);
+  if (!normalizedColor) return "";
+
+  const value = normalizedColor.slice(1);
+  const red = Number.parseInt(value.slice(0, 2), 16);
+  const green = Number.parseInt(value.slice(2, 4), 16);
+  const blue = Number.parseInt(value.slice(4, 6), 16);
+  return `rgb(${red}, ${green}, ${blue})`;
+}
+
+function normalizeColorHex(color) {
+  const match = String(color || "").trim().match(/^#?([0-9a-f]{3}|[0-9a-f]{6})$/i);
+  if (!match) return "";
+
+  const hex = match[1];
+  return `#${hex.length === 3 ? hex.split("").map(part => part + part).join("") : hex}`.toUpperCase();
 }
 
 function richFontColorIconHtml() {

@@ -139,12 +139,12 @@
 
 .project-members .avatar-stack {
   min-height: 60px;
+  --avatar-overlap: -15px;
 }
 
 .project-members .avatar {
   width: 60px;
   height: 60px;
-  margin-left: -15px;
 }
 
 .project-actions {

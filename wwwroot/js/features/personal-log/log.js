@@ -11,9 +11,9 @@ import {
   richValue,
   selectOptionsField,
   value
-} from "../../components/forms.js?v=20260710-export-rich-kanban";
+} from "../../components/forms.js?v=20260710-rte-table-percent-kanban";
 import { sectionHead } from "../../components/sections.js?v=20260701-nav-title-preferences";
-import { createWorkItemTableMode } from "../../components/work-items.js?v=20260710-bug-dialog-order";
+import { createWorkItemTableMode } from "../../components/work-items.js?v=20260710-rte-checkbox-persist";
 import { currentUser } from "../../core/authentication.js";
 import {
   preferenceKeys,
@@ -248,7 +248,7 @@ export function createLogFeature({
 
   function logListBodyHtml(log) {
     return `
-      <div class="log-content">${log.bodyHtml}</div>
+      <div class="log-content" ${devLogRichPersistAttrs(log)}>${log.bodyHtml}</div>
       <div class="log-entry-meta">${escapeHtml(logAuditSummary(log))}</div>
     `;
   }
@@ -1306,7 +1306,7 @@ export function createLogFeature({
         ` : ""}
         <div class="detail-field full">
           <span>Log</span>
-          <div class="log-content">${log.bodyHtml}</div>
+          <div class="log-content" ${devLogRichPersistAttrs(log)}>${log.bodyHtml}</div>
         </div>
       </div>
     `);
@@ -1318,6 +1318,14 @@ export function createLogFeature({
 
     viewDevLog(log);
     return true;
+  }
+
+  function devLogRichPersistAttrs(log) {
+    return [
+      `data-rich-persist-type="devLog"`,
+      `data-rich-persist-id="${escapeAttr(log.id)}"`,
+      `data-rich-persist-field="bodyHtml"`
+    ].join(" ");
   }
 
   async function duplicateDevLog(id) {

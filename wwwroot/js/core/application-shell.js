@@ -6,7 +6,7 @@ import {
   setCurrentUserId
 } from "./authentication.js";
 import { overflowIconHtml } from "../components/buttons.js?v=20260701-unified-dropdowns";
-import { navIconHtml } from "./navigation-preferences.js?v=20260707-log-about-nav";
+import { navIconHtml } from "./navigation-preferences.js?v=20260710-nav-avatar-fit";
 import {
   preferenceKeys,
   readPreference,

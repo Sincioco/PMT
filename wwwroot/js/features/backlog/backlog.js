@@ -7,13 +7,13 @@ import {
 } from "../../components/filters.js?v=20260630-filter-renderer";
 import {
   userCardCheckListLabelHtml
-} from "../../components/forms.js?v=20260710-export-rich-kanban";
+} from "../../components/forms.js?v=20260710-rte-table-percent-kanban";
 import { progressHtml } from "../../components/progress-and-status.js?v=20260710-export-rich-kanban";
 import { sectionHead } from "../../components/sections.js?v=20260701-nav-title-preferences";
 import {
   bugFixIconHtml,
   createWorkItemTableMode
-} from "../../components/work-items.js?v=20260710-bug-dialog-order";
+} from "../../components/work-items.js?v=20260710-rte-checkbox-persist";
 import {
   preferenceKeys,
   readJsonPreference,

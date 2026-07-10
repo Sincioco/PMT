@@ -20,7 +20,7 @@ import {
   selectTextField,
   userCardCheckListLabelHtml,
   value
-} from "../../components/forms.js?v=20260710-rich-bug-layout";
+} from "../../components/forms.js?v=20260710-rte-table-percent-kanban";
 import { progressHtml } from "../../components/progress-and-status.js?v=20260710-rich-bug-layout";
 import { sectionHead } from "../../components/sections.js?v=20260701-nav-title-preferences";
 import {
@@ -33,7 +33,7 @@ import {
   taskPercentField,
   workItemDialogMetaHtml,
   uploadWorkItemAttachments
-} from "../../components/work-items.js?v=20260710-bug-dialog-order";
+} from "../../components/work-items.js?v=20260710-rte-checkbox-persist";
 import {
   currentUser,
   currentUserId

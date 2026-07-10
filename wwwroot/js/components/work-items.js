@@ -104,10 +104,19 @@ export function taskPercentField(task, isLocked) {
   return `
     <div class="field">
       <label>Percent</label>
-      <input name="percentCompleted" type="number" min="0" max="100" value="${escapeAttr(percent)}" ${isLocked ? `disabled data-locked="true"` : ""}>
+      <select name="percentCompleted" ${isLocked ? `disabled data-locked="true"` : ""}>
+        ${percentOptionsHtml(percent)}
+      </select>
       ${isLocked ? `<small class="field-note">Calculated from sub-tasks.</small>` : ""}
     </div>
   `;
+}
+
+function percentOptionsHtml(percent) {
+  const selectedPercent = Math.max(0, Math.min(100, Math.round(Number(percent || 0) / 5) * 5));
+  return Array.from({ length: 21 }, (_, index) => index * 5)
+    .map(value => `<option value="${value}" ${value === selectedPercent ? "selected" : ""}>${value}%</option>`)
+    .join("");
 }
 
 export function attachmentEditorFieldHtml() {
@@ -184,6 +193,7 @@ export function refreshSprintOptions(root, projectId) {
 export function viewWorkItem(task, editWorkItem, options = {}) {
   if (!task) return;
   const canEdit = options.canEdit ?? canEditTask(task);
+  const richPersistAttrs = field => workItemRichPersistAttrs(task, field, options.apiRoot || "/api/tasks");
   const linkedDocumentHtml = workItemLinkedDocumentHtml(task.linkedBlogId);
   const canConvertToDocument = Boolean(
     options.onConvertToDocument
@@ -228,10 +238,10 @@ export function viewWorkItem(task, editWorkItem, options = {}) {
         ${detailField("Percent", `${taskDisplayPercent(task)}%`)}
         ${task.taskType !== "Bug" && task.url ? detailField("URL", `<a href="${escapeAttr(normalizeUrl(task.url))}" target="_blank" rel="noopener noreferrer">${escapeHtml(task.url)}</a>`) : ""}
         ${linkedDocumentHtml ? detailField("Document", linkedDocumentHtml) : ""}
-        ${detailField("Description", `<div class="rich-readonly">${task.descriptionHtml || ""}</div>`, true)}
-        ${task.taskType === "Bug" ? detailField("Steps to Reproduce", `<div class="rich-readonly">${task.stepsToReproduceHtml || ""}</div>`, true) : ""}
-        ${task.taskType === "Bug" ? detailField("Actual Result", `<div class="rich-readonly">${task.actualResultHtml || ""}</div>`, true) : ""}
-        ${task.taskType === "Bug" ? detailField("Expected Result", `<div class="rich-readonly">${task.expectedResultHtml || ""}</div>`, true) : ""}
+        ${detailField("Description", `<div class="rich-readonly" ${richPersistAttrs("descriptionHtml")}>${task.descriptionHtml || ""}</div>`, true)}
+        ${task.taskType === "Bug" ? detailField("Steps to Reproduce", `<div class="rich-readonly" ${richPersistAttrs("stepsToReproduceHtml")}>${task.stepsToReproduceHtml || ""}</div>`, true) : ""}
+        ${task.taskType === "Bug" ? detailField("Actual Result", `<div class="rich-readonly" ${richPersistAttrs("actualResultHtml")}>${task.actualResultHtml || ""}</div>`, true) : ""}
+        ${task.taskType === "Bug" ? detailField("Expected Result", `<div class="rich-readonly" ${richPersistAttrs("expectedResultHtml")}>${task.expectedResultHtml || ""}</div>`, true) : ""}
         ${task.taskType === "Bug" && task.url ? detailField("URL", `<a href="${escapeAttr(normalizeUrl(task.url))}" target="_blank" rel="noopener noreferrer">${escapeHtml(task.url)}</a>`) : ""}
         ${task.attachments.length ? detailField("Attachments", attachmentsHtml(task.attachments), true) : ""}
         ${task.taskType === "Bug" ? detailField("Assignee", avatarsHtml(task.assignees)) : ""}
@@ -311,6 +321,15 @@ export function viewWorkItem(task, editWorkItem, options = {}) {
   modal.addEventListener("cancel", () => modal.remove());
   modal.showModal();
   normalizeLinksInElement(modal);
+}
+
+function workItemRichPersistAttrs(task, field, apiRoot) {
+  return [
+    `data-rich-persist-type="workItem"`,
+    `data-rich-persist-id="${escapeAttr(task.id)}"`,
+    `data-rich-persist-field="${escapeAttr(field)}"`,
+    `data-rich-persist-api-root="${escapeAttr(apiRoot)}"`
+  ].join(" ");
 }
 
 function workItemLinkedDocumentHtml(blogId) {
