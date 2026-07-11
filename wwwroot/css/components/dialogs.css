@@ -88,6 +88,10 @@
   margin-left: auto;
 }
 
+.dialog-head-actions > [hidden] {
+  display: none !important;
+}
+
 .dialog-body {
   display: grid;
   gap: var(--space-5);

@@ -1,7 +1,15 @@
 import { taskRowAvatarsHtml } from "../../components/avatars.js?v=20260709-task-assignee-blank";
+import {
+  applyTaskDialogFieldPreferences,
+  openTaskDialogCustomizationDialog,
+  syncTaskDialogHeaderActionsMenu,
+  taskDialogCustomizationButtonHtml,
+  taskDialogFieldHtml,
+  taskDialogFieldLabel
+} from "../../components/bug-dialog-customization.js?v=20260711-task-dialog-customize";
 import { buttonContent, chartIconHtml, funnelIconHtml, pageActionsMenuHtml } from "../../components/buttons.js?v=20260701-unified-dropdowns";
 import { VisualCharts } from "../../components/charts.js?v=20260628-chart-native-tooltips";
-import { initializeWindowedDialog } from "../../components/dialogs.js?v=20260707-filter-reset-dialogs";
+import { initializeWindowedDialog } from "../../components/dialogs.js?v=20260711-task-dialog-customize";
 import { checkedFilterValues, filterCheckList } from "../../components/filters.js?v=20260630-filter-renderer";
 import {
   checkList,
@@ -17,7 +25,7 @@ import {
   selectTextField,
   userCardCheckListLabelHtml,
   value
-} from "../../components/forms.js?v=20260710-rte-table-shortcuts";
+} from "../../components/forms.js?v=20260711-task-dialog-customize";
 import { progressHtml, statusColor } from "../../components/progress-and-status.js?v=20260710-export-rich-kanban";
 import { sectionHead } from "../../components/sections.js?v=20260701-nav-title-preferences";
 import {
@@ -30,7 +38,7 @@ import {
   taskPercentField,
   workItemDialogMetaHtml,
   uploadWorkItemAttachments
-} from "../../components/work-items.js?v=20260710-rte-checkbox-persist";
+} from "../../components/work-items.js?v=20260711-task-dialog-customize";
 import {
   currentUser
 } from "../../core/authentication.js";
@@ -498,22 +506,25 @@ export function createTasksFeature({
     const taskHasSubTasks = Boolean(task.subTasks?.length);
 
     openEditor(workItemEditorTitle(task, "New Dev Task"), `
-      <div class="form-grid task-editor-grid">
+      <template data-editor-head-action>
+        ${taskDialogCustomizationButtonHtml()}
+      </template>
+      <div class="form-grid task-editor-grid" data-work-item-dialog-root="task-edit">
         ${task.id ? taskAuditPanelHtml(task) : ""}
-        ${selectField("Project", "projectId", state.projects, projectId)}
-        ${selectOptionsField("Sprint", "sprintId", taskEditorSprintOptions(projectId), defaultSprintId || "")}
-        ${field("Title", "title", task.title || "", "text")}
-        ${selectTextField("Status", "status", getLookupOptions("Status", task.status || "Todo"), task.status || "Todo")}
-        ${selectTextField("Priority", "priority", getLookupOptions("Priority", task.priority || "Low"), task.priority || "Low")}
-        ${taskPercentField(task, taskHasSubTasks)}
-        ${richTextField("descriptionHtml", "Description", task.descriptionHtml || "")}
-        ${attachmentEditorFieldHtml()}
-        <div class="task-assignee-list" data-assignee-list></div>
-        ${field("Start", "startDate", toDateInput(task.startDate), "date")}
-        ${field("End", "endDate", toDateInput(task.endDate), "date")}
-        ${selectOptionsField("Parent", "parentTaskId", [{ id: "", title: "No parent" }, ...sameProjectTasks.map(item => ({ id: item.id, title: `${item.code} - ${item.title}` }))], task.parentTaskId || "")}
-        ${field("URL", "url", task.url || "", "url")}
-        ${checkList("Dependencies", "dependencyTaskIds", sameProjectTasks, task.dependencyTaskIds || [], item => `${item.code} ${item.title}`, { className: "scroll-check-list dependency-check-list" })}
+        ${taskDialogFieldHtml("projectId", selectField(taskDialogFieldLabel("projectId"), "projectId", state.projects, projectId))}
+        ${taskDialogFieldHtml("sprintId", selectOptionsField(taskDialogFieldLabel("sprintId"), "sprintId", taskEditorSprintOptions(projectId), defaultSprintId || ""))}
+        ${taskDialogFieldHtml("title", field(taskDialogFieldLabel("title"), "title", task.title || "", "text"))}
+        ${taskDialogFieldHtml("status", selectTextField(taskDialogFieldLabel("status"), "status", getLookupOptions("Status", task.status || "Todo"), task.status || "Todo"))}
+        ${taskDialogFieldHtml("priority", selectTextField(taskDialogFieldLabel("priority"), "priority", getLookupOptions("Priority", task.priority || "Low"), task.priority || "Low"))}
+        ${taskDialogFieldHtml("percentCompleted", taskPercentField({ ...task, __workItemDialogPercentLabel: taskDialogFieldLabel("percentCompleted") }, taskHasSubTasks))}
+        ${taskDialogFieldHtml("descriptionHtml", richTextField("descriptionHtml", taskDialogFieldLabel("descriptionHtml"), task.descriptionHtml || ""))}
+        ${taskDialogFieldHtml("attachments", attachmentEditorFieldHtml())}
+        ${taskDialogFieldHtml("assigneeIds", `<div class="task-assignee-list" data-assignee-list></div>`)}
+        ${taskDialogFieldHtml("startDate", field(taskDialogFieldLabel("startDate"), "startDate", toDateInput(task.startDate), "date"))}
+        ${taskDialogFieldHtml("endDate", field(taskDialogFieldLabel("endDate"), "endDate", toDateInput(task.endDate), "date"))}
+        ${taskDialogFieldHtml("parentTaskId", selectOptionsField(taskDialogFieldLabel("parentTaskId"), "parentTaskId", [{ id: "", title: "No parent" }, ...sameProjectTasks.map(item => ({ id: item.id, title: `${item.code} - ${item.title}` }))], task.parentTaskId || ""))}
+        ${taskDialogFieldHtml("url", field(taskDialogFieldLabel("url"), "url", task.url || "", "url"))}
+        ${taskDialogFieldHtml("dependencyTaskIds", checkList(taskDialogFieldLabel("dependencyTaskIds"), "dependencyTaskIds", sameProjectTasks, task.dependencyTaskIds || [], item => `${item.code} ${item.title}`, { className: "scroll-check-list dependency-check-list" }))}
       </div>
       ${task.id ? workItemDialogMetaHtml(task) : ""}
     `, async root => {
@@ -565,7 +576,14 @@ export function createTasksFeature({
       writePreference(preferenceKeys.taskEntrySprint, taskEntrySprintId);
 
       await uploadWorkItemAttachments(root, result.id, attachFile, `${apiRoot}/${result.id}/attachments`);
-    }, "title", root => bindTaskEditorRules(root, task));
+    }, "title", root => {
+      const editorDialog = document.getElementById("editorDialog");
+      editorDialog?.querySelector("[data-action='customize-task-dialog-view']")
+        ?.addEventListener("click", openTaskDialogCustomizationDialog);
+      requestAnimationFrame(() => syncTaskDialogHeaderActionsMenu(editorDialog));
+      bindTaskEditorRules(root, task);
+      applyTaskDialogFieldPreferences(root);
+    });
   }
 
   function bindTaskEditorRules(root, task) {

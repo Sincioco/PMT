@@ -6,10 +6,10 @@ import {
   bugDialogFieldLabel,
   openBugDialogCustomizationDialog,
   syncBugDialogHeaderActionsMenu
-} from "../../components/bug-dialog-customization.js?v=20260711-bug-dialog-header-controls";
+} from "../../components/bug-dialog-customization.js?v=20260711-task-dialog-customize";
 import { buttonContent, chartIconHtml, funnelIconHtml, pageActionsMenuHtml } from "../../components/buttons.js?v=20260701-unified-dropdowns";
 import { VisualCharts } from "../../components/charts.js?v=20260628-chart-native-tooltips";
-import { initializeWindowedDialog } from "../../components/dialogs.js?v=20260711-bug-dialog-header-controls";
+import { initializeWindowedDialog } from "../../components/dialogs.js?v=20260711-task-dialog-customize";
 import {
   checkedFilterValues,
   filterCheckList
@@ -41,7 +41,7 @@ import {
   taskPercentField,
   workItemDialogMetaHtml,
   uploadWorkItemAttachments
-} from "../../components/work-items.js?v=20260711-bug-dialog-header-controls";
+} from "../../components/work-items.js?v=20260711-task-dialog-customize";
 import {
   currentUser,
   currentUserId
@@ -496,7 +496,7 @@ export function createBugsFeature({
         ${bugDialogFieldHtml("actualResultHtml", richTextField("actualResultHtml", bugDialogFieldLabel("actualResultHtml"), bug.actualResultHtml || ""))}
         ${bugDialogFieldHtml("expectedResultHtml", richTextField("expectedResultHtml", bugDialogFieldLabel("expectedResultHtml"), bug.expectedResultHtml || ""))}
         ${bugDialogFieldHtml("rootCauseAnalysisHtml", richTextField("rootCauseAnalysisHtml", bugDialogFieldLabel("rootCauseAnalysisHtml"), bug.rootCauseAnalysisHtml || ""))}
-        <div class="bug-assignee-list" data-assignee-list data-bug-dialog-field="assigneeIds" data-bug-dialog-original-label="Assignees"></div>
+        ${bugDialogFieldHtml("assigneeIds", `<div class="bug-assignee-list" data-assignee-list></div>`)}
         ${bugDialogFieldHtml("reporterIds", `
           <div class="bug-reporter-list">
             ${checkList(bugDialogFieldLabel("reporterIds"), "reporterIds", state.users, reporterIdsOrDefault(bug.reporterIds, currentUserId), item => item.nickname, { className: "scroll-check-list user-card-check-list", renderItem: userCardCheckListLabelHtml })}

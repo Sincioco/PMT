@@ -2,14 +2,20 @@ import { attachmentsHtml, filePreviewHtml } from "./attachments.js";
 import { avatarsHtml, syncAvatarStackFit } from "./avatars.js";
 import {
   applyBugDialogFieldPreferences,
+  applyTaskDialogFieldPreferences,
   bugDialogCustomizationButtonHtml,
   bugDialogFieldHtml,
   bugDialogFieldLabel,
   openBugDialogCustomizationDialog,
-  syncBugDialogHeaderActionsMenu
-} from "./bug-dialog-customization.js?v=20260711-bug-dialog-header-controls";
+  openTaskDialogCustomizationDialog,
+  syncBugDialogHeaderActionsMenu,
+  syncTaskDialogHeaderActionsMenu,
+  taskDialogCustomizationButtonHtml,
+  taskDialogFieldHtml,
+  taskDialogFieldLabel
+} from "./bug-dialog-customization.js?v=20260711-task-dialog-customize";
 import { buttonContent, iconButton } from "./buttons.js?v=20260621-dev-task-icons";
-import { initializeWindowedDialog } from "./dialogs.js?v=20260711-bug-dialog-header-controls";
+import { initializeWindowedDialog } from "./dialogs.js?v=20260711-task-dialog-customize";
 import {
   checkListOrEmpty,
   checkedNumbers,
@@ -108,7 +114,7 @@ export function bugFixIconHtml(task) {
 
 export function taskPercentField(task, isLocked) {
   const percent = taskDisplayPercent({ ...task, subTasks: isLocked ? task.subTasks : [] });
-  const label = task.__bugDialogPercentLabel || "Percent";
+  const label = task.__workItemDialogPercentLabel || task.__bugDialogPercentLabel || "Percent";
 
   return `
     <div class="field">
@@ -202,6 +208,7 @@ export function refreshSprintOptions(root, projectId) {
 export function viewWorkItem(task, editWorkItem, options = {}) {
   if (!task) return;
   const isBug = task.taskType === "Bug";
+  const isDevTask = !isBug && (task.taskType || "Dev") === "Dev";
   const canEdit = options.canEdit ?? canEditTask(task);
   const richPersistAttrs = field => workItemRichPersistAttrs(task, field, options.apiRoot || "/api/tasks");
   const linkedDocumentHtml = workItemLinkedDocumentHtml(task.linkedBlogId);
@@ -229,30 +236,37 @@ export function viewWorkItem(task, editWorkItem, options = {}) {
   const modal = document.createElement("dialog");
   modal.className = "dialog detail-dialog";
   const dialogTitle = [task.code, task.title].filter(Boolean).join(" - ");
+  const detailRootAttrs = [
+    isBug ? `data-bug-dialog-root="read"` : "",
+    isBug ? `data-work-item-dialog-root="bug-read"` : "",
+    isDevTask ? `data-work-item-dialog-root="task-read"` : ""
+  ].filter(Boolean).join(" ");
   modal.innerHTML = `
     <div class="dialog-head">
       <h2>${escapeHtml(dialogTitle)}</h2>
       <div class="dialog-head-actions">
         ${isBug ? bugDialogCustomizationButtonHtml() : ""}
+        ${isDevTask ? taskDialogCustomizationButtonHtml() : ""}
         <button type="button" class="icon-btn" data-close title="Close">x</button>
       </div>
     </div>
     <div class="dialog-body">
-      <div class="detail-grid" ${isBug ? `data-bug-dialog-root="read"` : ""}>
-        ${!isBug ? detailField("Title", escapeHtml(task.title)) : ""}
-        ${!isBug ? detailField("Type", escapeHtml(task.taskType || "Dev")) : ""}
+      <div class="detail-grid" ${detailRootAttrs}>
+        ${!isBug && !isDevTask ? detailField("Title", escapeHtml(task.title)) : ""}
+        ${!isBug && !isDevTask ? detailField("Type", escapeHtml(task.taskType || "Dev")) : ""}
         ${isBug ? bugDialogDetailFieldsHtml(task, richPersistAttrs, dependencyLinks) : ""}
-        ${!isBug ? detailField("Project", escapeHtml(projectName(task.projectId))) : ""}
-        ${!isBug ? detailField("Sprint", escapeHtml(sprintName(task.sprintId))) : ""}
-        ${!isBug ? detailField("Status", escapeHtml(task.status)) : ""}
-        ${!isBug ? detailField("Priority", escapeHtml(task.priority)) : ""}
-        ${!isBug ? detailField("Assignee", avatarsHtml(task.assignees)) : ""}
-        ${!isBug ? detailField("Percent", `${taskDisplayPercent(task)}%`) : ""}
-        ${!isBug && task.url ? detailField("URL", `<a href="${escapeAttr(normalizeUrl(task.url))}" target="_blank" rel="noopener noreferrer">${escapeHtml(task.url)}</a>`) : ""}
+        ${isDevTask ? taskDialogDetailFieldsHtml(task, richPersistAttrs, dependencyLinks) : ""}
+        ${!isBug && !isDevTask ? detailField("Project", escapeHtml(projectName(task.projectId))) : ""}
+        ${!isBug && !isDevTask ? detailField("Sprint", escapeHtml(sprintName(task.sprintId))) : ""}
+        ${!isBug && !isDevTask ? detailField("Status", escapeHtml(task.status)) : ""}
+        ${!isBug && !isDevTask ? detailField("Priority", escapeHtml(task.priority)) : ""}
+        ${!isBug && !isDevTask ? detailField("Assignee", avatarsHtml(task.assignees)) : ""}
+        ${!isBug && !isDevTask ? detailField("Percent", `${taskDisplayPercent(task)}%`) : ""}
+        ${!isBug && !isDevTask && task.url ? detailField("URL", `<a href="${escapeAttr(normalizeUrl(task.url))}" target="_blank" rel="noopener noreferrer">${escapeHtml(task.url)}</a>`) : ""}
         ${linkedDocumentHtml ? detailField("Document", linkedDocumentHtml) : ""}
-        ${!isBug ? detailField("Description", `<div class="rich-readonly" ${richPersistAttrs("descriptionHtml")}>${task.descriptionHtml || ""}</div>`, true) : ""}
-        ${!isBug && task.attachments.length ? detailField("Attachments", attachmentsHtml(task.attachments), true) : ""}
-        ${!isBug && dependencyLinks ? detailField("Dependencies", dependencyLinks) : ""}
+        ${!isBug && !isDevTask ? detailField("Description", `<div class="rich-readonly" ${richPersistAttrs("descriptionHtml")}>${task.descriptionHtml || ""}</div>`, true) : ""}
+        ${!isBug && !isDevTask && task.attachments.length ? detailField("Attachments", attachmentsHtml(task.attachments), true) : ""}
+        ${!isBug && !isDevTask && dependencyLinks ? detailField("Dependencies", dependencyLinks) : ""}
       </div>
       ${workItemDialogMetaHtml(task)}
     </div>
@@ -275,10 +289,18 @@ export function viewWorkItem(task, editWorkItem, options = {}) {
     syncBugDialogHeaderActionsMenu(modal);
     applyBugDialogFieldPreferences(modal);
   }
+  if (isDevTask) {
+    syncTaskDialogHeaderActionsMenu(modal);
+    applyTaskDialogFieldPreferences(modal);
+  }
   modal.querySelectorAll("[data-close]").forEach(button => button.addEventListener("click", () => closeDialog(modal)));
   modal.addEventListener("click", async event => {
     if (event.target.closest("[data-action='customize-bug-dialog-view']")) {
       openBugDialogCustomizationDialog();
+      return;
+    }
+    if (event.target.closest("[data-action='customize-task-dialog-view']")) {
+      openTaskDialogCustomizationDialog();
       return;
     }
 
@@ -335,17 +357,41 @@ export function viewWorkItem(task, editWorkItem, options = {}) {
   });
   modal.addEventListener("cancel", () => modal.remove());
   modal.showModal();
-  if (isBug) syncBugReadOnlyAvatarStacks(modal);
+  if (isBug || isDevTask) syncReadOnlyAvatarStacks(modal);
   normalizeLinksInElement(modal);
 }
 
-function syncBugReadOnlyAvatarStacks(modal) {
+function syncReadOnlyAvatarStacks(modal) {
   syncAvatarStackFit(modal);
   if (typeof ResizeObserver !== "function") return;
 
   const observer = new ResizeObserver(() => syncAvatarStackFit(modal));
   observer.observe(modal);
   modal.addEventListener("close", () => observer.disconnect(), { once: true });
+}
+
+function taskDialogDetailFieldsHtml(task, richPersistAttrs, dependencyLinks) {
+  const readOnlyAvatarOptions = { fit: "auto", className: "task-dialog-user-avatar-stack" };
+  const parentTask = task.parentTaskId ? taskById(task.parentTaskId) : null;
+  const parentTaskHtml = parentTask
+    ? `<button type="button" data-action="view-task-inline" data-id="${parentTask.id}">${escapeHtml(parentTask.code)} - ${escapeHtml(parentTask.title)}</button>`
+    : "";
+  return [
+    taskDialogFieldHtml("projectId", detailField(taskDialogFieldLabel("projectId"), escapeHtml(projectName(task.projectId)))),
+    taskDialogFieldHtml("sprintId", detailField(taskDialogFieldLabel("sprintId"), escapeHtml(sprintName(task.sprintId)))),
+    taskDialogFieldHtml("title", detailField(taskDialogFieldLabel("title"), escapeHtml(task.title))),
+    taskDialogFieldHtml("status", detailField(taskDialogFieldLabel("status"), escapeHtml(task.status))),
+    taskDialogFieldHtml("priority", detailField(taskDialogFieldLabel("priority"), escapeHtml(task.priority))),
+    taskDialogFieldHtml("percentCompleted", detailField(taskDialogFieldLabel("percentCompleted"), `${taskDisplayPercent(task)}%`)),
+    taskDialogFieldHtml("descriptionHtml", detailField(taskDialogFieldLabel("descriptionHtml"), `<div class="rich-readonly" ${richPersistAttrs("descriptionHtml")}>${task.descriptionHtml || ""}</div>`, true)),
+    taskDialogFieldHtml("attachments", detailField(taskDialogFieldLabel("attachments"), task.attachments.length ? attachmentsHtml(task.attachments) : "", true)),
+    taskDialogFieldHtml("assigneeIds", detailField(taskDialogFieldLabel("assigneeIds"), avatarsHtml(task.assignees, readOnlyAvatarOptions), true)),
+    taskDialogFieldHtml("startDate", detailField(taskDialogFieldLabel("startDate"), escapeHtml(formatDate(task.startDate)))),
+    taskDialogFieldHtml("endDate", detailField(taskDialogFieldLabel("endDate"), escapeHtml(formatDate(task.endDate)))),
+    taskDialogFieldHtml("parentTaskId", detailField(taskDialogFieldLabel("parentTaskId"), parentTaskHtml)),
+    taskDialogFieldHtml("url", detailField(taskDialogFieldLabel("url"), task.url ? `<a href="${escapeAttr(normalizeUrl(task.url))}" target="_blank" rel="noopener noreferrer">${escapeHtml(task.url)}</a>` : "")),
+    taskDialogFieldHtml("dependencyTaskIds", detailField(taskDialogFieldLabel("dependencyTaskIds"), dependencyLinks, true))
+  ].join("");
 }
 
 function bugDialogDetailFieldsHtml(task, richPersistAttrs, dependencyLinks) {

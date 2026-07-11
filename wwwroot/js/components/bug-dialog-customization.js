@@ -1,56 +1,97 @@
 import { buttonContent, pageActionsMenuHtml } from "./buttons.js?v=20260701-unified-dropdowns";
-import { initializeWindowedDialog } from "./dialogs.js?v=20260711-bug-dialog-header-controls";
+import { initializeWindowedDialog } from "./dialogs.js?v=20260711-task-dialog-customize";
 import {
   preferenceKeys,
   readJsonPreference,
   removePreference,
   writeJsonPreference
-} from "../core/preferences.js?v=20260711-bug-dialog-customize";
+} from "../core/preferences.js?v=20260711-task-dialog-customize";
 import { createReorderDrag } from "../shared/reorder-drag.js";
 import {
   escapeAttr,
   escapeHtml
 } from "../shared/text-and-links.js";
 
-const bugDialogFieldDefinitions = Object.freeze([
-  { key: "projectId", label: "Project" },
-  { key: "sprintId", label: "Sprint" },
-  { key: "title", label: "Title" },
-  { key: "status", label: "Status" },
-  { key: "priority", label: "Priority" },
-  { key: "percentCompleted", label: "Percent" },
-  { key: "environment", label: "Environment" },
-  { key: "severity", label: "Severity" },
-  { key: "descriptionHtml", label: "Description" },
-  { key: "url", label: "URL" },
-  { key: "attachments", label: "Attachments" },
-  { key: "startDate", label: "Start" },
-  { key: "endDate", label: "End" },
-  { key: "stepsToReproduceHtml", label: "Steps to Reproduce" },
-  { key: "actualResultHtml", label: "Actual Result" },
-  { key: "expectedResultHtml", label: "Expected Result" },
-  { key: "rootCauseAnalysisHtml", label: "Root Cause Analysis" },
-  { key: "assigneeIds", label: "Assignees" },
-  { key: "reporterIds", label: "Reporters" },
-  { key: "dependencyTaskIds", label: "Dependencies" }
-]);
+const dialogConfigs = Object.freeze({
+  bug: Object.freeze({
+    type: "bug",
+    title: "Bug Report",
+    preferenceKey: preferenceKeys.bugDialogFields,
+    fields: Object.freeze([
+      { key: "projectId", label: "Project" },
+      { key: "sprintId", label: "Sprint" },
+      { key: "title", label: "Title" },
+      { key: "status", label: "Status" },
+      { key: "priority", label: "Priority" },
+      { key: "percentCompleted", label: "Percent" },
+      { key: "environment", label: "Environment" },
+      { key: "severity", label: "Severity" },
+      { key: "descriptionHtml", label: "Description" },
+      { key: "url", label: "URL" },
+      { key: "attachments", label: "Attachments" },
+      { key: "startDate", label: "Start" },
+      { key: "endDate", label: "End" },
+      { key: "stepsToReproduceHtml", label: "Steps to Reproduce" },
+      { key: "actualResultHtml", label: "Actual Result" },
+      { key: "expectedResultHtml", label: "Expected Result" },
+      { key: "rootCauseAnalysisHtml", label: "Root Cause Analysis" },
+      { key: "assigneeIds", label: "Assignees" },
+      { key: "reporterIds", label: "Reporters" },
+      { key: "dependencyTaskIds", label: "Dependencies" }
+    ])
+  }),
+  task: Object.freeze({
+    type: "task",
+    title: "Dev Task",
+    preferenceKey: preferenceKeys.taskDialogFields,
+    fields: Object.freeze([
+      { key: "projectId", label: "Project" },
+      { key: "sprintId", label: "Sprint" },
+      { key: "title", label: "Title" },
+      { key: "status", label: "Status" },
+      { key: "priority", label: "Priority" },
+      { key: "percentCompleted", label: "Percent" },
+      { key: "descriptionHtml", label: "Description" },
+      { key: "attachments", label: "Attachments" },
+      { key: "assigneeIds", label: "Assignees" },
+      { key: "startDate", label: "Start" },
+      { key: "endDate", label: "End" },
+      { key: "parentTaskId", label: "Parent" },
+      { key: "url", label: "URL" },
+      { key: "dependencyTaskIds", label: "Dependencies" }
+    ])
+  })
+});
 
 let activeDialog = null;
 let activeDrag = null;
 
 export function bugDialogCustomizationButtonHtml() {
+  return dialogCustomizationButtonHtml("bug");
+}
+
+export function taskDialogCustomizationButtonHtml() {
+  return dialogCustomizationButtonHtml("task");
+}
+
+function dialogCustomizationButtonHtml(type) {
+  const config = dialogConfig(type);
   return `
-    <button type="button" class="bug-dialog-customize-button" data-action="customize-bug-dialog-view" title="Customize View" aria-label="Customize View" aria-haspopup="dialog" hidden>
+    <button type="button" class="${escapeAttr(type)}-dialog-customize-button work-item-dialog-customize-button" data-action="customize-${escapeAttr(type)}-dialog-view" title="Customize View" aria-label="Customize View" aria-haspopup="dialog" hidden>
       <span class="button-icon" aria-hidden="true">${customizeViewIconHtml()}</span>
     </button>
   `;
 }
 
 export function clearBugDialogHeaderActionsMenu(root = document) {
+  clearWorkItemDialogHeaderActionsMenu(root);
+}
+
+export function clearWorkItemDialogHeaderActionsMenu(root = document) {
   const actions = root?.querySelector?.(".dialog-head-actions");
   if (!actions) return;
 
-  actions.querySelector("[data-bug-dialog-header-menu]")?.remove();
+  actions.querySelectorAll("[data-work-item-dialog-header-menu], [data-bug-dialog-header-menu]").forEach(menu => menu.remove());
   actions.querySelectorAll("[data-dialog-overflow-source]").forEach(source => {
     source.hidden = source.dataset.dialogOverflowOriginalHidden === "true";
     delete source.dataset.dialogOverflowOriginalHidden;
@@ -59,12 +100,20 @@ export function clearBugDialogHeaderActionsMenu(root = document) {
 }
 
 export function syncBugDialogHeaderActionsMenu(root = document) {
+  syncWorkItemDialogHeaderActionsMenu(root);
+}
+
+export function syncTaskDialogHeaderActionsMenu(root = document) {
+  syncWorkItemDialogHeaderActionsMenu(root);
+}
+
+export function syncWorkItemDialogHeaderActionsMenu(root = document) {
   const actions = root?.querySelector?.(".dialog-head-actions");
   if (!actions) return;
 
-  clearBugDialogHeaderActionsMenu(root);
+  clearWorkItemDialogHeaderActionsMenu(root);
 
-  const menuActions = bugDialogHeaderMenuActions(actions);
+  const menuActions = workItemDialogHeaderMenuActions(actions);
   if (!menuActions.length) return;
 
   const template = document.createElement("template");
@@ -73,9 +122,9 @@ export function syncBugDialogHeaderActionsMenu(root = document) {
   if (!menu) return;
 
   menu.classList.add("dialog-header-actions-menu");
-  menu.dataset.bugDialogHeaderMenu = "true";
+  menu.dataset.workItemDialogHeaderMenu = "true";
   if (root?.id === "editorDialog") menu.dataset.editorDynamicHeadAction = "true";
-  menu.addEventListener("click", event => handleBugDialogHeaderMenuClick(root, event));
+  menu.addEventListener("click", event => handleWorkItemDialogHeaderMenuClick(root, event));
 
   menuActions.forEach(({ source }) => hideDialogHeaderActionSource(source));
   const maximizeButton = actions.querySelector(":scope > .dialog-maximize-button, :scope > [data-windowed-dialog-toggle]");
@@ -83,7 +132,7 @@ export function syncBugDialogHeaderActionsMenu(root = document) {
   actions.insertBefore(menu, maximizeButton || closeButton || null);
 }
 
-function bugDialogHeaderMenuActions(actions) {
+function workItemDialogHeaderMenuActions(actions) {
   return [
     headerMenuAction(actions, {
       selector: ".dialog-rich-tools-toggle-button",
@@ -97,7 +146,7 @@ function bugDialogHeaderMenuActions(actions) {
       icon: () => "&#8634;"
     }),
     headerMenuAction(actions, {
-      selector: ".bug-dialog-customize-button",
+      selector: ".work-item-dialog-customize-button",
       action: "dialog-customize-view",
       label: "Customize View",
       icon: customizeViewIconHtml,
@@ -130,7 +179,7 @@ function hideDialogHeaderActionSource(source) {
   source.hidden = true;
 }
 
-function handleBugDialogHeaderMenuClick(root, event) {
+function handleWorkItemDialogHeaderMenuClick(root, event) {
   const item = event.target.closest(".page-actions-item[data-action]");
   if (!item) return;
 
@@ -138,18 +187,18 @@ function handleBugDialogHeaderMenuClick(root, event) {
   const menu = item.closest("details");
   if (menu) menu.open = false;
 
-  const source = bugDialogHeaderActionSource(root, item.dataset.action);
+  const source = workItemDialogHeaderActionSource(root, item.dataset.action);
   if (!source || source.disabled) return;
 
   source.click();
-  requestAnimationFrame(() => syncBugDialogHeaderActionsMenu(root));
+  requestAnimationFrame(() => syncWorkItemDialogHeaderActionsMenu(root));
 }
 
-function bugDialogHeaderActionSource(root, action) {
+function workItemDialogHeaderActionSource(root, action) {
   const actions = root?.querySelector?.(".dialog-head-actions");
   if (!actions) return null;
 
-  if (action === "dialog-customize-view") return actions.querySelector(".bug-dialog-customize-button");
+  if (action === "dialog-customize-view") return actions.querySelector(".work-item-dialog-customize-button");
   if (action === "dialog-toggle-rich-tools") return actions.querySelector(".dialog-rich-tools-toggle-button");
   if (action === "dialog-reset-layout") return actions.querySelector(".dialog-reset-button, [data-windowed-dialog-reset]");
   return null;
@@ -172,14 +221,24 @@ function richToolsIconHtml() {
 }
 
 export function bugDialogFieldHtml(key, html) {
-  const definition = bugDialogFieldDefinition(key);
+  return dialogFieldHtml("bug", key, html);
+}
+
+export function taskDialogFieldHtml(key, html) {
+  return dialogFieldHtml("task", key, html);
+}
+
+function dialogFieldHtml(type, key, html) {
+  const definition = dialogFieldDefinition(type, key);
   if (!definition) return html;
 
-  const prefs = readBugDialogFieldPrefs();
+  const config = dialogConfig(type);
+  const prefs = readDialogFieldPrefs(type);
   const visible = prefs.visible.includes(key);
   const attrs = [
-    `data-bug-dialog-field="${escapeAttr(key)}"`,
-    `data-bug-dialog-original-label="${escapeAttr(definition.label)}"`,
+    `data-work-item-dialog-type="${escapeAttr(config.type)}"`,
+    `data-work-item-dialog-field="${escapeAttr(key)}"`,
+    `data-work-item-dialog-original-label="${escapeAttr(definition.label)}"`,
     visible ? "" : "hidden"
   ].filter(Boolean).join(" ");
 
@@ -187,15 +246,31 @@ export function bugDialogFieldHtml(key, html) {
 }
 
 export function bugDialogFieldLabel(key) {
-  const definition = bugDialogFieldDefinition(key);
+  return dialogFieldLabel("bug", key);
+}
+
+export function taskDialogFieldLabel(key) {
+  return dialogFieldLabel("task", key);
+}
+
+function dialogFieldLabel(type, key) {
+  const definition = dialogFieldDefinition(type, key);
   if (!definition) return "";
 
-  const prefs = readBugDialogFieldPrefs();
+  const prefs = readDialogFieldPrefs(type);
   return prefs.labels[key] || definition.label;
 }
 
 export function bugDialogFieldDefinition(key) {
-  return bugDialogFieldDefinitions.find(field => field.key === key) || null;
+  return dialogFieldDefinition("bug", key);
+}
+
+export function taskDialogFieldDefinition(key) {
+  return dialogFieldDefinition("task", key);
+}
+
+function dialogFieldDefinition(type, key) {
+  return dialogConfig(type).fields.find(field => field.key === key) || null;
 }
 
 export function bugDialogRichFieldKeys() {
@@ -208,62 +283,89 @@ export function bugDialogRichFieldKeys() {
   ];
 }
 
+export function taskDialogRichFieldKeys() {
+  return ["descriptionHtml"];
+}
+
 export function applyBugDialogFieldPreferences(root = document) {
-  const prefs = readBugDialogFieldPrefs();
+  applyDialogFieldPreferences("bug", root);
+}
+
+export function applyTaskDialogFieldPreferences(root = document) {
+  applyDialogFieldPreferences("task", root);
+}
+
+function applyDialogFieldPreferences(type, root = document) {
+  const config = dialogConfig(type);
+  const prefs = readDialogFieldPrefs(type);
   const order = new Map(prefs.order.map((key, index) => [key, index]));
-  const fields = [...root.querySelectorAll("[data-bug-dialog-field]")];
+  const selector = `[data-work-item-dialog-type="${config.type}"][data-work-item-dialog-field]`;
+  const fields = [...root.querySelectorAll(selector)];
   const parents = new Set(fields.map(field => field.parentElement).filter(Boolean));
 
   fields.forEach(field => {
-    const key = field.dataset.bugDialogField || "";
-    const label = prefs.labels[key] || field.dataset.bugDialogOriginalLabel || key;
+    const key = field.dataset.workItemDialogField || "";
+    const label = prefs.labels[key] || field.dataset.workItemDialogOriginalLabel || key;
     field.hidden = !prefs.visible.includes(key);
-    updateBugDialogFieldLabel(field, label);
+    updateDialogFieldLabel(field, label);
   });
 
   parents.forEach(parent => {
-    [...parent.querySelectorAll(":scope > [data-bug-dialog-field]")]
-      .sort((left, right) => (order.get(left.dataset.bugDialogField) ?? 0) - (order.get(right.dataset.bugDialogField) ?? 0))
+    [...parent.querySelectorAll(`:scope > ${selector}`)]
+      .sort((left, right) => (order.get(left.dataset.workItemDialogField) ?? 0) - (order.get(right.dataset.workItemDialogField) ?? 0))
       .forEach(field => parent.appendChild(field));
   });
 }
 
 export function openBugDialogCustomizationDialog() {
+  openDialogCustomizationDialog("bug");
+}
+
+export function openTaskDialogCustomizationDialog() {
+  openDialogCustomizationDialog("task");
+}
+
+function openDialogCustomizationDialog(type) {
+  const config = dialogConfig(type);
   if (activeDialog?.isConnected) {
-    if (!activeDialog.open) activeDialog.showModal?.();
-    activeDialog.querySelector("[data-bug-dialog-label]")?.focus({ preventScroll: true });
-    return;
+    if (activeDialog.dataset.dialogCustomizeType === config.type) {
+      if (!activeDialog.open) activeDialog.showModal?.();
+      activeDialog.querySelector("[data-dialog-label]")?.focus({ preventScroll: true });
+      return;
+    }
+
+    activeDialog.close();
   }
 
   const modal = document.createElement("dialog");
-  modal.className = "dialog windowed-dialog bug-dialog-customize-dialog";
-  modal.dataset.bugDialogCustomizeDialog = "true";
+  modal.className = "dialog windowed-dialog work-item-dialog-customize-dialog bug-dialog-customize-dialog";
+  modal.dataset.dialogCustomizeType = config.type;
   modal.innerHTML = `
     <form method="dialog">
       <div class="dialog-head">
-        <h2>Customize Bug Report View</h2>
-        <button type="button" class="icon-btn" data-close-bug-dialog-customize title="Close" aria-label="Close">x</button>
+        <h2>Customize ${escapeHtml(config.title)} View</h2>
+        <button type="button" class="icon-btn" data-close-dialog-customize title="Close" aria-label="Close">x</button>
       </div>
-      <div class="dialog-body bug-dialog-customize-body" data-bug-dialog-customize-body></div>
+      <div class="dialog-body bug-dialog-customize-body" data-dialog-customize-body></div>
       <div class="dialog-actions">
         <div class="dialog-action-group is-left">
-          <button type="button" class="secondary text-icon-button" data-reset-bug-dialog-customize>${buttonContent("&#8635;", "Reset")}</button>
+          <button type="button" class="secondary text-icon-button" data-reset-dialog-customize>${buttonContent("&#8635;", "Reset")}</button>
         </div>
-        <button type="button" class="primary text-icon-button" data-save-bug-dialog-customize>${buttonContent("&#10003;", "Done")}</button>
+        <button type="button" class="primary text-icon-button" data-save-dialog-customize>${buttonContent("&#10003;", "Done")}</button>
       </div>
     </form>
   `;
 
   activeDialog = modal;
-  renderBugDialogCustomizationRows(modal, readBugDialogFieldPrefs());
+  renderDialogCustomizationRows(modal, readDialogFieldPrefs(config.type));
   document.body.appendChild(modal);
-  initializeWindowedDialog(modal, { onReset: () => resetBugDialogCustomization(modal) });
-  modal.addEventListener("input", event => handleBugDialogCustomizationInput(modal, event.target));
-  modal.addEventListener("change", event => handleBugDialogCustomizationChange(modal, event.target));
+  initializeWindowedDialog(modal, { onReset: () => resetDialogCustomization(modal) });
+  modal.addEventListener("input", event => handleDialogCustomizationInput(modal, event.target));
+  modal.addEventListener("change", event => handleDialogCustomizationChange(modal, event.target));
   modal.addEventListener("click", event => {
-    if (event.target.closest("[data-close-bug-dialog-customize]")) modal.close();
-    if (event.target.closest("[data-reset-bug-dialog-customize]")) resetBugDialogCustomization(modal);
-    if (event.target.closest("[data-save-bug-dialog-customize]")) saveBugDialogCustomization(modal);
+    if (event.target.closest("[data-close-dialog-customize]")) modal.close();
+    if (event.target.closest("[data-reset-dialog-customize]")) resetDialogCustomization(modal);
+    if (event.target.closest("[data-save-dialog-customize]")) saveDialogCustomization(modal);
   });
   modal.addEventListener("close", () => {
     activeDrag?.unbind();
@@ -272,14 +374,16 @@ export function openBugDialogCustomizationDialog() {
     modal.remove();
   }, { once: true });
   modal.showModal();
-  modal.querySelector("[data-bug-dialog-label]")?.focus({ preventScroll: true });
+  modal.querySelector("[data-dialog-label]")?.focus({ preventScroll: true });
 }
 
-function renderBugDialogCustomizationRows(modal, prefs) {
-  const body = modal.querySelector("[data-bug-dialog-customize-body]");
+function renderDialogCustomizationRows(modal, prefs) {
+  const type = modal.dataset.dialogCustomizeType || "bug";
+  const config = dialogConfig(type);
+  const body = modal.querySelector("[data-dialog-customize-body]");
   if (!body) return;
 
-  const definitionsByKey = new Map(bugDialogFieldDefinitions.map(field => [field.key, field]));
+  const definitionsByKey = new Map(config.fields.map(field => [field.key, field]));
   body.innerHTML = `
     <table class="table settings-table settings-navigation-table work-item-table bug-dialog-customize-table">
       <thead>
@@ -290,45 +394,45 @@ function renderBugDialogCustomizationRows(modal, prefs) {
           <th aria-label="Order"></th>
         </tr>
       </thead>
-      <tbody data-reorder-list="bug-dialog-fields">
-        ${prefs.order.map(key => definitionsByKey.get(key)).filter(Boolean).map(field => bugDialogCustomizationRowHtml(field, prefs)).join("")}
+      <tbody data-reorder-list="dialog-fields">
+        ${prefs.order.map(key => definitionsByKey.get(key)).filter(Boolean).map(field => dialogCustomizationRowHtml(field, prefs)).join("")}
       </tbody>
     </table>
   `;
 
   activeDrag?.unbind();
-  const list = body.querySelector('tbody[data-reorder-list="bug-dialog-fields"]');
+  const list = body.querySelector('tbody[data-reorder-list="dialog-fields"]');
   if (!list) return;
 
   activeDrag = createReorderDrag({
     root: list,
-    containerSelector: 'tbody[data-reorder-list="bug-dialog-fields"]',
-    itemSelector: "tr[data-bug-dialog-field-row]",
-    getItemKey: item => item.dataset.bugDialogFieldRow || "",
+    containerSelector: 'tbody[data-reorder-list="dialog-fields"]',
+    itemSelector: "tr[data-dialog-field-row]",
+    getItemKey: item => item.dataset.dialogFieldRow || "",
     onDrop: ({ orderedKeys }) => {
-      const draft = bugDialogPrefsFromDialog(modal);
-      draft.order = normalizedBugDialogFieldOrder(orderedKeys);
-      const prefs = normalizeBugDialogFieldPrefs(draft);
-      writeJsonPreference(preferenceKeys.bugDialogFields, prefs);
-      renderBugDialogCustomizationRows(modal, prefs);
-      applyBugDialogFieldPreferences(document);
+      const draft = dialogPrefsFromDialog(modal);
+      draft.order = normalizedDialogFieldOrder(type, orderedKeys);
+      const prefs = normalizeDialogFieldPrefs(type, draft);
+      writeJsonPreference(config.preferenceKey, prefs);
+      renderDialogCustomizationRows(modal, prefs);
+      applyDialogFieldPreferences(type, document);
     }
   });
   activeDrag.bind();
 }
 
-function bugDialogCustomizationRowHtml(field, prefs) {
+function dialogCustomizationRowHtml(field, prefs) {
   const label = prefs.labels[field.key] || field.label;
   return `
-    <tr data-bug-dialog-field-row="${escapeAttr(field.key)}">
+    <tr data-dialog-field-row="${escapeAttr(field.key)}">
       <td class="settings-nav-visible-cell bug-dialog-visible-cell">
         <label class="settings-nav-toggle" title="Show ${escapeAttr(field.label)}">
-          <input type="checkbox" data-bug-dialog-visible="${escapeAttr(field.key)}" aria-label="Show ${escapeAttr(field.label)}" ${prefs.visible.includes(field.key) ? "checked" : ""}>
+          <input type="checkbox" data-dialog-visible="${escapeAttr(field.key)}" aria-label="Show ${escapeAttr(field.label)}" ${prefs.visible.includes(field.key) ? "checked" : ""}>
         </label>
       </td>
       <td>${escapeHtml(field.label)}</td>
       <td>
-        <input type="text" data-bug-dialog-label="${escapeAttr(field.key)}" value="${escapeAttr(label)}" aria-label="${escapeAttr(`Display label for ${field.label}`)}">
+        <input type="text" data-dialog-label="${escapeAttr(field.key)}" value="${escapeAttr(label)}" aria-label="${escapeAttr(`Display label for ${field.label}`)}">
       </td>
       <td class="action-cell">
         <button class="work-item-drag-handle settings-nav-drag-handle" type="button" data-drag-handle title="Drag ${escapeAttr(field.label)}" aria-label="Drag ${escapeAttr(field.label)}">
@@ -339,119 +443,129 @@ function bugDialogCustomizationRowHtml(field, prefs) {
   `;
 }
 
-function handleBugDialogCustomizationInput(modal, target) {
-  if (!target?.matches("[data-bug-dialog-label]")) return;
+function handleDialogCustomizationInput(modal, target) {
+  if (!target?.matches("[data-dialog-label]")) return;
 
-  const prefs = bugDialogPrefsFromDialog(modal);
-  writeJsonPreference(preferenceKeys.bugDialogFields, normalizeBugDialogFieldPrefs(prefs));
-  applyBugDialogFieldPreferences(document);
+  const type = modal.dataset.dialogCustomizeType || "bug";
+  const prefs = dialogPrefsFromDialog(modal);
+  writeJsonPreference(dialogConfig(type).preferenceKey, normalizeDialogFieldPrefs(type, prefs));
+  applyDialogFieldPreferences(type, document);
 }
 
-function handleBugDialogCustomizationChange(modal, target) {
-  if (!target?.matches("[data-bug-dialog-visible]")) return;
+function handleDialogCustomizationChange(modal, target) {
+  if (!target?.matches("[data-dialog-visible]")) return;
 
-  if (!target.checked && !modal.querySelectorAll("[data-bug-dialog-visible]:checked").length) {
+  if (!target.checked && !modal.querySelectorAll("[data-dialog-visible]:checked").length) {
     target.checked = true;
     return;
   }
 
-  const prefs = bugDialogPrefsFromDialog(modal);
-  writeJsonPreference(preferenceKeys.bugDialogFields, normalizeBugDialogFieldPrefs(prefs));
-  applyBugDialogFieldPreferences(document);
+  const type = modal.dataset.dialogCustomizeType || "bug";
+  const prefs = dialogPrefsFromDialog(modal);
+  writeJsonPreference(dialogConfig(type).preferenceKey, normalizeDialogFieldPrefs(type, prefs));
+  applyDialogFieldPreferences(type, document);
 }
 
-function saveBugDialogCustomization(modal) {
-  writeJsonPreference(preferenceKeys.bugDialogFields, normalizeBugDialogFieldPrefs(bugDialogPrefsFromDialog(modal)));
-  applyBugDialogFieldPreferences(document);
+function saveDialogCustomization(modal) {
+  const type = modal.dataset.dialogCustomizeType || "bug";
+  writeJsonPreference(dialogConfig(type).preferenceKey, normalizeDialogFieldPrefs(type, dialogPrefsFromDialog(modal)));
+  applyDialogFieldPreferences(type, document);
   modal.close();
 }
 
-function resetBugDialogCustomization(modal) {
-  removePreference(preferenceKeys.bugDialogFields);
-  const prefs = defaultBugDialogFieldPrefs();
-  renderBugDialogCustomizationRows(modal, prefs);
-  applyBugDialogFieldPreferences(document);
+function resetDialogCustomization(modal) {
+  const type = modal.dataset.dialogCustomizeType || "bug";
+  removePreference(dialogConfig(type).preferenceKey);
+  const prefs = defaultDialogFieldPrefs(type);
+  renderDialogCustomizationRows(modal, prefs);
+  applyDialogFieldPreferences(type, document);
 }
 
-function bugDialogPrefsFromDialog(modal) {
-  const order = [...modal.querySelectorAll("[data-bug-dialog-field-row]")]
-    .map(row => row.dataset.bugDialogFieldRow || "")
+function dialogPrefsFromDialog(modal) {
+  const type = modal.dataset.dialogCustomizeType || "bug";
+  const order = [...modal.querySelectorAll("[data-dialog-field-row]")]
+    .map(row => row.dataset.dialogFieldRow || "")
     .filter(Boolean);
-  const visible = [...modal.querySelectorAll("[data-bug-dialog-visible]:checked")]
-    .map(input => input.dataset.bugDialogVisible || "")
+  const visible = [...modal.querySelectorAll("[data-dialog-visible]:checked")]
+    .map(input => input.dataset.dialogVisible || "")
     .filter(Boolean);
   const labels = {};
 
-  modal.querySelectorAll("[data-bug-dialog-label]").forEach(input => {
-    labels[input.dataset.bugDialogLabel || ""] = input.value;
+  modal.querySelectorAll("[data-dialog-label]").forEach(input => {
+    labels[input.dataset.dialogLabel || ""] = input.value;
   });
 
-  return normalizeBugDialogFieldPrefs({ order, visible, labels });
+  return normalizeDialogFieldPrefs(type, { order, visible, labels });
 }
 
-function readBugDialogFieldPrefs() {
-  return normalizeBugDialogFieldPrefs(readJsonPreference(preferenceKeys.bugDialogFields, {}));
+function readDialogFieldPrefs(type) {
+  const config = dialogConfig(type);
+  return normalizeDialogFieldPrefs(config.type, readJsonPreference(config.preferenceKey, {}));
 }
 
-function normalizeBugDialogFieldPrefs(preferences = {}) {
+function normalizeDialogFieldPrefs(type, preferences = {}) {
   const saved = preferences && typeof preferences === "object" && !Array.isArray(preferences)
     ? preferences
     : {};
-  const allowedKeys = bugDialogFieldKeySet();
+  const allowedKeys = dialogFieldKeySet(type);
   const visible = normalizeStringArray(saved.visible).filter(key => allowedKeys.has(key));
   const labels = {};
 
   Object.entries(saved.labels || {}).forEach(([key, label]) => {
     if (!allowedKeys.has(key)) return;
 
-    const originalLabel = bugDialogFieldDefinition(key)?.label || key;
+    const originalLabel = dialogFieldDefinition(type, key)?.label || key;
     const cleanLabel = String(label || "").trim();
     if (cleanLabel && cleanLabel !== originalLabel) labels[key] = cleanLabel;
   });
 
   return {
-    order: normalizedBugDialogFieldOrder(saved.order),
-    visible: visible.length ? visible : bugDialogDefaultVisibleKeys(),
+    order: normalizedDialogFieldOrder(type, saved.order),
+    visible: visible.length ? visible : dialogDefaultVisibleKeys(type),
     labels
   };
 }
 
-function defaultBugDialogFieldPrefs() {
+function defaultDialogFieldPrefs(type) {
   return {
-    order: bugDialogDefaultOrder(),
-    visible: bugDialogDefaultVisibleKeys(),
+    order: dialogDefaultOrder(type),
+    visible: dialogDefaultVisibleKeys(type),
     labels: {}
   };
 }
 
-function normalizedBugDialogFieldOrder(order = []) {
-  const allowedKeys = bugDialogFieldKeySet();
+function normalizedDialogFieldOrder(type, order = []) {
+  const allowedKeys = dialogFieldKeySet(type);
   const orderedKeys = normalizeStringArray(order).filter(key => allowedKeys.has(key));
 
-  bugDialogDefaultOrder().forEach(key => {
+  dialogDefaultOrder(type).forEach(key => {
     if (!orderedKeys.includes(key)) orderedKeys.push(key);
   });
 
   return orderedKeys;
 }
 
-function bugDialogDefaultOrder() {
-  return bugDialogFieldDefinitions.map(field => field.key);
+function dialogDefaultOrder(type) {
+  return dialogConfig(type).fields.map(field => field.key);
 }
 
-function bugDialogDefaultVisibleKeys() {
-  return bugDialogDefaultOrder();
+function dialogDefaultVisibleKeys(type) {
+  return dialogDefaultOrder(type);
 }
 
-function bugDialogFieldKeySet() {
-  return new Set(bugDialogDefaultOrder());
+function dialogFieldKeySet(type) {
+  return new Set(dialogDefaultOrder(type));
+}
+
+function dialogConfig(type) {
+  return dialogConfigs[type] || dialogConfigs.bug;
 }
 
 function normalizeStringArray(value) {
   return Array.isArray(value) ? value.map(item => String(item || "")).filter(Boolean) : [];
 }
 
-function updateBugDialogFieldLabel(field, label) {
+function updateDialogFieldLabel(field, label) {
   const labelElement = field.querySelector(":scope > label")
     || field.querySelector(":scope > legend")
     || field.querySelector(":scope > fieldset > legend")

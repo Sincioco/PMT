@@ -248,6 +248,18 @@ html[data-theme] .tasks-screen.work-item-screen .work-item-table .icon-action:di
   min-width: 0;
 }
 
+.detail-grid[data-work-item-dialog-root="task-read"] .task-dialog-user-avatar-stack {
+  --avatar-overlap: -24px;
+  min-height: 84px;
+  gap: var(--space-4);
+}
+
+.detail-grid[data-work-item-dialog-root="task-read"] .task-dialog-user-avatar-stack .avatar {
+  width: 80px;
+  height: 80px;
+  box-shadow: var(--shadow-floating-mark);
+}
+
 .task-editor-grid .check-list {
   margin: 0;
 }
