@@ -74,3 +74,42 @@ Documentation
 48.) When the content is expanded and the scrollbar is no longer needed, it is still intercepting the mousewheel's scrolling preventing the user from actually scrolling up or down the browser's page.
 
 Commit and Push.
+
+3D PMT Logo Flyby - Flex Your 3D Power ChatGPT 5.6 Sol Ultra!
+-------------------------------------------------------------
+1.) Take the PMT log in SVG form at:  D:\Project Management Tool (PMT)\wwwroot\assets\pmt-logo-full.svg;
+2.) Turn that into a simple 3D model by just simply extruding it.
+3.) Make it into a semi transparent glass-like surface.  Tint the glass with the color of PMT's logo.  Make the surface reflective and the glass surface almost candy/plastic like.
+4.) Have the camera flyby the logo.  Far at first, orbiting it....then suddently go in through the logo into one of its letters with opening, and come out the other say and orbit again.  Make sure the animation is smooth and when it repeats there is no break from when the animation starts and end.  It must be a continous loop.
+5.) Allow the user to control camera if they want to by using the mousewheel to zoom in and out, and moving the mouse to look around.  Animation should pause when the user controls the mouse and keyboard via the standard WASD and mouse controls found in most video games.
+6.) If the player/user goes idle for 5 seconds, calculate where the user is now and smoothly return back to the pre-defined animation path, to the state where the animation was before the user took over.  Resume smoothly and slowly from where the user is and where the animation should begin so as not to create a jarring viewing experience.
+7.) Almost pretend the camera, when it is animating on its own, is like a flying bird.  So the camera should at times accelerate, slow down a bit, or just be steady at times....like a bird flying and having fun around the PMT logo.
+8.) Be sure the PMT logo has proper lighting and shadows.  Create a nice 3D scene.
+9.) When the page / scene first loads, show the current PMT .svg logo for about 3 seconds...have a countdown at the top, then morph/fade it into its 3D version and begin the flyby animation loop that is interrupted by the user so they can explore the 3D environment...then resume the flyby animation after the user is idle for 5 seconds.  Countdown at the top before resuming animation.
+10.) For now, put this animation in the About page.  Use that content area of the About page as your 3D scene / canvas.  You can completely take over the About page's content.
+
+11.) Can you make the UFO come every 1 minute?  And say a few different things each time like:  "Wow a JIRA + Confluence all in one!"   or   "It tracks bugs!  And has Charts!"   or "This is the tool we have been searching the galaxy for!"  You can also make up some more funny things to say.
+
+12.) Update the Alien message bubble and use these lines and also make up your own funny ones:
+
+"Wow, JIRA + Confluence all-in-one?
+Such advanced civilization!"
+
+"Dev Tasks, Bug Tracking with Charts!
+I need to tell the others!"
+
+"I travel the galaxy for treasures
+such as this!"
+
+"If we had tools like these, we
+would be gods by now!"
+
+"Who is the awesome guy who made
+this tool?  I will travel back in
+time to meet him!"
+
+"What?  This tool is free?
+How crazy is that!"
+
+
+13.) On the About page, the canvas that is used by the 3D flyby has a border around it.  Can you remove that border and make the canvas fill the entire content area of the About page?
