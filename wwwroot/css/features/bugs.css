@@ -199,6 +199,8 @@ html[data-theme] .bugs-screen.work-item-screen .section-head .toolbar > button:h
 
 .bug-dialog-customize-table {
   min-width: 720px;
+  width: calc(100% - var(--space-4));
+  margin-left: var(--space-4);
 }
 
 .bug-dialog-customize-table th {

@@ -1,0 +1,34 @@
+Project Management Tool (PMT):  Day 24 of Codex Agentic AI Coding
+-----------------------------------------------------------------
+Total Dev Time in Hours:  31
+
+For all of this conversation / session, I will perform all the manual tests and compile the application manually.  Perform only the coding changes required and nothing else.  If making CSS / image changes, ensure that I will encounter no caching issue when testing in the browser.  Be sure to inform me if I have to recompile the .Net portion of the project or just Press Ctrl + F5 on the browser to reload to see the latest changes.
+
+If making changes to the database, that affects existing users see database-versioning.md under the docs folder.
+
+
+Bug Tracking Screen
+——————————
+Goal:  Allow QA to customize the dialog box to the way each person works and how they want to see things and in what order.
+
+1.) In the Bug Tracking Screen, in the New/Edit/Read Bug Report dialog box, add a new button at the top of the dialog box this will be for “Customize View”;
+2.) When clicked, bring up another dialog box that allows the user to customize the order of the fields in the New/Edit/Read dialog box.
+3.) Refer to the Settings -> Navigation screen for the UI experience we want.
+4.) Give the user the ability to hide/show columns, re-label them but keep a column that shows the original column name, and allow them to drag/drop the order of them.
+5.) You can save their user’s preference in local storage as this will be an individual preference.
+6.) Also, add a new multi line text box (RTE) called Root Cause Analysis above Assignee section.  This will be a database change, so obviously, create a database migration path for the PMT 1.0 users so we can patch the current deployment of PMT for existing users.
+7.) Be sure to update the Seed tables too so new installs of PMT don't need to be patch with the first database patch and the new one you are creating.
+8.) It functionally works, so that is great!  A couple of bugs:  1.) The text box for renaming the labels did not get any styling at all; 2.) The sticker column headers are not flushed to the top, so there is a gap between its parent container and itself and you can see content through it when you scroll.
+9.) In Edit mode, I moved the URL field as the first field which is a 2-column field and takes up 2 columns in the edit and new mode.  But when I look at the read-only mode dialog box, the field is only a single column.  Can you sync the read-only dialog so it renders things in sync with the new/edit dialog box?  So the user gets a better UI/UX experience.
+10.) Also, change the icon for the Customize View.
+11.) In read-only mode, the dialog box renders the avatars of the users pretty small.  Render it in the same size as the edit/new mode. No need to overlap the users avatar unless it will not fit in the width of its container.
+12.) Put the Customize view button to the right of the reset button and remove the label.
+13.)  There are so many buttons on the dialog’s header now, let’s just move them into one overflow menu.  Create an overflow menu to the left of the close button.  And render each button with its icon and label just like in the Bug Tracking screen’s page level overflow menu.
+14.) Btw, for the Customize View button, you picked the close (x) icon…that’s terrible!
+15.) The Reset button is still on the header.  Can you hide/remove it?
+16.) The old Maximize//restore button is still on the header.  It’s fine keep it there.  Remove the one in the overflow menu.
+17.) Move the overflow menu icon to the left of the Maximize/Restore button.
+18.) So far all looks good.  Commit and push to the repo.
+
+
+19.) Now, give the Dev Task’s Read/New/Edit dialog box the same treatment.

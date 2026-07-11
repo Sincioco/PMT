@@ -13,7 +13,7 @@ import {
   taskDialogCustomizationButtonHtml,
   taskDialogFieldHtml,
   taskDialogFieldLabel
-} from "./bug-dialog-customization.js?v=20260711-task-dialog-customize";
+} from "./bug-dialog-customization.js?v=20260711-task-root-cause";
 import { buttonContent, iconButton } from "./buttons.js?v=20260621-dev-task-icons";
 import { initializeWindowedDialog } from "./dialogs.js?v=20260711-task-dialog-customize";
 import {
@@ -42,7 +42,7 @@ import {
   allowedAssigneeUsers,
   taskDisplayPercent
 } from "../shared/work-item-rules.js?v=20260710-export-rich-kanban";
-import { exportWorkItemHtml } from "../shared/work-item-transfer.js?v=20260711-bug-dialog-customize";
+import { exportWorkItemHtml } from "../shared/work-item-transfer.js?v=20260711-task-root-cause";
 
 export function taskButtonsHtml(task, { includeView = true, monochrome = false } = {}) {
   const canEdit = canEditTask(task);
@@ -384,6 +384,7 @@ function taskDialogDetailFieldsHtml(task, richPersistAttrs, dependencyLinks) {
     taskDialogFieldHtml("priority", detailField(taskDialogFieldLabel("priority"), escapeHtml(task.priority))),
     taskDialogFieldHtml("percentCompleted", detailField(taskDialogFieldLabel("percentCompleted"), `${taskDisplayPercent(task)}%`)),
     taskDialogFieldHtml("descriptionHtml", detailField(taskDialogFieldLabel("descriptionHtml"), `<div class="rich-readonly" ${richPersistAttrs("descriptionHtml")}>${task.descriptionHtml || ""}</div>`, true)),
+    taskDialogFieldHtml("rootCauseAnalysisHtml", detailField(taskDialogFieldLabel("rootCauseAnalysisHtml"), `<div class="rich-readonly" ${richPersistAttrs("rootCauseAnalysisHtml")}>${task.rootCauseAnalysisHtml || ""}</div>`, true)),
     taskDialogFieldHtml("attachments", detailField(taskDialogFieldLabel("attachments"), task.attachments.length ? attachmentsHtml(task.attachments) : "", true)),
     taskDialogFieldHtml("assigneeIds", detailField(taskDialogFieldLabel("assigneeIds"), avatarsHtml(task.assignees, readOnlyAvatarOptions), true)),
     taskDialogFieldHtml("startDate", detailField(taskDialogFieldLabel("startDate"), escapeHtml(formatDate(task.startDate)))),

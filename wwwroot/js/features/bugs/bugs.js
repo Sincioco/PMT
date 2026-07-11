@@ -6,7 +6,7 @@ import {
   bugDialogFieldLabel,
   openBugDialogCustomizationDialog,
   syncBugDialogHeaderActionsMenu
-} from "../../components/bug-dialog-customization.js?v=20260711-task-dialog-customize";
+} from "../../components/bug-dialog-customization.js?v=20260711-task-root-cause";
 import { buttonContent, chartIconHtml, funnelIconHtml, pageActionsMenuHtml } from "../../components/buttons.js?v=20260701-unified-dropdowns";
 import { VisualCharts } from "../../components/charts.js?v=20260628-chart-native-tooltips";
 import { initializeWindowedDialog } from "../../components/dialogs.js?v=20260711-task-dialog-customize";
@@ -41,7 +41,7 @@ import {
   taskPercentField,
   workItemDialogMetaHtml,
   uploadWorkItemAttachments
-} from "../../components/work-items.js?v=20260711-task-dialog-customize";
+} from "../../components/work-items.js?v=20260711-task-root-cause";
 import {
   currentUser,
   currentUserId
@@ -106,7 +106,7 @@ import {
   taskCreatedTime,
   taskOrderCompare
 } from "../../shared/work-item-rules.js?v=20260710-rich-bug-layout";
-import { openWorkItemHtmlImport } from "../../shared/work-item-transfer.js?v=20260711-bug-dialog-customize";
+import { openWorkItemHtmlImport } from "../../shared/work-item-transfer.js?v=20260711-task-root-cause";
 
 export function createBugsFeature({
   app,

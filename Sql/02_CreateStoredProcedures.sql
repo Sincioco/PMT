@@ -849,6 +849,9 @@ BEGIN
     DECLARE @AssociatedOldStatus NVARCHAR(40);
     DECLARE @AssociatedOldPercentCompleted INT;
     DECLARE @AssociatedNewPercentCompleted INT;
+    DECLARE @RootCauseSyncTargetId INT;
+    DECLARE @RootCauseSyncExistingHtml NVARCHAR(MAX);
+    DECLARE @RootCauseSyncMergedHtml NVARCHAR(MAX);
     DECLARE @AssociatedDevTaskUpdates TABLE
     (
         [TaskId] INT NOT NULL PRIMARY KEY,
@@ -967,7 +970,6 @@ BEGIN
         SET @StepsToReproduceHtml = NULL;
         SET @ActualResultHtml = NULL;
         SET @ExpectedResultHtml = NULL;
-        SET @RootCauseAnalysisHtml = NULL;
         SET @Environment = NULL;
         SET @Severity = NULL;
         SET @ReporterIdsCsv = N'';
@@ -1466,6 +1468,91 @@ BEGIN
         BEGIN
             INSERT INTO [pmt].[TaskDependencies] ([TaskId], [DependsOnTaskId], [CreatedByUserId])
             VALUES (@LinkedDevTaskId, @TaskId, @CurrentUserId);
+        END;
+    END;
+
+    IF NULLIF(LTRIM(RTRIM(ISNULL(@RootCauseAnalysisHtml, N''))), N'') IS NOT NULL
+    BEGIN
+        SELECT TOP (1)
+            @RootCauseSyncTargetId = [Candidate].[TaskId],
+            @RootCauseSyncExistingHtml = [Candidate].[RootCauseAnalysisHtml]
+        FROM
+        (
+            SELECT DISTINCT [BugTask].[TaskId], [BugTask].[RootCauseAnalysisHtml]
+            FROM [pmt].[WorkTasks] AS [BugTask]
+            WHERE @TaskType = N'Dev'
+              AND [BugTask].[TaskType] = N'Bug'
+              AND [BugTask].[IsDeleted] = 0
+              AND
+              (
+                  [BugTask].[TaskId] = @ExistingLinkedBugTaskId
+                  OR EXISTS
+                  (
+                      SELECT 1
+                      FROM [pmt].[TaskDependencies] AS [Dependency]
+                      WHERE [Dependency].[TaskId] = @TaskId
+                        AND [Dependency].[DependsOnTaskId] = [BugTask].[TaskId]
+                  )
+                  OR EXISTS
+                  (
+                      SELECT 1
+                      FROM [pmt].[TaskDependencies] AS [Dependency]
+                      WHERE [Dependency].[TaskId] = [BugTask].[TaskId]
+                        AND [Dependency].[DependsOnTaskId] = @TaskId
+                  )
+              )
+
+            UNION
+
+            SELECT DISTINCT [DevTask].[TaskId], [DevTask].[RootCauseAnalysisHtml]
+            FROM [pmt].[WorkTasks] AS [DevTask]
+            WHERE @TaskType = N'Bug'
+              AND [DevTask].[TaskType] = N'Dev'
+              AND [DevTask].[IsDeleted] = 0
+              AND
+              (
+                  [DevTask].[LinkedBugTaskId] = @TaskId
+                  OR EXISTS
+                  (
+                      SELECT 1
+                      FROM [pmt].[TaskDependencies] AS [Dependency]
+                      WHERE [Dependency].[TaskId] = [DevTask].[TaskId]
+                        AND [Dependency].[DependsOnTaskId] = @TaskId
+                  )
+                  OR EXISTS
+                  (
+                      SELECT 1
+                      FROM [pmt].[TaskDependencies] AS [Dependency]
+                      WHERE [Dependency].[TaskId] = @TaskId
+                        AND [Dependency].[DependsOnTaskId] = [DevTask].[TaskId]
+                  )
+              )
+        ) AS [Candidate]
+        ORDER BY
+            CASE
+                WHEN @TaskType = N'Dev' AND [Candidate].[TaskId] = @ExistingLinkedBugTaskId THEN 0
+                WHEN @TaskType = N'Bug' AND [Candidate].[TaskId] = @LinkedDevTaskId THEN 0
+                ELSE 1
+            END,
+            [Candidate].[TaskId];
+
+        IF @RootCauseSyncTargetId IS NOT NULL
+        BEGIN
+            SET @RootCauseSyncMergedHtml = CASE
+                WHEN NULLIF(LTRIM(RTRIM(ISNULL(@RootCauseSyncExistingHtml, N''))), N'') IS NULL THEN @RootCauseAnalysisHtml
+                WHEN ISNULL(@RootCauseSyncExistingHtml, N'') = ISNULL(@RootCauseAnalysisHtml, N'') THEN @RootCauseSyncExistingHtml
+                WHEN CHARINDEX(@RootCauseAnalysisHtml, @RootCauseSyncExistingHtml) > 0 THEN @RootCauseSyncExistingHtml
+                WHEN CHARINDEX(@RootCauseSyncExistingHtml, @RootCauseAnalysisHtml) > 0 THEN @RootCauseAnalysisHtml
+                ELSE @RootCauseSyncExistingHtml + N'<hr>' + @RootCauseAnalysisHtml
+            END;
+
+            UPDATE [pmt].[WorkTasks]
+            SET
+                [RootCauseAnalysisHtml] = @RootCauseSyncMergedHtml,
+                [UpdatedByUserId] = @CurrentUserId,
+                [UpdatedAt] = @Now
+            WHERE [TaskId] IN (@TaskId, @RootCauseSyncTargetId)
+              AND ISNULL([RootCauseAnalysisHtml], N'') <> ISNULL(@RootCauseSyncMergedHtml, N'');
         END;
     END;
 

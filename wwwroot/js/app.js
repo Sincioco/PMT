@@ -21,7 +21,7 @@ import {
   bindAttachmentPreview,
   showTaskAudit,
   viewWorkItem
-} from "./components/work-items.js?v=20260711-task-dialog-customize";
+} from "./components/work-items.js?v=20260711-task-root-cause";
 import { createApplicationShell } from "./core/application-shell.js?v=20260710-nav-avatar-fit";
 import {
   currentView,
@@ -47,7 +47,7 @@ import { appUrl } from "./shared/app-urls.js";
 import { createAboutFeature } from "./features/about/about.js?v=20260710-about-logo-png";
 import { createBacklogFeature } from "./features/backlog/backlog.js?v=20260710-rich-bug-layout";
 import { createBoardFeature } from "./features/board/board.js?v=20260710-rte-table-percent-kanban";
-import { createBugsFeature } from "./features/bugs/bugs.js?v=20260711-task-dialog-customize";
+import { createBugsFeature } from "./features/bugs/bugs.js?v=20260711-task-root-cause";
 import { createDashboardFeature } from "./features/dashboard/dashboard.js?v=20260710-nav-avatar-fit";
 import { createDocumentationFeature } from "./features/documentation/documentation.js?v=20260710-rte-checkbox-persist";
 import {
@@ -61,7 +61,7 @@ import { createLogFeature } from "./features/personal-log/log.js?v=20260710-rte-
 import { createScrumFeature } from "./features/scrum/scrum.js?v=20260710-rte-checkbox-persist";
 import { createSettingsFeature } from "./features/settings/settings.js?v=20260710-nav-avatar-fit";
 import { createSprintsFeature } from "./features/sprints/sprints.js?v=20260710-nav-avatar-fit";
-import { createTasksFeature } from "./features/tasks/tasks.js?v=20260711-task-dialog-customize";
+import { createTasksFeature } from "./features/tasks/tasks.js?v=20260711-task-root-cause";
 import { createWfhScheduleFeature } from "./features/wfh-schedule/wfh-schedule.js?v=20260709-wfh-undo-large-days";
 import {
   fallbackEnvironments,

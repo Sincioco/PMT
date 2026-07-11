@@ -6,7 +6,7 @@ import {
   taskDialogCustomizationButtonHtml,
   taskDialogFieldHtml,
   taskDialogFieldLabel
-} from "../../components/bug-dialog-customization.js?v=20260711-task-dialog-customize";
+} from "../../components/bug-dialog-customization.js?v=20260711-task-root-cause";
 import { buttonContent, chartIconHtml, funnelIconHtml, pageActionsMenuHtml } from "../../components/buttons.js?v=20260701-unified-dropdowns";
 import { VisualCharts } from "../../components/charts.js?v=20260628-chart-native-tooltips";
 import { initializeWindowedDialog } from "../../components/dialogs.js?v=20260711-task-dialog-customize";
@@ -38,7 +38,7 @@ import {
   taskPercentField,
   workItemDialogMetaHtml,
   uploadWorkItemAttachments
-} from "../../components/work-items.js?v=20260711-task-dialog-customize";
+} from "../../components/work-items.js?v=20260711-task-root-cause";
 import {
   currentUser
 } from "../../core/authentication.js";
@@ -102,7 +102,7 @@ import {
   taskRowsWithSubTasks,
   validateLinkedBugCompletion
 } from "../../shared/work-item-rules.js?v=20260710-export-rich-kanban";
-import { openWorkItemHtmlImport } from "../../shared/work-item-transfer.js?v=20260710-export-rich-kanban";
+import { openWorkItemHtmlImport } from "../../shared/work-item-transfer.js?v=20260711-task-root-cause";
 
 const taskBugFixIconUrl = "/assets/bug.svg?v=20260629-kanban-gantt-bug-icon";
 
@@ -518,6 +518,7 @@ export function createTasksFeature({
         ${taskDialogFieldHtml("priority", selectTextField(taskDialogFieldLabel("priority"), "priority", getLookupOptions("Priority", task.priority || "Low"), task.priority || "Low"))}
         ${taskDialogFieldHtml("percentCompleted", taskPercentField({ ...task, __workItemDialogPercentLabel: taskDialogFieldLabel("percentCompleted") }, taskHasSubTasks))}
         ${taskDialogFieldHtml("descriptionHtml", richTextField("descriptionHtml", taskDialogFieldLabel("descriptionHtml"), task.descriptionHtml || ""))}
+        ${taskDialogFieldHtml("rootCauseAnalysisHtml", richTextField("rootCauseAnalysisHtml", taskDialogFieldLabel("rootCauseAnalysisHtml"), task.rootCauseAnalysisHtml || ""))}
         ${taskDialogFieldHtml("attachments", attachmentEditorFieldHtml())}
         ${taskDialogFieldHtml("assigneeIds", `<div class="task-assignee-list" data-assignee-list></div>`)}
         ${taskDialogFieldHtml("startDate", field(taskDialogFieldLabel("startDate"), "startDate", toDateInput(task.startDate), "date"))}
@@ -554,6 +555,7 @@ export function createTasksFeature({
         taskType: "Dev",
         title,
         descriptionHtml: richValue(root, "descriptionHtml"),
+        rootCauseAnalysisHtml: richValue(root, "rootCauseAnalysisHtml"),
         stepsToReproduceHtml: "",
         actualResultHtml: "",
         expectedResultHtml: "",
@@ -1843,6 +1845,7 @@ export function createTasksFeature({
       taskType: "Dev",
       title: updates.title,
       descriptionHtml: task?.descriptionHtml || "<p>Imported from PMT grid import.</p>",
+      rootCauseAnalysisHtml: task?.rootCauseAnalysisHtml || "",
       stepsToReproduceHtml: "",
       actualResultHtml: "",
       expectedResultHtml: "",

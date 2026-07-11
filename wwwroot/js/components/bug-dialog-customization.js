@@ -52,6 +52,7 @@ const dialogConfigs = Object.freeze({
       { key: "priority", label: "Priority" },
       { key: "percentCompleted", label: "Percent" },
       { key: "descriptionHtml", label: "Description" },
+      { key: "rootCauseAnalysisHtml", label: "Root Cause Analysis" },
       { key: "attachments", label: "Attachments" },
       { key: "assigneeIds", label: "Assignees" },
       { key: "startDate", label: "Start" },
@@ -284,7 +285,10 @@ export function bugDialogRichFieldKeys() {
 }
 
 export function taskDialogRichFieldKeys() {
-  return ["descriptionHtml"];
+  return [
+    "descriptionHtml",
+    "rootCauseAnalysisHtml"
+  ];
 }
 
 export function applyBugDialogFieldPreferences(root = document) {
@@ -388,7 +392,7 @@ function renderDialogCustomizationRows(modal, prefs) {
     <table class="table settings-table settings-navigation-table work-item-table bug-dialog-customize-table">
       <thead>
         <tr>
-          <th class="bug-dialog-visible-column">Visible</th>
+          <th class="bug-dialog-visible-column" aria-label="Visible"></th>
           <th>Original Field</th>
           <th>Display Label</th>
           <th aria-label="Order"></th>
