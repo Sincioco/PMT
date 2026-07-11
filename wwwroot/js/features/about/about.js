@@ -1,6 +1,6 @@
 import { appUrl } from "../../shared/app-urls.js";
 
-const ABOUT_VERSION = "20260712-about-3d-flyby-20";
+const ABOUT_VERSION = "20260712-about-3d-flyby-21";
 
 export function createAboutFeature({ app }) {
   let activeScene = null;
@@ -8,6 +8,7 @@ export function createAboutFeature({ app }) {
 
   function renderAbout() {
     deactivate();
+    app.classList.add("app-shell-about");
     const generation = renderGeneration;
     const logoUrl = appUrl(`/assets/pmt-logo-full.svg?v=${ABOUT_VERSION}`);
 
@@ -93,6 +94,7 @@ export function createAboutFeature({ app }) {
     renderGeneration += 1;
     activeScene?.dispose();
     activeScene = null;
+    app.classList.remove("app-shell-about");
   }
 
   return {

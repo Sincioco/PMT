@@ -29,6 +29,30 @@ test("About renders the drone flyby and supports camera takeover and speed keys"
   expect(canvasSize.bufferWidth).toBeGreaterThanOrEqual(canvasSize.cssWidth);
   expect(canvasSize.bufferHeight).toBeGreaterThanOrEqual(canvasSize.cssHeight);
 
+  const fullBleed = await root.evaluate(element => {
+    const shell = element.parentElement;
+    const shellRect = shell.getBoundingClientRect();
+    const sceneRect = element.getBoundingClientRect();
+    const shellStyle = getComputedStyle(shell);
+    const sceneStyle = getComputedStyle(element);
+    return {
+      left: sceneRect.left - shellRect.left,
+      top: sceneRect.top - shellRect.top,
+      right: shellRect.right - sceneRect.right,
+      bottom: shellRect.bottom - sceneRect.bottom,
+      shellPadding: shellStyle.padding,
+      borderWidth: sceneStyle.borderWidth,
+      borderRadius: sceneStyle.borderRadius
+    };
+  });
+  expect(fullBleed.left).toBeCloseTo(0, 1);
+  expect(fullBleed.top).toBeCloseTo(0, 1);
+  expect(fullBleed.right).toBeCloseTo(0, 1);
+  expect(fullBleed.bottom).toBeCloseTo(0, 1);
+  expect(fullBleed.shellPadding).toBe("0px");
+  expect(fullBleed.borderWidth).toBe("0px");
+  expect(fullBleed.borderRadius).toBe("0px");
+
   const screenshot = await root.screenshot();
   expect(screenshot.byteLength).toBeGreaterThan(30000);
   await testInfo.attach("about-3d-drone", { body: screenshot, contentType: "image/png" });

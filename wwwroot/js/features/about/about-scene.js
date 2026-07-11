@@ -1,8 +1,8 @@
 import * as THREE from "../../vendor/three/three.module.min.js";
 import { RoomEnvironment } from "../../vendor/three/addons/environments/RoomEnvironment.js?v=0.185.1-pmt1";
 import { SVGLoader } from "../../vendor/three/addons/loaders/SVGLoader.js?v=0.185.1-pmt1";
-import { createAboutFlightController } from "./about-flight-controller.js?v=20260712-about-3d-flyby-20";
-import { createUfoEncounter } from "./about-ufo.js?v=20260712-about-3d-flyby-20";
+import { createAboutFlightController } from "./about-flight-controller.js?v=20260712-about-3d-flyby-21";
+import { createUfoEncounter } from "./about-ufo.js?v=20260712-about-3d-flyby-21";
 
 const INTRO_DURATION_MS = 3000;
 const INTRO_FADE_DURATION_MS = 1250;
