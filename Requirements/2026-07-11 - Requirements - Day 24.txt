@@ -113,3 +113,6 @@ How crazy is that!"
 
 
 13.) On the About page, the canvas that is used by the 3D flyby has a border around it.  Can you remove that border and make the canvas fill the entire content area of the About page?
+14.) The panel at the top that shows some status, can you move it at the bottom of the screen.
+15.) Can you adjust the scene so we could see a shadow of the PMT logo on the ground?
+16.) You panels are not positioned correctly when the browser's dimension is small.

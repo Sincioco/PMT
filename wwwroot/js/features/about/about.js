@@ -1,6 +1,6 @@
 import { appUrl } from "../../shared/app-urls.js";
 
-const ABOUT_VERSION = "20260712-about-3d-flyby-21";
+const ABOUT_VERSION = "20260712-about-3d-flyby-25";
 
 export function createAboutFeature({ app }) {
   let activeScene = null;

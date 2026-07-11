@@ -121,13 +121,20 @@
   position: absolute;
   inset: 0;
   z-index: 3;
+  display: grid;
+  grid-template-areas: "controls status mode";
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  gap: 12px;
+  align-items: end;
+  align-content: end;
+  padding: 18px;
   pointer-events: none;
 }
 
 .about-flight-status,
 .about-flight-controls,
 .about-flight-mode {
-  position: absolute;
+  position: static;
   margin: 0;
   color: #eaf5ff;
   background: rgb(4 13 28 / 62%);
@@ -137,25 +144,26 @@
 }
 
 .about-flight-status {
-  top: 18px;
-  left: 50%;
+  grid-area: status;
+  justify-self: center;
   min-width: 270px;
   padding: 9px 17px;
   font-size: var(--font-size-sm);
   letter-spacing: 0.025em;
   text-align: center;
   border-radius: 999px;
-  transform: translateX(-50%);
+  transform: none;
 }
 
 .about-flight-controls {
-  bottom: 18px;
-  left: 18px;
+  grid-area: controls;
+  justify-self: start;
   display: flex;
+  min-width: 0;
   flex-wrap: wrap;
   gap: 6px 10px;
   align-items: center;
-  max-width: calc(100% - 130px);
+  max-width: 100%;
   padding: 9px 12px;
   color: #a9bfd3;
   font-size: 12px;
@@ -169,8 +177,8 @@
 }
 
 .about-flight-mode {
-  right: 18px;
-  bottom: 18px;
+  grid-area: mode;
+  justify-self: end;
   min-width: 80px;
   padding: 9px 12px;
   color: #a9d4ff;
@@ -279,31 +287,31 @@
 }
 
 @media (max-width: 900px) {
+  .about-flight-hud {
+    grid-template-areas:
+      "controls mode"
+      "status status";
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px 12px;
+    padding: 12px;
+  }
+
   .about-intro-logo {
     width: min(760px, 96%);
   }
 
   .about-flight-status {
-    top: 12px;
     min-width: min(270px, calc(100% - 24px));
   }
 
   .about-flight-controls {
-    bottom: 12px;
-    left: 12px;
-    max-width: calc(100% - 112px);
-  }
-
-  .about-flight-mode {
-    right: 12px;
-    bottom: 12px;
+    max-width: 100%;
   }
 }
 
 @media (max-width: 620px) {
   .about-flight-controls {
     gap: 4px 8px;
-    max-width: calc(100% - 104px);
     font-size: 10px;
   }
 
@@ -311,6 +319,16 @@
     min-width: 72px;
     font-size: 10px;
   }
+}
+
+.about-screen:not([data-flight-mode="manual"]) .about-flight-hud {
+  grid-template-areas: "mode";
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.about-screen:not([data-flight-mode="manual"]) .about-flight-status,
+.about-screen:not([data-flight-mode="manual"]) .about-flight-controls {
+  display: none;
 }
 
 @media (prefers-reduced-motion: reduce) {

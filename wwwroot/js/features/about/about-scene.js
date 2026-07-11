@@ -1,13 +1,14 @@
 import * as THREE from "../../vendor/three/three.module.min.js";
 import { RoomEnvironment } from "../../vendor/three/addons/environments/RoomEnvironment.js?v=0.185.1-pmt1";
 import { SVGLoader } from "../../vendor/three/addons/loaders/SVGLoader.js?v=0.185.1-pmt1";
-import { createAboutFlightController } from "./about-flight-controller.js?v=20260712-about-3d-flyby-21";
-import { createUfoEncounter } from "./about-ufo.js?v=20260712-about-3d-flyby-21";
+import { createAboutFlightController } from "./about-flight-controller.js?v=20260712-about-3d-flyby-25";
+import { createUfoEncounter } from "./about-ufo.js?v=20260712-about-3d-flyby-25";
 
 const INTRO_DURATION_MS = 3000;
 const INTRO_FADE_DURATION_MS = 1250;
 const LOGO_WORLD_WIDTH = 12;
 const EXTRUDE_DEPTH = 64;
+const FLOOR_Y = -4.6;
 const FALLBACK_PORTAL = new THREE.Vector2(1006.56, 443.3);
 
 export function createAboutScene({
@@ -275,19 +276,24 @@ function setupScene(scene, renderer, resources, animatedLights) {
   const hemisphere = new THREE.HemisphereLight(0xa8d8ff, 0x07101d, 1.35);
   scene.add(hemisphere);
 
-  const sunPosition = new THREE.Vector3(10, 8, -20).normalize().multiplyScalar(34);
+  // A higher sun keeps the logo's projected shadow close to the model and inside
+  // the camera's normal framing instead of stretching it underneath the viewer.
+  const sunPosition = new THREE.Vector3(-10, 14, 20).normalize().multiplyScalar(34);
   const keyLight = new THREE.DirectionalLight(0xfff1ce, 4.8);
   keyLight.position.copy(sunPosition);
+  keyLight.target.position.set(0, 0, 0);
   keyLight.castShadow = true;
-  keyLight.shadow.mapSize.set(1024, 1024);
+  keyLight.shadow.mapSize.set(2048, 2048);
   keyLight.shadow.camera.near = 1;
   keyLight.shadow.camera.far = 70;
   keyLight.shadow.camera.left = -14;
   keyLight.shadow.camera.right = 14;
   keyLight.shadow.camera.top = 14;
   keyLight.shadow.camera.bottom = -14;
-  keyLight.shadow.bias = -0.00025;
-  scene.add(keyLight, createVisibleSun(sunPosition, resources));
+  keyLight.shadow.bias = -0.00015;
+  keyLight.shadow.normalBias = 0.025;
+  keyLight.shadow.radius = 2.2;
+  scene.add(keyLight, keyLight.target, createVisibleSun(sunPosition, resources));
 
   const blueRim = new THREE.SpotLight(0x2686fe, 210, 65, Math.PI / 5, 0.75, 2);
   blueRim.position.set(-13, 8, 13);
@@ -321,11 +327,30 @@ function setupScene(scene, renderer, resources, animatedLights) {
   });
   const floor = new THREE.Mesh(floorGeometry, floorMaterial);
   floor.rotation.x = -Math.PI / 2;
-  floor.position.y = -4.6;
+  floor.position.y = FLOOR_Y;
   floor.receiveShadow = true;
   scene.add(floor);
+
+  // Preserve the reflective PBR floor while darkening only pixels touched by the
+  // real directional-light shadow map. The tiny offset prevents z-fighting.
+  const shadowCatcherMaterial = new THREE.ShadowMaterial({
+    color: 0x00030a,
+    opacity: 0.42,
+    transparent: true,
+    depthWrite: false,
+    polygonOffset: true,
+    polygonOffsetFactor: -1,
+    polygonOffsetUnits: -1
+  });
+  const shadowCatcher = new THREE.Mesh(floorGeometry, shadowCatcherMaterial);
+  shadowCatcher.rotation.x = -Math.PI / 2;
+  shadowCatcher.position.y = FLOOR_Y + 0.008;
+  shadowCatcher.receiveShadow = true;
+  shadowCatcher.renderOrder = 1;
+  scene.add(shadowCatcher);
   resources.add(floorGeometry);
   resources.add(floorMaterial);
+  resources.add(shadowCatcherMaterial);
 
   renderer.setClearColor(scene.background, 1);
 }

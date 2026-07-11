@@ -10,6 +10,7 @@ test("About renders the drone flyby and supports camera takeover and speed keys"
   const intro = page.locator("[data-about-intro]");
   const mode = page.locator("[data-about-mode]");
   const status = page.locator("[data-about-status]");
+  const controls = page.locator(".about-flight-controls");
 
   await expect(root).toBeVisible();
   await expect(intro.locator("img")).toHaveAttribute("src", /pmt-logo-full\.svg/);
@@ -53,6 +54,9 @@ test("About renders the drone flyby and supports camera takeover and speed keys"
   expect(fullBleed.borderWidth).toBe("0px");
   expect(fullBleed.borderRadius).toBe("0px");
 
+  await expect(status).toBeHidden();
+  await expect(controls).toBeHidden();
+
   const screenshot = await root.screenshot();
   expect(screenshot.byteLength).toBeGreaterThan(30000);
   await testInfo.attach("about-3d-drone", { body: screenshot, contentType: "image/png" });
@@ -70,7 +74,32 @@ test("About renders the drone flyby and supports camera takeover and speed keys"
   await canvas.dispatchEvent("wheel", { deltaY: -180 });
   await expect(root).toHaveAttribute("data-flight-mode", "manual");
   await expect(status).toHaveText("Autopilot resumes in 5");
+  await expect(status).toBeVisible();
+  await expect(controls).toBeVisible();
+
+  const desktopHud = await measureAboutHud(root);
+  expect(desktopHud.statusBottomGap).toBeCloseTo(18, 1);
+  expect(desktopHud.statusCenterOffset).toBeCloseTo(0, 1);
+  expect(desktopHud.statusTop).toBeGreaterThan(desktopHud.rootHeight / 2);
+  expect(desktopHud.overlapsControls).toBe(false);
+  expect(desktopHud.overlapsMode).toBe(false);
+
+  const originalViewport = page.viewportSize();
+  await page.setViewportSize({ width: 630, height: 665 });
+  await page.waitForTimeout(150);
+  const compactHud = await measureAboutHud(root);
+  expect(compactHud.statusBottomGap).toBeCloseTo(12, 1);
+  expect(compactHud.statusCenterOffset).toBeCloseTo(0, 1);
+  expect(compactHud.statusTop - compactHud.controlsBottom).toBeCloseTo(8, 1);
+  expect(compactHud.statusTop - compactHud.modeBottom).toBeCloseTo(8, 1);
+  expect(compactHud.overlapsControls).toBe(false);
+  expect(compactHud.overlapsMode).toBe(false);
+  await page.setViewportSize(originalViewport);
+  await page.waitForTimeout(150);
+
   await expect(root).toHaveAttribute("data-flight-mode", "auto", { timeout: 11000 });
+  await expect(status).toBeHidden();
+  await expect(controls).toBeHidden();
 
   await page.locator(".brand-logo-button[data-brand-about]").click();
   await expect(page.locator("[data-about-canvas]")).toHaveCount(1);
@@ -92,6 +121,7 @@ test("About honors reduced motion with a still 3D scene", async ({ page }) => {
   await page.waitForTimeout(350);
   await expect(root).toHaveAttribute("data-flight-mode", "reduced");
   await expect(page.locator("[data-about-status]")).toContainText("Reduced motion");
+  await expect(page.locator("[data-about-status]")).toBeHidden();
   expect(browserErrors).toEqual([]);
 });
 
@@ -178,4 +208,29 @@ function collectBrowserErrors(page) {
   });
   page.on("pageerror", error => errors.push(error.message));
   return errors;
+}
+
+async function measureAboutHud(root) {
+  return root.evaluate(element => {
+    const rootRect = element.getBoundingClientRect();
+    const statusRect = element.querySelector("[data-about-status]").getBoundingClientRect();
+    const controlsRect = element.querySelector(".about-flight-controls").getBoundingClientRect();
+    const modeRect = element.querySelector("[data-about-mode]").getBoundingClientRect();
+    const overlaps = (first, second) => first.left < second.right
+      && first.right > second.left
+      && first.top < second.bottom
+      && first.bottom > second.top;
+
+    return {
+      rootHeight: rootRect.height,
+      statusTop: statusRect.top - rootRect.top,
+      statusBottomGap: rootRect.bottom - statusRect.bottom,
+      statusCenterOffset: (statusRect.left + statusRect.right) / 2
+        - (rootRect.left + rootRect.right) / 2,
+      controlsBottom: controlsRect.bottom - rootRect.top,
+      modeBottom: modeRect.bottom - rootRect.top,
+      overlapsControls: overlaps(statusRect, controlsRect),
+      overlapsMode: overlaps(statusRect, modeRect)
+    };
+  });
 }
