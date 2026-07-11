@@ -120,6 +120,7 @@ const richCustomColorLimit = 10;
 const richTableMaxSize = 10;
 const richReadonlyCheckboxSaveDelayMs = 350;
 const richReadonlyCheckboxSaveTimers = new WeakMap();
+let activeRichTextImageMenu = null;
 
 function syncNativePickerTheme(control) {
   if (!(control instanceof HTMLElement)) return;
@@ -1061,43 +1062,46 @@ function handleRichTextImageClick(event) {
   event.stopPropagation();
 
   if (editor) {
-    showRichTextImageMenu(image);
+    showRichTextImageMenu(image, event);
     return;
   }
 
   openRichTextImageInNewTab(image);
 }
 
-function showRichTextImageMenu(image) {
-  const modal = document.createElement("dialog");
-  modal.className = "dialog mini-dialog rich-image-menu";
-  modal.innerHTML = `
-    <div class="dialog-head">
-      <h2>Image Actions</h2>
-    </div>
-    <div class="dialog-body">
-      <div class="rich-image-menu-actions">
-        <button type="button" class="secondary text-icon-button" data-rich-image-action="select">${buttonContent("&#9635;", "Select")}</button>
-        <button type="button" class="secondary text-icon-button" data-rich-image-action="zoom">${buttonContent("&#128269;", "Zoom")}</button>
-        <button type="button" class="secondary text-icon-button" data-rich-image-action="resize">${buttonContent("&#8596;", "Resize")}</button>
-        <button type="button" class="secondary text-icon-button" data-rich-image-action="delete">${buttonContent("&#128465;", "Delete")}</button>
-      </div>
-    </div>
-    <div class="dialog-actions">
-      <button type="button" class="primary text-icon-button" data-rich-image-action="cancel">${buttonContent("&#10003;", "Done")}</button>
-    </div>
-  `;
+function showRichTextImageMenu(image, anchorEvent) {
+  closeRichTextImageMenu();
 
-  document.body.appendChild(modal);
+  const menu = document.createElement("div");
+  menu.className = "rich-image-menu dropdown-menu";
+  menu.setAttribute("role", "menu");
+  menu.innerHTML = [
+    richTextImageMenuItemHtml("select", "&#9635;", "Select"),
+    richTextImageMenuItemHtml("resize", "&#8596;", "Resize"),
+    richTextImageMenuItemHtml("zoom", "&#128269;", "Open in New Tab"),
+    richTextImageMenuSeparatorHtml(),
+    richTextImageMenuItemHtml("delete", "&#128465;", "Delete")
+  ].join("");
 
-  const finish = () => {
-    if (modal.open) modal.close();
-    modal.remove();
-  };
+  const hostDialog = image.closest("dialog[open]");
+  const usesPopover = showRichTextImageMenuAsPopover(menu, hostDialog);
+  if (!usesPopover) {
+    (hostDialog || document.body).appendChild(menu);
+  }
+  hostDialog?.classList.add("rich-image-menu-open");
+  positionRichTextImageMenu(menu, image, anchorEvent);
 
-  modal.addEventListener("click", event => {
+  const finish = () => closeRichTextImageMenu();
+
+  menu.addEventListener("pointerdown", event => {
+    event.stopPropagation();
+  });
+  menu.addEventListener("click", event => {
     const actionButton = event.target.closest("[data-rich-image-action]");
     if (!actionButton) return;
+
+    event.preventDefault();
+    event.stopPropagation();
 
     const action = actionButton.dataset.richImageAction;
     if (action === "zoom") {
@@ -1126,12 +1130,107 @@ function showRichTextImageMenu(image) {
 
     finish();
   });
-  modal.addEventListener("cancel", event => {
+  const handleOutsidePointer = event => {
+    if (!menu.contains(event.target)) finish();
+  };
+  const handleKeyDown = event => {
+    if (event.key !== "Escape") return;
+
     event.preventDefault();
     finish();
-  });
+  };
+  const handleViewportChange = () => finish();
 
-  modal.showModal();
+  activeRichTextImageMenu = {
+    menu,
+    hostDialog,
+    usesPopover,
+    handleOutsidePointer,
+    handleKeyDown,
+    handleViewportChange
+  };
+  document.addEventListener("pointerdown", handleOutsidePointer, true);
+  document.addEventListener("keydown", handleKeyDown, true);
+  window.addEventListener("resize", handleViewportChange, true);
+  window.addEventListener("scroll", handleViewportChange, true);
+  menu.querySelector("button")?.focus({ preventScroll: true });
+}
+
+function closeRichTextImageMenu() {
+  if (!activeRichTextImageMenu) return;
+
+  const {
+    menu,
+    hostDialog,
+    usesPopover,
+    handleOutsidePointer,
+    handleKeyDown,
+    handleViewportChange
+  } = activeRichTextImageMenu;
+
+  document.removeEventListener("pointerdown", handleOutsidePointer, true);
+  document.removeEventListener("keydown", handleKeyDown, true);
+  window.removeEventListener("resize", handleViewportChange, true);
+  window.removeEventListener("scroll", handleViewportChange, true);
+  if (usesPopover && menu.matches?.(":popover-open")) menu.hidePopover();
+  hostDialog?.classList.remove("rich-image-menu-open");
+  menu.remove();
+  activeRichTextImageMenu = null;
+}
+
+function showRichTextImageMenuAsPopover(menu, hostDialog) {
+  if (typeof menu.showPopover !== "function") return false;
+
+  menu.setAttribute("popover", "manual");
+  (hostDialog || document.body).appendChild(menu);
+  try {
+    menu.showPopover();
+    return true;
+  } catch {
+    menu.remove();
+    menu.removeAttribute("popover");
+    return false;
+  }
+}
+
+function richTextImageMenuItemHtml(action, icon, label) {
+  return `
+    <button type="button" class="rich-image-menu-item dropdown-menu-item" data-rich-image-action="${escapeAttr(action)}" role="menuitem">
+      <span class="dropdown-menu-icon" aria-hidden="true">${icon}</span>
+      <span class="dropdown-menu-label">${escapeHtml(label)}</span>
+      <span class="dropdown-menu-check" aria-hidden="true"></span>
+    </button>
+  `;
+}
+
+function richTextImageMenuSeparatorHtml() {
+  return `<div class="rich-image-menu-separator" role="separator"></div>`;
+}
+
+function positionRichTextImageMenu(menu, image, anchorEvent) {
+  const margin = 8;
+  const anchor = richTextImageMenuAnchor(image, anchorEvent);
+  const maxLeft = Math.max(margin, window.innerWidth - menu.offsetWidth - margin);
+  const maxTop = Math.max(margin, window.innerHeight - menu.offsetHeight - margin);
+  const left = Math.max(margin, Math.min(anchor.x, maxLeft));
+  const top = Math.max(margin, Math.min(anchor.y, maxTop));
+
+  menu.style.left = `${Math.round(left)}px`;
+  menu.style.top = `${Math.round(top)}px`;
+}
+
+function richTextImageMenuAnchor(image, anchorEvent) {
+  const eventX = Number(anchorEvent?.clientX);
+  const eventY = Number(anchorEvent?.clientY);
+  if (Number.isFinite(eventX) && Number.isFinite(eventY)) {
+    return { x: eventX, y: eventY };
+  }
+
+  const rect = image.getBoundingClientRect();
+  return {
+    x: rect.left + Math.min(24, Math.max(0, rect.width / 2)),
+    y: rect.top + Math.min(24, Math.max(0, rect.height / 2))
+  };
 }
 
 function selectRichTextImage(image) {
@@ -1150,9 +1249,9 @@ function deleteRichTextImage(image) {
   const editor = image?.closest(".rich-editor");
   if (!image?.isConnected || !editor) return;
 
-  const placeholder = document.createElement("br");
-  image.replaceWith(placeholder);
-  editor.focus();
+  selectRichTextImage(image);
+  const deleted = document.execCommand("delete");
+  if (!deleted && image.isConnected) image.remove();
   showToast("Image removed.");
 }
 

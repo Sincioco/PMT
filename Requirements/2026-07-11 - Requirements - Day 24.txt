@@ -30,5 +30,15 @@ Goal:  Allow QA to customize the dialog box to the way each person works and how
 17.) Move the overflow menu icon to the left of the Maximize/Restore button.
 18.) So far all looks good.  Commit and push to the repo.
 
-
 19.) Now, give the Dev Task’s Read/New/Edit dialog box the same treatment.
+
+
+20.) In a rich text editor (RTE), if I paste an image it has a light gray border / outline.  Can you remove it?
+21.) Also, once an image is deleted, you cannot undo your deletion.  Can you fix that?
+22.) In a RTE, can you update the behavior so that when in image is selected a dropdown menu appears right where the user's cursor is instead of a dialog box?  And make the previous dialog box Image Actions be the menu items.
+23.) Be sure the z-index of the menu is high enough it doesn't get clipped by the content area of the RTE or its parent container.
+24.) The z-index is too low, the menu is is appearing behind the Edit dialog box of the Document.
+25.) It's not behaving as a menu.  If you try to click a menu item, the menu just redraws.  The mouse cursor doesn't even change to indicate the menu items are clickable.  Make it behave like a normal menu.
+26.) Switch Resize and Zoom.  Then rename Zoom to "Open in New Tab".
+27.) In Edit mode in a RTE, when you hover over an image, it should be a normal pointer (like a hyperlink pointer) because when the user clicks on it and menu will drop down.
+28.) Put a menu divider above the Delete menu item.

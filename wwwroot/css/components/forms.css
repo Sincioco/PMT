@@ -782,13 +782,16 @@ html[data-theme] .rich-color-palette button.rich-color-custom {
   max-width: 100%;
   height: auto;
   border-radius: var(--radius-md);
-  border: var(--border-width) solid var(--color-border);
+  border: 0;
+  outline: 0;
+  box-shadow: none;
   display: block;
   margin: var(--space-3) 0;
 }
 
-.rich-editor img {
-  cursor: pointer;
+.rich-editor[contenteditable="true"] img,
+.rich-editor[contenteditable="true"] img:hover {
+  cursor: pointer !important;
 }
 
 .rich-readonly img,
@@ -809,9 +812,33 @@ html[data-theme] .rich-color-palette button.rich-color-custom {
   border-radius: 0;
 }
 
-.rich-image-menu-actions {
-  display: grid;
-  gap: var(--space-3);
+.rich-image-menu.dropdown-menu {
+  position: fixed;
+  inset: auto;
+  right: auto;
+  z-index: 2147483647;
+  margin: 0;
+  min-width: 180px;
+  pointer-events: auto;
+}
+
+.rich-image-menu .rich-image-menu-item {
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+.rich-image-menu .rich-image-menu-item:active:not(:disabled) {
+  background: var(--color-control-active);
+}
+
+.rich-image-menu-separator {
+  height: var(--border-width);
+  margin: var(--space-1) var(--space-2);
+  background: var(--color-border-subtle);
+}
+
+.dialog.rich-image-menu-open {
+  overflow: visible;
 }
 
 .rich-image-resize-preview {
