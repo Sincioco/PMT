@@ -99,7 +99,7 @@ Authentication is currently an internal-development mechanism: the browser store
 | Road Map | `pmt-roadmap-project`, `pmt-roadmap-sprint`, `pmt-roadmap-sort`, `pmt-roadmap-show-dates`, `pmt-roadmap-show-details`, `pmt-roadmap-show-sprints` |
 | Gantt | `pmt-gantt-project`, `pmt-gantt-sprint`, `pmt-gantt-render-mode`, `pmt-gantt-sort`, `pmt-gantt-show-non-working-days` |
 | Sprints and Dev Tasks | `pmt-sprint-project`, `pmt-task-project`, `pmt-task-sprint`, `pmt-task-filters`, `pmt-task-filters-visible`, `pmt-task-visual-charts-visible` |
-| Bugs, Scrum, and Documentation | `pmt-bug-filters`, `pmt-bug-filters-visible`, `pmt-bug-visual-charts-visible`, `pmt-scrum-filters`, `pmt-documentation-project` |
+| Bugs, Scrum, and Documentation | `pmt-bug-filters`, `pmt-bug-filters-visible`, `pmt-bug-visual-charts-visible`, `pmt-bug-entry-project`, `pmt-bug-entry-sprint`, `pmt-bug-entry-environment`, `pmt-bug-table-columns`, `pmt-bug-dialog-fields`, `pmt-scrum-filters`, `pmt-documentation-project` |
 | Settings | `pmt-settings-category`, `pmt-lookup-type` |
 
 Keep key names and defaults stable during refactoring. Clearing PMT preferences removes only keys prefixed with `pmt-`, then reloads the application.

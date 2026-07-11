@@ -43,6 +43,7 @@ export const preferenceKeys = Object.freeze({
   bugEntrySprint: "pmt-bug-entry-sprint",
   bugEntryEnvironment: "pmt-bug-entry-environment",
   bugTableColumns: "pmt-bug-table-columns",
+  bugDialogFields: "pmt-bug-dialog-fields",
   scrumFilters: "pmt-scrum-filters",
   scrumFiltersVisible: "pmt-scrum-filters-visible",
   scrumEntryProject: "pmt-scrum-entry-project",

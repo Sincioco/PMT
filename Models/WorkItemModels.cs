@@ -13,6 +13,7 @@ public sealed class WorkTaskDto
     public string StepsToReproduceHtml { get; set; } = "";
     public string ActualResultHtml { get; set; } = "";
     public string ExpectedResultHtml { get; set; } = "";
+    public string RootCauseAnalysisHtml { get; set; } = "";
     public string Environment { get; set; } = "";
     public string Severity { get; set; } = "";
     public string Status { get; set; } = "Todo";
@@ -51,6 +52,7 @@ public sealed class WorkTaskInput
     public string StepsToReproduceHtml { get; set; } = "";
     public string ActualResultHtml { get; set; } = "";
     public string ExpectedResultHtml { get; set; } = "";
+    public string RootCauseAnalysisHtml { get; set; } = "";
     public string Environment { get; set; } = "";
     public string Severity { get; set; } = "";
     public string Status { get; set; } = "Todo";

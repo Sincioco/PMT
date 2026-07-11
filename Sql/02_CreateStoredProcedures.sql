@@ -215,6 +215,7 @@ BEGIN
         [StepsToReproduceHtml],
         [ActualResultHtml],
         [ExpectedResultHtml],
+        [RootCauseAnalysisHtml],
         [Environment],
         [Severity],
         [Status],
@@ -795,6 +796,7 @@ CREATE OR ALTER PROCEDURE [pmt].[UpsertTask]
     @StepsToReproduceHtml NVARCHAR(MAX),
     @ActualResultHtml NVARCHAR(MAX),
     @ExpectedResultHtml NVARCHAR(MAX),
+    @RootCauseAnalysisHtml NVARCHAR(MAX),
     @Environment NVARCHAR(40),
     @Severity NVARCHAR(40),
     @Status NVARCHAR(40),
@@ -965,6 +967,7 @@ BEGIN
         SET @StepsToReproduceHtml = NULL;
         SET @ActualResultHtml = NULL;
         SET @ExpectedResultHtml = NULL;
+        SET @RootCauseAnalysisHtml = NULL;
         SET @Environment = NULL;
         SET @Severity = NULL;
         SET @ReporterIdsCsv = N'';
@@ -1161,6 +1164,7 @@ BEGIN
             [StepsToReproduceHtml],
             [ActualResultHtml],
             [ExpectedResultHtml],
+            [RootCauseAnalysisHtml],
             [Environment],
             [Severity],
             [Status],
@@ -1187,6 +1191,7 @@ BEGIN
             @StepsToReproduceHtml,
             @ActualResultHtml,
             @ExpectedResultHtml,
+            @RootCauseAnalysisHtml,
             @Environment,
             @Severity,
             @Status,
@@ -1242,6 +1247,7 @@ BEGIN
             [StepsToReproduceHtml] = @StepsToReproduceHtml,
             [ActualResultHtml] = @ActualResultHtml,
             [ExpectedResultHtml] = @ExpectedResultHtml,
+            [RootCauseAnalysisHtml] = @RootCauseAnalysisHtml,
             [Environment] = @Environment,
             [Severity] = @Severity,
             [Status] = @Status,
@@ -1806,6 +1812,7 @@ BEGIN
         [StepsToReproduceHtml],
         [ActualResultHtml],
         [ExpectedResultHtml],
+        [RootCauseAnalysisHtml],
         [Environment],
         [Severity],
         [Status],
@@ -1828,6 +1835,7 @@ BEGIN
         [StepsToReproduceHtml],
         [ActualResultHtml],
         [ExpectedResultHtml],
+        [RootCauseAnalysisHtml],
         [Environment],
         [Severity],
         N'Todo',

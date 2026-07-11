@@ -170,6 +170,7 @@ public sealed partial class SqlPmtStore
                 StepsToReproduceHtml = reader.GetStringOrEmpty("StepsToReproduceHtml"),
                 ActualResultHtml = reader.GetStringOrEmpty("ActualResultHtml"),
                 ExpectedResultHtml = reader.GetStringOrEmpty("ExpectedResultHtml"),
+                RootCauseAnalysisHtml = reader.GetStringOrEmpty("RootCauseAnalysisHtml"),
                 Environment = reader.GetStringOrEmpty("Environment"),
                 Severity = reader.GetStringOrEmpty("Severity"),
                 Status = reader.GetStringOrEmpty("Status"),

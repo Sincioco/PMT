@@ -1,7 +1,15 @@
 import { taskRowAvatarsHtml } from "../../components/avatars.js";
+import {
+  applyBugDialogFieldPreferences,
+  bugDialogCustomizationButtonHtml,
+  bugDialogFieldHtml,
+  bugDialogFieldLabel,
+  openBugDialogCustomizationDialog,
+  syncBugDialogHeaderActionsMenu
+} from "../../components/bug-dialog-customization.js?v=20260711-bug-dialog-header-controls";
 import { buttonContent, chartIconHtml, funnelIconHtml, pageActionsMenuHtml } from "../../components/buttons.js?v=20260701-unified-dropdowns";
 import { VisualCharts } from "../../components/charts.js?v=20260628-chart-native-tooltips";
-import { initializeWindowedDialog } from "../../components/dialogs.js?v=20260707-filter-reset-dialogs";
+import { initializeWindowedDialog } from "../../components/dialogs.js?v=20260711-bug-dialog-header-controls";
 import {
   checkedFilterValues,
   filterCheckList
@@ -20,7 +28,7 @@ import {
   selectTextField,
   userCardCheckListLabelHtml,
   value
-} from "../../components/forms.js?v=20260710-rte-table-shortcuts";
+} from "../../components/forms.js?v=20260711-bug-dialog-customize";
 import { progressHtml } from "../../components/progress-and-status.js?v=20260710-rich-bug-layout";
 import { sectionHead } from "../../components/sections.js?v=20260701-nav-title-preferences";
 import {
@@ -33,7 +41,7 @@ import {
   taskPercentField,
   workItemDialogMetaHtml,
   uploadWorkItemAttachments
-} from "../../components/work-items.js?v=20260710-rte-checkbox-persist";
+} from "../../components/work-items.js?v=20260711-bug-dialog-header-controls";
 import {
   currentUser,
   currentUserId
@@ -47,7 +55,7 @@ import {
   removePreference,
   writeJsonPreference,
   writePreference
-} from "../../core/preferences.js?v=20260630-bug-table-columns";
+} from "../../core/preferences.js?v=20260711-bug-dialog-customize";
 import { currentView } from "../../core/router.js?v=20260707-deep-links";
 import { state } from "../../core/store.js";
 import {
@@ -98,7 +106,7 @@ import {
   taskCreatedTime,
   taskOrderCompare
 } from "../../shared/work-item-rules.js?v=20260710-rich-bug-layout";
-import { openWorkItemHtmlImport } from "../../shared/work-item-transfer.js?v=20260710-rich-bug-layout";
+import { openWorkItemHtmlImport } from "../../shared/work-item-transfer.js?v=20260711-bug-dialog-customize";
 
 export function createBugsFeature({
   app,
@@ -200,6 +208,10 @@ export function createBugsFeature({
 
     if (action === "new-bug") {
       editBug();
+      return true;
+    }
+    if (action === "customize-bug-dialog-view") {
+      openBugDialogCustomizationDialog();
       return true;
     }
     if (action === "toggle-bug-table-edit-mode") {
@@ -462,29 +474,35 @@ export function createBugsFeature({
     const sameProjectTasks = dependencyCandidates(projectId, bug.id);
 
     openEditor(workItemEditorTitle(bug, "New Bug Report"), `
-      <div class="form-grid bug-editor-grid">
+      <template data-editor-head-action>
+        ${bugDialogCustomizationButtonHtml()}
+      </template>
+      <div class="form-grid bug-editor-grid" data-bug-dialog-root="edit">
         ${bug.id ? taskAuditPanelHtml(bug) : ""}
-        ${selectField("Project", "projectId", state.projects, projectId)}
-        ${selectOptionsField("Sprint", "sprintId", bugEditorSprintOptions(projectId), defaultSprintId || "")}
-        ${field("Title", "title", bug.title || "", "text")}
-        ${selectTextField("Status", "status", getLookupOptions("Status", bug.status || "Todo"), bug.status || "Todo")}
-        ${selectTextField("Priority", "priority", getLookupOptions("Priority", bug.priority || "Low"), bug.priority || "Low")}
-        ${taskPercentField(bug, false)}
-        ${selectTextField("Environment", "environment", environments, defaultEnvironment)}
-        ${selectTextField("Severity", "severity", getLookupOptions("Severity", bug.severity || "Minor"), bug.severity || "Minor")}
-        ${richTextField("descriptionHtml", "Description", bug.descriptionHtml || "")}
-        ${bugEditorUrlField(bug)}
-        ${attachmentEditorFieldHtml()}
-        ${field("Start", "startDate", toDateInput(bug.startDate), "date")}
-        ${field("End", "endDate", toDateInput(bug.endDate), "date")}
-        ${richTextField("stepsToReproduceHtml", "Steps to Reproduce", bug.stepsToReproduceHtml || "")}
-        ${richTextField("actualResultHtml", "Actual Result", bug.actualResultHtml || "")}
-        ${richTextField("expectedResultHtml", "Expected Result", bug.expectedResultHtml || "")}
-        <div class="bug-assignee-list" data-assignee-list></div>
-        <div class="bug-reporter-list">
-          ${checkList("Reporters", "reporterIds", state.users, reporterIdsOrDefault(bug.reporterIds, currentUserId), item => item.nickname, { className: "scroll-check-list user-card-check-list", renderItem: userCardCheckListLabelHtml })}
-        </div>
-        ${checkList("Dependencies", "dependencyTaskIds", sameProjectTasks, bug.dependencyTaskIds || [], item => `${item.code} ${item.title}`, { className: "scroll-check-list dependency-check-list" })}
+        ${bugDialogFieldHtml("projectId", selectField(bugDialogFieldLabel("projectId"), "projectId", state.projects, projectId))}
+        ${bugDialogFieldHtml("sprintId", selectOptionsField(bugDialogFieldLabel("sprintId"), "sprintId", bugEditorSprintOptions(projectId), defaultSprintId || ""))}
+        ${bugDialogFieldHtml("title", field(bugDialogFieldLabel("title"), "title", bug.title || "", "text"))}
+        ${bugDialogFieldHtml("status", selectTextField(bugDialogFieldLabel("status"), "status", getLookupOptions("Status", bug.status || "Todo"), bug.status || "Todo"))}
+        ${bugDialogFieldHtml("priority", selectTextField(bugDialogFieldLabel("priority"), "priority", getLookupOptions("Priority", bug.priority || "Low"), bug.priority || "Low"))}
+        ${bugDialogFieldHtml("percentCompleted", taskPercentField({ ...bug, __bugDialogPercentLabel: bugDialogFieldLabel("percentCompleted") }, false))}
+        ${bugDialogFieldHtml("environment", selectTextField(bugDialogFieldLabel("environment"), "environment", environments, defaultEnvironment))}
+        ${bugDialogFieldHtml("severity", selectTextField(bugDialogFieldLabel("severity"), "severity", getLookupOptions("Severity", bug.severity || "Minor"), bug.severity || "Minor"))}
+        ${bugDialogFieldHtml("descriptionHtml", richTextField("descriptionHtml", bugDialogFieldLabel("descriptionHtml"), bug.descriptionHtml || ""))}
+        ${bugDialogFieldHtml("url", bugEditorUrlField(bug))}
+        ${bugDialogFieldHtml("attachments", attachmentEditorFieldHtml())}
+        ${bugDialogFieldHtml("startDate", field(bugDialogFieldLabel("startDate"), "startDate", toDateInput(bug.startDate), "date"))}
+        ${bugDialogFieldHtml("endDate", field(bugDialogFieldLabel("endDate"), "endDate", toDateInput(bug.endDate), "date"))}
+        ${bugDialogFieldHtml("stepsToReproduceHtml", richTextField("stepsToReproduceHtml", bugDialogFieldLabel("stepsToReproduceHtml"), bug.stepsToReproduceHtml || ""))}
+        ${bugDialogFieldHtml("actualResultHtml", richTextField("actualResultHtml", bugDialogFieldLabel("actualResultHtml"), bug.actualResultHtml || ""))}
+        ${bugDialogFieldHtml("expectedResultHtml", richTextField("expectedResultHtml", bugDialogFieldLabel("expectedResultHtml"), bug.expectedResultHtml || ""))}
+        ${bugDialogFieldHtml("rootCauseAnalysisHtml", richTextField("rootCauseAnalysisHtml", bugDialogFieldLabel("rootCauseAnalysisHtml"), bug.rootCauseAnalysisHtml || ""))}
+        <div class="bug-assignee-list" data-assignee-list data-bug-dialog-field="assigneeIds" data-bug-dialog-original-label="Assignees"></div>
+        ${bugDialogFieldHtml("reporterIds", `
+          <div class="bug-reporter-list">
+            ${checkList(bugDialogFieldLabel("reporterIds"), "reporterIds", state.users, reporterIdsOrDefault(bug.reporterIds, currentUserId), item => item.nickname, { className: "scroll-check-list user-card-check-list", renderItem: userCardCheckListLabelHtml })}
+          </div>
+        `)}
+        ${bugDialogFieldHtml("dependencyTaskIds", checkList(bugDialogFieldLabel("dependencyTaskIds"), "dependencyTaskIds", sameProjectTasks, bug.dependencyTaskIds || [], item => `${item.code} ${item.title}`, { className: "scroll-check-list dependency-check-list" }))}
       </div>
       ${bug.id ? workItemDialogMetaHtml(bug) : ""}
     `, async root => {
@@ -503,6 +521,7 @@ export function createBugsFeature({
         stepsToReproduceHtml: richValue(root, "stepsToReproduceHtml"),
         actualResultHtml: richValue(root, "actualResultHtml"),
         expectedResultHtml: richValue(root, "expectedResultHtml"),
+        rootCauseAnalysisHtml: richValue(root, "rootCauseAnalysisHtml"),
         environment,
         severity: value(root, "severity"),
         status,
@@ -524,7 +543,14 @@ export function createBugsFeature({
       writePreference(preferenceKeys.bugEntryEnvironment, bugEntryEnvironment);
 
       await uploadWorkItemAttachments(root, result.id, attachFile, `${apiRoot}/${result.id}/attachments`);
-    }, "title", root => bindAssigneeList(root, bug.assigneeIds || [], "Assignees (Optional)"));
+    }, "title", root => {
+      const editorDialog = document.getElementById("editorDialog");
+      editorDialog?.querySelector("[data-action='customize-bug-dialog-view']")
+        ?.addEventListener("click", openBugDialogCustomizationDialog);
+      requestAnimationFrame(() => syncBugDialogHeaderActionsMenu(editorDialog));
+      bindAssigneeList(root, bug.assigneeIds || [], "Assignees (Optional)");
+      applyBugDialogFieldPreferences(root);
+    });
   }
 
   function bugEditorSprintOptions(projectId) {
@@ -1536,6 +1562,7 @@ export function createBugsFeature({
       stepsToReproduceHtml: bug?.stepsToReproduceHtml || "",
       actualResultHtml: bug?.actualResultHtml || "",
       expectedResultHtml: bug?.expectedResultHtml || "",
+      rootCauseAnalysisHtml: bug?.rootCauseAnalysisHtml || "",
       environment: updates.environment || bug?.environment || "SIT",
       severity: updates.severity || bug?.severity || "Minor",
       status: updates.status,

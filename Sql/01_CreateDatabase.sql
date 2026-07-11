@@ -325,6 +325,12 @@ BEGIN
 END;
 GO
 
+IF COL_LENGTH(N'pmt.WorkTasks', N'RootCauseAnalysisHtml') IS NULL
+BEGIN
+    ALTER TABLE [pmt].[WorkTasks] ADD [RootCauseAnalysisHtml] NVARCHAR(MAX) NULL;
+END;
+GO
+
 IF COL_LENGTH(N'pmt.WorkTasks', N'Environment') IS NULL
 BEGIN
     ALTER TABLE [pmt].[WorkTasks] ADD [Environment] NVARCHAR(40) NULL;

@@ -4,7 +4,7 @@ import {
   escapeHtml
 } from "../shared/text-and-links.js";
 
-const dialogDragIgnoreSelector = "button, a, input, select, textarea, label, [contenteditable='true'], [data-dialog-drag-ignore]";
+const dialogDragIgnoreSelector = "button, a, input, select, textarea, label, summary, [contenteditable='true'], [data-dialog-drag-ignore], [data-bug-dialog-header-menu]";
 const dialogResizeHandleSize = 24;
 const dialogLayoutStoragePrefix = "pmt-dialog-layout:";
 const dialogLayoutStorageVersion = 1;

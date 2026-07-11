@@ -183,7 +183,8 @@ async function saveImportedWorkItem(item, options, rowNumber) {
     "descriptionHtml",
     "stepsToReproduceHtml",
     "actualResultHtml",
-    "expectedResultHtml"
+    "expectedResultHtml",
+    "rootCauseAnalysisHtml"
   ]);
   if (imageResult.uploaded) notes.push(`${imageResult.uploaded} embedded image${imageResult.uploaded === 1 ? "" : "s"} moved to uploads.`);
   if (imageResult.failed) notes.push(`${imageResult.failed} embedded image${imageResult.failed === 1 ? "" : "s"} could not be moved to uploads.`);
@@ -239,6 +240,7 @@ function workItemImportPayload(rawItem, context) {
     stepsToReproduceHtml: isBug ? importedRichHtml(rawItem.stepsToReproduceHtml, "", existing?.stepsToReproduceHtml) : "",
     actualResultHtml: isBug ? importedRichHtml(rawItem.actualResultHtml, "", existing?.actualResultHtml) : "",
     expectedResultHtml: isBug ? importedRichHtml(rawItem.expectedResultHtml, "", existing?.expectedResultHtml) : "",
+    rootCauseAnalysisHtml: isBug ? importedRichHtml(rawItem.rootCauseAnalysisHtml, "", existing?.rootCauseAnalysisHtml) : "",
     environment: isBug ? resolveLookupValue("Environment", rawItem.environment, existing?.environment, "SIT") : "",
     severity: isBug ? resolveLookupValue("Severity", rawItem.severity, existing?.severity, "Minor") : "",
     status,
@@ -618,6 +620,7 @@ function workItemMetadata(task, project, sprint) {
     stepsToReproduceHtml: task.stepsToReproduceHtml || "",
     actualResultHtml: task.actualResultHtml || "",
     expectedResultHtml: task.expectedResultHtml || "",
+    rootCauseAnalysisHtml: task.rootCauseAnalysisHtml || "",
     url: task.url || "",
     startDate: task.startDate || "",
     endDate: task.endDate || "",
@@ -687,6 +690,7 @@ function workItemExportHtml(task, metadata) {
     ${isBug ? workItemBodySectionHtml("Steps to Reproduce", task.stepsToReproduceHtml) : ""}
     ${isBug ? workItemBodySectionHtml("Actual Result", task.actualResultHtml) : ""}
     ${isBug ? workItemBodySectionHtml("Expected Result", task.expectedResultHtml) : ""}
+    ${isBug ? workItemBodySectionHtml("Root Cause Analysis", task.rootCauseAnalysisHtml) : ""}
     <section class="pmt-import-metadata">
       <h2>${workItemImportMarker}</h2>
       <p>This section is used by PMT to import this work item back into the application.</p>

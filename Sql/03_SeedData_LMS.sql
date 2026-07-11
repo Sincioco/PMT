@@ -193,7 +193,7 @@ BEGIN
     INSERT INTO [pmt].[WorkTasks]
     (
         [ProjectId], [SprintId], [ParentTaskId], [TaskType], [Code], [Title], [DescriptionHtml],
-        [StepsToReproduceHtml], [ActualResultHtml], [ExpectedResultHtml], [Environment], [Severity],
+        [StepsToReproduceHtml], [ActualResultHtml], [ExpectedResultHtml], [RootCauseAnalysisHtml], [Environment], [Severity],
         [Status], [Priority], [PercentCompleted], [Url], [StartDate], [EndDate], [StartedAt],
         [CreatedByUserId], [CreatedAt], [UpdatedAt]
     )
@@ -204,6 +204,7 @@ BEGIN
         N'<ol><li>Open the LMS test course.</li><li>Run the sprint acceptance scenario.</li><li>Compare the result to the expected behavior.</li></ol>',
         N'<p>The workflow result is inconsistent.</p>',
         N'<p>The workflow should be stable and auditable.</p>',
+        N'<p>Root cause: the LMS workflow state was not normalized before the acceptance scenario completed.</p>',
         N'SIT', N'Major', @BugStatus, N'High', 100, N'https://intranet.local/lms/bugs/' + CONVERT(NVARCHAR(12), @BugCounter),
         DATEADD(DAY, 7, @SprintStart), DATEADD(DAY, 12, @SprintStart), DATEADD(DAY, 7, @SprintStart),
         @Sin, DATEADD(DAY, 7, @SprintStart), DATEADD(DAY, 12, @SprintStart)

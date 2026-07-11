@@ -28,6 +28,7 @@ public sealed partial class SqlPmtStore
             Add(command, "@StepsToReproduceHtml", SqlDbType.NVarChar, -1, input.StepsToReproduceHtml);
             Add(command, "@ActualResultHtml", SqlDbType.NVarChar, -1, input.ActualResultHtml);
             Add(command, "@ExpectedResultHtml", SqlDbType.NVarChar, -1, input.ExpectedResultHtml);
+            Add(command, "@RootCauseAnalysisHtml", SqlDbType.NVarChar, -1, input.RootCauseAnalysisHtml);
             Add(command, "@Environment", SqlDbType.NVarChar, 40, input.Environment);
             Add(command, "@Severity", SqlDbType.NVarChar, 40, input.Severity);
             Add(command, "@Status", SqlDbType.NVarChar, 40, input.Status);

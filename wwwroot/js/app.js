@@ -11,7 +11,7 @@ import {
   resetDialogLayoutPreference,
   restoreDialogLayout,
   setDialogLayoutStorageKey
-} from "./components/dialogs.js?v=20260707-filter-reset-dialogs";
+} from "./components/dialogs.js?v=20260711-bug-dialog-header-controls";
 import {
   field,
   value
@@ -21,7 +21,7 @@ import {
   bindAttachmentPreview,
   showTaskAudit,
   viewWorkItem
-} from "./components/work-items.js?v=20260710-rte-checkbox-persist";
+} from "./components/work-items.js?v=20260711-bug-dialog-header-controls";
 import { createApplicationShell } from "./core/application-shell.js?v=20260710-nav-avatar-fit";
 import {
   currentView,
@@ -41,13 +41,13 @@ import {
   preferenceKeys,
   readBooleanPreference,
   writePreference
-} from "./core/preferences.js?v=20260710-rich-dialog-pref";
+} from "./core/preferences.js?v=20260711-bug-dialog-customize";
 import { state } from "./core/store.js";
 import { appUrl } from "./shared/app-urls.js";
 import { createAboutFeature } from "./features/about/about.js?v=20260710-about-logo-png";
 import { createBacklogFeature } from "./features/backlog/backlog.js?v=20260710-rich-bug-layout";
 import { createBoardFeature } from "./features/board/board.js?v=20260710-rte-table-percent-kanban";
-import { createBugsFeature } from "./features/bugs/bugs.js?v=20260710-bug-dialog-order";
+import { createBugsFeature } from "./features/bugs/bugs.js?v=20260711-bug-dialog-header-controls";
 import { createDashboardFeature } from "./features/dashboard/dashboard.js?v=20260710-nav-avatar-fit";
 import { createDocumentationFeature } from "./features/documentation/documentation.js?v=20260710-rte-checkbox-persist";
 import {
@@ -1602,6 +1602,7 @@ function openEditor(title, html, saveAction, focusName = "", afterOpen = null) {
   delete dialogBody.dataset.devTaskPercentRules;
   dialogBody.innerHTML = html;
   normalizeLinksInElement(dialogBody);
+  moveEditorHeadActions();
   moveEditorFooterActions();
   if (afterOpen) afterOpen(dialogBody);
   bindRichTextButtons(dialogBody);
@@ -2112,6 +2113,31 @@ function bindRichCheckboxShortcut(editor) {
   });
 }
 
+function moveEditorHeadActions() {
+  const editorDialogHeadActions = dialog.querySelector(".dialog-head-actions");
+  if (!editorDialogHeadActions) return;
+
+  restoreEditorHeaderOverflowActions(editorDialogHeadActions);
+  editorDialogHeadActions.querySelectorAll("[data-editor-dynamic-head-action]").forEach(action => action.remove());
+  dialogBody.querySelectorAll("template[data-editor-head-action]").forEach(template => {
+    const headAction = template.content.cloneNode(true);
+    [...headAction.children].forEach(child => {
+      child.dataset.editorDynamicHeadAction = "true";
+    });
+    editorDialogHeadActions.prepend(...headAction.children);
+    template.remove();
+  });
+}
+
+function restoreEditorHeaderOverflowActions(root) {
+  root.querySelectorAll("[data-bug-dialog-header-menu]").forEach(menu => menu.remove());
+  root.querySelectorAll("[data-dialog-overflow-source]").forEach(source => {
+    source.hidden = source.dataset.dialogOverflowOriginalHidden === "true";
+    delete source.dataset.dialogOverflowOriginalHidden;
+    delete source.dataset.dialogOverflowSource;
+  });
+}
+
 function applyRichCheckboxShortcut(editor) {
   const range = richSelectionRangeForEditor(editor);
   if (!range?.collapsed) return false;
@@ -2445,7 +2471,7 @@ function devLogRichReadonlySaveRequest(id, field, bodyHtml) {
 
 function workItemRichReadonlySaveRequest(id, field, bodyHtml, apiRoot = "/api/tasks") {
   const task = state.tasks.find(item => item.id === id);
-  if (!task || !["descriptionHtml", "stepsToReproduceHtml", "actualResultHtml", "expectedResultHtml"].includes(field)) return null;
+  if (!task || !["descriptionHtml", "stepsToReproduceHtml", "actualResultHtml", "expectedResultHtml", "rootCauseAnalysisHtml"].includes(field)) return null;
 
   return {
     path: `${apiRoot || "/api/tasks"}/${id}`,
@@ -2460,6 +2486,7 @@ function workItemRichReadonlySaveRequest(id, field, bodyHtml, apiRoot = "/api/ta
       stepsToReproduceHtml: field === "stepsToReproduceHtml" ? bodyHtml : task.stepsToReproduceHtml || "",
       actualResultHtml: field === "actualResultHtml" ? bodyHtml : task.actualResultHtml || "",
       expectedResultHtml: field === "expectedResultHtml" ? bodyHtml : task.expectedResultHtml || "",
+      rootCauseAnalysisHtml: field === "rootCauseAnalysisHtml" ? bodyHtml : task.rootCauseAnalysisHtml || "",
       environment: task.environment || "",
       severity: task.severity || "",
       status: task.status,

@@ -169,6 +169,91 @@ html[data-theme] .bugs-screen.work-item-screen .section-head .toolbar > button:h
   row-gap: var(--space-5);
 }
 
+.bug-dialog-customize-button {
+  flex: 0 0 auto;
+}
+
+.dialog-head-actions > [data-dialog-overflow-source][hidden] {
+  display: none !important;
+}
+
+.detail-grid[data-bug-dialog-root="read"] .bug-dialog-user-avatar-stack {
+  --avatar-overlap: -24px;
+  min-height: 84px;
+  gap: var(--space-4);
+}
+
+.detail-grid[data-bug-dialog-root="read"] .bug-dialog-user-avatar-stack .avatar {
+  width: 80px;
+  height: 80px;
+  box-shadow: var(--shadow-floating-mark);
+}
+
+.bug-dialog-customize-dialog {
+  width: min(920px, calc(100vw - 2 * var(--shell-padding-compact)));
+}
+
+.bug-dialog-customize-body {
+  padding: 0;
+}
+
+.bug-dialog-customize-table {
+  min-width: 720px;
+}
+
+.bug-dialog-customize-table th {
+  top: 0;
+  z-index: 2;
+  background: var(--color-surface-raised);
+  box-shadow: var(--shadow-divider);
+}
+
+.bug-dialog-customize-table th,
+.bug-dialog-customize-table td {
+  vertical-align: middle;
+}
+
+.bug-dialog-customize-table .bug-dialog-visible-column,
+.bug-dialog-customize-table .bug-dialog-visible-cell {
+  width: 1%;
+  white-space: nowrap;
+}
+
+.bug-dialog-customize-table input[type="text"] {
+  width: 100%;
+  min-width: 0;
+  height: var(--control-height-md);
+  min-height: var(--control-height-md);
+  padding: 0 var(--control-padding-inline-md);
+  border: var(--border-width) solid var(--color-border-control);
+  border-radius: var(--radius-md);
+  background-color: var(--color-control);
+  color: var(--color-text-primary);
+  font: inherit;
+  outline: none;
+  box-shadow: var(--shadow-inset-highlight);
+  transition: var(--transition-control);
+}
+
+.bug-dialog-customize-table input[type="text"]:hover:not(:disabled) {
+  border-color: var(--color-border-strong);
+  background-color: var(--color-control-hover);
+}
+
+.bug-dialog-customize-table input[type="text"]:focus {
+  border-color: var(--color-focus-ring);
+  box-shadow: var(--shadow-focus);
+}
+
+.bug-dialog-customize-table tbody[data-reorder-list="bug-dialog-fields"] tr {
+  touch-action: none;
+}
+
+.bug-dialog-customize-table .settings-nav-drag-handle {
+  opacity: 1;
+  pointer-events: auto;
+}
+
 .bug-editor-grid select,
 .bug-editor-grid input[type="date"] {
   height: var(--control-height-md);

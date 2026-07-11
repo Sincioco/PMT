@@ -236,7 +236,7 @@ BEGIN
         INSERT INTO [pmt].[WorkTasks]
         (
             [ProjectId], [SprintId], [ParentTaskId], [TaskType], [Code], [Title], [DescriptionHtml],
-            [StepsToReproduceHtml], [ActualResultHtml], [ExpectedResultHtml], [Environment], [Severity],
+            [StepsToReproduceHtml], [ActualResultHtml], [ExpectedResultHtml], [RootCauseAnalysisHtml], [Environment], [Severity],
             [Status], [Priority], [PercentCompleted], [Url], [StartDate], [EndDate], [StartedAt],
             [CreatedByUserId], [CreatedAt], [UpdatedAt]
         )
@@ -247,6 +247,7 @@ BEGIN
             N'<ol><li>Open the HLS validation tenant.</li><li>Run the phase acceptance script.</li><li>Review the AI or classroom result.</li></ol>',
             N'<p>The result is inconsistent with the validated learning rule.</p>',
             N'<p>The result should match the approved learning rule and be repeatable.</p>',
+            N'<p>Root cause: the HLS validation path used stale phase data while the AI or classroom result was being calculated.</p>',
             N'UAT', CASE WHEN @PhaseNumber <= 5 THEN N'Critical' ELSE N'Major' END,
             @BugStatus, N'High', 100, N'https://intranet.local/hls/bugs/' + CONVERT(NVARCHAR(12), @BugCounter),
             @BugStart, @BugEnd, @BugStart, @Sin, @BugStart, @BugEnd

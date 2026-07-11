@@ -5,12 +5,12 @@ import {
 } from "../shared/text-and-links.js?v=20260627-rich-text-toolbar";
 
 export function field(label, name, currentValue, type, min = "", max = "", maxLength = "") {
-  return `<div class="field"><label>${label}</label><input name="${name}" type="${type}" value="${escapeAttr(currentValue ?? "")}" ${min !== "" ? `min="${min}"` : ""} ${max !== "" ? `max="${max}"` : ""} ${maxLength !== "" ? `maxlength="${maxLength}"` : ""}></div>`;
+  return `<div class="field"><label>${escapeHtml(label)}</label><input name="${name}" type="${type}" value="${escapeAttr(currentValue ?? "")}" ${min !== "" ? `min="${min}"` : ""} ${max !== "" ? `max="${max}"` : ""} ${maxLength !== "" ? `maxlength="${maxLength}"` : ""}></div>`;
 }
 
 export function colorField(label, name, currentValue) {
   const color = validColor(currentValue) ? currentValue : "#76A9FF";
-  return `<div class="field"><label>${label}</label><input name="${name}" type="color" value="${escapeAttr(color)}"></div>`;
+  return `<div class="field"><label>${escapeHtml(label)}</label><input name="${name}" type="color" value="${escapeAttr(color)}"></div>`;
 }
 
 export function validColor(value) {
@@ -50,7 +50,7 @@ export function selectField(label, name, items, selectedId) {
 export function selectOptionsField(label, name, items, selectedId) {
   return `
     <div class="field">
-      <label>${label}</label>
+      <label>${escapeHtml(label)}</label>
       <select name="${name}">
         ${items.map(item => `<option value="${item.id}" ${String(item.id) === String(selectedId ?? "") ? "selected" : ""}>${escapeHtml(item.title)}</option>`).join("")}
       </select>
@@ -61,7 +61,7 @@ export function selectOptionsField(label, name, items, selectedId) {
 export function selectTextField(label, name, items, selectedText) {
   return `
     <div class="field">
-      <label>${label}</label>
+      <label>${escapeHtml(label)}</label>
       <select name="${name}">
         ${items.map(item => `<option value="${escapeAttr(item)}" ${item === selectedText ? "selected" : ""}>${escapeHtml(item)}</option>`).join("")}
       </select>
@@ -72,7 +72,7 @@ export function selectTextField(label, name, items, selectedText) {
 export function richTextField(name, label, html) {
   return `
     <div class="field full">
-      <label>${label}</label>
+      <label>${escapeHtml(label)}</label>
       ${richTextToolsHtml()}
       <div class="rich-editor" contenteditable="true" data-rich="${name}">${html || ""}</div>
     </div>
