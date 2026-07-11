@@ -182,16 +182,19 @@
 
 .documentation-card {
   position: relative;
+  display: grid;
+  grid-template-rows: 104px minmax(0, 1fr) auto;
   gap: var(--space-5);
-  height: 665px;
+  height: 500px;
   overflow: hidden;
   padding: var(--space-7);
   background: var(--color-surface);
 }
 
 .documentation-card.is-expanded {
+  grid-template-rows: 104px auto auto;
   height: auto;
-  min-height: 665px;
+  min-height: 500px;
   overflow: visible;
 }
 
@@ -227,10 +230,14 @@
 }
 
 .documentation-card-top {
+  align-self: start;
   display: grid;
-  grid-template-rows: auto 42px;
+  grid-template-rows: 28px 42px;
   gap: var(--space-4);
+  align-content: start;
   height: 104px;
+  min-height: 104px;
+  max-height: 104px;
   padding-bottom: var(--space-5);
   border-bottom: var(--border-width) solid var(--color-border-subtle);
 }
@@ -240,6 +247,9 @@
   grid-template-columns: minmax(0, 1fr) auto;
   gap: var(--space-5);
   align-items: start;
+  height: 28px;
+  min-height: 28px;
+  overflow: hidden;
 }
 
 .documentation-title-block {
@@ -286,8 +296,10 @@
 }
 
 .documentation-card-meta {
+  align-self: start;
   display: grid;
   gap: 2px;
+  height: 42px;
   min-width: 0;
   color: var(--color-text-secondary);
   font-size: var(--font-size-sm);
@@ -302,12 +314,45 @@
 }
 
 .documentation-card-body {
-  flex: 1 1 auto;
+  --documentation-card-scrollbar-width: 10px;
   min-height: 0;
-  padding: 0;
+  margin-right: calc(-1 * var(--documentation-card-scrollbar-width));
+  padding: 0 var(--documentation-card-scrollbar-width) 0 0;
   color: var(--color-text-primary);
   line-height: 1.65;
+  overflow-x: hidden;
+  overflow-y: auto;
   overflow-wrap: anywhere;
+  overscroll-behavior: auto;
+  scrollbar-color: transparent transparent;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+}
+
+.documentation-card:hover .documentation-card-body,
+.documentation-card:focus-within .documentation-card-body {
+  scrollbar-color: var(--color-border-strong) transparent;
+}
+
+.documentation-card-body::-webkit-scrollbar {
+  width: var(--documentation-card-scrollbar-width);
+  height: 0;
+}
+
+.documentation-card-body::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.documentation-card-body::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  border-radius: var(--radius-pill);
+  background-clip: content-box;
+  background-color: transparent;
+}
+
+.documentation-card:hover .documentation-card-body::-webkit-scrollbar-thumb,
+.documentation-card:focus-within .documentation-card-body::-webkit-scrollbar-thumb {
+  background-color: var(--color-border-strong);
 }
 
 .documentation-card-body > :first-child {
@@ -358,13 +403,16 @@
 }
 
 .documentation-card-bottom {
+  position: relative;
+  z-index: 2;
   display: flex;
   align-items: flex-end;
   justify-content: space-between;
   gap: var(--space-5);
-  margin-top: auto;
+  margin-top: 0;
   padding-top: var(--space-5);
   border-top: var(--border-width) solid var(--color-border-subtle);
+  background: var(--color-surface);
 }
 
 .documentation-card-bottom.has-top-created-meta {

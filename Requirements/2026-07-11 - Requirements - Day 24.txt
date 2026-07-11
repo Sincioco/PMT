@@ -58,3 +58,19 @@ Goal:  We want PMT to produce the Bug Report used in the office called TSG.  It 
 37.) When exporting, export it exactly as they customized the fields, the labels, the order, etc.
 38.) Export as a .csv obviously exports a normal .csv file.
 39.) Export to Excel will export a native Excel file.  You already do an Export to Excel in the page-level menu "Export Grid".
+
+
+Documentation
+-------------
+40.) In the Documentation's Card View, the card's footer area overlaps with the content.  See attached file.
+41.) Shorten the height of each card by about 25%.
+42.) Can you allow the mousewheel to scroll the content of the card when the user's mouse cursor is on a card's content?
+43.) Only show the vertical scrollbar when the mouse cursor enters the card's bounds.  When it leaves the card's bounds, hide the vertical scrollbar.
+44.) When the mouse enters the card, the content shift since the vertical scrollbar is rendered.  Can we prevent the content from shifting.  It's okay if the scrollbar appears to the right of the content even if it is close to the right edge.
+45.) The content (if it is an image) now appears off-center because you are reserving (visually) a space for the vertical scrollbar to appear.  Keep the same margin on both the left and right side, and let the vertical scrollbar "visually" spill to the right edge.  It's important that the content appear visually centered to its container.
+46.) When you expand/collapse the Card, the header part of the Card shifts.  Keep the header part stable. Nothing above should move.
+47.) Now when a card is expanded, the content shifts slight to the right as the scrollbar is no longer needed.  Can you make it so that the scrollbar does not shift content when it is expanded or collapsed?
+48.) When the content is expanded and the scrollbar is no longer needed, it should not intercept mousewheel scrolling or prevent scrolling the page.
+48.) When the content is expanded and the scrollbar is no longer needed, it is still intercepting the mousewheel's scrolling preventing the user from actually scrolling up or down the browser's page.
+
+Commit and Push.

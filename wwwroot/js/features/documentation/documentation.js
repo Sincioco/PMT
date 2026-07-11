@@ -214,7 +214,7 @@ export function createDocumentationFeature({
       } else {
         expandedDocumentationCardIds.add(id);
       }
-      renderDocumentation();
+      syncDocumentationCardOverflowState(button?.closest?.(".documentation-card") || app.querySelector(`.documentation-card[data-id="${id}"]`));
       return true;
     }
     if (action === "toggle-documentation-card-code") {
@@ -966,12 +966,7 @@ export function createDocumentationFeature({
 
   function bindDocumentationCardOverflowControls() {
     const updateOverflow = () => {
-      app.querySelectorAll(".documentation-card").forEach(card => {
-        const blogId = Number(card.dataset.id || 0);
-        const expanded = expandedDocumentationCardIds.has(blogId);
-        card.classList.toggle("is-expanded", expanded);
-        card.classList.toggle("has-overflow", expanded || card.scrollHeight > card.clientHeight + 1);
-      });
+      app.querySelectorAll(".documentation-card").forEach(syncDocumentationCardOverflowState);
     };
 
     app.querySelectorAll(".documentation-card details > summary").forEach(summary => {
@@ -983,6 +978,24 @@ export function createDocumentationFeature({
       image.addEventListener("load", updateOverflow, { once: true });
       image.addEventListener("error", updateOverflow, { once: true });
     });
+  }
+
+  function syncDocumentationCardOverflowState(card) {
+    if (!card) return;
+
+    const blogId = Number(card.dataset.id || 0);
+    const expanded = expandedDocumentationCardIds.has(blogId);
+    const body = card.querySelector(".documentation-card-body");
+    const toggle = card.querySelector(".documentation-card-overflow-toggle");
+    card.classList.toggle("is-expanded", expanded);
+    card.classList.toggle("has-overflow", expanded || card.scrollHeight > card.clientHeight + 1 || Boolean(body && body.scrollHeight > body.clientHeight + 1));
+
+    if (!toggle) return;
+
+    const title = expanded ? "Collapse document card" : "Show more of this document card";
+    toggle.setAttribute("aria-expanded", String(expanded));
+    toggle.title = title;
+    toggle.innerHTML = buttonContent(expanded ? "&#9652;" : "&#9662;", expanded ? "Show Less" : "More");
   }
 
   return {
