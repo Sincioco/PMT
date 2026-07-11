@@ -139,3 +139,24 @@ How crazy is that!"
 
 33.) Have lightning strike randomly every 45 to 65 seconds.
 34.) Also, when the 3D animation first begins, don't make the alient appear until at least 10 seconds into the animation sequence.
+
+35.) You've managed to construct the Dev Tasks' Developer Workload Distribution chart in 3D space!  That's amazing!  Now do the same thing for the rest of the Dev Charts:  Sprint Dev Tasks by Status, Sprint Dev Tax Mix, Dev Tasks Completed by Sprint.  Stack them on a 2x2 grid.
+
+36.) When you are done with the Dev Task's charts, do it for the Bug Tracking charts in a 2x2 grid as well.  On the first row, Bug Severity Share Chart, followed by Bug Tred by Sprint.  Since we are in 3D space, you don't need to constraint the width of the chart, render it as wide as needed to fit the data.  On the 2nd row, Sprint Bug Mix chart, followed by Reported vs Resolved by Sprint chart.  Render the last chart the same way, since we are in 3D space you can take as much width as needed to render all the data of the chart.  No need to constraint the chart to a specific width.
+37.) Render the Bug Tracking charts to the right of the PMT logo and adjust the flyby path so we see more of the charts in a more close up view and fly slower as you approach the chart so we can see it better.  The goal is still to orbit around the PMT Logo, but we kind of want to detour a little bit and watch a little bit of the charts.
+
+38.) Make the floor larger.
+39.) Move the Bug Tracking (QA) charts, so the first chart starts right where the Dev charts are.  Right now, the Bug Tracking charts start behind the Dev charts.
+40.) Now, render the User Cards, refer to the Settings -> Users screen.  Stack them in some grid dynamically since the number of users will change over time.  Place the 3D User cards to the left of the Dev Charts.  Adjust the flyby accordingly so we can see the Dev Team in the flyby.
+41.) For the bug chart, you don't need to flyby too far from the PMT logo, since I know the bug charts can be extremely long.  It's fine that they are long, by you still need to be somewhat near the PMT logo, so no need to flyby to the entire length of the bug chart.
+42.) The UFO doesn't have to follow a specific time pattern, you can make it appear only when it's convenient for the flight path, if you want, but still add some randomness.  Just to help you mitigate time collision between events.
+43.) You can do the same for the lightning strike, it doesn't have to be on a specific time pattern, you can make it appear only when it's convenient for the flight path, if you want, but still add some randomness.  Just to help you mitigate time collision between events.
+44.) You need to speed up the flyby animation a bit when you slow down to "watch" something for longer than 1-2 seconds, it gets boring.  The camera must move at all times.
+45.) Move the User Card so it is to the left of the PMT Logo.
+46.) Move the Bug Tracking Charts to the right of the PMT Logo, where it was before so that the first chart of the Bug Tracking and the Dev Chart intersects at a 90 degree angle.  So the Dev Charts are on the left and the Bug Tracking charts are on the right.  The PMT logo is in the middle.
+47.) Since the charts are 2x2 grid, if you slow down to examine them, you have to zoom out a little bit the camera appears too close.
+48.) I really also do not want any sudden camera movements.  Make it like a flying drone in cinema mode.  No sudden turns or movements, unless the UFO or lightning strike is happening, then it is okay to have a sudden movement.  But otherwise, make the camera fly like a drone in cinema mode.
+49.) You may adjust the height of the drone's flight path for variety, and it will still be nice for the drone to do the p-hole flyby of the PMT logo.
+50.) When you suddenly move the camera, move the camera angle horizontally first, then vertically.  Right now, you move it vertically first or so fast that the user is looking at the sky while the camera moves/pans with no point of reference as to where the camera actually moved to.
+51.) In fact, can you add some randomness to the flight path so that the camera is not always at the same height, and it can fly up and down a little bit.  But still keep the camera's flight path smooth and cinematic.  And don't always stop at the same chart, randomly inspect the other charts too.  But still keep the camera's flight path smooth and cinematic.
+52.) Whent the camera switches from one thing to another, it's moving too fast like a whiplash.  Slow it down by a lot!  The only exception is when the UFO or lightning strike is happening, then it is okay to have a sudden movement.

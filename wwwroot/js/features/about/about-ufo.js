@@ -1,9 +1,9 @@
 import * as THREE from "../../vendor/three/three.module.min.js";
 
-export const UFO_VISIT_INTERVAL_SECONDS = 60;
-export const UFO_FIRST_APPEARANCE_SECONDS = 10;
-const CYCLE_DURATION_SECONDS = UFO_VISIT_INTERVAL_SECONDS;
-const ARRIVAL_START_SECONDS = UFO_FIRST_APPEARANCE_SECONDS;
+export const UFO_FIRST_DELAY_MIN_SECONDS = 12;
+export const UFO_FIRST_DELAY_MAX_SECONDS = 22;
+export const UFO_IDLE_MIN_SECONDS = 45;
+export const UFO_IDLE_MAX_SECONDS = 75;
 const CAMERA_LEAD_SECONDS = 1.75;
 const CAMERA_RELEASE_SECONDS = 1.75;
 const ARRIVAL_SPEED_SCALE = 0.55;
@@ -29,6 +29,7 @@ const SPEECH_LINES = [
 ];
 
 export function createUfoEncounter({ scene, resources, speechElement }) {
+  const random = seededRandom(0xa11e6a1);
   const ship = createShip(resources);
   const beam = createBeam(resources);
   const scanLight = new THREE.SpotLight(0x9fe7ff, 0, 11, 0.43, 0.72, 1.7);
@@ -40,6 +41,9 @@ export function createUfoEncounter({ scene, resources, speechElement }) {
   let sceneOffsetY = 0;
   let enabled = true;
   let enabledAt = 0;
+  let nextEncounterAt = ufoFirstDelay(random);
+  let encounterLeadStartedAt = null;
+  let encounterIndex = 0;
   let pendingShadowUpdate = false;
   let orbitCurve = createOrbitCurve(stopPosition, sceneOffsetY);
   let departureCurve = createDepartureCurve(stopPosition, sceneOffsetY);
@@ -77,6 +81,8 @@ export function createUfoEncounter({ scene, resources, speechElement }) {
 
     if (enabled) {
       enabledAt = Math.max(0, Number(elapsedSeconds || 0));
+      nextEncounterAt = ufoFirstDelay(random);
+      encounterLeadStartedAt = null;
       setElapsedTime(0);
     } else {
       setShipVisible(false);
@@ -87,7 +93,7 @@ export function createUfoEncounter({ scene, resources, speechElement }) {
     return enabled;
   }
 
-  function update(elapsedSeconds, reducedMotion) {
+  function update(elapsedSeconds, reducedMotion, canBeginEncounter = true) {
     state.attention = 0;
     state.speedScale = 1;
     state.shadowUpdate = pendingShadowUpdate;
@@ -103,10 +109,19 @@ export function createUfoEncounter({ scene, resources, speechElement }) {
     }
 
     const activeElapsedSeconds = Math.max(0, elapsedSeconds - enabledAt);
-    const cycleTime = activeElapsedSeconds % CYCLE_DURATION_SECONDS;
-    const time = cycleTime - ARRIVAL_START_SECONDS;
+    if (encounterLeadStartedAt === null) {
+      if (activeElapsedSeconds < nextEncounterAt || !canBeginEncounter) {
+        setShipVisible(false);
+        setElapsedTime(-1);
+        hideSpeech();
+        return state;
+      }
+      encounterLeadStartedAt = activeElapsedSeconds;
+      selectSpeech(encounterIndex);
+    }
+
+    const time = activeElapsedSeconds - encounterLeadStartedAt - CAMERA_LEAD_SECONDS;
     setElapsedTime(time);
-    selectSpeech(Math.floor(activeElapsedSeconds / CYCLE_DURATION_SECONDS));
 
     if (time < 0) {
       setShipVisible(false);
@@ -114,12 +129,20 @@ export function createUfoEncounter({ scene, resources, speechElement }) {
       setShipOnCurve(orbitCurve, 0);
       updateFocus();
 
-      const leadStart = ARRIVAL_START_SECONDS - CAMERA_LEAD_SECONDS;
-      if (cycleTime >= leadStart) {
-        const progress = smootherStep((cycleTime - leadStart) / CAMERA_LEAD_SECONDS);
-        state.attention = progress;
-        state.speedScale = THREE.MathUtils.lerp(1, ARRIVAL_SPEED_SCALE, progress);
-      }
+      const progress = smootherStep((time + CAMERA_LEAD_SECONDS) / CAMERA_LEAD_SECONDS);
+      state.attention = progress;
+      state.speedScale = THREE.MathUtils.lerp(1, ARRIVAL_SPEED_SCALE, progress);
+      return state;
+    }
+
+    if (time >= DEPART_END + CAMERA_RELEASE_SECONDS) {
+      encounterLeadStartedAt = null;
+      encounterIndex += 1;
+      nextEncounterAt = activeElapsedSeconds + ufoIdleDelay(random);
+      setShipVisible(false);
+      hideSpeech();
+      setShipOnCurve(departureCurve, 1);
+      updateFocus();
       return state;
     }
 
@@ -227,8 +250,7 @@ export function createUfoEncounter({ scene, resources, speechElement }) {
     }
 
     const elapsedTime = Number(ship.userData.encounterTime || 0);
-    const cycleTime = elapsedTime % CYCLE_DURATION_SECONDS;
-    if (cycleTime < SPEECH_START || cycleTime >= SPEECH_END) {
+    if (elapsedTime < SPEECH_START || elapsedTime >= SPEECH_END) {
       hideSpeech();
       return;
     }
@@ -411,4 +433,25 @@ function createDepartureCurve(stopPosition, sceneOffsetY = 0) {
 function smootherStep(value) {
   const progress = THREE.MathUtils.clamp(value, 0, 1);
   return progress * progress * progress * (progress * (progress * 6 - 15) + 10);
+}
+
+export function ufoFirstDelay(random = Math.random) {
+  return randomDelay(UFO_FIRST_DELAY_MIN_SECONDS, UFO_FIRST_DELAY_MAX_SECONDS, random);
+}
+
+export function ufoIdleDelay(random = Math.random) {
+  return randomDelay(UFO_IDLE_MIN_SECONDS, UFO_IDLE_MAX_SECONDS, random);
+}
+
+function randomDelay(minimum, maximum, random) {
+  const unit = THREE.MathUtils.clamp(Number(random()) || 0, 0, 1);
+  return THREE.MathUtils.lerp(minimum, maximum, unit);
+}
+
+function seededRandom(seed) {
+  let state = seed >>> 0;
+  return () => {
+    state = (state * 1664525 + 1013904223) >>> 0;
+    return state / 0x100000000;
+  };
 }

@@ -1,21 +1,23 @@
 import * as THREE from "../../vendor/three/three.module.min.js";
 import { RoomEnvironment } from "../../vendor/three/addons/environments/RoomEnvironment.js?v=0.185.1-pmt1";
 import { SVGLoader } from "../../vendor/three/addons/loaders/SVGLoader.js?v=0.185.1-pmt1";
-import { createAboutFlightController } from "./about-flight-controller.js?v=20260712-about-3d-flyby-34";
-import { createLogoLightningEffect } from "./about-lightning.js?v=20260712-about-3d-flyby-34";
-import { createUfoEncounter } from "./about-ufo.js?v=20260712-about-3d-flyby-34";
+import { createAboutFlightController } from "./about-flight-controller.js?v=20260712-about-3d-flyby-57";
+import { createLogoLightningEffect } from "./about-lightning.js?v=20260712-about-3d-flyby-57";
+import { createUfoEncounter } from "./about-ufo.js?v=20260712-about-3d-flyby-57";
 import {
-  createAboutWorkloadBillboard,
-  WORKLOAD_BILLBOARD_HEIGHT,
-  WORKLOAD_BILLBOARD_WIDTH,
-  WORKLOAD_BILLBOARD_Z
-} from "./about-workload-billboard.js?v=20260712-about-3d-flyby-34";
+  createAboutChartGallery,
+  DEV_CHART_GRID_HEIGHT,
+  DEV_CHART_GRID_WIDTH,
+  DEV_CHART_GRID_Z
+} from "./about-workload-billboard.js?v=20260712-about-3d-flyby-57";
 
 const INTRO_DURATION_MS = 3000;
 const INTRO_FADE_DURATION_MS = 1250;
 const LOGO_WORLD_WIDTH = 12;
 const EXTRUDE_DEPTH = 64;
 const FLOOR_Y = -4.6;
+const FLOOR_WIDTH = 220;
+const FLOOR_DEPTH = 180;
 const MIN_CAMERA_FLOOR_CLEARANCE = 1.55;
 const FALLBACK_PORTAL = new THREE.Vector2(1006.56, 443.3);
 
@@ -29,7 +31,9 @@ export function createAboutScene({
   ufoSpeechElement,
   alienNoticeElement,
   logoUrl,
-  workload,
+  devCharts,
+  bugCharts,
+  users,
   onFailure
 }) {
   const startedAt = performance.now();
@@ -48,7 +52,7 @@ export function createAboutScene({
   let lightningEffect = null;
   let ufoEncounter = null;
   let logoGroup = null;
-  let workloadBillboard = null;
+  let chartGallery = null;
   let starField = null;
   let frameId = 0;
   let lastFrameAt = startedAt;
@@ -62,18 +66,22 @@ export function createAboutScene({
   try {
     setupRenderer(renderer);
     setupScene(scene, renderer, resources, animatedLights);
+    root.dataset.aboutFloorWidth = String(FLOOR_WIDTH);
+    root.dataset.aboutFloorDepth = String(FLOOR_DEPTH);
     environmentTexture = createEnvironment(renderer);
     scene.environment = environmentTexture;
     starField = createStarField(resources);
     scene.add(starField);
-    workloadBillboard = createAboutWorkloadBillboard({
-      workload,
+    chartGallery = createAboutChartGallery({
+      users,
+      devCharts,
+      bugCharts,
       resources,
       maxAnisotropy: renderer.capabilities.getMaxAnisotropy()
     });
-    scene.add(workloadBillboard.group);
+    scene.add(chartGallery.group);
     root.dataset.aboutWorkloadBillboard = "ready";
-    root.dataset.aboutWorkloadStyle = "dev-tasks";
+    root.dataset.aboutWorkloadStyle = "dev-and-bug-charts";
     root.dataset.aboutWorkloadFrame = "none";
     root.dataset.aboutWorkloadPerimeter = "none";
     root.dataset.aboutWorkloadStand = "none";
@@ -82,17 +90,45 @@ export function createAboutScene({
     root.dataset.aboutWorkloadGlass = "semi-transparent";
     root.dataset.aboutWorkloadChartContent = "opaque";
     root.dataset.aboutWorkloadColorOutput = "srgb-unlit";
-    root.dataset.aboutWorkloadRows = String(workload.rows.length);
-    root.dataset.aboutWorkloadBillboardWidth = String(WORKLOAD_BILLBOARD_WIDTH);
-    root.dataset.aboutWorkloadBillboardHeight = String(WORKLOAD_BILLBOARD_HEIGHT);
-    root.dataset.aboutWorkloadBillboardZ = String(WORKLOAD_BILLBOARD_Z);
+    root.dataset.aboutWorkloadRows = String(devCharts.workload.rows.length);
+    root.dataset.aboutDevChartCount = "4";
+    root.dataset.aboutBugChartCount = "4";
+    root.dataset.aboutDevChartGrid = "2x2";
+    root.dataset.aboutBugChartGrid = "2x2";
+    root.dataset.aboutWorkloadBillboardWidth = String(DEV_CHART_GRID_WIDTH);
+    root.dataset.aboutWorkloadBillboardHeight = String(DEV_CHART_GRID_HEIGHT);
+    root.dataset.aboutWorkloadBillboardZ = String(DEV_CHART_GRID_Z);
+    root.dataset.aboutDevChartGridX = String(chartGallery.devGridX);
+    root.dataset.aboutBugChartGridX = String(chartGallery.bugGridX);
+    root.dataset.aboutBugChartGridStartX = String(chartGallery.bugGridStartX);
+    root.dataset.aboutBugChartGridWidth = String(chartGallery.bugGridWidth);
+    root.dataset.aboutBugChartIntersectionX = String(chartGallery.bugGridIntersectionX);
+    root.dataset.aboutBugChartIntersectionZ = String(chartGallery.bugGridIntersectionZ);
+    root.dataset.aboutBugChartRotationDegrees = String(chartGallery.bugGridRotationDegrees);
+    root.dataset.aboutBugChartGrowthDirection = chartGallery.bugGrowthDirection;
+    root.dataset.aboutGalleryRoomHalfWidth = String(chartGallery.roomHalfWidth);
+    root.dataset.aboutGalleryRoomBackZ = String(chartGallery.roomBackZ);
+    root.dataset.aboutTeamCardCount = String(users.length);
+    root.dataset.aboutTeamCardColumns = String(chartGallery.teamColumns);
+    root.dataset.aboutTeamCardRows = String(chartGallery.teamRows);
+    root.dataset.aboutTeamGridWidth = String(chartGallery.teamGridWidth);
+    root.dataset.aboutTeamGridHeight = String(chartGallery.teamGridHeight);
+    root.dataset.aboutTeamGridX = String(chartGallery.teamGridX);
+    root.dataset.aboutTeamGridY = String(chartGallery.teamGridY);
+    root.dataset.aboutTeamGridZ = String(chartGallery.teamGridZ);
+    root.dataset.aboutTeamGridIntersectionX = String(chartGallery.teamGridIntersectionX);
+    root.dataset.aboutTeamGridIntersectionZ = String(chartGallery.teamGridIntersectionZ);
+    root.dataset.aboutTeamGridRotationDegrees = String(chartGallery.teamGridRotationDegrees);
+    root.dataset.aboutTeamGrowthDirection = chartGallery.teamGrowthDirection;
     ufoEncounter = createUfoEncounter({
       scene,
       resources,
       speechElement: ufoSpeechElement
     });
     root.dataset.aboutUfoEnabled = "true";
+    root.dataset.aboutUfoSchedule = "random-convenient-window";
     root.dataset.aboutLightningEnabled = "false";
+    root.dataset.aboutLightningSchedule = "random-convenient-window";
     root.dataset.aboutLightningActive = "false";
     root.dataset.aboutLightningStrikeCount = "0";
     root.dataset.aboutLightningTarget = "";
@@ -157,7 +193,11 @@ export function createAboutScene({
         canvas,
         root,
         portal: groundedPortal,
-        billboardTarget: workloadBillboard.target,
+        billboardTarget: chartGallery.devTarget,
+        billboardTargets: chartGallery.devTargets,
+        secondaryTarget: chartGallery.bugTarget,
+        secondaryTargets: chartGallery.bugTargets,
+        teamTarget: chartGallery.teamTarget,
         sceneFocus,
         minimumCameraY: FLOOR_Y + MIN_CAMERA_FLOOR_CLEARANCE,
         statusElement,
@@ -250,11 +290,25 @@ export function createAboutScene({
     }
 
     const encounterElapsed = experienceStarted ? (now - revealStartedAt) / 1000 : -1;
-    const encounter = ufoEncounter?.update(encounterElapsed, reducedMotion) || null;
+    const galleryDetourActive = Number(root.dataset.aboutDevDetourAttention || 0) >= 0.08
+      || Number(root.dataset.aboutChartDetourAttention || 0) >= 0.08
+      || Number(root.dataset.aboutTeamDetourAttention || 0) >= 0.08;
+    const ufoConvenientWindow = !galleryDetourActive
+      && camera.position.z >= 4.5
+      && Math.abs(camera.position.x) <= 12.5;
+    root.dataset.aboutUfoConvenientWindow = String(ufoConvenientWindow);
+    const encounter = ufoEncounter?.update(
+      encounterElapsed,
+      reducedMotion,
+      ufoConvenientWindow
+    ) || null;
+    const lightningConvenientWindow = ufoConvenientWindow
+      && (encounter?.attention || 0) <= 0.04;
+    root.dataset.aboutLightningConvenientWindow = String(lightningConvenientWindow);
     const lightning = lightningEffect?.update(
       encounterElapsed,
       reducedMotion,
-      (encounter?.attention || 0) > 0.04
+      !lightningConvenientWindow
     );
     if (lightning) {
       root.dataset.aboutLightningActive = String(lightning.active);
@@ -376,8 +430,8 @@ export function createAboutScene({
     flightController = null;
     lightningEffect?.dispose();
     lightningEffect = null;
-    workloadBillboard?.dispose();
-    workloadBillboard = null;
+    chartGallery?.dispose();
+    chartGallery = null;
     ufoEncounter?.dispose();
     ufoEncounter = null;
 
@@ -471,7 +525,7 @@ function setupScene(scene, renderer, resources, animatedLights) {
   scene.add(goldFill);
   animatedLights.push(goldFill);
 
-  const floorGeometry = new THREE.PlaneGeometry(80, 80);
+  const floorGeometry = new THREE.PlaneGeometry(FLOOR_WIDTH, FLOOR_DEPTH);
   const floorMaterial = new THREE.MeshPhysicalMaterial({
     color: 0x07111f,
     metalness: 0.72,

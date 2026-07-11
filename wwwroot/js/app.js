@@ -44,10 +44,10 @@ import {
 } from "./core/preferences.js?v=20260711-task-dialog-customize";
 import { state } from "./core/store.js";
 import { appUrl } from "./shared/app-urls.js";
-import { createAboutFeature } from "./features/about/about.js?v=20260712-about-3d-flyby-34";
+import { createAboutFeature } from "./features/about/about.js?v=20260712-about-3d-flyby-57";
 import { createBacklogFeature } from "./features/backlog/backlog.js?v=20260710-rich-bug-layout";
 import { createBoardFeature } from "./features/board/board.js?v=20260710-rte-table-percent-kanban";
-import { createBugsFeature } from "./features/bugs/bugs.js?v=20260711-tsg-report";
+import { createBugsFeature } from "./features/bugs/bugs.js?v=20260712-about-chart-gallery";
 import { createDashboardFeature } from "./features/dashboard/dashboard.js?v=20260710-nav-avatar-fit";
 import { createDocumentationFeature } from "./features/documentation/documentation.js?v=20260712-doc-card-header";
 import {
@@ -61,7 +61,7 @@ import { createLogFeature } from "./features/personal-log/log.js?v=20260710-rte-
 import { createScrumFeature } from "./features/scrum/scrum.js?v=20260710-rte-checkbox-persist";
 import { createSettingsFeature } from "./features/settings/settings.js?v=20260710-nav-avatar-fit";
 import { createSprintsFeature } from "./features/sprints/sprints.js?v=20260710-nav-avatar-fit";
-import { createTasksFeature } from "./features/tasks/tasks.js?v=20260712-dynamic-workload";
+import { createTasksFeature } from "./features/tasks/tasks.js?v=20260712-about-chart-gallery";
 import { createWfhScheduleFeature } from "./features/wfh-schedule/wfh-schedule.js?v=20260709-wfh-undo-large-days";
 import {
   fallbackEnvironments,
@@ -92,7 +92,7 @@ import {
   percentForStatus,
   sprintOverallPercent,
   taskOrderCompare
-} from "./shared/work-item-rules.js?v=20260710-rich-bug-layout";
+} from "./shared/work-item-rules.js?v=20260710-export-rich-kanban";
 
 const nativePickerSelector = [
   "select",
@@ -213,6 +213,8 @@ const roadMapFeature = createRoadMapFeature({ app });
 const aboutFeature = createAboutFeature({
   app,
   getCurrentSprint: currentSprintForProject,
+  getItemStartDate: ganttStartDate,
+  getSeverities: () => severities,
   getStatuses: () => statuses
 });
 const ganttFeature = createGanttFeature({

@@ -63,6 +63,11 @@ import {
   devTaskWorkloadCategories,
   devTaskWorkloadRows
 } from "../../shared/dev-task-workload.js?v=20260712-about-workload-billboard";
+import {
+  devTaskCompletedSprintRows,
+  devTaskMixChart,
+  devTaskStatusChartItems
+} from "../../shared/dev-task-charts.js?v=20260712-about-chart-gallery";
 import { normalizeSavedArray } from "../../shared/filter-values.js";
 import {
   downloadXlsx,
@@ -1964,18 +1969,15 @@ export function createTasksFeature({
   }
 
   function taskCurrentSprintPieChartHtml(selectedSprint, sprintTasks) {
-    const completedTasks = sprintTasks.filter(isTaskCompleted);
-    const openTasks = sprintTasks.filter(task => !isTaskCompleted(task));
+    const mix = devTaskMixChart(sprintTasks);
+    const completedTasks = mix.completedTasks;
+    const openTasks = mix.openTasks;
     const items = [
       taskChartGroupedItem("Completed", completedTasks, "var(--color-success)", `Completed: ${completedTasks.length} Dev Task${completedTasks.length === 1 ? "" : "s"}`),
       taskChartGroupedItem("Still Open", openTasks, "var(--color-warning)", `Still Open: ${openTasks.length} Dev Task${openTasks.length === 1 ? "" : "s"}`)
     ].filter(item => item.value > 0);
-    const completedPercent = sprintTasks.length
-      ? Math.round((completedTasks.length / sprintTasks.length) * 100)
-      : 0;
-    const openPercent = sprintTasks.length
-      ? Math.round((openTasks.length / sprintTasks.length) * 100)
-      : 0;
+    const completedPercent = mix.completedPercent;
+    const openPercent = mix.openPercent;
 
     return VisualCharts.card({
       title: "Sprint Dev Task Mix",
@@ -1999,17 +2001,7 @@ export function createTasksFeature({
   function taskPastSixSprintsColumnChartHtml(devTasks, currentSprint) {
     if (!currentSprint) return null;
 
-    const projectSprints = taskProjectSprints()
-      .sort((a, b) => (getItemStartDate(b)?.getTime() || 0) - (getItemStartDate(a)?.getTime() || 0) || b.code.localeCompare(a.code));
-    const rows = projectSprints.map(sprint => {
-      const sprintTasks = devTasks.filter(task => task.sprintId === sprint.id);
-      return {
-        sprintId: sprint.id,
-        label: sprint.code,
-        total: sprintTasks.length,
-        completed: sprintTasks.filter(isTaskCompleted).length
-      };
-    }).filter(row => row.total > 0 || row.completed > 0);
+    const rows = devTaskCompletedSprintRows(devTasks, taskProjectSprints(), getItemStartDate);
 
     if (!rows.length) return null;
 
@@ -2028,13 +2020,13 @@ export function createTasksFeature({
   }
 
   function taskStatusHorizontalChartHtml(selectedSprint, sprintTasks) {
-    const statusItems = getStatuses()
-      .filter(status => !status.toLowerCase().includes("qa") && status.toLowerCase() !== "backlog")
-      .map(status => {
-        const tasks = sprintTasks.filter(task => task.status === status);
-        return taskChartGroupedItem(status, tasks, statusColor(status), `${status}: ${tasks.length} Dev Task${tasks.length === 1 ? "" : "s"}`);
-      })
-      .filter(item => item.value > 0);
+    const statusItems = devTaskStatusChartItems(sprintTasks, getStatuses(), statusColor)
+      .map(item => taskChartGroupedItem(
+        item.label,
+        item.tasks,
+        item.color,
+        `${item.label}: ${item.value} Dev Task${item.value === 1 ? "" : "s"}`
+      ));
 
     return VisualCharts.card({
       title: "Sprint Dev Tasks by Status",

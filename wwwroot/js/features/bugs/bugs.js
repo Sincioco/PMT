@@ -67,6 +67,13 @@ import {
   toDateInput
 } from "../../shared/dates.js?v=20260620-null-end-date";
 import { normalizeSavedArray } from "../../shared/filter-values.js";
+import {
+  bugMixChart,
+  bugSeverityChartColor,
+  bugSeverityChartItems,
+  bugSprintChartRows as sharedBugSprintChartRows,
+  newestBugSprintRows as sharedNewestBugSprintRows
+} from "../../shared/bug-charts.js?v=20260712-about-chart-gallery";
 import { createReorderDrag } from "../../shared/reorder-drag.js";
 import {
   downloadXlsx,
@@ -103,13 +110,12 @@ import {
 import {
   dependencyCandidates,
   allowedAssigneeUsers,
-  isBugQaPassedOrLater,
   percentForStatus,
   reporterIdsOrDefault,
   taskDisplayPercent,
   taskCreatedTime,
   taskOrderCompare
-} from "../../shared/work-item-rules.js?v=20260710-rich-bug-layout";
+} from "../../shared/work-item-rules.js?v=20260710-export-rich-kanban";
 import { openWorkItemHtmlImport } from "../../shared/work-item-transfer.js?v=20260711-task-root-cause";
 
 export function createBugsFeature({
@@ -2054,8 +2060,9 @@ export function createBugsFeature({
 
   function bugCurrentSprintPieChartHtml(filteredBugs) {
     const selectedSprint = selectedBugSprint();
-    const resolvedBugs = filteredBugs.filter(isBugQaPassedOrLater);
-    const openBugs = filteredBugs.filter(bug => !isBugQaPassedOrLater(bug));
+    const mix = bugMixChart(filteredBugs);
+    const resolvedBugs = mix.resolvedBugs;
+    const openBugs = mix.openBugs;
 
     const items = [
       bugChartGroupedItem("Resolved", resolvedBugs, "var(--green)", `Resolved: ${resolvedBugs.length} bug report${resolvedBugs.length === 1 ? "" : "s"}`),
@@ -2109,12 +2116,13 @@ export function createBugsFeature({
   }
 
   function bugSeverityPieChartHtml(filteredBugs) {
-    const items = getSeverities()
-      .map(severity => {
-        const bugs = filteredBugs.filter(bug => bug.severity === severity);
-        return bugChartGroupedItem(severity, bugs, bugSeverityColor(severity), `${severity}: ${bugs.length} bug report${bugs.length === 1 ? "" : "s"}`);
-      })
-      .filter(item => item.value > 0);
+    const items = bugSeverityChartItems(filteredBugs, getSeverities(), bugSeverityColor)
+      .map(item => bugChartGroupedItem(
+        item.label,
+        item.bugs,
+        item.color,
+        `${item.label}: ${item.value} bug report${item.value === 1 ? "" : "s"}`
+      ));
 
     if (!items.length) return null;
 
@@ -2148,50 +2156,11 @@ export function createBugsFeature({
   }
 
   function bugSprintChartRows(filteredBugs) {
-    const rows = new Map();
-
-    filteredBugs.forEach(bug => {
-      const sprintId = Number(bug.sprintId || 0);
-      if (!rows.has(sprintId)) {
-        rows.set(sprintId, {
-          sprintId,
-          label: sprintId ? sprintChartLabel(sprintId) : "No Sprint",
-          reported: 0,
-          resolved: 0,
-          open: 0
-        });
-      }
-
-      const row = rows.get(sprintId);
-      row.reported += 1;
-      if (isBugQaPassedOrLater(bug)) {
-        row.resolved += 1;
-      } else {
-        row.open += 1;
-      }
-    });
-
-    return [...rows.values()].sort((a, b) => {
-      if (!a.sprintId) return 1;
-      if (!b.sprintId) return -1;
-      const sprintA = sprintById(a.sprintId);
-      const sprintB = sprintById(b.sprintId);
-      const aTime = sprintA ? getItemStartDate(sprintA)?.getTime() || 0 : 0;
-      const bTime = sprintB ? getItemStartDate(sprintB)?.getTime() || 0 : 0;
-      return aTime - bTime || a.label.localeCompare(b.label);
-    });
+    return sharedBugSprintChartRows(filteredBugs, sprintChartLabel, sprintById, getItemStartDate);
   }
 
   function newestBugSprintRows(sprintRows) {
-    return [...sprintRows].sort((a, b) => {
-      if (!a.sprintId) return 1;
-      if (!b.sprintId) return -1;
-      const sprintA = sprintById(a.sprintId);
-      const sprintB = sprintById(b.sprintId);
-      const aTime = sprintA ? getItemStartDate(sprintA)?.getTime() || 0 : 0;
-      const bTime = sprintB ? getItemStartDate(sprintB)?.getTime() || 0 : 0;
-      return bTime - aTime || b.label.localeCompare(a.label);
-    });
+    return sharedNewestBugSprintRows(sprintRows, sprintById, getItemStartDate);
   }
 
   function bugSprintFilterSprints() {
@@ -2278,13 +2247,7 @@ export function createBugsFeature({
   }
 
   function bugSeverityColor(severity) {
-    const colors = {
-      Trivial: "var(--chart-2)",
-      Minor: "var(--chart-1)",
-      Major: "var(--chart-4)",
-      Critical: "var(--chart-5)"
-    };
-    return colors[severity] || "var(--chart-7)";
+    return bugSeverityChartColor(severity);
   }
 
   function workItemEditorTitle(item, newTitle) {

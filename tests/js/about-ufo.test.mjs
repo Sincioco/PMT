@@ -2,14 +2,25 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
-  UFO_FIRST_APPEARANCE_SECONDS,
-  UFO_VISIT_INTERVAL_SECONDS,
+  UFO_FIRST_DELAY_MAX_SECONDS,
+  UFO_FIRST_DELAY_MIN_SECONDS,
+  UFO_IDLE_MAX_SECONDS,
+  UFO_IDLE_MIN_SECONDS,
+  ufoFirstDelay,
+  ufoIdleDelay,
   ufoSpeechForEncounter
 } from "../../wwwroot/js/features/about/about-ufo.js";
 
-test("UFO visits once per minute and rotates its transmissions", () => {
-  assert.equal(UFO_VISIT_INTERVAL_SECONDS, 60);
-  assert.equal(UFO_FIRST_APPEARANCE_SECONDS, 10);
+test("UFO uses randomized convenient-window delays and rotates its transmissions", () => {
+  assert.equal(UFO_FIRST_DELAY_MIN_SECONDS, 12);
+  assert.equal(UFO_FIRST_DELAY_MAX_SECONDS, 22);
+  assert.ok(UFO_FIRST_DELAY_MIN_SECONDS >= 10);
+  assert.equal(ufoFirstDelay(() => 0), 12);
+  assert.equal(ufoFirstDelay(() => 1), 22);
+  assert.equal(UFO_IDLE_MIN_SECONDS, 45);
+  assert.equal(UFO_IDLE_MAX_SECONDS, 75);
+  assert.equal(ufoIdleDelay(() => 0), 45);
+  assert.equal(ufoIdleDelay(() => 1), 75);
 
   const firstCycle = Array.from({ length: 10 }, (_, index) => ufoSpeechForEncounter(index));
   assert.equal(new Set(firstCycle).size, firstCycle.length);

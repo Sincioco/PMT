@@ -1,16 +1,24 @@
 import { statusColor } from "../../components/progress-and-status.js?v=20260710-export-rich-kanban";
 import {
   preferenceKeys,
+  readJsonPreference,
   readNumberPreference,
   readPreference
 } from "../../core/preferences.js?v=20260711-task-dialog-customize";
 import { state } from "../../core/store.js";
 import { appUrl } from "../../shared/app-urls.js";
-import { createDevTaskWorkloadView } from "../../shared/dev-task-workload.js?v=20260712-about-workload-billboard";
+import { createBugChartsView } from "../../shared/bug-charts.js?v=20260712-about-chart-gallery";
+import { createDevTaskChartsView } from "../../shared/dev-task-charts.js?v=20260712-about-chart-gallery";
 
-const ABOUT_VERSION = "20260712-about-3d-flyby-34";
+const ABOUT_VERSION = "20260712-about-3d-flyby-57";
 
-export function createAboutFeature({ app, getCurrentSprint, getStatuses }) {
+export function createAboutFeature({
+  app,
+  getCurrentSprint,
+  getItemStartDate,
+  getSeverities,
+  getStatuses
+}) {
   let activeScene = null;
   let renderGeneration = 0;
 
@@ -19,7 +27,7 @@ export function createAboutFeature({ app, getCurrentSprint, getStatuses }) {
     app.classList.add("app-shell-about");
     const generation = renderGeneration;
     const logoUrl = appUrl(`/assets/pmt-logo-full.svg?v=${ABOUT_VERSION}`);
-    const workload = createDevTaskWorkloadView({
+    const devCharts = createDevTaskChartsView({
       users: state.users,
       projects: state.projects,
       sprints: state.sprints,
@@ -27,8 +35,18 @@ export function createAboutFeature({ app, getCurrentSprint, getStatuses }) {
       projectId: readNumberPreference(preferenceKeys.taskProject, 0),
       sprintMode: readPreference(preferenceKeys.taskSprint, "all"),
       getCurrentSprint,
+      getItemStartDate,
       statuses: getStatuses(),
       getStatusColor: statusColor
+    });
+    const bugCharts = createBugChartsView({
+      projects: state.projects,
+      sprints: state.sprints,
+      tasks: state.tasks,
+      filters: readJsonPreference(preferenceKeys.bugFilters, {}),
+      severities: getSeverities(),
+      getCurrentSprint,
+      getItemStartDate
     });
 
     app.innerHTML = `
@@ -37,7 +55,7 @@ export function createAboutFeature({ app, getCurrentSprint, getStatuses }) {
           class="about-flight-canvas"
           data-about-canvas
           tabindex="0"
-          aria-label="Interactive 3D PMT logo and Developer Workload Distribution screen. Click for mouse look, use WASD to fly, use the mouse wheel to zoom, use plus or minus to change autopilot speed, press A during autopilot to toggle alien encounters, and press L to toggle random lightning strikes."
+          aria-label="Interactive 3D PMT logo with Dev Task and Bug Tracking chart galleries. Click for mouse look, use WASD to fly, use the mouse wheel to zoom, use plus or minus to change autopilot speed, press A during autopilot to toggle alien encounters, and press L to toggle random lightning strikes."
         ></canvas>
         <div class="about-flight-vignette" aria-hidden="true"></div>
 
@@ -97,7 +115,9 @@ export function createAboutFeature({ app, getCurrentSprint, getStatuses }) {
           ufoSpeechElement,
           alienNoticeElement,
           logoUrl,
-          workload,
+          devCharts,
+          bugCharts,
+          users: state.users,
           onFailure: message => showFallback(root, message)
         });
 

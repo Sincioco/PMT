@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 test("About renders the drone flyby and supports camera takeover and speed keys", async ({ page }, testInfo) => {
+  test.setTimeout(90000);
   const browserErrors = collectBrowserErrors(page);
   await prepareAboutPage(page);
   await page.goto("/#/about");
@@ -20,7 +21,7 @@ test("About renders the drone flyby and supports camera takeover and speed keys"
   await expect(intro).toBeHidden();
   await expect(mode).toHaveText("AUTO 1x");
   await expect(root).toHaveAttribute("data-about-workload-billboard", "ready");
-  await expect(root).toHaveAttribute("data-about-workload-style", "dev-tasks");
+  await expect(root).toHaveAttribute("data-about-workload-style", "dev-and-bug-charts");
   await expect(root).toHaveAttribute("data-about-workload-frame", "none");
   await expect(root).toHaveAttribute("data-about-workload-perimeter", "none");
   await expect(root).toHaveAttribute("data-about-workload-stand", "none");
@@ -30,16 +31,61 @@ test("About renders the drone flyby and supports camera takeover and speed keys"
   await expect(root).toHaveAttribute("data-about-workload-chart-content", "opaque");
   await expect(root).toHaveAttribute("data-about-workload-color-output", "srgb-unlit");
   await expect(root).toHaveAttribute("data-about-workload-rows", "3");
+  await expect(root).toHaveAttribute("data-about-dev-chart-count", "4");
+  await expect(root).toHaveAttribute("data-about-bug-chart-count", "4");
+  await expect(root).toHaveAttribute("data-about-dev-chart-grid", "2x2");
+  await expect(root).toHaveAttribute("data-about-bug-chart-grid", "2x2");
+  await expect(root).toHaveAttribute("data-about-bug-chart-growth-direction", "away-from-dev-wall");
+  await expect(root).toHaveAttribute("data-about-team-card-count", "3");
+  await expect(root).toHaveAttribute("data-about-team-card-columns", "2");
+  await expect(root).toHaveAttribute("data-about-team-card-rows", "2");
+  await expect(root).toHaveAttribute("data-about-team-growth-direction", "away-from-dev-wall");
   await expect(root).toHaveAttribute("data-about-logo-grounded", "true");
   await expect(root).toHaveAttribute("data-about-ufo-enabled", "true");
+  await expect(root).toHaveAttribute("data-about-ufo-schedule", "random-convenient-window");
   await expect(root).toHaveAttribute("data-about-lightning-enabled", "false");
+  await expect(root).toHaveAttribute("data-about-lightning-schedule", "random-convenient-window");
+  await expect(root).toHaveAttribute("data-about-gallery-slowdown-max-seconds", "2");
+  await expect(root).toHaveAttribute("data-about-gallery-cruise-speed-scale", "1.08");
+  await expect(root).toHaveAttribute("data-about-flight-path", "rounded-rectangle-around-logo");
+  await expect(root).toHaveAttribute("data-about-camera-motion", "drone-cinema");
+  await expect(root).toHaveAttribute("data-about-camera-position-response", "7");
+  await expect(root).toHaveAttribute("data-about-camera-heading-response", "0.7");
+  await expect(root).toHaveAttribute("data-about-camera-event-heading-response", "8");
+  await expect(root).toHaveAttribute("data-about-camera-focus-transition", "slow-cinematic");
+  await expect(root).toHaveAttribute("data-about-flight-height-profile", "variable-cinematic");
+  await expect(root).toHaveAttribute("data-about-portal-flythrough", "true");
+  await expect(root).toHaveAttribute("data-about-cinematic-pan-order", "horizontal-then-vertical");
+  await expect(root).toHaveAttribute("data-about-flight-height-variation", "continuous-randomized");
+  await expect(root).toHaveAttribute("data-about-chart-inspection-mode", "random-per-loop");
+  await expect(root).toHaveAttribute("data-about-dev-inspection-target-count", "4");
+  await expect(root).toHaveAttribute("data-about-bug-inspection-target-count", "4");
+  await expect(root).toHaveAttribute("data-about-chart-gallery-fov", "56");
+  await expect(root).toHaveAttribute("data-about-gallery-room-half-width", "20.5");
+  await expect(root).toHaveAttribute("data-about-gallery-room-back-z", "-23");
   await expect(root).toHaveAttribute("data-about-lightning-active", "false");
   await expect(root).toHaveAttribute("data-about-lightning-strike-count", "0");
   await expect(root).toHaveAttribute("data-about-min-camera-floor-clearance", "1.55");
+  await expect(root).toHaveAttribute("data-about-floor-width", "220");
+  await expect(root).toHaveAttribute("data-about-floor-depth", "180");
   const billboard = await root.evaluate(element => ({
     width: Number(element.dataset.aboutWorkloadBillboardWidth),
     height: Number(element.dataset.aboutWorkloadBillboardHeight),
     z: Number(element.dataset.aboutWorkloadBillboardZ),
+    devX: Number(element.dataset.aboutDevChartGridX),
+    bugX: Number(element.dataset.aboutBugChartGridX),
+    bugStartX: Number(element.dataset.aboutBugChartGridStartX),
+    bugWidth: Number(element.dataset.aboutBugChartGridWidth),
+    bugIntersectionX: Number(element.dataset.aboutBugChartIntersectionX),
+    bugIntersectionZ: Number(element.dataset.aboutBugChartIntersectionZ),
+    bugRotation: Number(element.dataset.aboutBugChartRotationDegrees),
+    teamX: Number(element.dataset.aboutTeamGridX),
+    teamY: Number(element.dataset.aboutTeamGridY),
+    teamZ: Number(element.dataset.aboutTeamGridZ),
+    teamWidth: Number(element.dataset.aboutTeamGridWidth),
+    teamIntersectionX: Number(element.dataset.aboutTeamGridIntersectionX),
+    teamIntersectionZ: Number(element.dataset.aboutTeamGridIntersectionZ),
+    teamRotation: Number(element.dataset.aboutTeamGridRotationDegrees),
     floorGap: Number(element.dataset.aboutLogoFloorGap),
     sceneOffset: Number(element.dataset.aboutSceneOffset),
     ufoSceneOffset: Number(element.dataset.aboutUfoSceneOffset)
@@ -47,6 +93,20 @@ test("About renders the drone flyby and supports camera takeover and speed keys"
   expect(billboard.width).toBeGreaterThan(20);
   expect(billboard.height).toBeGreaterThan(10);
   expect(billboard.z).toBeLessThanOrEqual(-15);
+  expect(billboard.devX).toBeCloseTo(0, 3);
+  expect(billboard.bugX).toBeCloseTo(20.5, 3);
+  expect(billboard.bugStartX).toBeCloseTo(20.5, 3);
+  expect(billboard.bugWidth).toBeGreaterThan(30);
+  expect(billboard.bugIntersectionX).toBeCloseTo(20.5, 3);
+  expect(billboard.bugIntersectionZ).toBeCloseTo(billboard.z, 3);
+  expect(billboard.bugRotation).toBe(-90);
+  expect(billboard.teamX).toBeCloseTo(-20.5, 3);
+  expect(billboard.teamWidth).toBeGreaterThan(12);
+  expect(billboard.teamY).toBeLessThan(1);
+  expect(billboard.teamZ).toBeGreaterThan(billboard.z);
+  expect(billboard.teamIntersectionX).toBeCloseTo(-20.5, 3);
+  expect(billboard.teamIntersectionZ).toBeCloseTo(billboard.z, 3);
+  expect(billboard.teamRotation).toBe(90);
   expect(billboard.floorGap).toBeCloseTo(0.045, 3);
   expect(billboard.ufoSceneOffset).toBeCloseTo(billboard.sceneOffset, 5);
 
@@ -182,17 +242,20 @@ test("About honors reduced motion with a still 3D scene", async ({ page }) => {
 });
 
 test("About keeps the UFO in camera and shows its transmission", async ({ page }) => {
+  test.setTimeout(85000);
   const browserErrors = collectBrowserErrors(page);
   await prepareAboutPage(page);
   await page.goto("/#/about");
 
   const root = page.locator("[data-about-flight]");
+  const canvas = page.locator("[data-about-canvas]");
   const mode = page.locator("[data-about-mode]");
   const speech = page.locator("[data-about-ufo-speech]");
 
   await expect(root).toHaveClass(/about-flight-started/, { timeout: 15000 });
-  await expect(mode).toHaveText("UFO TRACK", { timeout: 12000 });
-  await expect(speech).toBeVisible({ timeout: 25000 });
+  for (let index = 0; index < 8; index += 1) await canvas.press("Shift+=");
+  await expect(mode).toHaveText("UFO TRACK", { timeout: 50000 });
+  await expect(speech).toBeVisible({ timeout: 70000 });
   await expect(speech).toHaveText("Wow, JIRA + Confluence all-in-one? Such advanced civilization!");
   await expect(mode).toHaveText("UFO TRACK");
   expect(browserErrors).toEqual([]);
@@ -226,6 +289,7 @@ async function prepareAboutPage(page) {
     localStorage.setItem("pmt-view", "About");
     localStorage.setItem("pmt-task-project", "10");
     localStorage.setItem("pmt-task-sprint", "101");
+    localStorage.setItem("pmt-bug-filters", JSON.stringify({ projectId: "10", sprintId: "all" }));
   });
 
   await page.route("**/api/state", async route => {
@@ -251,20 +315,20 @@ async function prepareAboutPage(page) {
           { id: 3, firstName: "Kai", lastName: "Reyes", nickname: "Kai", isActive: true }
         ],
         projects: [{ id: 10, code: "PMT", title: "Project Management Tool" }],
-        sprints: [{
-          id: 101,
-          projectId: 10,
-          code: "PMT-S24",
-          title: "About 3D",
-          startDate: "2026-07-01",
-          endDate: "2026-07-31"
-        }],
+        sprints: [
+          { id: 99, projectId: 10, code: "PMT-S22", title: "Chart Foundation", startDate: "2026-05-01", endDate: "2026-05-31" },
+          { id: 100, projectId: 10, code: "PMT-S23", title: "Glass Scene", startDate: "2026-06-01", endDate: "2026-06-30" },
+          { id: 101, projectId: 10, code: "PMT-S24", title: "About 3D", startDate: "2026-07-01", endDate: "2026-07-31" }
+        ],
         tasks: [
           { id: 1, projectId: 10, sprintId: 101, taskType: "Dev Task", status: "Todo", assigneeIds: [1] },
           { id: 2, projectId: 10, sprintId: 101, taskType: "Dev Task", status: "Ready for QA", assigneeIds: [1, 2] },
           { id: 3, projectId: 10, sprintId: 101, taskType: "Dev Task", status: "Security Review", assigneeIds: [2] },
           { id: 4, projectId: 10, sprintId: 101, taskType: "Dev Task", status: "Deployed in Prod", assigneeIds: [3] },
-          { id: 5, projectId: 10, sprintId: 101, taskType: "Bug", status: "In Progress", assigneeIds: [1] }
+          { id: 5, projectId: 10, sprintId: 101, taskType: "Bug", status: "In Progress", severity: "Major", assigneeIds: [1] },
+          { id: 6, projectId: 10, sprintId: 100, taskType: "Bug", status: "QA Passed", severity: "Critical", assigneeIds: [2] },
+          { id: 7, projectId: 10, sprintId: 99, taskType: "Bug", status: "Todo", severity: "Minor", assigneeIds: [3] },
+          { id: 8, projectId: 10, sprintId: 100, taskType: "Dev Task", status: "QA Passed", percentCompleted: 100, assigneeIds: [1] }
         ],
         devLogs: [],
         blogs: [],
@@ -272,7 +336,10 @@ async function prepareAboutPage(page) {
         lookups: [
           { id: 1, lookupType: "Status", value: "Todo", colorHex: "#126bff", displayOrder: 1, isActive: true },
           { id: 2, lookupType: "Status", value: "Ready for QA", colorHex: "#e4a53a", displayOrder: 2, isActive: true },
-          { id: 3, lookupType: "Status", value: "Deployed in Prod", colorHex: "#2f9e44", displayOrder: 3, isActive: true }
+          { id: 3, lookupType: "Status", value: "Deployed in Prod", colorHex: "#2f9e44", displayOrder: 6, isActive: true },
+          { id: 4, lookupType: "Status", value: "In Progress", colorHex: "#35c7bd", displayOrder: 2, isActive: true },
+          { id: 5, lookupType: "Status", value: "Security Review", colorHex: "#9f9cff", displayOrder: 3, isActive: true },
+          { id: 6, lookupType: "Status", value: "QA Passed", colorHex: "#74c476", displayOrder: 5, isActive: true }
         ],
         holidays: []
       })
