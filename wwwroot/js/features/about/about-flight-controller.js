@@ -26,13 +26,17 @@ export function createAboutFlightController({
   canvas,
   root,
   portal,
+  billboardTarget = null,
+  sceneFocus = null,
+  minimumCameraY = -CAMERA_FAR_LIMIT,
   statusElement,
   modeElement,
   reducedMotion
 }) {
   const abortController = new AbortController();
   const controls = new PointerLockControls(camera, canvas);
-  const curve = createFlightCurve(portal);
+  const focusPoint = sceneFocus?.clone?.() || new THREE.Vector3();
+  const curve = createFlightCurve(portal, focusPoint.y, minimumCameraY);
   const keys = new Set();
   const pose = createPose();
   const autopilotTarget = createPose();
@@ -47,7 +51,7 @@ export function createAboutFlightController({
   const right = new THREE.Vector3();
   const localUp = new THREE.Vector3(0, 1, 0);
   const dragEuler = new THREE.Euler(0, 0, 0, "YXZ");
-  const minPosition = new THREE.Vector3(-CAMERA_FAR_LIMIT, -CAMERA_FAR_LIMIT, -CAMERA_FAR_LIMIT);
+  const minPosition = new THREE.Vector3(-CAMERA_FAR_LIMIT, minimumCameraY, -CAMERA_FAR_LIMIT);
   const maxPosition = new THREE.Vector3(CAMERA_FAR_LIMIT, CAMERA_FAR_LIMIT, CAMERA_FAR_LIMIT);
 
   let prefersReducedMotion = reducedMotion;
@@ -66,7 +70,7 @@ export function createAboutFlightController({
   let disposed = false;
 
   controls.pointerSpeed = 0.72;
-  sampleFlightPose(curve, portal, autopilotPhase, pose);
+  sampleFlightPose(curve, portal, billboardTarget, focusPoint, minimumCameraY, autopilotPhase, pose);
   applyPose(camera, pose);
   setMode(mode);
 
@@ -99,7 +103,7 @@ export function createAboutFlightController({
         autopilotPhase
         + (deltaSeconds * effectiveSpeed) / LOOP_DURATION_SECONDS
       );
-      sampleFlightPose(curve, portal, autopilotPhase, autopilotTarget);
+      sampleFlightPose(curve, portal, billboardTarget, focusPoint, minimumCameraY, autopilotPhase, autopilotTarget);
       if (cinematicAttention > 0) {
         cinematicLookMatrix.lookAt(autopilotTarget.position, cinematicTarget, cinematicUp);
         cinematicQuaternion.setFromRotationMatrix(cinematicLookMatrix);
@@ -177,7 +181,7 @@ export function createAboutFlightController({
     if (controls.isLocked) controls.unlock();
     keys.clear();
     dragging = false;
-    sampleFlightPose(curve, portal, autopilotPhase, returnTarget);
+    sampleFlightPose(curve, portal, billboardTarget, focusPoint, minimumCameraY, autopilotPhase, returnTarget);
 
     if (prefersReducedMotion) {
       applyPose(camera, returnTarget);
@@ -351,7 +355,7 @@ export function createAboutFlightController({
 
     if (prefersReducedMotion) {
       if (controls.isLocked) controls.unlock();
-      sampleFlightPose(curve, portal, autopilotPhase, pose);
+      sampleFlightPose(curve, portal, billboardTarget, focusPoint, minimumCameraY, autopilotPhase, pose);
       applyPose(camera, pose);
       setMode("reduced");
     } else if (mode === "reduced") {
@@ -405,9 +409,9 @@ export function createAboutFlightController({
   };
 }
 
-function createFlightCurve(portal) {
-  const point = (x, y, z) => new THREE.Vector3(x, y, z);
-  const { x, y } = portal;
+function createFlightCurve(portal, sceneCenterY = 0, minimumCameraY = -CAMERA_FAR_LIMIT) {
+  const point = (x, y, z) => new THREE.Vector3(x, Math.max(y + sceneCenterY, minimumCameraY), z);
+  const portalPoint = z => new THREE.Vector3(portal.x, Math.max(portal.y, minimumCameraY), z);
   return new THREE.CatmullRomCurve3([
     point(0, 1.5, 13.5),
     point(-4.8, 2.7, 12),
@@ -420,12 +424,12 @@ function createFlightCurve(portal) {
     point(10, 0, 3),
     point(7.5, -2.6, 8.5),
     point(4, 0, 9.5),
-    point(x, y, 8),
-    point(x, y, 5),
-    point(x, y, 1.4),
-    point(x, y, -1.4),
-    point(x, y, -5),
-    point(x, y, -8),
+    portalPoint(8),
+    portalPoint(5),
+    portalPoint(1.4),
+    portalPoint(-1.4),
+    portalPoint(-5),
+    portalPoint(-8),
     point(-3, 2, -9.5),
     point(-8.5, 3, -5.5),
     point(-10, -1, 3),
@@ -433,18 +437,25 @@ function createFlightCurve(portal) {
   ], true, "centripetal", 0.5);
 }
 
-function sampleFlightPose(curve, portal, phase, pose) {
+function sampleFlightPose(curve, portal, billboardTarget, sceneFocus, minimumCameraY, phase, pose) {
   // A drone-style camera stays level and travels at a steady arc-length speed.
   curve.getPointAt(phase, pose.position);
+  pose.position.y = Math.max(pose.position.y, minimumCameraY);
   curve.getTangentAt(phase, pose.tangent).normalize();
   curve.getPointAt(wrap01(phase + 0.012), pose.ahead);
+  pose.ahead.y = Math.max(pose.ahead.y, minimumCameraY);
 
-  pose.focus.set(0, 0, 0);
+  pose.focus.copy(sceneFocus);
   pose.flightTarget.copy(pose.ahead).addScaledVector(pose.tangent, 3);
   const portalDistance = Math.hypot(pose.position.x - portal.x, pose.position.y - portal.y);
   const tunnelWeight = (1 - smoothStepRange(1.5, 6.5, portalDistance))
     * (1 - smoothStepRange(7, 15, Math.abs(pose.position.z)));
   pose.lookTarget.lerpVectors(pose.focus, pose.flightTarget, tunnelWeight);
+  if (billboardTarget) {
+    const billboardRevealWeight = tunnelWeight
+      * (1 - smoothStepRange(5, 9, pose.position.z));
+    pose.lookTarget.lerp(billboardTarget, smootherStep(billboardRevealWeight));
+  }
 
   pose.lookMatrix.lookAt(pose.position, pose.lookTarget, pose.up);
   pose.quaternion.setFromRotationMatrix(pose.lookMatrix);

@@ -2,12 +2,14 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  UFO_FIRST_APPEARANCE_SECONDS,
   UFO_VISIT_INTERVAL_SECONDS,
   ufoSpeechForEncounter
 } from "../../wwwroot/js/features/about/about-ufo.js";
 
 test("UFO visits once per minute and rotates its transmissions", () => {
   assert.equal(UFO_VISIT_INTERVAL_SECONDS, 60);
+  assert.equal(UFO_FIRST_APPEARANCE_SECONDS, 10);
 
   const firstCycle = Array.from({ length: 10 }, (_, index) => ufoSpeechForEncounter(index));
   assert.equal(new Set(firstCycle).size, firstCycle.length);

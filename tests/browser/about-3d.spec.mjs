@@ -11,6 +11,7 @@ test("About renders the drone flyby and supports camera takeover and speed keys"
   const mode = page.locator("[data-about-mode]");
   const status = page.locator("[data-about-status]");
   const controls = page.locator(".about-flight-controls");
+  const alienNotice = page.locator("[data-about-alien-notice]");
 
   await expect(root).toBeVisible();
   await expect(intro.locator("img")).toHaveAttribute("src", /pmt-logo-full\.svg/);
@@ -18,6 +19,36 @@ test("About renders the drone flyby and supports camera takeover and speed keys"
   await expect(root).toHaveClass(/about-flight-started/, { timeout: 15000 });
   await expect(intro).toBeHidden();
   await expect(mode).toHaveText("AUTO 1x");
+  await expect(root).toHaveAttribute("data-about-workload-billboard", "ready");
+  await expect(root).toHaveAttribute("data-about-workload-style", "dev-tasks");
+  await expect(root).toHaveAttribute("data-about-workload-frame", "none");
+  await expect(root).toHaveAttribute("data-about-workload-perimeter", "none");
+  await expect(root).toHaveAttribute("data-about-workload-stand", "none");
+  await expect(root).toHaveAttribute("data-about-workload-sheen", "subtle");
+  await expect(root).toHaveAttribute("data-about-workload-display", "floating-glass");
+  await expect(root).toHaveAttribute("data-about-workload-glass", "semi-transparent");
+  await expect(root).toHaveAttribute("data-about-workload-chart-content", "opaque");
+  await expect(root).toHaveAttribute("data-about-workload-color-output", "srgb-unlit");
+  await expect(root).toHaveAttribute("data-about-workload-rows", "3");
+  await expect(root).toHaveAttribute("data-about-logo-grounded", "true");
+  await expect(root).toHaveAttribute("data-about-ufo-enabled", "true");
+  await expect(root).toHaveAttribute("data-about-lightning-enabled", "false");
+  await expect(root).toHaveAttribute("data-about-lightning-active", "false");
+  await expect(root).toHaveAttribute("data-about-lightning-strike-count", "0");
+  await expect(root).toHaveAttribute("data-about-min-camera-floor-clearance", "1.55");
+  const billboard = await root.evaluate(element => ({
+    width: Number(element.dataset.aboutWorkloadBillboardWidth),
+    height: Number(element.dataset.aboutWorkloadBillboardHeight),
+    z: Number(element.dataset.aboutWorkloadBillboardZ),
+    floorGap: Number(element.dataset.aboutLogoFloorGap),
+    sceneOffset: Number(element.dataset.aboutSceneOffset),
+    ufoSceneOffset: Number(element.dataset.aboutUfoSceneOffset)
+  }));
+  expect(billboard.width).toBeGreaterThan(20);
+  expect(billboard.height).toBeGreaterThan(10);
+  expect(billboard.z).toBeLessThanOrEqual(-15);
+  expect(billboard.floorGap).toBeCloseTo(0.045, 3);
+  expect(billboard.ufoSceneOffset).toBeCloseTo(billboard.sceneOffset, 5);
 
   const canvasSize = await canvas.evaluate(element => ({
     cssWidth: element.clientWidth,
@@ -61,6 +92,28 @@ test("About renders the drone flyby and supports camera takeover and speed keys"
   expect(screenshot.byteLength).toBeGreaterThan(30000);
   await testInfo.attach("about-3d-drone", { body: screenshot, contentType: "image/png" });
 
+  await page.keyboard.press("a");
+  await expect(root).toHaveAttribute("data-about-ufo-enabled", "false");
+  await expect(alienNotice).toBeVisible();
+  await expect(alienNotice).toContainText("Alien encounters OFF");
+  await page.keyboard.press("a");
+  await expect(root).toHaveAttribute("data-about-ufo-enabled", "true");
+  await expect(alienNotice).toContainText("Alien encounters ON");
+
+  await page.keyboard.press("a");
+  await expect(root).toHaveAttribute("data-about-ufo-enabled", "false");
+  await page.keyboard.press("l");
+  await expect(root).toHaveAttribute("data-about-lightning-enabled", "true");
+  await expect(alienNotice).toContainText("Lightning ON");
+  await expect(alienNotice).toContainText("45–65s");
+  await page.waitForTimeout(900);
+  await expect(root).toHaveAttribute("data-about-lightning-strike-count", "0");
+  await page.keyboard.press("l");
+  await expect(root).toHaveAttribute("data-about-lightning-enabled", "false");
+  await expect(root).toHaveAttribute("data-about-lightning-active", "false");
+  await page.keyboard.press("a");
+  await expect(root).toHaveAttribute("data-about-ufo-enabled", "true");
+
   await canvas.press("Shift+=");
   await expect(status).toContainText("1.25x speed");
   await expect(root).toHaveAttribute("data-flight-mode", "auto");
@@ -76,6 +129,8 @@ test("About renders the drone flyby and supports camera takeover and speed keys"
   await expect(status).toHaveText("Autopilot resumes in 5");
   await expect(status).toBeVisible();
   await expect(controls).toBeVisible();
+  await canvas.press("a");
+  await expect(root).toHaveAttribute("data-about-ufo-enabled", "true");
 
   const desktopHud = await measureAboutHud(root);
   expect(desktopHud.statusBottomGap).toBeCloseTo(18, 1);
@@ -86,6 +141,7 @@ test("About renders the drone flyby and supports camera takeover and speed keys"
 
   const originalViewport = page.viewportSize();
   await page.setViewportSize({ width: 630, height: 665 });
+  await canvas.dispatchEvent("wheel", { deltaY: -1 });
   await page.waitForTimeout(150);
   const compactHud = await measureAboutHud(root);
   expect(compactHud.statusBottomGap).toBeCloseTo(12, 1);
@@ -168,6 +224,8 @@ async function prepareAboutPage(page) {
     localStorage.clear();
     localStorage.setItem("pmt-auth-user", "1");
     localStorage.setItem("pmt-view", "About");
+    localStorage.setItem("pmt-task-project", "10");
+    localStorage.setItem("pmt-task-sprint", "101");
   });
 
   await page.route("**/api/state", async route => {
@@ -175,26 +233,47 @@ async function prepareAboutPage(page) {
       status: 200,
       contentType: "application/json",
       body: JSON.stringify({
-        users: [{
-          id: 1,
-          firstName: "Sin",
-          lastName: "Cioco",
-          nickname: "Sin",
-          email: "sin@example.test",
-          phone: "",
-          avatarUrl: "/assets/avatar-sin.jpg",
-          bio: "PMT Creator and Administrator.",
-          isAdmin: true,
-          role: "Admin",
-          isActive: true
+        users: [
+          {
+            id: 1,
+            firstName: "Sin",
+            lastName: "Cioco",
+            nickname: "Sin",
+            email: "sin@example.test",
+            phone: "",
+            avatarUrl: "/assets/avatar-sin.jpg",
+            bio: "PMT Creator and Administrator.",
+            isAdmin: true,
+            role: "Admin",
+            isActive: true
+          },
+          { id: 2, firstName: "Nova", lastName: "Chen", nickname: "Nova", isActive: true },
+          { id: 3, firstName: "Kai", lastName: "Reyes", nickname: "Kai", isActive: true }
+        ],
+        projects: [{ id: 10, code: "PMT", title: "Project Management Tool" }],
+        sprints: [{
+          id: 101,
+          projectId: 10,
+          code: "PMT-S24",
+          title: "About 3D",
+          startDate: "2026-07-01",
+          endDate: "2026-07-31"
         }],
-        projects: [],
-        sprints: [],
-        tasks: [],
+        tasks: [
+          { id: 1, projectId: 10, sprintId: 101, taskType: "Dev Task", status: "Todo", assigneeIds: [1] },
+          { id: 2, projectId: 10, sprintId: 101, taskType: "Dev Task", status: "Ready for QA", assigneeIds: [1, 2] },
+          { id: 3, projectId: 10, sprintId: 101, taskType: "Dev Task", status: "Security Review", assigneeIds: [2] },
+          { id: 4, projectId: 10, sprintId: 101, taskType: "Dev Task", status: "Deployed in Prod", assigneeIds: [3] },
+          { id: 5, projectId: 10, sprintId: 101, taskType: "Bug", status: "In Progress", assigneeIds: [1] }
+        ],
         devLogs: [],
         blogs: [],
         auditEvents: [],
-        lookups: [],
+        lookups: [
+          { id: 1, lookupType: "Status", value: "Todo", colorHex: "#126bff", displayOrder: 1, isActive: true },
+          { id: 2, lookupType: "Status", value: "Ready for QA", colorHex: "#e4a53a", displayOrder: 2, isActive: true },
+          { id: 3, lookupType: "Status", value: "Deployed in Prod", colorHex: "#2f9e44", displayOrder: 3, isActive: true }
+        ],
         holidays: []
       })
     });

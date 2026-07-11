@@ -1,8 +1,16 @@
+import { statusColor } from "../../components/progress-and-status.js?v=20260710-export-rich-kanban";
+import {
+  preferenceKeys,
+  readNumberPreference,
+  readPreference
+} from "../../core/preferences.js?v=20260711-task-dialog-customize";
+import { state } from "../../core/store.js";
 import { appUrl } from "../../shared/app-urls.js";
+import { createDevTaskWorkloadView } from "../../shared/dev-task-workload.js?v=20260712-about-workload-billboard";
 
-const ABOUT_VERSION = "20260712-about-3d-flyby-25";
+const ABOUT_VERSION = "20260712-about-3d-flyby-34";
 
-export function createAboutFeature({ app }) {
+export function createAboutFeature({ app, getCurrentSprint, getStatuses }) {
   let activeScene = null;
   let renderGeneration = 0;
 
@@ -11,6 +19,17 @@ export function createAboutFeature({ app }) {
     app.classList.add("app-shell-about");
     const generation = renderGeneration;
     const logoUrl = appUrl(`/assets/pmt-logo-full.svg?v=${ABOUT_VERSION}`);
+    const workload = createDevTaskWorkloadView({
+      users: state.users,
+      projects: state.projects,
+      sprints: state.sprints,
+      tasks: state.tasks,
+      projectId: readNumberPreference(preferenceKeys.taskProject, 0),
+      sprintMode: readPreference(preferenceKeys.taskSprint, "all"),
+      getCurrentSprint,
+      statuses: getStatuses(),
+      getStatusColor: statusColor
+    });
 
     app.innerHTML = `
       <section class="about-screen" aria-label="About PMT 3D logo experience" data-about-flight>
@@ -18,7 +37,7 @@ export function createAboutFeature({ app }) {
           class="about-flight-canvas"
           data-about-canvas
           tabindex="0"
-          aria-label="Interactive 3D PMT logo. Click for mouse look, use WASD to fly, use the mouse wheel to zoom, and use plus or minus to change autopilot speed."
+          aria-label="Interactive 3D PMT logo and Developer Workload Distribution screen. Click for mouse look, use WASD to fly, use the mouse wheel to zoom, use plus or minus to change autopilot speed, press A during autopilot to toggle alien encounters, and press L to toggle random lightning strikes."
         ></canvas>
         <div class="about-flight-vignette" aria-hidden="true"></div>
 
@@ -39,6 +58,7 @@ export function createAboutFeature({ app }) {
             <span>Wheel</span> zoom
             <span>Shift</span> boost
             <span>+ / -</span> speed
+            <span>L</span> lightning
             <span>Esc</span> release mouse
           </p>
           <p class="about-flight-mode" data-about-mode>3D</p>
@@ -47,6 +67,8 @@ export function createAboutFeature({ app }) {
         <div class="about-ufo-speech" data-about-ufo-speech role="status" hidden>
           Incoming transmission…
         </div>
+
+        <div class="about-alien-toggle-notice" data-about-alien-notice role="status" aria-live="polite" hidden></div>
 
         <p class="about-flight-fallback" data-about-fallback hidden></p>
       </section>
@@ -59,6 +81,7 @@ export function createAboutFeature({ app }) {
     const statusElement = root.querySelector("[data-about-status]");
     const modeElement = root.querySelector("[data-about-mode]");
     const ufoSpeechElement = root.querySelector("[data-about-ufo-speech]");
+    const alienNoticeElement = root.querySelector("[data-about-alien-notice]");
 
     void import(`./about-scene.js?v=${ABOUT_VERSION}`)
       .then(({ createAboutScene }) => {
@@ -72,7 +95,9 @@ export function createAboutFeature({ app }) {
           statusElement,
           modeElement,
           ufoSpeechElement,
+          alienNoticeElement,
           logoUrl,
+          workload,
           onFailure: message => showFallback(root, message)
         });
 

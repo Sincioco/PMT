@@ -116,3 +116,26 @@ How crazy is that!"
 14.) The panel at the top that shows some status, can you move it at the bottom of the screen.
 15.) Can you adjust the scene so we could see a shadow of the PMT logo on the ground?
 16.) You panels are not positioned correctly when the browser's dimension is small.
+
+17.) Can you render the Dev Tasks' Developer Workload Distribution in 3D?  Like a big Bill Board behind the PMT logo.  The billboard should be a 3D object that is semi-transparent and glass-like.  The chart should be rendered on the surface of the billboard.  The camera should be able to fly around it and see it from different angles.  The billboard should reflect the correct data/information just like what is shown in the Dev Task screen.
+18.) What is happening is when the camera is flying into the p-hole of the PMT logo, the camera is turning around and there's nothing to see--just space. Make the billboard big enough so that when the camera is flying into the p-hole of the PMT logo, the camera can see the billboard and its content.
+19.) You can make the Billboard large, so the data is actually readable as the camera flys by.
+20.) Can you add more stars in the sky?  Make them twinkle and have some shooting stars.  Make the stars look like they are in a galaxy far far away.
+
+21.) I don't like the billboard you created.  Make look almost exactly like the real Dev Tasks' Developer Workload Distribution chart, but just placed in a futuristic glass panel.  Be sure to use the same color scheme and the same data.  Right now the billboard you created has so much screen gloss on it, it's hard to read sometimes.  Also, the colors you chose are flat and boring.  Make the colors match the real chart so when the user sees it they'll know it's the same chart.
+
+22.) Can you bring the PMT logo on the ground (I know the PMT text and the blocks underneath it will continue to float above ground, and that is fine).  And adjust your flyby flight path accordingly.
+23.) For the billboard, remove the frame and stand around it.  It's fine if the data is just floating in space.  And put a slight sheen/reflection on the billboard to give it the impression it's on glass.  Not too much, I still want to be able to read the data on the billboard.  The reflection should be subtle and not overpower the data on the billboard.
+24.) In fact, the data already looks washed out to me.  Can you make it not a Billboard but more of a big screen TV?  Sort of like what you see in Time Square.
+25.) I want the colors of the chart on the billboard to pop in the same was as it does on the 2D version on a web page.
+26.) Add a on/off switch for the Alien.  Like if I press the letter "A", turn off or on the alien encounter and put a notification so I know if it is on or off.
+27.) When you are flying by the PMT logo, don't let the camera get too close to the floor because for a moment the floor disappears.
+28.) In fact, try to have a good distance from the floor/ground at all times.  The camera should never get too close to the floor/ground.
+29.) Add a lightning effect.  If I press the letter L, once in a while a lightning will strick the PMT logo.  Make it cool and sparky and make the PMT letter it strikes glow hot for a few seconds.
+30.) I switched to Dark Theme and the billboard has some sort of white outline / border around it.  Can you remove it?
+
+31.) Remove any frame or border around the billboard.  It should just be a floating glass panel with the chart on it.  No frame, no border, no stand, nothing.
+32.) For the background of the chart in the billboard, render it as a semi-transparent glass panel.  But the text, the picture, the progress bar or chart should render as they are (no transparency).
+
+33.) Have lightning strike randomly every 45 to 65 seconds.
+34.) Also, when the 3D animation first begins, don't make the alient appear until at least 10 seconds into the animation sequence.

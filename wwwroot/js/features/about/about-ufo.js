@@ -1,8 +1,9 @@
 import * as THREE from "../../vendor/three/three.module.min.js";
 
 export const UFO_VISIT_INTERVAL_SECONDS = 60;
+export const UFO_FIRST_APPEARANCE_SECONDS = 10;
 const CYCLE_DURATION_SECONDS = UFO_VISIT_INTERVAL_SECONDS;
-const ARRIVAL_START_SECONDS = 4;
+const ARRIVAL_START_SECONDS = UFO_FIRST_APPEARANCE_SECONDS;
 const CAMERA_LEAD_SECONDS = 1.75;
 const CAMERA_RELEASE_SECONDS = 1.75;
 const ARRIVAL_SPEED_SCALE = 0.55;
@@ -36,8 +37,12 @@ export function createUfoEncounter({ scene, resources, speechElement }) {
   const speechAnchor = new THREE.Vector3();
   const projectedSpeech = new THREE.Vector3();
   const stopPosition = new THREE.Vector3(0, 5.8, 0.7);
-  const orbitCurve = createOrbitCurve(stopPosition);
-  const departureCurve = createDepartureCurve(stopPosition);
+  let sceneOffsetY = 0;
+  let enabled = true;
+  let enabledAt = 0;
+  let pendingShadowUpdate = false;
+  let orbitCurve = createOrbitCurve(stopPosition, sceneOffsetY);
+  let departureCurve = createDepartureCurve(stopPosition, sceneOffsetY);
   const state = {
     focus,
     attention: 0,
@@ -54,24 +59,54 @@ export function createUfoEncounter({ scene, resources, speechElement }) {
     setShipVisible(false);
     hideSpeech();
 
+  function setSceneOffset(offsetY) {
+    sceneOffsetY = Number(offsetY || 0);
+    stopPosition.y = 5.8 + sceneOffsetY;
+    scanTarget.position.y = sceneOffsetY;
+    orbitCurve = createOrbitCurve(stopPosition, sceneOffsetY);
+    departureCurve = createDepartureCurve(stopPosition, sceneOffsetY);
+    return sceneOffsetY;
+  }
+
+  function setEnabled(value, elapsedSeconds = 0) {
+    const nextEnabled = Boolean(value);
+    if (enabled === nextEnabled) return enabled;
+    enabled = nextEnabled;
+    pendingShadowUpdate = true;
+    hideSpeech();
+
+    if (enabled) {
+      enabledAt = Math.max(0, Number(elapsedSeconds || 0));
+      setElapsedTime(0);
+    } else {
+      setShipVisible(false);
+      beam.group.visible = false;
+      scanLight.intensity = 0;
+      setElapsedTime(-1);
+    }
+    return enabled;
+  }
+
   function update(elapsedSeconds, reducedMotion) {
     state.attention = 0;
     state.speedScale = 1;
-    state.shadowUpdate = false;
+    state.shadowUpdate = pendingShadowUpdate;
+    pendingShadowUpdate = false;
     beam.group.visible = false;
     scanLight.intensity = 0;
 
-    if (reducedMotion || elapsedSeconds < 0) {
+    if (!enabled || reducedMotion || elapsedSeconds < 0) {
       setShipVisible(false);
       setElapsedTime(-1);
       hideSpeech();
       return state;
     }
 
-    const cycleTime = elapsedSeconds % CYCLE_DURATION_SECONDS;
+    const activeElapsedSeconds = Math.max(0, elapsedSeconds - enabledAt);
+    const cycleTime = activeElapsedSeconds % CYCLE_DURATION_SECONDS;
     const time = cycleTime - ARRIVAL_START_SECONDS;
     setElapsedTime(time);
-    selectSpeech(Math.floor(elapsedSeconds / CYCLE_DURATION_SECONDS));
+    selectSpeech(Math.floor(activeElapsedSeconds / CYCLE_DURATION_SECONDS));
 
     if (time < 0) {
       setShipVisible(false);
@@ -132,7 +167,7 @@ export function createUfoEncounter({ scene, resources, speechElement }) {
   function setShipVisible(visible) {
     const changed = ship.visible !== visible;
     ship.visible = visible;
-    state.shadowUpdate = visible || changed;
+    state.shadowUpdate = state.shadowUpdate || visible || changed;
   }
 
   function updateBeam(time) {
@@ -244,6 +279,8 @@ export function createUfoEncounter({ scene, resources, speechElement }) {
   return {
     update,
     updateSpeech,
+    setSceneOffset,
+    setEnabled,
     dispose
   };
 }
@@ -344,8 +381,8 @@ function createBeam(resources) {
   return { group, material };
 }
 
-function createOrbitCurve(stopPosition) {
-  const point = (x, y, z) => new THREE.Vector3(x, y, z);
+function createOrbitCurve(stopPosition, sceneOffsetY = 0) {
+  const point = (x, y, z) => new THREE.Vector3(x, y + sceneOffsetY, z);
   return new THREE.CatmullRomCurve3([
     point(-28, 10, 14),
     point(-15, 7, 12),
@@ -361,8 +398,8 @@ function createOrbitCurve(stopPosition) {
   ], false, "centripetal", 0.5);
 }
 
-function createDepartureCurve(stopPosition) {
-  const point = (x, y, z) => new THREE.Vector3(x, y, z);
+function createDepartureCurve(stopPosition, sceneOffsetY = 0) {
+  const point = (x, y, z) => new THREE.Vector3(x, y + sceneOffsetY, z);
   return new THREE.CatmullRomCurve3([
     stopPosition,
     point(5, 7.5, -3),

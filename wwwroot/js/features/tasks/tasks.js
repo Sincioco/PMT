@@ -59,6 +59,10 @@ import {
   formatDateTime,
   toDateInput
 } from "../../shared/dates.js?v=20260620-null-end-date";
+import {
+  devTaskWorkloadCategories,
+  devTaskWorkloadRows
+} from "../../shared/dev-task-workload.js?v=20260712-about-workload-billboard";
 import { normalizeSavedArray } from "../../shared/filter-values.js";
 import {
   downloadXlsx,
@@ -2045,21 +2049,17 @@ export function createTasksFeature({
   }
 
   function taskDeveloperWorkloadChartHtml(selectedSprint, sprintTasks) {
-    const rows = state.users.map(user => {
-      const userTasks = sprintTasks.filter(task => (task.assigneeIds || []).map(String).includes(String(user.id)));
-      const categories = devTaskWorkloadCategories()
-        .map(category => {
-          const tasks = userTasks.filter(task => devTaskWorkloadCategory(task) === category.label);
-          return taskChartGroupedItem(category.label, tasks, category.color, `${user.nickname} ${category.label}: ${tasks.length} Dev Task${tasks.length === 1 ? "" : "s"}`);
-        })
-        .filter(item => item.value > 0);
-
-      return {
-        user,
-        total: userTasks.length,
-        categories
-      };
-    }).filter(row => row.total > 0);
+    const categories = devTaskWorkloadCategories(sprintTasks, getStatuses(), statusColor);
+    const rows = devTaskWorkloadRows(state.users, sprintTasks, categories)
+      .map(row => ({
+        ...row,
+        categories: row.categories.map(category => taskChartGroupedItem(
+          category.label,
+          category.tasks,
+          category.color,
+          `${row.user.nickname} ${category.label}: ${category.value} Dev Task${category.value === 1 ? "" : "s"}`
+        ))
+      }));
 
     return VisualCharts.card({
       title: "Developer Workload Distribution",
@@ -2103,8 +2103,10 @@ export function createTasksFeature({
   function developerWorkloadDistributionHtml(rows) {
     if (!rows.length) return `<div class="empty compact-empty">No assigned Dev Tasks were found for the selected Sprint filter.</div>`;
 
-    const usedCategories = new Set(rows.flatMap(row => row.categories.map(item => item.label)));
-    const legendItems = devTaskWorkloadCategories().filter(category => usedCategories.has(category.label));
+    const legendItems = rows
+      .flatMap(row => row.categories)
+      .filter((category, index, items) => items.findIndex(item => item.label === category.label) === index)
+      .map(category => ({ label: category.label, color: category.color }));
     const avatarSize = developerWorkloadAvatarSize(rows.length);
 
     return `
@@ -2140,20 +2142,6 @@ export function createTasksFeature({
     if (rowCount <= 6) return 32;
     if (rowCount <= 8) return 28;
     return 24;
-  }
-
-  function devTaskWorkloadCategories() {
-    return [
-      { label: "Todo", color: "var(--chart-1)" },
-      { label: "In Progress", color: "var(--chart-7)" },
-      { label: "Deployed", color: "var(--color-success)" }
-    ];
-  }
-
-  function devTaskWorkloadCategory(task) {
-    if (task.status === "Todo" || task.status === "Backlog") return "Todo";
-    if ((task.status || "").startsWith("Deployed")) return "Deployed";
-    return "In Progress";
   }
 
   function taskChartGroupedItem(label, tasks, color, tooltip) {

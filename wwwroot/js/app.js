@@ -16,7 +16,7 @@ import {
   field,
   value
 } from "./components/forms.js?v=20260711-task-dialog-customize";
-import { configureProgressAndStatus } from "./components/progress-and-status.js?v=20260710-rich-bug-layout";
+import { configureProgressAndStatus } from "./components/progress-and-status.js?v=20260710-export-rich-kanban";
 import {
   bindAttachmentPreview,
   showTaskAudit,
@@ -44,7 +44,7 @@ import {
 } from "./core/preferences.js?v=20260711-task-dialog-customize";
 import { state } from "./core/store.js";
 import { appUrl } from "./shared/app-urls.js";
-import { createAboutFeature } from "./features/about/about.js?v=20260712-about-3d-flyby-25";
+import { createAboutFeature } from "./features/about/about.js?v=20260712-about-3d-flyby-34";
 import { createBacklogFeature } from "./features/backlog/backlog.js?v=20260710-rich-bug-layout";
 import { createBoardFeature } from "./features/board/board.js?v=20260710-rte-table-percent-kanban";
 import { createBugsFeature } from "./features/bugs/bugs.js?v=20260711-tsg-report";
@@ -61,7 +61,7 @@ import { createLogFeature } from "./features/personal-log/log.js?v=20260710-rte-
 import { createScrumFeature } from "./features/scrum/scrum.js?v=20260710-rte-checkbox-persist";
 import { createSettingsFeature } from "./features/settings/settings.js?v=20260710-nav-avatar-fit";
 import { createSprintsFeature } from "./features/sprints/sprints.js?v=20260710-nav-avatar-fit";
-import { createTasksFeature } from "./features/tasks/tasks.js?v=20260711-tsg-report";
+import { createTasksFeature } from "./features/tasks/tasks.js?v=20260712-dynamic-workload";
 import { createWfhScheduleFeature } from "./features/wfh-schedule/wfh-schedule.js?v=20260709-wfh-undo-large-days";
 import {
   fallbackEnvironments,
@@ -210,7 +210,11 @@ const maximizeDialogButton = document.getElementById("maximizeDialog");
 const toggleAllRichToolsButton = document.getElementById("toggleAllRichTools");
 
 const roadMapFeature = createRoadMapFeature({ app });
-const aboutFeature = createAboutFeature({ app });
+const aboutFeature = createAboutFeature({
+  app,
+  getCurrentSprint: currentSprintForProject,
+  getStatuses: () => statuses
+});
 const ganttFeature = createGanttFeature({
   app,
   openTaskReadMode: id => {
