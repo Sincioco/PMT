@@ -13,7 +13,7 @@ import {
   taskDialogCustomizationButtonHtml,
   taskDialogFieldHtml,
   taskDialogFieldLabel
-} from "./bug-dialog-customization.js?v=20260711-task-root-cause";
+} from "./bug-dialog-customization.js?v=20260711-tsg-report";
 import { buttonContent, iconButton } from "./buttons.js?v=20260621-dev-task-icons";
 import { initializeWindowedDialog } from "./dialogs.js?v=20260711-task-dialog-customize";
 import {

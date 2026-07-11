@@ -11,7 +11,7 @@ import {
   resetDialogLayoutPreference,
   restoreDialogLayout,
   setDialogLayoutStorageKey
-} from "./components/dialogs.js?v=20260711-task-dialog-customize";
+} from "./components/dialogs.js?v=20260711-tsg-report";
 import {
   field,
   value
@@ -21,7 +21,7 @@ import {
   bindAttachmentPreview,
   showTaskAudit,
   viewWorkItem
-} from "./components/work-items.js?v=20260711-task-root-cause";
+} from "./components/work-items.js?v=20260711-tsg-report";
 import { createApplicationShell } from "./core/application-shell.js?v=20260710-nav-avatar-fit";
 import {
   currentView,
@@ -47,7 +47,7 @@ import { appUrl } from "./shared/app-urls.js";
 import { createAboutFeature } from "./features/about/about.js?v=20260710-about-logo-png";
 import { createBacklogFeature } from "./features/backlog/backlog.js?v=20260710-rich-bug-layout";
 import { createBoardFeature } from "./features/board/board.js?v=20260710-rte-table-percent-kanban";
-import { createBugsFeature } from "./features/bugs/bugs.js?v=20260711-task-root-cause";
+import { createBugsFeature } from "./features/bugs/bugs.js?v=20260711-tsg-report";
 import { createDashboardFeature } from "./features/dashboard/dashboard.js?v=20260710-nav-avatar-fit";
 import { createDocumentationFeature } from "./features/documentation/documentation.js?v=20260710-rte-checkbox-persist";
 import {
@@ -61,7 +61,7 @@ import { createLogFeature } from "./features/personal-log/log.js?v=20260710-rte-
 import { createScrumFeature } from "./features/scrum/scrum.js?v=20260710-rte-checkbox-persist";
 import { createSettingsFeature } from "./features/settings/settings.js?v=20260710-nav-avatar-fit";
 import { createSprintsFeature } from "./features/sprints/sprints.js?v=20260710-nav-avatar-fit";
-import { createTasksFeature } from "./features/tasks/tasks.js?v=20260711-task-root-cause";
+import { createTasksFeature } from "./features/tasks/tasks.js?v=20260711-tsg-report";
 import { createWfhScheduleFeature } from "./features/wfh-schedule/wfh-schedule.js?v=20260709-wfh-undo-large-days";
 import {
   fallbackEnvironments,
@@ -3208,11 +3208,12 @@ function syncEditorDialogRichToolbarToggle() {
 
   const toolbars = editorDialogRichToolbars();
   const allCollapsed = toolbars.length > 0 && toolbars.every(toolbar => toolbar.classList.contains("is-dialog-collapsed"));
-  const label = allCollapsed ? "Expand All Rich Text Toolbars" : "Collapse All Rich Text Toolbars";
+  const toolbarsVisible = !allCollapsed;
+  const label = toolbarsVisible ? "Hide Rich Text Toolbars" : "Show Rich Text Toolbars";
   toggleAllRichToolsButton.title = label;
   toggleAllRichToolsButton.setAttribute("aria-label", label);
-  toggleAllRichToolsButton.setAttribute("aria-pressed", String(allCollapsed));
-  toggleAllRichToolsButton.textContent = label;
+  toggleAllRichToolsButton.setAttribute("aria-pressed", String(toolbarsVisible));
+  toggleAllRichToolsButton.innerHTML = buttonContent(toolbarsVisible ? "&#9745;" : "&#9744;", "Toolbars");
 }
 
 function setRichToolbarCollapsed(toolbar, collapsed, options = {}) {

@@ -36,7 +36,9 @@ export function initializeWindowedDialog(dialog, options = {}) {
 
   dialog.classList.add("windowed-dialog");
   initializeDialogLayoutPersistence(dialog);
-  const maximizeButton = ensureWindowedDialogControls(dialog);
+  const maximizeButton = ensureWindowedDialogControls(dialog, {
+    showResetButton: options.showResetButton !== false
+  });
   updateWindowedDialogButton(maximizeButton, false);
 
   if (dialog.dataset.windowedDialogInitialized !== "true") {
@@ -111,7 +113,7 @@ export function resetDialogLayoutPreference(dialog) {
   runWithoutDialogLayoutSave(dialog, () => resetDialogPosition(dialog));
 }
 
-function ensureWindowedDialogControls(dialog) {
+function ensureWindowedDialogControls(dialog, options = {}) {
   const head = dialog.querySelector(".dialog-head");
   if (!head) return null;
 
@@ -134,6 +136,11 @@ function ensureWindowedDialogControls(dialog) {
   }
 
   let resetButton = actions.querySelector("[data-windowed-dialog-reset]");
+  if (!options.showResetButton) {
+    resetButton?.remove();
+    return button;
+  }
+
   if (!resetButton) {
     resetButton = document.createElement("button");
     resetButton.type = "button";

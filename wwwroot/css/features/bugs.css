@@ -256,6 +256,31 @@ html[data-theme] .bugs-screen.work-item-screen .section-head .toolbar > button:h
   pointer-events: auto;
 }
 
+.bug-tsg-report-controls {
+  display: grid;
+  gap: var(--space-4);
+  padding: var(--space-4) var(--space-4) var(--space-3);
+}
+
+.bug-tsg-report-filename {
+  margin: 0;
+}
+
+.bug-tsg-report-export-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  align-items: center;
+}
+
+.bug-tsg-report-table {
+  margin-bottom: var(--space-4);
+}
+
+.bug-tsg-report-table tbody[data-reorder-list="bug-tsg-report-fields"] tr {
+  touch-action: none;
+}
+
 .bug-editor-grid select,
 .bug-editor-grid input[type="date"] {
   height: var(--control-height-md);

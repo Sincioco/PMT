@@ -296,27 +296,23 @@ html[data-theme] .dialog-head button.dialog-reset-button::after {
   display: none;
 }
 
-html[data-theme] .dialog-head button.dialog-rich-tools-toggle-button::before {
-  width: 14px;
-  height: 2px;
-  background: currentColor;
-  box-shadow:
-    0 -5px 0 currentColor,
-    0 5px 0 currentColor;
-  transform: translate(-50%, -50%);
+html[data-theme] .dialog-head button.dialog-rich-tools-toggle-button {
+  min-height: var(--control-height-sm);
+  padding: var(--space-2) var(--space-3);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-body);
 }
 
-html[data-theme] .dialog-head button.dialog-rich-tools-toggle-button::after {
-  display: block;
-  width: 14px;
-  height: 2px;
-  background: currentColor;
-  opacity: 0;
-  transform: translate(-50%, -50%) rotate(45deg);
+html[data-theme] .dialog-head button.dialog-rich-tools-toggle-button .button-icon {
+  width: 16px;
+  min-width: 16px;
+  height: 16px;
+  font-size: var(--font-size-sm);
 }
 
-html[data-theme] .dialog-head button.dialog-rich-tools-toggle-button[aria-pressed="true"]::after {
-  opacity: 1;
+html[data-theme] .dialog-head button.dialog-rich-tools-toggle-button[aria-pressed="false"] .button-icon {
+  opacity: 0.28;
 }
 
 html[data-theme] :is(.editor-dialog, .windowed-dialog).is-maximized .dialog-head button.dialog-maximize-button::before {

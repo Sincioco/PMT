@@ -2,14 +2,17 @@ import { taskRowAvatarsHtml } from "../../components/avatars.js";
 import {
   applyBugDialogFieldPreferences,
   bugDialogCustomizationButtonHtml,
+  bugDialogFieldDefinitions,
   bugDialogFieldHtml,
   bugDialogFieldLabel,
+  normalizeBugDialogFieldPrefs,
   openBugDialogCustomizationDialog,
+  readBugDialogFieldPrefs,
   syncBugDialogHeaderActionsMenu
-} from "../../components/bug-dialog-customization.js?v=20260711-task-root-cause";
+} from "../../components/bug-dialog-customization.js?v=20260711-tsg-report";
 import { buttonContent, chartIconHtml, funnelIconHtml, pageActionsMenuHtml } from "../../components/buttons.js?v=20260701-unified-dropdowns";
 import { VisualCharts } from "../../components/charts.js?v=20260628-chart-native-tooltips";
-import { initializeWindowedDialog } from "../../components/dialogs.js?v=20260711-task-dialog-customize";
+import { initializeWindowedDialog } from "../../components/dialogs.js?v=20260711-tsg-report";
 import {
   checkedFilterValues,
   filterCheckList
@@ -55,7 +58,7 @@ import {
   removePreference,
   writeJsonPreference,
   writePreference
-} from "../../core/preferences.js?v=20260711-bug-dialog-customize";
+} from "../../core/preferences.js?v=20260711-tsg-report";
 import { currentView } from "../../core/router.js?v=20260707-deep-links";
 import { state } from "../../core/store.js";
 import {
@@ -64,6 +67,7 @@ import {
   toDateInput
 } from "../../shared/dates.js?v=20260620-null-end-date";
 import { normalizeSavedArray } from "../../shared/filter-values.js";
+import { createReorderDrag } from "../../shared/reorder-drag.js";
 import {
   downloadXlsx,
   downloadCsv,
@@ -134,6 +138,8 @@ export function createBugsFeature({
   let bugEntryEnvironment = readPreference(preferenceKeys.bugEntryEnvironment, "");
   let bugColumnPrefs = normalizeBugColumnPrefs(readJsonPreference(preferenceKeys.bugTableColumns, {}));
   let bugColumnDrag = null;
+  let bugTsgReportDrag = null;
+  let activeBugTsgReportDialog = null;
   let lastBugColumnPointerDragAt = 0;
   let suppressNextBugColumnClick = false;
   const bugTableMode = createWorkItemTableMode({
@@ -173,7 +179,8 @@ export function createBugsFeature({
           { action: "import-bug-html", icon: importIconHtml(), label: "Import HTML", title: "Import PMT HTML", separatorBefore: true },
           { action: "export-bug-view", icon: exportIconHtml(), label: "Export Grid", title: "Export Grid", separatorBefore: true },
           { action: "import-bug-view", icon: importIconHtml(), label: "Import Grid", title: "Import Grid" },
-          { action: "reset-bug-view", icon: "&#8634;", label: "Reset View", title: "Reset View", separatorBefore: true }
+          { action: "open-bug-tsg-report", icon: tsgReportIconHtml(), label: "TSG Report", title: "TSG Report", separatorBefore: true },
+          { action: "reset-bug-view", icon: "&#8634;", label: "Reset View", title: "Reset View" }
         ])}
       `)}
       ${showCharts ? bugVisualTrackingChartsHtml(baseBugs, allProjectBugs) : ""}
@@ -236,6 +243,10 @@ export function createBugsFeature({
     }
     if (action === "export-bug-view") {
       openBugExportDialog();
+      return true;
+    }
+    if (action === "open-bug-tsg-report") {
+      openBugTsgReportDialog();
       return true;
     }
     if (action === "import-bug-view") {
@@ -1332,6 +1343,15 @@ export function createBugsFeature({
     });
   }
 
+  function tsgReportIconHtml() {
+    return `
+      <svg class="button-svg-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+        <path d="M6 4h9l3 3v13H6z"></path>
+        <path d="M15 4v4h4M9 11h6M9 15h6M9 18h4"></path>
+      </svg>
+    `;
+  }
+
   function exportBugCsv(options = {}) {
     const rows = bugExportImportRows();
     const columns = bugExportImportColumns(rows, options);
@@ -1344,6 +1364,300 @@ export function createBugsFeature({
     const columns = bugExportImportColumns(rows, options);
 
     downloadXlsx(exportFileName("pmt-bug-tracking", "xlsx"), "Bug Tracking", columns, rows);
+  }
+
+  function openBugTsgReportDialog() {
+    if (activeBugTsgReportDialog?.isConnected) {
+      if (!activeBugTsgReportDialog.open) activeBugTsgReportDialog.showModal?.();
+      activeBugTsgReportDialog.querySelector("[data-bug-tsg-filename]")?.focus({ preventScroll: true });
+      return;
+    }
+
+    const modal = document.createElement("dialog");
+    modal.className = "dialog windowed-dialog work-item-dialog-customize-dialog bug-dialog-customize-dialog bug-tsg-report-dialog";
+    modal.innerHTML = `
+      <form method="dialog">
+        <div class="dialog-head">
+          <h2>TSG Report</h2>
+          <button type="button" class="icon-btn" data-close-bug-tsg-report title="Close" aria-label="Close">x</button>
+        </div>
+        <div class="dialog-body bug-dialog-customize-body bug-tsg-report-body" data-bug-tsg-report-body></div>
+        <div class="dialog-actions">
+          <div class="dialog-action-group is-left">
+            <button type="button" class="secondary text-icon-button" data-reset-bug-tsg-report>${buttonContent("&#8635;", "Reset")}</button>
+          </div>
+          <button type="button" class="primary text-icon-button" data-close-bug-tsg-report>${buttonContent("&#10003;", "Done")}</button>
+        </div>
+      </form>
+    `;
+
+    activeBugTsgReportDialog = modal;
+    renderBugTsgReportDialog(modal, readBugTsgReportPrefs());
+    document.body.appendChild(modal);
+    initializeWindowedDialog(modal, { showResetButton: false });
+    modal.addEventListener("input", event => handleBugTsgReportInput(modal, event.target));
+    modal.addEventListener("change", event => handleBugTsgReportChange(modal, event.target));
+    modal.addEventListener("click", event => {
+      const exportButton = event.target.closest("[data-export-bug-tsg]");
+      if (exportButton) {
+        event.preventDefault();
+        exportBugTsgReport(modal, exportButton.dataset.exportBugTsg || "csv");
+        return;
+      }
+
+      if (event.target.closest("[data-reset-bug-tsg-report]")) {
+        resetBugTsgReportDialog(modal);
+        return;
+      }
+
+      if (event.target.closest("[data-close-bug-tsg-report]")) modal.close();
+    });
+    modal.addEventListener("close", () => {
+      bugTsgReportDrag?.unbind();
+      bugTsgReportDrag = null;
+      activeBugTsgReportDialog = null;
+      modal.remove();
+    }, { once: true });
+    modal.showModal();
+    modal.querySelector("[data-bug-tsg-filename]")?.focus({ preventScroll: true });
+  }
+
+  function renderBugTsgReportDialog(modal, prefs) {
+    const body = modal.querySelector("[data-bug-tsg-report-body]");
+    if (!body) return;
+
+    const definitionsByKey = new Map(bugDialogFieldDefinitions().map(field => [field.key, field]));
+    body.innerHTML = `
+      <div class="bug-tsg-report-controls">
+        <label class="field bug-tsg-report-filename">
+          <span>Filename</span>
+          <input type="text" data-bug-tsg-filename value="${escapeAttr(bugTsgReportFilenamePreference())}" aria-label="Filename">
+        </label>
+        <div class="bug-tsg-report-export-actions">
+          <button type="button" class="secondary text-icon-button" data-export-bug-tsg="csv">${buttonContent(exportIconHtml(), "Export as .csv")}</button>
+          <button type="button" class="secondary text-icon-button" data-export-bug-tsg="xlsx">${buttonContent(exportIconHtml(), "Export as Native Excel File (no formatting)")}</button>
+        </div>
+      </div>
+      <table class="table settings-table settings-navigation-table work-item-table bug-dialog-customize-table bug-tsg-report-table">
+        <thead>
+          <tr>
+            <th class="bug-dialog-visible-column" aria-label="Visible"></th>
+            <th>Original Field</th>
+            <th>Display Label</th>
+            <th aria-label="Order"></th>
+          </tr>
+        </thead>
+        <tbody data-reorder-list="bug-tsg-report-fields">
+          ${prefs.order.map(key => definitionsByKey.get(key)).filter(Boolean).map(field => bugTsgReportRowHtml(field, prefs)).join("")}
+        </tbody>
+      </table>
+    `;
+
+    bindBugTsgReportDrag(modal);
+  }
+
+  function bugTsgReportRowHtml(field, prefs) {
+    const label = prefs.labels[field.key] || field.label;
+    return `
+      <tr data-bug-tsg-field-row="${escapeAttr(field.key)}">
+        <td class="settings-nav-visible-cell bug-dialog-visible-cell">
+          <label class="settings-nav-toggle" title="Show ${escapeAttr(field.label)}">
+            <input type="checkbox" data-bug-tsg-visible="${escapeAttr(field.key)}" aria-label="Show ${escapeAttr(field.label)}" ${prefs.visible.includes(field.key) ? "checked" : ""}>
+          </label>
+        </td>
+        <td>${escapeHtml(field.label)}</td>
+        <td>
+          <input type="text" data-bug-tsg-label="${escapeAttr(field.key)}" value="${escapeAttr(label)}" aria-label="${escapeAttr(`Display label for ${field.label}`)}">
+        </td>
+        <td class="action-cell">
+          <button class="work-item-drag-handle settings-nav-drag-handle" type="button" data-drag-handle title="Drag ${escapeAttr(field.label)}" aria-label="Drag ${escapeAttr(field.label)}">
+            <span aria-hidden="true">&#8942;&#8942;</span>
+          </button>
+        </td>
+      </tr>
+    `;
+  }
+
+  function bindBugTsgReportDrag(modal) {
+    bugTsgReportDrag?.unbind();
+    const list = modal.querySelector('tbody[data-reorder-list="bug-tsg-report-fields"]');
+    if (!list) return;
+
+    bugTsgReportDrag = createReorderDrag({
+      root: list,
+      containerSelector: 'tbody[data-reorder-list="bug-tsg-report-fields"]',
+      itemSelector: "tr[data-bug-tsg-field-row]",
+      getItemKey: item => item.dataset.bugTsgFieldRow || "",
+      onDrop: ({ orderedKeys }) => {
+        const draft = bugTsgReportPrefsFromDialog(modal);
+        draft.order = orderedKeys;
+        const prefs = normalizeBugDialogFieldPrefs(draft);
+        writeBugTsgReportPrefs(prefs);
+        renderBugTsgReportDialog(modal, prefs);
+      }
+    });
+    bugTsgReportDrag.bind();
+  }
+
+  function handleBugTsgReportInput(modal, target) {
+    if (target?.matches("[data-bug-tsg-filename]")) {
+      writePreference(preferenceKeys.bugTsgReportFilename, target.value);
+      return;
+    }
+
+    if (!target?.matches("[data-bug-tsg-label]")) return;
+
+    writeBugTsgReportPrefs(bugTsgReportPrefsFromDialog(modal));
+  }
+
+  function handleBugTsgReportChange(modal, target) {
+    if (!target?.matches("[data-bug-tsg-visible]")) return;
+
+    if (!target.checked && !modal.querySelectorAll("[data-bug-tsg-visible]:checked").length) {
+      target.checked = true;
+      return;
+    }
+
+    writeBugTsgReportPrefs(bugTsgReportPrefsFromDialog(modal));
+  }
+
+  function resetBugTsgReportDialog(modal) {
+    removePreference(preferenceKeys.bugTsgReportFields);
+    renderBugTsgReportDialog(modal, readBugTsgReportPrefs());
+    modal.querySelector("[data-bug-tsg-label]")?.focus({ preventScroll: true });
+  }
+
+  function exportBugTsgReport(modal, format) {
+    const prefs = bugTsgReportPrefsFromDialog(modal);
+    writeBugTsgReportPrefs(prefs);
+    const rows = bugExportRows().map(bug => ({ task: bug }));
+    const columns = bugTsgReportColumns(prefs);
+
+    if (format === "xlsx") {
+      downloadXlsx(bugTsgReportDownloadName(modal, "xlsx"), "TSG Report", columns, rows);
+      return;
+    }
+
+    downloadCsv(bugTsgReportDownloadName(modal, "csv"), columns, rows);
+  }
+
+  function readBugTsgReportPrefs() {
+    const savedPreference = readPreference(preferenceKeys.bugTsgReportFields, "");
+    if (savedPreference) return normalizeBugDialogFieldPrefs(readJsonPreference(preferenceKeys.bugTsgReportFields, {}));
+
+    const prefs = normalizeBugDialogFieldPrefs(readBugDialogFieldPrefs());
+    writeBugTsgReportPrefs(prefs);
+    return prefs;
+  }
+
+  function writeBugTsgReportPrefs(prefs) {
+    writeJsonPreference(preferenceKeys.bugTsgReportFields, normalizeBugDialogFieldPrefs(prefs));
+  }
+
+  function bugTsgReportPrefsFromDialog(modal) {
+    const order = [...modal.querySelectorAll("[data-bug-tsg-field-row]")]
+      .map(row => row.dataset.bugTsgFieldRow || "")
+      .filter(Boolean);
+    const visible = [...modal.querySelectorAll("[data-bug-tsg-visible]:checked")]
+      .map(input => input.dataset.bugTsgVisible || "")
+      .filter(Boolean);
+    const labels = {};
+
+    modal.querySelectorAll("[data-bug-tsg-label]").forEach(input => {
+      labels[input.dataset.bugTsgLabel || ""] = input.value;
+    });
+
+    return normalizeBugDialogFieldPrefs({ order, visible, labels });
+  }
+
+  function bugTsgReportColumns(prefs) {
+    const definitionsByKey = new Map(bugDialogFieldDefinitions().map(field => [field.key, field]));
+    return prefs.order
+      .filter(key => prefs.visible.includes(key))
+      .map(key => {
+        const definition = definitionsByKey.get(key);
+        return {
+          header: prefs.labels[key] || definition?.label || key,
+          value: row => bugTsgReportValue(key, row.task)
+        };
+      });
+  }
+
+  function bugTsgReportValue(key, bug) {
+    if (key === "projectId") return projectName(bug.projectId);
+    if (key === "sprintId") return bugTableSprintLabel(bug);
+    if (key === "title") return bug.title || "";
+    if (key === "status") return bug.status || "";
+    if (key === "priority") return bug.priority || "";
+    if (key === "percentCompleted") return taskDisplayPercent(bug);
+    if (key === "environment") return bug.environment || "";
+    if (key === "severity") return bug.severity || "";
+    if (key === "descriptionHtml") return richTextPlainText(bug.descriptionHtml);
+    if (key === "url") return bug.url || "";
+    if (key === "attachments") return bugAttachmentLabel(bug);
+    if (key === "startDate") return formatDate(bug.startDate);
+    if (key === "endDate") return formatDate(bug.endDate);
+    if (key === "stepsToReproduceHtml") return richTextPlainText(bug.stepsToReproduceHtml);
+    if (key === "actualResultHtml") return richTextPlainText(bug.actualResultHtml);
+    if (key === "expectedResultHtml") return richTextPlainText(bug.expectedResultHtml);
+    if (key === "rootCauseAnalysisHtml") return richTextPlainText(bug.rootCauseAnalysisHtml);
+    if (key === "assigneeIds") return userNames(bug.assignees);
+    if (key === "reporterIds") return userNames(bug.reporters);
+    if (key === "dependencyTaskIds") return bugDependencyLabel(bug);
+    return bug[key] ?? "";
+  }
+
+  function bugTsgReportFilenamePreference() {
+    return readPreference(preferenceKeys.bugTsgReportFilename, "TSG Report");
+  }
+
+  function bugTsgReportDownloadName(modal, extension) {
+    const base = cleanBugTsgReportFilename(modal.querySelector("[data-bug-tsg-filename]")?.value || bugTsgReportFilenamePreference());
+    return `${bugTsgReportDateStamp()} - ${base}.${extension}`;
+  }
+
+  function cleanBugTsgReportFilename(value) {
+    const clean = String(value || "")
+      .trim()
+      .replace(/[<>:"/\\|?*\x00-\x1F]/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+    return clean || "TSG Report";
+  }
+
+  function bugTsgReportDateStamp() {
+    const now = new Date();
+    return `${now.getFullYear()}-${padTsgDatePart(now.getMonth() + 1)}-${padTsgDatePart(now.getDate())} ${padTsgDatePart(now.getHours())}${padTsgDatePart(now.getMinutes())}`;
+  }
+
+  function padTsgDatePart(value) {
+    return String(value).padStart(2, "0");
+  }
+
+  function richTextPlainText(html) {
+    const template = document.createElement("template");
+    template.innerHTML = String(html || "")
+      .replace(/<br\s*\/?>/gi, "\n")
+      .replace(/<\/(p|div|li|tr|h[1-6])>/gi, "\n");
+    return (template.content.textContent || "")
+      .replace(/\u00a0/g, " ")
+      .replace(/[ \t]+\n/g, "\n")
+      .replace(/\n{3,}/g, "\n\n")
+      .trim();
+  }
+
+  function bugAttachmentLabel(bug) {
+    return (bug.attachments || [])
+      .map(attachment => attachment.fileName
+        || attachment.originalFileName
+        || attachment.originalName
+        || attachment.displayName
+        || attachment.name
+        || attachment.url
+        || attachment.path
+        || "")
+      .filter(Boolean)
+      .join("; ");
   }
 
   function bugExportImportRows() {

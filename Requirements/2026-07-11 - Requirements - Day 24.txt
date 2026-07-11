@@ -42,3 +42,19 @@ Goal:  Allow QA to customize the dialog box to the way each person works and how
 26.) Switch Resize and Zoom.  Then rename Zoom to "Open in New Tab".
 27.) In Edit mode in a RTE, when you hover over an image, it should be a normal pointer (like a hyperlink pointer) because when the user clicks on it and menu will drop down.
 28.) Put a menu divider above the Delete menu item.
+29.) Change the "Collapse All Rich Text Toolbars" to just a toggle / checkmark with the label "Toolbars".
+30.) Change the "Toolbars" icon to something different
+31.) Remove the "Reset" button on the dialog box top header as it's a duplicate of an already existing "Reset" button on the lower left of the dialog box.
+
+Bug Report - TSG Report
+------------------------
+Goal:  We want PMT to produce the Bug Report used in the office called TSG.  It has its own format.
+
+32.) In the Bug Tracking screen, add a page-level menu in the overflow, just above the Reset View, and name it "TSG Report".
+33.) After they click "TSG Report" bring them to a dialog box just like the New/Edit dialog box's Customize View.  We want a dialog box with the exact same functionality as our baseline.
+34.) If the user saved configurations from the New/Edit dialog box's Customize View, load those as the initial values for TSG Report's dialog box.  But only for the intial value.  Going forward, keep TSG Report's settings separate.  Settings are just saved in localstorage.
+35.) Above the table, put a textfield for "Filename" so that the user can specify the base filename of the report.  Prepend the actual report file with the date time, so the format looks something like this:  2026-07-11 2104 - Filename.  Obviously, append the correct file extension later.
+36.) Below that, put two buttons.  One is for "Export as .csv" and another for "Export as Native Excel File (no formatting)".
+37.) When exporting, export it exactly as they customized the fields, the labels, the order, etc.
+38.) Export as a .csv obviously exports a normal .csv file.
+39.) Export to Excel will export a native Excel file.  You already do an Export to Excel in the page-level menu "Export Grid".

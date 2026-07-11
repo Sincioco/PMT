@@ -1,5 +1,5 @@
 import { buttonContent, pageActionsMenuHtml } from "./buttons.js?v=20260701-unified-dropdowns";
-import { initializeWindowedDialog } from "./dialogs.js?v=20260711-task-dialog-customize";
+import { initializeWindowedDialog } from "./dialogs.js?v=20260711-tsg-report";
 import {
   preferenceKeys,
   readJsonPreference,
@@ -138,6 +138,8 @@ function workItemDialogHeaderMenuActions(actions) {
     headerMenuAction(actions, {
       selector: ".dialog-rich-tools-toggle-button",
       action: "dialog-toggle-rich-tools",
+      label: "Toolbars",
+      checked: source => source.getAttribute("aria-pressed") === "true",
       icon: richToolsIconHtml
     }),
     headerMenuAction(actions, {
@@ -167,7 +169,8 @@ function headerMenuAction(actions, config) {
     action: config.action,
     icon: typeof config.icon === "function" ? config.icon(source) : config.icon,
     label,
-    title
+    title,
+    checked: typeof config.checked === "function" ? config.checked(source) : config.checked
   };
 }
 
@@ -216,7 +219,8 @@ function customizeViewIconHtml() {
 function richToolsIconHtml() {
   return `
     <svg class="button-svg-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-      <path d="M5 7h14M5 12h14M5 17h14M8 5v4M16 10v4M11 15v4"></path>
+      <path d="M6 5h12a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2z"></path>
+      <path d="M4 10h16M8 8h.01M12 8h.01M16 8h.01M8 14h8M8 17h5"></path>
     </svg>
   `;
 }
@@ -268,6 +272,18 @@ export function bugDialogFieldDefinition(key) {
 
 export function taskDialogFieldDefinition(key) {
   return dialogFieldDefinition("task", key);
+}
+
+export function bugDialogFieldDefinitions() {
+  return [...dialogConfig("bug").fields];
+}
+
+export function readBugDialogFieldPrefs() {
+  return readDialogFieldPrefs("bug");
+}
+
+export function normalizeBugDialogFieldPrefs(preferences = {}) {
+  return normalizeDialogFieldPrefs("bug", preferences);
 }
 
 function dialogFieldDefinition(type, key) {
@@ -363,7 +379,10 @@ function openDialogCustomizationDialog(type) {
   activeDialog = modal;
   renderDialogCustomizationRows(modal, readDialogFieldPrefs(config.type));
   document.body.appendChild(modal);
-  initializeWindowedDialog(modal, { onReset: () => resetDialogCustomization(modal) });
+  initializeWindowedDialog(modal, {
+    onReset: () => resetDialogCustomization(modal),
+    showResetButton: false
+  });
   modal.addEventListener("input", event => handleDialogCustomizationInput(modal, event.target));
   modal.addEventListener("change", event => handleDialogCustomizationChange(modal, event.target));
   modal.addEventListener("click", event => {
