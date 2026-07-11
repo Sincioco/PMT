@@ -1077,9 +1077,9 @@ function showRichTextImageMenu(image) {
     </div>
     <div class="dialog-body">
       <div class="rich-image-menu-actions">
+        <button type="button" class="secondary text-icon-button" data-rich-image-action="select">${buttonContent("&#9635;", "Select")}</button>
         <button type="button" class="secondary text-icon-button" data-rich-image-action="zoom">${buttonContent("&#128269;", "Zoom")}</button>
         <button type="button" class="secondary text-icon-button" data-rich-image-action="resize">${buttonContent("&#8596;", "Resize")}</button>
-        <button type="button" class="secondary text-icon-button" data-rich-image-action="select">${buttonContent("&#9635;", "Select")}</button>
         <button type="button" class="secondary text-icon-button" data-rich-image-action="delete">${buttonContent("&#128465;", "Delete")}</button>
       </div>
     </div>
