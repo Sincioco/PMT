@@ -17,6 +17,33 @@ const TEAM_CARD_GAP = 0.72;
 const TEAM_GRID_BOTTOM_Y = -4.15;
 const BASE_TEXTURE_WIDTH = 2048;
 const BASE_TEXTURE_HEIGHT = 1024;
+const DARK_CHART_VARIABLES = Object.freeze({
+  "--color-primary": "#35c7bd",
+  "--color-success": "#74c476",
+  "--color-warning": "#e4a53a",
+  "--color-danger": "#ee6b70",
+  "--chart-1": "#35c7bd",
+  "--chart-2": "#76a9ff",
+  "--chart-3": "#74c476",
+  "--chart-4": "#e4a53a",
+  "--chart-5": "#ee6b70",
+  "--chart-6": "#9f9cff",
+  "--chart-7": "#58b6d6",
+  "--chart-8": "#c5d35c",
+  "--status-1": "#6b7680",
+  "--status-2": "#76a9ff",
+  "--status-3": "#35c7bd",
+  "--status-4": "#8ad17c",
+  "--status-5": "#e4c63a",
+  "--status-6": "#e4a53a",
+  "--status-7": "#ee6b70",
+  "--status-8": "#74c476",
+  "--status-9": "#58b6d6",
+  "--status-10": "#9f9cff",
+  "--green": "#74c476",
+  "--amber": "#e4a53a",
+  "--rose": "#ee6b70"
+});
 
 export function createAboutChartGallery({ users, devCharts, bugCharts, resources, maxAnisotropy = 1 }) {
   const refreshers = [];
@@ -123,15 +150,6 @@ export function createAboutChartGallery({ users, devCharts, bugCharts, resources
     0
   ));
 
-  const themeObserver = new MutationObserver(() => {
-    refreshers.forEach(refresh => refresh());
-    glassMaterials.forEach(updateGlassMaterial);
-  });
-  themeObserver.observe(document.documentElement, {
-    attributes: true,
-    attributeFilter: ["data-theme"]
-  });
-
   return {
     group,
     devTarget: devGrid.position.clone(),
@@ -167,9 +185,7 @@ export function createAboutChartGallery({ users, devCharts, bugCharts, resources
     teamGridIntersectionZ: DEV_CHART_GRID_Z,
     teamGridRotationDegrees: 90,
     teamGrowthDirection: "away-from-dev-wall",
-    dispose() {
-      themeObserver.disconnect();
-    }
+    dispose() {}
   };
 }
 
@@ -303,12 +319,11 @@ function createGlassChartPanel({
 }
 
 function updateGlassMaterial(material) {
-  const darkTheme = document.documentElement.dataset.theme === "dark";
-  material.color.set(darkTheme ? 0x10263b : 0xbddcf2);
-  material.emissive.set(darkTheme ? 0x06111d : 0x102437);
-  material.emissiveIntensity = darkTheme ? 0.16 : 0.08;
-  material.opacity = darkTheme ? 0.54 : 0.62;
-  material.transmission = darkTheme ? 0.52 : 0.38;
+  material.color.set(0x10263b);
+  material.emissive.set(0x06111d);
+  material.emissiveIntensity = 0.16;
+  material.opacity = 0.54;
+  material.transmission = 0.52;
   material.needsUpdate = true;
 }
 
@@ -797,16 +812,14 @@ function loadImage(source) {
 }
 
 function chartPalette() {
-  const styles = getComputedStyle(document.documentElement);
-  const color = (name, fallback) => styles.getPropertyValue(name).trim() || fallback;
   return {
-    pageMuted: color("--color-page-muted", "#eef4fb"),
-    textPrimary: color("--color-text-primary", "#0f172a"),
-    textSecondary: color("--color-text-secondary", "#475569"),
-    chartMarkText: color("--color-chart-mark-text", "#ffffff"),
-    surfaceDivider: color("--color-surface", "#ffffff"),
-    avatarOutline: color("--color-border", "rgba(15, 23, 42, 0.12)"),
-    gridLine: color("--color-border", "rgba(148, 163, 184, 0.34)")
+    pageMuted: "#171c1f",
+    textPrimary: "#edf3f2",
+    textSecondary: "#a0adb1",
+    chartMarkText: "#ffffff",
+    surfaceDivider: "#1c2225",
+    avatarOutline: "rgba(255, 255, 255, 0.11)",
+    gridLine: "rgba(255, 255, 255, 0.11)"
   };
 }
 
@@ -814,7 +827,7 @@ function resolveColor(value) {
   const raw = String(value || "").trim();
   const variable = raw.match(/^var\((--[^)]+)\)$/)?.[1];
   if (!variable) return raw || "#2686fe";
-  return getComputedStyle(document.documentElement).getPropertyValue(variable).trim() || "#2686fe";
+  return DARK_CHART_VARIABLES[variable] || "#2686fe";
 }
 
 function drawText(context, text, x, y, options = {}) {

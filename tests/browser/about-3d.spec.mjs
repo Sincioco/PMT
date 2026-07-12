@@ -31,6 +31,8 @@ test("About renders the drone flyby and supports camera takeover and speed keys"
   await expect(root).toHaveAttribute("data-about-workload-glass", "semi-transparent");
   await expect(root).toHaveAttribute("data-about-workload-chart-content", "opaque");
   await expect(root).toHaveAttribute("data-about-workload-color-output", "srgb-unlit");
+  await expect(root).toHaveAttribute("data-about-chart-panel-theme", "dark-fixed");
+  await expect(root).toHaveAttribute("data-about-chart-panel-follows-app-theme", "false");
   await expect(root).toHaveAttribute("data-about-workload-rows", "3");
   await expect(root).toHaveAttribute("data-about-dev-chart-count", "4");
   await expect(root).toHaveAttribute("data-about-bug-chart-count", "4");
@@ -67,6 +69,9 @@ test("About renders the drone flyby and supports camera takeover and speed keys"
   await expect(root).toHaveAttribute("data-about-random-event-choices", "alien,lightning,comet");
   await expect(root).toHaveAttribute("data-about-event-camera-influence", "none");
   await expect(root).toHaveAttribute("data-about-animation-pause-scope", "flight-and-events");
+  await expect(root).toHaveAttribute("data-about-alien-hotkey-lightning", "guaranteed");
+  await expect(root).toHaveAttribute("data-about-alien-hotkey-strike-delay-seconds", "16");
+  await expect(root).toHaveAttribute("data-about-alien-hotkey-strike-pending", "false");
   await expect(root).toHaveAttribute("data-about-initial-camera", "2d-logo-facing");
   await expect(root).toHaveAttribute("data-about-flight-path", "initial-logo-p-hole-dev-bug-return-initial");
   await expect(root).toHaveAttribute("data-about-flight-direction", "forward-through-approved-sequences");
@@ -87,16 +92,26 @@ test("About renders the drone flyby and supports camera takeover and speed keys"
   await expect(root).toHaveAttribute("data-about-flight-test-mode", "approved-sequences-1-through-4");
   await expect(root).toHaveAttribute("data-about-flight-timing", "continuous-no-pause-no-hold");
   await expect(root).toHaveAttribute("data-about-default-flight-speed", "2");
+  await expect(root).toHaveAttribute("data-about-flight-speed-policy", "user-controlled-constant");
+  await expect(root).toHaveAttribute("data-about-automatic-speed-changes", "disabled");
   await expect(root).toHaveAttribute("data-about-mouse-control", "hold-left-button-autopilot-continues");
   await expect(root).toHaveAttribute("data-about-mouse-pointer-lock", "disabled");
   await expect(root).toHaveAttribute("data-about-wheel-control", "zoom-without-manual-takeover");
   await expect(root).toHaveAttribute("data-about-keyboard-manual-keys", "W,A,S,D,Q,E");
+  await expect(root).toHaveAttribute(
+    "data-about-a-key-behavior",
+    "alien-event-without-autopilot-takeover;strafe-left-only-when-manual"
+  );
   await expect(root).toHaveAttribute("data-about-keyboard-manual-idle-seconds", "5");
   await expect(root).toHaveAttribute("data-about-speed-keys-stay-automatic", "true");
   await expect(root).toHaveAttribute("data-about-pause-key", "Space");
   await expect(root).toHaveAttribute("data-about-restart-key", "Enter");
   await expect(root).toHaveAttribute("data-about-control-hints-key", "?");
   await expect(root).toHaveAttribute("data-about-control-hints-duration-seconds", "5");
+  await expect(root).toHaveAttribute("data-about-control-hints-layout", "large-left-panel");
+  await expect(root).toHaveAttribute("data-about-control-hints-automatic", "true");
+  await expect(root).toHaveAttribute("data-about-initial-control-hints-after-sequence-4", "true");
+  await expect(root).toHaveAttribute("data-about-initial-control-hints-shown", "false");
   await expect(root).toHaveAttribute("data-about-manual-mode-panel-action", "resume-autopilot");
   await expect(root).toHaveAttribute("data-about-dev-landing-reset-key", "Automatic");
   await expect(root).toHaveAttribute("data-about-dev-arrival-behavior", "slow-continuous-no-stop");
@@ -105,6 +120,8 @@ test("About renders the drone flyby and supports camera takeover and speed keys"
   await expect(root).toHaveAttribute("data-about-dev-to-bug-transition", "precomputed-overlap-curve");
   await expect(root).toHaveAttribute("data-about-dev-to-bug-handoff-prepared", "true");
   await expect(root).toHaveAttribute("data-about-sequence-transition-pose", "continuous-preblended-curve");
+  await expect(root).toHaveAttribute("data-about-bug-to-return-transition", "precomputed-overlap-curve");
+  await expect(root).toHaveAttribute("data-about-bug-to-return-handoff-prepared", "true");
   await expect(root).toHaveAttribute("data-about-wide-chart-traversal", "generalized-by-chart-width-and-wall");
   await expect(root).toHaveAttribute("data-about-wide-chart-threshold", "16.416");
   await expect(root).toHaveAttribute("data-about-wide-chart-traversal-speed", "5");
@@ -113,7 +130,13 @@ test("About renders the drone flyby and supports camera takeover and speed keys"
   await expect(root).toHaveAttribute("data-about-wide-chart-camera-bias", "original-diagonal-chart-view");
   await expect(root).toHaveAttribute("data-about-wide-chart-speed-profile", "constant");
   await expect(root).toHaveAttribute("data-about-wide-chart-traversal-constraint", "distance-based");
-  await expect(root).toHaveAttribute("data-about-wide-chart-exit", "chart-far-edge");
+  await expect(root).toHaveAttribute("data-about-wide-chart-traversal-span-ratio", "0.64");
+  await expect(root).toHaveAttribute("data-about-wide-chart-traversal-start-offset-ratio", "-0.3");
+  await expect(root).toHaveAttribute("data-about-wide-chart-traversal-end-offset-ratio", "0.34");
+  await expect(root).toHaveAttribute("data-about-wide-chart-traversal-ratio-verified", "true");
+  await expect(root).toHaveAttribute("data-about-wide-chart-traversal-fov", "56");
+  await expect(root).toHaveAttribute("data-about-wide-chart-traversal-zoom", "slight-zoom-out");
+  await expect(root).toHaveAttribute("data-about-wide-chart-exit", "visible-far-edge");
   await expect(root).toHaveAttribute("data-about-sequence-4", "qa-chart-to-initial-view");
   await expect(root).toHaveAttribute("data-about-sequence-4-focus", "pmt-logo");
   await expect(root).toHaveAttribute("data-about-sequence-4-duration-seconds", "38");
@@ -191,6 +214,19 @@ test("About renders the drone flyby and supports camera takeover and speed keys"
   expect(canvasSize.cssHeight).toBeGreaterThan(300);
   expect(canvasSize.bufferWidth).toBeGreaterThanOrEqual(canvasSize.cssWidth);
   expect(canvasSize.bufferHeight).toBeGreaterThanOrEqual(canvasSize.cssHeight);
+
+  await canvas.focus();
+  const focusedCanvasStyle = await canvas.evaluate(element => {
+    const style = getComputedStyle(element);
+    return {
+      outlineStyle: style.outlineStyle,
+      outlineWidth: style.outlineWidth,
+      boxShadow: style.boxShadow
+    };
+  });
+  expect(focusedCanvasStyle.outlineStyle).toBe("none");
+  expect(focusedCanvasStyle.outlineWidth).toBe("0px");
+  expect(focusedCanvasStyle.boxShadow).toBe("none");
 
   const fullBleed = await root.evaluate(element => {
     const shell = element.parentElement;
@@ -303,6 +339,11 @@ test("About separates mouse look, keyboard manual mode, pause, and event hotkeys
   await expect(root).toHaveClass(/about-flight-started/, { timeout: 15000 });
   await expect(root).toHaveAttribute("data-flight-mode", "auto");
 
+  await page.keyboard.press("Shift+/");
+  await expect(root).toHaveAttribute("data-about-control-hints-visible", "true");
+  await expect(controls).toBeVisible();
+  await expect(root).toHaveAttribute("data-flight-mode", "auto");
+
   await canvas.dispatchEvent("wheel", { deltaY: -180 });
   await expect(root).toHaveAttribute("data-flight-mode", "auto");
   await expect(root).not.toHaveAttribute("data-about-user-zoom-offset", "0.00");
@@ -345,12 +386,16 @@ test("About separates mouse look, keyboard manual mode, pause, and event hotkeys
   await expect(root).toHaveAttribute("data-about-manual-event-last", "alien");
   await expect(root).toHaveAttribute("data-about-manual-event-count", "1");
   await expect(root).toHaveAttribute("data-flight-mode", "auto");
+  await page.keyboard.press("a");
+  await expect(root).toHaveAttribute("data-about-alien-hotkey-strike-pending", "true");
+  await expect(root).toHaveAttribute("data-about-manual-event-last", "alien");
+  await expect(root).toHaveAttribute("data-flight-mode", "auto");
   await page.keyboard.press("l");
   await expect(root).toHaveAttribute("data-about-manual-event-last", "lightning");
   await page.keyboard.press("c");
   await expect(root).toHaveAttribute("data-about-manual-event-last", "comet");
   await page.keyboard.press("r");
-  await expect(root).toHaveAttribute("data-about-manual-event-count", "4");
+  await expect(root).toHaveAttribute("data-about-manual-event-count", "5");
 
   await page.keyboard.press("Enter");
   await expect(page.locator("[data-about-intro]")).toBeVisible();

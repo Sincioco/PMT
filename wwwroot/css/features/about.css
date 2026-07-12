@@ -37,13 +37,17 @@
   transition: opacity 500ms ease;
 }
 
-.about-flight-rendering .about-flight-canvas {
-  opacity: 1;
+.about-screen:focus,
+.about-screen:focus-visible,
+.about-flight-canvas:focus,
+.about-flight-canvas:focus-visible {
+  outline: none;
+  outline-width: 0;
+  box-shadow: none;
 }
 
-.about-flight-canvas:focus-visible {
-  outline: 2px solid #79baff;
-  outline-offset: -4px;
+.about-flight-rendering .about-flight-canvas {
+  opacity: 1;
 }
 
 .about-screen[data-flight-mode="manual"] .about-flight-canvas {
@@ -188,22 +192,55 @@
 .about-flight-controls {
   grid-area: controls;
   justify-self: start;
-  display: flex;
+  display: grid;
   min-width: 0;
-  flex-wrap: wrap;
-  gap: 6px 10px;
-  align-items: center;
-  max-width: 100%;
-  padding: 9px 12px;
-  color: #a9bfd3;
-  font-size: 12px;
-  line-height: 1.35;
-  border-radius: var(--radius-md);
+  gap: 8px;
 }
 
-.about-flight-controls span {
+.about-screen[data-about-control-hints-visible="true"] .about-flight-controls {
+  position: absolute;
+  top: 50%;
+  left: clamp(16px, 3vw, 38px);
+  width: min(430px, calc(100% - 32px));
+  max-height: calc(100% - 40px);
+  padding: 24px;
+  overflow: auto;
+  color: #b9cde0;
+  font-size: 15px;
+  line-height: 1.35;
+  border-color: rgb(126 190 255 / 38%);
+  border-radius: 18px;
+  box-shadow: 0 22px 70px rgb(0 0 0 / 48%);
+  transform: translateY(-50%);
+  background: rgb(4 13 28 / 86%);
+}
+
+.about-flight-controls-title {
+  margin-bottom: 8px;
   color: #ffffff;
-  font-weight: var(--font-weight-medium);
+  font-size: 20px;
+  font-weight: var(--font-weight-bold);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.about-control-hint {
+  display: grid;
+  grid-template-columns: minmax(128px, 0.8fr) minmax(0, 1fr);
+  gap: 14px;
+  align-items: center;
+}
+
+.about-control-hint kbd {
+  justify-self: stretch;
+  padding: 7px 10px;
+  color: #ffffff;
+  font: inherit;
+  font-weight: var(--font-weight-bold);
+  text-align: center;
+  background: rgb(126 190 255 / 13%);
+  border: 1px solid rgb(126 190 255 / 26%);
+  border-radius: 8px;
 }
 
 .about-flight-mode {
@@ -398,7 +435,7 @@
   }
 
   .about-flight-controls {
-    max-width: 100%;
+    max-width: calc(100% - 32px);
   }
 }
 
@@ -415,8 +452,14 @@
   }
 
   .about-flight-controls {
-    gap: 4px 8px;
-    font-size: 10px;
+    gap: 6px;
+    padding: 18px;
+    font-size: 13px;
+  }
+
+  .about-control-hint {
+    grid-template-columns: minmax(104px, 0.7fr) minmax(0, 1fr);
+    gap: 10px;
   }
 
   .about-flight-mode {
@@ -430,13 +473,21 @@
   grid-template-columns: minmax(0, 1fr);
 }
 
-.about-screen:not([data-flight-mode="manual"]) .about-flight-status,
-.about-screen:not([data-flight-mode="manual"]) .about-flight-controls {
+.about-screen:not([data-flight-mode="manual"]) .about-flight-status {
   display: none;
 }
 
 .about-screen[data-flight-mode="manual"]:not([data-about-control-hints-visible="true"]) .about-flight-controls {
   display: none;
+}
+
+.about-screen:not([data-flight-mode="manual"]):not([data-about-control-hints-visible="true"]) .about-flight-controls {
+  display: none;
+}
+
+.about-screen:not([data-flight-mode="manual"])[data-about-control-hints-visible="true"] .about-flight-hud {
+  grid-template-areas: "controls mode";
+  grid-template-columns: minmax(0, 1fr) auto;
 }
 
 @media (prefers-reduced-motion: reduce) {

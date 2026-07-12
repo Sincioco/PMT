@@ -1,15 +1,15 @@
 import * as THREE from "../../vendor/three/three.module.min.js";
 import { RoomEnvironment } from "../../vendor/three/addons/environments/RoomEnvironment.js?v=0.185.1-pmt1";
 import { SVGLoader } from "../../vendor/three/addons/loaders/SVGLoader.js?v=0.185.1-pmt1";
-import { createAboutFlightController } from "./about-flight-controller.js?v=20260712-about-manual-controls-84";
-import { createLogoLightningEffect } from "./about-lightning.js?v=20260712-about-manual-controls-84";
-import { createUfoEncounter } from "./about-ufo.js?v=20260712-about-manual-controls-84";
+import { createAboutFlightController } from "./about-flight-controller.js?v=20260712-about-focus-outline-91";
+import { createLogoLightningEffect } from "./about-lightning.js?v=20260712-about-focus-outline-91";
+import { createUfoEncounter } from "./about-ufo.js?v=20260712-about-focus-outline-91";
 import {
   createAboutChartGallery,
   DEV_CHART_GRID_HEIGHT,
   DEV_CHART_GRID_WIDTH,
   DEV_CHART_GRID_Z
-} from "./about-workload-billboard.js?v=20260712-about-manual-controls-84";
+} from "./about-workload-billboard.js?v=20260712-about-focus-outline-91";
 
 const INTRO_DURATION_MS = 3000;
 const INTRO_FADE_DURATION_MS = 1250;
@@ -70,6 +70,8 @@ export function createAboutScene({
   let revealStartedAt = 0;
   let experienceStarted = false;
   let manualUfoActiveUntil = Number.NEGATIVE_INFINITY;
+  let manualAlienStrikeAt = Number.POSITIVE_INFINITY;
+  let manualAlienStrikePending = false;
   let sequence4UfoActive = false;
   let sequence4EventStartedAt = Number.NEGATIVE_INFINITY;
   let sequence4LogoStrikeDone = false;
@@ -112,6 +114,8 @@ export function createAboutScene({
     root.dataset.aboutWorkloadGlass = "semi-transparent";
     root.dataset.aboutWorkloadChartContent = "opaque";
     root.dataset.aboutWorkloadColorOutput = "srgb-unlit";
+    root.dataset.aboutChartPanelTheme = "dark-fixed";
+    root.dataset.aboutChartPanelFollowsAppTheme = "false";
     root.dataset.aboutWorkloadRows = String(devCharts.workload.rows.length);
     root.dataset.aboutDevChartCount = "4";
     root.dataset.aboutBugChartCount = "4";
@@ -173,6 +177,9 @@ export function createAboutScene({
     root.dataset.aboutManualEventCount = "0";
     root.dataset.aboutManualEventLast = "";
     root.dataset.aboutManualEventSourceKey = "";
+    root.dataset.aboutAlienHotkeyLightning = "guaranteed";
+    root.dataset.aboutAlienHotkeyStrikeDelaySeconds = String(SEQUENCE_4_UFO_STRIKE_SECONDS);
+    root.dataset.aboutAlienHotkeyStrikePending = "false";
     root.dataset.aboutMinCameraFloorClearance = String(MIN_CAMERA_FLOOR_CLEARANCE);
 
     camera.position.set(0, 1.5, 21);
@@ -273,7 +280,7 @@ export function createAboutScene({
     updateIntro(animationNow);
     const encounter = updateSceneMotion(animationNow);
     if (encounter?.shadowUpdate) renderer.shadowMap.needsUpdate = true;
-    flightController?.setCinematicFocus(null, 0, 1);
+    flightController?.setCinematicFocus(null, 0);
     flightController?.update(animationNow, animationDeltaSeconds);
     ufoEncounter?.updateSpeech(camera, root);
     renderer.render(scene, camera);
@@ -351,8 +358,10 @@ export function createAboutScene({
       sequence4UfoStrikeDone = false;
       root.dataset.aboutLightningUfoStrikePlanned = String(sequence4UfoStrikePlanned);
     } else if (!sequence4Active && sequence4UfoActive) {
-      ufoEncounter?.setEnabled(false, encounterElapsed);
-      lightningEffect?.setEnabled(false, encounterElapsed);
+      const keepManualEncounter = encounterElapsed >= 0
+        && encounterElapsed < manualUfoActiveUntil;
+      if (!keepManualEncounter) ufoEncounter?.setEnabled(false, encounterElapsed);
+      if (!manualAlienStrikePending) lightningEffect?.setEnabled(false, encounterElapsed);
     }
     sequence4UfoActive = sequence4Active;
     const manualUfoActive = encounterElapsed >= 0
@@ -377,11 +386,26 @@ export function createAboutScene({
     if (sequence4Active
       && sequence4UfoStrikePlanned
       && !sequence4UfoStrikeDone
+      && !manualAlienStrikePending
       && sequence4EventAge >= SEQUENCE_4_UFO_STRIKE_SECONDS
       && ufoEncounter?.getStrikePosition(ufoStrikePosition)) {
       sequence4UfoStrikeDone = true;
       lightningEffect?.triggerStrike(encounterElapsed, ufoStrikePosition, "UFO");
       ufoEncounter.reactToLightning();
+      root.dataset.aboutLightningUfoStrikeCount = String(
+        Number(root.dataset.aboutLightningUfoStrikeCount || 0) + 1
+      );
+    }
+    if (manualAlienStrikePending
+      && encounterElapsed >= manualAlienStrikeAt
+      && ufoEncounter?.getStrikePosition(ufoStrikePosition)) {
+      manualAlienStrikePending = false;
+      manualAlienStrikeAt = Number.POSITIVE_INFINITY;
+      sequence4UfoStrikeDone = sequence4UfoStrikeDone || sequence4Active;
+      lightningEffect?.setEnabled(true, encounterElapsed);
+      lightningEffect?.triggerStrike(encounterElapsed, ufoStrikePosition, "UFO");
+      ufoEncounter.reactToLightning();
+      root.dataset.aboutAlienHotkeyStrikePending = "false";
       root.dataset.aboutLightningUfoStrikeCount = String(
         Number(root.dataset.aboutLightningUfoStrikeCount || 0) + 1
       );
@@ -450,8 +474,17 @@ export function createAboutScene({
       manualUfoActiveUntil = encounterElapsed + 25;
       ufoEncounter?.startNow(encounterElapsed);
       root.dataset.aboutUfoEnabled = "true";
+      if (sourceKey === "KeyA") {
+        manualAlienStrikeAt = encounterElapsed + SEQUENCE_4_UFO_STRIKE_SECONDS;
+        manualAlienStrikePending = true;
+        root.dataset.aboutAlienHotkeyStrikePending = "true";
+      }
       showEffectNotice(
-        sourceKey === "KeyU" ? "UFO event triggered" : "Alien encounter triggered",
+        sourceKey === "KeyA"
+          ? "Alien encounter triggered - lightning locked on"
+          : sourceKey === "KeyU"
+            ? "UFO event triggered"
+            : "Alien encounter triggered",
         true,
         "alien"
       );

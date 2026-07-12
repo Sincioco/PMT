@@ -7,6 +7,12 @@ const WIDE_CHART_TRAVERSAL_SPEED = 5;
 const DEV_SEQUENCE_HANDOFF_PHASE = 0.992;
 const DEV_TO_BUG_BLEND_START_PHASE = 0.94;
 const DEV_TO_BUG_ENTRY_PHASE = 0.1;
+const BUG_SEQUENCE_HANDOFF_PHASE = 0.992;
+const BUG_TO_RETURN_BLEND_START_PHASE = 0.94;
+const BUG_TO_RETURN_ENTRY_PHASE = 0.03;
+const WIDE_CHART_START_OFFSET_RATIO = -0.3;
+const WIDE_CHART_TRAVERSAL_SPAN_RATIO = 0.64;
+const WIDE_CHART_END_OFFSET_RATIO = 0.34;
 const DRONE_POSITION_RESPONSE = 6;
 const DRONE_HEADING_RESPONSE = 1.15;
 const DRONE_FOV_RESPONSE = 1.4;
@@ -20,17 +26,14 @@ const CAMERA_FAR_LIMIT = 80;
 const MIN_FLIGHT_SPEED = 0.25;
 const MAX_FLIGHT_SPEED = 3;
 const FLIGHT_SPEED_STEP = 0.25;
-const MIN_FORWARD_SPEED = 0.05;
 const MIN_FORWARD_LOOK_DOT = Math.cos(THREE.MathUtils.degToRad(70));
-const DEV_APPROACH_MIN_SPEED_SCALE = 0.36;
-const BUG_TURN_SPEED_SCALE = 0.46;
-const BUG_APPROACH_MIN_SPEED_SCALE = 0.48;
 const DEV_LANDING_DISTANCE = 9.2;
 const DEV_LANDING_PANEL_WIDTH = 15.2;
 const DEV_LANDING_PANEL_HEIGHT = 7.2;
 const DEV_LANDING_FRAME_MARGIN = 1.08;
 const WIDE_CHART_THRESHOLD = DEV_LANDING_PANEL_WIDTH * 1.08;
 const WIDE_CHART_FOV = 48;
+const WIDE_CHART_TRAVERSAL_FOV = 56;
 const DEFAULT_FOV = 42;
 const INSPECTION_FOV = 52;
 const PORTAL_FOV = 40;
@@ -81,6 +84,7 @@ export function createAboutFlightController({
   const pose = createPose();
   const autopilotTarget = createPose();
   const handoffTarget = createPose();
+  const returnHandoffTarget = createPose();
   const returnTarget = createPose();
   const returnFromPosition = new THREE.Vector3();
   const returnFromQuaternion = new THREE.Quaternion();
@@ -105,11 +109,10 @@ export function createAboutFlightController({
   let flightSpeed = 2;
   let forwardTravel = 0;
   let cinematicAttention = 0;
-  let cinematicSpeedScale = 1;
   let flightStage = "dev";
   let stageStartedAt = 0;
   let activeWideTraversal = null;
-  let sequence4Geometry = null;
+  let sequence4Geometry = createPlannedSequence4Geometry();
   let debugTestRun = 1;
   let controllerNow = performance.now();
   let lastInputAt = performance.now();
@@ -118,6 +121,7 @@ export function createAboutFlightController({
   let returnFromFov = camera.fov;
   let pausedFromMode = "auto";
   let controlHintsTimer = 0;
+  let initialAutoHintsShown = false;
   let userFovOffset = 0;
   let dragging = false;
   let dragX = 0;
@@ -154,6 +158,8 @@ export function createAboutFlightController({
   root.dataset.aboutFlightTiming = "continuous-no-pause-no-hold";
   root.dataset.aboutDefaultFlightSpeed = "2";
   root.dataset.aboutFlightSpeed = formatFlightSpeed();
+  root.dataset.aboutFlightSpeedPolicy = "user-controlled-constant";
+  root.dataset.aboutAutomaticSpeedChanges = "disabled";
   root.dataset.aboutDevLandingResetKey = "Automatic";
   root.dataset.aboutDevLandingTestRun = String(debugTestRun);
   root.dataset.aboutDevLandingTestState = "approaching-dev";
@@ -163,6 +169,9 @@ export function createAboutFlightController({
   root.dataset.aboutDevToBugHandoffPrepared = String(Boolean(route.bugDestination));
   root.dataset.aboutDevToBugHandoffProgress = "0";
   root.dataset.aboutSequenceTransitionPose = "continuous-preblended-curve";
+  root.dataset.aboutBugToReturnTransition = "precomputed-overlap-curve";
+  root.dataset.aboutBugToReturnHandoffPrepared = "true";
+  root.dataset.aboutBugToReturnHandoffProgress = "0";
   root.dataset.aboutWideChartTraversal = "generalized-by-chart-width-and-wall";
   root.dataset.aboutWideChartThreshold = String(WIDE_CHART_THRESHOLD);
   root.dataset.aboutWideChartTraversalSpeed = String(WIDE_CHART_TRAVERSAL_SPEED);
@@ -172,7 +181,19 @@ export function createAboutFlightController({
   root.dataset.aboutWideChartCameraBias = "original-diagonal-chart-view";
   root.dataset.aboutWideChartSpeedProfile = "constant";
   root.dataset.aboutWideChartTraversalConstraint = "distance-based";
-  root.dataset.aboutWideChartExit = "chart-far-edge";
+  root.dataset.aboutWideChartTraversalSpanRatio = String(WIDE_CHART_TRAVERSAL_SPAN_RATIO);
+  root.dataset.aboutWideChartTraversalStartOffsetRatio = String(WIDE_CHART_START_OFFSET_RATIO);
+  root.dataset.aboutWideChartTraversalEndOffsetRatio = String(WIDE_CHART_END_OFFSET_RATIO);
+  root.dataset.aboutWideChartTraversalRatioVerified = String(
+    Math.abs(
+      WIDE_CHART_END_OFFSET_RATIO
+        - WIDE_CHART_START_OFFSET_RATIO
+        - WIDE_CHART_TRAVERSAL_SPAN_RATIO
+    ) < 0.000001
+  );
+  root.dataset.aboutWideChartTraversalFov = String(WIDE_CHART_TRAVERSAL_FOV);
+  root.dataset.aboutWideChartTraversalZoom = "slight-zoom-out";
+  root.dataset.aboutWideChartExit = "visible-far-edge";
   root.dataset.aboutSequence4 = "qa-chart-to-initial-view";
   root.dataset.aboutSequence4Focus = "pmt-logo";
   root.dataset.aboutSequence4DurationSeconds = String(SEQUENCE_4_DURATION_SECONDS);
@@ -183,14 +204,18 @@ export function createAboutFlightController({
   root.dataset.aboutMousePointerLock = "disabled";
   root.dataset.aboutWheelControl = "zoom-without-manual-takeover";
   root.dataset.aboutKeyboardManualKeys = "W,A,S,D,Q,E";
-  root.dataset.aboutAKeyBehavior = "strafe-left-and-trigger-alien";
+  root.dataset.aboutAKeyBehavior = "alien-event-without-autopilot-takeover;strafe-left-only-when-manual";
   root.dataset.aboutKeyboardManualIdleSeconds = String(IDLE_DURATION_MS / 1000);
   root.dataset.aboutSpeedKeysStayAutomatic = "true";
   root.dataset.aboutPauseKey = "Space";
   root.dataset.aboutRestartKey = "Enter";
   root.dataset.aboutControlHintsKey = "?";
   root.dataset.aboutControlHintsDurationSeconds = String(CONTROL_HINT_DURATION_MS / 1000);
+  root.dataset.aboutControlHintsLayout = "large-left-panel";
+  root.dataset.aboutControlHintsAutomatic = "true";
   root.dataset.aboutControlHintsVisible = "false";
+  root.dataset.aboutInitialControlHintsAfterSequence4 = "true";
+  root.dataset.aboutInitialControlHintsShown = "false";
   root.dataset.aboutManualModePanelAction = "resume-autopilot";
   updateRouteDatasets();
 
@@ -221,21 +246,10 @@ export function createAboutFlightController({
       }
       const isBugStage = flightStage === "bug";
       const isSequence4Stage = flightStage === "return-initial";
-      const approachSpeedScale = isBugStage
-        ? bugFlightSpeedScale(autopilotPhase)
-        : isSequence4Stage
-          ? sequence4SpeedScale(autopilotPhase)
-        : THREE.MathUtils.lerp(
-          1,
-          DEV_APPROACH_MIN_SPEED_SCALE,
-          smootherStep(smoothStepRange(0.58, 0.985, autopilotPhase))
-        );
-      const effectiveSpeed = Math.max(
-        MIN_FORWARD_SPEED,
-        flightSpeed
-          * cinematicSpeedScale
-          * approachSpeedScale
-      );
+      // The user-selected multiplier is the sole speed authority. Routes and
+      // background events may shape the camera, but cannot change its clock.
+      const effectiveSpeed = flightSpeed;
+      root.dataset.aboutEffectiveFlightSpeed = formatFlightSpeed();
       autopilotPhase = Math.min(
         1,
         autopilotPhase + (deltaSeconds * effectiveSpeed) / (
@@ -283,6 +297,29 @@ export function createAboutFlightController({
           framingBlend
         );
       }
+      const isBugToReturnHandoff = isBugStage
+        && !route.bugDestinationIsWide
+        && Boolean(sequence4Geometry)
+        && autopilotPhase >= BUG_TO_RETURN_BLEND_START_PHASE;
+      let bugToReturnHandoffProgress = 0;
+      if (isBugToReturnHandoff) {
+        bugToReturnHandoffProgress = THREE.MathUtils.clamp(
+          (autopilotPhase - BUG_TO_RETURN_BLEND_START_PHASE)
+            / (BUG_SEQUENCE_HANDOFF_PHASE - BUG_TO_RETURN_BLEND_START_PHASE),
+          0,
+          1
+        );
+        sampleSequence4Pose(
+          sequence4Geometry,
+          bugToReturnHandoffProgress * BUG_TO_RETURN_ENTRY_PHASE,
+          returnHandoffTarget
+        );
+        blendPoseToward(
+          autopilotTarget,
+          returnHandoffTarget,
+          smootherStep(bugToReturnHandoffProgress)
+        );
+      }
       root.dataset.aboutForwardTravel = forwardTravel.toFixed(4);
       root.dataset.aboutFlightSequenceStage = flightStage;
       root.dataset.aboutForwardLookDot = autopilotTarget.forwardLookDot.toFixed(3);
@@ -295,9 +332,12 @@ export function createAboutFlightController({
         ? "waiting"
         : "active";
       root.dataset.aboutDevToBugHandoffProgress = devToBugHandoffProgress.toFixed(3);
+      root.dataset.aboutBugToReturnHandoffProgress = bugToReturnHandoffProgress.toFixed(3);
       setFlightAction(isDevToBugHandoff
         ? `Arriving at: ${route.devDestinationLabel} â€¢ Curving toward: ${route.bugDestinationLabel}`
-        : describeFlightAction(route, flightStage, autopilotPhase, autopilotTarget));
+        : isBugToReturnHandoff
+          ? `Arriving at: ${route.bugDestinationLabel} â€¢ Curving toward: PMT logo`
+          : describeFlightAction(route, flightStage, autopilotPhase, autopilotTarget));
 
       if (cinematicAttention > 0.04) {
         eventLookMatrix.lookAt(autopilotTarget.position, eventTarget, eventUp);
@@ -329,7 +369,8 @@ export function createAboutFlightController({
       const approachComplete = isSequence4Stage
         ? autopilotPhase >= 1
         : isBugStage
-          ? autopilotPhase >= 1 && wideArrivalReached
+          ? autopilotPhase >= (isWideChartApproach ? 1 : BUG_SEQUENCE_HANDOFF_PHASE)
+            && wideArrivalReached
           : autopilotPhase >= (isWideChartApproach ? 1 : DEV_SEQUENCE_HANDOFF_PHASE)
             && wideArrivalReached;
       if (approachComplete) {
@@ -507,6 +548,9 @@ export function createAboutFlightController({
       return;
     }
     if (!MOVEMENT_KEYS.has(event.code) || !noCommandModifier(event)) return;
+    // A is primarily the guaranteed-strike alien hotkey. It may continue an
+    // existing manual strafe, but it must never take automatic flight over.
+    if (event.code === "KeyA" && mode !== "manual") return;
     if (!beginManual()) return;
     event.preventDefault();
     keys.add(event.code);
@@ -538,7 +582,7 @@ export function createAboutFlightController({
       ).normalize();
       target.fov = THREE.MathUtils.lerp(
         activeWideTraversal.startFov,
-        WIDE_CHART_FOV,
+        WIDE_CHART_TRAVERSAL_FOV,
         smootherStep(progress)
       );
       target.logoAttention = 0;
@@ -584,8 +628,8 @@ export function createAboutFlightController({
   }
 
   function showControlHints() {
-    if (mode !== "manual" || disposed) return;
-    lastInputAt = controllerNow;
+    if (mode === "intro" || disposed) return;
+    if (mode === "manual") lastInputAt = controllerNow;
     window.clearTimeout(controlHintsTimer);
     root.dataset.aboutControlHintsVisible = "true";
     controlHintsTimer = window.setTimeout(() => {
@@ -679,11 +723,9 @@ export function createAboutFlightController({
     }
   }
 
-  function setCinematicFocus(target, attention, speedScale) {
-    // Background events supply neutral attention and speed values so approved
-    // camera sequences remain authoritative.
+  function setCinematicFocus(target, attention) {
+    // Background events may request attention, but cannot alter flight speed.
     cinematicAttention = THREE.MathUtils.clamp(Number(attention || 0), 0, 1);
-    cinematicSpeedScale = THREE.MathUtils.clamp(Number(speedScale || 1), 0.1, 1);
     if (target) eventTarget.copy(target);
   }
 
@@ -712,7 +754,7 @@ export function createAboutFlightController({
       return;
     }
     if (isDevChart) startBugSequence(false);
-    else startSequence4();
+    else startSequence4(false);
   }
 
   function startBugSequence(rebuildFromCurrent) {
@@ -725,6 +767,7 @@ export function createAboutFlightController({
         bugDestinationIsWide: route.bugDestinationIsWide,
         minimumCameraY
       });
+      prepareSequence4Geometry();
       updateRouteDatasets();
     }
     flightStage = "bug";
@@ -795,7 +838,7 @@ export function createAboutFlightController({
     }
     camera.fov = userAdjustedFov(THREE.MathUtils.lerp(
       activeWideTraversal.startFov,
-      WIDE_CHART_FOV,
+      WIDE_CHART_TRAVERSAL_FOV,
       smootherStep(progress)
     ));
     camera.updateProjectionMatrix();
@@ -808,23 +851,41 @@ export function createAboutFlightController({
     const nextStage = activeWideTraversal.nextStage;
     activeWideTraversal = null;
     if (nextStage === "bug") startBugSequence(true);
-    else startSequence4();
+    else startSequence4(true);
   }
 
-  function startSequence4() {
-    sequence4Geometry = createSequence4Geometry({
-      startPosition: camera.position,
+  function createPlannedSequence4Geometry() {
+    return createSequence4Geometry({
+      startPosition: route.bugGeometry.bugLandingPosition,
       initialPosition: route.geometry.initialPosition,
       logoTarget: route.geometry.logoTarget,
       minimumCameraY,
-      startFov: THREE.MathUtils.clamp(
-        camera.fov - userFovOffset,
-        MIN_USER_FOV,
-        MAX_USER_FOV
-      )
+      startFov: bugLandingFov(route, camera.aspect)
     });
+  }
+
+  function prepareSequence4Geometry() {
+    sequence4Geometry = createPlannedSequence4Geometry();
+    root.dataset.aboutBugToReturnHandoffPrepared = "true";
+  }
+
+  function startSequence4(rebuildFromCurrent) {
+    if (rebuildFromCurrent) {
+      sequence4Geometry = createSequence4Geometry({
+        startPosition: camera.position,
+        initialPosition: route.geometry.initialPosition,
+        logoTarget: route.geometry.logoTarget,
+        minimumCameraY,
+        startFov: THREE.MathUtils.clamp(
+          camera.fov - userFovOffset,
+          MIN_USER_FOV,
+          MAX_USER_FOV
+        )
+      });
+    }
     flightStage = "return-initial";
-    autopilotPhase = 0;
+    autopilotPhase = rebuildFromCurrent ? 0 : BUG_TO_RETURN_ENTRY_PHASE;
+    root.dataset.aboutBugToReturnHandoffProgress = rebuildFromCurrent ? "0" : "1";
     root.dataset.aboutFlightSequenceStage = flightStage;
     root.dataset.aboutDevLandingTestState = "returning-to-initial-view";
     setModeLabel("SEQUENCE 4");
@@ -833,6 +894,7 @@ export function createAboutFlightController({
 
   function finishSequence4() {
     route.advanceLap();
+    prepareSequence4Geometry();
     debugTestRun += 1;
     flightStage = "dev";
     autopilotPhase = 0;
@@ -842,8 +904,13 @@ export function createAboutFlightController({
     root.dataset.aboutDevLandingTestState = "approaching-dev";
     root.dataset.aboutFlightSequenceStage = flightStage;
     root.dataset.aboutDevToBugHandoffProgress = "0";
-    sequence4Geometry = null;
+    root.dataset.aboutBugToReturnHandoffProgress = "0";
     setMode("auto");
+    if (!initialAutoHintsShown) {
+      initialAutoHintsShown = true;
+      root.dataset.aboutInitialControlHintsShown = "true";
+      showControlHints();
+    }
     setFlightAction(`Sequence 1 restarted • Next Dev chart: ${route.devDestinationLabel}`);
   }
 
@@ -1156,7 +1223,8 @@ function createWideChartTraversal({
   const safeWidth = Math.max(DEV_LANDING_PANEL_WIDTH, Number(chartWidth) || 0);
   const normalizedWallNormal = wallNormal.clone().normalize();
   const normalizedWidthAxis = widthAxis.clone().normalize();
-  const upperLeftOffset = normalizedWidthAxis.clone().multiplyScalar(-safeWidth * 0.3);
+  const upperLeftOffset = normalizedWidthAxis.clone()
+    .multiplyScalar(safeWidth * WIDE_CHART_START_OFFSET_RATIO);
   const startLookTarget = safeTarget.clone()
     .add(upperLeftOffset)
     .add(new THREE.Vector3(0, DEV_LANDING_PANEL_HEIGHT * 0.24, 0));
@@ -1165,7 +1233,7 @@ function createWideChartTraversal({
     .addScaledVector(normalizedWallNormal, -DEV_LANDING_DISTANCE);
   startPosition.y = clampY(startPosition.y, minimumCameraY);
   const endPosition = startPosition.clone()
-    .addScaledVector(normalizedWidthAxis, safeWidth * 0.8);
+    .addScaledVector(normalizedWidthAxis, safeWidth * WIDE_CHART_TRAVERSAL_SPAN_RATIO);
   endPosition.y = clampY(
     THREE.MathUtils.lerp(startPosition.y, safeTarget.y, 0.34),
     minimumCameraY
@@ -1509,34 +1577,6 @@ function destinationLabel(labels, index) {
   const label = Array.isArray(labels) ? String(labels[index] || "").trim() : "";
   if (!label) return index >= 0 ? `Dev Task chart ${index + 1}` : "Dev Task chart";
   return /chart/i.test(label) ? label : `${label} Chart`;
-}
-
-function bugFlightSpeedScale(phase) {
-  const turnScale = THREE.MathUtils.lerp(
-    BUG_TURN_SPEED_SCALE,
-    0.82,
-    smootherStep(smoothStepRange(0, 0.3, phase))
-  );
-  const landingScale = THREE.MathUtils.lerp(
-    1,
-    BUG_APPROACH_MIN_SPEED_SCALE,
-    smootherStep(smoothStepRange(0.72, 0.96, phase))
-  );
-  return Math.min(turnScale, landingScale);
-}
-
-function sequence4SpeedScale(phase) {
-  const departureScale = THREE.MathUtils.lerp(
-    0.5,
-    0.84,
-    smootherStep(smoothStepRange(0, 0.24, phase))
-  );
-  const arrivalScale = THREE.MathUtils.lerp(
-    0.84,
-    0.46,
-    smootherStep(smoothStepRange(0.72, 0.98, phase))
-  );
-  return Math.min(departureScale, arrivalScale);
 }
 
 function describeFlightAction(route, stage, phase, pose) {

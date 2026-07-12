@@ -44,7 +44,7 @@ import {
 } from "./core/preferences.js?v=20260711-task-dialog-customize";
 import { state } from "./core/store.js";
 import { appUrl } from "./shared/app-urls.js";
-import { createAboutFeature } from "./features/about/about.js?v=20260712-about-manual-controls-84";
+import { createAboutFeature } from "./features/about/about.js?v=20260712-about-focus-outline-91";
 import { createBacklogFeature } from "./features/backlog/backlog.js?v=20260710-rich-bug-layout";
 import { createBoardFeature } from "./features/board/board.js?v=20260710-rte-table-percent-kanban";
 import { createBugsFeature } from "./features/bugs/bugs.js?v=20260712-about-chart-gallery";

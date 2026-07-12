@@ -115,6 +115,17 @@ Sequence 3:  Random Dev Chart -> Random Bug Tracking / QA Chart
 
 40.) Change the lightning and UFO interaction so that the UFO is struck by lightning half the time.
 
+Back to the About Page - 3D Logo Flyby
+--------------------------------------
+
+41.) I'm happy with the way you smooth out of how Sequence 2 and and transitions to Sequence 3.  Now, can you do the same for Sequence 3?  Smooth out/overlap the transition to Sequence 4.
+
+42.) Also, your wide chart traversal it's still flying past the chart.  Not as much as before, but by 80% completion you have already traversed the entirety of the chart. Can you adjust / verify your logic?
+
+43.) As you traverse the wide charts, zoom out slightly so the chart is more visible.  For one of the chart, the data is very minimal and displays data mostly on the lower end of the chart.  As you traverse the chart, we actually aren't seeing any / much data on the screen.
+
+44.) When I click on the 3D scene, there appears to be this blue outline that appears, like a focus state.  Can you remove that.
+
 
 About Page - 3D Logo Flyby - Manual Controls
 --------------------------------------------
@@ -135,3 +146,7 @@ I want to completely to redo the controls as follows:
 12.) Only show these keyboard controls / hints for 5 seconds when the user has full manual control.
 13.) You already show a "manual" status/panel on the lower right.  When things are in manual mode and the user clicks that "manual" panel, it should toggle back to automatic flyby mode.
 14.) Pressing "?" brings back the keyboard controls / hints for 5 seconds.
+15.) Update the letter A so that pressing it triggers the alien event at any time and it will be struck by lightning always for this one event/trigger.
+16.) The question "?" mark key should show the keyboard controls / hits even during automatic flyby mode.
+17.) When the animation is first run and sequence 4 has been completed, show the controls / hints just once so the user can learn they exist.
+18.) Pressing "A" should not interfere with existing flyby animations, it should just trigger the alien/lightning even with the alien always being struck by the lightning for this one event.

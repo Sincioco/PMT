@@ -10,7 +10,7 @@ import { appUrl } from "../../shared/app-urls.js";
 import { createBugChartsView } from "../../shared/bug-charts.js?v=20260712-about-chart-gallery";
 import { createDevTaskChartsView } from "../../shared/dev-task-charts.js?v=20260712-about-chart-gallery";
 
-const ABOUT_VERSION = "20260712-about-manual-controls-84";
+const ABOUT_VERSION = "20260712-about-focus-outline-91";
 
 export function createAboutFeature({
   app,
@@ -70,21 +70,22 @@ export function createAboutFeature({
           <p class="about-flight-status" data-about-status aria-live="polite">
             Preparing the 3D flight…
           </p>
-          <p class="about-flight-controls">
-            <span>Hold left mouse</span> look
-            <span>Wheel</span> zoom
-            <span>WASD</span> move
-            <span>Q / E</span> down / up
-            <span>Shift</span> boost
-            <span>+ / -</span> speed
-            <span>Space</span> pause / resume
-            <span>Enter</span> restart
-            <span>A</span> alien
-            <span>L</span> lightning
-            <span>C</span> comet
-            <span>U</span> UFO
-            <span>R</span> random event
-            <span>?</span> show hints
+          <p class="about-flight-controls" aria-label="3D flight controls">
+            <span class="about-flight-controls-title">Flight controls</span>
+            <span class="about-control-hint"><kbd>Hold left mouse</kbd><span>Look around</span></span>
+            <span class="about-control-hint"><kbd>Wheel</kbd><span>Zoom</span></span>
+            <span class="about-control-hint"><kbd>WASD</kbd><span>Move</span></span>
+            <span class="about-control-hint"><kbd>Q / E</kbd><span>Down / up</span></span>
+            <span class="about-control-hint"><kbd>Shift</kbd><span>Boost</span></span>
+            <span class="about-control-hint"><kbd>+ / -</kbd><span>Speed</span></span>
+            <span class="about-control-hint"><kbd>Space</kbd><span>Pause / resume</span></span>
+            <span class="about-control-hint"><kbd>Enter</kbd><span>Restart</span></span>
+            <span class="about-control-hint"><kbd>A</kbd><span>Alien + strike</span></span>
+            <span class="about-control-hint"><kbd>L</kbd><span>Lightning</span></span>
+            <span class="about-control-hint"><kbd>C</kbd><span>Comet</span></span>
+            <span class="about-control-hint"><kbd>U</kbd><span>UFO</span></span>
+            <span class="about-control-hint"><kbd>R</kbd><span>Random event</span></span>
+            <span class="about-control-hint"><kbd>?</kbd><span>Show these hints</span></span>
           </p>
           <button type="button" class="about-flight-mode" data-about-mode disabled>3D</button>
         </div>

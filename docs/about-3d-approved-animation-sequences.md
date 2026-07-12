@@ -27,6 +27,8 @@ This is the maintained source of truth for the approved About-page camera animat
    - Select a random QA chart and turn toward it while continuing forward.
    - Continue from the precomputed and pre-blended QA curve used at the end of Sequence 2.
    - Do not reconstruct the normal QA route at the sequence boundary or use backing or retreat waypoints.
+   - Precompute Sequence 4 and blend into its opening curve before the normal QA-chart approach ends.
+   - Preserve continuous target position, heading, and FOV when handing off to Sequence 4.
    - Arrive naturally and continue into Sequence 4.
 
 4. **Sequence 4 — QA chart to the initial view**
@@ -38,12 +40,15 @@ This is the maintained source of truth for the approved About-page camera animat
 
 - The behavior is dimension-based and reusable for Dev or QA charts.
 - Any chart wider than the standard viewport threshold is approached at its upper-left area.
-- Traverse from the upper-left starting area to the chart's actual far edge at a constant `5` world-units per second.
-- The displayed completion percentage measures the real chart span; `100%` is the far edge.
+- Traverse from the upper-left starting area until the chart's far data edge is fully visible at a constant `5` world-units per second.
+- The calibrated camera-center route begins at `-0.30` of panel width and ends at `+0.34`, for a total traversal span of `0.64` of the rendered panel width. This replaces the former `0.80` span because visual testing showed the data was already fully traversed at `80%` of that longer route.
+- The displayed completion percentage measures this calibrated visible traversal; `100%` means the far data edge is fully visible without flying beyond it.
+- Ease from the `48` degree wide-chart approach FOV to a `56` degree traversal FOV so low-positioned chart data stays visible during the fly-through.
 - Do not accelerate, impose a fixed duration, add an exit runway, pause, or hold after traversal.
 - Continue immediately to the next approved sequence.
 - Derive the approach target, traversal span, percentage, and exit from the rendered chart width and wall orientation. Do not special-case chart names.
 - A wide Dev traversal ends at a different physical position, so it may build its QA route from that actual traversal endpoint. This is the intentional exception to the normal precomputed Sequence 2 handoff.
+- A wide QA traversal likewise builds Sequence 4 from its actual calibrated traversal endpoint instead of using the normal precomputed Sequence 3 handoff.
 
 ## Approved cinematic events
 
@@ -77,12 +82,20 @@ The UFO and lightning schedules are coordinated by the scene, not by the camera 
 - Pressing a movement key enters full manual mode and freezes the automatic flight-path phase. Five seconds after the final movement-key input, the camera smoothly rejoins the saved automatic path and resumes it.
 - The lower-right `MANUAL` mode panel is interactive only in manual mode. Clicking it starts the same smooth automatic-path rejoin immediately.
 - `+` and `-` change automatic flight speed without entering manual mode.
+- The user-selected flyby speed is constant across Sequences 1 through 4. Routes, chart approaches, transitions, and background events must not apply hidden acceleration or slowdown multipliers; only `+` and `-` may change it.
 - `Space` pauses or resumes the shared flight-and-event animation clock.
 - `Enter` rebuilds the About experience from its initial 2D-logo transition.
-- Control hints appear for five seconds when full manual mode begins. Pressing `?` during manual mode displays them for another five seconds.
-- `A` triggers the alien encounter, `L` triggers lightning, `C` triggers a comet, `U` triggers the UFO encounter, and `R` randomly selects an alien, lightning, or comet event.
-- Because `A` is also the standard WASD strafe-left key, pressing it both strafes left in manual movement and triggers one alien encounter. Key-repeat does not repeatedly trigger the event.
+- Control hints appear for five seconds when full manual mode begins. After Sequence 4 completes for the first time, show the hints once for five seconds during automatic flight so new users discover them; do not repeat this onboarding reveal on later loops. Pressing `?` in manual or automatic mode displays them for five seconds without changing the current flight mode.
+- Whenever visible, the control hints use one large, readable panel on the left side of the 3D scene.
+- The 3D scene canvas may receive browser focus so keyboard controls keep working, but it must not show a focus outline, border, or halo when clicked.
+- `A` triggers the alien encounter and guarantees that this manually triggered encounter is struck by lightning during its inspection phase. `L` triggers lightning, `C` triggers a comet, `U` triggers the UFO encounter without the guaranteed strike, and `R` randomly selects an alien, lightning, or comet event.
+- `A` never enters manual mode or interrupts automatic flight. It triggers one alien encounter with its guaranteed lightning strike while the approved camera sequence continues unchanged. If the camera is already in manual mode, `A` may still strafe left while triggering the encounter. Key-repeat does not repeatedly trigger the event.
 - Manual event hotkeys change event state only. They never alter camera focus, heading, FOV, speed, or flight-path phase.
+
+## 3D chart-panel theme
+
+- Dev Task charts, Bug Tracking charts, and gallery user cards always use PMT's dark chart palette and dark glass material because the gallery is set in space.
+- The 3D gallery does not observe or redraw from the application's light/dark theme selection. Changing the application theme must not change these panels.
 
 ## Implementation map
 
