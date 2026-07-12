@@ -99,3 +99,27 @@ test("UFO remains active long enough to exit after a late lightning strike", () 
 
   encounter.dispose();
 });
+
+test("UFO exposes a stable battle target and accepts a temporary battle stun", () => {
+  const scene = new THREE.Scene();
+  const resources = new Set();
+  const speechElement = {
+    hidden: true,
+    textContent: "",
+    style: { setProperty() {} }
+  };
+  const encounter = createUfoEncounter({ scene, resources, speechElement });
+  const startedAt = 300;
+
+  encounter.startNow(startedAt);
+  encounter.update(startedAt, false, true);
+  encounter.update(startedAt + 1.75 + 10.4, false, true);
+  const battleState = encounter.getBattleState();
+  assert.equal(battleState.visible, true);
+  assert.equal(battleState.encounterId, 1);
+  assert.ok(battleState.position.isVector3);
+  assert.equal(encounter.reactToBattleHit(), true);
+  assert.equal(encounter.isDepartureIncomplete(), true);
+
+  encounter.dispose();
+});

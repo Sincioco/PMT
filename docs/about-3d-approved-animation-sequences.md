@@ -59,12 +59,35 @@ This is the maintained source of truth for the approved About-page camera animat
 | UFO encounter | During Sequence 4 | Orbit, inspect PMT with its beam, speak, and depart | None |
 | PMT lightning | During Sequence 4 | Strike PMT, create sparks and heat glow, and flash the full scene | None |
 | UFO lightning | During Sequence 4, on 50% of encounters | Strike the visible UFO, briefly drop and shake it, then let it recover | None |
+| Intergalactic PMT battle | Periodically while the UFO is hovering over PMT | One to three defender ships intercept the original UFO, both sides exchange fire and dialogue, stunned ships recover, and every ship flies away | None; a separate picture-in-picture camera may track the battle |
 
 The first successful UFO lightning strike after the About scene loads must say: `This PMT really has a lot of spark!` Later successful UFO strikes select a random line from the UFO lightning-reaction pool.
 
 Once a UFO encounter has visibly started, it must finish its beam retract and departure/fly-away animation before the ship is hidden, even if Sequence 4 ends while the UFO is still speaking or scanning. If the UFO is struck by lightning, it must remain visible through its recovery long enough to continue and complete the normal exit sequence. Sequence 4 may stop new UFO encounters after its event window ends, but it must drain the active encounter instead of disabling it immediately.
 
 The UFO and lightning schedules are coordinated by the scene, not by the camera controller. The current Sequence 4 event window triggers the PMT strike about `5.2` seconds after Sequence 4 begins and attempts the optional UFO strike about `16` seconds after it begins. The UFO strike is planned independently for each Sequence 4 encounter with probability `0.5`.
+
+## Intergalactic battle event
+
+- Each new UFO encounter independently has a `0.68` probability of attracting a PMT-defense interception.
+- Pressing `M` starts a fresh UFO encounter and guarantees the intergalactic battle for that encounter, while still randomly selecting between one and three defender ships.
+- Select between one and three interceptor ships. They enter along distinct curves, surround the original UFO, exchange visible laser fire, and then leave along complete departure curves.
+- Build every interceptor from the same saucer geometry and glass/metal material structure as the original UFO. Distinguish defenders with magenta, cyan, and gold color palettes rather than unrelated fighter silhouettes.
+- The original UFO must return fire. Laser impacts use a short lightning-style electric stun: the original UFO reuses its recovery motion, while interceptor ships briefly drop, shake, and recover.
+- Battle dialogue alternates between the original UFO and PMT defenders. Keep lines short, funny, and PMT-related. Render each line in a simple rounded card tinted to the speaking ship's color. Do not add a speech tail, speaker label, or other pointer; the color identifies the speaker.
+- Battle dialogue is a screen-anchored conversation stack, independent of both the main camera and the picture-in-picture camera. Show the first line as soon as battle starts, append every later line without removing earlier lines, keep the full transcript visible until every ship completes the battle exit, then let it linger for five more seconds before dismissing it. The conversation remains readable even when no battle ship is in either camera view.
+- The battle remains a background event and must never alter the approved flyby camera, speed, FOV, sequence phase, or destination.
+- Isolate the battle update from the main animation loop. If a future battle-only runtime error occurs, abort and hide the battle event while allowing the approved flyby and the rest of the 3D scene to continue.
+- If the original UFO is outside the comfortable center area of the main camera, show a lower-right `16:9` PMT Defense Feed. Its separate camera remains centered on the PMT logo and must never track an individual UFO or redirect the main camera. Randomize its starting azimuth, height, distance, and slow orbit direction for each battle so the PMT logo is shown from a more cinematic, changing perspective.
+- The PMT Defense Feed camera renders a dedicated battle-only layer. Do not render the chart gallery, stars, floor, or other unrelated heavy scene content a second time inside the feed.
+- Include the PMT logo in the battle-only feed as a fixed spatial reference so viewers can see where the battle is taking place.
+- The feed image and its border must share the same rounded corners. Because the feed is rendered into a rectangular WebGL viewport on the main canvas, mask the four viewport corners in the HTML overlay instead of rounding only the border.
+- Do not apply scanlines, CRT treatments, color washes, or other visual effects over the picture-in-picture render.
+- The picture-in-picture feed disappears when the main camera frames the battle comfortably, when no UFO remains inside the fixed PMT-centered feed viewport, or when the battle ends. Do not newly open or reopen the feed during the final five seconds of a battle.
+- Pressing `1` toggles the battle picture-in-picture feature on or off without changing the main camera or battle animation.
+- Pressing `0` toggles all automatic and manual alien-related events on or off. When turned off, prevent new UFO encounters and battles while allowing an already-visible encounter or battle to complete its proper departure rather than disappearing abruptly. Lightning against PMT and comets remain available.
+- While a battle is active, that battle owns the original UFO encounter. Sequence 4 and the `A`/`U` hotkeys must not restart or replace it; any overlapping request is deferred or ignored so all defender ships can complete their entry, combat, and departure.
+- Once a battle starts, allow it to finish even if Sequence 4 ends. Interceptor ships may become hidden only after reaching their distant departure endpoints; never remove them abruptly near PMT.
 
 ## Camera and event invariants
 
@@ -90,7 +113,7 @@ The UFO and lightning schedules are coordinated by the scene, not by the camera 
 - Control hints appear for five seconds when full manual mode begins. Do not reveal them automatically after Sequence 4. Keep a small `?` panel in the lower-left of the 3D scene. Clicking it or pressing the `?`/slash key in manual or automatic mode toggles the hints without changing the current flight mode: open them for five seconds when hidden, or close them immediately when visible. Shift must not be required.
 - Whenever visible, the control hints use a compact vertical list anchored to the upper-left of the 3D scene. Keep one control per line so the hints are readable, but keep the panel small enough that it is noticeable without becoming the main focus.
 - The 3D scene canvas may receive browser focus so keyboard controls keep working, but it must not show a focus outline, border, or halo when clicked.
-- `A` triggers the alien encounter and guarantees that this manually triggered encounter is struck by lightning during its inspection phase. `L` triggers lightning, `C` triggers a comet, `U` triggers the UFO encounter without the guaranteed strike, and `R` randomly selects an alien, lightning, or comet event.
+- `A` triggers the alien encounter and guarantees that this manually triggered encounter is struck by lightning during its inspection phase. `L` triggers lightning, `C` triggers a comet, `U` triggers the UFO encounter without the guaranteed strike, `M` triggers a guaranteed intergalactic battle encounter, and `R` randomly selects an alien, lightning, or comet event.
 - `A` never enters manual mode or interrupts automatic flight. It triggers one alien encounter with its guaranteed lightning strike while the approved camera sequence continues unchanged. If the camera is already in manual mode, `A` may still strafe left while triggering the encounter. Key-repeat does not repeatedly trigger the event.
 - Manual event hotkeys change event state only. They never alter camera focus, heading, FOV, speed, or flight-path phase.
 
@@ -98,6 +121,7 @@ The UFO and lightning schedules are coordinated by the scene, not by the camera 
 
 - Dev Task charts, Bug Tracking charts, and gallery user cards always use PMT's dark chart palette and dark glass material because the gallery is set in space.
 - The 3D gallery does not observe or redraw from the application's light/dark theme selection. Changing the application theme must not change these panels.
+- Keep a large, luminous section label above each gallery wall: `Development Tasks` above the Dev charts, `Bug Tracking` above the Bug Tracking / QA charts, and `Development Team` above the user-card grid. Each label follows its wall orientation and remains readable from the flyby route.
 
 ## Implementation map
 

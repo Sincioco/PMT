@@ -15,6 +15,8 @@ const TEAM_CARD_WIDTH = 6.8;
 const TEAM_CARD_HEIGHT = 3.7;
 const TEAM_CARD_GAP = 0.72;
 const TEAM_GRID_BOTTOM_Y = -4.15;
+const SECTION_LABEL_HEIGHT = 1.9;
+const SECTION_LABEL_GAP = 0.75;
 const BASE_TEXTURE_WIDTH = 2048;
 const BASE_TEXTURE_HEIGHT = 1024;
 const DARK_CHART_VARIABLES = Object.freeze({
@@ -68,6 +70,14 @@ export function createAboutChartGallery({ users, devCharts, bugCharts, resources
     glassMaterials,
     maxAnisotropy
   });
+  const devLabel = createGallerySectionLabel({
+    text: "Development Tasks",
+    width: 18,
+    resources,
+    maxAnisotropy
+  });
+  devLabel.position.set(0, DEV_CHART_GRID_HEIGHT / 2 + SECTION_LABEL_GAP + SECTION_LABEL_HEIGHT / 2, 0.04);
+  devGrid.add(devLabel);
 
   const teamRows = Math.min(2, Math.max(1, users.length));
   const teamColumns = Math.max(1, Math.ceil(users.length / teamRows));
@@ -104,6 +114,14 @@ export function createAboutChartGallery({ users, devCharts, bugCharts, resources
     );
     teamGrid.add(card);
   });
+  const teamLabel = createGallerySectionLabel({
+    text: "Development Team",
+    width: Math.max(10.5, Math.min(18, teamGridWidth)),
+    resources,
+    maxAnisotropy
+  });
+  teamLabel.position.set(0, teamGridHeight / 2 + SECTION_LABEL_GAP + SECTION_LABEL_HEIGHT / 2, 0.04);
+  teamGrid.add(teamLabel);
 
   // Historical charts expand with their Sprint count instead of clipping or
   // scrolling, but each data point only needs a compact slice of 3D space.
@@ -136,6 +154,14 @@ export function createAboutChartGallery({ users, devCharts, bugCharts, resources
     glassMaterials,
     maxAnisotropy
   });
+  const bugLabel = createGallerySectionLabel({
+    text: "Bug Tracking",
+    width: Math.max(14, Math.min(20, bugGridWidth * 0.62)),
+    resources,
+    maxAnisotropy
+  });
+  bugLabel.position.set(0, DEV_CHART_GRID_HEIGHT / 2 + SECTION_LABEL_GAP + SECTION_LABEL_HEIGHT / 2, 0.04);
+  bugGrid.add(bugLabel);
 
   const group = new THREE.Group();
   group.name = "PMT 3D Chart Gallery";
@@ -187,6 +213,58 @@ export function createAboutChartGallery({ users, devCharts, bugCharts, resources
     teamGrowthDirection: "away-from-dev-wall",
     dispose() {}
   };
+}
+
+function createGallerySectionLabel({ text, width, resources, maxAnisotropy }) {
+  const canvas = document.createElement("canvas");
+  canvas.width = 2048;
+  canvas.height = 256;
+  const context = canvas.getContext("2d");
+  context.clearRect(0, 0, canvas.width, canvas.height);
+
+  const gradient = context.createLinearGradient(0, 0, canvas.width, 0);
+  gradient.addColorStop(0, "rgba(5, 18, 35, 0.82)");
+  gradient.addColorStop(0.5, "rgba(12, 40, 67, 0.96)");
+  gradient.addColorStop(1, "rgba(5, 18, 35, 0.82)");
+  roundedFill(context, 18, 18, canvas.width - 36, canvas.height - 36, 54, gradient);
+  context.lineWidth = 7;
+  context.strokeStyle = "rgba(95, 213, 255, 0.9)";
+  roundedRect(context, 18, 18, canvas.width - 36, canvas.height - 36, 54);
+  context.stroke();
+  context.shadowColor = "rgba(95, 213, 255, 0.78)";
+  context.shadowBlur = 24;
+  drawText(context, text, canvas.width / 2, canvas.height / 2 + 3, {
+    align: "center",
+    baseline: "middle",
+    color: "#f4fbff",
+    font: "700 104px 'Segoe UI', Arial, sans-serif"
+  });
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.minFilter = THREE.LinearMipmapLinearFilter;
+  texture.magFilter = THREE.LinearFilter;
+  texture.generateMipmaps = true;
+  texture.anisotropy = Math.min(16, maxAnisotropy);
+  texture.needsUpdate = true;
+
+  const geometry = new THREE.PlaneGeometry(width, SECTION_LABEL_HEIGHT);
+  const material = new THREE.MeshBasicMaterial({
+    map: texture,
+    transparent: true,
+    alphaTest: 0.02,
+    side: THREE.DoubleSide,
+    toneMapped: false,
+    fog: false,
+    depthWrite: false
+  });
+  const label = new THREE.Mesh(geometry, material);
+  label.name = `${text} Gallery Label`;
+  label.renderOrder = 4;
+  resources.add(texture);
+  resources.add(geometry);
+  resources.add(material);
+  return label;
 }
 
 function addGridPanels({

@@ -10,7 +10,7 @@ import { appUrl } from "../../shared/app-urls.js";
 import { createBugChartsView } from "../../shared/bug-charts.js?v=20260712-about-chart-gallery";
 import { createDevTaskChartsView } from "../../shared/dev-task-charts.js?v=20260712-about-chart-gallery";
 
-const ABOUT_VERSION = "20260712-about-controls-ufo-103";
+const ABOUT_VERSION = "20260712-about-dialogue-linger-116";
 
 export function createAboutFeature({
   app,
@@ -84,7 +84,10 @@ export function createAboutFeature({
             <span class="about-control-hint"><kbd>L</kbd><span>Lightning</span></span>
             <span class="about-control-hint"><kbd>C</kbd><span>Comet</span></span>
             <span class="about-control-hint"><kbd>U</kbd><span>UFO</span></span>
+            <span class="about-control-hint"><kbd>M</kbd><span>Intergalactic battle</span></span>
             <span class="about-control-hint"><kbd>R</kbd><span>Random event</span></span>
+            <span class="about-control-hint"><kbd>0</kbd><span>Alien events on / off</span></span>
+            <span class="about-control-hint"><kbd>1</kbd><span>Battle PIP on / off</span></span>
             <span class="about-control-hint"><kbd>?</kbd><span>Show these hints</span></span>
           </p>
           <button type="button" class="about-flight-mode" data-about-mode disabled>3D</button>
@@ -106,6 +109,12 @@ export function createAboutFeature({
           Incoming transmission…
         </div>
 
+        <div class="about-battle-pip" data-about-battle-pip aria-label="Intergalactic battle picture in picture" hidden>
+          <span>PMT Defense Feed</span>
+        </div>
+
+        <div class="about-battle-dialogue" data-about-battle-dialogue role="status" aria-live="polite" hidden></div>
+
         <div class="about-alien-toggle-notice" data-about-alien-notice role="status" aria-live="polite" hidden></div>
 
         <p class="about-flight-fallback" data-about-fallback hidden></p>
@@ -121,6 +130,8 @@ export function createAboutFeature({
     const controlHintsTriggerElement = root.querySelector("[data-about-control-hints-button]");
     const debugElement = root.querySelector("[data-about-flight-debug]");
     const ufoSpeechElement = root.querySelector("[data-about-ufo-speech]");
+    const battlePictureInPictureElement = root.querySelector("[data-about-battle-pip]");
+    const battleDialogueElement = root.querySelector("[data-about-battle-dialogue]");
     const alienNoticeElement = root.querySelector("[data-about-alien-notice]");
 
     void import(`./about-scene.js?v=${ABOUT_VERSION}`)
@@ -137,6 +148,8 @@ export function createAboutFeature({
           controlHintsTriggerElement,
           debugElement,
           ufoSpeechElement,
+          battlePictureInPictureElement,
+          battleDialogueElement,
           alienNoticeElement,
           logoUrl,
           devCharts,

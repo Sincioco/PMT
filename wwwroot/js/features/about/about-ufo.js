@@ -38,7 +38,7 @@ const UFO_LIGHTNING_LINES = [
 
 export function createUfoEncounter({ scene, resources, speechElement }) {
   const random = seededRandom(0xa11e6a1);
-  const ship = createShip(resources);
+  const ship = createUfoShip(resources);
   const beam = createBeam(resources);
   const scanLight = new THREE.SpotLight(0x9fe7ff, 0, 11, 0.43, 0.72, 1.7);
   const scanTarget = new THREE.Object3D();
@@ -46,12 +46,20 @@ export function createUfoEncounter({ scene, resources, speechElement }) {
   const speechAnchor = new THREE.Vector3();
   const projectedSpeech = new THREE.Vector3();
   const stopPosition = new THREE.Vector3(0, 5.8, 0.7);
+  const battleState = {
+    position: new THREE.Vector3(),
+    visible: false,
+    encounterId: 0,
+    encounterTime: -1,
+    departing: false
+  };
   let sceneOffsetY = 0;
   let enabled = true;
   let enabledAt = 0;
   let nextEncounterAt = ufoFirstDelay(random);
   let encounterLeadStartedAt = null;
   let encounterIndex = 0;
+  let encounterSerial = 0;
   let pendingShadowUpdate = false;
   let orbitCurve = createOrbitCurve(stopPosition, sceneOffsetY);
   let departureCurve = createDepartureCurve(stopPosition, sceneOffsetY);
@@ -139,6 +147,7 @@ export function createUfoEncounter({ scene, resources, speechElement }) {
         return state;
       }
       encounterLeadStartedAt = activeElapsedSeconds;
+      encounterSerial += 1;
       selectSpeech(encounterIndex);
     }
 
@@ -245,6 +254,29 @@ export function createUfoEncounter({ scene, resources, speechElement }) {
     lightningReactionCount += 1;
     activeSpeechIndex = -1;
     return true;
+  }
+
+  function reactToBattleHit() {
+    if (!ship.visible) return false;
+    lightningReactionStartedAt = Number(ship.userData.encounterTime || 0);
+    activeSpeechIndex = -1;
+    return true;
+  }
+
+  function getBattleState() {
+    const encounterTime = Number(ship.userData.encounterTime);
+    battleState.position.copy(ship.position);
+    battleState.visible = ship.visible;
+    battleState.encounterId = encounterSerial;
+    battleState.encounterTime = Number.isFinite(encounterTime) ? encounterTime : -1;
+    battleState.departing = battleState.encounterTime >= BEAM_RETRACT_END;
+    return battleState;
+  }
+
+  function enablePictureInPictureLayer(layer) {
+    const layerNumber = Math.max(0, Math.trunc(Number(layer) || 0));
+    ship.traverse(object => object.layers.enable(layerNumber));
+    return layerNumber;
   }
 
   function isDepartureIncomplete() {
@@ -383,8 +415,12 @@ export function createUfoEncounter({ scene, resources, speechElement }) {
     setEnabled,
     startNow,
     getStrikePosition,
+    getBattleState,
+    enablePictureInPictureLayer,
     reactToLightning,
+    reactToBattleHit,
     isDepartureIncomplete,
+    hideSpeech,
     dispose
   };
 }
@@ -402,12 +438,18 @@ export function ufoLightningSpeechForStrike(strikeIndex, random = Math.random) {
   return UFO_LIGHTNING_LINES[Math.floor(randomValue * UFO_LIGHTNING_LINES.length)];
 }
 
-function createShip(resources) {
+export function createUfoShip(resources, {
+  bodyColor = 0xaebdca,
+  rimColor = 0x172f45,
+  rimEmissive = 0x53c9ff,
+  domeColor = 0x78dfff,
+  lightColors = [0x53c9ff, 0xff5d8f, 0xffdc72]
+} = {}) {
   const group = new THREE.Group();
 
   const bodyGeometry = new THREE.SphereGeometry(1.08, 32, 18);
   const bodyMaterial = new THREE.MeshPhysicalMaterial({
-    color: 0xaebdca,
+    color: bodyColor,
     metalness: 0.92,
     roughness: 0.16,
     clearcoat: 0.72,
@@ -423,8 +465,8 @@ function createShip(resources) {
 
   const rimGeometry = new THREE.TorusGeometry(0.86, 0.1, 10, 48);
   const rimMaterial = new THREE.MeshStandardMaterial({
-    color: 0x172f45,
-    emissive: 0x53c9ff,
+    color: rimColor,
+    emissive: rimEmissive,
     emissiveIntensity: 2.4,
     metalness: 0.75,
     roughness: 0.22
@@ -437,7 +479,7 @@ function createShip(resources) {
 
   const domeGeometry = new THREE.SphereGeometry(0.5, 24, 14, 0, Math.PI * 2, 0, Math.PI / 2);
   const domeMaterial = new THREE.MeshPhysicalMaterial({
-    color: 0x78dfff,
+    color: domeColor,
     roughness: 0.08,
     metalness: 0.04,
     transmission: 0.72,
@@ -454,7 +496,7 @@ function createShip(resources) {
   resources.add(domeMaterial);
 
   const lightGeometry = new THREE.SphereGeometry(0.065, 10, 8);
-  const lightMaterials = [0x53c9ff, 0xff5d8f, 0xffdc72].map(color => new THREE.MeshBasicMaterial({
+  const lightMaterials = lightColors.map(color => new THREE.MeshBasicMaterial({
     color,
     toneMapped: false
   }));

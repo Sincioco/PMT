@@ -163,12 +163,50 @@ I want to completely to redo the controls as follows:
 18.) Pressing "A" should not interfere with existing flyby animations, it should just trigger the alien/lightning even with the alien always being struck by the lightning for this one event.
 19.) For the "?" and the keyboard control / hints, just show it as a nice big panel on the left side of the screen.  So the user can really see/read it.
 20.) Pressing the "?" to show the keyboard control / hints does not show anything but an empty tiny panel on the lower left corner of the screen.  In fact, pressing "?" doesn't do anything at all!  It seems to want Shift + ? instead of just ?.
-
-
-
 21.) You rendered a full-dialog size keyboard control / hints.  I actually still prefer the tiny version like before, not this new big one.  I want the user to notice it, but not be the focus of attention.  And what does does the Shift (boost) do? 
 22.) When you press Enter to re-start, don't exit out of the 3D scene.  I just meant, reset everything back to Sequence 1.
 23.) Also change "Alien + strike" to "Alient + Lightning Strike" on the keyboard control / hints.
 24.) Don't make it a horizontal strip, stills how one control per line.  I just want it compacted like before.
 25.) Don't automatically show the Control hints anymore after Sequence 4.  Instead, put a "?" panel on the upper-left, so when they click on it, the control hints panel shows up for 5 seconds.
 26.) Put the "?" panel on the lower left instead.
+27.) The "?" key should be a toggle, if it is already visible hide it.
+28.) Commit and push to the repo.
+
+
+About Page - 3D PMT Logo - Intergalactic Battle Over PMT
+--------------------------------------------------------
+1.) Periodically, have between 1-3 spaceship intercept the current UFO that visits the PMT logo.
+2.) Have the other spaceships fire at the original UFO ship and have the original UFO ship return fire.
+3.) Make a short intergalatic space fight over PMT while over the PMT logo.  You can use the same lightning strike effect for when a ship is fired upon so it is temporarily stunned.
+4.) Make the ship exchange funny lines like:  "PMT is so advance, it must not fall in the wrong hands!"  Create more funny short lines like that for entertainment purposes.
+5.) Be sure all ships exit the scene properly.  Do not just make them disappear abruptly.
+6.) If the flyby sequence will render the UFO ship nearly off-screen or off-screen, put a picture-and-picture on the lower-right of the screen, so the whole event / sequence remains visible and you can also freely track the original UFO when the picture-and-picture is enabled.
+7.) This should not interfere with the current approved flyby sequences.
+8.) Wire the "M" keyboard key so I can initiate the multi-UFO intergallactic battle sequence.
+9.) Did you implement picture-in-picture so if I initiate the battle by pressing M and the camera is not near the PMT logo a picture-in-picture will show up?
+10.) The scene freezes during the intergallactic battle.  This happened on 2 different browsers.  Can you fix it?  And you can test as needed.
+11.) On the PIP, can you render the PMT logo so at least the user has some point of reference as to where the battle is taken shape?  Also, the PIP has rectangular background, but the border is rounded, creating a funny looking PIP.
+12.) Make the other UFOs look the same as the original UFO, maybe just change their shade of colors.
+13.) The PIP appears for 1-2 seconds then disappears.  When the fighting sequence is nearly over within a 5 seconds grace period, don't bother showing the PIP.
+14.) Sometimes, I see the other UFOs appear, then disappear....as if 2 events collided....and the other UFOs just got deleted instantly from the scene.
+15.) Make the UFOs conversation / bubble text stay on the screen until the battle is over.  Currently, it's appearing and disapparing so fast, the user can't even read the funny lines.
+16.) Use the original UFO's bubble speech text, but just change the color of the bubble speech text depending on which enemy UFO spoke it.
+17.) Even if the battle is not in view, keep the UFO conversations on-screen as if they were on-view.
+18.) Map the keyboard "0" to turn off all alien-related events and add that in the control hints dialog.
+19.) For the PIP, center it on the PMT Logo.  Don't track any UFOs.  Once no UFOs are visible within the PIP's viewport, hide the PIP.
+20.) Map the keyboard "1" to toggle on/off the PIP.
+21.) The keyboard "0" was meant as a toggle on/off for all alien-related events.
+22.) The PIP has this CRT effect layered on top of it.  You don't need to put any effects on the PIP.  Just render a clean representation of the battle scene.
+23.) During the UFO battle, keep all the speech bubble conversations on-screen until the battle is over.  Currently, you are still showing one bubble speech at a time during battle.  You can remove conversation bubble simpler with just the normal rounded boarders without the speaker indicator thing.  The color of the bubble tells the user enough who spoke it.
+24.) In the PIP, the PMT logo looks boring since you picked a nearly front-centered view of the PMT logo.  Pick angle/perspective that is not fixed so it can change from battle to battle.  Heck, since the PIP has its own camera, why not rotate it slightly so it's more dynamic?
+
+25.) At the top of the Dev Charts, put a big visible label that reads "Development Tasks".
+26.) At the top of the Bug Tracking / QA Charts, put a big visible label that reads "Bug Tracking".
+27.) At the top of the User Cards, put a big visible label that reads "Development Team".
+
+28.) Don't dismiss the UFO conversations so soon after the battle.  Let it linger there for another 5 seconds on-screen.
+
+Before proceeding with the Documentation task, commit and push to the repo.
+
+29.) Add a whole new section to the Gallery.  This time, it will be "Documentation".  Render the last 20 Documentation Cards in front of the PMT logo.  See attached diagram for placement and orientation (in red).
+30.) The Documentation cards should be visible during the flyby, so be sure it is facing towards the PMT logo.

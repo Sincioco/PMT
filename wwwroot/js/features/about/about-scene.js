@@ -1,15 +1,21 @@
 import * as THREE from "../../vendor/three/three.module.min.js";
 import { RoomEnvironment } from "../../vendor/three/addons/environments/RoomEnvironment.js?v=0.185.1-pmt1";
 import { SVGLoader } from "../../vendor/three/addons/loaders/SVGLoader.js?v=0.185.1-pmt1";
-import { createAboutFlightController } from "./about-flight-controller.js?v=20260712-about-controls-ufo-103";
-import { createLogoLightningEffect } from "./about-lightning.js?v=20260712-about-controls-ufo-103";
-import { createUfoEncounter } from "./about-ufo.js?v=20260712-about-controls-ufo-103";
+import { createAboutFlightController } from "./about-flight-controller.js?v=20260712-about-dialogue-linger-116";
+import { createLogoLightningEffect } from "./about-lightning.js?v=20260712-about-dialogue-linger-116";
+import {
+  SPACE_BATTLE_DIALOGUE_LINGER_SECONDS,
+  SPACE_BATTLE_PIP_GRACE_SECONDS,
+  SPACE_BATTLE_PIP_LAYER,
+  createIntergalacticBattle
+} from "./about-space-battle.js?v=20260712-about-dialogue-linger-116";
+import { createUfoEncounter } from "./about-ufo.js?v=20260712-about-dialogue-linger-116";
 import {
   createAboutChartGallery,
   DEV_CHART_GRID_HEIGHT,
   DEV_CHART_GRID_WIDTH,
   DEV_CHART_GRID_Z
-} from "./about-workload-billboard.js?v=20260712-about-controls-ufo-103";
+} from "./about-workload-billboard.js?v=20260712-about-dialogue-linger-116";
 
 const INTRO_DURATION_MS = 3000;
 const INTRO_FADE_DURATION_MS = 1250;
@@ -35,6 +41,8 @@ export function createAboutScene({
   controlHintsTriggerElement,
   debugElement,
   ufoSpeechElement,
+  battlePictureInPictureElement,
+  battleDialogueElement,
   alienNoticeElement,
   logoUrl,
   devCharts,
@@ -49,16 +57,20 @@ export function createAboutScene({
   const renderer = createRenderer(canvas);
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(42, 1, 0.035, 300);
+  const battlePictureInPictureCamera = new THREE.PerspectiveCamera(44, 16 / 9, 0.035, 300);
+  battlePictureInPictureCamera.layers.set(SPACE_BATTLE_PIP_LAYER);
   const resizeObserver = new ResizeObserver(resize);
   const resources = new Set();
   const animatedLights = [];
   const backgroundEventRandom = seededRandom(0x51a7e4);
   const ufoStrikePosition = new THREE.Vector3();
+  const battlePictureInPictureFocus = new THREE.Vector3(0, 0.5, 0);
 
   let environmentTexture = null;
   let flightController = null;
   let lightningEffect = null;
   let ufoEncounter = null;
+  let intergalacticBattle = null;
   let backgroundComets = null;
   let logoGroup = null;
   let chartGallery = null;
@@ -78,6 +90,8 @@ export function createAboutScene({
   let sequence4LogoStrikeDone = false;
   let sequence4UfoStrikePlanned = false;
   let sequence4UfoStrikeDone = false;
+  let alienEventsEnabled = true;
+  let battlePictureInPictureEnabled = true;
   let disposed = false;
 
   try {
@@ -107,6 +121,10 @@ export function createAboutScene({
     scene.add(chartGallery.group);
     root.dataset.aboutWorkloadBillboard = "ready";
     root.dataset.aboutWorkloadStyle = "dev-and-bug-charts";
+    root.dataset.aboutGallerySectionLabels = "Development Tasks|Bug Tracking|Development Team";
+    root.dataset.aboutDevGalleryLabel = "Development Tasks";
+    root.dataset.aboutBugGalleryLabel = "Bug Tracking";
+    root.dataset.aboutTeamGalleryLabel = "Development Team";
     root.dataset.aboutWorkloadFrame = "none";
     root.dataset.aboutWorkloadPerimeter = "none";
     root.dataset.aboutWorkloadStand = "none";
@@ -152,8 +170,16 @@ export function createAboutScene({
       resources,
       speechElement: ufoSpeechElement
     });
+    intergalacticBattle = createIntergalacticBattle({
+      scene,
+      resources,
+      root,
+      ufoEncounter,
+      dialogueElement: battleDialogueElement,
+      pictureInPictureElement: battlePictureInPictureElement
+    });
     ufoEncounter.setEnabled(false, 0);
-    root.dataset.aboutCinematicEvents = "sequence-4-background-ufo";
+    root.dataset.aboutCinematicEvents = "sequence-4-background-ufo-and-periodic-space-battle";
     root.dataset.aboutUfoEnabled = "true";
     root.dataset.aboutUfoSchedule = "sequence-4-background";
     root.dataset.aboutUfoSequence4Active = "false";
@@ -162,6 +188,36 @@ export function createAboutScene({
     root.dataset.aboutUfoSequence4Playback = "full-background-animation";
     root.dataset.aboutUfoDepartureCompletion = "finish-before-hide-even-after-lightning";
     root.dataset.aboutUfoDepartureDraining = "false";
+    root.dataset.aboutIntergalacticBattle = "periodic-ufo-interception";
+    root.dataset.aboutIntergalacticBattleActive = "false";
+    root.dataset.aboutBattleInterceptorRange = "1-3";
+    root.dataset.aboutBattleInterceptorCount = "0";
+    root.dataset.aboutBattlePhase = "idle";
+    root.dataset.aboutBattleShotCount = "0";
+    root.dataset.aboutBattleEventCount = "0";
+    root.dataset.aboutBattleShipDeparture = "animated-complete-exit";
+    root.dataset.aboutBattleOriginalUfoReturnFire = "true";
+    root.dataset.aboutBattleInterceptorShipStyle = "original-ufo-color-variants";
+    root.dataset.aboutBattleStunEffect = "lightning-style-electric-stun";
+    root.dataset.aboutBattleCameraInfluence = "none";
+    root.dataset.aboutBattlePictureInPicture = "visibility-driven-lower-right";
+    root.dataset.aboutBattlePictureInPictureCamera = "pmt-logo-centered-battle-variant-slow-orbit";
+    root.dataset.aboutBattlePictureInPictureShipTracking = "none";
+    root.dataset.aboutBattlePictureInPictureHideRule = "hide-when-no-ufo-visible-in-feed";
+    root.dataset.aboutBattlePictureInPictureRenderLayer = "battle-only";
+    root.dataset.aboutBattlePictureInPictureGraceSeconds = String(SPACE_BATTLE_PIP_GRACE_SECONDS);
+    root.dataset.aboutBattlePictureInPictureEnabled = "true";
+    root.dataset.aboutBattlePictureInPictureActive = "false";
+    root.dataset.aboutBattlePictureInPictureRuntimeError = "";
+    root.dataset.aboutBattleRuntimeError = "";
+    root.dataset.aboutBattleEventCollisionPolicy = "preserve-active-battle-no-ufo-restart";
+    root.dataset.aboutBattleEventCollisionCount = "0";
+    root.dataset.aboutBattleDialogueStyle = "stacked-color-coded-rounded-cards";
+    root.dataset.aboutBattleDialogueVisibility = "always-on-screen-while-battle-active";
+    root.dataset.aboutBattleDialogueCameraVisibility = "independent";
+    root.dataset.aboutBattleDialoguePersistence = "all-lines-until-battle-complete";
+    root.dataset.aboutBattleDialogueLingerSeconds = String(SPACE_BATTLE_DIALOGUE_LINGER_SECONDS);
+    root.dataset.aboutBattleDialogueLingering = "false";
     root.dataset.aboutLightningEnabled = "true";
     root.dataset.aboutLightningSchedule = "sequence-4-background";
     root.dataset.aboutLightningCameraInfluence = "none";
@@ -173,7 +229,10 @@ export function createAboutScene({
     root.dataset.aboutLightningStrikeCount = "0";
     root.dataset.aboutLightningUfoStrikeCount = "0";
     root.dataset.aboutLightningTarget = "";
-    root.dataset.aboutEventHotkeys = "A,L,C,U,R";
+    root.dataset.aboutEventHotkeys = "A,L,C,U,R,M,0,1";
+    root.dataset.aboutAlienEventsEnabled = "true";
+    root.dataset.aboutAlienEventsToggleKey = "0";
+    root.dataset.aboutBattlePictureInPictureToggleKey = "1";
     root.dataset.aboutRandomEventChoices = "alien,lightning,comet";
     root.dataset.aboutEventCameraInfluence = "none";
     root.dataset.aboutAnimationPauseScope = "flight-and-events";
@@ -183,6 +242,9 @@ export function createAboutScene({
     root.dataset.aboutAlienHotkeyLightning = "guaranteed";
     root.dataset.aboutAlienHotkeyStrikeDelaySeconds = String(SEQUENCE_4_UFO_STRIKE_SECONDS);
     root.dataset.aboutAlienHotkeyStrikePending = "false";
+    root.dataset.aboutBattleHotkey = "M";
+    root.dataset.aboutBattleForcedInterceptorCount = "0";
+    root.dataset.aboutAnimationRuntimeError = "";
     root.dataset.aboutMinCameraFloorClearance = String(MIN_CAMERA_FLOOR_CLEARANCE);
 
     camera.position.set(0, 1.5, 21);
@@ -220,7 +282,11 @@ export function createAboutScene({
       const logoGroundOffset = FLOOR_Y - naturalBounds.min.y + groundClearance;
       logoGroup.position.y = logoGroundOffset;
       logoGroup.scale.setScalar(0.9);
+      logoGroup.traverse(object => object.layers.enable(SPACE_BATTLE_PIP_LAYER));
       scene.add(logoGroup);
+      logoGroup.updateMatrixWorld(true);
+      new THREE.Box3().setFromObject(logoGroup).getCenter(battlePictureInPictureFocus);
+      root.dataset.aboutBattlePictureInPictureReference = "pmt-logo";
       lightningEffect = createLogoLightningEffect({
         scene,
         resources,
@@ -274,20 +340,29 @@ export function createAboutScene({
       return;
     }
 
-    const realDeltaSeconds = Math.min((now - lastFrameAt) / 1000, 0.05);
-    lastFrameAt = now;
-    const animationPaused = flightController?.isPaused() || false;
-    const animationDeltaSeconds = animationPaused ? 0 : realDeltaSeconds;
-    animationElapsedMs += animationDeltaSeconds * 1000;
-    const animationNow = startedAt + animationElapsedMs;
-    updateIntro(animationNow);
-    const encounter = updateSceneMotion(animationNow);
-    if (encounter?.shadowUpdate) renderer.shadowMap.needsUpdate = true;
-    flightController?.setCinematicFocus(null, 0);
-    flightController?.update(animationNow, animationDeltaSeconds);
-    ufoEncounter?.updateSpeech(camera, root);
-    renderer.render(scene, camera);
-    frameId = requestAnimationFrame(animate);
+    try {
+      const realDeltaSeconds = Math.min((now - lastFrameAt) / 1000, 0.05);
+      lastFrameAt = now;
+      const animationPaused = flightController?.isPaused() || false;
+      const animationDeltaSeconds = animationPaused ? 0 : realDeltaSeconds;
+      animationElapsedMs += animationDeltaSeconds * 1000;
+      const animationNow = startedAt + animationElapsedMs;
+      updateIntro(animationNow);
+      const encounter = updateSceneMotion(animationNow);
+      if (encounter?.shadowUpdate) renderer.shadowMap.needsUpdate = true;
+      flightController?.setCinematicFocus(null, 0);
+      flightController?.update(animationNow, animationDeltaSeconds);
+      if (intergalacticBattle?.isActive()) ufoEncounter?.hideSpeech?.();
+      else ufoEncounter?.updateSpeech(camera, root);
+      renderScene();
+      root.dataset.aboutAnimationRuntimeError = "";
+    } catch (error) {
+      root.dataset.aboutAnimationRuntimeError = String(error?.stack || error?.message || error);
+      intergalacticBattle?.abort?.();
+      battlePictureInPictureElement.hidden = true;
+    } finally {
+      frameId = requestAnimationFrame(animate);
+    }
   }
 
   function updateIntro(now) {
@@ -350,11 +425,19 @@ export function createAboutScene({
     }
 
     const encounterElapsed = experienceStarted ? (now - revealStartedAt) / 1000 : -1;
-    const sequence4Active = SEQUENCE_4_BACKGROUND_UFO_ENABLED
+    const sequence4Active = alienEventsEnabled
+      && SEQUENCE_4_BACKGROUND_UFO_ENABLED
       && root.dataset.aboutFlightSequenceStage === "return-initial";
     if (sequence4Active && !sequence4UfoActive) {
       sequence4UfoDraining = false;
-      ufoEncounter?.startNow(encounterElapsed);
+      if (intergalacticBattle?.isActive()) {
+        manualUfoActiveUntil = Math.max(manualUfoActiveUntil, encounterElapsed + 26);
+        root.dataset.aboutBattleEventCollisionCount = String(
+          Number(root.dataset.aboutBattleEventCollisionCount || 0) + 1
+        );
+      } else {
+        ufoEncounter?.startNow(encounterElapsed);
+      }
       lightningEffect?.setEnabled(true, encounterElapsed);
       sequence4EventStartedAt = encounterElapsed;
       sequence4LogoStrikeDone = false;
@@ -385,6 +468,23 @@ export function createAboutScene({
       reducedMotion,
       sequence4Active || manualUfoActive
     ) || null;
+    let battle = null;
+    try {
+      battle = intergalacticBattle?.update(encounterElapsed, reducedMotion) || null;
+    } catch (error) {
+      root.dataset.aboutBattleRuntimeError = String(error?.stack || error?.message || error);
+      root.dataset.aboutIntergalacticBattleActive = "false";
+      root.dataset.aboutBattlePhase = "aborted";
+      intergalacticBattle?.abort?.();
+    }
+    if (battle) {
+      root.dataset.aboutIntergalacticBattleActive = String(battle.active);
+      root.dataset.aboutBattleInterceptorCount = String(battle.interceptorCount);
+      root.dataset.aboutBattlePhase = battle.phase;
+      root.dataset.aboutBattleShotCount = String(battle.shotCount);
+      root.dataset.aboutBattleEventCount = String(battle.eventCount);
+      if (battle.shadowUpdate) renderer.shadowMap.needsUpdate = true;
+    }
     if (sequence4UfoDraining
       && !sequence4Active
       && !manualUfoActive
@@ -445,6 +545,47 @@ export function createAboutScene({
     return encounter;
   }
 
+  function renderScene() {
+    renderer.setScissorTest(false);
+    renderer.setViewport(0, 0, root.clientWidth, root.clientHeight);
+    renderer.render(scene, camera);
+
+    let pictureInPictureActive = false;
+    try {
+      pictureInPictureActive = Boolean(intergalacticBattle?.updatePictureInPicture(
+        camera,
+        battlePictureInPictureCamera,
+        battlePictureInPictureFocus,
+        battlePictureInPictureEnabled
+      ));
+      root.dataset.aboutBattlePictureInPictureRuntimeError = "";
+    } catch (error) {
+      battlePictureInPictureElement.hidden = true;
+      root.dataset.aboutBattlePictureInPictureActive = "false";
+      root.dataset.aboutBattlePictureInPictureRuntimeError = String(
+        error?.stack || error?.message || error
+      );
+      return;
+    }
+    if (!pictureInPictureActive) return;
+
+    const rootRect = root.getBoundingClientRect();
+    const pictureRect = battlePictureInPictureElement.getBoundingClientRect();
+    const width = Math.max(1, pictureRect.width);
+    const height = Math.max(1, pictureRect.height);
+    const x = Math.max(0, pictureRect.left - rootRect.left);
+    const y = Math.max(0, rootRect.bottom - pictureRect.bottom);
+    battlePictureInPictureCamera.aspect = width / height;
+    battlePictureInPictureCamera.updateProjectionMatrix();
+    renderer.setScissorTest(true);
+    renderer.setScissor(x, y, width, height);
+    renderer.setViewport(x, y, width, height);
+    renderer.clearDepth();
+    renderer.render(scene, battlePictureInPictureCamera);
+    renderer.setScissorTest(false);
+    renderer.setViewport(0, 0, root.clientWidth, root.clientHeight);
+  }
+
   function resize() {
     if (disposed) return;
     const width = Math.max(1, root.clientWidth);
@@ -486,17 +627,71 @@ export function createAboutScene({
     const sceneSeconds = (startedAt + animationElapsedMs) / 1000;
     let resolvedEvent = eventType;
     if (eventType === "random") {
-      const choices = ["alien", "lightning", "comet"];
+      const choices = alienEventsEnabled
+        ? ["alien", "lightning", "comet"]
+        : ["lightning", "comet"];
       resolvedEvent = choices[Math.floor(backgroundEventRandom() * choices.length)];
     }
 
-    if (resolvedEvent === "alien") {
+    if (resolvedEvent === "alien-toggle") {
+      alienEventsEnabled = !alienEventsEnabled;
+      intergalacticBattle?.setEnabled?.(alienEventsEnabled);
+      root.dataset.aboutAlienEventsEnabled = String(alienEventsEnabled);
+      root.dataset.aboutUfoEnabled = String(alienEventsEnabled);
+      if (!alienEventsEnabled) {
+        manualUfoActiveUntil = encounterElapsed;
+        manualAlienStrikePending = false;
+        manualAlienStrikeAt = Number.POSITIVE_INFINITY;
+        root.dataset.aboutAlienHotkeyStrikePending = "false";
+      }
+      showEffectNotice(
+        alienEventsEnabled
+          ? "Alien events ON"
+          : "Alien events OFF - active ships will complete their exit",
+        alienEventsEnabled,
+        "alien"
+      );
+    } else if (resolvedEvent === "pip-toggle") {
+      battlePictureInPictureEnabled = !battlePictureInPictureEnabled;
+      root.dataset.aboutBattlePictureInPictureEnabled = String(battlePictureInPictureEnabled);
+      if (!battlePictureInPictureEnabled) battlePictureInPictureElement.hidden = true;
+      showEffectNotice(
+        `Battle PIP ${battlePictureInPictureEnabled ? "ON" : "OFF"}`,
+        battlePictureInPictureEnabled,
+        "battle"
+      );
+    } else if ((resolvedEvent === "battle" || resolvedEvent === "alien") && !alienEventsEnabled) {
+      showEffectNotice("Alien events are OFF - press 0 to enable", false, "alien");
+    } else if (resolvedEvent === "battle") {
+      const interceptorCount = intergalacticBattle?.forceNextBattle?.() || 0;
+      if (interceptorCount > 0) {
+        sequence4UfoDraining = false;
+        manualUfoActiveUntil = encounterElapsed + 26;
+        ufoEncounter?.startNow(encounterElapsed);
+        root.dataset.aboutUfoEnabled = "true";
+        root.dataset.aboutBattleForcedInterceptorCount = String(interceptorCount);
+        showEffectNotice(
+          `Intergalactic battle incoming - ${interceptorCount} defender${interceptorCount === 1 ? "" : "s"}`,
+          true,
+          "battle"
+        );
+      } else {
+        showEffectNotice("Intergalactic battle already in progress", true, "battle");
+      }
+    } else if (resolvedEvent === "alien") {
+      const battleActive = Boolean(intergalacticBattle?.isActive());
       sequence4UfoDraining = false;
-      manualUfoActiveUntil = encounterElapsed + 25;
-      ufoEncounter?.startNow(encounterElapsed);
+      manualUfoActiveUntil = Math.max(manualUfoActiveUntil, encounterElapsed + 25);
+      if (battleActive) {
+        root.dataset.aboutBattleEventCollisionCount = String(
+          Number(root.dataset.aboutBattleEventCollisionCount || 0) + 1
+        );
+      } else {
+        ufoEncounter?.startNow(encounterElapsed);
+      }
       root.dataset.aboutUfoEnabled = "true";
       if (sourceKey === "KeyA") {
-        manualAlienStrikeAt = encounterElapsed + SEQUENCE_4_UFO_STRIKE_SECONDS;
+        manualAlienStrikeAt = encounterElapsed + (battleActive ? 1.2 : SEQUENCE_4_UFO_STRIKE_SECONDS);
         manualAlienStrikePending = true;
         root.dataset.aboutAlienHotkeyStrikePending = "true";
       }
@@ -566,6 +761,8 @@ export function createAboutScene({
     lightningEffect = null;
     chartGallery?.dispose();
     chartGallery = null;
+    intergalacticBattle?.dispose();
+    intergalacticBattle = null;
     ufoEncounter?.dispose();
     ufoEncounter = null;
 
@@ -1185,6 +1382,9 @@ function isTypingTarget(target) {
 }
 
 function eventTypeForKey(code) {
+  if (code === "Digit0" || code === "Numpad0") return "alien-toggle";
+  if (code === "Digit1" || code === "Numpad1") return "pip-toggle";
+  if (code === "KeyM") return "battle";
   if (code === "KeyA" || code === "KeyU") return "alien";
   if (code === "KeyL") return "lightning";
   if (code === "KeyC") return "comet";
