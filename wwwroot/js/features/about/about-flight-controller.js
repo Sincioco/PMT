@@ -1,5 +1,4 @@
 import * as THREE from "../../vendor/three/three.module.min.js";
-import { PointerLockControls } from "../../vendor/three/addons/controls/PointerLockControls.js?v=0.185.1-pmt1";
 
 const FLIGHT_DURATION_SECONDS = 26;
 const BUG_FLIGHT_DURATION_SECONDS = 19;
@@ -14,6 +13,7 @@ const DRONE_FOV_RESPONSE = 1.4;
 const EVENT_HEADING_RESPONSE = 7;
 const IDLE_DURATION_MS = 5000;
 const RETURN_DURATION_MS = 3250;
+const CONTROL_HINT_DURATION_MS = 5000;
 const WALK_SPEED = 6;
 const BOOST_SPEED = 13;
 const CAMERA_FAR_LIMIT = 80;
@@ -34,8 +34,10 @@ const WIDE_CHART_FOV = 48;
 const DEFAULT_FOV = 42;
 const INSPECTION_FOV = 52;
 const PORTAL_FOV = 40;
-const MOVEMENT_KEYS = new Set(["KeyW", "KeyA", "KeyS", "KeyD", "Space"]);
+const MOVEMENT_KEYS = new Set(["KeyW", "KeyA", "KeyS", "KeyD", "KeyQ", "KeyE"]);
 const BOOST_KEYS = new Set(["ShiftLeft", "ShiftRight"]);
+const MIN_USER_FOV = 24;
+const MAX_USER_FOV = 76;
 
 export function createAboutFlightController({
   camera,
@@ -56,10 +58,10 @@ export function createAboutFlightController({
   statusElement,
   modeElement,
   debugElement,
-  reducedMotion
+  reducedMotion,
+  onRestart = () => {}
 }) {
   const abortController = new AbortController();
-  const controls = new PointerLockControls(camera, canvas);
   const focusPoint = sceneFocus?.clone?.() || new THREE.Vector3();
   const devDestinations = normalizeTargets(billboardTargets, billboardTarget);
   const bugDestinations = normalizeTargets(secondaryTargets, secondaryTarget);
@@ -109,15 +111,19 @@ export function createAboutFlightController({
   let activeWideTraversal = null;
   let sequence4Geometry = null;
   let debugTestRun = 1;
+  let controllerNow = performance.now();
   let lastInputAt = performance.now();
+  let automaticFlightSuspendedAt = null;
   let returnStartedAt = 0;
   let returnFromFov = camera.fov;
+  let pausedFromMode = "auto";
+  let controlHintsTimer = 0;
+  let userFovOffset = 0;
   let dragging = false;
   let dragX = 0;
   let dragY = 0;
   let disposed = false;
 
-  controls.pointerSpeed = 0.72;
   sampleFlightPose(
     route,
     autopilotPhase,
@@ -147,6 +153,7 @@ export function createAboutFlightController({
   root.dataset.aboutFlightTestMode = "approved-sequences-1-through-4";
   root.dataset.aboutFlightTiming = "continuous-no-pause-no-hold";
   root.dataset.aboutDefaultFlightSpeed = "2";
+  root.dataset.aboutFlightSpeed = formatFlightSpeed();
   root.dataset.aboutDevLandingResetKey = "Automatic";
   root.dataset.aboutDevLandingTestRun = String(debugTestRun);
   root.dataset.aboutDevLandingTestState = "approaching-dev";
@@ -171,6 +178,20 @@ export function createAboutFlightController({
   root.dataset.aboutSequence4DurationSeconds = String(SEQUENCE_4_DURATION_SECONDS);
   root.dataset.aboutBugLandingDistance = String(DEV_LANDING_DISTANCE);
   root.dataset.aboutFlightSequenceStage = flightStage;
+  root.dataset.aboutMouseControl = "hold-left-button-autopilot-continues";
+  root.dataset.aboutMouseLookActive = "false";
+  root.dataset.aboutMousePointerLock = "disabled";
+  root.dataset.aboutWheelControl = "zoom-without-manual-takeover";
+  root.dataset.aboutKeyboardManualKeys = "W,A,S,D,Q,E";
+  root.dataset.aboutAKeyBehavior = "strafe-left-and-trigger-alien";
+  root.dataset.aboutKeyboardManualIdleSeconds = String(IDLE_DURATION_MS / 1000);
+  root.dataset.aboutSpeedKeysStayAutomatic = "true";
+  root.dataset.aboutPauseKey = "Space";
+  root.dataset.aboutRestartKey = "Enter";
+  root.dataset.aboutControlHintsKey = "?";
+  root.dataset.aboutControlHintsDurationSeconds = String(CONTROL_HINT_DURATION_MS / 1000);
+  root.dataset.aboutControlHintsVisible = "false";
+  root.dataset.aboutManualModePanelAction = "resume-autopilot";
   updateRouteDatasets();
 
   const listenerOptions = { signal: abortController.signal };
@@ -179,12 +200,10 @@ export function createAboutFlightController({
   canvas.addEventListener("pointerup", stopDragging, listenerOptions);
   canvas.addEventListener("pointercancel", stopDragging, listenerOptions);
   canvas.addEventListener("wheel", onWheel, { passive: false, signal: abortController.signal });
+  modeElement.addEventListener("click", onModeClick, listenerOptions);
   window.addEventListener("keydown", onKeyDown, listenerOptions);
   window.addEventListener("keyup", onKeyUp, listenerOptions);
   window.addEventListener("blur", clearKeys, listenerOptions);
-  controls.addEventListener("change", onPointerLockChange);
-  controls.addEventListener("lock", onPointerLockStart);
-  controls.addEventListener("unlock", onPointerLockEnd);
 
   function startAutopilot() {
     if (disposed) return;
@@ -193,6 +212,7 @@ export function createAboutFlightController({
 
   function update(now, deltaSeconds) {
     if (disposed) return;
+    controllerNow = now;
 
     if (mode === "auto") {
       if (flightStage === "wide-flythrough") {
@@ -284,6 +304,7 @@ export function createAboutFlightController({
         eventQuaternion.setFromRotationMatrix(eventLookMatrix);
         autopilotTarget.quaternion.slerp(eventQuaternion, smootherStep(cinematicAttention));
       }
+      autopilotTarget.fov = userAdjustedFov(autopilotTarget.fov);
 
       const positionBlend = 1 - Math.exp(-DRONE_POSITION_RESPONSE * deltaSeconds);
       const headingResponse = cinematicAttention > 0.04
@@ -292,7 +313,9 @@ export function createAboutFlightController({
       const headingBlend = 1 - Math.exp(-headingResponse * deltaSeconds);
       const fovBlend = 1 - Math.exp(-DRONE_FOV_RESPONSE * deltaSeconds);
       camera.position.lerp(autopilotTarget.position, positionBlend);
-      camera.quaternion.slerp(autopilotTarget.quaternion, headingBlend).normalize();
+      if (!dragging) {
+        camera.quaternion.slerp(autopilotTarget.quaternion, headingBlend).normalize();
+      }
       camera.fov = THREE.MathUtils.lerp(camera.fov, autopilotTarget.fov, fovBlend);
       camera.updateProjectionMatrix();
       pose.copyFrom(autopilotTarget);
@@ -332,21 +355,32 @@ export function createAboutFlightController({
       const progress = THREE.MathUtils.clamp((now - returnStartedAt) / RETURN_DURATION_MS, 0, 1);
       const eased = smootherStep(progress);
       camera.position.lerpVectors(returnFromPosition, returnTarget.position, eased);
-      camera.quaternion.slerpQuaternions(returnFromQuaternion, returnTarget.quaternion, eased);
+      if (!dragging) {
+        camera.quaternion.slerpQuaternions(returnFromQuaternion, returnTarget.quaternion, eased);
+      }
       camera.fov = THREE.MathUtils.lerp(returnFromFov, returnTarget.fov, eased);
       camera.updateProjectionMatrix();
       if (progress >= 1) {
-        applyPose(camera, returnTarget);
+        if (!dragging) applyPose(camera, returnTarget);
+        else {
+          camera.position.copy(returnTarget.position);
+          camera.fov = returnTarget.fov;
+          camera.updateProjectionMatrix();
+        }
         pose.copyFrom(returnTarget);
+        resumeAutomaticFlightClock(now);
         setMode(prefersReducedMotion ? "reduced" : "auto");
       }
+      return;
     }
+
+    if (mode === "paused") return;
   }
 
   function updateManualMovement(now, deltaSeconds) {
     const forwardAmount = Number(keys.has("KeyW")) - Number(keys.has("KeyS"));
     const rightAmount = Number(keys.has("KeyD")) - Number(keys.has("KeyA"));
-    const upAmount = Number(keys.has("Space"));
+    const upAmount = Number(keys.has("KeyE")) - Number(keys.has("KeyQ"));
     if (!forwardAmount && !rightAmount && !upAmount) return;
 
     lastInputAt = now;
@@ -360,25 +394,28 @@ export function createAboutFlightController({
     camera.position.clamp(minPosition, maxPosition);
   }
 
-  function beginManual(now = performance.now()) {
+  function beginManual(now = controllerNow) {
     if (mode === "intro" || disposed) return false;
-    if (mode !== "manual") setMode("manual");
+    if (mode === "paused") return false;
+    if (mode !== "manual") {
+      automaticFlightSuspendedAt = now;
+      setMode("manual");
+      showControlHints();
+    }
     lastInputAt = now;
     return true;
   }
 
   function beginReturn(now) {
-    if (controls.isLocked) controls.unlock();
     keys.clear();
     dragging = false;
-    sampleFlightPose(
-      route,
-      autopilotPhase,
-      returnTarget
-    );
+    root.dataset.aboutMouseLookActive = "false";
+    sampleCurrentAutopilotPose(returnTarget);
+    returnTarget.fov = userAdjustedFov(returnTarget.fov);
     if (prefersReducedMotion) {
       applyPose(camera, returnTarget);
       pose.copyFrom(returnTarget);
+      resumeAutomaticFlightClock(now);
       setMode("reduced");
       return;
     }
@@ -390,23 +427,18 @@ export function createAboutFlightController({
   }
 
   function onPointerDown(event) {
-    if (event.button !== 0 || !beginManual()) return;
+    if (event.button !== 0 || mode === "intro" || disposed) return;
+    event.preventDefault();
     canvas.focus({ preventScroll: true });
     dragging = true;
+    root.dataset.aboutMouseLookActive = "true";
     dragX = event.clientX;
     dragY = event.clientY;
     canvas.setPointerCapture?.(event.pointerId);
-    if (event.pointerType === "mouse" && document.pointerLockElement !== canvas) {
-      try {
-        controls.lock();
-      } catch {
-        // Pointer dragging remains available when pointer lock is unavailable.
-      }
-    }
   }
 
   function onPointerMove(event) {
-    if (!dragging || controls.isLocked || !beginManual()) return;
+    if (!dragging || disposed) return;
     const deltaX = event.clientX - dragX;
     const deltaY = event.clientY - dragY;
     dragX = event.clientX;
@@ -424,53 +456,57 @@ export function createAboutFlightController({
 
   function stopDragging(event) {
     dragging = false;
+    root.dataset.aboutMouseLookActive = "false";
     if (event?.pointerId !== undefined && canvas.hasPointerCapture?.(event.pointerId)) {
       canvas.releasePointerCapture(event.pointerId);
     }
   }
 
-  function onPointerLockStart() {
-    dragging = false;
-    beginManual();
-  }
-
-  function onPointerLockChange() {
-    beginManual();
-  }
-
-  function onPointerLockEnd() {
-    if (mode === "manual") lastInputAt = performance.now();
-  }
-
   function onWheel(event) {
-    if (!beginManual()) return;
+    if (mode === "intro" || disposed) return;
     event.preventDefault();
-    canvas.focus({ preventScroll: true });
-    direction.set(0, 0, -1).applyQuaternion(camera.quaternion).normalize();
-    const distance = THREE.MathUtils.clamp(-event.deltaY * 0.008, -2.5, 2.5);
-    camera.position.addScaledVector(direction, distance);
-    camera.position.clamp(minPosition, maxPosition);
+    const fovChange = THREE.MathUtils.clamp(event.deltaY * 0.015, -4, 4);
+    userFovOffset = THREE.MathUtils.clamp(userFovOffset + fovChange, -18, 24);
+    camera.fov = THREE.MathUtils.clamp(
+      camera.fov + fovChange,
+      MIN_USER_FOV,
+      MAX_USER_FOV
+    );
+    camera.updateProjectionMatrix();
+    root.dataset.aboutUserZoomOffset = userFovOffset.toFixed(2);
   }
 
   function onKeyDown(event) {
+    if (isTypingTarget(event.target)) return;
+    if (event.code === "Enter" && !event.repeat && noCommandModifier(event)) {
+      event.preventDefault();
+      window.setTimeout(() => {
+        if (!disposed) onRestart();
+      }, 0);
+      return;
+    }
+    if (event.code === "Space" && !event.repeat && noCommandModifier(event)) {
+      event.preventDefault();
+      toggleAnimationPause();
+      return;
+    }
+    if (isControlHintsKey(event) && !event.repeat && noCommandModifier(event)) {
+      event.preventDefault();
+      showControlHints();
+      return;
+    }
     const speedDirection = flightSpeedDirection(event);
-    const sceneHasKeyboard = controls.isLocked || document.activeElement === canvas;
     if (speedDirection
-      && sceneHasKeyboard
-      && !event.ctrlKey
-      && !event.metaKey
-      && !event.altKey
-      && !isTypingTarget(event.target)) {
+      && noCommandModifier(event)) {
       event.preventDefault();
       if (!event.repeat) adjustFlightSpeed(speedDirection);
       return;
     }
-    if (BOOST_KEYS.has(event.code) && sceneHasKeyboard) {
+    if (BOOST_KEYS.has(event.code) && mode === "manual") {
       keys.add(event.code);
       return;
     }
-    if (!MOVEMENT_KEYS.has(event.code) || isTypingTarget(event.target)) return;
-    if (!controls.isLocked && document.activeElement !== canvas) return;
+    if (!MOVEMENT_KEYS.has(event.code) || !noCommandModifier(event)) return;
     if (!beginManual()) return;
     event.preventDefault();
     keys.add(event.code);
@@ -479,16 +515,105 @@ export function createAboutFlightController({
   function onKeyUp(event) {
     if (!MOVEMENT_KEYS.has(event.code) && !BOOST_KEYS.has(event.code)) return;
     keys.delete(event.code);
-    if (mode === "manual") lastInputAt = performance.now();
+    if (mode === "manual") lastInputAt = controllerNow;
   }
 
   function clearKeys() {
     keys.clear();
+    if (mode === "manual") lastInputAt = controllerNow;
+  }
+
+  function sampleCurrentAutopilotPose(target) {
+    if (flightStage === "wide-flythrough" && activeWideTraversal) {
+      const progress = activeWideTraversal.progress || 0;
+      target.position.lerpVectors(
+        activeWideTraversal.startPosition,
+        activeWideTraversal.endPosition,
+        progress
+      );
+      target.quaternion.slerpQuaternions(
+        activeWideTraversal.startQuaternion,
+        activeWideTraversal.endQuaternion,
+        smootherStep(progress)
+      ).normalize();
+      target.fov = THREE.MathUtils.lerp(
+        activeWideTraversal.startFov,
+        WIDE_CHART_FOV,
+        smootherStep(progress)
+      );
+      target.logoAttention = 0;
+      target.portalAttention = 0;
+      target.devAttention = 0;
+      target.bugAttention = 0;
+      target.horizonAttention = 0;
+      target.waitingForInstruction = false;
+      return;
+    }
+    if (flightStage === "bug") {
+      sampleBugFlightPose(route, autopilotPhase, target, camera.aspect);
+      return;
+    }
+    if (flightStage === "return-initial" && sequence4Geometry) {
+      sampleSequence4Pose(sequence4Geometry, autopilotPhase, target);
+      return;
+    }
+    sampleFlightPose(route, autopilotPhase, target);
+  }
+
+  function resumeAutomaticFlightClock(now) {
+    if (automaticFlightSuspendedAt === null) return;
+    if (flightStage === "wide-flythrough") {
+      stageStartedAt += Math.max(0, now - automaticFlightSuspendedAt);
+    }
+    automaticFlightSuspendedAt = null;
+  }
+
+  function toggleAnimationPause() {
+    if (mode === "intro" || mode === "reduced") return;
+    if (mode === "paused") {
+      const resumedMode = pausedFromMode === "paused" ? "auto" : pausedFromMode;
+      if (resumedMode === "manual") lastInputAt = controllerNow;
+      setMode(resumedMode);
+      return;
+    }
+    pausedFromMode = mode;
+    keys.clear();
+    dragging = false;
+    root.dataset.aboutMouseLookActive = "false";
+    setMode("paused");
+  }
+
+  function showControlHints() {
+    if (mode !== "manual" || disposed) return;
+    lastInputAt = controllerNow;
+    window.clearTimeout(controlHintsTimer);
+    root.dataset.aboutControlHintsVisible = "true";
+    controlHintsTimer = window.setTimeout(() => {
+      if (!disposed) root.dataset.aboutControlHintsVisible = "false";
+    }, CONTROL_HINT_DURATION_MS);
+  }
+
+  function onModeClick() {
+    if (mode !== "manual") return;
+    beginReturn(controllerNow);
+  }
+
+  function userAdjustedFov(baseFov) {
+    return THREE.MathUtils.clamp(
+      baseFov + userFovOffset,
+      MIN_USER_FOV,
+      MAX_USER_FOV
+    );
   }
 
   function setMode(nextMode) {
     mode = nextMode;
     root.dataset.flightMode = mode;
+    modeElement.disabled = mode !== "manual";
+    modeElement.setAttribute(
+      "aria-label",
+      mode === "manual" ? "Manual camera mode. Click to resume autopilot." : `${mode} flight mode`
+    );
     if (mode === "intro") {
       setModeLabel("3D");
       setStatus("Building the glass logo…");
@@ -503,6 +628,10 @@ export function createAboutFlightController({
       setModeLabel("REJOIN");
       setStatus("Smoothly rejoining the saved flight path…");
       setFlightAction("Rejoining cinematic flight path");
+    } else if (mode === "paused") {
+      setModeLabel("PAUSED");
+      setStatus("Animation paused - press Space to resume");
+      setFlightAction("All flight and event animation paused");
     } else {
       setModeLabel("STILL");
       setStatus("Reduced motion • click the scene to explore");
@@ -516,6 +645,7 @@ export function createAboutFlightController({
       MIN_FLIGHT_SPEED,
       MAX_FLIGHT_SPEED
     );
+    root.dataset.aboutFlightSpeed = formatFlightSpeed();
     if (mode === "auto") setAutoHud();
     else setStatus(`Autopilot speed set to ${formatFlightSpeed()}x`);
   }
@@ -523,7 +653,7 @@ export function createAboutFlightController({
   function setAutoHud() {
     const speed = formatFlightSpeed();
     setModeLabel(`AUTO ${speed}x`);
-    setStatus(`Autopilot • ${speed}x speed • click the scene to explore`);
+    setStatus(`Autopilot • ${speed}x speed • hold left mouse to look`);
   }
 
   function formatFlightSpeed() {
@@ -536,12 +666,12 @@ export function createAboutFlightController({
     prefersReducedMotion = Boolean(value);
     if (mode === "intro" || mode === "manual") return;
     if (prefersReducedMotion) {
-      if (controls.isLocked) controls.unlock();
       sampleFlightPose(
         route,
         autopilotPhase,
         pose
       );
+      pose.fov = userAdjustedFov(pose.fov);
       applyPose(camera, pose);
       setMode("reduced");
     } else if (mode === "reduced") {
@@ -619,7 +749,12 @@ export function createAboutFlightController({
       startPosition: wideStartPosition.clone(),
       startQuaternion: wideStartQuaternion.clone(),
       endQuaternion: wideEndQuaternion.clone(),
-      startFov: camera.fov,
+      startFov: THREE.MathUtils.clamp(
+        camera.fov - userFovOffset,
+        MIN_USER_FOV,
+        MAX_USER_FOV
+      ),
+      progress: 0,
       traversalDistance: Math.max(
         0.001,
         wideStartPosition.distanceTo(traversal.endPosition)
@@ -645,21 +780,24 @@ export function createAboutFlightController({
       0,
       1
     );
+    activeWideTraversal.progress = progress;
     camera.position.lerpVectors(
       activeWideTraversal.startPosition,
       activeWideTraversal.endPosition,
       progress
     );
-    camera.quaternion.slerpQuaternions(
-      activeWideTraversal.startQuaternion,
-      activeWideTraversal.endQuaternion,
-      smootherStep(progress)
-    ).normalize();
-    camera.fov = THREE.MathUtils.lerp(
+    if (!dragging) {
+      camera.quaternion.slerpQuaternions(
+        activeWideTraversal.startQuaternion,
+        activeWideTraversal.endQuaternion,
+        smootherStep(progress)
+      ).normalize();
+    }
+    camera.fov = userAdjustedFov(THREE.MathUtils.lerp(
       activeWideTraversal.startFov,
       WIDE_CHART_FOV,
       smootherStep(progress)
-    );
+    ));
     camera.updateProjectionMatrix();
     root.dataset.aboutWideChartTraversalProgress = progress.toFixed(3);
     setFlightAction(
@@ -679,7 +817,11 @@ export function createAboutFlightController({
       initialPosition: route.geometry.initialPosition,
       logoTarget: route.geometry.logoTarget,
       minimumCameraY,
-      startFov: camera.fov
+      startFov: THREE.MathUtils.clamp(
+        camera.fov - userFovOffset,
+        MIN_USER_FOV,
+        MAX_USER_FOV
+      )
     });
     flightStage = "return-initial";
     autopilotPhase = 0;
@@ -728,18 +870,15 @@ export function createAboutFlightController({
   function dispose() {
     if (disposed) return;
     disposed = true;
+    window.clearTimeout(controlHintsTimer);
     abortController.abort();
     keys.clear();
-    controls.removeEventListener("change", onPointerLockChange);
-    controls.removeEventListener("lock", onPointerLockStart);
-    controls.removeEventListener("unlock", onPointerLockEnd);
-    if (document.pointerLockElement === canvas) document.exitPointerLock();
-    controls.dispose();
   }
 
   return {
     startAutopilot,
     update,
+    isPaused: () => mode === "paused",
     setReducedMotion,
     setCinematicFocus,
     dispose
@@ -1444,6 +1583,14 @@ function isTypingTarget(target) {
       target.matches("input, select, textarea, button, a[href]")
       || target.closest("[contenteditable='true'], [role='button'], [role='menuitem']")
     );
+}
+
+function noCommandModifier(event) {
+  return !event.ctrlKey && !event.metaKey && !event.altKey;
+}
+
+function isControlHintsKey(event) {
+  return event.key === "?" || (event.code === "Slash" && event.shiftKey);
 }
 
 function flightSpeedDirection(event) {

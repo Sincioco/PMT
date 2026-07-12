@@ -10,7 +10,7 @@ import { appUrl } from "../../shared/app-urls.js";
 import { createBugChartsView } from "../../shared/bug-charts.js?v=20260712-about-chart-gallery";
 import { createDevTaskChartsView } from "../../shared/dev-task-charts.js?v=20260712-about-chart-gallery";
 
-const ABOUT_VERSION = "20260712-about-3d-flyby-83";
+const ABOUT_VERSION = "20260712-about-manual-controls-84";
 
 export function createAboutFeature({
   app,
@@ -55,7 +55,7 @@ export function createAboutFeature({
           class="about-flight-canvas"
           data-about-canvas
           tabindex="0"
-          aria-label="Interactive 3D PMT logo with Dev Task and Bug Tracking chart galleries. Click for mouse look, use WASD to fly, use the mouse wheel to zoom, use plus or minus to change autopilot speed, press A during autopilot to toggle alien encounters, and press L to toggle random lightning strikes."
+          aria-label="Interactive 3D PMT gallery. Hold the left mouse button to look while autopilot continues. Use the wheel to zoom, WASD plus Q and E for manual movement, Space to pause, Enter to restart, and question mark to show controls."
         ></canvas>
         <div class="about-flight-vignette" aria-hidden="true"></div>
 
@@ -71,15 +71,22 @@ export function createAboutFeature({
             Preparing the 3D flight…
           </p>
           <p class="about-flight-controls">
-            <span>Click / drag</span> look
-            <span>WASD</span> fly
+            <span>Hold left mouse</span> look
             <span>Wheel</span> zoom
+            <span>WASD</span> move
+            <span>Q / E</span> down / up
             <span>Shift</span> boost
             <span>+ / -</span> speed
+            <span>Space</span> pause / resume
+            <span>Enter</span> restart
+            <span>A</span> alien
             <span>L</span> lightning
-            <span>Esc</span> release mouse
+            <span>C</span> comet
+            <span>U</span> UFO
+            <span>R</span> random event
+            <span>?</span> show hints
           </p>
-          <p class="about-flight-mode" data-about-mode>3D</p>
+          <button type="button" class="about-flight-mode" data-about-mode disabled>3D</button>
         </div>
 
         <p class="about-flight-debug" data-about-flight-debug aria-live="polite">
@@ -124,6 +131,7 @@ export function createAboutFeature({
           devCharts,
           bugCharts,
           users: state.users,
+          onRestart: renderAbout,
           onFailure: message => showFallback(root, message)
         });
 

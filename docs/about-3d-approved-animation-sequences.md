@@ -69,6 +69,21 @@ The UFO and lightning schedules are coordinated by the scene, not by the camera 
 - Stars and the galaxy are fixed in distant world space and never follow the camera.
 - Comets are fixed in world space and never influence the camera.
 
+## Manual control contract
+
+- Holding the left mouse button temporarily controls the camera heading while the automatic flight path continues moving. Releasing the button immediately releases the mouse to the browser. Pointer lock is not used.
+- The mouse wheel changes zoom without entering full manual mode or stopping the automatic flight path.
+- `W`, `A`, `S`, and `D` move horizontally; `E` moves up; `Q` moves down; and `Shift` boosts manual movement speed.
+- Pressing a movement key enters full manual mode and freezes the automatic flight-path phase. Five seconds after the final movement-key input, the camera smoothly rejoins the saved automatic path and resumes it.
+- The lower-right `MANUAL` mode panel is interactive only in manual mode. Clicking it starts the same smooth automatic-path rejoin immediately.
+- `+` and `-` change automatic flight speed without entering manual mode.
+- `Space` pauses or resumes the shared flight-and-event animation clock.
+- `Enter` rebuilds the About experience from its initial 2D-logo transition.
+- Control hints appear for five seconds when full manual mode begins. Pressing `?` during manual mode displays them for another five seconds.
+- `A` triggers the alien encounter, `L` triggers lightning, `C` triggers a comet, `U` triggers the UFO encounter, and `R` randomly selects an alien, lightning, or comet event.
+- Because `A` is also the standard WASD strafe-left key, pressing it both strafes left in manual movement and triggers one alien encounter. Key-repeat does not repeatedly trigger the event.
+- Manual event hotkeys change event state only. They never alter camera focus, heading, FOV, speed, or flight-path phase.
+
 ## Implementation map
 
 - Camera state machine and route geometry: `wwwroot/js/features/about/about-flight-controller.js`

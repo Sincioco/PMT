@@ -1,15 +1,15 @@
 import * as THREE from "../../vendor/three/three.module.min.js";
 import { RoomEnvironment } from "../../vendor/three/addons/environments/RoomEnvironment.js?v=0.185.1-pmt1";
 import { SVGLoader } from "../../vendor/three/addons/loaders/SVGLoader.js?v=0.185.1-pmt1";
-import { createAboutFlightController } from "./about-flight-controller.js?v=20260712-about-3d-flyby-83";
-import { createLogoLightningEffect } from "./about-lightning.js?v=20260712-about-3d-flyby-83";
-import { createUfoEncounter } from "./about-ufo.js?v=20260712-about-3d-flyby-83";
+import { createAboutFlightController } from "./about-flight-controller.js?v=20260712-about-manual-controls-84";
+import { createLogoLightningEffect } from "./about-lightning.js?v=20260712-about-manual-controls-84";
+import { createUfoEncounter } from "./about-ufo.js?v=20260712-about-manual-controls-84";
 import {
   createAboutChartGallery,
   DEV_CHART_GRID_HEIGHT,
   DEV_CHART_GRID_WIDTH,
   DEV_CHART_GRID_Z
-} from "./about-workload-billboard.js?v=20260712-about-3d-flyby-83";
+} from "./about-workload-billboard.js?v=20260712-about-manual-controls-84";
 
 const INTRO_DURATION_MS = 3000;
 const INTRO_FADE_DURATION_MS = 1250;
@@ -21,7 +21,6 @@ const FLOOR_DEPTH = 180;
 const MIN_CAMERA_FLOOR_CLEARANCE = 1.55;
 const FALLBACK_PORTAL = new THREE.Vector2(1006.56, 443.3);
 const SEQUENCE_4_BACKGROUND_UFO_ENABLED = true;
-const LIGHTNING_EVENTS_ENABLED = false;
 const SEQUENCE_4_LOGO_STRIKE_SECONDS = 5.2;
 const SEQUENCE_4_UFO_STRIKE_SECONDS = 16;
 const SEQUENCE_4_UFO_STRIKE_CHANCE = 0.5;
@@ -40,6 +39,7 @@ export function createAboutScene({
   devCharts,
   bugCharts,
   users,
+  onRestart,
   onFailure
 }) {
   const startedAt = performance.now();
@@ -64,11 +64,12 @@ export function createAboutScene({
   let chartGallery = null;
   let frameId = 0;
   let lastFrameAt = startedAt;
+  let animationElapsedMs = 0;
   let introHiddenTimer = 0;
   let alienNoticeTimer = 0;
   let revealStartedAt = 0;
   let experienceStarted = false;
-  let lightningEnabled = false;
+  let manualUfoActiveUntil = Number.NEGATIVE_INFINITY;
   let sequence4UfoActive = false;
   let sequence4EventStartedAt = Number.NEGATIVE_INFINITY;
   let sequence4LogoStrikeDone = false;
@@ -165,6 +166,13 @@ export function createAboutScene({
     root.dataset.aboutLightningStrikeCount = "0";
     root.dataset.aboutLightningUfoStrikeCount = "0";
     root.dataset.aboutLightningTarget = "";
+    root.dataset.aboutEventHotkeys = "A,L,C,U,R";
+    root.dataset.aboutRandomEventChoices = "alien,lightning,comet";
+    root.dataset.aboutEventCameraInfluence = "none";
+    root.dataset.aboutAnimationPauseScope = "flight-and-events";
+    root.dataset.aboutManualEventCount = "0";
+    root.dataset.aboutManualEventLast = "";
+    root.dataset.aboutManualEventSourceKey = "";
     root.dataset.aboutMinCameraFloorClearance = String(MIN_CAMERA_FLOOR_CLEARANCE);
 
     camera.position.set(0, 1.5, 21);
@@ -178,10 +186,7 @@ export function createAboutScene({
     reducedMotionQuery.addEventListener("change", onReducedMotionChange, {
       signal: abortController.signal
     });
-    window.addEventListener("keydown", onAlienToggleKeyDown, {
-      signal: abortController.signal
-    });
-    window.addEventListener("keydown", onLightningToggleKeyDown, {
+    window.addEventListener("keydown", onEventTriggerKeyDown, {
       signal: abortController.signal
     });
 
@@ -240,7 +245,8 @@ export function createAboutScene({
         statusElement,
         modeElement,
         debugElement,
-        reducedMotion
+        reducedMotion,
+        onRestart
       });
 
       if (performance.now() - startedAt >= INTRO_DURATION_MS) {
@@ -258,13 +264,17 @@ export function createAboutScene({
       return;
     }
 
-    const deltaSeconds = Math.min((now - lastFrameAt) / 1000, 0.05);
+    const realDeltaSeconds = Math.min((now - lastFrameAt) / 1000, 0.05);
     lastFrameAt = now;
-    updateIntro(now);
-    const encounter = updateSceneMotion(now);
+    const animationPaused = flightController?.isPaused() || false;
+    const animationDeltaSeconds = animationPaused ? 0 : realDeltaSeconds;
+    animationElapsedMs += animationDeltaSeconds * 1000;
+    const animationNow = startedAt + animationElapsedMs;
+    updateIntro(animationNow);
+    const encounter = updateSceneMotion(animationNow);
     if (encounter?.shadowUpdate) renderer.shadowMap.needsUpdate = true;
     flightController?.setCinematicFocus(null, 0, 1);
-    flightController?.update(now, deltaSeconds);
+    flightController?.update(animationNow, animationDeltaSeconds);
     ufoEncounter?.updateSpeech(camera, root);
     renderer.render(scene, camera);
     frameId = requestAnimationFrame(animate);
@@ -345,12 +355,15 @@ export function createAboutScene({
       lightningEffect?.setEnabled(false, encounterElapsed);
     }
     sequence4UfoActive = sequence4Active;
+    const manualUfoActive = encounterElapsed >= 0
+      && encounterElapsed < manualUfoActiveUntil;
     root.dataset.aboutUfoSequence4Active = String(sequence4Active);
+    root.dataset.aboutUfoManualTriggerActive = String(manualUfoActive);
     root.dataset.aboutUfoConvenientWindow = String(sequence4Active);
     const encounter = ufoEncounter?.update(
       encounterElapsed,
       reducedMotion,
-      sequence4Active
+      sequence4Active || manualUfoActive
     ) || null;
     const sequence4EventAge = sequence4Active
       ? encounterElapsed - sequence4EventStartedAt
@@ -412,81 +425,60 @@ export function createAboutScene({
     }
   }
 
-  function onAlienToggleKeyDown(event) {
-    if (SEQUENCE_4_BACKGROUND_UFO_ENABLED
-      && event.code === "KeyA"
-      && !isTypingTarget(event.target)) {
-      event.preventDefault();
-      event.stopImmediatePropagation();
-      showEffectNotice(
-        "Alien encounter runs automatically in the background during Sequence 4",
-        true,
-        "alien"
-      );
-      return;
-    }
-    if (event.code !== "KeyA"
-      || event.repeat
-      || event.ctrlKey
-      || event.metaKey
-      || event.altKey
-      || isTypingTarget(event.target)
-      || root.dataset.flightMode === "manual") return;
-
-    event.preventDefault();
-    event.stopImmediatePropagation();
-    const enabled = root.dataset.aboutUfoEnabled !== "true";
-    const encounterElapsed = experienceStarted
-      ? Math.max(0, (performance.now() - revealStartedAt) / 1000)
-      : 0;
-    ufoEncounter?.setEnabled(enabled, encounterElapsed);
-    root.dataset.aboutUfoEnabled = String(enabled);
-    showAlienNotice(enabled);
-  }
-
-  function showAlienNotice(enabled) {
-    showEffectNotice(
-      enabled ? "Alien encounters ON \u2022 press A to turn off" : "Alien encounters OFF \u2022 press A to turn on",
-      enabled,
-      "alien"
-    );
-  }
-
-  function onLightningToggleKeyDown(event) {
-    if (!LIGHTNING_EVENTS_ENABLED && event.code === "KeyL" && !isTypingTarget(event.target)) {
-      event.preventDefault();
-      event.stopImmediatePropagation();
-      showEffectNotice(
-        "Lightning runs automatically in the background during Sequence 4",
-        true,
-        "lightning"
-      );
-      return;
-    }
-    if (event.code !== "KeyL"
-      || event.repeat
+  function onEventTriggerKeyDown(event) {
+    if (event.repeat
       || event.ctrlKey
       || event.metaKey
       || event.altKey
       || isTypingTarget(event.target)) return;
-
+    const eventType = eventTypeForKey(event.code);
+    if (!eventType) return;
     event.preventDefault();
-    event.stopImmediatePropagation();
-    lightningEnabled = !lightningEnabled;
-    const encounterElapsed = experienceStarted
-      ? Math.max(0, (performance.now() - revealStartedAt) / 1000)
-      : 0;
-    lightningEffect?.setEnabled(lightningEnabled, encounterElapsed);
-    root.dataset.aboutLightningEnabled = String(lightningEnabled);
-    if (!lightningEnabled) {
-      root.dataset.aboutLightningActive = "false";
-      root.dataset.aboutLightningTarget = "";
+    triggerManualEvent(eventType, event.code);
+  }
+
+  function triggerManualEvent(eventType, sourceKey) {
+    const encounterElapsed = currentEncounterElapsed();
+    const sceneSeconds = (startedAt + animationElapsedMs) / 1000;
+    let resolvedEvent = eventType;
+    if (eventType === "random") {
+      const choices = ["alien", "lightning", "comet"];
+      resolvedEvent = choices[Math.floor(backgroundEventRandom() * choices.length)];
     }
-    showEffectNotice(
-      lightningEnabled ? "Lightning ON \u2022 strikes every 45\u201365s" : "Lightning OFF \u2022 press L to turn on",
-      lightningEnabled,
-      "lightning"
+
+    if (resolvedEvent === "alien") {
+      manualUfoActiveUntil = encounterElapsed + 25;
+      ufoEncounter?.startNow(encounterElapsed);
+      root.dataset.aboutUfoEnabled = "true";
+      showEffectNotice(
+        sourceKey === "KeyU" ? "UFO event triggered" : "Alien encounter triggered",
+        true,
+        "alien"
+      );
+    } else if (resolvedEvent === "lightning") {
+      if (!lightningEffect) {
+        showEffectNotice("Lightning is still charging", false, "lightning");
+        return;
+      }
+      lightningEffect.setEnabled(true, encounterElapsed);
+      lightningEffect.triggerStrike(encounterElapsed);
+      root.dataset.aboutLightningEnabled = "true";
+      showEffectNotice("Lightning event triggered", true, "lightning");
+    } else if (resolvedEvent === "comet") {
+      backgroundComets?.trigger?.(sceneSeconds);
+      showEffectNotice("Comet event triggered", true, "comet");
+    }
+
+    root.dataset.aboutManualEventLast = resolvedEvent;
+    root.dataset.aboutManualEventSourceKey = sourceKey;
+    root.dataset.aboutManualEventCount = String(
+      Number(root.dataset.aboutManualEventCount || 0) + 1
     );
+  }
+
+  function currentEncounterElapsed() {
+    if (!experienceStarted) return 0;
+    return Math.max(0, (startedAt + animationElapsedMs - revealStartedAt) / 1000);
   }
 
   function showEffectNotice(message, enabled, effect) {
@@ -1004,6 +996,17 @@ function createBackgroundComets(resources) {
 
   return {
     group,
+    trigger(seconds, index = null) {
+      const elapsed = Math.max(0, seconds - createdAt);
+      if (activeStreak) activeStreak.sprite.visible = false;
+      activeStreak = null;
+      portalCometPending = false;
+      const resolvedIndex = Number.isInteger(index)
+        ? THREE.MathUtils.clamp(index, 0, streaks.length - 1)
+        : 1 + Math.floor(random() * (streaks.length - 1));
+      startStreak(resolvedIndex, elapsed);
+      nextRandomAt = elapsed + 24 + random() * 22;
+    },
     update(seconds, reducedMotion, portalAttention) {
       const elapsed = Math.max(0, seconds - createdAt);
       if (portalAttention >= 0.15) portalWasActive = true;
@@ -1125,6 +1128,14 @@ function isTypingTarget(target) {
       target.matches("input, select, textarea, button, a[href]")
       || target.closest("[contenteditable='true'], [role='button'], [role='menuitem']")
     );
+}
+
+function eventTypeForKey(code) {
+  if (code === "KeyA" || code === "KeyU") return "alien";
+  if (code === "KeyL") return "lightning";
+  if (code === "KeyC") return "comet";
+  if (code === "KeyR") return "random";
+  return "";
 }
 
 const TAU = Math.PI * 2;

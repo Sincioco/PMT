@@ -114,3 +114,24 @@ Sequence 3:  Random Dev Chart -> Random Bug Tracking / QA Chart
 39.) I approve of the comet, lightning and alien events.  Record that in the .md file.
 
 40.) Change the lightning and UFO interaction so that the UFO is struck by lightning half the time.
+
+
+About Page - 3D Logo Flyby - Manual Controls
+--------------------------------------------
+Let's focus on the manual controls for the flyby.
+I want to completely to redo the controls as follows:
+
+1.) When I click on the scene, let the flyby still continue but let me control the camera by holding down the left mouse button.  The mousewheel is for zooming in and out.  Release the mouse to the browser when I am not holding down on the let mouse button.
+2.) If I start to use the keyboard, WASD, then stop the flyby and let me control the movement / camera with the keyboard.  If I stop using the keyboard, then resume the flyby after 5 seconds.
+3.) The plus and minus key still should speed up and slow down the animation speed of the flyby and should not register as the user wanting to control the camera/flyby movement.
+4.) Pressing the spacebar should stop / resume the flyby and animation sequences.
+5.) Pressing Enter restarts everything from the top.  As if loading for the first time.
+6.) Pressing E is for up and Q is for down.  These are for moving the camera up and down in the scene.
+7.) Pressing A triggers the alien event at any time.
+8.) Pressing L triggers the lightning event at any time.
+9.) Pressing C triggers the comet event at any time.
+10.) Pressing U triggers the UFO event at any time.
+11.) Pressing R triggers the random event at any time.
+12.) Only show these keyboard controls / hints for 5 seconds when the user has full manual control.
+13.) You already show a "manual" status/panel on the lower right.  When things are in manual mode and the user clicks that "manual" panel, it should toggle back to automatic flyby mode.
+14.) Pressing "?" brings back the keyboard controls / hints for 5 seconds.

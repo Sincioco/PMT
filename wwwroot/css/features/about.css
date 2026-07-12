@@ -50,6 +50,10 @@
   cursor: crosshair;
 }
 
+.about-screen[data-about-mouse-look-active="true"] .about-flight-canvas {
+  cursor: grabbing;
+}
+
 .about-flight-vignette {
   position: absolute;
   inset: 0;
@@ -212,7 +216,24 @@
   font-weight: var(--font-weight-bold);
   letter-spacing: 0.14em;
   text-align: center;
+  font-family: inherit;
   border-radius: 999px;
+  appearance: none;
+  pointer-events: none;
+}
+
+.about-flight-mode:disabled {
+  opacity: 1;
+}
+
+.about-screen[data-flight-mode="manual"] .about-flight-mode {
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+.about-screen[data-flight-mode="manual"] .about-flight-mode:hover {
+  background: rgb(36 29 7 / 78%);
+  border-color: rgb(251 188 5 / 72%);
 }
 
 .about-screen[data-flight-mode="manual"] .about-flight-status,
@@ -411,6 +432,10 @@
 
 .about-screen:not([data-flight-mode="manual"]) .about-flight-status,
 .about-screen:not([data-flight-mode="manual"]) .about-flight-controls {
+  display: none;
+}
+
+.about-screen[data-flight-mode="manual"]:not([data-about-control-hints-visible="true"]) .about-flight-controls {
   display: none;
 }
 
