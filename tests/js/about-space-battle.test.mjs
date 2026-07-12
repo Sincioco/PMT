@@ -16,7 +16,7 @@ import {
 } from "../../wwwroot/js/features/about/about-space-battle.js";
 
 test("intergalactic battles are periodic and choose between one and three interceptors", () => {
-  assert.equal(SPACE_BATTLE_DIALOGUE_LINGER_SECONDS, 5);
+  assert.equal(SPACE_BATTLE_DIALOGUE_LINGER_SECONDS, 7);
   assert.equal(SPACE_BATTLE_CHANCE, 0.68);
   assert.equal(SPACE_BATTLE_MIN_INTERCEPTORS, 1);
   assert.equal(SPACE_BATTLE_MAX_INTERCEPTORS, 3);

@@ -4,6 +4,7 @@ import { appUrl } from "../../shared/app-urls.js";
 export const DEV_CHART_GRID_WIDTH = 31.2;
 export const DEV_CHART_GRID_HEIGHT = 15.2;
 export const DEV_CHART_GRID_Z = -32;
+export const DOCUMENTATION_GRID_Z = 40;
 const GALLERY_ROOM_HALF_WIDTH = 36;
 const DEV_GRID_LEFT_X = -GALLERY_ROOM_HALF_WIDTH;
 const DEV_GRID_RIGHT_X = GALLERY_ROOM_HALF_WIDTH;
@@ -15,6 +16,16 @@ const TEAM_CARD_WIDTH = 6.8;
 const TEAM_CARD_HEIGHT = 3.7;
 const TEAM_CARD_GAP = 0.72;
 const TEAM_GRID_BOTTOM_Y = -4.15;
+const KANBAN_COLUMN_WIDTH = 5.6;
+const KANBAN_COLUMN_HEIGHT = 13.8;
+const KANBAN_COLUMN_GAP = 0.55;
+const KANBAN_TEAM_GAP = 5.5;
+const KANBAN_MAX_VISIBLE_TASKS = 4;
+const DOCUMENTATION_CARD_WIDTH = 5.8;
+const DOCUMENTATION_CARD_HEIGHT = 3.25;
+const DOCUMENTATION_CARD_GAP = 0.55;
+const DOCUMENTATION_MAX_COLUMNS = 5;
+const DOCUMENTATION_LIMIT = 20;
 const SECTION_LABEL_HEIGHT = 1.9;
 const SECTION_LABEL_GAP = 0.75;
 const BASE_TEXTURE_WIDTH = 2048;
@@ -47,7 +58,18 @@ const DARK_CHART_VARIABLES = Object.freeze({
   "--rose": "#ee6b70"
 });
 
-export function createAboutChartGallery({ users, devCharts, bugCharts, resources, maxAnisotropy = 1 }) {
+export function createAboutChartGallery({
+  users,
+  projects = [],
+  blogs = [],
+  tasks = [],
+  statuses = [],
+  getStatusColor = () => "#76a9ff",
+  devCharts,
+  bugCharts,
+  resources,
+  maxAnisotropy = 1
+}) {
   const refreshers = [];
   const glassMaterials = [];
   const devGrid = new THREE.Group();
@@ -163,9 +185,123 @@ export function createAboutChartGallery({ users, devCharts, bugCharts, resources
   bugLabel.position.set(0, DEV_CHART_GRID_HEIGHT / 2 + SECTION_LABEL_GAP + SECTION_LABEL_HEIGHT / 2, 0.04);
   bugGrid.add(bugLabel);
 
+  const documentationCards = latestDocumentationCards(blogs);
+  const documentationColumns = Math.min(
+    DOCUMENTATION_MAX_COLUMNS,
+    Math.max(1, documentationCards.length)
+  );
+  const documentationRows = Math.max(1, Math.ceil(documentationCards.length / documentationColumns));
+  const documentationGridWidth = documentationColumns * DOCUMENTATION_CARD_WIDTH
+    + Math.max(0, documentationColumns - 1) * DOCUMENTATION_CARD_GAP;
+  const documentationGridHeight = documentationRows * DOCUMENTATION_CARD_HEIGHT
+    + Math.max(0, documentationRows - 1) * DOCUMENTATION_CARD_GAP;
+  const documentationGrid = new THREE.Group();
+  documentationGrid.name = "PMT Documentation Cards";
+  documentationGrid.position.set(0, 3.15, DOCUMENTATION_GRID_Z);
+  documentationGrid.rotation.y = Math.PI;
+  const usersById = new Map(users.map(user => [Number(user.id), user]));
+  const projectsById = new Map(projects.map(project => [Number(project.id), project]));
+
+  documentationCards.forEach((blog, index) => {
+    const column = index % documentationColumns;
+    const row = Math.floor(index / documentationColumns);
+    const card = createGlassChartPanel({
+      chart: documentationCardModel(blog, usersById, projectsById),
+      draw: drawDocumentationCard,
+      width: DOCUMENTATION_CARD_WIDTH,
+      height: DOCUMENTATION_CARD_HEIGHT,
+      textureWidth: 1024,
+      textureHeight: 640,
+      resources,
+      refreshers,
+      glassMaterials,
+      maxAnisotropy
+    });
+    card.position.set(
+      -documentationGridWidth / 2 + DOCUMENTATION_CARD_WIDTH / 2
+        + column * (DOCUMENTATION_CARD_WIDTH + DOCUMENTATION_CARD_GAP),
+      documentationGridHeight / 2 - DOCUMENTATION_CARD_HEIGHT / 2
+        - row * (DOCUMENTATION_CARD_HEIGHT + DOCUMENTATION_CARD_GAP),
+      0
+    );
+    documentationGrid.add(card);
+  });
+  const documentationLabel = createGallerySectionLabel({
+    text: "Documentation",
+    width: 17,
+    resources,
+    maxAnisotropy
+  });
+  documentationLabel.position.set(
+    0,
+    documentationGridHeight / 2 + SECTION_LABEL_GAP + SECTION_LABEL_HEIGHT / 2,
+    0.04
+  );
+  documentationGrid.add(documentationLabel);
+
+  const kanbanTaskModels = tasks.map(task => ({
+    ...task,
+    assignees: Array.isArray(task.assignees) && task.assignees.length
+      ? task.assignees
+      : (task.assigneeIds || [])
+        .map(userId => usersById.get(Number(userId)))
+        .filter(Boolean)
+  }));
+  const kanbanColumns = buildKanbanColumns(kanbanTaskModels, statuses, getStatusColor);
+  const kanbanColumnCount = Math.max(1, kanbanColumns.length);
+  const kanbanGridWidth = kanbanColumnCount * KANBAN_COLUMN_WIDTH
+    + Math.max(0, kanbanColumnCount - 1) * KANBAN_COLUMN_GAP;
+  const teamFrontZ = DEV_CHART_GRID_Z + teamGridWidth;
+  const kanbanGridStartZ = teamFrontZ + KANBAN_TEAM_GAP;
+  const kanbanGrid = new THREE.Group();
+  kanbanGrid.name = "PMT Dynamic Kanban Board";
+  kanbanGrid.position.set(
+    DEV_GRID_LEFT_X,
+    TEAM_GRID_BOTTOM_Y + KANBAN_COLUMN_HEIGHT / 2,
+    kanbanGridStartZ + kanbanGridWidth / 2
+  );
+  kanbanGrid.rotation.y = Math.PI / 2;
+
+  const displayedKanbanColumns = kanbanColumns.length
+    ? kanbanColumns
+    : [{ status: "No active columns", color: "#6b7680", tasks: [] }];
+  displayedKanbanColumns.forEach((column, index) => {
+    const panel = createGlassChartPanel({
+      chart: column,
+      draw: drawKanbanColumn,
+      width: KANBAN_COLUMN_WIDTH,
+      height: KANBAN_COLUMN_HEIGHT,
+      textureWidth: 1024,
+      textureHeight: 2048,
+      resources,
+      refreshers,
+      glassMaterials,
+      maxAnisotropy
+    });
+    panel.position.set(
+      kanbanGridWidth / 2 - KANBAN_COLUMN_WIDTH / 2
+        - index * (KANBAN_COLUMN_WIDTH + KANBAN_COLUMN_GAP),
+      0,
+      0
+    );
+    kanbanGrid.add(panel);
+  });
+  const kanbanLabel = createGallerySectionLabel({
+    text: "Kanban Board",
+    width: Math.max(12, Math.min(22, kanbanGridWidth)),
+    resources,
+    maxAnisotropy
+  });
+  kanbanLabel.position.set(
+    0,
+    KANBAN_COLUMN_HEIGHT / 2 + SECTION_LABEL_GAP + SECTION_LABEL_HEIGHT / 2,
+    0.04
+  );
+  kanbanGrid.add(kanbanLabel);
+
   const group = new THREE.Group();
   group.name = "PMT 3D Chart Gallery";
-  group.add(teamGrid, devGrid, bugGrid);
+  group.add(teamGrid, devGrid, bugGrid, documentationGrid, kanbanGrid);
   group.updateMatrixWorld(true);
 
   const devTargets = devPanelTargets.map(target => devGrid.localToWorld(target.clone()));
@@ -211,8 +347,118 @@ export function createAboutChartGallery({ users, devCharts, bugCharts, resources
     teamGridIntersectionZ: DEV_CHART_GRID_Z,
     teamGridRotationDegrees: 90,
     teamGrowthDirection: "away-from-dev-wall",
+    kanbanColumnCount: kanbanColumns.length,
+    kanbanTaskCount: kanbanColumns.reduce((total, column) => total + column.tasks.length, 0),
+    kanbanGridWidth,
+    kanbanGridHeight: KANBAN_COLUMN_HEIGHT,
+    kanbanGridX: kanbanGrid.position.x,
+    kanbanGridY: kanbanGrid.position.y,
+    kanbanGridZ: kanbanGrid.position.z,
+    kanbanGridStartZ,
+    kanbanGridEndZ: kanbanGridStartZ + kanbanGridWidth,
+    kanbanGridRotationDegrees: 90,
+    kanbanGrowthDirection: "away-from-development-team",
+    kanbanTarget: kanbanGrid.position.clone(),
+    documentationCardCount: documentationCards.length,
+    documentationCardLimit: DOCUMENTATION_LIMIT,
+    documentationColumns,
+    documentationRows,
+    documentationGridWidth,
+    documentationGridHeight,
+    documentationGridX: documentationGrid.position.x,
+    documentationGridY: documentationGrid.position.y,
+    documentationGridZ: documentationGrid.position.z,
+    documentationGridRotationDegrees: 180,
+    documentationFacingTarget: "pmt-logo",
+    documentationTarget: documentationGrid.position.clone(),
     dispose() {}
   };
+}
+
+export function buildKanbanColumns(tasks = [], statuses = [], getStatusColor = () => "#76a9ff") {
+  const tasksByStatus = new Map();
+  for (const task of tasks) {
+    const status = String(task?.status || "Unassigned").trim() || "Unassigned";
+    if (!tasksByStatus.has(status)) tasksByStatus.set(status, []);
+    tasksByStatus.get(status).push(task);
+  }
+  const configuredStatuses = [...new Set(statuses.map(value => String(value || "").trim()).filter(Boolean))];
+  const orderedStatuses = configuredStatuses.filter(status => tasksByStatus.has(status));
+  for (const status of tasksByStatus.keys()) {
+    if (!orderedStatuses.includes(status)) orderedStatuses.push(status);
+  }
+  const visibleStatuses = orderedStatuses.length || tasks.length
+    ? orderedStatuses
+    : configuredStatuses;
+  return visibleStatuses.map(status => ({
+    status,
+    color: getStatusColor(status) || "#76a9ff",
+    tasks: [...(tasksByStatus.get(status) || [])]
+  }));
+}
+
+export function latestDocumentationCards(blogs = [], limit = DOCUMENTATION_LIMIT) {
+  const safeLimit = Math.max(0, Math.trunc(Number(limit) || 0));
+  return [...blogs]
+    .sort((left, right) => {
+      const leftTime = Date.parse(left?.updatedAt || left?.createdAt || "") || 0;
+      const rightTime = Date.parse(right?.updatedAt || right?.createdAt || "") || 0;
+      return rightTime - leftTime || Number(right?.id || 0) - Number(left?.id || 0);
+    })
+    .slice(0, safeLimit);
+}
+
+function documentationCardModel(blog, usersById, projectsById) {
+  const latestEdit = (blog.history || []).find(item => item.action === "Updated") || null;
+  const author = usersById.get(Number(latestEdit?.userId || blog.createdByUserId));
+  const project = projectsById.get(Number(blog.projectId || 0));
+  return {
+    title: blog.title || "Untitled Documentation",
+    bodyText: documentationPlainText(blog.bodyHtml),
+    imageUrl: documentationFirstImageUrl(blog.bodyHtml),
+    projectCode: project?.code || "General",
+    visibility: blog.isPrivate !== false ? "Private" : "Public",
+    isPinned: Boolean(blog.isPinned),
+    metaLabel: latestEdit ? "Last Edited by" : "Created by",
+    authorName: documentationUserName(author),
+    metaDate: documentationCardDate(latestEdit?.createdAt || blog.updatedAt || blog.createdAt),
+    attachmentCount: (blog.attachments || []).length
+  };
+}
+
+function documentationPlainText(bodyHtml) {
+  const template = document.createElement("template");
+  template.innerHTML = String(bodyHtml || "");
+  return String(template.content.textContent || "")
+    .replace(/\s+/g, " ")
+    .trim() || "No document preview is available.";
+}
+
+function documentationFirstImageUrl(bodyHtml) {
+  const template = document.createElement("template");
+  template.innerHTML = String(bodyHtml || "");
+  return appUrl(template.content.querySelector("img")?.getAttribute("src") || "");
+}
+
+function documentationUserName(user) {
+  if (!user) return "User";
+  const fullName = [user.firstName, user.lastName]
+    .map(value => String(value || "").trim())
+    .filter(Boolean)
+    .join(" ");
+  const nickname = String(user.nickname || "").trim();
+  return fullName || nickname || "User";
+}
+
+function documentationCardDate(value) {
+  if (!value) return "";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return "";
+  return parsed.toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric"
+  });
 }
 
 function createGallerySectionLabel({ text, width, resources, maxAnisotropy }) {
@@ -314,6 +560,7 @@ function createGlassChartPanel({
   width,
   height,
   textureWidth = BASE_TEXTURE_WIDTH,
+  textureHeight = BASE_TEXTURE_HEIGHT,
   resources,
   refreshers,
   glassMaterials,
@@ -321,7 +568,7 @@ function createGlassChartPanel({
 }) {
   const canvas = document.createElement("canvas");
   canvas.width = textureWidth;
-  canvas.height = BASE_TEXTURE_HEIGHT;
+  canvas.height = textureHeight;
   const context = canvas.getContext("2d");
   const avatarImages = new Map();
   const refresh = () => draw(context, chart, avatarImages);
@@ -344,6 +591,15 @@ function createGlassChartPanel({
     void loadWorkloadAvatars(chart.rows, avatarImages).then(redraw);
   } else if (draw === drawUserCard) {
     void loadUserAvatar(chart.user, avatarImages).then(redraw).catch(redraw);
+  } else if (draw === drawDocumentationCard && chart.imageUrl) {
+    void loadImage(chart.imageUrl)
+      .then(image => {
+        avatarImages.set("documentation-image", image);
+        redraw();
+      })
+      .catch(redraw);
+  } else if (draw === drawKanbanColumn) {
+    void loadKanbanAssets(chart.tasks, avatarImages).then(redraw).catch(redraw);
   }
 
   const panelGeometry = new THREE.PlaneGeometry(width, height);
@@ -561,6 +817,369 @@ function drawUserCard(context, chart, avatarImages) {
       baseline: "middle"
     });
   }
+}
+
+function drawDocumentationCard(context, chart, images) {
+  clearTexture(context);
+  const { width, height } = context.canvas;
+  const palette = chartPalette();
+  const surfaceGradient = context.createLinearGradient(0, 0, width, height);
+  surfaceGradient.addColorStop(0, "rgba(12, 25, 40, 0.98)");
+  surfaceGradient.addColorStop(1, "rgba(5, 14, 25, 0.98)");
+  roundedFill(context, 12, 12, width - 24, height - 24, 28, surfaceGradient);
+  context.lineWidth = 3;
+  context.strokeStyle = "rgba(126, 190, 255, 0.32)";
+  roundedRect(context, 12, 12, width - 24, height - 24, 28);
+  context.stroke();
+
+  drawWrappedText(context, chart.title, 42, 38, width - 84, 51, 2, {
+    color: palette.textPrimary,
+    font: "700 43px 'Segoe UI', Arial, sans-serif"
+  });
+
+  const badgeY = 154;
+  let badgeX = 42;
+  badgeX += drawDocumentationBadge(context, chart.projectCode, badgeX, badgeY, "#35c7bd") + 14;
+  badgeX += drawDocumentationBadge(
+    context,
+    chart.visibility,
+    badgeX,
+    badgeY,
+    chart.visibility === "Private" ? "#9f9cff" : "#74c476"
+  ) + 14;
+  if (chart.isPinned) drawDocumentationBadge(context, "Pinned", badgeX, badgeY, "#e4a53a");
+
+  drawText(context, `${chart.metaLabel}: ${chart.authorName}`, 42, 207, {
+    color: palette.textSecondary,
+    font: "600 24px 'Segoe UI', Arial, sans-serif",
+    maxWidth: width * 0.64
+  });
+  drawText(context, chart.metaDate, width - 42, 207, {
+    color: palette.textSecondary,
+    font: "500 23px 'Segoe UI', Arial, sans-serif",
+    align: "right"
+  });
+
+  const image = images.get("documentation-image");
+  const previewTop = 238;
+  const previewBottom = height - 76;
+  let textX = 42;
+  let textWidth = width - 84;
+  if (image) {
+    const imageWidth = Math.round(width * 0.31);
+    drawDocumentationImage(context, image, 42, previewTop, imageWidth, previewBottom - previewTop);
+    textX = 42 + imageWidth + 30;
+    textWidth = width - textX - 42;
+  }
+  drawWrappedText(context, chart.bodyText, textX, previewTop + 4, textWidth, 37, 7, {
+    color: "#d9e5e8",
+    font: "500 27px 'Segoe UI', Arial, sans-serif"
+  });
+
+  context.fillStyle = "rgba(255, 255, 255, 0.1)";
+  context.fillRect(42, height - 61, width - 84, 2);
+  drawText(
+    context,
+    chart.attachmentCount
+      ? `${chart.attachmentCount} attachment${chart.attachmentCount === 1 ? "" : "s"}`
+      : "Documentation",
+    42,
+    height - 29,
+    {
+      color: palette.textSecondary,
+      font: "600 22px 'Segoe UI', Arial, sans-serif"
+    }
+  );
+}
+
+function drawDocumentationBadge(context, text, x, y, color) {
+  context.font = "700 21px 'Segoe UI', Arial, sans-serif";
+  const width = Math.ceil(context.measureText(text).width) + 30;
+  roundedFill(context, x, y - 26, width, 38, 18, `${color}33`);
+  context.lineWidth = 2;
+  context.strokeStyle = `${color}aa`;
+  roundedRect(context, x, y - 26, width, 38, 18);
+  context.stroke();
+  drawText(context, text, x + width / 2, y - 6, {
+    color,
+    font: "700 21px 'Segoe UI', Arial, sans-serif",
+    align: "center",
+    baseline: "middle"
+  });
+  return width;
+}
+
+function drawDocumentationImage(context, image, x, y, width, height) {
+  context.save();
+  roundedRect(context, x, y, width, height, 18);
+  context.clip();
+  const scale = Math.max(width / image.naturalWidth, height / image.naturalHeight);
+  const renderWidth = image.naturalWidth * scale;
+  const renderHeight = image.naturalHeight * scale;
+  context.drawImage(
+    image,
+    x + (width - renderWidth) / 2,
+    y + (height - renderHeight) / 2,
+    renderWidth,
+    renderHeight
+  );
+  context.restore();
+}
+
+function drawKanbanColumn(context, column, avatarImages) {
+  clearTexture(context);
+  const { width, height } = context.canvas;
+  const palette = chartPalette();
+  const primary = resolveColor("var(--color-primary)");
+  roundedFill(context, 10, 10, width - 20, height - 20, 32, "#171c1f");
+  context.lineWidth = 3;
+  context.strokeStyle = "rgba(255, 255, 255, 0.14)";
+  roundedRect(context, 10, 10, width - 20, height - 20, 32);
+  context.stroke();
+
+  drawText(context, column.status, 46, 96, {
+    color: palette.textPrimary,
+    font: "750 43px 'Segoe UI', Arial, sans-serif",
+    baseline: "middle",
+    maxWidth: width - 215
+  });
+  drawKanbanPill(context, String(column.tasks.length), width - 152, 64, {
+    background: "#22292d",
+    border: "rgba(255, 255, 255, 0.16)",
+    color: palette.textPrimary,
+    minWidth: 104
+  });
+  context.fillStyle = "rgba(255, 255, 255, 0.08)";
+  context.fillRect(38, 154, width - 76, 2);
+
+  const visibleTasks = column.tasks.slice(0, KANBAN_MAX_VISIBLE_TASKS);
+  const taskTop = 184;
+  const taskGap = 20;
+  const footerHeight = column.tasks.length > KANBAN_MAX_VISIBLE_TASKS ? 98 : 38;
+  const cardHeight = Math.min(
+    410,
+    Math.floor((height - taskTop - footerHeight - taskGap * Math.max(0, visibleTasks.length - 1) - 34)
+      / Math.max(1, visibleTasks.length))
+  );
+
+  if (!visibleTasks.length) {
+    drawText(context, "No tasks.", width / 2, 260, {
+      color: palette.textSecondary,
+      font: "600 30px 'Segoe UI', Arial, sans-serif",
+      align: "center"
+    });
+  }
+
+  visibleTasks.forEach((task, index) => {
+    const y = taskTop + index * (cardHeight + taskGap);
+    drawKanbanTaskCard(context, task, avatarImages, 38, y, width - 76, cardHeight, primary, palette);
+  });
+
+  if (column.tasks.length > KANBAN_MAX_VISIBLE_TASKS) {
+    drawText(
+      context,
+      `+${column.tasks.length - KANBAN_MAX_VISIBLE_TASKS} more task${column.tasks.length - KANBAN_MAX_VISIBLE_TASKS === 1 ? "" : "s"}`,
+      width / 2,
+      height - 50,
+      {
+        color: palette.textSecondary,
+        font: "700 28px 'Segoe UI', Arial, sans-serif",
+        align: "center"
+      }
+    );
+  }
+}
+
+function drawKanbanTaskCard(context, task, avatarImages, x, y, width, height, primary, palette) {
+  const isBug = String(task.taskType || "").toLowerCase() === "bug";
+  context.save();
+  context.shadowColor = "rgba(0, 0, 0, 0.34)";
+  context.shadowBlur = 18;
+  context.shadowOffsetY = 7;
+  roundedFill(context, x, y, width, height, 24, "#22292d");
+  context.restore();
+  context.lineWidth = 2;
+  context.strokeStyle = "rgba(255, 255, 255, 0.12)";
+  roundedRect(context, x, y, width, height, 24);
+  context.stroke();
+
+  const avatarAreaWidth = 210;
+  drawKanbanAvatarStack(
+    context,
+    task.assignees || [],
+    avatarImages,
+    x + 78,
+    y + 99,
+    57,
+    palette
+  );
+  const summaryX = x + avatarAreaWidth;
+  const summaryWidth = width - avatarAreaWidth - 34;
+  drawText(context, task.code || `TASK-${task.id || ""}`, summaryX, y + 54, {
+    color: primary,
+    font: "800 27px 'Segoe UI', Arial, sans-serif",
+    maxWidth: summaryWidth * 0.56
+  });
+
+  if (isBug) {
+    const bugImage = avatarImages.get("kanban-bug-icon");
+    if (bugImage) {
+      context.drawImage(bugImage, x + width - 76, y + 28, 44, 44);
+    } else {
+      drawKanbanPill(context, "BUG", x + width - 106, y + 25, {
+        background: "rgba(238, 107, 112, 0.18)",
+        border: "rgba(238, 107, 112, 0.6)",
+        color: "#ff9aa0",
+        font: "800 19px 'Segoe UI', Arial, sans-serif"
+      });
+    }
+  } else {
+    drawKanbanPill(context, task.taskType || "Dev", x + width - 150, y + 24, {
+      background: "#171c1f",
+      border: "rgba(255, 255, 255, 0.14)",
+      color: palette.textPrimary,
+      font: "700 20px 'Segoe UI', Arial, sans-serif"
+    });
+  }
+
+  drawWrappedText(context, task.title || "Untitled task", summaryX, y + 86, summaryWidth, 38, 3, {
+    color: palette.textPrimary,
+    font: "600 29px 'Segoe UI', Arial, sans-serif"
+  });
+
+  let tagX = summaryX;
+  const tagY = y + Math.min(height - 154, 218);
+  if (task.priority) {
+    tagX += drawKanbanPill(context, task.priority, tagX, tagY, kanbanBadgeStyle("priority", task.priority)) + 12;
+  }
+  if (isBug && task.severity) {
+    drawKanbanPill(context, task.severity, tagX, tagY, kanbanBadgeStyle("severity", task.severity));
+  }
+
+  const percent = kanbanTaskPercent(task);
+  const progressLabelY = y + height - 79;
+  drawText(context, `${percent}%`, x + width / 2, progressLabelY, {
+    color: palette.textSecondary,
+    font: "650 23px 'Segoe UI', Arial, sans-serif",
+    align: "center",
+    baseline: "middle"
+  });
+  const progressX = x + 34;
+  const progressY = y + height - 48;
+  const progressWidth = width - 68;
+  roundedFill(context, progressX, progressY, progressWidth, 16, 8, "#171c1f");
+  if (percent > 0) {
+    roundedFill(
+      context,
+      progressX,
+      progressY,
+      progressWidth * percent / 100,
+      16,
+      8,
+      kanbanProgressColor(percent)
+    );
+  }
+}
+
+function drawKanbanAvatarStack(context, users, avatarImages, x, y, radius, palette) {
+  const visibleUsers = users.slice(0, 3);
+  visibleUsers.forEach((user, index) => {
+    const avatarX = x + index * radius * 0.62;
+    const image = avatarImages.get(String(user.id));
+    context.save();
+    context.beginPath();
+    context.arc(avatarX, y, radius, 0, Math.PI * 2);
+    context.clip();
+    if (image) {
+      const scale = Math.max((radius * 2) / image.naturalWidth, (radius * 2) / image.naturalHeight);
+      const imageWidth = image.naturalWidth * scale;
+      const imageHeight = image.naturalHeight * scale;
+      context.drawImage(
+        image,
+        avatarX - imageWidth / 2,
+        y - imageHeight / 2,
+        imageWidth,
+        imageHeight
+      );
+    } else {
+      context.fillStyle = avatarColor(user.id);
+      context.fillRect(avatarX - radius, y - radius, radius * 2, radius * 2);
+      drawText(context, userInitials(user), avatarX, y + 1, {
+        color: "#ffffff",
+        font: `800 ${Math.round(radius * 0.72)}px 'Segoe UI', Arial, sans-serif`,
+        align: "center",
+        baseline: "middle"
+      });
+    }
+    context.restore();
+    context.beginPath();
+    context.arc(avatarX, y, radius, 0, Math.PI * 2);
+    context.lineWidth = 5;
+    context.strokeStyle = "#22292d";
+    context.stroke();
+  });
+
+  if (users.length > visibleUsers.length) {
+    const extraX = x + visibleUsers.length * radius * 0.62;
+    context.beginPath();
+    context.arc(extraX, y, radius, 0, Math.PI * 2);
+    context.fillStyle = "#171c1f";
+    context.fill();
+    context.lineWidth = 5;
+    context.strokeStyle = "#22292d";
+    context.stroke();
+    drawText(context, `+${users.length - visibleUsers.length}`, extraX, y + 1, {
+      color: palette.textPrimary,
+      font: `800 ${Math.round(radius * 0.52)}px 'Segoe UI', Arial, sans-serif`,
+      align: "center",
+      baseline: "middle"
+    });
+  }
+}
+
+function drawKanbanPill(context, text, x, y, options = {}) {
+  const font = options.font || "700 22px 'Segoe UI', Arial, sans-serif";
+  context.font = font;
+  const width = Math.max(options.minWidth || 0, Math.ceil(context.measureText(String(text || "")).width) + 34);
+  roundedFill(context, x, y, width, 52, 26, options.background || "#171c1f");
+  context.lineWidth = 2;
+  context.strokeStyle = options.border || "rgba(255, 255, 255, 0.14)";
+  roundedRect(context, x, y, width, 52, 26);
+  context.stroke();
+  drawText(context, text, x + width / 2, y + 27, {
+    color: options.color || "#edf3f2",
+    font,
+    align: "center",
+    baseline: "middle"
+  });
+  return width;
+}
+
+function kanbanBadgeStyle(kind, value) {
+  const normalized = String(value || "").toLowerCase();
+  const family = kind === "severity"
+    ? normalized === "critical" ? "danger" : normalized === "major" ? "warning" : normalized === "minor" ? "success" : "info"
+    : ["highest", "high"].includes(normalized) ? "danger" : normalized === "medium" ? "warning" : normalized === "low" ? "success" : "info";
+  const colors = {
+    danger: { background: "rgba(238, 107, 112, 0.17)", border: "rgba(238, 107, 112, 0.55)", color: "#ff9aa0" },
+    warning: { background: "rgba(228, 165, 58, 0.17)", border: "rgba(228, 165, 58, 0.55)", color: "#f0bd64" },
+    success: { background: "rgba(116, 196, 118, 0.17)", border: "rgba(116, 196, 118, 0.55)", color: "#9bd89d" },
+    info: { background: "rgba(118, 169, 255, 0.17)", border: "rgba(118, 169, 255, 0.55)", color: "#a6c6ff" }
+  };
+  return { ...colors[family], font: "700 20px 'Segoe UI', Arial, sans-serif" };
+}
+
+function kanbanTaskPercent(task) {
+  const value = task.subTasks?.length
+    ? task.subTaskAveragePercent ?? task.percentCompleted
+    : task.percentCompleted;
+  return Math.round(THREE.MathUtils.clamp(Number(value || 0), 0, 100));
+}
+
+function kanbanProgressColor(percent) {
+  if (percent >= 80) return resolveColor("var(--color-success)");
+  if (percent <= 30) return resolveColor("var(--color-danger)");
+  return resolveColor("var(--color-warning)");
 }
 
 function drawHorizontalChart(context, chart) {
@@ -879,6 +1498,27 @@ async function loadUserAvatar(user, avatarImages) {
   avatarImages.set(String(user.id), image);
 }
 
+async function loadKanbanAssets(tasks, avatarImages) {
+  const users = new Map();
+  for (const task of tasks) {
+    for (const user of task.assignees || []) {
+      if (user?.id !== undefined) users.set(String(user.id), user);
+    }
+  }
+  const loads = [...users.values()].map(async user => {
+    const source = user.avatarUrl || "/assets/avatar-default.svg";
+    const resolved = new URL(appUrl(source), window.location.href);
+    if (resolved.protocol !== "data:" && resolved.origin !== window.location.origin) return;
+    const image = await loadImage(resolved.href);
+    avatarImages.set(String(user.id), image);
+  });
+  loads.push(
+    loadImage(appUrl("/assets/bug.svg?v=20260629-kanban-gantt-bug-icon"))
+      .then(image => avatarImages.set("kanban-bug-icon", image))
+  );
+  await Promise.allSettled(loads);
+}
+
 function loadImage(source) {
   return new Promise((resolve, reject) => {
     const image = new Image();
@@ -906,6 +1546,11 @@ function resolveColor(value) {
   const variable = raw.match(/^var\((--[^)]+)\)$/)?.[1];
   if (!variable) return raw || "#2686fe";
   return DARK_CHART_VARIABLES[variable] || "#2686fe";
+}
+
+function normalizeHexColor(value, fallback) {
+  const color = String(value || "").trim();
+  return /^#[0-9a-f]{6}$/i.test(color) ? color : fallback;
 }
 
 function drawText(context, text, x, y, options = {}) {

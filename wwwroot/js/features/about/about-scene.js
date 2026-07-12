@@ -1,21 +1,21 @@
 import * as THREE from "../../vendor/three/three.module.min.js";
 import { RoomEnvironment } from "../../vendor/three/addons/environments/RoomEnvironment.js?v=0.185.1-pmt1";
 import { SVGLoader } from "../../vendor/three/addons/loaders/SVGLoader.js?v=0.185.1-pmt1";
-import { createAboutFlightController } from "./about-flight-controller.js?v=20260712-about-dialogue-linger-116";
-import { createLogoLightningEffect } from "./about-lightning.js?v=20260712-about-dialogue-linger-116";
+import { createAboutFlightController } from "./about-flight-controller.js?v=20260712-about-kanban-parity-120";
+import { createLogoLightningEffect } from "./about-lightning.js?v=20260712-about-kanban-parity-120";
 import {
   SPACE_BATTLE_DIALOGUE_LINGER_SECONDS,
   SPACE_BATTLE_PIP_GRACE_SECONDS,
   SPACE_BATTLE_PIP_LAYER,
   createIntergalacticBattle
-} from "./about-space-battle.js?v=20260712-about-dialogue-linger-116";
-import { createUfoEncounter } from "./about-ufo.js?v=20260712-about-dialogue-linger-116";
+} from "./about-space-battle.js?v=20260712-about-kanban-parity-120";
+import { createUfoEncounter } from "./about-ufo.js?v=20260712-about-kanban-parity-120";
 import {
   createAboutChartGallery,
   DEV_CHART_GRID_HEIGHT,
   DEV_CHART_GRID_WIDTH,
   DEV_CHART_GRID_Z
-} from "./about-workload-billboard.js?v=20260712-about-dialogue-linger-116";
+} from "./about-workload-billboard.js?v=20260712-about-kanban-parity-120";
 
 const INTRO_DURATION_MS = 3000;
 const INTRO_FADE_DURATION_MS = 1250;
@@ -47,6 +47,11 @@ export function createAboutScene({
   logoUrl,
   devCharts,
   bugCharts,
+  blogs,
+  projects,
+  tasks,
+  statuses,
+  getStatusColor,
   users,
   onFailure
 }) {
@@ -113,6 +118,11 @@ export function createAboutScene({
     root.dataset.aboutCometActive = "false";
     chartGallery = createAboutChartGallery({
       users,
+      projects,
+      blogs,
+      tasks,
+      statuses,
+      getStatusColor,
       devCharts,
       bugCharts,
       resources,
@@ -121,10 +131,12 @@ export function createAboutScene({
     scene.add(chartGallery.group);
     root.dataset.aboutWorkloadBillboard = "ready";
     root.dataset.aboutWorkloadStyle = "dev-and-bug-charts";
-    root.dataset.aboutGallerySectionLabels = "Development Tasks|Bug Tracking|Development Team";
+    root.dataset.aboutGallerySectionLabels = "Development Tasks|Bug Tracking|Development Team|Documentation|Kanban Board";
     root.dataset.aboutDevGalleryLabel = "Development Tasks";
     root.dataset.aboutBugGalleryLabel = "Bug Tracking";
     root.dataset.aboutTeamGalleryLabel = "Development Team";
+    root.dataset.aboutDocumentationGalleryLabel = "Documentation";
+    root.dataset.aboutKanbanGalleryLabel = "Kanban Board";
     root.dataset.aboutWorkloadFrame = "none";
     root.dataset.aboutWorkloadPerimeter = "none";
     root.dataset.aboutWorkloadStand = "none";
@@ -165,6 +177,32 @@ export function createAboutScene({
     root.dataset.aboutTeamGridIntersectionZ = String(chartGallery.teamGridIntersectionZ);
     root.dataset.aboutTeamGridRotationDegrees = String(chartGallery.teamGridRotationDegrees);
     root.dataset.aboutTeamGrowthDirection = chartGallery.teamGrowthDirection;
+    root.dataset.aboutDocumentationCardCount = String(chartGallery.documentationCardCount);
+    root.dataset.aboutDocumentationCardLimit = String(chartGallery.documentationCardLimit);
+    root.dataset.aboutDocumentationGrid = `${chartGallery.documentationColumns}x${chartGallery.documentationRows}`;
+    root.dataset.aboutDocumentationGridWidth = String(chartGallery.documentationGridWidth);
+    root.dataset.aboutDocumentationGridHeight = String(chartGallery.documentationGridHeight);
+    root.dataset.aboutDocumentationGridX = String(chartGallery.documentationGridX);
+    root.dataset.aboutDocumentationGridY = String(chartGallery.documentationGridY);
+    root.dataset.aboutDocumentationGridZ = String(chartGallery.documentationGridZ);
+    root.dataset.aboutDocumentationGridRotationDegrees = String(chartGallery.documentationGridRotationDegrees);
+    root.dataset.aboutDocumentationFacingTarget = chartGallery.documentationFacingTarget;
+    root.dataset.aboutDocumentationFlightPathStatus = "approved-sequence-4-inspection";
+    root.dataset.aboutKanbanColumnCount = String(chartGallery.kanbanColumnCount);
+    root.dataset.aboutKanbanTaskCount = String(chartGallery.kanbanTaskCount);
+    root.dataset.aboutKanbanGridWidth = String(chartGallery.kanbanGridWidth);
+    root.dataset.aboutKanbanGridHeight = String(chartGallery.kanbanGridHeight);
+    root.dataset.aboutKanbanGridX = String(chartGallery.kanbanGridX);
+    root.dataset.aboutKanbanGridY = String(chartGallery.kanbanGridY);
+    root.dataset.aboutKanbanGridZ = String(chartGallery.kanbanGridZ);
+    root.dataset.aboutKanbanGridStartZ = String(chartGallery.kanbanGridStartZ);
+    root.dataset.aboutKanbanGridEndZ = String(chartGallery.kanbanGridEndZ);
+    root.dataset.aboutKanbanGridRotationDegrees = String(chartGallery.kanbanGridRotationDegrees);
+    root.dataset.aboutKanbanGrowthDirection = chartGallery.kanbanGrowthDirection;
+    root.dataset.aboutKanbanDynamicColumns = "live-status-derived";
+    root.dataset.aboutKanbanCardStyle = "real-board-card-parity";
+    root.dataset.aboutKanbanCardAvatars = "live-user-avatar-stack";
+    root.dataset.aboutKanbanVisibleTaskCardsPerColumn = "4";
     ufoEncounter = createUfoEncounter({
       scene,
       resources,
@@ -198,13 +236,14 @@ export function createAboutScene({
     root.dataset.aboutBattleShipDeparture = "animated-complete-exit";
     root.dataset.aboutBattleOriginalUfoReturnFire = "true";
     root.dataset.aboutBattleInterceptorShipStyle = "original-ufo-color-variants";
-    root.dataset.aboutBattleStunEffect = "lightning-style-electric-stun";
+    root.dataset.aboutBattleStunEffect = "ship-wobble-only-no-electric-lines";
     root.dataset.aboutBattleCameraInfluence = "none";
     root.dataset.aboutBattlePictureInPicture = "visibility-driven-lower-right";
     root.dataset.aboutBattlePictureInPictureCamera = "pmt-logo-centered-battle-variant-slow-orbit";
     root.dataset.aboutBattlePictureInPictureShipTracking = "none";
     root.dataset.aboutBattlePictureInPictureHideRule = "hide-when-no-ufo-visible-in-feed";
     root.dataset.aboutBattlePictureInPictureRenderLayer = "battle-only";
+    root.dataset.aboutBattlePictureInPictureFrameShape = "rectangular-clean-matched-render-area";
     root.dataset.aboutBattlePictureInPictureGraceSeconds = String(SPACE_BATTLE_PIP_GRACE_SECONDS);
     root.dataset.aboutBattlePictureInPictureEnabled = "true";
     root.dataset.aboutBattlePictureInPictureActive = "false";
@@ -212,7 +251,7 @@ export function createAboutScene({
     root.dataset.aboutBattleRuntimeError = "";
     root.dataset.aboutBattleEventCollisionPolicy = "preserve-active-battle-no-ufo-restart";
     root.dataset.aboutBattleEventCollisionCount = "0";
-    root.dataset.aboutBattleDialogueStyle = "stacked-color-coded-rounded-cards";
+    root.dataset.aboutBattleDialogueStyle = "destination-panel-dark-with-speaker-outline";
     root.dataset.aboutBattleDialogueVisibility = "always-on-screen-while-battle-active";
     root.dataset.aboutBattleDialogueCameraVisibility = "independent";
     root.dataset.aboutBattleDialoguePersistence = "all-lines-until-battle-complete";
@@ -296,6 +335,8 @@ export function createAboutScene({
       const groundedPortal = model.portal.clone();
       groundedPortal.y += logoGroundOffset;
       const sceneFocus = new THREE.Vector3(0, logoGroundOffset, 0);
+      const mtGapTarget = logoLetterGapTarget(model.letterTargets, "M", "T", sceneFocus);
+      root.dataset.aboutMtGapTarget = mtGapTarget.toArray().map(value => value.toFixed(3)).join(",");
       const ufoSceneOffset = ufoEncounter?.setSceneOffset(logoGroundOffset) || 0;
       root.dataset.aboutLogoGrounded = "true";
       root.dataset.aboutLogoFloorGap = String(groundClearance);
@@ -315,6 +356,16 @@ export function createAboutScene({
         secondaryTargets: chartGallery.bugTargets,
         bugDestinationLabels: chartGallery.bugLabels,
         bugDestinationWidths: chartGallery.bugWidths,
+        documentationTarget: chartGallery.documentationTarget,
+        documentationWidth: chartGallery.documentationGridWidth,
+        documentationHeight: chartGallery.documentationGridHeight,
+        kanbanTarget: chartGallery.kanbanTarget,
+        kanbanWidth: chartGallery.kanbanGridWidth,
+        kanbanHeight: chartGallery.kanbanGridHeight,
+        teamTarget: chartGallery.teamTarget,
+        teamWidth: chartGallery.teamGridWidth,
+        teamHeight: chartGallery.teamGridHeight,
+        mtGapTarget,
         galleryRoomBackZ: chartGallery.roomBackZ,
         sceneFocus,
         minimumCameraY: FLOOR_Y + MIN_CAMERA_FLOOR_CLEARANCE,
@@ -965,6 +1016,24 @@ function createExtrudedLogo(svg, resources) {
       0
     )
   };
+}
+
+function logoLetterGapTarget(letterTargets, leftLabel, rightLabel, fallback) {
+  const leftMesh = letterTargets.find(target => target.label === leftLabel)?.mesh;
+  const rightMesh = letterTargets.find(target => target.label === rightLabel)?.mesh;
+  if (!leftMesh || !rightMesh) return fallback.clone();
+
+  const leftBounds = new THREE.Box3().setFromObject(leftMesh);
+  const rightBounds = new THREE.Box3().setFromObject(rightMesh);
+  const leftCenter = leftBounds.getCenter(new THREE.Vector3());
+  const rightCenter = rightBounds.getCenter(new THREE.Vector3());
+  const lowerXBounds = leftCenter.x <= rightCenter.x ? leftBounds : rightBounds;
+  const upperXBounds = leftCenter.x <= rightCenter.x ? rightBounds : leftBounds;
+  return new THREE.Vector3(
+    (lowerXBounds.max.x + upperXBounds.min.x) / 2,
+    (leftCenter.y + rightCenter.y) / 2,
+    (leftCenter.z + rightCenter.z) / 2
+  );
 }
 
 function sourceColor(path) {

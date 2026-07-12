@@ -1,12 +1,12 @@
 import * as THREE from "../../vendor/three/three.module.min.js";
-import { createUfoShip } from "./about-ufo.js?v=20260712-about-dialogue-linger-116";
+import { createUfoShip } from "./about-ufo.js?v=20260712-about-kanban-parity-120";
 
 export const SPACE_BATTLE_CHANCE = 0.68;
 export const SPACE_BATTLE_MIN_INTERCEPTORS = 1;
 export const SPACE_BATTLE_MAX_INTERCEPTORS = 3;
 export const SPACE_BATTLE_PIP_LAYER = 2;
 export const SPACE_BATTLE_PIP_GRACE_SECONDS = 5;
-export const SPACE_BATTLE_DIALOGUE_LINGER_SECONDS = 5;
+export const SPACE_BATTLE_DIALOGUE_LINGER_SECONDS = 7;
 
 const BATTLE_START_UFO_TIME = 10.15;
 const ARRIVAL_END = 2.05;
@@ -105,8 +105,6 @@ export function createIntergalacticBattle({
     resources,
     shot.source === "original" ? 0x7be7ff : FORMATION_COLORS[index % FORMATION_COLORS.length]
   ));
-  const originalShock = createStunEffect(resources, 0x8ee8ff);
-  const interceptorShocks = FORMATION_COLORS.map(color => createStunEffect(resources, color));
   const originalPosition = new THREE.Vector3();
   const battleAnchor = new THREE.Vector3();
   const scratchStart = new THREE.Vector3();
@@ -141,7 +139,6 @@ export function createIntergalacticBattle({
   let battleAge = 0;
   let activeDialogueIndex = -1;
   let dialogueHideAt = Number.NEGATIVE_INFINITY;
-  let originalStunStartedAt = Number.NEGATIVE_INFINITY;
   let originalVisible = false;
   let enabled = true;
   let forcedBattlePending = false;
@@ -149,8 +146,6 @@ export function createIntergalacticBattle({
 
   for (const fighter of fighters) group.add(fighter);
   for (const bolt of laserBolts) group.add(bolt);
-  group.add(originalShock);
-  for (const shock of interceptorShocks) group.add(shock);
   const pictureInPictureLight = new THREE.HemisphereLight(0xc8efff, 0x122034, 2.2);
   pictureInPictureLight.layers.set(SPACE_BATTLE_PIP_LAYER);
   group.add(pictureInPictureLight);
@@ -210,7 +205,6 @@ export function createIntergalacticBattle({
     updatePhase();
     updateFighters();
     updateShots();
-    updateStunEffects();
     updateDialogue();
 
     if (battleAge >= DEPARTURE_END) finishBattle(true);
@@ -237,7 +231,6 @@ export function createIntergalacticBattle({
     pictureInPicturePose.orbitRate = (random() < 0.5 ? -1 : 1)
       * THREE.MathUtils.lerp(0.018, 0.032, random());
     battleAnchor.copy(originalPosition);
-    originalStunStartedAt = Number.NEGATIVE_INFINITY;
     activeDialogueIndex = -1;
     buildDialogueSchedule();
 
@@ -353,23 +346,11 @@ export function createIntergalacticBattle({
       if (!shot.impacted && shotAge >= LASER_DURATION * 0.72) {
         shot.impacted = true;
         if (definition.target === "original") {
-          originalStunStartedAt = battleAge;
           ufoEncounter?.reactToBattleHit?.();
         } else {
           fighterStunStartedAt[availableTargetIndex] = battleAge;
         }
       }
-    }
-  }
-
-  function updateStunEffects() {
-    updateStunEffect(originalShock, originalPosition, battleAge - originalStunStartedAt);
-    for (let index = 0; index < interceptorShocks.length; index += 1) {
-      updateStunEffect(
-        interceptorShocks[index],
-        fighters[index].position,
-        battleAge - fighterStunStartedAt[index]
-      );
     }
   }
 
@@ -464,8 +445,6 @@ export function createIntergalacticBattle({
   function finishBattle(lingerDialogue = false) {
     for (const fighter of fighters) fighter.visible = false;
     for (const bolt of laserBolts) bolt.visible = false;
-    for (const shock of interceptorShocks) shock.visible = false;
-    originalShock.visible = false;
     state.active = false;
     state.phase = "complete";
     state.interceptorCount = 0;
@@ -490,8 +469,6 @@ export function createIntergalacticBattle({
   function resetVisuals() {
     for (const fighter of fighters) fighter.visible = false;
     for (const bolt of laserBolts) bolt.visible = false;
-    for (const shock of interceptorShocks) shock.visible = false;
-    originalShock.visible = false;
     pictureInPictureElement.hidden = true;
     hideDialogue();
   }
@@ -613,44 +590,6 @@ function positionLaserBolt(bolt, origin, destination, rawProgress) {
     direction.normalize()
   );
   bolt.scale.set(1, length, 1);
-}
-
-function createStunEffect(resources, color) {
-  const group = new THREE.Group();
-  const vertices = [];
-  for (let index = 0; index < 18; index += 1) {
-    const angle = index / 18 * Math.PI * 2;
-    const y = Math.sin(index * 2.17) * 0.7;
-    vertices.push(
-      Math.cos(angle) * 0.45, y, Math.sin(angle) * 0.45,
-      Math.cos(angle + 0.35) * 1.05, y + 0.22, Math.sin(angle + 0.35) * 1.05
-    );
-  }
-  const geometry = new THREE.BufferGeometry();
-  geometry.setAttribute("position", new THREE.Float32BufferAttribute(vertices, 3));
-  const material = new THREE.LineBasicMaterial({
-    color,
-    transparent: true,
-    opacity: 0.9,
-    blending: THREE.AdditiveBlending,
-    depthWrite: false,
-    toneMapped: false
-  });
-  group.add(new THREE.LineSegments(geometry, material));
-  resources.add(geometry);
-  resources.add(material);
-  return group;
-}
-
-function updateStunEffect(effect, position, age) {
-  const active = age >= 0 && age < STUN_DURATION;
-  effect.visible = active;
-  if (!active) return;
-  const strength = 1 - age / STUN_DURATION;
-  effect.position.copy(position);
-  effect.rotation.y = age * 9;
-  effect.rotation.x = age * 4;
-  effect.scale.setScalar(0.7 + Math.sin(age * 34) * 0.12 + strength * 0.35);
 }
 
 function positionPictureInPictureCamera(camera, focus, age, pose) {

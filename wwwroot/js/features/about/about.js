@@ -10,7 +10,7 @@ import { appUrl } from "../../shared/app-urls.js";
 import { createBugChartsView } from "../../shared/bug-charts.js?v=20260712-about-chart-gallery";
 import { createDevTaskChartsView } from "../../shared/dev-task-charts.js?v=20260712-about-chart-gallery";
 
-const ABOUT_VERSION = "20260712-about-dialogue-linger-116";
+const ABOUT_VERSION = "20260712-about-kanban-parity-120";
 
 export function createAboutFeature({
   app,
@@ -47,6 +47,13 @@ export function createAboutFeature({
       severities: getSeverities(),
       getCurrentSprint,
       getItemStartDate
+    });
+    const statuses = getStatuses();
+    const kanbanTasks = currentKanbanTasks({
+      tasks: state.tasks,
+      projects: state.projects,
+      sprints: state.sprints,
+      statuses
     });
 
     app.innerHTML = `
@@ -154,6 +161,11 @@ export function createAboutFeature({
           logoUrl,
           devCharts,
           bugCharts,
+          blogs: state.blogs,
+          projects: state.projects,
+          tasks: kanbanTasks,
+          statuses,
+          getStatusColor: statusColor,
           users: state.users,
           onFailure: message => showFallback(root, message)
         });
@@ -183,6 +195,34 @@ export function createAboutFeature({
     render: renderAbout,
     deactivate
   };
+}
+
+function currentKanbanTasks({ tasks, projects, sprints, statuses }) {
+  const preferredProjectId = readNumberPreference(preferenceKeys.boardProject, 0);
+  const projectId = preferredProjectId || Number(projects[0]?.id || 0);
+  const sprintMode = readPreference(preferenceKeys.boardSprint, "latest");
+  const sprintId = sprintMode === "all"
+    ? 0
+    : sprintMode === "latest"
+      ? Number([...sprints]
+        .filter(sprint => Number(sprint.projectId) === projectId)
+        .sort((left, right) => new Date(right.startDate) - new Date(left.startDate))[0]?.id || 0)
+      : Number(sprintMode || 0);
+  const savedStatuses = readJsonPreference(preferenceKeys.boardStatuses, null);
+  const visibleStatuses = Array.isArray(savedStatuses)
+    && savedStatuses.every(status => statuses.includes(status))
+    ? savedStatuses
+    : statuses;
+  const selectedUsers = new Set(
+    (readJsonPreference(preferenceKeys.boardUsers, []) || []).map(String)
+  );
+
+  return tasks
+    .filter(task => !projectId || Number(task.projectId) === projectId)
+    .filter(task => !sprintId || Number(task.sprintId) === sprintId)
+    .filter(task => visibleStatuses.includes(task.status))
+    .filter(task => !selectedUsers.size
+      || (task.assigneeIds || []).some(userId => selectedUsers.has(String(userId))));
 }
 
 function showFallback(root, message) {

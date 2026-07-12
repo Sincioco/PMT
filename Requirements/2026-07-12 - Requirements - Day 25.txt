@@ -210,3 +210,11 @@ Before proceeding with the Documentation task, commit and push to the repo.
 
 29.) Add a whole new section to the Gallery.  This time, it will be "Documentation".  Render the last 20 Documentation Cards in front of the PMT logo.  See attached diagram for placement and orientation (in red).
 30.) The Documentation cards should be visible during the flyby, so be sure it is facing towards the PMT logo.
+
+31.) Add the Kanban Board as shown in the diagram.  Note that the Kanban Board and the User Cards are both dynamic elements that may contain different stacks of User Cards and/or different Columns for the Kanban Board.  Account for that when placing / rendering them.
+32.) Adjust the flight path to visit the Kanban Board after the Documentation;
+33.) Then visit the Development Team section;
+34.) Then fly behind the PMT Logo and fly through between the letters M and T towards Documentation (again) in preparation to repeat Sequence 1.
+35.) Back to the UFO speech bubbles, during battle, instead of using the usual speech bubble, use the same panel you use at the bottom of the screen that currently shows the destination of the flyby.  I like that exact style (I like that dark theme background).  Maybe only change the outline color to denote which UFO is speaking.  Still keep the speech bubbles at the right side of the screen where you have it now.  This is purely a styling cosmetic change.
+36.) And make the UFO speech bubbles linger for 7 seconds after the fight.
+37.) Also, during the UFO battles, you can remove the lines you use for special effects for when a ship is hit. Keep the ship wobble when it is hit.  That's good enough.

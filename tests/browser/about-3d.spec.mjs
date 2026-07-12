@@ -26,11 +26,20 @@ test("About renders the drone flyby and supports camera takeover and speed keys"
   await expect(root).toHaveAttribute("data-about-workload-style", "dev-and-bug-charts");
   await expect(root).toHaveAttribute(
     "data-about-gallery-section-labels",
-    "Development Tasks|Bug Tracking|Development Team"
+    "Development Tasks|Bug Tracking|Development Team|Documentation|Kanban Board"
   );
   await expect(root).toHaveAttribute("data-about-dev-gallery-label", "Development Tasks");
   await expect(root).toHaveAttribute("data-about-bug-gallery-label", "Bug Tracking");
   await expect(root).toHaveAttribute("data-about-team-gallery-label", "Development Team");
+  await expect(root).toHaveAttribute("data-about-documentation-gallery-label", "Documentation");
+  await expect(root).toHaveAttribute("data-about-kanban-gallery-label", "Kanban Board");
+  await expect(root).toHaveAttribute("data-about-documentation-card-count", "0");
+  await expect(root).toHaveAttribute("data-about-documentation-card-limit", "20");
+  await expect(root).toHaveAttribute("data-about-documentation-grid", "1x1");
+  await expect(root).toHaveAttribute("data-about-documentation-grid-z", "40");
+  await expect(root).toHaveAttribute("data-about-documentation-grid-rotation-degrees", "180");
+  await expect(root).toHaveAttribute("data-about-documentation-facing-target", "pmt-logo");
+  await expect(root).toHaveAttribute("data-about-documentation-flight-path-status", "approved-sequence-4-inspection");
   await expect(root).toHaveAttribute("data-about-workload-frame", "none");
   await expect(root).toHaveAttribute("data-about-workload-perimeter", "none");
   await expect(root).toHaveAttribute("data-about-workload-stand", "none");
@@ -51,6 +60,13 @@ test("About renders the drone flyby and supports camera takeover and speed keys"
   await expect(root).toHaveAttribute("data-about-team-card-columns", "2");
   await expect(root).toHaveAttribute("data-about-team-card-rows", "2");
   await expect(root).toHaveAttribute("data-about-team-growth-direction", "away-from-dev-wall");
+  await expect(root).toHaveAttribute("data-about-kanban-column-count", "5");
+  await expect(root).toHaveAttribute("data-about-kanban-task-count", "5");
+  await expect(root).toHaveAttribute("data-about-kanban-growth-direction", "away-from-development-team");
+  await expect(root).toHaveAttribute("data-about-kanban-dynamic-columns", "live-status-derived");
+  await expect(root).toHaveAttribute("data-about-kanban-card-style", "real-board-card-parity");
+  await expect(root).toHaveAttribute("data-about-kanban-card-avatars", "live-user-avatar-stack");
+  await expect(root).toHaveAttribute("data-about-kanban-visible-task-cards-per-column", "4");
   await expect(root).toHaveAttribute("data-about-logo-grounded", "true");
   await expect(root).toHaveAttribute("data-about-star-particles", "fixed-distant-world-space");
   await expect(root).toHaveAttribute("data-about-shooting-stars", "removed");
@@ -82,7 +98,7 @@ test("About renders the drone flyby and supports camera takeover and speed keys"
   await expect(root).toHaveAttribute("data-about-battle-ship-departure", "animated-complete-exit");
   await expect(root).toHaveAttribute("data-about-battle-original-ufo-return-fire", "true");
   await expect(root).toHaveAttribute("data-about-battle-interceptor-ship-style", "original-ufo-color-variants");
-  await expect(root).toHaveAttribute("data-about-battle-stun-effect", "lightning-style-electric-stun");
+  await expect(root).toHaveAttribute("data-about-battle-stun-effect", "ship-wobble-only-no-electric-lines");
   await expect(root).toHaveAttribute("data-about-battle-camera-influence", "none");
   await expect(root).toHaveAttribute(
     "data-about-battle-picture-in-picture",
@@ -98,6 +114,10 @@ test("About renders the drone flyby and supports camera takeover and speed keys"
     "hide-when-no-ufo-visible-in-feed"
   );
   await expect(root).toHaveAttribute("data-about-battle-picture-in-picture-render-layer", "battle-only");
+  await expect(root).toHaveAttribute(
+    "data-about-battle-picture-in-picture-frame-shape",
+    "rectangular-clean-matched-render-area"
+  );
   await expect(root).toHaveAttribute("data-about-battle-picture-in-picture-reference", "pmt-logo");
   await expect(root).toHaveAttribute("data-about-battle-picture-in-picture-grace-seconds", "5");
   await expect(root).toHaveAttribute("data-about-battle-picture-in-picture-enabled", "true");
@@ -107,7 +127,7 @@ test("About renders the drone flyby and supports camera takeover and speed keys"
     "data-about-battle-event-collision-policy",
     "preserve-active-battle-no-ufo-restart"
   );
-  await expect(root).toHaveAttribute("data-about-battle-dialogue-style", "stacked-color-coded-rounded-cards");
+  await expect(root).toHaveAttribute("data-about-battle-dialogue-style", "destination-panel-dark-with-speaker-outline");
   await expect(root).toHaveAttribute(
     "data-about-battle-dialogue-visibility",
     "always-on-screen-while-battle-active"
@@ -117,7 +137,7 @@ test("About renders the drone flyby and supports camera takeover and speed keys"
     "data-about-battle-dialogue-persistence",
     "all-lines-until-battle-complete"
   );
-  await expect(root).toHaveAttribute("data-about-battle-dialogue-linger-seconds", "5");
+  await expect(root).toHaveAttribute("data-about-battle-dialogue-linger-seconds", "7");
   await expect(root).toHaveAttribute("data-about-battle-dialogue-lingering", "false");
   await expect(root).toHaveAttribute("data-about-battle-runtime-error", "");
   await expect(root).toHaveAttribute("data-about-animation-runtime-error", "");
@@ -142,7 +162,10 @@ test("About renders the drone flyby and supports camera takeover and speed keys"
   await expect(root).toHaveAttribute("data-about-alien-hotkey-strike-delay-seconds", "16");
   await expect(root).toHaveAttribute("data-about-alien-hotkey-strike-pending", "false");
   await expect(root).toHaveAttribute("data-about-initial-camera", "2d-logo-facing");
-  await expect(root).toHaveAttribute("data-about-flight-path", "initial-logo-p-hole-dev-bug-return-initial");
+  await expect(root).toHaveAttribute(
+    "data-about-flight-path",
+    "initial-logo-p-hole-dev-bug-documentation-kanban-team-mt-gap-return-initial"
+  );
   await expect(root).toHaveAttribute("data-about-flight-direction", "forward-through-approved-sequences");
   await expect(root).toHaveAttribute("data-about-flight-profile", "approved-sequences-1-through-4");
   await expect(root).toHaveAttribute("data-about-chart-inspection", "random-dev-then-random-bug");
@@ -178,6 +201,7 @@ test("About renders the drone flyby and supports camera takeover and speed keys"
   await expect(root).toHaveAttribute("data-about-control-hints-key", "?");
   await expect(root).toHaveAttribute("data-about-control-hints-duration-seconds", "5");
   await expect(root).toHaveAttribute("data-about-control-hints-layout", "compact-upper-left-list");
+  await expect(root).toHaveAttribute("data-about-control-hints-height", "dynamic-content-no-scrollbar");
   await expect(root).toHaveAttribute("data-about-control-hints-automatic", "true");
   await expect(root).toHaveAttribute("data-about-control-hints-trigger", "click-question-mark");
   await expect(root).toHaveAttribute("data-about-control-hints-trigger-position", "lower-left");
@@ -209,9 +233,15 @@ test("About renders the drone flyby and supports camera takeover and speed keys"
   await expect(root).toHaveAttribute("data-about-wide-chart-traversal-fov", "56");
   await expect(root).toHaveAttribute("data-about-wide-chart-traversal-zoom", "slight-zoom-out");
   await expect(root).toHaveAttribute("data-about-wide-chart-exit", "visible-far-edge");
-  await expect(root).toHaveAttribute("data-about-sequence-4", "qa-chart-to-initial-view");
-  await expect(root).toHaveAttribute("data-about-sequence-4-focus", "pmt-logo");
-  await expect(root).toHaveAttribute("data-about-sequence-4-duration-seconds", "38");
+  await expect(root).toHaveAttribute("data-about-sequence-4", "qa-documentation-kanban-team-behind-logo-mt-gap-initial");
+  await expect(root).toHaveAttribute("data-about-sequence-4-focus", "documentation-kanban-development-team-mt-gap-pmt-logo");
+  await expect(root).toHaveAttribute("data-about-sequence-4-duration-seconds", "72");
+  await expect(root).toHaveAttribute("data-about-documentation-inspection", "sequence-4-continuous-forward-curve");
+  await expect(root).toHaveAttribute("data-about-documentation-inspection-fov", "60");
+  await expect(root).toHaveAttribute("data-about-documentation-inspection-attention", /^(0|0\.000)$/);
+  await expect(root).toHaveAttribute("data-about-kanban-inspection-fov", "62");
+  await expect(root).toHaveAttribute("data-about-team-inspection-fov", "56");
+  await expect(root).toHaveAttribute("data-about-mt-gap-target", /^-?\d+\.\d{3},-?\d+\.\d{3},-?\d+\.\d{3}$/);
   await expect(root).toHaveAttribute("data-about-gallery-room-half-width", "36");
   await expect(root).toHaveAttribute("data-about-gallery-room-back-z", "-32");
   await expect(root).toHaveAttribute("data-about-dev-destination", /Chart$/);
