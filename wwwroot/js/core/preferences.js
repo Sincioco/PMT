@@ -10,6 +10,8 @@ export const preferenceKeys = Object.freeze({
   boardUsers: "pmt-board-users",
   boardHideEmptyColumns: "pmt-board-hide-empty-columns",
   boardFiltersVisible: "pmt-board-filters-visible",
+  aboutAlienEventsEnabled: "pmt-about-alien-events-enabled",
+  aboutBattlePictureInPictureEnabled: "pmt-about-battle-pip-enabled",
   roadMapProject: "pmt-roadmap-project",
   roadMapSprint: "pmt-roadmap-sprint",
   roadMapSort: "pmt-roadmap-sort",

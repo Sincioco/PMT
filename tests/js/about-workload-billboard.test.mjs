@@ -50,3 +50,14 @@ test("Kanban gallery can represent configured columns even when the board has no
   assert.deepEqual(columns.map(column => column.status), ["Idea", "Ready"]);
   assert.ok(columns.every(column => column.tasks.length === 0));
 });
+
+test("Kanban gallery omits all empty columns when the web board shows all columns", () => {
+  const columns = buildKanbanColumns(
+    [],
+    ["Backlog", "Todo", "In Progress", "Done"],
+    () => "#76a9ff",
+    { omitEmptyColumns: true }
+  );
+
+  assert.deepEqual(columns, []);
+});

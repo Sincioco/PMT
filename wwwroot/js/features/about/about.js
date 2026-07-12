@@ -1,6 +1,7 @@
 import { statusColor } from "../../components/progress-and-status.js?v=20260710-export-rich-kanban";
 import {
   preferenceKeys,
+  readBooleanPreference,
   readJsonPreference,
   readNumberPreference,
   readPreference
@@ -10,7 +11,7 @@ import { appUrl } from "../../shared/app-urls.js";
 import { createBugChartsView } from "../../shared/bug-charts.js?v=20260712-about-chart-gallery";
 import { createDevTaskChartsView } from "../../shared/dev-task-charts.js?v=20260712-about-chart-gallery";
 
-const ABOUT_VERSION = "20260712-about-kanban-parity-120";
+const ABOUT_VERSION = "20260712-about-controls-123";
 
 export function createAboutFeature({
   app,
@@ -49,7 +50,7 @@ export function createAboutFeature({
       getItemStartDate
     });
     const statuses = getStatuses();
-    const kanbanTasks = currentKanbanTasks({
+    const kanbanBoard = currentKanbanBoard({
       tasks: state.tasks,
       projects: state.projects,
       sprints: state.sprints,
@@ -78,7 +79,7 @@ export function createAboutFeature({
             Preparing the 3D flight…
           </p>
           <p class="about-flight-controls" aria-label="3D flight controls">
-            <span class="about-flight-controls-title">Flight controls</span>
+            <span class="about-flight-controls-title">Controls</span>
             <span class="about-control-hint"><kbd>Hold left mouse</kbd><span>Look around</span></span>
             <span class="about-control-hint"><kbd>Wheel</kbd><span>Zoom</span></span>
             <span class="about-control-hint"><kbd>WASD</kbd><span>Move</span></span>
@@ -94,7 +95,11 @@ export function createAboutFeature({
             <span class="about-control-hint"><kbd>M</kbd><span>Intergalactic battle</span></span>
             <span class="about-control-hint"><kbd>R</kbd><span>Random event</span></span>
             <span class="about-control-hint"><kbd>0</kbd><span>Alien events on / off</span></span>
-            <span class="about-control-hint"><kbd>1</kbd><span>Battle PIP on / off</span></span>
+            <span class="about-control-hint"><kbd>P</kbd><span>PIP on / off</span></span>
+            <span class="about-control-hint"><kbd>1</kbd><span>Original UFO</span></span>
+            <span class="about-control-hint"><kbd>2</kbd><span>1 attacker vs UFO</span></span>
+            <span class="about-control-hint"><kbd>3</kbd><span>2 attackers vs UFO</span></span>
+            <span class="about-control-hint"><kbd>4</kbd><span>3 attackers vs UFO</span></span>
             <span class="about-control-hint"><kbd>?</kbd><span>Show these hints</span></span>
           </p>
           <button type="button" class="about-flight-mode" data-about-mode disabled>3D</button>
@@ -104,8 +109,8 @@ export function createAboutFeature({
           type="button"
           class="about-control-hints-trigger"
           data-about-control-hints-button
-          aria-label="Show flight controls for five seconds"
-          title="Show flight controls"
+          aria-label="Show controls for five seconds"
+          title="Show controls"
         >?</button>
 
         <p class="about-flight-debug" data-about-flight-debug aria-live="polite">
@@ -163,8 +168,10 @@ export function createAboutFeature({
           bugCharts,
           blogs: state.blogs,
           projects: state.projects,
-          tasks: kanbanTasks,
+          tasks: kanbanBoard.tasks,
           statuses,
+          omitEmptyKanbanColumns: kanbanBoard.omitEmptyColumns,
+          kanbanWebShowsAllColumns: kanbanBoard.webShowsAllColumns,
           getStatusColor: statusColor,
           users: state.users,
           onFailure: message => showFallback(root, message)
@@ -197,7 +204,7 @@ export function createAboutFeature({
   };
 }
 
-function currentKanbanTasks({ tasks, projects, sprints, statuses }) {
+function currentKanbanBoard({ tasks, projects, sprints, statuses }) {
   const preferredProjectId = readNumberPreference(preferenceKeys.boardProject, 0);
   const projectId = preferredProjectId || Number(projects[0]?.id || 0);
   const sprintMode = readPreference(preferenceKeys.boardSprint, "latest");
@@ -213,16 +220,31 @@ function currentKanbanTasks({ tasks, projects, sprints, statuses }) {
     && savedStatuses.every(status => statuses.includes(status))
     ? savedStatuses
     : statuses;
+  const boardHidesEmptyColumns = readBooleanPreference(
+    preferenceKeys.boardHideEmptyColumns,
+    true
+  );
+  const webShowsAllColumns = !boardHidesEmptyColumns
+    && visibleStatuses.length === statuses.length
+    && statuses.every(status => visibleStatuses.includes(status));
   const selectedUsers = new Set(
     (readJsonPreference(preferenceKeys.boardUsers, []) || []).map(String)
   );
 
-  return tasks
+  const visibleTasks = tasks
     .filter(task => !projectId || Number(task.projectId) === projectId)
     .filter(task => !sprintId || Number(task.sprintId) === sprintId)
     .filter(task => visibleStatuses.includes(task.status))
     .filter(task => !selectedUsers.size
       || (task.assigneeIds || []).some(userId => selectedUsers.has(String(userId))));
+
+  return {
+    tasks: visibleTasks,
+    webShowsAllColumns,
+    // 3D space is intentionally compact: even when the web board shows every
+    // configured column, the gallery never allocates geometry to empty ones.
+    omitEmptyColumns: boardHidesEmptyColumns || webShowsAllColumns
+  };
 }
 
 function showFallback(root, message) {

@@ -141,6 +141,7 @@ export function createIntergalacticBattle({
   let dialogueHideAt = Number.NEGATIVE_INFINITY;
   let originalVisible = false;
   let enabled = true;
+  let automaticInterceptionsEnabled = true;
   let forcedBattlePending = false;
   let forcedInterceptorCount = 0;
 
@@ -181,7 +182,7 @@ export function createIntergalacticBattle({
         plannedInterceptorCount = forcedInterceptorCount;
         forcedBattlePending = false;
       } else {
-        battlePlanned = battleShouldIntercept(random);
+        battlePlanned = automaticInterceptionsEnabled && battleShouldIntercept(random);
         plannedInterceptorCount = battlePlanned ? battleInterceptorCount(random) : 0;
       }
     }
@@ -510,6 +511,14 @@ export function createIntergalacticBattle({
     return enabled;
   }
 
+  function setAutomaticInterceptionsEnabled(value) {
+    automaticInterceptionsEnabled = Boolean(value);
+    if (!automaticInterceptionsEnabled && !state.active && !forcedBattlePending) {
+      battlePlanned = false;
+    }
+    return automaticInterceptionsEnabled;
+  }
+
   function abort() {
     battlePlanned = false;
     forcedBattlePending = false;
@@ -528,6 +537,7 @@ export function createIntergalacticBattle({
     isActive,
     forceNextBattle,
     setEnabled,
+    setAutomaticInterceptionsEnabled,
     abort,
     dispose
   };

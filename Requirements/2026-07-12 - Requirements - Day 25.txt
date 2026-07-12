@@ -1,6 +1,6 @@
 Project Management Tool (PMT):  Day 25 of Codex Agentic AI Coding
 -----------------------------------------------------------------
-Total Dev Time in Hours:  32
+Total Dev Time in Hours:  33
 
 For all of this conversation / session, I will perform all the manual tests and compile the application manually.  Perform only the coding changes required and nothing else.  If making CSS / image changes, ensure that I will encounter no caching issue when testing in the browser.  Be sure to inform me if I have to recompile the .Net portion of the project or just Press Ctrl + F5 on the browser to reload to see the latest changes.
 
@@ -218,3 +218,35 @@ Before proceeding with the Documentation task, commit and push to the repo.
 35.) Back to the UFO speech bubbles, during battle, instead of using the usual speech bubble, use the same panel you use at the bottom of the screen that currently shows the destination of the flyby.  I like that exact style (I like that dark theme background).  Maybe only change the outline color to denote which UFO is speaking.  Still keep the speech bubbles at the right side of the screen where you have it now.  This is purely a styling cosmetic change.
 36.) And make the UFO speech bubbles linger for 7 seconds after the fight.
 37.) Also, during the UFO battles, you can remove the lines you use for special effects for when a ship is hit. Keep the ship wobble when it is hit.  That's good enough.
+
+38.) You did not render the same Kanban Board as what the user would see in the real web page version of the Kanban Board.  It's not the same card on the board, no avatar picture of the users, for example.  It's not as visually striking as the web version.  You rendered all other sections the same as the web page version.  Please render the Kanban Board similarly.
+
+39.) The PIP still renders with a black background and rounded edge (see attached image).  Either round the background, or make the green edge not rounded.  
+40.) When the Control Hints shows up it renders a vertical scrollbar.  Adjust the height of the panel so no vertical scrollbar renders--ever.  Make its height dynamic.
+
+41.) Special rule for the 3D rendering of the Kanban Board.  If the user has chosen to display all the columns on the web page, for the 3D rendered version, always just show columns that are not empty so we don't take up unnecessary space in 3D space.  Put this as a rule and update any necessary .md files so you can remember this in the future.
+
+42.) Revised approved sequences:
+[Approved] Sequence 1:  Initial view -> p-hole flyby
+[Approved] Sequence 2:  p-hole flyby -> Random Dev Chart
+[Approved] Sequence 3:  Random Dev Chart -> Random Bug Tracking / QA Chart
+Sequence 4:  Random Bug Tracking / QA Chart -> Randomly selected Documentation.
+Sequence 5:  Random Documentation -> Kanban Board
+Sequence 6:  Kanban Board -> Back of PMT Logo through the Logo in between M and T.
+Sequence 7:  PMT Logo (between M and T) to the Documentation area.
+
+43.) For sequence 7, you aren't going to the Documentation only to calculate a U-turn path so you can be in the spot you need to be to reexecute Sequence 1.
+
+44.) No sudden camera movement.  No suddent changes in speed.  Camera must move cinematic, always controlled, always calm and relax.
+
+45.) The loop from sequence 7 back to sequence 1 must be smooth and feel natural without any interruption.
+
+46.) Map the key "P" to toggle on/off the PIP.
+47.) Map the key "1" to enable just the original 1 UFO.
+48.) Map the key "2" to trigger 1 alien attacking the original UFO.
+49.) Map the key "3" to trigger 2 aliens attacking the original UFO.
+50.) Map the key "4" to trigger 3 aliens attacking the original UFO.
+51.) Rename the control hints title to just "Controls" and center it in the dialog box.
+52.) By default turn off the alien battle (no other UFOs except for the original one), and turn off PIP by default.
+53.) Bug:  Pressing Enter does not remove the alien conversations on-screen.
+54.) Save the user's About preferences (what their on/off settings in the 3DD scene) in local storage so you can reload it for next time.

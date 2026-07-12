@@ -39,7 +39,7 @@ test("About renders the drone flyby and supports camera takeover and speed keys"
   await expect(root).toHaveAttribute("data-about-documentation-grid-z", "40");
   await expect(root).toHaveAttribute("data-about-documentation-grid-rotation-degrees", "180");
   await expect(root).toHaveAttribute("data-about-documentation-facing-target", "pmt-logo");
-  await expect(root).toHaveAttribute("data-about-documentation-flight-path-status", "approved-sequence-4-inspection");
+  await expect(root).toHaveAttribute("data-about-documentation-flight-path-status", "revised-sequence-4-random-card");
   await expect(root).toHaveAttribute("data-about-workload-frame", "none");
   await expect(root).toHaveAttribute("data-about-workload-perimeter", "none");
   await expect(root).toHaveAttribute("data-about-workload-stand", "none");
@@ -77,10 +77,10 @@ test("About renders the drone flyby and supports camera takeover and speed keys"
   await expect(root).toHaveAttribute("data-about-comet-active", "false");
   await expect(root).toHaveAttribute(
     "data-about-cinematic-events",
-    "sequence-4-background-ufo-and-periodic-space-battle"
+    "sequences-4-through-7-background-ufo-and-manual-space-battle"
   );
   await expect(root).toHaveAttribute("data-about-ufo-enabled", "true");
-  await expect(root).toHaveAttribute("data-about-ufo-schedule", "sequence-4-background");
+  await expect(root).toHaveAttribute("data-about-ufo-schedule", "sequences-4-through-7-background");
   await expect(root).toHaveAttribute("data-about-ufo-sequence-4-active", "false");
   await expect(root).toHaveAttribute("data-about-ufo-camera-tracking", "false");
   await expect(root).toHaveAttribute("data-about-ufo-camera-influence", "none");
@@ -90,7 +90,7 @@ test("About renders the drone flyby and supports camera takeover and speed keys"
     "finish-before-hide-even-after-lightning"
   );
   await expect(root).toHaveAttribute("data-about-ufo-departure-draining", "false");
-  await expect(root).toHaveAttribute("data-about-intergalactic-battle", "periodic-ufo-interception");
+  await expect(root).toHaveAttribute("data-about-intergalactic-battle", "manual-trigger-only-by-default");
   await expect(root).toHaveAttribute("data-about-intergalactic-battle-active", "false");
   await expect(root).toHaveAttribute("data-about-battle-interceptor-range", "1-3");
   await expect(root).toHaveAttribute("data-about-battle-interceptor-count", "0");
@@ -120,7 +120,9 @@ test("About renders the drone flyby and supports camera takeover and speed keys"
   );
   await expect(root).toHaveAttribute("data-about-battle-picture-in-picture-reference", "pmt-logo");
   await expect(root).toHaveAttribute("data-about-battle-picture-in-picture-grace-seconds", "5");
-  await expect(root).toHaveAttribute("data-about-battle-picture-in-picture-enabled", "true");
+  await expect(root).toHaveAttribute("data-about-battle-picture-in-picture-enabled", "false");
+  await expect(root).toHaveAttribute("data-about-automatic-battles-enabled", "false");
+  await expect(root).toHaveAttribute("data-about-alien-battle-default", "original-ufo-only");
   await expect(root).toHaveAttribute("data-about-battle-picture-in-picture-active", "false");
   await expect(root).toHaveAttribute("data-about-battle-picture-in-picture-runtime-error", "");
   await expect(root).toHaveAttribute(
@@ -144,17 +146,23 @@ test("About renders the drone flyby and supports camera takeover and speed keys"
   await expect(page.locator("[data-about-battle-pip]")).toBeHidden();
   await expect(page.locator("[data-about-battle-dialogue]")).toBeHidden();
   await expect(root).toHaveAttribute("data-about-lightning-enabled", "true");
-  await expect(root).toHaveAttribute("data-about-lightning-schedule", "sequence-4-background");
+  await expect(root).toHaveAttribute("data-about-lightning-schedule", "sequences-4-through-7-background");
   await expect(root).toHaveAttribute("data-about-lightning-camera-influence", "none");
   await expect(root).toHaveAttribute("data-about-lightning-scene-flash", "dramatic");
   await expect(root).toHaveAttribute("data-about-lightning-ufo-strike", "random");
   await expect(root).toHaveAttribute("data-about-lightning-ufo-strike-chance", "0.5");
   await expect(root).toHaveAttribute("data-about-lightning-ufo-strike-planned", "false");
-  await expect(root).toHaveAttribute("data-about-event-hotkeys", "A,L,C,U,R,M,0,1");
+  await expect(root).toHaveAttribute("data-about-event-hotkeys", "A,L,C,U,R,M,0,P,1,2,3,4");
   await expect(root).toHaveAttribute("data-about-alien-events-enabled", "true");
   await expect(root).toHaveAttribute("data-about-alien-events-toggle-key", "0");
-  await expect(root).toHaveAttribute("data-about-battle-picture-in-picture-toggle-key", "1");
+  await expect(root).toHaveAttribute("data-about-battle-picture-in-picture-toggle-key", "P");
+  await expect(root).toHaveAttribute("data-about-original-ufo-hotkey", "1");
+  await expect(root).toHaveAttribute("data-about-battle-interceptor-hotkeys", "2:1,3:2,4:3");
+  await expect(root).toHaveAttribute("data-about-preference-storage", "local-storage");
+  await expect(root).toHaveAttribute("data-about-alien-events-preference-key", "pmt-about-alien-events-enabled");
+  await expect(root).toHaveAttribute("data-about-battle-picture-in-picture-preference-key", "pmt-about-battle-pip-enabled");
   await expect(root).toHaveAttribute("data-about-battle-hotkey", "M");
+  await expect(root).toHaveAttribute("data-about-enter-event-reset", "clear-alien-presentations");
   await expect(root).toHaveAttribute("data-about-random-event-choices", "alien,lightning,comet");
   await expect(root).toHaveAttribute("data-about-event-camera-influence", "none");
   await expect(root).toHaveAttribute("data-about-animation-pause-scope", "flight-and-events");
@@ -164,13 +172,13 @@ test("About renders the drone flyby and supports camera takeover and speed keys"
   await expect(root).toHaveAttribute("data-about-initial-camera", "2d-logo-facing");
   await expect(root).toHaveAttribute(
     "data-about-flight-path",
-    "initial-logo-p-hole-dev-bug-documentation-kanban-team-mt-gap-return-initial"
+    "initial-logo-p-hole-dev-bug-random-documentation-kanban-mt-gap-documentation-u-turn-initial"
   );
   await expect(root).toHaveAttribute("data-about-flight-direction", "forward-through-approved-sequences");
-  await expect(root).toHaveAttribute("data-about-flight-profile", "approved-sequences-1-through-4");
+  await expect(root).toHaveAttribute("data-about-flight-profile", "approved-1-through-3-revised-4-through-7");
   await expect(root).toHaveAttribute("data-about-chart-inspection", "random-dev-then-random-bug");
   await expect(root).toHaveAttribute("data-about-pmt-portal-flyby", "once-per-sequence-cycle");
-  await expect(root).toHaveAttribute("data-about-event-execution", "sequence-4-ufo-background");
+  await expect(root).toHaveAttribute("data-about-event-execution", "sequences-4-through-7-ufo-background");
   await expect(root).toHaveAttribute("data-about-minimum-forward-look-dot", "0.342");
   await expect(root).toHaveAttribute("data-about-level-horizon-fallback", "true");
   await expect(root).toHaveAttribute("data-about-post-portal-targeting", "continuous-dev-target");
@@ -179,9 +187,10 @@ test("About renders the drone flyby and supports camera takeover and speed keys"
   await expect(root).toHaveAttribute("data-about-unapproved-flight-logic", "disabled");
   await expect(root).toHaveAttribute("data-about-dev-selection-mode", "random");
   await expect(root).toHaveAttribute("data-about-bug-selection-mode", "random");
+  await expect(root).toHaveAttribute("data-about-documentation-selection-mode", "random-card-per-cycle");
   await expect(root).toHaveAttribute("data-about-automatic-sequence-reset", "true");
-  await expect(root).toHaveAttribute("data-about-approved-flyby-sequences", "1,2,3,4");
-  await expect(root).toHaveAttribute("data-about-flight-test-mode", "approved-sequences-1-through-4");
+  await expect(root).toHaveAttribute("data-about-approved-flyby-sequences", "1,2,3");
+  await expect(root).toHaveAttribute("data-about-flight-test-mode", "review-sequences-4-through-7");
   await expect(root).toHaveAttribute("data-about-flight-timing", "continuous-no-pause-no-hold");
   await expect(root).toHaveAttribute("data-about-default-flight-speed", "2");
   await expect(root).toHaveAttribute("data-about-flight-speed-policy", "user-controlled-constant");
@@ -233,14 +242,20 @@ test("About renders the drone flyby and supports camera takeover and speed keys"
   await expect(root).toHaveAttribute("data-about-wide-chart-traversal-fov", "56");
   await expect(root).toHaveAttribute("data-about-wide-chart-traversal-zoom", "slight-zoom-out");
   await expect(root).toHaveAttribute("data-about-wide-chart-exit", "visible-far-edge");
-  await expect(root).toHaveAttribute("data-about-sequence-4", "qa-documentation-kanban-team-behind-logo-mt-gap-initial");
-  await expect(root).toHaveAttribute("data-about-sequence-4-focus", "documentation-kanban-development-team-mt-gap-pmt-logo");
-  await expect(root).toHaveAttribute("data-about-sequence-4-duration-seconds", "72");
+  await expect(root).toHaveAttribute("data-about-sequence-4", "random-qa-to-random-documentation");
+  await expect(root).toHaveAttribute("data-about-sequence-5", "random-documentation-to-kanban");
+  await expect(root).toHaveAttribute("data-about-sequence-6", "kanban-to-behind-logo-through-mt-gap");
+  await expect(root).toHaveAttribute("data-about-sequence-7", "mt-gap-to-documentation-area-u-turn-to-sequence-1");
+  await expect(root).toHaveAttribute("data-about-sequence-7-documentation-behavior", "positioning-only-no-inspection");
+  await expect(root).toHaveAttribute("data-about-sequence-7-completion", "exact-sequence-1-start-pose");
+  await expect(root).toHaveAttribute("data-about-sequence-7-loop-transition", "continuous-no-camera-snap");
+  await expect(root).toHaveAttribute("data-about-sequence-7-loop-speed", "preserve-user-selected-speed");
+  await expect(root).toHaveAttribute("data-about-sequence-4-focus", "random-documentation");
+  await expect(root).toHaveAttribute("data-about-gallery-return-duration-seconds", "72");
   await expect(root).toHaveAttribute("data-about-documentation-inspection", "sequence-4-continuous-forward-curve");
   await expect(root).toHaveAttribute("data-about-documentation-inspection-fov", "60");
   await expect(root).toHaveAttribute("data-about-documentation-inspection-attention", /^(0|0\.000)$/);
   await expect(root).toHaveAttribute("data-about-kanban-inspection-fov", "62");
-  await expect(root).toHaveAttribute("data-about-team-inspection-fov", "56");
   await expect(root).toHaveAttribute("data-about-mt-gap-target", /^-?\d+\.\d{3},-?\d+\.\d{3},-?\d+\.\d{3}$/);
   await expect(root).toHaveAttribute("data-about-gallery-room-half-width", "36");
   await expect(root).toHaveAttribute("data-about-gallery-room-back-z", "-32");
@@ -253,6 +268,8 @@ test("About renders the drone flyby and supports camera takeover and speed keys"
   await expect(root).toHaveAttribute("data-about-bug-destination-width", /^(15\.2|[1-9]\d+(?:\.\d+)?)$/);
   await expect(root).toHaveAttribute("data-about-bug-destination-is-wide", /^(true|false)$/);
   await expect(root).toHaveAttribute("data-about-bug-destination-prepared", "true");
+  await expect(root).toHaveAttribute("data-about-documentation-destination", /Documentation/);
+  await expect(root).toHaveAttribute("data-about-documentation-destination-prepared", "true");
   await expect(root).toHaveAttribute("data-about-lightning-active", "false");
   await expect(root).toHaveAttribute("data-about-lightning-strike-count", "0");
   await expect(root).toHaveAttribute("data-about-min-camera-floor-clearance", "1.55");
@@ -363,7 +380,7 @@ test("About renders the drone flyby and supports camera takeover and speed keys"
   expect(screenshot.byteLength).toBeGreaterThan(30000);
   await testInfo.attach("about-3d-drone", { body: screenshot, contentType: "image/png" });
 
-  if (await root.getAttribute("data-about-flight-test-mode") === "approved-sequences-1-through-4") {
+  if (await root.getAttribute("data-about-flight-test-mode") === "review-sequences-4-through-7") {
     expect(browserErrors).toEqual([]);
     return;
   }
@@ -471,17 +488,24 @@ test("About separates mouse look, keyboard manual mode, pause, and event hotkeys
   await expect(controls).toContainText("Show these hints");
   await expect(controls).toContainText("Intergalactic battle");
   await expect(controls).toContainText("Alien events on / off");
-  await expect(controls).toContainText("Battle PIP on / off");
-  await expect(controls.locator(".about-control-hint")).toHaveCount(17);
+  await expect(controls).toContainText("PIP on / off");
+  await expect(controls).toContainText("Original UFO");
+  await expect(controls).toContainText("1 attacker vs UFO");
+  await expect(controls).toContainText("2 attackers vs UFO");
+  await expect(controls).toContainText("3 attackers vs UFO");
+  await expect(controls.locator(".about-flight-controls-title")).toHaveText("Controls");
+  await expect(controls.locator(".about-control-hint")).toHaveCount(21);
   const visibleControlsPanel = await controls.evaluate(element => {
     const root = element.closest("[data-about-flight]");
     const rootRect = root.getBoundingClientRect();
     const rect = element.getBoundingClientRect();
+    const title = element.querySelector(".about-flight-controls-title");
     return {
       top: rect.top - rootRect.top,
       left: rect.left - rootRect.left,
       width: rect.width,
-      height: rect.height
+      height: rect.height,
+      titleAlignment: getComputedStyle(title).textAlign
     };
   });
   expect(visibleControlsPanel.top).toBeLessThan(40);
@@ -490,6 +514,7 @@ test("About separates mouse look, keyboard manual mode, pause, and event hotkeys
   expect(visibleControlsPanel.width).toBeLessThan(430);
   expect(visibleControlsPanel.height).toBeGreaterThan(160);
   expect(visibleControlsPanel.height).toBeLessThan(460);
+  expect(visibleControlsPanel.titleAlignment).toBe("center");
   await expect(root).toHaveAttribute("data-flight-mode", "auto");
 
   await canvas.dispatchEvent("wheel", { deltaY: -180 });
@@ -533,16 +558,29 @@ test("About separates mouse look, keyboard manual mode, pause, and event hotkeys
 
   await page.keyboard.press("0");
   await expect(root).toHaveAttribute("data-about-alien-events-enabled", "false");
+  expect(await page.evaluate(() => localStorage.getItem("pmt-about-alien-events-enabled"))).toBe("false");
   await page.keyboard.press("0");
   await expect(root).toHaveAttribute("data-about-alien-events-enabled", "true");
-  await page.keyboard.press("1");
-  await expect(root).toHaveAttribute("data-about-battle-picture-in-picture-enabled", "false");
-  await page.keyboard.press("1");
+  expect(await page.evaluate(() => localStorage.getItem("pmt-about-alien-events-enabled"))).toBe("true");
+  await page.keyboard.press("p");
   await expect(root).toHaveAttribute("data-about-battle-picture-in-picture-enabled", "true");
+  expect(await page.evaluate(() => localStorage.getItem("pmt-about-battle-pip-enabled"))).toBe("true");
+  await page.keyboard.press("p");
+  await expect(root).toHaveAttribute("data-about-battle-picture-in-picture-enabled", "false");
+  expect(await page.evaluate(() => localStorage.getItem("pmt-about-battle-pip-enabled"))).toBe("false");
+
+  await page.keyboard.press("1");
+  await expect(root).toHaveAttribute("data-about-manual-event-last", "alien");
+  await expect(root).toHaveAttribute("data-about-manual-event-source-key", "Digit1");
+  await expect(root).toHaveAttribute("data-about-battle-forced-interceptor-count", "0");
+  await page.keyboard.press("2");
+  await expect(root).toHaveAttribute("data-about-manual-event-last", "battle");
+  await expect(root).toHaveAttribute("data-about-manual-event-source-key", "Digit2");
+  await expect(root).toHaveAttribute("data-about-battle-forced-interceptor-count", "1");
 
   await page.keyboard.press("u");
   await expect(root).toHaveAttribute("data-about-manual-event-last", "alien");
-  await expect(root).toHaveAttribute("data-about-manual-event-count", "5");
+  await expect(root).toHaveAttribute("data-about-manual-event-count", "7");
   await expect(root).toHaveAttribute("data-flight-mode", "auto");
   await page.keyboard.press("a");
   await expect(root).toHaveAttribute("data-about-alien-hotkey-strike-pending", "true");
@@ -553,14 +591,17 @@ test("About separates mouse look, keyboard manual mode, pause, and event hotkeys
   await page.keyboard.press("c");
   await expect(root).toHaveAttribute("data-about-manual-event-last", "comet");
   await page.keyboard.press("r");
-  await expect(root).toHaveAttribute("data-about-manual-event-count", "9");
+  await expect(root).toHaveAttribute("data-about-manual-event-count", "11");
   await page.keyboard.press("m");
   await expect(root).toHaveAttribute("data-about-manual-event-last", "battle");
   await expect(root).toHaveAttribute("data-about-manual-event-source-key", "KeyM");
-  await expect(root).toHaveAttribute("data-about-manual-event-count", "10");
+  await expect(root).toHaveAttribute("data-about-manual-event-count", "12");
   await expect(root).not.toHaveAttribute("data-about-battle-forced-interceptor-count", "0");
 
   await page.keyboard.press("Enter");
+  await expect(root).toHaveAttribute("data-about-enter-event-reset-applied", "true");
+  await expect(page.locator("[data-about-ufo-speech]")).toBeHidden();
+  await expect(page.locator("[data-about-battle-dialogue]")).toBeHidden();
   await expect(root).toHaveAttribute("data-about-enter-restart-behavior", "reset-sequence-1-in-scene");
   await expect(root).toHaveAttribute("data-about-flight-sequence-stage", "dev");
   await expect(root).toHaveAttribute("data-flight-mode", "auto");
@@ -598,10 +639,10 @@ test("About schedules background-only UFO and lightning events for Sequence 4", 
   await expect(root).toHaveClass(/about-flight-started/, { timeout: 15000 });
   await expect(root).toHaveAttribute(
     "data-about-cinematic-events",
-    "sequence-4-background-ufo-and-periodic-space-battle"
+    "sequences-4-through-7-background-ufo-and-manual-space-battle"
   );
   await expect(root).toHaveAttribute("data-about-ufo-enabled", "true");
-  await expect(root).toHaveAttribute("data-about-ufo-schedule", "sequence-4-background");
+  await expect(root).toHaveAttribute("data-about-ufo-schedule", "sequences-4-through-7-background");
   await expect(root).toHaveAttribute("data-about-ufo-camera-tracking", "false");
   await expect(root).toHaveAttribute("data-about-ufo-camera-influence", "none");
   await expect(root).toHaveAttribute(

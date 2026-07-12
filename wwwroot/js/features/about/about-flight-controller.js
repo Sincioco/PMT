@@ -2,7 +2,7 @@ import * as THREE from "../../vendor/three/three.module.min.js";
 
 const FLIGHT_DURATION_SECONDS = 26;
 const BUG_FLIGHT_DURATION_SECONDS = 19;
-const SEQUENCE_4_DURATION_SECONDS = 72;
+const GALLERY_RETURN_DURATION_SECONDS = 72;
 const WIDE_CHART_TRAVERSAL_SPEED = 5;
 const DEV_SEQUENCE_HANDOFF_PHASE = 0.992;
 const DEV_TO_BUG_BLEND_START_PHASE = 0.94;
@@ -39,7 +39,9 @@ const INSPECTION_FOV = 52;
 const PORTAL_FOV = 40;
 const DOCUMENTATION_FOV = 60;
 const KANBAN_FOV = 62;
-const TEAM_FOV = 56;
+const SEQUENCE_4_END_PHASE = 0.3;
+const SEQUENCE_5_END_PHASE = 0.52;
+const SEQUENCE_6_END_PHASE = 0.76;
 const MOVEMENT_KEYS = new Set(["KeyW", "KeyA", "KeyS", "KeyD", "KeyQ", "KeyE"]);
 const BOOST_KEYS = new Set(["ShiftLeft", "ShiftRight"]);
 const MIN_USER_FOV = 24;
@@ -59,14 +61,13 @@ export function createAboutFlightController({
   bugDestinationLabels = [],
   bugDestinationWidths = [],
   documentationTarget = null,
-  documentationWidth = 31.2,
-  documentationHeight = 15.2,
+  documentationTargets = [],
+  documentationDestinationLabels = [],
+  documentationWidth = 5.8,
+  documentationHeight = 3.25,
   kanbanTarget = null,
   kanbanWidth = 24,
   kanbanHeight = 13.8,
-  teamTarget = null,
-  teamWidth = 14,
-  teamHeight = 8,
   mtGapTarget = null,
   galleryRoomBackZ = -23,
   sceneFocus = null,
@@ -81,9 +82,8 @@ export function createAboutFlightController({
   const focusPoint = sceneFocus?.clone?.() || new THREE.Vector3();
   const devDestinations = normalizeTargets(billboardTargets, billboardTarget);
   const bugDestinations = normalizeTargets(secondaryTargets, secondaryTarget);
-  const documentationDestination = documentationTarget?.clone?.() || new THREE.Vector3(0, 3.15, 40);
+  const documentationDestinations = normalizeTargets(documentationTargets, documentationTarget);
   const kanbanDestination = kanbanTarget?.clone?.() || new THREE.Vector3(-36, 2.75, 12);
-  const teamDestination = teamTarget?.clone?.() || new THREE.Vector3(-36, 0, -20);
   const mtGapDestination = mtGapTarget?.clone?.() || new THREE.Vector3(2, 0.5, 0);
   const route = createFlightRouteState({
     sceneFocus: focusPoint,
@@ -94,6 +94,8 @@ export function createAboutFlightController({
     bugDestinations,
     bugDestinationLabels,
     bugDestinationWidths,
+    documentationDestinations,
+    documentationDestinationLabels,
     galleryRoomBackZ,
     minimumCameraY
   });
@@ -152,13 +154,13 @@ export function createAboutFlightController({
   applyPose(camera, pose);
   setMode(mode);
   root.dataset.aboutInitialCamera = "2d-logo-facing";
-  root.dataset.aboutFlightPath = "initial-logo-p-hole-dev-bug-documentation-kanban-team-mt-gap-return-initial";
+  root.dataset.aboutFlightPath = "initial-logo-p-hole-dev-bug-random-documentation-kanban-mt-gap-documentation-u-turn-initial";
   root.dataset.aboutFlightDirection = "forward-through-approved-sequences";
-  root.dataset.aboutFlightProfile = "approved-sequences-1-through-4";
+  root.dataset.aboutFlightProfile = "approved-1-through-3-revised-4-through-7";
   root.dataset.aboutChartInspection = "random-dev-then-random-bug";
   root.dataset.aboutPmtPortalFlyby = "once-per-sequence-cycle";
   root.dataset.aboutMinimumForwardLookDot = MIN_FORWARD_LOOK_DOT.toFixed(3);
-  root.dataset.aboutEventExecution = "sequence-4-ufo-background";
+  root.dataset.aboutEventExecution = "sequences-4-through-7-ufo-background";
   root.dataset.aboutLevelHorizonFallback = "true";
   root.dataset.aboutPostPortalTargeting = "continuous-dev-target";
   root.dataset.aboutPostPortalTransition = "horizontal-bearing-then-chart-elevation";
@@ -166,11 +168,12 @@ export function createAboutFlightController({
   root.dataset.aboutUnapprovedFlightLogic = "disabled";
   root.dataset.aboutDevSelectionMode = "random";
   root.dataset.aboutBugSelectionMode = "random";
+  root.dataset.aboutDocumentationSelectionMode = "random-card-per-cycle";
   root.dataset.aboutAutomaticSequenceReset = "true";
   root.dataset.aboutDevLandingApproachSpeed = "progressive-slowdown";
   root.dataset.aboutDevArrivalBehavior = "slow-continuous-no-stop";
-  root.dataset.aboutApprovedFlybySequences = "1,2,3,4";
-  root.dataset.aboutFlightTestMode = "approved-sequences-1-through-4";
+  root.dataset.aboutApprovedFlybySequences = "1,2,3";
+  root.dataset.aboutFlightTestMode = "review-sequences-4-through-7";
   root.dataset.aboutFlightTiming = "continuous-no-pause-no-hold";
   root.dataset.aboutDefaultFlightSpeed = "2";
   root.dataset.aboutFlightSpeed = formatFlightSpeed();
@@ -210,19 +213,26 @@ export function createAboutFlightController({
   root.dataset.aboutWideChartTraversalFov = String(WIDE_CHART_TRAVERSAL_FOV);
   root.dataset.aboutWideChartTraversalZoom = "slight-zoom-out";
   root.dataset.aboutWideChartExit = "visible-far-edge";
-  root.dataset.aboutSequence4 = "qa-documentation-kanban-team-behind-logo-mt-gap-initial";
-  root.dataset.aboutSequence4Focus = "documentation-kanban-development-team-mt-gap-pmt-logo";
+  root.dataset.aboutSequence4 = "random-qa-to-random-documentation";
+  root.dataset.aboutSequence5 = "random-documentation-to-kanban";
+  root.dataset.aboutSequence6 = "kanban-to-behind-logo-through-mt-gap";
+  root.dataset.aboutSequence7 = "mt-gap-to-documentation-area-u-turn-to-sequence-1";
+  root.dataset.aboutSequence7DocumentationBehavior = "positioning-only-no-inspection";
+  root.dataset.aboutSequence7Completion = "exact-sequence-1-start-pose";
+  root.dataset.aboutSequence7LoopTransition = "continuous-no-camera-snap";
+  root.dataset.aboutSequence7LoopSpeed = "preserve-user-selected-speed";
+  root.dataset.aboutSequence4Focus = "random-documentation";
   root.dataset.aboutDocumentationInspection = "sequence-4-continuous-forward-curve";
   root.dataset.aboutDocumentationInspectionFov = String(DOCUMENTATION_FOV);
   root.dataset.aboutDocumentationInspectionAttention = "0";
   root.dataset.aboutKanbanInspectionFov = String(KANBAN_FOV);
   root.dataset.aboutKanbanInspectionAttention = "0";
-  root.dataset.aboutTeamInspectionFov = String(TEAM_FOV);
   root.dataset.aboutTeamInspectionAttention = "0";
   root.dataset.aboutMtGapFlythroughAttention = "0";
-  root.dataset.aboutSequence4DurationSeconds = String(SEQUENCE_4_DURATION_SECONDS);
+  root.dataset.aboutGalleryReturnDurationSeconds = String(GALLERY_RETURN_DURATION_SECONDS);
   root.dataset.aboutBugLandingDistance = String(DEV_LANDING_DISTANCE);
   root.dataset.aboutFlightSequenceStage = flightStage;
+  root.dataset.aboutActiveSequence = "1";
   root.dataset.aboutMouseControl = "hold-left-button-autopilot-continues";
   root.dataset.aboutMouseLookActive = "false";
   root.dataset.aboutMousePointerLock = "disabled";
@@ -285,7 +295,7 @@ export function createAboutFlightController({
           isBugStage
             ? BUG_FLIGHT_DURATION_SECONDS
             : isSequence4Stage
-              ? SEQUENCE_4_DURATION_SECONDS
+              ? GALLERY_RETURN_DURATION_SECONDS
               : FLIGHT_DURATION_SECONDS
         )
       );
@@ -351,6 +361,7 @@ export function createAboutFlightController({
       }
       root.dataset.aboutForwardTravel = forwardTravel.toFixed(4);
       root.dataset.aboutFlightSequenceStage = flightStage;
+      root.dataset.aboutActiveSequence = String(activeSequenceNumber(flightStage, autopilotPhase));
       root.dataset.aboutForwardLookDot = autopilotTarget.forwardLookDot.toFixed(3);
       root.dataset.aboutDevInspectionAttention = autopilotTarget.devAttention.toFixed(3);
       root.dataset.aboutBugInspectionAttention = autopilotTarget.bugAttention.toFixed(3);
@@ -369,7 +380,7 @@ export function createAboutFlightController({
       setFlightAction(isDevToBugHandoff
         ? `Arriving at: ${route.devDestinationLabel} â€¢ Curving toward: ${route.bugDestinationLabel}`
         : isBugToReturnHandoff
-          ? `Arriving at: ${route.bugDestinationLabel} â€¢ Curving toward: Documentation`
+          ? `Arriving at: ${route.bugDestinationLabel} â€¢ Curving toward: ${route.documentationDestinationLabel}`
           : describeFlightAction(route, flightStage, autopilotPhase, autopilotTarget));
 
       if (cinematicAttention > 0.04) {
@@ -815,6 +826,7 @@ export function createAboutFlightController({
     root.dataset.aboutDevToBugHandoffProgress = rebuildFromCurrent ? "0" : "1";
     root.dataset.aboutDevLandingTestState = "approaching-bug";
     root.dataset.aboutFlightSequenceStage = flightStage;
+    root.dataset.aboutActiveSequence = "3";
     root.dataset.aboutDevLandingTarget = route.devDestinationLabel;
     setMode("auto");
     setFlightAction(`Turning smoothly • Next: ${route.bugDestinationLabel}`);
@@ -899,15 +911,12 @@ export function createAboutFlightController({
       startPosition: route.bugGeometry.bugLandingPosition,
       initialPosition: route.geometry.initialPosition,
       logoTarget: route.geometry.logoTarget,
-      documentationTarget: documentationDestination,
+      documentationTarget: route.documentationDestination,
       documentationWidth,
       documentationHeight,
       kanbanTarget: kanbanDestination,
       kanbanWidth,
       kanbanHeight,
-      teamTarget: teamDestination,
-      teamWidth,
-      teamHeight,
       mtGapTarget: mtGapDestination,
       minimumCameraY,
       startFov: bugLandingFov(route, camera.aspect)
@@ -925,15 +934,12 @@ export function createAboutFlightController({
         startPosition: camera.position,
         initialPosition: route.geometry.initialPosition,
         logoTarget: route.geometry.logoTarget,
-        documentationTarget: documentationDestination,
+        documentationTarget: route.documentationDestination,
         documentationWidth,
         documentationHeight,
         kanbanTarget: kanbanDestination,
         kanbanWidth,
         kanbanHeight,
-        teamTarget: teamDestination,
-        teamWidth,
-        teamHeight,
         mtGapTarget: mtGapDestination,
         minimumCameraY,
         startFov: THREE.MathUtils.clamp(
@@ -947,16 +953,17 @@ export function createAboutFlightController({
     autopilotPhase = rebuildFromCurrent ? 0 : BUG_TO_RETURN_ENTRY_PHASE;
     root.dataset.aboutBugToReturnHandoffProgress = rebuildFromCurrent ? "0" : "1";
     root.dataset.aboutFlightSequenceStage = flightStage;
+    root.dataset.aboutActiveSequence = "4";
     root.dataset.aboutDevLandingTestState = "returning-to-initial-view";
     setModeLabel("SEQUENCE 4");
-    setFlightAction("Sequence 4: Documentation, Kanban, Team, then the M/T fly-through");
+    setFlightAction(`Sequence 4: Flying to Documentation: ${route.documentationDestinationLabel}`);
   }
 
   function finishSequence4() {
-    restartSequenceOne();
+    restartSequenceOne({ preserveCamera: true });
   }
 
-  function restartSequenceOne() {
+  function restartSequenceOne({ preserveCamera = false } = {}) {
     route.advanceLap();
     prepareSequence4Geometry();
     debugTestRun += 1;
@@ -973,6 +980,7 @@ export function createAboutFlightController({
     root.dataset.aboutDevLandingTestRun = String(debugTestRun);
     root.dataset.aboutDevLandingTestState = "approaching-dev";
     root.dataset.aboutFlightSequenceStage = flightStage;
+    root.dataset.aboutActiveSequence = "1";
     root.dataset.aboutDevToBugHandoffProgress = "0";
     root.dataset.aboutBugToReturnHandoffProgress = "0";
     root.dataset.aboutWideChartTraversalActive = "false";
@@ -984,9 +992,13 @@ export function createAboutFlightController({
     setMode("auto");
     sampleFlightPose(route, 0, autopilotTarget);
     autopilotTarget.fov = userAdjustedFov(autopilotTarget.fov);
-    applyPose(camera, autopilotTarget);
-    pose.copyFrom(autopilotTarget);
-    setFlightAction(`Sequence 1 restarted • Next Dev chart: ${route.devDestinationLabel}`);
+    if (!preserveCamera) {
+      applyPose(camera, autopilotTarget);
+      pose.copyFrom(autopilotTarget);
+    }
+    setFlightAction(preserveCamera
+      ? `Sequence 1: Continuous loop toward the P-hole • Next Dev chart: ${route.devDestinationLabel}`
+      : `Sequence 1 restarted • Next Dev chart: ${route.devDestinationLabel}`);
   }
 
   function updateRouteDatasets() {
@@ -1007,6 +1019,9 @@ export function createAboutFlightController({
     root.dataset.aboutBugLandingX = String(route.bugGeometry.bugLandingPosition.x);
     root.dataset.aboutBugLandingY = String(route.bugGeometry.bugLandingPosition.y);
     root.dataset.aboutBugLandingZ = String(route.bugGeometry.bugLandingPosition.z);
+    root.dataset.aboutDocumentationDestinationIndex = String(route.documentationDestinationIndex);
+    root.dataset.aboutDocumentationDestination = route.documentationDestinationLabel || "Documentation";
+    root.dataset.aboutDocumentationDestinationPrepared = String(Boolean(route.documentationDestination));
   }
 
   function dispose() {
@@ -1036,6 +1051,8 @@ function createFlightRouteState({
   bugDestinations,
   bugDestinationLabels,
   bugDestinationWidths,
+  documentationDestinations,
+  documentationDestinationLabels,
   galleryRoomBackZ,
   minimumCameraY
 }) {
@@ -1051,6 +1068,9 @@ function createFlightRouteState({
     bugDestinationLabel: "",
     bugDestinationWidth: DEV_LANDING_PANEL_WIDTH,
     bugDestinationIsWide: false,
+    documentationDestinationIndex: -1,
+    documentationDestination: null,
+    documentationDestinationLabel: "Documentation",
     geometry: null,
     advanceLap() {
       state.lapIndex += 1;
@@ -1064,6 +1084,8 @@ function createFlightRouteState({
         bugDestinations,
         bugDestinationLabels,
         bugDestinationWidths,
+        documentationDestinations,
+        documentationDestinationLabels,
         galleryRoomBackZ,
         minimumCameraY
       );
@@ -1079,6 +1101,8 @@ function createFlightRouteState({
     bugDestinations,
     bugDestinationLabels,
     bugDestinationWidths,
+    documentationDestinations,
+    documentationDestinationLabels,
     galleryRoomBackZ,
     minimumCameraY
   );
@@ -1095,11 +1119,17 @@ function rebuildRouteState(
   bugDestinations,
   bugDestinationLabels,
   bugDestinationWidths,
+  documentationDestinations,
+  documentationDestinationLabels,
   galleryRoomBackZ,
   minimumCameraY
 ) {
   const dev = chooseRandomDestination(devDestinations, state.devDestinationIndex);
   const bug = chooseRandomDestination(bugDestinations, state.bugDestinationIndex);
+  const documentation = chooseRandomDestination(
+    documentationDestinations,
+    state.documentationDestinationIndex
+  );
   state.devDestinationIndex = dev.index;
   state.devDestinationLabel = destinationLabel(devDestinationLabels, dev.index);
   state.devDestination = dev.target;
@@ -1110,6 +1140,12 @@ function rebuildRouteState(
   state.bugDestination = bug.target;
   state.bugDestinationWidth = destinationWidth(bugDestinationWidths, bug.index);
   state.bugDestinationIsWide = chartRequiresTraversal(state.bugDestinationWidth);
+  state.documentationDestinationIndex = documentation.index;
+  state.documentationDestination = documentation.target;
+  state.documentationDestinationLabel = documentationCardLabel(
+    documentationDestinationLabels,
+    documentation.index
+  );
   state.geometry = createGalleryFlightGeometry({
     sceneFocus,
     portal,
@@ -1338,9 +1374,6 @@ function createSequence4Geometry({
   kanbanTarget,
   kanbanWidth,
   kanbanHeight,
-  teamTarget,
-  teamWidth,
-  teamHeight,
   mtGapTarget,
   minimumCameraY,
   startFov
@@ -1349,10 +1382,13 @@ function createSequence4Geometry({
   const initial = initialPosition.clone();
   const documentation = documentationTarget?.clone?.() || new THREE.Vector3(0, 3.15, 40);
   const kanban = kanbanTarget?.clone?.() || new THREE.Vector3(-36, 2.75, 12);
-  const team = teamTarget?.clone?.() || new THREE.Vector3(-36, 0, -20);
   const mtGap = mtGapTarget?.clone?.() || new THREE.Vector3(2, 0.5, 0);
   const point = (x, y, z) => new THREE.Vector3(x, clampY(y, minimumCameraY), z);
-  const documentationViewDistance = Math.max(18, Number(documentationWidth || 0) * 0.58);
+  const documentationViewDistance = Math.max(
+    9.5,
+    Number(documentationWidth || 0) * 1.4,
+    Number(documentationHeight || 0) * 2.2
+  );
   const documentationView = point(
     documentation.x,
     documentation.y + Math.min(1.4, Number(documentationHeight || 0) * 0.08),
@@ -1372,18 +1408,6 @@ function createSequence4Geometry({
   );
   const kanbanLookTarget = kanban.clone();
   kanbanLookTarget.y += Math.min(1.1, Number(kanbanHeight || 0) * 0.07);
-  const teamViewDistance = Math.max(
-    14,
-    Number(teamWidth || 0) * 0.55,
-    Number(teamHeight || 0) * 1.25
-  );
-  const teamView = point(
-    team.x + teamViewDistance,
-    team.y + Math.min(1, Number(teamHeight || 0) * 0.08),
-    team.z
-  );
-  const teamLookTarget = team.clone();
-  teamLookTarget.y += Math.min(1, Number(teamHeight || 0) * 0.08);
   const mtGapFlightY = clampY(mtGap.y, minimumCameraY);
   const mtGapLookTarget = point(
     mtGap.x,
@@ -1407,15 +1431,19 @@ function createSequence4Geometry({
     point(documentation.x - 10, documentationView.y + 0.8, documentation.z - 8),
     point(THREE.MathUtils.lerp(documentation.x, kanbanView.x, 0.58), kanbanView.y + 1.2, kanban.z + 8),
     kanbanView,
-    point(kanbanView.x - 0.8, kanbanView.y + 0.35, THREE.MathUtils.lerp(kanban.z, team.z, 0.48)),
-    teamView,
-    point(teamView.x + 3.5, teamView.y + 0.6, team.z - 5),
+    point(kanbanView.x - 1.2, kanbanView.y + 0.45, kanban.z - 7),
+    point(-27, mtGapFlightY + 2.2, -13),
     point(-13, mtGapFlightY + 1.4, -17),
     point(mtGap.x - 5, mtGapFlightY + 0.5, -12),
     point(mtGap.x, mtGapFlightY, -5),
     point(mtGap.x, mtGapFlightY, 6.5),
     point(mtGap.x + 1.5, mtGapFlightY + 0.25, 13),
-    point(initial.x + 4.5, initial.y + 0.6, initial.z - 3),
+    point(initial.x + 2.5, initial.y + 1.1, documentation.z - 12),
+    point(initial.x + 10, initial.y + 1.8, documentation.z - 5),
+    point(initial.x + 9, initial.y + 1.35, initial.z + 9),
+    point(initial.x + 4, initial.y + 0.9, initial.z + 7),
+    point(initial.x + 1, initial.y + 0.45, initial.z + 4),
+    point(initial.x + 0.2, initial.y + 0.1, initial.z + 2),
     initial
   ], false, "centripetal", 0.5);
   return {
@@ -1423,7 +1451,6 @@ function createSequence4Geometry({
     logoTarget: logoTarget.clone(),
     documentationLookTarget,
     kanbanLookTarget,
-    teamLookTarget,
     mtGapLookTarget,
     minimumCameraY,
     startFov
@@ -1438,15 +1465,24 @@ function sampleSequence4Pose(geometry, phase, pose) {
   pose.ahead.y = Math.max(pose.ahead.y, geometry.minimumCameraY);
   pose.lookTarget.copy(pose.position).addScaledVector(pose.tangent, 10);
   pose.lookTarget.y = pose.position.y;
-  const documentationAttention = smootherStep(smoothBand(phase, 0.08, 0.28, 0.08));
+  const documentationAttention = smootherStep(smoothBand(phase, 0.06, SEQUENCE_4_END_PHASE, 0.08));
   pose.lookTarget.lerp(geometry.documentationLookTarget, documentationAttention);
-  const kanbanAttention = smootherStep(smoothBand(phase, 0.27, 0.49, 0.08));
+  const kanbanAttention = smootherStep(smoothBand(
+    phase,
+    SEQUENCE_4_END_PHASE - 0.04,
+    SEQUENCE_5_END_PHASE,
+    0.08
+  ));
   pose.lookTarget.lerp(geometry.kanbanLookTarget, kanbanAttention);
-  const teamAttention = smootherStep(smoothBand(phase, 0.48, 0.68, 0.08));
-  pose.lookTarget.lerp(geometry.teamLookTarget, teamAttention);
-  const mtGapAttention = smootherStep(smoothBand(phase, 0.67, 0.93, 0.08));
+  const teamAttention = 0;
+  const mtGapAttention = smootherStep(smoothBand(
+    phase,
+    SEQUENCE_5_END_PHASE - 0.04,
+    SEQUENCE_6_END_PHASE + 0.04,
+    0.08
+  ));
   pose.lookTarget.lerp(geometry.mtGapLookTarget, mtGapAttention);
-  const logoAttention = smootherStep(smoothStepRange(0.9, 0.99, phase));
+  const logoAttention = smootherStep(smoothStepRange(SEQUENCE_6_END_PHASE + 0.04, 0.98, phase));
   pose.lookTarget.lerp(geometry.logoTarget, logoAttention);
   const totalAttention = Math.max(
     documentationAttention,
@@ -1474,7 +1510,6 @@ function sampleSequence4Pose(geometry, phase, pose) {
   const routeFov = THREE.MathUtils.lerp(geometry.startFov, DEFAULT_FOV, smootherStep(phase));
   pose.fov = THREE.MathUtils.lerp(routeFov, DOCUMENTATION_FOV, documentationAttention);
   pose.fov = THREE.MathUtils.lerp(pose.fov, KANBAN_FOV, kanbanAttention);
-  pose.fov = THREE.MathUtils.lerp(pose.fov, TEAM_FOV, teamAttention);
 }
 
 function sampleFlightPose(route, phase, pose) {
@@ -1767,19 +1802,39 @@ function destinationLabel(labels, index) {
   return /chart/i.test(label) ? label : `${label} Chart`;
 }
 
+function documentationCardLabel(labels, index) {
+  if (!Array.isArray(labels) || !labels.length) return "Documentation area";
+  const label = Array.isArray(labels) ? String(labels[index] || "").trim() : "";
+  return label || (index >= 0 ? `Documentation card ${index + 1}` : "Documentation");
+}
+
+function activeSequenceNumber(stage, phase) {
+  if (stage === "bug") return 3;
+  if (stage === "return-initial") {
+    if (phase < SEQUENCE_4_END_PHASE) return 4;
+    if (phase < SEQUENCE_5_END_PHASE) return 5;
+    if (phase < SEQUENCE_6_END_PHASE) return 6;
+    return 7;
+  }
+  return phase < 0.42 ? 1 : 2;
+}
+
 function describeFlightAction(route, stage, phase, pose) {
   if (stage === "return-initial") {
-    if (pose.documentationAttention >= 0.18) return "Sequence 4: Inspecting Documentation";
-    if (pose.kanbanAttention >= 0.18) return "Sequence 4: Visiting the Kanban Board";
-    if (pose.teamAttention >= 0.18) return "Sequence 4: Visiting the Development Team";
-    if (pose.mtGapAttention >= 0.18) return "Sequence 4: Flying behind PMT and through the M/T gap";
-    if (phase < 0.1) return "Sequence 4: Curving toward Documentation";
-    if (phase < 0.3) return "Sequence 4: Continuing toward the Kanban Board";
-    if (phase < 0.5) return "Sequence 4: Continuing toward the Development Team";
-    if (phase < 0.7) return "Sequence 4: Curving behind the PMT logo";
-    return phase >= 0.91
-      ? "Sequence 4: Aligning with the initial logo view"
-      : "Sequence 4: M/T fly-through toward Documentation";
+    if (phase < SEQUENCE_4_END_PHASE) {
+      return `Sequence 4: Flying to Documentation: ${route.documentationDestinationLabel}`;
+    }
+    if (phase < SEQUENCE_5_END_PHASE) {
+      return "Sequence 5: Documentation to the Kanban Board";
+    }
+    if (phase < SEQUENCE_6_END_PHASE) {
+      return pose.mtGapAttention >= 0.18
+        ? "Sequence 6: Flying behind PMT and through the M/T gap"
+        : "Sequence 6: Kanban Board to the back of PMT";
+    }
+    return phase >= 0.9
+      ? "Sequence 7: Completing the calm U-turn into the Sequence 1 start"
+      : "Sequence 7: Flying toward the Documentation turnaround area";
   }
   if (stage === "bug") {
     if (phase < 0.24) return `Turning smoothly • Next: ${route.bugDestinationLabel}`;

@@ -64,6 +64,7 @@ export function createAboutChartGallery({
   blogs = [],
   tasks = [],
   statuses = [],
+  omitEmptyKanbanColumns = false,
   getStatusColor = () => "#76a9ff",
   devCharts,
   bugCharts,
@@ -199,6 +200,7 @@ export function createAboutChartGallery({
   documentationGrid.name = "PMT Documentation Cards";
   documentationGrid.position.set(0, 3.15, DOCUMENTATION_GRID_Z);
   documentationGrid.rotation.y = Math.PI;
+  const documentationCardTargets = [];
   const usersById = new Map(users.map(user => [Number(user.id), user]));
   const projectsById = new Map(projects.map(project => [Number(project.id), project]));
 
@@ -224,6 +226,7 @@ export function createAboutChartGallery({
         - row * (DOCUMENTATION_CARD_HEIGHT + DOCUMENTATION_CARD_GAP),
       0
     );
+    documentationCardTargets.push(card.position.clone());
     documentationGrid.add(card);
   });
   const documentationLabel = createGallerySectionLabel({
@@ -247,7 +250,12 @@ export function createAboutChartGallery({
         .map(userId => usersById.get(Number(userId)))
         .filter(Boolean)
   }));
-  const kanbanColumns = buildKanbanColumns(kanbanTaskModels, statuses, getStatusColor);
+  const kanbanColumns = buildKanbanColumns(
+    kanbanTaskModels,
+    statuses,
+    getStatusColor,
+    { omitEmptyColumns: omitEmptyKanbanColumns }
+  );
   const kanbanColumnCount = Math.max(1, kanbanColumns.length);
   const kanbanGridWidth = kanbanColumnCount * KANBAN_COLUMN_WIDTH
     + Math.max(0, kanbanColumnCount - 1) * KANBAN_COLUMN_GAP;
@@ -306,6 +314,8 @@ export function createAboutChartGallery({
 
   const devTargets = devPanelTargets.map(target => devGrid.localToWorld(target.clone()));
   const bugTargets = bugPanelTargets.map(target => bugGrid.localToWorld(target.clone()));
+  const documentationTargets = documentationCardTargets
+    .map(target => documentationGrid.localToWorld(target.clone()));
   const bugTarget = bugGrid.localToWorld(new THREE.Vector3(
     -bugGridWidth / 2 + bugLeftWidth / 2,
     0,
@@ -371,11 +381,20 @@ export function createAboutChartGallery({
     documentationGridRotationDegrees: 180,
     documentationFacingTarget: "pmt-logo",
     documentationTarget: documentationGrid.position.clone(),
+    documentationTargets,
+    documentationLabels: documentationCards.map(blog => String(blog?.title || "Documentation")),
+    documentationCardWidth: DOCUMENTATION_CARD_WIDTH,
+    documentationCardHeight: DOCUMENTATION_CARD_HEIGHT,
     dispose() {}
   };
 }
 
-export function buildKanbanColumns(tasks = [], statuses = [], getStatusColor = () => "#76a9ff") {
+export function buildKanbanColumns(
+  tasks = [],
+  statuses = [],
+  getStatusColor = () => "#76a9ff",
+  { omitEmptyColumns = false } = {}
+) {
   const tasksByStatus = new Map();
   for (const task of tasks) {
     const status = String(task?.status || "Unassigned").trim() || "Unassigned";
@@ -387,7 +406,7 @@ export function buildKanbanColumns(tasks = [], statuses = [], getStatusColor = (
   for (const status of tasksByStatus.keys()) {
     if (!orderedStatuses.includes(status)) orderedStatuses.push(status);
   }
-  const visibleStatuses = orderedStatuses.length || tasks.length
+  const visibleStatuses = orderedStatuses.length || tasks.length || omitEmptyColumns
     ? orderedStatuses
     : configuredStatuses;
   return visibleStatuses.map(status => ({

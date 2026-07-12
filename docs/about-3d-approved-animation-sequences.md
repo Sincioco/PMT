@@ -4,7 +4,8 @@ This is the maintained source of truth for the approved About-page camera animat
 
 ## Current approval status
 
-- Camera Sequences 1 through 4 are approved.
+- Camera Sequences 1 through 3 are approved.
+- Sequences 4 through 7 below are the current revised route awaiting visual approval. Do not revise Sequences 1 through 3 while tuning them.
 - Wide-chart traversal is approved.
 - The fixed-world comet, UFO encounter, and lightning effects are approved.
 - Events are overlays only. They must not interrupt or alter the approved camera sequences.
@@ -27,17 +28,29 @@ This is the maintained source of truth for the approved About-page camera animat
    - Select a random QA chart and turn toward it while continuing forward.
    - Continue from the precomputed and pre-blended QA curve used at the end of Sequence 2.
    - Do not reconstruct the normal QA route at the sequence boundary or use backing or retreat waypoints.
-   - Precompute Sequence 4 and blend into its opening curve before the normal QA-chart approach ends.
+   - Precompute the selected Documentation destination and Sequence 4 opening curve before the normal QA-chart approach ends.
    - Preserve continuous target position, heading, and FOV when handing off to Sequence 4.
-   - Arrive naturally and continue into Sequence 4.
+   - Arrive naturally and continue into Sequence 4 without a stop or camera reset.
 
-4. **Sequence 4 — QA chart through the front and left galleries to the initial view**
-   - Leave the selected QA chart on a precomputed continuous curve toward the inward-facing Documentation wall.
-   - Frame the Documentation wall with a wider `60` degree FOV while the drone remains in forward motion; do not stop, pause, hold, reverse, or bump at the inspection point.
-   - Continue directly to the dynamic Kanban Board on the front-left wall, then travel down the same left-side corridor to the dynamic Development Team cards.
-   - Curve behind the PMT logo and approach the open space between the `M` and `T` from the rear.
-   - Fly forward through the `M`/`T` gap toward Documentation, then smoothly rotate attention back to the PMT logo while settling into the exact initial-view composition.
-   - Finish at the exact initial-view composition and direction, then repeat Sequence 1.
+4. **Sequence 4 — Random QA chart to a random Documentation card**
+   - Select one of the rendered Documentation cards independently for each completed gallery cycle.
+   - Leave the selected QA chart on a precomputed continuous curve toward that selected Documentation card.
+   - Frame the selected card with a wider `60` degree FOV while remaining in forward motion; do not stop, pause, hold, reverse, bump, or snap to it.
+
+5. **Sequence 5 — Random Documentation card to the Kanban Board**
+   - Continue directly from the selected Documentation card to the dynamic Kanban Board.
+   - Preserve the same continuous position, heading, FOV, and user-selected speed across the Sequence 4/5 boundary.
+
+6. **Sequence 6 — Kanban Board through the PMT `M`/`T` gap**
+   - Leave the Kanban Board, curve behind the PMT logo, and approach the open space between the `M` and `T` from the rear.
+   - Fly forward through the `M`/`T` gap without detouring to or inspecting the Development Team wall.
+
+7. **Sequence 7 — `M`/`T` gap through the Documentation turnaround area**
+   - Continue forward from the PMT logo toward the Documentation area only to create enough space for a wide, cinematic U-turn.
+   - Do not select, inspect, frame, stop at, or hold on a Documentation card during this leg.
+   - Complete the U-turn so the camera arrives at the exact Sequence 1 initial position, direction, and FOV, then repeat Sequence 1 without a cut or reset.
+
+Sequences 4 through 7 are sampled as one continuous arc-length path. Their numbered boundaries are descriptive only and must never introduce a position jump, heading snap, FOV jump, speed change, pause, or hold.
 
 ## Wide-chart traversal
 
@@ -51,7 +64,7 @@ This is the maintained source of truth for the approved About-page camera animat
 - Continue immediately to the next approved sequence.
 - Derive the approach target, traversal span, percentage, and exit from the rendered chart width and wall orientation. Do not special-case chart names.
 - A wide Dev traversal ends at a different physical position, so it may build its QA route from that actual traversal endpoint. This is the intentional exception to the normal precomputed Sequence 2 handoff.
-- A wide QA traversal likewise builds Sequence 4 from its actual calibrated traversal endpoint instead of using the normal precomputed Sequence 3 handoff.
+- A wide QA traversal likewise builds Sequence 4 from its actual calibrated traversal endpoint instead of using the normal precomputed Sequence 3 handoff. It must retain the already-selected random Documentation destination.
 
 ## Approved cinematic events
 
@@ -59,21 +72,23 @@ This is the maintained source of truth for the approved About-page camera animat
 | --- | --- | --- | --- |
 | P-hole comet | When the camera exits the P-hole | Launch one comet in fixed world space | None |
 | Background comet | Occasionally during the scene | Cross the distant fixed-world background | None |
-| UFO encounter | During Sequence 4 | Orbit, inspect PMT with its beam, speak, and depart | None |
-| PMT lightning | During Sequence 4 | Strike PMT, create sparks and heat glow, and flash the full scene | None |
-| UFO lightning | During Sequence 4, on 50% of encounters | Strike the visible UFO, briefly drop and shake it, then let it recover | None |
+| UFO encounter | During the combined Sequences 4–7 gallery-return window | Orbit, inspect PMT with its beam, speak, and depart | None |
+| PMT lightning | During the combined Sequences 4–7 gallery-return window | Strike PMT, create sparks and heat glow, and flash the full scene | None |
+| UFO lightning | During the combined Sequences 4–7 gallery-return window, on 50% of encounters | Strike the visible UFO, briefly drop and shake it, then let it recover | None |
 | Intergalactic PMT battle | Periodically while the UFO is hovering over PMT | One to three defender ships intercept the original UFO, both sides exchange fire and dialogue, stunned ships recover, and every ship flies away | None; a separate picture-in-picture camera may track the battle |
 
 The first successful UFO lightning strike after the About scene loads must say: `This PMT really has a lot of spark!` Later successful UFO strikes select a random line from the UFO lightning-reaction pool.
 
-Once a UFO encounter has visibly started, it must finish its beam retract and departure/fly-away animation before the ship is hidden, even if Sequence 4 ends while the UFO is still speaking or scanning. If the UFO is struck by lightning, it must remain visible through its recovery long enough to continue and complete the normal exit sequence. Sequence 4 may stop new UFO encounters after its event window ends, but it must drain the active encounter instead of disabling it immediately.
+Once a UFO encounter has visibly started, it must finish its beam retract and departure/fly-away animation before the ship is hidden, even if the Sequences 4–7 gallery-return window ends while the UFO is still speaking or scanning. If the UFO is struck by lightning, it must remain visible through its recovery long enough to continue and complete the normal exit sequence. The scene may stop new UFO encounters after that event window ends, but it must drain the active encounter instead of disabling it immediately.
 
-The UFO and lightning schedules are coordinated by the scene, not by the camera controller. The current Sequence 4 event window triggers the PMT strike about `5.2` seconds after Sequence 4 begins and attempts the optional UFO strike about `16` seconds after it begins. The UFO strike is planned independently for each Sequence 4 encounter with probability `0.5`.
+The UFO and lightning schedules are coordinated by the scene, not by the camera controller. The combined Sequences 4–7 event window triggers the PMT strike about `5.2` seconds after Sequence 4 begins and attempts the optional UFO strike about `16` seconds after it begins. The UFO strike is planned independently for each encounter with probability `0.5`.
 
 ## Intergalactic battle event
 
-- Each new UFO encounter independently has a `0.68` probability of attracting a PMT-defense interception.
+- If automatic interceptions are explicitly enabled in a future approved setting, each new UFO encounter independently uses a `0.68` interception probability.
+- Automatic multi-UFO interceptions are disabled by default. Normal scheduled encounters show only the original UFO; battles begin only through an explicit `M`, `2`, `3`, or `4` trigger unless a later approved setting enables automatic battles.
 - Pressing `M` starts a fresh UFO encounter and guarantees the intergalactic battle for that encounter, while still randomly selecting between one and three defender ships.
+- Pressing `1` starts only the original UFO encounter. Pressing `2`, `3`, or `4` starts the original UFO plus exactly one, two, or three attacking UFOs respectively. These deterministic battle keys use the same complete entry, combat, recovery, dialogue, and departure sequence as a normal battle.
 - Select between one and three interceptor ships. They enter along distinct curves, surround the original UFO, exchange visible laser fire, and then leave along complete departure curves.
 - Build every interceptor from the same saucer geometry and glass/metal material structure as the original UFO. Distinguish defenders with magenta, cyan, and gold color palettes rather than unrelated fighter silhouettes.
 - The original UFO must return fire. Laser impacts keep the existing ship wobble, brief drop, and recovery motions but do not draw electric line or lightning-line overlays around a hit ship.
@@ -87,15 +102,18 @@ The UFO and lightning schedules are coordinated by the scene, not by the camera 
 - The WebGL feed is a rectangular scissor viewport on the main scene canvas, so its green frame must also remain rectangular. Do not combine a rounded frame with the square black render area.
 - Do not apply scanlines, CRT treatments, color washes, or other visual effects over the picture-in-picture render.
 - The picture-in-picture feed disappears when the main camera frames the battle comfortably, when no UFO remains inside the fixed PMT-centered feed viewport, or when the battle ends. Do not newly open or reopen the feed during the final five seconds of a battle.
-- Pressing `1` toggles the battle picture-in-picture feature on or off without changing the main camera or battle animation.
+- Pressing `P` toggles the battle picture-in-picture feature on or off without changing the main camera or battle animation.
+- The battle PIP is OFF by default. Persist the user's PIP choice under `pmt-about-battle-pip-enabled` and restore it the next time the About scene loads.
 - Pressing `0` toggles all automatic and manual alien-related events on or off. When turned off, prevent new UFO encounters and battles while allowing an already-visible encounter or battle to complete its proper departure rather than disappearing abruptly. Lightning against PMT and comets remain available.
-- While a battle is active, that battle owns the original UFO encounter. Sequence 4 and the `A`/`U` hotkeys must not restart or replace it; any overlapping request is deferred or ignored so all defender ships can complete their entry, combat, and departure.
-- Once a battle starts, allow it to finish even if Sequence 4 ends. Interceptor ships may become hidden only after reaching their distant departure endpoints; never remove them abruptly near PMT.
+- Persist the user's alien-events choice under `pmt-about-alien-events-enabled` and restore it the next time the About scene loads. Do not persist transient encounter, battle, dialogue, sequence, pause, or control-hint state.
+- While a battle is active, that battle owns the original UFO encounter. The Sequences 4–7 background event window and the `A`/`U` hotkeys must not restart or replace it; any overlapping request is deferred or ignored so all defender ships can complete their entry, combat, and departure.
+- Once a battle starts, allow it to finish even if the Sequences 4–7 gallery-return window ends. Interceptor ships may become hidden only after reaching their distant departure endpoints; never remove them abruptly near PMT.
 
 ## Camera and event invariants
 
 - Default autopilot speed is `2x`; the normal `+` and `-` controls remain available.
-- Automatic motion must stay cinematic and avoid forced one-frame position, heading, or FOV changes.
+- Automatic motion must remain calm, controlled, and cinematic. Do not introduce sudden camera movement, sudden turns, sudden speed changes, forced one-frame position/heading/FOV changes, or hidden per-sequence speed multipliers.
+- The camera follows continuous arc-length-sampled curves at the user's selected speed. It may redirect only through gradual spline curvature and smoothly blended attention/FOV.
 - Manual camera takeover and idle rejoin remain supported.
 - UFO and lightning events must never change camera focus, heading, FOV, speed, or path.
 - The UFO strike reaction may change only the ship animation and speech.
@@ -110,14 +128,16 @@ The UFO and lightning schedules are coordinated by the scene, not by the camera 
 - Pressing a movement key enters full manual mode and freezes the automatic flight-path phase. Five seconds after the final movement-key input, the camera smoothly rejoins the saved automatic path and resumes it.
 - The lower-right `MANUAL` mode panel is interactive only in manual mode. Clicking it starts the same smooth automatic-path rejoin immediately.
 - `+` and `-` change automatic flight speed without entering manual mode.
-- The user-selected flyby speed is constant across Sequences 1 through 4. Routes, chart approaches, transitions, and background events must not apply hidden acceleration or slowdown multipliers; only `+` and `-` may change it.
+- The user-selected flyby speed is constant across Sequences 1 through 7. Routes, chart approaches, transitions, and background events must not apply hidden acceleration or slowdown multipliers; only `+` and `-` may change it.
 - `Space` pauses or resumes the shared flight-and-event animation clock.
 - `Enter` resets the active 3D flyby back to Sequence 1 inside the existing 3D scene. It must not exit the 3D scene, rebuild the About page, or replay the initial 2D-logo intro.
-- Control hints appear for five seconds when full manual mode begins. Do not reveal them automatically after Sequence 4. Keep a small `?` panel in the lower-left of the 3D scene. Clicking it or pressing the `?`/slash key in manual or automatic mode toggles the hints without changing the current flight mode: open them for five seconds when hidden, or close them immediately when visible. Shift must not be required.
+- `Enter` also clears the visible UFO speech, battle transcript, battle PIP, pending manual alien strike, and active battle presentation. Cleared alien conversations must not repopulate on the next frame. This reset does not change the user's saved alien-events or PIP preferences.
+- Control hints appear for five seconds when full manual mode begins. Do not reveal them automatically after the Sequences 4–7 gallery-return window. Keep a small `?` panel in the lower-left of the 3D scene. Clicking it or pressing the `?`/slash key in manual or automatic mode toggles the hints without changing the current flight mode: open them for five seconds when hidden, or close them immediately when visible. Shift must not be required.
 - Whenever visible, the control hints use a compact vertical list anchored to the upper-left of the 3D scene. Keep one control per line so the hints are readable, but keep the panel small enough that it is noticeable without becoming the main focus.
+- The control-hints title is exactly `Controls` and is horizontally centered within the panel.
 - Size the control-hints panel from its content. Do not apply a fixed/max panel height or internal vertical scrolling; the complete compact list must render without a scrollbar.
 - The 3D scene canvas may receive browser focus so keyboard controls keep working, but it must not show a focus outline, border, or halo when clicked.
-- `A` triggers the alien encounter and guarantees that this manually triggered encounter is struck by lightning during its inspection phase. `L` triggers lightning, `C` triggers a comet, `U` triggers the UFO encounter without the guaranteed strike, `M` triggers a guaranteed intergalactic battle encounter, and `R` randomly selects an alien, lightning, or comet event.
+- `A` triggers the alien encounter and guarantees that this manually triggered encounter is struck by lightning during its inspection phase. `L` triggers lightning, `C` triggers a comet, `U` triggers the UFO encounter without the guaranteed strike, `M` triggers a guaranteed battle with a random attacker count, `1` triggers only the original UFO, `2`/`3`/`4` trigger exactly one/two/three attackers, and `R` randomly selects an alien, lightning, or comet event.
 - `A` never enters manual mode or interrupts automatic flight. It triggers one alien encounter with its guaranteed lightning strike while the approved camera sequence continues unchanged. If the camera is already in manual mode, `A` may still strafe left while triggering the encounter. Key-repeat does not repeatedly trigger the event.
 - Manual event hotkeys change event state only. They never alter camera focus, heading, FOV, speed, or flight-path phase.
 
@@ -133,15 +153,16 @@ The UFO and lightning schedules are coordinated by the scene, not by the camera 
 - Render the Documentation cards as a dynamic grid on the front side of the gallery, opposite the Dev charts. The wall faces inward toward the PMT logo at a `180` degree Y rotation.
 - Match the real Documentation card information hierarchy: title, project or General badge, Private/Public state, pinned state, created/edited author and date, body preview, first body image when available, and attachment count.
 - Keep Documentation card textures lower-resolution than the large chart panels so a full 20-card wall does not overload the WebGL scene.
-- The Documentation wall geometry and its Sequence 4 inspection are approved. Sequence 4 uses a continuous forward curve from QA to Documentation and onward to Kanban without a stop or hold.
+- Sequence 4 randomly selects and approaches one rendered Documentation card per gallery cycle. Sequence 7 may pass through the Documentation area only as turnaround space and must not behave like a second Documentation inspection.
 
 ## Kanban gallery wall
 
-- Derive Kanban cards from the real board's saved Project, Sprint, status, and user filters, then derive columns from the filtered live task statuses rather than a fixed Todo/Backlog/In Progress list. Preserve configured status order, include any live custom status not present in that list, and omit empty columns while tasks exist, matching the real board's hide-empty behavior.
+- Derive Kanban cards from the real board's saved Project, Sprint, status, and user filters, then derive columns from the filtered live task statuses rather than a fixed Todo/Backlog/In Progress list. Preserve configured status order and include any live custom status not present in that list.
+- **Permanent 3D Kanban rule:** when the user has selected `Show All Columns` on the normal web Kanban Board, the About-page 3D version must still render only non-empty columns. Empty columns must never consume 3D gallery space in this mode, including when every configured column is empty; use the single `No active columns` gallery placeholder instead. This compact 3D policy intentionally overrides the web board's all-column presentation without changing the saved web preference.
 - Render the Kanban Board on the left-side wall after the Development Team grid's dynamic front extent. Its start position must be calculated from the current user-card grid width plus a safety gap so additional users and additional Kanban columns cannot overlap.
 - Match the real dark-theme Kanban screen rather than inventing a simplified card: muted dark column, neutral bordered surface cards, live overlapping assignee avatar images, task code, Dev/Bug marker, title, priority and Bug severity pills, centered completion percentage, and PMT's danger/warning/success progress colors.
 - Grow Kanban columns toward the front of the gallery. Keep four full-size, visually substantial task cards readable per column; when a stack exceeds that texture capacity, show an explicit remaining-task count instead of compressing the cards into thin rows.
-- Sequence 4 visits Documentation, then Kanban, then the Development Team, then curves behind the PMT logo and flies through the `M`/`T` gap toward Documentation before returning to the exact Sequence 1 initial view.
+- Sequence 5 leaves the selected Documentation card for Kanban. Sequence 6 leaves Kanban, curves behind the PMT logo, and flies through the `M`/`T` gap. The automatic route no longer detours to inspect the Development Team wall.
 
 ## Implementation map
 
