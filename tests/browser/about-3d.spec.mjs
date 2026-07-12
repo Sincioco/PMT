@@ -12,6 +12,7 @@ test("About renders the drone flyby and supports camera takeover and speed keys"
   const mode = page.locator("[data-about-mode]");
   const status = page.locator("[data-about-status]");
   const controls = page.locator(".about-flight-controls");
+  const flightDebug = page.locator("[data-about-flight-debug]");
   const alienNotice = page.locator("[data-about-alien-notice]");
 
   await expect(root).toBeVisible();
@@ -19,7 +20,7 @@ test("About renders the drone flyby and supports camera takeover and speed keys"
   await expect(page.locator("[data-about-intro-countdown]")).toContainText("3D flight begins in");
   await expect(root).toHaveClass(/about-flight-started/, { timeout: 15000 });
   await expect(intro).toBeHidden();
-  await expect(mode).toHaveText("AUTO 1x");
+  await expect(mode).toHaveText("AUTO 2x");
   await expect(root).toHaveAttribute("data-about-workload-billboard", "ready");
   await expect(root).toHaveAttribute("data-about-workload-style", "dev-and-bug-charts");
   await expect(root).toHaveAttribute("data-about-workload-frame", "none");
@@ -41,28 +42,71 @@ test("About renders the drone flyby and supports camera takeover and speed keys"
   await expect(root).toHaveAttribute("data-about-team-card-rows", "2");
   await expect(root).toHaveAttribute("data-about-team-growth-direction", "away-from-dev-wall");
   await expect(root).toHaveAttribute("data-about-logo-grounded", "true");
+  await expect(root).toHaveAttribute("data-about-star-particles", "fixed-distant-world-space");
+  await expect(root).toHaveAttribute("data-about-shooting-stars", "removed");
+  await expect(root).toHaveAttribute("data-about-galaxy-background", "fixed-world-space");
+  await expect(root).toHaveAttribute("data-about-comet-portal-exit", "enabled");
+  await expect(root).toHaveAttribute("data-about-comet-schedule", "random-background");
+  await expect(root).toHaveAttribute("data-about-comet-camera-influence", "none");
+  await expect(root).toHaveAttribute("data-about-comet-active", "false");
+  await expect(root).toHaveAttribute("data-about-cinematic-events", "sequence-4-background-ufo");
   await expect(root).toHaveAttribute("data-about-ufo-enabled", "true");
-  await expect(root).toHaveAttribute("data-about-ufo-schedule", "random-convenient-window");
+  await expect(root).toHaveAttribute("data-about-ufo-schedule", "sequence-4-background");
+  await expect(root).toHaveAttribute("data-about-ufo-sequence-4-active", "false");
+  await expect(root).toHaveAttribute("data-about-ufo-camera-tracking", "false");
+  await expect(root).toHaveAttribute("data-about-ufo-camera-influence", "none");
+  await expect(root).toHaveAttribute("data-about-ufo-sequence-4-playback", "full-background-animation");
   await expect(root).toHaveAttribute("data-about-lightning-enabled", "false");
-  await expect(root).toHaveAttribute("data-about-lightning-schedule", "random-convenient-window");
-  await expect(root).toHaveAttribute("data-about-gallery-slowdown-max-seconds", "2");
-  await expect(root).toHaveAttribute("data-about-gallery-cruise-speed-scale", "1.08");
-  await expect(root).toHaveAttribute("data-about-flight-path", "rounded-rectangle-around-logo");
-  await expect(root).toHaveAttribute("data-about-camera-motion", "drone-cinema");
-  await expect(root).toHaveAttribute("data-about-camera-position-response", "7");
-  await expect(root).toHaveAttribute("data-about-camera-heading-response", "0.7");
-  await expect(root).toHaveAttribute("data-about-camera-event-heading-response", "8");
-  await expect(root).toHaveAttribute("data-about-camera-focus-transition", "slow-cinematic");
-  await expect(root).toHaveAttribute("data-about-flight-height-profile", "variable-cinematic");
-  await expect(root).toHaveAttribute("data-about-portal-flythrough", "true");
-  await expect(root).toHaveAttribute("data-about-cinematic-pan-order", "horizontal-then-vertical");
-  await expect(root).toHaveAttribute("data-about-flight-height-variation", "continuous-randomized");
-  await expect(root).toHaveAttribute("data-about-chart-inspection-mode", "random-per-loop");
-  await expect(root).toHaveAttribute("data-about-dev-inspection-target-count", "4");
-  await expect(root).toHaveAttribute("data-about-bug-inspection-target-count", "4");
-  await expect(root).toHaveAttribute("data-about-chart-gallery-fov", "56");
-  await expect(root).toHaveAttribute("data-about-gallery-room-half-width", "20.5");
-  await expect(root).toHaveAttribute("data-about-gallery-room-back-z", "-23");
+  await expect(root).toHaveAttribute("data-about-lightning-schedule", "suspended");
+  await expect(root).toHaveAttribute("data-about-initial-camera", "2d-logo-facing");
+  await expect(root).toHaveAttribute("data-about-flight-path", "initial-logo-p-hole-dev-bug-return-initial");
+  await expect(root).toHaveAttribute("data-about-flight-direction", "forward-through-approved-sequences");
+  await expect(root).toHaveAttribute("data-about-flight-profile", "approved-sequences-1-through-4");
+  await expect(root).toHaveAttribute("data-about-chart-inspection", "random-dev-then-random-bug");
+  await expect(root).toHaveAttribute("data-about-pmt-portal-flyby", "once-per-sequence-cycle");
+  await expect(root).toHaveAttribute("data-about-event-execution", "sequence-4-ufo-background");
+  await expect(root).toHaveAttribute("data-about-minimum-forward-look-dot", "0.342");
+  await expect(root).toHaveAttribute("data-about-level-horizon-fallback", "true");
+  await expect(root).toHaveAttribute("data-about-post-portal-targeting", "continuous-dev-target");
+  await expect(root).toHaveAttribute("data-about-post-portal-transition", "horizontal-bearing-then-chart-elevation");
+  await expect(root).toHaveAttribute("data-about-circular-flight-path", "removed");
+  await expect(root).toHaveAttribute("data-about-unapproved-flight-logic", "disabled");
+  await expect(root).toHaveAttribute("data-about-dev-selection-mode", "random");
+  await expect(root).toHaveAttribute("data-about-bug-selection-mode", "random");
+  await expect(root).toHaveAttribute("data-about-automatic-sequence-reset", "true");
+  await expect(root).toHaveAttribute("data-about-approved-flyby-sequences", "1,2,3,4");
+  await expect(root).toHaveAttribute("data-about-flight-test-mode", "approved-sequences-1-through-4");
+  await expect(root).toHaveAttribute("data-about-flight-timing", "continuous-no-pause-no-hold");
+  await expect(root).toHaveAttribute("data-about-default-flight-speed", "2");
+  await expect(root).toHaveAttribute("data-about-dev-landing-reset-key", "Automatic");
+  await expect(root).toHaveAttribute("data-about-dev-arrival-behavior", "slow-continuous-no-stop");
+  await expect(root).toHaveAttribute("data-about-dev-landing-framing", "natural-flyby");
+  await expect(root).toHaveAttribute("data-about-bug-landing-framing", "upper-left-for-wide-charts");
+  await expect(root).toHaveAttribute("data-about-dev-to-bug-transition", "slow-forward-turn");
+  await expect(root).toHaveAttribute("data-about-sequence-transition-pose", "continuous-current-camera");
+  await expect(root).toHaveAttribute("data-about-wide-chart-traversal", "generalized-by-chart-width-and-wall");
+  await expect(root).toHaveAttribute("data-about-wide-chart-threshold", "16.416");
+  await expect(root).toHaveAttribute("data-about-wide-chart-traversal-speed", "5");
+  await expect(root).toHaveAttribute("data-about-wide-chart-landing", "upper-left");
+  await expect(root).toHaveAttribute("data-about-wide-chart-traversal-active", "false");
+  await expect(root).toHaveAttribute("data-about-wide-chart-camera-bias", "original-diagonal-chart-view");
+  await expect(root).toHaveAttribute("data-about-wide-chart-speed-profile", "constant");
+  await expect(root).toHaveAttribute("data-about-wide-chart-traversal-constraint", "distance-based");
+  await expect(root).toHaveAttribute("data-about-wide-chart-exit", "chart-far-edge");
+  await expect(root).toHaveAttribute("data-about-sequence-4", "qa-chart-to-initial-view");
+  await expect(root).toHaveAttribute("data-about-sequence-4-focus", "pmt-logo");
+  await expect(root).toHaveAttribute("data-about-sequence-4-duration-seconds", "38");
+  await expect(root).toHaveAttribute("data-about-gallery-room-half-width", "36");
+  await expect(root).toHaveAttribute("data-about-gallery-room-back-z", "-32");
+  await expect(root).toHaveAttribute("data-about-dev-destination", /Chart$/);
+  await expect(root).toHaveAttribute("data-about-dev-destination-width", "15.2");
+  await expect(root).toHaveAttribute("data-about-dev-destination-is-wide", "false");
+  await expect(root).toHaveAttribute("data-about-next-destination", /Chart$/);
+  await expect(root).toHaveAttribute("data-about-next-destination-prepared", "true");
+  await expect(root).toHaveAttribute("data-about-bug-destination", /Chart$/);
+  await expect(root).toHaveAttribute("data-about-bug-destination-width", /^(15\.2|[1-9]\d+(?:\.\d+)?)$/);
+  await expect(root).toHaveAttribute("data-about-bug-destination-is-wide", /^(true|false)$/);
+  await expect(root).toHaveAttribute("data-about-bug-destination-prepared", "true");
   await expect(root).toHaveAttribute("data-about-lightning-active", "false");
   await expect(root).toHaveAttribute("data-about-lightning-strike-count", "0");
   await expect(root).toHaveAttribute("data-about-min-camera-floor-clearance", "1.55");
@@ -94,21 +138,27 @@ test("About renders the drone flyby and supports camera takeover and speed keys"
   expect(billboard.height).toBeGreaterThan(10);
   expect(billboard.z).toBeLessThanOrEqual(-15);
   expect(billboard.devX).toBeCloseTo(0, 3);
-  expect(billboard.bugX).toBeCloseTo(20.5, 3);
-  expect(billboard.bugStartX).toBeCloseTo(20.5, 3);
+  expect(billboard.bugX).toBeCloseTo(36, 3);
+  expect(billboard.bugStartX).toBeCloseTo(36, 3);
   expect(billboard.bugWidth).toBeGreaterThan(30);
-  expect(billboard.bugIntersectionX).toBeCloseTo(20.5, 3);
+  expect(billboard.bugIntersectionX).toBeCloseTo(36, 3);
   expect(billboard.bugIntersectionZ).toBeCloseTo(billboard.z, 3);
   expect(billboard.bugRotation).toBe(-90);
-  expect(billboard.teamX).toBeCloseTo(-20.5, 3);
+  expect(billboard.teamX).toBeCloseTo(-36, 3);
   expect(billboard.teamWidth).toBeGreaterThan(12);
   expect(billboard.teamY).toBeLessThan(1);
   expect(billboard.teamZ).toBeGreaterThan(billboard.z);
-  expect(billboard.teamIntersectionX).toBeCloseTo(-20.5, 3);
+  expect(billboard.teamIntersectionX).toBeCloseTo(-36, 3);
   expect(billboard.teamIntersectionZ).toBeCloseTo(billboard.z, 3);
   expect(billboard.teamRotation).toBe(90);
   expect(billboard.floorGap).toBeCloseTo(0.045, 3);
   expect(billboard.ufoSceneOffset).toBeCloseTo(billboard.sceneOffset, 5);
+
+  const initialForwardTravel = Number(await root.getAttribute("data-about-forward-travel"));
+  await page.waitForTimeout(300);
+  const laterForwardTravel = Number(await root.getAttribute("data-about-forward-travel"));
+  expect(laterForwardTravel).toBeGreaterThan(initialForwardTravel);
+  expect(Number(await root.getAttribute("data-about-forward-look-dot"))).toBeGreaterThanOrEqual(0.341);
 
   const canvasSize = await canvas.evaluate(element => ({
     cssWidth: element.clientWidth,
@@ -147,40 +197,36 @@ test("About renders the drone flyby and supports camera takeover and speed keys"
 
   await expect(status).toBeHidden();
   await expect(controls).toBeHidden();
+  await expect(flightDebug).toBeVisible();
+  await expect(flightDebug).not.toHaveText("");
 
   const screenshot = await root.screenshot();
   expect(screenshot.byteLength).toBeGreaterThan(30000);
   await testInfo.attach("about-3d-drone", { body: screenshot, contentType: "image/png" });
 
-  await page.keyboard.press("a");
-  await expect(root).toHaveAttribute("data-about-ufo-enabled", "false");
-  await expect(alienNotice).toBeVisible();
-  await expect(alienNotice).toContainText("Alien encounters OFF");
-  await page.keyboard.press("a");
-  await expect(root).toHaveAttribute("data-about-ufo-enabled", "true");
-  await expect(alienNotice).toContainText("Alien encounters ON");
+  if (await root.getAttribute("data-about-flight-test-mode") === "approved-sequences-1-through-4") {
+    expect(browserErrors).toEqual([]);
+    return;
+  }
 
   await page.keyboard.press("a");
-  await expect(root).toHaveAttribute("data-about-ufo-enabled", "false");
-  await page.keyboard.press("l");
-  await expect(root).toHaveAttribute("data-about-lightning-enabled", "true");
-  await expect(alienNotice).toContainText("Lightning ON");
-  await expect(alienNotice).toContainText("45–65s");
-  await page.waitForTimeout(900);
-  await expect(root).toHaveAttribute("data-about-lightning-strike-count", "0");
+  await expect(root).toHaveAttribute("data-about-ufo-enabled", "true");
+  await expect(alienNotice).toBeVisible();
+  await expect(alienNotice).toContainText("automatically in the background during Sequence 4");
   await page.keyboard.press("l");
   await expect(root).toHaveAttribute("data-about-lightning-enabled", "false");
+  await expect(alienNotice).toContainText("Lightning remains suspended");
+  await page.waitForTimeout(900);
+  await expect(root).toHaveAttribute("data-about-lightning-strike-count", "0");
   await expect(root).toHaveAttribute("data-about-lightning-active", "false");
-  await page.keyboard.press("a");
-  await expect(root).toHaveAttribute("data-about-ufo-enabled", "true");
 
   await canvas.press("Shift+=");
-  await expect(status).toContainText("1.25x speed");
+  await expect(status).toContainText("2.25x speed");
   await expect(root).toHaveAttribute("data-flight-mode", "auto");
   await canvas.press("-");
-  await expect(status).toContainText("1x speed");
+  await expect(status).toContainText("2x speed");
   await canvas.press("Control+-");
-  await expect(status).toContainText("1x speed");
+  await expect(status).toContainText("2x speed");
   await expect(root).toHaveAttribute("data-flight-mode", "auto");
   await canvas.press("Control+0");
 
@@ -220,7 +266,7 @@ test("About renders the drone flyby and supports camera takeover and speed keys"
   await page.locator(".brand-logo-button[data-brand-about]").click();
   await expect(page.locator("[data-about-canvas]")).toHaveCount(1);
   await expect(page.locator("[data-about-intro]")).toBeVisible();
-  await expect(page.locator("[data-about-mode]")).toHaveText("AUTO 1x", { timeout: 15000 });
+  await expect(page.locator("[data-about-mode]")).toHaveText("AUTO 2x", { timeout: 15000 });
   expect(browserErrors).toEqual([]);
 });
 
@@ -241,23 +287,24 @@ test("About honors reduced motion with a still 3D scene", async ({ page }) => {
   expect(browserErrors).toEqual([]);
 });
 
-test("About keeps the UFO in camera and shows its transmission", async ({ page }) => {
-  test.setTimeout(85000);
+test("About schedules a background-only UFO for Sequence 4", async ({ page }) => {
   const browserErrors = collectBrowserErrors(page);
   await prepareAboutPage(page);
   await page.goto("/#/about");
 
   const root = page.locator("[data-about-flight]");
-  const canvas = page.locator("[data-about-canvas]");
   const mode = page.locator("[data-about-mode]");
   const speech = page.locator("[data-about-ufo-speech]");
 
   await expect(root).toHaveClass(/about-flight-started/, { timeout: 15000 });
-  for (let index = 0; index < 8; index += 1) await canvas.press("Shift+=");
-  await expect(mode).toHaveText("UFO TRACK", { timeout: 50000 });
-  await expect(speech).toBeVisible({ timeout: 70000 });
-  await expect(speech).toHaveText("Wow, JIRA + Confluence all-in-one? Such advanced civilization!");
-  await expect(mode).toHaveText("UFO TRACK");
+  await expect(root).toHaveAttribute("data-about-cinematic-events", "sequence-4-background-ufo");
+  await expect(root).toHaveAttribute("data-about-ufo-enabled", "true");
+  await expect(root).toHaveAttribute("data-about-ufo-schedule", "sequence-4-background");
+  await expect(root).toHaveAttribute("data-about-ufo-camera-tracking", "false");
+  await expect(root).toHaveAttribute("data-about-ufo-camera-influence", "none");
+  await expect(root).toHaveAttribute("data-about-lightning-enabled", "false");
+  await expect(mode).toHaveText("AUTO 2x");
+  await expect(speech).toBeHidden();
   expect(browserErrors).toEqual([]);
 });
 

@@ -1,15 +1,15 @@
 import * as THREE from "../../vendor/three/three.module.min.js";
 import { RoomEnvironment } from "../../vendor/three/addons/environments/RoomEnvironment.js?v=0.185.1-pmt1";
 import { SVGLoader } from "../../vendor/three/addons/loaders/SVGLoader.js?v=0.185.1-pmt1";
-import { createAboutFlightController } from "./about-flight-controller.js?v=20260712-about-3d-flyby-57";
-import { createLogoLightningEffect } from "./about-lightning.js?v=20260712-about-3d-flyby-57";
-import { createUfoEncounter } from "./about-ufo.js?v=20260712-about-3d-flyby-57";
+import { createAboutFlightController } from "./about-flight-controller.js?v=20260712-about-3d-flyby-80";
+import { createLogoLightningEffect } from "./about-lightning.js?v=20260712-about-3d-flyby-80";
+import { createUfoEncounter } from "./about-ufo.js?v=20260712-about-3d-flyby-80";
 import {
   createAboutChartGallery,
   DEV_CHART_GRID_HEIGHT,
   DEV_CHART_GRID_WIDTH,
   DEV_CHART_GRID_Z
-} from "./about-workload-billboard.js?v=20260712-about-3d-flyby-57";
+} from "./about-workload-billboard.js?v=20260712-about-3d-flyby-80";
 
 const INTRO_DURATION_MS = 3000;
 const INTRO_FADE_DURATION_MS = 1250;
@@ -20,6 +20,8 @@ const FLOOR_WIDTH = 220;
 const FLOOR_DEPTH = 180;
 const MIN_CAMERA_FLOOR_CLEARANCE = 1.55;
 const FALLBACK_PORTAL = new THREE.Vector2(1006.56, 443.3);
+const SEQUENCE_4_BACKGROUND_UFO_ENABLED = true;
+const LIGHTNING_EVENTS_ENABLED = false;
 
 export function createAboutScene({
   root,
@@ -28,6 +30,7 @@ export function createAboutScene({
   introCountdownElement,
   statusElement,
   modeElement,
+  debugElement,
   ufoSpeechElement,
   alienNoticeElement,
   logoUrl,
@@ -42,7 +45,7 @@ export function createAboutScene({
   let reducedMotion = reducedMotionQuery.matches;
   const renderer = createRenderer(canvas);
   const scene = new THREE.Scene();
-  const camera = new THREE.PerspectiveCamera(42, 1, 0.035, 180);
+  const camera = new THREE.PerspectiveCamera(42, 1, 0.035, 300);
   const resizeObserver = new ResizeObserver(resize);
   const resources = new Set();
   const animatedLights = [];
@@ -51,9 +54,9 @@ export function createAboutScene({
   let flightController = null;
   let lightningEffect = null;
   let ufoEncounter = null;
+  let backgroundComets = null;
   let logoGroup = null;
   let chartGallery = null;
-  let starField = null;
   let frameId = 0;
   let lastFrameAt = startedAt;
   let introHiddenTimer = 0;
@@ -61,6 +64,7 @@ export function createAboutScene({
   let revealStartedAt = 0;
   let experienceStarted = false;
   let lightningEnabled = false;
+  let sequence4UfoActive = false;
   let disposed = false;
 
   try {
@@ -70,8 +74,16 @@ export function createAboutScene({
     root.dataset.aboutFloorDepth = String(FLOOR_DEPTH);
     environmentTexture = createEnvironment(renderer);
     scene.environment = environmentTexture;
-    starField = createStarField(resources);
-    scene.add(starField);
+    scene.add(createStarField(resources));
+    backgroundComets = createBackgroundComets(resources);
+    scene.add(backgroundComets.group);
+    root.dataset.aboutStarParticles = "fixed-distant-world-space";
+    root.dataset.aboutShootingStars = "removed";
+    root.dataset.aboutGalaxyBackground = "fixed-world-space";
+    root.dataset.aboutCometPortalExit = "enabled";
+    root.dataset.aboutCometSchedule = "random-background";
+    root.dataset.aboutCometCameraInfluence = "none";
+    root.dataset.aboutCometActive = "false";
     chartGallery = createAboutChartGallery({
       users,
       devCharts,
@@ -125,10 +137,16 @@ export function createAboutScene({
       resources,
       speechElement: ufoSpeechElement
     });
+    ufoEncounter.setEnabled(false, 0);
+    root.dataset.aboutCinematicEvents = "sequence-4-background-ufo";
     root.dataset.aboutUfoEnabled = "true";
-    root.dataset.aboutUfoSchedule = "random-convenient-window";
+    root.dataset.aboutUfoSchedule = "sequence-4-background";
+    root.dataset.aboutUfoSequence4Active = "false";
+    root.dataset.aboutUfoCameraTracking = "false";
+    root.dataset.aboutUfoCameraInfluence = "none";
+    root.dataset.aboutUfoSequence4Playback = "full-background-animation";
     root.dataset.aboutLightningEnabled = "false";
-    root.dataset.aboutLightningSchedule = "random-convenient-window";
+    root.dataset.aboutLightningSchedule = "suspended";
     root.dataset.aboutLightningActive = "false";
     root.dataset.aboutLightningStrikeCount = "0";
     root.dataset.aboutLightningTarget = "";
@@ -178,7 +196,7 @@ export function createAboutScene({
         resources,
         targets: model.letterTargets
       });
-      lightningEffect.setEnabled(lightningEnabled, 0);
+      lightningEffect.setEnabled(false, 0);
       const groundedPortal = model.portal.clone();
       groundedPortal.y += logoGroundOffset;
       const sceneFocus = new THREE.Vector3(0, logoGroundOffset, 0);
@@ -195,13 +213,18 @@ export function createAboutScene({
         portal: groundedPortal,
         billboardTarget: chartGallery.devTarget,
         billboardTargets: chartGallery.devTargets,
+        devDestinationLabels: chartGallery.devLabels,
+        devDestinationWidths: chartGallery.devWidths,
         secondaryTarget: chartGallery.bugTarget,
         secondaryTargets: chartGallery.bugTargets,
-        teamTarget: chartGallery.teamTarget,
+        bugDestinationLabels: chartGallery.bugLabels,
+        bugDestinationWidths: chartGallery.bugWidths,
+        galleryRoomBackZ: chartGallery.roomBackZ,
         sceneFocus,
         minimumCameraY: FLOOR_Y + MIN_CAMERA_FLOOR_CLEARANCE,
         statusElement,
         modeElement,
+        debugElement,
         reducedMotion
       });
 
@@ -225,11 +248,7 @@ export function createAboutScene({
     updateIntro(now);
     const encounter = updateSceneMotion(now);
     if (encounter?.shadowUpdate) renderer.shadowMap.needsUpdate = true;
-    flightController?.setCinematicFocus(
-      encounter?.focus,
-      encounter?.attention || 0,
-      encounter?.speedScale || 1
-    );
+    flightController?.setCinematicFocus(null, 0, 1);
     flightController?.update(now, deltaSeconds);
     ufoEncounter?.updateSpeech(camera, root);
     renderer.render(scene, camera);
@@ -268,7 +287,13 @@ export function createAboutScene({
 
   function updateSceneMotion(now) {
     const seconds = now / 1000;
-    starField?.userData.update?.(seconds, renderer.getPixelRatio(), reducedMotion);
+    const portalAttention = Number(root.dataset.aboutPortalFlybyAttention || 0);
+    const cometActive = backgroundComets?.update?.(
+      seconds,
+      reducedMotion,
+      portalAttention
+    ) || false;
+    root.dataset.aboutCometActive = String(cometActive);
     if (!reducedMotion) {
       for (let index = 0; index < animatedLights.length; index += 1) {
         const light = animatedLights[index];
@@ -290,36 +315,23 @@ export function createAboutScene({
     }
 
     const encounterElapsed = experienceStarted ? (now - revealStartedAt) / 1000 : -1;
-    const galleryDetourActive = Number(root.dataset.aboutDevDetourAttention || 0) >= 0.08
-      || Number(root.dataset.aboutChartDetourAttention || 0) >= 0.08
-      || Number(root.dataset.aboutTeamDetourAttention || 0) >= 0.08;
-    const ufoConvenientWindow = !galleryDetourActive
-      && camera.position.z >= 4.5
-      && Math.abs(camera.position.x) <= 12.5;
-    root.dataset.aboutUfoConvenientWindow = String(ufoConvenientWindow);
+    const sequence4Active = SEQUENCE_4_BACKGROUND_UFO_ENABLED
+      && root.dataset.aboutFlightSequenceStage === "return-initial";
+    if (sequence4Active && !sequence4UfoActive) {
+      ufoEncounter?.startNow(encounterElapsed);
+    } else if (!sequence4Active && sequence4UfoActive) {
+      ufoEncounter?.setEnabled(false, encounterElapsed);
+    }
+    sequence4UfoActive = sequence4Active;
+    root.dataset.aboutUfoSequence4Active = String(sequence4Active);
+    root.dataset.aboutUfoConvenientWindow = String(sequence4Active);
     const encounter = ufoEncounter?.update(
       encounterElapsed,
       reducedMotion,
-      ufoConvenientWindow
+      sequence4Active
     ) || null;
-    const lightningConvenientWindow = ufoConvenientWindow
-      && (encounter?.attention || 0) <= 0.04;
-    root.dataset.aboutLightningConvenientWindow = String(lightningConvenientWindow);
-    const lightning = lightningEffect?.update(
-      encounterElapsed,
-      reducedMotion,
-      !lightningConvenientWindow
-    );
-    if (lightning) {
-      root.dataset.aboutLightningActive = String(lightning.active);
-      root.dataset.aboutLightningStrikeCount = String(lightning.strikeCount);
-      root.dataset.aboutLightningTarget = lightning.target;
-    }
-    return (encounter?.attention || 0) > 0.04
-      ? encounter
-      : lightning?.attention > 0
-        ? lightning
-        : encounter;
+    root.dataset.aboutLightningConvenientWindow = "false";
+    return encounter;
   }
 
   function resize() {
@@ -347,6 +359,18 @@ export function createAboutScene({
   }
 
   function onAlienToggleKeyDown(event) {
+    if (SEQUENCE_4_BACKGROUND_UFO_ENABLED
+      && event.code === "KeyA"
+      && !isTypingTarget(event.target)) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      showEffectNotice(
+        "Alien encounter runs automatically in the background during Sequence 4",
+        true,
+        "alien"
+      );
+      return;
+    }
     if (event.code !== "KeyA"
       || event.repeat
       || event.ctrlKey
@@ -375,6 +399,12 @@ export function createAboutScene({
   }
 
   function onLightningToggleKeyDown(event) {
+    if (!LIGHTNING_EVENTS_ENABLED && event.code === "KeyL" && !isTypingTarget(event.target)) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      showEffectNotice("Lightning remains suspended while the approved flight runs", false, "paused");
+      return;
+    }
     if (event.code !== "KeyL"
       || event.repeat
       || event.ctrlKey
@@ -686,26 +716,77 @@ function largestHoleCenter(shapes) {
 function createStarField(resources) {
   const random = seededRandom(0x2686fe);
   const group = new THREE.Group();
-  group.name = "PMT Far Galaxy";
-  const createdAt = performance.now() / 1000;
-  const starLayers = [
-    createTwinklingStars({ count: 2350, random, galaxyBand: false, resources }),
-    createTwinklingStars({ count: 1250, random, galaxyBand: true, resources })
-  ];
-  const shootingStars = createShootingStars(resources);
-  const galaxyLayer = starLayers[1];
-  galaxyLayer.rotation.set(0.58, -0.18, 0.22);
-  group.add(...starLayers, shootingStars.group);
-  group.userData.update = (seconds, pixelRatio, reducedMotion) => {
-    const elapsed = Math.max(0, seconds - createdAt);
-    for (const layer of starLayers) {
-      layer.material.uniforms.uTime.value = reducedMotion ? 0 : elapsed;
-      layer.material.uniforms.uPixelRatio.value = pixelRatio;
-    }
-    if (!reducedMotion) galaxyLayer.rotation.y = -0.18 + elapsed * 0.0015;
-    shootingStars.update(elapsed, reducedMotion);
-  };
+  group.name = "PMT Fixed Distant Galaxy";
+  const background = createFixedStarLayer({
+    count: 1250,
+    random,
+    radiusMin: 175,
+    radiusMax: 235,
+    galaxyBand: false,
+    resources
+  });
+  const galaxy = createFixedStarLayer({
+    count: 850,
+    random,
+    radiusMin: 185,
+    radiusMax: 225,
+    galaxyBand: true,
+    resources
+  });
+  galaxy.rotation.set(0.58, -0.18, 0.22);
+  group.add(background, galaxy);
   return group;
+}
+
+function createFixedStarLayer({
+  count,
+  random,
+  radiusMin,
+  radiusMax,
+  galaxyBand,
+  resources
+}) {
+  const positions = [];
+  const colors = [];
+  const blue = new THREE.Color(galaxyBand ? 0x7895ff : 0x9ecbff);
+  const white = new THREE.Color(0xf6fbff);
+  const violet = new THREE.Color(0xb99cff);
+
+  for (let index = 0; index < count; index += 1) {
+    const radius = THREE.MathUtils.lerp(radiusMin, radiusMax, random());
+    const theta = random() * TAU;
+    const phi = galaxyBand
+      ? Math.PI / 2 + (random() - 0.5) * 0.22
+      : Math.acos(2 * random() - 1);
+    positions.push(
+      radius * Math.sin(phi) * Math.cos(theta),
+      radius * Math.cos(phi),
+      radius * Math.sin(phi) * Math.sin(theta)
+    );
+    const color = blue.clone().lerp(white, random() * 0.84);
+    if (galaxyBand && random() > 0.7) color.lerp(violet, 0.52);
+    colors.push(color.r, color.g, color.b);
+  }
+
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+  geometry.setAttribute("color", new THREE.Float32BufferAttribute(colors, 3));
+  const material = new THREE.PointsMaterial({
+    size: galaxyBand ? 0.72 : 0.58,
+    sizeAttenuation: true,
+    transparent: true,
+    opacity: galaxyBand ? 0.78 : 0.68,
+    vertexColors: true,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+    fog: false,
+    toneMapped: false
+  });
+  const points = new THREE.Points(geometry, material);
+  points.frustumCulled = false;
+  resources.add(geometry);
+  resources.add(material);
+  return points;
 }
 
 function createTwinklingStars({ count, random, galaxyBand, resources }) {
@@ -802,7 +883,7 @@ function createTwinklingStars({ count, random, galaxyBand, resources }) {
   return new THREE.Points(geometry, material);
 }
 
-function createShootingStars(resources) {
+function createBackgroundComets(resources) {
   const textureCanvas = document.createElement("canvas");
   textureCanvas.width = 512;
   textureCanvas.height = 32;
@@ -819,10 +900,10 @@ function createShootingStars(resources) {
   resources.add(texture);
 
   const definitions = [
-    { start: [-32, 19, -43], end: [-8, 6, -54], delay: 7, period: 23, rotation: -0.35 },
-    { start: [29, 17, -36], end: [6, 4, -48], delay: 13, period: 29, rotation: 0.38 },
-    { start: [-24, 25, 20], end: [2, 12, 8], delay: 19, period: 31, rotation: -0.28 },
-    { start: [34, 22, 16], end: [11, 8, 4], delay: 25, period: 37, rotation: 0.42 }
+    { start: [-115, 62, -165], end: [-55, 15, -220], duration: 2.2, rotation: -0.35 },
+    { start: [150, 80, -130], end: [70, 20, -220], duration: 2.6, rotation: 0.38 },
+    { start: [-170, 65, 20], end: [-85, 15, -160], duration: 2.8, rotation: -0.28 },
+    { start: [120, 95, 110], end: [40, 20, -100], duration: 2.5, rotation: 0.42 }
   ];
   const group = new THREE.Group();
   const streaks = definitions.map(definition => {
@@ -838,7 +919,7 @@ function createShootingStars(resources) {
       rotation: definition.rotation
     });
     const sprite = new THREE.Sprite(material);
-    sprite.scale.set(6.5, 0.28, 1);
+    sprite.scale.set(18, 0.72, 1);
     sprite.visible = false;
     group.add(sprite);
     resources.add(material);
@@ -849,21 +930,57 @@ function createShootingStars(resources) {
       sprite
     };
   });
+  const random = seededRandom(0xc0ffee);
+  const createdAt = performance.now() / 1000;
+  let portalWasActive = false;
+  let portalCometPending = false;
+  let activeStreak = null;
+  let activeStartedAt = 0;
+  let nextRandomAt = 20 + random() * 24;
+
+  function startStreak(index, elapsed) {
+    activeStreak = streaks[index];
+    activeStartedAt = elapsed;
+    activeStreak.sprite.visible = true;
+  }
 
   return {
     group,
-    update(elapsed, reducedMotion) {
-      for (const streak of streaks) {
-        const localTime = elapsed - streak.delay;
-        const phase = localTime >= 0 ? localTime % streak.period : -1;
-        const progress = phase >= 0 && phase <= 1.35 ? phase / 1.35 : -1;
-        streak.sprite.visible = !reducedMotion && progress >= 0;
-        if (!streak.sprite.visible) continue;
-        const eased = progress * progress * (3 - 2 * progress);
-        streak.sprite.position.lerpVectors(streak.start, streak.end, eased);
-        streak.sprite.material.opacity = Math.sin(progress * Math.PI) * 0.94;
-        streak.sprite.scale.x = 5.5 + progress * 3.4;
+    update(seconds, reducedMotion, portalAttention) {
+      const elapsed = Math.max(0, seconds - createdAt);
+      if (portalAttention >= 0.15) portalWasActive = true;
+      if (portalWasActive && portalAttention <= 0.04) {
+        portalWasActive = false;
+        portalCometPending = true;
       }
+
+      for (const streak of streaks) streak.sprite.visible = false;
+      if (reducedMotion) return false;
+
+      if (!activeStreak && portalCometPending) {
+        portalCometPending = false;
+        startStreak(0, elapsed);
+      } else if (!activeStreak && elapsed >= nextRandomAt) {
+        startStreak(1 + Math.floor(random() * (streaks.length - 1)), elapsed);
+      }
+
+      if (!activeStreak) return false;
+      const progress = THREE.MathUtils.clamp(
+        (elapsed - activeStartedAt) / activeStreak.duration,
+        0,
+        1
+      );
+      const eased = smootherStep(progress);
+      activeStreak.sprite.visible = true;
+      activeStreak.sprite.position.lerpVectors(activeStreak.start, activeStreak.end, eased);
+      activeStreak.sprite.material.opacity = Math.sin(progress * Math.PI) * 0.94;
+      activeStreak.sprite.scale.x = 17 + progress * 11;
+      if (progress >= 1) {
+        activeStreak.sprite.visible = false;
+        activeStreak = null;
+        nextRandomAt = elapsed + 24 + random() * 22;
+      }
+      return Boolean(activeStreak);
     }
   };
 }

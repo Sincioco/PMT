@@ -1,0 +1,103 @@
+Project Management Tool (PMT):  Day 25 of Codex Agentic AI Coding
+-----------------------------------------------------------------
+Total Dev Time in Hours:  32
+
+For all of this conversation / session, I will perform all the manual tests and compile the application manually.  Perform only the coding changes required and nothing else.  If making CSS / image changes, ensure that I will encounter no caching issue when testing in the browser.  Be sure to inform me if I have to recompile the .Net portion of the project or just Press Ctrl + F5 on the browser to reload to see the latest changes.
+
+If making changes to the database, that affects existing users see database-versioning.md under the docs folder.
+
+About Page - 3D Logo Flyby
+--------------------------
+
+1.) Let's clear the flight path / flyby logic and start over.  For now, create a simple drone-like flight that follows the path in the image I have attached.  The drone moves in a cinematic way and is always moving forward but be aware of the PMT logo.  The drone should fly around the PMT logo in a cinematic way, and when it is flying around the PMT logo, it should also inspect the Dev Charts and Bug Tracking charts.  The drone should never go backwards, but it can loop around to inspect a chart again if it missed it.  For now, don't worry about the alien and lighting event, we will add those again once I am happy with the flight path.  But keep the alien and lighting event logic in the code, just don't execute it for now.
+
+2.) I think the problem might be I gave you conflicting logic in the past and you are attempting to execute all of them during the flight path causing the camera / view to move so strangely/weirdly now.
+
+3.) It executed the p-hole flyby correctly. But it reached the Dev Charts too soon. Can you make the gallery room bigger. Move the Dev Charts back some distance (adjust the left and right walls accordingly), so there is more distance the drone can fly after it clears the p-hole to the Dev Charts. The logic is, every time it clears the p-hole, it should target one of the Dev charts as its camera/view destination. So that’s the element of randomness. For debugging purposes, can you put a panel at the bottom informing me the action you are performing. For example: “Executing p-hole flyby” or “Destination: Developer Workload Distribution Chart”. Just so I know what the flight path is and so I can also visually and by text inspect your element of randomness, if any.
+
+4.) Once again, the p-hole flyby logic is fine, but as soon as you cleared the p-hole the drone started looking down on the floor.  New logic:  drone should hover straight looking at the horizon....leveled...when it has no new instructions.  As soon as it clears the p-hole, it should start looking at the next target (Dev Charts or Bug Tracking charts) there should not be a "no instructions" period.  The drone should never look down at the floor or straight at the star/sky unless it is executing a specific instruction to do so.  The drone should always be looking at the horizon when it has no new instructions while executing its circular flight path.
+
+5.) Let's also correct the flight path.  While the circular flight path circles around the PMT logo, it does not need to look at the PMT logo anymore when it is on the backwall (Dev Charts), right wall (Bug Tracking/QA charts) or on the left wall (User Cards).  The drone/camera should only turn its attention back to the PMT logo when it is flying in front of the logo.  Basically, after it clears the Bug Tracking/QA charts.
+
+6.) No change.  After it executed the p-hole flyby, the camera looked down again....and there was no active instructions shown on the panel....then moments later, the logic for the Dev Charts instructions kicked in.  It seems there are seconds delay between the p-hole flyby logic and when the Dev charts flyby logic.  Calculate the next destination (Dev Charts destination) in advanced before you execute the current flyby instruction (p-hole flyby), so that there is a smooth curve/transition between one destination to another.  Currently, there seems to be a time gap between the two flyby instructions, which is causing the camera to look down at the floor for a few seconds before it starts looking at the next destination (Dev Charts).  The drone should always be looking at the horizon when it has no new instructions and say "hovering" and just hover if it is confused....never looking down or up.
+
+7.) When the drone is selecting which Dev Chart to flyby, it can adjust it's height to more efficiently land at the destination chart so the front view of the camera covers the chart as much as possible.  Currently, it is flying too low, as it is keeping with the horizon that by the time it gets to the chart, it's too low and it runs out of time to adjust its height to look at the chart properly.  Slowdown the drone for 1 second so the chart is in view and then very very slowly pan back to flight path.
+
+8.) Let's debug the flight path.  For now, execution the p-hole, pick a random Dev Chart, flytowards it and make the camera/view take up as much of the selected chart as possible....then stop the drone.  Stop any animation....pause for 5 seconds....so I can see how the drone lands on its Dev Chart destiation.  Prompt me to press "spacebar" to reset the test, and every time you reset the test, pick another Dev Chart as the destination.
+
+9.) I want to remove the circular flight path around the PMT logo logic.  Right now, this is the only flyby logic you should have.  Keep the initial view start of the animation sequence and the p-hole flyby logic as-is.  Those two parts are the only approved flight logic right now.  Here is what I want to change:
+	1.) After you execute the p-hole flyby there should be no delay, the camera should be heading straight to randomly selected Dev Chart as the destination.
+	2.) As you fly towards the destination Dev Chart, adjust the flight path's, height, camera angle, speed, perspective, so the camera arrives at the chart at front-view and center.  As though you are looking at a 2D chart on the wall because the camera is dead center in front of it.  The chart should take up as much of the screen as possible.  We don't have any more circular flight path logic to worry anymore, so just focus on landing the camera dead center and in front of the destination chart.  Pause for 5 seconds, and re-start the test on your own from the beginning so I can see the next randomly selected Dev Chart destination.  Just for this testing, instead of randomly selecting a Dev Chart, pick them in sequence so I can see all of them in order.  Once I am happy with the flight path, we can go back to random selection.
+
+10.) Here are the approved flyby sequences:
+[Approved] Sequence 1:  Initial view -> p-hole flyby
+[Approved] Sequence 2:  p-hole flyby -> Random Dev Chart -> Pause for a second 
+
+Sequence 2 is now approved.  You can remove our testing logic and just execute the p-hole flyby and then fly towards a randomly selected Dev Chart as originally intended.
+
+Now let's work on Sequence 3 and wire a test harnest so I can visually test like what we did for sequence 2.
+
+Sequence 3:  Dev Chart -> Random Bug Tracking / QA Chart -> Pause for a second.
+
+After the pause on the Dev Chart, very slowly backup the camera as needed while turning to your next destination which is a random Bug Tracking / QA chart, then fly towards it just like what you did in Sequence 2.
+
+11.) When I wrote "pause for a second", I actually mean "hold for a second."  I don't want the 3D scene actually paused.  I just want the camera to hold its position.
+
+12.) At the end of Sequence 2, there is a pause.  Remove all pause logic.  There should be no pauses anymore.  Just a camera hold.
+
+
+13.) In fact, re-do the sequence without any pause or hold logic anymore, like so:
+[Approved] Sequence 1:  Initial view -> p-hole flyby
+Sequence 2:  p-hole flyby -> Random Dev Chart
+Sequence 3:  Random Dev Chart -> Random Bug Tracking / QA Chart
+
+14.) Revised approved sequences:
+[Approved] Sequence 1:  Initial view -> p-hole flyby
+[Bug Fix] Sequence 2:  p-hole flyby -> Random Dev Chart
+[Bug Fix] Sequence 3:  Random Dev Chart -> Random Bug Tracking / QA Chart
+
+15.) Let's focus on Sequence 2.  At the end of sequence 2, there is this jarring bump to the camera.  Remove the previous logic I asked for where the destination has to be in front of the camera.  Instead, just fly towards the destination and let the camera arrive at the destination naturally and without any pause slowly move the camera to the next destination, again naturally, without any bump or jarring camera effect.
+
+
+16.) Widen the walls to the Bug Tracking / QA charts are further away from the Dev Charts so we have more flyby time.
+
+17.) For charts that are wider than can fit on the screen's view port (the Bug Tracking / QA has 2 such charts), add extra logic.  I want the camera to land at the upper-left corner of these charts.  Currently, you land at the center of the chart which does not inform the user what chart they are looking at.  For these charts that are wide, when you reach the destination turn to the right slightly (so the chart is still visible on the left side of the screen) and then move forward towards the end of the chart accelerating towards the end for about 2 seconds.  I want to do a chart walk-thru / or fly-thru, if you will.  Fly thru all the data on the chart very rapidly completing that entire sequence in no more than 2 seconds then proceed naturally to the next flight path.  For testing, after you fly through for 2 seconds, hold for 5 seconds, so I can see where the camera lands before proceeding to the next sequence (sequence 4).
+
+18.) Sequence 4:  Random Bug Tracking / QA Chart -> the initial view in Sequence 1 (same view so we can go through the p-hole again).  Repeat Sequence 1.
+
+19.) Generalize this wide chart walk-thru / fly-thru logic so we can use it for any chart not just for the Bug Tracking / QA charts.  For example, if the Dev Charts also have a wide chart in the future we can use this logic.
+
+20.) For the wide-chart traversal, angle the camera more towards the chart as it traverses, and it when it exceeds the width of the chart, angle the camera back to the original flight path and continue on to the next destination.
+
+21.) At the end of sequence 2, I still get this visual feed back that the camera bumped into the chart.  Before landing onto the final destination, slow down the arrival and don't "stop at the destination" but rather "arrive at the destination" and then slowly move the camera to the next destination.  
+
+22.) Start the animation at 2x speed.
+
+23.) Remove the test pause at the end of the wide-chart traversal.
+
+24.) In Sequence 4 when the camera is flying towards the front of the gallery in preparation to repeat Sequence 1, in this particular flight path, the camera can focus on the PMT logo.  Currently, it's focused straight ahead....dead into empty space.
+
+25.) I think the original camera angle you picked for the wide chart traversal was better.  Revert back to what you had.  Also, don't accelerate the drone anymore as it traverses the wide chart.
+
+26.) Don't accelerate when viewing the wide chart. Remove the time constraight for the traversal.  Traverese the entire chart at a constant speed and then continue on to the next destination.  On wide charts, when you "land at it as the destination", don't be at the center of the wide chart, be at the upper-left corner so the user can tell what chart they are looking at.  Then traverse the entire chart at a constant speed and then continue on to the next destination.
+
+14.) Revised approved sequences:
+[Approved] Sequence 1:  Initial view -> p-hole flyby
+[Approved] Sequence 2:  p-hole flyby -> Random Dev Chart
+[Approved] Sequence 3:  Random Dev Chart -> Random Bug Tracking / QA Chart
+[Approved] Sequence 4:  Random Bug Tracking / QA Chart -> the initial view in Sequence 1 (same view so we can go through the p-hole again).  Repeat Sequence 1.
+
+27.) Remove the additional stars that was added in the scene.  They look like just particles added in 3D space since they move with the camera.
+
+28.) Now, without breaking any of the approved sequences, as Sequence 4 is flying towards the initial view, add the alien event.  This time, you don't need to track the alien/UFO.  Let it do its animation sequence as before.  That way as the camera is flying towards the initial view, the alien event can happen in the background.  The alien event should not interfere with the camera's flight path.
+
+29.) Do not track the UFO.  If the UFO needs attention, you can put a picture-in-picture just for the UFO sequence, but do not interfere with the approved animation sequences.
+
+30.) Add some stars / galaxy in the background.  But they should really be in the background fixed in 3D space so as the camera rotates they maintain their 3D space position.
+
+31.) I did like the comet you had earlier.  Particularly, the comet used to arrive as the camera was exiting the p-hole flyby.  Can you add that back in?  And just randomly add a comet in the background once in a while.
+
+32.) Your wide-chart calculation is off.  I see you are displaying a percentage of traversal completion, but usually, you've already traversed the entire chart and the percent completion is still around 40-50%.  So you end up flying way way past the chart.
+
+
+Create a .md file for the approved animation sequences so that future you (Codex) can make alterations to the animation sequences more easily without having to re-discover what has been done.

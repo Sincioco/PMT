@@ -133,7 +133,8 @@
 
 .about-flight-status,
 .about-flight-controls,
-.about-flight-mode {
+.about-flight-mode,
+.about-flight-debug {
   position: static;
   margin: 0;
   color: #eaf5ff;
@@ -141,6 +142,31 @@
   border: 1px solid rgb(126 190 255 / 24%);
   box-shadow: 0 10px 30px rgb(0 0 0 / 24%);
   backdrop-filter: blur(12px) saturate(130%);
+}
+
+.about-flight-debug {
+  position: absolute;
+  bottom: 18px;
+  left: 50%;
+  z-index: 4;
+  width: max-content;
+  max-width: min(560px, calc(100% - 220px));
+  margin: 0;
+  padding: 9px 17px;
+  overflow: hidden;
+  color: #d8eeff;
+  font-size: var(--font-size-sm);
+  letter-spacing: 0.025em;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  border-radius: 999px;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+.about-screen[data-flight-mode="manual"] .about-flight-debug {
+  display: none;
 }
 
 .about-flight-status {
@@ -300,6 +326,7 @@
 .about-flight-is-fallback .about-flight-canvas,
 .about-flight-is-fallback .about-flight-vignette,
 .about-flight-is-fallback .about-flight-controls,
+.about-flight-is-fallback .about-flight-debug,
 .about-flight-is-fallback .about-ufo-speech,
 .about-flight-is-fallback .about-alien-toggle-notice {
   display: none;
@@ -355,6 +382,12 @@
 }
 
 @media (max-width: 620px) {
+  .about-flight-debug {
+    bottom: 54px;
+    max-width: calc(100% - 24px);
+    font-size: 11px;
+  }
+
   .about-alien-toggle-notice {
     bottom: 88px;
     min-width: min(280px, calc(100% - 24px));

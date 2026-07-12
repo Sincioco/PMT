@@ -93,6 +93,16 @@ export function createUfoEncounter({ scene, resources, speechElement }) {
     return enabled;
   }
 
+  function startNow(elapsedSeconds = 0) {
+    enabled = true;
+    enabledAt = Math.max(0, Number(elapsedSeconds || 0));
+    nextEncounterAt = 0;
+    encounterLeadStartedAt = null;
+    pendingShadowUpdate = true;
+    hideSpeech();
+    setElapsedTime(0);
+  }
+
   function update(elapsedSeconds, reducedMotion, canBeginEncounter = true) {
     state.attention = 0;
     state.speedScale = 1;
@@ -303,6 +313,7 @@ export function createUfoEncounter({ scene, resources, speechElement }) {
     updateSpeech,
     setSceneOffset,
     setEnabled,
+    startNow,
     dispose
   };
 }

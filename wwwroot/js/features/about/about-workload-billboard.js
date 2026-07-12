@@ -3,8 +3,8 @@ import { appUrl } from "../../shared/app-urls.js";
 
 export const DEV_CHART_GRID_WIDTH = 31.2;
 export const DEV_CHART_GRID_HEIGHT = 15.2;
-export const DEV_CHART_GRID_Z = -23;
-const GALLERY_ROOM_HALF_WIDTH = 20.5;
+export const DEV_CHART_GRID_Z = -32;
+const GALLERY_ROOM_HALF_WIDTH = 36;
 const DEV_GRID_LEFT_X = -GALLERY_ROOM_HALF_WIDTH;
 const DEV_GRID_RIGHT_X = GALLERY_ROOM_HALF_WIDTH;
 
@@ -93,14 +93,15 @@ export function createAboutChartGallery({ users, devCharts, bugCharts, resources
     DEV_CHART_GRID_Z + bugGridWidth / 2
   );
   bugGrid.rotation.y = -Math.PI / 2;
+  const bugPanels = [
+    { chart: bugCharts.severity, draw: drawDonutChart },
+    { chart: bugCharts.trend, draw: drawLineChart, textureWidth: historyTextureWidth(bugCharts.trend.rows.length) },
+    { chart: bugCharts.mix, draw: drawDonutChart },
+    { chart: bugCharts.reportedResolved, draw: drawColumnChart, textureWidth: historyTextureWidth(bugCharts.reportedResolved.rows.length) }
+  ];
   const bugPanelTargets = addGridPanels({
     group: bugGrid,
-    panels: [
-      { chart: bugCharts.severity, draw: drawDonutChart },
-      { chart: bugCharts.trend, draw: drawLineChart, textureWidth: historyTextureWidth(bugCharts.trend.rows.length) },
-      { chart: bugCharts.mix, draw: drawDonutChart },
-      { chart: bugCharts.reportedResolved, draw: drawColumnChart, textureWidth: historyTextureWidth(bugCharts.reportedResolved.rows.length) }
-    ],
+    panels: bugPanels,
     leftWidth: bugLeftWidth,
     rightWidth: bugHistoryWidth,
     resources,
@@ -135,9 +136,13 @@ export function createAboutChartGallery({ users, devCharts, bugCharts, resources
     group,
     devTarget: devGrid.position.clone(),
     devTargets,
+    devLabels: devPanels.map(({ chart }) => chart.title || "Dev Task chart"),
+    devWidths: devPanels.map(() => DEV_PANEL_WIDTH),
     teamTarget: teamGrid.position.clone(),
     bugTarget,
     bugTargets,
+    bugLabels: bugPanels.map(({ chart }) => chart.title || "Bug Tracking chart"),
+    bugWidths: [bugLeftWidth, bugHistoryWidth, bugLeftWidth, bugHistoryWidth],
     devGridX: devGrid.position.x,
     devGridWidth: DEV_CHART_GRID_WIDTH,
     devGridHeight: DEV_CHART_GRID_HEIGHT,

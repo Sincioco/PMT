@@ -10,7 +10,7 @@ import { appUrl } from "../../shared/app-urls.js";
 import { createBugChartsView } from "../../shared/bug-charts.js?v=20260712-about-chart-gallery";
 import { createDevTaskChartsView } from "../../shared/dev-task-charts.js?v=20260712-about-chart-gallery";
 
-const ABOUT_VERSION = "20260712-about-3d-flyby-57";
+const ABOUT_VERSION = "20260712-about-3d-flyby-80";
 
 export function createAboutFeature({
   app,
@@ -82,6 +82,10 @@ export function createAboutFeature({
           <p class="about-flight-mode" data-about-mode>3D</p>
         </div>
 
+        <p class="about-flight-debug" data-about-flight-debug aria-live="polite">
+          Preparing 3D gallery
+        </p>
+
         <div class="about-ufo-speech" data-about-ufo-speech role="status" hidden>
           Incoming transmission…
         </div>
@@ -98,6 +102,7 @@ export function createAboutFeature({
     const introCountdownElement = root.querySelector("[data-about-intro-countdown]");
     const statusElement = root.querySelector("[data-about-status]");
     const modeElement = root.querySelector("[data-about-mode]");
+    const debugElement = root.querySelector("[data-about-flight-debug]");
     const ufoSpeechElement = root.querySelector("[data-about-ufo-speech]");
     const alienNoticeElement = root.querySelector("[data-about-alien-notice]");
 
@@ -112,6 +117,7 @@ export function createAboutFeature({
           introCountdownElement,
           statusElement,
           modeElement,
+          debugElement,
           ufoSpeechElement,
           alienNoticeElement,
           logoUrl,

@@ -1,12 +1,16 @@
 import * as THREE from "../../vendor/three/three.module.min.js";
 import { PointerLockControls } from "../../vendor/three/addons/controls/PointerLockControls.js?v=0.185.1-pmt1";
 
-const LOOP_DURATION_SECONDS = 82;
-const DRONE_POSITION_RESPONSE = 7;
-const DRONE_HEADING_RESPONSE = 0.7;
-const DRONE_FOV_RESPONSE = 0.9;
-const EVENT_HEADING_RESPONSE = 8;
-const EVENT_FOV_RESPONSE = 6;
+const FLIGHT_DURATION_SECONDS = 26;
+const BUG_FLIGHT_DURATION_SECONDS = 19;
+const SEQUENCE_4_DURATION_SECONDS = 38;
+const WIDE_CHART_TRAVERSAL_SPEED = 5;
+const DEV_SEQUENCE_HANDOFF_PHASE = 0.992;
+const NEXT_SEQUENCE_ENTRY_PHASE = 0.012;
+const DRONE_POSITION_RESPONSE = 6;
+const DRONE_HEADING_RESPONSE = 1.15;
+const DRONE_FOV_RESPONSE = 1.4;
+const EVENT_HEADING_RESPONSE = 7;
 const IDLE_DURATION_MS = 5000;
 const RETURN_DURATION_MS = 3250;
 const WALK_SPEED = 6;
@@ -15,64 +19,75 @@ const CAMERA_FAR_LIMIT = 80;
 const MIN_FLIGHT_SPEED = 0.25;
 const MAX_FLIGHT_SPEED = 3;
 const FLIGHT_SPEED_STEP = 0.25;
-const BACKSIDE_SPEED_BOOST = 2;
-const GALLERY_SLOWDOWN_SECONDS = 2;
-const GALLERY_MIN_SPEED_SCALE = 0.62;
-const GALLERY_CRUISE_SPEED_SCALE = 1.08;
-const CHART_GALLERY_FOV = 56;
-const TEAM_GALLERY_FOV = 48;
-const CINEMATIC_HORIZONTAL_STAGE_END = 0.62;
-const MOVEMENT_KEYS = new Set([
-  "KeyW",
-  "KeyA",
-  "KeyS",
-  "KeyD",
-  "Space"
-]);
+const MIN_FORWARD_SPEED = 0.05;
+const MIN_FORWARD_LOOK_DOT = Math.cos(THREE.MathUtils.degToRad(70));
+const DEV_APPROACH_MIN_SPEED_SCALE = 0.36;
+const BUG_TURN_SPEED_SCALE = 0.46;
+const BUG_APPROACH_MIN_SPEED_SCALE = 0.48;
+const DEV_LANDING_DISTANCE = 9.2;
+const DEV_LANDING_PANEL_WIDTH = 15.2;
+const DEV_LANDING_PANEL_HEIGHT = 7.2;
+const DEV_LANDING_FRAME_MARGIN = 1.08;
+const WIDE_CHART_THRESHOLD = DEV_LANDING_PANEL_WIDTH * 1.08;
+const WIDE_CHART_FOV = 48;
+const DEFAULT_FOV = 42;
+const INSPECTION_FOV = 52;
+const PORTAL_FOV = 40;
+const MOVEMENT_KEYS = new Set(["KeyW", "KeyA", "KeyS", "KeyD", "Space"]);
 const BOOST_KEYS = new Set(["ShiftLeft", "ShiftRight"]);
 
 export function createAboutFlightController({
   camera,
   canvas,
   root,
-  portal,
+  portal = null,
   billboardTarget = null,
   billboardTargets = [],
+  devDestinationLabels = [],
+  devDestinationWidths = [],
   secondaryTarget = null,
   secondaryTargets = [],
-  teamTarget = null,
+  bugDestinationLabels = [],
+  bugDestinationWidths = [],
+  galleryRoomBackZ = -23,
   sceneFocus = null,
   minimumCameraY = -CAMERA_FAR_LIMIT,
   statusElement,
   modeElement,
+  debugElement,
   reducedMotion
 }) {
   const abortController = new AbortController();
   const controls = new PointerLockControls(camera, canvas);
   const focusPoint = sceneFocus?.clone?.() || new THREE.Vector3();
-  const curve = createFlightCurve(portal, focusPoint.y, minimumCameraY);
-  const availableBillboardTargets = billboardTargets.length
-    ? billboardTargets
-    : billboardTarget
-      ? [billboardTarget]
-      : [];
-  const availableSecondaryTargets = secondaryTargets.length
-    ? secondaryTargets
-    : secondaryTarget
-      ? [secondaryTarget]
-      : [];
+  const devDestinations = normalizeTargets(billboardTargets, billboardTarget);
+  const bugDestinations = normalizeTargets(secondaryTargets, secondaryTarget);
+  const route = createFlightRouteState({
+    sceneFocus: focusPoint,
+    portal,
+    devDestinations,
+    devDestinationLabels,
+    devDestinationWidths,
+    bugDestinations,
+    bugDestinationLabels,
+    bugDestinationWidths,
+    galleryRoomBackZ,
+    minimumCameraY
+  });
   const keys = new Set();
   const pose = createPose();
   const autopilotTarget = createPose();
   const returnTarget = createPose();
   const returnFromPosition = new THREE.Vector3();
   const returnFromQuaternion = new THREE.Quaternion();
-  const cinematicTarget = new THREE.Vector3();
-  const cinematicHorizontalTarget = new THREE.Vector3();
-  const cinematicQuaternion = new THREE.Quaternion();
-  const cinematicHorizontalQuaternion = new THREE.Quaternion();
-  const cinematicLookMatrix = new THREE.Matrix4();
-  const cinematicUp = new THREE.Vector3(0, 1, 0);
+  const eventTarget = new THREE.Vector3();
+  const eventQuaternion = new THREE.Quaternion();
+  const eventLookMatrix = new THREE.Matrix4();
+  const eventUp = new THREE.Vector3(0, 1, 0);
+  const wideStartPosition = new THREE.Vector3();
+  const wideStartQuaternion = new THREE.Quaternion();
+  const wideEndQuaternion = new THREE.Quaternion();
+  const wideLookMatrix = new THREE.Matrix4();
   const direction = new THREE.Vector3();
   const right = new THREE.Vector3();
   const localUp = new THREE.Vector3(0, 1, 0);
@@ -83,21 +98,15 @@ export function createAboutFlightController({
   let prefersReducedMotion = reducedMotion;
   let mode = "intro";
   let autopilotPhase = 0;
-  let flightSpeed = 1;
+  let flightSpeed = 2;
+  let forwardTravel = 0;
   let cinematicAttention = 0;
   let cinematicSpeedScale = 1;
-  let cinematicHudActive = false;
-  let billboardTargetIndex = randomTargetIndex(availableBillboardTargets.length);
-  let secondaryTargetIndex = randomTargetIndex(availableSecondaryTargets.length);
-  let activeBillboardTarget = availableBillboardTargets[billboardTargetIndex] || null;
-  let activeSecondaryTarget = availableSecondaryTargets[secondaryTargetIndex] || null;
-  let flightVariationSeconds = 0;
-  let flightHeightOffset = 0;
-  const heightVariationPhaseA = Math.random() * Math.PI * 2;
-  const heightVariationPhaseB = Math.random() * Math.PI * 2;
-  const heightVariationAmplitudeA = 0.55 + Math.random() * 0.25;
-  const heightVariationAmplitudeB = 0.25 + Math.random() * 0.2;
-  let gallerySlowElapsed = 0;
+  let flightStage = "dev";
+  let stageStartedAt = 0;
+  let activeWideTraversal = null;
+  let sequence4Geometry = null;
+  let debugTestRun = 1;
   let lastInputAt = performance.now();
   let returnStartedAt = 0;
   let returnFromFov = camera.fov;
@@ -107,26 +116,58 @@ export function createAboutFlightController({
   let disposed = false;
 
   controls.pointerSpeed = 0.72;
-  sampleFlightPose(curve, portal, activeBillboardTarget, activeSecondaryTarget, teamTarget, focusPoint, minimumCameraY, flightHeightOffset, autopilotPhase, pose);
+  sampleFlightPose(
+    route,
+    autopilotPhase,
+    pose
+  );
   applyPose(camera, pose);
   setMode(mode);
-  root.dataset.aboutFlightPath = "rounded-rectangle-around-logo";
-  root.dataset.aboutCameraMotion = "drone-cinema";
-  root.dataset.aboutCameraPositionResponse = String(DRONE_POSITION_RESPONSE);
-  root.dataset.aboutCameraHeadingResponse = String(DRONE_HEADING_RESPONSE);
-  root.dataset.aboutCameraEventHeadingResponse = String(EVENT_HEADING_RESPONSE);
-  root.dataset.aboutCameraFocusTransition = "slow-cinematic";
-  root.dataset.aboutFlightHeightProfile = "variable-cinematic";
-  root.dataset.aboutPortalFlythrough = "true";
-  root.dataset.aboutCinematicPanOrder = "horizontal-then-vertical";
-  root.dataset.aboutFlightHeightVariation = "continuous-randomized";
-  root.dataset.aboutChartInspectionMode = "random-per-loop";
-  root.dataset.aboutDevInspectionTargetCount = String(availableBillboardTargets.length);
-  root.dataset.aboutBugInspectionTargetCount = String(availableSecondaryTargets.length);
-  setInspectionTargetDatasets();
-  root.dataset.aboutGallerySlowdownMaxSeconds = String(GALLERY_SLOWDOWN_SECONDS);
-  root.dataset.aboutGalleryCruiseSpeedScale = String(GALLERY_CRUISE_SPEED_SCALE);
-  root.dataset.aboutChartGalleryFov = String(CHART_GALLERY_FOV);
+  root.dataset.aboutInitialCamera = "2d-logo-facing";
+  root.dataset.aboutFlightPath = "initial-logo-p-hole-dev-bug-return-initial";
+  root.dataset.aboutFlightDirection = "forward-through-approved-sequences";
+  root.dataset.aboutFlightProfile = "approved-sequences-1-through-4";
+  root.dataset.aboutChartInspection = "random-dev-then-random-bug";
+  root.dataset.aboutPmtPortalFlyby = "once-per-sequence-cycle";
+  root.dataset.aboutMinimumForwardLookDot = MIN_FORWARD_LOOK_DOT.toFixed(3);
+  root.dataset.aboutEventExecution = "sequence-4-ufo-background";
+  root.dataset.aboutLevelHorizonFallback = "true";
+  root.dataset.aboutPostPortalTargeting = "continuous-dev-target";
+  root.dataset.aboutPostPortalTransition = "horizontal-bearing-then-chart-elevation";
+  root.dataset.aboutCircularFlightPath = "removed";
+  root.dataset.aboutUnapprovedFlightLogic = "disabled";
+  root.dataset.aboutDevSelectionMode = "random";
+  root.dataset.aboutBugSelectionMode = "random";
+  root.dataset.aboutAutomaticSequenceReset = "true";
+  root.dataset.aboutDevLandingApproachSpeed = "progressive-slowdown";
+  root.dataset.aboutDevArrivalBehavior = "slow-continuous-no-stop";
+  root.dataset.aboutApprovedFlybySequences = "1,2,3,4";
+  root.dataset.aboutFlightTestMode = "approved-sequences-1-through-4";
+  root.dataset.aboutFlightTiming = "continuous-no-pause-no-hold";
+  root.dataset.aboutDefaultFlightSpeed = "2";
+  root.dataset.aboutDevLandingResetKey = "Automatic";
+  root.dataset.aboutDevLandingTestRun = String(debugTestRun);
+  root.dataset.aboutDevLandingTestState = "approaching-dev";
+  root.dataset.aboutDevLandingFraming = "natural-flyby";
+  root.dataset.aboutBugLandingFraming = "upper-left-for-wide-charts";
+  root.dataset.aboutDevToBugTransition = "slow-forward-turn";
+  root.dataset.aboutSequenceTransitionPose = "continuous-current-camera";
+  root.dataset.aboutWideChartTraversal = "generalized-by-chart-width-and-wall";
+  root.dataset.aboutWideChartThreshold = String(WIDE_CHART_THRESHOLD);
+  root.dataset.aboutWideChartTraversalSpeed = String(WIDE_CHART_TRAVERSAL_SPEED);
+  root.dataset.aboutWideChartLanding = "upper-left";
+  root.dataset.aboutWideChartTraversalActive = "false";
+  root.dataset.aboutWideChartTraversalProgress = "0";
+  root.dataset.aboutWideChartCameraBias = "original-diagonal-chart-view";
+  root.dataset.aboutWideChartSpeedProfile = "constant";
+  root.dataset.aboutWideChartTraversalConstraint = "distance-based";
+  root.dataset.aboutWideChartExit = "chart-far-edge";
+  root.dataset.aboutSequence4 = "qa-chart-to-initial-view";
+  root.dataset.aboutSequence4Focus = "pmt-logo";
+  root.dataset.aboutSequence4DurationSeconds = String(SEQUENCE_4_DURATION_SECONDS);
+  root.dataset.aboutBugLandingDistance = String(DEV_LANDING_DISTANCE);
+  root.dataset.aboutFlightSequenceStage = flightStage;
+  updateRouteDatasets();
 
   const listenerOptions = { signal: abortController.signal };
   canvas.addEventListener("pointerdown", onPointerDown, listenerOptions);
@@ -150,103 +191,97 @@ export function createAboutFlightController({
     if (disposed) return;
 
     if (mode === "auto") {
-      const backsideProgress = smoothStepRange(2, 10, -camera.position.z);
-      const routeSpeed = THREE.MathUtils.lerp(1, BACKSIDE_SPEED_BOOST, backsideProgress);
-      const devApproach = smoothStepRange(8, 12, -camera.position.z)
-        * (1 - smoothStepRange(5, 11, Math.abs(camera.position.x)));
-      const chartApproach = smoothStepRange(7, 10, camera.position.x)
-        * (1 - smoothStepRange(5, 12, Math.abs(camera.position.z + 8)));
-      const teamApproach = smoothStepRange(9, 14, -camera.position.x)
-        * (1 - smoothStepRange(3.5, 8, Math.abs(camera.position.z - 4.5)));
-      const galleryApproach = Math.max(devApproach, chartApproach, teamApproach);
-      if (galleryApproach >= 0.08) {
-        gallerySlowElapsed += deltaSeconds;
-      } else {
-        gallerySlowElapsed = 0;
+      if (flightStage === "wide-flythrough") {
+        updateWideChartFlythrough(now);
+        return;
       }
-      const slowdownRemaining = 1 - smootherStep(
-        THREE.MathUtils.clamp(gallerySlowElapsed / GALLERY_SLOWDOWN_SECONDS, 0, 1)
-      );
-      const gallerySlowWeight = smootherStep(galleryApproach) * slowdownRemaining;
-      const chartSpeedScale = THREE.MathUtils.lerp(
-        GALLERY_CRUISE_SPEED_SCALE,
-        GALLERY_MIN_SPEED_SCALE,
-        gallerySlowWeight
-      );
-      root.dataset.aboutGallerySpeedScale = chartSpeedScale.toFixed(3);
-      root.dataset.aboutGallerySlowSeconds = gallerySlowElapsed.toFixed(2);
-      const effectiveSpeed = flightSpeed * routeSpeed * chartSpeedScale * cinematicSpeedScale;
-      flightVariationSeconds += deltaSeconds * effectiveSpeed;
-      const heightVariationRamp = smootherStep(THREE.MathUtils.clamp(
-        flightVariationSeconds / 4,
-        0,
-        1
-      ));
-      flightHeightOffset = (Math.sin(flightVariationSeconds * 0.21 + heightVariationPhaseA)
-          * heightVariationAmplitudeA
-        + Math.sin(flightVariationSeconds * 0.37 + heightVariationPhaseB)
-          * heightVariationAmplitudeB) * heightVariationRamp;
-      root.dataset.aboutFlightHeightOffset = flightHeightOffset.toFixed(3);
-      const previousPhase = autopilotPhase;
-      autopilotPhase = wrap01(previousPhase + (deltaSeconds * effectiveSpeed) / LOOP_DURATION_SECONDS);
-      if (autopilotPhase < previousPhase) chooseNextInspectionTargets();
-      sampleFlightPose(curve, portal, activeBillboardTarget, activeSecondaryTarget, teamTarget, focusPoint, minimumCameraY, flightHeightOffset, autopilotPhase, autopilotTarget);
-      root.dataset.aboutChartDetour = String(autopilotTarget.chartAttention >= 0.1);
-      root.dataset.aboutChartDetourAttention = autopilotTarget.chartAttention.toFixed(3);
-      root.dataset.aboutDevDetour = String(autopilotTarget.devAttention >= 0.1);
-      root.dataset.aboutDevDetourAttention = autopilotTarget.devAttention.toFixed(3);
-      root.dataset.aboutPortalFlythroughAttention = autopilotTarget.portalAttention.toFixed(3);
-      root.dataset.aboutTeamDetour = String(autopilotTarget.teamAttention >= 0.1);
-      root.dataset.aboutTeamDetourAttention = autopilotTarget.teamAttention.toFixed(3);
-      if (cinematicAttention > 0) {
-        cinematicHorizontalTarget.set(
-          cinematicTarget.x,
-          autopilotTarget.position.y,
-          cinematicTarget.z
+      const isBugStage = flightStage === "bug";
+      const isSequence4Stage = flightStage === "return-initial";
+      const approachSpeedScale = isBugStage
+        ? bugFlightSpeedScale(autopilotPhase)
+        : isSequence4Stage
+          ? sequence4SpeedScale(autopilotPhase)
+        : THREE.MathUtils.lerp(
+          1,
+          DEV_APPROACH_MIN_SPEED_SCALE,
+          smootherStep(smoothStepRange(0.58, 0.985, autopilotPhase))
         );
-        cinematicLookMatrix.lookAt(
-          autopilotTarget.position,
-          cinematicHorizontalTarget,
-          cinematicUp
+      const effectiveSpeed = Math.max(
+        MIN_FORWARD_SPEED,
+        flightSpeed
+          * cinematicSpeedScale
+          * approachSpeedScale
+      );
+      autopilotPhase = Math.min(
+        1,
+        autopilotPhase + (deltaSeconds * effectiveSpeed) / (
+          isBugStage
+            ? BUG_FLIGHT_DURATION_SECONDS
+            : isSequence4Stage
+              ? SEQUENCE_4_DURATION_SECONDS
+              : FLIGHT_DURATION_SECONDS
+        )
+      );
+      forwardTravel += deltaSeconds * effectiveSpeed;
+      if (isBugStage) sampleBugFlightPose(route, autopilotPhase, autopilotTarget, camera.aspect);
+      else if (isSequence4Stage) sampleSequence4Pose(sequence4Geometry, autopilotPhase, autopilotTarget);
+      else sampleFlightPose(route, autopilotPhase, autopilotTarget);
+      if (isBugStage) {
+        const framingBlend = smootherStep(smoothStepRange(0.62, 0.96, autopilotPhase));
+        autopilotTarget.fov = THREE.MathUtils.lerp(
+          autopilotTarget.fov,
+          bugLandingFov(route, camera.aspect),
+          framingBlend
         );
-        cinematicHorizontalQuaternion.setFromRotationMatrix(cinematicLookMatrix);
-        cinematicLookMatrix.lookAt(autopilotTarget.position, cinematicTarget, cinematicUp);
-        cinematicQuaternion.setFromRotationMatrix(cinematicLookMatrix);
-        const horizontalProgress = smootherStep(THREE.MathUtils.clamp(
-          cinematicAttention / CINEMATIC_HORIZONTAL_STAGE_END,
-          0,
-          1
-        ));
-        const verticalProgress = smootherStep(THREE.MathUtils.clamp(
-          (cinematicAttention - CINEMATIC_HORIZONTAL_STAGE_END)
-            / (1 - CINEMATIC_HORIZONTAL_STAGE_END),
-          0,
-          1
-        ));
-        autopilotTarget.quaternion.slerp(cinematicHorizontalQuaternion, horizontalProgress);
-        autopilotTarget.quaternion.slerp(cinematicQuaternion, verticalProgress);
       }
+      root.dataset.aboutForwardTravel = forwardTravel.toFixed(4);
+      root.dataset.aboutFlightSequenceStage = flightStage;
+      root.dataset.aboutForwardLookDot = autopilotTarget.forwardLookDot.toFixed(3);
+      root.dataset.aboutDevInspectionAttention = autopilotTarget.devAttention.toFixed(3);
+      root.dataset.aboutBugInspectionAttention = autopilotTarget.bugAttention.toFixed(3);
+      root.dataset.aboutPortalFlybyAttention = autopilotTarget.portalAttention.toFixed(3);
+      root.dataset.aboutLogoRecallAttention = autopilotTarget.logoAttention.toFixed(3);
+      root.dataset.aboutHorizonFallbackAttention = autopilotTarget.horizonAttention.toFixed(3);
+      root.dataset.aboutFlightInstructionState = autopilotTarget.waitingForInstruction
+        ? "waiting"
+        : "active";
+      setFlightAction(describeFlightAction(route, flightStage, autopilotPhase, autopilotTarget));
+
+      if (cinematicAttention > 0.04) {
+        eventLookMatrix.lookAt(autopilotTarget.position, eventTarget, eventUp);
+        eventQuaternion.setFromRotationMatrix(eventLookMatrix);
+        autopilotTarget.quaternion.slerp(eventQuaternion, smootherStep(cinematicAttention));
+      }
+
       const positionBlend = 1 - Math.exp(-DRONE_POSITION_RESPONSE * deltaSeconds);
+      const headingResponse = cinematicAttention > 0.04
+        ? EVENT_HEADING_RESPONSE
+        : DRONE_HEADING_RESPONSE;
+      const headingBlend = 1 - Math.exp(-headingResponse * deltaSeconds);
+      const fovBlend = 1 - Math.exp(-DRONE_FOV_RESPONSE * deltaSeconds);
       camera.position.lerp(autopilotTarget.position, positionBlend);
-      if (cinematicAttention >= 0.999) {
-        // The hidden lead-in turns the camera smoothly before the UFO appears.
-        // Exact tracking then keeps the visible ship centered during departure.
-        camera.quaternion.copy(autopilotTarget.quaternion);
-      } else {
-        const headingResponse = cinematicAttention > 0.04
-          ? EVENT_HEADING_RESPONSE
-          : DRONE_HEADING_RESPONSE;
-        const headingBlend = 1 - Math.exp(
-          -headingResponse * deltaSeconds
-        );
-        camera.quaternion.slerp(autopilotTarget.quaternion, headingBlend).normalize();
-      }
-      const fovResponse = cinematicAttention > 0.04
-        ? EVENT_FOV_RESPONSE
-        : DRONE_FOV_RESPONSE;
-      const fovBlend = 1 - Math.exp(-fovResponse * deltaSeconds);
+      camera.quaternion.slerp(autopilotTarget.quaternion, headingBlend).normalize();
       camera.fov = THREE.MathUtils.lerp(camera.fov, autopilotTarget.fov, fovBlend);
       camera.updateProjectionMatrix();
+      pose.copyFrom(autopilotTarget);
+      const isWideChartApproach = !isSequence4Stage
+        && (isBugStage ? route.bugDestinationIsWide : route.devDestinationIsWide);
+      const wideArrivalTarget = isBugStage
+        ? route.bugGeometry.bugLandingPosition
+        : route.geometry.devLandingPosition;
+      const wideArrivalReached = !isWideChartApproach
+        || camera.position.distanceTo(wideArrivalTarget) <= 0.45;
+      const approachComplete = isSequence4Stage
+        ? autopilotPhase >= 1
+        : isBugStage
+          ? autopilotPhase >= 1 && wideArrivalReached
+          : autopilotPhase >= (isWideChartApproach ? 1 : DEV_SEQUENCE_HANDOFF_PHASE)
+            && wideArrivalReached;
+      if (approachComplete) {
+        if (isBugStage) finishChartApproach(now, "bug");
+        else if (isSequence4Stage) finishSequence4();
+        else finishChartApproach(now, "dev");
+      }
       return;
     }
 
@@ -256,8 +291,7 @@ export function createAboutFlightController({
       if (idleRemaining <= 0) {
         beginReturn(now);
       } else {
-        const seconds = Math.max(1, Math.ceil(idleRemaining / 1000));
-        setStatus(`Autopilot resumes in ${seconds}`);
+        setStatus(`Autopilot resumes in ${Math.max(1, Math.ceil(idleRemaining / 1000))}`);
       }
       return;
     }
@@ -269,9 +303,9 @@ export function createAboutFlightController({
       camera.quaternion.slerpQuaternions(returnFromQuaternion, returnTarget.quaternion, eased);
       camera.fov = THREE.MathUtils.lerp(returnFromFov, returnTarget.fov, eased);
       camera.updateProjectionMatrix();
-
       if (progress >= 1) {
         applyPose(camera, returnTarget);
+        pose.copyFrom(returnTarget);
         setMode(prefersReducedMotion ? "reduced" : "auto");
       }
     }
@@ -286,7 +320,6 @@ export function createAboutFlightController({
     lastInputAt = now;
     const speed = keys.has("ShiftLeft") || keys.has("ShiftRight") ? BOOST_SPEED : WALK_SPEED;
     const distance = speed * Math.min(deltaSeconds, 0.05);
-
     direction.set(0, 0, -1).applyQuaternion(camera.quaternion).normalize();
     right.set(1, 0, 0).applyQuaternion(camera.quaternion).normalize();
     camera.position.addScaledVector(direction, forwardAmount * distance);
@@ -306,14 +339,17 @@ export function createAboutFlightController({
     if (controls.isLocked) controls.unlock();
     keys.clear();
     dragging = false;
-    sampleFlightPose(curve, portal, activeBillboardTarget, activeSecondaryTarget, teamTarget, focusPoint, minimumCameraY, flightHeightOffset, autopilotPhase, returnTarget);
-
+    sampleFlightPose(
+      route,
+      autopilotPhase,
+      returnTarget
+    );
     if (prefersReducedMotion) {
       applyPose(camera, returnTarget);
+      pose.copyFrom(returnTarget);
       setMode("reduced");
       return;
     }
-
     returnStartedAt = now;
     returnFromPosition.copy(camera.position);
     returnFromQuaternion.copy(camera.quaternion);
@@ -328,7 +364,6 @@ export function createAboutFlightController({
     dragX = event.clientX;
     dragY = event.clientY;
     canvas.setPointerCapture?.(event.pointerId);
-
     if (event.pointerType === "mouse" && document.pointerLockElement !== canvas) {
       try {
         controls.lock();
@@ -344,11 +379,14 @@ export function createAboutFlightController({
     const deltaY = event.clientY - dragY;
     dragX = event.clientX;
     dragY = event.clientY;
-
     dragEuler.setFromQuaternion(camera.quaternion);
     dragEuler.y -= deltaX * 0.003;
     dragEuler.x -= deltaY * 0.003;
-    dragEuler.x = THREE.MathUtils.clamp(dragEuler.x, -Math.PI / 2 + 0.04, Math.PI / 2 - 0.04);
+    dragEuler.x = THREE.MathUtils.clamp(
+      dragEuler.x,
+      -Math.PI / 2 + 0.04,
+      Math.PI / 2 - 0.04
+    );
     camera.quaternion.setFromEuler(dragEuler);
   }
 
@@ -395,12 +433,10 @@ export function createAboutFlightController({
       if (!event.repeat) adjustFlightSpeed(speedDirection);
       return;
     }
-
     if (BOOST_KEYS.has(event.code) && sceneHasKeyboard) {
       keys.add(event.code);
       return;
     }
-
     if (!MOVEMENT_KEYS.has(event.code) || isTypingTarget(event.target)) return;
     if (!controls.isLocked && document.activeElement !== canvas) return;
     if (!beginManual()) return;
@@ -421,66 +457,59 @@ export function createAboutFlightController({
   function setMode(nextMode) {
     mode = nextMode;
     root.dataset.flightMode = mode;
-
     if (mode === "intro") {
       setModeLabel("3D");
       setStatus("Building the glass logo…");
+      setFlightAction("Preparing 3D gallery");
     } else if (mode === "auto") {
       setAutoHud();
     } else if (mode === "manual") {
       setModeLabel("MANUAL");
       setStatus("Autopilot resumes in 5");
+      setFlightAction("Manual camera control");
     } else if (mode === "returning") {
       setModeLabel("REJOIN");
       setStatus("Smoothly rejoining the saved flight path…");
+      setFlightAction("Rejoining cinematic flight path");
     } else {
       setModeLabel("STILL");
       setStatus("Reduced motion • click the scene to explore");
+      setFlightAction("Cinematic flight paused for reduced motion");
     }
   }
 
-  function adjustFlightSpeed(direction) {
+  function adjustFlightSpeed(speedDirection) {
     flightSpeed = THREE.MathUtils.clamp(
-      Math.round((flightSpeed + direction * FLIGHT_SPEED_STEP) * 4) / 4,
+      Math.round((flightSpeed + speedDirection * FLIGHT_SPEED_STEP) * 4) / 4,
       MIN_FLIGHT_SPEED,
       MAX_FLIGHT_SPEED
     );
-
-    if (mode === "auto") {
-      setAutoHud();
-    } else {
-      setStatus(`Autopilot speed set to ${formatFlightSpeed()}x`);
-    }
+    if (mode === "auto") setAutoHud();
+    else setStatus(`Autopilot speed set to ${formatFlightSpeed()}x`);
   }
 
   function setAutoHud() {
-    if (cinematicHudActive) {
-      setCinematicHud();
-      return;
-    }
-
     const speed = formatFlightSpeed();
     setModeLabel(`AUTO ${speed}x`);
     setStatus(`Autopilot • ${speed}x speed • click the scene to explore`);
   }
 
-  function setCinematicHud() {
-    const speed = formatFlightSpeed();
-    setModeLabel("UFO TRACK");
-    setStatus(`UFO encounter • ${speed}x speed • autopilot tracking target`);
-  }
-
   function formatFlightSpeed() {
-    return Number.isInteger(flightSpeed) ? String(flightSpeed) : String(flightSpeed).replace(/0+$/, "");
+    return Number.isInteger(flightSpeed)
+      ? String(flightSpeed)
+      : String(flightSpeed).replace(/0+$/, "");
   }
 
   function setReducedMotion(value) {
     prefersReducedMotion = Boolean(value);
     if (mode === "intro" || mode === "manual") return;
-
     if (prefersReducedMotion) {
       if (controls.isLocked) controls.unlock();
-      sampleFlightPose(curve, portal, activeBillboardTarget, activeSecondaryTarget, teamTarget, focusPoint, minimumCameraY, flightHeightOffset, autopilotPhase, pose);
+      sampleFlightPose(
+        route,
+        autopilotPhase,
+        pose
+      );
       applyPose(camera, pose);
       setMode("reduced");
     } else if (mode === "reduced") {
@@ -489,39 +518,11 @@ export function createAboutFlightController({
   }
 
   function setCinematicFocus(target, attention, speedScale) {
+    // Background events supply neutral attention and speed values so approved
+    // camera sequences remain authoritative.
     cinematicAttention = THREE.MathUtils.clamp(Number(attention || 0), 0, 1);
     cinematicSpeedScale = THREE.MathUtils.clamp(Number(speedScale || 1), 0.1, 1);
-    if (target) cinematicTarget.copy(target);
-
-    const shouldTrack = cinematicAttention >= 0.12;
-    if (mode === "auto" && shouldTrack && !cinematicHudActive) {
-      cinematicHudActive = true;
-      setCinematicHud();
-    } else if (mode === "auto" && !shouldTrack && cinematicHudActive) {
-      cinematicHudActive = false;
-      setAutoHud();
-    } else if (mode !== "auto" || !shouldTrack) {
-      cinematicHudActive = false;
-    }
-  }
-
-  function chooseNextInspectionTargets() {
-    billboardTargetIndex = nextRandomTargetIndex(
-      billboardTargetIndex,
-      availableBillboardTargets.length
-    );
-    secondaryTargetIndex = nextRandomTargetIndex(
-      secondaryTargetIndex,
-      availableSecondaryTargets.length
-    );
-    activeBillboardTarget = availableBillboardTargets[billboardTargetIndex] || null;
-    activeSecondaryTarget = availableSecondaryTargets[secondaryTargetIndex] || null;
-    setInspectionTargetDatasets();
-  }
-
-  function setInspectionTargetDatasets() {
-    root.dataset.aboutDevInspectionTargetIndex = String(billboardTargetIndex);
-    root.dataset.aboutBugInspectionTargetIndex = String(secondaryTargetIndex);
+    if (target) eventTarget.copy(target);
   }
 
   function setStatus(text) {
@@ -530,6 +531,162 @@ export function createAboutFlightController({
 
   function setModeLabel(text) {
     if (modeElement.textContent !== text) modeElement.textContent = text;
+  }
+
+  function setFlightAction(text) {
+    root.dataset.aboutFlightAction = text;
+    if (debugElement && debugElement.textContent !== text) debugElement.textContent = text;
+  }
+
+  function finishChartApproach(now, chartType) {
+    const isDevChart = chartType === "dev";
+    const isWide = isDevChart ? route.devDestinationIsWide : route.bugDestinationIsWide;
+    const traversal = isDevChart ? route.geometry.wideTraversal : route.bugGeometry.wideTraversal;
+    const label = isDevChart ? route.devDestinationLabel : route.bugDestinationLabel;
+    if (isDevChart) root.dataset.aboutDevLandingTarget = label;
+    else root.dataset.aboutBugLandingTarget = label;
+    if (isWide) {
+      startWideChartFlythrough(now, traversal, label, isDevChart ? "bug" : "return-initial");
+      return;
+    }
+    if (isDevChart) startBugSequence();
+    else startSequence4();
+  }
+
+  function startBugSequence() {
+    route.bugGeometry = createBugFlightGeometry({
+      devLandingPosition: camera.position,
+      devDestination: route.devDestination,
+      bugDestination: route.bugDestination,
+      bugDestinationWidth: route.bugDestinationWidth,
+      bugDestinationIsWide: route.bugDestinationIsWide,
+      minimumCameraY
+    });
+    updateRouteDatasets();
+    flightStage = "bug";
+    autopilotPhase = NEXT_SEQUENCE_ENTRY_PHASE;
+    root.dataset.aboutDevLandingTestState = "approaching-bug";
+    root.dataset.aboutFlightSequenceStage = flightStage;
+    root.dataset.aboutDevLandingTarget = route.devDestinationLabel;
+    setMode("auto");
+    setFlightAction(`Turning smoothly • Next: ${route.bugDestinationLabel}`);
+  }
+
+  function startWideChartFlythrough(now, traversal, label, nextStage) {
+    wideStartPosition.copy(camera.position);
+    wideStartQuaternion.copy(camera.quaternion);
+    wideLookMatrix.lookAt(traversal.endPosition, traversal.endLookTarget, localUp);
+    wideEndQuaternion.setFromRotationMatrix(wideLookMatrix);
+    activeWideTraversal = {
+      ...traversal,
+      label,
+      nextStage,
+      startPosition: wideStartPosition.clone(),
+      startQuaternion: wideStartQuaternion.clone(),
+      endQuaternion: wideEndQuaternion.clone(),
+      startFov: camera.fov,
+      traversalDistance: Math.max(
+        0.001,
+        wideStartPosition.distanceTo(traversal.endPosition)
+      )
+    };
+    flightStage = "wide-flythrough";
+    stageStartedAt = now;
+    root.dataset.aboutFlightSequenceStage = flightStage;
+    root.dataset.aboutWideChartTraversalActive = "true";
+    root.dataset.aboutWideChartTraversalTarget = label;
+    root.dataset.aboutWideChartTraversalNextStage = nextStage;
+    setModeLabel("CHART FLY-THRU");
+    setFlightAction(`Wide chart fly-thru: ${label} • 0%`);
+  }
+
+  function updateWideChartFlythrough(now) {
+    const traveledDistance = Math.max(
+      0,
+      ((now - stageStartedAt) / 1000) * WIDE_CHART_TRAVERSAL_SPEED
+    );
+    const progress = THREE.MathUtils.clamp(
+      traveledDistance / activeWideTraversal.traversalDistance,
+      0,
+      1
+    );
+    camera.position.lerpVectors(
+      activeWideTraversal.startPosition,
+      activeWideTraversal.endPosition,
+      progress
+    );
+    camera.quaternion.slerpQuaternions(
+      activeWideTraversal.startQuaternion,
+      activeWideTraversal.endQuaternion,
+      smootherStep(progress)
+    ).normalize();
+    camera.fov = THREE.MathUtils.lerp(
+      activeWideTraversal.startFov,
+      WIDE_CHART_FOV,
+      smootherStep(progress)
+    );
+    camera.updateProjectionMatrix();
+    root.dataset.aboutWideChartTraversalProgress = progress.toFixed(3);
+    setFlightAction(
+      `Wide chart fly-thru: ${activeWideTraversal.label} • ${Math.round(progress * 100)}%`
+    );
+    if (progress < 1) return;
+    root.dataset.aboutWideChartTraversalActive = "false";
+    const nextStage = activeWideTraversal.nextStage;
+    activeWideTraversal = null;
+    if (nextStage === "bug") startBugSequence();
+    else startSequence4();
+  }
+
+  function startSequence4() {
+    sequence4Geometry = createSequence4Geometry({
+      startPosition: camera.position,
+      initialPosition: route.geometry.initialPosition,
+      logoTarget: route.geometry.logoTarget,
+      minimumCameraY,
+      startFov: camera.fov
+    });
+    flightStage = "return-initial";
+    autopilotPhase = 0;
+    root.dataset.aboutFlightSequenceStage = flightStage;
+    root.dataset.aboutDevLandingTestState = "returning-to-initial-view";
+    setModeLabel("SEQUENCE 4");
+    setFlightAction("Sequence 4: Returning naturally to the initial logo view");
+  }
+
+  function finishSequence4() {
+    route.advanceLap();
+    debugTestRun += 1;
+    flightStage = "dev";
+    autopilotPhase = 0;
+    forwardTravel = 0;
+    updateRouteDatasets();
+    root.dataset.aboutDevLandingTestRun = String(debugTestRun);
+    root.dataset.aboutDevLandingTestState = "approaching-dev";
+    root.dataset.aboutFlightSequenceStage = flightStage;
+    sequence4Geometry = null;
+    setMode("auto");
+    setFlightAction(`Sequence 1 restarted • Next Dev chart: ${route.devDestinationLabel}`);
+  }
+
+  function updateRouteDatasets() {
+    root.dataset.aboutFlightLap = String(route.lapIndex + 1);
+    root.dataset.aboutDevDestinationIndex = String(route.devDestinationIndex);
+    root.dataset.aboutDevDestination = route.devDestinationLabel || "";
+    root.dataset.aboutDevDestinationWidth = String(route.devDestinationWidth);
+    root.dataset.aboutDevDestinationIsWide = String(route.devDestinationIsWide);
+    root.dataset.aboutNextDestination = route.devDestinationLabel || "";
+    root.dataset.aboutNextDestinationPrepared = String(Boolean(route.devDestination));
+    root.dataset.aboutDevApproachY = String(route.geometry.devApproachY);
+    root.dataset.aboutDevLandingPhase = route.geometry.devLandingPhase.toFixed(4);
+    root.dataset.aboutBugDestinationIndex = String(route.bugDestinationIndex);
+    root.dataset.aboutBugDestination = route.bugDestinationLabel || "";
+    root.dataset.aboutBugDestinationWidth = String(route.bugDestinationWidth);
+    root.dataset.aboutBugDestinationIsWide = String(route.bugDestinationIsWide);
+    root.dataset.aboutBugDestinationPrepared = String(Boolean(route.bugDestination));
+    root.dataset.aboutBugLandingX = String(route.bugGeometry.bugLandingPosition.x);
+    root.dataset.aboutBugLandingY = String(route.bugGeometry.bugLandingPosition.y);
+    root.dataset.aboutBugLandingZ = String(route.bugGeometry.bugLandingPosition.z);
   }
 
   function dispose() {
@@ -553,105 +710,563 @@ export function createAboutFlightController({
   };
 }
 
-function createFlightCurve(portal, sceneCenterY = 0, minimumCameraY = -CAMERA_FAR_LIMIT) {
-  const point = (x, y, z) => new THREE.Vector3(x, Math.max(y + sceneCenterY, minimumCameraY), z);
-  const portalPoint = z => new THREE.Vector3(portal.x, Math.max(portal.y, minimumCameraY), z);
-  return new THREE.CatmullRomCurve3([
-    point(0, 2.2, 16.5),
-    point(-6, 2.8, 16.2),
-    point(-11, 3.5, 13.5),
-    point(-13, 4.2, 9),
-    point(-13.5, 4.8, 2),
-    point(-13.5, 5.2, -6),
-    point(-11.5, 5.7, -12),
-    point(-7, 6, -14.2),
-    point(0, 6.2, -14.5),
-    point(7, 5.9, -14.2),
-    point(11.5, 5.4, -12),
-    point(13.5, 4.8, -6),
-    point(13.5, 4.2, 2),
-    point(13, 3.7, 9),
-    point(11, 3.2, 13.5),
-    point(6, 2.7, 16.2),
-    portalPoint(12),
-    portalPoint(8),
-    portalPoint(4),
-    portalPoint(1.5),
-    portalPoint(-1.5),
-    portalPoint(-5),
-    portalPoint(-9),
-    portalPoint(-12),
-    point(-4, 5.8, -14),
-    point(-9, 5.2, -11),
-    point(-13, 4.5, -5),
-    point(-13, 3.7, 4),
-    point(-10, 3.2, 11),
-    point(-5, 2.7, 15.5)
-  ], true, "centripetal", 0.5);
+function createFlightRouteState({
+  sceneFocus,
+  portal,
+  devDestinations,
+  devDestinationLabels,
+  devDestinationWidths,
+  bugDestinations,
+  bugDestinationLabels,
+  bugDestinationWidths,
+  galleryRoomBackZ,
+  minimumCameraY
+}) {
+  const state = {
+    lapIndex: 0,
+    devDestinationIndex: -1,
+    devDestination: null,
+    devDestinationLabel: "",
+    devDestinationWidth: DEV_LANDING_PANEL_WIDTH,
+    devDestinationIsWide: false,
+    bugDestinationIndex: -1,
+    bugDestination: null,
+    bugDestinationLabel: "",
+    bugDestinationWidth: DEV_LANDING_PANEL_WIDTH,
+    bugDestinationIsWide: false,
+    geometry: null,
+    advanceLap() {
+      state.lapIndex += 1;
+      rebuildRouteState(
+        state,
+        sceneFocus,
+        portal,
+        devDestinations,
+        devDestinationLabels,
+        devDestinationWidths,
+        bugDestinations,
+        bugDestinationLabels,
+        bugDestinationWidths,
+        galleryRoomBackZ,
+        minimumCameraY
+      );
+    }
+  };
+  rebuildRouteState(
+    state,
+    sceneFocus,
+    portal,
+    devDestinations,
+    devDestinationLabels,
+    devDestinationWidths,
+    bugDestinations,
+    bugDestinationLabels,
+    bugDestinationWidths,
+    galleryRoomBackZ,
+    minimumCameraY
+  );
+  return state;
 }
 
-function sampleFlightPose(curve, portal, billboardTarget, secondaryTarget, teamTarget, sceneFocus, minimumCameraY, heightOffset, phase, pose) {
-  // A drone-style camera stays level and travels at a steady arc-length speed.
-  curve.getPointAt(phase, pose.position);
-  pose.position.y = Math.max(pose.position.y + heightOffset, minimumCameraY);
-  curve.getTangentAt(phase, pose.tangent).normalize();
-  curve.getPointAt(wrap01(phase + 0.012), pose.ahead);
-  pose.ahead.y = Math.max(pose.ahead.y + heightOffset, minimumCameraY);
+function rebuildRouteState(
+  state,
+  sceneFocus,
+  portal,
+  devDestinations,
+  devDestinationLabels,
+  devDestinationWidths,
+  bugDestinations,
+  bugDestinationLabels,
+  bugDestinationWidths,
+  galleryRoomBackZ,
+  minimumCameraY
+) {
+  const dev = chooseRandomDestination(devDestinations, state.devDestinationIndex);
+  const bug = chooseRandomDestination(bugDestinations, state.bugDestinationIndex);
+  state.devDestinationIndex = dev.index;
+  state.devDestinationLabel = destinationLabel(devDestinationLabels, dev.index);
+  state.devDestination = dev.target;
+  state.devDestinationWidth = destinationWidth(devDestinationWidths, dev.index);
+  state.devDestinationIsWide = chartRequiresTraversal(state.devDestinationWidth);
+  state.bugDestinationIndex = bug.index;
+  state.bugDestinationLabel = destinationLabel(bugDestinationLabels, bug.index);
+  state.bugDestination = bug.target;
+  state.bugDestinationWidth = destinationWidth(bugDestinationWidths, bug.index);
+  state.bugDestinationIsWide = chartRequiresTraversal(state.bugDestinationWidth);
+  state.geometry = createGalleryFlightGeometry({
+    sceneFocus,
+    portal,
+    devDestination: state.devDestination,
+    devDestinationWidth: state.devDestinationWidth,
+    devDestinationIsWide: state.devDestinationIsWide,
+    galleryRoomBackZ,
+    minimumCameraY
+  });
+  state.bugGeometry = createBugFlightGeometry({
+    devLandingPosition: state.geometry.devLandingPosition,
+    devDestination: state.devDestination,
+    bugDestination: state.bugDestination,
+    bugDestinationWidth: state.bugDestinationWidth,
+    bugDestinationIsWide: state.bugDestinationIsWide,
+    minimumCameraY
+  });
+}
 
-  pose.focus.copy(sceneFocus);
-  pose.flightTarget.copy(pose.ahead).addScaledVector(pose.tangent, 3);
-  const portalDistance = Math.hypot(pose.position.x - portal.x, pose.position.y - portal.y);
-  const tunnelWeight = (1 - smoothStepRange(1.5, 6.5, portalDistance))
-    * (1 - smoothStepRange(7, 15, Math.abs(pose.position.z)));
-  pose.portalAttention = tunnelWeight;
-  pose.lookTarget.lerpVectors(pose.focus, pose.flightTarget, tunnelWeight);
-  if (billboardTarget) {
-    const billboardRevealWeight = tunnelWeight
-      * (1 - smoothStepRange(5, 9, pose.position.z));
-    pose.lookTarget.lerp(billboardTarget, smootherStep(billboardRevealWeight));
-    pose.devAttention = smoothStepRange(8, 12, -pose.position.z)
-      * (1 - smoothStepRange(5, 11, Math.abs(pose.position.x)));
-    pose.lookTarget.lerp(billboardTarget, smootherStep(pose.devAttention) * 0.96);
-  } else {
-    pose.devAttention = 0;
-  }
-  pose.chartAttention = 0;
-  if (secondaryTarget) {
-    pose.chartAttention = smoothStepRange(7, 10, pose.position.x)
-      * (1 - smoothStepRange(5, 12, Math.abs(pose.position.z + 8)));
-    pose.lookTarget.lerp(secondaryTarget, smootherStep(pose.chartAttention) * 0.96);
-  }
-  pose.teamAttention = 0;
-  if (teamTarget) {
-    pose.teamAttention = smoothStepRange(9, 14, -pose.position.x)
-      * (1 - smoothStepRange(3.5, 8, Math.abs(pose.position.z - 4.5)));
-    pose.lookTarget.lerp(teamTarget, smootherStep(pose.teamAttention) * 0.96);
-  }
+function createGalleryFlightGeometry({
+  sceneFocus,
+  portal,
+  devDestination,
+  devDestinationWidth,
+  devDestinationIsWide,
+  galleryRoomBackZ,
+  minimumCameraY
+}) {
+  const focusY = sceneFocus.y;
+  const safePortal = portal?.clone?.() || new THREE.Vector3(-3.2, focusY + 2.35, 0);
+  const logoTarget = new THREE.Vector3(
+    sceneFocus.x,
+    clampY(focusY + 1.35, minimumCameraY),
+    sceneFocus.z
+  );
+  const logoViewY = clampY(logoTarget.y + 0.1, minimumCameraY);
+  const portalTarget = new THREE.Vector3(
+    safePortal.x,
+    clampY(safePortal.y, minimumCameraY + 1.35),
+    safePortal.z
+  );
+  const portalLookTarget = new THREE.Vector3(portalTarget.x, portalTarget.y, -12);
+  const cruiseY = clampY(focusY + 4.75, minimumCameraY + 3.1);
+  const devX = devDestination?.x ?? 0;
+  const devY = devDestination
+    ? clampY(devDestination.y, minimumCameraY + 0.35)
+    : cruiseY;
+  const roomBackZ = Math.min(-18, galleryRoomBackZ);
+  const point = (x, y, z) => new THREE.Vector3(x, clampY(y, minimumCameraY), z);
+  const devTraversal = createWideChartTraversal({
+    chartTarget: devDestination,
+    chartWidth: devDestinationWidth,
+    wallNormal: new THREE.Vector3(0, 0, -1),
+    widthAxis: new THREE.Vector3(1, 0, 0),
+    minimumCameraY
+  });
+  const devArrivalX = devX === 0
+    ? 1.4
+    : devX - Math.sign(devX) * 1.8;
+  const naturalDevLandingPosition = point(
+    devArrivalX,
+    devY + 0.18,
+    roomBackZ + DEV_LANDING_DISTANCE
+  );
+  const devLandingPosition = devDestinationIsWide
+    ? devTraversal.startPosition.clone()
+    : naturalDevLandingPosition;
+  const curve = new THREE.CatmullRomCurve3([
+    point(0, logoViewY, 19.5),
+    point(0.08, logoViewY, 17),
+    point(portalTarget.x * 0.35, THREE.MathUtils.lerp(logoViewY, portalTarget.y, 0.35), 11.2),
+    point(portalTarget.x * 0.86, THREE.MathUtils.lerp(logoViewY, portalTarget.y, 0.78), 5.1),
+    point(portalTarget.x, portalTarget.y, 1.1),
+    point(portalTarget.x, portalTarget.y, -3.5),
+    point(
+      THREE.MathUtils.lerp(portalTarget.x, devX, 0.18),
+      THREE.MathUtils.lerp(portalTarget.y, devY, 0.24),
+      -8.5
+    ),
+    point(
+      THREE.MathUtils.lerp(portalTarget.x, devX, 0.45),
+      THREE.MathUtils.lerp(portalTarget.y, devY, 0.48),
+      -13.5
+    ),
+    point(
+      THREE.MathUtils.lerp(portalTarget.x, devX, 0.72),
+      THREE.MathUtils.lerp(portalTarget.y, devY, 0.72),
+      roomBackZ + 17
+    ),
+    point(
+      THREE.MathUtils.lerp(devX, devLandingPosition.x, 0.52),
+      THREE.MathUtils.lerp(devY, devLandingPosition.y, 0.52),
+      roomBackZ + 12
+    ),
+    devLandingPosition.clone()
+  ], false, "centripetal", 0.5);
 
+  return {
+    curve,
+    initialPosition: curve.points[0].clone(),
+    logoTarget,
+    portalTarget,
+    portalLookTarget,
+    devApproachY: devY,
+    devLookTarget: devDestinationIsWide
+      ? devTraversal.startLookTarget.clone()
+      : devDestination?.clone?.() || new THREE.Vector3(devX, devY, roomBackZ),
+    wideTraversal: devTraversal,
+    devLandingPosition,
+    devLandingPhase: 1,
+    minimumCameraY
+  };
+}
+
+function createBugFlightGeometry({
+  devLandingPosition,
+  devDestination,
+  bugDestination,
+  bugDestinationWidth,
+  bugDestinationIsWide,
+  minimumCameraY
+}) {
+  const point = (x, y, z) => new THREE.Vector3(x, clampY(y, minimumCameraY), z);
+  const safeBugTarget = bugDestination?.clone?.() || new THREE.Vector3(36, 3, -16);
+  const bugTraversal = createWideChartTraversal({
+    chartTarget: safeBugTarget,
+    chartWidth: bugDestinationWidth,
+    wallNormal: new THREE.Vector3(1, 0, 0),
+    widthAxis: new THREE.Vector3(0, 0, 1),
+    minimumCameraY
+  });
+  const naturalBugLandingPosition = point(
+    safeBugTarget.x - DEV_LANDING_DISTANCE,
+    safeBugTarget.y,
+    safeBugTarget.z
+  );
+  const bugLandingPosition = bugDestinationIsWide
+    ? bugTraversal.startPosition.clone()
+    : naturalBugLandingPosition;
+  const start = devLandingPosition.clone();
+  const curve = new THREE.CatmullRomCurve3([
+    start,
+    point(
+      THREE.MathUtils.lerp(start.x, bugLandingPosition.x, 0.13),
+      THREE.MathUtils.lerp(start.y, bugLandingPosition.y, 0.12),
+      start.z - 0.9
+    ),
+    point(
+      THREE.MathUtils.lerp(start.x, bugLandingPosition.x, 0.36),
+      THREE.MathUtils.lerp(start.y, bugLandingPosition.y, 0.32),
+      THREE.MathUtils.lerp(start.z, bugLandingPosition.z, 0.34)
+    ),
+    point(
+      THREE.MathUtils.lerp(start.x, bugLandingPosition.x, 0.66),
+      THREE.MathUtils.lerp(start.y, bugLandingPosition.y, 0.62),
+      THREE.MathUtils.lerp(start.z, bugLandingPosition.z, 0.66)
+    ),
+    point(
+      THREE.MathUtils.lerp(start.x, bugLandingPosition.x, 0.88),
+      THREE.MathUtils.lerp(start.y, bugLandingPosition.y, 0.88),
+      THREE.MathUtils.lerp(start.z, bugLandingPosition.z, 0.88)
+    ),
+    bugLandingPosition.clone()
+  ], false, "centripetal", 0.5);
+
+  return {
+    curve,
+    devLookTarget: devDestination?.clone?.() || new THREE.Vector3(0, start.y, start.z - 10),
+    bugLookTarget: bugDestinationIsWide
+      ? bugTraversal.startLookTarget.clone()
+      : safeBugTarget,
+    wideTraversal: bugTraversal,
+    bugLandingPosition,
+    minimumCameraY
+  };
+}
+
+function createWideChartTraversal({
+  chartTarget,
+  chartWidth,
+  wallNormal,
+  widthAxis,
+  minimumCameraY
+}) {
+  const safeTarget = chartTarget?.clone?.() || new THREE.Vector3();
+  const safeWidth = Math.max(DEV_LANDING_PANEL_WIDTH, Number(chartWidth) || 0);
+  const normalizedWallNormal = wallNormal.clone().normalize();
+  const normalizedWidthAxis = widthAxis.clone().normalize();
+  const upperLeftOffset = normalizedWidthAxis.clone().multiplyScalar(-safeWidth * 0.3);
+  const startLookTarget = safeTarget.clone()
+    .add(upperLeftOffset)
+    .add(new THREE.Vector3(0, DEV_LANDING_PANEL_HEIGHT * 0.24, 0));
+  startLookTarget.y = clampY(startLookTarget.y, minimumCameraY + 0.4);
+  const startPosition = startLookTarget.clone()
+    .addScaledVector(normalizedWallNormal, -DEV_LANDING_DISTANCE);
+  startPosition.y = clampY(startPosition.y, minimumCameraY);
+  const endPosition = startPosition.clone()
+    .addScaledVector(normalizedWidthAxis, safeWidth * 0.8);
+  endPosition.y = clampY(
+    THREE.MathUtils.lerp(startPosition.y, safeTarget.y, 0.34),
+    minimumCameraY
+  );
+  const endHeading = normalizedWidthAxis.clone()
+    .multiplyScalar(0.8)
+    .addScaledVector(normalizedWallNormal, 0.6)
+    .normalize();
+  const endLookTarget = endPosition.clone().addScaledVector(endHeading, 12);
+  return {
+    startPosition,
+    startLookTarget,
+    endPosition,
+    endLookTarget,
+    wallNormal: normalizedWallNormal,
+    widthAxis: normalizedWidthAxis
+  };
+}
+
+function createSequence4Geometry({
+  startPosition,
+  initialPosition,
+  logoTarget,
+  minimumCameraY,
+  startFov
+}) {
+  const start = startPosition.clone();
+  const initial = initialPosition.clone();
+  const point = (x, y, z) => new THREE.Vector3(x, clampY(y, minimumCameraY), z);
+  const frontArcZ = Math.max(initial.z + 14, start.z + 12);
+  const curve = new THREE.CatmullRomCurve3([
+    start,
+    point(start.x - 0.5, start.y, start.z + 3.8),
+    point(
+      THREE.MathUtils.lerp(start.x, initial.x, 0.24),
+      THREE.MathUtils.lerp(start.y, initial.y, 0.2),
+      Math.max(start.z + 9, -4)
+    ),
+    point(
+      THREE.MathUtils.lerp(start.x, initial.x, 0.58),
+      THREE.MathUtils.lerp(start.y, initial.y, 0.52),
+      initial.z + 7
+    ),
+    point(initial.x, initial.y, frontArcZ),
+    point(initial.x, initial.y, initial.z + 7),
+    initial
+  ], false, "centripetal", 0.5);
+  return {
+    curve,
+    logoTarget: logoTarget.clone(),
+    minimumCameraY,
+    startFov
+  };
+}
+
+function sampleSequence4Pose(geometry, phase, pose) {
+  geometry.curve.getPointAt(phase, pose.position);
+  pose.position.y = Math.max(pose.position.y, geometry.minimumCameraY);
+  geometry.curve.getTangentAt(phase, pose.tangent).normalize();
+  geometry.curve.getPointAt(Math.min(1, phase + 0.018), pose.ahead);
+  pose.ahead.y = Math.max(pose.ahead.y, geometry.minimumCameraY);
+  pose.lookTarget.copy(pose.position).addScaledVector(pose.tangent, 10);
+  pose.lookTarget.y = pose.position.y;
+  const logoAttention = smootherStep(smoothStepRange(0.04, 0.34, phase));
+  pose.lookTarget.lerp(geometry.logoTarget, logoAttention);
   pose.lookMatrix.lookAt(pose.position, pose.lookTarget, pose.up);
   pose.quaternion.setFromRotationMatrix(pose.lookMatrix);
-  const chartAttention = Math.max(pose.devAttention, pose.chartAttention);
-  const chartFov = THREE.MathUtils.lerp(42, CHART_GALLERY_FOV, smootherStep(chartAttention));
-  pose.fov = THREE.MathUtils.lerp(chartFov, TEAM_GALLERY_FOV, smootherStep(pose.teamAttention));
+  pose.logoAttention = logoAttention;
+  pose.portalAttention = 0;
+  pose.devAttention = 0;
+  pose.bugAttention = 0;
+  pose.horizonAttention = 1 - logoAttention;
+  pose.waitingForInstruction = false;
+  pose.forwardReference.copy(pose.tangent);
+  pose.lookDirection.copy(pose.lookTarget).sub(pose.position).normalize();
+  pose.forwardLookDot = pose.lookDirection.dot(pose.tangent);
+  pose.fov = THREE.MathUtils.lerp(geometry.startFov, DEFAULT_FOV, smootherStep(phase));
+}
+
+function sampleFlightPose(route, phase, pose) {
+  const { geometry } = route;
+  const { curve } = geometry;
+  curve.getPointAt(phase, pose.position);
+  pose.position.y = Math.max(pose.position.y, geometry.minimumCameraY);
+  curve.getTangentAt(phase, pose.tangent).normalize();
+  curve.getPointAt(Math.min(1, phase + 0.018), pose.ahead);
+  pose.ahead.y = Math.max(pose.ahead.y, geometry.minimumCameraY);
+  pose.lookTarget.copy(pose.position).addScaledVector(pose.tangent, 8);
+  pose.lookTarget.y = pose.position.y;
+
+  pose.portalAttention = smoothBand(phase, 0.035, 0.42, 0.05);
+  pose.devAttention = route.devDestination
+    ? smoothStepRange(0.2, 0.42, phase)
+    : 0;
+  pose.logoAttention = 1 - smoothStepRange(0.01, 0.1, phase);
+  pose.lookTarget.lerp(geometry.logoTarget, pose.logoAttention);
+
+  if (pose.portalAttention > 0) {
+    pose.lookTarget.lerp(geometry.portalLookTarget, smootherStep(pose.portalAttention) * 0.86);
+  }
+
+  if (route.devDestination) {
+    const devVerticalBlend = smootherStep(smoothStepRange(0.3, 0.66, phase));
+    const devCenteringWeight = THREE.MathUtils.lerp(
+      0.76,
+      1,
+      smootherStep(smoothStepRange(0.55, 0.95, phase))
+    );
+    pose.devLookTarget.copy(geometry.devLookTarget);
+    pose.devLookTarget.y = THREE.MathUtils.lerp(
+      pose.position.y,
+      geometry.devLookTarget.y,
+      devVerticalBlend
+    );
+    pose.lookTarget.lerp(
+      pose.devLookTarget,
+      smootherStep(pose.devAttention) * devCenteringWeight
+    );
+  }
+
+  const instructionAttention = Math.max(
+    pose.portalAttention,
+    pose.devAttention,
+    pose.logoAttention
+  );
+  pose.waitingForInstruction = !route.devDestination;
+  pose.horizonAttention = 1 - smootherStep(instructionAttention);
+  keepLookTargetForward(pose, instructionAttention < 0.03);
+  pose.lookMatrix.lookAt(pose.position, pose.lookTarget, pose.up);
+  pose.quaternion.setFromRotationMatrix(pose.lookMatrix);
+  const inspectionAttention = pose.devAttention;
+  const inspectionFov = THREE.MathUtils.lerp(
+    DEFAULT_FOV,
+    INSPECTION_FOV,
+    smootherStep(inspectionAttention)
+  );
+  pose.fov = THREE.MathUtils.lerp(
+    inspectionFov,
+    PORTAL_FOV,
+    smootherStep(pose.portalAttention) * 0.48
+  );
+  if (route.devDestinationIsWide) {
+    pose.fov = THREE.MathUtils.lerp(
+      pose.fov,
+      WIDE_CHART_FOV,
+      smootherStep(pose.devAttention)
+    );
+  }
+}
+
+function sampleBugFlightPose(route, phase, pose, cameraAspect) {
+  const { bugGeometry } = route;
+  const { curve } = bugGeometry;
+  curve.getPointAt(phase, pose.position);
+  pose.position.y = Math.max(pose.position.y, bugGeometry.minimumCameraY);
+  curve.getTangentAt(phase, pose.tangent).normalize();
+  curve.getPointAt(Math.min(1, phase + 0.018), pose.ahead);
+  pose.ahead.y = Math.max(pose.ahead.y, bugGeometry.minimumCameraY);
+  const turnAttention = smootherStep(smoothStepRange(0, 0.62, phase));
+  pose.lookTarget.lerpVectors(
+    bugGeometry.devLookTarget,
+    bugGeometry.bugLookTarget,
+    turnAttention
+  );
+  pose.lookDirection.copy(pose.lookTarget).sub(pose.position).normalize();
+  pose.forwardReference.copy(pose.tangent);
+  pose.lookMatrix.lookAt(pose.position, pose.lookTarget, pose.up);
+  pose.quaternion.setFromRotationMatrix(pose.lookMatrix);
+  pose.logoAttention = 0;
+  pose.portalAttention = 0;
+  pose.devAttention = 1 - turnAttention;
+  pose.bugAttention = turnAttention;
+  pose.horizonAttention = 0;
+  pose.waitingForInstruction = false;
+  pose.forwardLookDot = pose.lookDirection.dot(pose.tangent);
+  pose.fov = THREE.MathUtils.lerp(
+    INSPECTION_FOV,
+    bugLandingFov(route, cameraAspect),
+    smootherStep(smoothStepRange(0.35, 0.95, phase))
+  );
+}
+
+function bugLandingFov(route, cameraAspect) {
+  if (route.bugDestinationIsWide) return WIDE_CHART_FOV;
+  return landingFovForPanel(
+    route.bugDestinationWidth,
+    DEV_LANDING_PANEL_HEIGHT,
+    cameraAspect
+  );
+}
+
+function landingFovForPanel(panelWidth, panelHeight, cameraAspect) {
+  const safeAspect = Math.max(0.5, Number(cameraAspect) || 1);
+  const verticalHalfSize = Math.max(
+    panelHeight / 2,
+    panelWidth / (2 * safeAspect)
+  ) * DEV_LANDING_FRAME_MARGIN;
+  return THREE.MathUtils.clamp(
+    THREE.MathUtils.radToDeg(2 * Math.atan(verticalHalfSize / DEV_LANDING_DISTANCE)),
+    38,
+    72
+  );
+}
+
+function keepLookTargetForward(pose, levelHorizon) {
+  const targetDistance = Math.max(1, pose.lookTarget.distanceTo(pose.position));
+  pose.forwardReference.copy(pose.tangent);
+  pose.forwardReference.y = 0;
+  if (pose.forwardReference.lengthSq() < 0.000001) pose.forwardReference.set(0, 0, -1);
+  pose.forwardReference.normalize();
+  pose.lookDirection.copy(pose.lookTarget).sub(pose.position).normalize();
+  const forwardDot = pose.lookDirection.dot(pose.forwardReference);
+  if (forwardDot >= MIN_FORWARD_LOOK_DOT) {
+    if (levelHorizon) pose.lookTarget.y = pose.position.y;
+    pose.forwardLookDot = forwardDot;
+    return;
+  }
+  pose.lateralLookDirection.copy(pose.lookDirection)
+    .addScaledVector(pose.forwardReference, -forwardDot);
+  if (pose.lateralLookDirection.lengthSq() < 0.000001) {
+    pose.lookDirection.copy(pose.forwardReference);
+  } else {
+    pose.lateralLookDirection.normalize();
+    pose.lookDirection.copy(pose.forwardReference)
+      .multiplyScalar(MIN_FORWARD_LOOK_DOT)
+      .addScaledVector(
+        pose.lateralLookDirection,
+        Math.sqrt(1 - MIN_FORWARD_LOOK_DOT * MIN_FORWARD_LOOK_DOT)
+      )
+      .normalize();
+  }
+  pose.lookTarget.copy(pose.position).addScaledVector(pose.lookDirection, targetDistance);
+  if (levelHorizon) pose.lookTarget.y = pose.position.y;
+  pose.forwardLookDot = pose.lookDirection.dot(pose.forwardReference);
 }
 
 function createPose() {
-  return {
+  const pose = {
     position: new THREE.Vector3(),
     quaternion: new THREE.Quaternion(),
     tangent: new THREE.Vector3(),
     ahead: new THREE.Vector3(),
-    focus: new THREE.Vector3(),
-    flightTarget: new THREE.Vector3(),
     lookTarget: new THREE.Vector3(),
+    devLookTarget: new THREE.Vector3(),
+    lookDirection: new THREE.Vector3(),
+    lateralLookDirection: new THREE.Vector3(),
+    forwardReference: new THREE.Vector3(),
     lookMatrix: new THREE.Matrix4(),
     up: new THREE.Vector3(0, 1, 0),
-    devAttention: 0,
+    logoAttention: 0,
     portalAttention: 0,
-    chartAttention: 0,
-    teamAttention: 0,
-    fov: 42
+    devAttention: 0,
+    bugAttention: 0,
+    horizonAttention: 1,
+    waitingForInstruction: false,
+    forwardLookDot: 1,
+    fov: DEFAULT_FOV
   };
+  pose.copyFrom = source => {
+    pose.position.copy(source.position);
+    pose.quaternion.copy(source.quaternion);
+    pose.tangent.copy(source.tangent);
+    pose.ahead.copy(source.ahead);
+    pose.lookTarget.copy(source.lookTarget);
+    pose.lookDirection.copy(source.lookDirection);
+    pose.lateralLookDirection.copy(source.lateralLookDirection);
+    pose.logoAttention = source.logoAttention;
+    pose.portalAttention = source.portalAttention;
+    pose.devAttention = source.devAttention;
+    pose.bugAttention = source.bugAttention;
+    pose.horizonAttention = source.horizonAttention;
+    pose.waitingForInstruction = source.waitingForInstruction;
+    pose.forwardLookDot = source.forwardLookDot;
+    pose.fov = source.fov;
+  };
+  return pose;
 }
 
 function applyPose(camera, pose) {
@@ -661,13 +1276,104 @@ function applyPose(camera, pose) {
   camera.updateProjectionMatrix();
 }
 
-function wrap01(value) {
-  return ((value % 1) + 1) % 1;
+function normalizeTargets(targets, fallback) {
+  const normalized = [];
+  if (Array.isArray(targets)) {
+    for (const target of targets) {
+      if (target?.isVector3) normalized.push(target.clone());
+    }
+  }
+  if (!normalized.length && fallback?.isVector3) normalized.push(fallback.clone());
+  return normalized;
+}
+
+function chooseRandomDestination(targets, previousIndex) {
+  if (!targets.length) return { target: null, index: -1 };
+  let index = Math.floor(Math.random() * targets.length);
+  if (targets.length > 1 && index === previousIndex) {
+    index = (index + 1 + Math.floor(Math.random() * (targets.length - 1))) % targets.length;
+  }
+  return {
+    target: targets[index].clone(),
+    index
+  };
+}
+
+function destinationWidth(widths, index) {
+  const width = Array.isArray(widths) ? Number(widths[index]) : 0;
+  return Number.isFinite(width) && width > 0 ? width : DEV_LANDING_PANEL_WIDTH;
+}
+
+function chartRequiresTraversal(width) {
+  return Number(width) > WIDE_CHART_THRESHOLD;
+}
+
+function destinationLabel(labels, index) {
+  const label = Array.isArray(labels) ? String(labels[index] || "").trim() : "";
+  if (!label) return index >= 0 ? `Dev Task chart ${index + 1}` : "Dev Task chart";
+  return /chart/i.test(label) ? label : `${label} Chart`;
+}
+
+function bugFlightSpeedScale(phase) {
+  const turnScale = THREE.MathUtils.lerp(
+    BUG_TURN_SPEED_SCALE,
+    0.82,
+    smootherStep(smoothStepRange(0, 0.3, phase))
+  );
+  const landingScale = THREE.MathUtils.lerp(
+    1,
+    BUG_APPROACH_MIN_SPEED_SCALE,
+    smootherStep(smoothStepRange(0.72, 0.96, phase))
+  );
+  return Math.min(turnScale, landingScale);
+}
+
+function sequence4SpeedScale(phase) {
+  const departureScale = THREE.MathUtils.lerp(
+    0.5,
+    0.84,
+    smootherStep(smoothStepRange(0, 0.24, phase))
+  );
+  const arrivalScale = THREE.MathUtils.lerp(
+    0.84,
+    0.46,
+    smootherStep(smoothStepRange(0.72, 0.98, phase))
+  );
+  return Math.min(departureScale, arrivalScale);
+}
+
+function describeFlightAction(route, stage, phase, pose) {
+  if (stage === "return-initial") {
+    return phase >= 0.82
+      ? "Sequence 4: Aligning with the initial logo view"
+      : "Sequence 4: Returning to the front • Focus: PMT logo";
+  }
+  if (stage === "bug") {
+    if (phase < 0.24) return `Turning smoothly • Next: ${route.bugDestinationLabel}`;
+    if (pose.bugAttention >= 0.18) return `Destination: ${route.bugDestinationLabel}`;
+    return `Turning toward QA chart: ${route.bugDestinationLabel}`;
+  }
+  if (phase < 0.42) {
+    return `Executing P-hole flyby • Next: ${route.devDestinationLabel}`;
+  }
+  if (pose.devAttention >= 0.18) return `Destination: ${route.devDestinationLabel}`;
+  if (pose.waitingForInstruction) return "Hovering • level horizon";
+  return `Flying directly to: ${route.devDestinationLabel}`;
+}
+
+function clampY(value, minimumY) {
+  return Math.max(value, minimumY);
 }
 
 function smoothStepRange(edge0, edge1, value) {
   const progress = THREE.MathUtils.clamp((value - edge0) / (edge1 - edge0), 0, 1);
   return progress * progress * (3 - 2 * progress);
+}
+
+function smoothBand(value, start, end, fade) {
+  const enter = smoothStepRange(start, start + fade, value);
+  const exit = 1 - smoothStepRange(end - fade, end, value);
+  return THREE.MathUtils.clamp(enter * exit, 0, 1);
 }
 
 function smootherStep(value) {
@@ -686,13 +1392,4 @@ function flightSpeedDirection(event) {
   if (event.key === "+" || event.code === "Equal" || event.code === "NumpadAdd") return 1;
   if (event.key === "-" || event.code === "Minus" || event.code === "NumpadSubtract") return -1;
   return 0;
-}
-
-function randomTargetIndex(length) {
-  return length > 0 ? Math.floor(Math.random() * length) : -1;
-}
-
-function nextRandomTargetIndex(currentIndex, length) {
-  if (length <= 1) return length ? 0 : -1;
-  return (currentIndex + 1 + Math.floor(Math.random() * (length - 1))) % length;
 }
