@@ -10,7 +10,7 @@ import { appUrl } from "../../shared/app-urls.js";
 import { createBugChartsView } from "../../shared/bug-charts.js?v=20260712-about-chart-gallery";
 import { createDevTaskChartsView } from "../../shared/dev-task-charts.js?v=20260712-about-chart-gallery";
 
-const ABOUT_VERSION = "20260712-about-focus-outline-91";
+const ABOUT_VERSION = "20260712-about-controls-ufo-103";
 
 export function createAboutFeature({
   app,
@@ -76,11 +76,11 @@ export function createAboutFeature({
             <span class="about-control-hint"><kbd>Wheel</kbd><span>Zoom</span></span>
             <span class="about-control-hint"><kbd>WASD</kbd><span>Move</span></span>
             <span class="about-control-hint"><kbd>Q / E</kbd><span>Down / up</span></span>
-            <span class="about-control-hint"><kbd>Shift</kbd><span>Boost</span></span>
+            <span class="about-control-hint"><kbd>Shift</kbd><span>Manual boost</span></span>
             <span class="about-control-hint"><kbd>+ / -</kbd><span>Speed</span></span>
             <span class="about-control-hint"><kbd>Space</kbd><span>Pause / resume</span></span>
-            <span class="about-control-hint"><kbd>Enter</kbd><span>Restart</span></span>
-            <span class="about-control-hint"><kbd>A</kbd><span>Alien + strike</span></span>
+            <span class="about-control-hint"><kbd>Enter</kbd><span>Restart sequence</span></span>
+            <span class="about-control-hint"><kbd>A</kbd><span>Alien + Lightning Strike</span></span>
             <span class="about-control-hint"><kbd>L</kbd><span>Lightning</span></span>
             <span class="about-control-hint"><kbd>C</kbd><span>Comet</span></span>
             <span class="about-control-hint"><kbd>U</kbd><span>UFO</span></span>
@@ -89,6 +89,14 @@ export function createAboutFeature({
           </p>
           <button type="button" class="about-flight-mode" data-about-mode disabled>3D</button>
         </div>
+
+        <button
+          type="button"
+          class="about-control-hints-trigger"
+          data-about-control-hints-button
+          aria-label="Show flight controls for five seconds"
+          title="Show flight controls"
+        >?</button>
 
         <p class="about-flight-debug" data-about-flight-debug aria-live="polite">
           Preparing 3D gallery
@@ -110,6 +118,7 @@ export function createAboutFeature({
     const introCountdownElement = root.querySelector("[data-about-intro-countdown]");
     const statusElement = root.querySelector("[data-about-status]");
     const modeElement = root.querySelector("[data-about-mode]");
+    const controlHintsTriggerElement = root.querySelector("[data-about-control-hints-button]");
     const debugElement = root.querySelector("[data-about-flight-debug]");
     const ufoSpeechElement = root.querySelector("[data-about-ufo-speech]");
     const alienNoticeElement = root.querySelector("[data-about-alien-notice]");
@@ -125,6 +134,7 @@ export function createAboutFeature({
           introCountdownElement,
           statusElement,
           modeElement,
+          controlHintsTriggerElement,
           debugElement,
           ufoSpeechElement,
           alienNoticeElement,
@@ -132,7 +142,6 @@ export function createAboutFeature({
           devCharts,
           bugCharts,
           users: state.users,
-          onRestart: renderAbout,
           onFailure: message => showFallback(root, message)
         });
 

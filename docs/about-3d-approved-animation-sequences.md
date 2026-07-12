@@ -62,6 +62,8 @@ This is the maintained source of truth for the approved About-page camera animat
 
 The first successful UFO lightning strike after the About scene loads must say: `This PMT really has a lot of spark!` Later successful UFO strikes select a random line from the UFO lightning-reaction pool.
 
+Once a UFO encounter has visibly started, it must finish its beam retract and departure/fly-away animation before the ship is hidden, even if Sequence 4 ends while the UFO is still speaking or scanning. If the UFO is struck by lightning, it must remain visible through its recovery long enough to continue and complete the normal exit sequence. Sequence 4 may stop new UFO encounters after its event window ends, but it must drain the active encounter instead of disabling it immediately.
+
 The UFO and lightning schedules are coordinated by the scene, not by the camera controller. The current Sequence 4 event window triggers the PMT strike about `5.2` seconds after Sequence 4 begins and attempts the optional UFO strike about `16` seconds after it begins. The UFO strike is planned independently for each Sequence 4 encounter with probability `0.5`.
 
 ## Camera and event invariants
@@ -78,15 +80,15 @@ The UFO and lightning schedules are coordinated by the scene, not by the camera 
 
 - Holding the left mouse button temporarily controls the camera heading while the automatic flight path continues moving. Releasing the button immediately releases the mouse to the browser. Pointer lock is not used.
 - The mouse wheel changes zoom without entering full manual mode or stopping the automatic flight path.
-- `W`, `A`, `S`, and `D` move horizontally; `E` moves up; `Q` moves down; and `Shift` boosts manual movement speed.
+- `W`, `A`, `S`, and `D` move horizontally; `E` moves up; `Q` moves down; and `Shift` boosts manual movement speed only while the camera is already in keyboard manual mode. `Shift` must not change automatic flyby speed.
 - Pressing a movement key enters full manual mode and freezes the automatic flight-path phase. Five seconds after the final movement-key input, the camera smoothly rejoins the saved automatic path and resumes it.
 - The lower-right `MANUAL` mode panel is interactive only in manual mode. Clicking it starts the same smooth automatic-path rejoin immediately.
 - `+` and `-` change automatic flight speed without entering manual mode.
 - The user-selected flyby speed is constant across Sequences 1 through 4. Routes, chart approaches, transitions, and background events must not apply hidden acceleration or slowdown multipliers; only `+` and `-` may change it.
 - `Space` pauses or resumes the shared flight-and-event animation clock.
-- `Enter` rebuilds the About experience from its initial 2D-logo transition.
-- Control hints appear for five seconds when full manual mode begins. After Sequence 4 completes for the first time, show the hints once for five seconds during automatic flight so new users discover them; do not repeat this onboarding reveal on later loops. Pressing `?` in manual or automatic mode displays them for five seconds without changing the current flight mode.
-- Whenever visible, the control hints use one large, readable panel on the left side of the 3D scene.
+- `Enter` resets the active 3D flyby back to Sequence 1 inside the existing 3D scene. It must not exit the 3D scene, rebuild the About page, or replay the initial 2D-logo intro.
+- Control hints appear for five seconds when full manual mode begins. Do not reveal them automatically after Sequence 4. Keep a small `?` panel in the lower-left of the 3D scene. Clicking it or pressing the `?`/slash key in manual or automatic mode toggles the hints without changing the current flight mode: open them for five seconds when hidden, or close them immediately when visible. Shift must not be required.
+- Whenever visible, the control hints use a compact vertical list anchored to the upper-left of the 3D scene. Keep one control per line so the hints are readable, but keep the panel small enough that it is noticeable without becoming the main focus.
 - The 3D scene canvas may receive browser focus so keyboard controls keep working, but it must not show a focus outline, border, or halo when clicked.
 - `A` triggers the alien encounter and guarantees that this manually triggered encounter is struck by lightning during its inspection phase. `L` triggers lightning, `C` triggers a comet, `U` triggers the UFO encounter without the guaranteed strike, and `R` randomly selects an alien, lightning, or comet event.
 - `A` never enters manual mode or interrupts automatic flight. It triggers one alien encounter with its guaranteed lightning strike while the approved camera sequence continues unchanged. If the camera is already in manual mode, `A` may still strafe left while triggering the encounter. Key-repeat does not repeatedly trigger the event.

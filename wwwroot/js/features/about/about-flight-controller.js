@@ -60,9 +60,9 @@ export function createAboutFlightController({
   minimumCameraY = -CAMERA_FAR_LIMIT,
   statusElement,
   modeElement,
+  controlHintsTriggerElement,
   debugElement,
-  reducedMotion,
-  onRestart = () => {}
+  reducedMotion
 }) {
   const abortController = new AbortController();
   const focusPoint = sceneFocus?.clone?.() || new THREE.Vector3();
@@ -121,7 +121,6 @@ export function createAboutFlightController({
   let returnFromFov = camera.fov;
   let pausedFromMode = "auto";
   let controlHintsTimer = 0;
-  let initialAutoHintsShown = false;
   let userFovOffset = 0;
   let dragging = false;
   let dragX = 0;
@@ -209,12 +208,15 @@ export function createAboutFlightController({
   root.dataset.aboutSpeedKeysStayAutomatic = "true";
   root.dataset.aboutPauseKey = "Space";
   root.dataset.aboutRestartKey = "Enter";
+  root.dataset.aboutEnterRestartBehavior = "reset-sequence-1-in-scene";
   root.dataset.aboutControlHintsKey = "?";
   root.dataset.aboutControlHintsDurationSeconds = String(CONTROL_HINT_DURATION_MS / 1000);
-  root.dataset.aboutControlHintsLayout = "large-left-panel";
+  root.dataset.aboutControlHintsLayout = "compact-upper-left-list";
   root.dataset.aboutControlHintsAutomatic = "true";
   root.dataset.aboutControlHintsVisible = "false";
-  root.dataset.aboutInitialControlHintsAfterSequence4 = "true";
+  root.dataset.aboutControlHintsTrigger = "click-question-mark";
+  root.dataset.aboutControlHintsTriggerPosition = "lower-left";
+  root.dataset.aboutInitialControlHintsAfterSequence4 = "false";
   root.dataset.aboutInitialControlHintsShown = "false";
   root.dataset.aboutManualModePanelAction = "resume-autopilot";
   updateRouteDatasets();
@@ -226,6 +228,7 @@ export function createAboutFlightController({
   canvas.addEventListener("pointercancel", stopDragging, listenerOptions);
   canvas.addEventListener("wheel", onWheel, { passive: false, signal: abortController.signal });
   modeElement.addEventListener("click", onModeClick, listenerOptions);
+  controlHintsTriggerElement?.addEventListener("click", toggleControlHints, listenerOptions);
   window.addEventListener("keydown", onKeyDown, listenerOptions);
   window.addEventListener("keyup", onKeyUp, listenerOptions);
   window.addEventListener("blur", clearKeys, listenerOptions);
@@ -521,9 +524,7 @@ export function createAboutFlightController({
     if (isTypingTarget(event.target)) return;
     if (event.code === "Enter" && !event.repeat && noCommandModifier(event)) {
       event.preventDefault();
-      window.setTimeout(() => {
-        if (!disposed) onRestart();
-      }, 0);
+      restartSequenceOne();
       return;
     }
     if (event.code === "Space" && !event.repeat && noCommandModifier(event)) {
@@ -533,7 +534,7 @@ export function createAboutFlightController({
     }
     if (isControlHintsKey(event) && !event.repeat && noCommandModifier(event)) {
       event.preventDefault();
-      showControlHints();
+      toggleControlHints();
       return;
     }
     const speedDirection = flightSpeedDirection(event);
@@ -635,6 +636,15 @@ export function createAboutFlightController({
     controlHintsTimer = window.setTimeout(() => {
       if (!disposed) root.dataset.aboutControlHintsVisible = "false";
     }, CONTROL_HINT_DURATION_MS);
+  }
+
+  function toggleControlHints() {
+    if (root.dataset.aboutControlHintsVisible === "true") {
+      window.clearTimeout(controlHintsTimer);
+      root.dataset.aboutControlHintsVisible = "false";
+      return;
+    }
+    showControlHints();
   }
 
   function onModeClick() {
@@ -893,24 +903,39 @@ export function createAboutFlightController({
   }
 
   function finishSequence4() {
+    restartSequenceOne();
+  }
+
+  function restartSequenceOne() {
     route.advanceLap();
     prepareSequence4Geometry();
     debugTestRun += 1;
     flightStage = "dev";
     autopilotPhase = 0;
     forwardTravel = 0;
+    activeWideTraversal = null;
+    automaticFlightSuspendedAt = null;
+    pausedFromMode = "auto";
+    keys.clear();
+    dragging = false;
+    userFovOffset = 0;
     updateRouteDatasets();
     root.dataset.aboutDevLandingTestRun = String(debugTestRun);
     root.dataset.aboutDevLandingTestState = "approaching-dev";
     root.dataset.aboutFlightSequenceStage = flightStage;
     root.dataset.aboutDevToBugHandoffProgress = "0";
     root.dataset.aboutBugToReturnHandoffProgress = "0";
+    root.dataset.aboutWideChartTraversalActive = "false";
+    root.dataset.aboutMouseLookActive = "false";
+    root.dataset.aboutUserZoomOffset = "0.00";
+    root.dataset.aboutEnterRestartBehavior = "reset-sequence-1-in-scene";
+    window.clearTimeout(controlHintsTimer);
+    root.dataset.aboutControlHintsVisible = "false";
     setMode("auto");
-    if (!initialAutoHintsShown) {
-      initialAutoHintsShown = true;
-      root.dataset.aboutInitialControlHintsShown = "true";
-      showControlHints();
-    }
+    sampleFlightPose(route, 0, autopilotTarget);
+    autopilotTarget.fov = userAdjustedFov(autopilotTarget.fov);
+    applyPose(camera, autopilotTarget);
+    pose.copyFrom(autopilotTarget);
     setFlightAction(`Sequence 1 restarted • Next Dev chart: ${route.devDestinationLabel}`);
   }
 
@@ -1630,7 +1655,7 @@ function noCommandModifier(event) {
 }
 
 function isControlHintsKey(event) {
-  return event.key === "?" || (event.code === "Slash" && event.shiftKey);
+  return event.key === "?" || event.key === "/" || event.code === "Slash";
 }
 
 function flightSpeedDirection(event) {

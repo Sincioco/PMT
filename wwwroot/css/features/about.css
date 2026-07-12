@@ -173,6 +173,48 @@
   pointer-events: none;
 }
 
+.about-control-hints-trigger {
+  position: absolute;
+  bottom: 18px;
+  left: 18px;
+  z-index: 5;
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  margin: 0;
+  padding: 0;
+  color: #eaf5ff;
+  font: inherit;
+  font-size: 18px;
+  font-weight: var(--font-weight-bold);
+  line-height: 1;
+  background: rgb(4 13 28 / 78%);
+  border: 1px solid rgb(126 190 255 / 38%);
+  border-radius: 12px;
+  box-shadow: 0 10px 30px rgb(0 0 0 / 28%);
+  opacity: 0;
+  visibility: hidden;
+  cursor: pointer;
+  pointer-events: none;
+  backdrop-filter: blur(12px) saturate(130%);
+  transition: opacity 180ms ease, border-color 180ms ease, background-color 180ms ease;
+}
+
+.about-flight-started .about-control-hints-trigger {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+}
+
+.about-control-hints-trigger:hover,
+.about-control-hints-trigger:focus-visible {
+  color: #ffffff;
+  background: rgb(15 39 70 / 90%);
+  border-color: rgb(126 190 255 / 72%);
+  outline: none;
+}
+
 .about-screen[data-flight-mode="manual"] .about-flight-debug {
   display: none;
 }
@@ -198,27 +240,32 @@
 }
 
 .about-screen[data-about-control-hints-visible="true"] .about-flight-controls {
-  position: absolute;
-  top: 50%;
-  left: clamp(16px, 3vw, 38px);
-  width: min(430px, calc(100% - 32px));
-  max-height: calc(100% - 40px);
-  padding: 24px;
+  position: absolute !important;
+  top: clamp(4px, 1.2vh, 10px) !important;
+  left: clamp(4px, 1.2vw, 10px) !important;
+  z-index: 6;
+  box-sizing: border-box;
+  display: grid !important;
+  width: min(330px, calc(100% - 24px));
+  min-width: min(280px, calc(100% - 24px));
+  max-height: min(390px, calc(100vh - var(--topbar-height-min) - 36px));
+  gap: 3px;
+  padding: 8px 10px;
   overflow: auto;
   color: #b9cde0;
-  font-size: 15px;
-  line-height: 1.35;
+  font-size: 11px;
+  line-height: 1.2;
   border-color: rgb(126 190 255 / 38%);
-  border-radius: 18px;
-  box-shadow: 0 22px 70px rgb(0 0 0 / 48%);
-  transform: translateY(-50%);
+  border-radius: 14px;
+  box-shadow: 0 14px 40px rgb(0 0 0 / 42%);
+  transform: none;
   background: rgb(4 13 28 / 86%);
 }
 
 .about-flight-controls-title {
-  margin-bottom: 8px;
+  margin-bottom: 3px;
   color: #ffffff;
-  font-size: 20px;
+  font-size: 12px;
   font-weight: var(--font-weight-bold);
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -226,21 +273,21 @@
 
 .about-control-hint {
   display: grid;
-  grid-template-columns: minmax(128px, 0.8fr) minmax(0, 1fr);
-  gap: 14px;
+  grid-template-columns: minmax(96px, 0.8fr) minmax(0, 1fr);
+  gap: 6px;
   align-items: center;
 }
 
 .about-control-hint kbd {
   justify-self: stretch;
-  padding: 7px 10px;
+  padding: 2px 6px;
   color: #ffffff;
   font: inherit;
   font-weight: var(--font-weight-bold);
   text-align: center;
   background: rgb(126 190 255 / 13%);
   border: 1px solid rgb(126 190 255 / 26%);
-  border-radius: 8px;
+  border-radius: 7px;
 }
 
 .about-flight-mode {
@@ -384,6 +431,7 @@
 .about-flight-is-fallback .about-flight-canvas,
 .about-flight-is-fallback .about-flight-vignette,
 .about-flight-is-fallback .about-flight-controls,
+.about-flight-is-fallback .about-control-hints-trigger,
 .about-flight-is-fallback .about-flight-debug,
 .about-flight-is-fallback .about-ufo-speech,
 .about-flight-is-fallback .about-alien-toggle-notice {
@@ -440,6 +488,11 @@
 }
 
 @media (max-width: 620px) {
+  .about-control-hints-trigger {
+    bottom: 12px;
+    left: 12px;
+  }
+
   .about-flight-debug {
     bottom: 54px;
     max-width: calc(100% - 24px);
@@ -452,14 +505,18 @@
   }
 
   .about-flight-controls {
-    gap: 6px;
-    padding: 18px;
-    font-size: 13px;
+    gap: 3px;
+    left: 12px;
+    min-width: 0;
+    width: calc(100% - 24px);
+    max-height: min(390px, calc(100vh - var(--topbar-height-min) - 34px));
+    padding: 8px 10px;
+    font-size: 10.5px;
   }
 
   .about-control-hint {
-    grid-template-columns: minmax(104px, 0.7fr) minmax(0, 1fr);
-    gap: 10px;
+    grid-template-columns: minmax(86px, 0.7fr) minmax(0, 1fr);
+    gap: 6px;
   }
 
   .about-flight-mode {
@@ -488,6 +545,13 @@
 .about-screen:not([data-flight-mode="manual"])[data-about-control-hints-visible="true"] .about-flight-hud {
   grid-template-areas: "controls mode";
   grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  align-content: start;
+}
+
+.about-screen[data-about-control-hints-visible="true"] .about-flight-hud {
+  align-items: start;
+  align-content: start;
 }
 
 @media (prefers-reduced-motion: reduce) {

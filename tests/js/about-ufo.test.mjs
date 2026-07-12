@@ -1,11 +1,13 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import * as THREE from "../../wwwroot/js/vendor/three/three.module.min.js";
 
 import {
   UFO_FIRST_DELAY_MAX_SECONDS,
   UFO_FIRST_DELAY_MIN_SECONDS,
   UFO_IDLE_MAX_SECONDS,
   UFO_IDLE_MIN_SECONDS,
+  createUfoEncounter,
   ufoFirstDelay,
   ufoIdleDelay,
   ufoLightningSpeechForStrike,
@@ -44,4 +46,56 @@ test("UFO uses randomized convenient-window delays and rotates its transmissions
     ufoLightningSpeechForStrike(2, () => 0.999999),
     "Their weather has excellent aim.\nWe should retreat after this demo!"
   );
+});
+
+test("UFO reports an incomplete departure until the fly-away finishes", () => {
+  const scene = new THREE.Scene();
+  const resources = new Set();
+  const speechElement = {
+    hidden: true,
+    textContent: "",
+    style: { setProperty() {} }
+  };
+  const encounter = createUfoEncounter({ scene, resources, speechElement });
+  const startedAt = 100;
+
+  encounter.startNow(startedAt);
+  encounter.update(startedAt, false, true);
+  encounter.update(startedAt + 1.75 + 14.2, false, true);
+  assert.equal(encounter.isDepartureIncomplete(), true);
+
+  encounter.update(startedAt + 1.75 + 21.1, false, true);
+  assert.equal(encounter.isDepartureIncomplete(), true);
+
+  encounter.update(startedAt + 1.75 + 21.3, false, true);
+  assert.equal(encounter.isDepartureIncomplete(), false);
+
+  encounter.dispose();
+});
+
+test("UFO remains active long enough to exit after a late lightning strike", () => {
+  const scene = new THREE.Scene();
+  const resources = new Set();
+  const speechElement = {
+    hidden: true,
+    textContent: "",
+    style: { setProperty() {} }
+  };
+  const encounter = createUfoEncounter({ scene, resources, speechElement });
+  const startedAt = 200;
+  const target = new THREE.Vector3();
+
+  encounter.startNow(startedAt);
+  encounter.update(startedAt, false, true);
+  encounter.update(startedAt + 1.75 + 20.8, false, true);
+  assert.equal(encounter.reactToLightning(), true);
+
+  encounter.update(startedAt + 1.75 + 21.35, false, true);
+  assert.equal(encounter.isDepartureIncomplete(), true);
+  assert.equal(encounter.getStrikePosition(target), true);
+
+  encounter.update(startedAt + 1.75 + 24.3, false, true);
+  assert.equal(encounter.isDepartureIncomplete(), false);
+
+  encounter.dispose();
 });

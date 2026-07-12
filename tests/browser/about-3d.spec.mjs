@@ -12,6 +12,7 @@ test("About renders the drone flyby and supports camera takeover and speed keys"
   const mode = page.locator("[data-about-mode]");
   const status = page.locator("[data-about-status]");
   const controls = page.locator(".about-flight-controls");
+  const controlHintsTrigger = page.locator("[data-about-control-hints-button]");
   const flightDebug = page.locator("[data-about-flight-debug]");
   const alienNotice = page.locator("[data-about-alien-notice]");
 
@@ -58,6 +59,11 @@ test("About renders the drone flyby and supports camera takeover and speed keys"
   await expect(root).toHaveAttribute("data-about-ufo-camera-tracking", "false");
   await expect(root).toHaveAttribute("data-about-ufo-camera-influence", "none");
   await expect(root).toHaveAttribute("data-about-ufo-sequence-4-playback", "full-background-animation");
+  await expect(root).toHaveAttribute(
+    "data-about-ufo-departure-completion",
+    "finish-before-hide-even-after-lightning"
+  );
+  await expect(root).toHaveAttribute("data-about-ufo-departure-draining", "false");
   await expect(root).toHaveAttribute("data-about-lightning-enabled", "true");
   await expect(root).toHaveAttribute("data-about-lightning-schedule", "sequence-4-background");
   await expect(root).toHaveAttribute("data-about-lightning-camera-influence", "none");
@@ -108,10 +114,13 @@ test("About renders the drone flyby and supports camera takeover and speed keys"
   await expect(root).toHaveAttribute("data-about-restart-key", "Enter");
   await expect(root).toHaveAttribute("data-about-control-hints-key", "?");
   await expect(root).toHaveAttribute("data-about-control-hints-duration-seconds", "5");
-  await expect(root).toHaveAttribute("data-about-control-hints-layout", "large-left-panel");
+  await expect(root).toHaveAttribute("data-about-control-hints-layout", "compact-upper-left-list");
   await expect(root).toHaveAttribute("data-about-control-hints-automatic", "true");
-  await expect(root).toHaveAttribute("data-about-initial-control-hints-after-sequence-4", "true");
+  await expect(root).toHaveAttribute("data-about-control-hints-trigger", "click-question-mark");
+  await expect(root).toHaveAttribute("data-about-control-hints-trigger-position", "lower-left");
+  await expect(root).toHaveAttribute("data-about-initial-control-hints-after-sequence-4", "false");
   await expect(root).toHaveAttribute("data-about-initial-control-hints-shown", "false");
+  await expect(controlHintsTrigger).toBeVisible();
   await expect(root).toHaveAttribute("data-about-manual-mode-panel-action", "resume-autopilot");
   await expect(root).toHaveAttribute("data-about-dev-landing-reset-key", "Automatic");
   await expect(root).toHaveAttribute("data-about-dev-arrival-behavior", "slow-continuous-no-stop");
@@ -336,12 +345,55 @@ test("About separates mouse look, keyboard manual mode, pause, and event hotkeys
   const canvas = page.locator("[data-about-canvas]");
   const mode = page.locator("[data-about-mode]");
   const controls = page.locator(".about-flight-controls");
+  const controlHintsTrigger = page.locator("[data-about-control-hints-button]");
   await expect(root).toHaveClass(/about-flight-started/, { timeout: 15000 });
   await expect(root).toHaveAttribute("data-flight-mode", "auto");
+  await expect(root).toHaveAttribute("data-about-control-hints-visible", "false");
 
-  await page.keyboard.press("Shift+/");
+  const triggerPosition = await controlHintsTrigger.evaluate(element => {
+    const root = element.closest("[data-about-flight]");
+    const rootRect = root.getBoundingClientRect();
+    const rect = element.getBoundingClientRect();
+    return {
+      left: rect.left - rootRect.left,
+      bottom: rootRect.bottom - rect.bottom
+    };
+  });
+  expect(triggerPosition.left).toBeLessThan(40);
+  expect(triggerPosition.bottom).toBeLessThan(40);
+
+  await controlHintsTrigger.click();
   await expect(root).toHaveAttribute("data-about-control-hints-visible", "true");
   await expect(controls).toBeVisible();
+
+  await page.keyboard.press("/");
+  await expect(root).toHaveAttribute("data-about-control-hints-visible", "false");
+  await expect(controls).toBeHidden();
+
+  await page.keyboard.press("/");
+  await expect(root).toHaveAttribute("data-about-control-hints-visible", "true");
+  await expect(controls).toBeVisible();
+  await expect(controls).toContainText("Hold left mouse");
+  await expect(controls).toContainText("Alien + Lightning Strike");
+  await expect(controls).toContainText("Show these hints");
+  await expect(controls.locator(".about-control-hint")).toHaveCount(14);
+  const visibleControlsPanel = await controls.evaluate(element => {
+    const root = element.closest("[data-about-flight]");
+    const rootRect = root.getBoundingClientRect();
+    const rect = element.getBoundingClientRect();
+    return {
+      top: rect.top - rootRect.top,
+      left: rect.left - rootRect.left,
+      width: rect.width,
+      height: rect.height
+    };
+  });
+  expect(visibleControlsPanel.top).toBeLessThan(40);
+  expect(visibleControlsPanel.left).toBeLessThan(40);
+  expect(visibleControlsPanel.width).toBeGreaterThan(280);
+  expect(visibleControlsPanel.width).toBeLessThan(430);
+  expect(visibleControlsPanel.height).toBeGreaterThan(160);
+  expect(visibleControlsPanel.height).toBeLessThan(460);
   await expect(root).toHaveAttribute("data-flight-mode", "auto");
 
   await canvas.dispatchEvent("wheel", { deltaY: -180 });
@@ -370,7 +422,7 @@ test("About separates mouse look, keyboard manual mode, pause, and event hotkeys
   await expect(root).toHaveAttribute("data-about-control-hints-visible", "true");
   await expect(controls).toBeVisible();
   await expect(mode).toBeEnabled();
-  await page.keyboard.press("Shift+/");
+  await page.keyboard.press("/");
   await expect(root).toHaveAttribute("data-about-control-hints-visible", "true");
 
   await mode.click();
@@ -398,7 +450,11 @@ test("About separates mouse look, keyboard manual mode, pause, and event hotkeys
   await expect(root).toHaveAttribute("data-about-manual-event-count", "5");
 
   await page.keyboard.press("Enter");
-  await expect(page.locator("[data-about-intro]")).toBeVisible();
+  await expect(root).toHaveAttribute("data-about-enter-restart-behavior", "reset-sequence-1-in-scene");
+  await expect(root).toHaveAttribute("data-about-flight-sequence-stage", "dev");
+  await expect(root).toHaveAttribute("data-flight-mode", "auto");
+  await expect(page.locator("[data-about-intro]")).toBeHidden();
+  await expect(page.locator("[data-about-canvas]")).toHaveCount(1);
   expect(browserErrors).toEqual([]);
 });
 
@@ -434,6 +490,10 @@ test("About schedules background-only UFO and lightning events for Sequence 4", 
   await expect(root).toHaveAttribute("data-about-ufo-schedule", "sequence-4-background");
   await expect(root).toHaveAttribute("data-about-ufo-camera-tracking", "false");
   await expect(root).toHaveAttribute("data-about-ufo-camera-influence", "none");
+  await expect(root).toHaveAttribute(
+    "data-about-ufo-departure-completion",
+    "finish-before-hide-even-after-lightning"
+  );
   await expect(root).toHaveAttribute("data-about-lightning-enabled", "true");
   await expect(root).toHaveAttribute("data-about-lightning-camera-influence", "none");
   await expect(mode).toHaveText("AUTO 2x");

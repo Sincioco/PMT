@@ -126,6 +126,17 @@ Back to the About Page - 3D Logo Flyby
 
 44.) When I click on the 3D scene, there appears to be this blue outline that appears, like a focus state.  Can you remove that.
 
+45.) I noticed that sometimes after Sequence 4 has concluded, the camera flies further out and prepares to enter Sequence 1...but it seems to be flying slower than it should.  Please don't change the flyby speed for any reason unless the user changes it.
+
+46.) Make the chart panels permanently in "Dark Theme".  Don't let it be affected or changed the user's choice of light/dark theme since we are in space, black theme looks better.
+
+47.) In reference to #44, when I click on the 3D scene, there is still some sort of outline (it's white/gray now) that indicates the 3D scene is selected.  Can you find out where that is coming from and remove it please?
+
+48.) I notice sometimes the alien appears and it does it's speech bubble....but it just disappears without flying away.  Can you make sure the alien completes its flying sequence.
+
+48.) There's a bug in your Flight Controls panel, it only renders the title because the window is very tiny and it's located on the lower left.  Move the panel to the upper-left taking up as much space / width as it needs to to render the control hints appropriately.
+
+49.) When the alien is struck by lightning, it just disappears and does not complete it's exit sequence.  Fix it so that even if the alien is struck by lightning it still exits the scene as it normally would. 
 
 About Page - 3D Logo Flyby - Manual Controls
 --------------------------------------------
@@ -150,3 +161,14 @@ I want to completely to redo the controls as follows:
 16.) The question "?" mark key should show the keyboard controls / hits even during automatic flyby mode.
 17.) When the animation is first run and sequence 4 has been completed, show the controls / hints just once so the user can learn they exist.
 18.) Pressing "A" should not interfere with existing flyby animations, it should just trigger the alien/lightning even with the alien always being struck by the lightning for this one event.
+19.) For the "?" and the keyboard control / hints, just show it as a nice big panel on the left side of the screen.  So the user can really see/read it.
+20.) Pressing the "?" to show the keyboard control / hints does not show anything but an empty tiny panel on the lower left corner of the screen.  In fact, pressing "?" doesn't do anything at all!  It seems to want Shift + ? instead of just ?.
+
+
+
+21.) You rendered a full-dialog size keyboard control / hints.  I actually still prefer the tiny version like before, not this new big one.  I want the user to notice it, but not be the focus of attention.  And what does does the Shift (boost) do? 
+22.) When you press Enter to re-start, don't exit out of the 3D scene.  I just meant, reset everything back to Sequence 1.
+23.) Also change "Alien + strike" to "Alient + Lightning Strike" on the keyboard control / hints.
+24.) Don't make it a horizontal strip, stills how one control per line.  I just want it compacted like before.
+25.) Don't automatically show the Control hints anymore after Sequence 4.  Instead, put a "?" panel on the upper-left, so when they click on it, the control hints panel shows up for 5 seconds.
+26.) Put the "?" panel on the lower left instead.

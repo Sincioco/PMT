@@ -15,6 +15,7 @@ const BEAM_RETRACT_END = 18.2;
 const DEPART_END = 21.2;
 const SPEECH_START = 14.1;
 const SPEECH_END = 17.8;
+const LIGHTNING_RECOVERY_SECONDS = 3.4;
 const UFO_FIRST_LIGHTNING_LINE = "This PMT really has a lot of spark!";
 const SPEECH_LINES = [
   "Wow, JIRA + Confluence all-in-one?\nSuch advanced civilization!",
@@ -156,7 +157,9 @@ export function createUfoEncounter({ scene, resources, speechElement }) {
       return state;
     }
 
-    if (time >= DEPART_END + CAMERA_RELEASE_SECONDS) {
+    const lightningRecoveryActive = isLightningRecoveryActive(time);
+
+    if (time >= DEPART_END + CAMERA_RELEASE_SECONDS && !lightningRecoveryActive) {
       encounterLeadStartedAt = null;
       encounterIndex += 1;
       nextEncounterAt = activeElapsedSeconds + ufoIdleDelay(random);
@@ -167,7 +170,7 @@ export function createUfoEncounter({ scene, resources, speechElement }) {
       return state;
     }
 
-    if (time >= DEPART_END) {
+    if (time >= DEPART_END && !lightningRecoveryActive) {
       setShipVisible(false);
       hideSpeech();
       setShipOnCurve(departureCurve, 1);
@@ -179,7 +182,10 @@ export function createUfoEncounter({ scene, resources, speechElement }) {
     }
 
     setShipVisible(true);
-    if (time < ORBIT_END) {
+    if (time >= DEPART_END) {
+      hideSpeech();
+      setShipOnCurve(departureCurve, 1);
+    } else if (time < ORBIT_END) {
       const progress = smootherStep(time / ORBIT_END);
       setShipOnCurve(orbitCurve, progress);
     } else if (time < BEAM_RETRACT_END) {
@@ -208,7 +214,7 @@ export function createUfoEncounter({ scene, resources, speechElement }) {
   function updateLightningReaction(time) {
     if (lightningReactionStartedAt === null) return;
     const age = time - lightningReactionStartedAt;
-    if (age < 0 || age >= 3.4) {
+    if (age < 0 || age >= LIGHTNING_RECOVERY_SECONDS) {
       lightningReactionStartedAt = null;
       ship.rotation.z = 0;
       return;
@@ -217,9 +223,9 @@ export function createUfoEncounter({ scene, resources, speechElement }) {
       ? smootherStep(age / 0.55) * 1.15
       : age < 1.25
         ? 1.15
-        : (1 - smootherStep((age - 1.25) / 2.15)) * 1.15;
+        : (1 - smootherStep((age - 1.25) / (LIGHTNING_RECOVERY_SECONDS - 1.25))) * 1.15;
     ship.position.y -= drop;
-    ship.rotation.z = Math.sin(age * 24) * 0.18 * (1 - age / 3.4);
+    ship.rotation.z = Math.sin(age * 24) * 0.18 * (1 - age / LIGHTNING_RECOVERY_SECONDS);
   }
 
   function getStrikePosition(target) {
@@ -239,6 +245,20 @@ export function createUfoEncounter({ scene, resources, speechElement }) {
     lightningReactionCount += 1;
     activeSpeechIndex = -1;
     return true;
+  }
+
+  function isDepartureIncomplete() {
+    if (!enabled || encounterLeadStartedAt === null) return false;
+    const encounterTime = Number(ship.userData.encounterTime);
+    return Number.isFinite(encounterTime)
+      && encounterTime >= 0
+      && (encounterTime < DEPART_END || isLightningRecoveryActive(encounterTime));
+  }
+
+  function isLightningRecoveryActive(time) {
+    if (lightningReactionStartedAt === null) return false;
+    const age = time - lightningReactionStartedAt;
+    return age >= 0 && age < LIGHTNING_RECOVERY_SECONDS;
   }
 
   function setShipOnCurve(curve, progress) {
@@ -364,6 +384,7 @@ export function createUfoEncounter({ scene, resources, speechElement }) {
     startNow,
     getStrikePosition,
     reactToLightning,
+    isDepartureIncomplete,
     dispose
   };
 }

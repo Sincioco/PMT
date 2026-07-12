@@ -1,15 +1,15 @@
 import * as THREE from "../../vendor/three/three.module.min.js";
 import { RoomEnvironment } from "../../vendor/three/addons/environments/RoomEnvironment.js?v=0.185.1-pmt1";
 import { SVGLoader } from "../../vendor/three/addons/loaders/SVGLoader.js?v=0.185.1-pmt1";
-import { createAboutFlightController } from "./about-flight-controller.js?v=20260712-about-focus-outline-91";
-import { createLogoLightningEffect } from "./about-lightning.js?v=20260712-about-focus-outline-91";
-import { createUfoEncounter } from "./about-ufo.js?v=20260712-about-focus-outline-91";
+import { createAboutFlightController } from "./about-flight-controller.js?v=20260712-about-controls-ufo-103";
+import { createLogoLightningEffect } from "./about-lightning.js?v=20260712-about-controls-ufo-103";
+import { createUfoEncounter } from "./about-ufo.js?v=20260712-about-controls-ufo-103";
 import {
   createAboutChartGallery,
   DEV_CHART_GRID_HEIGHT,
   DEV_CHART_GRID_WIDTH,
   DEV_CHART_GRID_Z
-} from "./about-workload-billboard.js?v=20260712-about-focus-outline-91";
+} from "./about-workload-billboard.js?v=20260712-about-controls-ufo-103";
 
 const INTRO_DURATION_MS = 3000;
 const INTRO_FADE_DURATION_MS = 1250;
@@ -32,6 +32,7 @@ export function createAboutScene({
   introCountdownElement,
   statusElement,
   modeElement,
+  controlHintsTriggerElement,
   debugElement,
   ufoSpeechElement,
   alienNoticeElement,
@@ -39,7 +40,6 @@ export function createAboutScene({
   devCharts,
   bugCharts,
   users,
-  onRestart,
   onFailure
 }) {
   const startedAt = performance.now();
@@ -73,6 +73,7 @@ export function createAboutScene({
   let manualAlienStrikeAt = Number.POSITIVE_INFINITY;
   let manualAlienStrikePending = false;
   let sequence4UfoActive = false;
+  let sequence4UfoDraining = false;
   let sequence4EventStartedAt = Number.NEGATIVE_INFINITY;
   let sequence4LogoStrikeDone = false;
   let sequence4UfoStrikePlanned = false;
@@ -159,6 +160,8 @@ export function createAboutScene({
     root.dataset.aboutUfoCameraTracking = "false";
     root.dataset.aboutUfoCameraInfluence = "none";
     root.dataset.aboutUfoSequence4Playback = "full-background-animation";
+    root.dataset.aboutUfoDepartureCompletion = "finish-before-hide-even-after-lightning";
+    root.dataset.aboutUfoDepartureDraining = "false";
     root.dataset.aboutLightningEnabled = "true";
     root.dataset.aboutLightningSchedule = "sequence-4-background";
     root.dataset.aboutLightningCameraInfluence = "none";
@@ -251,9 +254,9 @@ export function createAboutScene({
         minimumCameraY: FLOOR_Y + MIN_CAMERA_FLOOR_CLEARANCE,
         statusElement,
         modeElement,
+        controlHintsTriggerElement,
         debugElement,
-        reducedMotion,
-        onRestart
+        reducedMotion
       });
 
       if (performance.now() - startedAt >= INTRO_DURATION_MS) {
@@ -350,6 +353,7 @@ export function createAboutScene({
     const sequence4Active = SEQUENCE_4_BACKGROUND_UFO_ENABLED
       && root.dataset.aboutFlightSequenceStage === "return-initial";
     if (sequence4Active && !sequence4UfoActive) {
+      sequence4UfoDraining = false;
       ufoEncounter?.startNow(encounterElapsed);
       lightningEffect?.setEnabled(true, encounterElapsed);
       sequence4EventStartedAt = encounterElapsed;
@@ -360,8 +364,15 @@ export function createAboutScene({
     } else if (!sequence4Active && sequence4UfoActive) {
       const keepManualEncounter = encounterElapsed >= 0
         && encounterElapsed < manualUfoActiveUntil;
-      if (!keepManualEncounter) ufoEncounter?.setEnabled(false, encounterElapsed);
-      if (!manualAlienStrikePending) lightningEffect?.setEnabled(false, encounterElapsed);
+      const finishDeparture = !keepManualEncounter
+        && Boolean(ufoEncounter?.isDepartureIncomplete?.());
+      sequence4UfoDraining = finishDeparture;
+      if (!keepManualEncounter && !finishDeparture) {
+        ufoEncounter?.setEnabled(false, encounterElapsed);
+      }
+      if (!manualAlienStrikePending && !finishDeparture) {
+        lightningEffect?.setEnabled(false, encounterElapsed);
+      }
     }
     sequence4UfoActive = sequence4Active;
     const manualUfoActive = encounterElapsed >= 0
@@ -374,6 +385,15 @@ export function createAboutScene({
       reducedMotion,
       sequence4Active || manualUfoActive
     ) || null;
+    if (sequence4UfoDraining
+      && !sequence4Active
+      && !manualUfoActive
+      && !ufoEncounter?.isDepartureIncomplete?.()) {
+      sequence4UfoDraining = false;
+      ufoEncounter?.setEnabled(false, encounterElapsed);
+      if (!manualAlienStrikePending) lightningEffect?.setEnabled(false, encounterElapsed);
+    }
+    root.dataset.aboutUfoDepartureDraining = String(sequence4UfoDraining);
     const sequence4EventAge = sequence4Active
       ? encounterElapsed - sequence4EventStartedAt
       : -1;
@@ -471,6 +491,7 @@ export function createAboutScene({
     }
 
     if (resolvedEvent === "alien") {
+      sequence4UfoDraining = false;
       manualUfoActiveUntil = encounterElapsed + 25;
       ufoEncounter?.startNow(encounterElapsed);
       root.dataset.aboutUfoEnabled = "true";
