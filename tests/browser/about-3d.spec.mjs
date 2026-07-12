@@ -56,8 +56,13 @@ test("About renders the drone flyby and supports camera takeover and speed keys"
   await expect(root).toHaveAttribute("data-about-ufo-camera-tracking", "false");
   await expect(root).toHaveAttribute("data-about-ufo-camera-influence", "none");
   await expect(root).toHaveAttribute("data-about-ufo-sequence-4-playback", "full-background-animation");
-  await expect(root).toHaveAttribute("data-about-lightning-enabled", "false");
-  await expect(root).toHaveAttribute("data-about-lightning-schedule", "suspended");
+  await expect(root).toHaveAttribute("data-about-lightning-enabled", "true");
+  await expect(root).toHaveAttribute("data-about-lightning-schedule", "sequence-4-background");
+  await expect(root).toHaveAttribute("data-about-lightning-camera-influence", "none");
+  await expect(root).toHaveAttribute("data-about-lightning-scene-flash", "dramatic");
+  await expect(root).toHaveAttribute("data-about-lightning-ufo-strike", "random");
+  await expect(root).toHaveAttribute("data-about-lightning-ufo-strike-chance", "0.5");
+  await expect(root).toHaveAttribute("data-about-lightning-ufo-strike-planned", "false");
   await expect(root).toHaveAttribute("data-about-initial-camera", "2d-logo-facing");
   await expect(root).toHaveAttribute("data-about-flight-path", "initial-logo-p-hole-dev-bug-return-initial");
   await expect(root).toHaveAttribute("data-about-flight-direction", "forward-through-approved-sequences");
@@ -82,8 +87,9 @@ test("About renders the drone flyby and supports camera takeover and speed keys"
   await expect(root).toHaveAttribute("data-about-dev-arrival-behavior", "slow-continuous-no-stop");
   await expect(root).toHaveAttribute("data-about-dev-landing-framing", "natural-flyby");
   await expect(root).toHaveAttribute("data-about-bug-landing-framing", "upper-left-for-wide-charts");
-  await expect(root).toHaveAttribute("data-about-dev-to-bug-transition", "slow-forward-turn");
-  await expect(root).toHaveAttribute("data-about-sequence-transition-pose", "continuous-current-camera");
+  await expect(root).toHaveAttribute("data-about-dev-to-bug-transition", "precomputed-overlap-curve");
+  await expect(root).toHaveAttribute("data-about-dev-to-bug-handoff-prepared", "true");
+  await expect(root).toHaveAttribute("data-about-sequence-transition-pose", "continuous-preblended-curve");
   await expect(root).toHaveAttribute("data-about-wide-chart-traversal", "generalized-by-chart-width-and-wall");
   await expect(root).toHaveAttribute("data-about-wide-chart-threshold", "16.416");
   await expect(root).toHaveAttribute("data-about-wide-chart-traversal-speed", "5");
@@ -214,8 +220,8 @@ test("About renders the drone flyby and supports camera takeover and speed keys"
   await expect(alienNotice).toBeVisible();
   await expect(alienNotice).toContainText("automatically in the background during Sequence 4");
   await page.keyboard.press("l");
-  await expect(root).toHaveAttribute("data-about-lightning-enabled", "false");
-  await expect(alienNotice).toContainText("Lightning remains suspended");
+  await expect(root).toHaveAttribute("data-about-lightning-enabled", "true");
+  await expect(alienNotice).toContainText("automatically in the background during Sequence 4");
   await page.waitForTimeout(900);
   await expect(root).toHaveAttribute("data-about-lightning-strike-count", "0");
   await expect(root).toHaveAttribute("data-about-lightning-active", "false");
@@ -287,7 +293,7 @@ test("About honors reduced motion with a still 3D scene", async ({ page }) => {
   expect(browserErrors).toEqual([]);
 });
 
-test("About schedules a background-only UFO for Sequence 4", async ({ page }) => {
+test("About schedules background-only UFO and lightning events for Sequence 4", async ({ page }) => {
   const browserErrors = collectBrowserErrors(page);
   await prepareAboutPage(page);
   await page.goto("/#/about");
@@ -302,7 +308,8 @@ test("About schedules a background-only UFO for Sequence 4", async ({ page }) =>
   await expect(root).toHaveAttribute("data-about-ufo-schedule", "sequence-4-background");
   await expect(root).toHaveAttribute("data-about-ufo-camera-tracking", "false");
   await expect(root).toHaveAttribute("data-about-ufo-camera-influence", "none");
-  await expect(root).toHaveAttribute("data-about-lightning-enabled", "false");
+  await expect(root).toHaveAttribute("data-about-lightning-enabled", "true");
+  await expect(root).toHaveAttribute("data-about-lightning-camera-influence", "none");
   await expect(mode).toHaveText("AUTO 2x");
   await expect(speech).toBeHidden();
   expect(browserErrors).toEqual([]);

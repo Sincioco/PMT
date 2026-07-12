@@ -6,7 +6,8 @@ const BUG_FLIGHT_DURATION_SECONDS = 19;
 const SEQUENCE_4_DURATION_SECONDS = 38;
 const WIDE_CHART_TRAVERSAL_SPEED = 5;
 const DEV_SEQUENCE_HANDOFF_PHASE = 0.992;
-const NEXT_SEQUENCE_ENTRY_PHASE = 0.012;
+const DEV_TO_BUG_BLEND_START_PHASE = 0.94;
+const DEV_TO_BUG_ENTRY_PHASE = 0.1;
 const DRONE_POSITION_RESPONSE = 6;
 const DRONE_HEADING_RESPONSE = 1.15;
 const DRONE_FOV_RESPONSE = 1.4;
@@ -77,6 +78,7 @@ export function createAboutFlightController({
   const keys = new Set();
   const pose = createPose();
   const autopilotTarget = createPose();
+  const handoffTarget = createPose();
   const returnTarget = createPose();
   const returnFromPosition = new THREE.Vector3();
   const returnFromQuaternion = new THREE.Quaternion();
@@ -150,8 +152,10 @@ export function createAboutFlightController({
   root.dataset.aboutDevLandingTestState = "approaching-dev";
   root.dataset.aboutDevLandingFraming = "natural-flyby";
   root.dataset.aboutBugLandingFraming = "upper-left-for-wide-charts";
-  root.dataset.aboutDevToBugTransition = "slow-forward-turn";
-  root.dataset.aboutSequenceTransitionPose = "continuous-current-camera";
+  root.dataset.aboutDevToBugTransition = "precomputed-overlap-curve";
+  root.dataset.aboutDevToBugHandoffPrepared = String(Boolean(route.bugDestination));
+  root.dataset.aboutDevToBugHandoffProgress = "0";
+  root.dataset.aboutSequenceTransitionPose = "continuous-preblended-curve";
   root.dataset.aboutWideChartTraversal = "generalized-by-chart-width-and-wall";
   root.dataset.aboutWideChartThreshold = String(WIDE_CHART_THRESHOLD);
   root.dataset.aboutWideChartTraversalSpeed = String(WIDE_CHART_TRAVERSAL_SPEED);
@@ -226,6 +230,31 @@ export function createAboutFlightController({
       if (isBugStage) sampleBugFlightPose(route, autopilotPhase, autopilotTarget, camera.aspect);
       else if (isSequence4Stage) sampleSequence4Pose(sequence4Geometry, autopilotPhase, autopilotTarget);
       else sampleFlightPose(route, autopilotPhase, autopilotTarget);
+      const isDevToBugHandoff = !isBugStage
+        && !isSequence4Stage
+        && !route.devDestinationIsWide
+        && Boolean(route.bugDestination)
+        && autopilotPhase >= DEV_TO_BUG_BLEND_START_PHASE;
+      let devToBugHandoffProgress = 0;
+      if (isDevToBugHandoff) {
+        devToBugHandoffProgress = THREE.MathUtils.clamp(
+          (autopilotPhase - DEV_TO_BUG_BLEND_START_PHASE)
+            / (DEV_SEQUENCE_HANDOFF_PHASE - DEV_TO_BUG_BLEND_START_PHASE),
+          0,
+          1
+        );
+        sampleBugFlightPose(
+          route,
+          devToBugHandoffProgress * DEV_TO_BUG_ENTRY_PHASE,
+          handoffTarget,
+          camera.aspect
+        );
+        blendPoseToward(
+          autopilotTarget,
+          handoffTarget,
+          smootherStep(devToBugHandoffProgress)
+        );
+      }
       if (isBugStage) {
         const framingBlend = smootherStep(smoothStepRange(0.62, 0.96, autopilotPhase));
         autopilotTarget.fov = THREE.MathUtils.lerp(
@@ -245,7 +274,10 @@ export function createAboutFlightController({
       root.dataset.aboutFlightInstructionState = autopilotTarget.waitingForInstruction
         ? "waiting"
         : "active";
-      setFlightAction(describeFlightAction(route, flightStage, autopilotPhase, autopilotTarget));
+      root.dataset.aboutDevToBugHandoffProgress = devToBugHandoffProgress.toFixed(3);
+      setFlightAction(isDevToBugHandoff
+        ? `Arriving at: ${route.devDestinationLabel} â€¢ Curving toward: ${route.bugDestinationLabel}`
+        : describeFlightAction(route, flightStage, autopilotPhase, autopilotTarget));
 
       if (cinematicAttention > 0.04) {
         eventLookMatrix.lookAt(autopilotTarget.position, eventTarget, eventUp);
@@ -549,22 +581,25 @@ export function createAboutFlightController({
       startWideChartFlythrough(now, traversal, label, isDevChart ? "bug" : "return-initial");
       return;
     }
-    if (isDevChart) startBugSequence();
+    if (isDevChart) startBugSequence(false);
     else startSequence4();
   }
 
-  function startBugSequence() {
-    route.bugGeometry = createBugFlightGeometry({
-      devLandingPosition: camera.position,
-      devDestination: route.devDestination,
-      bugDestination: route.bugDestination,
-      bugDestinationWidth: route.bugDestinationWidth,
-      bugDestinationIsWide: route.bugDestinationIsWide,
-      minimumCameraY
-    });
-    updateRouteDatasets();
+  function startBugSequence(rebuildFromCurrent) {
+    if (rebuildFromCurrent) {
+      route.bugGeometry = createBugFlightGeometry({
+        devLandingPosition: camera.position,
+        devDestination: route.devDestination,
+        bugDestination: route.bugDestination,
+        bugDestinationWidth: route.bugDestinationWidth,
+        bugDestinationIsWide: route.bugDestinationIsWide,
+        minimumCameraY
+      });
+      updateRouteDatasets();
+    }
     flightStage = "bug";
-    autopilotPhase = NEXT_SEQUENCE_ENTRY_PHASE;
+    autopilotPhase = rebuildFromCurrent ? 0 : DEV_TO_BUG_ENTRY_PHASE;
+    root.dataset.aboutDevToBugHandoffProgress = rebuildFromCurrent ? "0" : "1";
     root.dataset.aboutDevLandingTestState = "approaching-bug";
     root.dataset.aboutFlightSequenceStage = flightStage;
     root.dataset.aboutDevLandingTarget = route.devDestinationLabel;
@@ -634,7 +669,7 @@ export function createAboutFlightController({
     root.dataset.aboutWideChartTraversalActive = "false";
     const nextStage = activeWideTraversal.nextStage;
     activeWideTraversal = null;
-    if (nextStage === "bug") startBugSequence();
+    if (nextStage === "bug") startBugSequence(true);
     else startSequence4();
   }
 
@@ -664,6 +699,7 @@ export function createAboutFlightController({
     root.dataset.aboutDevLandingTestRun = String(debugTestRun);
     root.dataset.aboutDevLandingTestState = "approaching-dev";
     root.dataset.aboutFlightSequenceStage = flightStage;
+    root.dataset.aboutDevToBugHandoffProgress = "0";
     sequence4Geometry = null;
     setMode("auto");
     setFlightAction(`Sequence 1 restarted • Next Dev chart: ${route.devDestinationLabel}`);
@@ -1267,6 +1303,28 @@ function createPose() {
     pose.fov = source.fov;
   };
   return pose;
+}
+
+function blendPoseToward(pose, target, blend) {
+  pose.position.lerp(target.position, blend);
+  pose.quaternion.slerp(target.quaternion, blend).normalize();
+  pose.tangent.lerp(target.tangent, blend).normalize();
+  pose.ahead.lerp(target.ahead, blend);
+  pose.lookTarget.lerp(target.lookTarget, blend);
+  pose.lookDirection.lerp(target.lookDirection, blend).normalize();
+  pose.lateralLookDirection.lerp(target.lateralLookDirection, blend);
+  pose.logoAttention = THREE.MathUtils.lerp(pose.logoAttention, target.logoAttention, blend);
+  pose.portalAttention = THREE.MathUtils.lerp(pose.portalAttention, target.portalAttention, blend);
+  pose.devAttention = THREE.MathUtils.lerp(pose.devAttention, target.devAttention, blend);
+  pose.bugAttention = THREE.MathUtils.lerp(pose.bugAttention, target.bugAttention, blend);
+  pose.horizonAttention = THREE.MathUtils.lerp(
+    pose.horizonAttention,
+    target.horizonAttention,
+    blend
+  );
+  pose.waitingForInstruction = pose.waitingForInstruction && target.waitingForInstruction;
+  pose.forwardLookDot = THREE.MathUtils.lerp(pose.forwardLookDot, target.forwardLookDot, blend);
+  pose.fov = THREE.MathUtils.lerp(pose.fov, target.fov, blend);
 }
 
 function applyPose(camera, pose) {

@@ -100,4 +100,17 @@ Sequence 3:  Random Dev Chart -> Random Bug Tracking / QA Chart
 32.) Your wide-chart calculation is off.  I see you are displaying a percentage of traversal completion, but usually, you've already traversed the entire chart and the percent completion is still around 40-50%.  So you end up flying way way past the chart.
 
 
-Create a .md file for the approved animation sequences so that future you (Codex) can make alterations to the animation sequences more easily without having to re-discover what has been done.
+33.) Add back the lighting effect.  Execute it in the same time window as the UFO / alient event...so the lighting effect can happen in the background while the camera is flying towards the initial view.  The lighting effect should not interfere with the approved animation sequences.
+34.) If possible, once in a while, have the lightning strick the UFO.  Animate UFO has if it has been struck, losing altitude slightly and saying something funny like "They use lightning as weapons, what an advance civilization!"  Then the UFO can recover and continue on its path.  This is just for fun, so don't worry about it if it is too much work.  And have it randomly say funny things, if you can.
+
+35.) I want the ligtning effect to be more dramatic.  Make it flash the entire scene. The lightning should not interfere with the approved animation sequences.
+
+36.) I still don't like how sequence 2 ends.  It still feels bumpy / rough.  Change it so that just before reaching the final destination, it's already made a smooth calculated curve path to the next destination and it's already executing it, so there's no visual pause/bump then resume to the next destination effect.
+
+37.) When the alien is struck by lightning for the first time, have it say this as the first fixed thing it says, "This PMT really has a lot of spark!"  Then after that, it can say random funny things as it is struck by lightning.  The alien should not interfere with the approved animation sequences.
+
+38.) Create a .md file (or update if you have one already) for the approved animation sequences so that future you (Codex) can make alterations to the animation sequences more easily without having to re-discover what has been done.  In the in the markdown include the random events like the alien and lightning, so we can easily add or remove them in the future without breaking the approved animation sequences.  Also, include the wide-chart traversal logic in the markdown so we can easily make changes to it in the future without breaking the approved animation sequences. Main this .md file as I approve future animation / event sequences.
+
+39.) I approve of the comet, lightning and alien events.  Record that in the .md file.
+
+40.) Change the lightning and UFO interaction so that the UFO is struck by lightning half the time.

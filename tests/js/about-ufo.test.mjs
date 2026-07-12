@@ -8,6 +8,7 @@ import {
   UFO_IDLE_MIN_SECONDS,
   ufoFirstDelay,
   ufoIdleDelay,
+  ufoLightningSpeechForStrike,
   ufoSpeechForEncounter
 } from "../../wwwroot/js/features/about/about-ufo.js";
 
@@ -30,4 +31,17 @@ test("UFO uses randomized convenient-window delays and rotates its transmissions
   assert.ok(firstCycle.includes("Wow, JIRA + Confluence all-in-one?\nSuch advanced civilization!"));
   assert.ok(firstCycle.includes("Dev Tasks, Bug Tracking with Charts!\nI need to tell the others!"));
   assert.ok(firstCycle.includes("What?  This tool is free?\nHow crazy is that!"));
+
+  assert.equal(
+    ufoLightningSpeechForStrike(0, () => 0.75),
+    "This PMT really has a lot of spark!"
+  );
+  assert.equal(
+    ufoLightningSpeechForStrike(1, () => 0),
+    "They use lightning as weapons?\nWhat an advanced civilization!"
+  );
+  assert.equal(
+    ufoLightningSpeechForStrike(2, () => 0.999999),
+    "Their weather has excellent aim.\nWe should retreat after this demo!"
+  );
 });

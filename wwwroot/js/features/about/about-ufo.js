@@ -15,6 +15,7 @@ const BEAM_RETRACT_END = 18.2;
 const DEPART_END = 21.2;
 const SPEECH_START = 14.1;
 const SPEECH_END = 17.8;
+const UFO_FIRST_LIGHTNING_LINE = "This PMT really has a lot of spark!";
 const SPEECH_LINES = [
   "Wow, JIRA + Confluence all-in-one?\nSuch advanced civilization!",
   "Dev Tasks, Bug Tracking with Charts!\nI need to tell the others!",
@@ -26,6 +27,12 @@ const SPEECH_LINES = [
   "Forget abducting cows.\nWe are abducting this Road Map!",
   "Scan complete! Their backlog is\nmore organized than our star charts!",
   "One small tool for a team,\none giant leap for project management!"
+];
+const UFO_LIGHTNING_LINES = [
+  "They use lightning as weapons?\nWhat an advanced civilization!",
+  "Shields at twelve percent!\nLog this as a critical bug!",
+  "That was not in the Sprint plan!\nInitiating emergency recovery!",
+  "Their weather has excellent aim.\nWe should retreat after this demo!"
 ];
 
 export function createUfoEncounter({ scene, resources, speechElement }) {
@@ -54,6 +61,8 @@ export function createUfoEncounter({ scene, resources, speechElement }) {
     shadowUpdate: false
   };
   let activeSpeechIndex = -1;
+  let lightningReactionStartedAt = null;
+  let lightningReactionCount = 0;
 
   ship.add(beam.group, scanLight);
   scanLight.position.set(0, -0.1, 0);
@@ -88,6 +97,7 @@ export function createUfoEncounter({ scene, resources, speechElement }) {
       setShipVisible(false);
       beam.group.visible = false;
       scanLight.intensity = 0;
+      lightningReactionStartedAt = null;
       setElapsedTime(-1);
     }
     return enabled;
@@ -98,6 +108,7 @@ export function createUfoEncounter({ scene, resources, speechElement }) {
     enabledAt = Math.max(0, Number(elapsedSeconds || 0));
     nextEncounterAt = 0;
     encounterLeadStartedAt = null;
+    lightningReactionStartedAt = null;
     pendingShadowUpdate = true;
     hideSpeech();
     setElapsedTime(0);
@@ -181,6 +192,7 @@ export function createUfoEncounter({ scene, resources, speechElement }) {
     }
 
     ship.rotation.set(0, time * 0.16, 0);
+    updateLightningReaction(time);
     updateBeam(time);
     updateAttention(time);
     updateSpeechVisibility(time);
@@ -191,6 +203,42 @@ export function createUfoEncounter({ scene, resources, speechElement }) {
   function updateFocus() {
     focus.copy(ship.position);
     focus.y -= 1.65;
+  }
+
+  function updateLightningReaction(time) {
+    if (lightningReactionStartedAt === null) return;
+    const age = time - lightningReactionStartedAt;
+    if (age < 0 || age >= 3.4) {
+      lightningReactionStartedAt = null;
+      ship.rotation.z = 0;
+      return;
+    }
+    const drop = age < 0.55
+      ? smootherStep(age / 0.55) * 1.15
+      : age < 1.25
+        ? 1.15
+        : (1 - smootherStep((age - 1.25) / 2.15)) * 1.15;
+    ship.position.y -= drop;
+    ship.rotation.z = Math.sin(age * 24) * 0.18 * (1 - age / 3.4);
+  }
+
+  function getStrikePosition(target) {
+    if (!ship.visible || !target?.isVector3) return false;
+    target.copy(ship.position);
+    target.y += 0.42;
+    return true;
+  }
+
+  function reactToLightning() {
+    if (!ship.visible) return false;
+    lightningReactionStartedAt = Number(ship.userData.encounterTime || 0);
+    speechElement.textContent = ufoLightningSpeechForStrike(
+      lightningReactionCount,
+      random
+    );
+    lightningReactionCount += 1;
+    activeSpeechIndex = -1;
+    return true;
   }
 
   function setShipOnCurve(curve, progress) {
@@ -314,6 +362,8 @@ export function createUfoEncounter({ scene, resources, speechElement }) {
     setSceneOffset,
     setEnabled,
     startNow,
+    getStrikePosition,
+    reactToLightning,
     dispose
   };
 }
@@ -322,6 +372,13 @@ export function ufoSpeechForEncounter(encounterIndex) {
   const normalizedIndex = ((Math.trunc(encounterIndex) % SPEECH_LINES.length) + SPEECH_LINES.length)
     % SPEECH_LINES.length;
   return SPEECH_LINES[normalizedIndex];
+}
+
+export function ufoLightningSpeechForStrike(strikeIndex, random = Math.random) {
+  const normalizedStrikeIndex = Math.max(0, Math.trunc(Number(strikeIndex) || 0));
+  if (normalizedStrikeIndex === 0) return UFO_FIRST_LIGHTNING_LINE;
+  const randomValue = THREE.MathUtils.clamp(Number(random()) || 0, 0, 0.999999);
+  return UFO_LIGHTNING_LINES[Math.floor(randomValue * UFO_LIGHTNING_LINES.length)];
 }
 
 function createShip(resources) {

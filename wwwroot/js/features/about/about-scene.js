@@ -1,15 +1,15 @@
 import * as THREE from "../../vendor/three/three.module.min.js";
 import { RoomEnvironment } from "../../vendor/three/addons/environments/RoomEnvironment.js?v=0.185.1-pmt1";
 import { SVGLoader } from "../../vendor/three/addons/loaders/SVGLoader.js?v=0.185.1-pmt1";
-import { createAboutFlightController } from "./about-flight-controller.js?v=20260712-about-3d-flyby-80";
-import { createLogoLightningEffect } from "./about-lightning.js?v=20260712-about-3d-flyby-80";
-import { createUfoEncounter } from "./about-ufo.js?v=20260712-about-3d-flyby-80";
+import { createAboutFlightController } from "./about-flight-controller.js?v=20260712-about-3d-flyby-83";
+import { createLogoLightningEffect } from "./about-lightning.js?v=20260712-about-3d-flyby-83";
+import { createUfoEncounter } from "./about-ufo.js?v=20260712-about-3d-flyby-83";
 import {
   createAboutChartGallery,
   DEV_CHART_GRID_HEIGHT,
   DEV_CHART_GRID_WIDTH,
   DEV_CHART_GRID_Z
-} from "./about-workload-billboard.js?v=20260712-about-3d-flyby-80";
+} from "./about-workload-billboard.js?v=20260712-about-3d-flyby-83";
 
 const INTRO_DURATION_MS = 3000;
 const INTRO_FADE_DURATION_MS = 1250;
@@ -22,6 +22,9 @@ const MIN_CAMERA_FLOOR_CLEARANCE = 1.55;
 const FALLBACK_PORTAL = new THREE.Vector2(1006.56, 443.3);
 const SEQUENCE_4_BACKGROUND_UFO_ENABLED = true;
 const LIGHTNING_EVENTS_ENABLED = false;
+const SEQUENCE_4_LOGO_STRIKE_SECONDS = 5.2;
+const SEQUENCE_4_UFO_STRIKE_SECONDS = 16;
+const SEQUENCE_4_UFO_STRIKE_CHANCE = 0.5;
 
 export function createAboutScene({
   root,
@@ -49,6 +52,8 @@ export function createAboutScene({
   const resizeObserver = new ResizeObserver(resize);
   const resources = new Set();
   const animatedLights = [];
+  const backgroundEventRandom = seededRandom(0x51a7e4);
+  const ufoStrikePosition = new THREE.Vector3();
 
   let environmentTexture = null;
   let flightController = null;
@@ -65,6 +70,10 @@ export function createAboutScene({
   let experienceStarted = false;
   let lightningEnabled = false;
   let sequence4UfoActive = false;
+  let sequence4EventStartedAt = Number.NEGATIVE_INFINITY;
+  let sequence4LogoStrikeDone = false;
+  let sequence4UfoStrikePlanned = false;
+  let sequence4UfoStrikeDone = false;
   let disposed = false;
 
   try {
@@ -145,10 +154,16 @@ export function createAboutScene({
     root.dataset.aboutUfoCameraTracking = "false";
     root.dataset.aboutUfoCameraInfluence = "none";
     root.dataset.aboutUfoSequence4Playback = "full-background-animation";
-    root.dataset.aboutLightningEnabled = "false";
-    root.dataset.aboutLightningSchedule = "suspended";
+    root.dataset.aboutLightningEnabled = "true";
+    root.dataset.aboutLightningSchedule = "sequence-4-background";
+    root.dataset.aboutLightningCameraInfluence = "none";
+    root.dataset.aboutLightningSceneFlash = "dramatic";
+    root.dataset.aboutLightningUfoStrike = "random";
+    root.dataset.aboutLightningUfoStrikeChance = String(SEQUENCE_4_UFO_STRIKE_CHANCE);
+    root.dataset.aboutLightningUfoStrikePlanned = "false";
     root.dataset.aboutLightningActive = "false";
     root.dataset.aboutLightningStrikeCount = "0";
+    root.dataset.aboutLightningUfoStrikeCount = "0";
     root.dataset.aboutLightningTarget = "";
     root.dataset.aboutMinCameraFloorClearance = String(MIN_CAMERA_FLOOR_CLEARANCE);
 
@@ -319,8 +334,15 @@ export function createAboutScene({
       && root.dataset.aboutFlightSequenceStage === "return-initial";
     if (sequence4Active && !sequence4UfoActive) {
       ufoEncounter?.startNow(encounterElapsed);
+      lightningEffect?.setEnabled(true, encounterElapsed);
+      sequence4EventStartedAt = encounterElapsed;
+      sequence4LogoStrikeDone = false;
+      sequence4UfoStrikePlanned = backgroundEventRandom() < SEQUENCE_4_UFO_STRIKE_CHANCE;
+      sequence4UfoStrikeDone = false;
+      root.dataset.aboutLightningUfoStrikePlanned = String(sequence4UfoStrikePlanned);
     } else if (!sequence4Active && sequence4UfoActive) {
       ufoEncounter?.setEnabled(false, encounterElapsed);
+      lightningEffect?.setEnabled(false, encounterElapsed);
     }
     sequence4UfoActive = sequence4Active;
     root.dataset.aboutUfoSequence4Active = String(sequence4Active);
@@ -330,6 +352,38 @@ export function createAboutScene({
       reducedMotion,
       sequence4Active
     ) || null;
+    const sequence4EventAge = sequence4Active
+      ? encounterElapsed - sequence4EventStartedAt
+      : -1;
+    if (sequence4Active
+      && !sequence4LogoStrikeDone
+      && sequence4EventAge >= SEQUENCE_4_LOGO_STRIKE_SECONDS) {
+      sequence4LogoStrikeDone = true;
+      lightningEffect?.triggerStrike(encounterElapsed);
+    }
+    if (sequence4Active
+      && sequence4UfoStrikePlanned
+      && !sequence4UfoStrikeDone
+      && sequence4EventAge >= SEQUENCE_4_UFO_STRIKE_SECONDS
+      && ufoEncounter?.getStrikePosition(ufoStrikePosition)) {
+      sequence4UfoStrikeDone = true;
+      lightningEffect?.triggerStrike(encounterElapsed, ufoStrikePosition, "UFO");
+      ufoEncounter.reactToLightning();
+      root.dataset.aboutLightningUfoStrikeCount = String(
+        Number(root.dataset.aboutLightningUfoStrikeCount || 0) + 1
+      );
+    }
+    const lightning = lightningEffect?.update(
+      encounterElapsed,
+      reducedMotion,
+      true
+    ) || null;
+    if (lightning) {
+      root.dataset.aboutLightningActive = String(lightning.active);
+      root.dataset.aboutLightningStrikeCount = String(lightning.strikeCount);
+      root.dataset.aboutLightningTarget = lightning.target;
+      if (lightning.active) renderer.shadowMap.needsUpdate = true;
+    }
     root.dataset.aboutLightningConvenientWindow = "false";
     return encounter;
   }
@@ -402,7 +456,11 @@ export function createAboutScene({
     if (!LIGHTNING_EVENTS_ENABLED && event.code === "KeyL" && !isTypingTarget(event.target)) {
       event.preventDefault();
       event.stopImmediatePropagation();
-      showEffectNotice("Lightning remains suspended while the approved flight runs", false, "paused");
+      showEffectNotice(
+        "Lightning runs automatically in the background during Sequence 4",
+        true,
+        "lightning"
+      );
       return;
     }
     if (event.code !== "KeyL"

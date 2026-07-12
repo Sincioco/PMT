@@ -62,7 +62,8 @@ export function createLogoLightningEffect({ scene, resources, targets }) {
 
   const flashLight = new THREE.PointLight(0xbfe8ff, 0, 22, 2);
   const heatLight = new THREE.PointLight(0xff5a16, 0, 9, 2);
-  group.add(flashLight, heatLight);
+  const sceneFlashLight = new THREE.HemisphereLight(0xe8f7ff, 0x5876a8, 0);
+  group.add(flashLight, heatLight, sceneFlashLight);
 
   const sparkPositions = new Float32Array(SPARK_COUNT * 3);
   const sparkVelocities = new Float32Array(SPARK_COUNT * 3);
@@ -121,6 +122,11 @@ export function createLogoLightningEffect({ scene, resources, targets }) {
     return enabled;
   }
 
+  function triggerStrike(elapsedSeconds, position = null, label = "PMT") {
+    if (position?.isVector3) beginStrike(elapsedSeconds, position, label);
+    else beginStrike(elapsedSeconds);
+  }
+
   function update(elapsedSeconds, reducedMotion = false, suspended = false) {
     reducedMotionActive = reducedMotion;
     if (!enabled || elapsedSeconds < 0 || !targets.length) {
@@ -144,16 +150,20 @@ export function createLogoLightningEffect({ scene, resources, targets }) {
     return state(strikeAge);
   }
 
-  function beginStrike(elapsedSeconds) {
+  function beginStrike(elapsedSeconds, forcedPosition = null, forcedLabel = "") {
     endStrike();
-    targetIndex = (targetIndex + 1) % targets.length;
-    currentTarget = targets[targetIndex];
+    if (forcedPosition) {
+      currentTarget = { mesh: null, label: forcedLabel || "UFO" };
+      impactPoint.copy(forcedPosition);
+    } else {
+      targetIndex = (targetIndex + 1) % targets.length;
+      currentTarget = targets[targetIndex];
+      targetBounds.setFromObject(currentTarget.mesh);
+      targetBounds.getCenter(targetCenter);
+      impactPoint.set(targetCenter.x, targetBounds.max.y, targetBounds.max.z + 0.08);
+    }
     strikeStartedAt = elapsedSeconds;
     strikeCount += 1;
-
-    targetBounds.setFromObject(currentTarget.mesh);
-    targetBounds.getCenter(targetCenter);
-    impactPoint.set(targetCenter.x, targetBounds.max.y, targetBounds.max.z + 0.08);
     strikeStart.set(
       impactPoint.x + (random() - 0.5) * 4.5,
       impactPoint.y + 10 + random() * 2.5,
@@ -165,11 +175,13 @@ export function createLogoLightningEffect({ scene, resources, targets }) {
     impactGlow.position.copy(impactPoint);
     flashLight.position.copy(impactPoint).addScalar(0.08);
     heatLight.position.copy(impactPoint).add(new THREE.Vector3(0, -0.25, 0.18));
-    currentMaterials = materialList(currentTarget.mesh.material).map(material => ({
-      material,
-      emissive: material.emissive?.clone?.() || null,
-      emissiveIntensity: material.emissiveIntensity ?? 0
-    }));
+    currentMaterials = currentTarget.mesh
+      ? materialList(currentTarget.mesh.material).map(material => ({
+        material,
+        emissive: material.emissive?.clone?.() || null,
+        emissiveIntensity: material.emissiveIntensity ?? 0
+      }))
+      : [];
     group.visible = true;
   }
 
@@ -241,6 +253,7 @@ export function createLogoLightningEffect({ scene, resources, targets }) {
     coreLines.visible = visible;
     impactGlow.visible = visible;
     flashLight.visible = visible;
+    sceneFlashLight.visible = visible;
     if (!visible) return;
 
     const decay = 1 - strikeAge / boltDuration;
@@ -253,6 +266,7 @@ export function createLogoLightningEffect({ scene, resources, targets }) {
     const impactScale = 1.3 + (1 - decay) * 2.6;
     impactGlow.scale.setScalar(impactScale);
     flashLight.intensity = 155 * decay * flicker;
+    sceneFlashLight.intensity = 7.5 * decay * flicker;
   }
 
   function updateSparks(strikeAge) {
@@ -300,6 +314,7 @@ export function createLogoLightningEffect({ scene, resources, targets }) {
     impactGlow.visible = false;
     flashLight.intensity = 0;
     heatLight.intensity = 0;
+    sceneFlashLight.intensity = 0;
   }
 
   function state(strikeAge = Number.POSITIVE_INFINITY) {
@@ -325,7 +340,7 @@ export function createLogoLightningEffect({ scene, resources, targets }) {
     scene.remove(group);
   }
 
-  return { dispose, setEnabled, update };
+  return { dispose, setEnabled, triggerStrike, update };
 }
 
 export function lightningStrikeDelay(random = Math.random) {
