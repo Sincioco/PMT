@@ -159,95 +159,42 @@ VALUES
 (N'WfhSchedule', N'WFH Schedule', N'Read,Update,Export', 130),
 (N'Settings', N'Settings', N'Read,Create,Update,Delete', 140);
 
--- Every built-in role can read PMT. The statements below add the normal work
--- rights for a software team without granting cross-discipline delete access.
-INSERT INTO [pmt].[RolePermissions] ([RoleCode], [ResourceKey], [CanRead])
-SELECT [Role].[Code], [Resource].[ResourceKey], 1
+-- Start every built-in role with every right supported by each PMT area.
+-- Administrators can remove role rights or add full user overrides in Settings.
+INSERT INTO [pmt].[RolePermissions]
+(
+    [RoleCode], [ResourceKey], [CanRead], [CanCreate], [CanUpdate],
+    [CanDelete], [CanImport], [CanExport], [NoAccess]
+)
+SELECT
+    [Role].[Code],
+    [Resource].[ResourceKey],
+    CONVERT(BIT, CASE WHEN CHARINDEX(N'Read', [Resource].[AvailableRights]) > 0 THEN 1 ELSE 0 END),
+    CONVERT(BIT, CASE WHEN CHARINDEX(N'Create', [Resource].[AvailableRights]) > 0 THEN 1 ELSE 0 END),
+    CONVERT(BIT, CASE WHEN CHARINDEX(N'Update', [Resource].[AvailableRights]) > 0 THEN 1 ELSE 0 END),
+    CONVERT(BIT, CASE WHEN CHARINDEX(N'Delete', [Resource].[AvailableRights]) > 0 THEN 1 ELSE 0 END),
+    CONVERT(BIT, CASE WHEN CHARINDEX(N'Import', [Resource].[AvailableRights]) > 0 THEN 1 ELSE 0 END),
+    CONVERT(BIT, CASE WHEN CHARINDEX(N'Export', [Resource].[AvailableRights]) > 0 THEN 1 ELSE 0 END),
+    0
 FROM [pmt].[Lookups] AS [Role]
 CROSS JOIN [pmt].[SecurityResources] AS [Resource]
 WHERE [Role].[LookupType] = N'Role'
   AND [Role].[Code] <> N'Admin';
 
-UPDATE [pmt].[RolePermissions]
-SET [CanUpdate] = 1
-WHERE [ResourceKey] IN (N'Board', N'WfhSchedule', N'Settings');
-
-UPDATE [pmt].[RolePermissions]
-SET [CanExport] = 1
-WHERE [ResourceKey] IN (N'Board', N'WfhSchedule');
-
-UPDATE [pmt].[RolePermissions]
-SET [CanCreate] = 1, [CanUpdate] = 1, [CanImport] = 1, [CanExport] = 1
-WHERE [ResourceKey] IN (N'Scrum', N'Documentation');
-
-UPDATE [pmt].[RolePermissions]
-SET [CanCreate] = 1, [CanUpdate] = 1, [CanDelete] = 1, [CanImport] = 1, [CanExport] = 1
-WHERE [ResourceKey] = N'PersonalLog';
-
-UPDATE [pmt].[RolePermissions]
-SET [CanCreate] = 1, [CanUpdate] = 1, [CanDelete] = 1, [CanImport] = 1, [CanExport] = 1
-WHERE [RoleCode] = N'Developer'
-  AND [ResourceKey] IN (N'DevTasks', N'Backlog');
-
-UPDATE [pmt].[RolePermissions]
-SET [CanCreate] = 1, [CanExport] = 1
-WHERE [RoleCode] = N'Developer'
-  AND [ResourceKey] = N'BugTracking';
-
-UPDATE [pmt].[RolePermissions]
-SET [CanExport] = 1
-WHERE [RoleCode] IN (N'QA', N'QA Manual', N'QA Automation', N'TM')
-  AND [ResourceKey] = N'DevTasks';
-
-UPDATE [pmt].[RolePermissions]
-SET [CanCreate] = 1, [CanUpdate] = 1, [CanDelete] = 1, [CanImport] = 1, [CanExport] = 1
-WHERE [RoleCode] IN (N'QA', N'QA Manual', N'QA Automation', N'TM')
-  AND [ResourceKey] = N'BugTracking';
-
-UPDATE [pmt].[RolePermissions]
-SET [CanCreate] = 1, [CanUpdate] = 1, [CanImport] = 1, [CanExport] = 1
-WHERE [RoleCode] IN (N'QA', N'QA Manual', N'QA Automation', N'TM')
-  AND [ResourceKey] = N'Backlog';
-
-UPDATE [pmt].[RolePermissions]
-SET [CanCreate] = 1, [CanUpdate] = 1
-WHERE [RoleCode] = N'SA'
-  AND [ResourceKey] IN (N'Projects', N'Sprints');
-
-UPDATE [pmt].[RolePermissions]
-SET [CanCreate] = 1, [CanUpdate] = 1, [CanImport] = 1, [CanExport] = 1
-WHERE [RoleCode] = N'SA'
-  AND [ResourceKey] IN (N'DevTasks', N'BugTracking', N'Backlog');
-
-UPDATE [pmt].[RolePermissions]
-SET [CanCreate] = 1, [CanUpdate] = 1, [CanDelete] = 1
-WHERE [RoleCode] IN (N'TL', N'PM')
-  AND [ResourceKey] IN (N'Projects', N'Sprints');
-
-UPDATE [pmt].[RolePermissions]
-SET [CanCreate] = 1, [CanUpdate] = 1, [CanDelete] = 1, [CanImport] = 1, [CanExport] = 1
-WHERE [RoleCode] = N'TL'
-  AND [ResourceKey] IN (N'DevTasks', N'Backlog');
-
-UPDATE [pmt].[RolePermissions]
-SET [CanCreate] = 1, [CanUpdate] = 1, [CanImport] = 1, [CanExport] = 1
-WHERE [RoleCode] IN (N'TL', N'PM')
-  AND [ResourceKey] IN (N'BugTracking', N'DevTasks');
-
-UPDATE [pmt].[RolePermissions]
-SET [CanCreate] = 1, [CanUpdate] = 1, [CanDelete] = 1, [CanImport] = 1, [CanExport] = 1
-WHERE [RoleCode] = N'PM'
-  AND [ResourceKey] = N'Backlog';
-
-UPDATE [pmt].[RolePermissions]
-SET [CanDelete] = 1
-WHERE [RoleCode] IN (N'SA', N'TL', N'PM', N'TM')
-  AND [ResourceKey] IN (N'Scrum', N'Documentation');
-
-UPDATE [pmt].[RolePermissions]
-SET [CanUpdate] = 1
-WHERE [RoleCode] = N'TM'
-  AND [ResourceKey] = N'Sprints';
+-- Fresh Version 1.9 databases already use complete replacement-style user
+-- overrides. The forward migration uses the same marker to make reruns safe.
+IF NOT EXISTS
+(
+    SELECT 1
+    FROM sys.extended_properties
+    WHERE [class] = 0
+      AND [name] = N'PMT_SecurityOverrideMode'
+)
+BEGIN
+    EXEC sys.sp_addextendedproperty
+        @name = N'PMT_SecurityOverrideMode',
+        @value = N'Replacement';
+END;
 
 DECLARE @HolidaySeed TABLE
 (

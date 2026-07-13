@@ -83,16 +83,16 @@
 <body>
 <main>
   <h1>PMT BDO Production Migration</h1>
-  <p class="subtitle">Runbook for July 14, 2026 &mdash; Database Version 1.3 to 1.8</p>
+  <p class="subtitle">Runbook for July 14, 2026 &mdash; Database Version 1.3 to 1.9</p>
 
   <div class="callout">
-    <strong>Release decision:</strong> Apply all five forward migrations in order. Do not run the drop/rebuild script or any seed-data script on BDO. The production database and uploaded-file folder must both be backed up before deployment.
+    <strong>Release decision:</strong> Run the combined <code>PMT_1.3_to_1.9_All.sql</code> SQLCMD wrapper once. It applies all six forward migrations in order and stops on the first error. Do not run the drop/rebuild script or any seed-data script on BDO. The production database and uploaded-file folder must both be backed up before deployment.
   </div>
 
   <table>
     <tr><th>Item</th><th>Value</th></tr>
     <tr><td>BDO starting database</td><td>PMT Database Version 1.3</td></tr>
-    <tr><td>Target database</td><td>PMT Database Version 1.8</td></tr>
+    <tr><td>Target database</td><td>PMT Database Version 1.9</td></tr>
     <tr><td>Migration folder</td><td><code>Sql\Migrations</code> from the July 14 release</td></tr>
     <tr><td>Application deployment</td><td>Use the newly published .NET application; preserve BDO configuration and uploaded files</td></tr>
     <tr><td>Authentication</td><td>Windows integrated SQL authentication is preferred for the commands below</td></tr>
@@ -107,7 +107,7 @@
     <li>Publish the current .NET application into a new, empty release folder. Do not publish directly over the live PMT folder.</li>
     <li>Copy the entire current live application folder to a dated rollback folder.</li>
     <li>Record the BDO values for the IIS site/application, application pool, SQL Server, live application folder, and <code>UploadStorage.RootPath</code>.</li>
-    <li>Confirm the release contains all five SQL files listed in Step 5 and this runbook.</li>
+    <li>Confirm the release contains the combined SQLCMD runner, all six versioned SQL files listed in Step 4, and this runbook.</li>
   </ol>
 
   <pre>$ReleaseRoot   = '&lt;FULL PATH TO THE NEW PUBLISHED PMT RELEASE&gt;'
@@ -148,12 +148,12 @@ DBCC CHECKDB ([PMT]) WITH NO_INFOMSGS;
 GO
 
 BACKUP DATABASE [PMT]
-TO DISK = N'&lt;SQL SERVER LOCAL BACKUP PATH&gt;\PMT_Before_1.8_20260714.bak'
+TO DISK = N'&lt;SQL SERVER LOCAL BACKUP PATH&gt;\PMT_Before_1.9_20260714.bak'
 WITH COPY_ONLY, INIT, CHECKSUM, STATS = 10;
 GO
 
 RESTORE VERIFYONLY
-FROM DISK = N'&lt;SQL SERVER LOCAL BACKUP PATH&gt;\PMT_Before_1.8_20260714.bak'
+FROM DISK = N'&lt;SQL SERVER LOCAL BACKUP PATH&gt;\PMT_Before_1.9_20260714.bak'
 WITH CHECKSUM;
 GO</pre>
 
@@ -190,44 +190,51 @@ SELECT
 GO</pre>
 
   <h2>4. Confirm the exact migration files</h2>
-  <p>Use the migration files from the same release as the published application:</p>
+  <p>Use the combined runner and migration files from the same release as the published application. Keep all seven SQL files together in <code>Sql\Migrations</code>:</p>
   <ol>
+    <li><code>PMT_1.3_to_1.9_All.sql</code> &mdash; preferred one-command SQLCMD runner</li>
     <li><code>PMT_1.3_to_1.4.sql</code> &mdash; internal invitation URLs</li>
     <li><code>PMT_1.4_to_1.5.sql</code> &mdash; expanded user-role values</li>
     <li><code>PMT_1.5_to_1.6.sql</code> &mdash; managed roles and stable role codes</li>
     <li><code>PMT_1.6_to_1.7.sql</code> &mdash; role security, explicit user permissions, and admin password resets</li>
     <li><code>PMT_1.7_to_1.8.sql</code> &mdash; safe attachment deletion</li>
+    <li><code>PMT_1.8_to_1.9.sql</code> &mdash; full-row user permission overrides, Security Audit, and all-rights Role defaults</li>
   </ol>
 
-  <pre>$Expected = @(
+  <pre>$RequiredFiles = @(
+  'PMT_1.3_to_1.9_All.sql',
   'PMT_1.3_to_1.4.sql',
   'PMT_1.4_to_1.5.sql',
   'PMT_1.5_to_1.6.sql',
   'PMT_1.6_to_1.7.sql',
-  'PMT_1.7_to_1.8.sql'
+  'PMT_1.7_to_1.8.sql',
+  'PMT_1.8_to_1.9.sql'
 )
 
-$Expected | ForEach-Object {
+$RequiredFiles | ForEach-Object {
   $Path = Join-Path $MigrationRoot $_
   if (-not (Test-Path -LiteralPath $Path)) { throw "Missing migration: $Path" }
   Get-FileHash -Algorithm SHA256 -LiteralPath $Path
 }</pre>
 
   <h2>5. Apply the migrations in order</h2>
-  <p>Run the following from an elevated PowerShell window on a machine that has <code>sqlcmd</code> and access to the BDO SQL Server. The <code>-b</code> option stops on SQL errors and <code>-I</code> enables the required quoted-identifier behavior.</p>
+  <p>Run the following from an elevated PowerShell window on a machine that has <code>sqlcmd</code> and access to the BDO SQL Server. Run the wrapper from its own folder so its six relative includes resolve correctly. The <code>-b</code> option stops on SQL errors and <code>-I</code> enables the required quoted-identifier behavior.</p>
 
   <pre>$ErrorActionPreference = 'Stop'
 
-foreach ($Name in $Expected) {
-  $Path = Join-Path $MigrationRoot $Name
-  Write-Host "Applying $Name"
-  &amp; sqlcmd -S $SqlServer -d master -E -b -I -i $Path
+Push-Location $MigrationRoot
+try {
+  Write-Host 'Applying PMT Database Version 1.3 to 1.9'
+  &amp; sqlcmd -S $SqlServer -d master -E -b -I -i '.\PMT_1.3_to_1.9_All.sql'
   if ($LASTEXITCODE -ne 0) {
-    throw "Migration failed: $Name. Leave PMT stopped and follow the rollback section."
+    throw 'Migration failed. Leave PMT stopped and follow the rollback section.'
   }
 }
+finally {
+  Pop-Location
+}
 
-Write-Host 'All five migrations completed.' -ForegroundColor Green</pre>
+Write-Host 'All six versioned migrations completed.' -ForegroundColor Green</pre>
 
   <p class="small">If BDO requires SQL authentication, replace <code>-E</code> with the approved secure authentication method. Do not place a database password in this HTML file, a command-history file, or source control.</p>
 
@@ -252,6 +259,10 @@ IF OBJECT_ID(N'[pmt].[DeleteTaskAttachment]', N'P') IS NULL
   THROW 51104, 'Attachment-deletion migration is missing.', 1;
 IF OBJECT_ID(N'[pmt].[AdminResetUserPassword]', N'P') IS NULL
   THROW 51105, 'Admin password-reset migration is missing.', 1;
+IF OBJECT_DEFINITION(OBJECT_ID(N'[pmt].[HasPermission]')) NOT LIKE N'%@HasUserOverride%'
+  THROW 51107, 'Full-row security override migration is missing.', 1;
+IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE [class] = 0 AND [name] = N'PMT_SecurityOverrideMode')
+  THROW 51108, 'Security override migration marker is missing.', 1;
 
 IF EXISTS (
   SELECT 1
@@ -293,7 +304,10 @@ GO</pre>
     <li>Open representative existing projects, sprints, tasks, bugs, Scrum entries, and Documentation entries; confirm their prior content is intact.</li>
     <li>Open Settings &rarr; Roles; confirm all nine roles display. Create a temporary role, rename it, and delete it.</li>
     <li>Assign a temporary role to the non-administrator test user and confirm PMT blocks deletion while that role is assigned. Restore the original role, then delete the temporary role.</li>
-    <li>Open Settings &rarr; Security; confirm resources, role permissions, and user overrides display. Verify an explicit No Access test override hides/blocks the selected resource, then remove the override.</li>
+    <li>Open Settings &rarr; Security; confirm inherited user rows match their effective Role permissions. Change one test-user checkbox, confirm the Break Inheritance warning, and verify Effective updates immediately.</li>
+    <li>Save the override, reload, and confirm it persists. Click Reset, save again, and confirm the row returns to Role inheritance.</li>
+    <li>Open Security Audit; confirm users are grouped with every resource and current effective rights. Export to Excel and open the downloaded workbook.</li>
+    <li>Verify an explicit No Access test override hides/blocks the selected resource, then Reset and save the test row.</li>
     <li>From Settings &rarr; Users, use the administrator key action to reset the test user's password, then confirm the test user can sign in.</li>
     <li>Generate an internal invite URL for one test project, open it in a private browser window, create a test profile with an avatar, and confirm the new user lands on the expected project or sprint screen.</li>
     <li>On a temporary test task or Documentation entry, upload an attachment, delete it with the hover &times;, confirm the prompt, save, reopen, and confirm it is gone.</li>
@@ -319,7 +333,7 @@ GO
 ALTER DATABASE [PMT] SET SINGLE_USER WITH ROLLBACK IMMEDIATE;
 GO
 RESTORE DATABASE [PMT]
-FROM DISK = N'&lt;SQL SERVER LOCAL BACKUP PATH&gt;\PMT_Before_1.8_20260714.bak'
+FROM DISK = N'&lt;SQL SERVER LOCAL BACKUP PATH&gt;\PMT_Before_1.9_20260714.bak'
 WITH REPLACE, CHECKSUM, STATS = 10;
 GO
 ALTER DATABASE [PMT] SET MULTI_USER;
@@ -331,13 +345,14 @@ GO</pre>
     There are intentionally no downgrade scripts. A rollback restores the matched application folder, database backup, and uploaded-file backup as one set.
   </div>
 
-  <h2>Migration rehearsal completed July 13, 2026</h2>
+  <h2>Migration rehearsal completed July 14, 2026</h2>
   <p>The full upgrade was rehearsed locally from the actual Version 1.3 source baseline and then repeated on the migrated database.</p>
 
   <table>
     <tr><th>Verification</th><th>Result</th></tr>
     <tr><td>True Version 1.3 baseline reconstruction</td><td>Passed; invitation objects were absent before migration</td></tr>
-    <tr><td>Sequential 1.3 &rarr; 1.4 &rarr; 1.5 &rarr; 1.6 &rarr; 1.7 &rarr; 1.8 migration</td><td>Passed</td></tr>
+    <tr><td>Sequential 1.3 &rarr; 1.4 &rarr; 1.5 &rarr; 1.6 &rarr; 1.7 &rarr; 1.8 &rarr; 1.9 migration</td><td>Passed</td></tr>
+    <tr><td>Combined SQLCMD runner and relative migration includes</td><td>Passed</td></tr>
     <tr><td>Second complete migration pass</td><td>Passed; scripts are safe to rerun for the tested state</td></tr>
     <tr><td>Existing row-count preservation</td><td>Passed for Users, Projects, Project Members, Sprints, Sprint Members, Work Tasks, Task Assignees, Blogs, Dev Logs, and all attachment tables</td></tr>
     <tr><td>Sentinel content preservation</td><td>Passed for an existing user, project, sprint, task, and Documentation entry</td></tr>
@@ -346,6 +361,8 @@ GO</pre>
     <tr><td>Administrator password reset</td><td>Passed</td></tr>
     <tr><td>Role create/delete and assigned-role deletion protection</td><td>Passed</td></tr>
     <tr><td>Explicit No Access precedence</td><td>Passed</td></tr>
+    <tr><td>Full-row user override, inherited Reset, and Security Audit export</td><td>Passed</td></tr>
+    <tr><td>All six rights across inherited, explicit allow, explicit deny, Role/User No Access, and Admin bypass combinations</td><td>Passed</td></tr>
     <tr><td>Attachment upload/delete, database cleanup, and physical-file cleanup</td><td>Passed</td></tr>
     <tr><td>Database consistency and migration assertions</td><td>Passed</td></tr>
   </table>
@@ -353,6 +370,8 @@ GO</pre>
   <p>Rehearsal baseline counts were: 6 Users, 3 Projects, 18 Project Members, 75 Sprints, 380 Sprint Members, 653 Work Tasks, 653 Task Assignees, 14 Blogs, 197 Dev Logs, and zero attachment rows. All counts were unchanged immediately after migration. The final configuration contained 9 Roles, 14 Security Resources, and 112 Role Permissions.</p>
 
   <p>During rehearsal, the managed-role migrations were corrected to establish the SQL session settings required by the filtered stable-role-code index. The final clean-baseline run, rerun, and role deletion tests all passed with the corrected scripts.</p>
+
+  <p>Database Version 1.9 records completion of its one-time security conversion with the <code>PMT_SecurityOverrideMode</code> database property. The combined-runner rerun test confirmed that later administrator Role and user-override changes remain unchanged.</p>
 
   <h2>Deployment record</h2>
   <table>

@@ -94,6 +94,7 @@ BEGIN
     DECLARE @UserNoAccess BIT = 0;
     DECLARE @RoleAllowed BIT = 0;
     DECLARE @UserAllowed BIT = 0;
+    DECLARE @HasUserOverride BIT = 0;
 
     SELECT
         @RoleNoAccess = [NoAccess],
@@ -111,6 +112,7 @@ BEGIN
       AND [ResourceKey] = @ResourceKey;
 
     SELECT
+        @HasUserOverride = 1,
         @UserNoAccess = [NoAccess],
         @UserAllowed = CASE @Right
             WHEN N'Read' THEN [CanRead]
@@ -130,7 +132,12 @@ BEGIN
         RETURN 0;
     END;
 
-    RETURN CASE WHEN ISNULL(@RoleAllowed, 0) = 1 OR ISNULL(@UserAllowed, 0) = 1 THEN 1 ELSE 0 END;
+    IF @HasUserOverride = 1
+    BEGIN
+        RETURN ISNULL(@UserAllowed, 0);
+    END;
+
+    RETURN ISNULL(@RoleAllowed, 0);
 END;
 GO
 
@@ -579,7 +586,8 @@ BEGIN
         CONVERT(BIT, ISNULL([Permission].[CanDelete], 0)) AS [CanDelete],
         CONVERT(BIT, ISNULL([Permission].[CanImport], 0)) AS [CanImport],
         CONVERT(BIT, ISNULL([Permission].[CanExport], 0)) AS [CanExport],
-        CONVERT(BIT, ISNULL([Permission].[NoAccess], 0)) AS [NoAccess]
+        CONVERT(BIT, ISNULL([Permission].[NoAccess], 0)) AS [NoAccess],
+        CONVERT(BIT, CASE WHEN [Permission].[UserId] IS NULL THEN 0 ELSE 1 END) AS [IsOverride]
     FROM [pmt].[SecurityResources] AS [Resource]
     CROSS JOIN [pmt].[Users] AS [User]
     LEFT JOIN [pmt].[UserPermissions] AS [Permission]
@@ -709,15 +717,14 @@ BEGIN
         [CanDelete] BIT N'$.CanDelete',
         [CanImport] BIT N'$.CanImport',
         [CanExport] BIT N'$.CanExport',
-        [NoAccess] BIT N'$.NoAccess'
+        [NoAccess] BIT N'$.NoAccess',
+        [IsOverride] BIT N'$.IsOverride'
     ) AS [Input]
     INNER JOIN [pmt].[Users] AS [User]
         ON [User].[UserId] = [Input].[UserId]
        AND [User].[IsActive] = 1
        AND [User].[IsAdmin] = 0
-    WHERE [Input].[NoAccess] = 1
-       OR [Input].[CanRead] = 1 OR [Input].[CanCreate] = 1 OR [Input].[CanUpdate] = 1
-       OR [Input].[CanDelete] = 1 OR [Input].[CanImport] = 1 OR [Input].[CanExport] = 1;
+    WHERE [Input].[IsOverride] = 1;
 
     EXEC [pmt].[WriteAudit] N'Security', 0, N'Updated', @ResourceKey, @CurrentUserId;
     COMMIT TRANSACTION;
@@ -3245,6 +3252,27 @@ BEGIN
         VALUES (@LookupType, @Value, @Code, @ColorHex, @DisplayOrder, @IsActive, @CurrentUserId);
 
         SET @LookupId = SCOPE_IDENTITY();
+
+        IF @LookupType = N'Role'
+        BEGIN
+            INSERT INTO [pmt].[RolePermissions]
+            (
+                [RoleCode], [ResourceKey], [CanRead], [CanCreate], [CanUpdate],
+                [CanDelete], [CanImport], [CanExport], [NoAccess]
+            )
+            SELECT
+                @Code,
+                [Resource].[ResourceKey],
+                CONVERT(BIT, CASE WHEN CHARINDEX(N'Read', [Resource].[AvailableRights]) > 0 THEN 1 ELSE 0 END),
+                CONVERT(BIT, CASE WHEN CHARINDEX(N'Create', [Resource].[AvailableRights]) > 0 THEN 1 ELSE 0 END),
+                CONVERT(BIT, CASE WHEN CHARINDEX(N'Update', [Resource].[AvailableRights]) > 0 THEN 1 ELSE 0 END),
+                CONVERT(BIT, CASE WHEN CHARINDEX(N'Delete', [Resource].[AvailableRights]) > 0 THEN 1 ELSE 0 END),
+                CONVERT(BIT, CASE WHEN CHARINDEX(N'Import', [Resource].[AvailableRights]) > 0 THEN 1 ELSE 0 END),
+                CONVERT(BIT, CASE WHEN CHARINDEX(N'Export', [Resource].[AvailableRights]) > 0 THEN 1 ELSE 0 END),
+                0
+            FROM [pmt].[SecurityResources] AS [Resource];
+        END;
+
         EXEC [pmt].[WriteAudit] N'Lookup', @LookupId, N'Created', @LookupType, @CurrentUserId;
     END
     ELSE

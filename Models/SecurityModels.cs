@@ -28,6 +28,7 @@ public sealed class RoleSecurityPermissionDto : SecurityPermissionDto
 public sealed class UserSecurityPermissionDto : SecurityPermissionDto
 {
     public int UserId { get; set; }
+    public bool IsOverride { get; set; }
 }
 
 public sealed class EffectivePermissionDto : SecurityPermissionDto

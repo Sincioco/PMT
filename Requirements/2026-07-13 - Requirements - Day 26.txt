@@ -147,3 +147,20 @@ Overall, I like what you did and how you designed the security screen.  However,
 2.) I would also like to add an audit button where it would list out by user what each user can do for each resource.  For example, Bill Gates can Read, Create and Update but cannot Delete or Export.  This would be a nice feature to have so we can see what each user can do in PMT.  No need to make it complecated, it can really just be the same table with checkboxes as you have now, except it would be grouped by User, then resources.  So it would be a table with the first column being the User, the second column being the Resource, and then the rest of the columns being the permissions (Read, Create, Update, Delete, Import, Export, No Access).  This would be a read-only view of what each user can do in PMT.  It would be nice to have a "Export to Excel" button so we can export this audit report to Excel for further analysis.
 3.) By default, just give everyone all permissions for all resources.  Then we can go in and remove permissions as needed.  This will make it easier to manage the security for PMT.  The team can decide how they want to configure the security for their team.  For example, if they want to give everyone all permissions for all resources, they can do that.  If they want to remove permissions for certain users, they can do that as well.  This will make it easier to manage the security for PMT.
 4.) If any of the instructions I gave above are not clear, please ask me for clarification.  I want to make sure we are on the same page before you start coding.  I want to make sure we are designing the security screen in a way that is intuitive and easy to use for the business folks who will be managing the security for their team.
+
+CODEX Asked:
+Before Security coding, please confirm this KISS interpretation:
+A user/resource row initially displays inherited effective permissions. Changing any checkbox creates a full explicit override for that row, so unchecked rights override and deny inherited rights. Reset deletes that override and restores inheritance.
+
+Sin's Response:
+So for the user/resource row, when it is initially displayed it shows the user's effective permission.  So you are correct, changing anything on that row would create an explicit override.  In that case, let's pop a dialog box and warn the user that they are breaking inheritance, and by so doing they have to explicitly assign the correct permission to the user.  Checked means they get that permission, unchecked means they do not.  So the person assigning the permission can understand.  And of course, in the right-most column as you have now, reflect the most up-to-date effective permission each time the user checks or unchecks a checkbox.
+
+If all tests are green, commit and push to the repo before proceeding to the next task below.
+
+Test the security to ensure it is working as expected.  For example, if a user has inherited Read, Create, Update and Delete for a resource, and you uncheck Delete for that user, then that user should not be able to delete that resource.  If you check it back, then that user should be able to delete that resource again.  If you click Reset, then that user should inherit the parent's permission again.  Make sure to test all combinations of permissions and overrides to ensure it is working as expected.
+
+If it is possible to combine all the migration scripts into one script, that would be ideal.  However, if it is not possible, then we can keep them separate.  The important thing is that we have a clear and easy to follow migration path for BDO to upgrade to the latest version of PMT without losing any data or breaking the current install.
+
+Test your migration plan/scripts one more time and then once you are done, update 2026-07-14 - PMT - BDO Migration Scripts.html script.
+
+If all tests are green, commit and push to the repo including the requirements.

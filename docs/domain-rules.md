@@ -66,10 +66,13 @@ Project and Sprint aggregate progress is separate from stored work-item percent.
 The default role names are `Admin`, `Dev - Developer`, `QA - Quality Assurance`, `SA - Systems Analyst`, `TL - Technical Lead`, `PM - Project Manager`, `QA - Manual`, `QA - Automation`, and `TM - Test Manager`.
 
 - Admins bypass all resource permission checks and may always perform administrator actions.
-- Every non-admin user inherits the permissions configured for their Role. Explicit user permissions add to those Role permissions.
+- Every non-admin user inherits the permissions configured for their Role until an administrator changes a checkbox in that user's resource row.
+- A user override is a complete replacement for the inherited row: checked grants the right and unchecked denies it. Reset removes the override and restores Role inheritance.
 - `No Access` is an explicit deny. If either the Role or user override has `No Access` for an area, every allow permission for that area is denied.
 - The available rights are Read, Create, Update, Delete, Import, and Export. Each PMT area exposes only the rights it supports.
-- Developers manage Dev Tasks but cannot delete Bug reports by default. QA roles and Test Managers manage Bugs but cannot delete Dev Tasks by default. Systems Analysts, Technical Leads, and Project Managers receive planning permissions appropriate to their roles.
+- New and migrated Role defaults grant every right supported by each PMT area. Administrators may remove Role rights or create narrower user overrides as needed.
+- A Role created later in Settings starts with every right supported by each PMT area.
+- The Security Audit shows each active user's current effective rights for every PMT area and exports the same read-only matrix to Excel.
 - Administrators may add, rename, reorder, activate, deactivate, and delete Roles in Settings. Visible names are separate from the stable internal security codes.
 - A Role cannot be deleted while any active or inactive user record still references it.
 - Work-item permission is task-type based, not creator based.

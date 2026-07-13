@@ -1,5 +1,5 @@
 import { buttonContent, funnelIconHtml, iconButton, keyIconHtml } from "../../components/buttons.js?v=20260713-role-security";
-import { askYesNo } from "../../components/dialogs.js";
+import { askYesNo, initializeWindowedDialog } from "../../components/dialogs.js";
 import {
   colorField,
   field,
@@ -53,6 +53,10 @@ import {
   escapeHtml,
   normalizeLinksInElement
 } from "../../shared/text-and-links.js";
+import {
+  downloadXlsx,
+  exportFileName
+} from "../../shared/table-export.js?v=20260714-security-inheritance";
 
 const avatarCacheVersion = "20260629-avatar-jpg-assets";
 const seededAvatarPaths = new Set([
@@ -140,7 +144,10 @@ export function createSettingsFeature({
       <button class="secondary text-icon-button" type="button" data-action="navigation-reset-defaults">${buttonContent("&#8635;", "Reset")}</button>
       ${settingsTableFilterButtonHtml(settingsCategory)}
     `;
-    if (isSecurity) actionsHtml = `<button class="primary text-icon-button" type="button" data-action="save-security">${buttonContent("&#10003;", "Save Security")}</button>`;
+    if (isSecurity) actionsHtml = `
+      <button class="secondary text-icon-button" type="button" data-action="security-audit">${buttonContent("&#128203;", "Audit")}</button>
+      <button class="primary text-icon-button" type="button" data-action="save-security">${buttonContent("&#10003;", "Save Security")}</button>
+    `;
     if (isDevelopment) actionsHtml = `<span class="settings-action-spacer" aria-hidden="true"></span>`;
 
     const contentHtml = isUsers
@@ -236,6 +243,14 @@ export function createSettingsFeature({
     }
     if (action === "save-security") {
       await saveSecurityPermissions();
+      return true;
+    }
+    if (action === "security-audit") {
+      openSecurityAuditDialog();
+      return true;
+    }
+    if (action === "reset-security-override") {
+      resetSecurityUserOverride(button);
       return true;
     }
     if (action === "sort-settings-table") {
@@ -991,7 +1006,7 @@ export function createSettingsFeature({
           <section class="security-permissions-pane">
             <div class="security-pane-head">
               <h2>${escapeHtml(selectedResource.name)}</h2>
-              <p class="muted">Role defaults are inherited. User overrides add rights; No Access always denies this area.</p>
+              <p class="muted">Role defaults are inherited. A user override replaces the inherited row; No Access always denies this area.</p>
             </div>
             <div class="security-table-section">
               <h3>Role defaults</h3>
@@ -1006,12 +1021,12 @@ export function createSettingsFeature({
             </div>
             <div class="security-table-section">
               <h3>User overrides</h3>
-              <p class="muted security-user-help">Leave boxes clear to inherit only the Role defaults.</p>
+              <p class="muted security-user-help">Rows show effective permissions. Changing a checkbox creates an explicit override; Reset restores inheritance.</p>
               <div class="security-table-scroll">
                 <table class="table security-permission-table security-user-permission-table">
                   ${securityPermissionTableHead(true)}
                   <tbody>
-                    ${users.map(user => securityUserPermissionRowHtml(user, selectedResource)).join("") || `<tr><td colspan="9"><div class="empty">No non-Admin users are available.</div></td></tr>`}
+                    ${users.map(user => securityUserPermissionRowHtml(user, selectedResource)).join("") || `<tr><td colspan="10"><div class="empty">No non-Admin users are available.</div></td></tr>`}
                   </tbody>
                 </table>
               </div>
@@ -1029,7 +1044,7 @@ export function createSettingsFeature({
           <th>${showEffective ? "User" : "Role"}</th>
           ${securityRights.map(right => `<th>${right.name}</th>`).join("")}
           <th class="security-no-access-column">No Access</th>
-          ${showEffective ? "<th>Effective</th>" : ""}
+          ${showEffective ? "<th>Override</th><th>Effective</th>" : ""}
         </tr>
       </thead>
     `;
@@ -1048,9 +1063,10 @@ export function createSettingsFeature({
   }
 
   function securityUserPermissionRowHtml(user, resource) {
-    const permission = (state.userPermissions || []).find(item =>
+    const userPermission = (state.userPermissions || []).find(item =>
       item.resourceKey === resource.resourceKey && item.userId === user.id) || {};
     const effective = effectiveUserPermission(user, resource.resourceKey);
+    const isOverride = Boolean(userPermission.isOverride);
     return securityPermissionRowHtml({
       scope: "user",
       principal: String(user.id),
@@ -1060,22 +1076,23 @@ export function createSettingsFeature({
           <span><span class="security-principal-name">${escapeHtml(settingsUserDisplayName(user))}</span><span class="muted">${escapeHtml(roleLabel(user.role))}</span></span>
         </span>
       `,
-      permission,
+      permission: isOverride ? userPermission : effective,
       resource,
       effective,
-      roleCode: user.role
+      roleCode: user.role,
+      isOverride
     });
   }
 
-  function securityPermissionRowHtml({ scope, principal, principalHtml, permission, resource, effective = null, roleCode = "" }) {
+  function securityPermissionRowHtml({ scope, principal, principalHtml, permission, resource, effective = null, roleCode = "", isOverride = false }) {
     const availableRights = new Set(String(resource.availableRights || "Read").split(",").map(right => right.trim()));
     const noAccess = Boolean(permission.noAccess);
     return `
-      <tr data-security-permission-row data-security-scope="${scope}" data-security-principal="${escapeAttr(principal)}" ${roleCode ? `data-security-role-code="${escapeAttr(roleCode)}"` : ""}>
+      <tr data-security-permission-row data-security-scope="${scope}" data-security-principal="${escapeAttr(principal)}" data-security-resource-name="${escapeAttr(resource.name)}" ${roleCode ? `data-security-role-code="${escapeAttr(roleCode)}" data-security-override="${isOverride}" class="${isOverride ? "security-user-override" : "security-user-inherited"}"` : ""}>
         <td>${principalHtml}</td>
         ${securityRights.map(right => securityPermissionCheckbox(right, permission, availableRights, noAccess)).join("")}
         <td class="security-no-access-column">${securityNoAccessCheckbox(noAccess)}</td>
-        ${effective ? `<td class="security-effective-rights">${securityEffectiveRightsHtml(effective)}</td>` : ""}
+        ${effective ? `<td class="security-override-action"><button type="button" class="secondary" data-action="reset-security-override" ${isOverride ? "" : "disabled"}>Reset</button></td><td class="security-effective-rights">${securityEffectiveRightsHtml(effective)}</td>` : ""}
       </tr>
     `;
   }
@@ -1096,11 +1113,15 @@ export function createSettingsFeature({
   function effectiveUserPermission(user, resourceKey) {
     const rolePermission = (state.rolePermissions || []).find(item => item.resourceKey === resourceKey && item.roleCode === user.role) || {};
     const userPermission = (state.userPermissions || []).find(item => item.resourceKey === resourceKey && item.userId === user.id) || {};
-    if (rolePermission.noAccess || userPermission.noAccess) return { noAccess: true };
+    return effectiveSecurityPermission(rolePermission, userPermission, Boolean(userPermission.isOverride));
+  }
+
+  function effectiveSecurityPermission(rolePermission, userPermission, isOverride) {
+    if (rolePermission.noAccess || (isOverride && userPermission.noAccess)) return { noAccess: true };
 
     return Object.fromEntries(securityRights.map(right => [
       right.property,
-      Boolean(rolePermission[right.property] || userPermission[right.property])
+      Boolean((isOverride ? userPermission : rolePermission)[right.property])
     ]));
   }
 
@@ -1111,19 +1132,40 @@ export function createSettingsFeature({
   }
 
   function bindSecurityPermissionEvents() {
-    app.querySelectorAll("[data-security-right='noAccess']").forEach(checkbox => {
-      checkbox.addEventListener("change", () => {
+    app.querySelectorAll("[data-security-right]").forEach(checkbox => {
+      checkbox.addEventListener("change", async () => {
         const row = checkbox.closest("[data-security-permission-row]");
-        row?.querySelectorAll("[data-security-right]:not([data-security-right='noAccess'])").forEach(rightCheckbox => {
-          if (checkbox.checked) rightCheckbox.checked = false;
-          rightCheckbox.disabled = checkbox.checked || rightCheckbox.dataset.securitySupported !== "true";
-        });
+        if (!row) return;
+
+        if (row.dataset.securityScope === "user" && row.dataset.securityOverride !== "true") {
+          const requestedValue = checkbox.checked;
+          checkbox.checked = !requestedValue;
+          const userName = row.querySelector(".security-principal-name")?.textContent?.trim() || "this user";
+          const confirmed = await askYesNo(
+            `This change breaks Role inheritance for ${userName} in ${row.dataset.securityResourceName}. Every permission in this row will become explicit: checked grants it and unchecked denies it. Continue?`,
+            "Break Inheritance"
+          );
+          if (!confirmed) return;
+
+          row.dataset.securityOverride = "true";
+          row.classList.remove("security-user-inherited");
+          row.classList.add("security-user-override");
+          row.querySelector("[data-action='reset-security-override']")?.removeAttribute("disabled");
+          checkbox.checked = requestedValue;
+        }
+
+        applySecurityNoAccessState(row);
         updateSecurityEffectiveRights();
       });
     });
+  }
 
-    app.querySelectorAll("[data-security-right]:not([data-security-right='noAccess'])").forEach(checkbox => {
-      checkbox.addEventListener("change", updateSecurityEffectiveRights);
+  function applySecurityNoAccessState(row) {
+    const noAccessCheckbox = row?.querySelector("[data-security-right='noAccess']");
+    const noAccess = Boolean(noAccessCheckbox?.checked);
+    row?.querySelectorAll("[data-security-right]:not([data-security-right='noAccess'])").forEach(checkbox => {
+      if (noAccess) checkbox.checked = false;
+      checkbox.disabled = noAccess || checkbox.dataset.securitySupported !== "true";
     });
   }
 
@@ -1133,16 +1175,35 @@ export function createSettingsFeature({
     rows.filter(row => row.dataset.securityScope === "user").forEach(userRow => {
       const roleRow = roleRows.find(row => row.dataset.securityPrincipal === userRow.dataset.securityRoleCode);
       const rolePermission = securityPermissionFromRow(roleRow);
+      const isOverride = userRow.dataset.securityOverride === "true";
+      if (!isOverride) setSecurityPermissionOnRow(userRow, rolePermission);
       const userPermission = securityPermissionFromRow(userRow);
-      const effective = rolePermission.noAccess || userPermission.noAccess
-        ? { noAccess: true }
-        : Object.fromEntries(securityRights.map(right => [
-          right.property,
-          Boolean(rolePermission[right.property] || userPermission[right.property])
-        ]));
+      const effective = effectiveSecurityPermission(rolePermission, userPermission, isOverride);
       const effectiveCell = userRow.querySelector(".security-effective-rights");
       if (effectiveCell) effectiveCell.innerHTML = securityEffectiveRightsHtml(effective);
     });
+  }
+
+  function setSecurityPermissionOnRow(row, permission) {
+    securityRights.forEach(right => {
+      const checkbox = row.querySelector(`[data-security-right='${right.property}']`);
+      if (checkbox) checkbox.checked = Boolean(permission[right.property]);
+    });
+    const noAccessCheckbox = row.querySelector("[data-security-right='noAccess']");
+    if (noAccessCheckbox) noAccessCheckbox.checked = Boolean(permission.noAccess);
+    applySecurityNoAccessState(row);
+  }
+
+  function resetSecurityUserOverride(button) {
+    const row = button.closest("[data-security-permission-row][data-security-scope='user']");
+    if (!row) return;
+    const roleRow = app.querySelector(`[data-security-permission-row][data-security-scope='role'][data-security-principal='${CSS.escape(row.dataset.securityRoleCode || "")}']`);
+    row.dataset.securityOverride = "false";
+    row.classList.remove("security-user-override");
+    row.classList.add("security-user-inherited");
+    button.disabled = true;
+    setSecurityPermissionOnRow(row, securityPermissionFromRow(roleRow));
+    updateSecurityEffectiveRights();
   }
 
   function securityPermissionFromRow(row) {
@@ -1166,7 +1227,11 @@ export function createSettingsFeature({
       if (row.dataset.securityScope === "role") {
         rolePermissions.push({ ...permission, roleCode: row.dataset.securityPrincipal });
       } else {
-        userPermissions.push({ ...permission, userId: Number(row.dataset.securityPrincipal || 0) });
+        userPermissions.push({
+          ...permission,
+          userId: Number(row.dataset.securityPrincipal || 0),
+          isOverride: row.dataset.securityOverride === "true"
+        });
       }
     });
 
@@ -1175,6 +1240,101 @@ export function createSettingsFeature({
     settingsCategory = "Security";
     renderSettings();
     showToast("Security saved.");
+  }
+
+  function openSecurityAuditDialog() {
+    const rows = securityAuditRows();
+    const modal = document.createElement("dialog");
+    modal.className = "dialog windowed-dialog security-audit-dialog";
+    modal.innerHTML = `
+      <div class="dialog-head">
+        <h2>Security Audit</h2>
+      </div>
+      <div class="dialog-body security-audit-dialog-body">
+        <p class="muted">Effective permissions for every active user and PMT area. Administrators always have every available permission.</p>
+        <div class="security-table-scroll">
+          <table class="table security-permission-table security-audit-table">
+            <thead><tr><th>User</th><th>Resource</th>${securityRights.map(right => `<th>${right.name}</th>`).join("")}<th class="security-no-access-column">No Access</th></tr></thead>
+            <tbody>
+              ${rows.map((row, index) => `
+                <tr class="${index === 0 || rows[index - 1].userId !== row.userId ? "security-audit-user-start" : ""}">
+                  <td>${escapeHtml(row.userName)}</td>
+                  <td>${escapeHtml(row.resourceName)}</td>
+                  ${securityRights.map(right => securityAuditCheckbox(row[right.property], right.name)).join("")}
+                  <td class="security-no-access-column">${securityAuditCheckbox(row.noAccess, "No Access")}</td>
+                </tr>
+              `).join("") || `<tr><td colspan="9"><div class="empty">No active users are available.</div></td></tr>`}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="dialog-actions">
+        <button type="button" class="secondary text-icon-button" data-security-audit-export>${buttonContent("&#8681;", "Export to Excel")}</button>
+        <button type="button" class="primary text-icon-button" data-security-audit-done>${buttonContent("&#10003;", "Done")}</button>
+      </div>
+    `;
+    modal.querySelector("[data-security-audit-export]").addEventListener("click", () => exportSecurityAudit(rows));
+    modal.querySelector("[data-security-audit-done]").addEventListener("click", () => modal.close());
+    modal.addEventListener("close", () => modal.remove());
+    document.body.appendChild(modal);
+    initializeWindowedDialog(modal, { showResetButton: false });
+    modal.showModal();
+  }
+
+  function securityAuditRows() {
+    const resources = [...(state.securityResources || [])]
+      .sort((a, b) => a.displayOrder - b.displayOrder || a.name.localeCompare(b.name));
+    const users = [...(state.users || [])]
+      .filter(user => user.isActive)
+      .sort((a, b) => settingsUserDisplayName(a).localeCompare(settingsUserDisplayName(b)));
+    return users.flatMap(user => resources.map(resource => {
+      const availableRights = new Set(String(resource.availableRights || "Read").split(",").map(right => right.trim()));
+      let effective;
+      if (user.isAdmin) {
+        effective = Object.fromEntries(securityRights.map(right => [right.property, availableRights.has(right.name)]));
+      } else {
+        const rolePermission = auditRolePermission(user.role, resource.resourceKey);
+        const userPermission = auditUserPermission(user.id, resource.resourceKey);
+        effective = effectiveSecurityPermission(rolePermission, userPermission, Boolean(userPermission.isOverride));
+      }
+      return {
+        userId: user.id,
+        userName: settingsUserDisplayName(user),
+        resourceName: resource.name,
+        ...Object.fromEntries(securityRights.map(right => [right.property, availableRights.has(right.name) && Boolean(effective[right.property])])),
+        noAccess: Boolean(effective.noAccess)
+      };
+    }));
+  }
+
+  function auditRolePermission(roleCode, resourceKey) {
+    if (resourceKey === selectedSecurityResourceKey) {
+      const row = app.querySelector(`[data-security-permission-row][data-security-scope='role'][data-security-principal='${CSS.escape(roleCode || "")}']`);
+      if (row) return securityPermissionFromRow(row);
+    }
+    return (state.rolePermissions || []).find(item => item.resourceKey === resourceKey && item.roleCode === roleCode) || {};
+  }
+
+  function auditUserPermission(userId, resourceKey) {
+    if (resourceKey === selectedSecurityResourceKey) {
+      const row = app.querySelector(`[data-security-permission-row][data-security-scope='user'][data-security-principal='${Number(userId)}']`);
+      if (row) return { ...securityPermissionFromRow(row), isOverride: row.dataset.securityOverride === "true" };
+    }
+    return (state.userPermissions || []).find(item => item.resourceKey === resourceKey && item.userId === userId) || {};
+  }
+
+  function securityAuditCheckbox(checked, label) {
+    return `<td><input type="checkbox" aria-label="${escapeAttr(label)}" ${checked ? "checked" : ""} disabled></td>`;
+  }
+
+  function exportSecurityAudit(rows) {
+    const columns = [
+      { header: "User", value: row => row.userName },
+      { header: "Resource", value: row => row.resourceName },
+      ...securityRights.map(right => ({ header: right.name, value: row => row[right.property] ? "Yes" : "No" })),
+      { header: "No Access", value: row => row.noAccess ? "Yes" : "No" }
+    ];
+    downloadXlsx(exportFileName("pmt-security-audit", "xlsx"), "Security Audit", columns, rows);
   }
 
   function settingsUsersHtml() {

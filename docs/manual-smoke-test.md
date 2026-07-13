@@ -129,8 +129,13 @@ Use clearly named temporary records and remove them after validation.
 ### Settings
 
 - [ ] Open Status, Priority, Severity, and Environment categories.
-- [ ] Open Users, Holidays, and Development categories.
+- [ ] Open Users, Roles, Security, Navigation, Holidays, and Development categories.
 - [ ] Create/edit/deactivate a temporary lookup or Holiday as an admin.
+- [ ] In Security, confirm inherited user rows initially match their Role's effective checkboxes and Reset is disabled.
+- [ ] Change one inherited user checkbox, confirm the Break Inheritance explanation, and verify the Effective column updates immediately after continuing.
+- [ ] Cancel a second Break Inheritance prompt and confirm the inherited checkbox remains unchanged.
+- [ ] Save an explicit override, refresh, and confirm it persists; then Reset, save, and confirm Role inheritance returns.
+- [ ] Open Security Audit, confirm every active user/resource pair is read-only and reflects effective rights, then export and open the Excel workbook.
 - [ ] Confirm non-admin controls are disabled or rejected where applicable.
 - [ ] Do not run destructive Development reset actions unless specifically testing them.
 

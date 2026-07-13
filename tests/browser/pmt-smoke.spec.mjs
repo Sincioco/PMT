@@ -138,6 +138,52 @@ test("login, navigation, themes, dialogs, filters, Board, Gantt, and Road Map sm
 
   await openSettings(page);
   await expect(page.getByRole("heading", { name: "Settings", exact: true })).toBeVisible();
+  await page.locator("[data-action='select-lookup-type'][data-type='Security']").click();
+  await page.locator("[data-action='select-security-resource'][data-resource-key='DevTasks']").click();
+  const billSecurityRow = page.locator("[data-security-permission-row][data-security-scope='user'][data-security-principal='2']");
+  const billDelete = billSecurityRow.locator("[data-security-right='canDelete']");
+  const billReset = billSecurityRow.locator("[data-action='reset-security-override']");
+  await expect(billSecurityRow.locator("[data-security-right]:checked")).toHaveCount(6);
+  await expect(billReset).toBeDisabled();
+
+  await billDelete.click();
+  await expect(page.getByRole("heading", { name: "Break Inheritance" })).toBeVisible();
+  await expect(page.locator("dialog.mini-dialog")).toContainText("checked grants it and unchecked denies it");
+  await page.getByRole("button", { name: "Cancel" }).click();
+  await expect(billDelete).toBeChecked();
+  await expect(billReset).toBeDisabled();
+
+  await billDelete.click();
+  await page.getByRole("button", { name: "Continue" }).click();
+  await expect(billDelete).not.toBeChecked();
+  await expect(billReset).toBeEnabled();
+  await expect(billSecurityRow.locator(".security-effective-rights")).toContainText("Read, Create, Update, Import, Export");
+  await expect(billSecurityRow.locator(".security-effective-rights")).not.toContainText("Delete");
+
+  await billReset.click();
+  await expect(billDelete).toBeChecked();
+  await expect(billReset).toBeDisabled();
+  await expect(billSecurityRow.locator(".security-effective-rights")).toContainText("Delete");
+
+  await billDelete.click();
+  await page.getByRole("button", { name: "Continue" }).click();
+  await page.locator("[data-action='save-security']").click();
+  const savedBillSecurityRow = page.locator("[data-security-permission-row][data-security-scope='user'][data-security-principal='2']");
+  await expect(savedBillSecurityRow.locator("[data-security-right='canDelete']")).not.toBeChecked();
+  await expect(savedBillSecurityRow.locator("[data-action='reset-security-override']")).toBeEnabled();
+
+  await page.locator("[data-action='security-audit']").click();
+  await expect(page.getByRole("heading", { name: "Security Audit" })).toBeVisible();
+  await expect(page.locator(".security-audit-table tbody tr")).toHaveCount(42);
+  const billAuditDevTasks = page.locator(".security-audit-table tbody tr", { hasText: "Bill Gates" }).filter({ hasText: "Dev Tasks" });
+  await expect(billAuditDevTasks.getByRole("checkbox", { name: "Delete" })).not.toBeChecked();
+  await expect(billAuditDevTasks.locator("input:checked")).toHaveCount(5);
+  const downloadPromise = page.waitForEvent("download");
+  await page.locator("[data-security-audit-export]").click();
+  const download = await downloadPromise;
+  expect(download.suggestedFilename()).toMatch(/^pmt-security-audit-.*\.xlsx$/);
+  await page.locator("[data-security-audit-done]").click();
+
   await page.locator("[data-action='select-lookup-type'][data-type='Development']").click();
   await expect(page.getByRole("button", { name: "Restore Initial Seed Data" })).toBeVisible();
   await page.locator("[data-action='select-lookup-type'][data-type='Navigation']").click();
@@ -294,6 +340,18 @@ async function installApiMocks(page, appState) {
 
   await page.route("**/api/state", async route => {
     await route.fulfill(jsonResponse(appState));
+  });
+
+  await page.route(/\/api\/security\/[^/]+$/, async route => {
+    const resourceKey = decodeURIComponent(route.request().url().split("/").pop() || "");
+    const input = requestJson(route);
+    appState.rolePermissions = appState.rolePermissions.filter(item => item.resourceKey !== resourceKey)
+      .concat((input.rolePermissions || []).map(item => ({ ...item, resourceKey })));
+    const savedUsers = new Map((input.userPermissions || []).map(item => [Number(item.userId), item]));
+    appState.userPermissions = appState.userPermissions.map(item => item.resourceKey !== resourceKey
+      ? item
+      : { ...item, ...(savedUsers.get(item.userId) || {}), resourceKey });
+    await route.fulfill(jsonResponse({ saved: true }));
   });
 
   await page.route("**/api/wfh-schedule", async route => {
@@ -676,11 +734,74 @@ function createTestState() {
     lookups,
     holidays: [
       { id: 1, name: "Test Holiday", holidayDate: "2026-06-19", countryCode: "PH", isActive: true }
-    ]
+    ],
+    roles: [
+      { id: 101, lookupType: "Role", value: "Admin", code: "Admin", displayOrder: 10, isActive: true },
+      { id: 102, lookupType: "Role", value: "Dev - Developer", code: "Developer", displayOrder: 20, isActive: true },
+      { id: 103, lookupType: "Role", value: "QA - Quality Assurance", code: "QA", displayOrder: 30, isActive: true }
+    ],
+    securityResources: testSecurityResources(),
+    rolePermissions: [],
+    userPermissions: [],
+    effectivePermissions: []
   };
+
+  state.rolePermissions = state.securityResources.flatMap(resource => ["Developer", "QA"].map(roleCode => ({
+    resourceKey: resource.resourceKey,
+    roleCode,
+    ...testSupportedPermission(resource)
+  })));
+  state.userPermissions = state.securityResources.flatMap(resource => [2, 3].map(userId => ({
+    resourceKey: resource.resourceKey,
+    userId,
+    canRead: false,
+    canCreate: false,
+    canUpdate: false,
+    canDelete: false,
+    canImport: false,
+    canExport: false,
+    noAccess: false,
+    isOverride: false
+  })));
+  state.effectivePermissions = state.securityResources.map(resource => ({
+    resourceKey: resource.resourceKey,
+    ...testSupportedPermission(resource)
+  }));
 
   state.tasks.forEach(item => hydrateTaskPeople(state, item));
   return state;
+}
+
+function testSecurityResources() {
+  return [
+    ["Dashboard", "Dashboard", "Read"],
+    ["RoadMap", "Road Map", "Read"],
+    ["Gantt", "Gantt Chart", "Read"],
+    ["Projects", "Projects", "Read,Create,Update,Delete"],
+    ["Sprints", "Sprints", "Read,Create,Update,Delete"],
+    ["Board", "Kanban Board", "Read,Update,Export"],
+    ["DevTasks", "Dev Tasks", "Read,Create,Update,Delete,Import,Export"],
+    ["BugTracking", "Bug Tracking", "Read,Create,Update,Delete,Import,Export"],
+    ["Scrum", "Scrum", "Read,Create,Update,Delete,Import,Export"],
+    ["Documentation", "Documentation", "Read,Create,Update,Delete,Import,Export"],
+    ["PersonalLog", "Log", "Read,Create,Update,Delete,Import,Export"],
+    ["Backlog", "Backlog", "Read,Create,Update,Delete,Import,Export"],
+    ["WfhSchedule", "WFH Schedule", "Read,Update,Export"],
+    ["Settings", "Settings", "Read,Create,Update,Delete"]
+  ].map(([resourceKey, name, availableRights], index) => ({ resourceKey, name, availableRights, displayOrder: (index + 1) * 10 }));
+}
+
+function testSupportedPermission(resource) {
+  const rights = new Set(resource.availableRights.split(","));
+  return {
+    canRead: rights.has("Read"),
+    canCreate: rights.has("Create"),
+    canUpdate: rights.has("Update"),
+    canDelete: rights.has("Delete"),
+    canImport: rights.has("Import"),
+    canExport: rights.has("Export"),
+    noAccess: false
+  };
 }
 
 function project(id, code, title, description, startDate, endDate, users) {

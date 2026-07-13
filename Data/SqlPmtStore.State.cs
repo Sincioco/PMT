@@ -398,7 +398,8 @@ public sealed partial class SqlPmtStore
                 CanDelete = reader.GetBoolean("CanDelete"),
                 CanImport = reader.GetBoolean("CanImport"),
                 CanExport = reader.GetBoolean("CanExport"),
-                NoAccess = reader.GetBoolean("NoAccess")
+                NoAccess = reader.GetBoolean("NoAccess"),
+                IsOverride = reader.GetBoolean("IsOverride")
             });
         }
 

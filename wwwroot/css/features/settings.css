@@ -282,7 +282,7 @@
 }
 
 .security-user-permission-table {
-  min-width: 1040px;
+  min-width: 1140px;
 }
 
 .security-permission-table th,
@@ -347,6 +347,43 @@
 .security-effective-rights {
   min-width: 220px;
   line-height: 1.35;
+}
+
+.security-override-action {
+  min-width: 82px;
+}
+
+.security-override-action button {
+  min-height: 32px;
+  padding: var(--space-1) var(--space-3);
+}
+
+.security-user-override {
+  background: var(--color-control-active);
+}
+
+.security-audit-dialog {
+  --windowed-dialog-default-width: min(1180px, calc(100vw - 48px));
+  --windowed-dialog-default-height: min(760px, calc(100vh - 48px));
+}
+
+.security-audit-dialog-body {
+  display: grid;
+  align-content: start;
+  gap: var(--space-4);
+  min-height: 0;
+}
+
+.security-audit-dialog-body > p {
+  margin: 0;
+}
+
+.security-audit-table {
+  min-width: 980px;
+}
+
+.security-audit-table .security-audit-user-start:not(:first-child) td {
+  border-top: 2px solid var(--color-border);
 }
 
 @media (max-width: 1050px) {
