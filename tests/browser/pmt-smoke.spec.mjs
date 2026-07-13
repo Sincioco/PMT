@@ -197,6 +197,20 @@ test("login, navigation, themes, dialogs, filters, Board, Gantt, and Road Map sm
   await expect(page.locator("tbody[data-reorder-list='tasks']")).not.toContainText("PMT-TASK-003");
   await closeFilterDialog(page, "task");
 
+  await page.locator("tr[data-task-id='1']").click();
+  const taskDetails = page.locator("dialog.detail-dialog");
+  await expect(taskDetails).toBeVisible();
+  await expect(taskDetails.locator("[data-work-item-dialog-field='rootCauseAnalysisHtml']")).toHaveCount(0);
+  await expect(taskDetails.locator("[data-work-item-dialog-field='url']")).toHaveCount(0);
+  await taskDetails.getByRole("button", { name: "Edit" }).click();
+  await expect(page.locator("#editorDialog")).toBeVisible();
+  const deleteAttachmentButton = page.locator("#editorDialog [data-delete-attachment='/api/tasks/1/attachments/901']");
+  await expect(deleteAttachmentButton).toHaveCount(1);
+  await deleteAttachmentButton.click();
+  await page.getByRole("button", { name: "Continue" }).click();
+  await expect(deleteAttachmentButton).toHaveCount(0);
+  await page.locator("#cancelDialog").click();
+
   await openNavView(page, "Bugs", "Bug Tracking");
   await showFilters(page, "toggle-bug-filters");
   await page.locator("[data-filter='bug-severity']").selectOption("Critical");
@@ -314,6 +328,19 @@ async function installApiMocks(page, appState) {
     Object.assign(task, input);
     hydrateTaskPeople(appState, task);
     await route.fulfill(jsonResponse({ id: task.id }));
+  });
+
+  await page.route(/\/api\/tasks\/(\d+)\/attachments\/(\d+)$/, async route => {
+    const match = route.request().url().match(/\/api\/tasks\/(\d+)\/attachments\/(\d+)$/);
+    const task = appState.tasks.find(item => item.id === Number(match?.[1] || 0));
+    const attachmentId = Number(match?.[2] || 0);
+    if (!task || !task.attachments.some(item => item.id === attachmentId)) {
+      await route.fulfill(jsonResponse({ error: "Attachment not found" }, 404));
+      return;
+    }
+
+    task.attachments = task.attachments.filter(item => item.id !== attachmentId);
+    await route.fulfill({ status: 204, body: "" });
   });
 
   await page.route("**/api/development/restore-seed-data", async route => {
@@ -550,7 +577,19 @@ function createTestState() {
   ];
 
   const tasks = [
-    task(1, 10, 101, "Dev", "PMT-TASK-001", "Implement smokeable task", "Todo", 15, [2], [], 1, "2026-06-15", "2026-06-19"),
+    task(1, 10, 101, "Dev", "PMT-TASK-001", "Implement smokeable task", "Todo", 15, [2], [], 1, "2026-06-15", "2026-06-19", {
+      url: "",
+      rootCauseAnalysisHtml: "",
+      attachments: [
+        {
+          id: 901,
+          fileName: "task-notes.txt",
+          url: "/uploads/tasks/task-notes.txt",
+          contentType: "text/plain",
+          byteLength: 24
+        }
+      ]
+    }),
     task(2, 10, 101, "Dev", "PMT-TASK-002", "Wire Board interactions", "In Progress", 45, [2], [], 2, "2026-06-16", "2026-06-22"),
     task(3, 10, 101, "Dev", "PMT-TASK-003", "Completed regression sample", "QA Passed", 100, [2], [], 3, "2026-06-17", "2026-06-20"),
     task(4, 10, 101, "Bug", "PMT-BUG-001", "Critical board drag issue", "QA in Progress", 20, [2], [3], 4, "2026-06-18", "2026-06-24", {

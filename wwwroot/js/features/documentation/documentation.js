@@ -1,6 +1,6 @@
-import { attachmentsHtml } from "../../components/attachments.js";
+import { attachmentsHtml, bindAttachmentDeletion } from "../../components/attachments.js?v=20260714-attachment-delete";
 import { buttonContent, funnelIconHtml, iconButton } from "../../components/buttons.js";
-import { initializeWindowedDialog } from "../../components/dialogs.js?v=20260706-dialog-persistence";
+import { hideEmptyReadOnlyFields, initializeWindowedDialog } from "../../components/dialogs.js?v=20260714-attachment-delete";
 import { filterSelect } from "../../components/filters.js";
 import {
   documentationExportIconHtml,
@@ -80,6 +80,7 @@ export function createDocumentationFeature({
   attachFile,
   bindAttachmentPreview,
   bindRichTextButtons,
+  deleteAttachment,
   deleteItem,
   loadState,
   openEditor,
@@ -476,6 +477,7 @@ export function createDocumentationFeature({
     `;
 
     document.body.appendChild(modal);
+    hideEmptyReadOnlyFields(modal);
     initializeWindowedDialog(modal);
     modal.querySelectorAll("[data-close]").forEach(button => button.addEventListener("click", () => {
       modal.close();
@@ -615,6 +617,7 @@ export function createDocumentationFeature({
         ${richTextField("bodyHtml", "Body", blog.bodyHtml || "")}
         <div class="field full">
           <label>Attachments</label>
+          ${blog.attachments?.length ? attachmentsHtml(blog.attachments, { deletePathPrefix: `/api/blogs/${blog.id}/attachments` }) : ""}
           <input name="attachments" type="file" multiple>
           <div class="attachment-preview" data-preview="attachments"></div>
         </div>
@@ -793,6 +796,7 @@ export function createDocumentationFeature({
 
     bindRichTextButtons?.(form);
     bindAttachmentPreview?.(form);
+    bindAttachmentDeletion(form, deleteAttachment);
     bindDocumentationEditorRules(form, blog);
     bindDocumentationBodyImageOpen(form);
     bindDocumentationInlineRichActions(form);
@@ -1733,7 +1737,7 @@ function documentationTreeInlineEditorHtml(blog) {
       </div>
       <div class="field full documentation-inline-attachments">
         <label>Attachments</label>
-        ${blog.attachments.length ? `<div class="documentation-attachments">${blog.attachments.map(file => `<a href="${escapeAttr(file.url)}">${escapeHtml(file.fileName)}</a>`).join("")}</div>` : ""}
+        ${blog.attachments.length ? attachmentsHtml(blog.attachments, { deletePathPrefix: `/api/blogs/${blog.id}/attachments` }) : ""}
         <input name="attachments" type="file" multiple>
         <div class="attachment-preview" data-preview="attachments"></div>
       </div>

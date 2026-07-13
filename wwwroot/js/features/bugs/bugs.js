@@ -44,7 +44,7 @@ import {
   taskPercentField,
   workItemDialogMetaHtml,
   uploadWorkItemAttachments
-} from "../../components/work-items.js?v=20260714-linked-bug-percent";
+} from "../../components/work-items.js?v=20260714-attachment-delete";
 import {
   currentUser,
   currentUserId
@@ -506,7 +506,7 @@ export function createBugsFeature({
         ${bugDialogFieldHtml("severity", selectTextField(bugDialogFieldLabel("severity"), "severity", getLookupOptions("Severity", bug.severity || "Minor"), bug.severity || "Minor"))}
         ${bugDialogFieldHtml("descriptionHtml", richTextField("descriptionHtml", bugDialogFieldLabel("descriptionHtml"), bug.descriptionHtml || ""))}
         ${bugDialogFieldHtml("url", bugEditorUrlField(bug))}
-        ${bugDialogFieldHtml("attachments", attachmentEditorFieldHtml())}
+        ${bugDialogFieldHtml("attachments", attachmentEditorFieldHtml(bug.attachments || [], bug.id ? `${apiRoot}/${bug.id}/attachments` : ""))}
         ${bugDialogFieldHtml("startDate", field(bugDialogFieldLabel("startDate"), "startDate", toDateInput(bug.startDate), "date"))}
         ${bugDialogFieldHtml("endDate", field(bugDialogFieldLabel("endDate"), "endDate", toDateInput(bug.endDate), "date"))}
         ${bugDialogFieldHtml("stepsToReproduceHtml", richTextField("stepsToReproduceHtml", bugDialogFieldLabel("stepsToReproduceHtml"), bug.stepsToReproduceHtml || ""))}

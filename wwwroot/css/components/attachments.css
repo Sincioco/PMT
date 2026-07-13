@@ -9,6 +9,7 @@
 }
 
 .attachment-tile {
+  position: relative;
   width: 160px;
   min-height: 142px;
   border: var(--border-width) solid var(--color-border);
@@ -21,6 +22,41 @@
   align-content: start;
   text-decoration: none;
   transition: var(--transition-control);
+}
+
+.attachment-tile-link {
+  color: inherit;
+  display: grid;
+  gap: var(--space-2);
+  text-decoration: none;
+}
+
+.attachment-delete-button {
+  position: absolute;
+  top: var(--space-2);
+  right: var(--space-2);
+  width: 28px;
+  height: 28px;
+  border: var(--border-width) solid var(--color-border-strong);
+  border-radius: 50%;
+  background: var(--color-surface);
+  color: var(--color-danger);
+  cursor: pointer;
+  font-size: 20px;
+  line-height: 1;
+  opacity: 0;
+  transition: var(--transition-control);
+}
+
+.attachment-tile-removable:hover .attachment-delete-button,
+.attachment-tile-removable:focus-within .attachment-delete-button,
+.attachment-delete-button:focus-visible {
+  opacity: 1;
+}
+
+.attachment-delete-button:hover {
+  background: var(--color-danger-surface);
+  border-color: var(--color-danger);
 }
 
 .attachment-tile:hover,

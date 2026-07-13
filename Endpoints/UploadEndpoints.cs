@@ -47,7 +47,62 @@ internal static class UploadEndpoints
             return Results.Ok(new { id = attachmentId, upload });
         });
 
+        app.MapDelete("/api/tasks/{id:int}/attachments/{attachmentId:int}", async (int id, int attachmentId, HttpContext context, IWebHostEnvironment environment, IConfiguration configuration, SqlPmtStore store, CancellationToken cancellationToken) =>
+        {
+            var currentUserId = CurrentUserId(context);
+            await store.RequireTaskPermissionAsync(currentUserId, id, "Update", false, cancellationToken);
+            var url = await store.DeleteTaskAttachmentAsync(id, attachmentId, currentUserId, cancellationToken);
+            DeleteStoredUpload(url, environment, configuration);
+            return Results.NoContent();
+        });
+
+        app.MapDelete("/api/backlog/tasks/{id:int}/attachments/{attachmentId:int}", async (int id, int attachmentId, HttpContext context, IWebHostEnvironment environment, IConfiguration configuration, SqlPmtStore store, CancellationToken cancellationToken) =>
+        {
+            var currentUserId = CurrentUserId(context);
+            await store.RequireTaskPermissionAsync(currentUserId, id, "Update", true, cancellationToken);
+            var url = await store.DeleteBacklogTaskAttachmentAsync(id, attachmentId, currentUserId, cancellationToken);
+            DeleteStoredUpload(url, environment, configuration);
+            return Results.NoContent();
+        });
+
+        app.MapDelete("/api/blogs/{id:int}/attachments/{attachmentId:int}", async (int id, int attachmentId, HttpContext context, IWebHostEnvironment environment, IConfiguration configuration, SqlPmtStore store, CancellationToken cancellationToken) =>
+        {
+            var currentUserId = CurrentUserId(context);
+            await store.RequirePermissionAsync(currentUserId, "Documentation", "Update", cancellationToken);
+            var url = await store.DeleteBlogAttachmentAsync(id, attachmentId, currentUserId, cancellationToken);
+            DeleteStoredUpload(url, environment, configuration);
+            return Results.NoContent();
+        });
+
         return app;
+    }
+
+    private static void DeleteStoredUpload(string url, IWebHostEnvironment environment, IConfiguration configuration)
+    {
+        if (string.IsNullOrWhiteSpace(url)) return;
+
+        var uploadStorage = UploadStorageOptions.From(configuration, environment.ContentRootPath);
+        var requestPrefix = $"{uploadStorage.RequestPath.TrimEnd('/')}/";
+        if (!url.StartsWith(requestPrefix, StringComparison.OrdinalIgnoreCase)) return;
+
+        var relativePath = url[requestPrefix.Length..].Replace('/', Path.DirectorySeparatorChar);
+        var rootPath = Path.GetFullPath(uploadStorage.RootPath);
+        var filePath = Path.GetFullPath(Path.Combine(rootPath, relativePath));
+        var rootPrefix = $"{rootPath.TrimEnd(Path.DirectorySeparatorChar)}{Path.DirectorySeparatorChar}";
+        if (!filePath.StartsWith(rootPrefix, StringComparison.OrdinalIgnoreCase)) return;
+
+        try
+        {
+            if (File.Exists(filePath)) File.Delete(filePath);
+        }
+        catch (IOException)
+        {
+            // The database link is already gone; leave an unreachable file for deployment cleanup.
+        }
+        catch (UnauthorizedAccessException)
+        {
+            // The database link is already gone; leave an unreachable file for deployment cleanup.
+        }
     }
 
     private static async Task<UploadResult> SaveUploadAsync(string kind, HttpRequest request, IWebHostEnvironment environment, IConfiguration configuration, CancellationToken cancellationToken)

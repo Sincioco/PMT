@@ -38,7 +38,7 @@ import {
   taskPercentField,
   workItemDialogMetaHtml,
   uploadWorkItemAttachments
-} from "../../components/work-items.js?v=20260714-linked-bug-percent";
+} from "../../components/work-items.js?v=20260714-attachment-delete";
 import {
   currentUser
 } from "../../core/authentication.js";
@@ -528,7 +528,7 @@ export function createTasksFeature({
         ${taskDialogFieldHtml("percentCompleted", taskPercentField({ ...task, __workItemDialogPercentLabel: taskDialogFieldLabel("percentCompleted") }, taskHasSubTasks))}
         ${taskDialogFieldHtml("descriptionHtml", richTextField("descriptionHtml", taskDialogFieldLabel("descriptionHtml"), task.descriptionHtml || ""))}
         ${taskDialogFieldHtml("rootCauseAnalysisHtml", richTextField("rootCauseAnalysisHtml", taskDialogFieldLabel("rootCauseAnalysisHtml"), task.rootCauseAnalysisHtml || ""))}
-        ${taskDialogFieldHtml("attachments", attachmentEditorFieldHtml())}
+        ${taskDialogFieldHtml("attachments", attachmentEditorFieldHtml(task.attachments || [], task.id ? `${apiRoot}/${task.id}/attachments` : ""))}
         ${taskDialogFieldHtml("assigneeIds", `<div class="task-assignee-list" data-assignee-list></div>`)}
         ${taskDialogFieldHtml("startDate", field(taskDialogFieldLabel("startDate"), "startDate", toDateInput(task.startDate), "date"))}
         ${taskDialogFieldHtml("endDate", field(taskDialogFieldLabel("endDate"), "endDate", toDateInput(task.endDate), "date"))}

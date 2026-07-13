@@ -75,3 +75,54 @@ TM - Test Manager
 101.) In the Settings screen, add a screen so the user can manage Roles for adding, editing, deleting, renaming, etc.  Prevent the user from deleting a role that has a database reference still (being used).
 102.) Use the default styling and behavior of the Environment screen (found in Settings).  We don't need to designate a color.  And if there is no active flag right now for the Roles, then that is fine.  Leave it be for now.
 103.) You can change Developer to be "Dev - Developer" and QA to "QA - Quality Assurance"
+
+Security
+--------
+Goal:  We need a role-based security in PMT with an ability to override with explicit permissions as needed (sort of like NT/NTFS).  A special "No Access" permission can be assigned to a user for that resource that will explicitly deny them of that resource no matter what.  For Admins, none of these security rules apply.  Admins can and should always be able to do anything as they manage the system.
+
+1.) We need to have role-based security in PMT.  Add a new Security category/screen in Settings.
+2.) Divide the Security content into two sections.  On the left is where you pick which areas of PMT you can access.  For example, Dashboard, Road Map, Gantt Chart, Dev Task, Bug Tracking, etc.
+3.) On the right side, there should be a list of users with their privileges/rights clearly listed and changeable.
+4.) The rights are:  Read, Create, Update, Delete, Import, Export, No Access.
+	4a.) The logic for No Access is special, if that flag is enabled in no matter what cumulative security calculations you do for the user's effective privilege it should always win (similar to NT/NTFS).
+5.) Obviously it would be tedious if we have to assign explicit permissions to each users to each resources.  Create a Security Role of some kind, for example, Devs can do certain things across screens/functionalities that may be different for someone who is a PM, so that we can easily just assign a specific Security Role to a user and they will inherit the setup of that Security Role (Like a Dev Role).
+6.) I don't actually know what the default privileges should be for each role, so I will let you decide what they are based on a typical Software Development project.  Common sense like QA probably should not be able to delete Dev Tasks should be in place and vice versa, Devs should probably not be able to delete QA Bug Reports.
+7.) You have complete freedom on how you design the UI (stay within PMT's UI theme/design) and security.  Make it easy and intuitive so that the business folks who will be managing the security for their team will find it intuitive.
+8.) If you need to make security its own module/screen outside of settings, you have complete freedom to do what you think is best.
+
+9.) On a separate but related topic, if you an Admin you should be able to change anyone's password in the system without prompting for the current user's password.  In the Settings -> Users, in the User Card, if you are an admin, show an icon (maybe a key) that allows you to change the user's password at will.  This is for the "I forgot my password" scenario.
+10.) And if you are an admin and you editing the User's Card, on the lower-left of the dialog box there should be a "Change Password" option (use a key icon).
+
+Checkpoint
+----------
+If all tests are green, commit and push to the repo before the starting the task below.
+
+Deleting Attachments
+--------------------
+Universally, when a user has added an attachment in any of the dialog boxes, they cannot seem to delete it afterwards.  There is no facility or way to delete previously attached attachments.  Can you fix this?  During edit modes of the dialog boxes, the user should be able to delete attachments.  Maybe provide a hover "x" on the upper-right corner of the attachment as they are listed so the user can click "x" to delete it.  Prompt for a confirmation.
+
+Read-Only Dialog Boxes
+----------------------
+In the read-only dialog boxes, hide fields that have no values.
+
+Checkpoint
+----------
+Commit and push to the repo before the starting the task below.
+
+About Page - 3D Flyby
+---------------------
+1.) By default, turn on the alien battles.
+2.) When any alien arrives or the battle happens, during the flyby continue the flyby but override the camera and aim it at the PMT logo, if we are still in auto (not during manual control) so the user can watch the aliens/UFO.  This is the only time the camera will be overridden during the flyby.  After the battle is over, return to the normal flyby camera path.
+3.) Test to make sure the camera is behaving as the aliens arrive in the scene.
+4.) Once your test passes, commit and push to the repo.
+
+
+BDO Migration to the latest PMT on July 14, 2026
+------------------------------------------------
+1.) Provide me a step by step guide on how to migrate BDO tomorrow (July 14, 2026) to the latest version of PMT with out losing any data or breaking the current install.
+2.) In fact, can you very quickly test the migration scripts you have.
+3.) Baseline the database, apply your migration scripts in sequence and test to make sure that basic and new functionalities work.
+4.) If there are any mistakes in your migration scripts, correct them.
+5.) When you are done, provide me self-contained .html file named "2026-07-14 - PMT - BDO Migration Scripts.html" in the Sql\Migrations folder you already have.
+
+Commit and push to the repo if all is well.

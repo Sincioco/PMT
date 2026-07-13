@@ -1,18 +1,20 @@
 import { api } from "./core/api.js";
 import { currentUserId } from "./core/authentication.js";
 import { avatarsHtml, taskRowAvatarsHtml } from "./components/avatars.js?v=20260710-nav-avatar-fit";
+import { bindAttachmentDeletion } from "./components/attachments.js?v=20260714-attachment-delete";
 import { buttonContent } from "./components/buttons.js?v=20260713-role-security";
 import { copyTextToClipboard } from "./components/clipboard.js?v=20260713-invite-users";
 import {
   askForText,
   askYesNo,
+  hideEmptyReadOnlyFields,
   initializeDialogLayoutPersistence,
   initializeDraggableDialogs,
   initializeWindowedDialog,
   resetDialogLayoutPreference,
   restoreDialogLayout,
   setDialogLayoutStorageKey
-} from "./components/dialogs.js?v=20260711-tsg-report";
+} from "./components/dialogs.js?v=20260714-attachment-delete";
 import {
   field,
   value
@@ -22,7 +24,7 @@ import {
   bindAttachmentPreview,
   showTaskAudit,
   viewWorkItem
-} from "./components/work-items.js?v=20260714-linked-bug-percent";
+} from "./components/work-items.js?v=20260714-attachment-delete";
 import { createApplicationShell } from "./core/application-shell.js?v=20260713-role-security";
 import {
   currentView,
@@ -49,9 +51,9 @@ import { appUrl } from "./shared/app-urls.js";
 import { createAboutFeature } from "./features/about/about.js?v=20260714-linked-bug-percent";
 import { createBacklogFeature } from "./features/backlog/backlog.js?v=20260714-linked-bug-percent";
 import { createBoardFeature } from "./features/board/board.js?v=20260714-linked-bug-percent";
-import { createBugsFeature } from "./features/bugs/bugs.js?v=20260714-linked-bug-percent";
+import { createBugsFeature } from "./features/bugs/bugs.js?v=20260714-attachment-delete";
 import { createDashboardFeature } from "./features/dashboard/dashboard.js?v=20260714-linked-bug-percent";
-import { createDocumentationFeature } from "./features/documentation/documentation.js?v=20260713-role-security";
+import { createDocumentationFeature } from "./features/documentation/documentation.js?v=20260714-attachment-delete";
 import {
   createGanttFeature,
   currentSprintForProject,
@@ -64,7 +66,7 @@ import { createLogFeature } from "./features/personal-log/log.js?v=20260714-link
 import { createScrumFeature } from "./features/scrum/scrum.js?v=20260714-linked-bug-percent";
 import { createSettingsFeature } from "./features/settings/settings.js?v=20260714-linked-bug-percent";
 import { createSprintsFeature } from "./features/sprints/sprints.js?v=20260714-linked-bug-percent";
-import { createTasksFeature } from "./features/tasks/tasks.js?v=20260714-linked-bug-percent";
+import { createTasksFeature } from "./features/tasks/tasks.js?v=20260714-attachment-delete";
 import { createWfhScheduleFeature } from "./features/wfh-schedule/wfh-schedule.js?v=20260714-linked-bug-percent";
 import {
   fallbackEnvironments,
@@ -379,6 +381,7 @@ const documentationFeature = createDocumentationFeature({
   attachFile,
   bindAttachmentPreview,
   bindRichTextButtons,
+  deleteAttachment,
   deleteItem,
   loadState,
   openEditor,
@@ -788,6 +791,7 @@ function showBugChartDrilldown(title, bugIds) {
   `;
 
   document.body.appendChild(modal);
+  hideEmptyReadOnlyFields(modal);
   initializeWindowedDialog(modal);
   modal.addEventListener("click", event => {
     if (event.target.closest("[data-close]")) {
@@ -1697,6 +1701,7 @@ function showReadOnlyDialog(title, html) {
   `;
 
   document.body.appendChild(modal);
+  hideEmptyReadOnlyFields(modal);
   initializeWindowedDialog(modal);
   modal.querySelectorAll("[data-close]").forEach(button => button.addEventListener("click", () => {
     modal.close();
@@ -1771,6 +1776,7 @@ function openEditor(title, html, saveAction, focusName = "", afterOpen = null) {
   configureEditorDialogRichToolbarToggle();
   bindTaskPercentRules(dialogBody);
   bindAttachmentPreview(dialogBody);
+  bindAttachmentDeletion(dialogBody, deleteAttachment);
   bindAuditButtons(dialogBody);
   bindAuditButtons(editorDialogSecondaryActions);
   setDialogLayoutStorageKey(dialog, editorDialogLayoutKey(title));
@@ -3909,6 +3915,20 @@ async function attachFile(path, file) {
   const body = new FormData();
   body.append("file", file);
   return api(path, { method: "POST", body });
+}
+
+async function deleteAttachment(path, fileName) {
+  if (!await askYesNo(`Delete attachment "${fileName}"?`, "Delete")) return false;
+
+  try {
+    await api(path, { method: "DELETE" });
+    await loadState();
+    showToast("Attachment deleted.");
+    return true;
+  } catch (error) {
+    showToast(error.message);
+    return false;
+  }
 }
 
 async function deleteItem(path, message) {

@@ -25,6 +25,23 @@ export function initializeDraggableDialogs() {
   window.addEventListener("resize", () => requestAnimationFrame(clampOpenDraggedDialogs));
 }
 
+export function hideEmptyReadOnlyFields(root) {
+  const emptyLabels = new Set(["", "none", "no project", "not set", "unassigned", "unknown", "n/a"]);
+  root?.querySelectorAll?.(".detail-field").forEach(field => {
+    const valueElement = field.lastElementChild;
+    if (!valueElement) return;
+
+    const text = (valueElement.textContent || "")
+      .replace(/\u00a0/g, " ")
+      .trim()
+      .toLowerCase();
+    const hasVisualValue = Boolean(valueElement.querySelector(
+      "a[href], button, img[src], table, video, iframe, pre, code, blockquote, ul, ol"
+    ));
+    if (emptyLabels.has(text) && !hasVisualValue) field.remove();
+  });
+}
+
 export function initializeWindowedDialog(dialog, options = {}) {
   if (!(dialog instanceof HTMLDialogElement)) return;
 

@@ -1,4 +1,4 @@
-import { attachmentsHtml, filePreviewHtml } from "./attachments.js";
+import { attachmentsHtml, filePreviewHtml } from "./attachments.js?v=20260714-attachment-delete";
 import { avatarsHtml, syncAvatarStackFit } from "./avatars.js";
 import {
   applyBugDialogFieldPreferences,
@@ -15,7 +15,7 @@ import {
   taskDialogFieldLabel
 } from "./bug-dialog-customization.js?v=20260711-tsg-report";
 import { buttonContent, iconButton } from "./buttons.js?v=20260621-dev-task-icons";
-import { initializeWindowedDialog } from "./dialogs.js?v=20260711-task-dialog-customize";
+import { hideEmptyReadOnlyFields, initializeWindowedDialog } from "./dialogs.js?v=20260714-attachment-delete";
 import {
   checkListOrEmpty,
   checkedNumbers,
@@ -134,10 +134,11 @@ function percentOptionsHtml(percent) {
     .join("");
 }
 
-export function attachmentEditorFieldHtml() {
+export function attachmentEditorFieldHtml(files = [], deletePathPrefix = "") {
   return `
     <div class="field full">
       <label>Attachments</label>
+      ${files.length ? attachmentsHtml(files, { deletePathPrefix }) : ""}
       <input name="attachments" type="file" multiple>
       <div class="attachment-preview" data-preview="attachments"></div>
     </div>
@@ -284,6 +285,7 @@ export function viewWorkItem(task, editWorkItem, options = {}) {
   `;
 
   document.body.appendChild(modal);
+  hideEmptyReadOnlyFields(modal);
   initializeWindowedDialog(modal);
   if (isBug) {
     syncBugDialogHeaderActionsMenu(modal);

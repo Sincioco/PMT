@@ -125,4 +125,28 @@ public sealed partial class SqlPmtStore
         }, cancellationToken);
     }
 
+    public Task<string> DeleteTaskAttachmentAsync(int taskId, int attachmentId, int currentUserId, CancellationToken cancellationToken)
+    {
+        return DeleteTaskAttachmentAsync(taskId, attachmentId, currentUserId, false, cancellationToken);
+    }
+
+    public Task<string> DeleteBacklogTaskAttachmentAsync(int taskId, int attachmentId, int currentUserId, CancellationToken cancellationToken)
+    {
+        return DeleteTaskAttachmentAsync(taskId, attachmentId, currentUserId, true, cancellationToken);
+    }
+
+    private async Task<string> DeleteTaskAttachmentAsync(int taskId, int attachmentId, int currentUserId, bool allowBacklogAccess, CancellationToken cancellationToken)
+    {
+        await using var connection = await OpenConnectionAsync(cancellationToken);
+        await using var command = StoredProcedure(connection, "[pmt].[DeleteTaskAttachment]");
+        var urlParameter = command.Parameters.Add("@Url", SqlDbType.NVarChar, 500);
+        urlParameter.Direction = ParameterDirection.Output;
+        Add(command, "@TaskId", taskId);
+        Add(command, "@AttachmentId", attachmentId);
+        Add(command, "@CurrentUserId", currentUserId);
+        Add(command, "@AllowBacklogAccess", allowBacklogAccess);
+        await command.ExecuteNonQueryAsync(cancellationToken);
+        return urlParameter.Value is string url ? url : "";
+    }
+
 }
