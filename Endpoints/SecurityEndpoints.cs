@@ -22,6 +22,15 @@ internal static class SecurityEndpoints
             return Results.Ok(new { saved = true });
         });
 
+        app.MapPost("/api/security/reset", async (
+            HttpContext context,
+            SqlPmtStore store,
+            CancellationToken cancellationToken) =>
+        {
+            await store.ResetSecurityPermissionsAsync(ExplicitCurrentUserId(context), cancellationToken);
+            return Results.Ok(new { reset = true });
+        });
+
         return app;
     }
 }

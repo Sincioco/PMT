@@ -1242,6 +1242,26 @@ export function createSettingsFeature({
     showToast("Security saved.");
   }
 
+  async function resetSecurityPermissions() {
+    const confirmed = await askYesNo(
+      "Warning: Reset security for everyone? ALL Role permissions across ALL resources will return to their initial defaults, and ALL per-user overrides across ALL resources will be removed.",
+      "Reset Security"
+    );
+    if (!confirmed) return false;
+
+    try {
+      await api("/api/security/reset", { method: "POST" });
+      await loadState();
+      settingsCategory = "Security";
+      writePreference(preferenceKeys.settingsCategory, settingsCategory);
+      renderSettings();
+      return true;
+    } catch (error) {
+      showToast(error.message);
+      return false;
+    }
+  }
+
   function openSecurityAuditDialog() {
     const rows = securityAuditRows();
     const modal = document.createElement("dialog");
@@ -1254,14 +1274,14 @@ export function createSettingsFeature({
         <p class="muted">Effective permissions for every active user and PMT area. Administrators always have every available permission.</p>
         <div class="security-table-scroll">
           <table class="table security-permission-table security-audit-table">
-            <thead><tr><th>User</th><th>Resource</th>${securityRights.map(right => `<th>${right.name}</th>`).join("")}<th class="security-no-access-column">No Access</th></tr></thead>
+            <thead><tr><th data-security-audit-column="user">User</th><th class="security-audit-resource-column" data-security-audit-column="resource">Resource</th>${securityRights.map(right => `<th data-security-audit-right="${escapeAttr(right.property)}">${right.name}</th>`).join("")}<th class="security-no-access-column" data-security-audit-column="noAccess">No Access</th></tr></thead>
             <tbody>
               ${rows.map((row, index) => `
                 <tr class="${index === 0 || rows[index - 1].userId !== row.userId ? "security-audit-user-start" : ""}">
-                  <td>${escapeHtml(row.userName)}</td>
-                  <td>${escapeHtml(row.resourceName)}</td>
-                  ${securityRights.map(right => securityAuditCheckbox(row[right.property], right.name)).join("")}
-                  <td class="security-no-access-column">${securityAuditCheckbox(row.noAccess, "No Access")}</td>
+                  <td data-security-audit-column="user">${escapeHtml(row.userName)}</td>
+                  <td class="security-audit-resource-column" data-security-audit-column="resource">${escapeHtml(row.resourceName)}</td>
+                  ${securityRights.map(right => securityAuditRightCell(row[right.property], right)).join("")}
+                  ${securityAuditNoAccessCell(row.noAccess)}
                 </tr>
               `).join("") || `<tr><td colspan="9"><div class="empty">No active users are available.</div></td></tr>`}
             </tbody>
@@ -1269,10 +1289,18 @@ export function createSettingsFeature({
         </div>
       </div>
       <div class="dialog-actions">
+        <div class="dialog-action-group is-left">
+          <button type="button" class="danger text-icon-button" data-security-audit-reset>${buttonContent("&#8635;", "Reset Security")}</button>
+        </div>
         <button type="button" class="secondary text-icon-button" data-security-audit-export>${buttonContent("&#8681;", "Export to Excel")}</button>
         <button type="button" class="primary text-icon-button" data-security-audit-done>${buttonContent("&#10003;", "Done")}</button>
       </div>
     `;
+    modal.querySelector("[data-security-audit-reset]").addEventListener("click", async () => {
+      if (!await resetSecurityPermissions()) return;
+      modal.close();
+      showToast("Security reset to initial defaults.");
+    });
     modal.querySelector("[data-security-audit-export]").addEventListener("click", () => exportSecurityAudit(rows));
     modal.querySelector("[data-security-audit-done]").addEventListener("click", () => modal.close());
     modal.addEventListener("close", () => modal.remove());
@@ -1323,8 +1351,23 @@ export function createSettingsFeature({
     return (state.userPermissions || []).find(item => item.resourceKey === resourceKey && item.userId === userId) || {};
   }
 
-  function securityAuditCheckbox(checked, label) {
-    return `<td><input type="checkbox" aria-label="${escapeAttr(label)}" ${checked ? "checked" : ""} disabled></td>`;
+  function securityAuditRightCell(granted, right) {
+    const status = granted ? "Granted" : "Not granted";
+    const mark = granted
+      ? `
+        <span class="security-audit-right-status security-audit-right-granted" role="img" aria-label="${escapeAttr(`${right.name}: ${status}`)}" data-security-audit-status="granted">
+          <svg class="security-audit-check-graphic" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <circle cx="12" cy="12" r="10"></circle>
+            <path d="M7.5 12.5 10.5 15.5 17 8.75"></path>
+          </svg>
+        </span>`
+      : `<span class="security-audit-right-status security-audit-right-not-granted" role="img" aria-label="${escapeAttr(`${right.name}: ${status}`)}" data-security-audit-status="not-granted">&mdash;</span>`;
+
+    return `<td data-security-audit-right="${escapeAttr(right.property)}">${mark}</td>`;
+  }
+
+  function securityAuditNoAccessCell(checked) {
+    return `<td class="security-no-access-column" data-security-audit-column="noAccess"><input type="checkbox" data-security-audit-no-access aria-label="No Access" ${checked ? "checked" : ""} disabled></td>`;
   }
 
   function exportSecurityAudit(rows) {

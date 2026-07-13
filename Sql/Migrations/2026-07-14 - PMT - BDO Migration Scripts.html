@@ -85,6 +85,10 @@
   <h1>PMT BDO Production Migration</h1>
   <p class="subtitle">Runbook for July 14, 2026 &mdash; Database Version 1.3 to 1.9</p>
 
+  <div class="callout danger">
+    <strong>Superseded:</strong> This document records the rehearsed Version 1.9 deployment and does not include the current Version 1.10 security-default migration. For a new deployment, follow <code>Sql/Migrations/README.md</code> and run <code>PMT_1.3_to_1.10_All.sql</code> with all seven versioned migrations present.
+  </div>
+
   <div class="callout">
     <strong>Release decision:</strong> Run the combined <code>PMT_1.3_to_1.9_All.sql</code> SQLCMD wrapper once. It applies all six forward migrations in order and stops on the first error. Do not run the drop/rebuild script or any seed-data script on BDO. The production database and uploaded-file folder must both be backed up before deployment.
   </div>

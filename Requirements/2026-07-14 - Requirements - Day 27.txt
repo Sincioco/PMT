@@ -1,0 +1,21 @@
+Project Management Tool (PMT):  Day 27 of Codex Agentic AI Coding
+-----------------------------------------------------------------
+Total Dev Time in Hours:  35
+
+AI Instructons
+--------------
+Design Methodology:
+	KISS (Keep It Simple Stupid) - The simpler the better.  Avoid over-engineering.  Avoid unnecessary complexity.  Avoid unnecessary features.  Avoid unnecessary bells and whistles.  Avoid unnecessary abstractions.  Avoid unnecessary patterns.  Avoid unnecessary frameworks.  Avoid unnecessary libraries.  Avoid unnecessary dependencies.  Avoid unnecessary code.  Avoid unnecessary files.  Avoid unnecessary folders.  Avoid unnecessary classes.  Avoid unnecessary methods.  Avoid unnecessary variables.
+
+Testing Approach:
+	For the rest of this conversation / session, I will perform all the manual tests and compile the application manually.  Perform only the coding changes required and nothing else.  If making CSS / image changes, ensure that I will encounter no caching issue when testing in the browser.  Be sure to inform me if I have to recompile the .Net portion of the project or just Press Ctrl + F5 on the browser to reload to see the latest changes.
+
+If making changes to the database, that affects existing users see database-versioning.md under the docs folder.
+
+Security Screen
+----------------
+1.) This is purely a visual change, but in the Security Audit screen, left align the Resource column.  For the check marks, don't use the same checkmark as I said in my previous instruction, pick an image or graph with a green check that is visually visible.  Center the No Access column header and center the checkboxes in the No Access column.
+2.) Change back the default permissions for each resource for each role to the way you had it so that not everyone gets all access to everything.  Previously, you had defaulted them to what made sense for each group.  Let's go back to that.
+3.) Add a page-level button in Audit screen called "Reset Security" that resets the security settings for everyone and all resources back to the initial security as per step #2.
+4.) Be sure to warn and confirm with the user their intent to reset the security back to its default.
+5.) If all tests are green, commit and push to the repo including the requirements.

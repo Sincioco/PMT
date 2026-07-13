@@ -382,6 +382,55 @@
   min-width: 980px;
 }
 
+.security-audit-table .security-audit-resource-column {
+  text-align: left;
+}
+
+.security-audit-table th.security-no-access-column,
+.security-audit-table td.security-no-access-column {
+  text-align: center;
+}
+
+.security-audit-table input[data-security-audit-no-access] {
+  display: block;
+  margin: 0 auto;
+}
+
+.security-audit-right-status {
+  display: inline-grid;
+  width: 22px;
+  height: 22px;
+  place-items: center;
+  line-height: 1;
+}
+
+.security-audit-right-granted {
+  color: var(--color-success);
+}
+
+.security-audit-check-graphic {
+  display: block;
+  width: 22px;
+  height: 22px;
+}
+
+.security-audit-check-graphic circle {
+  fill: currentColor;
+}
+
+.security-audit-check-graphic path {
+  fill: none;
+  stroke: var(--color-surface-raised);
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.security-audit-right-not-granted {
+  color: var(--color-text-secondary);
+  font-size: 18px;
+}
+
 .security-audit-table .security-audit-user-start:not(:first-child) td {
   border-top: 2px solid var(--color-border);
 }

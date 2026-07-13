@@ -70,8 +70,10 @@ The default role names are `Admin`, `Dev - Developer`, `QA - Quality Assurance`,
 - A user override is a complete replacement for the inherited row: checked grants the right and unchecked denies it. Reset removes the override and restores Role inheritance.
 - `No Access` is an explicit deny. If either the Role or user override has `No Access` for an area, every allow permission for that area is denied.
 - The available rights are Read, Create, Update, Delete, Import, and Export. Each PMT area exposes only the rights it supports.
-- New and migrated Role defaults grant every right supported by each PMT area. Administrators may remove Role rights or create narrower user overrides as needed.
-- A Role created later in Settings starts with every right supported by each PMT area.
+- Role defaults follow software-team responsibilities. Every non-admin Role can read each area; all receive Board and WFH update/export, Settings update, Scrum and Documentation create/update/import/export, and full Personal Log rights.
+- Developers receive full Dev Task and Backlog rights plus Bug read/create/export. QA, QA Manual, and QA Automation receive Dev Task read/export, full Bug rights, and Backlog read/create/update/import/export. Systems Analysts receive Projects and Sprints read/create/update, Dev Task/Bug/Backlog read/create/update/import/export, and Scrum/Documentation delete. Technical Leads receive full Projects, Sprints, Dev Task, and Backlog rights, Bug read/create/update/import/export, and Scrum/Documentation delete. Project Managers receive full Projects, Sprints, and Backlog rights, Dev Task/Bug read/create/update/import/export, and Scrum/Documentation delete. Test Managers receive Sprint read/update, Dev Task read/export, full Bug rights, Backlog read/create/update/import/export, and Scrum/Documentation delete.
+- A custom Role created later in Settings starts with the common non-admin baseline and no built-in discipline-specific additions.
+- Reset Security restores these defaults for every non-admin Role and removes every explicit user override so users inherit from their Roles again.
 - The Security Audit shows each active user's current effective rights for every PMT area and exports the same read-only matrix to Excel.
 - Administrators may add, rename, reorder, activate, deactivate, and delete Roles in Settings. Visible names are separate from the stable internal security codes.
 - A Role cannot be deleted while any active or inactive user record still references it.

@@ -16,6 +16,7 @@ const statuses = [
 
 test("login, navigation, themes, dialogs, filters, Board, Gantt, and Road Map smoke", async ({ page }) => {
   const appState = createTestState();
+  const apiCalls = { securityReset: 0 };
   const browserErrors = [];
 
   page.on("console", message => {
@@ -50,7 +51,7 @@ test("login, navigation, themes, dialogs, filters, Board, Gantt, and Road Map sm
       ].map(([view, label]) => ({ view, label, visible: true }))
     }));
   });
-  await installApiMocks(page, appState);
+  await installApiMocks(page, appState, apiCalls);
 
   await page.goto("/");
   await expect(page.getByRole("heading", { name: "PMT", exact: true })).toBeVisible();
@@ -174,15 +175,59 @@ test("login, navigation, themes, dialogs, filters, Board, Gantt, and Road Map sm
 
   await page.locator("[data-action='security-audit']").click();
   await expect(page.getByRole("heading", { name: "Security Audit" })).toBeVisible();
+  await expect(page.locator(".security-audit-dialog").getByRole("button", { name: "Reset Security" })).toBeVisible();
   await expect(page.locator(".security-audit-table tbody tr")).toHaveCount(42);
   const billAuditDevTasks = page.locator(".security-audit-table tbody tr", { hasText: "Bill Gates" }).filter({ hasText: "Dev Tasks" });
-  await expect(billAuditDevTasks.getByRole("checkbox", { name: "Delete" })).not.toBeChecked();
-  await expect(billAuditDevTasks.locator("input:checked")).toHaveCount(5);
+  await expect(billAuditDevTasks.getByRole("img", { name: "Delete: Not granted" })).toBeVisible();
+  await expect(billAuditDevTasks.locator("[data-security-audit-status='granted']")).toHaveCount(5);
+  const grantedRead = billAuditDevTasks.locator("[data-security-audit-right='canRead'] [data-security-audit-status='granted']");
+  await expect(grantedRead.locator("svg")).toBeVisible();
+  await expect(grantedRead.locator("circle")).toHaveCSS("fill", "rgb(47, 158, 68)");
+  await expect(page.locator(".security-audit-table thead [data-security-audit-column='resource']")).toHaveCSS("text-align", "left");
+  await expect(billAuditDevTasks.locator("[data-security-audit-column='resource']")).toHaveCSS("text-align", "left");
+  await expect(page.locator(".security-audit-table thead [data-security-audit-column='noAccess']")).toHaveCSS("text-align", "center");
+  const billAuditNoAccess = billAuditDevTasks.locator("[data-security-audit-column='noAccess']");
+  await expect(billAuditNoAccess).toHaveCSS("text-align", "center");
+  await expect(billAuditNoAccess.getByRole("checkbox", { name: "No Access" })).toBeDisabled();
+  await expect(billAuditNoAccess.getByRole("checkbox", { name: "No Access" })).not.toBeChecked();
   const downloadPromise = page.waitForEvent("download");
   await page.locator("[data-security-audit-export]").click();
   const download = await downloadPromise;
   expect(download.suggestedFilename()).toMatch(/^pmt-security-audit-.*\.xlsx$/);
-  await page.locator("[data-security-audit-done]").click();
+
+  const securityStateBeforeCancelledReset = JSON.stringify({
+    rolePermissions: appState.rolePermissions,
+    userPermissions: appState.userPermissions
+  });
+  await page.locator("[data-security-audit-reset]").click();
+  await expect(page.getByRole("heading", { name: "Reset Security" })).toBeVisible();
+  await expect(page.locator("dialog.mini-dialog")).toContainText("ALL Role permissions across ALL resources will return to their initial defaults");
+  await expect(page.locator("dialog.mini-dialog")).toContainText("ALL per-user overrides across ALL resources will be removed");
+  await page.getByRole("button", { name: "Cancel" }).click();
+  expect(apiCalls.securityReset).toBe(0);
+  expect(JSON.stringify({
+    rolePermissions: appState.rolePermissions,
+    userPermissions: appState.userPermissions
+  })).toBe(securityStateBeforeCancelledReset);
+  await expect(page.getByRole("heading", { name: "Security Audit" })).toBeVisible();
+  await expect(billAuditDevTasks.getByRole("img", { name: "Delete: Not granted" })).toBeVisible();
+
+  await page.locator("[data-security-audit-reset]").click();
+  await page.getByRole("button", { name: "Continue" }).click();
+  await expect(page.locator("#toast")).toHaveText("Security reset to initial defaults.");
+  await expect(page.getByRole("heading", { name: "Security Audit" })).not.toBeVisible();
+  expect(apiCalls.securityReset).toBe(1);
+  const resetBillSecurityRow = page.locator("[data-security-permission-row][data-security-scope='user'][data-security-principal='2']");
+  await expect(resetBillSecurityRow).toHaveAttribute("data-security-override", "false");
+  await expect(resetBillSecurityRow.locator("[data-security-right]:checked")).toHaveCount(6);
+  await expect(resetBillSecurityRow.locator("[data-action='reset-security-override']")).toBeDisabled();
+  const resetDeveloperRole = page.locator("[data-security-permission-row][data-security-scope='role'][data-security-principal='Developer']");
+  const resetQaRole = page.locator("[data-security-permission-row][data-security-scope='role'][data-security-principal='QA']");
+  await expect(resetDeveloperRole.locator("[data-security-right]:checked")).toHaveCount(6);
+  await expect(resetQaRole.locator("[data-security-right]:checked")).toHaveCount(2);
+  await expect(resetQaRole.locator("[data-security-right='canRead']")).toBeChecked();
+  await expect(resetQaRole.locator("[data-security-right='canExport']")).toBeChecked();
+  await expect(resetQaRole.locator("[data-security-right='canCreate']")).not.toBeChecked();
 
   await page.locator("[data-action='select-lookup-type'][data-type='Development']").click();
   await expect(page.getByRole("button", { name: "Restore Initial Seed Data" })).toBeVisible();
@@ -325,7 +370,7 @@ test("login, navigation, themes, dialogs, filters, Board, Gantt, and Road Map sm
   expect(browserErrors).toEqual([]);
 });
 
-async function installApiMocks(page, appState) {
+async function installApiMocks(page, appState, apiCalls) {
   let wfhSchedule = createWfhScheduleRows(appState.users);
 
   await page.route("**/api/login", async route => {
@@ -344,6 +389,13 @@ async function installApiMocks(page, appState) {
 
   await page.route(/\/api\/security\/[^/]+$/, async route => {
     const resourceKey = decodeURIComponent(route.request().url().split("/").pop() || "");
+    if (resourceKey === "reset") {
+      apiCalls.securityReset += 1;
+      resetTestSecurityPermissions(appState);
+      await route.fulfill(jsonResponse({ reset: true }));
+      return;
+    }
+
     const input = requestJson(route);
     appState.rolePermissions = appState.rolePermissions.filter(item => item.resourceKey !== resourceKey)
       .concat((input.rolePermissions || []).map(item => ({ ...item, resourceKey })));
@@ -746,23 +798,7 @@ function createTestState() {
     effectivePermissions: []
   };
 
-  state.rolePermissions = state.securityResources.flatMap(resource => ["Developer", "QA"].map(roleCode => ({
-    resourceKey: resource.resourceKey,
-    roleCode,
-    ...testSupportedPermission(resource)
-  })));
-  state.userPermissions = state.securityResources.flatMap(resource => [2, 3].map(userId => ({
-    resourceKey: resource.resourceKey,
-    userId,
-    canRead: false,
-    canCreate: false,
-    canUpdate: false,
-    canDelete: false,
-    canImport: false,
-    canExport: false,
-    noAccess: false,
-    isOverride: false
-  })));
+  resetTestSecurityPermissions(state);
   state.effectivePermissions = state.securityResources.map(resource => ({
     resourceKey: resource.resourceKey,
     ...testSupportedPermission(resource)
@@ -789,6 +825,61 @@ function testSecurityResources() {
     ["WfhSchedule", "WFH Schedule", "Read,Update,Export"],
     ["Settings", "Settings", "Read,Create,Update,Delete"]
   ].map(([resourceKey, name, availableRights], index) => ({ resourceKey, name, availableRights, displayOrder: (index + 1) * 10 }));
+}
+
+function resetTestSecurityPermissions(state) {
+  const roleCodes = ["Developer", "QA"];
+  const userIds = state.users.filter(user => !user.isAdmin).map(user => user.id);
+  state.rolePermissions = state.securityResources.flatMap(resource => roleCodes.map(roleCode => ({
+    resourceKey: resource.resourceKey,
+    roleCode,
+    ...testHistoricalRolePermission(resource, roleCode)
+  })));
+  state.userPermissions = state.securityResources.flatMap(resource => userIds.map(userId => ({
+    resourceKey: resource.resourceKey,
+    userId,
+    canRead: false,
+    canCreate: false,
+    canUpdate: false,
+    canDelete: false,
+    canImport: false,
+    canExport: false,
+    noAccess: false,
+    isOverride: false
+  })));
+}
+
+function testHistoricalRolePermission(resource, roleCode) {
+  const granted = new Set(["Read"]);
+  const grant = (...rights) => rights.forEach(right => granted.add(right));
+  const resourceKey = resource.resourceKey;
+
+  if (["Board", "WfhSchedule", "Settings"].includes(resourceKey)) grant("Update");
+  if (["Board", "WfhSchedule"].includes(resourceKey)) grant("Export");
+  if (["Scrum", "Documentation"].includes(resourceKey)) grant("Create", "Update", "Import", "Export");
+  if (resourceKey === "PersonalLog") grant("Create", "Update", "Delete", "Import", "Export");
+
+  if (roleCode === "Developer") {
+    if (["DevTasks", "Backlog"].includes(resourceKey)) grant("Create", "Update", "Delete", "Import", "Export");
+    if (resourceKey === "BugTracking") grant("Create", "Export");
+  }
+
+  if (roleCode === "QA") {
+    if (resourceKey === "DevTasks") grant("Export");
+    if (resourceKey === "BugTracking") grant("Create", "Update", "Delete", "Import", "Export");
+    if (resourceKey === "Backlog") grant("Create", "Update", "Import", "Export");
+  }
+
+  const available = new Set(resource.availableRights.split(","));
+  return {
+    canRead: available.has("Read") && granted.has("Read"),
+    canCreate: available.has("Create") && granted.has("Create"),
+    canUpdate: available.has("Update") && granted.has("Update"),
+    canDelete: available.has("Delete") && granted.has("Delete"),
+    canImport: available.has("Import") && granted.has("Import"),
+    canExport: available.has("Export") && granted.has("Export"),
+    noAccess: false
+  };
 }
 
 function testSupportedPermission(resource) {

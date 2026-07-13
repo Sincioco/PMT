@@ -64,4 +64,14 @@ public sealed partial class SqlPmtStore
             Add(command, "@CurrentUserId", currentUserId);
         }, cancellationToken);
     }
+
+    public Task ResetSecurityPermissionsAsync(
+        int currentUserId,
+        CancellationToken cancellationToken)
+    {
+        return ExecuteProcedureAsync("[pmt].[ResetSecurityPermissions]", command =>
+        {
+            Add(command, "@CurrentUserId", currentUserId);
+        }, cancellationToken);
+    }
 }

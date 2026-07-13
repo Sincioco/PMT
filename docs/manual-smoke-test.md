@@ -135,7 +135,9 @@ Use clearly named temporary records and remove them after validation.
 - [ ] Change one inherited user checkbox, confirm the Break Inheritance explanation, and verify the Effective column updates immediately after continuing.
 - [ ] Cancel a second Break Inheritance prompt and confirm the inherited checkbox remains unchanged.
 - [ ] Save an explicit override, refresh, and confirm it persists; then Reset, save, and confirm Role inheritance returns.
-- [ ] Open Security Audit, confirm every active user/resource pair is read-only and reflects effective rights, then export and open the Excel workbook.
+- [ ] Open Security Audit and confirm every active user/resource pair reflects effective rights, Resource is left-aligned, granted rights use visible green check graphics, and the No Access header and disabled checkboxes are centered; then export and open the Excel workbook.
+- [ ] Create a temporary Role-permission change and user override, click Reset Security, cancel the warning, and confirm nothing changes. Repeat and continue; confirm all Role permissions return to their initial defaults across every resource and every per-user override is removed.
+- [ ] After Reset Security, confirm Developer has all Dev Task rights while QA has only Read and Export for Dev Tasks.
 - [ ] Confirm non-admin controls are disabled or rejected where applicable.
 - [ ] Do not run destructive Development reset actions unless specifically testing them.
 
