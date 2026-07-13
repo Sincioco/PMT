@@ -83,6 +83,7 @@ app.UseStaticFiles(new StaticFileOptions
 // The frontend loads all screen data through this one endpoint, then performs
 // small save actions through focused endpoints below.
 app.MapAuthenticationEndpoints();
+app.MapInvitationEndpoints();
 app.MapStateEndpoints();
 app.MapProjectEndpoints();
 app.MapSprintEndpoints();

@@ -80,6 +80,14 @@ Browser permission checks control available actions, while `[pmt].[IsAdmin]`, `[
 Browser permission checks live in `wwwroot/js/shared/permissions.js` so screens and future feature modules share the same owner, user, and work-item role logic.
 Permission regressions are covered in `tests/js/permissions.test.mjs`.
 
+## User invitations and onboarding
+
+- Any active user may generate a reusable internal invite URL for one or more active Projects they belong to. Admins may include any active Project.
+- Invite URLs are bearer links intended for internal BDO sharing and remain valid for 30 days. PMT does not require or collect an email address for invitation or onboarding.
+- An invited user supplies only a unique nickname, a password of at least eight characters, and a required selected or uploaded avatar.
+- Invited users are created as active, non-admin `Developer` users. User creation and all selected Project memberships are committed atomically.
+- A user invited to one Project goes to Sprints when that Project already has at least one Sprint; otherwise the user goes to Projects. Users invited to multiple Projects go to Projects.
+
 ## Sprint lifecycle
 
 - Sprint members must be active members of the selected Project.
@@ -90,7 +98,7 @@ Permission regressions are covered in `tests/js/permissions.test.mjs`.
 
 ## Persistence and preferences
 
-Authentication is currently an internal-development mechanism: the browser stores a user ID and sends it as `X-PMT-UserId`. It is not production-grade cookie or token authentication.
+Authentication is currently an internal-trust mechanism: the browser stores a user ID and sends it as `X-PMT-UserId`. It is not cookie- or token-based authentication.
 
 | Area | `localStorage` keys |
 | --- | --- |

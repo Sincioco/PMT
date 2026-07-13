@@ -54,6 +54,10 @@ test("login, navigation, themes, dialogs, filters, Board, Gantt, and Road Map sm
 
   await page.goto("/");
   await expect(page.getByRole("heading", { name: "PMT", exact: true })).toBeVisible();
+  await expect(page.locator("#loginName")).toHaveValue("");
+  await expect(page.locator("#loginPassword")).toHaveValue("");
+  await page.locator("#loginName").fill("Sin");
+  await page.locator("#loginPassword").fill("Password1");
   await page.getByRole("button", { name: /log in/i }).click();
   await expect(page.getByRole("heading", { name: "Dashboard", exact: true })).toBeVisible();
   await expect(page.locator(".dashboard-summary-grid")).toBeVisible();
@@ -61,6 +65,7 @@ test("login, navigation, themes, dialogs, filters, Board, Gantt, and Road Map sm
 
   await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
   await openUserMenu(page);
+  await expect(page.getByRole("menuitem", { name: "Invite Users" })).toBeVisible();
   await page.locator("#themeToggle").click();
   await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
   await page.keyboard.press("Escape");

@@ -192,6 +192,60 @@ BEGIN
 END;
 GO
 
+IF NOT EXISTS
+(
+    SELECT 1
+    FROM sys.indexes
+    WHERE [name] = N'IX_pmt_ProjectMembers_UserId'
+      AND [object_id] = OBJECT_ID(N'[pmt].[ProjectMembers]')
+)
+BEGIN
+    CREATE INDEX [IX_pmt_ProjectMembers_UserId]
+        ON [pmt].[ProjectMembers]([UserId], [ProjectId]);
+END;
+GO
+
+IF OBJECT_ID(N'[pmt].[UserInvitations]', N'U') IS NULL
+BEGIN
+    CREATE TABLE [pmt].[UserInvitations]
+    (
+        [UserInvitationId] INT IDENTITY(1,1) NOT NULL CONSTRAINT [PK_pmt_UserInvitations] PRIMARY KEY,
+        [TokenHash] VARBINARY(32) NOT NULL,
+        [ExpiresAt] DATETIME2(0) NOT NULL,
+        [CreatedByUserId] INT NOT NULL,
+        [CreatedAt] DATETIME2(0) NOT NULL CONSTRAINT [DF_pmt_UserInvitations_CreatedAt] DEFAULT (SYSUTCDATETIME()),
+        CONSTRAINT [FK_pmt_UserInvitations_CreatedBy] FOREIGN KEY ([CreatedByUserId]) REFERENCES [pmt].[Users]([UserId]) ON DELETE CASCADE
+    );
+END;
+GO
+
+IF NOT EXISTS
+(
+    SELECT 1
+    FROM sys.indexes
+    WHERE [name] = N'UX_pmt_UserInvitations_TokenHash'
+      AND [object_id] = OBJECT_ID(N'[pmt].[UserInvitations]')
+)
+BEGIN
+    CREATE UNIQUE INDEX [UX_pmt_UserInvitations_TokenHash]
+        ON [pmt].[UserInvitations]([TokenHash]);
+END;
+GO
+
+IF OBJECT_ID(N'[pmt].[UserInvitationProjects]', N'U') IS NULL
+BEGIN
+    CREATE TABLE [pmt].[UserInvitationProjects]
+    (
+        [UserInvitationId] INT NOT NULL,
+        [ProjectId] INT NOT NULL,
+        [CreatedAt] DATETIME2(0) NOT NULL CONSTRAINT [DF_pmt_UserInvitationProjects_CreatedAt] DEFAULT (SYSUTCDATETIME()),
+        CONSTRAINT [PK_pmt_UserInvitationProjects] PRIMARY KEY ([UserInvitationId], [ProjectId]),
+        CONSTRAINT [FK_pmt_UserInvitationProjects_Invitation] FOREIGN KEY ([UserInvitationId]) REFERENCES [pmt].[UserInvitations]([UserInvitationId]) ON DELETE CASCADE,
+        CONSTRAINT [FK_pmt_UserInvitationProjects_Project] FOREIGN KEY ([ProjectId]) REFERENCES [pmt].[Projects]([ProjectId]) ON DELETE CASCADE
+    );
+END;
+GO
+
 IF OBJECT_ID(N'[pmt].[Sprints]', N'U') IS NULL
 BEGIN
     CREATE TABLE [pmt].[Sprints]

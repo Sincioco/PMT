@@ -18,11 +18,34 @@ against disposable development data.
 
 ## Authentication and user menu
 
-- [ ] Log in as `Sin` with `Password1`.
-- [ ] Confirm the avatar menu opens and contains Settings, theme, password, and Log Out.
+- [ ] On a browser profile that has never logged in, confirm Nickname or Email and Password both start blank.
+- [ ] Enter `Sin` and `Password1`, then log in.
+- [ ] Confirm the avatar menu opens and contains Invite Users, Settings, theme, password, and Log Out.
 - [ ] Open Change Password, validate the fields/dialog, and cancel without changing the seed password.
 - [ ] Log out and confirm the Login screen returns.
 - [ ] Log in again and confirm the selected view loads.
+
+## Invitations and new-user onboarding
+
+Use disposable invitation records and new-user nicknames, and remove or deactivate the temporary users after validation.
+
+- [ ] As an administrator, open Invite Users from the avatar menu and confirm every active Project is listed with its picture on the left and label on the right.
+- [ ] As a non-administrator, confirm the Project checklist contains only Projects where the current user is a member.
+- [ ] Select no Projects, choose Generate Invite URL, and confirm PMT requires at least one Project without creating an invitation.
+- [ ] Select one or more Projects, generate the invitation, and confirm the dialog displays the URL and its expiration.
+- [ ] Confirm Copy URL is disabled before generation, enabled afterward, and copies the exact displayed URL.
+- [ ] Open the copied URL in a signed-out or private browser window and confirm the minimal profile screen appears before Login.
+- [ ] Confirm the profile asks for Nickname, Password, Confirm Password, and Avatar, with no Email field.
+- [ ] Submit without selecting or uploading an avatar and confirm PMT requires one.
+- [ ] Select each generic-avatar style in turn and confirm the selected state and preview remain clear in both themes.
+- [ ] Upload an image and confirm its preview appears before submission and replaces any selected generic avatar.
+- [ ] Complete an invitation for exactly one Project that already has a Sprint and confirm PMT opens Sprints with that Project selected.
+- [ ] Complete an invitation for exactly one Project with no Sprints and confirm PMT opens Projects.
+- [ ] Complete an invitation containing multiple Projects and confirm PMT opens Projects.
+- [ ] Log out as the invited user, then log back in with the new Nickname and Password.
+- [ ] Reopen the same valid invitation URL and confirm it can create another user until its 30-day expiration.
+- [ ] Confirm an expired, malformed, or otherwise unavailable invitation cannot create a user.
+- [ ] Confirm the new user is a non-admin Developer and is a member of every Project included in the invitation, with no unrelated Project memberships.
 
 ## Navigation
 

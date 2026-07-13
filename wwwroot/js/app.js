@@ -2,6 +2,7 @@ import { api } from "./core/api.js";
 import { currentUserId } from "./core/authentication.js";
 import { avatarsHtml, taskRowAvatarsHtml } from "./components/avatars.js?v=20260710-nav-avatar-fit";
 import { buttonContent } from "./components/buttons.js";
+import { copyTextToClipboard } from "./components/clipboard.js?v=20260713-invite-users";
 import {
   askForText,
   askYesNo,
@@ -22,7 +23,7 @@ import {
   showTaskAudit,
   viewWorkItem
 } from "./components/work-items.js?v=20260711-tsg-report";
-import { createApplicationShell } from "./core/application-shell.js?v=20260710-nav-avatar-fit";
+import { createApplicationShell } from "./core/application-shell.js?v=20260713-invite-users";
 import {
   currentView,
   ensureCurrentViewRoute,
@@ -55,11 +56,12 @@ import {
   currentSprintForProject,
   ganttStartDate
 } from "./features/gantt/gantt.js?v=20260707-deep-links";
-import { createProjectsFeature } from "./features/projects/projects.js?v=20260710-nav-avatar-fit";
+import { createInvitationsFeature } from "./features/invitations/invitations.js?v=20260713-invite-profile-footer";
+import { createProjectsFeature } from "./features/projects/projects.js?v=20260713-invite-users";
 import { createRoadMapFeature } from "./features/roadmap/roadmap.js?v=20260710-rich-bug-layout";
 import { createLogFeature } from "./features/personal-log/log.js?v=20260710-rte-checkbox-persist";
 import { createScrumFeature } from "./features/scrum/scrum.js?v=20260710-rte-checkbox-persist";
-import { createSettingsFeature } from "./features/settings/settings.js?v=20260710-nav-avatar-fit";
+import { createSettingsFeature } from "./features/settings/settings.js?v=20260713-invite-username-feedback";
 import { createSprintsFeature } from "./features/sprints/sprints.js?v=20260710-nav-avatar-fit";
 import { createTasksFeature } from "./features/tasks/tasks.js?v=20260712-about-chart-gallery";
 import { createWfhScheduleFeature } from "./features/wfh-schedule/wfh-schedule.js?v=20260709-wfh-undo-large-days";
@@ -170,6 +172,7 @@ let suppressNextClick = false;
 let pageEventsBound = false;
 let chartTooltip = null;
 let boardFeature = null;
+let invitationsFeature = null;
 let handlingBrowserRouteChange = false;
 let lastOpenedContentRouteKey = "";
 // let openCreateSprintOnRender = false;
@@ -189,8 +192,11 @@ configureProgressAndStatus({
 const shell = createApplicationShell({
   bindScreenEvents,
   editPassword,
+  hasPendingInvitation: () => invitationsFeature?.hasPendingInvitation(),
+  inviteUsers: () => invitationsFeature?.openInviteDialog(),
   // prepareRender,
   refreshLookupOptions,
+  renderPendingInvitation: () => invitationsFeature?.renderInvitationProfile(),
   renderCurrentScreen,
   // resolveNavigationView,
   showToast
@@ -256,6 +262,30 @@ const sprintsFeature = createSprintsFeature({
   render,
   saveJson,
   showToast
+});
+invitationsFeature = createInvitationsFeature({
+  app,
+  onAccepted: async result => {
+    const started = await shell.start();
+    if (!started) return;
+
+    if (result.nextView === "Sprints" && result.projectId) {
+      sprintsFeature.selectProject(result.projectId);
+      navigate("Sprints");
+    } else {
+      navigate("Projects");
+    }
+    render();
+  },
+  resumeApplication: async () => {
+    if (currentUserId) {
+      await shell.start();
+    } else {
+      shell.renderLogin();
+    }
+  },
+  showToast,
+  uploadFile
 });
 const settingsFeature = createSettingsFeature({
   app,
@@ -3662,51 +3692,6 @@ function openRichSourceDialog(editor) {
   modal.addEventListener("close", () => modal.remove());
   modal.showModal();
   setTimeout(() => modal.querySelector("[name='sourceHtml']")?.focus({ preventScroll: true }), 0);
-}
-
-async function copyTextToClipboard(text, sourceControl = null) {
-  try {
-    if (navigator.clipboard?.writeText) {
-      await navigator.clipboard.writeText(text);
-      return true;
-    }
-  } catch {
-    // Fall back to the selection-based copy path below.
-  }
-
-  return copyTextToClipboardFallback(text, sourceControl);
-}
-
-function copyTextToClipboardFallback(text, sourceControl = null) {
-  const textarea = sourceControl || document.createElement("textarea");
-  const selectionStart = typeof textarea.selectionStart === "number" ? textarea.selectionStart : null;
-  const selectionEnd = typeof textarea.selectionEnd === "number" ? textarea.selectionEnd : null;
-  if (!sourceControl) {
-    textarea.value = text;
-    textarea.setAttribute("readonly", "");
-    textarea.style.position = "fixed";
-    textarea.style.top = "-1000px";
-    textarea.style.left = "-1000px";
-    (document.querySelector("dialog[open]") || document.body).appendChild(textarea);
-  }
-
-  textarea.focus({ preventScroll: true });
-  textarea.select();
-
-  let copied = false;
-  try {
-    copied = document.execCommand("copy");
-  } catch {
-    copied = false;
-  }
-
-  if (sourceControl && selectionStart !== null && selectionEnd !== null) {
-    textarea.setSelectionRange(selectionStart, selectionEnd);
-  } else {
-    textarea.remove();
-  }
-
-  return copied;
 }
 
 async function insertRichUploadedImage(editor, file) {

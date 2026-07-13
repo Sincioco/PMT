@@ -11,6 +11,11 @@ internal static class SettingsEndpoints
 {
     public static IEndpointRouteBuilder MapSettingsEndpoints(this IEndpointRouteBuilder app)
     {
+        app.MapGet("/api/usernames/suggestion", async (string? username, int? excludeUserId, SqlPmtStore store, CancellationToken cancellationToken) =>
+        {
+            return Results.Ok(await store.SuggestUsernameAsync(username ?? "", excludeUserId ?? 0, cancellationToken));
+        });
+
         app.MapPost("/api/users", async (UserInput input, HttpContext context, SqlPmtStore store, CancellationToken cancellationToken) =>
         {
             var id = await store.SaveUserAsync(input, CurrentUserId(context), cancellationToken);

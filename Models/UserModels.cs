@@ -43,6 +43,12 @@ public sealed class UserInput
     public string Role { get; set; } = "Developer";
 }
 
+public sealed class UsernameSuggestionDto
+{
+    public string Username { get; set; } = "";
+    public bool IsAvailable { get; set; }
+}
+
 public sealed class LoginInput
 {
     public string Login { get; set; } = "";

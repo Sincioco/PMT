@@ -1,0 +1,60 @@
+Project Management Tool (PMT):  Day 25 of Codex Agentic AI Coding
+-----------------------------------------------------------------
+Total Dev Time in Hours:  34
+
+AI Instructons
+--------------
+Design Methodology:
+	KISS (Keep It Simple Stupid) - The simpler the better.  Avoid over-engineering.  Avoid unnecessary complexity.  Avoid unnecessary features.  Avoid unnecessary bells and whistles.  Avoid unnecessary abstractions.  Avoid unnecessary patterns.  Avoid unnecessary frameworks.  Avoid unnecessary libraries.  Avoid unnecessary dependencies.  Avoid unnecessary code.  Avoid unnecessary files.  Avoid unnecessary folders.  Avoid unnecessary classes.  Avoid unnecessary methods.  Avoid unnecessary variables.  
+
+Testing Approach:
+	For the rest of this conversation / session, I will perform all the manual tests and compile the application manually.  Perform only the coding changes required and nothing else.  If making CSS / image changes, ensure that I will encounter no caching issue when testing in the browser.  Be sure to inform me if I have to recompile the .Net portion of the project or just Press Ctrl + F5 on the browser to reload to see the latest changes.
+
+If making changes to the database, that affects existing users see database-versioning.md under the docs folder.
+
+Milestone
+---------
+Remember this:  PMT has been deployed to a server and has real users now.  Please take the current database schema as the new baseline.  All known version of PMT are on the current version, so there is no need to worry about backwards compatibility with previous versions.  Going forward, any changes we make that changes the database in anyway that could impact the current deployed users is allowed as long as you provide a migration script.  If it helps you to remember, the customer where PMT has been deployed it is BDO.  So the stability of BDO's instance of PMT is top priority.  All changes we make going forward must that affects the database or the stability of BDO's instance of PMT must have a migration script.  Record this milestone in the appropriate markdown file so you can remember this.
+
+
+Inviting Users in PMT
+---------------------
+Problem:  We have no path right now for inviting users in PMT.
+Goal:  We need to invite users in PMT more smoothly.
+
+1.) Currently, if you have never logged on to PMT, the log in screen defaults to the username "Sin" and with the password "Password1".  We no longer want this.  Leave the username and password blank.
+2.) In the upper-right corner of PMT, on the avatar's picture, add a menu item for "Invite Users".
+3.) Provide a checkbox list of projects the current user is a member of.  Render the list of projects similar to the way you render User's list.  Picture on the left, label on the right.  Obviously, if the user is an Admin, show all projects.
+4.) Make it mandatory that they have to select 1 or more projects.
+5.) Add a generate invite URL somewhere within the body of the dialog box.
+6.) Show the invite URL somewhere on the dialog box and enable a Copy URL button so they can copy it to the clipboard.
+
+Review/Feedback:
+7.) Make the Generate URL button really stand out.  Let's break out of the button design convention in PMT and make the button have a background color of neon great or something like that so the user will notice it is there.  Currently, it's very muted and the user may get stuck and not know how to proceed next with the invitation process.
+8.) Add another button called "Generate Email/HTML Body" and generate a nice professional HTML body/content complete with the PMT logo (base64 encoding might be better).  Basically, mirror it to the User Invigation / Create Your Own Profile dialog box (the header portion only).  In the body, write an exciting and uplifiting tone but brief invitation, something along the lines of (don't copy my sentence word for word, just giving an example):
+
+	You've been chosen as one of the few to try this new and exciting Project Management Tool (PMT) in BDO! Participate so your ideas can help shape the tool and the future of BDO in the process!
+
+9.) Provide some sort of "Copy Email/HTML body".  And be sure the content can truly be pasted safely in both Outlook desktop client and the web version.
+
+New Users in PMT
+----------------
+A.) When a new user receives the URL invite, take them to a minimal User Profile screen.  Ask only for the most minimal information so the user can get started.
+B.) Do provide the avatar selections and the ability to upload and preview their uploaded avatar.
+C.) Refer to Settings -> Users -> New User to see how the User Profile is now.
+D.) Make selecting or uploading an avatar a required field.
+E.) Once the user has finished with up their profile screen, take them to their next destination which could be;
+F.) 1.) If there is only 1 project available to the user, and there is already 1 or more sprints, take them to the Sprint screen.  If there aren't any sprints yet, take them to the Project screen.
+G.) 2.) If there are multiple projects, take them to the Project screen.
+
+Review/Feedback:
+H.) In the Invitation Dialog box, move the "Projects included with this invitation" at the bottom and don't bold anything.
+I.) Set the focus on the Nickname and change the Nickname.
+J.) Change the "Nickname" label both in the Invigation and User Profile screen to be "Username";
+K.) In both cases, handle Username uniqueness and suggest a unique username to help the user.
+L.) Rename the "Set up your PMT profile" to "Welcome to PMT!  You've been invited!"
+M.) Bold the main title/header of the dialog box and put some spacing between the header and the Username field.  Also, shorten the username field, it's really long for no reason.
+O.) Move the "Projects included with this invitation" below the Upload Avatar section.
+P.) Remove the "Back to PMT" there is nothing to go back to.  It's their first time in PMT.
+Q.) Put the "Create Profile" back to where it used to be, on the lower right corner of the dialog box as the default dialog box footer button.
+R.) Clicking the "Create Profile" button throws an error.  I have only typed in "Sin" as the username and "Password1" as the password.  The error is:  Unexpected token '<', "<!doctype "... is not valid JSON

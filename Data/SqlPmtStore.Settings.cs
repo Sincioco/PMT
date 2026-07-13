@@ -5,6 +5,29 @@ namespace PMT.Data;
 
 public sealed partial class SqlPmtStore
 {
+    public async Task<UsernameSuggestionDto> SuggestUsernameAsync(
+        string username,
+        int excludeUserId,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = await OpenConnectionAsync(cancellationToken);
+        await using var command = StoredProcedure(connection, "[pmt].[SuggestUsername]");
+        Add(command, "@PreferredUsername", SqlDbType.NVarChar, 80, username);
+        Add(command, "@ExcludeUserId", Math.Max(0, excludeUserId));
+
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        if (!await reader.ReadAsync(cancellationToken))
+        {
+            throw new InvalidOperationException("A username suggestion could not be created.");
+        }
+
+        return new UsernameSuggestionDto
+        {
+            Username = reader.GetStringOrEmpty("Username"),
+            IsAvailable = reader.GetBoolean("IsAvailable")
+        };
+    }
+
     public Task<int> SaveUserAsync(UserInput input, int currentUserId, CancellationToken cancellationToken)
     {
         return ExecuteIdProcedureAsync("[pmt].[UpsertUser]", "@UserId", input.Id, command =>

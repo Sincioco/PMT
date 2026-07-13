@@ -1,8 +1,12 @@
 # Database Versioning and Migrations
 
-PMT Database Version 1.0 is the baseline database contract for real user deployments.
+## Current Production Baseline
 
-The 1.0 baseline is represented by the current SQL rebuild scripts:
+As of July 13, 2026, PMT is deployed at BDO with real users. The current BDO production schema is the new baseline, PMT Database Version 1.3, and protecting the data and stability of that instance is the top priority.
+
+All known PMT installations are on this baseline. Future work does not need new upgrade compatibility for Database Versions 1.0, 1.1, or 1.2. Keep the released pre-1.3 migration scripts unchanged as historical release artifacts, but start future migrations from Version 1.3 or the immediately preceding deployed version.
+
+The BDO deployed baseline remains Version 1.3 until a forward migration is applied there. The current source tree's rebuild scripts represent the newest fresh-build schema, which advances to Version 1.4 with user invitations:
 
 - `Sql/01_CreateDatabase.sql`
 - `Sql/02_CreateStoredProcedures.sql`
@@ -11,11 +15,11 @@ The 1.0 baseline is represented by the current SQL rebuild scripts:
 - `Sql/03_SeedData_HLS.sql`
 - `Sql/00_DropAndRebuild_PMT.sql`
 
-Fresh development or demo databases may still use the rebuild scripts. Existing user databases must be upgraded with migration scripts.
+`Sql/Migrations/PMT_1.3_to_1.4.sql` is the reviewed upgrade path from BDO's deployed baseline to that source schema. Fresh development or demo databases may use the rebuild scripts. BDO and other existing user databases must be upgraded with forward migration scripts; do not treat a source-tree rebuild change as proof that production has been upgraded.
 
 ## Required Rule
 
-From PMT Database Version 1.0 forward, any change that affects an existing database install must include a migration script.
+From PMT Database Version 1.3 forward, any change that affects the database, its SQL contract, production data, or the stability of BDO's deployed instance through database state or behavior must include a forward migration script from the immediately preceding deployed version.
 
 This includes changes to:
 
@@ -34,15 +38,15 @@ Place migration scripts in `Sql/Migrations/`.
 Use this naming pattern:
 
 ```text
-PMT_1.0_to_1.1.sql
-PMT_1.1_to_1.2.sql
+PMT_1.3_to_1.4.sql
+PMT_1.4_to_1.5.sql
 ```
 
 Use one migration per released database-version step. Do not edit an already released migration except to add comments that do not change behavior.
 
 ## Migration Expectations
 
-Migration scripts should be explicit, reviewable, and safe for existing user data.
+Migration scripts should be explicit, reviewable, and safe for BDO's production data and other existing user data.
 
 - Preserve existing data unless the requirement explicitly says otherwise.
 - Use `[pmt]` for every PMT database object.

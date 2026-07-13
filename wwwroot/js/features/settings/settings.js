@@ -8,6 +8,11 @@ import {
   value
 } from "../../components/forms.js?v=20260710-rte-table-shortcuts";
 import {
+  bindProfileAvatarPicker,
+  focusProfileAvatarPicker,
+  profileAvatarPickerHtml
+} from "../../components/profile-avatar-picker.js?v=20260713-invite-users";
+import {
   defaultStatusColor,
   statusColor
 } from "../../components/progress-and-status.js?v=20260710-export-rich-kanban";
@@ -76,14 +81,6 @@ const legacySeededAvatarPaths = new Map([
   ["/assets/avatar-generic-6.png", "/assets/avatar-generic-6.jpg"],
   ["/assets/avatar-lisa-su.jpg", "/assets/avatar-jensen-huang.jpg"]
 ]);
-const genericAvatarOptions = [
-  "/assets/avatar-generic-1.jpg",
-  "/assets/avatar-generic-2.jpg",
-  "/assets/avatar-generic-3.jpg",
-  "/assets/avatar-generic-4.jpg",
-  "/assets/avatar-generic-5.jpg",
-  "/assets/avatar-generic-6.jpg"
-];
 const coreLookupTypes = ["Status", "Priority", "Severity", "Environment", "LogCategory"];
 
 export function createSettingsFeature({
@@ -1095,11 +1092,15 @@ export function createSettingsFeature({
       <div class="form-grid">
         ${requiredUserTextField("First Name", "firstName", user.firstName || "")}
         ${requiredUserTextField("Last Name", "lastName", user.lastName || "")}
-        ${field("Nickname", "nickname", user.nickname || "", "text")}
+        <div class="field">
+          <label>Username</label>
+          <input name="nickname" type="text" value="${escapeAttr(user.nickname || "")}" maxlength="80" autocomplete="username" required>
+          <span class="muted" data-username-help>You will use this username to log in.</span>
+        </div>
         ${selectTextField("Role", "role", ["Developer", "QA"], user.role === "Admin" ? "Developer" : user.role || "Developer")}
         ${field("Phone", "phone", user.phone || "", "text")}
         ${field("Email", "email", user.email || "", "email")}
-        ${genericAvatarPickerHtml(user)}
+        ${profileAvatarPickerHtml(user.avatarUrl || "", avatarUrl => settingsUserAvatarUrl({ avatarUrl }))}
         <div class="field full"><label>Upload Avatar</label><input name="avatarFile" type="file" accept="image/*"></div>
         <div class="field full"><label>Avatar URL</label><input name="avatarUrl" type="text" value="${escapeAttr(user.avatarUrl || "")}"></div>
         ${field("Home Page", "homePageUrl", user.homePageUrl || "", "url")}
@@ -1119,10 +1120,24 @@ export function createSettingsFeature({
         throw new Error("Last Name is required.");
       }
 
+      const usernameInput = root.querySelector("[name='nickname']");
+      const usernameHelp = root.querySelector("[data-username-help]");
+      const username = value(root, "nickname").trim();
+      if (!username) {
+        focusUserField(root, "nickname");
+        throw new Error("Username is required.");
+      }
+
+      const usernameSuggestion = await getUsernameSuggestion(username, user.id || 0);
+      if (!usernameSuggestion.isAvailable) {
+        suggestUsername(usernameInput, usernameHelp, usernameSuggestion.username);
+        throw new Error(`That username is already in use. Try ${usernameSuggestion.username}.`);
+      }
+
       const avatarFile = root.querySelector("[name='avatarFile']").files[0];
       let avatarUrl = value(root, "avatarUrl");
       if (!avatarFile && !avatarUrl.trim()) {
-        focusUserAvatarField(root);
+        focusProfileAvatarPicker(root);
         throw new Error("Select or upload an avatar before saving this user.");
       }
       if (avatarFile) avatarUrl = (await uploadFile("avatars", avatarFile)).url;
@@ -1131,7 +1146,7 @@ export function createSettingsFeature({
         id: user.id || 0,
         firstName,
         lastName,
-        nickname: value(root, "nickname"),
+        nickname: username,
         email: value(root, "email"),
         phone: value(root, "phone"),
         avatarUrl,
@@ -1141,7 +1156,43 @@ export function createSettingsFeature({
         isAdmin: root.querySelector("[name='isAdmin']").checked,
         role: value(root, "role")
       });
-    }, "", bindGenericAvatarPicker);
+    }, "nickname", root => {
+      bindProfileAvatarPicker(root);
+      bindUsernameSuggestion(root, user.id || 0);
+    });
+  }
+
+  function bindUsernameSuggestion(root, excludeUserId) {
+    const input = root.querySelector("[name='nickname']");
+    const help = root.querySelector("[data-username-help]");
+    input?.addEventListener("blur", async () => {
+      const username = input.value.trim();
+      if (!username) {
+        help.textContent = "You will use this username to log in.";
+        return;
+      }
+
+      try {
+        const suggestion = await getUsernameSuggestion(username, excludeUserId);
+        help.textContent = suggestion.isAvailable
+          ? "This username is available."
+          : `That username is already in use. Try ${suggestion.username}.`;
+      } catch {
+        help.textContent = "You will use this username to log in.";
+      }
+    });
+  }
+
+  async function getUsernameSuggestion(username, excludeUserId) {
+    return api(`/api/usernames/suggestion?username=${encodeURIComponent(username.trim())}&excludeUserId=${excludeUserId || 0}`);
+  }
+
+  function suggestUsername(input, help, username) {
+    if (!input || !username) return;
+    input.value = username;
+    help.textContent = `Suggested available username: ${username}`;
+    input.focus();
+    input.select();
   }
 
   function requiredUserTextField(label, name, currentValue) {
@@ -1152,96 +1203,6 @@ export function createSettingsFeature({
     const input = root.querySelector(`[name='${name}']`);
     input?.scrollIntoView({ behavior: "smooth", block: "center" });
     input?.focus({ preventScroll: true });
-  }
-
-  function focusUserAvatarField(root) {
-    const field = root.querySelector(".settings-generic-avatar-field") || root.querySelector("[name='avatarUrl']")?.closest(".field");
-    field?.scrollIntoView({ behavior: "smooth", block: "center" });
-    field?.querySelector("button, input")?.focus({ preventScroll: true });
-  }
-
-  function genericAvatarPickerHtml(user) {
-    const currentAvatarPath = avatarPathOnly(user.avatarUrl || "");
-
-    return `
-      <div class="field full settings-generic-avatar-field">
-        <label>Generic Avatar</label>
-        <div class="settings-generic-avatar-list" role="radiogroup" aria-label="Generic Avatar">
-          ${genericAvatarOptions.map((avatarUrl, index) => {
-            const selected = currentAvatarPath === avatarUrl;
-            return `
-              <button class="settings-generic-avatar-option ${selected ? "is-selected" : ""}" type="button" data-generic-avatar="${escapeAttr(avatarUrl)}" role="radio" aria-checked="${selected}" title="Use generic avatar ${index + 1}">
-                <img src="${escapeAttr(settingsUserAvatarUrl({ avatarUrl }))}" alt="Generic avatar ${index + 1}">
-              </button>
-            `;
-          }).join("")}
-        </div>
-        <div class="settings-avatar-file-preview" data-avatar-file-preview hidden>
-          <img src="" alt="Selected avatar preview">
-          <span data-avatar-file-name></span>
-        </div>
-      </div>
-    `;
-  }
-
-  function bindGenericAvatarPicker(root) {
-    const avatarUrlInput = root.querySelector("[name='avatarUrl']");
-    const avatarFileInput = root.querySelector("[name='avatarFile']");
-    const avatarFilePreview = root.querySelector("[data-avatar-file-preview]");
-    const avatarFilePreviewImage = avatarFilePreview?.querySelector("img");
-    const avatarFilePreviewName = avatarFilePreview?.querySelector("[data-avatar-file-name]");
-    const options = [...root.querySelectorAll("[data-generic-avatar]")];
-    if (!avatarUrlInput || !options.length) return;
-    let previewObjectUrl = "";
-
-    const clearFilePreview = () => {
-      if (previewObjectUrl) URL.revokeObjectURL(previewObjectUrl);
-      previewObjectUrl = "";
-      if (avatarFilePreviewImage) avatarFilePreviewImage.src = "";
-      if (avatarFilePreviewName) avatarFilePreviewName.textContent = "";
-      if (avatarFilePreview) avatarFilePreview.hidden = true;
-    };
-
-    const showFilePreview = file => {
-      clearFilePreview();
-      if (!file || !file.type.startsWith("image/") || !avatarFilePreview || !avatarFilePreviewImage) return;
-
-      previewObjectUrl = URL.createObjectURL(file);
-      avatarFilePreviewImage.src = previewObjectUrl;
-      if (avatarFilePreviewName) avatarFilePreviewName.textContent = file.name;
-      avatarFilePreview.hidden = false;
-    };
-
-    const syncSelectedOption = () => {
-      const selectedPath = avatarPathOnly(avatarUrlInput.value);
-      options.forEach(option => {
-        const selected = option.dataset.genericAvatar === selectedPath;
-        option.classList.toggle("is-selected", selected);
-        option.setAttribute("aria-checked", String(selected));
-      });
-    };
-
-    options.forEach(option => {
-      option.addEventListener("click", () => {
-        avatarUrlInput.value = option.dataset.genericAvatar || "";
-        if (avatarFileInput) avatarFileInput.value = "";
-        clearFilePreview();
-        syncSelectedOption();
-      });
-    });
-    avatarUrlInput.addEventListener("input", syncSelectedOption);
-    avatarFileInput?.addEventListener("change", () => {
-      const file = avatarFileInput.files?.[0] || null;
-      if (file) avatarUrlInput.value = "";
-      showFilePreview(file);
-      syncSelectedOption();
-    });
-    root.closest("dialog")?.addEventListener("close", clearFilePreview, { once: true });
-    syncSelectedOption();
-  }
-
-  function avatarPathOnly(avatarUrl) {
-    return (avatarUrl || "").trim().split("?", 1)[0];
   }
 
   function editLookup(lookup = {}) {

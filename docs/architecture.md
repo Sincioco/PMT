@@ -7,11 +7,11 @@ This document maps the current application and active file ownership for the pha
 PMT is a single ASP.NET Core .NET 6 web application:
 
 1. `wwwroot/index.html` defines the HTML shell, receives the effective deployment base path from `Program.cs`, applies the saved theme through `core/preferences.js` before rendering, loads the ordered CSS foundations, components, and feature stylesheets, and then loads `wwwroot/js/app.js`.
-2. `wwwroot/js/app.js` composes the application shell with the central screen registry. Dashboard, Road Map, Gantt, Kanban Board, Projects, Sprints, Dev Tasks, Bug Tracking, Scrum, Documentation, Backlog, WFH Schedule, and Settings now live in feature modules; the entry still owns shared editor/dialog orchestration, chart drilldowns, and table reordering.
+2. `wwwroot/js/app.js` composes the application shell with the central screen registry. Dashboard, Road Map, Gantt, Kanban Board, Projects, Sprints, Dev Tasks, Bug Tracking, Scrum, Documentation, Backlog, WFH Schedule, and Settings live in feature modules; invitation generation and onboarding live in `features/invitations/`; the entry still owns shared editor/dialog orchestration, chart drilldowns, and table reordering.
 3. `wwwroot/js/core/` owns application-wide browser infrastructure: HTTP requests, state, preferences, authentication, routing, startup, navigation, theme, and user-menu wiring.
 4. `Program.cs` configures services, JSON behavior, deployment path-base handling, exception handling, static/uploaded files, endpoint-group registration, the SPA fallback, and application startup.
-5. `Endpoints/` maps the 41 minimal API routes by feature while preserving endpoint URLs, HTTP methods, payload shapes, and the simple current-user header/query behavior.
-6. `Models/*.cs` contains cohesive plain DTO and request model groups for state, users, projects/Sprints, work items, content/uploads, WFH schedule, and settings.
+5. `Endpoints/` maps minimal API routes by feature while preserving endpoint URLs, HTTP methods, payload shapes, and the simple current-user header/query behavior.
+6. `Models/*.cs` contains cohesive plain DTO and request model groups for state, users, invitations, projects/Sprints, work items, content/uploads, WFH schedule, and settings.
 7. `Data/SqlPmtStore*.cs` is one partial `SqlPmtStore` that calls `[pmt]` stored procedures through direct ADO.NET. `SqlPmtStore.State.cs` maps `[pmt].[GetAppState]`, hydrates relationships, and calculates project/Sprint metrics.
 8. `Sql/01_CreateDatabase.sql`, `Sql/02_CreateStoredProcedures.sql`, and the seed scripts define and populate SQL Server objects under `[pmt]`.
 9. `tests/js/` contains Node-based ES-module unit tests for pure frontend rules and calculations.
@@ -54,6 +54,7 @@ wwwroot/
 |   |   `-- progress-and-status.js
 |   `-- features/
 |       |-- dashboard/
+|       |-- invitations/
 |       |-- roadmap/
 |       |-- gantt/
 |       |-- board/
@@ -164,6 +165,7 @@ Phase 17 splits backend files without adding architectural layers:
 Program.cs
 Endpoints/
 |-- AuthenticationEndpoints.cs
+|-- InvitationEndpoints.cs
 |-- EndpointHelpers.cs
 |-- StateEndpoints.cs
 |-- ProjectEndpoints.cs
@@ -180,6 +182,7 @@ Data/
 |-- SqlPmtStore.cs
 |-- SqlPmtStore.State.cs
 |-- SqlPmtStore.Authentication.cs
+|-- SqlPmtStore.Invitations.cs
 |-- SqlPmtStore.Projects.cs
 |-- SqlPmtStore.Sprints.cs
 |-- SqlPmtStore.WorkItems.cs
@@ -190,6 +193,7 @@ Data/
 Models/
 |-- StateModels.cs
 |-- UserModels.cs
+|-- InvitationModels.cs
 |-- ProjectSprintModels.cs
 |-- WorkItemModels.cs
 |-- WfhScheduleModels.cs
@@ -217,6 +221,7 @@ All data-backed screens read through `GET /api/state` -> `GetStateAsync` -> `[pm
 | Feature | Frontend ownership | Endpoints | `SqlPmtStore` methods | Stored procedures or SQL contract |
 | --- | --- | --- | --- | --- |
 | Authentication and shell | `core/authentication.js`, `core/application-shell.js`, `core/router.js`, `core/preferences.js` | `POST /api/login`; `POST /api/change-password`; `GET /api/state` | `LoginAsync`; `ChangePasswordAsync`; `GetStateAsync` | `[pmt].[LoginUser]`; `[pmt].[ChangePassword]`; `[pmt].[GetAppState]` |
+| Invitations and onboarding | `features/invitations/` | `POST /api/invitations`; `GET /api/invitations/{token}`; `POST /api/invitations/{token}/accept` | `CreateInvitationAsync`; `GetInvitationAsync`; `AcceptInvitationAsync` | `[pmt].[CreateUserInvitation]`; `[pmt].[GetUserInvitation]`; `[pmt].[AcceptUserInvitation]` |
 | Dashboard | `features/dashboard/` | `GET /api/state` | `GetStateAsync` | `[pmt].[GetAppState]` |
 | Road Map | `features/roadmap/` | `GET /api/state` | `GetStateAsync` | `[pmt].[GetAppState]` |
 | Gantt | `features/gantt/` | `GET /api/state` | `GetStateAsync` | `[pmt].[GetAppState]` |
@@ -234,7 +239,7 @@ All data-backed screens read through `GET /api/state` -> `GetStateAsync` -> `[pm
 | Settings - holidays | `features/settings/` | `POST /api/holidays`; `PUT /api/holidays/{id}`; `DELETE /api/holidays/{id}` | `SaveHolidayAsync`; `DeleteHolidayAsync` | `[pmt].[UpsertHoliday]`; `[pmt].[DeleteHoliday]` |
 | Settings - development | `features/settings/` | `POST /api/development/clear-non-pmt`; `POST /api/development/clear-pmt`; `POST /api/development/clear-users`; `POST /api/development/restore-seed-data` | `DevelopmentClearNonPmtAsync`; `DevelopmentClearPmtAsync`; `DevelopmentClearUsersAsync`; `RestoreInitialSeedDataAsync` | `[pmt].[DevelopmentClearNonPmt]`; `[pmt].[DevelopmentClearPmt]`; `[pmt].[DevelopmentClearUsers]`; seed scripts for restore |
 
-`POST /api/uploads/{kind}` stores a generic uploaded file without a database call. Task and Documentation attachment routes both store the file and then link its metadata through the relevant `[pmt]` attachment procedure. Upload storage is configured by `UploadStorage`. Blank `UserName` and `Password` values keep the root path as a normal local folder or current-identity path. When both credentials are supplied, `RootPath` must be a UNC path such as `\\fileserver\share\folder`; PMT opens a Windows fileshare connection at startup before serving `/uploads` or writing new files.
+`POST /api/uploads/{kind}` stores a generic uploaded file without a database call and is reused by invitation onboarding for avatar uploads. Task and Documentation attachment routes both store the file and then link its metadata through the relevant `[pmt]` attachment procedure. Upload storage is configured by `UploadStorage`. Blank `UserName` and `Password` values keep the root path as a normal local folder or current-identity path. When both credentials are supplied, `RootPath` must be a UNC path such as `\\fileserver\share\folder`; PMT opens a Windows fileshare connection at startup before serving `/uploads` or writing new files.
 
 ## Standard commands
 

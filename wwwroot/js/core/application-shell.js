@@ -21,8 +21,11 @@ const fixedOverflowViews = new Set(["About"]);
 export function createApplicationShell({
   bindScreenEvents,
   editPassword,
+  hasPendingInvitation,
+  inviteUsers,
   prepareRender,
   refreshLookupOptions,
+  renderPendingInvitation,
   renderCurrentScreen,
   resolveNavigationView,
   showToast
@@ -50,6 +53,14 @@ export function createApplicationShell({
     bindScreenEvents();
     applySavedTheme();
 
+    if (hasPendingInvitation?.()) {
+      document.body.classList.add("logged-out");
+      elements.nav.innerHTML = "";
+      elements.userSelect.innerHTML = "";
+      await renderPendingInvitation?.();
+      return;
+    }
+
     if (!currentUserId) {
       renderLogin();
       return;
@@ -64,7 +75,10 @@ export function createApplicationShell({
     if (await reloadState()) {
       if (!state.projects.length) navigate("About");
       render();
+      return true;
     }
+
+    return false;
   }
 
   async function reloadState() {
@@ -144,6 +158,12 @@ export function createApplicationShell({
       if (event.target.closest("button[data-action='change-password']")) {
         closeUserMenu();
         editPassword();
+        return;
+      }
+
+      if (event.target.closest("button[data-action='invite-users']")) {
+        closeUserMenu();
+        inviteUsers?.();
       }
     });
 
@@ -183,11 +203,11 @@ export function createApplicationShell({
           </div>
           <div class="field">
             <label>Nickname or Email</label>
-            <input id="loginName" autocomplete="username" value="Sin">
+            <input id="loginName" autocomplete="username">
           </div>
           <div class="field">
             <label>Password</label>
-            <input id="loginPassword" type="password" autocomplete="current-password" value="Password1">
+            <input id="loginPassword" type="password" autocomplete="current-password">
           </div>
           <button class="primary text-icon-button" type="button" id="loginButton">
             <span class="button-icon" aria-hidden="true">&#10148;</span><span>Log in</span>
@@ -394,7 +414,9 @@ export function createApplicationShell({
     elements,
     initialize,
     reloadState,
-    render
+    render,
+    renderLogin,
+    start
   };
 }
 

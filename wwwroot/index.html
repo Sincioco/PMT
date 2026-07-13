@@ -34,10 +34,12 @@
   <link rel="stylesheet" href="css/components/filters.css?v=20260706-filter-windowing">
   <link rel="stylesheet" href="css/components/navigation.css?v=20260701-user-avatar-fit-50">
   <link rel="stylesheet" href="css/components/avatars.css?v=20260710-nav-avatar-fit">
+  <link rel="stylesheet" href="css/components/profile-avatar-picker.css?v=20260713-invite-users">
   <link rel="stylesheet" href="css/components/attachments.css?v=20260619-shell-components">
   <link rel="stylesheet" href="css/components/progress-status.css?v=20260621-icon-size-20">
   <link rel="stylesheet" href="css/components/charts.css?v=20260620-expanded-chart-dialog">
   <link rel="stylesheet" href="css/features/login.css?v=20260621-pmt-logo-no-frame">
+  <link rel="stylesheet" href="css/features/invitations.css?v=20260713-invite-title-spacing">
   <link rel="stylesheet" href="css/features/about.css?v=20260712-about-controls-123">
   <link rel="stylesheet" href="css/features/dashboard.css?v=20260620-token-depth">
   <link rel="stylesheet" href="css/features/roadmap.css?v=20260627-roadmap-scrollbar-width">
@@ -52,7 +54,7 @@
   <link rel="stylesheet" href="css/features/documentation.css?v=20260712-doc-card-wheel-chain">
   <link rel="stylesheet" href="css/features/backlog.css?v=20260630-backlog-bug-related">
   <link rel="stylesheet" href="css/features/wfh-schedule.css?v=20260709-wfh-undo-large-days">
-  <link rel="stylesheet" href="css/features/settings.css?v=20260709-muted-icons-indent">
+  <link rel="stylesheet" href="css/features/settings.css?v=20260713-invite-users">
 </head>
 <body>
   <header class="topbar">
@@ -80,6 +82,10 @@
           <button class="dropdown-menu-item" type="button" data-action="change-password" role="menuitem">
             <span class="button-icon" aria-hidden="true">&#128273;</span>
             <span class="dropdown-menu-label">Change Password</span>
+          </button>
+          <button class="dropdown-menu-item" type="button" data-action="invite-users" role="menuitem">
+            <span class="button-icon" aria-hidden="true">&#9993;</span>
+            <span class="dropdown-menu-label">Invite Users</span>
           </button>
           <button class="dropdown-menu-item" type="button" id="logout" role="menuitem">
             <span class="button-icon" aria-hidden="true">&#10162;</span>
@@ -121,6 +127,6 @@
   </dialog>
 
   <div id="toast" class="toast" hidden></div>
-  <script type="module" src="js/app.js?v=20260713-bug-report-label"></script>
+  <script type="module" src="js/app.js?v=20260713-invite-profile-footer"></script>
 </body>
 </html>

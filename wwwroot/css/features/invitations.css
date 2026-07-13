@@ -1,0 +1,195 @@
+/* CSS ownership: invitation generation and invited-user onboarding. */
+
+.invite-users-dialog {
+  width: min(880px, calc(100vw - 2 * var(--shell-padding-compact)));
+  --windowed-dialog-default-width: min(880px, calc(100vw - 2 * var(--shell-padding-compact)));
+  --windowed-dialog-default-height: min(760px, calc(100vh - 2 * var(--shell-padding-compact)));
+}
+
+.invite-users-form,
+.invite-users-body,
+.invite-profile-form {
+  display: grid;
+  gap: var(--space-6);
+}
+
+.invite-project-list {
+  max-height: 330px;
+}
+
+.invite-project-option {
+  display: grid;
+  grid-template-columns: 80px minmax(0, 1fr);
+  align-items: center;
+  gap: var(--space-6);
+  min-width: 0;
+}
+
+.invite-project-icon {
+  width: 80px;
+  height: 80px;
+  border: var(--border-width-strong) solid var(--color-page);
+  border-radius: var(--radius-md);
+  object-fit: contain;
+  background: var(--color-surface-raised);
+}
+
+.invite-project-summary {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.invite-project-name {
+  color: var(--color-text-primary);
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.invite-generate-row {
+  display: flex;
+  align-items: center;
+  flex-direction: column;
+  justify-content: center;
+  gap: var(--space-4);
+  text-align: center;
+}
+
+.invite-url-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+}
+
+html[data-theme] button[data-generate-invite]:not(:disabled) {
+  border-color: #0b57b7 !important;
+  background-color: #1473e6 !important;
+  color: #ffffff !important;
+  font-weight: var(--font-weight-regular) !important;
+}
+
+html[data-theme] button[data-generate-invite]:hover:not(:disabled) {
+  border-color: #08458f !important;
+  background-color: #0f62cc !important;
+}
+
+html[data-theme] button[data-generate-invite]:active:not(:disabled) {
+  background-color: #0b4ea2 !important;
+}
+
+html[data-theme="light"] button[data-generate-invite]:not(:disabled) .button-icon {
+  color: #ffffff !important;
+  filter: none;
+}
+
+.invite-url-result {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-5);
+  border: var(--border-width) solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-raised);
+}
+
+.invite-url-result[hidden] {
+  display: none;
+}
+
+.invite-url-actions input {
+  flex: 1 1 420px;
+  min-width: 0;
+}
+
+.invite-profile-screen {
+  width: min(760px, calc(100vw - 2 * var(--shell-padding-compact)));
+  margin: var(--space-8) auto;
+}
+
+.invite-profile-card {
+  width: 100%;
+  display: grid;
+  gap: var(--space-6);
+  padding: var(--space-8);
+}
+
+.invite-profile-brand {
+  padding-bottom: var(--space-4);
+}
+
+.invite-profile-brand h1 {
+  font-weight: 700 !important;
+}
+
+#inviteProfileNickname {
+  width: min(100%, 360px);
+}
+
+.invite-profile-projects {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: var(--space-3);
+}
+
+.invite-profile-project-section {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.invite-profile-form :is(label, strong, button, .invite-profile-projects-title, .invite-profile-project span) {
+  font-weight: var(--font-weight-regular) !important;
+}
+
+.invite-profile-project {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+  padding: var(--space-3);
+  border: var(--border-width) solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+}
+
+.invite-profile-project img {
+  width: 42px;
+  height: 42px;
+  flex: 0 0 auto;
+  border-radius: var(--radius-sm);
+  object-fit: contain;
+  background: var(--color-surface-raised);
+}
+
+.invite-profile-project span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.invite-profile-actions {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.invite-profile-message {
+  text-align: center;
+}
+
+@media (max-width: 700px) {
+  .invite-users-dialog {
+    width: calc(100vw - 2 * var(--space-2));
+  }
+
+  .invite-project-list {
+    grid-template-columns: 1fr;
+  }
+
+  .invite-profile-card {
+    padding: var(--space-6);
+  }
+
+  .invite-profile-actions > button {
+    flex: 1 1 100%;
+  }
+}
