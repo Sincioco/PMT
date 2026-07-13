@@ -144,6 +144,7 @@ export function createIntergalacticBattle({
   let automaticInterceptionsEnabled = true;
   let forcedBattlePending = false;
   let forcedInterceptorCount = 0;
+  let suppressedBattlePending = false;
 
   for (const fighter of fighters) group.add(fighter);
   for (const bolt of laserBolts) group.add(bolt);
@@ -170,6 +171,7 @@ export function createIntergalacticBattle({
     if (!enabled && !state.active) {
       battlePlanned = false;
       forcedBattlePending = false;
+      suppressedBattlePending = false;
       return state;
     }
     if (ufoState.encounterId !== observedEncounterId && ufoState.encounterId > 0) {
@@ -177,6 +179,10 @@ export function createIntergalacticBattle({
       if (state.active) {
         battlePlanned = false;
         forcedBattlePending = false;
+        suppressedBattlePending = false;
+      } else if (suppressedBattlePending) {
+        battlePlanned = false;
+        suppressedBattlePending = false;
       } else if (forcedBattlePending) {
         battlePlanned = true;
         plannedInterceptorCount = forcedInterceptorCount;
@@ -499,7 +505,16 @@ export function createIntergalacticBattle({
       SPACE_BATTLE_MAX_INTERCEPTORS
     );
     forcedBattlePending = true;
+    suppressedBattlePending = false;
     return forcedInterceptorCount;
+  }
+
+  function suppressNextBattle() {
+    if (!enabled || state.active) return false;
+    battlePlanned = false;
+    forcedBattlePending = false;
+    suppressedBattlePending = true;
+    return true;
   }
 
   function setEnabled(value) {
@@ -507,6 +522,7 @@ export function createIntergalacticBattle({
     if (!enabled && !state.active) {
       battlePlanned = false;
       forcedBattlePending = false;
+      suppressedBattlePending = false;
     }
     return enabled;
   }
@@ -522,6 +538,7 @@ export function createIntergalacticBattle({
   function abort() {
     battlePlanned = false;
     forcedBattlePending = false;
+    suppressedBattlePending = false;
     if (state.active) finishBattle();
     else resetVisuals();
   }
@@ -536,6 +553,7 @@ export function createIntergalacticBattle({
     updatePictureInPicture,
     isActive,
     forceNextBattle,
+    suppressNextBattle,
     setEnabled,
     setAutomaticInterceptionsEnabled,
     abort,

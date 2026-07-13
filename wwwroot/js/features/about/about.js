@@ -11,7 +11,7 @@ import { appUrl } from "../../shared/app-urls.js";
 import { createBugChartsView } from "../../shared/bug-charts.js?v=20260714-linked-bug-percent";
 import { createDevTaskChartsView } from "../../shared/dev-task-charts.js?v=20260714-linked-bug-percent";
 
-const ABOUT_VERSION = "20260713-managed-roles";
+const ABOUT_VERSION = "20260714-about-alien-camera";
 
 export function createAboutFeature({
   app,

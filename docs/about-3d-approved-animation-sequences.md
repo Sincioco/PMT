@@ -8,7 +8,7 @@ This is the maintained source of truth for the approved About-page camera animat
 - Sequences 4 through 7 below are the current revised route awaiting visual approval. Do not revise Sequences 1 through 3 while tuning them.
 - Wide-chart traversal is approved.
 - The fixed-world comet, UFO encounter, and lightning effects are approved.
-- Events are overlays only. They must not interrupt or alter the approved camera sequences.
+- Events do not stop or slow the approved camera sequences. While an alien encounter or battle is active in automatic mode, the moving camera temporarily aims at the PMT logo, then smoothly returns to its normal flyby heading. Manual control is never overridden.
 
 ## Approved sequence loop
 
@@ -72,10 +72,10 @@ Sequences 4 through 7 are sampled as one continuous arc-length path. Their numbe
 | --- | --- | --- | --- |
 | P-hole comet | When the camera exits the P-hole | Launch one comet in fixed world space | None |
 | Background comet | Occasionally during the scene | Cross the distant fixed-world background | None |
-| UFO encounter | During the combined Sequences 4–7 gallery-return window | Orbit, inspect PMT with its beam, speak, and depart | None |
+| UFO encounter | During the combined Sequences 4–7 gallery-return window | Orbit, inspect PMT with its beam, speak, and depart | In automatic mode only, aim the moving flyby at the PMT logo while the alien is arriving or visible, then return smoothly to the normal heading |
 | PMT lightning | During the combined Sequences 4–7 gallery-return window | Strike PMT, create sparks and heat glow, and flash the full scene | None |
 | UFO lightning | During the combined Sequences 4–7 gallery-return window, on 50% of encounters | Strike the visible UFO, briefly drop and shake it, then let it recover | None |
-| Intergalactic PMT battle | Periodically while the UFO is hovering over PMT | One to three defender ships intercept the original UFO, both sides exchange fire and dialogue, stunned ships recover, and every ship flies away | None; a separate picture-in-picture camera may track the battle |
+| Intergalactic PMT battle | Periodically while the UFO is hovering over PMT | One to three defender ships intercept the original UFO, both sides exchange fire and dialogue, stunned ships recover, and every ship flies away | In automatic mode only, keep the moving flyby aimed at the PMT logo until the battle finishes; a separate picture-in-picture camera may also show the battle |
 
 The first successful UFO lightning strike after the About scene loads must say: `This PMT really has a lot of spark!` Later successful UFO strikes select a random line from the UFO lightning-reaction pool.
 
@@ -85,8 +85,8 @@ The UFO and lightning schedules are coordinated by the scene, not by the camera 
 
 ## Intergalactic battle event
 
-- If automatic interceptions are explicitly enabled in a future approved setting, each new UFO encounter independently uses a `0.68` interception probability.
-- Automatic multi-UFO interceptions are disabled by default. Normal scheduled encounters show only the original UFO; battles begin only through an explicit `M`, `2`, `3`, or `4` trigger unless a later approved setting enables automatic battles.
+- Automatic multi-UFO interceptions are enabled by default. Each new scheduled UFO encounter independently uses a `0.68` interception probability.
+- Pressing `1` remains the explicit original-UFO-only action and suppresses automatic interception for that manually started encounter.
 - Pressing `M` starts a fresh UFO encounter and guarantees the intergalactic battle for that encounter, while still randomly selecting between one and three defender ships.
 - Pressing `1` starts only the original UFO encounter. Pressing `2`, `3`, or `4` starts the original UFO plus exactly one, two, or three attacking UFOs respectively. These deterministic battle keys use the same complete entry, combat, recovery, dialogue, and departure sequence as a normal battle.
 - Select between one and three interceptor ships. They enter along distinct curves, surround the original UFO, exchange visible laser fire, and then leave along complete departure curves.
@@ -94,7 +94,7 @@ The UFO and lightning schedules are coordinated by the scene, not by the camera 
 - The original UFO must return fire. Laser impacts keep the existing ship wobble, brief drop, and recovery motions but do not draw electric line or lightning-line overlays around a hit ship.
 - Battle dialogue alternates between the original UFO and PMT defenders. Keep lines short, funny, and PMT-related. Render each line with the same translucent dark pill treatment as the bottom flight-destination panel; only the outline color changes to identify the speaker. Do not add a speech tail, speaker label, or other pointer.
 - Battle dialogue is a screen-anchored conversation stack, independent of both the main camera and the picture-in-picture camera. Show the first line as soon as battle starts, append every later line without removing earlier lines, keep the full transcript visible until every ship completes the battle exit, then let it linger for seven more seconds before dismissing it. The conversation remains readable even when no battle ship is in either camera view.
-- The battle remains a background event and must never alter the approved flyby camera, speed, FOV, sequence phase, or destination.
+- The battle never changes flyby speed, FOV, sequence phase, position, or destination. In automatic mode it temporarily overrides only the camera heading so the moving flyby aims at the PMT logo; normal flyby heading resumes smoothly after the battle.
 - Isolate the battle update from the main animation loop. If a future battle-only runtime error occurs, abort and hide the battle event while allowing the approved flyby and the rest of the 3D scene to continue.
 - If the original UFO is outside the comfortable center area of the main camera, show a lower-right `16:9` PMT Defense Feed. Its separate camera remains centered on the PMT logo and must never track an individual UFO or redirect the main camera. Randomize its starting azimuth, height, distance, and slow orbit direction for each battle so the PMT logo is shown from a more cinematic, changing perspective.
 - The PMT Defense Feed camera renders a dedicated battle-only layer. Do not render the chart gallery, stars, floor, or other unrelated heavy scene content a second time inside the feed.
@@ -115,7 +115,7 @@ The UFO and lightning schedules are coordinated by the scene, not by the camera 
 - Automatic motion must remain calm, controlled, and cinematic. Do not introduce sudden camera movement, sudden turns, sudden speed changes, forced one-frame position/heading/FOV changes, or hidden per-sequence speed multipliers.
 - The camera follows continuous arc-length-sampled curves at the user's selected speed. It may redirect only through gradual spline curvature and smoothly blended attention/FOV.
 - Manual camera takeover and idle rejoin remain supported.
-- UFO and lightning events must never change camera focus, heading, FOV, speed, or path.
+- UFO and battle events may temporarily change only automatic camera heading to aim at the PMT logo. They never change camera position, FOV, speed, path, sequence phase, or destination, and they never override manual control.
 - The UFO strike reaction may change only the ship animation and speech.
 - Stars and the galaxy are fixed in distant world space and never follow the camera.
 - Comets are fixed in world space and never influence the camera.
@@ -138,8 +138,8 @@ The UFO and lightning schedules are coordinated by the scene, not by the camera 
 - Size the control-hints panel from its content. Do not apply a fixed/max panel height or internal vertical scrolling; the complete compact list must render without a scrollbar.
 - The 3D scene canvas may receive browser focus so keyboard controls keep working, but it must not show a focus outline, border, or halo when clicked.
 - `A` triggers the alien encounter and guarantees that this manually triggered encounter is struck by lightning during its inspection phase. `L` triggers lightning, `C` triggers a comet, `U` triggers the UFO encounter without the guaranteed strike, `M` triggers a guaranteed battle with a random attacker count, `1` triggers only the original UFO, `2`/`3`/`4` trigger exactly one/two/three attackers, and `R` randomly selects an alien, lightning, or comet event.
-- `A` never enters manual mode or interrupts automatic flight. It triggers one alien encounter with its guaranteed lightning strike while the approved camera sequence continues unchanged. If the camera is already in manual mode, `A` may still strafe left while triggering the encounter. Key-repeat does not repeatedly trigger the event.
-- Manual event hotkeys change event state only. They never alter camera focus, heading, FOV, speed, or flight-path phase.
+- `A` never enters manual mode or interrupts automatic flight. It triggers one alien encounter with its guaranteed lightning strike while the approved camera path keeps moving and the automatic heading follows the shared PMT-logo focus rule. If the camera is already in manual mode, `A` may still strafe left while triggering the encounter. Key-repeat does not repeatedly trigger the event.
+- Manual event hotkeys change event state only. If an alien is triggered while the flyby remains automatic, the shared alien camera rule temporarily aims the moving camera at the PMT logo; no hotkey changes speed, FOV, flight-path position, sequence phase, or manual camera heading.
 
 ## 3D chart-panel theme
 
@@ -177,7 +177,7 @@ The UFO and lightning schedules are coordinated by the scene, not by the camera 
 ## Safe change procedure
 
 1. Identify whether the request changes a camera sequence, wide-chart behavior, or an independent event.
-2. Keep event code out of `about-flight-controller.js`; events must not set camera focus, heading, FOV, speed, or path.
+2. Keep event scheduling out of `about-flight-controller.js`; the scene may use the controller's shared cinematic-focus hook for the approved automatic PMT-logo heading override, but events must not change camera position, FOV, speed, path, sequence phase, or manual control.
 3. For a camera change, alter only the named sequence and preserve continuous target position, quaternion, and FOV across its boundaries.
 4. For a wide-chart change, keep the logic based on actual chart dimensions and wall orientation rather than a specific chart name.
 5. Update this document and the related `data-about-*` browser regression metadata in the same change.
