@@ -9,6 +9,18 @@
     This migration is safe to rerun.
 */
 
+-- DeleteLookup changes rows covered by the filtered role-code index created in
+-- 1.6. Keep its captured session settings valid no matter which deployment
+-- tool runs this migration.
+SET ANSI_NULLS ON;
+SET ANSI_PADDING ON;
+SET ANSI_WARNINGS ON;
+SET ARITHABORT ON;
+SET CONCAT_NULL_YIELDS_NULL ON;
+SET QUOTED_IDENTIFIER ON;
+SET NUMERIC_ROUNDABORT OFF;
+GO
+
 USE [PMT];
 GO
 

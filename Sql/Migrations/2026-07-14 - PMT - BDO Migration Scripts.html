@@ -1,0 +1,374 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>2026-07-14 - PMT - BDO Migration Scripts</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #1f2933;
+      --muted: #59636e;
+      --paper: #fffef8;
+      --line: #d8d2c4;
+      --accent: #245c4f;
+      --accent-soft: #e8f1ed;
+      --warning: #7a3e00;
+      --warning-soft: #fff3dc;
+      --danger: #8d2424;
+      --danger-soft: #fdeaea;
+      --code: #16202a;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      background: #ece9e1;
+      color: var(--ink);
+      font: 16px/1.55 "Segoe UI", Arial, sans-serif;
+    }
+
+    main {
+      width: min(1040px, calc(100% - 32px));
+      margin: 28px auto;
+      padding: 42px 48px 56px;
+      background: var(--paper);
+      border: 1px solid var(--line);
+      box-shadow: 0 8px 28px rgb(31 41 51 / 10%);
+    }
+
+    h1, h2, h3 { line-height: 1.22; }
+    h1 { margin: 0 0 8px; font-size: clamp(1.8rem, 4vw, 2.7rem); }
+    h2 { margin: 38px 0 12px; padding-bottom: 7px; border-bottom: 2px solid var(--line); }
+    h3 { margin: 25px 0 8px; }
+    p { margin: 8px 0 14px; }
+    ol, ul { padding-left: 1.45rem; }
+    li { margin: 7px 0; }
+    code { font-family: Consolas, "Courier New", monospace; }
+    p code, li code, td code { padding: 1px 4px; background: #eeeae0; border-radius: 3px; }
+
+    pre {
+      overflow-x: auto;
+      margin: 12px 0 18px;
+      padding: 15px 17px;
+      color: #f5f7fa;
+      background: var(--code);
+      border-radius: 5px;
+      font: 13px/1.55 Consolas, "Courier New", monospace;
+      white-space: pre;
+    }
+
+    table { width: 100%; border-collapse: collapse; margin: 12px 0 20px; }
+    th, td { padding: 9px 10px; text-align: left; vertical-align: top; border: 1px solid var(--line); }
+    th { background: #eeeae0; }
+
+    .subtitle { margin: 0 0 24px; color: var(--muted); font-size: 1.08rem; }
+    .callout { margin: 18px 0; padding: 14px 16px; border-left: 5px solid var(--accent); background: var(--accent-soft); }
+    .warning { border-color: var(--warning); background: var(--warning-soft); }
+    .danger { border-color: var(--danger); background: var(--danger-soft); }
+    .checklist { list-style: none; padding-left: 0; }
+    .checklist li::before { content: "\2610"; display: inline-block; width: 1.5em; color: var(--accent); }
+    .small { color: var(--muted); font-size: .92rem; }
+    .page-break { break-before: page; }
+
+    @media print {
+      body { background: white; }
+      main { width: 100%; margin: 0; padding: 18mm; border: 0; box-shadow: none; }
+      pre { white-space: pre-wrap; overflow-wrap: anywhere; }
+      a { color: inherit; }
+    }
+  </style>
+</head>
+<body>
+<main>
+  <h1>PMT BDO Production Migration</h1>
+  <p class="subtitle">Runbook for July 14, 2026 &mdash; Database Version 1.3 to 1.8</p>
+
+  <div class="callout">
+    <strong>Release decision:</strong> Apply all five forward migrations in order. Do not run the drop/rebuild script or any seed-data script on BDO. The production database and uploaded-file folder must both be backed up before deployment.
+  </div>
+
+  <table>
+    <tr><th>Item</th><th>Value</th></tr>
+    <tr><td>BDO starting database</td><td>PMT Database Version 1.3</td></tr>
+    <tr><td>Target database</td><td>PMT Database Version 1.8</td></tr>
+    <tr><td>Migration folder</td><td><code>Sql\Migrations</code> from the July 14 release</td></tr>
+    <tr><td>Application deployment</td><td>Use the newly published .NET application; preserve BDO configuration and uploaded files</td></tr>
+    <tr><td>Authentication</td><td>Windows integrated SQL authentication is preferred for the commands below</td></tr>
+  </table>
+
+  <div class="callout warning">
+    <strong>Before starting:</strong> Replace every value in angle brackets, confirm the maintenance window, and have a second person verify the backup paths and migration order. A database backup path is on the SQL Server machine and must be writable by the SQL Server service account.
+  </div>
+
+  <h2>1. Prepare the release and rollback copy</h2>
+  <ol>
+    <li>Publish the current .NET application into a new, empty release folder. Do not publish directly over the live PMT folder.</li>
+    <li>Copy the entire current live application folder to a dated rollback folder.</li>
+    <li>Record the BDO values for the IIS site/application, application pool, SQL Server, live application folder, and <code>UploadStorage.RootPath</code>.</li>
+    <li>Confirm the release contains all five SQL files listed in Step 5 and this runbook.</li>
+  </ol>
+
+  <pre>$ReleaseRoot   = '&lt;FULL PATH TO THE NEW PUBLISHED PMT RELEASE&gt;'
+$LiveRoot      = '&lt;FULL PATH TO THE LIVE PMT APPLICATION&gt;'
+$RollbackRoot  = '&lt;FULL PATH TO THE DATED APPLICATION BACKUP&gt;'
+$MigrationRoot = Join-Path $ReleaseRoot 'Sql\Migrations'
+$SqlServer     = '&lt;SQL SERVER OR SQL SERVER\INSTANCE&gt;'
+$UploadRoot    = '&lt;VALUE OF UploadStorage.RootPath&gt;'
+$UploadBackup  = '&lt;FULL PATH TO THE DATED UPLOAD BACKUP&gt;'</pre>
+
+  <ul class="checklist">
+    <li>The new application has been published successfully.</li>
+    <li>The live application folder has been copied to the rollback folder.</li>
+    <li>The BDO <code>appsettings.json</code>, connection string, path base, and upload settings have been saved.</li>
+  </ul>
+
+  <h2>2. Stop PMT and back up user-uploaded files</h2>
+  <ol>
+    <li>Put PMT into the agreed maintenance window.</li>
+    <li>Stop the PMT IIS application pool in IIS Manager. Confirm the PMT site no longer serves requests.</li>
+    <li>Copy the complete upload-storage folder to the dated upload backup. Preserve subfolders and file timestamps.</li>
+  </ol>
+
+  <pre># Run after PMT is stopped. The destination must not be inside the source.
+Copy-Item -LiteralPath $UploadRoot -Destination $UploadBackup -Recurse
+
+# Compare the file counts. They must match.
+(Get-ChildItem -LiteralPath $UploadRoot -File -Recurse).Count
+(Get-ChildItem -LiteralPath $UploadBackup -File -Recurse).Count</pre>
+
+  <h2>3. Check and back up the PMT database</h2>
+  <p>Run these statements in SQL Server Management Studio against the BDO SQL Server. Change only the backup path.</p>
+
+  <pre>USE [master];
+GO
+
+DBCC CHECKDB ([PMT]) WITH NO_INFOMSGS;
+GO
+
+BACKUP DATABASE [PMT]
+TO DISK = N'&lt;SQL SERVER LOCAL BACKUP PATH&gt;\PMT_Before_1.8_20260714.bak'
+WITH COPY_ONLY, INIT, CHECKSUM, STATS = 10;
+GO
+
+RESTORE VERIFYONLY
+FROM DISK = N'&lt;SQL SERVER LOCAL BACKUP PATH&gt;\PMT_Before_1.8_20260714.bak'
+WITH CHECKSUM;
+GO</pre>
+
+  <div class="callout danger">
+    Do not continue unless <code>DBCC CHECKDB</code> reports no errors, the backup completes, and <code>RESTORE VERIFYONLY</code> succeeds.
+  </div>
+
+  <h3>Capture the pre-migration data manifest</h3>
+  <p>Run this query in SSMS, save the results as <code>PMT_1.3_PreMigration_Counts_20260714.csv</code>, and keep it with the deployment record.</p>
+
+  <pre>USE [PMT];
+GO
+SET NOCOUNT ON;
+
+SELECT N'Users' AS [TableName], COUNT_BIG(*) AS [RowCount] FROM [pmt].[Users]
+UNION ALL SELECT N'Projects', COUNT_BIG(*) FROM [pmt].[Projects]
+UNION ALL SELECT N'ProjectMembers', COUNT_BIG(*) FROM [pmt].[ProjectMembers]
+UNION ALL SELECT N'Sprints', COUNT_BIG(*) FROM [pmt].[Sprints]
+UNION ALL SELECT N'SprintMembers', COUNT_BIG(*) FROM [pmt].[SprintMembers]
+UNION ALL SELECT N'WorkTasks', COUNT_BIG(*) FROM [pmt].[WorkTasks]
+UNION ALL SELECT N'TaskAssignees', COUNT_BIG(*) FROM [pmt].[TaskAssignees]
+UNION ALL SELECT N'Blogs', COUNT_BIG(*) FROM [pmt].[Blogs]
+UNION ALL SELECT N'DevLogs', COUNT_BIG(*) FROM [pmt].[DevLogs]
+UNION ALL SELECT N'Attachments', COUNT_BIG(*) FROM [pmt].[Attachments]
+UNION ALL SELECT N'TaskAttachments', COUNT_BIG(*) FROM [pmt].[TaskAttachments]
+UNION ALL SELECT N'BlogAttachments', COUNT_BIG(*) FROM [pmt].[BlogAttachments];
+GO
+
+SELECT
+  CASE WHEN OBJECT_ID(N'[pmt].[UserInvitations]', N'U') IS NULL
+       THEN N'Version 1.3 starting point confirmed'
+       ELSE N'STOP: invitation table already exists; verify the installed version'
+  END AS [BaselineCheck];
+GO</pre>
+
+  <h2>4. Confirm the exact migration files</h2>
+  <p>Use the migration files from the same release as the published application:</p>
+  <ol>
+    <li><code>PMT_1.3_to_1.4.sql</code> &mdash; internal invitation URLs</li>
+    <li><code>PMT_1.4_to_1.5.sql</code> &mdash; expanded user-role values</li>
+    <li><code>PMT_1.5_to_1.6.sql</code> &mdash; managed roles and stable role codes</li>
+    <li><code>PMT_1.6_to_1.7.sql</code> &mdash; role security, explicit user permissions, and admin password resets</li>
+    <li><code>PMT_1.7_to_1.8.sql</code> &mdash; safe attachment deletion</li>
+  </ol>
+
+  <pre>$Expected = @(
+  'PMT_1.3_to_1.4.sql',
+  'PMT_1.4_to_1.5.sql',
+  'PMT_1.5_to_1.6.sql',
+  'PMT_1.6_to_1.7.sql',
+  'PMT_1.7_to_1.8.sql'
+)
+
+$Expected | ForEach-Object {
+  $Path = Join-Path $MigrationRoot $_
+  if (-not (Test-Path -LiteralPath $Path)) { throw "Missing migration: $Path" }
+  Get-FileHash -Algorithm SHA256 -LiteralPath $Path
+}</pre>
+
+  <h2>5. Apply the migrations in order</h2>
+  <p>Run the following from an elevated PowerShell window on a machine that has <code>sqlcmd</code> and access to the BDO SQL Server. The <code>-b</code> option stops on SQL errors and <code>-I</code> enables the required quoted-identifier behavior.</p>
+
+  <pre>$ErrorActionPreference = 'Stop'
+
+foreach ($Name in $Expected) {
+  $Path = Join-Path $MigrationRoot $Name
+  Write-Host "Applying $Name"
+  &amp; sqlcmd -S $SqlServer -d master -E -b -I -i $Path
+  if ($LASTEXITCODE -ne 0) {
+    throw "Migration failed: $Name. Leave PMT stopped and follow the rollback section."
+  }
+}
+
+Write-Host 'All five migrations completed.' -ForegroundColor Green</pre>
+
+  <p class="small">If BDO requires SQL authentication, replace <code>-E</code> with the approved secure authentication method. Do not place a database password in this HTML file, a command-history file, or source control.</p>
+
+  <div class="callout danger">
+    If any script returns an error, stop. Do not skip the failed script and do not start the new application. Keep the site offline while you investigate or restore the verified backup.
+  </div>
+
+  <h2>6. Verify the migrated database before deploying the application</h2>
+  <p>Rerun the data-manifest query from Step 3. The existing row counts must match the saved pre-migration results. New migration-owned tables will contain new configuration rows.</p>
+
+  <pre>USE [PMT];
+GO
+SET NOCOUNT ON;
+
+IF OBJECT_ID(N'[pmt].[UserInvitations]', N'U') IS NULL
+  THROW 51101, 'Invitation migration is missing.', 1;
+IF COL_LENGTH(N'pmt.Lookups', N'Code') IS NULL
+  THROW 51102, 'Managed-role migration is missing.', 1;
+IF OBJECT_ID(N'[pmt].[SecurityResources]', N'U') IS NULL
+  THROW 51103, 'Security migration is missing.', 1;
+IF OBJECT_ID(N'[pmt].[DeleteTaskAttachment]', N'P') IS NULL
+  THROW 51104, 'Attachment-deletion migration is missing.', 1;
+IF OBJECT_ID(N'[pmt].[AdminResetUserPassword]', N'P') IS NULL
+  THROW 51105, 'Admin password-reset migration is missing.', 1;
+
+IF EXISTS (
+  SELECT 1
+  FROM sys.sql_modules
+  WHERE object_id IN (OBJECT_ID(N'[pmt].[UpsertLookup]'), OBJECT_ID(N'[pmt].[DeleteLookup]'))
+    AND uses_quoted_identifier = 0
+)
+  THROW 51106, 'Managed-role procedure session settings are invalid.', 1;
+
+SELECT N'Roles' AS [Configuration], COUNT(*) AS [RowCount]
+FROM [pmt].[Lookups] WHERE [LookupType] = N'Role'
+UNION ALL SELECT N'SecurityResources', COUNT(*) FROM [pmt].[SecurityResources]
+UNION ALL SELECT N'RolePermissions', COUNT(*) FROM [pmt].[RolePermissions];
+
+DBCC CHECKDB ([PMT]) WITH NO_INFOMSGS;
+GO</pre>
+
+  <p>Expected configuration counts for this release are 9 Roles, 14 Security Resources, and 112 Role Permissions. Existing BDO business-data counts must match the pre-migration manifest.</p>
+
+  <h2>7. Deploy the published .NET application</h2>
+  <ol>
+    <li>Keep the IIS application pool stopped.</li>
+    <li>Copy the new published files into the live application folder, or switch IIS to the prepared release folder according to BDO's normal deployment practice.</li>
+    <li>Restore BDO's saved production configuration values. In particular, preserve the production connection string, <code>Deployment.PathBase</code>, and all <code>UploadStorage</code> settings.</li>
+    <li>Do not delete or replace the production upload-storage folder.</li>
+    <li>Verify the IIS identity still has the required database and upload-folder access.</li>
+    <li>Start the PMT IIS application pool and open PMT.</li>
+  </ol>
+
+  <div class="callout">
+    This release includes .NET/backend and database changes. It must be compiled and published; a browser refresh alone is not enough. After deployment, press <strong>Ctrl+F5</strong> once in the browser so cached JavaScript and CSS cannot mask the new release.
+  </div>
+
+  <h2>8. Production smoke test</h2>
+  <p>Use an administrator account and one non-administrator test account. Do not edit or delete real BDO work items just to perform a test.</p>
+
+  <ul class="checklist">
+    <li>Sign in and confirm Dashboard, Projects, Sprints, Dev Tasks, Bug Tracking, Scrum, Documentation, Kanban, Gantt, and Road Map load.</li>
+    <li>Open representative existing projects, sprints, tasks, bugs, Scrum entries, and Documentation entries; confirm their prior content is intact.</li>
+    <li>Open Settings &rarr; Roles; confirm all nine roles display. Create a temporary role, rename it, and delete it.</li>
+    <li>Assign a temporary role to the non-administrator test user and confirm PMT blocks deletion while that role is assigned. Restore the original role, then delete the temporary role.</li>
+    <li>Open Settings &rarr; Security; confirm resources, role permissions, and user overrides display. Verify an explicit No Access test override hides/blocks the selected resource, then remove the override.</li>
+    <li>From Settings &rarr; Users, use the administrator key action to reset the test user's password, then confirm the test user can sign in.</li>
+    <li>Generate an internal invite URL for one test project, open it in a private browser window, create a test profile with an avatar, and confirm the new user lands on the expected project or sprint screen.</li>
+    <li>On a temporary test task or Documentation entry, upload an attachment, delete it with the hover &times;, confirm the prompt, save, reopen, and confirm it is gone.</li>
+    <li>Open representative read-only dialogs and confirm fields with no value are hidden.</li>
+    <li>Review the application and Windows event logs for unexpected errors.</li>
+  </ul>
+
+  <h2 class="page-break">Rollback plan</h2>
+  <p>Use this only if the post-migration verification or production smoke test fails and the problem cannot be corrected safely inside the maintenance window.</p>
+
+  <ol>
+    <li>Stop the PMT IIS application pool.</li>
+    <li>Preserve the failed deployment's logs for diagnosis.</li>
+    <li>Restore the prior live application folder from <code>$RollbackRoot</code>.</li>
+    <li>Restore the upload folder from <code>$UploadBackup</code> if any files changed after deployment began.</li>
+    <li>Restore the verified Version 1.3 database backup with the SQL below.</li>
+    <li>Restore the saved BDO production configuration and start the prior PMT application.</li>
+    <li>Sign in and repeat the basic read-only smoke checks.</li>
+  </ol>
+
+  <pre>USE [master];
+GO
+ALTER DATABASE [PMT] SET SINGLE_USER WITH ROLLBACK IMMEDIATE;
+GO
+RESTORE DATABASE [PMT]
+FROM DISK = N'&lt;SQL SERVER LOCAL BACKUP PATH&gt;\PMT_Before_1.8_20260714.bak'
+WITH REPLACE, CHECKSUM, STATS = 10;
+GO
+ALTER DATABASE [PMT] SET MULTI_USER;
+GO
+DBCC CHECKDB ([PMT]) WITH NO_INFOMSGS;
+GO</pre>
+
+  <div class="callout warning">
+    There are intentionally no downgrade scripts. A rollback restores the matched application folder, database backup, and uploaded-file backup as one set.
+  </div>
+
+  <h2>Migration rehearsal completed July 13, 2026</h2>
+  <p>The full upgrade was rehearsed locally from the actual Version 1.3 source baseline and then repeated on the migrated database.</p>
+
+  <table>
+    <tr><th>Verification</th><th>Result</th></tr>
+    <tr><td>True Version 1.3 baseline reconstruction</td><td>Passed; invitation objects were absent before migration</td></tr>
+    <tr><td>Sequential 1.3 &rarr; 1.4 &rarr; 1.5 &rarr; 1.6 &rarr; 1.7 &rarr; 1.8 migration</td><td>Passed</td></tr>
+    <tr><td>Second complete migration pass</td><td>Passed; scripts are safe to rerun for the tested state</td></tr>
+    <tr><td>Existing row-count preservation</td><td>Passed for Users, Projects, Project Members, Sprints, Sprint Members, Work Tasks, Task Assignees, Blogs, Dev Logs, and all attachment tables</td></tr>
+    <tr><td>Sentinel content preservation</td><td>Passed for an existing user, project, sprint, task, and Documentation entry</td></tr>
+    <tr><td>Admin login and complete application-state load</td><td>Passed on the migrated database</td></tr>
+    <tr><td>Invite creation, profile acceptance, redirect, and invited-user login</td><td>Passed</td></tr>
+    <tr><td>Administrator password reset</td><td>Passed</td></tr>
+    <tr><td>Role create/delete and assigned-role deletion protection</td><td>Passed</td></tr>
+    <tr><td>Explicit No Access precedence</td><td>Passed</td></tr>
+    <tr><td>Attachment upload/delete, database cleanup, and physical-file cleanup</td><td>Passed</td></tr>
+    <tr><td>Database consistency and migration assertions</td><td>Passed</td></tr>
+  </table>
+
+  <p>Rehearsal baseline counts were: 6 Users, 3 Projects, 18 Project Members, 75 Sprints, 380 Sprint Members, 653 Work Tasks, 653 Task Assignees, 14 Blogs, 197 Dev Logs, and zero attachment rows. All counts were unchanged immediately after migration. The final configuration contained 9 Roles, 14 Security Resources, and 112 Role Permissions.</p>
+
+  <p>During rehearsal, the managed-role migrations were corrected to establish the SQL session settings required by the filtered stable-role-code index. The final clean-baseline run, rerun, and role deletion tests all passed with the corrected scripts.</p>
+
+  <h2>Deployment record</h2>
+  <table>
+    <tr><th>Field</th><th>Record</th></tr>
+    <tr><td>Operator</td><td>&nbsp;</td></tr>
+    <tr><td>Second verifier</td><td>&nbsp;</td></tr>
+    <tr><td>Maintenance started</td><td>&nbsp;</td></tr>
+    <tr><td>Database backup path</td><td>&nbsp;</td></tr>
+    <tr><td>Application rollback path</td><td>&nbsp;</td></tr>
+    <tr><td>Upload backup path</td><td>&nbsp;</td></tr>
+    <tr><td>Migration completed</td><td>&nbsp;</td></tr>
+    <tr><td>Smoke test completed</td><td>&nbsp;</td></tr>
+    <tr><td>Maintenance ended</td><td>&nbsp;</td></tr>
+  </table>
+
+  <p class="small">Prepared for PMT's internal BDO deployment. Keep this completed runbook with the release hashes, backup verification, pre/post data manifests, and deployment logs.</p>
+</main>
+</body>
+</html>

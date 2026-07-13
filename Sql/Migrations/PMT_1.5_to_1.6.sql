@@ -9,6 +9,17 @@
     This migration preserves existing users and is safe to rerun.
 */
 
+-- Filtered indexes require these session settings. Declare them here so the
+-- migration behaves the same in sqlcmd, SSMS, and production deployment tools.
+SET ANSI_NULLS ON;
+SET ANSI_PADDING ON;
+SET ANSI_WARNINGS ON;
+SET ARITHABORT ON;
+SET CONCAT_NULL_YIELDS_NULL ON;
+SET QUOTED_IDENTIFIER ON;
+SET NUMERIC_ROUNDABORT OFF;
+GO
+
 USE [PMT];
 GO
 
