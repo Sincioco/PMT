@@ -67,6 +67,11 @@ public sealed partial class SqlPmtStore
         await reader.NextResultAsync(cancellationToken);
 
         state.Holidays = await ReadHolidaysAsync(reader, cancellationToken);
+        await reader.CloseAsync();
+
+        await using var rolesCommand = StoredProcedure(connection, "[pmt].[GetRoles]");
+        await using var rolesReader = await rolesCommand.ExecuteReaderAsync(cancellationToken);
+        state.Roles = await ReadRolesAsync(rolesReader, cancellationToken);
 
         HydrateState(state, projectMembers, sprintMembers, taskAssignees, taskReporters, taskDependencies, attachments, taskAttachments, blogAttachments, blogHistory);
         return state;
@@ -325,6 +330,26 @@ public sealed partial class SqlPmtStore
         }
 
         return lookups;
+    }
+
+    private static async Task<List<LookupDto>> ReadRolesAsync(SqlDataReader reader, CancellationToken cancellationToken)
+    {
+        var roles = new List<LookupDto>();
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            roles.Add(new LookupDto
+            {
+                Id = reader.GetInt32("LookupId"),
+                LookupType = "Role",
+                Value = reader.GetStringOrEmpty("Value"),
+                Code = reader.GetStringOrEmpty("Code"),
+                ColorHex = "",
+                DisplayOrder = reader.GetInt32("DisplayOrder"),
+                IsActive = reader.GetBoolean("IsActive")
+            });
+        }
+
+        return roles;
     }
 
 

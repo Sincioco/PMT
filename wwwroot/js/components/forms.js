@@ -3,6 +3,7 @@ import {
   escapeHtml,
   normalizeRichHtml
 } from "../shared/text-and-links.js?v=20260627-rich-text-toolbar";
+import { roleLabel } from "../shared/selectors.js?v=20260713-managed-roles";
 
 export function field(label, name, currentValue, type, min = "", max = "", maxLength = "") {
   return `<div class="field"><label>${escapeHtml(label)}</label><input name="${name}" type="${type}" value="${escapeAttr(currentValue ?? "")}" ${min !== "" ? `min="${min}"` : ""} ${max !== "" ? `max="${max}"` : ""} ${maxLength !== "" ? `maxlength="${maxLength}"` : ""}></div>`;
@@ -366,7 +367,7 @@ export function checkListOrEmpty(label, name, items, selectedIds, emptyText, opt
 }
 
 export function userCheckListLabelHtml(user) {
-  const role = user.role || (user.isAdmin ? "Admin" : "Developer");
+  const role = roleLabel(user.role || (user.isAdmin ? "Admin" : "Developer"));
 
   return `
     <span class="check-list-user">
@@ -435,7 +436,7 @@ function userCardNameHtml(user) {
 }
 
 function userTitle(user) {
-  return user.role || (user.isAdmin ? "Admin" : "Developer");
+  return roleLabel(user.role || (user.isAdmin ? "Admin" : "Developer"));
 }
 
 export function value(root, name) {

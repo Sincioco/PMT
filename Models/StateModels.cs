@@ -10,6 +10,7 @@ public sealed class AppState
     public List<BlogPostDto> Blogs { get; set; } = new();
     public List<AuditEventDto> AuditEvents { get; set; } = new();
     public List<LookupDto> Lookups { get; set; } = new();
+    public List<LookupDto> Roles { get; set; } = new();
     public List<HolidayDto> Holidays { get; set; } = new();
 }
 

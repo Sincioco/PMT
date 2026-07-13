@@ -58,3 +58,20 @@ O.) Move the "Projects included with this invitation" below the Upload Avatar se
 P.) Remove the "Back to PMT" there is nothing to go back to.  It's their first time in PMT.
 Q.) Put the "Create Profile" back to where it used to be, on the lower right corner of the dialog box as the default dialog box footer button.
 R.) Clicking the "Create Profile" button throws an error.  I have only typed in "Sin" as the username and "Password1" as the password.  The error is:  Unexpected token '<', "<!doctype "... is not valid JSON
+
+Goal:  Keep the Keep It Simple Stupid (KISS) methodology in mind.  Your goal for the remaining security tasks below is to design the simplest security mechanism.  PMT does not contain or hold customer data or any personally identifiable information.  It's strictly used a Software Development Management Tool by the Engineering team to develop in-house applications for BDO.  And PMT itself is running inside the company (within the firewall).  So do not implement any layer of architecture or design unless it is absolutely necessary (KISS).
+
+New Roles
+---------
+Currently we only have Admin, Dev and QA roles, add more roles in PMT:
+
+SA - Systems Analyst
+TL - Technical Lead
+PM - Project Manager
+QA - Manual
+QA - Automation
+TM - Test Manager
+
+101.) In the Settings screen, add a screen so the user can manage Roles for adding, editing, deleting, renaming, etc.  Prevent the user from deleting a role that has a database reference still (being used).
+102.) Use the default styling and behavior of the Environment screen (found in Settings).  We don't need to designate a color.  And if there is no active flag right now for the Roles, then that is fine.  Leave it be for now.
+103.) You can change Developer to be "Dev - Developer" and QA to "QA - Quality Assurance"

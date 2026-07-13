@@ -135,6 +135,7 @@ BEGIN
         [LookupId] INT IDENTITY(1,1) NOT NULL CONSTRAINT [PK_pmt_Lookups] PRIMARY KEY,
         [LookupType] NVARCHAR(60) NOT NULL,
         [Value] NVARCHAR(120) NOT NULL,
+        [Code] NVARCHAR(20) NULL,
         [ColorHex] NVARCHAR(20) NULL,
         [DisplayOrder] INT NOT NULL CONSTRAINT [DF_pmt_Lookups_DisplayOrder] DEFAULT (0),
         [IsActive] BIT NOT NULL CONSTRAINT [DF_pmt_Lookups_IsActive] DEFAULT (1),
@@ -146,6 +147,21 @@ BEGIN
         CONSTRAINT [FK_pmt_Lookups_UpdatedBy] FOREIGN KEY ([UpdatedByUserId]) REFERENCES [pmt].[Users]([UserId]),
         CONSTRAINT [UQ_pmt_Lookups_TypeValue] UNIQUE ([LookupType], [Value])
     );
+END;
+GO
+
+IF COL_LENGTH(N'pmt.Lookups', N'Code') IS NOT NULL
+AND NOT EXISTS
+(
+    SELECT 1
+    FROM sys.indexes
+    WHERE [name] = N'UX_pmt_Lookups_TypeCode'
+      AND [object_id] = OBJECT_ID(N'[pmt].[Lookups]')
+)
+BEGIN
+    CREATE UNIQUE INDEX [UX_pmt_Lookups_TypeCode]
+        ON [pmt].[Lookups]([LookupType], [Code])
+        WHERE [Code] IS NOT NULL;
 END;
 GO
 

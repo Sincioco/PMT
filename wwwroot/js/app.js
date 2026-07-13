@@ -16,7 +16,7 @@ import {
 import {
   field,
   value
-} from "./components/forms.js?v=20260711-task-dialog-customize";
+} from "./components/forms.js?v=20260713-managed-roles";
 import { configureProgressAndStatus } from "./components/progress-and-status.js?v=20260710-export-rich-kanban";
 import {
   bindAttachmentPreview,
@@ -45,7 +45,7 @@ import {
 } from "./core/preferences.js?v=20260711-task-dialog-customize";
 import { state } from "./core/store.js";
 import { appUrl } from "./shared/app-urls.js";
-import { createAboutFeature } from "./features/about/about.js?v=20260712-about-controls-123";
+import { createAboutFeature } from "./features/about/about.js?v=20260713-managed-roles";
 import { createBacklogFeature } from "./features/backlog/backlog.js?v=20260710-rich-bug-layout";
 import { createBoardFeature } from "./features/board/board.js?v=20260710-rte-table-percent-kanban";
 import { createBugsFeature } from "./features/bugs/bugs.js?v=20260713-bug-report-label";
@@ -61,10 +61,10 @@ import { createProjectsFeature } from "./features/projects/projects.js?v=2026071
 import { createRoadMapFeature } from "./features/roadmap/roadmap.js?v=20260710-rich-bug-layout";
 import { createLogFeature } from "./features/personal-log/log.js?v=20260710-rte-checkbox-persist";
 import { createScrumFeature } from "./features/scrum/scrum.js?v=20260710-rte-checkbox-persist";
-import { createSettingsFeature } from "./features/settings/settings.js?v=20260713-invite-username-feedback";
+import { createSettingsFeature } from "./features/settings/settings.js?v=20260713-managed-roles";
 import { createSprintsFeature } from "./features/sprints/sprints.js?v=20260710-nav-avatar-fit";
 import { createTasksFeature } from "./features/tasks/tasks.js?v=20260712-about-chart-gallery";
-import { createWfhScheduleFeature } from "./features/wfh-schedule/wfh-schedule.js?v=20260709-wfh-undo-large-days";
+import { createWfhScheduleFeature } from "./features/wfh-schedule/wfh-schedule.js?v=20260713-managed-roles";
 import {
   fallbackEnvironments,
   fallbackForLookup,

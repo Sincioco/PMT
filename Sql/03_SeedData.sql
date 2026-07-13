@@ -127,6 +127,18 @@ VALUES
 (N'LogCategory', N'Knowledge', NULL, 20, 1, @Sin),
 (N'LogCategory', N'Notes', NULL, 30, 1, @Sin);
 
+INSERT INTO [pmt].[Lookups] ([LookupType], [Value], [Code], [ColorHex], [DisplayOrder], [IsActive], [CreatedByUserId])
+VALUES
+(N'Role', N'Admin', N'Admin', NULL, 10, 1, @Sin),
+(N'Role', N'Dev - Developer', N'Developer', NULL, 20, 1, @Sin),
+(N'Role', N'QA - Quality Assurance', N'QA', NULL, 30, 1, @Sin),
+(N'Role', N'SA - Systems Analyst', N'SA', NULL, 40, 1, @Sin),
+(N'Role', N'TL - Technical Lead', N'TL', NULL, 50, 1, @Sin),
+(N'Role', N'PM - Project Manager', N'PM', NULL, 60, 1, @Sin),
+(N'Role', N'QA - Manual', N'QA Manual', NULL, 70, 1, @Sin),
+(N'Role', N'QA - Automation', N'QA Automation', NULL, 80, 1, @Sin),
+(N'Role', N'TM - Test Manager', N'TM', NULL, 90, 1, @Sin);
+
 DECLARE @HolidaySeed TABLE
 (
     [Name] NVARCHAR(160) NOT NULL,

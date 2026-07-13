@@ -63,11 +63,14 @@ Project and Sprint aggregate progress is separate from stored work-item percent.
 
 ## Roles and permissions
 
-Roles are `Admin`, `Developer`, and `QA`.
+The default role names are `Admin`, `Dev - Developer`, `QA - Quality Assurance`, `SA - Systems Analyst`, `TL - Technical Lead`, `PM - Project Manager`, `QA - Manual`, `QA - Automation`, and `TM - Test Manager`.
 
 - Admins may edit both Dev Tasks and Bugs and perform administrator actions.
 - Developers may create, edit, duplicate, delete, and attach files to Dev Tasks.
 - QA users may create, edit, duplicate, delete, and attach files to Bugs.
+- The new SA, TL, PM, QA - Manual, QA - Automation, and TM roles are user classifications only until explicit work-item permissions are assigned to them.
+- Administrators may add, rename, reorder, activate, deactivate, and delete Roles in Settings. Visible names are separate from the stable internal security codes.
+- A Role cannot be deleted while any active or inactive user record still references it.
 - Work-item permission is task-type based, not creator based.
 - Project and Sprint edit/delete operations are owner-or-admin. Finishing a Sprint is also owner-or-admin.
 - Finished Sprints are read-only for non-admin users, including work-item writes into that Sprint.

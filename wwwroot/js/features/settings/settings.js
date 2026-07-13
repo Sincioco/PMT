@@ -6,7 +6,7 @@ import {
   numberValue,
   selectTextField,
   value
-} from "../../components/forms.js?v=20260710-rte-table-shortcuts";
+} from "../../components/forms.js?v=20260713-managed-roles";
 import {
   bindProfileAvatarPicker,
   focusProfileAvatarPicker,
@@ -44,7 +44,10 @@ import {
 } from "../../shared/dates.js";
 import { canEditUser } from "../../shared/permissions.js";
 import { createReorderDrag } from "../../shared/reorder-drag.js";
-import { userById } from "../../shared/selectors.js";
+import {
+  roleLabel,
+  userById
+} from "../../shared/selectors.js?v=20260713-managed-roles";
 import {
   escapeAttr,
   escapeHtml,
@@ -81,7 +84,7 @@ const legacySeededAvatarPaths = new Map([
   ["/assets/avatar-generic-6.png", "/assets/avatar-generic-6.jpg"],
   ["/assets/avatar-lisa-su.jpg", "/assets/avatar-jensen-huang.jpg"]
 ]);
-const coreLookupTypes = ["Status", "Priority", "Severity", "Environment", "LogCategory"];
+const coreLookupTypes = ["Status", "Priority", "Severity", "Environment", "LogCategory", "Role"];
 
 export function createSettingsFeature({
   app,
@@ -184,7 +187,11 @@ export function createSettingsFeature({
       return true;
     }
     if (action === "delete-lookup") {
-      await deleteItem(`/api/lookups/${id}`, "Deactivate this setting value?");
+      const lookup = state.lookups.find(item => item.id === id);
+      await deleteItem(
+        `/api/lookups/${id}`,
+        lookup?.lookupType === "Role" ? "Delete this role?" : "Deactivate this setting value?"
+      );
       return true;
     }
     if (action === "new-holiday") {
@@ -310,6 +317,7 @@ export function createSettingsFeature({
   }
 
   function settingsLookupHtml(type) {
+    const isRole = type === "Role";
     const rows = [...(state.lookups || [])]
       .filter(item => item.lookupType === type)
       .filter(item => settingsLookupMatchesFilters(item, type))
@@ -322,7 +330,7 @@ export function createSettingsFeature({
           <thead>
             <tr>
               ${settingsSortHeaderHtml(type, "value", "Value")}
-              ${settingsSortHeaderHtml(type, "color", "Color")}
+              ${isRole ? "" : settingsSortHeaderHtml(type, "color", "Color")}
               ${settingsSortHeaderHtml(type, "order", "Order")}
               ${settingsSortHeaderHtml(type, "active", "Active")}
               <th></th>
@@ -332,15 +340,15 @@ export function createSettingsFeature({
             ${rows.map(item => `
               <tr class="clickable-row" data-action="edit-lookup" data-id="${item.id}">
                 <td>${escapeHtml(item.value)}</td>
-                <td>${item.lookupType === "Status" ? `<span class="lookup-color" style="--status-color:${escapeAttr(statusColor(item.value))}"></span>` : `<span class="muted">n/a</span>`}</td>
+                ${isRole ? "" : `<td>${item.lookupType === "Status" ? `<span class="lookup-color" style="--status-color:${escapeAttr(statusColor(item.value))}"></span>` : `<span class="muted">n/a</span>`}</td>`}
                 <td>${item.displayOrder}</td>
                 <td>${item.isActive ? "Yes" : "No"}</td>
                 <td class="action-cell">
                   ${iconButton("edit-lookup", item.id, "Edit", "edit", currentUser().isAdmin)}
-                  ${iconButton("delete-lookup", item.id, "Deactivate", "delete", currentUser().isAdmin, "danger")}
+                  ${iconButton("delete-lookup", item.id, isRole ? "Delete" : "Deactivate", "delete", currentUser().isAdmin, "danger")}
                 </td>
               </tr>
-            `).join("") || `<tr><td colspan="5"><div class="empty">No setting values in this category.</div></td></tr>`}
+            `).join("") || `<tr><td colspan="${isRole ? 4 : 5}"><div class="empty">No setting values in this category.</div></td></tr>`}
           </tbody>
         </table>
       </div>
@@ -395,6 +403,7 @@ export function createSettingsFeature({
 
   function settingsLookupTableDescription(type) {
     if (type === "Environment") return "Choose which environments are available, then edit labels, display order, and active state.";
+    if (type === "Role") return "Add, rename, reorder, or delete the roles available to users.";
     if (type === "LogCategory") return "Choose which Log categories are available, then edit labels, display order, and active state.";
     if (type === "Priority") return "Choose which priorities are available, then edit labels, display order, and active state.";
     if (type === "Severity") return "Choose which severities are available, then edit labels, display order, and active state.";
@@ -410,11 +419,13 @@ export function createSettingsFeature({
 
   function settingsCategoryLabel(type) {
     if (type === "LogCategory") return "Log Categories";
+    if (type === "Role") return "Roles";
     return type || "";
   }
 
   function settingsNewLookupButtonLabel(category) {
     if (category === "LogCategory") return "New Log Category";
+    if (category === "Role") return "New Role";
     return "New Setting";
   }
 
@@ -824,6 +835,14 @@ export function createSettingsFeature({
       ];
     }
 
+    if (category === "Role") {
+      return [
+        { column: "value", label: "Value" },
+        { column: "order", label: "Order" },
+        { column: "active", label: "Active" }
+      ];
+    }
+
     return [
       { column: "value", label: "Value" },
       { column: "color", label: "Color" },
@@ -966,7 +985,28 @@ export function createSettingsFeature({
   }
 
   function userTitle(user) {
-    return user.role || (user.isAdmin ? "Admin" : "Developer");
+    return roleLabel(user.role || (user.isAdmin ? "Admin" : "Developer"));
+  }
+
+  function userRoleSelectField(user) {
+    const selectedRole = user.role === "Admin" ? "Developer" : user.role || "Developer";
+    const roles = [...(state.roles || [])]
+      .filter(role => role.code && role.code !== "Admin")
+      .filter(role => role.isActive || role.code === selectedRole)
+      .sort((a, b) => a.displayOrder - b.displayOrder || a.value.localeCompare(b.value));
+
+    if (!roles.length) {
+      roles.push({ code: "Developer", value: "Dev - Developer" });
+    }
+
+    return `
+      <div class="field">
+        <label>Role</label>
+        <select name="role">
+          ${roles.map(role => `<option value="${escapeAttr(role.code)}" ${role.code === selectedRole ? "selected" : ""}>${escapeHtml(role.value)}</option>`).join("")}
+        </select>
+      </div>
+    `;
   }
 
   function showUserAvatarDialog(user) {
@@ -1008,6 +1048,7 @@ export function createSettingsFeature({
       Severity: "&#9888;",
       Environment: "&#127758;",
       LogCategory: "&#9776;",
+      Role: "&#128101;",
       Users: "&#128100;",
       Holidays: "&#128197;",
       Navigation: "&#9776;",
@@ -1097,7 +1138,7 @@ export function createSettingsFeature({
           <input name="nickname" type="text" value="${escapeAttr(user.nickname || "")}" maxlength="80" autocomplete="username" required>
           <span class="muted" data-username-help>You will use this username to log in.</span>
         </div>
-        ${selectTextField("Role", "role", ["Developer", "QA"], user.role === "Admin" ? "Developer" : user.role || "Developer")}
+        ${userRoleSelectField(user)}
         ${field("Phone", "phone", user.phone || "", "text")}
         ${field("Email", "email", user.email || "", "email")}
         ${profileAvatarPickerHtml(user.avatarUrl || "", avatarUrl => settingsUserAvatarUrl({ avatarUrl }))}
@@ -1206,11 +1247,16 @@ export function createSettingsFeature({
   }
 
   function editLookup(lookup = {}) {
-    openEditor(lookup.id ? "Edit Setting" : "New Setting", `
+    const isRole = lookup.lookupType === "Role";
+    openEditor(
+      isRole ? (lookup.id ? "Edit Role" : "New Role") : (lookup.id ? "Edit Setting" : "New Setting"),
+      `
       <div class="form-grid">
-        ${selectTextField("Type", "lookupType", settingsLookupTypes(), lookup.lookupType || "Status")}
-        ${field("Value", "value", lookup.value || "", "text")}
-        ${colorField("Color", "colorHex", lookup.colorHex || defaultStatusColor(lookup.value || "Todo"))}
+        ${isRole
+          ? `<input name="lookupType" type="hidden" value="Role">`
+          : selectTextField("Type", "lookupType", settingsLookupTypes(), lookup.lookupType || "Status")}
+        ${field(isRole ? "Role Name" : "Value", "value", lookup.value || "", "text")}
+        ${isRole ? "" : colorField("Color", "colorHex", lookup.colorHex || defaultStatusColor(lookup.value || "Todo"))}
         ${field("Display Order", "displayOrder", lookup.displayOrder ?? 0, "number")}
         <label class="inline-check field full"><input name="isActive" type="checkbox" ${lookup.isActive ?? true ? "checked" : ""}><span>Active</span></label>
       </div>

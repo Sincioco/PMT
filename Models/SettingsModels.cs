@@ -5,6 +5,7 @@ public sealed class LookupDto
     public int Id { get; set; }
     public string LookupType { get; set; } = "";
     public string Value { get; set; } = "";
+    public string Code { get; set; } = "";
     public int DisplayOrder { get; set; }
     public bool IsActive { get; set; } = true;
     public string ColorHex { get; set; } = "";

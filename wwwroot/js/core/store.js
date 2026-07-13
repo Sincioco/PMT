@@ -10,6 +10,7 @@ function createEmptyState() {
     blogs: [],
     auditEvents: [],
     lookups: [],
+    roles: [],
     holidays: []
   };
 }

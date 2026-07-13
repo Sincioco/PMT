@@ -11,7 +11,7 @@ import { appUrl } from "../../shared/app-urls.js";
 import { createBugChartsView } from "../../shared/bug-charts.js?v=20260712-about-chart-gallery";
 import { createDevTaskChartsView } from "../../shared/dev-task-charts.js?v=20260712-about-chart-gallery";
 
-const ABOUT_VERSION = "20260712-about-controls-123";
+const ABOUT_VERSION = "20260713-managed-roles";
 
 export function createAboutFeature({
   app,

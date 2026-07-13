@@ -7,6 +7,7 @@ import { currentUser } from "../../core/authentication.js";
 import { state } from "../../core/store.js";
 import { createReorderDrag } from "../../shared/reorder-drag.js";
 import { canEditOwner } from "../../shared/permissions.js";
+import { roleLabel } from "../../shared/selectors.js?v=20260713-managed-roles";
 import {
   escapeAttr,
   escapeHtml
@@ -155,7 +156,7 @@ export function createWfhScheduleFeature({
   }
 
   function wfhRowHtml(row) {
-    const displayRole = row.role || "Developer";
+    const displayRole = roleLabel(row.role || "Developer");
     const showAdminActions = wfhTableMode.active && canAdminEditWfh();
     return `
       <tr data-wfh-user-id="${row.userId}" data-can-drag="${showAdminActions ? "true" : "false"}" class="${row.isHidden ? "is-hidden" : ""}">

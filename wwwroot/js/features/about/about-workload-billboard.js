@@ -1,5 +1,6 @@
 import * as THREE from "../../vendor/three/three.module.min.js";
 import { appUrl } from "../../shared/app-urls.js";
+import { roleLabel } from "../../shared/selectors.js?v=20260713-managed-roles";
 
 export const DEV_CHART_GRID_WIDTH = 31.2;
 export const DEV_CHART_GRID_HEIGHT = 15.2;
@@ -803,7 +804,7 @@ function drawUserCard(context, chart, avatarImages) {
       maxWidth: width - textX - 70
     });
   }
-  const role = user.role || (user.isAdmin ? "Admin" : "Developer");
+  const role = roleLabel(user.role || (user.isAdmin ? "Admin" : "Developer"));
   roundedFill(context, textX, 310, Math.min(330, 74 + textWidth(context, role, "700 31px 'Segoe UI', Arial, sans-serif")), 58, 29, resolveColor("var(--color-primary)"));
   drawText(context, role, textX + 30, 339, {
     color: "#ffffff",

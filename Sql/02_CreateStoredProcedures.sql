@@ -388,6 +388,23 @@ BEGIN
 END;
 GO
 
+CREATE OR ALTER PROCEDURE [pmt].[GetRoles]
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    SELECT
+        [LookupId],
+        [Value],
+        [Code],
+        [DisplayOrder],
+        [IsActive]
+    FROM [pmt].[Lookups]
+    WHERE [LookupType] = N'Role'
+    ORDER BY [DisplayOrder], [Value];
+END;
+GO
+
 CREATE OR ALTER PROCEDURE [pmt].[LoginUser]
     @Login NVARCHAR(180),
     @Password NVARCHAR(4000)
@@ -2429,7 +2446,25 @@ BEGIN
         THROW 50055, 'That username is already in use. Choose another username.', 1;
     END;
 
-    IF @Role NOT IN (N'Developer', N'QA')
+    IF @Role = N'Admin'
+       OR NOT EXISTS
+       (
+           SELECT 1
+           FROM [pmt].[Lookups]
+           WHERE [LookupType] = N'Role'
+             AND [Code] = @Role
+             AND
+             (
+                 [IsActive] = 1
+                 OR EXISTS
+                 (
+                     SELECT 1
+                     FROM [pmt].[Users]
+                     WHERE [UserId] = @UserId
+                       AND [Role] = @Role
+                 )
+             )
+       )
     BEGIN
         SET @Role = N'Developer';
     END;
@@ -2812,6 +2847,9 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
+    DECLARE @ExistingLookupType NVARCHAR(60);
+    DECLARE @Code NVARCHAR(20);
+
     IF [pmt].[IsAdmin](@CurrentUserId) = 0
     BEGIN
         THROW 50054, 'Only administrators can maintain dropdown values.', 1;
@@ -2826,10 +2864,33 @@ BEGIN
         THROW 50055, 'Lookup type and value are required.', 1;
     END;
 
+    IF @LookupId <> 0
+    BEGIN
+        SELECT @ExistingLookupType = [LookupType]
+        FROM [pmt].[Lookups]
+        WHERE [LookupId] = @LookupId;
+
+        IF @ExistingLookupType IS NULL
+        BEGIN
+            THROW 50056, 'Lookup value was not found.', 1;
+        END;
+
+        IF @ExistingLookupType <> @LookupType
+           AND (@ExistingLookupType = N'Role' OR @LookupType = N'Role')
+        BEGIN
+            THROW 50070, 'A Role cannot be changed into another setting type.', 1;
+        END;
+    END;
+
     IF @LookupId = 0
     BEGIN
-        INSERT INTO [pmt].[Lookups] ([LookupType], [Value], [ColorHex], [DisplayOrder], [IsActive], [CreatedByUserId])
-        VALUES (@LookupType, @Value, @ColorHex, @DisplayOrder, @IsActive, @CurrentUserId);
+        IF @LookupType = N'Role'
+        BEGIN
+            SET @Code = N'R' + LEFT(REPLACE(CONVERT(NVARCHAR(36), NEWID()), N'-', N''), 19);
+        END;
+
+        INSERT INTO [pmt].[Lookups] ([LookupType], [Value], [Code], [ColorHex], [DisplayOrder], [IsActive], [CreatedByUserId])
+        VALUES (@LookupType, @Value, @Code, @ColorHex, @DisplayOrder, @IsActive, @CurrentUserId);
 
         SET @LookupId = SCOPE_IDENTITY();
         EXEC [pmt].[WriteAudit] N'Lookup', @LookupId, N'Created', @LookupType, @CurrentUserId;
@@ -2839,6 +2900,11 @@ BEGIN
         UPDATE [pmt].[Lookups]
         SET [LookupType] = @LookupType,
             [Value] = @Value,
+            [Code] = CASE
+                WHEN @LookupType = N'Role' AND [Code] IS NULL
+                    THEN N'R' + LEFT(REPLACE(CONVERT(NVARCHAR(36), NEWID()), N'-', N''), 19)
+                ELSE [Code]
+            END,
             [ColorHex] = @ColorHex,
             [DisplayOrder] = @DisplayOrder,
             [IsActive] = @IsActive,
@@ -2863,9 +2929,44 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
+    DECLARE @LookupType NVARCHAR(60);
+    DECLARE @Value NVARCHAR(120);
+    DECLARE @Code NVARCHAR(20);
+
     IF [pmt].[IsAdmin](@CurrentUserId) = 0
     BEGIN
         THROW 50057, 'Only administrators can maintain dropdown values.', 1;
+    END;
+
+    SELECT
+        @LookupType = [LookupType],
+        @Value = [Value],
+        @Code = [Code]
+    FROM [pmt].[Lookups]
+    WHERE [LookupId] = @LookupId;
+
+    IF @LookupType IS NULL
+    BEGIN
+        THROW 50056, 'Lookup value was not found.', 1;
+    END;
+
+    IF @LookupType = N'Role'
+    BEGIN
+        IF EXISTS
+        (
+            SELECT 1
+            FROM [pmt].[Users]
+            WHERE [Role] = @Code
+        )
+        BEGIN
+            THROW 50071, 'This Role cannot be deleted because it is assigned to a user.', 1;
+        END;
+
+        DELETE FROM [pmt].[Lookups]
+        WHERE [LookupId] = @LookupId;
+
+        EXEC [pmt].[WriteAudit] N'Lookup', @LookupId, N'Deleted', @Value, @CurrentUserId;
+        RETURN;
     END;
 
     -- Keep old task values readable by marking the lookup inactive instead of deleting the row.

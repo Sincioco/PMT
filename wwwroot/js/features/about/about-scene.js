@@ -20,7 +20,7 @@ import {
   DEV_CHART_GRID_HEIGHT,
   DEV_CHART_GRID_WIDTH,
   DEV_CHART_GRID_Z
-} from "./about-workload-billboard.js?v=20260712-about-flight-sequences-122";
+} from "./about-workload-billboard.js?v=20260713-managed-roles";
 
 const INTRO_DURATION_MS = 3000;
 const INTRO_FADE_DURATION_MS = 1250;
