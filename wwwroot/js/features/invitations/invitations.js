@@ -6,7 +6,10 @@ import {
 } from "../../core/authentication.js";
 import { state } from "../../core/store.js";
 import { buttonContent } from "../../components/buttons.js";
-import { copyTextToClipboard } from "../../components/clipboard.js?v=20260713-invite-users";
+import {
+  copyHtmlToClipboard,
+  copyTextToClipboard
+} from "../../components/clipboard.js?v=20260714-invite-email-body";
 import { initializeWindowedDialog } from "../../components/dialogs.js?v=20260713-invite-users";
 import {
   checkList,
@@ -30,6 +33,7 @@ import {
 
 const invitationQueryParameter = "invite";
 const genericAvatarCacheVersion = "20260629-avatar-jpg-assets";
+const invitationEmailLogoVersion = "20260714-invite-email-body";
 
 export function createInvitationsFeature({
   app,
@@ -79,12 +83,25 @@ export function createInvitationsFeature({
               <button class="secondary text-icon-button" type="button" data-copy-invite-url disabled>
                 ${buttonContent("&#128203;", "Copy URL")}
               </button>
+              <button class="secondary text-icon-button" type="button" data-generate-invite-email disabled>
+                ${buttonContent("&#9993;", "Generate Email/HTML Body")}
+              </button>
             </div>
             <span class="muted" data-invite-expiration></span>
           </div>
+          <div class="invite-email-result" data-invite-email-result hidden>
+            <div class="invite-email-title">Email / HTML body preview</div>
+            <div class="invite-email-preview" data-invite-email-preview></div>
+            <div class="invite-email-actions">
+              <button class="secondary text-icon-button" type="button" data-copy-invite-email disabled>
+                ${buttonContent("&#128203;", "Copy Email/HTML Body")}
+              </button>
+              <span class="muted">Copies rich HTML and a plain-text fallback for Outlook.</span>
+            </div>
+          </div>
         </div>
         <div class="dialog-actions">
-          <button class="secondary text-icon-button" type="button" data-close-invite-dialog>${buttonContent("&#10005;", "Close")}</button>
+          <button class="secondary text-icon-button" type="button" data-close-invite-dialog>${buttonContent("&#10003;", "Done")}</button>
         </div>
       </form>
     `;
@@ -92,6 +109,7 @@ export function createInvitationsFeature({
     document.body.appendChild(modal);
     initializeWindowedDialog(modal, { showResetButton: false });
     let isGenerating = false;
+    let generatedEmailHtml = "";
 
     const setGenerating = busy => {
       isGenerating = busy;
@@ -100,14 +118,25 @@ export function createInvitationsFeature({
       });
       const generateButton = modal.querySelector("[data-generate-invite]");
       if (generateButton) generateButton.disabled = busy || !projects.length;
+      const emailButton = modal.querySelector("[data-generate-invite-email]");
+      if (emailButton) emailButton.disabled = busy || !modal.querySelector("[data-invite-url]")?.value;
     };
 
     const clearGeneratedUrl = () => {
       const result = modal.querySelector("[data-invite-url-result]");
       const urlInput = modal.querySelector("[data-invite-url]");
       const copyButton = modal.querySelector("[data-copy-invite-url]");
+      const generateEmailButton = modal.querySelector("[data-generate-invite-email]");
+      const emailResult = modal.querySelector("[data-invite-email-result]");
+      const emailPreview = modal.querySelector("[data-invite-email-preview]");
+      const copyEmailButton = modal.querySelector("[data-copy-invite-email]");
+      generatedEmailHtml = "";
       if (urlInput) urlInput.value = "";
       if (copyButton) copyButton.disabled = true;
+      if (generateEmailButton) generateEmailButton.disabled = true;
+      if (emailPreview) emailPreview.innerHTML = "";
+      if (copyEmailButton) copyEmailButton.disabled = true;
+      if (emailResult) emailResult.hidden = true;
       if (result) result.hidden = true;
     };
 
@@ -132,10 +161,12 @@ export function createInvitationsFeature({
         const url = appAbsoluteUrl(`/?${invitationQueryParameter}=${encodeURIComponent(result.token || "")}`);
         const urlInput = modal.querySelector("[data-invite-url]");
         const copyButton = modal.querySelector("[data-copy-invite-url]");
+        const generateEmailButton = modal.querySelector("[data-generate-invite-email]");
         const resultPanel = modal.querySelector("[data-invite-url-result]");
         const expiration = modal.querySelector("[data-invite-expiration]");
         if (urlInput) urlInput.value = url;
         if (copyButton) copyButton.disabled = !url;
+        if (generateEmailButton) generateEmailButton.disabled = !url;
         if (resultPanel) resultPanel.hidden = !url;
         if (expiration) expiration.textContent = result.expiresAt
           ? `Valid until ${new Date(result.expiresAt).toLocaleString()}.`
@@ -151,6 +182,46 @@ export function createInvitationsFeature({
       const urlInput = modal.querySelector("[data-invite-url]");
       const copied = await copyTextToClipboard(urlInput?.value || "", urlInput);
       showToast(copied ? "Invite URL copied." : "Unable to copy the invite URL.");
+    });
+    modal.querySelector("[data-generate-invite-email]")?.addEventListener("click", async event => {
+      const button = event.currentTarget;
+      const url = modal.querySelector("[data-invite-url]")?.value.trim() || "";
+      if (!url) {
+        showToast("Generate an invite URL first.");
+        return;
+      }
+
+      button.disabled = true;
+      try {
+        const logoPath = `/assets/pmt-logo-full.png?v=${invitationEmailLogoVersion}`;
+        const absoluteLogoUrl = appAbsoluteUrl(logoPath);
+        const embeddedLogo = await imageDataUrl(appUrl(logoPath)).catch(() => absoluteLogoUrl);
+        if (modal.querySelector("[data-invite-url]")?.value.trim() !== url) return;
+        generatedEmailHtml = invitationEmailHtml(url, embeddedLogo, absoluteLogoUrl);
+        const preview = modal.querySelector("[data-invite-email-preview]");
+        const result = modal.querySelector("[data-invite-email-result]");
+        const copyButton = modal.querySelector("[data-copy-invite-email]");
+        if (preview) preview.innerHTML = generatedEmailHtml;
+        if (copyButton) copyButton.disabled = false;
+        if (result) {
+          result.hidden = false;
+          result.scrollIntoView({ behavior: "smooth", block: "nearest" });
+        }
+        showToast("Email / HTML body generated.");
+      } catch (error) {
+        showToast(error.message || "Unable to generate the email body.");
+      } finally {
+        button.disabled = !modal.querySelector("[data-invite-url]")?.value.trim();
+      }
+    });
+    modal.querySelector("[data-copy-invite-email]")?.addEventListener("click", async event => {
+      const url = modal.querySelector("[data-invite-url]")?.value.trim() || "";
+      const copied = generatedEmailHtml
+        ? await copyHtmlToClipboard(generatedEmailHtml, invitationEmailPlainText(url), event.currentTarget)
+        : false;
+      showToast(copied
+        ? "Email / HTML body copied. Paste it into Outlook."
+        : "Unable to copy the email / HTML body.");
     });
     modal.querySelectorAll("[data-close-invite-dialog]").forEach(button => {
       button.addEventListener("click", () => {
@@ -394,6 +465,78 @@ function invitationProjectHtml(project) {
       <span><strong>${escapeHtml(project.title || project.code || "Project")}</strong>${project.code ? `<br><span class="muted">${escapeHtml(project.code)}</span>` : ""}</span>
     </div>
   `;
+}
+
+function invitationEmailHtml(inviteUrl, embeddedLogo, absoluteLogoUrl) {
+  const safeUrl = escapeAttr(inviteUrl);
+  const safeEmbeddedLogo = escapeAttr(embeddedLogo);
+  const safeAbsoluteLogoUrl = escapeAttr(absoluteLogoUrl);
+  return `
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="width:100%;margin:0;background:#f3f6fb;border-collapse:collapse;font-family:Arial,'Segoe UI',sans-serif;color:#243142;">
+      <tr>
+        <td align="center" style="padding:24px 12px;">
+          <table role="presentation" width="600" cellspacing="0" cellpadding="0" border="0" style="width:600px;max-width:100%;background:#ffffff;border:1px solid #d9e2ec;border-collapse:collapse;">
+            <tr>
+              <td style="padding:24px 28px;border-bottom:1px solid #d9e2ec;">
+                <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="width:100%;border-collapse:collapse;">
+                  <tr>
+                    <td width="190" valign="middle" style="width:190px;padding:0 24px 0 0;">
+                      <!--[if mso]><img src="${safeAbsoluteLogoUrl}" width="180" alt="PMT - Project Management Tool" style="display:block;width:180px;height:auto;border:0;outline:none;text-decoration:none;"><![endif]-->
+                      <!--[if !mso]><!--><img src="${safeEmbeddedLogo}" width="180" alt="PMT - Project Management Tool" style="display:block;width:180px;max-width:100%;height:auto;border:0;outline:none;text-decoration:none;"><!--<![endif]-->
+                    </td>
+                    <td valign="middle" style="padding:0;">
+                      <div style="margin:0;color:#172b4d;font-size:24px;line-height:30px;font-weight:700;">Welcome to PMT! You&rsquo;ve been invited!</div>
+                      <div style="margin:7px 0 0;color:#5d6b7a;font-size:14px;line-height:21px;">Create your profile and join your BDO project team.</div>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:28px;color:#243142;font-size:16px;line-height:25px;">
+                <p style="margin:0 0 22px;">You've been chosen as one of the few to try this new and exciting Project Management Tool (PMT) in BDO! Participate so your ideas can help shape the tool and the future of BDO in the process!</p>
+                <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="border-collapse:collapse;">
+                  <tr>
+                    <td bgcolor="#1473e6" style="background:#1473e6;border:1px solid #0b57b7;">
+                      <a href="${safeUrl}" style="display:inline-block;padding:12px 22px;color:#ffffff;text-decoration:none;font-size:16px;line-height:20px;font-weight:700;">Create Your PMT Profile</a>
+                    </td>
+                  </tr>
+                </table>
+                <p style="margin:22px 0 6px;color:#5d6b7a;font-size:13px;line-height:20px;">This reusable internal invitation is valid for 30 days.</p>
+                <p style="margin:0;color:#5d6b7a;font-size:13px;line-height:20px;">If the button does not open, copy and paste this address into your browser:</p>
+                <p style="margin:4px 0 0;font-size:13px;line-height:20px;word-break:break-all;"><a href="${safeUrl}" style="color:#0b57b7;text-decoration:underline;">${escapeHtml(inviteUrl)}</a></p>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  `.trim();
+}
+
+function invitationEmailPlainText(inviteUrl) {
+  return [
+    "Welcome to PMT! You've been invited!",
+    "",
+    "You've been chosen as one of the few to try this new and exciting Project Management Tool (PMT) in BDO! Participate so your ideas can help shape the tool and the future of BDO in the process!",
+    "",
+    "Create your PMT profile:",
+    inviteUrl,
+    "",
+    "This reusable internal invitation is valid for 30 days."
+  ].join("\n");
+}
+
+async function imageDataUrl(source) {
+  const response = await fetch(source);
+  if (!response.ok) throw new Error("Unable to load the PMT logo.");
+  const blob = await response.blob();
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.addEventListener("load", () => resolve(String(reader.result || "")), { once: true });
+    reader.addEventListener("error", () => reject(new Error("Unable to prepare the PMT logo.")), { once: true });
+    reader.readAsDataURL(blob);
+  });
 }
 
 function genericAvatarPreviewUrl(avatarUrl) {

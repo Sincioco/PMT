@@ -3,7 +3,7 @@ import { currentUserId } from "./core/authentication.js";
 import { avatarsHtml, taskRowAvatarsHtml } from "./components/avatars.js?v=20260710-nav-avatar-fit";
 import { bindAttachmentDeletion } from "./components/attachments.js?v=20260714-attachment-delete";
 import { buttonContent } from "./components/buttons.js?v=20260713-role-security";
-import { copyTextToClipboard } from "./components/clipboard.js?v=20260713-invite-users";
+import { copyTextToClipboard } from "./components/clipboard.js?v=20260714-invite-email-body";
 import {
   askForText,
   askYesNo,
@@ -59,7 +59,7 @@ import {
   currentSprintForProject,
   ganttStartDate
 } from "./features/gantt/gantt.js?v=20260714-linked-bug-percent";
-import { createInvitationsFeature } from "./features/invitations/invitations.js?v=20260713-invite-profile-footer";
+import { createInvitationsFeature } from "./features/invitations/invitations.js?v=20260714-invite-verbatim-v2";
 import { createProjectsFeature } from "./features/projects/projects.js?v=20260714-linked-bug-percent";
 import { createRoadMapFeature } from "./features/roadmap/roadmap.js?v=20260714-linked-bug-percent";
 import { createLogFeature } from "./features/personal-log/log.js?v=20260714-linked-bug-percent";

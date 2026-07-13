@@ -206,6 +206,36 @@ test("login, navigation, themes, dialogs, filters, Board, Gantt, and Road Map sm
   await expect(page.locator("#editorDialog")).toBeVisible();
   const deleteAttachmentButton = page.locator("#editorDialog [data-delete-attachment='/api/tasks/1/attachments/901']");
   await expect(deleteAttachmentButton).toHaveCount(1);
+  const deleteIconAlignment = await deleteAttachmentButton.evaluate(button => {
+    const buttonStyle = getComputedStyle(button);
+    const beforeStyle = getComputedStyle(button, "::before");
+    const afterStyle = getComputedStyle(button, "::after");
+    const bounds = button.getBoundingClientRect();
+    return {
+      buttonWidth: bounds.width,
+      buttonHeight: bounds.height,
+      fontSize: buttonStyle.fontSize,
+      beforeTop: Number.parseFloat(beforeStyle.top),
+      beforeLeft: Number.parseFloat(beforeStyle.left),
+      beforeWidth: beforeStyle.width,
+      beforeHeight: beforeStyle.height,
+      afterTop: Number.parseFloat(afterStyle.top),
+      afterLeft: Number.parseFloat(afterStyle.left),
+      afterWidth: afterStyle.width,
+      afterHeight: afterStyle.height,
+      transformsDiffer: beforeStyle.transform !== afterStyle.transform
+    };
+  });
+  expect(deleteIconAlignment.fontSize).toBe("0px");
+  expect(Math.abs(deleteIconAlignment.beforeTop - deleteIconAlignment.buttonHeight / 2)).toBeLessThanOrEqual(1);
+  expect(Math.abs(deleteIconAlignment.beforeLeft - deleteIconAlignment.buttonWidth / 2)).toBeLessThanOrEqual(1);
+  expect(deleteIconAlignment.afterTop).toBe(deleteIconAlignment.beforeTop);
+  expect(deleteIconAlignment.afterLeft).toBe(deleteIconAlignment.beforeLeft);
+  expect(deleteIconAlignment.beforeWidth).toBe("11px");
+  expect(deleteIconAlignment.beforeHeight).toBe("2px");
+  expect(deleteIconAlignment.afterWidth).toBe("11px");
+  expect(deleteIconAlignment.afterHeight).toBe("2px");
+  expect(deleteIconAlignment.transformsDiffer).toBe(true);
   await deleteAttachmentButton.click();
   await page.getByRole("button", { name: "Continue" }).click();
   await expect(deleteAttachmentButton).toHaveCount(0);

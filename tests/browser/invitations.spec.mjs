@@ -7,8 +7,9 @@ const invitedUser = user(invitedUserId, "Invited User", false);
 
 const pmtProject = project(10, "PMT", "Project Management Tool", invitedUserId);
 const lmsProject = project(20, "LMS", "Learning Management System", invitedUserId);
+const invitationMessage = "You've been chosen as one of the few to try this new and exciting Project Management Tool (PMT) in BDO! Participate so your ideas can help shape the tool and the future of BDO in the process!";
 
-test("Invite Users requires a project and exposes a copyable generated URL", async ({ page, context, baseURL }) => {
+test("Invite Users generates copyable URL and Outlook-safe email HTML", async ({ page, context, baseURL }) => {
   const browserErrors = collectBrowserErrors(page);
   const admin = user(1, "Sin", true);
   const projects = [
@@ -59,7 +60,7 @@ test("Invite Users requires a project and exposes a copyable generated URL", asy
   await createStarted;
   await expect.poll(() => createPayload).toEqual({ projectIds: [10] });
   await expect(inviteDialog.locator("[name='projectIds'][value='10']")).toBeDisabled();
-  await expect(inviteDialog.getByRole("button", { name: "Close" }).first()).toBeDisabled();
+  await expect(inviteDialog.getByRole("button", { name: "Done" })).toBeDisabled();
   releaseCreateResponse();
 
   const expectedUrl = new URL(`/?invite=${invitationToken}`, origin).href;
@@ -71,6 +72,55 @@ test("Invite Users requires a project and exposes a copyable generated URL", asy
   await copyButton.click();
   await expect(page.locator("#toast")).toHaveText("Invite URL copied.");
   await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toBe(expectedUrl);
+
+  const generateEmailButton = inviteDialog.getByRole("button", { name: "Generate Email/HTML Body" });
+  await expect(generateEmailButton).toBeEnabled();
+  await generateEmailButton.click();
+  const emailResult = inviteDialog.locator("[data-invite-email-result]");
+  const emailPreview = inviteDialog.locator("[data-invite-email-preview]");
+  await expect(emailResult).toBeVisible();
+  await expect(emailPreview).toContainText(invitationMessage);
+  await expect(emailPreview.locator("table[role='presentation']")).not.toHaveCount(0);
+  await expect(emailPreview.locator("img[alt='PMT - Project Management Tool']")).toHaveAttribute("src", /^data:image\/png;base64,/);
+
+  const layoutCellStyle = await page.evaluate(() => {
+    const fixture = document.createElement("div");
+    fixture.className = "rich-editor";
+    fixture.innerHTML = '<table role="presentation"><tbody><tr><td data-layout-cell>Header</td></tr></tbody></table>';
+    document.body.appendChild(fixture);
+    const cell = fixture.querySelector("[data-layout-cell]");
+    const table = fixture.querySelector("table");
+    const result = {
+      borderTopWidth: getComputedStyle(cell).borderTopWidth,
+      paddingTop: getComputedStyle(cell).paddingTop,
+      tableLayout: getComputedStyle(table).tableLayout
+    };
+    fixture.remove();
+    return result;
+  });
+  expect(layoutCellStyle).toEqual({ borderTopWidth: "0px", paddingTop: "0px", tableLayout: "auto" });
+
+  await inviteDialog.getByRole("button", { name: "Copy Email/HTML Body" }).click();
+  await expect(page.locator("#toast")).toHaveText("Email / HTML body copied. Paste it into Outlook.");
+  const clipboardPayload = await page.evaluate(async () => {
+    const [item] = await navigator.clipboard.read();
+    const html = item.types.includes("text/html")
+      ? await (await item.getType("text/html")).text()
+      : "";
+    const plainText = item.types.includes("text/plain")
+      ? await (await item.getType("text/plain")).text()
+      : "";
+    return { html, plainText };
+  });
+  expect(clipboardPayload.html).toContain(invitationMessage);
+  expect(clipboardPayload.html).toContain("data:image/png;base64,");
+  expect(clipboardPayload.html).toContain('role="presentation"');
+  expect(clipboardPayload.html).toContain(expectedUrl);
+  expect(clipboardPayload.plainText).toContain(invitationMessage);
+  expect(clipboardPayload.plainText).toContain(expectedUrl);
+
+  await inviteDialog.getByRole("button", { name: "Done" }).click();
+  await expect(inviteDialog).not.toBeVisible();
 
   expect(browserErrors).toEqual([]);
 });

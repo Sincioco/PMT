@@ -700,6 +700,20 @@ html[data-theme] .rich-color-palette button.rich-color-custom {
   font-weight: var(--font-weight-bold);
 }
 
+/* Outlook-safe email layouts use presentation tables for positioning, not data. */
+:is(.rich-editor, .rich-readonly, .log-content, .scrum-content) table[role="presentation"] {
+  margin: 0;
+  table-layout: auto;
+}
+
+:is(.rich-editor, .rich-readonly, .log-content, .scrum-content) table[role="presentation"] :is(th, td) {
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font-weight: inherit;
+}
+
 .rich-editor td:focus,
 .rich-editor th:focus {
   outline: var(--border-width-strong) solid var(--color-focus-ring);

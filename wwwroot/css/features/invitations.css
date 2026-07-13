@@ -101,6 +101,38 @@ html[data-theme="light"] button[data-generate-invite]:not(:disabled) .button-ico
   min-width: 0;
 }
 
+.invite-email-result {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-5);
+  border: var(--border-width) solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-raised);
+}
+
+.invite-email-result[hidden] {
+  display: none;
+}
+
+.invite-email-title {
+  font-weight: var(--font-weight-regular);
+}
+
+.invite-email-preview {
+  max-height: 440px;
+  overflow: auto;
+  padding: var(--space-3);
+  border: var(--border-width) solid var(--color-border-subtle);
+  background: #f3f6fb;
+}
+
+.invite-email-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
 .invite-profile-screen {
   width: min(760px, calc(100vw - 2 * var(--shell-padding-compact)));
   margin: var(--space-8) auto;

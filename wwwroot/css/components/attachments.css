@@ -31,21 +31,47 @@
   text-decoration: none;
 }
 
-.attachment-delete-button {
+html[data-theme] button.attachment-delete-button {
   position: absolute;
-  top: var(--space-2);
-  right: var(--space-2);
+  top: -10px;
+  right: -10px;
+  z-index: 2;
   width: 28px;
+  min-width: 28px;
   height: 28px;
+  min-height: 28px;
   border: var(--border-width) solid var(--color-border-strong);
   border-radius: 50%;
-  background: var(--color-surface);
+  padding: 0;
+  display: grid;
+  place-items: center;
+  background-color: var(--color-surface) !important;
   color: var(--color-danger);
   cursor: pointer;
-  font-size: 20px;
-  line-height: 1;
+  font-size: 0;
   opacity: 0;
+  box-shadow: var(--shadow-compact) !important;
   transition: var(--transition-control);
+}
+
+html[data-theme] button.attachment-delete-button::before,
+html[data-theme] button.attachment-delete-button::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 11px;
+  height: 2px;
+  border-radius: 999px;
+  background: currentColor;
+}
+
+html[data-theme] button.attachment-delete-button::before {
+  transform: translate(-50%, -50%) rotate(45deg);
+}
+
+html[data-theme] button.attachment-delete-button::after {
+  transform: translate(-50%, -50%) rotate(-45deg);
 }
 
 .attachment-tile-removable:hover .attachment-delete-button,
@@ -54,8 +80,8 @@
   opacity: 1;
 }
 
-.attachment-delete-button:hover {
-  background: var(--color-danger-surface);
+html[data-theme] button.attachment-delete-button:hover {
+  background-color: var(--color-danger-surface) !important;
   border-color: var(--color-danger);
 }
 
