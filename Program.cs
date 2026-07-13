@@ -90,6 +90,7 @@ app.MapSprintEndpoints();
 app.MapWorkItemEndpoints();
 app.MapWfhScheduleEndpoints();
 app.MapSettingsEndpoints();
+app.MapSecurityEndpoints();
 app.MapContentEndpoints();
 app.MapUploadEndpoints();
 app.MapDevelopmentEndpoints();

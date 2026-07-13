@@ -23,7 +23,7 @@ import {
 } from "./forms.js?v=20260710-export-rich-kanban";
 import { state } from "../core/store.js";
 import { formatDate, formatDateTime } from "../shared/dates.js";
-import { canEditTask } from "../shared/permissions.js";
+import { canEditTask } from "../shared/permissions.js?v=20260713-role-security";
 import {
   projectById,
   projectName,
@@ -41,8 +41,8 @@ import {
 import {
   allowedAssigneeUsers,
   taskDisplayPercent
-} from "../shared/work-item-rules.js?v=20260710-export-rich-kanban";
-import { exportWorkItemHtml } from "../shared/work-item-transfer.js?v=20260711-task-root-cause";
+} from "../shared/work-item-rules.js?v=20260714-linked-bug-percent";
+import { exportWorkItemHtml } from "../shared/work-item-transfer.js?v=20260714-linked-bug-percent";
 
 export function taskButtonsHtml(task, { includeView = true, monochrome = false } = {}) {
   const canEdit = canEditTask(task);

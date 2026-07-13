@@ -1,4 +1,4 @@
-import { isTaskCompleted } from "./work-item-rules.js?v=20260710-export-rich-kanban";
+import { isTaskCompleted } from "./work-item-rules.js?v=20260714-linked-bug-percent";
 import { createDevTaskWorkloadView } from "./dev-task-workload.js?v=20260712-about-workload-billboard";
 
 export function devTaskMixChart(tasks) {

@@ -23,10 +23,12 @@ internal static class InvitationEndpoints
             var tokenBytes = RandomNumberGenerator.GetBytes(32);
             var token = Convert.ToHexString(tokenBytes).ToLowerInvariant();
             var tokenHash = SHA256.HashData(tokenBytes);
+            var currentUserId = ExplicitCurrentUserId(context);
+            await store.RequirePermissionAsync(currentUserId, "Projects", "Read", cancellationToken);
             var expiresAt = await store.CreateInvitationAsync(
                 tokenHash,
                 input,
-                ExplicitCurrentUserId(context),
+                currentUserId,
                 cancellationToken);
 
             return Results.Ok(new { token, expiresAt });

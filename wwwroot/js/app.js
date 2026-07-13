@@ -1,7 +1,7 @@
 import { api } from "./core/api.js";
 import { currentUserId } from "./core/authentication.js";
 import { avatarsHtml, taskRowAvatarsHtml } from "./components/avatars.js?v=20260710-nav-avatar-fit";
-import { buttonContent } from "./components/buttons.js";
+import { buttonContent } from "./components/buttons.js?v=20260713-role-security";
 import { copyTextToClipboard } from "./components/clipboard.js?v=20260713-invite-users";
 import {
   askForText,
@@ -17,13 +17,13 @@ import {
   field,
   value
 } from "./components/forms.js?v=20260713-managed-roles";
-import { configureProgressAndStatus } from "./components/progress-and-status.js?v=20260710-export-rich-kanban";
+import { configureProgressAndStatus } from "./components/progress-and-status.js?v=20260714-linked-bug-percent";
 import {
   bindAttachmentPreview,
   showTaskAudit,
   viewWorkItem
-} from "./components/work-items.js?v=20260711-tsg-report";
-import { createApplicationShell } from "./core/application-shell.js?v=20260713-invite-users";
+} from "./components/work-items.js?v=20260714-linked-bug-percent";
+import { createApplicationShell } from "./core/application-shell.js?v=20260713-role-security";
 import {
   currentView,
   ensureCurrentViewRoute,
@@ -32,11 +32,12 @@ import {
   routeForContent,
   routeForView,
   updateBrowserUrl
-} from "./core/router.js?v=20260707-deep-links";
+} from "./core/router.js?v=20260713-role-security";
 import {
   registeredScreenHandlers,
   registerScreen,
-  screenHandlerFor
+  screenHandlerFor,
+  screenRegistry
 } from "./core/screen-registry.js?v=20260707-log-about-nav";
 import {
   preferenceKeys,
@@ -45,26 +46,26 @@ import {
 } from "./core/preferences.js?v=20260711-task-dialog-customize";
 import { state } from "./core/store.js";
 import { appUrl } from "./shared/app-urls.js";
-import { createAboutFeature } from "./features/about/about.js?v=20260713-managed-roles";
-import { createBacklogFeature } from "./features/backlog/backlog.js?v=20260710-rich-bug-layout";
-import { createBoardFeature } from "./features/board/board.js?v=20260710-rte-table-percent-kanban";
-import { createBugsFeature } from "./features/bugs/bugs.js?v=20260713-bug-report-label";
-import { createDashboardFeature } from "./features/dashboard/dashboard.js?v=20260710-nav-avatar-fit";
-import { createDocumentationFeature } from "./features/documentation/documentation.js?v=20260712-doc-card-header";
+import { createAboutFeature } from "./features/about/about.js?v=20260714-linked-bug-percent";
+import { createBacklogFeature } from "./features/backlog/backlog.js?v=20260714-linked-bug-percent";
+import { createBoardFeature } from "./features/board/board.js?v=20260714-linked-bug-percent";
+import { createBugsFeature } from "./features/bugs/bugs.js?v=20260714-linked-bug-percent";
+import { createDashboardFeature } from "./features/dashboard/dashboard.js?v=20260714-linked-bug-percent";
+import { createDocumentationFeature } from "./features/documentation/documentation.js?v=20260713-role-security";
 import {
   createGanttFeature,
   currentSprintForProject,
   ganttStartDate
-} from "./features/gantt/gantt.js?v=20260707-deep-links";
+} from "./features/gantt/gantt.js?v=20260714-linked-bug-percent";
 import { createInvitationsFeature } from "./features/invitations/invitations.js?v=20260713-invite-profile-footer";
-import { createProjectsFeature } from "./features/projects/projects.js?v=20260713-invite-users";
-import { createRoadMapFeature } from "./features/roadmap/roadmap.js?v=20260710-rich-bug-layout";
-import { createLogFeature } from "./features/personal-log/log.js?v=20260710-rte-checkbox-persist";
-import { createScrumFeature } from "./features/scrum/scrum.js?v=20260710-rte-checkbox-persist";
-import { createSettingsFeature } from "./features/settings/settings.js?v=20260713-managed-roles";
-import { createSprintsFeature } from "./features/sprints/sprints.js?v=20260710-nav-avatar-fit";
-import { createTasksFeature } from "./features/tasks/tasks.js?v=20260712-about-chart-gallery";
-import { createWfhScheduleFeature } from "./features/wfh-schedule/wfh-schedule.js?v=20260713-managed-roles";
+import { createProjectsFeature } from "./features/projects/projects.js?v=20260714-linked-bug-percent";
+import { createRoadMapFeature } from "./features/roadmap/roadmap.js?v=20260714-linked-bug-percent";
+import { createLogFeature } from "./features/personal-log/log.js?v=20260714-linked-bug-percent";
+import { createScrumFeature } from "./features/scrum/scrum.js?v=20260714-linked-bug-percent";
+import { createSettingsFeature } from "./features/settings/settings.js?v=20260714-linked-bug-percent";
+import { createSprintsFeature } from "./features/sprints/sprints.js?v=20260714-linked-bug-percent";
+import { createTasksFeature } from "./features/tasks/tasks.js?v=20260714-linked-bug-percent";
+import { createWfhScheduleFeature } from "./features/wfh-schedule/wfh-schedule.js?v=20260714-linked-bug-percent";
 import {
   fallbackEnvironments,
   fallbackForLookup,
@@ -73,7 +74,8 @@ import {
   fallbackStatuses
 } from "./shared/constants.js";
 import { formatDate, toDateInput } from "./shared/dates.js";
-import { canEditTask } from "./shared/permissions.js";
+import { canEditTask } from "./shared/permissions.js?v=20260713-role-security";
+import { applyActionPermissions, canReadView, firstReadableView } from "./shared/security.js?v=20260713-role-security";
 import {
   projectCode,
   projectName,
@@ -94,7 +96,7 @@ import {
   percentForStatus,
   sprintOverallPercent,
   taskOrderCompare
-} from "./shared/work-item-rules.js?v=20260710-export-rich-kanban";
+} from "./shared/work-item-rules.js?v=20260714-linked-bug-percent";
 
 const nativePickerSelector = [
   "select",
@@ -293,6 +295,7 @@ const settingsFeature = createSettingsFeature({
   loadState,
   openEditor,
   render,
+  resetUserPassword,
   saveJson,
   showToast,
   uploadFile
@@ -468,7 +471,9 @@ function handleBrowserRouteChange() {
   requestAnimationFrame(() => {
     const route = parseRouteFromLocation();
     closeRoutedDetailDialogs();
-    navigate(route.view || "Dashboard", { updateUrl: false });
+    const requestedView = route.view || "Dashboard";
+    const resolvedView = navigate(requestedView, { updateUrl: false });
+    if (resolvedView !== requestedView) updateBrowserUrl(routeForView(resolvedView), { replace: true });
     render();
     handlingBrowserRouteChange = false;
   });
@@ -582,6 +587,7 @@ function resolveNavigationView(view) {
 */
 
 function renderCurrentScreen() {
+  if (!canReadView(currentView)) navigate(firstReadableView(screenRegistry));
   ensureCurrentViewRoute();
 
   if (currentView !== "About") aboutFeature.deactivate();
@@ -603,6 +609,7 @@ function renderCurrentScreen() {
     sprintsFeature.openCreate();
   }
   */
+  applyActionPermissions(app, currentView);
   linkifyTextNodes(app);
   normalizeLinksInElement(app);
   openCurrentRouteContent();
@@ -1730,6 +1737,25 @@ function editPassword() {
       newPassword: value(root, "newPassword")
     });
   });
+}
+
+function resetUserPassword(user) {
+  if (!user?.id) return;
+  if (dialog.open) dialog.close();
+
+  openEditor(`Change Password for ${user.nickname || "User"}`, `
+    <div class="form-grid">
+      ${field("New Password", "newPassword", "", "password")}
+      ${field("Confirm Password", "confirmPassword", "", "password")}
+    </div>
+  `, async root => {
+    const newPassword = value(root, "newPassword");
+    if (newPassword !== value(root, "confirmPassword")) {
+      throw new Error("The passwords do not match.");
+    }
+
+    await saveJson(`/api/users/${user.id}/password`, "PUT", { newPassword });
+  }, "newPassword");
 }
 
 function openEditor(title, html, saveAction, focusName = "", afterOpen = null) {

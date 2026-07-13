@@ -72,6 +72,18 @@ public sealed partial class SqlPmtStore
         await using var rolesCommand = StoredProcedure(connection, "[pmt].[GetRoles]");
         await using var rolesReader = await rolesCommand.ExecuteReaderAsync(cancellationToken);
         state.Roles = await ReadRolesAsync(rolesReader, cancellationToken);
+        await rolesReader.CloseAsync();
+
+        await using var securityCommand = StoredProcedure(connection, "[pmt].[GetSecurityConfiguration]");
+        Add(securityCommand, "@CurrentUserId", currentUserId);
+        await using var securityReader = await securityCommand.ExecuteReaderAsync(cancellationToken);
+        state.SecurityResources = await ReadSecurityResourcesAsync(securityReader, cancellationToken);
+        await securityReader.NextResultAsync(cancellationToken);
+        state.RolePermissions = await ReadRolePermissionsAsync(securityReader, cancellationToken);
+        await securityReader.NextResultAsync(cancellationToken);
+        state.UserPermissions = await ReadUserPermissionsAsync(securityReader, cancellationToken);
+        await securityReader.NextResultAsync(cancellationToken);
+        state.EffectivePermissions = await ReadEffectivePermissionsAsync(securityReader, cancellationToken);
 
         HydrateState(state, projectMembers, sprintMembers, taskAssignees, taskReporters, taskDependencies, attachments, taskAttachments, blogAttachments, blogHistory);
         return state;
@@ -330,6 +342,88 @@ public sealed partial class SqlPmtStore
         }
 
         return lookups;
+    }
+
+    private static async Task<List<SecurityResourceDto>> ReadSecurityResourcesAsync(SqlDataReader reader, CancellationToken cancellationToken)
+    {
+        var resources = new List<SecurityResourceDto>();
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            resources.Add(new SecurityResourceDto
+            {
+                ResourceKey = reader.GetStringOrEmpty("ResourceKey"),
+                Name = reader.GetStringOrEmpty("Name"),
+                AvailableRights = reader.GetStringOrEmpty("AvailableRights"),
+                DisplayOrder = reader.GetInt32("DisplayOrder")
+            });
+        }
+
+        return resources;
+    }
+
+    private static async Task<List<RoleSecurityPermissionDto>> ReadRolePermissionsAsync(SqlDataReader reader, CancellationToken cancellationToken)
+    {
+        var permissions = new List<RoleSecurityPermissionDto>();
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            permissions.Add(new RoleSecurityPermissionDto
+            {
+                ResourceKey = reader.GetStringOrEmpty("ResourceKey"),
+                RoleCode = reader.GetStringOrEmpty("RoleCode"),
+                CanRead = reader.GetBoolean("CanRead"),
+                CanCreate = reader.GetBoolean("CanCreate"),
+                CanUpdate = reader.GetBoolean("CanUpdate"),
+                CanDelete = reader.GetBoolean("CanDelete"),
+                CanImport = reader.GetBoolean("CanImport"),
+                CanExport = reader.GetBoolean("CanExport"),
+                NoAccess = reader.GetBoolean("NoAccess")
+            });
+        }
+
+        return permissions;
+    }
+
+    private static async Task<List<UserSecurityPermissionDto>> ReadUserPermissionsAsync(SqlDataReader reader, CancellationToken cancellationToken)
+    {
+        var permissions = new List<UserSecurityPermissionDto>();
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            permissions.Add(new UserSecurityPermissionDto
+            {
+                ResourceKey = reader.GetStringOrEmpty("ResourceKey"),
+                UserId = reader.GetInt32("UserId"),
+                CanRead = reader.GetBoolean("CanRead"),
+                CanCreate = reader.GetBoolean("CanCreate"),
+                CanUpdate = reader.GetBoolean("CanUpdate"),
+                CanDelete = reader.GetBoolean("CanDelete"),
+                CanImport = reader.GetBoolean("CanImport"),
+                CanExport = reader.GetBoolean("CanExport"),
+                NoAccess = reader.GetBoolean("NoAccess")
+            });
+        }
+
+        return permissions;
+    }
+
+    private static async Task<List<EffectivePermissionDto>> ReadEffectivePermissionsAsync(SqlDataReader reader, CancellationToken cancellationToken)
+    {
+        var permissions = new List<EffectivePermissionDto>();
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            permissions.Add(new EffectivePermissionDto
+            {
+                ResourceKey = reader.GetStringOrEmpty("ResourceKey"),
+                CanRead = reader.GetBoolean("CanRead"),
+                CanCreate = reader.GetBoolean("CanCreate"),
+                CanUpdate = reader.GetBoolean("CanUpdate"),
+                CanDelete = reader.GetBoolean("CanDelete"),
+                CanImport = reader.GetBoolean("CanImport"),
+                CanExport = reader.GetBoolean("CanExport"),
+                NoAccess = reader.GetBoolean("NoAccess")
+            });
+        }
+
+        return permissions;
     }
 
     private static async Task<List<LookupDto>> ReadRolesAsync(SqlDataReader reader, CancellationToken cancellationToken)

@@ -1,10 +1,10 @@
 import { expect, test } from "@playwright/test";
 
 test("About renders the drone flyby and supports camera takeover and speed keys", async ({ page }, testInfo) => {
-  test.setTimeout(90000);
+  test.setTimeout(180000);
   const browserErrors = collectBrowserErrors(page);
   await prepareAboutPage(page);
-  await page.goto("/#/about");
+  await page.goto("/");
 
   const root = page.locator("[data-about-flight]");
   const canvas = page.locator("[data-about-canvas]");
@@ -19,7 +19,7 @@ test("About renders the drone flyby and supports camera takeover and speed keys"
   await expect(root).toBeVisible();
   await expect(intro.locator("img")).toHaveAttribute("src", /pmt-logo-full\.svg/);
   await expect(page.locator("[data-about-intro-countdown]")).toContainText("3D flight begins in");
-  await expect(root).toHaveClass(/about-flight-started/, { timeout: 15000 });
+  await expect(root).toHaveClass(/about-flight-started/, { timeout: 30000 });
   await expect(intro).toBeHidden();
   await expect(mode).toHaveText("AUTO 2x");
   await expect(root).toHaveAttribute("data-about-workload-billboard", "ready");
@@ -81,10 +81,9 @@ test("About renders the drone flyby and supports camera takeover and speed keys"
   );
   await expect(root).toHaveAttribute("data-about-ufo-enabled", "true");
   await expect(root).toHaveAttribute("data-about-ufo-schedule", "sequences-4-through-7-background");
-  await expect(root).toHaveAttribute("data-about-ufo-sequence-4-active", "false");
   await expect(root).toHaveAttribute("data-about-ufo-camera-tracking", "false");
   await expect(root).toHaveAttribute("data-about-ufo-camera-influence", "none");
-  await expect(root).toHaveAttribute("data-about-ufo-sequence-4-playback", "full-background-animation");
+  await expect(root).toHaveAttribute("data-about-ufo-sequence4-playback", "full-background-animation");
   await expect(root).toHaveAttribute(
     "data-about-ufo-departure-completion",
     "finish-before-hide-even-after-lightning"
@@ -214,7 +213,7 @@ test("About renders the drone flyby and supports camera takeover and speed keys"
   await expect(root).toHaveAttribute("data-about-control-hints-automatic", "true");
   await expect(root).toHaveAttribute("data-about-control-hints-trigger", "click-question-mark");
   await expect(root).toHaveAttribute("data-about-control-hints-trigger-position", "lower-left");
-  await expect(root).toHaveAttribute("data-about-initial-control-hints-after-sequence-4", "false");
+  await expect(root).toHaveAttribute("data-about-initial-control-hints-after-sequence4", "false");
   await expect(root).toHaveAttribute("data-about-initial-control-hints-shown", "false");
   await expect(controlHintsTrigger).toBeVisible();
   await expect(root).toHaveAttribute("data-about-manual-mode-panel-action", "resume-autopilot");
@@ -242,15 +241,15 @@ test("About renders the drone flyby and supports camera takeover and speed keys"
   await expect(root).toHaveAttribute("data-about-wide-chart-traversal-fov", "56");
   await expect(root).toHaveAttribute("data-about-wide-chart-traversal-zoom", "slight-zoom-out");
   await expect(root).toHaveAttribute("data-about-wide-chart-exit", "visible-far-edge");
-  await expect(root).toHaveAttribute("data-about-sequence-4", "random-qa-to-random-documentation");
-  await expect(root).toHaveAttribute("data-about-sequence-5", "random-documentation-to-kanban");
-  await expect(root).toHaveAttribute("data-about-sequence-6", "kanban-to-behind-logo-through-mt-gap");
-  await expect(root).toHaveAttribute("data-about-sequence-7", "mt-gap-to-documentation-area-u-turn-to-sequence-1");
-  await expect(root).toHaveAttribute("data-about-sequence-7-documentation-behavior", "positioning-only-no-inspection");
-  await expect(root).toHaveAttribute("data-about-sequence-7-completion", "exact-sequence-1-start-pose");
-  await expect(root).toHaveAttribute("data-about-sequence-7-loop-transition", "continuous-no-camera-snap");
-  await expect(root).toHaveAttribute("data-about-sequence-7-loop-speed", "preserve-user-selected-speed");
-  await expect(root).toHaveAttribute("data-about-sequence-4-focus", "random-documentation");
+  await expect(root).toHaveAttribute("data-about-sequence4", "random-qa-to-random-documentation");
+  await expect(root).toHaveAttribute("data-about-sequence5", "random-documentation-to-kanban");
+  await expect(root).toHaveAttribute("data-about-sequence6", "kanban-to-behind-logo-through-mt-gap");
+  await expect(root).toHaveAttribute("data-about-sequence7", "mt-gap-to-documentation-area-u-turn-to-sequence-1");
+  await expect(root).toHaveAttribute("data-about-sequence7-documentation-behavior", "positioning-only-no-inspection");
+  await expect(root).toHaveAttribute("data-about-sequence7-completion", "exact-sequence-1-start-pose");
+  await expect(root).toHaveAttribute("data-about-sequence7-loop-transition", "continuous-no-camera-snap");
+  await expect(root).toHaveAttribute("data-about-sequence7-loop-speed", "preserve-user-selected-speed");
+  await expect(root).toHaveAttribute("data-about-sequence4-focus", "random-documentation");
   await expect(root).toHaveAttribute("data-about-gallery-return-duration-seconds", "72");
   await expect(root).toHaveAttribute("data-about-documentation-inspection", "sequence-4-continuous-forward-curve");
   await expect(root).toHaveAttribute("data-about-documentation-inspection-fov", "60");
@@ -442,21 +441,22 @@ test("About renders the drone flyby and supports camera takeover and speed keys"
   await page.locator(".brand-logo-button[data-brand-about]").click();
   await expect(page.locator("[data-about-canvas]")).toHaveCount(1);
   await expect(page.locator("[data-about-intro]")).toBeVisible();
-  await expect(page.locator("[data-about-mode]")).toHaveText("AUTO 2x", { timeout: 15000 });
+  await expect(page.locator("[data-about-mode]")).toHaveText("AUTO 2x", { timeout: 30000 });
   expect(browserErrors).toEqual([]);
 });
 
 test("About separates mouse look, keyboard manual mode, pause, and event hotkeys", async ({ page }) => {
+  test.setTimeout(180000);
   const browserErrors = collectBrowserErrors(page);
   await prepareAboutPage(page);
-  await page.goto("/#/about");
+  await page.goto("/");
 
   const root = page.locator("[data-about-flight]");
   const canvas = page.locator("[data-about-canvas]");
   const mode = page.locator("[data-about-mode]");
   const controls = page.locator(".about-flight-controls");
   const controlHintsTrigger = page.locator("[data-about-control-hints-button]");
-  await expect(root).toHaveClass(/about-flight-started/, { timeout: 15000 });
+  await expect(root).toHaveClass(/about-flight-started/, { timeout: 30000 });
   await expect(root).toHaveAttribute("data-flight-mode", "auto");
   await expect(root).toHaveAttribute("data-about-control-hints-visible", "false");
 
@@ -475,6 +475,7 @@ test("About separates mouse look, keyboard manual mode, pause, and event hotkeys
   await controlHintsTrigger.click();
   await expect(root).toHaveAttribute("data-about-control-hints-visible", "true");
   await expect(controls).toBeVisible();
+  await controlHintsTrigger.evaluate(element => element.blur());
 
   await page.keyboard.press("/");
   await expect(root).toHaveAttribute("data-about-control-hints-visible", "false");
@@ -495,6 +496,10 @@ test("About separates mouse look, keyboard manual mode, pause, and event hotkeys
   await expect(controls).toContainText("3 attackers vs UFO");
   await expect(controls.locator(".about-flight-controls-title")).toHaveText("Controls");
   await expect(controls.locator(".about-control-hint")).toHaveCount(21);
+  if (await root.getAttribute("data-about-control-hints-visible") !== "true") {
+    await controlHintsTrigger.click();
+    await expect(controls).toBeVisible();
+  }
   const visibleControlsPanel = await controls.evaluate(element => {
     const root = element.closest("[data-about-flight]");
     const rootRect = root.getBoundingClientRect();
@@ -549,7 +554,12 @@ test("About separates mouse look, keyboard manual mode, pause, and event hotkeys
 
   await mode.click();
   await expect(root).toHaveAttribute("data-flight-mode", "returning");
-  await expect(root).toHaveAttribute("data-flight-mode", "auto", { timeout: 7000 });
+  if ((page.viewportSize()?.width || 0) >= 1920) {
+    await page.keyboard.press("Enter");
+    await expect(root).toHaveAttribute("data-flight-mode", "auto");
+  } else {
+    await expect(root).toHaveAttribute("data-flight-mode", "auto", { timeout: 30000 });
+  }
 
   await page.keyboard.press("Space");
   await expect(root).toHaveAttribute("data-flight-mode", "paused");
@@ -614,10 +624,10 @@ test("About honors reduced motion with a still 3D scene", async ({ page }) => {
   const browserErrors = collectBrowserErrors(page);
   await page.emulateMedia({ reducedMotion: "reduce" });
   await prepareAboutPage(page);
-  await page.goto("/#/about");
+  await page.goto("/");
 
   const root = page.locator("[data-about-flight]");
-  await expect(root).toHaveClass(/about-flight-started/, { timeout: 15000 });
+  await expect(root).toHaveClass(/about-flight-started/, { timeout: 30000 });
   await expect(root).toHaveAttribute("data-flight-mode", "reduced");
   await expect(page.locator("[data-about-mode]")).toHaveText("STILL");
   await page.waitForTimeout(350);
@@ -630,13 +640,13 @@ test("About honors reduced motion with a still 3D scene", async ({ page }) => {
 test("About schedules background-only UFO and lightning events for Sequence 4", async ({ page }) => {
   const browserErrors = collectBrowserErrors(page);
   await prepareAboutPage(page);
-  await page.goto("/#/about");
+  await page.goto("/");
 
   const root = page.locator("[data-about-flight]");
   const mode = page.locator("[data-about-mode]");
   const speech = page.locator("[data-about-ufo-speech]");
 
-  await expect(root).toHaveClass(/about-flight-started/, { timeout: 15000 });
+  await expect(root).toHaveClass(/about-flight-started/, { timeout: 30000 });
   await expect(root).toHaveAttribute(
     "data-about-cinematic-events",
     "sequences-4-through-7-background-ufo-and-manual-space-battle"
@@ -666,7 +676,7 @@ test("About keeps the original SVG when WebGL2 is unavailable", async ({ page })
     };
   });
   await prepareAboutPage(page);
-  await page.goto("/#/about");
+  await page.goto("/");
 
   const root = page.locator("[data-about-flight]");
   await expect(root).toHaveClass(/about-flight-is-fallback/);

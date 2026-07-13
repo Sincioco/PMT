@@ -65,22 +65,23 @@ Project and Sprint aggregate progress is separate from stored work-item percent.
 
 The default role names are `Admin`, `Dev - Developer`, `QA - Quality Assurance`, `SA - Systems Analyst`, `TL - Technical Lead`, `PM - Project Manager`, `QA - Manual`, `QA - Automation`, and `TM - Test Manager`.
 
-- Admins may edit both Dev Tasks and Bugs and perform administrator actions.
-- Developers may create, edit, duplicate, delete, and attach files to Dev Tasks.
-- QA users may create, edit, duplicate, delete, and attach files to Bugs.
-- The new SA, TL, PM, QA - Manual, QA - Automation, and TM roles are user classifications only until explicit work-item permissions are assigned to them.
+- Admins bypass all resource permission checks and may always perform administrator actions.
+- Every non-admin user inherits the permissions configured for their Role. Explicit user permissions add to those Role permissions.
+- `No Access` is an explicit deny. If either the Role or user override has `No Access` for an area, every allow permission for that area is denied.
+- The available rights are Read, Create, Update, Delete, Import, and Export. Each PMT area exposes only the rights it supports.
+- Developers manage Dev Tasks but cannot delete Bug reports by default. QA roles and Test Managers manage Bugs but cannot delete Dev Tasks by default. Systems Analysts, Technical Leads, and Project Managers receive planning permissions appropriate to their roles.
 - Administrators may add, rename, reorder, activate, deactivate, and delete Roles in Settings. Visible names are separate from the stable internal security codes.
 - A Role cannot be deleted while any active or inactive user record still references it.
 - Work-item permission is task-type based, not creator based.
-- Project and Sprint edit/delete operations are owner-or-admin. Finishing a Sprint is also owner-or-admin.
+- Project, Sprint, Scrum, Documentation, WFH, Settings, import, export, upload, and invitation endpoints enforce the matching resource right in SQL. Task and attachment checks resolve Dev Task versus Bug Tracking before enforcing the action.
 - Finished Sprints are read-only for non-admin users, including work-item writes into that Sprint.
-- Scrum entries and Documentation are owner-or-admin for edit/delete. Only admins may pin Scrum entries.
+- Scrum and Documentation update/delete actions follow their configured resource permissions. Only admins may pin Scrum entries.
 - Existing users may edit themselves, but non-admin users cannot change their own role/admin state. User creation and deletion are administrator-only once users exist.
 - Lookup values, holidays, and development reset actions are administrator-only.
-- Attachment permission follows the owning task type or Documentation ownership.
+- Attachment permission follows the Update right for the owning Dev Task, Bug, or Documentation resource.
 
-Browser permission checks control available actions, while `[pmt].[IsAdmin]`, `[pmt].[CanEdit]`, `[pmt].[UserRole]`, and `[pmt].[CanEditTaskType]` enforce the database contract.
-Browser permission checks live in `wwwroot/js/shared/permissions.js` so screens and future feature modules share the same owner, user, and work-item role logic.
+Browser permission checks hide inaccessible navigation and disable unavailable actions, while `[pmt].[HasPermission]` and the resource-specific require procedures enforce the database contract.
+Browser permission checks live in `wwwroot/js/shared/security.js` and `wwwroot/js/shared/permissions.js` so screens and future feature modules share the same effective permission logic.
 Permission regressions are covered in `tests/js/permissions.test.mjs`.
 
 ## User invitations and onboarding

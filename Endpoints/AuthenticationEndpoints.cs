@@ -23,6 +23,12 @@ internal static class AuthenticationEndpoints
             return Results.Ok(new { changed = true });
         });
 
+        app.MapPut("/api/users/{id:int}/password", async (int id, AdminResetPasswordInput input, HttpContext context, SqlPmtStore store, CancellationToken cancellationToken) =>
+        {
+            await store.AdminResetPasswordAsync(id, input, CurrentUserId(context), cancellationToken);
+            return Results.Ok(new { changed = true });
+        });
+
         return app;
     }
 }

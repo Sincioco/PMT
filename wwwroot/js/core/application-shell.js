@@ -5,14 +5,14 @@ import {
   logout,
   setCurrentUserId
 } from "./authentication.js";
-import { overflowIconHtml } from "../components/buttons.js?v=20260701-unified-dropdowns";
-import { navIconHtml } from "./navigation-preferences.js?v=20260710-nav-avatar-fit";
+import { overflowIconHtml } from "../components/buttons.js?v=20260713-role-security";
+import { navIconHtml } from "./navigation-preferences.js?v=20260713-role-security";
 import {
   preferenceKeys,
   readPreference,
   writePreference
 } from "./preferences.js";
-import { currentView, getNavigationScreens, navigate } from "./router.js?v=20260707-deep-links";
+import { currentView, getNavigationScreens, navigate } from "./router.js?v=20260713-role-security";
 import { loadState, state } from "./store.js";
 import { appUrl } from "../shared/app-urls.js";
 

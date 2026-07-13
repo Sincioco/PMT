@@ -4,7 +4,7 @@ import { escapeAttr } from "../../shared/text-and-links.js";
 import {
   bugsForTask,
   isTaskCompleted
-} from "../../shared/work-item-rules.js?v=20260710-export-rich-kanban";
+} from "../../shared/work-item-rules.js?v=20260714-linked-bug-percent";
 import {
   ganttEndDate,
   ganttStartDate

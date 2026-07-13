@@ -37,4 +37,14 @@ public sealed partial class SqlPmtStore
         }, cancellationToken);
     }
 
+    public Task AdminResetPasswordAsync(int userId, AdminResetPasswordInput input, int currentUserId, CancellationToken cancellationToken)
+    {
+        return ExecuteProcedureAsync("[pmt].[AdminResetUserPassword]", command =>
+        {
+            Add(command, "@UserId", userId);
+            Add(command, "@NewPassword", SqlDbType.NVarChar, 4000, input.NewPassword);
+            Add(command, "@CurrentUserId", currentUserId);
+        }, cancellationToken);
+    }
+
 }

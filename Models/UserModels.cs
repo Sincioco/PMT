@@ -61,3 +61,8 @@ public sealed class ChangePasswordInput
     public string NewPassword { get; set; } = "";
 }
 
+public sealed class AdminResetPasswordInput
+{
+    public string NewPassword { get; set; } = "";
+}
+

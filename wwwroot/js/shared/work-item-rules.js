@@ -85,7 +85,7 @@ export function percentForDevTaskSave(status, currentValue, task = null, depende
   if (status === "Code Complete") return hasAssociatedBug ? 50 : 100;
   if (status === "Ready for QA") return hasAssociatedBug ? 50 : 100;
   if (status === "QA Failed") return hasAssociatedBug ? Number(currentValue || 0) : 50;
-  if (isDevTaskCompletionStatus(status)) return 100;
+  if (isDevTaskCompletionStatus(status)) return hasAssociatedBug ? Number(currentValue || 0) : 100;
   return percentForStatus(status, currentValue);
 }
 

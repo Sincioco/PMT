@@ -19,7 +19,7 @@ import {
   sprintStatusMetricsHtml,
   statusColor,
   workItemStatusCounts
-} from "../../components/progress-and-status.js?v=20260710-export-rich-kanban";
+} from "../../components/progress-and-status.js?v=20260714-linked-bug-percent";
 import { sectionHead } from "../../components/sections.js?v=20260701-nav-title-preferences";
 import { api } from "../../core/api.js";
 import {
@@ -32,7 +32,7 @@ import {
   formatDate,
   toDateInput
 } from "../../shared/dates.js?v=20260620-null-end-date";
-import { canEditOwner } from "../../shared/permissions.js";
+import { canAccessResource } from "../../shared/security.js?v=20260713-role-security";
 import {
   projectById,
   projectName,
@@ -42,7 +42,7 @@ import {
   escapeAttr,
   escapeHtml
 } from "../../shared/text-and-links.js";
-import { sprintWorkItems } from "../../shared/work-item-rules.js?v=20260710-export-rich-kanban";
+import { sprintWorkItems } from "../../shared/work-item-rules.js?v=20260714-linked-bug-percent";
 
 export function createSprintsFeature({
   app,
@@ -110,9 +110,9 @@ export function createSprintsFeature({
         ${isCollapsed ? "" : sprintStatusMetricsHtml(sprint, { showTotal: false })}
         <div class="row sprint-members">${avatarsHtml(sprint.developers, { fit: "auto" })}</div>
         <div class="toolbar reveal-actions sprint-actions">
-          ${iconButton("delete-sprint", sprint.id, "Delete", "delete", canEditOwner(sprint.createdByUserId), "danger")}
-          ${iconButton("finish-sprint", sprint.id, "Finish", "finish", canEditOwner(sprint.createdByUserId) && !sprint.isFinished)}
-          ${iconButton("edit-sprint", sprint.id, "Edit", "edit", canEditOwner(sprint.createdByUserId))}
+          ${iconButton("delete-sprint", sprint.id, "Delete", "delete", canAccessResource("Sprints", "Delete"), "danger")}
+          ${iconButton("finish-sprint", sprint.id, "Finish", "finish", canAccessResource("Sprints", "Update") && !sprint.isFinished)}
+          ${iconButton("edit-sprint", sprint.id, "Edit", "edit", canAccessResource("Sprints", "Update"))}
         </div>
       </article>
     `;

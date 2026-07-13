@@ -8,7 +8,7 @@ import {
   sprintStatusMetricsHtml,
   statusLegendHtml,
   thinProgressHtml
-} from "../../components/progress-and-status.js?v=20260710-export-rich-kanban";
+} from "../../components/progress-and-status.js?v=20260714-linked-bug-percent";
 import { sectionHead } from "../../components/sections.js?v=20260701-nav-title-preferences";
 import { state } from "../../core/store.js";
 import {
@@ -18,7 +18,7 @@ import {
   averageWorkItemPercent,
   bugsForTask,
   taskDisplayPercent
-} from "../../shared/work-item-rules.js?v=20260710-export-rich-kanban";
+} from "../../shared/work-item-rules.js?v=20260714-linked-bug-percent";
 
 export function createDashboardFeature({
   app,

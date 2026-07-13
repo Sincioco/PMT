@@ -22,22 +22,28 @@ internal static class UploadEndpoints
 
         app.MapPost("/api/tasks/{id:int}/attachments", async (int id, HttpRequest request, HttpContext context, IWebHostEnvironment environment, IConfiguration configuration, SqlPmtStore store, CancellationToken cancellationToken) =>
         {
+            var currentUserId = CurrentUserId(context);
+            await store.RequireTaskPermissionAsync(currentUserId, id, "Update", false, cancellationToken);
             var upload = await SaveUploadAsync("tasks", request, environment, configuration, cancellationToken);
-            var attachmentId = await store.AddTaskAttachmentAsync(id, upload, CurrentUserId(context), cancellationToken);
+            var attachmentId = await store.AddTaskAttachmentAsync(id, upload, currentUserId, cancellationToken);
             return Results.Ok(new { id = attachmentId, upload });
         });
 
         app.MapPost("/api/backlog/tasks/{id:int}/attachments", async (int id, HttpRequest request, HttpContext context, IWebHostEnvironment environment, IConfiguration configuration, SqlPmtStore store, CancellationToken cancellationToken) =>
         {
+            var currentUserId = CurrentUserId(context);
+            await store.RequireTaskPermissionAsync(currentUserId, id, "Update", true, cancellationToken);
             var upload = await SaveUploadAsync("tasks", request, environment, configuration, cancellationToken);
-            var attachmentId = await store.AddBacklogTaskAttachmentAsync(id, upload, CurrentUserId(context), cancellationToken);
+            var attachmentId = await store.AddBacklogTaskAttachmentAsync(id, upload, currentUserId, cancellationToken);
             return Results.Ok(new { id = attachmentId, upload });
         });
 
         app.MapPost("/api/blogs/{id:int}/attachments", async (int id, HttpRequest request, HttpContext context, IWebHostEnvironment environment, IConfiguration configuration, SqlPmtStore store, CancellationToken cancellationToken) =>
         {
+            var currentUserId = CurrentUserId(context);
+            await store.RequirePermissionAsync(currentUserId, "Documentation", "Update", cancellationToken);
             var upload = await SaveUploadAsync("blogs", request, environment, configuration, cancellationToken);
-            var attachmentId = await store.AddBlogAttachmentAsync(id, upload, CurrentUserId(context), cancellationToken);
+            var attachmentId = await store.AddBlogAttachmentAsync(id, upload, currentUserId, cancellationToken);
             return Results.Ok(new { id = attachmentId, upload });
         });
 

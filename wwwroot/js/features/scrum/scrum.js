@@ -14,7 +14,7 @@ import {
   value
 } from "../../components/forms.js?v=20260710-rte-table-shortcuts";
 import { sectionHead } from "../../components/sections.js?v=20260701-nav-title-preferences";
-import { createWorkItemTableMode } from "../../components/work-items.js?v=20260710-rte-checkbox-persist";
+import { createWorkItemTableMode } from "../../components/work-items.js?v=20260714-linked-bug-percent";
 import { currentUser } from "../../core/authentication.js";
 import {
   preferenceKeys,
@@ -31,7 +31,7 @@ import {
   formatDateTime
 } from "../../shared/dates.js";
 import { normalizeSavedArray } from "../../shared/filter-values.js";
-import { canEditOwner } from "../../shared/permissions.js";
+import { canEditOwner } from "../../shared/permissions.js?v=20260713-role-security";
 import {
   projectName,
   userById
@@ -175,7 +175,7 @@ export function createScrumFeature({
   function canModifyScrumLog(log) {
     if (!log) return false;
     if (currentUser().isAdmin) return true;
-    if (!canEditOwner(log.userId)) return false;
+    if (!canEditOwner(log.userId, "Scrum")) return false;
     if (scrumLogIsOlderThanModificationWindow(log)) return false;
     return !scrumDateValidationMessage(log.projectId, scrumDateInputValue(log.logDate));
   }

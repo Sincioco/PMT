@@ -8,12 +8,12 @@ import {
 import {
   userCardCheckListLabelHtml
 } from "../../components/forms.js?v=20260710-rte-table-shortcuts";
-import { progressHtml } from "../../components/progress-and-status.js?v=20260710-export-rich-kanban";
+import { progressHtml } from "../../components/progress-and-status.js?v=20260714-linked-bug-percent";
 import { sectionHead } from "../../components/sections.js?v=20260701-nav-title-preferences";
 import {
   bugFixIconHtml,
   createWorkItemTableMode
-} from "../../components/work-items.js?v=20260710-rte-checkbox-persist";
+} from "../../components/work-items.js?v=20260714-linked-bug-percent";
 import {
   preferenceKeys,
   readJsonPreference,
@@ -67,8 +67,8 @@ import {
   percentForDevTaskSave,
   percentForStatus,
   validateLinkedBugCompletion
-} from "../../shared/work-item-rules.js?v=20260710-export-rich-kanban";
-import { openWorkItemHtmlImport } from "../../shared/work-item-transfer.js?v=20260710-export-rich-kanban";
+} from "../../shared/work-item-rules.js?v=20260714-linked-bug-percent";
+import { openWorkItemHtmlImport } from "../../shared/work-item-transfer.js?v=20260714-linked-bug-percent";
 
 const backlogBugFixIconUrl = "/assets/bug.svg?v=20260629-kanban-gantt-bug-icon";
 

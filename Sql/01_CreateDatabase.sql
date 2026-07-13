@@ -165,6 +165,57 @@ BEGIN
 END;
 GO
 
+IF OBJECT_ID(N'[pmt].[SecurityResources]', N'U') IS NULL
+BEGIN
+    CREATE TABLE [pmt].[SecurityResources]
+    (
+        [ResourceKey] NVARCHAR(40) NOT NULL CONSTRAINT [PK_pmt_SecurityResources] PRIMARY KEY,
+        [Name] NVARCHAR(80) NOT NULL,
+        [AvailableRights] NVARCHAR(100) NOT NULL CONSTRAINT [DF_pmt_SecurityResources_AvailableRights] DEFAULT (N'Read'),
+        [DisplayOrder] INT NOT NULL CONSTRAINT [DF_pmt_SecurityResources_DisplayOrder] DEFAULT (0)
+    );
+END;
+GO
+
+IF OBJECT_ID(N'[pmt].[RolePermissions]', N'U') IS NULL
+BEGIN
+    CREATE TABLE [pmt].[RolePermissions]
+    (
+        [RoleCode] NVARCHAR(20) NOT NULL,
+        [ResourceKey] NVARCHAR(40) NOT NULL,
+        [CanRead] BIT NOT NULL CONSTRAINT [DF_pmt_RolePermissions_CanRead] DEFAULT (0),
+        [CanCreate] BIT NOT NULL CONSTRAINT [DF_pmt_RolePermissions_CanCreate] DEFAULT (0),
+        [CanUpdate] BIT NOT NULL CONSTRAINT [DF_pmt_RolePermissions_CanUpdate] DEFAULT (0),
+        [CanDelete] BIT NOT NULL CONSTRAINT [DF_pmt_RolePermissions_CanDelete] DEFAULT (0),
+        [CanImport] BIT NOT NULL CONSTRAINT [DF_pmt_RolePermissions_CanImport] DEFAULT (0),
+        [CanExport] BIT NOT NULL CONSTRAINT [DF_pmt_RolePermissions_CanExport] DEFAULT (0),
+        [NoAccess] BIT NOT NULL CONSTRAINT [DF_pmt_RolePermissions_NoAccess] DEFAULT (0),
+        CONSTRAINT [PK_pmt_RolePermissions] PRIMARY KEY ([RoleCode], [ResourceKey]),
+        CONSTRAINT [FK_pmt_RolePermissions_Resource] FOREIGN KEY ([ResourceKey]) REFERENCES [pmt].[SecurityResources]([ResourceKey])
+    );
+END;
+GO
+
+IF OBJECT_ID(N'[pmt].[UserPermissions]', N'U') IS NULL
+BEGIN
+    CREATE TABLE [pmt].[UserPermissions]
+    (
+        [UserId] INT NOT NULL,
+        [ResourceKey] NVARCHAR(40) NOT NULL,
+        [CanRead] BIT NOT NULL CONSTRAINT [DF_pmt_UserPermissions_CanRead] DEFAULT (0),
+        [CanCreate] BIT NOT NULL CONSTRAINT [DF_pmt_UserPermissions_CanCreate] DEFAULT (0),
+        [CanUpdate] BIT NOT NULL CONSTRAINT [DF_pmt_UserPermissions_CanUpdate] DEFAULT (0),
+        [CanDelete] BIT NOT NULL CONSTRAINT [DF_pmt_UserPermissions_CanDelete] DEFAULT (0),
+        [CanImport] BIT NOT NULL CONSTRAINT [DF_pmt_UserPermissions_CanImport] DEFAULT (0),
+        [CanExport] BIT NOT NULL CONSTRAINT [DF_pmt_UserPermissions_CanExport] DEFAULT (0),
+        [NoAccess] BIT NOT NULL CONSTRAINT [DF_pmt_UserPermissions_NoAccess] DEFAULT (0),
+        CONSTRAINT [PK_pmt_UserPermissions] PRIMARY KEY ([UserId], [ResourceKey]),
+        CONSTRAINT [FK_pmt_UserPermissions_User] FOREIGN KEY ([UserId]) REFERENCES [pmt].[Users]([UserId]),
+        CONSTRAINT [FK_pmt_UserPermissions_Resource] FOREIGN KEY ([ResourceKey]) REFERENCES [pmt].[SecurityResources]([ResourceKey])
+    );
+END;
+GO
+
 IF OBJECT_ID(N'[pmt].[Projects]', N'U') IS NULL
 BEGIN
     CREATE TABLE [pmt].[Projects]

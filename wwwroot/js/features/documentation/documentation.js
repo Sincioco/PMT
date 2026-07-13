@@ -32,7 +32,7 @@ import {
   documentationWasEdited,
   formatDate
 } from "../../shared/dates.js";
-import { canEditOwner } from "../../shared/permissions.js";
+import { canAccessResource } from "../../shared/security.js?v=20260713-role-security";
 import {
   projectById,
   projectCode,
@@ -470,7 +470,7 @@ export function createDocumentationFeature({
           <button type="button" class="secondary text-icon-button" data-view-full-screen-readonly-blog="${blog.id}">${buttonContent("&#9974;", "View Full-Screen")}</button>
           <button type="button" class="secondary text-icon-button documentation-dialog-export-button" data-export-readonly-blog="${blog.id}">${buttonContent(documentationExportIconHtml(), "Export")}</button>
         </div>
-        <button type="button" class="secondary text-icon-button" data-edit-readonly-blog="${blog.id}" ${canEditOwner(blog.createdByUserId) ? "" : "disabled"}>${buttonContent("&#9998;", "Edit")}</button>
+        <button type="button" class="secondary text-icon-button" data-edit-readonly-blog="${blog.id}" ${canAccessResource("Documentation", "Update") ? "" : "disabled"}>${buttonContent("&#9998;", "Edit")}</button>
         <button type="button" class="primary text-icon-button" data-close>${buttonContent("&#10003;", "Close")}</button>
       </div>
     `;
@@ -1071,7 +1071,7 @@ function documentationImportExistingBlog(sourceDocument, { title, bodyHtml }) {
   const sourceBlogId = Number(sourceDocument?.id || 0);
   const sourceTitle = normalizeDocumentationImportText(sourceDocument?.title || title);
   const sourceBody = normalizeDocumentationImportText(documentationTextFromHtml(sourceDocument?.bodyHtml || bodyHtml));
-  const editableBlogs = state.blogs.filter(blog => canEditOwner(blog.createdByUserId));
+  const editableBlogs = state.blogs.filter(() => canAccessResource("Documentation", "Update"));
   const existingBlog = (sourceBlogId ? editableBlogs.find(blog => blog.id === sourceBlogId) : null)
     || editableBlogs.find(blog =>
       sourceTitle
@@ -1661,7 +1661,7 @@ function documentationTreePreviewHtml(blog) {
   if (!blog) return `<div class="empty">No document selected.</div>`;
   if (
     editingTreeBlogId === blog.id
-    && (blog.id === newDocumentationInlineBlogId || canEditOwner(blog.createdByUserId))
+    && (blog.id === newDocumentationInlineBlogId || canAccessResource("Documentation", "Update"))
   ) return documentationTreeInlineEditorHtml(blog);
 
   const wasEdited = documentationWasEdited(blog);
@@ -1679,9 +1679,9 @@ function documentationTreePreviewHtml(blog) {
         </div>
       </div>
       <div class="toolbar documentation-tree-preview-actions">
-        ${iconButton("delete-blog", blog.id, "Delete", "delete", canEditOwner(blog.createdByUserId), "danger")}
+        ${iconButton("delete-blog", blog.id, "Delete", "delete", canAccessResource("Documentation", "Delete"), "danger")}
         <button class="icon-action" type="button" data-action="export-blog" data-id="${blog.id}" title="Export" aria-label="Export"><span class="button-icon" aria-hidden="true">${documentationExportIconHtml()}</span></button>
-        ${iconButton("edit-blog", blog.id, "Edit", "edit", canEditOwner(blog.createdByUserId))}
+        ${iconButton("edit-blog", blog.id, "Edit", "edit", canAccessResource("Documentation", "Update"))}
       </div>
     </div>
     <div class="rich-readonly documentation-tree-preview-body documentation-image-open-area" ${documentationRichPersistAttrs(blog)}>${blog.bodyHtml || ""}</div>
@@ -1773,8 +1773,8 @@ function documentationCardHtml(blog) {
       <div class="documentation-card-bottom ${wasEdited ? "" : "has-top-created-meta"}">
         ${wasEdited ? documentationCreatedMetaHtml(blog) : ""}
         <div class="toolbar reveal-actions documentation-actions">
-          ${iconButton("delete-blog", blog.id, "Delete", "delete", canEditOwner(blog.createdByUserId), "danger")}
-          ${iconButton("edit-blog", blog.id, "Edit", "edit", canEditOwner(blog.createdByUserId))}
+          ${iconButton("delete-blog", blog.id, "Delete", "delete", canAccessResource("Documentation", "Delete"), "danger")}
+          ${iconButton("edit-blog", blog.id, "Edit", "edit", canAccessResource("Documentation", "Update"))}
         </div>
       </div>
       <button class="secondary text-icon-button documentation-card-overflow-toggle" type="button" data-action="toggle-documentation-card-expanded" data-id="${blog.id}" aria-expanded="${isExpanded}" title="${isExpanded ? "Collapse document card" : "Show more of this document card"}">

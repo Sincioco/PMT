@@ -72,6 +72,15 @@ export function bugIconHtml() {
   `;
 }
 
+export function keyIconHtml() {
+  return `
+    <svg class="button-svg-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <circle cx="7.5" cy="12" r="3.5"></circle>
+      <path d="M11 12h9M17 12v3M14 12v2"></path>
+    </svg>
+  `;
+}
+
 export function iconButton(action, id, title, icon, enabled = true, extraClass = "") {
   const icons = {
     view: "&#128065;",
@@ -84,6 +93,7 @@ export function iconButton(action, id, title, icon, enabled = true, extraClass =
     edit: "&#9998;",
     duplicate: "&#10697;",
     delete: "&#128465;",
+    key: keyIconHtml(),
     "delete-monochrome": `
       <svg class="button-svg-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
         <path d="M4 7h16M9 7V4h6v3M7 7l1 13h8l1-13M10 11v5M14 11v5"></path>

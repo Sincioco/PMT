@@ -26,7 +26,7 @@ import {
   userCardCheckListLabelHtml,
   value
 } from "../../components/forms.js?v=20260711-task-dialog-customize";
-import { progressHtml, statusColor } from "../../components/progress-and-status.js?v=20260710-export-rich-kanban";
+import { progressHtml, statusColor } from "../../components/progress-and-status.js?v=20260714-linked-bug-percent";
 import { sectionHead } from "../../components/sections.js?v=20260701-nav-title-preferences";
 import {
   attachmentEditorFieldHtml,
@@ -38,7 +38,7 @@ import {
   taskPercentField,
   workItemDialogMetaHtml,
   uploadWorkItemAttachments
-} from "../../components/work-items.js?v=20260711-task-root-cause";
+} from "../../components/work-items.js?v=20260714-linked-bug-percent";
 import {
   currentUser
 } from "../../core/authentication.js";
@@ -67,7 +67,7 @@ import {
   devTaskCompletedSprintRows,
   devTaskMixChart,
   devTaskStatusChartItems
-} from "../../shared/dev-task-charts.js?v=20260712-about-chart-gallery";
+} from "../../shared/dev-task-charts.js?v=20260714-linked-bug-percent";
 import { normalizeSavedArray } from "../../shared/filter-values.js";
 import {
   downloadXlsx,
@@ -88,7 +88,7 @@ import {
   sameNumberList,
   workItemSystemColumns
 } from "../../shared/table-export.js?v=20260710-export-rich-kanban";
-import { canEditTask } from "../../shared/permissions.js";
+import { canEditTask } from "../../shared/permissions.js?v=20260713-role-security";
 import {
   projectName,
   sprintName,
@@ -110,8 +110,8 @@ import {
   taskOrderCompare,
   taskRowsWithSubTasks,
   validateLinkedBugCompletion
-} from "../../shared/work-item-rules.js?v=20260710-export-rich-kanban";
-import { openWorkItemHtmlImport } from "../../shared/work-item-transfer.js?v=20260711-task-root-cause";
+} from "../../shared/work-item-rules.js?v=20260714-linked-bug-percent";
+import { openWorkItemHtmlImport } from "../../shared/work-item-transfer.js?v=20260714-linked-bug-percent";
 
 const taskBugFixIconUrl = "/assets/bug.svg?v=20260629-kanban-gantt-bug-icon";
 

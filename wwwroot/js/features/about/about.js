@@ -1,4 +1,4 @@
-import { statusColor } from "../../components/progress-and-status.js?v=20260710-export-rich-kanban";
+import { statusColor } from "../../components/progress-and-status.js?v=20260714-linked-bug-percent";
 import {
   preferenceKeys,
   readBooleanPreference,
@@ -8,8 +8,8 @@ import {
 } from "../../core/preferences.js?v=20260711-task-dialog-customize";
 import { state } from "../../core/store.js";
 import { appUrl } from "../../shared/app-urls.js";
-import { createBugChartsView } from "../../shared/bug-charts.js?v=20260712-about-chart-gallery";
-import { createDevTaskChartsView } from "../../shared/dev-task-charts.js?v=20260712-about-chart-gallery";
+import { createBugChartsView } from "../../shared/bug-charts.js?v=20260714-linked-bug-percent";
+import { createDevTaskChartsView } from "../../shared/dev-task-charts.js?v=20260714-linked-bug-percent";
 
 const ABOUT_VERSION = "20260713-managed-roles";
 

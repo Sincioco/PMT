@@ -3,7 +3,7 @@ import {
   projectWorkItems,
   sprintOverallPercent,
   sprintWorkItems
-} from "../shared/work-item-rules.js?v=20260710-export-rich-kanban";
+} from "../shared/work-item-rules.js?v=20260714-linked-bug-percent";
 import {
   escapeAttr,
   escapeHtml

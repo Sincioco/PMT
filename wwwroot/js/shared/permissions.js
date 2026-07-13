@@ -2,18 +2,19 @@ import {
   currentUser,
   currentUserId
 } from "../core/authentication.js";
+import { canAccessResource } from "./security.js?v=20260713-role-security";
 
-export function canEditOwner(ownerUserId) {
-  return currentUser().isAdmin || ownerUserId === currentUserId;
+export function canEditOwner(ownerUserId, resourceKey = "") {
+  if (currentUser().isAdmin) return true;
+  if (resourceKey) return canAccessResource(resourceKey, "Update");
+  return ownerUserId === currentUserId;
 }
 
 export function canEditTask(task) {
-  const user = currentUser();
-  if (user.isAdmin || user.role === "Admin") return true;
-  if (task?.taskType === "Bug") return user.role === "QA";
-  return user.role === "Developer";
+  if (currentUser().isAdmin) return true;
+  return canAccessResource(task?.taskType === "Bug" ? "BugTracking" : "DevTasks", "Update");
 }
 
 export function canEditUser(userId) {
-  return currentUser().isAdmin || userId === currentUserId;
+  return currentUser().isAdmin || (userId === currentUserId && canAccessResource("Settings", "Update"));
 }

@@ -13,13 +13,17 @@ internal static class WfhScheduleEndpoints
     {
         app.MapGet("/api/wfh-schedule", async (HttpContext context, SqlPmtStore store, CancellationToken cancellationToken) =>
         {
-            return Results.Ok(await store.GetWfhScheduleAsync(CurrentUserId(context), cancellationToken));
+            var currentUserId = CurrentUserId(context);
+            await store.RequirePermissionAsync(currentUserId, "WfhSchedule", "Read", cancellationToken);
+            return Results.Ok(await store.GetWfhScheduleAsync(currentUserId, cancellationToken));
         });
 
         app.MapPut("/api/wfh-schedule/{userId:int}", async (int userId, WfhScheduleInput input, HttpContext context, SqlPmtStore store, CancellationToken cancellationToken) =>
         {
             input.UserId = userId;
-            await store.SaveWfhScheduleAsync(input, CurrentUserId(context), cancellationToken);
+            var currentUserId = CurrentUserId(context);
+            await store.RequirePermissionAsync(currentUserId, "WfhSchedule", "Update", cancellationToken);
+            await store.SaveWfhScheduleAsync(input, currentUserId, cancellationToken);
             return Results.Ok(new { saved = true });
         });
 
@@ -30,13 +34,17 @@ internal static class WfhScheduleEndpoints
                 return Results.BadRequest(new { error = "Select at least one user to reorder." });
             }
 
-            await store.ReorderWfhScheduleAsync(input, CurrentUserId(context), cancellationToken);
+            var currentUserId = CurrentUserId(context);
+            await store.RequirePermissionAsync(currentUserId, "WfhSchedule", "Update", cancellationToken);
+            await store.ReorderWfhScheduleAsync(input, currentUserId, cancellationToken);
             return Results.Ok(new { reordered = true });
         });
 
         app.MapPost("/api/wfh-schedule/reset", async (HttpContext context, SqlPmtStore store, CancellationToken cancellationToken) =>
         {
-            await store.ResetWfhScheduleAsync(CurrentUserId(context), cancellationToken);
+            var currentUserId = CurrentUserId(context);
+            await store.RequirePermissionAsync(currentUserId, "WfhSchedule", "Update", cancellationToken);
+            await store.ResetWfhScheduleAsync(currentUserId, cancellationToken);
             return Results.Ok(new { reset = true });
         });
 

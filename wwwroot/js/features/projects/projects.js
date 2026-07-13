@@ -14,18 +14,18 @@ import {
   projectStatusCounts,
   projectStatusMetricsHtml,
   statusColor
-} from "../../components/progress-and-status.js?v=20260710-export-rich-kanban";
+} from "../../components/progress-and-status.js?v=20260714-linked-bug-percent";
 import { sectionHead } from "../../components/sections.js?v=20260701-nav-title-preferences";
 import { state } from "../../core/store.js";
 import { toDateInput } from "../../shared/dates.js?v=20260620-null-end-date";
-import { canEditOwner } from "../../shared/permissions.js";
+import { canAccessResource } from "../../shared/security.js?v=20260713-role-security";
 import { projectIconUrl } from "../../shared/project-assets.js?v=20260713-invite-users";
 import { projectById } from "../../shared/selectors.js";
 import {
   escapeAttr,
   escapeHtml
 } from "../../shared/text-and-links.js";
-import { projectWorkItems } from "../../shared/work-item-rules.js?v=20260710-export-rich-kanban";
+import { projectWorkItems } from "../../shared/work-item-rules.js?v=20260714-linked-bug-percent";
 
 export function createProjectsFeature({
   app,
@@ -73,9 +73,9 @@ export function createProjectsFeature({
         ${isCollapsed ? "" : projectStatusMetricsHtml(project, statusMetricOptions)}
         <div class="row project-members">${avatarsHtml(project.members, { fit: "auto" })}</div>
         <div class="toolbar reveal-actions project-actions">
-          ${iconButton("delete-project", project.id, "Delete", "delete", canEditOwner(project.createdByUserId), "danger")}
+          ${iconButton("delete-project", project.id, "Delete", "delete", canAccessResource("Projects", "Delete"), "danger")}
           ${iconButton("view-project-gantt", project.id, "Gantt", "gantt", true)}
-          ${iconButton("edit-project", project.id, "Edit", "edit", canEditOwner(project.createdByUserId))}
+          ${iconButton("edit-project", project.id, "Edit", "edit", canAccessResource("Projects", "Update"))}
         </div>
       </article>
     `;

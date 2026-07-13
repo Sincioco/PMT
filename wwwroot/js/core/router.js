@@ -1,6 +1,7 @@
 import { preferenceKeys, readPreference, writePreference } from "./preferences.js";
-import { visibleNavigationScreens } from "./navigation-preferences.js?v=20260707-deep-links";
+import { visibleNavigationScreens } from "./navigation-preferences.js?v=20260713-role-security";
 import { screenRegistry } from "./screen-registry.js?v=20260707-deep-links";
+import { canReadView, firstReadableView } from "../shared/security.js?v=20260713-role-security";
 
 const legacyViews = Object.freeze({
   "Dev Log": "Scrum",
@@ -46,7 +47,8 @@ export function normalizeView(view) {
 }
 
 export function navigate(view, options = {}) {
-  currentView = normalizeView(view);
+  const requestedView = normalizeView(view);
+  currentView = canReadView(requestedView) ? requestedView : firstReadableView(screenRegistry);
   writePreference(preferenceKeys.view, currentView);
   if (options.updateUrl !== false) updateBrowserUrl(routeForView(currentView), options);
   return currentView;

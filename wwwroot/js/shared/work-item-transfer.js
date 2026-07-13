@@ -19,7 +19,7 @@ import {
   normalizeRichHtml
 } from "./text-and-links.js";
 import { externalizeImportedHtmlImagesInPayload } from "./imported-html-images.js";
-import { taskDisplayPercent } from "./work-item-rules.js?v=20260710-export-rich-kanban";
+import { taskDisplayPercent } from "./work-item-rules.js?v=20260714-linked-bug-percent";
 
 const workItemImportMarker = "PMT Import Process Meta Data";
 const workItemExportSchema = "pmt.work-item.export.v1";

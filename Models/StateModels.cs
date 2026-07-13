@@ -12,6 +12,10 @@ public sealed class AppState
     public List<LookupDto> Lookups { get; set; } = new();
     public List<LookupDto> Roles { get; set; } = new();
     public List<HolidayDto> Holidays { get; set; } = new();
+    public List<SecurityResourceDto> SecurityResources { get; set; } = new();
+    public List<RoleSecurityPermissionDto> RolePermissions { get; set; } = new();
+    public List<UserSecurityPermissionDto> UserPermissions { get; set; } = new();
+    public List<EffectivePermissionDto> EffectivePermissions { get; set; } = new();
 }
 
 public sealed class AuditEventDto

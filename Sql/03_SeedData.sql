@@ -54,6 +54,9 @@ SET
 WHERE [UserId] = @Sin;
 
 -- The user said no development data needs to be preserved.
+IF OBJECT_ID(N'[pmt].[UserPermissions]', N'U') IS NOT NULL DELETE FROM [pmt].[UserPermissions];
+IF OBJECT_ID(N'[pmt].[RolePermissions]', N'U') IS NOT NULL DELETE FROM [pmt].[RolePermissions];
+IF OBJECT_ID(N'[pmt].[SecurityResources]', N'U') IS NOT NULL DELETE FROM [pmt].[SecurityResources];
 DELETE FROM [pmt].[BlogAttachments];
 DELETE FROM [pmt].[BlogHistory];
 DELETE FROM [pmt].[TaskAttachments];
@@ -138,6 +141,113 @@ VALUES
 (N'Role', N'QA - Manual', N'QA Manual', NULL, 70, 1, @Sin),
 (N'Role', N'QA - Automation', N'QA Automation', NULL, 80, 1, @Sin),
 (N'Role', N'TM - Test Manager', N'TM', NULL, 90, 1, @Sin);
+
+INSERT INTO [pmt].[SecurityResources] ([ResourceKey], [Name], [AvailableRights], [DisplayOrder])
+VALUES
+(N'Dashboard', N'Dashboard', N'Read', 10),
+(N'RoadMap', N'Road Map', N'Read', 20),
+(N'Gantt', N'Gantt Chart', N'Read', 30),
+(N'Projects', N'Projects', N'Read,Create,Update,Delete', 40),
+(N'Sprints', N'Sprints', N'Read,Create,Update,Delete', 50),
+(N'Board', N'Kanban Board', N'Read,Update,Export', 60),
+(N'DevTasks', N'Dev Tasks', N'Read,Create,Update,Delete,Import,Export', 70),
+(N'BugTracking', N'Bug Tracking', N'Read,Create,Update,Delete,Import,Export', 80),
+(N'Scrum', N'Scrum', N'Read,Create,Update,Delete,Import,Export', 90),
+(N'Documentation', N'Documentation', N'Read,Create,Update,Delete,Import,Export', 100),
+(N'PersonalLog', N'Log', N'Read,Create,Update,Delete,Import,Export', 110),
+(N'Backlog', N'Backlog', N'Read,Create,Update,Delete,Import,Export', 120),
+(N'WfhSchedule', N'WFH Schedule', N'Read,Update,Export', 130),
+(N'Settings', N'Settings', N'Read,Create,Update,Delete', 140);
+
+-- Every built-in role can read PMT. The statements below add the normal work
+-- rights for a software team without granting cross-discipline delete access.
+INSERT INTO [pmt].[RolePermissions] ([RoleCode], [ResourceKey], [CanRead])
+SELECT [Role].[Code], [Resource].[ResourceKey], 1
+FROM [pmt].[Lookups] AS [Role]
+CROSS JOIN [pmt].[SecurityResources] AS [Resource]
+WHERE [Role].[LookupType] = N'Role'
+  AND [Role].[Code] <> N'Admin';
+
+UPDATE [pmt].[RolePermissions]
+SET [CanUpdate] = 1
+WHERE [ResourceKey] IN (N'Board', N'WfhSchedule', N'Settings');
+
+UPDATE [pmt].[RolePermissions]
+SET [CanExport] = 1
+WHERE [ResourceKey] IN (N'Board', N'WfhSchedule');
+
+UPDATE [pmt].[RolePermissions]
+SET [CanCreate] = 1, [CanUpdate] = 1, [CanImport] = 1, [CanExport] = 1
+WHERE [ResourceKey] IN (N'Scrum', N'Documentation');
+
+UPDATE [pmt].[RolePermissions]
+SET [CanCreate] = 1, [CanUpdate] = 1, [CanDelete] = 1, [CanImport] = 1, [CanExport] = 1
+WHERE [ResourceKey] = N'PersonalLog';
+
+UPDATE [pmt].[RolePermissions]
+SET [CanCreate] = 1, [CanUpdate] = 1, [CanDelete] = 1, [CanImport] = 1, [CanExport] = 1
+WHERE [RoleCode] = N'Developer'
+  AND [ResourceKey] IN (N'DevTasks', N'Backlog');
+
+UPDATE [pmt].[RolePermissions]
+SET [CanCreate] = 1, [CanExport] = 1
+WHERE [RoleCode] = N'Developer'
+  AND [ResourceKey] = N'BugTracking';
+
+UPDATE [pmt].[RolePermissions]
+SET [CanExport] = 1
+WHERE [RoleCode] IN (N'QA', N'QA Manual', N'QA Automation', N'TM')
+  AND [ResourceKey] = N'DevTasks';
+
+UPDATE [pmt].[RolePermissions]
+SET [CanCreate] = 1, [CanUpdate] = 1, [CanDelete] = 1, [CanImport] = 1, [CanExport] = 1
+WHERE [RoleCode] IN (N'QA', N'QA Manual', N'QA Automation', N'TM')
+  AND [ResourceKey] = N'BugTracking';
+
+UPDATE [pmt].[RolePermissions]
+SET [CanCreate] = 1, [CanUpdate] = 1, [CanImport] = 1, [CanExport] = 1
+WHERE [RoleCode] IN (N'QA', N'QA Manual', N'QA Automation', N'TM')
+  AND [ResourceKey] = N'Backlog';
+
+UPDATE [pmt].[RolePermissions]
+SET [CanCreate] = 1, [CanUpdate] = 1
+WHERE [RoleCode] = N'SA'
+  AND [ResourceKey] IN (N'Projects', N'Sprints');
+
+UPDATE [pmt].[RolePermissions]
+SET [CanCreate] = 1, [CanUpdate] = 1, [CanImport] = 1, [CanExport] = 1
+WHERE [RoleCode] = N'SA'
+  AND [ResourceKey] IN (N'DevTasks', N'BugTracking', N'Backlog');
+
+UPDATE [pmt].[RolePermissions]
+SET [CanCreate] = 1, [CanUpdate] = 1, [CanDelete] = 1
+WHERE [RoleCode] IN (N'TL', N'PM')
+  AND [ResourceKey] IN (N'Projects', N'Sprints');
+
+UPDATE [pmt].[RolePermissions]
+SET [CanCreate] = 1, [CanUpdate] = 1, [CanDelete] = 1, [CanImport] = 1, [CanExport] = 1
+WHERE [RoleCode] = N'TL'
+  AND [ResourceKey] IN (N'DevTasks', N'Backlog');
+
+UPDATE [pmt].[RolePermissions]
+SET [CanCreate] = 1, [CanUpdate] = 1, [CanImport] = 1, [CanExport] = 1
+WHERE [RoleCode] IN (N'TL', N'PM')
+  AND [ResourceKey] IN (N'BugTracking', N'DevTasks');
+
+UPDATE [pmt].[RolePermissions]
+SET [CanCreate] = 1, [CanUpdate] = 1, [CanDelete] = 1, [CanImport] = 1, [CanExport] = 1
+WHERE [RoleCode] = N'PM'
+  AND [ResourceKey] = N'Backlog';
+
+UPDATE [pmt].[RolePermissions]
+SET [CanDelete] = 1
+WHERE [RoleCode] IN (N'SA', N'TL', N'PM', N'TM')
+  AND [ResourceKey] IN (N'Scrum', N'Documentation');
+
+UPDATE [pmt].[RolePermissions]
+SET [CanUpdate] = 1
+WHERE [RoleCode] = N'TM'
+  AND [ResourceKey] = N'Sprints';
 
 DECLARE @HolidaySeed TABLE
 (

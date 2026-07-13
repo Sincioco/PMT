@@ -13,20 +13,26 @@ internal static class ProjectEndpoints
     {
         app.MapPost("/api/projects", async (ProjectInput input, HttpContext context, SqlPmtStore store, CancellationToken cancellationToken) =>
         {
-            var id = await store.SaveProjectAsync(input, CurrentUserId(context), cancellationToken);
+            var currentUserId = CurrentUserId(context);
+            await store.RequirePermissionAsync(currentUserId, "Projects", "Create", cancellationToken);
+            var id = await store.SaveProjectAsync(input, currentUserId, cancellationToken);
             return Results.Ok(new { id });
         });
 
         app.MapPut("/api/projects/{id:int}", async (int id, ProjectInput input, HttpContext context, SqlPmtStore store, CancellationToken cancellationToken) =>
         {
             input.Id = id;
-            var savedId = await store.SaveProjectAsync(input, CurrentUserId(context), cancellationToken);
+            var currentUserId = CurrentUserId(context);
+            await store.RequirePermissionAsync(currentUserId, "Projects", "Update", cancellationToken);
+            var savedId = await store.SaveProjectAsync(input, currentUserId, cancellationToken);
             return Results.Ok(new { id = savedId });
         });
 
         app.MapDelete("/api/projects/{id:int}", async (int id, HttpContext context, SqlPmtStore store, CancellationToken cancellationToken) =>
         {
-            await store.DeleteProjectAsync(id, CurrentUserId(context), cancellationToken);
+            var currentUserId = CurrentUserId(context);
+            await store.RequirePermissionAsync(currentUserId, "Projects", "Delete", cancellationToken);
+            await store.DeleteProjectAsync(id, currentUserId, cancellationToken);
             return Results.NoContent();
         });
 

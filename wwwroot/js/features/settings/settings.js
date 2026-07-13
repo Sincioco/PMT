@@ -1,4 +1,4 @@
-import { buttonContent, funnelIconHtml, iconButton } from "../../components/buttons.js";
+import { buttonContent, funnelIconHtml, iconButton, keyIconHtml } from "../../components/buttons.js?v=20260713-role-security";
 import { askYesNo } from "../../components/dialogs.js";
 import {
   colorField,
@@ -15,7 +15,7 @@ import {
 import {
   defaultStatusColor,
   statusColor
-} from "../../components/progress-and-status.js?v=20260710-export-rich-kanban";
+} from "../../components/progress-and-status.js?v=20260714-linked-bug-percent";
 import { sectionHead } from "../../components/sections.js?v=20260701-nav-title-preferences";
 import { api } from "../../core/api.js";
 import {
@@ -27,7 +27,7 @@ import {
   readNavigationConfig,
   resetNavigationConfig,
   writeNavigationConfig
-} from "../../core/navigation-preferences.js?v=20260710-nav-avatar-fit";
+} from "../../core/navigation-preferences.js?v=20260713-role-security";
 import {
   clearPmtPreferences,
   preferenceKeys,
@@ -36,13 +36,13 @@ import {
   writeJsonPreference,
   writePreference
 } from "../../core/preferences.js?v=20260629-settings-table-filters";
-import { savedViewPreference } from "../../core/router.js?v=20260707-deep-links";
+import { savedViewPreference } from "../../core/router.js?v=20260713-role-security";
 import { state } from "../../core/store.js";
 import {
   formatDate,
   toDateInput
 } from "../../shared/dates.js";
-import { canEditUser } from "../../shared/permissions.js";
+import { canEditUser } from "../../shared/permissions.js?v=20260713-role-security";
 import { createReorderDrag } from "../../shared/reorder-drag.js";
 import {
   roleLabel,
@@ -85,6 +85,14 @@ const legacySeededAvatarPaths = new Map([
   ["/assets/avatar-lisa-su.jpg", "/assets/avatar-jensen-huang.jpg"]
 ]);
 const coreLookupTypes = ["Status", "Priority", "Severity", "Environment", "LogCategory", "Role"];
+const securityRights = [
+  { name: "Read", property: "canRead" },
+  { name: "Create", property: "canCreate" },
+  { name: "Update", property: "canUpdate" },
+  { name: "Delete", property: "canDelete" },
+  { name: "Import", property: "canImport" },
+  { name: "Export", property: "canExport" }
+];
 
 export function createSettingsFeature({
   app,
@@ -92,6 +100,7 @@ export function createSettingsFeature({
   loadState,
   openEditor,
   render,
+  resetUserPassword,
   saveJson,
   showToast,
   uploadFile
@@ -99,19 +108,21 @@ export function createSettingsFeature({
   let lookupTypeFilter = readPreference(preferenceKeys.lookupType, "Status");
   let settingsCategory = readPreference(preferenceKeys.settingsCategory, lookupTypeFilter || "Status");
   let settingsTableFilters = normalizeSettingsTableFilters(readJsonPreference(preferenceKeys.settingsTableFilters, {}));
+  let selectedSecurityResourceKey = "";
   if (savedViewPreference === "Users" || savedViewPreference === "Holidays") settingsCategory = savedViewPreference;
   if (savedViewPreference === "Lookups") settingsCategory = lookupTypeFilter;
 
   function renderSettings() {
     const lookupTypes = settingsLookupTypes();
-    const categories = ["Users", "Navigation", "Holidays", ...lookupTypes, "Development"];
+    const categories = ["Users", ...(currentUser().isAdmin ? ["Security"] : []), "Navigation", "Holidays", ...lookupTypes, "Development"];
     if (!categories.includes(settingsCategory)) settingsCategory = lookupTypes[0] || "Status";
 
     const isUsers = settingsCategory === "Users";
     const isHolidays = settingsCategory === "Holidays";
     const isNavigation = settingsCategory === "Navigation";
+    const isSecurity = settingsCategory === "Security";
     const isDevelopment = settingsCategory === "Development";
-    if (!isUsers && !isHolidays && !isNavigation && !isDevelopment) {
+    if (!isUsers && !isHolidays && !isNavigation && !isSecurity && !isDevelopment) {
       lookupTypeFilter = settingsCategory;
       writePreference(preferenceKeys.lookupType, lookupTypeFilter);
     }
@@ -129,6 +140,7 @@ export function createSettingsFeature({
       <button class="secondary text-icon-button" type="button" data-action="navigation-reset-defaults">${buttonContent("&#8635;", "Reset")}</button>
       ${settingsTableFilterButtonHtml(settingsCategory)}
     `;
+    if (isSecurity) actionsHtml = `<button class="primary text-icon-button" type="button" data-action="save-security">${buttonContent("&#10003;", "Save Security")}</button>`;
     if (isDevelopment) actionsHtml = `<span class="settings-action-spacer" aria-hidden="true"></span>`;
 
     const contentHtml = isUsers
@@ -137,9 +149,11 @@ export function createSettingsFeature({
         ? settingsHolidaysHtml()
         : isNavigation
           ? settingsNavigationHtml()
-          : isDevelopment
-            ? settingsDevelopmentHtml()
-            : settingsLookupHtml(settingsCategory);
+          : isSecurity
+            ? settingsSecurityHtml()
+            : isDevelopment
+              ? settingsDevelopmentHtml()
+              : settingsLookupHtml(settingsCategory);
 
     app.innerHTML = `
       ${sectionHead("Settings", actionsHtml)}
@@ -155,6 +169,7 @@ export function createSettingsFeature({
       </div>
     `;
     bindNavigationDragEvents();
+    bindSecurityPermissionEvents();
   }
 
   async function handleAction(action, id, button) {
@@ -168,6 +183,10 @@ export function createSettingsFeature({
     }
     if (action === "edit-user") {
       editUser(userById(id));
+      return true;
+    }
+    if (action === "reset-user-password") {
+      resetUserPassword(userById(id));
       return true;
     }
     if (action === "preview-user-avatar") {
@@ -208,6 +227,15 @@ export function createSettingsFeature({
     }
     if (action === "open-settings-filters") {
       openSettingsFiltersDialog(button.dataset.category || settingsCategory);
+      return true;
+    }
+    if (action === "select-security-resource") {
+      selectedSecurityResourceKey = button.dataset.resourceKey || "";
+      renderSettings();
+      return true;
+    }
+    if (action === "save-security") {
+      await saveSecurityPermissions();
       return true;
     }
     if (action === "sort-settings-table") {
@@ -925,6 +953,230 @@ export function createSettingsFeature({
     return item?.beta ? `${item.defaultLabel} (beta)` : item?.defaultLabel || "";
   }
 
+  function settingsSecurityHtml() {
+    const resources = [...(state.securityResources || [])]
+      .sort((a, b) => a.displayOrder - b.displayOrder || a.name.localeCompare(b.name));
+    if (!resources.length) {
+      return `<div class="panel settings-content-panel"><div class="empty">Security configuration is available to administrators after Database Version 1.7 is installed.</div></div>`;
+    }
+
+    if (!resources.some(resource => resource.resourceKey === selectedSecurityResourceKey)) {
+      selectedSecurityResourceKey = resources[0].resourceKey;
+    }
+
+    const selectedResource = resources.find(resource => resource.resourceKey === selectedSecurityResourceKey);
+    const roles = [...(state.roles || [])]
+      .filter(role => role.isActive && role.code && role.code !== "Admin")
+      .sort((a, b) => a.displayOrder - b.displayOrder || a.value.localeCompare(b.value));
+    const users = [...(state.users || [])]
+      .filter(user => user.isActive && !user.isAdmin)
+      .sort((a, b) => settingsUserDisplayName(a).localeCompare(settingsUserDisplayName(b)));
+
+    return `
+      <div class="panel settings-content-panel security-panel">
+        <div class="security-layout">
+          <aside class="security-resource-picker" aria-label="PMT areas">
+            <div class="security-pane-head">
+              <h2>PMT Areas</h2>
+              <p class="muted">Choose the area to secure.</p>
+            </div>
+            <div class="security-resource-list">
+              ${resources.map(resource => `
+                <button type="button" data-action="select-security-resource" data-resource-key="${escapeAttr(resource.resourceKey)}" class="${resource.resourceKey === selectedSecurityResourceKey ? "active" : ""}">
+                  ${escapeHtml(resource.name)}
+                </button>
+              `).join("")}
+            </div>
+          </aside>
+          <section class="security-permissions-pane">
+            <div class="security-pane-head">
+              <h2>${escapeHtml(selectedResource.name)}</h2>
+              <p class="muted">Role defaults are inherited. User overrides add rights; No Access always denies this area.</p>
+            </div>
+            <div class="security-table-section">
+              <h3>Role defaults</h3>
+              <div class="security-table-scroll">
+                <table class="table security-permission-table">
+                  ${securityPermissionTableHead(false)}
+                  <tbody>
+                    ${roles.map(role => securityRolePermissionRowHtml(role, selectedResource)).join("") || `<tr><td colspan="8"><div class="empty">No Roles are available.</div></td></tr>`}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            <div class="security-table-section">
+              <h3>User overrides</h3>
+              <p class="muted security-user-help">Leave boxes clear to inherit only the Role defaults.</p>
+              <div class="security-table-scroll">
+                <table class="table security-permission-table security-user-permission-table">
+                  ${securityPermissionTableHead(true)}
+                  <tbody>
+                    ${users.map(user => securityUserPermissionRowHtml(user, selectedResource)).join("") || `<tr><td colspan="9"><div class="empty">No non-Admin users are available.</div></td></tr>`}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </section>
+        </div>
+      </div>
+    `;
+  }
+
+  function securityPermissionTableHead(showEffective) {
+    return `
+      <thead>
+        <tr>
+          <th>${showEffective ? "User" : "Role"}</th>
+          ${securityRights.map(right => `<th>${right.name}</th>`).join("")}
+          <th class="security-no-access-column">No Access</th>
+          ${showEffective ? "<th>Effective</th>" : ""}
+        </tr>
+      </thead>
+    `;
+  }
+
+  function securityRolePermissionRowHtml(role, resource) {
+    const permission = (state.rolePermissions || []).find(item =>
+      item.resourceKey === resource.resourceKey && item.roleCode === role.code) || {};
+    return securityPermissionRowHtml({
+      scope: "role",
+      principal: role.code,
+      principalHtml: `<span class="security-principal-name">${escapeHtml(role.value)}</span>`,
+      permission,
+      resource
+    });
+  }
+
+  function securityUserPermissionRowHtml(user, resource) {
+    const permission = (state.userPermissions || []).find(item =>
+      item.resourceKey === resource.resourceKey && item.userId === user.id) || {};
+    const effective = effectiveUserPermission(user, resource.resourceKey);
+    return securityPermissionRowHtml({
+      scope: "user",
+      principal: String(user.id),
+      principalHtml: `
+        <span class="security-user-label">
+          <img class="avatar" src="${escapeAttr(settingsUserAvatarUrl(user))}" alt="">
+          <span><span class="security-principal-name">${escapeHtml(settingsUserDisplayName(user))}</span><span class="muted">${escapeHtml(roleLabel(user.role))}</span></span>
+        </span>
+      `,
+      permission,
+      resource,
+      effective,
+      roleCode: user.role
+    });
+  }
+
+  function securityPermissionRowHtml({ scope, principal, principalHtml, permission, resource, effective = null, roleCode = "" }) {
+    const availableRights = new Set(String(resource.availableRights || "Read").split(",").map(right => right.trim()));
+    const noAccess = Boolean(permission.noAccess);
+    return `
+      <tr data-security-permission-row data-security-scope="${scope}" data-security-principal="${escapeAttr(principal)}" ${roleCode ? `data-security-role-code="${escapeAttr(roleCode)}"` : ""}>
+        <td>${principalHtml}</td>
+        ${securityRights.map(right => securityPermissionCheckbox(right, permission, availableRights, noAccess)).join("")}
+        <td class="security-no-access-column">${securityNoAccessCheckbox(noAccess)}</td>
+        ${effective ? `<td class="security-effective-rights">${securityEffectiveRightsHtml(effective)}</td>` : ""}
+      </tr>
+    `;
+  }
+
+  function securityPermissionCheckbox(right, permission, availableRights, noAccess) {
+    const supported = availableRights.has(right.name);
+    return `
+      <td>
+        <input type="checkbox" data-security-right="${right.property}" data-security-supported="${supported}" aria-label="${right.name}" ${permission[right.property] ? "checked" : ""} ${!supported || noAccess ? "disabled" : ""}>
+      </td>
+    `;
+  }
+
+  function securityNoAccessCheckbox(noAccess) {
+    return `<input type="checkbox" data-security-right="noAccess" aria-label="No Access" ${noAccess ? "checked" : ""}>`;
+  }
+
+  function effectiveUserPermission(user, resourceKey) {
+    const rolePermission = (state.rolePermissions || []).find(item => item.resourceKey === resourceKey && item.roleCode === user.role) || {};
+    const userPermission = (state.userPermissions || []).find(item => item.resourceKey === resourceKey && item.userId === user.id) || {};
+    if (rolePermission.noAccess || userPermission.noAccess) return { noAccess: true };
+
+    return Object.fromEntries(securityRights.map(right => [
+      right.property,
+      Boolean(rolePermission[right.property] || userPermission[right.property])
+    ]));
+  }
+
+  function securityEffectiveRightsHtml(permission) {
+    if (permission.noAccess) return `<span class="security-denied-label">No Access</span>`;
+    const rights = securityRights.filter(right => permission[right.property]).map(right => right.name);
+    return rights.length ? escapeHtml(rights.join(", ")) : `<span class="muted">None</span>`;
+  }
+
+  function bindSecurityPermissionEvents() {
+    app.querySelectorAll("[data-security-right='noAccess']").forEach(checkbox => {
+      checkbox.addEventListener("change", () => {
+        const row = checkbox.closest("[data-security-permission-row]");
+        row?.querySelectorAll("[data-security-right]:not([data-security-right='noAccess'])").forEach(rightCheckbox => {
+          if (checkbox.checked) rightCheckbox.checked = false;
+          rightCheckbox.disabled = checkbox.checked || rightCheckbox.dataset.securitySupported !== "true";
+        });
+        updateSecurityEffectiveRights();
+      });
+    });
+
+    app.querySelectorAll("[data-security-right]:not([data-security-right='noAccess'])").forEach(checkbox => {
+      checkbox.addEventListener("change", updateSecurityEffectiveRights);
+    });
+  }
+
+  function updateSecurityEffectiveRights() {
+    const rows = [...app.querySelectorAll("[data-security-permission-row]")];
+    const roleRows = rows.filter(row => row.dataset.securityScope === "role");
+    rows.filter(row => row.dataset.securityScope === "user").forEach(userRow => {
+      const roleRow = roleRows.find(row => row.dataset.securityPrincipal === userRow.dataset.securityRoleCode);
+      const rolePermission = securityPermissionFromRow(roleRow);
+      const userPermission = securityPermissionFromRow(userRow);
+      const effective = rolePermission.noAccess || userPermission.noAccess
+        ? { noAccess: true }
+        : Object.fromEntries(securityRights.map(right => [
+          right.property,
+          Boolean(rolePermission[right.property] || userPermission[right.property])
+        ]));
+      const effectiveCell = userRow.querySelector(".security-effective-rights");
+      if (effectiveCell) effectiveCell.innerHTML = securityEffectiveRightsHtml(effective);
+    });
+  }
+
+  function securityPermissionFromRow(row) {
+    if (!row) return {};
+    const permission = Object.fromEntries(securityRights.map(right => [
+      right.property,
+      Boolean(row.querySelector(`[data-security-right='${right.property}']`)?.checked)
+    ]));
+    permission.noAccess = Boolean(row.querySelector("[data-security-right='noAccess']")?.checked);
+    return permission;
+  }
+
+  async function saveSecurityPermissions() {
+    if (!selectedSecurityResourceKey) return;
+
+    const rolePermissions = [];
+    const userPermissions = [];
+    app.querySelectorAll("[data-security-permission-row]").forEach(row => {
+      const permission = securityPermissionFromRow(row);
+
+      if (row.dataset.securityScope === "role") {
+        rolePermissions.push({ ...permission, roleCode: row.dataset.securityPrincipal });
+      } else {
+        userPermissions.push({ ...permission, userId: Number(row.dataset.securityPrincipal || 0) });
+      }
+    });
+
+    await saveJson(`/api/security/${encodeURIComponent(selectedSecurityResourceKey)}`, "PUT", { rolePermissions, userPermissions });
+    await loadState();
+    settingsCategory = "Security";
+    renderSettings();
+    showToast("Security saved.");
+  }
+
   function settingsUsersHtml() {
     return `
       <div class="grid settings-users-grid">
@@ -943,6 +1195,7 @@ export function createSettingsFeature({
             <p>${escapeHtml(user.bio || "")}</p>
             <div class="toolbar reveal-actions">
               ${iconButton("delete-user", user.id, "Delete", "delete", currentUser().isAdmin && user.id !== currentUserId, "danger")}
+              ${iconButton("reset-user-password", user.id, "Change Password", "key", currentUser().isAdmin)}
               ${iconButton("edit-user", user.id, "Edit", "edit", canEditUser(user.id))}
             </div>
           </article>
@@ -1050,6 +1303,7 @@ export function createSettingsFeature({
       LogCategory: "&#9776;",
       Role: "&#128101;",
       Users: "&#128100;",
+      Security: "&#128274;",
       Holidays: "&#128197;",
       Navigation: "&#9776;",
       Development: "&#128295;"
@@ -1149,6 +1403,13 @@ export function createSettingsFeature({
         <div class="field full"><label>Bio</label><textarea name="bio">${escapeHtml(user.bio || "")}</textarea></div>
         <label class="inline-check field full"><input name="isAdmin" type="checkbox" ${user.isAdmin ? "checked" : ""} ${currentUser().isAdmin ? "" : "disabled"}><span>Admin</span></label>
       </div>
+      ${currentUser().isAdmin && user.id ? `
+        <template data-editor-footer-action>
+          <div class="dialog-action-group is-left">
+            <button type="button" class="secondary text-icon-button" data-reset-user-password>${buttonContent(keyIconHtml(), "Change Password")}</button>
+          </div>
+        </template>
+      ` : ""}
     `, async root => {
       const firstName = value(root, "firstName").trim();
       const lastName = value(root, "lastName").trim();
@@ -1200,6 +1461,7 @@ export function createSettingsFeature({
     }, "nickname", root => {
       bindProfileAvatarPicker(root);
       bindUsernameSuggestion(root, user.id || 0);
+      root.closest("dialog")?.querySelector("[data-reset-user-password]")?.addEventListener("click", () => resetUserPassword(user));
     });
   }
 

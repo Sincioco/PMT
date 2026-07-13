@@ -2,13 +2,13 @@ import { avatarsHtml } from "../../components/avatars.js";
 import { buttonContent, funnelIconHtml } from "../../components/buttons.js";
 import { checkedFilterValues, filterCheckList } from "../../components/filters.js?v=20260621-task-filter-layout";
 import { userCardCheckListLabelHtml } from "../../components/forms.js?v=20260710-rte-table-shortcuts";
-import { progressHtml } from "../../components/progress-and-status.js?v=20260710-export-rich-kanban";
+import { progressHtml } from "../../components/progress-and-status.js?v=20260714-linked-bug-percent";
 import { sectionHead } from "../../components/sections.js?v=20260701-nav-title-preferences";
 import {
   bugFixIconHtml,
   createWorkItemTableMode,
   taskButtonsHtml
-} from "../../components/work-items.js?v=20260710-rte-checkbox-persist";
+} from "../../components/work-items.js?v=20260714-linked-bug-percent";
 import {
   preferenceKeys,
   readBooleanPreference,
@@ -21,7 +21,7 @@ import {
 } from "../../core/preferences.js";
 import { state } from "../../core/store.js";
 import { normalizeSavedArray } from "../../shared/filter-values.js";
-import { canEditTask } from "../../shared/permissions.js";
+import { canEditTask } from "../../shared/permissions.js?v=20260713-role-security";
 import { taskById } from "../../shared/selectors.js";
 import {
   escapeAttr,
@@ -32,8 +32,8 @@ import {
   percentForStatus,
   taskDisplayPercent,
   taskOrderCompare
-} from "../../shared/work-item-rules.js?v=20260710-export-rich-kanban";
-import { createBoardDrag } from "./board-drag.js?v=20260710-export-rich-kanban";
+} from "../../shared/work-item-rules.js?v=20260714-linked-bug-percent";
+import { createBoardDrag } from "./board-drag.js?v=20260713-role-security";
 
 const bugIconUrl = "/assets/bug.svg?v=20260629-kanban-gantt-bug-icon";
 

@@ -4,6 +4,7 @@ import {
   writeJsonPreference
 } from "./preferences.js";
 import { screenRegistry } from "./screen-registry.js?v=20260707-log-about-nav";
+import { canReadView } from "../shared/security.js?v=20260713-role-security";
 
 const navigationVersion = 2;
 const betaNavigationViews = new Set(["Dashboard", "Road Map", "Gantt"]);
@@ -103,7 +104,7 @@ export function visibleNavigationScreens() {
       const screen = screensByView.get(item.view);
       return screen ? { ...screen, label: item.label } : null;
     })
-    .filter(Boolean);
+    .filter(screen => screen && canReadView(screen.view));
 }
 
 function navigationLabelFor(item, screen) {

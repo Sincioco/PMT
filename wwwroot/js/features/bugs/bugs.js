@@ -32,7 +32,7 @@ import {
   userCardCheckListLabelHtml,
   value
 } from "../../components/forms.js?v=20260711-bug-dialog-customize";
-import { progressHtml } from "../../components/progress-and-status.js?v=20260710-rich-bug-layout";
+import { progressHtml } from "../../components/progress-and-status.js?v=20260714-linked-bug-percent";
 import { sectionHead } from "../../components/sections.js?v=20260701-nav-title-preferences";
 import {
   attachmentEditorFieldHtml,
@@ -44,7 +44,7 @@ import {
   taskPercentField,
   workItemDialogMetaHtml,
   uploadWorkItemAttachments
-} from "../../components/work-items.js?v=20260711-task-root-cause";
+} from "../../components/work-items.js?v=20260714-linked-bug-percent";
 import {
   currentUser,
   currentUserId
@@ -73,7 +73,7 @@ import {
   bugSeverityChartItems,
   bugSprintChartRows as sharedBugSprintChartRows,
   newestBugSprintRows as sharedNewestBugSprintRows
-} from "../../shared/bug-charts.js?v=20260712-about-chart-gallery";
+} from "../../shared/bug-charts.js?v=20260714-linked-bug-percent";
 import { createReorderDrag } from "../../shared/reorder-drag.js";
 import {
   downloadXlsx,
@@ -94,7 +94,7 @@ import {
   sameNumberList,
   workItemSystemColumns
 } from "../../shared/table-export.js?v=20260710-rich-bug-layout";
-import { canEditTask } from "../../shared/permissions.js";
+import { canEditTask } from "../../shared/permissions.js?v=20260713-role-security";
 import {
   projectById,
   projectCode,
@@ -115,8 +115,8 @@ import {
   taskDisplayPercent,
   taskCreatedTime,
   taskOrderCompare
-} from "../../shared/work-item-rules.js?v=20260710-export-rich-kanban";
-import { openWorkItemHtmlImport } from "../../shared/work-item-transfer.js?v=20260711-task-root-cause";
+} from "../../shared/work-item-rules.js?v=20260714-linked-bug-percent";
+import { openWorkItemHtmlImport } from "../../shared/work-item-transfer.js?v=20260714-linked-bug-percent";
 
 export function createBugsFeature({
   app,

@@ -148,14 +148,14 @@ for (const scenario of destinationScenarios) {
 
     await page.goto(`/?invite=${invitationToken}`);
 
-    await expect(page.getByRole("heading", { name: "Set up your PMT profile" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Welcome to PMT! You've been invited!" })).toBeVisible();
     await expect(page.locator("#loginName")).toHaveCount(0);
     expect(await page.evaluate(() => localStorage.getItem("pmt-auth-user"))).toBeNull();
 
     const profileForm = page.locator("[data-invite-profile-form]");
     await expect(profileForm.locator("input[type='email'], [name='email']")).toHaveCount(0);
     await expect(profileForm.locator(".invite-profile-project")).toHaveCount(scenario.projects.length);
-    await profileForm.getByLabel("Nickname").fill(invitedUser.nickname);
+    await profileForm.getByLabel("Username").fill(invitedUser.nickname);
     await profileForm.getByLabel("Password", { exact: true }).fill("Password2");
     await profileForm.getByLabel("Confirm Password").fill("Password2");
 
@@ -198,8 +198,8 @@ for (const scenario of destinationScenarios) {
 
     if (scenario.verifyBusyState) {
       await acceptStarted;
-      await expect(profileForm.getByRole("button", { name: "Back to PMT" })).toBeDisabled();
-      await expect(profileForm.getByLabel("Nickname")).toBeDisabled();
+      await expect(profileForm.getByRole("button", { name: "Create Profile" })).toBeDisabled();
+      await expect(profileForm.getByLabel("Username")).toBeDisabled();
       releaseAcceptResponse();
     }
 

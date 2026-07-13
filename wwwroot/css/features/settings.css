@@ -197,6 +197,173 @@
   padding: var(--space-7) 0 var(--space-5);
 }
 
+.security-panel {
+  padding: 0;
+  overflow: hidden;
+}
+
+.security-layout {
+  display: grid;
+  grid-template-columns: minmax(190px, 230px) minmax(0, 1fr);
+  min-height: 620px;
+}
+
+.security-resource-picker {
+  padding: var(--space-6);
+  border-right: var(--border-width) solid var(--color-border-subtle);
+  background: var(--color-surface-subtle);
+}
+
+.security-pane-head h2,
+.security-table-section h3 {
+  margin: 0;
+}
+
+.security-pane-head p {
+  margin: var(--space-1) 0 0;
+}
+
+.security-resource-list {
+  display: grid;
+  gap: var(--space-2);
+  margin-top: var(--space-5);
+}
+
+.security-resource-list button {
+  justify-content: flex-start;
+  width: 100%;
+  min-height: var(--control-height-md);
+  padding: var(--space-3) var(--space-4);
+  border-color: transparent;
+  text-align: left;
+  background: transparent;
+}
+
+.security-resource-list button:hover,
+.security-resource-list button:focus-visible {
+  border-color: var(--color-border);
+  background: var(--color-control-hover);
+}
+
+.security-resource-list button.active {
+  border-color: var(--color-primary);
+  color: var(--color-text-primary);
+  background: var(--color-control-active);
+}
+
+.security-permissions-pane {
+  display: grid;
+  align-content: start;
+  gap: var(--space-7);
+  min-width: 0;
+  padding: var(--space-7);
+}
+
+.security-table-section {
+  display: grid;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.security-user-help {
+  margin: calc(-1 * var(--space-2)) 0 0;
+}
+
+.security-table-scroll {
+  max-width: 100%;
+  overflow: auto;
+  border: var(--border-width) solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+}
+
+.security-permission-table {
+  min-width: 880px;
+  margin: 0;
+}
+
+.security-user-permission-table {
+  min-width: 1040px;
+}
+
+.security-permission-table th,
+.security-permission-table td {
+  text-align: center;
+  vertical-align: middle;
+}
+
+.security-permission-table th:first-child,
+.security-permission-table td:first-child,
+.security-permission-table th:last-child,
+.security-permission-table td:last-child {
+  text-align: left;
+}
+
+.security-permission-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--color-surface-raised);
+  white-space: nowrap;
+}
+
+.security-permission-table input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+}
+
+.security-principal-name {
+  display: block;
+  color: var(--color-text-primary);
+}
+
+.security-user-label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 190px;
+}
+
+.security-user-label .avatar {
+  width: 36px;
+  height: 36px;
+}
+
+.security-user-label > span {
+  min-width: 0;
+}
+
+.security-user-label .muted {
+  display: block;
+}
+
+.security-no-access-column {
+  border-left: var(--border-width) solid var(--color-border);
+}
+
+.security-denied-label {
+  color: var(--color-danger-text);
+}
+
+.security-effective-rights {
+  min-width: 220px;
+  line-height: 1.35;
+}
+
+@media (max-width: 1050px) {
+  .security-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .security-resource-picker {
+    border-right: 0;
+    border-bottom: var(--border-width) solid var(--color-border-subtle);
+  }
+
+  .security-resource-list {
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  }
+}
+
 .settings-table-head h2 {
   margin-bottom: var(--space-1);
 }

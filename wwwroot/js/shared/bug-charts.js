@@ -1,4 +1,4 @@
-import { isBugQaPassedOrLater } from "./work-item-rules.js?v=20260710-export-rich-kanban";
+import { isBugQaPassedOrLater } from "./work-item-rules.js?v=20260714-linked-bug-percent";
 
 export function bugMixChart(bugs) {
   const resolvedBugs = bugs.filter(isBugQaPassedOrLater);

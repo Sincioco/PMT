@@ -12,10 +12,25 @@ globalThis.localStorage = {
 const { replaceState } = await import("../../wwwroot/js/core/store.js");
 const { setCurrentUserId } = await import("../../wwwroot/js/core/authentication.js");
 const { canEditOwner, canEditTask, canEditUser } = await import("../../wwwroot/js/shared/permissions.js");
+const { canAccessResource } = await import("../../wwwroot/js/shared/security.js");
 
-function setUser(user) {
-  replaceState({ users: [user], projects: [], sprints: [], tasks: [], devLogs: [], blogs: [], auditEvents: [], lookups: [], holidays: [] });
+function setUser(user, effectivePermissions = []) {
+  replaceState({ users: [user], projects: [], sprints: [], tasks: [], devLogs: [], blogs: [], auditEvents: [], lookups: [], holidays: [], effectivePermissions });
   setCurrentUserId(user.id);
+}
+
+function permission(resourceKey, rights = {}) {
+  return {
+    resourceKey,
+    canRead: false,
+    canCreate: false,
+    canUpdate: false,
+    canDelete: false,
+    canImport: false,
+    canExport: false,
+    noAccess: false,
+    ...rights
+  };
 }
 
 test("admins can edit owners, users, Dev Tasks, and Bugs", () => {
@@ -28,7 +43,11 @@ test("admins can edit owners, users, Dev Tasks, and Bugs", () => {
 });
 
 test("developers edit Dev Tasks but not Bugs", () => {
-  setUser({ id: 2, isAdmin: false, role: "Developer" });
+  setUser({ id: 2, isAdmin: false, role: "Developer" }, [
+    permission("DevTasks", { canUpdate: true }),
+    permission("BugTracking"),
+    permission("Settings", { canUpdate: true })
+  ]);
 
   assert.equal(canEditOwner(2), true);
   assert.equal(canEditOwner(1), false);
@@ -39,8 +58,21 @@ test("developers edit Dev Tasks but not Bugs", () => {
 });
 
 test("QA users edit Bugs but not Dev Tasks", () => {
-  setUser({ id: 3, isAdmin: false, role: "QA" });
+  setUser({ id: 3, isAdmin: false, role: "QA" }, [
+    permission("BugTracking", { canUpdate: true }),
+    permission("DevTasks")
+  ]);
 
   assert.equal(canEditTask({ taskType: "Bug" }), true);
   assert.equal(canEditTask({ taskType: "Dev" }), false);
+});
+
+test("No Access denies every effective right", () => {
+  setUser({ id: 4, isAdmin: false, role: "Developer" }, [
+    permission("BugTracking", { canRead: true, canCreate: true, canUpdate: true, noAccess: true })
+  ]);
+
+  assert.equal(canAccessResource("BugTracking", "Read"), false);
+  assert.equal(canAccessResource("BugTracking", "Create"), false);
+  assert.equal(canEditTask({ taskType: "Bug" }), false);
 });
