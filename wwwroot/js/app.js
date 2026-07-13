@@ -47,7 +47,7 @@ import { appUrl } from "./shared/app-urls.js";
 import { createAboutFeature } from "./features/about/about.js?v=20260712-about-controls-123";
 import { createBacklogFeature } from "./features/backlog/backlog.js?v=20260710-rich-bug-layout";
 import { createBoardFeature } from "./features/board/board.js?v=20260710-rte-table-percent-kanban";
-import { createBugsFeature } from "./features/bugs/bugs.js?v=20260712-about-chart-gallery";
+import { createBugsFeature } from "./features/bugs/bugs.js?v=20260713-bug-report-label";
 import { createDashboardFeature } from "./features/dashboard/dashboard.js?v=20260710-nav-avatar-fit";
 import { createDocumentationFeature } from "./features/documentation/documentation.js?v=20260712-doc-card-header";
 import {

@@ -185,7 +185,7 @@ export function createBugsFeature({
           { action: "import-bug-html", icon: importIconHtml(), label: "Import HTML", title: "Import PMT HTML", separatorBefore: true },
           { action: "export-bug-view", icon: exportIconHtml(), label: "Export Grid", title: "Export Grid", separatorBefore: true },
           { action: "import-bug-view", icon: importIconHtml(), label: "Import Grid", title: "Import Grid" },
-          { action: "open-bug-tsg-report", icon: tsgReportIconHtml(), label: "TSG Report", title: "TSG Report", separatorBefore: true },
+          { action: "open-bug-tsg-report", icon: tsgReportIconHtml(), label: "Report", title: "Report", separatorBefore: true },
           { action: "reset-bug-view", icon: "&#8634;", label: "Reset View", title: "Reset View" }
         ])}
       `)}
@@ -1384,7 +1384,7 @@ export function createBugsFeature({
     modal.innerHTML = `
       <form method="dialog">
         <div class="dialog-head">
-          <h2>TSG Report</h2>
+          <h2>Report</h2>
           <button type="button" class="icon-btn" data-close-bug-tsg-report title="Close" aria-label="Close">x</button>
         </div>
         <div class="dialog-body bug-dialog-customize-body bug-tsg-report-body" data-bug-tsg-report-body></div>
@@ -1540,7 +1540,7 @@ export function createBugsFeature({
     const columns = bugTsgReportColumns(prefs);
 
     if (format === "xlsx") {
-      downloadXlsx(bugTsgReportDownloadName(modal, "xlsx"), "TSG Report", columns, rows);
+      downloadXlsx(bugTsgReportDownloadName(modal, "xlsx"), "Report", columns, rows);
       return;
     }
 
@@ -1614,7 +1614,7 @@ export function createBugsFeature({
   }
 
   function bugTsgReportFilenamePreference() {
-    return readPreference(preferenceKeys.bugTsgReportFilename, "TSG Report");
+    return readPreference(preferenceKeys.bugTsgReportFilename, "Report");
   }
 
   function bugTsgReportDownloadName(modal, extension) {
@@ -1628,7 +1628,7 @@ export function createBugsFeature({
       .replace(/[<>:"/\\|?*\x00-\x1F]/g, " ")
       .replace(/\s+/g, " ")
       .trim();
-    return clean || "TSG Report";
+    return clean || "Report";
   }
 
   function bugTsgReportDateStamp() {
