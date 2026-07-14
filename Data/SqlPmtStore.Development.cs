@@ -38,6 +38,7 @@ public sealed partial class SqlPmtStore
             Path.Combine(contentRootPath, "Sql", "01_CreateDatabase.sql"),
             Path.Combine(contentRootPath, "Sql", "02_CreateStoredProcedures.sql"),
             Path.Combine(contentRootPath, "Sql", "03_SeedData.sql"),
+            Path.Combine(contentRootPath, "Sql", "03_SeedData_PMT.sql"),
             Path.Combine(contentRootPath, "Sql", "03_SeedData_LMS.sql"),
             Path.Combine(contentRootPath, "Sql", "03_SeedData_HLS.sql")
         };
@@ -51,6 +52,25 @@ public sealed partial class SqlPmtStore
             await preflight.ExecuteNonQueryAsync(cancellationToken);
         }
 
+        await ExecuteSeedScriptsAsync(connection, scriptPaths, cancellationToken);
+    }
+
+    public async Task RestorePmtSeedDataAsync(string contentRootPath, int currentUserId, CancellationToken cancellationToken)
+    {
+        var scriptPaths = new[]
+        {
+            Path.Combine(contentRootPath, "Sql", "03_SeedData_PMT.sql")
+        };
+
+        await using var connection = await OpenConnectionAsync(cancellationToken);
+        await EnsureCurrentUserIsAdminAsync(connection, currentUserId, cancellationToken);
+        // This recovery only inserts the missing PMT seed project. The global
+        // restore preflight is intentionally reserved for its destructive reset.
+        await ExecuteSeedScriptsAsync(connection, scriptPaths, cancellationToken);
+    }
+
+    private static async Task ExecuteSeedScriptsAsync(SqlConnection connection, IEnumerable<string> scriptPaths, CancellationToken cancellationToken)
+    {
         foreach (var scriptPath in scriptPaths)
         {
             if (!File.Exists(scriptPath))
@@ -71,5 +91,4 @@ public sealed partial class SqlPmtStore
             }
         }
     }
-
 }

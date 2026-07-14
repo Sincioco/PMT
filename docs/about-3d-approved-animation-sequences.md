@@ -43,7 +43,7 @@ This is the maintained source of truth for the approved About-page camera animat
 6. **Sequence 6 — Kanban Board through the PMT `M`/`T` gap**
    - Leave the Kanban Board, curve behind the PMT logo, and approach the open space between the `M` and `T` from the rear.
    - Fly forward through the `M`/`T` gap without detouring to or inspecting the Development Team wall.
-   - Compensate the two crossing spline points for Catmull-Rom tangent drift so the sampled camera path remains inside the actual `M`/`T` opening instead of clipping either letter.
+   - Compensate the two crossing spline points for Catmull-Rom tangent drift and bias the camera center about `0.05` world units left of the opening midpoint. The complete sampled crossing must remain inside the actual `M`/`T` opening while giving the right side of the view more visual clearance from the `M`.
 
 7. **Sequence 7 — `M`/`T` gap through the Documentation turnaround area**
    - Continue forward from the PMT logo toward the Documentation area only to create enough space for a wide, cinematic U-turn.
@@ -51,6 +51,13 @@ This is the maintained source of truth for the approved About-page camera animat
    - Complete the U-turn so the camera arrives at the exact Sequence 1 initial position, direction, and FOV, then repeat Sequence 1 without a cut or reset.
 
 Sequences 4 through 7 are sampled as one continuous arc-length path. Their numbered boundaries are descriptive only and must never introduce a position jump, heading snap, FOV jump, speed change, pause, or hold.
+
+## Inactivity screen saver
+
+- When a logged-in user leaves PMT inactive for five minutes, start the same About intro and 3D scene only if the PMT tab is visible and its browser window is focused.
+- Render the experience in a temporary modal overlay with the same bounds as the normal About content area. Do not navigate to About, alter the current URL, replace `#app`, close an open editor, or discard unsaved browser state.
+- The first mouse movement dismisses the overlay, disposes its scene, and restores the previous focus when that element still exists.
+- If PMT becomes hidden or loses foreground focus, cancel the idle countdown and dismiss any active screen saver. Returning to PMT starts a new five-minute countdown.
 
 ## Wide-chart traversal
 

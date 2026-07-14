@@ -11,6 +11,7 @@ The current source tree's rebuild scripts represent Version 1.14. Version 1.11 e
 - `Sql/01_CreateDatabase.sql`
 - `Sql/02_CreateStoredProcedures.sql`
 - `Sql/03_SeedData.sql`
+- `Sql/03_SeedData_PMT.sql`
 - `Sql/03_SeedData_LMS.sql`
 - `Sql/03_SeedData_HLS.sql`
 - `Sql/00_DropAndRebuild_PMT.sql`

@@ -123,9 +123,19 @@ Permission regressions are covered in `tests/js/permissions.test.mjs`.
 - Permanent deletion always requires a server-generated exact preview. The purge recomputes the plan in one transaction and refuses to continue if any previewed item is missing or any new cascade item appears.
 - Permanently deleting an archived Project also deletes its Sprints, work items, public Documentation, and Scrum entries. Private Documentation and private Logs are preserved and detached from that Project unless the current administrator owns and explicitly selected the already-deleted private item.
 - A private item owned by the current administrator still uses an opaque Maintenance preview label. Other owners' private items are absent from inventory, previews, cascades, and purge plans.
+- Orphan-file previews are administrator-only, recheck current references and physical-file safety, and render through a sandboxed no-cache response instead of opening uploaded active content directly under the PMT application origin. SVG, HTML, XML, and other active document types are shown as non-sniffable plain text.
 - Task dependencies, memberships, attachment links, history, and audit rows belonging to purged items are removed before their parent records. Shared attachment metadata remains while another task or document still references it.
 - Orphan-file deletion rechecks every selected relative path against current and soft-deleted database content immediately before deleting the disk file. Root-relative, deployed path-base, and absolute URL occurrences all count as references.
-- Development Project cleanup preserves and detaches every private Documentation and private Log row. Clearing users or restoring initial seed data is refused while another user owns private content; a full rebuild performed directly in SQL remains an administrator-controlled database operation.
+- Orphan-file names link to the protected Maintenance preview endpoint in a new tab so an administrator can inspect a candidate before deletion. The link does not bypass the reference recheck or select the file for deletion.
+- Development Project cleanup preserves and detaches every private Documentation and private Log row. Clearing users or restoring all initial seed data is refused while another user owns private content; a full rebuild performed directly in SQL remains an administrator-controlled database operation.
+- `Restore PMT Seed Data` is a non-destructive recovery action for a permanently deleted PMT seed Project. It refuses to run while any active or archived Project still owns code `PMT`, restores only PMT project data, and leaves LMS, HLS, users, permissions, holidays, and detached private content unchanged.
+
+## About flyby screen saver
+
+- After five minutes without PMT activity, the About 3D experience may open only while PMT is the visible, focused foreground tab and a user is logged in.
+- The screen saver renders in a separate overlay sized to the normal About content area. It never navigates, rerenders the active feature, closes an editor, or replaces the current page DOM.
+- The first mouse movement dismisses and disposes the overlay, restores the prior focus when possible, and leaves the URL, scroll position, open dialogs, and unsaved field values unchanged.
+- Hiding or blurring the PMT tab cancels the idle timer and dismisses an active screen saver. Returning to PMT begins a fresh five-minute idle period.
 
 ## Persistence and preferences
 

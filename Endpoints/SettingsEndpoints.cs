@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
+using Microsoft.AspNetCore.StaticFiles;
 using Microsoft.Extensions.Configuration;
 using PMT.Data;
 using PMT.Models;
@@ -12,6 +13,17 @@ namespace PMT.Endpoints;
 internal static class SettingsEndpoints
 {
     private static readonly TimeSpan MaintenanceFileGracePeriod = TimeSpan.FromHours(24);
+    private static readonly FileExtensionContentTypeProvider MaintenanceContentTypes = new();
+    private static readonly HashSet<string> MaintenanceActiveContentTypes = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "application/xhtml+xml",
+        "application/xml",
+        "image/svg+xml",
+        "message/rfc822",
+        "multipart/related",
+        "text/html",
+        "text/xml"
+    };
 
     public static IEndpointRouteBuilder MapSettingsEndpoints(this IEndpointRouteBuilder app)
     {
@@ -123,7 +135,7 @@ internal static class SettingsEndpoints
             // Check Admin access before scanning a potentially remote upload folder.
             await store.FindReferencedUploadPathsAsync(Array.Empty<string>(), uploadStorage.RequestPath, currentUserId, cancellationToken);
 
-            var candidates = ReadMaintenanceUploadFiles(uploadStorage.RootPath);
+            var candidates = ReadMaintenanceUploadFiles(uploadStorage.RootPath, currentUserId);
             var referencedPaths = candidates.Count == 0
                 ? new HashSet<string>(StringComparer.OrdinalIgnoreCase)
                 : await store.FindReferencedUploadPathsAsync(
@@ -141,6 +153,48 @@ internal static class SettingsEndpoints
                 totalCount = files.Count,
                 totalByteLength = files.Sum(file => file.ByteLength)
             });
+        });
+
+        app.MapGet("/api/maintenance/orphan-files/preview", async (string? relativePath, HttpContext context, IWebHostEnvironment environment, IConfiguration configuration, SqlPmtStore store, CancellationToken cancellationToken) =>
+        {
+            var currentUserId = ExplicitCurrentUserId(context);
+            var uploadStorage = UploadStorageOptions.From(configuration, environment.ContentRootPath);
+            var selectedFile = ValidateMaintenanceFileSelection(
+                new MaintenanceFileSelection { RelativePaths = new List<string> { relativePath ?? "" } },
+                uploadStorage.RootPath).Single();
+
+            var referencedPaths = await store.FindReferencedUploadPathsAsync(
+                new[] { selectedFile.RelativePath },
+                uploadStorage.RequestPath,
+                currentUserId,
+                cancellationToken);
+            if (referencedPaths.Contains(selectedFile.RelativePath))
+            {
+                return Results.NotFound(new { error = "The file is no longer orphaned." });
+            }
+
+            EnsureMaintenanceUploadRootExists(uploadStorage.RootPath);
+            var cutoff = DateTime.UtcNow.Subtract(MaintenanceFileGracePeriod);
+            if (!TryValidateMaintenanceFileForDeletion(
+                    selectedFile.DirectoryPath,
+                    selectedFile.FullPath,
+                    cutoff,
+                    out _,
+                    out var validationMessage))
+            {
+                return Results.NotFound(new { error = validationMessage });
+            }
+
+            if (!MaintenanceContentTypes.TryGetContentType(Path.GetFileName(selectedFile.FullPath), out var contentType)
+                || MaintenanceActiveContentTypes.Contains(contentType))
+            {
+                contentType = "text/plain; charset=utf-8";
+            }
+
+            context.Response.Headers["Cache-Control"] = "no-store";
+            context.Response.Headers["Content-Security-Policy"] = "sandbox; default-src 'none'; img-src data:; style-src 'unsafe-inline'";
+            context.Response.Headers["X-Content-Type-Options"] = "nosniff";
+            return Results.File(selectedFile.FullPath, contentType, enableRangeProcessing: true);
         });
 
         app.MapPost("/api/maintenance/orphan-files/delete", async (MaintenanceFileSelection selection, HttpContext context, IWebHostEnvironment environment, IConfiguration configuration, SqlPmtStore store, CancellationToken cancellationToken) =>
@@ -248,7 +302,7 @@ internal static class SettingsEndpoints
         }
     }
 
-    private static List<MaintenanceOrphanFileDto> ReadMaintenanceUploadFiles(string rootPath)
+    private static List<MaintenanceOrphanFileDto> ReadMaintenanceUploadFiles(string rootPath, int currentUserId)
     {
         var files = new List<MaintenanceOrphanFileDto>();
         var cutoff = DateTime.UtcNow.Subtract(MaintenanceFileGracePeriod);
@@ -282,6 +336,7 @@ internal static class SettingsEndpoints
                         RelativePath = $"{directory.Name}/{file.Name}",
                         FileName = file.Name,
                         Category = directory.Name,
+                        Url = MaintenancePreviewUrl(currentUserId, directory.Name, file.Name),
                         ByteLength = file.Length,
                         LastModifiedAt = DateTime.SpecifyKind(file.LastWriteTimeUtc, DateTimeKind.Utc)
                     });
@@ -300,6 +355,12 @@ internal static class SettingsEndpoints
         return files
             .OrderBy(file => file.RelativePath, StringComparer.OrdinalIgnoreCase)
             .ToList();
+    }
+
+    private static string MaintenancePreviewUrl(int currentUserId, string category, string fileName)
+    {
+        var relativePath = Uri.EscapeDataString($"{category}/{fileName}");
+        return $"/api/maintenance/orphan-files/preview?relativePath={relativePath}&currentUserId={currentUserId}";
     }
 
     private static List<(string RelativePath, string DirectoryPath, string FullPath)> ValidateMaintenanceFileSelection(

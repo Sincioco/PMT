@@ -161,9 +161,19 @@ Use clearly named temporary records and remove them after validation.
 - [ ] Confirm permanent deletion refuses a stale or changed preview rather than deleting a different set of rows.
 - [ ] Permanently delete disposable data and confirm its Project/Sprint/task codes can be reused, surviving cross-record links are cleared, and a shared attachment remains linked to its surviving item.
 - [ ] Create one referenced and one unreferenced disposable upload, scan for orphan files, and confirm only the unreferenced file is offered. Add a database reference after preview and confirm the final recheck skips that file.
+- [ ] Click an orphaned filename and confirm it opens through the Maintenance preview endpoint in a new tab without changing its selected-for-deletion state. Confirm raster images render, SVG/HTML/XML and unknown extensions open as plain text instead of returning 404, and scripted content cannot execute or navigate under the PMT origin.
 - [ ] In Settings > Development, confirm Clear PMT and Clear All Except PMT preserve and detach private Documentation/Logs. Confirm Clear Users and Restore Initial Seed Data refuse to run while another user owns private content.
+- [ ] Permanently delete the disposable PMT seed Project, click Restore PMT Seed Data, and confirm PMT returns while LMS, HLS, users, permissions, holidays, and detached private content remain unchanged. Confirm a second restore attempt is refused while code `PMT` exists.
 - [ ] As a non-admin, confirm recycle-bin, preview/purge, upload scan, and upload-reference recheck requests are rejected.
 - [ ] Do not run destructive Development reset actions unless specifically testing them.
+
+## About and inactivity screen saver
+
+- [ ] On the About 2D intro, confirm the credits and database version sit above the Preparing 3D Gallery panel and disappear once the 3D scene starts.
+- [ ] During Sequence 6, confirm the camera passes left-of-center through the `M`/`T` opening without the right side of the view appearing to strike the `M`.
+- [ ] Leave a logged-in, visible, focused PMT tab untouched for five minutes on a non-About screen. Confirm the About flyby opens over the existing content at the same size as the normal About page.
+- [ ] Repeat with an editor open and an unsaved field value. Move the mouse once and confirm the screen saver closes while the same screen, URL, editor, focus, and unsaved value remain intact.
+- [ ] Hide or blur PMT before five minutes and confirm the screen saver does not start until a fresh five-minute foreground idle period completes.
 
 ## Filters and charts
 

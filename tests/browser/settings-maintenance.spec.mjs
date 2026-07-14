@@ -52,6 +52,7 @@ const orphanInventory = [
     relativePath: "richtext/orphan-a.svg",
     fileName: "orphan-a.svg",
     category: "richtext",
+    url: "/api/maintenance/orphan-files/preview?relativePath=richtext%2Forphan-a.svg&currentUserId=1",
     byteLength: 2048,
     lastModifiedAt: "2026-06-01T08:00:00Z"
   },
@@ -59,6 +60,7 @@ const orphanInventory = [
     relativePath: "tasks/orphan-b.png",
     fileName: "orphan-b.png",
     category: "tasks",
+    url: "/api/maintenance/orphan-files/preview?relativePath=tasks%2Forphan-b.png&currentUserId=1",
     byteLength: 4096,
     lastModifiedAt: "2026-06-02T08:00:00Z"
   }
@@ -190,6 +192,17 @@ test("Maintenance confirms only selected orphan paths before delete and rescans 
   const files = page.locator("[data-maintenance-section='files']");
   await expect(files.locator("[data-maintenance-select='files']")).toHaveCount(2);
   await expect(files.locator("[data-maintenance-select='files']:checked")).toHaveCount(2);
+  const previewLink = files.getByRole("link", { name: "richtext/orphan-a.svg" });
+  await expect(previewLink).toHaveAttribute("href", "/api/maintenance/orphan-files/preview?relativePath=richtext%2Forphan-a.svg&currentUserId=1");
+  await expect(previewLink).toHaveAttribute("target", "_blank");
+  await expect(previewLink).toHaveAttribute("rel", "noopener noreferrer");
+  const popupPromise = page.waitForEvent("popup");
+  await previewLink.click();
+  const popup = await popupPromise;
+  await expect(popup).toHaveURL(/\/api\/maintenance\/orphan-files\/preview/);
+  expect(new URL(popup.url()).searchParams.get("relativePath")).toBe("richtext/orphan-a.svg");
+  expect(new URL(popup.url()).searchParams.get("currentUserId")).toBe("1");
+  await popup.close();
 
   await files.getByLabel("Select richtext/orphan-a.svg").uncheck();
   await expect(files.locator("[data-maintenance-selection-count]")).toHaveText("1 selected");
@@ -246,6 +259,18 @@ async function prepareMaintenancePage(page, handlers = {}) {
   }));
   await page.route("**/api/maintenance/orphan-files", handlers.orphans || (async route => {
     await route.fulfill(jsonResponse({ files: orphanInventory }));
+  }));
+  await page.route("**/api/maintenance/orphan-files/preview**", handlers.previewFile || (async route => {
+    await route.fulfill({
+      status: 200,
+      contentType: "text/plain; charset=utf-8",
+      headers: {
+        "Cache-Control": "no-store",
+        "Content-Security-Policy": "sandbox; default-src 'none'",
+        "X-Content-Type-Options": "nosniff"
+      },
+      body: '<svg xmlns="http://www.w3.org/2000/svg"><text>Orphan preview</text></svg>'
+    });
   }));
   await page.route("**/api/maintenance/recycle-bin/preview", handlers.preview || (async route => {
     await route.fulfill(jsonResponse(recyclePreview));

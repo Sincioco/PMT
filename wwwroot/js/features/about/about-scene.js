@@ -6,7 +6,7 @@ import {
 } from "../../core/preferences.js?v=20260714-about-track-alien-events";
 import { RoomEnvironment } from "../../vendor/three/addons/environments/RoomEnvironment.js?v=0.185.1-pmt1";
 import { SVGLoader } from "../../vendor/three/addons/loaders/SVGLoader.js?v=0.185.1-pmt1";
-import { createAboutFlightController } from "./about-flight-controller.js?v=20260714-about-track-alien-events";
+import { createAboutFlightController } from "./about-flight-controller.js?v=20260714-screen-saver-mt-gap";
 import { createLogoLightningEffect } from "./about-lightning.js?v=20260712-about-kanban-parity-120";
 import {
   SPACE_BATTLE_DIALOGUE_LINGER_SECONDS,

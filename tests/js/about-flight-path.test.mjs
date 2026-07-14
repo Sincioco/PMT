@@ -31,4 +31,7 @@ test("Sequence 6 stays inside the physical M/T opening", () => {
 
   assert.ok(crossing.length > 0, "Expected sampled camera points inside the logo depth.");
   assert.ok(crossing.every(point => point.x > mRightEdge && point.x < tLeftEdge));
+  const crossingMidpoint = crossing.reduce((total, point) => total + point.x, 0) / crossing.length;
+  const gapMidpoint = (mRightEdge + tLeftEdge) / 2;
+  assert.ok(crossingMidpoint < gapMidpoint - 0.04, "Expected the camera path to favor the left side of the M/T opening.");
 });

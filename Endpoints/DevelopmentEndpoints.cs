@@ -35,6 +35,12 @@ internal static class DevelopmentEndpoints
             return Results.Ok(new { restored = true });
         });
 
+        app.MapPost("/api/development/restore-pmt-seed-data", async (HttpContext context, IWebHostEnvironment environment, SqlPmtStore store, CancellationToken cancellationToken) =>
+        {
+            await store.RestorePmtSeedDataAsync(environment.ContentRootPath, ExplicitCurrentUserId(context), cancellationToken);
+            return Results.Ok(new { restored = true });
+        });
+
         return app;
     }
 }

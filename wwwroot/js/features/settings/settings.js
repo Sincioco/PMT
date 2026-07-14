@@ -48,6 +48,7 @@ import {
   formatDate,
   toDateInput
 } from "../../shared/dates.js";
+import { appUrl } from "../../shared/app-urls.js";
 import { canEditUser } from "../../shared/permissions.js?v=20260713-role-security";
 import { createReorderDrag } from "../../shared/reorder-drag.js";
 import {
@@ -340,6 +341,14 @@ export function createSettingsFeature({
       );
       return true;
     }
+    if (action === "development-restore-pmt-seed-data") {
+      await runDevelopmentAction(
+        "/api/development/restore-pmt-seed-data",
+        "Restore only the PMT Project and its initial Sprints, work items, Scrum, and Documentation? PMT must already be permanently deleted. LMS and HLS will remain unchanged.",
+        "PMT seed data restored."
+      );
+      return true;
+    }
     if (action === "development-clear-local-storage") {
       await clearLocalStoragePreferences();
       return true;
@@ -443,7 +452,7 @@ export function createSettingsFeature({
                 ${files.map(file => `
                   <tr>
                     <td class="maintenance-select-column"><input type="checkbox" data-maintenance-select="files" data-maintenance-key="${escapeAttr(file.relativePath)}" aria-label="Select ${escapeAttr(file.relativePath)}" ${selectedMaintenanceFiles.has(file.relativePath) ? "checked" : ""}></td>
-                    <td><code>${escapeHtml(file.relativePath)}</code></td>
+                    <td>${maintenanceFileLinkHtml(file)}</td>
                     <td>${escapeHtml(formatMaintenanceFileSize(file.byteLength))}</td>
                     <td>${escapeHtml(formatMaintenanceDate(file.lastModifiedAt))}</td>
                   </tr>
@@ -724,6 +733,14 @@ export function createSettingsFeature({
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   }
 
+  function maintenanceFileLinkHtml(file) {
+    const label = `<code>${escapeHtml(file.relativePath)}</code>`;
+    const url = String(file.url || "");
+    if (!url.startsWith("/") || url.startsWith("//")) return label;
+
+    return `<a href="${escapeAttr(appUrl(url))}" target="_blank" rel="noopener noreferrer">${label}</a>`;
+  }
+
   function settingsDevelopmentHtml() {
     const canRun = currentUser().isAdmin;
     return `
@@ -760,6 +777,13 @@ export function createSettingsFeature({
               <p class="muted">Restores the PMT, LMS, and HLS demo data from the SQL seed scripts.</p>
             </div>
             <button class="primary text-icon-button" type="button" data-action="development-restore-seed-data" ${canRun ? "" : "disabled"}>${buttonContent("&#8635;", "Restore Initial Seed Data")}</button>
+          </div>
+          <div class="development-action-row">
+            <div>
+              <strong>Restore PMT Seed Data</strong>
+              <p class="muted">Restores only the missing PMT demo Project and leaves LMS, HLS, users, permissions, and private content unchanged.</p>
+            </div>
+            <button class="primary text-icon-button" type="button" data-action="development-restore-pmt-seed-data" ${canRun ? "" : "disabled"}>${buttonContent("&#8635;", "Restore PMT Seed Data")}</button>
           </div>
           <div class="development-action-row">
             <div>

@@ -16,7 +16,7 @@ const statuses = [
 
 test("login, navigation, themes, dialogs, filters, Board, Gantt, and Road Map smoke", async ({ page }) => {
   const appState = createTestState();
-  const apiCalls = { securityReset: 0 };
+  const apiCalls = { restorePmt: 0, securityReset: 0 };
   const browserErrors = [];
 
   page.on("console", message => {
@@ -231,6 +231,17 @@ test("login, navigation, themes, dialogs, filters, Board, Gantt, and Road Map sm
 
   await page.locator("[data-action='select-lookup-type'][data-type='Development']").click();
   await expect(page.getByRole("button", { name: "Restore Initial Seed Data" })).toBeVisible();
+  const restorePmtButton = page.getByRole("button", { name: "Restore PMT Seed Data" });
+  await expect(restorePmtButton).toBeVisible();
+  const developmentActions = await page.locator(".development-action-row strong").allTextContents();
+  expect(developmentActions.indexOf("Restore PMT Seed Data"))
+    .toBe(developmentActions.indexOf("Restore Initial Seed Data") + 1);
+  await restorePmtButton.click();
+  const restorePmtConfirmation = page.locator("dialog.mini-dialog");
+  await expect(restorePmtConfirmation).toContainText("LMS and HLS will remain unchanged");
+  await restorePmtConfirmation.getByRole("button", { name: "Continue" }).click();
+  await expect(page.locator("#toast")).toHaveText("PMT seed data restored.");
+  expect(apiCalls.restorePmt).toBe(1);
   await page.locator("[data-action='select-lookup-type'][data-type='Navigation']").click();
   await expect(page.locator("[data-navigation-list]")).toBeVisible();
   await expect(page.locator("[data-action='toggle-navigation-item'][data-view='Settings']")).toBeDisabled();
@@ -664,6 +675,11 @@ async function installApiMocks(page, appState, apiCalls) {
   });
 
   await page.route("**/api/development/restore-seed-data", async route => {
+    await route.fulfill(jsonResponse({ restored: true }));
+  });
+
+  await page.route("**/api/development/restore-pmt-seed-data", async route => {
+    apiCalls.restorePmt += 1;
     await route.fulfill(jsonResponse({ restored: true }));
   });
 }

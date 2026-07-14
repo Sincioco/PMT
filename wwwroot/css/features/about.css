@@ -7,6 +7,23 @@
   overscroll-behavior: none;
 }
 
+dialog.about-screensaver-dialog {
+  position: fixed;
+  inset: auto;
+  max-width: none;
+  max-height: none;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  color: #eef7ff;
+  background: #030711;
+  border: 0;
+}
+
+dialog.about-screensaver-dialog::backdrop {
+  background: transparent;
+}
+
 .about-screen {
   position: relative;
   width: 100%;
@@ -116,7 +133,7 @@
 .about-footer {
   position: absolute;
   right: clamp(16px, 3vw, 40px);
-  bottom: clamp(14px, 2.5vh, 28px);
+  bottom: clamp(72px, 10vh, 96px);
   left: clamp(16px, 3vw, 40px);
   z-index: 1;
   display: grid;
@@ -623,6 +640,10 @@
 }
 
 @media (max-width: 620px) {
+  .about-footer {
+    bottom: 112px;
+  }
+
   .about-battle-pip {
     right: 12px;
     bottom: 62px;

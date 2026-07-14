@@ -19,6 +19,12 @@ test("About renders the drone flyby and supports camera takeover and speed keys"
   await expect(root).toBeVisible();
   await expect(intro.locator("img")).toHaveAttribute("src", /pmt-logo-full\.svg/);
   await expect(page.locator("[data-about-intro-countdown]")).toContainText("3D flight begins in");
+  const introSpacing = await root.evaluate(element => {
+    const footer = element.querySelector("[data-about-footer]").getBoundingClientRect();
+    const preparing = element.querySelector("[data-about-flight-debug]").getBoundingClientRect();
+    return { footerBottom: footer.bottom, preparingTop: preparing.top };
+  });
+  expect(introSpacing.footerBottom).toBeLessThan(introSpacing.preparingTop);
   await expect(root).toHaveClass(/about-flight-started/, { timeout: 30000 });
   await expect(intro).toBeHidden();
   await expect(mode).toHaveText("AUTO 2x");
@@ -269,7 +275,7 @@ test("About renders the drone flyby and supports camera takeover and speed keys"
   await expect(root).toHaveAttribute("data-about-documentation-inspection-attention", /^(0|0\.000)$/);
   await expect(root).toHaveAttribute("data-about-kanban-inspection-fov", "62");
   await expect(root).toHaveAttribute("data-about-mt-gap-target", /^-?\d+\.\d{3},-?\d+\.\d{3},-?\d+\.\d{3}$/);
-  await expect(root).toHaveAttribute("data-about-mt-gap-path-compensation-x", "-0.267");
+  await expect(root).toHaveAttribute("data-about-mt-gap-path-compensation-x", "-0.317");
   await expect(root).toHaveAttribute("data-about-gallery-room-half-width", "36");
   await expect(root).toHaveAttribute("data-about-gallery-room-back-z", "-32");
   await expect(root).toHaveAttribute("data-about-dev-destination", /Chart$/);
@@ -641,6 +647,9 @@ test("About separates mouse look, keyboard manual mode, pause, and event hotkeys
 test("About toggles Track Alien Events without changing the flight path or manual control", async ({ page }) => {
   test.setTimeout(60000);
   const browserErrors = collectBrowserErrors(page);
+  await page.addInitScript(() => {
+    Object.defineProperty(window, "devicePixelRatio", { configurable: true, value: 0.5 });
+  });
   await prepareAboutPage(page);
   await page.goto("/");
 
@@ -656,6 +665,8 @@ test("About toggles Track Alien Events without changing the flight path or manua
   ))).toBe("false");
 
   await page.keyboard.press("1");
+  await expect(root).toHaveAttribute("data-about-manual-event-last", "alien");
+  await expect(root).toHaveAttribute("data-about-ufo-manual-trigger-active", "true");
   await page.waitForTimeout(350);
   await expect(root).toHaveAttribute("data-about-alien-camera-override-active", "false");
 
@@ -665,7 +676,7 @@ test("About toggles Track Alien Events without changing the flight path or manua
     localStorage.getItem("pmt-about-track-alien-events-enabled")
   ))).toBe("true");
   await expect(root).toHaveAttribute("data-about-alien-camera-override-active", "true", {
-    timeout: 10000
+    timeout: 20000
   });
   await expect.poll(async () => Number(
     await root.getAttribute("data-about-alien-camera-logo-alignment")
@@ -751,15 +762,80 @@ test("About keeps the original SVG when WebGL2 is unavailable", async ({ page })
   expect(browserErrors).toEqual([]);
 });
 
-async function prepareAboutPage(page) {
-  await page.addInitScript(() => {
+test("idle screen saver preserves the current screen and unsaved editor state", async ({ page }) => {
+  test.setTimeout(120000);
+  await page.clock.install({ time: new Date("2026-07-14T12:00:00Z") });
+  await prepareAboutPage(page, "Dashboard");
+  await page.goto("/");
+
+  await expect(page.getByRole("heading", { name: "Dashboard", exact: true })).toBeVisible();
+  await page.evaluate(() => {
+    const editor = document.getElementById("editorDialog");
+    const body = document.getElementById("dialogBody");
+    body.innerHTML = '<label>Unsaved title<input id="screenSaverUnsavedValue"></label>';
+    editor.showModal();
+    document.getElementById("screenSaverUnsavedValue").focus();
+  });
+
+  const editor = page.locator("#editorDialog");
+  const input = page.locator("#screenSaverUnsavedValue");
+  await input.fill("Keep this unsaved value");
+  const originalUrl = page.url();
+  const appBounds = await page.locator("#app").boundingBox();
+
+  await page.clock.fastForward(4 * 60 * 1000);
+  await page.keyboard.press("Shift");
+  await page.clock.fastForward(4 * 60 * 1000);
+  await expect(page.locator("[data-about-screensaver]")).toHaveCount(0);
+  await page.evaluate(() => {
+    Object.defineProperty(document, "hasFocus", { configurable: true, value: () => false });
+    window.dispatchEvent(new Event("blur"));
+  });
+  await page.clock.fastForward(10 * 60 * 1000);
+  await expect(page.locator("[data-about-screensaver]")).toHaveCount(0);
+  await page.evaluate(() => {
+    Object.defineProperty(document, "hasFocus", { configurable: true, value: () => true });
+    window.dispatchEvent(new Event("focus"));
+  });
+  await page.clock.fastForward(5 * 60 * 1000);
+
+  const screenSaver = page.locator("[data-about-screensaver]");
+  await expect(screenSaver).toBeVisible();
+  await expect(screenSaver).toHaveAttribute("data-about-screensaver-idle-ms", "300000");
+  const screenSaverFlight = screenSaver.locator("[data-about-flight]");
+  await expect(screenSaverFlight).toBeVisible();
+  await expect(screenSaverFlight).toHaveClass(/about-flight-rendering/, { timeout: 30000 });
+  await page.clock.fastForward(5 * 1000);
+  await expect(screenSaverFlight).toHaveClass(/about-flight-started/, { timeout: 30000 });
+  expect(page.url()).toBe(originalUrl);
+  const screenSaverBounds = await screenSaver.boundingBox();
+  expect(screenSaverBounds.x).toBeCloseTo(appBounds.x, 0);
+  expect(screenSaverBounds.y).toBeCloseTo(appBounds.y, 0);
+  expect(screenSaverBounds.width).toBeCloseTo(appBounds.width, 0);
+  expect(screenSaverBounds.height).toBeCloseTo(appBounds.height, 0);
+
+  await page.mouse.move(
+    screenSaverBounds.x + screenSaverBounds.width / 2,
+    screenSaverBounds.y + screenSaverBounds.height / 2
+  );
+
+  await expect(screenSaver).toHaveCount(0);
+  await expect(editor).toBeVisible();
+  await expect(input).toHaveValue("Keep this unsaved value");
+  await expect(input).toBeFocused();
+  await expect(page.getByRole("heading", { name: "Dashboard", exact: true })).toBeVisible();
+  expect(page.url()).toBe(originalUrl);
+});
+
+async function prepareAboutPage(page, initialView = "About") {
+  await page.addInitScript(view => {
     localStorage.clear();
     localStorage.setItem("pmt-auth-user", "1");
-    localStorage.setItem("pmt-view", "About");
+    localStorage.setItem("pmt-view", view);
     localStorage.setItem("pmt-task-project", "10");
     localStorage.setItem("pmt-task-sprint", "101");
     localStorage.setItem("pmt-bug-filters", JSON.stringify({ projectId: "10", sprintId: "all" }));
-  });
+  }, initialView);
 
   await page.route("**/api/state", async route => {
     await route.fulfill({

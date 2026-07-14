@@ -13,6 +13,7 @@
        - 01_CreateDatabase.sql
        - 02_CreateStoredProcedures.sql
        - 03_SeedData.sql
+       - 03_SeedData_PMT.sql
        - 03_SeedData_LMS.sql
        - 03_SeedData_HLS.sql
     2. In SQL Server Management Studio, enable Query > SQLCMD Mode.
@@ -44,6 +45,9 @@ GO
 GO
 
 :r "D:\Project Management Tool (PMT)\Sql\03_SeedData.sql"
+GO
+
+:r "D:\Project Management Tool (PMT)\Sql\03_SeedData_PMT.sql"
 GO
 
 :r "D:\Project Management Tool (PMT)\Sql\03_SeedData_LMS.sql"

@@ -10,6 +10,9 @@ Open SQL Server Management Studio or `sqlcmd` and run the scripts in this order:
 Sql\01_CreateDatabase.sql
 Sql\02_CreateStoredProcedures.sql
 Sql\03_SeedData.sql
+Sql\03_SeedData_PMT.sql
+Sql\03_SeedData_LMS.sql
+Sql\03_SeedData_HLS.sql
 ```
 
 Every table, function, and stored procedure is under the `[pmt]` schema.

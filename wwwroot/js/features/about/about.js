@@ -11,7 +11,8 @@ import { appUrl } from "../../shared/app-urls.js";
 import { createBugChartsView } from "../../shared/bug-charts.js?v=20260714-linked-bug-percent";
 import { createDevTaskChartsView } from "../../shared/dev-task-charts.js?v=20260714-linked-bug-percent";
 
-const ABOUT_VERSION = "20260714-about-track-alien-events";
+const ABOUT_VERSION = "20260714-screen-saver-mt-gap";
+export const ABOUT_SCREEN_SAVER_IDLE_MS = 5 * 60 * 1000;
 export const ABOUT_DATABASE_VERSION = "1.14";
 
 export function aboutFooterHtml() {
@@ -217,6 +218,127 @@ export function createAboutFeature({
     render: renderAbout,
     deactivate
   };
+}
+
+export function createAboutScreenSaver({ app, createFeature, canActivate }) {
+  let active = null;
+  let idleTimer = 0;
+  let initialized = false;
+
+  function initialize() {
+    if (initialized) return;
+    initialized = true;
+
+    document.addEventListener("mousemove", handleActivity, true);
+    document.addEventListener("mousedown", handleActivity, true);
+    document.addEventListener("keydown", handleActivity, true);
+    document.addEventListener("touchstart", handleActivity, { capture: true, passive: true });
+    document.addEventListener("wheel", handleActivity, { capture: true, passive: true });
+    document.addEventListener("visibilitychange", handleForegroundChange);
+    window.addEventListener("focus", handleForegroundChange);
+    window.addEventListener("blur", handleForegroundChange);
+    schedule();
+  }
+
+  function handleActivity(event) {
+    if (active) {
+      if (event.type === "mousemove") dismiss();
+      return;
+    }
+
+    schedule();
+  }
+
+  function handleForegroundChange() {
+    if (!isForeground()) {
+      window.clearTimeout(idleTimer);
+      idleTimer = 0;
+      dismiss(false);
+      return;
+    }
+
+    schedule();
+  }
+
+  function schedule() {
+    window.clearTimeout(idleTimer);
+    idleTimer = 0;
+    if (active || !isForeground()) return;
+
+    idleTimer = window.setTimeout(show, ABOUT_SCREEN_SAVER_IDLE_MS);
+  }
+
+  function show() {
+    idleTimer = 0;
+    if (!isForeground()) return;
+    if (!canActivate()) {
+      schedule();
+      return;
+    }
+
+    const previousFocus = document.activeElement;
+    const dialog = document.createElement("dialog");
+    dialog.className = "app-shell about-screensaver-dialog";
+    dialog.dataset.aboutScreensaver = "";
+    dialog.dataset.aboutScreensaverIdleMs = String(ABOUT_SCREEN_SAVER_IDLE_MS);
+    dialog.setAttribute("aria-label", "PMT 3D screen saver");
+    syncBounds(dialog);
+    document.body.appendChild(dialog);
+
+    try {
+      dialog.showModal();
+    } catch {
+      dialog.remove();
+      schedule();
+      return;
+    }
+
+    const feature = createFeature(dialog);
+    active = { dialog, feature, previousFocus };
+    dialog.addEventListener("cancel", handleCancel);
+    window.addEventListener("resize", handleResize);
+    feature.render();
+  }
+
+  function dismiss(rearm = true) {
+    if (!active) return;
+
+    const { dialog, feature, previousFocus } = active;
+    active = null;
+    feature.deactivate();
+    dialog.removeEventListener("cancel", handleCancel);
+    window.removeEventListener("resize", handleResize);
+    if (dialog.open) dialog.close();
+    dialog.remove();
+
+    if (isForeground() && previousFocus?.isConnected) {
+      previousFocus.focus({ preventScroll: true });
+    }
+    if (rearm) schedule();
+  }
+
+  function handleCancel(event) {
+    event.preventDefault();
+    dismiss();
+  }
+
+  function handleResize() {
+    if (active) syncBounds(active.dialog);
+  }
+
+  function syncBounds(dialog) {
+    const bounds = app.getBoundingClientRect();
+    dialog.style.left = `${bounds.left}px`;
+    dialog.style.top = `${bounds.top}px`;
+    dialog.style.width = `${bounds.width}px`;
+    dialog.style.height = `${bounds.height}px`;
+  }
+
+  function isForeground() {
+    return document.visibilityState === "visible" && document.hasFocus();
+  }
+
+  return { initialize, dismiss };
 }
 
 function currentKanbanBoard({ tasks, projects, sprints, statuses }) {

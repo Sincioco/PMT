@@ -48,7 +48,10 @@ import {
 } from "./core/preferences.js?v=20260711-task-dialog-customize";
 import { state } from "./core/store.js";
 import { appUrl } from "./shared/app-urls.js";
-import { createAboutFeature } from "./features/about/about.js?v=20260714-database-1-14";
+import {
+  createAboutFeature,
+  createAboutScreenSaver
+} from "./features/about/about.js?v=20260714-screen-saver-mt-gap";
 import { createBacklogFeature } from "./features/backlog/backlog.js?v=20260714-linked-bug-percent";
 import { createBoardFeature } from "./features/board/board.js?v=20260714-linked-bug-percent";
 import { createBugsFeature } from "./features/bugs/bugs.js?v=20260714-attachment-delete";
@@ -64,7 +67,7 @@ import { createProjectsFeature } from "./features/projects/projects.js?v=2026071
 import { createRoadMapFeature } from "./features/roadmap/roadmap.js?v=20260714-linked-bug-percent";
 import { createLogFeature } from "./features/personal-log/log.js?v=20260714-linked-bug-percent";
 import { createScrumFeature } from "./features/scrum/scrum.js?v=20260714-scrum-ownership";
-import { createSettingsFeature } from "./features/settings/settings.js?v=20260714-maintenance";
+import { createSettingsFeature } from "./features/settings/settings.js?v=20260714-pmt-reseed-orphan-preview";
 import { createSprintsFeature } from "./features/sprints/sprints.js?v=20260714-linked-bug-percent";
 import { createTasksFeature } from "./features/tasks/tasks.js?v=20260714-attachment-delete";
 import { createWfhScheduleFeature } from "./features/wfh-schedule/wfh-schedule.js?v=20260714-linked-bug-percent";
@@ -221,13 +224,26 @@ const maximizeDialogButton = document.getElementById("maximizeDialog");
 const toggleAllRichToolsButton = document.getElementById("toggleAllRichTools");
 
 const roadMapFeature = createRoadMapFeature({ app });
-const aboutFeature = createAboutFeature({
+function createConfiguredAboutFeature(host) {
+  return createAboutFeature({
+    app: host,
+    getCurrentSprint: currentSprintForProject,
+    getItemStartDate: ganttStartDate,
+    getSeverities: () => severities,
+    getStatuses: () => statuses
+  });
+}
+
+const aboutFeature = createConfiguredAboutFeature(app);
+const aboutScreenSaver = createAboutScreenSaver({
   app,
-  getCurrentSprint: currentSprintForProject,
-  getItemStartDate: ganttStartDate,
-  getSeverities: () => severities,
-  getStatuses: () => statuses
+  createFeature: createConfiguredAboutFeature,
+  canActivate: () => Boolean(currentUserId)
+    && state.users.length > 0
+    && currentView !== "About"
+    && !app.classList.contains("app-shell-about")
 });
+aboutScreenSaver.initialize();
 const ganttFeature = createGanttFeature({
   app,
   openTaskReadMode: id => {
