@@ -164,4 +164,4 @@ If PMT encounters a configuration or file-system access error while initializing
 8. Press Ctrl+F5 once in the browser to bypass cached frontend assets.
 9. Keep the release SHA, backup verification, migration logs, pre/post data manifest, and smoke-test record together. Roll back the application, database, configuration, and uploads as one set if validation fails.
 
-For the July 15, 2026 Version 1.10 to 1.14 BDO deployment, use `Sql/Migrations/2026-07-15 - PMT - BDO Migration Scripts.html` as the authoritative step-by-step runbook.
+For the July 15, 2026 BDO deployment to the current Version 1.15 release, use `Sql/Migrations/2026-07-15 - PMT - BDO Migration Scripts.html` as the authoritative self-contained runbook. It packages, hashes, runs, and verifies all five forward migrations from the Version 1.10 BDO baseline through Version 1.15.

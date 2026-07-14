@@ -13,16 +13,16 @@ import { createDevTaskChartsView } from "../../shared/dev-task-charts.js?v=20260
 
 const ABOUT_VERSION = "20260714-screen-saver-mt-gap";
 export const ABOUT_SCREEN_SAVER_IDLE_MS = 5 * 60 * 1000;
-export const ABOUT_DATABASE_VERSION = "1.14";
+export const ABOUT_DATABASE_VERSION = "1.15";
 
 export function aboutFooterHtml() {
   return `
     <footer class="about-footer" data-about-footer>
+      <p class="about-database-version" data-about-database-version>PMT Database Version ${ABOUT_DATABASE_VERSION}</p>
       <p class="about-credit">
         Created by <a href="http://sincioco.com/resume" target="_blank" rel="noopener noreferrer">Louiery R. Sincioco</a> on June 2026 to help companies who need an open-source solution for a Project or Task Management Tool for free.
         Open-source GitHub repository is at <a href="https://github.com/Sincioco/PMT" target="_blank" rel="noopener noreferrer">https://github.com/Sincioco/PMT</a>
       </p>
-      <p class="about-database-version" data-about-database-version>PMT Database Version ${ABOUT_DATABASE_VERSION}</p>
     </footer>
   `;
 }

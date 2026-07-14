@@ -51,7 +51,7 @@ import { appUrl } from "./shared/app-urls.js";
 import {
   createAboutFeature,
   createAboutScreenSaver
-} from "./features/about/about.js?v=20260714-screen-saver-mt-gap";
+} from "./features/about/about.js?v=20260715-rte-about-seed-doc";
 import { createBacklogFeature } from "./features/backlog/backlog.js?v=20260714-linked-bug-percent";
 import { createBoardFeature } from "./features/board/board.js?v=20260714-linked-bug-percent";
 import { createBugsFeature } from "./features/bugs/bugs.js?v=20260714-attachment-delete";
@@ -1332,7 +1332,7 @@ function showRichTextImageSelection(image, editor) {
   if (!usesPopover) (hostDialog || document.body).appendChild(overlay);
   hostDialog?.classList.add("rich-image-selection-open");
 
-  const position = () => positionRichTextImageSelection(overlay, image);
+  const position = () => positionRichTextImageSelection(overlay, image, editor);
   const handleOutsidePointer = event => {
     if (event.target === image || overlay.contains(event.target)) return;
     closeRichTextImageSelection();
@@ -1445,7 +1445,7 @@ function continueRichTextImageResize(event) {
   if (!width) return;
 
   applyRichTextImageWidth(selection.image, width);
-  positionRichTextImageSelection(selection.overlay, selection.image);
+  positionRichTextImageSelection(selection.overlay, selection.image, selection.editor);
 }
 
 function finishRichTextImageResize(event) {
@@ -1469,12 +1469,38 @@ function richTextImageResizeVector(direction, aspectRatio) {
   };
 }
 
-function positionRichTextImageSelection(overlay, image) {
+function positionRichTextImageSelection(overlay, image, editor) {
   const rect = image.getBoundingClientRect();
+  const editorRect = editor.getBoundingClientRect();
+  const clipViewport = editor.closest(".dialog-body, .app-shell");
+  const clipViewportRect = clipViewport?.getBoundingClientRect();
+  const toolbar = editor.previousElementSibling?.matches?.(".rich-tools")
+    ? editor.previousElementSibling
+    : null;
+  const toolbarRect = toolbar?.getBoundingClientRect();
+  const handleClearance = 8;
+  const visibleLeft = Math.max(0, editorRect.left, clipViewportRect?.left ?? 0);
+  const visibleTop = Math.max(0, editorRect.top, clipViewportRect?.top ?? 0, toolbarRect?.bottom ?? 0);
+  const visibleRight = Math.min(window.innerWidth, editorRect.right, clipViewportRect?.right ?? window.innerWidth);
+  const visibleBottom = Math.min(window.innerHeight, editorRect.bottom, clipViewportRect?.bottom ?? window.innerHeight);
+
   overlay.style.left = `${rect.left}px`;
   overlay.style.top = `${rect.top}px`;
   overlay.style.width = `${rect.width}px`;
   overlay.style.height = `${rect.height}px`;
+
+  const isVisible = rect.right + handleClearance > visibleLeft
+    && rect.left - handleClearance < visibleRight
+    && rect.bottom + handleClearance > visibleTop
+    && rect.top - handleClearance < visibleBottom;
+  overlay.hidden = !isVisible;
+  if (!isVisible) return;
+
+  const clipTop = Math.max(-handleClearance, visibleTop - rect.top);
+  const clipRight = Math.max(-handleClearance, rect.right - visibleRight);
+  const clipBottom = Math.max(-handleClearance, rect.bottom - visibleBottom);
+  const clipLeft = Math.max(-handleClearance, visibleLeft - rect.left);
+  overlay.style.clipPath = `inset(${clipTop}px ${clipRight}px ${clipBottom}px ${clipLeft}px)`;
 }
 
 function deleteRichTextImage(image) {

@@ -1,0 +1,19 @@
+Project Management Tool (PMT):  Day 27 of Codex Agentic AI Coding
+-----------------------------------------------------------------
+Total Dev Time in Hours:  36
+
+AI Instructions
+--------------
+Design Methodology:
+	KISS (Keep It Simple Stupid) - The simpler the better.  Avoid over-engineering.  Avoid unnecessary complexity.  Avoid unnecessary features.  Avoid unnecessary bells and whistles.  Avoid unnecessary abstractions.  Avoid unnecessary patterns.  Avoid unnecessary frameworks.  Avoid unnecessary libraries.  Avoid unnecessary dependencies.  Avoid unnecessary code.  Avoid unnecessary files.  Avoid unnecessary folders.  Avoid unnecessary classes.  Avoid unnecessary methods.  Avoid unnecessary variables.
+
+Testing Approach:
+	In addition to your normal testing, be sure to inform me if I have to recompile the .Net portion of the project or just Press Ctrl + F5 on the browser to reload to see the latest changes.  If making CSS / image changes, ensure that I will encounter no caching issue when testing in the browser.
+
+If making changes to the database, that affects existing users see database-versioning.md under the docs folder.
+
+Review and Feedback
+-------------------
+1.) In the RTE, when an image is selected and the resize handles are visible, it is going on top of the toolbar and on top of PMT in general.  Contain it within the RTE's viewport and below the toolbar.
+2.) In the About page in the 2D section, move the PMT Version number above the credit line.
+3.) In the PMT project, there are already Documentations in it as apart of the seeding.  Can you create another permanent / seed Documentation regarding 3D visualization and the flyby.  Create it in the same style, image and formatting, as the existing seed Documentation that PMT already has.

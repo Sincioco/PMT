@@ -128,7 +128,7 @@ Use clearly named temporary records and remove them after validation.
 - [ ] Create Documentation with a Project, rich text, list, link, and image/attachment.
 - [ ] Mark Documentation private, sign in as a different administrator, and confirm the document is absent from Cards, Treeview, filters, About, direct Documentation URLs, exports, attachment/history data, and audit views.
 - [ ] As that administrator, confirm guessed direct update, delete, parent, conversion, add-attachment, and delete-attachment requests for the private document are rejected. Sign back in as its creator and confirm those permitted actions still work.
-- [ ] In an RTE, open an image menu and choose Select; confirm eight resize handles appear, dragging a corner or midpoint keeps the image proportional and anchored at its upper-left, clicking outside removes the handles, and the saved size remains after reopening.
+- [ ] In an RTE, open an image menu and choose Select; confirm eight resize handles appear, stay inside the visible editor viewport and below the sticky RTE toolbar while scrolling, keep the image proportional and anchored at its upper-left when dragged from a corner or midpoint, disappear when clicking outside, and preserve the saved size after reopening.
 - [ ] Open it and confirm read-only mode is the default.
 - [ ] Edit it and confirm Created and Last Edited dates display correctly.
 - [ ] Confirm links open in a new tab.
@@ -163,7 +163,7 @@ Use clearly named temporary records and remove them after validation.
 - [ ] Create one referenced and one unreferenced disposable upload, scan for orphan files, and confirm only the unreferenced file is offered. Add a database reference after preview and confirm the final recheck skips that file.
 - [ ] Click an orphaned filename and confirm it opens through the Maintenance preview endpoint in a new tab without changing its selected-for-deletion state. Confirm raster images render, SVG/HTML/XML and unknown extensions open as plain text instead of returning 404, and scripted content cannot execute or navigate under the PMT origin.
 - [ ] In Settings > Development, confirm Clear PMT and Clear All Except PMT preserve and detach private Documentation/Logs. Confirm Clear Users and Restore Initial Seed Data refuse to run while another user owns private content.
-- [ ] Permanently delete the disposable PMT seed Project, click Restore PMT Seed Data, and confirm PMT returns while LMS, HLS, users, permissions, holidays, and detached private content remain unchanged. Confirm a second restore attempt is refused while code `PMT` exists.
+- [ ] Permanently delete the disposable PMT seed Project, click Restore PMT Seed Data, and confirm PMT returns while LMS, HLS, users, permissions, holidays, and detached private content remain unchanged. Confirm `PMT About 3D Visualization and Flyby` returns under `PMT Current Demo Readiness` with its image, summary, and three-item control list. Confirm a second restore attempt is refused while code `PMT` exists.
 - [ ] As a non-admin, confirm recycle-bin, preview/purge, upload scan, and upload-reference recheck requests are rejected.
 - [ ] Do not run destructive Development reset actions unless specifically testing them.
 

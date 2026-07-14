@@ -338,6 +338,16 @@ VALUES
     NULL,
     @Now,
     @Now
+),
+(
+    @PmtProject,
+    @PmtSprint5,
+    N'PMT About 3D Visualization and Flyby',
+    N'<p><img src="/assets/docs/pmt-doc-about-3d-flyby-v2.jpg?v=20260715-about-3d-seed" alt="Extruded PMT logo surrounded by golden looped flyby paths with mouse-look and WASD control diagrams"></p><p>The About page turns current PMT data into an interactive 3D gallery. Its automated flyby moves through the PMT logo and project visualizations, while mouse and keyboard controls let the viewer explore the scene.</p><ul><li>Follow the continuous cinematic route through the PMT logo, charts, Documentation, and Kanban views.</li><li>Hold the left mouse button to look around, use the wheel to zoom, and use WASD with Q and E to move.</li><li>Press Space to pause or resume, Enter to restart the sequence, and ? to show the controls.</li></ul>',
+    @Sin,
+    NULL,
+    @Now,
+    @Now
 );
 
 DECLARE @PmtCurrentDemoDoc INT = (SELECT [BlogId] FROM [pmt].[Blogs] WHERE [ProjectId] = @PmtProject AND [Title] = N'PMT Current Demo Readiness');
@@ -350,7 +360,8 @@ WHERE [ProjectId] = @PmtProject
 (
     N'PMT Day 7 - Navigation and Sprint Metrics',
     N'PMT Day 8 - Documentation Card Cleanup',
-    N'PMT Reorder Design Note'
+    N'PMT Reorder Design Note',
+    N'PMT About 3D Visualization and Flyby'
 );
 
 UPDATE [pmt].[Blogs]

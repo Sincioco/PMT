@@ -6,7 +6,7 @@ As of July 14, 2026, every BDO and other known PMT instance has successfully app
 
 Future work does not need new upgrade compatibility for database versions before 1.10. Keep the released migrations and combined wrappers through Version 1.10 unchanged as historical release artifacts, but start future migrations from Version 1.10 or the immediately preceding deployed version.
 
-The current source tree's rebuild scripts represent Version 1.14. Version 1.11 enforces Scrum ownership while preserving owner-only private Logs, Version 1.12 saves requested Project codes exactly while allowing an administrator to explicitly reclaim a code held by an archived Project, Version 1.13 adds administrator-only Maintenance preview/purge and final upload-reference checks, and Version 1.14 makes private Documentation and private Logs owner-only throughout the application SQL contract, including for administrators:
+The current source tree's rebuild scripts represent Version 1.15. Version 1.11 enforces Scrum ownership while preserving owner-only private Logs, Version 1.12 saves requested Project codes exactly while allowing an administrator to explicitly reclaim a code held by an archived Project, Version 1.13 adds administrator-only Maintenance preview/purge and final upload-reference checks, Version 1.14 makes private Documentation and private Logs owner-only throughout the application SQL contract, including for administrators, and Version 1.15 adds the permanent About 3D visualization and flyby seed Documentation for existing installations:
 
 - `Sql/01_CreateDatabase.sql`
 - `Sql/02_CreateStoredProcedures.sql`
@@ -18,7 +18,7 @@ The current source tree's rebuild scripts represent Version 1.14. Version 1.11 e
 
 Fresh-database rebuilds and forward migrations beginning with `PMT_1.10_to_1.11.sql` record the installed source version in the database-level `PMT_DatabaseVersion` extended property. The historical Version 1.10 baseline may legitimately have no `PMT_DatabaseVersion` property; identify it by `PMT_SecurityRoleDefaultsVersion = 1.10`. That separate property remains `1.10` after later upgrades because it tracks the last version that changed Role defaults, not the overall database version.
 
-To upgrade an existing BDO or other known installation from the Version 1.10 deployed baseline, follow `Sql/Migrations/2026-07-15 - PMT - BDO Migration Scripts.html`. Back up the database, application, configuration, and upload storage as one rollback set; keep PMT offline; then apply `Sql/Migrations/PMT_1.10_to_1.11.sql`, `Sql/Migrations/PMT_1.11_to_1.12.sql`, `Sql/Migrations/PMT_1.12_to_1.13.sql`, and `Sql/Migrations/PMT_1.13_to_1.14.sql` in that order in SQLCMD mode. Verify `PMT_DatabaseVersion` after every step and deploy the matching application only after Version 1.14 and the data-preservation checks succeed. If preflight finds Version 1.11, 1.12, or 1.13, stop and investigate the partial deployment before resuming with only the immediately following migration. Fresh development or demo databases may use the rebuild scripts. Existing user databases must be upgraded with forward migrations; do not treat a source-tree rebuild change as proof that production has been upgraded.
+To upgrade an existing BDO or other known installation from the Version 1.10 deployed baseline, follow the complete `Sql/Migrations/2026-07-15 - PMT - BDO Migration Scripts.html` runbook. Back up the database, application, configuration, and upload storage as one rollback set. Verify `PMT_DatabaseVersion` after every step and deploy the matching application only after Version 1.15, the expected single Documentation/history addition, and all data-preservation checks succeed. If preflight finds an intermediate version, follow the runbook's stop-and-investigate rule before resuming with only the immediately following migration. Fresh development or demo databases may use the rebuild scripts. Existing user databases must be upgraded with forward migrations; do not treat a source-tree rebuild change as proof that production has been upgraded.
 
 ## Required Rule
 
@@ -45,6 +45,7 @@ PMT_1.10_to_1.11.sql
 PMT_1.11_to_1.12.sql
 PMT_1.12_to_1.13.sql
 PMT_1.13_to_1.14.sql
+PMT_1.14_to_1.15.sql
 ```
 
 Use one migration per released database-version step. Do not edit an already released migration except to add comments that do not change behavior.

@@ -459,8 +459,81 @@ test("RTE Select shows eight proportional image resize handles", async ({ page }
   expect(await handles.evaluateAll(elements => elements.map(element => element.dataset.richImageResizeHandle)))
     .toEqual(["nw", "n", "ne", "e", "se", "s", "sw", "w"]);
 
-  const before = await image.boundingBox();
+  const originalEditorStyle = await editor.getAttribute("style");
+  await editor.evaluate(element => {
+    element.style.height = "96px";
+    element.style.minHeight = "96px";
+    element.scrollTop = element.scrollHeight;
+  });
+
+  await expect.poll(() => selection.evaluate(overlay => {
+    const editorElement = document.querySelector("#editorDialog [data-rich='descriptionHtml']");
+    const toolbarElement = editorElement.previousElementSibling?.matches?.(".rich-tools")
+      ? editorElement.previousElementSibling
+      : null;
+    const clipViewport = editorElement.closest(".dialog-body, .app-shell");
+    const editorRect = editorElement.getBoundingClientRect();
+    const toolbarRect = toolbarElement?.getBoundingClientRect();
+    const clipViewportRect = clipViewport?.getBoundingClientRect();
+    const allowed = {
+      left: Math.max(0, editorRect.left, clipViewportRect?.left ?? 0),
+      top: Math.max(0, editorRect.top, clipViewportRect?.top ?? 0, toolbarRect?.bottom ?? 0),
+      right: Math.min(window.innerWidth, editorRect.right, clipViewportRect?.right ?? window.innerWidth),
+      bottom: Math.min(window.innerHeight, editorRect.bottom, clipViewportRect?.bottom ?? window.innerHeight)
+    };
+    const handleElements = [...overlay.querySelectorAll("[data-rich-image-resize-handle]")];
+    const topHandle = overlay.querySelector("[data-rich-image-resize-handle='n']");
+    const topHandleRect = topHandle.getBoundingClientRect();
+    const topHandlePoint = {
+      x: topHandleRect.left + (topHandleRect.width / 2),
+      y: topHandleRect.top + (topHandleRect.height / 2)
+    };
+    const visibleHandlePoints = handleElements
+      .map(handle => {
+        const rect = handle.getBoundingClientRect();
+        return {
+          handle,
+          x: rect.left + (rect.width / 2),
+          y: rect.top + (rect.height / 2)
+        };
+      })
+      .filter(point => document.elementsFromPoint(point.x, point.y).includes(point.handle));
+
+    return topHandlePoint.y < allowed.top
+      && !document.elementsFromPoint(topHandlePoint.x, topHandlePoint.y).includes(topHandle)
+      && visibleHandlePoints.length > 0
+      && visibleHandlePoints.every(point => point.x >= allowed.left
+        && point.x <= allowed.right
+        && point.y >= allowed.top
+        && point.y <= allowed.bottom);
+  })).toBe(true);
+
+  await editor.evaluate((element, style) => {
+    if (style === null) element.removeAttribute("style");
+    else element.setAttribute("style", style);
+    element.scrollTop = 0;
+    element.dispatchEvent(new Event("scroll"));
+  }, originalEditorStyle);
+
   const bottomRightHandle = selection.locator("[data-rich-image-resize-handle='se']");
+  await expect.poll(async () => {
+    const imageBox = await image.boundingBox();
+    const currentHandleBox = await bottomRightHandle.boundingBox();
+    if (!imageBox || !currentHandleBox) return false;
+
+    const handleCenter = {
+      x: currentHandleBox.x + (currentHandleBox.width / 2),
+      y: currentHandleBox.y + (currentHandleBox.height / 2)
+    };
+    const handleIsClickable = await bottomRightHandle.evaluate((handle, point) =>
+      document.elementsFromPoint(point.x, point.y).includes(handle), handleCenter);
+
+    return handleIsClickable
+      && Math.abs(handleCenter.x - (imageBox.x + imageBox.width)) <= 8
+      && Math.abs(handleCenter.y - (imageBox.y + imageBox.height)) <= 8;
+  }).toBe(true);
+
+  const before = await image.boundingBox();
   const handleBox = await bottomRightHandle.boundingBox();
   expect(before).not.toBeNull();
   expect(handleBox).not.toBeNull();
