@@ -24,7 +24,6 @@ import {
   writePreference
 } from "../../core/preferences.js?v=20260708-documentation-privacy";
 import {
-  currentUser,
   currentUserId
 } from "../../core/authentication.js";
 import { state } from "../../core/store.js";
@@ -52,7 +51,7 @@ const documentationViewModes = new Set(["cards", "tree"]);
 const documentationTreeGroups = new Set(["all", "project", "project-sprint"]);
 const documentationTreeLayouts = new Set(["hierarchy", "flat"]);
 const documentationTreeSorts = new Set(["latest", "oldest", "name"]);
-const documentationVisibilityModes = new Set(["both", "private", "public", "admin-all"]);
+const documentationVisibilityModes = new Set(["both", "private", "public"]);
 const documentationImportMetadataTitle = "PMT Import Process Meta Data";
 const documentationImportSchema = "pmt.documentation.export.v1";
 const documentationInvalidImportMessage = "The file cannot be imported because it is not a valid PMT export file.";
@@ -249,11 +248,12 @@ export function createDocumentationFeature({
         return true;
       }
 
-      viewDocumentation(state.blogs.find(blog => blog.id === id));
+      viewDocumentation(documentationBlogForCurrentUser(id));
       return true;
     }
     if (action === "export-blog") {
-      openDocumentationExportDialog(state.blogs.find(blog => blog.id === id), { showToast });
+      const blog = documentationBlogForCurrentUser(id);
+      if (blog) openDocumentationExportDialog(blog, { showToast });
       return true;
     }
     if (action === "edit-blog") {
@@ -262,7 +262,8 @@ export function createDocumentationFeature({
         return true;
       }
 
-      editBlog(state.blogs.find(blog => blog.id === id));
+      const blog = documentationBlogForCurrentUser(id);
+      if (blog) editBlog(blog);
       return true;
     }
     if (action === "cancel-documentation-inline-edit") {
@@ -276,6 +277,7 @@ export function createDocumentationFeature({
       return true;
     }
     if (action === "delete-blog") {
+      if (!documentationBlogForCurrentUser(id)) return true;
       if (selectedTreeBlogId === id) selectedTreeBlogId = 0;
       if (editingTreeBlogId === id) editingTreeBlogId = 0;
       await deleteItem(`/api/blogs/${id}`, "Delete this document?");
@@ -443,9 +445,9 @@ export function createDocumentationFeature({
   }
 
   function viewDocumentation(blog) {
-    if (!blog) return;
+    if (!documentationBlogAccessibleToCurrentUser(blog)) return;
     const author = userById(blog.createdByUserId);
-    const parent = state.blogs.find(item => item.id === blog.parentBlogId);
+    const parent = documentationBlogForCurrentUser(blog.parentBlogId);
 
     const modal = document.createElement("dialog");
     modal.className = "dialog detail-dialog documentation-readonly-dialog";
@@ -501,10 +503,10 @@ export function createDocumentationFeature({
       const editButton = event.target.closest("[data-edit-readonly-blog]");
       if (!editButton) return;
 
-      const selectedBlog = state.blogs.find(item => item.id === Number(editButton.dataset.editReadonlyBlog));
+      const selectedBlog = documentationBlogForCurrentUser(editButton.dataset.editReadonlyBlog);
       modal.close();
       modal.remove();
-      editBlog(selectedBlog);
+      if (selectedBlog) editBlog(selectedBlog);
     });
     modal.addEventListener("cancel", () => modal.remove());
     modal.showModal();
@@ -513,7 +515,7 @@ export function createDocumentationFeature({
   }
 
   function openDocumentationFullScreen(blogId) {
-    const blog = state.blogs.find(item => item.id === Number(blogId || 0));
+    const blog = documentationBlogForCurrentUser(blogId);
     if (!blog) return;
 
     documentationViewMode = "tree";
@@ -525,7 +527,7 @@ export function createDocumentationFeature({
   }
 
   function viewDocumentationById(blogId) {
-    const blog = state.blogs.find(item => item.id === Number(blogId || 0));
+    const blog = documentationBlogForCurrentUser(blogId);
     if (!blog) return false;
 
     if (documentationViewMode === "tree") {
@@ -537,7 +539,7 @@ export function createDocumentationFeature({
   }
 
   function selectDocumentationTreeBlog(blogId, options = {}) {
-    const blog = state.blogs.find(item => item.id === Number(blogId || 0));
+    const blog = documentationBlogForCurrentUser(blogId);
     if (!blog) return false;
 
     if (options.syncFilters) {
@@ -569,7 +571,7 @@ export function createDocumentationFeature({
   }
 
   function startDocumentationInlineEdit(blogId) {
-    const blog = state.blogs.find(item => item.id === Number(blogId || 0));
+    const blog = documentationBlogForCurrentUser(blogId);
     if (!blog) return;
 
     documentationViewMode = "tree";
@@ -594,6 +596,8 @@ export function createDocumentationFeature({
   }
 
   function editBlog(blog = {}) {
+    if (!blog) return;
+    if (blog.id && !documentationBlogAccessibleToCurrentUser(blog)) return;
     const rememberedProjectId = projectById(documentationEntryProjectId)
       ? documentationEntryProjectId
       : 0;
@@ -724,7 +728,7 @@ export function createDocumentationFeature({
       writePreference(preferenceKeys.documentationTreeSearch, documentationTreeSearch);
       await loadState?.();
 
-      const importedBlog = state.blogs.find(blog => blog.id === selectedTreeBlogId);
+      const importedBlog = documentationBlogForCurrentUser(selectedTreeBlogId);
       if (importedBlog) expandDocumentationTreePath(importedBlog);
 
       renderDocumentation();
@@ -867,7 +871,7 @@ export function createDocumentationFeature({
   function documentationInlineEditorBlog(form) {
     const blogId = Number(form.dataset.blogId || 0);
     if (blogId === newDocumentationInlineBlogId) return documentationNewInlineDraft();
-    return state.blogs.find(item => item.id === blogId);
+    return documentationBlogForCurrentUser(blogId);
   }
 
   function documentationInlineEditorHasChanges(form, blog) {
@@ -887,6 +891,7 @@ export function createDocumentationFeature({
   async function saveDocumentationInlineEditor(form, options = {}) {
     const blogId = Number(form.dataset.blogId || 0);
     const isNewBlog = blogId === newDocumentationInlineBlogId || blogId <= 0;
+    if (!isNewBlog && !documentationBlogForCurrentUser(blogId)) return false;
     const projectId = optionalNumberValue(form, "projectId");
     const sprintId = projectId ? optionalNumberValue(form, "sprintId") : null;
 
@@ -914,7 +919,7 @@ export function createDocumentationFeature({
       writePreference(preferenceKeys.documentationEntryProject, documentationEntryProjectId);
       writePreference(preferenceKeys.documentationEntrySprint, documentationEntrySprintId);
       await loadState?.();
-      const selectedBlog = state.blogs.find(item => item.id === selectedTreeBlogId);
+      const selectedBlog = documentationBlogForCurrentUser(selectedTreeBlogId);
       if (selectedBlog) {
         documentationProjectId = selectedBlog.projectId || 0;
         documentationTreeSearch = "";
@@ -1075,7 +1080,10 @@ function documentationImportExistingBlog(sourceDocument, { title, bodyHtml }) {
   const sourceBlogId = Number(sourceDocument?.id || 0);
   const sourceTitle = normalizeDocumentationImportText(sourceDocument?.title || title);
   const sourceBody = normalizeDocumentationImportText(documentationTextFromHtml(sourceDocument?.bodyHtml || bodyHtml));
-  const editableBlogs = state.blogs.filter(() => canAccessResource("Documentation", "Update"));
+  const editableBlogs = state.blogs.filter(blog =>
+    documentationBlogAccessibleToCurrentUser(blog)
+    && canAccessResource("Documentation", "Update")
+  );
   const existingBlog = (sourceBlogId ? editableBlogs.find(blog => blog.id === sourceBlogId) : null)
     || editableBlogs.find(blog =>
       sourceTitle
@@ -1157,7 +1165,8 @@ function documentationImportParentBlogId(parentMetadata, { projectId, sprintId, 
   const sourceId = Number(parentMetadata.id || 0);
   const sourceTitle = normalizeDocumentationImportText(parentMetadata.title);
   const candidates = state.blogs.filter(blog =>
-    blog.id !== targetBlogId
+    documentationBlogAccessibleToCurrentUser(blog)
+    && blog.id !== targetBlogId
     && Number(blog.projectId || 0) === Number(projectId || 0)
     && Number(blog.sprintId || 0) === Number(sprintId || 0)
   );
@@ -1244,7 +1253,7 @@ function documentationTextFromHtml(html) {
 }
 
 function documentationImportFallbackContext() {
-  const selectedBlog = state.blogs.find(blog => blog.id === Number(selectedTreeBlogId || 0));
+  const selectedBlog = documentationBlogForCurrentUser(selectedTreeBlogId);
   const selectedProjectId = projectById(Number(selectedBlog?.projectId || 0))?.id
     || projectById(documentationProjectId)?.id
     || projectById(documentationEntryProjectId)?.id
@@ -1287,34 +1296,36 @@ function normalizeDocumentationVisibilityFilter() {
 }
 
 function documentationVisibilityValue(value) {
-  const nextValue = documentationVisibilityModes.has(value) ? value : "both";
-  if (nextValue === "admin-all" && !currentUser().isAdmin) return "both";
-  return nextValue;
+  return documentationVisibilityModes.has(value) ? value : "both";
 }
 
 function documentationVisibilityOptions() {
-  const options = [
+  return [
     { value: "both", text: "Both" },
     { value: "private", text: "Private" },
     { value: "public", text: "Public" }
   ];
-
-  if (currentUser().isAdmin) {
-    options.push({ value: "admin-all", text: "All" });
-  }
-
-  return options;
 }
 
 function documentationBlogVisibleByPrivacyFilter(blog) {
-  const isPrivate = blog.isPrivate !== false;
-  const isOwner = documentationOwnedByCurrentUser(blog);
+  if (!documentationBlogAccessibleToCurrentUser(blog)) return false;
 
-  if (documentationVisibilityFilter === "admin-all" && currentUser().isAdmin) return true;
-  if (documentationVisibilityFilter === "private") return isPrivate && isOwner;
+  const isPrivate = blog.isPrivate !== false;
+
+  if (documentationVisibilityFilter === "private") return isPrivate;
   if (documentationVisibilityFilter === "public") return !isPrivate;
 
-  return !isPrivate || isOwner;
+  return true;
+}
+
+function documentationBlogAccessibleToCurrentUser(blog) {
+  return Boolean(blog)
+    && (blog.isPrivate === false || documentationOwnedByCurrentUser(blog));
+}
+
+function documentationBlogForCurrentUser(blogId) {
+  const blog = state.blogs.find(item => item.id === Number(blogId || 0));
+  return documentationBlogAccessibleToCurrentUser(blog) ? blog : null;
 }
 
 function documentationOwnedByCurrentUser(blog) {
@@ -1476,7 +1487,9 @@ function expandDocumentationTreePath(blog) {
   }
 
   const keyPrefix = documentationTreeKeyPrefixForBlog(blog);
-  const byId = new Map(state.blogs.map(item => [item.id, item]));
+  const byId = new Map(state.blogs
+    .filter(documentationBlogAccessibleToCurrentUser)
+    .map(item => [item.id, item]));
   let current = blog;
   while (current) {
     collapsedTreeKeys.delete(`${keyPrefix}:doc:${current.id}`);
@@ -1669,7 +1682,7 @@ function documentationTreePreviewHtml(blog) {
   ) return documentationTreeInlineEditorHtml(blog);
 
   const wasEdited = documentationWasEdited(blog);
-  const parent = state.blogs.find(item => item.id === blog.parentBlogId);
+  const parent = documentationBlogForCurrentUser(blog.parentBlogId);
 
   return `
     <div class="documentation-tree-preview-head">
@@ -1696,7 +1709,7 @@ function documentationTreePreviewHtml(blog) {
 function documentationTreeInlineEditorHtml(blog) {
   const isNewBlog = blog.id === newDocumentationInlineBlogId;
   const wasEdited = documentationWasEdited(blog);
-  const parent = state.blogs.find(item => item.id === blog.parentBlogId);
+  const parent = documentationBlogForCurrentUser(blog.parentBlogId);
   const selectedProjectId = blog.projectId || "";
   const selectedSprintId = blog.sprintId || "";
   const metaHtml = isNewBlog
@@ -1849,7 +1862,8 @@ function documentationParentOptions(projectId, sprintId, blogId = 0) {
     { id: "", title: "No parent" },
     ...state.blogs
       .filter(blog =>
-        !excludedIds.has(blog.id)
+        documentationBlogAccessibleToCurrentUser(blog)
+        && !excludedIds.has(blog.id)
         && Number(blog.projectId || 0) === numericProjectId
         && Number(blog.sprintId || 0) === numericSprintId
       )
@@ -1865,7 +1879,7 @@ function documentationDescendantIds(blogId) {
   let added = true;
   while (added) {
     added = false;
-    state.blogs.forEach(blog => {
+    state.blogs.filter(documentationBlogAccessibleToCurrentUser).forEach(blog => {
       if (blog.parentBlogId && (blog.parentBlogId === blogId || descendants.has(blog.parentBlogId)) && !descendants.has(blog.id)) {
         descendants.add(blog.id);
         added = true;

@@ -81,8 +81,9 @@ The default role names are `Admin`, `Dev - Developer`, `QA - Quality Assurance`,
 - Project, Sprint, Scrum, Documentation, WFH, Settings, import, export, upload, and invitation endpoints enforce the matching resource right in SQL. Task and attachment checks resolve Dev Task versus Bug Tracking before enforcing the action.
 - Finished Sprints are read-only for non-admin users, including work-item writes into that Sprint.
 - A non-admin may update, import into, or delete only a Scrum entry they own and must also have the matching Scrum right. Administrators may manage any shared Scrum entry. Only administrators may pin Scrum entries.
+- Private means owner-only throughout PMT's normal UI and API data flow. Administrator status never bypasses a private item's ownership boundary.
 - Personal Log rows are private to their owner: `[pmt].[GetAppState]` never returns another user's private Log rows, including to an administrator, and no user or administrator may update/delete another user's private Log entry through PMT.
-- Documentation update/delete actions follow their configured resource permissions.
+- Private Documentation is returned, viewed, exported, updated, deleted, attached to, or used as a parent only for its creator. Public Documentation continues to follow the configured Documentation resource permissions.
 - Existing users may edit themselves, but non-admin users cannot change their own role/admin state. User creation and deletion are administrator-only once users exist.
 - Lookup values, holidays, and development reset actions are administrator-only.
 - Attachment permission follows the Update right for the owning Dev Task, Bug, or Documentation resource.
@@ -117,17 +118,18 @@ Permission regressions are covered in `tests/js/permissions.test.mjs`.
 
 ## Maintenance and permanent deletion
 
-- PMT Maintenance is administrator-only and lists the five true soft-deletion markers: archived Projects and deleted Sprints, work items, Documentation, and Scrum/Log entries.
+- PMT Maintenance is administrator-only and lists the five true soft-deletion markers: archived Projects and deleted Sprints, work items, Documentation, and Scrum/Log entries. It never lists another owner's private Documentation or private Log.
 - All listed recycle-bin rows are selected by default, but an administrator may select individual rows before requesting a preview.
 - Permanent deletion always requires a server-generated exact preview. The purge recomputes the plan in one transaction and refuses to continue if any previewed item is missing or any new cascade item appears.
-- Permanently deleting an archived Project also deletes its Sprints, work items, Documentation, and Scrum entries. Owner-only private Logs are preserved and detached from that Project unless the already-deleted private Log was selected directly.
-- Private Log preview rows never expose their body, owner, category, or Log date. Private Documentation preview rows likewise use an opaque ID label and never expose the title, body, owner, or Project association.
+- Permanently deleting an archived Project also deletes its Sprints, work items, public Documentation, and Scrum entries. Private Documentation and private Logs are preserved and detached from that Project unless the current administrator owns and explicitly selected the already-deleted private item.
+- A private item owned by the current administrator still uses an opaque Maintenance preview label. Other owners' private items are absent from inventory, previews, cascades, and purge plans.
 - Task dependencies, memberships, attachment links, history, and audit rows belonging to purged items are removed before their parent records. Shared attachment metadata remains while another task or document still references it.
 - Orphan-file deletion rechecks every selected relative path against current and soft-deleted database content immediately before deleting the disk file. Root-relative, deployed path-base, and absolute URL occurrences all count as references.
+- Development Project cleanup preserves and detaches every private Documentation and private Log row. Clearing users or restoring initial seed data is refused while another user owns private content; a full rebuild performed directly in SQL remains an administrator-controlled database operation.
 
 ## Persistence and preferences
 
-Authentication is currently an internal-trust mechanism: the browser stores a user ID and sends it as `X-PMT-UserId`. It is not cookie- or token-based authentication.
+Authentication is currently an internal-trust mechanism: the browser stores a user ID and sends it as `X-PMT-UserId`. Privacy rules prevent normal PMT UI/API flows from returning another owner's private content, but this identity header is not a tamper-resistant cookie or token and private upload URLs are not encrypted.
 
 | Area | `localStorage` keys |
 | --- | --- |

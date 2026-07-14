@@ -85,12 +85,21 @@ About Page
 ----------
 In the About Page, move the credits line on the 2D page higher as it is being blocked by the panel that reads "Preparing 3D Gallery"
 
+Settings -> Development
+-----------------------
+In the Development screen in Settings, could you add a separate button for re-seeding PMT (restoring PMT back from the intial seed data) in case it has been deleted and the admin wants it back. Add it below the current "Restore Initial Seed Data" button.
+
+Settings -> Maintenance Screen
+------------------------------
+Can you make the orphaned files clickable and open in a new tab?  So the admin can view the file, if they want to, before permanently deleting.
+
+
 BDO Migration to the latest PMT on July 15, 2026
 ------------------------------------------------
 1.) Provide me a step by step guide on how to migrate BDO tomorrow (July 15, 2026) to the latest version of PMT with out losing any data or breaking the current install.
 2.) In fact, can you very quickly test the migration scripts you have.  You can drop the database and recreate it.  There is no restriction we are in a developer's machine right now.
 3.) Baseline the database, apply your migration scripts in sequence and make sure there are no SQL errors and test to make sure that basic and new functionalities work.
-4.) If there are any mistakes in your migration scripts, correct them and re-test and until it works as expectec.
+4.) If there are any mistakes in your migration scripts, correct them and re-test and until it works as expected.
 5.) When you are done, provide a self-contained .html file named "2026-07-15 - PMT - BDO Migration Scripts.html" in the Sql\Migrations folder you already have.
 
-Update any markdowns files you need to from today's updates / sessions. When you are done and all tests are green.  You may commit and push to the repo before you proceed to the next task.
+Update any markdowns files you need to from today's updates / sessions. When you are done and all tests are green.  You may commit and push to the repo if there are not more tasks in the queue.

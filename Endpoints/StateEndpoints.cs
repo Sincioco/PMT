@@ -12,7 +12,7 @@ internal static class StateEndpoints
     {
         app.MapGet("/api/state", async (HttpContext context, SqlPmtStore store, CancellationToken cancellationToken) =>
         {
-            return Results.Ok(await store.GetStateAsync(CurrentUserId(context), cancellationToken));
+            return Results.Ok(await store.GetStateAsync(ExplicitCurrentUserId(context), cancellationToken));
         });
 
         return app;

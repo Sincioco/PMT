@@ -1,5 +1,5 @@
 /*
-    PMT Version 1.13 stored procedures.
+    PMT Version 1.14 stored procedures.
     The application uses ADO.NET and calls these procedures directly.
     The SQL is intentionally explicit so future maintainers can trace each save action.
 */
@@ -288,7 +288,6 @@ CREATE OR ALTER PROCEDURE [pmt].[GetAppState]
 AS
 BEGIN
     SET NOCOUNT ON;
-    DECLARE @CurrentUserIsAdmin BIT = [pmt].[IsAdmin](@CurrentUserId);
 
     -- The API reads these result sets in this exact order.
     SELECT
@@ -364,7 +363,21 @@ BEGIN
         [TaskType],
         [Code],
         [Title],
-        [DescriptionHtml],
+        CASE
+            WHEN EXISTS
+            (
+                SELECT 1
+                FROM [pmt].[Blogs] AS [LinkedBlog]
+                WHERE [LinkedBlog].[BlogId] = [WorkTask].[LinkedBlogId]
+                  AND [LinkedBlog].[IsPrivate] = 1
+                  AND [LinkedBlog].[CreatedByUserId] <> @CurrentUserId
+            ) THEN N''
+            WHEN [WorkTask].[LinkedBlogId] IS NULL
+             AND [WorkTask].[DescriptionHtml] LIKE N'%data-documentation-link=%'
+             AND [WorkTask].[DescriptionHtml] LIKE N'%View generated Documentation:%'
+                THEN N''
+            ELSE [WorkTask].[DescriptionHtml]
+        END AS [DescriptionHtml],
         [StepsToReproduceHtml],
         [ActualResultHtml],
         [ExpectedResultHtml],
@@ -382,10 +395,20 @@ BEGIN
         [CreatedByUserId],
         [UpdatedByUserId],
         [LinkedBugTaskId],
-        [LinkedBlogId],
+        CASE
+            WHEN [WorkTask].[LinkedBlogId] IS NULL THEN NULL
+            WHEN EXISTS
+            (
+                SELECT 1
+                FROM [pmt].[Blogs] AS [LinkedBlog]
+                WHERE [LinkedBlog].[BlogId] = [WorkTask].[LinkedBlogId]
+                  AND ([LinkedBlog].[IsPrivate] = 0 OR [LinkedBlog].[CreatedByUserId] = @CurrentUserId)
+            ) THEN [WorkTask].[LinkedBlogId]
+            ELSE NULL
+        END AS [LinkedBlogId],
         [CreatedAt],
         [UpdatedAt]
-    FROM [pmt].[WorkTasks]
+    FROM [pmt].[WorkTasks] AS [WorkTask]
     WHERE [IsDeleted] = 0
     ORDER BY [SortOrder], [TaskId];
 
@@ -415,7 +438,28 @@ BEGIN
         [ByteLength],
         [UploadedByUserId],
         [CreatedAt]
-    FROM [pmt].[Attachments]
+    FROM [pmt].[Attachments] AS [Attachment]
+    WHERE NOT EXISTS
+          (
+              SELECT 1
+              FROM [pmt].[BlogAttachments] AS [BlogAttachment]
+              WHERE [BlogAttachment].[AttachmentId] = [Attachment].[AttachmentId]
+          )
+       OR EXISTS
+          (
+              SELECT 1
+              FROM [pmt].[TaskAttachments] AS [TaskAttachment]
+              WHERE [TaskAttachment].[AttachmentId] = [Attachment].[AttachmentId]
+          )
+       OR EXISTS
+          (
+              SELECT 1
+              FROM [pmt].[BlogAttachments] AS [BlogAttachment]
+              INNER JOIN [pmt].[Blogs] AS [Blog]
+                  ON [Blog].[BlogId] = [BlogAttachment].[BlogId]
+              WHERE [BlogAttachment].[AttachmentId] = [Attachment].[AttachmentId]
+                AND ([Blog].[IsPrivate] = 0 OR [Blog].[CreatedByUserId] = @CurrentUserId)
+          )
     ORDER BY [CreatedAt] DESC;
 
     SELECT
@@ -449,7 +493,17 @@ BEGIN
         [BlogId],
         [ProjectId],
         [SprintId],
-        [ParentBlogId],
+        CASE
+            WHEN [Blog].[ParentBlogId] IS NULL THEN NULL
+            WHEN EXISTS
+            (
+                SELECT 1
+                FROM [pmt].[Blogs] AS [ParentBlog]
+                WHERE [ParentBlog].[BlogId] = [Blog].[ParentBlogId]
+                  AND ([ParentBlog].[IsPrivate] = 0 OR [ParentBlog].[CreatedByUserId] = @CurrentUserId)
+            ) THEN [Blog].[ParentBlogId]
+            ELSE NULL
+        END AS [ParentBlogId],
         [Title],
         [BodyHtml],
         [IsPrivate],
@@ -457,9 +511,10 @@ BEGIN
         [CreatedByUserId],
         [CreatedAt],
         [UpdatedAt]
-    FROM [pmt].[Blogs]
-    WHERE [IsDeleted] = 0
-      AND ([IsPrivate] = 0 OR [CreatedByUserId] = @CurrentUserId OR @CurrentUserIsAdmin = 1)
+    FROM [pmt].[Blogs] AS [Blog]
+    WHERE [Blog].[IsDeleted] = 0
+      -- Private Documentation is owner-only even for administrators.
+      AND ([Blog].[IsPrivate] = 0 OR [Blog].[CreatedByUserId] = @CurrentUserId)
     ORDER BY [UpdatedAt] DESC;
 
     SELECT
@@ -472,7 +527,7 @@ BEGIN
         FROM [pmt].[Blogs] AS [Blog]
         WHERE [Blog].[BlogId] = [BlogAttachment].[BlogId]
           AND [Blog].[IsDeleted] = 0
-          AND ([Blog].[IsPrivate] = 0 OR [Blog].[CreatedByUserId] = @CurrentUserId OR @CurrentUserIsAdmin = 1)
+          AND ([Blog].[IsPrivate] = 0 OR [Blog].[CreatedByUserId] = @CurrentUserId)
     )
     ORDER BY [BlogAttachment].[BlogId], [BlogAttachment].[AttachmentId];
 
@@ -489,7 +544,7 @@ BEGIN
         FROM [pmt].[Blogs] AS [Blog]
         WHERE [Blog].[BlogId] = [BlogHistory].[BlogId]
           AND [Blog].[IsDeleted] = 0
-          AND ([Blog].[IsPrivate] = 0 OR [Blog].[CreatedByUserId] = @CurrentUserId OR @CurrentUserIsAdmin = 1)
+          AND ([Blog].[IsPrivate] = 0 OR [Blog].[CreatedByUserId] = @CurrentUserId)
     )
     ORDER BY [BlogHistory].[CreatedAt] DESC;
 
@@ -506,15 +561,40 @@ BEGIN
         [UserId],
         [CreatedAt]
     FROM [pmt].[AuditEvents] AS [AuditEvent]
-    WHERE [AuditEvent].[EntityType] <> N'Blog'
-       OR EXISTS
-       (
-            SELECT 1
-            FROM [pmt].[Blogs] AS [Blog]
-            WHERE [Blog].[BlogId] = [AuditEvent].[EntityId]
-              AND [Blog].[IsDeleted] = 0
-              AND ([Blog].[IsPrivate] = 0 OR [Blog].[CreatedByUserId] = @CurrentUserId OR @CurrentUserIsAdmin = 1)
-       )
+    WHERE
+        (
+            [AuditEvent].[EntityType] NOT IN (N'Blog', N'DevLog')
+            AND NOT
+            (
+                [AuditEvent].[EntityType] = N'Task'
+                AND [AuditEvent].[Action] = N'Converted to Document'
+                AND [AuditEvent].[UserId] <> @CurrentUserId
+            )
+        )
+       OR
+        (
+            [AuditEvent].[EntityType] = N'Blog'
+            AND EXISTS
+            (
+                SELECT 1
+                FROM [pmt].[Blogs] AS [Blog]
+                WHERE [Blog].[BlogId] = [AuditEvent].[EntityId]
+                  AND [Blog].[IsDeleted] = 0
+                  AND ([Blog].[IsPrivate] = 0 OR [Blog].[CreatedByUserId] = @CurrentUserId)
+            )
+        )
+       OR
+        (
+            [AuditEvent].[EntityType] = N'DevLog'
+            AND EXISTS
+            (
+                SELECT 1
+                FROM [pmt].[DevLogs] AS [DevLog]
+                WHERE [DevLog].[DevLogId] = [AuditEvent].[EntityId]
+                  AND [DevLog].[IsDeleted] = 0
+                  AND ([DevLog].[LogType] <> N'Log' OR [DevLog].[UserId] = @CurrentUserId)
+            )
+        )
     ORDER BY [AuditEvent].[CreatedAt] DESC, [AuditEvent].[AuditEventId] DESC;
 
     SELECT
@@ -3758,6 +3838,7 @@ BEGIN
         LEFT JOIN [pmt].[Projects] AS [Project]
             ON [Project].[ProjectId] = [Blog].[ProjectId]
         WHERE [Blog].[IsDeleted] = 1
+          AND ([Blog].[IsPrivate] = 0 OR [Blog].[CreatedByUserId] = @CurrentUserId)
 
         UNION ALL
 
@@ -3788,6 +3869,7 @@ BEGIN
         LEFT JOIN [pmt].[Projects] AS [Project]
             ON [Project].[ProjectId] = [DevLog].[ProjectId]
         WHERE [DevLog].[IsDeleted] = 1
+          AND ([DevLog].[LogType] <> N'Log' OR [DevLog].[UserId] = @CurrentUserId)
     ) AS [RecycleItem]
     ORDER BY [RecycleItem].[DeletedAt] DESC, [RecycleItem].[ItemType], [RecycleItem].[Label];
 END;
@@ -3943,7 +4025,8 @@ BEGIN
         INNER JOIN @RequestedItems AS [Requested]
             ON [Requested].[ItemType] = N'Blog'
            AND [Requested].[ItemId] = [Blog].[BlogId]
-        WHERE [Blog].[IsDeleted] = 1;
+        WHERE [Blog].[IsDeleted] = 1
+          AND ([Blog].[IsPrivate] = 0 OR [Blog].[CreatedByUserId] = @CurrentUserId);
 
         IF @FoundCount <> @ExpectedCount
         BEGIN
@@ -3959,7 +4042,8 @@ BEGIN
         INNER JOIN @RequestedItems AS [Requested]
             ON [Requested].[ItemType] = N'DevLog'
            AND [Requested].[ItemId] = [DevLog].[DevLogId]
-        WHERE [DevLog].[IsDeleted] = 1;
+        WHERE [DevLog].[IsDeleted] = 1
+          AND ([DevLog].[LogType] <> N'Log' OR [DevLog].[UserId] = @CurrentUserId);
 
         IF @FoundCount <> @ExpectedCount
         BEGIN
@@ -4036,7 +4120,9 @@ BEGIN
             ON [Requested].[ItemType] = N'Blog'
            AND [Requested].[ItemId] = [Blog].[BlogId]
         LEFT JOIN [pmt].[Projects] AS [Project] WITH (UPDLOCK, HOLDLOCK)
-            ON [Project].[ProjectId] = [Blog].[ProjectId];
+            ON [Project].[ProjectId] = [Blog].[ProjectId]
+        WHERE [Blog].[IsPrivate] = 0
+           OR [Blog].[CreatedByUserId] = @CurrentUserId;
 
         INSERT INTO @Plan ([ItemType], [ItemId], [Label], [Details], [DeletedAt], [IsCascade])
         SELECT
@@ -4067,7 +4153,9 @@ BEGIN
             ON [Requested].[ItemType] = N'DevLog'
            AND [Requested].[ItemId] = [DevLog].[DevLogId]
         LEFT JOIN [pmt].[Projects] AS [Project] WITH (UPDLOCK, HOLDLOCK)
-            ON [Project].[ProjectId] = [DevLog].[ProjectId];
+            ON [Project].[ProjectId] = [DevLog].[ProjectId]
+        WHERE [DevLog].[LogType] <> N'Log'
+           OR [DevLog].[UserId] = @CurrentUserId;
 
         INSERT INTO @Plan ([ItemType], [ItemId], [Label], [Details], [DeletedAt], [IsCascade])
         SELECT
@@ -4140,7 +4228,8 @@ BEGIN
         INNER JOIN @Plan AS [ProjectPlan]
             ON [ProjectPlan].[ItemType] = N'Project'
            AND [ProjectPlan].[ItemId] = [Project].[ProjectId]
-        WHERE NOT EXISTS
+        WHERE [Blog].[IsPrivate] = 0
+          AND NOT EXISTS
         (
             SELECT 1
             FROM @Plan AS [Existing]
@@ -4387,6 +4476,30 @@ BEGIN
                   AND [SprintPlan].[ItemId] = [Blog].[SprintId]
             );
 
+            -- Private Documentation and private Logs remain owner-only and
+            -- survive Project cleanup unless their owner selected them directly.
+            UPDATE [Blog]
+            SET [ProjectId] = NULL,
+                [SprintId] = NULL,
+                [UpdatedByUserId] = @CurrentUserId,
+                [UpdatedAt] = SYSUTCDATETIME()
+            FROM [pmt].[Blogs] AS [Blog]
+            WHERE [Blog].[IsPrivate] = 1
+              AND EXISTS
+              (
+                  SELECT 1
+                  FROM @Plan AS [ProjectPlan]
+                  WHERE [ProjectPlan].[ItemType] = N'Project'
+                    AND [ProjectPlan].[ItemId] = [Blog].[ProjectId]
+              )
+              AND NOT EXISTS
+              (
+                  SELECT 1
+                  FROM @Plan AS [BlogPlan]
+                  WHERE [BlogPlan].[ItemType] = N'Blog'
+                    AND [BlogPlan].[ItemId] = [Blog].[BlogId]
+              );
+
             -- Preserve private Logs and any future non-Scrum Log types by
             -- detaching every Project Log that is not in the exact purge plan.
             UPDATE [DevLog]
@@ -4558,7 +4671,7 @@ BEGIN
 
     DECLARE @Paths TABLE
     (
-        [RelativePath] NVARCHAR(1000) NOT NULL PRIMARY KEY,
+        [RelativePath] NVARCHAR(1000) NOT NULL,
         [Needle] NVARCHAR(1600) NOT NULL,
         [HtmlNeedle] NVARCHAR(3000) NOT NULL
     );
@@ -4918,15 +5031,22 @@ CREATE OR ALTER PROCEDURE [pmt].[UpsertBlog]
 AS
 BEGIN
     SET NOCOUNT ON;
+    SET XACT_ABORT ON;
 
     DECLARE @Now DATETIME2(0) = SYSUTCDATETIME();
     DECLARE @OwnerUserId INT;
+    DECLARE @ExistingIsPrivate BIT;
     DECLARE @OldProjectId INT;
     DECLARE @OldSprintId INT;
     DECLARE @ParentProjectId INT;
     DECLARE @ParentSprintId INT;
+    DECLARE @ParentOwnerUserId INT;
+    DECLARE @ParentIsPrivate BIT;
     DECLARE @CycleBlogId INT;
     DECLARE @Action NVARCHAR(80);
+
+    BEGIN TRY
+        BEGIN TRANSACTION;
 
     SET @Title = NULLIF(LTRIM(RTRIM(@Title)), N'');
 
@@ -4967,12 +5087,15 @@ BEGIN
     BEGIN
         SELECT
             @ParentProjectId = [ProjectId],
-            @ParentSprintId = [SprintId]
-        FROM [pmt].[Blogs]
+            @ParentSprintId = [SprintId],
+            @ParentOwnerUserId = [CreatedByUserId],
+            @ParentIsPrivate = [IsPrivate]
+        FROM [pmt].[Blogs] WITH (UPDLOCK, HOLDLOCK)
         WHERE [BlogId] = @ParentBlogId
           AND [IsDeleted] = 0;
 
-        IF @ParentProjectId IS NULL AND @ParentSprintId IS NULL AND NOT EXISTS (SELECT 1 FROM [pmt].[Blogs] WHERE [BlogId] = @ParentBlogId AND [IsDeleted] = 0)
+        IF @ParentOwnerUserId IS NULL
+           OR (@ParentIsPrivate = 1 AND @ParentOwnerUserId <> @CurrentUserId)
         BEGIN
             THROW 50078, 'Parent document was not found.', 1;
         END;
@@ -4994,7 +5117,7 @@ BEGIN
             SELECT @CycleBlogId =
             (
                 SELECT [ParentBlogId]
-                FROM [pmt].[Blogs]
+                FROM [pmt].[Blogs] WITH (UPDLOCK, HOLDLOCK)
                 WHERE [BlogId] = @CycleBlogId
                   AND [IsDeleted] = 0
             );
@@ -5037,15 +5160,26 @@ BEGIN
     BEGIN
         SELECT
             @OwnerUserId = [CreatedByUserId],
+            @ExistingIsPrivate = [IsPrivate],
             @OldProjectId = [ProjectId],
             @OldSprintId = [SprintId]
-        FROM [pmt].[Blogs]
+        FROM [pmt].[Blogs] WITH (UPDLOCK, HOLDLOCK)
         WHERE [BlogId] = @BlogId
           AND [IsDeleted] = 0;
 
         IF @OwnerUserId IS NULL
         BEGIN
             THROW 50072, 'Blog was not found.', 1;
+        END;
+
+        IF @ExistingIsPrivate = 1 AND @OwnerUserId <> @CurrentUserId
+        BEGIN
+            THROW 50072, 'Blog was not found.', 1;
+        END;
+
+        IF @IsPrivate = 1 AND @OwnerUserId <> @CurrentUserId
+        BEGIN
+            THROW 50073, 'You cannot make another user''s document private.', 1;
         END;
 
         IF [pmt].[CanEdit](@OwnerUserId, @CurrentUserId) = 0
@@ -5084,6 +5218,17 @@ BEGIN
     VALUES (@BlogId, @Action, @CurrentUserId, @CurrentUserId, @Now);
 
     EXEC [pmt].[WriteAudit] N'Blog', @BlogId, @Action, @Title, @CurrentUserId;
+
+        COMMIT TRANSACTION;
+    END TRY
+    BEGIN CATCH
+        IF XACT_STATE() <> 0
+        BEGIN
+            ROLLBACK TRANSACTION;
+        END;
+
+        THROW;
+    END CATCH;
 END;
 GO
 
@@ -5135,13 +5280,6 @@ BEGIN
         THROW 50084, 'You cannot convert this task to documentation.', 1;
     END;
 
-    IF @LinkedBlogId IS NOT NULL
-       AND EXISTS (SELECT 1 FROM [pmt].[Blogs] WHERE [BlogId] = @LinkedBlogId AND [IsDeleted] = 0)
-    BEGIN
-        SET @BlogId = @LinkedBlogId;
-        RETURN;
-    END;
-
     IF NULLIF(LTRIM(RTRIM(REPLACE(REPLACE(REPLACE(ISNULL(@DescriptionHtml, N''), N'&nbsp;', N' '), N'<p><br></p>', N''), N'<br>', N''))), N'') IS NULL
     BEGIN
         THROW 50085, 'Task description is empty.', 1;
@@ -5168,8 +5306,21 @@ BEGIN
         END;
 
         IF @LinkedBlogId IS NOT NULL
-           AND EXISTS (SELECT 1 FROM [pmt].[Blogs] WHERE [BlogId] = @LinkedBlogId AND [IsDeleted] = 0)
+           AND EXISTS (SELECT 1 FROM [pmt].[Blogs] WITH (UPDLOCK, HOLDLOCK) WHERE [BlogId] = @LinkedBlogId AND [IsDeleted] = 0)
         BEGIN
+            IF EXISTS
+            (
+                SELECT 1
+                FROM [pmt].[Blogs] WITH (UPDLOCK, HOLDLOCK)
+                WHERE [BlogId] = @LinkedBlogId
+                  AND [IsDeleted] = 0
+                  AND [IsPrivate] = 1
+                  AND [CreatedByUserId] <> @CurrentUserId
+            )
+            BEGIN
+                THROW 50086, 'Linked documentation is not available.', 1;
+            END;
+
             SET @BlogId = @LinkedBlogId;
             COMMIT TRANSACTION;
             RETURN;
@@ -5268,15 +5419,23 @@ CREATE OR ALTER PROCEDURE [pmt].[DeleteBlog]
 AS
 BEGIN
     SET NOCOUNT ON;
+    SET XACT_ABORT ON;
 
     DECLARE @OwnerUserId INT;
+    DECLARE @IsPrivate BIT;
 
-    SELECT @OwnerUserId = [CreatedByUserId]
-    FROM [pmt].[Blogs]
+    BEGIN TRY
+        BEGIN TRANSACTION;
+
+    SELECT
+        @OwnerUserId = [CreatedByUserId],
+        @IsPrivate = [IsPrivate]
+    FROM [pmt].[Blogs] WITH (UPDLOCK, HOLDLOCK)
     WHERE [BlogId] = @BlogId
       AND [IsDeleted] = 0;
 
     IF @OwnerUserId IS NULL
+       OR (@IsPrivate = 1 AND @OwnerUserId <> @CurrentUserId)
     BEGIN
         THROW 50074, 'Blog was not found.', 1;
     END;
@@ -5299,8 +5458,20 @@ BEGIN
     WHERE [ParentBlogId] = @BlogId
       AND [IsDeleted] = 0;
 
+    IF @IsPrivate = 1
+    BEGIN
+        DELETE [AuditEvent]
+        FROM [pmt].[AuditEvents] AS [AuditEvent]
+        INNER JOIN [pmt].[WorkTasks] AS [Task]
+            ON [Task].[TaskId] = [AuditEvent].[EntityId]
+           AND [Task].[LinkedBlogId] = @BlogId
+        WHERE [AuditEvent].[EntityType] = N'Task'
+          AND [AuditEvent].[Action] = N'Converted to Document';
+    END;
+
     UPDATE [pmt].[WorkTasks]
-    SET [LinkedBlogId] = NULL,
+    SET [DescriptionHtml] = CASE WHEN @IsPrivate = 1 THEN NULL ELSE [DescriptionHtml] END,
+        [LinkedBlogId] = NULL,
         [UpdatedByUserId] = @CurrentUserId,
         [UpdatedAt] = SYSUTCDATETIME()
     WHERE [LinkedBlogId] = @BlogId
@@ -5310,6 +5481,17 @@ BEGIN
     VALUES (@BlogId, N'Deleted', @CurrentUserId, @CurrentUserId);
 
     EXEC [pmt].[WriteAudit] N'Blog', @BlogId, N'Deleted', N'Blog hidden from active views.', @CurrentUserId;
+
+        COMMIT TRANSACTION;
+    END TRY
+    BEGIN CATCH
+        IF XACT_STATE() <> 0
+        BEGIN
+            ROLLBACK TRANSACTION;
+        END;
+
+        THROW;
+    END CATCH;
 END;
 GO
 
@@ -5385,15 +5567,23 @@ CREATE OR ALTER PROCEDURE [pmt].[AddBlogAttachment]
 AS
 BEGIN
     SET NOCOUNT ON;
+    SET XACT_ABORT ON;
 
     DECLARE @OwnerUserId INT;
+    DECLARE @IsPrivate BIT;
 
-    SELECT @OwnerUserId = [CreatedByUserId]
-    FROM [pmt].[Blogs]
+    BEGIN TRY
+        BEGIN TRANSACTION;
+
+    SELECT
+        @OwnerUserId = [CreatedByUserId],
+        @IsPrivate = [IsPrivate]
+    FROM [pmt].[Blogs] WITH (UPDLOCK, HOLDLOCK)
     WHERE [BlogId] = @BlogId
       AND [IsDeleted] = 0;
 
     IF @OwnerUserId IS NULL
+       OR (@IsPrivate = 1 AND @OwnerUserId <> @CurrentUserId)
     BEGIN
         THROW 50082, 'Blog was not found.', 1;
     END;
@@ -5431,6 +5621,17 @@ BEGIN
     VALUES (@BlogId, N'Attachment Added', @CurrentUserId, @CurrentUserId);
 
     EXEC [pmt].[WriteAudit] N'Blog', @BlogId, N'Attachment Added', @FileName, @CurrentUserId;
+
+        COMMIT TRANSACTION;
+    END TRY
+    BEGIN CATCH
+        IF XACT_STATE() <> 0
+        BEGIN
+            ROLLBACK TRANSACTION;
+        END;
+
+        THROW;
+    END CATCH;
 END;
 GO
 
@@ -5510,16 +5711,24 @@ CREATE OR ALTER PROCEDURE [pmt].[DeleteBlogAttachment]
 AS
 BEGIN
     SET NOCOUNT ON;
+    SET XACT_ABORT ON;
 
     DECLARE @FileName NVARCHAR(260);
+    DECLARE @OwnerUserId INT;
+    DECLARE @IsPrivate BIT;
 
-    IF NOT EXISTS
-    (
-        SELECT 1
-        FROM [pmt].[Blogs]
-        WHERE [BlogId] = @BlogId
-          AND [IsDeleted] = 0
-    )
+    BEGIN TRY
+        BEGIN TRANSACTION;
+
+    SELECT
+        @OwnerUserId = [CreatedByUserId],
+        @IsPrivate = [IsPrivate]
+    FROM [pmt].[Blogs] WITH (UPDLOCK, HOLDLOCK)
+    WHERE [BlogId] = @BlogId
+      AND [IsDeleted] = 0;
+
+    IF @OwnerUserId IS NULL
+       OR (@IsPrivate = 1 AND @OwnerUserId <> @CurrentUserId)
     BEGIN
         THROW 50233, 'Blog was not found.', 1;
     END;
@@ -5562,6 +5771,17 @@ BEGIN
     VALUES (@BlogId, N'Attachment Deleted', @CurrentUserId, @CurrentUserId);
 
     EXEC [pmt].[WriteAudit] N'Blog', @BlogId, N'Attachment Deleted', @FileName, @CurrentUserId;
+
+        COMMIT TRANSACTION;
+    END TRY
+    BEGIN CATCH
+        IF XACT_STATE() <> 0
+        BEGIN
+            ROLLBACK TRANSACTION;
+        END;
+
+        THROW;
+    END CATCH;
 END;
 GO
 
@@ -5776,7 +5996,8 @@ BEGIN
     INSERT INTO @BlogIds ([BlogId])
     SELECT [BlogId]
     FROM [pmt].[Blogs]
-    WHERE [ProjectId] IN (SELECT [ProjectId] FROM @ProjectIds);
+    WHERE [ProjectId] IN (SELECT [ProjectId] FROM @ProjectIds)
+      AND [IsPrivate] = 0;
 
     BEGIN TRANSACTION;
 
@@ -5805,8 +6026,24 @@ BEGIN
     DELETE FROM [pmt].[BlogHistory]
     WHERE [BlogId] IN (SELECT [BlogId] FROM @BlogIds);
 
+    UPDATE [pmt].[DevLogs]
+    SET [ProjectId] = NULL,
+        [UpdatedByUserId] = @CurrentUserId,
+        [UpdatedAt] = SYSUTCDATETIME()
+    WHERE [ProjectId] IN (SELECT [ProjectId] FROM @ProjectIds)
+      AND [LogType] = N'Log';
+
     DELETE FROM [pmt].[DevLogs]
-    WHERE [ProjectId] IN (SELECT [ProjectId] FROM @ProjectIds);
+    WHERE [ProjectId] IN (SELECT [ProjectId] FROM @ProjectIds)
+      AND [LogType] <> N'Log';
+
+    UPDATE [pmt].[Blogs]
+    SET [ProjectId] = NULL,
+        [SprintId] = NULL,
+        [UpdatedByUserId] = @CurrentUserId,
+        [UpdatedAt] = SYSUTCDATETIME()
+    WHERE [ProjectId] IN (SELECT [ProjectId] FROM @ProjectIds)
+      AND [IsPrivate] = 1;
 
     UPDATE [pmt].[Blogs]
     SET [ParentBlogId] = NULL
@@ -5928,6 +6165,25 @@ BEGIN
 
     BEGIN TRANSACTION;
 
+    IF EXISTS
+       (
+           SELECT 1
+           FROM [pmt].[DevLogs] WITH (UPDLOCK, HOLDLOCK)
+           WHERE [LogType] = N'Log'
+             AND [UserId] <> @AdminUserId
+       )
+       OR EXISTS
+       (
+           SELECT 1
+           FROM [pmt].[Blogs] WITH (UPDLOCK, HOLDLOCK)
+           WHERE [IsPrivate] = 1
+             AND [CreatedByUserId] <> @AdminUserId
+       )
+    BEGIN
+        ROLLBACK TRANSACTION;
+        THROW 50255, 'Users cannot be cleared while another user owns private content.', 1;
+    END;
+
     UPDATE [pmt].[Users]
     SET
         [FirstName] = N'Louiery',
@@ -6029,5 +6285,36 @@ BEGIN
         @AdminUserId;
 
     COMMIT TRANSACTION;
+END;
+GO
+
+CREATE OR ALTER PROCEDURE [pmt].[RequireDevelopmentSeedRestore]
+    @CurrentUserId INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    IF [pmt].[IsAdmin](@CurrentUserId) = 0
+    BEGIN
+        THROW 50110, 'Only an administrator can restore initial seed data.', 1;
+    END;
+
+    IF EXISTS
+       (
+           SELECT 1
+           FROM [pmt].[DevLogs]
+           WHERE [LogType] = N'Log'
+             AND [UserId] <> @CurrentUserId
+       )
+       OR EXISTS
+       (
+           SELECT 1
+           FROM [pmt].[Blogs]
+           WHERE [IsPrivate] = 1
+             AND [CreatedByUserId] <> @CurrentUserId
+       )
+    BEGIN
+        THROW 50257, 'Initial seed data cannot be restored while another user owns private content.', 1;
+    END;
 END;
 GO

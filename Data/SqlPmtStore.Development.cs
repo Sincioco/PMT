@@ -45,6 +45,12 @@ public sealed partial class SqlPmtStore
         await using var connection = await OpenConnectionAsync(cancellationToken);
         await EnsureCurrentUserIsAdminAsync(connection, currentUserId, cancellationToken);
 
+        await using (var preflight = StoredProcedure(connection, "[pmt].[RequireDevelopmentSeedRestore]"))
+        {
+            Add(preflight, "@CurrentUserId", currentUserId);
+            await preflight.ExecuteNonQueryAsync(cancellationToken);
+        }
+
         foreach (var scriptPath in scriptPaths)
         {
             if (!File.Exists(scriptPath))

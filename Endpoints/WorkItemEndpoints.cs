@@ -76,7 +76,7 @@ internal static class WorkItemEndpoints
 
         app.MapPost("/api/tasks/{id:int}/convert-to-document", async (int id, HttpContext context, SqlPmtStore store, CancellationToken cancellationToken) =>
         {
-            var currentUserId = CurrentUserId(context);
+            var currentUserId = ExplicitCurrentUserId(context);
             await store.RequireTaskPermissionAsync(currentUserId, id, "Update", false, cancellationToken);
             await store.RequirePermissionAsync(currentUserId, "Documentation", "Create", cancellationToken);
             var blogId = await store.ConvertTaskToBlogAsync(id, currentUserId, cancellationToken);

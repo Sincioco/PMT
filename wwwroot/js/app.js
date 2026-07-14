@@ -48,12 +48,12 @@ import {
 } from "./core/preferences.js?v=20260711-task-dialog-customize";
 import { state } from "./core/store.js";
 import { appUrl } from "./shared/app-urls.js";
-import { createAboutFeature } from "./features/about/about.js?v=20260714-database-1-13";
+import { createAboutFeature } from "./features/about/about.js?v=20260714-database-1-14";
 import { createBacklogFeature } from "./features/backlog/backlog.js?v=20260714-linked-bug-percent";
 import { createBoardFeature } from "./features/board/board.js?v=20260714-linked-bug-percent";
 import { createBugsFeature } from "./features/bugs/bugs.js?v=20260714-attachment-delete";
 import { createDashboardFeature } from "./features/dashboard/dashboard.js?v=20260714-linked-bug-percent";
-import { createDocumentationFeature } from "./features/documentation/documentation.js?v=20260714-attachment-delete";
+import { createDocumentationFeature } from "./features/documentation/documentation.js?v=20260714-private-owner-only";
 import {
   createGanttFeature,
   currentSprintForProject,

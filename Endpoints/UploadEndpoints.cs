@@ -40,7 +40,7 @@ internal static class UploadEndpoints
 
         app.MapPost("/api/blogs/{id:int}/attachments", async (int id, HttpRequest request, HttpContext context, IWebHostEnvironment environment, IConfiguration configuration, SqlPmtStore store, CancellationToken cancellationToken) =>
         {
-            var currentUserId = CurrentUserId(context);
+            var currentUserId = ExplicitCurrentUserId(context);
             await store.RequirePermissionAsync(currentUserId, "Documentation", "Update", cancellationToken);
             var upload = await SaveUploadAsync("blogs", request, environment, configuration, cancellationToken);
             var attachmentId = await store.AddBlogAttachmentAsync(id, upload, currentUserId, cancellationToken);
@@ -67,7 +67,7 @@ internal static class UploadEndpoints
 
         app.MapDelete("/api/blogs/{id:int}/attachments/{attachmentId:int}", async (int id, int attachmentId, HttpContext context, IWebHostEnvironment environment, IConfiguration configuration, SqlPmtStore store, CancellationToken cancellationToken) =>
         {
-            var currentUserId = CurrentUserId(context);
+            var currentUserId = ExplicitCurrentUserId(context);
             await store.RequirePermissionAsync(currentUserId, "Documentation", "Update", cancellationToken);
             var url = await store.DeleteBlogAttachmentAsync(id, attachmentId, currentUserId, cancellationToken);
             DeleteStoredUpload(url, environment, configuration);
