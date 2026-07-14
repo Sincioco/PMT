@@ -16,7 +16,7 @@ const WIDE_CHART_END_OFFSET_RATIO = 0.34;
 const DRONE_POSITION_RESPONSE = 6;
 const DRONE_HEADING_RESPONSE = 1.15;
 const DRONE_FOV_RESPONSE = 1.4;
-const EVENT_HEADING_RESPONSE = 7;
+const EVENT_HEADING_RESPONSE = 1.4;
 const IDLE_DURATION_MS = 5000;
 const RETURN_DURATION_MS = 3250;
 const CONTROL_HINT_DURATION_MS = 5000;
@@ -39,6 +39,7 @@ const INSPECTION_FOV = 52;
 const PORTAL_FOV = 40;
 const DOCUMENTATION_FOV = 60;
 const KANBAN_FOV = 62;
+const MT_GAP_PATH_COMPENSATION_X = -0.267;
 const SEQUENCE_4_END_PHASE = 0.3;
 const SEQUENCE_5_END_PHASE = 0.52;
 const SEQUENCE_6_END_PHASE = 0.76;
@@ -160,7 +161,8 @@ export function createAboutFlightController({
   root.dataset.aboutChartInspection = "random-dev-then-random-bug";
   root.dataset.aboutPmtPortalFlyby = "once-per-sequence-cycle";
   root.dataset.aboutMinimumForwardLookDot = MIN_FORWARD_LOOK_DOT.toFixed(3);
-  root.dataset.aboutEventExecution = "sequences-4-through-7-ufo-background";
+  root.dataset.aboutEventExecution = "sequences-5-through-7-logo-approach-ufo-background";
+  root.dataset.aboutEventHeadingResponse = String(EVENT_HEADING_RESPONSE);
   root.dataset.aboutLevelHorizonFallback = "true";
   root.dataset.aboutPostPortalTargeting = "continuous-dev-target";
   root.dataset.aboutPostPortalTransition = "horizontal-bearing-then-chart-elevation";
@@ -229,6 +231,7 @@ export function createAboutFlightController({
   root.dataset.aboutKanbanInspectionAttention = "0";
   root.dataset.aboutTeamInspectionAttention = "0";
   root.dataset.aboutMtGapFlythroughAttention = "0";
+  root.dataset.aboutMtGapPathCompensationX = String(MT_GAP_PATH_COMPENSATION_X);
   root.dataset.aboutGalleryReturnDurationSeconds = String(GALLERY_RETURN_DURATION_SECONDS);
   root.dataset.aboutBugLandingDistance = String(DEV_LANDING_DISTANCE);
   root.dataset.aboutFlightSequenceStage = flightStage;
@@ -1364,7 +1367,7 @@ function createWideChartTraversal({
   };
 }
 
-function createSequence4Geometry({
+export function createSequence4Geometry({
   startPosition,
   initialPosition,
   logoTarget,
@@ -1409,6 +1412,9 @@ function createSequence4Geometry({
   const kanbanLookTarget = kanban.clone();
   kanbanLookTarget.y += Math.min(1.1, Number(kanbanHeight || 0) * 0.07);
   const mtGapFlightY = clampY(mtGap.y, minimumCameraY);
+  // Compensate for the Catmull-Rom tangent so the crossing itself stays in
+  // the narrow opening instead of drifting into a letter near z=0.
+  const mtGapFlightX = mtGap.x + MT_GAP_PATH_COMPENSATION_X;
   const mtGapLookTarget = point(
     mtGap.x,
     mtGapFlightY,
@@ -1435,8 +1441,8 @@ function createSequence4Geometry({
     point(-27, mtGapFlightY + 2.2, -13),
     point(-13, mtGapFlightY + 1.4, -17),
     point(mtGap.x - 5, mtGapFlightY + 0.5, -12),
-    point(mtGap.x, mtGapFlightY, -5),
-    point(mtGap.x, mtGapFlightY, 6.5),
+    point(mtGapFlightX, mtGapFlightY, -5),
+    point(mtGapFlightX, mtGapFlightY, 6.5),
     point(mtGap.x + 1.5, mtGapFlightY + 0.25, 13),
     point(initial.x + 2.5, initial.y + 1.1, documentation.z - 12),
     point(initial.x + 10, initial.y + 1.8, documentation.z - 5),

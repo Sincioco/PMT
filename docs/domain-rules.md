@@ -122,7 +122,7 @@ Authentication is currently an internal-trust mechanism: the browser stores a us
 | Area | `localStorage` keys |
 | --- | --- |
 | Authentication and shell | `pmt-auth-user`, `pmt-view`, `pmt-theme` |
-| About 3D scene | `pmt-about-alien-events-enabled`, `pmt-about-battle-pip-enabled` |
+| About 3D scene | `pmt-about-alien-events-enabled`, `pmt-about-track-alien-events-enabled`, `pmt-about-battle-pip-enabled` |
 | Board | `pmt-board-project`, `pmt-board-sprint`, `pmt-board-sort`, `pmt-board-statuses`, `pmt-board-hide-empty-columns`, `pmt-board-filters-visible` |
 | Road Map | `pmt-roadmap-project`, `pmt-roadmap-sprint`, `pmt-roadmap-sort`, `pmt-roadmap-show-dates`, `pmt-roadmap-show-details`, `pmt-roadmap-show-sprints` |
 | Gantt | `pmt-gantt-project`, `pmt-gantt-sprint`, `pmt-gantt-render-mode`, `pmt-gantt-sort`, `pmt-gantt-show-non-working-days` |

@@ -3,10 +3,10 @@ import {
   preferenceKeys,
   readBooleanPreference,
   writePreference
-} from "../../core/preferences.js?v=20260712-about-controls-123";
+} from "../../core/preferences.js?v=20260714-about-track-alien-events";
 import { RoomEnvironment } from "../../vendor/three/addons/environments/RoomEnvironment.js?v=0.185.1-pmt1";
 import { SVGLoader } from "../../vendor/three/addons/loaders/SVGLoader.js?v=0.185.1-pmt1";
-import { createAboutFlightController } from "./about-flight-controller.js?v=20260714-about-alien-camera";
+import { createAboutFlightController } from "./about-flight-controller.js?v=20260714-about-track-alien-events";
 import { createLogoLightningEffect } from "./about-lightning.js?v=20260712-about-kanban-parity-120";
 import {
   SPACE_BATTLE_DIALOGUE_LINGER_SECONDS,
@@ -31,10 +31,9 @@ const FLOOR_WIDTH = 220;
 const FLOOR_DEPTH = 180;
 const MIN_CAMERA_FLOOR_CLEARANCE = 1.55;
 const FALLBACK_PORTAL = new THREE.Vector2(1006.56, 443.3);
-const SEQUENCE_4_BACKGROUND_UFO_ENABLED = true;
-const SEQUENCE_4_LOGO_STRIKE_SECONDS = 5.2;
-const SEQUENCE_4_UFO_STRIKE_SECONDS = 16;
-const SEQUENCE_4_UFO_STRIKE_CHANCE = 0.5;
+const AUTOMATIC_ALIEN_LOGO_STRIKE_SECONDS = 5.2;
+const AUTOMATIC_ALIEN_UFO_STRIKE_SECONDS = 16;
+const AUTOMATIC_ALIEN_UFO_STRIKE_CHANCE = 0.5;
 
 export function createAboutScene({
   root,
@@ -98,14 +97,18 @@ export function createAboutScene({
   let manualUfoActiveUntil = Number.NEGATIVE_INFINITY;
   let manualAlienStrikeAt = Number.POSITIVE_INFINITY;
   let manualAlienStrikePending = false;
-  let sequence4UfoActive = false;
-  let sequence4UfoDraining = false;
-  let sequence4EventStartedAt = Number.NEGATIVE_INFINITY;
-  let sequence4LogoStrikeDone = false;
-  let sequence4UfoStrikePlanned = false;
-  let sequence4UfoStrikeDone = false;
+  let automaticAlienWindowActive = false;
+  let automaticUfoDraining = false;
+  let automaticAlienEventStartedAt = Number.NEGATIVE_INFINITY;
+  let automaticLogoStrikeDone = false;
+  let automaticUfoStrikePlanned = false;
+  let automaticUfoStrikeDone = false;
   let alienEventsEnabled = readBooleanPreference(
     preferenceKeys.aboutAlienEventsEnabled,
+    true
+  );
+  let trackAlienEventsEnabled = readBooleanPreference(
+    preferenceKeys.aboutTrackAlienEventsEnabled,
     true
   );
   let battlePictureInPictureEnabled = readBooleanPreference(
@@ -237,13 +240,14 @@ export function createAboutScene({
     intergalacticBattle.setAutomaticInterceptionsEnabled(true);
     intergalacticBattle.setEnabled(alienEventsEnabled);
     ufoEncounter.setEnabled(false, 0);
-    root.dataset.aboutCinematicEvents = "sequences-4-through-7-background-ufo-and-space-battle";
+    root.dataset.aboutCinematicEvents = "sequences-5-through-7-logo-approach-ufo-and-space-battle";
     root.dataset.aboutUfoEnabled = String(alienEventsEnabled);
-    root.dataset.aboutUfoSchedule = "sequences-4-through-7-background";
-    root.dataset.aboutUfoSequence4Active = "false";
+    root.dataset.aboutUfoSchedule = "sequences-5-through-7-logo-approach";
+    root.dataset.aboutAutomaticAlienEventStartSequence = "5";
+    root.dataset.aboutAutomaticAlienWindowActive = "false";
     root.dataset.aboutUfoCameraTracking = "false";
     root.dataset.aboutUfoCameraInfluence = "auto-logo-focus";
-    root.dataset.aboutUfoSequence4Playback = "full-background-animation";
+    root.dataset.aboutUfoAutomaticPlayback = "full-background-animation";
     root.dataset.aboutUfoDepartureCompletion = "finish-before-hide-even-after-lightning";
     root.dataset.aboutUfoDepartureDraining = "false";
     root.dataset.aboutIntergalacticBattle = "automatic-and-manual";
@@ -268,7 +272,7 @@ export function createAboutScene({
     root.dataset.aboutBattlePictureInPictureEnabled = String(battlePictureInPictureEnabled);
     root.dataset.aboutAutomaticBattlesEnabled = "true";
     root.dataset.aboutAlienBattleDefault = "automatic-interceptions";
-    root.dataset.aboutAlienCameraOverride = "auto-only-pmt-logo-focus";
+    root.dataset.aboutAlienCameraOverride = "toggleable-auto-only-pmt-logo-focus";
     root.dataset.aboutAlienCameraOverrideActive = "false";
     root.dataset.aboutAlienCameraOverrideAttention = "0.000";
     root.dataset.aboutAlienCameraOverrideTarget = "pmt-logo";
@@ -286,20 +290,23 @@ export function createAboutScene({
     root.dataset.aboutBattleDialogueLingerSeconds = String(SPACE_BATTLE_DIALOGUE_LINGER_SECONDS);
     root.dataset.aboutBattleDialogueLingering = "false";
     root.dataset.aboutLightningEnabled = "true";
-    root.dataset.aboutLightningSchedule = "sequences-4-through-7-background";
+    root.dataset.aboutLightningSchedule = "sequences-5-through-7-logo-approach";
     root.dataset.aboutLightningCameraInfluence = "none";
     root.dataset.aboutLightningSceneFlash = "dramatic";
     root.dataset.aboutLightningUfoStrike = "random";
-    root.dataset.aboutLightningUfoStrikeChance = String(SEQUENCE_4_UFO_STRIKE_CHANCE);
+    root.dataset.aboutLightningUfoStrikeChance = String(AUTOMATIC_ALIEN_UFO_STRIKE_CHANCE);
     root.dataset.aboutLightningUfoStrikePlanned = "false";
     root.dataset.aboutLightningActive = "false";
     root.dataset.aboutLightningStrikeCount = "0";
     root.dataset.aboutLightningUfoStrikeCount = "0";
     root.dataset.aboutLightningTarget = "";
-    root.dataset.aboutEventHotkeys = "A,L,C,U,R,M,0,P,1,2,3,4";
+    root.dataset.aboutEventHotkeys = "A,L,C,U,R,M,T,0,P,1,2,3,4";
     root.dataset.aboutAlienEventsEnabled = String(alienEventsEnabled);
     root.dataset.aboutAlienEventsToggleKey = "0";
     root.dataset.aboutAlienEventsPreferenceKey = preferenceKeys.aboutAlienEventsEnabled;
+    root.dataset.aboutTrackAlienEventsEnabled = String(trackAlienEventsEnabled);
+    root.dataset.aboutTrackAlienEventsToggleKey = "T";
+    root.dataset.aboutTrackAlienEventsPreferenceKey = preferenceKeys.aboutTrackAlienEventsEnabled;
     root.dataset.aboutBattlePictureInPictureToggleKey = "P";
     root.dataset.aboutBattlePictureInPicturePreferenceKey = preferenceKeys.aboutBattlePictureInPictureEnabled;
     root.dataset.aboutPreferenceStorage = "local-storage";
@@ -307,13 +314,13 @@ export function createAboutScene({
     root.dataset.aboutOriginalUfoAutomaticBattle = "suppressed";
     root.dataset.aboutBattleInterceptorHotkeys = "2:1,3:2,4:3";
     root.dataset.aboutRandomEventChoices = "alien,lightning,comet";
-    root.dataset.aboutEventCameraInfluence = "alien-auto-logo-focus-only";
+    root.dataset.aboutEventCameraInfluence = "alien-auto-logo-focus-when-tracking-enabled";
     root.dataset.aboutAnimationPauseScope = "flight-and-events";
     root.dataset.aboutManualEventCount = "0";
     root.dataset.aboutManualEventLast = "";
     root.dataset.aboutManualEventSourceKey = "";
     root.dataset.aboutAlienHotkeyLightning = "guaranteed";
-    root.dataset.aboutAlienHotkeyStrikeDelaySeconds = String(SEQUENCE_4_UFO_STRIKE_SECONDS);
+    root.dataset.aboutAlienHotkeyStrikeDelaySeconds = String(AUTOMATIC_ALIEN_UFO_STRIKE_SECONDS);
     root.dataset.aboutAlienHotkeyStrikePending = "false";
     root.dataset.aboutBattleHotkey = "M";
     root.dataset.aboutEnterEventReset = "clear-alien-presentations";
@@ -511,11 +518,13 @@ export function createAboutScene({
     }
 
     const encounterElapsed = experienceStarted ? (now - revealStartedAt) / 1000 : -1;
-    const sequence4Active = alienEventsEnabled
-      && SEQUENCE_4_BACKGROUND_UFO_ENABLED
-      && root.dataset.aboutFlightSequenceStage === "return-initial";
-    if (sequence4Active && !sequence4UfoActive) {
-      sequence4UfoDraining = false;
+    const automaticAlienWindow = isAutomaticAlienEventWindow(
+      alienEventsEnabled,
+      root.dataset.aboutFlightSequenceStage,
+      root.dataset.aboutActiveSequence
+    );
+    if (automaticAlienWindow && !automaticAlienWindowActive) {
+      automaticUfoDraining = false;
       if (intergalacticBattle?.isActive()) {
         manualUfoActiveUntil = Math.max(manualUfoActiveUntil, encounterElapsed + 26);
         root.dataset.aboutBattleEventCollisionCount = String(
@@ -525,17 +534,17 @@ export function createAboutScene({
         ufoEncounter?.startNow(encounterElapsed);
       }
       lightningEffect?.setEnabled(true, encounterElapsed);
-      sequence4EventStartedAt = encounterElapsed;
-      sequence4LogoStrikeDone = false;
-      sequence4UfoStrikePlanned = backgroundEventRandom() < SEQUENCE_4_UFO_STRIKE_CHANCE;
-      sequence4UfoStrikeDone = false;
-      root.dataset.aboutLightningUfoStrikePlanned = String(sequence4UfoStrikePlanned);
-    } else if (!sequence4Active && sequence4UfoActive) {
+      automaticAlienEventStartedAt = encounterElapsed;
+      automaticLogoStrikeDone = false;
+      automaticUfoStrikePlanned = backgroundEventRandom() < AUTOMATIC_ALIEN_UFO_STRIKE_CHANCE;
+      automaticUfoStrikeDone = false;
+      root.dataset.aboutLightningUfoStrikePlanned = String(automaticUfoStrikePlanned);
+    } else if (!automaticAlienWindow && automaticAlienWindowActive) {
       const keepManualEncounter = encounterElapsed >= 0
         && encounterElapsed < manualUfoActiveUntil;
       const finishDeparture = !keepManualEncounter
         && Boolean(ufoEncounter?.isDepartureIncomplete?.());
-      sequence4UfoDraining = finishDeparture;
+      automaticUfoDraining = finishDeparture;
       if (!keepManualEncounter && !finishDeparture) {
         ufoEncounter?.setEnabled(false, encounterElapsed);
       }
@@ -543,16 +552,16 @@ export function createAboutScene({
         lightningEffect?.setEnabled(false, encounterElapsed);
       }
     }
-    sequence4UfoActive = sequence4Active;
+    automaticAlienWindowActive = automaticAlienWindow;
     const manualUfoActive = encounterElapsed >= 0
       && encounterElapsed < manualUfoActiveUntil;
-    root.dataset.aboutUfoSequence4Active = String(sequence4Active);
+    root.dataset.aboutAutomaticAlienWindowActive = String(automaticAlienWindow);
     root.dataset.aboutUfoManualTriggerActive = String(manualUfoActive);
-    root.dataset.aboutUfoConvenientWindow = String(sequence4Active);
+    root.dataset.aboutUfoConvenientWindow = String(automaticAlienWindow);
     const encounter = ufoEncounter?.update(
       encounterElapsed,
       reducedMotion,
-      sequence4Active || manualUfoActive
+      automaticAlienWindow || manualUfoActive
     ) || null;
     let battle = null;
     try {
@@ -571,31 +580,31 @@ export function createAboutScene({
       root.dataset.aboutBattleEventCount = String(battle.eventCount);
       if (battle.shadowUpdate) renderer.shadowMap.needsUpdate = true;
     }
-    if (sequence4UfoDraining
-      && !sequence4Active
+    if (automaticUfoDraining
+      && !automaticAlienWindow
       && !manualUfoActive
       && !ufoEncounter?.isDepartureIncomplete?.()) {
-      sequence4UfoDraining = false;
+      automaticUfoDraining = false;
       ufoEncounter?.setEnabled(false, encounterElapsed);
       if (!manualAlienStrikePending) lightningEffect?.setEnabled(false, encounterElapsed);
     }
-    root.dataset.aboutUfoDepartureDraining = String(sequence4UfoDraining);
-    const sequence4EventAge = sequence4Active
-      ? encounterElapsed - sequence4EventStartedAt
+    root.dataset.aboutUfoDepartureDraining = String(automaticUfoDraining);
+    const automaticAlienEventAge = automaticAlienWindow
+      ? encounterElapsed - automaticAlienEventStartedAt
       : -1;
-    if (sequence4Active
-      && !sequence4LogoStrikeDone
-      && sequence4EventAge >= SEQUENCE_4_LOGO_STRIKE_SECONDS) {
-      sequence4LogoStrikeDone = true;
+    if (automaticAlienWindow
+      && !automaticLogoStrikeDone
+      && automaticAlienEventAge >= AUTOMATIC_ALIEN_LOGO_STRIKE_SECONDS) {
+      automaticLogoStrikeDone = true;
       lightningEffect?.triggerStrike(encounterElapsed);
     }
-    if (sequence4Active
-      && sequence4UfoStrikePlanned
-      && !sequence4UfoStrikeDone
+    if (automaticAlienWindow
+      && automaticUfoStrikePlanned
+      && !automaticUfoStrikeDone
       && !manualAlienStrikePending
-      && sequence4EventAge >= SEQUENCE_4_UFO_STRIKE_SECONDS
+      && automaticAlienEventAge >= AUTOMATIC_ALIEN_UFO_STRIKE_SECONDS
       && ufoEncounter?.getStrikePosition(ufoStrikePosition)) {
-      sequence4UfoStrikeDone = true;
+      automaticUfoStrikeDone = true;
       lightningEffect?.triggerStrike(encounterElapsed, ufoStrikePosition, "UFO");
       ufoEncounter.reactToLightning();
       root.dataset.aboutLightningUfoStrikeCount = String(
@@ -607,7 +616,7 @@ export function createAboutScene({
       && ufoEncounter?.getStrikePosition(ufoStrikePosition)) {
       manualAlienStrikePending = false;
       manualAlienStrikeAt = Number.POSITIVE_INFINITY;
-      sequence4UfoStrikeDone = sequence4UfoStrikeDone || sequence4Active;
+      automaticUfoStrikeDone = automaticUfoStrikeDone || automaticAlienWindow;
       lightningEffect?.setEnabled(true, encounterElapsed);
       lightningEffect?.triggerStrike(encounterElapsed, ufoStrikePosition, "UFO");
       ufoEncounter.reactToLightning();
@@ -636,7 +645,8 @@ export function createAboutScene({
       Number(encounter?.attention || 0),
       intergalacticBattle?.isActive() ? 1 : 0
     );
-    const active = root.dataset.flightMode === "auto"
+    const active = trackAlienEventsEnabled
+      && root.dataset.flightMode === "auto"
       && root.dataset.aboutMouseLookActive !== "true"
       && attention > 0.01;
     flightController?.setCinematicFocus(
@@ -772,6 +782,19 @@ export function createAboutScene({
         alienEventsEnabled,
         "alien"
       );
+    } else if (resolvedEvent === "tracking-toggle") {
+      trackAlienEventsEnabled = !trackAlienEventsEnabled;
+      root.dataset.aboutTrackAlienEventsEnabled = String(trackAlienEventsEnabled);
+      writePreference(
+        preferenceKeys.aboutTrackAlienEventsEnabled,
+        trackAlienEventsEnabled
+      );
+      if (!trackAlienEventsEnabled) flightController?.setCinematicFocus(null, 0);
+      showEffectNotice(
+        `Track Alien Events ${trackAlienEventsEnabled ? "ON" : "OFF"}`,
+        trackAlienEventsEnabled,
+        "alien"
+      );
     } else if (resolvedEvent === "pip-toggle") {
       battlePictureInPictureEnabled = !battlePictureInPictureEnabled;
       root.dataset.aboutBattlePictureInPictureEnabled = String(battlePictureInPictureEnabled);
@@ -792,7 +815,7 @@ export function createAboutScene({
         forcedBattleInterceptorCount ?? undefined
       ) || 0;
       if (interceptorCount > 0) {
-        sequence4UfoDraining = false;
+        automaticUfoDraining = false;
         manualUfoActiveUntil = encounterElapsed + 26;
         ufoEncounter?.startNow(encounterElapsed);
         root.dataset.aboutUfoEnabled = "true";
@@ -807,7 +830,7 @@ export function createAboutScene({
       }
     } else if (resolvedEvent === "alien") {
       const battleActive = Boolean(intergalacticBattle?.isActive());
-      sequence4UfoDraining = false;
+      automaticUfoDraining = false;
       manualUfoActiveUntil = Math.max(manualUfoActiveUntil, encounterElapsed + 25);
       if (battleActive) {
         root.dataset.aboutBattleEventCollisionCount = String(
@@ -821,7 +844,7 @@ export function createAboutScene({
       }
       root.dataset.aboutUfoEnabled = "true";
       if (sourceKey === "KeyA") {
-        manualAlienStrikeAt = encounterElapsed + (battleActive ? 1.2 : SEQUENCE_4_UFO_STRIKE_SECONDS);
+        manualAlienStrikeAt = encounterElapsed + (battleActive ? 1.2 : AUTOMATIC_ALIEN_UFO_STRIKE_SECONDS);
         manualAlienStrikePending = true;
         root.dataset.aboutAlienHotkeyStrikePending = "true";
       }
@@ -868,10 +891,10 @@ export function createAboutScene({
     manualUfoActiveUntil = encounterElapsed;
     manualAlienStrikePending = false;
     manualAlienStrikeAt = Number.POSITIVE_INFINITY;
-    sequence4UfoActive = false;
-    sequence4UfoDraining = false;
+    automaticAlienWindowActive = false;
+    automaticUfoDraining = false;
     root.dataset.aboutAlienHotkeyStrikePending = "false";
-    root.dataset.aboutUfoSequence4Active = "false";
+    root.dataset.aboutAutomaticAlienWindowActive = "false";
     root.dataset.aboutUfoDepartureDraining = "false";
     root.dataset.aboutBattlePictureInPictureActive = "false";
     root.dataset.aboutBattleDialogueLingering = "false";
@@ -1554,6 +1577,7 @@ function isTypingTarget(target) {
 
 function eventTypeForKey(code) {
   if (code === "Digit0" || code === "Numpad0") return "alien-toggle";
+  if (code === "KeyT") return "tracking-toggle";
   if (code === "KeyP") return "pip-toggle";
   if (code === "Digit1" || code === "Numpad1") return "alien";
   if (code === "Digit2" || code === "Numpad2") return "battle-1";
@@ -1565,6 +1589,12 @@ function eventTypeForKey(code) {
   if (code === "KeyC") return "comet";
   if (code === "KeyR") return "random";
   return "";
+}
+
+export function isAutomaticAlienEventWindow(enabled, flightStage, activeSequence) {
+  return Boolean(enabled)
+    && flightStage === "return-initial"
+    && Number(activeSequence) >= 5;
 }
 
 const TAU = Math.PI * 2;

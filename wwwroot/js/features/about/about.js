@@ -11,7 +11,7 @@ import { appUrl } from "../../shared/app-urls.js";
 import { createBugChartsView } from "../../shared/bug-charts.js?v=20260714-linked-bug-percent";
 import { createDevTaskChartsView } from "../../shared/dev-task-charts.js?v=20260714-linked-bug-percent";
 
-const ABOUT_VERSION = "20260714-about-alien-camera";
+const ABOUT_VERSION = "20260714-about-track-alien-events";
 export const ABOUT_DATABASE_VERSION = "1.12";
 
 export function aboutFooterHtml() {
@@ -108,6 +108,7 @@ export function createAboutFeature({
             <span class="about-control-hint"><kbd>U</kbd><span>UFO</span></span>
             <span class="about-control-hint"><kbd>M</kbd><span>Intergalactic battle</span></span>
             <span class="about-control-hint"><kbd>R</kbd><span>Random event</span></span>
+            <span class="about-control-hint"><kbd>T</kbd><span>Track Alien Events on / off</span></span>
             <span class="about-control-hint"><kbd>0</kbd><span>Alien events on / off</span></span>
             <span class="about-control-hint"><kbd>P</kbd><span>PIP on / off</span></span>
             <span class="about-control-hint"><kbd>1</kbd><span>Original UFO</span></span>
