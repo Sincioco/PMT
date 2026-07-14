@@ -6,8 +6,12 @@
     - administrators may manage any shared Scrum entry;
     - private Log entries remain owner-only, including for administrators.
 
-    This migration changes stored procedures only. It does not modify or delete data.
+    Run this file in SQLCMD mode. It stops on the first error.
+    This migration changes stored procedures and records the resulting database
+    version. It does not modify or delete business data.
 */
+
+:on error exit
 
 SET ANSI_NULLS ON;
 SET ANSI_PADDING ON;
@@ -30,6 +34,14 @@ IF OBJECT_ID(N'[pmt].[DevLogs]', N'U') IS NULL
        WHERE [class] = 0
          AND [name] = N'PMT_SecurityRoleDefaultsVersion'
          AND CONVERT(NVARCHAR(20), [value]) = N'1.10'
+   )
+   OR EXISTS
+   (
+       SELECT 1
+       FROM sys.extended_properties
+       WHERE [class] = 0
+         AND [name] = N'PMT_DatabaseVersion'
+         AND CONVERT(NVARCHAR(20), [value]) NOT IN (N'1.10', N'1.11')
    )
 BEGIN
     THROW 50130, 'PMT Database Version 1.10 is required before applying Version 1.11.', 1;
@@ -293,6 +305,26 @@ BEGIN
     WHERE [DevLogId] = @DevLogId;
 
     EXEC [pmt].[WriteAudit] N'DevLog', @DevLogId, N'Deleted', N'Dev log hidden from active views.', @CurrentUserId;
+END;
+GO
+
+IF EXISTS
+(
+    SELECT 1
+    FROM sys.extended_properties
+    WHERE [class] = 0
+      AND [name] = N'PMT_DatabaseVersion'
+)
+BEGIN
+    EXEC sys.sp_updateextendedproperty
+        @name = N'PMT_DatabaseVersion',
+        @value = N'1.11';
+END
+ELSE
+BEGIN
+    EXEC sys.sp_addextendedproperty
+        @name = N'PMT_DatabaseVersion',
+        @value = N'1.11';
 END;
 GO
 

@@ -12,6 +12,19 @@ import { createBugChartsView } from "../../shared/bug-charts.js?v=20260714-linke
 import { createDevTaskChartsView } from "../../shared/dev-task-charts.js?v=20260714-linked-bug-percent";
 
 const ABOUT_VERSION = "20260714-about-alien-camera";
+export const ABOUT_DATABASE_VERSION = "1.11";
+
+export function aboutFooterHtml() {
+  return `
+    <footer class="about-footer" data-about-footer>
+      <p class="about-credit">
+        Created by <a href="http://sincioco.com/resume" target="_blank" rel="noopener noreferrer">Louiery R. Sincioco</a> on June 2026 to help companies who need an open-source solution for a Project or Task Management Tool for free.
+        Open-source GitHub repository is at <a href="https://github.com/Sincioco/PMT" target="_blank" rel="noopener noreferrer">https://github.com/Sincioco/PMT</a>
+      </p>
+      <p class="about-database-version" data-about-database-version>PMT Database Version ${ABOUT_DATABASE_VERSION}</p>
+    </footer>
+  `;
+}
 
 export function createAboutFeature({
   app,
@@ -72,6 +85,7 @@ export function createAboutFeature({
           <p class="about-intro-countdown" data-about-intro-countdown aria-live="polite">
             3D flight begins in 3
           </p>
+          ${aboutFooterHtml()}
         </div>
 
         <div class="about-flight-hud">

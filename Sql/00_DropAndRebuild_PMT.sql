@@ -2,11 +2,11 @@
     00_DropAndRebuild_PMT.sql
 
     Purpose:
-    Drops the existing PMT database, recreates it, creates stored procedures,
-    and loads seed/demo data using the three companion scripts.
+    Drops the existing PMT database, recreates it at the current Version 1.11,
+    creates stored procedures, and loads seed/demo data using the companion scripts.
 
     IMPORTANT:
-    This script uses SQLCMD :r include commands.
+    This script uses SQLCMD :r include commands and stops on the first error.
 
     How to run:
     1. Put this file in the same folder as:
@@ -21,6 +21,8 @@
     WARNING:
     This permanently drops and recreates the PMT database.
 */
+
+:on error exit
 
 USE [master];
 GO
@@ -48,6 +50,29 @@ GO
 GO
 
 :r "D:\Project Management Tool (PMT)\Sql\03_SeedData_HLS.sql"
+GO
+
+USE [PMT];
+GO
+
+IF EXISTS
+(
+    SELECT 1
+    FROM sys.extended_properties
+    WHERE [class] = 0
+      AND [name] = N'PMT_DatabaseVersion'
+)
+BEGIN
+    EXEC sys.sp_updateextendedproperty
+        @name = N'PMT_DatabaseVersion',
+        @value = N'1.11';
+END
+ELSE
+BEGIN
+    EXEC sys.sp_addextendedproperty
+        @name = N'PMT_DatabaseVersion',
+        @value = N'1.11';
+END;
 GO
 
 PRINT N'PMT database rebuild completed successfully.';

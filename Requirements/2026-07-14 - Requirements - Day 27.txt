@@ -58,3 +58,14 @@ Documentation - Private Setting
 16.) In general, I want private to truly be private.  So, let's protect the privacy, at the UI level only, of the person trying to protect their info.
 
 Update any markdowns files you need to from today's updates / sessions. When you are done and all tests are green.  You may commit and push to the repo before you proceed to the next task.
+
+About Page - Credit, Repo and Version #
+---------------------------------------
+1.) Can you put back the old footer that was there that had the link to the repository...the old entire line that used to be there.
+2.) Somewhere at the bottom of the about screen put the database version number.  You can hard-code if that makes it easier for you with each new build.  Just remember to update it each time so I know what database version that instance of PMT is running on.
+3.) Obviously, do not show this footer during the 3D Flyby scene.
+4.) Since we aren't touching any animation related stuff, don't retest any animation stuff.  This is just for the footer before the 3D scene gets loaded.  Only when it's still in the 2D stage.
+
+File Upload Path - Exception Handling
+---------------------------------------
+5.) When the File Upload Path in the configuration is pointing to the wrong or invalid location, PMT just does not load at all.  It generates a 500 Server error.  Can you fix this so that PMT still loads but just informs the user that the file location is not available or is not reachable?  Must like what you do when the SQL database is not available / reachable.  It's very hard to troubleshoot a 500 Server error only to find out it's the path of the upload file location that was causing it.

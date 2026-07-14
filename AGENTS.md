@@ -9,7 +9,7 @@ PMT is an internal project-management tool for software teams, combining project
 - Use ASP.NET Core on .NET 6 with minimal APIs, plain DTOs, and direct ADO.NET.
 - Do not add Entity Framework or unnecessary repository, service, mediator, or mapping layers.
 - All application database objects use `[pmt]`. Application data access must go through stored procedures under `[pmt]`.
-- Treat the current BDO production schema as the PMT Database Version 1.3 deployed baseline. All known installs are current, so no pre-1.3 upgrade compatibility is required. Every database-affecting or database-backed stability change must include a forward migration from the current deployed version. Protecting BDO data and stability is the top priority; see `docs/database-versioning.md`.
+- Treat PMT Database Version 1.10 as the deployed BDO baseline. As of July 14, 2026, every known instance has applied `PMT_1.3_to_1.10_All.sql`, so no new pre-1.10 upgrade compatibility is required. Every database-affecting or database-backed stability change must include a forward migration from the current deployed version. Protecting BDO data and stability is the top priority; see `docs/database-versioning.md`.
 
 ## Intended structure
 

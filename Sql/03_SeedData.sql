@@ -1,5 +1,5 @@
 /*
-    PMT base seed data.
+    PMT Version 1.11 base seed data.
 
     This script resets disposable development data, then seeds:
     - Users
@@ -249,7 +249,7 @@ SET [CanUpdate] = 1
 WHERE [RoleCode] = N'TM'
   AND [ResourceKey] = N'Sprints';
 
--- Fresh Version 1.10 databases already use complete replacement-style user
+-- Version 1.10 and later databases already use complete replacement-style user
 -- overrides. The forward migration uses the same marker to make reruns safe.
 IF NOT EXISTS
 (

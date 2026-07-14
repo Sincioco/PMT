@@ -1,7 +1,8 @@
 /*
-    PMT database and schema script.
+    PMT Version 1.11 database and schema script.
     Run this first. It creates the database, the pmt schema, the application
-    tables, and the single required administrator account.
+    tables, and the single required administrator account. The companion
+    procedure and seed scripts complete the current fresh-install contract.
 */
 
 IF DB_ID(N'PMT') IS NULL

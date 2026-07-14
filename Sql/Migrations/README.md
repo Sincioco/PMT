@@ -1,35 +1,30 @@
 # PMT SQL Migrations
 
-As of July 13, 2026, PMT Database Version 1.3 is the baseline for the live BDO deployment and all other known PMT installations.
+As of July 14, 2026, every BDO and other known PMT instance has successfully applied `PMT_1.3_to_1.10_All.sql`. PMT Database Version 1.10 is the deployed baseline.
 
-All known installations are current. Future migrations start from Version 1.3 or the immediately preceding deployed version; new compatibility work for versions before 1.3 is not required. Keep the existing pre-1.3 migrations unchanged as historical release artifacts.
+Future migrations start from Version 1.10 or the immediately preceding deployed version. New compatibility work for versions before 1.10 is not required. Keep the existing migrations and combined wrappers through Version 1.10 unchanged as historical release artifacts.
 
-The current source schema is Version 1.11. Apply these migrations in order to upgrade the deployed Version 1.3 database:
+The current source schema is Version 1.11. Apply this migration to every existing installation:
 
-1. `PMT_1.3_to_1.4.sql` adds internal user invitations.
-2. `PMT_1.4_to_1.5.sql` adds the SA, TL, PM, QA - Manual, QA - Automation, and TM user roles.
-3. `PMT_1.5_to_1.6.sql` adds Settings-based Role management and stable role codes.
-4. `PMT_1.6_to_1.7.sql` adds role defaults, explicit user permission overrides, resource-level enforcement, and administrator password resets.
-5. `PMT_1.7_to_1.8.sql` adds safe attachment deletion for work items and Documentation.
-6. `PMT_1.8_to_1.9.sql` adds full-row user permission overrides, effective-permission auditing, and all-rights defaults for current and newly created Roles while preserving existing explicit-user access.
-7. `PMT_1.9_to_1.10.sql` restores discipline-based Role defaults, adds the global security reset, and gives custom Roles the common team baseline while preserving existing explicit-user overrides during migration.
-8. `PMT_1.10_to_1.11.sql` requires ownership plus the matching resource right for non-admin Scrum updates/deletes and keeps private Log data owner-only even for administrators.
+1. `PMT_1.10_to_1.11.sql` requires ownership plus the matching resource right for non-admin Scrum updates/deletes and keeps private Log data owner-only even for administrators.
 
-The BDO baseline is not considered upgraded until all eight migrations are actually deployed and verified.
+The deployed baseline is not considered upgraded to Version 1.11 until this migration is actually applied and verified on each instance.
 
-For a Version 1.10 database, apply `PMT_1.10_to_1.11.sql`. To upgrade directly from Version 1.3, run `PMT_1.3_to_1.11_All.sql` from this folder in SQLCMD mode; it applies the eight canonical versioned migrations above in order and stops on the first error. Keep the wrapper and all eight versioned files together.
+Run the migration in SQLCMD mode so any guard or SQL error stops the deployment immediately. From a Windows-authenticated command prompt:
+
+```powershell
+sqlcmd -S "<SQL SERVER OR SQL SERVER\\INSTANCE>" -d PMT -E -b -I -i "PMT_1.10_to_1.11.sql"
+```
+
+In SQL Server Management Studio, enable **Query > SQLCMD Mode** before running the file.
+
+Do not rerun the historical Version 1.3 through 1.10 chain on current installations. Those scripts remain in this folder only as immutable release history and for controlled reconstruction of an older database.
 
 Every future SQL, database-contract, or database-backed stability change must add a migration script here, named like:
 
 ```text
-PMT_1.3_to_1.4.sql
-PMT_1.4_to_1.5.sql
-PMT_1.5_to_1.6.sql
-PMT_1.6_to_1.7.sql
-PMT_1.7_to_1.8.sql
-PMT_1.8_to_1.9.sql
-PMT_1.9_to_1.10.sql
 PMT_1.10_to_1.11.sql
+PMT_1.11_to_1.12.sql
 ```
 
 Rebuild scripts are for fresh databases. Migration scripts are for upgrading BDO and other existing user databases without losing data or destabilizing the deployed application.

@@ -113,6 +113,43 @@
   box-shadow: 0 12px 34px rgb(27 76 126 / 12%);
 }
 
+.about-footer {
+  position: absolute;
+  right: clamp(16px, 3vw, 40px);
+  bottom: clamp(14px, 2.5vh, 28px);
+  left: clamp(16px, 3vw, 40px);
+  z-index: 1;
+  display: grid;
+  gap: var(--space-2);
+  color: #7f8588;
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-body);
+  text-align: center;
+}
+
+.about-credit,
+.about-database-version {
+  margin: 0;
+}
+
+.about-credit a {
+  color: var(--color-link);
+  text-decoration: none;
+}
+
+.about-credit a:hover {
+  color: var(--color-link-hover);
+  text-decoration: underline;
+}
+
+.about-database-version {
+  font-weight: var(--font-weight-medium);
+}
+
+.about-flight-started .about-footer {
+  display: none;
+}
+
 .about-flight-started .about-flight-intro {
   opacity: 0;
   visibility: hidden;
