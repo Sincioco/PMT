@@ -417,6 +417,112 @@ test("draw.io SVG clipboard paste preserves UTF-8 spaces", async ({ page }) => {
   expect(uploadedRequestBody).not.toContain("\u00c2");
 });
 
+test("RTE Select shows eight proportional image resize handles", async ({ page }) => {
+  const appState = createTestState();
+  const apiCalls = { securityReset: 0 };
+
+  await installApiMocks(page, appState, apiCalls);
+  await page.goto("/");
+  await page.locator("#loginName").fill("Sin");
+  await page.locator("#loginPassword").fill("Password1");
+  await page.getByRole("button", { name: /log in/i }).click();
+  await openNavView(page, "Tasks", "Dev Tasks");
+  await page.locator("tr[data-task-id='1']").click();
+  await page.locator("dialog.detail-dialog").getByRole("button", { name: "Edit" }).click();
+
+  const editor = page.locator("#editorDialog [data-rich='descriptionHtml']");
+  await editor.evaluate(element => {
+    const svg = encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="240" height="120"><rect width="240" height="120" fill="#126bff"/></svg>');
+    element.innerHTML = `<p>Resize test</p><img src="data:image/svg+xml,${svg}" alt="Resize test diagram">`;
+  });
+
+  const image = editor.getByRole("img", { name: "Resize test diagram" });
+  await image.evaluate(element => element.decode());
+  await image.click();
+  await page.getByRole("menuitem", { name: "Select" }).click();
+
+  const selection = page.getByRole("group", { name: "Selected image resize handles" });
+  const handles = selection.locator("[data-rich-image-resize-handle]");
+  await expect(selection).toBeVisible();
+  await expect(handles).toHaveCount(8);
+  expect(await handles.evaluateAll(elements => elements.map(element => element.dataset.richImageResizeHandle)))
+    .toEqual(["nw", "n", "ne", "e", "se", "s", "sw", "w"]);
+
+  const before = await image.boundingBox();
+  const bottomRightHandle = selection.locator("[data-rich-image-resize-handle='se']");
+  const handleBox = await bottomRightHandle.boundingBox();
+  expect(before).not.toBeNull();
+  expect(handleBox).not.toBeNull();
+
+  await page.mouse.move(handleBox.x + (handleBox.width / 2), handleBox.y + (handleBox.height / 2));
+  await page.mouse.down();
+  await page.mouse.move(handleBox.x + (handleBox.width / 2) + 80, handleBox.y + (handleBox.height / 2) + 40, { steps: 5 });
+  await page.mouse.up();
+
+  const after = await image.boundingBox();
+  expect(after).not.toBeNull();
+  expect(after.x).toBeCloseTo(before.x, 0);
+  expect(after.y).toBeCloseTo(before.y, 0);
+  expect(after.width).toBeGreaterThan(before.width + 60);
+  expect(after.width / after.height).toBeCloseTo(before.width / before.height, 1);
+  await expect(image).toHaveAttribute("width", String(Math.round(after.width)));
+  await expect(image).toHaveAttribute("style", new RegExp(`width: ${Math.round(after.width)}px; height: auto;`));
+  await expect(image).toHaveAttribute("data-rich-image-resized", "true");
+
+  const savedHtml = await editor.evaluate(element => element.innerHTML);
+  expect(savedHtml).toContain(`width="${Math.round(after.width)}"`);
+  expect(savedHtml).toContain('data-rich-image-resized="true"');
+
+  await editor.click({ position: { x: 12, y: 12 } });
+  await expect(selection).toHaveCount(0);
+  await expect(editor).toBeFocused();
+
+  await page.locator("#editorForm button[type='submit']").click();
+  await expect.poll(() => appState.tasks.find(task => task.id === 1)?.descriptionHtml || "")
+    .toContain(`width="${Math.round(after.width)}"`);
+});
+
+test("QA can edit only owned Scrum rows and private Log stays owner-only", async ({ page }) => {
+  const appState = createTestState();
+  const apiCalls = { securityReset: 0 };
+  const today = new Date();
+  const logDate = [today.getFullYear(), String(today.getMonth() + 1).padStart(2, "0"), String(today.getDate()).padStart(2, "0")].join("-");
+
+  appState.devLogs = [
+    { id: 1, logType: "Scrum", projectId: 10, userId: 1, logDate, bodyHtml: "<p>Administrator Scrum entry</p>", isPinned: false, updatedAt: `${logDate}T01:00:00Z` },
+    { id: 2, logType: "Scrum", projectId: 10, userId: 3, logDate, bodyHtml: "<p>QA Scrum entry</p>", isPinned: false, updatedAt: `${logDate}T02:00:00Z` },
+    { id: 3, logType: "Log", category: "Notes", projectId: null, userId: 1, logDate, bodyHtml: "<p>Administrator private note</p>", isPinned: false, updatedAt: `${logDate}T03:00:00Z` },
+    { id: 4, logType: "Log", category: "Notes", projectId: null, userId: 3, logDate, bodyHtml: "<p>QA private note</p>", isPinned: false, updatedAt: `${logDate}T04:00:00Z` }
+  ];
+  appState.effectivePermissions = appState.securityResources.map(resource => ({
+    resourceKey: resource.resourceKey,
+    ...testHistoricalRolePermission(resource, "QA")
+  }));
+
+  await page.addInitScript(() => localStorage.setItem("pmt-auth-user", "3"));
+  await installApiMocks(page, appState, apiCalls);
+  await page.goto("/");
+  await openNavView(page, "Scrum", "Scrum");
+  await clickPageAction(page, "toggle-scrum-table-edit-mode");
+
+  const otherRow = page.locator(".scrum-row[data-id='1']");
+  const ownRow = page.locator(".scrum-row[data-id='2']");
+  await expect(otherRow.locator("[data-action='edit-log'], [data-action='delete-log']")).toHaveCount(0);
+  await expect(ownRow.locator("[data-action='edit-log']")).toHaveCount(1);
+  await expect(ownRow.locator("[data-action='delete-log']")).toHaveCount(0);
+
+  await otherRow.click();
+  const readOnlyDialog = page.locator("dialog.detail-dialog");
+  await expect(readOnlyDialog).toBeVisible();
+  await expect(readOnlyDialog).toContainText("Administrator Scrum entry");
+  await expect(page.locator("#editorDialog")).not.toBeVisible();
+  await readOnlyDialog.getByRole("button", { name: "Close", exact: true }).click();
+
+  await openNavView(page, "Log", "Log");
+  await expect(page.locator(".log-table tbody")).toContainText("QA private note");
+  await expect(page.locator(".log-table tbody")).not.toContainText("Administrator private note");
+});
+
 test.describe("local timestamp display", () => {
   test.use({ locale: "en-US", timezoneId: "Asia/Taipei" });
 

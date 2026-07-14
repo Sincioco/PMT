@@ -19,3 +19,42 @@ Security Screen
 3.) Add a page-level button in Audit screen called "Reset Security" that resets the security settings for everyone and all resources back to the initial security as per step #2.
 4.) Be sure to warn and confirm with the user their intent to reset the security back to its default.
 5.) If all tests are green, commit and push to the repo including the requirements.
+
+
+Security Feedback from QA
+-------------------------
+6.) QA tested PMT today and reported a bug.  She is a non-admin user (she is a QA).  The security setting is the default as applied by the migration patched "PMT_1.3_to_1.10_All.sql" file.  When she is logged into PMT, she can modify my Scrum entries.  Can you find out how she was able to do this?  And then fix so that unless you are an admin, for Scrum entries, only the person that created it should be able to make edits to it.  And when she went into Edit mode, the trash can icon appeared, for both her entries and mine.  Giving us the visual impression that she could also delete my log entries.  But when she attempted to delete her log entries, she could not.  She did not try to delete my log entry, but the fact that there was even a trash icon next to my log entry is already a bug.  She should not even see a trash icon on my log entry since she is not an admin and she did not create my log entries.
+7.) Also double check to make sure that logs in the Log screen are private. They were meant as "for your eyes" only by the person who created it.  Even Admin people should not be able to see other people's log entries via the UI of PMT.  I mean, if Admins want to go and poke around the database if they are desperate enough they can do so, but they should not be allowed to do so via the UI.
+
+Missing Direct URLs
+-------------------
+8.) Non-security related.  I noticed that the screen under Navigation does not change the URL.  So there does not seem to be a way to send a URL to someone else that could, for example, take them straight into the Security screen?  Can you assign a direct URL for each of the category of screens in the Navigation screen?
+
+Image Resize
+------------
+9.) In the RTE, after a user click on an image and select the "Select" action from the menu that comes up, could you then put an interface so the user can resize the currently selected image with resize handles on all 4 corners and mid-points (8 points).  Anchor it to the upper-left of the image so they can get the desired size that they want.  Keep the image resizing proportional.  And once they click outside the bounds of the image and the resize handle just return to normal editing mode.
+
+When you are done and all tests are green.  You may commit and push to the repo before you proceed to the next task.
+
+Project Code Generation Logic
+-----------------------------
+10.) At work, the PMT project was created by a BA, then I deleted it.  I re-created it with the intent of making PMT the project code.  Whenever the project is saved, the project code is some random number.  The last time it was something like P605 (or something similar).  Why did it not take the project code that I wanted to set which was "PMT"?  It gave no errors but just ignored my proferred project code.  Since PMT is still a newly installed application at work, I need to set the project code of PMT in the office as "PMT" which is used to report bugs for PMT which I then fix later at night.  If there truly is some sort of internal problem that is preventing me from setting it to my preferred project code, present a dialog box explain and give me (as Admin, not for non-admins) a way or chance to override (basically, give me the project code that I want).  Otherwise, you can also write me .sql script that can go to the database and force it internally.  For PMT at work, there is only one Sprint and one task so far.  So I can delete all of them, the project, the sprint, the task and just re-create it.  But again, every time I re-create it's not letting me choose "PMT" as the project code.  So, it is not option to just completely delete PMT and recreat it from scratch at work.  You tell me what is the easiest fix for you.  It will only take me a minute to delete PMT and re-create a single Sprint and single task in it.
+
+When you are done and all tests are green.  You may commit and push to the repo before you proceed to the next task.
+
+About Page - 3D Flyby
+-----------------------------
+11.) On the return trip when the flyby is flying between the T and M, it's technically crashing on the letter M. Can you fix the path so the camera is actually going through between T and M of the PMT Logo.
+12.) Retime the alien events so they happen when the logo is likely to be in view or when the camera is about to pass by it.
+13.) Map the letter "T" as a toggle to "Track Alien Events".  And when it is on, which it should be on by default, when the aliens/UFOs are near the PMT logo or about to go to it, it should begin focusing / tracking the PMT logo.  I want the camera to slowly pan to the PMT Logo so the user can see the alien action.  Do not change anything else about the flyby sequence as they are considered all approved at this point.  This is strict toggleable rule that if the aliens are coming, turn the PMT Logo's direction so the user can watch the action, but keep your existing flightpath as is...this is strictly a camera / view change to watch the event.
+
+When you are done and all tests are green.  You may commit and push to the repo before you proceed to the next task.
+
+
+Documentation - Private Setting
+-----------------------------
+14.) Change the behavior of PMT so that Documents marked as private is not visible even by Admins via the UI.  If the Admins want to poke around the database, let them be.  If I had given prior instructions that conflict with this, take this as the authoritative overriding new rule.
+15.) From here on out, if something is marked as private in whatever screen you are in PMT, not even Admins should be able to see them via the UI.  Again, let the Admin poke around the database if they want to.  I don't want you encrypting anthing in the database.  I am strictly just talking about the user-interface.  If I had given prior instructions that conflict with this, take this as the authoritative overriding new rule.
+16.) In general, I want private to truly be private.  So, let's protect the privacy, at the UI level only, of the person trying to protect their info.
+
+Update any markdowns files you need to from today's updates / sessions. When you are done and all tests are green.  You may commit and push to the repo before you proceed to the next task.

@@ -33,6 +33,11 @@ const contentRoutes = Object.freeze({
   scrum: { route: "scrum", view: "Scrum" }
 });
 
+const settingsCategoryRoutes = Object.freeze({
+  LogCategory: "log-categories",
+  Role: "roles"
+});
+
 export const savedViewPreference = readPreference(preferenceKeys.view, "Dashboard");
 const initialRoute = parseRouteFromLocation();
 export let currentView = normalizeView(initialRoute.view || savedViewPreference);
@@ -59,6 +64,15 @@ export function routeForView(view) {
   return `#/${viewRoutes[normalizedView] || slugForView(normalizedView)}`;
 }
 
+export function routeForSettingsCategory(category) {
+  const categoryName = String(category || "").trim();
+  if (!categoryName) return routeForView("Settings");
+
+  const categoryRoute = settingsCategoryRoutes[categoryName]
+    || slugForView(categoryName.replace(/([a-z0-9])([A-Z])/g, "$1 $2"));
+  return categoryRoute ? `${routeForView("Settings")}/${categoryRoute}` : routeForView("Settings");
+}
+
 export function routeForContent(type, id) {
   const normalizedType = contentRoutes[String(type || "").toLowerCase()]?.route;
   const normalizedId = routeId(id);
@@ -82,6 +96,13 @@ export function parseRouteFromLocation() {
       view: normalizeView(contentRoute.view),
       contentType: contentRoute.route,
       id: routeId(path[1])
+    };
+  }
+
+  if (firstSegment === viewRoutes.Settings) {
+    return {
+      view: "Settings",
+      settingsCategory: path[1] || ""
     };
   }
 

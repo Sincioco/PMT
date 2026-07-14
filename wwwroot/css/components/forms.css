@@ -855,6 +855,97 @@ html[data-theme] .rich-color-palette button.rich-color-custom {
   overflow: visible;
 }
 
+.rich-image-selection {
+  position: fixed;
+  inset: auto;
+  z-index: 2147483647;
+  margin: 0;
+  padding: 0;
+  overflow: visible;
+  border: var(--border-width-strong) solid var(--color-focus-ring);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: var(--shadow-focus);
+  pointer-events: none;
+}
+
+.rich-image-selection-handle {
+  position: absolute;
+  display: block;
+  width: 14px;
+  min-width: 14px;
+  height: 14px;
+  min-height: 14px;
+  margin: 0;
+  padding: 0;
+  border: 2px solid var(--color-surface-raised) !important;
+  border-radius: 50%;
+  background-color: var(--color-primary) !important;
+  box-shadow: 0 0 0 1px var(--color-focus-ring) !important;
+  transform: translate(-50%, -50%);
+  transition: none;
+  touch-action: none;
+  pointer-events: auto;
+}
+
+.rich-image-selection-handle:hover,
+.rich-image-selection-handle:active {
+  border-color: var(--color-surface-raised) !important;
+  background-color: var(--color-primary-hover) !important;
+}
+
+.rich-image-selection-handle[data-rich-image-resize-handle="nw"] {
+  top: 0;
+  left: 0;
+  cursor: nwse-resize;
+}
+
+.rich-image-selection-handle[data-rich-image-resize-handle="n"] {
+  top: 0;
+  left: 50%;
+  cursor: ns-resize;
+}
+
+.rich-image-selection-handle[data-rich-image-resize-handle="ne"] {
+  top: 0;
+  left: 100%;
+  cursor: nesw-resize;
+}
+
+.rich-image-selection-handle[data-rich-image-resize-handle="e"] {
+  top: 50%;
+  left: 100%;
+  cursor: ew-resize;
+}
+
+.rich-image-selection-handle[data-rich-image-resize-handle="se"] {
+  top: 100%;
+  left: 100%;
+  cursor: nwse-resize;
+}
+
+.rich-image-selection-handle[data-rich-image-resize-handle="s"] {
+  top: 100%;
+  left: 50%;
+  cursor: ns-resize;
+}
+
+.rich-image-selection-handle[data-rich-image-resize-handle="sw"] {
+  top: 100%;
+  left: 0;
+  cursor: nesw-resize;
+}
+
+.rich-image-selection-handle[data-rich-image-resize-handle="w"] {
+  top: 50%;
+  left: 0;
+  cursor: ew-resize;
+}
+
+.dialog.rich-image-selection-open {
+  overflow: visible;
+}
+
 .rich-image-resize-preview {
   max-height: 220px;
   overflow: auto;

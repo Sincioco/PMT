@@ -25,7 +25,7 @@ import {
   showTaskAudit,
   viewWorkItem
 } from "./components/work-items.js?v=20260714-attachment-delete";
-import { createApplicationShell } from "./core/application-shell.js?v=20260713-role-security";
+import { createApplicationShell } from "./core/application-shell.js?v=20260714-settings-routes";
 import {
   currentView,
   ensureCurrentViewRoute,
@@ -34,7 +34,7 @@ import {
   routeForContent,
   routeForView,
   updateBrowserUrl
-} from "./core/router.js?v=20260713-role-security";
+} from "./core/router.js?v=20260714-settings-routes";
 import {
   registeredScreenHandlers,
   registerScreen,
@@ -63,8 +63,8 @@ import { createInvitationsFeature } from "./features/invitations/invitations.js?
 import { createProjectsFeature } from "./features/projects/projects.js?v=20260714-linked-bug-percent";
 import { createRoadMapFeature } from "./features/roadmap/roadmap.js?v=20260714-linked-bug-percent";
 import { createLogFeature } from "./features/personal-log/log.js?v=20260714-linked-bug-percent";
-import { createScrumFeature } from "./features/scrum/scrum.js?v=20260714-linked-bug-percent";
-import { createSettingsFeature } from "./features/settings/settings.js?v=20260714-security-reset";
+import { createScrumFeature } from "./features/scrum/scrum.js?v=20260714-scrum-ownership";
+import { createSettingsFeature } from "./features/settings/settings.js?v=20260714-settings-routes";
 import { createSprintsFeature } from "./features/sprints/sprints.js?v=20260714-linked-bug-percent";
 import { createTasksFeature } from "./features/tasks/tasks.js?v=20260714-attachment-delete";
 import { createWfhScheduleFeature } from "./features/wfh-schedule/wfh-schedule.js?v=20260714-linked-bug-percent";
@@ -127,6 +127,7 @@ const richTableMaxSize = 10;
 const richReadonlyCheckboxSaveDelayMs = 350;
 const richReadonlyCheckboxSaveTimers = new WeakMap();
 let activeRichTextImageMenu = null;
+let activeRichTextImageSelection = null;
 
 function syncNativePickerTheme(control) {
   if (!(control instanceof HTMLElement)) return;
@@ -1119,6 +1120,7 @@ function handleRichTextImageClick(event) {
 
 function showRichTextImageMenu(image, anchorEvent) {
   closeRichTextImageMenu();
+  closeRichTextImageSelection();
 
   const menu = document.createElement("div");
   menu.className = "rich-image-menu dropdown-menu";
@@ -1132,7 +1134,7 @@ function showRichTextImageMenu(image, anchorEvent) {
   ].join("");
 
   const hostDialog = image.closest("dialog[open]");
-  const usesPopover = showRichTextImageMenuAsPopover(menu, hostDialog);
+  const usesPopover = showRichTextOverlayAsPopover(menu, hostDialog);
   if (!usesPopover) {
     (hostDialog || document.body).appendChild(menu);
   }
@@ -1226,17 +1228,17 @@ function closeRichTextImageMenu() {
   activeRichTextImageMenu = null;
 }
 
-function showRichTextImageMenuAsPopover(menu, hostDialog) {
-  if (typeof menu.showPopover !== "function") return false;
+function showRichTextOverlayAsPopover(overlay, hostDialog) {
+  if (typeof overlay.showPopover !== "function") return false;
 
-  menu.setAttribute("popover", "manual");
-  (hostDialog || document.body).appendChild(menu);
+  overlay.setAttribute("popover", "manual");
+  (hostDialog || document.body).appendChild(overlay);
   try {
-    menu.showPopover();
+    overlay.showPopover();
     return true;
   } catch {
-    menu.remove();
-    menu.removeAttribute("popover");
+    overlay.remove();
+    overlay.removeAttribute("popover");
     return false;
   }
 }
@@ -1286,11 +1288,177 @@ function selectRichTextImage(image) {
   if (!image?.isConnected || !editor) return;
 
   editor.focus({ preventScroll: true });
+  setRichTextImageBrowserSelection(image);
+  showRichTextImageSelection(image, editor);
+}
+
+function setRichTextImageBrowserSelection(image) {
   const range = document.createRange();
   range.selectNode(image);
   const selection = window.getSelection();
   selection.removeAllRanges();
   selection.addRange(range);
+}
+
+function showRichTextImageSelection(image, editor) {
+  closeRichTextImageSelection();
+
+  const overlay = document.createElement("div");
+  overlay.className = "rich-image-selection";
+  overlay.setAttribute("role", "group");
+  overlay.setAttribute("aria-label", "Selected image resize handles");
+  overlay.innerHTML = ["nw", "n", "ne", "e", "se", "s", "sw", "w"]
+    .map(direction => `<span class="rich-image-selection-handle" data-rich-image-resize-handle="${direction}" aria-hidden="true"></span>`)
+    .join("");
+
+  const hostDialog = image.closest("dialog[open]");
+  const usesPopover = showRichTextOverlayAsPopover(overlay, hostDialog);
+  if (!usesPopover) (hostDialog || document.body).appendChild(overlay);
+  hostDialog?.classList.add("rich-image-selection-open");
+
+  const position = () => positionRichTextImageSelection(overlay, image);
+  const handleOutsidePointer = event => {
+    if (event.target === image || overlay.contains(event.target)) return;
+    closeRichTextImageSelection();
+  };
+  const handleKeyDown = event => {
+    if (event.key !== "Escape") return;
+
+    event.preventDefault();
+    closeRichTextImageSelection();
+    editor.focus({ preventScroll: true });
+  };
+  const handleViewportChange = () => {
+    if (!image.isConnected) {
+      closeRichTextImageSelection();
+      return;
+    }
+    position();
+  };
+  const handleDialogClose = () => closeRichTextImageSelection();
+
+  activeRichTextImageSelection = {
+    image,
+    editor,
+    overlay,
+    hostDialog,
+    usesPopover,
+    drag: null,
+    handleOutsidePointer,
+    handleKeyDown,
+    handleViewportChange,
+    handleDialogClose
+  };
+
+  overlay.addEventListener("pointerdown", startRichTextImageResize);
+  overlay.addEventListener("pointermove", continueRichTextImageResize);
+  overlay.addEventListener("pointerup", finishRichTextImageResize);
+  overlay.addEventListener("pointercancel", finishRichTextImageResize);
+  overlay.addEventListener("click", event => {
+    event.preventDefault();
+    event.stopPropagation();
+  });
+  document.addEventListener("pointerdown", handleOutsidePointer, true);
+  document.addEventListener("keydown", handleKeyDown, true);
+  window.addEventListener("resize", handleViewportChange, true);
+  window.addEventListener("scroll", handleViewportChange, true);
+  hostDialog?.addEventListener("close", handleDialogClose);
+  position();
+}
+
+function closeRichTextImageSelection() {
+  if (!activeRichTextImageSelection) return;
+
+  const {
+    overlay,
+    hostDialog,
+    usesPopover,
+    handleOutsidePointer,
+    handleKeyDown,
+    handleViewportChange,
+    handleDialogClose
+  } = activeRichTextImageSelection;
+
+  document.removeEventListener("pointerdown", handleOutsidePointer, true);
+  document.removeEventListener("keydown", handleKeyDown, true);
+  window.removeEventListener("resize", handleViewportChange, true);
+  window.removeEventListener("scroll", handleViewportChange, true);
+  hostDialog?.removeEventListener("close", handleDialogClose);
+  hostDialog?.classList.remove("rich-image-selection-open");
+  if (usesPopover && overlay.matches?.(":popover-open")) overlay.hidePopover();
+  overlay.remove();
+  activeRichTextImageSelection = null;
+}
+
+function startRichTextImageResize(event) {
+  const selection = activeRichTextImageSelection;
+  const handle = event.target.closest("[data-rich-image-resize-handle]");
+  if (!selection || !handle || !selection.overlay.contains(handle)) return;
+
+  event.preventDefault();
+  event.stopPropagation();
+  const rect = selection.image.getBoundingClientRect();
+  if (!rect.width || !rect.height) return;
+
+  selection.drag = {
+    pointerId: event.pointerId,
+    handle,
+    direction: handle.dataset.richImageResizeHandle,
+    startX: event.clientX,
+    startY: event.clientY,
+    startWidth: rect.width,
+    aspectRatio: rect.width / rect.height
+  };
+  selection.overlay.classList.add("is-resizing");
+  handle.setPointerCapture?.(event.pointerId);
+}
+
+function continueRichTextImageResize(event) {
+  const selection = activeRichTextImageSelection;
+  const drag = selection?.drag;
+  if (!drag || drag.pointerId !== event.pointerId) return;
+
+  event.preventDefault();
+  event.stopPropagation();
+  const vector = richTextImageResizeVector(drag.direction, drag.aspectRatio);
+  const distanceSquared = (vector.x * vector.x) + (vector.y * vector.y);
+  const widthChange = distanceSquared
+    ? (((event.clientX - drag.startX) * vector.x) + ((event.clientY - drag.startY) * vector.y)) / distanceSquared
+    : 0;
+  const width = richTextImageWidthValue(Math.max(16, drag.startWidth + widthChange));
+  if (!width) return;
+
+  applyRichTextImageWidth(selection.image, width);
+  positionRichTextImageSelection(selection.overlay, selection.image);
+}
+
+function finishRichTextImageResize(event) {
+  const selection = activeRichTextImageSelection;
+  const drag = selection?.drag;
+  if (!drag || drag.pointerId !== event.pointerId) return;
+
+  event.preventDefault();
+  event.stopPropagation();
+  if (drag.handle.hasPointerCapture?.(event.pointerId)) drag.handle.releasePointerCapture(event.pointerId);
+  selection.drag = null;
+  selection.overlay.classList.remove("is-resizing");
+  setRichTextImageBrowserSelection(selection.image);
+}
+
+function richTextImageResizeVector(direction, aspectRatio) {
+  const safeAspectRatio = aspectRatio > 0 ? aspectRatio : 1;
+  return {
+    x: direction.includes("e") ? 1 : direction.includes("w") ? -1 : 0,
+    y: direction.includes("s") ? 1 / safeAspectRatio : direction.includes("n") ? -1 / safeAspectRatio : 0
+  };
+}
+
+function positionRichTextImageSelection(overlay, image) {
+  const rect = image.getBoundingClientRect();
+  overlay.style.left = `${rect.left}px`;
+  overlay.style.top = `${rect.top}px`;
+  overlay.style.width = `${rect.width}px`;
+  overlay.style.height = `${rect.height}px`;
 }
 
 function deleteRichTextImage(image) {
@@ -1300,11 +1468,14 @@ function deleteRichTextImage(image) {
   selectRichTextImage(image);
   const deleted = document.execCommand("delete");
   if (!deleted && image.isConnected) image.remove();
+  closeRichTextImageSelection();
   showToast("Image removed.");
 }
 
 function showRichTextImageResizeDialog(image) {
   if (!image?.isConnected) return;
+
+  closeRichTextImageSelection();
 
   const currentWidth = richTextImageDisplayWidth(image);
   const naturalWidth = richTextImageNaturalWidth(image, currentWidth);

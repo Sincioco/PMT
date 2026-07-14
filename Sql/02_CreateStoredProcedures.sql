@@ -210,7 +210,12 @@ BEGIN
     SET NOCOUNT ON;
 
     DECLARE @LogType NVARCHAR(20);
-    SELECT @LogType = [LogType]
+    DECLARE @OwnerUserId INT;
+    DECLARE @CurrentUserIsAdmin BIT = [pmt].[IsAdmin](@CurrentUserId);
+
+    SELECT
+        @LogType = [LogType],
+        @OwnerUserId = [UserId]
     FROM [pmt].[DevLogs]
     WHERE [DevLogId] = @DevLogId
       AND [IsDeleted] = 0;
@@ -218,6 +223,16 @@ BEGIN
     IF @LogType IS NULL
     BEGIN
         THROW 50122, 'Log was not found.', 1;
+    END;
+
+    IF @LogType = N'Log' AND @OwnerUserId <> @CurrentUserId
+    BEGIN
+        THROW 50128, 'Private Log entries can only be changed by their owner.', 1;
+    END;
+
+    IF @LogType = N'Scrum' AND @CurrentUserIsAdmin = 0 AND @OwnerUserId <> @CurrentUserId
+    BEGIN
+        THROW 50129, 'Scrum entries can only be changed by their owner or an administrator.', 1;
     END;
 
     DECLARE @ResourceKey NVARCHAR(40) = CASE WHEN @LogType = N'Log' THEN N'PersonalLog' ELSE N'Scrum' END;
@@ -422,6 +437,7 @@ BEGIN
         [UpdatedAt]
     FROM [pmt].[DevLogs]
     WHERE [IsDeleted] = 0
+      -- Personal Log is owner-only even for administrators. Do not add an admin bypass.
       AND ([LogType] <> N'Log' OR [UserId] = @CurrentUserId)
     ORDER BY
         [IsPinned] DESC,
@@ -3706,9 +3722,11 @@ BEGIN
             THROW 50068, 'You cannot edit another user''s log.', 1;
         END;
 
-        IF [pmt].[CanEdit](@OwnerUserId, @CurrentUserId) = 0
+        IF @ExistingLogType = N'Scrum'
+           AND @CurrentUserIsAdmin = 0
+           AND @OwnerUserId <> @CurrentUserId
         BEGIN
-            THROW 50062, 'You cannot edit this dev log.', 1;
+            THROW 50062, 'You cannot edit another user''s Scrum entry.', 1;
         END;
 
         IF @CurrentUserIsAdmin = 0
@@ -3771,9 +3789,11 @@ BEGIN
         THROW 50067, 'You cannot delete another user''s log.', 1;
     END;
 
-    IF [pmt].[CanEdit](@OwnerUserId, @CurrentUserId) = 0
+    IF @ExistingLogType = N'Scrum'
+       AND @CurrentUserIsAdmin = 0
+       AND @OwnerUserId <> @CurrentUserId
     BEGIN
-        THROW 50064, 'You cannot delete this dev log.', 1;
+        THROW 50064, 'You cannot delete another user''s Scrum entry.', 1;
     END;
 
     IF @CurrentUserIsAdmin = 0

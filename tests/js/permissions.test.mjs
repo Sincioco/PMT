@@ -11,7 +11,7 @@ globalThis.localStorage = {
 
 const { replaceState } = await import("../../wwwroot/js/core/store.js");
 const { setCurrentUserId } = await import("../../wwwroot/js/core/authentication.js");
-const { canEditOwner, canEditTask, canEditUser } = await import("../../wwwroot/js/shared/permissions.js");
+const { canDeleteOwner, canEditOwner, canEditTask, canEditUser } = await import("../../wwwroot/js/shared/permissions.js");
 const { canAccessResource } = await import("../../wwwroot/js/shared/security.js");
 
 function setUser(user, effectivePermissions = []) {
@@ -37,6 +37,7 @@ test("admins can edit owners, users, Dev Tasks, and Bugs", () => {
   setUser({ id: 1, isAdmin: true, role: "Developer" });
 
   assert.equal(canEditOwner(99), true);
+  assert.equal(canDeleteOwner(99, "Scrum"), true);
   assert.equal(canEditUser(99), true);
   assert.equal(canEditTask({ taskType: "Dev" }), true);
   assert.equal(canEditTask({ taskType: "Bug" }), true);
@@ -65,6 +66,23 @@ test("QA users edit Bugs but not Dev Tasks", () => {
 
   assert.equal(canEditTask({ taskType: "Bug" }), true);
   assert.equal(canEditTask({ taskType: "Dev" }), false);
+});
+
+test("Scrum ownership and matching rights are both required", () => {
+  setUser({ id: 3, isAdmin: false, role: "QA" }, [
+    permission("Scrum", { canUpdate: true })
+  ]);
+
+  assert.equal(canEditOwner(3, "Scrum"), true);
+  assert.equal(canEditOwner(1, "Scrum"), false);
+  assert.equal(canDeleteOwner(3, "Scrum"), false);
+
+  setUser({ id: 3, isAdmin: false, role: "QA" }, [
+    permission("Scrum", { canUpdate: true, canDelete: true })
+  ]);
+
+  assert.equal(canDeleteOwner(3, "Scrum"), true);
+  assert.equal(canDeleteOwner(1, "Scrum"), false);
 });
 
 test("No Access denies every effective right", () => {

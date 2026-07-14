@@ -36,7 +36,13 @@ import {
   writeJsonPreference,
   writePreference
 } from "../../core/preferences.js?v=20260629-settings-table-filters";
-import { savedViewPreference } from "../../core/router.js?v=20260713-role-security";
+import {
+  parseRouteFromLocation,
+  routeForSettingsCategory,
+  routeForView,
+  savedViewPreference,
+  updateBrowserUrl
+} from "../../core/router.js?v=20260714-settings-routes";
 import { state } from "../../core/store.js";
 import {
   formatDate,
@@ -119,7 +125,15 @@ export function createSettingsFeature({
   function renderSettings() {
     const lookupTypes = settingsLookupTypes();
     const categories = ["Users", ...(currentUser().isAdmin ? ["Security"] : []), "Navigation", "Holidays", ...lookupTypes, "Development"];
+    const route = parseRouteFromLocation();
+    const routedCategory = route.view === "Settings"
+      ? settingsCategoryForRoute(categories, route.settingsCategory)
+      : "";
+    if (routedCategory) selectSettingsCategory(routedCategory);
     if (!categories.includes(settingsCategory)) settingsCategory = lookupTypes[0] || "Status";
+    if (route.view === "Settings" && route.settingsCategory && !routedCategory) {
+      updateBrowserUrl(routeForSettingsCategory(settingsCategory), { replace: true });
+    }
 
     const isUsers = settingsCategory === "Users";
     const isHolidays = settingsCategory === "Holidays";
@@ -945,7 +959,7 @@ export function createSettingsFeature({
                     </span>
                   </button>
                 </td>
-                <td><span class="muted">${escapeHtml(item.view)}</span></td>
+                <td><span class="muted">${escapeHtml(routeForView(item.view))}</span></td>
                 <td class="action-cell">
                   <button class="work-item-drag-handle settings-nav-drag-handle" type="button" ${canDrag ? "data-drag-handle data-navigation-drag-handle" : "disabled"} title="Drag ${escapeAttr(itemLabel)}" aria-label="Drag ${escapeAttr(itemLabel)}">
                     <span aria-hidden="true">&#8942;&#8942;</span>
@@ -1516,13 +1530,24 @@ export function createSettingsFeature({
   }
 
   function selectLookupType(type) {
+    selectSettingsCategory(type);
+    updateBrowserUrl(routeForSettingsCategory(settingsCategory));
+    renderSettings();
+  }
+
+  function selectSettingsCategory(type) {
     settingsCategory = type || "Status";
     writePreference(preferenceKeys.settingsCategory, settingsCategory);
     if (settingsCategory !== "Users" && settingsCategory !== "Holidays" && settingsCategory !== "Navigation" && settingsCategory !== "Development") {
       lookupTypeFilter = settingsCategory;
       writePreference(preferenceKeys.lookupType, lookupTypeFilter);
     }
-    renderSettings();
+  }
+
+  function settingsCategoryForRoute(categories, categoryRoute) {
+    if (!categoryRoute) return "";
+    const expectedRoute = `${routeForView("Settings")}/${categoryRoute}`;
+    return categories.find(category => routeForSettingsCategory(category) === expectedRoute) || "";
   }
 
   function toggleNavigationItem(view, visible) {

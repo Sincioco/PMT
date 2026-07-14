@@ -1,0 +1,158 @@
+import { expect, test } from "@playwright/test";
+
+test("Settings categories have shareable routes with browser history support", async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.clear();
+  });
+
+  await page.route("**/api/login", async route => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ userId: 1, nickname: "Sin", isAdmin: true, role: "Admin" })
+    });
+  });
+  await page.route("**/api/state", async route => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(testState())
+    });
+  });
+
+  await page.goto("/#/settings/security");
+  await page.locator("#loginName").fill("Sin");
+  await page.locator("#loginPassword").fill("Password1");
+  await page.getByRole("button", { name: /log in/i }).click();
+  await expect(page.getByRole("heading", { name: "Settings", exact: true })).toBeVisible();
+  await expect(page.locator("[data-action='select-lookup-type'][data-type='Security']")).toHaveClass(/active/);
+  await expect(page).toHaveURL(/#\/settings\/security$/);
+
+  await openNavigationScreen(page, "Tasks");
+  await expect(page.getByRole("heading", { name: "Dev Tasks", exact: true })).toBeVisible();
+  await expect(page).toHaveURL(/#\/tasks$/);
+  await page.goBack();
+  await expect(page.locator("[data-action='select-lookup-type'][data-type='Security']")).toHaveClass(/active/);
+
+  const categoryRoutes = [
+    ["Users", "users"],
+    ["Security", "security"],
+    ["Navigation", "navigation"],
+    ["Holidays", "holidays"],
+    ["Environment", "environment"],
+    ["LogCategory", "log-categories"],
+    ["Priority", "priority"],
+    ["Role", "roles"],
+    ["Severity", "severity"],
+    ["Status", "status"],
+    ["Release Type", "release-type"],
+    ["Development", "development"]
+  ];
+
+  for (const [category, route] of categoryRoutes) {
+    const button = page.locator(`[data-action='select-lookup-type'][data-type='${category}']`);
+    await button.click();
+    await expect(button).toHaveClass(/active/);
+    await expect(page).toHaveURL(new RegExp(`#\\/settings\\/${route}$`));
+  }
+
+  await page.locator("[data-action='select-lookup-type'][data-type='Navigation']").click();
+  await expect(page.locator("[data-navigation-list] [data-nav-view='Tasks']")).toContainText("#/tasks");
+  await expect(page.locator("[data-navigation-list] [data-nav-view='Settings']")).toContainText("#/settings");
+  await page.locator("[data-action='select-lookup-type'][data-type='Security']").click();
+
+  await page.goBack();
+  await expect(page).toHaveURL(/#\/settings\/navigation$/);
+  await expect(page.locator("[data-action='select-lookup-type'][data-type='Navigation']")).toHaveClass(/active/);
+
+  await page.goForward();
+  await expect(page).toHaveURL(/#\/settings\/security$/);
+  await expect(page.locator("[data-action='select-lookup-type'][data-type='Security']")).toHaveClass(/active/);
+
+  await page.goto("/#/settings/log-categories");
+  await expect(page.locator("[data-action='select-lookup-type'][data-type='LogCategory']")).toHaveClass(/active/);
+
+  await page.goto("/#/settings");
+  await expect(page).toHaveURL(/#\/settings$/);
+  await expect(page.locator("[data-action='select-lookup-type'][data-type='LogCategory']")).toHaveClass(/active/);
+});
+
+test("a non-admin Security route falls back to an allowed Settings category", async ({ page }) => {
+  await page.addInitScript(() => localStorage.clear());
+  await page.route("**/api/login", async route => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ userId: 2, nickname: "QA", isAdmin: false, role: "QA" })
+    });
+  });
+  await page.route("**/api/state", async route => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(testState({ isAdmin: false }))
+    });
+  });
+
+  await page.goto("/#/settings/security");
+  await page.locator("#loginName").fill("QA");
+  await page.locator("#loginPassword").fill("Password1");
+  await page.getByRole("button", { name: /log in/i }).click();
+
+  await expect(page.locator("[data-action='select-lookup-type'][data-type='Security']")).toHaveCount(0);
+  await expect(page.locator("[data-action='select-lookup-type'][data-type='Status']")).toHaveClass(/active/);
+  await expect(page).toHaveURL(/#\/settings\/status$/);
+});
+
+async function openNavigationScreen(page, view) {
+  const directButton = page.locator(`#nav > button[data-view='${view}']`);
+  if (await directButton.isVisible()) {
+    await directButton.click();
+    return;
+  }
+
+  await page.locator(".nav-overflow-toggle").click();
+  await page.locator(`.nav-overflow-menu button[data-view='${view}']`).click();
+}
+
+function testState({ isAdmin = true } = {}) {
+  const userId = isAdmin ? 1 : 2;
+  return {
+    users: [{
+      id: userId,
+      nickname: isAdmin ? "Sin" : "QA",
+      email: isAdmin ? "sin@example.test" : "qa@example.test",
+      role: isAdmin ? "Admin" : "QA",
+      roleCode: isAdmin ? "Admin" : "QA",
+      isAdmin,
+      isActive: true,
+      avatarUrl: ""
+    }],
+    projects: [{ id: 1, code: "PMT", name: "Routing Test", isActive: true }],
+    sprints: [],
+    tasks: [],
+    devLogs: [],
+    blogs: [],
+    auditEvents: [],
+    lookups: [{
+      id: 1,
+      lookupType: "Release Type",
+      value: "Internal",
+      displayOrder: 10,
+      isActive: true
+    }],
+    roles: [{
+      id: 1,
+      lookupType: "Role",
+      value: isAdmin ? "Admin" : "QA - Quality Assurance",
+      code: isAdmin ? "Admin" : "QA",
+      displayOrder: 10,
+      isActive: true
+    }],
+    holidays: [],
+    securityResources: [],
+    rolePermissions: [],
+    userPermissions: [],
+    effectivePermissions: []
+  };
+}

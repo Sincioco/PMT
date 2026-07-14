@@ -6,7 +6,7 @@ As of July 13, 2026, PMT is deployed at BDO with real users. The current BDO pro
 
 All known PMT installations are on this baseline. Future work does not need new upgrade compatibility for Database Versions 1.0, 1.1, or 1.2. Keep the released pre-1.3 migration scripts unchanged as historical release artifacts, but start future migrations from Version 1.3 or the immediately preceding deployed version.
 
-The BDO deployed baseline remains Version 1.3 until forward migrations are applied there. The current source tree's rebuild scripts represent the newest fresh-build schema, which advances to Version 1.10. Version 1.4 added user invitations, Version 1.5 added the new user roles, Version 1.6 makes role names manageable in Settings while preserving stable security codes, Version 1.7 adds role and user security permissions plus administrator password resets, Version 1.8 adds safe attachment deletion, Version 1.9 adds full-row user permission overrides and effective-permission auditing, and Version 1.10 restores discipline-based Role defaults and adds a global security reset:
+The BDO deployed baseline remains Version 1.3 until forward migrations are applied there. The current source tree's rebuild scripts represent the newest fresh-build schema, which advances to Version 1.11. Version 1.4 added user invitations, Version 1.5 added the new user roles, Version 1.6 makes role names manageable in Settings while preserving stable security codes, Version 1.7 adds role and user security permissions plus administrator password resets, Version 1.8 adds safe attachment deletion, Version 1.9 adds full-row user permission overrides and effective-permission auditing, Version 1.10 restores discipline-based Role defaults and adds a global security reset, and Version 1.11 enforces Scrum ownership while preserving owner-only private Logs:
 
 - `Sql/01_CreateDatabase.sql`
 - `Sql/02_CreateStoredProcedures.sql`
@@ -15,7 +15,7 @@ The BDO deployed baseline remains Version 1.3 until forward migrations are appli
 - `Sql/03_SeedData_HLS.sql`
 - `Sql/00_DropAndRebuild_PMT.sql`
 
-Apply `Sql/Migrations/PMT_1.3_to_1.4.sql`, `Sql/Migrations/PMT_1.4_to_1.5.sql`, `Sql/Migrations/PMT_1.5_to_1.6.sql`, `Sql/Migrations/PMT_1.6_to_1.7.sql`, `Sql/Migrations/PMT_1.7_to_1.8.sql`, `Sql/Migrations/PMT_1.8_to_1.9.sql`, and then `Sql/Migrations/PMT_1.9_to_1.10.sql` to upgrade BDO's deployed baseline to the current source schema. Fresh development or demo databases may use the rebuild scripts. BDO and other existing user databases must be upgraded with forward migration scripts; do not treat a source-tree rebuild change as proof that production has been upgraded.
+Apply `Sql/Migrations/PMT_1.3_to_1.4.sql`, `Sql/Migrations/PMT_1.4_to_1.5.sql`, `Sql/Migrations/PMT_1.5_to_1.6.sql`, `Sql/Migrations/PMT_1.6_to_1.7.sql`, `Sql/Migrations/PMT_1.7_to_1.8.sql`, `Sql/Migrations/PMT_1.8_to_1.9.sql`, `Sql/Migrations/PMT_1.9_to_1.10.sql`, and then `Sql/Migrations/PMT_1.10_to_1.11.sql` to upgrade BDO's deployed baseline to the current source schema. Fresh development or demo databases may use the rebuild scripts. BDO and other existing user databases must be upgraded with forward migration scripts; do not treat a source-tree rebuild change as proof that production has been upgraded.
 
 ## Required Rule
 
@@ -45,6 +45,7 @@ PMT_1.6_to_1.7.sql
 PMT_1.7_to_1.8.sql
 PMT_1.8_to_1.9.sql
 PMT_1.9_to_1.10.sql
+PMT_1.10_to_1.11.sql
 ```
 
 Use one migration per released database-version step. Do not edit an already released migration except to add comments that do not change behavior.

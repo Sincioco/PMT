@@ -31,7 +31,7 @@ import {
   formatDateTime
 } from "../../shared/dates.js";
 import { normalizeSavedArray } from "../../shared/filter-values.js";
-import { canEditOwner } from "../../shared/permissions.js?v=20260713-role-security";
+import { canDeleteOwner, canEditOwner } from "../../shared/permissions.js?v=20260714-scrum-ownership";
 import {
   projectName,
   userById
@@ -145,14 +145,15 @@ export function createScrumFeature({
 
   function scrumRowHtml(log, visibleColumns) {
     const editable = canModifyScrumLog(log);
+    const deletable = canDeleteScrumLog(log);
 
     return `
       <tr class="scrum-row clickable-row" data-action="view-log" data-id="${log.id}">
         ${visibleColumns.map((column, index) => scrumTableColumnCellHtml(column, log, scrumColumnIsRubber(visibleColumns, index))).join("")}
         ${scrumTableMode.active ? `
           <td class="reveal-actions action-cell scrum-actions" data-label="Actions">
+            ${deletable ? iconButton("delete-log", log.id, "Delete", "delete-monochrome") : ""}
             ${editable ? `
-              ${iconButton("delete-log", log.id, "Delete", "delete-monochrome")}
               ${iconButton("duplicate-log", log.id, "Duplicate", "duplicate")}
               ${iconButton("edit-log", log.id, "Edit", "edit")}
             ` : ""}
@@ -176,6 +177,14 @@ export function createScrumFeature({
     if (!log) return false;
     if (currentUser().isAdmin) return true;
     if (!canEditOwner(log.userId, "Scrum")) return false;
+    if (scrumLogIsOlderThanModificationWindow(log)) return false;
+    return !scrumDateValidationMessage(log.projectId, scrumDateInputValue(log.logDate));
+  }
+
+  function canDeleteScrumLog(log) {
+    if (!log) return false;
+    if (currentUser().isAdmin) return true;
+    if (!canDeleteOwner(log.userId, "Scrum")) return false;
     if (scrumLogIsOlderThanModificationWindow(log)) return false;
     return !scrumDateValidationMessage(log.projectId, scrumDateInputValue(log.logDate));
   }
@@ -692,7 +701,7 @@ export function createScrumFeature({
       return true;
     }
     if (action === "delete-log") {
-      if (log && canModifyScrumLog(log)) {
+      if (log && canDeleteScrumLog(log)) {
         await deleteItem(`/api/devlogs/${id}`, "Delete this Scrum entry?");
       }
       return true;

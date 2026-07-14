@@ -12,7 +12,7 @@ import {
   readPreference,
   writePreference
 } from "./preferences.js";
-import { currentView, getNavigationScreens, navigate } from "./router.js?v=20260713-role-security";
+import { currentView, getNavigationScreens, navigate } from "./router.js?v=20260714-settings-routes";
 import { loadState, state } from "./store.js";
 import { appUrl } from "../shared/app-urls.js";
 

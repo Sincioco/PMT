@@ -80,7 +80,9 @@ The default role names are `Admin`, `Dev - Developer`, `QA - Quality Assurance`,
 - Work-item permission is task-type based, not creator based.
 - Project, Sprint, Scrum, Documentation, WFH, Settings, import, export, upload, and invitation endpoints enforce the matching resource right in SQL. Task and attachment checks resolve Dev Task versus Bug Tracking before enforcing the action.
 - Finished Sprints are read-only for non-admin users, including work-item writes into that Sprint.
-- Scrum and Documentation update/delete actions follow their configured resource permissions. Only admins may pin Scrum entries.
+- A non-admin may update, import into, or delete only a Scrum entry they own and must also have the matching Scrum right. Administrators may manage any shared Scrum entry. Only administrators may pin Scrum entries.
+- Personal Log rows are private to their owner: `[pmt].[GetAppState]` never returns another user's private Log rows, including to an administrator, and no user or administrator may update/delete another user's private Log entry through PMT.
+- Documentation update/delete actions follow their configured resource permissions.
 - Existing users may edit themselves, but non-admin users cannot change their own role/admin state. User creation and deletion are administrator-only once users exist.
 - Lookup values, holidays, and development reset actions are administrator-only.
 - Attachment permission follows the Update right for the owning Dev Task, Bug, or Documentation resource.

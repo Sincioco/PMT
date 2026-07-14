@@ -112,7 +112,12 @@ Use clearly named temporary records and remove them after validation.
 - [ ] Create a Scrum entry and verify the three-question starter text/caret.
 - [ ] Duplicate it and confirm the duplicate date defaults to today.
 - [ ] Edit and delete the temporary Scrum entries.
+- [ ] As a non-admin with Scrum Update but no Delete, enter Edit Mode and confirm Edit appears only on that user's Scrum entries and Delete appears on none of the rows.
+- [ ] Grant the same user Scrum Delete and confirm Delete appears only on that user's Scrum entries; direct update/delete requests for another user's Scrum entry must be rejected.
+- [ ] As an administrator, confirm shared Scrum entries from another user can be edited and deleted.
+- [ ] In Log, confirm a user sees only their own private entries. Repeat as an administrator and confirm other users' private Log entries remain absent and cannot be updated or deleted through direct requests.
 - [ ] Create Documentation with a Project, rich text, list, link, and image/attachment.
+- [ ] In an RTE, open an image menu and choose Select; confirm eight resize handles appear, dragging a corner or midpoint keeps the image proportional and anchored at its upper-left, clicking outside removes the handles, and the saved size remains after reopening.
 - [ ] Open it and confirm read-only mode is the default.
 - [ ] Edit it and confirm Created and Last Edited dates display correctly.
 - [ ] Confirm links open in a new tab.
