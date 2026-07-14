@@ -930,7 +930,7 @@ BEGIN
 
     DECLARE @Paths TABLE
     (
-        [RelativePath] NVARCHAR(1000) NOT NULL PRIMARY KEY,
+        [RelativePath] NVARCHAR(1000) NOT NULL,
         [Needle] NVARCHAR(1600) NOT NULL,
         [HtmlNeedle] NVARCHAR(3000) NOT NULL
     );

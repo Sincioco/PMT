@@ -154,8 +154,14 @@ If PMT encounters a configuration or file-system access error while initializing
 
 ## 8. Updating PMT
 
-1. Stop the IIS site or app pool.
-2. Back up the current published folder and database.
-3. Copy the new published files over the old files.
-4. Run any new SQL scripts.
-5. Start the IIS site or app pool.
+1. Build and publish the new release into a separate, empty folder. Keep its application files and migration scripts from the same Git commit.
+2. Record the current database version and production configuration, including the connection string, path base, and upload-storage settings.
+3. Stop the IIS site or application pool and keep it stopped throughout the database migration and application replacement.
+4. Back up and verify the database, then preserve the current published folder, production configuration, and complete upload folder as one matched rollback set.
+5. Run the exact forward migrations for the installed database version. Verify the version marker, table counts, SQL contract, and database integrity before continuing.
+6. Deploy the matching published application without overwriting BDO's production configuration or upload storage.
+7. Start the IIS site or application pool and perform the release's production-safe smoke test.
+8. Press Ctrl+F5 once in the browser to bypass cached frontend assets.
+9. Keep the release SHA, backup verification, migration logs, pre/post data manifest, and smoke-test record together. Roll back the application, database, configuration, and uploads as one set if validation fails.
+
+For the July 15, 2026 Version 1.10 to 1.14 BDO deployment, use `Sql/Migrations/2026-07-15 - PMT - BDO Migration Scripts.html` as the authoritative step-by-step runbook.

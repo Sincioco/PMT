@@ -13,6 +13,10 @@ The current source schema is Version 1.14. Apply these migrations in order to ev
 
 The deployed baseline is not considered upgraded to Version 1.14 until all four migrations are actually applied and verified on each instance. Start with the migration immediately after the version already installed on that instance.
 
+For the July 15, 2026 BDO deployment, follow the self-contained `2026-07-15 - PMT - BDO Migration Scripts.html` runbook in this folder. Before migration, take and verify a checksum database backup and preserve the matching application, configuration, and upload storage. Keep PMT offline for the complete chain; the intermediate database versions are not approved application states.
+
+A valid historical Version 1.10 database has `PMT_SecurityRoleDefaultsVersion = 1.10` and may have no `PMT_DatabaseVersion` property. `PMT_1.10_to_1.11.sql` intentionally accepts that state and creates the overall version property as `1.11`. Verify `1.11`, `1.12`, `1.13`, and `1.14` after their respective scripts. If preflight instead finds a partial Version 1.11 through 1.13 deployment, stop and investigate before resuming only with the immediately following script. Do not manually edit a version property.
+
 Run the migration in SQLCMD mode so any guard or SQL error stops the deployment immediately. From a Windows-authenticated command prompt:
 
 ```powershell
@@ -25,6 +29,8 @@ sqlcmd -S "<SQL SERVER OR SQL SERVER\\INSTANCE>" -d PMT -E -b -I -i "PMT_1.13_to
 In SQL Server Management Studio, enable **Query > SQLCMD Mode** before running the file.
 
 Do not rerun the historical Version 1.3 through 1.10 chain on current installations. Those scripts remain in this folder only as immutable release history and for controlled reconstruction of an older database.
+
+Never run the rebuild, create, stored-procedure, or seed scripts against an existing BDO database. They are for fresh disposable databases, not production upgrades.
 
 Every future SQL, database-contract, or database-backed stability change must add a migration script here, named like:
 

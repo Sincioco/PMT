@@ -1,0 +1,562 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>2026-07-15 - PMT - BDO Migration Scripts</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #1f2933;
+      --muted: #59636e;
+      --paper: #fffef8;
+      --line: #d8d2c4;
+      --accent: #245c4f;
+      --accent-soft: #e8f1ed;
+      --warning: #7a3e00;
+      --warning-soft: #fff3dc;
+      --danger: #8d2424;
+      --danger-soft: #fdeaea;
+      --code: #16202a;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      background: #ece9e1;
+      color: var(--ink);
+      font: 16px/1.55 "Segoe UI", Arial, sans-serif;
+    }
+
+    main {
+      width: min(1080px, calc(100% - 32px));
+      margin: 28px auto;
+      padding: 42px 48px 56px;
+      background: var(--paper);
+      border: 1px solid var(--line);
+      box-shadow: 0 8px 28px rgb(31 41 51 / 10%);
+    }
+
+    h1, h2, h3 { line-height: 1.22; }
+    h1 { margin: 0 0 8px; font-size: clamp(1.8rem, 4vw, 2.7rem); }
+    h2 { margin: 38px 0 12px; padding-bottom: 7px; border-bottom: 2px solid var(--line); }
+    h3 { margin: 25px 0 8px; }
+    p { margin: 8px 0 14px; }
+    ol, ul { padding-left: 1.45rem; }
+    li { margin: 7px 0; }
+    code { font-family: Consolas, "Courier New", monospace; }
+    p code, li code, td code { padding: 1px 4px; background: #eeeae0; border-radius: 3px; }
+
+    pre {
+      overflow-x: auto;
+      margin: 12px 0 18px;
+      padding: 15px 17px;
+      color: #f5f7fa;
+      background: var(--code);
+      border-radius: 5px;
+      font: 13px/1.55 Consolas, "Courier New", monospace;
+      white-space: pre;
+    }
+
+    table { width: 100%; border-collapse: collapse; margin: 12px 0 20px; }
+    th, td { padding: 9px 10px; text-align: left; vertical-align: top; border: 1px solid var(--line); }
+    th { background: #eeeae0; }
+
+    .subtitle { margin: 0 0 24px; color: var(--muted); font-size: 1.08rem; }
+    .callout { margin: 18px 0; padding: 14px 16px; border-left: 5px solid var(--accent); background: var(--accent-soft); }
+    .warning { border-color: var(--warning); background: var(--warning-soft); }
+    .danger { border-color: var(--danger); background: var(--danger-soft); }
+    .checklist { list-style: none; padding-left: 0; }
+    .checklist li::before { content: "\2610"; display: inline-block; width: 1.5em; color: var(--accent); }
+    .small { color: var(--muted); font-size: .92rem; }
+    .page-break { break-before: page; }
+
+    @media print {
+      body { background: white; }
+      main { width: 100%; margin: 0; padding: 18mm; border: 0; box-shadow: none; }
+      pre { white-space: pre-wrap; overflow-wrap: anywhere; }
+      a { color: inherit; }
+    }
+  </style>
+</head>
+<body>
+<main>
+  <h1>PMT BDO Production Migration</h1>
+  <p class="subtitle">Runbook for July 15, 2026 &mdash; Database Version 1.10 to 1.14</p>
+
+  <div class="callout danger">
+    <strong>Production rule:</strong> keep PMT offline for the complete database migration and application replacement. Do not let anyone use an intermediate Version 1.11, 1.12, or 1.13 database. Stop immediately on any SQL error, unexpected version, failed check, or hash mismatch.
+  </div>
+
+  <div class="callout danger">
+    <strong>Never run rebuild or seed scripts against BDO.</strong> Do not run <code>00_DropAndRebuild_PMT.sql</code>, <code>01_CreateDatabase.sql</code>, <code>02_CreateStoredProcedures.sql</code>, any <code>03_SeedData*.sql</code> file, or <code>PMT_1.3_to_1.10_All.sql</code>. BDO is already on Version 1.10. Only the four forward migrations in this document are authorized for this deployment.
+  </div>
+
+  <table>
+    <tr><th>Item</th><th>Value</th></tr>
+    <tr><td>BDO starting database</td><td>PMT Database Version 1.10</td></tr>
+    <tr><td>Target database</td><td>PMT Database Version 1.14</td></tr>
+    <tr><td>Migration folder</td><td>A dated package containing the four <code>Sql\Migrations</code> files from the same release commit as the published application</td></tr>
+    <tr><td>Application deployment</td><td>Use a newly compiled and published .NET application; preserve BDO configuration and uploaded files</td></tr>
+    <tr><td>Authentication</td><td>Windows integrated SQL authentication is preferred for the commands below</td></tr>
+  </table>
+
+  <div class="callout warning">
+    Replace every value in angle brackets. Have a second person verify the server, database, backup paths, file hashes, and migration order before execution. A SQL backup path is on the SQL Server machine and must be writable by the SQL Server service account.
+  </div>
+
+  <h2>1. Prepare the release and matched rollback set</h2>
+  <ol>
+    <li>Compile and publish the current .NET application into a new, empty release folder. Do not publish directly over the live folder.</li>
+    <li>Record the Git commit SHA for the release. The published application, four migration files, and this runbook must all come from that same commit.</li>
+    <li>Create a dated migration-package folder and copy only the four canonical forward migrations plus this runbook into it. <code>dotnet publish</code> does not copy <code>Sql\Migrations</code> automatically.</li>
+    <li>Copy the complete current live application folder to a dated rollback folder.</li>
+    <li>Save BDO's production <code>appsettings.json</code>, connection string, <code>Deployment.PathBase</code>, <code>UploadStorage</code> root and credentials, IIS site settings, and application-pool identity.</li>
+    <li>Record the values below before continuing.</li>
+  </ol>
+
+  <pre>$ErrorActionPreference = 'Stop'
+
+$ReleaseCommit = '&lt;FULL GIT COMMIT SHA FOR THIS RELEASE&gt;'
+$ReleaseRoot   = '&lt;FULL PATH TO THE NEW PUBLISHED PMT RELEASE&gt;'
+$LiveRoot      = '&lt;FULL PATH TO THE LIVE PMT APPLICATION&gt;'
+$RollbackRoot  = '&lt;FULL PATH TO THE DATED APPLICATION BACKUP&gt;'
+$MigrationRoot = '&lt;FULL PATH TO THE DATED MIGRATION-PACKAGE FOLDER&gt;'
+$SqlServer     = '&lt;SQL SERVER OR SQL SERVER\INSTANCE&gt;'
+$DatabaseName  = 'PMT'
+$SqlBackup     = '&lt;SQL SERVER LOCAL BACKUP PATH&gt;\PMT_Before_1.14_20260715.bak'
+$UploadRoot    = '&lt;FULL RESOLVED UPLOAD FOLDER PMT ACTUALLY USES; NOT A BLANK OR RELATIVE CONFIG VALUE&gt;'
+$UploadBackup  = '&lt;FULL PATH TO THE DATED UPLOAD BACKUP&gt;'
+$LogRoot       = '&lt;FULL PATH TO THE DATED DEPLOYMENT LOG FOLDER&gt;'</pre>
+
+  <ul class="checklist">
+    <li>The application was compiled and published successfully into a new folder.</li>
+    <li>The release commit SHA is recorded.</li>
+    <li>The dated migration package contains this runbook and exactly the four forward migration files from the same commit.</li>
+    <li>The prior live application and production configuration are preserved.</li>
+    <li>The upload source and backup destinations are different locations.</li>
+  </ul>
+
+  <h2>2. Confirm BDO's starting database version</h2>
+  <p>Run this read-only query in SSMS before the maintenance window. A historical BDO Version 1.10 database can legitimately have no <code>PMT_DatabaseVersion</code> property. The required Version 1.10 marker is <code>PMT_SecurityRoleDefaultsVersion = 1.10</code>.</p>
+
+  <pre>USE [PMT];
+GO
+SET NOCOUNT ON;
+
+DECLARE @DatabaseVersion NVARCHAR(20) =
+(
+    SELECT CONVERT(NVARCHAR(20), [value])
+    FROM sys.extended_properties
+    WHERE [class] = 0 AND [name] = N'PMT_DatabaseVersion'
+);
+
+DECLARE @SecurityDefaultsVersion NVARCHAR(20) =
+(
+    SELECT CONVERT(NVARCHAR(20), [value])
+    FROM sys.extended_properties
+    WHERE [class] = 0 AND [name] = N'PMT_SecurityRoleDefaultsVersion'
+);
+
+SELECT
+    COALESCE(@DatabaseVersion, N'&lt;not recorded; valid for historical 1.10&gt;') AS [PMT_DatabaseVersion],
+    @SecurityDefaultsVersion AS [PMT_SecurityRoleDefaultsVersion],
+    CASE
+        WHEN @SecurityDefaultsVersion &lt;&gt; N'1.10' OR @SecurityDefaultsVersion IS NULL THEN N'STOP'
+        WHEN @DatabaseVersion IS NULL OR @DatabaseVersion = N'1.10' THEN N'START WITH 1.10 TO 1.11'
+        WHEN @DatabaseVersion IN (N'1.11', N'1.12', N'1.13') THEN N'STOP: INVESTIGATE PARTIAL DEPLOYMENT'
+        WHEN @DatabaseVersion = N'1.14' THEN N'ALREADY CURRENT; DO NOT RERUN'
+        ELSE N'STOP: UNKNOWN DATABASE VERSION'
+    END AS [Decision];
+GO</pre>
+
+  <table>
+    <tr><th>Observed state</th><th>Action</th></tr>
+    <tr><td>Security defaults <code>1.10</code>; database version absent or <code>1.10</code></td><td>Expected BDO baseline. Run all four migrations in order.</td></tr>
+    <tr><td>Database version <code>1.11</code>, <code>1.12</code>, or <code>1.13</code></td><td>Stop and investigate the partial deployment. After approval, resume only with the immediately following migration; never rerun an earlier step.</td></tr>
+    <tr><td>Database version <code>1.14</code></td><td>Do not rerun the chain. Verify the matching application release instead.</td></tr>
+    <tr><td>Any other marker state</td><td>Stop. Do not guess or edit a version property manually.</td></tr>
+  </table>
+
+  <h2>3. Start the maintenance window and back up files</h2>
+  <ol>
+    <li>Notify users and begin the approved maintenance window.</li>
+    <li>Stop the PMT IIS application pool in IIS Manager. Confirm PMT no longer serves requests.</li>
+    <li>Keep the application pool stopped through every migration and application-file change.</li>
+    <li>Copy the complete configured upload folder to the dated upload backup. Preserve its subfolders and timestamps.</li>
+    <li>Compare recursive source and backup file counts. Do not continue if they differ.</li>
+  </ol>
+
+  <pre># Run only after PMT is stopped. Use a new destination outside the source.
+$ErrorActionPreference = 'Stop'
+
+foreach ($PathCheck in @(
+    @{ Label = 'Upload source'; Value = $UploadRoot },
+    @{ Label = 'Upload backup'; Value = $UploadBackup }
+)) {
+    if ([string]::IsNullOrWhiteSpace($PathCheck.Value) -or
+        $PathCheck.Value -notmatch '^(?:[A-Za-z]:[\\/]|[\\/]{2}[^\\/]+[\\/][^\\/]+(?:[\\/]|$))') {
+        throw "$($PathCheck.Label) must be a full drive or UNC path."
+    }
+}
+
+$UploadRoot = [IO.Path]::GetFullPath($UploadRoot).Replace('/', '\')
+$UploadBackup = [IO.Path]::GetFullPath($UploadBackup).Replace('/', '\')
+$UploadRootComparable = $UploadRoot.TrimEnd([char[]]'\/')
+$UploadBackupComparable = $UploadBackup.TrimEnd([char[]]'\/')
+
+if ($UploadBackupComparable.Equals($UploadRootComparable, [StringComparison]::OrdinalIgnoreCase) -or
+    $UploadBackupComparable.StartsWith($UploadRootComparable + '\', [StringComparison]::OrdinalIgnoreCase)) {
+    throw 'Upload backup must be outside the upload source.'
+}
+
+if (-not (Test-Path -LiteralPath $UploadRoot -PathType Container)) {
+    throw "Upload source is unavailable: $UploadRoot"
+}
+
+if (Test-Path -LiteralPath $UploadBackup) {
+    throw "Upload backup destination already exists; use a new dated path: $UploadBackup"
+}
+
+$UploadBackupParent = Split-Path -Parent $UploadBackup
+if (-not (Test-Path -LiteralPath $UploadBackupParent -PathType Container)) {
+    throw "Upload backup parent is unavailable: $UploadBackupParent"
+}
+
+Copy-Item -LiteralPath $UploadRoot -Destination $UploadBackup -Recurse
+
+if (-not (Test-Path -LiteralPath $UploadBackup -PathType Container)) {
+    throw "Upload backup was not created: $UploadBackup"
+}
+
+$UploadSourceCount = (Get-ChildItem -LiteralPath $UploadRoot -File -Recurse).Count
+$UploadBackupCount = (Get-ChildItem -LiteralPath $UploadBackup -File -Recurse).Count
+
+if ($UploadSourceCount -ne $UploadBackupCount) {
+    throw "Upload backup count mismatch: source=$UploadSourceCount backup=$UploadBackupCount"
+}</pre>
+
+  <h2>4. Check, back up, and verify the PMT database</h2>
+  <p>Run in SSMS against the BDO SQL Server. Change only the backup path.</p>
+
+  <pre>USE [master];
+GO
+
+DBCC CHECKDB ([PMT]) WITH NO_INFOMSGS, ALL_ERRORMSGS;
+GO
+
+BACKUP DATABASE [PMT]
+TO DISK = N'&lt;SQL SERVER LOCAL BACKUP PATH&gt;\PMT_Before_1.14_20260715.bak'
+WITH COPY_ONLY, INIT, CHECKSUM, STATS = 10;
+GO
+
+RESTORE VERIFYONLY
+FROM DISK = N'&lt;SQL SERVER LOCAL BACKUP PATH&gt;\PMT_Before_1.14_20260715.bak'
+WITH CHECKSUM;
+GO</pre>
+
+  <div class="callout danger">
+    Do not continue unless <code>DBCC CHECKDB</code> reports no errors, the full backup completes, and <code>RESTORE VERIFYONLY</code> says the backup set is valid.
+  </div>
+
+  <h2>5. Save the pre-migration data manifest</h2>
+  <p>Run the following in SSMS, save both result sets as dated CSV files, and keep them with the deployment record. The first query captures every PMT table. The second captures representative identifiers and timestamps without exporting private bodies.</p>
+
+  <pre>USE [PMT];
+GO
+SET NOCOUNT ON;
+
+SELECT
+    [Schema].[name] AS [SchemaName],
+    [Table].[name] AS [TableName],
+    SUM([Partition].[row_count]) AS [RowCount]
+FROM sys.tables AS [Table]
+INNER JOIN sys.schemas AS [Schema]
+    ON [Schema].[schema_id] = [Table].[schema_id]
+INNER JOIN sys.dm_db_partition_stats AS [Partition]
+    ON [Partition].[object_id] = [Table].[object_id]
+WHERE [Schema].[name] = N'pmt'
+  AND [Partition].[index_id] IN (0, 1)
+GROUP BY [Schema].[name], [Table].[name]
+ORDER BY [Schema].[name], [Table].[name];
+
+SELECT N'Users' AS [Entity], [UserId] AS [Id], [Nickname] AS [Reference], [CreatedAt], [UpdatedAt]
+FROM [pmt].[Users]
+UNION ALL
+SELECT N'Projects', [ProjectId], [Code], [CreatedAt], [UpdatedAt] FROM [pmt].[Projects]
+UNION ALL
+SELECT N'Sprints', [SprintId], [Code], [CreatedAt], [UpdatedAt] FROM [pmt].[Sprints]
+UNION ALL
+SELECT N'WorkTasks', [TaskId], [Code], [CreatedAt], [UpdatedAt] FROM [pmt].[WorkTasks];
+
+SELECT N'SecurityResources' AS [Configuration], COUNT_BIG(*) AS [RowCount]
+FROM [pmt].[SecurityResources]
+UNION ALL
+SELECT N'RolePermissions', COUNT_BIG(*) FROM [pmt].[RolePermissions];
+GO</pre>
+
+  <p>For this release, the expected configuration counts are 14 Security Resources and 112 Role Permissions. Do not use those two expected numbers as a substitute for comparing every BDO table to its own saved pre-migration count.</p>
+
+  <h2>6. Verify the four canonical migration files</h2>
+  <p>The SQL remains in the adjacent canonical files instead of being duplicated inside this HTML. This avoids a second copy that could drift. The following hashes identify the exact scripts that passed the July 14 rehearsal. They hash UTF-8 text after normalizing Windows or Unix line endings to LF, so a normal Git checkout does not cause a false mismatch.</p>
+
+  <table>
+    <tr><th>File</th><th>SHA-256</th></tr>
+    <tr><td><code>PMT_1.10_to_1.11.sql</code></td><td><code>F3F6458B71BD488AF9058905CD35C2A05F49C0D7C262D8CDC9702C7784069D1F</code></td></tr>
+    <tr><td><code>PMT_1.11_to_1.12.sql</code></td><td><code>2F630232C027F1C8FBFB4F28FACE6C657D92ACF1A2ED2D2BB150AD826ACABEC1</code></td></tr>
+    <tr><td><code>PMT_1.12_to_1.13.sql</code></td><td><code>CBDBAEA0D63AC513427CC3A9437075196182DD0795CC72755C4CAD5A236A4F7A</code></td></tr>
+    <tr><td><code>PMT_1.13_to_1.14.sql</code></td><td><code>AF6412A2CB6841EA6BAC6BBE84F6766080FCBACF01C069053207F30FD35F739C</code></td></tr>
+  </table>
+
+  <pre>$ExpectedHashes = [ordered]@{
+    'PMT_1.10_to_1.11.sql' = 'F3F6458B71BD488AF9058905CD35C2A05F49C0D7C262D8CDC9702C7784069D1F'
+    'PMT_1.11_to_1.12.sql' = '2F630232C027F1C8FBFB4F28FACE6C657D92ACF1A2ED2D2BB150AD826ACABEC1'
+    'PMT_1.12_to_1.13.sql' = 'CBDBAEA0D63AC513427CC3A9437075196182DD0795CC72755C4CAD5A236A4F7A'
+    'PMT_1.13_to_1.14.sql' = 'AF6412A2CB6841EA6BAC6BBE84F6766080FCBACF01C069053207F30FD35F739C'
+}
+
+foreach ($FileName in $ExpectedHashes.Keys) {
+    $Path = Join-Path $MigrationRoot $FileName
+    if (-not (Test-Path -LiteralPath $Path)) { throw "Missing migration: $Path" }
+
+    $Text = [IO.File]::ReadAllText($Path) -replace "`r`n", "`n" -replace "`r", "`n"
+    $Bytes = [Text.UTF8Encoding]::new($false).GetBytes($Text)
+    $Sha256 = [Security.Cryptography.SHA256]::Create()
+    try {
+        $ActualHash = ([BitConverter]::ToString($Sha256.ComputeHash($Bytes))).Replace('-', '')
+    }
+    finally {
+        $Sha256.Dispose()
+    }
+
+    if ($ActualHash -ne $ExpectedHashes[$FileName]) {
+        throw "Hash mismatch for $FileName. Stop the deployment."
+    }
+}
+
+Write-Host 'All four migration hashes match the tested release.' -ForegroundColor Green</pre>
+
+  <h2>7. Apply and verify each migration separately</h2>
+  <p>Run this from an elevated PowerShell window on a machine with <code>sqlcmd</code> and access to BDO SQL Server. The <code>-b</code> option returns a failure exit code for SQL errors; <code>-I</code> supplies the required quoted-identifier setting. A separate log is written for every step.</p>
+
+  <pre>$ErrorActionPreference = 'Stop'
+New-Item -ItemType Directory -Path $LogRoot -Force | Out-Null
+
+$Steps = @(
+    @{ File = 'PMT_1.10_to_1.11.sql'; ExpectedVersion = '1.11' },
+    @{ File = 'PMT_1.11_to_1.12.sql'; ExpectedVersion = '1.12' },
+    @{ File = 'PMT_1.12_to_1.13.sql'; ExpectedVersion = '1.13' },
+    @{ File = 'PMT_1.13_to_1.14.sql'; ExpectedVersion = '1.14' }
+)
+
+foreach ($Step in $Steps) {
+    $ScriptPath = Join-Path $MigrationRoot $Step.File
+    $LogPath = Join-Path $LogRoot ($Step.File + '.log')
+
+    Write-Host "Applying $($Step.File)"
+    &amp; sqlcmd -S $SqlServer -d $DatabaseName -E -b -I -i $ScriptPath -o $LogPath
+    if ($LASTEXITCODE -ne 0) {
+        throw "Migration failed: $($Step.File). Keep PMT stopped and inspect $LogPath."
+    }
+
+    $VersionQuery = "SET NOCOUNT ON; SELECT CONVERT(NVARCHAR(20), [value]) FROM sys.extended_properties WHERE [class]=0 AND [name]=N'PMT_DatabaseVersion';"
+    $ActualVersion = (&amp; sqlcmd -S $SqlServer -d $DatabaseName -E -b -I -h -1 -W -Q $VersionQuery).Trim()
+    if ($LASTEXITCODE -ne 0 -or $ActualVersion -ne $Step.ExpectedVersion) {
+        throw "Expected PMT Database Version $($Step.ExpectedVersion), found '$ActualVersion'."
+    }
+
+    Write-Host "Verified PMT Database Version $ActualVersion" -ForegroundColor Green
+}
+
+Write-Host 'PMT database migration 1.10 to 1.14 completed.' -ForegroundColor Green</pre>
+
+  <p class="small">If BDO requires SQL authentication, use its approved secure credential mechanism instead of <code>-E</code>. Never put a SQL password in this HTML, PowerShell history, a deployment log, or source control.</p>
+
+  <div class="callout danger">
+    If any step fails, do not skip it, do not edit a version marker, and do not start either application version. The scripts are repair-and-rerun safe while their source or target version is current, but earlier scripts correctly reject a later database version. Restore the verified backup when a safe correction cannot be completed inside the maintenance window.
+  </div>
+
+  <h2>8. Validate Version 1.14 before deploying the application</h2>
+  <p>Rerun the complete table-count manifest from Step 5 and compare it with the saved Version 1.10 results. Every existing PMT table count must match. Then run these contract and integrity assertions.</p>
+
+  <pre>USE [PMT];
+GO
+SET NOCOUNT ON;
+
+IF NOT EXISTS
+(
+    SELECT 1 FROM sys.extended_properties
+    WHERE [class] = 0 AND [name] = N'PMT_DatabaseVersion'
+      AND CONVERT(NVARCHAR(20), [value]) = N'1.14'
+)
+    THROW 51140, 'PMT Database Version 1.14 was not recorded.', 1;
+
+IF NOT EXISTS
+(
+    SELECT 1 FROM sys.extended_properties
+    WHERE [class] = 0 AND [name] = N'PMT_SecurityRoleDefaultsVersion'
+      AND CONVERT(NVARCHAR(20), [value]) = N'1.10'
+)
+    THROW 51141, 'The Version 1.10 Role-default marker changed unexpectedly.', 1;
+
+WITH [Expected] ([ProcedureName]) AS
+(
+    SELECT * FROM (VALUES
+        (N'RequireDevLogPermission'), (N'UpsertDevLog'), (N'DeleteDevLog'),
+        (N'UpsertProject'), (N'GetMaintenanceRecycleBin'),
+        (N'ProcessMaintenanceRecycleBin'), (N'FindReferencedUploadPaths'),
+        (N'GetAppState'), (N'UpsertBlog'), (N'ConvertTaskToBlog'),
+        (N'DeleteBlog'), (N'AddBlogAttachment'), (N'DeleteBlogAttachment'),
+        (N'DevelopmentClearProjectData'), (N'DevelopmentClearUsers'),
+        (N'RequireDevelopmentSeedRestore')
+    ) AS [Names] ([ProcedureName])
+)
+SELECT [ProcedureName] AS [MissingProcedure]
+FROM [Expected]
+WHERE OBJECT_ID(N'[pmt].[' + [ProcedureName] + N']', N'P') IS NULL;
+
+IF NOT EXISTS
+(
+    SELECT 1 FROM sys.parameters
+    WHERE [object_id] = OBJECT_ID(N'[pmt].[UpsertProject]')
+      AND [name] = N'@OverrideArchivedCode'
+)
+    THROW 51142, 'The Project-code override contract is missing.', 1;
+
+SELECT N'SecurityResources' AS [Configuration], COUNT_BIG(*) AS [RowCount]
+FROM [pmt].[SecurityResources]
+UNION ALL
+SELECT N'RolePermissions', COUNT_BIG(*) FROM [pmt].[RolePermissions];
+
+SELECT
+    OBJECT_SCHEMA_NAME([parent_object_id]) AS [SchemaName],
+    OBJECT_NAME([parent_object_id]) AS [TableName],
+    [name] AS [InvalidForeignKey]
+FROM sys.foreign_keys
+WHERE [is_disabled] = 1 OR [is_not_trusted] = 1;
+
+DBCC CHECKCONSTRAINTS WITH ALL_CONSTRAINTS;
+DBCC CHECKDB ([PMT]) WITH NO_INFOMSGS, ALL_ERRORMSGS;
+GO</pre>
+
+  <ul class="checklist">
+    <li>The missing-procedure query returns zero rows.</li>
+    <li>The invalid-foreign-key query returns zero rows.</li>
+    <li>Security Resources remain 14 and Role Permissions remain 112.</li>
+    <li>Every pre/post PMT table count matches.</li>
+    <li>Representative existing IDs, codes, ownership, and timestamps remain intact.</li>
+    <li>DBCC reports no errors.</li>
+  </ul>
+
+  <h2>9. Deploy the matching .NET application</h2>
+  <ol>
+    <li>Keep the IIS application pool stopped.</li>
+    <li>Copy the tested published files into the live folder, or switch IIS to the prepared release folder according to BDO's normal deployment practice.</li>
+    <li>Restore the saved production configuration values. Do not replace them with development settings.</li>
+    <li>Do not delete, move, reseed, or replace the production upload folder.</li>
+    <li>Confirm the IIS identity still has database and upload-folder access.</li>
+    <li>Start the PMT IIS application pool and open PMT.</li>
+  </ol>
+
+  <div class="callout">
+    This deployment includes .NET/backend and database-contract changes. A full .NET compile and publish is required; a browser refresh alone is not enough. After the new application starts, press <strong>Ctrl+F5</strong> once so cached browser assets cannot mask the release.
+  </div>
+
+  <h2>10. Production-safe smoke test</h2>
+  <p>Use an administrator and an approved QA/non-admin test account. Use only approved disposable records for write tests. Do not purge real data, delete real uploads, restore seed data, or reset production security merely to test a button.</p>
+
+  <ul class="checklist">
+    <li>Sign in as Admin and QA; confirm Dashboard and all navigation/direct URLs load.</li>
+    <li>Open representative existing Projects, Sprints, tasks, bugs, Scrum entries, Documentation, Board, Gantt, and Road Map; confirm existing data is intact.</li>
+    <li>With disposable Scrum entries, confirm QA can edit only QA-owned rows, sees no trash icon on another owner's row, and a cross-owner save is rejected. Confirm Admin can still manage shared Scrum.</li>
+    <li>Create a disposable private Log as QA. Confirm Admin cannot see, update, or delete it; then delete it as its owner.</li>
+    <li>Using an approved disposable owner that already has Documentation Delete permission (preferably a second Admin), create private Documentation. Confirm a different Admin cannot discover it through cards, tree, filters, direct URL, attachments, history, audit, or export; then delete it as its owner. If no suitable owner account exists, perform only a read-only privacy check and do not change production permissions merely for this test.</li>
+    <li>Create a disposable Project and confirm its requested code is saved exactly. Test archived-code reclaim only with an approved disposable archived Project, never a real BDO code.</li>
+    <li>Open Settings &rarr; Maintenance. Confirm recycle-bin preview and orphan scan load. Do not confirm a permanent purge or orphan deletion on production data.</li>
+    <li>Open Reset Security, verify the warning, and click Cancel. Do not confirm a production security reset.</li>
+    <li>Upload, open, and remove one approved temporary attachment; confirm the configured upload path is available.</li>
+    <li>Open the About 2D page and confirm Database Version 1.14. Skip the 3D animation tests for this deployment.</li>
+    <li>Review the browser console, network requests, PMT logs, IIS logs, and Windows Event Viewer for unexpected failures.</li>
+  </ul>
+
+  <h2 class="page-break">Rollback plan</h2>
+  <p>Use rollback if database validation or the production smoke test fails and the issue cannot be corrected safely inside the maintenance window.</p>
+
+  <ol>
+    <li>Stop the PMT IIS application pool.</li>
+    <li>Preserve the failed deployment's application, IIS, and SQLCMD logs.</li>
+    <li>Restore the prior live application folder and saved production configuration from the matched rollback set.</li>
+    <li>Restore the verified Version 1.10 database backup with the SQL below.</li>
+    <li>Restore the upload backup only if files changed after the deployment started.</li>
+    <li>Start the prior application and perform read-only login/navigation/data checks.</li>
+  </ol>
+
+  <pre>USE [master];
+GO
+ALTER DATABASE [PMT] SET SINGLE_USER WITH ROLLBACK IMMEDIATE;
+GO
+RESTORE DATABASE [PMT]
+FROM DISK = N'&lt;SQL SERVER LOCAL BACKUP PATH&gt;\PMT_Before_1.14_20260715.bak'
+WITH REPLACE, CHECKSUM, RECOVERY, STATS = 10;
+GO
+ALTER DATABASE [PMT] SET MULTI_USER;
+GO
+DBCC CHECKDB ([PMT]) WITH NO_INFOMSGS, ALL_ERRORMSGS;
+GO</pre>
+
+  <div class="callout warning">
+    There are intentionally no downgrade scripts. A rollback restores the prior application folder, production configuration, Version 1.10 database backup, and upload backup as one matched set.
+  </div>
+
+  <h2>Migration rehearsal completed July 14, 2026</h2>
+  <p>The July 15 procedure was rehearsed locally from the exact source state immediately before Version 1.11: Git commit <code>029f77f40de4a07b014f272be2386bf364266195</code>. Its five historical database scripts were executed individually because that old rebuild wrapper contains absolute paths.</p>
+
+  <table>
+    <tr><th>Verification</th><th>Result</th></tr>
+    <tr><td>Exact Version 1.10 source baseline</td><td>Passed; <code>PMT_SecurityRoleDefaultsVersion = 1.10</code> and <code>PMT_DatabaseVersion</code> was legitimately absent</td></tr>
+    <tr><td>Version 1.10 backup and <code>RESTORE VERIFYONLY</code></td><td>Passed with checksums</td></tr>
+    <tr><td>Actual rollback restore of the Version 1.10 backup</td><td>Passed; DBCC remained clean</td></tr>
+    <tr><td>Sequential 1.10 &rarr; 1.11 &rarr; 1.12 &rarr; 1.13 &rarr; 1.14</td><td>Passed; every version marker was checked</td></tr>
+    <tr><td>Per-step rerun while each target version was current</td><td>Passed for all four scripts</td></tr>
+    <tr><td>SQL warnings and errors after correction</td><td>Zero</td></tr>
+    <tr><td>All 24 <code>[pmt]</code> table counts</td><td>Matched the Version 1.10 baseline exactly</td></tr>
+    <tr><td>SHA-256 preservation sentinels</td><td>Matched for Project, Sprint, active/deleted tasks, public/private active/deleted Documentation, shared/private active/deleted Logs, attachments, and a QA permission override</td></tr>
+    <tr><td>Scrum ownership and private Log enforcement</td><td>Passed for owner, non-owner, and Admin paths</td></tr>
+    <tr><td>Private Documentation enforcement</td><td>Passed; another Admin could not edit or discover owner-only content through live state</td></tr>
+    <tr><td>Exact Project code and explicit Admin reclaim</td><td>Passed; archived Project and related Sprint were preserved</td></tr>
+    <tr><td>Maintenance preview and upload final-reference check</td><td>Passed; shared deleted data appeared, another owner's private data did not, and referenced files were protected</td></tr>
+    <tr><td>Database constraints, trusted foreign keys, and DBCC</td><td>Passed</td></tr>
+    <tr><td>Live .NET application against migrated database</td><td>Passed for Admin login, application-state load, privacy, Maintenance, direct-write rejection, and shell load</td></tr>
+    <tr><td>.NET build</td><td>Passed with 0 errors; the existing .NET 6 end-of-support SDK warning remains</td></tr>
+    <tr><td>JavaScript syntax and unit tests</td><td>106 modules and 63 tests passed</td></tr>
+    <tr><td>Targeted Chromium smoke tests</td><td>24 passed across 1366 &times; 768 and 1920 &times; 1080; the About 3D browser suite was intentionally excluded</td></tr>
+  </table>
+
+  <p>The first rehearsal exposed the 2,000-byte clustered-key warning in <code>PMT_1.12_to_1.13.sql</code>. The migration's upload-path table variable was corrected to match the warning-free Version 1.14/current-source procedure. The verified Version 1.10 backup was restored and the complete chain was then repeated twice per step with no SQL warnings or errors.</p>
+
+  <p>Rehearsal baseline counts included 6 Users, 4 Projects, 20 Project Members, 76 Sprints, 382 Sprint Members, 655 Work Tasks, 655 Task Assignees, 18 Blogs, 200 Dev Logs, 2 Attachments, 14 Security Resources, and 112 Role Permissions. All application table counts and sentinel hashes matched immediately after migration.</p>
+
+  <h2>Deployment record</h2>
+  <table>
+    <tr><th>Field</th><th>Record</th></tr>
+    <tr><td>Release Git commit SHA</td><td>&nbsp;</td></tr>
+    <tr><td>Operator</td><td>&nbsp;</td></tr>
+    <tr><td>Second verifier</td><td>&nbsp;</td></tr>
+    <tr><td>Maintenance started</td><td>&nbsp;</td></tr>
+    <tr><td>Starting marker results</td><td>&nbsp;</td></tr>
+    <tr><td>Database backup path</td><td>&nbsp;</td></tr>
+    <tr><td>Application rollback path</td><td>&nbsp;</td></tr>
+    <tr><td>Upload backup path and counts</td><td>&nbsp;</td></tr>
+    <tr><td>Pre/post manifest files</td><td>&nbsp;</td></tr>
+    <tr><td>Migration log folder</td><td>&nbsp;</td></tr>
+    <tr><td>Database Version 1.14 verified</td><td>&nbsp;</td></tr>
+    <tr><td>Application deployed</td><td>&nbsp;</td></tr>
+    <tr><td>Production smoke test completed</td><td>&nbsp;</td></tr>
+    <tr><td>Maintenance ended</td><td>&nbsp;</td></tr>
+  </table>
+
+  <p class="small">Keep this completed runbook with the release SHA, four migration hashes, backup verification, pre/post data manifests, SQLCMD logs, IIS/application logs, and smoke-test sign-off.</p>
+</main>
+</body>
+</html>
