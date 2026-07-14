@@ -147,6 +147,8 @@ For a Windows fileshare, set `RootPath` to the UNC folder and provide the filesh
 
 When both credentials are supplied, PMT connects to the UNC share at startup and uses that connection for uploads and `/uploads` downloads. Back up the configured upload folder with the SQL Server database.
 
+If PMT encounters a configuration or file-system access error while initializing the upload folder, it logs the detailed storage error and continues running without upload storage. A persistent warning appears on the Login screen and throughout PMT. Upload requests and `/uploads` file requests return an unavailable response, but database-backed screens remain usable. PMT never silently falls back to another folder. Correct `RootPath`, credentials, or application-pool permissions, then restart the PMT application so the upload provider and any UNC connection can be established again.
+
 ## 8. Updating PMT
 
 1. Stop the IIS site or app pool.

@@ -13,6 +13,8 @@ builder.Services.Configure<Microsoft.AspNetCore.Http.Json.JsonOptions>(options =
 
 var app = builder.Build();
 var configuredPathBase = NormalizePathBase(builder.Configuration["Deployment:PathBase"]);
+const string uploadStorageUnavailableMessage = "File upload storage is unavailable or cannot be reached. Check UploadStorage:RootPath, credentials, and the PMT service account's folder permissions. PMT can still be used, but uploads and uploaded files are unavailable until PMT is restarted.";
+var uploadStorageWarning = "";
 
 app.Use(async (context, next) =>
 {
@@ -67,18 +69,55 @@ app.Use(async (context, next) =>
     await next();
 });
 
-app.UseStaticFiles();
+var uploadRequestPath = UploadStorageOptions.RequestPathFrom(builder.Configuration);
+IDisposable? uploadStorageConnection = null;
+StaticFileOptions? uploadStaticFileOptions = null;
 
-var uploadStorage = UploadStorageOptions.From(builder.Configuration, app.Environment.ContentRootPath);
-using var uploadStorageConnection = UploadStorageAccess.Connect(uploadStorage);
-Directory.CreateDirectory(uploadStorage.RootPath);
-app.UseStaticFiles(new StaticFileOptions
+try
 {
-    // Uploaded files stay outside wwwroot. In production this path can be a
-    // file share, while SQL stores only the URL and metadata.
-    FileProvider = new PhysicalFileProvider(uploadStorage.RootPath),
-    RequestPath = uploadStorage.RequestPath
-});
+    var uploadStorage = UploadStorageOptions.From(builder.Configuration, app.Environment.ContentRootPath);
+    uploadRequestPath = uploadStorage.RequestPath;
+    uploadStorageConnection = UploadStorageAccess.Connect(uploadStorage);
+    Directory.CreateDirectory(uploadStorage.RootPath);
+    uploadStaticFileOptions = new StaticFileOptions
+    {
+        // Uploaded files stay outside wwwroot. In production this path can be a
+        // file share, while SQL stores only the URL and metadata.
+        FileProvider = new PhysicalFileProvider(uploadStorage.RootPath),
+        RequestPath = uploadStorage.RequestPath
+    };
+}
+catch (Exception exception) when (IsUploadStorageStartupException(exception))
+{
+    uploadStorageConnection?.Dispose();
+    uploadStorageConnection = null;
+    uploadStorageWarning = uploadStorageUnavailableMessage;
+    app.Logger.LogError(
+        exception,
+        "Upload storage initialization failed for {UploadRootPath}. PMT will continue without file upload storage.",
+        builder.Configuration["UploadStorage:RootPath"] ?? "UploadedFiles");
+}
+
+if (!string.IsNullOrEmpty(uploadStorageWarning))
+{
+    app.Use(async (context, next) =>
+    {
+        if (context.Request.Path.StartsWithSegments(uploadRequestPath))
+        {
+            context.Response.StatusCode = StatusCodes.Status503ServiceUnavailable;
+            await context.Response.WriteAsJsonAsync(new { error = uploadStorageWarning });
+            return;
+        }
+
+        await next();
+    });
+}
+
+app.UseStaticFiles();
+if (uploadStaticFileOptions is not null)
+{
+    app.UseStaticFiles(uploadStaticFileOptions);
+}
 
 // The frontend loads all screen data through this one endpoint, then performs
 // small save actions through focused endpoints below.
@@ -92,11 +131,12 @@ app.MapWfhScheduleEndpoints();
 app.MapSettingsEndpoints();
 app.MapSecurityEndpoints();
 app.MapContentEndpoints();
-app.MapUploadEndpoints();
+app.MapUploadEndpoints(uploadStorageWarning);
 app.MapDevelopmentEndpoints();
 
 app.MapFallback(ServeIndexAsync);
 
+using var uploadStorageConnectionScope = uploadStorageConnection;
 app.Run();
 
 async Task ServeIndexAsync(HttpContext context)
@@ -108,6 +148,7 @@ async Task ServeIndexAsync(HttpContext context)
 
     html = html
         .Replace("<meta name=\"pmt-path-base\" content=\"\">", $"<meta name=\"pmt-path-base\" content=\"{WebUtility.HtmlEncode(pathBase)}\">")
+        .Replace("<meta name=\"pmt-upload-storage-warning\" content=\"\">", $"<meta name=\"pmt-upload-storage-warning\" content=\"{WebUtility.HtmlEncode(uploadStorageWarning)}\">")
         .Replace("<base href=\"/\">", $"<base href=\"{WebUtility.HtmlEncode(baseHref)}\">");
 
     context.Response.ContentType = "text/html; charset=utf-8";
@@ -126,4 +167,14 @@ static string NormalizePathBase(string? pathBase)
     if (string.IsNullOrEmpty(value) || value == "/") return string.Empty;
     if (!value.StartsWith('/')) value = $"/{value}";
     return value.TrimEnd('/');
+}
+
+static bool IsUploadStorageStartupException(Exception exception)
+{
+    return exception is InvalidOperationException
+        or IOException
+        or UnauthorizedAccessException
+        or ArgumentException
+        or NotSupportedException
+        or System.Security.SecurityException;
 }

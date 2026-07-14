@@ -16,6 +16,12 @@ against disposable development data.
 - [ ] Open browser developer tools and keep the Console visible.
 - [ ] Use a laptop-size viewport, approximately `1366 x 768`.
 
+## Upload storage availability
+
+- [ ] Configure `UploadStorage:RootPath` to an invalid or unreachable location and restart PMT. Confirm the Login screen still loads and a persistent upload-storage warning is visible.
+- [ ] With upload storage unavailable, confirm database-backed screens remain usable, an upload request returns a clear unavailable error, and `/uploads/missing-file.png` returns `503` instead of the PMT HTML shell.
+- [ ] Correct the folder or fileshare configuration, restart PMT, and confirm the warning disappears and both upload writes and `/uploads` reads work.
+
 ## Authentication and user menu
 
 - [ ] On a browser profile that has never logged in, confirm Nickname or Email and Password both start blank.

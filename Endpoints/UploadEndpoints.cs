@@ -12,16 +12,20 @@ namespace PMT.Endpoints;
 
 internal static class UploadEndpoints
 {
-    public static IEndpointRouteBuilder MapUploadEndpoints(this IEndpointRouteBuilder app)
+    public static IEndpointRouteBuilder MapUploadEndpoints(this IEndpointRouteBuilder app, string uploadStorageWarning = "")
     {
         app.MapPost("/api/uploads/{kind}", async (string kind, HttpRequest request, IWebHostEnvironment environment, IConfiguration configuration, CancellationToken cancellationToken) =>
         {
+            if (UploadStorageUnavailableResult(uploadStorageWarning) is { } unavailable) return unavailable;
+
             var upload = await SaveUploadAsync(kind, request, environment, configuration, cancellationToken);
             return Results.Ok(upload);
         });
 
         app.MapPost("/api/tasks/{id:int}/attachments", async (int id, HttpRequest request, HttpContext context, IWebHostEnvironment environment, IConfiguration configuration, SqlPmtStore store, CancellationToken cancellationToken) =>
         {
+            if (UploadStorageUnavailableResult(uploadStorageWarning) is { } unavailable) return unavailable;
+
             var currentUserId = CurrentUserId(context);
             await store.RequireTaskPermissionAsync(currentUserId, id, "Update", false, cancellationToken);
             var upload = await SaveUploadAsync("tasks", request, environment, configuration, cancellationToken);
@@ -31,6 +35,8 @@ internal static class UploadEndpoints
 
         app.MapPost("/api/backlog/tasks/{id:int}/attachments", async (int id, HttpRequest request, HttpContext context, IWebHostEnvironment environment, IConfiguration configuration, SqlPmtStore store, CancellationToken cancellationToken) =>
         {
+            if (UploadStorageUnavailableResult(uploadStorageWarning) is { } unavailable) return unavailable;
+
             var currentUserId = CurrentUserId(context);
             await store.RequireTaskPermissionAsync(currentUserId, id, "Update", true, cancellationToken);
             var upload = await SaveUploadAsync("tasks", request, environment, configuration, cancellationToken);
@@ -40,6 +46,8 @@ internal static class UploadEndpoints
 
         app.MapPost("/api/blogs/{id:int}/attachments", async (int id, HttpRequest request, HttpContext context, IWebHostEnvironment environment, IConfiguration configuration, SqlPmtStore store, CancellationToken cancellationToken) =>
         {
+            if (UploadStorageUnavailableResult(uploadStorageWarning) is { } unavailable) return unavailable;
+
             var currentUserId = ExplicitCurrentUserId(context);
             await store.RequirePermissionAsync(currentUserId, "Documentation", "Update", cancellationToken);
             var upload = await SaveUploadAsync("blogs", request, environment, configuration, cancellationToken);
@@ -49,6 +57,8 @@ internal static class UploadEndpoints
 
         app.MapDelete("/api/tasks/{id:int}/attachments/{attachmentId:int}", async (int id, int attachmentId, HttpContext context, IWebHostEnvironment environment, IConfiguration configuration, SqlPmtStore store, CancellationToken cancellationToken) =>
         {
+            if (UploadStorageUnavailableResult(uploadStorageWarning) is { } unavailable) return unavailable;
+
             var currentUserId = CurrentUserId(context);
             await store.RequireTaskPermissionAsync(currentUserId, id, "Update", false, cancellationToken);
             var url = await store.DeleteTaskAttachmentAsync(id, attachmentId, currentUserId, cancellationToken);
@@ -58,6 +68,8 @@ internal static class UploadEndpoints
 
         app.MapDelete("/api/backlog/tasks/{id:int}/attachments/{attachmentId:int}", async (int id, int attachmentId, HttpContext context, IWebHostEnvironment environment, IConfiguration configuration, SqlPmtStore store, CancellationToken cancellationToken) =>
         {
+            if (UploadStorageUnavailableResult(uploadStorageWarning) is { } unavailable) return unavailable;
+
             var currentUserId = CurrentUserId(context);
             await store.RequireTaskPermissionAsync(currentUserId, id, "Update", true, cancellationToken);
             var url = await store.DeleteBacklogTaskAttachmentAsync(id, attachmentId, currentUserId, cancellationToken);
@@ -67,6 +79,8 @@ internal static class UploadEndpoints
 
         app.MapDelete("/api/blogs/{id:int}/attachments/{attachmentId:int}", async (int id, int attachmentId, HttpContext context, IWebHostEnvironment environment, IConfiguration configuration, SqlPmtStore store, CancellationToken cancellationToken) =>
         {
+            if (UploadStorageUnavailableResult(uploadStorageWarning) is { } unavailable) return unavailable;
+
             var currentUserId = ExplicitCurrentUserId(context);
             await store.RequirePermissionAsync(currentUserId, "Documentation", "Update", cancellationToken);
             var url = await store.DeleteBlogAttachmentAsync(id, attachmentId, currentUserId, cancellationToken);
@@ -103,6 +117,13 @@ internal static class UploadEndpoints
         {
             // The database link is already gone; leave an unreachable file for deployment cleanup.
         }
+    }
+
+    private static IResult? UploadStorageUnavailableResult(string uploadStorageWarning)
+    {
+        return string.IsNullOrEmpty(uploadStorageWarning)
+            ? null
+            : Results.Json(new { error = uploadStorageWarning }, statusCode: StatusCodes.Status503ServiceUnavailable);
     }
 
     private static async Task<UploadResult> SaveUploadAsync(string kind, HttpRequest request, IWebHostEnvironment environment, IConfiguration configuration, CancellationToken cancellationToken)

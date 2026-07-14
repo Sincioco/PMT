@@ -74,7 +74,7 @@ About Page - Credit, Repo and Version #
 
 File Upload Path - Exception Handling
 ---------------------------------------
-5.) When the File Upload Path in the configuration is pointing to the wrong or invalid location, PMT just does not load at all.  It generates a 500 Server error.  Can you fix this so that PMT still loads but just informs the user that the file location is not available or is not reachable?  Must like what you do when the SQL database is not available / reachable.  It's very hard to troubleshoot a 500 Server error only to find out it's the path of the upload file location that was causing it.
+5.) When the File Upload Path in the configuration is pointing to the wrong or invalid location, PMT just does not load at all.  It generates a 500 Server error.  Can you fix this so that PMT still loads but just informs the user that the file location is not available or is not reachable?  Much like what you do when the SQL database is not available / reachable.  It's very hard to troubleshoot a 500 Server error only to find out it's the path of the upload file location that was causing it.
 
 PMT Screen Saver - PMT Logo 3D Flyby
 ---------------------------------------
@@ -101,5 +101,7 @@ BDO Migration to the latest PMT on July 15, 2026
 3.) Baseline the database, apply your migration scripts in sequence and make sure there are no SQL errors and test to make sure that basic and new functionalities work.
 4.) If there are any mistakes in your migration scripts, correct them and re-test and until it works as expected.
 5.) When you are done, provide a self-contained .html file named "2026-07-15 - PMT - BDO Migration Scripts.html" in the Sql\Migrations folder you already have.
+
+In your commit comments, you can be more detailed so people actually know what you did as PMT is a public repo.
 
 Update any markdowns files you need to from today's updates / sessions. When you are done and all tests are green.  You may commit and push to the repo if there are not more tasks in the queue.

@@ -6,6 +6,7 @@
   <meta name="color-scheme" content="light dark">
   <title>PMT</title>
   <meta name="pmt-path-base" content="">
+  <meta name="pmt-upload-storage-warning" content="">
   <base href="/">
   <script>
     (() => {
@@ -24,7 +25,7 @@
   <!-- CSS loads from broad foundations to shared components, then feature-specific rules. -->
   <link rel="stylesheet" href="css/tokens.css?v=20260620-token-depth">
   <link rel="stylesheet" href="css/themes.css?v=20260621-paper-links">
-  <link rel="stylesheet" href="css/base.css?v=20260621-paper-links">
+  <link rel="stylesheet" href="css/base.css?v=20260714-upload-storage-warning">
   <link rel="stylesheet" href="css/layout.css?v=20260627-stable-page-title">
   <link rel="stylesheet" href="css/components/buttons.css?v=20260711-tsg-report">
   <link rel="stylesheet" href="css/components/cards-panels.css?v=20260620-solid-surfaces">
@@ -96,6 +97,8 @@
     </div>
   </header>
 
+  <div id="systemWarning" class="system-warning" role="alert" aria-live="polite" hidden></div>
+
   <main id="app" class="app-shell"></main>
 
   <dialog id="editorDialog" class="dialog editor-dialog">
@@ -127,6 +130,6 @@
   </dialog>
 
   <div id="toast" class="toast" hidden></div>
-  <script type="module" src="js/app.js?v=20260714-private-owner-only"></script>
+  <script type="module" src="js/app.js?v=20260714-upload-storage-warning"></script>
 </body>
 </html>

@@ -19,16 +19,7 @@ internal sealed class UploadStorageOptions
             rootPath = Path.Combine(contentRootPath, "UploadedFiles");
         }
 
-        var requestPath = configuration["UploadStorage:RequestPath"];
-        if (string.IsNullOrWhiteSpace(requestPath))
-        {
-            requestPath = "/uploads";
-        }
-
-        if (!requestPath.StartsWith('/'))
-        {
-            requestPath = "/" + requestPath;
-        }
+        var requestPath = RequestPathFrom(configuration);
 
         var userName = configuration["UploadStorage:UserName"];
         if (string.IsNullOrWhiteSpace(userName))
@@ -51,5 +42,22 @@ internal sealed class UploadStorageOptions
             UserName = userName?.Trim() ?? "",
             Password = password ?? ""
         };
+    }
+
+    public static string RequestPathFrom(IConfiguration configuration)
+    {
+        var requestPath = configuration["UploadStorage:RequestPath"];
+        if (string.IsNullOrWhiteSpace(requestPath))
+        {
+            return "/uploads";
+        }
+
+        requestPath = requestPath.TrimEnd('/');
+        if (requestPath.Length == 0)
+        {
+            return "/";
+        }
+
+        return requestPath.StartsWith('/') ? requestPath : "/" + requestPath;
     }
 }

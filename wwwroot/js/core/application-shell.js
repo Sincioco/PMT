@@ -43,7 +43,8 @@ export function createApplicationShell({
     dialogTitle: document.getElementById("dialogTitle"),
     dialogBody: document.getElementById("dialogBody"),
     editorForm: document.getElementById("editorForm"),
-    toast: document.getElementById("toast")
+    toast: document.getElementById("toast"),
+    systemWarning: document.getElementById("systemWarning")
   };
 
   let shellEventsBound = false;
@@ -52,6 +53,7 @@ export function createApplicationShell({
     bindHighLevelEvents();
     bindScreenEvents();
     applySavedTheme();
+    renderSystemWarning();
 
     if (hasPendingInvitation?.()) {
       document.body.classList.add("logged-out");
@@ -67,6 +69,15 @@ export function createApplicationShell({
     }
 
     await start();
+  }
+
+  function renderSystemWarning() {
+    const message = document.querySelector('meta[name="pmt-upload-storage-warning"]')?.content.trim() || "";
+    if (!elements.systemWarning) return;
+
+    elements.systemWarning.textContent = message;
+    elements.systemWarning.hidden = !message;
+    document.body.classList.toggle("has-system-warning", Boolean(message));
   }
 
   async function start() {

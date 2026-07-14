@@ -24,6 +24,20 @@ body {
   line-height: var(--line-height-body);
 }
 
+body.has-system-warning {
+  grid-template-rows: auto auto minmax(0, 1fr);
+}
+
+.system-warning {
+  padding: var(--space-3) var(--shell-padding-laptop);
+  border-block: var(--border-width) solid color-mix(in srgb, var(--color-warning), var(--color-border) 45%);
+  background: color-mix(in srgb, var(--color-warning), var(--color-surface) 82%);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-medium);
+  overflow-wrap: anywhere;
+}
+
 button,
 input,
 select,
@@ -77,4 +91,10 @@ a:hover {
 ::selection {
   background: color-mix(in srgb, var(--color-primary), transparent 62%);
   color: var(--color-text-primary);
+}
+
+@media (max-width: 900px) {
+  .system-warning {
+    padding-inline: var(--shell-padding-compact);
+  }
 }

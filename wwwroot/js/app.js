@@ -25,7 +25,7 @@ import {
   showTaskAudit,
   viewWorkItem
 } from "./components/work-items.js?v=20260714-attachment-delete";
-import { createApplicationShell } from "./core/application-shell.js?v=20260714-settings-routes";
+import { createApplicationShell } from "./core/application-shell.js?v=20260714-upload-storage-warning";
 import {
   currentView,
   ensureCurrentViewRoute,
