@@ -19,6 +19,12 @@ test("Settings categories have shareable routes with browser history support", a
       body: JSON.stringify(testState())
     });
   });
+  await page.route("**/api/maintenance/recycle-bin", async route => {
+    await route.fulfill(jsonResponse([]));
+  });
+  await page.route("**/api/maintenance/orphan-files", async route => {
+    await route.fulfill(jsonResponse({ files: [], totalCount: 0, totalByteLength: 0 }));
+  });
 
   await page.goto("/#/settings/security");
   await page.locator("#loginName").fill("Sin");
@@ -37,6 +43,7 @@ test("Settings categories have shareable routes with browser history support", a
   const categoryRoutes = [
     ["Users", "users"],
     ["Security", "security"],
+    ["Maintenance", "maintenance"],
     ["Navigation", "navigation"],
     ["Holidays", "holidays"],
     ["Environment", "environment"],
@@ -77,7 +84,8 @@ test("Settings categories have shareable routes with browser history support", a
   await expect(page.locator("[data-action='select-lookup-type'][data-type='LogCategory']")).toHaveClass(/active/);
 });
 
-test("a non-admin Security route falls back to an allowed Settings category", async ({ page }) => {
+test("non-admin direct routes do not expose Admin-only Settings categories", async ({ page }) => {
+  let maintenanceRequests = 0;
   await page.addInitScript(() => localStorage.clear());
   await page.route("**/api/login", async route => {
     await route.fulfill({
@@ -93,6 +101,10 @@ test("a non-admin Security route falls back to an allowed Settings category", as
       body: JSON.stringify(testState({ isAdmin: false }))
     });
   });
+  await page.route("**/api/maintenance/**", async route => {
+    maintenanceRequests += 1;
+    await route.fulfill(jsonResponse([]));
+  });
 
   await page.goto("/#/settings/security");
   await page.locator("#loginName").fill("QA");
@@ -100,8 +112,15 @@ test("a non-admin Security route falls back to an allowed Settings category", as
   await page.getByRole("button", { name: /log in/i }).click();
 
   await expect(page.locator("[data-action='select-lookup-type'][data-type='Security']")).toHaveCount(0);
+  await expect(page.locator("[data-action='select-lookup-type'][data-type='Maintenance']")).toHaveCount(0);
   await expect(page.locator("[data-action='select-lookup-type'][data-type='Status']")).toHaveClass(/active/);
   await expect(page).toHaveURL(/#\/settings\/status$/);
+
+  await page.goto("/#/settings/maintenance");
+  await expect(page.locator("[data-action='select-lookup-type'][data-type='Maintenance']")).toHaveCount(0);
+  await expect(page.locator("[data-action='select-lookup-type'][data-type='Status']")).toHaveClass(/active/);
+  await expect(page).toHaveURL(/#\/settings\/status$/);
+  expect(maintenanceRequests).toBe(0);
 });
 
 async function openNavigationScreen(page, view) {
@@ -154,5 +173,13 @@ function testState({ isAdmin = true } = {}) {
     rolePermissions: [],
     userPermissions: [],
     effectivePermissions: []
+  };
+}
+
+function jsonResponse(data, status = 200) {
+  return {
+    status,
+    contentType: "application/json",
+    body: JSON.stringify(data)
   };
 }

@@ -119,12 +119,24 @@ export function createSettingsFeature({
   let settingsCategory = readPreference(preferenceKeys.settingsCategory, lookupTypeFilter || "Status");
   let settingsTableFilters = normalizeSettingsTableFilters(readJsonPreference(preferenceKeys.settingsTableFilters, {}));
   let selectedSecurityResourceKey = "";
+  let maintenanceRecycleItems = null;
+  let maintenanceOrphanFiles = null;
+  let maintenanceRecycleLoading = false;
+  let maintenanceFilesLoading = false;
+  let maintenanceRecycleRequestVersion = 0;
+  let maintenanceFilesRequestVersion = 0;
+  let maintenanceRecycleError = "";
+  let maintenanceFilesError = "";
+  let maintenanceRecycleActionBusy = false;
+  let maintenanceFilesActionBusy = false;
+  let selectedMaintenanceRecycleItems = new Set();
+  let selectedMaintenanceFiles = new Set();
   if (savedViewPreference === "Users" || savedViewPreference === "Holidays") settingsCategory = savedViewPreference;
   if (savedViewPreference === "Lookups") settingsCategory = lookupTypeFilter;
 
   function renderSettings() {
     const lookupTypes = settingsLookupTypes();
-    const categories = ["Users", ...(currentUser().isAdmin ? ["Security"] : []), "Navigation", "Holidays", ...lookupTypes, "Development"];
+    const categories = ["Users", ...(currentUser().isAdmin ? ["Security", "Maintenance"] : []), "Navigation", "Holidays", ...lookupTypes, "Development"];
     const route = parseRouteFromLocation();
     const routedCategory = route.view === "Settings"
       ? settingsCategoryForRoute(categories, route.settingsCategory)
@@ -139,8 +151,9 @@ export function createSettingsFeature({
     const isHolidays = settingsCategory === "Holidays";
     const isNavigation = settingsCategory === "Navigation";
     const isSecurity = settingsCategory === "Security";
+    const isMaintenance = settingsCategory === "Maintenance";
     const isDevelopment = settingsCategory === "Development";
-    if (!isUsers && !isHolidays && !isNavigation && !isSecurity && !isDevelopment) {
+    if (!isUsers && !isHolidays && !isNavigation && !isSecurity && !isMaintenance && !isDevelopment) {
       lookupTypeFilter = settingsCategory;
       writePreference(preferenceKeys.lookupType, lookupTypeFilter);
     }
@@ -162,6 +175,7 @@ export function createSettingsFeature({
       <button class="secondary text-icon-button" type="button" data-action="security-audit">${buttonContent("&#128203;", "Audit")}</button>
       <button class="primary text-icon-button" type="button" data-action="save-security">${buttonContent("&#10003;", "Save Security")}</button>
     `;
+    if (isMaintenance) actionsHtml = `<button class="secondary text-icon-button" type="button" data-action="maintenance-refresh">${buttonContent("&#8635;", "Refresh")}</button>`;
     if (isDevelopment) actionsHtml = `<span class="settings-action-spacer" aria-hidden="true"></span>`;
 
     const contentHtml = isUsers
@@ -172,9 +186,11 @@ export function createSettingsFeature({
           ? settingsNavigationHtml()
           : isSecurity
             ? settingsSecurityHtml()
-            : isDevelopment
-              ? settingsDevelopmentHtml()
-              : settingsLookupHtml(settingsCategory);
+            : isMaintenance
+              ? settingsMaintenanceHtml()
+              : isDevelopment
+                ? settingsDevelopmentHtml()
+                : settingsLookupHtml(settingsCategory);
 
     app.innerHTML = `
       ${sectionHead("Settings", actionsHtml)}
@@ -191,6 +207,8 @@ export function createSettingsFeature({
     `;
     bindNavigationDragEvents();
     bindSecurityPermissionEvents();
+    bindMaintenanceSelectionEvents();
+    if (isMaintenance) ensureMaintenanceData();
   }
 
   async function handleAction(action, id, button) {
@@ -270,6 +288,26 @@ export function createSettingsFeature({
     if (action === "sort-settings-table") {
       return updateSettingsTableSort(button);
     }
+    if (action === "maintenance-refresh") {
+      refreshMaintenanceData();
+      return true;
+    }
+    if (action === "maintenance-select-all") {
+      setAllMaintenanceSelections(button.dataset.maintenanceKind, true);
+      return true;
+    }
+    if (action === "maintenance-clear-all") {
+      setAllMaintenanceSelections(button.dataset.maintenanceKind, false);
+      return true;
+    }
+    if (action === "maintenance-review-recycle") {
+      await reviewMaintenanceRecycleBin();
+      return true;
+    }
+    if (action === "maintenance-review-files") {
+      await reviewMaintenanceOrphanFiles();
+      return true;
+    }
     if (action === "development-clear-non-pmt") {
       await runDevelopmentAction(
         "/api/development/clear-non-pmt",
@@ -322,6 +360,368 @@ export function createSettingsFeature({
     }
 
     return false;
+  }
+
+  function settingsMaintenanceHtml() {
+    return `
+      <div class="panel settings-content-panel maintenance-panel">
+        <div>
+          <h2>Maintenance</h2>
+          <p class="muted">Permanently remove selected recycle-bin records or uploaded files that PMT no longer references. These actions cannot be undone.</p>
+        </div>
+        ${maintenanceRecycleSectionHtml()}
+        ${maintenanceFilesSectionHtml()}
+      </div>
+    `;
+  }
+
+  function maintenanceRecycleSectionHtml() {
+    const items = maintenanceRecycleItems || [];
+    const selectedCount = selectedMaintenanceRecycleItems.size;
+    return `
+      <section class="maintenance-section" data-maintenance-section="recycle">
+        <div class="maintenance-section-head">
+          <div>
+            <h3>Recycle Bin</h3>
+            <p class="muted">Archived Projects and deleted Sprints, work items, Scrum/Log entries, and Documentation. A Project preview also shows every related record that will be removed.</p>
+          </div>
+          <div class="toolbar maintenance-selection-actions">
+            <button class="secondary text-icon-button" type="button" data-action="maintenance-select-all" data-maintenance-kind="recycle">${buttonContent("&#9745;", "Select All")}</button>
+            <button class="secondary text-icon-button" type="button" data-action="maintenance-clear-all" data-maintenance-kind="recycle">${buttonContent("&#9744;", "Clear All")}</button>
+          </div>
+        </div>
+        ${maintenanceInventoryMessageHtml(maintenanceRecycleLoading, maintenanceRecycleError, items.length, "The recycle bin is empty.")}
+        ${items.length ? `
+          <div class="maintenance-table-scroll">
+            <table class="table settings-table maintenance-table">
+              <thead><tr><th class="maintenance-select-column">Delete</th><th>Item</th><th>Type</th><th>Deleted</th></tr></thead>
+              <tbody>
+                ${items.map(item => {
+                  const key = maintenanceRecycleKey(item);
+                  return `
+                    <tr>
+                      <td class="maintenance-select-column"><input type="checkbox" data-maintenance-select="recycle" data-maintenance-key="${escapeAttr(key)}" aria-label="Select ${escapeAttr(item.label)}" ${selectedMaintenanceRecycleItems.has(key) ? "checked" : ""}></td>
+                      <td><strong>${escapeHtml(item.label)}</strong>${item.details ? `<span class="maintenance-row-detail muted">${escapeHtml(item.details)}</span>` : ""}</td>
+                      <td>${escapeHtml(item.itemType)}</td>
+                      <td>${escapeHtml(formatMaintenanceDate(item.deletedAt))}</td>
+                    </tr>
+                  `;
+                }).join("")}
+              </tbody>
+            </table>
+          </div>
+        ` : ""}
+        <div class="maintenance-section-actions">
+          <span class="muted" data-maintenance-selection-count>${selectedCount} selected</span>
+          <button class="danger text-icon-button" type="button" data-action="maintenance-review-recycle" ${selectedCount && !maintenanceRecycleActionBusy ? "" : "disabled"}>${buttonContent("&#128465;", "Review Selected")}</button>
+        </div>
+      </section>
+    `;
+  }
+
+  function maintenanceFilesSectionHtml() {
+    const files = maintenanceOrphanFiles || [];
+    const selectedCount = selectedMaintenanceFiles.size;
+    return `
+      <section class="maintenance-section" data-maintenance-section="files">
+        <div class="maintenance-section-head">
+          <div>
+            <h3>Orphaned Uploaded Files</h3>
+            <p class="muted">Files older than 24 hours that are not referenced by any PMT record or rich-text content. PMT checks each file again immediately before deleting it.</p>
+          </div>
+          <div class="toolbar maintenance-selection-actions">
+            <button class="secondary text-icon-button" type="button" data-action="maintenance-select-all" data-maintenance-kind="files">${buttonContent("&#9745;", "Select All")}</button>
+            <button class="secondary text-icon-button" type="button" data-action="maintenance-clear-all" data-maintenance-kind="files">${buttonContent("&#9744;", "Clear All")}</button>
+          </div>
+        </div>
+        ${maintenanceInventoryMessageHtml(maintenanceFilesLoading, maintenanceFilesError, files.length, "No orphaned uploaded files were found.")}
+        ${files.length ? `
+          <div class="maintenance-table-scroll">
+            <table class="table settings-table maintenance-table maintenance-files-table">
+              <thead><tr><th class="maintenance-select-column">Delete</th><th>File</th><th>Size</th><th>Last Modified</th></tr></thead>
+              <tbody>
+                ${files.map(file => `
+                  <tr>
+                    <td class="maintenance-select-column"><input type="checkbox" data-maintenance-select="files" data-maintenance-key="${escapeAttr(file.relativePath)}" aria-label="Select ${escapeAttr(file.relativePath)}" ${selectedMaintenanceFiles.has(file.relativePath) ? "checked" : ""}></td>
+                    <td><code>${escapeHtml(file.relativePath)}</code></td>
+                    <td>${escapeHtml(formatMaintenanceFileSize(file.byteLength))}</td>
+                    <td>${escapeHtml(formatMaintenanceDate(file.lastModifiedAt))}</td>
+                  </tr>
+                `).join("")}
+              </tbody>
+            </table>
+          </div>
+        ` : ""}
+        <div class="maintenance-section-actions">
+          <span class="muted" data-maintenance-selection-count>${selectedCount} selected</span>
+          <button class="danger text-icon-button" type="button" data-action="maintenance-review-files" ${selectedCount && !maintenanceFilesActionBusy ? "" : "disabled"}>${buttonContent("&#128465;", "Review Selected")}</button>
+        </div>
+      </section>
+    `;
+  }
+
+  function maintenanceInventoryMessageHtml(loading, error, itemCount, emptyMessage) {
+    if (loading) return `<div class="empty">Loading...</div>`;
+    if (error) return `<div class="maintenance-error" role="alert">${escapeHtml(error)}</div>`;
+    if (!itemCount) return `<div class="empty">${escapeHtml(emptyMessage)}</div>`;
+    return "";
+  }
+
+  function ensureMaintenanceData() {
+    if (!currentUser().isAdmin) return;
+    if (maintenanceRecycleItems === null && !maintenanceRecycleLoading) void loadMaintenanceRecycleBin();
+    if (maintenanceOrphanFiles === null && !maintenanceFilesLoading) void loadMaintenanceOrphanFiles();
+  }
+
+  function maintenanceRouteIsActive() {
+    const route = parseRouteFromLocation();
+    const maintenanceRoute = routeForSettingsCategory("Maintenance");
+    const currentRoute = route.settingsCategory
+      ? `${routeForView("Settings")}/${route.settingsCategory}`
+      : routeForView("Settings");
+    return route.view === "Settings"
+      && settingsCategory === "Maintenance"
+      && (!route.settingsCategory || currentRoute === maintenanceRoute);
+  }
+
+  async function loadMaintenanceRecycleBin() {
+    const requestVersion = ++maintenanceRecycleRequestVersion;
+    maintenanceRecycleLoading = true;
+    maintenanceRecycleError = "";
+    try {
+      const result = await api("/api/maintenance/recycle-bin");
+      if (requestVersion !== maintenanceRecycleRequestVersion) return;
+      maintenanceRecycleItems = Array.isArray(result) ? result : (result?.items || []);
+      selectedMaintenanceRecycleItems = new Set(maintenanceRecycleItems.map(maintenanceRecycleKey));
+    } catch (error) {
+      if (requestVersion !== maintenanceRecycleRequestVersion) return;
+      maintenanceRecycleItems = [];
+      selectedMaintenanceRecycleItems.clear();
+      maintenanceRecycleError = error.message;
+    } finally {
+      if (requestVersion !== maintenanceRecycleRequestVersion) return;
+      maintenanceRecycleLoading = false;
+      if (maintenanceRouteIsActive()) renderSettings();
+    }
+  }
+
+  async function loadMaintenanceOrphanFiles() {
+    const requestVersion = ++maintenanceFilesRequestVersion;
+    maintenanceFilesLoading = true;
+    maintenanceFilesError = "";
+    try {
+      const result = await api("/api/maintenance/orphan-files");
+      if (requestVersion !== maintenanceFilesRequestVersion) return;
+      maintenanceOrphanFiles = Array.isArray(result) ? result : (result?.files || []);
+      selectedMaintenanceFiles = new Set(maintenanceOrphanFiles.map(file => file.relativePath));
+    } catch (error) {
+      if (requestVersion !== maintenanceFilesRequestVersion) return;
+      maintenanceOrphanFiles = [];
+      selectedMaintenanceFiles.clear();
+      maintenanceFilesError = error.message;
+    } finally {
+      if (requestVersion !== maintenanceFilesRequestVersion) return;
+      maintenanceFilesLoading = false;
+      if (maintenanceRouteIsActive()) renderSettings();
+    }
+  }
+
+  function refreshMaintenanceData() {
+    maintenanceRecycleRequestVersion += 1;
+    maintenanceFilesRequestVersion += 1;
+    maintenanceRecycleLoading = false;
+    maintenanceFilesLoading = false;
+    maintenanceRecycleItems = null;
+    maintenanceOrphanFiles = null;
+    maintenanceRecycleError = "";
+    maintenanceFilesError = "";
+    selectedMaintenanceRecycleItems.clear();
+    selectedMaintenanceFiles.clear();
+    if (maintenanceRouteIsActive()) renderSettings();
+  }
+
+  function bindMaintenanceSelectionEvents() {
+    app.querySelectorAll("[data-maintenance-select]").forEach(checkbox => {
+      checkbox.addEventListener("change", () => {
+        const kind = checkbox.dataset.maintenanceSelect;
+        const selection = kind === "recycle" ? selectedMaintenanceRecycleItems : selectedMaintenanceFiles;
+        if (checkbox.checked) selection.add(checkbox.dataset.maintenanceKey);
+        else selection.delete(checkbox.dataset.maintenanceKey);
+        updateMaintenanceSelectionUi(kind);
+      });
+    });
+  }
+
+  function setAllMaintenanceSelections(kind, selected) {
+    const isRecycle = kind === "recycle";
+    const items = isRecycle ? (maintenanceRecycleItems || []) : (maintenanceOrphanFiles || []);
+    const selection = isRecycle ? selectedMaintenanceRecycleItems : selectedMaintenanceFiles;
+    selection.clear();
+    if (selected) {
+      items.forEach(item => selection.add(isRecycle ? maintenanceRecycleKey(item) : item.relativePath));
+    }
+
+    app.querySelectorAll(`[data-maintenance-select='${kind}']`).forEach(checkbox => {
+      checkbox.checked = selected;
+    });
+    updateMaintenanceSelectionUi(kind);
+  }
+
+  function updateMaintenanceSelectionUi(kind) {
+    const section = app.querySelector(`[data-maintenance-section='${kind}']`);
+    const selectedCount = kind === "recycle" ? selectedMaintenanceRecycleItems.size : selectedMaintenanceFiles.size;
+    const count = section?.querySelector("[data-maintenance-selection-count]");
+    const review = section?.querySelector(`[data-action='maintenance-review-${kind === "recycle" ? "recycle" : "files"}']`);
+    if (count) count.textContent = `${selectedCount} selected`;
+    const busy = kind === "recycle" ? maintenanceRecycleActionBusy : maintenanceFilesActionBusy;
+    if (review) review.disabled = selectedCount === 0 || busy;
+  }
+
+  async function reviewMaintenanceRecycleBin() {
+    const selected = (maintenanceRecycleItems || []).filter(item => selectedMaintenanceRecycleItems.has(maintenanceRecycleKey(item)));
+    if (!selected.length || maintenanceRecycleActionBusy) return;
+    maintenanceRecycleActionBusy = true;
+    updateMaintenanceSelectionUi("recycle");
+
+    const payload = {
+      items: selected.map(item => ({ itemType: item.itemType, itemId: item.itemId }))
+    };
+
+    try {
+      const previewResult = await saveJson("/api/maintenance/recycle-bin/preview", "POST", payload);
+      if (!maintenanceRouteIsActive()) return;
+      const preview = Array.isArray(previewResult) ? previewResult : (previewResult?.items || []);
+      const confirmed = await confirmMaintenanceDeletion({
+        title: "Permanently Delete Recycle-Bin Items",
+        warning: `${preview.length} database item${preview.length === 1 ? "" : "s"} will be permanently deleted. Review the complete server-generated list below. This cannot be undone.`,
+        items: preview.map(item => ({
+          label: item.label,
+          details: item.details,
+          badge: item.isCascade ? "Included with Project" : item.itemType
+        })),
+        confirmLabel: "Permanently Delete"
+      });
+      if (!confirmed || !maintenanceRouteIsActive()) return;
+
+      const purgeResult = await saveJson("/api/maintenance/recycle-bin/purge", "POST", {
+        ...payload,
+        expectedItems: preview.map(item => ({ itemType: item.itemType, itemId: item.itemId }))
+      });
+      const purged = Array.isArray(purgeResult) ? purgeResult : (purgeResult?.items || []);
+      showToast(`${purged.length} recycle-bin item${purged.length === 1 ? "" : "s"} permanently deleted.`);
+      refreshMaintenanceData();
+    } catch (error) {
+      showToast(error.message);
+      refreshMaintenanceData();
+    } finally {
+      maintenanceRecycleActionBusy = false;
+      updateMaintenanceSelectionUi("recycle");
+    }
+  }
+
+  async function reviewMaintenanceOrphanFiles() {
+    const selected = (maintenanceOrphanFiles || []).filter(file => selectedMaintenanceFiles.has(file.relativePath));
+    if (!selected.length || maintenanceFilesActionBusy) return;
+    maintenanceFilesActionBusy = true;
+    updateMaintenanceSelectionUi("files");
+
+    const confirmed = await confirmMaintenanceDeletion({
+      title: "Permanently Delete Orphaned Files",
+      warning: `${selected.length} uploaded file${selected.length === 1 ? "" : "s"} will be checked again and then permanently deleted if still unreferenced. This cannot be undone.`,
+      items: selected.map(file => ({
+        label: file.relativePath,
+        details: `${formatMaintenanceFileSize(file.byteLength)} | Last modified ${formatMaintenanceDate(file.lastModifiedAt)}`,
+        badge: "File"
+      })),
+      confirmLabel: "Permanently Delete"
+    });
+    if (!confirmed || !maintenanceRouteIsActive()) {
+      maintenanceFilesActionBusy = false;
+      updateMaintenanceSelectionUi("files");
+      return;
+    }
+
+    try {
+      const result = await saveJson("/api/maintenance/orphan-files/delete", "POST", {
+        relativePaths: selected.map(file => file.relativePath)
+      });
+      const deleted = Number(result?.deletedCount || 0);
+      const skipped = Number(result?.skippedCount ?? result?.skippedFiles?.length ?? 0);
+      const failed = Number(result?.failedCount || 0);
+      showToast(`${deleted} file${deleted === 1 ? "" : "s"} deleted${skipped ? `, ${skipped} skipped` : ""}${failed ? `, ${failed} failed` : ""}.`);
+      maintenanceOrphanFiles = null;
+      selectedMaintenanceFiles.clear();
+      if (maintenanceRouteIsActive()) renderSettings();
+    } catch (error) {
+      showToast(error.message);
+      maintenanceOrphanFiles = null;
+      selectedMaintenanceFiles.clear();
+      if (maintenanceRouteIsActive()) renderSettings();
+    } finally {
+      maintenanceFilesActionBusy = false;
+      updateMaintenanceSelectionUi("files");
+    }
+  }
+
+  function confirmMaintenanceDeletion({ title, warning, items, confirmLabel }) {
+    return new Promise(resolve => {
+      const modal = document.createElement("dialog");
+      modal.className = "dialog windowed-dialog maintenance-confirm-dialog";
+      modal.innerHTML = `
+        <div class="dialog-head"><h2>${escapeHtml(title)}</h2></div>
+        <div class="dialog-body maintenance-confirm-dialog-body">
+          <p class="maintenance-warning">${escapeHtml(warning)}</p>
+          <ul class="maintenance-confirm-list">
+            ${items.map(item => `
+              <li>
+                <div><strong>${escapeHtml(item.label)}</strong>${item.details ? `<span class="maintenance-row-detail muted">${escapeHtml(item.details)}</span>` : ""}</div>
+                <span class="pill">${escapeHtml(item.badge)}</span>
+              </li>
+            `).join("")}
+          </ul>
+        </div>
+        <div class="dialog-actions">
+          <button type="button" class="secondary text-icon-button" data-maintenance-confirm="cancel">${buttonContent("&#10005;", "Cancel")}</button>
+          <button type="button" class="danger text-icon-button" data-maintenance-confirm="delete">${buttonContent("&#128465;", confirmLabel)}</button>
+        </div>
+      `;
+
+      let settled = false;
+      const finish = confirmed => {
+        if (settled) return;
+        settled = true;
+        modal.close();
+        modal.remove();
+        resolve(confirmed);
+      };
+
+      modal.querySelector("[data-maintenance-confirm='cancel']").addEventListener("click", () => finish(false));
+      modal.querySelector("[data-maintenance-confirm='delete']").addEventListener("click", () => finish(true));
+      modal.addEventListener("cancel", event => {
+        event.preventDefault();
+        finish(false);
+      });
+      document.body.appendChild(modal);
+      initializeWindowedDialog(modal, { showResetButton: false });
+      modal.showModal();
+    });
+  }
+
+  function maintenanceRecycleKey(item) {
+    return `${item.itemType}:${item.itemId}`;
+  }
+
+  function formatMaintenanceDate(dateValue) {
+    if (!dateValue) return "";
+    const date = new Date(dateValue);
+    return Number.isNaN(date.getTime()) ? "" : date.toLocaleString();
+  }
+
+  function formatMaintenanceFileSize(byteLength) {
+    const bytes = Math.max(0, Number(byteLength) || 0);
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   }
 
   function settingsDevelopmentHtml() {
@@ -537,7 +937,7 @@ export function createSettingsFeature({
   }
 
   function settingsIsLookupCategory(category) {
-    return Boolean(category) && !["Users", "Navigation", "Holidays", "Development"].includes(category);
+    return Boolean(category) && !["Users", "Security", "Maintenance", "Navigation", "Holidays", "Development"].includes(category);
   }
 
   function openSettingsFiltersDialog(category = settingsCategory) {
@@ -1521,6 +1921,7 @@ export function createSettingsFeature({
       Role: "&#128101;",
       Users: "&#128100;",
       Security: "&#128274;",
+      Maintenance: "&#9851;",
       Holidays: "&#128197;",
       Navigation: "&#9776;",
       Development: "&#128295;"
@@ -1538,7 +1939,7 @@ export function createSettingsFeature({
   function selectSettingsCategory(type) {
     settingsCategory = type || "Status";
     writePreference(preferenceKeys.settingsCategory, settingsCategory);
-    if (settingsCategory !== "Users" && settingsCategory !== "Holidays" && settingsCategory !== "Navigation" && settingsCategory !== "Development") {
+    if (!["Users", "Security", "Maintenance", "Holidays", "Navigation", "Development"].includes(settingsCategory)) {
       lookupTypeFilter = settingsCategory;
       writePreference(preferenceKeys.lookupType, lookupTypeFilter);
     }

@@ -1,4 +1,5 @@
 using System.Data;
+using System.Text.Json;
 using PMT.Models;
 
 namespace PMT.Data;
@@ -97,6 +98,94 @@ public sealed partial class SqlPmtStore
             Add(command, "@UserId", userId);
             Add(command, "@CurrentUserId", currentUserId);
         }, cancellationToken);
+    }
+
+    public async Task<List<MaintenanceRecycleItemDto>> GetMaintenanceRecycleBinAsync(
+        int currentUserId,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = await OpenConnectionAsync(cancellationToken);
+        await using var command = StoredProcedure(connection, "[pmt].[GetMaintenanceRecycleBin]");
+        Add(command, "@CurrentUserId", currentUserId);
+
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        return await ReadMaintenanceRecycleItemsAsync(reader, cancellationToken);
+    }
+
+    public async Task<List<MaintenanceRecycleItemDto>> ProcessMaintenanceRecycleBinAsync(
+        MaintenanceRecycleSelection selection,
+        int currentUserId,
+        bool purge,
+        CancellationToken cancellationToken)
+    {
+        var itemsJson = JsonSerializer.Serialize((selection.Items ?? new()).Select(item => new
+        {
+            itemType = item.ItemType,
+            itemId = item.ItemId
+        }));
+        var expectedItemsJson = JsonSerializer.Serialize((selection.ExpectedItems ?? new()).Select(item => new
+        {
+            itemType = item.ItemType,
+            itemId = item.ItemId
+        }));
+
+        await using var connection = await OpenConnectionAsync(cancellationToken);
+        await using var command = StoredProcedure(connection, "[pmt].[ProcessMaintenanceRecycleBin]");
+        Add(command, "@ItemsJson", SqlDbType.NVarChar, -1, itemsJson);
+        Add(command, "@ExpectedItemsJson", SqlDbType.NVarChar, -1, expectedItemsJson);
+        Add(command, "@CurrentUserId", currentUserId);
+        Add(command, "@Purge", purge);
+
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        return await ReadMaintenanceRecycleItemsAsync(reader, cancellationToken);
+    }
+
+    public async Task<HashSet<string>> FindReferencedUploadPathsAsync(
+        IEnumerable<string> relativePaths,
+        string requestPath,
+        int currentUserId,
+        CancellationToken cancellationToken)
+    {
+        var pathsJson = JsonSerializer.Serialize(relativePaths
+            .Where(path => !string.IsNullOrWhiteSpace(path))
+            .Distinct(StringComparer.OrdinalIgnoreCase));
+
+        var referencedPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        await using var connection = await OpenConnectionAsync(cancellationToken);
+        await using var command = StoredProcedure(connection, "[pmt].[FindReferencedUploadPaths]");
+        Add(command, "@RelativePathsJson", SqlDbType.NVarChar, -1, pathsJson);
+        Add(command, "@RequestPath", SqlDbType.NVarChar, 500, requestPath);
+        Add(command, "@CurrentUserId", currentUserId);
+
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            var relativePath = reader.GetStringOrEmpty("RelativePath").Trim();
+            if (!string.IsNullOrWhiteSpace(relativePath)) referencedPaths.Add(relativePath);
+        }
+
+        return referencedPaths;
+    }
+
+    private static async Task<List<MaintenanceRecycleItemDto>> ReadMaintenanceRecycleItemsAsync(
+        Microsoft.Data.SqlClient.SqlDataReader reader,
+        CancellationToken cancellationToken)
+    {
+        var items = new List<MaintenanceRecycleItemDto>();
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            items.Add(new MaintenanceRecycleItemDto
+            {
+                ItemType = reader.GetStringOrEmpty("ItemType"),
+                ItemId = reader.GetInt32("ItemId"),
+                Label = reader.GetStringOrEmpty("Label"),
+                Details = reader.GetStringOrEmpty("Details"),
+                DeletedAt = DateTime.SpecifyKind(reader.GetDateTime("DeletedAt"), DateTimeKind.Utc),
+                IsCascade = reader.GetBoolean("IsCascade")
+            });
+        }
+
+        return items;
     }
 
 }

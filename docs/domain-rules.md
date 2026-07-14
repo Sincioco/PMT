@@ -115,6 +115,16 @@ Permission regressions are covered in `tests/js/permissions.test.mjs`.
 - When requested, unfinished work below 100% moves to the new Sprint. `Todo` items move only when the finish option explicitly includes them.
 - Deleting a Sprint soft-deletes it and makes its work items unscheduled.
 
+## Maintenance and permanent deletion
+
+- PMT Maintenance is administrator-only and lists the five true soft-deletion markers: archived Projects and deleted Sprints, work items, Documentation, and Scrum/Log entries.
+- All listed recycle-bin rows are selected by default, but an administrator may select individual rows before requesting a preview.
+- Permanent deletion always requires a server-generated exact preview. The purge recomputes the plan in one transaction and refuses to continue if any previewed item is missing or any new cascade item appears.
+- Permanently deleting an archived Project also deletes its Sprints, work items, Documentation, and Scrum entries. Owner-only private Logs are preserved and detached from that Project unless the already-deleted private Log was selected directly.
+- Private Log preview rows never expose their body, owner, category, or Log date. Private Documentation preview rows likewise use an opaque ID label and never expose the title, body, owner, or Project association.
+- Task dependencies, memberships, attachment links, history, and audit rows belonging to purged items are removed before their parent records. Shared attachment metadata remains while another task or document still references it.
+- Orphan-file deletion rechecks every selected relative path against current and soft-deleted database content immediately before deleting the disk file. Root-relative, deployed path-base, and absolute URL occurrences all count as references.
+
 ## Persistence and preferences
 
 Authentication is currently an internal-trust mechanism: the browser stores a user ID and sends it as `X-PMT-UserId`. It is not cookie- or token-based authentication.

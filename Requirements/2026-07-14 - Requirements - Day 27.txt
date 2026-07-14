@@ -50,6 +50,12 @@ About Page - 3D Flyby
 
 When you are done and all tests are green.  You may commit and push to the repo before you proceed to the next task.
 
+PMT Maintenance
+---------------
+1.) Can you add some sort of Maintenace screen in Settings, so that admins can permanently delete old projects, sprints, tasks, etc?  So they do not exists in the database anymore?  So that project codes, for example, can be recycled?
+2.) Create a screen / UI so we can identify orphaned files stored in the File Uploads folder on disk.  And give the Admin the ability to select individual orphaned files for deletion or select all orphaned files for deletion.  Double check one more time before each file is deleted to make sure they are truly not being used / reference anymore at the time of actual deletion.
+3.) Basically PMT Maintenance #1 is like clear recycling bin.  Anything that has been soft deleted can be permanently deleted now.  Be sure to give some sort of prompt / a dialog box of what items will be deleted so the user can inspect before proceeding.
+4.) Allow the user to select individual items to permanently delete or select all items, which should be the default.
 
 Documentation - Private Setting
 -----------------------------
@@ -73,13 +79,18 @@ File Upload Path - Exception Handling
 PMT Screen Saver - PMT Logo 3D Flyby
 ---------------------------------------
 6.) If PMT is the active and foreground window (and tab) and the user has not used PMT for 5 minutes, is it possible to run the 3D PMT Logo flyby scene?  And when they move their mouse, it goes away?  Basically like a screen saver in PMT?  You can just run it exactly as if the user clicked the About page.  The difference is, if they move the mouse, meaning they are ready to get back to work in PMT, dismiss the 3D flyby and be sure the user is exactly where they were before.  Meaning, don't navigate them away or cause them to lose work just to start the 3D flyby.  You basically have to overlay the 3D flyby scene and run it in exactly the same dimension as the About page would, but be able to dimiss it when a mouse move is detect within PMT's client area.  If this is possible do it.  If not, then ignore this prompt.
+7.) Also, the flyby camera as it passes by between the letters T and M are still visually appearing to crash on the letter M.  Can you move the camera position to the left a bit more as it enters in between the letters T and M.  Righ tnow, it looks visually that 1/3 of the screen (right side) is crashing on to the edge of the letter M.
+
+About Page
+----------
+In the About Page, move the credits line on the 2D page higher as it is being blocked by the panel that reads "Preparing 3D Gallery"
+
+BDO Migration to the latest PMT on July 15, 2026
+------------------------------------------------
+1.) Provide me a step by step guide on how to migrate BDO tomorrow (July 15, 2026) to the latest version of PMT with out losing any data or breaking the current install.
+2.) In fact, can you very quickly test the migration scripts you have.  You can drop the database and recreate it.  There is no restriction we are in a developer's machine right now.
+3.) Baseline the database, apply your migration scripts in sequence and make sure there are no SQL errors and test to make sure that basic and new functionalities work.
+4.) If there are any mistakes in your migration scripts, correct them and re-test and until it works as expectec.
+5.) When you are done, provide a self-contained .html file named "2026-07-15 - PMT - BDO Migration Scripts.html" in the Sql\Migrations folder you already have.
 
 Update any markdowns files you need to from today's updates / sessions. When you are done and all tests are green.  You may commit and push to the repo before you proceed to the next task.
-
-
-PMT Maintenance
----------------
-1.) Can you add some sort of Maintenace screen in Settings, so that admins can permanently delete old projects, sprints, tasks, etc?  So they do not exists in the database anymore?  So that project codes, for example, can be recycled?
-2.) Create a screen / UI so we can identify orphaned files stored in the File Uploads folder on disk.  And give the Admin the ability to select individual orphaned files for deletion or select all orphaned files for deletion.  Double check one more time before each file is deleted to make sure they are truly not being used / reference anymore at the time of actual deletion.
-3.) Basically PMT Maintenance #1 is like clear recycling bin.  Anything that has been soft deleted can be permanently deleted now.  Be sure to give some sort of prompt / a dialog box of what items will be deleted so the user can inspect before proceeding.
-4.) Allow the user to select individual items to permanently delete or select all items, which should be the default.

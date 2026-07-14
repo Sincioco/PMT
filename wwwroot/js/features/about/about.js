@@ -12,7 +12,7 @@ import { createBugChartsView } from "../../shared/bug-charts.js?v=20260714-linke
 import { createDevTaskChartsView } from "../../shared/dev-task-charts.js?v=20260714-linked-bug-percent";
 
 const ABOUT_VERSION = "20260714-about-track-alien-events";
-export const ABOUT_DATABASE_VERSION = "1.12";
+export const ABOUT_DATABASE_VERSION = "1.13";
 
 export function aboutFooterHtml() {
   return `

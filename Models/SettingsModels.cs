@@ -43,3 +43,54 @@ public sealed class HolidayInput
     public bool IsActive { get; set; } = true;
 }
 
+public sealed class MaintenanceRecycleItemDto
+{
+    public string ItemType { get; set; } = "";
+    public int ItemId { get; set; }
+    public string Label { get; set; } = "";
+    public string Details { get; set; } = "";
+    public DateTime DeletedAt { get; set; }
+    public bool IsCascade { get; set; }
+}
+
+public sealed class MaintenanceRecycleSelection
+{
+    public List<MaintenanceRecycleSelectionItem> Items { get; set; } = new();
+    public List<MaintenanceRecycleSelectionItem> ExpectedItems { get; set; } = new();
+}
+
+public sealed class MaintenanceRecycleSelectionItem
+{
+    public string ItemType { get; set; } = "";
+    public int ItemId { get; set; }
+}
+
+public sealed class MaintenanceOrphanFileDto
+{
+    public string RelativePath { get; set; } = "";
+    public string FileName { get; set; } = "";
+    public string Category { get; set; } = "";
+    public long ByteLength { get; set; }
+    public DateTime LastModifiedAt { get; set; }
+}
+
+public sealed class MaintenanceFileSelection
+{
+    public List<string> RelativePaths { get; set; } = new();
+}
+
+public sealed class MaintenanceFileDeleteResult
+{
+    public List<MaintenanceFileDeleteItemResult> Results { get; set; } = new();
+    public int DeletedCount { get; set; }
+    public int SkippedCount { get; set; }
+    public int FailedCount { get; set; }
+}
+
+public sealed class MaintenanceFileDeleteItemResult
+{
+    public string RelativePath { get; set; } = "";
+    public string Status { get; set; } = "";
+    public string Message { get; set; } = "";
+}
+

@@ -147,6 +147,13 @@ Use clearly named temporary records and remove them after validation.
 - [ ] Create a temporary Role-permission change and user override, click Reset Security, cancel the warning, and confirm nothing changes. Repeat and continue; confirm all Role permissions return to their initial defaults across every resource and every per-user override is removed.
 - [ ] After Reset Security, confirm Developer has all Dev Task rights while QA has only Read and Export for Dev Tasks.
 - [ ] Confirm non-admin controls are disabled or rejected where applicable.
+- [ ] As an administrator, open Maintenance and confirm every archived Project and deleted Sprint, task, Documentation item, and Scrum/Log entry is selected by default.
+- [ ] Select one deleted item, request permanent deletion, inspect the exact server-generated preview, cancel, and confirm no database rows change.
+- [ ] Preview an archived Project and confirm its Sprints, tasks, Documentation, and Scrum entries are marked as cascade items while private Logs are not included in the Project cascade and private Log/Documentation rows reveal no owner, title, Project, or content metadata.
+- [ ] Confirm permanent deletion refuses a stale or changed preview rather than deleting a different set of rows.
+- [ ] Permanently delete disposable data and confirm its Project/Sprint/task codes can be reused, surviving cross-record links are cleared, and a shared attachment remains linked to its surviving item.
+- [ ] Create one referenced and one unreferenced disposable upload, scan for orphan files, and confirm only the unreferenced file is offered. Add a database reference after preview and confirm the final recheck skips that file.
+- [ ] As a non-admin, confirm recycle-bin, preview/purge, upload scan, and upload-reference recheck requests are rejected.
 - [ ] Do not run destructive Development reset actions unless specifically testing them.
 
 ## Filters and charts

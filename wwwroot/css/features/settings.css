@@ -193,6 +193,133 @@
   background: var(--color-danger-surface);
 }
 
+.maintenance-panel {
+  display: grid;
+  gap: var(--space-7);
+  padding: var(--space-7);
+}
+
+.maintenance-panel h2,
+.maintenance-panel h3 {
+  margin: 0;
+}
+
+.maintenance-panel > div > p,
+.maintenance-section-head p {
+  margin: var(--space-1) 0 0;
+}
+
+.maintenance-section {
+  display: grid;
+  gap: var(--space-5);
+  padding: var(--space-6);
+  border: var(--border-width) solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-subtle);
+}
+
+.maintenance-section-head,
+.maintenance-section-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-5);
+}
+
+.maintenance-section-head > div:first-child {
+  min-width: 0;
+}
+
+.maintenance-selection-actions {
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.maintenance-table-scroll {
+  max-height: 360px;
+  overflow: auto;
+  border: var(--border-width) solid var(--color-border-subtle);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+}
+
+.maintenance-table {
+  min-width: 720px;
+}
+
+.maintenance-table td {
+  vertical-align: top;
+}
+
+.maintenance-select-column {
+  width: 76px;
+  text-align: center;
+}
+
+.maintenance-select-column input {
+  margin-inline: auto;
+}
+
+.maintenance-row-detail {
+  display: block;
+  margin-top: var(--space-1);
+  font-weight: var(--font-weight-regular);
+}
+
+.maintenance-files-table code {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.maintenance-error,
+.maintenance-warning {
+  margin: 0;
+  padding: var(--space-4);
+  border: var(--border-width) solid var(--color-danger-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-danger-surface);
+  color: var(--color-text-primary);
+}
+
+.maintenance-confirm-dialog {
+  width: min(900px, calc(100vw - 2 * var(--shell-padding-compact)));
+}
+
+.maintenance-confirm-dialog-body {
+  gap: var(--space-5);
+}
+
+.maintenance-confirm-list {
+  display: grid;
+  gap: var(--space-2);
+  max-height: min(460px, 55vh);
+  margin: 0;
+  padding: 0;
+  overflow: auto;
+  list-style: none;
+}
+
+.maintenance-confirm-list li {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-5);
+  padding: var(--space-4);
+  border: var(--border-width) solid var(--color-border-subtle);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-subtle);
+}
+
+.maintenance-confirm-list li > div {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.maintenance-confirm-list .pill {
+  flex: 0 0 auto;
+}
+
 .settings-table-head {
   padding: var(--space-7) 0 var(--space-5);
 }
@@ -620,6 +747,16 @@
   .development-action-row {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .maintenance-section-head,
+  .maintenance-section-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .maintenance-selection-actions {
+    justify-content: flex-start;
   }
 }
 

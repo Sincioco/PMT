@@ -2,7 +2,7 @@
     00_DropAndRebuild_PMT.sql
 
     Purpose:
-    Drops the existing PMT database, recreates it at the current Version 1.12,
+    Drops the existing PMT database, recreates it at the current Version 1.13,
     creates stored procedures, and loads seed/demo data using the companion scripts.
 
     IMPORTANT:
@@ -65,13 +65,13 @@ IF EXISTS
 BEGIN
     EXEC sys.sp_updateextendedproperty
         @name = N'PMT_DatabaseVersion',
-        @value = N'1.12';
+        @value = N'1.13';
 END
 ELSE
 BEGIN
     EXEC sys.sp_addextendedproperty
         @name = N'PMT_DatabaseVersion',
-        @value = N'1.12';
+        @value = N'1.13';
 END;
 GO
 
