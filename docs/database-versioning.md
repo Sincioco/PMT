@@ -6,7 +6,7 @@ As of July 14, 2026, every BDO and other known PMT instance has successfully app
 
 Future work does not need new upgrade compatibility for database versions before 1.10. Keep the released migrations and combined wrappers through Version 1.10 unchanged as historical release artifacts, but start future migrations from Version 1.10 or the immediately preceding deployed version.
 
-The current source tree's rebuild scripts represent Version 1.11, which enforces Scrum ownership while preserving owner-only private Logs:
+The current source tree's rebuild scripts represent Version 1.12. Version 1.11 enforces Scrum ownership while preserving owner-only private Logs, and Version 1.12 saves requested Project codes exactly while allowing an administrator to explicitly reclaim a code held by an archived Project:
 
 - `Sql/01_CreateDatabase.sql`
 - `Sql/02_CreateStoredProcedures.sql`
@@ -15,9 +15,9 @@ The current source tree's rebuild scripts represent Version 1.11, which enforces
 - `Sql/03_SeedData_HLS.sql`
 - `Sql/00_DropAndRebuild_PMT.sql`
 
-The successful fresh-database rebuild and the Version 1.10 to 1.11 migration record the installed source version in the database-level `PMT_DatabaseVersion` extended property. The separate `PMT_SecurityRoleDefaultsVersion` property remains `1.10` because it tracks the last version that changed Role defaults, not the overall database version.
+The successful fresh-database rebuild and each forward migration record the installed source version in the database-level `PMT_DatabaseVersion` extended property. The separate `PMT_SecurityRoleDefaultsVersion` property remains `1.10` because it tracks the last version that changed Role defaults, not the overall database version.
 
-Apply only `Sql/Migrations/PMT_1.10_to_1.11.sql` in SQLCMD mode to upgrade an existing BDO or other known installation from the deployed baseline to the current source schema. The script stops on the first error. Fresh development or demo databases may use the rebuild scripts. Existing user databases must be upgraded with forward migration scripts; do not treat a source-tree rebuild change as proof that production has been upgraded.
+To upgrade an existing BDO or other known installation from the Version 1.10 deployed baseline, apply `Sql/Migrations/PMT_1.10_to_1.11.sql` and then `Sql/Migrations/PMT_1.11_to_1.12.sql` in SQLCMD mode. Each script stops on the first error, and the application update that sends the Version 1.12 Project parameter must be deployed only after both database migrations succeed. Fresh development or demo databases may use the rebuild scripts. Existing user databases must be upgraded with forward migration scripts; do not treat a source-tree rebuild change as proof that production has been upgraded.
 
 ## Required Rule
 

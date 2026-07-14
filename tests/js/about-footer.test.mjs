@@ -18,8 +18,8 @@ test("About 2D footer restores the original credit and repository line with data
     footer,
     /Open-source GitHub repository is at <a href="https:\/\/github\.com\/Sincioco\/PMT"[^>]*>https:\/\/github\.com\/Sincioco\/PMT<\/a>/
   );
-  assert.equal(ABOUT_DATABASE_VERSION, "1.11");
-  assert.match(footer, /PMT Database Version 1\.11/);
+  assert.equal(ABOUT_DATABASE_VERSION, "1.12");
+  assert.match(footer, /PMT Database Version 1\.12/);
 });
 
 test("About footer is limited to the 2D intro", async () => {

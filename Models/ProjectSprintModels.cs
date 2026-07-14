@@ -58,6 +58,7 @@ public sealed class ProjectInput
     public DateTime? StartDate { get; set; }
     public DateTime? EndDate { get; set; }
     public List<int> MemberIds { get; set; } = new();
+    public bool OverrideArchivedCode { get; set; }
 }
 
 public sealed class SprintInput

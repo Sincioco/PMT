@@ -1,6 +1,7 @@
 import { avatarsHtml, syncAvatarStackFit } from "../../components/avatars.js?v=20260710-nav-avatar-fit";
 import { buttonContent, iconButton } from "../../components/buttons.js";
 import { VisualCharts } from "../../components/charts.js?v=20260628-chart-native-tooltips";
+import { askYesNo } from "../../components/dialogs.js";
 import {
   checkList,
   checkedNumbers,
@@ -9,6 +10,7 @@ import {
   userCardCheckListLabelHtml,
   value
 } from "../../components/forms.js?v=20260710-rte-table-shortcuts";
+import { currentUser } from "../../core/authentication.js";
 import {
   projectOverallProgressHtml,
   projectStatusCounts,
@@ -26,6 +28,31 @@ import {
   escapeHtml
 } from "../../shared/text-and-links.js";
 import { projectWorkItems } from "../../shared/work-item-rules.js?v=20260714-linked-bug-percent";
+
+const archivedProjectCodeConflict = "archived-project-code";
+
+export async function saveProjectWithArchivedCodeOverride({
+  saveJson,
+  path,
+  method,
+  payload,
+  isAdmin,
+  confirmReuse = askYesNo
+}) {
+  try {
+    return await saveJson(path, method, payload);
+  } catch (error) {
+    if (error?.code !== archivedProjectCodeConflict || !isAdmin) throw error;
+
+    const confirmed = await confirmReuse(
+      `Project code "${payload.code}" belongs to a deleted project. Reusing it will preserve the deleted project under a replacement code and assign "${payload.code}" to this project. Continue?`,
+      "Reuse Project Code"
+    );
+    if (!confirmed) throw new Error("Project code reuse canceled.");
+
+    return saveJson(path, method, { ...payload, overrideArchivedCode: true });
+  }
+}
 
 export function createProjectsFeature({
   app,
@@ -208,7 +235,9 @@ export function createProjectsFeature({
       let iconUrl = value(root, "iconUrl");
       if (iconFile) iconUrl = (await uploadFile("projects", iconFile)).url;
 
-      await saveJson(project.id ? `/api/projects/${project.id}` : "/api/projects", project.id ? "PUT" : "POST", {
+      const path = project.id ? `/api/projects/${project.id}` : "/api/projects";
+      const method = project.id ? "PUT" : "POST";
+      const payload = {
         id: project.id || 0,
         code,
         title,
@@ -218,6 +247,14 @@ export function createProjectsFeature({
         startDate: nullableDateValue(root, "startDate"),
         endDate: nullableDateValue(root, "endDate"),
         memberIds
+      };
+
+      await saveProjectWithArchivedCodeOverride({
+        saveJson,
+        path,
+        method,
+        payload,
+        isAdmin: Boolean(currentUser().isAdmin)
       });
     }, "code");
   }

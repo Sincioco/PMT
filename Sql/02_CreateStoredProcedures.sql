@@ -1,5 +1,5 @@
 /*
-    PMT Version 1.11 stored procedures.
+    PMT Version 1.12 stored procedures.
     The application uses ADO.NET and calls these procedures directly.
     The SQL is intentionally explicit so future maintainers can trace each save action.
 */
@@ -1336,19 +1336,27 @@ CREATE OR ALTER PROCEDURE [pmt].[UpsertProject]
     @StartDate DATETIME2(0),
     @EndDate DATETIME2(0),
     @MemberIdsCsv NVARCHAR(MAX),
-    @CurrentUserId INT
+    @CurrentUserId INT,
+    @OverrideArchivedCode BIT = 0
 AS
 BEGIN
     SET NOCOUNT ON;
+    SET XACT_ABORT ON;
 
     DECLARE @Now DATETIME2(0) = SYSUTCDATETIME();
     DECLARE @OwnerUserId INT;
 
     SET @Title = NULLIF(LTRIM(RTRIM(@Title)), N'');
     SET @Code = UPPER(REPLACE(NULLIF(LTRIM(RTRIM(@Code)), N''), N' ', N''));
+    SET @OverrideArchivedCode = ISNULL(@OverrideArchivedCode, 0);
     IF @EndDate IS NOT NULL AND @StartDate IS NOT NULL AND @EndDate < @StartDate
     BEGIN
         SET @EndDate = @StartDate;
+    END;
+
+    IF @Code IS NULL
+    BEGIN
+        THROW 50001, 'Project code is required.', 1;
     END;
 
     IF LEN(ISNULL(@Code, N'')) > 5
@@ -1371,101 +1379,174 @@ BEGIN
         THROW 50001, 'Project description cannot exceed 100 characters.', 1;
     END;
 
-    IF @Code IS NULL
-    BEGIN
-        SET @Code = UPPER(LEFT(REPLACE(@Title, N' ', N''), 3));
-    END;
+    BEGIN TRY
+        BEGIN TRANSACTION;
 
-    IF LEN(@Code) < 2
-    BEGIN
-        SET @Code = N'PRJ';
-    END;
-
-    IF @ProjectId = 0
-    BEGIN
-        WHILE EXISTS (SELECT 1 FROM [pmt].[Projects] WHERE [Code] = @Code)
+        IF @ProjectId <> 0
         BEGIN
-            SET @Code = LEFT(@Code, 1)
-                + RIGHT(N'0000' + CONVERT(NVARCHAR(4), ABS(CHECKSUM(NEWID())) % 10000), 4);
+            SELECT @OwnerUserId = [CreatedByUserId]
+            FROM [pmt].[Projects] WITH (UPDLOCK, HOLDLOCK)
+            WHERE [ProjectId] = @ProjectId
+              AND [IsArchived] = 0;
+
+            IF @OwnerUserId IS NULL
+            BEGIN
+                THROW 50002, 'Project was not found.', 1;
+            END;
+
+            IF [pmt].[CanEdit](@OwnerUserId, @CurrentUserId) = 0
+            BEGIN
+                THROW 50003, 'You cannot edit this project.', 1;
+            END;
         END;
 
-        INSERT INTO [pmt].[Projects]
-        (
-            [Code],
-            [Title],
-            [Description],
-            [Url],
-            [IconUrl],
-            [StartDate],
-            [EndDate],
-            [CreatedByUserId],
-            [CreatedAt],
-            [UpdatedAt]
-        )
-        VALUES
-        (
-            @Code,
-            @Title,
-            @Description,
-            @Url,
-            @IconUrl,
-            @StartDate,
-            @EndDate,
-            @CurrentUserId,
-            @Now,
-            @Now
-        );
+        DECLARE @ConflictingProjectId INT;
+        DECLARE @ConflictingProjectIsArchived BIT;
 
-        SET @ProjectId = SCOPE_IDENTITY();
-        EXEC [pmt].[WriteAudit] N'Project', @ProjectId, N'Created', @Title, @CurrentUserId;
-    END
-    ELSE
-    BEGIN
-        SELECT @OwnerUserId = [CreatedByUserId]
-        FROM [pmt].[Projects]
-        WHERE [ProjectId] = @ProjectId
-          AND [IsArchived] = 0;
+        SELECT
+            @ConflictingProjectId = [ProjectId],
+            @ConflictingProjectIsArchived = [IsArchived]
+        FROM [pmt].[Projects] WITH (UPDLOCK, HOLDLOCK)
+        WHERE [Code] = @Code
+          AND [ProjectId] <> @ProjectId;
 
-        IF @OwnerUserId IS NULL
+        IF @ConflictingProjectId IS NOT NULL
         BEGIN
-            THROW 50002, 'Project was not found.', 1;
+            IF @ConflictingProjectIsArchived = 0
+            BEGIN
+                THROW 50004, 'Project code is already in use by an active project.', 1;
+            END;
+
+            IF @OverrideArchivedCode = 0
+            BEGIN
+                THROW 50007, 'Project code belongs to a deleted project. An administrator can reclaim it.', 1;
+            END;
+
+            IF [pmt].[IsAdmin](@CurrentUserId) = 0
+            BEGIN
+                THROW 50008, 'Only an administrator can reclaim a deleted project code.', 1;
+            END;
+
+            DECLARE @ArchivedReplacementCode NVARCHAR(5);
+            DECLARE @ArchivedCodeAttempt INT = 0;
+
+            WHILE @ArchivedCodeAttempt < 10000
+            BEGIN
+                SET @ArchivedReplacementCode = N'~'
+                    + RIGHT(
+                        N'0000' + CONVERT(
+                            NVARCHAR(4),
+                            (CONVERT(BIGINT, @ConflictingProjectId) + @ArchivedCodeAttempt) % 10000
+                        ),
+                        4
+                    );
+
+                IF NOT EXISTS
+                (
+                    SELECT 1
+                    FROM [pmt].[Projects] WITH (UPDLOCK, HOLDLOCK)
+                    WHERE [Code] = @ArchivedReplacementCode
+                )
+                BEGIN
+                    BREAK;
+                END;
+
+                SET @ArchivedCodeAttempt += 1;
+            END;
+
+            IF @ArchivedCodeAttempt = 10000
+            BEGIN
+                THROW 50009, 'No archived project code is available for reclaiming this code.', 1;
+            END;
+
+            UPDATE [pmt].[Projects]
+            SET [Code] = @ArchivedReplacementCode,
+                [UpdatedByUserId] = @CurrentUserId,
+                [UpdatedAt] = @Now
+            WHERE [ProjectId] = @ConflictingProjectId
+              AND [IsArchived] = 1;
+
+            DECLARE @ArchivedCodeAuditDetails NVARCHAR(4000) =
+                N'Archived project code ' + @Code + N' was released as ' + @ArchivedReplacementCode + N'.';
+
+            EXEC [pmt].[WriteAudit]
+                N'Project',
+                @ConflictingProjectId,
+                N'Code Released',
+                @ArchivedCodeAuditDetails,
+                @CurrentUserId;
         END;
 
-        IF [pmt].[CanEdit](@OwnerUserId, @CurrentUserId) = 0
+        IF @ProjectId = 0
         BEGIN
-            THROW 50003, 'You cannot edit this project.', 1;
+            INSERT INTO [pmt].[Projects]
+            (
+                [Code],
+                [Title],
+                [Description],
+                [Url],
+                [IconUrl],
+                [StartDate],
+                [EndDate],
+                [CreatedByUserId],
+                [CreatedAt],
+                [UpdatedAt]
+            )
+            VALUES
+            (
+                @Code,
+                @Title,
+                @Description,
+                @Url,
+                @IconUrl,
+                @StartDate,
+                @EndDate,
+                @CurrentUserId,
+                @Now,
+                @Now
+            );
+
+            SET @ProjectId = SCOPE_IDENTITY();
+            EXEC [pmt].[WriteAudit] N'Project', @ProjectId, N'Created', @Title, @CurrentUserId;
+        END
+        ELSE
+        BEGIN
+            UPDATE [pmt].[Projects]
+            SET
+                [Code] = @Code,
+                [Title] = @Title,
+                [Description] = @Description,
+                [Url] = @Url,
+                [IconUrl] = @IconUrl,
+                [StartDate] = @StartDate,
+                [EndDate] = @EndDate,
+                [UpdatedByUserId] = @CurrentUserId,
+                [UpdatedAt] = @Now
+            WHERE [ProjectId] = @ProjectId;
+
+            EXEC [pmt].[WriteAudit] N'Project', @ProjectId, N'Updated', @Title, @CurrentUserId;
         END;
 
-        IF EXISTS (SELECT 1 FROM [pmt].[Projects] WHERE [Code] = @Code AND [ProjectId] <> @ProjectId)
-        BEGIN
-            THROW 50004, 'Project code is already in use.', 1;
-        END;
-
-        UPDATE [pmt].[Projects]
-        SET
-            [Code] = @Code,
-            [Title] = @Title,
-            [Description] = @Description,
-            [Url] = @Url,
-            [IconUrl] = @IconUrl,
-            [StartDate] = @StartDate,
-            [EndDate] = @EndDate,
-            [UpdatedByUserId] = @CurrentUserId,
-            [UpdatedAt] = @Now
+        DELETE FROM [pmt].[ProjectMembers]
         WHERE [ProjectId] = @ProjectId;
 
-        EXEC [pmt].[WriteAudit] N'Project', @ProjectId, N'Updated', @Title, @CurrentUserId;
-    END;
+        INSERT INTO [pmt].[ProjectMembers] ([ProjectId], [UserId], [CreatedByUserId])
+        SELECT @ProjectId, [Ids].[Id], @CurrentUserId
+        FROM [pmt].[SplitIds](@MemberIdsCsv) AS [Ids]
+        INNER JOIN [pmt].[Users]
+            ON [pmt].[Users].[UserId] = [Ids].[Id]
+           AND [pmt].[Users].[IsActive] = 1;
 
-    DELETE FROM [pmt].[ProjectMembers]
-    WHERE [ProjectId] = @ProjectId;
+        COMMIT TRANSACTION;
+    END TRY
+    BEGIN CATCH
+        IF XACT_STATE() <> 0
+        BEGIN
+            ROLLBACK TRANSACTION;
+        END;
 
-    INSERT INTO [pmt].[ProjectMembers] ([ProjectId], [UserId], [CreatedByUserId])
-    SELECT @ProjectId, [Ids].[Id], @CurrentUserId
-    FROM [pmt].[SplitIds](@MemberIdsCsv) AS [Ids]
-    INNER JOIN [pmt].[Users]
-        ON [pmt].[Users].[UserId] = [Ids].[Id]
-       AND [pmt].[Users].[IsActive] = 1;
+        THROW;
+    END CATCH;
 END;
 GO
 

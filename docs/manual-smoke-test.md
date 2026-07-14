@@ -85,7 +85,10 @@ Use clearly named temporary records and remove them after validation.
 ### Project and Sprint
 
 - [ ] Create a temporary Project with members.
+- [ ] Confirm its requested Project code is saved exactly after uppercase/space normalization and is never replaced with a random code.
 - [ ] Edit its title/description and verify the update.
+- [ ] Archive a disposable Project, then try to reuse its code. As a non-admin, confirm the save is rejected without an override. As an admin, cancel the reclaim warning and confirm neither Project changes; repeat and continue, then confirm the active Project receives the requested code while the archived Project and its related data remain preserved.
+- [ ] As an admin, confirm a code held by another active Project is rejected and cannot be reclaimed.
 - [ ] Open the Project and confirm Sprints are filtered to it.
 - [ ] Create and edit a temporary Sprint with members and dates.
 - [ ] Delete the temporary Sprint and confirm its tasks are unscheduled.

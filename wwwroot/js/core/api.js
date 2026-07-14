@@ -29,5 +29,7 @@ export async function api(path, options = {}) {
 
 async function normalizeApiError(response) {
   const problem = await response.json().catch(() => null);
-  return new Error(problem?.error || response.statusText || "Request failed.");
+  const error = new Error(problem?.error || response.statusText || "Request failed.");
+  error.code = problem?.code || "";
+  return error;
 }

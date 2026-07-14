@@ -99,6 +99,14 @@ Permission regressions are covered in `tests/js/permissions.test.mjs`.
 - Invited users are created as active, non-admin `Developer` users. User creation and all selected Project memberships are committed atomically.
 - A user invited to one Project goes to Sprints when that Project already has at least one Sprint; otherwise the user goes to Projects. Users invited to multiple Projects go to Projects.
 
+## Project codes and deletion
+
+- Project codes are required, normalized to uppercase without spaces, limited to five characters, and unique across active and archived Projects.
+- Saving a Project never silently replaces its requested code with a generated or random code.
+- Deleting a Project archives it and preserves its members, Sprints, work items, Logs, Documentation, and audit history, so its code remains occupied.
+- When a requested code belongs to an archived Project, only an administrator may explicitly confirm reclaiming it. Reclaiming assigns a unique internal code to the archived Project and preserves all of its related data before saving the requested code on the active Project.
+- A code belonging to an active Project cannot be reclaimed, including by an administrator.
+
 ## Sprint lifecycle
 
 - Sprint members must be active members of the selected Project.

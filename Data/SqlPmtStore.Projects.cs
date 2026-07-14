@@ -20,6 +20,7 @@ public sealed partial class SqlPmtStore
             AddNullable(command, "@EndDate", input.EndDate);
             Add(command, "@MemberIdsCsv", SqlDbType.NVarChar, -1, Csv(input.MemberIds));
             Add(command, "@CurrentUserId", currentUserId);
+            Add(command, "@OverrideArchivedCode", input.OverrideArchivedCode);
         }, cancellationToken);
     }
 

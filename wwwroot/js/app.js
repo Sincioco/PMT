@@ -48,7 +48,7 @@ import {
 } from "./core/preferences.js?v=20260711-task-dialog-customize";
 import { state } from "./core/store.js";
 import { appUrl } from "./shared/app-urls.js";
-import { createAboutFeature } from "./features/about/about.js?v=20260714-about-footer-db-1-11";
+import { createAboutFeature } from "./features/about/about.js?v=20260714-about-footer-db-1-12";
 import { createBacklogFeature } from "./features/backlog/backlog.js?v=20260714-linked-bug-percent";
 import { createBoardFeature } from "./features/board/board.js?v=20260714-linked-bug-percent";
 import { createBugsFeature } from "./features/bugs/bugs.js?v=20260714-attachment-delete";
@@ -60,7 +60,7 @@ import {
   ganttStartDate
 } from "./features/gantt/gantt.js?v=20260714-linked-bug-percent";
 import { createInvitationsFeature } from "./features/invitations/invitations.js?v=20260714-invite-verbatim-v2";
-import { createProjectsFeature } from "./features/projects/projects.js?v=20260714-linked-bug-percent";
+import { createProjectsFeature } from "./features/projects/projects.js?v=20260714-project-code-reuse";
 import { createRoadMapFeature } from "./features/roadmap/roadmap.js?v=20260714-linked-bug-percent";
 import { createLogFeature } from "./features/personal-log/log.js?v=20260714-linked-bug-percent";
 import { createScrumFeature } from "./features/scrum/scrum.js?v=20260714-scrum-ownership";
