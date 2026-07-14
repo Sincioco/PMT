@@ -133,8 +133,8 @@ public sealed partial class SqlPmtStore
                 EndDate = reader.GetNullableDateTime("EndDate"),
                 CreatedByUserId = reader.GetInt32("CreatedByUserId"),
                 UpdatedByUserId = reader.GetNullableInt32("UpdatedByUserId"),
-                CreatedAt = reader.GetDateTime("CreatedAt"),
-                UpdatedAt = reader.GetDateTime("UpdatedAt")
+                CreatedAt = reader.GetUtcDateTime("CreatedAt"),
+                UpdatedAt = reader.GetUtcDateTime("UpdatedAt")
             });
         }
 
@@ -160,8 +160,8 @@ public sealed partial class SqlPmtStore
                 IsFinished = reader.GetBoolean("IsFinished"),
                 CreatedByUserId = reader.GetInt32("CreatedByUserId"),
                 UpdatedByUserId = reader.GetNullableInt32("UpdatedByUserId"),
-                CreatedAt = reader.GetDateTime("CreatedAt"),
-                UpdatedAt = reader.GetDateTime("UpdatedAt")
+                CreatedAt = reader.GetUtcDateTime("CreatedAt"),
+                UpdatedAt = reader.GetUtcDateTime("UpdatedAt")
             });
         }
 
@@ -197,13 +197,13 @@ public sealed partial class SqlPmtStore
                 Url = reader.GetStringOrEmpty("Url"),
                 StartDate = reader.GetNullableDateTime("StartDate"),
                 EndDate = reader.GetNullableDateTime("EndDate"),
-                StartedAt = reader.GetNullableDateTime("StartedAt"),
+                StartedAt = reader.GetNullableUtcDateTime("StartedAt"),
                 CreatedByUserId = reader.GetInt32("CreatedByUserId"),
                 UpdatedByUserId = reader.GetNullableInt32("UpdatedByUserId"),
                 LinkedBugTaskId = reader.GetNullableInt32("LinkedBugTaskId"),
                 LinkedBlogId = reader.GetNullableInt32("LinkedBlogId"),
-                CreatedAt = reader.GetDateTime("CreatedAt"),
-                UpdatedAt = reader.GetDateTime("UpdatedAt")
+                CreatedAt = reader.GetUtcDateTime("CreatedAt"),
+                UpdatedAt = reader.GetUtcDateTime("UpdatedAt")
             });
         }
 
@@ -224,7 +224,7 @@ public sealed partial class SqlPmtStore
                 ContentType = reader.GetStringOrEmpty("ContentType"),
                 ByteLength = reader.GetInt64("ByteLength"),
                 UploadedByUserId = reader.GetInt32("UploadedByUserId"),
-                CreatedAt = reader.GetDateTime("CreatedAt")
+                CreatedAt = reader.GetUtcDateTime("CreatedAt")
             });
         }
 
@@ -247,8 +247,8 @@ public sealed partial class SqlPmtStore
                 LogDate = reader.GetDateTime("LogDate"),
                 BodyHtml = reader.GetStringOrEmpty("BodyHtml"),
                 IsPinned = reader.GetBoolean("IsPinned"),
-                CreatedAt = reader.GetDateTime("CreatedAt"),
-                UpdatedAt = reader.GetDateTime("UpdatedAt")
+                CreatedAt = reader.GetUtcDateTime("CreatedAt"),
+                UpdatedAt = reader.GetUtcDateTime("UpdatedAt")
             });
         }
 
@@ -272,8 +272,8 @@ public sealed partial class SqlPmtStore
                 IsPrivate = reader.GetBoolean("IsPrivate"),
                 IsPinned = reader.GetBoolean("IsPinned"),
                 CreatedByUserId = reader.GetInt32("CreatedByUserId"),
-                CreatedAt = reader.GetDateTime("CreatedAt"),
-                UpdatedAt = reader.GetDateTime("UpdatedAt")
+                CreatedAt = reader.GetUtcDateTime("CreatedAt"),
+                UpdatedAt = reader.GetUtcDateTime("UpdatedAt")
             });
         }
 
@@ -292,7 +292,7 @@ public sealed partial class SqlPmtStore
                 BlogId = reader.GetInt32("BlogId"),
                 Action = reader.GetStringOrEmpty("Action"),
                 UserId = reader.GetInt32("UserId"),
-                CreatedAt = reader.GetDateTime("CreatedAt")
+                CreatedAt = reader.GetUtcDateTime("CreatedAt")
             });
         }
 
@@ -317,7 +317,7 @@ public sealed partial class SqlPmtStore
                 OldPercentCompleted = reader.GetNullableInt32("OldPercentCompleted"),
                 NewPercentCompleted = reader.GetNullableInt32("NewPercentCompleted"),
                 UserId = reader.GetInt32("UserId"),
-                CreatedAt = reader.GetDateTime("CreatedAt")
+                CreatedAt = reader.GetUtcDateTime("CreatedAt")
             });
         }
 
@@ -462,8 +462,8 @@ public sealed partial class SqlPmtStore
                 IsActive = reader.GetBoolean("IsActive"),
                 CreatedByUserId = reader.GetInt32("CreatedByUserId"),
                 UpdatedByUserId = reader.GetNullableInt32("UpdatedByUserId"),
-                CreatedAt = reader.GetDateTime("CreatedAt"),
-                UpdatedAt = reader.GetDateTime("UpdatedAt")
+                CreatedAt = reader.GetUtcDateTime("CreatedAt"),
+                UpdatedAt = reader.GetUtcDateTime("UpdatedAt")
             });
         }
 

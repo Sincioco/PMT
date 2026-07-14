@@ -3816,7 +3816,8 @@ function richSvgMarkupFromDataUrl(value) {
 
   if (match[1]) {
     try {
-      return atob(payload);
+      const bytes = Uint8Array.from(atob(payload), character => character.charCodeAt(0));
+      return new TextDecoder("utf-8").decode(bytes);
     } catch {
       return "";
     }

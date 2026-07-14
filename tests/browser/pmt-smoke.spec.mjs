@@ -370,6 +370,80 @@ test("login, navigation, themes, dialogs, filters, Board, Gantt, and Road Map sm
   expect(browserErrors).toEqual([]);
 });
 
+test("draw.io SVG clipboard paste preserves UTF-8 spaces", async ({ page }) => {
+  const appState = createTestState();
+  const apiCalls = { securityReset: 0 };
+  const expectedText = "First\u00a0block\u00a0label";
+  const sourceSvg = `<svg xmlns="http://www.w3.org/2000/svg"><text>${expectedText}</text></svg>`;
+  let uploadedRequestBody = "";
+
+  await installApiMocks(page, appState, apiCalls);
+  await page.route("**/api/uploads/richtext", async route => {
+    uploadedRequestBody = route.request().postDataBuffer()?.toString("utf8") || "";
+    await route.fulfill(jsonResponse({
+      fileName: "drawio-diagram.svg",
+      url: "/uploads/richtext/drawio-diagram.svg",
+      contentType: "image/svg+xml",
+      byteLength: Buffer.byteLength(sourceSvg)
+    }));
+  });
+  await page.route("**/uploads/richtext/drawio-diagram.svg", async route => {
+    await route.fulfill({ status: 200, contentType: "image/svg+xml", body: sourceSvg });
+  });
+
+  await page.goto("/");
+  await page.locator("#loginName").fill("Sin");
+  await page.locator("#loginPassword").fill("Password1");
+  await page.getByRole("button", { name: /log in/i }).click();
+  await openNavView(page, "Tasks", "Dev Tasks");
+  await page.locator("tr[data-task-id='1']").click();
+  await page.locator("dialog.detail-dialog").getByRole("button", { name: "Edit" }).click();
+
+  const editor = page.locator("#editorDialog [data-rich='descriptionHtml']");
+  await editor.evaluate((element, svg) => {
+    const bytes = new TextEncoder().encode(svg);
+    const base64 = btoa(String.fromCharCode(...bytes));
+    const clipboardData = new DataTransfer();
+    clipboardData.setData("text/html", `<img src="data:image/svg+xml;base64,${base64}">`);
+    element.dispatchEvent(new ClipboardEvent("paste", {
+      bubbles: true,
+      cancelable: true,
+      clipboardData
+    }));
+  }, sourceSvg);
+
+  await expect(editor.locator("img.rich-svg-image")).toHaveAttribute("src", /drawio-diagram\.svg$/);
+  await expect.poll(() => uploadedRequestBody).toContain(expectedText);
+  expect(uploadedRequestBody).not.toContain("\u00c2");
+});
+
+test.describe("local timestamp display", () => {
+  test.use({ locale: "en-US", timezoneId: "Asia/Taipei" });
+
+  test("UTC timestamps display in browser local time", async ({ page }) => {
+    const appState = createTestState();
+    const apiCalls = { securityReset: 0 };
+    const task = appState.tasks.find(item => item.id === 1);
+    task.startDate = "2026-07-14";
+    task.endDate = "2026-07-15";
+    task.createdAt = "2026-07-14T06:53:00Z";
+    task.updatedAt = "2026-07-14T06:53:00Z";
+
+    await installApiMocks(page, appState, apiCalls);
+    await page.goto("/");
+    await page.locator("#loginName").fill("Sin");
+    await page.locator("#loginPassword").fill("Password1");
+    await page.getByRole("button", { name: /log in/i }).click();
+    await openNavView(page, "Tasks", "Dev Tasks");
+    await page.locator("tr[data-task-id='1']").click();
+
+    const taskDetails = page.locator("dialog.detail-dialog");
+    await expect(taskDetails.locator(".work-item-dialog-meta")).toContainText("7/14/2026, 2:53:00 PM");
+    await taskDetails.getByRole("button", { name: "Edit" }).click();
+    await expect(page.locator("#editorDialog [name='startDate']")).toHaveValue("2026-07-14");
+  });
+});
+
 async function installApiMocks(page, appState, apiCalls) {
   let wfhSchedule = createWfhScheduleRows(appState.users);
 

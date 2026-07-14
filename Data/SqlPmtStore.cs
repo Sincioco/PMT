@@ -163,6 +163,11 @@ internal static class SqlDataReaderExtensions
         return reader.GetDateTime(reader.GetOrdinal(name));
     }
 
+    public static DateTime GetUtcDateTime(this SqlDataReader reader, string name)
+    {
+        return DateTime.SpecifyKind(reader.GetDateTime(reader.GetOrdinal(name)), DateTimeKind.Utc);
+    }
+
     public static int? GetNullableInt32(this SqlDataReader reader, string name)
     {
         var ordinal = reader.GetOrdinal(name);
@@ -173,5 +178,13 @@ internal static class SqlDataReaderExtensions
     {
         var ordinal = reader.GetOrdinal(name);
         return reader.IsDBNull(ordinal) ? null : reader.GetDateTime(ordinal);
+    }
+
+    public static DateTime? GetNullableUtcDateTime(this SqlDataReader reader, string name)
+    {
+        var ordinal = reader.GetOrdinal(name);
+        return reader.IsDBNull(ordinal)
+            ? null
+            : DateTime.SpecifyKind(reader.GetDateTime(ordinal), DateTimeKind.Utc);
     }
 }
