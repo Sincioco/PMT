@@ -62,6 +62,8 @@ When guidance is missing or ambiguous, follow this document. When a new requirem
 
 ## Filters and forms
 
+- Every field that must contain a value before a create or edit can be saved shows a red asterisk immediately after its visible label.
+- Required-field indicators stay on the existing label line and must not add a message row, reserve extra height, or shift neighboring controls.
 - Related controls use equal-width columns and balanced outer and middle spacing.
 - Two-column dialog layouts use `minmax(0, 1fr)` columns so controls can fill their column without intrinsic-width overflow.
 - Paired editor controls use a generous center gutter; the Dev Task editor uses twice the standard compact form gap between its left and right columns.

@@ -9,7 +9,7 @@ import {
   nullableDateValue,
   userCardCheckListLabelHtml,
   value
-} from "../../components/forms.js?v=20260710-rte-table-shortcuts";
+} from "../../components/forms.js?v=20260715-day28-v118";
 import { currentUser } from "../../core/authentication.js";
 import {
   projectOverallProgressHtml,
@@ -181,15 +181,15 @@ export function createProjectsFeature({
     let saveAsNewMode = false;
     openEditor(project.id ? "Edit Project" : "New Project", `
       <div class="form-grid">
-        ${field("Code", "code", project.code || "", "text", "", "", 5)}
-        ${field("Title", "title", project.title || "", "text", "", "", 30)}
+        ${field("Code", "code", project.code || "", "text", "", "", 5, { required: true })}
+        ${field("Title", "title", project.title || "", "text", "", "", 30, { required: true })}
         ${field("Start", "startDate", toDateInput(project.startDate), "date")}
         ${field("End", "endDate", toDateInput(project.endDate), "date")}
         ${field("URL", "url", project.url || "", "url")}
         ${field("Icon URL", "iconUrl", project.iconUrl || "", "text")}
         <div class="field full"><label>Upload Icon</label><input name="iconFile" type="file" accept="image/*"></div>
         <div class="field full"><label>Description</label><textarea name="description" maxlength="100">${escapeHtml(project.description || "")}</textarea></div>
-        ${checkList("Members", "memberIds", state.users, project.memberIds || [], item => item.nickname, { className: "scroll-check-list user-card-check-list", renderItem: userCardCheckListLabelHtml })}
+        ${checkList("Members", "memberIds", state.users, project.memberIds || [], item => item.nickname, { className: "scroll-check-list user-card-check-list", renderItem: userCardCheckListLabelHtml, required: !project.id })}
       </div>
     `, async root => {
       const isUpdate = Boolean(project.id && !saveAsNewMode);

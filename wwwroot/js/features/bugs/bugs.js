@@ -31,7 +31,7 @@ import {
   selectTextField,
   userCardCheckListLabelHtml,
   value
-} from "../../components/forms.js?v=20260711-bug-dialog-customize";
+} from "../../components/forms.js?v=20260715-day28-v118";
 import { progressHtml } from "../../components/progress-and-status.js?v=20260714-linked-bug-percent";
 import { sectionHead } from "../../components/sections.js?v=20260701-nav-title-preferences";
 import {
@@ -44,7 +44,7 @@ import {
   taskPercentField,
   workItemDialogMetaHtml,
   uploadWorkItemAttachments
-} from "../../components/work-items.js?v=20260714-attachment-delete";
+} from "../../components/work-items.js?v=20260715-day28-v118";
 import {
   currentUser,
   currentUserId
@@ -498,14 +498,14 @@ export function createBugsFeature({
       </template>
       <div class="form-grid bug-editor-grid" data-bug-dialog-root="edit">
         ${bug.id ? taskAuditPanelHtml(bug) : ""}
-        ${bugDialogFieldHtml("projectId", selectField(bugDialogFieldLabel("projectId"), "projectId", state.projects, projectId))}
+        ${bugDialogFieldHtml("projectId", selectField(bugDialogFieldLabel("projectId"), "projectId", state.projects, projectId, { required: true }))}
         ${bugDialogFieldHtml("sprintId", selectOptionsField(bugDialogFieldLabel("sprintId"), "sprintId", bugEditorSprintOptions(projectId), defaultSprintId || ""))}
-        ${bugDialogFieldHtml("title", field(bugDialogFieldLabel("title"), "title", bug.title || "", "text"))}
-        ${bugDialogFieldHtml("status", selectTextField(bugDialogFieldLabel("status"), "status", getLookupOptions("Status", bug.status || "Todo"), bug.status || "Todo"))}
-        ${bugDialogFieldHtml("priority", selectTextField(bugDialogFieldLabel("priority"), "priority", getLookupOptions("Priority", bug.priority || "Low"), bug.priority || "Low"))}
+        ${bugDialogFieldHtml("title", field(bugDialogFieldLabel("title"), "title", bug.title || "", "text", "", "", "", { required: true }))}
+        ${bugDialogFieldHtml("status", selectTextField(bugDialogFieldLabel("status"), "status", getLookupOptions("Status", bug.status || "Todo"), bug.status || "Todo", { required: true }))}
+        ${bugDialogFieldHtml("priority", selectTextField(bugDialogFieldLabel("priority"), "priority", getLookupOptions("Priority", bug.priority || "Low"), bug.priority || "Low", { required: true }))}
         ${bugDialogFieldHtml("percentCompleted", taskPercentField({ ...bug, __bugDialogPercentLabel: bugDialogFieldLabel("percentCompleted") }, false))}
-        ${bugDialogFieldHtml("environment", selectTextField(bugDialogFieldLabel("environment"), "environment", environments, defaultEnvironment))}
-        ${bugDialogFieldHtml("severity", selectTextField(bugDialogFieldLabel("severity"), "severity", getLookupOptions("Severity", bug.severity || "Minor"), bug.severity || "Minor"))}
+        ${bugDialogFieldHtml("environment", selectTextField(bugDialogFieldLabel("environment"), "environment", environments, defaultEnvironment, { required: true }))}
+        ${bugDialogFieldHtml("severity", selectTextField(bugDialogFieldLabel("severity"), "severity", getLookupOptions("Severity", bug.severity || "Minor"), bug.severity || "Minor", { required: true }))}
         ${bugDialogFieldHtml("descriptionHtml", richTextField("descriptionHtml", bugDialogFieldLabel("descriptionHtml"), bug.descriptionHtml || ""))}
         ${bugDialogFieldHtml("url", bugEditorUrlField(bug))}
         ${bugDialogFieldHtml("attachments", attachmentEditorFieldHtml(bug.attachments || [], bug.id ? `${apiRoot}/${bug.id}/attachments` : ""))}

@@ -13,7 +13,7 @@ import {
   selectField,
   userCardCheckListLabelHtml,
   value
-} from "../../components/forms.js?v=20260710-rte-table-shortcuts";
+} from "../../components/forms.js?v=20260715-day28-v118";
 import {
   sprintOverallProgressHtml,
   sprintStatusMetricsHtml,
@@ -222,8 +222,8 @@ export function createSprintsFeature({
 
     openEditor(sprint.id ? "Edit Sprint" : "New Sprint", `
       <div class="form-grid">
-        ${selectField("Project", "projectId", state.projects, projectId)}
-        ${field("Title", "title", sprint.title || "", "text")}
+        ${selectField("Project", "projectId", state.projects, projectId, { required: true })}
+        ${field("Title", "title", sprint.title || "", "text", "", "", "", { required: true })}
         ${field("Start", "startDate", toDateInput(sprint.startDate), "date")}
         ${field("End", "endDate", toDateInput(sprint.endDate), "date")}
         <div class="field full"><label>Description</label><textarea name="description">${escapeHtml(sprint.description || "")}</textarea></div>
@@ -347,7 +347,7 @@ export function createSprintsFeature({
         members,
         selectedIds,
         "Select project members before adding people to this Sprint.",
-        { className: "scroll-check-list user-card-check-list", renderItem: userCardCheckListLabelHtml }
+        { className: "scroll-check-list user-card-check-list", renderItem: userCardCheckListLabelHtml, required: true }
       );
     };
 

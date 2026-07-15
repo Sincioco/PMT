@@ -1,14 +1,14 @@
 import { avatarsHtml } from "../../components/avatars.js";
 import { buttonContent, funnelIconHtml } from "../../components/buttons.js";
 import { checkedFilterValues, filterCheckList } from "../../components/filters.js?v=20260621-task-filter-layout";
-import { userCardCheckListLabelHtml } from "../../components/forms.js?v=20260710-rte-table-shortcuts";
+import { userCardCheckListLabelHtml } from "../../components/forms.js?v=20260715-day28-v118";
 import { progressHtml } from "../../components/progress-and-status.js?v=20260714-linked-bug-percent";
 import { sectionHead } from "../../components/sections.js?v=20260701-nav-title-preferences";
 import {
   bugFixIconHtml,
   createWorkItemTableMode,
   taskButtonsHtml
-} from "../../components/work-items.js?v=20260714-linked-bug-percent";
+} from "../../components/work-items.js?v=20260715-day28-v118";
 import {
   preferenceKeys,
   readBooleanPreference,

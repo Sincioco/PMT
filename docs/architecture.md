@@ -17,7 +17,7 @@ PMT is a single ASP.NET Core .NET 6 web application:
 9. `tests/js/` contains Node-based ES-module unit tests for pure frontend rules and calculations.
 10. `tests/browser/` contains Playwright smoke tests that serve the real ASP.NET app and mock API responses with deterministic browser-test data.
 
-The source tree and fresh-rebuild scripts represent PMT Database Version 1.17. BDO and every other known deployed instance remain on the Version 1.15 baseline until the combined Version 1.15-to-1.17 migration and matching application release are deployed. The combined migration must run successfully before the Version 1.17 binary starts against an existing database.
+The source tree and fresh-rebuild scripts represent PMT Database Version 1.18. BDO and every other known deployed instance remain on the Version 1.15 baseline until the combined Version 1.15-to-1.18 migration and matching application release are deployed. The combined migration must run successfully before the Version 1.18 binary starts against an existing database.
 
 The main read flow is:
 

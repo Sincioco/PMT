@@ -214,11 +214,11 @@ export function createApplicationShell({
           </div>
           <div class="field">
             <label>Nickname or Email</label>
-            <input id="loginName" autocomplete="username">
+            <input id="loginName" autocomplete="username" required aria-required="true">
           </div>
           <div class="field">
             <label>Password</label>
-            <input id="loginPassword" type="password" autocomplete="current-password">
+            <input id="loginPassword" type="password" autocomplete="current-password" required aria-required="true">
           </div>
           <button class="primary text-icon-button" type="button" id="loginButton">
             <span class="button-icon" aria-hidden="true">&#10148;</span><span>Log in</span>

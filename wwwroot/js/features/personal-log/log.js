@@ -11,9 +11,9 @@ import {
   richValue,
   selectOptionsField,
   value
-} from "../../components/forms.js?v=20260710-rte-table-shortcuts";
+} from "../../components/forms.js?v=20260715-day28-v118";
 import { sectionHead } from "../../components/sections.js?v=20260701-nav-title-preferences";
-import { createWorkItemTableMode } from "../../components/work-items.js?v=20260714-linked-bug-percent";
+import { createWorkItemTableMode } from "../../components/work-items.js?v=20260715-day28-v118";
 import { currentUser } from "../../core/authentication.js";
 import {
   preferenceKeys,
@@ -818,10 +818,10 @@ export function createLogFeature({
 
     openEditor(logDialogTitle(log, "New Log"), `
       <div class="form-grid log-editor-grid">
-        ${field("Date", "logDate", selectedLogDate, "date")}
+        ${field("Date", "logDate", selectedLogDate, "date", "", "", "", { required: true })}
         ${selectOptionsField("Project", "projectId", [{ id: "", title: "No project" }, ...state.projects.map(project => ({ id: project.id, title: `${project.code} - ${project.title}` }))], selectedProjectId)}
         ${selectOptionsField("Category", "category", logCategoryOptions(selectedCategory).map(category => ({ id: category, title: category })), selectedCategory)}
-        ${richTextField("bodyHtml", "Log", logHtml)}
+        ${richTextField("bodyHtml", "Log", logHtml, { required: true })}
         <label class="inline-check field full"><input name="isPinned" type="checkbox" ${log.isPinned ? "checked" : ""} ${currentUser().isAdmin ? "" : "disabled"}><span>Pinned</span></label>
       </div>
     `, async root => {

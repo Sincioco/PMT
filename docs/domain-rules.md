@@ -95,7 +95,7 @@ The default role names are `Admin`, `Dev - Developer`, `QA - Quality Assurance`,
 - Work-item permission is task-type based, not creator based.
 - Project, Sprint, Scrum, Documentation, WFH, Settings, import, export, upload, and invitation endpoints enforce the matching resource right in SQL. Task and attachment checks resolve Dev Task versus Bug Tracking before enforcing the action.
 - Finished Sprints are read-only for non-admin users, including work-item writes into that Sprint.
-- A non-admin may update, import into, or delete only a Scrum entry they own and must also have the matching Scrum right. Administrators may manage any shared Scrum entry. Only administrators may pin Scrum entries.
+- A non-admin may update, import into, delete, pin, or unpin only a Scrum entry they own and must also have the matching Scrum right. New Scrum entries may be pinned when the owner has Scrum Create, and imported Scrum pin values require Scrum Import. Administrators may manage any shared Scrum entry. Private Personal Log pinning remains administrator-only.
 - Private means owner-only throughout PMT's normal UI and API data flow. Administrator status never bypasses a private item's ownership boundary.
 - Personal Log rows are private to their owner: `[pmt].[GetAppState]` never returns another user's private Log rows, including to an administrator, and no user or administrator may update/delete another user's private Log entry through PMT.
 - Private Documentation is returned, viewed, exported, updated, deleted, attached to, or used as a parent only for its creator. Public Documentation continues to follow the configured Documentation resource permissions.

@@ -1,5 +1,5 @@
 /*
-    PMT Version 1.17 stored procedures.
+    PMT Version 1.18 stored procedures.
     The application uses ADO.NET and calls these procedures directly.
     The SQL is intentionally explicit so future maintainers can trace each save action.
 */
@@ -5464,7 +5464,7 @@ BEGIN
         END;
     END;
 
-    IF @CurrentUserIsAdmin = 0
+    IF @CurrentUserIsAdmin = 0 AND @LogType = N'Log'
     BEGIN
         SET @IsPinned = 0;
     END;
@@ -5546,7 +5546,10 @@ BEGIN
             [Category] = @Category,
             [LogDate] = @LogDate,
             [BodyHtml] = @BodyHtml,
-            [IsPinned] = CASE WHEN @CurrentUserIsAdmin = 1 THEN @IsPinned ELSE [IsPinned] END,
+            [IsPinned] = CASE
+                WHEN @CurrentUserIsAdmin = 1 OR @ExistingLogType = N'Scrum' THEN @IsPinned
+                ELSE [IsPinned]
+            END,
             [UpdatedByUserId] = @CurrentUserId,
             [UpdatedAt] = @Now
         WHERE [DevLogId] = @DevLogId;

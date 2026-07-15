@@ -4,7 +4,7 @@ As of July 15, 2026, the latest PMT release and its current Version 1.15 databas
 
 Future migrations start from Version 1.15 or the immediately preceding deployed version. New compatibility work for versions before 1.15 is not required. Keep the existing migrations, combined wrappers, and deployment runbooks through Version 1.15 unchanged as historical release artifacts.
 
-The deployed baseline remains Version 1.15, while the current source schema and fresh rebuild represent Version 1.17. The active release first applies Version 1.16 attendance and vacation storage, then Version 1.17 `ROWVERSION` save-collision protection. `PMT_SecurityRoleDefaultsVersion` remains `1.10` because neither step changes Role defaults. Do not manually edit either version property.
+The deployed baseline remains Version 1.15, while the current source schema and fresh rebuild represent Version 1.18. The active release applies Version 1.16 attendance and vacation storage, Version 1.17 `ROWVERSION` save-collision protection, and Version 1.18 authorized Scrum pinning. `PMT_SecurityRoleDefaultsVersion` remains `1.10` because none of these steps changes Role defaults. Do not manually edit either version property.
 
 ## Historical Version 1.10 to 1.15 Deployment
 
@@ -14,9 +14,9 @@ Do not rerun the Version 1.10-to-1.15 chain, `Migration History/PMT_1.3_to_1.10_
 
 All completed migration scripts and HTML runbooks live under `Migration History/`. When a newer version becomes the declared deployed baseline, move every migration and runbook ending at or before that version into that folder automatically. Leave only the migrations needed from the current deployed baseline to the current source version, plus the combined operator runner, in this directory.
 
-## Active Version 1.15 to 1.17 Deployment
+## Active Version 1.15 to 1.18 Deployment
 
-`PMT_1.15_to_1.16.sql` is the canonical attendance/vacation step. `PMT_1.16_to_1.17.sql` adds opaque edit-version columns, focused collision procedures, aggregate write locks, and safe concurrent WFH-row initialization without changing existing business values. Because BDO starts at Version 1.15 and this release contains two steps, the deployment operator must run `PMT_1.15_to_1.17_All.sql` from this directory in SQLCMD mode. Do not run the two step scripts manually during the normal deployment.
+`PMT_1.15_to_1.16.sql` is the canonical attendance/vacation step. `PMT_1.16_to_1.17.sql` adds opaque edit-version columns, focused collision procedures, aggregate write locks, and safe concurrent WFH-row initialization without changing existing business values. `PMT_1.17_to_1.18.sql` allows authorized non-administrators to pin their own Scrum entries without changing existing rows or private Personal Log pinning. Because BDO starts at Version 1.15 and this release contains three steps, the deployment operator must run `PMT_1.15_to_1.18_All.sql` from this directory in SQLCMD mode. Do not run the three step scripts manually during the normal deployment. The superseded Version 1.15-to-1.17 combined runner is retained under `Migration History/`.
 
 ## Future Migrations
 
@@ -25,9 +25,10 @@ Every future SQL, database-contract, or database-backed stability change must ad
 ```text
 PMT_1.15_to_1.16.sql
 PMT_1.16_to_1.17.sql
+PMT_1.17_to_1.18.sql
 ```
 
-If one deployment requires two or more versioned migrations, always add a combined `PMT_<start>_to_<end>_All.sql` SQLCMD runner. Keep the version-step files canonical, and make the combined file use `:on error exit` plus ordered relative `:r` includes. For example, a deployment containing the two example scripts above must also contain `PMT_1.15_to_1.17_All.sql`. The deployment operator runs that one combined file instead of running the constituent files one by one.
+If one deployment requires two or more versioned migrations, always add a combined `PMT_<start>_to_<end>_All.sql` SQLCMD runner. Keep the version-step files canonical, and make the combined file use `:on error exit` plus ordered relative `:r` includes. For the active three-step chain above, `PMT_1.15_to_1.18_All.sql` is the operator-facing runner. The deployment operator runs that one combined file instead of running the constituent files one by one.
 
 Run the selected migration or combined runner in SQLCMD mode so any guard or SQL error stops the deployment immediately:
 

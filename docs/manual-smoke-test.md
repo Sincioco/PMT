@@ -84,6 +84,12 @@ At laptop width:
 - [ ] Check cards, tables, dialogs, dropdowns, charts, Gantt, and Road Map.
 - [ ] Switch back to Dark Theme, refresh, and confirm it is retained.
 
+## Required fields and stable form alignment
+
+- [ ] Open New Project and confirm Code, Title, and Members show the shared red asterisk while optional fields such as Start do not. Repeat with one rich-text or checklist requirement and confirm the marker remains on the existing label line without moving controls.
+- [ ] Open New User, compare Username with the Role control beside it, then trigger a long username availability message. Confirm both labels and controls keep the same top alignment and no neighboring field shifts.
+- [ ] Open invitation registration and confirm Username, Password, Confirm Password, and the overall Avatar choice show the same required treatment without implying that a generic avatar is the only valid choice.
+
 ## Representative CRUD
 
 Use clearly named temporary records and remove them after validation.
@@ -155,6 +161,7 @@ Use two signed-in browser profiles, A and B, that can edit the same disposable r
 - [ ] Duplicate it and confirm the duplicate date defaults to today.
 - [ ] Edit and delete the temporary Scrum entries.
 - [ ] As a non-admin with Scrum Update but no Delete, enter Edit Mode and confirm Edit appears only on that user's Scrum entries and Delete appears on none of the rows.
+- [ ] As that non-admin, edit an owned Scrum entry and confirm Pinned is enabled, then pin and unpin the entry successfully. Confirm another user's Scrum remains read-only and private Personal Log pinning remains disabled.
 - [ ] Grant the same user Scrum Delete and confirm Delete appears only on that user's Scrum entries; direct update/delete requests for another user's Scrum entry must be rejected.
 - [ ] As an administrator, confirm shared Scrum entries from another user can be edited and deleted.
 - [ ] In Log, confirm a user sees only their own private entries. Repeat as an administrator and confirm other users' private Log entries remain absent and cannot be updated or deleted through direct requests.

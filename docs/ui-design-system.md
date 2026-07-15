@@ -249,6 +249,7 @@ Example:
 - Validation places a message next to the field and sets the relevant accessible state.
 - Disabled fields use disabled background and text tokens.
 - Required, invalid, read-only, and disabled are different states and must look different.
+- Required create/edit fields use the shared red asterisk after the visible label without changing the field's layout or height.
 - Form layouts may use two columns on wide viewports and one column at or below 900px.
 - Checkbox labels use separate checkbox and content columns. Wrapped text aligns beneath the first word, and the checkbox is vertically centered against the complete content block, including avatars.
 

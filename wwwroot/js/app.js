@@ -18,14 +18,14 @@ import {
 import {
   field,
   value
-} from "./components/forms.js?v=20260713-managed-roles";
+} from "./components/forms.js?v=20260715-day28-v118";
 import { configureProgressAndStatus } from "./components/progress-and-status.js?v=20260714-linked-bug-percent";
 import {
   bindAttachmentPreview,
   showTaskAudit,
   viewWorkItem
-} from "./components/work-items.js?v=20260714-attachment-delete";
-import { createApplicationShell } from "./core/application-shell.js?v=20260714-upload-storage-warning";
+} from "./components/work-items.js?v=20260715-day28-v118";
+import { createApplicationShell } from "./core/application-shell.js?v=20260715-day28-v118";
 import {
   currentView,
   ensureCurrentViewRoute,
@@ -51,26 +51,26 @@ import { appUrl } from "./shared/app-urls.js";
 import {
   createAboutFeature,
   createAboutScreenSaver
-} from "./features/about/about.js?v=20260715-attendance-v116";
-import { createBacklogFeature } from "./features/backlog/backlog.js?v=20260715-save-collision-v2";
-import { createBoardFeature } from "./features/board/board.js?v=20260715-save-collision-v2";
-import { createBugsFeature } from "./features/bugs/bugs.js?v=20260715-save-collision-v2";
+} from "./features/about/about.js?v=20260715-day28-v118";
+import { createBacklogFeature } from "./features/backlog/backlog.js?v=20260715-day28-v118";
+import { createBoardFeature } from "./features/board/board.js?v=20260715-day28-v118";
+import { createBugsFeature } from "./features/bugs/bugs.js?v=20260715-day28-v118";
 import { createDashboardFeature } from "./features/dashboard/dashboard.js?v=20260714-linked-bug-percent";
-import { createDocumentationFeature } from "./features/documentation/documentation.js?v=20260715-save-collision-v2";
+import { createDocumentationFeature } from "./features/documentation/documentation.js?v=20260715-day28-v118";
 import {
   createGanttFeature,
   currentSprintForProject,
   ganttStartDate
 } from "./features/gantt/gantt.js?v=20260714-linked-bug-percent";
-import { createInvitationsFeature } from "./features/invitations/invitations.js?v=20260714-invite-verbatim-v2";
-import { createProjectsFeature } from "./features/projects/projects.js?v=20260715-save-collision-v2";
+import { createInvitationsFeature } from "./features/invitations/invitations.js?v=20260715-day28-v118";
+import { createProjectsFeature } from "./features/projects/projects.js?v=20260715-day28-v118";
 import { createRoadMapFeature } from "./features/roadmap/roadmap.js?v=20260714-linked-bug-percent";
-import { createLogFeature } from "./features/personal-log/log.js?v=20260715-save-collision-v2";
-import { createScrumFeature } from "./features/scrum/scrum.js?v=20260715-save-collision-v2";
-import { createSettingsFeature } from "./features/settings/settings.js?v=20260715-save-collision-v2";
-import { createSprintsFeature } from "./features/sprints/sprints.js?v=20260715-save-collision-v2";
-import { createTasksFeature } from "./features/tasks/tasks.js?v=20260715-save-collision-v2";
-import { createWfhScheduleFeature } from "./features/wfh-schedule/wfh-schedule.js?v=20260715-save-collision-v2";
+import { createLogFeature } from "./features/personal-log/log.js?v=20260715-day28-v118";
+import { createScrumFeature } from "./features/scrum/scrum.js?v=20260715-day28-v118";
+import { createSettingsFeature } from "./features/settings/settings.js?v=20260715-day28-v118";
+import { createSprintsFeature } from "./features/sprints/sprints.js?v=20260715-day28-v118";
+import { createTasksFeature } from "./features/tasks/tasks.js?v=20260715-day28-v118";
+import { createWfhScheduleFeature } from "./features/wfh-schedule/wfh-schedule.js?v=20260715-day28-v118";
 import {
   fallbackEnvironments,
   fallbackForLookup,
@@ -1953,8 +1953,8 @@ function detailField(label, html, full = false) {
 function editPassword() {
   openEditor("Change Password", `
     <div class="form-grid">
-      ${field("Current Password", "currentPassword", "", "password")}
-      ${field("New Password", "newPassword", "", "password")}
+      ${field("Current Password", "currentPassword", "", "password", "", "", "", { required: true })}
+      ${field("New Password", "newPassword", "", "password", "", "", "", { required: true })}
     </div>
   `, async root => {
     await saveJson("/api/change-password", "POST", {
@@ -1970,8 +1970,8 @@ function resetUserPassword(user) {
 
   openEditor(`Change Password for ${user.nickname || "User"}`, `
     <div class="form-grid">
-      ${field("New Password", "newPassword", "", "password")}
-      ${field("Confirm Password", "confirmPassword", "", "password")}
+      ${field("New Password", "newPassword", "", "password", "", "", "", { required: true })}
+      ${field("Confirm Password", "confirmPassword", "", "password", "", "", "", { required: true })}
     </div>
   `, async root => {
     const newPassword = value(root, "newPassword");

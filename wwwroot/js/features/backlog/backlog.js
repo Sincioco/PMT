@@ -7,13 +7,13 @@ import {
 } from "../../components/filters.js?v=20260630-filter-renderer";
 import {
   userCardCheckListLabelHtml
-} from "../../components/forms.js?v=20260710-rte-table-shortcuts";
+} from "../../components/forms.js?v=20260715-day28-v118";
 import { progressHtml } from "../../components/progress-and-status.js?v=20260714-linked-bug-percent";
 import { sectionHead } from "../../components/sections.js?v=20260701-nav-title-preferences";
 import {
   bugFixIconHtml,
   createWorkItemTableMode
-} from "../../components/work-items.js?v=20260714-linked-bug-percent";
+} from "../../components/work-items.js?v=20260715-day28-v118";
 import {
   preferenceKeys,
   readJsonPreference,

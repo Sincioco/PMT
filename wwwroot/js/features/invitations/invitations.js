@@ -14,12 +14,12 @@ import { initializeWindowedDialog } from "../../components/dialogs.js?v=20260713
 import {
   checkList,
   checkedNumbers
-} from "../../components/forms.js?v=20260713-invite-users";
+} from "../../components/forms.js?v=20260715-day28-v118";
 import {
   bindProfileAvatarPicker,
   focusProfileAvatarPicker,
   profileAvatarPickerHtml
-} from "../../components/profile-avatar-picker.js?v=20260713-invite-users";
+} from "../../components/profile-avatar-picker.js?v=20260715-day28-v118";
 import {
   appAbsoluteUrl,
   appUrl
@@ -67,7 +67,8 @@ export function createInvitationsFeature({
           ${projects.length
             ? checkList("Projects", "projectIds", projects, [], project => project.title, {
               className: "scroll-check-list user-card-check-list invite-project-list",
-              renderItem: inviteProjectLabelHtml
+              renderItem: inviteProjectLabelHtml,
+              required: true
             })
             : `<div class="empty">You are not a member of any projects that can be included in an invitation.</div>`}
           <div class="invite-generate-row">

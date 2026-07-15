@@ -12,9 +12,9 @@ import {
   selectOptionsField,
   userCardCheckListLabelHtml,
   value
-} from "../../components/forms.js?v=20260710-rte-table-shortcuts";
+} from "../../components/forms.js?v=20260715-day28-v118";
 import { sectionHead } from "../../components/sections.js?v=20260701-nav-title-preferences";
-import { createWorkItemTableMode } from "../../components/work-items.js?v=20260714-linked-bug-percent";
+import { createWorkItemTableMode } from "../../components/work-items.js?v=20260715-day28-v118";
 import { currentUser } from "../../core/authentication.js";
 import {
   preferenceKeys,
@@ -1321,11 +1321,11 @@ export function createScrumFeature({
       <div class="form-grid scrum-vacation-date-grid">
         <div class="field">
           <label for="scrum-vacation-start-date">Start Date</label>
-          <input id="scrum-vacation-start-date" name="startDate" type="date" value="${escapeAttr(vacation ? dateKey(vacation.startDate) : "")}" ${canSaveVacation ? "" : "disabled"}>
+          <input id="scrum-vacation-start-date" name="startDate" type="date" value="${escapeAttr(vacation ? dateKey(vacation.startDate) : "")}" required aria-required="true" ${canSaveVacation ? "" : "disabled"}>
         </div>
         <div class="field">
           <label for="scrum-vacation-end-date">End Date</label>
-          <input id="scrum-vacation-end-date" name="endDate" type="date" value="${escapeAttr(vacation ? dateKey(vacation.endDate) : "")}" ${canSaveVacation ? "" : "disabled"}>
+          <input id="scrum-vacation-end-date" name="endDate" type="date" value="${escapeAttr(vacation ? dateKey(vacation.endDate) : "")}" required aria-required="true" ${canSaveVacation ? "" : "disabled"}>
         </div>
       </div>
       <div class="scrum-vacation-list">
@@ -1553,10 +1553,10 @@ export function createScrumFeature({
 
     openEditor(scrumDialogTitle(log, "New Scrum"), `
       <div class="form-grid scrum-editor-grid">
-        ${field("Date", "logDate", selectedLogDate, "date", scrumMinDateKey(selectedProjectId), scrumMaxDateKey())}
+        ${field("Date", "logDate", selectedLogDate, "date", scrumMinDateKey(selectedProjectId), scrumMaxDateKey(), "", { required: true })}
         ${selectOptionsField("Project", "projectId", [{ id: "", title: "No project" }, ...state.projects.map(project => ({ id: project.id, title: `${project.code} - ${project.title}` }))], selectedProjectId)}
-        ${richTextField("bodyHtml", "Scrum", scrumHtml)}
-        <label class="inline-check field full"><input name="isPinned" type="checkbox" ${log.isPinned ? "checked" : ""} ${currentUser().isAdmin ? "" : "disabled"}><span>Pinned</span></label>
+        ${richTextField("bodyHtml", "Scrum", scrumHtml, { required: true })}
+        <label class="inline-check field full"><input name="isPinned" type="checkbox" ${log.isPinned ? "checked" : ""}><span>Pinned</span></label>
       </div>
     `, async root => {
       const projectId = optionalNumberValue(root, "projectId");
@@ -1940,7 +1940,7 @@ export function createScrumFeature({
       projectId: dateResult.projectId,
       logDate: dateResult.logDate,
       bodyHtml,
-      isPinned: currentUser().isAdmin ? parseScrumImportPinned(record, log) : Boolean(log?.isPinned)
+      isPinned: parseScrumImportPinned(record, log)
     };
   }
 

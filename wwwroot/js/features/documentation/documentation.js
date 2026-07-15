@@ -14,7 +14,7 @@ import {
   richValue,
   selectOptionsField,
   value
-} from "../../components/forms.js?v=20260710-rte-table-shortcuts";
+} from "../../components/forms.js?v=20260715-day28-v118";
 import { sectionHead } from "../../components/sections.js?v=20260701-nav-title-preferences";
 import {
   preferenceKeys,
@@ -614,11 +614,11 @@ export function createDocumentationFeature({
       <div class="form-grid">
         ${selectOptionsField("Project", "projectId", [{ id: "", title: "Global" }, ...state.projects.map(project => ({ id: project.id, title: `${project.code} - ${project.title}` }))], selectedProjectId)}
         ${selectOptionsField("Sprint", "sprintId", documentationSprintOptions(selectedProjectId), selectedSprintId)}
-        ${field("Title", "title", blog.title || "", "text")}
+        ${field("Title", "title", blog.title || "", "text", "", "", "", { required: true })}
         ${selectOptionsField("Parent", "parentBlogId", documentationParentOptions(selectedProjectId, selectedSprintId, blog.id), blog.parentBlogId || "")}
         ${documentationPrivateField(blog)}
         ${documentationPinnedField(blog)}
-        ${richTextField("bodyHtml", "Body", blog.bodyHtml || "")}
+        ${richTextField("bodyHtml", "Body", blog.bodyHtml || "", { required: true })}
         <div class="field full">
           <label>Attachments</label>
           ${blog.attachments?.length ? attachmentsHtml(blog.attachments, { deletePathPrefix: `/api/blogs/${blog.id}/attachments` }) : ""}
@@ -1757,17 +1757,17 @@ function documentationTreeInlineEditorHtml(blog) {
         </div>
       </div>
       <div class="form-grid documentation-inline-meta">
-        ${field("Title", "title", blog.title || "", "text")}
+        ${field("Title", "title", blog.title || "", "text", "", "", "", { required: true })}
         ${selectOptionsField("Project", "projectId", [{ id: "", title: "Global" }, ...state.projects.map(project => ({ id: project.id, title: `${project.code} - ${project.title}` }))], selectedProjectId)}
         ${selectOptionsField("Sprint", "sprintId", documentationSprintOptions(selectedProjectId), selectedSprintId)}
         ${selectOptionsField("Parent", "parentBlogId", documentationParentOptions(selectedProjectId, selectedSprintId, blog.id), blog.parentBlogId || "")}
         ${documentationPrivateField(blog)}
         ${documentationPinnedField(blog)}
       </div>
-      <div class="field full documentation-inline-body-field">
+      <div class="field full is-required documentation-inline-body-field">
         <label>Body</label>
         ${richTextToolsHtml({ actionsHtml: documentationInlineRichTextActionsHtml() })}
-        <div class="rich-editor documentation-inline-body-editor documentation-image-open-area" contenteditable="true" data-rich="bodyHtml">${blog.bodyHtml || ""}</div>
+        <div class="rich-editor documentation-inline-body-editor documentation-image-open-area" contenteditable="true" role="textbox" aria-label="Body" aria-multiline="true" data-rich="bodyHtml" aria-required="true">${blog.bodyHtml || ""}</div>
       </div>
       <div class="field full documentation-inline-attachments">
         <label>Attachments</label>

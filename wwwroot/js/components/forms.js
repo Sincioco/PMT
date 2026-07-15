@@ -5,8 +5,9 @@ import {
 } from "../shared/text-and-links.js?v=20260627-rich-text-toolbar";
 import { roleLabel } from "../shared/selectors.js?v=20260713-managed-roles";
 
-export function field(label, name, currentValue, type, min = "", max = "", maxLength = "") {
-  return `<div class="field"><label>${escapeHtml(label)}</label><input name="${name}" type="${type}" value="${escapeAttr(currentValue ?? "")}" ${min !== "" ? `min="${min}"` : ""} ${max !== "" ? `max="${max}"` : ""} ${maxLength !== "" ? `maxlength="${maxLength}"` : ""}></div>`;
+export function field(label, name, currentValue, type, min = "", max = "", maxLength = "", options = {}) {
+  const required = options.required ? ` required aria-required="true"` : "";
+  return `<div class="field"><label>${escapeHtml(label)}</label><input name="${name}" type="${type}" value="${escapeAttr(currentValue ?? "")}" ${min !== "" ? `min="${min}"` : ""} ${max !== "" ? `max="${max}"` : ""} ${maxLength !== "" ? `maxlength="${maxLength}"` : ""}${required}></div>`;
 }
 
 export function colorField(label, name, currentValue) {
@@ -44,38 +45,38 @@ const richStandardColors = [
   "#7030A0"
 ];
 
-export function selectField(label, name, items, selectedId) {
-  return selectOptionsField(label, name, items.map(item => ({ id: item.id, title: `${item.code || item.nickname || item.title} ${item.title && item.code ? "- " + item.title : ""}` })), selectedId);
+export function selectField(label, name, items, selectedId, options = {}) {
+  return selectOptionsField(label, name, items.map(item => ({ id: item.id, title: `${item.code || item.nickname || item.title} ${item.title && item.code ? "- " + item.title : ""}` })), selectedId, options);
 }
 
-export function selectOptionsField(label, name, items, selectedId) {
+export function selectOptionsField(label, name, items, selectedId, options = {}) {
   return `
     <div class="field">
       <label>${escapeHtml(label)}</label>
-      <select name="${name}">
+      <select name="${name}" ${options.required ? `required aria-required="true"` : ""}>
         ${items.map(item => `<option value="${item.id}" ${String(item.id) === String(selectedId ?? "") ? "selected" : ""}>${escapeHtml(item.title)}</option>`).join("")}
       </select>
     </div>
   `;
 }
 
-export function selectTextField(label, name, items, selectedText) {
+export function selectTextField(label, name, items, selectedText, options = {}) {
   return `
     <div class="field">
       <label>${escapeHtml(label)}</label>
-      <select name="${name}">
+      <select name="${name}" ${options.required ? `required aria-required="true"` : ""}>
         ${items.map(item => `<option value="${escapeAttr(item)}" ${item === selectedText ? "selected" : ""}>${escapeHtml(item)}</option>`).join("")}
       </select>
     </div>
   `;
 }
 
-export function richTextField(name, label, html) {
+export function richTextField(name, label, html, options = {}) {
   return `
-    <div class="field full">
+    <div class="field full ${options.required ? "is-required" : ""}">
       <label>${escapeHtml(label)}</label>
       ${richTextToolsHtml()}
-      <div class="rich-editor" contenteditable="true" data-rich="${name}">${html || ""}</div>
+      <div class="rich-editor" contenteditable="true" role="textbox" aria-label="${escapeAttr(label)}" aria-multiline="true" data-rich="${name}" ${options.required ? `aria-required="true"` : ""}>${html || ""}</div>
     </div>
   `;
 }
@@ -339,7 +340,7 @@ export function checkList(label, name, items, selectedIds, textSelector = item =
   }
 
   const selected = new Set((selectedIds || []).map(String));
-  const fieldsetClass = ["check-list field full", options.className || ""].filter(Boolean).join(" ");
+  const fieldsetClass = ["check-list field full", options.required ? "is-required" : "", options.className || ""].filter(Boolean).join(" ");
   const renderItem = options.renderItem || (item => escapeHtml(textSelector(item)));
 
   return `
@@ -358,8 +359,10 @@ export function checkList(label, name, items, selectedIds, textSelector = item =
 export function checkListOrEmpty(label, name, items, selectedIds, emptyText, options = {}) {
   if (items.length) return checkList(label, name, items, selectedIds, options);
 
+  const fieldsetClass = ["check-list field full", options.required ? "is-required" : "", options.className || ""].filter(Boolean).join(" ");
+
   return `
-    <fieldset class="check-list field full">
+    <fieldset class="${fieldsetClass}">
       <legend>${escapeHtml(label)}</legend>
       <span class="muted">${escapeHtml(emptyText)}</span>
     </fieldset>

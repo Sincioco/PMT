@@ -25,7 +25,7 @@ import {
   selectTextField,
   userCardCheckListLabelHtml,
   value
-} from "../../components/forms.js?v=20260711-task-dialog-customize";
+} from "../../components/forms.js?v=20260715-day28-v118";
 import { progressHtml, statusColor } from "../../components/progress-and-status.js?v=20260714-linked-bug-percent";
 import { sectionHead } from "../../components/sections.js?v=20260701-nav-title-preferences";
 import {
@@ -38,7 +38,7 @@ import {
   taskPercentField,
   workItemDialogMetaHtml,
   uploadWorkItemAttachments
-} from "../../components/work-items.js?v=20260714-attachment-delete";
+} from "../../components/work-items.js?v=20260715-day28-v118";
 import {
   currentUser
 } from "../../core/authentication.js";
@@ -522,11 +522,11 @@ export function createTasksFeature({
       </template>
       <div class="form-grid task-editor-grid" data-work-item-dialog-root="task-edit">
         ${task.id ? taskAuditPanelHtml(task) : ""}
-        ${taskDialogFieldHtml("projectId", selectField(taskDialogFieldLabel("projectId"), "projectId", state.projects, projectId))}
+        ${taskDialogFieldHtml("projectId", selectField(taskDialogFieldLabel("projectId"), "projectId", state.projects, projectId, { required: true }))}
         ${taskDialogFieldHtml("sprintId", selectOptionsField(taskDialogFieldLabel("sprintId"), "sprintId", taskEditorSprintOptions(projectId), defaultSprintId || ""))}
-        ${taskDialogFieldHtml("title", field(taskDialogFieldLabel("title"), "title", task.title || "", "text"))}
-        ${taskDialogFieldHtml("status", selectTextField(taskDialogFieldLabel("status"), "status", getLookupOptions("Status", task.status || "Todo"), task.status || "Todo"))}
-        ${taskDialogFieldHtml("priority", selectTextField(taskDialogFieldLabel("priority"), "priority", getLookupOptions("Priority", task.priority || "Low"), task.priority || "Low"))}
+        ${taskDialogFieldHtml("title", field(taskDialogFieldLabel("title"), "title", task.title || "", "text", "", "", "", { required: true }))}
+        ${taskDialogFieldHtml("status", selectTextField(taskDialogFieldLabel("status"), "status", getLookupOptions("Status", task.status || "Todo"), task.status || "Todo", { required: true }))}
+        ${taskDialogFieldHtml("priority", selectTextField(taskDialogFieldLabel("priority"), "priority", getLookupOptions("Priority", task.priority || "Low"), task.priority || "Low", { required: true }))}
         ${taskDialogFieldHtml("percentCompleted", taskPercentField({ ...task, __workItemDialogPercentLabel: taskDialogFieldLabel("percentCompleted") }, taskHasSubTasks))}
         ${taskDialogFieldHtml("descriptionHtml", richTextField("descriptionHtml", taskDialogFieldLabel("descriptionHtml"), task.descriptionHtml || ""))}
         ${taskDialogFieldHtml("rootCauseAnalysisHtml", richTextField("rootCauseAnalysisHtml", taskDialogFieldLabel("rootCauseAnalysisHtml"), task.rootCauseAnalysisHtml || ""))}

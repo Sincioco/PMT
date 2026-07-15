@@ -13,9 +13,9 @@ export function profileAvatarPickerHtml(currentAvatarUrl = "", resolveAvatarUrl 
   const currentAvatarPath = avatarPathOnly(currentAvatarUrl);
 
   return `
-    <div class="field full profile-avatar-picker-field">
-      <label>Generic Avatar</label>
-      <div class="profile-avatar-picker-list" role="radiogroup" aria-label="Generic Avatar">
+    <div class="field full is-required profile-avatar-picker-field">
+      <label>Avatar</label>
+      <div class="profile-avatar-picker-list" role="radiogroup" aria-label="Generic avatars">
         ${genericAvatarOptions.map((avatarUrl, index) => {
           const selected = currentAvatarPath === avatarUrl;
           const imageUrl = resolvedAvatarUrl(avatarUrl, resolveAvatarUrl);

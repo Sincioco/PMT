@@ -59,6 +59,12 @@ test("login, navigation, themes, dialogs, filters, Board, Gantt, and Road Map sm
     }));
   });
   await installApiMocks(page, appState, apiCalls);
+  await page.route("**/api/usernames/suggestion?**", async route => {
+    await route.fulfill(jsonResponse({
+      isAvailable: false,
+      username: "qa-available-username-with-a-long-readable-suggestion"
+    }));
+  });
 
   await page.goto("/");
   await expect(page.getByRole("heading", { name: "PMT", exact: true })).toBeVisible();
@@ -109,6 +115,63 @@ test("login, navigation, themes, dialogs, filters, Board, Gantt, and Road Map sm
     await openNavView(page, view, heading);
     await expectShellFitsViewport(page);
   }
+
+  await openNavView(page, "Projects", "Projects");
+  await page.locator("[data-action='new-project']").click();
+  await expect(page.locator("#dialogTitle")).toHaveText("New Project");
+  const requiredInputLabel = page.locator(".field:has([name='code']) > label");
+  const requiredGroupLabel = page.locator(".check-list:has([name='memberIds']) > legend");
+  const optionalInputLabel = page.locator(".field:has([name='startDate']) > label");
+  const expectedDangerColor = await page.evaluate(() => {
+    const probe = document.createElement("span");
+    probe.style.color = "var(--color-danger-text)";
+    document.body.appendChild(probe);
+    const color = getComputedStyle(probe).color;
+    probe.remove();
+    return color;
+  });
+  const requiredInputMarker = await requiredInputLabel.evaluate(label => {
+    const style = getComputedStyle(label, "::after");
+    return { content: style.content, color: style.color };
+  });
+  const requiredGroupMarker = await requiredGroupLabel.evaluate(label => {
+    const style = getComputedStyle(label, "::after");
+    return { content: style.content, color: style.color };
+  });
+  expect(requiredInputMarker).toEqual({ content: '" *"', color: expectedDangerColor });
+  expect(requiredGroupMarker).toEqual({ content: '" *"', color: expectedDangerColor });
+  await expect(optionalInputLabel).toHaveText("Start");
+  expect(await optionalInputLabel.evaluate(label => getComputedStyle(label, "::after").content)).toBe("none");
+  await page.locator("#cancelDialog").click();
+
+  await openSettings(page);
+  await page.locator("[data-action='select-lookup-type'][data-type='Users']").click();
+  await page.locator("[data-action='new-user']").click();
+  await expect(page.locator("#dialogTitle")).toHaveText("New User");
+  const usernameControl = page.locator("#dialogBody [name='nickname']");
+  const roleControl = page.locator("#dialogBody [name='role']");
+  const phoneControl = page.locator("#dialogBody [name='phone']");
+  const controlTopsBeforeMessage = {
+    username: (await usernameControl.boundingBox()).y,
+    role: (await roleControl.boundingBox()).y,
+    phone: (await phoneControl.boundingBox()).y
+  };
+  expect(Math.abs(controlTopsBeforeMessage.username - controlTopsBeforeMessage.role)).toBeLessThanOrEqual(1);
+  await usernameControl.fill("Sin");
+  await roleControl.focus();
+  await expect(page.locator("#dialogBody [data-username-help]")).toContainText(
+    "That username is already in use. Try qa-available-username-with-a-long-readable-suggestion."
+  );
+  const controlTopsAfterMessage = {
+    username: (await usernameControl.boundingBox()).y,
+    role: (await roleControl.boundingBox()).y,
+    phone: (await phoneControl.boundingBox()).y
+  };
+  expect(Math.abs(controlTopsAfterMessage.username - controlTopsAfterMessage.role)).toBeLessThanOrEqual(1);
+  expect(Math.abs(controlTopsAfterMessage.username - controlTopsBeforeMessage.username)).toBeLessThanOrEqual(1);
+  expect(Math.abs(controlTopsAfterMessage.role - controlTopsBeforeMessage.role)).toBeLessThanOrEqual(1);
+  expect(Math.abs(controlTopsAfterMessage.phone - controlTopsBeforeMessage.phone)).toBeLessThanOrEqual(1);
+  await page.locator("#cancelDialog").click();
 
   await openNavView(page, "WFH Schedule", "WFH Schedule");
   await page.locator("[data-action='toggle-wfh-table-edit-mode']").click();
@@ -842,6 +905,8 @@ test("RTE Select shows eight proportional image resize handles", async ({ page }
 test("QA can edit only owned Scrum rows and private Log stays owner-only", async ({ page }) => {
   const appState = createTestState();
   const apiCalls = { securityReset: 0 };
+  let savedScrumMethod = "";
+  let savedScrumPayload = null;
   const today = new Date();
   const logDate = [today.getFullYear(), String(today.getMonth() + 1).padStart(2, "0"), String(today.getDate()).padStart(2, "0")].join("-");
 
@@ -858,6 +923,15 @@ test("QA can edit only owned Scrum rows and private Log stays owner-only", async
 
   await page.addInitScript(() => localStorage.setItem("pmt-auth-user", "3"));
   await installApiMocks(page, appState, apiCalls);
+  await page.route("**/api/devlogs/2", async route => {
+    savedScrumMethod = route.request().method();
+    savedScrumPayload = requestJson(route);
+    Object.assign(appState.devLogs.find(log => log.id === 2), savedScrumPayload, {
+      rowVersion: "Ag==",
+      updatedAt: `${logDate}T05:00:00Z`
+    });
+    await route.fulfill(jsonResponse({ id: 2 }));
+  });
   await page.goto("/");
   await openNavView(page, "Scrum", "Scrum");
   await clickPageAction(page, "toggle-scrum-table-edit-mode");
@@ -867,6 +941,26 @@ test("QA can edit only owned Scrum rows and private Log stays owner-only", async
   await expect(otherRow.locator("[data-action='edit-log'], [data-action='delete-log']")).toHaveCount(0);
   await expect(ownRow.locator("[data-action='edit-log']")).toHaveCount(1);
   await expect(ownRow.locator("[data-action='delete-log']")).toHaveCount(0);
+
+  await ownRow.locator("[data-action='edit-log']").click();
+  const scrumPinned = page.locator("#editorDialog [name='isPinned']");
+  await expect(scrumPinned).toBeEnabled();
+  await expect(scrumPinned).not.toBeChecked();
+  await scrumPinned.check();
+  await expect(scrumPinned).toBeChecked();
+  await page.locator("#editorForm button[type='submit']").click();
+  await expect.poll(() => savedScrumPayload?.isPinned).toBe(true);
+  expect(savedScrumMethod).toBe("PUT");
+  await expect(page.locator("#editorDialog")).not.toBeVisible();
+
+  await page.reload();
+  await openNavView(page, "Scrum", "Scrum");
+  if (!await ownRow.locator("[data-action='edit-log']").count()) {
+    await clickPageAction(page, "toggle-scrum-table-edit-mode");
+  }
+  await ownRow.locator("[data-action='edit-log']").click();
+  await expect(page.locator("#editorDialog [name='isPinned']")).toBeChecked();
+  await page.locator("#cancelDialog").click();
 
   await otherRow.click();
   const readOnlyDialog = page.locator("dialog.detail-dialog");
@@ -878,6 +972,9 @@ test("QA can edit only owned Scrum rows and private Log stays owner-only", async
   await openNavView(page, "Log", "Log");
   await expect(page.locator(".log-table tbody")).toContainText("QA private note");
   await expect(page.locator(".log-table tbody")).not.toContainText("Administrator private note");
+  await page.locator(".log-row[data-id='4']").click();
+  await expect(page.locator("#editorDialog [name='isPinned']")).toBeDisabled();
+  await page.locator("#cancelDialog").click();
 });
 
 test.describe("local timestamp display", () => {

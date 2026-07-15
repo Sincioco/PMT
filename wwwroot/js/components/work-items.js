@@ -119,7 +119,7 @@ export function taskPercentField(task, isLocked) {
   return `
     <div class="field">
       <label>${escapeHtml(label)}</label>
-      <select name="percentCompleted" ${isLocked ? `disabled data-locked="true"` : ""}>
+      <select name="percentCompleted" ${isLocked ? `disabled data-locked="true"` : `required aria-required="true"`}>
         ${percentOptionsHtml(percent)}
       </select>
       ${isLocked ? `<small class="field-note">Calculated from sub-tasks.</small>` : ""}

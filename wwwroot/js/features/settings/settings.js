@@ -6,12 +6,12 @@ import {
   numberValue,
   selectTextField,
   value
-} from "../../components/forms.js?v=20260713-managed-roles";
+} from "../../components/forms.js?v=20260715-day28-v118";
 import {
   bindProfileAvatarPicker,
   focusProfileAvatarPicker,
   profileAvatarPickerHtml
-} from "../../components/profile-avatar-picker.js?v=20260713-invite-users";
+} from "../../components/profile-avatar-picker.js?v=20260715-day28-v118";
 import {
   defaultStatusColor,
   statusColor
@@ -1905,7 +1905,7 @@ export function createSettingsFeature({
     return `
       <div class="field">
         <label>Role</label>
-        <select name="role">
+        <select name="role" required aria-required="true">
           ${roles.map(role => `<option value="${escapeAttr(role.code)}" ${role.code === selectedRole ? "selected" : ""}>${escapeHtml(role.value)}</option>`).join("")}
         </select>
       </div>
@@ -2179,8 +2179,8 @@ export function createSettingsFeature({
       <div class="form-grid">
         ${isRole
           ? `<input name="lookupType" type="hidden" value="Role">`
-          : selectTextField("Type", "lookupType", settingsLookupTypes(), lookup.lookupType || "Status")}
-        ${field(isRole ? "Role Name" : "Value", "value", lookup.value || "", "text")}
+          : selectTextField("Type", "lookupType", settingsLookupTypes(), lookup.lookupType || "Status", { required: true })}
+        ${field(isRole ? "Role Name" : "Value", "value", lookup.value || "", "text", "", "", "", { required: true })}
         ${isRole ? "" : colorField("Color", "colorHex", lookup.colorHex || defaultStatusColor(lookup.value || "Todo"))}
         ${field("Display Order", "displayOrder", lookup.displayOrder ?? 0, "number")}
         <label class="inline-check field full"><input name="isActive" type="checkbox" ${lookup.isActive ?? true ? "checked" : ""}><span>Active</span></label>
@@ -2202,8 +2202,8 @@ export function createSettingsFeature({
   function editHoliday(holiday = {}) {
     openEditor(holiday.id ? "Edit Holiday" : "New Holiday", `
       <div class="form-grid">
-        ${field("Date", "holidayDate", toDateInput(holiday.holidayDate || new Date()), "date")}
-        ${field("Name", "name", holiday.name || "", "text")}
+        ${field("Date", "holidayDate", toDateInput(holiday.holidayDate || new Date()), "date", "", "", "", { required: true })}
+        ${field("Name", "name", holiday.name || "", "text", "", "", "", { required: true })}
         ${field("Country Code", "countryCode", holiday.countryCode || "PH", "text")}
         <label class="inline-check field full"><input name="isActive" type="checkbox" ${holiday.isActive ?? true ? "checked" : ""}><span>Active</span></label>
       </div>
