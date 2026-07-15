@@ -51,7 +51,7 @@ import { appUrl } from "./shared/app-urls.js";
 import {
   createAboutFeature,
   createAboutScreenSaver
-} from "./features/about/about.js?v=20260715-rte-about-seed-doc";
+} from "./features/about/about.js?v=20260715-attendance-v116";
 import { createBacklogFeature } from "./features/backlog/backlog.js?v=20260714-linked-bug-percent";
 import { createBoardFeature } from "./features/board/board.js?v=20260714-linked-bug-percent";
 import { createBugsFeature } from "./features/bugs/bugs.js?v=20260714-attachment-delete";
@@ -66,7 +66,7 @@ import { createInvitationsFeature } from "./features/invitations/invitations.js?
 import { createProjectsFeature } from "./features/projects/projects.js?v=20260714-project-code-reuse";
 import { createRoadMapFeature } from "./features/roadmap/roadmap.js?v=20260714-linked-bug-percent";
 import { createLogFeature } from "./features/personal-log/log.js?v=20260714-linked-bug-percent";
-import { createScrumFeature } from "./features/scrum/scrum.js?v=20260714-scrum-ownership";
+import { createScrumFeature } from "./features/scrum/scrum.js?v=20260715-attendance-calendar-permissions";
 import { createSettingsFeature } from "./features/settings/settings.js?v=20260714-pmt-reseed-orphan-preview";
 import { createSprintsFeature } from "./features/sprints/sprints.js?v=20260714-linked-bug-percent";
 import { createTasksFeature } from "./features/tasks/tasks.js?v=20260714-attachment-delete";
@@ -374,7 +374,9 @@ const dashboardFeature = createDashboardFeature({
   projectCardHtml: projectsFeature.cardHtml
 });
 const scrumFeature = createScrumFeature({
+  api,
   app,
+  askYesNo,
   deleteItem,
   loadState,
   openEditor,

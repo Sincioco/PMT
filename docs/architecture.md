@@ -11,17 +11,25 @@ PMT is a single ASP.NET Core .NET 6 web application:
 3. `wwwroot/js/core/` owns application-wide browser infrastructure: HTTP requests, state, preferences, authentication, routing, startup, navigation, theme, and user-menu wiring.
 4. `Program.cs` configures services, JSON behavior, deployment path-base handling, exception handling, static/uploaded files, endpoint-group registration, the SPA fallback, and application startup.
 5. `Endpoints/` maps minimal API routes by feature while preserving endpoint URLs, HTTP methods, payload shapes, and the simple current-user header/query behavior. State, private-content, task-to-document conversion, and destructive Development routes require an explicit current-user identity instead of falling back to user 1.
-6. `Models/*.cs` contains cohesive plain DTO and request model groups for state, users, invitations, projects/Sprints, work items, content/uploads, WFH schedule, and settings.
+6. `Models/*.cs` contains cohesive plain DTO and request model groups for state, users, invitations, projects/Sprints, work items, content/uploads, WFH schedule, Scrum attendance/vacation, and settings.
 7. `Data/SqlPmtStore*.cs` is one partial `SqlPmtStore` that calls `[pmt]` stored procedures through direct ADO.NET. `SqlPmtStore.State.cs` maps `[pmt].[GetAppState]`, hydrates relationships, and calculates project/Sprint metrics.
 8. `Sql/01_CreateDatabase.sql`, `Sql/02_CreateStoredProcedures.sql`, and the seed scripts define and populate SQL Server objects under `[pmt]`.
 9. `tests/js/` contains Node-based ES-module unit tests for pure frontend rules and calculations.
 10. `tests/browser/` contains Playwright smoke tests that serve the real ASP.NET app and mock API responses with deterministic browser-test data.
+
+The source tree and fresh-rebuild scripts represent PMT Database Version 1.16. BDO and every other known deployed instance remain on the Version 1.15 baseline until the Version 1.15-to-1.16 migration and matching application release are deployed. The migration must run successfully before the Version 1.16 binary starts against an existing database.
 
 The main read flow is:
 
 `feature -> core API -> GET /api/state -> SqlPmtStore.GetStateAsync -> [pmt].[GetAppState] -> ordered result sets -> hydrated AppState -> feature render`
 
 `[pmt].[GetAppState]` and `GetStateAsync` are coupled by result-set order: users, projects, project members, Sprints, Sprint members, work items, assignees, reporters, dependencies, attachments, task attachments, Scrum logs, Documentation, Documentation attachments, Documentation history, audit events, lookups, and holidays. The procedure removes another owner's private Logs and Documentation plus their exclusive attachment metadata, history, audit details, parent IDs, and linked-document references before state reaches any feature, including About.
+
+Scrum attendance uses a focused bounded read instead of extending that aggregate contract:
+
+`Scrum -> GET /api/attendance?startDate&endDate -> SqlPmtStore.GetAttendanceCalendarAsync -> [pmt].[GetAttendanceCalendar] -> attendance entries, overlapping vacation ranges, and the current user's active vacation plans`
+
+The focused query keeps growing attendance history out of every `/api/state` response and leaves the ordered `[pmt].[GetAppState]` result sets unchanged. Holidays continue to come from `/api/state` because they are existing shared scheduling state.
 
 ## Target frontend layout
 
@@ -149,6 +157,8 @@ The current frontend dependency flow is:
 
 `board -> board drag/components/shared/api/store/preferences`
 
+`scrum -> components/shared/api/store/preferences plus focused attendance/vacation endpoints`
+
 `roadmap -> roadmap calculations/rendering/components/shared/core/store/preferences`
 
 `gantt -> gantt calculations/rendering/flyby/bugs-dependencies/components/shared/core/store/preferences`
@@ -197,6 +207,7 @@ Models/
 |-- ProjectSprintModels.cs
 |-- WorkItemModels.cs
 |-- WfhScheduleModels.cs
+|-- AttendanceModels.cs
 |-- ContentModels.cs
 `-- SettingsModels.cs
 ```
@@ -232,7 +243,7 @@ All data-backed screens read through `GET /api/state` -> `GetStateAsync` -> `[pm
 | Bugs | `features/bugs/` | `POST /api/tasks`; `PUT /api/tasks/{id}`; `POST /api/tasks/{id}/duplicate`; `DELETE /api/tasks/{id}`; `POST /api/tasks/{id}/attachments` | `SaveTaskAsync`; `DuplicateTaskAsync`; `DeleteTaskAsync`; `AddTaskAttachmentAsync` | `[pmt].[UpsertTask]`; `[pmt].[DuplicateTask]`; `[pmt].[DeleteTask]`; `[pmt].[AddTaskAttachment]`; `UpsertTask` owns Bug/Bug Fix workflow |
 | Backlog | `features/backlog/` | `POST /api/tasks`; `PUT /api/tasks/{id}`; `POST /api/tasks/reorder` | `SaveTaskAsync`; `ReorderTasksAsync` | `[pmt].[UpsertTask]`; `[pmt].[ReorderTasks]` |
 | WFH Schedule | `features/wfh-schedule/` | `GET /api/wfh-schedule`; `PUT /api/wfh-schedule/{userId}`; `POST /api/wfh-schedule/reorder`; `POST /api/wfh-schedule/reset` | `GetWfhScheduleAsync`; `SaveWfhScheduleAsync`; `ReorderWfhScheduleAsync`; `ResetWfhScheduleAsync` | `[pmt].[GetWfhSchedule]`; `[pmt].[UpdateWfhSchedule]`; `[pmt].[ReorderWfhSchedule]`; `[pmt].[ResetWfhSchedule]` |
-| Scrum | `features/scrum/` | `POST /api/devlogs`; `PUT /api/devlogs/{id}`; `DELETE /api/devlogs/{id}` | `SaveDevLogAsync`; `DeleteDevLogAsync`; `RequireDevLogPermissionAsync` | `[pmt].[RequireDevLogPermission]`; `[pmt].[UpsertDevLog]`; `[pmt].[DeleteDevLog]`; non-admin writes require ownership plus the matching Scrum right |
+| Scrum | `features/scrum/` | Scrum entry routes; `GET /api/attendance?startDate&endDate`; `POST /api/attendance`; `POST /api/vacations`; `PUT /api/vacations/{id}`; `DELETE /api/vacations/{id}` | Scrum entry methods plus `GetAttendanceCalendarAsync`; `RecordAttendanceAsync`; `SaveVacationAsync`; `CancelVacationAsync` | Scrum entry procedures plus `[pmt].[GetAttendanceCalendar]`; `[pmt].[RecordAttendance]`; `[pmt].[UpsertVacation]`; `[pmt].[CancelVacation]`; attendance reuses Scrum rights, and vacation changes are owner-only |
 | Personal Log | `features/personal-log/` | `POST /api/devlogs`; `PUT /api/devlogs/{id}`; `DELETE /api/devlogs/{id}` | `SaveDevLogAsync`; `DeleteDevLogAsync`; `RequireDevLogPermissionAsync` | `[pmt].[GetAppState]` returns only current-owner private rows; `[pmt].[RequireDevLogPermission]`, `[pmt].[UpsertDevLog]`, and `[pmt].[DeleteDevLog]` reject cross-owner writes even for admins |
 | Documentation | `features/documentation/` | `POST /api/blogs`; `PUT /api/blogs/{id}`; `DELETE /api/blogs/{id}`; `POST /api/blogs/{id}/attachments`; `DELETE /api/blogs/{id}/attachments/{attachmentId}` | `SaveBlogAsync`; `DeleteBlogAsync`; `AddBlogAttachmentAsync`; `DeleteBlogAttachmentAsync` | `[pmt].[GetAppState]` returns private Documentation only to its creator; `[pmt].[UpsertBlog]`, `[pmt].[DeleteBlog]`, `[pmt].[AddBlogAttachment]`, and `[pmt].[DeleteBlogAttachment]` reject cross-owner private access even for admins |
 | Settings - users | `features/settings/` | `POST /api/users`; `PUT /api/users/{id}`; `DELETE /api/users/{id}` | `SaveUserAsync`; `DeleteUserAsync` | `[pmt].[UpsertUser]`; `[pmt].[DeleteUser]` |

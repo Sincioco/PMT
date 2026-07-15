@@ -118,6 +118,21 @@ Use clearly named temporary records and remove them after validation.
 ### Scrum and Documentation
 
 - [ ] Verify Scrum Project, Person, and Date filters work alone and in combination.
+- [ ] Confirm the Attendance dropdown shows an icon and each exact label: Home, Office, Sick Leave, Vacation, EL, and Other. Hover EL/status indicators and confirm the tooltip expands EL to Emergency Leave.
+- [ ] Check in as the current user and confirm the user's avatar appears immediately after the Scrum title without overlapping another avatar, with the selected status icon on its lower-left corner.
+- [ ] Select a title avatar and confirm the Scrum table shows only that person's entries. Open Scrum Filters and confirm exactly the same Person checkbox is selected. Change the Person checklist and confirm the title-avatar selection updates in the same render cycle.
+- [ ] Open the Scrum overflow menu and confirm Graphs is absent while Calendar, On Behalf Of..., and Vacation... are present with icons and labels.
+- [ ] Enable Calendar and confirm it renders above the existing Scrum table without covering it. Confirm the seven-day grid remains readable and may use contained horizontal scrolling instead of compressing cells.
+- [ ] Navigate backward and forward, then select a month and year directly. Confirm the requested month and day numbers are correct, including a leap-year February, and the Scrum table remains below the calendar.
+- [ ] Seed or record Office and Home attendance on one date. Confirm Office renders first with larger avatars, Home renders below it, and a faint divider separates the sections.
+- [ ] Add Sick Leave, Vacation, EL, and Other attendance and confirm each nonempty section has its status icon in the upper-left and sections remain in Office, Home, Sick Leave, Vacation, EL, Other order.
+- [ ] Confirm a date where everyone is Office has one section and no divider. Confirm the same person may appear once in Office and once in Sick Leave or EL on an exceptional multi-status date, but repeating the same status does not duplicate the avatar.
+- [ ] Configure two active Holidays on one date and one inactive Holiday. Confirm both active names appear when the cell has space, their full names remain available by tooltip/accessibility text, and the inactive Holiday is absent.
+- [ ] Choose On Behalf Of..., select another active person and a status, save, and confirm today's title status and calendar update for that person while the current user remains the recorded actor.
+- [ ] Choose Vacation..., create an inclusive start/end range, and confirm the current user appears as Vacation on every covered calendar date, including future months.
+- [ ] Reopen Vacation..., edit both dates, and confirm removed dates clear while newly covered dates display the user. Cancel the plan with the themed confirmation dialog and confirm it disappears without a browser alert or prompt.
+- [ ] As another user and as an administrator, attempt direct update/cancel requests for someone else's vacation and confirm both are rejected. Confirm an inactive person and an unsupported attendance status are rejected by the attendance endpoint.
+- [ ] Refresh PMT and repeat the current and adjacent month checks to confirm attendance and vacation data persist.
 - [ ] Create a Scrum entry and verify the three-question starter text/caret.
 - [ ] Duplicate it and confirm the duplicate date defaults to today.
 - [ ] Edit and delete the temporary Scrum entries.

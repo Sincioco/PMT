@@ -92,6 +92,19 @@ Browser permission checks hide inaccessible navigation and disable unavailable a
 Browser permission checks live in `wwwroot/js/shared/security.js` and `wwwroot/js/shared/permissions.js` so screens and future feature modules share the same effective permission logic.
 Permission regressions are covered in `tests/js/permissions.test.mjs`.
 
+## Scrum attendance and vacation
+
+- Attendance statuses are exactly `Home`, `Office`, `Sick Leave`, `Vacation`, `EL`, and `Other`. `EL` means Emergency Leave in tooltips and accessible descriptions.
+- Check-In records today's status for the current user. On Behalf Of records today's status for another active user and preserves the acting user in the audit columns.
+- One user/date/status combination is unique. Repeating the same Check-In is idempotent, while a different status on the same date is retained so an Office-to-Sick Leave or Office-to-EL day can show both statuses.
+- Attendance reads require Scrum Read. A user's own Check-In requires Scrum Create, while recording On Behalf Of another user requires Scrum Update. SQL validates the user and status; browser validation does not replace the stored-procedure checks.
+- Vacation plans store one inclusive start/end range rather than one attendance row per day. Creating a plan requires Scrum Create. Editing or canceling requires Scrum Update and is always restricted to the plan owner, including for administrators and guessed direct requests.
+- Canceling a vacation sets its cancellation state instead of destroying the row. Canceled plans do not appear on the calendar.
+- The calendar expands active vacation ranges as `Vacation` status for each covered date. It deduplicates the same user/status/date when a planned vacation and explicit Vacation attendance overlap, but preserves different statuses for the same user and date.
+- Calendar status sections use the stable order Office, Home, Sick Leave, Vacation, EL, and Other. Empty sections are omitted. A day with only Office attendance remains one undivided section; separators appear only when two or more statuses are present.
+- Title avatars represent today's known attendance. Selecting one updates the persisted Scrum Person filter, and changes made in the Person checklist update the title selection in the same render cycle.
+- Active Holidays from Settings may be displayed in their matching calendar cells. Multiple active Holiday records on one date remain distinct; inactive Holidays are omitted.
+
 ## User invitations and onboarding
 
 - Any active user may generate a reusable internal invite URL for one or more active Projects they belong to. Admins may include any active Project.
@@ -157,6 +170,7 @@ Keep key names and defaults stable during refactoring. Clearing PMT preferences 
 ## Calendar and link behavior
 
 - Gantt hides weekends and active configured holidays unless the user enables non-working days or an item starts on that date.
+- Scrum's month calendar uses local date keys, includes forward/backward and month/year navigation, and keeps its focused attendance request bounded to the visible calendar range.
 - User-entered and external links are normalized and open in a new tab.
 - Browser link normalization, linkification, and escaping live in `wwwroot/js/shared/text-and-links.js`.
 - Status, percent, Sprint, assignment, attachment, and other significant changes are audited.

@@ -14,6 +14,11 @@ const statuses = [
   "Deployed in Prod"
 ];
 
+const attendanceStatuses = ["Home", "Office", "Sick Leave", "Vacation", "EL", "Other"];
+const smokeToday = "2026-07-15";
+
+test.use({ timezoneId: "Asia/Taipei" });
+
 test("login, navigation, themes, dialogs, filters, Board, Gantt, and Road Map smoke", async ({ page }) => {
   const appState = createTestState();
   const apiCalls = { restorePmt: 0, securityReset: 0 };
@@ -27,6 +32,8 @@ test("login, navigation, themes, dialogs, filters, Board, Gantt, and Road Map sm
     browserErrors.push(`Unexpected browser dialog: ${dialog.type()} ${dialog.message()}`);
     await dialog.dismiss();
   });
+
+  await page.clock.setFixedTime(new Date("2026-07-15T08:00:00+08:00"));
 
   await page.addInitScript(() => {
     localStorage.clear();
@@ -381,6 +388,272 @@ test("login, navigation, themes, dialogs, filters, Board, Gantt, and Road Map sm
   expect(browserErrors).toEqual([]);
 });
 
+test("Scrum attendance, calendar, on-behalf, and vacation flows stay synchronized", async ({ page }) => {
+  const appState = createTestState();
+  const apiCalls = { securityReset: 0 };
+  const browserErrors = [];
+
+  page.on("console", message => {
+    if (message.type() === "error") browserErrors.push(message.text());
+  });
+  page.on("pageerror", error => browserErrors.push(error.message));
+
+  await page.clock.setFixedTime(new Date("2026-07-15T08:00:00+08:00"));
+  await page.addInitScript(() => {
+    localStorage.clear();
+    localStorage.setItem("pmt-auth-user", "1");
+  });
+  await installApiMocks(page, appState, apiCalls);
+
+  await page.goto("/");
+  await openNavView(page, "Scrum", "Scrum");
+
+  const attendanceSelect = page.locator("[data-scrum-attendance-select]");
+  await expect(attendanceSelect).toBeVisible();
+  const attendanceLabels = (await attendanceSelect.locator("option").allTextContents()).map(label => label.trim());
+  for (const label of ["🏠 Home", "🏢 Office", "✚ Sick Leave", "☀ Vacation", "⚠ EL", "… Other"]) {
+    expect(attendanceLabels).toContain(label);
+  }
+  await expect(attendanceSelect.locator("option[value='EL']")).toHaveAttribute("title", "Emergency Leave");
+
+  await expect(scrumTodayStatus(page, 1, "Office")).toBeVisible();
+  await expect(scrumTodayStatus(page, 2, "Home")).toBeVisible();
+  await expect(scrumTodayStatus(page, 3, "Vacation")).toBeVisible();
+  expect(await page.locator("[data-scrum-today-user]").evaluateAll(buttons => buttons.every((button, index) => {
+    const box = button.getBoundingClientRect();
+    return buttons.slice(index + 1).every(other => {
+      const otherBox = other.getBoundingClientRect();
+      return box.right <= otherBox.left || otherBox.right <= box.left || box.bottom <= otherBox.top || otherBox.bottom <= box.top;
+    });
+  }))).toBe(true);
+
+  const billRosterButton = scrumTodayPersonButton(page, 2);
+  await billRosterButton.click();
+  await expect(page.locator(".scrum-table tbody")).toContainText("No Scrum entries match");
+  await showFilters(page, "open-scrum-filters");
+  await expect(page.locator("[data-filter='scrum-person'][value='2']")).toBeChecked();
+  await expect(page.locator("[data-filter='scrum-person']:checked")).toHaveCount(1);
+  await page.locator("[data-filter='scrum-person'][value='1']").check();
+  await expect(scrumTodayPersonButton(page, 1)).toHaveAttribute("aria-pressed", "true");
+  await expect(scrumTodayPersonButton(page, 2)).toHaveAttribute("aria-pressed", "true");
+  await page.locator("[data-filter='scrum-person'][value='3']").check();
+  await expect(page.locator("[data-filter='scrum-person']:checked")).toHaveCount(3);
+  for (const userId of [1, 2, 3]) {
+    await expect(scrumTodayPersonButton(page, userId)).toHaveAttribute("aria-pressed", "true");
+  }
+  await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem("pmt-scrum-filters") || "{}").personIds || []))
+    .toEqual(["1", "2", "3"]);
+  await page.getByRole("button", { name: "Done" }).click();
+
+  await attendanceSelect.selectOption("Other");
+  await page.locator("[data-action='check-in-attendance']").click();
+  await expect.poll(() => appState.attendanceEntries.some(item => item.userId === 1
+    && item.attendanceDate === smokeToday
+    && item.status === "Other")).toBe(true);
+  await expect(scrumTodayStatus(page, 1, "Other")).toBeVisible();
+
+  await page.locator(".page-actions-summary").click();
+  const scrumActions = page.locator(".page-actions-list");
+  await expect(scrumActions).not.toContainText("Graphs");
+  await expect(scrumActions.locator("[data-action='toggle-scrum-calendar']")).toContainText("Calendar");
+  await expect(scrumActions.locator("[data-action='open-scrum-on-behalf']")).toContainText("On Behalf Of...");
+  await expect(scrumActions.locator("[data-action='open-scrum-vacation']")).toContainText("Vacation...");
+  await scrumActions.locator("[data-action='toggle-scrum-calendar']").click();
+
+  const calendar = page.locator("[data-scrum-calendar]");
+  const todayCell = calendar.locator(`[data-scrum-calendar-day='${smokeToday}']`);
+  await expect(calendar).toBeVisible();
+  await expect(todayCell.locator("[data-attendance-status='Office']").first()).toBeVisible();
+  await expect(todayCell.locator("[data-attendance-status='Home']").first()).toBeVisible();
+  await expect(todayCell.locator("[data-attendance-status='Vacation']").first()).toBeVisible();
+  await expect(todayCell.locator("[data-attendance-status='Other']").first()).toBeVisible();
+  await expect(todayCell.locator("[data-attendance-status='Office'] [data-scrum-calendar-user='1']")).toHaveCount(1);
+  await expect(todayCell.locator("[data-attendance-status='Other'] [data-scrum-calendar-user='1']")).toHaveCount(1);
+  const officeAvatarBox = await todayCell.locator("[data-attendance-status='Office'] .scrum-calendar-avatar").first().boundingBox();
+  const homeAvatarBox = await todayCell.locator("[data-attendance-status='Home'] .scrum-calendar-avatar").first().boundingBox();
+  expect(officeAvatarBox).not.toBeNull();
+  expect(homeAvatarBox).not.toBeNull();
+  expect(officeAvatarBox.width).toBeGreaterThan(homeAvatarBox.width);
+  await expect(todayCell.locator("[data-attendance-status='Home']")).toHaveCSS("border-top-width", /[1-9]/);
+  const officeOnlyCell = calendar.locator("[data-scrum-calendar-day='2026-07-18']");
+  await expect(officeOnlyCell.locator("[data-attendance-status]")).toHaveCount(1);
+  await expect(officeOnlyCell.locator("[data-attendance-status='Office']")).toHaveCSS("border-top-width", "0px");
+  await expect(todayCell.locator("[data-scrum-holiday]")).toHaveCount(2);
+  await expect(todayCell).toContainText("Smoke Holiday");
+  await expect(todayCell).toContainText("Second Smoke Holiday");
+  await expect(todayCell).not.toContainText("Inactive Holiday");
+  const calendarBox = await calendar.boundingBox();
+  const tableBox = await page.locator(".scrum-table").boundingBox();
+  expect(calendarBox).not.toBeNull();
+  expect(tableBox).not.toBeNull();
+  expect(calendarBox.y + calendarBox.height).toBeLessThanOrEqual(tableBox.y + 1);
+
+  const monthSelect = page.locator("[data-scrum-calendar-month]");
+  const startingMonth = await monthSelect.inputValue();
+  await page.locator("[data-action='scrum-calendar-previous']").click();
+  await expect(monthSelect).not.toHaveValue(startingMonth);
+  await expect(page.locator("[data-action='scrum-calendar-previous']")).toBeFocused();
+  await expect(calendar.locator("[data-scrum-calendar-day='2026-06-01']")).toBeVisible();
+  await expect(page.locator("[data-action='scrum-calendar-previous']")).toBeFocused();
+  await page.locator("[data-action='scrum-calendar-next']").click();
+  await expect(monthSelect).toHaveValue(startingMonth);
+  await expect(page.locator("[data-action='scrum-calendar-next']")).toBeFocused();
+  await monthSelect.selectOption({ label: "February" });
+  await expect(monthSelect).toBeFocused();
+  await page.locator("[data-scrum-calendar-year]").selectOption("2024");
+  await expect(calendar.locator("[data-scrum-calendar-day='2024-02-29']")).toBeVisible();
+  await expect(page.locator("[data-scrum-calendar-year]")).toBeFocused();
+  await page.locator("[data-action='scrum-calendar-today']").click();
+  await expect(calendar.locator(`[data-scrum-calendar-day='${smokeToday}']`)).toBeVisible();
+  await expect(page.locator("[data-action='scrum-calendar-today']")).toBeFocused();
+
+  await clickPageAction(page, "open-scrum-on-behalf");
+  const onBehalfDialog = page.locator("[data-scrum-on-behalf-dialog]");
+  await expect(onBehalfDialog.getByRole("heading", { name: "On Behalf Of" })).toBeVisible();
+  await expectDialogLabelledByOwnHeading(onBehalfDialog, "On Behalf Of");
+  await expect(onBehalfDialog.getByLabel("Person", { exact: true })).toBeVisible();
+  await expect(onBehalfDialog.getByLabel("Attendance", { exact: true })).toBeVisible();
+  await onBehalfDialog.getByLabel("Person", { exact: true }).selectOption("3");
+  await onBehalfDialog.getByLabel("Attendance", { exact: true }).selectOption("EL");
+  await onBehalfDialog.locator("button[type='submit']").click();
+  await expect.poll(() => appState.attendanceEntries.some(item => item.userId === 3
+    && item.attendanceDate === smokeToday
+    && item.status === "EL"
+    && item.recordedByUserId === 1)).toBe(true);
+  await expect(scrumTodayStatus(page, 3, "EL")).toBeVisible();
+  await expect(scrumTodayStatus(page, 3, "EL")).toHaveAttribute("title", /Emergency Leave/);
+
+  await clickPageAction(page, "open-scrum-vacation");
+  const vacationDialog = page.locator("[data-scrum-vacation-dialog]");
+  await expect(vacationDialog.getByRole("heading", { name: "Vacation", exact: true })).toBeVisible();
+  await expectDialogLabelledByOwnHeading(vacationDialog, "Vacation");
+  await expect(vacationDialog.getByLabel("Start Date", { exact: true })).toBeVisible();
+  await expect(vacationDialog.getByLabel("End Date", { exact: true })).toBeVisible();
+  await vacationDialog.getByLabel("Start Date", { exact: true }).fill("2026-08-10");
+  await vacationDialog.getByLabel("End Date", { exact: true }).fill("2026-08-12");
+  await vacationDialog.locator("button[type='submit']").click();
+  await expect.poll(() => appState.vacationPlans.some(item => item.userId === 1
+    && item.startDate === "2026-08-10"
+    && item.endDate === "2026-08-12"
+    && !item.isCancelled)).toBe(true);
+
+  await vacationDialog.locator("[data-close-scrum-vacation]").last().click();
+  await monthSelect.selectOption({ label: "August" });
+  for (const day of [10, 11, 12]) {
+    await expect(scrumCalendarVacationAvatar(page, `2026-08-${String(day).padStart(2, "0")}`, 1)).toBeVisible();
+  }
+
+  await clickPageAction(page, "open-scrum-vacation");
+  await vacationDialog.locator("[data-edit-scrum-vacation]").click();
+  await expect(vacationDialog.getByLabel("Start Date", { exact: true })).toHaveValue("2026-08-10");
+  await vacationDialog.getByLabel("Start Date", { exact: true }).fill("2026-08-11");
+  await vacationDialog.getByLabel("End Date", { exact: true }).fill("2026-08-14");
+  await vacationDialog.locator("button[type='submit']").click();
+  await expect.poll(() => appState.vacationPlans.some(item => item.userId === 1
+    && item.startDate === "2026-08-11"
+    && item.endDate === "2026-08-14"
+    && !item.isCancelled)).toBe(true);
+
+  await vacationDialog.locator("[data-close-scrum-vacation]").last().click();
+  await expect(scrumCalendarVacationAvatar(page, "2026-08-10", 1)).toHaveCount(0);
+  for (const day of [11, 12, 13, 14]) {
+    await expect(scrumCalendarVacationAvatar(page, `2026-08-${day}`, 1)).toBeVisible();
+  }
+
+  await clickPageAction(page, "open-scrum-vacation");
+  await vacationDialog.locator("[data-cancel-scrum-vacation]").click();
+  await page.getByRole("button", { name: "Continue" }).click();
+  await expect.poll(() => appState.vacationPlans.some(item => item.userId === 1 && item.isCancelled)).toBe(true);
+  await expect(vacationDialog.locator("[data-edit-scrum-vacation]")).toHaveCount(0);
+  await vacationDialog.locator("[data-close-scrum-vacation]").last().click();
+  for (const day of [11, 12, 13, 14]) {
+    await expect(scrumCalendarVacationAvatar(page, `2026-08-${day}`, 1)).toHaveCount(0);
+  }
+
+  expect(browserErrors).toEqual([]);
+});
+
+test("Scrum read-only permission disables attendance and vacation mutations", async ({ page }) => {
+  const appState = createTestState();
+  const apiCalls = { securityReset: 0 };
+  appState.effectivePermissions = appState.effectivePermissions.map(permission => permission.resourceKey === "Scrum"
+    ? {
+        ...permission,
+        canRead: true,
+        canCreate: false,
+        canUpdate: false,
+        canDelete: false,
+        canImport: false,
+        canExport: false,
+        noAccess: false
+      }
+    : permission);
+
+  await page.clock.setFixedTime(new Date("2026-07-15T08:00:00+08:00"));
+  await page.addInitScript(() => {
+    localStorage.clear();
+    localStorage.setItem("pmt-auth-user", "2");
+  });
+  await installApiMocks(page, appState, apiCalls);
+
+  await page.goto("/");
+  await openNavView(page, "Scrum", "Scrum");
+  await expect(page.locator("[data-scrum-attendance-select]")).toBeDisabled();
+  await expect(page.locator("[data-action='check-in-attendance']")).toBeDisabled();
+
+  await page.locator(".page-actions-summary").click();
+  await expect(page.locator(".page-actions-list [data-action='open-scrum-on-behalf']")).toBeDisabled();
+  await expect(page.locator(".page-actions-list [data-action='open-scrum-vacation']")).toBeDisabled();
+  await expect(page.locator("[data-scrum-on-behalf-dialog], [data-scrum-vacation-dialog]")).toHaveCount(0);
+});
+
+test("Scrum attendance cache follows the current shell user", async ({ page }) => {
+  const appState = createTestState();
+  const apiCalls = { securityReset: 0 };
+  appState.vacationPlans.push({
+    id: 20,
+    userId: 2,
+    startDate: "2026-09-10",
+    endDate: "2026-09-11",
+    isCancelled: false,
+    createdAt: `${smokeToday}T00:00:00Z`,
+    updatedAt: `${smokeToday}T00:00:00Z`
+  });
+
+  await page.clock.setFixedTime(new Date("2026-07-15T08:00:00+08:00"));
+  await page.addInitScript(() => {
+    localStorage.clear();
+    localStorage.setItem("pmt-auth-user", "1");
+  });
+  await installApiMocks(page, appState, apiCalls);
+
+  await page.goto("/");
+  await openNavView(page, "Scrum", "Scrum");
+  await expect.poll(() => (apiCalls.attendanceGets || []).some(call => call.userId === 1)).toBe(true);
+
+  await clickPageAction(page, "open-scrum-vacation");
+  let vacationDialog = page.locator("[data-scrum-vacation-dialog]");
+  await expect(vacationDialog.locator("[data-scrum-vacation-id='20']")).toHaveCount(0);
+  await vacationDialog.locator("[data-close-scrum-vacation]").last().click();
+
+  await page.locator("#currentUser").evaluate(select => {
+    const option = document.createElement("option");
+    option.value = "2";
+    option.textContent = "Bill";
+    select.appendChild(option);
+    select.disabled = false;
+    select.hidden = false;
+    select.value = "2";
+    select.dispatchEvent(new Event("change", { bubbles: true }));
+  });
+
+  await expect(page.locator("#userMenuToggle")).toHaveAttribute("title", "Bill menu");
+  await expect.poll(() => (apiCalls.attendanceGets || []).some(call => call.userId === 2)).toBe(true);
+  await clickPageAction(page, "open-scrum-vacation");
+  vacationDialog = page.locator("[data-scrum-vacation-dialog]");
+  await expect(vacationDialog.locator("[data-scrum-vacation-id='20']")).toBeVisible();
+});
+
 test("draw.io SVG clipboard paste preserves UTF-8 spaces", async ({ page }) => {
   const appState = createTestState();
   const apiCalls = { securityReset: 0 };
@@ -636,6 +909,11 @@ test.describe("local timestamp display", () => {
 
 async function installApiMocks(page, appState, apiCalls) {
   let wfhSchedule = createWfhScheduleRows(appState.users);
+  const attendanceEntries = appState.attendanceEntries || [];
+  const vacationPlans = appState.vacationPlans || [];
+  let nextAttendanceId = Math.max(0, ...attendanceEntries.map(item => Number(item.id) || 0)) + 1;
+  let nextVacationId = Math.max(0, ...vacationPlans.map(item => Number(item.id) || 0)) + 1;
+  let nextAttendanceMutationSecond = 1;
 
   await page.route("**/api/login", async route => {
     const input = requestJson(route);
@@ -649,6 +927,97 @@ async function installApiMocks(page, appState, apiCalls) {
 
   await page.route("**/api/state", async route => {
     await route.fulfill(jsonResponse(appState));
+  });
+
+  await page.route(/\/api\/attendance(?:\?.*)?$/, async route => {
+    const currentUserId = requestCurrentUserId(route);
+    if (route.request().method() === "GET") {
+      const url = new URL(route.request().url());
+      const startDate = url.searchParams.get("startDate") || "0001-01-01";
+      const endDate = url.searchParams.get("endDate") || "9999-12-31";
+      if (!Array.isArray(apiCalls.attendanceGets)) apiCalls.attendanceGets = [];
+      apiCalls.attendanceGets.push({ userId: currentUserId, startDate, endDate });
+      await route.fulfill(jsonResponse({
+        entries: attendanceEntries.filter(item => item.attendanceDate >= startDate && item.attendanceDate <= endDate),
+        vacations: vacationPlans.filter(item => !item.isCancelled
+          && ((item.startDate <= endDate && item.endDate >= startDate) || item.userId === currentUserId))
+      }));
+      return;
+    }
+
+    const input = requestJson(route);
+    const userId = Number(input.userId) || 0;
+    const status = String(input.status || "");
+    if (!appState.users.some(user => user.id === userId) || !attendanceStatuses.includes(status)) {
+      await route.fulfill(jsonResponse({ error: "Invalid attendance." }, 400));
+      return;
+    }
+
+    let entry = attendanceEntries.find(item => item.userId === userId
+      && item.attendanceDate === smokeToday
+      && item.status === status);
+    const mutationTimestamp = `${smokeToday}T00:00:${String(nextAttendanceMutationSecond++).padStart(2, "0")}Z`;
+    if (!entry) {
+      entry = {
+        id: nextAttendanceId++,
+        userId,
+        attendanceDate: smokeToday,
+        status,
+        recordedByUserId: currentUserId,
+        createdAt: mutationTimestamp,
+        updatedAt: mutationTimestamp
+      };
+      attendanceEntries.push(entry);
+    } else {
+      entry.recordedByUserId = currentUserId;
+      entry.updatedAt = mutationTimestamp;
+    }
+    await route.fulfill(jsonResponse({ id: entry.id }));
+  });
+
+  await page.route("**/api/vacations", async route => {
+    const input = requestJson(route);
+    if (!input.startDate || !input.endDate || input.startDate > input.endDate) {
+      await route.fulfill(jsonResponse({ error: "Start date must be on or before end date." }, 400));
+      return;
+    }
+
+    const plan = {
+      id: nextVacationId++,
+      userId: requestCurrentUserId(route),
+      startDate: input.startDate,
+      endDate: input.endDate,
+      isCancelled: false,
+      createdAt: `${smokeToday}T00:00:00Z`,
+      updatedAt: `${smokeToday}T00:00:00Z`
+    };
+    vacationPlans.push(plan);
+    await route.fulfill(jsonResponse({ id: plan.id }));
+  });
+
+  await page.route(/\/api\/vacations\/\d+$/, async route => {
+    const id = Number(route.request().url().match(/\/api\/vacations\/(\d+)$/)?.[1] || 0);
+    const plan = vacationPlans.find(item => item.id === id && !item.isCancelled);
+    if (!plan) {
+      await route.fulfill(jsonResponse({ error: "Vacation not found." }, 404));
+      return;
+    }
+
+    if (route.request().method() === "DELETE") {
+      plan.isCancelled = true;
+      await route.fulfill({ status: 204, body: "" });
+      return;
+    }
+
+    const input = requestJson(route);
+    if (!input.startDate || !input.endDate || input.startDate > input.endDate) {
+      await route.fulfill(jsonResponse({ error: "Start date must be on or before end date." }, 400));
+      return;
+    }
+    plan.startDate = input.startDate;
+    plan.endDate = input.endDate;
+    plan.updatedAt = `${smokeToday}T01:00:00Z`;
+    await route.fulfill(jsonResponse({ id: plan.id }));
   });
 
   await page.route(/\/api\/security\/[^/]+$/, async route => {
@@ -826,6 +1195,36 @@ async function closeFilterDialog(page, feature) {
 async function clickPageAction(page, action) {
   await page.locator(".page-actions-summary").click();
   await page.locator(`.page-actions-list [data-action='${action}']`).click();
+}
+
+function requestCurrentUserId(route) {
+  return Number(route.request().headers()["x-pmt-userid"]) || 1;
+}
+
+function scrumTodayPersonButton(page, userId) {
+  return page.locator(
+    `[data-scrum-today-user='${userId}'][data-action='filter-scrum-person'], `
+    + `[data-scrum-today-user='${userId}'] [data-action='filter-scrum-person']`
+  ).first();
+}
+
+function scrumTodayStatus(page, userId, status) {
+  return page.locator(
+    `[data-scrum-today-user='${userId}'][data-attendance-status='${status}'], `
+    + `[data-scrum-today-user='${userId}'] [data-attendance-status='${status}']`
+  ).first();
+}
+
+function scrumCalendarVacationAvatar(page, day, userId) {
+  return page.locator(
+    `[data-scrum-calendar-day='${day}'] [data-attendance-status='Vacation'] [data-scrum-calendar-user='${userId}']`
+  );
+}
+
+async function expectDialogLabelledByOwnHeading(dialog, heading) {
+  const titleId = await dialog.getAttribute("aria-labelledby");
+  expect(titleId).toBeTruthy();
+  await expect(dialog.locator(`[id='${titleId}']`)).toHaveText(heading);
 }
 
 async function expectShellFitsViewport(page) {
@@ -1054,7 +1453,18 @@ function createTestState() {
     auditEvents: [],
     lookups,
     holidays: [
-      { id: 1, name: "Test Holiday", holidayDate: "2026-06-19", countryCode: "PH", isActive: true }
+      { id: 1, name: "Test Holiday", holidayDate: "2026-06-19", countryCode: "PH", isActive: true },
+      { id: 2, name: "Smoke Holiday", holidayDate: smokeToday, countryCode: "PH", isActive: true },
+      { id: 3, name: "Second Smoke Holiday", holidayDate: smokeToday, countryCode: "US", isActive: true },
+      { id: 4, name: "Inactive Holiday", holidayDate: smokeToday, countryCode: "PH", isActive: false }
+    ],
+    attendanceEntries: [
+      { id: 1, userId: 1, attendanceDate: smokeToday, status: "Office", recordedByUserId: 1, createdAt: `${smokeToday}T00:00:00Z`, updatedAt: `${smokeToday}T00:00:00Z` },
+      { id: 2, userId: 2, attendanceDate: smokeToday, status: "Home", recordedByUserId: 2, createdAt: `${smokeToday}T00:00:00Z`, updatedAt: `${smokeToday}T00:00:00Z` },
+      { id: 3, userId: 1, attendanceDate: "2026-07-18", status: "Office", recordedByUserId: 1, createdAt: `${smokeToday}T00:00:00Z`, updatedAt: `${smokeToday}T00:00:00Z` }
+    ],
+    vacationPlans: [
+      { id: 1, userId: 3, startDate: "2026-07-14", endDate: "2026-07-17", isCancelled: false, createdAt: `${smokeToday}T00:00:00Z`, updatedAt: `${smokeToday}T00:00:00Z` }
     ],
     roles: [
       { id: 101, lookupType: "Role", value: "Admin", code: "Admin", displayOrder: 10, isActive: true },

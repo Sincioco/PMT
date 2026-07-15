@@ -12,6 +12,358 @@ html[data-theme="light"] .scrum-screen.work-item-screen .section-head h1 {
   color: var(--color-text-secondary);
 }
 
+.scrum-screen .section-head .toolbar {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.scrum-today-attendance {
+  display: flex;
+  flex: 1 1 220px;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  align-items: center;
+  min-width: 0;
+  margin-right: auto;
+}
+
+html[data-theme] .scrum-screen .section-head .scrum-today-person {
+  position: relative;
+  width: 46px;
+  min-width: 46px;
+  height: 46px;
+  min-height: 46px;
+  border-color: transparent;
+  border-radius: 50%;
+  padding: 2px;
+  background: transparent;
+  box-shadow: none;
+}
+
+html[data-theme] .scrum-screen .section-head .scrum-today-person:hover:not(:disabled),
+html[data-theme] .scrum-screen .section-head .scrum-today-person.is-selected {
+  border-color: var(--color-border-strong);
+  background: var(--color-control-hover);
+  box-shadow: none;
+}
+
+.scrum-today-avatar-wrap {
+  position: relative;
+  display: block;
+  width: 40px;
+  height: 40px;
+}
+
+.scrum-today-avatar {
+  display: block;
+  width: 40px;
+  height: 40px;
+  margin: 0;
+  border: var(--border-width-strong) solid var(--color-page);
+  border-radius: 50%;
+  background: var(--color-surface-raised);
+  object-fit: cover;
+}
+
+.scrum-attendance-badge {
+  position: absolute;
+  left: -3px;
+  bottom: -3px;
+  display: grid;
+  place-items: center;
+  width: 19px;
+  height: 19px;
+  border: var(--border-width-strong) solid var(--color-surface-raised);
+  border-radius: 50%;
+  background: var(--color-surface-raised);
+  color: var(--color-text-primary);
+  font-size: 12px;
+  line-height: 1;
+}
+
+.scrum-attendance-check-in {
+  display: inline-flex;
+  flex: 0 0 auto;
+  gap: var(--space-3);
+  align-items: center;
+}
+
+.scrum-screen .section-head .scrum-attendance-check-in select {
+  width: auto;
+  min-width: 158px;
+  height: var(--control-height-md);
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
+html[data-theme] .scrum-screen .section-head .scrum-attendance-check-in > button,
+html[data-theme] .scrum-screen .section-head .scrum-attendance-check-in > button.primary {
+  width: auto;
+  min-width: max-content;
+  height: var(--control-height-md);
+  min-height: var(--control-height-md);
+  border-color: var(--color-border-control);
+  border-radius: var(--radius-md);
+  padding: var(--space-3) var(--control-padding-inline-md);
+  background: transparent;
+  color: var(--color-text-primary);
+}
+
+html[data-theme] .scrum-screen .section-head .scrum-attendance-check-in > button:hover:not(:disabled) {
+  border-color: var(--color-border-strong);
+  padding: var(--space-3) var(--control-padding-inline-md);
+  background: var(--color-control-hover);
+}
+
+.scrum-calendar-panel {
+  overflow: hidden;
+  padding: var(--space-6);
+  border-color: var(--color-border-subtle);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-compact);
+}
+
+.scrum-calendar-head {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-6);
+  align-items: center;
+  margin-bottom: var(--space-5);
+}
+
+.scrum-calendar-head h2 {
+  margin: 0;
+  color: var(--color-text-primary);
+  font-size: var(--font-size-xl);
+}
+
+.scrum-calendar-head p {
+  margin: var(--space-1) 0 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+}
+
+.scrum-calendar-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  align-items: flex-end;
+  justify-content: flex-end;
+}
+
+.scrum-calendar-controls label {
+  display: grid;
+  gap: var(--space-1);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+}
+
+.scrum-calendar-controls select {
+  min-width: 128px;
+  min-height: var(--control-height-md);
+  border: var(--border-width) solid var(--color-border-control);
+  border-radius: var(--radius-md);
+  padding: var(--space-3) var(--control-padding-inline-md);
+  background-color: var(--color-control);
+  color: var(--color-text-primary);
+  box-shadow: var(--shadow-inset-highlight);
+}
+
+.scrum-calendar-controls select[data-scrum-calendar-year] {
+  min-width: 104px;
+}
+
+.scrum-calendar-controls select:hover:not(:disabled) {
+  border-color: var(--color-border-strong);
+  background-color: var(--color-control-hover);
+}
+
+.scrum-calendar-controls select:focus {
+  border-color: var(--color-focus-ring);
+  outline: none;
+  box-shadow: var(--shadow-focus);
+}
+
+.scrum-calendar-message {
+  min-height: 180px;
+}
+
+.scrum-calendar-grid-wrap {
+  max-width: 100%;
+  overflow-x: auto;
+  border: var(--border-width) solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+}
+
+.scrum-calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(150px, 1fr));
+  min-width: 1050px;
+  background: var(--color-border-subtle);
+  gap: 1px;
+}
+
+.scrum-calendar-weekday {
+  padding: var(--space-3);
+  background: var(--color-surface-raised);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.scrum-calendar-day {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 210px;
+  background: var(--color-surface);
+}
+
+.scrum-calendar-day.is-empty {
+  background: var(--color-surface-subtle);
+}
+
+.scrum-calendar-day.is-today {
+  box-shadow: inset 0 0 0 var(--border-width-strong) var(--color-focus-ring);
+}
+
+.scrum-calendar-day-head {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-2);
+  align-items: flex-start;
+  min-height: 32px;
+  padding: var(--space-2) var(--space-3);
+}
+
+.scrum-calendar-day-number {
+  flex: 0 0 auto;
+  color: var(--color-text-primary);
+  font-size: var(--font-size-sm);
+}
+
+.scrum-calendar-holidays {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+  color: var(--color-warning-text);
+  font-size: var(--font-size-xs);
+  text-align: right;
+}
+
+.scrum-calendar-holidays span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.scrum-calendar-statuses {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.scrum-calendar-status-section {
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr);
+  flex: 1 1 0;
+  gap: var(--space-2);
+  align-content: start;
+  min-height: 44px;
+  padding: var(--space-2) var(--space-3);
+}
+
+.scrum-calendar-status-section[data-attendance-status="Office"] {
+  flex-grow: 2;
+  min-height: 62px;
+}
+
+.scrum-calendar-status-section + .scrum-calendar-status-section {
+  border-top: var(--border-width) solid var(--color-border-subtle);
+}
+
+.scrum-calendar-status-icon {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  color: var(--color-text-secondary);
+  font-size: 14px;
+  line-height: 1;
+}
+
+.scrum-calendar-avatars {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-content: flex-start;
+  min-width: 0;
+}
+
+.scrum-calendar-avatar {
+  display: block;
+  width: 30px;
+  height: 30px;
+  margin: 0;
+  border: var(--border-width-strong) solid var(--color-page);
+  border-radius: 50%;
+  background: var(--color-surface-raised);
+  object-fit: cover;
+  box-shadow: var(--shadow-floating-mark);
+}
+
+.scrum-calendar-status-section[data-attendance-status="Office"] .scrum-calendar-avatar {
+  width: 40px;
+  height: 40px;
+}
+
+.scrum-attendance-dialog {
+  width: min(680px, calc(100vw - var(--space-8)));
+}
+
+.scrum-attendance-dialog-grid,
+.scrum-vacation-date-grid {
+  margin-top: var(--space-5);
+}
+
+.scrum-vacation-dialog {
+  width: min(760px, calc(100vw - var(--space-8)));
+}
+
+.scrum-vacation-list {
+  display: grid;
+  gap: var(--space-3);
+  margin-top: var(--space-7);
+}
+
+.scrum-vacation-list h3 {
+  margin: 0;
+  color: var(--color-text-primary);
+  font-size: var(--font-size-lg);
+}
+
+.scrum-vacation-row {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-5);
+  align-items: center;
+  min-height: var(--control-height-lg);
+  padding: var(--space-3) var(--space-4);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-subtle);
+  color: var(--color-text-primary);
+}
+
+.scrum-vacation-row-actions {
+  display: flex;
+  flex: 0 0 auto;
+  gap: var(--space-2);
+}
+
 .scrum-screen .section-head .toolbar > button {
   position: relative;
   display: inline-grid;
@@ -283,6 +635,42 @@ html[data-theme] .scrum-screen.work-item-screen .work-item-table .icon-action:di
 }
 
 @media (max-width: 900px) {
+  .scrum-screen .section-head .toolbar,
+  .scrum-today-attendance {
+    width: 100%;
+  }
+
+  .scrum-today-attendance {
+    flex-basis: 100%;
+  }
+
+  .scrum-attendance-check-in {
+    flex: 1 1 100%;
+  }
+
+  .scrum-screen .section-head .scrum-attendance-check-in select {
+    flex: 1 1 auto;
+    width: 100%;
+  }
+
+  .scrum-calendar-head {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .scrum-calendar-controls {
+    justify-content: flex-start;
+  }
+
+  .scrum-vacation-row {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .scrum-vacation-row-actions {
+    flex-wrap: wrap;
+  }
+
   .scrum-table-wrap {
     overflow-x: auto;
   }

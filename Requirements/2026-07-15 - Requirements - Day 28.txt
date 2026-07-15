@@ -1,6 +1,6 @@
-Project Management Tool (PMT):  Day 27 of Codex Agentic AI Coding
+Project Management Tool (PMT):  Day 28 of Codex Agentic AI Coding
 -----------------------------------------------------------------
-Total Dev Time in Hours:  36
+Total Dev Time in Hours:  37
 
 AI Instructions
 --------------
@@ -10,6 +10,9 @@ Design Methodology:
 Testing Approach:
 	In addition to your normal testing, be sure to inform me if I have to recompile the .Net portion of the project or just Press Ctrl + F5 on the browser to reload to see the latest changes.  If making CSS / image changes, ensure that I will encounter no caching issue when testing in the browser.
 
+Environment:
+	You are in a dev machine.  You can drop and re-create the database as you see fit, especially when testing migrations scripts.  You don't need to preseve data in the backend or frontend.  You can also clear preferences, local storage settings and any cache as you see fit.
+
 If making changes to the database, that affects existing users see database-versioning.md under the docs folder.
 
 Review and Feedback
@@ -17,3 +20,97 @@ Review and Feedback
 1.) In the RTE, when an image is selected and the resize handles are visible, it is going on top of the toolbar and on top of PMT in general.  Contain it within the RTE's viewport and below the toolbar.
 2.) In the About page in the 2D section, move the PMT Version number above the credit line.
 3.) In the PMT project, there are already Documentations in it as apart of the seeding.  Can you create another permanent / seed Documentation regarding 3D visualization and the flyby.  Create it in the same style, image and formatting, as the existing seed Documentation that PMT already has.
+
+
+BDO Deployment Status
+---------------------
+Remember this:  The latest version of PMT has been deployed to BDO.  Please take the current database schema as the new baseline.  All known version of PMT are on the current version, so there is no need to worry about backwards compatibility with previous versions.  Going forward, any changes we make that changes the database in anyway that could impact the current deployed users is allowed as long as you provide a migration script.  So the stability of BDO's instance of PMT is top priority.  All changes we make going forward that affect the database or the stability of BDO's instance of PMT must have a migration script.  Record this milestone in the appropriate markdown file so you can remember this.  And if there are more than 1 migration scripts, please always create a combined version so I don't have to run them one by one during deployment.
+
+
+Commit and push to the repo before you start working on the tasks below.  Commit the file named "2026-07-14 - Requirements - Day 27.txt" along with it.  For now, exclude "2026-07-15 - Requirements - Day 28.txt" because I want to commit that later.
+
+Daily Scrum and Attendance Tracking
+-----------------------------------
+Goal:  Combine daily Scrum and Attendance Tracking with a Calendar view.
+
+Scenario:  As a development team, we do daily scrums, so the Scrum screen for PMT is the perfect time to take attendance.  We'd like to make some changes more suited for how we work in BDO.
+
+1.) In the Scrum screen, render the avatar of each person right after the Scrum page title after we know what their status is for the day (see step #3) without overlapping them.
+2.) Clicking on each person's status filters the Scrum entries with only that person's entries.  Be sure this is in sync with the Scrum's Filter dialog box's Person checkbox.
+3.) Add a Attendance dropdown with both an icon and label that reads:  "Home", "Office", "Sick Leave", "Vacation", "EL", "Other".  (EL stands for "Emergency Leave" for tooltip purposes) and a button "Check-In" next to it.  This records their attendance for the day, assuming there is only 1 attendance entry for that person for that day.  This also serves as their status for the day as needed by step #1.
+	3a.) For the avatar icon for Step #1, if the user's status is known for the day, render a small icon on the lower left of their avatar.
+
+Calendar View
+-------------
+4.) In the page overflow menu, remove the Graph menu item and replace it with a calendar icon and the label "Calendar".
+5.) When the calendar view is enabled, just render it above the current Scrum table (much in the same way you render the graphs in the Dev Task screen).
+6.) Render a calendar view that can be big, take up the whole content area if you need to and just push the Scrum table below so we can clearly see a cell for each day.
+7.) For each cell render an avatar icon for each person present for that day.
+8.) On most days, most team members will be in the office and a couple would be working from home.  Divide the cell, into two halves (top and bottom).  Adjust the height dynamically as you see fit, although I think it would make more sense if those working in the office has a bigger icon.  Just put a very faint thin light gray line division between sections.
+9.) For each sections in the cell (and there could be more), put an icon on its upper-left so people have an indicator what that section is for.
+10.) For the other status like Sick Leave, Vacation, Emergency Leave and Other, further sub-divide the day cell to as many sub-section as needed so you can render the avatar for each person with those status.
+11.) On days, when everyone is in the office, like for special events, and everyone is present with no one sick or on vacation, etc, obvisouly, do not sub-divide the calendar cell.
+12.) On the exceptional case that more than 1 status is recorded for a person, like they went to the office and then they got sick and went home later, it's okay to render two icons for the person.  One for the "Office" and other for "Sick Leave" or "EL".
+13.) Provide the general Calendar navigation, forward, backwards, with month and year selection, etc.
+14.) If there is space in a cell, render the Holidays as stored in the Holiday screen in Settings.
+
+On Behalf Of
+------------
+15.) In the overflow menu, add a "On Behalf Of..." menu item.  When selected bring up a dialog box where you can select a person, select an attendance on their behalf.
+16.) This is for cases when an employee calls-in sick and someone else has to record their attendance for that day.
+
+Keeping Track of Vacation
+-------------------------
+17.) In the overflow menu, add a "Vacation..." menu item.
+18.) When selected, allow the current user to select a start date and an end date for their planned vacation.
+19.) When a user is on vacation, show them on the calendar as if their statu is technically already known for that day.
+20.) We want to use the calendar to show people's vacation graphically, so we can see in advance who is going on vacation when.
+21.) At any point, allow the user to cancel their vacation and edit them in case plans change.
+
+
+If all tests are green, commit and push to the repo.  Also commit the file named "2026-07-15 - Requirements - Day 28.txt"
+
+Remember this now and for the future:  In your commit comments, you can be more detailed so people actually know what you did as PMT is a public repo.
+
+Database, Migrations and Data Collisions
+-------------------
+22.) Put all historical migration scripts and .html files in a subfolder called "Migration History".  Do this automatically going forward.  Once I've stated the new baseline, move the older migration files into the "Migration History" automatically.
+23.) And can you rename the "Sql" folder to capital "SQL"?  Just my pet peeve, never spell SQL in its lowercase form.  Do this if only it would not break anything.
+24.)  We need to do some sort of save collision.  If a person edits an item like a Dev Task, Bug Report, Documentation, etc., and does not save for a long time, but another person edits and saves it in the interim....when the first person saves, it should inform them that a newer version exists and that they cannot override the new version.  Offer to save as a new item.
+25.) Apply this save collission detection in areas in PMT where multiple users can edit and override each other's work.
+
+If all tests are green, commit and push to the repo.  Also commit the file named "2026-07-15 - Requirements - Day 28.txt"
+
+Scrum and Pinning
+-----------------
+25.) QA (who is non-admin) reported that he cannot pin a Scrum.  Can you figure out why that is and if possible fix it?
+
+
+User Invite Registration
+------------------------
+26.) In the User Invite Registration screen, when their Username is already selected, a message appears below the username textbox causing it to look visually not aligned with the Role dropdown on the right.  Can you fix the UI so that dynamic messages like that does not shift the UI elements/controls on the dialog/screen?
+
+Mandatory Fields
+----------------
+27.) QA reported that mandatory fields are not at all indicated universally in PMT.  Can you make universal fields more obvious?  Maybe put a red asterisk after the label?  Or change the label field in red when in new/edit mode.  You decide as long as no UI elements on-screen shifts.
+
+If all tests are green, commit and push to the repo.  Also commit the file named "2026-07-15 - Requirements - Day 28.txt"
+
+Severity
+--------
+28.) QA changed the Severity texts in PMT with a prioritization number in front of it.  So, "Critical" became "1 - Critical", "Major" became "2 - Major", etc.  This has caused display issues such as in the Bug Tracking screen no longer renders the Severity column nicely/correctly because the Severity capsule that renders on the Severity column used to only render "Critical", now it has to render "1 - Critical" causing the capsule to be 2 lines and not look nice. Can you strip out the number in front of it?  The "1 - " in this example, and just display critical?  In the tooltip, put "1 - Critical" so QA can still see the "1".
+
+Admin User Impersonation
+------------------------
+29.) Admins need to be able to "Impersonate" a person in the system for when investigating bug reports so they can reproduce them.
+30.) In the User Card view, add an icon for impersonation and switched the Admin's context (security and all) to the person's security context so that the admin can see/experience what the user sees.
+31.) Add a nice noticeably big banner at the top that is red background on white text that reads:  Impersonating {user}.  Where {user} is the name of the user the Admin is impersonating.
+32.) Add a button to the right of that banner that allows the Admin to exit out of impersonation.
+33.) During this impersonation process, it is acceptable to do a hard-page refresh that causes the whole browser to redraw, if you need to do that.
+34.) Take care to preserve/save the Admin's preferences in Local Storage, so when he exists out of Impersonation his preferences are back.
+35.) Do we have a system-wide audit yet?  We obviously want to record that Admin impersonated someone in the system so there is an audit trail in the system.
+36.) Maybe add a "Audit Trail" category/screen in Settings so we can view system wide audits in PMT?
+
+Project Archive and Restore as a New Project
+--------------------------------------------
+Scenario:  We created a project named PMT.  And we used it as our testing project.  However, it contains real QA data of issues QAs found when testing PMT.  I want to rename this project to be "PMT QA" with a Project Code of "PMTQA".  Then, I want to reseed the Production PMT install with the PMT seed data from the SQL scripts

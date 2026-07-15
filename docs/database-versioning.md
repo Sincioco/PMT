@@ -6,7 +6,7 @@ As of July 15, 2026, the latest PMT release and its current Version 1.15 databas
 
 Future work does not need new upgrade compatibility for database versions before 1.15. Keep the released migrations, combined wrappers, and deployment runbooks through Version 1.15 unchanged as historical release artifacts. Start the next forward migration from Version 1.15; after a later version is deployed to every known instance, that version becomes the new baseline.
 
-The current source tree's rebuild scripts represent Version 1.15. Version 1.11 enforces Scrum ownership while preserving owner-only private Logs, Version 1.12 saves requested Project codes exactly while allowing an administrator to explicitly reclaim a code held by an archived Project, Version 1.13 adds administrator-only Maintenance preview/purge and final upload-reference checks, Version 1.14 makes private Documentation and private Logs owner-only throughout the application SQL contract, including for administrators, and Version 1.15 adds the permanent About 3D visualization and flyby seed Documentation for existing installations:
+The current source tree's rebuild scripts represent Version 1.16. Version 1.11 enforces Scrum ownership while preserving owner-only private Logs, Version 1.12 saves requested Project codes exactly while allowing an administrator to explicitly reclaim a code held by an archived Project, Version 1.13 adds administrator-only Maintenance preview/purge and final upload-reference checks, Version 1.14 makes private Documentation and private Logs owner-only throughout the application SQL contract, including for administrators, Version 1.15 adds the permanent About 3D visualization and flyby seed Documentation for existing installations, and Version 1.16 adds Daily Scrum attendance, on-behalf check-in, ranged calendar data, and editable/cancellable vacation plans:
 
 - `Sql/01_CreateDatabase.sql`
 - `Sql/02_CreateStoredProcedures.sql`
@@ -16,9 +16,9 @@ The current source tree's rebuild scripts represent Version 1.15. Version 1.11 e
 - `Sql/03_SeedData_HLS.sql`
 - `Sql/00_DropAndRebuild_PMT.sql`
 
-Version 1.15 fresh-database rebuilds and upgraded databases record `PMT_DatabaseVersion = 1.15` in a database-level extended property. `PMT_SecurityRoleDefaultsVersion` remains `1.10` because that separate property tracks the last version that changed Role defaults, not the overall database version.
+Version 1.16 fresh-database rebuilds and databases upgraded with `Sql/Migrations/PMT_1.15_to_1.16.sql` record `PMT_DatabaseVersion = 1.16` in a database-level extended property. The deployed BDO baseline remains Version 1.15 until that forward migration and the matching application release are deployed. `PMT_SecurityRoleDefaultsVersion` remains `1.10` because Version 1.16 reuses the existing Scrum rights and does not change Role defaults.
 
-`Sql/Migrations/2026-07-15 - PMT - BDO Migration Scripts.html` is the historical runbook that moved BDO from Version 1.10 to Version 1.15. Do not rerun that chain on a current Version 1.15 installation. Fresh development or demo databases may use the rebuild scripts. Existing user databases must be upgraded with forward migrations from their deployed baseline; do not treat a source-tree rebuild change as proof that production has been upgraded.
+`Sql/Migrations/2026-07-15 - PMT - BDO Migration Scripts.html` is the historical runbook that moved BDO from Version 1.10 to Version 1.15. Do not rerun that chain on a current Version 1.15 installation. Apply only `Sql/Migrations/PMT_1.15_to_1.16.sql` for the Version 1.16 attendance release; a combined runner is not needed because this release contains one versioned migration. Fresh development or demo databases may use the rebuild scripts. Existing user databases must be upgraded with forward migrations from their deployed baseline; do not treat a source-tree rebuild change as proof that production has been upgraded.
 
 ## Required Rule
 

@@ -1,4 +1,4 @@
-import { buttonContent, chartIconHtml, funnelIconHtml, iconButton, pageActionsMenuHtml } from "../../components/buttons.js?v=20260701-unified-dropdowns";
+import { buttonContent, funnelIconHtml, iconButton, pageActionsMenuHtml } from "../../components/buttons.js?v=20260701-unified-dropdowns";
 import {
   checkedFilterValues,
   filterCheckList
@@ -18,6 +18,7 @@ import { createWorkItemTableMode } from "../../components/work-items.js?v=202607
 import { currentUser } from "../../core/authentication.js";
 import {
   preferenceKeys,
+  readBooleanPreference,
   readJsonPreference,
   readNumberPreference,
   removePreference,
@@ -32,6 +33,7 @@ import {
 } from "../../shared/dates.js";
 import { normalizeSavedArray } from "../../shared/filter-values.js";
 import { canDeleteOwner, canEditOwner } from "../../shared/permissions.js?v=20260714-scrum-ownership";
+import { canAccessResource } from "../../shared/security.js?v=20260713-role-security";
 import {
   projectName,
   userById
@@ -66,9 +68,97 @@ const scrumPrompts = [
 ];
 const sharedScrumLogType = "Scrum";
 const scrumTableColumnPreferenceKey = "pmt-scrum-table-columns";
+const scrumCalendarVisiblePreferenceKey = "pmt-scrum-calendar-visible";
+const scrumAttendanceCalendarOrder = ["Office", "Home", "Sick Leave", "Vacation", "EL", "Other"];
+const scrumWeekdayLabels = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+const scrumAttendanceStatusDefinitions = Object.freeze([
+  Object.freeze({ value: "Home", icon: "&#127968;", title: "Home" }),
+  Object.freeze({ value: "Office", icon: "&#127970;", title: "Office" }),
+  Object.freeze({ value: "Sick Leave", icon: "&#10010;", title: "Sick Leave" }),
+  Object.freeze({ value: "Vacation", icon: "&#9728;", title: "Vacation" }),
+  Object.freeze({ value: "EL", icon: "&#9888;", title: "Emergency Leave" }),
+  Object.freeze({ value: "Other", icon: "&#8230;", title: "Other" })
+]);
+export const SCRUM_ATTENDANCE_STATUSES = Object.freeze(scrumAttendanceStatusDefinitions.map(item => item.value));
+
+export function scrumCalendarDateKeys(year, monthIndex) {
+  const firstDay = new Date(Number(year), Number(monthIndex), 1);
+  if (Number.isNaN(firstDay.getTime())) return [];
+
+  const keys = Array(firstDay.getDay()).fill("");
+  const dayCount = new Date(firstDay.getFullYear(), firstDay.getMonth() + 1, 0).getDate();
+  for (let day = 1; day <= dayCount; day += 1) {
+    keys.push(scrumLocalDateKey(new Date(firstDay.getFullYear(), firstDay.getMonth(), day)));
+  }
+  return keys;
+}
+
+export function scrumAttendanceOccurrences(entries = [], vacations = [], startDate, endDate) {
+  const startKey = dateKey(startDate);
+  const endKey = dateKey(endDate);
+  if (!startKey || !endKey || startKey > endKey) return [];
+
+  const occurrences = new Map();
+  const addOccurrence = occurrence => {
+    if (!occurrence.dateKey || occurrence.dateKey < startKey || occurrence.dateKey > endKey) return;
+    if (!attendanceStatusDefinition(occurrence.status) || !occurrence.userId) return;
+
+    const key = `${occurrence.dateKey}|${occurrence.userId}|${occurrence.status}`;
+    const existing = occurrences.get(key);
+    if (!existing || attendanceOccurrenceComesAfter(occurrence, existing)) occurrences.set(key, occurrence);
+  };
+
+  (entries || []).forEach(entry => addOccurrence({
+    dateKey: dateKey(entry.attendanceDate),
+    userId: Number(entry.userId || 0),
+    status: String(entry.status || ""),
+    source: "attendance",
+    sourceId: Number(entry.id || 0),
+    createdAt: String(entry.createdAt || ""),
+    updatedAt: String(entry.updatedAt || "")
+  }));
+
+  (vacations || []).forEach(vacation => {
+    const vacationStartKey = dateKey(vacation.startDate);
+    const vacationEndKey = dateKey(vacation.endDate);
+    const firstKey = vacationStartKey > startKey ? vacationStartKey : startKey;
+    const lastKey = vacationEndKey < endKey ? vacationEndKey : endKey;
+    const cursor = scrumLocalDate(firstKey);
+    const last = scrumLocalDate(lastKey);
+    while (cursor && last && cursor <= last) {
+      addOccurrence({
+        dateKey: scrumLocalDateKey(cursor),
+        userId: Number(vacation.userId || 0),
+        status: "Vacation",
+        source: "vacation",
+        sourceId: Number(vacation.id || 0),
+        createdAt: String(vacation.createdAt || ""),
+        updatedAt: String(vacation.updatedAt || "")
+      });
+      cursor.setDate(cursor.getDate() + 1);
+    }
+  });
+
+  return [...occurrences.values()]
+    .sort((a, b) => a.dateKey.localeCompare(b.dateKey)
+      || scrumAttendanceStatusIndex(a.status) - scrumAttendanceStatusIndex(b.status)
+      || a.userId - b.userId);
+}
+
+export function scrumAttendanceStatusGroups(occurrences = []) {
+  return scrumAttendanceCalendarOrder
+    .map(status => ({
+      status,
+      entries: (occurrences || []).filter(occurrence => occurrence.status === status)
+    }))
+    .filter(group => group.entries.length);
+}
 
 export function createScrumFeature({
+  api,
   app,
+  askYesNo,
   deleteItem,
   loadState,
   openEditor,
@@ -80,6 +170,11 @@ export function createScrumFeature({
   let scrumFilters = normalizeScrumFilters(readJsonPreference(preferenceKeys.scrumFilters, {}));
   let scrumEntryProjectId = readNumberPreference(preferenceKeys.scrumEntryProject, 0);
   let scrumColumnPrefs = normalizeScrumColumnPrefs(readJsonPreference(scrumTableColumnPreferenceKey, {}));
+  let scrumCalendarVisible = readBooleanPreference(scrumCalendarVisiblePreferenceKey, false);
+  let scrumCalendarMonth = scrumMonthStart(new Date());
+  const scrumAttendanceMonthCache = new Map();
+  let scrumAttendanceCacheUserId = Number(currentUser()?.id || 0);
+  let scrumCalendarPendingFocusSelector = "";
   let scrumColumnDrag = null;
   let lastScrumColumnPointerDragAt = 0;
   let suppressNextScrumColumnClick = false;
@@ -96,6 +191,9 @@ export function createScrumFeature({
     }
 
     syncScrumPersonFilterWithUsers();
+    syncScrumAttendanceCacheUser();
+    void ensureScrumAttendanceMonth(scrumMonthStart(new Date()));
+    if (scrumCalendarVisible) void ensureScrumAttendanceMonth(scrumCalendarMonth);
 
     const logs = state.devLogs
       .filter(isSharedScrumLog)
@@ -106,20 +204,28 @@ export function createScrumFeature({
       .sort(scrumSortCompare);
     const visibleScrumColumns = scrumVisibleTableColumns();
     const emptyTableColspan = visibleScrumColumns.length + (scrumTableMode.active ? 1 : 0);
+    const todayOccurrences = scrumTodayAttendanceOccurrences();
+    const canCreateAttendance = canAccessResource("Scrum", "Create");
+    const canUpdateAttendance = canAccessResource("Scrum", "Update");
 
     app.innerHTML = `
       <section class="scrum-screen work-item-screen">
         ${sectionHead("Scrum", `
+          ${scrumTodayAttendanceHtml(todayOccurrences)}
+          ${scrumAttendanceCheckInHtml(todayOccurrences, canCreateAttendance)}
           <button class="primary text-icon-button" type="button" data-action="new-log" title="New Scrum" aria-label="New Scrum">${buttonContent("&#10010;", "New Scrum")}</button>
           <button class="secondary text-icon-button" type="button" data-action="open-scrum-filters" title="Filters" aria-label="Filters" aria-haspopup="dialog">${buttonContent(funnelIconHtml(), "Filters")}</button>
           ${pageActionsMenuHtml([
             { action: "toggle-scrum-table-edit-mode", icon: "&#9998;", label: "Edit Mode", title: "Edit Mode", checked: scrumTableMode.active },
-            { icon: chartIconHtml(), label: "Graphs", title: "Graphs", disabled: true, separatorBefore: true },
+            { action: "toggle-scrum-calendar", icon: "&#128197;", label: "Calendar", title: scrumCalendarVisible ? "Hide Calendar" : "Show Calendar", checked: scrumCalendarVisible, separatorBefore: true },
+            { action: "open-scrum-on-behalf", icon: "&#128101;", label: "On Behalf Of...", title: "On Behalf Of...", disabled: !canUpdateAttendance },
+            { action: "open-scrum-vacation", icon: "&#9728;", label: "Vacation...", title: "Vacation...", disabled: !canCreateAttendance && !canUpdateAttendance },
             { action: "export-scrum-view", icon: exportIconHtml(), label: "Export", title: "Export", separatorBefore: true },
             { action: "import-scrum-view", icon: importIconHtml(), label: "Import", title: "Import" },
             { action: "reset-scrum-view", icon: "&#8634;", label: "Reset View", title: "Reset View", separatorBefore: true }
           ])}
         `)}
+        ${scrumCalendarVisible ? scrumCalendarHtml() : ""}
         <div class="panel work-item-table-panel scrum-table-panel">
           <div class="scrum-table-wrap">
             <table class="table work-item-table scrum-table ${scrumTableMode.active ? "is-edit-mode" : "is-read-mode"}" style="--scrum-table-min-width:${scrumTableMinWidth(visibleScrumColumns)}px">
@@ -141,6 +247,285 @@ export function createScrumFeature({
         </div>
       </section>
     `;
+    restoreScrumCalendarFocus();
+  }
+
+  async function ensureScrumAttendanceMonth(monthValue, options = {}) {
+    syncScrumAttendanceCacheUser();
+    const month = scrumMonthStart(monthValue);
+    const key = scrumMonthKey(month);
+    if (!key) return null;
+
+    const existing = scrumAttendanceMonthCache.get(key);
+    if (!options.force && existing?.loaded) return existing;
+    if (!options.force && existing?.promise) return existing.promise;
+
+    const startDate = scrumLocalDateKey(month);
+    const endDate = scrumLocalDateKey(new Date(month.getFullYear(), month.getMonth() + 1, 0));
+    const record = {
+      entries: [],
+      error: "",
+      loaded: false,
+      loading: true,
+      promise: null,
+      vacations: []
+    };
+    scrumAttendanceMonthCache.set(key, record);
+
+    record.promise = (async () => {
+      try {
+        const result = await api(`/api/attendance?startDate=${encodeURIComponent(startDate)}&endDate=${encodeURIComponent(endDate)}`);
+        if (scrumAttendanceMonthCache.get(key) !== record) return record;
+        record.entries = Array.isArray(result?.entries) ? result.entries : [];
+        record.vacations = Array.isArray(result?.vacations) ? result.vacations : [];
+        record.loaded = true;
+      } catch (error) {
+        if (scrumAttendanceMonthCache.get(key) !== record) return record;
+        record.error = error?.message || "Attendance could not be loaded.";
+        record.loaded = true;
+      } finally {
+        record.loading = false;
+        record.promise = null;
+        if (scrumAttendanceMonthCache.get(key) === record && options.render !== false) render();
+      }
+      return record;
+    })();
+
+    return record.promise;
+  }
+
+  async function refreshScrumAttendance() {
+    const months = [scrumMonthStart(new Date()), scrumCalendarMonth]
+      .filter((month, index, values) => values.findIndex(item => scrumMonthKey(item) === scrumMonthKey(month)) === index);
+    scrumAttendanceMonthCache.clear();
+    await Promise.all(months.map(month => ensureScrumAttendanceMonth(month, { render: false })));
+    render();
+  }
+
+  function scrumAttendanceMonthRecord(monthValue) {
+    return scrumAttendanceMonthCache.get(scrumMonthKey(scrumMonthStart(monthValue))) || null;
+  }
+
+  function syncScrumAttendanceCacheUser() {
+    const userId = Number(currentUser()?.id || 0);
+    if (userId === scrumAttendanceCacheUserId) return;
+    scrumAttendanceCacheUserId = userId;
+    scrumAttendanceMonthCache.clear();
+  }
+
+  function scrumTodayAttendanceOccurrences() {
+    const today = new Date();
+    const record = scrumAttendanceMonthRecord(today);
+    if (!record?.loaded) return [];
+    return scrumAttendanceOccurrences(record.entries, record.vacations, today, today);
+  }
+
+  function scrumLatestTodayAttendanceByUser(occurrences) {
+    const byUser = new Map();
+    (occurrences || []).forEach(occurrence => {
+      const existing = byUser.get(occurrence.userId);
+      if (!existing || attendanceOccurrenceComesAfter(occurrence, existing)) byUser.set(occurrence.userId, occurrence);
+    });
+    return byUser;
+  }
+
+  function scrumTodayAttendanceHtml(occurrences) {
+    const attendanceByUser = scrumLatestTodayAttendanceByUser(occurrences);
+    const users = state.users.filter(user => user.isActive !== false && attendanceByUser.has(Number(user.id)));
+    if (!users.length) return "";
+
+    return `
+      <div class="scrum-today-attendance" data-scrum-attendance-roster aria-label="Today's attendance">
+        ${users.map(user => {
+          const attendance = attendanceByUser.get(Number(user.id));
+          const definition = attendanceStatusDefinition(attendance.status);
+          const selected = scrumFilters.personIds.includes(String(user.id));
+          const userName = scrumAttendanceUserName(user);
+          return `
+            <button type="button" class="scrum-today-person ${selected ? "is-selected" : ""}" data-action="filter-scrum-person" data-id="${user.id}" data-scrum-today-user="${user.id}" title="${escapeAttr(`${userName} - ${definition.title}`)}" aria-label="${escapeAttr(`Filter Scrum by ${userName} - ${definition.title}`)}" aria-pressed="${selected}">
+              <span class="scrum-today-avatar-wrap">
+                <img class="scrum-today-avatar" src="${escapeAttr(user.avatarUrl || "/assets/avatar-default.svg")}" alt="">
+                <span class="scrum-attendance-badge" data-attendance-status="${escapeAttr(attendance.status)}" title="${escapeAttr(definition.title)}" aria-hidden="true">${definition.icon}</span>
+              </span>
+            </button>
+          `;
+        }).join("")}
+      </div>
+    `;
+  }
+
+  function scrumAttendanceCheckInHtml(todayOccurrences, canCreateAttendance) {
+    const user = currentUser();
+    const currentStatus = scrumLatestTodayAttendanceByUser(todayOccurrences).get(Number(user.id || 0))?.status || "";
+    return `
+      <div class="scrum-attendance-check-in" data-scrum-attendance-control>
+        <select data-scrum-attendance-select aria-label="Attendance" title="Attendance" ${canCreateAttendance ? "" : "disabled"}>
+          ${scrumAttendanceOptionsHtml(currentStatus)}
+        </select>
+        <button class="primary text-icon-button" type="button" data-action="check-in-attendance" title="Check-In" aria-label="Check-In" ${canCreateAttendance ? "" : "disabled"}>${buttonContent("&#10003;", "Check-In")}</button>
+      </div>
+    `;
+  }
+
+  function scrumAttendanceOptionsHtml(selectedStatus = "") {
+    return scrumAttendanceStatusDefinitions.map(definition => `
+      <option value="${escapeAttr(definition.value)}" title="${escapeAttr(definition.title)}" ${definition.value === selectedStatus ? "selected" : ""}>${definition.icon} ${escapeHtml(definition.value)}</option>
+    `).join("");
+  }
+
+  function scrumCalendarHtml() {
+    const record = scrumAttendanceMonthRecord(scrumCalendarMonth);
+    const monthLabel = scrumCalendarMonth.toLocaleString(undefined, { month: "long", year: "numeric" });
+    return `
+      <section class="panel scrum-calendar-panel" data-scrum-calendar aria-label="Attendance calendar">
+        <div class="scrum-calendar-head">
+          <div>
+            <h2>Attendance Calendar</h2>
+            <p>${escapeHtml(monthLabel)}</p>
+          </div>
+          ${scrumCalendarControlsHtml()}
+        </div>
+        ${record?.error
+          ? `<div class="empty scrum-calendar-message">${escapeHtml(record.error)}</div>`
+          : record?.loaded
+            ? scrumCalendarGridHtml(record)
+            : `<div class="empty scrum-calendar-message">Loading attendance...</div>`}
+      </section>
+    `;
+  }
+
+  function scrumCalendarControlsHtml() {
+    const month = scrumCalendarMonth.getMonth();
+    const year = scrumCalendarMonth.getFullYear();
+    return `
+      <div class="scrum-calendar-controls">
+        <button class="secondary text-icon-button" type="button" data-action="scrum-calendar-previous" title="Previous month" aria-label="Previous month">${buttonContent("&#8249;", "Previous")}</button>
+        <label>
+          <span>Month</span>
+          <select data-filter="scrum-calendar-month" data-scrum-calendar-month aria-label="Calendar month">
+            ${Array.from({ length: 12 }, (_, index) => `<option value="${index}" ${index === month ? "selected" : ""}>${escapeHtml(new Date(2000, index, 1).toLocaleString(undefined, { month: "long" }))}</option>`).join("")}
+          </select>
+        </label>
+        <label>
+          <span>Year</span>
+          <select data-filter="scrum-calendar-year" data-scrum-calendar-year aria-label="Calendar year">
+            ${scrumCalendarYears().map(item => `<option value="${item}" ${item === year ? "selected" : ""}>${item}</option>`).join("")}
+          </select>
+        </label>
+        <button class="secondary text-icon-button" type="button" data-action="scrum-calendar-today">${buttonContent("&#9673;", "Today")}</button>
+        <button class="secondary text-icon-button" type="button" data-action="scrum-calendar-next" title="Next month" aria-label="Next month">${buttonContent("&#8250;", "Next")}</button>
+      </div>
+    `;
+  }
+
+  function rememberScrumCalendarFocus(element) {
+    if (element?.dataset?.action) {
+      scrumCalendarPendingFocusSelector = `[data-action="${element.dataset.action}"]`;
+      return;
+    }
+    if (element?.dataset?.filter) {
+      scrumCalendarPendingFocusSelector = `[data-filter="${element.dataset.filter}"]`;
+    }
+  }
+
+  function restoreScrumCalendarFocus() {
+    if (!scrumCalendarPendingFocusSelector) return;
+    app.querySelector(scrumCalendarPendingFocusSelector)?.focus({ preventScroll: true });
+    if (scrumAttendanceMonthRecord(scrumCalendarMonth)?.loaded) scrumCalendarPendingFocusSelector = "";
+  }
+
+  function scrumCalendarYears() {
+    const selectedYear = scrumCalendarMonth.getFullYear();
+    const currentYear = new Date().getFullYear();
+    const years = new Set([selectedYear, currentYear]);
+    for (let year = currentYear - 5; year <= currentYear + 5; year += 1) years.add(year);
+    scrumAttendanceMonthCache.forEach(record => {
+      [...(record.entries || []).map(item => item.attendanceDate), ...(record.vacations || []).flatMap(item => [item.startDate, item.endDate])]
+        .map(value => Number(dateKey(value).slice(0, 4)))
+        .filter(Number.isFinite)
+        .forEach(year => years.add(year));
+    });
+    return [...years].sort((a, b) => a - b);
+  }
+
+  function scrumCalendarGridHtml(record) {
+    const year = scrumCalendarMonth.getFullYear();
+    const month = scrumCalendarMonth.getMonth();
+    const startDate = new Date(year, month, 1);
+    const endDate = new Date(year, month + 1, 0);
+    const occurrences = scrumAttendanceOccurrences(record.entries, record.vacations, startDate, endDate);
+    const occurrencesByDate = new Map();
+    occurrences.forEach(occurrence => {
+      if (!occurrencesByDate.has(occurrence.dateKey)) occurrencesByDate.set(occurrence.dateKey, []);
+      occurrencesByDate.get(occurrence.dateKey).push(occurrence);
+    });
+    const holidays = scrumHolidaysByDate();
+    const calendarLabel = `${scrumCalendarMonth.toLocaleString(undefined, { month: "long", year: "numeric" })} attendance calendar`;
+    return `
+      <div class="scrum-calendar-grid-wrap" role="region" aria-label="${escapeAttr(calendarLabel)}">
+        <div class="scrum-calendar-grid">
+          ${scrumWeekdayLabels.map(label => `<div class="scrum-calendar-weekday" aria-hidden="true">${label}</div>`).join("")}
+          ${scrumCalendarDateKeys(year, month).map(day => day
+            ? scrumCalendarDayHtml(day, occurrencesByDate.get(day) || [], holidays.get(day) || [])
+            : `<div class="scrum-calendar-day is-empty" aria-hidden="true"></div>`).join("")}
+        </div>
+      </div>
+    `;
+  }
+
+  function scrumCalendarDayHtml(dayKey, occurrences, holidays) {
+    const today = dayKey === dateKey(new Date());
+    const dayNumber = Number(dayKey.slice(8, 10));
+    const groups = scrumAttendanceStatusGroups(occurrences);
+    const dayLabel = scrumLocalDate(dayKey)?.toLocaleDateString(undefined, {
+      weekday: "long",
+      year: "numeric",
+      month: "long",
+      day: "numeric"
+    }) || dayKey;
+    return `
+      <div class="scrum-calendar-day ${today ? "is-today" : ""}" role="group" aria-label="${escapeAttr(dayLabel)}" data-date="${dayKey}" data-scrum-calendar-day="${dayKey}">
+        <div class="scrum-calendar-day-head">
+          <span class="scrum-calendar-day-number">${dayNumber}</span>
+          ${holidays.length ? `
+            <div class="scrum-calendar-holidays">
+              ${holidays.map(holiday => `<span data-scrum-holiday title="${escapeAttr(holiday.name)}" aria-label="${escapeAttr(holiday.name)}">${escapeHtml(holiday.name)}</span>`).join("")}
+            </div>
+          ` : ""}
+        </div>
+        <div class="scrum-calendar-statuses">
+          ${groups.map(scrumCalendarStatusSectionHtml).join("")}
+        </div>
+      </div>
+    `;
+  }
+
+  function scrumCalendarStatusSectionHtml(group) {
+    const definition = attendanceStatusDefinition(group.status);
+    return `
+      <div class="scrum-calendar-status-section" data-attendance-status="${escapeAttr(group.status)}" title="${escapeAttr(definition.title)}">
+        <span class="scrum-calendar-status-icon" aria-label="${escapeAttr(definition.title)}">${definition.icon}</span>
+        <div class="scrum-calendar-avatars">
+          ${group.entries.map(occurrence => {
+            const user = userById(occurrence.userId);
+            if (!user) return "";
+            const userName = scrumAttendanceUserName(user);
+            return `<img class="scrum-calendar-avatar" data-scrum-calendar-user="${user.id}" src="${escapeAttr(user.avatarUrl || "/assets/avatar-default.svg")}" title="${escapeAttr(`${userName} - ${definition.title}`)}" alt="${escapeAttr(userName)}">`;
+          }).join("")}
+        </div>
+      </div>
+    `;
+  }
+
+  function scrumHolidaysByDate() {
+    const holidays = new Map();
+    (state.holidays || []).filter(item => item.isActive).forEach(holiday => {
+      const key = dateKey(holiday.holidayDate);
+      if (!key) return;
+      if (!holidays.has(key)) holidays.set(key, []);
+      holidays.get(key).push(holiday);
+    });
+    return holidays;
   }
 
   function scrumRowHtml(log, visibleColumns) {
@@ -166,11 +551,14 @@ export function createScrumFeature({
   function syncScrumPersonFilterWithUsers() {
     const userIds = state.users.map(user => String(user.id));
     const validPersonIds = new Set(userIds);
-    scrumFilters.personIds = scrumFilters.personIds.filter(id => validPersonIds.has(id));
+    const personIds = scrumFilters.personIds.filter(id => validPersonIds.has(id));
+    const changed = personIds.length !== scrumFilters.personIds.length
+      || personIds.some((id, index) => id !== scrumFilters.personIds[index]);
+    scrumFilters.personIds = personIds;
+    if (changed) writeJsonPreference(preferenceKeys.scrumFilters, scrumFilters);
 
-    if (userIds.length && scrumFilters.personIds.length === userIds.length) {
-      scrumFilters.personIds = [];
-    }
+    document.querySelectorAll("[data-scrum-filter-dialog] [data-filter='scrum-person']")
+      .forEach(input => { input.checked = scrumFilters.personIds.includes(String(input.value)); });
   }
 
   function canModifyScrumLog(log) {
@@ -629,6 +1017,21 @@ export function createScrumFeature({
     const filter = target?.dataset?.filter;
     if (!filter?.startsWith("scrum-")) return false;
 
+    if (filter === "scrum-calendar-month") {
+      const month = Number(target.value);
+      if (!Number.isInteger(month) || month < 0 || month > 11) return false;
+      rememberScrumCalendarFocus(target);
+      scrumCalendarMonth = new Date(scrumCalendarMonth.getFullYear(), month, 1);
+      return true;
+    }
+    if (filter === "scrum-calendar-year") {
+      const year = Number(target.value);
+      if (!Number.isInteger(year) || year < 1900 || year > 9999) return false;
+      rememberScrumCalendarFocus(target);
+      scrumCalendarMonth = new Date(year, scrumCalendarMonth.getMonth(), 1);
+      return true;
+    }
+
     if (filter === "scrum-project") scrumFilters.projectId = target.value;
     if (filter === "scrum-date") scrumFilters.logDate = target.value;
     if (filter === "scrum-search") scrumFilters.search = target.value;
@@ -656,6 +1059,60 @@ export function createScrumFeature({
   async function handleAction(action, id, element) {
     const log = id ? state.devLogs.find(item => item.id === id && isSharedScrumLog(item)) : null;
 
+    if (action === "filter-scrum-person") {
+      scrumFilters.personIds = [String(id)];
+      writeJsonPreference(preferenceKeys.scrumFilters, scrumFilters);
+      renderDevLogs();
+      return true;
+    }
+    if (action === "check-in-attendance") {
+      if (!canAccessResource("Scrum", "Create")) {
+        showToast("You do not have permission to check in attendance.");
+        return true;
+      }
+      await checkInScrumAttendance(element);
+      return true;
+    }
+    if (action === "toggle-scrum-calendar") {
+      scrumCalendarVisible = !scrumCalendarVisible;
+      writePreference(scrumCalendarVisiblePreferenceKey, scrumCalendarVisible);
+      renderDevLogs();
+      return true;
+    }
+    if (action === "scrum-calendar-previous") {
+      rememberScrumCalendarFocus(element);
+      scrumCalendarMonth = new Date(scrumCalendarMonth.getFullYear(), scrumCalendarMonth.getMonth() - 1, 1);
+      renderDevLogs();
+      return true;
+    }
+    if (action === "scrum-calendar-next") {
+      rememberScrumCalendarFocus(element);
+      scrumCalendarMonth = new Date(scrumCalendarMonth.getFullYear(), scrumCalendarMonth.getMonth() + 1, 1);
+      renderDevLogs();
+      return true;
+    }
+    if (action === "scrum-calendar-today") {
+      rememberScrumCalendarFocus(element);
+      scrumCalendarMonth = scrumMonthStart(new Date());
+      renderDevLogs();
+      return true;
+    }
+    if (action === "open-scrum-on-behalf") {
+      if (!canAccessResource("Scrum", "Update")) {
+        showToast("You do not have permission to record attendance on behalf of another person.");
+        return true;
+      }
+      openScrumOnBehalfDialog();
+      return true;
+    }
+    if (action === "open-scrum-vacation") {
+      if (!canAccessResource("Scrum", "Create") && !canAccessResource("Scrum", "Update")) {
+        showToast("You do not have permission to manage vacations.");
+        return true;
+      }
+      await openScrumVacationDialog();
+      return true;
+    }
     if (action === "new-log") {
       editDevLog();
       return true;
@@ -708,6 +1165,273 @@ export function createScrumFeature({
     }
 
     return false;
+  }
+
+  async function checkInScrumAttendance(button) {
+    if (!canAccessResource("Scrum", "Create")) return;
+    const userId = Number(currentUser().id || 0);
+    const status = button?.closest("[data-scrum-attendance-control]")
+      ?.querySelector("[data-scrum-attendance-select]")?.value || "";
+    if (!userId || !SCRUM_ATTENDANCE_STATUSES.includes(status)) return;
+
+    try {
+      await api("/api/attendance", {
+        method: "POST",
+        body: JSON.stringify({ userId, status })
+      });
+      await refreshScrumAttendance();
+      showToast(`Checked in: ${attendanceStatusDefinition(status).title}.`);
+    } catch (error) {
+      showToast(error.message);
+    }
+  }
+
+  function openScrumOnBehalfDialog() {
+    if (!canAccessResource("Scrum", "Update")) return;
+    const existingDialog = document.querySelector("[data-scrum-on-behalf-dialog]");
+    if (existingDialog) {
+      if (!existingDialog.open) existingDialog.showModal?.();
+      existingDialog.querySelector("[name='userId']")?.focus({ preventScroll: true });
+      return;
+    }
+
+    const currentUserId = Number(currentUser().id || 0);
+    const users = state.users.filter(user => user.isActive !== false && Number(user.id) !== currentUserId);
+    const modal = document.createElement("dialog");
+    modal.className = "dialog mini-dialog scrum-attendance-dialog";
+    modal.dataset.scrumOnBehalfDialog = "true";
+    modal.setAttribute("aria-labelledby", "scrum-on-behalf-title");
+    modal.innerHTML = `
+      <form>
+        <div class="dialog-head">
+          <h2 id="scrum-on-behalf-title">On Behalf Of</h2>
+          <button type="button" class="icon-btn" data-close-scrum-on-behalf title="Close" aria-label="Close">x</button>
+        </div>
+        <div class="dialog-body">
+          <p class="field-note">Record today's attendance for another person.</p>
+          <div class="form-grid scrum-attendance-dialog-grid">
+            <div class="field">
+              <label for="scrum-on-behalf-user">Person</label>
+              <select id="scrum-on-behalf-user" name="userId" required>
+                ${users.map(user => `<option value="${user.id}">${escapeHtml(scrumAttendanceUserName(user))}</option>`).join("")}
+              </select>
+            </div>
+            <div class="field">
+              <label for="scrum-on-behalf-status">Attendance</label>
+              <select id="scrum-on-behalf-status" name="status" required>${scrumAttendanceOptionsHtml()}</select>
+            </div>
+          </div>
+        </div>
+        <div class="dialog-actions">
+          <button type="button" class="secondary text-icon-button" data-close-scrum-on-behalf>${buttonContent("&#10005;", "Cancel")}</button>
+          <button type="submit" class="primary text-icon-button">${buttonContent("&#10003;", "Record Attendance")}</button>
+        </div>
+      </form>
+    `;
+    document.body.appendChild(modal);
+    initializeWindowedDialog(modal, { showResetButton: false });
+    modal.addEventListener("click", event => {
+      if (event.target.closest("[data-close-scrum-on-behalf]")) modal.close();
+    });
+    modal.addEventListener("submit", async event => {
+      event.preventDefault();
+      if (!canAccessResource("Scrum", "Update")) {
+        showToast("You do not have permission to record attendance on behalf of another person.");
+        return;
+      }
+      const submitButton = modal.querySelector("button[type='submit']");
+      const userId = Number(value(modal, "userId") || 0);
+      const status = value(modal, "status");
+      if (!userId || !SCRUM_ATTENDANCE_STATUSES.includes(status)) return;
+      submitButton.disabled = true;
+      try {
+        await api("/api/attendance", {
+          method: "POST",
+          body: JSON.stringify({ userId, status })
+        });
+        modal.close();
+        await refreshScrumAttendance();
+        showToast("Attendance recorded.");
+      } catch (error) {
+        submitButton.disabled = false;
+        showToast(error.message);
+      }
+    });
+    modal.addEventListener("close", () => modal.remove());
+    modal.showModal();
+    modal.querySelector("[name='userId']")?.focus({ preventScroll: true });
+  }
+
+  async function openScrumVacationDialog() {
+    if (!canAccessResource("Scrum", "Create") && !canAccessResource("Scrum", "Update")) return;
+    if (focusExistingScrumVacationDialog()) return;
+
+    await ensureScrumAttendanceMonth(scrumMonthStart(new Date()), { render: false });
+    if (focusExistingScrumVacationDialog()) return;
+    if (!canAccessResource("Scrum", "Create") && !canAccessResource("Scrum", "Update")) return;
+
+    const modal = document.createElement("dialog");
+    modal.className = "dialog scrum-vacation-dialog";
+    modal.dataset.scrumVacationDialog = "true";
+    modal.setAttribute("aria-labelledby", "scrum-vacation-title");
+    modal.innerHTML = `
+      <form>
+        <div class="dialog-head">
+          <h2 id="scrum-vacation-title">Vacation</h2>
+          <button type="button" class="icon-btn" data-close-scrum-vacation title="Close" aria-label="Close">x</button>
+        </div>
+        <div class="dialog-body" data-scrum-vacation-dialog-body></div>
+        <div class="dialog-actions">
+          <button type="button" class="secondary text-icon-button" data-close-scrum-vacation>${buttonContent("&#10005;", "Close")}</button>
+          <button type="submit" class="primary text-icon-button" data-save-scrum-vacation>${buttonContent("&#10003;", "Add Vacation")}</button>
+        </div>
+      </form>
+    `;
+    renderScrumVacationDialog(modal);
+    document.body.appendChild(modal);
+    initializeWindowedDialog(modal, { showResetButton: false });
+    modal.addEventListener("click", event => handleScrumVacationDialogClick(event, modal));
+    modal.addEventListener("submit", event => saveScrumVacation(event, modal));
+    modal.addEventListener("close", () => modal.remove());
+    modal.showModal();
+    modal.querySelector("[name='startDate']")?.focus({ preventScroll: true });
+  }
+
+  function focusExistingScrumVacationDialog() {
+    const existingDialog = document.querySelector("[data-scrum-vacation-dialog]");
+    if (!existingDialog) return false;
+    if (!existingDialog.open) existingDialog.showModal?.();
+    existingDialog.querySelector("[name='startDate']")?.focus({ preventScroll: true });
+    return true;
+  }
+
+  function renderScrumVacationDialog(modal) {
+    const body = modal.querySelector("[data-scrum-vacation-dialog-body]");
+    if (!body) return;
+    const vacationId = Number(modal.dataset.editVacationId || 0);
+    const vacation = scrumCurrentUserVacations().find(item => Number(item.id) === vacationId) || null;
+    const saveButton = modal.querySelector("[data-save-scrum-vacation]");
+    const canCreateVacation = canAccessResource("Scrum", "Create");
+    const canUpdateVacation = canAccessResource("Scrum", "Update");
+    const canSaveVacation = vacation ? canUpdateVacation : canCreateVacation;
+    body.innerHTML = `
+      <input type="hidden" name="vacationId" value="${vacation?.id || ""}">
+      <p class="field-note">Add planned vacation dates so the team can see them on the attendance calendar.</p>
+      <div class="form-grid scrum-vacation-date-grid">
+        <div class="field">
+          <label for="scrum-vacation-start-date">Start Date</label>
+          <input id="scrum-vacation-start-date" name="startDate" type="date" value="${escapeAttr(vacation ? dateKey(vacation.startDate) : "")}" ${canSaveVacation ? "" : "disabled"}>
+        </div>
+        <div class="field">
+          <label for="scrum-vacation-end-date">End Date</label>
+          <input id="scrum-vacation-end-date" name="endDate" type="date" value="${escapeAttr(vacation ? dateKey(vacation.endDate) : "")}" ${canSaveVacation ? "" : "disabled"}>
+        </div>
+      </div>
+      <div class="scrum-vacation-list">
+        <h3>Planned Vacations</h3>
+        ${scrumCurrentUserVacations().map(item => `
+          <div class="scrum-vacation-row" data-scrum-vacation-id="${item.id}">
+            <span>${escapeHtml(scrumVacationDateLabel(item))}</span>
+            <div class="scrum-vacation-row-actions">
+              <button type="button" class="secondary text-icon-button" data-edit-scrum-vacation="${item.id}" ${canUpdateVacation ? "" : "disabled"}>${buttonContent("&#9998;", "Edit")}</button>
+              <button type="button" class="secondary text-icon-button" data-cancel-scrum-vacation="${item.id}" ${canUpdateVacation ? "" : "disabled"}>${buttonContent("&#10005;", "Cancel")}</button>
+            </div>
+          </div>
+        `).join("") || `<div class="empty">No planned vacations.</div>`}
+      </div>
+    `;
+    if (saveButton) {
+      saveButton.disabled = !canSaveVacation;
+      saveButton.innerHTML = buttonContent("&#10003;", vacation ? "Save Changes" : "Add Vacation");
+    }
+  }
+
+  async function handleScrumVacationDialogClick(event, modal) {
+    if (event.target.closest("[data-close-scrum-vacation]")) {
+      modal.close();
+      return;
+    }
+
+    const editButton = event.target.closest("[data-edit-scrum-vacation]");
+    if (editButton) {
+      if (!canAccessResource("Scrum", "Update")) return;
+      modal.dataset.editVacationId = editButton.dataset.editScrumVacation;
+      renderScrumVacationDialog(modal);
+      modal.querySelector("[name='startDate']")?.focus({ preventScroll: true });
+      return;
+    }
+
+    const cancelButton = event.target.closest("[data-cancel-scrum-vacation]");
+    if (!cancelButton) return;
+    if (!canAccessResource("Scrum", "Update")) return;
+    const vacationId = Number(cancelButton.dataset.cancelScrumVacation || 0);
+    if (!vacationId || !await askYesNo("Cancel this planned vacation?", "Cancel Vacation")) return;
+
+    cancelButton.disabled = true;
+    try {
+      await api(`/api/vacations/${vacationId}`, { method: "DELETE" });
+      delete modal.dataset.editVacationId;
+      await refreshScrumAttendance();
+      if (modal.isConnected) renderScrumVacationDialog(modal);
+      showToast("Vacation canceled.");
+    } catch (error) {
+      cancelButton.disabled = false;
+      showToast(error.message);
+    }
+  }
+
+  async function saveScrumVacation(event, modal) {
+    event.preventDefault();
+    const vacationId = Number(value(modal, "vacationId") || 0);
+    const requiredRight = vacationId ? "Update" : "Create";
+    if (!canAccessResource("Scrum", requiredRight)) {
+      showToast(`You do not have permission to ${vacationId ? "edit" : "add"} vacations.`);
+      renderScrumVacationDialog(modal);
+      return;
+    }
+    const startDate = value(modal, "startDate");
+    const endDate = value(modal, "endDate");
+    if (!startDate || !endDate) {
+      showToast("Start Date and End Date are required.");
+      return;
+    }
+    if (endDate < startDate) {
+      showToast("End Date must be on or after Start Date.");
+      return;
+    }
+
+    const saveButton = modal.querySelector("[data-save-scrum-vacation]");
+    saveButton.disabled = true;
+    try {
+      await api(vacationId ? `/api/vacations/${vacationId}` : "/api/vacations", {
+        method: vacationId ? "PUT" : "POST",
+        body: JSON.stringify({ startDate, endDate })
+      });
+      delete modal.dataset.editVacationId;
+      await refreshScrumAttendance();
+      if (modal.isConnected) renderScrumVacationDialog(modal);
+      showToast(vacationId ? "Vacation updated." : "Vacation added.");
+    } catch (error) {
+      saveButton.disabled = false;
+      showToast(error.message);
+    }
+  }
+
+  function scrumCurrentUserVacations() {
+    const userId = Number(currentUser().id || 0);
+    const vacations = new Map();
+    scrumAttendanceMonthCache.forEach(record => {
+      (record.vacations || [])
+        .filter(vacation => Number(vacation.userId) === userId)
+        .forEach(vacation => vacations.set(Number(vacation.id), vacation));
+    });
+    return [...vacations.values()].sort((a, b) => dateKey(a.startDate).localeCompare(dateKey(b.startDate)) || Number(a.id) - Number(b.id));
+  }
+
+  function scrumVacationDateLabel(vacation) {
+    const start = formatDate(vacation.startDate);
+    const end = formatDate(vacation.endDate);
+    return start === end ? start : `${start} - ${end}`;
   }
 
   function openScrumFiltersDialog() {
@@ -1672,19 +2396,22 @@ export function createScrumFeature({
     [
       preferenceKeys.scrumFilters,
       preferenceKeys.scrumEntryProject,
-      scrumTableColumnPreferenceKey
+      scrumTableColumnPreferenceKey,
+      scrumCalendarVisiblePreferenceKey
     ].forEach(removePreference);
 
     scrumFilters = normalizeScrumFilters({});
     scrumEntryProjectId = 0;
     scrumColumnPrefs = normalizeScrumColumnPrefs({});
+    scrumCalendarVisible = false;
+    scrumCalendarMonth = scrumMonthStart(new Date());
     scrumTableMode.deactivate();
     cancelScrumColumnDrag();
     renderDevLogs();
   }
 
   function deactivateScrum() {
-    document.querySelectorAll("[data-scrum-filter-dialog]").forEach(dialog => {
+    document.querySelectorAll("[data-scrum-filter-dialog], [data-scrum-on-behalf-dialog], [data-scrum-vacation-dialog]").forEach(dialog => {
       if (dialog.open) dialog.close();
       else dialog.remove();
     });
@@ -1699,4 +2426,54 @@ export function createScrumFeature({
     render: renderDevLogs,
     view: viewDevLogById
   };
+}
+
+function attendanceStatusDefinition(status) {
+  return scrumAttendanceStatusDefinitions.find(item => item.value === status) || null;
+}
+
+function scrumAttendanceStatusIndex(status) {
+  const index = scrumAttendanceCalendarOrder.indexOf(status);
+  return index >= 0 ? index : scrumAttendanceCalendarOrder.length;
+}
+
+function attendanceOccurrenceComesAfter(candidate, existing) {
+  const candidateTime = attendanceOccurrenceTime(candidate);
+  const existingTime = attendanceOccurrenceTime(existing);
+  if (candidateTime !== existingTime) return candidateTime > existingTime;
+  if (candidate.source !== existing.source) return candidate.source === "attendance";
+  return Number(candidate.sourceId || 0) >= Number(existing.sourceId || 0);
+}
+
+function attendanceOccurrenceTime(occurrence) {
+  const value = occurrence?.updatedAt || occurrence?.createdAt || "";
+  const time = value ? new Date(value).getTime() : 0;
+  return Number.isFinite(time) ? time : 0;
+}
+
+function scrumMonthStart(value) {
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+  return new Date(date.getFullYear(), date.getMonth(), 1);
+}
+
+function scrumMonthKey(value) {
+  const date = scrumMonthStart(value);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function scrumLocalDate(value) {
+  const match = String(value || "").match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!match) return null;
+  const date = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function scrumLocalDateKey(value) {
+  if (!(value instanceof Date) || Number.isNaN(value.getTime())) return "";
+  return `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, "0")}-${String(value.getDate()).padStart(2, "0")}`;
+}
+
+function scrumAttendanceUserName(user) {
+  return user?.nickname || [user?.firstName, user?.lastName].filter(Boolean).join(" ") || "User";
 }

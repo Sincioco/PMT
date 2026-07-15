@@ -1,5 +1,5 @@
 /*
-    PMT Version 1.15 base seed data.
+    PMT Version 1.16 base seed data.
 
     This script resets disposable development data, then seeds shared data:
     - Users
@@ -65,6 +65,8 @@ DELETE FROM [pmt].[TaskAssignees];
 DELETE FROM [pmt].[Attachments];
 DELETE FROM [pmt].[Blogs];
 DELETE FROM [pmt].[DevLogs];
+DELETE FROM [pmt].[AttendanceEntries];
+DELETE FROM [pmt].[VacationPlans];
 DELETE FROM [pmt].[AuditEvents];
 DELETE FROM [pmt].[Holidays];
 DELETE FROM [pmt].[WorkTasks];

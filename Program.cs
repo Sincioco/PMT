@@ -128,6 +128,7 @@ app.MapProjectEndpoints();
 app.MapSprintEndpoints();
 app.MapWorkItemEndpoints();
 app.MapWfhScheduleEndpoints();
+app.MapAttendanceEndpoints();
 app.MapSettingsEndpoints();
 app.MapSecurityEndpoints();
 app.MapContentEndpoints();

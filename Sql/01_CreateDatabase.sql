@@ -1,5 +1,5 @@
 /*
-    PMT Version 1.15 database and schema script.
+    PMT Version 1.16 database and schema script.
     Run this first. It creates the database, the pmt schema, the application
     tables, and the single required administrator account. The companion
     procedure and seed scripts complete the current fresh-install contract.
@@ -12,6 +12,15 @@ END;
 GO
 
 USE [PMT];
+GO
+
+SET ANSI_NULLS ON;
+SET ANSI_PADDING ON;
+SET ANSI_WARNINGS ON;
+SET ARITHABORT ON;
+SET CONCAT_NULL_YIELDS_NULL ON;
+SET QUOTED_IDENTIFIER ON;
+SET NUMERIC_ROUNDABORT OFF;
 GO
 
 IF SCHEMA_ID(N'pmt') IS NULL
@@ -126,6 +135,62 @@ GO
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE [name] = N'IX_pmt_WfhSchedules_SortOrder' AND [object_id] = OBJECT_ID(N'[pmt].[WfhSchedules]'))
 BEGIN
     CREATE INDEX [IX_pmt_WfhSchedules_SortOrder] ON [pmt].[WfhSchedules]([SortOrder], [UserId]);
+END;
+GO
+
+IF OBJECT_ID(N'[pmt].[AttendanceEntries]', N'U') IS NULL
+BEGIN
+    CREATE TABLE [pmt].[AttendanceEntries]
+    (
+        [AttendanceEntryId] INT IDENTITY(1,1) NOT NULL CONSTRAINT [PK_pmt_AttendanceEntries] PRIMARY KEY,
+        [UserId] INT NOT NULL,
+        [AttendanceDate] DATE NOT NULL,
+        [Status] NVARCHAR(20) NOT NULL,
+        [CreatedByUserId] INT NOT NULL,
+        [UpdatedByUserId] INT NULL,
+        [CreatedAt] DATETIME2(0) NOT NULL CONSTRAINT [DF_pmt_AttendanceEntries_CreatedAt] DEFAULT (SYSUTCDATETIME()),
+        [UpdatedAt] DATETIME2(0) NOT NULL CONSTRAINT [DF_pmt_AttendanceEntries_UpdatedAt] DEFAULT (SYSUTCDATETIME()),
+        CONSTRAINT [FK_pmt_AttendanceEntries_User] FOREIGN KEY ([UserId]) REFERENCES [pmt].[Users]([UserId]),
+        CONSTRAINT [FK_pmt_AttendanceEntries_CreatedBy] FOREIGN KEY ([CreatedByUserId]) REFERENCES [pmt].[Users]([UserId]),
+        CONSTRAINT [FK_pmt_AttendanceEntries_UpdatedBy] FOREIGN KEY ([UpdatedByUserId]) REFERENCES [pmt].[Users]([UserId]),
+        CONSTRAINT [CK_pmt_AttendanceEntries_Status] CHECK ([Status] IN (N'Home', N'Office', N'Sick Leave', N'Vacation', N'EL', N'Other')),
+        CONSTRAINT [UQ_pmt_AttendanceEntries_UserDateStatus] UNIQUE ([UserId], [AttendanceDate], [Status])
+    );
+END;
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE [name] = N'IX_pmt_AttendanceEntries_DateStatusUser' AND [object_id] = OBJECT_ID(N'[pmt].[AttendanceEntries]'))
+BEGIN
+    CREATE INDEX [IX_pmt_AttendanceEntries_DateStatusUser]
+        ON [pmt].[AttendanceEntries]([AttendanceDate], [Status], [UserId]);
+END;
+GO
+
+IF OBJECT_ID(N'[pmt].[VacationPlans]', N'U') IS NULL
+BEGIN
+    CREATE TABLE [pmt].[VacationPlans]
+    (
+        [VacationPlanId] INT IDENTITY(1,1) NOT NULL CONSTRAINT [PK_pmt_VacationPlans] PRIMARY KEY,
+        [UserId] INT NOT NULL,
+        [StartDate] DATE NOT NULL,
+        [EndDate] DATE NOT NULL,
+        [IsCancelled] BIT NOT NULL CONSTRAINT [DF_pmt_VacationPlans_IsCancelled] DEFAULT (0),
+        [CreatedByUserId] INT NOT NULL,
+        [UpdatedByUserId] INT NULL,
+        [CreatedAt] DATETIME2(0) NOT NULL CONSTRAINT [DF_pmt_VacationPlans_CreatedAt] DEFAULT (SYSUTCDATETIME()),
+        [UpdatedAt] DATETIME2(0) NOT NULL CONSTRAINT [DF_pmt_VacationPlans_UpdatedAt] DEFAULT (SYSUTCDATETIME()),
+        CONSTRAINT [FK_pmt_VacationPlans_User] FOREIGN KEY ([UserId]) REFERENCES [pmt].[Users]([UserId]),
+        CONSTRAINT [FK_pmt_VacationPlans_CreatedBy] FOREIGN KEY ([CreatedByUserId]) REFERENCES [pmt].[Users]([UserId]),
+        CONSTRAINT [FK_pmt_VacationPlans_UpdatedBy] FOREIGN KEY ([UpdatedByUserId]) REFERENCES [pmt].[Users]([UserId]),
+        CONSTRAINT [CK_pmt_VacationPlans_DateRange] CHECK ([EndDate] >= [StartDate])
+    );
+END;
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE [name] = N'IX_pmt_VacationPlans_ActiveDateRange' AND [object_id] = OBJECT_ID(N'[pmt].[VacationPlans]'))
+BEGIN
+    CREATE INDEX [IX_pmt_VacationPlans_ActiveDateRange]
+        ON [pmt].[VacationPlans]([IsCancelled], [StartDate], [EndDate], [UserId]);
 END;
 GO
 

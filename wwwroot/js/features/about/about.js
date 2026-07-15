@@ -13,7 +13,7 @@ import { createDevTaskChartsView } from "../../shared/dev-task-charts.js?v=20260
 
 const ABOUT_VERSION = "20260714-screen-saver-mt-gap";
 export const ABOUT_SCREEN_SAVER_IDLE_MS = 5 * 60 * 1000;
-export const ABOUT_DATABASE_VERSION = "1.15";
+export const ABOUT_DATABASE_VERSION = "1.16";
 
 export function aboutFooterHtml() {
   return `

@@ -1,5 +1,5 @@
 /*
-    PMT Version 1.15 stored procedures.
+    PMT Version 1.16 stored procedures.
     The application uses ADO.NET and calls these procedures directly.
     The SQL is intentionally explicit so future maintainers can trace each save action.
 */
@@ -3487,6 +3487,348 @@ BEGIN
 END;
 GO
 
+CREATE OR ALTER PROCEDURE [pmt].[GetAttendanceCalendar]
+    @StartDate DATE,
+    @EndDate DATE,
+    @CurrentUserId INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    EXEC [pmt].[RequirePermission] @CurrentUserId, N'Scrum', N'Read';
+
+    IF @StartDate IS NULL OR @EndDate IS NULL OR @EndDate < @StartDate
+    BEGIN
+        THROW 50270, 'A valid attendance calendar date range is required.', 1;
+    END;
+
+    IF DATEDIFF(DAY, @StartDate, @EndDate) > 61
+    BEGIN
+        THROW 50271, 'The attendance calendar range cannot exceed 62 days.', 1;
+    END;
+
+    SELECT
+        [Attendance].[AttendanceEntryId],
+        [Attendance].[UserId],
+        [Attendance].[AttendanceDate],
+        [Attendance].[Status],
+        [CreatedByUserId] = ISNULL([Attendance].[UpdatedByUserId], [Attendance].[CreatedByUserId]),
+        [Attendance].[CreatedAt],
+        [Attendance].[UpdatedAt]
+    FROM [pmt].[AttendanceEntries] AS [Attendance]
+    INNER JOIN [pmt].[Users] AS [User]
+        ON [User].[UserId] = [Attendance].[UserId]
+       AND [User].[IsActive] = 1
+    WHERE [Attendance].[AttendanceDate] BETWEEN @StartDate AND @EndDate
+    ORDER BY
+        [Attendance].[AttendanceDate],
+        [Attendance].[Status],
+        [Attendance].[UserId],
+        [Attendance].[AttendanceEntryId];
+
+    SELECT
+        [Vacation].[VacationPlanId],
+        [Vacation].[UserId],
+        [Vacation].[StartDate],
+        [Vacation].[EndDate],
+        [Vacation].[CreatedAt],
+        [Vacation].[UpdatedAt]
+    FROM [pmt].[VacationPlans] AS [Vacation]
+    INNER JOIN [pmt].[Users] AS [User]
+        ON [User].[UserId] = [Vacation].[UserId]
+       AND [User].[IsActive] = 1
+    WHERE [Vacation].[IsCancelled] = 0
+      AND
+      (
+          ([Vacation].[StartDate] <= @EndDate AND [Vacation].[EndDate] >= @StartDate)
+          OR [Vacation].[UserId] = @CurrentUserId
+      )
+    ORDER BY [Vacation].[StartDate], [Vacation].[EndDate], [Vacation].[UserId], [Vacation].[VacationPlanId];
+END;
+GO
+
+CREATE OR ALTER PROCEDURE [pmt].[RecordAttendance]
+    @AttendanceEntryId INT OUTPUT,
+    @UserId INT,
+    @Status NVARCHAR(20),
+    @CurrentUserId INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    SET XACT_ABORT ON;
+
+    SET @Status = CASE LOWER(LTRIM(RTRIM(ISNULL(@Status, N''))))
+        WHEN N'home' THEN N'Home'
+        WHEN N'office' THEN N'Office'
+        WHEN N'sick leave' THEN N'Sick Leave'
+        WHEN N'vacation' THEN N'Vacation'
+        WHEN N'el' THEN N'EL'
+        WHEN N'other' THEN N'Other'
+        ELSE NULL
+    END;
+
+    IF @Status IS NULL
+    BEGIN
+        THROW 50272, 'Attendance must be Home, Office, Sick Leave, Vacation, EL, or Other.', 1;
+    END;
+
+    IF NOT EXISTS
+    (
+        SELECT 1
+        FROM [pmt].[Users]
+        WHERE [UserId] = @UserId
+          AND [IsActive] = 1
+    )
+    BEGIN
+        THROW 50273, 'The attendance user was not found or is inactive.', 1;
+    END;
+
+    DECLARE @RequiredRight NVARCHAR(20) = CASE WHEN @UserId = @CurrentUserId THEN N'Create' ELSE N'Update' END;
+    EXEC [pmt].[RequirePermission] @CurrentUserId, N'Scrum', @RequiredRight;
+
+    -- BDO and the PMT team use UTC+8. Attendance is a local workday value;
+    -- timestamps remain UTC in the normal audit columns.
+    DECLARE @AttendanceDate DATE = CONVERT(DATE, DATEADD(HOUR, 8, SYSUTCDATETIME()));
+    DECLARE @Now DATETIME2(0) = SYSUTCDATETIME();
+
+    BEGIN TRY
+        BEGIN TRANSACTION;
+
+        SELECT @AttendanceEntryId = [AttendanceEntryId]
+        FROM [pmt].[AttendanceEntries] WITH (UPDLOCK, HOLDLOCK)
+        WHERE [UserId] = @UserId
+          AND [AttendanceDate] = @AttendanceDate
+          AND [Status] = @Status;
+
+        IF ISNULL(@AttendanceEntryId, 0) = 0
+        BEGIN
+            INSERT INTO [pmt].[AttendanceEntries]
+            (
+                [UserId],
+                [AttendanceDate],
+                [Status],
+                [CreatedByUserId],
+                [CreatedAt],
+                [UpdatedAt]
+            )
+            VALUES
+            (
+                @UserId,
+                @AttendanceDate,
+                @Status,
+                @CurrentUserId,
+                @Now,
+                @Now
+            );
+
+            SET @AttendanceEntryId = SCOPE_IDENTITY();
+        END
+        ELSE
+        BEGIN
+            UPDATE [pmt].[AttendanceEntries]
+            SET
+                [UpdatedByUserId] = @CurrentUserId,
+                [UpdatedAt] = @Now
+            WHERE [AttendanceEntryId] = @AttendanceEntryId;
+        END;
+
+        DECLARE @AuditAction NVARCHAR(80) = CASE
+            WHEN @UserId = @CurrentUserId THEN N'Checked In'
+            ELSE N'Recorded On Behalf'
+        END;
+        DECLARE @AuditDetails NVARCHAR(400) =
+            N'Attendance recorded as ' + @Status
+            + N' for ' + CONVERT(NVARCHAR(10), @AttendanceDate, 23)
+            + N' for user #' + CONVERT(NVARCHAR(20), @UserId) + N'.';
+
+        EXEC [pmt].[WriteAudit]
+            N'Attendance',
+            @AttendanceEntryId,
+            @AuditAction,
+            @AuditDetails,
+            @CurrentUserId;
+
+        COMMIT TRANSACTION;
+    END TRY
+    BEGIN CATCH
+        IF XACT_STATE() <> 0 ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH;
+END;
+GO
+
+CREATE OR ALTER PROCEDURE [pmt].[UpsertVacation]
+    @VacationPlanId INT OUTPUT,
+    @StartDate DATE,
+    @EndDate DATE,
+    @CurrentUserId INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    SET XACT_ABORT ON;
+
+    IF @StartDate IS NULL OR @EndDate IS NULL OR @EndDate < @StartDate
+    BEGIN
+        THROW 50274, 'Vacation start and end dates are required, and the end date cannot be before the start date.', 1;
+    END;
+
+    DECLARE @RequiredRight NVARCHAR(20) = CASE WHEN ISNULL(@VacationPlanId, 0) = 0 THEN N'Create' ELSE N'Update' END;
+    EXEC [pmt].[RequirePermission] @CurrentUserId, N'Scrum', @RequiredRight;
+
+    DECLARE @Now DATETIME2(0) = SYSUTCDATETIME();
+    DECLARE @OwnerUserId INT;
+    DECLARE @AuditAction NVARCHAR(80);
+    DECLARE @AuditDetails NVARCHAR(400);
+
+    BEGIN TRY
+        BEGIN TRANSACTION;
+
+        IF ISNULL(@VacationPlanId, 0) <> 0
+        BEGIN
+            SELECT @OwnerUserId = [UserId]
+            FROM [pmt].[VacationPlans] WITH (UPDLOCK, HOLDLOCK)
+            WHERE [VacationPlanId] = @VacationPlanId
+              AND [IsCancelled] = 0;
+
+            IF @OwnerUserId IS NULL
+            BEGIN
+                THROW 50275, 'The vacation plan was not found or has already been cancelled.', 1;
+            END;
+
+            IF @OwnerUserId <> @CurrentUserId
+            BEGIN
+                THROW 50276, 'Vacation plans can only be changed by their owner.', 1;
+            END;
+        END
+        ELSE
+        BEGIN
+            SET @OwnerUserId = @CurrentUserId;
+        END;
+
+        IF EXISTS
+        (
+            SELECT 1
+            FROM [pmt].[VacationPlans] WITH (UPDLOCK, HOLDLOCK)
+            WHERE [UserId] = @OwnerUserId
+              AND [IsCancelled] = 0
+              AND [VacationPlanId] <> ISNULL(@VacationPlanId, 0)
+              AND [StartDate] <= @EndDate
+              AND [EndDate] >= @StartDate
+        )
+        BEGIN
+            THROW 50277, 'The vacation dates overlap another active vacation plan.', 1;
+        END;
+
+        IF ISNULL(@VacationPlanId, 0) = 0
+        BEGIN
+            INSERT INTO [pmt].[VacationPlans]
+            (
+                [UserId],
+                [StartDate],
+                [EndDate],
+                [CreatedByUserId],
+                [CreatedAt],
+                [UpdatedAt]
+            )
+            VALUES
+            (
+                @CurrentUserId,
+                @StartDate,
+                @EndDate,
+                @CurrentUserId,
+                @Now,
+                @Now
+            );
+
+            SET @VacationPlanId = SCOPE_IDENTITY();
+            SET @AuditAction = N'Created';
+            SET @AuditDetails = N'Vacation planned from ' + CONVERT(NVARCHAR(10), @StartDate, 23)
+                + N' through ' + CONVERT(NVARCHAR(10), @EndDate, 23) + N'.';
+        END
+        ELSE
+        BEGIN
+            UPDATE [pmt].[VacationPlans]
+            SET
+                [StartDate] = @StartDate,
+                [EndDate] = @EndDate,
+                [UpdatedByUserId] = @CurrentUserId,
+                [UpdatedAt] = @Now
+            WHERE [VacationPlanId] = @VacationPlanId;
+
+            SET @AuditAction = N'Updated';
+            SET @AuditDetails = N'Vacation changed to ' + CONVERT(NVARCHAR(10), @StartDate, 23)
+                + N' through ' + CONVERT(NVARCHAR(10), @EndDate, 23) + N'.';
+        END;
+
+        EXEC [pmt].[WriteAudit]
+            N'Vacation',
+            @VacationPlanId,
+            @AuditAction,
+            @AuditDetails,
+            @CurrentUserId;
+
+        COMMIT TRANSACTION;
+    END TRY
+    BEGIN CATCH
+        IF XACT_STATE() <> 0 ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH;
+END;
+GO
+
+CREATE OR ALTER PROCEDURE [pmt].[CancelVacation]
+    @VacationPlanId INT,
+    @CurrentUserId INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    SET XACT_ABORT ON;
+
+    EXEC [pmt].[RequirePermission] @CurrentUserId, N'Scrum', N'Update';
+
+    DECLARE @OwnerUserId INT;
+
+    BEGIN TRY
+        BEGIN TRANSACTION;
+
+        SELECT @OwnerUserId = [UserId]
+        FROM [pmt].[VacationPlans] WITH (UPDLOCK, HOLDLOCK)
+        WHERE [VacationPlanId] = @VacationPlanId
+          AND [IsCancelled] = 0;
+
+        IF @OwnerUserId IS NULL
+        BEGIN
+            THROW 50275, 'The vacation plan was not found or has already been cancelled.', 1;
+        END;
+
+        IF @OwnerUserId <> @CurrentUserId
+        BEGIN
+            THROW 50276, 'Vacation plans can only be changed by their owner.', 1;
+        END;
+
+        UPDATE [pmt].[VacationPlans]
+        SET
+            [IsCancelled] = 1,
+            [UpdatedByUserId] = @CurrentUserId,
+            [UpdatedAt] = SYSUTCDATETIME()
+        WHERE [VacationPlanId] = @VacationPlanId;
+
+        EXEC [pmt].[WriteAudit]
+            N'Vacation',
+            @VacationPlanId,
+            N'Cancelled',
+            N'Vacation plan cancelled.',
+            @CurrentUserId;
+
+        COMMIT TRANSACTION;
+    END TRY
+    BEGIN CATCH
+        IF XACT_STATE() <> 0 ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH;
+END;
+GO
+
 CREATE OR ALTER PROCEDURE [pmt].[UpsertLookup]
     @LookupId INT OUTPUT,
     @LookupType NVARCHAR(60),
@@ -6184,6 +6526,26 @@ BEGIN
         THROW 50255, 'Users cannot be cleared while another user owns private content.', 1;
     END;
 
+    DELETE [AuditEvent]
+    FROM [pmt].[AuditEvents] AS [AuditEvent]
+    INNER JOIN [pmt].[AttendanceEntries] AS [Attendance]
+        ON [AuditEvent].[EntityType] = N'Attendance'
+       AND [AuditEvent].[EntityId] = [Attendance].[AttendanceEntryId]
+    WHERE [Attendance].[UserId] <> @AdminUserId;
+
+    DELETE [AuditEvent]
+    FROM [pmt].[AuditEvents] AS [AuditEvent]
+    INNER JOIN [pmt].[VacationPlans] AS [Vacation]
+        ON [AuditEvent].[EntityType] = N'Vacation'
+       AND [AuditEvent].[EntityId] = [Vacation].[VacationPlanId]
+    WHERE [Vacation].[UserId] <> @AdminUserId;
+
+    DELETE FROM [pmt].[AttendanceEntries]
+    WHERE [UserId] <> @AdminUserId;
+
+    DELETE FROM [pmt].[VacationPlans]
+    WHERE [UserId] <> @AdminUserId;
+
     UPDATE [pmt].[Users]
     SET
         [FirstName] = N'Louiery',
@@ -6269,6 +6631,8 @@ BEGIN
     UPDATE [pmt].[Lookups] SET [CreatedByUserId] = @AdminUserId, [UpdatedByUserId] = @AdminUserId;
     UPDATE [pmt].[Holidays] SET [CreatedByUserId] = @AdminUserId, [UpdatedByUserId] = @AdminUserId;
     UPDATE [pmt].[WfhSchedules] SET [CreatedByUserId] = @AdminUserId, [UpdatedByUserId] = @AdminUserId;
+    UPDATE [pmt].[AttendanceEntries] SET [CreatedByUserId] = @AdminUserId, [UpdatedByUserId] = @AdminUserId;
+    UPDATE [pmt].[VacationPlans] SET [CreatedByUserId] = @AdminUserId, [UpdatedByUserId] = @AdminUserId;
     UPDATE [pmt].[Users] SET [CreatedByUserId] = @AdminUserId, [UpdatedByUserId] = @AdminUserId;
 
     DELETE FROM [pmt].[WfhSchedules]
