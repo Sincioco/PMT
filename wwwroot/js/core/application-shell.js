@@ -9,19 +9,20 @@ import {
   restoreSession
 } from "./authentication.js?v=20260715-admin-impersonation";
 import { overflowIconHtml } from "../components/buttons.js?v=20260715-admin-impersonation";
-import { navIconHtml } from "./navigation-preferences.js?v=20260715-admin-impersonation";
+import { navIconHtml } from "./navigation-preferences.js?v=release-notes-2026-07-16-day-29-1052d26782c9";
 import {
   preferenceKeys,
   readPreference,
   writePreference
 } from "./preferences.js";
-import { currentView, getNavigationScreens, navigate } from "./router.js?v=20260715-admin-impersonation";
+import { currentView, getNavigationScreens, navigate } from "./router.js?v=release-notes-2026-07-16-day-29-1052d26782c9";
 import { loadState, state } from "./store.js";
 import { appUrl } from "../shared/app-urls.js";
 
 const fixedOverflowViews = new Set(["About"]);
 
 export function createApplicationShell({
+  afterLogin,
   bindScreenEvents,
   editPassword,
   hasPendingInvitation,
@@ -78,7 +79,8 @@ export function createApplicationShell({
 
       applySavedTheme();
       renderImpersonationBanner();
-      await start();
+      const started = await start();
+      if (started) await afterLogin?.();
     } catch (error) {
       showToast(error.message);
       elements.app.innerHTML = `<div class="empty">Database is not ready. Run the SQL scripts in order, then refresh this page.</div>`;
@@ -264,7 +266,8 @@ export function createApplicationShell({
       const loginName = document.getElementById("loginName").value;
       const password = document.getElementById("loginPassword").value;
       await authenticate(loginName, password);
-      await start();
+      const started = await start();
+      if (started) await afterLogin?.();
     } catch (error) {
       showToast(error.message || "Login failed.");
     }

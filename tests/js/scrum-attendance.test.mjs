@@ -2,11 +2,23 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
+  SCRUM_AUTO_REFRESH_INTERVAL_MS,
   SCRUM_ATTENDANCE_STATUSES,
+  scrumAutoRefreshCanRun,
   scrumAttendanceOccurrences,
   scrumAttendanceStatusGroups,
   scrumCalendarDateKeys
 } from "../../wwwroot/js/features/scrum/scrum.js";
+
+test("Scrum auto-refresh uses one five-second cycle and runs only when safe", () => {
+  assert.equal(SCRUM_AUTO_REFRESH_INTERVAL_MS, 5000);
+  assert.equal(scrumAutoRefreshCanRun({ active: true, blocked: false, enabled: true, inFlight: false, loading: false }), true);
+  assert.equal(scrumAutoRefreshCanRun({ active: false, blocked: false, enabled: true, inFlight: false, loading: false }), false);
+  assert.equal(scrumAutoRefreshCanRun({ active: true, blocked: true, enabled: true, inFlight: false, loading: false }), false);
+  assert.equal(scrumAutoRefreshCanRun({ active: true, blocked: false, enabled: false, inFlight: false, loading: false }), false);
+  assert.equal(scrumAutoRefreshCanRun({ active: true, blocked: false, enabled: true, inFlight: true, loading: false }), false);
+  assert.equal(scrumAutoRefreshCanRun({ active: true, blocked: false, enabled: true, inFlight: false, loading: true }), false);
+});
 
 test("Scrum exposes the six attendance choices in the required dropdown order", () => {
   assert.deepEqual(SCRUM_ATTENDANCE_STATUSES, [

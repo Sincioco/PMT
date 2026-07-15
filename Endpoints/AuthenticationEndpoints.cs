@@ -24,6 +24,7 @@ internal static class AuthenticationEndpoints
             var user = await store.LoginAsync(input, cancellationToken);
             if (user is null) return Results.Unauthorized();
 
+            await store.RecordSuccessfulLoginAsync(user.Id, cancellationToken);
             await SignInUserAsync(context, user, user, false);
             return Results.Ok(SessionPayload(user, user, false));
         });

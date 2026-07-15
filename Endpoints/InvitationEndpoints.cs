@@ -77,6 +77,7 @@ internal static class InvitationEndpoints
             var result = await store.AcceptInvitationAsync(tokenHash, input, cancellationToken);
             var user = await store.GetSessionUserAsync(result.UserId, cancellationToken)
                 ?? throw new InvalidOperationException("The registered user could not be signed in.");
+            await store.RecordSuccessfulLoginAsync(user.Id, cancellationToken);
             await AuthenticationEndpoints.SignInUserAsync(context, user, user, false);
             return Results.Ok(new
             {

@@ -80,6 +80,8 @@ Open every screen from the top navigation or its overflow menu:
 - [ ] Documentation
 - [ ] Backlog
 - [ ] WFH Schedule
+- [ ] Release Notes
+- [ ] About from More navigation
 - [ ] Settings from the avatar menu
 
 At laptop width:
@@ -87,6 +89,20 @@ At laptop width:
 - [ ] The last navigation items move into `More navigation` when needed.
 - [ ] Overflow menu icons and labels remain usable.
 - [ ] No navigation text overlaps or leaves the viewport.
+
+## Release Notes and What's New
+
+- [ ] Clear PMT browser preferences, log in, and confirm What's New shows only Days 29, 28, and 27 in a left navigation list with Day 29 selected.
+- [ ] Select each entry and confirm the business-formatted heading, sections, and bullet lists change without moving or resizing the dialog.
+- [ ] Choose `click here` in the footer and confirm the dialog closes, `#/release-notes` opens, and the latest release is at the top of the 27 available historical releases. Confirm no invented Day 10 or Day 11 entries appear because those source prompts do not exist.
+- [ ] Toggle between Release Notes and Sin's AI Prompts. Confirm the active underline is stable and the original prompt retains its line breaks and content.
+- [ ] Scroll a long Release Note and a long original prompt. Confirm the Release Notes page title and both view buttons stay visible at the top, and the release-history panel begins level with the reader instead of above the content area.
+- [ ] Set `pmt-release-notes-last-seen:{userId}` to `2026-07-14-day-27`, log in again, and confirm What's New shows only Days 29 and 28.
+- [ ] Close What's New, log in again, and confirm it does not reopen when there are no later releases. Refresh an existing signed-in session and confirm normal cookie-session restoration also does not open it.
+- [ ] After marking the latest release seen, make an authorized same-day summary change, regenerate, and deploy the generated files. Confirm a fresh login or restored session checks immediately. Also leave another browser signed in without refreshing; within one minute confirm its already-open Release Notes content updates and only the revised current-day What's New note appears. Close it, wait through another check or refresh, and confirm it stays closed.
+- [ ] Repeat at `1366 x 768` and `1920 x 1080`; confirm the release navigation and reader scroll independently where needed and neither view creates horizontal page overflow.
+- [ ] Run `npm.cmd run check:release-notes` and confirm the curated summaries, source prompts, browser module, JSON feed, and version manifest are synchronized.
+- [ ] Open Day 29 in both Release Notes and What's New and locate its `@Sin` reference. Hover it and then reach it by keyboard; confirm the matching compact User Card appears without moving content. In a rich-text record, also verify `@{Invited User}` for a nickname containing a space and confirm an unknown `@Nobody` remains plain text.
 
 ## Theme
 
@@ -162,11 +178,15 @@ Use two signed-in browser profiles, A and B, that can edit the same disposable r
 - [ ] Verify Scrum Project, Person, and Date filters work alone and in combination.
 - [ ] Confirm the Attendance dropdown shows an icon and each exact label: Home, Office, Sick Leave, Vacation, EL, and Other. Hover EL/status indicators and confirm the tooltip expands EL to Emergency Leave.
 - [ ] Open Scrum while attendance is still loading and note the header and table positions. Confirm the first attendance result does not move the title, controls, or table; each title avatar is 80 by 80 pixels, does not overlap another avatar, and is visually centered in the title band with a clearly visible status icon on its lower-left corner.
+- [ ] At both desktop widths, confirm the Table/Calendar control is centered at the same relative height and uses the same icon/text sizing as Cards/Treeview in Documentation. Add enough known-status avatars to approach that control and confirm the avatars shrink together to fit between the page title and view buttons without overlap or header movement.
 - [ ] Confirm Sick Leave uses the face-with-thermometer icon rather than a plus sign, and that its tooltip remains `Sick Leave`.
 - [ ] Select a title avatar and confirm the Scrum table shows only that person's entries. Open Scrum Filters and confirm exactly the same Person checkbox is selected. Change the Person checklist and confirm the title-avatar selection updates in the same render cycle.
 - [ ] Confirm the header has `Table` and `Calendar` view buttons with the same active underline and pressed-state treatment as the Documentation view buttons. Open the Scrum overflow menu and confirm Graphs and Calendar are absent while On Behalf Of... and Vacation... remain present with icons and labels.
 - [ ] Select Calendar and confirm only the calendar is inserted above the existing Scrum table: the title, avatars, view buttons, and other header controls must not move. Select Table and confirm the calendar is removed while the Scrum table remains visible. Confirm the seven-day grid remains readable and may use contained horizontal scrolling instead of compressing cells.
 - [ ] Navigate backward and forward, then select a month and year directly. Confirm the requested month and day numbers are correct, including a leap-year February, and the Scrum table remains below the calendar.
+- [ ] In a second signed-in browser session, add or edit a Scrum entry and record attendance. With Scrum visible in the first session, confirm the Table row and today's title avatar update within five seconds without a document reload, flicker, header/table movement, changed filters, lost focus, closed overflow menu, or changed application/table scroll position.
+- [ ] Switch the first session to Calendar and add attendance or a vacation covering its visible month from the second session. Confirm the calendar and title avatar update within five seconds while Calendar mode and calendar scroll remain unchanged. Disable Auto Refresh in the overflow menu and confirm neither Table nor Calendar refreshes, the setting survives leaving and returning to Scrum, and the default returns to enabled after clearing PMT preferences.
+- [ ] With Auto Refresh enabled, leave an attendance selection unsaved, focus another Scrum form control, open a Scrum/dialog editor, and drag a column across separate cycles. Confirm refresh pauses during each interaction, never overlaps another cycle, and resumes after the interaction is complete without discarding input.
 - [ ] Seed or record Office and Home attendance on one date. Confirm Office renders first with larger avatars, Home renders below it, and a faint divider separates the sections.
 - [ ] Add Sick Leave, Vacation, EL, and Other attendance and confirm each nonempty section has its status icon in the upper-left and sections remain in Office, Home, Sick Leave, Vacation, EL, Other order.
 - [ ] Confirm a date where everyone is Office has one section and no divider. Confirm the same person may appear once in Office and once in Sick Leave or EL on an exceptional multi-status date, but repeating the same status does not duplicate the avatar.
@@ -185,6 +205,7 @@ Use two signed-in browser profiles, A and B, that can edit the same disposable r
 - [ ] As an administrator, confirm shared Scrum entries from another user can be edited and deleted.
 - [ ] In Log, confirm a user sees only their own private entries. Repeat as an administrator and confirm other users' private Log entries remain absent and cannot be updated or deleted through direct requests.
 - [ ] Create Documentation with a Project, rich text, list, link, and image/attachment.
+- [ ] In Documentation, a Dev Task, Bug Tracking, Scrum, Log, and Backlog rich text, enter a known `@Nickname`, an explicit `@{Nickname With Spaces}`, and an unknown mention. Reopen each in read-only mode and confirm only known active users become focusable User Card mentions; edit mode and stored HTML remain unchanged.
 - [ ] Confirm a normally created Documentation item remains private by default; the public-seed rule must not change user-created privacy.
 - [ ] Mark Documentation private, sign in as a different administrator, and confirm the document is absent from Cards, Treeview, filters, About, direct Documentation URLs, exports, attachment/history data, and audit views.
 - [ ] As that administrator, confirm guessed direct update, delete, parent, conversion, add-attachment, and delete-attachment requests for the private document are rejected. Sign back in as its creator and confirm those permitted actions still work.
@@ -208,6 +229,8 @@ Use two signed-in browser profiles, A and B, that can edit the same disposable r
 
 - [ ] Open Status, Priority, Severity, and Environment categories.
 - [ ] As an administrator, open Users, Roles, Security, Audit Trail, Maintenance, Navigation, Holidays, and Development categories.
+- [ ] In Users, confirm each card shows the most recent successful login or `Never` for a user who has not logged in. Log in as a disposable user, return as an administrator, and confirm only that user's timestamp advances; refreshing a restored session or impersonating the user must not change it.
+- [ ] Give a user a non-Admin Role/title and enable Admin. Confirm the card keeps that Role/title and appends ` (Admin)`; edit and save again and confirm the Role/title is not replaced by `Admin`.
 - [ ] Create/edit/deactivate a temporary lookup or Holiday as an admin.
 - [ ] In Security, confirm inherited user rows initially match their Role's effective checkboxes and Reset is disabled.
 - [ ] Change one inherited user checkbox, confirm the Break Inheritance explanation, and verify the Effective column updates immediately after continuing.

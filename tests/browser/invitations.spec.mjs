@@ -26,6 +26,7 @@ test("Invite Users generates copyable URL and Outlook-safe email HTML", async ({
 
   await page.addInitScript(() => {
     localStorage.clear();
+    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-16-day-29");
   });
   await installCommonApiMocks(page, () => appState);
   await page.route("**/api/session", async route => {
@@ -172,7 +173,10 @@ for (const scenario of destinationScenarios) {
     const acceptStarted = new Promise(resolve => { markAcceptStarted = resolve; });
     const acceptCanFinish = new Promise(resolve => { releaseAcceptResponse = resolve; });
 
-    await page.addInitScript(() => localStorage.clear());
+    await page.addInitScript(() => {
+      localStorage.clear();
+      localStorage.setItem("pmt-release-notes-last-seen:42", "2026-07-16-day-29");
+    });
     await installCommonApiMocks(
       page,
       () => appState,

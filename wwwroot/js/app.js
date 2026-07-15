@@ -4,6 +4,11 @@ import { avatarsHtml, taskRowAvatarsHtml } from "./components/avatars.js?v=20260
 import { bindAttachmentDeletion } from "./components/attachments.js?v=20260714-attachment-delete";
 import { buttonContent } from "./components/buttons.js?v=20260715-admin-impersonation";
 import { copyTextToClipboard } from "./components/clipboard.js?v=20260714-invite-email-body";
+import { createWhatsNew } from "./components/whats-new.js?v=release-notes-2026-07-16-day-29-1052d26782c9";
+import {
+  htmlWithoutUserMentionMarkup,
+  initializeUserMentions
+} from "./components/user-mentions.js?v=20260716-user-mentions";
 import {
   askForText,
   askYesNo,
@@ -25,7 +30,7 @@ import {
   showTaskAudit,
   viewWorkItem
 } from "./components/work-items.js?v=20260715-admin-impersonation";
-import { createApplicationShell } from "./core/application-shell.js?v=20260715-admin-impersonation";
+import { createApplicationShell } from "./core/application-shell.js?v=release-notes-2026-07-16-day-29-1052d26782c9";
 import {
   currentView,
   ensureCurrentViewRoute,
@@ -34,24 +39,24 @@ import {
   routeForContent,
   routeForView,
   updateBrowserUrl
-} from "./core/router.js?v=20260715-admin-impersonation";
+} from "./core/router.js?v=release-notes-2026-07-16-day-29-1052d26782c9";
 import {
   registeredScreenHandlers,
   registerScreen,
   screenHandlerFor,
   screenRegistry
-} from "./core/screen-registry.js?v=20260707-log-about-nav";
+} from "./core/screen-registry.js?v=release-notes-2026-07-16-day-29-1052d26782c9";
 import {
   preferenceKeys,
   readBooleanPreference,
   writePreference
-} from "./core/preferences.js?v=20260711-task-dialog-customize";
+} from "./core/preferences.js?v=release-notes-2026-07-16-day-29-1052d26782c9";
 import { state } from "./core/store.js";
 import { appUrl } from "./shared/app-urls.js";
 import {
   createAboutFeature,
   createAboutScreenSaver
-} from "./features/about/about.js?v=20260716-rca-one-way";
+} from "./features/about/about.js?v=20260716-db-v122";
 import { createBacklogFeature } from "./features/backlog/backlog.js?v=20260716-rca-one-way";
 import { createBoardFeature } from "./features/board/board.js?v=20260716-developer-board-status";
 import { createBugsFeature } from "./features/bugs/bugs.js?v=20260715-admin-impersonation";
@@ -64,10 +69,11 @@ import {
 } from "./features/gantt/gantt.js?v=20260715-admin-impersonation";
 import { createInvitationsFeature } from "./features/invitations/invitations.js?v=20260715-admin-impersonation";
 import { createProjectsFeature } from "./features/projects/projects.js?v=20260715-admin-impersonation";
+import { createReleaseNotesFeature } from "./features/release-notes/release-notes.js?v=release-notes-2026-07-16-day-29-1052d26782c9";
 import { createRoadMapFeature } from "./features/roadmap/roadmap.js?v=20260715-admin-impersonation";
 import { createLogFeature } from "./features/personal-log/log.js?v=20260715-admin-impersonation";
-import { createScrumFeature } from "./features/scrum/scrum.js?v=20260716-scrum-stable-views";
-import { createSettingsFeature } from "./features/settings/settings.js?v=20260715-admin-impersonation";
+import { createScrumFeature } from "./features/scrum/scrum.js?v=20260716-scrum-auto-refresh";
+import { createSettingsFeature } from "./features/settings/settings.js?v=20260716-user-login-activity";
 import { createSprintsFeature } from "./features/sprints/sprints.js?v=20260715-admin-impersonation";
 import { createTasksFeature } from "./features/tasks/tasks.js?v=20260715-admin-impersonation";
 import { createWfhScheduleFeature } from "./features/wfh-schedule/wfh-schedule.js?v=20260715-admin-impersonation";
@@ -118,6 +124,10 @@ const nativePickerSelector = [
 
 initializeDraggableDialogs();
 bindGlobalRichCheckboxSync();
+initializeUserMentions({
+  getUsers: () => state.users,
+  getRoles: () => state.roles
+});
 
 const richTextFormats = {
   title: { tag: "H1", className: "rich-title" },
@@ -185,6 +195,7 @@ let pageEventsBound = false;
 let chartTooltip = null;
 let boardFeature = null;
 let invitationsFeature = null;
+let whatsNew = null;
 let handlingBrowserRouteChange = false;
 let lastOpenedContentRouteKey = "";
 // let openCreateSprintOnRender = false;
@@ -202,6 +213,7 @@ configureProgressAndStatus({
 });
 
 const shell = createApplicationShell({
+  afterLogin: () => whatsNew?.showAfterLogin(),
   bindScreenEvents,
   editPassword,
   hasPendingInvitation: () => invitationsFeature?.hasPendingInvitation(),
@@ -301,6 +313,7 @@ invitationsFeature = createInvitationsFeature({
       navigate("Projects");
     }
     render();
+    await whatsNew?.showAfterLogin();
   },
   resumeApplication: async () => {
     if (currentUserId) {
@@ -417,6 +430,17 @@ const wfhScheduleFeature = createWfhScheduleFeature({
   render,
   showToast
 });
+const releaseNotesFeature = createReleaseNotesFeature({ app });
+whatsNew = createWhatsNew({
+  getUserId: () => currentUserId,
+  onReleaseNotesUpdated: () => {
+    if (currentView === "Release Notes") releaseNotesFeature.render();
+  },
+  openReleaseNotes: () => {
+    navigate("Release Notes");
+    render();
+  }
+});
 
 registerScreen("Dashboard", dashboardFeature);
 registerScreen("About", aboutFeature);
@@ -433,6 +457,7 @@ registerScreen("Scrum", scrumFeature);
 registerScreen("Log", logFeature);
 registerScreen("Documentation", documentationFeature);
 registerScreen("WFH Schedule", wfhScheduleFeature);
+registerScreen("Release Notes", releaseNotesFeature);
 
 document.getElementById("closeDialog").addEventListener("click", () => dialog.close());
 document.getElementById("cancelDialog").addEventListener("click", () => dialog.close());
@@ -2731,7 +2756,7 @@ function scheduleRichReadonlyCheckboxPersist(checkbox) {
 }
 
 async function persistRichReadonlyCheckboxContainer(container) {
-  const bodyHtml = container.innerHTML;
+  const bodyHtml = htmlWithoutUserMentionMarkup(container);
   const previousHtml = richReadonlyPersistedHtml(container);
   const request = richReadonlyCheckboxSaveRequest(container, bodyHtml);
   if (!request) return;

@@ -15,6 +15,7 @@ public sealed class UserDto
     public bool IsAdmin { get; set; }
     public string Role { get; set; } = "Developer";
     public bool IsActive { get; set; } = true;
+    public DateTime? LastLoginAt { get; set; }
     public byte[] RowVersion { get; set; } = Array.Empty<byte>();
 }
 

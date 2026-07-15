@@ -44,6 +44,7 @@ test("login, navigation, themes, dialogs, filters, Board, Gantt, and Road Map sm
 
   await page.addInitScript(() => {
     localStorage.clear();
+    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-16-day-29");
     localStorage.setItem("pmt-navigation", JSON.stringify({
       version: 2,
       items: [
@@ -115,6 +116,7 @@ test("login, navigation, themes, dialogs, filters, Board, Gantt, and Road Map sm
     ["Documentation", "Documentation"],
     ["Backlog", "Backlog"],
     ["WFH Schedule", "WFH Schedule"],
+    ["Release Notes", "Release Notes"],
     ["Settings", "Settings"]
   ];
 
@@ -476,7 +478,10 @@ test("Developer Board moves stop after QA Passed while QA Ready remains availabl
   const appState = createTestState();
   const apiCalls = { securityReset: 0, sessionUserId: 2, taskSaves: [] };
 
-  await page.addInitScript(() => localStorage.clear());
+  await page.addInitScript(() => {
+    localStorage.clear();
+    localStorage.setItem("pmt-release-notes-last-seen:2", "2026-07-16-day-29");
+  });
   await installApiMocks(page, appState, apiCalls);
   await page.goto("/");
   await openNavView(page, "Board", "Kanban Board");
@@ -519,6 +524,7 @@ test("Scrum attendance, calendar, on-behalf, and vacation flows stay synchronize
   await page.clock.setFixedTime(new Date("2026-07-15T08:00:00+08:00"));
   await page.addInitScript(() => {
     localStorage.clear();
+    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-16-day-29");
   });
   await installApiMocks(page, appState, apiCalls);
 
@@ -751,6 +757,358 @@ test("Scrum attendance, calendar, on-behalf, and vacation flows stay synchronize
   expect(browserErrors).toEqual([]);
 });
 
+test("Scrum view toggle matches Documentation and crowded attendance avatars fit its header lane", async ({ page }) => {
+  const appState = createTestState();
+  const apiCalls = { securityReset: 0, sessionUserId: 1 };
+  const addedUsers = Array.from({ length: 7 }, (_, index) => {
+    const id = index + 4;
+    return {
+      id,
+      firstName: `Team${id}`,
+      lastName: "Member",
+      nickname: `Team ${id}`,
+      email: `team${id}@example.test`,
+      phone: "",
+      avatarUrl: "/assets/avatar-default.svg",
+      bio: "Developer.",
+      isAdmin: false,
+      role: "Developer",
+      isActive: true
+    };
+  });
+  appState.users.push(...addedUsers);
+  appState.attendanceEntries.push(...addedUsers.map((user, index) => ({
+    id: index + 20,
+    userId: user.id,
+    attendanceDate: smokeToday,
+    status: "Office",
+    recordedByUserId: user.id,
+    createdAt: `${smokeToday}T00:00:00Z`,
+    updatedAt: `${smokeToday}T00:00:00Z`
+  })));
+
+  await page.clock.setFixedTime(new Date("2026-07-15T08:00:00+08:00"));
+  await page.addInitScript(() => {
+    localStorage.clear();
+    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-16-day-29");
+  });
+  await installApiMocks(page, appState, apiCalls);
+
+  await page.goto("/");
+  await openNavView(page, "Scrum", "Scrum");
+  const scrumRoster = page.locator("[data-scrum-attendance-roster]");
+  await expect(scrumRoster.locator("[data-scrum-today-user]")).toHaveCount(10);
+
+  const scrumLayout = await page.locator(".scrum-screen .section-head").evaluate(header => {
+    const title = header.querySelector("h1");
+    const toggle = header.querySelector(".scrum-view-toggle");
+    const toggleButton = toggle.querySelector(".scrum-view-toggle-button");
+    const icon = toggleButton.querySelector(".button-icon");
+    const label = toggleButton.querySelector(".button-icon + span");
+    const rosterButtons = [...header.querySelectorAll("[data-scrum-today-user]")];
+    const headerBox = header.getBoundingClientRect();
+    const titleBox = title.getBoundingClientRect();
+    const toggleBox = toggle.getBoundingClientRect();
+    const actionBox = header.querySelector("[data-scrum-attendance-control]").getBoundingClientRect();
+    const avatarBoxes = rosterButtons.map(button => button.getBoundingClientRect());
+    const avatarImageBoxes = rosterButtons.map(button => button.querySelector(".scrum-today-avatar").getBoundingClientRect());
+    const buttonStyle = getComputedStyle(toggleButton);
+    const iconStyle = getComputedStyle(icon);
+    const labelStyle = getComputedStyle(label);
+    return {
+      avatarBoxes: avatarBoxes.map(box => ({ left: box.left, right: box.right })),
+      avatarWidths: avatarImageBoxes.map(box => box.width),
+      buttonHeight: toggleButton.getBoundingClientRect().height,
+      buttonFontSize: labelStyle.fontSize,
+      buttonGap: buttonStyle.columnGap,
+      headerCenter: headerBox.left + headerBox.width / 2,
+      iconFontSize: iconStyle.fontSize,
+      titleRight: titleBox.right,
+      toggleCenter: toggleBox.left + toggleBox.width / 2,
+      toggleLeft: toggleBox.left,
+      toggleRight: toggleBox.right,
+      toggleVerticalRatio: (toggleBox.top + toggleBox.height / 2 - headerBox.top) / headerBox.height,
+      actionLeft: actionBox.left
+    };
+  });
+
+  expect(scrumLayout.toggleCenter).toBeCloseTo(scrumLayout.headerCenter, 0);
+  expect(scrumLayout.toggleVerticalRatio).toBeCloseTo(0.5, 2);
+  expect(scrumLayout.avatarWidths.every(width => width > 0 && width < 80)).toBe(true);
+  expect(scrumLayout.avatarBoxes[0].left).toBeGreaterThanOrEqual(scrumLayout.titleRight);
+  expect(scrumLayout.avatarBoxes.at(-1).right).toBeLessThanOrEqual(scrumLayout.toggleLeft);
+  expect(scrumLayout.toggleRight).toBeLessThanOrEqual(scrumLayout.actionLeft);
+  expect(scrumLayout.avatarBoxes.every((box, index) => index === 0 || scrumLayout.avatarBoxes[index - 1].right <= box.left)).toBe(true);
+
+  await openNavView(page, "Documentation", "Documentation");
+  const documentationLayout = await page.locator(".documentation-screen .section-head").evaluate(header => {
+    const toggle = header.querySelector(".documentation-view-toggle");
+    const toggleButton = toggle.querySelector(".documentation-view-toggle-button");
+    const icon = toggleButton.querySelector(".button-icon");
+    const label = toggleButton.querySelector(".button-icon + span");
+    const headerBox = header.getBoundingClientRect();
+    const toggleBox = toggle.getBoundingClientRect();
+    const buttonStyle = getComputedStyle(toggleButton);
+    return {
+      buttonHeight: toggleButton.getBoundingClientRect().height,
+      buttonFontSize: getComputedStyle(label).fontSize,
+      buttonGap: buttonStyle.columnGap,
+      headerCenter: headerBox.left + headerBox.width / 2,
+      iconFontSize: getComputedStyle(icon).fontSize,
+      toggleCenter: toggleBox.left + toggleBox.width / 2,
+      toggleVerticalRatio: (toggleBox.top + toggleBox.height / 2 - headerBox.top) / headerBox.height
+    };
+  });
+
+  expect(documentationLayout.toggleCenter).toBeCloseTo(documentationLayout.headerCenter, 0);
+  expect(scrumLayout.buttonHeight).toBeCloseTo(documentationLayout.buttonHeight, 0);
+  expect(scrumLayout.buttonFontSize).toBe(documentationLayout.buttonFontSize);
+  expect(scrumLayout.buttonGap).toBe(documentationLayout.buttonGap);
+  expect(scrumLayout.iconFontSize).toBe(documentationLayout.iconFontSize);
+  expect(scrumLayout.toggleVerticalRatio).toBeCloseTo(documentationLayout.toggleVerticalRatio, 2);
+});
+
+test("Scrum auto-refresh updates the table and attendance without reload or interaction loss", async ({ page }) => {
+  const appState = createTestState();
+  const apiCalls = { securityReset: 0, sessionUserId: 1, stateGets: 0 };
+  for (let index = 0; index < 14; index += 1) {
+    appState.devLogs.push({
+      id: 100 + index,
+      projectId: 10,
+      userId: 2,
+      logDate: smokeToday,
+      bodyHtml: `<p>Existing Bill Scrum row ${index + 1}</p>`,
+      isPinned: false,
+      createdAt: `${smokeToday}T00:00:00Z`,
+      updatedAt: `${smokeToday}T00:00:00Z`
+    });
+  }
+
+  await page.clock.install({ time: new Date("2026-07-15T08:00:00+08:00") });
+  await page.addInitScript(() => {
+    localStorage.clear();
+    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-16-day-29");
+  });
+  await installApiMocks(page, appState, apiCalls);
+
+  let documentNavigationRequests = 0;
+  page.on("request", request => {
+    if (request.isNavigationRequest() && request.resourceType() === "document") documentNavigationRequests += 1;
+  });
+  await page.goto("/");
+  documentNavigationRequests = 0;
+  await openNavView(page, "Scrum", "Scrum");
+  await expect(scrumTodayStatus(page, 2, "Home")).toBeVisible();
+
+  const initialStateGets = apiCalls.stateGets;
+  const attendanceSelect = page.locator("[data-scrum-attendance-select]");
+  await attendanceSelect.selectOption("Other");
+  await page.clock.fastForward(5000);
+  expect(apiCalls.stateGets).toBe(initialStateGets);
+  await expect(attendanceSelect).toHaveValue("Other");
+
+  await openNavView(page, "Documentation", "Documentation");
+  await page.clock.fastForward(5000);
+  expect(apiCalls.stateGets).toBe(initialStateGets);
+  await openNavView(page, "Scrum", "Scrum");
+  await expect(scrumTodayStatus(page, 2, "Home")).toBeVisible();
+  await scrumTodayPersonButton(page, 2).click();
+  await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem("pmt-scrum-filters") || "{}").personIds || []))
+    .toEqual(["2"]);
+
+  const header = page.locator(".scrum-screen .section-head");
+  const tablePanel = page.locator(".scrum-table-panel");
+  const pageActions = page.locator(".page-actions-menu");
+  const pageActionsSummary = page.locator(".page-actions-summary");
+  await pageActionsSummary.click();
+  await pageActionsSummary.focus();
+  await expect(pageActions).toHaveAttribute("open", "");
+  await expect(page.locator("[data-action='toggle-scrum-auto-refresh']")).toHaveAttribute("aria-checked", "true");
+
+  const scrollBefore = await page.evaluate(() => {
+    const app = document.querySelector("#app");
+    const tableWrap = document.querySelector(".scrum-table-wrap");
+    app.scrollTop = 120;
+    tableWrap.scrollLeft = 90;
+    return { appTop: app.scrollTop, tableLeft: tableWrap.scrollLeft };
+  });
+  const headerBefore = await header.boundingBox();
+  const tableBefore = await tablePanel.boundingBox();
+
+  appState.devLogs.push({
+    id: 999,
+    projectId: 10,
+    userId: 2,
+    logDate: smokeToday,
+    bodyHtml: "<p>Five-second refreshed Scrum entry</p>",
+    isPinned: false,
+    createdAt: `${smokeToday}T12:00:00Z`,
+    updatedAt: `${smokeToday}T12:00:00Z`
+  });
+  appState.attendanceEntries.push({
+    id: 99,
+    userId: 2,
+    attendanceDate: smokeToday,
+    status: "Sick Leave",
+    recordedByUserId: 2,
+    createdAt: `${smokeToday}T12:00:00Z`,
+    updatedAt: `${smokeToday}T12:00:00Z`
+  });
+
+  const stateGetsBeforeRefresh = apiCalls.stateGets;
+  await page.clock.fastForward(4999);
+  expect(apiCalls.stateGets).toBe(stateGetsBeforeRefresh);
+  await expect(page.locator(".scrum-table tbody")).not.toContainText("Five-second refreshed Scrum entry");
+  await page.clock.fastForward(1);
+  await expect.poll(() => apiCalls.stateGets).toBe(stateGetsBeforeRefresh + 1);
+  await expect(page.locator(".scrum-table tbody")).toContainText("Five-second refreshed Scrum entry");
+  await expect(scrumTodayStatus(page, 2, "Sick Leave")).toBeVisible();
+
+  const headerAfter = await header.boundingBox();
+  const tableAfter = await tablePanel.boundingBox();
+  expect(headerAfter.x).toBeCloseTo(headerBefore.x, 0);
+  expect(headerAfter.y).toBeCloseTo(headerBefore.y, 0);
+  expect(headerAfter.width).toBeCloseTo(headerBefore.width, 0);
+  expect(headerAfter.height).toBeCloseTo(headerBefore.height, 0);
+  expect(tableAfter.x).toBeCloseTo(tableBefore.x, 0);
+  expect(tableAfter.y).toBeCloseTo(tableBefore.y, 0);
+  expect(tableAfter.width).toBeCloseTo(tableBefore.width, 0);
+  expect(documentNavigationRequests).toBe(0);
+  await expect(pageActions).toHaveAttribute("open", "");
+  await expect(pageActionsSummary).toBeFocused();
+  await expect(scrumTodayPersonButton(page, 2)).toHaveAttribute("aria-pressed", "true");
+  expect(await page.evaluate(() => ({
+    appTop: document.querySelector("#app").scrollTop,
+    tableLeft: document.querySelector(".scrum-table-wrap").scrollLeft
+  }))).toEqual(scrollBefore);
+
+  await page.locator("[data-action='toggle-scrum-auto-refresh']").click();
+  await expect.poll(() => page.evaluate(() => localStorage.getItem("pmt-scrum-auto-refresh"))).toBe("false");
+  const stateGetsWhenDisabled = apiCalls.stateGets;
+  appState.devLogs.push({
+    id: 1000,
+    projectId: 10,
+    userId: 2,
+    logDate: smokeToday,
+    bodyHtml: "<p>Must wait while refresh is off</p>",
+    isPinned: false,
+    createdAt: `${smokeToday}T13:00:00Z`,
+    updatedAt: `${smokeToday}T13:00:00Z`
+  });
+  await page.clock.fastForward(10000);
+  expect(apiCalls.stateGets).toBe(stateGetsWhenDisabled);
+  await expect(page.locator(".scrum-table tbody")).not.toContainText("Must wait while refresh is off");
+
+  await openNavView(page, "Documentation", "Documentation");
+  await openNavView(page, "Scrum", "Scrum");
+  await pageActionsSummary.click();
+  await expect(page.locator("[data-action='toggle-scrum-auto-refresh']")).toHaveAttribute("aria-checked", "false");
+  await page.locator("[data-action='toggle-scrum-auto-refresh']").click();
+  const stateGetsBeforeInactiveScreen = apiCalls.stateGets;
+  await openNavView(page, "Documentation", "Documentation");
+  await page.clock.fastForward(5000);
+  expect(apiCalls.stateGets).toBe(stateGetsBeforeInactiveScreen);
+});
+
+test("Scrum auto-refresh invalidates the visible Calendar month without shifting its view", async ({ page }) => {
+  const appState = createTestState();
+  const apiCalls = { securityReset: 0, sessionUserId: 1, stateGets: 0 };
+  await page.clock.install({ time: new Date("2026-07-15T08:00:00+08:00") });
+  await page.addInitScript(() => {
+    localStorage.clear();
+    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-16-day-29");
+  });
+  await installApiMocks(page, appState, apiCalls);
+
+  let documentNavigationRequests = 0;
+  page.on("request", request => {
+    if (request.isNavigationRequest() && request.resourceType() === "document") documentNavigationRequests += 1;
+  });
+  await page.goto("/");
+  documentNavigationRequests = 0;
+  await openNavView(page, "Scrum", "Scrum");
+  await page.locator("[data-action='set-scrum-view'][data-mode='calendar']").click();
+  const calendar = page.locator("[data-scrum-calendar]");
+  const todayCell = calendar.locator(`[data-scrum-calendar-day='${smokeToday}']`);
+  await expect(todayCell.locator("[data-attendance-status='Home'] [data-scrum-calendar-user='2']")).toBeVisible();
+
+  const header = page.locator(".scrum-screen .section-head");
+  const toggle = page.locator(".scrum-view-toggle");
+  const tablePanel = page.locator(".scrum-table-panel");
+  await page.locator("[data-action='scrum-calendar-next']").focus();
+  const scrollBefore = await page.evaluate(() => {
+    const app = document.querySelector("#app");
+    const calendarWrap = document.querySelector(".scrum-calendar-grid-wrap");
+    const tableWrap = document.querySelector(".scrum-table-wrap");
+    app.scrollTop = 80;
+    calendarWrap.scrollLeft = 70;
+    calendarWrap.scrollTop = 20;
+    tableWrap.scrollLeft = 60;
+    return {
+      appTop: app.scrollTop,
+      calendarLeft: calendarWrap.scrollLeft,
+      calendarTop: calendarWrap.scrollTop,
+      tableLeft: tableWrap.scrollLeft
+    };
+  });
+  const headerBefore = await header.boundingBox();
+  const toggleBefore = await toggle.boundingBox();
+  const calendarBefore = await calendar.boundingBox();
+  const tableBefore = await tablePanel.boundingBox();
+
+  appState.attendanceEntries.push({
+    id: 100,
+    userId: 2,
+    attendanceDate: smokeToday,
+    status: "Office",
+    recordedByUserId: 2,
+    createdAt: `${smokeToday}T12:00:00Z`,
+    updatedAt: `${smokeToday}T12:00:00Z`
+  });
+  appState.vacationPlans.push({
+    id: 100,
+    userId: 1,
+    startDate: smokeToday,
+    endDate: smokeToday,
+    isCancelled: false,
+    createdAt: `${smokeToday}T12:00:00Z`,
+    updatedAt: `${smokeToday}T12:00:00Z`
+  });
+
+  const stateGetsBeforeRefresh = apiCalls.stateGets;
+  await page.clock.fastForward(5000);
+  await expect.poll(() => apiCalls.stateGets).toBe(stateGetsBeforeRefresh + 1);
+  await expect(todayCell.locator("[data-attendance-status='Office'] [data-scrum-calendar-user='2']")).toBeVisible();
+  await expect(todayCell.locator("[data-attendance-status='Vacation'] [data-scrum-calendar-user='1']")).toBeVisible();
+  await expect(scrumTodayStatus(page, 2, "Office")).toBeVisible();
+  await expect(page.locator("[data-action='set-scrum-view'][data-mode='calendar']")).toHaveAttribute("aria-pressed", "true");
+  await expect(page.locator("[data-action='scrum-calendar-next']")).toBeFocused();
+
+  const headerAfter = await header.boundingBox();
+  const toggleAfter = await toggle.boundingBox();
+  const calendarAfter = await calendar.boundingBox();
+  const tableAfter = await tablePanel.boundingBox();
+  expect(headerAfter.x).toBeCloseTo(headerBefore.x, 0);
+  expect(headerAfter.y).toBeCloseTo(headerBefore.y, 0);
+  expect(headerAfter.width).toBeCloseTo(headerBefore.width, 0);
+  expect(headerAfter.height).toBeCloseTo(headerBefore.height, 0);
+  expect(toggleAfter.x).toBeCloseTo(toggleBefore.x, 0);
+  expect(toggleAfter.y).toBeCloseTo(toggleBefore.y, 0);
+  expect(calendarAfter.x).toBeCloseTo(calendarBefore.x, 0);
+  expect(calendarAfter.y).toBeCloseTo(calendarBefore.y, 0);
+  expect(calendarAfter.width).toBeCloseTo(calendarBefore.width, 0);
+  expect(tableAfter.x).toBeCloseTo(tableBefore.x, 0);
+  expect(tableAfter.y).toBeCloseTo(tableBefore.y, 0);
+  expect(tableAfter.width).toBeCloseTo(tableBefore.width, 0);
+  expect(documentNavigationRequests).toBe(0);
+  expect(await page.evaluate(() => ({
+    appTop: document.querySelector("#app").scrollTop,
+    calendarLeft: document.querySelector(".scrum-calendar-grid-wrap").scrollLeft,
+    calendarTop: document.querySelector(".scrum-calendar-grid-wrap").scrollTop,
+    tableLeft: document.querySelector(".scrum-table-wrap").scrollLeft
+  }))).toEqual(scrollBefore);
+});
+
 test("Scrum read-only permission disables attendance and vacation mutations", async ({ page }) => {
   const appState = createTestState();
   const apiCalls = { securityReset: 0, sessionUserId: 2 };
@@ -770,6 +1128,7 @@ test("Scrum read-only permission disables attendance and vacation mutations", as
   await page.clock.setFixedTime(new Date("2026-07-15T08:00:00+08:00"));
   await page.addInitScript(() => {
     localStorage.clear();
+    localStorage.setItem("pmt-release-notes-last-seen:2", "2026-07-16-day-29");
   });
   await installApiMocks(page, appState, apiCalls);
 
@@ -800,6 +1159,8 @@ test("Scrum attendance cache follows the restored cookie session user", async ({
   await page.clock.setFixedTime(new Date("2026-07-15T08:00:00+08:00"));
   await page.addInitScript(() => {
     localStorage.clear();
+    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-16-day-29");
+    localStorage.setItem("pmt-release-notes-last-seen:2", "2026-07-16-day-29");
   });
   await installApiMocks(page, appState, apiCalls);
 
@@ -830,6 +1191,7 @@ test("draw.io SVG clipboard paste preserves UTF-8 spaces", async ({ page }) => {
   const sourceSvg = `<svg xmlns="http://www.w3.org/2000/svg"><text>${expectedText}</text></svg>`;
   let uploadedRequestBody = "";
 
+  await markCurrentReleaseSeen(page, 1);
   await installApiMocks(page, appState, apiCalls);
   await page.route("**/api/uploads/richtext", async route => {
     uploadedRequestBody = route.request().postDataBuffer()?.toString("utf8") || "";
@@ -874,6 +1236,7 @@ test("RTE Select shows eight proportional image resize handles", async ({ page }
   const appState = createTestState();
   const apiCalls = { securityReset: 0 };
 
+  await markCurrentReleaseSeen(page, 1);
   await installApiMocks(page, appState, apiCalls);
   await page.goto("/");
   await page.locator("#loginName").fill("Sin");
@@ -1027,6 +1390,7 @@ test("QA can edit only owned Scrum rows and private Log stays owner-only", async
     ...testHistoricalRolePermission(resource, "QA")
   }));
 
+  await markCurrentReleaseSeen(page, 3);
   await installApiMocks(page, appState, apiCalls);
   await page.route("**/api/devlogs/2", async route => {
     savedScrumMethod = route.request().method();
@@ -1094,6 +1458,7 @@ test.describe("local timestamp display", () => {
     task.createdAt = "2026-07-14T06:53:00Z";
     task.updatedAt = "2026-07-14T06:53:00Z";
 
+    await markCurrentReleaseSeen(page, 1);
     await installApiMocks(page, appState, apiCalls);
     await page.goto("/");
     await page.locator("#loginName").fill("Sin");
@@ -1144,6 +1509,7 @@ async function installApiMocks(page, appState, apiCalls) {
   });
 
   await page.route("**/api/state", async route => {
+    apiCalls.stateGets = Number(apiCalls.stateGets || 0) + 1;
     await route.fulfill(jsonResponse(appState));
   });
 
@@ -1353,6 +1719,12 @@ async function installApiMocks(page, appState, apiCalls) {
   });
 }
 
+async function markCurrentReleaseSeen(page, userId) {
+  await page.addInitScript(id => {
+    localStorage.setItem(`pmt-release-notes-last-seen:${id}`, "2026-07-16-day-29");
+  }, userId);
+}
+
 function requestJson(route) {
   try {
     return route.request().postDataJSON();
@@ -1371,7 +1743,7 @@ function jsonResponse(data, status = 200) {
 
 async function openNavView(page, view, heading) {
   await page.waitForTimeout(50);
-  const headingLocator = page.getByRole("heading", { name: heading, exact: true });
+  const headingLocator = page.getByRole("heading", { level: 1, name: heading, exact: true });
   if (await headingLocator.isVisible()) return;
 
   const selector = `button[data-view='${view}']`;

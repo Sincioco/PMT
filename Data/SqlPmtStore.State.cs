@@ -104,6 +104,18 @@ public sealed partial class SqlPmtStore
         state.Holidays = await ReadHolidaysAsync(reader, cancellationToken);
         await reader.CloseAsync();
 
+        var usersById = state.Users.ToDictionary(user => user.Id);
+        await using var lastLoginsCommand = StoredProcedure(connection, "[pmt].[GetUserLastLogins]");
+        await using var lastLoginsReader = await lastLoginsCommand.ExecuteReaderAsync(cancellationToken);
+        while (await lastLoginsReader.ReadAsync(cancellationToken))
+        {
+            if (usersById.TryGetValue(lastLoginsReader.GetInt32("UserId"), out var user))
+            {
+                user.LastLoginAt = lastLoginsReader.GetNullableUtcDateTime("LastLoginAt");
+            }
+        }
+        await lastLoginsReader.CloseAsync();
+
         await using var rolesCommand = StoredProcedure(connection, "[pmt].[GetRoles]");
         await using var rolesReader = await rolesCommand.ExecuteReaderAsync(cancellationToken);
         state.Roles = await ReadRolesAsync(rolesReader, cancellationToken);

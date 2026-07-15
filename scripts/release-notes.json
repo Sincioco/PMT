@@ -1,0 +1,1022 @@
+[
+  {
+    "day": 1,
+    "title": "PMT Foundation, Bug Tracking, and Agile Workflow",
+    "sections": [
+      {
+        "title": "Project and Sprint Planning",
+        "items": [
+          "Manage multiple projects with codes, team members, schedules, links, icons, and completion progress.",
+          "Organize work into Sprints with assigned teams, dates, lessons learned, and automatic progress calculations.",
+          "Finish a Sprint and carry unfinished work into the next Sprint, with direct navigation between projects, Sprints, and tasks."
+        ]
+      },
+      {
+        "title": "Dev Tasks and Kanban",
+        "items": [
+          "Create Dev Tasks with rich descriptions, attachments, priorities, dependencies, Subtasks, assignments, schedules, URLs, statuses, and completion percentages.",
+          "Automatically calculate Parent Task progress from Subtasks and keep Project and Sprint totals current.",
+          "Filter, duplicate, reorder, and move work through the Kanban Board using drag and drop."
+        ]
+      },
+      {
+        "title": "QA and Bug Tracking",
+        "items": [
+          "Introduce dedicated Bug Tracking with severity, environment, reporters, assignees, reproduction details, attachments, and shared workflow statuses.",
+          "Add a QA role with separate permissions for Bug Tracking and Dev Task work.",
+          "Create linked Dev Tasks when bugs are assigned to developers and include bugs in Project and Sprint progress."
+        ]
+      },
+      {
+        "title": "Scrum, Documentation, and Backlog",
+        "items": [
+          "Provide shared daily Scrum entries with rich text, newest-first display, duplication, and pinning for important updates.",
+          "Add long-form Documentation with rich formatting, images or attachments, ownership controls, and edit history.",
+          "Introduce a Backlog for unplanned Dev Tasks and bugs, including Sprint visibility and carryover behavior."
+        ]
+      },
+      {
+        "title": "User Experience and Administration",
+        "items": [
+          "Add dashboards for Project, Sprint, task, and bug progress with direct navigation into related work.",
+          "Modernize the interface with themes, responsive layouts, avatars, icon-based actions, tooltips, and PMT-styled dialogs.",
+          "Provide user profiles, password changes, role-based access, configurable lookup values, and rich read-only work-item details."
+        ]
+      }
+    ]
+  },
+  {
+    "day": 2,
+    "title": "Dedicated QA Bug Tracking and Richer Task Details",
+    "sections": [
+      {
+        "title": "Dedicated Bug Tracking",
+        "items": [
+          "Add a separate Bug Tracking workspace with severity, priority, environment, reporters, assignees, reproduction steps, expected results, actual results, and attachments.",
+          "Move bugs through the same Kanban workflow as Dev Tasks and include them in Project and Sprint completion totals.",
+          "Automatically create a related Dev Task when a bug is assigned to a developer."
+        ]
+      },
+      {
+        "title": "Role-Based Workflows",
+        "items": [
+          "Introduce a QA role for creating and managing bug reports.",
+          "Prevent QA users from modifying Dev Tasks and developers from directly modifying QA-owned bug work.",
+          "Preserve unrestricted access for administrators."
+        ]
+      },
+      {
+        "title": "Improved Task Viewing",
+        "items": [
+          "Open tasks in a dedicated read-only dialog before editing.",
+          "Render rich descriptions, pasted images, links, and attachments in a user-friendly format.",
+          "Open linked content and attachments in a separate browser tab."
+        ]
+      },
+      {
+        "title": "Configurable Dropdown Values",
+        "items": [
+          "Centralize dropdown choices in administrator-maintained lookup lists.",
+          "Allow lookup values to be added, edited, deactivated, and reordered.",
+          "Hide inactive choices from new selections while continuing to display them correctly on older records."
+        ]
+      }
+    ]
+  },
+  {
+    "day": 3,
+    "title": "Backlog Planning, Scrum Improvements, and Connected Navigation",
+    "sections": [
+      {
+        "title": "Backlog and Sprint Completion",
+        "items": [
+          "Add a Backlog for creating and managing unscheduled Dev Tasks and bugs.",
+          "Show whether each Backlog item is already assigned to a Sprint.",
+          "Let users choose whether unfinished work should carry into the next Sprint."
+        ]
+      },
+      {
+        "title": "Daily Scrum and Documentation",
+        "items": [
+          "Rename Dev Logs to Scrum and provide a guided daily update template covering accomplishments, plans, and roadblocks.",
+          "Rename Blogs to Documentation and open existing documents in read-only mode by default.",
+          "Scale pasted images to fit rich-text editors and read-only content areas."
+        ]
+      },
+      {
+        "title": "Dashboard Navigation",
+        "items": [
+          "Show task titles and progress details within Project and Sprint dashboard views.",
+          "Navigate from dashboard Sprints and tasks to the corresponding filtered PMT screens.",
+          "Add clear graph legends and expandable detail controls."
+        ]
+      },
+      {
+        "title": "Assignment Accuracy",
+        "items": [
+          "Limit task and bug assignees to members of the relevant Project or Sprint.",
+          "Continue allowing any PMT user to be selected as a bug reporter.",
+          "Provide consistent profile images and avatar display for seeded users."
+        ]
+      }
+    ]
+  },
+  {
+    "day": 4,
+    "title": "Visual Scheduling with Gantt Charts and Road Maps",
+    "sections": [
+      {
+        "title": "Gantt Chart",
+        "items": [
+          "Add a Project-based Gantt view with year, quarter, month, and day timelines.",
+          "Display Sprints, task schedules, assignments, completion, dependencies, and related bug status.",
+          "Open related Dev Tasks, bugs, and Sprint work directly from the chart."
+        ]
+      },
+      {
+        "title": "Flexible Scheduling",
+        "items": [
+          "Add optional start and end dates to Projects, Sprints, Dev Tasks, and bugs.",
+          "Support both normal Sprints and long-running, multi-year Projects.",
+          "Omit weekends and configured holidays unless work is specifically scheduled on those dates."
+        ]
+      },
+      {
+        "title": "Road Map",
+        "items": [
+          "Add a Road Map showing Projects and Sprints across a shared timeline.",
+          "Display completion progress, participants, and optional date details with filtering and sorting.",
+          "Navigate directly from Road Map items to their associated work."
+        ]
+      },
+      {
+        "title": "Holidays and Status Colors",
+        "items": [
+          "Add Holiday maintenance suitable for teams working in different countries.",
+          "Make status and progress colors configurable through Settings.",
+          "Apply configured colors consistently throughout PMT charts and status indicators."
+        ]
+      }
+    ]
+  },
+  {
+    "day": 5,
+    "title": "Task Audit History and More Reliable Dev–QA Workflows",
+    "sections": [
+      {
+        "title": "Task and Bug Audit History",
+        "items": [
+          "Record who changed a Dev Task or bug, when it changed, and the previous and new status and completion values.",
+          "Add an Audit action to read-only and edit dialogs.",
+          "Present audit entries from newest to oldest."
+        ]
+      },
+      {
+        "title": "Workflow Automation",
+        "items": [
+          "Preserve existing progress when work returns to Todo.",
+          "Keep Sprint assignment and Backlog transitions consistent.",
+          "Synchronize linked Dev Task and bug completion through development and QA transitions."
+        ]
+      },
+      {
+        "title": "Gantt and Road Map Focus",
+        "items": [
+          "Add a Gantt Sprint selector that defaults to the current Sprint and positions the chart automatically.",
+          "Keep selected tasks visible beside the fixed Sprint-name column.",
+          "Allow Road Map users to hide Sprint rows and compare Project schedules directly."
+        ]
+      }
+    ]
+  },
+  {
+    "day": 6,
+    "title": "Interactive Gantt Navigation and Compact Road Maps",
+    "sections": [
+      {
+        "title": "Gantt Controls",
+        "items": [
+          "Sort Sprints and jump to a selected Sprint in focused or complete-project views.",
+          "Toggle weekends and holidays and reset the chart to the current Sprint.",
+          "Keep selectors and display controls synchronized."
+        ]
+      },
+      {
+        "title": "Sprint Fly-By",
+        "items": [
+          "Add an animated Sprint fly-by for demonstrating Project history.",
+          "Start, pause, resume, stop, and reset the tour without losing the current viewport.",
+          "Pause at each Sprint so users can inspect its work."
+        ]
+      },
+      {
+        "title": "Reliability and Road Map Improvements",
+        "items": [
+          "Restore correct timeline labels and keep the viewport aligned with the selected Sprint.",
+          "Compress unused Road Map space and prevent month-label overlap or clipping.",
+          "Enrich Project tooltips with completion and schedule information."
+        ]
+      },
+      {
+        "title": "Navigation",
+        "items": [
+          "Make the browser Back button work consistently across PMT screens."
+        ]
+      }
+    ]
+  },
+  {
+    "day": 7,
+    "title": "Streamlined Navigation and Richer Progress Views",
+    "sections": [
+      {
+        "title": "Navigation and Settings",
+        "items": [
+          "Add icons and labels to top navigation and move overflow items into a responsive menu.",
+          "Rename key work areas for clarity and group administration tools in Settings.",
+          "Replace the user-name area with an avatar menu for account actions."
+        ]
+      },
+      {
+        "title": "Progress at a Glance",
+        "items": [
+          "Redesign Project, Sprint, and Dashboard progress with active-status bars and an overall completion bar.",
+          "Hide zero-value categories and expand or collapse detailed cards.",
+          "Show Sprint tasks and their progress in scrollable Dashboard details."
+        ]
+      },
+      {
+        "title": "Consistent Interaction Design",
+        "items": [
+          "Prevent controls from shifting when buttons become active.",
+          "Standardize icon-and-text page actions and icon-only card or table actions.",
+          "Show record titles in Dev Task and Bug edit-dialog captions."
+        ]
+      },
+      {
+        "title": "Drag-and-Drop Ordering",
+        "items": [
+          "Reorder Dev Tasks and bugs within lists, Backlog groups, Sprints, and Kanban columns.",
+          "Display a clear insertion indicator while dragging.",
+          "Keep repeated drag-and-drop operations working without a refresh."
+        ]
+      }
+    ]
+  },
+  {
+    "day": 8,
+    "title": "Light and Dark Themes with Interactive Bug Analytics",
+    "sections": [
+      {
+        "title": "Dev–QA Completion Safeguard",
+        "items": [
+          "Prevent a linked Dev Task from reaching 100% until its bug has passed QA.",
+          "Explain the restriction clearly and complete the Dev Task automatically after QA passes the bug."
+        ]
+      },
+      {
+        "title": "Light and Dark Themes",
+        "items": [
+          "Add a theme toggle to the user avatar menu and remember the user's choice.",
+          "Apply theme changes immediately and restore them without startup flicker.",
+          "Provide polished, readable light and dark treatments across PMT."
+        ]
+      },
+      {
+        "title": "Bug Tracking Analytics",
+        "items": [
+          "Add charts for bug trends, severity, reported-versus-resolved totals, and the current Sprint mix.",
+          "Support chart drill-down and full-screen expansion.",
+          "Preserve drill-down lists while users inspect individual records."
+        ]
+      },
+      {
+        "title": "Documentation and Test Preferences",
+        "items": [
+          "Add an All Projects Documentation filter and relevant imagery for seeded documents.",
+          "Add a Settings action to clear saved browser preferences for first-time-experience testing.",
+          "Rename Bug Reports to Bug Tracking."
+        ]
+      }
+    ]
+  },
+  {
+    "day": 9,
+    "title": "Dev Task Analytics and More Efficient Task Editing",
+    "sections": [
+      {
+        "title": "Dev Task Filters and Editing",
+        "items": [
+          "Add priority filtering and a dedicated show or hide filter control.",
+          "Display assignee avatars beside names and keep long selection lists scrollable.",
+          "Move attachments above assignee selection for a clearer editing flow."
+        ]
+      },
+      {
+        "title": "Bug Tracking Layout",
+        "items": [
+          "Move Reporter and Assignee to the first columns and enlarge their avatars.",
+          "Show participant avatars in Bug dialogs and keep long lists usable.",
+          "Move bug attachments above reporter selection."
+        ]
+      },
+      {
+        "title": "Dev Task Visual Analytics",
+        "items": [
+          "Add interactive charts for open and completed work in the current Sprint.",
+          "Compare Dev Task totals and completions across the latest six Sprints.",
+          "Visualize development statuses and workload distribution with chart drill-down."
+        ]
+      },
+      {
+        "title": "Visual Consistency",
+        "items": [
+          "Apply consistent spacing between filter panels and content tables.",
+          "Improve demonstration data so completed Sprints and deployment states produce realistic charts."
+        ]
+      }
+    ]
+  },
+  {
+    "day": 12,
+    "title": "Paper Design, Configurable Navigation, and Team Scheduling",
+    "sections": [
+      {
+        "title": "Scrum and Daily Work",
+        "items": [
+          "Add Scrum filtering by Project, person, and date, with filters hidden until needed.",
+          "Open Scrum rows in read-only details and remember the user's last selected Project.",
+          "Stabilize pinned-entry interactions and remove unused flag visuals."
+        ]
+      },
+      {
+        "title": "Navigation and WFH Scheduling",
+        "items": [
+          "Add configurable top navigation with show, hide, rename, drag-to-reorder, overflow synchronization, and reset controls.",
+          "Introduce WFH Schedule with weekday toggles, team ordering, hidden-user management, and reset functionality.",
+          "Move Settings into the main navigation and correct menu layering."
+        ]
+      },
+      {
+        "title": "Dev Tasks and Bugs",
+        "items": [
+          "Make task and bug assignees optional and improve required-field validation and focus behavior.",
+          "Remember recent Project, Sprint, and Environment choices across work-entry screens.",
+          "Ensure Dev Tasks generated from bugs retain their Project and Sprint and can be opened from either linked record."
+        ]
+      },
+      {
+        "title": "Stable Paper Design",
+        "items": [
+          "Establish no-layout-shift interactions for navigation, cards, controls, dialogs, and scrollbars.",
+          "Mute inactive controls and emphasize actions on hover.",
+          "Standardize solid semantic colors, borderless page actions, and clickable chart drill-down rows."
+        ]
+      }
+    ]
+  },
+  {
+    "day": 13,
+    "title": "Unified Work Screens and the PMT Paper Design",
+    "sections": [
+      {
+        "title": "Dev Tasks and Bug Tracking",
+        "items": [
+          "Refine Dev Task rows, Subtask labels, action icons, completion spacing, edit-mode reordering, and dialog titles.",
+          "Redesign filters with balanced layouts, avatars, aligned checkboxes, and consistent chart subtitles.",
+          "Bring Bug Tracking in line with Dev Tasks while preserving its specialized fields."
+        ]
+      },
+      {
+        "title": "Paper Design and Themes",
+        "items": [
+          "Standardize title colors, monochrome icons, borderless buttons, hover-only emphasis, and icon sizing.",
+          "Improve dark-theme selected states and introduce a flatter white light theme.",
+          "Prevent dialogs and browser scrollbars from shifting background content."
+        ]
+      },
+      {
+        "title": "Branding and About",
+        "items": [
+          "Introduce updated PMT branding and make the logo and title navigate to About.",
+          "Add an About page with the PMT logo, creator credit, website, and public repository link.",
+          "Keep navigation full width while confining scrollbars to page content."
+        ]
+      },
+      {
+        "title": "Scrum, Backlog, and WFH Schedule",
+        "items": [
+          "Apply Dev Task interaction and visual conventions to Scrum and Backlog.",
+          "Ensure non-admin users can modify only their own Scrum entries.",
+          "Limit non-admin users to their own WFH schedules while reserving administrative controls for admins."
+        ]
+      }
+    ]
+  },
+  {
+    "day": 14,
+    "title": "Richer Team Profiles, Unified Work Items, and Smarter Progress",
+    "sections": [
+      {
+        "title": "Users and Team Selection",
+        "items": [
+          "Redesign user cards with larger avatars, clearer contact details, email links, and full-size image previews.",
+          "Add generic avatar selection and uploads with avatar and name requirements.",
+          "Reuse richer member selections across Projects, Sprints, work items, and WFH Schedule."
+        ]
+      },
+      {
+        "title": "Project and Sprint Insights",
+        "items": [
+          "Add status donut charts and drill-downs to Project and Sprint cards.",
+          "Improve cards with larger team avatars, stable titles, and concise status counts.",
+          "Enhance Road Map with ongoing-project handling, Project icons, and visible completion context."
+        ]
+      },
+      {
+        "title": "Dev Tasks and Bug Tracking",
+        "items": [
+          "Unify Dev Task and Bug Tracking tables and dialogs while retaining screen-specific fields.",
+          "Add expandable Subtask groups, remembered expansion state, and clearer record metadata.",
+          "Automate progress rules across linked Dev Tasks and bugs and highlight bug-linked Dev Tasks."
+        ]
+      },
+      {
+        "title": "Documentation and Storage",
+        "items": [
+          "Stabilize Documentation cards and allow embedded images to open at native size.",
+          "Add headings, numbered lists, strikethrough, and collapsible code blocks to rich-text editing.",
+          "Support uploads to local folders and credentialed network file shares."
+        ]
+      }
+    ]
+  },
+  {
+    "day": 15,
+    "title": "Consistent Sorting and Cleaner Data Views",
+    "sections": [
+      {
+        "title": "Universal Table Sorting",
+        "items": [
+          "Add ascending, descending, and unsorted column-header states with muted direction indicators.",
+          "Keep Subtasks attached to their Parent Task while sorting top-level records.",
+          "Synchronize header sorting with filter choices and remember each user's preferred order."
+        ]
+      },
+      {
+        "title": "View Reset and Wider Coverage",
+        "items": [
+          "Add Reset View controls to Dev Tasks and Bug Tracking.",
+          "Extend sorting to Backlog, Scrum, and applicable Settings tables.",
+          "Bring Settings filters in line with the Dev Task filter design."
+        ]
+      },
+      {
+        "title": "Charts, Scrum, and Backlog",
+        "items": [
+          "Remove duplicate browser tooltips and add mouse-wheel scrolling to wide Sprint charts.",
+          "Enlarge Scrum avatars and top-align long Scrum entries.",
+          "Update Backlog rows to mirror Dev Task and Subtask presentation."
+        ]
+      }
+    ]
+  },
+  {
+    "day": 16,
+    "title": "Modern Kanban Workflows and Streamlined Planning Views",
+    "sections": [
+      {
+        "title": "Kanban Board",
+        "items": [
+          "Add explicit read and edit modes so cards open read-only unless editing is enabled.",
+          "Add Dev Task-style filtering, Reset View, and synchronized Show All and Hide Empty controls.",
+          "Improve card hierarchy with larger avatars, Subtask progress, and cleaner titles and tags."
+        ]
+      },
+      {
+        "title": "Gantt Chart",
+        "items": [
+          "Introduce a clearer bug icon and remove unnecessary hover outlines.",
+          "Move filtering into a Dev Task-style dialog and promote Reset and Fly-By to page actions.",
+          "Add bug visibility to Gantt filters while preserving navigation controls."
+        ]
+      },
+      {
+        "title": "Backlog and Dev Tasks",
+        "items": [
+          "Fix Backlog expand and collapse controls so they remain aligned with avatars.",
+          "Add completion information and bring Backlog behavior closer to the Dev Tasks table.",
+          "Fix All Projects with Current Sprint filtering so work from every Project is included."
+        ]
+      },
+      {
+        "title": "Universal Usability",
+        "items": [
+          "Make dialogs draggable while keeping headers reachable on-screen.",
+          "Simplify sort labels across filter dialogs.",
+          "Optimize large images to improve browser loading without reducing their dimensions."
+        ]
+      }
+    ]
+  },
+  {
+    "day": 17,
+    "title": "Configurable Work Tables and Bulk Import/Export",
+    "sections": [
+      {
+        "title": "Configurable Tables",
+        "items": [
+          "Add drag-to-reorder columns in edit mode while keeping hierarchy controls fixed.",
+          "Add optional creator, created date, last editor, updated date, and sort-order columns.",
+          "Remember each user's column choices and preserve stable sizing for key fields."
+        ]
+      },
+      {
+        "title": "Faster Filtering",
+        "items": [
+          "Add live Search to filter dialogs with immediate focus.",
+          "Improve Sort and Hide Completed placement.",
+          "Use the same visual assignee-selection experience as work-item editors."
+        ]
+      },
+      {
+        "title": "Bug Tracking and Backlog Parity",
+        "items": [
+          "Extend configurable columns, reordering, search, and filtering to Bug Tracking and Backlog.",
+          "Add Backlog Reset View and consistent bug-related row accents.",
+          "Improve workload-chart avatars so they adapt to available space."
+        ]
+      },
+      {
+        "title": "CSV and Excel Exchange",
+        "items": [
+          "Add CSV and Excel export and re-import for Dev Tasks, Bug Tracking, and Backlog.",
+          "Support bulk updates to titles, progress, status, priority, and assignees.",
+          "Continue valid rows when some fail and offer a downloadable error report."
+        ]
+      }
+    ]
+  },
+  {
+    "day": 18,
+    "title": "Smarter Daily Scrum and Documentation Treeview",
+    "sections": [
+      {
+        "title": "Guided Scrum Entries",
+        "items": [
+          "Restrict non-admin Scrum dates to valid Project periods while administrators retain unrestricted access.",
+          "Carry planned work into the next entry's accomplishments and guide the cursor to today's next action.",
+          "Use readable bullet templates and record None when there are no roadblocks."
+        ]
+      },
+      {
+        "title": "Scrum Table and Filters",
+        "items": [
+          "Move Person to the first column and display names beneath avatars.",
+          "Add Search, configurable columns, sorting, import, export, edit mode, reordering, and Reset View.",
+          "Restrict normal users to importing updates for their own records."
+        ]
+      },
+      {
+        "title": "Documentation Treeview",
+        "items": [
+          "Add hierarchical Documents with optional parents, Projects, Sprints, and a Global location.",
+          "Introduce a File Explorer-style tree with search, sorting, and flat or hierarchical layouts.",
+          "Add independently scrollable panes, a resizable splitter, and in-place viewing and editing."
+        ]
+      },
+      {
+        "title": "Consistent Page Actions",
+        "items": [
+          "Consolidate secondary actions into consistent overflow menus.",
+          "Unify page, navigation, and avatar menus with common icons and dismissal behavior.",
+          "Add an edit-mode indicator and make page titles honor renamed navigation labels."
+        ]
+      }
+    ]
+  },
+  {
+    "day": 19,
+    "title": "Flexible Dialogs, Document Export, and Connected Content",
+    "sections": [
+      {
+        "title": "Flexible Dialogs and Editors",
+        "items": [
+          "Add maximize, restore, resize, drag, and Reset controls to applicable dialogs.",
+          "Reflow fields as dialogs grow and remember dialog dimensions and positions.",
+          "Keep rich-text toolbars visible while editing long content."
+        ]
+      },
+      {
+        "title": "Scrum Improvements",
+        "items": [
+          "Fix Scrum incorrectly opening in edit mode.",
+          "Allow users to open and edit their own eligible Scrum entries.",
+          "Correct fields that grew vertically when dialogs were resized."
+        ]
+      },
+      {
+        "title": "Documentation Export",
+        "items": [
+          "Export Documents to Word, self-contained HTML, zipped HTML with images, and browser Print Preview.",
+          "Preserve high-resolution images and PMT metadata for future imports.",
+          "Make export available from Cards and Treeview."
+        ]
+      },
+      {
+        "title": "Connected Work Items and Documents",
+        "items": [
+          "Convert Dev Tasks and Bug Reports into Documents.",
+          "Carry title, content, Project, and Sprint into the new Document.",
+          "Add links in both directions between the Document and its source work item."
+        ]
+      }
+    ]
+  },
+  {
+    "day": 20,
+    "title": "Personal Logs, Shareable Links, and Full-Page Documentation",
+    "sections": [
+      {
+        "title": "Personal Log",
+        "items": [
+          "Add a private Log workspace limited to the signed-in user.",
+          "Remove Scrum-specific templates and date restrictions from personal logs.",
+          "Display subtle created and last-edited timestamps."
+        ]
+      },
+      {
+        "title": "Linked Bugs and Dev Tasks",
+        "items": [
+          "Copy a bug's rich description into the Dev Task created for its developer.",
+          "Synchronize linked Bug and Dev Task status and completion at Ready for QA and QA Passed.",
+          "Keep screenshots and rich content available in the linked work."
+        ]
+      },
+      {
+        "title": "Rich Images and Direct Links",
+        "items": [
+          "Open rich-text images at full resolution from read-only views.",
+          "Add image Zoom, Resize, and percentage-based Scale actions.",
+          "Update browser URLs during navigation so PMT screens and records can be linked directly."
+        ]
+      },
+      {
+        "title": "Documentation Workspace",
+        "items": [
+          "Add consistent Cards and Treeview switching with a clear active state.",
+          "Add full-width in-place viewing, creation, and editing with sticky controls.",
+          "Correct overlapping toolbars, duplicate scrollbars, and filter-reset issues."
+        ]
+      }
+    ]
+  },
+  {
+    "day": 21,
+    "title": "Portable Content, Private Documentation, and Smarter Imports",
+    "sections": [
+      {
+        "title": "Documentation Import and Privacy",
+        "items": [
+          "Add validated HTML and Word-compatible document import with clear error feedback.",
+          "Update owned documents safely, preserve audit history, and create a new Document when replacement is unsafe.",
+          "Add Private and Pinned controls, visibility filters, lock indicators, and pinned-first ordering."
+        ]
+      },
+      {
+        "title": "Flexible Work-Item Import and Export",
+        "items": [
+          "Add import and export workflows to Dev Tasks, Bug Tracking, and Backlog.",
+          "Resolve imported references by ID, name, or sensible current-user and Project defaults.",
+          "Show import results with links to imported items and a downloadable review record."
+        ]
+      },
+      {
+        "title": "Rich Text Editing",
+        "items": [
+          "Add source editing, fonts, sizes, colors, alignment, indentation, and clear formatting.",
+          "Organize editing controls into a compact two-row toolbar.",
+          "Extract embedded imported images into uploaded files so Documents remain lightweight."
+        ]
+      },
+      {
+        "title": "Workflow and Deployment Enhancements",
+        "items": [
+          "Preview uploaded avatars during User creation and start new Sprints with all members selected.",
+          "Preserve selected Status and completion on new Dev Tasks and keep blank Assignee cells blank.",
+          "Support PMT at a domain root or under an IIS application path."
+        ]
+      }
+    ]
+  },
+  {
+    "day": 22,
+    "title": "Better Rich-Text Colors and Source Editing",
+    "sections": [
+      {
+        "title": "Office-Style Color Selection",
+        "items": [
+          "Rework font and background color pickers into an easy-to-scan theme palette.",
+          "Add custom RGB and HEX entry and remember the user's ten most recent colors.",
+          "Correct missing colors, clipped palettes, and inconsistent picker presentation."
+        ]
+      },
+      {
+        "title": "Source-Code Editing Tools",
+        "items": [
+          "Add word wrapping to the View Source dialog.",
+          "Add Copy to Clipboard for quickly reusing or reviewing Document HTML."
+        ]
+      },
+      {
+        "title": "Documentation Form Alignment",
+        "items": [
+          "Position Pinned beside Private in Card dialogs and the Treeview editor for a consistent layout."
+        ]
+      }
+    ]
+  },
+  {
+    "day": 23,
+    "title": "Advanced Rich Text, Reliable Kanban, and Better Workflows",
+    "sections": [
+      {
+        "title": "Rich Text Tables and Checklists",
+        "items": [
+          "Add table insertion, row and column editing, cell colors, and Tab-key navigation.",
+          "Add shared interactive checklist items that save without losing scroll position.",
+          "Add horizontal dividers, a checklist shortcut, and reliable Undo behavior."
+        ]
+      },
+      {
+        "title": "Editor Productivity and Media",
+        "items": [
+          "Add dialog-wide toolbar collapse with remembered preferences and last-used color controls.",
+          "Store pasted draw.io SVG diagrams as uploaded files rather than oversized embedded HTML.",
+          "Expand image actions with Select, Resize, Open in New Tab, and Delete."
+        ]
+      },
+      {
+        "title": "Kanban and Workflow Reliability",
+        "items": [
+          "Add person filtering and richer Subtask labels.",
+          "Prevent a dragged card from opening in Edge and preserve horizontal scroll after moves.",
+          "Keep QA Passed at 100% and advance a Parent Task when a Subtask begins."
+        ]
+      },
+      {
+        "title": "Bug and Export Improvements",
+        "items": [
+          "Default new bugs to Low priority and Minor severity and improve Bug field order.",
+          "Use consistent 0–100% completion dropdowns in 5% increments.",
+          "Let users include or omit PMT metadata from exports."
+        ]
+      }
+    ]
+  },
+  {
+    "day": 24,
+    "title": "Custom Work-Item Views, TSG Reporting, and the 3D About Experience",
+    "sections": [
+      {
+        "title": "Customizable Bug and Dev Task Dialogs",
+        "items": [
+          "Let each user reorder, hide, show, and relabel Bug and Dev Task fields.",
+          "Keep read-only and edit layouts synchronized while retaining original field names for reference.",
+          "Move secondary dialog actions into a labeled overflow menu."
+        ]
+      },
+      {
+        "title": "Root Cause Analysis and TSG Reporting",
+        "items": [
+          "Add a rich-text Root Cause Analysis field to Bug Reports.",
+          "Add a separately configurable TSG Report workflow based on the user's Bug layout.",
+          "Export timestamped TSG reports to CSV and native Excel."
+        ]
+      },
+      {
+        "title": "Rich-Text and Documentation Stability",
+        "items": [
+          "Replace the image-action dialog with an in-context menu and reliable image actions.",
+          "Reduce Documentation card height and prevent footer or content overlap.",
+          "Support wheel scrolling inside overflowing card content without shifting centered layouts."
+        ]
+      },
+      {
+        "title": "About Page in 3D",
+        "items": [
+          "Introduce a full-content 3D About experience centered on an extruded PMT logo.",
+          "Add 3D Dev Task and Bug charts, team cards, lighting, stars, UFO events, and camera controls.",
+          "Refine gallery layout and camera movement for smooth, readable flybys."
+        ]
+      }
+    ]
+  },
+  {
+    "day": 25,
+    "title": "PMT's Interactive 3D Gallery",
+    "sections": [
+      {
+        "title": "Cinematic Gallery Tour",
+        "items": [
+          "Rebuild the flyby as a smooth loop through the PMT logo and major PMT work areas.",
+          "Add destination-aware framing, calm curved transitions, and better chart zoom.",
+          "Correct abrupt speed changes, rough arrivals, and visual collisions."
+        ]
+      },
+      {
+        "title": "Live PMT Content in 3D",
+        "items": [
+          "Add labeled 3D areas for Dev Tasks, Bug Tracking, Documentation, Kanban, and the Development Team.",
+          "Render recent Documents and a Kanban Board modeled after the normal PMT screen.",
+          "Keep chart panels permanently dark for legibility in the space scene."
+        ]
+      },
+      {
+        "title": "Manual Controls and Preferences",
+        "items": [
+          "Add mouse and keyboard flight controls, pause, restart, speed, and vertical movement.",
+          "Add compact control hints and shortcuts for visual and alien events.",
+          "Remember About-scene preferences locally."
+        ]
+      },
+      {
+        "title": "Alien Events and Picture-in-Picture",
+        "items": [
+          "Add comet, lightning, UFO, and multi-ship battle events without disrupting the flyby.",
+          "Show picture-in-picture when action is outside the main camera view.",
+          "Improve battle dialogue, ship exits, lightning reactions, and event reliability."
+        ]
+      }
+    ]
+  },
+  {
+    "day": 26,
+    "title": "Invitations, Role-Based Security, and Safer Administration",
+    "sections": [
+      {
+        "title": "User Invitations and Onboarding",
+        "items": [
+          "Add Invite Users with required Project selection, invite-link generation, and Copy URL.",
+          "Add invited-user profile setup with Username suggestions, password, avatar, and Project-aware navigation.",
+          "Generate a professional PMT invitation email body for Outlook."
+        ]
+      },
+      {
+        "title": "Roles and Security Management",
+        "items": [
+          "Add common software-team roles and detailed Read, Create, Update, Delete, Import, Export, and No Access rights.",
+          "Support inherited role permissions, per-user overrides, and reset-to-inherited behavior.",
+          "Keep administrators unrestricted while making No Access an explicit denial for non-admin users."
+        ]
+      },
+      {
+        "title": "Security Audit and Account Recovery",
+        "items": [
+          "Add a user-by-resource effective-permissions audit with Excel export.",
+          "Add administrator password reset actions for users who cannot sign in.",
+          "Show clear warnings before breaking permission inheritance."
+        ]
+      },
+      {
+        "title": "Attachments and Read-Only Details",
+        "items": [
+          "Add confirmed deletion of existing attachments while editing.",
+          "Hide empty fields from read-only dialogs so details focus on actual information."
+        ]
+      }
+    ]
+  },
+  {
+    "day": 27,
+    "title": "Stronger Privacy, Maintenance Tools, and Direct Links",
+    "sections": [
+      {
+        "title": "Security and Ownership Fixes",
+        "items": [
+          "Restore sensible default permissions and add a confirmed Reset Security action.",
+          "Refine the Security Audit and enforce correct Scrum ownership for non-admin users.",
+          "Keep personal Logs and private content private in the UI, including from administrators."
+        ]
+      },
+      {
+        "title": "Direct URLs and Project Codes",
+        "items": [
+          "Add shareable URLs for PMT screens and Settings categories.",
+          "Honor valid preferred Project Codes and provide administrator override support when needed."
+        ]
+      },
+      {
+        "title": "Administration and Reliability",
+        "items": [
+          "Add Maintenance tools for permanently purging selected soft-deleted records.",
+          "Identify, preview, and safely remove orphaned uploaded files.",
+          "Allow PMT to load with a clear warning when upload storage is unavailable."
+        ]
+      },
+      {
+        "title": "About and Screen Saver",
+        "items": [
+          "Restore About credits and repository information and display the PMT database version.",
+          "Add an optional idle 3D flyby screen saver that returns users to their exact prior state.",
+          "Refine logo flyby clearance and alien-event camera timing."
+        ]
+      }
+    ]
+  },
+  {
+    "day": 28,
+    "title": "Scrum Attendance Calendar, Collaboration Safety, and Admin Impersonation",
+    "sections": [
+      {
+        "title": "Daily Scrum Attendance",
+        "items": [
+          "Add Check-In statuses for Home, Office, Sick Leave, Vacation, Emergency Leave, and Other.",
+          "Show each known daily status on the team member's avatar and synchronize avatar filtering with Scrum filters.",
+          "Allow attendance to be recorded on behalf of another employee."
+        ]
+      },
+      {
+        "title": "Calendar and Vacation Planning",
+        "items": [
+          "Add a navigable monthly Attendance Calendar above the Scrum table.",
+          "Group team avatars by daily status, support multiple statuses, and show holidays when space permits.",
+          "Create, edit, cancel, and visualize planned vacations in advance."
+        ]
+      },
+      {
+        "title": "Collaboration and Form Safety",
+        "items": [
+          "Prevent an older edit from overwriting newer saved work and offer to save conflicting work as a new item.",
+          "Fix non-admin QA users' ability to pin their own Scrum entries.",
+          "Add stable required-field indicators and reserve space for dynamic Username feedback."
+        ]
+      },
+      {
+        "title": "Administration and Data Consistency",
+        "items": [
+          "Add administrator impersonation with the target user's permissions, a prominent exit banner, preference restoration, and audit recording.",
+          "Add a system-wide Audit Trail in Settings.",
+          "Make seeded Documentation public and propagate renamed Project Codes through related Sprints and Tasks."
+        ]
+      }
+    ]
+  },
+  {
+    "day": 29,
+    "title": "Release Notes, What's New, and Refined Team Workflows",
+    "sections": [
+      {
+        "title": "Linked Dev Task and Bug Behavior",
+        "items": [
+          "Make Root Cause Analysis a one-way developer-owned flow from a linked Dev Task to its Bug Report.",
+          "Copy a Bug Report URL into the linked Dev Task when work is assigned.",
+          "Allow Developers to move Kanban work through QA Passed, but not into later deployment statuses."
+        ]
+      },
+      {
+        "title": "Scrum View Refinements",
+        "items": [
+          "Enlarge daily-status avatars, center them in the title area, and prevent loaded status avatars from shifting content.",
+          "Increase status-overlay visibility and replace the ambiguous Sick icon.",
+          "Center Table and Calendar view buttons using the same presentation as Documentation views while keeping the calendar above the Scrum table.",
+          "Automatically reduce daily-status avatar sizes when needed so they stay between the page title and the view buttons without collisions.",
+          "Refresh visible Scrum entries, daily attendance avatars, and Calendar attendance or vacation changes every five seconds while Scrum is active.",
+          "Provide one default-on Auto Refresh setting for Table and Calendar that pauses during active editing and preserves the current view, filters, focus, menus, and scroll position."
+        ]
+      },
+      {
+        "title": "User Profiles and Administration",
+        "items": [
+          "Show each user's most recent successful login on their Settings card.",
+          "Preserve an administrator's configured role or title and identify their elevated access with an Admin suffix."
+        ]
+      },
+      {
+        "title": "Team Mentions",
+        "items": [
+          "Recognize @Sin-style references in Release Notes and rendered rich-text content across PMT.",
+          "Reveal a compact User Card when a reader hovers over or focuses a team mention, helping new team members identify colleagues."
+        ]
+      },
+      {
+        "title": "Release Notes",
+        "items": [
+          "Add a Release Notes screen with polished business-facing notes and the original Sin's AI Prompts.",
+          "Organize daily releases from newest to oldest with navigation between releases.",
+          "Group features, enhancements, and bug fixes into clear sections.",
+          "Keep the page title and view controls visible while reading long notes and align release navigation with the content area."
+        ]
+      },
+      {
+        "title": "What's New",
+        "items": [
+          "Show releases published since the user's previous login in a What's New dialog.",
+          "Provide navigation for multiple unread releases and limit first-time users to the latest three.",
+          "Link to the full Release Notes screen and reuse the same release-note content for both experiences.",
+          "Notify signed-in users once when a same-day release is revised, without replaying unrelated older notes."
+        ]
+      }
+    ]
+  }
+]

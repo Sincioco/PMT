@@ -18,6 +18,7 @@ test("cookie session impersonation isolates preferences and records the Settings
     localStorage.setItem("pmt-auth-user", "999");
     localStorage.setItem("pmt-theme", "dark");
     localStorage.setItem("pmt-task-project", "10");
+    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-16-day-29");
   });
 
   await page.route("**/api/session", async route => {
@@ -122,6 +123,11 @@ test("cookie session impersonation isolates preferences and records the Settings
   await expect(page.getByRole("heading", { name: "Dashboard", exact: true })).toBeVisible();
   await expect(page).toHaveURL(/#\/dashboard$/);
   expect(startRequests).toBe(1);
+
+  const impersonatedWhatsNew = page.locator("#whatsNewDialog");
+  await expect(impersonatedWhatsNew).toBeVisible();
+  await impersonatedWhatsNew.locator("[data-action='close-whats-new']").last().click();
+  await expect(impersonatedWhatsNew).toHaveCount(0);
 
   const isolatedPreferences = await page.evaluate(() => ({
     auth: localStorage.getItem("pmt-auth-user"),

@@ -1,5 +1,5 @@
 /*
-    PMT Version 1.21 database and schema script.
+    PMT Version 1.22 database and schema script.
     Run this first. It creates the database, the pmt schema, the application
     tables, and the single required administrator account. The companion
     procedure and seed scripts complete the current fresh-install contract.
@@ -104,8 +104,20 @@ BEGIN
         N'',
         N'PMT creator and administrator.',
         1,
-        N'Admin',
+        N'Developer',
         1
+    );
+END;
+GO
+
+IF OBJECT_ID(N'[pmt].[UserLoginActivity]', N'U') IS NULL
+BEGIN
+    CREATE TABLE [pmt].[UserLoginActivity]
+    (
+        [UserId] INT NOT NULL CONSTRAINT [PK_pmt_UserLoginActivity] PRIMARY KEY,
+        [LastLoginAt] DATETIME2(0) NOT NULL,
+        CONSTRAINT [FK_pmt_UserLoginActivity_User] FOREIGN KEY ([UserId])
+            REFERENCES [pmt].[Users]([UserId]) ON DELETE CASCADE
     );
 END;
 GO

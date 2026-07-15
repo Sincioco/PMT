@@ -113,12 +113,14 @@ Permission regressions are covered in `tests/js/permissions.test.mjs`.
 ## Authentication, impersonation, and system auditing
 
 - Successful password login and invitation acceptance create ASP.NET Core's signed, protected `PMT.Auth` cookie. It is HttpOnly and SameSite Strict; production cookies are always Secure, while local Development permits HTTP. Normal sessions are persistent for seven days and slide while active. Impersonation uses a non-persistent, non-sliding ticket that expires after four hours. Browser JavaScript cannot read the cookie.
+- A successful password login or invitation acceptance records that user's latest login timestamp for administrator-visible User cards. Cookie-session restoration and administrator impersonation do not replace it because neither action is a new login by that user.
 - The cookie is the only API identity source. PMT no longer trusts `X-PMT-UserId`, a current-user query value, `localStorage`, or a default user as authentication. A missing or invalid authenticated claim returns HTTP 401.
 - Every authenticated request revalidates the effective user's current `ROWVERSION` authentication stamp and active state. During impersonation it also revalidates the original user's stamp, active state, and administrator status. Password resets, user/security edits, deactivation, or demotion therefore invalidate an older ticket without waiting for a page refresh or expiry; an authorized self-edit or self-password change immediately reissues the current session with the new stamp.
 - Browser-originated changing API requests must be same-origin. PMT rejects cross-origin and same-site sibling-origin form/fetch writes using `Origin` and `Sec-Fetch-Site`; non-browser deployment tooling that sends neither header remains supported.
 - The effective user is the identity used by state reads, navigation, private-data filtering, and all permission checks. An impersonation cookie also preserves the original administrator as the actor. The original administrator identity is for auditing and exit only; it does not bypass the target user's permissions or privacy boundaries.
 - Only an effective administrator may start impersonation. The target must be another active user, and nested impersonation is rejected. Starting replaces the signed cookie with the target's effective identity while retaining the original administrator claim.
 - Password login and invitation acceptance cannot overwrite an active impersonation ticket; the administrator must exit first so the end is audited and preferences are restored.
+- Administrator access is an independent flag, not a replacement job title. User saves preserve the selected Role value, while User cards append ` (Admin)` when the flag is enabled.
 - The shell must show a persistent red banner naming the impersonated user and an Exit Impersonation action. A hard refresh restores the same server-controlled impersonation session from the cookie.
 - Explicit exit records the end event and replaces the cookie with the original administrator's normal session. Logout while impersonating attempts the same end audit before clearing the authentication cookie. If either the effective user or original administrator becomes unavailable, session restoration fails closed and signs out.
 - `[pmt].[WriteAudit]` stores the effective user in `AuditEvents.UserId` and the authenticated actor in `AuditEvents.ActorUserId`. ADO.NET places the actor in SQL session context for every application connection, so ordinary writes performed while impersonating retain both identities. Existing rows upgraded to Version 1.19 are backfilled with their effective user as actor.
@@ -136,6 +138,8 @@ Permission regressions are covered in `tests/js/permissions.test.mjs`.
 - The calendar expands active vacation ranges as `Vacation` status for each covered date. It deduplicates the same user/status/date when a planned vacation and explicit Vacation attendance overlap, but preserves different statuses for the same user and date.
 - Calendar status sections use the stable order Office, Home, Sick Leave, Vacation, EL, and Other. Empty sections are omitted. A day with only Office attendance remains one undivided section; separators appear only when two or more statuses are present.
 - Title avatars represent today's known attendance. Selecting one updates the persisted Scrum Person filter, and changes made in the Person checklist update the title selection in the same render cycle.
+- Scrum auto-refresh is enabled by default and runs one non-overlapping cycle every five seconds only while Scrum is active. The same persisted overflow toggle controls Table and Calendar views.
+- Each safe cycle reloads Scrum entries and today's title attendance, plus the visible attendance/vacation month when Calendar is shown. It pauses for open dialogs, active form editing, unsaved attendance selection, and column dragging, and preserves the current view, filters, focus, overflow-menu state, and application/table/calendar scroll positions without a document reload.
 - Active Holidays from Settings may be displayed in their matching calendar cells. Multiple active Holiday records on one date remain distinct; inactive Holidays are omitted.
 
 ## User invitations and onboarding
@@ -185,6 +189,13 @@ Permission regressions are covered in `tests/js/permissions.test.mjs`.
 - The first mouse movement dismisses and disposes the overlay, restores the prior focus when possible, and leaves the URL, scroll position, open dialogs, and unsaved field values unchanged.
 - Hiding or blurring the PMT tab cancels the idle timer and dismisses an active screen saver. Returning to PMT begins a fresh five-minute idle period.
 
+## Release Notes and What's New
+
+- The Release Notes screen and What's New dialog render one generated latest-first dataset. Each record contains a curated business summary and the matching historical Requirements prompt.
+- Requirements prompt files are planning records, not implementation authorization. Add or change release notes only after the user explicitly authorizes the work and the described behavior is complete.
+- On the first successful login for a browser user, What's New shows only the latest three releases. On later logins and successful cookie-session restoration it shows every release newer than that user's saved latest-seen revision. Those entry points check the no-cache static manifest before selecting releases.
+- Closing What's New or following its link to Release Notes saves the newest current revision under a user-specific browser preference. Changing an authorized release's prompt or business summary during the same day changes its generated revision and browser cache key, so that revised release appears once without replaying unrelated older notes. Signed-in browsers check the small manifest once per minute, load the full static feed only when that revision changes, and rerender an already-open Release Notes screen. Release Notes and What's New do not add a database contract.
+
 ## Persistence and preferences
 
 Authentication lives only in the signed, protected HttpOnly cookie described above. The browser removes the legacy `pmt-auth-user` key during session restoration and never stores the current identity in `localStorage`.
@@ -194,12 +205,13 @@ Before an administrator enters impersonation, PMT snapshots all current `pmt-*` 
 | Area | `localStorage` keys |
 | --- | --- |
 | Shell | `pmt-view`, `pmt-theme`; temporary impersonation backup: `pmt-impersonation-admin-preferences` |
+| Release Notes and What's New | `pmt-release-notes-view`, `pmt-release-notes-selected`, `pmt-release-notes-last-seen:{userId}` |
 | About 3D scene | `pmt-about-alien-events-enabled`, `pmt-about-track-alien-events-enabled`, `pmt-about-battle-pip-enabled` |
 | Board | `pmt-board-project`, `pmt-board-sprint`, `pmt-board-sort`, `pmt-board-statuses`, `pmt-board-hide-empty-columns`, `pmt-board-filters-visible` |
 | Road Map | `pmt-roadmap-project`, `pmt-roadmap-sprint`, `pmt-roadmap-sort`, `pmt-roadmap-show-dates`, `pmt-roadmap-show-details`, `pmt-roadmap-show-sprints` |
 | Gantt | `pmt-gantt-project`, `pmt-gantt-sprint`, `pmt-gantt-render-mode`, `pmt-gantt-sort`, `pmt-gantt-show-non-working-days` |
 | Sprints and Dev Tasks | `pmt-sprint-project`, `pmt-task-project`, `pmt-task-sprint`, `pmt-task-filters`, `pmt-task-filters-visible`, `pmt-task-visual-charts-visible`, `pmt-task-dialog-fields` |
-| Bugs, Scrum, and Documentation | `pmt-bug-filters`, `pmt-bug-filters-visible`, `pmt-bug-visual-charts-visible`, `pmt-bug-entry-project`, `pmt-bug-entry-sprint`, `pmt-bug-entry-environment`, `pmt-bug-table-columns`, `pmt-bug-dialog-fields`, `pmt-scrum-filters`, `pmt-documentation-project` |
+| Bugs, Scrum, and Documentation | `pmt-bug-filters`, `pmt-bug-filters-visible`, `pmt-bug-visual-charts-visible`, `pmt-bug-entry-project`, `pmt-bug-entry-sprint`, `pmt-bug-entry-environment`, `pmt-bug-table-columns`, `pmt-bug-dialog-fields`, `pmt-scrum-filters`, `pmt-scrum-calendar-visible`, `pmt-scrum-auto-refresh`, `pmt-documentation-project` |
 | Settings | `pmt-settings-category`, `pmt-lookup-type` |
 
 Keep key names and defaults stable during refactoring. Clearing PMT preferences removes normal keys prefixed with `pmt-`, preserves an active impersonation backup so the administrator can still exit safely, and then reloads the application.
@@ -208,6 +220,8 @@ Keep key names and defaults stable during refactoring. Clearing PMT preferences 
 
 - Gantt hides weekends and active configured holidays unless the user enables non-working days or an item starts on that date.
 - Scrum's month calendar uses local date keys, includes forward/backward and month/year navigation, and keeps its focused attendance request bounded to the visible calendar range.
+- Rendered rich text and Release Notes recognize an active user's `@Nickname`; `@{Nickname With Spaces}` provides an explicit form for nicknames containing spaces. Mention decoration is read-only and never rewrites the stored rich text or release source.
+- A recognized mention is keyboard-focusable and shows the same compact user identity details on hover or focus. Text that does not match an active user remains ordinary text.
 - User-entered and external links are normalized and open in a new tab.
 - Browser link normalization, linkification, and escaping live in `wwwroot/js/shared/text-and-links.js`.
 - Status, percent, Sprint, assignment, attachment, and other significant changes are audited.

@@ -81,3 +81,41 @@ Update the migration scripts and test them by dropping and re-creating the datab
 Commit and Push
 ---------------
 When your tests are green, commit and push to the repo.  Also commit the file: "2026-07-16 - Requirements - Day 29.txt"
+
+Release Notes
+-------------
+26.) Make the Release Notes page title behave like all other Page Titles, in that, it stays on the screen and does not scroll.  The same for the Release Notes and Sin's AI Prompts view toggles.  They should remain fixed at the top.
+27.) Adjust the release Notes left nav, it seems to be higher than the browser's content area.
+
+User Card in User Screen
+------------------------
+28.) For the user card, add a line in there so we can see the last time they logged in.
+29.) When a user is an Admin, do not override their role/title, instead keep their role/title and just add " (Admin)" at the end of their role/title.
+
+Scrum Screen
+------------
+30.) For the Table and Calender view toggle in the same UI/UX way as in the Documentation's screen.  So that means, center them, and the icon and text sizes are the same, including their relative position from the to edge, etc.
+31.) When the User's status avatar starts to bump into the Table/Calendar toggle view, you can dynamically resize them to fit into an area in between the Page Title and the Table/Calendar toggle buttons.
+
+Database Migration Script Testing
+---------------------------------
+Update the migration scripts (if needed) and test them by dropping and re-creating the database from the baseline and executing your combined migration script (as that is how I will execute it on the server).  Be sure it works without any errors and fix errors that you do encounter.
+
+Commit and Push
+---------------
+Update the What's New and Release Notes, if needed.  When your tests that are impacted by this latest changes are green, commit and push to the repo.
+
+The @ symbol to Refer to People
+-------------------------------
+33.) In all the RTE editors and Release Notes and What's New, I would like to be able to refer to a person with an @ symbol.  For example "@Sin" (without the qoutes) in the text and when it is rendered in read-only mode, the user can hover on it and the User Card for @Sin is revealed like a tooltip.  That way we can refer to people in Release Notes, What's New and in Documentations, Dev Tasks, Bug Entries, Log, Backlog, etc, and see who that person is.  Perfect for new members of the team joining the project.  Basically, allow the @{username/nickname} where it makes sense throughout PMT.
+
+Mid-Day Updates of PMT and What's New / Release Notes
+------------------------------------------------------
+34.) Also, I make mid-day updates to PMT in the office.  Will the users in the office see a What's New for those mid-day updates?  If not, make it so that they could see the dynamic changes I'm making in the office as I receive their feedback.
+
+Scrum Screen - Auto-Refresh
+---------------------------
+35.) In the Scrum screen, without doing a hard page refresh, could you add an auto-refresh that refreshes the page every 5 seconds?  This will make it convenient for the Scrum master as everyone is often still making changes to their Scrum entries during the actual Scrum meeting.  Also, as people "checks-in" their status for the day, we want to see their dynamic avatar at the top of the page.  If this will cause a hard-page refresh, do not implement it.
+36.) Add a menu overflow feature that gives the user the ability to turn off this auto screen refresh feature.  By default you can turn it on, but if they turn it off, be sure to remember their preferences.
+37.) Don't forget about the auto-refresh feature when the user is in the Calendar view.  It should also auto-refresh every 5 seconds, unless the user has turned it off in their preferences.
+38.) We don't want any UI flicker or unnecessary UI shifting as the data is auto-refreshed.

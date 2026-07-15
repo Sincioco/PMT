@@ -33,6 +33,11 @@ public sealed partial class SqlPmtStore
         return ReadAuthenticationUserAsync("[pmt].[GetSessionUser]", command => Add(command, "@UserId", userId), cancellationToken);
     }
 
+    public Task RecordSuccessfulLoginAsync(int userId, CancellationToken cancellationToken)
+    {
+        return ExecuteProcedureAsync("[pmt].[RecordSuccessfulLogin]", command => Add(command, "@UserId", userId), cancellationToken);
+    }
+
     public Task<UserDto?> BeginImpersonationAsync(int adminUserId, int targetUserId, CancellationToken cancellationToken)
     {
         return ReadAuthenticationUserAsync("[pmt].[BeginImpersonation]", command =>

@@ -29,7 +29,7 @@ import {
   readNavigationConfig,
   resetNavigationConfig,
   writeNavigationConfig
-} from "../../core/navigation-preferences.js?v=20260713-role-security";
+} from "../../core/navigation-preferences.js?v=release-notes-2026-07-16-day-29-1052d26782c9";
 import {
   clearPmtPreferences,
   preferenceKeys,
@@ -44,7 +44,7 @@ import {
   routeForView,
   savedViewPreference,
   updateBrowserUrl
-} from "../../core/router.js?v=20260714-settings-routes";
+} from "../../core/router.js?v=release-notes-2026-07-16-day-29-1052d26782c9";
 import { state } from "../../core/store.js";
 import {
   formatDate,
@@ -1944,6 +1944,7 @@ export function createSettingsFeature({
                 <p class="settings-user-name">${settingsUserNameHtml(user)}</p>
                 <p class="settings-user-title muted">${escapeHtml(userTitle(user))}</p>
                 <p class="settings-user-email">${settingsUserEmailHtml(user)}</p>
+                <p class="settings-user-last-login muted">Last login: ${escapeHtml(user.lastLoginAt ? formatDateTime(user.lastLoginAt) : "Never")}</p>
               </div>
             </div>
             <p>${escapeHtml(user.bio || "")}</p>
@@ -1993,7 +1994,8 @@ export function createSettingsFeature({
   }
 
   function userTitle(user) {
-    return roleLabel(user.role || (user.isAdmin ? "Admin" : "Developer"));
+    const title = roleLabel(user.role || "Developer");
+    return user.isAdmin ? `${title} (Admin)` : title;
   }
 
   function userRoleSelectField(user) {

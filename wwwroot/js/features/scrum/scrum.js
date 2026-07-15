@@ -24,8 +24,8 @@ import {
   removePreference,
   writeJsonPreference,
   writePreference
-} from "../../core/preferences.js?v=20260621-scrum-dev-task-parity";
-import { state } from "../../core/store.js";
+} from "../../core/preferences.js?v=20260716-scrum-auto-refresh";
+import { loadState as refreshApplicationState, state } from "../../core/store.js";
 import {
   dateKey,
   formatDate,
@@ -69,6 +69,7 @@ const scrumPrompts = [
 const sharedScrumLogType = "Scrum";
 const scrumTableColumnPreferenceKey = "pmt-scrum-table-columns";
 const scrumCalendarVisiblePreferenceKey = "pmt-scrum-calendar-visible";
+export const SCRUM_AUTO_REFRESH_INTERVAL_MS = 5000;
 const scrumAttendanceCalendarOrder = ["Office", "Home", "Sick Leave", "Vacation", "EL", "Other"];
 const scrumWeekdayLabels = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
@@ -81,6 +82,10 @@ const scrumAttendanceStatusDefinitions = Object.freeze([
   Object.freeze({ value: "Other", icon: "&#8230;", title: "Other" })
 ]);
 export const SCRUM_ATTENDANCE_STATUSES = Object.freeze(scrumAttendanceStatusDefinitions.map(item => item.value));
+
+export function scrumAutoRefreshCanRun({ active, blocked, enabled, inFlight, loading } = {}) {
+  return Boolean(active && enabled && !blocked && !inFlight && !loading);
+}
 
 export function scrumCalendarDateKeys(year, monthIndex) {
   const firstDay = new Date(Number(year), Number(monthIndex), 1);
@@ -171,6 +176,7 @@ export function createScrumFeature({
   let scrumEntryProjectId = readNumberPreference(preferenceKeys.scrumEntryProject, 0);
   let scrumColumnPrefs = normalizeScrumColumnPrefs(readJsonPreference(scrumTableColumnPreferenceKey, {}));
   let scrumCalendarVisible = readBooleanPreference(scrumCalendarVisiblePreferenceKey, false);
+  let scrumAutoRefreshEnabled = readBooleanPreference(preferenceKeys.scrumAutoRefresh, true);
   let scrumCalendarMonth = scrumMonthStart(new Date());
   const scrumAttendanceMonthCache = new Map();
   let scrumAttendanceCacheUserId = Number(currentUser()?.id || 0);
@@ -178,14 +184,20 @@ export function createScrumFeature({
   let scrumColumnDrag = null;
   let lastScrumColumnPointerDragAt = 0;
   let suppressNextScrumColumnClick = false;
+  let scrumHeaderResizeFrame = 0;
+  let scrumAutoRefreshTimer = 0;
+  let scrumAutoRefreshInFlight = false;
+  let scrumIsActive = false;
   const scrumTableMode = createWorkItemTableMode({
     action: "toggle-scrum-table-edit-mode",
     itemLabel: "Scrum"
   });
 
   bindScrumColumnDragEvents();
+  window.addEventListener("resize", scheduleScrumHeaderFit);
 
   function renderDevLogs() {
+    scrumIsActive = true;
     if (scrumFilters.projectId && !state.projects.some(project => project.id === Number(scrumFilters.projectId))) {
       scrumFilters.projectId = "";
     }
@@ -218,6 +230,7 @@ export function createScrumFeature({
           <button class="secondary text-icon-button" type="button" data-action="open-scrum-filters" title="Filters" aria-label="Filters" aria-haspopup="dialog">${buttonContent(funnelIconHtml(), "Filters")}</button>
           ${pageActionsMenuHtml([
             { action: "toggle-scrum-table-edit-mode", icon: "&#9998;", label: "Edit Mode", title: "Edit Mode", checked: scrumTableMode.active },
+            { action: "toggle-scrum-auto-refresh", icon: "&#8635;", label: "Auto Refresh", title: "Auto Refresh every 5 seconds", checked: scrumAutoRefreshEnabled },
             { action: "open-scrum-on-behalf", icon: "&#128101;", label: "On Behalf Of...", title: "On Behalf Of...", disabled: !canUpdateAttendance, separatorBefore: true },
             { action: "open-scrum-vacation", icon: "&#9728;", label: "Vacation...", title: "Vacation...", disabled: !canCreateAttendance && !canUpdateAttendance },
             { action: "export-scrum-view", icon: exportIconHtml(), label: "Export", title: "Export", separatorBefore: true },
@@ -247,7 +260,145 @@ export function createScrumFeature({
         </div>
       </section>
     `;
+    fitScrumHeader();
     restoreScrumCalendarFocus();
+    scheduleScrumAutoRefresh();
+  }
+
+  function scheduleScrumAutoRefresh() {
+    window.clearTimeout(scrumAutoRefreshTimer);
+    scrumAutoRefreshTimer = 0;
+    if (!scrumIsActive || !scrumAutoRefreshEnabled || scrumAutoRefreshInFlight) return;
+    scrumAutoRefreshTimer = window.setTimeout(runScrumAutoRefresh, SCRUM_AUTO_REFRESH_INTERVAL_MS);
+  }
+
+  async function runScrumAutoRefresh() {
+    scrumAutoRefreshTimer = 0;
+    const active = scrumIsActive && Boolean(app.querySelector(".scrum-screen"));
+    const loading = [...scrumAttendanceMonthCache.values()].some(record => record?.loading);
+    if (!scrumAutoRefreshCanRun({
+      active,
+      blocked: scrumAutoRefreshIsBlocked(),
+      enabled: scrumAutoRefreshEnabled,
+      inFlight: scrumAutoRefreshInFlight,
+      loading
+    })) {
+      scheduleScrumAutoRefresh();
+      return;
+    }
+
+    scrumAutoRefreshInFlight = true;
+    try {
+      await refreshApplicationState();
+      if (!scrumIsActive || !app.querySelector(".scrum-screen") || scrumAutoRefreshIsBlocked()) return;
+      await refreshScrumAttendance({ render: false });
+      if (!scrumIsActive || !app.querySelector(".scrum-screen") || scrumAutoRefreshIsBlocked()) return;
+
+      const viewState = captureScrumViewState();
+      renderDevLogs();
+      restoreScrumViewState(viewState);
+    } catch {
+      // A later cycle retries without replacing the current Scrum screen.
+    } finally {
+      scrumAutoRefreshInFlight = false;
+      scheduleScrumAutoRefresh();
+    }
+  }
+
+  function scrumAutoRefreshIsBlocked() {
+    if (scrumColumnDrag) return true;
+    if (document.querySelector("#editorDialog[open], dialog.detail-dialog[open], [data-scrum-filter-dialog][open], [data-scrum-on-behalf-dialog][open], [data-scrum-vacation-dialog][open]")) return true;
+    if (app.querySelector("[data-scrum-attendance-dirty='true']")) return true;
+    const activeElement = document.activeElement;
+    return Boolean(activeElement && app.contains(activeElement) && activeElement.matches("select, input, textarea, [contenteditable='true']"));
+  }
+
+  function captureScrumViewState() {
+    const calendarWrap = app.querySelector(".scrum-calendar-grid-wrap");
+    return {
+      appScrollTop: app.scrollTop,
+      calendarScrollLeft: calendarWrap?.scrollLeft || 0,
+      calendarScrollTop: calendarWrap?.scrollTop || 0,
+      focusSelector: scrumFocusSelector(document.activeElement),
+      menuOpen: Boolean(app.querySelector(".page-actions-menu[open]")),
+      tableScrollLeft: app.querySelector(".scrum-table-wrap")?.scrollLeft || 0
+    };
+  }
+
+  function restoreScrumViewState(viewState) {
+    if (!viewState) return;
+    if (viewState.menuOpen) app.querySelector(".page-actions-menu")?.setAttribute("open", "");
+    const focused = viewState.focusSelector ? app.querySelector(viewState.focusSelector) : null;
+    focused?.focus({ preventScroll: true });
+    const tableWrap = app.querySelector(".scrum-table-wrap");
+    if (tableWrap) tableWrap.scrollLeft = viewState.tableScrollLeft;
+    const calendarWrap = app.querySelector(".scrum-calendar-grid-wrap");
+    if (calendarWrap) {
+      calendarWrap.scrollLeft = viewState.calendarScrollLeft;
+      calendarWrap.scrollTop = viewState.calendarScrollTop;
+    }
+    app.scrollTop = viewState.appScrollTop;
+  }
+
+  function scrumFocusSelector(element) {
+    if (!(element instanceof Element) || !app.contains(element)) return "";
+    if (element.matches(".page-actions-summary")) return ".page-actions-summary";
+    if (element.matches("[data-scrum-attendance-select]")) return "[data-scrum-attendance-select]";
+
+    const action = element.dataset?.action;
+    if (action) {
+      let selector = `[data-action="${CSS.escape(action)}"]`;
+      for (const key of ["mode", "id", "column"]) {
+        if (element.dataset[key]) selector += `[data-${key}="${CSS.escape(element.dataset[key])}"]`;
+      }
+      return selector;
+    }
+
+    const filter = element.dataset?.filter;
+    return filter ? `[data-filter="${CSS.escape(filter)}"]` : "";
+  }
+
+  function scheduleScrumHeaderFit() {
+    cancelAnimationFrame(scrumHeaderResizeFrame);
+    scrumHeaderResizeFrame = requestAnimationFrame(fitScrumHeader);
+  }
+
+  function fitScrumHeader() {
+    const header = app.querySelector(".scrum-screen .section-head");
+    const title = header?.querySelector("h1");
+    const roster = header?.querySelector("[data-scrum-attendance-roster]");
+    const toggle = header?.querySelector(".scrum-view-toggle");
+    if (!header || !title || !roster || !toggle) return;
+
+    roster.style.removeProperty("left");
+    roster.style.removeProperty("width");
+    roster.style.removeProperty("--scrum-today-avatar-size");
+    roster.style.removeProperty("--scrum-attendance-badge-size");
+    roster.style.removeProperty("--scrum-attendance-badge-font-size");
+    if (window.matchMedia("(max-width: 900px)").matches) return;
+
+    const headerBox = header.getBoundingClientRect();
+    const titleBox = title.getBoundingClientRect();
+    const toggleBox = toggle.getBoundingClientRect();
+    const headerGap = Number.parseFloat(getComputedStyle(header).columnGap) || 0;
+    const left = Math.ceil(titleBox.right - headerBox.left + headerGap);
+    const right = Math.floor(toggleBox.left - headerBox.left - headerGap);
+    const width = Math.max(0, right - left);
+    const avatarCount = roster.querySelectorAll("[data-scrum-today-user]").length;
+    const avatarGap = Number.parseFloat(getComputedStyle(roster).columnGap) || 0;
+    const buttonChrome = 6;
+    const fittedSize = avatarCount
+      ? Math.floor((width - avatarGap * Math.max(0, avatarCount - 1)) / avatarCount - buttonChrome)
+      : 80;
+    const avatarSize = Math.max(16, Math.min(80, fittedSize));
+    const badgeSize = Math.max(16, Math.min(28, Math.round(avatarSize * 0.4)));
+    const badgeFontSize = Math.max(10, Math.min(17, Math.round(badgeSize * 0.6)));
+
+    roster.style.left = `${left}px`;
+    roster.style.width = `${width}px`;
+    roster.style.setProperty("--scrum-today-avatar-size", `${avatarSize}px`);
+    roster.style.setProperty("--scrum-attendance-badge-size", `${badgeSize}px`);
+    roster.style.setProperty("--scrum-attendance-badge-font-size", `${badgeFontSize}px`);
   }
 
   async function ensureScrumAttendanceMonth(monthValue, options = {}) {
@@ -294,12 +445,12 @@ export function createScrumFeature({
     return record.promise;
   }
 
-  async function refreshScrumAttendance() {
+  async function refreshScrumAttendance(options = {}) {
     const months = [scrumMonthStart(new Date()), scrumCalendarMonth]
       .filter((month, index, values) => values.findIndex(item => scrumMonthKey(item) === scrumMonthKey(month)) === index);
     scrumAttendanceMonthCache.clear();
     await Promise.all(months.map(month => ensureScrumAttendanceMonth(month, { render: false })));
-    render();
+    if (options.render !== false) render();
   }
 
   function scrumAttendanceMonthRecord(monthValue) {
@@ -1019,6 +1170,10 @@ export function createScrumFeature({
 
   function handleFilterChange(eventOrTarget) {
     const target = eventOrTarget?.target || eventOrTarget;
+    if (target?.matches?.("[data-scrum-attendance-select]")) {
+      target.dataset.scrumAttendanceDirty = "true";
+      return true;
+    }
     if (!applyScrumFilterChange(target)) return false;
 
     renderDevLogs();
@@ -1092,6 +1247,13 @@ export function createScrumFeature({
       scrumCalendarVisible = showCalendar;
       writePreference(scrumCalendarVisiblePreferenceKey, scrumCalendarVisible);
       renderDevLogs();
+      return true;
+    }
+    if (action === "toggle-scrum-auto-refresh") {
+      scrumAutoRefreshEnabled = !scrumAutoRefreshEnabled;
+      writePreference(preferenceKeys.scrumAutoRefresh, scrumAutoRefreshEnabled);
+      renderDevLogs();
+      showToast(`Scrum auto-refresh ${scrumAutoRefreshEnabled ? "enabled" : "disabled"}.`);
       return true;
     }
     if (action === "scrum-calendar-previous") {
@@ -2424,13 +2586,15 @@ export function createScrumFeature({
       preferenceKeys.scrumFilters,
       preferenceKeys.scrumEntryProject,
       scrumTableColumnPreferenceKey,
-      scrumCalendarVisiblePreferenceKey
+      scrumCalendarVisiblePreferenceKey,
+      preferenceKeys.scrumAutoRefresh
     ].forEach(removePreference);
 
     scrumFilters = normalizeScrumFilters({});
     scrumEntryProjectId = 0;
     scrumColumnPrefs = normalizeScrumColumnPrefs({});
     scrumCalendarVisible = false;
+    scrumAutoRefreshEnabled = true;
     scrumCalendarMonth = scrumMonthStart(new Date());
     scrumTableMode.deactivate();
     cancelScrumColumnDrag();
@@ -2438,6 +2602,9 @@ export function createScrumFeature({
   }
 
   function deactivateScrum() {
+    scrumIsActive = false;
+    window.clearTimeout(scrumAutoRefreshTimer);
+    scrumAutoRefreshTimer = 0;
     document.querySelectorAll("[data-scrum-filter-dialog], [data-scrum-on-behalf-dialog], [data-scrum-vacation-dialog]").forEach(dialog => {
       if (dialog.open) dialog.close();
       else dialog.remove();

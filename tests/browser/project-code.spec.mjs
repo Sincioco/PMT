@@ -3,7 +3,10 @@ import { expect, test } from "@playwright/test";
 test("Admin can confirm reuse of an archived project code without changing the requested code", async ({ page }) => {
   const saveRequests = [];
 
-  await page.addInitScript(() => localStorage.clear());
+  await page.addInitScript(() => {
+    localStorage.clear();
+    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-16-day-29");
+  });
   await page.route("**/api/login", async route => {
     await route.fulfill(jsonResponse({
       userId: 1,
@@ -68,7 +71,10 @@ test("a stale Project save is rejected and can be preserved as a new Project", a
   const updateRequests = [];
   const createRequests = [];
 
-  await page.addInitScript(() => localStorage.clear());
+  await page.addInitScript(() => {
+    localStorage.clear();
+    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-16-day-29");
+  });
   await page.route("**/api/login", async route => {
     await route.fulfill(jsonResponse({
       userId: 1,

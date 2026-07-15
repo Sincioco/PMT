@@ -3,7 +3,7 @@ import {
   readJsonPreference,
   writeJsonPreference
 } from "./preferences.js";
-import { screenRegistry } from "./screen-registry.js?v=20260707-log-about-nav";
+import { screenRegistry } from "./screen-registry.js?v=release-notes-2026-07-16-day-29-1052d26782c9";
 import { canReadView } from "../shared/security.js?v=20260715-admin-impersonation";
 
 const navigationVersion = 2;
@@ -167,6 +167,7 @@ export function navIconHtml(view) {
     Log: logWritingIconHtml(),
     Documentation: "&#128214;",
     "WFH Schedule": "&#8962;",
+    "Release Notes": "&#128227;",
     About: "&#9432;",
     Settings: "&#9881;"
   };

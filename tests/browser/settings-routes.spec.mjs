@@ -1,8 +1,11 @@
 import { expect, test } from "@playwright/test";
 
+test.use({ locale: "en-US", timezoneId: "Asia/Taipei" });
+
 test("Settings categories have shareable routes with browser history support", async ({ page }) => {
   await page.addInitScript(() => {
     localStorage.clear();
+    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-16-day-29");
   });
 
   await page.route("**/api/login", async route => {
@@ -90,7 +93,10 @@ test("Settings categories have shareable routes with browser history support", a
 
 test("non-admin direct routes do not expose Admin-only Settings categories", async ({ page }) => {
   let maintenanceRequests = 0;
-  await page.addInitScript(() => localStorage.clear());
+  await page.addInitScript(() => {
+    localStorage.clear();
+    localStorage.setItem("pmt-release-notes-last-seen:2", "2026-07-16-day-29");
+  });
   await page.route("**/api/login", async route => {
     await route.fulfill({
       status: 200,
@@ -126,6 +132,45 @@ test("non-admin direct routes do not expose Admin-only Settings categories", asy
   await expect(page.locator("[data-action='select-lookup-type'][data-type='Status']")).toHaveClass(/active/);
   await expect(page).toHaveURL(/#\/settings\/status$/);
   expect(maintenanceRequests).toBe(0);
+});
+
+test("Settings user cards show the last login and preserve an administrator's configured role", async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.clear();
+    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-16-day-29");
+  });
+
+  const appState = testState();
+  Object.assign(appState.users[0], {
+    firstName: "Louiery",
+    lastName: "Sincioco",
+    role: "PM",
+    lastLoginAt: "2026-07-15T06:30:00Z"
+  });
+  appState.roles = [{
+    id: 1,
+    lookupType: "Role",
+    value: "PM - Project Manager",
+    code: "PM",
+    displayOrder: 10,
+    isActive: true
+  }];
+
+  await page.route("**/api/login", async route => {
+    await route.fulfill(jsonResponse({ userId: 1, nickname: "Sin", isAdmin: true, role: "PM" }));
+  });
+  await page.route("**/api/state", async route => {
+    await route.fulfill(jsonResponse(appState));
+  });
+
+  await page.goto("/#/settings/users");
+  await page.locator("#loginName").fill("Sin");
+  await page.locator("#loginPassword").fill("Password1");
+  await page.getByRole("button", { name: /log in/i }).click();
+
+  const userCard = page.locator(".settings-user-card");
+  await expect(userCard.locator(".settings-user-title")).toHaveText("PM - Project Manager (Admin)");
+  await expect(userCard.locator(".settings-user-last-login")).toHaveText("Last login: 7/15/2026, 2:30:00 PM");
 });
 
 async function openNavigationScreen(page, view) {

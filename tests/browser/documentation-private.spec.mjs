@@ -83,7 +83,10 @@ async function prepareDocumentationPage(page, currentUserId, calls) {
   const appState = testState();
   const currentUser = appState.users.find(user => user.id === currentUserId);
 
-  await page.addInitScript(() => localStorage.clear());
+  await page.addInitScript(userId => {
+    localStorage.clear();
+    localStorage.setItem(`pmt-release-notes-last-seen:${userId}`, "2026-07-16-day-29");
+  }, currentUserId);
   await page.route("**/api/login", async route => {
     await route.fulfill(jsonResponse({
       userId: currentUser.id,

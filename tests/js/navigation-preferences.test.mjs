@@ -61,3 +61,13 @@ test("visible navigation screens follow saved order and hidden items", () => {
   assert.equal(visibleNavigationScreens().some(screen => screen.view === "Backlog"), false);
   assert.equal(visibleNavigationScreens().some(screen => screen.view === "Settings"), true);
 });
+
+test("new navigation configurations place Release Notes immediately before About", () => {
+  storage.clear();
+  const config = readNavigationConfig();
+  const releaseNotesIndex = config.items.findIndex(item => item.view === "Release Notes");
+  const aboutIndex = config.items.findIndex(item => item.view === "About");
+
+  assert.equal(config.items[releaseNotesIndex].visible, true);
+  assert.equal(releaseNotesIndex + 1, aboutIndex);
+});

@@ -1,5 +1,5 @@
 /*
-    PMT combined database migration: Version 1.15 -> 1.21
+    PMT combined database migration: Version 1.15 -> 1.22
 
     Run this file in SQLCMD mode from the SQL\Migrations directory.
 */
@@ -12,6 +12,7 @@
 :r ".\PMT_1.18_to_1.19.sql"
 :r ".\PMT_1.19_to_1.20.sql"
 :r ".\PMT_1.20_to_1.21.sql"
+:r ".\PMT_1.21_to_1.22.sql"
 
-PRINT N'PMT combined database migration 1.15 to 1.21 completed.';
+PRINT N'PMT combined database migration 1.15 to 1.22 completed.';
 GO

@@ -1,5 +1,5 @@
 /*
-    PMT Version 1.21 base seed data.
+    PMT Version 1.22 base seed data.
 
     This script resets disposable development data, then seeds shared data:
     - Users
@@ -30,7 +30,7 @@ BEGIN
     (
         N'Louiery', N'Sincioco', N'Sin', N'louiery@gmail.com',
         N'+63 (966) 230-4023', N'/assets/avatar-sin.jpg?v=20260629-avatar-jpg-assets', @PasswordHash,
-        N'PMT creator and administrator.', 1, N'Admin', 1
+        N'PMT creator and administrator.', 1, N'Developer', 1
     );
 END;
 
@@ -46,7 +46,7 @@ SET
     [PasswordHash] = @PasswordHash,
     [Bio] = N'PMT creator and administrator.',
     [IsAdmin] = 1,
-    [Role] = N'Admin',
+    [Role] = N'Developer',
     [IsActive] = 1,
     [UpdatedByUserId] = @Sin,
     [UpdatedAt] = @Now

@@ -44,6 +44,7 @@ test("every registered navigation screen has a stable hash route", () => {
 
   assert.equal(new Set(routes).size, screenRegistry.length);
   assert.equal(routeForView("Tasks"), "#/tasks");
+  assert.equal(routeForView("Release Notes"), "#/release-notes");
   assert.equal(routeForView("Settings"), "#/settings");
   assert.equal(routeForContent("tasks", 123), "#/tasks/123");
 

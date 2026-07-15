@@ -4,9 +4,11 @@
   "type": "module",
   "scripts": {
     "check:js": "node scripts/check-js-syntax.mjs",
+    "check:release-notes": "node scripts/generate-release-notes.mjs --check",
+    "generate:release-notes": "node scripts/generate-release-notes.mjs",
     "test:js": "node --test tests/js/*.test.mjs",
     "test:browser": "playwright test",
-    "test": "npm run test:js && npm run test:browser"
+    "test": "npm run check:release-notes && npm run test:js && npm run test:browser"
   },
   "devDependencies": {
     "@playwright/test": "^1.61.0"

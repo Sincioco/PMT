@@ -1,5 +1,5 @@
 /*
-    PMT Version 1.21 stored procedures.
+    PMT Version 1.22 stored procedures.
     The application uses ADO.NET and calls these procedures directly.
     The SQL is intentionally explicit so future maintainers can trace each save action.
 */
@@ -1184,6 +1184,58 @@ BEGIN
     WHERE [IsActive] = 1
       AND ([Nickname] = @Login OR [Email] = @Login)
       AND [PasswordHash] = HASHBYTES('SHA2_256', CONVERT(NVARCHAR(4000), @Password));
+END;
+GO
+
+CREATE OR ALTER PROCEDURE [pmt].[RecordSuccessfulLogin]
+    @UserId INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    SET XACT_ABORT ON;
+
+    IF NOT EXISTS
+    (
+        SELECT 1
+        FROM [pmt].[Users]
+        WHERE [UserId] = @UserId
+          AND [IsActive] = 1
+    )
+    BEGIN
+        THROW 51058, 'An active user is required to record a successful login.', 1;
+    END;
+
+    DECLARE @Now DATETIME2(0) = SYSUTCDATETIME();
+
+    BEGIN TRANSACTION;
+
+    UPDATE [pmt].[UserLoginActivity] WITH (UPDLOCK, HOLDLOCK)
+    SET [LastLoginAt] = @Now
+    WHERE [UserId] = @UserId;
+
+    IF @@ROWCOUNT = 0
+    BEGIN
+        INSERT INTO [pmt].[UserLoginActivity] ([UserId], [LastLoginAt])
+        VALUES (@UserId, @Now);
+    END;
+
+    COMMIT TRANSACTION;
+END;
+GO
+
+CREATE OR ALTER PROCEDURE [pmt].[GetUserLastLogins]
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    SELECT
+        [User].[UserId],
+        [LoginActivity].[LastLoginAt]
+    FROM [pmt].[Users] AS [User]
+    LEFT JOIN [pmt].[UserLoginActivity] AS [LoginActivity]
+        ON [LoginActivity].[UserId] = [User].[UserId]
+    WHERE [User].[IsActive] = 1
+    ORDER BY [User].[UserId];
 END;
 GO
 
@@ -3676,11 +3728,6 @@ BEGIN
        )
     BEGIN
         SET @Role = N'Developer';
-    END;
-
-    IF @IsAdmin = 1
-    BEGIN
-        SET @Role = N'Admin';
     END;
 
     SELECT @ExistingUserCount = COUNT(*)
@@ -7144,7 +7191,7 @@ BEGIN
         [PasswordHash] = HASHBYTES('SHA2_256', CONVERT(NVARCHAR(4000), N'Password1')),
         [Bio] = N'PMT creator and administrator.',
         [IsAdmin] = 1,
-        [Role] = N'Admin',
+        [Role] = N'Developer',
         [IsActive] = 1,
         [CreatedByUserId] = @AdminUserId,
         [UpdatedByUserId] = @AdminUserId,
