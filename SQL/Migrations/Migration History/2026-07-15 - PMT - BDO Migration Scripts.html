@@ -97,7 +97,7 @@
     <tr><th>Item</th><th>Value</th></tr>
     <tr><td>BDO starting database</td><td>PMT Database Version 1.10</td></tr>
     <tr><td>Target database</td><td>PMT Database Version 1.15</td></tr>
-    <tr><td>Migration folder</td><td>A dated package containing the five <code>Sql\Migrations</code> files from the same release commit as the published application</td></tr>
+    <tr><td>Migration folder</td><td>A dated package containing the five <code>SQL\Migrations\Migration History</code> files from the same release commit as the published application</td></tr>
     <tr><td>Application deployment</td><td>Use a newly compiled and published .NET application; preserve BDO configuration and uploaded files</td></tr>
     <tr><td>Authentication</td><td>Windows integrated SQL authentication is preferred for the commands below</td></tr>
   </table>
@@ -110,7 +110,7 @@
   <ol>
     <li>Compile and publish the current .NET application into a new, empty release folder. Do not publish directly over the live folder.</li>
     <li>Record the Git commit SHA for the release. The published application, five migration files, and this runbook must all come from that same commit.</li>
-    <li>Create a dated migration-package folder and copy only the five canonical forward migrations plus this runbook into it. <code>dotnet publish</code> does not copy <code>Sql\Migrations</code> automatically.</li>
+    <li>Create a dated migration-package folder and copy only the five canonical forward migrations plus this runbook into it. <code>dotnet publish</code> does not copy <code>SQL\Migrations\Migration History</code> automatically.</li>
     <li>Copy the complete current live application folder to a dated rollback folder.</li>
     <li>Save BDO's production <code>appsettings.json</code>, connection string, <code>Deployment.PathBase</code>, <code>UploadStorage</code> root and credentials, IIS site settings, and application-pool identity.</li>
     <li>Record the values below before continuing.</li>

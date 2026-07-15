@@ -10,6 +10,7 @@ PMT is an internal project-management tool for software teams, combining project
 - Do not add Entity Framework or unnecessary repository, service, mediator, or mapping layers.
 - All application database objects use `[pmt]`. Application data access must go through stored procedures under `[pmt]`.
 - Treat PMT Database Version 1.15 as the deployed BDO baseline. As of July 15, 2026, the latest PMT release and current database schema are deployed to every known instance, so no new pre-1.15 upgrade compatibility is required. Every database-affecting or database-backed stability change must include a forward migration from the current deployed version. If one deployment requires more than one versioned migration, also provide a combined `PMT_<from>_to_<to>_All.sql` SQLCMD runner so the operator runs one file. Protecting BDO data and stability is the top priority; see `docs/database-versioning.md`.
+- Keep completed migration scripts and HTML runbooks under `SQL/Migrations/Migration History/`. When a newer deployed baseline is declared, move every migration and runbook ending at or before that baseline into Migration History automatically, leaving only the active forward chain and its combined runner in `SQL/Migrations/`.
 
 ## Intended structure
 

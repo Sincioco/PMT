@@ -529,7 +529,7 @@ function clamp(value, min, max) {
   return Math.min(Math.max(value, min), max);
 }
 
-export function askYesNo(message, title) {
+export function askYesNo(message, title, confirmLabel = "Continue") {
   return new Promise(resolve => {
     const modal = document.createElement("dialog");
     modal.className = "dialog mini-dialog";
@@ -542,7 +542,7 @@ export function askYesNo(message, title) {
       </div>
       <div class="dialog-actions">
         <button type="button" class="secondary text-icon-button" data-result="no">${buttonContent("&#10005;", "Cancel")}</button>
-        <button type="button" class="primary text-icon-button" data-result="yes">${buttonContent("&#10003;", "Continue")}</button>
+        <button type="button" class="primary text-icon-button" data-result="yes">${buttonContent("&#10003;", confirmLabel)}</button>
       </div>
     `;
 

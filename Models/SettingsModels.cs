@@ -9,6 +9,7 @@ public sealed class LookupDto
     public int DisplayOrder { get; set; }
     public bool IsActive { get; set; } = true;
     public string ColorHex { get; set; } = "";
+    public byte[] RowVersion { get; set; } = Array.Empty<byte>();
 }
 
 public sealed class HolidayDto
@@ -22,6 +23,7 @@ public sealed class HolidayDto
     public int? UpdatedByUserId { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
+    public byte[] RowVersion { get; set; } = Array.Empty<byte>();
 }
 
 public sealed class LookupInput
@@ -32,6 +34,7 @@ public sealed class LookupInput
     public int DisplayOrder { get; set; }
     public bool IsActive { get; set; } = true;
     public string ColorHex { get; set; } = "";
+    public byte[]? ExpectedRowVersion { get; set; }
 }
 
 public sealed class HolidayInput
@@ -41,6 +44,7 @@ public sealed class HolidayInput
     public DateTime HolidayDate { get; set; }
     public string CountryCode { get; set; } = "PH";
     public bool IsActive { get; set; } = true;
+    public byte[]? ExpectedRowVersion { get; set; }
 }
 
 public sealed class MaintenanceRecycleItemDto

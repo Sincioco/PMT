@@ -15,6 +15,7 @@ public sealed class WfhScheduleDto
     public bool CanWorkFriday { get; set; }
     public bool IsHidden { get; set; }
     public int SortOrder { get; set; }
+    public byte[] RowVersion { get; set; } = Array.Empty<byte>();
 }
 
 public sealed class WfhScheduleInput
@@ -26,9 +27,11 @@ public sealed class WfhScheduleInput
     public bool CanWorkThursday { get; set; }
     public bool CanWorkFriday { get; set; }
     public bool IsHidden { get; set; }
+    public byte[]? ExpectedRowVersion { get; set; }
 }
 
 public sealed class ReorderWfhScheduleInput
 {
     public List<int> UserIds { get; set; } = new();
+    public Dictionary<int, byte[]?> ExpectedRowVersions { get; set; } = new();
 }

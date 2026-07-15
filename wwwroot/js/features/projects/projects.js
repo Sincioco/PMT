@@ -37,10 +37,11 @@ export async function saveProjectWithArchivedCodeOverride({
   method,
   payload,
   isAdmin,
+  saveOptions = {},
   confirmReuse = askYesNo
 }) {
   try {
-    return await saveJson(path, method, payload);
+    return await saveJson(path, method, payload, saveOptions);
   } catch (error) {
     if (error?.code !== archivedProjectCodeConflict || !isAdmin) throw error;
 
@@ -50,7 +51,7 @@ export async function saveProjectWithArchivedCodeOverride({
     );
     if (!confirmed) throw new Error("Project code reuse canceled.");
 
-    return saveJson(path, method, { ...payload, overrideArchivedCode: true });
+    return saveJson(path, method, { ...payload, overrideArchivedCode: true }, saveOptions);
   }
 }
 
@@ -177,6 +178,7 @@ export function createProjectsFeature({
   }
 
   function editProject(project = {}) {
+    let saveAsNewMode = false;
     openEditor(project.id ? "Edit Project" : "New Project", `
       <div class="form-grid">
         ${field("Code", "code", project.code || "", "text", "", "", 5)}
@@ -190,12 +192,13 @@ export function createProjectsFeature({
         ${checkList("Members", "memberIds", state.users, project.memberIds || [], item => item.nickname, { className: "scroll-check-list user-card-check-list", renderItem: userCardCheckListLabelHtml })}
       </div>
     `, async root => {
+      const isUpdate = Boolean(project.id && !saveAsNewMode);
       const code = value(root, "code");
       const title = value(root, "title");
       const description = value(root, "description");
       const memberIds = checkedNumbers(root, "memberIds");
 
-      if (!project.id) {
+      if (!isUpdate) {
         if (!code.trim()) {
           root.querySelector("[name='code']")?.focus();
           throw new Error("Project code is required.");
@@ -218,11 +221,11 @@ export function createProjectsFeature({
         }
       }
 
-      if (project.id && code.length > 5) {
+      if (isUpdate && code.length > 5) {
         root.querySelector("[name='code']")?.focus();
         throw new Error("Project code cannot exceed 5 characters.");
       }
-      if (project.id && title.length > 30) {
+      if (isUpdate && title.length > 30) {
         root.querySelector("[name='title']")?.focus();
         throw new Error("Project title cannot exceed 30 characters.");
       }
@@ -235,10 +238,10 @@ export function createProjectsFeature({
       let iconUrl = value(root, "iconUrl");
       if (iconFile) iconUrl = (await uploadFile("projects", iconFile)).url;
 
-      const path = project.id ? `/api/projects/${project.id}` : "/api/projects";
-      const method = project.id ? "PUT" : "POST";
+      const path = isUpdate ? `/api/projects/${project.id}` : "/api/projects";
+      const method = isUpdate ? "PUT" : "POST";
       const payload = {
-        id: project.id || 0,
+        id: isUpdate ? project.id : 0,
         code,
         title,
         description,
@@ -246,7 +249,8 @@ export function createProjectsFeature({
         iconUrl,
         startDate: nullableDateValue(root, "startDate"),
         endDate: nullableDateValue(root, "endDate"),
-        memberIds
+        memberIds,
+        expectedRowVersion: isUpdate ? project.rowVersion || null : undefined
       };
 
       await saveProjectWithArchivedCodeOverride({
@@ -254,7 +258,22 @@ export function createProjectsFeature({
         path,
         method,
         payload,
-        isAdmin: Boolean(currentUser().isAdmin)
+        isAdmin: Boolean(currentUser().isAdmin),
+        saveOptions: {
+          saveAsNew: true,
+          canCreate: canAccessResource("Projects", "Create"),
+          prepareSaveAsNew: () => {
+            saveAsNewMode = true;
+            const titleElement = root.closest("dialog")?.querySelector("#dialogTitle");
+            if (titleElement) titleElement.textContent = "New Project";
+            const codeInput = root.querySelector("[name='code']");
+            if (codeInput) {
+              codeInput.value = "";
+              codeInput.focus({ preventScroll: true });
+            }
+          },
+          saveAsNewPreparedMessage: "Enter a new Project Code, then save the project as a new item."
+        }
       });
     }, "code");
   }

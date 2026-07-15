@@ -27,16 +27,16 @@ Baseline recorded: June 18, 2026.
 | `Data/SqlPmtStore.cs` | 964 | Direct ADO.NET stored-procedure calls, `/api/state` result-set mapping, DTO hydration, calculated project/Sprint metrics, and seed restore execution. |
 | `Models/PmtModels.cs` | 342 | Plain API DTOs and request input classes for users, projects, Sprints, work items, lookups, holidays, Scrum, Documentation, uploads, login, and password changes. |
 
-The `Sql` folder contains about 4,792 lines and 188 KB across these scripts:
+The `SQL` folder contains about 4,792 lines and 188 KB across these scripts:
 
 | File | Lines | Responsibility |
 | --- | ---: | --- |
-| `Sql/00_DropAndRebuild_PMT.sql` | 54 | SQLCMD rebuild orchestrator. Drops PMT and includes the schema, procedures, and three seed scripts. |
-| `Sql/01_CreateDatabase.sql` | 589 | Creates the database, `pmt` schema, 18 tables, relationships, indexes, and initial administrator record. |
-| `Sql/02_CreateStoredProcedures.sql` | 2,871 | Contains 34 functions/procedures for authorization, reads, writes, workflow rules, audit events, attachments, Sprint completion, and development resets. |
-| `Sql/03_SeedData.sql` | 450 | Core users, lookups, holidays, and PMT demonstration data. |
-| `Sql/03_SeedData_LMS.sql` | 416 | LMS project, Sprints, work items, bugs, audits, Scrum, and Documentation seed data. |
-| `Sql/03_SeedData_HLS.sql` | 412 | Multi-year HLS project, phases/Sprints, work items, bugs, audits, Scrum, and Documentation seed data. |
+| `SQL/00_DropAndRebuild_PMT.sql` | 54 | SQLCMD rebuild orchestrator. Drops PMT and includes the schema, procedures, and three seed scripts. |
+| `SQL/01_CreateDatabase.sql` | 589 | Creates the database, `pmt` schema, 18 tables, relationships, indexes, and initial administrator record. |
+| `SQL/02_CreateStoredProcedures.sql` | 2,871 | Contains 34 functions/procedures for authorization, reads, writes, workflow rules, audit events, attachments, Sprint completion, and development resets. |
+| `SQL/03_SeedData.sql` | 450 | Core users, lookups, holidays, and PMT demonstration data. |
+| `SQL/03_SeedData_LMS.sql` | 416 | LMS project, Sprints, work items, bugs, audits, Scrum, and Documentation seed data. |
+| `SQL/03_SeedData_HLS.sql` | 412 | Multi-year HLS project, phases/Sprints, work items, bugs, audits, Scrum, and Documentation seed data. |
 
 ## Screen Inventory
 
@@ -356,7 +356,7 @@ Open `http://localhost:5056` in Chrome/Chromium and execute
 For a disposable full database rebuild:
 
 ```powershell
-sqlcmd -S localhost -E -b -i ".\Sql\00_DropAndRebuild_PMT.sql"
+sqlcmd -S localhost -E -b -i ".\SQL\00_DropAndRebuild_PMT.sql"
 ```
 
 The application must preserve the behavior recorded here throughout later

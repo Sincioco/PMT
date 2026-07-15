@@ -10,6 +10,7 @@ public sealed partial class SqlPmtStore
         // The UI needs many related lists at once. One stored procedure returns
         // simple result sets, then this class connects those sets into DTOs.
         await using var connection = await OpenConnectionAsync(cancellationToken);
+        var editVersions = await ReadEditVersionsAsync(connection, currentUserId, null, cancellationToken);
         await using var command = StoredProcedure(connection, "[pmt].[GetAppState]");
         Add(command, "@CurrentUserId", currentUserId);
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
@@ -84,9 +85,51 @@ public sealed partial class SqlPmtStore
         state.UserPermissions = await ReadUserPermissionsAsync(securityReader, cancellationToken);
         await securityReader.NextResultAsync(cancellationToken);
         state.EffectivePermissions = await ReadEffectivePermissionsAsync(securityReader, cancellationToken);
+        await securityReader.CloseAsync();
+
+        HydrateEditVersions(state, editVersions);
 
         HydrateState(state, projectMembers, sprintMembers, taskAssignees, taskReporters, taskDependencies, attachments, taskAttachments, blogAttachments, blogHistory);
         return state;
+    }
+
+    private static void HydrateEditVersions(
+        AppState state,
+        IReadOnlyDictionary<(string EntityType, string EntityKey), byte[]> editVersions)
+    {
+        var users = state.Users.ToDictionary(item => item.Id);
+        var projects = state.Projects.ToDictionary(item => item.Id);
+        var sprints = state.Sprints.ToDictionary(item => item.Id);
+        var tasks = state.Tasks.ToDictionary(item => item.Id);
+        var devLogs = state.DevLogs.ToDictionary(item => item.Id);
+        var blogs = state.Blogs.ToDictionary(item => item.Id);
+        var lookups = state.Lookups.ToDictionary(item => item.Id);
+        var holidays = state.Holidays.ToDictionary(item => item.Id);
+        var securityResources = state.SecurityResources.ToDictionary(item => item.ResourceKey, StringComparer.OrdinalIgnoreCase);
+
+        foreach (var editVersion in editVersions)
+        {
+            var entityType = editVersion.Key.EntityType;
+            var entityKey = editVersion.Key.EntityKey;
+            var rowVersion = editVersion.Value;
+
+            if (entityType == "SecurityResource")
+            {
+                if (securityResources.TryGetValue(entityKey, out var resource)) resource.RowVersion = rowVersion;
+                continue;
+            }
+
+            if (!int.TryParse(entityKey, out var id)) continue;
+
+            if (entityType == "User" && users.TryGetValue(id, out var user)) user.RowVersion = rowVersion;
+            else if (entityType == "Project" && projects.TryGetValue(id, out var project)) project.RowVersion = rowVersion;
+            else if (entityType == "Sprint" && sprints.TryGetValue(id, out var sprint)) sprint.RowVersion = rowVersion;
+            else if (entityType == "WorkTask" && tasks.TryGetValue(id, out var task)) task.RowVersion = rowVersion;
+            else if (entityType == "DevLog" && devLogs.TryGetValue(id, out var devLog)) devLog.RowVersion = rowVersion;
+            else if (entityType == "Blog" && blogs.TryGetValue(id, out var blog)) blog.RowVersion = rowVersion;
+            else if (entityType == "Lookup" && lookups.TryGetValue(id, out var lookup)) lookup.RowVersion = rowVersion;
+            else if (entityType == "Holiday" && holidays.TryGetValue(id, out var holiday)) holiday.RowVersion = rowVersion;
+        }
     }
 
     private static async Task<List<UserDto>> ReadUsersAsync(SqlDataReader reader, CancellationToken cancellationToken)

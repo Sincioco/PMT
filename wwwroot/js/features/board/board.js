@@ -434,10 +434,14 @@ export function createBoardFeature({
       if (statusChanged) {
         const moved = await updateTaskStatus(task, newStatus);
         if (!moved) return;
+        await loadState();
       }
 
       if (taskIds.length > 1) {
-        await saveJson("/api/tasks/reorder", "POST", { taskIds });
+        const expectedRowVersions = Object.fromEntries(
+          taskIds.map(id => [id, taskById(id)?.rowVersion || null])
+        );
+        await saveJson("/api/tasks/reorder", "POST", { taskIds, expectedRowVersions });
       }
 
       boardSort = "custom";
@@ -448,6 +452,9 @@ export function createBoardFeature({
       restoreBoardScrollLeft(boardScrollLeft);
       showToast(statusChanged ? `Moved to ${newStatus}.` : "Order saved.");
     } catch (error) {
+      await loadState();
+      render();
+      restoreBoardScrollLeft(boardScrollLeft);
       showToast(error.message);
     }
   }
@@ -484,7 +491,8 @@ export function createBoardFeature({
         url: task.url,
         reporterIds: task.reporterIds || [],
         assigneeIds: task.assigneeIds,
-        dependencyTaskIds: task.dependencyTaskIds
+        dependencyTaskIds: task.dependencyTaskIds,
+        expectedRowVersion: task.rowVersion || null
       });
       return true;
     } catch (error) {

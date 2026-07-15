@@ -6,6 +6,7 @@ public sealed class SecurityResourceDto
     public string Name { get; set; } = "";
     public string AvailableRights { get; set; } = "Read";
     public int DisplayOrder { get; set; }
+    public byte[] RowVersion { get; set; } = Array.Empty<byte>();
 }
 
 public class SecurityPermissionDto
@@ -39,4 +40,5 @@ public sealed class SaveSecurityPermissionsInput
 {
     public List<RoleSecurityPermissionDto> RolePermissions { get; set; } = new();
     public List<UserSecurityPermissionDto> UserPermissions { get; set; } = new();
+    public byte[]? ExpectedRowVersion { get; set; }
 }

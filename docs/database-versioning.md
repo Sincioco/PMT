@@ -4,21 +4,21 @@
 
 As of July 15, 2026, the latest PMT release and its current Version 1.15 database schema have been deployed to BDO. Every BDO and other known PMT instance is on Version 1.15, which is now the deployed baseline. Protecting the data and stability of those instances is the top priority.
 
-Future work does not need new upgrade compatibility for database versions before 1.15. Keep the released migrations, combined wrappers, and deployment runbooks through Version 1.15 unchanged as historical release artifacts. Start the next forward migration from Version 1.15; after a later version is deployed to every known instance, that version becomes the new baseline.
+Future work does not need new upgrade compatibility for database versions before 1.15. Keep the released migrations, combined wrappers, and deployment runbooks through Version 1.15 unchanged under `SQL/Migrations/Migration History/`. Start the next forward migration from Version 1.15; after a later version is deployed to every known instance, that version becomes the new baseline.
 
-The current source tree's rebuild scripts represent Version 1.16. Version 1.11 enforces Scrum ownership while preserving owner-only private Logs, Version 1.12 saves requested Project codes exactly while allowing an administrator to explicitly reclaim a code held by an archived Project, Version 1.13 adds administrator-only Maintenance preview/purge and final upload-reference checks, Version 1.14 makes private Documentation and private Logs owner-only throughout the application SQL contract, including for administrators, Version 1.15 adds the permanent About 3D visualization and flyby seed Documentation for existing installations, and Version 1.16 adds Daily Scrum attendance, on-behalf check-in, ranged calendar data, and editable/cancellable vacation plans:
+The current source tree's rebuild scripts represent Version 1.17. Version 1.11 enforces Scrum ownership while preserving owner-only private Logs, Version 1.12 saves requested Project codes exactly while allowing an administrator to explicitly reclaim a code held by an archived Project, Version 1.13 adds administrator-only Maintenance preview/purge and final upload-reference checks, Version 1.14 makes private Documentation and private Logs owner-only throughout the application SQL contract, including for administrators, Version 1.15 adds the permanent About 3D visualization and flyby seed Documentation for existing installations, Version 1.16 adds Daily Scrum attendance, on-behalf check-in, ranged calendar data, and editable/cancellable vacation plans, and Version 1.17 rejects stale shared-record saves with opaque SQL Server `ROWVERSION` tokens, serializes linked Blog/Task/Sprint structural writes in a fixed order, and safely initializes missing WFH rows under concurrent reads:
 
-- `Sql/01_CreateDatabase.sql`
-- `Sql/02_CreateStoredProcedures.sql`
-- `Sql/03_SeedData.sql`
-- `Sql/03_SeedData_PMT.sql`
-- `Sql/03_SeedData_LMS.sql`
-- `Sql/03_SeedData_HLS.sql`
-- `Sql/00_DropAndRebuild_PMT.sql`
+- `SQL/01_CreateDatabase.sql`
+- `SQL/02_CreateStoredProcedures.sql`
+- `SQL/03_SeedData.sql`
+- `SQL/03_SeedData_PMT.sql`
+- `SQL/03_SeedData_LMS.sql`
+- `SQL/03_SeedData_HLS.sql`
+- `SQL/00_DropAndRebuild_PMT.sql`
 
-Version 1.16 fresh-database rebuilds and databases upgraded with `Sql/Migrations/PMT_1.15_to_1.16.sql` record `PMT_DatabaseVersion = 1.16` in a database-level extended property. The deployed BDO baseline remains Version 1.15 until that forward migration and the matching application release are deployed. `PMT_SecurityRoleDefaultsVersion` remains `1.10` because Version 1.16 reuses the existing Scrum rights and does not change Role defaults.
+Version 1.17 fresh-database rebuilds and databases upgraded with `SQL/Migrations/PMT_1.15_to_1.17_All.sql` record `PMT_DatabaseVersion = 1.17` in a database-level extended property. The deployed BDO baseline remains Version 1.15 until that combined migration and the matching application release are deployed. `PMT_SecurityRoleDefaultsVersion` remains `1.10` because Versions 1.16 and 1.17 do not change Role defaults.
 
-`Sql/Migrations/2026-07-15 - PMT - BDO Migration Scripts.html` is the historical runbook that moved BDO from Version 1.10 to Version 1.15. Do not rerun that chain on a current Version 1.15 installation. Apply only `Sql/Migrations/PMT_1.15_to_1.16.sql` for the Version 1.16 attendance release; a combined runner is not needed because this release contains one versioned migration. Fresh development or demo databases may use the rebuild scripts. Existing user databases must be upgraded with forward migrations from their deployed baseline; do not treat a source-tree rebuild change as proof that production has been upgraded.
+`SQL/Migrations/Migration History/2026-07-15 - PMT - BDO Migration Scripts.html` is the historical runbook that moved BDO from Version 1.10 to Version 1.15. Do not rerun that chain on a current Version 1.15 installation. Apply `SQL/Migrations/PMT_1.15_to_1.17_All.sql` for the current release so attendance/vacation storage and collision protection are installed in order. Fresh development or demo databases may use the rebuild scripts. Existing user databases must be upgraded with forward migrations from their deployed baseline; do not treat a source-tree rebuild change as proof that production has been upgraded.
 
 ## Required Rule
 
@@ -32,11 +32,13 @@ This includes changes to:
 - SQL workflow rules that existing production data depends on
 - ADO.NET mappings that require a changed SQL contract
 
-Changing `Sql/01_CreateDatabase.sql`, `Sql/02_CreateStoredProcedures.sql`, or seed scripts is not sufficient for deployed users. The same change must be represented as an upgrade path from the previous released database version.
+Changing `SQL/01_CreateDatabase.sql`, `SQL/02_CreateStoredProcedures.sql`, or seed scripts is not sufficient for deployed users. The same change must be represented as an upgrade path from the previous released database version.
 
 ## Migration Location and Naming
 
-Place migration scripts in `Sql/Migrations/`.
+Place the active forward migration chain and its combined operator runner in `SQL/Migrations/`. Store completed migration scripts and HTML runbooks in `SQL/Migrations/Migration History/`.
+
+Whenever a new deployed baseline is declared, automatically move every migration and runbook ending at or before that baseline into `Migration History/`. Keep only the forward chain from the declared baseline to the current source version, plus the matching combined runner, in the active directory.
 
 Use this naming pattern:
 
@@ -49,7 +51,7 @@ Use one migration per released database-version step. Do not edit an already rel
 
 ## Combined Deployment Migration
 
-If one deployment requires two or more versioned migration scripts, always create a combined `PMT_<start>_to_<end>_All.sql` file in `Sql/Migrations/`. The individual version-step files remain the canonical migration history; the combined file is the operator-facing, one-command SQLCMD runner.
+If one deployment requires two or more versioned migration scripts, always create a combined `PMT_<start>_to_<end>_All.sql` file in `SQL/Migrations/`. The individual version-step files remain the canonical migration history; the combined file is the operator-facing, one-command SQLCMD runner.
 
 The combined runner must use `:on error exit` and ordered relative `:r` includes so any failed step stops the deployment. For example, a deployment containing `PMT_1.15_to_1.16.sql` and `PMT_1.16_to_1.17.sql` must also include `PMT_1.15_to_1.17_All.sql`. Deployment instructions must direct the operator to the combined file instead of requiring each constituent migration to be run separately.
 

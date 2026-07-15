@@ -375,6 +375,7 @@ function documentationImportMetadata(blog, images) {
       parent,
       createdAt: blog.createdAt || "",
       updatedAt: blog.updatedAt || "",
+      rowVersion: blog.rowVersion || "",
       createdByUser: author ? {
         id: author.id,
         nickname: author.nickname || "",

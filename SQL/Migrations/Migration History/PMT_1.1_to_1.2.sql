@@ -19,7 +19,7 @@ BEGIN
 END;
 GO
 
-:r "D:\Project Management Tool (PMT)\Sql\02_CreateStoredProcedures.sql"
+:r "D:\Project Management Tool (PMT)\SQL\02_CreateStoredProcedures.sql"
 GO
 
 PRINT N'PMT database migration 1.1 to 1.2 completed.';

@@ -47,8 +47,9 @@ test("API errors preserve the structured error code", async () => {
 test("an Admin can confirm reuse and retry the identical project payload", async () => {
   const requests = [];
   const confirmations = [];
-  const saveJson = async (path, method, requestPayload) => {
-    requests.push({ path, method, payload: requestPayload });
+  const saveOptions = { saveAsNew: true, canCreate: true, prepareSaveAsNew: () => {} };
+  const saveJson = async (path, method, requestPayload, requestOptions) => {
+    requests.push({ path, method, payload: requestPayload, options: requestOptions });
     if (requests.length === 1) throw archivedCodeConflict();
     return { id: 42 };
   };
@@ -59,6 +60,7 @@ test("an Admin can confirm reuse and retry the identical project payload", async
     method: "POST",
     payload,
     isAdmin: true,
+    saveOptions,
     confirmReuse: async (message, title) => {
       confirmations.push({ message, title });
       return true;
@@ -70,8 +72,8 @@ test("an Admin can confirm reuse and retry the identical project payload", async
   assert.equal(confirmations[0].title, "Reuse Project Code");
   assert.match(confirmations[0].message, /belongs to a deleted project/i);
   assert.deepEqual(requests, [
-    { path: "/api/projects", method: "POST", payload },
-    { path: "/api/projects", method: "POST", payload: { ...payload, overrideArchivedCode: true } }
+    { path: "/api/projects", method: "POST", payload, options: saveOptions },
+    { path: "/api/projects", method: "POST", payload: { ...payload, overrideArchivedCode: true }, options: saveOptions }
   ]);
   assert.equal("overrideArchivedCode" in payload, false);
 });

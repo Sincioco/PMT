@@ -7,7 +7,7 @@ public sealed partial class SqlPmtStore
 {
     public Task<int> SaveProjectAsync(ProjectInput input, int currentUserId, CancellationToken cancellationToken)
     {
-        return ExecuteIdProcedureAsync("[pmt].[UpsertProject]", "@ProjectId", input.Id, command =>
+        return ExecuteVersionedIdProcedureAsync("Project", input.ExpectedRowVersion, "[pmt].[UpsertProject]", "@ProjectId", input.Id, command =>
         {
             // Send one extra character so the procedure can reject over-limit
             // values instead of silently truncating them to the column width.

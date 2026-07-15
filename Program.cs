@@ -57,6 +57,26 @@ app.UseExceptionHandler(errorApp =>
 
 app.Use(async (context, next) =>
 {
+    try
+    {
+        await next();
+    }
+    catch (SaveConflictException exception)
+    {
+        if (context.Response.HasStarted) throw;
+
+        context.Response.Clear();
+        context.Response.StatusCode = StatusCodes.Status409Conflict;
+        await context.Response.WriteAsJsonAsync(new
+        {
+            error = exception.Message,
+            code = "save-conflict"
+        });
+    }
+});
+
+app.Use(async (context, next) =>
+{
     if (HttpMethods.IsGet(context.Request.Method)
         && (string.IsNullOrEmpty(context.Request.Path.Value)
             || context.Request.Path == "/"

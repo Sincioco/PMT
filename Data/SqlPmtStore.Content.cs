@@ -7,7 +7,7 @@ public sealed partial class SqlPmtStore
 {
     public Task<int> SaveDevLogAsync(DevLogInput input, int currentUserId, CancellationToken cancellationToken)
     {
-        return ExecuteIdProcedureAsync("[pmt].[UpsertDevLog]", "@DevLogId", input.Id, command =>
+        return ExecuteVersionedIdProcedureAsync("DevLog", input.ExpectedRowVersion, "[pmt].[UpsertDevLog]", "@DevLogId", input.Id, command =>
         {
             Add(command, "@LogType", SqlDbType.NVarChar, 20, input.LogType);
             Add(command, "@Category", SqlDbType.NVarChar, 60, input.Category);
@@ -31,7 +31,7 @@ public sealed partial class SqlPmtStore
 
     public Task<int> SaveBlogAsync(BlogInput input, int currentUserId, CancellationToken cancellationToken)
     {
-        return ExecuteIdProcedureAsync("[pmt].[UpsertBlog]", "@BlogId", input.Id, command =>
+        return ExecuteVersionedIdProcedureAsync("Blog", input.ExpectedRowVersion, "[pmt].[UpsertBlog]", "@BlogId", input.Id, command =>
         {
             Add(command, "@Title", SqlDbType.NVarChar, 220, input.Title);
             Add(command, "@BodyHtml", SqlDbType.NVarChar, -1, input.BodyHtml);
@@ -46,11 +46,11 @@ public sealed partial class SqlPmtStore
 
     public Task DeleteBlogAsync(int blogId, int currentUserId, CancellationToken cancellationToken)
     {
-        return ExecuteProcedureAsync("[pmt].[DeleteBlog]", command =>
+        return ExecuteLockedProcedureAsync("[pmt].[DeleteBlog]", command =>
         {
             Add(command, "@BlogId", blogId);
             Add(command, "@CurrentUserId", currentUserId);
-        }, cancellationToken);
+        }, cancellationToken, lockBlogWrites: true, lockWorkTaskWrites: true);
     }
 
     public Task<int> AddBlogAttachmentAsync(int blogId, UploadResult upload, int currentUserId, CancellationToken cancellationToken)

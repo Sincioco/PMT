@@ -56,7 +56,7 @@ import {
   resolveImportProjectId,
   openExportDialog,
   showImportResultDialog
-} from "../../shared/table-export.js?v=20260710-export-rich-kanban";
+} from "../../shared/table-export.js?v=20260715-save-collision";
 
 const scrumYesterdayPrompt = "What did you accomplish yesterday?";
 const scrumTodayPrompt = "What do you plan to do today?";
@@ -1316,6 +1316,7 @@ export function createScrumFeature({
     const canSaveVacation = vacation ? canUpdateVacation : canCreateVacation;
     body.innerHTML = `
       <input type="hidden" name="vacationId" value="${vacation?.id || ""}">
+      <input type="hidden" name="expectedRowVersion" value="${escapeAttr(vacation?.rowVersion || "")}">
       <p class="field-note">Add planned vacation dates so the team can see them on the attendance calendar.</p>
       <div class="form-grid scrum-vacation-date-grid">
         <div class="field">
@@ -1405,7 +1406,11 @@ export function createScrumFeature({
     try {
       await api(vacationId ? `/api/vacations/${vacationId}` : "/api/vacations", {
         method: vacationId ? "PUT" : "POST",
-        body: JSON.stringify({ startDate, endDate })
+        body: JSON.stringify({
+          startDate,
+          endDate,
+          expectedRowVersion: vacationId ? value(modal, "expectedRowVersion") || null : undefined
+        })
       });
       delete modal.dataset.editVacationId;
       await refreshScrumAttendance();
@@ -1569,7 +1574,12 @@ export function createScrumFeature({
         projectId,
         logDate,
         bodyHtml,
-        isPinned: root.querySelector("[name='isPinned']").checked
+        isPinned: root.querySelector("[name='isPinned']").checked,
+        expectedRowVersion: log.id ? log.rowVersion || null : undefined
+      }, {
+        saveAsNew: true,
+        canCreate: canAccessResource("Scrum", "Create"),
+        createPath: "/api/devlogs"
       });
     }, log.id ? "" : "bodyHtml", root => {
       bindScrumDateBounds(root);
@@ -1799,6 +1809,7 @@ export function createScrumFeature({
         { header: "PMT Scrum Id", value: log => log.id },
         { header: "PMT Scrum Owner User Id", value: log => log.userId },
         { header: "PMT Scrum Row Hash", value: log => scrumImportHash(log) },
+        { header: "PMT Scrum Row Version", value: log => log.rowVersion || "" },
         { header: "PMT Update Date", value: log => scrumDateInputValue(log.logDate) },
         { header: "PMT Update Project Id", value: log => log.projectId || "" },
         { header: "PMT Update Scrum Html", value: log => log.bodyHtml || "" },
@@ -1882,16 +1893,16 @@ export function createScrumFeature({
       const updates = scrumImportValues(record, log);
       if (!scrumImportChanged(log, updates)) return "";
 
-      try {
-        await saveJson(`/api/devlogs/${log.id}`, "PUT", scrumImportPayload(log, updates));
-        return "updated";
-      } catch {
-        // If the original Scrum row can no longer be updated, still import it as a new current-user row.
-      }
+      const result = await saveJson(`/api/devlogs/${log.id}`, "PUT", scrumImportPayload(log, updates, record), {
+        saveAsNew: true,
+        canCreate: canAccessResource("Scrum", "Create"),
+        createPath: "/api/devlogs"
+      });
+      return result?.__savedAsNew ? "created" : "updated";
     }
 
     const createValues = scrumImportValues(record, null);
-    await saveJson("/api/devlogs", "POST", scrumImportPayload(null, createValues));
+    await saveJson("/api/devlogs", "POST", scrumImportPayload(null, createValues, record));
     return "created";
   }
 
@@ -1933,7 +1944,7 @@ export function createScrumFeature({
     };
   }
 
-  function scrumImportPayload(log, updates) {
+  function scrumImportPayload(log, updates, record = {}) {
     return {
       id: log?.id || 0,
       logType: sharedScrumLogType,
@@ -1941,7 +1952,8 @@ export function createScrumFeature({
       logDate: updates.logDate,
       bodyHtml: updates.bodyHtml,
       isPinned: updates.isPinned,
-      auditContext: "Import"
+      auditContext: "Import",
+      expectedRowVersion: log ? importFirstNonEmptyCell(record, "PMT Scrum Row Version").trim() || null : undefined
     };
   }
 

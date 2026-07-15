@@ -30,6 +30,7 @@ import {
   formatDateTime
 } from "../../shared/dates.js";
 import { normalizeSavedArray } from "../../shared/filter-values.js";
+import { canAccessResource } from "../../shared/security.js?v=20260713-role-security";
 import {
   projectName,
   userById
@@ -49,7 +50,7 @@ import {
   openExcelImport,
   openExportDialog,
   showImportResultDialog
-} from "../../shared/table-export.js?v=20260710-export-rich-kanban";
+} from "../../shared/table-export.js?v=20260715-save-collision";
 
 const personalLogType = "Log";
 const logTableColumnPreferenceKey = "pmt-log-table-columns";
@@ -840,7 +841,12 @@ export function createLogFeature({
         projectId,
         logDate,
         bodyHtml,
-        isPinned: root.querySelector("[name='isPinned']").checked
+        isPinned: root.querySelector("[name='isPinned']").checked,
+        expectedRowVersion: log.id ? log.rowVersion || null : undefined
+      }, {
+        saveAsNew: true,
+        canCreate: canAccessResource("PersonalLog", "Create"),
+        createPath: "/api/devlogs"
       });
     }, log.id ? "" : "bodyHtml");
   }
@@ -1073,6 +1079,7 @@ export function createLogFeature({
         { header: "PMT Log Id", value: log => log.id },
         { header: "PMT Log Owner User Id", value: log => log.userId },
         { header: "PMT Log Row Hash", value: log => logImportHash(log) },
+        { header: "PMT Log Row Version", value: log => log.rowVersion || "" },
         { header: "PMT Update Date", value: log => logDateInputValue(log.logDate) },
         { header: "PMT Update Category", value: log => logCategory(log) },
         { header: "PMT Update Project Id", value: log => log.projectId || "" },
@@ -1116,12 +1123,15 @@ export function createLogFeature({
   async function importLogExcel(records) {
     const errors = [];
     let updatedRows = 0;
+    let createdRows = 0;
 
     for (let index = 0; index < records.length; index += 1) {
       const record = records[index];
       const rowNumber = index + 2;
       try {
-        if (await importLogRecord(record)) updatedRows += 1;
+        const result = await importLogRecord(record);
+        if (result === "updated") updatedRows += 1;
+        if (result === "created") createdRows += 1;
       } catch (error) {
         const id = parseLogImportId(record);
         const log = id ? state.devLogs.find(item => item.id === id && isPersonalLog(item)) : null;
@@ -1134,7 +1144,7 @@ export function createLogFeature({
       }
     }
 
-    if (updatedRows) {
+    if (updatedRows || createdRows) {
       await loadState();
       render();
     }
@@ -1142,6 +1152,7 @@ export function createLogFeature({
       title: "Import Log",
       totalRows: records.length,
       updatedRows,
+      createdRows,
       errors
     });
   }
@@ -1161,9 +1172,9 @@ export function createLogFeature({
     if (dateError) throw new Error(dateError);
     if (!bodyHtml) throw new Error("Log text is required.");
 
-    if (!logImportChanged(log, { projectId, logDate, category, bodyHtml, isPinned })) return false;
+    if (!logImportChanged(log, { projectId, logDate, category, bodyHtml, isPinned })) return "";
 
-    await saveJson(`/api/devlogs/${log.id}`, "PUT", {
+    const result = await saveJson(`/api/devlogs/${log.id}`, "PUT", {
       id: log.id,
       logType: personalLogType,
       category,
@@ -1171,9 +1182,14 @@ export function createLogFeature({
       logDate,
       bodyHtml,
       isPinned,
-      auditContext: "Import"
+      auditContext: "Import",
+      expectedRowVersion: importCell(record, "PMT Log Row Version").trim() || null
+    }, {
+      saveAsNew: true,
+      canCreate: canAccessResource("PersonalLog", "Create"),
+      createPath: "/api/devlogs"
     });
-    return true;
+    return result?.__savedAsNew ? "created" : "updated";
   }
 
   function assertLogImportAllowed(log) {

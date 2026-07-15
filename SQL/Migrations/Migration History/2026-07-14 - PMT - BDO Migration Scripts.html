@@ -86,7 +86,7 @@
   <p class="subtitle">Runbook for July 14, 2026 &mdash; Database Version 1.3 to 1.9</p>
 
   <div class="callout danger">
-    <strong>Superseded:</strong> This document records the historical Version 1.3 to 1.9 deployment. As of July 14, 2026, every known BDO instance is already on the new Version 1.10 baseline after running <code>PMT_1.3_to_1.10_All.sql</code>. For the current Version 1.15 release, use <code>Sql/Migrations/2026-07-15 - PMT - BDO Migration Scripts.html</code> as the authoritative self-contained Version 1.10 to 1.15 runbook.
+    <strong>Superseded:</strong> This document records the historical Version 1.3 to 1.9 deployment. As of July 14, 2026, every known BDO instance is already on the new Version 1.10 baseline after running <code>PMT_1.3_to_1.10_All.sql</code>. For the current Version 1.15 release, use <code>SQL/Migrations/Migration History/2026-07-15 - PMT - BDO Migration Scripts.html</code> as the authoritative self-contained Version 1.10 to 1.15 runbook.
   </div>
 
   <div class="callout danger">
@@ -97,7 +97,7 @@
     <tr><th>Item</th><th>Value</th></tr>
     <tr><td>BDO starting database</td><td>PMT Database Version 1.3</td></tr>
     <tr><td>Target database</td><td>PMT Database Version 1.9</td></tr>
-    <tr><td>Migration folder</td><td><code>Sql\Migrations</code> from the July 14 release</td></tr>
+    <tr><td>Migration folder</td><td><code>SQL\Migrations\Migration History</code> from the July 14 release</td></tr>
     <tr><td>Application deployment</td><td>Use the newly published .NET application; preserve BDO configuration and uploaded files</td></tr>
     <tr><td>Authentication</td><td>Windows integrated SQL authentication is preferred for the commands below</td></tr>
   </table>
@@ -117,7 +117,7 @@
   <pre>$ReleaseRoot   = '&lt;FULL PATH TO THE NEW PUBLISHED PMT RELEASE&gt;'
 $LiveRoot      = '&lt;FULL PATH TO THE LIVE PMT APPLICATION&gt;'
 $RollbackRoot  = '&lt;FULL PATH TO THE DATED APPLICATION BACKUP&gt;'
-$MigrationRoot = Join-Path $ReleaseRoot 'Sql\Migrations'
+$MigrationRoot = Join-Path $ReleaseRoot 'SQL\Migrations\Migration History'
 $SqlServer     = '&lt;SQL SERVER OR SQL SERVER\INSTANCE&gt;'
 $UploadRoot    = '&lt;VALUE OF UploadStorage.RootPath&gt;'
 $UploadBackup  = '&lt;FULL PATH TO THE DATED UPLOAD BACKUP&gt;'</pre>
@@ -194,7 +194,7 @@ SELECT
 GO</pre>
 
   <h2>4. Confirm the exact migration files</h2>
-  <p>Use the combined runner and migration files from the same release as the published application. Keep all seven SQL files together in <code>Sql\Migrations</code>:</p>
+  <p>Use the combined runner and migration files from the same release as the published application. Keep all seven SQL files together in <code>SQL\Migrations\Migration History</code>:</p>
   <ol>
     <li><code>PMT_1.3_to_1.9_All.sql</code> &mdash; preferred one-command SQLCMD runner</li>
     <li><code>PMT_1.3_to_1.4.sql</code> &mdash; internal invitation URLs</li>

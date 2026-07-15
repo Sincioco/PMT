@@ -17,7 +17,7 @@ public sealed partial class SqlPmtStore
 
     private Task<int> SaveTaskAsync(WorkTaskInput input, int currentUserId, bool allowBacklogAccess, CancellationToken cancellationToken)
     {
-        return ExecuteIdProcedureAsync("[pmt].[UpsertTask]", "@TaskId", input.Id, command =>
+        return ExecuteVersionedIdProcedureAsync("WorkTask", input.ExpectedRowVersion, "[pmt].[UpsertTask]", "@TaskId", input.Id, command =>
         {
             AddNullable(command, "@ProjectId", input.ProjectId);
             AddNullable(command, "@SprintId", input.SprintId);
@@ -48,7 +48,7 @@ public sealed partial class SqlPmtStore
 
     public Task ReorderTasksAsync(ReorderTasksInput input, int currentUserId, CancellationToken cancellationToken)
     {
-        return ExecuteProcedureAsync("[pmt].[ReorderTasks]", command =>
+        return ExecuteVersionedReorderProcedureAsync("WorkTask", input.TaskIds, input.ExpectedRowVersions, "[pmt].[ReorderTasks]", command =>
         {
             Add(command, "@TaskIdsCsv", SqlDbType.NVarChar, -1, OrderedCsv(input.TaskIds));
             Add(command, "@CurrentUserId", currentUserId);
@@ -67,21 +67,21 @@ public sealed partial class SqlPmtStore
 
     private Task<int> DuplicateTaskAsync(int taskId, int currentUserId, bool allowBacklogAccess, CancellationToken cancellationToken)
     {
-        return ExecuteIdProcedureAsync("[pmt].[DuplicateTask]", "@NewTaskId", 0, command =>
+        return ExecuteLockedIdProcedureAsync("[pmt].[DuplicateTask]", "@NewTaskId", command =>
         {
             Add(command, "@TaskId", taskId);
             Add(command, "@CurrentUserId", currentUserId);
             Add(command, "@AllowBacklogAccess", allowBacklogAccess);
-        }, cancellationToken);
+        }, cancellationToken, lockWorkTaskWrites: true);
     }
 
     public Task<int> ConvertTaskToBlogAsync(int taskId, int currentUserId, CancellationToken cancellationToken)
     {
-        return ExecuteIdProcedureAsync("[pmt].[ConvertTaskToBlog]", "@BlogId", 0, command =>
+        return ExecuteLockedIdProcedureAsync("[pmt].[ConvertTaskToBlog]", "@BlogId", command =>
         {
             Add(command, "@TaskId", taskId);
             Add(command, "@CurrentUserId", currentUserId);
-        }, cancellationToken);
+        }, cancellationToken, lockBlogWrites: true, lockWorkTaskWrites: true);
     }
 
     public Task DeleteTaskAsync(int taskId, int currentUserId, CancellationToken cancellationToken)
@@ -96,12 +96,12 @@ public sealed partial class SqlPmtStore
 
     private Task DeleteTaskAsync(int taskId, int currentUserId, bool allowBacklogAccess, CancellationToken cancellationToken)
     {
-        return ExecuteProcedureAsync("[pmt].[DeleteTask]", command =>
+        return ExecuteLockedProcedureAsync("[pmt].[DeleteTask]", command =>
         {
             Add(command, "@TaskId", taskId);
             Add(command, "@CurrentUserId", currentUserId);
             Add(command, "@AllowBacklogAccess", allowBacklogAccess);
-        }, cancellationToken);
+        }, cancellationToken, lockWorkTaskWrites: true);
     }
 
     public Task<int> AddTaskAttachmentAsync(int taskId, UploadResult upload, int currentUserId, CancellationToken cancellationToken)

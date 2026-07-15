@@ -12,12 +12,12 @@ PMT is a single ASP.NET Core .NET 6 web application:
 4. `Program.cs` configures services, JSON behavior, deployment path-base handling, exception handling, static/uploaded files, endpoint-group registration, the SPA fallback, and application startup.
 5. `Endpoints/` maps minimal API routes by feature while preserving endpoint URLs, HTTP methods, payload shapes, and the simple current-user header/query behavior. State, private-content, task-to-document conversion, and destructive Development routes require an explicit current-user identity instead of falling back to user 1.
 6. `Models/*.cs` contains cohesive plain DTO and request model groups for state, users, invitations, projects/Sprints, work items, content/uploads, WFH schedule, Scrum attendance/vacation, and settings.
-7. `Data/SqlPmtStore*.cs` is one partial `SqlPmtStore` that calls `[pmt]` stored procedures through direct ADO.NET. `SqlPmtStore.State.cs` maps `[pmt].[GetAppState]`, hydrates relationships, and calculates project/Sprint metrics.
-8. `Sql/01_CreateDatabase.sql`, `Sql/02_CreateStoredProcedures.sql`, and the seed scripts define and populate SQL Server objects under `[pmt]`.
+7. `Data/SqlPmtStore*.cs` is one partial `SqlPmtStore` that calls `[pmt]` stored procedures through direct ADO.NET. Versioned updates and reorders lock and compare their opaque edit tokens inside the same ADO.NET transaction as the feature procedure; multi-row reorders take locks in stable ID order. Structural Documentation, WorkTask, and Sprint writers use focused transaction-owned application locks in the fixed Blog -> WorkTask -> Sprint order before taking row locks. This serializes hierarchy changes, task conversion/duplication, Sprint code allocation, and carry-forward without one global application lock. `SqlPmtStore.State.cs` maps `[pmt].[GetAppState]`, hydrates relationships, and calculates project/Sprint metrics.
+8. `SQL/01_CreateDatabase.sql`, `SQL/02_CreateStoredProcedures.sql`, and the seed scripts define and populate SQL Server objects under `[pmt]`.
 9. `tests/js/` contains Node-based ES-module unit tests for pure frontend rules and calculations.
 10. `tests/browser/` contains Playwright smoke tests that serve the real ASP.NET app and mock API responses with deterministic browser-test data.
 
-The source tree and fresh-rebuild scripts represent PMT Database Version 1.16. BDO and every other known deployed instance remain on the Version 1.15 baseline until the Version 1.15-to-1.16 migration and matching application release are deployed. The migration must run successfully before the Version 1.16 binary starts against an existing database.
+The source tree and fresh-rebuild scripts represent PMT Database Version 1.17. BDO and every other known deployed instance remain on the Version 1.15 baseline until the combined Version 1.15-to-1.17 migration and matching application release are deployed. The combined migration must run successfully before the Version 1.17 binary starts against an existing database.
 
 The main read flow is:
 
@@ -30,6 +30,8 @@ Scrum attendance uses a focused bounded read instead of extending that aggregate
 `Scrum -> GET /api/attendance?startDate&endDate -> SqlPmtStore.GetAttendanceCalendarAsync -> [pmt].[GetAttendanceCalendar] -> attendance entries, overlapping vacation ranges, and the current user's active vacation plans`
 
 The focused query keeps growing attendance history out of every `/api/state` response and leaves the ordered `[pmt].[GetAppState]` result sets unchanged. Holidays continue to come from `/api/state` because they are existing shared scheduling state.
+
+Optimistic editing uses a focused `[pmt].[GetEditVersions]` read so the ordered `[pmt].[GetAppState]` result sets remain unchanged. State and vacation reads capture those tokens before loading their editable record values; this guarantees that a concurrent save can only produce a conservative conflict, never stale values paired with a newer token. WFH rows return `RowVersion` in the same result set because `[pmt].[GetWfhSchedule]` may create missing schedule rows; its first-load transaction uses a focused initialization application lock plus key-range protection so concurrent initial reads cannot deadlock or create the same user row twice. Update DTOs return the opaque row version as a base64 JSON string and submit it as `expectedRowVersion`. `SqlPmtStore` locks that version and runs the existing feature upsert in one transaction; a mismatch rolls back the save and returns HTTP 409 `save-conflict`. Security permissions use the same contract per Security resource.
 
 ## Target frontend layout
 

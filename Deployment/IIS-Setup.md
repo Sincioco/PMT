@@ -7,12 +7,12 @@ These steps assume the app is deployed to an internal Windows Server with IIS an
 Open SQL Server Management Studio or `sqlcmd` and run the scripts in this order:
 
 ```text
-Sql\01_CreateDatabase.sql
-Sql\02_CreateStoredProcedures.sql
-Sql\03_SeedData.sql
-Sql\03_SeedData_PMT.sql
-Sql\03_SeedData_LMS.sql
-Sql\03_SeedData_HLS.sql
+SQL\01_CreateDatabase.sql
+SQL\02_CreateStoredProcedures.sql
+SQL\03_SeedData.sql
+SQL\03_SeedData_PMT.sql
+SQL\03_SeedData_LMS.sql
+SQL\03_SeedData_HLS.sql
 ```
 
 Every table, function, and stored procedure is under the `[pmt]` schema.
@@ -164,8 +164,8 @@ If PMT encounters a configuration or file-system access error while initializing
 8. Press Ctrl+F5 once in the browser to bypass cached frontend assets.
 9. Keep the release SHA, backup verification, migration logs, pre/post data manifest, and smoke-test record together. Roll back the application, database, configuration, and uploads as one set if validation fails.
 
-The completed July 15, 2026 BDO deployment established PMT Database Version 1.15 as the baseline for every known instance. `Sql/Migrations/2026-07-15 - PMT - BDO Migration Scripts.html` remains the historical record of the five forward migrations from Version 1.10 through Version 1.15; do not rerun that chain on a current installation. Future deployment runbooks must begin at the current deployed baseline and use a combined migration runner whenever the release spans more than one versioned migration.
+The completed July 15, 2026 BDO deployment established PMT Database Version 1.15 as the baseline for every known instance. `SQL/Migrations/Migration History/2026-07-15 - PMT - BDO Migration Scripts.html` remains the historical record of the five forward migrations from Version 1.10 through Version 1.15; do not rerun that chain on a current installation. Future deployment runbooks must begin at the current deployed baseline and use a combined migration runner whenever the release spans more than one versioned migration.
 
-The current source release represents Database Version 1.16 and adds Scrum attendance and vacation storage. For an existing Version 1.15 installation, back up and verify the database, keep IIS stopped, and run `Sql/Migrations/PMT_1.15_to_1.16.sql` successfully before deploying or starting the matching Version 1.16 application. This release contains one version-step migration, so a combined `_All.sql` runner is not needed. Never start the Version 1.16 binary against the Version 1.15 schema.
+The current source release represents Database Version 1.17 and adds Scrum attendance/vacation storage followed by `ROWVERSION` save-collision protection. For an existing Version 1.15 installation, back up and verify the database, keep IIS stopped, change to the `SQL\Migrations` directory, and run `PMT_1.15_to_1.17_All.sql` in SQLCMD mode before deploying or starting the matching Version 1.17 application. This combined runner applies both required version steps in order and stops on the first error. Never start the Version 1.17 binary against a Version 1.15 or Version 1.16 schema.
 
 This release changes ASP.NET endpoints and ADO.NET mappings as well as browser JavaScript and CSS. Recompile and republish the .NET application, restart the IIS application pool after the migration and file deployment, then press Ctrl+F5 once. The versioned JavaScript and CSS URLs in the release prevent normal browser-cache reuse; Ctrl+F5 is the final verification refresh, not a substitute for rebuilding or restarting .NET.

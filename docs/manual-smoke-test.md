@@ -88,6 +88,24 @@ At laptop width:
 
 Use clearly named temporary records and remove them after validation.
 
+### Save collisions
+
+Use two signed-in browser profiles, A and B, that can edit the same disposable record.
+
+- [ ] Open the same Dev Task in both profiles. Save a title change in A, then save B's older draft. Confirm B receives the Save Collision message, A's newer title remains in the database, and Cancel leaves B's editor and draft open.
+- [ ] Repeat and choose Save as New in B. Confirm a new Dev Task receives a different ID/code and preserves B's draft without changing A's record.
+- [ ] Repeat the stale-save rejection for a Bug, Sprint, Documentation item, Scrum entry, and Personal Log entry. Confirm Save as New is offered only when the current user has Create permission.
+- [ ] For a stale Project, choose Save as New and confirm the editor switches to New Project, preserves the draft, clears/focuses Code, and requires a different unique Code before creating it.
+- [ ] Confirm stale User, Lookup/Role, Holiday, WFH, vacation, and Security saves are rejected without offering an invalid duplicate.
+- [ ] Confirm a stale Board move and read-only rich-text checkbox save do not overwrite the newer row. Confirm an import collision is not silently converted into a new item unless Save as New is explicitly chosen.
+- [ ] In two browsers, reorder the same Dev Task/Backlog list from A and then submit B's older order. Confirm B receives Save Collision and A's newer order remains. Repeat for WFH ordering; no Save as New option should be offered.
+- [ ] Move a Board card to another status and position in one drag. Confirm the status and order both save without a false Save Collision, then refresh and confirm both persist.
+- [ ] Open the same unfinished Sprint in two browsers. Finish it in A, then submit B's older Finish dialog. Confirm B receives Save Collision, only one successor Sprint exists, and the carry-forward operation is not repeated.
+- [ ] In parallel sessions, create a Sprint while finishing another Sprint in the same Project. Confirm both complete with distinct Sprint codes. Duplicate a Task while another Task save is in progress and confirm both complete without a duplicate code or deadlock.
+- [ ] In parallel sessions, convert a Task to Documentation while moving or deleting Documentation. Confirm the operations either complete in sequence or return their normal business error, never a deadlock; refresh and confirm Task/Documentation links are consistent.
+- [ ] Open a Project editor, accept a pending invitation to that Project in another browser, then save the older Project draft. Confirm the stale save is rejected and the newly accepted member remains assigned.
+- [ ] Open a Security resource editor, create or reactivate a Role in another browser, then save the older Security draft. Confirm the stale save is rejected and the new Role's default permissions remain intact.
+
 ### Project and Sprint
 
 - [ ] Create a temporary Project with members.
@@ -154,6 +172,8 @@ Use clearly named temporary records and remove them after validation.
 - [ ] Confirm users are sorted by Nickname by default.
 - [ ] Toggle M T W T F buttons for a user, refresh, and confirm the saved days persist.
 - [ ] Drag users into a custom order, refresh, and confirm the order persists.
+- [ ] Immediately toggle a WFH day after reordering and confirm it saves without a false Save Collision; refresh and confirm the change persists.
+- [ ] With a newly added active user who has no WFH row yet, open WFH Schedule in two browser profiles at the same time. Confirm both loads succeed and the user appears once.
 - [ ] Delete a user from the WFH list, then use Show Deleted to confirm the user is hidden but still recoverable.
 - [ ] Use Reset and confirm all users return, all WFH days clear, and Nickname sorting is restored.
 

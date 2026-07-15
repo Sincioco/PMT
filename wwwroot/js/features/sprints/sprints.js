@@ -252,7 +252,12 @@ export function createSprintsFeature({
         startDate: nullableDateValue(root, "startDate"),
         endDate: nullableDateValue(root, "endDate"),
         lessonLearnedHtml: richValue(root, "lessonLearnedHtml"),
-        developerIds
+        developerIds,
+        expectedRowVersion: sprint.id ? sprint.rowVersion || null : undefined
+      }, {
+        saveAsNew: true,
+        canCreate: canAccessResource("Sprints", "Create"),
+        createPath: "/api/sprints"
       });
 
       sprintEntryProjectId = savedProjectId;
@@ -269,18 +274,26 @@ export function createSprintsFeature({
   }
 
   async function finishSprint(id) {
+    const sprint = sprintById(id);
+    if (!sprint) return;
+
     const options = await askFinishSprintOptions();
     if (!options) return;
 
     try {
       await api(`/api/sprints/${id}/finish`, {
         method: "POST",
-        body: JSON.stringify(options)
+        body: JSON.stringify({
+          ...options,
+          expectedRowVersion: sprint.rowVersion || null
+        })
       });
       await loadState();
       render();
       showToast("Sprint finished.");
     } catch (error) {
+      await loadState();
+      render();
       showToast(error.message);
     }
   }

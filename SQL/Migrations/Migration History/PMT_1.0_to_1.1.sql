@@ -10,7 +10,7 @@
     Studio, enable Query > SQLCMD Mode before running it.
 */
 
-:r "D:\Project Management Tool (PMT)\Sql\02_CreateStoredProcedures.sql"
+:r "D:\Project Management Tool (PMT)\SQL\02_CreateStoredProcedures.sql"
 GO
 
 USE [PMT];

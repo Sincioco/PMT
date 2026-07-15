@@ -69,6 +69,7 @@ import {
   devTaskStatusChartItems
 } from "../../shared/dev-task-charts.js?v=20260714-linked-bug-percent";
 import { normalizeSavedArray } from "../../shared/filter-values.js";
+import { canAccessResource } from "../../shared/security.js?v=20260713-role-security";
 import {
   downloadXlsx,
   downloadCsv,
@@ -87,7 +88,7 @@ import {
   showImportResultDialog,
   sameNumberList,
   workItemSystemColumns
-} from "../../shared/table-export.js?v=20260710-export-rich-kanban";
+} from "../../shared/table-export.js?v=20260715-save-collision";
 import { canEditTask } from "../../shared/permissions.js?v=20260713-role-security";
 import {
   projectName,
@@ -111,7 +112,7 @@ import {
   taskRowsWithSubTasks,
   validateLinkedBugCompletion
 } from "../../shared/work-item-rules.js?v=20260714-linked-bug-percent";
-import { openWorkItemHtmlImport } from "../../shared/work-item-transfer.js?v=20260714-linked-bug-percent";
+import { openWorkItemHtmlImport } from "../../shared/work-item-transfer.js?v=20260715-save-collision";
 
 const taskBugFixIconUrl = "/assets/bug.svg?v=20260629-kanban-gantt-bug-icon";
 
@@ -482,6 +483,7 @@ export function createTasksFeature({
 
   function editTask(task = {}, options = {}) {
     const apiRoot = options.apiRoot || "/api/tasks";
+    const securityResource = apiRoot === "/api/backlog/tasks" ? "Backlog" : "DevTasks";
     const rememberedProjectId = state.projects.some(project => project.id === taskEntryProjectId)
       ? taskEntryProjectId
       : 0;
@@ -578,7 +580,12 @@ export function createTasksFeature({
         endDate: nullableDateValue(root, "endDate"),
         reporterIds: [],
         assigneeIds,
-        dependencyTaskIds
+        dependencyTaskIds,
+        expectedRowVersion: task.id ? task.rowVersion || null : undefined
+      }, {
+        saveAsNew: true,
+        canCreate: canAccessResource(securityResource, "Create"),
+        createPath: apiRoot
       });
 
       taskEntryProjectId = projectId;
@@ -1677,6 +1684,7 @@ export function createTasksFeature({
       routeType: "tasks",
       apiRoot: "/api/tasks",
       saveJson,
+      canCreate: canAccessResource("DevTasks", "Create"),
       refreshAfterImport,
       getFallbackContext: taskImportFallbackContext
     });
@@ -1749,16 +1757,16 @@ export function createTasksFeature({
       const updates = taskImportValues(record, task);
       if (!taskImportChanged(task, updates)) return "";
 
-      try {
-        await saveJson(`/api/tasks/${task.id}`, "PUT", taskImportPayload(task, updates));
-        return "updated";
-      } catch {
-        // If the original row can no longer be updated, still import the data as a new task.
-      }
+      const result = await saveJson(`/api/tasks/${task.id}`, "PUT", taskImportPayload(task, updates, record), {
+        saveAsNew: true,
+        canCreate: canAccessResource("DevTasks", "Create"),
+        createPath: "/api/tasks"
+      });
+      return result?.__savedAsNew ? "created" : "updated";
     }
 
     const createValues = taskImportValues(record, null);
-    await saveJson("/api/tasks", "POST", taskImportPayload(null, createValues));
+    await saveJson("/api/tasks", "POST", taskImportPayload(null, createValues, record));
     return "created";
   }
 
@@ -1845,7 +1853,7 @@ export function createTasksFeature({
       || !sameNumberList(task.assigneeIds || [], updates.assigneeIds || []);
   }
 
-  function taskImportPayload(task, updates) {
+  function taskImportPayload(task, updates, record = {}) {
     return {
       id: task?.id || 0,
       projectId: task?.projectId || updates.projectId,
@@ -1869,7 +1877,8 @@ export function createTasksFeature({
       reporterIds: [],
       assigneeIds: updates.assigneeIds,
       dependencyTaskIds: task ? task.dependencyTaskIds || [] : [],
-      auditContext: "Import"
+      auditContext: "Import",
+      expectedRowVersion: task ? importFirstNonEmptyCell(record, "PMT Row Version").trim() || null : undefined
     };
   }
 

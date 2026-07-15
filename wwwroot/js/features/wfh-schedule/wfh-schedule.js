@@ -231,10 +231,15 @@ export function createWfhScheduleFeature({
     Object.assign(row, changes);
 
     try {
-      await api(`/api/wfh-schedule/${row.userId}`, {
+      const result = await api(`/api/wfh-schedule/${row.userId}`, {
         method: "PUT",
         body: JSON.stringify(wfhPayload(row))
       });
+      if (result?.rowVersion) {
+        row.rowVersion = result.rowVersion;
+      } else {
+        await loadSchedule({ render: false });
+      }
       showToast(successMessage);
     } catch (error) {
       Object.assign(row, previous);
@@ -286,18 +291,20 @@ export function createWfhScheduleFeature({
     if (!userIds.length) return;
 
     try {
+      const expectedRowVersions = Object.fromEntries(
+        userIds.map(userId => [userId, rowByUserId(userId)?.rowVersion || null])
+      );
       await api("/api/wfh-schedule/reorder", {
         method: "POST",
-        body: JSON.stringify({ userIds })
+        body: JSON.stringify({ userIds, expectedRowVersions })
       });
 
-      const sortOrders = new Map(userIds.map((userId, index) => [userId, (index + 1) * 10]));
-      rows.forEach(row => {
-        if (sortOrders.has(row.userId)) row.sortOrder = sortOrders.get(row.userId);
-      });
+      await loadSchedule({ render: false });
       showToast("WFH schedule order saved.");
       render();
     } catch (error) {
+      await loadSchedule({ render: false });
+      render();
       showToast(error.message);
     }
   }
@@ -314,7 +321,8 @@ export function createWfhScheduleFeature({
       canWorkWednesday: Boolean(row.canWorkWednesday),
       canWorkThursday: Boolean(row.canWorkThursday),
       canWorkFriday: Boolean(row.canWorkFriday),
-      isHidden: Boolean(row.isHidden)
+      isHidden: Boolean(row.isHidden),
+      expectedRowVersion: row.rowVersion || null
     };
   }
 

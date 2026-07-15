@@ -7,26 +7,26 @@ public sealed partial class SqlPmtStore
 {
     public Task DevelopmentClearNonPmtAsync(int currentUserId, CancellationToken cancellationToken)
     {
-        return ExecuteProcedureAsync("[pmt].[DevelopmentClearNonPmt]", command =>
+        return ExecuteLockedProcedureAsync("[pmt].[DevelopmentClearNonPmt]", command =>
         {
             Add(command, "@CurrentUserId", currentUserId);
-        }, cancellationToken);
+        }, cancellationToken, lockBlogWrites: true, lockWorkTaskWrites: true, lockSprintWrites: true);
     }
 
     public Task DevelopmentClearPmtAsync(int currentUserId, CancellationToken cancellationToken)
     {
-        return ExecuteProcedureAsync("[pmt].[DevelopmentClearPmt]", command =>
+        return ExecuteLockedProcedureAsync("[pmt].[DevelopmentClearPmt]", command =>
         {
             Add(command, "@CurrentUserId", currentUserId);
-        }, cancellationToken);
+        }, cancellationToken, lockBlogWrites: true, lockWorkTaskWrites: true, lockSprintWrites: true);
     }
 
     public Task DevelopmentClearUsersAsync(int currentUserId, CancellationToken cancellationToken)
     {
-        return ExecuteProcedureAsync("[pmt].[DevelopmentClearUsers]", command =>
+        return ExecuteLockedProcedureAsync("[pmt].[DevelopmentClearUsers]", command =>
         {
             Add(command, "@CurrentUserId", currentUserId);
-        }, cancellationToken);
+        }, cancellationToken, lockBlogWrites: true, lockWorkTaskWrites: true, lockSprintWrites: true);
     }
 
     public async Task RestoreInitialSeedDataAsync(string contentRootPath, int currentUserId, CancellationToken cancellationToken)
@@ -35,12 +35,12 @@ public sealed partial class SqlPmtStore
         // exist even when an older development database is being reused.
         var scriptPaths = new[]
         {
-            Path.Combine(contentRootPath, "Sql", "01_CreateDatabase.sql"),
-            Path.Combine(contentRootPath, "Sql", "02_CreateStoredProcedures.sql"),
-            Path.Combine(contentRootPath, "Sql", "03_SeedData.sql"),
-            Path.Combine(contentRootPath, "Sql", "03_SeedData_PMT.sql"),
-            Path.Combine(contentRootPath, "Sql", "03_SeedData_LMS.sql"),
-            Path.Combine(contentRootPath, "Sql", "03_SeedData_HLS.sql")
+            Path.Combine(contentRootPath, "SQL", "01_CreateDatabase.sql"),
+            Path.Combine(contentRootPath, "SQL", "02_CreateStoredProcedures.sql"),
+            Path.Combine(contentRootPath, "SQL", "03_SeedData.sql"),
+            Path.Combine(contentRootPath, "SQL", "03_SeedData_PMT.sql"),
+            Path.Combine(contentRootPath, "SQL", "03_SeedData_LMS.sql"),
+            Path.Combine(contentRootPath, "SQL", "03_SeedData_HLS.sql")
         };
 
         await using var connection = await OpenConnectionAsync(cancellationToken);
@@ -59,7 +59,7 @@ public sealed partial class SqlPmtStore
     {
         var scriptPaths = new[]
         {
-            Path.Combine(contentRootPath, "Sql", "03_SeedData_PMT.sql")
+            Path.Combine(contentRootPath, "SQL", "03_SeedData_PMT.sql")
         };
 
         await using var connection = await OpenConnectionAsync(cancellationToken);

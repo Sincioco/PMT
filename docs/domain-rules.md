@@ -38,6 +38,21 @@ Project and Sprint aggregate progress is separate from stored work-item percent.
 
 `completed top-level work items / all top-level work items * 100`
 
+## Concurrent editing
+
+- Shared editable records carry an opaque SQL Server `ROWVERSION` token. Every update submits the token that was loaded with the editor; a missing or stale token causes HTTP 409 `save-conflict` and the newer database row is not overwritten.
+- Collision protection covers Projects, Sprints, Dev Tasks, Bugs, Backlog items, Scrum/Log entries, Documentation, Users, Lookups/Roles, Holidays, WFH rows, vacation plans, and each Security resource's permission aggregate.
+- The server locks and checks the version in the same transaction as the stored-procedure save. Browser checks and timestamps are not substitutes for this database-backed rule.
+- A stale full draft may be saved as a new Sprint, work item, Scrum/Log entry, or Documentation item when the user has Create permission. A stale Project draft can switch to New Project mode only after the user supplies a different unique Project Code.
+- Users, Lookups/Roles, Holidays, WFH rows, vacation plans, and Security settings are fixed-identity records or aggregates and are never duplicated as collision recovery. Their stale editor remains open so the user can review the newer record and retry deliberately.
+- Board moves, Task/Backlog ordering, WFH ordering, imports, and read-only rich-text checkbox saves use the same version contract; they cannot bypass collision detection or silently turn a failed update into a new row. A reorder submits every affected row's loaded token, and the server locks and checks those rows in stable ID order before saving the new order.
+- After any successful action that advances a record's row version, the browser must store a returned replacement token or reload the authoritative record before its next update. Reorder and quick-save paths cannot keep using their own now-stale token.
+- Finishing a Sprint submits the loaded Sprint token. The server locks and checks it before running the entire finish, successor-creation, membership-copy, and task-carry operation in one transaction, so a stale action returns 409 and any later failure leaves the original Sprint open.
+- Structural writers acquire focused transaction-owned application locks before taking row locks: `pmt:BlogWrites` for Documentation hierarchy changes, `pmt:WorkTaskWrites` for Task save/reorder/duplicate/delete and Sprint carry-forward, and `pmt:SprintWrites` for Sprint code allocation. Operations that span scopes always acquire them Blog -> WorkTask -> Sprint. Task-to-Documentation conversion, Documentation deletion, Sprint deletion, and Development cleanup use the same order so cross-feature writes cannot deadlock.
+- `[pmt].[GetWfhSchedule]` serializes missing-row creation with the focused transaction-owned `pmt:WfhScheduleInitialization` application lock and retains an update key-range lock around the insert. Concurrent first loads must return one row per user without deadlocks or duplicate-key failures.
+- A change made outside an editor to data that the editor later replaces must advance the owning record's token in the same transaction. For example, accepting an invitation adds Project membership and therefore advances each affected Project token; active User and Role changes advance every Security resource token because those records shape each Security permission aggregate.
+- Security-related transactions acquire or advance the `SecurityResources` token before changing Users, Roles, `RolePermissions`, or `UserPermissions`. Keep this lock order consistent to avoid deadlocks between Security saves and permission-shaping changes.
+
 ## Dev Tasks and Bugs
 
 - Work items have `TaskType` `Dev` or `Bug`.

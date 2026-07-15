@@ -12,6 +12,7 @@ public sealed partial class SqlPmtStore
         CancellationToken cancellationToken)
     {
         await using var connection = await OpenConnectionAsync(cancellationToken);
+        var editVersions = await ReadEditVersionsAsync(connection, currentUserId, "Vacation", cancellationToken);
         await using var command = StoredProcedure(connection, "[pmt].[GetAttendanceCalendar]");
         AddDate(command, "@StartDate", startDate);
         AddDate(command, "@EndDate", endDate);
@@ -49,6 +50,14 @@ public sealed partial class SqlPmtStore
             });
         }
 
+        foreach (var vacation in calendar.Vacations)
+        {
+            if (editVersions.TryGetValue(("Vacation", vacation.Id.ToString()), out var rowVersion))
+            {
+                vacation.RowVersion = rowVersion;
+            }
+        }
+
         return calendar;
     }
 
@@ -70,7 +79,7 @@ public sealed partial class SqlPmtStore
         int currentUserId,
         CancellationToken cancellationToken)
     {
-        return ExecuteIdProcedureAsync("[pmt].[UpsertVacation]", "@VacationPlanId", input.Id, command =>
+        return ExecuteVersionedIdProcedureAsync("Vacation", input.ExpectedRowVersion, "[pmt].[UpsertVacation]", "@VacationPlanId", input.Id, command =>
         {
             AddNullableDate(command, "@StartDate", input.StartDate);
             AddNullableDate(command, "@EndDate", input.EndDate);

@@ -27,6 +27,7 @@ import {
   formatDateTime
 } from "../../shared/dates.js?v=20260620-null-end-date";
 import { normalizeSavedArray } from "../../shared/filter-values.js";
+import { canAccessResource } from "../../shared/security.js?v=20260713-role-security";
 import {
   downloadXlsx,
   downloadCsv,
@@ -46,7 +47,7 @@ import {
   showImportResultDialog,
   sameNumberList,
   workItemSystemColumns
-} from "../../shared/table-export.js?v=20260710-export-rich-kanban";
+} from "../../shared/table-export.js?v=20260715-save-collision";
 import {
   projectName,
   sprintName,
@@ -68,7 +69,7 @@ import {
   percentForStatus,
   validateLinkedBugCompletion
 } from "../../shared/work-item-rules.js?v=20260714-linked-bug-percent";
-import { openWorkItemHtmlImport } from "../../shared/work-item-transfer.js?v=20260714-linked-bug-percent";
+import { openWorkItemHtmlImport } from "../../shared/work-item-transfer.js?v=20260715-save-collision";
 
 const backlogBugFixIconUrl = "/assets/bug.svg?v=20260629-kanban-gantt-bug-icon";
 
@@ -1411,6 +1412,7 @@ export function createBacklogFeature({
       routeType: "backlog",
       apiRoot: "/api/backlog/tasks",
       saveJson,
+      canCreate: canAccessResource("Backlog", "Create"),
       refreshAfterImport,
       getFallbackContext: backlogImportFallbackContext
     });
@@ -1473,16 +1475,16 @@ export function createBacklogFeature({
       const updates = backlogImportValues(record, task);
       if (!backlogImportChanged(task, updates)) return "";
 
-      try {
-        await saveJson(`/api/backlog/tasks/${task.id}`, "PUT", backlogImportPayload(task, updates));
-        return "updated";
-      } catch {
-        // If the original backlog item can no longer be updated, still import a new item.
-      }
+      const result = await saveJson(`/api/backlog/tasks/${task.id}`, "PUT", backlogImportPayload(task, updates, record), {
+        saveAsNew: true,
+        canCreate: canAccessResource("Backlog", "Create"),
+        createPath: "/api/backlog/tasks"
+      });
+      return result?.__savedAsNew ? "created" : "updated";
     }
 
     const createValues = backlogImportValues(record, null, target.matchedTask?.taskType);
-    await saveJson("/api/backlog/tasks", "POST", backlogImportPayload(null, createValues));
+    await saveJson("/api/backlog/tasks", "POST", backlogImportPayload(null, createValues, record));
     return "created";
   }
 
@@ -1585,7 +1587,7 @@ export function createBacklogFeature({
       || !sameNumberList(task.assigneeIds || [], updates.assigneeIds || []);
   }
 
-  function backlogImportPayload(task, updates) {
+  function backlogImportPayload(task, updates, record = {}) {
     const isBug = (task?.taskType || updates.taskType) === "Bug";
 
     return {
@@ -1610,7 +1612,8 @@ export function createBacklogFeature({
       reporterIds: isBug && task ? task.reporterIds || [] : [],
       assigneeIds: updates.assigneeIds,
       dependencyTaskIds: task ? task.dependencyTaskIds || [] : [],
-      auditContext: "Import"
+      auditContext: "Import",
+      expectedRowVersion: task ? importFirstNonEmptyCell(record, "PMT Row Version").trim() || null : undefined
     };
   }
 

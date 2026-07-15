@@ -3,5 +3,5 @@
 This folder contains deployment and server setup notes.
 
 - Keep commands Windows-friendly.
-- Keep SQL setup steps aligned with the current script names in the `Sql` folder.
+- Keep SQL setup steps aligned with the current script names in the `SQL` folder.
 - Mention the default development login when it helps someone verify a deployment.

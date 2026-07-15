@@ -14,7 +14,7 @@ import {
   resetDialogLayoutPreference,
   restoreDialogLayout,
   setDialogLayoutStorageKey
-} from "./components/dialogs.js?v=20260714-attachment-delete";
+} from "./components/dialogs.js?v=20260715-save-collision-v2";
 import {
   field,
   value
@@ -52,25 +52,25 @@ import {
   createAboutFeature,
   createAboutScreenSaver
 } from "./features/about/about.js?v=20260715-attendance-v116";
-import { createBacklogFeature } from "./features/backlog/backlog.js?v=20260714-linked-bug-percent";
-import { createBoardFeature } from "./features/board/board.js?v=20260714-linked-bug-percent";
-import { createBugsFeature } from "./features/bugs/bugs.js?v=20260714-attachment-delete";
+import { createBacklogFeature } from "./features/backlog/backlog.js?v=20260715-save-collision-v2";
+import { createBoardFeature } from "./features/board/board.js?v=20260715-save-collision-v2";
+import { createBugsFeature } from "./features/bugs/bugs.js?v=20260715-save-collision-v2";
 import { createDashboardFeature } from "./features/dashboard/dashboard.js?v=20260714-linked-bug-percent";
-import { createDocumentationFeature } from "./features/documentation/documentation.js?v=20260714-private-owner-only";
+import { createDocumentationFeature } from "./features/documentation/documentation.js?v=20260715-save-collision-v2";
 import {
   createGanttFeature,
   currentSprintForProject,
   ganttStartDate
 } from "./features/gantt/gantt.js?v=20260714-linked-bug-percent";
 import { createInvitationsFeature } from "./features/invitations/invitations.js?v=20260714-invite-verbatim-v2";
-import { createProjectsFeature } from "./features/projects/projects.js?v=20260714-project-code-reuse";
+import { createProjectsFeature } from "./features/projects/projects.js?v=20260715-save-collision-v2";
 import { createRoadMapFeature } from "./features/roadmap/roadmap.js?v=20260714-linked-bug-percent";
-import { createLogFeature } from "./features/personal-log/log.js?v=20260714-linked-bug-percent";
-import { createScrumFeature } from "./features/scrum/scrum.js?v=20260715-attendance-calendar-permissions";
-import { createSettingsFeature } from "./features/settings/settings.js?v=20260714-pmt-reseed-orphan-preview";
-import { createSprintsFeature } from "./features/sprints/sprints.js?v=20260714-linked-bug-percent";
-import { createTasksFeature } from "./features/tasks/tasks.js?v=20260714-attachment-delete";
-import { createWfhScheduleFeature } from "./features/wfh-schedule/wfh-schedule.js?v=20260714-linked-bug-percent";
+import { createLogFeature } from "./features/personal-log/log.js?v=20260715-save-collision-v2";
+import { createScrumFeature } from "./features/scrum/scrum.js?v=20260715-save-collision-v2";
+import { createSettingsFeature } from "./features/settings/settings.js?v=20260715-save-collision-v2";
+import { createSprintsFeature } from "./features/sprints/sprints.js?v=20260715-save-collision-v2";
+import { createTasksFeature } from "./features/tasks/tasks.js?v=20260715-save-collision-v2";
+import { createWfhScheduleFeature } from "./features/wfh-schedule/wfh-schedule.js?v=20260715-save-collision-v2";
 import {
   fallbackEnvironments,
   fallbackForLookup,
@@ -1778,7 +1778,10 @@ async function finishTaskDrag(event) {
 
   try {
     if (taskIds.length > 1) {
-      await saveJson("/api/tasks/reorder", "POST", { taskIds });
+      const expectedRowVersions = Object.fromEntries(
+        taskIds.map(id => [id, taskById(id)?.rowVersion || null])
+      );
+      await saveJson("/api/tasks/reorder", "POST", { taskIds, expectedRowVersions });
     }
 
     if (drop.container.dataset.reorderList === "tasks") {
@@ -1789,6 +1792,8 @@ async function finishTaskDrag(event) {
     render();
     showToast("Order saved.");
   } catch (error) {
+    await loadState();
+    render();
     showToast(error.message);
   } finally {
     cancelPointerDrag();
@@ -2729,8 +2734,9 @@ async function persistRichReadonlyCheckboxContainer(container) {
 
   container.dataset.richCheckboxSaveState = "saving";
   try {
-    await saveJson(request.path, "PUT", request.payload);
-    updateRichReadonlyPersistedState(container, bodyHtml);
+    const result = await saveJson(request.path, "PUT", request.payload);
+    if (!result?.rowVersion) await loadState();
+    updateRichReadonlyPersistedState(container, bodyHtml, result?.rowVersion || "");
     syncMatchingRichReadonlyContainers(container, bodyHtml);
     delete container.dataset.richCheckboxSaveState;
     showToast("Checkbox saved.");
@@ -2763,29 +2769,31 @@ function richReadonlyPersistedRecord(container) {
   return null;
 }
 
-function updateRichReadonlyPersistedState(container, bodyHtml) {
+function updateRichReadonlyPersistedState(container, bodyHtml, rowVersion = "") {
   const record = richReadonlyPersistedRecord(container);
   const field = container.dataset.richPersistField || "";
   if (!record || !field || !Object.prototype.hasOwnProperty.call(record, field)) return;
 
   record[field] = bodyHtml;
   record.updatedAt = new Date().toISOString();
+  if (rowVersion) record.rowVersion = rowVersion;
   if (Object.prototype.hasOwnProperty.call(record, "updatedByUserId")) {
     record.updatedByUserId = currentUserId || record.updatedByUserId || record.createdByUserId || null;
   }
 
   if (container.dataset.richPersistType === "workItem") {
-    syncNestedWorkItemRichState(record.id, field, bodyHtml);
+    syncNestedWorkItemRichState(record.id, field, bodyHtml, rowVersion);
   }
 }
 
-function syncNestedWorkItemRichState(taskId, field, bodyHtml) {
+function syncNestedWorkItemRichState(taskId, field, bodyHtml, rowVersion = "") {
   state.tasks.forEach(task => {
     const subTask = (task.subTasks || []).find(item => item.id === taskId);
     if (!subTask || !Object.prototype.hasOwnProperty.call(subTask, field)) return;
 
     subTask[field] = bodyHtml;
     subTask.updatedAt = new Date().toISOString();
+    if (rowVersion) subTask.rowVersion = rowVersion;
     subTask.updatedByUserId = currentUserId || subTask.updatedByUserId || subTask.createdByUserId || null;
   });
 }
@@ -2828,7 +2836,8 @@ function blogRichReadonlySaveRequest(id, field, bodyHtml) {
       title: blog.title,
       bodyHtml,
       isPrivate: blog.isPrivate !== false,
-      isPinned: Boolean(blog.isPinned)
+      isPinned: Boolean(blog.isPinned),
+      expectedRowVersion: blog.rowVersion || null
     }
   };
 }
@@ -2847,7 +2856,8 @@ function devLogRichReadonlySaveRequest(id, field, bodyHtml) {
       logDate: toDateInput(log.logDate),
       bodyHtml,
       isPinned: Boolean(log.isPinned),
-      auditContext: "RTE checkbox"
+      auditContext: "RTE checkbox",
+      expectedRowVersion: log.rowVersion || null
     }
   };
 }
@@ -2881,7 +2891,8 @@ function workItemRichReadonlySaveRequest(id, field, bodyHtml, apiRoot = "/api/ta
       reporterIds: task.reporterIds || [],
       assigneeIds: task.assigneeIds || [],
       dependencyTaskIds: task.dependencyTaskIds || [],
-      auditContext: "RTE checkbox"
+      auditContext: "RTE checkbox",
+      expectedRowVersion: task.rowVersion || null
     }
   };
 }
@@ -4112,8 +4123,41 @@ function restoreEditorSelection(range) {
   selection.addRange(range);
 }
 
-async function saveJson(path, method, payload) {
-  return api(path, { method, body: JSON.stringify(payload) });
+async function saveJson(path, method, payload, options = {}) {
+  try {
+    return await api(path, { method, body: JSON.stringify(payload) });
+  } catch (error) {
+    const canSaveAsNew = error?.code === "save-conflict"
+      && method === "PUT"
+      && options.saveAsNew === true
+      && options.canCreate === true
+      && (options.createPath || options.prepareSaveAsNew);
+    if (!canSaveAsNew) throw error;
+
+    const confirmed = await askYesNo(
+      `${error.message} Save your draft as a new item?`,
+      "Save Collision",
+      "Save as New"
+    );
+    if (!confirmed) throw error;
+
+    if (options.prepareSaveAsNew) {
+      await options.prepareSaveAsNew();
+      const prepared = new Error(options.saveAsNewPreparedMessage || "Enter the required new-item details, then save again.");
+      prepared.code = "save-as-new-prepared";
+      throw prepared;
+    }
+
+    const clonePayload = { ...payload, id: 0 };
+    delete clonePayload.expectedRowVersion;
+    const result = await api(options.createPath, {
+      method: "POST",
+      body: JSON.stringify(clonePayload)
+    });
+    return result && typeof result === "object"
+      ? { ...result, __savedAsNew: true }
+      : { __savedAsNew: true };
+  }
 }
 
 async function refreshAfterImport() {

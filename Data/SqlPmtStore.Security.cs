@@ -56,7 +56,7 @@ public sealed partial class SqlPmtStore
         int currentUserId,
         CancellationToken cancellationToken)
     {
-        return ExecuteProcedureAsync("[pmt].[SaveSecurityPermissions]", command =>
+        return ExecuteVersionedProcedureAsync("SecurityResource", resourceKey, input.ExpectedRowVersion, "[pmt].[SaveSecurityPermissions]", command =>
         {
             Add(command, "@ResourceKey", SqlDbType.NVarChar, 40, resourceKey);
             Add(command, "@RolePermissionsJson", SqlDbType.NVarChar, -1, JsonSerializer.Serialize(input.RolePermissions));
@@ -69,9 +69,9 @@ public sealed partial class SqlPmtStore
         int currentUserId,
         CancellationToken cancellationToken)
     {
-        return ExecuteProcedureAsync("[pmt].[ResetSecurityPermissions]", command =>
+        return ExecuteProcedureAndTouchEditVersionAsync("[pmt].[ResetSecurityPermissions]", command =>
         {
             Add(command, "@CurrentUserId", currentUserId);
-        }, cancellationToken);
+        }, "SecurityResource", null, cancellationToken);
     }
 }

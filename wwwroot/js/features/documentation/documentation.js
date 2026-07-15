@@ -5,7 +5,7 @@ import { filterSelect } from "../../components/filters.js";
 import {
   documentationExportIconHtml,
   openDocumentationExportDialog
-} from "./documentation-export.js?v=20260710-export-rich-kanban";
+} from "./documentation-export.js?v=20260715-save-collision";
 import {
   field,
   optionalNumberValue,
@@ -637,7 +637,12 @@ export function createDocumentationFeature({
         title: value(root, "title"),
         isPrivate: documentationPrivateValue(root),
         isPinned: documentationPinnedValue(root),
-        bodyHtml: richValue(root, "bodyHtml")
+        bodyHtml: richValue(root, "bodyHtml"),
+        expectedRowVersion: blog.id ? blog.rowVersion || null : undefined
+      }, {
+        saveAsNew: true,
+        canCreate: canAccessResource("Documentation", "Create"),
+        createPath: "/api/blogs"
       });
 
       selectedTreeBlogId = result.id;
@@ -717,8 +722,18 @@ export function createDocumentationFeature({
       const payload = documentationImportPayload(importParts.metadata, importParts.document);
       const imageResult = await externalizeImportedHtmlImagesInPayload(payload, ["bodyHtml"]);
       const isReplacement = payload.id > 0;
-      const result = await saveJson(isReplacement ? `/api/blogs/${payload.id}` : "/api/blogs", isReplacement ? "PUT" : "POST", payload);
+      const result = await saveJson(
+        isReplacement ? `/api/blogs/${payload.id}` : "/api/blogs",
+        isReplacement ? "PUT" : "POST",
+        payload,
+        isReplacement ? {
+          saveAsNew: true,
+          canCreate: canAccessResource("Documentation", "Create"),
+          createPath: "/api/blogs"
+        } : undefined
+      );
       const savedBlogId = Number(result?.id || payload.id || 0);
+      const savedAsNew = result?.__savedAsNew === true;
 
       selectedTreeBlogId = savedBlogId;
       editingTreeBlogId = 0;
@@ -735,7 +750,7 @@ export function createDocumentationFeature({
       const imageNote = imageResult.failed
         ? ` ${imageResult.failed} embedded image${imageResult.failed === 1 ? "" : "s"} could not be moved to uploads.`
         : "";
-      showToast?.(`${isReplacement ? "Document imported and replaced." : "Document imported."}${imageNote}`);
+      showToast?.(`${isReplacement && !savedAsNew ? "Document imported and replaced." : "Document imported."}${imageNote}`);
     } catch (error) {
       showToast?.(error?.isInvalidPmtImport ? documentationInvalidImportMessage : error.message || "Import failed.");
     }
@@ -904,7 +919,12 @@ export function createDocumentationFeature({
         title: value(form, "title"),
         isPrivate: documentationPrivateValue(form),
         isPinned: documentationPinnedValue(form),
-        bodyHtml: richValue(form, "bodyHtml")
+        bodyHtml: richValue(form, "bodyHtml"),
+        expectedRowVersion: isNewBlog ? undefined : form.dataset.rowVersion || null
+      }, {
+        saveAsNew: true,
+        canCreate: canAccessResource("Documentation", "Create"),
+        createPath: "/api/blogs"
       });
       const savedBlogId = Number(result?.id || blogId || 0);
 
@@ -1072,7 +1092,8 @@ function documentationImportPayload(metadata, parsedDocument) {
     title,
     isPrivate,
     isPinned,
-    bodyHtml
+    bodyHtml,
+    expectedRowVersion: existingBlog ? String(sourceDocument.rowVersion || "") || null : undefined
   };
 }
 
@@ -1722,7 +1743,7 @@ function documentationTreeInlineEditorHtml(blog) {
     `;
 
   return `
-    <form class="documentation-inline-editor" data-documentation-inline-editor data-blog-id="${blog.id}">
+    <form class="documentation-inline-editor" data-documentation-inline-editor data-blog-id="${blog.id}" data-row-version="${escapeAttr(blog.rowVersion || "")}">
       <div class="documentation-tree-preview-head documentation-inline-editor-head">
         <div class="documentation-tree-preview-title documentation-inline-title">
           <h2>${escapeHtml(blog.title || (isNewBlog ? "New Document" : "Edit Document"))}</h2>

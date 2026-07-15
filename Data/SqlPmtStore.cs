@@ -44,6 +44,413 @@ public sealed partial class SqlPmtStore
         return Convert.ToInt32(idParameter.Value);
     }
 
+    private async Task<int> ExecuteVersionedIdProcedureAsync(
+        string entityType,
+        byte[]? expectedRowVersion,
+        string procedureName,
+        string idParameterName,
+        int id,
+        Action<SqlCommand> configure,
+        CancellationToken cancellationToken,
+        bool touchSecurityResources = false)
+    {
+        var lockBlogWrites = entityType == "Blog";
+        var lockWorkTaskWrites = entityType == "WorkTask";
+        var lockSprintWrites = entityType == "Sprint";
+
+        if (id == 0 && !touchSecurityResources && !lockBlogWrites && !lockWorkTaskWrites && !lockSprintWrites)
+        {
+            return await ExecuteIdProcedureAsync(procedureName, idParameterName, id, configure, cancellationToken);
+        }
+
+        await using var connection = await OpenConnectionAsync(cancellationToken);
+        await using var transaction = (SqlTransaction)await connection.BeginTransactionAsync(IsolationLevel.ReadCommitted, cancellationToken);
+
+        try
+        {
+            await LockWritesAsync(
+                connection,
+                transaction,
+                lockBlogWrites,
+                lockWorkTaskWrites,
+                lockSprintWrites,
+                cancellationToken);
+
+            if (touchSecurityResources)
+            {
+                await TouchEditVersionAsync(connection, transaction, "SecurityResource", null, cancellationToken);
+            }
+
+            var actualRowVersion = id == 0
+                ? null
+                : await LockEditVersionAsync(connection, transaction, entityType, id.ToString(), cancellationToken);
+            await using var command = StoredProcedure(connection, transaction, procedureName);
+            var idParameter = command.Parameters.Add(idParameterName, SqlDbType.Int);
+            idParameter.Direction = ParameterDirection.InputOutput;
+            idParameter.Value = id;
+            configure(command);
+            await command.ExecuteNonQueryAsync(cancellationToken);
+
+            if (id != 0)
+            {
+                RequireMatchingRowVersion(actualRowVersion, expectedRowVersion);
+            }
+
+            await transaction.CommitAsync(cancellationToken);
+            return Convert.ToInt32(idParameter.Value);
+        }
+        catch
+        {
+            await TryRollbackAsync(transaction, cancellationToken);
+            throw;
+        }
+    }
+
+    private async Task ExecuteVersionedProcedureAsync(
+        string entityType,
+        string entityKey,
+        byte[]? expectedRowVersion,
+        string procedureName,
+        Action<SqlCommand> configure,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = await OpenConnectionAsync(cancellationToken);
+        await using var transaction = (SqlTransaction)await connection.BeginTransactionAsync(IsolationLevel.ReadCommitted, cancellationToken);
+
+        try
+        {
+            var actualRowVersion = await LockEditVersionAsync(connection, transaction, entityType, entityKey, cancellationToken);
+            await using var command = StoredProcedure(connection, transaction, procedureName);
+            configure(command);
+            await command.ExecuteNonQueryAsync(cancellationToken);
+
+            RequireMatchingRowVersion(actualRowVersion, expectedRowVersion);
+
+            if (entityType == "SecurityResource")
+            {
+                await TouchEditVersionAsync(connection, transaction, entityType, entityKey, cancellationToken);
+            }
+
+            await transaction.CommitAsync(cancellationToken);
+        }
+        catch
+        {
+            await TryRollbackAsync(transaction, cancellationToken);
+            throw;
+        }
+    }
+
+    private async Task<int> ExecuteVersionedOutputIdProcedureAsync(
+        string entityType,
+        string entityKey,
+        byte[]? expectedRowVersion,
+        string procedureName,
+        string outputParameterName,
+        Action<SqlCommand> configure,
+        CancellationToken cancellationToken,
+        bool lockBlogWrites = false,
+        bool lockWorkTaskWrites = false,
+        bool lockSprintWrites = false)
+    {
+        await using var connection = await OpenConnectionAsync(cancellationToken);
+        await using var transaction = (SqlTransaction)await connection.BeginTransactionAsync(IsolationLevel.ReadCommitted, cancellationToken);
+
+        try
+        {
+            await LockWritesAsync(
+                connection,
+                transaction,
+                lockBlogWrites,
+                lockWorkTaskWrites,
+                lockSprintWrites,
+                cancellationToken);
+
+            var actualRowVersion = await LockEditVersionAsync(connection, transaction, entityType, entityKey, cancellationToken);
+            RequireMatchingRowVersion(actualRowVersion, expectedRowVersion);
+
+            await using var command = StoredProcedure(connection, transaction, procedureName);
+            var outputParameter = command.Parameters.Add(outputParameterName, SqlDbType.Int);
+            outputParameter.Direction = ParameterDirection.Output;
+            configure(command);
+            await command.ExecuteNonQueryAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+            return Convert.ToInt32(outputParameter.Value);
+        }
+        catch
+        {
+            await TryRollbackAsync(transaction, cancellationToken);
+            throw;
+        }
+    }
+
+    private async Task ExecuteVersionedReorderProcedureAsync(
+        string entityType,
+        IReadOnlyList<int> orderedIds,
+        IReadOnlyDictionary<int, byte[]?> expectedRowVersions,
+        string procedureName,
+        Action<SqlCommand> configure,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = await OpenConnectionAsync(cancellationToken);
+        await using var transaction = (SqlTransaction)await connection.BeginTransactionAsync(IsolationLevel.ReadCommitted, cancellationToken);
+
+        try
+        {
+            await LockWritesAsync(
+                connection,
+                transaction,
+                lockBlogWrites: false,
+                lockWorkTaskWrites: entityType == "WorkTask",
+                lockSprintWrites: false,
+                cancellationToken);
+
+            foreach (var id in orderedIds.Distinct().OrderBy(id => id))
+            {
+                var actualRowVersion = await LockEditVersionAsync(
+                    connection,
+                    transaction,
+                    entityType,
+                    id.ToString(),
+                    cancellationToken);
+                expectedRowVersions.TryGetValue(id, out var expectedRowVersion);
+                RequireMatchingRowVersion(actualRowVersion, expectedRowVersion);
+            }
+
+            await using var command = StoredProcedure(connection, transaction, procedureName);
+            configure(command);
+            await command.ExecuteNonQueryAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+        }
+        catch
+        {
+            await TryRollbackAsync(transaction, cancellationToken);
+            throw;
+        }
+    }
+
+    private async Task ExecuteProcedureAndTouchEditVersionAsync(
+        string procedureName,
+        Action<SqlCommand> configure,
+        string entityType,
+        string? entityKey,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = await OpenConnectionAsync(cancellationToken);
+        await using var transaction = (SqlTransaction)await connection.BeginTransactionAsync(IsolationLevel.ReadCommitted, cancellationToken);
+
+        try
+        {
+            await TouchEditVersionAsync(connection, transaction, entityType, entityKey, cancellationToken);
+            await using var command = StoredProcedure(connection, transaction, procedureName);
+            configure(command);
+            await command.ExecuteNonQueryAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+        }
+        catch
+        {
+            await TryRollbackAsync(transaction, cancellationToken);
+            throw;
+        }
+    }
+
+    private async Task ExecuteLockedProcedureAsync(
+        string procedureName,
+        Action<SqlCommand> configure,
+        CancellationToken cancellationToken,
+        bool lockBlogWrites = false,
+        bool lockWorkTaskWrites = false,
+        bool lockSprintWrites = false)
+    {
+        await using var connection = await OpenConnectionAsync(cancellationToken);
+        await using var transaction = (SqlTransaction)await connection.BeginTransactionAsync(IsolationLevel.ReadCommitted, cancellationToken);
+
+        try
+        {
+            await LockWritesAsync(
+                connection,
+                transaction,
+                lockBlogWrites,
+                lockWorkTaskWrites,
+                lockSprintWrites,
+                cancellationToken);
+
+            await using var command = StoredProcedure(connection, transaction, procedureName);
+            configure(command);
+            await command.ExecuteNonQueryAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+        }
+        catch
+        {
+            await TryRollbackAsync(transaction, cancellationToken);
+            throw;
+        }
+    }
+
+    private async Task<int> ExecuteLockedIdProcedureAsync(
+        string procedureName,
+        string idParameterName,
+        Action<SqlCommand> configure,
+        CancellationToken cancellationToken,
+        bool lockBlogWrites = false,
+        bool lockWorkTaskWrites = false,
+        bool lockSprintWrites = false)
+    {
+        await using var connection = await OpenConnectionAsync(cancellationToken);
+        await using var transaction = (SqlTransaction)await connection.BeginTransactionAsync(IsolationLevel.ReadCommitted, cancellationToken);
+
+        try
+        {
+            await LockWritesAsync(
+                connection,
+                transaction,
+                lockBlogWrites,
+                lockWorkTaskWrites,
+                lockSprintWrites,
+                cancellationToken);
+
+            await using var command = StoredProcedure(connection, transaction, procedureName);
+            var idParameter = command.Parameters.Add(idParameterName, SqlDbType.Int);
+            idParameter.Direction = ParameterDirection.Output;
+            configure(command);
+            await command.ExecuteNonQueryAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+            return Convert.ToInt32(idParameter.Value);
+        }
+        catch
+        {
+            await TryRollbackAsync(transaction, cancellationToken);
+            throw;
+        }
+    }
+
+    private static async Task<byte[]?> LockEditVersionAsync(
+        SqlConnection connection,
+        SqlTransaction transaction,
+        string entityType,
+        string entityKey,
+        CancellationToken cancellationToken)
+    {
+        await using var command = StoredProcedure(connection, transaction, "[pmt].[LockEditVersion]");
+        Add(command, "@EntityType", SqlDbType.NVarChar, 40, entityType);
+        Add(command, "@EntityKey", SqlDbType.NVarChar, 80, entityKey);
+        var result = await command.ExecuteScalarAsync(cancellationToken);
+        return result is byte[] rowVersion ? rowVersion : null;
+    }
+
+    private static async Task LockWorkTaskWritesAsync(
+        SqlConnection connection,
+        SqlTransaction transaction,
+        CancellationToken cancellationToken)
+    {
+        await using var command = StoredProcedure(connection, transaction, "[pmt].[LockWorkTaskWrites]");
+        await command.ExecuteNonQueryAsync(cancellationToken);
+    }
+
+    private static async Task LockBlogWritesAsync(
+        SqlConnection connection,
+        SqlTransaction transaction,
+        CancellationToken cancellationToken)
+    {
+        await using var command = StoredProcedure(connection, transaction, "[pmt].[LockBlogWrites]");
+        await command.ExecuteNonQueryAsync(cancellationToken);
+    }
+
+    private static async Task LockSprintWritesAsync(
+        SqlConnection connection,
+        SqlTransaction transaction,
+        CancellationToken cancellationToken)
+    {
+        await using var command = StoredProcedure(connection, transaction, "[pmt].[LockSprintWrites]");
+        await command.ExecuteNonQueryAsync(cancellationToken);
+    }
+
+    private static async Task LockWritesAsync(
+        SqlConnection connection,
+        SqlTransaction transaction,
+        bool lockBlogWrites,
+        bool lockWorkTaskWrites,
+        bool lockSprintWrites,
+        CancellationToken cancellationToken)
+    {
+        // Every multi-aggregate writer takes these locks in the same order.
+        if (lockBlogWrites)
+        {
+            await LockBlogWritesAsync(connection, transaction, cancellationToken);
+        }
+
+        if (lockWorkTaskWrites)
+        {
+            await LockWorkTaskWritesAsync(connection, transaction, cancellationToken);
+        }
+
+        if (lockSprintWrites)
+        {
+            await LockSprintWritesAsync(connection, transaction, cancellationToken);
+        }
+    }
+
+    private static async Task<Dictionary<(string EntityType, string EntityKey), byte[]>> ReadEditVersionsAsync(
+        SqlConnection connection,
+        int currentUserId,
+        string? entityType,
+        CancellationToken cancellationToken)
+    {
+        var versions = new Dictionary<(string EntityType, string EntityKey), byte[]>();
+        await using var command = StoredProcedure(connection, "[pmt].[GetEditVersions]");
+        Add(command, "@CurrentUserId", currentUserId);
+        Add(command, "@EntityType", SqlDbType.NVarChar, 40, entityType);
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            var key = (
+                reader.GetStringOrEmpty("EntityType"),
+                reader.GetStringOrEmpty("EntityKey"));
+            versions[key] = reader.GetBytesOrEmpty("RowVersion");
+        }
+
+        return versions;
+    }
+
+    private static async Task TouchEditVersionAsync(
+        SqlConnection connection,
+        SqlTransaction transaction,
+        string entityType,
+        string? entityKey,
+        CancellationToken cancellationToken)
+    {
+        await using var command = StoredProcedure(connection, transaction, "[pmt].[TouchEditVersion]");
+        Add(command, "@EntityType", SqlDbType.NVarChar, 40, entityType);
+        Add(command, "@EntityKey", SqlDbType.NVarChar, 80, entityKey);
+        await command.ExecuteNonQueryAsync(cancellationToken);
+    }
+
+    private static void RequireMatchingRowVersion(byte[]? actualRowVersion, byte[]? expectedRowVersion)
+    {
+        if (actualRowVersion is { Length: 8 }
+            && expectedRowVersion is { Length: 8 }
+            && actualRowVersion.SequenceEqual(expectedRowVersion))
+        {
+            return;
+        }
+
+        throw new SaveConflictException();
+    }
+
+    private static async Task TryRollbackAsync(SqlTransaction transaction, CancellationToken cancellationToken)
+    {
+        if (transaction.Connection is null) return;
+
+        try
+        {
+            await transaction.RollbackAsync(cancellationToken);
+        }
+        catch
+        {
+            // Preserve the original save error. SQL Server will also roll the
+            // transaction back when the connection is disposed.
+        }
+    }
+
     private static SqlCommand StoredProcedure(SqlConnection connection, string procedureName)
     {
         return new SqlCommand(procedureName, connection)
@@ -51,6 +458,13 @@ public sealed partial class SqlPmtStore
             CommandType = CommandType.StoredProcedure,
             CommandTimeout = 60
         };
+    }
+
+    private static SqlCommand StoredProcedure(SqlConnection connection, SqlTransaction transaction, string procedureName)
+    {
+        var command = StoredProcedure(connection, procedureName);
+        command.Transaction = transaction;
+        return command;
     }
 
     private static async Task EnsureCurrentUserIsAdminAsync(SqlConnection connection, int currentUserId, CancellationToken cancellationToken)
@@ -135,6 +549,14 @@ public sealed partial class SqlPmtStore
     }
 }
 
+public sealed class SaveConflictException : Exception
+{
+    public SaveConflictException()
+        : base("A newer version of this item exists. Your changes were not applied.")
+    {
+    }
+}
+
 internal static class SqlDataReaderExtensions
 {
     public static string GetStringOrEmpty(this SqlDataReader reader, string name)
@@ -186,5 +608,11 @@ internal static class SqlDataReaderExtensions
         return reader.IsDBNull(ordinal)
             ? null
             : DateTime.SpecifyKind(reader.GetDateTime(ordinal), DateTimeKind.Utc);
+    }
+
+    public static byte[] GetBytesOrEmpty(this SqlDataReader reader, string name)
+    {
+        var ordinal = reader.GetOrdinal(name);
+        return reader.IsDBNull(ordinal) ? Array.Empty<byte>() : reader.GetFieldValue<byte[]>(ordinal);
     }
 }

@@ -190,11 +190,21 @@ async function saveImportedWorkItem(item, options, rowNumber) {
   if (imageResult.failed) notes.push(`${imageResult.failed} embedded image${imageResult.failed === 1 ? "" : "s"} could not be moved to uploads.`);
   const isUpdate = payload.id > 0;
   const apiRoot = options.apiRoot || "/api/tasks";
-  const result = await options.saveJson(isUpdate ? `${apiRoot}/${payload.id}` : apiRoot, isUpdate ? "PUT" : "POST", payload);
+  const result = await options.saveJson(
+    isUpdate ? `${apiRoot}/${payload.id}` : apiRoot,
+    isUpdate ? "PUT" : "POST",
+    payload,
+    isUpdate ? {
+      saveAsNew: true,
+      canCreate: options.canCreate === true,
+      createPath: apiRoot
+    } : undefined
+  );
   const savedId = Number(result?.id || payload.id || 0);
+  const savedAsNew = result?.__savedAsNew === true;
 
   return {
-    status: isUpdate ? "Updated" : "Created",
+    status: isUpdate && !savedAsNew ? "Updated" : "Created",
     rowNumber,
     id: savedId,
     taskType,
@@ -255,7 +265,8 @@ function workItemImportPayload(rawItem, context) {
       excludeTaskId: existing?.id,
       notes: context.notes
     }),
-    auditContext: "Import"
+    auditContext: "Import",
+    expectedRowVersion: existing ? importedText(rawItem.rowVersion) || null : undefined
   };
 }
 
@@ -626,6 +637,7 @@ function workItemMetadata(task, project, sprint) {
     endDate: task.endDate || "",
     createdAt: task.createdAt || "",
     updatedAt: task.updatedAt || "",
+    rowVersion: task.rowVersion || "",
     createdByUser: userMetadata(task.createdByUserId),
     updatedByUser: userMetadata(task.updatedByUserId),
     reporterUsers: (task.reporterIds || []).map(userMetadata).filter(Boolean),

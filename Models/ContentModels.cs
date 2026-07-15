@@ -23,6 +23,7 @@ public sealed class DevLogDto
     public bool IsPinned { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
+    public byte[] RowVersion { get; set; } = Array.Empty<byte>();
 }
 
 public sealed class BlogPostDto
@@ -38,6 +39,7 @@ public sealed class BlogPostDto
     public int CreatedByUserId { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
+    public byte[] RowVersion { get; set; } = Array.Empty<byte>();
     public List<AttachmentDto> Attachments { get; set; } = new();
     public List<BlogHistoryDto> History { get; set; } = new();
 }
@@ -61,6 +63,7 @@ public sealed class DevLogInput
     public string BodyHtml { get; set; } = "";
     public bool IsPinned { get; set; }
     public string AuditContext { get; set; } = "";
+    public byte[]? ExpectedRowVersion { get; set; }
 }
 
 public sealed class BlogInput
@@ -73,6 +76,7 @@ public sealed class BlogInput
     public string BodyHtml { get; set; } = "";
     public bool IsPrivate { get; set; } = true;
     public bool IsPinned { get; set; }
+    public byte[]? ExpectedRowVersion { get; set; }
 }
 
 public sealed class UploadResult

@@ -38,6 +38,7 @@ public sealed class WorkTaskDto
     public List<WorkTaskDto> SubTasks { get; set; } = new();
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
+    public byte[] RowVersion { get; set; } = Array.Empty<byte>();
 }
 
 public sealed class WorkTaskInput
@@ -65,10 +66,12 @@ public sealed class WorkTaskInput
     public List<int> AssigneeIds { get; set; } = new();
     public List<int> DependencyTaskIds { get; set; } = new();
     public string AuditContext { get; set; } = "";
+    public byte[]? ExpectedRowVersion { get; set; }
 }
 
 public sealed class ReorderTasksInput
 {
     public List<int> TaskIds { get; set; } = new();
+    public Dictionary<int, byte[]?> ExpectedRowVersions { get; set; } = new();
 }
 

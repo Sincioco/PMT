@@ -1,5 +1,5 @@
 /*
-    PMT Version 1.16 database and schema script.
+    PMT Version 1.17 database and schema script.
     Run this first. It creates the database, the pmt schema, the application
     tables, and the single required administrator account. The companion
     procedure and seed scripts complete the current fresh-install contract.
@@ -50,6 +50,7 @@ BEGIN
         [UpdatedByUserId] INT NULL,
         [CreatedAt] DATETIME2(0) NOT NULL CONSTRAINT [DF_pmt_Users_CreatedAt] DEFAULT (SYSUTCDATETIME()),
         [UpdatedAt] DATETIME2(0) NOT NULL CONSTRAINT [DF_pmt_Users_UpdatedAt] DEFAULT (SYSUTCDATETIME()),
+        [RowVersion] ROWVERSION NOT NULL,
         CONSTRAINT [FK_pmt_Users_CreatedBy] FOREIGN KEY ([CreatedByUserId]) REFERENCES [pmt].[Users]([UserId]),
         CONSTRAINT [FK_pmt_Users_UpdatedBy] FOREIGN KEY ([UpdatedByUserId]) REFERENCES [pmt].[Users]([UserId])
     );
@@ -125,6 +126,7 @@ BEGIN
         [UpdatedByUserId] INT NULL,
         [CreatedAt] DATETIME2(0) NOT NULL CONSTRAINT [DF_pmt_WfhSchedules_CreatedAt] DEFAULT (SYSUTCDATETIME()),
         [UpdatedAt] DATETIME2(0) NOT NULL CONSTRAINT [DF_pmt_WfhSchedules_UpdatedAt] DEFAULT (SYSUTCDATETIME()),
+        [RowVersion] ROWVERSION NOT NULL,
         CONSTRAINT [FK_pmt_WfhSchedules_User] FOREIGN KEY ([UserId]) REFERENCES [pmt].[Users]([UserId]),
         CONSTRAINT [FK_pmt_WfhSchedules_CreatedBy] FOREIGN KEY ([CreatedByUserId]) REFERENCES [pmt].[Users]([UserId]),
         CONSTRAINT [FK_pmt_WfhSchedules_UpdatedBy] FOREIGN KEY ([UpdatedByUserId]) REFERENCES [pmt].[Users]([UserId])
@@ -179,6 +181,7 @@ BEGIN
         [UpdatedByUserId] INT NULL,
         [CreatedAt] DATETIME2(0) NOT NULL CONSTRAINT [DF_pmt_VacationPlans_CreatedAt] DEFAULT (SYSUTCDATETIME()),
         [UpdatedAt] DATETIME2(0) NOT NULL CONSTRAINT [DF_pmt_VacationPlans_UpdatedAt] DEFAULT (SYSUTCDATETIME()),
+        [RowVersion] ROWVERSION NOT NULL,
         CONSTRAINT [FK_pmt_VacationPlans_User] FOREIGN KEY ([UserId]) REFERENCES [pmt].[Users]([UserId]),
         CONSTRAINT [FK_pmt_VacationPlans_CreatedBy] FOREIGN KEY ([CreatedByUserId]) REFERENCES [pmt].[Users]([UserId]),
         CONSTRAINT [FK_pmt_VacationPlans_UpdatedBy] FOREIGN KEY ([UpdatedByUserId]) REFERENCES [pmt].[Users]([UserId]),
@@ -209,6 +212,7 @@ BEGIN
         [UpdatedByUserId] INT NULL,
         [CreatedAt] DATETIME2(0) NOT NULL CONSTRAINT [DF_pmt_Lookups_CreatedAt] DEFAULT (SYSUTCDATETIME()),
         [UpdatedAt] DATETIME2(0) NOT NULL CONSTRAINT [DF_pmt_Lookups_UpdatedAt] DEFAULT (SYSUTCDATETIME()),
+        [RowVersion] ROWVERSION NOT NULL,
         CONSTRAINT [FK_pmt_Lookups_CreatedBy] FOREIGN KEY ([CreatedByUserId]) REFERENCES [pmt].[Users]([UserId]),
         CONSTRAINT [FK_pmt_Lookups_UpdatedBy] FOREIGN KEY ([UpdatedByUserId]) REFERENCES [pmt].[Users]([UserId]),
         CONSTRAINT [UQ_pmt_Lookups_TypeValue] UNIQUE ([LookupType], [Value])
@@ -238,7 +242,8 @@ BEGIN
         [ResourceKey] NVARCHAR(40) NOT NULL CONSTRAINT [PK_pmt_SecurityResources] PRIMARY KEY,
         [Name] NVARCHAR(80) NOT NULL,
         [AvailableRights] NVARCHAR(100) NOT NULL CONSTRAINT [DF_pmt_SecurityResources_AvailableRights] DEFAULT (N'Read'),
-        [DisplayOrder] INT NOT NULL CONSTRAINT [DF_pmt_SecurityResources_DisplayOrder] DEFAULT (0)
+        [DisplayOrder] INT NOT NULL CONSTRAINT [DF_pmt_SecurityResources_DisplayOrder] DEFAULT (0),
+        [RowVersion] ROWVERSION NOT NULL
     );
 END;
 GO
@@ -299,6 +304,7 @@ BEGIN
         [IsArchived] BIT NOT NULL CONSTRAINT [DF_pmt_Projects_IsArchived] DEFAULT (0),
         [CreatedAt] DATETIME2(0) NOT NULL CONSTRAINT [DF_pmt_Projects_CreatedAt] DEFAULT (SYSUTCDATETIME()),
         [UpdatedAt] DATETIME2(0) NOT NULL CONSTRAINT [DF_pmt_Projects_UpdatedAt] DEFAULT (SYSUTCDATETIME()),
+        [RowVersion] ROWVERSION NOT NULL,
         CONSTRAINT [FK_pmt_Projects_CreatedBy] FOREIGN KEY ([CreatedByUserId]) REFERENCES [pmt].[Users]([UserId]),
         CONSTRAINT [FK_pmt_Projects_UpdatedBy] FOREIGN KEY ([UpdatedByUserId]) REFERENCES [pmt].[Users]([UserId]),
         CONSTRAINT [UQ_pmt_Projects_Code] UNIQUE ([Code])
@@ -397,6 +403,7 @@ BEGIN
         [UpdatedByUserId] INT NULL,
         [CreatedAt] DATETIME2(0) NOT NULL CONSTRAINT [DF_pmt_Sprints_CreatedAt] DEFAULT (SYSUTCDATETIME()),
         [UpdatedAt] DATETIME2(0) NOT NULL CONSTRAINT [DF_pmt_Sprints_UpdatedAt] DEFAULT (SYSUTCDATETIME()),
+        [RowVersion] ROWVERSION NOT NULL,
         CONSTRAINT [FK_pmt_Sprints_Project] FOREIGN KEY ([ProjectId]) REFERENCES [pmt].[Projects]([ProjectId]),
         CONSTRAINT [FK_pmt_Sprints_CreatedBy] FOREIGN KEY ([CreatedByUserId]) REFERENCES [pmt].[Users]([UserId]),
         CONSTRAINT [FK_pmt_Sprints_UpdatedBy] FOREIGN KEY ([UpdatedByUserId]) REFERENCES [pmt].[Users]([UserId]),
@@ -448,6 +455,7 @@ BEGIN
         [IsDeleted] BIT NOT NULL CONSTRAINT [DF_pmt_WorkTasks_IsDeleted] DEFAULT (0),
         [CreatedAt] DATETIME2(0) NOT NULL CONSTRAINT [DF_pmt_WorkTasks_CreatedAt] DEFAULT (SYSUTCDATETIME()),
         [UpdatedAt] DATETIME2(0) NOT NULL CONSTRAINT [DF_pmt_WorkTasks_UpdatedAt] DEFAULT (SYSUTCDATETIME()),
+        [RowVersion] ROWVERSION NOT NULL,
         CONSTRAINT [FK_pmt_WorkTasks_Project] FOREIGN KEY ([ProjectId]) REFERENCES [pmt].[Projects]([ProjectId]),
         CONSTRAINT [FK_pmt_WorkTasks_Sprint] FOREIGN KEY ([SprintId]) REFERENCES [pmt].[Sprints]([SprintId]),
         CONSTRAINT [FK_pmt_WorkTasks_ParentTask] FOREIGN KEY ([ParentTaskId]) REFERENCES [pmt].[WorkTasks]([TaskId]),
@@ -638,6 +646,7 @@ BEGIN
         [UpdatedByUserId] INT NULL,
         [CreatedAt] DATETIME2(0) NOT NULL CONSTRAINT [DF_pmt_DevLogs_CreatedAt] DEFAULT (SYSUTCDATETIME()),
         [UpdatedAt] DATETIME2(0) NOT NULL CONSTRAINT [DF_pmt_DevLogs_UpdatedAt] DEFAULT (SYSUTCDATETIME()),
+        [RowVersion] ROWVERSION NOT NULL,
         CONSTRAINT [FK_pmt_DevLogs_Project] FOREIGN KEY ([ProjectId]) REFERENCES [pmt].[Projects]([ProjectId]),
         CONSTRAINT [FK_pmt_DevLogs_User] FOREIGN KEY ([UserId]) REFERENCES [pmt].[Users]([UserId]),
         CONSTRAINT [FK_pmt_DevLogs_CreatedBy] FOREIGN KEY ([CreatedByUserId]) REFERENCES [pmt].[Users]([UserId]),
@@ -688,6 +697,7 @@ BEGIN
         [IsDeleted] BIT NOT NULL CONSTRAINT [DF_pmt_Blogs_IsDeleted] DEFAULT (0),
         [CreatedAt] DATETIME2(0) NOT NULL CONSTRAINT [DF_pmt_Blogs_CreatedAt] DEFAULT (SYSUTCDATETIME()),
         [UpdatedAt] DATETIME2(0) NOT NULL CONSTRAINT [DF_pmt_Blogs_UpdatedAt] DEFAULT (SYSUTCDATETIME()),
+        [RowVersion] ROWVERSION NOT NULL,
         CONSTRAINT [FK_pmt_Blogs_Project] FOREIGN KEY ([ProjectId]) REFERENCES [pmt].[Projects]([ProjectId]),
         CONSTRAINT [FK_pmt_Blogs_Sprint] FOREIGN KEY ([SprintId]) REFERENCES [pmt].[Sprints]([SprintId]),
         CONSTRAINT [FK_pmt_Blogs_ParentBlog] FOREIGN KEY ([ParentBlogId]) REFERENCES [pmt].[Blogs]([BlogId]),
@@ -858,6 +868,7 @@ BEGIN
         [UpdatedByUserId] INT NULL,
         [CreatedAt] DATETIME2(0) NOT NULL CONSTRAINT [DF_pmt_Holidays_CreatedAt] DEFAULT (SYSUTCDATETIME()),
         [UpdatedAt] DATETIME2(0) NOT NULL CONSTRAINT [DF_pmt_Holidays_UpdatedAt] DEFAULT (SYSUTCDATETIME()),
+        [RowVersion] ROWVERSION NOT NULL,
         CONSTRAINT [FK_pmt_Holidays_CreatedBy] FOREIGN KEY ([CreatedByUserId]) REFERENCES [pmt].[Users]([UserId]),
         CONSTRAINT [FK_pmt_Holidays_UpdatedBy] FOREIGN KEY ([UpdatedByUserId]) REFERENCES [pmt].[Users]([UserId]),
         CONSTRAINT [UQ_pmt_Holidays_DateCountryName] UNIQUE ([HolidayDate], [CountryCode], [Name])

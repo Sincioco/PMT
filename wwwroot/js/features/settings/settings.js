@@ -1673,11 +1673,20 @@ export function createSettingsFeature({
       }
     });
 
-    await saveJson(`/api/security/${encodeURIComponent(selectedSecurityResourceKey)}`, "PUT", { rolePermissions, userPermissions });
-    await loadState();
-    settingsCategory = "Security";
-    renderSettings();
-    showToast("Security saved.");
+    const resource = (state.securityResources || []).find(item => item.resourceKey === selectedSecurityResourceKey);
+    try {
+      await saveJson(`/api/security/${encodeURIComponent(selectedSecurityResourceKey)}`, "PUT", {
+        rolePermissions,
+        userPermissions,
+        expectedRowVersion: resource?.rowVersion || null
+      });
+      await loadState();
+      settingsCategory = "Security";
+      renderSettings();
+      showToast("Security saved.");
+    } catch (error) {
+      showToast(error.message);
+    }
   }
 
   async function resetSecurityPermissions() {
@@ -2109,7 +2118,8 @@ export function createSettingsFeature({
         socialMediaUrl: value(root, "socialMediaUrl"),
         bio: value(root, "bio"),
         isAdmin: root.querySelector("[name='isAdmin']").checked,
-        role: value(root, "role")
+        role: value(root, "role"),
+        expectedRowVersion: user.id ? user.rowVersion || null : undefined
       });
     }, "nickname", root => {
       bindProfileAvatarPicker(root);
@@ -2183,7 +2193,8 @@ export function createSettingsFeature({
         value: value(root, "value"),
         displayOrder: numberValue(root, "displayOrder"),
         isActive: root.querySelector("[name='isActive']").checked,
-        colorHex: lookupType === "Status" ? value(root, "colorHex") : ""
+        colorHex: lookupType === "Status" ? value(root, "colorHex") : "",
+        expectedRowVersion: lookup.id ? lookup.rowVersion || null : undefined
       });
     }, "value");
   }
@@ -2202,7 +2213,8 @@ export function createSettingsFeature({
         holidayDate: value(root, "holidayDate"),
         name: value(root, "name"),
         countryCode: value(root, "countryCode") || "PH",
-        isActive: root.querySelector("[name='isActive']").checked
+        isActive: root.querySelector("[name='isActive']").checked,
+        expectedRowVersion: holiday.id ? holiday.rowVersion || null : undefined
       });
     }, "holidayDate");
   }

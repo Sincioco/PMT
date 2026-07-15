@@ -1,5 +1,5 @@
 /*
-    PMT Version 1.16 stored procedures.
+    PMT Version 1.17 stored procedures.
     The application uses ADO.NET and calls these procedures directly.
     The SQL is intentionally explicit so future maintainers can trace each save action.
 */
@@ -619,6 +619,219 @@ BEGIN
         [UpdatedAt]
     FROM [pmt].[Holidays]
     ORDER BY [HolidayDate] DESC, [Name];
+END;
+GO
+
+CREATE OR ALTER PROCEDURE [pmt].[GetEditVersions]
+    @CurrentUserId INT,
+    @EntityType NVARCHAR(40) = NULL
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    SELECT
+        [Version].[EntityType],
+        [Version].[EntityKey],
+        [Version].[RowVersion]
+    FROM
+    (
+        SELECT N'User', CONVERT(NVARCHAR(80), [UserId]), CONVERT(VARBINARY(8), [RowVersion])
+        FROM [pmt].[Users]
+        WHERE [IsActive] = 1
+
+        UNION ALL
+
+        SELECT N'Project', CONVERT(NVARCHAR(80), [ProjectId]), CONVERT(VARBINARY(8), [RowVersion])
+        FROM [pmt].[Projects]
+        WHERE [IsArchived] = 0
+
+        UNION ALL
+
+        SELECT N'Sprint', CONVERT(NVARCHAR(80), [SprintId]), CONVERT(VARBINARY(8), [RowVersion])
+        FROM [pmt].[Sprints]
+        WHERE [IsDeleted] = 0
+
+        UNION ALL
+
+        SELECT N'WorkTask', CONVERT(NVARCHAR(80), [TaskId]), CONVERT(VARBINARY(8), [RowVersion])
+        FROM [pmt].[WorkTasks]
+        WHERE [IsDeleted] = 0
+
+        UNION ALL
+
+        SELECT N'DevLog', CONVERT(NVARCHAR(80), [DevLogId]), CONVERT(VARBINARY(8), [RowVersion])
+        FROM [pmt].[DevLogs]
+        WHERE [IsDeleted] = 0
+          AND ([LogType] <> N'Log' OR [UserId] = @CurrentUserId)
+
+        UNION ALL
+
+        SELECT N'Blog', CONVERT(NVARCHAR(80), [BlogId]), CONVERT(VARBINARY(8), [RowVersion])
+        FROM [pmt].[Blogs]
+        WHERE [IsDeleted] = 0
+          AND ([IsPrivate] = 0 OR [CreatedByUserId] = @CurrentUserId)
+
+        UNION ALL
+
+        SELECT N'Lookup', CONVERT(NVARCHAR(80), [LookupId]), CONVERT(VARBINARY(8), [RowVersion])
+        FROM [pmt].[Lookups]
+
+        UNION ALL
+
+        SELECT N'Holiday', CONVERT(NVARCHAR(80), [HolidayId]), CONVERT(VARBINARY(8), [RowVersion])
+        FROM [pmt].[Holidays]
+
+        UNION ALL
+
+        SELECT N'SecurityResource', [ResourceKey], CONVERT(VARBINARY(8), [RowVersion])
+        FROM [pmt].[SecurityResources]
+
+        UNION ALL
+
+        SELECT N'WfhSchedule', CONVERT(NVARCHAR(80), [Wfh].[UserId]), CONVERT(VARBINARY(8), [Wfh].[RowVersion])
+        FROM [pmt].[WfhSchedules] AS [Wfh]
+        INNER JOIN [pmt].[Users] AS [User]
+            ON [User].[UserId] = [Wfh].[UserId]
+           AND [User].[IsActive] = 1
+
+        UNION ALL
+
+        SELECT N'Vacation', CONVERT(NVARCHAR(80), [VacationPlanId]), CONVERT(VARBINARY(8), [RowVersion])
+        FROM [pmt].[VacationPlans]
+        WHERE [IsCancelled] = 0
+    ) AS [Version] ([EntityType], [EntityKey], [RowVersion])
+    WHERE @EntityType IS NULL OR [Version].[EntityType] = @EntityType
+    ORDER BY [Version].[EntityType], [Version].[EntityKey];
+END;
+GO
+
+CREATE OR ALTER PROCEDURE [pmt].[LockEditVersion]
+    @EntityType NVARCHAR(40),
+    @EntityKey NVARCHAR(80)
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    DECLARE @EntityId INT = TRY_CONVERT(INT, @EntityKey);
+    DECLARE @RowVersion VARBINARY(8);
+
+    IF @EntityType = N'User'
+        SELECT @RowVersion = [RowVersion] FROM [pmt].[Users] WITH (UPDLOCK, HOLDLOCK) WHERE [UserId] = @EntityId AND [IsActive] = 1;
+    ELSE IF @EntityType = N'Project'
+        SELECT @RowVersion = [RowVersion] FROM [pmt].[Projects] WITH (UPDLOCK, HOLDLOCK) WHERE [ProjectId] = @EntityId AND [IsArchived] = 0;
+    ELSE IF @EntityType = N'Sprint'
+        SELECT @RowVersion = [RowVersion] FROM [pmt].[Sprints] WITH (UPDLOCK, HOLDLOCK) WHERE [SprintId] = @EntityId AND [IsDeleted] = 0;
+    ELSE IF @EntityType = N'WorkTask'
+        SELECT @RowVersion = [RowVersion] FROM [pmt].[WorkTasks] WITH (UPDLOCK, HOLDLOCK) WHERE [TaskId] = @EntityId AND [IsDeleted] = 0;
+    ELSE IF @EntityType = N'DevLog'
+        SELECT @RowVersion = [RowVersion] FROM [pmt].[DevLogs] WITH (UPDLOCK, HOLDLOCK) WHERE [DevLogId] = @EntityId AND [IsDeleted] = 0;
+    ELSE IF @EntityType = N'Blog'
+        SELECT @RowVersion = [RowVersion] FROM [pmt].[Blogs] WITH (UPDLOCK, HOLDLOCK) WHERE [BlogId] = @EntityId AND [IsDeleted] = 0;
+    ELSE IF @EntityType = N'Lookup'
+        SELECT @RowVersion = [RowVersion] FROM [pmt].[Lookups] WITH (UPDLOCK, HOLDLOCK) WHERE [LookupId] = @EntityId;
+    ELSE IF @EntityType = N'Holiday'
+        SELECT @RowVersion = [RowVersion] FROM [pmt].[Holidays] WITH (UPDLOCK, HOLDLOCK) WHERE [HolidayId] = @EntityId;
+    ELSE IF @EntityType = N'WfhSchedule'
+        SELECT @RowVersion = [RowVersion] FROM [pmt].[WfhSchedules] WITH (UPDLOCK, HOLDLOCK) WHERE [UserId] = @EntityId;
+    ELSE IF @EntityType = N'Vacation'
+        SELECT @RowVersion = [RowVersion] FROM [pmt].[VacationPlans] WITH (UPDLOCK, HOLDLOCK) WHERE [VacationPlanId] = @EntityId AND [IsCancelled] = 0;
+    ELSE IF @EntityType = N'SecurityResource'
+        SELECT @RowVersion = [RowVersion] FROM [pmt].[SecurityResources] WITH (UPDLOCK, HOLDLOCK) WHERE [ResourceKey] = @EntityKey;
+    ELSE
+        THROW 51001, 'The edit-version entity type is invalid.', 1;
+
+    SELECT [RowVersion] = @RowVersion;
+END;
+GO
+
+CREATE OR ALTER PROCEDURE [pmt].[TouchEditVersion]
+    @EntityType NVARCHAR(40),
+    @EntityKey NVARCHAR(80) = NULL
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    IF @EntityType <> N'SecurityResource'
+    BEGIN
+        THROW 51001, 'The edit-version entity type cannot be touched explicitly.', 1;
+    END;
+
+    UPDATE [pmt].[SecurityResources]
+    SET [Name] = [Name]
+    WHERE @EntityKey IS NULL OR [ResourceKey] = @EntityKey;
+END;
+GO
+
+-- Acquire multi-scope write locks in this order: Blog, WorkTask, Sprint.
+CREATE OR ALTER PROCEDURE [pmt].[LockBlogWrites]
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    IF @@TRANCOUNT = 0
+    BEGIN
+        THROW 51004, 'A transaction is required to lock Blog writes.', 1;
+    END;
+
+    DECLARE @LockResult INT;
+    EXEC @LockResult = sys.sp_getapplock
+        @Resource = N'pmt:BlogWrites',
+        @LockMode = N'Exclusive',
+        @LockOwner = N'Transaction',
+        @LockTimeout = 30000;
+
+    IF @LockResult < 0
+    BEGIN
+        THROW 51005, 'The Blog write lock could not be acquired.', 1;
+    END;
+END;
+GO
+
+CREATE OR ALTER PROCEDURE [pmt].[LockWorkTaskWrites]
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    IF @@TRANCOUNT = 0
+    BEGIN
+        THROW 51002, 'A transaction is required to lock WorkTask writes.', 1;
+    END;
+
+    DECLARE @LockResult INT;
+    EXEC @LockResult = sys.sp_getapplock
+        @Resource = N'pmt:WorkTaskWrites',
+        @LockMode = N'Exclusive',
+        @LockOwner = N'Transaction',
+        @LockTimeout = 30000;
+
+    IF @LockResult < 0
+    BEGIN
+        THROW 51003, 'The WorkTask write lock could not be acquired.', 1;
+    END;
+END;
+GO
+
+CREATE OR ALTER PROCEDURE [pmt].[LockSprintWrites]
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    IF @@TRANCOUNT = 0
+    BEGIN
+        THROW 51006, 'A transaction is required to lock Sprint writes.', 1;
+    END;
+
+    DECLARE @LockResult INT;
+    EXEC @LockResult = sys.sp_getapplock
+        @Resource = N'pmt:SprintWrites',
+        @LockMode = N'Exclusive',
+        @LockOwner = N'Transaction',
+        @LockTimeout = 30000;
+
+    IF @LockResult < 0
+    BEGIN
+        THROW 51007, 'The Sprint write lock could not be acquired.', 1;
+    END;
 END;
 GO
 
@@ -1263,6 +1476,10 @@ BEGIN
     BEGIN TRY
         BEGIN TRANSACTION;
 
+        -- Keep the lock order consistent with Security saves: resource first,
+        -- then Users and permission-shaping data.
+        EXEC [pmt].[TouchEditVersion] N'SecurityResource', NULL;
+
         SELECT
             @UserInvitationId = [UserInvitationId],
             @InvitedByUserId = [CreatedByUserId]
@@ -1287,6 +1504,18 @@ BEGIN
         BEGIN
             THROW 50209, 'This invitation no longer contains an active project.', 1;
         END;
+
+        -- Project members are part of the Project editor's full save payload.
+        -- Lock and advance every affected Project before inserting members so
+        -- this transaction follows the same Project -> ProjectMembers order as
+        -- a Project save, including invitations that contain several projects.
+        UPDATE [Project]
+        SET [UpdatedAt] = [Project].[UpdatedAt]
+        FROM [pmt].[Projects] AS [Project]
+        INNER JOIN [pmt].[UserInvitationProjects] AS [InvitationProject]
+            ON [InvitationProject].[ProjectId] = [Project].[ProjectId]
+        WHERE [InvitationProject].[UserInvitationId] = @UserInvitationId
+          AND [Project].[IsArchived] = 0;
 
         IF EXISTS
         (
@@ -3254,45 +3483,73 @@ BEGIN
         THROW 50060, 'Only active users can view the WFH schedule.', 1;
     END;
 
-    DECLARE @MaxSortOrder INT = ISNULL((SELECT MAX([SortOrder]) FROM [pmt].[WfhSchedules]), 0);
+    SET XACT_ABORT ON;
 
-    ;WITH MissingUsers AS
-    (
+    BEGIN TRY
+        BEGIN TRANSACTION;
+
+        DECLARE @LockResult INT;
+        EXEC @LockResult = sys.sp_getapplock
+            @Resource = N'pmt:WfhScheduleInitialization',
+            @LockMode = N'Exclusive',
+            @LockOwner = N'Transaction',
+            @LockTimeout = 30000
+            WITH RESULT SETS NONE;
+
+        IF @LockResult < 0
+        BEGIN
+            THROW 51008, 'The WFH schedule initialization lock could not be acquired.', 1;
+        END;
+
+        DECLARE @MaxSortOrder INT = ISNULL((SELECT MAX([SortOrder]) FROM [pmt].[WfhSchedules]), 0);
+
+        ;WITH MissingUsers AS
+        (
+            SELECT
+                [Users].[UserId],
+                [RowNumber] = ROW_NUMBER() OVER (ORDER BY [Users].[Nickname], [Users].[FirstName], [Users].[UserId])
+            FROM [pmt].[Users]
+            WHERE [Users].[IsActive] = 1
+              AND NOT EXISTS
+              (
+                  SELECT 1
+                  FROM [pmt].[WfhSchedules] WITH (UPDLOCK, HOLDLOCK)
+                  WHERE [WfhSchedules].[UserId] = [Users].[UserId]
+              )
+        )
+        INSERT INTO [pmt].[WfhSchedules] ([UserId], [SortOrder], [CreatedByUserId], [CreatedAt], [UpdatedAt])
+        SELECT [UserId], @MaxSortOrder + ([RowNumber] * 10), @CurrentUserId, SYSUTCDATETIME(), SYSUTCDATETIME()
+        FROM MissingUsers;
+
         SELECT
             [Users].[UserId],
-            [RowNumber] = ROW_NUMBER() OVER (ORDER BY [Users].[Nickname], [Users].[FirstName], [Users].[UserId])
+            [Users].[FirstName],
+            [Users].[LastName],
+            [Users].[Nickname],
+            [Users].[AvatarUrl],
+            [Role] = CASE WHEN [Users].[IsAdmin] = 1 THEN N'Admin' ELSE [Users].[Role] END,
+            [WfhSchedules].[CanWorkMonday],
+            [WfhSchedules].[CanWorkTuesday],
+            [WfhSchedules].[CanWorkWednesday],
+            [WfhSchedules].[CanWorkThursday],
+            [WfhSchedules].[CanWorkFriday],
+            [WfhSchedules].[IsHidden],
+            [WfhSchedules].[SortOrder],
+            [WfhSchedules].[RowVersion]
         FROM [pmt].[Users]
+        INNER JOIN [pmt].[WfhSchedules]
+            ON [WfhSchedules].[UserId] = [Users].[UserId]
         WHERE [Users].[IsActive] = 1
-          AND NOT EXISTS
-          (
-              SELECT 1
-              FROM [pmt].[WfhSchedules]
-              WHERE [WfhSchedules].[UserId] = [Users].[UserId]
-          )
-    )
-    INSERT INTO [pmt].[WfhSchedules] ([UserId], [SortOrder], [CreatedByUserId], [CreatedAt], [UpdatedAt])
-    SELECT [UserId], @MaxSortOrder + ([RowNumber] * 10), @CurrentUserId, SYSUTCDATETIME(), SYSUTCDATETIME()
-    FROM MissingUsers;
+        ORDER BY [WfhSchedules].[SortOrder], [Users].[Nickname], [Users].[FirstName], [Users].[UserId];
 
-    SELECT
-        [Users].[UserId],
-        [Users].[FirstName],
-        [Users].[LastName],
-        [Users].[Nickname],
-        [Users].[AvatarUrl],
-        [Role] = CASE WHEN [Users].[IsAdmin] = 1 THEN N'Admin' ELSE [Users].[Role] END,
-        [WfhSchedules].[CanWorkMonday],
-        [WfhSchedules].[CanWorkTuesday],
-        [WfhSchedules].[CanWorkWednesday],
-        [WfhSchedules].[CanWorkThursday],
-        [WfhSchedules].[CanWorkFriday],
-        [WfhSchedules].[IsHidden],
-        [WfhSchedules].[SortOrder]
-    FROM [pmt].[Users]
-    INNER JOIN [pmt].[WfhSchedules]
-        ON [WfhSchedules].[UserId] = [Users].[UserId]
-    WHERE [Users].[IsActive] = 1
-    ORDER BY [WfhSchedules].[SortOrder], [Users].[Nickname], [Users].[FirstName], [Users].[UserId];
+        COMMIT TRANSACTION;
+    END TRY
+    BEGIN CATCH
+        IF XACT_STATE() <> 0
+            ROLLBACK TRANSACTION;
+
+        THROW;
+    END CATCH;
 END;
 GO
 

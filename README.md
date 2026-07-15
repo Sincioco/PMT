@@ -41,12 +41,12 @@ Users can change their own password from the avatar menu after login.
 
 Run these scripts in order:
 
-1. `Sql\01_CreateDatabase.sql`
-2. `Sql\02_CreateStoredProcedures.sql`
-3. `Sql\03_SeedData.sql`
-4. `Sql\03_SeedData_PMT.sql`
-5. `Sql\03_SeedData_LMS.sql`
-6. `Sql\03_SeedData_HLS.sql`
+1. `SQL\01_CreateDatabase.sql`
+2. `SQL\02_CreateStoredProcedures.sql`
+3. `SQL\03_SeedData.sql`
+4. `SQL\03_SeedData_PMT.sql`
+5. `SQL\03_SeedData_LMS.sql`
+6. `SQL\03_SeedData_HLS.sql`
 
 ## Local Run
 
@@ -87,7 +87,7 @@ git diff --check
 Endpoints/            Minimal API endpoint groups
 Data/                 SqlPmtStore partials using ADO.NET stored procedures
 Models/               Plain DTO and input models
-Sql/                  [pmt] schema, stored procedures, and seed scripts
+SQL/                  [pmt] schema, stored procedures, and seed scripts
 wwwroot/js/core/      API, state, preferences, auth, router, shell
 wwwroot/js/shared/    Pure reusable rules, dates, selectors, text/link helpers
 wwwroot/js/components/Reusable UI markup helpers

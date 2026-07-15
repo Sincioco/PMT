@@ -67,6 +67,7 @@ import {
   toDateInput
 } from "../../shared/dates.js?v=20260620-null-end-date";
 import { normalizeSavedArray } from "../../shared/filter-values.js";
+import { canAccessResource } from "../../shared/security.js?v=20260713-role-security";
 import {
   bugMixChart,
   bugSeverityChartColor,
@@ -93,7 +94,7 @@ import {
   showImportResultDialog,
   sameNumberList,
   workItemSystemColumns
-} from "../../shared/table-export.js?v=20260710-rich-bug-layout";
+} from "../../shared/table-export.js?v=20260715-save-collision";
 import { canEditTask } from "../../shared/permissions.js?v=20260713-role-security";
 import {
   projectById,
@@ -116,7 +117,7 @@ import {
   taskCreatedTime,
   taskOrderCompare
 } from "../../shared/work-item-rules.js?v=20260714-linked-bug-percent";
-import { openWorkItemHtmlImport } from "../../shared/work-item-transfer.js?v=20260714-linked-bug-percent";
+import { openWorkItemHtmlImport } from "../../shared/work-item-transfer.js?v=20260715-save-collision";
 
 export function createBugsFeature({
   app,
@@ -456,6 +457,7 @@ export function createBugsFeature({
 
   function editBug(bug = {}, options = {}) {
     const apiRoot = options.apiRoot || "/api/tasks";
+    const securityResource = apiRoot === "/api/backlog/tasks" ? "Backlog" : "BugTracking";
     const taskContext = getTaskContext();
     const selectedFilterSprint = selectedBugSprint();
     const rememberedProjectId = state.projects.some(project => project.id === bugEntryProjectId)
@@ -549,7 +551,12 @@ export function createBugsFeature({
         endDate: nullableDateValue(root, "endDate"),
         reporterIds: checkedNumbers(root, "reporterIds"),
         assigneeIds: checkedNumbers(root, "assigneeIds"),
-        dependencyTaskIds: checkedNumbers(root, "dependencyTaskIds")
+        dependencyTaskIds: checkedNumbers(root, "dependencyTaskIds"),
+        expectedRowVersion: bug.id ? bug.rowVersion || null : undefined
+      }, {
+        saveAsNew: true,
+        canCreate: canAccessResource(securityResource, "Create"),
+        createPath: apiRoot
       });
 
       bugEntryProjectId = savedProjectId;
@@ -1710,6 +1717,7 @@ export function createBugsFeature({
       routeType: "bugs",
       apiRoot: "/api/tasks",
       saveJson,
+      canCreate: canAccessResource("BugTracking", "Create"),
       refreshAfterImport,
       getFallbackContext: bugImportFallbackContext
     });
@@ -1783,16 +1791,16 @@ export function createBugsFeature({
       const updates = bugImportValues(record, bug);
       if (!bugImportChanged(bug, updates)) return "";
 
-      try {
-        await saveJson(`/api/tasks/${bug.id}`, "PUT", bugImportPayload(bug, updates));
-        return "updated";
-      } catch {
-        // If the original bug can no longer be updated, still import the data as a new bug.
-      }
+      const result = await saveJson(`/api/tasks/${bug.id}`, "PUT", bugImportPayload(bug, updates, record), {
+        saveAsNew: true,
+        canCreate: canAccessResource("BugTracking", "Create"),
+        createPath: "/api/tasks"
+      });
+      return result?.__savedAsNew ? "created" : "updated";
     }
 
     const createValues = bugImportValues(record, null);
-    await saveJson("/api/tasks", "POST", bugImportPayload(null, createValues));
+    await saveJson("/api/tasks", "POST", bugImportPayload(null, createValues, record));
     return "created";
   }
 
@@ -1870,7 +1878,7 @@ export function createBugsFeature({
       || !sameNumberList(bug.assigneeIds || [], updates.assigneeIds || []);
   }
 
-  function bugImportPayload(bug, updates) {
+  function bugImportPayload(bug, updates, record = {}) {
     return {
       id: bug?.id || 0,
       projectId: bug?.projectId || updates.projectId,
@@ -1894,7 +1902,8 @@ export function createBugsFeature({
       reporterIds: bug ? bug.reporterIds || [] : reporterIdsOrDefault([], currentUserId),
       assigneeIds: updates.assigneeIds,
       dependencyTaskIds: bug ? bug.dependencyTaskIds || [] : [],
-      auditContext: "Import"
+      auditContext: "Import",
+      expectedRowVersion: bug ? importFirstNonEmptyCell(record, "PMT Row Version").trim() || null : undefined
     };
   }
 

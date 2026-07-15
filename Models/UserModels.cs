@@ -15,6 +15,7 @@ public sealed class UserDto
     public bool IsAdmin { get; set; }
     public string Role { get; set; } = "Developer";
     public bool IsActive { get; set; } = true;
+    public byte[] RowVersion { get; set; } = Array.Empty<byte>();
 }
 
 public sealed class UserSummaryDto
@@ -41,6 +42,7 @@ public sealed class UserInput
     public string Bio { get; set; } = "";
     public bool IsAdmin { get; set; }
     public string Role { get; set; } = "Developer";
+    public byte[]? ExpectedRowVersion { get; set; }
 }
 
 public sealed class UsernameSuggestionDto

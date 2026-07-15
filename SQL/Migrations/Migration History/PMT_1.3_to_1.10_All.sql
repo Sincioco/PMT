@@ -2,7 +2,7 @@
     PMT_1.3_to_1.10_All.sql
 
     One-command SQLCMD runner for upgrading the BDO PMT database from
-    Database Version 1.3 to 1.10. Run this file from the Sql\Migrations folder.
+    Database Version 1.3 to 1.10. Run this file from the SQL\Migrations\Migration History folder.
     The seven versioned migration files remain the canonical migration history.
 */
 

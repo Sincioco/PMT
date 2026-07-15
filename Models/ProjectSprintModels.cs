@@ -21,6 +21,7 @@ public sealed class ProjectDto
     public List<UserSummaryDto> Members { get; set; } = new();
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
+    public byte[] RowVersion { get; set; } = Array.Empty<byte>();
 }
 
 public sealed class SprintDto
@@ -45,6 +46,7 @@ public sealed class SprintDto
     public List<UserSummaryDto> Developers { get; set; } = new();
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
+    public byte[] RowVersion { get; set; } = Array.Empty<byte>();
 }
 
 public sealed class ProjectInput
@@ -59,6 +61,7 @@ public sealed class ProjectInput
     public DateTime? EndDate { get; set; }
     public List<int> MemberIds { get; set; } = new();
     public bool OverrideArchivedCode { get; set; }
+    public byte[]? ExpectedRowVersion { get; set; }
 }
 
 public sealed class SprintInput
@@ -71,11 +74,13 @@ public sealed class SprintInput
     public DateTime? EndDate { get; set; }
     public string LessonLearnedHtml { get; set; } = "";
     public List<int> DeveloperIds { get; set; } = new();
+    public byte[]? ExpectedRowVersion { get; set; }
 }
 
 public sealed class FinishSprintInput
 {
     public bool CarryUnfinished { get; set; } = true;
     public bool CarryTodos { get; set; }
+    public byte[]? ExpectedRowVersion { get; set; }
 }
 

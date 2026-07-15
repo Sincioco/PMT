@@ -25,6 +25,7 @@ public sealed class VacationPlanDto
     public DateTime EndDate { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
+    public byte[] RowVersion { get; set; } = Array.Empty<byte>();
 }
 
 public sealed class AttendanceInput
@@ -38,4 +39,5 @@ public sealed class VacationInput
     public int Id { get; set; }
     public DateTime? StartDate { get; set; }
     public DateTime? EndDate { get; set; }
+    public byte[]? ExpectedRowVersion { get; set; }
 }

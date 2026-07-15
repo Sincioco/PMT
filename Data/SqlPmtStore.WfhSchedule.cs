@@ -29,7 +29,8 @@ public sealed partial class SqlPmtStore
                 CanWorkThursday = reader.GetBoolean("CanWorkThursday"),
                 CanWorkFriday = reader.GetBoolean("CanWorkFriday"),
                 IsHidden = reader.GetBoolean("IsHidden"),
-                SortOrder = reader.GetInt32("SortOrder")
+                SortOrder = reader.GetInt32("SortOrder"),
+                RowVersion = reader.GetBytesOrEmpty("RowVersion")
             });
         }
 
@@ -38,7 +39,7 @@ public sealed partial class SqlPmtStore
 
     public Task SaveWfhScheduleAsync(WfhScheduleInput input, int currentUserId, CancellationToken cancellationToken)
     {
-        return ExecuteProcedureAsync("[pmt].[UpdateWfhSchedule]", command =>
+        return ExecuteVersionedProcedureAsync("WfhSchedule", input.UserId.ToString(), input.ExpectedRowVersion, "[pmt].[UpdateWfhSchedule]", command =>
         {
             Add(command, "@UserId", input.UserId);
             Add(command, "@CanWorkMonday", input.CanWorkMonday);
@@ -53,7 +54,7 @@ public sealed partial class SqlPmtStore
 
     public Task ReorderWfhScheduleAsync(ReorderWfhScheduleInput input, int currentUserId, CancellationToken cancellationToken)
     {
-        return ExecuteProcedureAsync("[pmt].[ReorderWfhSchedule]", command =>
+        return ExecuteVersionedReorderProcedureAsync("WfhSchedule", input.UserIds, input.ExpectedRowVersions, "[pmt].[ReorderWfhSchedule]", command =>
         {
             Add(command, "@UserIdsCsv", SqlDbType.NVarChar, -1, OrderedCsv(input.UserIds));
             Add(command, "@CurrentUserId", currentUserId);

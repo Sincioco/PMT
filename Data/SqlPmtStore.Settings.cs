@@ -31,7 +31,7 @@ public sealed partial class SqlPmtStore
 
     public Task<int> SaveUserAsync(UserInput input, int currentUserId, CancellationToken cancellationToken)
     {
-        return ExecuteIdProcedureAsync("[pmt].[UpsertUser]", "@UserId", input.Id, command =>
+        return ExecuteVersionedIdProcedureAsync("User", input.ExpectedRowVersion, "[pmt].[UpsertUser]", "@UserId", input.Id, command =>
         {
             Add(command, "@FirstName", SqlDbType.NVarChar, 80, input.FirstName);
             Add(command, "@LastName", SqlDbType.NVarChar, 80, input.LastName);
@@ -45,12 +45,12 @@ public sealed partial class SqlPmtStore
             Add(command, "@IsAdmin", input.IsAdmin);
             Add(command, "@Role", SqlDbType.NVarChar, 20, input.Role);
             Add(command, "@CurrentUserId", currentUserId);
-        }, cancellationToken);
+        }, cancellationToken, touchSecurityResources: true);
     }
 
     public Task<int> SaveLookupAsync(LookupInput input, int currentUserId, CancellationToken cancellationToken)
     {
-        return ExecuteIdProcedureAsync("[pmt].[UpsertLookup]", "@LookupId", input.Id, command =>
+        return ExecuteVersionedIdProcedureAsync("Lookup", input.ExpectedRowVersion, "[pmt].[UpsertLookup]", "@LookupId", input.Id, command =>
         {
             Add(command, "@LookupType", SqlDbType.NVarChar, 60, input.LookupType);
             Add(command, "@Value", SqlDbType.NVarChar, 120, input.Value);
@@ -58,21 +58,21 @@ public sealed partial class SqlPmtStore
             Add(command, "@DisplayOrder", input.DisplayOrder);
             Add(command, "@IsActive", input.IsActive);
             Add(command, "@CurrentUserId", currentUserId);
-        }, cancellationToken);
+        }, cancellationToken, touchSecurityResources: string.Equals(input.LookupType?.Trim(), "Role", StringComparison.OrdinalIgnoreCase));
     }
 
     public Task DeleteLookupAsync(int lookupId, int currentUserId, CancellationToken cancellationToken)
     {
-        return ExecuteProcedureAsync("[pmt].[DeleteLookup]", command =>
+        return ExecuteProcedureAndTouchEditVersionAsync("[pmt].[DeleteLookup]", command =>
         {
             Add(command, "@LookupId", lookupId);
             Add(command, "@CurrentUserId", currentUserId);
-        }, cancellationToken);
+        }, "SecurityResource", null, cancellationToken);
     }
 
     public Task<int> SaveHolidayAsync(HolidayInput input, int currentUserId, CancellationToken cancellationToken)
     {
-        return ExecuteIdProcedureAsync("[pmt].[UpsertHoliday]", "@HolidayId", input.Id, command =>
+        return ExecuteVersionedIdProcedureAsync("Holiday", input.ExpectedRowVersion, "[pmt].[UpsertHoliday]", "@HolidayId", input.Id, command =>
         {
             Add(command, "@Name", SqlDbType.NVarChar, 160, input.Name);
             Add(command, "@HolidayDate", input.HolidayDate.Date);
@@ -93,11 +93,11 @@ public sealed partial class SqlPmtStore
 
     public Task DeleteUserAsync(int userId, int currentUserId, CancellationToken cancellationToken)
     {
-        return ExecuteProcedureAsync("[pmt].[DeleteUser]", command =>
+        return ExecuteProcedureAndTouchEditVersionAsync("[pmt].[DeleteUser]", command =>
         {
             Add(command, "@UserId", userId);
             Add(command, "@CurrentUserId", currentUserId);
-        }, cancellationToken);
+        }, "SecurityResource", null, cancellationToken);
     }
 
     public async Task<List<MaintenanceRecycleItemDto>> GetMaintenanceRecycleBinAsync(

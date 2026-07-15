@@ -111,6 +111,11 @@ Admin User Impersonation
 35.) Do we have a system-wide audit yet?  We obviously want to record that Admin impersonated someone in the system so there is an audit trail in the system.
 36.) Maybe add a "Audit Trail" category/screen in Settings so we can view system wide audits in PMT?
 
-Project Archive and Restore as a New Project
---------------------------------------------
-Scenario:  We created a project named PMT.  And we used it as our testing project.  However, it contains real QA data of issues QAs found when testing PMT.  I want to rename this project to be "PMT QA" with a Project Code of "PMTQA".  Then, I want to reseed the Production PMT install with the PMT seed data from the SQL scripts
+PMT Documentation
+-----------------
+37.) When PMT is reseeded from the database, all the Documentation are marked private.  Make them all public.
+
+
+Project Code Rename
+-------------------
+38.) When a project code is changed (renamed), could you re-validate and re-trickle down / update all Sprints and Tasks associted with that project to make sure it has the correct project code?  We have early testing where the project code in some test Tasks do not match the current project code after it was renamed.
