@@ -104,4 +104,4 @@ BDO Migration to the latest PMT on July 15, 2026
 
 In your commit comments, you can be more detailed so people actually know what you did as PMT is a public repo.
 
-Update any markdowns files you need to from today's updates / sessions. When you are done and all tests are green.  You may commit and push to the repo if there are not more tasks in the queue.
+Update any markdowns files you need to from today's updates / sessions. When you are done and all tests are green.  You may commit and push to the repo if there are no more tasks in the queue.
