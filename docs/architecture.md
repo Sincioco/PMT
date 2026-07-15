@@ -10,20 +10,34 @@ PMT is a single ASP.NET Core .NET 6 web application:
 2. `wwwroot/js/app.js` composes the application shell with the central screen registry. Dashboard, Road Map, Gantt, Kanban Board, Projects, Sprints, Dev Tasks, Bug Tracking, Scrum, Documentation, Backlog, WFH Schedule, and Settings live in feature modules; invitation generation and onboarding live in `features/invitations/`; the entry still owns shared editor/dialog orchestration, chart drilldowns, and table reordering.
 3. `wwwroot/js/core/` owns application-wide browser infrastructure: HTTP requests, state, preferences, authentication, routing, startup, navigation, theme, and user-menu wiring.
 4. `Program.cs` configures services, JSON behavior, deployment path-base handling, exception handling, static/uploaded files, endpoint-group registration, the SPA fallback, and application startup.
-5. `Endpoints/` maps minimal API routes by feature while preserving endpoint URLs, HTTP methods, payload shapes, and the simple current-user header/query behavior. State, private-content, task-to-document conversion, and destructive Development routes require an explicit current-user identity instead of falling back to user 1.
+5. `Endpoints/` maps minimal API routes by feature while preserving endpoint URLs, HTTP methods, and payload shapes. ASP.NET Core's signed, protected `PMT.Auth` HttpOnly cookie is the sole current-user source; API routes do not accept a browser-supplied user ID header or query value as identity.
 6. `Models/*.cs` contains cohesive plain DTO and request model groups for state, users, invitations, projects/Sprints, work items, content/uploads, WFH schedule, Scrum attendance/vacation, and settings.
-7. `Data/SqlPmtStore*.cs` is one partial `SqlPmtStore` that calls `[pmt]` stored procedures through direct ADO.NET. Versioned updates and reorders lock and compare their opaque edit tokens inside the same ADO.NET transaction as the feature procedure; multi-row reorders take locks in stable ID order. Structural Documentation, WorkTask, and Sprint writers use focused transaction-owned application locks in the fixed Blog -> WorkTask -> Sprint order before taking row locks. This serializes hierarchy changes, task conversion/duplication, Sprint code allocation, and carry-forward without one global application lock. `SqlPmtStore.State.cs` maps `[pmt].[GetAppState]`, hydrates relationships, and calculates project/Sprint metrics.
+7. `Data/SqlPmtStore*.cs` is one partial `SqlPmtStore` that calls `[pmt]` stored procedures through direct ADO.NET. Every opened SQL connection writes the authenticated actor ID to `SESSION_CONTEXT(N'PMT_ActorUserId')`, while procedure parameters continue to carry the effective user ID, so audit records preserve both identities during impersonation. Versioned updates and reorders lock and compare their opaque edit tokens inside the same ADO.NET transaction as the feature procedure; multi-row reorders take locks in stable ID order. Structural Documentation, WorkTask, and Sprint writers use focused transaction-owned application locks in the fixed Blog -> WorkTask -> Sprint order before taking row locks. This serializes hierarchy changes, task conversion/duplication, Sprint code allocation, and carry-forward without one global application lock. `SqlPmtStore.State.cs` maps `[pmt].[GetAppState]`, hydrates relationships, and calculates project/Sprint metrics.
 8. `SQL/01_CreateDatabase.sql`, `SQL/02_CreateStoredProcedures.sql`, and the seed scripts define and populate SQL Server objects under `[pmt]`.
 9. `tests/js/` contains Node-based ES-module unit tests for pure frontend rules and calculations.
 10. `tests/browser/` contains Playwright smoke tests that serve the real ASP.NET app and mock API responses with deterministic browser-test data.
 
-The source tree and fresh-rebuild scripts represent PMT Database Version 1.18. BDO and every other known deployed instance remain on the Version 1.15 baseline until the combined Version 1.15-to-1.18 migration and matching application release are deployed. The combined migration must run successfully before the Version 1.18 binary starts against an existing database.
+The source tree and fresh-rebuild scripts represent PMT Database Version 1.21. BDO and every other known deployed instance remain on the Version 1.15 baseline until the combined Version 1.15-to-1.21 migration and matching application release are deployed. The combined migration must run successfully before the Version 1.21 binary starts against an existing database. Version 1.21 makes Root Cause Analysis synchronization one-way from Dev Task to Bug, copies Bug URLs one way to linked Bug Fix Dev Tasks, and prevents Developer-role users from moving Dev Tasks past `QA Passed`.
 
 The main read flow is:
 
 `feature -> core API -> GET /api/state -> SqlPmtStore.GetStateAsync -> [pmt].[GetAppState] -> ordered result sets -> hydrated AppState -> feature render`
 
 `[pmt].[GetAppState]` and `GetStateAsync` are coupled by result-set order: users, projects, project members, Sprints, Sprint members, work items, assignees, reporters, dependencies, attachments, task attachments, Scrum logs, Documentation, Documentation attachments, Documentation history, audit events, lookups, and holidays. The procedure removes another owner's private Logs and Documentation plus their exclusive attachment metadata, history, audit details, parent IDs, and linked-document references before state reaches any feature, including About.
+
+The authenticated session flow is server controlled:
+
+`POST /api/login -> [pmt].[LoginUser] -> signed/protected PMT.Auth HttpOnly cookie -> GET /api/session on reload`
+
+The cookie's normal name-identifier claim is the effective user used by state reads and permission checks. It also carries the original administrator ID/name, both users' current `ROWVERSION` authentication stamps, and, while impersonating, an impersonated-user marker. Cookie validation checks the active effective user and stamp on every authenticated request and, during impersonation, also requires the original user's current stamp and administrator status. User/password/security changes revoke older tickets; an authorized self-edit immediately reissues the current ticket with the new stamp. Normal production tickets are Secure, persistent, sliding seven-day cookies; impersonation tickets are non-persistent, non-sliding, and expire after four hours. Starting impersonation validates an administrator session, rejects nested sessions, and calls `[pmt].[BeginImpersonation]` before replacing the cookie with the target user's effective context. Stopping calls `[pmt].[EndImpersonation]` and replaces it with the original administrator context. Start and end are audit events; ordinary writes made during impersonation use the target as the effective user and the administrator as the actor. Unsafe browser API methods also reject requests whose `Origin` or `Sec-Fetch-Site` identifies another origin.
+
+Before impersonation, `core/preferences.js` snapshots the administrator's `pmt-*` browser preferences and clears the working PMT preference namespace for the target context. The temporary snapshot survives a hard refresh while the HttpOnly session remains impersonated. Explicit exit, logout, or an invalid/expired session restores the administrator snapshot without changing non-PMT browser storage.
+
+The administrator-only system audit read is focused rather than part of the shared state aggregate:
+
+`Settings Audit Trail -> GET /api/audit-trail -> SqlPmtStore.GetAuditTrailAsync -> [pmt].[GetAuditTrail] -> newest 2,000 actor/effective events`
+
+The query orders by timestamp and audit ID descending, returns both actor and effective-user display names, and replaces another owner's private Documentation, task-to-private-Documentation conversion, or Personal Log details with an opaque activity label. System-only impersonation events are filtered out of the ordinary state response.
 
 Scrum attendance uses a focused bounded read instead of extending that aggregate contract:
 
@@ -120,12 +134,12 @@ The entry module composes startup and the screen registry. `core` owns applicati
 
 The frontend entry module now depends on focused native ES modules:
 
-- `core/api.js` is the only generic `fetch` wrapper. It applies the current-user header, preserves JSON and `FormData` behavior, and normalizes API errors.
+- `core/api.js` is the only generic `fetch` wrapper. Browser requests use the same-origin HttpOnly authentication cookie automatically; the wrapper preserves JSON and `FormData` behavior and normalizes API errors.
 - `core/store.js` owns the live central state binding plus state loading, replacement, and reset.
-- `core/preferences.js` is the only direct `localStorage` owner. It preserves every existing `pmt-*` key and provides safe string, number, boolean, and JSON defaults.
-- `core/authentication.js` owns login, logout, the authenticated user ID, fallback identity selection after state loads, and current-user lookup.
+- `core/preferences.js` is the only direct `localStorage` owner. It preserves existing `pmt-*` keys, provides safe string, number, boolean, and JSON defaults, and snapshots/restores administrator preferences around impersonation.
+- `core/authentication.js` owns login, logout, cookie-session restoration, the effective user ID, administrator impersonation start/stop, and current-user lookup. It never persists identity in browser storage.
 - `core/router.js` owns the current view, legacy view-name normalization, persistence, and the navigation screen selection.
-- `core/application-shell.js` owns startup orchestration, login rendering and wiring, state-load error handling, top navigation and overflow, the avatar menu, theme switching, and current-user shell rendering.
+- `core/application-shell.js` owns startup orchestration, login rendering and wiring, state-load error handling, top navigation and overflow, the avatar menu, theme switching, current-user shell rendering, and the persistent impersonation banner and Exit Impersonation action.
 - `core/screen-registry.js` remains the authoritative list of Dashboard, Road Map, Gantt, Kanban Board, Projects, Sprints, Dev Tasks, Bug Tracking, Scrum, Documentation, Backlog, WFH Schedule, and Settings.
 - `app.js` supplies shared screen event handlers and the current screen renderer to the application shell; feature-specific rendering and actions move behind registered screen handlers.
 
@@ -140,7 +154,7 @@ Reusable frontend logic now has stable native ES module homes:
 - `shared/selectors.js` owns state selectors and display names for Projects, Sprints, Tasks, and Users.
 - `shared/app-urls.js` owns deployment path-base URL resolution for browser-rendered app assets, API calls, and portable stored `/assets` or `/uploads` values.
 - `shared/text-and-links.js` owns HTML/attribute escaping, rich-text link normalization, text linkification, URL normalization, media URL normalization, and plain-text extraction.
-- `shared/work-item-rules.js` owns status-based percent calculations, project/Sprint rollups, task completion checks, and linked-Bug completion validation.
+- `shared/work-item-rules.js` owns status-based percent calculations, project/Sprint rollups, task completion checks, linked-Bug completion validation, and the Board's Developer-role status boundary.
 - `components/attachments.js`, `avatars.js`, `buttons.js`, `charts.js`, `dialogs.js`, `filters.js`, `forms.js`, and `progress-and-status.js` own reusable markup builders while preserving existing CSS classes and HTML output.
 
 Dashboard, Road Map, Gantt, Kanban Board, Projects, Sprints, Dev Tasks, Bug Tracking, Scrum, Documentation, Backlog, WFH Schedule, and Settings now use feature folders under `wwwroot/js/features/`. `features/roadmap/roadmap.js` owns Road Map filters, sorting, display toggles, and existing preference keys, with companion modules for rendering and timeline calculations. `features/gantt/gantt.js` owns Gantt filters, view preferences, bug expansion state, fly-by orchestration, and existing preference keys, with companion modules for rendering, date/layout calculations, fly-by scrolling and timers, and dependency/bug helpers. `features/board/board.js` owns Board rendering, selected Project and Sprint mode, sorting, filter panel visibility, visible and empty-column state, status updates, reorder persistence, and the existing Board preference keys. `features/board/board-drag.js` owns Board-only pointer and mouse drag state; its delegated Board listeners are active only while the Board screen is active, and its window listeners exist only during a drag gesture. `features/wfh-schedule/wfh-schedule.js` owns WFH day toggles, hidden users, reset, and table order through focused WFH endpoints.
@@ -229,11 +243,11 @@ Models/
 
 ## Feature impact map
 
-All data-backed screens read through `GET /api/state` -> `GetStateAsync` -> `[pmt].[GetAppState]`. The table lists frontend ownership and additional write contracts.
+Most shared feature state reads through `GET /api/state` -> `GetStateAsync` -> `[pmt].[GetAppState]`; bounded history and security-sensitive views such as attendance and Audit Trail use the focused reads described above. The table lists frontend ownership and additional contracts.
 
 | Feature | Frontend ownership | Endpoints | `SqlPmtStore` methods | Stored procedures or SQL contract |
 | --- | --- | --- | --- | --- |
-| Authentication and shell | `core/authentication.js`, `core/application-shell.js`, `core/router.js`, `core/preferences.js` | `POST /api/login`; `POST /api/change-password`; `GET /api/state` | `LoginAsync`; `ChangePasswordAsync`; `GetStateAsync` | `[pmt].[LoginUser]`; `[pmt].[ChangePassword]`; `[pmt].[GetAppState]` |
+| Authentication and shell | `core/authentication.js`, `core/application-shell.js`, `core/router.js`, `core/preferences.js` | `POST /api/login`; `GET /api/session`; `POST /api/logout`; `POST /api/impersonation/start`; `POST /api/impersonation/stop`; `POST /api/change-password`; `GET /api/state` | `LoginAsync`; `GetSessionUserAsync`; `BeginImpersonationAsync`; `EndImpersonationAsync`; `ChangePasswordAsync`; `GetStateAsync` | `[pmt].[LoginUser]`; `[pmt].[GetSessionUser]`; `[pmt].[BeginImpersonation]`; `[pmt].[EndImpersonation]`; `[pmt].[ChangePassword]`; `[pmt].[GetAppState]` |
 | Invitations and onboarding | `features/invitations/` | `POST /api/invitations`; `GET /api/invitations/{token}`; `POST /api/invitations/{token}/accept` | `CreateInvitationAsync`; `GetInvitationAsync`; `AcceptInvitationAsync` | `[pmt].[CreateUserInvitation]`; `[pmt].[GetUserInvitation]`; `[pmt].[AcceptUserInvitation]` |
 | Dashboard | `features/dashboard/` | `GET /api/state` | `GetStateAsync` | `[pmt].[GetAppState]` |
 | Road Map | `features/roadmap/` | `GET /api/state` | `GetStateAsync` | `[pmt].[GetAppState]` |
@@ -251,6 +265,7 @@ All data-backed screens read through `GET /api/state` -> `GetStateAsync` -> `[pm
 | Settings - users | `features/settings/` | `POST /api/users`; `PUT /api/users/{id}`; `DELETE /api/users/{id}` | `SaveUserAsync`; `DeleteUserAsync` | `[pmt].[UpsertUser]`; `[pmt].[DeleteUser]` |
 | Settings - lookups | `features/settings/` | `POST /api/lookups`; `PUT /api/lookups/{id}`; `DELETE /api/lookups/{id}` | `SaveLookupAsync`; `DeleteLookupAsync` | `[pmt].[UpsertLookup]`; `[pmt].[DeleteLookup]` |
 | Settings - security | `features/settings/` | `PUT /api/security/{resourceKey}`; `POST /api/security/reset` | `SaveSecurityPermissionsAsync`; `ResetSecurityPermissionsAsync` | `[pmt].[SaveSecurityPermissions]`; `[pmt].[ResetSecurityPermissions]` |
+| Settings - audit trail | `features/settings/` | `GET /api/audit-trail` | `GetAuditTrailAsync` | `[pmt].[GetAuditTrail]`; administrator-only, actor/effective attribution, private-detail redaction |
 | Settings - holidays | `features/settings/` | `POST /api/holidays`; `PUT /api/holidays/{id}`; `DELETE /api/holidays/{id}` | `SaveHolidayAsync`; `DeleteHolidayAsync` | `[pmt].[UpsertHoliday]`; `[pmt].[DeleteHoliday]` |
 | Settings - maintenance | `features/settings/` | `GET /api/maintenance/recycle-bin`; `POST /api/maintenance/recycle-bin/preview`; `POST /api/maintenance/recycle-bin/purge`; `GET /api/maintenance/orphan-files`; `GET /api/maintenance/orphan-files/preview`; `POST /api/maintenance/orphan-files/delete` | Maintenance store methods plus guarded upload-folder scanning/preview/deletion | Maintenance procedures plus current attachment/rich-text reference checks |
 | Settings - development | `features/settings/` | `POST /api/development/clear-non-pmt`; `POST /api/development/clear-pmt`; `POST /api/development/clear-users`; `POST /api/development/restore-seed-data`; `POST /api/development/restore-pmt-seed-data` | `DevelopmentClearNonPmtAsync`; `DevelopmentClearPmtAsync`; `DevelopmentClearUsersAsync`; `RestoreInitialSeedDataAsync`; `RestorePmtSeedDataAsync` | `[pmt].[DevelopmentClearNonPmt]`; `[pmt].[DevelopmentClearPmt]`; `[pmt].[DevelopmentClearUsers]`; shared and project-specific seed scripts |

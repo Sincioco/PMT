@@ -23,7 +23,7 @@ import {
 } from "./forms.js?v=20260710-export-rich-kanban";
 import { state } from "../core/store.js";
 import { formatDate, formatDateTime } from "../shared/dates.js";
-import { canEditTask } from "../shared/permissions.js?v=20260713-role-security";
+import { canEditTask } from "../shared/permissions.js?v=20260715-admin-impersonation";
 import {
   projectById,
   projectName,
@@ -32,6 +32,7 @@ import {
   taskById,
   userById
 } from "../shared/selectors.js";
+import { severityTextHtml } from "../shared/severity.js?v=20260715-severity-prefix";
 import {
   escapeAttr,
   escapeHtml,
@@ -41,8 +42,8 @@ import {
 import {
   allowedAssigneeUsers,
   taskDisplayPercent
-} from "../shared/work-item-rules.js?v=20260714-linked-bug-percent";
-import { exportWorkItemHtml } from "../shared/work-item-transfer.js?v=20260714-linked-bug-percent";
+} from "../shared/work-item-rules.js?v=20260716-developer-board-status";
+import { exportWorkItemHtml } from "../shared/work-item-transfer.js?v=20260716-rca-one-way";
 
 export function taskButtonsHtml(task, { includeView = true, monochrome = false } = {}) {
   const canEdit = canEditTask(task);
@@ -407,7 +408,7 @@ function bugDialogDetailFieldsHtml(task, richPersistAttrs, dependencyLinks) {
     bugDialogFieldHtml("priority", detailField(bugDialogFieldLabel("priority"), escapeHtml(task.priority))),
     bugDialogFieldHtml("percentCompleted", detailField(bugDialogFieldLabel("percentCompleted"), `${taskDisplayPercent(task)}%`)),
     bugDialogFieldHtml("environment", detailField(bugDialogFieldLabel("environment"), escapeHtml(task.environment || ""))),
-    bugDialogFieldHtml("severity", detailField(bugDialogFieldLabel("severity"), escapeHtml(task.severity || ""))),
+    bugDialogFieldHtml("severity", detailField(bugDialogFieldLabel("severity"), severityTextHtml(task.severity))),
     bugDialogFieldHtml("descriptionHtml", detailField(bugDialogFieldLabel("descriptionHtml"), `<div class="rich-readonly" ${richPersistAttrs("descriptionHtml")}>${task.descriptionHtml || ""}</div>`, true)),
     bugDialogFieldHtml("url", detailField(bugDialogFieldLabel("url"), task.url ? `<a href="${escapeAttr(normalizeUrl(task.url))}" target="_blank" rel="noopener noreferrer">${escapeHtml(task.url)}</a>` : "", true)),
     bugDialogFieldHtml("attachments", detailField(bugDialogFieldLabel("attachments"), task.attachments.length ? attachmentsHtml(task.attachments) : "", true)),
@@ -507,7 +508,7 @@ export function showTaskAudit(taskId) {
             ${audits.map(audit => `
               <tr>
                 <td>${escapeHtml(formatDateTime(audit.createdAt))}</td>
-                <td>${escapeHtml(userById(audit.userId)?.nickname || "User")}</td>
+                <td>${escapeHtml(auditUserLabel(audit))}</td>
                 <td>${escapeHtml(audit.action)}</td>
                 <td>${auditChangeHtml(audit.oldStatus, audit.newStatus)}</td>
                 <td>${auditPercentHtml(audit.oldPercentCompleted, audit.newPercentCompleted)}</td>
@@ -528,6 +529,14 @@ export function showTaskAudit(taskId) {
   modal.querySelectorAll("[data-close]").forEach(button => button.addEventListener("click", () => closeDialog(modal)));
   modal.addEventListener("cancel", () => modal.remove());
   modal.showModal();
+}
+
+function auditUserLabel(audit) {
+  const userName = userById(audit.userId)?.nickname || "User";
+  const actorUserId = Number(audit.actorUserId || audit.userId || 0);
+  if (!actorUserId || actorUserId === Number(audit.userId || 0)) return userName;
+  const actorName = userById(actorUserId)?.nickname || "Administrator";
+  return `${userName} (by ${actorName})`;
 }
 
 function detailField(label, html, full = false) {

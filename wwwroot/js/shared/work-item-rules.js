@@ -1,7 +1,8 @@
 import {
+  developerDevTaskStatusMessage,
   fallbackStatuses,
   linkedBugCompletionMessage
-} from "./constants.js";
+} from "./constants.js?v=20260716-developer-board-status";
 
 let statusProvider = () => fallbackStatuses;
 let taskProvider = () => [];
@@ -99,6 +100,17 @@ export function validateLinkedBugCompletion(task, percentCompleted, dependencyTa
   const bug = associatedBugForDevTask(task, dependencyTaskIds);
   if (bug && !isBugQaPassedOrLater(bug)) {
     throw new Error(linkedBugCompletionMessage);
+  }
+}
+
+export function validateDeveloperDevTaskStatus(user, task, status) {
+  if (user?.isAdmin || user?.role !== "Developer" || (task?.taskType || "Dev") === "Bug") return;
+
+  const statuses = currentStatuses();
+  const qaPassedIndex = statuses.indexOf("QA Passed");
+  const targetIndex = statuses.indexOf(status);
+  if (qaPassedIndex >= 0 && targetIndex > qaPassedIndex) {
+    throw new Error(developerDevTaskStatusMessage);
   }
 }
 

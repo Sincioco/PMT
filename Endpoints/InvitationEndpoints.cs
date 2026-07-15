@@ -45,8 +45,13 @@ internal static class InvitationEndpoints
             return invitation is null ? Results.NotFound() : Results.Ok(invitation);
         });
 
-        app.MapPost("/api/invitations/{token}/accept", async (string token, AcceptInvitationInput input, SqlPmtStore store, CancellationToken cancellationToken) =>
+        app.MapPost("/api/invitations/{token}/accept", async (string token, AcceptInvitationInput input, HttpContext context, SqlPmtStore store, CancellationToken cancellationToken) =>
         {
+            if (context.User.Identity?.IsAuthenticated == true && IsImpersonating(context))
+            {
+                throw new InvalidOperationException("Exit impersonation before accepting an invitation.");
+            }
+
             if (!TryHashToken(token, out var tokenHash))
             {
                 return Results.NotFound();
@@ -70,7 +75,22 @@ internal static class InvitationEndpoints
             }
 
             var result = await store.AcceptInvitationAsync(tokenHash, input, cancellationToken);
-            return Results.Ok(result);
+            var user = await store.GetSessionUserAsync(result.UserId, cancellationToken)
+                ?? throw new InvalidOperationException("The registered user could not be signed in.");
+            await AuthenticationEndpoints.SignInUserAsync(context, user, user, false);
+            return Results.Ok(new
+            {
+                result.UserId,
+                result.Nickname,
+                result.IsAdmin,
+                result.Role,
+                result.NextView,
+                result.ProjectId,
+                originalUserId = result.UserId,
+                originalUserName = result.Nickname,
+                isImpersonating = false,
+                impersonatedUserName = ""
+            });
         });
 
         return app;

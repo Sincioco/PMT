@@ -13,8 +13,8 @@ import {
   value
 } from "../../components/forms.js?v=20260715-day28-v118";
 import { sectionHead } from "../../components/sections.js?v=20260701-nav-title-preferences";
-import { createWorkItemTableMode } from "../../components/work-items.js?v=20260715-day28-v118";
-import { currentUser } from "../../core/authentication.js";
+import { createWorkItemTableMode } from "../../components/work-items.js?v=20260715-admin-impersonation";
+import { currentUser } from "../../core/authentication.js?v=20260715-admin-impersonation";
 import {
   preferenceKeys,
   readJsonPreference,
@@ -30,7 +30,7 @@ import {
   formatDateTime
 } from "../../shared/dates.js";
 import { normalizeSavedArray } from "../../shared/filter-values.js";
-import { canAccessResource } from "../../shared/security.js?v=20260713-role-security";
+import { canAccessResource } from "../../shared/security.js?v=20260715-admin-impersonation";
 import {
   projectName,
   userById

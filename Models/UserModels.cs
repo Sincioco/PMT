@@ -68,3 +68,8 @@ public sealed class AdminResetPasswordInput
     public string NewPassword { get; set; } = "";
 }
 
+public sealed class ImpersonationInput
+{
+    public int UserId { get; set; }
+}
+

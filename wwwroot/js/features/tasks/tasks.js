@@ -38,10 +38,10 @@ import {
   taskPercentField,
   workItemDialogMetaHtml,
   uploadWorkItemAttachments
-} from "../../components/work-items.js?v=20260715-day28-v118";
+} from "../../components/work-items.js?v=20260715-admin-impersonation";
 import {
   currentUser
-} from "../../core/authentication.js";
+} from "../../core/authentication.js?v=20260715-admin-impersonation";
 import {
   preferenceKeys,
   readBooleanPreference,
@@ -69,7 +69,7 @@ import {
   devTaskStatusChartItems
 } from "../../shared/dev-task-charts.js?v=20260714-linked-bug-percent";
 import { normalizeSavedArray } from "../../shared/filter-values.js";
-import { canAccessResource } from "../../shared/security.js?v=20260713-role-security";
+import { canAccessResource } from "../../shared/security.js?v=20260715-admin-impersonation";
 import {
   downloadXlsx,
   downloadCsv,
@@ -89,7 +89,7 @@ import {
   sameNumberList,
   workItemSystemColumns
 } from "../../shared/table-export.js?v=20260715-save-collision";
-import { canEditTask } from "../../shared/permissions.js?v=20260713-role-security";
+import { canEditTask } from "../../shared/permissions.js?v=20260715-admin-impersonation";
 import {
   projectName,
   sprintName,
@@ -111,8 +111,8 @@ import {
   taskOrderCompare,
   taskRowsWithSubTasks,
   validateLinkedBugCompletion
-} from "../../shared/work-item-rules.js?v=20260714-linked-bug-percent";
-import { openWorkItemHtmlImport } from "../../shared/work-item-transfer.js?v=20260715-save-collision";
+} from "../../shared/work-item-rules.js?v=20260716-developer-board-status";
+import { openWorkItemHtmlImport } from "../../shared/work-item-transfer.js?v=20260716-rca-one-way";
 
 const taskBugFixIconUrl = "/assets/bug.svg?v=20260629-kanban-gantt-bug-icon";
 

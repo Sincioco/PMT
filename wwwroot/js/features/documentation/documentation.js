@@ -25,13 +25,13 @@ import {
 } from "../../core/preferences.js?v=20260708-documentation-privacy";
 import {
   currentUserId
-} from "../../core/authentication.js";
+} from "../../core/authentication.js?v=20260715-admin-impersonation";
 import { state } from "../../core/store.js";
 import {
   documentationWasEdited,
   formatDate
 } from "../../shared/dates.js";
-import { canAccessResource } from "../../shared/security.js?v=20260713-role-security";
+import { canAccessResource } from "../../shared/security.js?v=20260715-admin-impersonation";
 import {
   projectById,
   projectCode,

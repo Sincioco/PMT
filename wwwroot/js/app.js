@@ -1,8 +1,8 @@
 import { api } from "./core/api.js";
-import { currentUserId } from "./core/authentication.js";
+import { currentUserId } from "./core/authentication.js?v=20260715-admin-impersonation";
 import { avatarsHtml, taskRowAvatarsHtml } from "./components/avatars.js?v=20260710-nav-avatar-fit";
 import { bindAttachmentDeletion } from "./components/attachments.js?v=20260714-attachment-delete";
-import { buttonContent } from "./components/buttons.js?v=20260713-role-security";
+import { buttonContent } from "./components/buttons.js?v=20260715-admin-impersonation";
 import { copyTextToClipboard } from "./components/clipboard.js?v=20260714-invite-email-body";
 import {
   askForText,
@@ -24,8 +24,8 @@ import {
   bindAttachmentPreview,
   showTaskAudit,
   viewWorkItem
-} from "./components/work-items.js?v=20260715-day28-v118";
-import { createApplicationShell } from "./core/application-shell.js?v=20260715-day28-v118";
+} from "./components/work-items.js?v=20260715-admin-impersonation";
+import { createApplicationShell } from "./core/application-shell.js?v=20260715-admin-impersonation";
 import {
   currentView,
   ensureCurrentViewRoute,
@@ -34,7 +34,7 @@ import {
   routeForContent,
   routeForView,
   updateBrowserUrl
-} from "./core/router.js?v=20260714-settings-routes";
+} from "./core/router.js?v=20260715-admin-impersonation";
 import {
   registeredScreenHandlers,
   registerScreen,
@@ -51,26 +51,26 @@ import { appUrl } from "./shared/app-urls.js";
 import {
   createAboutFeature,
   createAboutScreenSaver
-} from "./features/about/about.js?v=20260715-day28-v118";
-import { createBacklogFeature } from "./features/backlog/backlog.js?v=20260715-day28-v118";
-import { createBoardFeature } from "./features/board/board.js?v=20260715-day28-v118";
-import { createBugsFeature } from "./features/bugs/bugs.js?v=20260715-day28-v118";
-import { createDashboardFeature } from "./features/dashboard/dashboard.js?v=20260714-linked-bug-percent";
-import { createDocumentationFeature } from "./features/documentation/documentation.js?v=20260715-day28-v118";
+} from "./features/about/about.js?v=20260716-rca-one-way";
+import { createBacklogFeature } from "./features/backlog/backlog.js?v=20260716-rca-one-way";
+import { createBoardFeature } from "./features/board/board.js?v=20260716-developer-board-status";
+import { createBugsFeature } from "./features/bugs/bugs.js?v=20260715-admin-impersonation";
+import { createDashboardFeature } from "./features/dashboard/dashboard.js?v=20260715-admin-impersonation";
+import { createDocumentationFeature } from "./features/documentation/documentation.js?v=20260715-admin-impersonation";
 import {
   createGanttFeature,
   currentSprintForProject,
   ganttStartDate
-} from "./features/gantt/gantt.js?v=20260714-linked-bug-percent";
-import { createInvitationsFeature } from "./features/invitations/invitations.js?v=20260715-day28-v118";
-import { createProjectsFeature } from "./features/projects/projects.js?v=20260715-day28-v118";
-import { createRoadMapFeature } from "./features/roadmap/roadmap.js?v=20260714-linked-bug-percent";
-import { createLogFeature } from "./features/personal-log/log.js?v=20260715-day28-v118";
-import { createScrumFeature } from "./features/scrum/scrum.js?v=20260715-day28-v118";
-import { createSettingsFeature } from "./features/settings/settings.js?v=20260715-day28-v118";
-import { createSprintsFeature } from "./features/sprints/sprints.js?v=20260715-day28-v118";
-import { createTasksFeature } from "./features/tasks/tasks.js?v=20260715-day28-v118";
-import { createWfhScheduleFeature } from "./features/wfh-schedule/wfh-schedule.js?v=20260715-day28-v118";
+} from "./features/gantt/gantt.js?v=20260715-admin-impersonation";
+import { createInvitationsFeature } from "./features/invitations/invitations.js?v=20260715-admin-impersonation";
+import { createProjectsFeature } from "./features/projects/projects.js?v=20260715-admin-impersonation";
+import { createRoadMapFeature } from "./features/roadmap/roadmap.js?v=20260715-admin-impersonation";
+import { createLogFeature } from "./features/personal-log/log.js?v=20260715-admin-impersonation";
+import { createScrumFeature } from "./features/scrum/scrum.js?v=20260716-scrum-stable-views";
+import { createSettingsFeature } from "./features/settings/settings.js?v=20260715-admin-impersonation";
+import { createSprintsFeature } from "./features/sprints/sprints.js?v=20260715-admin-impersonation";
+import { createTasksFeature } from "./features/tasks/tasks.js?v=20260715-admin-impersonation";
+import { createWfhScheduleFeature } from "./features/wfh-schedule/wfh-schedule.js?v=20260715-admin-impersonation";
 import {
   fallbackEnvironments,
   fallbackForLookup,
@@ -79,8 +79,8 @@ import {
   fallbackStatuses
 } from "./shared/constants.js";
 import { formatDate, toDateInput } from "./shared/dates.js";
-import { canEditTask } from "./shared/permissions.js?v=20260713-role-security";
-import { applyActionPermissions, canReadView, firstReadableView } from "./shared/security.js?v=20260713-role-security";
+import { canEditTask } from "./shared/permissions.js?v=20260715-admin-impersonation";
+import { applyActionPermissions, canReadView, firstReadableView } from "./shared/security.js?v=20260715-admin-impersonation";
 import {
   projectCode,
   projectName,
@@ -88,6 +88,10 @@ import {
   sprintName,
   taskById
 } from "./shared/selectors.js";
+import {
+  severityPillHtml,
+  severityTextHtml
+} from "./shared/severity.js?v=20260715-severity-prefix";
 import {
   escapeAttr,
   escapeHtml,
@@ -101,7 +105,7 @@ import {
   percentForStatus,
   sprintOverallPercent,
   taskOrderCompare
-} from "./shared/work-item-rules.js?v=20260714-linked-bug-percent";
+} from "./shared/work-item-rules.js?v=20260716-developer-board-status";
 
 const nativePickerSelector = [
   "select",
@@ -796,7 +800,7 @@ function showBugChartDrilldown(title, bugIds) {
                 <td>${escapeHtml(projectCode(bug.projectId))}</td>
                 <td>${escapeHtml(sprintName(bug.sprintId))}</td>
                 <td><span class="pill">${escapeHtml(bug.status)}</span></td>
-                <td>${escapeHtml(bug.severity || "")}</td>
+                <td>${severityTextHtml(bug.severity)}</td>
                 <td>${avatarsHtml(bug.assignees)}</td>
               </tr>
             `).join("")}
@@ -978,7 +982,7 @@ function workItemTypeLabel(workItem) {
 
 function workItemPriorityOrSeverityHtml(workItem) {
   if (workItem.taskType === "Bug" && workItem.severity) {
-    return `<span class="pill severity-${escapeAttr(workItem.severity)}">${escapeHtml(workItem.severity)}</span>`;
+    return severityPillHtml(workItem.severity);
   }
 
   if (workItem.priority) {

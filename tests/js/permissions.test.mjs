@@ -10,13 +10,13 @@ globalThis.localStorage = {
 };
 
 const { replaceState } = await import("../../wwwroot/js/core/store.js");
-const { setCurrentUserId } = await import("../../wwwroot/js/core/authentication.js");
+const { completeExternalLogin } = await import("../../wwwroot/js/core/authentication.js?v=20260715-admin-impersonation");
 const { canDeleteOwner, canEditOwner, canEditTask, canEditUser } = await import("../../wwwroot/js/shared/permissions.js");
 const { canAccessResource } = await import("../../wwwroot/js/shared/security.js");
 
 function setUser(user, effectivePermissions = []) {
   replaceState({ users: [user], projects: [], sprints: [], tasks: [], devLogs: [], blogs: [], auditEvents: [], lookups: [], holidays: [], effectivePermissions });
-  setCurrentUserId(user.id);
+  completeExternalLogin({ userId: user.id, originalUserId: user.id });
 }
 
 function permission(resourceKey, rights = {}) {

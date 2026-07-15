@@ -1,4 +1,4 @@
-import { isBugQaPassedOrLater } from "./work-item-rules.js?v=20260714-linked-bug-percent";
+import { isBugQaPassedOrLater } from "./work-item-rules.js?v=20260716-developer-board-status";
 
 export function bugMixChart(bugs) {
   const resolvedBugs = bugs.filter(isBugQaPassedOrLater);

@@ -55,6 +55,28 @@
   color: var(--color-text-primary);
 }
 
+.settings-audit-trail-scroll {
+  max-height: calc(100vh - 250px);
+  overflow: auto;
+}
+
+.settings-audit-trail-table {
+  min-width: 1080px;
+}
+
+.settings-audit-trail-table td {
+  vertical-align: top;
+}
+
+.settings-audit-trail-table :is(th, td):first-child {
+  white-space: nowrap;
+}
+
+.settings-audit-trail-table :is(th, td):last-child {
+  min-width: 260px;
+  overflow-wrap: anywhere;
+}
+
 .settings-filter-dialog .settings-filter-row > label > :is(input, select) {
   width: 100%;
   min-width: 0;

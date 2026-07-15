@@ -8,7 +8,10 @@ import {
   bugFixIconHtml,
   createWorkItemTableMode,
   taskButtonsHtml
-} from "../../components/work-items.js?v=20260715-day28-v118";
+} from "../../components/work-items.js?v=20260715-admin-impersonation";
+import {
+  currentUser
+} from "../../core/authentication.js?v=20260715-admin-impersonation";
 import {
   preferenceKeys,
   readBooleanPreference,
@@ -21,8 +24,9 @@ import {
 } from "../../core/preferences.js";
 import { state } from "../../core/store.js";
 import { normalizeSavedArray } from "../../shared/filter-values.js";
-import { canEditTask } from "../../shared/permissions.js?v=20260713-role-security";
+import { canEditTask } from "../../shared/permissions.js?v=20260715-admin-impersonation";
 import { taskById } from "../../shared/selectors.js";
+import { severityPillHtml } from "../../shared/severity.js?v=20260715-severity-prefix";
 import {
   escapeAttr,
   escapeHtml
@@ -31,8 +35,9 @@ import {
   percentForDevTaskSave,
   percentForStatus,
   taskDisplayPercent,
-  taskOrderCompare
-} from "../../shared/work-item-rules.js?v=20260714-linked-bug-percent";
+  taskOrderCompare,
+  validateDeveloperDevTaskStatus
+} from "../../shared/work-item-rules.js?v=20260716-developer-board-status";
 import { createBoardDrag } from "./board-drag.js?v=20260713-role-security";
 
 const bugIconUrl = "/assets/bug.svg?v=20260629-kanban-gantt-bug-icon";
@@ -373,7 +378,7 @@ export function createBoardFeature({
             <p class="task-card-title">${bugFixIconHtml(task)}${escapeHtml(task.title)}</p>
             <div class="task-card-tags">
               <span class="pill priority-${escapeAttr(task.priority)}">${escapeHtml(task.priority)}</span>
-              ${task.taskType === "Bug" ? `<span class="pill severity-${escapeAttr(task.severity)}">${escapeHtml(task.severity || "")}</span>` : ""}
+              ${task.taskType === "Bug" ? severityPillHtml(task.severity) : ""}
             </div>
           </div>
         </div>
@@ -470,6 +475,7 @@ export function createBoardFeature({
 
   async function updateTaskStatus(task, status) {
     try {
+      validateDeveloperDevTaskStatus(currentUser(), task, status);
       await saveJson(`/api/tasks/${task.id}`, "PUT", {
         id: task.id,
         projectId: task.projectId,
@@ -481,6 +487,7 @@ export function createBoardFeature({
         stepsToReproduceHtml: task.stepsToReproduceHtml || "",
         actualResultHtml: task.actualResultHtml || "",
         expectedResultHtml: task.expectedResultHtml || "",
+        rootCauseAnalysisHtml: task.rootCauseAnalysisHtml || "",
         environment: task.environment || "",
         severity: task.severity || "",
         status,

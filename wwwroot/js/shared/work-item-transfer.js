@@ -3,7 +3,7 @@ import { initializeWindowedDialog } from "../components/dialogs.js?v=20260706-di
 import {
   currentUser,
   currentUserId
-} from "../core/authentication.js";
+} from "../core/authentication.js?v=20260715-admin-impersonation";
 import { state } from "../core/store.js";
 import { appAbsoluteUrl } from "./app-urls.js";
 import { formatDateTime } from "./dates.js";
@@ -19,7 +19,7 @@ import {
   normalizeRichHtml
 } from "./text-and-links.js";
 import { externalizeImportedHtmlImagesInPayload } from "./imported-html-images.js";
-import { taskDisplayPercent } from "./work-item-rules.js?v=20260714-linked-bug-percent";
+import { taskDisplayPercent } from "./work-item-rules.js?v=20260716-developer-board-status";
 
 const workItemImportMarker = "PMT Import Process Meta Data";
 const workItemExportSchema = "pmt.work-item.export.v1";
@@ -250,7 +250,7 @@ function workItemImportPayload(rawItem, context) {
     stepsToReproduceHtml: isBug ? importedRichHtml(rawItem.stepsToReproduceHtml, "", existing?.stepsToReproduceHtml) : "",
     actualResultHtml: isBug ? importedRichHtml(rawItem.actualResultHtml, "", existing?.actualResultHtml) : "",
     expectedResultHtml: isBug ? importedRichHtml(rawItem.expectedResultHtml, "", existing?.expectedResultHtml) : "",
-    rootCauseAnalysisHtml: importedRichHtml(rawItem.rootCauseAnalysisHtml, "", existing?.rootCauseAnalysisHtml),
+    rootCauseAnalysisHtml: importedOptionalRichHtml(rawItem.rootCauseAnalysisHtml, existing?.rootCauseAnalysisHtml),
     environment: isBug ? resolveLookupValue("Environment", rawItem.environment, existing?.environment, "SIT") : "",
     severity: isBug ? resolveLookupValue("Severity", rawItem.severity, existing?.severity, "Minor") : "",
     status,
@@ -748,6 +748,16 @@ function importedRichHtml(...values) {
   container.innerHTML = source;
   container.querySelectorAll("script").forEach(node => node.remove());
   return normalizeRichHtml(container.innerHTML).trim() || "<p>Imported from PMT export.</p>";
+}
+
+function importedOptionalRichHtml(...values) {
+  const source = values.map(value => String(value || "").trim()).find(Boolean);
+  if (!source) return "";
+
+  const container = document.createElement("div");
+  container.innerHTML = source;
+  container.querySelectorAll("script").forEach(node => node.remove());
+  return normalizeRichHtml(container.innerHTML).trim();
 }
 
 function importedTitle(rawItem) {

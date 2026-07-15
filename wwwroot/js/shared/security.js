@@ -1,4 +1,4 @@
-import { currentUser } from "../core/authentication.js";
+import { currentUser } from "../core/authentication.js?v=20260715-admin-impersonation";
 import { state } from "../core/store.js";
 
 const resourceByView = Object.freeze({

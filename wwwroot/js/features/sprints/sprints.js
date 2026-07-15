@@ -32,7 +32,7 @@ import {
   formatDate,
   toDateInput
 } from "../../shared/dates.js?v=20260620-null-end-date";
-import { canAccessResource } from "../../shared/security.js?v=20260713-role-security";
+import { canAccessResource } from "../../shared/security.js?v=20260715-admin-impersonation";
 import {
   projectById,
   projectName,
@@ -42,7 +42,7 @@ import {
   escapeAttr,
   escapeHtml
 } from "../../shared/text-and-links.js";
-import { sprintWorkItems } from "../../shared/work-item-rules.js?v=20260714-linked-bug-percent";
+import { sprintWorkItems } from "../../shared/work-item-rules.js?v=20260716-developer-board-status";
 
 export function createSprintsFeature({
   app,

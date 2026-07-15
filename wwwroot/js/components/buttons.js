@@ -94,6 +94,12 @@ export function iconButton(action, id, title, icon, enabled = true, extraClass =
     duplicate: "&#10697;",
     delete: "&#128465;",
     key: keyIconHtml(),
+    impersonate: `
+      <svg class="button-svg-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+        <circle cx="9" cy="8" r="3"></circle>
+        <path d="M3.5 19c.6-3.2 2.4-5 5.5-5s4.9 1.8 5.5 5M15 7h5M18 4l3 3-3 3"></path>
+      </svg>
+    `,
     "delete-monochrome": `
       <svg class="button-svg-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
         <path d="M4 7h16M9 7V4h6v3M7 7l1 13h8l1-13M10 11v5M14 11v5"></path>

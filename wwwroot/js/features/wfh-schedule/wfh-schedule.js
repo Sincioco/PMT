@@ -1,12 +1,12 @@
 import { buttonContent, iconButton } from "../../components/buttons.js";
 import { askYesNo } from "../../components/dialogs.js";
 import { sectionHead } from "../../components/sections.js?v=20260701-nav-title-preferences";
-import { createWorkItemTableMode } from "../../components/work-items.js?v=20260715-day28-v118";
+import { createWorkItemTableMode } from "../../components/work-items.js?v=20260715-admin-impersonation";
 import { api } from "../../core/api.js";
-import { currentUser } from "../../core/authentication.js";
+import { currentUser } from "../../core/authentication.js?v=20260715-admin-impersonation";
 import { state } from "../../core/store.js";
 import { createReorderDrag } from "../../shared/reorder-drag.js";
-import { canEditOwner } from "../../shared/permissions.js?v=20260713-role-security";
+import { canEditOwner } from "../../shared/permissions.js?v=20260715-admin-impersonation";
 import { roleLabel } from "../../shared/selectors.js?v=20260713-managed-roles";
 import {
   escapeAttr,

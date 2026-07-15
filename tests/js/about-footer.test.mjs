@@ -18,8 +18,8 @@ test("About 2D footer restores the original credit and repository line with data
     footer,
     /Open-source GitHub repository is at <a href="https:\/\/github\.com\/Sincioco\/PMT"[^>]*>https:\/\/github\.com\/Sincioco\/PMT<\/a>/
   );
-  assert.equal(ABOUT_DATABASE_VERSION, "1.18");
-  assert.match(footer, /PMT Database Version 1\.18/);
+  assert.equal(ABOUT_DATABASE_VERSION, "1.21");
+  assert.match(footer, /PMT Database Version 1\.21/);
   assert.ok(
     footer.indexOf("about-database-version") < footer.indexOf("about-credit"),
     "database version should render above the credit line"

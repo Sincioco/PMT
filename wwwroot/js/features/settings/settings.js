@@ -1,4 +1,4 @@
-import { buttonContent, funnelIconHtml, iconButton, keyIconHtml } from "../../components/buttons.js?v=20260713-role-security";
+import { buttonContent, funnelIconHtml, iconButton, keyIconHtml } from "../../components/buttons.js?v=20260715-admin-impersonation";
 import { askYesNo, initializeWindowedDialog } from "../../components/dialogs.js";
 import {
   colorField,
@@ -19,9 +19,11 @@ import {
 import { sectionHead } from "../../components/sections.js?v=20260701-nav-title-preferences";
 import { api } from "../../core/api.js";
 import {
+  beginImpersonation,
   currentUser,
-  currentUserId
-} from "../../core/authentication.js";
+  currentUserId,
+  isImpersonating
+} from "../../core/authentication.js?v=20260715-admin-impersonation";
 import {
   navigationSettingsItems,
   readNavigationConfig,
@@ -35,7 +37,7 @@ import {
   readPreference,
   writeJsonPreference,
   writePreference
-} from "../../core/preferences.js?v=20260629-settings-table-filters";
+} from "../../core/preferences.js?v=20260715-admin-impersonation";
 import {
   parseRouteFromLocation,
   routeForSettingsCategory,
@@ -46,10 +48,11 @@ import {
 import { state } from "../../core/store.js";
 import {
   formatDate,
+  formatDateTime,
   toDateInput
 } from "../../shared/dates.js";
 import { appUrl } from "../../shared/app-urls.js";
-import { canEditUser } from "../../shared/permissions.js?v=20260713-role-security";
+import { canEditUser } from "../../shared/permissions.js?v=20260715-admin-impersonation";
 import { createReorderDrag } from "../../shared/reorder-drag.js";
 import {
   roleLabel,
@@ -120,6 +123,10 @@ export function createSettingsFeature({
   let settingsCategory = readPreference(preferenceKeys.settingsCategory, lookupTypeFilter || "Status");
   let settingsTableFilters = normalizeSettingsTableFilters(readJsonPreference(preferenceKeys.settingsTableFilters, {}));
   let selectedSecurityResourceKey = "";
+  let auditTrailEvents = null;
+  let auditTrailLoading = false;
+  let auditTrailError = "";
+  let auditTrailRequestVersion = 0;
   let maintenanceRecycleItems = null;
   let maintenanceOrphanFiles = null;
   let maintenanceRecycleLoading = false;
@@ -137,7 +144,7 @@ export function createSettingsFeature({
 
   function renderSettings() {
     const lookupTypes = settingsLookupTypes();
-    const categories = ["Users", ...(currentUser().isAdmin ? ["Security", "Maintenance"] : []), "Navigation", "Holidays", ...lookupTypes, "Development"];
+    const categories = ["Users", ...(currentUser().isAdmin ? ["Security", "Audit Trail", "Maintenance"] : []), "Navigation", "Holidays", ...lookupTypes, "Development"];
     const route = parseRouteFromLocation();
     const routedCategory = route.view === "Settings"
       ? settingsCategoryForRoute(categories, route.settingsCategory)
@@ -152,9 +159,10 @@ export function createSettingsFeature({
     const isHolidays = settingsCategory === "Holidays";
     const isNavigation = settingsCategory === "Navigation";
     const isSecurity = settingsCategory === "Security";
+    const isAuditTrail = settingsCategory === "Audit Trail";
     const isMaintenance = settingsCategory === "Maintenance";
     const isDevelopment = settingsCategory === "Development";
-    if (!isUsers && !isHolidays && !isNavigation && !isSecurity && !isMaintenance && !isDevelopment) {
+    if (!isUsers && !isHolidays && !isNavigation && !isSecurity && !isAuditTrail && !isMaintenance && !isDevelopment) {
       lookupTypeFilter = settingsCategory;
       writePreference(preferenceKeys.lookupType, lookupTypeFilter);
     }
@@ -176,6 +184,7 @@ export function createSettingsFeature({
       <button class="secondary text-icon-button" type="button" data-action="security-audit">${buttonContent("&#128203;", "Audit")}</button>
       <button class="primary text-icon-button" type="button" data-action="save-security">${buttonContent("&#10003;", "Save Security")}</button>
     `;
+    if (isAuditTrail) actionsHtml = `<button class="secondary text-icon-button" type="button" data-action="audit-trail-refresh">${buttonContent("&#8635;", "Refresh")}</button>`;
     if (isMaintenance) actionsHtml = `<button class="secondary text-icon-button" type="button" data-action="maintenance-refresh">${buttonContent("&#8635;", "Refresh")}</button>`;
     if (isDevelopment) actionsHtml = `<span class="settings-action-spacer" aria-hidden="true"></span>`;
 
@@ -187,11 +196,13 @@ export function createSettingsFeature({
           ? settingsNavigationHtml()
           : isSecurity
             ? settingsSecurityHtml()
-            : isMaintenance
-              ? settingsMaintenanceHtml()
-              : isDevelopment
-                ? settingsDevelopmentHtml()
-                : settingsLookupHtml(settingsCategory);
+            : isAuditTrail
+              ? settingsAuditTrailHtml()
+              : isMaintenance
+                ? settingsMaintenanceHtml()
+                : isDevelopment
+                  ? settingsDevelopmentHtml()
+                  : settingsLookupHtml(settingsCategory);
 
     app.innerHTML = `
       ${sectionHead("Settings", actionsHtml)}
@@ -209,6 +220,7 @@ export function createSettingsFeature({
     bindNavigationDragEvents();
     bindSecurityPermissionEvents();
     bindMaintenanceSelectionEvents();
+    if (isAuditTrail) ensureAuditTrailData();
     if (isMaintenance) ensureMaintenanceData();
   }
 
@@ -227,6 +239,10 @@ export function createSettingsFeature({
     }
     if (action === "reset-user-password") {
       resetUserPassword(userById(id));
+      return true;
+    }
+    if (action === "impersonate-user") {
+      await impersonateUser(userById(id));
       return true;
     }
     if (action === "preview-user-avatar") {
@@ -280,6 +296,10 @@ export function createSettingsFeature({
     }
     if (action === "security-audit") {
       openSecurityAuditDialog();
+      return true;
+    }
+    if (action === "audit-trail-refresh") {
+      refreshAuditTrail();
       return true;
     }
     if (action === "reset-security-override") {
@@ -1827,6 +1847,90 @@ export function createSettingsFeature({
     downloadXlsx(exportFileName("pmt-security-audit", "xlsx"), "Security Audit", columns, rows);
   }
 
+  function settingsAuditTrailHtml() {
+    const events = auditTrailEvents || [];
+    return `
+      <div class="panel settings-content-panel settings-table-panel settings-audit-trail-panel">
+        ${settingsTableHeadHtml("Audit Trail", "Review system activity, including when an administrator enters or exits another user's security context.")}
+        ${auditTrailLoading || auditTrailEvents === null
+          ? `<div class="empty">Loading audit trail...</div>`
+          : auditTrailError
+            ? `<div class="maintenance-error" role="alert">${escapeHtml(auditTrailError)}</div>`
+            : events.length
+              ? `
+                <div class="settings-audit-trail-scroll">
+                  <table class="table settings-table settings-audit-trail-table">
+                    <thead><tr><th>When</th><th>Performed By</th><th>Acting As</th><th>Action</th><th>Record</th><th>Details</th></tr></thead>
+                    <tbody>
+                      ${events.map(event => `
+                        <tr>
+                          <td>${escapeHtml(formatDateTime(event.createdAt))}</td>
+                          <td>${escapeHtml(event.actorUserName || `User #${event.actorUserId}`)}</td>
+                          <td>${event.actorUserId !== event.userId ? escapeHtml(event.userName || `User #${event.userId}`) : `<span class="muted">&mdash;</span>`}</td>
+                          <td>${escapeHtml(event.action || "")}</td>
+                          <td>${escapeHtml(auditTrailEntityLabel(event))}</td>
+                          <td>${escapeHtml(event.details || "")}</td>
+                        </tr>
+                      `).join("")}
+                    </tbody>
+                  </table>
+                </div>
+              `
+              : `<div class="empty">No system audit entries have been recorded.</div>`}
+      </div>
+    `;
+  }
+
+  function auditTrailEntityLabel(event) {
+    if (event.entityType === "Impersonation") return event.userName || `User #${event.entityId}`;
+    return event.entityId > 0 ? `${event.entityType} #${event.entityId}` : event.entityType || "System";
+  }
+
+  function ensureAuditTrailData() {
+    if (!currentUser().isAdmin || auditTrailEvents !== null || auditTrailLoading) return;
+    void loadAuditTrail();
+  }
+
+  async function loadAuditTrail() {
+    const requestVersion = ++auditTrailRequestVersion;
+    auditTrailLoading = true;
+    auditTrailError = "";
+    try {
+      const result = await api("/api/audit-trail");
+      if (requestVersion !== auditTrailRequestVersion) return;
+      auditTrailEvents = Array.isArray(result) ? result : [];
+    } catch (error) {
+      if (requestVersion !== auditTrailRequestVersion) return;
+      auditTrailEvents = [];
+      auditTrailError = error.message;
+    } finally {
+      if (requestVersion !== auditTrailRequestVersion) return;
+      auditTrailLoading = false;
+      if (settingsCategory === "Audit Trail") renderSettings();
+    }
+  }
+
+  function refreshAuditTrail() {
+    auditTrailRequestVersion += 1;
+    auditTrailLoading = false;
+    auditTrailEvents = null;
+    auditTrailError = "";
+    renderSettings();
+  }
+
+  async function impersonateUser(user) {
+    if (!user || !currentUser().isAdmin || isImpersonating() || user.id === currentUserId) return;
+    const displayName = settingsUserDisplayName(user);
+    const confirmed = await askYesNo(
+      `Impersonate ${displayName}? PMT will reload using this user's security context and preferences until you exit impersonation.`,
+      "Impersonate User"
+    );
+    if (!confirmed) return;
+
+    await beginImpersonation(user.id);
+    window.location.reload();
+  }
+
   function settingsUsersHtml() {
     return `
       <div class="grid settings-users-grid">
@@ -1844,6 +1948,7 @@ export function createSettingsFeature({
             </div>
             <p>${escapeHtml(user.bio || "")}</p>
             <div class="toolbar reveal-actions">
+              ${currentUser().isAdmin && !isImpersonating() ? iconButton("impersonate-user", user.id, "Impersonate", "impersonate", user.id !== currentUserId) : ""}
               ${iconButton("delete-user", user.id, "Delete", "delete", currentUser().isAdmin && user.id !== currentUserId, "danger")}
               ${iconButton("reset-user-password", user.id, "Change Password", "key", currentUser().isAdmin)}
               ${iconButton("edit-user", user.id, "Edit", "edit", canEditUser(user.id))}
@@ -1954,6 +2059,7 @@ export function createSettingsFeature({
       Role: "&#128101;",
       Users: "&#128100;",
       Security: "&#128274;",
+      "Audit Trail": "&#128203;",
       Maintenance: "&#9851;",
       Holidays: "&#128197;",
       Navigation: "&#9776;",
@@ -1972,7 +2078,7 @@ export function createSettingsFeature({
   function selectSettingsCategory(type) {
     settingsCategory = type || "Status";
     writePreference(preferenceKeys.settingsCategory, settingsCategory);
-    if (!["Users", "Security", "Maintenance", "Holidays", "Navigation", "Development"].includes(settingsCategory)) {
+    if (!["Users", "Security", "Audit Trail", "Maintenance", "Holidays", "Navigation", "Development"].includes(settingsCategory)) {
       lookupTypeFilter = settingsCategory;
       writePreference(preferenceKeys.lookupType, lookupTypeFilter);
     }

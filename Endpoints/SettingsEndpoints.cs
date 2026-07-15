@@ -27,6 +27,11 @@ internal static class SettingsEndpoints
 
     public static IEndpointRouteBuilder MapSettingsEndpoints(this IEndpointRouteBuilder app)
     {
+        app.MapGet("/api/audit-trail", async (HttpContext context, SqlPmtStore store, CancellationToken cancellationToken) =>
+        {
+            return Results.Ok(await store.GetAuditTrailAsync(CurrentUserId(context), cancellationToken));
+        });
+
         app.MapGet("/api/usernames/suggestion", async (string? username, int? excludeUserId, SqlPmtStore store, CancellationToken cancellationToken) =>
         {
             return Results.Ok(await store.SuggestUsernameAsync(username ?? "", excludeUserId ?? 0, cancellationToken));
@@ -46,6 +51,10 @@ internal static class SettingsEndpoints
             var currentUserId = CurrentUserId(context);
             await store.RequirePermissionAsync(currentUserId, "Settings", "Update", cancellationToken);
             var savedId = await store.SaveUserAsync(input, currentUserId, cancellationToken);
+            if (savedId == currentUserId)
+            {
+                await AuthenticationEndpoints.RefreshSignInAsync(context, store, cancellationToken);
+            }
             return Results.Ok(new { id = savedId });
         });
 
@@ -135,7 +144,7 @@ internal static class SettingsEndpoints
             // Check Admin access before scanning a potentially remote upload folder.
             await store.FindReferencedUploadPathsAsync(Array.Empty<string>(), uploadStorage.RequestPath, currentUserId, cancellationToken);
 
-            var candidates = ReadMaintenanceUploadFiles(uploadStorage.RootPath, currentUserId);
+            var candidates = ReadMaintenanceUploadFiles(uploadStorage.RootPath);
             var referencedPaths = candidates.Count == 0
                 ? new HashSet<string>(StringComparer.OrdinalIgnoreCase)
                 : await store.FindReferencedUploadPathsAsync(
@@ -302,7 +311,7 @@ internal static class SettingsEndpoints
         }
     }
 
-    private static List<MaintenanceOrphanFileDto> ReadMaintenanceUploadFiles(string rootPath, int currentUserId)
+    private static List<MaintenanceOrphanFileDto> ReadMaintenanceUploadFiles(string rootPath)
     {
         var files = new List<MaintenanceOrphanFileDto>();
         var cutoff = DateTime.UtcNow.Subtract(MaintenanceFileGracePeriod);
@@ -336,7 +345,7 @@ internal static class SettingsEndpoints
                         RelativePath = $"{directory.Name}/{file.Name}",
                         FileName = file.Name,
                         Category = directory.Name,
-                        Url = MaintenancePreviewUrl(currentUserId, directory.Name, file.Name),
+                        Url = MaintenancePreviewUrl(directory.Name, file.Name),
                         ByteLength = file.Length,
                         LastModifiedAt = DateTime.SpecifyKind(file.LastWriteTimeUtc, DateTimeKind.Utc)
                     });
@@ -357,10 +366,10 @@ internal static class SettingsEndpoints
             .ToList();
     }
 
-    private static string MaintenancePreviewUrl(int currentUserId, string category, string fileName)
+    private static string MaintenancePreviewUrl(string category, string fileName)
     {
         var relativePath = Uri.EscapeDataString($"{category}/{fileName}");
-        return $"/api/maintenance/orphan-files/preview?relativePath={relativePath}&currentUserId={currentUserId}";
+        return $"/api/maintenance/orphan-files/preview?relativePath={relativePath}";
     }
 
     private static List<(string RelativePath, string DirectoryPath, string FullPath)> ValidateMaintenanceFileSelection(

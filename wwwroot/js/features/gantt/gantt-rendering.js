@@ -13,7 +13,7 @@ import {
   escapeAttr,
   escapeHtml
 } from "../../shared/text-and-links.js";
-import { taskDisplayPercent } from "../../shared/work-item-rules.js?v=20260714-linked-bug-percent";
+import { taskDisplayPercent } from "../../shared/work-item-rules.js?v=20260716-developer-board-status";
 import {
   ganttBugRows,
   ganttDependencyLines

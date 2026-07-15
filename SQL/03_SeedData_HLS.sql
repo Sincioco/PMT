@@ -284,14 +284,14 @@ BEGIN
         INSERT INTO [pmt].[AuditEvents]
         (
             [EntityType], [EntityId], [Action], [Details], [OldStatus], [NewStatus],
-            [OldPercentCompleted], [NewPercentCompleted], [UserId], [CreatedByUserId], [CreatedAt]
+            [OldPercentCompleted], [NewPercentCompleted], [UserId], [ActorUserId], [CreatedByUserId], [CreatedAt]
         )
         VALUES
-        (N'Task', @BugTaskId, N'Status/Percent Changed', N'QA failed the phase validation test and assigned the Bug to development.', N'QA in Progress', N'QA Failed', 0, 100, @Sam, @Sin, @BugStart),
-        (N'Task', @BugFixTaskId, N'Status/Percent Changed', N'Developer started the linked Bug Fix.', N'Todo', N'In Progress', 0, 50, @BugDeveloperId, @Sin, DATEADD(DAY, 1, @BugStart)),
-        (N'Task', @BugFixTaskId, N'Status/Percent Changed', N'Developer completed the Bug Fix and reset the Bug for QA retest.', N'In Progress', N'Code Complete', 50, 100, @BugDeveloperId, @Sin, DATEADD(DAY, 4, @BugStart)),
-        (N'Task', @BugTaskId, N'Status/Percent Changed', N'Bug percent reset to 0 for QA retest.', N'QA Failed', N'QA Failed', 100, 0, @BugDeveloperId, @Sin, DATEADD(DAY, 4, @BugStart)),
-        (N'Task', @BugTaskId, N'Status/Percent Changed', N'QA retest passed after the Bug Fix.', N'QA Failed', N'QA Passed', 0, 100, @Sam, @Sin, @BugEnd);
+        (N'Task', @BugTaskId, N'Status/Percent Changed', N'QA failed the phase validation test and assigned the Bug to development.', N'QA in Progress', N'QA Failed', 0, 100, @Sam, @Sam, @Sin, @BugStart),
+        (N'Task', @BugFixTaskId, N'Status/Percent Changed', N'Developer started the linked Bug Fix.', N'Todo', N'In Progress', 0, 50, @BugDeveloperId, @BugDeveloperId, @Sin, DATEADD(DAY, 1, @BugStart)),
+        (N'Task', @BugFixTaskId, N'Status/Percent Changed', N'Developer completed the Bug Fix and reset the Bug for QA retest.', N'In Progress', N'Code Complete', 50, 100, @BugDeveloperId, @BugDeveloperId, @Sin, DATEADD(DAY, 4, @BugStart)),
+        (N'Task', @BugTaskId, N'Status/Percent Changed', N'Bug percent reset to 0 for QA retest.', N'QA Failed', N'QA Failed', 100, 0, @BugDeveloperId, @BugDeveloperId, @Sin, DATEADD(DAY, 4, @BugStart)),
+        (N'Task', @BugTaskId, N'Status/Percent Changed', N'QA retest passed after the Bug Fix.', N'QA Failed', N'QA Passed', 0, 100, @Sam, @Sam, @Sin, @BugEnd);
 
         SET @BugIndex += 1;
         SET @BugCounter += 1;
@@ -322,9 +322,9 @@ WHERE [ParentTask].[ProjectId] = @HlsProject
 INSERT INTO [pmt].[AuditEvents]
 (
     [EntityType], [EntityId], [Action], [Details], [OldStatus], [NewStatus],
-    [OldPercentCompleted], [NewPercentCompleted], [UserId], [CreatedByUserId], [CreatedAt]
+    [OldPercentCompleted], [NewPercentCompleted], [UserId], [ActorUserId], [CreatedByUserId], [CreatedAt]
 )
-SELECT N'Task', [TaskId], N'Created', [Title], NULL, [Status], NULL, [PercentCompleted], [CreatedByUserId], @Sin, [CreatedAt]
+SELECT N'Task', [TaskId], N'Created', [Title], NULL, [Status], NULL, [PercentCompleted], [CreatedByUserId], [CreatedByUserId], @Sin, [CreatedAt]
 FROM [pmt].[WorkTasks]
 WHERE [ProjectId] = @HlsProject;
 
@@ -416,18 +416,20 @@ BEGIN
     SET @LogCount += 1;
 END;
 
-INSERT INTO [pmt].[Blogs] ([ProjectId], [Title], [BodyHtml], [CreatedByUserId])
+INSERT INTO [pmt].[Blogs] ([ProjectId], [Title], [BodyHtml], [IsPrivate], [CreatedByUserId])
 VALUES
 (
     @HlsProject,
     N'HLS AI Recommendation Design Notes',
     N'<p><img src="/assets/docs/hls-ai-recommendations.jpg" alt="HLS AI recommendation flow from learner signals to recommended learning path"></p><p>The Hybrid Learning System recommends lessons by combining course prerequisites, assessment performance, classroom attendance, and instructor overrides.</p><ul><li>Keep instructor override reasons auditable.</li><li>Never hide required learning from the learner.</li><li>Review AI recommendation outcomes during every phase gate.</li></ul>',
+    0,
     @Bill
 ),
 (
     @HlsProject,
     N'HLS Waterfall Phase Gate Checklist',
     N'<p><img src="/assets/docs/hls-phase-gate.jpg" alt="HLS waterfall phase gate checklist with design review, QA pass, bug retest, and sign-off"></p><p>Each HLS phase should finish with a design review, QA pass, bug-fix retest, and stakeholder sign-off.</p><ul><li>Validate classroom and remote learner scenarios.</li><li>Confirm analytics totals match source attendance data.</li><li>Capture unresolved risk before the next phase begins.</li></ul>',
+    0,
     @Sam
 );
 

@@ -19,6 +19,9 @@ test("Settings categories have shareable routes with browser history support", a
       body: JSON.stringify(testState())
     });
   });
+  await page.route("**/api/audit-trail", async route => {
+    await route.fulfill(jsonResponse([]));
+  });
   await page.route("**/api/maintenance/recycle-bin", async route => {
     await route.fulfill(jsonResponse([]));
   });
@@ -43,6 +46,7 @@ test("Settings categories have shareable routes with browser history support", a
   const categoryRoutes = [
     ["Users", "users"],
     ["Security", "security"],
+    ["Audit Trail", "audit-trail"],
     ["Maintenance", "maintenance"],
     ["Navigation", "navigation"],
     ["Holidays", "holidays"],
@@ -112,6 +116,7 @@ test("non-admin direct routes do not expose Admin-only Settings categories", asy
   await page.getByRole("button", { name: /log in/i }).click();
 
   await expect(page.locator("[data-action='select-lookup-type'][data-type='Security']")).toHaveCount(0);
+  await expect(page.locator("[data-action='select-lookup-type'][data-type='Audit Trail']")).toHaveCount(0);
   await expect(page.locator("[data-action='select-lookup-type'][data-type='Maintenance']")).toHaveCount(0);
   await expect(page.locator("[data-action='select-lookup-type'][data-type='Status']")).toHaveClass(/active/);
   await expect(page).toHaveURL(/#\/settings\/status$/);

@@ -26,8 +26,19 @@ against disposable development data.
 
 - [ ] On a browser profile that has never logged in, confirm Nickname or Email and Password both start blank.
 - [ ] Enter `Sin` and `Password1`, then log in.
+- [ ] In browser storage, confirm login created a `PMT.Auth` cookie marked HttpOnly and SameSite Strict, no `pmt-auth-user` value remains, and API requests do not send `X-PMT-UserId`. In a production HTTPS deployment, also confirm the cookie is Secure.
 - [ ] Confirm the avatar menu opens and contains Invite Users, Settings, theme, password, and Log Out.
 - [ ] Open Change Password, validate the fields/dialog, and cancel without changing the seed password.
+- [ ] Refresh the page and confirm the signed-in session and selected view are restored from the cookie. Delete `PMT.Auth`, refresh again, and confirm PMT fails closed to the Login screen rather than selecting a default user.
+- [ ] While signed in as a non-administrator, send a state request with a forged `X-PMT-UserId` header and current-user query value for the administrator. Confirm the response remains in the non-administrator's cookie identity and does not expose administrator access.
+- [ ] Log in as an administrator, choose distinctive theme/navigation/filter preferences, and set a disposable non-PMT `localStorage` value for comparison.
+- [ ] In Settings > Users, select Impersonate on another active user's card, confirm the prompt, and continue. Confirm PMT reloads with that user's avatar, visible screens, permissions, and private-data boundary rather than retaining administrator access.
+- [ ] Confirm a large red banner with white `Impersonating {user}` text remains visible without overlap, and Exit Impersonation stays on its right at both supported viewport sizes.
+- [ ] Change theme/navigation/filter preferences while impersonating, hard refresh, and confirm the same impersonated user and banner remain active while those temporary preferences survive the refresh.
+- [ ] Choose Exit Impersonation and confirm PMT reloads as the original administrator, restores the administrator's exact PMT preferences, discards the impersonated preference changes, and leaves the non-PMT `localStorage` value unchanged.
+- [ ] As a non-administrator, confirm User cards have no usable Impersonate action and a direct impersonation-start request is rejected. Also confirm an administrator cannot impersonate themselves, an inactive user, or start a second impersonation while one is active.
+- [ ] While impersonating in one browser, deactivate or remove the administrator role from the original administrator in another authorized session. Confirm the impersonated browser's next request is signed out instead of retaining the old target/admin context.
+- [ ] From a different browser origin, attempt a changing `/api` form/fetch request while the PMT cookie exists. Confirm PMT returns HTTP 403, while a same-origin write and a non-browser request with no browser-origin headers continue to work.
 - [ ] Log out and confirm the Login screen returns.
 - [ ] Log in again and confirm the selected view loads.
 
@@ -116,8 +127,10 @@ Use two signed-in browser profiles, A and B, that can edit the same disposable r
 
 - [ ] Create a temporary Project with members.
 - [ ] Confirm its requested Project code is saved exactly after uppercase/space normalization and is never replaced with a random code.
+- [ ] Add a Sprint plus Dev, Bug, backlog, finished, and deleted work items, then rename the Project code. Confirm every associated code uses the new Project prefix while preserving its existing suffix; unrelated Projects remain unchanged.
+- [ ] Save only the Project title or members and confirm child codes and row versions do not change. Leave one child editor open during a later Project-code rename and confirm its stale save receives Save Collision.
 - [ ] Edit its title/description and verify the update.
-- [ ] Archive a disposable Project, then try to reuse its code. As a non-admin, confirm the save is rejected without an override. As an admin, cancel the reclaim warning and confirm neither Project changes; repeat and continue, then confirm the active Project receives the requested code while the archived Project and its related data remain preserved.
+- [ ] Archive a disposable Project, then try to reuse its code. As a non-admin, confirm the save is rejected without an override. As an admin, cancel the reclaim warning and confirm neither Project changes; repeat and continue, then confirm the active Project receives the requested code while the archived Project receives an internal code and all Sprint/work-item prefixes in both Project trees match their owning Project.
 - [ ] As an admin, confirm a code held by another active Project is rejected and cannot be reclaimed.
 - [ ] Open the Project and confirm Sprints are filtered to it.
 - [ ] Create and edit a temporary Sprint with members and dates.
@@ -135,7 +148,12 @@ Use two signed-in browser profiles, A and B, that can edit the same disposable r
 - [ ] Open the task in read-only mode, then select Edit.
 - [ ] Open its audit dialog and confirm newest entries appear first.
 - [ ] Create a Bug with reporter, assignee, severity, environment, and steps.
+- [ ] Rename a Severity lookup to include a numeric prefix such as `1 - Critical`; confirm severity capsules display `Critical` on one line and show `1 - Critical` in their tooltip.
 - [ ] Confirm assigning the Bug creates/updates a linked Bug Fix Dev Task.
+- [ ] Give the Bug a URL before assigning it. Confirm the linked Bug Fix Dev Task receives that exact URL; change the Bug URL and confirm a later Bug save updates the Dev Task URL. Change the Dev Task URL and confirm the Bug URL does not change.
+- [ ] Enter Root Cause Analysis on the linked Bug Fix Dev Task and save. Confirm the associated Bug now contains exactly that value, with no appended `<hr>` content.
+- [ ] Replace and then clear the Dev Task Root Cause Analysis. After each save, confirm the associated Bug is replaced and then cleared too.
+- [ ] Enter Root Cause Analysis directly on the Bug and save. Confirm the linked Dev Task Root Cause Analysis does not change.
 - [ ] Verify the linked-Bug completion guard prevents premature 100%.
 - [ ] Delete the temporary Bug and Dev Task records.
 
@@ -143,10 +161,11 @@ Use two signed-in browser profiles, A and B, that can edit the same disposable r
 
 - [ ] Verify Scrum Project, Person, and Date filters work alone and in combination.
 - [ ] Confirm the Attendance dropdown shows an icon and each exact label: Home, Office, Sick Leave, Vacation, EL, and Other. Hover EL/status indicators and confirm the tooltip expands EL to Emergency Leave.
-- [ ] Check in as the current user and confirm the user's avatar appears immediately after the Scrum title without overlapping another avatar, with the selected status icon on its lower-left corner.
+- [ ] Open Scrum while attendance is still loading and note the header and table positions. Confirm the first attendance result does not move the title, controls, or table; each title avatar is 80 by 80 pixels, does not overlap another avatar, and is visually centered in the title band with a clearly visible status icon on its lower-left corner.
+- [ ] Confirm Sick Leave uses the face-with-thermometer icon rather than a plus sign, and that its tooltip remains `Sick Leave`.
 - [ ] Select a title avatar and confirm the Scrum table shows only that person's entries. Open Scrum Filters and confirm exactly the same Person checkbox is selected. Change the Person checklist and confirm the title-avatar selection updates in the same render cycle.
-- [ ] Open the Scrum overflow menu and confirm Graphs is absent while Calendar, On Behalf Of..., and Vacation... are present with icons and labels.
-- [ ] Enable Calendar and confirm it renders above the existing Scrum table without covering it. Confirm the seven-day grid remains readable and may use contained horizontal scrolling instead of compressing cells.
+- [ ] Confirm the header has `Table` and `Calendar` view buttons with the same active underline and pressed-state treatment as the Documentation view buttons. Open the Scrum overflow menu and confirm Graphs and Calendar are absent while On Behalf Of... and Vacation... remain present with icons and labels.
+- [ ] Select Calendar and confirm only the calendar is inserted above the existing Scrum table: the title, avatars, view buttons, and other header controls must not move. Select Table and confirm the calendar is removed while the Scrum table remains visible. Confirm the seven-day grid remains readable and may use contained horizontal scrolling instead of compressing cells.
 - [ ] Navigate backward and forward, then select a month and year directly. Confirm the requested month and day numbers are correct, including a leap-year February, and the Scrum table remains below the calendar.
 - [ ] Seed or record Office and Home attendance on one date. Confirm Office renders first with larger avatars, Home renders below it, and a faint divider separates the sections.
 - [ ] Add Sick Leave, Vacation, EL, and Other attendance and confirm each nonempty section has its status icon in the upper-left and sections remain in Office, Home, Sick Leave, Vacation, EL, Other order.
@@ -166,6 +185,7 @@ Use two signed-in browser profiles, A and B, that can edit the same disposable r
 - [ ] As an administrator, confirm shared Scrum entries from another user can be edited and deleted.
 - [ ] In Log, confirm a user sees only their own private entries. Repeat as an administrator and confirm other users' private Log entries remain absent and cannot be updated or deleted through direct requests.
 - [ ] Create Documentation with a Project, rich text, list, link, and image/attachment.
+- [ ] Confirm a normally created Documentation item remains private by default; the public-seed rule must not change user-created privacy.
 - [ ] Mark Documentation private, sign in as a different administrator, and confirm the document is absent from Cards, Treeview, filters, About, direct Documentation URLs, exports, attachment/history data, and audit views.
 - [ ] As that administrator, confirm guessed direct update, delete, parent, conversion, add-attachment, and delete-attachment requests for the private document are rejected. Sign back in as its creator and confirm those permitted actions still work.
 - [ ] In an RTE, open an image menu and choose Select; confirm eight resize handles appear, stay inside the visible editor viewport and below the sticky RTE toolbar while scrolling, keep the image proportional and anchored at its upper-left when dragged from a corner or midpoint, disappear when clicking outside, and preserve the saved size after reopening.
@@ -187,13 +207,18 @@ Use two signed-in browser profiles, A and B, that can edit the same disposable r
 ### Settings
 
 - [ ] Open Status, Priority, Severity, and Environment categories.
-- [ ] Open Users, Roles, Security, Navigation, Holidays, and Development categories.
+- [ ] As an administrator, open Users, Roles, Security, Audit Trail, Maintenance, Navigation, Holidays, and Development categories.
 - [ ] Create/edit/deactivate a temporary lookup or Holiday as an admin.
 - [ ] In Security, confirm inherited user rows initially match their Role's effective checkboxes and Reset is disabled.
 - [ ] Change one inherited user checkbox, confirm the Break Inheritance explanation, and verify the Effective column updates immediately after continuing.
 - [ ] Cancel a second Break Inheritance prompt and confirm the inherited checkbox remains unchanged.
 - [ ] Save an explicit override, refresh, and confirm it persists; then Reset, save, and confirm Role inheritance returns.
 - [ ] Open Security Audit and confirm every active user/resource pair reflects effective rights, Resource is left-aligned, granted rights use visible green check graphics, and the No Access header and disabled checkboxes are centered; then export and open the Excel workbook.
+- [ ] Open Audit Trail and confirm it is a read-only table ordered newest first with When, Performed By, Acting As, Action, Record, and Details columns; use Refresh and confirm the latest event appears.
+- [ ] After the impersonation checks above, confirm Audit Trail contains Started and Ended Impersonation rows with the administrator under Performed By and the target under Acting As.
+- [ ] During a fresh impersonation, make one disposable edit that the target is permitted to save, exit, and confirm its audit row names the administrator under Performed By and the target under Acting As.
+- [ ] With another user owning private Documentation and a private Personal Log, confirm their Audit Trail details are shown only as opaque private-activity labels and do not reveal titles or content.
+- [ ] As a non-administrator, and again while an administrator is impersonating a non-administrator, confirm Audit Trail is absent, `#/settings/audit-trail` falls back to an allowed Settings category, and a direct `/api/audit-trail` request is rejected.
 - [ ] Create a temporary Role-permission change and user override, click Reset Security, cancel the warning, and confirm nothing changes. Repeat and continue; confirm all Role permissions return to their initial defaults across every resource and every per-user override is removed.
 - [ ] After Reset Security, confirm Developer has all Dev Task rights while QA has only Read and Export for Dev Tasks.
 - [ ] Confirm non-admin controls are disabled or rejected where applicable.
@@ -205,7 +230,8 @@ Use two signed-in browser profiles, A and B, that can edit the same disposable r
 - [ ] Create one referenced and one unreferenced disposable upload, scan for orphan files, and confirm only the unreferenced file is offered. Add a database reference after preview and confirm the final recheck skips that file.
 - [ ] Click an orphaned filename and confirm it opens through the Maintenance preview endpoint in a new tab without changing its selected-for-deletion state. Confirm raster images render, SVG/HTML/XML and unknown extensions open as plain text instead of returning 404, and scripted content cannot execute or navigate under the PMT origin.
 - [ ] In Settings > Development, confirm Clear PMT and Clear All Except PMT preserve and detach private Documentation/Logs. Confirm Clear Users and Restore Initial Seed Data refuse to run while another user owns private content.
-- [ ] Permanently delete the disposable PMT seed Project, click Restore PMT Seed Data, and confirm PMT returns while LMS, HLS, users, permissions, holidays, and detached private content remain unchanged. Confirm `PMT About 3D Visualization and Flyby` returns under `PMT Current Demo Readiness` with its image, summary, and three-item control list. Confirm a second restore attempt is refused while code `PMT` exists.
+- [ ] Permanently delete the disposable PMT seed Project, click Restore PMT Seed Data, and confirm PMT returns while LMS, HLS, users, permissions, holidays, and detached private content remain unchanged. Confirm all restored PMT seed Documentation is public and `PMT About 3D Visualization and Flyby` returns under `PMT Current Demo Readiness` with its image, summary, and three-item control list. Confirm a second restore attempt is refused while code `PMT` exists.
+- [ ] On a disposable database, run Restore Initial Seed Data and confirm all 15 PMT/LMS/HLS seed Documentation rows are public while a separately created private document remains private.
 - [ ] As a non-admin, confirm recycle-bin, preview/purge, upload scan, and upload-reference recheck requests are rejected.
 - [ ] Do not run destructive Development reset actions unless specifically testing them.
 
@@ -237,6 +263,8 @@ Use two signed-in browser profiles, A and B, that can edit the same disposable r
 - [ ] Project, Sprint, and Sort controls fit on one row at normal laptop width.
 - [ ] Navigate away from the Board and return; confirm the last Project, Sprint, and Sort are restored and empty columns auto-hide again.
 - [ ] Drag a card to a different status column and verify status persistence.
+- [ ] As a Developer, move a Dev Task to `Ready for QA` (QA Ready) and then `QA Passed`; confirm both moves save. Attempt to move it to each later deployment status and confirm PMT rejects the move and leaves the task at `QA Passed`.
+- [ ] Repeat a later deployment-status move as an administrator or release-role user and confirm it is allowed.
 - [ ] Reorder at least three cards in one column through multiple consecutive drags.
 - [ ] Confirm the above/below drop indicator matches the final order.
 - [ ] Toggle empty columns off and on.

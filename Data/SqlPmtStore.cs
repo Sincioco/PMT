@@ -1,4 +1,5 @@
 using System.Data;
+using System.Security.Claims;
 using System.Text;
 using Microsoft.Data.SqlClient;
 using PMT.Models;
@@ -8,18 +9,40 @@ namespace PMT.Data;
 public sealed partial class SqlPmtStore
 {
     private readonly string _connectionString;
+    private readonly IHttpContextAccessor _httpContextAccessor;
 
-    public SqlPmtStore(IConfiguration configuration)
+    public SqlPmtStore(IConfiguration configuration, IHttpContextAccessor httpContextAccessor)
     {
         _connectionString = configuration.GetConnectionString("PmtDatabase")
             ?? throw new InvalidOperationException("Missing ConnectionStrings:PmtDatabase.");
+        _httpContextAccessor = httpContextAccessor;
     }
 
     private async Task<SqlConnection> OpenConnectionAsync(CancellationToken cancellationToken)
     {
         var connection = new SqlConnection(_connectionString);
         await connection.OpenAsync(cancellationToken);
+        await SetAuditActorAsync(connection, cancellationToken);
         return connection;
+    }
+
+    private async Task SetAuditActorAsync(SqlConnection connection, CancellationToken cancellationToken)
+    {
+        var actorClaim = _httpContextAccessor.HttpContext?.User.FindFirst("pmt:original-user-id")?.Value
+            ?? _httpContextAccessor.HttpContext?.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        var actorUserId = int.TryParse(actorClaim, out var parsedActorUserId) && parsedActorUserId > 0
+            ? parsedActorUserId
+            : (int?)null;
+
+        await using var command = new SqlCommand(
+            "EXEC sys.sp_set_session_context @key=N'PMT_ActorUserId', @value=@ActorUserId, @read_only=0;",
+            connection)
+        {
+            CommandType = CommandType.Text,
+            CommandTimeout = 60
+        };
+        AddNullable(command, "@ActorUserId", actorUserId);
+        await command.ExecuteNonQueryAsync(cancellationToken);
     }
 
     private async Task ExecuteProcedureAsync(string procedureName, Action<SqlCommand> configure, CancellationToken cancellationToken)
@@ -55,8 +78,8 @@ public sealed partial class SqlPmtStore
         bool touchSecurityResources = false)
     {
         var lockBlogWrites = entityType == "Blog";
-        var lockWorkTaskWrites = entityType == "WorkTask";
-        var lockSprintWrites = entityType == "Sprint";
+        var lockWorkTaskWrites = entityType is "WorkTask" or "Project";
+        var lockSprintWrites = entityType is "Sprint" or "Project";
 
         if (id == 0 && !touchSecurityResources && !lockBlogWrites && !lockWorkTaskWrites && !lockSprintWrites)
         {

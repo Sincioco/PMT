@@ -830,12 +830,28 @@ test("idle screen saver preserves the current screen and unsaved editor state", 
 async function prepareAboutPage(page, initialView = "About") {
   await page.addInitScript(view => {
     localStorage.clear();
-    localStorage.setItem("pmt-auth-user", "1");
     localStorage.setItem("pmt-view", view);
     localStorage.setItem("pmt-task-project", "10");
     localStorage.setItem("pmt-task-sprint", "101");
     localStorage.setItem("pmt-bug-filters", JSON.stringify({ projectId: "10", sprintId: "all" }));
   }, initialView);
+
+  await page.route("**/api/session", async route => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        userId: 1,
+        nickname: "Sin",
+        isAdmin: true,
+        role: "Admin",
+        originalUserId: 1,
+        originalUserName: "Sin",
+        isImpersonating: false,
+        impersonatedUserName: ""
+      })
+    });
+  });
 
   await page.route("**/api/state", async route => {
     await route.fulfill({

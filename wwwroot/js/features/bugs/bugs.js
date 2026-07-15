@@ -44,11 +44,11 @@ import {
   taskPercentField,
   workItemDialogMetaHtml,
   uploadWorkItemAttachments
-} from "../../components/work-items.js?v=20260715-day28-v118";
+} from "../../components/work-items.js?v=20260715-admin-impersonation";
 import {
   currentUser,
   currentUserId
-} from "../../core/authentication.js";
+} from "../../core/authentication.js?v=20260715-admin-impersonation";
 import {
   preferenceKeys,
   readBooleanPreference,
@@ -67,7 +67,7 @@ import {
   toDateInput
 } from "../../shared/dates.js?v=20260620-null-end-date";
 import { normalizeSavedArray } from "../../shared/filter-values.js";
-import { canAccessResource } from "../../shared/security.js?v=20260713-role-security";
+import { canAccessResource } from "../../shared/security.js?v=20260715-admin-impersonation";
 import {
   bugMixChart,
   bugSeverityChartColor,
@@ -95,7 +95,7 @@ import {
   sameNumberList,
   workItemSystemColumns
 } from "../../shared/table-export.js?v=20260715-save-collision";
-import { canEditTask } from "../../shared/permissions.js?v=20260713-role-security";
+import { canEditTask } from "../../shared/permissions.js?v=20260715-admin-impersonation";
 import {
   projectById,
   projectCode,
@@ -104,6 +104,10 @@ import {
   taskById,
   userById
 } from "../../shared/selectors.js";
+import {
+  severityDisplayLabel,
+  severityPillHtml
+} from "../../shared/severity.js?v=20260715-severity-prefix";
 import {
   escapeAttr,
   escapeHtml
@@ -116,8 +120,8 @@ import {
   taskDisplayPercent,
   taskCreatedTime,
   taskOrderCompare
-} from "../../shared/work-item-rules.js?v=20260714-linked-bug-percent";
-import { openWorkItemHtmlImport } from "../../shared/work-item-transfer.js?v=20260715-save-collision";
+} from "../../shared/work-item-rules.js?v=20260716-developer-board-status";
+import { openWorkItemHtmlImport } from "../../shared/work-item-transfer.js?v=20260716-rca-one-way";
 
 export function createBugsFeature({
   app,
@@ -802,7 +806,7 @@ export function createBugsFeature({
         width: 96,
         rubberMinWidth: 86,
         defaultVisible: true,
-        cellHtml: bug => `<span class="pill severity-${escapeAttr(bug.severity)}">${escapeHtml(bug.severity || "")}</span>`
+        cellHtml: bug => severityPillHtml(bug.severity)
       },
       {
         key: "priority",
@@ -2126,12 +2130,15 @@ export function createBugsFeature({
 
   function bugSeverityPieChartHtml(filteredBugs) {
     const items = bugSeverityChartItems(filteredBugs, getSeverities(), bugSeverityColor)
-      .map(item => bugChartGroupedItem(
-        item.label,
-        item.bugs,
-        item.color,
-        `${item.label}: ${item.value} bug report${item.value === 1 ? "" : "s"}`
-      ));
+      .map(item => {
+        const fullLabel = item.label;
+        return bugChartGroupedItem(
+          severityDisplayLabel(fullLabel),
+          item.bugs,
+          item.color,
+          `${fullLabel}: ${item.value} bug report${item.value === 1 ? "" : "s"}`
+        );
+      });
 
     if (!items.length) return null;
 
@@ -2256,7 +2263,7 @@ export function createBugsFeature({
   }
 
   function bugSeverityColor(severity) {
-    return bugSeverityChartColor(severity);
+    return bugSeverityChartColor(severityDisplayLabel(severity));
   }
 
   function workItemEditorTitle(item, newTitle) {

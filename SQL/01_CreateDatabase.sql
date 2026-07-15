@@ -1,5 +1,5 @@
 /*
-    PMT Version 1.18 database and schema script.
+    PMT Version 1.21 database and schema script.
     Run this first. It creates the database, the pmt schema, the application
     tables, and the single required administrator account. The companion
     procedure and seed scripts complete the current fresh-install contract.
@@ -820,14 +820,44 @@ BEGIN
         [OldPercentCompleted] INT NULL,
         [NewPercentCompleted] INT NULL,
         [UserId] INT NOT NULL,
+        [ActorUserId] INT NOT NULL,
         [CreatedByUserId] INT NOT NULL,
         [UpdatedByUserId] INT NULL,
         [CreatedAt] DATETIME2(0) NOT NULL CONSTRAINT [DF_pmt_AuditEvents_CreatedAt] DEFAULT (SYSUTCDATETIME()),
         [UpdatedAt] DATETIME2(0) NULL,
         CONSTRAINT [FK_pmt_AuditEvents_User] FOREIGN KEY ([UserId]) REFERENCES [pmt].[Users]([UserId]),
+        CONSTRAINT [FK_pmt_AuditEvents_ActorUser] FOREIGN KEY ([ActorUserId]) REFERENCES [pmt].[Users]([UserId]),
         CONSTRAINT [FK_pmt_AuditEvents_CreatedBy] FOREIGN KEY ([CreatedByUserId]) REFERENCES [pmt].[Users]([UserId]),
         CONSTRAINT [FK_pmt_AuditEvents_UpdatedBy] FOREIGN KEY ([UpdatedByUserId]) REFERENCES [pmt].[Users]([UserId])
     );
+END;
+GO
+
+IF COL_LENGTH(N'pmt.AuditEvents', N'ActorUserId') IS NULL
+BEGIN
+    ALTER TABLE [pmt].[AuditEvents] ADD [ActorUserId] INT NULL;
+END;
+GO
+
+UPDATE [pmt].[AuditEvents]
+SET [ActorUserId] = [UserId]
+WHERE [ActorUserId] IS NULL;
+GO
+
+ALTER TABLE [pmt].[AuditEvents] ALTER COLUMN [ActorUserId] INT NOT NULL;
+GO
+
+IF NOT EXISTS
+(
+    SELECT 1
+    FROM sys.foreign_keys
+    WHERE [name] = N'FK_pmt_AuditEvents_ActorUser'
+      AND [parent_object_id] = OBJECT_ID(N'[pmt].[AuditEvents]')
+)
+BEGIN
+    ALTER TABLE [pmt].[AuditEvents] WITH CHECK
+        ADD CONSTRAINT [FK_pmt_AuditEvents_ActorUser]
+        FOREIGN KEY ([ActorUserId]) REFERENCES [pmt].[Users]([UserId]);
 END;
 GO
 
@@ -897,5 +927,11 @@ GO
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE [name] = N'IX_pmt_AuditEvents_Entity' AND [object_id] = OBJECT_ID(N'[pmt].[AuditEvents]'))
 BEGIN
     CREATE INDEX [IX_pmt_AuditEvents_Entity] ON [pmt].[AuditEvents]([EntityType], [EntityId], [CreatedAt] DESC);
+END;
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE [name] = N'IX_pmt_AuditEvents_Actor' AND [object_id] = OBJECT_ID(N'[pmt].[AuditEvents]'))
+BEGIN
+    CREATE INDEX [IX_pmt_AuditEvents_Actor] ON [pmt].[AuditEvents]([ActorUserId], [CreatedAt] DESC);
 END;
 GO

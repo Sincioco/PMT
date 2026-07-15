@@ -10,7 +10,7 @@ import {
   userCardCheckListLabelHtml,
   value
 } from "../../components/forms.js?v=20260715-day28-v118";
-import { currentUser } from "../../core/authentication.js";
+import { currentUser } from "../../core/authentication.js?v=20260715-admin-impersonation";
 import {
   projectOverallProgressHtml,
   projectStatusCounts,
@@ -20,14 +20,14 @@ import {
 import { sectionHead } from "../../components/sections.js?v=20260701-nav-title-preferences";
 import { state } from "../../core/store.js";
 import { toDateInput } from "../../shared/dates.js?v=20260620-null-end-date";
-import { canAccessResource } from "../../shared/security.js?v=20260713-role-security";
+import { canAccessResource } from "../../shared/security.js?v=20260715-admin-impersonation";
 import { projectIconUrl } from "../../shared/project-assets.js?v=20260713-invite-users";
 import { projectById } from "../../shared/selectors.js";
 import {
   escapeAttr,
   escapeHtml
 } from "../../shared/text-and-links.js";
-import { projectWorkItems } from "../../shared/work-item-rules.js?v=20260714-linked-bug-percent";
+import { projectWorkItems } from "../../shared/work-item-rules.js?v=20260716-developer-board-status";
 
 const archivedProjectCodeConflict = "archived-project-code";
 

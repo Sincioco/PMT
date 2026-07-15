@@ -1,38 +1,50 @@
 using Microsoft.AspNetCore.Http;
+using System.Security.Claims;
 
 namespace PMT.Endpoints;
 
+internal sealed class AuthenticationRequiredException : Exception
+{
+    public AuthenticationRequiredException() : base("A signed-in user is required.")
+    {
+    }
+}
+
 internal static class EndpointHelpers
 {
+    public const string OriginalUserIdClaim = "pmt:original-user-id";
+    public const string OriginalUserNameClaim = "pmt:original-user-name";
+    public const string ImpersonatedUserIdClaim = "pmt:impersonated-user-id";
+    public const string EffectiveUserVersionClaim = "pmt:effective-user-version";
+    public const string OriginalUserVersionClaim = "pmt:original-user-version";
+
     public static int ExplicitCurrentUserId(HttpContext context)
     {
-        if (int.TryParse(context.Request.Headers["X-PMT-UserId"], out var headerUserId) && headerUserId > 0)
+        if (int.TryParse(context.User.FindFirstValue(ClaimTypes.NameIdentifier), out var userId) && userId > 0)
         {
-            return headerUserId;
+            return userId;
         }
 
-        if (int.TryParse(context.Request.Query["currentUserId"], out var queryUserId) && queryUserId > 0)
-        {
-            return queryUserId;
-        }
-
-        throw new InvalidOperationException("A signed-in user is required.");
+        throw new AuthenticationRequiredException();
     }
 
     public static int CurrentUserId(HttpContext context)
     {
-        // Authentication is intentionally simple for the internal tool. The browser
-        // sends the selected user id so the stored procedures can apply role rules.
-        if (int.TryParse(context.Request.Headers["X-PMT-UserId"], out var headerUserId) && headerUserId > 0)
+        return ExplicitCurrentUserId(context);
+    }
+
+    public static int OriginalUserId(HttpContext context)
+    {
+        if (int.TryParse(context.User.FindFirstValue(OriginalUserIdClaim), out var userId) && userId > 0)
         {
-            return headerUserId;
+            return userId;
         }
 
-        if (int.TryParse(context.Request.Query["currentUserId"], out var queryUserId) && queryUserId > 0)
-        {
-            return queryUserId;
-        }
+        return CurrentUserId(context);
+    }
 
-        return 1;
+    public static bool IsImpersonating(HttpContext context)
+    {
+        return int.TryParse(context.User.FindFirstValue(ImpersonatedUserIdClaim), out var userId) && userId > 0;
     }
 }

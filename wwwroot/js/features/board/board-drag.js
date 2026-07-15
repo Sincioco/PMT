@@ -1,4 +1,4 @@
-import { canEditTask } from "../../shared/permissions.js?v=20260713-role-security";
+import { canEditTask } from "../../shared/permissions.js?v=20260715-admin-impersonation";
 
 export function createBoardDrag({
   root,

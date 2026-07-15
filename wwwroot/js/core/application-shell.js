@@ -1,18 +1,21 @@
 import {
   currentUserId,
+  endImpersonation,
   ensureCurrentUser,
+  impersonatedUserName,
+  isImpersonating,
   login as authenticate,
   logout,
-  setCurrentUserId
-} from "./authentication.js";
-import { overflowIconHtml } from "../components/buttons.js?v=20260713-role-security";
-import { navIconHtml } from "./navigation-preferences.js?v=20260713-role-security";
+  restoreSession
+} from "./authentication.js?v=20260715-admin-impersonation";
+import { overflowIconHtml } from "../components/buttons.js?v=20260715-admin-impersonation";
+import { navIconHtml } from "./navigation-preferences.js?v=20260715-admin-impersonation";
 import {
   preferenceKeys,
   readPreference,
   writePreference
 } from "./preferences.js";
-import { currentView, getNavigationScreens, navigate } from "./router.js?v=20260714-settings-routes";
+import { currentView, getNavigationScreens, navigate } from "./router.js?v=20260715-admin-impersonation";
 import { loadState, state } from "./store.js";
 import { appUrl } from "../shared/app-urls.js";
 
@@ -44,7 +47,10 @@ export function createApplicationShell({
     dialogBody: document.getElementById("dialogBody"),
     editorForm: document.getElementById("editorForm"),
     toast: document.getElementById("toast"),
-    systemWarning: document.getElementById("systemWarning")
+    systemWarning: document.getElementById("systemWarning"),
+    impersonationBanner: document.getElementById("impersonationBanner"),
+    impersonationMessage: document.getElementById("impersonationMessage"),
+    exitImpersonation: document.getElementById("exitImpersonation")
   };
 
   let shellEventsBound = false;
@@ -63,12 +69,20 @@ export function createApplicationShell({
       return;
     }
 
-    if (!currentUserId) {
-      renderLogin();
-      return;
-    }
+    try {
+      if (!await restoreSession()) {
+        applySavedTheme();
+        renderLogin();
+        return;
+      }
 
-    await start();
+      applySavedTheme();
+      renderImpersonationBanner();
+      await start();
+    } catch (error) {
+      showToast(error.message);
+      elements.app.innerHTML = `<div class="empty">Database is not ready. Run the SQL scripts in order, then refresh this page.</div>`;
+    }
   }
 
   function renderSystemWarning() {
@@ -82,6 +96,7 @@ export function createApplicationShell({
 
   async function start() {
     document.body.classList.remove("logged-out");
+    renderImpersonationBanner();
     renderNavigation();
     if (await reloadState()) {
       if (!state.projects.length) navigate("About");
@@ -96,7 +111,7 @@ export function createApplicationShell({
     try {
       await loadState();
       refreshLookupOptions();
-      ensureCurrentUser();
+      if (!ensureCurrentUser()) throw new Error("The signed-in user is no longer available.");
       renderUserPicker();
       return true;
     } catch (error) {
@@ -142,11 +157,6 @@ export function createApplicationShell({
       render();
     });
 
-    elements.userSelect.addEventListener("change", () => {
-      setCurrentUserId(elements.userSelect.value);
-      render();
-    });
-
     elements.userMenuToggle?.addEventListener("click", event => {
       event.stopPropagation();
       toggleUserMenu();
@@ -178,10 +188,25 @@ export function createApplicationShell({
       }
     });
 
-    document.getElementById("logout")?.addEventListener("click", () => {
+    document.getElementById("logout")?.addEventListener("click", async () => {
       closeUserMenu();
-      logout();
-      renderLogin();
+      try {
+        await logout();
+        renderLogin();
+      } catch (error) {
+        showToast(error.message || "Log out failed.");
+      }
+    });
+
+    elements.exitImpersonation?.addEventListener("click", async () => {
+      elements.exitImpersonation.disabled = true;
+      try {
+        await endImpersonation();
+        window.location.reload();
+      } catch (error) {
+        elements.exitImpersonation.disabled = false;
+        showToast(error.message || "Could not exit impersonation.");
+      }
     });
 
     document.addEventListener("click", event => {
@@ -200,6 +225,7 @@ export function createApplicationShell({
 
   function renderLogin() {
     document.body.classList.add("logged-out");
+    renderImpersonationBanner();
     elements.nav.innerHTML = "";
     elements.userSelect.innerHTML = "";
     elements.app.innerHTML = `
@@ -388,7 +414,22 @@ export function createApplicationShell({
       elements.userMenuToggle.title = user ? `${user.nickname} menu` : "User menu";
     }
 
+    renderImpersonationBanner();
     updateThemeToggle();
+  }
+
+  function renderImpersonationBanner() {
+    const active = isImpersonating();
+    if (!elements.impersonationBanner) return;
+
+    const user = state.users.find(item => item.id === currentUserId);
+    const fullName = [user?.firstName, user?.lastName].filter(Boolean).join(" ").trim();
+    const displayName = fullName || impersonatedUserName() || user?.nickname || "user";
+    if (elements.impersonationMessage) {
+      elements.impersonationMessage.textContent = active ? `Impersonating ${displayName}.` : "";
+    }
+    elements.impersonationBanner.hidden = !active;
+    document.body.classList.toggle("has-impersonation-banner", active);
   }
 
   function applySavedTheme() {

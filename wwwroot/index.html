@@ -25,7 +25,7 @@
   <!-- CSS loads from broad foundations to shared components, then feature-specific rules. -->
   <link rel="stylesheet" href="css/tokens.css?v=20260620-token-depth">
   <link rel="stylesheet" href="css/themes.css?v=20260621-paper-links">
-  <link rel="stylesheet" href="css/base.css?v=20260714-upload-storage-warning">
+  <link rel="stylesheet" href="css/base.css?v=20260715-admin-impersonation">
   <link rel="stylesheet" href="css/layout.css?v=20260627-stable-page-title">
   <link rel="stylesheet" href="css/components/buttons.css?v=20260711-tsg-report">
   <link rel="stylesheet" href="css/components/cards-panels.css?v=20260620-solid-surfaces">
@@ -50,12 +50,12 @@
   <link rel="stylesheet" href="css/features/sprints.css?v=20260627-sprint-card-four-columns">
   <link rel="stylesheet" href="css/features/tasks.css?v=20260711-task-dialog-customize">
   <link rel="stylesheet" href="css/features/bugs.css?v=20260711-tsg-report">
-  <link rel="stylesheet" href="css/features/scrum.css?v=20260715-attendance-calendar">
+  <link rel="stylesheet" href="css/features/scrum.css?v=20260716-stable-views">
   <link rel="stylesheet" href="css/features/log.css?v=20260709-muted-icons-indent">
   <link rel="stylesheet" href="css/features/documentation.css?v=20260712-doc-card-wheel-chain">
   <link rel="stylesheet" href="css/features/backlog.css?v=20260630-backlog-bug-related">
   <link rel="stylesheet" href="css/features/wfh-schedule.css?v=20260709-wfh-undo-large-days">
-  <link rel="stylesheet" href="css/features/settings.css?v=20260714-maintenance">
+  <link rel="stylesheet" href="css/features/settings.css?v=20260715-admin-impersonation">
 </head>
 <body>
   <header class="topbar">
@@ -97,6 +97,11 @@
     </div>
   </header>
 
+  <div id="impersonationBanner" class="impersonation-banner" role="status" aria-live="polite" hidden>
+    <strong id="impersonationMessage"></strong>
+    <button id="exitImpersonation" class="impersonation-exit-button" type="button">Exit Impersonation</button>
+  </div>
+
   <div id="systemWarning" class="system-warning" role="alert" aria-live="polite" hidden></div>
 
   <main id="app" class="app-shell"></main>
@@ -130,6 +135,6 @@
   </dialog>
 
   <div id="toast" class="toast" hidden></div>
-  <script type="module" src="js/app.js?v=20260715-day28-v118"></script>
+  <script type="module" src="js/app.js?v=20260716-scrum-stable-views"></script>
 </body>
 </html>

@@ -14,8 +14,8 @@ import {
   value
 } from "../../components/forms.js?v=20260715-day28-v118";
 import { sectionHead } from "../../components/sections.js?v=20260701-nav-title-preferences";
-import { createWorkItemTableMode } from "../../components/work-items.js?v=20260715-day28-v118";
-import { currentUser } from "../../core/authentication.js";
+import { createWorkItemTableMode } from "../../components/work-items.js?v=20260715-admin-impersonation";
+import { currentUser } from "../../core/authentication.js?v=20260715-admin-impersonation";
 import {
   preferenceKeys,
   readBooleanPreference,
@@ -32,8 +32,8 @@ import {
   formatDateTime
 } from "../../shared/dates.js";
 import { normalizeSavedArray } from "../../shared/filter-values.js";
-import { canDeleteOwner, canEditOwner } from "../../shared/permissions.js?v=20260714-scrum-ownership";
-import { canAccessResource } from "../../shared/security.js?v=20260713-role-security";
+import { canDeleteOwner, canEditOwner } from "../../shared/permissions.js?v=20260715-admin-impersonation";
+import { canAccessResource } from "../../shared/security.js?v=20260715-admin-impersonation";
 import {
   projectName,
   userById
@@ -75,7 +75,7 @@ const scrumWeekdayLabels = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const scrumAttendanceStatusDefinitions = Object.freeze([
   Object.freeze({ value: "Home", icon: "&#127968;", title: "Home" }),
   Object.freeze({ value: "Office", icon: "&#127970;", title: "Office" }),
-  Object.freeze({ value: "Sick Leave", icon: "&#10010;", title: "Sick Leave" }),
+  Object.freeze({ value: "Sick Leave", icon: "&#129298;", title: "Sick Leave" }),
   Object.freeze({ value: "Vacation", icon: "&#9728;", title: "Vacation" }),
   Object.freeze({ value: "EL", icon: "&#9888;", title: "Emergency Leave" }),
   Object.freeze({ value: "Other", icon: "&#8230;", title: "Other" })
@@ -212,13 +212,13 @@ export function createScrumFeature({
       <section class="scrum-screen work-item-screen">
         ${sectionHead("Scrum", `
           ${scrumTodayAttendanceHtml(todayOccurrences)}
+          ${scrumViewToggleHtml()}
           ${scrumAttendanceCheckInHtml(todayOccurrences, canCreateAttendance)}
           <button class="primary text-icon-button" type="button" data-action="new-log" title="New Scrum" aria-label="New Scrum">${buttonContent("&#10010;", "New Scrum")}</button>
           <button class="secondary text-icon-button" type="button" data-action="open-scrum-filters" title="Filters" aria-label="Filters" aria-haspopup="dialog">${buttonContent(funnelIconHtml(), "Filters")}</button>
           ${pageActionsMenuHtml([
             { action: "toggle-scrum-table-edit-mode", icon: "&#9998;", label: "Edit Mode", title: "Edit Mode", checked: scrumTableMode.active },
-            { action: "toggle-scrum-calendar", icon: "&#128197;", label: "Calendar", title: scrumCalendarVisible ? "Hide Calendar" : "Show Calendar", checked: scrumCalendarVisible, separatorBefore: true },
-            { action: "open-scrum-on-behalf", icon: "&#128101;", label: "On Behalf Of...", title: "On Behalf Of...", disabled: !canUpdateAttendance },
+            { action: "open-scrum-on-behalf", icon: "&#128101;", label: "On Behalf Of...", title: "On Behalf Of...", disabled: !canUpdateAttendance, separatorBefore: true },
             { action: "open-scrum-vacation", icon: "&#9728;", label: "Vacation...", title: "Vacation...", disabled: !canCreateAttendance && !canUpdateAttendance },
             { action: "export-scrum-view", icon: exportIconHtml(), label: "Export", title: "Export", separatorBefore: true },
             { action: "import-scrum-view", icon: importIconHtml(), label: "Import", title: "Import" },
@@ -332,7 +332,6 @@ export function createScrumFeature({
   function scrumTodayAttendanceHtml(occurrences) {
     const attendanceByUser = scrumLatestTodayAttendanceByUser(occurrences);
     const users = state.users.filter(user => user.isActive !== false && attendanceByUser.has(Number(user.id)));
-    if (!users.length) return "";
 
     return `
       <div class="scrum-today-attendance" data-scrum-attendance-roster aria-label="Today's attendance">
@@ -350,6 +349,19 @@ export function createScrumFeature({
             </button>
           `;
         }).join("")}
+      </div>
+    `;
+  }
+
+  function scrumViewToggleHtml() {
+    return `
+      <div class="scrum-view-toggle" aria-label="Scrum view">
+        <button class="secondary text-icon-button scrum-view-toggle-button ${scrumCalendarVisible ? "" : "is-on"}" type="button" data-action="set-scrum-view" data-mode="table" aria-pressed="${!scrumCalendarVisible}">
+          ${buttonContent("&#9776;", "Table")}
+        </button>
+        <button class="secondary text-icon-button scrum-view-toggle-button ${scrumCalendarVisible ? "is-on" : ""}" type="button" data-action="set-scrum-view" data-mode="calendar" aria-pressed="${scrumCalendarVisible}">
+          ${buttonContent("&#128197;", "Calendar")}
+        </button>
       </div>
     `;
   }
@@ -1073,8 +1085,11 @@ export function createScrumFeature({
       await checkInScrumAttendance(element);
       return true;
     }
-    if (action === "toggle-scrum-calendar") {
-      scrumCalendarVisible = !scrumCalendarVisible;
+    if (action === "set-scrum-view") {
+      const showCalendar = element?.dataset?.mode === "calendar";
+      if (showCalendar === scrumCalendarVisible) return true;
+      if (showCalendar) await ensureScrumAttendanceMonth(scrumCalendarMonth, { render: false });
+      scrumCalendarVisible = showCalendar;
       writePreference(scrumCalendarVisiblePreferenceKey, scrumCalendarVisible);
       renderDevLogs();
       return true;

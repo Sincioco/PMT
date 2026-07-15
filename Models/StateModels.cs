@@ -30,6 +30,9 @@ public sealed class AuditEventDto
     public int? OldPercentCompleted { get; set; }
     public int? NewPercentCompleted { get; set; }
     public int UserId { get; set; }
+    public int ActorUserId { get; set; }
+    public string UserName { get; set; } = "";
+    public string ActorUserName { get; set; } = "";
     public DateTime CreatedAt { get; set; }
 }
 

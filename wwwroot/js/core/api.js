@@ -1,13 +1,7 @@
 import { appUrl } from "../shared/app-urls.js";
 
-let currentUserIdProvider = () => 0;
-
-export function setCurrentUserIdProvider(provider) {
-  currentUserIdProvider = typeof provider === "function" ? provider : () => 0;
-}
-
 export async function api(path, options = {}) {
-  const headers = { "X-PMT-UserId": String(currentUserIdProvider() || 0) };
+  const headers = {};
   const bodyIsForm = options.body instanceof FormData;
 
   if (!bodyIsForm && options.body !== undefined) {
@@ -31,5 +25,6 @@ async function normalizeApiError(response) {
   const problem = await response.json().catch(() => null);
   const error = new Error(problem?.error || response.statusText || "Request failed.");
   error.code = problem?.code || "";
+  error.status = response.status;
   return error;
 }

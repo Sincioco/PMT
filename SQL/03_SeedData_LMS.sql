@@ -242,14 +242,14 @@ BEGIN
     INSERT INTO [pmt].[AuditEvents]
     (
         [EntityType], [EntityId], [Action], [Details], [OldStatus], [NewStatus],
-        [OldPercentCompleted], [NewPercentCompleted], [UserId], [CreatedByUserId], [CreatedAt]
+        [OldPercentCompleted], [NewPercentCompleted], [UserId], [ActorUserId], [CreatedByUserId], [CreatedAt]
     )
     VALUES
-    (N'Task', @BugTaskId, N'Status/Percent Changed', N'QA failed the first pass and moved the Bug back to the developer.', N'QA in Progress', N'QA Failed', 0, 100, @Sam, @Sin, DATEADD(DAY, 8, @SprintStart)),
-    (N'Task', @BugFixTaskId, N'Status/Percent Changed', N'Developer started the Bug Fix task.', N'Todo', N'In Progress', 0, 50, @DeveloperId, @Sin, DATEADD(DAY, 9, @SprintStart)),
-    (N'Task', @BugFixTaskId, N'Status/Percent Changed', N'Developer completed the Bug Fix and reset the Bug for QA retest.', N'In Progress', N'Code Complete', 50, 100, @DeveloperId, @Sin, DATEADD(DAY, 10, @SprintStart)),
-    (N'Task', @BugTaskId, N'Status/Percent Changed', N'Bug percent reset to 0 for QA retest.', N'QA Failed', N'QA Failed', 100, 0, @DeveloperId, @Sin, DATEADD(DAY, 10, @SprintStart)),
-    (N'Task', @BugTaskId, N'Status/Percent Changed', N'QA retest passed before sprint close.', N'QA Failed', N'QA Passed', 0, 100, @Sam, @Sin, DATEADD(DAY, 12, @SprintStart));
+    (N'Task', @BugTaskId, N'Status/Percent Changed', N'QA failed the first pass and moved the Bug back to the developer.', N'QA in Progress', N'QA Failed', 0, 100, @Sam, @Sam, @Sin, DATEADD(DAY, 8, @SprintStart)),
+    (N'Task', @BugFixTaskId, N'Status/Percent Changed', N'Developer started the Bug Fix task.', N'Todo', N'In Progress', 0, 50, @DeveloperId, @DeveloperId, @Sin, DATEADD(DAY, 9, @SprintStart)),
+    (N'Task', @BugFixTaskId, N'Status/Percent Changed', N'Developer completed the Bug Fix and reset the Bug for QA retest.', N'In Progress', N'Code Complete', 50, 100, @DeveloperId, @DeveloperId, @Sin, DATEADD(DAY, 10, @SprintStart)),
+    (N'Task', @BugTaskId, N'Status/Percent Changed', N'Bug percent reset to 0 for QA retest.', N'QA Failed', N'QA Failed', 100, 0, @DeveloperId, @DeveloperId, @Sin, DATEADD(DAY, 10, @SprintStart)),
+    (N'Task', @BugTaskId, N'Status/Percent Changed', N'QA retest passed before sprint close.', N'QA Failed', N'QA Passed', 0, 100, @Sam, @Sam, @Sin, DATEADD(DAY, 12, @SprintStart));
 
     SET @TaskCounter += 1;
     SET @SprintNumber += 1;
@@ -275,9 +275,9 @@ WHERE [ParentTask].[ProjectId] = @LmsProject
 INSERT INTO [pmt].[AuditEvents]
 (
     [EntityType], [EntityId], [Action], [Details], [OldStatus], [NewStatus],
-    [OldPercentCompleted], [NewPercentCompleted], [UserId], [CreatedByUserId], [CreatedAt]
+    [OldPercentCompleted], [NewPercentCompleted], [UserId], [ActorUserId], [CreatedByUserId], [CreatedAt]
 )
-SELECT N'Task', [TaskId], N'Created', [Title], NULL, [Status], NULL, [PercentCompleted], [CreatedByUserId], @Sin, [CreatedAt]
+SELECT N'Task', [TaskId], N'Created', [Title], NULL, [Status], NULL, [PercentCompleted], [CreatedByUserId], [CreatedByUserId], @Sin, [CreatedAt]
 FROM [pmt].[WorkTasks]
 WHERE [ProjectId] = @LmsProject;
 
@@ -326,11 +326,11 @@ VALUES (@LmsBacklogFix, @LmsBacklogBug, @Sin);
 INSERT INTO [pmt].[AuditEvents]
 (
     [EntityType], [EntityId], [Action], [Details], [OldStatus], [NewStatus],
-    [OldPercentCompleted], [NewPercentCompleted], [UserId], [CreatedByUserId], [CreatedAt]
+    [OldPercentCompleted], [NewPercentCompleted], [UserId], [ActorUserId], [CreatedByUserId], [CreatedAt]
 )
 VALUES
-(N'Task', @LmsBacklogBug, N'Created', N'Mobile quiz timer overlaps answer choices', NULL, N'Todo', NULL, 0, @Sin, @Sin, @Now),
-(N'Task', @LmsBacklogFix, N'Created', N'Backlog Bug Fix created for planning.', NULL, N'Todo', NULL, 0, @Sin, @Sin, @Now);
+(N'Task', @LmsBacklogBug, N'Created', N'Mobile quiz timer overlaps answer choices', NULL, N'Todo', NULL, 0, @Sin, @Sin, @Sin, @Now),
+(N'Task', @LmsBacklogFix, N'Created', N'Backlog Bug Fix created for planning.', NULL, N'Todo', NULL, 0, @Sin, @Sin, @Sin, @Now);
 
 ;WITH OrderedTasks AS
 (
@@ -424,18 +424,20 @@ BEGIN
     SET @LogCount += 1;
 END;
 
-INSERT INTO [pmt].[Blogs] ([ProjectId], [Title], [BodyHtml], [CreatedByUserId])
+INSERT INTO [pmt].[Blogs] ([ProjectId], [Title], [BodyHtml], [IsPrivate], [CreatedByUserId])
 VALUES
 (
     @LmsProject,
     N'LMS Course Catalog Release Notes',
     N'<p><img src="/assets/docs/lms-course-catalog-v2.jpg" alt="LMS course catalog screen with searchable course cards and enrollment status"></p><p>The LMS course catalog helps learners find required training quickly. Keep the first release focused on searchable course cards, enrollment status, and clear calls to action.</p><ul><li>Show required and optional courses separately.</li><li>Display estimated duration and due date.</li><li>Keep enrollment changes audited.</li></ul>',
+    0,
     @Sin
 ),
 (
     @LmsProject,
     N'LMS Computer Lab Rollout Checklist',
     N'<p><img src="/assets/docs/lms-computer-lab-v2.jpg" alt="LMS computer lab rollout checklist with workstation readiness and QA checks"></p><p>Use this checklist when rolling the LMS into shared training rooms.</p><ul><li>Confirm Chrome is installed and up to date.</li><li>Verify SSO login from a learner workstation.</li><li>Run one quiz and one assignment upload before class starts.</li></ul>',
+    0,
     @Sam
 );
 

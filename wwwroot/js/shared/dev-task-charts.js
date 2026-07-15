@@ -1,4 +1,4 @@
-import { isTaskCompleted } from "./work-item-rules.js?v=20260714-linked-bug-percent";
+import { isTaskCompleted } from "./work-item-rules.js?v=20260716-developer-board-status";
 import { createDevTaskWorkloadView } from "./dev-task-workload.js?v=20260712-about-workload-billboard";
 
 export function devTaskMixChart(tasks) {

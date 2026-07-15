@@ -61,6 +61,7 @@ test("Settings category routes parse without changing legacy screen routes", () 
     settingsCategory: "security"
   });
   assert.equal(routeForSettingsCategory("Security"), "#/settings/security");
+  assert.equal(routeForSettingsCategory("Audit Trail"), "#/settings/audit-trail");
   assert.equal(routeForSettingsCategory("LogCategory"), "#/settings/log-categories");
   assert.equal(routeForSettingsCategory("Role"), "#/settings/roles");
   assert.equal(routeForSettingsCategory("Release Type"), "#/settings/release-type");

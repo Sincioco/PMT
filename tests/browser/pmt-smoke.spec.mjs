@@ -21,6 +21,13 @@ test.use({ timezoneId: "Asia/Taipei" });
 
 test("login, navigation, themes, dialogs, filters, Board, Gantt, and Road Map smoke", async ({ page }) => {
   const appState = createTestState();
+  appState.tasks.find(task => task.code === "PMT-BUG-001").severity = "1 - Critical";
+  appState.lookups.push(
+    { id: 201, lookupType: "Severity", value: "4 - Trivial", colorHex: "", displayOrder: 10, isActive: true },
+    { id: 202, lookupType: "Severity", value: "3 - Minor", colorHex: "", displayOrder: 20, isActive: true },
+    { id: 203, lookupType: "Severity", value: "2 - Major", colorHex: "", displayOrder: 30, isActive: true },
+    { id: 204, lookupType: "Severity", value: "1 - Critical", colorHex: "", displayOrder: 40, isActive: true }
+  );
   const apiCalls = { restorePmt: 0, securityReset: 0 };
   const browserErrors = [];
 
@@ -414,10 +421,22 @@ test("login, navigation, themes, dialogs, filters, Board, Gantt, and Road Map sm
   await page.locator("#cancelDialog").click();
 
   await openNavView(page, "Bugs", "Bug Tracking");
+  const severityPill = page.locator(".bugs-table tr[data-task-id='4'] .pill[title='1 - Critical']");
+  await expect(severityPill).toHaveText("Critical");
+  await expect(severityPill).toHaveAttribute("title", "1 - Critical");
+  await expect(severityPill).toHaveClass(/severity-Critical/);
   await showFilters(page, "toggle-bug-filters");
-  await page.locator("[data-filter='bug-severity']").selectOption("Critical");
+  await page.locator("[data-filter='bug-severity']").selectOption("1 - Critical");
   await expect(page.locator(".bugs-table")).toContainText("PMT-BUG-001");
   await closeFilterDialog(page, "bug");
+  const severityLegend = page.locator(".bug-severity-chart-card .chart-legend-row").filter({ hasText: "Critical" });
+  await expect(severityLegend.locator("span")).toHaveText("Critical");
+  await expect(severityLegend).toHaveAttribute("data-chart-tooltip", "1 - Critical: 1 bug report");
+  expect(await severityLegend.locator("i").evaluate(marker => marker.style.getPropertyValue("--chart-color"))).toBe("var(--chart-5)");
+  await page.locator(".bugs-table tr[data-task-id='4']").click();
+  const bugDetails = page.locator("dialog.detail-dialog");
+  await expect(bugDetails.locator("[data-work-item-dialog-field='severity'] [title='1 - Critical']")).toHaveText("Critical");
+  await bugDetails.locator("button.primary[data-close]").click();
 
   await openNavView(page, "Road Map", "Road Map");
   await expect(page.locator(".roadmap")).toBeVisible();
@@ -448,12 +467,48 @@ test("login, navigation, themes, dialogs, filters, Board, Gantt, and Road Map sm
   await dragFirstTodoCardToInProgress(page);
   await expect(page.locator(".column[data-status='In Progress']")).toContainText("PMT-TASK-001");
 
-  expect(browserErrors).toEqual([]);
+  const expectedAnonymousSessionErrors = browserErrors.filter(message => /status of 401 \(Unauthorized\)/.test(message));
+  expect(expectedAnonymousSessionErrors).toHaveLength(1);
+  expect(browserErrors.filter(message => !expectedAnonymousSessionErrors.includes(message))).toEqual([]);
+});
+
+test("Developer Board moves stop after QA Passed while QA Ready remains available", async ({ page }) => {
+  const appState = createTestState();
+  const apiCalls = { securityReset: 0, sessionUserId: 2, taskSaves: [] };
+
+  await page.addInitScript(() => localStorage.clear());
+  await installApiMocks(page, appState, apiCalls);
+  await page.goto("/");
+  await openNavView(page, "Board", "Kanban Board");
+  await showFilters(page, "open-board-filters");
+  const testedStatuses = new Set(["Todo", "Ready for QA", "QA Passed", "Deployed in SIT"]);
+  for (const status of statuses) {
+    const checkbox = page.locator(`[data-filter='board-status'][value='${status}']`);
+    if (testedStatuses.has(status)) {
+      await checkbox.check();
+    } else {
+      await checkbox.uncheck();
+    }
+  }
+  await closeFilterDialog(page, "board");
+  await expect(page.locator(".column")).toHaveCount(testedStatuses.size);
+  await page.locator("[data-action='toggle-board-edit-mode']").click();
+
+  await dragBoardTaskToStatus(page, "PMT-TASK-001", "Ready for QA");
+  await expect(page.locator(".column[data-status='Ready for QA']")).toContainText("PMT-TASK-001");
+
+  await dragBoardTaskToStatus(page, "PMT-TASK-001", "QA Passed");
+  await expect(page.locator(".column[data-status='QA Passed']")).toContainText("PMT-TASK-001");
+
+  await dragBoardTaskToStatus(page, "PMT-TASK-001", "Deployed in SIT");
+  await expect(page.locator("#toast")).toHaveText("Developers can move Dev Tasks through QA Passed, but not to deployment statuses.");
+  await expect(page.locator(".column[data-status='QA Passed']")).toContainText("PMT-TASK-001");
+  expect(apiCalls.taskSaves).toHaveLength(2);
 });
 
 test("Scrum attendance, calendar, on-behalf, and vacation flows stay synchronized", async ({ page }) => {
   const appState = createTestState();
-  const apiCalls = { securityReset: 0 };
+  const apiCalls = { holdAttendanceGets: true, securityReset: 0, sessionUserId: 1 };
   const browserErrors = [];
 
   page.on("console", message => {
@@ -464,17 +519,28 @@ test("Scrum attendance, calendar, on-behalf, and vacation flows stay synchronize
   await page.clock.setFixedTime(new Date("2026-07-15T08:00:00+08:00"));
   await page.addInitScript(() => {
     localStorage.clear();
-    localStorage.setItem("pmt-auth-user", "1");
   });
   await installApiMocks(page, appState, apiCalls);
 
   await page.goto("/");
   await openNavView(page, "Scrum", "Scrum");
 
+  const scrumHeader = page.locator(".scrum-screen .section-head");
+  const scrumTablePanel = page.locator(".scrum-table-panel");
+  const scrumViewToggle = page.locator(".scrum-view-toggle");
+  const tableViewButton = page.locator("[data-action='set-scrum-view'][data-mode='table']");
+  const calendarViewButton = page.locator("[data-action='set-scrum-view'][data-mode='calendar']");
+  await expect.poll(() => typeof apiCalls.releaseAttendanceGets).toBe("function");
+  await expect(page.locator("[data-scrum-attendance-roster] [data-scrum-today-user]")).toHaveCount(0);
+  const headerBeforeAttendance = await scrumHeader.boundingBox();
+  const tableBeforeAttendance = await scrumTablePanel.boundingBox();
+  const toggleBeforeAttendance = await scrumViewToggle.boundingBox();
+  apiCalls.releaseAttendanceGets();
+
   const attendanceSelect = page.locator("[data-scrum-attendance-select]");
   await expect(attendanceSelect).toBeVisible();
   const attendanceLabels = (await attendanceSelect.locator("option").allTextContents()).map(label => label.trim());
-  for (const label of ["🏠 Home", "🏢 Office", "✚ Sick Leave", "☀ Vacation", "⚠ EL", "… Other"]) {
+  for (const label of ["🏠 Home", "🏢 Office", "🤒 Sick Leave", "☀ Vacation", "⚠ EL", "… Other"]) {
     expect(attendanceLabels).toContain(label);
   }
   await expect(attendanceSelect.locator("option[value='EL']")).toHaveAttribute("title", "Emergency Leave");
@@ -482,6 +548,33 @@ test("Scrum attendance, calendar, on-behalf, and vacation flows stay synchronize
   await expect(scrumTodayStatus(page, 1, "Office")).toBeVisible();
   await expect(scrumTodayStatus(page, 2, "Home")).toBeVisible();
   await expect(scrumTodayStatus(page, 3, "Vacation")).toBeVisible();
+  const headerAfterAttendance = await scrumHeader.boundingBox();
+  const tableAfterAttendance = await scrumTablePanel.boundingBox();
+  const toggleAfterAttendance = await scrumViewToggle.boundingBox();
+  expect(headerBeforeAttendance).not.toBeNull();
+  expect(tableBeforeAttendance).not.toBeNull();
+  expect(toggleBeforeAttendance).not.toBeNull();
+  expect(headerAfterAttendance).not.toBeNull();
+  expect(tableAfterAttendance).not.toBeNull();
+  expect(toggleAfterAttendance).not.toBeNull();
+  expect(headerAfterAttendance.height).toBeCloseTo(headerBeforeAttendance.height, 0);
+  expect(tableAfterAttendance.y).toBeCloseTo(tableBeforeAttendance.y, 0);
+  expect(toggleAfterAttendance.x).toBeCloseTo(toggleBeforeAttendance.x, 0);
+  expect(toggleAfterAttendance.y).toBeCloseTo(toggleBeforeAttendance.y, 0);
+  const titleAvatarBox = await page.locator(".scrum-today-avatar").first().boundingBox();
+  const statusBadgeBox = await page.locator(".scrum-attendance-badge").first().boundingBox();
+  const scrumScreenBox = await page.locator(".scrum-screen").boundingBox();
+  expect(titleAvatarBox).not.toBeNull();
+  expect(statusBadgeBox).not.toBeNull();
+  expect(scrumScreenBox).not.toBeNull();
+  expect(titleAvatarBox.width).toBeCloseTo(80, 0);
+  expect(titleAvatarBox.height).toBeCloseTo(80, 0);
+  expect(statusBadgeBox.width).toBeGreaterThanOrEqual(28);
+  expect(statusBadgeBox.height).toBeGreaterThanOrEqual(28);
+  expect(titleAvatarBox.y + titleAvatarBox.height / 2)
+    .toBeCloseTo((scrumScreenBox.y + tableAfterAttendance.y) / 2, 0);
+  await expect(tableViewButton).toHaveAttribute("aria-pressed", "true");
+  await expect(calendarViewButton).toHaveAttribute("aria-pressed", "false");
   expect(await page.locator("[data-scrum-today-user]").evaluateAll(buttons => buttons.every((button, index) => {
     const box = button.getBoundingClientRect();
     return buttons.slice(index + 1).every(other => {
@@ -518,10 +611,16 @@ test("Scrum attendance, calendar, on-behalf, and vacation flows stay synchronize
   await page.locator(".page-actions-summary").click();
   const scrumActions = page.locator(".page-actions-list");
   await expect(scrumActions).not.toContainText("Graphs");
-  await expect(scrumActions.locator("[data-action='toggle-scrum-calendar']")).toContainText("Calendar");
+  await expect(scrumActions.locator("[data-action='toggle-scrum-calendar']")).toHaveCount(0);
   await expect(scrumActions.locator("[data-action='open-scrum-on-behalf']")).toContainText("On Behalf Of...");
   await expect(scrumActions.locator("[data-action='open-scrum-vacation']")).toContainText("Vacation...");
-  await scrumActions.locator("[data-action='toggle-scrum-calendar']").click();
+  await page.locator(".page-actions-summary").click();
+  const headerBeforeCalendar = await scrumHeader.boundingBox();
+  const toggleBeforeCalendar = await scrumViewToggle.boundingBox();
+  await calendarViewButton.click();
+  await expect(tableViewButton).toHaveAttribute("aria-pressed", "false");
+  await expect(calendarViewButton).toHaveAttribute("aria-pressed", "true");
+  await expect.poll(() => page.evaluate(() => localStorage.getItem("pmt-scrum-calendar-visible"))).toBe("true");
 
   const calendar = page.locator("[data-scrum-calendar]");
   const todayCell = calendar.locator(`[data-scrum-calendar-day='${smokeToday}']`);
@@ -547,8 +646,17 @@ test("Scrum attendance, calendar, on-behalf, and vacation flows stay synchronize
   await expect(todayCell).not.toContainText("Inactive Holiday");
   const calendarBox = await calendar.boundingBox();
   const tableBox = await page.locator(".scrum-table").boundingBox();
+  const headerAfterCalendar = await scrumHeader.boundingBox();
+  const toggleAfterCalendar = await scrumViewToggle.boundingBox();
   expect(calendarBox).not.toBeNull();
   expect(tableBox).not.toBeNull();
+  expect(headerBeforeCalendar).not.toBeNull();
+  expect(toggleBeforeCalendar).not.toBeNull();
+  expect(headerAfterCalendar).not.toBeNull();
+  expect(toggleAfterCalendar).not.toBeNull();
+  expect(headerAfterCalendar.height).toBeCloseTo(headerBeforeCalendar.height, 0);
+  expect(toggleAfterCalendar.x).toBeCloseTo(toggleBeforeCalendar.x, 0);
+  expect(toggleAfterCalendar.y).toBeCloseTo(toggleBeforeCalendar.y, 0);
   expect(calendarBox.y + calendarBox.height).toBeLessThanOrEqual(tableBox.y + 1);
 
   const monthSelect = page.locator("[data-scrum-calendar-month]");
@@ -633,12 +741,19 @@ test("Scrum attendance, calendar, on-behalf, and vacation flows stay synchronize
     await expect(scrumCalendarVacationAvatar(page, `2026-08-${day}`, 1)).toHaveCount(0);
   }
 
+  await tableViewButton.click();
+  await expect(tableViewButton).toHaveAttribute("aria-pressed", "true");
+  await expect(calendarViewButton).toHaveAttribute("aria-pressed", "false");
+  await expect(calendar).toHaveCount(0);
+  await expect(scrumTablePanel).toBeVisible();
+  await expect.poll(() => page.evaluate(() => localStorage.getItem("pmt-scrum-calendar-visible"))).toBe("false");
+
   expect(browserErrors).toEqual([]);
 });
 
 test("Scrum read-only permission disables attendance and vacation mutations", async ({ page }) => {
   const appState = createTestState();
-  const apiCalls = { securityReset: 0 };
+  const apiCalls = { securityReset: 0, sessionUserId: 2 };
   appState.effectivePermissions = appState.effectivePermissions.map(permission => permission.resourceKey === "Scrum"
     ? {
         ...permission,
@@ -655,7 +770,6 @@ test("Scrum read-only permission disables attendance and vacation mutations", as
   await page.clock.setFixedTime(new Date("2026-07-15T08:00:00+08:00"));
   await page.addInitScript(() => {
     localStorage.clear();
-    localStorage.setItem("pmt-auth-user", "2");
   });
   await installApiMocks(page, appState, apiCalls);
 
@@ -670,9 +784,9 @@ test("Scrum read-only permission disables attendance and vacation mutations", as
   await expect(page.locator("[data-scrum-on-behalf-dialog], [data-scrum-vacation-dialog]")).toHaveCount(0);
 });
 
-test("Scrum attendance cache follows the current shell user", async ({ page }) => {
+test("Scrum attendance cache follows the restored cookie session user", async ({ page }) => {
   const appState = createTestState();
-  const apiCalls = { securityReset: 0 };
+  const apiCalls = { securityReset: 0, sessionUserId: 1 };
   appState.vacationPlans.push({
     id: 20,
     userId: 2,
@@ -686,7 +800,6 @@ test("Scrum attendance cache follows the current shell user", async ({ page }) =
   await page.clock.setFixedTime(new Date("2026-07-15T08:00:00+08:00"));
   await page.addInitScript(() => {
     localStorage.clear();
-    localStorage.setItem("pmt-auth-user", "1");
   });
   await installApiMocks(page, appState, apiCalls);
 
@@ -699,16 +812,9 @@ test("Scrum attendance cache follows the current shell user", async ({ page }) =
   await expect(vacationDialog.locator("[data-scrum-vacation-id='20']")).toHaveCount(0);
   await vacationDialog.locator("[data-close-scrum-vacation]").last().click();
 
-  await page.locator("#currentUser").evaluate(select => {
-    const option = document.createElement("option");
-    option.value = "2";
-    option.textContent = "Bill";
-    select.appendChild(option);
-    select.disabled = false;
-    select.hidden = false;
-    select.value = "2";
-    select.dispatchEvent(new Event("change", { bubbles: true }));
-  });
+  apiCalls.setSessionUserId(2);
+  await page.reload();
+  await openNavView(page, "Scrum", "Scrum");
 
   await expect(page.locator("#userMenuToggle")).toHaveAttribute("title", "Bill menu");
   await expect.poll(() => (apiCalls.attendanceGets || []).some(call => call.userId === 2)).toBe(true);
@@ -904,7 +1010,7 @@ test("RTE Select shows eight proportional image resize handles", async ({ page }
 
 test("QA can edit only owned Scrum rows and private Log stays owner-only", async ({ page }) => {
   const appState = createTestState();
-  const apiCalls = { securityReset: 0 };
+  const apiCalls = { securityReset: 0, sessionUserId: 3 };
   let savedScrumMethod = "";
   let savedScrumPayload = null;
   const today = new Date();
@@ -921,7 +1027,6 @@ test("QA can edit only owned Scrum rows and private Log stays owner-only", async
     ...testHistoricalRolePermission(resource, "QA")
   }));
 
-  await page.addInitScript(() => localStorage.setItem("pmt-auth-user", "3"));
   await installApiMocks(page, appState, apiCalls);
   await page.route("**/api/devlogs/2", async route => {
     savedScrumMethod = route.request().method();
@@ -1011,11 +1116,27 @@ async function installApiMocks(page, appState, apiCalls) {
   let nextAttendanceId = Math.max(0, ...attendanceEntries.map(item => Number(item.id) || 0)) + 1;
   let nextVacationId = Math.max(0, ...vacationPlans.map(item => Number(item.id) || 0)) + 1;
   let nextAttendanceMutationSecond = 1;
+  let sessionUserId = Number(apiCalls.sessionUserId) || 0;
+
+  apiCalls.setSessionUserId = userId => {
+    sessionUserId = Number(userId) || 0;
+  };
+
+  await page.route("**/api/session", async route => {
+    const user = appState.users.find(item => item.id === sessionUserId);
+    if (!user) {
+      await route.fulfill(jsonResponse({ error: "Unauthorized" }, 401));
+      return;
+    }
+
+    await route.fulfill(jsonResponse(testSessionPayload(user)));
+  });
 
   await page.route("**/api/login", async route => {
     const input = requestJson(route);
     if ((input.login || "").toLowerCase() === "sin" && input.password === "Password1") {
-      await route.fulfill(jsonResponse({ userId: 1, nickname: "Sin", isAdmin: true, role: "Admin" }));
+      sessionUserId = 1;
+      await route.fulfill(jsonResponse(testSessionPayload(appState.users.find(user => user.id === 1))));
       return;
     }
 
@@ -1027,13 +1148,21 @@ async function installApiMocks(page, appState, apiCalls) {
   });
 
   await page.route(/\/api\/attendance(?:\?.*)?$/, async route => {
-    const currentUserId = requestCurrentUserId(route);
+    const currentUserId = sessionUserId;
     if (route.request().method() === "GET") {
       const url = new URL(route.request().url());
       const startDate = url.searchParams.get("startDate") || "0001-01-01";
       const endDate = url.searchParams.get("endDate") || "9999-12-31";
       if (!Array.isArray(apiCalls.attendanceGets)) apiCalls.attendanceGets = [];
       apiCalls.attendanceGets.push({ userId: currentUserId, startDate, endDate });
+      if (apiCalls.holdAttendanceGets) {
+        await new Promise(resolve => {
+          apiCalls.releaseAttendanceGets = () => {
+            apiCalls.holdAttendanceGets = false;
+            resolve();
+          };
+        });
+      }
       await route.fulfill(jsonResponse({
         entries: attendanceEntries.filter(item => item.attendanceDate >= startDate && item.attendanceDate <= endDate),
         vacations: vacationPlans.filter(item => !item.isCancelled
@@ -1081,7 +1210,7 @@ async function installApiMocks(page, appState, apiCalls) {
 
     const plan = {
       id: nextVacationId++,
-      userId: requestCurrentUserId(route),
+      userId: sessionUserId,
       startDate: input.startDate,
       endDate: input.endDate,
       isCancelled: false,
@@ -1195,6 +1324,7 @@ async function installApiMocks(page, appState, apiCalls) {
       return;
     }
 
+    if (Array.isArray(apiCalls.taskSaves)) apiCalls.taskSaves.push(input);
     Object.assign(task, input);
     hydrateTaskPeople(appState, task);
     await route.fulfill(jsonResponse({ id: task.id }));
@@ -1294,8 +1424,17 @@ async function clickPageAction(page, action) {
   await page.locator(`.page-actions-list [data-action='${action}']`).click();
 }
 
-function requestCurrentUserId(route) {
-  return Number(route.request().headers()["x-pmt-userid"]) || 1;
+function testSessionPayload(user) {
+  return {
+    userId: user.id,
+    nickname: user.nickname,
+    isAdmin: Boolean(user.isAdmin),
+    role: user.role || "Developer",
+    originalUserId: user.id,
+    originalUserName: user.nickname,
+    isImpersonating: false,
+    impersonatedUserName: ""
+  };
 }
 
 function scrumTodayPersonButton(page, userId) {
@@ -1340,8 +1479,12 @@ async function expectTimelineHasSize(page, selector) {
 }
 
 async function dragFirstTodoCardToInProgress(page) {
-  const source = page.locator(".column[data-status='Todo'] .task-card", { hasText: "PMT-TASK-001" }).first();
-  const target = page.locator(".column[data-status='In Progress']").first();
+  await dragBoardTaskToStatus(page, "PMT-TASK-001", "In Progress");
+}
+
+async function dragBoardTaskToStatus(page, taskCode, status) {
+  const source = page.locator(".task-card", { hasText: taskCode }).first();
+  const target = page.locator(`.column[data-status='${status}']`).first();
   await expect(source).toBeVisible();
   await expect(target).toBeVisible();
 
@@ -1352,7 +1495,8 @@ async function dragFirstTodoCardToInProgress(page) {
 
   await page.mouse.move(sourceBox.x + sourceBox.width / 2, sourceBox.y + sourceBox.height / 2);
   await page.mouse.down();
-  await page.mouse.move(targetBox.x + targetBox.width / 2, targetBox.y + 80, { steps: 8 });
+  const targetOffsetY = Math.max(5, Math.min(55, targetBox.height - 5));
+  await page.mouse.move(targetBox.x + targetBox.width / 2, targetBox.y + targetOffsetY, { steps: 8 });
   await page.mouse.up();
 }
 

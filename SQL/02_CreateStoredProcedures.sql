@@ -1,5 +1,5 @@
 /*
-    PMT Version 1.18 stored procedures.
+    PMT Version 1.21 stored procedures.
     The application uses ADO.NET and calls these procedures directly.
     The SQL is intentionally explicit so future maintainers can trace each save action.
 */
@@ -254,6 +254,13 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
+    DECLARE @ActorUserId INT = TRY_CONVERT(INT, SESSION_CONTEXT(N'PMT_ActorUserId'));
+    IF @ActorUserId IS NULL
+       OR NOT EXISTS (SELECT 1 FROM [pmt].[Users] WHERE [UserId] = @ActorUserId)
+    BEGIN
+        SET @ActorUserId = @UserId;
+    END;
+
     INSERT INTO [pmt].[AuditEvents]
     (
         [EntityType],
@@ -265,6 +272,7 @@ BEGIN
         [OldPercentCompleted],
         [NewPercentCompleted],
         [UserId],
+        [ActorUserId],
         [CreatedByUserId]
     )
     VALUES
@@ -278,6 +286,7 @@ BEGIN
         @OldPercentCompleted,
         @NewPercentCompleted,
         @UserId,
+        @ActorUserId,
         @UserId
     );
 END;
@@ -1169,11 +1178,171 @@ BEGIN
         [UserId],
         [Nickname],
         [IsAdmin],
-        [Role]
+        [Role],
+        [RowVersion]
     FROM [pmt].[Users]
     WHERE [IsActive] = 1
       AND ([Nickname] = @Login OR [Email] = @Login)
       AND [PasswordHash] = HASHBYTES('SHA2_256', CONVERT(NVARCHAR(4000), @Password));
+END;
+GO
+
+CREATE OR ALTER PROCEDURE [pmt].[GetSessionUser]
+    @UserId INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    SELECT
+        [UserId],
+        [Nickname],
+        [IsAdmin],
+        [Role],
+        [RowVersion]
+    FROM [pmt].[Users]
+    WHERE [UserId] = @UserId
+      AND [IsActive] = 1;
+END;
+GO
+
+CREATE OR ALTER PROCEDURE [pmt].[BeginImpersonation]
+    @AdminUserId INT,
+    @TargetUserId INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    IF [pmt].[IsAdmin](@AdminUserId) = 0
+    BEGIN
+        THROW 51030, 'Only an administrator can impersonate another user.', 1;
+    END;
+
+    IF @TargetUserId = @AdminUserId
+    BEGIN
+        THROW 51031, 'Select another user to impersonate.', 1;
+    END;
+
+    IF NOT EXISTS (SELECT 1 FROM [pmt].[Users] WHERE [UserId] = @TargetUserId AND [IsActive] = 1)
+    BEGIN
+        THROW 51032, 'The selected user is not active.', 1;
+    END;
+
+    DECLARE @AdminName NVARCHAR(80) = (SELECT [Nickname] FROM [pmt].[Users] WHERE [UserId] = @AdminUserId);
+    DECLARE @TargetName NVARCHAR(80) = (SELECT [Nickname] FROM [pmt].[Users] WHERE [UserId] = @TargetUserId);
+    DECLARE @Details NVARCHAR(MAX) = CONCAT(@AdminName, N' started impersonating ', @TargetName, N'.');
+
+    EXEC [pmt].[WriteAudit]
+        N'Impersonation',
+        @TargetUserId,
+        N'Started',
+        @Details,
+        @TargetUserId;
+
+    SELECT
+        [UserId],
+        [Nickname],
+        [IsAdmin],
+        [Role],
+        [RowVersion]
+    FROM [pmt].[Users]
+    WHERE [UserId] = @TargetUserId
+      AND [IsActive] = 1;
+END;
+GO
+
+CREATE OR ALTER PROCEDURE [pmt].[EndImpersonation]
+    @AdminUserId INT,
+    @TargetUserId INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    IF NOT EXISTS (SELECT 1 FROM [pmt].[Users] WHERE [UserId] = @AdminUserId)
+       OR NOT EXISTS (SELECT 1 FROM [pmt].[Users] WHERE [UserId] = @TargetUserId)
+    BEGIN
+        THROW 51033, 'The impersonation users could not be verified.', 1;
+    END;
+
+    DECLARE @AdminName NVARCHAR(80) = (SELECT [Nickname] FROM [pmt].[Users] WHERE [UserId] = @AdminUserId);
+    DECLARE @TargetName NVARCHAR(80) = (SELECT [Nickname] FROM [pmt].[Users] WHERE [UserId] = @TargetUserId);
+    DECLARE @Details NVARCHAR(MAX) = CONCAT(@AdminName, N' stopped impersonating ', @TargetName, N'.');
+
+    EXEC [pmt].[WriteAudit]
+        N'Impersonation',
+        @TargetUserId,
+        N'Ended',
+        @Details,
+        @TargetUserId;
+END;
+GO
+
+CREATE OR ALTER PROCEDURE [pmt].[GetAuditTrail]
+    @CurrentUserId INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    IF [pmt].[IsAdmin](@CurrentUserId) = 0
+    BEGIN
+        THROW 51034, 'Only administrators can view the system audit trail.', 1;
+    END;
+
+    SELECT TOP (2000)
+        [AuditEvent].[AuditEventId],
+        [AuditEvent].[EntityType],
+        [AuditEvent].[EntityId],
+        [AuditEvent].[Action],
+        CASE
+            WHEN [AuditEvent].[EntityType] = N'Blog'
+             AND EXISTS
+                 (
+                     SELECT 1
+                     FROM [pmt].[Blogs] AS [Blog]
+                     WHERE [Blog].[BlogId] = [AuditEvent].[EntityId]
+                       AND [Blog].[IsPrivate] = 1
+                       AND [Blog].[CreatedByUserId] <> @CurrentUserId
+                )
+                THEN N'Private Documentation activity.'
+            WHEN [AuditEvent].[EntityType] = N'Task'
+             AND [AuditEvent].[Action] = N'Converted to Document'
+             AND EXISTS
+                 (
+                     SELECT 1
+                     FROM [pmt].[WorkTasks] AS [WorkTask]
+                     INNER JOIN [pmt].[Blogs] AS [Blog]
+                         ON [Blog].[BlogId] = [WorkTask].[LinkedBlogId]
+                     WHERE [WorkTask].[TaskId] = [AuditEvent].[EntityId]
+                       AND [Blog].[IsPrivate] = 1
+                       AND [Blog].[CreatedByUserId] <> @CurrentUserId
+                 )
+                THEN N'Private Documentation activity.'
+            WHEN [AuditEvent].[EntityType] = N'DevLog'
+             AND EXISTS
+                 (
+                     SELECT 1
+                     FROM [pmt].[DevLogs] AS [DevLog]
+                     WHERE [DevLog].[DevLogId] = [AuditEvent].[EntityId]
+                       AND [DevLog].[LogType] = N'Log'
+                       AND [DevLog].[UserId] <> @CurrentUserId
+                 )
+                THEN N'Private Log activity.'
+            ELSE [AuditEvent].[Details]
+        END AS [Details],
+        [AuditEvent].[OldStatus],
+        [AuditEvent].[NewStatus],
+        [AuditEvent].[OldPercentCompleted],
+        [AuditEvent].[NewPercentCompleted],
+        [AuditEvent].[UserId],
+        [AuditEvent].[ActorUserId],
+        COALESCE([EffectiveUser].[Nickname], CONCAT(N'User #', [AuditEvent].[UserId])) AS [UserName],
+        COALESCE([ActorUser].[Nickname], CONCAT(N'User #', [AuditEvent].[ActorUserId])) AS [ActorUserName],
+        [AuditEvent].[CreatedAt]
+    FROM [pmt].[AuditEvents] AS [AuditEvent]
+    LEFT JOIN [pmt].[Users] AS [EffectiveUser]
+        ON [EffectiveUser].[UserId] = [AuditEvent].[UserId]
+    LEFT JOIN [pmt].[Users] AS [ActorUser]
+        ON [ActorUser].[UserId] = [AuditEvent].[ActorUserId]
+    ORDER BY [AuditEvent].[CreatedAt] DESC, [AuditEvent].[AuditEventId] DESC;
 END;
 GO
 
@@ -1635,6 +1804,164 @@ BEGIN
 END;
 GO
 
+CREATE OR ALTER PROCEDURE [pmt].[SynchronizeProjectCode]
+    @ProjectId INT,
+    @PreviousProjectCode NVARCHAR(5),
+    @ProjectCode NVARCHAR(5)
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    IF @@TRANCOUNT = 0
+    BEGIN
+        THROW 51040, 'A transaction is required to synchronize Project codes.', 1;
+    END;
+
+    EXEC [pmt].[LockWorkTaskWrites];
+    EXEC [pmt].[LockSprintWrites];
+
+    IF NOT EXISTS
+    (
+        SELECT 1
+        FROM [pmt].[Projects]
+        WHERE [ProjectId] = @ProjectId
+          AND [Code] = @ProjectCode
+    )
+    BEGIN
+        THROW 51041, 'The Project code could not be verified for synchronization.', 1;
+    END;
+
+    DECLARE @SprintCodeUpdates TABLE
+    (
+        [SprintId] INT NOT NULL PRIMARY KEY,
+        [DesiredCode] NVARCHAR(100) NOT NULL
+    );
+
+    INSERT INTO @SprintCodeUpdates ([SprintId], [DesiredCode])
+    SELECT
+        [Sprint].[SprintId],
+        @ProjectCode
+        + CASE
+            WHEN LEFT([Sprint].[Code], LEN(@PreviousProjectCode)) = @PreviousProjectCode
+             AND SUBSTRING([Sprint].[Code], LEN(@PreviousProjectCode) + 1, 1) = N'-'
+                THEN SUBSTRING([Sprint].[Code], LEN(@PreviousProjectCode) + 1, 40)
+            WHEN [CodeMarker].[MarkerPosition] IS NOT NULL
+                THEN SUBSTRING([Sprint].[Code], [CodeMarker].[MarkerPosition], 40)
+            WHEN CHARINDEX(N'-', [Sprint].[Code]) > 0
+                THEN SUBSTRING([Sprint].[Code], CHARINDEX(N'-', [Sprint].[Code]), 40)
+            ELSE N'-Sprint' + CONVERT(NVARCHAR(12), [Sprint].[SprintId])
+          END
+    FROM [pmt].[Sprints] AS [Sprint]
+    CROSS APPLY
+    (
+        SELECT MIN([Marker].[Position]) AS [MarkerPosition]
+        FROM
+        (
+            VALUES
+                (NULLIF(CHARINDEX(N'-SPRINT', UPPER([Sprint].[Code])), 0)),
+                (NULLIF(CHARINDEX(N'-PHASE', UPPER([Sprint].[Code])), 0))
+        ) AS [Marker]([Position])
+        WHERE [Marker].[Position] IS NOT NULL
+    ) AS [CodeMarker]
+    WHERE [Sprint].[ProjectId] = @ProjectId;
+
+    DECLARE @TaskCodeUpdates TABLE
+    (
+        [TaskId] INT NOT NULL PRIMARY KEY,
+        [DesiredCode] NVARCHAR(100) NOT NULL
+    );
+
+    INSERT INTO @TaskCodeUpdates ([TaskId], [DesiredCode])
+    SELECT
+        [Task].[TaskId],
+        @ProjectCode
+        + CASE
+            WHEN LEFT([Task].[Code], LEN(@PreviousProjectCode)) = @PreviousProjectCode
+             AND SUBSTRING([Task].[Code], LEN(@PreviousProjectCode) + 1, 1) = N'-'
+                THEN SUBSTRING([Task].[Code], LEN(@PreviousProjectCode) + 1, 40)
+            WHEN [CodeMarker].[MarkerPosition] IS NOT NULL
+                THEN SUBSTRING([Task].[Code], [CodeMarker].[MarkerPosition], 40)
+            WHEN CHARINDEX(N'-', [Task].[Code]) > 0
+                THEN SUBSTRING([Task].[Code], CHARINDEX(N'-', [Task].[Code]), 40)
+            WHEN [Task].[TaskType] = N'Bug'
+                THEN N'-Bug' + CONVERT(NVARCHAR(12), [Task].[TaskId])
+            ELSE N'-Task' + CONVERT(NVARCHAR(12), [Task].[TaskId])
+          END
+    FROM [pmt].[WorkTasks] AS [Task]
+    CROSS APPLY
+    (
+        SELECT MIN([Marker].[Position]) AS [MarkerPosition]
+        FROM
+        (
+            VALUES
+                (NULLIF(CHARINDEX(N'-TASK', UPPER([Task].[Code])), 0)),
+                (NULLIF(CHARINDEX(N'-BUG', UPPER([Task].[Code])), 0)),
+                (NULLIF(CHARINDEX(N'-BACKLOG', UPPER([Task].[Code])), 0))
+        ) AS [Marker]([Position])
+        WHERE [Marker].[Position] IS NOT NULL
+    ) AS [CodeMarker]
+    WHERE [Task].[ProjectId] = @ProjectId;
+
+    IF EXISTS (SELECT 1 FROM @SprintCodeUpdates WHERE LEN([DesiredCode]) > 40)
+       OR EXISTS (SELECT 1 FROM @TaskCodeUpdates WHERE LEN([DesiredCode]) > 40)
+    BEGIN
+        THROW 51042, 'One or more Sprint or Task codes would exceed 40 characters after the Project code change.', 1;
+    END;
+
+    IF EXISTS
+    (
+        SELECT [DesiredCode]
+        FROM @SprintCodeUpdates
+        GROUP BY [DesiredCode]
+        HAVING COUNT(*) > 1
+    )
+       OR EXISTS
+    (
+        SELECT [DesiredCode]
+        FROM @TaskCodeUpdates
+        GROUP BY [DesiredCode]
+        HAVING COUNT(*) > 1
+    )
+    BEGIN
+        THROW 51043, 'The Project contains duplicate Sprint or Task code suffixes that cannot be synchronized safely.', 1;
+    END;
+
+    IF EXISTS
+    (
+        SELECT 1
+        FROM @SprintCodeUpdates AS [CodeUpdate]
+        INNER JOIN [pmt].[Sprints] AS [ExistingSprint]
+            ON [ExistingSprint].[Code] = [CodeUpdate].[DesiredCode]
+           AND [ExistingSprint].[ProjectId] <> @ProjectId
+    )
+       OR EXISTS
+    (
+        SELECT 1
+        FROM @TaskCodeUpdates AS [CodeUpdate]
+        INNER JOIN [pmt].[WorkTasks] AS [ExistingTask]
+            ON [ExistingTask].[Code] = [CodeUpdate].[DesiredCode]
+           AND [ExistingTask].[ProjectId] <> @ProjectId
+    )
+    BEGIN
+        THROW 51044, 'A Sprint or Task code generated by the Project code change is already used by another Project.', 1;
+    END;
+
+    UPDATE [Sprint]
+    SET [Code] = [CodeUpdate].[DesiredCode]
+    FROM [pmt].[Sprints] AS [Sprint]
+    INNER JOIN @SprintCodeUpdates AS [CodeUpdate]
+        ON [CodeUpdate].[SprintId] = [Sprint].[SprintId]
+    WHERE [Sprint].[Code] <> [CodeUpdate].[DesiredCode];
+
+    UPDATE [Task]
+    SET [Code] = [CodeUpdate].[DesiredCode]
+    FROM [pmt].[WorkTasks] AS [Task]
+    INNER JOIN @TaskCodeUpdates AS [CodeUpdate]
+        ON [CodeUpdate].[TaskId] = [Task].[TaskId]
+    WHERE [Task].[Code] <> [CodeUpdate].[DesiredCode];
+END;
+GO
+
 CREATE OR ALTER PROCEDURE [pmt].[UpsertProject]
     @ProjectId INT OUTPUT,
     @Code NVARCHAR(6),
@@ -1654,6 +1981,7 @@ BEGIN
 
     DECLARE @Now DATETIME2(0) = SYSUTCDATETIME();
     DECLARE @OwnerUserId INT;
+    DECLARE @PreviousProjectCode NVARCHAR(5);
 
     SET @Title = NULLIF(LTRIM(RTRIM(@Title)), N'');
     SET @Code = UPPER(REPLACE(NULLIF(LTRIM(RTRIM(@Code)), N''), N' ', N''));
@@ -1691,9 +2019,14 @@ BEGIN
     BEGIN TRY
         BEGIN TRANSACTION;
 
+        EXEC [pmt].[LockWorkTaskWrites];
+        EXEC [pmt].[LockSprintWrites];
+
         IF @ProjectId <> 0
         BEGIN
-            SELECT @OwnerUserId = [CreatedByUserId]
+            SELECT
+                @OwnerUserId = [CreatedByUserId],
+                @PreviousProjectCode = [Code]
             FROM [pmt].[Projects] WITH (UPDLOCK, HOLDLOCK)
             WHERE [ProjectId] = @ProjectId
               AND [IsArchived] = 0;
@@ -1775,6 +2108,11 @@ BEGIN
             WHERE [ProjectId] = @ConflictingProjectId
               AND [IsArchived] = 1;
 
+            EXEC [pmt].[SynchronizeProjectCode]
+                @ProjectId = @ConflictingProjectId,
+                @PreviousProjectCode = @Code,
+                @ProjectCode = @ArchivedReplacementCode;
+
             DECLARE @ArchivedCodeAuditDetails NVARCHAR(4000) =
                 N'Archived project code ' + @Code + N' was released as ' + @ArchivedReplacementCode + N'.';
 
@@ -1832,6 +2170,14 @@ BEGIN
                 [UpdatedByUserId] = @CurrentUserId,
                 [UpdatedAt] = @Now
             WHERE [ProjectId] = @ProjectId;
+
+            IF @PreviousProjectCode <> @Code
+            BEGIN
+                EXEC [pmt].[SynchronizeProjectCode]
+                    @ProjectId = @ProjectId,
+                    @PreviousProjectCode = @PreviousProjectCode,
+                    @ProjectCode = @Code;
+            END;
 
             EXEC [pmt].[WriteAudit] N'Project', @ProjectId, N'Updated', @Title, @CurrentUserId;
         END;
@@ -2122,8 +2468,6 @@ BEGIN
     DECLARE @AssociatedOldPercentCompleted INT;
     DECLARE @AssociatedNewPercentCompleted INT;
     DECLARE @RootCauseSyncTargetId INT;
-    DECLARE @RootCauseSyncExistingHtml NVARCHAR(MAX);
-    DECLARE @RootCauseSyncMergedHtml NVARCHAR(MAX);
     DECLARE @AssociatedDevTaskUpdates TABLE
     (
         [TaskId] INT NOT NULL PRIMARY KEY,
@@ -2215,6 +2559,27 @@ BEGIN
     IF NOT EXISTS (SELECT 1 FROM [pmt].[Lookups] WHERE [LookupType] = N'Priority' AND [Value] = @Priority AND [IsActive] = 1)
     BEGIN
         THROW 50032, 'Task priority is invalid.', 1;
+    END;
+
+    -- Developers may hand work to QA and move it through QA Passed, but only
+    -- release roles may move a Dev Task into a later deployment status.
+    IF @TaskType = N'Dev'
+       AND [pmt].[UserRole](@CurrentUserId) = N'Developer'
+       AND EXISTS
+       (
+           SELECT 1
+           FROM [pmt].[Lookups] AS [TargetStatus]
+           INNER JOIN [pmt].[Lookups] AS [QaPassed]
+               ON [QaPassed].[LookupType] = N'Status'
+              AND [QaPassed].[Value] = N'QA Passed'
+              AND [QaPassed].[IsActive] = 1
+           WHERE [TargetStatus].[LookupType] = N'Status'
+             AND [TargetStatus].[Value] = @Status
+             AND [TargetStatus].[IsActive] = 1
+             AND [TargetStatus].[DisplayOrder] > [QaPassed].[DisplayOrder]
+       )
+    BEGIN
+        THROW 50069, 'Developers can move Dev Tasks through QA Passed, but not to deployment statuses.', 1;
     END;
 
     IF @TaskType = N'Bug'
@@ -2668,6 +3033,7 @@ BEGIN
                 SET @Code = @ProjectCode + N'-Task' + CONVERT(NVARCHAR(12), @NextNumber);
             END;
 
+            -- URL synchronization for this relationship runs from Bug to Dev Task only.
             INSERT INTO [pmt].[WorkTasks]
             (
                 [ProjectId],
@@ -2679,6 +3045,7 @@ BEGIN
                 [Status],
                 [Priority],
                 [PercentCompleted],
+                [Url],
                 [StartDate],
                 [EndDate],
                 [LinkedBugTaskId],
@@ -2697,6 +3064,7 @@ BEGIN
                 N'Todo',
                 @Priority,
                 0,
+                @Url,
                 @StartDate,
                 @EndDate,
                 @TaskId,
@@ -2710,11 +3078,13 @@ BEGIN
         END
         ELSE
         BEGIN
+            -- Keep the linked Dev Task URL aligned when the Bug is saved again.
             UPDATE [pmt].[WorkTasks]
             SET [ProjectId] = @BugProjectId,
                 [SprintId] = @BugSprintId,
                 [Title] = N'Bug Fix: ' + @Title,
                 [Priority] = @Priority,
+                [Url] = @Url,
                 [StartDate] = @StartDate,
                 [EndDate] = @EndDate,
                 [UpdatedByUserId] = @CurrentUserId,
@@ -2743,88 +3113,46 @@ BEGIN
         END;
     END;
 
-    IF NULLIF(LTRIM(RTRIM(ISNULL(@RootCauseAnalysisHtml, N''))), N'') IS NOT NULL
+    -- Root Cause Analysis has one source of truth: the developer updates the
+    -- Dev Task, and that value replaces the associated Bug value. Bug saves
+    -- never write Root Cause Analysis back to a Dev Task.
+    IF @TaskType = N'Dev'
     BEGIN
-        SELECT TOP (1)
-            @RootCauseSyncTargetId = [Candidate].[TaskId],
-            @RootCauseSyncExistingHtml = [Candidate].[RootCauseAnalysisHtml]
-        FROM
-        (
-            SELECT DISTINCT [BugTask].[TaskId], [BugTask].[RootCauseAnalysisHtml]
-            FROM [pmt].[WorkTasks] AS [BugTask]
-            WHERE @TaskType = N'Dev'
-              AND [BugTask].[TaskType] = N'Bug'
-              AND [BugTask].[IsDeleted] = 0
-              AND
+        SELECT TOP (1) @RootCauseSyncTargetId = [BugTask].[TaskId]
+        FROM [pmt].[WorkTasks] AS [BugTask]
+        WHERE [BugTask].[TaskType] = N'Bug'
+          AND [BugTask].[IsDeleted] = 0
+          AND
+          (
+              [BugTask].[TaskId] = @ExistingLinkedBugTaskId
+              OR EXISTS
               (
-                  [BugTask].[TaskId] = @ExistingLinkedBugTaskId
-                  OR EXISTS
-                  (
-                      SELECT 1
-                      FROM [pmt].[TaskDependencies] AS [Dependency]
-                      WHERE [Dependency].[TaskId] = @TaskId
-                        AND [Dependency].[DependsOnTaskId] = [BugTask].[TaskId]
-                  )
-                  OR EXISTS
-                  (
-                      SELECT 1
-                      FROM [pmt].[TaskDependencies] AS [Dependency]
-                      WHERE [Dependency].[TaskId] = [BugTask].[TaskId]
-                        AND [Dependency].[DependsOnTaskId] = @TaskId
-                  )
+                  SELECT 1
+                  FROM [pmt].[TaskDependencies] AS [Dependency]
+                  WHERE [Dependency].[TaskId] = @TaskId
+                    AND [Dependency].[DependsOnTaskId] = [BugTask].[TaskId]
               )
-
-            UNION
-
-            SELECT DISTINCT [DevTask].[TaskId], [DevTask].[RootCauseAnalysisHtml]
-            FROM [pmt].[WorkTasks] AS [DevTask]
-            WHERE @TaskType = N'Bug'
-              AND [DevTask].[TaskType] = N'Dev'
-              AND [DevTask].[IsDeleted] = 0
-              AND
+              OR EXISTS
               (
-                  [DevTask].[LinkedBugTaskId] = @TaskId
-                  OR EXISTS
-                  (
-                      SELECT 1
-                      FROM [pmt].[TaskDependencies] AS [Dependency]
-                      WHERE [Dependency].[TaskId] = [DevTask].[TaskId]
-                        AND [Dependency].[DependsOnTaskId] = @TaskId
-                  )
-                  OR EXISTS
-                  (
-                      SELECT 1
-                      FROM [pmt].[TaskDependencies] AS [Dependency]
-                      WHERE [Dependency].[TaskId] = @TaskId
-                        AND [Dependency].[DependsOnTaskId] = [DevTask].[TaskId]
-                  )
+                  SELECT 1
+                  FROM [pmt].[TaskDependencies] AS [Dependency]
+                  WHERE [Dependency].[TaskId] = [BugTask].[TaskId]
+                    AND [Dependency].[DependsOnTaskId] = @TaskId
               )
-        ) AS [Candidate]
+          )
         ORDER BY
-            CASE
-                WHEN @TaskType = N'Dev' AND [Candidate].[TaskId] = @ExistingLinkedBugTaskId THEN 0
-                WHEN @TaskType = N'Bug' AND [Candidate].[TaskId] = @LinkedDevTaskId THEN 0
-                ELSE 1
-            END,
-            [Candidate].[TaskId];
+            CASE WHEN [BugTask].[TaskId] = @ExistingLinkedBugTaskId THEN 0 ELSE 1 END,
+            [BugTask].[TaskId];
 
         IF @RootCauseSyncTargetId IS NOT NULL
         BEGIN
-            SET @RootCauseSyncMergedHtml = CASE
-                WHEN NULLIF(LTRIM(RTRIM(ISNULL(@RootCauseSyncExistingHtml, N''))), N'') IS NULL THEN @RootCauseAnalysisHtml
-                WHEN ISNULL(@RootCauseSyncExistingHtml, N'') = ISNULL(@RootCauseAnalysisHtml, N'') THEN @RootCauseSyncExistingHtml
-                WHEN CHARINDEX(@RootCauseAnalysisHtml, @RootCauseSyncExistingHtml) > 0 THEN @RootCauseSyncExistingHtml
-                WHEN CHARINDEX(@RootCauseSyncExistingHtml, @RootCauseAnalysisHtml) > 0 THEN @RootCauseAnalysisHtml
-                ELSE @RootCauseSyncExistingHtml + N'<hr>' + @RootCauseAnalysisHtml
-            END;
-
             UPDATE [pmt].[WorkTasks]
             SET
-                [RootCauseAnalysisHtml] = @RootCauseSyncMergedHtml,
+                [RootCauseAnalysisHtml] = @RootCauseAnalysisHtml,
                 [UpdatedByUserId] = @CurrentUserId,
                 [UpdatedAt] = @Now
-            WHERE [TaskId] IN (@TaskId, @RootCauseSyncTargetId)
-              AND ISNULL([RootCauseAnalysisHtml], N'') <> ISNULL(@RootCauseSyncMergedHtml, N'');
+            WHERE [TaskId] = @RootCauseSyncTargetId
+              AND ISNULL([RootCauseAnalysisHtml], N'') <> ISNULL(@RootCauseAnalysisHtml, N'');
         END;
     END;
 

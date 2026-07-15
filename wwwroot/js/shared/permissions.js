@@ -1,7 +1,7 @@
 import {
   currentUser,
   currentUserId
-} from "../core/authentication.js";
+} from "../core/authentication.js?v=20260715-admin-impersonation";
 import { canAccessResource } from "./security.js?v=20260713-role-security";
 
 export function canEditOwner(ownerUserId, resourceKey = "") {

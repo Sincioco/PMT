@@ -17,6 +17,7 @@ export const fallbackSeverities = ["Trivial", "Minor", "Major", "Critical"];
 export const fallbackEnvironments = ["local", "Dev", "SIT", "UAT", "Production"];
 
 export const linkedBugCompletionMessage = "You cannot mark this task as complete until the associated bug is marked as QA Passed.  Once QA has re-tested the bug and passed it, the completion of your Dev Task will be set to 100%.";
+export const developerDevTaskStatusMessage = "Developers can move Dev Tasks through QA Passed, but not to deployment statuses.";
 
 export function fallbackForLookup(type) {
   if (type === "Status") return fallbackStatuses;

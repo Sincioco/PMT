@@ -29,6 +29,7 @@ Regression tests for these rules live in `tests/js/work-item-rules.test.mjs`.
 - Dev Task `Ready for QA` sets percent complete to 100 when no Bug is associated, or 50 when a Bug is associated.
 - Dev Task `QA Failed` sets percent complete to 50 when no Bug is associated. If a Bug is associated, the current percent is preserved.
 - Dev Task `QA Passed` and any status beginning with `Deployed` set percent complete to 100 when no Bug is associated. If a Bug is associated, the current percent is preserved and normal completion blocking still applies.
+- A user in the built-in Developer role may move a Dev Task through `Ready for QA` (also referred to as QA Ready) and `QA Passed`, but may not move it to any later status. The Board blocks the drag immediately and SQL enforces the same ordered-status boundary.
 - For Bugs, `QA Failed`, `QA Passed`, and any status beginning with `Deployed` force the Bug's percent complete to 100%.
 - Percent inputs are clamped to 0-100.
 - A parent work item's stored percent is the rounded average of its active direct sub-tasks and is recalculated when a sub-task changes. The API also exposes a display average.
@@ -66,10 +67,12 @@ Project and Sprint aggregate progress is separate from stored work-item percent.
 ## Linked Bug and Bug Fix workflow
 
 - Assigning a Bug creates or updates one linked Dev Task titled `Bug Fix: <bug title>`.
-- The linked Bug Fix follows the Bug's Project, Sprint, priority, dates, and assignees and depends on the Bug.
+- The linked Bug Fix follows the Bug's Project, Sprint, priority, URL, dates, and assignees and depends on the Bug. URL synchronization runs from Bug to Dev Task only.
 - A Dev Task linked to a Bug cannot reach 100% until that Bug is `QA Passed` or in a deployed status. SQL enforces this even if browser validation is bypassed.
 - A Dev Task is treated as Bug-associated when it has a linked Bug task or an active Bug dependency.
 - Bug-associated Dev Tasks use the Bug-aware percent rules in the Statuses and completion section.
+- Root Cause Analysis synchronization is one-way. Saving a Dev Task replaces the associated Bug's Root Cause Analysis with the Dev Task value, including clearing it; values are never appended.
+- Saving a Bug never changes an associated Dev Task's Root Cause Analysis.
 - For Bug save automation, associated Dev Tasks are Dev Tasks linked to the Bug or connected to the Bug by dependencies in either direction.
 - Bug `QA Failed` sets associated Dev Tasks to 50%.
 - Bug `QA Passed` and any status beginning with `Deployed` set associated Dev Tasks to 100%.
@@ -107,6 +110,21 @@ Browser permission checks hide inaccessible navigation and disable unavailable a
 Browser permission checks live in `wwwroot/js/shared/security.js` and `wwwroot/js/shared/permissions.js` so screens and future feature modules share the same effective permission logic.
 Permission regressions are covered in `tests/js/permissions.test.mjs`.
 
+## Authentication, impersonation, and system auditing
+
+- Successful password login and invitation acceptance create ASP.NET Core's signed, protected `PMT.Auth` cookie. It is HttpOnly and SameSite Strict; production cookies are always Secure, while local Development permits HTTP. Normal sessions are persistent for seven days and slide while active. Impersonation uses a non-persistent, non-sliding ticket that expires after four hours. Browser JavaScript cannot read the cookie.
+- The cookie is the only API identity source. PMT no longer trusts `X-PMT-UserId`, a current-user query value, `localStorage`, or a default user as authentication. A missing or invalid authenticated claim returns HTTP 401.
+- Every authenticated request revalidates the effective user's current `ROWVERSION` authentication stamp and active state. During impersonation it also revalidates the original user's stamp, active state, and administrator status. Password resets, user/security edits, deactivation, or demotion therefore invalidate an older ticket without waiting for a page refresh or expiry; an authorized self-edit or self-password change immediately reissues the current session with the new stamp.
+- Browser-originated changing API requests must be same-origin. PMT rejects cross-origin and same-site sibling-origin form/fetch writes using `Origin` and `Sec-Fetch-Site`; non-browser deployment tooling that sends neither header remains supported.
+- The effective user is the identity used by state reads, navigation, private-data filtering, and all permission checks. An impersonation cookie also preserves the original administrator as the actor. The original administrator identity is for auditing and exit only; it does not bypass the target user's permissions or privacy boundaries.
+- Only an effective administrator may start impersonation. The target must be another active user, and nested impersonation is rejected. Starting replaces the signed cookie with the target's effective identity while retaining the original administrator claim.
+- Password login and invitation acceptance cannot overwrite an active impersonation ticket; the administrator must exit first so the end is audited and preferences are restored.
+- The shell must show a persistent red banner naming the impersonated user and an Exit Impersonation action. A hard refresh restores the same server-controlled impersonation session from the cookie.
+- Explicit exit records the end event and replaces the cookie with the original administrator's normal session. Logout while impersonating attempts the same end audit before clearing the authentication cookie. If either the effective user or original administrator becomes unavailable, session restoration fails closed and signs out.
+- `[pmt].[WriteAudit]` stores the effective user in `AuditEvents.UserId` and the authenticated actor in `AuditEvents.ActorUserId`. ADO.NET places the actor in SQL session context for every application connection, so ordinary writes performed while impersonating retain both identities. Existing rows upgraded to Version 1.19 are backfilled with their effective user as actor.
+- `[pmt].[BeginImpersonation]` and `[pmt].[EndImpersonation]` write `Impersonation` audit rows with `Started` and `Ended` actions. Their effective user is the target and their actor is the original administrator.
+- Settings > Audit Trail is an administrator-only, read-only system activity view. Authorization uses the effective identity, so the view is unavailable while an administrator is impersonating a non-administrator. It shows the newest 2,000 events in deterministic timestamp/audit-ID order, with Performed By for the actor and Acting As when the effective user differs. Another owner's private Documentation, task-to-private-Documentation conversion, and Personal Log details are replaced with opaque activity labels even for an administrator. Impersonation events are system-only and are excluded from the ordinary `/api/state` audit collection.
+
 ## Scrum attendance and vacation
 
 - Attendance statuses are exactly `Home`, `Office`, `Sick Leave`, `Vacation`, `EL`, and `Other`. `EL` means Emergency Leave in tooltips and accessible descriptions.
@@ -132,8 +150,9 @@ Permission regressions are covered in `tests/js/permissions.test.mjs`.
 
 - Project codes are required, normalized to uppercase without spaces, limited to five characters, and unique across active and archived Projects.
 - Saving a Project never silently replaces its requested code with a generated or random code.
+- Renaming a Project code transactionally updates the code prefix of every associated Sprint and work item, including finished/deleted records, without renumbering their existing suffixes. The rename fails without changing data if a repaired code would be too long or collide with another record.
 - Deleting a Project archives it and preserves its members, Sprints, work items, Logs, Documentation, and audit history, so its code remains occupied.
-- When a requested code belongs to an archived Project, only an administrator may explicitly confirm reclaiming it. Reclaiming assigns a unique internal code to the archived Project and preserves all of its related data before saving the requested code on the active Project.
+- When a requested code belongs to an archived Project, only an administrator may explicitly confirm reclaiming it. Reclaiming assigns a unique internal code to the archived Project and updates that Project's Sprint and work-item prefixes before saving the requested code on the active Project.
 - A code belonging to an active Project cannot be reclaimed, including by an administrator.
 
 ## Sprint lifecycle
@@ -157,6 +176,7 @@ Permission regressions are covered in `tests/js/permissions.test.mjs`.
 - Orphan-file names link to the protected Maintenance preview endpoint in a new tab so an administrator can inspect a candidate before deletion. The link does not bypass the reference recheck or select the file for deletion.
 - Development Project cleanup preserves and detaches every private Documentation and private Log row. Clearing users or restoring all initial seed data is refused while another user owns private content; a full rebuild performed directly in SQL remains an administrator-controlled database operation.
 - `Restore PMT Seed Data` is a non-destructive recovery action for a permanently deleted PMT seed Project. It refuses to run while any active or archived Project still owns code `PMT`, restores only PMT project data, and leaves LMS, HLS, users, permissions, holidays, and detached private content unchanged.
+- PMT, LMS, and HLS seed scripts explicitly create their 15 seed Documentation records as public. The private-by-default behavior for normal user-created Documentation remains unchanged.
 
 ## About flyby screen saver
 
@@ -167,11 +187,13 @@ Permission regressions are covered in `tests/js/permissions.test.mjs`.
 
 ## Persistence and preferences
 
-Authentication is currently an internal-trust mechanism: the browser stores a user ID and sends it as `X-PMT-UserId`. Privacy rules prevent normal PMT UI/API flows from returning another owner's private content, but this identity header is not a tamper-resistant cookie or token and private upload URLs are not encrypted.
+Authentication lives only in the signed, protected HttpOnly cookie described above. The browser removes the legacy `pmt-auth-user` key during session restoration and never stores the current identity in `localStorage`.
+
+Before an administrator enters impersonation, PMT snapshots all current `pmt-*` preferences except the legacy authentication key into the temporary `pmt-impersonation-admin-preferences` value. It then clears the working PMT preference namespace so the impersonated user does not inherit the administrator's view, theme, navigation, or filter choices. The snapshot remains during hard refresh and is restored on explicit exit, logout, or failed session restoration. Preferences changed while impersonating are discarded on restore, and non-PMT `localStorage` values are never changed.
 
 | Area | `localStorage` keys |
 | --- | --- |
-| Authentication and shell | `pmt-auth-user`, `pmt-view`, `pmt-theme` |
+| Shell | `pmt-view`, `pmt-theme`; temporary impersonation backup: `pmt-impersonation-admin-preferences` |
 | About 3D scene | `pmt-about-alien-events-enabled`, `pmt-about-track-alien-events-enabled`, `pmt-about-battle-pip-enabled` |
 | Board | `pmt-board-project`, `pmt-board-sprint`, `pmt-board-sort`, `pmt-board-statuses`, `pmt-board-hide-empty-columns`, `pmt-board-filters-visible` |
 | Road Map | `pmt-roadmap-project`, `pmt-roadmap-sprint`, `pmt-roadmap-sort`, `pmt-roadmap-show-dates`, `pmt-roadmap-show-details`, `pmt-roadmap-show-sprints` |
@@ -180,7 +202,7 @@ Authentication is currently an internal-trust mechanism: the browser stores a us
 | Bugs, Scrum, and Documentation | `pmt-bug-filters`, `pmt-bug-filters-visible`, `pmt-bug-visual-charts-visible`, `pmt-bug-entry-project`, `pmt-bug-entry-sprint`, `pmt-bug-entry-environment`, `pmt-bug-table-columns`, `pmt-bug-dialog-fields`, `pmt-scrum-filters`, `pmt-documentation-project` |
 | Settings | `pmt-settings-category`, `pmt-lookup-type` |
 
-Keep key names and defaults stable during refactoring. Clearing PMT preferences removes only keys prefixed with `pmt-`, then reloads the application.
+Keep key names and defaults stable during refactoring. Clearing PMT preferences removes normal keys prefixed with `pmt-`, preserves an active impersonation backup so the administrator can still exit safely, and then reloads the application.
 
 ## Calendar and link behavior
 

@@ -71,6 +71,8 @@ export const preferenceKeys = Object.freeze({
   documentationTreePaneHidden: "pmt-documentation-tree-pane-hidden"
 });
 
+const impersonationPreferenceBackupKey = "pmt-impersonation-admin-preferences";
+
 export function readPreference(key, defaultValue = "") {
   try {
     return localStorage.getItem(key) ?? defaultValue;
@@ -127,11 +129,74 @@ export function clearPmtPreferences() {
     const pmtKeys = [];
     for (let index = 0; index < localStorage.length; index += 1) {
       const key = localStorage.key(index);
-      if (key?.startsWith("pmt-")) pmtKeys.push(key);
+      if (key?.startsWith("pmt-") && key !== impersonationPreferenceBackupKey) pmtKeys.push(key);
     }
 
     pmtKeys.forEach(key => localStorage.removeItem(key));
   } catch {
     // Reloading still restores in-memory defaults when storage is unavailable.
+  }
+}
+
+export function prepareImpersonationPreferenceBackup() {
+  try {
+    if (localStorage.getItem(impersonationPreferenceBackupKey)) return true;
+
+    const preferences = {};
+    for (let index = 0; index < localStorage.length; index += 1) {
+      const key = localStorage.key(index);
+      if (!key?.startsWith("pmt-")
+          || key === preferenceKeys.authenticatedUser
+          || key === impersonationPreferenceBackupKey) continue;
+      preferences[key] = localStorage.getItem(key);
+    }
+
+    localStorage.setItem(impersonationPreferenceBackupKey, JSON.stringify(preferences));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export function activateImpersonationPreferences() {
+  try {
+    const keys = [];
+    for (let index = 0; index < localStorage.length; index += 1) {
+      const key = localStorage.key(index);
+      if (key?.startsWith("pmt-") && key !== impersonationPreferenceBackupKey) keys.push(key);
+    }
+    keys.forEach(key => localStorage.removeItem(key));
+  } catch {
+    // The application still reloads into the server-controlled user context.
+  }
+}
+
+export function restoreImpersonationPreferences() {
+  try {
+    const serialized = localStorage.getItem(impersonationPreferenceBackupKey);
+    if (!serialized) return false;
+
+    const preferences = JSON.parse(serialized);
+    const keys = [];
+    for (let index = 0; index < localStorage.length; index += 1) {
+      const key = localStorage.key(index);
+      if (key?.startsWith("pmt-") && key !== impersonationPreferenceBackupKey) keys.push(key);
+    }
+    keys.forEach(key => localStorage.removeItem(key));
+    Object.entries(preferences || {}).forEach(([key, value]) => {
+      if (key.startsWith("pmt-") && value !== null) localStorage.setItem(key, String(value));
+    });
+    localStorage.removeItem(impersonationPreferenceBackupKey);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export function discardImpersonationPreferenceBackup() {
+  try {
+    localStorage.removeItem(impersonationPreferenceBackupKey);
+  } catch {
+    // Preferences are optional when browser storage is unavailable.
   }
 }

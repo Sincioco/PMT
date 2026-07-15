@@ -28,6 +28,57 @@ body.has-system-warning {
   grid-template-rows: auto auto minmax(0, 1fr);
 }
 
+body.has-impersonation-banner {
+  grid-template-rows: auto auto minmax(0, 1fr);
+}
+
+body.has-system-warning.has-impersonation-banner {
+  grid-template-rows: auto auto auto minmax(0, 1fr);
+}
+
+.impersonation-banner {
+  display: flex;
+  align-items: center;
+  gap: var(--space-5);
+  min-height: 58px;
+  padding: var(--space-3) var(--shell-padding-laptop);
+  background: #b91c1c;
+  color: #fff;
+  font-size: clamp(1.05rem, 1.4vw, 1.35rem);
+  letter-spacing: 0.01em;
+}
+
+.impersonation-banner[hidden] {
+  display: none;
+}
+
+.impersonation-banner strong {
+  flex: 1;
+  text-align: center;
+}
+
+.impersonation-banner .impersonation-exit-button {
+  flex: none;
+  min-height: 38px;
+  padding: var(--space-2) var(--space-4);
+  border: var(--border-width-strong) solid #fff !important;
+  border-radius: var(--radius-md);
+  background: transparent !important;
+  color: #fff;
+  font-weight: var(--font-weight-bold);
+  cursor: pointer;
+}
+
+.impersonation-banner .impersonation-exit-button:hover,
+.impersonation-banner .impersonation-exit-button:focus-visible {
+  background: rgba(255, 255, 255, 0.16) !important;
+}
+
+.impersonation-banner .impersonation-exit-button:disabled {
+  cursor: wait;
+  opacity: 0.7;
+}
+
 .system-warning {
   padding: var(--space-3) var(--shell-padding-laptop);
   border-block: var(--border-width) solid color-mix(in srgb, var(--color-warning), var(--color-border) 45%);
@@ -94,7 +145,17 @@ a:hover {
 }
 
 @media (max-width: 900px) {
-  .system-warning {
+  .system-warning,
+  .impersonation-banner {
     padding-inline: var(--shell-padding-compact);
+  }
+
+  .impersonation-banner {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .impersonation-exit-button {
+    align-self: stretch;
   }
 }

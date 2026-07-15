@@ -1,7 +1,7 @@
 import { preferenceKeys, readPreference, writePreference } from "./preferences.js";
-import { visibleNavigationScreens } from "./navigation-preferences.js?v=20260713-role-security";
+import { visibleNavigationScreens } from "./navigation-preferences.js?v=20260715-admin-impersonation";
 import { screenRegistry } from "./screen-registry.js?v=20260707-deep-links";
-import { canReadView, firstReadableView } from "../shared/security.js?v=20260713-role-security";
+import { canReadView, firstReadableView } from "../shared/security.js?v=20260715-admin-impersonation";
 
 const legacyViews = Object.freeze({
   "Dev Log": "Scrum",

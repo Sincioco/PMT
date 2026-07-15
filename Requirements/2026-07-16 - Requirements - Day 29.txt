@@ -1,0 +1,83 @@
+Project Management Tool (PMT):  Day 29 of Codex Agentic AI Coding
+-----------------------------------------------------------------
+Total Dev Time in Hours:  39
+
+AI Instructions
+--------------
+Design Methodology:
+	KISS (Keep It Simple Stupid) - The simpler the better.  Avoid over-engineering.  Avoid unnecessary complexity.  Avoid unnecessary features.  Avoid unnecessary bells and whistles.  Avoid unnecessary abstractions.  Avoid unnecessary patterns.  Avoid unnecessary frameworks.  Avoid unnecessary libraries.  Avoid unnecessary dependencies.  Avoid unnecessary code.  Avoid unnecessary files.  Avoid unnecessary folders.  Avoid unnecessary classes.  Avoid unnecessary methods.  Avoid unnecessary variables.
+
+Testing Approach:
+	In addition to your normal testing, be sure to inform me if I have to recompile the .Net portion of the project or just Press Ctrl + F5 on the browser to reload to see the latest changes.  If making CSS / image changes, ensure that I will encounter no caching issue when testing in the browser.
+
+Environment:
+	You are in a dev machine.  You can drop and re-create the database as you see fit, especially when testing migrations scripts.  You don't need to preseve data in the backend or frontend.  You can also clear preferences, local storage settings and any cache as you see fit.
+
+If making changes to the database, that affects existing users see database-versioning.md under the docs folder.
+
+Root Cause Analysis in Dev Tasks and Bug Tracking
+-------------------------------------------------
+1.) There was a previous logic with regards to how Root Cause Analysis is appended between the Dev Task and the Bug that are linked to each other.  From now on, the new rule is, it is just a one-way update.  Root Cause Analysis is updated by the developer and then it syncs to the associated bug.
+
+Bug Tracking
+------------
+2.) When a bug is created and assigned to a developer, can you copy the URL field from the Bug task to the Dev task?
+
+Kanban Board
+------------
+3.) A Developer should not be able to move a Dev Task beyond the "QA Passed" status.
+4.) A Developer can move a Dev Task to the "QA Ready" status.
+
+Scrum
+-----
+4.) When rendering the Avatar of the status of the user at the top (title area), do so without shifting the UI in anyway.  Currently, when a first user avatar appears it shifts the screen.  Also, render the user's avatar at 80x80 and visually center it between the top edge of the content area and the top edge of the Scrum entry table.
+5.) Make the Status icon that you overlay on the avatar a little larger.
+6.) Change the Status icon you selected for the Sick status.  Currently it looks like a "+" sign.
+7.) Let's make two view buttons at the top:  Table | Calendar.  And do it so the UX feels the same way as you did the Cards and Review views in the Documentation screen.
+8.) Still continue to simply render the Calendar above the Scrum table entries, much like Graphs just sit above the Dev Tasks in the Dev Tasks screen.  Again make sure no unnecessary UI elements shift on-screen as you switch from Table to Calendar view.
+
+
+Database Migration Script Testing
+---------------------------------
+Update the migration scripts and test them by dropping and re-creating the database from the baseline and executing your combined migration script (as that is how I will execute it on the server).  Be sure it works without any errors and fix errors that you do encounter.
+
+Commit and Push
+---------------
+When all your tests are green, commit and push to the repo.
+Also commit the files named "2026-07-15 - Requirements - Day 28.txt" and "2026-07-16 - Requirements - Day 29.txt"
+
+Remember this:  Treat the Requirements .txt files as my thoughts and planning.  Never execute those without my permission.
+
+Release Notes
+-------------
+10.) Create another Top Navigation button/screen this time it is for Release Notes.  You can place this above the "About" navigation item.
+11.) In the Requirements folder, there are .txt files that served/serves as the AI prompts for the creation of PMT.  They are/were effectively the features being added to PMT day after day.
+12.) Turn those .txt files starting from "2026-06-10 - Requirements - Day 1.txt" to "2026-07-16 - Requirements - Day 29.txt" as separate release notes
+13.) In this Release Notes screen, create two views:  Release Notes | Sin's AI Prompts.
+14.) Let the user toggle between the pretty Release Notes that you will create with formatting and all, and my original ChatGPT Codex AI Prompts (Sin's AI Prompts).
+15.) For the Release Notes screen itself allow the user to jump from one release notes to another, with the latest release notes being at the top.
+16.) For the Release Notes content itself, just do some basic formatting like Section header and numbered list.
+17.) Format the Release Notes for business / end-users.  So, re-format the .txt file and functionally group the features as Section Headers and create bullet points or numbered lists for each new features, enhancements and also include bugs under each feature.
+18.) For the "Sin's AI Prompts" view, largely keep the original .txt file content as-is.  If you see very obvious and glarring typo (as I sometimes cause), you may fix those.
+
+What's New
+----------
+Goal:  As we make changes to PMT on a nearly daily basis, we do need to keep the user's informed of the changes.
+
+19.) When the user logs in to PMT, check what new features/release notes have come out since they last logged in and show it to them in a dialog box.
+21.) If it has been a long time since they last logged in and there are multiple release notes, provide some sort of left navigation within the What's New Dialog Box so they can go through each new release notes/features if they want to.
+22.) If there is a way you can re-cycle the Release Notes and maybe just re-use it as a "What's New" feature for the user that would be better so that there is only one source for both.
+23.) At the bottom of the What's New Dialog Box, at some language to the effect of "If you want to see the all Release Notes, click here."  And "click here" just takes them to the Release Notes screen.
+24.) If it is the user's first time logging into PMT, just provide the last 3 Release Notes for the What's New Dialog Box, so we don't overwhelm them.
+
+Release Notes and What's New
+-----------------------------------
+25.) Remember this:  Going forward, find an easy way for you (Codex) to update the Release Notes and What's New so they are kept up-to-date as we add features to PMT.
+
+Database Migration Script Testing
+---------------------------------
+Update the migration scripts and test them by dropping and re-creating the database from the baseline and executing your combined migration script (as that is how I will execute it on the server).  Be sure it works without any errors and fix errors that you do encounter.
+
+Commit and Push
+---------------
+When your tests are green, commit and push to the repo.  Also commit the file: "2026-07-16 - Requirements - Day 29.txt"

@@ -26,9 +26,11 @@ test("Invite Users generates copyable URL and Outlook-safe email HTML", async ({
 
   await page.addInitScript(() => {
     localStorage.clear();
-    localStorage.setItem("pmt-auth-user", "1");
   });
   await installCommonApiMocks(page, () => appState);
+  await page.route("**/api/session", async route => {
+    await route.fulfill(jsonResponse(sessionPayload(admin)));
+  });
   await page.route("**/api/invitations", async route => {
     createPayload = route.request().postDataJSON();
     markCreateStarted();
@@ -161,8 +163,10 @@ for (const scenario of destinationScenarios) {
       sprints: scenario.sprints
     });
     let acceptPayload = null;
-    let stateRequestUserId = "";
+    let stateRequestSentLegacyIdentity = false;
     let avatarUploadRequest = null;
+    let acceptedSession = false;
+    let restoredSessionCookie = "";
     let markAcceptStarted;
     let releaseAcceptResponse;
     const acceptStarted = new Promise(resolve => { markAcceptStarted = resolve; });
@@ -172,9 +176,15 @@ for (const scenario of destinationScenarios) {
     await installCommonApiMocks(
       page,
       () => appState,
-      request => { stateRequestUserId = request.headers()["x-pmt-userid"] || ""; },
+      request => { stateRequestSentLegacyIdentity ||= "x-pmt-userid" in request.headers(); },
       request => { avatarUploadRequest = request; }
     );
+    await page.route("**/api/session", async route => {
+      restoredSessionCookie = route.request().headers().cookie || "";
+      await route.fulfill(acceptedSession
+        ? jsonResponse(sessionPayload(invitedUser))
+        : jsonResponse({ error: "Unauthorized" }, 401));
+    });
     await page.route(`**/api/invitations/${invitationToken}`, async route => {
       await route.fulfill(jsonResponse({
         expiresAt: invitationExpiresAt,
@@ -187,12 +197,19 @@ for (const scenario of destinationScenarios) {
         markAcceptStarted();
         await acceptCanFinish;
       }
+      acceptedSession = true;
       await route.fulfill(jsonResponse({
         userId: invitedUser.id,
         nickname: invitedUser.nickname,
         isAdmin: false,
         role: "Developer",
+        originalUserId: invitedUser.id,
+        originalUserName: invitedUser.nickname,
+        isImpersonating: false,
+        impersonatedUserName: "",
         ...scenario.result
+      }, 200, {
+        "Set-Cookie": "PMT.Auth=invited-session; Path=/; HttpOnly; SameSite=Strict"
       }));
     });
 
@@ -265,8 +282,10 @@ for (const scenario of destinationScenarios) {
     } else {
       expect(avatarUploadRequest).toBeNull();
     }
-    expect(stateRequestUserId).toBe(String(invitedUser.id));
-    expect(await page.evaluate(() => localStorage.getItem("pmt-auth-user"))).toBe(String(invitedUser.id));
+    expect(stateRequestSentLegacyIdentity).toBe(false);
+    expect(await page.evaluate(() => localStorage.getItem("pmt-auth-user"))).toBeNull();
+    expect((await page.context().cookies()).find(cookie => cookie.name === "PMT.Auth"))
+      .toMatchObject({ httpOnly: true, sameSite: "Strict" });
     await expect(page).not.toHaveURL(/\?invite=/);
 
     if (scenario.heading === "Sprints") {
@@ -274,6 +293,10 @@ for (const scenario of destinationScenarios) {
     } else {
       await expect(page.locator(".project-card")).toHaveCount(scenario.projects.length);
     }
+
+    await page.reload();
+    await expect(page.getByRole("heading", { name: scenario.heading, exact: true })).toBeVisible();
+    expect(restoredSessionCookie).toContain("PMT.Auth=invited-session");
 
     expect(browserErrors).toEqual([]);
   });
@@ -419,10 +442,24 @@ function collectBrowserErrors(page) {
   return errors;
 }
 
-function jsonResponse(data, status = 200) {
+function jsonResponse(data, status = 200, headers = {}) {
   return {
     status,
     contentType: "application/json",
+    headers,
     body: JSON.stringify(data)
+  };
+}
+
+function sessionPayload(user) {
+  return {
+    userId: user.id,
+    nickname: user.nickname,
+    isAdmin: user.isAdmin,
+    role: user.role,
+    originalUserId: user.id,
+    originalUserName: user.nickname,
+    isImpersonating: false,
+    impersonatedUserName: ""
   };
 }

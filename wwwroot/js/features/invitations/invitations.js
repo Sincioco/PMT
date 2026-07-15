@@ -1,9 +1,9 @@
 import { api } from "../../core/api.js";
 import {
+  completeExternalLogin,
   currentUser,
-  currentUserId,
-  setCurrentUserId
-} from "../../core/authentication.js";
+  currentUserId
+} from "../../core/authentication.js?v=20260715-admin-impersonation";
 import { state } from "../../core/store.js";
 import { buttonContent } from "../../components/buttons.js";
 import {
@@ -361,7 +361,7 @@ export function createInvitationsFeature({
         });
         clearAvatarPreview();
         clearInvitationQuery();
-        setCurrentUserId(result.userId, true);
+        completeExternalLogin(result);
         await onAccepted(result);
         showToast(`Welcome to PMT, ${result.nickname || nickname}.`);
       } catch (error) {

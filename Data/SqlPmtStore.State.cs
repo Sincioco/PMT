@@ -5,6 +5,38 @@ namespace PMT.Data;
 
 public sealed partial class SqlPmtStore
 {
+    public async Task<List<AuditEventDto>> GetAuditTrailAsync(int currentUserId, CancellationToken cancellationToken)
+    {
+        await using var connection = await OpenConnectionAsync(cancellationToken);
+        await using var command = StoredProcedure(connection, "[pmt].[GetAuditTrail]");
+        Add(command, "@CurrentUserId", currentUserId);
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+
+        var events = new List<AuditEventDto>();
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            events.Add(new AuditEventDto
+            {
+                Id = reader.GetInt32("AuditEventId"),
+                EntityType = reader.GetStringOrEmpty("EntityType"),
+                EntityId = reader.GetInt32("EntityId"),
+                Action = reader.GetStringOrEmpty("Action"),
+                Details = reader.GetStringOrEmpty("Details"),
+                OldStatus = reader.GetStringOrEmpty("OldStatus"),
+                NewStatus = reader.GetStringOrEmpty("NewStatus"),
+                OldPercentCompleted = reader.GetNullableInt32("OldPercentCompleted"),
+                NewPercentCompleted = reader.GetNullableInt32("NewPercentCompleted"),
+                UserId = reader.GetInt32("UserId"),
+                ActorUserId = reader.GetInt32("ActorUserId"),
+                UserName = reader.GetStringOrEmpty("UserName"),
+                ActorUserName = reader.GetStringOrEmpty("ActorUserName"),
+                CreatedAt = reader.GetUtcDateTime("CreatedAt")
+            });
+        }
+
+        return events;
+    }
+
     public async Task<AppState> GetStateAsync(int currentUserId, CancellationToken cancellationToken)
     {
         // The UI needs many related lists at once. One stored procedure returns
@@ -61,7 +93,9 @@ public sealed partial class SqlPmtStore
         var blogHistory = await ReadBlogHistoryAsync(reader, cancellationToken);
         await reader.NextResultAsync(cancellationToken);
 
-        state.AuditEvents = await ReadAuditEventsAsync(reader, cancellationToken);
+        state.AuditEvents = (await ReadAuditEventsAsync(reader, cancellationToken))
+            .Where(audit => !audit.EntityType.Equals("Impersonation", StringComparison.OrdinalIgnoreCase))
+            .ToList();
         await reader.NextResultAsync(cancellationToken);
 
         state.Lookups = await ReadLookupsAsync(reader, cancellationToken);

@@ -13,21 +13,21 @@ import { sectionHead } from "../../components/sections.js?v=20260701-nav-title-p
 import {
   bugFixIconHtml,
   createWorkItemTableMode
-} from "../../components/work-items.js?v=20260715-day28-v118";
+} from "../../components/work-items.js?v=20260715-admin-impersonation";
 import {
   preferenceKeys,
   readJsonPreference,
   removePreference,
   writeJsonPreference
 } from "../../core/preferences.js?v=20260630-backlog-task-parity";
-import { currentUser } from "../../core/authentication.js";
+import { currentUser } from "../../core/authentication.js?v=20260715-admin-impersonation";
 import { state } from "../../core/store.js";
 import {
   formatDate,
   formatDateTime
 } from "../../shared/dates.js?v=20260620-null-end-date";
 import { normalizeSavedArray } from "../../shared/filter-values.js";
-import { canAccessResource } from "../../shared/security.js?v=20260713-role-security";
+import { canAccessResource } from "../../shared/security.js?v=20260715-admin-impersonation";
 import {
   downloadXlsx,
   downloadCsv,
@@ -54,6 +54,7 @@ import {
   taskById,
   userById
 } from "../../shared/selectors.js";
+import { severityPillHtml } from "../../shared/severity.js?v=20260715-severity-prefix";
 import {
   escapeAttr,
   escapeHtml
@@ -68,8 +69,8 @@ import {
   percentForDevTaskSave,
   percentForStatus,
   validateLinkedBugCompletion
-} from "../../shared/work-item-rules.js?v=20260714-linked-bug-percent";
-import { openWorkItemHtmlImport } from "../../shared/work-item-transfer.js?v=20260715-save-collision";
+} from "../../shared/work-item-rules.js?v=20260716-developer-board-status";
+import { openWorkItemHtmlImport } from "../../shared/work-item-transfer.js?v=20260716-rca-one-way";
 
 const backlogBugFixIconUrl = "/assets/bug.svg?v=20260629-kanban-gantt-bug-icon";
 
@@ -816,9 +817,7 @@ export function createBacklogFeature({
         colClass: "backlog-severity-column",
         width: 96,
         rubberMinWidth: 86,
-        cellHtml: task => task.taskType === "Bug"
-          ? `<span class="pill severity-${escapeAttr(task.severity)}">${escapeHtml(task.severity || "")}</span>`
-          : ""
+        cellHtml: task => task.taskType === "Bug" ? severityPillHtml(task.severity) : ""
       },
       {
         key: "environment",
@@ -1601,6 +1600,7 @@ export function createBacklogFeature({
       stepsToReproduceHtml: isBug ? task?.stepsToReproduceHtml || "" : "",
       actualResultHtml: isBug ? task?.actualResultHtml || "" : "",
       expectedResultHtml: isBug ? task?.expectedResultHtml || "" : "",
+      rootCauseAnalysisHtml: task?.rootCauseAnalysisHtml || "",
       environment: isBug ? updates.environment || task?.environment || "SIT" : "",
       severity: isBug ? updates.severity || task?.severity || "Major" : "",
       status: updates.status,

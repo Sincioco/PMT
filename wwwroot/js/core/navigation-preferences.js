@@ -4,7 +4,7 @@ import {
   writeJsonPreference
 } from "./preferences.js";
 import { screenRegistry } from "./screen-registry.js?v=20260707-log-about-nav";
-import { canReadView } from "../shared/security.js?v=20260713-role-security";
+import { canReadView } from "../shared/security.js?v=20260715-admin-impersonation";
 
 const navigationVersion = 2;
 const betaNavigationViews = new Set(["Dashboard", "Road Map", "Gantt"]);

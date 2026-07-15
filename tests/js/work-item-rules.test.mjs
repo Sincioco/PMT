@@ -1,7 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { fallbackStatuses, linkedBugCompletionMessage } from "../../wwwroot/js/shared/constants.js";
+import {
+  developerDevTaskStatusMessage,
+  fallbackStatuses,
+  linkedBugCompletionMessage
+} from "../../wwwroot/js/shared/constants.js";
 import {
   allowedAssigneeUsers,
   associatedBugForDevTask,
@@ -19,6 +23,7 @@ import {
   taskDisplayPercent,
   taskOrderCompare,
   taskRowsWithSubTasks,
+  validateDeveloperDevTaskStatus,
   validateLinkedBugCompletion
 } from "../../wwwroot/js/shared/work-item-rules.js";
 
@@ -101,6 +106,24 @@ test("linked bug completion guard blocks completion until the bug is QA passed o
   assert.doesNotThrow(() => validateLinkedBugCompletion(devTask, 100, []));
   assert.equal(associatedBugForDevTask({ id: 201, taskType: "Dev" }, [dependencyBug.id]), dependencyBug);
   assert.equal(isBugQaPassedOrLater(dependencyBug), true);
+});
+
+test("Developers can move Dev Tasks through QA Passed but not into deployment statuses", () => {
+  configure();
+  const developer = { role: "Developer", isAdmin: false };
+  const devTask = { taskType: "Dev" };
+
+  assert.doesNotThrow(() => validateDeveloperDevTaskStatus(developer, devTask, "Ready for QA"));
+  assert.doesNotThrow(() => validateDeveloperDevTaskStatus(developer, devTask, "QA Passed"));
+  assert.throws(
+    () => validateDeveloperDevTaskStatus(developer, devTask, "Deployed in SIT"),
+    error => error.message === developerDevTaskStatusMessage
+  );
+  assert.doesNotThrow(() => validateDeveloperDevTaskStatus({ role: "QA" }, devTask, "Deployed in Prod"));
+  assert.doesNotThrow(() => validateDeveloperDevTaskStatus(developer, { taskType: "Bug" }, "Deployed in Prod"));
+
+  configure([], ["Todo", "QA Ready", "QA Passed", "Deployed in SIT"]);
+  assert.doesNotThrow(() => validateDeveloperDevTaskStatus(developer, devTask, "QA Ready"));
 });
 
 test("task completion recognizes 100 percent and QA-passed workflow status", () => {
