@@ -2,7 +2,7 @@ Project Management Tool (PMT):  Day 26 of Codex Agentic AI Coding
 -----------------------------------------------------------------
 Total Dev Time in Hours:  34
 
-AI Instructons
+AI Instructions
 --------------
 Design Methodology:
 	KISS (Keep It Simple Stupid) - The simpler the better.  Avoid over-engineering.  Avoid unnecessary complexity.  Avoid unnecessary features.  Avoid unnecessary bells and whistles.  Avoid unnecessary abstractions.  Avoid unnecessary patterns.  Avoid unnecessary frameworks.  Avoid unnecessary libraries.  Avoid unnecessary dependencies.  Avoid unnecessary code.  Avoid unnecessary files.  Avoid unnecessary folders.  Avoid unnecessary classes.  Avoid unnecessary methods.  Avoid unnecessary variables.  
