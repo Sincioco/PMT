@@ -75,7 +75,7 @@ import { createLogFeature } from "./features/personal-log/log.js?v=20260715-admi
 import { createScrumFeature } from "./features/scrum/scrum.js?v=20260716-scrum-attendance-actions";
 import { createSettingsFeature } from "./features/settings/settings.js?v=20260716-development-reset";
 import { createSprintsFeature } from "./features/sprints/sprints.js?v=20260715-admin-impersonation";
-import { createTasksFeature } from "./features/tasks/tasks.js?v=20260716-dialog-route-close";
+import { createTasksFeature } from "./features/tasks/tasks.js?v=20260716-dev-task-header-bulk";
 import { createWfhScheduleFeature } from "./features/wfh-schedule/wfh-schedule.js?v=20260715-admin-impersonation";
 import {
   fallbackEnvironments,
@@ -340,6 +340,7 @@ const tasksFeature = createTasksFeature({
   app,
   attachFile,
   deleteItem,
+  deleteItems,
   duplicateTask,
   getBoardProjectId: boardFeature.getProjectId,
   getBoardSprintId: boardFeature.getSprintId,
@@ -4227,6 +4228,49 @@ async function deleteItem(path, message) {
   } catch (error) {
     showToast(error.message);
   }
+}
+
+async function deleteItems(paths, message, successMessage = "Deleted.") {
+  const deletePaths = [...new Set((paths || []).filter(Boolean))];
+  if (!deletePaths.length || !await askYesNo(message, "Delete")) {
+    return { confirmed: false, deletedCount: 0, failedCount: 0 };
+  }
+
+  let deletedCount = 0;
+  const errors = [];
+  for (const path of deletePaths) {
+    try {
+      await api(path, { method: "DELETE" });
+      deletedCount += 1;
+    } catch (error) {
+      errors.push(error);
+    }
+  }
+
+  const reloaded = await loadState();
+  if (!reloaded) {
+    return {
+      confirmed: true,
+      deletedCount,
+      failedCount: errors.length,
+      refreshed: false
+    };
+  }
+
+  render();
+
+  if (errors.length) {
+    showToast(`Some items could not be deleted. ${errors[0].message}`);
+  } else {
+    showToast(successMessage);
+  }
+
+  return {
+    confirmed: true,
+    deletedCount,
+    failedCount: errors.length,
+    refreshed: true
+  };
 }
 
 async function duplicateTask(id) {

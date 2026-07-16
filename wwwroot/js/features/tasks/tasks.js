@@ -115,11 +115,13 @@ import {
 import { openWorkItemHtmlImport } from "../../shared/work-item-transfer.js?v=20260716-rca-one-way";
 
 const taskBugFixIconUrl = "/assets/bug.svg?v=20260629-kanban-gantt-bug-icon";
+const taskHeaderIdleMs = 10000;
 
 export function createTasksFeature({
   app,
   attachFile,
   deleteItem,
+  deleteItems,
   duplicateTask,
   getBoardProjectId,
   getBoardSprintId,
@@ -143,6 +145,15 @@ export function createTasksFeature({
   let taskColumnDrag = null;
   let lastTaskColumnPointerDragAt = 0;
   let suppressNextTaskColumnClick = false;
+  let taskHeaderCompact = false;
+  let taskHeaderLastActivityAt = 0;
+  let taskHeaderIdleTimer = 0;
+  let taskHeaderResizeFrame = 0;
+  let taskHeaderResizeBound = false;
+  let taskHeaderSearchComposing = false;
+  let taskHeaderSkipComposedInput = false;
+  let taskBulkDeleteBusy = false;
+  const selectedTaskDeleteIds = new Set();
   const taskTableMode = createWorkItemTableMode({
     action: "toggle-task-table-edit-mode",
     itemLabel: "Dev Tasks"
@@ -172,6 +183,7 @@ export function createTasksFeature({
     const visibleTasks = filteredTaskList(baseTasks);
     const taskChildrenByParent = taskChildTasksByParent(visibleTasks);
     const taskRows = taskRowsWithVisibleSubTasks(visibleTasks);
+    pruneTaskDeleteSelection(taskRows);
     const assigneeColumnWidth = taskAssigneeColumnWidth(taskRows);
     const assigneeHeader = taskRowsHaveMultipleAssignees(taskRows) ? "Assignee(s)" : "Assignee";
     const visibleTaskColumns = taskVisibleTableColumns(assigneeHeader);
@@ -183,6 +195,8 @@ export function createTasksFeature({
     app.innerHTML = `
       <section class="tasks-screen work-item-screen">
       ${sectionHead("Dev Tasks", `
+        ${taskHeaderContextHtml(projectSprints)}
+        ${taskHeaderSearchHtml()}
         <button class="primary text-icon-button" type="button" data-action="new-task" title="New Dev Task" aria-label="New Dev Task">${buttonContent("&#10010;", "New Dev Task")}</button>
         <button class="secondary text-icon-button" type="button" data-action="open-task-filters" title="Filters" aria-label="Filters" aria-haspopup="dialog">${buttonContent(funnelIconHtml(), "Filters")}</button>
         ${pageActionsMenuHtml([
@@ -229,7 +243,14 @@ export function createTasksFeature({
               <tr class="${rowClass}" data-action="view-task" data-id="${task.id}" data-task-id="${task.id}" data-can-drag="${taskTableMode.active && canEditTask(task) ? "true" : "false"}" draggable="false" style="--indent:${indent}px">
                 <td class="tasks-expand-cell">${hasVisibleSubTasks ? taskSubTaskToggleHtml(task, isSubTasksCollapsed) : ""}</td>
                 ${visibleTaskColumns.map((column, index) => taskTableColumnCellHtml(column, task, row, { bugFixRowIcon }, taskColumnIsRubber(visibleTaskColumns, index))).join("")}
-                ${taskTableMode.active ? `<td class="reveal-actions action-cell">${taskButtonsHtml(task, { includeView: false, monochrome: true })}</td>` : ""}
+                ${taskTableMode.active ? `
+                  <td class="reveal-actions action-cell">
+                    <div class="task-row-actions">
+                      ${taskDeleteSelectionHtml(task)}
+                      ${taskButtonsHtml(task, { includeView: false, monochrome: true })}
+                    </div>
+                  </td>
+                ` : ""}
               </tr>
             `;
             }).join("") || `<tr><td colspan="${emptyTableColspan}"><div class="empty">No tasks for this filter.</div></td></tr>`}
@@ -238,6 +259,330 @@ export function createTasksFeature({
       </div>
       </section>
     `;
+
+    bindTaskHeader();
+    bindTaskDeleteSelection();
+  }
+
+  function taskHeaderContextHtml(projectSprints) {
+    const projectSummary = taskHeaderProjectSummary();
+    const sprintSummary = taskHeaderSprintSummary(projectSprints);
+
+    return `
+      <div class="task-header-context" data-task-header-context>
+        <div class="task-header-context-slot task-header-project-slot">
+          <select data-filter="task-project" aria-label="Project" title="Project">
+            ${taskProjectOptionsHtml()}
+          </select>
+          <span class="task-header-context-summary" data-task-header-project-summary title="${escapeAttr(projectSummary.title)}">
+            Project: ${escapeHtml(projectSummary.label)}
+          </span>
+        </div>
+        <div class="task-header-context-slot task-header-sprint-slot">
+          <select data-filter="task-sprint" aria-label="Sprint" title="Sprint">
+            ${taskSprintOptionsHtml(projectSprints)}
+          </select>
+          <span class="task-header-context-summary" data-task-header-sprint-summary title="${escapeAttr(sprintSummary.title)}">
+            Sprint: ${escapeHtml(sprintSummary.label)}
+          </span>
+        </div>
+      </div>
+    `;
+  }
+
+  function taskHeaderSearchHtml() {
+    return `
+      <label class="task-header-search-control" data-task-header-search-control title="Search Dev Tasks">
+        <span class="task-header-search-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" focusable="false">
+            <circle cx="10.5" cy="10.5" r="6.5"></circle>
+            <path d="m15.5 15.5 5 5"></path>
+          </svg>
+        </span>
+        <input class="task-header-search-input" type="search" data-filter="task-search" value="${escapeAttr(taskFilters.search)}" aria-label="Search Dev Tasks" autocomplete="off">
+      </label>
+    `;
+  }
+
+  function taskProjectOptionsHtml() {
+    return `
+      <option value="0" ${!taskProjectId ? "selected" : ""}>All Projects</option>
+      ${state.projects.map(project => `<option value="${project.id}" ${project.id === taskProjectId ? "selected" : ""}>${escapeHtml(project.code)} - ${escapeHtml(project.title)}</option>`).join("")}
+    `;
+  }
+
+  function taskSprintOptionsHtml(projectSprints = taskProjectSprints()) {
+    return `
+      <option value="current" ${taskSprintId === "current" ? "selected" : ""}>Current Sprint</option>
+      <option value="all" ${taskSprintId === "all" ? "selected" : ""}>All Sprints</option>
+      ${projectSprints.map(sprint => `<option value="${sprint.id}" ${String(sprint.id) === taskSprintId ? "selected" : ""}>${escapeHtml(sprint.code)} - ${escapeHtml(sprint.title)}</option>`).join("")}
+    `;
+  }
+
+  function taskHeaderProjectSummary() {
+    const project = state.projects.find(item => item.id === taskProjectId);
+    return project
+      ? { label: project.code, title: `${project.code} - ${project.title}` }
+      : { label: "All Projects", title: "All Projects" };
+  }
+
+  function taskHeaderSprintSummary(projectSprints = taskProjectSprints()) {
+    if (taskSprintId === "current") return { label: "Current Sprint", title: "Current Sprint" };
+    if (taskSprintId === "all") return { label: "All Sprints", title: "All Sprints" };
+
+    const sprint = projectSprints.find(item => item.id === Number(taskSprintId));
+    return sprint
+      ? { label: sprint.code, title: `${sprint.code} - ${sprint.title}` }
+      : { label: "Current Sprint", title: "Current Sprint" };
+  }
+
+  function bindTaskHeader() {
+    const header = app.querySelector(".tasks-screen .section-head");
+    if (!header) return;
+
+    header.dataset.taskHeader = "true";
+    header.classList.toggle("is-task-header-compact", taskHeaderCompact);
+    header.addEventListener("pointerenter", markTaskHeaderActivity);
+    header.addEventListener("pointermove", markTaskHeaderActivity);
+    header.addEventListener("focusin", markTaskHeaderActivity);
+    header.addEventListener("keydown", markTaskHeaderActivity);
+    header.addEventListener("change", markTaskHeaderActivity);
+
+    const search = header.querySelector("[data-task-header-search-control] input");
+    search?.addEventListener("compositionstart", () => {
+      taskHeaderSearchComposing = true;
+    });
+    search?.addEventListener("compositionend", event => {
+      taskHeaderSearchComposing = false;
+      taskHeaderSkipComposedInput = true;
+      applyTaskHeaderSearchInput(event.target);
+      queueMicrotask(() => {
+        taskHeaderSkipComposedInput = false;
+      });
+    });
+    search?.addEventListener("input", event => {
+      if (taskHeaderSearchComposing || taskHeaderSkipComposedInput) return;
+      applyTaskHeaderSearchInput(event.target);
+    });
+
+    if (!taskHeaderResizeBound) {
+      window.addEventListener("resize", scheduleTaskHeaderSearchPosition);
+      taskHeaderResizeBound = true;
+    }
+
+    if (!taskHeaderLastActivityAt) taskHeaderLastActivityAt = Date.now();
+    positionTaskHeaderSearch();
+    scheduleTaskHeaderIdle();
+  }
+
+  function applyTaskHeaderSearchInput(input) {
+    const selectionStart = input.selectionStart;
+    const selectionEnd = input.selectionEnd;
+    markTaskHeaderActivity();
+    if (!applyTaskFilterChange(input)) return;
+
+    renderTasks();
+    const nextInput = app.querySelector("[data-task-header-search-control] input");
+    nextInput?.focus({ preventScroll: true });
+    if (selectionStart !== null && selectionEnd !== null) {
+      nextInput?.setSelectionRange(selectionStart, selectionEnd);
+    }
+  }
+
+  function markTaskHeaderActivity() {
+    taskHeaderLastActivityAt = Date.now();
+    if (taskHeaderCompact) setTaskHeaderCompact(false);
+    if (!taskHeaderIdleTimer) scheduleTaskHeaderIdle();
+  }
+
+  function scheduleTaskHeaderIdle() {
+    window.clearTimeout(taskHeaderIdleTimer);
+    taskHeaderIdleTimer = 0;
+    if (taskHeaderCompact || !app.querySelector(".tasks-screen .section-head")) return;
+
+    const remaining = Math.max(0, taskHeaderLastActivityAt + taskHeaderIdleMs - Date.now());
+    taskHeaderIdleTimer = window.setTimeout(() => {
+      taskHeaderIdleTimer = 0;
+      const header = app.querySelector(".tasks-screen .section-head");
+      if (!header) return;
+
+      const nextRemaining = taskHeaderLastActivityAt + taskHeaderIdleMs - Date.now();
+      if (nextRemaining > 0) {
+        scheduleTaskHeaderIdle();
+        return;
+      }
+
+      if (header.contains(document.activeElement)) {
+        taskHeaderLastActivityAt = Date.now();
+        scheduleTaskHeaderIdle();
+        return;
+      }
+
+      setTaskHeaderCompact(true);
+    }, remaining);
+  }
+
+  function setTaskHeaderCompact(compact) {
+    taskHeaderCompact = Boolean(compact);
+    app.querySelector(".tasks-screen .section-head")?.classList.toggle("is-task-header-compact", taskHeaderCompact);
+    positionTaskHeaderSearch();
+  }
+
+  function scheduleTaskHeaderSearchPosition() {
+    if (taskHeaderResizeFrame) cancelAnimationFrame(taskHeaderResizeFrame);
+    taskHeaderResizeFrame = requestAnimationFrame(() => {
+      taskHeaderResizeFrame = 0;
+      positionTaskHeaderSearch();
+    });
+  }
+
+  function positionTaskHeaderSearch() {
+    const header = app.querySelector(".tasks-screen .section-head");
+    const searchControl = header?.querySelector("[data-task-header-search-control]");
+    const newTaskButton = header?.querySelector("[data-action='new-task']");
+    if (!header || !searchControl || !newTaskButton) return;
+
+    const headerRect = header.getBoundingClientRect();
+    const newTaskRect = newTaskButton.getBoundingClientRect();
+    const toolbarGap = Number.parseFloat(getComputedStyle(newTaskButton.parentElement).columnGap) || 8;
+    const compactSearchWidth = newTaskRect.width;
+    const compactCenter = newTaskRect.left - toolbarGap - (compactSearchWidth / 2);
+    const headerCenter = headerRect.left + (headerRect.width / 2);
+    header.style.setProperty("--task-header-search-compact-x", `${compactCenter - headerCenter}px`);
+  }
+
+  function taskDeleteSelectionHtml(task) {
+    const canDelete = taskCanDelete(task);
+    const checked = selectedTaskDeleteIds.has(task.id);
+    const taskLabel = [task.code, task.title].filter(Boolean).join(" - ");
+
+    return `
+      <label class="task-delete-selection" title="Select ${escapeAttr(taskLabel)} for bulk delete">
+        <input type="checkbox" data-task-delete-select data-id="${task.id}" aria-label="Select ${escapeAttr(taskLabel)} for bulk delete" ${checked ? "checked" : ""} ${canDelete && !taskBulkDeleteBusy ? "" : "disabled"}>
+      </label>
+    `;
+  }
+
+  function bindTaskDeleteSelection() {
+    app.querySelectorAll("[data-task-delete-select]").forEach(input => {
+      input.addEventListener("change", () => {
+        if (taskBulkDeleteBusy) return;
+        const id = Number(input.dataset.id || 0);
+        if (!id) return;
+
+        if (input.checked) {
+          selectedTaskDeleteIds.add(id);
+        } else {
+          selectedTaskDeleteIds.delete(id);
+        }
+        syncTaskDeleteSelectionControls();
+      });
+    });
+
+    syncTaskDeleteSelectionControls();
+  }
+
+  function syncTaskDeleteSelectionControls() {
+    const selectedCount = selectedTaskDeleteIds.size;
+    const selectedTitle = taskSelectedDeleteTitle(selectedCount);
+
+    app.querySelectorAll("[data-task-delete-select]").forEach(input => {
+      const id = Number(input.dataset.id || 0);
+      const task = taskById(id);
+      input.checked = selectedTaskDeleteIds.has(id);
+      input.disabled = taskBulkDeleteBusy || !taskCanDelete(task);
+    });
+
+    app.querySelectorAll(".tasks-table tr[data-task-id] [data-action='delete-task']").forEach(button => {
+      const id = Number(button.dataset.id || 0);
+      const task = taskById(id);
+      const title = selectedTaskDeleteIds.has(id) ? selectedTitle : "Delete";
+      button.disabled = taskBulkDeleteBusy || !taskCanDelete(task);
+      button.title = title;
+      button.setAttribute("aria-label", title);
+    });
+  }
+
+  function pruneTaskDeleteSelection(taskRows) {
+    if (!taskTableMode.active) {
+      selectedTaskDeleteIds.clear();
+      return;
+    }
+
+    const visibleIds = new Set(
+      taskRows
+        .map(row => row.task)
+        .filter(taskCanDelete)
+        .map(task => task.id)
+    );
+    [...selectedTaskDeleteIds].forEach(id => {
+      if (!visibleIds.has(id)) selectedTaskDeleteIds.delete(id);
+    });
+  }
+
+  function taskCanDelete(task) {
+    return Boolean(task)
+      && task.taskType !== "Bug"
+      && canAccessResource("DevTasks", "Delete");
+  }
+
+  function taskSelectedDeleteTitle(count = selectedTaskDeleteIds.size) {
+    return count === 1
+      ? "Delete selected Dev Task"
+      : `Delete ${count} selected Dev Tasks`;
+  }
+
+  async function deleteSelectedTasks() {
+    const tasks = [...selectedTaskDeleteIds]
+      .map(taskById)
+      .filter(taskCanDelete)
+      .sort((left, right) => taskDeleteDepth(left) - taskDeleteDepth(right));
+    if (!tasks.length) return;
+
+    const count = tasks.length;
+    const coveredByParentDelete = new Set();
+    const requestTasks = [];
+    // DeleteTask already deletes direct sub-tasks, so skip duplicate requests for covered selections.
+    tasks.forEach(task => {
+      if (coveredByParentDelete.has(task.id)) return;
+
+      requestTasks.push(task);
+      state.tasks
+        .filter(candidate => candidate.parentTaskId === task.id)
+        .forEach(candidate => coveredByParentDelete.add(candidate.id));
+    });
+    const includesParent = tasks.some(task =>
+      state.tasks.some(candidate => candidate.parentTaskId === task.id));
+    const childWarning = includesParent ? " Deleting a parent also deletes its direct sub-tasks." : "";
+
+    taskBulkDeleteBusy = true;
+    syncTaskDeleteSelectionControls();
+    try {
+      await deleteItems(
+        requestTasks.map(task => `/api/tasks/${task.id}`),
+        `${taskSelectedDeleteTitle(count)}?${childWarning}`,
+        `${count} Dev Task${count === 1 ? "" : "s"} deleted.`
+      );
+    } finally {
+      taskBulkDeleteBusy = false;
+      syncTaskDeleteSelectionControls();
+    }
+  }
+
+  function taskDeleteDepth(task) {
+    let depth = 0;
+    let parentId = task?.parentTaskId;
+    const visited = new Set();
+
+    while (parentId && !visited.has(parentId)) {
+      visited.add(parentId);
+      const parent = taskById(parentId);
+      if (!parent) break;
+      depth += 1;
+      parentId = parent.parentTaskId;
+    }
+
+    return depth;
   }
 
   async function handleAction(action, id, element) {
@@ -249,6 +594,7 @@ export function createTasksFeature({
     }
     if (action === "toggle-task-table-edit-mode") {
       taskTableMode.toggle();
+      selectedTaskDeleteIds.clear();
       renderTasks();
       return true;
     }
@@ -299,7 +645,11 @@ export function createTasksFeature({
       return true;
     }
     if (action === "delete-task" && task?.taskType !== "Bug") {
-      await deleteItem(`/api/tasks/${id}`, "Delete this task?");
+      if (selectedTaskDeleteIds.has(id)) {
+        await deleteSelectedTasks();
+      } else {
+        await deleteItem(`/api/tasks/${id}`, "Delete this task?");
+      }
       return true;
     }
 
@@ -308,6 +658,7 @@ export function createTasksFeature({
 
   function handleFilterChange(eventOrTarget) {
     const target = eventOrTarget?.target || eventOrTarget;
+    if (target?.closest?.(".tasks-screen .section-head")) markTaskHeaderActivity();
     if (!applyTaskFilterChange(target)) return false;
 
     renderTasks();
@@ -392,16 +743,13 @@ export function createTasksFeature({
           <label>
             <span>Project</span>
             <select data-filter="task-project">
-              <option value="0" ${!taskProjectId ? "selected" : ""}>All Projects</option>
-              ${state.projects.map(project => `<option value="${project.id}" ${project.id === taskProjectId ? "selected" : ""}>${escapeHtml(project.code)} - ${escapeHtml(project.title)}</option>`).join("")}
+              ${taskProjectOptionsHtml()}
             </select>
           </label>
           <label>
             <span>Sprint</span>
             <select data-filter="task-sprint">
-              <option value="current" ${taskSprintId === "current" ? "selected" : ""}>Current Sprint</option>
-              <option value="all" ${taskSprintId === "all" ? "selected" : ""}>All Sprints</option>
-              ${projectSprints.map(sprint => `<option value="${sprint.id}" ${String(sprint.id) === taskSprintId ? "selected" : ""}>${escapeHtml(sprint.code)} - ${escapeHtml(sprint.title)}</option>`).join("")}
+              ${taskSprintOptionsHtml(projectSprints)}
             </select>
           </label>
           <label>
@@ -964,7 +1312,7 @@ export function createTasksFeature({
   }
 
   function taskTableMinWidth(columns) {
-    const fixedWidth = 16 + (taskTableMode.active ? 224 : 0);
+    const fixedWidth = 16 + (taskTableMode.active ? 248 : 0);
     const lastColumnIndex = columns.length - 1;
     const columnsWidth = columns.reduce((total, column, index) =>
       total + taskColumnMinimumWidth(column, index === lastColumnIndex), 0);
@@ -1958,6 +2306,9 @@ export function createTasksFeature({
     taskCollapsedSubTasks = {};
     taskColumnPrefs = normalizeTaskColumnPrefs({});
     taskTableMode.deactivate();
+    selectedTaskDeleteIds.clear();
+    taskHeaderCompact = false;
+    taskHeaderLastActivityAt = Date.now();
     cancelTaskColumnDrag();
     renderTasks();
   }
@@ -2195,6 +2546,20 @@ export function createTasksFeature({
         dialog.remove();
       }
     });
+    window.clearTimeout(taskHeaderIdleTimer);
+    taskHeaderIdleTimer = 0;
+    if (taskHeaderResizeFrame) cancelAnimationFrame(taskHeaderResizeFrame);
+    taskHeaderResizeFrame = 0;
+    if (taskHeaderResizeBound) {
+      window.removeEventListener("resize", scheduleTaskHeaderSearchPosition);
+      taskHeaderResizeBound = false;
+    }
+    taskHeaderCompact = false;
+    taskHeaderLastActivityAt = 0;
+    taskHeaderSearchComposing = false;
+    taskHeaderSkipComposedInput = false;
+    taskBulkDeleteBusy = false;
+    selectedTaskDeleteIds.clear();
     cancelTaskColumnDrag();
     taskTableMode.deactivate();
   }

@@ -156,6 +156,9 @@ Use two signed-in browser profiles, A and B, that can edit the same disposable r
 ### Dev Task and Bug
 
 - [ ] Create a Dev Task and confirm the dialog initially focuses Title.
+- [ ] Confirm the Dev Tasks header Project, Sprint, and Search controls stay synchronized with the Filter dialog in both directions and filter the same rows.
+- [ ] Leave the Dev Tasks header untouched for ten seconds and confirm Project/Sprint become muted labels while Search slides into a search icon immediately before New Dev Task without moving the title, buttons, charts, or table. Move the pointer into the header and confirm the controls return with their values intact.
+- [ ] Enter Dev Tasks Edit Mode, confirm each delete-capable row has a checkbox immediately before its trash icon, select multiple rows, and confirm clicking a checked row's trash deletes only the selected rows after one confirmation.
 - [ ] Verify attachments appear above Assignees.
 - [ ] Verify Assignees show avatars and the list can scroll.
 - [ ] Add/edit assignment, status, percent, dates, dependency, and description.

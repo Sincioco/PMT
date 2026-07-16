@@ -1261,6 +1261,216 @@ test("Scrum attendance cache follows the restored cookie session user", async ({
   await expect(vacationDialog.locator("[data-scrum-vacation-id='20']")).toBeVisible();
 });
 
+test("Dev Tasks header filters, idle morph, and bulk delete stay synchronized", async ({ page }) => {
+  const appState = createTestState();
+  const childTask = {
+    ...appState.tasks.find(task => task.id === 3),
+    id: 8,
+    parentTaskId: 1,
+    code: "PMT-TASK-008",
+    title: "Selected child task",
+    descriptionHtml: "<p>Selected child task</p>",
+    sortOrder: 4
+  };
+  appState.tasks.push(childTask);
+  hydrateTaskPeople(appState, childTask);
+  const apiCalls = { securityReset: 0, taskDeletes: [] };
+  const pageErrors = [];
+
+  page.on("pageerror", error => pageErrors.push(error.message));
+  await page.clock.install({ time: new Date("2026-07-15T08:00:00+08:00") });
+  await markCurrentReleaseSeen(page, 1);
+  await installApiMocks(page, appState, apiCalls);
+  await page.goto("/");
+  await page.locator("#loginName").fill("Sin");
+  await page.locator("#loginPassword").fill("Password1");
+  await page.getByRole("button", { name: /log in/i }).click();
+  await openNavView(page, "Tasks", "Dev Tasks");
+
+  const header = page.locator(".tasks-screen .section-head");
+  const headerProject = header.locator("[data-filter='task-project']");
+  const headerSprint = header.locator("[data-filter='task-sprint']");
+  const headerSearch = header.locator("[data-filter='task-search']");
+  const readLayout = () => page.evaluate(() => {
+    const rect = selector => {
+      const bounds = document.querySelector(selector)?.getBoundingClientRect();
+      return bounds
+        ? { x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height }
+        : null;
+    };
+
+    return {
+      header: rect(".tasks-screen .section-head"),
+      title: rect(".tasks-screen .section-head h1"),
+      project: rect(".tasks-screen .section-head [data-filter='task-project']"),
+      sprint: rect(".tasks-screen .section-head [data-filter='task-sprint']"),
+      search: rect(".tasks-screen .section-head [data-task-header-search-control]"),
+      add: rect(".tasks-screen .section-head [data-action='new-task']"),
+      filters: rect(".tasks-screen .section-head [data-action='open-task-filters']"),
+      actions: rect(".tasks-screen .section-head .page-actions-menu"),
+      charts: rect(".tasks-screen .tasks-chart-panel"),
+      table: rect(".tasks-screen .tasks-table-panel")
+    };
+  });
+
+  const initialLayout = await readLayout();
+  expect(initialLayout.title.x + initialLayout.title.width).toBeLessThan(initialLayout.project.x);
+  expect(initialLayout.project.x + initialLayout.project.width).toBeLessThan(initialLayout.sprint.x);
+  expect(initialLayout.sprint.x + initialLayout.sprint.width).toBeLessThan(initialLayout.search.x);
+  expect(initialLayout.search.x + initialLayout.search.width).toBeLessThan(initialLayout.add.x);
+  expect(initialLayout.search.x + (initialLayout.search.width / 2))
+    .toBeCloseTo(initialLayout.header.x + (initialLayout.header.width / 2), 0);
+  expect(initialLayout.project.y + (initialLayout.project.height / 2))
+    .toBeCloseTo(initialLayout.title.y + (initialLayout.title.height / 2), 0);
+  expect(initialLayout.sprint.y + (initialLayout.sprint.height / 2))
+    .toBeCloseTo(initialLayout.title.y + (initialLayout.title.height / 2), 0);
+
+  await headerProject.selectOption("20");
+  await expect(headerProject).toHaveValue("20");
+  await expect(headerSprint).toHaveValue("current");
+  await expect(page.locator("tbody[data-reorder-list='tasks']")).toContainText("LMS-TASK-001");
+  await expect(page.locator("tbody[data-reorder-list='tasks']")).not.toContainText("PMT-TASK-001");
+
+  await header.locator("[data-action='open-task-filters']").click();
+  let filterDialog = page.locator("[data-task-filter-dialog]");
+  await expect(filterDialog.locator("[data-filter='task-project']")).toHaveValue("20");
+  await expect(filterDialog.locator("[data-filter='task-sprint']")).toHaveValue("current");
+  await filterDialog.locator("[data-filter='task-project']").selectOption("10");
+  await filterDialog.locator("[data-filter='task-sprint']").selectOption("101");
+  await closeFilterDialog(page, "task");
+  await expect(headerProject).toHaveValue("10");
+  await expect(headerSprint).toHaveValue("101");
+
+  await headerSearch.fill("Wire Board");
+  await expect(headerSearch).toHaveValue("Wire Board");
+  await expect(page.locator("tr[data-task-id='2']")).toBeVisible();
+  await expect(page.locator("tr[data-task-id='1']")).toHaveCount(0);
+  await header.locator("[data-action='open-task-filters']").click();
+  filterDialog = page.locator("[data-task-filter-dialog]");
+  await expect(filterDialog.locator("[data-filter='task-search']")).toHaveValue("Wire Board");
+  await filterDialog.locator("[data-filter='task-search']").fill("Implement smokeable");
+  await expect(headerSearch).toHaveValue("Implement smokeable");
+  await expect(page.locator("tr[data-task-id='1']")).toBeVisible();
+  await expect(page.locator("tr[data-task-id='2']")).toHaveCount(0);
+  await closeFilterDialog(page, "task");
+  await headerSearch.fill("");
+  await expect(page.locator("tr[data-task-id='1']")).toBeVisible();
+  await expect(page.locator("tr[data-task-id='2']")).toBeVisible();
+
+  const expandedLayout = await readLayout();
+  const transitionMs = await header.locator("[data-task-header-search-control]").evaluate(element =>
+    Number.parseFloat(getComputedStyle(element).transitionDuration) * 1000);
+  expect(transitionMs).toBeGreaterThan(0);
+  expect(transitionMs).toBeLessThanOrEqual(300);
+
+  await headerSearch.evaluate(element => element.blur());
+  await header.hover({ position: { x: 2, y: 2 } });
+  await page.clock.fastForward(10000);
+  await expect(header).toHaveClass(/is-task-header-compact/);
+  await expect(headerProject).not.toBeVisible();
+  await expect(headerSprint).not.toBeVisible();
+  await expect(header.locator("[data-task-header-project-summary]")).toHaveText("Project: PMT");
+  await expect(header.locator("[data-task-header-sprint-summary]")).toHaveText("Sprint: PMT-Sprint02");
+
+  await expect.poll(async () => (await header.locator("[data-task-header-search-control]").boundingBox())?.width)
+    .toBeCloseTo(expandedLayout.add.width, 0);
+  const compactLayout = await readLayout();
+  const compactSearchGap = compactLayout.add.x - (compactLayout.search.x + compactLayout.search.width);
+  expect(compactSearchGap).toBeGreaterThanOrEqual(0);
+  expect(compactSearchGap).toBeLessThanOrEqual(16);
+  for (const key of ["header", "title", "add", "filters", "actions", "charts", "table"]) {
+    expect(compactLayout[key].x).toBeCloseTo(expandedLayout[key].x, 0);
+    expect(compactLayout[key].y).toBeCloseTo(expandedLayout[key].y, 0);
+    expect(compactLayout[key].width).toBeCloseTo(expandedLayout[key].width, 0);
+    expect(compactLayout[key].height).toBeCloseTo(expandedLayout[key].height, 0);
+  }
+
+  await header.hover({ position: { x: 2, y: 2 } });
+  await expect(header).not.toHaveClass(/is-task-header-compact/);
+  await expect(headerProject).toBeVisible();
+  await expect(headerSprint).toBeVisible();
+  await expect(headerSearch).toHaveValue("");
+  await expect.poll(async () => (await header.locator("[data-task-header-search-control]").boundingBox())?.width)
+    .toBeCloseTo(expandedLayout.search.width, 0);
+  const restoredLayout = await readLayout();
+  for (const key of ["header", "title", "add", "filters", "actions", "charts", "table"]) {
+    expect(restoredLayout[key].x).toBeCloseTo(expandedLayout[key].x, 0);
+    expect(restoredLayout[key].y).toBeCloseTo(expandedLayout[key].y, 0);
+    expect(restoredLayout[key].width).toBeCloseTo(expandedLayout[key].width, 0);
+    expect(restoredLayout[key].height).toBeCloseTo(expandedLayout[key].height, 0);
+  }
+
+  const desktopViewport = page.viewportSize();
+  await page.setViewportSize({ width: 900, height: desktopViewport.height });
+  await header.hover({ position: { x: 2, y: 2 } });
+  const narrowExpandedLayout = await readLayout();
+  await page.clock.fastForward(10000);
+  await expect(header).toHaveClass(/is-task-header-compact/);
+  const narrowCompactLayout = await readLayout();
+  const narrowSearchWidths = await header.locator("[data-task-header-search-control]").evaluate(control => ({
+    control: control.getBoundingClientRect().width,
+    input: control.querySelector("input").getBoundingClientRect().width
+  }));
+  expect(narrowSearchWidths.control).toBeCloseTo(narrowExpandedLayout.search.width, 0);
+  expect(narrowSearchWidths.input).toBeCloseTo(narrowExpandedLayout.add.width, 0);
+  for (const key of ["header", "title", "add", "filters", "actions", "charts", "table"]) {
+    expect(narrowCompactLayout[key].x).toBeCloseTo(narrowExpandedLayout[key].x, 0);
+    expect(narrowCompactLayout[key].y).toBeCloseTo(narrowExpandedLayout[key].y, 0);
+    expect(narrowCompactLayout[key].width).toBeCloseTo(narrowExpandedLayout[key].width, 0);
+    expect(narrowCompactLayout[key].height).toBeCloseTo(narrowExpandedLayout[key].height, 0);
+  }
+  await header.hover({ position: { x: 2, y: 2 } });
+  await expect(header).not.toHaveClass(/is-task-header-compact/);
+  await page.setViewportSize(desktopViewport);
+
+  await clickPageAction(page, "toggle-task-table-edit-mode");
+  const firstRow = page.locator("tr[data-task-id='1']");
+  const secondRow = page.locator("tr[data-task-id='2']");
+  const childRow = page.locator("tr[data-task-id='8']");
+  const firstCheckbox = firstRow.locator("[data-task-delete-select]");
+  const secondCheckbox = secondRow.locator("[data-task-delete-select]");
+  const childCheckbox = childRow.locator("[data-task-delete-select]");
+  await expect(firstCheckbox).toBeVisible();
+  await expect(secondCheckbox).toBeVisible();
+  await expect(childCheckbox).toBeVisible();
+  expect(await firstRow.locator(".action-cell").evaluate(cell => {
+    const checkbox = cell.querySelector("[data-task-delete-select]");
+    const trash = cell.querySelector("[data-action='delete-task']");
+    return Boolean(checkbox.compareDocumentPosition(trash) & Node.DOCUMENT_POSITION_FOLLOWING);
+  })).toBe(true);
+
+  await firstCheckbox.check();
+  await secondCheckbox.check();
+  await childCheckbox.check();
+  await expect(page.locator("dialog.detail-dialog")).toHaveCount(0);
+  await expect(firstRow.locator("[data-action='delete-task']")).toHaveAttribute("title", "Delete 3 selected Dev Tasks");
+  const stateGetsBeforeDelete = apiCalls.stateGets;
+  await firstRow.locator("[data-action='delete-task']").click();
+  const confirmation = page.locator("dialog.mini-dialog", { has: page.getByRole("heading", { name: "Delete", exact: true }) });
+  await expect(confirmation).toContainText("Delete 3 selected Dev Tasks?");
+  await expect(confirmation).toContainText("Deleting a parent also deletes its direct sub-tasks.");
+  await confirmation.getByRole("button", { name: "Continue" }).click();
+
+  await expect.poll(() => apiCalls.taskDeletes).toEqual([1, 2]);
+  await expect.poll(() => apiCalls.stateGets).toBe(stateGetsBeforeDelete + 1);
+  await expect(page.locator("tr[data-task-id='1']")).toHaveCount(0);
+  await expect(page.locator("tr[data-task-id='2']")).toHaveCount(0);
+  await expect(page.locator("tr[data-task-id='8']")).toHaveCount(0);
+  await expect(page.locator("tr[data-task-id='3']")).toBeVisible();
+  expect(appState.tasks.some(task => task.id === 4 && task.taskType === "Bug")).toBe(true);
+  await expect(page.locator("#toast")).toHaveText("3 Dev Tasks deleted.");
+
+  apiCalls.failNextStateGet = true;
+  const thirdRow = page.locator("tr[data-task-id='3']");
+  await thirdRow.locator("[data-task-delete-select]").check();
+  await thirdRow.locator("[data-action='delete-task']").click();
+  const failedRefreshConfirmation = page.locator("dialog.mini-dialog", { has: page.getByRole("heading", { name: "Delete", exact: true }) });
+  await failedRefreshConfirmation.getByRole("button", { name: "Continue" }).click();
+  await expect(page.locator("#app")).toContainText("Database is not ready.");
+  await expect(page.locator("#toast")).toHaveText("Temporary state failure.");
+  expect(pageErrors).toEqual([]);
+});
+
 test("draw.io SVG clipboard paste preserves UTF-8 spaces", async ({ page }) => {
   const appState = createTestState();
   const apiCalls = { securityReset: 0 };
@@ -1589,6 +1799,12 @@ async function installApiMocks(page, appState, apiCalls) {
 
   await page.route("**/api/state", async route => {
     apiCalls.stateGets = Number(apiCalls.stateGets || 0) + 1;
+    if (apiCalls.failNextStateGet) {
+      apiCalls.failNextStateGet = false;
+      await route.fulfill(jsonResponse({ error: "Temporary state failure." }, 503));
+      return;
+    }
+
     await route.fulfill(jsonResponse(appState));
   });
 
@@ -1777,8 +1993,27 @@ async function installApiMocks(page, appState, apiCalls) {
   });
 
   await page.route(/\/api\/tasks\/\d+$/, async route => {
+    const taskId = Number(route.request().url().match(/\/api\/tasks\/(\d+)$/)?.[1] || 0);
+    if (route.request().method() === "DELETE") {
+      const task = appState.tasks.find(item => item.id === taskId);
+      if (!task) {
+        await route.fulfill(jsonResponse({ error: "Task not found" }, 404));
+        return;
+      }
+
+      if (!Array.isArray(apiCalls.taskDeletes)) apiCalls.taskDeletes = [];
+      apiCalls.taskDeletes.push(taskId);
+      const deletedIds = new Set([
+        taskId,
+        ...appState.tasks.filter(item => item.parentTaskId === taskId).map(item => item.id)
+      ]);
+      appState.tasks = appState.tasks.filter(item => !deletedIds.has(item.id));
+      await route.fulfill({ status: 204, body: "" });
+      return;
+    }
+
     const input = requestJson(route);
-    const task = appState.tasks.find(item => item.id === Number(input.id));
+    const task = appState.tasks.find(item => item.id === taskId);
     if (!task) {
       await route.fulfill(jsonResponse({ error: "Task not found" }, 404));
       return;
