@@ -2,9 +2,9 @@
     PMT Database Version 1.19 -> 1.20
 
     Makes the exact known PMT, LMS, and HLS seed Documentation records public
-    without changing other private Documentation. It also repairs existing
-    Sprint and work-item Project-code prefixes and keeps them synchronized
-    transactionally on future Project-code changes.
+    without changing other private Documentation. It also performs the one-time
+    repair of legacy PMT Sprint and work-item codes and keeps Project child codes
+    synchronized transactionally on future Project-code changes.
 */
 
 :on error exit
@@ -524,12 +524,299 @@ BEGIN TRY
         EXEC [pmt].[LockWorkTaskWrites];
         EXEC [pmt].[LockSprintWrites];
 
+        /*
+            One-time BDO repair for child rows left behind by the former random
+            Project-code behavior. ProjectId is authoritative. Only incorrect
+            codes under the PMT Project are changed; IDs, relationships, content,
+            and already-correct PMT codes are preserved.
+
+            Each target begins with PMT-, while each repaired source does not.
+            A checked row-by-row update is therefore enough to avoid code swaps.
+            When a legacy suffix is already used, the row receives the next
+            available standard PMT Sprint, Task, or Bug number.
+        */
+        DECLARE @PmtProjectId INT =
+        (
+            SELECT [ProjectId]
+            FROM [pmt].[Projects]
+            WHERE [Code] = N'PMT'
+        );
+
+        IF @PmtProjectId IS NULL
+        BEGIN
+            THROW 51059, 'The PMT Project is required for the one-time production child-code repair.', 1;
+        END;
+
+        BEGIN
+            DECLARE @PmtSprintCountBefore BIGINT =
+            (
+                SELECT COUNT_BIG(*)
+                FROM [pmt].[Sprints]
+                WHERE [ProjectId] = @PmtProjectId
+            );
+            DECLARE @PmtTaskCountBefore BIGINT =
+            (
+                SELECT COUNT_BIG(*)
+                FROM [pmt].[WorkTasks]
+                WHERE [ProjectId] = @PmtProjectId
+            );
+
+            DECLARE @PmtCodeRepair TABLE
+            (
+                [EntityType] NVARCHAR(20) NOT NULL,
+                [EntityId] INT NOT NULL,
+                [OldCode] NVARCHAR(40) NOT NULL,
+                [NewCode] NVARCHAR(40) NOT NULL,
+                [Resolution] NVARCHAR(80) NOT NULL,
+                PRIMARY KEY ([EntityType], [EntityId])
+            );
+
+            DECLARE @RepairSprintId INT;
+            DECLARE @RepairOldCode NVARCHAR(40);
+            DECLARE @RepairCode NVARCHAR(100);
+            DECLARE @RepairResolution NVARCHAR(80);
+            DECLARE @RepairNumber INT;
+
+            DECLARE [PmtSprintRepairCursor] CURSOR LOCAL STATIC READ_ONLY FOR
+                SELECT
+                    [Sprint].[SprintId],
+                    [Sprint].[Code],
+                    N'PMT'
+                    + CASE
+                        WHEN [CodeMarker].[MarkerPosition] IS NOT NULL
+                            THEN SUBSTRING([Sprint].[Code], [CodeMarker].[MarkerPosition], 40)
+                        WHEN CHARINDEX(N'-', [Sprint].[Code]) > 0
+                            THEN SUBSTRING([Sprint].[Code], CHARINDEX(N'-', [Sprint].[Code]), 40)
+                        ELSE N'-Sprint' + CONVERT(NVARCHAR(12), [Sprint].[SprintId])
+                      END
+                FROM [pmt].[Sprints] AS [Sprint]
+                CROSS APPLY
+                (
+                    SELECT MIN([Marker].[Position]) AS [MarkerPosition]
+                    FROM
+                    (
+                        VALUES
+                            (NULLIF(CHARINDEX(N'-SPRINT', UPPER([Sprint].[Code])), 0)),
+                            (NULLIF(CHARINDEX(N'-PHASE', UPPER([Sprint].[Code])), 0))
+                    ) AS [Marker]([Position])
+                    WHERE [Marker].[Position] IS NOT NULL
+                ) AS [CodeMarker]
+                WHERE [Sprint].[ProjectId] = @PmtProjectId
+                  AND LEFT([Sprint].[Code], 4) <> N'PMT-'
+                ORDER BY [Sprint].[SprintId];
+
+            OPEN [PmtSprintRepairCursor];
+            FETCH NEXT FROM [PmtSprintRepairCursor]
+                INTO @RepairSprintId, @RepairOldCode, @RepairCode;
+
+            WHILE @@FETCH_STATUS = 0
+            BEGIN
+                SET @RepairResolution = N'Corrected legacy Project prefix';
+
+                IF LEN(@RepairCode) > 40
+                   OR EXISTS
+                   (
+                       SELECT 1
+                       FROM [pmt].[Sprints]
+                       WHERE [Code] = @RepairCode
+                         AND [SprintId] <> @RepairSprintId
+                   )
+                BEGIN
+                    SELECT @RepairNumber = CONVERT(INT, COUNT_BIG(*)) + 1
+                    FROM [pmt].[Sprints]
+                    WHERE [ProjectId] = @PmtProjectId;
+
+                    SET @RepairCode = N'PMT-Sprint' + CONVERT(NVARCHAR(12), @RepairNumber);
+
+                    WHILE EXISTS (SELECT 1 FROM [pmt].[Sprints] WHERE [Code] = @RepairCode)
+                    BEGIN
+                        SET @RepairNumber += 1;
+                        SET @RepairCode = N'PMT-Sprint' + CONVERT(NVARCHAR(12), @RepairNumber);
+                    END;
+
+                    SET @RepairResolution = N'Renumbered legacy suffix collision';
+                END;
+
+                UPDATE [pmt].[Sprints]
+                SET [Code] = CONVERT(NVARCHAR(40), @RepairCode)
+                WHERE [SprintId] = @RepairSprintId;
+
+                INSERT INTO @PmtCodeRepair
+                (
+                    [EntityType], [EntityId], [OldCode], [NewCode], [Resolution]
+                )
+                VALUES
+                (
+                    N'Sprint', @RepairSprintId, @RepairOldCode,
+                    CONVERT(NVARCHAR(40), @RepairCode), @RepairResolution
+                );
+
+                FETCH NEXT FROM [PmtSprintRepairCursor]
+                    INTO @RepairSprintId, @RepairOldCode, @RepairCode;
+            END;
+
+            CLOSE [PmtSprintRepairCursor];
+            DEALLOCATE [PmtSprintRepairCursor];
+
+            DECLARE @RepairTaskId INT;
+            DECLARE @RepairTaskType NVARCHAR(20);
+
+            DECLARE [PmtTaskRepairCursor] CURSOR LOCAL STATIC READ_ONLY FOR
+                SELECT
+                    [Task].[TaskId],
+                    [Task].[TaskType],
+                    [Task].[Code],
+                    N'PMT'
+                    + CASE
+                        WHEN [CodeMarker].[MarkerPosition] IS NOT NULL
+                            THEN SUBSTRING([Task].[Code], [CodeMarker].[MarkerPosition], 40)
+                        WHEN CHARINDEX(N'-', [Task].[Code]) > 0
+                            THEN SUBSTRING([Task].[Code], CHARINDEX(N'-', [Task].[Code]), 40)
+                        WHEN [Task].[TaskType] = N'Bug'
+                            THEN N'-Bug' + CONVERT(NVARCHAR(12), [Task].[TaskId])
+                        ELSE N'-Task' + CONVERT(NVARCHAR(12), [Task].[TaskId])
+                      END
+                FROM [pmt].[WorkTasks] AS [Task]
+                CROSS APPLY
+                (
+                    SELECT MIN([Marker].[Position]) AS [MarkerPosition]
+                    FROM
+                    (
+                        VALUES
+                            (NULLIF(CHARINDEX(N'-TASK', UPPER([Task].[Code])), 0)),
+                            (NULLIF(CHARINDEX(N'-BUG', UPPER([Task].[Code])), 0)),
+                            (NULLIF(CHARINDEX(N'-BACKLOG', UPPER([Task].[Code])), 0))
+                    ) AS [Marker]([Position])
+                    WHERE [Marker].[Position] IS NOT NULL
+                ) AS [CodeMarker]
+                WHERE [Task].[ProjectId] = @PmtProjectId
+                  AND LEFT([Task].[Code], 4) <> N'PMT-'
+                ORDER BY [Task].[TaskId];
+
+            OPEN [PmtTaskRepairCursor];
+            FETCH NEXT FROM [PmtTaskRepairCursor]
+                INTO @RepairTaskId, @RepairTaskType, @RepairOldCode, @RepairCode;
+
+            WHILE @@FETCH_STATUS = 0
+            BEGIN
+                SET @RepairResolution = N'Corrected legacy Project prefix';
+
+                IF LEN(@RepairCode) > 40
+                   OR EXISTS
+                   (
+                       SELECT 1
+                       FROM [pmt].[WorkTasks]
+                       WHERE [Code] = @RepairCode
+                         AND [TaskId] <> @RepairTaskId
+                   )
+                BEGIN
+                    SELECT @RepairNumber = CONVERT(INT, COUNT_BIG(*)) + 1
+                    FROM [pmt].[WorkTasks]
+                    WHERE [ProjectId] = @PmtProjectId
+                      AND [TaskType] = @RepairTaskType;
+
+                    SET @RepairCode =
+                        N'PMT-'
+                        + CASE WHEN @RepairTaskType = N'Bug' THEN N'Bug' ELSE N'Task' END
+                        + CONVERT(NVARCHAR(12), @RepairNumber);
+
+                    WHILE EXISTS (SELECT 1 FROM [pmt].[WorkTasks] WHERE [Code] = @RepairCode)
+                    BEGIN
+                        SET @RepairNumber += 1;
+                        SET @RepairCode =
+                            N'PMT-'
+                            + CASE WHEN @RepairTaskType = N'Bug' THEN N'Bug' ELSE N'Task' END
+                            + CONVERT(NVARCHAR(12), @RepairNumber);
+                    END;
+
+                    SET @RepairResolution = N'Renumbered legacy suffix collision';
+                END;
+
+                UPDATE [pmt].[WorkTasks]
+                SET [Code] = CONVERT(NVARCHAR(40), @RepairCode)
+                WHERE [TaskId] = @RepairTaskId;
+
+                INSERT INTO @PmtCodeRepair
+                (
+                    [EntityType], [EntityId], [OldCode], [NewCode], [Resolution]
+                )
+                VALUES
+                (
+                    CASE WHEN @RepairTaskType = N'Bug' THEN N'Bug' ELSE N'Dev Task' END,
+                    @RepairTaskId,
+                    @RepairOldCode,
+                    CONVERT(NVARCHAR(40), @RepairCode),
+                    @RepairResolution
+                );
+
+                FETCH NEXT FROM [PmtTaskRepairCursor]
+                    INTO @RepairTaskId, @RepairTaskType, @RepairOldCode, @RepairCode;
+            END;
+
+            CLOSE [PmtTaskRepairCursor];
+            DEALLOCATE [PmtTaskRepairCursor];
+
+            IF @PmtSprintCountBefore <>
+               (
+                   SELECT COUNT_BIG(*)
+                   FROM [pmt].[Sprints]
+                   WHERE [ProjectId] = @PmtProjectId
+               )
+               OR @PmtTaskCountBefore <>
+               (
+                   SELECT COUNT_BIG(*)
+                   FROM [pmt].[WorkTasks]
+                   WHERE [ProjectId] = @PmtProjectId
+               )
+               OR EXISTS
+               (
+                   SELECT 1
+                   FROM [pmt].[Sprints]
+                   WHERE [ProjectId] = @PmtProjectId
+                     AND LEFT([Code], 4) <> N'PMT-'
+               )
+               OR EXISTS
+               (
+                   SELECT 1
+                   FROM [pmt].[WorkTasks]
+                   WHERE [ProjectId] = @PmtProjectId
+                     AND LEFT([Code], 4) <> N'PMT-'
+               )
+            BEGIN
+                THROW 51049, 'The one-time PMT Sprint and Task code repair could not be verified.', 1;
+            END;
+
+            DECLARE @PmtSprintRepairCount INT =
+            (
+                SELECT COUNT(*)
+                FROM @PmtCodeRepair
+                WHERE [EntityType] = N'Sprint'
+            );
+            DECLARE @PmtTaskRepairCount INT =
+            (
+                SELECT COUNT(*)
+                FROM @PmtCodeRepair
+                WHERE [EntityType] <> N'Sprint'
+            );
+
+            PRINT N'One-time PMT code repair completed: '
+                + CONVERT(NVARCHAR(12), @PmtSprintRepairCount)
+                + N' Sprint code(s), '
+                + CONVERT(NVARCHAR(12), @PmtTaskRepairCount)
+                + N' Task/Bug code(s).';
+
+            SELECT [EntityType], [EntityId], [OldCode], [NewCode], [Resolution]
+            FROM @PmtCodeRepair
+            ORDER BY [EntityType], [EntityId];
+        END;
+
         DECLARE @ProjectId INT;
         DECLARE @ProjectCode NVARCHAR(5);
 
         DECLARE [ProjectCodeCursor] CURSOR LOCAL FAST_FORWARD FOR
             SELECT [ProjectId], [Code]
             FROM [pmt].[Projects]
+            WHERE [ProjectId] = @PmtProjectId
             ORDER BY [ProjectId];
 
         OPEN [ProjectCodeCursor];
@@ -554,7 +841,8 @@ BEGIN TRY
             FROM [pmt].[Sprints] AS [Sprint]
             INNER JOIN [pmt].[Projects] AS [Project]
                 ON [Project].[ProjectId] = [Sprint].[ProjectId]
-            WHERE LEFT([Sprint].[Code], LEN([Project].[Code]) + 1) <> [Project].[Code] + N'-'
+            WHERE [Project].[ProjectId] = @PmtProjectId
+              AND LEFT([Sprint].[Code], LEN([Project].[Code]) + 1) <> [Project].[Code] + N'-'
         )
            OR EXISTS
         (
@@ -562,7 +850,8 @@ BEGIN TRY
             FROM [pmt].[WorkTasks] AS [Task]
             INNER JOIN [pmt].[Projects] AS [Project]
                 ON [Project].[ProjectId] = [Task].[ProjectId]
-            WHERE LEFT([Task].[Code], LEN([Project].[Code]) + 1) <> [Project].[Code] + N'-'
+            WHERE [Project].[ProjectId] = @PmtProjectId
+              AND LEFT([Task].[Code], LEN([Project].[Code]) + 1) <> [Project].[Code] + N'-'
         )
         BEGIN
             THROW 51049, 'One or more Sprint or Task codes do not match their Project after synchronization.', 1;
@@ -605,6 +894,26 @@ BEGIN TRY
     COMMIT TRANSACTION;
 END TRY
 BEGIN CATCH
+    IF CURSOR_STATUS('local', 'PmtSprintRepairCursor') >= 0
+    BEGIN
+        CLOSE [PmtSprintRepairCursor];
+    END;
+
+    IF CURSOR_STATUS('local', 'PmtSprintRepairCursor') > -3
+    BEGIN
+        DEALLOCATE [PmtSprintRepairCursor];
+    END;
+
+    IF CURSOR_STATUS('local', 'PmtTaskRepairCursor') >= 0
+    BEGIN
+        CLOSE [PmtTaskRepairCursor];
+    END;
+
+    IF CURSOR_STATUS('local', 'PmtTaskRepairCursor') > -3
+    BEGIN
+        DEALLOCATE [PmtTaskRepairCursor];
+    END;
+
     IF CURSOR_STATUS('local', 'ProjectCodeCursor') >= 0
     BEGIN
         CLOSE [ProjectCodeCursor];
