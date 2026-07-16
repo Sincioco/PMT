@@ -3,7 +3,7 @@ import {
   readJsonPreference,
   writeJsonPreference
 } from "./preferences.js";
-import { screenRegistry } from "./screen-registry.js?v=release-notes-2026-07-16-day-29-1052d26782c9";
+import { screenRegistry } from "./screen-registry.js?v=release-notes-2026-07-16-day-29-9965d111882d";
 import { canReadView } from "../shared/security.js?v=20260715-admin-impersonation";
 
 const navigationVersion = 2;

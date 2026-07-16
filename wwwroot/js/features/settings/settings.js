@@ -29,7 +29,7 @@ import {
   readNavigationConfig,
   resetNavigationConfig,
   writeNavigationConfig
-} from "../../core/navigation-preferences.js?v=release-notes-2026-07-16-day-29-1052d26782c9";
+} from "../../core/navigation-preferences.js?v=release-notes-2026-07-16-day-29-9965d111882d";
 import {
   clearPmtPreferences,
   preferenceKeys,
@@ -44,7 +44,7 @@ import {
   routeForView,
   savedViewPreference,
   updateBrowserUrl
-} from "../../core/router.js?v=release-notes-2026-07-16-day-29-1052d26782c9";
+} from "../../core/router.js?v=release-notes-2026-07-16-day-29-9965d111882d";
 import { state } from "../../core/store.js";
 import {
   formatDate,
@@ -121,6 +121,7 @@ export function createSettingsFeature({
 }) {
   let lookupTypeFilter = readPreference(preferenceKeys.lookupType, "Status");
   let settingsCategory = readPreference(preferenceKeys.settingsCategory, lookupTypeFilter || "Status");
+  let developmentActionRunning = false;
   let settingsTableFilters = normalizeSettingsTableFilters(readJsonPreference(preferenceKeys.settingsTableFilters, {}));
   let selectedSecurityResourceKey = "";
   let auditTrailEvents = null;
@@ -332,16 +333,16 @@ export function createSettingsFeature({
     if (action === "development-clear-non-pmt") {
       await runDevelopmentAction(
         "/api/development/clear-non-pmt",
-        "Clear LMS, HLS, and any non-PMT Projects, Sprints, Dev Tasks, Bugs, Scrum, and Documentation? PMT will remain intact.",
-        "Non-PMT development data cleared."
+        "Clear Projects other than PMT and PMTQA, including their Sprints, Dev Tasks, Bugs, Scrum, and Documentation? PMT and PMTQA will remain intact.",
+        "Project data other than PMT and PMTQA cleared."
       );
       return true;
     }
     if (action === "development-clear-pmt") {
       await runDevelopmentAction(
         "/api/development/clear-pmt",
-        "Clear the PMT Project, Sprints, Dev Tasks, Bugs, Scrum, and Documentation?",
-        "PMT development data cleared."
+        "Clear the PMT demo Project, Sprints, Dev Tasks, Bugs, Scrum, and Documentation? PMTQA will remain intact.",
+        "PMT demo data cleared."
       );
       return true;
     }
@@ -364,7 +365,7 @@ export function createSettingsFeature({
     if (action === "development-restore-pmt-seed-data") {
       await runDevelopmentAction(
         "/api/development/restore-pmt-seed-data",
-        "Restore only the PMT Project and its initial Sprints, work items, Scrum, and Documentation? PMT must already be permanently deleted. LMS and HLS will remain unchanged.",
+        "Restore the original PMT demo Project, missing demo users, Sprints, work items, Scrum, and Documentation? PMT must already be permanently deleted. PMTQA and other BDO data will remain unchanged.",
         "PMT seed data restored."
       );
       return true;
@@ -762,27 +763,27 @@ export function createSettingsFeature({
   }
 
   function settingsDevelopmentHtml() {
-    const canRun = currentUser().isAdmin;
+    const canRun = currentUser().isAdmin && !developmentActionRunning;
     return `
       <div class="panel development-panel settings-content-panel">
         <div>
           <h2>Development</h2>
-          <p class="muted">These tools reset test data during development. Use the named PMT button when PMT itself should be cleared.</p>
+          <p class="muted">These tools reset demo data. Clear PMT Demo and then Restore PMT Seed Data whenever a fresh PMT demo is needed. PMTQA is preserved.</p>
         </div>
         <div class="development-actions">
           <div class="development-action-row">
             <div>
-              <strong>Clear All Except PMT</strong>
-              <p class="muted">Deletes non-PMT Projects, Sprints, Dev Tasks, Bugs, Scrum, and Documentation.</p>
+              <strong>Clear All Except PMT and PMTQA</strong>
+              <p class="muted">Deletes Projects other than PMT and PMTQA, including their Sprints, Dev Tasks, Bugs, Scrum, and Documentation.</p>
             </div>
-            <button class="secondary text-icon-button" type="button" data-action="development-clear-non-pmt" ${canRun ? "" : "disabled"}>${buttonContent("&#128465;", "Clear All Except PMT")}</button>
+            <button class="secondary text-icon-button" type="button" data-action="development-clear-non-pmt" ${canRun ? "" : "disabled"}>${buttonContent("&#128465;", "Clear All Except PMT and PMTQA")}</button>
           </div>
           <div class="development-action-row danger-row">
             <div>
-              <strong>Clear PMT</strong>
-              <p class="muted">Deletes the PMT Project, Sprints, Dev Tasks, Bugs, Scrum, and Documentation.</p>
+              <strong>Clear PMT Demo</strong>
+              <p class="muted">Deletes only the resettable PMT demo Project and its data. PMTQA remains unchanged.</p>
             </div>
-            <button class="danger text-icon-button" type="button" data-action="development-clear-pmt" ${canRun ? "" : "disabled"}>${buttonContent("&#9888;", "Clear PMT")}</button>
+            <button class="danger text-icon-button" type="button" data-action="development-clear-pmt" ${canRun ? "" : "disabled"}>${buttonContent("&#9888;", "Clear PMT Demo")}</button>
           </div>
           <div class="development-action-row">
             <div>
@@ -801,7 +802,7 @@ export function createSettingsFeature({
           <div class="development-action-row">
             <div>
               <strong>Restore PMT Seed Data</strong>
-              <p class="muted">Restores only the missing PMT demo Project and leaves LMS, HLS, users, permissions, and private content unchanged.</p>
+              <p class="muted">Recreates missing demo users and restores the original PMT demo Project. PMTQA, BDO users, permissions, and private content remain unchanged.</p>
             </div>
             <button class="primary text-icon-button" type="button" data-action="development-restore-pmt-seed-data" ${canRun ? "" : "disabled"}>${buttonContent("&#8635;", "Restore PMT Seed Data")}</button>
           </div>
@@ -2328,17 +2329,27 @@ export function createSettingsFeature({
   }
 
   async function runDevelopmentAction(path, message, successMessage) {
+    if (developmentActionRunning) {
+      showToast("A Development action is already running.");
+      return;
+    }
     if (!await askYesNo(message, "Development")) return;
+
+    developmentActionRunning = true;
+    settingsCategory = "Development";
+    renderSettings();
 
     try {
       await api(path, { method: "POST" });
       await loadState();
       settingsCategory = "Development";
       writePreference(preferenceKeys.settingsCategory, settingsCategory);
-      renderSettings();
       showToast(successMessage);
     } catch (error) {
       showToast(error.message);
+    } finally {
+      developmentActionRunning = false;
+      renderSettings();
     }
   }
 

@@ -1,8 +1,8 @@
 [
   {
     "id": "2026-07-16-day-29",
-    "version": "1052d26782c9",
-    "seenToken": "2026-07-16-day-29@1052d26782c9",
+    "version": "9965d111882d",
+    "seenToken": "2026-07-16-day-29@9965d111882d",
     "date": "2026-07-16",
     "day": 29,
     "title": "Release Notes, What's New, and Refined Team Workflows",
@@ -57,6 +57,14 @@
           "Provide navigation for multiple unread releases and limit first-time users to the latest three.",
           "Link to the full Release Notes screen and reuse the same release-note content for both experiences.",
           "Notify signed-in users once when a same-day release is revised, without replaying unrelated older notes."
+        ]
+      },
+      {
+        "title": "Repeatable PMT Demonstrations",
+        "items": [
+          "Preserve BDO's working PMT Project as PMTQA while restoring a separate copy of the original SQL-seeded PMT Project for demonstrations.",
+          "Allow administrators to clear and restore the PMT demo repeatedly without changing PMTQA, BDO users, permissions, or private content.",
+          "Safely recreate missing demo team profiles and keep seeded Bug values aligned with the active BDO lookup configuration."
         ]
       }
     ],

@@ -1016,6 +1016,14 @@
           "Link to the full Release Notes screen and reuse the same release-note content for both experiences.",
           "Notify signed-in users once when a same-day release is revised, without replaying unrelated older notes."
         ]
+      },
+      {
+        "title": "Repeatable PMT Demonstrations",
+        "items": [
+          "Preserve BDO's working PMT Project as PMTQA while restoring a separate copy of the original SQL-seeded PMT Project for demonstrations.",
+          "Allow administrators to clear and restore the PMT demo repeatedly without changing PMTQA, BDO users, permissions, or private content.",
+          "Safely recreate missing demo team profiles and keep seeded Bug values aligned with the active BDO lookup configuration."
+        ]
       }
     ]
   }

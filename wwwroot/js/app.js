@@ -4,7 +4,7 @@ import { avatarsHtml, taskRowAvatarsHtml } from "./components/avatars.js?v=20260
 import { bindAttachmentDeletion } from "./components/attachments.js?v=20260714-attachment-delete";
 import { buttonContent } from "./components/buttons.js?v=20260715-admin-impersonation";
 import { copyTextToClipboard } from "./components/clipboard.js?v=20260714-invite-email-body";
-import { createWhatsNew } from "./components/whats-new.js?v=release-notes-2026-07-16-day-29-1052d26782c9";
+import { createWhatsNew } from "./components/whats-new.js?v=release-notes-2026-07-16-day-29-9965d111882d";
 import {
   htmlWithoutUserMentionMarkup,
   initializeUserMentions
@@ -30,7 +30,7 @@ import {
   showTaskAudit,
   viewWorkItem
 } from "./components/work-items.js?v=20260715-admin-impersonation";
-import { createApplicationShell } from "./core/application-shell.js?v=release-notes-2026-07-16-day-29-1052d26782c9";
+import { createApplicationShell } from "./core/application-shell.js?v=release-notes-2026-07-16-day-29-9965d111882d";
 import {
   currentView,
   ensureCurrentViewRoute,
@@ -39,18 +39,18 @@ import {
   routeForContent,
   routeForView,
   updateBrowserUrl
-} from "./core/router.js?v=release-notes-2026-07-16-day-29-1052d26782c9";
+} from "./core/router.js?v=release-notes-2026-07-16-day-29-9965d111882d";
 import {
   registeredScreenHandlers,
   registerScreen,
   screenHandlerFor,
   screenRegistry
-} from "./core/screen-registry.js?v=release-notes-2026-07-16-day-29-1052d26782c9";
+} from "./core/screen-registry.js?v=release-notes-2026-07-16-day-29-9965d111882d";
 import {
   preferenceKeys,
   readBooleanPreference,
   writePreference
-} from "./core/preferences.js?v=release-notes-2026-07-16-day-29-1052d26782c9";
+} from "./core/preferences.js?v=release-notes-2026-07-16-day-29-9965d111882d";
 import { state } from "./core/store.js";
 import { appUrl } from "./shared/app-urls.js";
 import {
@@ -69,11 +69,11 @@ import {
 } from "./features/gantt/gantt.js?v=20260715-admin-impersonation";
 import { createInvitationsFeature } from "./features/invitations/invitations.js?v=20260715-admin-impersonation";
 import { createProjectsFeature } from "./features/projects/projects.js?v=20260715-admin-impersonation";
-import { createReleaseNotesFeature } from "./features/release-notes/release-notes.js?v=release-notes-2026-07-16-day-29-1052d26782c9";
+import { createReleaseNotesFeature } from "./features/release-notes/release-notes.js?v=release-notes-2026-07-16-day-29-9965d111882d";
 import { createRoadMapFeature } from "./features/roadmap/roadmap.js?v=20260715-admin-impersonation";
 import { createLogFeature } from "./features/personal-log/log.js?v=20260715-admin-impersonation";
 import { createScrumFeature } from "./features/scrum/scrum.js?v=20260716-scrum-auto-refresh";
-import { createSettingsFeature } from "./features/settings/settings.js?v=20260716-user-login-activity";
+import { createSettingsFeature } from "./features/settings/settings.js?v=20260716-pmt-demo-reset";
 import { createSprintsFeature } from "./features/sprints/sprints.js?v=20260715-admin-impersonation";
 import { createTasksFeature } from "./features/tasks/tasks.js?v=20260715-admin-impersonation";
 import { createWfhScheduleFeature } from "./features/wfh-schedule/wfh-schedule.js?v=20260715-admin-impersonation";

@@ -4,7 +4,10 @@ import test from "node:test";
 
 const migration = read("../../SQL/Migrations/Migration History/PMT_1.19_to_1.20.sql");
 const recoveryRunner = read("../../SQL/Migrations/Migration History/PMT_1.19_to_1.22_All.sql");
+const demoMigration = read("../../SQL/Migrations/PMT_1.22_to_1.23.sql");
 const sourceProcedures = read("../../SQL/02_CreateStoredProcedures.sql");
+const pmtSeed = read("../../SQL/03_SeedData_PMT.sql");
+const developmentStore = read("../../Data/SqlPmtStore.Development.cs");
 
 test("Version 1.20 contains a one-time PMT-only legacy child-code repair", () => {
   const versionGuard = migration.indexOf("IF @DatabaseVersion = N'1.19'");
@@ -33,6 +36,48 @@ test("runtime Project renames retain strict collision handling", () => {
 
   assert.match(procedure, /THROW 51043, 'The Project contains duplicate Sprint or Task code suffixes that cannot be synchronized safely\.'/);
   assert.doesNotMatch(procedure, /One-time BDO repair|PmtSprintRepairCursor|PmtTaskRepairCursor/);
+});
+
+test("Version 1.23 atomically preserves PMTQA and restores the PMT demo", () => {
+  const migrationDataStart = demoMigration.indexOf("BEGIN TRANSACTION;\n\nEXEC [pmt].[LockBlogWrites]");
+  const seedStart = demoMigration.indexOf("/*\n    PMT project seed data.", migrationDataStart);
+  const projectRename = demoMigration.slice(migrationDataStart, seedStart);
+
+  assert.ok(migrationDataStart >= 0 && seedStart > migrationDataStart);
+  assert.match(demoMigration, /ISNULL\(@DatabaseVersion, N''\) <> N'1\.22'/);
+  assert.match(demoMigration, /\[Code\] = N'PMTQA'/);
+  assert.match(demoMigration, /EXEC \[pmt\]\.\[SynchronizeProjectCode\]/);
+  assert.match(demoMigration, /EXEC \[pmt\]\.\[EnsurePmtDemoUsers\]/);
+  assert.match(demoMigration, /OBJECT_ID\(N'\[pmt\]\.\[LockWorkTaskWrites\]', N'P'\) IS NULL/);
+  assert.match(demoMigration, /OBJECT_ID\(N'\[pmt\]\.\[LockSprintWrites\]', N'P'\) IS NULL/);
+  assert.match(demoMigration, /@value = N'1\.23'/);
+  assert.match(demoMigration, /COMMIT TRANSACTION/);
+  assert.doesNotMatch(demoMigration, /:r\s+/);
+  assert.match(projectRename, /UPDATE \[pmt\]\.\[Projects\]/);
+  assert.match(projectRename, /WHERE \[ProjectId\] = @PmtProjectId/);
+  assert.ok(projectRename.indexOf("EXEC [pmt].[LockBlogWrites]") < projectRename.indexOf("EXEC [pmt].[LockWorkTaskWrites]"));
+  assert.ok(projectRename.indexOf("EXEC [pmt].[LockWorkTaskWrites]") < projectRename.indexOf("EXEC [pmt].[LockSprintWrites]"));
+  assert.doesNotMatch(projectRename, /DELETE FROM \[pmt\]\.\[Projects\]/);
+});
+
+test("repeatable PMT demo restore protects PMTQA and public credentials", () => {
+  const ensureUsers = procedureBody(sourceProcedures, "EnsurePmtDemoUsers");
+  const cleanup = procedureBody(sourceProcedures, "DevelopmentClearProjectData");
+
+  assert.match(ensureUsers, /CRYPT_GEN_RANDOM\(32\)/);
+  assert.doesNotMatch(ensureUsers, /N'Password1'/);
+  assert.match(ensureUsers, /@Resource = N'pmt:PMTDemoRestore'/);
+  assert.match(ensureUsers, /@LockOwner = N'Transaction'/);
+  assert.ok(ensureUsers.indexOf("sys.sp_getapplock") < ensureUsers.indexOf("A PMT demo email belongs to more than one user"));
+  assert.match(ensureUsers, /THROW 50262, 'A PMT demo email belongs to more than one user/);
+  assert.match(ensureUsers, /THROW 50263, 'A PMT demo username belongs to another user/);
+  assert.match(cleanup, /\[Code\] NOT IN \(N'PMT', N'PMTQA'\)/);
+  assert.match(pmtSeed, /\[Value\] LIKE N'% - Minor'/);
+  assert.match(pmtSeed, /\[Value\] LIKE N'SIT -%'/);
+  assert.match(pmtSeed, /EXEC \[pmt\]\.\[LockBlogWrites\];\s+EXEC \[pmt\]\.\[LockWorkTaskWrites\];\s+EXEC \[pmt\]\.\[LockSprintWrites\];/);
+  assert.match(developmentStore, /BeginTransactionAsync\(IsolationLevel\.ReadCommitted/);
+  assert.match(developmentStore, /StoredProcedure\(connection, transaction, "\[pmt\]\.\[EnsurePmtDemoUsers\]"\)/);
+  assert.match(developmentStore, /ExecuteSeedScriptsAsync\(connection, scriptPaths, cancellationToken, transaction\)/);
 });
 
 test("the released Version 1.19 recovery uses one ordered SQLCMD runner", () => {
@@ -68,4 +113,11 @@ test("historical combined migration runners resolve every SQLCMD include", () =>
 
 function read(relativePath) {
   return readFileSync(new URL(relativePath, import.meta.url), "utf8");
+}
+
+function procedureBody(sql, name) {
+  const start = sql.indexOf(`CREATE OR ALTER PROCEDURE [pmt].[${name}]`);
+  const end = sql.indexOf("\nGO", start);
+  assert.ok(start >= 0 && end > start, `${name} was not found.`);
+  return sql.slice(start, end);
 }

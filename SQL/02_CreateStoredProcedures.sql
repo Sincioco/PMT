@@ -1,5 +1,5 @@
 /*
-    PMT Version 1.22 stored procedures.
+    PMT Version 1.23 stored procedures.
     The application uses ADO.NET and calls these procedures directly.
     The SQL is intentionally explicit so future maintainers can trace each save action.
 */
@@ -6922,6 +6922,202 @@ BEGIN
 END;
 GO
 
+CREATE OR ALTER PROCEDURE [pmt].[EnsurePmtDemoUsers]
+    @CurrentUserId INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    SET XACT_ABORT ON;
+
+    IF [pmt].[IsAdmin](@CurrentUserId) = 0
+    BEGIN
+        THROW 50260, 'Only an administrator can restore PMT demo users.', 1;
+    END;
+
+    BEGIN TRY
+        BEGIN TRANSACTION;
+
+        DECLARE @DemoRestoreLockResult INT;
+        EXEC @DemoRestoreLockResult = sys.sp_getapplock
+            @Resource = N'pmt:PMTDemoRestore',
+            @LockMode = N'Exclusive',
+            @LockOwner = N'Transaction',
+            @LockTimeout = 30000;
+
+        IF @DemoRestoreLockResult < 0
+        BEGIN
+            THROW 50269, 'The PMT demo restore is already running. Try again after it finishes.', 1;
+        END;
+
+    -- Restoring users must not change anything while a PMT Project still exists.
+    IF EXISTS (SELECT 1 FROM [pmt].[Projects] WHERE [Code] = N'PMT')
+    BEGIN
+        THROW 50258, 'PMT seed data can only be restored after the PMT project has been permanently deleted.', 1;
+    END;
+
+    DECLARE @Sin INT =
+    (
+        SELECT TOP (1) [UserId]
+        FROM [pmt].[Users]
+        WHERE [Email] = N'louiery@gmail.com'
+          AND [IsAdmin] = 1
+          AND [IsActive] = 1
+        ORDER BY [UserId]
+    );
+
+    IF @Sin IS NULL
+    BEGIN
+        THROW 50261, 'The active Sin administrator account is required to restore PMT demo users.', 1;
+    END;
+
+    DECLARE @SeedUsers TABLE
+    (
+        [FirstName] NVARCHAR(80) NOT NULL,
+        [LastName] NVARCHAR(80) NOT NULL,
+        [Nickname] NVARCHAR(80) NOT NULL,
+        [Email] NVARCHAR(180) NOT NULL PRIMARY KEY,
+        [Phone] NVARCHAR(60) NOT NULL,
+        [AvatarUrl] NVARCHAR(500) NOT NULL,
+        [HomePageUrl] NVARCHAR(500) NOT NULL,
+        [SocialMediaUrl] NVARCHAR(500) NOT NULL,
+        [Bio] NVARCHAR(MAX) NOT NULL,
+        [Role] NVARCHAR(20) NOT NULL
+    );
+
+    INSERT INTO @SeedUsers
+    (
+        [FirstName], [LastName], [Nickname], [Email], [Phone], [AvatarUrl],
+        [HomePageUrl], [SocialMediaUrl], [Bio], [Role]
+    )
+    VALUES
+    (N'Bill', N'Gates', N'Bill', N'bill.gates@microsoft.com', N'555-0102', N'/assets/avatar-bill-gates.jpg?v=20260629-avatar-jpg-assets', N'https://www.gatesnotes.com/', N'https://www.linkedin.com/in/williamhgates/', N'Backend developer focused on APIs and database work.', N'Developer'),
+    (N'Sam', N'Altman', N'Sam', N'sam.altman@openai.com', N'555-0103', N'/assets/avatar-sam-altman.jpg?v=20260629-avatar-jpg-assets', N'https://blog.samaltman.com/', N'https://www.linkedin.com/in/samaltman/', N'QA lead who keeps acceptance criteria and bug reports clear.', N'QA'),
+    (N'Mark', N'Zuckerberg', N'Mark', N'mark.zuckerberg@meta.com', N'555-0104', N'/assets/avatar-mark-zuckerberg.jpg?v=20260629-avatar-jpg-assets', N'https://about.meta.com/', N'https://www.linkedin.com/in/zuck/', N'Frontend developer focused on usability and interaction details.', N'Developer'),
+    (N'Steve', N'Jobs', N'Steve', N'steve.jobs@apple.com', N'555-0105', N'/assets/avatar-steve-jobs.jpg?v=20260629-avatar-jpg-assets', N'https://www.apple.com/', N'https://www.linkedin.com/', N'Product-minded developer who helps sharpen feature scope.', N'Developer'),
+    (N'Jensen', N'Huang', N'Jensen Huang', N'Jensen.Huang@nvidia.com', N'555-0106', N'/assets/avatar-jensen-huang.jpg?v=20260629-avatar-jpg-assets', N'https://www.nvidia.com/', N'https://www.linkedin.com/in/jenhsunhuang/', N'Integration developer who helps with performance and release support.', N'Developer');
+
+    IF EXISTS
+    (
+        SELECT [Seed].[Email]
+        FROM @SeedUsers AS [Seed]
+        INNER JOIN [pmt].[Users] AS [Existing]
+            ON LOWER(LTRIM(RTRIM([Existing].[Email]))) = LOWER([Seed].[Email])
+        GROUP BY [Seed].[Email]
+        HAVING COUNT(*) > 1
+    )
+    BEGIN
+        THROW 50262, 'A PMT demo email belongs to more than one user. Resolve the duplicate before restoring the demo.', 1;
+    END;
+
+    IF EXISTS
+    (
+        SELECT 1
+        FROM @SeedUsers AS [Seed]
+        WHERE NOT EXISTS
+              (
+                  SELECT 1
+                  FROM [pmt].[Users] AS [ExactUser]
+                  WHERE LOWER(LTRIM(RTRIM([ExactUser].[Email]))) = LOWER([Seed].[Email])
+                    AND [ExactUser].[IsActive] = 1
+              )
+          AND EXISTS
+              (
+                  SELECT 1
+                  FROM [pmt].[Users] AS [NicknameOwner]
+                  WHERE LOWER(LTRIM(RTRIM([NicknameOwner].[Nickname]))) = LOWER([Seed].[Nickname])
+                    AND LOWER(LTRIM(RTRIM(ISNULL([NicknameOwner].[Email], N'')))) <> LOWER([Seed].[Email])
+              )
+    )
+    BEGIN
+        THROW 50263, 'A PMT demo username belongs to another user. Resolve the collision before restoring the demo.', 1;
+    END;
+
+        DECLARE @ChangedUsers TABLE
+        (
+            [UserId] INT NOT NULL PRIMARY KEY,
+            [Nickname] NVARCHAR(80) NOT NULL,
+            [Action] NVARCHAR(20) NOT NULL
+        );
+
+        UPDATE [Existing]
+        SET
+            [FirstName] = [Seed].[FirstName],
+            [LastName] = [Seed].[LastName],
+            [Nickname] = [Seed].[Nickname],
+            [Phone] = [Seed].[Phone],
+            [AvatarUrl] = [Seed].[AvatarUrl],
+            [HomePageUrl] = [Seed].[HomePageUrl],
+            [SocialMediaUrl] = [Seed].[SocialMediaUrl],
+            [Bio] = [Seed].[Bio],
+            [IsAdmin] = 0,
+            [Role] = [Seed].[Role],
+            [IsActive] = 1,
+            [UpdatedByUserId] = @CurrentUserId,
+            [UpdatedAt] = SYSUTCDATETIME()
+        OUTPUT [inserted].[UserId], [inserted].[Nickname], N'Reactivated'
+            INTO @ChangedUsers ([UserId], [Nickname], [Action])
+        FROM [pmt].[Users] AS [Existing]
+        INNER JOIN @SeedUsers AS [Seed]
+            ON LOWER(LTRIM(RTRIM([Existing].[Email]))) = LOWER([Seed].[Email])
+        WHERE [Existing].[IsActive] = 0;
+
+        INSERT INTO [pmt].[Users]
+        (
+            [FirstName], [LastName], [Nickname], [Email], [Phone], [AvatarUrl],
+            [PasswordHash], [HomePageUrl], [SocialMediaUrl], [Bio], [IsAdmin],
+            [Role], [IsActive], [CreatedByUserId]
+        )
+        OUTPUT [inserted].[UserId], [inserted].[Nickname], N'Created'
+            INTO @ChangedUsers ([UserId], [Nickname], [Action])
+        SELECT
+            [Seed].[FirstName], [Seed].[LastName], [Seed].[Nickname], [Seed].[Email],
+            [Seed].[Phone], [Seed].[AvatarUrl], CRYPT_GEN_RANDOM(32),
+            [Seed].[HomePageUrl], [Seed].[SocialMediaUrl], [Seed].[Bio], 0,
+            [Seed].[Role], 1, @CurrentUserId
+        FROM @SeedUsers AS [Seed]
+        WHERE NOT EXISTS
+        (
+            SELECT 1
+            FROM [pmt].[Users] AS [Existing]
+            WHERE LOWER(LTRIM(RTRIM([Existing].[Email]))) = LOWER([Seed].[Email])
+        );
+
+        DECLARE @ChangedUserId INT;
+        DECLARE @ChangedNickname NVARCHAR(80);
+        DECLARE @ChangedAction NVARCHAR(20);
+
+        WHILE EXISTS (SELECT 1 FROM @ChangedUsers)
+        BEGIN
+            SELECT TOP (1)
+                @ChangedUserId = [UserId],
+                @ChangedNickname = [Nickname],
+                @ChangedAction = [Action]
+            FROM @ChangedUsers
+            ORDER BY [UserId];
+
+            EXEC [pmt].[WriteAudit]
+                N'User',
+                @ChangedUserId,
+                @ChangedAction,
+                @ChangedNickname,
+                @CurrentUserId;
+
+            DELETE FROM @ChangedUsers WHERE [UserId] = @ChangedUserId;
+        END;
+
+        COMMIT TRANSACTION;
+    END TRY
+    BEGIN CATCH
+        IF XACT_STATE() <> 0
+        BEGIN
+            ROLLBACK TRANSACTION;
+        END;
+
+        THROW;
+    END CATCH;
+END;
+GO
+
 CREATE OR ALTER PROCEDURE [pmt].[DevelopmentClearProjectData]
     @CurrentUserId INT,
     @ClearPmtOnly BIT,
@@ -6958,7 +7154,7 @@ BEGIN
     SELECT [ProjectId]
     FROM [pmt].[Projects]
     WHERE (@ClearPmtOnly = 1 AND [ProjectId] = @PmtProjectId)
-       OR (@ClearPmtOnly = 0 AND (@PmtProjectId IS NULL OR [ProjectId] <> @PmtProjectId));
+       OR (@ClearPmtOnly = 0 AND [Code] NOT IN (N'PMT', N'PMTQA'));
 
     INSERT INTO @SprintIds ([SprintId])
     SELECT [SprintId]
@@ -7075,7 +7271,7 @@ BEGIN
       AND NOT EXISTS (SELECT 1 FROM [pmt].[BlogAttachments] WHERE [BlogAttachments].[AttachmentId] = [Attachment].[AttachmentId]);
 
     DECLARE @AuditDetails NVARCHAR(MAX) =
-        CASE WHEN @ClearPmtOnly = 1 THEN N'Cleared PMT project data.' ELSE N'Cleared non-PMT project data.' END;
+        CASE WHEN @ClearPmtOnly = 1 THEN N'Cleared PMT project data.' ELSE N'Cleared project data except PMT and PMTQA.' END;
 
     EXEC [pmt].[WriteAudit]
         N'Development',

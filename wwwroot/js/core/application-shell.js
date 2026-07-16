@@ -9,13 +9,13 @@ import {
   restoreSession
 } from "./authentication.js?v=20260715-admin-impersonation";
 import { overflowIconHtml } from "../components/buttons.js?v=20260715-admin-impersonation";
-import { navIconHtml } from "./navigation-preferences.js?v=release-notes-2026-07-16-day-29-1052d26782c9";
+import { navIconHtml } from "./navigation-preferences.js?v=release-notes-2026-07-16-day-29-9965d111882d";
 import {
   preferenceKeys,
   readPreference,
   writePreference
 } from "./preferences.js";
-import { currentView, getNavigationScreens, navigate } from "./router.js?v=release-notes-2026-07-16-day-29-1052d26782c9";
+import { currentView, getNavigationScreens, navigate } from "./router.js?v=release-notes-2026-07-16-day-29-9965d111882d";
 import { loadState, state } from "./store.js";
 import { appUrl } from "../shared/app-urls.js";
 

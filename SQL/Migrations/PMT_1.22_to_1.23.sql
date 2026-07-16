@@ -1,4 +1,556 @@
 /*
+    PMT Database Version 1.22 -> 1.23
+
+    One-time BDO Production migration:
+    - Preserves the deployed PMT Project as PMTQA.
+    - Recreates only missing original PMT demo identities.
+    - Restores the original SQL-seeded PMT demo Project.
+    - Keeps PMT and PMTQA safe from broad Development cleanup.
+    - Makes future Clear PMT Demo -> Restore PMT Seed Data cycles repeatable.
+
+    Run this file once with SQLCMD from the SQL/Migrations directory.
+    Do not run SQL/03_SeedData.sql or Restore Initial Seed Data in Production.
+*/
+
+:on error exit
+
+SET ANSI_NULLS ON;
+SET ANSI_PADDING ON;
+SET ANSI_WARNINGS ON;
+SET ARITHABORT ON;
+SET CONCAT_NULL_YIELDS_NULL ON;
+SET QUOTED_IDENTIFIER ON;
+SET NUMERIC_ROUNDABORT OFF;
+GO
+
+USE [PMT];
+GO
+
+SET NOCOUNT ON;
+SET XACT_ABORT ON;
+GO
+
+IF SCHEMA_ID(N'pmt') IS NULL
+   OR OBJECT_ID(N'[pmt].[Projects]', N'U') IS NULL
+   OR OBJECT_ID(N'[pmt].[Users]', N'U') IS NULL
+   OR OBJECT_ID(N'[pmt].[Sprints]', N'U') IS NULL
+   OR OBJECT_ID(N'[pmt].[WorkTasks]', N'U') IS NULL
+   OR OBJECT_ID(N'[pmt].[SynchronizeProjectCode]', N'P') IS NULL
+   OR OBJECT_ID(N'[pmt].[WriteAudit]', N'P') IS NULL
+   OR OBJECT_ID(N'[pmt].[LockBlogWrites]', N'P') IS NULL
+   OR OBJECT_ID(N'[pmt].[LockWorkTaskWrites]', N'P') IS NULL
+   OR OBJECT_ID(N'[pmt].[LockSprintWrites]', N'P') IS NULL
+BEGIN
+    THROW 51060, 'PMT Database Version 1.22 objects are required before applying Version 1.23.', 1;
+END;
+GO
+
+DECLARE @DatabaseVersion NVARCHAR(20) =
+(
+    SELECT CONVERT(NVARCHAR(20), [value])
+    FROM sys.extended_properties
+    WHERE [class] = 0
+      AND [name] = N'PMT_DatabaseVersion'
+);
+
+IF ISNULL(@DatabaseVersion, N'') <> N'1.22'
+BEGIN
+    THROW 51061, 'PMT Database Version 1.22 is required before applying Version 1.23.', 1;
+END;
+GO
+
+IF (SELECT COUNT(*) FROM [pmt].[Projects] WHERE [Code] = N'PMT' AND [IsArchived] = 0) <> 1
+BEGIN
+    THROW 51062, 'Exactly one active PMT Project is required for the one-time PMTQA migration.', 1;
+END;
+
+IF EXISTS (SELECT 1 FROM [pmt].[Projects] WHERE [Code] = N'PMTQA')
+BEGIN
+    THROW 51063, 'Project code PMTQA is already in use. The one-time migration stopped without changing data.', 1;
+END;
+
+IF
+(
+    SELECT COUNT(*)
+    FROM [pmt].[Users]
+    WHERE [Email] = N'louiery@gmail.com'
+      AND [IsAdmin] = 1
+      AND [IsActive] = 1
+) <> 1
+BEGIN
+    THROW 51064, 'Exactly one active Sin administrator is required for the PMT demo migration.', 1;
+END;
+GO
+
+CREATE TABLE #Pmt122To123State
+(
+    [PmtProjectId] INT NOT NULL,
+    [SinUserId] INT NOT NULL,
+    [ProjectCount] INT NOT NULL,
+    [SprintCount] INT NOT NULL,
+    [TaskCount] INT NOT NULL,
+    [UserCount] INT NOT NULL,
+    [PmtMemberCount] INT NOT NULL,
+    [PmtSprintCount] INT NOT NULL,
+    [PmtTaskCount] INT NOT NULL
+);
+
+DECLARE @PmtProjectId INT =
+(
+    SELECT [ProjectId]
+    FROM [pmt].[Projects]
+    WHERE [Code] = N'PMT'
+      AND [IsArchived] = 0
+);
+DECLARE @SinUserId INT =
+(
+    SELECT [UserId]
+    FROM [pmt].[Users]
+    WHERE [Email] = N'louiery@gmail.com'
+      AND [IsAdmin] = 1
+      AND [IsActive] = 1
+);
+
+INSERT INTO #Pmt122To123State
+(
+    [PmtProjectId], [SinUserId], [ProjectCount], [SprintCount], [TaskCount],
+    [UserCount], [PmtMemberCount], [PmtSprintCount], [PmtTaskCount]
+)
+SELECT
+    @PmtProjectId,
+    @SinUserId,
+    (SELECT COUNT(*) FROM [pmt].[Projects]),
+    (SELECT COUNT(*) FROM [pmt].[Sprints]),
+    (SELECT COUNT(*) FROM [pmt].[WorkTasks]),
+    (SELECT COUNT(*) FROM [pmt].[Users]),
+    (SELECT COUNT(*) FROM [pmt].[ProjectMembers] WHERE [ProjectId] = @PmtProjectId),
+    (SELECT COUNT(*) FROM [pmt].[Sprints] WHERE [ProjectId] = @PmtProjectId),
+    (SELECT COUNT(*) FROM [pmt].[WorkTasks] WHERE [ProjectId] = @PmtProjectId);
+
+CREATE TABLE #MissingPmtDemoUsers
+(
+    [Email] NVARCHAR(180) NOT NULL PRIMARY KEY
+);
+
+INSERT INTO #MissingPmtDemoUsers ([Email])
+VALUES
+(N'bill.gates@microsoft.com'),
+(N'sam.altman@openai.com'),
+(N'mark.zuckerberg@meta.com'),
+(N'steve.jobs@apple.com'),
+(N'Jensen.Huang@nvidia.com');
+
+DELETE [Missing]
+FROM #MissingPmtDemoUsers AS [Missing]
+WHERE EXISTS
+(
+    SELECT 1
+    FROM [pmt].[Users] AS [Existing]
+    WHERE LOWER(LTRIM(RTRIM([Existing].[Email]))) = LOWER([Missing].[Email])
+);
+GO
+
+CREATE OR ALTER PROCEDURE [pmt].[EnsurePmtDemoUsers]
+    @CurrentUserId INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    SET XACT_ABORT ON;
+
+    IF [pmt].[IsAdmin](@CurrentUserId) = 0
+    BEGIN
+        THROW 50260, 'Only an administrator can restore PMT demo users.', 1;
+    END;
+
+    BEGIN TRY
+        BEGIN TRANSACTION;
+
+        DECLARE @DemoRestoreLockResult INT;
+        EXEC @DemoRestoreLockResult = sys.sp_getapplock
+            @Resource = N'pmt:PMTDemoRestore',
+            @LockMode = N'Exclusive',
+            @LockOwner = N'Transaction',
+            @LockTimeout = 30000;
+
+        IF @DemoRestoreLockResult < 0
+        BEGIN
+            THROW 50269, 'The PMT demo restore is already running. Try again after it finishes.', 1;
+        END;
+
+    -- Restoring users must not change anything while a PMT Project still exists.
+    IF EXISTS (SELECT 1 FROM [pmt].[Projects] WHERE [Code] = N'PMT')
+    BEGIN
+        THROW 50258, 'PMT seed data can only be restored after the PMT project has been permanently deleted.', 1;
+    END;
+
+    DECLARE @Sin INT =
+    (
+        SELECT TOP (1) [UserId]
+        FROM [pmt].[Users]
+        WHERE [Email] = N'louiery@gmail.com'
+          AND [IsAdmin] = 1
+          AND [IsActive] = 1
+        ORDER BY [UserId]
+    );
+
+    IF @Sin IS NULL
+    BEGIN
+        THROW 50261, 'The active Sin administrator account is required to restore PMT demo users.', 1;
+    END;
+
+    DECLARE @SeedUsers TABLE
+    (
+        [FirstName] NVARCHAR(80) NOT NULL,
+        [LastName] NVARCHAR(80) NOT NULL,
+        [Nickname] NVARCHAR(80) NOT NULL,
+        [Email] NVARCHAR(180) NOT NULL PRIMARY KEY,
+        [Phone] NVARCHAR(60) NOT NULL,
+        [AvatarUrl] NVARCHAR(500) NOT NULL,
+        [HomePageUrl] NVARCHAR(500) NOT NULL,
+        [SocialMediaUrl] NVARCHAR(500) NOT NULL,
+        [Bio] NVARCHAR(MAX) NOT NULL,
+        [Role] NVARCHAR(20) NOT NULL
+    );
+
+    INSERT INTO @SeedUsers
+    (
+        [FirstName], [LastName], [Nickname], [Email], [Phone], [AvatarUrl],
+        [HomePageUrl], [SocialMediaUrl], [Bio], [Role]
+    )
+    VALUES
+    (N'Bill', N'Gates', N'Bill', N'bill.gates@microsoft.com', N'555-0102', N'/assets/avatar-bill-gates.jpg?v=20260629-avatar-jpg-assets', N'https://www.gatesnotes.com/', N'https://www.linkedin.com/in/williamhgates/', N'Backend developer focused on APIs and database work.', N'Developer'),
+    (N'Sam', N'Altman', N'Sam', N'sam.altman@openai.com', N'555-0103', N'/assets/avatar-sam-altman.jpg?v=20260629-avatar-jpg-assets', N'https://blog.samaltman.com/', N'https://www.linkedin.com/in/samaltman/', N'QA lead who keeps acceptance criteria and bug reports clear.', N'QA'),
+    (N'Mark', N'Zuckerberg', N'Mark', N'mark.zuckerberg@meta.com', N'555-0104', N'/assets/avatar-mark-zuckerberg.jpg?v=20260629-avatar-jpg-assets', N'https://about.meta.com/', N'https://www.linkedin.com/in/zuck/', N'Frontend developer focused on usability and interaction details.', N'Developer'),
+    (N'Steve', N'Jobs', N'Steve', N'steve.jobs@apple.com', N'555-0105', N'/assets/avatar-steve-jobs.jpg?v=20260629-avatar-jpg-assets', N'https://www.apple.com/', N'https://www.linkedin.com/', N'Product-minded developer who helps sharpen feature scope.', N'Developer'),
+    (N'Jensen', N'Huang', N'Jensen Huang', N'Jensen.Huang@nvidia.com', N'555-0106', N'/assets/avatar-jensen-huang.jpg?v=20260629-avatar-jpg-assets', N'https://www.nvidia.com/', N'https://www.linkedin.com/in/jenhsunhuang/', N'Integration developer who helps with performance and release support.', N'Developer');
+
+    IF EXISTS
+    (
+        SELECT [Seed].[Email]
+        FROM @SeedUsers AS [Seed]
+        INNER JOIN [pmt].[Users] AS [Existing]
+            ON LOWER(LTRIM(RTRIM([Existing].[Email]))) = LOWER([Seed].[Email])
+        GROUP BY [Seed].[Email]
+        HAVING COUNT(*) > 1
+    )
+    BEGIN
+        THROW 50262, 'A PMT demo email belongs to more than one user. Resolve the duplicate before restoring the demo.', 1;
+    END;
+
+    IF EXISTS
+    (
+        SELECT 1
+        FROM @SeedUsers AS [Seed]
+        WHERE NOT EXISTS
+              (
+                  SELECT 1
+                  FROM [pmt].[Users] AS [ExactUser]
+                  WHERE LOWER(LTRIM(RTRIM([ExactUser].[Email]))) = LOWER([Seed].[Email])
+                    AND [ExactUser].[IsActive] = 1
+              )
+          AND EXISTS
+              (
+                  SELECT 1
+                  FROM [pmt].[Users] AS [NicknameOwner]
+                  WHERE LOWER(LTRIM(RTRIM([NicknameOwner].[Nickname]))) = LOWER([Seed].[Nickname])
+                    AND LOWER(LTRIM(RTRIM(ISNULL([NicknameOwner].[Email], N'')))) <> LOWER([Seed].[Email])
+              )
+    )
+    BEGIN
+        THROW 50263, 'A PMT demo username belongs to another user. Resolve the collision before restoring the demo.', 1;
+    END;
+
+        DECLARE @ChangedUsers TABLE
+        (
+            [UserId] INT NOT NULL PRIMARY KEY,
+            [Nickname] NVARCHAR(80) NOT NULL,
+            [Action] NVARCHAR(20) NOT NULL
+        );
+
+        UPDATE [Existing]
+        SET
+            [FirstName] = [Seed].[FirstName],
+            [LastName] = [Seed].[LastName],
+            [Nickname] = [Seed].[Nickname],
+            [Phone] = [Seed].[Phone],
+            [AvatarUrl] = [Seed].[AvatarUrl],
+            [HomePageUrl] = [Seed].[HomePageUrl],
+            [SocialMediaUrl] = [Seed].[SocialMediaUrl],
+            [Bio] = [Seed].[Bio],
+            [IsAdmin] = 0,
+            [Role] = [Seed].[Role],
+            [IsActive] = 1,
+            [UpdatedByUserId] = @CurrentUserId,
+            [UpdatedAt] = SYSUTCDATETIME()
+        OUTPUT [inserted].[UserId], [inserted].[Nickname], N'Reactivated'
+            INTO @ChangedUsers ([UserId], [Nickname], [Action])
+        FROM [pmt].[Users] AS [Existing]
+        INNER JOIN @SeedUsers AS [Seed]
+            ON LOWER(LTRIM(RTRIM([Existing].[Email]))) = LOWER([Seed].[Email])
+        WHERE [Existing].[IsActive] = 0;
+
+        INSERT INTO [pmt].[Users]
+        (
+            [FirstName], [LastName], [Nickname], [Email], [Phone], [AvatarUrl],
+            [PasswordHash], [HomePageUrl], [SocialMediaUrl], [Bio], [IsAdmin],
+            [Role], [IsActive], [CreatedByUserId]
+        )
+        OUTPUT [inserted].[UserId], [inserted].[Nickname], N'Created'
+            INTO @ChangedUsers ([UserId], [Nickname], [Action])
+        SELECT
+            [Seed].[FirstName], [Seed].[LastName], [Seed].[Nickname], [Seed].[Email],
+            [Seed].[Phone], [Seed].[AvatarUrl], CRYPT_GEN_RANDOM(32),
+            [Seed].[HomePageUrl], [Seed].[SocialMediaUrl], [Seed].[Bio], 0,
+            [Seed].[Role], 1, @CurrentUserId
+        FROM @SeedUsers AS [Seed]
+        WHERE NOT EXISTS
+        (
+            SELECT 1
+            FROM [pmt].[Users] AS [Existing]
+            WHERE LOWER(LTRIM(RTRIM([Existing].[Email]))) = LOWER([Seed].[Email])
+        );
+
+        DECLARE @ChangedUserId INT;
+        DECLARE @ChangedNickname NVARCHAR(80);
+        DECLARE @ChangedAction NVARCHAR(20);
+
+        WHILE EXISTS (SELECT 1 FROM @ChangedUsers)
+        BEGIN
+            SELECT TOP (1)
+                @ChangedUserId = [UserId],
+                @ChangedNickname = [Nickname],
+                @ChangedAction = [Action]
+            FROM @ChangedUsers
+            ORDER BY [UserId];
+
+            EXEC [pmt].[WriteAudit]
+                N'User',
+                @ChangedUserId,
+                @ChangedAction,
+                @ChangedNickname,
+                @CurrentUserId;
+
+            DELETE FROM @ChangedUsers WHERE [UserId] = @ChangedUserId;
+        END;
+
+        COMMIT TRANSACTION;
+    END TRY
+    BEGIN CATCH
+        IF XACT_STATE() <> 0
+        BEGIN
+            ROLLBACK TRANSACTION;
+        END;
+
+        THROW;
+    END CATCH;
+END;
+GO
+
+CREATE OR ALTER PROCEDURE [pmt].[DevelopmentClearProjectData]
+    @CurrentUserId INT,
+    @ClearPmtOnly BIT,
+    @DeleteProjects BIT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    SET XACT_ABORT ON;
+
+    IF [pmt].[IsAdmin](@CurrentUserId) = 0
+    BEGIN
+        THROW 50100, 'Only an administrator can run development cleanup.', 1;
+    END;
+
+    DECLARE @PmtProjectId INT =
+    (
+        SELECT [ProjectId]
+        FROM [pmt].[Projects]
+        WHERE [Code] = N'PMT'
+          AND [IsArchived] = 0
+    );
+
+    IF @PmtProjectId IS NULL AND @ClearPmtOnly = 1
+    BEGIN
+        THROW 50101, 'The PMT project was not found.', 1;
+    END;
+
+    DECLARE @ProjectIds TABLE ([ProjectId] INT NOT NULL PRIMARY KEY);
+    DECLARE @SprintIds TABLE ([SprintId] INT NOT NULL PRIMARY KEY);
+    DECLARE @TaskIds TABLE ([TaskId] INT NOT NULL PRIMARY KEY);
+    DECLARE @BlogIds TABLE ([BlogId] INT NOT NULL PRIMARY KEY);
+
+    INSERT INTO @ProjectIds ([ProjectId])
+    SELECT [ProjectId]
+    FROM [pmt].[Projects]
+    WHERE (@ClearPmtOnly = 1 AND [ProjectId] = @PmtProjectId)
+       OR (@ClearPmtOnly = 0 AND [Code] NOT IN (N'PMT', N'PMTQA'));
+
+    INSERT INTO @SprintIds ([SprintId])
+    SELECT [SprintId]
+    FROM [pmt].[Sprints]
+    WHERE [ProjectId] IN (SELECT [ProjectId] FROM @ProjectIds);
+
+    INSERT INTO @TaskIds ([TaskId])
+    SELECT [TaskId]
+    FROM [pmt].[WorkTasks]
+    WHERE [ProjectId] IN (SELECT [ProjectId] FROM @ProjectIds);
+
+    INSERT INTO @BlogIds ([BlogId])
+    SELECT [BlogId]
+    FROM [pmt].[Blogs]
+    WHERE [ProjectId] IN (SELECT [ProjectId] FROM @ProjectIds)
+      AND [IsPrivate] = 0;
+
+    BEGIN TRANSACTION;
+
+    DELETE FROM [pmt].[AuditEvents]
+    WHERE ([EntityType] = N'Task' AND [EntityId] IN (SELECT [TaskId] FROM @TaskIds))
+       OR ([EntityType] = N'Sprint' AND [EntityId] IN (SELECT [SprintId] FROM @SprintIds))
+       OR ([EntityType] = N'Blog' AND [EntityId] IN (SELECT [BlogId] FROM @BlogIds))
+       OR (@DeleteProjects = 1 AND [EntityType] = N'Project' AND [EntityId] IN (SELECT [ProjectId] FROM @ProjectIds));
+
+    DELETE FROM [pmt].[TaskAttachments]
+    WHERE [TaskId] IN (SELECT [TaskId] FROM @TaskIds);
+
+    DELETE FROM [pmt].[TaskDependencies]
+    WHERE [TaskId] IN (SELECT [TaskId] FROM @TaskIds)
+       OR [DependsOnTaskId] IN (SELECT [TaskId] FROM @TaskIds);
+
+    DELETE FROM [pmt].[TaskReporters]
+    WHERE [TaskId] IN (SELECT [TaskId] FROM @TaskIds);
+
+    DELETE FROM [pmt].[TaskAssignees]
+    WHERE [TaskId] IN (SELECT [TaskId] FROM @TaskIds);
+
+    DELETE FROM [pmt].[BlogAttachments]
+    WHERE [BlogId] IN (SELECT [BlogId] FROM @BlogIds);
+
+    DELETE FROM [pmt].[BlogHistory]
+    WHERE [BlogId] IN (SELECT [BlogId] FROM @BlogIds);
+
+    UPDATE [pmt].[DevLogs]
+    SET [ProjectId] = NULL,
+        [UpdatedByUserId] = @CurrentUserId,
+        [UpdatedAt] = SYSUTCDATETIME()
+    WHERE [ProjectId] IN (SELECT [ProjectId] FROM @ProjectIds)
+      AND [LogType] = N'Log';
+
+    DELETE FROM [pmt].[DevLogs]
+    WHERE [ProjectId] IN (SELECT [ProjectId] FROM @ProjectIds)
+      AND [LogType] <> N'Log';
+
+    UPDATE [pmt].[Blogs]
+    SET [ProjectId] = NULL,
+        [SprintId] = NULL,
+        [UpdatedByUserId] = @CurrentUserId,
+        [UpdatedAt] = SYSUTCDATETIME()
+    WHERE [ProjectId] IN (SELECT [ProjectId] FROM @ProjectIds)
+      AND [IsPrivate] = 1;
+
+    UPDATE [pmt].[Blogs]
+    SET [ParentBlogId] = NULL
+    WHERE [ParentBlogId] IN (SELECT [BlogId] FROM @BlogIds);
+
+    UPDATE [pmt].[WorkTasks]
+    SET [LinkedBlogId] = NULL,
+        [UpdatedByUserId] = @CurrentUserId,
+        [UpdatedAt] = SYSUTCDATETIME()
+    WHERE [LinkedBlogId] IN (SELECT [BlogId] FROM @BlogIds);
+
+    DELETE FROM [pmt].[Blogs]
+    WHERE [BlogId] IN (SELECT [BlogId] FROM @BlogIds);
+
+    UPDATE [pmt].[WorkTasks]
+    SET [ParentTaskId] = NULL,
+        [LinkedBugTaskId] = CASE WHEN [LinkedBugTaskId] IN (SELECT [TaskId] FROM @TaskIds) THEN NULL ELSE [LinkedBugTaskId] END,
+        [UpdatedByUserId] = @CurrentUserId,
+        [UpdatedAt] = SYSUTCDATETIME()
+    WHERE [TaskId] IN (SELECT [TaskId] FROM @TaskIds)
+       OR [ParentTaskId] IN (SELECT [TaskId] FROM @TaskIds)
+       OR [LinkedBugTaskId] IN (SELECT [TaskId] FROM @TaskIds);
+
+    DELETE FROM [pmt].[WorkTasks]
+    WHERE [TaskId] IN (SELECT [TaskId] FROM @TaskIds);
+
+    DELETE FROM [pmt].[SprintMembers]
+    WHERE [SprintId] IN (SELECT [SprintId] FROM @SprintIds);
+
+    DELETE FROM [pmt].[Sprints]
+    WHERE [SprintId] IN (SELECT [SprintId] FROM @SprintIds);
+
+    IF @DeleteProjects = 1
+    BEGIN
+        DELETE FROM [pmt].[ProjectMembers]
+        WHERE [ProjectId] IN (SELECT [ProjectId] FROM @ProjectIds);
+
+        DELETE FROM [pmt].[Projects]
+        WHERE [ProjectId] IN (SELECT [ProjectId] FROM @ProjectIds);
+    END;
+    ELSE
+    BEGIN
+        UPDATE [pmt].[Projects]
+        SET [UpdatedByUserId] = @CurrentUserId,
+            [UpdatedAt] = SYSUTCDATETIME()
+        WHERE [ProjectId] IN (SELECT [ProjectId] FROM @ProjectIds);
+    END;
+
+    DELETE [Attachment]
+    FROM [pmt].[Attachments] AS [Attachment]
+    WHERE NOT EXISTS (SELECT 1 FROM [pmt].[TaskAttachments] WHERE [TaskAttachments].[AttachmentId] = [Attachment].[AttachmentId])
+      AND NOT EXISTS (SELECT 1 FROM [pmt].[BlogAttachments] WHERE [BlogAttachments].[AttachmentId] = [Attachment].[AttachmentId]);
+
+    DECLARE @AuditDetails NVARCHAR(MAX) =
+        CASE WHEN @ClearPmtOnly = 1 THEN N'Cleared PMT project data.' ELSE N'Cleared project data except PMT and PMTQA.' END;
+
+    EXEC [pmt].[WriteAudit]
+        N'Development',
+        0,
+        N'Cleanup',
+        @AuditDetails,
+        @CurrentUserId;
+
+    COMMIT TRANSACTION;
+END;
+GO
+
+BEGIN TRANSACTION;
+
+EXEC [pmt].[LockBlogWrites];
+EXEC [pmt].[LockWorkTaskWrites];
+EXEC [pmt].[LockSprintWrites];
+
+DECLARE @PmtProjectId INT = (SELECT [PmtProjectId] FROM #Pmt122To123State);
+DECLARE @SinUserId INT = (SELECT [SinUserId] FROM #Pmt122To123State);
+
+UPDATE [pmt].[Projects]
+SET
+    [Code] = N'PMTQA',
+    [UpdatedByUserId] = @SinUserId,
+    [UpdatedAt] = SYSUTCDATETIME()
+WHERE [ProjectId] = @PmtProjectId
+  AND [Code] = N'PMT'
+  AND [IsArchived] = 0;
+
+IF @@ROWCOUNT <> 1
+BEGIN
+    THROW 51065, 'The deployed PMT Project could not be renamed to PMTQA.', 1;
+END;
+
+EXEC [pmt].[SynchronizeProjectCode]
+    @ProjectId = @PmtProjectId,
+    @PreviousProjectCode = N'PMT',
+    @ProjectCode = N'PMTQA';
+
+EXEC [pmt].[WriteAudit]
+    N'Project',
+    @PmtProjectId,
+    N'Code Renamed',
+    N'One-time Production migration renamed PMT to PMTQA before restoring the original PMT demo.',
+    @SinUserId;
+
+EXEC [pmt].[EnsurePmtDemoUsers] @CurrentUserId = @SinUserId;
+GO
+
+/*
     PMT project seed data.
 
     This script restores only the PMT project and its initial Sprints, work
@@ -69,10 +621,6 @@ BEGIN
 END;
 
 BEGIN TRANSACTION;
-
-EXEC [pmt].[LockBlogWrites];
-EXEC [pmt].[LockWorkTaskWrites];
-EXEC [pmt].[LockSprintWrites];
 
 INSERT INTO [pmt].[Projects] ([Code], [Title], [Description], [Url], [IconUrl], [StartDate], [EndDate], [CreatedByUserId])
 VALUES
@@ -435,4 +983,179 @@ WHERE [ProjectId] = @PmtProject
 EXEC [pmt].[WriteAudit] N'Seed', @PmtProject, N'Loaded', N'Base PMT seed data was loaded.', @Sin;
 
 COMMIT TRANSACTION;
+GO
+
+DECLARE @RetainedPmtQaProjectId INT = (SELECT [PmtProjectId] FROM #Pmt122To123State);
+DECLARE @NewPmtProjectId INT =
+(
+    SELECT [ProjectId]
+    FROM [pmt].[Projects]
+    WHERE [Code] = N'PMT'
+      AND [IsArchived] = 0
+);
+
+IF @NewPmtProjectId IS NULL
+   OR @NewPmtProjectId = @RetainedPmtQaProjectId
+   OR NOT EXISTS
+      (
+          SELECT 1
+          FROM [pmt].[Projects]
+          WHERE [ProjectId] = @RetainedPmtQaProjectId
+            AND [Code] = N'PMTQA'
+            AND [IsArchived] = 0
+      )
+BEGIN
+    THROW 51066, 'PMT and PMTQA Project identities could not be verified.', 1;
+END;
+
+IF (SELECT COUNT(*) FROM [pmt].[Projects]) <> (SELECT [ProjectCount] + 1 FROM #Pmt122To123State)
+   OR (SELECT COUNT(*) FROM [pmt].[Sprints]) <> (SELECT [SprintCount] + 5 FROM #Pmt122To123State)
+   OR (SELECT COUNT(*) FROM [pmt].[WorkTasks]) <> (SELECT [TaskCount] + 31 FROM #Pmt122To123State)
+   OR (SELECT COUNT(*) FROM [pmt].[Users]) <> (SELECT [UserCount] + (SELECT COUNT(*) FROM #MissingPmtDemoUsers) FROM #Pmt122To123State)
+BEGIN
+    THROW 51067, 'The expected database-wide PMT demo row-count changes could not be verified.', 1;
+END;
+
+IF (SELECT COUNT(*) FROM [pmt].[ProjectMembers] WHERE [ProjectId] = @RetainedPmtQaProjectId) <> (SELECT [PmtMemberCount] FROM #Pmt122To123State)
+   OR (SELECT COUNT(*) FROM [pmt].[Sprints] WHERE [ProjectId] = @RetainedPmtQaProjectId) <> (SELECT [PmtSprintCount] FROM #Pmt122To123State)
+   OR (SELECT COUNT(*) FROM [pmt].[WorkTasks] WHERE [ProjectId] = @RetainedPmtQaProjectId) <> (SELECT [PmtTaskCount] FROM #Pmt122To123State)
+BEGIN
+    THROW 51068, 'The retained PMTQA membership, Sprint, or work-item counts changed unexpectedly.', 1;
+END;
+
+IF (SELECT COUNT(*) FROM [pmt].[ProjectMembers] WHERE [ProjectId] = @NewPmtProjectId) <> 6
+   OR (SELECT COUNT(*) FROM [pmt].[Sprints] WHERE [ProjectId] = @NewPmtProjectId) <> 5
+   OR (SELECT COUNT(*) FROM [pmt].[SprintMembers] AS [Member] INNER JOIN [pmt].[Sprints] AS [Sprint] ON [Sprint].[SprintId] = [Member].[SprintId] WHERE [Sprint].[ProjectId] = @NewPmtProjectId) <> 30
+   OR (SELECT COUNT(*) FROM [pmt].[WorkTasks] WHERE [ProjectId] = @NewPmtProjectId) <> 31
+   OR (SELECT COUNT(*) FROM [pmt].[WorkTasks] WHERE [ProjectId] = @NewPmtProjectId AND [TaskType] = N'Dev') <> 28
+   OR (SELECT COUNT(*) FROM [pmt].[WorkTasks] WHERE [ProjectId] = @NewPmtProjectId AND [TaskType] = N'Bug') <> 3
+   OR (SELECT COUNT(*) FROM [pmt].[DevLogs] WHERE [ProjectId] = @NewPmtProjectId AND [LogType] <> N'Log') <> 5
+   OR (SELECT COUNT(*) FROM [pmt].[Blogs] WHERE [ProjectId] = @NewPmtProjectId AND [IsPrivate] = 0) <> 11
+BEGIN
+    THROW 51069, 'The original PMT demo Project content counts could not be verified.', 1;
+END;
+
+IF EXISTS
+(
+    SELECT 1
+    FROM [pmt].[Sprints]
+    WHERE [ProjectId] = @RetainedPmtQaProjectId
+      AND [Code] NOT LIKE N'PMTQA-%'
+)
+   OR EXISTS
+(
+    SELECT 1
+    FROM [pmt].[WorkTasks]
+    WHERE [ProjectId] = @RetainedPmtQaProjectId
+      AND [Code] NOT LIKE N'PMTQA-%'
+)
+   OR EXISTS
+(
+    SELECT 1
+    FROM [pmt].[Sprints]
+    WHERE [ProjectId] = @NewPmtProjectId
+      AND [Code] NOT LIKE N'PMT-%'
+)
+   OR EXISTS
+(
+    SELECT 1
+    FROM [pmt].[WorkTasks]
+    WHERE [ProjectId] = @NewPmtProjectId
+      AND [Code] NOT LIKE N'PMT-%'
+)
+BEGIN
+    THROW 51070, 'PMT or PMTQA child-code prefixes could not be verified.', 1;
+END;
+
+IF EXISTS
+(
+    SELECT [Required].[Email]
+    FROM
+    (
+        VALUES
+        (N'louiery@gmail.com'),
+        (N'bill.gates@microsoft.com'),
+        (N'sam.altman@openai.com'),
+        (N'mark.zuckerberg@meta.com'),
+        (N'steve.jobs@apple.com'),
+        (N'Jensen.Huang@nvidia.com')
+    ) AS [Required]([Email])
+    LEFT JOIN [pmt].[Users] AS [User]
+        ON LOWER(LTRIM(RTRIM([User].[Email]))) = LOWER([Required].[Email])
+       AND [User].[IsActive] = 1
+    GROUP BY [Required].[Email]
+    HAVING COUNT([User].[UserId]) <> 1
+)
+BEGIN
+    THROW 51071, 'The active PMT demo user identities could not be verified.', 1;
+END;
+
+IF EXISTS
+(
+    SELECT 1
+    FROM #MissingPmtDemoUsers AS [Missing]
+    INNER JOIN [pmt].[Users] AS [User]
+        ON LOWER(LTRIM(RTRIM([User].[Email]))) = LOWER([Missing].[Email])
+    WHERE [User].[PasswordHash] = HASHBYTES('SHA2_256', CONVERT(NVARCHAR(4000), N'Password1'))
+)
+BEGIN
+    THROW 51072, 'A newly recreated PMT demo user has the public default password.', 1;
+END;
+
+IF EXISTS
+(
+    SELECT 1
+    FROM [pmt].[WorkTasks] AS [Bug]
+    WHERE [Bug].[ProjectId] = @NewPmtProjectId
+      AND [Bug].[TaskType] = N'Bug'
+      AND
+      (
+          NOT EXISTS
+          (
+              SELECT 1
+              FROM [pmt].[Lookups] AS [Severity]
+              WHERE [Severity].[LookupType] = N'Severity'
+                AND [Severity].[Value] = [Bug].[Severity]
+                AND [Severity].[IsActive] = 1
+          )
+          OR NOT EXISTS
+          (
+              SELECT 1
+              FROM [pmt].[Lookups] AS [Environment]
+              WHERE [Environment].[LookupType] = N'Environment'
+                AND [Environment].[Value] = [Bug].[Environment]
+                AND [Environment].[IsActive] = 1
+          )
+      )
+)
+BEGIN
+    THROW 51073, 'The PMT demo Bug lookup values are not active in the BDO lookup configuration.', 1;
+END;
+
+IF OBJECT_ID(N'[pmt].[EnsurePmtDemoUsers]', N'P') IS NULL
+   OR ISNULL(CHARINDEX(N'N''PMTQA''', OBJECT_DEFINITION(OBJECT_ID(N'[pmt].[DevelopmentClearProjectData]'))), 0) = 0
+BEGIN
+    THROW 51074, 'The repeatable PMT demo restore or PMTQA cleanup protection could not be verified.', 1;
+END;
+
+EXEC sys.sp_updateextendedproperty
+    @name = N'PMT_DatabaseVersion',
+    @value = N'1.23';
+
+IF NOT EXISTS
+(
+    SELECT 1
+    FROM sys.extended_properties
+    WHERE [class] = 0
+      AND [name] = N'PMT_DatabaseVersion'
+      AND CONVERT(NVARCHAR(20), [value]) = N'1.23'
+)
+BEGIN
+    THROW 51075, 'PMT Database Version 1.23 could not be verified.', 1;
+END;
+
+COMMIT TRANSACTION;
+GO
+
+PRINT N'PMT Database Version 1.23 applied: the deployed PMT Project is preserved as PMTQA, the original PMT demo is restored, and repeatable demo resets are protected.';
 GO

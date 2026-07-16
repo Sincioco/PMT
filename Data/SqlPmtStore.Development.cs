@@ -64,12 +64,35 @@ public sealed partial class SqlPmtStore
 
         await using var connection = await OpenConnectionAsync(cancellationToken);
         await EnsureCurrentUserIsAdminAsync(connection, currentUserId, cancellationToken);
-        // This recovery only inserts the missing PMT seed project. The global
-        // restore preflight is intentionally reserved for its destructive reset.
-        await ExecuteSeedScriptsAsync(connection, scriptPaths, cancellationToken);
+        await using var transaction = (SqlTransaction)await connection.BeginTransactionAsync(IsolationLevel.ReadCommitted, cancellationToken);
+
+        try
+        {
+            // Keep the project-only restore atomic and serialized. Missing demo
+            // identities are recreated without touching BDO users or global data.
+            await using (var ensureUsers = StoredProcedure(connection, transaction, "[pmt].[EnsurePmtDemoUsers]"))
+            {
+                Add(ensureUsers, "@CurrentUserId", currentUserId);
+                await ensureUsers.ExecuteNonQueryAsync(cancellationToken);
+            }
+
+            // This recovery only inserts the missing PMT seed project. The global
+            // restore preflight remains reserved for its destructive reset.
+            await ExecuteSeedScriptsAsync(connection, scriptPaths, cancellationToken, transaction);
+            await transaction.CommitAsync(cancellationToken);
+        }
+        catch
+        {
+            await TryRollbackAsync(transaction, cancellationToken);
+            throw;
+        }
     }
 
-    private static async Task ExecuteSeedScriptsAsync(SqlConnection connection, IEnumerable<string> scriptPaths, CancellationToken cancellationToken)
+    private static async Task ExecuteSeedScriptsAsync(
+        SqlConnection connection,
+        IEnumerable<string> scriptPaths,
+        CancellationToken cancellationToken,
+        SqlTransaction? transaction = null)
     {
         foreach (var scriptPath in scriptPaths)
         {
@@ -81,7 +104,7 @@ public sealed partial class SqlPmtStore
             var script = await File.ReadAllTextAsync(scriptPath, cancellationToken);
             foreach (var batch in SplitSqlBatches(script))
             {
-                await using var command = new SqlCommand(batch, connection)
+                await using var command = new SqlCommand(batch, connection, transaction)
                 {
                     CommandType = CommandType.Text,
                     CommandTimeout = 180

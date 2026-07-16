@@ -6,7 +6,7 @@ As of July 16, 2026, PMT Database Version 1.22 and its matching application rele
 
 Future work does not need new upgrade compatibility for database versions before 1.22. Keep released migrations, combined runners, and deployment runbooks through Version 1.22 under `SQL/Migrations/Migration History/`. Start the next forward migration from Version 1.22; after a later version is deployed to every known instance, that version becomes the new baseline.
 
-The current source tree and fresh-rebuild scripts also represent Version 1.22. Versions 1.11 through 1.22 added Scrum ownership, exact and reclaimable Project codes, Maintenance cleanup, owner-only private content, About 3D seed Documentation, Scrum attendance and vacations, save-collision protection, authorized Scrum pinning, signed-session impersonation and auditing, public seed Documentation, PMT child-code repair and Project-code synchronization, one-way linked Dev Task/Bug field synchronization, the Developer-role `QA Passed` ceiling, login timestamps, and administrator Role preservation:
+The current source tree and fresh-rebuild scripts represent Version 1.23. Version 1.23 preserves BDO's deployed PMT Project as `PMTQA`, restores the original SQL-seeded `PMT` Project for demos, recreates missing demo identities without public default passwords, adapts demo Bug values to active BDO lookups, protects `PMTQA` from broad Development cleanup, and supports repeated PMT demo clear-and-restore cycles:
 
 - `SQL/01_CreateDatabase.sql`
 - `SQL/02_CreateStoredProcedures.sql`
@@ -16,7 +16,7 @@ The current source tree and fresh-rebuild scripts also represent Version 1.22. V
 - `SQL/03_SeedData_HLS.sql`
 - `SQL/00_DropAndRebuild_PMT.sql`
 
-Current databases record `PMT_DatabaseVersion = 1.22` in a database-level extended property. `PMT_SecurityRoleDefaultsVersion` remains `1.10` because Versions 1.11 through 1.22 did not change Role permission defaults. Do not manually edit either version property.
+Deployed databases currently record `PMT_DatabaseVersion = 1.22` in a database-level extended property. The Version 1.23 source and fresh rebuild record `1.23`; existing BDO data reaches it only through `SQL/Migrations/PMT_1.22_to_1.23.sql`. `PMT_SecurityRoleDefaultsVersion` remains `1.10`. Do not manually edit either version property.
 
 The completed Version 1.15-to-1.22 steps, `PMT_1.15_to_1.22_All.sql` deployment runner, and incident-specific `PMT_1.19_to_1.22_All.sql` recovery runner are historical artifacts under `SQL/Migrations/Migration History/`. The Version 1.20 step includes the one-time, `ProjectId`-authoritative correction of legacy generated-prefix Sprint and work-item codes under the PMT Project. Those scripts remain available for controlled reconstruction and audit only; do not rerun them on a current Version 1.22 installation.
 
@@ -40,7 +40,7 @@ Changing `SQL/01_CreateDatabase.sql`, `SQL/02_CreateStoredProcedures.sql`, or se
 
 Place the active forward migration chain and its combined operator runner in `SQL/Migrations/`. Store completed migration scripts and HTML runbooks in `SQL/Migrations/Migration History/`.
 
-Whenever a new deployed baseline is declared, automatically move every migration and runbook ending at or before that baseline into `Migration History/`. Keep only the forward chain from the declared baseline to the current source version, plus the matching combined runner, in the active directory. Because the deployed baseline and source schema are both Version 1.22, there is currently no active forward migration.
+Whenever a new deployed baseline is declared, automatically move every migration and runbook ending at or before that baseline into `Migration History/`. Keep only the forward chain from the declared baseline to the current source version, plus the matching combined runner, in the active directory. The active forward migration is currently `PMT_1.22_to_1.23.sql`. It is one version step, so no combined runner is required.
 
 Use this naming pattern for the next steps:
 

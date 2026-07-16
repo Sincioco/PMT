@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PMT BDO Version 1.23 Migration</title>
+  <style>
+    body { max-width: 980px; margin: 40px auto; padding: 0 24px 48px; color: #20242a; background: #f6f7f9; font: 16px/1.55 "Segoe UI", sans-serif; }
+    main { padding: 32px 38px; background: #fff; border: 1px solid #d9dde3; border-radius: 12px; box-shadow: 0 8px 28px rgba(20, 28, 38, .08); }
+    h1, h2 { color: #17202b; }
+    h1 { margin-top: 0; }
+    code, pre { font-family: Consolas, monospace; }
+    pre { overflow-x: auto; padding: 14px 16px; background: #111820; color: #e9eef5; border-radius: 8px; }
+    .warning { padding: 14px 16px; border-left: 5px solid #b42318; background: #fff0ee; }
+    .success { padding: 14px 16px; border-left: 5px solid #16803c; background: #effbf3; }
+    li { margin: 7px 0; }
+  </style>
+</head>
+<body>
+<main>
+  <h1>BDO Production: PMT Database Version 1.22 to 1.23</h1>
+  <p>This one-time migration preserves BDO's current <strong>PMT</strong> Project as <strong>PMTQA</strong>, recreates only missing demo identities, and restores the original SQL-seeded <strong>PMT</strong> Project for repeatable demonstrations.</p>
+
+  <div class="warning">
+    <strong>Never run Restore Initial Seed Data or SQL/03_SeedData.sql in Production.</strong>
+    That path replaces shared data. The migration below is the only approved initial conversion.
+  </div>
+
+  <h2>Before running</h2>
+  <ol>
+    <li>Schedule a maintenance window and stop the PMT application/IIS site so no writes occur.</li>
+    <li>Take a full Production backup and run <code>RESTORE VERIFYONLY</code> against it.</li>
+    <li>Confirm the database extended property <code>PMT_DatabaseVersion</code> is exactly <code>1.22</code>.</li>
+    <li>Confirm the active Project code is <code>PMT</code> and no Project already owns <code>PMTQA</code>.</li>
+  </ol>
+
+  <h2>Run the one migration file</h2>
+  <p>Open PowerShell in the repository's <code>SQL\Migrations</code> directory and run:</p>
+  <pre>sqlcmd -S "&lt;SQL SERVER OR SQL SERVER\INSTANCE&gt;" -d PMT -E -b -I -i "PMT_1.22_to_1.23.sql"</pre>
+  <p>For SQL authentication, replace <code>-E</code> with the approved credential arguments. In SQL Server Management Studio, enable <strong>Query &gt; SQLCMD Mode</strong> and run the same file.</p>
+
+  <div class="success">
+    The successful final message is:<br>
+    <code>PMT Database Version 1.23 applied: the deployed PMT Project is preserved as PMTQA, the original PMT demo is restored, and repeatable demo resets are protected.</code>
+  </div>
+
+  <h2>Required verification</h2>
+  <ol>
+    <li>Confirm the database version is <code>1.23</code>.</li>
+    <li>Confirm exactly one active <code>PMTQA</code> and one active <code>PMT</code> Project exist.</li>
+    <li>Confirm the retained PMTQA Project has its original Project ID, 11 members, one Sprint, and 23 work items.</li>
+    <li>Confirm the new PMT demo has six members, five Sprints, 31 work items, five Scrum rows, and 11 public Documentation rows.</li>
+    <li>Confirm PMTQA child codes begin with <code>PMTQA-</code> and PMT demo child codes begin with <code>PMT-</code>.</li>
+    <li>Confirm the five recreated demo identities are active and do not use the public <code>Password1</code> password. Administrators can impersonate them for role demonstrations.</li>
+    <li>Run <code>DBCC CHECKCONSTRAINTS WITH ALL_CONSTRAINTS</code> and <code>DBCC CHECKDB (N'PMT') WITH NO_INFOMSGS</code>.</li>
+    <li>Start PMT and complete the targeted Projects, Dev Tasks, Bug Tracking, Scrum, Documentation, Settings Development, and Audit Trail smoke tests.</li>
+  </ol>
+
+  <h2>Future demo resets</h2>
+  <ol>
+    <li>Open <strong>Settings &gt; Development</strong>.</li>
+    <li>Run <strong>Clear PMT Demo</strong>.</li>
+    <li>Run <strong>Restore PMT Seed Data</strong>.</li>
+  </ol>
+  <p>This cycle may be repeated. It resets only the demo Project identified by code <code>PMT</code>; <code>PMTQA</code>, BDO users, permissions, holidays, and private content remain protected.</p>
+
+  <h2>Failure and rollback</h2>
+  <p>The migration uses one data transaction and stops on the first SQL error. Do not reopen PMT after a failure. Review the SQL error and confirm the database is still Version 1.22. If the database state is uncertain, restore the verified pre-migration backup. After users begin changing PMT or PMTQA, do not attempt a reverse rename/delete rollback; use a forward correction.</p>
+</main>
+</body>
+</html>
