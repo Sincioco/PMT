@@ -150,7 +150,35 @@ html[data-theme] .log-screen.work-item-screen .work-item-table .icon-action:disa
 }
 
 .log-action-column {
-  width: 176px;
+  width: 216px;
+}
+
+.log-row-actions {
+  display: inline-flex;
+  gap: var(--space-1);
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.log-row-actions .icon-action {
+  margin-left: 0;
+}
+
+.log-delete-selection {
+  display: grid;
+  width: 24px;
+  height: var(--touch-target-min);
+  place-items: center;
+  cursor: pointer;
+}
+
+.log-delete-selection input {
+  margin: 0;
+  cursor: pointer;
+}
+
+.log-delete-selection input:disabled {
+  cursor: not-allowed;
 }
 
 .log-table tbody td {

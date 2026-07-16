@@ -100,6 +100,21 @@ DECLARE @Mark INT = (SELECT [UserId] FROM [pmt].[Users] WHERE [Nickname] = N'Mar
 DECLARE @Steve INT = (SELECT [UserId] FROM [pmt].[Users] WHERE [Nickname] = N'Steve');
 DECLARE @Jensen INT = (SELECT [UserId] FROM [pmt].[Users] WHERE [Nickname] = N'Jensen Huang');
 
+-- Vacation plans belong to people rather than Projects. Bill, Sam, and Jensen
+-- are shared members of the PMT, LMS, and HLS demos, so these current-month
+-- ranges make planned leave visible from every seeded Scrum calendar.
+DECLARE @DemoVacationMonthStart DATE = DATEFROMPARTS(YEAR(@Today), MONTH(@Today), 1);
+
+INSERT INTO [pmt].[VacationPlans]
+(
+    [UserId], [StartDate], [EndDate], [IsCancelled],
+    [CreatedByUserId], [UpdatedByUserId], [CreatedAt], [UpdatedAt]
+)
+VALUES
+(@Bill, DATEADD(DAY, 3, @DemoVacationMonthStart), DATEADD(DAY, 5, @DemoVacationMonthStart), 0, @Sin, @Sin, @Now, @Now),
+(@Sam, DATEADD(DAY, 11, @DemoVacationMonthStart), DATEADD(DAY, 13, @DemoVacationMonthStart), 0, @Sin, @Sin, @Now, @Now),
+(@Jensen, DATEADD(DAY, 19, @DemoVacationMonthStart), DATEADD(DAY, 22, @DemoVacationMonthStart), 0, @Sin, @Sin, @Now, @Now);
+
 INSERT INTO [pmt].[Lookups] ([LookupType], [Value], [ColorHex], [DisplayOrder], [IsActive], [CreatedByUserId])
 VALUES
 (N'Status', N'Backlog', N'#6B7680', 10, 1, @Sin),

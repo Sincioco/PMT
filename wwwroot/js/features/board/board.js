@@ -4,7 +4,7 @@ import { checkedFilterValues, filterCheckList } from "../../components/filters.j
 import { userCardCheckListLabelHtml } from "../../components/forms.js?v=20260715-day28-v118";
 import { createIdleFilterHeader } from "../../components/idle-filter-header.js?v=20260717-multi-screen-search-persistent";
 import { progressHtml } from "../../components/progress-and-status.js?v=20260714-linked-bug-percent";
-import { sectionHead } from "../../components/sections.js?v=20260701-nav-title-preferences";
+import { sectionHead } from "../../components/sections.js?v=release-notes-2026-07-16-day-29-4dbfab99e9a6";
 import {
   bugFixIconHtml,
   createWorkItemTableMode,

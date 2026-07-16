@@ -19,7 +19,7 @@
 <body>
 <main>
   <h1>BDO Production: PMT Database Version 1.22 to 1.23</h1>
-  <p>This one-time migration preserves BDO's current <strong>PMT</strong> Project as <strong>PMTQA</strong>, recreates only missing demo identities, restores the original SQL-seeded <strong>PMT</strong> Project for repeatable demonstrations, installs selected-date On Behalf Of attendance plus audited removal of explicit attendance entries, and updates the post-deployment Development reset tools.</p>
+  <p>This one-time migration preserves BDO's current <strong>PMT</strong> Project as <strong>PMTQA</strong>, recreates only missing demo identities, restores the original SQL-seeded <strong>PMT</strong> Project for repeatable demonstrations, adds current-month vacation examples for shared PMT/LMS/HLS demo members, installs selected-date On Behalf Of attendance plus audited removal of explicit attendance entries, and updates the post-deployment Development reset tools.</p>
 
   <div class="warning">
     <strong>Never run Factory Reset PMT or SQL/03_SeedData.sql in Production.</strong>
@@ -34,14 +34,14 @@
     <li>Confirm the active Project code is <code>PMT</code> and no Project already owns <code>PMTQA</code>.</li>
   </ol>
 
-  <h2>Run the one migration file</h2>
+  <h2>Run the combined migration file</h2>
   <p>Open PowerShell in the repository's <code>SQL\Migrations</code> directory and run:</p>
-  <pre>sqlcmd -S "&lt;SQL SERVER OR SQL SERVER\INSTANCE&gt;" -d PMT -E -b -I -i "PMT_1.22_to_1.23.sql"</pre>
-  <p>For SQL authentication, replace <code>-E</code> with the approved credential arguments. In SQL Server Management Studio, enable <strong>Query &gt; SQLCMD Mode</strong> and run the same file.</p>
+  <pre>sqlcmd -S "&lt;SQL SERVER OR SQL SERVER\INSTANCE&gt;" -d PMT -E -b -I -i "PMT_1.22_to_1.23_All.sql"</pre>
+  <p>The combined file includes the canonical <code>PMT_1.22_to_1.23.sql</code> step and stops on the first error. For SQL authentication, replace <code>-E</code> with the approved credential arguments. In SQL Server Management Studio, enable <strong>Query &gt; SQLCMD Mode</strong> and run the same combined file.</p>
 
   <div class="success">
     The successful final message is:<br>
-    <code>PMT Database Version 1.23 applied: PMTQA was preserved during migration, the PMT demo was restored, Development resets were updated, and selected-date attendance plus audited attendance removal are available.</code>
+    <code>PMT combined database migration 1.22 to 1.23 completed.</code>
   </div>
 
   <h2>Required verification</h2>
@@ -50,11 +50,12 @@
     <li>Confirm exactly one active <code>PMTQA</code> and one active <code>PMT</code> Project exist.</li>
     <li>Confirm the retained PMTQA Project has its original Project ID, 11 members, one Sprint, and 23 work items.</li>
     <li>Confirm the new PMT demo has six members, five Sprints, 31 work items, five Scrum rows, and 11 public Documentation rows.</li>
+    <li>Confirm Bill, Sam, and Jensen each have an active vacation range in the current month. These people are shared PMT, LMS, and HLS demo members; the migration preserves any existing active overlapping range instead of adding a duplicate.</li>
     <li>Confirm PMTQA child codes begin with <code>PMTQA-</code> and PMT demo child codes begin with <code>PMT-</code>.</li>
     <li>Confirm the five recreated demo identities are active and do not use the public <code>Password1</code> password. Administrators can impersonate them for role demonstrations.</li>
     <li>Confirm <code>[pmt].[RecordAttendance]</code> has the optional <code>@AttendanceDate DATE</code> parameter and <code>[pmt].[RemoveAttendance]</code> exists.</li>
     <li>Confirm <code>[pmt].[DevelopmentClearProjectData]</code> protects only Project code <code>PMT</code>, <code>[pmt].[DevelopmentClearUsers]</code> remaps audit actors and removes obsolete per-user permissions, and <code>[pmt].[RequireDevelopmentSeedRestore]</code> performs only the administrator check.</li>
-    <li>In Scrum, record On Behalf Of attendance for a date other than today and confirm it appears on that calendar date. Confirm a self Check-In still uses the current UTC+8 workday.</li>
+    <li>In Scrum Calendar, confirm the seeded current-month vacations render for Bill, Sam, and Jensen, then record On Behalf Of attendance for a date other than today and confirm it appears on that calendar date. Confirm a self Check-In still uses the current UTC+8 workday.</li>
     <li>Remove an explicit Calendar attendance avatar and confirm only that row disappears and an <code>Attendance / Removed</code> audit event remains. Confirm removing a vacation avatar cancels its entire owner-only vacation range.</li>
     <li>Run <code>DBCC CHECKCONSTRAINTS WITH ALL_CONSTRAINTS</code> and <code>DBCC CHECKDB (N'PMT') WITH NO_INFOMSGS</code>.</li>
     <li>Start PMT and complete the targeted Projects, Dev Tasks, Bug Tracking, Scrum, Documentation, Settings Development, and Audit Trail smoke tests.</li>
@@ -74,7 +75,7 @@
   </div>
 
   <h2>Failure and rollback</h2>
-  <p>The migration uses one data transaction and stops on the first SQL error. Do not reopen PMT after a failure. Review the SQL error and confirm the database is still Version 1.22. If the database state is uncertain, restore the verified pre-migration backup. After users begin changing PMT or PMTQA, do not attempt a reverse rename/delete rollback; use a forward correction.</p>
+  <p>The combined runner stops on the first SQL error, and the canonical migration uses one data transaction. Do not reopen PMT after a failure. Review the SQL error and confirm the database is still Version 1.22. A second execution after success is expected to stop safely because Version 1.23 is no longer a valid starting point. If the database state is uncertain, restore the verified pre-migration backup. After users begin changing PMT or PMTQA, do not attempt a reverse rename/delete rollback; use a forward correction.</p>
 </main>
 </body>
 </html>

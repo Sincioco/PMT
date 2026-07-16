@@ -1,5 +1,5 @@
-import { readNavigationConfig } from "../core/navigation-preferences.js?v=release-notes-2026-07-16-day-29-a79072c43274";
-import { screenRegistry } from "../core/screen-registry.js?v=release-notes-2026-07-16-day-29-a79072c43274";
+import { readNavigationConfig } from "../core/navigation-preferences.js?v=release-notes-2026-07-16-day-29-4dbfab99e9a6";
+import { screenRegistry } from "../core/screen-registry.js?v=release-notes-2026-07-16-day-29-4dbfab99e9a6";
 import { escapeHtml } from "../shared/text-and-links.js";
 
 export function sectionHead(title, actionsHtml) {

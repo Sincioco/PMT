@@ -12,8 +12,11 @@
       private content; Clear Users remaps it to Sin and Factory Reset deletes it.
     - Lets On Behalf Of attendance use a selected date and supports audited
       removal of explicit attendance calendar entries.
+    - Adds current-month vacation examples for shared PMT, LMS, and HLS demo
+      members without replacing or overlapping an existing active plan.
 
-    Run this file once with SQLCMD from the SQL/Migrations directory.
+    This canonical step is included by PMT_1.22_to_1.23_All.sql, the tested
+    operator-facing SQLCMD entry point.
     Do not run SQL/03_SeedData.sql or Factory Reset PMT in Production.
 */
 
@@ -41,6 +44,7 @@ IF SCHEMA_ID(N'pmt') IS NULL
    OR OBJECT_ID(N'[pmt].[Sprints]', N'U') IS NULL
    OR OBJECT_ID(N'[pmt].[WorkTasks]', N'U') IS NULL
    OR OBJECT_ID(N'[pmt].[AttendanceEntries]', N'U') IS NULL
+   OR OBJECT_ID(N'[pmt].[VacationPlans]', N'U') IS NULL
    OR OBJECT_ID(N'[pmt].[UserPermissions]', N'U') IS NULL
    OR OBJECT_ID(N'[pmt].[AuditEvents]', N'U') IS NULL
    OR COL_LENGTH(N'pmt.AuditEvents', N'ActorUserId') IS NULL
@@ -162,6 +166,28 @@ WHERE EXISTS
     FROM [pmt].[Users] AS [Existing]
     WHERE LOWER(LTRIM(RTRIM([Existing].[Email]))) = LOWER([Missing].[Email])
 );
+GO
+
+CREATE TABLE #Pmt122To123DemoVacations
+(
+    [ProjectCode] NVARCHAR(20) NOT NULL,
+    [Email] NVARCHAR(180) NOT NULL PRIMARY KEY,
+    [StartDate] DATE NOT NULL,
+    [EndDate] DATE NOT NULL
+);
+
+DECLARE @DemoVacationMonthStart DATE = DATEFROMPARTS
+(
+    YEAR(CONVERT(DATE, SYSDATETIME())),
+    MONTH(CONVERT(DATE, SYSDATETIME())),
+    1
+);
+
+INSERT INTO #Pmt122To123DemoVacations ([ProjectCode], [Email], [StartDate], [EndDate])
+VALUES
+(N'PMT', N'bill.gates@microsoft.com', DATEADD(DAY, 3, @DemoVacationMonthStart), DATEADD(DAY, 5, @DemoVacationMonthStart)),
+(N'LMS', N'sam.altman@openai.com', DATEADD(DAY, 11, @DemoVacationMonthStart), DATEADD(DAY, 13, @DemoVacationMonthStart)),
+(N'HLS', N'Jensen.Huang@nvidia.com', DATEADD(DAY, 19, @DemoVacationMonthStart), DATEADD(DAY, 22, @DemoVacationMonthStart));
 GO
 
 CREATE OR ALTER PROCEDURE [pmt].[RecordAttendance]
@@ -982,6 +1008,37 @@ END;
 
 BEGIN TRANSACTION;
 
+-- Vacation plans are person-level. Each representative is a shared member of
+-- PMT, LMS, and HLS. Preserve any active overlapping plan instead of creating
+-- a duplicate; otherwise add the deterministic current-month demo range.
+INSERT INTO [pmt].[VacationPlans]
+(
+    [UserId], [StartDate], [EndDate], [IsCancelled],
+    [CreatedByUserId], [UpdatedByUserId], [CreatedAt], [UpdatedAt]
+)
+SELECT
+    [User].[UserId],
+    [Seed].[StartDate],
+    [Seed].[EndDate],
+    0,
+    @Sin,
+    @Sin,
+    @Now,
+    @Now
+FROM #Pmt122To123DemoVacations AS [Seed]
+INNER JOIN [pmt].[Users] AS [User]
+    ON LOWER(LTRIM(RTRIM([User].[Email]))) = LOWER([Seed].[Email])
+   AND [User].[IsActive] = 1
+WHERE NOT EXISTS
+(
+    SELECT 1
+    FROM [pmt].[VacationPlans] AS [Existing]
+    WHERE [Existing].[UserId] = [User].[UserId]
+      AND [Existing].[IsCancelled] = 0
+      AND [Existing].[StartDate] <= [Seed].[EndDate]
+      AND [Existing].[EndDate] >= [Seed].[StartDate]
+);
+
 INSERT INTO [pmt].[Projects] ([Code], [Title], [Description], [Url], [IconUrl], [StartDate], [EndDate], [CreatedByUserId])
 VALUES
 (N'PMT', N'Project Management Tool', N'The internal task tracking tool used by this development team.', N'https://intranet.local/projects/pmt', N'/assets/project-pmt.svg?v=20260621-transparent', DATEADD(DAY, -56, @Today), NULL, @Sin);
@@ -1492,6 +1549,27 @@ BEGIN
     THROW 51073, 'The PMT demo Bug lookup values are not active in the BDO lookup configuration.', 1;
 END;
 
+IF EXISTS
+(
+    SELECT 1
+    FROM #Pmt122To123DemoVacations AS [Seed]
+    WHERE NOT EXISTS
+    (
+        SELECT 1
+        FROM [pmt].[Users] AS [User]
+        INNER JOIN [pmt].[VacationPlans] AS [Vacation]
+            ON [Vacation].[UserId] = [User].[UserId]
+           AND [Vacation].[IsCancelled] = 0
+           AND [Vacation].[StartDate] <= [Seed].[EndDate]
+           AND [Vacation].[EndDate] >= [Seed].[StartDate]
+        WHERE LOWER(LTRIM(RTRIM([User].[Email]))) = LOWER([Seed].[Email])
+          AND [User].[IsActive] = 1
+    )
+)
+BEGIN
+    THROW 51077, 'The PMT, LMS, and HLS demo vacation examples could not be verified.', 1;
+END;
+
 IF OBJECT_ID(N'[pmt].[EnsurePmtDemoUsers]', N'P') IS NULL
    OR OBJECT_ID(N'[pmt].[DevelopmentClearUsers]', N'P') IS NULL
    OR OBJECT_ID(N'[pmt].[RequireDevelopmentSeedRestore]', N'P') IS NULL
@@ -1539,5 +1617,5 @@ END;
 COMMIT TRANSACTION;
 GO
 
-PRINT N'PMT Database Version 1.23 applied: PMTQA was preserved during migration, the PMT demo was restored, Development resets were updated, and selected-date attendance plus audited attendance removal are available.';
+PRINT N'PMT Database Version 1.23 applied: PMTQA was preserved, the PMT demo and shared demo vacations were restored, Development resets were updated, and selected-date attendance plus audited attendance removal are available.';
 GO

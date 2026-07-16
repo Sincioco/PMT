@@ -4,7 +4,7 @@ import { avatarsHtml, taskRowAvatarsHtml } from "./components/avatars.js?v=20260
 import { bindAttachmentDeletion } from "./components/attachments.js?v=20260714-attachment-delete";
 import { buttonContent } from "./components/buttons.js?v=20260715-admin-impersonation";
 import { copyTextToClipboard } from "./components/clipboard.js?v=20260714-invite-email-body";
-import { createWhatsNew } from "./components/whats-new.js?v=release-notes-2026-07-16-day-29-a79072c43274";
+import { createWhatsNew } from "./components/whats-new.js?v=release-notes-2026-07-16-day-29-4dbfab99e9a6";
 import {
   htmlWithoutUserMentionMarkup,
   initializeUserMentions
@@ -30,7 +30,7 @@ import {
   showTaskAudit,
   viewWorkItem
 } from "./components/work-items.js?v=20260716-dialog-route-close";
-import { createApplicationShell } from "./core/application-shell.js?v=release-notes-2026-07-16-day-29-a79072c43274";
+import { createApplicationShell } from "./core/application-shell.js?v=release-notes-2026-07-16-day-29-4dbfab99e9a6";
 import {
   currentView,
   ensureCurrentViewRoute,
@@ -39,44 +39,44 @@ import {
   routeForContent,
   routeForView,
   updateBrowserUrl
-} from "./core/router.js?v=release-notes-2026-07-16-day-29-a79072c43274";
+} from "./core/router.js?v=release-notes-2026-07-16-day-29-4dbfab99e9a6";
 import {
   registeredScreenHandlers,
   registerScreen,
   screenHandlerFor,
   screenRegistry
-} from "./core/screen-registry.js?v=release-notes-2026-07-16-day-29-a79072c43274";
+} from "./core/screen-registry.js?v=release-notes-2026-07-16-day-29-4dbfab99e9a6";
 import {
   preferenceKeys,
   readBooleanPreference,
   writePreference
-} from "./core/preferences.js?v=release-notes-2026-07-16-day-29-a79072c43274";
+} from "./core/preferences.js?v=release-notes-2026-07-16-day-29-4dbfab99e9a6";
 import { state } from "./core/store.js";
 import { appUrl } from "./shared/app-urls.js";
 import {
   createAboutFeature,
   createAboutScreenSaver
 } from "./features/about/about.js?v=20260716-db-v122";
-import { createBacklogFeature } from "./features/backlog/backlog.js?v=20260717-multi-screen-search-persistent";
-import { createBoardFeature } from "./features/board/board.js?v=20260717-multi-screen-search-persistent";
-import { createBugsFeature } from "./features/bugs/bugs.js?v=20260717-multi-screen-search-persistent";
-import { createDashboardFeature } from "./features/dashboard/dashboard.js?v=20260715-admin-impersonation";
-import { createDocumentationFeature } from "./features/documentation/documentation.js?v=20260717-multi-screen-search-persistent";
+import { createBacklogFeature } from "./features/backlog/backlog.js?v=release-notes-2026-07-16-day-29-4dbfab99e9a6";
+import { createBoardFeature } from "./features/board/board.js?v=release-notes-2026-07-16-day-29-4dbfab99e9a6";
+import { createBugsFeature } from "./features/bugs/bugs.js?v=release-notes-2026-07-16-day-29-4dbfab99e9a6";
+import { createDashboardFeature } from "./features/dashboard/dashboard.js?v=release-notes-2026-07-16-day-29-4dbfab99e9a6";
+import { createDocumentationFeature } from "./features/documentation/documentation.js?v=release-notes-2026-07-16-day-29-4dbfab99e9a6";
 import {
   createGanttFeature,
   currentSprintForProject,
   ganttStartDate
-} from "./features/gantt/gantt.js?v=20260715-admin-impersonation";
+} from "./features/gantt/gantt.js?v=release-notes-2026-07-16-day-29-4dbfab99e9a6";
 import { createInvitationsFeature } from "./features/invitations/invitations.js?v=20260715-admin-impersonation";
-import { createProjectsFeature } from "./features/projects/projects.js?v=20260715-admin-impersonation";
-import { createReleaseNotesFeature } from "./features/release-notes/release-notes.js?v=release-notes-2026-07-16-day-29-a79072c43274";
-import { createRoadMapFeature } from "./features/roadmap/roadmap.js?v=20260715-admin-impersonation";
-import { createLogFeature } from "./features/personal-log/log.js?v=20260715-admin-impersonation";
-import { createScrumFeature } from "./features/scrum/scrum.js?v=20260716-scrum-attendance-actions";
-import { createSettingsFeature } from "./features/settings/settings.js?v=20260716-development-reset";
-import { createSprintsFeature } from "./features/sprints/sprints.js?v=20260717-multi-screen-search-persistent";
-import { createTasksFeature } from "./features/tasks/tasks.js?v=20260717-dev-task-search-origin";
-import { createWfhScheduleFeature } from "./features/wfh-schedule/wfh-schedule.js?v=20260715-admin-impersonation";
+import { createProjectsFeature } from "./features/projects/projects.js?v=release-notes-2026-07-16-day-29-4dbfab99e9a6";
+import { createReleaseNotesFeature } from "./features/release-notes/release-notes.js?v=release-notes-2026-07-16-day-29-4dbfab99e9a6";
+import { createRoadMapFeature } from "./features/roadmap/roadmap.js?v=release-notes-2026-07-16-day-29-4dbfab99e9a6";
+import { createLogFeature } from "./features/personal-log/log.js?v=release-notes-2026-07-16-day-29-4dbfab99e9a6";
+import { createScrumFeature } from "./features/scrum/scrum.js?v=release-notes-2026-07-16-day-29-4dbfab99e9a6";
+import { createSettingsFeature } from "./features/settings/settings.js?v=release-notes-2026-07-16-day-29-4dbfab99e9a6";
+import { createSprintsFeature } from "./features/sprints/sprints.js?v=release-notes-2026-07-16-day-29-4dbfab99e9a6";
+import { createTasksFeature } from "./features/tasks/tasks.js?v=release-notes-2026-07-16-day-29-4dbfab99e9a6";
+import { createWfhScheduleFeature } from "./features/wfh-schedule/wfh-schedule.js?v=release-notes-2026-07-16-day-29-4dbfab99e9a6";
 import {
   fallbackEnvironments,
   fallbackForLookup,
@@ -410,6 +410,7 @@ const scrumFeature = createScrumFeature({
 const logFeature = createLogFeature({
   app,
   deleteItem,
+  deleteItems,
   loadState,
   openEditor,
   render,

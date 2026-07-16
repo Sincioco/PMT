@@ -6,7 +6,7 @@ As of July 16, 2026, PMT Database Version 1.22 and its matching application rele
 
 Future work does not need new upgrade compatibility for database versions before 1.22. Keep released migrations, combined runners, and deployment runbooks through Version 1.22 under `SQL/Migrations/Migration History/`. Start the next forward migration from Version 1.22; after a later version is deployed to every known instance, that version becomes the new baseline.
 
-The current source tree and fresh-rebuild scripts represent Version 1.23. Version 1.23 preserves BDO's deployed PMT Project as `PMTQA` during migration, restores the original SQL-seeded `PMT` Project for demos, recreates missing demo identities without public default passwords, adapts demo Bug values to active BDO lookups, supports repeated focused PMT demo clear-and-restore cycles, and updates the Development tools so broad cleanup protects only `PMT`, Clear Users remaps private ownership to Sin, and Factory Reset may replace all data including private content:
+The current source tree and fresh-rebuild scripts represent Version 1.23. Version 1.23 preserves BDO's deployed PMT Project as `PMTQA` during migration, restores the original SQL-seeded `PMT` Project for demos, recreates missing demo identities without public default passwords, adapts demo Bug values to active BDO lookups, seeds current-month vacation examples for shared PMT/LMS/HLS demo members, supports repeated focused PMT demo clear-and-restore cycles, and updates the Development tools so broad cleanup protects only `PMT`, Clear Users remaps private ownership to Sin, and Factory Reset may replace all data including private content:
 
 - `SQL/01_CreateDatabase.sql`
 - `SQL/02_CreateStoredProcedures.sql`
@@ -16,7 +16,7 @@ The current source tree and fresh-rebuild scripts represent Version 1.23. Versio
 - `SQL/03_SeedData_HLS.sql`
 - `SQL/00_DropAndRebuild_PMT.sql`
 
-Deployed databases currently record `PMT_DatabaseVersion = 1.22` in a database-level extended property. The Version 1.23 source and fresh rebuild record `1.23`; existing BDO data reaches it only through `SQL/Migrations/PMT_1.22_to_1.23.sql`. `PMT_SecurityRoleDefaultsVersion` remains `1.10`. Do not manually edit either version property.
+Deployed databases currently record `PMT_DatabaseVersion = 1.22` in a database-level extended property. The Version 1.23 source and fresh rebuild record `1.23`; `SQL/Migrations/PMT_1.22_to_1.23.sql` remains the canonical step, and operators run it through `SQL/Migrations/PMT_1.22_to_1.23_All.sql`. `PMT_SecurityRoleDefaultsVersion` remains `1.10`. Do not manually edit either version property.
 
 The completed Version 1.15-to-1.22 steps, `PMT_1.15_to_1.22_All.sql` deployment runner, and incident-specific `PMT_1.19_to_1.22_All.sql` recovery runner are historical artifacts under `SQL/Migrations/Migration History/`. The Version 1.20 step includes the one-time, `ProjectId`-authoritative correction of legacy generated-prefix Sprint and work-item codes under the PMT Project. Those scripts remain available for controlled reconstruction and audit only; do not rerun them on a current Version 1.22 installation.
 
@@ -40,12 +40,13 @@ Changing `SQL/01_CreateDatabase.sql`, `SQL/02_CreateStoredProcedures.sql`, or se
 
 Place the active forward migration chain and its combined operator runner in `SQL/Migrations/`. Store completed migration scripts and HTML runbooks in `SQL/Migrations/Migration History/`.
 
-Whenever a new deployed baseline is declared, automatically move every migration and runbook ending at or before that baseline into `Migration History/`. Keep only the forward chain from the declared baseline to the current source version, plus the matching combined runner, in the active directory. The active forward migration is currently `PMT_1.22_to_1.23.sql`. It is one version step, so no combined runner is required.
+Whenever a new deployed baseline is declared, automatically move every migration and runbook ending at or before that baseline into `Migration History/`. Keep only the forward chain from the declared baseline to the current source version, plus the matching combined runner, in the active directory. The active forward migration is currently `PMT_1.22_to_1.23.sql`; its operator-facing `PMT_1.22_to_1.23_All.sql` wrapper is intentionally retained even though this release has one step, so rehearsals and server execution use the same entry point.
 
 Use this naming pattern for the next steps:
 
 ```text
 PMT_1.22_to_1.23.sql
+PMT_1.22_to_1.23_All.sql
 PMT_1.23_to_1.24.sql
 ```
 
@@ -53,7 +54,7 @@ Use one migration per released database-version step. Do not edit an already rel
 
 ## Combined Deployment Migration
 
-If one deployment requires two or more versioned migration scripts, always create a combined `PMT_<start>_to_<end>_All.sql` file in `SQL/Migrations/`. The individual version-step files remain the canonical migration history; the combined file is the operator-facing, one-command SQLCMD runner.
+If one deployment requires two or more versioned migration scripts, always create a combined `PMT_<start>_to_<end>_All.sql` file in `SQL/Migrations/`. The individual version-step files remain the canonical migration history; the combined file is the operator-facing, one-command SQLCMD runner. Version 1.23 also provides a one-step combined wrapper because that is the required server execution contract.
 
 The combined runner must use `:on error exit` and ordered relative `:r` includes so any failed step stops the deployment. Deployment instructions must identify the database version and direct the operator to exactly one applicable combined runner instead of requiring constituent migrations to be run one by one.
 

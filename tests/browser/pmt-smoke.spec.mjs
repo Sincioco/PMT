@@ -875,13 +875,15 @@ test("Scrum view toggle matches Documentation and crowded attendance avatars fit
     const title = header.querySelector("h1");
     const toggle = header.querySelector(".scrum-view-toggle");
     const toggleButton = toggle.querySelector(".scrum-view-toggle-button");
+    const toggleButtons = [...toggle.querySelectorAll(".scrum-view-toggle-button")];
     const icon = toggleButton.querySelector(".button-icon");
     const label = toggleButton.querySelector(".button-icon + span");
     const rosterButtons = [...header.querySelectorAll("[data-scrum-today-user]")];
     const headerBox = header.getBoundingClientRect();
     const titleBox = title.getBoundingClientRect();
     const toggleBox = toggle.getBoundingClientRect();
-    const actionBox = header.querySelector("[data-scrum-attendance-control]").getBoundingClientRect();
+    const attendanceControl = header.querySelector("[data-scrum-attendance-control]");
+    const actionBox = attendanceControl.getBoundingClientRect();
     const avatarBoxes = rosterButtons.map(button => button.getBoundingClientRect());
     const avatarImageBoxes = rosterButtons.map(button => button.querySelector(".scrum-today-avatar").getBoundingClientRect());
     const buttonStyle = getComputedStyle(toggleButton);
@@ -900,13 +902,21 @@ test("Scrum view toggle matches Documentation and crowded attendance avatars fit
       toggleCenter: toggleBox.left + toggleBox.width / 2,
       toggleLeft: toggleBox.left,
       toggleRight: toggleBox.right,
-      toggleVerticalRatio: (toggleBox.top + toggleBox.height / 2 - headerBox.top) / headerBox.height,
+      actionTops: {
+        table: toggleButtons[0].getBoundingClientRect().top,
+        calendar: toggleButtons[1].getBoundingClientRect().top,
+        attendanceControl: actionBox.top,
+        attendance: attendanceControl.querySelector("[data-scrum-attendance-select]").getBoundingClientRect().top,
+        checkIn: attendanceControl.querySelector("[data-action='check-in-attendance']").getBoundingClientRect().top,
+        newItem: header.querySelector("[data-action='new-log']").getBoundingClientRect().top,
+        filters: header.querySelector("[data-action='open-scrum-filters']").getBoundingClientRect().top,
+        overflow: header.querySelector(".page-actions-summary").getBoundingClientRect().top
+      },
       actionLeft: actionBox.left
     };
   });
 
   expect(scrumLayout.toggleCenter).toBeCloseTo(scrumLayout.headerCenter, 0);
-  expect(scrumLayout.toggleVerticalRatio).toBeCloseTo(0.5, 2);
   expect(scrumLayout.avatarWidths.every(width => width > 0 && width < 80)).toBe(true);
   expect(scrumLayout.avatarBoxes[0].left).toBeGreaterThanOrEqual(scrumLayout.titleRight);
   expect(scrumLayout.avatarBoxes.at(-1).right).toBeLessThanOrEqual(scrumLayout.toggleLeft);
@@ -914,8 +924,22 @@ test("Scrum view toggle matches Documentation and crowded attendance avatars fit
   expect(scrumLayout.avatarBoxes.every((box, index) => index === 0 || scrumLayout.avatarBoxes[index - 1].right <= box.left)).toBe(true);
 
   await openNavView(page, "Tasks", "Dev Tasks");
-  const devTaskTitleTop = await page.locator(".tasks-screen .section-head h1").evaluate(title => title.getBoundingClientRect().top);
-  expect(scrumLayout.titleTop).toBeCloseTo(devTaskTitleTop, 0);
+  const devTaskLayout = await page.locator(".tasks-screen .section-head").evaluate(header => ({
+    actionTops: {
+      newItem: header.querySelector("[data-action='new-task']").getBoundingClientRect().top,
+      filters: header.querySelector("[data-action='open-task-filters']").getBoundingClientRect().top,
+      overflow: header.querySelector(".page-actions-summary").getBoundingClientRect().top
+    },
+    titleTop: header.querySelector("h1").getBoundingClientRect().top
+  }));
+  expect(scrumLayout.titleTop).toBeCloseTo(devTaskLayout.titleTop, 0);
+  const devTaskActionTop = devTaskLayout.actionTops.newItem;
+  for (const top of Object.values(devTaskLayout.actionTops)) {
+    expect(Math.abs(top - devTaskActionTop)).toBeLessThanOrEqual(1);
+  }
+  for (const top of Object.values(scrumLayout.actionTops)) {
+    expect(Math.abs(top - devTaskActionTop)).toBeLessThanOrEqual(1);
+  }
 
   await openNavView(page, "Documentation", "Documentation");
   const documentationLayout = await page.locator(".documentation-screen .section-head").evaluate(header => {
@@ -925,7 +949,6 @@ test("Scrum view toggle matches Documentation and crowded attendance avatars fit
     const label = toggleButton.querySelector(".button-icon + span");
     const search = header.querySelector("[data-idle-filter-header-search-control]");
     const headerBox = header.getBoundingClientRect();
-    const toggleBox = toggle.getBoundingClientRect();
     const searchBox = search.getBoundingClientRect();
     const buttonStyle = getComputedStyle(toggleButton);
     return {
@@ -934,8 +957,7 @@ test("Scrum view toggle matches Documentation and crowded attendance avatars fit
       buttonGap: buttonStyle.columnGap,
       headerCenter: headerBox.left + headerBox.width / 2,
       iconFontSize: getComputedStyle(icon).fontSize,
-      searchCenter: searchBox.left + searchBox.width / 2,
-      toggleVerticalRatio: (toggleBox.top + toggleBox.height / 2 - headerBox.top) / headerBox.height
+      searchCenter: searchBox.left + searchBox.width / 2
     };
   });
 
@@ -944,7 +966,6 @@ test("Scrum view toggle matches Documentation and crowded attendance avatars fit
   expect(scrumLayout.buttonFontSize).toBe(documentationLayout.buttonFontSize);
   expect(scrumLayout.buttonGap).toBe(documentationLayout.buttonGap);
   expect(scrumLayout.iconFontSize).toBe(documentationLayout.iconFontSize);
-  expect(scrumLayout.toggleVerticalRatio).toBeCloseTo(documentationLayout.toggleVerticalRatio, 2);
 });
 
 test("Scrum auto-refresh updates the table and attendance without reload or interaction loss", async ({ page }) => {
@@ -2040,6 +2061,18 @@ test("Documentation and Sprints share synchronized idle headers and bulk delete"
   const documentationProject = documentationHeader.locator("[data-filter='documentation-project']");
   const documentationSprint = documentationHeader.locator("[data-filter='documentation-sprint']");
   const documentationSearch = documentationHeader.locator("[data-filter='documentation-tree-search']");
+  const newDocumentButton = documentationHeader.locator("[data-action='new-blog']");
+  const documentationFiltersButton = documentationHeader.locator("[data-action='open-documentation-filters']");
+  await expect(newDocumentButton).toHaveAttribute("title", "New Document");
+  await expect(newDocumentButton).toHaveAttribute("aria-label", "New Document");
+  await expect(newDocumentButton.locator(".button-icon + span")).toHaveCSS("display", "none");
+  await expect(documentationFiltersButton).toHaveAttribute("title", "Filters");
+  await expect(documentationFiltersButton).toHaveAttribute("aria-label", "Filters");
+  await expect(documentationFiltersButton.locator(".button-icon + span")).toHaveCSS("display", "none");
+  const documentationViewLabels = documentationHeader.locator(".documentation-view-toggle-button > .button-icon + span");
+  await expect(documentationViewLabels).toHaveCount(2);
+  await expect(documentationViewLabels.nth(0)).not.toHaveCSS("display", "none");
+  await expect(documentationViewLabels.nth(1)).not.toHaveCSS("display", "none");
   await expectIdleHeaderControlsNotToOverlap(documentationHeader);
   await expectIdleHeaderExpandedSearch(documentationHeader);
 
@@ -2168,6 +2201,184 @@ test("Documentation and Sprints share synchronized idle headers and bulk delete"
   await expect(page.locator(".sprint-card[data-id='100']")).toHaveCount(0);
   await expect(page.locator(".sprint-card[data-id='101']")).toHaveCount(0);
   await expect(page.locator("#toast")).toHaveText("2 Sprints deleted.");
+});
+
+test("Log shares the synchronized idle header and owner-only bulk delete", async ({ page }) => {
+  const appState = createTestState();
+  appState.devLogs = [
+    {
+      id: 41,
+      logType: "Log",
+      category: "Notes",
+      projectId: 10,
+      userId: 1,
+      logDate: "2026-07-15",
+      bodyHtml: "<p>Alpha PMT owner note</p>",
+      isPinned: false,
+      createdAt: "2026-07-15T08:00:00Z",
+      updatedAt: "2026-07-15T08:00:00Z"
+    },
+    {
+      id: 42,
+      logType: "Log",
+      category: "Knowledge",
+      projectId: 10,
+      userId: 1,
+      logDate: "2026-07-16",
+      bodyHtml: "<p>Beta PMT owner note</p>",
+      isPinned: false,
+      createdAt: "2026-07-16T08:00:00Z",
+      updatedAt: "2026-07-16T08:00:00Z"
+    },
+    {
+      id: 43,
+      logType: "Log",
+      category: "General",
+      projectId: 20,
+      userId: 1,
+      logDate: "2026-07-17",
+      bodyHtml: "<p>Gamma LMS owner note</p>",
+      isPinned: false,
+      createdAt: "2026-07-17T08:00:00Z",
+      updatedAt: "2026-07-17T08:00:00Z"
+    },
+    {
+      id: 44,
+      logType: "Log",
+      category: "Notes",
+      projectId: 10,
+      userId: 2,
+      logDate: "2026-07-17",
+      bodyHtml: "<p>Bill private note</p>",
+      isPinned: false,
+      createdAt: "2026-07-17T09:00:00Z",
+      updatedAt: "2026-07-17T09:00:00Z"
+    }
+  ];
+  const apiCalls = { securityReset: 0, devLogDeletes: [] };
+
+  await page.clock.install({ time: new Date("2026-07-17T08:00:00+08:00") });
+  await page.clock.pauseAt(new Date("2026-07-17T08:01:00+08:00"));
+  await markCurrentReleaseSeen(page, 1);
+  await installApiMocks(page, appState, apiCalls);
+  await page.goto("/");
+  await page.locator("#loginName").fill("Sin");
+  await page.locator("#loginPassword").fill("Password1");
+  await page.getByRole("button", { name: /log in/i }).click();
+  await openNavView(page, "Log", "Log");
+
+  const header = page.locator(".log-screen .section-head");
+  const project = header.locator("[data-filter='log-project']");
+  const search = header.locator("[data-filter='log-search']");
+  const searchControl = header.locator("[data-idle-filter-header-search-control]");
+  const table = page.locator(".log-table tbody");
+  await expectIdleHeaderControlsNotToOverlap(header);
+  await expectIdleHeaderExpandedSearch(header);
+  const actionLayout = await idleHeaderActionLayout(header);
+  await expect(table).toContainText("Alpha PMT owner note");
+  await expect(table).toContainText("Beta PMT owner note");
+  await expect(table).toContainText("Gamma LMS owner note");
+  await expect(table).not.toContainText("Bill private note");
+
+  await project.selectOption("10");
+  await header.locator("[data-action='open-log-filters']").click();
+  const filterDialog = page.locator("[data-log-filter-dialog]");
+  await expect(filterDialog.locator("[data-filter='log-project']")).toHaveValue("10");
+  await filterDialog.locator("[data-filter='log-project']").selectOption("20");
+  await filterDialog.locator("[data-filter='log-search']").fill("Gamma");
+  await expect(project).toHaveValue("20");
+  await expect(search).toHaveValue("Gamma");
+  await expect(table).toContainText("Gamma LMS owner note");
+  await expect(table).not.toContainText("Alpha PMT owner note");
+  await filterDialog.locator("[data-filter='log-search']").fill("");
+  await filterDialog.locator("[data-filter='log-project']").selectOption("10");
+  await expect(search).toHaveValue("");
+  await expect(project).toHaveValue("10");
+  await closeFilterDialog(page, "log");
+
+  await search.fill("Beta");
+  await expect(search).toHaveValue("Beta");
+  await expect(page.locator(".log-row[data-id='41']")).toBeVisible();
+  await page.clock.fastForward(499);
+  await expect(page.locator(".log-row[data-id='41']")).toBeVisible();
+  await page.clock.fastForward(1);
+  await expect(page.locator(".log-row[data-id='42']")).toBeVisible();
+  await expect(page.locator(".log-row[data-id='41']")).toHaveCount(0);
+  await page.locator(".log-table-panel").hover();
+  await page.clock.fastForward(3000);
+  await expect(header).toHaveClass(/is-idle-filter-header-compact/);
+  await expect(header).toHaveClass(/has-idle-filter-header-search-text/);
+  await expect(header).not.toHaveClass(/is-idle-filter-header-search-docked/);
+  await expect(search).toBeVisible();
+  await expect(header.locator(".idle-filter-header-project-slot .idle-filter-header-context-summary")).toHaveText("Project: PMT - Project Management Tool");
+  await expectIdleHeaderSummaryBaseline(header);
+  await expectIdleSearchCentered(header);
+  expect(await idleHeaderActionLayout(header)).toEqual(actionLayout);
+  await searchControl.hover();
+  await expect(header).not.toHaveClass(/is-idle-filter-header-compact/);
+  await expect(header).not.toHaveClass(/is-idle-filter-header-search-docked/);
+  await expectIdleSearchCentered(header);
+  expect(await idleHeaderActionLayout(header)).toEqual(actionLayout);
+
+  await search.fill("");
+  await page.clock.fastForward(500);
+  await search.evaluate(element => element.blur());
+  await page.locator(".log-table-panel").hover();
+  await page.clock.fastForward(3000);
+  await expect(header).toHaveClass(/is-idle-filter-header-compact/);
+  await expect(header.locator(".idle-filter-header-project-slot .idle-filter-header-context-summary")).toHaveText("Project: PMT - Project Management Tool");
+  await expectIdleHeaderSummaryBaseline(header);
+  await expectIdleSearchImmediatelyBeforeAdd(header);
+  expect(await idleHeaderActionLayout(header)).toEqual(actionLayout);
+
+  await searchControl.click();
+  await expect(header).not.toHaveClass(/is-idle-filter-header-compact/);
+  await expect(header).toHaveClass(/is-idle-filter-header-search-docked/);
+  await expectIdleHeaderExpandedSearch(header);
+  expect(await idleHeaderActionLayout(header)).toEqual(actionLayout);
+  await search.fill("Beta");
+  await expect(page.locator(".log-row[data-id='41']")).toBeVisible();
+  await page.clock.fastForward(499);
+  await expect(page.locator(".log-row[data-id='41']")).toBeVisible();
+  await page.clock.fastForward(1);
+  await expect(page.locator(".log-row[data-id='42']")).toBeVisible();
+  await expect(page.locator(".log-row[data-id='41']")).toHaveCount(0);
+  await expect(header).toHaveClass(/is-idle-filter-header-search-docked/);
+  expect(await idleHeaderActionLayout(header)).toEqual(actionLayout);
+  await page.locator(".log-table-panel").hover();
+  await page.clock.fastForward(3000);
+  await expect(header).toHaveClass(/is-idle-filter-header-compact/);
+  await expect(header).toHaveClass(/has-idle-filter-header-search-text/);
+  await expect(header).toHaveClass(/is-idle-filter-header-search-docked/);
+  await expectIdleHeaderExpandedSearch(header);
+  expect(await idleHeaderActionLayout(header)).toEqual(actionLayout);
+  await searchControl.hover();
+  await expect(header).not.toHaveClass(/is-idle-filter-header-compact/);
+  await expect(header).toHaveClass(/is-idle-filter-header-search-docked/);
+  expect(await idleHeaderActionLayout(header)).toEqual(actionLayout);
+
+  await search.fill("");
+  await page.clock.fastForward(500);
+  await clickPageAction(page, "toggle-log-table-edit-mode");
+  const alphaRow = page.locator(".log-row[data-id='41']");
+  const betaRow = page.locator(".log-row[data-id='42']");
+  await alphaRow.locator("[data-log-delete-select]").check();
+  await betaRow.locator("[data-log-delete-select]").check();
+  expect(await alphaRow.locator(".action-cell").evaluate(cell => {
+    const checkbox = cell.querySelector("[data-log-delete-select]");
+    const trash = cell.querySelector("[data-action='delete-personal-log']");
+    return Boolean(checkbox.compareDocumentPosition(trash) & Node.DOCUMENT_POSITION_FOLLOWING);
+  })).toBe(true);
+  await alphaRow.locator("[data-action='delete-personal-log']").click();
+  const confirmation = page.locator("dialog.mini-dialog", { has: page.getByRole("heading", { name: "Delete", exact: true }) });
+  await expect(confirmation).toContainText("Delete 2 selected Log entries?");
+  await confirmation.getByRole("button", { name: "Continue" }).click();
+  await expect.poll(() => apiCalls.devLogDeletes).toEqual([41, 42]);
+  await expect(alphaRow).toHaveCount(0);
+  await expect(betaRow).toHaveCount(0);
+  await expect(page.locator("#toast")).toHaveText("2 Log entries deleted.");
+  expect(appState.devLogs.some(log => log.id === 44)).toBe(true);
+  await expect(table).not.toContainText("Bill private note");
 });
 
 test("draw.io SVG clipboard paste preserves UTF-8 spaces", async ({ page }) => {
@@ -2711,6 +2922,24 @@ async function installApiMocks(page, appState, apiCalls) {
       ...appState.tasks.filter(item => item.parentTaskId === taskId).map(item => item.id)
     ]);
     appState.tasks = appState.tasks.filter(item => !deletedIds.has(item.id));
+    await route.fulfill({ status: 204, body: "" });
+  });
+
+  await page.route(/\/api\/devlogs\/\d+$/, async route => {
+    if (route.request().method() !== "DELETE") {
+      await route.fallback();
+      return;
+    }
+
+    const devLogId = Number(route.request().url().match(/\/api\/devlogs\/(\d+)$/)?.[1] || 0);
+    if (!appState.devLogs.some(item => item.id === devLogId)) {
+      await route.fulfill(jsonResponse({ error: "Log entry not found" }, 404));
+      return;
+    }
+
+    if (!Array.isArray(apiCalls.devLogDeletes)) apiCalls.devLogDeletes = [];
+    apiCalls.devLogDeletes.push(devLogId);
+    appState.devLogs = appState.devLogs.filter(item => item.id !== devLogId);
     await route.fulfill({ status: 204, body: "" });
   });
 

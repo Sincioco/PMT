@@ -1022,7 +1022,8 @@
         "items": [
           "Preserve BDO's working PMT Project as PMTQA while restoring a separate copy of the original SQL-seeded PMT Project for demonstrations.",
           "Allow administrators to clear and restore the PMT demo repeatedly without changing PMTQA, BDO users, permissions, or private content.",
-          "Safely recreate missing demo team profiles and keep seeded Bug values aligned with the active BDO lookup configuration."
+          "Safely recreate missing demo team profiles and keep seeded Bug values aligned with the active BDO lookup configuration.",
+          "Seed planned vacations for shared PMT, LMS, and HLS demo team members so the Scrum Attendance Calendar immediately demonstrates planned leave."
         ]
       },
       {
@@ -1030,7 +1031,7 @@
         "items": [
           "Restore the screen URL when a routed read-only item dialog closes.",
           "Default Scrum attendance to Office, remember each user's selection, and allow On Behalf Of entries for a selected date.",
-          "Align the Scrum page title with other PMT screens and let Calendar users remove attendance directly from an avatar action menu."
+          "Align the Scrum page title and action controls with Dev Tasks and let Calendar users remove attendance directly from an avatar action menu."
         ]
       },
       {
@@ -1046,7 +1047,9 @@
         "items": [
           "Standardize synchronized Project, Sprint, and Search controls across Dev Tasks, Bug Tracking, Backlog, Kanban Board, Documentation, and Sprints.",
           "Add multi-item deletion in edit mode and keep page actions fixed while header controls compact.",
-          "Keep active searches visibly expanded in their chosen position, update results after a short typing pause, and render idle Project and Sprint context as compact baseline-aligned labels."
+          "Keep active searches visibly expanded in their chosen position, update results after a short typing pause, and render idle Project and Sprint context as compact baseline-aligned labels.",
+          "Extend the responsive Project and Search header, smooth background filtering, and multi-item deletion to each user's private Log.",
+          "Simplify Documentation's New and Filter actions to icon-only controls while retaining accessible names and tooltips."
         ]
       }
     ]

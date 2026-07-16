@@ -21,7 +21,7 @@ import {
   statusColor,
   workItemStatusCounts
 } from "../../components/progress-and-status.js?v=20260714-linked-bug-percent";
-import { sectionHead } from "../../components/sections.js?v=20260701-nav-title-preferences";
+import { sectionHead } from "../../components/sections.js?v=release-notes-2026-07-16-day-29-4dbfab99e9a6";
 import { api } from "../../core/api.js";
 import {
   preferenceKeys,

@@ -17,6 +17,11 @@
   min-width: 0;
 }
 
+.documentation-screen .section-head [data-action="new-blog"] > .button-icon + span,
+.documentation-screen .section-head [data-action="open-documentation-filters"] > .button-icon + span {
+  display: none;
+}
+
 .documentation-view-toggle {
   display: flex;
   flex: 0 0 auto;

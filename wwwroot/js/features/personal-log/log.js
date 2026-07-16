@@ -4,6 +4,7 @@ import {
   filterCheckList
 } from "../../components/filters.js";
 import { initializeWindowedDialog } from "../../components/dialogs.js?v=20260706-dialog-persistence";
+import { createIdleFilterHeader } from "../../components/idle-filter-header.js?v=20260717-multi-screen-search-persistent";
 import {
   field,
   optionalNumberValue,
@@ -12,7 +13,7 @@ import {
   selectOptionsField,
   value
 } from "../../components/forms.js?v=20260715-day28-v118";
-import { sectionHead } from "../../components/sections.js?v=20260701-nav-title-preferences";
+import { sectionHead } from "../../components/sections.js?v=release-notes-2026-07-16-day-29-4dbfab99e9a6";
 import { createWorkItemTableMode } from "../../components/work-items.js?v=20260715-admin-impersonation";
 import { currentUser } from "../../core/authentication.js?v=20260715-admin-impersonation";
 import {
@@ -60,6 +61,7 @@ const logCategoryLookupType = "LogCategory";
 export function createLogFeature({
   app,
   deleteItem,
+  deleteItems,
   loadState,
   openEditor,
   render,
@@ -73,9 +75,22 @@ export function createLogFeature({
   let logColumnDrag = null;
   let lastLogColumnPointerDragAt = 0;
   let suppressNextLogColumnClick = false;
+  let logBulkDeleteBusy = false;
+  const selectedLogDeleteIds = new Set();
   const logTableMode = createWorkItemTableMode({
     action: "toggle-log-table-edit-mode",
     itemLabel: "Log"
+  });
+  const logHeader = createIdleFilterHeader({
+    app,
+    screenSelector: ".log-screen",
+    searchFilter: "log-search",
+    onSearchInput(search, { commit, render: shouldRender }) {
+      logFilters.search = search;
+      if (commit) writeJsonPreference(preferenceKeys.logFilters, logFilters);
+      if (shouldRender) renderDevLogs();
+      return true;
+    }
   });
 
   bindLogColumnDragEvents();
@@ -92,13 +107,16 @@ export function createLogFeature({
       .filter(logMatchesCategoryFilter)
       .filter(logMatchesSearchFilter)
       .sort(logSortCompare);
+    pruneLogDeleteSelection(logs);
     const visibleLogColumns = logVisibleTableColumns();
     const emptyTableColspan = visibleLogColumns.length + (logTableMode.active ? 1 : 0);
 
     app.innerHTML = `
-      <section class="log-screen work-item-screen">
+      <section class="log-screen work-item-screen idle-filter-header-screen">
         ${sectionHead("Log", `
-          <button class="primary text-icon-button" type="button" data-action="new-personal-log" title="New Log" aria-label="New Log">${buttonContent("&#10010;", "New Log")}</button>
+          ${logHeader.controlsHtml(logHeaderFields())}
+          ${logHeader.searchHtml(logFilters.search, "Search Log")}
+          <button class="primary text-icon-button" type="button" data-action="new-personal-log" data-idle-filter-header-add-target title="New Log" aria-label="New Log">${buttonContent("&#10010;", "New Log")}</button>
           <button class="secondary text-icon-button" type="button" data-action="open-log-filters" title="Filters" aria-label="Filters" aria-haspopup="dialog">${buttonContent(funnelIconHtml(), "Filters")}</button>
           ${pageActionsMenuHtml([
             { action: "toggle-log-table-edit-mode", icon: "&#9998;", label: "Edit Mode", title: "Edit Mode", checked: logTableMode.active },
@@ -129,6 +147,30 @@ export function createLogFeature({
         </div>
       </section>
     `;
+
+    logHeader.bind();
+    bindLogDeleteSelection();
+  }
+
+  function logHeaderFields() {
+    const project = state.projects.find(item => item.id === Number(logFilters.projectId || 0));
+    const summary = project ? `${project.code} - ${project.title}` : "All Projects";
+
+    return [{
+      key: "project",
+      filter: "log-project",
+      label: "Project",
+      optionsHtml: logProjectOptionsHtml(),
+      summary,
+      summaryTitle: summary
+    }];
+  }
+
+  function logProjectOptionsHtml() {
+    return `
+      <option value="" ${!logFilters.projectId ? "selected" : ""}>All Projects</option>
+      ${state.projects.map(project => `<option value="${project.id}" ${String(project.id) === String(logFilters.projectId || "") ? "selected" : ""}>${escapeHtml(project.code)} - ${escapeHtml(project.title)}</option>`).join("")}
+    `;
   }
 
   function logRowHtml(log, visibleColumns) {
@@ -140,9 +182,12 @@ export function createLogFeature({
         ${logTableMode.active ? `
           <td class="reveal-actions action-cell log-actions" data-label="Actions">
             ${editable ? `
-              ${iconButton("delete-personal-log", log.id, "Delete", "delete-monochrome")}
-              ${iconButton("duplicate-personal-log", log.id, "Duplicate", "duplicate")}
-              ${iconButton("edit-personal-log", log.id, "Edit", "edit")}
+              <div class="log-row-actions">
+                ${logDeleteSelectionHtml(log)}
+                ${iconButton("delete-personal-log", log.id, "Delete", "delete-monochrome", logCanDelete(log))}
+                ${iconButton("duplicate-personal-log", log.id, "Duplicate", "duplicate")}
+                ${iconButton("edit-personal-log", log.id, "Edit", "edit")}
+              </div>
             ` : ""}
           </td>
         ` : ""}
@@ -152,6 +197,101 @@ export function createLogFeature({
 
   function canModifyLogLog(log) {
     return isPersonalLog(log);
+  }
+
+  function logDeleteSelectionHtml(log) {
+    const checked = selectedLogDeleteIds.has(log.id);
+    const label = `Select ${formatDate(log.logDate)} Log entry for bulk delete`;
+
+    return `
+      <label class="log-delete-selection" title="${escapeAttr(label)}">
+        <input type="checkbox" data-log-delete-select data-id="${log.id}" aria-label="${escapeAttr(label)}" ${checked ? "checked" : ""} ${logCanDelete(log) && !logBulkDeleteBusy ? "" : "disabled"}>
+      </label>
+    `;
+  }
+
+  function bindLogDeleteSelection() {
+    app.querySelectorAll("[data-log-delete-select]").forEach(input => {
+      input.addEventListener("change", () => {
+        if (logBulkDeleteBusy) return;
+        const id = Number(input.dataset.id || 0);
+        if (!id) return;
+
+        if (input.checked) {
+          selectedLogDeleteIds.add(id);
+        } else {
+          selectedLogDeleteIds.delete(id);
+        }
+        syncLogDeleteSelectionControls();
+      });
+    });
+
+    syncLogDeleteSelectionControls();
+  }
+
+  function syncLogDeleteSelectionControls() {
+    const selectedTitle = logSelectedDeleteTitle();
+
+    app.querySelectorAll("[data-log-delete-select]").forEach(input => {
+      const id = Number(input.dataset.id || 0);
+      const log = state.devLogs.find(item => item.id === id && isPersonalLog(item));
+      input.checked = selectedLogDeleteIds.has(id);
+      input.disabled = logBulkDeleteBusy || !logCanDelete(log);
+    });
+
+    app.querySelectorAll(".log-table .log-row [data-action='delete-personal-log']").forEach(button => {
+      const id = Number(button.dataset.id || 0);
+      const log = state.devLogs.find(item => item.id === id && isPersonalLog(item));
+      const title = selectedLogDeleteIds.has(id) ? selectedTitle : "Delete";
+      button.disabled = logBulkDeleteBusy || !logCanDelete(log);
+      button.title = title;
+      button.setAttribute("aria-label", title);
+    });
+  }
+
+  function pruneLogDeleteSelection(logs) {
+    if (!logTableMode.active) {
+      selectedLogDeleteIds.clear();
+      return;
+    }
+
+    const visibleIds = new Set(logs.filter(logCanDelete).map(log => log.id));
+    [...selectedLogDeleteIds].forEach(id => {
+      if (!visibleIds.has(id)) selectedLogDeleteIds.delete(id);
+    });
+  }
+
+  function logCanDelete(log) {
+    return Boolean(log)
+      && isPersonalLog(log)
+      && canAccessResource("PersonalLog", "Delete");
+  }
+
+  function logSelectedDeleteTitle(count = selectedLogDeleteIds.size) {
+    return count === 1
+      ? "Delete selected Log entry"
+      : `Delete ${count} selected Log entries`;
+  }
+
+  async function deleteSelectedLogs() {
+    const logs = [...selectedLogDeleteIds]
+      .map(id => state.devLogs.find(item => item.id === id && isPersonalLog(item)))
+      .filter(logCanDelete);
+    if (!logs.length) return;
+
+    const count = logs.length;
+    logBulkDeleteBusy = true;
+    syncLogDeleteSelectionControls();
+    try {
+      await deleteItems(
+        logs.map(log => `/api/devlogs/${log.id}`),
+        `${logSelectedDeleteTitle(count)}?`,
+        `${count} Log entr${count === 1 ? "y" : "ies"} deleted.`
+      );
+    } finally {
+      logBulkDeleteBusy = false;
+      syncLogDeleteSelectionControls();
+    }
   }
 
   function isPersonalLog(log) {
@@ -347,7 +487,7 @@ export function createLogFeature({
   }
 
   function logTableMinWidth(columns) {
-    const fixedWidth = logTableMode.active ? 176 : 0;
+    const fixedWidth = logTableMode.active ? 216 : 0;
     const lastColumnIndex = columns.length - 1;
     const columnsWidth = columns.reduce((total, column, index) =>
       total + logColumnMinimumWidth(column, index === lastColumnIndex), 0);
@@ -674,6 +814,7 @@ export function createLogFeature({
     }
     if (action === "toggle-log-table-edit-mode") {
       logTableMode.toggle();
+      selectedLogDeleteIds.clear();
       renderDevLogs();
       return true;
     }
@@ -714,7 +855,11 @@ export function createLogFeature({
     }
     if (action === "delete-personal-log") {
       if (log && canModifyLogLog(log)) {
-        await deleteItem(`/api/devlogs/${id}`, "Delete this Log entry?");
+        if (selectedLogDeleteIds.has(id)) {
+          await deleteSelectedLogs();
+        } else {
+          await deleteItem(`/api/devlogs/${id}`, "Delete this Log entry?");
+        }
       }
       return true;
     }
@@ -775,8 +920,7 @@ export function createLogFeature({
           <label>
             <span>Project</span>
             <select data-filter="log-project">
-              <option value="" ${!logFilters.projectId ? "selected" : ""}>All Projects</option>
-              ${state.projects.map(project => `<option value="${project.id}" ${String(project.id) === String(logFilters.projectId || "") ? "selected" : ""}>${escapeHtml(project.code)} - ${escapeHtml(project.title)}</option>`).join("")}
+              ${logProjectOptionsHtml()}
             </select>
           </label>
           <label>
@@ -1391,6 +1535,8 @@ export function createLogFeature({
     logEntryProjectId = 0;
     logColumnPrefs = normalizeLogColumnPrefs({});
     logTableMode.deactivate();
+    selectedLogDeleteIds.clear();
+    logHeader.reset();
     cancelLogColumnDrag();
     renderDevLogs();
   }
@@ -1400,6 +1546,9 @@ export function createLogFeature({
       if (dialog.open) dialog.close();
       else dialog.remove();
     });
+    logHeader.deactivate();
+    logBulkDeleteBusy = false;
+    selectedLogDeleteIds.clear();
     cancelLogColumnDrag();
     logTableMode.deactivate();
   }

@@ -5,7 +5,9 @@ import test from "node:test";
 const migration = read("../../SQL/Migrations/Migration History/PMT_1.19_to_1.20.sql");
 const recoveryRunner = read("../../SQL/Migrations/Migration History/PMT_1.19_to_1.22_All.sql");
 const demoMigration = read("../../SQL/Migrations/PMT_1.22_to_1.23.sql");
+const demoMigrationRunner = read("../../SQL/Migrations/PMT_1.22_to_1.23_All.sql");
 const sourceProcedures = read("../../SQL/02_CreateStoredProcedures.sql");
+const sourceSeed = read("../../SQL/03_SeedData.sql");
 const pmtSeed = read("../../SQL/03_SeedData_PMT.sql");
 const developmentStore = read("../../Data/SqlPmtStore.Development.cs");
 
@@ -103,6 +105,27 @@ test("Development Clear Users and Factory Reset ignore private-content ownership
     assert.match(factoryReset, /\[pmt\]\.\[IsAdmin\]\(@CurrentUserId\) = 0/);
     assert.doesNotMatch(factoryReset, /50257|another user owns private content/);
   }
+});
+
+test("Version 1.23 seeds visible current-month vacations without overlapping existing plans", () => {
+  assert.match(sourceSeed, /DECLARE @DemoVacationMonthStart DATE = DATEFROMPARTS\(YEAR\(@Today\), MONTH\(@Today\), 1\)/);
+  assert.match(sourceSeed, /\(@Bill, DATEADD\(DAY, 3, @DemoVacationMonthStart\), DATEADD\(DAY, 5, @DemoVacationMonthStart\)/);
+  assert.match(sourceSeed, /\(@Sam, DATEADD\(DAY, 11, @DemoVacationMonthStart\), DATEADD\(DAY, 13, @DemoVacationMonthStart\)/);
+  assert.match(sourceSeed, /\(@Jensen, DATEADD\(DAY, 19, @DemoVacationMonthStart\), DATEADD\(DAY, 22, @DemoVacationMonthStart\)/);
+
+  assert.match(demoMigration, /CREATE TABLE #Pmt122To123DemoVacations/);
+  for (const projectCode of ["PMT", "LMS", "HLS"]) {
+    assert.match(demoMigration, new RegExp(`\\(N'${projectCode}', N'`));
+  }
+  assert.match(demoMigration, /\[Existing\]\.\[StartDate\] <= \[Seed\]\.\[EndDate\]/);
+  assert.match(demoMigration, /\[Existing\]\.\[EndDate\] >= \[Seed\]\.\[StartDate\]/);
+  assert.match(demoMigration, /THROW 51077, 'The PMT, LMS, and HLS demo vacation examples could not be verified\.'/);
+});
+
+test("Version 1.23 provides the requested one-file combined SQLCMD runner", () => {
+  assert.match(demoMigrationRunner, /:on error exit/);
+  assert.equal(demoMigrationRunner.split(":r ").length - 1, 1);
+  assert.match(demoMigrationRunner, /:r "\.\\PMT_1\.22_to_1\.23\.sql"/);
 });
 
 test("the released Version 1.19 recovery uses one ordered SQLCMD runner", () => {

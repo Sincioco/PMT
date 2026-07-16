@@ -13,7 +13,13 @@ Testing Approach:
 Environment:
 	You are in a dev machine.  You can drop and re-create the database as you see fit, especially when testing migrations scripts.  You don't need to preseve data in the backend or frontend.  You can also clear preferences, local storage settings and any cache as you see fit.
 
-If making changes to the database, that affects existing users see database-versioning.md under the docs folder.
+Database:
+	If making changes to the database, that affects existing users see database-versioning.md under the docs folder.
+
+
+Commits:
+	PMT is a public repo, write a detailed commit message.
+
 
 Root Cause Analysis in Dev Tasks and Bug Tracking
 -------------------------------------------------
@@ -206,3 +212,18 @@ Combined it should look like this:
 
 Commit and push to the repo.
 ----------------------------------------------------------
+
+67.) Apply the same thing to the Log Screen.
+68.) In the Documentation screen, hide the labels for the Filter and New buttons.
+69.) Look at the Scrum header, it seems different compared to the other screen.  Compare it with the Dev Task screen.  The contents, page buttons, sits lower than on the Dev Task screen.
+
+70.) Update the data seed so that there is some vacations for the HLS, LMS and PMT Project's users on the calendar so we can see them in the scrum calendar.
+
+Database Migration Script Testing
+---------------------------------
+Update the migration scripts and test them by dropping and re-creating the database from the baseline and executing your combined migration script (as that is how I will execute it on the server).  Be sure it works without any errors and fix errors that you do encounter.
+
+Commit and Push
+---------------
+When all your tests are green, commit and push to the repo.
+Also commit the file named "2026-07-16 - Requirements - Day 29.txt"

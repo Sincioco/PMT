@@ -744,6 +744,18 @@ html[data-theme] .scrum-screen.work-item-screen .work-item-table .icon-action:di
   padding-bottom: 0;
 }
 
+@media (min-width: 901px) {
+  .scrum-screen .section-head > .toolbar {
+    align-self: flex-start;
+    margin-top: 2px;
+  }
+
+  .scrum-screen .section-head .scrum-view-toggle {
+    top: 2px;
+    transform: translateX(-50%);
+  }
+}
+
 @media (max-width: 900px) {
   .scrum-screen .section-head .toolbar,
   .scrum-today-attendance {
