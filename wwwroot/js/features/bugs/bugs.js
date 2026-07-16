@@ -17,7 +17,7 @@ import {
   checkedFilterValues,
   filterCheckList
 } from "../../components/filters.js?v=20260630-filter-renderer";
-import { createIdleFilterHeader } from "../../components/idle-filter-header.js?v=20260717-multi-screen-header";
+import { createIdleFilterHeader } from "../../components/idle-filter-header.js?v=20260717-multi-screen-search-persistent";
 import {
   checkList,
   checkedNumbers,
@@ -165,9 +165,10 @@ export function createBugsFeature({
     app,
     screenSelector: ".bugs-screen",
     searchFilter: "bug-search",
-    onSearchInput(input) {
-      if (!applyBugFilterChange(input)) return false;
-      renderBugs();
+    onSearchInput(value, { commit, render }) {
+      bugFilters.search = value;
+      if (commit) writeJsonPreference(preferenceKeys.bugFilters, bugFilters);
+      if (render) renderBugs();
       return true;
     }
   });
@@ -258,7 +259,7 @@ export function createBugsFeature({
         filter: "bug-project",
         label: "Project",
         optionsHtml: bugProjectOptionsHtml(),
-        summary: project?.code || "All Projects",
+        summary: project ? `${project.code} - ${project.title}` : "All Projects",
         summaryTitle: project ? `${project.code} - ${project.title}` : "All Projects"
       },
       {
@@ -266,7 +267,7 @@ export function createBugsFeature({
         filter: "bug-sprint",
         label: "Sprint",
         optionsHtml: bugSprintOptionsHtml(sprints),
-        summary: sprint?.code || "All Sprints",
+        summary: sprint?.title || "All Sprints",
         summaryTitle: sprint ? `${sprint.code} - ${sprint.title}` : "All Sprints"
       }
     ];

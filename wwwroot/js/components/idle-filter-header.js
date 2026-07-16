@@ -1,13 +1,15 @@
 import { escapeAttr, escapeHtml } from "../shared/text-and-links.js";
 
-const defaultIdleMs = 10000;
+const defaultIdleMs = 3000;
+const defaultSearchDelayMs = 500;
 
 export function createIdleFilterHeader({
   app,
   screenSelector,
   searchFilter,
   onSearchInput,
-  idleMs = defaultIdleMs
+  idleMs = defaultIdleMs,
+  searchDelayMs = defaultSearchDelayMs
 }) {
   let compact = false;
   let lastActivityAt = 0;
@@ -16,6 +18,10 @@ export function createIdleFilterHeader({
   let resizeBound = false;
   let searchComposing = false;
   let skipComposedInput = false;
+  let searchTimer = 0;
+  let searchDocked = false;
+  let searchValue = "";
+  let position = null;
 
   function controlsHtml(fields) {
     return `
@@ -25,9 +31,7 @@ export function createIdleFilterHeader({
             <select data-filter="${escapeAttr(field.filter)}" aria-label="${escapeAttr(field.label)}" title="${escapeAttr(field.label)}">
               ${field.optionsHtml}
             </select>
-            <span class="idle-filter-header-context-summary" title="${escapeAttr(field.summaryTitle || field.summary)}">
-              ${escapeHtml(field.label)}: ${escapeHtml(field.summary)}
-            </span>
+            <span class="idle-filter-header-context-summary" title="${escapeAttr(field.summaryTitle || field.summary)}">${escapeHtml(field.label)}: ${escapeHtml(field.summary)}</span>
           </div>
         `).join("")}
       </div>
@@ -35,6 +39,7 @@ export function createIdleFilterHeader({
   }
 
   function searchHtml(value, label = "Search") {
+    searchValue = String(value || "");
     return `
       <label class="idle-filter-header-search-control" data-idle-filter-header-search-control title="${escapeAttr(label)}">
         <span class="idle-filter-header-search-icon" aria-hidden="true">
@@ -49,17 +54,30 @@ export function createIdleFilterHeader({
   }
 
   function bind() {
+    flushPendingSearch(false);
     const header = currentHeader();
     if (!header) return;
 
-    header.classList.toggle("is-idle-filter-header-compact", compact);
-    header.addEventListener("pointerenter", markActivity);
-    header.addEventListener("pointermove", markActivity);
+    applyPosition(header);
+    header.dataset.idleFilterHeader = "true";
+    syncClasses(header);
+    header.addEventListener("pointerenter", handlePointerActivity);
+    header.addEventListener("pointermove", handlePointerActivity);
     header.addEventListener("focusin", markActivity);
     header.addEventListener("keydown", markActivity);
     header.addEventListener("change", markActivity);
 
-    const search = header.querySelector(`[data-filter="${searchFilter}"]`);
+    const searchControl = header.querySelector("[data-idle-filter-header-search-control]");
+    const search = searchControl?.querySelector(`[data-filter="${searchFilter}"]`);
+    searchControl?.addEventListener("pointerdown", () => {
+      if (!compact) return;
+      if (!hasSearchText()) searchDocked = true;
+      markActivity();
+    });
+    search?.addEventListener("change", event => {
+      event.stopPropagation();
+      markActivity();
+    });
     search?.addEventListener("compositionstart", () => {
       searchComposing = true;
     });
@@ -86,17 +104,54 @@ export function createIdleFilterHeader({
     scheduleIdle();
   }
 
-  function applySearchInput(input) {
-    const selectionStart = input.selectionStart;
-    const selectionEnd = input.selectionEnd;
-    markActivity();
-    if (onSearchInput(input) === false) return;
-
-    const nextInput = currentHeader()?.querySelector(`[data-filter="${searchFilter}"]`);
-    nextInput?.focus({ preventScroll: true });
-    if (selectionStart !== null && selectionEnd !== null) {
-      nextInput?.setSelectionRange(selectionStart, selectionEnd);
+  function handlePointerActivity(event) {
+    if (compact && !hasSearchText()) {
+      searchDocked = pointerNearSearch(event);
     }
+    markActivity();
+  }
+
+  function pointerNearSearch(event) {
+    const searchControl = event.currentTarget?.querySelector?.("[data-idle-filter-header-search-control]");
+    const bounds = searchControl?.getBoundingClientRect();
+    if (!bounds) return false;
+
+    const tolerance = 18;
+    return event.clientX >= bounds.left - tolerance
+      && event.clientX <= bounds.right + tolerance
+      && event.clientY >= bounds.top - tolerance
+      && event.clientY <= bounds.bottom + tolerance;
+  }
+
+  function applySearchInput(input) {
+    markActivity();
+    if (input?.dataset?.filter !== searchFilter) return;
+    searchValue = input.value;
+    if (onSearchInput(searchValue, { commit: false, render: false }) === false) return;
+    syncClasses(currentHeader());
+
+    window.clearTimeout(searchTimer);
+    searchTimer = window.setTimeout(() => {
+      searchTimer = 0;
+      const restoreFocus = document.activeElement === input;
+      const selectionStart = input.selectionStart;
+      const selectionEnd = input.selectionEnd;
+      onSearchInput(searchValue, { commit: true, render: true });
+
+      if (!restoreFocus) return;
+      const nextInput = currentHeader()?.querySelector(`[data-filter="${searchFilter}"]`);
+      nextInput?.focus({ preventScroll: true });
+      if (selectionStart !== null && selectionEnd !== null) {
+        nextInput?.setSelectionRange(selectionStart, selectionEnd);
+      }
+    }, searchDelayMs);
+  }
+
+  function flushPendingSearch(render) {
+    if (!searchTimer) return;
+    window.clearTimeout(searchTimer);
+    searchTimer = 0;
+    onSearchInput(searchValue, { commit: true, render: Boolean(render) });
   }
 
   function markActivity() {
@@ -122,7 +177,10 @@ export function createIdleFilterHeader({
         return;
       }
 
-      if (header.contains(document.activeElement)) {
+      const activeElement = document.activeElement;
+      const activeSearch = header.querySelector("[data-idle-filter-header-search-control] input");
+      const canCompactAroundActiveSearch = activeElement === activeSearch && hasSearchText();
+      if (header.contains(activeElement) && !canCompactAroundActiveSearch) {
         lastActivityAt = Date.now();
         scheduleIdle();
         return;
@@ -134,8 +192,23 @@ export function createIdleFilterHeader({
 
   function setCompact(nextCompact) {
     compact = Boolean(nextCompact);
-    currentHeader()?.classList.toggle("is-idle-filter-header-compact", compact);
+    syncClasses(currentHeader());
     positionSearch();
+  }
+
+  function syncClasses(header) {
+    if (!header) return;
+    const hasText = hasSearchText();
+    header.classList.toggle("is-idle-filter-header-compact", compact);
+    header.classList.toggle("has-idle-filter-header-search-text", hasText);
+    header.classList.toggle(
+      "is-idle-filter-header-search-docked",
+      searchDocked && (!compact || hasText)
+    );
+  }
+
+  function hasSearchText() {
+    return Boolean(String(searchValue || "").trim());
   }
 
   function scheduleSearchPosition() {
@@ -151,51 +224,87 @@ export function createIdleFilterHeader({
     const searchControl = header?.querySelector("[data-idle-filter-header-search-control]");
     const context = header?.querySelector("[data-idle-filter-header-context]");
     const addButton = header?.querySelector("[data-idle-filter-header-add-target]");
-    if (!header || !searchControl || !context || !addButton) return;
-
-    if (window.matchMedia("(max-width: 1000px)").matches) {
-      header.style.removeProperty("--idle-filter-header-search-expanded-x");
-      header.style.removeProperty("--idle-filter-header-search-expanded-width");
-      header.style.removeProperty("--idle-filter-header-search-compact-x");
-      header.style.removeProperty("--idle-filter-header-search-compact-width");
-      return;
-    }
+    const title = header?.querySelector("h1");
+    if (!header || !searchControl || !addButton) return;
 
     const headerRect = header.getBoundingClientRect();
-    const contextRect = context.getBoundingClientRect();
+    const contextRect = context?.getBoundingClientRect();
     const addRect = addButton.getBoundingClientRect();
     const toolbarGap = Number.parseFloat(getComputedStyle(addButton.parentElement).columnGap) || 8;
-    const expandedBaseWidth = Math.min(340, Math.max(260, window.innerWidth * 0.22));
-    const expandedLeft = contextRect.right + toolbarGap;
-    const expandedRight = addRect.left - toolbarGap;
-    const expandedAvailableWidth = Math.max(0, expandedRight - expandedLeft);
-    const expandedWidth = Math.max(
-      Math.min(180, expandedAvailableWidth),
-      Math.min(expandedBaseWidth, expandedAvailableWidth)
-    );
+    const expandedWidth = Math.min(238, Math.max(182, window.innerWidth * 0.154));
+    const compactWidth = Math.min(addRect.width, addRect.height);
+    const dockedAvailableWidth = contextRect
+      ? addRect.left - contextRect.right - (toolbarGap * 2)
+      : expandedWidth;
+    const dockedWidth = Math.min(expandedWidth, Math.max(compactWidth, dockedAvailableWidth));
     const headerCenter = headerRect.left + (headerRect.width / 2);
-    const minimumExpandedCenter = expandedLeft + (expandedWidth / 2);
-    const maximumExpandedCenter = expandedRight - (expandedWidth / 2);
-    const expandedCenter = minimumExpandedCenter <= maximumExpandedCenter
-      ? Math.min(maximumExpandedCenter, Math.max(minimumExpandedCenter, headerCenter))
-      : expandedLeft + (expandedAvailableWidth / 2);
-    const compactSearchWidth = Math.min(addRect.width, addRect.height);
-    const compactCenter = addRect.left - toolbarGap - (compactSearchWidth / 2);
+    const compactCenter = addRect.left - toolbarGap - (compactWidth / 2);
+    const dockedCenter = addRect.left - toolbarGap - (dockedWidth / 2);
 
-    header.style.setProperty("--idle-filter-header-search-expanded-x", `${expandedCenter - headerCenter}px`);
-    header.style.setProperty("--idle-filter-header-search-expanded-width", `${expandedWidth}px`);
-    header.style.setProperty("--idle-filter-header-search-compact-x", `${compactCenter - headerCenter}px`);
-    header.style.setProperty("--idle-filter-header-search-compact-width", `${compactSearchWidth}px`);
+    header.style.setProperty("--idle-filter-header-context-y", "0px");
+    let contextY = 0;
+    if (window.innerWidth > 1000 && title && context) {
+      if (compact) {
+        const summaries = context.querySelectorAll(".idle-filter-header-context-summary");
+        const titleBaseline = textBaseline(title);
+        const summaryBaseline = textBaseline(summaries[0]);
+        summaries.forEach(textBaseline);
+        contextY = titleBaseline - summaryBaseline;
+      } else {
+        const titleRect = title.getBoundingClientRect();
+        const nextContextRect = context.getBoundingClientRect();
+        contextY = titleRect.bottom - nextContextRect.bottom;
+      }
+    }
+
+    position = {
+      compactX: `${compactCenter - headerCenter}px`,
+      dockedX: `${dockedCenter - headerCenter}px`,
+      dockedWidth: `${dockedWidth}px`,
+      contextY: `${contextY}px`
+    };
+    applyPosition(header);
+  }
+
+  function textBaseline(element) {
+    if (!element) return 0;
+
+    let marker = element.querySelector(".idle-filter-header-baseline-marker");
+    if (!marker) {
+      marker = document.createElement("span");
+      marker.className = "idle-filter-header-baseline-marker";
+      marker.setAttribute("aria-hidden", "true");
+      element.append(marker);
+    }
+    return marker.getBoundingClientRect().top;
+  }
+
+  function applyPosition(header) {
+    if (!header || !position) return;
+    header.style.setProperty("--idle-filter-header-search-compact-x", position.compactX);
+    header.style.setProperty("--idle-filter-header-search-docked-x", position.dockedX);
+    header.style.setProperty("--idle-filter-header-search-docked-width", position.dockedWidth);
+    header.style.setProperty("--idle-filter-header-context-y", position.contextY);
   }
 
   function reset() {
+    window.clearTimeout(searchTimer);
+    searchTimer = 0;
     compact = false;
+    searchDocked = false;
+    position = null;
     lastActivityAt = Date.now();
-    currentHeader()?.classList.remove("is-idle-filter-header-compact");
+    const header = currentHeader();
+    header?.classList.remove(
+      "is-idle-filter-header-compact",
+      "has-idle-filter-header-search-text",
+      "is-idle-filter-header-search-docked"
+    );
     scheduleIdle();
   }
 
   function deactivate() {
+    flushPendingSearch(false);
     window.clearTimeout(idleTimer);
     idleTimer = 0;
     if (resizeFrame) cancelAnimationFrame(resizeFrame);
@@ -205,6 +314,8 @@ export function createIdleFilterHeader({
       resizeBound = false;
     }
     compact = false;
+    searchDocked = false;
+    position = null;
     lastActivityAt = 0;
     searchComposing = false;
     skipComposedInput = false;

@@ -5,7 +5,7 @@ import {
   checkedFilterValues,
   filterCheckList
 } from "../../components/filters.js?v=20260630-filter-renderer";
-import { createIdleFilterHeader } from "../../components/idle-filter-header.js?v=20260717-multi-screen-header";
+import { createIdleFilterHeader } from "../../components/idle-filter-header.js?v=20260717-multi-screen-search-persistent";
 import {
   userCardCheckListLabelHtml
 } from "../../components/forms.js?v=20260715-day28-v118";
@@ -104,9 +104,10 @@ export function createBacklogFeature({
     app,
     screenSelector: ".backlog-screen",
     searchFilter: "backlog-search",
-    onSearchInput(input) {
-      if (!applyBacklogFilterChange(input)) return false;
-      renderBacklog();
+    onSearchInput(value, { commit, render }) {
+      backlogFilters.search = value;
+      if (commit) writeJsonPreference(preferenceKeys.backlogFilters, backlogFilters);
+      if (render) renderBacklog();
       return true;
     }
   });
@@ -206,7 +207,7 @@ export function createBacklogFeature({
     const sprintSummary = backlogFilters.sprintId === "unassigned"
       ? { label: "Unassigned", title: "Unassigned" }
       : sprint
-        ? { label: sprint.code, title: `${sprint.code} - ${sprint.title}` }
+        ? { label: sprint.title, title: `${sprint.code} - ${sprint.title}` }
         : { label: "All Sprints", title: "All Sprints" };
 
     return [
@@ -215,7 +216,7 @@ export function createBacklogFeature({
         filter: "backlog-project",
         label: "Project",
         optionsHtml: backlogProjectOptionsHtml(),
-        summary: project?.code || "All Projects",
+        summary: project ? `${project.code} - ${project.title}` : "All Projects",
         summaryTitle: project ? `${project.code} - ${project.title}` : "All Projects"
       },
       {

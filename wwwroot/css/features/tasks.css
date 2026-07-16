@@ -23,6 +23,7 @@ html[data-theme="light"] .tasks-screen.work-item-screen .section-head h1 {
   gap: var(--space-2);
   align-items: center;
   margin-right: auto;
+  transform: translateY(var(--task-header-context-y, 0px));
 }
 
 .task-header-context-slot {
@@ -69,14 +70,15 @@ html[data-theme="light"] .tasks-screen.work-item-screen .section-head h1 {
   opacity: 0;
   visibility: hidden;
   pointer-events: none;
-  transform: translateY(3px);
+  transform: translateY(0);
   transition:
     opacity 180ms ease-out,
-    transform 180ms ease-out,
     visibility 0s linear 180ms;
 }
 
 .tasks-screen .section-head.is-task-header-compact .task-header-context-slot select {
+  position: absolute;
+  inset: 0;
   opacity: 0;
   visibility: hidden;
   pointer-events: none;
@@ -85,10 +87,29 @@ html[data-theme="light"] .tasks-screen.work-item-screen .section-head h1 {
 }
 
 .tasks-screen .section-head.is-task-header-compact .task-header-context-summary {
+  width: max-content;
+  overflow: visible;
+  line-height: var(--line-height-tight);
   opacity: 1;
   visibility: visible;
   transform: translateY(0);
   transition-delay: 0s;
+}
+
+.tasks-screen .section-head.is-task-header-compact .task-header-context-slot {
+  position: relative;
+  flex: 0 0 auto;
+  width: auto;
+}
+
+.task-header-baseline-marker {
+  display: inline-block;
+  width: 0;
+  height: 0;
+  padding: 0;
+  margin: 0;
+  overflow: hidden;
+  vertical-align: baseline;
 }
 
 .task-header-search-control {
@@ -97,7 +118,7 @@ html[data-theme="light"] .tasks-screen.work-item-screen .section-head h1 {
   top: 50%;
   left: 50%;
   display: block;
-  width: clamp(260px, 22vw, 340px);
+  width: clamp(182px, 15.4vw, 238px);
   height: var(--touch-target-min);
   transform: translate(-50%, -50%);
   transition:
@@ -109,7 +130,7 @@ html[data-theme="light"] .tasks-screen.work-item-screen .section-head h1 {
   width: 100%;
   height: var(--touch-target-min);
   min-height: var(--touch-target-min);
-  padding: 0 38px 0 42px !important;
+  padding: 0 12px 0 42px !important;
   opacity: 1;
   transition:
     width 190ms ease-out,
@@ -147,12 +168,12 @@ html[data-theme="light"] .tasks-screen.work-item-screen .section-head h1 {
   stroke-width: 1.8;
 }
 
-.tasks-screen .section-head.is-task-header-compact .task-header-search-control {
+.tasks-screen .section-head.is-task-header-compact:not(.has-task-header-search-text) .task-header-search-control {
   width: var(--touch-target-min);
   transform: translate(calc(-50% + var(--task-header-search-compact-x, 0px)), -50%);
 }
 
-.tasks-screen .section-head.is-task-header-compact .task-header-search-input {
+.tasks-screen .section-head.is-task-header-compact:not(.has-task-header-search-text) .task-header-search-input {
   padding: 0 !important;
   border-color: transparent;
   background: transparent;
@@ -163,19 +184,26 @@ html[data-theme="light"] .tasks-screen.work-item-screen .section-head h1 {
   box-shadow: none;
 }
 
-.tasks-screen .section-head.is-task-header-compact .task-header-search-input:hover {
+.tasks-screen .section-head.is-task-header-compact:not(.has-task-header-search-text) .task-header-search-input:hover {
   border-color: var(--color-border-strong);
   background: var(--color-control-hover);
   opacity: 1;
 }
 
-.tasks-screen .section-head.is-task-header-compact .task-header-search-input::-webkit-search-cancel-button {
+.tasks-screen .section-head.is-task-header-compact:not(.has-task-header-search-text) .task-header-search-input::-webkit-search-cancel-button {
   display: none;
 }
 
-.tasks-screen .section-head.is-task-header-compact .task-header-search-icon {
+.tasks-screen .section-head.is-task-header-compact:not(.has-task-header-search-text) .task-header-search-icon {
   left: 50%;
   transform: translate(-50%, -50%);
+}
+
+@media (min-width: 901px) {
+  .tasks-screen .section-head.is-task-header-search-docked .task-header-search-control {
+    width: var(--task-header-search-docked-width, clamp(182px, 15.4vw, 238px));
+    transform: translate(calc(-50% + var(--task-header-search-docked-x, 0px)), -50%);
+  }
 }
 
 .tasks-screen .section-head .toolbar > button {
@@ -1475,7 +1503,10 @@ html[data-theme="light"] .tasks-screen.work-item-screen .work-item-table .work-i
   }
 
   .task-header-context {
+    flex: 0 0 268px;
     gap: var(--space-1);
+    width: 268px;
+    min-width: 0;
     margin-right: 0;
   }
 
@@ -1488,13 +1519,13 @@ html[data-theme="light"] .tasks-screen.work-item-screen .work-item-table .work-i
     position: relative;
     top: auto;
     left: auto;
-    flex: 0 0 220px;
-    width: 220px;
+    flex: 0 0 154px;
+    width: 154px;
     transform: none;
   }
 
-  .tasks-screen .section-head.is-task-header-compact .task-header-search-control {
-    width: 220px;
+  .tasks-screen .section-head.is-task-header-compact:not(.has-task-header-search-text) .task-header-search-control {
+    width: 154px;
     transform: none;
   }
 
@@ -1504,11 +1535,11 @@ html[data-theme="light"] .tasks-screen.work-item-screen .work-item-table .work-i
     right: 0;
   }
 
-  .tasks-screen .section-head.is-task-header-compact .task-header-search-input {
+  .tasks-screen .section-head.is-task-header-compact:not(.has-task-header-search-text) .task-header-search-input {
     width: var(--touch-target-min);
   }
 
-  .tasks-screen .section-head.is-task-header-compact .task-header-search-icon {
+  .tasks-screen .section-head.is-task-header-compact:not(.has-task-header-search-text) .task-header-search-icon {
     right: 13px;
     left: auto;
     transform: translateY(-50%);
@@ -1534,6 +1565,24 @@ html[data-theme="light"] .tasks-screen.work-item-screen .work-item-table .work-i
 
   .tasks-chart-panel .workload-row {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 480px) {
+  .tasks-screen .section-head.is-task-header-compact .task-header-project-slot {
+    flex-basis: 164px;
+    width: 164px;
+  }
+
+  .tasks-screen .section-head.is-task-header-compact .task-header-sprint-slot {
+    flex-basis: 100px;
+    width: 100px;
+  }
+
+  .tasks-screen .section-head.is-task-header-compact .task-header-context-summary {
+    width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 }
 

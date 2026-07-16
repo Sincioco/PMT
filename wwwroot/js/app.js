@@ -57,11 +57,11 @@ import {
   createAboutFeature,
   createAboutScreenSaver
 } from "./features/about/about.js?v=20260716-db-v122";
-import { createBacklogFeature } from "./features/backlog/backlog.js?v=20260717-multi-screen-header";
-import { createBoardFeature } from "./features/board/board.js?v=20260717-multi-screen-header";
-import { createBugsFeature } from "./features/bugs/bugs.js?v=20260717-multi-screen-header";
+import { createBacklogFeature } from "./features/backlog/backlog.js?v=20260717-multi-screen-search-persistent";
+import { createBoardFeature } from "./features/board/board.js?v=20260717-multi-screen-search-persistent";
+import { createBugsFeature } from "./features/bugs/bugs.js?v=20260717-multi-screen-search-persistent";
 import { createDashboardFeature } from "./features/dashboard/dashboard.js?v=20260715-admin-impersonation";
-import { createDocumentationFeature } from "./features/documentation/documentation.js?v=20260717-multi-screen-header";
+import { createDocumentationFeature } from "./features/documentation/documentation.js?v=20260717-multi-screen-search-persistent";
 import {
   createGanttFeature,
   currentSprintForProject,
@@ -74,8 +74,8 @@ import { createRoadMapFeature } from "./features/roadmap/roadmap.js?v=20260715-a
 import { createLogFeature } from "./features/personal-log/log.js?v=20260715-admin-impersonation";
 import { createScrumFeature } from "./features/scrum/scrum.js?v=20260716-scrum-attendance-actions";
 import { createSettingsFeature } from "./features/settings/settings.js?v=20260716-development-reset";
-import { createSprintsFeature } from "./features/sprints/sprints.js?v=20260717-multi-screen-header";
-import { createTasksFeature } from "./features/tasks/tasks.js?v=20260716-dev-task-header-bulk";
+import { createSprintsFeature } from "./features/sprints/sprints.js?v=20260717-multi-screen-search-persistent";
+import { createTasksFeature } from "./features/tasks/tasks.js?v=20260717-dev-task-search-origin";
 import { createWfhScheduleFeature } from "./features/wfh-schedule/wfh-schedule.js?v=20260715-admin-impersonation";
 import {
   fallbackEnvironments,

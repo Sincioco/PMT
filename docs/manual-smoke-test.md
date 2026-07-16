@@ -149,7 +149,7 @@ Use two signed-in browser profiles, A and B, that can edit the same disposable r
 - [ ] Archive a disposable Project, then try to reuse its code. As a non-admin, confirm the save is rejected without an override. As an admin, cancel the reclaim warning and confirm neither Project changes; repeat and continue, then confirm the active Project receives the requested code while the archived Project receives an internal code and all Sprint/work-item prefixes in both Project trees match their owning Project.
 - [ ] As an admin, confirm a code held by another active Project is rejected and cannot be reclaimed.
 - [ ] Open the Project and confirm Sprints are filtered to it.
-- [ ] Confirm the Sprints header Project, Sprint, and Search controls stay synchronized with Sprint Filters, use the same ten-second compact/restore treatment, and preserve the selected values. Enter Edit Mode, select multiple Sprints, and bulk-delete them with one confirmation.
+- [ ] Confirm the Sprints header Project, Sprint, and Search controls stay synchronized with Sprint Filters, use the same three-second compact/restore treatment, and preserve the selected values and the Search box's center/right origin while it contains text. Enter Edit Mode, select multiple Sprints, and bulk-delete them with one confirmation.
 - [ ] Create and edit a temporary Sprint with members and dates.
 - [ ] Delete the temporary Sprint and confirm its tasks are unscheduled.
 - [ ] Delete the temporary Project.
@@ -158,10 +158,10 @@ Use two signed-in browser profiles, A and B, that can edit the same disposable r
 
 - [ ] Create a Dev Task and confirm the dialog initially focuses Title.
 - [ ] Confirm the Dev Tasks header Project, Sprint, and Search controls stay synchronized with the Filter dialog in both directions and filter the same rows.
-- [ ] Leave the Dev Tasks header untouched for ten seconds and confirm Project/Sprint become muted labels while Search slides into a search icon immediately before New Dev Task without moving the title, buttons, charts, or table. Move the pointer into the header and confirm the controls return with their values intact.
+- [ ] Leave the Dev Tasks header untouched for three seconds and confirm Project/Sprint become muted labels while an empty Search slides into a search icon immediately before New Dev Task without moving the title, buttons, charts, or table. Confirm a nonempty Search stays expanded in its center/right origin while Project/Sprint compact, then move the pointer into the header and confirm the controls return without moving Search.
 - [ ] Enter Dev Tasks Edit Mode, confirm each delete-capable row has a checkbox immediately before its trash icon, select multiple rows, and confirm clicking a checked row's trash deletes only the selected rows after one confirmation.
-- [ ] Repeat the synchronized Project/Sprint/Search, ten-second muted-label/search-icon transition, pointer restore, and Edit Mode bulk-delete checks in Bug Tracking and Backlog. In Backlog, include a selected parent and direct child and confirm one parent delete removes both without a duplicate request.
-- [ ] Repeat the same header and bulk-delete checks in Kanban Board. Select a Dev Task and Bug together, confirm each checkbox is immediately before its trash icon, and confirm the existing Dev Task/Bug delete permissions still control each card.
+- [ ] Repeat the synchronized Project/Sprint/Search, three-second muted-label/search-icon transition, persistent nonempty Search origin, pointer restore, and Edit Mode bulk-delete checks in Bug Tracking and Backlog. In Backlog, include a selected parent and direct child and confirm one parent delete removes both without a duplicate request.
+- [ ] Repeat the same header, 500ms Search quiet-time, and bulk-delete checks in Kanban Board. Select a Dev Task and Bug together, confirm each checkbox is immediately before its trash icon, and confirm the existing Dev Task/Bug delete permissions still control each card.
 - [ ] Verify attachments appear above Assignees.
 - [ ] Verify Assignees show avatars and the list can scroll.
 - [ ] Add/edit assignment, status, percent, dates, dependency, and description.
@@ -212,7 +212,7 @@ Use two signed-in browser profiles, A and B, that can edit the same disposable r
 - [ ] As an administrator, confirm shared Scrum entries from another user can be edited and deleted.
 - [ ] In Log, confirm a user sees only their own private entries. Repeat as an administrator and confirm other users' private Log entries remain absent and cannot be updated or deleted through direct requests.
 - [ ] Create Documentation with a Project, rich text, list, link, and image/attachment.
-- [ ] Confirm Documentation Project, Sprint, and Search stay synchronized with Documentation Filters in Cards and Treeview, use the same ten-second compact/restore treatment, and preserve the chosen view. Enter Edit Mode and bulk-delete multiple accessible documents from checkboxes immediately before their trash icons.
+- [ ] Confirm Documentation Project, Sprint, and Search stay synchronized with Documentation Filters in Cards and Treeview, use the same three-second compact/restore and persistent nonempty Search treatment, and preserve the chosen view. Enter Edit Mode and bulk-delete multiple accessible documents from checkboxes immediately before their trash icons.
 - [ ] In Documentation, a Dev Task, Bug Tracking, Scrum, Log, and Backlog rich text, enter a known `@Nickname`, an explicit `@{Nickname With Spaces}`, and an unknown mention. Reopen each in read-only mode and confirm only known active users become focusable User Card mentions; edit mode and stored HTML remain unchanged.
 - [ ] Confirm a normally created Documentation item remains private by default; the public-seed rule must not change user-created privacy.
 - [ ] Mark Documentation private, sign in as a different administrator, and confirm the document is absent from Cards, Treeview, filters, About, direct Documentation URLs, exports, attachment/history data, and audit views.

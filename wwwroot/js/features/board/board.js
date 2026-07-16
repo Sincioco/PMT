@@ -2,7 +2,7 @@ import { avatarsHtml } from "../../components/avatars.js";
 import { buttonContent, funnelIconHtml } from "../../components/buttons.js";
 import { checkedFilterValues, filterCheckList } from "../../components/filters.js?v=20260621-task-filter-layout";
 import { userCardCheckListLabelHtml } from "../../components/forms.js?v=20260715-day28-v118";
-import { createIdleFilterHeader } from "../../components/idle-filter-header.js?v=20260717-multi-screen-header";
+import { createIdleFilterHeader } from "../../components/idle-filter-header.js?v=20260717-multi-screen-search-persistent";
 import { progressHtml } from "../../components/progress-and-status.js?v=20260714-linked-bug-percent";
 import { sectionHead } from "../../components/sections.js?v=20260701-nav-title-preferences";
 import {
@@ -70,11 +70,14 @@ export function createBoardFeature({
     app,
     screenSelector: ".board-screen",
     searchFilter: "board-search",
-    onSearchInput(input) {
-      const scrollLeft = currentBoardScrollLeft();
-      if (!applyBoardFilterChange(input)) return false;
-      renderBoard();
-      restoreBoardScrollLeft(scrollLeft);
+    onSearchInput(value, { commit, render }) {
+      boardSearch = value;
+      if (commit) writePreference(preferenceKeys.boardSearch, boardSearch);
+      if (render) {
+        const scrollLeft = currentBoardScrollLeft();
+        renderBoard();
+        restoreBoardScrollLeft(scrollLeft);
+      }
       return true;
     }
   });
@@ -149,7 +152,7 @@ export function createBoardFeature({
     const sprintSummary = boardSprintMode === "all"
       ? { label: "All Sprints", title: "All Sprints" }
       : sprint
-        ? { label: sprint.code, title: `${sprint.code} - ${sprint.title}` }
+        ? { label: sprint.title, title: `${sprint.code} - ${sprint.title}` }
         : { label: "Latest Sprint", title: "Latest Sprint" };
 
     return [
@@ -158,7 +161,7 @@ export function createBoardFeature({
         filter: "board-project",
         label: "Project",
         optionsHtml: boardProjectOptionsHtml(),
-        summary: project?.code || "No Project",
+        summary: project ? `${project.code} - ${project.title}` : "No Project",
         summaryTitle: project ? `${project.code} - ${project.title}` : "No Project"
       },
       {

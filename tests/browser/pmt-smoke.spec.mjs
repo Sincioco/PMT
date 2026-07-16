@@ -1281,6 +1281,7 @@ test("Dev Tasks header filters, idle morph, and bulk delete stay synchronized", 
 
   page.on("pageerror", error => pageErrors.push(error.message));
   await page.clock.install({ time: new Date("2026-07-15T08:00:00+08:00") });
+  await page.clock.pauseAt(new Date("2026-07-15T08:01:00+08:00"));
   await markCurrentReleaseSeen(page, 1);
   await installApiMocks(page, appState, apiCalls);
   await page.goto("/");
@@ -1293,6 +1294,7 @@ test("Dev Tasks header filters, idle morph, and bulk delete stay synchronized", 
   const headerProject = header.locator("[data-filter='task-project']");
   const headerSprint = header.locator("[data-filter='task-sprint']");
   const headerSearch = header.locator("[data-filter='task-search']");
+  const headerSearchControl = header.locator("[data-task-header-search-control]");
   const readLayout = () => page.evaluate(() => {
     const rect = selector => {
       const bounds = document.querySelector(selector)?.getBoundingClientRect();
@@ -1316,16 +1318,20 @@ test("Dev Tasks header filters, idle morph, and bulk delete stay synchronized", 
   });
 
   const initialLayout = await readLayout();
+  const expectedSearchWidth = Math.min(238, Math.max(182, page.viewportSize().width * 0.154));
+  expect(initialLayout.search.width).toBeCloseTo(expectedSearchWidth, 0);
+  expect(await headerSearch.evaluate(element => Number.parseFloat(getComputedStyle(element).paddingRight)))
+    .toBeCloseTo(12, 0);
   expect(initialLayout.title.x + initialLayout.title.width).toBeLessThan(initialLayout.project.x);
   expect(initialLayout.project.x + initialLayout.project.width).toBeLessThan(initialLayout.sprint.x);
   expect(initialLayout.sprint.x + initialLayout.sprint.width).toBeLessThan(initialLayout.search.x);
   expect(initialLayout.search.x + initialLayout.search.width).toBeLessThan(initialLayout.add.x);
   expect(initialLayout.search.x + (initialLayout.search.width / 2))
     .toBeCloseTo(initialLayout.header.x + (initialLayout.header.width / 2), 0);
-  expect(initialLayout.project.y + (initialLayout.project.height / 2))
-    .toBeCloseTo(initialLayout.title.y + (initialLayout.title.height / 2), 0);
-  expect(initialLayout.sprint.y + (initialLayout.sprint.height / 2))
-    .toBeCloseTo(initialLayout.title.y + (initialLayout.title.height / 2), 0);
+  expect(initialLayout.project.y + initialLayout.project.height)
+    .toBeCloseTo(initialLayout.title.y + initialLayout.title.height, 0);
+  expect(initialLayout.sprint.y + initialLayout.sprint.height)
+    .toBeCloseTo(initialLayout.title.y + initialLayout.title.height, 0);
 
   await headerProject.selectOption("20");
   await expect(headerProject).toHaveValue("20");
@@ -1345,8 +1351,40 @@ test("Dev Tasks header filters, idle morph, and bulk delete stay synchronized", 
 
   await headerSearch.fill("Wire Board");
   await expect(headerSearch).toHaveValue("Wire Board");
+  await header.locator("[data-action='open-task-filters']").click();
+  filterDialog = page.locator("[data-task-filter-dialog]");
+  await expect(filterDialog).toBeVisible();
+  await expect(page.locator("tr[data-task-id='1']")).toBeVisible();
+  await closeFilterDialog(page, "task");
+  await expect(page.locator("tr[data-task-id='1']")).toBeVisible();
+  await page.clock.fastForward(499);
+  await expect(page.locator("tr[data-task-id='1']")).toBeVisible();
+  await page.clock.fastForward(1);
   await expect(page.locator("tr[data-task-id='2']")).toBeVisible();
   await expect(page.locator("tr[data-task-id='1']")).toHaveCount(0);
+  await headerSearch.hover();
+  await page.clock.fastForward(3000);
+  await expect(header).toHaveClass(/is-task-header-compact/);
+  await expect(header).toHaveClass(/has-task-header-search-text/);
+  await expect(header).not.toHaveClass(/is-task-header-search-docked/);
+  await expect(headerProject).not.toBeVisible();
+  await expect(headerSprint).not.toBeVisible();
+  await expect(headerSearch).toBeVisible();
+  const centeredFilteredLayout = await readLayout();
+  expect(centeredFilteredLayout.search.x + (centeredFilteredLayout.search.width / 2))
+    .toBeCloseTo(centeredFilteredLayout.header.x + (centeredFilteredLayout.header.width / 2), 0);
+  const centeredFilteredBounds = await header.evaluate(element => ({
+    contextRight: element.querySelector("[data-task-header-context]").getBoundingClientRect().right,
+    searchLeft: element.querySelector("[data-task-header-search-control]").getBoundingClientRect().left
+  }));
+  expect(centeredFilteredBounds.searchLeft).toBeGreaterThanOrEqual(centeredFilteredBounds.contextRight);
+  await page.mouse.down();
+  await page.mouse.up();
+  await expect(header).not.toHaveClass(/is-task-header-compact/);
+  await expect(header).not.toHaveClass(/is-task-header-search-docked/);
+  const restoredCenteredFilterLayout = await readLayout();
+  expect(restoredCenteredFilterLayout.search.x + (restoredCenteredFilterLayout.search.width / 2))
+    .toBeCloseTo(restoredCenteredFilterLayout.header.x + (restoredCenteredFilterLayout.header.width / 2), 0);
   await header.locator("[data-action='open-task-filters']").click();
   filterDialog = page.locator("[data-task-filter-dialog]");
   await expect(filterDialog.locator("[data-filter='task-search']")).toHaveValue("Wire Board");
@@ -1356,25 +1394,40 @@ test("Dev Tasks header filters, idle morph, and bulk delete stay synchronized", 
   await expect(page.locator("tr[data-task-id='2']")).toHaveCount(0);
   await closeFilterDialog(page, "task");
   await headerSearch.fill("");
+  await page.clock.fastForward(500);
   await expect(page.locator("tr[data-task-id='1']")).toBeVisible();
   await expect(page.locator("tr[data-task-id='2']")).toBeVisible();
 
   const expandedLayout = await readLayout();
-  const transitionMs = await header.locator("[data-task-header-search-control]").evaluate(element =>
+  const transitionMs = await headerSearchControl.evaluate(element =>
     Number.parseFloat(getComputedStyle(element).transitionDuration) * 1000);
   expect(transitionMs).toBeGreaterThan(0);
   expect(transitionMs).toBeLessThanOrEqual(300);
 
   await headerSearch.evaluate(element => element.blur());
   await header.hover({ position: { x: 2, y: 2 } });
-  await page.clock.fastForward(10000);
+  await page.clock.fastForward(3000);
   await expect(header).toHaveClass(/is-task-header-compact/);
   await expect(headerProject).not.toBeVisible();
   await expect(headerSprint).not.toBeVisible();
-  await expect(header.locator("[data-task-header-project-summary]")).toHaveText("Project: PMT");
-  await expect(header.locator("[data-task-header-sprint-summary]")).toHaveText("Sprint: PMT-Sprint02");
+  await expect(header.locator("[data-task-header-project-summary]")).toHaveText("Project: PMT - Project Management Tool");
+  await expect(header.locator("[data-task-header-sprint-summary]")).toHaveText("Sprint: Regression Coverage");
+  const compactContextLayout = await header.evaluate(element => {
+    const project = element.querySelector("[data-task-header-project-summary]").getBoundingClientRect();
+    const sprint = element.querySelector("[data-task-header-sprint-summary]").getBoundingClientRect();
+    return {
+      gap: sprint.left - project.right,
+      titleBaseline: element.querySelector("h1 .task-header-baseline-marker").getBoundingClientRect().top,
+      projectBaseline: element.querySelector("[data-task-header-project-summary] .task-header-baseline-marker").getBoundingClientRect().top,
+      sprintBaseline: element.querySelector("[data-task-header-sprint-summary] .task-header-baseline-marker").getBoundingClientRect().top
+    };
+  });
+  expect(compactContextLayout.gap).toBeGreaterThanOrEqual(0);
+  expect(compactContextLayout.gap).toBeLessThanOrEqual(10);
+  expect(compactContextLayout.projectBaseline).toBeCloseTo(compactContextLayout.titleBaseline, 0);
+  expect(compactContextLayout.sprintBaseline).toBeCloseTo(compactContextLayout.titleBaseline, 0);
 
-  await expect.poll(async () => (await header.locator("[data-task-header-search-control]").boundingBox())?.width)
+  await expect.poll(async () => (await headerSearchControl.boundingBox())?.width)
     .toBeCloseTo(expandedLayout.add.width, 0);
   const compactLayout = await readLayout();
   const compactSearchGap = compactLayout.add.x - (compactLayout.search.x + compactLayout.search.width);
@@ -1387,12 +1440,79 @@ test("Dev Tasks header filters, idle morph, and bulk delete stay synchronized", 
     expect(compactLayout[key].height).toBeCloseTo(expandedLayout[key].height, 0);
   }
 
+  await headerSearchControl.click();
+  await expect(header).not.toHaveClass(/is-task-header-compact/);
+  await expect(header).toHaveClass(/is-task-header-search-docked/);
+  await expect.poll(async () => (await headerSearchControl.boundingBox())?.width)
+    .toBeCloseTo(expandedLayout.search.width, 0);
+  const dockedLayout = await readLayout();
+  const dockedSearchGap = dockedLayout.add.x - (dockedLayout.search.x + dockedLayout.search.width);
+  expect(dockedSearchGap).toBeGreaterThanOrEqual(0);
+  expect(dockedSearchGap).toBeLessThanOrEqual(16);
+  for (const key of ["add", "filters", "actions", "charts", "table"]) {
+    expect(dockedLayout[key].x).toBeCloseTo(expandedLayout[key].x, 0);
+    expect(dockedLayout[key].y).toBeCloseTo(expandedLayout[key].y, 0);
+    expect(dockedLayout[key].width).toBeCloseTo(expandedLayout[key].width, 0);
+    expect(dockedLayout[key].height).toBeCloseTo(expandedLayout[key].height, 0);
+  }
+
+  await page.waitForTimeout(transitionMs + 40);
+  await page.evaluate(() => {
+    window.__taskHeaderSearchSamples = [];
+    window.__taskHeaderSearchSampling = true;
+    const sampleSearchPosition = () => {
+      const search = document.querySelector(".tasks-screen [data-task-header-search-control]");
+      if (search) window.__taskHeaderSearchSamples.push(search.getBoundingClientRect().x);
+      if (window.__taskHeaderSearchSampling) requestAnimationFrame(sampleSearchPosition);
+    };
+    requestAnimationFrame(sampleSearchPosition);
+  });
+  await page.keyboard.type("Wire");
+  await expect(headerSearch).toHaveValue("Wire");
+  await page.clock.fastForward(500);
+  await expect(page.locator("tr[data-task-id='2']")).toBeVisible();
+  await page.waitForTimeout(transitionMs + 40);
+  const dockedSearchSamples = await page.evaluate(() => {
+    window.__taskHeaderSearchSampling = false;
+    return window.__taskHeaderSearchSamples;
+  });
+  expect(Math.max(...dockedSearchSamples) - Math.min(...dockedSearchSamples)).toBeLessThan(2);
+  await page.clock.fastForward(3000);
+  await expect(header).toHaveClass(/is-task-header-compact/);
+  await expect(header).toHaveClass(/has-task-header-search-text/);
+  await expect(header).toHaveClass(/is-task-header-search-docked/);
+  await expect(headerProject).not.toBeVisible();
+  await expect(headerSprint).not.toBeVisible();
+  await expect(headerSearch).toBeVisible();
+  await expect(headerSearch).toHaveValue("Wire");
+  await expect.poll(async () => (await headerSearchControl.boundingBox())?.width)
+    .toBeCloseTo(expandedLayout.search.width, 0);
+  const persistentDockedLayout = await readLayout();
+  const persistentDockedGap = persistentDockedLayout.add.x
+    - (persistentDockedLayout.search.x + persistentDockedLayout.search.width);
+  expect(persistentDockedGap).toBeGreaterThanOrEqual(0);
+  expect(persistentDockedGap).toBeLessThanOrEqual(16);
+  await headerSearchControl.hover();
+  await expect(header).not.toHaveClass(/is-task-header-compact/);
+  await expect(header).toHaveClass(/is-task-header-search-docked/);
+  const restoredDockedFilterLayout = await readLayout();
+  const restoredDockedFilterGap = restoredDockedFilterLayout.add.x
+    - (restoredDockedFilterLayout.search.x + restoredDockedFilterLayout.search.width);
+  expect(restoredDockedFilterGap).toBeGreaterThanOrEqual(0);
+  expect(restoredDockedFilterGap).toBeLessThanOrEqual(16);
+  await headerSearch.fill("");
+
+  await headerSearch.evaluate(element => element.blur());
+  await page.locator(".tasks-screen .tasks-chart-panel").first().hover();
+  await page.clock.fastForward(3000);
+  await expect(header).toHaveClass(/is-task-header-compact/);
   await header.hover({ position: { x: 2, y: 2 } });
   await expect(header).not.toHaveClass(/is-task-header-compact/);
+  await expect(header).not.toHaveClass(/is-task-header-search-docked/);
   await expect(headerProject).toBeVisible();
   await expect(headerSprint).toBeVisible();
   await expect(headerSearch).toHaveValue("");
-  await expect.poll(async () => (await header.locator("[data-task-header-search-control]").boundingBox())?.width)
+  await expect.poll(async () => (await headerSearchControl.boundingBox())?.width)
     .toBeCloseTo(expandedLayout.search.width, 0);
   const restoredLayout = await readLayout();
   for (const key of ["header", "title", "add", "filters", "actions", "charts", "table"]) {
@@ -1402,27 +1522,87 @@ test("Dev Tasks header filters, idle morph, and bulk delete stay synchronized", 
     expect(restoredLayout[key].height).toBeCloseTo(expandedLayout[key].height, 0);
   }
 
+  await headerProject.selectOption("0");
+  await headerSprint.selectOption("current");
+  await headerSearch.evaluate(element => element.blur());
+  await header.hover({ position: { x: 2, y: 2 } });
+  await page.clock.fastForward(3000);
+  await expect(header).toHaveClass(/is-task-header-compact/);
+  await expect(header.locator("[data-task-header-sprint-summary]")).toHaveText("Sprint: Current Sprint");
+  await header.hover({ position: { x: 2, y: 2 } });
+  await headerProject.selectOption("10");
+  await headerSprint.selectOption("101");
+
   const desktopViewport = page.viewportSize();
   await page.setViewportSize({ width: 900, height: desktopViewport.height });
   await header.hover({ position: { x: 2, y: 2 } });
   const narrowExpandedLayout = await readLayout();
-  await page.clock.fastForward(10000);
+  expect(narrowExpandedLayout.search.width).toBeCloseTo(154, 0);
+  await page.clock.fastForward(3000);
   await expect(header).toHaveClass(/is-task-header-compact/);
   const narrowCompactLayout = await readLayout();
-  const narrowSearchWidths = await header.locator("[data-task-header-search-control]").evaluate(control => ({
+  const narrowSearchWidths = await headerSearchControl.evaluate(control => ({
     control: control.getBoundingClientRect().width,
     input: control.querySelector("input").getBoundingClientRect().width
   }));
   expect(narrowSearchWidths.control).toBeCloseTo(narrowExpandedLayout.search.width, 0);
   expect(narrowSearchWidths.input).toBeCloseTo(narrowExpandedLayout.add.width, 0);
-  for (const key of ["header", "title", "add", "filters", "actions", "charts", "table"]) {
-    expect(narrowCompactLayout[key].x).toBeCloseTo(narrowExpandedLayout[key].x, 0);
-    expect(narrowCompactLayout[key].y).toBeCloseTo(narrowExpandedLayout[key].y, 0);
-    expect(narrowCompactLayout[key].width).toBeCloseTo(narrowExpandedLayout[key].width, 0);
-    expect(narrowCompactLayout[key].height).toBeCloseTo(narrowExpandedLayout[key].height, 0);
+  for (const key of ["header", "add", "filters", "actions", "charts", "table"]) {
+    expect(narrowCompactLayout[key].x, `${key} x`).toBeCloseTo(narrowExpandedLayout[key].x, 0);
+    expect(narrowCompactLayout[key].y, `${key} y`).toBeCloseTo(narrowExpandedLayout[key].y, 0);
+    expect(narrowCompactLayout[key].width, `${key} width`).toBeCloseTo(narrowExpandedLayout[key].width, 0);
+    expect(narrowCompactLayout[key].height, `${key} height`).toBeCloseTo(narrowExpandedLayout[key].height, 0);
   }
+  expect(narrowCompactLayout.title.x).toBeCloseTo(narrowExpandedLayout.title.x, 0);
+  expect(narrowCompactLayout.title.y).toBeCloseTo(narrowExpandedLayout.title.y, 0);
+  expect(narrowCompactLayout.title.height).toBeCloseTo(narrowExpandedLayout.title.height, 0);
   await header.hover({ position: { x: 2, y: 2 } });
   await expect(header).not.toHaveClass(/is-task-header-compact/);
+
+  await page.setViewportSize({ width: 375, height: desktopViewport.height });
+  await header.hover({ position: { x: 2, y: 2 } });
+  await page.clock.fastForward(3000);
+  await expect(header).toHaveClass(/is-task-header-compact/);
+  const phoneContextBounds = await header.evaluate(element => {
+    const headerBounds = element.getBoundingClientRect();
+    const summaries = [...element.querySelectorAll(".task-header-context-summary")]
+      .map(summary => summary.getBoundingClientRect().right);
+    return {
+      headerRight: headerBounds.right,
+      summaryRight: Math.max(...summaries),
+      pageWidth: document.documentElement.clientWidth,
+      pageScrollWidth: document.documentElement.scrollWidth
+    };
+  });
+  expect(phoneContextBounds.summaryRight).toBeLessThanOrEqual(phoneContextBounds.headerRight);
+  expect(phoneContextBounds.pageScrollWidth).toBeLessThanOrEqual(phoneContextBounds.pageWidth);
+  await header.hover({ position: { x: 2, y: 2 } });
+  await expect(header).not.toHaveClass(/is-task-header-compact/);
+
+  await page.setViewportSize({ width: 901, height: desktopViewport.height });
+  await header.hover({ position: { x: 2, y: 2 } });
+  await page.clock.fastForward(3000);
+  await expect(header).toHaveClass(/is-task-header-compact/);
+  const tightCompactLayout = await readLayout();
+  await headerSearchControl.click();
+  await expect(header).toHaveClass(/is-task-header-search-docked/);
+  const tightDockedBounds = await header.evaluate(element => {
+    const context = element.querySelector("[data-task-header-context]").getBoundingClientRect();
+    const search = element.querySelector("[data-task-header-search-control]").getBoundingClientRect();
+    const add = element.querySelector("[data-action='new-task']").getBoundingClientRect();
+    return { contextRight: context.right, searchLeft: search.left, searchRight: search.right, addLeft: add.left };
+  });
+  expect(tightDockedBounds.searchLeft).toBeGreaterThanOrEqual(tightDockedBounds.contextRight);
+  expect(tightDockedBounds.searchRight).toBeLessThanOrEqual(tightDockedBounds.addLeft);
+  const tightDockedLayout = await readLayout();
+  for (const key of ["add", "filters", "actions"]) {
+    expect(tightDockedLayout[key].x, `${key} docked x`).toBeCloseTo(tightCompactLayout[key].x, 0);
+    expect(
+      tightDockedLayout[key].y - tightDockedLayout.header.y,
+      `${key} docked header offset`
+    ).toBeCloseTo(tightCompactLayout[key].y - tightCompactLayout.header.y, 0);
+  }
+  await headerSearch.evaluate(element => element.blur());
   await page.setViewportSize(desktopViewport);
 
   await clickPageAction(page, "toggle-task-table-edit-mode");
@@ -1505,6 +1685,7 @@ test("Bug Tracking and Backlog share synchronized idle headers and bulk delete",
   const apiCalls = { securityReset: 0, taskDeletes: [], backlogDeletes: [] };
 
   await page.clock.install({ time: new Date("2026-07-17T08:00:00+08:00") });
+  await page.clock.pauseAt(new Date("2026-07-17T08:01:00+08:00"));
   await markCurrentReleaseSeen(page, 1);
   await installApiMocks(page, appState, apiCalls);
   await page.goto("/");
@@ -1517,7 +1698,9 @@ test("Bug Tracking and Backlog share synchronized idle headers and bulk delete",
   const bugProject = bugHeader.locator("[data-filter='bug-project']");
   const bugSprint = bugHeader.locator("[data-filter='bug-sprint']");
   const bugSearch = bugHeader.locator("[data-filter='bug-search']");
+  const bugSearchControl = bugHeader.locator("[data-idle-filter-header-search-control]");
   await expectIdleHeaderControlsNotToOverlap(bugHeader);
+  await expectIdleHeaderExpandedSearch(bugHeader);
 
   await bugProject.selectOption("20");
   await expect(bugSprint).toHaveValue("200");
@@ -1534,16 +1717,44 @@ test("Bug Tracking and Backlog share synchronized idle headers and bulk delete",
   await closeFilterDialog(page, "bug");
   await expect(page.locator("tr[data-task-id='8']")).toBeVisible();
   await expect(page.locator("tr[data-task-id='4']")).toHaveCount(0);
-  await bugSearch.fill("");
 
+  await bugSearch.fill("Critical board");
+  await expect(bugSearch).toHaveValue("Critical board");
+  await expect(page.locator("tr[data-task-id='8']")).toBeVisible();
+  await page.clock.fastForward(499);
+  await expect(page.locator("tr[data-task-id='8']")).toBeVisible();
+  await page.clock.fastForward(1);
+  await expect(page.locator("tr[data-task-id='4']")).toBeVisible();
+  await expect(page.locator("tr[data-task-id='8']")).toHaveCount(0);
+  await bugSearch.hover();
+  await page.clock.fastForward(3000);
+  await expect(bugHeader).toHaveClass(/is-idle-filter-header-compact/);
+  await expect(bugHeader).toHaveClass(/has-idle-filter-header-search-text/);
+  await expect(bugHeader).not.toHaveClass(/is-idle-filter-header-search-docked/);
+  await expect(bugSearch).toBeVisible();
+  await expect(bugProject).not.toBeVisible();
+  await expect(bugSprint).not.toBeVisible();
+  await expect(bugHeader.locator(".idle-filter-header-project-slot .idle-filter-header-context-summary")).toHaveText("Project: PMT - Project Management Tool");
+  await expect(bugHeader.locator(".idle-filter-header-sprint-slot .idle-filter-header-context-summary")).toHaveText("Sprint: Regression Coverage");
+  await expectIdleHeaderSummaryBaseline(bugHeader);
+  await expectIdleSearchCentered(bugHeader);
+  await page.mouse.down();
+  await page.mouse.up();
+  await expect(bugHeader).not.toHaveClass(/is-idle-filter-header-compact/);
+  await expect(bugHeader).not.toHaveClass(/is-idle-filter-header-search-docked/);
+  await expectIdleSearchCentered(bugHeader);
+
+  await bugSearch.fill("");
   await bugSearch.evaluate(element => element.blur());
-  await bugHeader.hover({ position: { x: 2, y: 2 } });
-  await page.clock.fastForward(10000);
+  await page.clock.fastForward(500);
+  await page.locator(".bugs-table-panel").hover();
+  await page.clock.fastForward(3000);
   await expect(bugHeader).toHaveClass(/is-idle-filter-header-compact/);
   await expect(bugProject).not.toBeVisible();
   await expect(bugSprint).not.toBeVisible();
-  await expect(bugHeader.locator(".idle-filter-header-project-slot .idle-filter-header-context-summary")).toHaveText("Project: PMT");
-  await expect(bugHeader.locator(".idle-filter-header-sprint-slot .idle-filter-header-context-summary")).toHaveText("Sprint: PMT-Sprint02");
+  await expect(bugHeader.locator(".idle-filter-header-project-slot .idle-filter-header-context-summary")).toHaveText("Project: PMT - Project Management Tool");
+  await expect(bugHeader.locator(".idle-filter-header-sprint-slot .idle-filter-header-context-summary")).toHaveText("Sprint: Regression Coverage");
+  await expectIdleHeaderSummaryBaseline(bugHeader);
   await expectIdleSearchImmediatelyBeforeAdd(bugHeader);
   await bugHeader.hover({ position: { x: 4, y: 4 } });
   await expect(bugHeader).not.toHaveClass(/is-idle-filter-header-compact/);
@@ -1572,12 +1783,18 @@ test("Bug Tracking and Backlog share synchronized idle headers and bulk delete",
   await expect.poll(() => apiCalls.taskDeletes).toEqual([4, 8]);
   await expect(page.locator("#toast")).toHaveText("2 Bug Reports deleted.");
 
+  await bugSearch.fill("pending navigation");
   await openNavView(page, "Backlog", "Backlog");
+  await page.clock.fastForward(500);
+  await expect(page.locator(".backlog-screen")).toBeVisible();
   const backlogHeader = page.locator(".backlog-screen .section-head");
   const backlogProject = backlogHeader.locator("[data-filter='backlog-project']");
   const backlogSprint = backlogHeader.locator("[data-filter='backlog-sprint']");
   const backlogSearch = backlogHeader.locator("[data-filter='backlog-search']");
+  const backlogSearchControl = backlogHeader.locator("[data-idle-filter-header-search-control]");
   await expectIdleHeaderControlsNotToOverlap(backlogHeader);
+  await expectIdleHeaderExpandedSearch(backlogHeader);
+  const backlogActionLayout = await idleHeaderActionLayout(backlogHeader);
 
   await backlogProject.selectOption("10");
   await backlogSprint.selectOption("unassigned");
@@ -1592,14 +1809,38 @@ test("Bug Tracking and Backlog share synchronized idle headers and bulk delete",
   await closeFilterDialog(page, "backlog");
 
   await backlogSearch.evaluate(element => element.blur());
-  await backlogHeader.hover({ position: { x: 2, y: 2 } });
-  await page.clock.fastForward(10000);
+  await page.locator(".backlog-table-panel").hover();
+  await page.clock.fastForward(3000);
   await expect(backlogHeader).toHaveClass(/is-idle-filter-header-compact/);
-  await expect(backlogHeader.locator(".idle-filter-header-project-slot .idle-filter-header-context-summary")).toHaveText("Project: PMT");
+  await expect(backlogHeader.locator(".idle-filter-header-project-slot .idle-filter-header-context-summary")).toHaveText("Project: PMT - Project Management Tool");
   await expect(backlogHeader.locator(".idle-filter-header-sprint-slot .idle-filter-header-context-summary")).toHaveText("Sprint: Unassigned");
+  await expectIdleHeaderSummaryBaseline(backlogHeader);
   await expectIdleSearchImmediatelyBeforeAdd(backlogHeader);
-  await backlogHeader.hover({ position: { x: 4, y: 4 } });
+  await backlogSearchControl.click();
   await expect(backlogHeader).not.toHaveClass(/is-idle-filter-header-compact/);
+  await expect(backlogHeader).toHaveClass(/is-idle-filter-header-search-docked/);
+  await backlogSearch.fill("Second backlog");
+  await expect(backlogSearch).toHaveValue("Second backlog");
+  await expect(page.locator("tr[data-task-id='5']")).toBeVisible();
+  await page.clock.fastForward(499);
+  await expect(page.locator("tr[data-task-id='5']")).toBeVisible();
+  await page.clock.fastForward(1);
+  await expect(page.locator("tr[data-task-id='9']")).toBeVisible();
+  await expect(page.locator("tr[data-task-id='5']")).toHaveCount(0);
+  await page.locator(".backlog-table-panel").hover();
+  await page.clock.fastForward(3000);
+  await expect(backlogHeader).toHaveClass(/is-idle-filter-header-compact/);
+  await expect(backlogHeader).toHaveClass(/has-idle-filter-header-search-text/);
+  await expect(backlogHeader).toHaveClass(/is-idle-filter-header-search-docked/);
+  await expect(backlogSearch).toBeVisible();
+  await expectIdleHeaderExpandedSearch(backlogHeader);
+  expect(await idleHeaderActionLayout(backlogHeader)).toEqual(backlogActionLayout);
+  await backlogSearchControl.hover();
+  await expect(backlogHeader).not.toHaveClass(/is-idle-filter-header-compact/);
+  await expect(backlogHeader).toHaveClass(/is-idle-filter-header-search-docked/);
+  expect(await idleHeaderActionLayout(backlogHeader)).toEqual(backlogActionLayout);
+  await backlogSearch.fill("");
+  await page.clock.fastForward(500);
 
   await clickPageAction(page, "toggle-backlog-table-edit-mode");
   const backlogParentRow = page.locator("tr[data-task-id='5']");
@@ -1640,6 +1881,7 @@ test("Kanban Board header search and mixed work-item bulk delete stay synchroniz
   const apiCalls = { securityReset: 0, taskDeletes: [] };
 
   await page.clock.install({ time: new Date("2026-07-17T08:00:00+08:00") });
+  await page.clock.pauseAt(new Date("2026-07-17T08:01:00+08:00"));
   await markCurrentReleaseSeen(page, 1);
   await markCurrentReleaseSeen(page, 2);
   await installApiMocks(page, appState, apiCalls);
@@ -1653,7 +1895,9 @@ test("Kanban Board header search and mixed work-item bulk delete stay synchroniz
   const headerProject = header.locator("[data-filter='board-project']");
   const headerSprint = header.locator("[data-filter='board-sprint']");
   const headerSearch = header.locator("[data-filter='board-search']");
+  const headerSearchControl = header.locator("[data-idle-filter-header-search-control]");
   await expectIdleHeaderControlsNotToOverlap(header);
+  await expectIdleHeaderExpandedSearch(header);
 
   await headerProject.selectOption("20");
   await expect(headerSprint).toHaveValue("latest");
@@ -1674,12 +1918,41 @@ test("Kanban Board header search and mixed work-item bulk delete stay synchroniz
   await closeFilterDialog(page, "board");
   await expect(headerSearch).toHaveValue("");
 
-  await headerSearch.evaluate(element => element.blur());
-  await header.hover({ position: { x: 2, y: 2 } });
-  await page.clock.fastForward(10000);
+  await header.locator("[data-action='toggle-empty-board-columns']").click();
+  const boardScrollLeft = await page.locator(".board").evaluate(element => {
+    element.scrollLeft = Math.min(120, Math.max(0, element.scrollWidth - element.clientWidth));
+    return element.scrollLeft;
+  });
+  await headerSearch.fill("Critical board");
+  await expect(headerSearch).toHaveValue("Critical board");
+  await expect(page.locator(".task-card[data-task-id='1']")).toBeVisible();
+  await page.clock.fastForward(499);
+  await expect(page.locator(".task-card[data-task-id='1']")).toBeVisible();
+  await page.clock.fastForward(1);
+  await expect(page.locator(".task-card[data-task-id='4']")).toBeVisible();
+  await expect(page.locator(".task-card[data-task-id='1']")).toHaveCount(0);
+  expect(await page.locator(".board").evaluate(element => element.scrollLeft)).toBeCloseTo(boardScrollLeft, 0);
+  await headerSearch.hover();
+  await page.clock.fastForward(3000);
   await expect(header).toHaveClass(/is-idle-filter-header-compact/);
-  await expect(header.locator(".idle-filter-header-project-slot .idle-filter-header-context-summary")).toHaveText("Project: PMT");
+  await expect(header).toHaveClass(/has-idle-filter-header-search-text/);
+  await expect(header).not.toHaveClass(/is-idle-filter-header-search-docked/);
+  await expect(headerSearch).toBeVisible();
+  await expectIdleSearchCentered(header);
+  await page.mouse.down();
+  await page.mouse.up();
+  await expect(header).not.toHaveClass(/is-idle-filter-header-compact/);
+  await expect(header).not.toHaveClass(/is-idle-filter-header-search-docked/);
+  await expectIdleSearchCentered(header);
+  await headerSearch.fill("");
+  await page.clock.fastForward(500);
+  await headerSearch.evaluate(element => element.blur());
+  await page.locator(".board").hover();
+  await page.clock.fastForward(3000);
+  await expect(header).toHaveClass(/is-idle-filter-header-compact/);
+  await expect(header.locator(".idle-filter-header-project-slot .idle-filter-header-context-summary")).toHaveText("Project: PMT - Project Management Tool");
   await expect(header.locator(".idle-filter-header-sprint-slot .idle-filter-header-context-summary")).toHaveText("Sprint: All Sprints");
+  await expectIdleHeaderSummaryBaseline(header);
   await expectIdleSearchImmediatelyBeforeAdd(header);
   await header.hover({ position: { x: 4, y: 4 } });
   await expect(header).not.toHaveClass(/is-idle-filter-header-compact/);
@@ -1754,6 +2027,7 @@ test("Documentation and Sprints share synchronized idle headers and bulk delete"
   const apiCalls = { securityReset: 0, blogDeletes: [], sprintDeletes: [] };
 
   await page.clock.install({ time: new Date("2026-07-17T08:00:00+08:00") });
+  await page.clock.pauseAt(new Date("2026-07-17T08:01:00+08:00"));
   await markCurrentReleaseSeen(page, 1);
   await installApiMocks(page, appState, apiCalls);
   await page.goto("/");
@@ -1767,17 +2041,24 @@ test("Documentation and Sprints share synchronized idle headers and bulk delete"
   const documentationSprint = documentationHeader.locator("[data-filter='documentation-sprint']");
   const documentationSearch = documentationHeader.locator("[data-filter='documentation-tree-search']");
   await expectIdleHeaderControlsNotToOverlap(documentationHeader);
+  await expectIdleHeaderExpandedSearch(documentationHeader);
 
   await documentationProject.selectOption("10");
-  await documentationSprint.selectOption("101");
+  await documentationSprint.selectOption("all");
   await documentationSearch.fill("regression guide");
+  await expect(documentationSearch).toHaveValue("regression guide");
+  await expect(page.locator(".documentation-card[data-id='1']")).toBeVisible();
+  await page.clock.fastForward(499);
+  await expect(page.locator(".documentation-card[data-id='1']")).toBeVisible();
+  await page.clock.fastForward(1);
   await expect(page.locator(".documentation-card[data-id='2']")).toBeVisible();
   await expect(page.locator(".documentation-card[data-id='1']")).toHaveCount(0);
   await documentationHeader.locator("[data-action='open-documentation-filters']").click();
   let filterDialog = page.locator("[data-documentation-filter-dialog]");
   await expect(filterDialog.locator("[data-filter='documentation-project']")).toHaveValue("10");
-  await expect(filterDialog.locator("[data-filter='documentation-sprint']")).toHaveValue("101");
+  await expect(filterDialog.locator("[data-filter='documentation-sprint']")).toHaveValue("all");
   await expect(filterDialog.locator("[data-filter='documentation-tree-search']")).toHaveValue("regression guide");
+  await filterDialog.locator("[data-filter='documentation-sprint']").selectOption("101");
   await filterDialog.locator("[data-filter='documentation-tree-search']").fill("");
   await expect(documentationSearch).toHaveValue("");
   await closeFilterDialog(page, "documentation");
@@ -1786,11 +2067,12 @@ test("Documentation and Sprints share synchronized idle headers and bulk delete"
   await expect(page.locator(".documentation-tree-document[data-id='1']")).toHaveCount(0);
 
   await documentationSearch.evaluate(element => element.blur());
-  await documentationHeader.hover({ position: { x: 2, y: 2 } });
-  await page.clock.fastForward(10000);
+  await page.locator(".documentation-tree-layout").hover();
+  await page.clock.fastForward(3000);
   await expect(documentationHeader).toHaveClass(/is-idle-filter-header-compact/);
-  await expect(documentationHeader.locator(".idle-filter-header-project-slot .idle-filter-header-context-summary")).toHaveText("Project: PMT");
-  await expect(documentationHeader.locator(".idle-filter-header-sprint-slot .idle-filter-header-context-summary")).toHaveText("Sprint: PMT-Sprint02");
+  await expect(documentationHeader.locator(".idle-filter-header-project-slot .idle-filter-header-context-summary")).toHaveText("Project: PMT - Project Management Tool");
+  await expect(documentationHeader.locator(".idle-filter-header-sprint-slot .idle-filter-header-context-summary")).toHaveText("Sprint: Regression Coverage");
+  await expectIdleHeaderSummaryBaseline(documentationHeader);
   await expectIdleSearchImmediatelyBeforeAdd(documentationHeader);
   await documentationHeader.hover({ position: { x: 4, y: 4 } });
   await expect(documentationHeader).not.toHaveClass(/is-idle-filter-header-compact/);
@@ -1824,6 +2106,7 @@ test("Documentation and Sprints share synchronized idle headers and bulk delete"
   const sprintFilter = sprintHeader.locator("[data-filter='sprint-filter']");
   const sprintSearch = sprintHeader.locator("[data-filter='sprint-search']");
   await expectIdleHeaderControlsNotToOverlap(sprintHeader);
+  await expectIdleHeaderExpandedSearch(sprintHeader);
 
   await sprintProject.selectOption("20");
   await expect(sprintFilter).toHaveValue("all");
@@ -1841,12 +2124,26 @@ test("Documentation and Sprints share synchronized idle headers and bulk delete"
   await expect(page.locator(".sprint-card[data-id='100']")).toHaveCount(0);
   await closeFilterDialog(page, "sprint");
 
+  await sprintSearch.fill("");
+  await page.clock.fastForward(500);
+  await sprintFilter.selectOption("all");
+  await sprintSearch.fill("Regression");
+  await expect(page.locator(".sprint-card[data-id='100']")).toBeVisible();
+  await page.clock.fastForward(499);
+  await expect(page.locator(".sprint-card[data-id='100']")).toBeVisible();
+  await page.clock.fastForward(1);
+  await expect(page.locator(".sprint-card[data-id='101']")).toBeVisible();
+  await expect(page.locator(".sprint-card[data-id='100']")).toHaveCount(0);
+  await sprintSearch.fill("");
+  await page.clock.fastForward(500);
+  await sprintFilter.selectOption("101");
   await sprintSearch.evaluate(element => element.blur());
-  await sprintHeader.hover({ position: { x: 2, y: 2 } });
-  await page.clock.fastForward(10000);
+  await page.locator(".sprints-grid").hover();
+  await page.clock.fastForward(3000);
   await expect(sprintHeader).toHaveClass(/is-idle-filter-header-compact/);
-  await expect(sprintHeader.locator(".idle-filter-header-project-slot .idle-filter-header-context-summary")).toHaveText("Project: PMT");
-  await expect(sprintHeader.locator(".idle-filter-header-sprint-slot .idle-filter-header-context-summary")).toHaveText("Sprint: PMT-Sprint02");
+  await expect(sprintHeader.locator(".idle-filter-header-project-slot .idle-filter-header-context-summary")).toHaveText("Project: PMT - Project Management Tool");
+  await expect(sprintHeader.locator(".idle-filter-header-sprint-slot .idle-filter-header-context-summary")).toHaveText("Sprint: Regression Coverage");
+  await expectIdleHeaderSummaryBaseline(sprintHeader);
   await expectIdleSearchImmediatelyBeforeAdd(sprintHeader);
   await sprintHeader.hover({ position: { x: 4, y: 4 } });
   await expect(sprintHeader).not.toHaveClass(/is-idle-filter-header-compact/);
@@ -2634,6 +2931,92 @@ async function expectIdleHeaderControlsNotToOverlap(header) {
 
     return results;
   })).toEqual([]);
+}
+
+async function expectIdleHeaderExpandedSearch(header) {
+  await expect.poll(() => header.evaluate(element => {
+    const control = element.querySelector("[data-idle-filter-header-search-control]");
+    const input = control?.querySelector("input");
+    if (!control || !input) return ["search missing"];
+
+    const controlBox = control.getBoundingClientRect();
+    const inputBox = input.getBoundingClientRect();
+    const inputStyle = getComputedStyle(input);
+    const docked = element.classList.contains("is-idle-filter-header-search-docked");
+    const expectedWidth = window.innerWidth <= 1000
+      ? 154
+      : Math.min(238, Math.max(182, window.innerWidth * 0.154));
+    const issues = [];
+    if (!docked && Math.abs(controlBox.width - expectedWidth) > 1) {
+      issues.push(`search width is ${Math.round(controlBox.width)}px instead of ${Math.round(expectedWidth)}px`);
+    }
+    if (docked && (controlBox.width <= 44 || controlBox.width > expectedWidth + 1)) {
+      issues.push(`docked search width is ${Math.round(controlBox.width)}px`);
+    }
+    if (Math.abs(inputBox.width - controlBox.width) > 1) {
+      issues.push("search input does not fill its control");
+    }
+    if (Math.abs(Number.parseFloat(inputStyle.paddingRight) - 12) > 1) {
+      issues.push(`search right padding is ${inputStyle.paddingRight}`);
+    }
+    if (Number(inputStyle.opacity) < 0.99) issues.push("search input is not visible");
+    return issues;
+  })).toEqual([]);
+}
+
+async function expectIdleSearchCentered(header) {
+  await expect.poll(() => header.evaluate(element => {
+    if (window.innerWidth <= 1000) return 0;
+    const headerBox = element.getBoundingClientRect();
+    const searchBox = element.querySelector("[data-idle-filter-header-search-control]")?.getBoundingClientRect();
+    if (!searchBox) return Number.POSITIVE_INFINITY;
+    return Math.abs(
+      (headerBox.left + (headerBox.width / 2))
+      - (searchBox.left + (searchBox.width / 2))
+    );
+  })).toBeLessThanOrEqual(1);
+}
+
+async function expectIdleHeaderSummaryBaseline(header) {
+  await expect.poll(() => header.evaluate(element => {
+    const titleMarker = element.querySelector("h1 .idle-filter-header-baseline-marker")?.getBoundingClientRect();
+    const summaries = [...element.querySelectorAll(".idle-filter-header-context-summary")];
+    const summaryMarkers = summaries.map(summary =>
+      summary.querySelector(".idle-filter-header-baseline-marker")?.getBoundingClientRect());
+    if (!titleMarker || summaryMarkers.some(marker => !marker)) return ["baseline marker missing"];
+
+    const issues = summaryMarkers
+      .map(marker => Math.abs(marker.top - titleMarker.top))
+      .filter(difference => difference > 1)
+      .map(difference => `baseline differs by ${difference.toFixed(2)}px`);
+    if (summaries.length > 1) {
+      const projectBox = summaries[0].getBoundingClientRect();
+      const sprintBox = summaries[1].getBoundingClientRect();
+      const gap = sprintBox.left - projectBox.right;
+      if (gap < -1 || gap > 10) issues.push(`summary gap is ${gap.toFixed(2)}px`);
+    }
+    return issues;
+  })).toEqual([]);
+}
+
+async function idleHeaderActionLayout(header) {
+  return header.evaluate(element =>
+    [...element.querySelector(":scope > .toolbar").children]
+      .filter(child =>
+        !child.matches("[data-idle-filter-header-context], [data-idle-filter-header-search-control]"))
+      .map((child, index) => {
+        const bounds = child.getBoundingClientRect();
+        return {
+          key: child.dataset.action
+            || child.querySelector("[data-action]")?.dataset.action
+            || `${child.tagName}-${index}`,
+          x: Math.round(bounds.x),
+          y: Math.round(bounds.y),
+          width: Math.round(bounds.width),
+          height: Math.round(bounds.height)
+        };
+      })
+  );
 }
 
 async function expectIdleSearchImmediatelyBeforeAdd(header) {

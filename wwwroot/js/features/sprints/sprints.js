@@ -2,7 +2,7 @@ import { avatarsHtml, syncAvatarStackFit } from "../../components/avatars.js?v=2
 import { buttonContent, funnelIconHtml, iconButton } from "../../components/buttons.js";
 import { VisualCharts } from "../../components/charts.js?v=20260628-chart-native-tooltips";
 import { askFinishSprintOptions, initializeWindowedDialog } from "../../components/dialogs.js";
-import { createIdleFilterHeader } from "../../components/idle-filter-header.js?v=20260717-multi-screen-header";
+import { createIdleFilterHeader } from "../../components/idle-filter-header.js?v=20260717-multi-screen-search-persistent";
 import {
   checkListOrEmpty,
   checkedNumbers,
@@ -69,7 +69,12 @@ export function createSprintsFeature({
     app,
     screenSelector: ".sprints-screen",
     searchFilter: "sprint-search",
-    onSearchInput: input => handleFilterChange(input)
+    onSearchInput(value, { commit, render }) {
+      sprintSearch = value;
+      if (commit) writePreference(preferenceKeys.sprintSearch, sprintSearch);
+      if (render) renderSprints();
+      return true;
+    }
   });
 
   function renderSprints() {
@@ -142,7 +147,7 @@ export function createSprintsFeature({
   function sprintProjectSummary() {
     const project = projectById(sprintProjectId);
     return project
-      ? { label: project.code, title: `${project.code} - ${project.title}` }
+      ? { label: `${project.code} - ${project.title}`, title: `${project.code} - ${project.title}` }
       : { label: "No Project", title: "No Project" };
   }
 
@@ -150,7 +155,7 @@ export function createSprintsFeature({
     if (sprintFilterId === "all") return { label: "All Sprints", title: "All Sprints" };
     const sprint = sprintById(Number(sprintFilterId));
     return sprint
-      ? { label: sprint.code, title: `${sprint.code} - ${sprint.title}` }
+      ? { label: sprint.title, title: `${sprint.code} - ${sprint.title}` }
       : { label: "All Sprints", title: "All Sprints" };
   }
 

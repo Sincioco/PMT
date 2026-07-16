@@ -115,7 +115,8 @@ import {
 import { openWorkItemHtmlImport } from "../../shared/work-item-transfer.js?v=20260716-rca-one-way";
 
 const taskBugFixIconUrl = "/assets/bug.svg?v=20260629-kanban-gantt-bug-icon";
-const taskHeaderIdleMs = 10000;
+const taskHeaderIdleMs = 3000;
+const taskHeaderSearchDelayMs = 500;
 
 export function createTasksFeature({
   app,
@@ -152,6 +153,9 @@ export function createTasksFeature({
   let taskHeaderResizeBound = false;
   let taskHeaderSearchComposing = false;
   let taskHeaderSkipComposedInput = false;
+  let taskHeaderSearchTimer = 0;
+  let taskHeaderSearchDocked = false;
+  let taskHeaderPosition = null;
   let taskBulkDeleteBusy = false;
   const selectedTaskDeleteIds = new Set();
   const taskTableMode = createWorkItemTableMode({
@@ -166,6 +170,9 @@ export function createTasksFeature({
   bindTaskColumnDragEvents();
 
   function renderTasks() {
+    if (taskHeaderSearchTimer) saveTaskFilters();
+    window.clearTimeout(taskHeaderSearchTimer);
+    taskHeaderSearchTimer = 0;
     ensureSelectedProject();
 
     const projectSprints = taskProjectSprints();
@@ -274,17 +281,13 @@ export function createTasksFeature({
           <select data-filter="task-project" aria-label="Project" title="Project">
             ${taskProjectOptionsHtml()}
           </select>
-          <span class="task-header-context-summary" data-task-header-project-summary title="${escapeAttr(projectSummary.title)}">
-            Project: ${escapeHtml(projectSummary.label)}
-          </span>
+          <span class="task-header-context-summary" data-task-header-project-summary title="${escapeAttr(projectSummary.title)}">Project: ${escapeHtml(projectSummary.label)}</span>
         </div>
         <div class="task-header-context-slot task-header-sprint-slot">
           <select data-filter="task-sprint" aria-label="Sprint" title="Sprint">
             ${taskSprintOptionsHtml(projectSprints)}
           </select>
-          <span class="task-header-context-summary" data-task-header-sprint-summary title="${escapeAttr(sprintSummary.title)}">
-            Sprint: ${escapeHtml(sprintSummary.label)}
-          </span>
+          <span class="task-header-context-summary" data-task-header-sprint-summary title="${escapeAttr(sprintSummary.title)}">Sprint: ${escapeHtml(sprintSummary.label)}</span>
         </div>
       </div>
     `;
@@ -322,17 +325,21 @@ export function createTasksFeature({
   function taskHeaderProjectSummary() {
     const project = state.projects.find(item => item.id === taskProjectId);
     return project
-      ? { label: project.code, title: `${project.code} - ${project.title}` }
+      ? { label: `${project.code} - ${project.title}`, title: `${project.code} - ${project.title}` }
       : { label: "All Projects", title: "All Projects" };
   }
 
   function taskHeaderSprintSummary(projectSprints = taskProjectSprints()) {
-    if (taskSprintId === "current") return { label: "Current Sprint", title: "Current Sprint" };
     if (taskSprintId === "all") return { label: "All Sprints", title: "All Sprints" };
+    if (taskSprintId === "current" && !taskProjectId) {
+      return { label: "Current Sprint", title: "Current Sprint" };
+    }
 
-    const sprint = projectSprints.find(item => item.id === Number(taskSprintId));
+    const sprint = taskSprintId === "current"
+      ? getCurrentSprint(projectSprints)
+      : projectSprints.find(item => item.id === Number(taskSprintId));
     return sprint
-      ? { label: sprint.code, title: `${sprint.code} - ${sprint.title}` }
+      ? { label: sprint.title, title: sprint.title }
       : { label: "Current Sprint", title: "Current Sprint" };
   }
 
@@ -340,15 +347,22 @@ export function createTasksFeature({
     const header = app.querySelector(".tasks-screen .section-head");
     if (!header) return;
 
+    applyTaskHeaderPosition(header);
     header.dataset.taskHeader = "true";
-    header.classList.toggle("is-task-header-compact", taskHeaderCompact);
-    header.addEventListener("pointerenter", markTaskHeaderActivity);
-    header.addEventListener("pointermove", markTaskHeaderActivity);
+    syncTaskHeaderClasses(header);
+    header.addEventListener("pointerenter", handleTaskHeaderPointerActivity);
+    header.addEventListener("pointermove", handleTaskHeaderPointerActivity);
     header.addEventListener("focusin", markTaskHeaderActivity);
     header.addEventListener("keydown", markTaskHeaderActivity);
     header.addEventListener("change", markTaskHeaderActivity);
 
-    const search = header.querySelector("[data-task-header-search-control] input");
+    const searchControl = header.querySelector("[data-task-header-search-control]");
+    const search = searchControl?.querySelector("input");
+    searchControl?.addEventListener("pointerdown", () => {
+      if (!taskHeaderCompact) return;
+      if (!taskHeaderHasSearchText()) taskHeaderSearchDocked = true;
+      markTaskHeaderActivity();
+    });
     search?.addEventListener("compositionstart", () => {
       taskHeaderSearchComposing = true;
     });
@@ -375,18 +389,49 @@ export function createTasksFeature({
     scheduleTaskHeaderIdle();
   }
 
-  function applyTaskHeaderSearchInput(input) {
-    const selectionStart = input.selectionStart;
-    const selectionEnd = input.selectionEnd;
-    markTaskHeaderActivity();
-    if (!applyTaskFilterChange(input)) return;
-
-    renderTasks();
-    const nextInput = app.querySelector("[data-task-header-search-control] input");
-    nextInput?.focus({ preventScroll: true });
-    if (selectionStart !== null && selectionEnd !== null) {
-      nextInput?.setSelectionRange(selectionStart, selectionEnd);
+  function handleTaskHeaderPointerActivity(event) {
+    if (taskHeaderCompact && !taskHeaderHasSearchText()) {
+      taskHeaderSearchDocked = taskHeaderPointerNearSearch(event);
     }
+    markTaskHeaderActivity();
+  }
+
+  function taskHeaderPointerNearSearch(event) {
+    const searchControl = event.currentTarget?.querySelector?.("[data-task-header-search-control]");
+    const bounds = searchControl?.getBoundingClientRect();
+    if (!bounds) return false;
+
+    const tolerance = 18;
+    return event.clientX >= bounds.left - tolerance
+      && event.clientX <= bounds.right + tolerance
+      && event.clientY >= bounds.top - tolerance
+      && event.clientY <= bounds.bottom + tolerance;
+  }
+
+  function applyTaskHeaderSearchInput(input) {
+    markTaskHeaderActivity();
+    if (input?.dataset?.filter !== "task-search") return;
+    taskFilters.search = input.value;
+    syncTaskHeaderClasses(app.querySelector(".tasks-screen .section-head"));
+
+    window.clearTimeout(taskHeaderSearchTimer);
+    taskHeaderSearchTimer = window.setTimeout(() => {
+      taskHeaderSearchTimer = 0;
+      saveTaskFilters();
+      if (!app.querySelector(".tasks-screen")) return;
+
+      const restoreFocus = document.activeElement === input;
+      const selectionStart = input.selectionStart;
+      const selectionEnd = input.selectionEnd;
+      renderTasks();
+
+      if (!restoreFocus) return;
+      const nextInput = app.querySelector("[data-task-header-search-control] input");
+      nextInput?.focus({ preventScroll: true });
+      if (selectionStart !== null && selectionEnd !== null) {
+        nextInput?.setSelectionRange(selectionStart, selectionEnd);
+      }
+    }, taskHeaderSearchDelayMs);
   }
 
   function markTaskHeaderActivity() {
@@ -412,7 +457,10 @@ export function createTasksFeature({
         return;
       }
 
-      if (header.contains(document.activeElement)) {
+      const activeElement = document.activeElement;
+      const activeSearch = header.querySelector("[data-task-header-search-control] input");
+      const canCompactAroundActiveSearch = activeElement === activeSearch && taskHeaderHasSearchText();
+      if (header.contains(activeElement) && !canCompactAroundActiveSearch) {
         taskHeaderLastActivityAt = Date.now();
         scheduleTaskHeaderIdle();
         return;
@@ -424,8 +472,24 @@ export function createTasksFeature({
 
   function setTaskHeaderCompact(compact) {
     taskHeaderCompact = Boolean(compact);
-    app.querySelector(".tasks-screen .section-head")?.classList.toggle("is-task-header-compact", taskHeaderCompact);
+    const header = app.querySelector(".tasks-screen .section-head");
+    syncTaskHeaderClasses(header);
     positionTaskHeaderSearch();
+  }
+
+  function syncTaskHeaderClasses(header) {
+    if (!header) return;
+    const hasSearchText = taskHeaderHasSearchText();
+    header.classList.toggle("is-task-header-compact", taskHeaderCompact);
+    header.classList.toggle("has-task-header-search-text", hasSearchText);
+    header.classList.toggle(
+      "is-task-header-search-docked",
+      taskHeaderSearchDocked && (!taskHeaderCompact || hasSearchText)
+    );
+  }
+
+  function taskHeaderHasSearchText() {
+    return Boolean(String(taskFilters.search || "").trim());
   }
 
   function scheduleTaskHeaderSearchPosition() {
@@ -440,15 +504,69 @@ export function createTasksFeature({
     const header = app.querySelector(".tasks-screen .section-head");
     const searchControl = header?.querySelector("[data-task-header-search-control]");
     const newTaskButton = header?.querySelector("[data-action='new-task']");
+    const title = header?.querySelector("h1");
+    const context = header?.querySelector("[data-task-header-context]");
     if (!header || !searchControl || !newTaskButton) return;
 
     const headerRect = header.getBoundingClientRect();
     const newTaskRect = newTaskButton.getBoundingClientRect();
     const toolbarGap = Number.parseFloat(getComputedStyle(newTaskButton.parentElement).columnGap) || 8;
     const compactSearchWidth = newTaskRect.width;
+    const expandedSearchWidth = Math.min(238, Math.max(182, window.innerWidth * 0.154));
+    const contextRect = context?.getBoundingClientRect();
+    const dockedAvailableWidth = contextRect
+      ? newTaskRect.left - contextRect.right - (toolbarGap * 2)
+      : expandedSearchWidth;
+    const dockedSearchWidth = Math.min(expandedSearchWidth, Math.max(compactSearchWidth, dockedAvailableWidth));
     const compactCenter = newTaskRect.left - toolbarGap - (compactSearchWidth / 2);
+    const dockedCenter = newTaskRect.left - toolbarGap - (dockedSearchWidth / 2);
     const headerCenter = headerRect.left + (headerRect.width / 2);
-    header.style.setProperty("--task-header-search-compact-x", `${compactCenter - headerCenter}px`);
+
+    header.style.setProperty("--task-header-context-y", "0px");
+    let contextY = 0;
+    if (window.innerWidth > 900 && title && context) {
+      if (taskHeaderCompact) {
+        const projectSummary = context.querySelector("[data-task-header-project-summary]");
+        const sprintSummary = context.querySelector("[data-task-header-sprint-summary]");
+        const titleBaseline = taskHeaderTextBaseline(title);
+        const summaryBaseline = taskHeaderTextBaseline(projectSummary);
+        taskHeaderTextBaseline(sprintSummary);
+        contextY = titleBaseline - summaryBaseline;
+      } else {
+        const titleRect = title.getBoundingClientRect();
+        const contextRect = context.getBoundingClientRect();
+        contextY = titleRect.bottom - contextRect.bottom;
+      }
+    }
+
+    taskHeaderPosition = {
+      compactX: `${compactCenter - headerCenter}px`,
+      dockedX: `${dockedCenter - headerCenter}px`,
+      dockedWidth: `${dockedSearchWidth}px`,
+      contextY: `${contextY}px`
+    };
+    applyTaskHeaderPosition(header);
+  }
+
+  function taskHeaderTextBaseline(element) {
+    if (!element) return 0;
+
+    let marker = element.querySelector(".task-header-baseline-marker");
+    if (!marker) {
+      marker = document.createElement("span");
+      marker.className = "task-header-baseline-marker";
+      marker.setAttribute("aria-hidden", "true");
+      element.append(marker);
+    }
+    return marker.getBoundingClientRect().top;
+  }
+
+  function applyTaskHeaderPosition(header) {
+    if (!header || !taskHeaderPosition) return;
+    header.style.setProperty("--task-header-search-compact-x", taskHeaderPosition.compactX);
+    header.style.setProperty("--task-header-search-docked-x", taskHeaderPosition.dockedX);
+    header.style.setProperty("--task-header-search-docked-width", taskHeaderPosition.dockedWidth);
+    header.style.setProperty("--task-header-context-y", taskHeaderPosition.contextY);
   }
 
   function taskDeleteSelectionHtml(task) {
@@ -658,7 +776,9 @@ export function createTasksFeature({
 
   function handleFilterChange(eventOrTarget) {
     const target = eventOrTarget?.target || eventOrTarget;
-    if (target?.closest?.(".tasks-screen .section-head")) markTaskHeaderActivity();
+    const taskHeader = target?.closest?.(".tasks-screen .section-head");
+    if (taskHeader) markTaskHeaderActivity();
+    if (taskHeader && target?.dataset?.filter === "task-search") return true;
     if (!applyTaskFilterChange(target)) return false;
 
     renderTasks();
@@ -2308,6 +2428,7 @@ export function createTasksFeature({
     taskTableMode.deactivate();
     selectedTaskDeleteIds.clear();
     taskHeaderCompact = false;
+    taskHeaderSearchDocked = false;
     taskHeaderLastActivityAt = Date.now();
     cancelTaskColumnDrag();
     renderTasks();
@@ -2548,6 +2669,9 @@ export function createTasksFeature({
     });
     window.clearTimeout(taskHeaderIdleTimer);
     taskHeaderIdleTimer = 0;
+    if (taskHeaderSearchTimer) saveTaskFilters();
+    window.clearTimeout(taskHeaderSearchTimer);
+    taskHeaderSearchTimer = 0;
     if (taskHeaderResizeFrame) cancelAnimationFrame(taskHeaderResizeFrame);
     taskHeaderResizeFrame = 0;
     if (taskHeaderResizeBound) {
@@ -2555,6 +2679,8 @@ export function createTasksFeature({
       taskHeaderResizeBound = false;
     }
     taskHeaderCompact = false;
+    taskHeaderSearchDocked = false;
+    taskHeaderPosition = null;
     taskHeaderLastActivityAt = 0;
     taskHeaderSearchComposing = false;
     taskHeaderSkipComposedInput = false;

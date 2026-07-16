@@ -2,7 +2,7 @@ import { attachmentsHtml, bindAttachmentDeletion } from "../../components/attach
 import { buttonContent, funnelIconHtml, iconButton, pageActionsMenuHtml } from "../../components/buttons.js?v=20260717-multi-screen-header";
 import { hideEmptyReadOnlyFields, initializeWindowedDialog } from "../../components/dialogs.js?v=20260714-attachment-delete";
 import { filterSelect } from "../../components/filters.js";
-import { createIdleFilterHeader } from "../../components/idle-filter-header.js?v=20260717-multi-screen-header";
+import { createIdleFilterHeader } from "../../components/idle-filter-header.js?v=20260717-multi-screen-search-persistent";
 import {
   documentationExportIconHtml,
   openDocumentationExportDialog
@@ -108,7 +108,12 @@ export function createDocumentationFeature({
     app,
     screenSelector: ".documentation-screen",
     searchFilter: "documentation-tree-search",
-    onSearchInput: input => handleFilterChange(input)
+    onSearchInput(value, { commit, render }) {
+      documentationTreeSearch = value;
+      if (commit) writePreference(preferenceKeys.documentationTreeSearch, documentationTreeSearch);
+      if (render) renderDocumentation();
+      return true;
+    }
   });
 
   function renderDocumentation() {
@@ -219,7 +224,7 @@ export function createDocumentationFeature({
   function documentationProjectSummary() {
     const project = projectById(documentationProjectId);
     return project
-      ? { label: project.code, title: `${project.code} - ${project.title}` }
+      ? { label: `${project.code} - ${project.title}`, title: `${project.code} - ${project.title}` }
       : { label: "All Projects", title: "All Projects" };
   }
 
@@ -232,7 +237,7 @@ export function createDocumentationFeature({
     const project = projectById(sprint.projectId);
     const title = `${sprint.code} - ${sprint.title}`;
     return {
-      label: documentationProjectId ? sprint.code : `${project?.code || "Project"} / ${sprint.code}`,
+      label: sprint.title,
       title: documentationProjectId ? title : `${project?.code || "Project"} - ${title}`
     };
   }
