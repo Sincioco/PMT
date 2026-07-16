@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 
 const sourceSql = readFileSync(new URL("../../SQL/02_CreateStoredProcedures.sql", import.meta.url), "utf8");
-const migrationSql = readFileSync(new URL("../../SQL/Migrations/PMT_1.20_to_1.21.sql", import.meta.url), "utf8");
+const migrationSql = readFileSync(new URL("../../SQL/Migrations/Migration History/PMT_1.20_to_1.21.sql", import.meta.url), "utf8");
 
 function upsertTaskProcedure(sql) {
   sql = sql.replace(/\r\n/g, "\n");

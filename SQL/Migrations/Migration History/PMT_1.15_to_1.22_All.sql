@@ -1,7 +1,8 @@
 /*
     PMT combined database migration: Version 1.15 -> 1.22
 
-    Run this file in SQLCMD mode from the SQL\Migrations directory.
+    Historical completed-deployment runner retained for controlled
+    reconstruction. Run it in SQLCMD mode from Migration History.
 */
 
 :on error exit

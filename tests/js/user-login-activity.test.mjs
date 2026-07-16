@@ -4,8 +4,8 @@ import test from "node:test";
 
 const schemaSql = read("../../SQL/01_CreateDatabase.sql");
 const proceduresSql = read("../../SQL/02_CreateStoredProcedures.sql");
-const migrationSql = read("../../SQL/Migrations/PMT_1.21_to_1.22.sql");
-const combinedMigrationSql = read("../../SQL/Migrations/PMT_1.15_to_1.22_All.sql");
+const migrationSql = read("../../SQL/Migrations/Migration History/PMT_1.21_to_1.22.sql");
+const combinedMigrationSql = read("../../SQL/Migrations/Migration History/PMT_1.15_to_1.22_All.sql");
 const authenticationStore = read("../../Data/SqlPmtStore.Authentication.cs");
 const authenticationEndpoints = read("../../Endpoints/AuthenticationEndpoints.cs");
 const invitationEndpoints = read("../../Endpoints/InvitationEndpoints.cs");
@@ -52,7 +52,7 @@ test("the canonical migration advances and verifies Version 1.22", () => {
   assert.match(migrationSql, /PMT Version 1\.22 login activity and administrator Role contract could not be verified/);
 });
 
-test("the operator runner includes every Version 1.15 to 1.22 step in order", () => {
+test("the released Version 1.15 to 1.22 runner includes every step in order", () => {
   const expectedSteps = [
     "PMT_1.15_to_1.16.sql",
     "PMT_1.16_to_1.17.sql",

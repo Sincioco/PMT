@@ -1,9 +1,8 @@
 /*
     PMT recovery migration: Version 1.19 -> 1.22
 
-    Use this one-command SQLCMD runner only when a failed Version 1.20 attempt
-    left PMT_DatabaseVersion at 1.19. A database restored to Version 1.15 must
-    use PMT_1.15_to_1.22_All.sql instead.
+    Historical incident-recovery runner retained for controlled reconstruction
+    of a database left at Version 1.19 by the failed Version 1.20 attempt.
 */
 
 :on error exit

@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import test from "node:test";
 
-const migration = read("../../SQL/Migrations/PMT_1.19_to_1.20.sql");
-const recoveryRunner = read("../../SQL/Migrations/PMT_1.19_to_1.22_All.sql");
+const migration = read("../../SQL/Migrations/Migration History/PMT_1.19_to_1.20.sql");
+const recoveryRunner = read("../../SQL/Migrations/Migration History/PMT_1.19_to_1.22_All.sql");
 const sourceProcedures = read("../../SQL/02_CreateStoredProcedures.sql");
 
 test("Version 1.20 contains a one-time PMT-only legacy child-code repair", () => {
@@ -35,7 +35,7 @@ test("runtime Project renames retain strict collision handling", () => {
   assert.doesNotMatch(procedure, /One-time BDO repair|PmtSprintRepairCursor|PmtTaskRepairCursor/);
 });
 
-test("Version 1.19 recovery uses one ordered SQLCMD runner", () => {
+test("the released Version 1.19 recovery uses one ordered SQLCMD runner", () => {
   const expectedSteps = [
     "PMT_1.19_to_1.20.sql",
     "PMT_1.20_to_1.21.sql",
@@ -49,6 +49,21 @@ test("Version 1.19 recovery uses one ordered SQLCMD runner", () => {
     assert.ok(index > previousIndex, `${step} is missing or out of order.`);
     return index;
   }, -1);
+});
+
+test("historical combined migration runners resolve every SQLCMD include", () => {
+  const historyUrl = new URL("../../SQL/Migrations/Migration History/", import.meta.url);
+  const runners = readdirSync(historyUrl).filter((name) => name.endsWith("_All.sql"));
+
+  for (const runner of runners) {
+    const sql = readFileSync(new URL(runner, historyUrl), "utf8");
+    const includes = [...sql.matchAll(/^:r\s+"([^"]+)"/gm)];
+
+    for (const include of includes) {
+      const includeUrl = new URL(include[1].replaceAll("\\", "/"), historyUrl);
+      assert.ok(existsSync(includeUrl), `${runner} cannot resolve ${include[1]}.`);
+    }
+  }
 });
 
 function read(relativePath) {
