@@ -28,7 +28,7 @@ test("login, navigation, themes, dialogs, filters, Board, Gantt, and Road Map sm
     { id: 203, lookupType: "Severity", value: "2 - Major", colorHex: "", displayOrder: 30, isActive: true },
     { id: 204, lookupType: "Severity", value: "1 - Critical", colorHex: "", displayOrder: 40, isActive: true }
   );
-  const apiCalls = { restorePmt: 0, securityReset: 0 };
+  const apiCalls = { clearNonPmt: 0, restoreSeed: 0, restorePmt: 0, securityReset: 0 };
   const browserErrors = [];
 
   page.on("console", message => {
@@ -309,15 +309,51 @@ test("login, navigation, themes, dialogs, filters, Board, Gantt, and Road Map sm
   await expect(resetQaRole.locator("[data-security-right='canCreate']")).not.toBeChecked();
 
   await page.locator("[data-action='select-lookup-type'][data-type='Development']").click();
-  await expect(page.getByRole("button", { name: "Restore Initial Seed Data" })).toBeVisible();
+  const developmentPanel = page.locator(".development-panel");
+  await expect(developmentPanel).toContainText("Warning, buttons on this screen can delete projects or reset the entire database back to its initial installed state. Please do not click buttons on this screen unless you know what you are doing.");
+  const developmentRows = developmentPanel.locator(".development-action-row");
+  await expect(developmentRows.nth(0).locator("strong")).toHaveText("Clear All Projects Except PMT");
+  await expect(developmentRows.nth(0).locator("p")).toHaveText("Deletes Projects other than PMT, including their Sprints, Dev Tasks, Bugs, Scrum, and Documentation, etc. So be careful!");
+  const clearNonPmtButton = page.getByRole("button", { name: "Clear All Except PMT", exact: true });
+  await expect(clearNonPmtButton).toBeVisible();
+  await clearNonPmtButton.click();
+  let developmentConfirmation = page.locator("dialog.mini-dialog");
+  await expect(developmentConfirmation).toContainText("Clear Projects other than PMT");
+  await expect(developmentConfirmation).toContainText("PMT will remain intact");
+  await developmentConfirmation.getByRole("button", { name: "Cancel" }).click();
+  expect(apiCalls.clearNonPmt).toBe(0);
+  await clearNonPmtButton.click();
+  developmentConfirmation = page.locator("dialog.mini-dialog");
+  await developmentConfirmation.getByRole("button", { name: "Continue" }).click();
+  await expect(page.locator("#toast")).toHaveText("Project data other than PMT cleared.");
+  expect(apiCalls.clearNonPmt).toBe(1);
+
+  await expect(developmentRows.nth(3).locator("strong")).toHaveText("Factory Reset PMT");
+  await expect(developmentRows.nth(3).locator("p")).toHaveText("This will delete all data in the database and re-seed it with the original demo projects.");
+  const factoryResetButton = page.getByRole("button", { name: "Factory Reset PMT", exact: true });
+  await expect(factoryResetButton).toBeVisible();
+  await factoryResetButton.click();
+  developmentConfirmation = page.locator("dialog.mini-dialog");
+  await expect(developmentConfirmation).toContainText("Factory reset PMT?");
+  await expect(developmentConfirmation).toContainText("delete all data in the database");
+  await developmentConfirmation.getByRole("button", { name: "Cancel" }).click();
+  expect(apiCalls.restoreSeed).toBe(0);
+  await factoryResetButton.click();
+  developmentConfirmation = page.locator("dialog.mini-dialog");
+  await developmentConfirmation.getByRole("button", { name: "Continue" }).click();
+  await expect(page.locator("#toast")).toHaveText("PMT factory reset completed.");
+  expect(apiCalls.restoreSeed).toBe(1);
+
   const restorePmtButton = page.getByRole("button", { name: "Restore PMT Seed Data" });
   await expect(restorePmtButton).toBeVisible();
+  await expect(developmentRows.nth(4).locator("p")).toHaveText("Recreates missing demo users and restores the original PMT demo Project.");
   const developmentActions = await page.locator(".development-action-row strong").allTextContents();
   expect(developmentActions.indexOf("Restore PMT Seed Data"))
-    .toBe(developmentActions.indexOf("Restore Initial Seed Data") + 1);
+    .toBe(developmentActions.indexOf("Factory Reset PMT") + 1);
   await restorePmtButton.click();
   const restorePmtConfirmation = page.locator("dialog.mini-dialog");
-  await expect(restorePmtConfirmation).toContainText("LMS and HLS will remain unchanged");
+  await expect(restorePmtConfirmation).toContainText("Restore the original PMT demo Project and recreate missing demo users?");
+  await expect(restorePmtConfirmation).not.toContainText("PMTQA");
   await restorePmtConfirmation.getByRole("button", { name: "Continue" }).click();
   await expect(page.locator("#toast")).toHaveText("PMT seed data restored.");
   expect(apiCalls.restorePmt).toBe(1);
@@ -1768,7 +1804,13 @@ async function installApiMocks(page, appState, apiCalls) {
   });
 
   await page.route("**/api/development/restore-seed-data", async route => {
+    apiCalls.restoreSeed = (apiCalls.restoreSeed || 0) + 1;
     await route.fulfill(jsonResponse({ restored: true }));
+  });
+
+  await page.route("**/api/development/clear-non-pmt", async route => {
+    apiCalls.clearNonPmt = (apiCalls.clearNonPmt || 0) + 1;
+    await route.fulfill(jsonResponse({ cleared: true }));
   });
 
   await page.route("**/api/development/restore-pmt-seed-data", async route => {

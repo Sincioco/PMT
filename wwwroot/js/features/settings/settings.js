@@ -333,8 +333,8 @@ export function createSettingsFeature({
     if (action === "development-clear-non-pmt") {
       await runDevelopmentAction(
         "/api/development/clear-non-pmt",
-        "Clear Projects other than PMT and PMTQA, including their Sprints, Dev Tasks, Bugs, Scrum, and Documentation? PMT and PMTQA will remain intact.",
-        "Project data other than PMT and PMTQA cleared."
+        "Clear Projects other than PMT, including their Sprints, Dev Tasks, Bugs, Scrum, and Documentation? PMT will remain intact.",
+        "Project data other than PMT cleared."
       );
       return true;
     }
@@ -357,15 +357,15 @@ export function createSettingsFeature({
     if (action === "development-restore-seed-data") {
       await runDevelopmentAction(
         "/api/development/restore-seed-data",
-        "Restore initial seed data for PMT, LMS, and HLS? Current development data will be replaced.",
-        "Initial seed data restored."
+        "Factory reset PMT? This will delete all data in the database and re-seed it with the original demo projects.",
+        "PMT factory reset completed."
       );
       return true;
     }
     if (action === "development-restore-pmt-seed-data") {
       await runDevelopmentAction(
         "/api/development/restore-pmt-seed-data",
-        "Restore the original PMT demo Project, missing demo users, Sprints, work items, Scrum, and Documentation? PMT must already be permanently deleted. PMTQA and other BDO data will remain unchanged.",
+        "Restore the original PMT demo Project and recreate missing demo users? PMT must already be permanently deleted.",
         "PMT seed data restored."
       );
       return true;
@@ -768,15 +768,15 @@ export function createSettingsFeature({
       <div class="panel development-panel settings-content-panel">
         <div>
           <h2>Development</h2>
-          <p class="muted">These tools reset demo data. Clear PMT Demo and then Restore PMT Seed Data whenever a fresh PMT demo is needed. PMTQA is preserved.</p>
+          <p class="muted">Warning, buttons on this screen can delete projects or reset the entire database back to its initial installed state.  Please do not click buttons on this screen unless you know what you are doing.</p>
         </div>
         <div class="development-actions">
           <div class="development-action-row">
             <div>
-              <strong>Clear All Except PMT and PMTQA</strong>
-              <p class="muted">Deletes Projects other than PMT and PMTQA, including their Sprints, Dev Tasks, Bugs, Scrum, and Documentation.</p>
+              <strong>Clear All Projects Except PMT</strong>
+              <p class="muted">Deletes Projects other than PMT, including their Sprints, Dev Tasks, Bugs, Scrum, and Documentation, etc.  So be careful!</p>
             </div>
-            <button class="secondary text-icon-button" type="button" data-action="development-clear-non-pmt" ${canRun ? "" : "disabled"}>${buttonContent("&#128465;", "Clear All Except PMT and PMTQA")}</button>
+            <button class="secondary text-icon-button" type="button" data-action="development-clear-non-pmt" ${canRun ? "" : "disabled"}>${buttonContent("&#128465;", "Clear All Except PMT")}</button>
           </div>
           <div class="development-action-row danger-row">
             <div>
@@ -794,15 +794,15 @@ export function createSettingsFeature({
           </div>
           <div class="development-action-row">
             <div>
-              <strong>Restore Initial Seed Data</strong>
-              <p class="muted">Restores the PMT, LMS, and HLS demo data from the SQL seed scripts.</p>
+              <strong>Factory Reset PMT</strong>
+              <p class="muted">This will delete all data in the database and re-seed it with the original demo projects.</p>
             </div>
-            <button class="primary text-icon-button" type="button" data-action="development-restore-seed-data" ${canRun ? "" : "disabled"}>${buttonContent("&#8635;", "Restore Initial Seed Data")}</button>
+            <button class="primary text-icon-button" type="button" data-action="development-restore-seed-data" ${canRun ? "" : "disabled"}>${buttonContent("&#8635;", "Factory Reset PMT")}</button>
           </div>
           <div class="development-action-row">
             <div>
               <strong>Restore PMT Seed Data</strong>
-              <p class="muted">Recreates missing demo users and restores the original PMT demo Project. PMTQA, BDO users, permissions, and private content remain unchanged.</p>
+              <p class="muted">Recreates missing demo users and restores the original PMT demo Project.</p>
             </div>
             <button class="primary text-icon-button" type="button" data-action="development-restore-pmt-seed-data" ${canRun ? "" : "disabled"}>${buttonContent("&#8635;", "Restore PMT Seed Data")}</button>
           </div>

@@ -60,9 +60,10 @@ test("Version 1.23 atomically preserves PMTQA and restores the PMT demo", () => 
   assert.doesNotMatch(projectRename, /DELETE FROM \[pmt\]\.\[Projects\]/);
 });
 
-test("repeatable PMT demo restore protects PMTQA and public credentials", () => {
+test("repeatable PMT demo restore protects public credentials and follows the Development reset contract", () => {
   const ensureUsers = procedureBody(sourceProcedures, "EnsurePmtDemoUsers");
   const cleanup = procedureBody(sourceProcedures, "DevelopmentClearProjectData");
+  const migratedCleanup = procedureBody(demoMigration, "DevelopmentClearProjectData");
 
   assert.match(ensureUsers, /CRYPT_GEN_RANDOM\(32\)/);
   assert.doesNotMatch(ensureUsers, /N'Password1'/);
@@ -71,13 +72,37 @@ test("repeatable PMT demo restore protects PMTQA and public credentials", () => 
   assert.ok(ensureUsers.indexOf("sys.sp_getapplock") < ensureUsers.indexOf("A PMT demo email belongs to more than one user"));
   assert.match(ensureUsers, /THROW 50262, 'A PMT demo email belongs to more than one user/);
   assert.match(ensureUsers, /THROW 50263, 'A PMT demo username belongs to another user/);
-  assert.match(cleanup, /\[Code\] NOT IN \(N'PMT', N'PMTQA'\)/);
+  for (const procedure of [cleanup, migratedCleanup]) {
+    assert.match(procedure, /\[Code\] <> N'PMT'/);
+    assert.doesNotMatch(procedure, /\[Code\] NOT IN \(N'PMT', N'PMTQA'\)/);
+    assert.match(procedure, /Cleared project data except PMT\./);
+    assert.match(procedure, /AND \[IsPrivate\] = 0/);
+    assert.match(procedure, /AND \[LogType\] = N'Log'/);
+    assert.match(procedure, /AND \[IsPrivate\] = 1/);
+  }
   assert.match(pmtSeed, /\[Value\] LIKE N'% - Minor'/);
   assert.match(pmtSeed, /\[Value\] LIKE N'SIT -%'/);
   assert.match(pmtSeed, /EXEC \[pmt\]\.\[LockBlogWrites\];\s+EXEC \[pmt\]\.\[LockWorkTaskWrites\];\s+EXEC \[pmt\]\.\[LockSprintWrites\];/);
   assert.match(developmentStore, /BeginTransactionAsync\(IsolationLevel\.ReadCommitted/);
   assert.match(developmentStore, /StoredProcedure\(connection, transaction, "\[pmt\]\.\[EnsurePmtDemoUsers\]"\)/);
   assert.match(developmentStore, /ExecuteSeedScriptsAsync\(connection, scriptPaths, cancellationToken, transaction\)/);
+});
+
+test("Development Clear Users and Factory Reset ignore private-content ownership only for administrators", () => {
+  for (const sql of [sourceProcedures, demoMigration]) {
+    const clearUsers = procedureBody(sql, "DevelopmentClearUsers");
+    const factoryReset = procedureBody(sql, "RequireDevelopmentSeedRestore");
+
+    assert.match(clearUsers, /\[pmt\]\.\[IsAdmin\]\(@CurrentUserId\) = 0/);
+    assert.doesNotMatch(clearUsers, /50255|another user owns private content/);
+    assert.match(clearUsers, /DELETE FROM \[pmt\]\.\[UserPermissions\]\s+WHERE \[UserId\] <> @AdminUserId/);
+    assert.match(clearUsers, /\[ActorUserId\] = @AdminUserId/);
+    assert.match(clearUsers, /UPDATE \[pmt\]\.\[DevLogs\] SET \[UserId\] = @AdminUserId/);
+    assert.match(clearUsers, /UPDATE \[pmt\]\.\[Blogs\] SET \[CreatedByUserId\] = @AdminUserId/);
+
+    assert.match(factoryReset, /\[pmt\]\.\[IsAdmin\]\(@CurrentUserId\) = 0/);
+    assert.doesNotMatch(factoryReset, /50257|another user owns private content/);
+  }
 });
 
 test("the released Version 1.19 recovery uses one ordered SQLCMD runner", () => {

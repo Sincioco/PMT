@@ -7215,7 +7215,7 @@ BEGIN
     SELECT [ProjectId]
     FROM [pmt].[Projects]
     WHERE (@ClearPmtOnly = 1 AND [ProjectId] = @PmtProjectId)
-       OR (@ClearPmtOnly = 0 AND [Code] NOT IN (N'PMT', N'PMTQA'));
+       OR (@ClearPmtOnly = 0 AND [Code] <> N'PMT');
 
     INSERT INTO @SprintIds ([SprintId])
     SELECT [SprintId]
@@ -7332,7 +7332,7 @@ BEGIN
       AND NOT EXISTS (SELECT 1 FROM [pmt].[BlogAttachments] WHERE [BlogAttachments].[AttachmentId] = [Attachment].[AttachmentId]);
 
     DECLARE @AuditDetails NVARCHAR(MAX) =
-        CASE WHEN @ClearPmtOnly = 1 THEN N'Cleared PMT project data.' ELSE N'Cleared project data except PMT and PMTQA.' END;
+        CASE WHEN @ClearPmtOnly = 1 THEN N'Cleared PMT project data.' ELSE N'Cleared project data except PMT.' END;
 
     EXEC [pmt].[WriteAudit]
         N'Development',
@@ -7399,25 +7399,6 @@ BEGIN
 
     BEGIN TRANSACTION;
 
-    IF EXISTS
-       (
-           SELECT 1
-           FROM [pmt].[DevLogs] WITH (UPDLOCK, HOLDLOCK)
-           WHERE [LogType] = N'Log'
-             AND [UserId] <> @AdminUserId
-       )
-       OR EXISTS
-       (
-           SELECT 1
-           FROM [pmt].[Blogs] WITH (UPDLOCK, HOLDLOCK)
-           WHERE [IsPrivate] = 1
-             AND [CreatedByUserId] <> @AdminUserId
-       )
-    BEGIN
-        ROLLBACK TRANSACTION;
-        THROW 50255, 'Users cannot be cleared while another user owns private content.', 1;
-    END;
-
     DELETE [AuditEvent]
     FROM [pmt].[AuditEvents] AS [AuditEvent]
     INNER JOIN [pmt].[AttendanceEntries] AS [Attendance]
@@ -7436,6 +7417,9 @@ BEGIN
     WHERE [UserId] <> @AdminUserId;
 
     DELETE FROM [pmt].[VacationPlans]
+    WHERE [UserId] <> @AdminUserId;
+
+    DELETE FROM [pmt].[UserPermissions]
     WHERE [UserId] <> @AdminUserId;
 
     UPDATE [pmt].[Users]
@@ -7519,7 +7503,12 @@ BEGIN
     UPDATE [pmt].[DevLogs] SET [UserId] = @AdminUserId, [CreatedByUserId] = @AdminUserId, [UpdatedByUserId] = @AdminUserId;
     UPDATE [pmt].[Blogs] SET [CreatedByUserId] = @AdminUserId, [UpdatedByUserId] = @AdminUserId;
     UPDATE [pmt].[BlogHistory] SET [UserId] = @AdminUserId, [CreatedByUserId] = @AdminUserId, [UpdatedByUserId] = @AdminUserId;
-    UPDATE [pmt].[AuditEvents] SET [UserId] = @AdminUserId, [CreatedByUserId] = @AdminUserId, [UpdatedByUserId] = @AdminUserId;
+    UPDATE [pmt].[AuditEvents]
+    SET
+        [UserId] = @AdminUserId,
+        [ActorUserId] = @AdminUserId,
+        [CreatedByUserId] = @AdminUserId,
+        [UpdatedByUserId] = @AdminUserId;
     UPDATE [pmt].[Lookups] SET [CreatedByUserId] = @AdminUserId, [UpdatedByUserId] = @AdminUserId;
     UPDATE [pmt].[Holidays] SET [CreatedByUserId] = @AdminUserId, [UpdatedByUserId] = @AdminUserId;
     UPDATE [pmt].[WfhSchedules] SET [CreatedByUserId] = @AdminUserId, [UpdatedByUserId] = @AdminUserId;
@@ -7553,24 +7542,6 @@ BEGIN
     IF [pmt].[IsAdmin](@CurrentUserId) = 0
     BEGIN
         THROW 50110, 'Only an administrator can restore initial seed data.', 1;
-    END;
-
-    IF EXISTS
-       (
-           SELECT 1
-           FROM [pmt].[DevLogs]
-           WHERE [LogType] = N'Log'
-             AND [UserId] <> @CurrentUserId
-       )
-       OR EXISTS
-       (
-           SELECT 1
-           FROM [pmt].[Blogs]
-           WHERE [IsPrivate] = 1
-             AND [CreatedByUserId] <> @CurrentUserId
-       )
-    BEGIN
-        THROW 50257, 'Initial seed data cannot be restored while another user owns private content.', 1;
     END;
 END;
 GO

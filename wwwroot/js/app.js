@@ -73,7 +73,7 @@ import { createReleaseNotesFeature } from "./features/release-notes/release-note
 import { createRoadMapFeature } from "./features/roadmap/roadmap.js?v=20260715-admin-impersonation";
 import { createLogFeature } from "./features/personal-log/log.js?v=20260715-admin-impersonation";
 import { createScrumFeature } from "./features/scrum/scrum.js?v=20260716-scrum-attendance-actions";
-import { createSettingsFeature } from "./features/settings/settings.js?v=20260716-pmt-demo-reset";
+import { createSettingsFeature } from "./features/settings/settings.js?v=20260716-development-reset";
 import { createSprintsFeature } from "./features/sprints/sprints.js?v=20260715-admin-impersonation";
 import { createTasksFeature } from "./features/tasks/tasks.js?v=20260716-dialog-route-close";
 import { createWfhScheduleFeature } from "./features/wfh-schedule/wfh-schedule.js?v=20260715-admin-impersonation";

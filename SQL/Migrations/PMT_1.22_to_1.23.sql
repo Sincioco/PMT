@@ -5,13 +5,16 @@
     - Preserves the deployed PMT Project as PMTQA.
     - Recreates only missing original PMT demo identities.
     - Restores the original SQL-seeded PMT demo Project.
-    - Keeps PMT and PMTQA safe from broad Development cleanup.
+    - Preserves PMTQA during this migration, while post-deployment broad
+      Development cleanup protects only the resettable PMT demo Project.
     - Makes future Clear PMT Demo -> Restore PMT Seed Data cycles repeatable.
+    - Lets Development Clear Users and Factory Reset run even when users own
+      private content; Clear Users remaps it to Sin and Factory Reset deletes it.
     - Lets On Behalf Of attendance use a selected date and supports audited
       removal of explicit attendance calendar entries.
 
     Run this file once with SQLCMD from the SQL/Migrations directory.
-    Do not run SQL/03_SeedData.sql or Restore Initial Seed Data in Production.
+    Do not run SQL/03_SeedData.sql or Factory Reset PMT in Production.
 */
 
 :on error exit
@@ -38,9 +41,16 @@ IF SCHEMA_ID(N'pmt') IS NULL
    OR OBJECT_ID(N'[pmt].[Sprints]', N'U') IS NULL
    OR OBJECT_ID(N'[pmt].[WorkTasks]', N'U') IS NULL
    OR OBJECT_ID(N'[pmt].[AttendanceEntries]', N'U') IS NULL
+   OR OBJECT_ID(N'[pmt].[UserPermissions]', N'U') IS NULL
+   OR OBJECT_ID(N'[pmt].[AuditEvents]', N'U') IS NULL
+   OR COL_LENGTH(N'pmt.AuditEvents', N'ActorUserId') IS NULL
    OR OBJECT_ID(N'[pmt].[SynchronizeProjectCode]', N'P') IS NULL
    OR OBJECT_ID(N'[pmt].[WriteAudit]', N'P') IS NULL
    OR OBJECT_ID(N'[pmt].[RecordAttendance]', N'P') IS NULL
+   OR OBJECT_ID(N'[pmt].[DevelopmentClearNonPmt]', N'P') IS NULL
+   OR OBJECT_ID(N'[pmt].[DevelopmentClearPmt]', N'P') IS NULL
+   OR OBJECT_ID(N'[pmt].[DevelopmentClearUsers]', N'P') IS NULL
+   OR OBJECT_ID(N'[pmt].[RequireDevelopmentSeedRestore]', N'P') IS NULL
    OR OBJECT_ID(N'[pmt].[LockBlogWrites]', N'P') IS NULL
    OR OBJECT_ID(N'[pmt].[LockWorkTaskWrites]', N'P') IS NULL
    OR OBJECT_ID(N'[pmt].[LockSprintWrites]', N'P') IS NULL
@@ -557,7 +567,7 @@ BEGIN
     SELECT [ProjectId]
     FROM [pmt].[Projects]
     WHERE (@ClearPmtOnly = 1 AND [ProjectId] = @PmtProjectId)
-       OR (@ClearPmtOnly = 0 AND [Code] NOT IN (N'PMT', N'PMTQA'));
+       OR (@ClearPmtOnly = 0 AND [Code] <> N'PMT');
 
     INSERT INTO @SprintIds ([SprintId])
     SELECT [SprintId]
@@ -674,7 +684,7 @@ BEGIN
       AND NOT EXISTS (SELECT 1 FROM [pmt].[BlogAttachments] WHERE [BlogAttachments].[AttachmentId] = [Attachment].[AttachmentId]);
 
     DECLARE @AuditDetails NVARCHAR(MAX) =
-        CASE WHEN @ClearPmtOnly = 1 THEN N'Cleared PMT project data.' ELSE N'Cleared project data except PMT and PMTQA.' END;
+        CASE WHEN @ClearPmtOnly = 1 THEN N'Cleared PMT project data.' ELSE N'Cleared project data except PMT.' END;
 
     EXEC [pmt].[WriteAudit]
         N'Development',
@@ -684,6 +694,181 @@ BEGIN
         @CurrentUserId;
 
     COMMIT TRANSACTION;
+END;
+GO
+
+CREATE OR ALTER PROCEDURE [pmt].[DevelopmentClearUsers]
+    @CurrentUserId INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    SET XACT_ABORT ON;
+
+    IF [pmt].[IsAdmin](@CurrentUserId) = 0
+    BEGIN
+        THROW 50110, 'Only an administrator can clear users.', 1;
+    END;
+
+    DECLARE @AdminUserId INT =
+    (
+        SELECT TOP (1) [UserId]
+        FROM [pmt].[Users]
+        WHERE [Email] = N'louiery@gmail.com'
+           OR ([Nickname] = N'Sin' AND [IsAdmin] = 1)
+        ORDER BY CASE WHEN [Email] = N'louiery@gmail.com' THEN 0 ELSE 1 END, [UserId]
+    );
+
+    IF @AdminUserId IS NULL
+    BEGIN
+        THROW 50111, 'The Sin administrator account was not found.', 1;
+    END;
+
+    BEGIN TRANSACTION;
+
+    DELETE [AuditEvent]
+    FROM [pmt].[AuditEvents] AS [AuditEvent]
+    INNER JOIN [pmt].[AttendanceEntries] AS [Attendance]
+        ON [AuditEvent].[EntityType] = N'Attendance'
+       AND [AuditEvent].[EntityId] = [Attendance].[AttendanceEntryId]
+    WHERE [Attendance].[UserId] <> @AdminUserId;
+
+    DELETE [AuditEvent]
+    FROM [pmt].[AuditEvents] AS [AuditEvent]
+    INNER JOIN [pmt].[VacationPlans] AS [Vacation]
+        ON [AuditEvent].[EntityType] = N'Vacation'
+       AND [AuditEvent].[EntityId] = [Vacation].[VacationPlanId]
+    WHERE [Vacation].[UserId] <> @AdminUserId;
+
+    DELETE FROM [pmt].[AttendanceEntries]
+    WHERE [UserId] <> @AdminUserId;
+
+    DELETE FROM [pmt].[VacationPlans]
+    WHERE [UserId] <> @AdminUserId;
+
+    DELETE FROM [pmt].[UserPermissions]
+    WHERE [UserId] <> @AdminUserId;
+
+    UPDATE [pmt].[Users]
+    SET
+        [FirstName] = N'Louiery',
+        [LastName] = N'Sincioco',
+        [Nickname] = N'Sin',
+        [Email] = N'louiery@gmail.com',
+        [AvatarUrl] = N'/assets/avatar-sin.jpg?v=20260629-avatar-jpg-assets',
+        [PasswordHash] = HASHBYTES('SHA2_256', CONVERT(NVARCHAR(4000), N'Password1')),
+        [Bio] = N'PMT creator and administrator.',
+        [IsAdmin] = 1,
+        [Role] = N'Developer',
+        [IsActive] = 1,
+        [CreatedByUserId] = @AdminUserId,
+        [UpdatedByUserId] = @AdminUserId,
+        [UpdatedAt] = SYSUTCDATETIME()
+    WHERE [UserId] = @AdminUserId;
+
+    INSERT INTO [pmt].[ProjectMembers] ([ProjectId], [UserId], [CreatedByUserId])
+    SELECT DISTINCT [ProjectId], @AdminUserId, @AdminUserId
+    FROM [pmt].[ProjectMembers] AS [Source]
+    WHERE NOT EXISTS
+    (
+        SELECT 1
+        FROM [pmt].[ProjectMembers] AS [Existing]
+        WHERE [Existing].[ProjectId] = [Source].[ProjectId]
+          AND [Existing].[UserId] = @AdminUserId
+    );
+
+    INSERT INTO [pmt].[SprintMembers] ([SprintId], [UserId], [CreatedByUserId])
+    SELECT DISTINCT [SprintId], @AdminUserId, @AdminUserId
+    FROM [pmt].[SprintMembers] AS [Source]
+    WHERE NOT EXISTS
+    (
+        SELECT 1
+        FROM [pmt].[SprintMembers] AS [Existing]
+        WHERE [Existing].[SprintId] = [Source].[SprintId]
+          AND [Existing].[UserId] = @AdminUserId
+    );
+
+    INSERT INTO [pmt].[TaskAssignees] ([TaskId], [UserId], [CreatedByUserId])
+    SELECT DISTINCT [TaskId], @AdminUserId, @AdminUserId
+    FROM [pmt].[TaskAssignees] AS [Source]
+    WHERE NOT EXISTS
+    (
+        SELECT 1
+        FROM [pmt].[TaskAssignees] AS [Existing]
+        WHERE [Existing].[TaskId] = [Source].[TaskId]
+          AND [Existing].[UserId] = @AdminUserId
+    );
+
+    INSERT INTO [pmt].[TaskReporters] ([TaskId], [UserId], [CreatedByUserId])
+    SELECT DISTINCT [TaskId], @AdminUserId, @AdminUserId
+    FROM [pmt].[TaskReporters] AS [Source]
+    WHERE NOT EXISTS
+    (
+        SELECT 1
+        FROM [pmt].[TaskReporters] AS [Existing]
+        WHERE [Existing].[TaskId] = [Source].[TaskId]
+          AND [Existing].[UserId] = @AdminUserId
+    );
+
+    DELETE FROM [pmt].[ProjectMembers] WHERE [UserId] <> @AdminUserId;
+    DELETE FROM [pmt].[SprintMembers] WHERE [UserId] <> @AdminUserId;
+    DELETE FROM [pmt].[TaskAssignees] WHERE [UserId] <> @AdminUserId;
+    DELETE FROM [pmt].[TaskReporters] WHERE [UserId] <> @AdminUserId;
+
+    UPDATE [pmt].[ProjectMembers] SET [CreatedByUserId] = @AdminUserId, [UpdatedByUserId] = @AdminUserId;
+    UPDATE [pmt].[SprintMembers] SET [CreatedByUserId] = @AdminUserId, [UpdatedByUserId] = @AdminUserId;
+    UPDATE [pmt].[TaskAssignees] SET [CreatedByUserId] = @AdminUserId, [UpdatedByUserId] = @AdminUserId;
+    UPDATE [pmt].[TaskReporters] SET [CreatedByUserId] = @AdminUserId, [UpdatedByUserId] = @AdminUserId;
+    UPDATE [pmt].[TaskDependencies] SET [CreatedByUserId] = @AdminUserId, [UpdatedByUserId] = @AdminUserId;
+    UPDATE [pmt].[TaskAttachments] SET [CreatedByUserId] = @AdminUserId, [UpdatedByUserId] = @AdminUserId;
+    UPDATE [pmt].[BlogAttachments] SET [CreatedByUserId] = @AdminUserId, [UpdatedByUserId] = @AdminUserId;
+
+    UPDATE [pmt].[Projects] SET [CreatedByUserId] = @AdminUserId, [UpdatedByUserId] = @AdminUserId;
+    UPDATE [pmt].[Sprints] SET [CreatedByUserId] = @AdminUserId, [UpdatedByUserId] = @AdminUserId;
+    UPDATE [pmt].[WorkTasks] SET [CreatedByUserId] = @AdminUserId, [UpdatedByUserId] = @AdminUserId;
+    UPDATE [pmt].[Attachments] SET [UploadedByUserId] = @AdminUserId, [CreatedByUserId] = @AdminUserId, [UpdatedByUserId] = @AdminUserId;
+    UPDATE [pmt].[DevLogs] SET [UserId] = @AdminUserId, [CreatedByUserId] = @AdminUserId, [UpdatedByUserId] = @AdminUserId;
+    UPDATE [pmt].[Blogs] SET [CreatedByUserId] = @AdminUserId, [UpdatedByUserId] = @AdminUserId;
+    UPDATE [pmt].[BlogHistory] SET [UserId] = @AdminUserId, [CreatedByUserId] = @AdminUserId, [UpdatedByUserId] = @AdminUserId;
+    UPDATE [pmt].[AuditEvents]
+    SET
+        [UserId] = @AdminUserId,
+        [ActorUserId] = @AdminUserId,
+        [CreatedByUserId] = @AdminUserId,
+        [UpdatedByUserId] = @AdminUserId;
+    UPDATE [pmt].[Lookups] SET [CreatedByUserId] = @AdminUserId, [UpdatedByUserId] = @AdminUserId;
+    UPDATE [pmt].[Holidays] SET [CreatedByUserId] = @AdminUserId, [UpdatedByUserId] = @AdminUserId;
+    UPDATE [pmt].[WfhSchedules] SET [CreatedByUserId] = @AdminUserId, [UpdatedByUserId] = @AdminUserId;
+    UPDATE [pmt].[AttendanceEntries] SET [CreatedByUserId] = @AdminUserId, [UpdatedByUserId] = @AdminUserId;
+    UPDATE [pmt].[VacationPlans] SET [CreatedByUserId] = @AdminUserId, [UpdatedByUserId] = @AdminUserId;
+    UPDATE [pmt].[Users] SET [CreatedByUserId] = @AdminUserId, [UpdatedByUserId] = @AdminUserId;
+
+    DELETE FROM [pmt].[WfhSchedules]
+    WHERE [UserId] <> @AdminUserId;
+
+    DELETE FROM [pmt].[Users]
+    WHERE [UserId] <> @AdminUserId;
+
+    EXEC [pmt].[WriteAudit]
+        N'Development',
+        0,
+        N'Cleanup',
+        N'Cleared users and remapped ownership to Sin.',
+        @AdminUserId;
+
+    COMMIT TRANSACTION;
+END;
+GO
+
+CREATE OR ALTER PROCEDURE [pmt].[RequireDevelopmentSeedRestore]
+    @CurrentUserId INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    IF [pmt].[IsAdmin](@CurrentUserId) = 0
+    BEGIN
+        THROW 50110, 'Only an administrator can restore initial seed data.', 1;
+    END;
 END;
 GO
 
@@ -1308,9 +1493,16 @@ BEGIN
 END;
 
 IF OBJECT_ID(N'[pmt].[EnsurePmtDemoUsers]', N'P') IS NULL
-   OR ISNULL(CHARINDEX(N'N''PMTQA''', OBJECT_DEFINITION(OBJECT_ID(N'[pmt].[DevelopmentClearProjectData]'))), 0) = 0
+   OR OBJECT_ID(N'[pmt].[DevelopmentClearUsers]', N'P') IS NULL
+   OR OBJECT_ID(N'[pmt].[RequireDevelopmentSeedRestore]', N'P') IS NULL
+   OR ISNULL(CHARINDEX(N'[Code] <> N''PMT''', OBJECT_DEFINITION(OBJECT_ID(N'[pmt].[DevelopmentClearProjectData]'))), 0) = 0
+   OR ISNULL(CHARINDEX(N'except PMT.', OBJECT_DEFINITION(OBJECT_ID(N'[pmt].[DevelopmentClearProjectData]'))), 0) = 0
+   OR ISNULL(CHARINDEX(N'DELETE FROM [pmt].[UserPermissions]', OBJECT_DEFINITION(OBJECT_ID(N'[pmt].[DevelopmentClearUsers]'))), 0) = 0
+   OR ISNULL(CHARINDEX(N'[ActorUserId] = @AdminUserId', OBJECT_DEFINITION(OBJECT_ID(N'[pmt].[DevelopmentClearUsers]'))), 0) = 0
+   OR ISNULL(CHARINDEX(N'50255', OBJECT_DEFINITION(OBJECT_ID(N'[pmt].[DevelopmentClearUsers]'))), 0) > 0
+   OR ISNULL(CHARINDEX(N'50257', OBJECT_DEFINITION(OBJECT_ID(N'[pmt].[RequireDevelopmentSeedRestore]'))), 0) > 0
 BEGIN
-    THROW 51074, 'The repeatable PMT demo restore or PMTQA cleanup protection could not be verified.', 1;
+    THROW 51074, 'The PMT demo restore or Development reset contract could not be verified.', 1;
 END;
 
 IF OBJECT_ID(N'[pmt].[RemoveAttendance]', N'P') IS NULL
@@ -1347,5 +1539,5 @@ END;
 COMMIT TRANSACTION;
 GO
 
-PRINT N'PMT Database Version 1.23 applied: PMTQA is preserved, the PMT demo is restored, and selected-date attendance plus audited attendance removal are available.';
+PRINT N'PMT Database Version 1.23 applied: PMTQA was preserved during migration, the PMT demo was restored, Development resets were updated, and selected-date attendance plus audited attendance removal are available.';
 GO
