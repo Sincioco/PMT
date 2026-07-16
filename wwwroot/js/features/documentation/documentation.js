@@ -481,15 +481,13 @@ export function createDocumentationFeature({
     document.body.appendChild(modal);
     hideEmptyReadOnlyFields(modal);
     initializeWindowedDialog(modal);
-    modal.querySelectorAll("[data-close]").forEach(button => button.addEventListener("click", () => {
-      modal.close();
-      modal.remove();
-    }));
+    modal.addEventListener("close", () => modal.remove(), { once: true });
+    modal.querySelectorAll("[data-close]").forEach(button => button.addEventListener("click", () => modal.close()));
     modal.addEventListener("click", event => {
       const fullScreenButton = event.target.closest("[data-view-full-screen-readonly-blog]");
       if (fullScreenButton) {
+        modal.dataset.preserveContentRoute = "true";
         modal.close();
-        modal.remove();
         openDocumentationFullScreen(Number(fullScreenButton.dataset.viewFullScreenReadonlyBlog || 0));
         return;
       }
@@ -505,10 +503,8 @@ export function createDocumentationFeature({
 
       const selectedBlog = documentationBlogForCurrentUser(editButton.dataset.editReadonlyBlog);
       modal.close();
-      modal.remove();
       if (selectedBlog) editBlog(selectedBlog);
     });
-    modal.addEventListener("cancel", () => modal.remove());
     modal.showModal();
     normalizeLinksInElement(modal);
     bindDocumentationBodyImageOpen(modal);

@@ -29,7 +29,7 @@ import {
   bindAttachmentPreview,
   showTaskAudit,
   viewWorkItem
-} from "./components/work-items.js?v=20260715-admin-impersonation";
+} from "./components/work-items.js?v=20260716-dialog-route-close";
 import { createApplicationShell } from "./core/application-shell.js?v=release-notes-2026-07-16-day-29-9965d111882d";
 import {
   currentView,
@@ -59,9 +59,9 @@ import {
 } from "./features/about/about.js?v=20260716-db-v122";
 import { createBacklogFeature } from "./features/backlog/backlog.js?v=20260716-rca-one-way";
 import { createBoardFeature } from "./features/board/board.js?v=20260716-developer-board-status";
-import { createBugsFeature } from "./features/bugs/bugs.js?v=20260715-admin-impersonation";
+import { createBugsFeature } from "./features/bugs/bugs.js?v=20260716-dialog-route-close";
 import { createDashboardFeature } from "./features/dashboard/dashboard.js?v=20260715-admin-impersonation";
-import { createDocumentationFeature } from "./features/documentation/documentation.js?v=20260715-admin-impersonation";
+import { createDocumentationFeature } from "./features/documentation/documentation.js?v=20260716-dialog-route-close";
 import {
   createGanttFeature,
   currentSprintForProject,
@@ -72,10 +72,10 @@ import { createProjectsFeature } from "./features/projects/projects.js?v=2026071
 import { createReleaseNotesFeature } from "./features/release-notes/release-notes.js?v=release-notes-2026-07-16-day-29-9965d111882d";
 import { createRoadMapFeature } from "./features/roadmap/roadmap.js?v=20260715-admin-impersonation";
 import { createLogFeature } from "./features/personal-log/log.js?v=20260715-admin-impersonation";
-import { createScrumFeature } from "./features/scrum/scrum.js?v=20260716-scrum-auto-refresh";
+import { createScrumFeature } from "./features/scrum/scrum.js?v=20260716-scrum-attendance-actions";
 import { createSettingsFeature } from "./features/settings/settings.js?v=20260716-pmt-demo-reset";
 import { createSprintsFeature } from "./features/sprints/sprints.js?v=20260715-admin-impersonation";
-import { createTasksFeature } from "./features/tasks/tasks.js?v=20260715-admin-impersonation";
+import { createTasksFeature } from "./features/tasks/tasks.js?v=20260716-dialog-route-close";
 import { createWfhScheduleFeature } from "./features/wfh-schedule/wfh-schedule.js?v=20260715-admin-impersonation";
 import {
   fallbackEnvironments,
@@ -533,6 +533,7 @@ function handleBrowserRouteChange() {
 function handleDeepLinkDialogClose(event) {
   if (handlingBrowserRouteChange) return;
   if (!isRoutedDialog(event.target)) return;
+  if (event.target.dataset.preserveContentRoute === "true") return;
 
   requestAnimationFrame(() => {
     const route = parseRouteFromLocation();
@@ -1952,20 +1953,16 @@ function showReadOnlyDialog(title, html) {
   document.body.appendChild(modal);
   hideEmptyReadOnlyFields(modal);
   initializeWindowedDialog(modal);
-  modal.querySelectorAll("[data-close]").forEach(button => button.addEventListener("click", () => {
-    modal.close();
-    modal.remove();
-  }));
+  modal.addEventListener("close", () => modal.remove(), { once: true });
+  modal.querySelectorAll("[data-close]").forEach(button => button.addEventListener("click", () => modal.close()));
   modal.addEventListener("click", event => {
     const inlineButton = event.target.closest("[data-action='view-task-inline']");
     if (!inlineButton) return;
     const task = taskById(Number(inlineButton.dataset.id));
     updateWorkItemContentUrl(task);
     modal.close();
-    modal.remove();
     viewWorkItem(task, editWorkItem, workItemDialogOptions());
   });
-  modal.addEventListener("cancel", () => modal.remove());
   modal.showModal();
   normalizeLinksInElement(modal);
 }

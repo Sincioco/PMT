@@ -130,12 +130,14 @@ Permission regressions are covered in `tests/js/permissions.test.mjs`.
 ## Scrum attendance and vacation
 
 - Attendance statuses are exactly `Home`, `Office`, `Sick Leave`, `Vacation`, `EL`, and `Other`. `EL` means Emergency Leave in tooltips and accessible descriptions.
-- Check-In records today's status for the current user. On Behalf Of records today's status for another active user and preserves the acting user in the audit columns.
+- The Scrum attendance selector defaults to `Office`. A changed selection is stored in the browser and restored until Reset View or PMT preferences are cleared.
+- Check-In always records the current UTC+8 workday for the signed-in user, even if a client submits another date. On Behalf Of may record a selected date for another active user, defaults to the current UTC+8 workday when no date is supplied, and preserves the acting user in the audit columns.
 - One user/date/status combination is unique. Repeating the same Check-In is idempotent, while a different status on the same date is retained so an Office-to-Sick Leave or Office-to-EL day can show both statuses.
 - Attendance reads require Scrum Read. A user's own Check-In requires Scrum Create, while recording On Behalf Of another user requires Scrum Update. SQL validates the user and status; browser validation does not replace the stored-procedure checks.
+- Removing an explicit attendance avatar hard-deletes exactly that attendance row and writes an audit event. Removing one's own row requires Scrum Create; removing another user's row requires Scrum Update. Cancel closes the avatar menu without changing data.
 - Vacation plans store one inclusive start/end range rather than one attendance row per day. Creating a plan requires Scrum Create. Editing or canceling requires Scrum Update and is always restricted to the plan owner, including for administrators and guessed direct requests.
 - Canceling a vacation sets its cancellation state instead of destroying the row. Canceled plans do not appear on the calendar.
-- The calendar expands active vacation ranges as `Vacation` status for each covered date. It deduplicates the same user/status/date when a planned vacation and explicit Vacation attendance overlap, but preserves different statuses for the same user and date.
+- The calendar expands active vacation ranges as `Vacation` status for each covered date. Removing one of those vacation avatars cancels the owner's entire underlying vacation range; it does not split the range around one day. The calendar deduplicates the same user/status/date when a planned vacation and explicit Vacation attendance overlap, but preserves different statuses for the same user and date.
 - Calendar status sections use the stable order Office, Home, Sick Leave, Vacation, EL, and Other. Empty sections are omitted. A day with only Office attendance remains one undivided section; separators appear only when two or more statuses are present.
 - Title avatars represent today's known attendance. Selecting one updates the persisted Scrum Person filter, and changes made in the Person checklist update the title selection in the same render cycle.
 - Scrum auto-refresh is enabled by default and runs one non-overlapping cycle every five seconds only while Scrum is active. The same persisted overflow toggle controls Table and Calendar views.

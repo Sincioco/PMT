@@ -523,7 +523,10 @@ test("Scrum attendance, calendar, on-behalf, and vacation flows stay synchronize
 
   await page.clock.setFixedTime(new Date("2026-07-15T08:00:00+08:00"));
   await page.addInitScript(() => {
-    localStorage.clear();
+    if (!sessionStorage.getItem("pmt-scrum-attendance-smoke-started")) {
+      localStorage.clear();
+      sessionStorage.setItem("pmt-scrum-attendance-smoke-started", "true");
+    }
     localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-16-day-29");
   });
   await installApiMocks(page, appState, apiCalls);
@@ -545,6 +548,7 @@ test("Scrum attendance, calendar, on-behalf, and vacation flows stay synchronize
 
   const attendanceSelect = page.locator("[data-scrum-attendance-select]");
   await expect(attendanceSelect).toBeVisible();
+  await expect(attendanceSelect).toHaveValue("Office");
   const attendanceLabels = (await attendanceSelect.locator("option").allTextContents()).map(label => label.trim());
   for (const label of ["🏠 Home", "🏢 Office", "🤒 Sick Leave", "☀ Vacation", "⚠ EL", "… Other"]) {
     expect(attendanceLabels).toContain(label);
@@ -608,10 +612,14 @@ test("Scrum attendance, calendar, on-behalf, and vacation flows stay synchronize
   await page.getByRole("button", { name: "Done" }).click();
 
   await attendanceSelect.selectOption("Other");
+  await expect.poll(() => page.evaluate(() => localStorage.getItem("pmt-scrum-attendance-status"))).toBe("Other");
   await page.locator("[data-action='check-in-attendance']").click();
   await expect.poll(() => appState.attendanceEntries.some(item => item.userId === 1
     && item.attendanceDate === smokeToday
     && item.status === "Other")).toBe(true);
+  await expect(scrumTodayStatus(page, 1, "Other")).toBeVisible();
+  await page.reload();
+  await expect(attendanceSelect).toHaveValue("Other");
   await expect(scrumTodayStatus(page, 1, "Other")).toBeVisible();
 
   await page.locator(".page-actions-summary").click();
@@ -650,6 +658,7 @@ test("Scrum attendance, calendar, on-behalf, and vacation flows stay synchronize
   await expect(todayCell).toContainText("Smoke Holiday");
   await expect(todayCell).toContainText("Second Smoke Holiday");
   await expect(todayCell).not.toContainText("Inactive Holiday");
+
   const calendarBox = await calendar.boundingBox();
   const tableBox = await page.locator(".scrum-table").boundingBox();
   const headerAfterCalendar = await scrumHeader.boundingBox();
@@ -664,6 +673,28 @@ test("Scrum attendance, calendar, on-behalf, and vacation flows stay synchronize
   expect(toggleAfterCalendar.x).toBeCloseTo(toggleBeforeCalendar.x, 0);
   expect(toggleAfterCalendar.y).toBeCloseTo(toggleBeforeCalendar.y, 0);
   expect(calendarBox.y + calendarBox.height).toBeLessThanOrEqual(tableBox.y + 1);
+
+  const ownOfficeAttendance = scrumCalendarOccurrenceButton(page, smokeToday, 1, "Office", "attendance");
+  await ownOfficeAttendance.click();
+  let avatarMenu = page.locator("[data-scrum-calendar-avatar-menu]");
+  await expect(avatarMenu).toBeVisible();
+  await expect(avatarMenu.getByRole("menuitem", { name: "Remove" })).toBeEnabled();
+  await expect(avatarMenu.getByRole("menuitem", { name: "Cancel" })).toBeEnabled();
+  await avatarMenu.getByRole("menuitem", { name: "Cancel" }).click();
+  await expect(avatarMenu).toHaveCount(0);
+  expect(appState.attendanceEntries.some(item => item.id === 1)).toBe(true);
+
+  await scrumCalendarOccurrenceButton(page, smokeToday, 3, "Vacation", "vacation").click();
+  avatarMenu = page.locator("[data-scrum-calendar-avatar-menu]");
+  await expect(avatarMenu.getByRole("menuitem", { name: "Remove" })).toBeDisabled();
+  await avatarMenu.getByRole("menuitem", { name: "Cancel" }).click();
+  await expect(avatarMenu).toHaveCount(0);
+
+  await ownOfficeAttendance.click();
+  avatarMenu = page.locator("[data-scrum-calendar-avatar-menu]");
+  await avatarMenu.getByRole("menuitem", { name: "Remove" }).click();
+  await expect.poll(() => appState.attendanceEntries.some(item => item.id === 1)).toBe(false);
+  await expect(scrumCalendarOccurrenceButton(page, smokeToday, 1, "Office", "attendance")).toHaveCount(0);
 
   const monthSelect = page.locator("[data-scrum-calendar-month]");
   const startingMonth = await monthSelect.inputValue();
@@ -689,16 +720,18 @@ test("Scrum attendance, calendar, on-behalf, and vacation flows stay synchronize
   await expect(onBehalfDialog.getByRole("heading", { name: "On Behalf Of" })).toBeVisible();
   await expectDialogLabelledByOwnHeading(onBehalfDialog, "On Behalf Of");
   await expect(onBehalfDialog.getByLabel("Person", { exact: true })).toBeVisible();
+  await expect(onBehalfDialog.getByLabel("Date", { exact: true })).toHaveValue(smokeToday);
   await expect(onBehalfDialog.getByLabel("Attendance", { exact: true })).toBeVisible();
   await onBehalfDialog.getByLabel("Person", { exact: true }).selectOption("3");
+  await onBehalfDialog.getByLabel("Date", { exact: true }).fill("2026-07-14");
   await onBehalfDialog.getByLabel("Attendance", { exact: true }).selectOption("EL");
   await onBehalfDialog.locator("button[type='submit']").click();
   await expect.poll(() => appState.attendanceEntries.some(item => item.userId === 3
-    && item.attendanceDate === smokeToday
+    && item.attendanceDate === "2026-07-14"
     && item.status === "EL"
     && item.recordedByUserId === 1)).toBe(true);
-  await expect(scrumTodayStatus(page, 3, "EL")).toBeVisible();
-  await expect(scrumTodayStatus(page, 3, "EL")).toHaveAttribute("title", /Emergency Leave/);
+  await expect(calendar.locator("[data-scrum-calendar-day='2026-07-14']")
+    .locator("[data-attendance-status='EL'] [data-scrum-calendar-user='3']")).toBeVisible();
 
   await clickPageAction(page, "open-scrum-vacation");
   const vacationDialog = page.locator("[data-scrum-vacation-dialog]");
@@ -737,12 +770,11 @@ test("Scrum attendance, calendar, on-behalf, and vacation flows stay synchronize
     await expect(scrumCalendarVacationAvatar(page, `2026-08-${day}`, 1)).toBeVisible();
   }
 
-  await clickPageAction(page, "open-scrum-vacation");
-  await vacationDialog.locator("[data-cancel-scrum-vacation]").click();
-  await page.getByRole("button", { name: "Continue" }).click();
+  await scrumCalendarOccurrenceButton(page, "2026-08-11", 1, "Vacation", "vacation").click();
+  avatarMenu = page.locator("[data-scrum-calendar-avatar-menu]");
+  await expect(avatarMenu.getByRole("menuitem", { name: "Remove" })).toBeEnabled();
+  await avatarMenu.getByRole("menuitem", { name: "Remove" }).click();
   await expect.poll(() => appState.vacationPlans.some(item => item.userId === 1 && item.isCancelled)).toBe(true);
-  await expect(vacationDialog.locator("[data-edit-scrum-vacation]")).toHaveCount(0);
-  await vacationDialog.locator("[data-close-scrum-vacation]").last().click();
   for (const day of [11, 12, 13, 14]) {
     await expect(scrumCalendarVacationAvatar(page, `2026-08-${day}`, 1)).toHaveCount(0);
   }
@@ -753,6 +785,10 @@ test("Scrum attendance, calendar, on-behalf, and vacation flows stay synchronize
   await expect(calendar).toHaveCount(0);
   await expect(scrumTablePanel).toBeVisible();
   await expect.poll(() => page.evaluate(() => localStorage.getItem("pmt-scrum-calendar-visible"))).toBe("false");
+
+  await clickPageAction(page, "reset-scrum-view");
+  await expect(attendanceSelect).toHaveValue("Office");
+  await expect.poll(() => page.evaluate(() => localStorage.getItem("pmt-scrum-attendance-status"))).toBeNull();
 
   expect(browserErrors).toEqual([]);
 });
@@ -823,6 +859,7 @@ test("Scrum view toggle matches Documentation and crowded attendance avatars fit
       buttonGap: buttonStyle.columnGap,
       headerCenter: headerBox.left + headerBox.width / 2,
       iconFontSize: iconStyle.fontSize,
+      titleTop: titleBox.top,
       titleRight: titleBox.right,
       toggleCenter: toggleBox.left + toggleBox.width / 2,
       toggleLeft: toggleBox.left,
@@ -839,6 +876,10 @@ test("Scrum view toggle matches Documentation and crowded attendance avatars fit
   expect(scrumLayout.avatarBoxes.at(-1).right).toBeLessThanOrEqual(scrumLayout.toggleLeft);
   expect(scrumLayout.toggleRight).toBeLessThanOrEqual(scrumLayout.actionLeft);
   expect(scrumLayout.avatarBoxes.every((box, index) => index === 0 || scrumLayout.avatarBoxes[index - 1].right <= box.left)).toBe(true);
+
+  await openNavView(page, "Tasks", "Dev Tasks");
+  const devTaskTitleTop = await page.locator(".tasks-screen .section-head h1").evaluate(title => title.getBoundingClientRect().top);
+  expect(scrumLayout.titleTop).toBeCloseTo(devTaskTitleTop, 0);
 
   await openNavView(page, "Documentation", "Documentation");
   const documentationLayout = await page.locator(".documentation-screen .section-head").evaluate(header => {
@@ -1434,9 +1475,11 @@ test("QA can edit only owned Scrum rows and private Log stays owner-only", async
   await otherRow.click();
   const readOnlyDialog = page.locator("dialog.detail-dialog");
   await expect(readOnlyDialog).toBeVisible();
+  await expect(page).toHaveURL(/#\/scrum\/1$/);
   await expect(readOnlyDialog).toContainText("Administrator Scrum entry");
   await expect(page.locator("#editorDialog")).not.toBeVisible();
   await readOnlyDialog.getByRole("button", { name: "Close", exact: true }).click();
+  await expect(page).toHaveURL(/#\/scrum$/);
 
   await openNavView(page, "Log", "Log");
   await expect(page.locator(".log-table tbody")).toContainText("QA private note");
@@ -1540,20 +1583,23 @@ async function installApiMocks(page, appState, apiCalls) {
     const input = requestJson(route);
     const userId = Number(input.userId) || 0;
     const status = String(input.status || "");
+    const attendanceDate = userId === currentUserId
+      ? smokeToday
+      : String(input.attendanceDate || smokeToday);
     if (!appState.users.some(user => user.id === userId) || !attendanceStatuses.includes(status)) {
       await route.fulfill(jsonResponse({ error: "Invalid attendance." }, 400));
       return;
     }
 
     let entry = attendanceEntries.find(item => item.userId === userId
-      && item.attendanceDate === smokeToday
+      && item.attendanceDate === attendanceDate
       && item.status === status);
     const mutationTimestamp = `${smokeToday}T00:00:${String(nextAttendanceMutationSecond++).padStart(2, "0")}Z`;
     if (!entry) {
       entry = {
         id: nextAttendanceId++,
         userId,
-        attendanceDate: smokeToday,
+        attendanceDate,
         status,
         recordedByUserId: currentUserId,
         createdAt: mutationTimestamp,
@@ -1565,6 +1611,18 @@ async function installApiMocks(page, appState, apiCalls) {
       entry.updatedAt = mutationTimestamp;
     }
     await route.fulfill(jsonResponse({ id: entry.id }));
+  });
+
+  await page.route(/\/api\/attendance\/\d+$/, async route => {
+    const id = Number(route.request().url().match(/\/api\/attendance\/(\d+)$/)?.[1] || 0);
+    const index = attendanceEntries.findIndex(item => item.id === id);
+    if (index < 0) {
+      await route.fulfill(jsonResponse({ error: "Attendance was not found." }, 404));
+      return;
+    }
+
+    attendanceEntries.splice(index, 1);
+    await route.fulfill({ status: 204, body: "" });
   });
 
   await page.route("**/api/vacations", async route => {
@@ -1826,6 +1884,14 @@ function scrumTodayStatus(page, userId, status) {
 function scrumCalendarVacationAvatar(page, day, userId) {
   return page.locator(
     `[data-scrum-calendar-day='${day}'] [data-attendance-status='Vacation'] [data-scrum-calendar-user='${userId}']`
+  );
+}
+
+function scrumCalendarOccurrenceButton(page, day, userId, status, source) {
+  return page.locator(
+    `[data-scrum-calendar-day='${day}'] [data-attendance-status='${status}'] `
+    + `[data-action='open-scrum-calendar-avatar-menu'][data-scrum-calendar-user-id='${userId}']`
+    + `[data-scrum-calendar-source='${source}']`
   );
 }
 

@@ -49,9 +49,6 @@ test("private document owner can view, edit, and delete their document", async (
   await expect(readonlyDialog.getByRole("button", { name: "Edit" })).toBeEnabled();
   await readonlyDialog.locator("[data-close]").last().click();
   await expect(readonlyDialog).toHaveCount(0);
-  await page.evaluate(() => {
-    window.location.hash = "#/documentation";
-  });
   await expect(page).toHaveURL(/#\/documentation$/);
 
   const ownerCard = documentCard(page, ownerPrivateTitle);
@@ -77,6 +74,32 @@ test("private document owner can view, edit, and delete their document", async (
     { method: "PUT", id: 102 },
     { method: "DELETE", id: 102 }
   ]);
+});
+
+test("documentation item route follows read-only dialog close behavior", async ({ page }) => {
+  const calls = [];
+  await prepareDocumentationPage(page, 2, calls);
+  await loginToDocumentation(page, "Owner");
+
+  await page.evaluate(id => {
+    window.location.hash = `#/documentation/${id}`;
+  }, 102);
+  const readonlyDialog = page.locator("dialog.documentation-readonly-dialog");
+  await expect(readonlyDialog).toBeVisible();
+
+  await page.keyboard.press("Escape");
+  await expect(readonlyDialog).toHaveCount(0);
+  await expect(page).toHaveURL(/#\/documentation$/);
+
+  await page.evaluate(id => {
+    window.location.hash = `#/documentation/${id}`;
+  }, 102);
+  await expect(readonlyDialog).toBeVisible();
+  await readonlyDialog.getByRole("button", { name: "View Full-Screen" }).click();
+
+  await expect(readonlyDialog).toHaveCount(0);
+  await expect(page).toHaveURL(/#\/documentation\/102$/);
+  expect(calls).toEqual([]);
 });
 
 async function prepareDocumentationPage(page, currentUserId, calls) {

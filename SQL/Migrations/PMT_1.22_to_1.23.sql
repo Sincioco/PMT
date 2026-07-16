@@ -7,6 +7,8 @@
     - Restores the original SQL-seeded PMT demo Project.
     - Keeps PMT and PMTQA safe from broad Development cleanup.
     - Makes future Clear PMT Demo -> Restore PMT Seed Data cycles repeatable.
+    - Lets On Behalf Of attendance use a selected date and supports audited
+      removal of explicit attendance calendar entries.
 
     Run this file once with SQLCMD from the SQL/Migrations directory.
     Do not run SQL/03_SeedData.sql or Restore Initial Seed Data in Production.
@@ -35,8 +37,10 @@ IF SCHEMA_ID(N'pmt') IS NULL
    OR OBJECT_ID(N'[pmt].[Users]', N'U') IS NULL
    OR OBJECT_ID(N'[pmt].[Sprints]', N'U') IS NULL
    OR OBJECT_ID(N'[pmt].[WorkTasks]', N'U') IS NULL
+   OR OBJECT_ID(N'[pmt].[AttendanceEntries]', N'U') IS NULL
    OR OBJECT_ID(N'[pmt].[SynchronizeProjectCode]', N'P') IS NULL
    OR OBJECT_ID(N'[pmt].[WriteAudit]', N'P') IS NULL
+   OR OBJECT_ID(N'[pmt].[RecordAttendance]', N'P') IS NULL
    OR OBJECT_ID(N'[pmt].[LockBlogWrites]', N'P') IS NULL
    OR OBJECT_ID(N'[pmt].[LockWorkTaskWrites]', N'P') IS NULL
    OR OBJECT_ID(N'[pmt].[LockSprintWrites]', N'P') IS NULL
@@ -148,6 +152,177 @@ WHERE EXISTS
     FROM [pmt].[Users] AS [Existing]
     WHERE LOWER(LTRIM(RTRIM([Existing].[Email]))) = LOWER([Missing].[Email])
 );
+GO
+
+CREATE OR ALTER PROCEDURE [pmt].[RecordAttendance]
+    @AttendanceEntryId INT OUTPUT,
+    @UserId INT,
+    @Status NVARCHAR(20),
+    @CurrentUserId INT,
+    @AttendanceDate DATE = NULL
+AS
+BEGIN
+    SET NOCOUNT ON;
+    SET XACT_ABORT ON;
+
+    SET @Status = CASE LOWER(LTRIM(RTRIM(ISNULL(@Status, N''))))
+        WHEN N'home' THEN N'Home'
+        WHEN N'office' THEN N'Office'
+        WHEN N'sick leave' THEN N'Sick Leave'
+        WHEN N'vacation' THEN N'Vacation'
+        WHEN N'el' THEN N'EL'
+        WHEN N'other' THEN N'Other'
+        ELSE NULL
+    END;
+
+    IF @Status IS NULL
+    BEGIN
+        THROW 50272, 'Attendance must be Home, Office, Sick Leave, Vacation, EL, or Other.', 1;
+    END;
+
+    IF NOT EXISTS
+    (
+        SELECT 1
+        FROM [pmt].[Users]
+        WHERE [UserId] = @UserId
+          AND [IsActive] = 1
+    )
+    BEGIN
+        THROW 50273, 'The attendance user was not found or is inactive.', 1;
+    END;
+
+    DECLARE @RequiredRight NVARCHAR(20) = CASE WHEN @UserId = @CurrentUserId THEN N'Create' ELSE N'Update' END;
+    EXEC [pmt].[RequirePermission] @CurrentUserId, N'Scrum', @RequiredRight;
+
+    -- BDO and the PMT team use UTC+8. A user's own Check-In always records
+    -- the current local workday. Only On Behalf Of may select another date.
+    DECLARE @LocalToday DATE = CONVERT(DATE, DATEADD(HOUR, 8, SYSUTCDATETIME()));
+    SET @AttendanceDate = CASE
+        WHEN @UserId = @CurrentUserId THEN @LocalToday
+        ELSE ISNULL(@AttendanceDate, @LocalToday)
+    END;
+
+    -- Timestamps remain UTC in the normal audit columns.
+    DECLARE @Now DATETIME2(0) = SYSUTCDATETIME();
+
+    BEGIN TRY
+        BEGIN TRANSACTION;
+
+        SELECT @AttendanceEntryId = [AttendanceEntryId]
+        FROM [pmt].[AttendanceEntries] WITH (UPDLOCK, HOLDLOCK)
+        WHERE [UserId] = @UserId
+          AND [AttendanceDate] = @AttendanceDate
+          AND [Status] = @Status;
+
+        IF ISNULL(@AttendanceEntryId, 0) = 0
+        BEGIN
+            INSERT INTO [pmt].[AttendanceEntries]
+            (
+                [UserId],
+                [AttendanceDate],
+                [Status],
+                [CreatedByUserId],
+                [CreatedAt],
+                [UpdatedAt]
+            )
+            VALUES
+            (
+                @UserId,
+                @AttendanceDate,
+                @Status,
+                @CurrentUserId,
+                @Now,
+                @Now
+            );
+
+            SET @AttendanceEntryId = SCOPE_IDENTITY();
+        END
+        ELSE
+        BEGIN
+            UPDATE [pmt].[AttendanceEntries]
+            SET
+                [UpdatedByUserId] = @CurrentUserId,
+                [UpdatedAt] = @Now
+            WHERE [AttendanceEntryId] = @AttendanceEntryId;
+        END;
+
+        DECLARE @AuditAction NVARCHAR(80) = CASE
+            WHEN @UserId = @CurrentUserId THEN N'Checked In'
+            ELSE N'Recorded On Behalf'
+        END;
+        DECLARE @AuditDetails NVARCHAR(400) =
+            N'Attendance recorded as ' + @Status
+            + N' for ' + CONVERT(NVARCHAR(10), @AttendanceDate, 23)
+            + N' for user #' + CONVERT(NVARCHAR(20), @UserId) + N'.';
+
+        EXEC [pmt].[WriteAudit]
+            N'Attendance',
+            @AttendanceEntryId,
+            @AuditAction,
+            @AuditDetails,
+            @CurrentUserId;
+
+        COMMIT TRANSACTION;
+    END TRY
+    BEGIN CATCH
+        IF XACT_STATE() <> 0 ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH;
+END;
+GO
+
+CREATE OR ALTER PROCEDURE [pmt].[RemoveAttendance]
+    @AttendanceEntryId INT,
+    @CurrentUserId INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    SET XACT_ABORT ON;
+
+    DECLARE @UserId INT;
+    DECLARE @AttendanceDate DATE;
+    DECLARE @Status NVARCHAR(20);
+
+    BEGIN TRY
+        BEGIN TRANSACTION;
+
+        SELECT
+            @UserId = [UserId],
+            @AttendanceDate = [AttendanceDate],
+            @Status = [Status]
+        FROM [pmt].[AttendanceEntries] WITH (UPDLOCK, HOLDLOCK)
+        WHERE [AttendanceEntryId] = @AttendanceEntryId;
+
+        IF @UserId IS NULL
+        BEGIN
+            THROW 50278, 'The attendance entry was not found.', 1;
+        END;
+
+        DECLARE @RequiredRight NVARCHAR(20) = CASE WHEN @UserId = @CurrentUserId THEN N'Create' ELSE N'Update' END;
+        EXEC [pmt].[RequirePermission] @CurrentUserId, N'Scrum', @RequiredRight;
+
+        DELETE FROM [pmt].[AttendanceEntries]
+        WHERE [AttendanceEntryId] = @AttendanceEntryId;
+
+        DECLARE @AuditDetails NVARCHAR(400) =
+            N'Attendance removed for ' + CONVERT(NVARCHAR(10), @AttendanceDate, 23)
+            + N' as ' + @Status
+            + N' for user #' + CONVERT(NVARCHAR(20), @UserId) + N'.';
+
+        EXEC [pmt].[WriteAudit]
+            N'Attendance',
+            @AttendanceEntryId,
+            N'Removed',
+            @AuditDetails,
+            @CurrentUserId;
+
+        COMMIT TRANSACTION;
+    END TRY
+    BEGIN CATCH
+        IF XACT_STATE() <> 0 ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH;
+END;
 GO
 
 CREATE OR ALTER PROCEDURE [pmt].[EnsurePmtDemoUsers]
@@ -1138,6 +1313,21 @@ BEGIN
     THROW 51074, 'The repeatable PMT demo restore or PMTQA cleanup protection could not be verified.', 1;
 END;
 
+IF OBJECT_ID(N'[pmt].[RemoveAttendance]', N'P') IS NULL
+   OR NOT EXISTS
+      (
+          SELECT 1
+          FROM sys.parameters
+          WHERE [object_id] = OBJECT_ID(N'[pmt].[RecordAttendance]')
+            AND [name] = N'@AttendanceDate'
+            AND TYPE_NAME([user_type_id]) = N'date'
+      )
+   OR ISNULL(CHARINDEX(N'WHEN @UserId = @CurrentUserId THEN @LocalToday', OBJECT_DEFINITION(OBJECT_ID(N'[pmt].[RecordAttendance]'))), 0) = 0
+   OR ISNULL(CHARINDEX(N'DELETE FROM [pmt].[AttendanceEntries]', OBJECT_DEFINITION(OBJECT_ID(N'[pmt].[RemoveAttendance]'))), 0) = 0
+BEGIN
+    THROW 51076, 'The selected-date or attendance-removal contract could not be verified.', 1;
+END;
+
 EXEC sys.sp_updateextendedproperty
     @name = N'PMT_DatabaseVersion',
     @value = N'1.23';
@@ -1157,5 +1347,5 @@ END;
 COMMIT TRANSACTION;
 GO
 
-PRINT N'PMT Database Version 1.23 applied: the deployed PMT Project is preserved as PMTQA, the original PMT demo is restored, and repeatable demo resets are protected.';
+PRINT N'PMT Database Version 1.23 applied: PMTQA is preserved, the PMT demo is restored, and selected-date attendance plus audited attendance removal are available.';
 GO

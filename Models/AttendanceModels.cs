@@ -32,6 +32,7 @@ public sealed class AttendanceInput
 {
     public int UserId { get; set; }
     public string Status { get; set; } = "";
+    public DateTime? AttendanceDate { get; set; }
 }
 
 public sealed class VacationInput

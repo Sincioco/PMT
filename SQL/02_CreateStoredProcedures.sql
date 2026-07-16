@@ -4183,7 +4183,8 @@ CREATE OR ALTER PROCEDURE [pmt].[RecordAttendance]
     @AttendanceEntryId INT OUTPUT,
     @UserId INT,
     @Status NVARCHAR(20),
-    @CurrentUserId INT
+    @CurrentUserId INT,
+    @AttendanceDate DATE = NULL
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -4218,9 +4219,15 @@ BEGIN
     DECLARE @RequiredRight NVARCHAR(20) = CASE WHEN @UserId = @CurrentUserId THEN N'Create' ELSE N'Update' END;
     EXEC [pmt].[RequirePermission] @CurrentUserId, N'Scrum', @RequiredRight;
 
-    -- BDO and the PMT team use UTC+8. Attendance is a local workday value;
-    -- timestamps remain UTC in the normal audit columns.
-    DECLARE @AttendanceDate DATE = CONVERT(DATE, DATEADD(HOUR, 8, SYSUTCDATETIME()));
+    -- BDO and the PMT team use UTC+8. A user's own Check-In always records
+    -- the current local workday. Only On Behalf Of may select another date.
+    DECLARE @LocalToday DATE = CONVERT(DATE, DATEADD(HOUR, 8, SYSUTCDATETIME()));
+    SET @AttendanceDate = CASE
+        WHEN @UserId = @CurrentUserId THEN @LocalToday
+        ELSE ISNULL(@AttendanceDate, @LocalToday)
+    END;
+
+    -- Timestamps remain UTC in the normal audit columns.
     DECLARE @Now DATETIME2(0) = SYSUTCDATETIME();
 
     BEGIN TRY
@@ -4277,6 +4284,60 @@ BEGIN
             N'Attendance',
             @AttendanceEntryId,
             @AuditAction,
+            @AuditDetails,
+            @CurrentUserId;
+
+        COMMIT TRANSACTION;
+    END TRY
+    BEGIN CATCH
+        IF XACT_STATE() <> 0 ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH;
+END;
+GO
+
+CREATE OR ALTER PROCEDURE [pmt].[RemoveAttendance]
+    @AttendanceEntryId INT,
+    @CurrentUserId INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    SET XACT_ABORT ON;
+
+    DECLARE @UserId INT;
+    DECLARE @AttendanceDate DATE;
+    DECLARE @Status NVARCHAR(20);
+
+    BEGIN TRY
+        BEGIN TRANSACTION;
+
+        SELECT
+            @UserId = [UserId],
+            @AttendanceDate = [AttendanceDate],
+            @Status = [Status]
+        FROM [pmt].[AttendanceEntries] WITH (UPDLOCK, HOLDLOCK)
+        WHERE [AttendanceEntryId] = @AttendanceEntryId;
+
+        IF @UserId IS NULL
+        BEGIN
+            THROW 50278, 'The attendance entry was not found.', 1;
+        END;
+
+        DECLARE @RequiredRight NVARCHAR(20) = CASE WHEN @UserId = @CurrentUserId THEN N'Create' ELSE N'Update' END;
+        EXEC [pmt].[RequirePermission] @CurrentUserId, N'Scrum', @RequiredRight;
+
+        DELETE FROM [pmt].[AttendanceEntries]
+        WHERE [AttendanceEntryId] = @AttendanceEntryId;
+
+        DECLARE @AuditDetails NVARCHAR(400) =
+            N'Attendance removed for ' + CONVERT(NVARCHAR(10), @AttendanceDate, 23)
+            + N' as ' + @Status
+            + N' for user #' + CONVERT(NVARCHAR(20), @UserId) + N'.';
+
+        EXEC [pmt].[WriteAudit]
+            N'Attendance',
+            @AttendanceEntryId,
+            N'Removed',
             @AuditDetails,
             @CurrentUserId;
 

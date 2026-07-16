@@ -4,7 +4,7 @@ As of July 16, 2026, PMT Database Version 1.22 and its matching application rele
 
 Future migrations start from Version 1.22 or the immediately preceding deployed version. New compatibility work for versions before 1.22 is not required. Keep released migrations, combined runners, and deployment runbooks through Version 1.22 under `Migration History/` as immutable release artifacts.
 
-The deployed baseline is Version 1.22. The current source schema and fresh rebuild scripts represent Version 1.23, with `PMT_1.22_to_1.23.sql` as the active Production upgrade. `PMT_SecurityRoleDefaultsVersion` remains `1.10`. Do not manually edit either version property.
+The deployed baseline is Version 1.22. The current source schema and fresh rebuild scripts represent Version 1.23, with `PMT_1.22_to_1.23.sql` as the active Production upgrade. Version 1.23 also adds selected-date On Behalf Of attendance and audited removal of explicit attendance entries. `PMT_SecurityRoleDefaultsVersion` remains `1.10`. Do not manually edit either version property.
 
 ## Completed Version 1.15 to 1.22 Deployment
 
@@ -16,7 +16,7 @@ All completed migration scripts and HTML runbooks live under `Migration History/
 
 ## Active Forward Migration
 
-Run `PMT_1.22_to_1.23.sql` once from this directory. It atomically renames the deployed `PMT` Project to `PMTQA`, recreates missing demo identities with non-public passwords, restores the original SQL-seeded `PMT` demo, adapts its Bugs to active BDO lookup values, and protects both Projects from broad Development cleanup. Because this release contains one version step, the canonical migration is also the operator's one-file runner; no `_All.sql` wrapper is needed.
+Run `PMT_1.22_to_1.23.sql` once from this directory. It atomically renames the deployed `PMT` Project to `PMTQA`, recreates missing demo identities with non-public passwords, restores the original SQL-seeded `PMT` demo, adapts its Bugs to active BDO lookup values, protects both Projects from broad Development cleanup, updates `[pmt].[RecordAttendance]` for selected on-behalf dates, and adds audited `[pmt].[RemoveAttendance]`. Because this release contains one version step, the canonical migration is also the operator's one-file runner; no `_All.sql` wrapper is needed.
 
 Do not run `SQL/03_SeedData.sql` or **Restore Initial Seed Data** in Production. For later demos, use **Clear PMT Demo** followed by **Restore PMT Seed Data**; `PMTQA` and BDO users remain intact.
 

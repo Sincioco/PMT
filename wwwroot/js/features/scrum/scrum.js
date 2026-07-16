@@ -21,6 +21,7 @@ import {
   readBooleanPreference,
   readJsonPreference,
   readNumberPreference,
+  readPreference,
   removePreference,
   writeJsonPreference,
   writePreference
@@ -69,6 +70,7 @@ const scrumPrompts = [
 const sharedScrumLogType = "Scrum";
 const scrumTableColumnPreferenceKey = "pmt-scrum-table-columns";
 const scrumCalendarVisiblePreferenceKey = "pmt-scrum-calendar-visible";
+const scrumAttendanceStatusPreferenceKey = "pmt-scrum-attendance-status";
 export const SCRUM_AUTO_REFRESH_INTERVAL_MS = 5000;
 const scrumAttendanceCalendarOrder = ["Office", "Home", "Sick Leave", "Vacation", "EL", "Other"];
 const scrumWeekdayLabels = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -82,6 +84,10 @@ const scrumAttendanceStatusDefinitions = Object.freeze([
   Object.freeze({ value: "Other", icon: "&#8230;", title: "Other" })
 ]);
 export const SCRUM_ATTENDANCE_STATUSES = Object.freeze(scrumAttendanceStatusDefinitions.map(item => item.value));
+
+function normalizedScrumAttendanceStatus(status) {
+  return SCRUM_ATTENDANCE_STATUSES.includes(status) ? status : "Office";
+}
 
 export function scrumAutoRefreshCanRun({ active, blocked, enabled, inFlight, loading } = {}) {
   return Boolean(active && enabled && !blocked && !inFlight && !loading);
@@ -177,6 +183,7 @@ export function createScrumFeature({
   let scrumColumnPrefs = normalizeScrumColumnPrefs(readJsonPreference(scrumTableColumnPreferenceKey, {}));
   let scrumCalendarVisible = readBooleanPreference(scrumCalendarVisiblePreferenceKey, false);
   let scrumAutoRefreshEnabled = readBooleanPreference(preferenceKeys.scrumAutoRefresh, true);
+  let scrumAttendanceStatus = normalizedScrumAttendanceStatus(readPreference(scrumAttendanceStatusPreferenceKey, "Office"));
   let scrumCalendarMonth = scrumMonthStart(new Date());
   const scrumAttendanceMonthCache = new Map();
   let scrumAttendanceCacheUserId = Number(currentUser()?.id || 0);
@@ -188,6 +195,7 @@ export function createScrumFeature({
   let scrumAutoRefreshTimer = 0;
   let scrumAutoRefreshInFlight = false;
   let scrumIsActive = false;
+  let scrumCalendarAvatarMenu = null;
   const scrumTableMode = createWorkItemTableMode({
     action: "toggle-scrum-table-edit-mode",
     itemLabel: "Scrum"
@@ -225,7 +233,7 @@ export function createScrumFeature({
         ${sectionHead("Scrum", `
           ${scrumTodayAttendanceHtml(todayOccurrences)}
           ${scrumViewToggleHtml()}
-          ${scrumAttendanceCheckInHtml(todayOccurrences, canCreateAttendance)}
+          ${scrumAttendanceCheckInHtml(canCreateAttendance)}
           <button class="primary text-icon-button" type="button" data-action="new-log" title="New Scrum" aria-label="New Scrum">${buttonContent("&#10010;", "New Scrum")}</button>
           <button class="secondary text-icon-button" type="button" data-action="open-scrum-filters" title="Filters" aria-label="Filters" aria-haspopup="dialog">${buttonContent(funnelIconHtml(), "Filters")}</button>
           ${pageActionsMenuHtml([
@@ -307,6 +315,7 @@ export function createScrumFeature({
 
   function scrumAutoRefreshIsBlocked() {
     if (scrumColumnDrag) return true;
+    if (scrumCalendarAvatarMenu) return true;
     if (document.querySelector("#editorDialog[open], dialog.detail-dialog[open], [data-scrum-filter-dialog][open], [data-scrum-on-behalf-dialog][open], [data-scrum-vacation-dialog][open]")) return true;
     if (app.querySelector("[data-scrum-attendance-dirty='true']")) return true;
     const activeElement = document.activeElement;
@@ -517,13 +526,11 @@ export function createScrumFeature({
     `;
   }
 
-  function scrumAttendanceCheckInHtml(todayOccurrences, canCreateAttendance) {
-    const user = currentUser();
-    const currentStatus = scrumLatestTodayAttendanceByUser(todayOccurrences).get(Number(user.id || 0))?.status || "";
+  function scrumAttendanceCheckInHtml(canCreateAttendance) {
     return `
       <div class="scrum-attendance-check-in" data-scrum-attendance-control>
         <select data-scrum-attendance-select aria-label="Attendance" title="Attendance" ${canCreateAttendance ? "" : "disabled"}>
-          ${scrumAttendanceOptionsHtml(currentStatus)}
+          ${scrumAttendanceOptionsHtml(scrumAttendanceStatus)}
         </select>
         <button class="primary text-icon-button" type="button" data-action="check-in-attendance" title="Check-In" aria-label="Check-In" ${canCreateAttendance ? "" : "disabled"}>${buttonContent("&#10003;", "Check-In")}</button>
       </div>
@@ -673,7 +680,22 @@ export function createScrumFeature({
             const user = userById(occurrence.userId);
             if (!user) return "";
             const userName = scrumAttendanceUserName(user);
-            return `<img class="scrum-calendar-avatar" data-scrum-calendar-user="${user.id}" src="${escapeAttr(user.avatarUrl || "/assets/avatar-default.svg")}" title="${escapeAttr(`${userName} - ${definition.title}`)}" alt="${escapeAttr(userName)}">`;
+            const label = `${userName} - ${definition.title}`;
+            return `
+              <button
+                type="button"
+                class="scrum-calendar-avatar-button"
+                data-action="open-scrum-calendar-avatar-menu"
+                data-scrum-calendar-source="${escapeAttr(occurrence.source)}"
+                data-scrum-calendar-source-id="${occurrence.sourceId}"
+                data-scrum-calendar-user-id="${user.id}"
+                title="${escapeAttr(label)}"
+                aria-label="${escapeAttr(`${label} actions`)}"
+                aria-haspopup="menu"
+                aria-expanded="false">
+                <img class="scrum-calendar-avatar" data-scrum-calendar-user="${user.id}" src="${escapeAttr(user.avatarUrl || "/assets/avatar-default.svg")}" alt="">
+              </button>
+            `;
           }).join("")}
         </div>
       </div>
@@ -1171,6 +1193,9 @@ export function createScrumFeature({
   function handleFilterChange(eventOrTarget) {
     const target = eventOrTarget?.target || eventOrTarget;
     if (target?.matches?.("[data-scrum-attendance-select]")) {
+      scrumAttendanceStatus = normalizedScrumAttendanceStatus(target.value);
+      target.value = scrumAttendanceStatus;
+      writePreference(scrumAttendanceStatusPreferenceKey, scrumAttendanceStatus);
       target.dataset.scrumAttendanceDirty = "true";
       return true;
     }
@@ -1226,6 +1251,10 @@ export function createScrumFeature({
   async function handleAction(action, id, element) {
     const log = id ? state.devLogs.find(item => item.id === id && isSharedScrumLog(item)) : null;
 
+    if (action === "open-scrum-calendar-avatar-menu") {
+      openScrumCalendarAvatarMenu(element);
+      return true;
+    }
     if (action === "filter-scrum-person") {
       scrumFilters.personIds = [String(id)];
       writeJsonPreference(preferenceKeys.scrumFilters, scrumFilters);
@@ -1363,6 +1392,122 @@ export function createScrumFeature({
     }
   }
 
+  function openScrumCalendarAvatarMenu(button) {
+    const source = button?.dataset?.scrumCalendarSource || "";
+    const sourceId = Number(button?.dataset?.scrumCalendarSourceId || 0);
+    const userId = Number(button?.dataset?.scrumCalendarUserId || 0);
+    if (!button || !["attendance", "vacation"].includes(source) || !sourceId || !userId) return;
+
+    closeScrumCalendarAvatarMenu();
+
+    const canRemove = canRemoveScrumCalendarOccurrence(source, userId);
+    const menu = document.createElement("div");
+    menu.className = "scrum-calendar-avatar-menu dropdown-menu";
+    menu.dataset.scrumCalendarAvatarMenu = "true";
+    menu.setAttribute("role", "menu");
+    menu.setAttribute("aria-label", `${button.title || "Attendance"} menu`);
+    menu.innerHTML = `
+      <button type="button" class="dropdown-menu-item" data-scrum-calendar-remove role="menuitem" ${canRemove ? "" : "disabled"}>
+        <span class="dropdown-menu-icon" aria-hidden="true">&#128465;</span>
+        <span class="dropdown-menu-label">Remove</span>
+        <span class="dropdown-menu-check" aria-hidden="true"></span>
+      </button>
+      <button type="button" class="dropdown-menu-item" data-scrum-calendar-cancel role="menuitem">
+        <span class="dropdown-menu-icon" aria-hidden="true">&#10005;</span>
+        <span class="dropdown-menu-label">Cancel</span>
+        <span class="dropdown-menu-check" aria-hidden="true"></span>
+      </button>
+    `;
+    document.body.appendChild(menu);
+    button.setAttribute("aria-expanded", "true");
+
+    const closeOnOutsidePointer = event => {
+      if (!menu.contains(event.target) && !button.contains(event.target)) closeScrumCalendarAvatarMenu();
+    };
+    const closeOnEscape = event => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      closeScrumCalendarAvatarMenu();
+      button.focus({ preventScroll: true });
+    };
+    scrumCalendarAvatarMenu = {
+      anchor: button,
+      closeOnEscape,
+      closeOnOutsidePointer,
+      menu
+    };
+    document.addEventListener("pointerdown", closeOnOutsidePointer);
+    document.addEventListener("keydown", closeOnEscape);
+
+    positionScrumCalendarAvatarMenu(menu, button);
+    menu.addEventListener("click", async event => {
+      const cancelButton = event.target.closest("[data-scrum-calendar-cancel]");
+      if (cancelButton) {
+        closeScrumCalendarAvatarMenu();
+        button.focus({ preventScroll: true });
+        return;
+      }
+
+      const removeButton = event.target.closest("[data-scrum-calendar-remove]");
+      if (!removeButton || removeButton.disabled) return;
+      menu.querySelectorAll("button").forEach(item => { item.disabled = true; });
+      try {
+        await api(source === "attendance" ? `/api/attendance/${sourceId}` : `/api/vacations/${sourceId}`, {
+          method: "DELETE"
+        });
+        closeScrumCalendarAvatarMenu();
+        await refreshScrumAttendance();
+        showToast(source === "attendance" ? "Attendance removed." : "Vacation removed from the calendar.");
+      } catch (error) {
+        removeButton.disabled = !canRemoveScrumCalendarOccurrence(source, userId);
+        menu.querySelector("[data-scrum-calendar-cancel]")?.removeAttribute("disabled");
+        showToast(error.message);
+      }
+    });
+
+    menu.querySelector(canRemove ? "[data-scrum-calendar-remove]" : "[data-scrum-calendar-cancel]")
+      ?.focus({ preventScroll: true });
+  }
+
+  function canRemoveScrumCalendarOccurrence(source, userId) {
+    const ownEntry = Number(userId) === Number(currentUser().id || 0);
+    if (source === "attendance") {
+      return canAccessResource("Scrum", ownEntry ? "Create" : "Update");
+    }
+    return ownEntry && canAccessResource("Scrum", "Update");
+  }
+
+  function positionScrumCalendarAvatarMenu(menu, button) {
+    const gap = 8;
+    const buttonBox = button.getBoundingClientRect();
+    const menuBox = menu.getBoundingClientRect();
+    const left = Math.min(
+      Math.max(gap, buttonBox.left),
+      Math.max(gap, window.innerWidth - menuBox.width - gap)
+    );
+    const below = buttonBox.bottom + gap;
+    const top = below + menuBox.height <= window.innerHeight - gap
+      ? below
+      : Math.max(gap, buttonBox.top - menuBox.height - gap);
+    menu.style.left = `${Math.round(left)}px`;
+    menu.style.top = `${Math.round(top)}px`;
+  }
+
+  function closeScrumCalendarAvatarMenu() {
+    if (!scrumCalendarAvatarMenu) return;
+    const {
+      anchor,
+      closeOnEscape,
+      closeOnOutsidePointer,
+      menu
+    } = scrumCalendarAvatarMenu;
+    scrumCalendarAvatarMenu = null;
+    document.removeEventListener("pointerdown", closeOnOutsidePointer);
+    document.removeEventListener("keydown", closeOnEscape);
+    anchor?.setAttribute("aria-expanded", "false");
+    menu.remove();
+  }
+
   function openScrumOnBehalfDialog() {
     if (!canAccessResource("Scrum", "Update")) return;
     const existingDialog = document.querySelector("[data-scrum-on-behalf-dialog]");
@@ -1385,7 +1530,7 @@ export function createScrumFeature({
           <button type="button" class="icon-btn" data-close-scrum-on-behalf title="Close" aria-label="Close">x</button>
         </div>
         <div class="dialog-body">
-          <p class="field-note">Record today's attendance for another person.</p>
+          <p class="field-note">Record attendance for another person on the selected date.</p>
           <div class="form-grid scrum-attendance-dialog-grid">
             <div class="field">
               <label for="scrum-on-behalf-user">Person</label>
@@ -1394,8 +1539,12 @@ export function createScrumFeature({
               </select>
             </div>
             <div class="field">
+              <label for="scrum-on-behalf-date">Date</label>
+              <input id="scrum-on-behalf-date" name="attendanceDate" type="date" value="${dateKey(new Date())}" required>
+            </div>
+            <div class="field">
               <label for="scrum-on-behalf-status">Attendance</label>
-              <select id="scrum-on-behalf-status" name="status" required>${scrumAttendanceOptionsHtml()}</select>
+              <select id="scrum-on-behalf-status" name="status" required>${scrumAttendanceOptionsHtml(scrumAttendanceStatus)}</select>
             </div>
           </div>
         </div>
@@ -1418,13 +1567,14 @@ export function createScrumFeature({
       }
       const submitButton = modal.querySelector("button[type='submit']");
       const userId = Number(value(modal, "userId") || 0);
+      const attendanceDate = value(modal, "attendanceDate");
       const status = value(modal, "status");
-      if (!userId || !SCRUM_ATTENDANCE_STATUSES.includes(status)) return;
+      if (!userId || !attendanceDate || !SCRUM_ATTENDANCE_STATUSES.includes(status)) return;
       submitButton.disabled = true;
       try {
         await api("/api/attendance", {
           method: "POST",
-          body: JSON.stringify({ userId, status })
+          body: JSON.stringify({ userId, status, attendanceDate })
         });
         modal.close();
         await refreshScrumAttendance();
@@ -2587,7 +2737,8 @@ export function createScrumFeature({
       preferenceKeys.scrumEntryProject,
       scrumTableColumnPreferenceKey,
       scrumCalendarVisiblePreferenceKey,
-      preferenceKeys.scrumAutoRefresh
+      preferenceKeys.scrumAutoRefresh,
+      scrumAttendanceStatusPreferenceKey
     ].forEach(removePreference);
 
     scrumFilters = normalizeScrumFilters({});
@@ -2595,6 +2746,7 @@ export function createScrumFeature({
     scrumColumnPrefs = normalizeScrumColumnPrefs({});
     scrumCalendarVisible = false;
     scrumAutoRefreshEnabled = true;
+    scrumAttendanceStatus = "Office";
     scrumCalendarMonth = scrumMonthStart(new Date());
     scrumTableMode.deactivate();
     cancelScrumColumnDrag();
@@ -2603,6 +2755,7 @@ export function createScrumFeature({
 
   function deactivateScrum() {
     scrumIsActive = false;
+    closeScrumCalendarAvatarMenu();
     window.clearTimeout(scrumAutoRefreshTimer);
     scrumAutoRefreshTimer = 0;
     document.querySelectorAll("[data-scrum-filter-dialog], [data-scrum-on-behalf-dialog], [data-scrum-vacation-dialog]").forEach(dialog => {

@@ -33,6 +33,17 @@ internal static class AttendanceEndpoints
             return Results.Ok(new { id });
         });
 
+        app.MapDelete("/api/attendance/{id:int}", async (
+            int id,
+            HttpContext context,
+            SqlPmtStore store,
+            CancellationToken cancellationToken) =>
+        {
+            var currentUserId = ExplicitCurrentUserId(context);
+            await store.RemoveAttendanceAsync(id, currentUserId, cancellationToken);
+            return Results.NoContent();
+        });
+
         app.MapPost("/api/vacations", async (
             VacationInput input,
             HttpContext context,

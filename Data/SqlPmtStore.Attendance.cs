@@ -71,6 +71,19 @@ public sealed partial class SqlPmtStore
             Add(command, "@UserId", input.UserId);
             Add(command, "@Status", SqlDbType.NVarChar, 20, input.Status);
             Add(command, "@CurrentUserId", currentUserId);
+            AddNullableDate(command, "@AttendanceDate", input.AttendanceDate);
+        }, cancellationToken);
+    }
+
+    public Task RemoveAttendanceAsync(
+        int attendanceEntryId,
+        int currentUserId,
+        CancellationToken cancellationToken)
+    {
+        return ExecuteProcedureAsync("[pmt].[RemoveAttendance]", command =>
+        {
+            Add(command, "@AttendanceEntryId", attendanceEntryId);
+            Add(command, "@CurrentUserId", currentUserId);
         }, cancellationToken);
     }
 

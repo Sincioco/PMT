@@ -296,6 +296,7 @@ export function viewWorkItem(task, editWorkItem, options = {}) {
     syncTaskDialogHeaderActionsMenu(modal);
     applyTaskDialogFieldPreferences(modal);
   }
+  modal.addEventListener("close", () => modal.remove(), { once: true });
   modal.querySelectorAll("[data-close]").forEach(button => button.addEventListener("click", () => closeDialog(modal)));
   modal.addEventListener("click", async event => {
     if (event.target.closest("[data-action='customize-bug-dialog-view']")) {
@@ -358,7 +359,6 @@ export function viewWorkItem(task, editWorkItem, options = {}) {
     closeDialog(modal);
     viewWorkItem(selectedTask, editWorkItem, options);
   });
-  modal.addEventListener("cancel", () => modal.remove());
   modal.showModal();
   if (isBug || isDevTask) syncReadOnlyAvatarStacks(modal);
   normalizeLinksInElement(modal);
@@ -526,8 +526,8 @@ export function showTaskAudit(taskId) {
 
   document.body.appendChild(modal);
   initializeWindowedDialog(modal);
+  modal.addEventListener("close", () => modal.remove(), { once: true });
   modal.querySelectorAll("[data-close]").forEach(button => button.addEventListener("click", () => closeDialog(modal)));
-  modal.addEventListener("cancel", () => modal.remove());
   modal.showModal();
 }
 
@@ -576,5 +576,4 @@ function auditPercentHtml(oldValue, newValue) {
 
 function closeDialog(modal) {
   if (modal.open) modal.close();
-  modal.remove();
 }

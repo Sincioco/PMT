@@ -161,7 +161,7 @@ Use two signed-in browser profiles, A and B, that can edit the same disposable r
 - [ ] Add/edit assignment, status, percent, dates, dependency, and description.
 - [ ] Confirm Dev Task and Bug rows do not begin dragging from links, buttons, or empty row space.
 - [ ] Hover a reorderable Dev Task and Bug row, confirm the drag handle appears after Edit without shifting the row, then reorder from that handle.
-- [ ] Open the task in read-only mode, then select Edit.
+- [ ] Open the task in read-only mode and confirm the URL contains the item route. Close it with the button and with Escape in separate checks, and confirm the URL returns to the Dev Tasks screen route. Reopen it, then select Edit.
 - [ ] Open its audit dialog and confirm newest entries appear first.
 - [ ] Create a Bug with reporter, assignee, severity, environment, and steps.
 - [ ] Rename a Severity lookup to include a numeric prefix such as `1 - Critical`; confirm severity capsules display `Critical` on one line and show `1 - Critical` in their tooltip.
@@ -176,9 +176,9 @@ Use two signed-in browser profiles, A and B, that can edit the same disposable r
 ### Scrum and Documentation
 
 - [ ] Verify Scrum Project, Person, and Date filters work alone and in combination.
-- [ ] Confirm the Attendance dropdown shows an icon and each exact label: Home, Office, Sick Leave, Vacation, EL, and Other. Hover EL/status indicators and confirm the tooltip expands EL to Emergency Leave.
+- [ ] Confirm the Attendance dropdown defaults to Office and shows an icon and each exact label: Home, Office, Sick Leave, Vacation, EL, and Other. Change the selection, leave and return to Scrum, then refresh and confirm the choice remains. Use Reset View and confirm Office returns. Hover EL/status indicators and confirm the tooltip expands EL to Emergency Leave.
 - [ ] Open Scrum while attendance is still loading and note the header and table positions. Confirm the first attendance result does not move the title, controls, or table; each title avatar is 80 by 80 pixels, does not overlap another avatar, and is visually centered in the title band with a clearly visible status icon on its lower-left corner.
-- [ ] At both desktop widths, confirm the Table/Calendar control is centered at the same relative height and uses the same icon/text sizing as Cards/Treeview in Documentation. Add enough known-status avatars to approach that control and confirm the avatars shrink together to fit between the page title and view buttons without overlap or header movement.
+- [ ] At both desktop widths, confirm the Scrum page title begins at the same vertical position as the Dev Tasks title. Confirm the Table/Calendar control is centered at the same relative height and uses the same icon/text sizing as Cards/Treeview in Documentation. Add enough known-status avatars to approach that control and confirm the avatars shrink together to fit between the page title and view buttons without overlap or header movement.
 - [ ] Confirm Sick Leave uses the face-with-thermometer icon rather than a plus sign, and that its tooltip remains `Sick Leave`.
 - [ ] Select a title avatar and confirm the Scrum table shows only that person's entries. Open Scrum Filters and confirm exactly the same Person checkbox is selected. Change the Person checklist and confirm the title-avatar selection updates in the same render cycle.
 - [ ] Confirm the header has `Table` and `Calendar` view buttons with the same active underline and pressed-state treatment as the Documentation view buttons. Open the Scrum overflow menu and confirm Graphs and Calendar are absent while On Behalf Of... and Vacation... remain present with icons and labels.
@@ -191,9 +191,10 @@ Use two signed-in browser profiles, A and B, that can edit the same disposable r
 - [ ] Add Sick Leave, Vacation, EL, and Other attendance and confirm each nonempty section has its status icon in the upper-left and sections remain in Office, Home, Sick Leave, Vacation, EL, Other order.
 - [ ] Confirm a date where everyone is Office has one section and no divider. Confirm the same person may appear once in Office and once in Sick Leave or EL on an exceptional multi-status date, but repeating the same status does not duplicate the avatar.
 - [ ] Configure two active Holidays on one date and one inactive Holiday. Confirm both active names appear when the cell has space, their full names remain available by tooltip/accessibility text, and the inactive Holiday is absent.
-- [ ] Choose On Behalf Of..., select another active person and a status, save, and confirm today's title status and calendar update for that person while the current user remains the recorded actor.
+- [ ] Choose On Behalf Of..., select another active person, status, and a date other than today, then save. Confirm the avatar appears on the selected calendar date, today's title status does not change, and the current user remains the recorded actor. Submit a direct self Check-In request containing another date and confirm SQL still records it on the current UTC+8 workday.
+- [ ] Click an explicit attendance avatar in Calendar and confirm a small menu offers exactly Remove and Cancel. Confirm Cancel, Escape, and clicking outside close it without changing data. Remove an owned entry and confirm only that attendance row disappears, an `Attendance / Removed` audit event remains, and a user with Scrum Update can remove another user's explicit entry while a user lacking the required Create/Update right is rejected by a direct request.
 - [ ] Choose Vacation..., create an inclusive start/end range, and confirm the current user appears as Vacation on every covered calendar date, including future months.
-- [ ] Reopen Vacation..., edit both dates, and confirm removed dates clear while newly covered dates display the user. Cancel the plan with the themed confirmation dialog and confirm it disappears without a browser alert or prompt.
+- [ ] Reopen Vacation..., edit both dates, and confirm removed dates clear while newly covered dates display the user. Cancel the plan with the themed confirmation dialog and confirm it disappears without a browser alert or prompt. Recreate it, click one of its Calendar avatars, and confirm Remove cancels the entire underlying range rather than only the selected day.
 - [ ] As another user and as an administrator, attempt direct update/cancel requests for someone else's vacation and confirm both are rejected. Confirm an inactive person and an unsupported attendance status are rejected by the attendance endpoint.
 - [ ] Refresh PMT and repeat the current and adjacent month checks to confirm attendance and vacation data persist.
 - [ ] Create a Scrum entry and verify the three-question starter text/caret.

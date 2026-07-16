@@ -44,7 +44,7 @@ import {
   taskPercentField,
   workItemDialogMetaHtml,
   uploadWorkItemAttachments
-} from "../../components/work-items.js?v=20260715-admin-impersonation";
+} from "../../components/work-items.js?v=20260716-dialog-route-close";
 import {
   currentUser,
   currentUserId

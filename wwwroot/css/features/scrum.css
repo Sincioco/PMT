@@ -18,6 +18,11 @@ html[data-theme="light"] .scrum-screen.work-item-screen .section-head h1 {
   margin-bottom: 0;
 }
 
+.scrum-screen .section-head h1 {
+  align-self: flex-start;
+  margin-top: calc(var(--space-1) + 1px);
+}
+
 .scrum-screen .section-head .toolbar {
   flex: 1 1 auto;
   min-width: 0;
@@ -371,6 +376,27 @@ html[data-theme] .scrum-screen .section-head .scrum-attendance-check-in > button
   min-width: 0;
 }
 
+.scrum-calendar-avatar-button,
+html[data-theme] .scrum-calendar-avatar-button,
+html[data-theme] .scrum-calendar-avatar-button:hover:not(:disabled) {
+  display: block;
+  width: 30px;
+  min-width: 30px;
+  height: 30px;
+  min-height: 30px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  box-shadow: none;
+}
+
+.scrum-calendar-avatar-button:focus-visible {
+  outline: var(--border-width-strong) solid var(--color-focus-ring);
+  outline-offset: 2px;
+}
+
 .scrum-calendar-avatar {
   display: block;
   width: 30px;
@@ -386,6 +412,22 @@ html[data-theme] .scrum-screen .section-head .scrum-attendance-check-in > button
 .scrum-calendar-status-section[data-attendance-status="Office"] .scrum-calendar-avatar {
   width: 40px;
   height: 40px;
+}
+
+.scrum-calendar-status-section[data-attendance-status="Office"] .scrum-calendar-avatar-button {
+  width: 40px;
+  min-width: 40px;
+  height: 40px;
+  min-height: 40px;
+}
+
+.scrum-calendar-avatar-menu.dropdown-menu {
+  position: fixed;
+  inset: auto;
+  right: auto;
+  z-index: 2147483647;
+  min-width: 180px;
+  margin: 0;
 }
 
 .scrum-attendance-dialog {
