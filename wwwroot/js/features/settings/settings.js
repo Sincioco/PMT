@@ -29,7 +29,7 @@ import {
   readNavigationConfig,
   resetNavigationConfig,
   writeNavigationConfig
-} from "../../core/navigation-preferences.js?v=release-notes-2026-07-16-day-29-9965d111882d";
+} from "../../core/navigation-preferences.js?v=release-notes-2026-07-16-day-29-a79072c43274";
 import {
   clearPmtPreferences,
   preferenceKeys,
@@ -44,7 +44,7 @@ import {
   routeForView,
   savedViewPreference,
   updateBrowserUrl
-} from "../../core/router.js?v=release-notes-2026-07-16-day-29-9965d111882d";
+} from "../../core/router.js?v=release-notes-2026-07-16-day-29-a79072c43274";
 import { state } from "../../core/store.js";
 import {
   formatDate,

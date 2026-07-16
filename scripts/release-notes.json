@@ -1024,6 +1024,30 @@
           "Allow administrators to clear and restore the PMT demo repeatedly without changing PMTQA, BDO users, permissions, or private content.",
           "Safely recreate missing demo team profiles and keep seeded Bug values aligned with the active BDO lookup configuration."
         ]
+      },
+      {
+        "title": "Routed Dialog and Scrum Refinements",
+        "items": [
+          "Restore the screen URL when a routed read-only item dialog closes.",
+          "Default Scrum attendance to Office, remember each user's selection, and allow On Behalf Of entries for a selected date.",
+          "Align the Scrum page title with other PMT screens and let Calendar users remove attendance directly from an avatar action menu."
+        ]
+      },
+      {
+        "title": "Safer Development Resets",
+        "items": [
+          "Clarify the Development screen warnings, reset descriptions, and destructive button labels.",
+          "Allow administrators to clear every Project except PMT or factory-reset the database to the original demo Projects.",
+          "Let intentional Development reset operations proceed even when private content exists."
+        ]
+      },
+      {
+        "title": "Faster Planning Screen Filters",
+        "items": [
+          "Standardize synchronized Project, Sprint, and Search controls across Dev Tasks, Bug Tracking, Backlog, Kanban Board, Documentation, and Sprints.",
+          "Add multi-item deletion in edit mode and keep page actions fixed while header controls compact.",
+          "Keep active searches visibly expanded in their chosen position, update results after a short typing pause, and render idle Project and Sprint context as compact baseline-aligned labels."
+        ]
       }
     ]
   }

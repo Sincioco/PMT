@@ -1,6 +1,6 @@
 import { preferenceKeys, readPreference, writePreference } from "./preferences.js";
-import { visibleNavigationScreens } from "./navigation-preferences.js?v=release-notes-2026-07-16-day-29-9965d111882d";
-import { screenRegistry } from "./screen-registry.js?v=release-notes-2026-07-16-day-29-9965d111882d";
+import { visibleNavigationScreens } from "./navigation-preferences.js?v=release-notes-2026-07-16-day-29-a79072c43274";
+import { screenRegistry } from "./screen-registry.js?v=release-notes-2026-07-16-day-29-a79072c43274";
 import { canReadView, firstReadableView } from "../shared/security.js?v=20260715-admin-impersonation";
 
 const legacyViews = Object.freeze({

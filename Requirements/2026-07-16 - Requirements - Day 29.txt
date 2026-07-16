@@ -119,3 +119,90 @@ Scrum Screen - Auto-Refresh
 36.) Add a menu overflow feature that gives the user the ability to turn off this auto screen refresh feature.  By default you can turn it on, but if they turn it off, be sure to remember their preferences.
 37.) Don't forget about the auto-refresh feature when the user is in the Calendar view.  It should also auto-refresh every 5 seconds, unless the user has turned it off in their preferences.
 38.) We don't want any UI flicker or unnecessary UI shifting as the data is auto-refreshed.
+
+
+----------------------------------------------------------
+
+39.) Bug:  @Behelle found a significant bug.  When a dialog box to view an item in read-only mode is opened, then closed, the URL is not re-written and remains as though the read-only dialog box is still open.
+
+Scrum Screen
+------------
+40.) In the Scrum Screen, make "Office" the default value and remember it if they change it.
+41.) In the Scrum Screen, The On Behalf Of dialog box should have date/calendar field so the user can make an entry of behalf of someone a different date.
+42.) The Scrum Screen's page title is lower than the others.  Use the Dev Task's screen as a reference and fix the Scrum screen.
+43.) In the Calendar view, if an avatar/icon/person is clicked, pop a menu, like what is done in the RTE when selecting an image, with the following actions:  Remove, Cancel.
+
+
+Commit and push to the repo.
+----------------------------------------------------------
+
+Settings -> Development
+-----------------------
+45.) Update this text "These tools reset demo data. Clear PMT Demo and then Restore PMT Seed Data whenever a fresh PMT demo is needed. PMTQA is preserved." to this:
+
+		Warning, buttons on this screen can delete projects or reset the entire database back to its initial installed state.  Please do not click buttons on this screen unless you know what you are doing.
+46.) Change "Clear All Except PMT and PMTQA" to "Clear All Projects Except PMT".
+47.) Change "Deletes Projects other than PMT and PMTQA, including their Sprints, Dev Tasks, Bugs, Scrum, and Documentation" to:
+
+		Deletes Projects other than PMT, including their Sprints, Dev Tasks, Bugs, Scrum, and Documentation, etc.  So be careful!
+48.) Change "Restore Initial Seed Data" to "Factory Reset PMT".
+49.) Change the "Restores the PMT, LMS, and HLS demo data from the SQL seed scripts." to:
+
+		This will delete all data in the database and re-seed it with the original demo projects.
+50.) Change "Recreates missing demo users and restores the original PMT demo Project. PMTQA, BDO users, permissions, and private content remain unchanged." to
+
+	Recreates missing demo users and restores the original PMT demo Project.
+
+51.) Change "Clear All Except PMT and PMTQA" to "Clear All Except PMT" and make that button do just that.
+
+52.) Make all the buttons on this screen work regardless of whether someone has a Private Data.  I keep getting errors whenever I try to reset something because it is complaining about someone's private data.  This is the Development screen, ignore that rule when any of the buttons are clicked here.
+
+Commit and push to the repo.
+----------------------------------------------------------
+
+Dev Task Screen
+---------------
+45.) In the Dev Task Screen, without shifting or moving anything on the screen, add a Projects dropdown and Sprint dropdown next to the Page title.  Obviously, sync this with the value chosen in the Filter dialog box and vice versa.
+46.) In Edit mode, put a checkbox in front of the trash icon and allow the user to bulk delete--delete multiple items at once.
+47.) Put a search box in the middle of the page at the same level as the Page Title and make it behave exactly as the Dialog filter's search text box and keep the two in sync.
+48.) After 10 seconds, if the user has not interacted with the page title area, re-render the Project and Sprint dropdown as muted labels next to the Page title.  Give it a nice quick fade.
+49.) After 10 seconds, if the user has not interacted with the page title area, animate and slide the search textbox and morph it to become a search icon in front of the Add new page level button.
+50.) If the mouse cursor enters the Dev Task page title / header area again (above the graph area), re-render the Project and Sprint dropdown again and the put search text back in the center with animation and fade.  A quick snappy animation.
+
+
+Commit and push to the repo.
+
+51.) Apply the same treatment to the Bug Tracking screen, Documentation Screen, Backlog Screen, Kanban Board screen, Sprint Screen
+
+Commit and push to the repo.
+----------------------------------------------------------
+
+52.) Let's change the 10 seconds delay to just 3 seconds.
+53.) Let's bottom align the Project and Sprint to the Page Title.
+54.) For the Project, render it like this:
+
+		Project:  {Project Code} - {Project Name}
+
+55.) For the Sprint, render it like this:
+
+		Sprint:  {Sprint Name}
+
+Combined it should look like this:
+
+	Project:  {Project Code} - {Project Name}  Sprint:  {Sprint Name}
+
+56.) Tighten the space between #54 and #55.  No unneeded gap between them.
+57.) If the user tried to click on the Search icon while it was on the right side, so if the user was near the search icon when it entered the header area, expand the Search right where the search icon is (or was).  Be sure to not move or shift the existing page-level icons like the Add, Filter, overflow menu, etc.
+
+58.) Code this very quickly first on the Dev Task screen, and let me verify.
+59.) Once I have verified and agreed that it looks good then go ahead and apply it to the other screens.
+60.) As I type in the search text box, it is stuttering.  Can you make the typing experience smoother.  Perform the background in the search.  Let the search catch up with my typing.
+61.) If the user did type something in the search text box, do not collapse it.  Keep it as a text box.  You may collapse the Project and Sprint dropdown if they are not the active focus of the user.
+62.) So, if the search text box has content and it is in the center of the screen, keep it there, if they typed while it was on the right side of the screen, keep it there.
+63.) This is so that the user can visually tell that the content they are looking has been filtered.
+64.) If it's easier for you to keep the search text box expanded and animate it to the right, you may do so.
+65.) Bug:  When the Project and Sprint are collapsed, and the search text box has a value and remains at the center, when the mouse cursor enters the header area (to modify the search value), the search textbox unexpected animates to the right side with the textbox still expanded.  It should have stayed in the center where it was.
+66.) Apply the same treatment to the Bug Tracking screen, Documentation Screen, Backlog Screen, Kanban Board screen, Sprint Screen
+
+Commit and push to the repo.
+----------------------------------------------------------
