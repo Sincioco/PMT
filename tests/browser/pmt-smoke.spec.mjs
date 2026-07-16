@@ -923,8 +923,10 @@ test("Scrum view toggle matches Documentation and crowded attendance avatars fit
     const toggleButton = toggle.querySelector(".documentation-view-toggle-button");
     const icon = toggleButton.querySelector(".button-icon");
     const label = toggleButton.querySelector(".button-icon + span");
+    const search = header.querySelector("[data-idle-filter-header-search-control]");
     const headerBox = header.getBoundingClientRect();
     const toggleBox = toggle.getBoundingClientRect();
+    const searchBox = search.getBoundingClientRect();
     const buttonStyle = getComputedStyle(toggleButton);
     return {
       buttonHeight: toggleButton.getBoundingClientRect().height,
@@ -932,12 +934,12 @@ test("Scrum view toggle matches Documentation and crowded attendance avatars fit
       buttonGap: buttonStyle.columnGap,
       headerCenter: headerBox.left + headerBox.width / 2,
       iconFontSize: getComputedStyle(icon).fontSize,
-      toggleCenter: toggleBox.left + toggleBox.width / 2,
+      searchCenter: searchBox.left + searchBox.width / 2,
       toggleVerticalRatio: (toggleBox.top + toggleBox.height / 2 - headerBox.top) / headerBox.height
     };
   });
 
-  expect(documentationLayout.toggleCenter).toBeCloseTo(documentationLayout.headerCenter, 0);
+  expect(documentationLayout.searchCenter).toBeCloseTo(documentationLayout.headerCenter, 0);
   expect(scrumLayout.buttonHeight).toBeCloseTo(documentationLayout.buttonHeight, 0);
   expect(scrumLayout.buttonFontSize).toBe(documentationLayout.buttonFontSize);
   expect(scrumLayout.buttonGap).toBe(documentationLayout.buttonGap);
@@ -1471,6 +1473,406 @@ test("Dev Tasks header filters, idle morph, and bulk delete stay synchronized", 
   expect(pageErrors).toEqual([]);
 });
 
+test("Bug Tracking and Backlog share synchronized idle headers and bulk delete", async ({ page }) => {
+  const appState = createTestState();
+  const secondBug = {
+    ...appState.tasks.find(task => task.id === 4),
+    id: 8,
+    code: "PMT-BUG-002",
+    title: "Secondary board defect",
+    descriptionHtml: "<p>Secondary board defect</p>",
+    sortOrder: 5
+  };
+  const secondBacklogItem = {
+    ...appState.tasks.find(task => task.id === 5),
+    id: 9,
+    code: "PMT-TASK-005",
+    title: "Second backlog planning item",
+    descriptionHtml: "<p>Second backlog planning item</p>",
+    sortOrder: 6
+  };
+  const backlogChild = {
+    ...appState.tasks.find(task => task.id === 5),
+    id: 10,
+    parentTaskId: 5,
+    code: "PMT-TASK-006",
+    title: "Backlog child item",
+    descriptionHtml: "<p>Backlog child item</p>",
+    sortOrder: 7
+  };
+  appState.tasks.push(secondBug, secondBacklogItem, backlogChild);
+  [secondBug, secondBacklogItem, backlogChild].forEach(task => hydrateTaskPeople(appState, task));
+  const apiCalls = { securityReset: 0, taskDeletes: [], backlogDeletes: [] };
+
+  await page.clock.install({ time: new Date("2026-07-17T08:00:00+08:00") });
+  await markCurrentReleaseSeen(page, 1);
+  await installApiMocks(page, appState, apiCalls);
+  await page.goto("/");
+  await page.locator("#loginName").fill("Sin");
+  await page.locator("#loginPassword").fill("Password1");
+  await page.getByRole("button", { name: /log in/i }).click();
+
+  await openNavView(page, "Bugs", "Bug Tracking");
+  const bugHeader = page.locator(".bugs-screen .section-head");
+  const bugProject = bugHeader.locator("[data-filter='bug-project']");
+  const bugSprint = bugHeader.locator("[data-filter='bug-sprint']");
+  const bugSearch = bugHeader.locator("[data-filter='bug-search']");
+  await expectIdleHeaderControlsNotToOverlap(bugHeader);
+
+  await bugProject.selectOption("20");
+  await expect(bugSprint).toHaveValue("200");
+  await bugHeader.locator("[data-action='open-bug-filters']").click();
+  let filterDialog = page.locator("[data-bug-filter-dialog]");
+  await expect(filterDialog.locator("[data-filter='bug-project']")).toHaveValue("20");
+  await expect(filterDialog.locator("[data-filter='bug-sprint']")).toHaveValue("200");
+  await filterDialog.locator("[data-filter='bug-project']").selectOption("10");
+  await filterDialog.locator("[data-filter='bug-sprint']").selectOption("101");
+  await filterDialog.locator("[data-filter='bug-search']").fill("Secondary board");
+  await expect(bugProject).toHaveValue("10");
+  await expect(bugSprint).toHaveValue("101");
+  await expect(bugSearch).toHaveValue("Secondary board");
+  await closeFilterDialog(page, "bug");
+  await expect(page.locator("tr[data-task-id='8']")).toBeVisible();
+  await expect(page.locator("tr[data-task-id='4']")).toHaveCount(0);
+  await bugSearch.fill("");
+
+  await bugSearch.evaluate(element => element.blur());
+  await bugHeader.hover({ position: { x: 2, y: 2 } });
+  await page.clock.fastForward(10000);
+  await expect(bugHeader).toHaveClass(/is-idle-filter-header-compact/);
+  await expect(bugProject).not.toBeVisible();
+  await expect(bugSprint).not.toBeVisible();
+  await expect(bugHeader.locator(".idle-filter-header-project-slot .idle-filter-header-context-summary")).toHaveText("Project: PMT");
+  await expect(bugHeader.locator(".idle-filter-header-sprint-slot .idle-filter-header-context-summary")).toHaveText("Sprint: PMT-Sprint02");
+  await expectIdleSearchImmediatelyBeforeAdd(bugHeader);
+  await bugHeader.hover({ position: { x: 4, y: 4 } });
+  await expect(bugHeader).not.toHaveClass(/is-idle-filter-header-compact/);
+  await expect(bugSearch).toHaveValue("");
+  const originalViewport = page.viewportSize();
+  for (const width of [1280, 1100, 1000, 900]) {
+    await page.setViewportSize({ width, height: originalViewport.height });
+    await expectIdleHeaderControlsNotToOverlap(bugHeader);
+  }
+  await page.setViewportSize(originalViewport);
+
+  await clickPageAction(page, "toggle-bug-table-edit-mode");
+  const firstBug = page.locator("tr[data-task-id='4']");
+  const secondBugRow = page.locator("tr[data-task-id='8']");
+  await firstBug.locator("[data-bug-delete-select]").check();
+  await secondBugRow.locator("[data-bug-delete-select]").check();
+  expect(await firstBug.locator(".action-cell").evaluate(cell => {
+    const checkbox = cell.querySelector("[data-bug-delete-select]");
+    const trash = cell.querySelector("[data-action='delete-task']");
+    return Boolean(checkbox.compareDocumentPosition(trash) & Node.DOCUMENT_POSITION_FOLLOWING);
+  })).toBe(true);
+  await firstBug.locator("[data-action='delete-task']").click();
+  let confirmation = page.locator("dialog.mini-dialog", { has: page.getByRole("heading", { name: "Delete", exact: true }) });
+  await expect(confirmation).toContainText("Delete 2 selected Bug Reports?");
+  await confirmation.getByRole("button", { name: "Continue" }).click();
+  await expect.poll(() => apiCalls.taskDeletes).toEqual([4, 8]);
+  await expect(page.locator("#toast")).toHaveText("2 Bug Reports deleted.");
+
+  await openNavView(page, "Backlog", "Backlog");
+  const backlogHeader = page.locator(".backlog-screen .section-head");
+  const backlogProject = backlogHeader.locator("[data-filter='backlog-project']");
+  const backlogSprint = backlogHeader.locator("[data-filter='backlog-sprint']");
+  const backlogSearch = backlogHeader.locator("[data-filter='backlog-search']");
+  await expectIdleHeaderControlsNotToOverlap(backlogHeader);
+
+  await backlogProject.selectOption("10");
+  await backlogSprint.selectOption("unassigned");
+  await backlogSearch.fill("Second backlog");
+  await backlogHeader.locator("[data-action='open-backlog-filters']").click();
+  filterDialog = page.locator("[data-backlog-filter-dialog]");
+  await expect(filterDialog.locator("[data-filter='backlog-project']")).toHaveValue("10");
+  await expect(filterDialog.locator("[data-filter='backlog-sprint']")).toHaveValue("unassigned");
+  await expect(filterDialog.locator("[data-filter='backlog-search']")).toHaveValue("Second backlog");
+  await filterDialog.locator("[data-filter='backlog-search']").fill("");
+  await expect(backlogSearch).toHaveValue("");
+  await closeFilterDialog(page, "backlog");
+
+  await backlogSearch.evaluate(element => element.blur());
+  await backlogHeader.hover({ position: { x: 2, y: 2 } });
+  await page.clock.fastForward(10000);
+  await expect(backlogHeader).toHaveClass(/is-idle-filter-header-compact/);
+  await expect(backlogHeader.locator(".idle-filter-header-project-slot .idle-filter-header-context-summary")).toHaveText("Project: PMT");
+  await expect(backlogHeader.locator(".idle-filter-header-sprint-slot .idle-filter-header-context-summary")).toHaveText("Sprint: Unassigned");
+  await expectIdleSearchImmediatelyBeforeAdd(backlogHeader);
+  await backlogHeader.hover({ position: { x: 4, y: 4 } });
+  await expect(backlogHeader).not.toHaveClass(/is-idle-filter-header-compact/);
+
+  await clickPageAction(page, "toggle-backlog-table-edit-mode");
+  const backlogParentRow = page.locator("tr[data-task-id='5']");
+  const backlogSecondRow = page.locator("tr[data-task-id='9']");
+  const backlogChildRow = page.locator("tr[data-task-id='10']");
+  await backlogParentRow.locator("[data-backlog-delete-select]").check();
+  await backlogSecondRow.locator("[data-backlog-delete-select]").check();
+  await backlogChildRow.locator("[data-backlog-delete-select]").check();
+  expect(await backlogParentRow.locator(".action-cell").evaluate(cell => {
+    const checkbox = cell.querySelector("[data-backlog-delete-select]");
+    const trash = cell.querySelector("[data-action='delete-backlog-task']");
+    return Boolean(checkbox.compareDocumentPosition(trash) & Node.DOCUMENT_POSITION_FOLLOWING);
+  })).toBe(true);
+  await backlogParentRow.locator("[data-action='delete-backlog-task']").click();
+  confirmation = page.locator("dialog.mini-dialog", { has: page.getByRole("heading", { name: "Delete", exact: true }) });
+  await expect(confirmation).toContainText("Delete 3 selected Backlog Items?");
+  await expect(confirmation).toContainText("Deleting a parent also deletes its direct sub-tasks.");
+  await confirmation.getByRole("button", { name: "Continue" }).click();
+  await expect.poll(() => apiCalls.backlogDeletes).toEqual([5, 9]);
+  await expect(page.locator("tr[data-task-id='5']")).toHaveCount(0);
+  await expect(page.locator("tr[data-task-id='9']")).toHaveCount(0);
+  await expect(page.locator("tr[data-task-id='10']")).toHaveCount(0);
+  await expect(page.locator("#toast")).toHaveText("3 Backlog Items deleted.");
+});
+
+test("Kanban Board header search and mixed work-item bulk delete stay synchronized", async ({ page }) => {
+  const appState = createTestState();
+  const remainingBug = {
+    ...appState.tasks.find(task => task.id === 4),
+    id: 8,
+    code: "PMT-BUG-002",
+    title: "Residual board defect",
+    descriptionHtml: "<p>Residual board defect</p>",
+    sortOrder: 5
+  };
+  appState.tasks.push(remainingBug);
+  hydrateTaskPeople(appState, remainingBug);
+  const apiCalls = { securityReset: 0, taskDeletes: [] };
+
+  await page.clock.install({ time: new Date("2026-07-17T08:00:00+08:00") });
+  await markCurrentReleaseSeen(page, 1);
+  await markCurrentReleaseSeen(page, 2);
+  await installApiMocks(page, appState, apiCalls);
+  await page.goto("/");
+  await page.locator("#loginName").fill("Sin");
+  await page.locator("#loginPassword").fill("Password1");
+  await page.getByRole("button", { name: /log in/i }).click();
+  await openNavView(page, "Board", "Kanban Board");
+
+  const header = page.locator(".board-screen .section-head");
+  const headerProject = header.locator("[data-filter='board-project']");
+  const headerSprint = header.locator("[data-filter='board-sprint']");
+  const headerSearch = header.locator("[data-filter='board-search']");
+  await expectIdleHeaderControlsNotToOverlap(header);
+
+  await headerProject.selectOption("20");
+  await expect(headerSprint).toHaveValue("latest");
+  await expect(page.locator(".task-card[data-task-id='6']")).toBeVisible();
+  await header.locator("[data-action='open-board-filters']").click();
+  let filterDialog = page.locator("[data-board-filter-dialog]");
+  await expect(filterDialog.locator("[data-filter='board-project']")).toHaveValue("20");
+  await expect(filterDialog.locator("[data-filter='board-sprint']")).toHaveValue("latest");
+  await filterDialog.locator("[data-filter='board-project']").selectOption("10");
+  await filterDialog.locator("[data-filter='board-sprint']").selectOption("all");
+  await filterDialog.locator("[data-filter='board-search']").fill("Critical board");
+  await expect(headerProject).toHaveValue("10");
+  await expect(headerSprint).toHaveValue("all");
+  await expect(headerSearch).toHaveValue("Critical board");
+  await expect(page.locator(".task-card[data-task-id='4']")).toBeVisible();
+  await expect(page.locator(".task-card[data-task-id='1']")).toHaveCount(0);
+  await filterDialog.locator("[data-filter='board-search']").fill("");
+  await closeFilterDialog(page, "board");
+  await expect(headerSearch).toHaveValue("");
+
+  await headerSearch.evaluate(element => element.blur());
+  await header.hover({ position: { x: 2, y: 2 } });
+  await page.clock.fastForward(10000);
+  await expect(header).toHaveClass(/is-idle-filter-header-compact/);
+  await expect(header.locator(".idle-filter-header-project-slot .idle-filter-header-context-summary")).toHaveText("Project: PMT");
+  await expect(header.locator(".idle-filter-header-sprint-slot .idle-filter-header-context-summary")).toHaveText("Sprint: All Sprints");
+  await expectIdleSearchImmediatelyBeforeAdd(header);
+  await header.hover({ position: { x: 4, y: 4 } });
+  await expect(header).not.toHaveClass(/is-idle-filter-header-compact/);
+
+  await header.locator("[data-action='toggle-board-edit-mode']").click();
+  const devCard = page.locator(".task-card[data-task-id='1']");
+  const bugCard = page.locator(".task-card[data-task-id='4']");
+  await devCard.locator("[data-board-delete-select]").check();
+  await bugCard.locator("[data-board-delete-select]").check();
+  expect(await devCard.locator(".task-card-actions").evaluate(actions => {
+    const checkbox = actions.querySelector("[data-board-delete-select]");
+    const trash = actions.querySelector("[data-action='delete-task']");
+    return Boolean(checkbox.compareDocumentPosition(trash) & Node.DOCUMENT_POSITION_FOLLOWING);
+  })).toBe(true);
+  await devCard.locator("[data-action='delete-task']").click();
+  const confirmation = page.locator("dialog.mini-dialog", { has: page.getByRole("heading", { name: "Delete", exact: true }) });
+  await expect(confirmation).toContainText("Delete 2 selected Work Items?");
+  await confirmation.getByRole("button", { name: "Continue" }).click();
+  await expect.poll(() => apiCalls.taskDeletes).toEqual([1, 4]);
+  await expect(page.locator(".task-card[data-task-id='1']")).toHaveCount(0);
+  await expect(page.locator(".task-card[data-task-id='4']")).toHaveCount(0);
+  await expect(page.locator("#toast")).toHaveText("2 Work Items deleted.");
+
+  appState.effectivePermissions = appState.securityResources.map(resource => ({
+    resourceKey: resource.resourceKey,
+    ...testHistoricalRolePermission(resource, "Developer")
+  }));
+  apiCalls.setSessionUserId(2);
+  await page.reload();
+  await openNavView(page, "Board", "Kanban Board");
+  const developerHeader = page.locator(".board-screen .section-head");
+  await developerHeader.locator("[data-action='toggle-board-edit-mode']").click();
+  const developerTaskCard = page.locator(".task-card[data-task-id='2']");
+  const developerBugCard = page.locator(".task-card[data-task-id='8']");
+  await expect(developerTaskCard.locator("[data-board-delete-select]")).toBeEnabled();
+  await expect(developerTaskCard.locator("[data-action='delete-task']")).toBeEnabled();
+  await expect(developerTaskCard.locator("[data-action='delete-task']")).toHaveAttribute("data-security-resource", "DevTasks");
+  await expect(developerBugCard.locator("[data-board-delete-select]")).toBeDisabled();
+  await expect(developerBugCard.locator("[data-action='delete-task']")).toBeDisabled();
+  await expect(developerBugCard.locator("[data-action='delete-task']")).toHaveAttribute("data-security-resource", "BugTracking");
+});
+
+test("Documentation and Sprints share synchronized idle headers and bulk delete", async ({ page }) => {
+  const appState = createTestState();
+  appState.blogs[0] = {
+    ...appState.blogs[0],
+    sprintId: null,
+    isPrivate: false,
+    isPinned: false,
+    parentBlogId: null
+  };
+  appState.blogs.push(
+    {
+      ...appState.blogs[0],
+      id: 2,
+      sprintId: 101,
+      title: "Sprint regression guide",
+      bodyHtml: "<p>Regression guide for the current Sprint.</p>",
+      createdAt: "2026-06-20T08:00:00",
+      updatedAt: "2026-06-20T08:00:00"
+    },
+    {
+      ...appState.blogs[0],
+      id: 3,
+      sprintId: 100,
+      title: "Foundation guide",
+      bodyHtml: "<p>Foundation Sprint guide.</p>",
+      createdAt: "2026-06-17T08:00:00",
+      updatedAt: "2026-06-17T08:00:00"
+    }
+  );
+  const apiCalls = { securityReset: 0, blogDeletes: [], sprintDeletes: [] };
+
+  await page.clock.install({ time: new Date("2026-07-17T08:00:00+08:00") });
+  await markCurrentReleaseSeen(page, 1);
+  await installApiMocks(page, appState, apiCalls);
+  await page.goto("/");
+  await page.locator("#loginName").fill("Sin");
+  await page.locator("#loginPassword").fill("Password1");
+  await page.getByRole("button", { name: /log in/i }).click();
+
+  await openNavView(page, "Documentation", "Documentation");
+  const documentationHeader = page.locator(".documentation-screen .section-head");
+  const documentationProject = documentationHeader.locator("[data-filter='documentation-project']");
+  const documentationSprint = documentationHeader.locator("[data-filter='documentation-sprint']");
+  const documentationSearch = documentationHeader.locator("[data-filter='documentation-tree-search']");
+  await expectIdleHeaderControlsNotToOverlap(documentationHeader);
+
+  await documentationProject.selectOption("10");
+  await documentationSprint.selectOption("101");
+  await documentationSearch.fill("regression guide");
+  await expect(page.locator(".documentation-card[data-id='2']")).toBeVisible();
+  await expect(page.locator(".documentation-card[data-id='1']")).toHaveCount(0);
+  await documentationHeader.locator("[data-action='open-documentation-filters']").click();
+  let filterDialog = page.locator("[data-documentation-filter-dialog]");
+  await expect(filterDialog.locator("[data-filter='documentation-project']")).toHaveValue("10");
+  await expect(filterDialog.locator("[data-filter='documentation-sprint']")).toHaveValue("101");
+  await expect(filterDialog.locator("[data-filter='documentation-tree-search']")).toHaveValue("regression guide");
+  await filterDialog.locator("[data-filter='documentation-tree-search']").fill("");
+  await expect(documentationSearch).toHaveValue("");
+  await closeFilterDialog(page, "documentation");
+  await documentationHeader.locator("[data-action='set-documentation-view'][data-mode='tree']").click();
+  await expect(page.locator(".documentation-tree-document[data-id='2']")).toBeVisible();
+  await expect(page.locator(".documentation-tree-document[data-id='1']")).toHaveCount(0);
+
+  await documentationSearch.evaluate(element => element.blur());
+  await documentationHeader.hover({ position: { x: 2, y: 2 } });
+  await page.clock.fastForward(10000);
+  await expect(documentationHeader).toHaveClass(/is-idle-filter-header-compact/);
+  await expect(documentationHeader.locator(".idle-filter-header-project-slot .idle-filter-header-context-summary")).toHaveText("Project: PMT");
+  await expect(documentationHeader.locator(".idle-filter-header-sprint-slot .idle-filter-header-context-summary")).toHaveText("Sprint: PMT-Sprint02");
+  await expectIdleSearchImmediatelyBeforeAdd(documentationHeader);
+  await documentationHeader.hover({ position: { x: 4, y: 4 } });
+  await expect(documentationHeader).not.toHaveClass(/is-idle-filter-header-compact/);
+
+  await documentationSprint.selectOption("all");
+  await clickPageAction(page, "toggle-documentation-edit-mode");
+  const firstDocument = page.locator(".documentation-tree-document[data-id='1']");
+  const secondDocument = page.locator(".documentation-tree-document[data-id='2']");
+  await firstDocument.click();
+  await page.locator(".documentation-tree-preview [data-documentation-delete-select]").check();
+  await secondDocument.click();
+  await page.locator(".documentation-tree-preview [data-documentation-delete-select]").check();
+  expect(await page.locator(".documentation-tree-preview-actions").evaluate(actions => {
+    const checkbox = actions.querySelector("[data-documentation-delete-select]");
+    const trash = actions.querySelector("[data-action='delete-blog']");
+    return Boolean(checkbox.compareDocumentPosition(trash) & Node.DOCUMENT_POSITION_FOLLOWING);
+  })).toBe(true);
+  await expect(page.locator(".documentation-tree-preview [data-action='delete-blog']")).toHaveAttribute("title", "Delete 2 selected Documents");
+  await page.locator(".documentation-tree-preview [data-action='delete-blog']").click();
+  let confirmation = page.locator("dialog.mini-dialog", { has: page.getByRole("heading", { name: "Delete", exact: true }) });
+  await expect(confirmation).toContainText("Delete 2 selected Documents?");
+  await confirmation.getByRole("button", { name: "Continue" }).click();
+  await expect.poll(() => apiCalls.blogDeletes).toEqual([1, 2]);
+  await expect(page.locator(".documentation-tree-document[data-id='1']")).toHaveCount(0);
+  await expect(page.locator(".documentation-tree-document[data-id='2']")).toHaveCount(0);
+  await expect(page.locator("#toast")).toHaveText("2 Documents deleted.");
+
+  await openNavView(page, "Sprints", "Sprints");
+  const sprintHeader = page.locator(".sprints-screen .section-head");
+  const sprintProject = sprintHeader.locator("[data-filter='sprint-project']");
+  const sprintFilter = sprintHeader.locator("[data-filter='sprint-filter']");
+  const sprintSearch = sprintHeader.locator("[data-filter='sprint-search']");
+  await expectIdleHeaderControlsNotToOverlap(sprintHeader);
+
+  await sprintProject.selectOption("20");
+  await expect(sprintFilter).toHaveValue("all");
+  await expect(page.locator(".sprint-card[data-id='200']")).toBeVisible();
+  await sprintHeader.locator("[data-action='open-sprint-filters']").click();
+  filterDialog = page.locator("[data-sprint-filter-dialog]");
+  await expect(filterDialog.locator("[data-filter='sprint-project']")).toHaveValue("20");
+  await filterDialog.locator("[data-filter='sprint-project']").selectOption("10");
+  await filterDialog.locator("[data-filter='sprint-filter']").selectOption("101");
+  await filterDialog.locator("[data-filter='sprint-search']").fill("Regression");
+  await expect(sprintProject).toHaveValue("10");
+  await expect(sprintFilter).toHaveValue("101");
+  await expect(sprintSearch).toHaveValue("Regression");
+  await expect(page.locator(".sprint-card[data-id='101']")).toBeVisible();
+  await expect(page.locator(".sprint-card[data-id='100']")).toHaveCount(0);
+  await closeFilterDialog(page, "sprint");
+
+  await sprintSearch.evaluate(element => element.blur());
+  await sprintHeader.hover({ position: { x: 2, y: 2 } });
+  await page.clock.fastForward(10000);
+  await expect(sprintHeader).toHaveClass(/is-idle-filter-header-compact/);
+  await expect(sprintHeader.locator(".idle-filter-header-project-slot .idle-filter-header-context-summary")).toHaveText("Project: PMT");
+  await expect(sprintHeader.locator(".idle-filter-header-sprint-slot .idle-filter-header-context-summary")).toHaveText("Sprint: PMT-Sprint02");
+  await expectIdleSearchImmediatelyBeforeAdd(sprintHeader);
+  await sprintHeader.hover({ position: { x: 4, y: 4 } });
+  await expect(sprintHeader).not.toHaveClass(/is-idle-filter-header-compact/);
+
+  await sprintSearch.fill("");
+  await sprintFilter.selectOption("all");
+  await sprintHeader.locator("[data-action='toggle-sprint-edit-mode']").click();
+  const firstSprint = page.locator(".sprint-card[data-id='100']");
+  const secondSprint = page.locator(".sprint-card[data-id='101']");
+  await firstSprint.locator("[data-sprint-delete-select]").check();
+  await secondSprint.locator("[data-sprint-delete-select]").check();
+  expect(await firstSprint.locator(".sprint-actions").evaluate(actions => {
+    const checkbox = actions.querySelector("[data-sprint-delete-select]");
+    const trash = actions.querySelector("[data-action='delete-sprint']");
+    return Boolean(checkbox.compareDocumentPosition(trash) & Node.DOCUMENT_POSITION_FOLLOWING);
+  })).toBe(true);
+  await firstSprint.locator("[data-action='delete-sprint']").click();
+  confirmation = page.locator("dialog.mini-dialog", { has: page.getByRole("heading", { name: "Delete", exact: true }) });
+  await expect(confirmation).toContainText("Delete 2 selected Sprints?");
+  await confirmation.getByRole("button", { name: "Continue" }).click();
+  await expect.poll(() => apiCalls.sprintDeletes).toEqual([100, 101]);
+  await expect(page.locator(".sprint-card[data-id='100']")).toHaveCount(0);
+  await expect(page.locator(".sprint-card[data-id='101']")).toHaveCount(0);
+  await expect(page.locator("#toast")).toHaveText("2 Sprints deleted.");
+});
+
 test("draw.io SVG clipboard paste preserves UTF-8 spaces", async ({ page }) => {
   const appState = createTestState();
   const apiCalls = { securityReset: 0 };
@@ -1992,6 +2394,69 @@ async function installApiMocks(page, appState, apiCalls) {
     await route.fulfill(jsonResponse({ reordered: true }));
   });
 
+  await page.route(/\/api\/backlog\/tasks\/\d+$/, async route => {
+    if (route.request().method() !== "DELETE") {
+      await route.fallback();
+      return;
+    }
+
+    const taskId = Number(route.request().url().match(/\/api\/backlog\/tasks\/(\d+)$/)?.[1] || 0);
+    const task = appState.tasks.find(item => item.id === taskId);
+    if (!task) {
+      await route.fulfill(jsonResponse({ error: "Backlog item not found" }, 404));
+      return;
+    }
+
+    if (!Array.isArray(apiCalls.backlogDeletes)) apiCalls.backlogDeletes = [];
+    apiCalls.backlogDeletes.push(taskId);
+    const deletedIds = new Set([
+      taskId,
+      ...appState.tasks.filter(item => item.parentTaskId === taskId).map(item => item.id)
+    ]);
+    appState.tasks = appState.tasks.filter(item => !deletedIds.has(item.id));
+    await route.fulfill({ status: 204, body: "" });
+  });
+
+  await page.route(/\/api\/blogs\/\d+$/, async route => {
+    if (route.request().method() !== "DELETE") {
+      await route.fallback();
+      return;
+    }
+
+    const blogId = Number(route.request().url().match(/\/api\/blogs\/(\d+)$/)?.[1] || 0);
+    if (!appState.blogs.some(item => item.id === blogId)) {
+      await route.fulfill(jsonResponse({ error: "Document not found" }, 404));
+      return;
+    }
+
+    if (!Array.isArray(apiCalls.blogDeletes)) apiCalls.blogDeletes = [];
+    apiCalls.blogDeletes.push(blogId);
+    appState.blogs = appState.blogs
+      .filter(item => item.id !== blogId)
+      .map(item => item.parentBlogId === blogId ? { ...item, parentBlogId: null } : item);
+    await route.fulfill({ status: 204, body: "" });
+  });
+
+  await page.route(/\/api\/sprints\/\d+$/, async route => {
+    if (route.request().method() !== "DELETE") {
+      await route.fallback();
+      return;
+    }
+
+    const sprintId = Number(route.request().url().match(/\/api\/sprints\/(\d+)$/)?.[1] || 0);
+    if (!appState.sprints.some(item => item.id === sprintId)) {
+      await route.fulfill(jsonResponse({ error: "Sprint not found" }, 404));
+      return;
+    }
+
+    if (!Array.isArray(apiCalls.sprintDeletes)) apiCalls.sprintDeletes = [];
+    apiCalls.sprintDeletes.push(sprintId);
+    appState.sprints = appState.sprints.filter(item => item.id !== sprintId);
+    appState.tasks = appState.tasks.map(item => item.sprintId === sprintId ? { ...item, sprintId: null } : item);
+    appState.blogs = appState.blogs.map(item => item.sprintId === sprintId ? { ...item, sprintId: null } : item);
+    await route.fulfill({ status: 204, body: "" });
+  });
+
   await page.route(/\/api\/tasks\/\d+$/, async route => {
     const taskId = Number(route.request().url().match(/\/api\/tasks\/(\d+)$/)?.[1] || 0);
     if (route.request().method() === "DELETE") {
@@ -2124,6 +2589,76 @@ async function closeFilterDialog(page, feature) {
   await expect(closeButton).toBeVisible();
   await closeButton.click();
   await expect(page.locator(`[data-${feature}-filter-dialog]`)).toHaveCount(0);
+}
+
+async function expectIdleHeaderControlsNotToOverlap(header) {
+  await expect.poll(() => header.evaluate(element => {
+    const toolbar = element.querySelector(":scope > .toolbar");
+    if (!toolbar) return ["toolbar missing"];
+
+    const visibleElements = [
+      element.querySelector(":scope > h1"),
+      ...toolbar.children
+    ].filter(item => {
+      if (!item) return false;
+      const style = getComputedStyle(item);
+      const rect = item.getBoundingClientRect();
+      return style.display !== "none"
+        && style.visibility !== "hidden"
+        && Number(style.opacity) > 0
+        && rect.width > 1
+        && rect.height > 1;
+    });
+    const label = item =>
+      item.matches("[data-idle-filter-header-search-control]")
+        ? "search"
+        : item.matches("[data-idle-filter-header-context]")
+          ? "project/sprint"
+          : item.dataset.action
+            || item.querySelector("[data-action]")?.dataset.action
+            || item.className
+            || item.tagName;
+    const results = [];
+
+    visibleElements.forEach((left, leftIndex) => {
+      const leftRect = left.getBoundingClientRect();
+      visibleElements.slice(leftIndex + 1).forEach(right => {
+        const rightRect = right.getBoundingClientRect();
+        const horizontalOverlap = Math.min(leftRect.right, rightRect.right) - Math.max(leftRect.left, rightRect.left);
+        const verticalOverlap = Math.min(leftRect.bottom, rightRect.bottom) - Math.max(leftRect.top, rightRect.top);
+        if (horizontalOverlap > 1 && verticalOverlap > 1) {
+          results.push(`${label(left)} overlaps ${label(right)} by ${Math.round(horizontalOverlap)}px`);
+        }
+      });
+    });
+
+    return results;
+  })).toEqual([]);
+}
+
+async function expectIdleSearchImmediatelyBeforeAdd(header) {
+  await expect.poll(() => header.evaluate(element => {
+    const search = element.querySelector("[data-idle-filter-header-search-control]")?.getBoundingClientRect();
+    const input = element.querySelector("[data-idle-filter-header-search-control] input");
+    const inputBox = input?.getBoundingClientRect();
+    const add = element.querySelector("[data-idle-filter-header-add-target]")?.getBoundingClientRect();
+    if (!search || !input || !inputBox || !add) return ["search or Add button missing"];
+
+    const gap = add.left - search.right;
+    const expectedCompactWidth = Math.min(add.width, add.height);
+    const verticalDifference = Math.abs(
+      (search.top + (search.height / 2))
+      - (add.top + (add.height / 2))
+    );
+    const issues = [];
+    if (gap < 0 || gap > 16) issues.push(`search/Add gap is ${Math.round(gap)}px`);
+    if (verticalDifference > 1) issues.push(`search/Add centers differ by ${Math.round(verticalDifference)}px`);
+    if (Math.abs(inputBox.width - expectedCompactWidth) > 1) {
+      issues.push(`compact input width is ${Math.round(inputBox.width)}px instead of ${Math.round(expectedCompactWidth)}px`);
+    }
+    if (Number(getComputedStyle(input).opacity) > 0.01) issues.push("compact search input is still visible");
+    return issues;
+  })).toEqual([]);
 }
 
 async function clickPageAction(page, action) {

@@ -43,7 +43,7 @@ export function createBoardDrag({
 
   function startDrag(event, inputType) {
     if (event.button !== 0) return;
-    if (event.target.closest("button, a, input, select, textarea")) return;
+    if (event.target.closest("button, a, input, label, select, textarea")) return;
 
     const item = event.target.closest('.task-card[data-task-id][data-can-drag="true"]');
     const container = item?.closest('[data-reorder-list="board-column"]');

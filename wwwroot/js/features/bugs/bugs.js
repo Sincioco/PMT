@@ -17,6 +17,7 @@ import {
   checkedFilterValues,
   filterCheckList
 } from "../../components/filters.js?v=20260630-filter-renderer";
+import { createIdleFilterHeader } from "../../components/idle-filter-header.js?v=20260717-multi-screen-header";
 import {
   checkList,
   checkedNumbers,
@@ -58,7 +59,7 @@ import {
   removePreference,
   writeJsonPreference,
   writePreference
-} from "../../core/preferences.js?v=20260711-tsg-report";
+} from "../../core/preferences.js?v=20260717-multi-screen-header";
 import { currentView } from "../../core/router.js?v=20260707-deep-links";
 import { state } from "../../core/store.js";
 import {
@@ -127,6 +128,7 @@ export function createBugsFeature({
   app,
   attachFile,
   deleteItem,
+  deleteItems,
   duplicateTask,
   getBoardProjectId,
   getBoardSprintId,
@@ -153,9 +155,21 @@ export function createBugsFeature({
   let activeBugTsgReportDialog = null;
   let lastBugColumnPointerDragAt = 0;
   let suppressNextBugColumnClick = false;
+  let bugBulkDeleteBusy = false;
+  const selectedBugDeleteIds = new Set();
   const bugTableMode = createWorkItemTableMode({
     action: "toggle-bug-table-edit-mode",
     itemLabel: "Bug Tracking"
+  });
+  const bugHeader = createIdleFilterHeader({
+    app,
+    screenSelector: ".bugs-screen",
+    searchFilter: "bug-search",
+    onSearchInput(input) {
+      if (!applyBugFilterChange(input)) return false;
+      renderBugs();
+      return true;
+    }
   });
 
   bindBugColumnDragEvents();
@@ -169,6 +183,7 @@ export function createBugsFeature({
     const baseBugs = allProjectBugs
       .filter(bug => !bugFilters.sprintId || bugFilters.sprintId === "all" || bug.sprintId === Number(bugFilters.sprintId));
     const filteredBugs = filteredBugReports(baseBugs);
+    pruneBugDeleteSelection(filteredBugs);
     const assigneeColumnWidth = bugAvatarColumnWidth(filteredBugs, bug => bug.assignees);
     const reporterColumnWidth = bugAvatarColumnWidth(filteredBugs, bug => bug.reporters);
     const assigneeHeader = bugRowsHaveMultipleUsers(filteredBugs, bug => bug.assignees) ? "Assignee(s)" : "Assignee";
@@ -180,9 +195,11 @@ export function createBugsFeature({
     const chartToggleLabel = showCharts ? "Hide Charts" : "Show Charts";
 
     app.innerHTML = `
-      <section class="bugs-screen work-item-screen">
+      <section class="bugs-screen work-item-screen idle-filter-header-screen">
       ${sectionHead("Bug Tracking", `
-        <button class="primary text-icon-button" type="button" data-action="new-bug" title="New Bug Report" aria-label="New Bug Report">${buttonContent("&#10010;", "New Bug Report")}</button>
+        ${bugHeader.controlsHtml(bugHeaderFields(sprintFilterSprints))}
+        ${bugHeader.searchHtml(bugFilters.search, "Search Bug Tracking")}
+        <button class="primary text-icon-button" type="button" data-action="new-bug" data-idle-filter-header-add-target title="New Bug Report" aria-label="New Bug Report">${buttonContent("&#10010;", "New Bug Report")}</button>
         <button class="secondary text-icon-button" type="button" data-action="open-bug-filters" title="Filters" aria-label="Filters" aria-haspopup="dialog">${buttonContent(funnelIconHtml(), "Filters")}</button>
         ${pageActionsMenuHtml([
           { action: "toggle-bug-table-edit-mode", icon: "&#9998;", label: "Edit Mode", title: "Edit Mode", checked: bugTableMode.active },
@@ -211,7 +228,14 @@ export function createBugsFeature({
             ${filteredBugs.map(bug => `
               <tr class="clickable-row" data-action="view-task" data-id="${bug.id}" data-task-id="${bug.id}" data-can-drag="${bugTableMode.active && canEditTask(bug) ? "true" : "false"}" draggable="false">
                 ${visibleBugColumns.map((column, index) => bugTableColumnCellHtml(column, bug, bugColumnIsRubber(visibleBugColumns, index))).join("")}
-                ${bugTableMode.active ? `<td class="reveal-actions action-cell">${taskButtonsHtml(bug, { includeView: false, monochrome: true })}</td>` : ""}
+                ${bugTableMode.active ? `
+                  <td class="reveal-actions action-cell">
+                    <div class="bug-row-actions">
+                      ${bugDeleteSelectionHtml(bug)}
+                      ${taskButtonsHtml(bug, { includeView: false, monochrome: true })}
+                    </div>
+                  </td>
+                ` : ""}
               </tr>
             `).join("") || `<tr><td colspan="${emptyTableColspan}"><div class="empty">No bug reports match these filters.</div></td></tr>`}
           </tbody>
@@ -219,6 +243,135 @@ export function createBugsFeature({
       </div>
       </section>
     `;
+
+    bugHeader.bind();
+    bindBugDeleteSelection();
+  }
+
+  function bugHeaderFields(sprints) {
+    const project = projectById(Number(bugFilters.projectId || 0));
+    const sprint = selectedBugSprint();
+
+    return [
+      {
+        key: "project",
+        filter: "bug-project",
+        label: "Project",
+        optionsHtml: bugProjectOptionsHtml(),
+        summary: project?.code || "All Projects",
+        summaryTitle: project ? `${project.code} - ${project.title}` : "All Projects"
+      },
+      {
+        key: "sprint",
+        filter: "bug-sprint",
+        label: "Sprint",
+        optionsHtml: bugSprintOptionsHtml(sprints),
+        summary: sprint?.code || "All Sprints",
+        summaryTitle: sprint ? `${sprint.code} - ${sprint.title}` : "All Sprints"
+      }
+    ];
+  }
+
+  function bugProjectOptionsHtml() {
+    return `
+      <option value="" ${!bugFilters.projectId ? "selected" : ""}>All Projects</option>
+      ${state.projects.map(project => `<option value="${project.id}" ${String(project.id) === String(bugFilters.projectId || "") ? "selected" : ""}>${escapeHtml(project.code)} - ${escapeHtml(project.title)}</option>`).join("")}
+    `;
+  }
+
+  function bugDeleteSelectionHtml(bug) {
+    const checked = selectedBugDeleteIds.has(bug.id);
+    const bugLabel = [bug.code, bug.title].filter(Boolean).join(" - ");
+
+    return `
+      <label class="bug-delete-selection" title="Select ${escapeAttr(bugLabel)} for bulk delete">
+        <input type="checkbox" data-bug-delete-select data-id="${bug.id}" aria-label="Select ${escapeAttr(bugLabel)} for bulk delete" ${checked ? "checked" : ""} ${bugCanDelete(bug) && !bugBulkDeleteBusy ? "" : "disabled"}>
+      </label>
+    `;
+  }
+
+  function bindBugDeleteSelection() {
+    app.querySelectorAll("[data-bug-delete-select]").forEach(input => {
+      input.addEventListener("change", () => {
+        if (bugBulkDeleteBusy) return;
+        const id = Number(input.dataset.id || 0);
+        if (!id) return;
+
+        if (input.checked) {
+          selectedBugDeleteIds.add(id);
+        } else {
+          selectedBugDeleteIds.delete(id);
+        }
+        syncBugDeleteSelectionControls();
+      });
+    });
+
+    syncBugDeleteSelectionControls();
+  }
+
+  function syncBugDeleteSelectionControls() {
+    const selectedTitle = bugSelectedDeleteTitle();
+
+    app.querySelectorAll("[data-bug-delete-select]").forEach(input => {
+      const id = Number(input.dataset.id || 0);
+      const bug = taskById(id);
+      input.checked = selectedBugDeleteIds.has(id);
+      input.disabled = bugBulkDeleteBusy || !bugCanDelete(bug);
+    });
+
+    app.querySelectorAll(".bugs-table tr[data-task-id] [data-action='delete-task']").forEach(button => {
+      const id = Number(button.dataset.id || 0);
+      const bug = taskById(id);
+      const title = selectedBugDeleteIds.has(id) ? selectedTitle : "Delete";
+      button.disabled = bugBulkDeleteBusy || !bugCanDelete(bug);
+      button.title = title;
+      button.setAttribute("aria-label", title);
+    });
+  }
+
+  function pruneBugDeleteSelection(bugs) {
+    if (!bugTableMode.active) {
+      selectedBugDeleteIds.clear();
+      return;
+    }
+
+    const visibleIds = new Set(bugs.filter(bugCanDelete).map(bug => bug.id));
+    [...selectedBugDeleteIds].forEach(id => {
+      if (!visibleIds.has(id)) selectedBugDeleteIds.delete(id);
+    });
+  }
+
+  function bugCanDelete(bug) {
+    return Boolean(bug)
+      && bug.taskType === "Bug"
+      && canAccessResource("BugTracking", "Delete");
+  }
+
+  function bugSelectedDeleteTitle(count = selectedBugDeleteIds.size) {
+    return count === 1
+      ? "Delete selected Bug Report"
+      : `Delete ${count} selected Bug Reports`;
+  }
+
+  async function deleteSelectedBugs() {
+    const bugs = [...selectedBugDeleteIds]
+      .map(taskById)
+      .filter(bugCanDelete);
+    if (!bugs.length) return;
+
+    const count = bugs.length;
+    bugBulkDeleteBusy = true;
+    syncBugDeleteSelectionControls();
+    try {
+      await deleteItems(
+        bugs.map(bug => `/api/tasks/${bug.id}`),
+        `${bugSelectedDeleteTitle(count)}?`,
+        `${count} Bug Report${count === 1 ? "" : "s"} deleted.`
+      );
+    } finally {
+      bugBulkDeleteBusy = false;
+      syncBugDeleteSelectionControls();
+    }
   }
 
   async function handleAction(action, id, element) {
@@ -234,6 +387,7 @@ export function createBugsFeature({
     }
     if (action === "toggle-bug-table-edit-mode") {
       bugTableMode.toggle();
+      selectedBugDeleteIds.clear();
       renderBugs();
       return true;
     }
@@ -283,7 +437,11 @@ export function createBugsFeature({
       return true;
     }
     if (action === "delete-task" && bug?.taskType === "Bug") {
-      await deleteItem(`/api/tasks/${id}`, "Delete this task?");
+      if (selectedBugDeleteIds.has(id)) {
+        await deleteSelectedBugs();
+      } else {
+        await deleteItem(`/api/tasks/${id}`, "Delete this task?");
+      }
       return true;
     }
 
@@ -292,6 +450,7 @@ export function createBugsFeature({
 
   function handleFilterChange(eventOrTarget) {
     const target = eventOrTarget?.target || eventOrTarget;
+    if (target?.closest?.(".bugs-screen .section-head")) bugHeader.markActivity();
     if (!applyBugFilterChange(target)) return false;
 
     renderBugs();
@@ -367,7 +526,12 @@ export function createBugsFeature({
     return `
       <div class="bugs-filter-panel">
         <div class="task-filter-row bug-filter-row">
-          ${bugFilterSelectHtml("Project", "bug-project", state.projects.map(project => ({ value: project.id, text: `${project.code} - ${project.title}` })), bugFilters.projectId || "", "All Projects")}
+          <label>
+            <span>Project</span>
+            <select data-filter="bug-project">
+              ${bugProjectOptionsHtml()}
+            </select>
+          </label>
           ${bugSprintFilterHtml(sprintFilterSprints)}
           <label>
             <span>Search</span>
@@ -999,7 +1163,7 @@ export function createBugsFeature({
   }
 
   function bugTableMinWidth(columns) {
-    const fixedWidth = bugTableMode.active ? 224 : 0;
+    const fixedWidth = bugTableMode.active ? 248 : 0;
     const lastColumnIndex = columns.length - 1;
     const columnsWidth = columns.reduce((total, column, index) =>
       total + bugColumnMinimumWidth(column, index === lastColumnIndex), 0);
@@ -1983,6 +2147,8 @@ export function createBugsFeature({
     bugEntryEnvironment = "";
     bugColumnPrefs = normalizeBugColumnPrefs({});
     bugTableMode.deactivate();
+    selectedBugDeleteIds.clear();
+    bugHeader.reset();
     cancelBugColumnDrag();
     renderBugs();
   }
@@ -2207,10 +2373,16 @@ export function createBugsFeature({
       <label>
         <span>Sprint</span>
         <select data-filter="bug-sprint">
-          <option value="all" ${bugFilters.sprintId === "all" ? "selected" : ""}>All Sprints</option>
-          ${sprints.map(sprint => `<option value="${sprint.id}" ${String(sprint.id) === bugFilters.sprintId ? "selected" : ""}>${escapeHtml(bugSprintFilterLabel(sprint))}</option>`).join("")}
+          ${bugSprintOptionsHtml(sprints)}
         </select>
       </label>
+    `;
+  }
+
+  function bugSprintOptionsHtml(sprints) {
+    return `
+      <option value="all" ${bugFilters.sprintId === "all" ? "selected" : ""}>All Sprints</option>
+      ${sprints.map(sprint => `<option value="${sprint.id}" ${String(sprint.id) === bugFilters.sprintId ? "selected" : ""}>${escapeHtml(bugSprintFilterLabel(sprint))}</option>`).join("")}
     `;
   }
 
@@ -2279,6 +2451,9 @@ export function createBugsFeature({
         dialog.remove();
       }
     });
+    bugHeader.deactivate();
+    bugBulkDeleteBusy = false;
+    selectedBugDeleteIds.clear();
     cancelBugColumnDrag();
     bugTableMode.deactivate();
   }

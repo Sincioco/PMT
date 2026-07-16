@@ -59,7 +59,8 @@ export function applyActionPermissions(root, view) {
 
   root.querySelectorAll("button[data-action]").forEach(button => {
     const right = rightForAction(button.dataset.action || "");
-    if (!right || canAccessResource(resourceKey, right)) return;
+    const actionResourceKey = button.dataset.securityResource || resourceKey;
+    if (!right || canAccessResource(actionResourceKey, right)) return;
 
     button.disabled = true;
     button.classList.add("security-disabled-action");

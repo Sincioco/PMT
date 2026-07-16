@@ -18,21 +18,10 @@
 }
 
 .documentation-view-toggle {
-  position: absolute;
-  top: 50%;
-  left: 50%;
   display: flex;
+  flex: 0 0 auto;
   gap: var(--space-2);
   align-items: center;
-  transform: translate(-50%, -50%);
-}
-
-.documentation-header-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-3);
-  justify-content: flex-end;
-  margin-left: auto;
 }
 
 .documentation-view-toggle-button {
@@ -429,6 +418,23 @@
   padding-top: 0 !important;
 }
 
+.documentation-delete-selection {
+  display: grid;
+  width: 24px;
+  height: var(--touch-target-min);
+  place-items: center;
+  cursor: pointer;
+}
+
+.documentation-delete-selection input {
+  margin: 0;
+  cursor: pointer;
+}
+
+.documentation-delete-selection input:disabled {
+  cursor: not-allowed;
+}
+
 .documentation-tree-layout {
   display: grid;
   grid-template-columns: minmax(220px, var(--documentation-tree-pane-width, 320px)) 4px minmax(0, 1fr);
@@ -815,21 +821,15 @@ html[data-theme] .documentation-inline-editor .rich-tools .documentation-inline-
     overflow: hidden;
   }
 
-  .documentation-screen .section-head .toolbar {
-    display: grid;
-    gap: var(--space-4);
-    justify-content: stretch;
+  .documentation-screen.idle-filter-header-screen .section-head > .toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+    justify-content: flex-start;
   }
 
   .documentation-view-toggle {
-    position: static;
-    justify-self: center;
-    transform: none;
-  }
-
-  .documentation-header-actions {
     justify-content: flex-start;
-    margin-left: 0;
   }
 
   .documentation-card {

@@ -5,6 +5,7 @@ import {
   checkedFilterValues,
   filterCheckList
 } from "../../components/filters.js?v=20260630-filter-renderer";
+import { createIdleFilterHeader } from "../../components/idle-filter-header.js?v=20260717-multi-screen-header";
 import {
   userCardCheckListLabelHtml
 } from "../../components/forms.js?v=20260715-day28-v118";
@@ -19,7 +20,7 @@ import {
   readJsonPreference,
   removePreference,
   writeJsonPreference
-} from "../../core/preferences.js?v=20260630-backlog-task-parity";
+} from "../../core/preferences.js?v=20260717-multi-screen-header";
 import { currentUser } from "../../core/authentication.js?v=20260715-admin-impersonation";
 import { state } from "../../core/store.js";
 import {
@@ -77,6 +78,7 @@ const backlogBugFixIconUrl = "/assets/bug.svg?v=20260629-kanban-gantt-bug-icon";
 export function createBacklogFeature({
   app,
   deleteItem,
+  deleteItems,
   duplicateTask,
   editBug,
   editTask,
@@ -92,9 +94,21 @@ export function createBacklogFeature({
   let backlogColumnDrag = null;
   let lastBacklogColumnPointerDragAt = 0;
   let suppressNextBacklogColumnClick = false;
+  let backlogBulkDeleteBusy = false;
+  const selectedBacklogDeleteIds = new Set();
   const backlogTableMode = createWorkItemTableMode({
     action: "toggle-backlog-table-edit-mode",
     itemLabel: "Backlog"
+  });
+  const backlogHeader = createIdleFilterHeader({
+    app,
+    screenSelector: ".backlog-screen",
+    searchFilter: "backlog-search",
+    onSearchInput(input) {
+      if (!applyBacklogFilterChange(input)) return false;
+      renderBacklog();
+      return true;
+    }
   });
 
   backlogFilters = normalizeBacklogFilters(backlogFilters);
@@ -109,15 +123,18 @@ export function createBacklogFeature({
     const backlogItems = filteredBacklogItems();
     const backlogChildrenByParent = backlogChildTasksByParent(backlogItems);
     const backlogRows = backlogRowsWithVisibleSubTasks(backlogItems);
+    pruneBacklogDeleteSelection(backlogRows);
     const assigneeColumnWidth = backlogAssigneeColumnWidth(backlogRows);
     const assigneeHeader = backlogRowsHaveMultipleAssignees(backlogRows) ? "Assignee(s)" : "Assignee";
     const visibleBacklogColumns = backlogVisibleTableColumns(assigneeHeader);
     const emptyTableColspan = visibleBacklogColumns.length + (backlogTableMode.active ? 2 : 1);
 
     app.innerHTML = `
-      <section class="backlog-screen work-item-screen">
+      <section class="backlog-screen work-item-screen idle-filter-header-screen">
         ${sectionHead("Backlog", `
-          <button class="primary text-icon-button" type="button" data-action="new-backlog-task" title="New Dev Task" aria-label="New Dev Task">${buttonContent("&#10010;", "New Dev Task")}</button>
+          ${backlogHeader.controlsHtml(backlogHeaderFields())}
+          ${backlogHeader.searchHtml(backlogFilters.search, "Search Backlog")}
+          <button class="primary text-icon-button" type="button" data-action="new-backlog-task" data-idle-filter-header-add-target title="New Dev Task" aria-label="New Dev Task">${buttonContent("&#10010;", "New Dev Task")}</button>
           <button class="primary text-icon-button" type="button" data-action="new-backlog-bug" title="New Bug Report" aria-label="New Bug Report">${buttonContent(bugIconHtml(), "New Bug Report")}</button>
           <button class="secondary text-icon-button" type="button" data-action="open-backlog-filters" title="Filters" aria-label="Filters" aria-haspopup="dialog">${buttonContent(funnelIconHtml(), "Filters")}</button>
           ${pageActionsMenuHtml([
@@ -162,7 +179,14 @@ export function createBacklogFeature({
                 <tr class="${rowClass}" data-action="view-backlog-task" data-id="${task.id}" data-task-id="${task.id}" data-can-drag="${backlogTableMode.active ? "true" : "false"}" draggable="false" style="--indent:${indent}px">
                   <td class="backlog-expand-cell">${hasVisibleSubTasks ? backlogSubTaskToggleHtml(task, isSubTasksCollapsed) : ""}</td>
                   ${visibleBacklogColumns.map((column, index) => backlogTableColumnCellHtml(column, task, row, { bugFixRowIcon }, backlogColumnIsRubber(visibleBacklogColumns, index))).join("")}
-                  ${backlogTableMode.active ? `<td class="reveal-actions action-cell">${backlogTaskButtonsHtml(task)}</td>` : ""}
+                  ${backlogTableMode.active ? `
+                    <td class="reveal-actions action-cell">
+                      <div class="backlog-row-actions">
+                        ${backlogDeleteSelectionHtml(task)}
+                        ${backlogTaskButtonsHtml(task)}
+                      </div>
+                    </td>
+                  ` : ""}
                 </tr>
               `;
               }).join("") || `<tr><td colspan="${emptyTableColspan}"><div class="empty">No backlog items match the current filters.</div></td></tr>`}
@@ -171,6 +195,187 @@ export function createBacklogFeature({
         </div>
       </section>
     `;
+
+    backlogHeader.bind();
+    bindBacklogDeleteSelection();
+  }
+
+  function backlogHeaderFields() {
+    const project = state.projects.find(item => item.id === Number(backlogFilters.projectId || 0));
+    const sprint = state.sprints.find(item => item.id === Number(backlogFilters.sprintId));
+    const sprintSummary = backlogFilters.sprintId === "unassigned"
+      ? { label: "Unassigned", title: "Unassigned" }
+      : sprint
+        ? { label: sprint.code, title: `${sprint.code} - ${sprint.title}` }
+        : { label: "All Sprints", title: "All Sprints" };
+
+    return [
+      {
+        key: "project",
+        filter: "backlog-project",
+        label: "Project",
+        optionsHtml: backlogProjectOptionsHtml(),
+        summary: project?.code || "All Projects",
+        summaryTitle: project ? `${project.code} - ${project.title}` : "All Projects"
+      },
+      {
+        key: "sprint",
+        filter: "backlog-sprint",
+        label: "Sprint",
+        optionsHtml: backlogSprintOptionsHtml(backlogFilterSprints()),
+        summary: sprintSummary.label,
+        summaryTitle: sprintSummary.title
+      }
+    ];
+  }
+
+  function backlogFilterSprints() {
+    return state.sprints.filter(sprint =>
+      !backlogFilters.projectId || sprint.projectId === Number(backlogFilters.projectId));
+  }
+
+  function backlogProjectOptionsHtml() {
+    return `
+      <option value="" ${!backlogFilters.projectId ? "selected" : ""}>All Projects</option>
+      ${state.projects.map(project => `<option value="${project.id}" ${String(project.id) === String(backlogFilters.projectId || "") ? "selected" : ""}>${escapeHtml(project.code)} - ${escapeHtml(project.title)}</option>`).join("")}
+    `;
+  }
+
+  function backlogSprintOptionsHtml(sprints = backlogFilterSprints()) {
+    return `
+      <option value="all" ${backlogFilters.sprintId === "all" ? "selected" : ""}>All Sprints</option>
+      <option value="unassigned" ${backlogFilters.sprintId === "unassigned" ? "selected" : ""}>Unassigned</option>
+      ${sprints.map(sprint => `<option value="${sprint.id}" ${String(sprint.id) === String(backlogFilters.sprintId) ? "selected" : ""}>${escapeHtml(sprint.code)} - ${escapeHtml(sprint.title)}</option>`).join("")}
+    `;
+  }
+
+  function backlogDeleteSelectionHtml(task) {
+    const checked = selectedBacklogDeleteIds.has(task.id);
+    const taskLabel = [task.code, task.title].filter(Boolean).join(" - ");
+
+    return `
+      <label class="backlog-delete-selection" title="Select ${escapeAttr(taskLabel)} for bulk delete">
+        <input type="checkbox" data-backlog-delete-select data-id="${task.id}" aria-label="Select ${escapeAttr(taskLabel)} for bulk delete" ${checked ? "checked" : ""} ${backlogCanDelete(task) && !backlogBulkDeleteBusy ? "" : "disabled"}>
+      </label>
+    `;
+  }
+
+  function bindBacklogDeleteSelection() {
+    app.querySelectorAll("[data-backlog-delete-select]").forEach(input => {
+      input.addEventListener("change", () => {
+        if (backlogBulkDeleteBusy) return;
+        const id = Number(input.dataset.id || 0);
+        if (!id) return;
+
+        if (input.checked) {
+          selectedBacklogDeleteIds.add(id);
+        } else {
+          selectedBacklogDeleteIds.delete(id);
+        }
+        syncBacklogDeleteSelectionControls();
+      });
+    });
+
+    syncBacklogDeleteSelectionControls();
+  }
+
+  function syncBacklogDeleteSelectionControls() {
+    const selectedTitle = backlogSelectedDeleteTitle();
+
+    app.querySelectorAll("[data-backlog-delete-select]").forEach(input => {
+      const id = Number(input.dataset.id || 0);
+      const task = taskById(id);
+      input.checked = selectedBacklogDeleteIds.has(id);
+      input.disabled = backlogBulkDeleteBusy || !backlogCanDelete(task);
+    });
+
+    app.querySelectorAll(".backlog-table tr[data-task-id] [data-action='delete-backlog-task']").forEach(button => {
+      const id = Number(button.dataset.id || 0);
+      const task = taskById(id);
+      const title = selectedBacklogDeleteIds.has(id) ? selectedTitle : "Delete";
+      button.disabled = backlogBulkDeleteBusy || !backlogCanDelete(task);
+      button.title = title;
+      button.setAttribute("aria-label", title);
+    });
+  }
+
+  function pruneBacklogDeleteSelection(rows) {
+    if (!backlogTableMode.active) {
+      selectedBacklogDeleteIds.clear();
+      return;
+    }
+
+    const visibleIds = new Set(
+      rows
+        .map(row => row.task)
+        .filter(backlogCanDelete)
+        .map(task => task.id)
+    );
+    [...selectedBacklogDeleteIds].forEach(id => {
+      if (!visibleIds.has(id)) selectedBacklogDeleteIds.delete(id);
+    });
+  }
+
+  function backlogCanDelete(task) {
+    return Boolean(task) && canAccessResource("Backlog", "Delete");
+  }
+
+  function backlogSelectedDeleteTitle(count = selectedBacklogDeleteIds.size) {
+    return count === 1
+      ? "Delete selected Backlog Item"
+      : `Delete ${count} selected Backlog Items`;
+  }
+
+  async function deleteSelectedBacklogItems() {
+    const tasks = [...selectedBacklogDeleteIds]
+      .map(taskById)
+      .filter(backlogCanDelete)
+      .sort((left, right) => backlogTaskDeleteDepth(left) - backlogTaskDeleteDepth(right));
+    if (!tasks.length) return;
+
+    const count = tasks.length;
+    const coveredByParentDelete = new Set();
+    const requestTasks = [];
+    tasks.forEach(task => {
+      if (coveredByParentDelete.has(task.id)) return;
+
+      requestTasks.push(task);
+      state.tasks
+        .filter(candidate => candidate.parentTaskId === task.id)
+        .forEach(candidate => coveredByParentDelete.add(candidate.id));
+    });
+    const includesParent = tasks.some(task =>
+      state.tasks.some(candidate => candidate.parentTaskId === task.id));
+    const childWarning = includesParent ? " Deleting a parent also deletes its direct sub-tasks." : "";
+
+    backlogBulkDeleteBusy = true;
+    syncBacklogDeleteSelectionControls();
+    try {
+      await deleteItems(
+        requestTasks.map(task => `/api/backlog/tasks/${task.id}`),
+        `${backlogSelectedDeleteTitle(count)}?${childWarning}`,
+        `${count} Backlog Item${count === 1 ? "" : "s"} deleted.`
+      );
+    } finally {
+      backlogBulkDeleteBusy = false;
+      syncBacklogDeleteSelectionControls();
+    }
+  }
+
+  function backlogTaskDeleteDepth(task) {
+    let depth = 0;
+    let parentId = task?.parentTaskId;
+    const visited = new Set();
+
+    while (parentId && !visited.has(parentId)) {
+      visited.add(parentId);
+      const parent = taskById(parentId);
+      if (!parent) break;
+      depth += 1;
+      parentId = parent.parentTaskId;
+    }
+
+    return depth;
   }
 
   function backlogTaskButtonsHtml(task) {
@@ -195,6 +400,7 @@ export function createBacklogFeature({
     }
     if (action === "toggle-backlog-table-edit-mode") {
       backlogTableMode.toggle();
+      selectedBacklogDeleteIds.clear();
       renderBacklog();
       return true;
     }
@@ -240,7 +446,11 @@ export function createBacklogFeature({
       return true;
     }
     if (action === "delete-backlog-task") {
-      await deleteItem(`/api/backlog/tasks/${id}`, "Delete this backlog item?");
+      if (selectedBacklogDeleteIds.has(id)) {
+        await deleteSelectedBacklogItems();
+      } else {
+        await deleteItem(`/api/backlog/tasks/${id}`, "Delete this backlog item?");
+      }
       return true;
     }
 
@@ -249,6 +459,7 @@ export function createBacklogFeature({
 
   function handleFilterChange(eventOrTarget) {
     const target = eventOrTarget?.target || eventOrTarget;
+    if (target?.closest?.(".backlog-screen .section-head")) backlogHeader.markActivity();
     if (!applyBacklogFilterChange(target)) return false;
 
     renderBacklog();
@@ -308,23 +519,20 @@ export function createBacklogFeature({
     const body = modal.querySelector("[data-backlog-filter-dialog-body]");
     if (!body) return;
 
-    const sprints = state.sprints.filter(sprint => !backlogFilters.projectId || sprint.projectId === Number(backlogFilters.projectId));
+    const sprints = backlogFilterSprints();
     body.innerHTML = `
       <div class="backlog-filter-fields">
         <div class="task-filter-row backlog-filter-row">
           <label>
             <span>Project</span>
             <select data-filter="backlog-project">
-              <option value="" ${!backlogFilters.projectId ? "selected" : ""}>All Projects</option>
-              ${state.projects.map(project => `<option value="${project.id}" ${String(project.id) === String(backlogFilters.projectId || "") ? "selected" : ""}>${escapeHtml(project.code)} - ${escapeHtml(project.title)}</option>`).join("")}
+              ${backlogProjectOptionsHtml()}
             </select>
           </label>
           <label>
             <span>Sprint</span>
             <select data-filter="backlog-sprint">
-              <option value="all" ${backlogFilters.sprintId === "all" ? "selected" : ""}>All Sprints</option>
-              <option value="unassigned" ${backlogFilters.sprintId === "unassigned" ? "selected" : ""}>Unassigned</option>
-              ${sprints.map(sprint => `<option value="${sprint.id}" ${String(sprint.id) === String(backlogFilters.sprintId) ? "selected" : ""}>${escapeHtml(sprint.code)} - ${escapeHtml(sprint.title)}</option>`).join("")}
+              ${backlogSprintOptionsHtml(sprints)}
             </select>
           </label>
           <label>
@@ -1002,7 +1210,7 @@ export function createBacklogFeature({
   }
 
   function backlogTableMinWidth(columns) {
-    const fixedWidth = 16 + (backlogTableMode.active ? 192 : 0);
+    const fixedWidth = 16 + (backlogTableMode.active ? 216 : 0);
     const lastColumnIndex = columns.length - 1;
     const columnsWidth = columns.reduce((total, column, index) =>
       total + backlogColumnMinimumWidth(column, index === lastColumnIndex), 0);
@@ -1674,6 +1882,8 @@ export function createBacklogFeature({
     backlogCollapsedSubTasks = {};
     backlogColumnPrefs = normalizeBacklogColumnPrefs({});
     backlogTableMode.deactivate();
+    selectedBacklogDeleteIds.clear();
+    backlogHeader.reset();
     cancelBacklogColumnDrag();
     renderBacklog();
   }
@@ -1683,6 +1893,9 @@ export function createBacklogFeature({
       if (dialog.open) dialog.close();
       else dialog.remove();
     });
+    backlogHeader.deactivate();
+    backlogBulkDeleteBusy = false;
+    selectedBacklogDeleteIds.clear();
     cancelBacklogColumnDrag();
     backlogTableMode.deactivate();
   }

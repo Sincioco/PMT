@@ -1,7 +1,8 @@
 import { avatarsHtml, syncAvatarStackFit } from "../../components/avatars.js?v=20260710-nav-avatar-fit";
-import { buttonContent, iconButton } from "../../components/buttons.js";
+import { buttonContent, funnelIconHtml, iconButton } from "../../components/buttons.js";
 import { VisualCharts } from "../../components/charts.js?v=20260628-chart-native-tooltips";
-import { askFinishSprintOptions } from "../../components/dialogs.js";
+import { askFinishSprintOptions, initializeWindowedDialog } from "../../components/dialogs.js";
+import { createIdleFilterHeader } from "../../components/idle-filter-header.js?v=20260717-multi-screen-header";
 import {
   checkListOrEmpty,
   checkedNumbers,
@@ -25,8 +26,9 @@ import { api } from "../../core/api.js";
 import {
   preferenceKeys,
   readNumberPreference,
+  readPreference,
   writePreference
-} from "../../core/preferences.js?v=20260620-sprint-entry-project";
+} from "../../core/preferences.js?v=20260717-multi-screen-header";
 import { state } from "../../core/store.js";
 import {
   formatDate,
@@ -47,6 +49,7 @@ import { sprintWorkItems } from "../../shared/work-item-rules.js?v=20260716-deve
 export function createSprintsFeature({
   app,
   deleteItem,
+  deleteItems,
   loadState,
   openEditor,
   openSprintTasks,
@@ -55,33 +58,132 @@ export function createSprintsFeature({
   showToast
 }) {
   let sprintProjectId = readNumberPreference(preferenceKeys.sprintProject, 0);
+  let sprintFilterId = readPreference(preferenceKeys.sprintFilter, "all");
+  let sprintSearch = readPreference(preferenceKeys.sprintSearch, "");
   let sprintEntryProjectId = readNumberPreference(preferenceKeys.sprintEntryProject, 0);
   let collapsedIds = new Set();
+  let sprintEditMode = false;
+  let sprintBulkDeleteBusy = false;
+  const selectedSprintDeleteIds = new Set();
+  const sprintHeader = createIdleFilterHeader({
+    app,
+    screenSelector: ".sprints-screen",
+    searchFilter: "sprint-search",
+    onSearchInput: input => handleFilterChange(input)
+  });
 
   function renderSprints() {
     ensureSelectedProject();
+    normalizeSprintFilter();
 
-    const visibleSprints = state.sprints.filter(sprint => sprint.projectId === sprintProjectId);
+    const visibleSprints = filteredSprints();
+    pruneSprintDeleteSelection(visibleSprints);
     const allVisibleCollapsed = visibleSprints.length > 0 && visibleSprints.every(sprint => collapsedIds.has(sprint.id));
 
     app.innerHTML = `
+      <section class="sprints-screen idle-filter-header-screen">
       ${sectionHead("Sprints", `
-        <label class="section-filter-label">
-          <span>Project</span>
-          <select data-filter="sprint-project">
-            ${state.projects.map(project => `<option value="${project.id}" ${project.id === sprintProjectId ? "selected" : ""}>${escapeHtml(project.code)} - ${escapeHtml(project.title)}</option>`).join("")}
-          </select>
-        </label>
+        ${sprintHeader.controlsHtml([
+          {
+            key: "project",
+            filter: "sprint-project",
+            label: "Project",
+            optionsHtml: sprintProjectOptionsHtml(),
+            summary: sprintProjectSummary().label,
+            summaryTitle: sprintProjectSummary().title
+          },
+          {
+            key: "sprint",
+            filter: "sprint-filter",
+            label: "Sprint",
+            optionsHtml: sprintFilterOptionsHtml(),
+            summary: sprintFilterSummary().label,
+            summaryTitle: sprintFilterSummary().title
+          }
+        ])}
+        ${sprintHeader.searchHtml(sprintSearch, "Search Sprints")}
+        <button class="primary text-icon-button" type="button" data-action="new-sprint" data-idle-filter-header-add-target>${buttonContent("&#10010;", "New Sprint")}</button>
         <button class="icon-action" type="button" data-action="toggle-all-sprint-details" title="${allVisibleCollapsed ? "Expand all Sprint charts" : "Collapse all Sprint charts"}" aria-label="${allVisibleCollapsed ? "Expand all Sprint charts" : "Collapse all Sprint charts"}" aria-pressed="${!allVisibleCollapsed}">
           ${allVisibleCollapsed ? "&#9662;" : "&#9652;"}
         </button>
-        <button class="primary text-icon-button" type="button" data-action="new-sprint">${buttonContent("&#10010;", "New Sprint")}</button>
+        <button class="secondary text-icon-button sprint-edit-mode-toggle" type="button" data-action="toggle-sprint-edit-mode" aria-pressed="${sprintEditMode}" title="${sprintEditMode ? "Finish Edit Mode" : "Edit Mode"}" ${canAccessResource("Sprints", "Delete") ? "" : "disabled"}>
+          ${buttonContent(sprintEditMode ? "&#10003;" : "&#9998;", sprintEditMode ? "Done" : "Edit Mode")}
+        </button>
+        <button class="secondary text-icon-button" type="button" data-action="open-sprint-filters" title="Filters" aria-label="Filters" aria-haspopup="dialog">
+          ${buttonContent(funnelIconHtml(), "Filters")}
+        </button>
       `)}
       <div class="grid sprints-grid">
-        ${visibleSprints.map(sprintCardHtml).join("") || `<div class="empty">No Sprints for this project.</div>`}
+        ${visibleSprints.map(sprintCardHtml).join("") || `<div class="empty">No Sprints for this filter.</div>`}
       </div>
+      </section>
     `;
+    sprintHeader.bind();
+    bindSprintDeleteSelection();
     syncAvatarStackFit(app);
+  }
+
+  function sprintProjectOptionsHtml() {
+    return state.projects
+      .map(project => `<option value="${project.id}" ${project.id === sprintProjectId ? "selected" : ""}>${escapeHtml(project.code)} - ${escapeHtml(project.title)}</option>`)
+      .join("");
+  }
+
+  function sprintFilterOptionsHtml() {
+    return `
+      <option value="all" ${sprintFilterId === "all" ? "selected" : ""}>All Sprints</option>
+      ${state.sprints
+        .filter(sprint => sprint.projectId === sprintProjectId)
+        .map(sprint => `<option value="${sprint.id}" ${String(sprint.id) === sprintFilterId ? "selected" : ""}>${escapeHtml(sprint.code)} - ${escapeHtml(sprint.title)}</option>`)
+        .join("")}
+    `;
+  }
+
+  function sprintProjectSummary() {
+    const project = projectById(sprintProjectId);
+    return project
+      ? { label: project.code, title: `${project.code} - ${project.title}` }
+      : { label: "No Project", title: "No Project" };
+  }
+
+  function sprintFilterSummary() {
+    if (sprintFilterId === "all") return { label: "All Sprints", title: "All Sprints" };
+    const sprint = sprintById(Number(sprintFilterId));
+    return sprint
+      ? { label: sprint.code, title: `${sprint.code} - ${sprint.title}` }
+      : { label: "All Sprints", title: "All Sprints" };
+  }
+
+  function normalizeSprintFilter() {
+    if (
+      sprintFilterId === "all"
+      || state.sprints.some(sprint => sprint.id === Number(sprintFilterId) && sprint.projectId === sprintProjectId)
+    ) return;
+
+    sprintFilterId = "all";
+    writePreference(preferenceKeys.sprintFilter, sprintFilterId);
+  }
+
+  function filteredSprints() {
+    const search = sprintSearch.trim().toLowerCase();
+    return state.sprints
+      .filter(sprint => sprint.projectId === sprintProjectId)
+      .filter(sprint => sprintFilterId === "all" || sprint.id === Number(sprintFilterId))
+      .filter(sprint => !search || sprintMatchesSearch(sprint, search));
+  }
+
+  function sprintMatchesSearch(sprint, search) {
+    const project = projectById(sprint.projectId);
+    const members = (sprint.developers || [])
+      .flatMap(user => [user.name, user.nickname, user.firstName, user.lastName, user.email]);
+    return [
+      sprint.code,
+      sprint.title,
+      sprint.description,
+      project?.code,
+      project?.title,
+      ...members
+    ].join(" ").toLowerCase().includes(search);
   }
 
   function sprintCardHtml(sprint) {
@@ -110,6 +212,7 @@ export function createSprintsFeature({
         ${isCollapsed ? "" : sprintStatusMetricsHtml(sprint, { showTotal: false })}
         <div class="row sprint-members">${avatarsHtml(sprint.developers, { fit: "auto" })}</div>
         <div class="toolbar reveal-actions sprint-actions">
+          ${sprintDeleteSelectionHtml(sprint)}
           ${iconButton("delete-sprint", sprint.id, "Delete", "delete", canAccessResource("Sprints", "Delete"), "danger")}
           ${iconButton("finish-sprint", sprint.id, "Finish", "finish", canAccessResource("Sprints", "Update") && !sprint.isFinished)}
           ${iconButton("edit-sprint", sprint.id, "Edit", "edit", canAccessResource("Sprints", "Update"))}
@@ -157,7 +260,118 @@ export function createSprintsFeature({
     `;
   }
 
+  function sprintDeleteSelectionHtml(sprint) {
+    if (!sprintEditMode) return "";
+
+    const checked = selectedSprintDeleteIds.has(sprint.id);
+    const label = `Select ${sprint.code} - ${sprint.title} for bulk delete`;
+    return `
+      <label class="sprint-delete-selection" title="${escapeAttr(label)}">
+        <input type="checkbox" data-sprint-delete-select data-id="${sprint.id}" aria-label="${escapeAttr(label)}" ${checked ? "checked" : ""} ${sprintCanDelete(sprint) && !sprintBulkDeleteBusy ? "" : "disabled"}>
+      </label>
+    `;
+  }
+
+  function bindSprintDeleteSelection() {
+    app.querySelectorAll("[data-sprint-delete-select]").forEach(input => {
+      input.closest("label")?.addEventListener("click", event => event.stopPropagation());
+      input.addEventListener("click", event => event.stopPropagation());
+      input.addEventListener("change", () => {
+        if (sprintBulkDeleteBusy) return;
+        const id = Number(input.dataset.id || 0);
+        if (!id) return;
+
+        if (input.checked) {
+          selectedSprintDeleteIds.add(id);
+        } else {
+          selectedSprintDeleteIds.delete(id);
+        }
+        syncSprintDeleteSelectionControls();
+      });
+    });
+
+    syncSprintDeleteSelectionControls();
+  }
+
+  function syncSprintDeleteSelectionControls() {
+    const selectedCount = selectedSprintDeleteIds.size;
+    const selectedTitle = sprintSelectedDeleteTitle(selectedCount);
+
+    app.querySelectorAll("[data-sprint-delete-select]").forEach(input => {
+      const id = Number(input.dataset.id || 0);
+      const sprint = sprintById(id);
+      input.checked = selectedSprintDeleteIds.has(id);
+      input.disabled = sprintBulkDeleteBusy || !sprintCanDelete(sprint);
+    });
+
+    app.querySelectorAll("[data-action='delete-sprint']").forEach(button => {
+      const id = Number(button.dataset.id || 0);
+      const sprint = sprintById(id);
+      const title = selectedSprintDeleteIds.has(id) ? selectedTitle : "Delete";
+      button.disabled = sprintBulkDeleteBusy || !sprintCanDelete(sprint);
+      button.title = title;
+      button.setAttribute("aria-label", title);
+    });
+  }
+
+  function pruneSprintDeleteSelection(visibleSprints) {
+    if (!sprintEditMode) {
+      selectedSprintDeleteIds.clear();
+      return;
+    }
+
+    const visibleIds = new Set(
+      visibleSprints
+        .filter(sprintCanDelete)
+        .map(sprint => sprint.id)
+    );
+    [...selectedSprintDeleteIds].forEach(id => {
+      if (!visibleIds.has(id)) selectedSprintDeleteIds.delete(id);
+    });
+  }
+
+  function sprintCanDelete(sprint) {
+    return Boolean(sprint) && canAccessResource("Sprints", "Delete");
+  }
+
+  function sprintSelectedDeleteTitle(count = selectedSprintDeleteIds.size) {
+    return count === 1
+      ? "Delete selected Sprint"
+      : `Delete ${count} selected Sprints`;
+  }
+
+  async function deleteSelectedSprints() {
+    const sprints = [...selectedSprintDeleteIds]
+      .map(sprintById)
+      .filter(sprintCanDelete);
+    if (!sprints.length) return;
+
+    const count = sprints.length;
+    sprintBulkDeleteBusy = true;
+    syncSprintDeleteSelectionControls();
+    try {
+      await deleteItems(
+        sprints.map(sprint => `/api/sprints/${sprint.id}`),
+        `${sprintSelectedDeleteTitle(count)}?`,
+        `${count} Sprint${count === 1 ? "" : "s"} deleted.`
+      );
+    } finally {
+      sprintBulkDeleteBusy = false;
+      syncSprintDeleteSelectionControls();
+    }
+  }
+
   async function handleAction(action, id) {
+    if (action === "toggle-sprint-edit-mode") {
+      sprintEditMode = !sprintEditMode;
+      selectedSprintDeleteIds.clear();
+      renderSprints();
+      return true;
+    }
+    if (action === "open-sprint-filters") {
+      openSprintFiltersDialog();
+      return true;
+    }
     if (action === "new-sprint") {
       editSprint();
       return true;
@@ -175,7 +389,11 @@ export function createSprintsFeature({
       return true;
     }
     if (action === "delete-sprint") {
-      await deleteItem(`/api/sprints/${id}`, "Delete this Sprint?");
+      if (selectedSprintDeleteIds.has(id)) {
+        await deleteSelectedSprints();
+      } else {
+        await deleteItem(`/api/sprints/${id}`, "Delete this Sprint?");
+      }
       return true;
     }
     if (action === "toggle-sprint-card-details") {
@@ -192,11 +410,97 @@ export function createSprintsFeature({
 
   function handleFilterChange(eventOrTarget) {
     const target = eventOrTarget?.target || eventOrTarget;
-    if (target?.dataset?.filter !== "sprint-project") return false;
+    const filter = target?.dataset?.filter || "";
 
-    selectProject(target.value);
-    renderSprints();
-    return true;
+    if (filter === "sprint-project") {
+      selectProject(target.value);
+      sprintFilterId = "all";
+      writePreference(preferenceKeys.sprintFilter, sprintFilterId);
+      renderSprints();
+      return true;
+    }
+    if (filter === "sprint-filter") {
+      sprintFilterId = target.value || "all";
+      writePreference(preferenceKeys.sprintFilter, sprintFilterId);
+      renderSprints();
+      return true;
+    }
+    if (filter === "sprint-search") {
+      sprintSearch = target.value || "";
+      writePreference(preferenceKeys.sprintSearch, sprintSearch);
+      renderSprints();
+      return true;
+    }
+
+    return false;
+  }
+
+  function openSprintFiltersDialog() {
+    const existingDialog = document.querySelector("[data-sprint-filter-dialog]");
+    if (existingDialog) {
+      if (!existingDialog.open) existingDialog.showModal?.();
+      existingDialog.querySelector("[data-filter='sprint-search']")?.focus({ preventScroll: true });
+      return;
+    }
+
+    const modal = document.createElement("dialog");
+    modal.className = "dialog sprint-filter-dialog";
+    modal.dataset.sprintFilterDialog = "true";
+    modal.innerHTML = `
+      <form method="dialog">
+        <div class="dialog-head">
+          <h2>Sprint Filters</h2>
+          <button type="button" class="icon-btn" data-close-sprint-filters title="Close" aria-label="Close">x</button>
+        </div>
+        <div class="dialog-body sprint-filter-dialog-body" data-sprint-filter-dialog-body></div>
+        <div class="dialog-actions">
+          <button type="button" class="primary text-icon-button" data-close-sprint-filters>${buttonContent("&#10003;", "Done")}</button>
+        </div>
+      </form>
+    `;
+
+    renderSprintFiltersDialog(modal);
+    document.body.appendChild(modal);
+    initializeWindowedDialog(modal);
+    modal.addEventListener("input", event => {
+      handleFilterChange(event.target);
+    });
+    modal.addEventListener("change", event => {
+      const filter = event.target?.dataset?.filter || "";
+      if (!handleFilterChange(event.target)) return;
+      if (filter === "sprint-project") {
+        renderSprintFiltersDialog(modal);
+        modal.querySelector("[data-filter='sprint-project']")?.focus({ preventScroll: true });
+      }
+    });
+    modal.addEventListener("click", event => {
+      if (event.target.closest("[data-close-sprint-filters]")) modal.close();
+    });
+    modal.addEventListener("close", () => modal.remove());
+    modal.showModal();
+    modal.querySelector("[data-filter='sprint-search']")?.focus({ preventScroll: true });
+  }
+
+  function renderSprintFiltersDialog(modal) {
+    const body = modal.querySelector("[data-sprint-filter-dialog-body]");
+    if (!body) return;
+
+    body.innerHTML = `
+      <div class="sprint-filter-fields">
+        <label>
+          <span>Project</span>
+          <select data-filter="sprint-project">${sprintProjectOptionsHtml()}</select>
+        </label>
+        <label>
+          <span>Sprint</span>
+          <select data-filter="sprint-filter">${sprintFilterOptionsHtml()}</select>
+        </label>
+        <label class="sprint-filter-search-field">
+          <span>Search</span>
+          <input type="search" data-filter="sprint-search" value="${escapeAttr(sprintSearch)}">
+        </label>
+      </div>
+    `;
   }
 
   function selectProject(projectId) {
@@ -311,9 +615,7 @@ export function createSprintsFeature({
   }
 
   function toggleAllSprintDetails() {
-    const visibleSprintIds = state.sprints
-      .filter(sprint => sprint.projectId === sprintProjectId)
-      .map(sprint => sprint.id);
+    const visibleSprintIds = filteredSprints().map(sprint => sprint.id);
     const allVisibleCollapsed = visibleSprintIds.length > 0 && visibleSprintIds.every(id => collapsedIds.has(id));
 
     visibleSprintIds.forEach(id => {
@@ -360,7 +662,22 @@ export function createSprintsFeature({
     return state.users.filter(user => memberIds.has(user.id));
   }
 
+  function deactivateSprints() {
+    document.querySelectorAll("[data-sprint-filter-dialog]").forEach(dialog => {
+      if (dialog.open) {
+        dialog.close();
+      } else {
+        dialog.remove();
+      }
+    });
+    sprintHeader.deactivate();
+    sprintEditMode = false;
+    sprintBulkDeleteBusy = false;
+    selectedSprintDeleteIds.clear();
+  }
+
   return {
+    deactivate: deactivateSprints,
     handleAction,
     handleFilterChange,
     openCreate: () => editSprint(),

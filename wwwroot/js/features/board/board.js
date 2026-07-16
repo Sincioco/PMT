@@ -2,6 +2,7 @@ import { avatarsHtml } from "../../components/avatars.js";
 import { buttonContent, funnelIconHtml } from "../../components/buttons.js";
 import { checkedFilterValues, filterCheckList } from "../../components/filters.js?v=20260621-task-filter-layout";
 import { userCardCheckListLabelHtml } from "../../components/forms.js?v=20260715-day28-v118";
+import { createIdleFilterHeader } from "../../components/idle-filter-header.js?v=20260717-multi-screen-header";
 import { progressHtml } from "../../components/progress-and-status.js?v=20260714-linked-bug-percent";
 import { sectionHead } from "../../components/sections.js?v=20260701-nav-title-preferences";
 import {
@@ -21,10 +22,11 @@ import {
   removePreference,
   writeJsonPreference,
   writePreference
-} from "../../core/preferences.js";
+} from "../../core/preferences.js?v=20260717-multi-screen-header";
 import { state } from "../../core/store.js";
 import { normalizeSavedArray } from "../../shared/filter-values.js";
 import { canEditTask } from "../../shared/permissions.js?v=20260715-admin-impersonation";
+import { canAccessResource } from "../../shared/security.js?v=20260717-multi-screen-header";
 import { taskById } from "../../shared/selectors.js";
 import { severityPillHtml } from "../../shared/severity.js?v=20260715-severity-prefix";
 import {
@@ -38,12 +40,13 @@ import {
   taskOrderCompare,
   validateDeveloperDevTaskStatus
 } from "../../shared/work-item-rules.js?v=20260716-developer-board-status";
-import { createBoardDrag } from "./board-drag.js?v=20260713-role-security";
+import { createBoardDrag } from "./board-drag.js?v=20260717-multi-screen-header";
 
 const bugIconUrl = "/assets/bug.svg?v=20260629-kanban-gantt-bug-icon";
 
 export function createBoardFeature({
   app,
+  deleteItems,
   getStatuses,
   loadState,
   render,
@@ -52,13 +55,28 @@ export function createBoardFeature({
 }) {
   let boardProjectId = readNumberPreference(preferenceKeys.boardProject, 0);
   let boardSprintMode = readPreference(preferenceKeys.boardSprint, "latest");
+  let boardSearch = readPreference(preferenceKeys.boardSearch, "");
   let boardSort = readPreference(preferenceKeys.boardSort, "custom");
   let boardHideEmptyColumns = readBooleanPreference(preferenceKeys.boardHideEmptyColumns, true);
   let boardUserIds = normalizeSavedArray(readJsonPreference(preferenceKeys.boardUsers, []));
   let boardIsActive = false;
+  let boardBulkDeleteBusy = false;
+  const selectedBoardDeleteIds = new Set();
   const boardEditMode = createWorkItemTableMode({
     action: "toggle-board-edit-mode",
     itemLabel: "Kanban Board"
+  });
+  const boardHeader = createIdleFilterHeader({
+    app,
+    screenSelector: ".board-screen",
+    searchFilter: "board-search",
+    onSearchInput(input) {
+      const scrollLeft = currentBoardScrollLeft();
+      if (!applyBoardFilterChange(input)) return false;
+      renderBoard();
+      restoreBoardScrollLeft(scrollLeft);
+      return true;
+    }
   });
 
   const initialStatuses = getStatuses();
@@ -78,8 +96,9 @@ export function createBoardFeature({
     if (!boardIsActive) applyBoardLoadDefaults();
     boardIsActive = true;
 
-    if (!boardProjectId && state.projects.length) boardProjectId = state.projects[0].id;
-    const project = state.projects.find(item => item.id === boardProjectId) || state.projects[0];
+    ensureBoardProject();
+    const project = boardProject();
+    ensureBoardSprintMode(project);
     const sprintId = selectedSprintId(project?.id);
     const projectSprintTasks = state.tasks
       .filter(task => !project || task.projectId === project.id)
@@ -96,15 +115,19 @@ export function createBoardFeature({
     const visibleTasks = projectSprintTasks
       .filter(task => boardStatuses.includes(task.status))
       .filter(boardTaskMatchesUserFilter)
+      .filter(boardTaskMatchesSearchFilter)
       .sort(boardTaskSortCompare);
+    pruneBoardDeleteSelection(visibleTasks);
     const boardColumnStatuses = boardHideEmptyColumns
       ? boardStatuses.filter(status => visibleTasks.some(task => task.status === status))
       : boardStatuses;
     const columnToggleLabel = boardHideEmptyColumns ? "Show All Columns" : "Hide Empty Columns";
     app.innerHTML = `
-      <section class="board-screen work-item-screen">
+      <section class="board-screen work-item-screen idle-filter-header-screen">
         ${sectionHead("Kanban Board", `
-          <button class="primary text-icon-button" type="button" data-action="new-task" title="New Dev Task" aria-label="New Dev Task">${buttonContent("&#10010;", "New Dev Task")}</button>
+          ${boardHeader.controlsHtml(boardHeaderFields(project))}
+          ${boardHeader.searchHtml(boardSearch, "Search Kanban Board")}
+          <button class="primary text-icon-button" type="button" data-action="new-task" data-idle-filter-header-add-target title="New Dev Task" aria-label="New Dev Task">${buttonContent("&#10010;", "New Dev Task")}</button>
           <button class="primary text-icon-button" type="button" data-action="new-bug" title="New Bug Report" aria-label="New Bug Report">${buttonIconImgHtml("board-action-bug-icon")}<span>New Bug Report</span></button>
           <button class="secondary text-icon-button ${boardHideEmptyColumns ? "is-on" : ""}" type="button" data-action="toggle-empty-board-columns" title="${columnToggleLabel}" aria-label="${columnToggleLabel}" aria-pressed="${boardHideEmptyColumns}">${buttonContent(boardHideEmptyColumns ? "&#9638;" : "&#128065;", columnToggleLabel)}</button>
           ${boardEditMode.buttonHtml()}
@@ -116,15 +139,84 @@ export function createBoardFeature({
         </div>
       </section>
     `;
+
+    boardHeader.bind();
+    bindBoardDeleteSelection();
   }
 
-  function handleAction(action) {
+  function boardHeaderFields(project = boardProject()) {
+    const sprint = state.sprints.find(item => item.id === selectedSprintId(project?.id));
+    const sprintSummary = boardSprintMode === "all"
+      ? { label: "All Sprints", title: "All Sprints" }
+      : sprint
+        ? { label: sprint.code, title: `${sprint.code} - ${sprint.title}` }
+        : { label: "Latest Sprint", title: "Latest Sprint" };
+
+    return [
+      {
+        key: "project",
+        filter: "board-project",
+        label: "Project",
+        optionsHtml: boardProjectOptionsHtml(),
+        summary: project?.code || "No Project",
+        summaryTitle: project ? `${project.code} - ${project.title}` : "No Project"
+      },
+      {
+        key: "sprint",
+        filter: "board-sprint",
+        label: "Sprint",
+        optionsHtml: boardSprintOptionsHtml(project),
+        summary: sprintSummary.label,
+        summaryTitle: sprintSummary.title
+      }
+    ];
+  }
+
+  function boardProjectOptionsHtml() {
+    return state.projects
+      .map(project => `<option value="${project.id}" ${project.id === boardProjectId ? "selected" : ""}>${escapeHtml(project.code)} - ${escapeHtml(project.title)}</option>`)
+      .join("");
+  }
+
+  function boardSprintOptionsHtml(project = boardProject()) {
+    return `
+      <option value="latest" ${boardSprintMode === "latest" ? "selected" : ""}>Latest Sprint</option>
+      <option value="all" ${boardSprintMode === "all" ? "selected" : ""}>All Sprints</option>
+      ${state.sprints
+        .filter(sprint => sprint.projectId === project?.id)
+        .map(sprint => `<option value="${sprint.id}" ${String(sprint.id) === boardSprintMode ? "selected" : ""}>${escapeHtml(sprint.code)}</option>`)
+        .join("")}
+    `;
+  }
+
+  function boardProject() {
+    return state.projects.find(item => item.id === boardProjectId) || state.projects[0];
+  }
+
+  function ensureBoardProject() {
+    const project = boardProject();
+    if (!project || project.id === boardProjectId) return;
+
+    boardProjectId = project.id;
+    writePreference(preferenceKeys.boardProject, boardProjectId);
+  }
+
+  function ensureBoardSprintMode(project = boardProject()) {
+    if (boardSprintMode === "latest" || boardSprintMode === "all") return;
+    if (state.sprints.some(sprint => sprint.id === Number(boardSprintMode) && sprint.projectId === project?.id)) return;
+
+    boardSprintMode = "latest";
+    writePreference(preferenceKeys.boardSprint, boardSprintMode);
+  }
+
+  async function handleAction(action, id) {
     if (action === "open-board-filters" || action === "toggle-board-filters") {
       openBoardFiltersDialog();
       return true;
     }
     if (action === "toggle-board-edit-mode") {
       boardEditMode.toggle();
+      selectedBoardDeleteIds.clear();
       renderBoard();
       return true;
     }
@@ -142,6 +234,10 @@ export function createBoardFeature({
     }
     if (action === "show-all-board-columns") {
       showAllBoardColumns();
+      return true;
+    }
+    if (action === "delete-task" && selectedBoardDeleteIds.has(id)) {
+      await deleteSelectedBoardItems();
       return true;
     }
     return false;
@@ -181,9 +277,17 @@ export function createBoardFeature({
 
     renderBoardFiltersDialog(modal);
     document.body.appendChild(modal);
+    modal.addEventListener("input", event => {
+      const target = event.target;
+      if (target?.dataset?.filter !== "board-search") return;
+      if (!applyBoardFilterChange(target)) return;
+
+      renderBoard();
+    });
     modal.addEventListener("change", event => {
       const target = event.target;
       const filter = target?.dataset?.filter || "";
+      if (filter === "board-search") return;
       if (!applyBoardFilterChange(target)) return;
 
       renderBoard();
@@ -206,7 +310,7 @@ export function createBoardFeature({
   }
 
   function boardFilterFieldsHtml() {
-    const project = state.projects.find(item => item.id === boardProjectId) || state.projects[0];
+    const project = boardProject();
 
     return `
       <div class="tasks-filter-panel board-filter-panel">
@@ -214,16 +318,18 @@ export function createBoardFeature({
           <label>
             <span>Project</span>
             <select data-filter="board-project">
-              ${state.projects.map(item => `<option value="${item.id}" ${item.id === boardProjectId ? "selected" : ""}>${escapeHtml(item.code)} - ${escapeHtml(item.title)}</option>`).join("")}
+              ${boardProjectOptionsHtml()}
             </select>
           </label>
           <label>
             <span>Sprint</span>
             <select data-filter="board-sprint">
-              <option value="latest" ${boardSprintMode === "latest" ? "selected" : ""}>Latest Sprint</option>
-              <option value="all" ${boardSprintMode === "all" ? "selected" : ""}>All Sprints</option>
-              ${state.sprints.filter(sprint => sprint.projectId === project?.id).map(sprint => `<option value="${sprint.id}" ${String(sprint.id) === boardSprintMode ? "selected" : ""}>${escapeHtml(sprint.code)}</option>`).join("")}
+              ${boardSprintOptionsHtml(project)}
             </select>
+          </label>
+          <label>
+            <span>Search</span>
+            <input type="search" data-filter="board-search" value="${escapeAttr(boardSearch)}">
           </label>
           <label>
             <span>Sort</span>
@@ -255,7 +361,9 @@ export function createBoardFeature({
 
     if (filter === "board-project") {
       boardProjectId = Number(target.value);
+      boardSprintMode = "latest";
       writePreference(preferenceKeys.boardProject, boardProjectId);
+      writePreference(preferenceKeys.boardSprint, boardSprintMode);
       return true;
     }
     if (filter === "board-sprint") {
@@ -266,6 +374,11 @@ export function createBoardFeature({
     if (filter === "board-sort") {
       boardSort = target.value;
       writePreference(preferenceKeys.boardSort, boardSort);
+      return true;
+    }
+    if (filter === "board-search") {
+      boardSearch = target.value;
+      writePreference(preferenceKeys.boardSearch, boardSearch);
       return true;
     }
     if (filter === "board-hide-empty-columns") {
@@ -307,6 +420,165 @@ export function createBoardFeature({
     return (task.assigneeIds || []).map(String).some(id => selectedIds.has(id));
   }
 
+  function boardTaskMatchesSearchFilter(task) {
+    const term = String(boardSearch || "").trim().toLowerCase();
+    if (!term) return true;
+
+    const project = state.projects.find(item => item.id === task.projectId);
+    const sprint = state.sprints.find(item => item.id === task.sprintId);
+    const people = [...(task.assignees || []), ...(task.reporters || [])];
+    const values = [
+      task.code,
+      task.title,
+      task.taskType,
+      task.status,
+      task.priority,
+      task.severity,
+      task.url,
+      project?.code,
+      project?.title,
+      sprint?.code,
+      sprint?.title,
+      ...people.flatMap(user => [
+        user.nickname,
+        user.firstName,
+        user.lastName,
+        user.email
+      ])
+    ];
+
+    return values.some(value => String(value ?? "").toLowerCase().includes(term));
+  }
+
+  function boardDeleteSelectionHtml(task) {
+    const checked = selectedBoardDeleteIds.has(task.id);
+    const taskLabel = [task.code, task.title].filter(Boolean).join(" - ");
+
+    return `
+      <label class="board-delete-selection" title="Select ${escapeAttr(taskLabel)} for bulk delete">
+        <input type="checkbox" data-board-delete-select data-id="${task.id}" aria-label="Select ${escapeAttr(taskLabel)} for bulk delete" ${checked ? "checked" : ""} ${boardCanDelete(task) && !boardBulkDeleteBusy ? "" : "disabled"}>
+      </label>
+    `;
+  }
+
+  function bindBoardDeleteSelection() {
+    app.querySelectorAll("[data-board-delete-select]").forEach(input => {
+      input.addEventListener("change", () => {
+        if (boardBulkDeleteBusy) return;
+        const id = Number(input.dataset.id || 0);
+        if (!id) return;
+
+        if (input.checked) {
+          selectedBoardDeleteIds.add(id);
+        } else {
+          selectedBoardDeleteIds.delete(id);
+        }
+        syncBoardDeleteSelectionControls();
+      });
+    });
+
+    syncBoardDeleteSelectionControls();
+    queueMicrotask(syncBoardDeleteSelectionControls);
+  }
+
+  function syncBoardDeleteSelectionControls() {
+    const selectedTitle = boardSelectedDeleteTitle();
+
+    app.querySelectorAll("[data-board-delete-select]").forEach(input => {
+      const id = Number(input.dataset.id || 0);
+      const task = taskById(id);
+      input.checked = selectedBoardDeleteIds.has(id);
+      input.disabled = boardBulkDeleteBusy || !boardCanDelete(task);
+    });
+
+    app.querySelectorAll(".board-screen .task-card [data-action='delete-task']").forEach(button => {
+      const id = Number(button.dataset.id || 0);
+      const task = taskById(id);
+      const title = selectedBoardDeleteIds.has(id) ? selectedTitle : "Delete";
+      button.dataset.securityResource = task?.taskType === "Bug" ? "BugTracking" : "DevTasks";
+      button.disabled = boardBulkDeleteBusy || !boardCanDelete(task);
+      button.title = title;
+      button.setAttribute("aria-label", title);
+    });
+  }
+
+  function pruneBoardDeleteSelection(tasks) {
+    if (!boardEditMode.active) {
+      selectedBoardDeleteIds.clear();
+      return;
+    }
+
+    const visibleIds = new Set(tasks.filter(boardCanDelete).map(task => task.id));
+    [...selectedBoardDeleteIds].forEach(id => {
+      if (!visibleIds.has(id)) selectedBoardDeleteIds.delete(id);
+    });
+  }
+
+  function boardCanDelete(task) {
+    if (!task) return false;
+    return task.taskType === "Bug"
+      ? canAccessResource("BugTracking", "Delete")
+      : canAccessResource("DevTasks", "Delete");
+  }
+
+  function boardSelectedDeleteTitle(count = selectedBoardDeleteIds.size) {
+    return count === 1
+      ? "Delete selected Work Item"
+      : `Delete ${count} selected Work Items`;
+  }
+
+  async function deleteSelectedBoardItems() {
+    const tasks = [...selectedBoardDeleteIds]
+      .map(taskById)
+      .filter(boardCanDelete)
+      .sort((left, right) => boardTaskDeleteDepth(left) - boardTaskDeleteDepth(right));
+    if (!tasks.length) return;
+
+    const count = tasks.length;
+    const coveredByParentDelete = new Set();
+    const requestTasks = [];
+    tasks.forEach(task => {
+      if (coveredByParentDelete.has(task.id)) return;
+
+      requestTasks.push(task);
+      state.tasks
+        .filter(candidate => candidate.parentTaskId === task.id)
+        .forEach(candidate => coveredByParentDelete.add(candidate.id));
+    });
+    const includesParent = tasks.some(task =>
+      state.tasks.some(candidate => candidate.parentTaskId === task.id));
+    const childWarning = includesParent ? " Deleting a parent also deletes its direct sub-tasks." : "";
+
+    boardBulkDeleteBusy = true;
+    syncBoardDeleteSelectionControls();
+    try {
+      await deleteItems(
+        requestTasks.map(task => `/api/tasks/${task.id}`),
+        `${boardSelectedDeleteTitle(count)}?${childWarning}`,
+        `${count} Work Item${count === 1 ? "" : "s"} deleted.`
+      );
+    } finally {
+      boardBulkDeleteBusy = false;
+      syncBoardDeleteSelectionControls();
+    }
+  }
+
+  function boardTaskDeleteDepth(task) {
+    let depth = 0;
+    let parentId = task?.parentTaskId;
+    const visited = new Set();
+
+    while (parentId && !visited.has(parentId)) {
+      visited.add(parentId);
+      const parent = taskById(parentId);
+      if (!parent) break;
+      depth += 1;
+      parentId = parent.parentTaskId;
+    }
+
+    return depth;
+  }
+
   function hideEmptyBoardColumns() {
     boardHideEmptyColumns = true;
     writePreference(preferenceKeys.boardHideEmptyColumns, boardHideEmptyColumns);
@@ -333,6 +605,7 @@ export function createBoardFeature({
   function applyBoardLoadDefaults() {
     boardProjectId = readNumberPreference(preferenceKeys.boardProject, boardProjectId);
     boardSprintMode = readPreference(preferenceKeys.boardSprint, boardSprintMode);
+    boardSearch = readPreference(preferenceKeys.boardSearch, boardSearch);
     boardSort = readPreference(preferenceKeys.boardSort, boardSort);
     boardHideEmptyColumns = true;
     writePreference(preferenceKeys.boardHideEmptyColumns, boardHideEmptyColumns);
@@ -340,6 +613,9 @@ export function createBoardFeature({
 
   function deactivateBoard() {
     boardIsActive = false;
+    boardBulkDeleteBusy = false;
+    selectedBoardDeleteIds.clear();
+    boardHeader.deactivate();
     boardDrag.deactivate();
     boardEditMode.deactivate();
     closeBoardFilterDialogs();
@@ -383,7 +659,12 @@ export function createBoardFeature({
           </div>
         </div>
         ${taskCardProgressHtml(task)}
-        ${boardEditMode.active ? `<div class="toolbar reveal-actions task-card-actions">${taskButtonsHtml(task)}</div>` : ""}
+        ${boardEditMode.active ? `
+          <div class="toolbar reveal-actions task-card-actions">
+            ${boardDeleteSelectionHtml(task)}
+            ${taskButtonsHtml(task)}
+          </div>
+        ` : ""}
       </article>
     `;
   }
@@ -536,6 +817,7 @@ export function createBoardFeature({
     [
       preferenceKeys.boardProject,
       preferenceKeys.boardSprint,
+      preferenceKeys.boardSearch,
       preferenceKeys.boardSort,
       preferenceKeys.boardStatuses,
       preferenceKeys.boardHideEmptyColumns,
@@ -545,10 +827,14 @@ export function createBoardFeature({
 
     boardProjectId = 0;
     boardSprintMode = "latest";
+    boardSearch = "";
     boardSort = "custom";
     boardHideEmptyColumns = true;
     boardUserIds = [];
     boardStatuses = [...getStatuses()];
+    boardBulkDeleteBusy = false;
+    selectedBoardDeleteIds.clear();
+    boardHeader.reset();
     boardEditMode.deactivate();
     closeBoardFilterDialogs();
     renderBoard();

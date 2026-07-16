@@ -294,7 +294,29 @@ html[data-theme] .board-screen.work-item-screen .section-head .toolbar > button:
 }
 
 .task-card-actions {
+  align-items: center;
   margin-top: 0 !important;
+}
+
+.task-card-actions .icon-action {
+  margin-left: 0;
+}
+
+.board-delete-selection {
+  display: grid;
+  width: 24px;
+  height: var(--touch-target-min);
+  place-items: center;
+  cursor: pointer;
+}
+
+.board-delete-selection input {
+  margin: 0;
+  cursor: pointer;
+}
+
+.board-delete-selection input:disabled {
+  cursor: not-allowed;
 }
 
 .task-card > .toolbar.reveal-actions {

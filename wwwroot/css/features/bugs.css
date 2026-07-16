@@ -426,7 +426,35 @@ html[data-theme] .bugs-screen.work-item-screen .section-head .toolbar > button:h
 }
 
 .bugs-action-column {
-  width: 224px;
+  width: 248px;
+}
+
+.bug-row-actions {
+  display: inline-flex;
+  gap: var(--space-1);
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.bug-row-actions .icon-action {
+  margin-left: 0;
+}
+
+.bug-delete-selection {
+  display: grid;
+  width: 24px;
+  height: var(--touch-target-min);
+  place-items: center;
+  cursor: pointer;
+}
+
+.bug-delete-selection input {
+  margin: 0;
+  cursor: pointer;
+}
+
+.bug-delete-selection input:disabled {
+  cursor: not-allowed;
 }
 
 .bugs-table .done-cell {

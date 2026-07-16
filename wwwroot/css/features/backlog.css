@@ -190,7 +190,35 @@ html[data-theme] .backlog-screen.work-item-screen .work-item-table .icon-action:
 }
 
 .backlog-action-column {
-  width: 192px;
+  width: 216px;
+}
+
+.backlog-row-actions {
+  display: inline-flex;
+  gap: var(--space-1);
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.backlog-row-actions .icon-action {
+  margin-left: 0;
+}
+
+.backlog-delete-selection {
+  display: grid;
+  width: 24px;
+  height: var(--touch-target-min);
+  place-items: center;
+  cursor: pointer;
+}
+
+.backlog-delete-selection input {
+  margin: 0;
+  cursor: pointer;
+}
+
+.backlog-delete-selection input:disabled {
+  cursor: not-allowed;
 }
 
 .backlog-table .backlog-expand-heading,

@@ -1,7 +1,8 @@
 import { attachmentsHtml, bindAttachmentDeletion } from "../../components/attachments.js?v=20260714-attachment-delete";
-import { buttonContent, funnelIconHtml, iconButton } from "../../components/buttons.js";
+import { buttonContent, funnelIconHtml, iconButton, pageActionsMenuHtml } from "../../components/buttons.js?v=20260717-multi-screen-header";
 import { hideEmptyReadOnlyFields, initializeWindowedDialog } from "../../components/dialogs.js?v=20260714-attachment-delete";
 import { filterSelect } from "../../components/filters.js";
+import { createIdleFilterHeader } from "../../components/idle-filter-header.js?v=20260717-multi-screen-header";
 import {
   documentationExportIconHtml,
   openDocumentationExportDialog
@@ -22,7 +23,7 @@ import {
   readNumberPreference,
   readPreference,
   writePreference
-} from "../../core/preferences.js?v=20260708-documentation-privacy";
+} from "../../core/preferences.js?v=20260717-multi-screen-header";
 import {
   currentUserId
 } from "../../core/authentication.js?v=20260715-admin-impersonation";
@@ -58,6 +59,7 @@ const documentationInvalidImportMessage = "The file cannot be imported because i
 const documentationImportFileExtensions = new Set(["html", "doc"]);
 const newDocumentationInlineBlogId = -1;
 let documentationProjectId = 0;
+let documentationSprintId = "all";
 let documentationEntryProjectId = 0;
 let documentationEntrySprintId = 0;
 let documentationVisibilityFilter = "both";
@@ -73,6 +75,9 @@ let editingTreeBlogId = 0;
 const collapsedTreeKeys = new Set();
 const expandedDocumentationCardIds = new Set();
 let documentationDefaultFiltersApplied = false;
+let documentationEditMode = false;
+let documentationBulkDeleteBusy = false;
+const selectedDocumentationDeleteIds = new Set();
 
 export function createDocumentationFeature({
   app,
@@ -81,12 +86,14 @@ export function createDocumentationFeature({
   bindRichTextButtons,
   deleteAttachment,
   deleteItem,
+  deleteItems,
   loadState,
   openEditor,
   saveJson,
   showToast
 }) {
   documentationProjectId = readNumberPreference(preferenceKeys.documentationProject, 0);
+  documentationSprintId = readPreference(preferenceKeys.documentationSprint, "all");
   documentationEntryProjectId = readNumberPreference(preferenceKeys.documentationEntryProject, 0);
   documentationEntrySprintId = readNumberPreference(preferenceKeys.documentationEntrySprint, 0);
   documentationVisibilityFilter = readKnownPreference(preferenceKeys.documentationVisibility, "both", documentationVisibilityModes);
@@ -97,19 +104,31 @@ export function createDocumentationFeature({
   documentationTreeSearch = readPreference(preferenceKeys.documentationTreeSearch, "");
   documentationTreePaneWidth = Math.min(560, Math.max(220, readNumberPreference(preferenceKeys.documentationTreePaneWidth, 320)));
   documentationTreePaneHidden = readBooleanPreference(preferenceKeys.documentationTreePaneHidden, false);
+  const documentationHeader = createIdleFilterHeader({
+    app,
+    screenSelector: ".documentation-screen",
+    searchFilter: "documentation-tree-search",
+    onSearchInput: input => handleFilterChange(input)
+  });
 
   function renderDocumentation() {
     if (documentationProjectId && !projectById(documentationProjectId)) documentationProjectId = 0;
+    normalizeDocumentationSprintFilter();
     normalizeDocumentationVisibilityFilter();
     if (!documentationDefaultFiltersApplied) applyDocumentationDefaultFilters();
 
-    const filteredBlogs = documentationCardBlogs();
+    const visibleBlogs = documentationViewMode === "tree"
+      ? documentationTreeBlogs()
+      : documentationCardBlogs();
+    pruneDocumentationDeleteSelection(visibleBlogs);
 
-    app.innerHTML = `<div class="documentation-screen ${documentationViewMode === "tree" ? "is-tree-view" : "is-card-view"}">
+    app.innerHTML = `<div class="documentation-screen idle-filter-header-screen ${documentationViewMode === "tree" ? "is-tree-view" : "is-card-view"}">
       ${sectionHead("Documentation", documentationHeaderActionsHtml())}
-      ${documentationViewMode === "tree" ? documentationTreeViewHtml() : documentationCardViewHtml(filteredBlogs)}
+      ${documentationViewMode === "tree" ? documentationTreeViewHtml(visibleBlogs) : documentationCardViewHtml(visibleBlogs)}
     </div>`;
 
+    documentationHeader.bind();
+    bindDocumentationDeleteSelection();
     if (documentationViewMode === "tree") {
       bindDocumentationTreeSplitter();
       bindDocumentationInlineEditor();
@@ -121,27 +140,109 @@ export function createDocumentationFeature({
 
   function documentationHeaderActionsHtml() {
     return `
+      ${documentationHeader.controlsHtml([
+        {
+          key: "project",
+          filter: "documentation-project",
+          label: "Project",
+          optionsHtml: documentationProjectOptionsHtml(),
+          summary: documentationProjectSummary().label,
+          summaryTitle: documentationProjectSummary().title
+        },
+        {
+          key: "sprint",
+          filter: "documentation-sprint",
+          label: "Sprint",
+          optionsHtml: documentationSprintOptionsHtml(),
+          summary: documentationSprintSummary().label,
+          summaryTitle: documentationSprintSummary().title
+        }
+      ])}
+      ${documentationHeader.searchHtml(documentationTreeSearch, "Search Documentation")}
+      <button class="primary text-icon-button" type="button" data-action="new-blog" data-idle-filter-header-add-target title="New Document" aria-label="New Document">
+        ${buttonContent("&#10010;", "New Document")}
+      </button>
       <div class="documentation-view-toggle" aria-label="Documentation view">
-        <button class="secondary text-icon-button documentation-view-toggle-button ${documentationViewMode === "cards" ? "is-on" : ""}" type="button" data-action="set-documentation-view" data-mode="cards" aria-pressed="${documentationViewMode === "cards"}">
+        <button class="secondary text-icon-button documentation-view-toggle-button ${documentationViewMode === "cards" ? "is-on" : ""}" type="button" data-action="set-documentation-view" data-mode="cards" aria-pressed="${documentationViewMode === "cards"}" title="Cards" aria-label="Cards">
           ${buttonContent("&#9638;", "Cards")}
         </button>
-        <button class="secondary text-icon-button documentation-view-toggle-button ${documentationViewMode === "tree" ? "is-on" : ""}" type="button" data-action="set-documentation-view" data-mode="tree" aria-pressed="${documentationViewMode === "tree"}">
+        <button class="secondary text-icon-button documentation-view-toggle-button ${documentationViewMode === "tree" ? "is-on" : ""}" type="button" data-action="set-documentation-view" data-mode="tree" aria-pressed="${documentationViewMode === "tree"}" title="Treeview" aria-label="Treeview">
           ${buttonContent("&#9776;", "Treeview")}
         </button>
       </div>
-      <div class="documentation-header-actions">
-        <button class="primary text-icon-button" type="button" data-action="new-blog">${buttonContent("&#10010;", "New Document")}</button>
-        <button class="secondary text-icon-button" type="button" data-action="import-documentation">${buttonContent(documentationImportIconHtml(), "Import")}</button>
-        ${documentationViewMode === "tree" ? `
-          <button class="secondary text-icon-button" type="button" data-action="toggle-documentation-tree-pane" aria-pressed="${documentationTreePaneHidden}">
-            ${buttonContent(documentationTreePaneHidden ? "&#9776;" : "&#10005;", documentationTreePaneHidden ? "Show Tree" : "Hide Tree")}
-          </button>
-        ` : ""}
-        <button class="secondary text-icon-button" type="button" data-action="open-documentation-filters" title="Filters" aria-label="Filters" aria-haspopup="dialog">
-          ${buttonContent(funnelIconHtml(), "Filters")}
-        </button>
-      </div>
+      <button class="secondary text-icon-button" type="button" data-action="open-documentation-filters" title="Filters" aria-label="Filters" aria-haspopup="dialog">
+        ${buttonContent(funnelIconHtml(), "Filters")}
+      </button>
+      ${pageActionsMenuHtml([
+        {
+          action: "toggle-documentation-edit-mode",
+          icon: "&#9998;",
+          label: "Edit Mode",
+          title: documentationEditMode ? "Finish Edit Mode" : "Edit Mode",
+          checked: documentationEditMode,
+          disabled: !canAccessResource("Documentation", "Delete")
+        },
+        {
+          action: "import-documentation",
+          icon: documentationImportIconHtml(),
+          label: "Import",
+          title: "Import",
+          separatorBefore: true
+        },
+        ...(documentationViewMode === "tree"
+          ? [{
+              action: "toggle-documentation-tree-pane",
+              icon: documentationTreePaneHidden ? "&#9776;" : "&#10005;",
+              label: documentationTreePaneHidden ? "Show Tree" : "Hide Tree",
+              title: documentationTreePaneHidden ? "Show Tree" : "Hide Tree",
+              checked: !documentationTreePaneHidden,
+              separatorBefore: true
+            }]
+          : [])
+      ])}
     `;
+  }
+
+  function documentationProjectOptionsHtml() {
+    return `
+      <option value="0" ${!documentationProjectId ? "selected" : ""}>All Projects</option>
+      ${state.projects.map(project => `<option value="${project.id}" ${project.id === documentationProjectId ? "selected" : ""}>${escapeHtml(project.code)} - ${escapeHtml(project.title)}</option>`).join("")}
+    `;
+  }
+
+  function documentationSprintOptionsHtml() {
+    return documentationSprintFilterOptions()
+      .map(option => `<option value="${escapeAttr(option.value)}" ${String(option.value) === documentationSprintId ? "selected" : ""}>${escapeHtml(option.text)}</option>`)
+      .join("");
+  }
+
+  function documentationProjectSummary() {
+    const project = projectById(documentationProjectId);
+    return project
+      ? { label: project.code, title: `${project.code} - ${project.title}` }
+      : { label: "All Projects", title: "All Projects" };
+  }
+
+  function documentationSprintSummary() {
+    if (documentationSprintId === "all") return { label: "All Sprints", title: "All Sprints" };
+    if (documentationSprintId === "none") return { label: "No Sprint", title: "No Sprint" };
+
+    const sprint = sprintById(Number(documentationSprintId));
+    if (!sprint) return { label: "All Sprints", title: "All Sprints" };
+    const project = projectById(sprint.projectId);
+    const title = `${sprint.code} - ${sprint.title}`;
+    return {
+      label: documentationProjectId ? sprint.code : `${project?.code || "Project"} / ${sprint.code}`,
+      title: documentationProjectId ? title : `${project?.code || "Project"} - ${title}`
+    };
+  }
+
+  function normalizeDocumentationSprintFilter() {
+    const allowedValues = new Set(documentationSprintFilterOptions().map(option => String(option.value)));
+    if (allowedValues.has(documentationSprintId)) return;
+
+    documentationSprintId = "all";
+    writePreference(preferenceKeys.documentationSprint, documentationSprintId);
   }
 
   function documentationCardViewHtml(filteredBlogs) {
@@ -154,8 +255,7 @@ export function createDocumentationFeature({
     return `<div class="documentation-card-sections">${documentationCardSectionsHtml(filteredBlogs)}</div>`;
   }
 
-  function documentationTreeViewHtml() {
-    const visibleBlogs = documentationTreeBlogs();
+  function documentationTreeViewHtml(visibleBlogs = documentationTreeBlogs()) {
     const visibleIds = new Set(visibleBlogs.map(blog => blog.id));
     const isCreatingTreeBlog = editingTreeBlogId === newDocumentationInlineBlogId;
     if (!isCreatingTreeBlog && !visibleIds.has(selectedTreeBlogId)) selectedTreeBlogId = visibleBlogs[0]?.id || 0;
@@ -181,7 +281,98 @@ export function createDocumentationFeature({
     `;
   }
 
+  function bindDocumentationDeleteSelection() {
+    app.querySelectorAll("[data-documentation-delete-select]").forEach(input => {
+      input.closest("label")?.addEventListener("click", event => event.stopPropagation());
+      input.addEventListener("click", event => event.stopPropagation());
+      input.addEventListener("change", () => {
+        if (documentationBulkDeleteBusy) return;
+        const id = Number(input.dataset.id || 0);
+        if (!id) return;
+
+        if (input.checked) {
+          selectedDocumentationDeleteIds.add(id);
+        } else {
+          selectedDocumentationDeleteIds.delete(id);
+        }
+        syncDocumentationDeleteSelectionControls();
+      });
+    });
+
+    syncDocumentationDeleteSelectionControls();
+  }
+
+  function syncDocumentationDeleteSelectionControls() {
+    const selectedCount = selectedDocumentationDeleteIds.size;
+    const selectedTitle = documentationSelectedDeleteTitle(selectedCount);
+
+    app.querySelectorAll("[data-documentation-delete-select]").forEach(input => {
+      const id = Number(input.dataset.id || 0);
+      const blog = documentationBlogForCurrentUser(id);
+      input.checked = selectedDocumentationDeleteIds.has(id);
+      input.disabled = documentationBulkDeleteBusy || !documentationCanDelete(blog);
+    });
+
+    app.querySelectorAll("[data-action='delete-blog']").forEach(button => {
+      const id = Number(button.dataset.id || 0);
+      const blog = documentationBlogForCurrentUser(id);
+      const title = selectedDocumentationDeleteIds.has(id) ? selectedTitle : "Delete";
+      button.disabled = documentationBulkDeleteBusy || !documentationCanDelete(blog);
+      button.title = title;
+      button.setAttribute("aria-label", title);
+    });
+  }
+
+  function pruneDocumentationDeleteSelection(visibleBlogs) {
+    if (!documentationEditMode) {
+      selectedDocumentationDeleteIds.clear();
+      return;
+    }
+
+    const visibleIds = new Set(
+      visibleBlogs
+        .filter(documentationCanDelete)
+        .map(blog => blog.id)
+    );
+    [...selectedDocumentationDeleteIds].forEach(id => {
+      if (!visibleIds.has(id)) selectedDocumentationDeleteIds.delete(id);
+    });
+  }
+
+  function documentationSelectedDeleteTitle(count = selectedDocumentationDeleteIds.size) {
+    return count === 1
+      ? "Delete selected Document"
+      : `Delete ${count} selected Documents`;
+  }
+
+  async function deleteSelectedDocumentation() {
+    const blogs = [...selectedDocumentationDeleteIds]
+      .map(documentationBlogForCurrentUser)
+      .filter(documentationCanDelete);
+    if (!blogs.length) return;
+
+    const count = blogs.length;
+    documentationBulkDeleteBusy = true;
+    syncDocumentationDeleteSelectionControls();
+    try {
+      await deleteItems(
+        blogs.map(blog => `/api/blogs/${blog.id}`),
+        `${documentationSelectedDeleteTitle(count)}?`,
+        `${count} Document${count === 1 ? "" : "s"} deleted.`
+      );
+    } finally {
+      documentationBulkDeleteBusy = false;
+      syncDocumentationDeleteSelectionControls();
+    }
+  }
+
   async function handleAction(action, id, button) {
+    if (action === "toggle-documentation-edit-mode") {
+      documentationEditMode = !documentationEditMode;
+      selectedDocumentationDeleteIds.clear();
+      renderDocumentation();
+      return true;
+    }
     if (action === "set-documentation-view") {
       const mode = button?.dataset?.mode || "cards";
       documentationViewMode = documentationViewModes.has(mode) ? mode : "cards";
@@ -278,6 +469,10 @@ export function createDocumentationFeature({
     }
     if (action === "delete-blog") {
       if (!documentationBlogForCurrentUser(id)) return true;
+      if (selectedDocumentationDeleteIds.has(id)) {
+        await deleteSelectedDocumentation();
+        return true;
+      }
       if (selectedTreeBlogId === id) selectedTreeBlogId = 0;
       if (editingTreeBlogId === id) editingTreeBlogId = 0;
       await deleteItem(`/api/blogs/${id}`, "Delete this document?");
@@ -293,7 +488,16 @@ export function createDocumentationFeature({
 
     if (filter === "documentation-project") {
       documentationProjectId = Number(target.value || 0);
+      documentationSprintId = "all";
       writePreference(preferenceKeys.documentationProject, documentationProjectId);
+      writePreference(preferenceKeys.documentationSprint, documentationSprintId);
+      renderDocumentation();
+      return true;
+    }
+
+    if (filter === "documentation-sprint") {
+      documentationSprintId = target.value || "all";
+      writePreference(preferenceKeys.documentationSprint, documentationSprintId);
       renderDocumentation();
       return true;
     }
@@ -369,11 +573,19 @@ export function createDocumentationFeature({
       handleFilterChange(event.target);
     });
     modal.addEventListener("change", event => {
-      handleFilterChange(event.target);
+      const filter = event.target?.dataset?.filter || "";
+      if (!handleFilterChange(event.target)) return;
+      if (filter === "documentation-project") {
+        renderDocumentationFiltersDialog(modal);
+        modal.querySelector("[data-filter='documentation-project']")?.focus({ preventScroll: true });
+      }
     });
     modal.addEventListener("click", event => {
       if (event.target.closest("[data-reset-documentation-view]")) {
         applyDocumentationDefaultFilters();
+        documentationEditMode = false;
+        selectedDocumentationDeleteIds.clear();
+        documentationHeader.reset();
         renderDocumentationFiltersDialog(modal);
         renderDocumentation();
         modal.querySelector("[data-filter='documentation-tree-search'], [data-filter='documentation-project']")?.focus({ preventScroll: true });
@@ -394,6 +606,7 @@ export function createDocumentationFeature({
 
   function documentationFilterFieldsHtml() {
     const projectSelect = filterSelect("Project", "documentation-project", state.projects.map(project => ({ value: project.id, text: `${project.code} - ${project.title}` })), documentationProjectId || "", "All Projects");
+    const sprintSelect = documentationTreeSelect("Sprint", "documentation-sprint", documentationSprintFilterOptions(), documentationSprintId);
     const visibilitySelect = documentationTreeSelect("Visibility", "documentation-visibility", documentationVisibilityOptions(), documentationVisibilityFilter);
     const groupSelect = documentationTreeSelect("Group", "documentation-tree-group", [
       { value: "all", text: "All Documents" },
@@ -419,6 +632,7 @@ export function createDocumentationFeature({
               <input data-filter="documentation-tree-search" type="search" value="${escapeAttr(documentationTreeSearch)}">
             </label>
             ${projectSelect}
+            ${sprintSelect}
             ${visibilitySelect}
             ${groupSelect}
             ${layoutSelect}
@@ -436,6 +650,7 @@ export function createDocumentationFeature({
             <input data-filter="documentation-tree-search" type="search" value="${escapeAttr(documentationTreeSearch)}">
           </label>
           ${projectSelect}
+          ${sprintSelect}
           ${visibilitySelect}
           ${groupSelect}
           ${sortSelect}
@@ -540,8 +755,10 @@ export function createDocumentationFeature({
 
     if (options.syncFilters) {
       documentationProjectId = blog.projectId || 0;
+      documentationSprintId = "all";
       documentationTreeSearch = "";
       writePreference(preferenceKeys.documentationProject, documentationProjectId);
+      writePreference(preferenceKeys.documentationSprint, documentationSprintId);
       writePreference(preferenceKeys.documentationTreeSearch, documentationTreeSearch);
     }
 
@@ -572,6 +789,7 @@ export function createDocumentationFeature({
 
     documentationViewMode = "tree";
     documentationProjectId = blog.projectId || 0;
+    documentationSprintId = "all";
     documentationTreeSearch = "";
     selectedTreeBlogId = blog.id;
     editingTreeBlogId = blog.id;
@@ -579,6 +797,7 @@ export function createDocumentationFeature({
 
     writePreference(preferenceKeys.documentationViewMode, documentationViewMode);
     writePreference(preferenceKeys.documentationProject, documentationProjectId);
+    writePreference(preferenceKeys.documentationSprint, documentationSprintId);
     writePreference(preferenceKeys.documentationTreeSearch, documentationTreeSearch);
 
     renderDocumentation();
@@ -734,8 +953,10 @@ export function createDocumentationFeature({
       selectedTreeBlogId = savedBlogId;
       editingTreeBlogId = 0;
       documentationProjectId = payload.projectId || 0;
+      documentationSprintId = "all";
       documentationTreeSearch = "";
       writePreference(preferenceKeys.documentationProject, documentationProjectId);
+      writePreference(preferenceKeys.documentationSprint, documentationSprintId);
       writePreference(preferenceKeys.documentationTreeSearch, documentationTreeSearch);
       await loadState?.();
 
@@ -938,9 +1159,11 @@ export function createDocumentationFeature({
       const selectedBlog = documentationBlogForCurrentUser(selectedTreeBlogId);
       if (selectedBlog) {
         documentationProjectId = selectedBlog.projectId || 0;
+        documentationSprintId = "all";
         documentationTreeSearch = "";
         expandDocumentationTreePath(selectedBlog);
         writePreference(preferenceKeys.documentationProject, documentationProjectId);
+        writePreference(preferenceKeys.documentationSprint, documentationSprintId);
         writePreference(preferenceKeys.documentationTreeSearch, documentationTreeSearch);
       }
       renderDocumentation();
@@ -1023,7 +1246,22 @@ export function createDocumentationFeature({
     toggle.innerHTML = buttonContent(expanded ? "&#9652;" : "&#9662;", expanded ? "Show Less" : "More");
   }
 
+  function deactivateDocumentation() {
+    document.querySelectorAll("[data-documentation-filter-dialog]").forEach(dialog => {
+      if (dialog.open) {
+        dialog.close();
+      } else {
+        dialog.remove();
+      }
+    });
+    documentationHeader.deactivate();
+    documentationEditMode = false;
+    documentationBulkDeleteBusy = false;
+    selectedDocumentationDeleteIds.clear();
+  }
+
   return {
+    deactivate: deactivateDocumentation,
     handleAction,
     handleFilterChange,
     render: renderDocumentation,
@@ -1292,12 +1530,14 @@ function invalidDocumentationImportError() {
 function applyDocumentationDefaultFilters() {
   documentationDefaultFiltersApplied = true;
   documentationProjectId = 0;
+  documentationSprintId = "all";
   documentationVisibilityFilter = "both";
   documentationTreeGroup = "all";
   documentationTreeSearch = "";
   documentationTreeSort = "latest";
   expandedDocumentationCardIds.clear();
   writePreference(preferenceKeys.documentationProject, documentationProjectId);
+  writePreference(preferenceKeys.documentationSprint, documentationSprintId);
   writePreference(preferenceKeys.documentationVisibility, documentationVisibilityFilter);
   writePreference(preferenceKeys.documentationTreeGroup, documentationTreeGroup);
   writePreference(preferenceKeys.documentationTreeSearch, documentationTreeSearch);
@@ -1324,6 +1564,27 @@ function documentationVisibilityOptions() {
   ];
 }
 
+function documentationSprintFilterOptions() {
+  const sprints = state.sprints
+    .filter(sprint => !documentationProjectId || sprint.projectId === documentationProjectId)
+    .map(sprint => {
+      const project = projectById(sprint.projectId);
+      const sprintLabel = `${sprint.code} - ${sprint.title}`;
+      return {
+        value: String(sprint.id),
+        text: documentationProjectId
+          ? sprintLabel
+          : `${project?.code || "Project"} - ${sprintLabel}`
+      };
+    });
+
+  return [
+    { value: "all", text: "All Sprints" },
+    { value: "none", text: "No Sprint" },
+    ...sprints
+  ];
+}
+
 function documentationBlogVisibleByPrivacyFilter(blog) {
   if (!documentationBlogAccessibleToCurrentUser(blog)) return false;
 
@@ -1333,6 +1594,12 @@ function documentationBlogVisibleByPrivacyFilter(blog) {
   if (documentationVisibilityFilter === "public") return !isPrivate;
 
   return true;
+}
+
+function documentationBlogMatchesSprintFilter(blog) {
+  if (documentationSprintId === "all") return true;
+  if (documentationSprintId === "none") return !blog.sprintId;
+  return Number(blog.sprintId || 0) === Number(documentationSprintId);
 }
 
 function documentationBlogAccessibleToCurrentUser(blog) {
@@ -1427,6 +1694,7 @@ function documentationCardBlogs() {
   return state.blogs
     .filter(documentationBlogVisibleByPrivacyFilter)
     .filter(blog => !documentationProjectId || blog.projectId === documentationProjectId)
+    .filter(documentationBlogMatchesSprintFilter)
     .filter(blog => !searchText || documentationBlogMatchesSearch(blog, searchText))
     .sort(documentationCardBlogCompare);
 }
@@ -1529,7 +1797,8 @@ function documentationTreeBlogs() {
   const searchText = documentationSearchText();
   const sourceBlogs = state.blogs
     .filter(documentationBlogVisibleByPrivacyFilter)
-    .filter(blog => !documentationProjectId || blog.projectId === documentationProjectId);
+    .filter(blog => !documentationProjectId || blog.projectId === documentationProjectId)
+    .filter(documentationBlogMatchesSprintFilter);
   const matchedBlogs = searchText
     ? sourceBlogs.filter(blog => documentationBlogMatchesSearch(blog, searchText))
     : [...sourceBlogs];
@@ -1713,6 +1982,7 @@ function documentationTreePreviewHtml(blog) {
         </div>
       </div>
       <div class="toolbar documentation-tree-preview-actions">
+        ${documentationDeleteSelectionHtml(blog)}
         ${iconButton("delete-blog", blog.id, "Delete", "delete", canAccessResource("Documentation", "Delete"), "danger")}
         <button class="icon-action" type="button" data-action="export-blog" data-id="${blog.id}" title="Export" aria-label="Export"><span class="button-icon" aria-hidden="true">${documentationExportIconHtml()}</span></button>
         ${iconButton("edit-blog", blog.id, "Edit", "edit", canAccessResource("Documentation", "Update"))}
@@ -1784,6 +2054,23 @@ function documentationInlineRichTextActionsHtml() {
   `;
 }
 
+function documentationDeleteSelectionHtml(blog) {
+  if (!documentationEditMode) return "";
+
+  const checked = selectedDocumentationDeleteIds.has(blog.id);
+  const label = `Select ${blog.title} for bulk delete`;
+  return `
+    <label class="documentation-delete-selection" title="${escapeAttr(label)}">
+      <input type="checkbox" data-documentation-delete-select data-id="${blog.id}" aria-label="${escapeAttr(label)}" ${checked ? "checked" : ""} ${documentationCanDelete(blog) && !documentationBulkDeleteBusy ? "" : "disabled"}>
+    </label>
+  `;
+}
+
+function documentationCanDelete(blog) {
+  return documentationBlogAccessibleToCurrentUser(blog)
+    && canAccessResource("Documentation", "Delete");
+}
+
 function documentationCardHtml(blog) {
   const wasEdited = documentationWasEdited(blog);
   const isExpanded = expandedDocumentationCardIds.has(blog.id);
@@ -1807,6 +2094,7 @@ function documentationCardHtml(blog) {
       <div class="documentation-card-bottom ${wasEdited ? "" : "has-top-created-meta"}">
         ${wasEdited ? documentationCreatedMetaHtml(blog) : ""}
         <div class="toolbar reveal-actions documentation-actions">
+          ${documentationDeleteSelectionHtml(blog)}
           ${iconButton("delete-blog", blog.id, "Delete", "delete", canAccessResource("Documentation", "Delete"), "danger")}
           ${iconButton("edit-blog", blog.id, "Edit", "edit", canAccessResource("Documentation", "Update"))}
         </div>

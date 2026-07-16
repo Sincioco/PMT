@@ -57,11 +57,11 @@ import {
   createAboutFeature,
   createAboutScreenSaver
 } from "./features/about/about.js?v=20260716-db-v122";
-import { createBacklogFeature } from "./features/backlog/backlog.js?v=20260716-rca-one-way";
-import { createBoardFeature } from "./features/board/board.js?v=20260716-developer-board-status";
-import { createBugsFeature } from "./features/bugs/bugs.js?v=20260716-dialog-route-close";
+import { createBacklogFeature } from "./features/backlog/backlog.js?v=20260717-multi-screen-header";
+import { createBoardFeature } from "./features/board/board.js?v=20260717-multi-screen-header";
+import { createBugsFeature } from "./features/bugs/bugs.js?v=20260717-multi-screen-header";
 import { createDashboardFeature } from "./features/dashboard/dashboard.js?v=20260715-admin-impersonation";
-import { createDocumentationFeature } from "./features/documentation/documentation.js?v=20260716-dialog-route-close";
+import { createDocumentationFeature } from "./features/documentation/documentation.js?v=20260717-multi-screen-header";
 import {
   createGanttFeature,
   currentSprintForProject,
@@ -74,7 +74,7 @@ import { createRoadMapFeature } from "./features/roadmap/roadmap.js?v=20260715-a
 import { createLogFeature } from "./features/personal-log/log.js?v=20260715-admin-impersonation";
 import { createScrumFeature } from "./features/scrum/scrum.js?v=20260716-scrum-attendance-actions";
 import { createSettingsFeature } from "./features/settings/settings.js?v=20260716-development-reset";
-import { createSprintsFeature } from "./features/sprints/sprints.js?v=20260715-admin-impersonation";
+import { createSprintsFeature } from "./features/sprints/sprints.js?v=20260717-multi-screen-header";
 import { createTasksFeature } from "./features/tasks/tasks.js?v=20260716-dev-task-header-bulk";
 import { createWfhScheduleFeature } from "./features/wfh-schedule/wfh-schedule.js?v=20260715-admin-impersonation";
 import {
@@ -86,7 +86,7 @@ import {
 } from "./shared/constants.js";
 import { formatDate, toDateInput } from "./shared/dates.js";
 import { canEditTask } from "./shared/permissions.js?v=20260715-admin-impersonation";
-import { applyActionPermissions, canReadView, firstReadableView } from "./shared/security.js?v=20260715-admin-impersonation";
+import { applyActionPermissions, canReadView, firstReadableView } from "./shared/security.js?v=20260717-multi-screen-header";
 import {
   projectCode,
   projectName,
@@ -274,6 +274,7 @@ const ganttFeature = createGanttFeature({
 });
 boardFeature = createBoardFeature({
   app,
+  deleteItems,
   getStatuses: () => statuses,
   loadState,
   render,
@@ -293,6 +294,7 @@ const projectsFeature = createProjectsFeature({
 const sprintsFeature = createSprintsFeature({
   app,
   deleteItem,
+  deleteItems,
   loadState,
   openEditor,
   openSprintTasks: viewSprintTasks,
@@ -357,6 +359,7 @@ const bugsFeature = createBugsFeature({
   app,
   attachFile,
   deleteItem,
+  deleteItems,
   duplicateTask,
   getBoardProjectId: boardFeature.getProjectId,
   getBoardSprintId: boardFeature.getSprintId,
@@ -375,6 +378,7 @@ const bugsFeature = createBugsFeature({
 const backlogFeature = createBacklogFeature({
   app,
   deleteItem,
+  deleteItems,
   duplicateTask: duplicateBacklogTask,
   editBug: bug => bugsFeature.edit(bug || {}, { apiRoot: "/api/backlog/tasks" }),
   editTask: task => tasksFeature.edit(task || {}, { apiRoot: "/api/backlog/tasks" }),
@@ -420,6 +424,7 @@ const documentationFeature = createDocumentationFeature({
   bindRichTextButtons,
   deleteAttachment,
   deleteItem,
+  deleteItems,
   loadState,
   openEditor,
   render,
@@ -645,12 +650,14 @@ function renderCurrentScreen() {
 
   if (currentView !== "About") aboutFeature.deactivate();
   if (currentView !== "Board") boardFeature.deactivate();
+  if (currentView !== "Sprints") sprintsFeature.deactivate?.();
   if (currentView !== "Gantt") ganttFeature.deactivate();
   if (currentView !== "Tasks") tasksFeature.deactivate();
   if (currentView !== "Bugs") bugsFeature.deactivate();
   if (currentView !== "Backlog") backlogFeature.deactivate();
   if (currentView !== "Scrum") scrumFeature.deactivate();
   if (currentView !== "Log") logFeature.deactivate();
+  if (currentView !== "Documentation") documentationFeature.deactivate?.();
 
   const registeredScreen = screenHandlerFor(currentView);
   if (registeredScreen?.render) registeredScreen.render();
