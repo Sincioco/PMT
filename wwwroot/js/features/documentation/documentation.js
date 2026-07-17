@@ -15,8 +15,8 @@ import {
   richValue,
   selectOptionsField,
   value
-} from "../../components/forms.js?v=20260715-day28-v118";
-import { sectionHead } from "../../components/sections.js?v=release-notes-2026-07-16-day-29-4dbfab99e9a6";
+} from "../../components/forms.js?v=20260717-day30-image-annotation";
+import { sectionHead } from "../../components/sections.js?v=release-notes-2026-07-17-day-30-35c4aa65c202";
 import {
   preferenceKeys,
   readBooleanPreference,

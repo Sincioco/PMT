@@ -6,7 +6,7 @@ import {
   numberValue,
   selectTextField,
   value
-} from "../../components/forms.js?v=20260715-day28-v118";
+} from "../../components/forms.js?v=20260717-day30-image-annotation";
 import {
   bindProfileAvatarPicker,
   focusProfileAvatarPicker,
@@ -16,7 +16,7 @@ import {
   defaultStatusColor,
   statusColor
 } from "../../components/progress-and-status.js?v=20260714-linked-bug-percent";
-import { sectionHead } from "../../components/sections.js?v=release-notes-2026-07-16-day-29-4dbfab99e9a6";
+import { sectionHead } from "../../components/sections.js?v=release-notes-2026-07-17-day-30-35c4aa65c202";
 import { api } from "../../core/api.js";
 import {
   beginImpersonation,
@@ -29,7 +29,7 @@ import {
   readNavigationConfig,
   resetNavigationConfig,
   writeNavigationConfig
-} from "../../core/navigation-preferences.js?v=release-notes-2026-07-16-day-29-4dbfab99e9a6";
+} from "../../core/navigation-preferences.js?v=release-notes-2026-07-17-day-30-35c4aa65c202";
 import {
   clearPmtPreferences,
   preferenceKeys,
@@ -44,7 +44,7 @@ import {
   routeForView,
   savedViewPreference,
   updateBrowserUrl
-} from "../../core/router.js?v=release-notes-2026-07-16-day-29-4dbfab99e9a6";
+} from "../../core/router.js?v=release-notes-2026-07-17-day-30-35c4aa65c202";
 import { state } from "../../core/store.js";
 import {
   formatDate,

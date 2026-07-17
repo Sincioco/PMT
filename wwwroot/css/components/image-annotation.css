@@ -1,0 +1,859 @@
+.dialog.image-annotation-dialog {
+  width: calc(100vw - 16px);
+  max-width: none;
+  height: calc(100vh - 16px);
+  max-height: none;
+  margin: 8px;
+  overflow: hidden;
+  border-radius: var(--radius-md);
+}
+
+.dialog.image-annotation-dialog.is-annotation-maximized {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  max-width: none;
+  height: 100vh;
+  max-height: none;
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+}
+
+.image-annotation-window {
+  position: relative;
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+}
+
+.image-annotation-head {
+  cursor: default;
+}
+
+.image-annotation-head-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.image-annotation-head > div:first-child {
+  min-width: 0;
+}
+
+.image-annotation-head p {
+  margin: var(--space-1) 0 0;
+  color: var(--color-text-tertiary);
+  font-size: var(--font-size-sm);
+}
+
+.image-annotation-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-4);
+  max-height: 148px;
+  overflow: auto;
+  padding: var(--space-2) var(--space-4);
+  border-bottom: var(--border-width) solid var(--color-border);
+  background: var(--color-surface-dialog);
+  overscroll-behavior: contain;
+}
+
+.image-annotation-tool-group {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1);
+  padding-right: var(--space-3);
+  border-right: var(--border-width) solid var(--color-border-subtle);
+}
+
+.image-annotation-tool-group:last-child {
+  padding-right: 0;
+  border-right: 0;
+}
+
+.image-annotation-toolbar button {
+  min-height: var(--control-height-sm);
+  padding: 0 var(--space-3);
+  border-color: transparent;
+  background: transparent;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-regular);
+}
+
+.image-annotation-toolbar button:hover:not(:disabled),
+.image-annotation-toolbar button:focus-visible,
+.image-annotation-toolbar button.is-active {
+  border-color: var(--color-border-strong);
+  background: transparent;
+  color: var(--color-text-primary);
+}
+
+.image-annotation-toolbar button.is-active {
+  box-shadow: inset 0 -2px 0 var(--color-text-primary);
+}
+
+.image-annotation-toolbar [data-annotation-tool] {
+  width: var(--control-height-sm);
+  padding: 0;
+}
+
+.image-annotation-toolbar [data-annotation-tool] .button-svg-icon,
+.image-annotation-context-menu .dropdown-menu-icon svg,
+.image-annotation-restore-button svg {
+  width: 18px;
+  height: 18px;
+}
+
+.image-annotation-maximized-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-left: auto;
+}
+
+.image-annotation-maximized-actions[hidden] {
+  display: none;
+}
+
+.image-annotation-maximized-status {
+  max-width: min(280px, 24vw);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  overflow-wrap: anywhere;
+}
+
+.image-annotation-toolbar .inline-check {
+  min-height: var(--control-height-sm);
+  padding: 0 var(--space-2);
+  font-size: var(--font-size-sm);
+}
+
+.image-annotation-zoom-label {
+  min-width: 48px;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  text-align: center;
+}
+
+.image-annotation-main {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 320px);
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.image-annotation-main.is-inspector-hidden {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.image-annotation-workspace {
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+  padding: 24px;
+  background: var(--color-page-muted);
+  color: var(--color-chart-gridline);
+  outline: 0;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  touch-action: none;
+}
+
+.image-annotation-workspace[data-annotation-tool="select"] {
+  cursor: default;
+}
+
+.image-annotation-workspace[data-annotation-tool="crop"] {
+  cursor: crosshair;
+}
+
+.image-annotation-workspace[data-annotation-tool="crop"]:not(.is-panning) * {
+  cursor: crosshair !important;
+}
+
+.image-annotation-workspace[data-annotation-tool="rectangle"],
+.image-annotation-workspace[data-annotation-tool="arrow"],
+.image-annotation-workspace[data-annotation-tool="textbox"] {
+  cursor: crosshair;
+}
+
+.image-annotation-workspace.is-panning {
+  cursor: grabbing;
+  user-select: none;
+}
+
+.image-annotation-workspace.is-panning * {
+  cursor: grabbing !important;
+}
+
+.image-annotation-canvas {
+  display: block;
+  max-width: none;
+  overflow: visible;
+  background: var(--color-surface);
+  box-shadow: var(--shadow-elevated);
+  color: var(--color-chart-gridline);
+  user-select: none;
+}
+
+.image-annotation-object {
+  cursor: move;
+  pointer-events: bounding-box;
+}
+
+.image-annotation-object:focus {
+  outline: none;
+}
+
+.image-annotation-object.is-locked {
+  cursor: not-allowed;
+}
+
+.image-annotation-object[data-annotation-object-type="arrow"] {
+  pointer-events: none;
+}
+
+.image-annotation-arrow-hit,
+.image-annotation-arrow-head-hit {
+  cursor: move;
+}
+
+.image-annotation-object.is-locked :is(.image-annotation-arrow-hit, .image-annotation-arrow-head-hit) {
+  cursor: not-allowed;
+}
+
+.image-annotation-arrow-handle {
+  cursor: crosshair;
+}
+
+.image-annotation-arrow-handle.is-locked {
+  fill: var(--color-text-tertiary);
+  pointer-events: none;
+}
+
+.image-annotation-grid {
+  color: var(--color-chart-gridline);
+}
+
+.image-annotation-selection {
+  stroke: var(--color-focus-ring);
+  stroke-dasharray: 3 3;
+  stroke-linecap: round;
+  opacity: 0.72;
+  vector-effect: non-scaling-stroke;
+}
+
+.image-annotation-selection.is-locked {
+  stroke: var(--color-text-tertiary);
+  opacity: 0.55;
+}
+
+.image-annotation-group-member-guide {
+  stroke: var(--color-focus-ring);
+  stroke-width: 1;
+  stroke-dasharray: 2 3;
+  stroke-linecap: round;
+  opacity: 0.52;
+  vector-effect: non-scaling-stroke;
+}
+
+.image-annotation-handle {
+  fill: var(--color-focus-ring);
+  stroke: var(--color-surface-raised);
+  opacity: 0.9;
+  pointer-events: all;
+  vector-effect: non-scaling-stroke;
+}
+
+.image-annotation-marquee {
+  fill: var(--color-focus-ring);
+  fill-opacity: 0.08;
+  stroke: var(--color-focus-ring);
+  stroke-width: 1;
+  stroke-dasharray: 4 3;
+  vector-effect: non-scaling-stroke;
+}
+
+.image-annotation-handle[data-annotation-handle="nw"],
+.image-annotation-handle[data-annotation-handle="se"] {
+  cursor: nwse-resize;
+}
+
+.image-annotation-handle[data-annotation-handle="ne"],
+.image-annotation-handle[data-annotation-handle="sw"] {
+  cursor: nesw-resize;
+}
+
+.image-annotation-handle[data-annotation-handle="n"],
+.image-annotation-handle[data-annotation-handle="s"] {
+  cursor: ns-resize;
+}
+
+.image-annotation-handle[data-annotation-handle="e"],
+.image-annotation-handle[data-annotation-handle="w"] {
+  cursor: ew-resize;
+}
+
+.image-annotation-crop-mask {
+  fill: var(--color-overlay);
+}
+
+.image-annotation-inspector {
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+  padding: var(--space-5);
+  border-left: var(--border-width) solid var(--color-border);
+  background: var(--color-surface-dialog);
+  overscroll-behavior: contain;
+}
+
+.image-annotation-inspector-tabs {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  border-bottom: var(--border-width) solid var(--color-border);
+}
+
+.image-annotation-inspector-tabs button {
+  min-height: var(--control-height-md);
+  padding: 0 var(--space-3);
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  background: transparent;
+  color: var(--color-text-secondary);
+  font-weight: var(--font-weight-medium);
+}
+
+.image-annotation-inspector-tabs button:hover,
+.image-annotation-inspector-tabs button:focus-visible {
+  background: var(--color-control-hover);
+  color: var(--color-text-primary);
+}
+
+.image-annotation-inspector-tabs button[aria-selected="true"] {
+  border-bottom-color: var(--color-primary);
+  color: var(--color-text-primary);
+}
+
+.image-annotation-inspector [data-annotation-inspector-panel][hidden] {
+  display: none;
+}
+
+.image-annotation-selection-label {
+  margin: var(--space-2) 0 0;
+  padding-bottom: var(--space-4);
+  border-bottom: var(--border-width) solid var(--color-border-subtle);
+  color: var(--color-text-tertiary);
+  font-size: var(--font-size-sm);
+}
+
+.image-annotation-format-section {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-4) 0;
+  border-bottom: var(--border-width) solid var(--color-border-subtle);
+}
+
+.image-annotation-format-section h4 {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-medium);
+}
+
+.image-annotation-inspector-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+
+.image-annotation-inspector-grid > label,
+.image-annotation-color-field {
+  display: grid;
+  align-content: start;
+  gap: var(--space-2);
+  min-width: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+}
+
+.image-annotation-inspector-grid > label > span,
+.image-annotation-color-field > span {
+  min-height: 18px;
+}
+
+.image-annotation-color-field .rich-color-tool {
+  width: var(--control-height-md);
+  height: var(--control-height-md);
+  border: var(--border-width) solid var(--color-border-control);
+  border-radius: var(--radius-sm);
+  color: var(--color-text-primary);
+}
+
+.image-annotation-color-field .rich-color-tool:hover,
+.image-annotation-color-field .rich-color-tool:focus-within {
+  border-color: var(--color-border-strong);
+  background: transparent;
+}
+
+.image-annotation-color-controls {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.image-annotation-recent-colors {
+  display: grid;
+  grid-template-columns: repeat(3, 22px);
+  grid-template-rows: repeat(2, 22px);
+  gap: var(--space-1);
+}
+
+.image-annotation-recent-colors[hidden] {
+  display: none;
+}
+
+.image-annotation-recent-colors button.rich-color-swatch {
+  display: block;
+  box-sizing: border-box;
+  flex: 0 0 22px;
+  width: 22px;
+  min-width: 22px;
+  height: 22px;
+  min-height: 22px;
+  padding: 0;
+  border: var(--border-width) solid var(--color-border-subtle) !important;
+  border-radius: 1px;
+  background-color: var(--rich-swatch-color) !important;
+  cursor: pointer;
+}
+
+.image-annotation-recent-colors button.rich-color-swatch:hover,
+.image-annotation-recent-colors button.rich-color-swatch:focus-visible {
+  border-color: var(--color-focus-ring) !important;
+  outline: var(--border-width-strong) solid var(--color-focus-halo);
+  outline-offset: 1px;
+}
+
+.image-annotation-wide {
+  grid-column: 1 / -1;
+}
+
+.image-annotation-inspector textarea {
+  min-height: 116px;
+  resize: vertical;
+}
+
+.image-annotation-help {
+  display: grid;
+  gap: var(--space-1);
+  margin-top: var(--space-4);
+  padding-top: var(--space-2);
+  color: var(--color-text-tertiary);
+  font-size: var(--font-size-xs);
+}
+
+.image-annotation-help strong {
+  margin-bottom: var(--space-1);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+}
+
+.image-annotation-template-actions {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-4) 0;
+  border-bottom: var(--border-width) solid var(--color-border-subtle);
+}
+
+.image-annotation-template-actions p,
+.image-annotation-template-status,
+.image-annotation-template-empty {
+  margin: 0;
+  color: var(--color-text-tertiary);
+  font-size: var(--font-size-sm);
+}
+
+.image-annotation-template-defaults {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-2);
+}
+
+.image-annotation-template-status {
+  min-height: 20px;
+  padding: var(--space-3) 0;
+  overflow-wrap: anywhere;
+}
+
+.image-annotation-template-list {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.image-annotation-template-card {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-raised);
+}
+
+.image-annotation-template-card > strong {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--color-text-primary);
+  font-size: var(--font-size-sm);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.image-annotation-template-preview {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  min-height: 132px;
+  padding: var(--space-3);
+  overflow: hidden;
+  border: var(--border-width) solid var(--color-border-subtle);
+  border-radius: var(--radius-sm);
+  background-color: #ffffff;
+  background-image:
+    linear-gradient(45deg, #f5f5f5 25%, transparent 25%),
+    linear-gradient(-45deg, #f5f5f5 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #f5f5f5 75%),
+    linear-gradient(-45deg, transparent 75%, #f5f5f5 75%);
+  background-position: 0 0, 0 8px, 8px -8px, -8px 0;
+  background-size: 16px 16px;
+}
+
+.image-annotation-template-preview:hover,
+.image-annotation-template-preview:focus-visible {
+  border-color: var(--color-focus-ring);
+}
+
+.image-annotation-template-preview img {
+  display: block;
+  width: 100%;
+  max-width: 260px;
+  height: 116px;
+  object-fit: contain;
+}
+
+.image-annotation-template-card-actions {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: var(--space-1);
+}
+
+.image-annotation-template-card-actions button {
+  min-width: 0;
+  min-height: 28px;
+  padding: 0 var(--space-1);
+  font-size: var(--font-size-xs);
+}
+
+.image-annotation-object-tree-actions {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-1);
+  padding: var(--space-3) 0;
+  border-bottom: var(--border-width) solid var(--color-border-subtle);
+}
+
+.image-annotation-object-tree-actions button {
+  min-width: 0;
+  min-height: 28px;
+  padding: 0 var(--space-1);
+  font-size: var(--font-size-xs);
+}
+
+.image-annotation-object-tree-search {
+  display: grid;
+  gap: var(--space-1);
+  padding: var(--space-2) 0 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+}
+
+.image-annotation-object-tree-search input {
+  width: 100%;
+  min-height: var(--control-height-sm);
+  font-size: var(--font-size-sm);
+}
+
+.image-annotation-object-tree-help {
+  margin: 0;
+  padding: var(--space-2) 0;
+  color: var(--color-text-tertiary);
+  font-size: var(--font-size-xs);
+  line-height: 1.35;
+}
+
+.image-annotation-object-tree-root-drop {
+  margin: var(--space-2) 0;
+  padding: var(--space-2);
+  border: var(--border-width) dashed var(--color-border-control);
+  border-radius: var(--radius-sm);
+  color: var(--color-text-tertiary);
+  font-size: var(--font-size-xs);
+  text-align: center;
+  transition: var(--transition-control);
+}
+
+.image-annotation-object-tree-root-drop.is-drop-target {
+  border-color: var(--color-primary);
+  background: var(--color-control-selected);
+  color: var(--color-text-primary);
+}
+
+.image-annotation-object-tree-root-drop.is-disabled:not(.is-drop-target) {
+  opacity: 0.58;
+  cursor: not-allowed;
+}
+
+.image-annotation-object-tree {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  padding-bottom: var(--space-3);
+}
+
+.image-annotation-object-tree-group,
+.image-annotation-object-tree-group-children {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.image-annotation-object-tree-group-children {
+  margin-left: var(--space-3);
+  padding-left: var(--space-2);
+  border-left: var(--border-width) solid var(--color-border-subtle);
+}
+
+.image-annotation-object-tree-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
+  min-height: 28px;
+  padding: 2px var(--space-1) 2px var(--space-2);
+  border: var(--border-width) solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+  cursor: grab;
+  transition: var(--transition-control);
+}
+
+.image-annotation-object-tree-row:hover,
+.image-annotation-object-tree-row:focus-visible,
+.image-annotation-object-tree-row:focus-within {
+  background: var(--color-control-hover);
+  color: var(--color-text-primary);
+}
+
+.image-annotation-object-tree-row:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: -2px;
+}
+
+.image-annotation-object-tree-row.is-selected {
+  background: var(--color-control-selected);
+  color: var(--color-text-primary);
+}
+
+.image-annotation-object-tree-row.is-partially-selected {
+  background: var(--color-control-hover);
+  box-shadow: inset 3px 0 0 var(--color-primary);
+  color: var(--color-text-primary);
+}
+
+.image-annotation-object-tree-row.is-dragging {
+  opacity: 0.48;
+  cursor: grabbing;
+}
+
+.image-annotation-object-tree-row.is-drop-target {
+  border-color: var(--color-primary);
+  box-shadow: inset 0 0 0 1px var(--color-primary);
+}
+
+.image-annotation-object-tree-row[draggable="false"] {
+  cursor: default;
+}
+
+.image-annotation-object-tree-icon {
+  display: inline-grid;
+  flex: 0 0 18px;
+  place-items: center;
+  color: var(--color-text-tertiary);
+  font-size: var(--font-size-sm);
+  line-height: 1;
+}
+
+.image-annotation-object-tree-label {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.image-annotation-object-tree-row[data-annotation-tree-kind="group"] .image-annotation-object-tree-label,
+.image-annotation-object-tree-row[data-annotation-tree-node-type="group"] .image-annotation-object-tree-label {
+  font-weight: var(--font-weight-medium);
+}
+
+.image-annotation-object-tree-row-actions {
+  display: inline-flex;
+  flex: 0 0 auto;
+  gap: 2px;
+  margin-left: auto;
+  opacity: 0;
+  visibility: hidden;
+}
+
+.image-annotation-object-tree-row:hover .image-annotation-object-tree-row-actions,
+.image-annotation-object-tree-row:focus-within .image-annotation-object-tree-row-actions,
+.image-annotation-object-tree-row.is-selected .image-annotation-object-tree-row-actions {
+  opacity: 1;
+  visibility: visible;
+}
+
+.image-annotation-object-tree-row-actions button {
+  min-width: 24px;
+  min-height: 24px;
+  padding: 0 var(--space-1);
+  border-color: transparent;
+  background: transparent;
+  font-size: var(--font-size-xs);
+}
+
+.image-annotation-object-tree-row-actions button:hover,
+.image-annotation-object-tree-row-actions button:focus-visible {
+  border-color: var(--color-border-control);
+  background: var(--color-control-hover);
+}
+
+.image-annotation-object-tree-empty {
+  margin: 0;
+  padding: var(--space-5) var(--space-2);
+  color: var(--color-text-tertiary);
+  font-size: var(--font-size-sm);
+  text-align: center;
+}
+
+.image-annotation-actions {
+  min-width: 0;
+}
+
+.image-annotation-status {
+  min-width: 0;
+  margin-right: auto;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  overflow-wrap: anywhere;
+}
+
+.image-annotation-context-menu {
+  max-height: calc(100vh - 16px);
+  overflow: auto;
+}
+
+.image-annotation-context-menu .dropdown-menu-icon {
+  display: inline-grid;
+  place-items: center;
+}
+
+.image-annotation-restore-button {
+  position: absolute;
+  top: var(--space-2);
+  right: var(--space-2);
+  z-index: calc(var(--z-menu) + 1);
+  display: inline-grid;
+  place-items: center;
+  width: var(--control-height-sm);
+  min-height: var(--control-height-sm);
+  padding: 0;
+  border-color: var(--color-border-strong);
+  background: var(--color-surface-raised);
+  box-shadow: var(--shadow-elevated);
+}
+
+.image-annotation-restore-button[hidden] {
+  display: none;
+}
+
+.image-annotation-restore-button rect {
+  fill: var(--color-surface-raised);
+  stroke: currentColor;
+  stroke-width: 2;
+}
+
+.image-annotation-dialog.is-annotation-maximized .image-annotation-window {
+  grid-template-rows: auto minmax(0, 1fr);
+}
+
+.image-annotation-dialog.is-annotation-maximized :is(.image-annotation-head, .image-annotation-actions) {
+  display: none;
+}
+
+.image-annotation-dialog.is-annotation-maximized .image-annotation-toolbar {
+  padding-right: calc(var(--control-height-sm) + var(--space-4));
+}
+
+@media (max-width: 900px) {
+  .dialog.image-annotation-dialog {
+    width: 100vw;
+    height: 100vh;
+    margin: 0;
+    border-radius: 0;
+  }
+
+  .image-annotation-main {
+    grid-template-columns: 1fr;
+    grid-template-rows: minmax(240px, 1fr) auto;
+    overflow: auto;
+  }
+
+  .image-annotation-main.is-inspector-hidden {
+    grid-template-rows: minmax(240px, 1fr);
+  }
+
+  .image-annotation-workspace {
+    min-height: 240px;
+  }
+
+  .image-annotation-inspector {
+    max-height: 38vh;
+    border-top: var(--border-width) solid var(--color-border);
+    border-left: 0;
+  }
+
+  .image-annotation-toolbar {
+    max-height: 180px;
+  }
+
+  .image-annotation-actions {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .image-annotation-actions .dialog-action-group {
+    width: 100%;
+    justify-content: flex-end;
+  }
+}

@@ -1257,6 +1257,130 @@ BEGIN
 END;
 GO
 
+CREATE OR ALTER PROCEDURE [pmt].[GetUserImageAnnotationTemplateLibrary]
+    @CurrentUserId INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    IF NOT EXISTS
+    (
+        SELECT 1
+        FROM [pmt].[Users]
+        WHERE [UserId] = @CurrentUserId
+          AND [IsActive] = 1
+    )
+    BEGIN
+        THROW 50281, 'The image annotation template-library user was not found or is inactive.', 1;
+    END;
+
+    SELECT [LibraryJson] = ISNULL
+    (
+        (
+            SELECT [LibraryJson]
+            FROM [pmt].[UserImageAnnotationTemplateLibraries]
+            WHERE [UserId] = @CurrentUserId
+        ),
+        N'{"version":1,"templates":[],"defaults":{"arrow":null,"rectangle":null}}'
+    );
+END;
+GO
+
+CREATE OR ALTER PROCEDURE [pmt].[SaveUserImageAnnotationTemplateLibrary]
+    @LibraryJson NVARCHAR(MAX),
+    @CurrentUserId INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    SET XACT_ABORT ON;
+
+    IF @LibraryJson IS NULL
+       OR ISJSON(@LibraryJson) <> 1
+       OR DATALENGTH(@LibraryJson) > 104857600
+    BEGIN
+        THROW 50280, 'The image annotation template library must be valid JSON no larger than 50 MiB.', 1;
+    END;
+
+    IF NOT EXISTS
+       (
+           SELECT 1
+           FROM OPENJSON(@LibraryJson)
+           WHERE [key] = N'version'
+             AND [type] = 2
+             AND TRY_CONVERT(INT, [value]) = 1
+       )
+       OR NOT EXISTS
+       (
+           SELECT 1
+           FROM OPENJSON(@LibraryJson)
+           WHERE [key] = N'templates'
+             AND [type] = 4
+       )
+       OR NOT EXISTS
+       (
+           SELECT 1
+           FROM OPENJSON(@LibraryJson)
+           WHERE [key] = N'defaults'
+             AND [type] = 5
+       )
+       OR (SELECT COUNT(*) FROM OPENJSON(JSON_QUERY(@LibraryJson, N'$.templates'))) > 50
+    BEGIN
+        THROW 50280, 'The image annotation template library must be version 1 with defaults and no more than 50 templates.', 1;
+    END;
+
+    IF NOT EXISTS
+    (
+        SELECT 1
+        FROM [pmt].[Users]
+        WHERE [UserId] = @CurrentUserId
+          AND [IsActive] = 1
+    )
+    BEGIN
+        THROW 50281, 'The image annotation template-library user was not found or is inactive.', 1;
+    END;
+
+    BEGIN TRY
+        BEGIN TRANSACTION;
+
+        IF EXISTS
+        (
+            SELECT 1
+            FROM [pmt].[UserImageAnnotationTemplateLibraries] WITH (UPDLOCK, HOLDLOCK)
+            WHERE [UserId] = @CurrentUserId
+        )
+        BEGIN
+            UPDATE [pmt].[UserImageAnnotationTemplateLibraries]
+            SET [LibraryJson] = @LibraryJson,
+                [UpdatedAt] = SYSUTCDATETIME()
+            WHERE [UserId] = @CurrentUserId;
+        END;
+        ELSE
+        BEGIN
+            INSERT INTO [pmt].[UserImageAnnotationTemplateLibraries]
+            (
+                [UserId],
+                [LibraryJson]
+            )
+            VALUES
+            (
+                @CurrentUserId,
+                @LibraryJson
+            );
+        END;
+
+        COMMIT TRANSACTION;
+    END TRY
+    BEGIN CATCH
+        IF XACT_STATE() <> 0 ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH;
+
+    SELECT [LibraryJson]
+    FROM [pmt].[UserImageAnnotationTemplateLibraries]
+    WHERE [UserId] = @CurrentUserId;
+END;
+GO
+
 CREATE OR ALTER PROCEDURE [pmt].[BeginImpersonation]
     @AdminUserId INT,
     @TargetUserId INT

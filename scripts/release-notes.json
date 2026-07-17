@@ -1053,5 +1053,72 @@
         ]
       }
     ]
+  },
+  {
+    "day": 30,
+    "title": "Editable Image Annotation in Rich Text",
+    "sections": [
+      {
+        "title": "Full-Resolution Image Editing",
+        "items": [
+          "Annotate pasted rich-text images in a dedicated full-screen workspace without leaving the record being edited.",
+          "Keep the original full-resolution image available while saving a portable SVG that can be reopened for editing.",
+          "Crop to the important part of a screenshot and restore the full source image whenever needed.",
+          "Work on a large centered pasteboard that expands when an image or annotation is dropped past its edge, place objects freely beyond the image, and automatically trim unused workspace from the SVG applied to rich text."
+        ]
+      },
+      {
+        "title": "Diagram and Formatting Tools",
+        "items": [
+          "Add and resize rectangles, arrows, and wrapped text boxes, with configurable fills, outlines, fonts, sizes, colors, left/center/right horizontal text alignment, and Top/Middle/Bottom vertical text alignment.",
+          "Center text boxes visually from the font's actual ascent and descent so Middle alignment balances the visible text instead of its baseline box.",
+          "Use recognizable glyph buttons for Select, Crop, Rectangle, Arrow, and Text Box, with keyboard shortcuts and accessible names.",
+          "Select arrows by their painted shaft and head, drag either endpoint to adjust length and rotation without distorting line width or arrowhead size, and move the whole arrow by dragging or using the keyboard.",
+          "Keep images, shapes, text boxes, and multi-object groups proportional while resizing, hold Ctrl to resize normal objects or groups symmetrically from their center, and hold Alt to temporarily resize a standalone rectangle freely with its grabbed handle tracking the snapped pointer.",
+          "Keep a singly selected arrow's opposite endpoint fixed and ignore Ctrl during arrow endpoint editing or dragging, while arrows inside a multi-object group proportionally scale their length, shaft width, and arrowhead size with the group.",
+          "Use a PMT-themed Format pane with the familiar rich-text Font Color and Background Color palettes, plus six visibly filled shared recent-color swatches beside Fill, Outline color, and Text color in compact three-by-two strips, and hide or show the pane without changing the zoom or centered work area.",
+          "Show or hide each rectangle or text-box outline independently without losing its chosen color, with checked-by-default visibility preserved through undo, redo, save, and reopen.",
+          "Adjust rectangle, arrow, and text-box opacity from 0 to 100 percent without changing source or embedded images, and preserve each vector's opacity through templates, clipboard operations, export, Apply, and reopen.",
+          "Right-click a selection for a familiar PMT-styled menu ordered Crop, To Front, To Back, Forward, Backward, separator, Group, Ungroup, Reset Crop, Lock or Unlock, separator, Copy as SVG, and Copy as Image, while dotted guides identify every selected group member, including base-to-tip guides for arrows.",
+          "Copy the current object or selected group as a tightly cropped, self-contained vector SVG or PNG image while preserving crop, fill, line, text, and outline-visibility styling.",
+          "Honor saved group membership immediately when reopening an annotation, including when the source image belongs to the group.",
+          "Use grid snapping for precise placement and return keyboard focus to the last selected object after changing Grid or Snap.",
+          "Return to Select after drawing each object, marquee-select every object touched from blank canvas, and clear the selection by clicking outside it."
+        ]
+      },
+      {
+        "title": "Confident Editing",
+        "items": [
+          "Undo and redo annotation changes from the toolbar or keyboard shortcuts.",
+          "Delete selected annotations, press Escape to clear a selection, and nudge objects by the visible grid interval or one pixel when the grid is hidden.",
+          "Press Ctrl+A while working on the canvas to select every annotation object without taking native select-all behavior away from formatting or text fields.",
+          "Scroll the workspace, zoom around the pointer, and pan large screenshots with the middle mouse button.",
+          "Maximize the annotation editor to the true browser viewport, use Cancel or Apply to RTE from its top toolbar, and restore the normal dialog without losing the current zoom or centered work area.",
+          "Move or resize the source image without clipping it to its former position; intentional crop boundaries travel and scale with the image.",
+          "Keep both the editable SVG and original image attached to the saved rich-text record so normal Maintenance reference protection applies."
+        ]
+      },
+      {
+        "title": "Reusable Templates and Faster Canvas Editing",
+        "items": [
+          "Switch between Format and Template tabs, save up to 50 large-preview templates, and rename, update, reorder, or delete them independently of applying or canceling the current canvas.",
+          "Keep each user's template library and Arrow or Rectangle drawing defaults with their PMT account so the same tools are available after signing in from another browser or computer.",
+          "Capture company logos together with rectangles, arrows, and text as native grouped templates, preserving the original image bytes and editable vector members without creating orphan-prone upload files.",
+          "Insert a detached template instance with fresh object identities, ungroup and edit its members normally, and leave existing canvas instances unchanged when their source template is later updated or deleted.",
+          "Copy and paste selected canvas objects with Ctrl+C and Ctrl+V, duplicate them with Ctrl+D and a confirmation toast, and preserve normal shortcut behavior inside text and formatting controls.",
+          "Hold Shift for horizontal-only dragging or Alt for vertical-only dragging, hide or show the Right Pane from the toolbar, and use Fit to tightly center only the painted image and vector content in the available viewport."
+        ]
+      },
+      {
+        "title": "Compact Object Tree and Layer Control",
+        "items": [
+          "Switch to a compact Objects tab whose top-to-bottom rows are the actual SVG paint stack, from the highest/frontmost item to the lowest/backmost item, while flat logical groups show their children and the original source image stays fixed at the bottom layer.",
+          "Filter object and group names case-insensitively without changing selection or z-order, keeping a matched child's group parent visible and every child visible when its group matches.",
+          "Rename object and group nodes, multi-select and delete eligible items, and copy or paste native objects directly from the tree while keeping tree and canvas selection synchronized.",
+          "Drag standalone or grouped rows to repaint the canvas immediately in the matching SVG z-order, move objects between the root and logical groups, and merge one flat group into another without creating nested groups.",
+          "Preserve custom object and group names, tree order, grouping, and all tree-driven edits through undo, redo, Apply, and reopening the editable annotation."
+        ]
+      }
+    ]
   }
 ]

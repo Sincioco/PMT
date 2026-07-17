@@ -122,6 +122,23 @@ BEGIN
 END;
 GO
 
+IF OBJECT_ID(N'[pmt].[UserImageAnnotationTemplateLibraries]', N'U') IS NULL
+BEGIN
+    CREATE TABLE [pmt].[UserImageAnnotationTemplateLibraries]
+    (
+        [UserId] INT NOT NULL CONSTRAINT [PK_pmt_UserImageAnnotationTemplateLibraries] PRIMARY KEY,
+        [LibraryJson] NVARCHAR(MAX) NOT NULL,
+        [CreatedAt] DATETIME2(0) NOT NULL CONSTRAINT [DF_pmt_UserImageAnnotationTemplateLibraries_CreatedAt] DEFAULT (SYSUTCDATETIME()),
+        [UpdatedAt] DATETIME2(0) NOT NULL CONSTRAINT [DF_pmt_UserImageAnnotationTemplateLibraries_UpdatedAt] DEFAULT (SYSUTCDATETIME()),
+        CONSTRAINT [FK_pmt_UserImageAnnotationTemplateLibraries_User] FOREIGN KEY ([UserId])
+            REFERENCES [pmt].[Users]([UserId]) ON DELETE CASCADE,
+        CONSTRAINT [CK_pmt_UserImageAnnotationTemplateLibraries_Json] CHECK (ISJSON([LibraryJson]) = 1),
+        CONSTRAINT [CK_pmt_UserImageAnnotationTemplateLibraries_Version] CHECK (TRY_CONVERT(INT, JSON_VALUE([LibraryJson], N'$.version')) = 1),
+        CONSTRAINT [CK_pmt_UserImageAnnotationTemplateLibraries_Size] CHECK (DATALENGTH([LibraryJson]) <= 104857600)
+    );
+END;
+GO
+
 IF OBJECT_ID(N'[pmt].[WfhSchedules]', N'U') IS NULL
 BEGIN
     CREATE TABLE [pmt].[WfhSchedules]

@@ -284,6 +284,18 @@ function richColorSwatchHtml(color, title) {
   return `<button type="button" class="rich-color-swatch" data-rich-color-value="${escapeAttr(normalizedColor)}" title="${escapeAttr(label)}" aria-label="${escapeAttr(label)}" style="--rich-swatch-color: ${escapeAttr(normalizedColor)}"></button>`;
 }
 
+export function sharedRichColorPickerHtml({ name, title, selectedColor, icon = "font" }) {
+  const iconHtml = icon === "background" ? richBackgroundColorIconHtml() : richFontColorIconHtml();
+  return `
+    <div class="rich-color-tool image-annotation-color-picker" data-annotation-color-picker="${escapeAttr(name)}" style="--rich-selected-color: ${escapeAttr(selectedColor)}">
+      <button type="button" class="rich-color-trigger" data-annotation-color-trigger data-rich-color-default="${escapeAttr(selectedColor)}" title="${escapeAttr(title)}" aria-label="${escapeAttr(title)}" aria-haspopup="true" aria-expanded="false">
+        ${iconHtml}
+      </button>
+      ${richColorPaletteHtml(title, selectedColor)}
+    </div>
+  `;
+}
+
 function richColorSwatchLabel(title, color) {
   const rgbText = richColorRgbText(color);
   return [title, color, rgbText].filter(Boolean).join(" ");

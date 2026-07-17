@@ -1,0 +1,128 @@
+Project Management Tool (PMT):  Day 30 of Codex Agentic AI Coding
+-----------------------------------------------------------------
+Total Dev Time in Hours:  40
+
+AI Instructions
+--------------
+Design and Coding Methodology:
+	KISS (Keep It Simple Stupid) - The simpler the better.  Avoid over-engineering.  Avoid unnecessary complexity.  Avoid unnecessary features.  Avoid unnecessary bells and whistles.  Avoid unnecessary abstractions.  Avoid unnecessary patterns.  Avoid unnecessary frameworks.  Avoid unnecessary libraries.  Avoid unnecessary dependencies.  Avoid unnecessary code.  Avoid unnecessary files.  Avoid unnecessary folders.  Avoid unnecessary classes.  Avoid unnecessary methods.  Avoid unnecessary variables.
+
+Testing:
+	In addition to your normal testing, be sure to inform me if I have to recompile the .Net portion of the project or just Press Ctrl + F5 on the browser to reload to see the latest changes.  If making CSS / image changes, ensure that I will encounter no caching issue when testing in the browser.
+
+Environment:
+	You are in a dev machine.  You can drop and re-create the database as you see fit, especially when testing migrations scripts.  You don't need to preseve data in the backend or frontend.  You can also clear preferences, local storage settings and any cache as you see fit.
+
+Database:
+	If making changes to the database, that affects existing users see database-versioning.md under the docs folder.
+
+
+Commits:
+	PMT is a public repo, write a detailed commit message so people can follow its progression.
+
+
+Documentation Image Notation
+----------------------------
+Scenario:  I take lots of screen shots for documentation purposes.  I would go to draw.io and paste it in there.  I would then draw boxes to highlight elements of the screen shot and draw an arrow from the outside boundary of the image towards the highlighted sections.  Then, I would drop a box to write the annotation.  I may do this several times for an image.  I may scale the image to the size I want.  Draw arrows of different sizes, and lenghts.  Drop a box of different sizes.  Change the font of the text inside the box.  Obviously, all the while I customize the fill color, outline, background color, font color of the arrows and boxes.  The font inside the box wraps as I type more or as I make the font size bigger.  I would then do a Select All and copy all objects on the canvas as an SVG and paste it into PMT's rich-text editor (RTE).  This is because it gets saved in PMT as a .svg file behind the scenes.  This has the desired result in that the image is still in its full high-resolution, and all the boxes, arrows and text are in vector allow the user to scale things and see every detail in the image or diagram and it can still be resized as necessary inside the RTE.
+
+Goal:  I want to be able to paste an image in PMT's rich text editor (RTE) and do basic image annotation, allow rectangles, arrows, boxes and text without losing the image quality of the image being annotated.  Keep the original image in case I need to copy and paste it outside of PMT.  It's fine if you have to bring the user into a full-screen dialog box so they can annotate the image outside of the RTE, but when it is finally in the RTE, it would be nice if it is a .svg. But if they edit it again, it's back to the full high resolution image and all the vector annotations.  It's also fine if you have to keep the .svg separate from the original assets for editing.  Whatever you think is best. You are able to read/write fully on the FileUploads folder, so you can create any files you need there to achieve the goal.  Just be sure to not create orphaned files or it might get deleted in the Settings -> Maintenance screen.  Follow the basic Draw.io controls.  Mousewheel scrolls up and down.  Ctrl + Mousewheel zoom in or out at the cursor.  Mousewheel/middle mouse click + drag pans the canvas.  Have grids that can be toggled.  Have snapping to the grid for easy alignments of objects.  Obviously, allow me to resize each objects on the canvas, and scale them.  Have layering already there so I can send objects to the back, front, bring forward, bring backwards.  Be able to lock an object so it's not moveable, which I typically do for the image I paste after I have positioned it where I want it.  Be able to group objects so I can move and resize them around together.
+
+1.) Can you add Image Annotation feature in PMT such that I can achieve the goal above?
+2.) I am basically requesting a minimalist clone of the functionality I use from draw.io to be incorporated into PMT so I don't have to keep going back and forth between PMT and draw.io.
+3.) I have attached a screen shot of PMT, just as an example, and drew an arrow on it with an annotation so you can see how I use draw.io now.  I'd like to be able to do the samething within PMT.
+4.) Be sure to implement undo / redo operations.
+5.) Allow me to crop an image, so I can really just focus on the area of the screen I want to show.
+6.) The RTE toolbar already has a font color and background color picker, if you could re-use / re-cycle that so the user doesn't have to learn something new that would be great.
+
+Bugs and Feedback
+7.) Bug:  Arrowhead doesn't look correct as I manipulate the line width and arrow head size.  (see image)
+8.) Make the object selection handles and handle outline less pronounced.  See attached image for now draw.io does it.
+
+9.) Once you draw an object on the screen, arrow, box, etc., automatically revert to Select mode.
+10.) Allow the user to draw a rectangular selection on screen, and whatever it touches becomes selected (multiple object selection).
+11.) When the image is in the annotation editor, make the canvas large and center the working image (image plus vectors) in the canvas.  I need to be able to draw arrows and boxes well beyond the boundaries of the image and onto the canvas.
+12.) When zooming in or out, anchor the zoom in/out point based on the mouse cursor, not the upper-left corner as you do now.
+13.) Obviously, if you made the canvas larger than the actual image and all the vector objects (annotations) draw on the image, auto remove the unused space on the canvas once the user clicks the "Apply to RTE" button.  That way, on the RTE it's just the image and the annotations.
+14.) Item #10, for clarification, means starting a rectangle selection by pointing on a white space on the canvas, then drawing a rectangle to purposely touch the objects on the canvas with the purpose of selecting those it touches.
+15.) I need basic alignment controls for the text such as:  Left, Center, Right.
+16.) If an object is selected and I click anywhere outside the bounds of the object, it should de-select the object.
+
+17.) The delete key should delete the objects (if one or more are selected)
+18.) The ESC key should deselect the objects (if one or more are selected).
+19.) The up, down, left, right arrow keys should move the object by the grid increments if the grid is on, otherwise, by pixel if it is off.
+
+20.) As I drag the image, I notice it is being clipped to the original dimension of the image.  Can you remove this limitation.  In edit mode, the canvas is the clipping region.  In fact, don't even let the canvas be a clipping restriction.  If the user drags an object/image outside the canvas, extend the canvas so the user can drop it in the area they want to.
+
+21.) I want to you treat the Arrow object as a special object.  Currently you are treating it like a rectangle, so as I resize the rectangular bounds of the arrow, the arrow body and arrow head are getting scaled disproportionately.  Examine the attached image, pay attention to the two blue dots at the tip of the arrow and at the opposite end (we'll call this base of the arrow).  If the user select an arrow, by clicking on the arrow itself (use object bounds detection) and not the virtual bounding box of the arrow, the 2 blue sizing handles appear.  Clicking the base sizing handle of the arrow and dragging it allows you to rotate the arrow around the tip of the arrow as the anchor point.  Dragging and rotating the base of the arrow allows you to also resize the length of the arrow's body as it gets closer or farther away from the tip of the arrow (it's rotation point).  While the arrow is being adjusted in this manner, the arrow head, in this case, does not change in size.  Only the length of the arrow and its rotation in relation to its tip is changing.  Clicking on any part of the arrow itself (use object bounds detection) switches it to object selection mode, where the keyboard up, down, left, right moves the arrow.  Clicking on the arrow (use object bounds detection) and dragging it around while the left mouse button is still down, moves it around.  When I say "use object bounds detection" I don't mean its rectangular bounds, but the object's outlined boundary itself.
+
+22.) I need vertical alignment controls for the text such as:  Top, Middle, Bottom.
+23.) Apply some basic formatting on the UI controls on the right pane/panel consistent with PMT's UI theme/design.
+24.) When the user clicks the Grid and Snap checkbox, and they had a selected object before they clicked those checkbox, don't keep the focus on the checkboxes, put the focus back on the last object the user had selected.
+25.) If the user select a group object, also draw the dotted blue lines around the bounds of the inner objects like you do now for the objects members in the group.  If an arrow is a part of the group, just draw the same dotted blue lines you do now but from the tip of the arrow to the base of the arrow.  We just want to give the user a visual clue that the current object they have selected is, in fact, a group of objects.
+26.) Bug:  When I first enter the Image Annotation dialog box and an image is a part of a group, it will allow me to select an image and resize it independently of the group, as if the group has not yet been established.  Yet, if I click somewhere in the canvas, then click on the image and resize it, all of its members gets resized accordingly--acting correctly as a group.  Please fix this.
+27.) When resizing objects in PMT, always keep them proportional.
+28.) If I hold down the Ctrl key while resizing an object, temporarily change it's anchor point at the center of the object.
+29.) If the user is resizing/dragging an arrow object, ignore the Ctrl key.
+30.) If a group contains an arrow in it, the arrow head and it's body's length/width must size with the group's dimensions proportionately.
+31.) When resizing the rectangle object, keep it proportional.  But when I press and hold the Alt key while I drag, allow me to drag it in anyway (follow the mouse cursor).
+32.) Ctrl + A should select all objects on the Canvas.
+
+33.) Move the To Front, To Back, Forward, Backward, Group, Ungroup, Lock, Reset Crop on to a right-click menu that shows up when an object is selected.  Use the same menu style as the Image action selection.
+34.) Use icons or glyphs to represent the Select (V), Crop, Rectangle, Arrow, Text.
+35.) When in Crop mode, change the cursor into a crosshair and as you draw a rectangular bounds just use the same design you use to draw a rectangular bounds when you click on an empty area on the canvas and start dragging a rectangular selection.
+36.) Move the Crop menu also in the right-click menu of an object.
+37.) Arrange the right-click menu like so: To Back, Forward, Backward | Group, Ungroup, Reset Crop Lock.  Where | means menu separator.
+38.) Put a button so I can hide/show the right panel (formatting panel).
+
+39.) Add a maximimze button next to the close (x) button.
+40.) This will be a special case for the Image Annotation but when maximized, truly maximize the dialog.  Hide the title / header dialog area to give the user more space.  Also hide the dialog footer area.  Truly make it take up the entire browser's content area which effectively puts the toolbar right at the top.  Just have a floating restore icon on the upper-right corner.  And move the footer cancel and Apply to RTE button (maybe clone them, don't literally move them unless you can animate them in the new location) to the toolbar.  Obviously, when the user clicks the restore button, restore everything back.
+
+41.) Add a checkbox in the right-panel for "Outline".  Enable it by default to show the outline on rectangles and text.  But when disabled, remove the outline around text and rectangles.
+42.) Show the last 6 colors in 2x3 used beside (to the right of) the Fill, Outline and Text color.
+
+43.) On the right-click menu for an object, add two menu options:  Copy as SVG, Copy as Image.  Make it work as intended.
+
+44.) I have a textbox that is vertically and horizontally centered.  But visually, it doesn't look vertically centered.  Can you figure out why and fix it so it is visually verticall centered?
+
+45.) I want to add a nother tab on the right-pane.  Right now it only has "Format", I would like to add a second tab (at the top) for "Template".
+46.) After the user spends time formatting an object, I want the user to be able to go to the Template tab and click a button takes a snapshot of the currently selected object as-is and turns it into a template.  You probably want to save this internaly as a native .svg file?
+47.) I want the Template tab to visually show all the templates in a fairly large thumbnail (preview).
+48.) When the user clicks on a Template item, it creates an instance of it on the canvas.
+49.) I also want to user to be able to specify that they want the default arrow going forward to be the currently selected object.  Same goes for rectangles.
+50.) Allow the user to edit, delete, re-order save templates.
+51.) Allow the user also to reset the arrow and rectangle to its default state.
+52.) The use-case is I want to be able to save time by having these templates both on my work computer and home computer when I log in to PMT.
+
+52.) Make Ctrl + C copy the selected objects on the canvas.
+53.) Make Ctrl + V paste the selected objects on the canvas.
+54.) Make Ctrl + D duplicate the currently selected object.  Put a toaster that informs the user the item has been duplicated.
+55.) When dragging items, holding down the shift key allows the item to move left and right only.
+56.) When dragging items, holding down the alt key allows the item to move up and down only.
+
+57.) Be sure to rename the toolbar Hide/Show Format to just Hide/Show Right Pane.
+58.) Also, change how the "Fit" button works on the toolbar so that it actually tries to fit the entire content of the canvas (just the objects) into the viewport so the user's work can fill the viewport as much as possible.
+
+59.) Add another tab in the right pane called "Objects".
+60.) The Objects tab simply renders the object tree / object graph of the items on the canvas.  So the top is the top-most item, and the bottom is the bottom most item.  If objects are group, create a logical group container (if you don't have one already) and show the children items underneath it.  Basically, you are creating a tree view of the objects in the canvas.
+61.) Allow the user to rename each node on the tree as they see fit.
+62.) Allow them to delete canvas objects from this tree.  Allow them multiple selection for multi-item deletes.
+63.) Allow the user to re-order / by dragging and draggin each node / item into another branch in the tree.  Adjust the z-order of the items on the canvas to match the tree structure.  You already have dragging code as implemented in the Dev Task's table.
+64.) Render this treeview in a compact form.
+65.) Allow for copying and pasting of tree nodes (objects on the canvas).
+66.) As they manipulate and select items on the tree nodes, be sure to reflect it on the canvas.  For example, if they select a rectangle node in the tree, that same rectangle should show a selected state.
+67.) Allow the user to not just move individual nodes around, but also grouped nodes.  So, if you drag the parent container, all the children should move with the children.  Obviously, allow nodes to be placed in any parent container / branch in the tree.
+
+68.) The treeview also represent the visual representation of the Z-index on the canvas.  If the object's z-index is higher on the canvas, it should be higher in the tree. Low z-index are at the bottom.  So, as the user moves the tree nodes around, it should also be moving/affecting the z-index of the objects in the canvas.
+69.) Put a search box in the Objects tab so we can find /filter nodes in the tree.
+
+70.) Bug:  The recently used colors are not rendering correctly beside the Fill, Outline and Text color picker.
+71.) Add an opacity property so we can modify the opacity of text, arrows and rectangles.
+
+Database Migration Script Testing
+---------------------------------
+Update the migration scripts and test them by dropping and re-creating the database from the baseline and executing your combined migration script as that is how I will execute it during deployment.  Be sure it works without any errors and fix errors that you do encounter.
+
+Commit and Push
+---------------
+When all your tests are green, commit and push to the repo.
+Also commit the file named "2026-07-17 - Requirements - Day 30.txt"

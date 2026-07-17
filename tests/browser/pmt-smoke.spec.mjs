@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { releaseNotes } from "../../wwwroot/js/shared/release-notes-data.js";
 
 const statuses = [
   "Backlog",
@@ -44,7 +45,7 @@ test("login, navigation, themes, dialogs, filters, Board, Gantt, and Road Map sm
 
   await page.addInitScript(() => {
     localStorage.clear();
-    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-16-day-29");
+    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-17-day-30@35c4aa65c202");
     localStorage.setItem("pmt-navigation", JSON.stringify({
       version: 2,
       items: [
@@ -516,7 +517,7 @@ test("Developer Board moves stop after QA Passed while QA Ready remains availabl
 
   await page.addInitScript(() => {
     localStorage.clear();
-    localStorage.setItem("pmt-release-notes-last-seen:2", "2026-07-16-day-29");
+    localStorage.setItem("pmt-release-notes-last-seen:2", "2026-07-17-day-30@35c4aa65c202");
   });
   await installApiMocks(page, appState, apiCalls);
   await page.goto("/");
@@ -563,7 +564,7 @@ test("Scrum attendance, calendar, on-behalf, and vacation flows stay synchronize
       localStorage.clear();
       sessionStorage.setItem("pmt-scrum-attendance-smoke-started", "true");
     }
-    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-16-day-29");
+    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-17-day-30@35c4aa65c202");
   });
   await installApiMocks(page, appState, apiCalls);
 
@@ -862,7 +863,7 @@ test("Scrum view toggle matches Documentation and crowded attendance avatars fit
   await page.clock.setFixedTime(new Date("2026-07-15T08:00:00+08:00"));
   await page.addInitScript(() => {
     localStorage.clear();
-    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-16-day-29");
+    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-17-day-30@35c4aa65c202");
   });
   await installApiMocks(page, appState, apiCalls);
 
@@ -987,7 +988,7 @@ test("Scrum auto-refresh updates the table and attendance without reload or inte
   await page.clock.install({ time: new Date("2026-07-15T08:00:00+08:00") });
   await page.addInitScript(() => {
     localStorage.clear();
-    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-16-day-29");
+    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-17-day-30@35c4aa65c202");
   });
   await installApiMocks(page, appState, apiCalls);
 
@@ -1116,7 +1117,7 @@ test("Scrum auto-refresh invalidates the visible Calendar month without shifting
   await page.clock.install({ time: new Date("2026-07-15T08:00:00+08:00") });
   await page.addInitScript(() => {
     localStorage.clear();
-    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-16-day-29");
+    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-17-day-30@35c4aa65c202");
   });
   await installApiMocks(page, appState, apiCalls);
 
@@ -1228,7 +1229,7 @@ test("Scrum read-only permission disables attendance and vacation mutations", as
   await page.clock.setFixedTime(new Date("2026-07-15T08:00:00+08:00"));
   await page.addInitScript(() => {
     localStorage.clear();
-    localStorage.setItem("pmt-release-notes-last-seen:2", "2026-07-16-day-29");
+    localStorage.setItem("pmt-release-notes-last-seen:2", "2026-07-17-day-30@35c4aa65c202");
   });
   await installApiMocks(page, appState, apiCalls);
 
@@ -1259,8 +1260,8 @@ test("Scrum attendance cache follows the restored cookie session user", async ({
   await page.clock.setFixedTime(new Date("2026-07-15T08:00:00+08:00"));
   await page.addInitScript(() => {
     localStorage.clear();
-    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-16-day-29");
-    localStorage.setItem("pmt-release-notes-last-seen:2", "2026-07-16-day-29");
+    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-17-day-30@35c4aa65c202");
+    localStorage.setItem("pmt-release-notes-last-seen:2", "2026-07-17-day-30@35c4aa65c202");
   });
   await installApiMocks(page, appState, apiCalls);
 
@@ -2429,6 +2430,1867 @@ test("draw.io SVG clipboard paste preserves UTF-8 spaces", async ({ page }) => {
   expect(uploadedRequestBody).not.toContain("\u00c2");
 });
 
+test("RTE image annotation creates, crops, groups, locks, undoes, and reopens editable SVG", async ({ page, context, baseURL }) => {
+  test.setTimeout(120_000);
+  const appOrigin = new URL(baseURL || "http://127.0.0.1:5056").origin;
+  await context.grantPermissions(["clipboard-read", "clipboard-write"], { origin: appOrigin });
+  const appState = createTestState();
+  const apiCalls = { securityReset: 0 };
+  const runtimeErrors = [];
+  page.on("pageerror", error => runtimeErrors.push(error.message));
+  page.on("console", message => {
+    if (message.type() === "error") runtimeErrors.push(message.text());
+  });
+  const originalSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="800" height="450" viewBox="0 0 800 450"><rect width="800" height="450" fill="#f2f2f2"/><text x="40" y="80" font-size="42">Full resolution screenshot</text></svg>`;
+  const seededRecentColors = ["#112233", "#223344", "#334455", "#445566", "#556677", "#667788", "#778899"];
+  let uploadedSvg = "";
+  let annotationUploadAttempts = 0;
+
+  await markCurrentReleaseSeen(page, 1);
+  await page.addInitScript(colors => {
+    localStorage.setItem("pmt-rich-last-colors", JSON.stringify(colors));
+  }, seededRecentColors);
+  await installApiMocks(page, appState, apiCalls);
+  await page.route("**/uploads/richtext/annotation-original.svg", async route => {
+    await route.fulfill({ status: 200, contentType: "image/svg+xml", body: originalSvg });
+  });
+  await page.route("**/uploads/richtext/generated-annotation.svg", async route => {
+    await route.fulfill({ status: 200, contentType: "image/svg+xml", body: uploadedSvg || originalSvg });
+  });
+  await page.route("**/api/uploads/richtext", async route => {
+    const requestBody = route.request().postDataBuffer()?.toString("utf8") || "";
+    const start = requestBody.indexOf("<?xml");
+    const end = requestBody.lastIndexOf("</svg>");
+    const candidateSvg = start >= 0 && end >= start ? requestBody.slice(start, end + "</svg>".length) : requestBody;
+    annotationUploadAttempts += 1;
+    if (annotationUploadAttempts === 1) {
+      await route.fulfill(jsonResponse({ error: "Temporary annotation upload failure" }, 503));
+      return;
+    }
+    uploadedSvg = candidateSvg;
+    await route.fulfill(jsonResponse({
+      fileName: "screenshot-annotation.svg",
+      url: "/uploads/richtext/generated-annotation.svg",
+      contentType: "image/svg+xml",
+      byteLength: Buffer.byteLength(uploadedSvg)
+    }));
+  });
+
+  await page.goto("/");
+  await page.locator("#loginName").fill("Sin");
+  await page.locator("#loginPassword").fill("Password1");
+  await page.getByRole("button", { name: /log in/i }).click();
+  await openNavView(page, "Tasks", "Dev Tasks");
+  await page.locator("tr[data-task-id='1']").click();
+  await page.locator("dialog.detail-dialog").getByRole("button", { name: "Edit" }).click();
+
+  const editor = page.locator("#editorDialog [data-rich='descriptionHtml']");
+  await editor.evaluate(element => {
+    element.innerHTML = `<p>Annotation test</p><img src="/uploads/richtext/annotation-original.svg" alt="Screenshot to annotate" width="240" style="width: 240px; height: auto;">`;
+  });
+  const rteImage = editor.getByRole("img", { name: "Screenshot to annotate" });
+  await rteImage.evaluate(element => element.decode());
+  const imageClickResult = await rteImage.evaluate(element => {
+    const event = new MouseEvent("click", { bubbles: true, cancelable: true, clientX: 100, clientY: 100 });
+    element.dispatchEvent(event);
+    return { defaultPrevented: event.defaultPrevented, menuCount: document.querySelectorAll(".rich-image-menu").length };
+  });
+  await page.waitForTimeout(50);
+  if (await page.locator(".rich-image-menu").count() === 0) {
+    throw new Error(`Image action menu did not open: ${JSON.stringify({ runtimeErrors, imageClickResult })}`);
+  }
+  await page.getByRole("menuitem", { name: "Annotate", exact: true }).click();
+
+  const dialog = page.locator("dialog.image-annotation-dialog");
+  const canvas = dialog.locator("[data-annotation-canvas]");
+  const workspace = dialog.locator("[data-annotation-workspace]");
+  const annotationContextMenu = dialog.locator("[data-annotation-context-menu]");
+  const openAnnotationContextMenu = async target => {
+    const handled = await target.evaluate(element => {
+      const targetBox = element.getBoundingClientRect();
+      const event = new MouseEvent("contextmenu", {
+        bubbles: true,
+        cancelable: true,
+        button: 2,
+        clientX: targetBox.x + Math.min(12, targetBox.width / 2),
+        clientY: targetBox.y + Math.min(12, targetBox.height / 2)
+      });
+      element.dispatchEvent(event);
+      return event.defaultPrevented;
+    });
+    expect(handled).toBe(true);
+    await expect(annotationContextMenu).toBeVisible();
+  };
+  const canvasClientPoint = (x, y) => canvas.evaluate((element, point) => {
+    const rect = element.getBoundingClientRect();
+    const viewBox = element.viewBox.baseVal;
+    return {
+      x: rect.left + (((point.x - viewBox.x) / viewBox.width) * rect.width),
+      y: rect.top + (((point.y - viewBox.y) / viewBox.height) * rect.height)
+    };
+  }, { x, y });
+  const dragCanvas = async (startX, startY, endX, endY) => {
+    const start = await canvasClientPoint(startX, startY);
+    const end = await canvasClientPoint(endX, endY);
+    await page.mouse.move(start.x, start.y);
+    await page.mouse.down();
+    await page.mouse.move(end.x, end.y, { steps: 5 });
+    await page.mouse.up();
+  };
+  const readArrowGeometry = arrow => arrow.evaluate(element => {
+    const line = element.querySelector(".image-annotation-arrow-shaft");
+    const points = element.querySelector(".image-annotation-arrow-head").getAttribute("points").trim().split(/\s+/)
+      .map(point => point.split(",").map(Number));
+    const base = { x: Number(line.getAttribute("x1")), y: Number(line.getAttribute("y1")) };
+    const shaftEnd = { x: Number(line.getAttribute("x2")), y: Number(line.getAttribute("y2")) };
+    const tip = { x: points[0][0], y: points[0][1] };
+    const headCenter = {
+      x: (points[0][0] + points[1][0] + points[2][0]) / 3,
+      y: (points[0][1] + points[1][1] + points[2][1]) / 3
+    };
+    return {
+      base,
+      shaftEnd,
+      tip,
+      headCenter,
+      strokeWidth: Number(line.getAttribute("stroke-width")),
+      headLength: Math.hypot(tip.x - shaftEnd.x, tip.y - shaftEnd.y),
+      headWidth: Math.hypot(points[1][0] - points[2][0], points[1][1] - points[2][1])
+    };
+  });
+  await expect(dialog).toBeVisible();
+  await expect(dialog).toHaveCSS("width", `${page.viewportSize().width - 16}px`);
+  await expect(dialog.getByText("Ctrl + wheel: zoom at cursor")).toBeVisible();
+  await expect(dialog.getByRole("heading", { name: "Shape", exact: true })).toBeVisible();
+  await expect(dialog.getByRole("heading", { name: "Text", exact: true })).toBeVisible();
+  const formatPaneMetrics = await dialog.locator(".image-annotation-inspector").evaluate(element => {
+    const lineWidth = element.querySelector('[data-annotation-style="strokeWidth"]');
+    const styles = getComputedStyle(lineWidth);
+    return {
+      width: element.getBoundingClientRect().width,
+      overflowFree: element.scrollWidth <= element.clientWidth,
+      controlHeight: lineWidth.getBoundingClientRect().height,
+      controlBackground: styles.backgroundColor,
+      controlBorder: styles.borderTopWidth
+    };
+  });
+  expect(formatPaneMetrics.width).toBe(320);
+  expect(formatPaneMetrics.overflowFree).toBe(true);
+  expect(formatPaneMetrics.controlHeight).toBe(40);
+  expect(formatPaneMetrics.controlBackground).not.toBe("rgba(0, 0, 0, 0)");
+  expect(formatPaneMetrics.controlBorder).toBe("1px");
+  const expectedInitialRecentColors = seededRecentColors.slice(0, 6);
+  const recentColorNames = ["fill", "stroke", "textColor"];
+  const expectedRecentSwatchMetrics = expectedInitialRecentColors.map(color => {
+    const value = Number.parseInt(color.slice(1), 16);
+    return {
+      color,
+      backgroundColor: `rgb(${(value >> 16) & 255}, ${(value >> 8) & 255}, ${value & 255})`,
+      width: 22,
+      height: 22
+    };
+  });
+  for (const name of recentColorNames) {
+    const strip = dialog.locator(`[data-annotation-recent-colors='${name}']`);
+    await expect(strip).toBeVisible();
+    await expect(strip.locator("[data-rich-color-value]")).toHaveCount(6);
+    expect(await strip.locator("[data-rich-color-value]").evaluateAll(swatches =>
+      swatches.map(swatch => swatch.dataset.richColorValue)
+    )).toEqual(expectedInitialRecentColors);
+    expect(await strip.locator("[data-rich-color-value]").evaluateAll(swatches => swatches.map(swatch => {
+      const bounds = swatch.getBoundingClientRect();
+      return {
+        color: swatch.dataset.richColorValue,
+        backgroundColor: getComputedStyle(swatch).backgroundColor,
+        width: bounds.width,
+        height: bounds.height
+      };
+    }))).toEqual(expectedRecentSwatchMetrics);
+    expect(await strip.evaluate((element, colorName) => {
+      const styles = getComputedStyle(element);
+      return {
+        besideMatchingPicker: element.previousElementSibling?.matches(`[data-annotation-color-picker='${colorName}']`) === true,
+        display: styles.display,
+        columns: styles.gridTemplateColumns.split(/\s+/).filter(Boolean).length,
+        rows: styles.gridTemplateRows.split(/\s+/).filter(Boolean).length
+      };
+    }, name)).toEqual({ besideMatchingPicker: true, display: "grid", columns: 3, rows: 2 });
+  }
+  const drawingToolButtons = dialog.locator("button[data-annotation-tool]");
+  await expect(drawingToolButtons).toHaveCount(5);
+  expect(await drawingToolButtons.evaluateAll(buttons => buttons.map(button => ({
+    label: button.getAttribute("aria-label"),
+    title: button.getAttribute("title"),
+    pressed: button.getAttribute("aria-pressed"),
+    visibleText: button.textContent.trim(),
+    iconHidden: button.querySelector(".button-icon")?.getAttribute("aria-hidden"),
+    hasSvg: Boolean(button.querySelector("svg.image-annotation-tool-icon"))
+  })))).toEqual([
+    { label: "Select (V)", title: "Select (V)", pressed: "true", visibleText: "", iconHidden: "true", hasSvg: true },
+    { label: "Crop (C)", title: "Crop (C)", pressed: "false", visibleText: "", iconHidden: "true", hasSvg: true },
+    { label: "Rectangle (R)", title: "Rectangle (R)", pressed: "false", visibleText: "", iconHidden: "true", hasSvg: true },
+    { label: "Arrow (A)", title: "Arrow (A)", pressed: "false", visibleText: "", iconHidden: "true", hasSvg: true },
+    { label: "Text Box (T)", title: "Text Box (T)", pressed: "false", visibleText: "", iconHidden: "true", hasSvg: true }
+  ]);
+
+  const inspector = dialog.locator("[data-annotation-inspector]");
+  const inspectorToggle = dialog.locator("[data-annotation-toggle-inspector]");
+  const workspaceWidthWithInspector = (await workspace.boundingBox()).width;
+  await expect(inspectorToggle).toHaveAttribute("aria-expanded", "true");
+  await inspectorToggle.click();
+  await expect(inspector).toBeHidden();
+  await expect(inspectorToggle).toHaveAccessibleName("Show Right Pane");
+  await expect(inspectorToggle).toHaveAttribute("aria-expanded", "false");
+  await expect.poll(async () => (await workspace.boundingBox()).width).toBeGreaterThan(workspaceWidthWithInspector);
+  await inspectorToggle.click();
+  await expect(inspector).toBeVisible();
+  await expect(inspectorToggle).toHaveAccessibleName("Hide Right Pane");
+  await expect(inspectorToggle).toHaveAttribute("aria-expanded", "true");
+
+  const maximizeButton = dialog.locator("[data-annotation-maximize]");
+  const restoreButton = dialog.locator("[data-annotation-restore]");
+  const maximizedActions = dialog.locator("[data-annotation-maximized-actions]");
+  const dialogHeader = dialog.locator(".image-annotation-head");
+  const dialogFooter = dialog.locator(".image-annotation-actions");
+  await expect(dialogHeader).toBeVisible();
+  await expect(dialogFooter).toBeVisible();
+  await expect(restoreButton).toBeHidden();
+  await expect(maximizedActions).toBeHidden();
+  await maximizeButton.click();
+  await expect(dialog).toHaveClass(/is-annotation-maximized/);
+  await expect(dialogHeader).toBeHidden();
+  await expect(dialogFooter).toBeHidden();
+  await expect(restoreButton).toBeVisible();
+  await expect(restoreButton).toBeFocused();
+  await expect(maximizedActions).toBeVisible();
+  const maximizedBox = await dialog.boundingBox();
+  expect(maximizedBox.x).toBeCloseTo(0, 0);
+  expect(maximizedBox.y).toBeCloseTo(0, 0);
+  expect(maximizedBox.width).toBeCloseTo(page.viewportSize().width, 0);
+  expect(maximizedBox.height).toBeCloseTo(page.viewportSize().height, 0);
+  await restoreButton.click();
+  await expect(dialog).not.toHaveClass(/is-annotation-maximized/);
+  await expect(dialogHeader).toBeVisible();
+  await expect(dialogFooter).toBeVisible();
+  await expect(restoreButton).toBeHidden();
+  await expect(maximizedActions).toBeHidden();
+  await expect(maximizeButton).toBeFocused();
+  await expect(canvas.locator("[data-annotation-object-id]")).toHaveCount(1);
+  const editorViewBox = (await canvas.getAttribute("viewBox")).split(/\s+/).map(Number);
+  expect(editorViewBox[2]).toBeGreaterThan(800 * 3);
+  expect(editorViewBox[3]).toBeGreaterThan(450 * 3);
+  const initialImageBox = await canvas.locator("[data-annotation-object-id]").first().boundingBox();
+  const initialWorkspaceCenter = await workspace.evaluate(element => {
+    const rect = element.getBoundingClientRect();
+    return {
+      x: rect.left + element.clientLeft + (element.clientWidth / 2),
+      y: rect.top + element.clientTop + (element.clientHeight / 2)
+    };
+  });
+  expect(Math.abs((initialImageBox.x + (initialImageBox.width / 2))
+    - initialWorkspaceCenter.x)).toBeLessThan(3);
+  expect(Math.abs((initialImageBox.y + (initialImageBox.height / 2))
+    - initialWorkspaceCenter.y)).toBeLessThan(3);
+  const selectionChrome = await canvas.evaluate(element => {
+    const outline = element.querySelector(".image-annotation-selection");
+    const handle = element.querySelector(".image-annotation-handle");
+    const handleBox = handle.getBoundingClientRect();
+    return {
+      handleTag: handle.tagName.toLowerCase(),
+      handleWidth: handleBox.width,
+      handleOpacity: Number(getComputedStyle(handle).opacity),
+      outlineWidth: Number.parseFloat(getComputedStyle(outline).strokeWidth),
+      outlineOpacity: Number(getComputedStyle(outline).opacity)
+    };
+  });
+  expect(selectionChrome.handleTag).toBe("circle");
+  expect(selectionChrome.handleWidth).toBeLessThanOrEqual(8);
+  expect(selectionChrome.handleOpacity).toBeLessThanOrEqual(0.9);
+  expect(selectionChrome.outlineWidth).toBeLessThanOrEqual(1);
+  expect(selectionChrome.outlineOpacity).toBeLessThanOrEqual(0.72);
+
+  const imageObject = canvas.locator("[data-annotation-object-id]").first();
+  const imageClipRect = canvas.locator("#pmt-annotation-image-clip rect");
+  await openAnnotationContextMenu(imageObject);
+  expect(await annotationContextMenu.locator(":scope > *").evaluateAll(items => items.map(item =>
+    item.getAttribute("role") === "separator"
+      ? "|"
+      : item.querySelector(".dropdown-menu-label")?.textContent.trim()
+  ))).toEqual([
+    "Crop",
+    "To Front",
+    "To Back",
+    "Forward",
+    "Backward",
+    "|",
+    "Group",
+    "Ungroup",
+    "Reset Crop",
+    "Lock",
+    "|",
+    "Copy as SVG",
+    "Copy as Image"
+  ]);
+  await expect(annotationContextMenu.getByRole("menuitem", { name: "Crop", exact: true })).toBeEnabled();
+  await expect(annotationContextMenu.getByRole("menuitem", { name: "To Front", exact: true })).toBeDisabled();
+  await expect(annotationContextMenu.getByRole("menuitem", { name: "To Back", exact: true })).toBeDisabled();
+  await expect(annotationContextMenu.getByRole("menuitem", { name: "Forward", exact: true })).toBeDisabled();
+  await expect(annotationContextMenu.getByRole("menuitem", { name: "Backward", exact: true })).toBeDisabled();
+  await expect(annotationContextMenu.getByRole("menuitem", { name: "Group", exact: true })).toBeDisabled();
+  await expect(annotationContextMenu.getByRole("menuitem", { name: "Ungroup", exact: true })).toBeDisabled();
+  await expect(annotationContextMenu.getByRole("menuitem", { name: "Reset Crop", exact: true })).toBeDisabled();
+  await expect(annotationContextMenu.getByRole("menuitem", { name: "Lock selected objects", exact: true })).toBeEnabled();
+  await page.keyboard.press("Escape");
+  await expect(annotationContextMenu).toBeHidden();
+  await expect(dialog.locator("[data-annotation-selection-label]")).toHaveText("Original image");
+  await expect(imageObject).toBeFocused();
+  await page.keyboard.press("Shift+F10");
+  await expect(annotationContextMenu).toBeVisible();
+  const cropContextMenuItem = annotationContextMenu.getByRole("menuitem", { name: "Crop", exact: true });
+  const lockContextMenuItem = annotationContextMenu.getByRole("menuitem", { name: "Lock selected objects", exact: true });
+  const copyImageContextMenuItem = annotationContextMenu.getByRole("menuitem", { name: "Copy as Image", exact: true });
+  await expect(cropContextMenuItem).toBeFocused();
+  await page.keyboard.press("ArrowDown");
+  await expect(lockContextMenuItem).toBeFocused();
+  await page.keyboard.press("ArrowUp");
+  await expect(cropContextMenuItem).toBeFocused();
+  await page.keyboard.press("End");
+  await expect(copyImageContextMenuItem).toBeFocused();
+  await page.keyboard.press("Home");
+  await expect(cropContextMenuItem).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expect(annotationContextMenu).toBeHidden();
+  await expect(dialog.locator("[data-annotation-selection-label]")).toHaveText("Original image");
+  await expect(imageObject).toBeFocused();
+  await openAnnotationContextMenu(imageObject);
+  await dialog.getByRole("tab", { name: "Format", exact: true }).click();
+  await expect(annotationContextMenu).toBeHidden();
+  await expect(dialog.locator("[data-annotation-selection-label]")).toHaveText("Original image");
+  await dragCanvas(400, 225, 520, 285);
+  await expect(imageObject).toHaveAttribute("x", "120");
+  await expect(imageObject).toHaveAttribute("y", "60");
+  await expect(imageClipRect).toHaveAttribute("x", "120");
+  await expect(imageClipRect).toHaveAttribute("y", "60");
+  await expect(imageClipRect).toHaveAttribute("width", "800");
+  await expect(imageClipRect).toHaveAttribute("height", "450");
+  await dragCanvas(520, 285, 400, 225);
+  await expect(imageObject).toHaveAttribute("x", "0");
+  await expect(imageObject).toHaveAttribute("y", "0");
+  await expect(imageClipRect).toHaveAttribute("x", "0");
+  await expect(imageClipRect).toHaveAttribute("y", "0");
+
+  await dialog.getByRole("button", { name: "Rectangle (R)" }).click();
+  await dragCanvas(100, 80, 340, 190);
+  await expect(canvas.locator("[data-annotation-object-id]")).toHaveCount(2);
+  await expect(dialog.getByRole("button", { name: "Select (V)" })).toHaveAttribute("aria-pressed", "true");
+
+  await dialog.getByRole("button", { name: "Undo (Ctrl+Z)" }).click();
+  await expect(canvas.locator("[data-annotation-object-id]")).toHaveCount(1);
+  await dialog.getByRole("button", { name: "Redo (Ctrl+Y)" }).click();
+  await expect(canvas.locator("[data-annotation-object-id]")).toHaveCount(2);
+
+  const proportionalRectangle = canvas.locator("[data-annotation-object-type='rectangle']").first();
+  await proportionalRectangle.click();
+  const outlineCheckbox = dialog.getByRole("checkbox", { name: "Outline", exact: true });
+  const outlinePicker = dialog.getByRole("button", { name: "Outline Color", exact: true });
+  const recentOutlineStrip = dialog.locator("[data-annotation-recent-colors='stroke']");
+  const recentOutlineColor = seededRecentColors[3];
+  await recentOutlineStrip.locator(`[data-rich-color-value='${recentOutlineColor}']`).click();
+  await expect(proportionalRectangle).toHaveAttribute("stroke", recentOutlineColor);
+  const expectedRefreshedRecentColors = [
+    recentOutlineColor,
+    ...seededRecentColors.filter(color => color !== recentOutlineColor)
+  ].slice(0, 6);
+  for (const name of recentColorNames) {
+    expect(await dialog.locator(`[data-annotation-recent-colors='${name}'] [data-rich-color-value]`)
+      .evaluateAll(swatches => swatches.map(swatch => swatch.dataset.richColorValue)))
+      .toEqual(expectedRefreshedRecentColors);
+  }
+  const recentFillColor = seededRecentColors[2];
+  await dialog.locator("[data-annotation-recent-colors='fill']")
+    .locator(`[data-rich-color-value='${recentFillColor}']`).click();
+  await expect(proportionalRectangle).toHaveAttribute("fill", recentFillColor);
+  const chosenOutlineColor = "#0070C0";
+  const savedOutlineColor = chosenOutlineColor.toLowerCase();
+  await expect(outlineCheckbox).toBeChecked();
+  await outlinePicker.click({ position: { x: 35, y: 20 } });
+  const outlinePalette = dialog.locator("[data-annotation-color-picker='stroke'] [data-rich-color-palette]");
+  await expect(outlinePalette).toBeVisible();
+  await outlinePalette.locator(`[data-rich-color-value='${chosenOutlineColor}']`).click();
+  await expect(proportionalRectangle).toHaveAttribute("stroke", chosenOutlineColor);
+  await outlineCheckbox.uncheck();
+  await expect(proportionalRectangle).toHaveAttribute("stroke", "none");
+  await dialog.getByRole("button", { name: "Undo (Ctrl+Z)" }).click();
+  await proportionalRectangle.click();
+  await expect(outlineCheckbox).toBeChecked();
+  await expect(proportionalRectangle).toHaveAttribute("stroke", savedOutlineColor);
+  await dialog.getByRole("button", { name: "Redo (Ctrl+Y)" }).click();
+  await proportionalRectangle.click();
+  await expect(outlineCheckbox).not.toBeChecked();
+  await expect(proportionalRectangle).toHaveAttribute("stroke", "none");
+  await outlineCheckbox.check();
+  await expect(proportionalRectangle).toHaveAttribute("stroke", savedOutlineColor);
+  await openAnnotationContextMenu(proportionalRectangle);
+  await annotationContextMenu.getByRole("menuitem", { name: "Copy as SVG", exact: true }).click();
+  await expect(annotationContextMenu).toBeHidden();
+  await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toContain("<svg");
+  const copiedRectangleSvg = await page.evaluate(() => navigator.clipboard.readText());
+  const copiedRectangleSvgInfo = await page.evaluate(svg => {
+    const documentNode = new DOMParser().parseFromString(svg, "image/svg+xml");
+    const root = documentNode.documentElement;
+    const rectangle = root.querySelector(":scope > rect") || root.querySelector("rect");
+    const viewBox = root.getAttribute("viewBox")?.split(/\s+/).map(Number) || [];
+    return {
+      parseError: Boolean(documentNode.querySelector("parsererror")),
+      rootName: root.localName,
+      namespace: root.namespaceURI,
+      viewBox,
+      width: Number(root.getAttribute("width")),
+      height: Number(root.getAttribute("height")),
+      imageCount: root.querySelectorAll("image").length,
+      scriptCount: root.querySelectorAll("script").length,
+      externalReferences: [...root.querySelectorAll("[href]")]
+        .map(element => element.getAttribute("href"))
+        .filter(reference => reference && !reference.startsWith("#")),
+      rectangleCount: root.querySelectorAll("rect").length,
+      rectangle: rectangle ? {
+        x: Number(rectangle.getAttribute("x")),
+        y: Number(rectangle.getAttribute("y")),
+        width: Number(rectangle.getAttribute("width")),
+        height: Number(rectangle.getAttribute("height")),
+        stroke: rectangle.getAttribute("stroke"),
+        strokeWidth: Number(rectangle.getAttribute("stroke-width"))
+      } : null
+    };
+  }, copiedRectangleSvg);
+  expect(copiedRectangleSvgInfo.parseError).toBe(false);
+  expect(copiedRectangleSvgInfo.rootName).toBe("svg");
+  expect(copiedRectangleSvgInfo.namespace).toBe("http://www.w3.org/2000/svg");
+  expect(copiedRectangleSvgInfo.imageCount).toBe(0);
+  expect(copiedRectangleSvgInfo.scriptCount).toBe(0);
+  expect(copiedRectangleSvgInfo.externalReferences).toEqual([]);
+  expect(copiedRectangleSvgInfo.rectangleCount).toBe(1);
+  expect(copiedRectangleSvgInfo.rectangle).not.toBeNull();
+  expect(copiedRectangleSvgInfo.rectangle.stroke).toBe(savedOutlineColor);
+  expect(copiedRectangleSvgInfo.viewBox).toHaveLength(4);
+  const copiedStrokeRadius = copiedRectangleSvgInfo.rectangle.stroke === "none"
+    ? 0
+    : copiedRectangleSvgInfo.rectangle.strokeWidth / 2;
+  expect(copiedRectangleSvgInfo.viewBox[0])
+    .toBeCloseTo(copiedRectangleSvgInfo.rectangle.x - copiedStrokeRadius, 3);
+  expect(copiedRectangleSvgInfo.viewBox[1])
+    .toBeCloseTo(copiedRectangleSvgInfo.rectangle.y - copiedStrokeRadius, 3);
+  expect(copiedRectangleSvgInfo.viewBox[2])
+    .toBeCloseTo(copiedRectangleSvgInfo.rectangle.width + (copiedStrokeRadius * 2), 3);
+  expect(copiedRectangleSvgInfo.viewBox[3])
+    .toBeCloseTo(copiedRectangleSvgInfo.rectangle.height + (copiedStrokeRadius * 2), 3);
+  expect(copiedRectangleSvgInfo.width).toBeCloseTo(copiedRectangleSvgInfo.viewBox[2], 3);
+  expect(copiedRectangleSvgInfo.height).toBeCloseTo(copiedRectangleSvgInfo.viewBox[3], 3);
+
+  await openAnnotationContextMenu(proportionalRectangle);
+  await annotationContextMenu.getByRole("menuitem", { name: "Copy as Image", exact: true }).click();
+  await expect(annotationContextMenu).toBeHidden();
+  await expect.poll(() => page.evaluate(async () => {
+    const items = await navigator.clipboard.read();
+    return items.some(item => item.types.includes("image/png"));
+  })).toBe(true);
+  const copiedRectanglePng = await page.evaluate(async () => {
+    const items = await navigator.clipboard.read();
+    const item = items.find(candidate => candidate.types.includes("image/png"));
+    const blob = await item.getType("image/png");
+    const bitmap = await createImageBitmap(blob);
+    const result = {
+      types: [...item.types],
+      byteLength: blob.size,
+      width: bitmap.width,
+      height: bitmap.height
+    };
+    bitmap.close();
+    return result;
+  });
+  expect(copiedRectanglePng.types).toContain("image/png");
+  expect(copiedRectanglePng.byteLength).toBeGreaterThan(0);
+  expect(copiedRectanglePng.width).toBeGreaterThan(0);
+  expect(copiedRectanglePng.height).toBeGreaterThan(0);
+  const rectangleBeforeCenteredResize = await proportionalRectangle.evaluate(element => ({
+    x: Number(element.getAttribute("x")),
+    y: Number(element.getAttribute("y")),
+    width: Number(element.getAttribute("width")),
+    height: Number(element.getAttribute("height"))
+  }));
+  const centeredResizeHandle = canvas.locator("[data-annotation-handle='se']");
+  const centeredResizeHandleBox = await centeredResizeHandle.boundingBox();
+  const centeredResizeTarget = await canvasClientPoint(400, 230);
+  await page.keyboard.down("Control");
+  await page.mouse.move(
+    centeredResizeHandleBox.x + (centeredResizeHandleBox.width / 2),
+    centeredResizeHandleBox.y + (centeredResizeHandleBox.height / 2)
+  );
+  await page.mouse.down();
+  await page.mouse.move(centeredResizeTarget.x, centeredResizeTarget.y, { steps: 5 });
+  await page.mouse.up();
+  await page.keyboard.up("Control");
+  const rectangleAfterCenteredResize = await proportionalRectangle.evaluate(element => ({
+    x: Number(element.getAttribute("x")),
+    y: Number(element.getAttribute("y")),
+    width: Number(element.getAttribute("width")),
+    height: Number(element.getAttribute("height"))
+  }));
+  expect(rectangleAfterCenteredResize.width / rectangleAfterCenteredResize.height)
+    .toBeCloseTo(rectangleBeforeCenteredResize.width / rectangleBeforeCenteredResize.height, 6);
+  expect(rectangleAfterCenteredResize.x + (rectangleAfterCenteredResize.width / 2))
+    .toBeCloseTo(rectangleBeforeCenteredResize.x + (rectangleBeforeCenteredResize.width / 2), 6);
+  expect(rectangleAfterCenteredResize.y + (rectangleAfterCenteredResize.height / 2))
+    .toBeCloseTo(rectangleBeforeCenteredResize.y + (rectangleBeforeCenteredResize.height / 2), 6);
+  await dialog.getByRole("button", { name: "Undo (Ctrl+Z)" }).click();
+  await expect(proportionalRectangle).toHaveAttribute("width", String(rectangleBeforeCenteredResize.width));
+  await proportionalRectangle.click();
+
+  await dialog.getByRole("button", { name: "Arrow (A)" }).click();
+  await dragCanvas(540, 70, 390, 170);
+  await expect(dialog.getByRole("button", { name: "Select (V)" })).toHaveAttribute("aria-pressed", "true");
+
+  const primaryArrow = canvas.locator("[data-annotation-object-type='arrow']").first();
+  await expect(canvas.locator("[data-annotation-handle='arrow-base'], [data-annotation-handle='arrow-tip']")).toHaveCount(2);
+  await expect(canvas.locator(".image-annotation-selection")).toHaveCount(0);
+  const arrowBeforeHitTesting = await readArrowGeometry(primaryArrow);
+  const arrowBlankBoxPoint = await canvasClientPoint(530, 160);
+  await page.mouse.click(arrowBlankBoxPoint.x, arrowBlankBoxPoint.y);
+  await expect(dialog.locator("[data-annotation-selection-label]")).toHaveText("Original image");
+  const arrowDeltaX = arrowBeforeHitTesting.shaftEnd.x - arrowBeforeHitTesting.base.x;
+  const arrowDeltaY = arrowBeforeHitTesting.shaftEnd.y - arrowBeforeHitTesting.base.y;
+  const arrowShaftLength = Math.hypot(arrowDeltaX, arrowDeltaY);
+  const arrowNearMissOffset = (arrowBeforeHitTesting.strokeWidth / 2) + 1.5;
+  const arrowNearMiss = await canvasClientPoint(
+    ((arrowBeforeHitTesting.base.x + arrowBeforeHitTesting.shaftEnd.x) / 2)
+      - ((arrowDeltaY / arrowShaftLength) * arrowNearMissOffset),
+    ((arrowBeforeHitTesting.base.y + arrowBeforeHitTesting.shaftEnd.y) / 2)
+      + ((arrowDeltaX / arrowShaftLength) * arrowNearMissOffset)
+  );
+  await page.mouse.click(arrowNearMiss.x, arrowNearMiss.y);
+  await expect(dialog.locator("[data-annotation-selection-label]")).toHaveText("Original image");
+  const arrowShaftPoint = await canvasClientPoint(
+    (arrowBeforeHitTesting.base.x + arrowBeforeHitTesting.shaftEnd.x) / 2,
+    (arrowBeforeHitTesting.base.y + arrowBeforeHitTesting.shaftEnd.y) / 2
+  );
+  await page.mouse.click(arrowShaftPoint.x, arrowShaftPoint.y);
+  await expect(dialog.locator("[data-annotation-selection-label]")).toHaveText("Arrow");
+  await page.mouse.click(arrowBlankBoxPoint.x, arrowBlankBoxPoint.y);
+  await expect(dialog.locator("[data-annotation-selection-label]")).toHaveText("Original image");
+  const arrowHeadPoint = await canvasClientPoint(
+    arrowBeforeHitTesting.headCenter.x,
+    arrowBeforeHitTesting.headCenter.y
+  );
+  await page.mouse.click(arrowHeadPoint.x, arrowHeadPoint.y);
+  await expect(dialog.locator("[data-annotation-selection-label]")).toHaveText("Arrow");
+  await expect(canvas.locator("[data-annotation-handle='arrow-base'], [data-annotation-handle='arrow-tip']")).toHaveCount(2);
+
+  await dialog.getByLabel("Line width").fill("20");
+  await dialog.getByLabel("Arrow head").fill("10");
+  const styledArrow = await readArrowGeometry(primaryArrow);
+  expect(styledArrow.headLength).toBeGreaterThan(20);
+  expect(styledArrow.headWidth).toBeGreaterThanOrEqual(20);
+
+  const baseHandle = canvas.locator("[data-annotation-handle='arrow-base']");
+  const baseHandleBox = await baseHandle.boundingBox();
+  const baseResizeTarget = await canvasClientPoint(styledArrow.base.x + 80, styledArrow.base.y + 100);
+  await page.keyboard.down("Control");
+  await page.mouse.move(baseHandleBox.x + (baseHandleBox.width / 2), baseHandleBox.y + (baseHandleBox.height / 2));
+  await page.mouse.down();
+  await page.mouse.move(baseResizeTarget.x, baseResizeTarget.y, { steps: 5 });
+  await page.mouse.up();
+  await page.keyboard.up("Control");
+  const baseResizedArrow = await readArrowGeometry(primaryArrow);
+  expect(baseResizedArrow.base).not.toEqual(styledArrow.base);
+  expect(baseResizedArrow.tip.x).toBeCloseTo(styledArrow.tip.x, 2);
+  expect(baseResizedArrow.tip.y).toBeCloseTo(styledArrow.tip.y, 2);
+  expect(baseResizedArrow.headLength).toBeCloseTo(styledArrow.headLength, 2);
+  expect(baseResizedArrow.headWidth).toBeCloseTo(styledArrow.headWidth, 2);
+  expect(baseResizedArrow.strokeWidth).toBe(styledArrow.strokeWidth);
+  await dialog.getByRole("button", { name: "Undo (Ctrl+Z)" }).click();
+  const arrowAfterEndpointUndo = await readArrowGeometry(primaryArrow);
+  expect(arrowAfterEndpointUndo.base.x).toBeCloseTo(styledArrow.base.x, 2);
+  expect(arrowAfterEndpointUndo.base.y).toBeCloseTo(styledArrow.base.y, 2);
+  await dialog.getByRole("button", { name: "Redo (Ctrl+Y)" }).click();
+  const arrowAfterEndpointRedo = await readArrowGeometry(primaryArrow);
+  const arrowAfterRedoShaftPoint = await canvasClientPoint(
+    (arrowAfterEndpointRedo.base.x + arrowAfterEndpointRedo.shaftEnd.x) / 2,
+    (arrowAfterEndpointRedo.base.y + arrowAfterEndpointRedo.shaftEnd.y) / 2
+  );
+  await page.mouse.click(arrowAfterRedoShaftPoint.x, arrowAfterRedoShaftPoint.y);
+
+  const tipHandle = canvas.locator("[data-annotation-handle='arrow-tip']");
+  const tipHandleBox = await tipHandle.boundingBox();
+  const tipResizeTarget = await canvasClientPoint(
+    arrowAfterEndpointRedo.tip.x - 40,
+    arrowAfterEndpointRedo.tip.y + 80
+  );
+  await page.mouse.move(tipHandleBox.x + (tipHandleBox.width / 2), tipHandleBox.y + (tipHandleBox.height / 2));
+  await page.mouse.down();
+  await page.mouse.move(tipResizeTarget.x, tipResizeTarget.y, { steps: 5 });
+  await page.mouse.up();
+  const tipResizedArrow = await readArrowGeometry(primaryArrow);
+  expect(tipResizedArrow.base.x).toBeCloseTo(arrowAfterEndpointRedo.base.x, 2);
+  expect(tipResizedArrow.base.y).toBeCloseTo(arrowAfterEndpointRedo.base.y, 2);
+  expect(tipResizedArrow.tip).not.toEqual(arrowAfterEndpointRedo.tip);
+  expect(tipResizedArrow.headLength).toBeCloseTo(styledArrow.headLength, 2);
+  expect(tipResizedArrow.headWidth).toBeCloseTo(styledArrow.headWidth, 2);
+
+  const arrowMoveStart = await canvasClientPoint(
+    (tipResizedArrow.base.x + tipResizedArrow.shaftEnd.x) / 2,
+    (tipResizedArrow.base.y + tipResizedArrow.shaftEnd.y) / 2
+  );
+  const arrowMoveEnd = await canvasClientPoint(
+    ((tipResizedArrow.base.x + tipResizedArrow.shaftEnd.x) / 2) + 40,
+    ((tipResizedArrow.base.y + tipResizedArrow.shaftEnd.y) / 2) + 20
+  );
+  await page.keyboard.down("Control");
+  await page.mouse.move(arrowMoveStart.x, arrowMoveStart.y);
+  await page.mouse.down();
+  await page.mouse.move(arrowMoveEnd.x, arrowMoveEnd.y, { steps: 5 });
+  await page.mouse.up();
+  await page.keyboard.up("Control");
+  const movedArrow = await readArrowGeometry(primaryArrow);
+  expect(movedArrow.base.x - tipResizedArrow.base.x).toBeCloseTo(movedArrow.tip.x - tipResizedArrow.tip.x, 2);
+  expect(movedArrow.base.y - tipResizedArrow.base.y).toBeCloseTo(movedArrow.tip.y - tipResizedArrow.tip.y, 2);
+  await page.keyboard.press("ArrowRight");
+  const keyboardMovedArrow = await readArrowGeometry(primaryArrow);
+  expect(keyboardMovedArrow.base.x).toBeCloseTo(movedArrow.base.x + 20, 2);
+  expect(keyboardMovedArrow.tip.x).toBeCloseTo(movedArrow.tip.x + 20, 2);
+  await page.keyboard.press("ArrowLeft");
+
+  await dialog.getByRole("button", { name: "Text Box (T)" }).click();
+  await dragCanvas(420, 190, 700, 320);
+  await expect(dialog.getByRole("button", { name: "Select (V)" })).toHaveAttribute("aria-pressed", "true");
+  const textInput = dialog.locator("[data-annotation-text]");
+  await expect(textInput).toBeVisible();
+  const textObject = canvas.locator("[data-annotation-object-type='textbox']").first();
+  const textBoxShape = textObject.locator(":scope > rect");
+  await expect(outlineCheckbox).toBeChecked();
+  await expect(textBoxShape).toHaveAttribute("stroke", chosenOutlineColor);
+  await outlineCheckbox.uncheck();
+  await expect(textBoxShape).toHaveAttribute("stroke", "none");
+  await outlineCheckbox.check();
+  await expect(textBoxShape).toHaveAttribute("stroke", chosenOutlineColor);
+  await textInput.fill("New Search Feature with wrapped annotation text");
+  await page.keyboard.press("Control+z");
+  await textObject.click();
+  await expect(textInput).toHaveValue("Text");
+  await page.keyboard.press("Control+y");
+  await textObject.click();
+  await expect(textInput).toHaveValue("New Search Feature with wrapped annotation text");
+  const recentTextColor = seededRecentColors[1];
+  await dialog.locator("[data-annotation-recent-colors='textColor']")
+    .locator(`[data-rich-color-value='${recentTextColor}']`).click();
+  await expect(textObject.locator("text")).toHaveAttribute("fill", recentTextColor);
+  await textInput.evaluate(element => {
+    element.focus();
+    element.setSelectionRange(1, 1);
+  });
+  await page.keyboard.press("Control+a");
+  await expect(dialog.locator("[data-annotation-selection-label]")).toHaveText("Text box");
+  const selectedTextRange = await textInput.evaluate(element => ({
+    start: element.selectionStart,
+    end: element.selectionEnd,
+    length: element.value.length
+  }));
+  expect(selectedTextRange).toEqual({ start: 0, end: selectedTextRange.length, length: selectedTextRange.length });
+  const selectAllObjectCount = await canvas.locator("[data-annotation-object-id]").count();
+  await workspace.focus();
+  await page.keyboard.press("Control+a");
+  await expect(dialog.locator("[data-annotation-selection-label]")).toHaveText(`${selectAllObjectCount} objects selected`);
+  await textObject.click();
+  await dialog.getByLabel("Horizontal alignment", { exact: true }).selectOption("center");
+  await expect(canvas.locator("[data-annotation-object-id]").last().locator("text")).toHaveAttribute("text-anchor", "middle");
+  await dialog.getByLabel("Horizontal alignment", { exact: true }).selectOption("right");
+  await expect(canvas.locator("[data-annotation-object-id]").last().locator("text")).toHaveAttribute("text-anchor", "end");
+  await dialog.getByLabel("Horizontal alignment", { exact: true }).selectOption("left");
+  await expect(canvas.locator("[data-annotation-object-id]").last().locator("text")).toHaveAttribute("text-anchor", "start");
+  await dialog.getByLabel("Horizontal alignment", { exact: true }).selectOption("center");
+  const annotationText = canvas.locator("[data-annotation-object-id]").last().locator("text");
+  await dialog.getByLabel("Vertical alignment", { exact: true }).selectOption("top");
+  const textTopY = Number(await annotationText.getAttribute("y"));
+  await dialog.getByLabel("Vertical alignment", { exact: true }).selectOption("middle");
+  const textMiddleY = Number(await annotationText.getAttribute("y"));
+  const middleAlignedTextGeometry = await textObject.evaluate(element => {
+    const rectangle = [...element.children].find(child => child.localName === "rect");
+    const text = [...element.children].find(child => child.localName === "text");
+    const rectangleBounds = rectangle.getBBox();
+    const textBounds = text.getBBox();
+    return {
+      lineCount: text.querySelectorAll("tspan").length,
+      rectangleCenter: {
+        x: rectangleBounds.x + (rectangleBounds.width / 2),
+        y: rectangleBounds.y + (rectangleBounds.height / 2)
+      },
+      textCenter: {
+        x: textBounds.x + (textBounds.width / 2),
+        y: textBounds.y + (textBounds.height / 2)
+      }
+    };
+  });
+  expect(middleAlignedTextGeometry.lineCount).toBeGreaterThan(1);
+  expect(Math.abs(middleAlignedTextGeometry.textCenter.x - middleAlignedTextGeometry.rectangleCenter.x))
+    .toBeLessThanOrEqual(1.5);
+  expect(Math.abs(middleAlignedTextGeometry.textCenter.y - middleAlignedTextGeometry.rectangleCenter.y))
+    .toBeLessThanOrEqual(1.5);
+  await dialog.getByLabel("Vertical alignment", { exact: true }).selectOption("bottom");
+  const textBottomYBeforeResize = Number(await annotationText.getAttribute("y"));
+  expect(textTopY).toBeLessThan(textMiddleY);
+  expect(textMiddleY).toBeLessThan(textBottomYBeforeResize);
+
+  const fillPicker = dialog.getByRole("button", { name: "Background Color", exact: true });
+  await fillPicker.click({ position: { x: 35, y: 20 } });
+  const fillPalette = dialog.locator("[data-annotation-color-picker='fill'] [data-rich-color-palette]");
+  await expect(fillPalette).toBeVisible();
+  await fillPalette.locator("[data-rich-color-value='#FFFF00']").click();
+
+  const annotationObjects = canvas.locator("[data-annotation-object-id]");
+  const textBoxBeforeResize = await annotationObjects.last().locator("rect").first().evaluate(element => ({
+    width: Number(element.getAttribute("width")),
+    height: Number(element.getAttribute("height"))
+  }));
+  const southEastHandle = canvas.locator("[data-annotation-handle='se']");
+  const handleBox = await southEastHandle.boundingBox();
+  await page.mouse.move(handleBox.x + (handleBox.width / 2), handleBox.y + (handleBox.height / 2));
+  await page.mouse.down();
+  await page.mouse.move(handleBox.x + 45, handleBox.y + 30, { steps: 4 });
+  await page.mouse.up();
+  const textBoxAfterResize = await annotationObjects.last().locator("rect").first().evaluate(element => ({
+    width: Number(element.getAttribute("width")),
+    height: Number(element.getAttribute("height"))
+  }));
+  expect(textBoxAfterResize.width).toBeGreaterThan(textBoxBeforeResize.width);
+  expect(textBoxAfterResize.width / textBoxAfterResize.height)
+    .toBeCloseTo(textBoxBeforeResize.width / textBoxBeforeResize.height, 5);
+  const textBottomY = Number(await annotationText.getAttribute("y"));
+
+  await openAnnotationContextMenu(textObject);
+  await annotationContextMenu.getByRole("menuitem", { name: "To Back", exact: true }).click();
+  await expect(annotationObjects.nth(0)).toHaveAttribute("data-annotation-object-id", /^image-/);
+  await expect(annotationObjects.nth(1)).toHaveAttribute("data-annotation-object-id", /^textbox-/);
+  await openAnnotationContextMenu(textObject);
+  await annotationContextMenu.getByRole("menuitem", { name: "To Front", exact: true }).click();
+  await expect(annotationObjects.last()).toHaveAttribute("data-annotation-object-id", /^textbox-/);
+
+  for (let index = 0; index < 5; index += 1) {
+    await dialog.getByRole("button", { name: "Zoom Out", exact: true }).click();
+  }
+  await dialog.getByRole("button", { name: "Rectangle (R)" }).click();
+  await dragCanvas(-160, 90, -70, 170);
+  await expect(dialog.getByRole("button", { name: "Select (V)" })).toHaveAttribute("aria-pressed", "true");
+  await dialog.getByRole("button", { name: "Arrow (A)" }).click();
+  await dragCanvas(-150, 220, -55, 255);
+  await expect(dialog.getByRole("button", { name: "Select (V)" })).toHaveAttribute("aria-pressed", "true");
+  await expect(annotationObjects).toHaveCount(6);
+
+  await dragCanvas(-190, 60, -30, 280);
+  await expect(dialog.locator("[data-annotation-selection-label]")).toHaveText("2 objects selected");
+  const blankPoint = await canvasClientPoint(-150, 350);
+  await page.mouse.click(blankPoint.x, blankPoint.y);
+  await expect(dialog.locator("[data-annotation-selection-label]")).toHaveText("No selection");
+
+  const outsideRectangle = annotationObjects.nth(4);
+  const outsideRectangleShape = outsideRectangle;
+  const outsideX = Number(await outsideRectangleShape.getAttribute("x"));
+  const outsideY = Number(await outsideRectangleShape.getAttribute("y"));
+  const outsideRectangleBeforeResize = await outsideRectangleShape.evaluate(element => ({
+    x: Number(element.getAttribute("x")),
+    y: Number(element.getAttribute("y")),
+    width: Number(element.getAttribute("width")),
+    height: Number(element.getAttribute("height"))
+  }));
+  await outsideRectangle.click();
+  const freeformHandle = canvas.locator("[data-annotation-handle='se']");
+  const freeformHandleBox = await freeformHandle.boundingBox();
+  const freeformTarget = await canvasClientPoint(20, 220);
+  await page.keyboard.down("Alt");
+  await page.mouse.move(
+    freeformHandleBox.x + (freeformHandleBox.width / 2),
+    freeformHandleBox.y + (freeformHandleBox.height / 2)
+  );
+  await page.mouse.down();
+  await page.mouse.move(freeformTarget.x, freeformTarget.y, { steps: 5 });
+  const trackedFreeformHandleBox = await freeformHandle.boundingBox();
+  expect(trackedFreeformHandleBox.x + (trackedFreeformHandleBox.width / 2)).toBeCloseTo(freeformTarget.x, 0);
+  expect(trackedFreeformHandleBox.y + (trackedFreeformHandleBox.height / 2)).toBeCloseTo(freeformTarget.y, 0);
+  const freeformRectangleBounds = await outsideRectangleShape.evaluate(element => ({
+    width: Number(element.getAttribute("width")),
+    height: Number(element.getAttribute("height"))
+  }));
+  expect(freeformRectangleBounds.width / freeformRectangleBounds.height)
+    .not.toBeCloseTo(outsideRectangleBeforeResize.width / outsideRectangleBeforeResize.height, 5);
+
+  await page.keyboard.up("Alt");
+  const proportionalTarget = await canvasClientPoint(60, 260);
+  await page.mouse.move(proportionalTarget.x, proportionalTarget.y, { steps: 5 });
+  const proportionalRectangleBounds = await outsideRectangleShape.evaluate(element => ({
+    width: Number(element.getAttribute("width")),
+    height: Number(element.getAttribute("height"))
+  }));
+  expect(proportionalRectangleBounds.width / proportionalRectangleBounds.height)
+    .toBeCloseTo(outsideRectangleBeforeResize.width / outsideRectangleBeforeResize.height, 5);
+  await page.mouse.up();
+  await dialog.getByRole("button", { name: "Undo (Ctrl+Z)" }).click();
+  await expect(outsideRectangleShape).toHaveAttribute("x", String(outsideRectangleBeforeResize.x));
+  await expect(outsideRectangleShape).toHaveAttribute("y", String(outsideRectangleBeforeResize.y));
+  await expect(outsideRectangleShape).toHaveAttribute("width", String(outsideRectangleBeforeResize.width));
+  await expect(outsideRectangleShape).toHaveAttribute("height", String(outsideRectangleBeforeResize.height));
+
+  await outsideRectangle.click();
+  const outsideRectangleBox = await outsideRectangle.boundingBox();
+  await page.keyboard.down("Shift");
+  await page.mouse.move(
+    outsideRectangleBox.x + (outsideRectangleBox.width / 2),
+    outsideRectangleBox.y + (outsideRectangleBox.height / 2)
+  );
+  await page.mouse.down();
+  await page.mouse.move(
+    outsideRectangleBox.x + (outsideRectangleBox.width / 2) + 6,
+    outsideRectangleBox.y + (outsideRectangleBox.height / 2) + 6
+  );
+  await page.mouse.up();
+  await page.keyboard.up("Shift");
+  await expect(dialog.locator("[data-annotation-selection-label]")).toHaveText("No selection");
+  await expect(outsideRectangleShape).toHaveAttribute("x", String(outsideX));
+  await outsideRectangle.click();
+  await page.keyboard.press("ArrowRight");
+  await expect.poll(() => outsideRectangleShape.getAttribute("x").then(Number)).toBe(outsideX + 20);
+  await page.keyboard.press("ArrowDown");
+  await expect.poll(() => outsideRectangleShape.getAttribute("y").then(Number)).toBe(outsideY + 20);
+  await page.keyboard.press("ArrowLeft");
+  await expect.poll(() => outsideRectangleShape.getAttribute("x").then(Number)).toBe(outsideX);
+  await page.keyboard.press("ArrowUp");
+  await expect.poll(() => outsideRectangleShape.getAttribute("y").then(Number)).toBe(outsideY);
+  const outsideRectangleId = await outsideRectangleShape.getAttribute("data-annotation-object-id");
+  await dialog.locator("[data-annotation-grid]").uncheck();
+  await expect.poll(() => page.evaluate(() => document.activeElement?.getAttribute("data-annotation-object-id")))
+    .toBe(outsideRectangleId);
+  await page.keyboard.press("ArrowRight");
+  await page.keyboard.press("ArrowRight");
+  await expect.poll(() => outsideRectangleShape.getAttribute("x").then(Number)).toBe(outsideX + 2);
+  await page.keyboard.press("Control+z");
+  await expect.poll(() => outsideRectangleShape.getAttribute("x").then(Number)).toBe(outsideX + 1);
+  await page.keyboard.press("Control+y");
+  await expect.poll(() => outsideRectangleShape.getAttribute("x").then(Number)).toBe(outsideX + 2);
+  await expect.poll(() => page.evaluate(() => document.activeElement?.getAttribute("data-annotation-workspace")))
+    .not.toBeNull();
+  await outsideRectangle.click();
+  await dialog.locator("[data-annotation-snap]").uncheck();
+  await expect.poll(() => page.evaluate(() => document.activeElement?.getAttribute("data-annotation-object-id")))
+    .toBe(outsideRectangleId);
+  await dialog.locator("[data-annotation-snap]").check();
+  await expect.poll(() => page.evaluate(() => document.activeElement?.getAttribute("data-annotation-object-id")))
+    .toBe(outsideRectangleId);
+  await dialog.locator("[data-annotation-grid]").check();
+  await expect.poll(() => page.evaluate(() => document.activeElement?.getAttribute("data-annotation-object-id")))
+    .toBe(outsideRectangleId);
+  await page.keyboard.press("Escape");
+  await expect(dialog.locator("[data-annotation-selection-label]")).toHaveText("No selection");
+  await expect(dialog).toBeVisible();
+  await page.keyboard.press("r");
+  await expect(dialog.getByRole("button", { name: "Rectangle (R)" })).toHaveAttribute("aria-pressed", "true");
+  await page.keyboard.press("v");
+  await expect(dialog.getByRole("button", { name: "Select (V)" })).toHaveAttribute("aria-pressed", "true");
+
+  await dragCanvas(-190, 60, -20, 280);
+  await expect(dialog.locator("[data-annotation-selection-label]")).toHaveText("2 objects selected");
+  await page.keyboard.press("Delete");
+  await expect(annotationObjects).toHaveCount(4);
+  await dialog.getByRole("button", { name: "Undo (Ctrl+Z)" }).click();
+  await expect(annotationObjects).toHaveCount(6);
+
+  const viewBoxBeforeExpansion = (await canvas.getAttribute("viewBox")).split(/\s+/).map(Number);
+  const rightEdgeBeforeExpansion = viewBoxBeforeExpansion[0] + viewBoxBeforeExpansion[2];
+  await workspace.evaluate(element => { element.scrollLeft = element.scrollWidth; });
+  await dialog.getByRole("button", { name: "Rectangle (R)" }).click();
+  await dragCanvas(rightEdgeBeforeExpansion - 40, 0, rightEdgeBeforeExpansion + 100, 80);
+  await expect(annotationObjects).toHaveCount(7);
+  const viewBoxAfterExpansion = (await canvas.getAttribute("viewBox")).split(/\s+/).map(Number);
+  expect(viewBoxAfterExpansion[0] + viewBoxAfterExpansion[2]).toBeGreaterThan(rightEdgeBeforeExpansion);
+  await page.keyboard.press("Delete");
+  await expect(annotationObjects).toHaveCount(6);
+  await dialog.getByRole("button", { name: "Fit" }).click();
+
+  await annotationObjects.nth(1).click();
+  const arrowForGrouping = await readArrowGeometry(primaryArrow);
+  const arrowGroupingPoint = await canvasClientPoint(
+    arrowForGrouping.headCenter.x,
+    arrowForGrouping.headCenter.y
+  );
+  await page.keyboard.down("Shift");
+  await page.mouse.click(arrowGroupingPoint.x, arrowGroupingPoint.y);
+  await page.keyboard.up("Shift");
+  await annotationObjects.nth(3).click({ modifiers: ["Shift"] });
+  await openAnnotationContextMenu(annotationObjects.nth(1));
+  await annotationContextMenu.getByRole("menuitem", { name: "Group", exact: true }).click();
+  await expect(canvas.locator(".image-annotation-group-member-guide")).toHaveCount(3);
+  await expect(canvas.locator(".image-annotation-group-member-guide.is-arrow")).toHaveCount(1);
+  const groupedArrowBeforeResize = await readArrowGeometry(primaryArrow);
+  const groupedArrowLengthBeforeResize = Math.hypot(
+    groupedArrowBeforeResize.tip.x - groupedArrowBeforeResize.base.x,
+    groupedArrowBeforeResize.tip.y - groupedArrowBeforeResize.base.y
+  );
+  const groupBoundsBeforeResize = await canvas.locator(".image-annotation-selection").evaluate(element => ({
+    x: Number(element.getAttribute("x")),
+    y: Number(element.getAttribute("y")),
+    width: Number(element.getAttribute("width")),
+    height: Number(element.getAttribute("height"))
+  }));
+  const groupResizeHandle = canvas.locator("[data-annotation-handle='se']");
+  const groupResizeHandleBox = await groupResizeHandle.boundingBox();
+  await page.mouse.move(
+    groupResizeHandleBox.x + (groupResizeHandleBox.width / 2),
+    groupResizeHandleBox.y + (groupResizeHandleBox.height / 2)
+  );
+  await page.keyboard.down("Alt");
+  await page.mouse.down();
+  await page.mouse.move(groupResizeHandleBox.x + 85, groupResizeHandleBox.y + 60, { steps: 5 });
+  await page.mouse.up();
+  await page.keyboard.up("Alt");
+  const groupBoundsAfterResize = await canvas.locator(".image-annotation-selection").evaluate(element => ({
+    width: Number(element.getAttribute("width")),
+    height: Number(element.getAttribute("height"))
+  }));
+  expect(groupBoundsAfterResize.width / groupBoundsAfterResize.height)
+    .toBeCloseTo(groupBoundsBeforeResize.width / groupBoundsBeforeResize.height, 5);
+  const groupScale = groupBoundsAfterResize.width / groupBoundsBeforeResize.width;
+  const groupedArrowAfterResize = await readArrowGeometry(primaryArrow);
+  const groupedArrowLengthAfterResize = Math.hypot(
+    groupedArrowAfterResize.tip.x - groupedArrowAfterResize.base.x,
+    groupedArrowAfterResize.tip.y - groupedArrowAfterResize.base.y
+  );
+  expect(groupedArrowLengthAfterResize).toBeCloseTo(groupedArrowLengthBeforeResize * groupScale, 2);
+  expect(groupedArrowAfterResize.strokeWidth).toBeCloseTo(groupedArrowBeforeResize.strokeWidth * groupScale, 2);
+  expect(groupedArrowAfterResize.headLength).toBeCloseTo(groupedArrowBeforeResize.headLength * groupScale, 2);
+  expect(groupedArrowAfterResize.headWidth).toBeCloseTo(groupedArrowBeforeResize.headWidth * groupScale, 2);
+  await dialog.getByRole("button", { name: "Undo (Ctrl+Z)" }).click();
+  await annotationObjects.nth(1).click();
+  await expect(canvas.locator(".image-annotation-group-member-guide")).toHaveCount(3);
+  await openAnnotationContextMenu(annotationObjects.nth(1));
+  await annotationContextMenu.getByRole("menuitem", { name: "Lock selected objects", exact: true }).click();
+  const lockedOrder = await annotationObjects.evaluateAll(objects => objects.map(object => object.getAttribute("data-annotation-object-id")));
+  await openAnnotationContextMenu(annotationObjects.nth(1));
+  await expect(annotationContextMenu.getByRole("menuitem", { name: "Unlock selected objects", exact: true })).toBeEnabled();
+  await expect(annotationContextMenu.getByRole("menuitem", { name: "To Back", exact: true })).toBeDisabled();
+  await page.keyboard.press("Escape");
+  await expect.poll(() => annotationObjects.evaluateAll(objects => objects.map(object => object.getAttribute("data-annotation-object-id"))))
+    .toEqual(lockedOrder);
+
+  await expect(imageClipRect).toHaveAttribute("width", "800");
+  await expect(imageClipRect).toHaveAttribute("height", "450");
+  await openAnnotationContextMenu(imageObject);
+  await annotationContextMenu.getByRole("menuitem", { name: "Crop", exact: true }).click();
+  await expect(workspace).toHaveCSS("cursor", "crosshair");
+  const firstCropStart = await canvasClientPoint(40, 40);
+  const firstCropEnd = await canvasClientPoint(760, 400);
+  await page.mouse.move(firstCropStart.x, firstCropStart.y);
+  await page.mouse.down();
+  await page.mouse.move(firstCropEnd.x, firstCropEnd.y, { steps: 4 });
+  const cropPreview = canvas.locator(".image-annotation-crop-outline.image-annotation-marquee");
+  await expect(cropPreview).toHaveCount(1);
+  await page.mouse.up();
+  await expect(imageClipRect).toHaveAttribute("x", "40");
+  await expect(imageClipRect).toHaveAttribute("y", "40");
+  await expect(imageClipRect).toHaveAttribute("width", "720");
+  await expect(imageClipRect).toHaveAttribute("height", "360");
+  await openAnnotationContextMenu(imageObject);
+  await expect(annotationContextMenu.getByRole("menuitem", { name: "Reset Crop", exact: true })).toBeEnabled();
+  await annotationContextMenu.getByRole("menuitem", { name: "Reset Crop", exact: true }).click();
+  await expect(imageClipRect).toHaveAttribute("x", "0");
+  await expect(imageClipRect).toHaveAttribute("y", "0");
+  await expect(imageClipRect).toHaveAttribute("width", "800");
+  await expect(imageClipRect).toHaveAttribute("height", "450");
+
+  await openAnnotationContextMenu(imageObject);
+  await annotationContextMenu.getByRole("menuitem", { name: "Crop", exact: true }).click();
+  await expect(workspace).toHaveCSS("cursor", "crosshair");
+  await dragCanvas(60, 40, 740, 400);
+  await expect(imageClipRect).toHaveAttribute("x", "60");
+  await expect(imageClipRect).toHaveAttribute("y", "40");
+  await expect(imageClipRect).toHaveAttribute("width", "680");
+  await expect(imageClipRect).toHaveAttribute("height", "360");
+
+  const croppedImageSelectionPoint = await canvasClientPoint(700, 380);
+  await page.mouse.click(croppedImageSelectionPoint.x, croppedImageSelectionPoint.y);
+  await expect(dialog.locator("[data-annotation-selection-label]")).toHaveText("Original image");
+  await dragCanvas(740, 400, 840, 460);
+  await expect.poll(() => imageObject.getAttribute("width").then(Number)).toBeGreaterThan(800);
+  await expect(imageObject).toHaveAttribute("height", "525");
+  const resizedImage = await imageObject.evaluate(element => ({
+    x: Number(element.getAttribute("x")),
+    y: Number(element.getAttribute("y")),
+    width: Number(element.getAttribute("width")),
+    height: Number(element.getAttribute("height"))
+  }));
+  expect(resizedImage.width / resizedImage.height).toBeCloseTo(800 / 450, 5);
+  const resizedClip = await imageClipRect.evaluate(element => ({
+    x: Number(element.getAttribute("x")),
+    y: Number(element.getAttribute("y")),
+    width: Number(element.getAttribute("width")),
+    height: Number(element.getAttribute("height"))
+  }));
+  expect(resizedClip.x).toBe(60);
+  expect(resizedClip.y).toBe(40);
+  expect(resizedClip.height).toBe(420);
+  expect(resizedClip.width / resizedClip.height).toBeCloseTo(680 / 360, 5);
+
+  await dragCanvas(750, 420, 850, 480);
+  await expect.poll(() => imageObject.getAttribute("x").then(Number)).toBeCloseTo(resizedImage.x + 100, 2);
+  await expect.poll(() => imageObject.getAttribute("y").then(Number)).toBeCloseTo(resizedImage.y + 60, 2);
+  const movedCroppedClip = await imageClipRect.evaluate(element => ({
+    x: element.getAttribute("x"),
+    y: element.getAttribute("y"),
+    width: element.getAttribute("width"),
+    height: element.getAttribute("height")
+  }));
+  expect(movedCroppedClip.x).toBe("160");
+  expect(movedCroppedClip.y).toBe("100");
+  expect(Number(movedCroppedClip.width)).toBeCloseTo(resizedClip.width, 3);
+  expect(movedCroppedClip.height).toBe("420");
+
+  await dialog.getByRole("button", { name: "Undo (Ctrl+Z)" }).click();
+  await expect(imageClipRect).toHaveAttribute("x", "60");
+  await expect(imageClipRect).toHaveAttribute("y", "40");
+  await dialog.getByRole("button", { name: "Redo (Ctrl+Y)" }).click();
+  await expect(imageClipRect).toHaveAttribute("x", movedCroppedClip.x);
+  await expect(imageClipRect).toHaveAttribute("y", movedCroppedClip.y);
+  const movedImageSelectionPoint = await canvas.evaluate((element, imageId) => {
+    const clip = element.querySelector("#pmt-annotation-image-clip rect");
+    const x = Number(clip?.getAttribute("x"));
+    const y = Number(clip?.getAttribute("y"));
+    const width = Number(clip?.getAttribute("width"));
+    const height = Number(clip?.getAttribute("height"));
+    const matrix = element.getScreenCTM();
+
+    for (let row = 1; row <= 9; row += 1) {
+      for (let column = 1; column <= 9; column += 1) {
+        const point = element.createSVGPoint();
+        point.x = x + ((width * column) / 10);
+        point.y = y + ((height * row) / 10);
+        const clientPoint = point.matrixTransform(matrix);
+        const target = document.elementFromPoint(clientPoint.x, clientPoint.y);
+        if (target?.closest("[data-annotation-object-id]")?.dataset.annotationObjectId === imageId) {
+          return { x: clientPoint.x, y: clientPoint.y };
+        }
+      }
+    }
+
+    return null;
+  }, await imageObject.getAttribute("data-annotation-object-id"));
+  expect(movedImageSelectionPoint).not.toBeNull();
+  await page.mouse.click(movedImageSelectionPoint.x, movedImageSelectionPoint.y);
+  await expect(dialog.locator("[data-annotation-selection-label]")).toHaveText("Original image");
+  const movedImageX = Number(await imageObject.getAttribute("x"));
+  await page.keyboard.press("ArrowRight");
+  await expect.poll(() => imageObject.getAttribute("x").then(Number)).toBeCloseTo(movedImageX + 20, 2);
+  await expect(imageClipRect).toHaveAttribute("x", "180");
+  await page.keyboard.press("ArrowLeft");
+  await expect.poll(() => imageObject.getAttribute("x").then(Number)).toBeCloseTo(movedImageX, 2);
+  await expect(imageClipRect).toHaveAttribute("x", movedCroppedClip.x);
+
+  const beforeZoom = await dialog.locator("[data-annotation-zoom-label]").textContent();
+  const workspaceBox = await workspace.boundingBox();
+  const zoomCursor = {
+    x: workspaceBox.x + (workspaceBox.width * 0.72),
+    y: workspaceBox.y + (workspaceBox.height * 0.42)
+  };
+  const userPointAtZoomCursor = () => canvas.evaluate((element, cursor) => {
+    const point = element.createSVGPoint();
+    point.x = cursor.x;
+    point.y = cursor.y;
+    const userPoint = point.matrixTransform(element.getScreenCTM().inverse());
+    return { x: userPoint.x, y: userPoint.y };
+  }, zoomCursor);
+  await page.mouse.move(zoomCursor.x, zoomCursor.y);
+  const userPointBeforeZoomIn = await userPointAtZoomCursor();
+  await page.keyboard.down("Control");
+  await page.mouse.wheel(0, -120);
+  await page.keyboard.up("Control");
+  await expect(dialog.locator("[data-annotation-zoom-label]")).not.toHaveText(beforeZoom);
+  const userPointAfterZoomIn = await userPointAtZoomCursor();
+  expect(Math.abs(userPointAfterZoomIn.x - userPointBeforeZoomIn.x)).toBeLessThan(0.75);
+  expect(Math.abs(userPointAfterZoomIn.y - userPointBeforeZoomIn.y)).toBeLessThan(0.75);
+
+  const userPointBeforeZoomOut = await userPointAtZoomCursor();
+  await page.keyboard.down("Control");
+  await page.mouse.wheel(0, 120);
+  await page.keyboard.up("Control");
+  const userPointAfterZoomOut = await userPointAtZoomCursor();
+  expect(Math.abs(userPointAfterZoomOut.x - userPointBeforeZoomOut.x)).toBeLessThan(0.75);
+  expect(Math.abs(userPointAfterZoomOut.y - userPointBeforeZoomOut.y)).toBeLessThan(0.75);
+
+  const scrollBeforeWheel = await workspace.evaluate(element => element.scrollTop);
+  await page.mouse.wheel(0, 180);
+  await expect.poll(() => workspace.evaluate(element => element.scrollTop)).toBeGreaterThan(scrollBeforeWheel);
+
+  const scrollBeforePan = await workspace.evaluate(element => ({ left: element.scrollLeft, top: element.scrollTop }));
+  await page.mouse.move(workspaceBox.x + (workspaceBox.width / 2), workspaceBox.y + (workspaceBox.height / 2));
+  await page.mouse.down({ button: "middle" });
+  await page.mouse.move(workspaceBox.x + (workspaceBox.width / 2) - 80, workspaceBox.y + (workspaceBox.height / 2) - 60, { steps: 4 });
+  await page.mouse.up({ button: "middle" });
+  await expect.poll(() => workspace.evaluate(element => element.scrollLeft)).toBeGreaterThan(scrollBeforePan.left);
+
+  const imageGroupSelectionPoint = await canvasClientPoint(900, 500);
+  await page.mouse.click(imageGroupSelectionPoint.x, imageGroupSelectionPoint.y);
+  await expect(dialog.locator("[data-annotation-selection-label]")).toHaveText("Original image");
+  await outsideRectangle.click({ modifiers: ["Shift"] });
+  await expect(dialog.locator("[data-annotation-selection-label]")).toHaveText("2 objects selected");
+  await openAnnotationContextMenu(outsideRectangle);
+  await annotationContextMenu.getByRole("menuitem", { name: "Group", exact: true }).click();
+  await expect(canvas.locator(".image-annotation-group-member-guide")).toHaveCount(2);
+  const imageGroupId = await imageObject.getAttribute("data-pmt-annotation-group");
+  expect(imageGroupId).toMatch(/^group-/);
+
+  await maximizeButton.click();
+  await expect(dialog).toHaveClass(/is-annotation-maximized/);
+  const maximizedApplyButton = maximizedActions.getByRole("button", { name: "Apply to RTE", exact: true });
+  await expect(maximizedApplyButton).toBeVisible();
+  await maximizedApplyButton.click();
+  await expect(dialog).toBeVisible();
+  await expect(dialog).toHaveClass(/is-annotation-maximized/);
+  await expect(dialog.locator("[data-annotation-status]")).toContainText("Temporary annotation upload failure");
+  await expect(rteImage).toHaveAttribute("src", "/uploads/richtext/annotation-original.svg");
+  await expect(dialog.locator("[data-annotation-apply]:disabled")).toHaveCount(0);
+  await expect(maximizedApplyButton).toBeFocused();
+  await maximizedApplyButton.click();
+  await expect(dialog).toHaveCount(0);
+  expect(annotationUploadAttempts).toBe(2);
+  await expect(rteImage).toHaveAttribute("src", /generated-annotation\.svg$/);
+  await expect(rteImage).toHaveAttribute("data-pmt-annotation-source", "/uploads/richtext/annotation-original.svg");
+  await expect(rteImage).toHaveAttribute("data-pmt-annotation-version", "1");
+  expect(uploadedSvg).toContain("data-pmt-image-annotation-state=\"true\"");
+  expect(uploadedSvg).toContain("data:image/svg+xml;base64,");
+  expect(uploadedSvg).toContain("<rect");
+  expect(uploadedSvg).toContain("<line");
+  expect(uploadedSvg).toContain("New Search Feature");
+  expect(uploadedSvg).toContain(recentFillColor);
+  expect(uploadedSvg).toContain(recentTextColor);
+  expect(uploadedSvg).toContain('text-anchor="middle"');
+  expect(uploadedSvg).toContain('"textVerticalAlign":"bottom"');
+  expect(uploadedSvg).toContain('clipPath id="pmt-annotation-image-clip"');
+  expect(uploadedSvg).toContain("data-pmt-annotation-group=");
+  expect(uploadedSvg).toContain("data-pmt-annotation-locked=\"true\"");
+  expect(uploadedSvg).not.toContain("<script");
+  const exportedViewBox = uploadedSvg.match(/<svg\b[^>]*\bviewBox="([^"]+)"/)?.[1].split(/\s+/).map(Number);
+  expect(exportedViewBox).toHaveLength(4);
+  expect(exportedViewBox[0]).toBeLessThan(0);
+  expect(exportedViewBox[2]).toBeGreaterThan(680);
+  expect(exportedViewBox[2]).toBeLessThan(editorViewBox[2] / 3);
+
+  await page.locator("#editorForm button[type='submit']").click();
+  await expect.poll(() => appState.tasks.find(task => task.id === 1)?.descriptionHtml || "")
+    .toContain('data-pmt-annotation-source="/uploads/richtext/annotation-original.svg"');
+  expect(appState.tasks.find(task => task.id === 1).descriptionHtml).toContain('/uploads/richtext/generated-annotation.svg');
+
+  const savedDetailDialog = page.locator("dialog.detail-dialog");
+  if (!await savedDetailDialog.isVisible()) {
+    await page.locator("tr[data-task-id='1']").evaluate(row => row.click());
+  }
+  await expect(savedDetailDialog).toBeVisible();
+  await savedDetailDialog.getByRole("button", { name: "Edit" }).click();
+  const reopenedImage = page.locator("#editorDialog [data-rich='descriptionHtml'] img.pmt-annotation-image");
+  await reopenedImage.evaluate(element => element.decode());
+  await reopenedImage.evaluate(element => {
+    element.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+  });
+  const editAnnotationMenuItem = page.getByRole("menuitem", { name: "Edit Annotation", exact: true });
+  await expect(editAnnotationMenuItem).toBeVisible();
+  await editAnnotationMenuItem.evaluate(button => button.click());
+  const reopenedDialog = page.locator("dialog.image-annotation-dialog");
+  await expect(reopenedDialog).toBeVisible();
+  const reopenedCanvas = reopenedDialog.locator("[data-annotation-canvas]");
+  await expect(reopenedCanvas.locator("[data-annotation-object-id]")).toHaveCount(6);
+  await expect(reopenedCanvas.locator("text")).toHaveAttribute("text-anchor", "middle");
+  expect(Number(await reopenedCanvas.locator("text").getAttribute("y"))).toBeCloseTo(textBottomY, 5);
+  await expect(reopenedDialog.locator("[data-annotation-selection-label]")).toHaveText("2 objects selected");
+  await expect(reopenedCanvas.locator(".image-annotation-group-member-guide")).toHaveCount(2);
+  await expect(reopenedCanvas.locator("[data-annotation-handle]")).toHaveCount(8);
+  const reopenedClip = reopenedCanvas.locator("#pmt-annotation-image-clip rect");
+  await expect(reopenedClip).toHaveAttribute("x", movedCroppedClip.x);
+  await expect(reopenedClip).toHaveAttribute("y", movedCroppedClip.y);
+  await expect(reopenedClip).toHaveAttribute("width", movedCroppedClip.width);
+  await expect(reopenedClip).toHaveAttribute("height", movedCroppedClip.height);
+  const reopenedViewBox = (await reopenedCanvas.getAttribute("viewBox")).split(/\s+/).map(Number);
+  expect(reopenedViewBox[2]).toBeGreaterThan(exportedViewBox[2] * 3);
+  const reopenedImageObject = reopenedCanvas.locator("[data-annotation-object-type='image']");
+  await expect(reopenedImageObject).toHaveAttribute("data-pmt-annotation-group", imageGroupId);
+  const reopenedImageGroupMembers = reopenedCanvas.locator(`[data-pmt-annotation-group='${imageGroupId}']`);
+  await expect(reopenedImageGroupMembers).toHaveCount(2);
+  const reopenedGroupBeforeResize = await reopenedCanvas.locator(".image-annotation-selection").evaluate(element => ({
+    width: Number(element.getAttribute("width")),
+    height: Number(element.getAttribute("height"))
+  }));
+  const reopenedMemberWidthsBeforeResize = await reopenedImageGroupMembers.evaluateAll(elements => elements.map(element => {
+    if (element.dataset.annotationObjectType === "arrow") return 0;
+    return Number(element.getAttribute("width"));
+  }));
+  const reopenedGroupResizeHandle = reopenedCanvas.locator("[data-annotation-handle='se']");
+  const reopenedGroupResizeHandleBox = await reopenedGroupResizeHandle.boundingBox();
+  await page.mouse.move(
+    reopenedGroupResizeHandleBox.x + (reopenedGroupResizeHandleBox.width / 2),
+    reopenedGroupResizeHandleBox.y + (reopenedGroupResizeHandleBox.height / 2)
+  );
+  await page.mouse.down();
+  await page.mouse.move(reopenedGroupResizeHandleBox.x + 70, reopenedGroupResizeHandleBox.y + 50, { steps: 5 });
+  await page.mouse.up();
+  const reopenedGroupAfterResize = await reopenedCanvas.locator(".image-annotation-selection").evaluate(element => ({
+    width: Number(element.getAttribute("width")),
+    height: Number(element.getAttribute("height"))
+  }));
+  const reopenedMemberWidthsAfterResize = await reopenedImageGroupMembers.evaluateAll(elements => elements.map(element => {
+    if (element.dataset.annotationObjectType === "arrow") return 0;
+    return Number(element.getAttribute("width"));
+  }));
+  expect(reopenedGroupAfterResize.width).toBeGreaterThan(reopenedGroupBeforeResize.width);
+  expect(reopenedGroupAfterResize.width / reopenedGroupAfterResize.height)
+    .toBeCloseTo(reopenedGroupBeforeResize.width / reopenedGroupBeforeResize.height, 5);
+  expect(reopenedMemberWidthsAfterResize[0]).toBeGreaterThan(reopenedMemberWidthsBeforeResize[0]);
+  expect(reopenedMemberWidthsAfterResize[1]).toBeGreaterThan(reopenedMemberWidthsBeforeResize[1]);
+  await reopenedDialog.getByRole("button", { name: "Cancel" }).click();
+
+  uploadedSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="800" height="450"></svg>`;
+  await reopenedImage.evaluate(element => {
+    element.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+  });
+  await expect(editAnnotationMenuItem).toBeVisible();
+  await editAnnotationMenuItem.evaluate(button => button.click());
+  await expect(page.locator("dialog.image-annotation-dialog")).toHaveCount(0);
+  await expect(page.locator("#toast")).toContainText("editable annotation data could not be loaded");
+  await expect(reopenedImage).toHaveAttribute("src", /generated-annotation\.svg$/);
+
+  const expectedTemporaryUploadErrors = runtimeErrors.filter(message => /status of 503 \(Service Unavailable\)/.test(message));
+  expect(expectedTemporaryUploadErrors).toHaveLength(1);
+  expect(runtimeErrors.filter(message => !/status of 401 \(Unauthorized\)/.test(message)
+    && !expectedTemporaryUploadErrors.includes(message))).toEqual([]);
+});
+
+test("RTE annotation templates preserve mixed native content and support keyboard workflows", async ({ page }) => {
+  test.setTimeout(120_000);
+  const appState = createTestState();
+  const apiCalls = { securityReset: 0 };
+  const originalSvg = [
+    '<svg xmlns="http://www.w3.org/2000/svg" width="640" height="360" viewBox="0 0 640 360">',
+    '<rect width="640" height="360" fill="#f4f7f1"/>',
+    '<text x="24" y="44" font-family="Arial" font-size="24">Template source bytes</text>',
+    '</svg>'
+  ].join("");
+
+  await markCurrentReleaseSeen(page, 1);
+  await installApiMocks(page, appState, apiCalls);
+  await page.route("**/uploads/richtext/template-source.svg", async route => {
+    await route.fulfill({ status: 200, contentType: "image/svg+xml", body: originalSvg });
+  });
+
+  await page.goto("/");
+  await page.locator("#loginName").fill("Sin");
+  await page.locator("#loginPassword").fill("Password1");
+  await page.getByRole("button", { name: /log in/i }).click();
+  await openNavView(page, "Tasks", "Dev Tasks");
+  await page.locator("tr[data-task-id='1']").click();
+  await page.locator("dialog.detail-dialog").getByRole("button", { name: "Edit" }).click();
+
+  const editor = page.locator("#editorDialog [data-rich='descriptionHtml']");
+  await editor.evaluate(element => {
+    element.innerHTML = '<p>Template test</p><img src="/uploads/richtext/template-source.svg" alt="Template source image">';
+  });
+  const rteImage = editor.getByRole("img", { name: "Template source image" });
+  await rteImage.evaluate(element => element.decode());
+  const openRteImageMenu = async () => {
+    await rteImage.evaluate(element => {
+      element.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+    });
+    await expect(page.getByRole("menuitem", { name: "Annotate", exact: true })).toBeVisible();
+  };
+  await openRteImageMenu();
+  await page.getByRole("menuitem", { name: "Annotate", exact: true }).click();
+
+  const dialog = page.locator("dialog.image-annotation-dialog");
+  const canvas = dialog.locator("[data-annotation-canvas]");
+  const workspace = dialog.locator("[data-annotation-workspace]");
+  const annotationObjects = canvas.locator("[data-annotation-object-id]");
+  const formatTab = dialog.getByRole("tab", { name: "Format", exact: true });
+  const templateTab = dialog.getByRole("tab", { name: "Template", exact: true });
+  const formatPanel = dialog.locator("[data-annotation-inspector-panel='format']");
+  const templatePanel = dialog.locator("[data-annotation-inspector-panel='template']");
+  const inspectorToggle = dialog.locator("[data-annotation-toggle-inspector]");
+  const canvasClientPoint = (x, y) => canvas.evaluate((element, point) => {
+    const rect = element.getBoundingClientRect();
+    const viewBox = element.viewBox.baseVal;
+    return {
+      x: rect.left + (((point.x - viewBox.x) / viewBox.width) * rect.width),
+      y: rect.top + (((point.y - viewBox.y) / viewBox.height) * rect.height)
+    };
+  }, { x, y });
+  const dragCanvas = async (startX, startY, endX, endY) => {
+    const start = await canvasClientPoint(startX, startY);
+    const end = await canvasClientPoint(endX, endY);
+    await page.mouse.move(start.x, start.y);
+    await page.mouse.down();
+    await page.mouse.move(end.x, end.y, { steps: 5 });
+    await page.mouse.up();
+  };
+  const constrainedDrag = async (target, modifier, deltaX, deltaY) => {
+    const box = await target.boundingBox();
+    expect(box).not.toBeNull();
+    const start = {
+      x: box.x + Math.min(24, box.width / 3),
+      y: box.y + Math.min(24, box.height / 3)
+    };
+    await page.mouse.move(start.x, start.y);
+    await page.mouse.down();
+    await page.keyboard.down(modifier);
+    await page.mouse.move(start.x + deltaX, start.y + deltaY, { steps: 5 });
+    await page.keyboard.up(modifier);
+    await page.mouse.up();
+  };
+
+  await expect(dialog).toBeVisible();
+  await expect(annotationObjects).toHaveCount(1);
+  await expect(formatTab).toHaveAttribute("aria-selected", "true");
+  await expect(formatPanel).toBeVisible();
+  await expect(templatePanel).toBeHidden();
+  await formatTab.focus();
+  await page.keyboard.press("ArrowRight");
+  await expect(templateTab).toBeFocused();
+  await expect(templateTab).toHaveAttribute("aria-selected", "true");
+  await expect(templatePanel).toBeVisible();
+  await page.keyboard.press("Home");
+  await expect(formatTab).toBeFocused();
+  await expect(formatTab).toHaveAttribute("aria-selected", "true");
+  await expect(formatPanel).toBeVisible();
+
+  await expect(inspectorToggle).toHaveAccessibleName("Hide Right Pane");
+  await inspectorToggle.click();
+  await expect(inspectorToggle).toHaveAccessibleName("Show Right Pane");
+  await expect(inspectorToggle).toHaveAttribute("aria-expanded", "false");
+  await inspectorToggle.click();
+  await expect(inspectorToggle).toHaveAccessibleName("Hide Right Pane");
+  await expect(inspectorToggle).toHaveAttribute("aria-expanded", "true");
+
+  await dialog.getByRole("button", { name: "Rectangle (R)" }).click();
+  await dragCanvas(80, 80, 260, 180);
+  await dialog.getByRole("button", { name: "Arrow (A)" }).click();
+  await dragCanvas(520, 60, 320, 220);
+  await expect(annotationObjects).toHaveCount(3);
+
+  const originalRectangle = canvas.locator("[data-annotation-object-type='rectangle']").first();
+  const rectanglePosition = () => originalRectangle.evaluate(element => ({
+    x: Number(element.getAttribute("x")),
+    y: Number(element.getAttribute("y"))
+  }));
+  const beforeShiftDrag = await rectanglePosition();
+  await constrainedDrag(originalRectangle, "Shift", 80, 55);
+  const afterShiftDrag = await rectanglePosition();
+  expect(afterShiftDrag.x).not.toBe(beforeShiftDrag.x);
+  expect(afterShiftDrag.y).toBe(beforeShiftDrag.y);
+  await constrainedDrag(originalRectangle, "Alt", 65, 75);
+  const afterAltDrag = await rectanglePosition();
+  expect(afterAltDrag.x).toBe(afterShiftDrag.x);
+  expect(afterAltDrag.y).not.toBe(afterShiftDrag.y);
+
+  await workspace.focus();
+  await page.keyboard.press("Control+A");
+  await expect(dialog.locator("[data-annotation-selection-label]")).toHaveText("3 objects selected");
+  const sourceObjectIds = await annotationObjects.evaluateAll(objects =>
+    objects.map(object => object.dataset.annotationObjectId)
+  );
+
+  await templateTab.click();
+  await expect(templatePanel).toBeVisible();
+  const saveTemplateButton = dialog.getByRole("button", { name: "Save Selection as Template", exact: true });
+  await expect(saveTemplateButton).toBeEnabled();
+  await saveTemplateButton.click();
+  const nameDialog = page.locator("dialog.mini-dialog");
+  await expect(nameDialog.getByRole("heading", { name: "Save Annotation Template", exact: true })).toBeVisible();
+  await nameDialog.locator("[name='dialogText']").fill("Screenshot callout");
+  await nameDialog.getByRole("button", { name: "Apply", exact: true }).click();
+
+  await expect.poll(() => apiCalls.annotationTemplateLibraryPuts?.length || 0).toBe(1);
+  const savedLibrary = apiCalls.annotationTemplateLibraries.get(1);
+  expect(savedLibrary.templates).toHaveLength(1);
+  const savedTemplate = savedLibrary.templates[0];
+  expect(savedTemplate.name).toBe("Screenshot callout");
+  expect(savedTemplate.objects.map(object => object.type)).toEqual(["embedded-image", "rectangle", "arrow"]);
+  expect(new Set(savedTemplate.objects.map(object => object.id))).toEqual(new Set(sourceObjectIds));
+  const embeddedImage = savedTemplate.objects.find(object => object.type === "embedded-image");
+  const savedRectangle = savedTemplate.objects.find(object => object.type === "rectangle");
+  const savedArrow = savedTemplate.objects.find(object => object.type === "arrow");
+  expect(embeddedImage.source).toMatch(/^data:image\/svg\+xml;base64,/);
+  expect(Buffer.from(embeddedImage.source.split(",")[1], "base64").toString("utf8")).toBe(originalSvg);
+  expect(savedRectangle).toMatchObject({
+    type: "rectangle",
+    width: 180,
+    height: 100,
+    fill: "none",
+    stroke: "#3f7f0d"
+  });
+  expect(savedArrow).toMatchObject({ type: "arrow", stroke: "#3f7f0d", arrowSize: 24 });
+
+  const templateCard = templatePanel.locator("[data-annotation-template-card]");
+  const templatePreview = templateCard.locator("[data-annotation-template-action='create']");
+  const templatePreviewImage = templatePreview.locator("img");
+  await expect(templateCard.getByText("Screenshot callout", { exact: true })).toBeVisible();
+  await expect(templateCard.getByRole("button", { name: "Rename", exact: true })).toBeVisible();
+  await expect(templateCard.getByRole("button", { name: "Update", exact: true })).toBeVisible();
+  await expect(templateCard.getByRole("button", { name: "Delete", exact: true })).toBeVisible();
+  const previewMetrics = await templatePreview.evaluate(element => {
+    const image = element.querySelector("img");
+    return {
+      buttonHeight: element.getBoundingClientRect().height,
+      imageHeight: image.getBoundingClientRect().height,
+      source: image.getAttribute("src")
+    };
+  });
+  expect(previewMetrics.buttonHeight).toBeGreaterThanOrEqual(132);
+  expect(previewMetrics.imageHeight).toBeGreaterThanOrEqual(116);
+  const previewSvg = decodeURIComponent(previewMetrics.source.split(",")[1]);
+  expect(previewSvg).toContain("<image");
+  expect(previewSvg).toContain("<rect");
+  expect(previewSvg).toContain("image-annotation-arrow-shaft");
+
+  await templatePreview.click();
+  await expect(annotationObjects).toHaveCount(6);
+  const instantiatedObjects = await annotationObjects.evaluateAll((objects, existingIds) => objects
+    .filter(object => !existingIds.includes(object.dataset.annotationObjectId))
+    .map(object => ({
+      id: object.dataset.annotationObjectId,
+      type: object.dataset.annotationObjectType,
+      groupId: object.dataset.pmtAnnotationGroup || "",
+      source: object.getAttribute("href") || ""
+    })), sourceObjectIds);
+  expect(instantiatedObjects.map(object => object.type)).toEqual(["embedded-image", "rectangle", "arrow"]);
+  expect(instantiatedObjects.every(object => !sourceObjectIds.includes(object.id))).toBe(true);
+  expect(instantiatedObjects.every(object => !savedTemplate.objects.some(saved => saved.id === object.id))).toBe(true);
+  expect(new Set(instantiatedObjects.map(object => object.groupId)).size).toBe(1);
+  expect(instantiatedObjects[0].groupId).not.toBe("");
+  expect(instantiatedObjects.find(object => object.type === "embedded-image").source).toBe(embeddedImage.source);
+  await expect(canvas.locator(".image-annotation-group-member-guide")).toHaveCount(3);
+
+  await workspace.focus();
+  await page.keyboard.press("Control+C");
+  await expect(dialog.locator("[data-annotation-status]")).toContainText("3 objects copied");
+  await page.keyboard.press("Control+V");
+  await expect(annotationObjects).toHaveCount(9);
+  const idsBeforePaste = [...sourceObjectIds, ...instantiatedObjects.map(object => object.id)];
+  const pastedObjects = await annotationObjects.evaluateAll((objects, existingIds) => objects
+    .filter(object => !existingIds.includes(object.dataset.annotationObjectId))
+    .map(object => ({
+      id: object.dataset.annotationObjectId,
+      groupId: object.dataset.pmtAnnotationGroup || ""
+    })), idsBeforePaste);
+  expect(pastedObjects).toHaveLength(3);
+  expect(new Set(pastedObjects.map(object => object.groupId)).size).toBe(1);
+  expect(pastedObjects[0].groupId).not.toBe("");
+  await workspace.focus();
+  await page.keyboard.press("Control+D");
+  await expect(annotationObjects).toHaveCount(12);
+  await expect(page.locator("#toast")).toHaveText("Items duplicated.");
+
+  await dialog.getByRole("button", { name: "Fit", exact: true }).click();
+  const fitMetrics = await dialog.evaluate(element => {
+    const workspaceElement = element.querySelector("[data-annotation-workspace]");
+    const canvasElement = element.querySelector("[data-annotation-canvas]");
+    const workspaceRect = workspaceElement.getBoundingClientRect();
+    const viewport = {
+      left: workspaceRect.left + workspaceElement.clientLeft,
+      top: workspaceRect.top + workspaceElement.clientTop,
+      width: workspaceElement.clientWidth,
+      height: workspaceElement.clientHeight
+    };
+    const objectRects = [...canvasElement.querySelectorAll("[data-annotation-object-id]")]
+      .map(object => object.getBoundingClientRect())
+      .filter(rect => rect.width > 0 && rect.height > 0);
+    const content = {
+      left: Math.min(...objectRects.map(rect => rect.left)),
+      top: Math.min(...objectRects.map(rect => rect.top)),
+      right: Math.max(...objectRects.map(rect => rect.right)),
+      bottom: Math.max(...objectRects.map(rect => rect.bottom))
+    };
+    return {
+      viewport,
+      content,
+      canvasWidth: canvasElement.getBoundingClientRect().width,
+      canvasHeight: canvasElement.getBoundingClientRect().height
+    };
+  });
+  const fittedContentWidth = fitMetrics.content.right - fitMetrics.content.left;
+  const fittedContentHeight = fitMetrics.content.bottom - fitMetrics.content.top;
+  expect(fitMetrics.canvasWidth).toBeGreaterThan(fitMetrics.viewport.width * 3);
+  expect(fitMetrics.canvasHeight).toBeGreaterThan(fitMetrics.viewport.height * 3);
+  expect(fitMetrics.content.left).toBeGreaterThanOrEqual(fitMetrics.viewport.left - 2);
+  expect(fitMetrics.content.top).toBeGreaterThanOrEqual(fitMetrics.viewport.top - 2);
+  expect(fitMetrics.content.right).toBeLessThanOrEqual(fitMetrics.viewport.left + fitMetrics.viewport.width + 2);
+  expect(fitMetrics.content.bottom).toBeLessThanOrEqual(fitMetrics.viewport.top + fitMetrics.viewport.height + 2);
+  expect(Math.abs((fitMetrics.content.left + (fittedContentWidth / 2))
+    - (fitMetrics.viewport.left + (fitMetrics.viewport.width / 2)))).toBeLessThan(5);
+  expect(Math.abs((fitMetrics.content.top + (fittedContentHeight / 2))
+    - (fitMetrics.viewport.top + (fitMetrics.viewport.height / 2)))).toBeLessThan(5);
+  expect(Math.min(
+    Math.abs(fittedContentWidth - (fitMetrics.viewport.width - 40)),
+    Math.abs(fittedContentHeight - (fitMetrics.viewport.height - 40))
+  )).toBeLessThan(24);
+
+  const previewSource = await templatePreviewImage.getAttribute("src");
+  await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
+  await expect(dialog).toHaveCount(0);
+  await openRteImageMenu();
+  await page.getByRole("menuitem", { name: "Annotate", exact: true }).click();
+  const reopenedDialog = page.locator("dialog.image-annotation-dialog");
+  await reopenedDialog.getByRole("tab", { name: "Template", exact: true }).click();
+  const reopenedCard = reopenedDialog.locator("[data-annotation-template-card]");
+  await expect(reopenedCard).toHaveCount(1);
+  await expect(reopenedCard.getByText("Screenshot callout", { exact: true })).toBeVisible();
+  await expect(reopenedCard.locator("[data-annotation-template-action='create'] img")).toHaveAttribute("src", previewSource);
+  await reopenedDialog.getByRole("button", { name: "Cancel", exact: true }).click();
+});
+
+test("RTE annotation Objects tree stays synchronized with canvas layers", async ({ page }) => {
+  test.setTimeout(120_000);
+  const appState = createTestState();
+  const apiCalls = { securityReset: 0 };
+  const originalSvg = [
+    '<svg xmlns="http://www.w3.org/2000/svg" width="480" height="270" viewBox="0 0 480 270">',
+    '<rect width="480" height="270" fill="#f4f7f1"/>',
+    '<text x="24" y="44" font-family="Arial" font-size="24">Object tree source</text>',
+    '</svg>'
+  ].join("");
+  let uploadedSvg = "";
+
+  await markCurrentReleaseSeen(page, 1);
+  await installApiMocks(page, appState, apiCalls);
+  await page.route("**/uploads/richtext/object-tree-source.svg", async route => {
+    await route.fulfill({ status: 200, contentType: "image/svg+xml", body: originalSvg });
+  });
+  await page.route("**/uploads/richtext/object-tree-annotation.svg", async route => {
+    await route.fulfill({ status: 200, contentType: "image/svg+xml", body: uploadedSvg || originalSvg });
+  });
+  await page.route("**/api/uploads/richtext", async route => {
+    const requestBody = route.request().postDataBuffer()?.toString("utf8") || "";
+    const start = requestBody.indexOf("<svg");
+    const end = requestBody.lastIndexOf("</svg>");
+    uploadedSvg = start >= 0 && end >= start
+      ? requestBody.slice(start, end + "</svg>".length)
+      : requestBody;
+    await route.fulfill(jsonResponse({
+      fileName: "object-tree-annotation.svg",
+      url: "/uploads/richtext/object-tree-annotation.svg",
+      contentType: "image/svg+xml",
+      byteLength: Buffer.byteLength(uploadedSvg)
+    }));
+  });
+
+  await page.goto("/");
+  await page.locator("#loginName").fill("Sin");
+  await page.locator("#loginPassword").fill("Password1");
+  await page.getByRole("button", { name: /log in/i }).click();
+  await openNavView(page, "Tasks", "Dev Tasks");
+  await page.locator("tr[data-task-id='1']").click();
+  await page.locator("dialog.detail-dialog").getByRole("button", { name: "Edit" }).click();
+
+  const editor = page.locator("#editorDialog [data-rich='descriptionHtml']");
+  await editor.evaluate(element => {
+    element.innerHTML = '<p>Object tree test</p><img src="/uploads/richtext/object-tree-source.svg" alt="Object tree source image">';
+  });
+  const rteImage = editor.getByRole("img", { name: "Object tree source image" });
+  await rteImage.evaluate(element => element.decode());
+  await rteImage.evaluate(element => {
+    element.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+  });
+  await page.getByRole("menuitem", { name: "Annotate", exact: true }).click();
+
+  const dialog = page.locator("dialog.image-annotation-dialog");
+  const canvas = dialog.locator("[data-annotation-canvas]");
+  const workspace = dialog.locator("[data-annotation-workspace]");
+  const formatTab = dialog.getByRole("tab", { name: "Format", exact: true });
+  const objectsTab = dialog.getByRole("tab", { name: "Objects", exact: true });
+  const objectsPanel = dialog.locator("[data-annotation-inspector-panel='objects']");
+  const tree = dialog.locator("[data-annotation-object-tree]");
+  const rootDrop = dialog.locator("[data-annotation-tree-root-drop]");
+  const treeSearch = dialog.locator("[data-annotation-tree-search]");
+  const opacityControl = dialog.locator("[data-annotation-style='opacity']");
+  const treeRow = (kind, id) => tree.locator(
+    `[data-annotation-tree-node-type='${kind}'][data-annotation-tree-node-id='${id}']`
+  );
+  const canvasObject = id => canvas.locator(`[data-annotation-object-id='${id}']`);
+  const canvasClientPoint = (x, y) => canvas.evaluate((element, point) => {
+    const rect = element.getBoundingClientRect();
+    const viewBox = element.viewBox.baseVal;
+    return {
+      x: rect.left + (((point.x - viewBox.x) / viewBox.width) * rect.width),
+      y: rect.top + (((point.y - viewBox.y) / viewBox.height) * rect.height)
+    };
+  }, { x, y });
+  const dragCanvas = async (startX, startY, endX, endY) => {
+    const start = await canvasClientPoint(startX, startY);
+    const end = await canvasClientPoint(endX, endY);
+    await page.mouse.move(start.x, start.y);
+    await page.mouse.down();
+    await page.mouse.move(end.x, end.y, { steps: 5 });
+    await page.mouse.up();
+  };
+  const assertTreeMatchesCanvas = async () => {
+    const treePaintOrder = await tree
+      .locator("[data-annotation-tree-node-type='object']")
+      .evaluateAll(rows => rows.map(row => row.dataset.annotationTreeNodeId));
+    const canvasPaintOrder = await canvas
+      .locator("[data-annotation-object-id]")
+      .evaluateAll(elements => elements.map(element => element.dataset.annotationObjectId));
+    expect(treePaintOrder).toEqual([...canvasPaintOrder].reverse());
+    expect(canvasPaintOrder[0]).toBe(sourceImageId);
+  };
+  const renameTreeNode = async (kind, id, name, useKeyboard = false) => {
+    const row = treeRow(kind, id);
+    await row.hover();
+    const renameButton = row.locator("[data-annotation-tree-node-action='rename']");
+    if (useKeyboard) {
+      await renameButton.focus();
+      await renameButton.press("Enter");
+    } else {
+      await renameButton.click();
+    }
+    const nameDialog = page.locator("dialog.mini-dialog");
+    await expect(nameDialog).toBeVisible();
+    await nameDialog.locator("[name='dialogText']").fill(name);
+    await nameDialog.getByRole("button", { name: "Apply", exact: true }).click();
+    await expect(treeRow(kind, id).locator(".image-annotation-object-tree-label")).toHaveText(name);
+  };
+
+  await expect(dialog).toBeVisible();
+  await expect(canvas.locator("[data-annotation-object-id]")).toHaveCount(1);
+  const sourceImageId = await canvas.locator("[data-annotation-object-type='image']")
+    .getAttribute("data-annotation-object-id");
+  await expect(opacityControl).toBeDisabled();
+  await expect(canvasObject(sourceImageId)).not.toHaveAttribute("opacity");
+
+  await dialog.getByRole("button", { name: "Rectangle (R)" }).click();
+  await dragCanvas(30, 30, 140, 90);
+  await dialog.getByRole("button", { name: "Arrow (A)" }).click();
+  await dragCanvas(40, 200, 180, 100);
+  await dialog.getByRole("button", { name: "Text Box (T)" }).click();
+  await dragCanvas(190, 40, 300, 120);
+  await dialog.getByRole("button", { name: "Arrow (A)" }).click();
+  await dragCanvas(430, 220, 330, 140);
+  await expect(canvas.locator("[data-annotation-object-id]")).toHaveCount(5);
+
+  const firstRectangleId = await canvas.locator("[data-annotation-object-type='rectangle']")
+    .getAttribute("data-annotation-object-id");
+  const groupTextId = await canvas.locator("[data-annotation-object-type='textbox']")
+    .getAttribute("data-annotation-object-id");
+  const arrowIds = await canvas.locator("[data-annotation-object-type='arrow']")
+    .evaluateAll(elements => elements.map(element => element.dataset.annotationObjectId));
+  const [groupArrowId, rootArrowId] = arrowIds;
+
+  await objectsTab.click();
+  await expect(objectsTab).toHaveAttribute("aria-selected", "true");
+  await expect(objectsPanel).toBeVisible();
+  await expect(tree).toHaveAttribute("role", "tree");
+  expect(await tree.locator("[data-annotation-tree-node]").evaluateAll(rows =>
+    rows.map(row => row.dataset.annotationTreeNodeId)
+  )).toEqual([rootArrowId, groupTextId, groupArrowId, firstRectangleId, sourceImageId]);
+  const initialRowHeights = await tree.locator("[data-annotation-tree-node]").evaluateAll(rows =>
+    rows.map(row => row.getBoundingClientRect().height)
+  );
+  expect(Math.max(...initialRowHeights)).toBeLessThanOrEqual(34);
+  await assertTreeMatchesCanvas();
+
+  await treeRow("object", firstRectangleId).click();
+  await expect(treeRow("object", firstRectangleId)).toHaveAttribute("aria-selected", "true");
+  await expect(dialog.locator("[data-annotation-selection-label]")).toHaveText("Rectangle");
+  await treeRow("object", groupArrowId).click({ modifiers: ["Control"] });
+  await expect(dialog.locator("[data-annotation-selection-label]")).toHaveText("2 objects selected");
+  await treeRow("object", groupTextId).click({ modifiers: ["Shift"] });
+  await expect(treeRow("object", firstRectangleId)).toHaveAttribute("aria-selected", "false");
+  await expect(treeRow("object", groupArrowId)).toHaveAttribute("aria-selected", "true");
+  await expect(treeRow("object", groupTextId)).toHaveAttribute("aria-selected", "true");
+  await treeRow("object", firstRectangleId).click({ modifiers: ["Control"] });
+  await expect(dialog.locator("[data-annotation-selection-label]")).toHaveText("3 objects selected");
+
+  await canvasObject(groupArrowId).click({ button: "right" });
+  const contextMenu = dialog.locator("[data-annotation-context-menu]");
+  await expect(contextMenu).toBeVisible();
+  await contextMenu.getByRole("menuitem", { name: "Group", exact: true }).click();
+  const groupId = await canvasObject(groupArrowId).getAttribute("data-pmt-annotation-group");
+  expect(groupId).toMatch(/^group-/);
+  const groupRow = () => treeRow("group", groupId);
+  await expect(groupRow()).toBeVisible();
+  await expect(groupRow()).toHaveAttribute("aria-selected", "true");
+  await expect(tree.locator(`[data-annotation-tree-group-id='${groupId}'] [role='group'] [data-annotation-tree-node]`))
+    .toHaveCount(3);
+  const groupIndent = await tree.locator(`[data-annotation-tree-group-id='${groupId}']`).evaluate(element => {
+    const parent = element.querySelector(":scope > [data-annotation-tree-node]").getBoundingClientRect();
+    const child = element.querySelector("[role='group'] [data-annotation-tree-node]").getBoundingClientRect();
+    return child.left - parent.left;
+  });
+  expect(groupIndent).toBeGreaterThan(8);
+  await assertTreeMatchesCanvas();
+
+  await formatTab.click();
+  await expect(opacityControl).toBeEnabled();
+  await opacityControl.fill("42");
+  await opacityControl.press("Tab");
+  for (const id of [firstRectangleId, groupArrowId, groupTextId]) {
+    await expect(canvasObject(id)).toHaveAttribute("opacity", "0.42");
+  }
+  await expect(canvasObject(sourceImageId)).not.toHaveAttribute("opacity");
+  await dialog.getByRole("button", { name: "Undo (Ctrl+Z)" }).click();
+  for (const id of [firstRectangleId, groupArrowId, groupTextId]) {
+    await expect(canvasObject(id)).toHaveAttribute("opacity", "1");
+  }
+  await dialog.getByRole("button", { name: "Redo (Ctrl+Y)" }).click();
+  for (const id of [firstRectangleId, groupArrowId, groupTextId]) {
+    await expect(canvasObject(id)).toHaveAttribute("opacity", "0.42");
+  }
+  await objectsTab.click();
+
+  await renameTreeNode("object", firstRectangleId, "Backdrop callout", true);
+  await renameTreeNode("group", groupId, "Primary callout");
+  const canvasOrderBeforeSearch = await canvas.locator("[data-annotation-object-id]")
+    .evaluateAll(elements => elements.map(element => element.dataset.annotationObjectId));
+  const selectionBeforeSearch = await dialog.locator("[data-annotation-selection-label]").textContent();
+  await treeSearch.fill("BACKDROP");
+  await expect(groupRow()).toBeVisible();
+  await expect(treeRow("object", firstRectangleId)).toBeVisible();
+  await expect(treeRow("object", groupArrowId)).toHaveCount(0);
+  await expect(treeRow("object", groupTextId)).toHaveCount(0);
+  await treeSearch.fill("primary");
+  await expect(groupRow()).toBeVisible();
+  await expect(tree.locator(`[data-annotation-tree-group-id='${groupId}'] [role='group'] [data-annotation-tree-node]`))
+    .toHaveCount(3);
+  await treeSearch.fill("nothing matches this");
+  await expect(tree.getByText("No matching objects.", { exact: true })).toBeVisible();
+  const statusBeforeNativeCopy = await dialog.locator("[data-annotation-status]").textContent();
+  await treeSearch.fill("Primary");
+  await treeSearch.press("Control+A");
+  await treeSearch.press("Control+C");
+  await expect(treeSearch).toHaveValue("Primary");
+  await expect(dialog.locator("[data-annotation-status]")).toHaveText(statusBeforeNativeCopy || "");
+  await expect(dialog.locator("[data-annotation-tree-action='paste']")).toBeDisabled();
+  await treeSearch.fill("");
+  await expect(groupRow()).toHaveAttribute("aria-selected", "true");
+  await expect(dialog.locator("[data-annotation-selection-label]")).toHaveText(selectionBeforeSearch || "");
+  expect(await canvas.locator("[data-annotation-object-id]").evaluateAll(elements =>
+    elements.map(element => element.dataset.annotationObjectId)
+  )).toEqual(canvasOrderBeforeSearch);
+  await assertTreeMatchesCanvas();
+
+  await treeRow("object", rootArrowId).dragTo(groupRow());
+  await expect(canvasObject(rootArrowId)).toHaveAttribute("data-pmt-annotation-group", groupId);
+  await expect(tree.locator(`[data-annotation-tree-group-id='${groupId}'] [role='group'] [data-annotation-tree-node]`))
+    .toHaveCount(4);
+  await assertTreeMatchesCanvas();
+
+  await treeRow("object", rootArrowId).dragTo(rootDrop);
+  await expect(canvasObject(rootArrowId)).not.toHaveAttribute("data-pmt-annotation-group", groupId);
+  await expect(tree.locator(`[data-annotation-tree-group-id='${groupId}'] [role='group'] [data-annotation-tree-node]`))
+    .toHaveCount(3);
+  await assertTreeMatchesCanvas();
+
+  await treeRow("object", firstRectangleId).dragTo(treeRow("object", groupTextId));
+  expect(await tree.locator(`[data-annotation-tree-group-id='${groupId}'] [role='group'] [data-annotation-tree-node]`)
+    .evaluateAll(rows => rows.map(row => row.dataset.annotationTreeNodeId)))
+    .toEqual([firstRectangleId, groupTextId, groupArrowId]);
+  await assertTreeMatchesCanvas();
+
+  const groupMembersBeforeMove = new Set(await tree
+    .locator(`[data-annotation-tree-group-id='${groupId}'] [role='group'] [data-annotation-tree-node]`)
+    .evaluateAll(rows => rows.map(row => row.dataset.annotationTreeNodeId)));
+  await groupRow().dragTo(treeRow("object", rootArrowId));
+  const rootKindsAfterGroupMove = await tree.locator(":scope > [data-annotation-tree-node], :scope > [data-annotation-tree-group-id] > [data-annotation-tree-node]")
+    .evaluateAll(rows => rows.map(row => `${row.dataset.annotationTreeKind}:${row.dataset.annotationTreeId}`));
+  expect(rootKindsAfterGroupMove.slice(0, 3)).toEqual([
+    `group:${groupId}`,
+    `object:${rootArrowId}`,
+    `object:${sourceImageId}`
+  ]);
+  expect(new Set(await tree
+    .locator(`[data-annotation-tree-group-id='${groupId}'] [role='group'] [data-annotation-tree-node]`)
+    .evaluateAll(rows => rows.map(row => row.dataset.annotationTreeNodeId))))
+    .toEqual(groupMembersBeforeMove);
+  const canvasOrderAfterGroupMove = await canvas.locator("[data-annotation-object-id]")
+    .evaluateAll(elements => elements.map(element => ({
+      id: element.dataset.annotationObjectId,
+      groupId: element.dataset.pmtAnnotationGroup || ""
+    })));
+  expect(canvasOrderAfterGroupMove.at(0).id).toBe(sourceImageId);
+  expect(canvasOrderAfterGroupMove.slice(-3).every(item => item.groupId === groupId)).toBe(true);
+  await assertTreeMatchesCanvas();
+
+  const orderBeforeImageAttempt = canvasOrderAfterGroupMove.map(item => item.id);
+  await expect(treeRow("object", sourceImageId)).toHaveAttribute("draggable", "false");
+  await treeRow("object", sourceImageId).click();
+  await expect(dialog.locator("[data-annotation-tree-action='delete']")).toBeDisabled();
+  await expect(rootDrop).toHaveAttribute("aria-disabled", "true");
+  await treeRow("object", sourceImageId).press("Delete");
+  await expect(canvas.locator("[data-annotation-object-id]")).toHaveCount(5);
+  expect(await canvas.locator("[data-annotation-object-id]").evaluateAll(elements =>
+    elements.map(element => element.dataset.annotationObjectId)
+  )).toEqual(orderBeforeImageAttempt);
+  await assertTreeMatchesCanvas();
+
+  await groupRow().click();
+  await groupRow().press("Control+C");
+  await expect(dialog.locator("[data-annotation-status]")).toContainText("3 objects copied");
+  await groupRow().press("Control+V");
+  await expect(canvas.locator("[data-annotation-object-id]")).toHaveCount(8);
+  const groupIds = await tree.locator("[data-annotation-tree-node-type='group']")
+    .evaluateAll(rows => rows.map(row => row.dataset.annotationTreeNodeId));
+  expect(groupIds).toHaveLength(2);
+  const pastedGroupId = groupIds.find(id => id !== groupId);
+  expect(pastedGroupId).toBeTruthy();
+  await expect(treeRow("group", pastedGroupId).locator(".image-annotation-object-tree-label"))
+    .toHaveText("Primary callout");
+  const pastedOpacityValues = await canvas.locator(`[data-pmt-annotation-group='${pastedGroupId}']`)
+    .evaluateAll(elements => elements.map(element => element.getAttribute("opacity")));
+  expect(pastedOpacityValues).toEqual(["0.42", "0.42", "0.42"]);
+  await assertTreeMatchesCanvas();
+
+  await treeRow("group", pastedGroupId).click();
+  await treeRow("object", rootArrowId).click({ modifiers: ["Control"] });
+  await expect(dialog.locator("[data-annotation-selection-label]")).toHaveText("4 objects selected");
+  await dialog.locator("[data-annotation-tree-action='delete']").click();
+  await expect(canvas.locator("[data-annotation-object-id]")).toHaveCount(4);
+  await assertTreeMatchesCanvas();
+  await dialog.getByRole("button", { name: "Undo (Ctrl+Z)" }).click();
+  await expect(canvas.locator("[data-annotation-object-id]")).toHaveCount(8);
+  await expect(treeRow("group", pastedGroupId)).toBeVisible();
+  await expect(treeRow("object", rootArrowId)).toBeVisible();
+  await assertTreeMatchesCanvas();
+
+  await dialog.getByRole("button", { name: "Apply to RTE", exact: true }).click();
+  await expect(dialog).toHaveCount(0);
+  expect(uploadedSvg).toContain('"name":"Backdrop callout"');
+  expect(uploadedSvg).toContain("Primary callout");
+  expect(uploadedSvg).toContain('"opacity":0.42');
+  expect(uploadedSvg).toContain('opacity="0.42"');
+  await expect(rteImage).toHaveAttribute("src", /object-tree-annotation\.svg$/);
+
+  await rteImage.evaluate(element => {
+    element.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+  });
+  await page.getByRole("menuitem", { name: "Edit Annotation", exact: true }).click();
+  const reopenedDialog = page.locator("dialog.image-annotation-dialog");
+  await reopenedDialog.getByRole("tab", { name: "Objects", exact: true }).click();
+  const reopenedTree = reopenedDialog.locator("[data-annotation-object-tree]");
+  await expect(reopenedTree.getByText("Backdrop callout", { exact: true })).toHaveCount(2);
+  await expect(reopenedTree.getByText("Primary callout", { exact: true })).toHaveCount(2);
+  const reopenedTreePaintOrder = await reopenedTree.locator("[data-annotation-tree-node-type='object']")
+    .evaluateAll(rows => rows.map(row => row.dataset.annotationTreeNodeId));
+  const reopenedCanvasPaintOrder = await reopenedDialog.locator("[data-annotation-canvas] [data-annotation-object-id]")
+    .evaluateAll(elements => elements.map(element => element.dataset.annotationObjectId));
+  expect(reopenedTreePaintOrder).toEqual([...reopenedCanvasPaintOrder].reverse());
+  expect(reopenedCanvasPaintOrder[0]).toBe(sourceImageId);
+  await expect(reopenedDialog.locator("[data-annotation-canvas] [data-annotation-object-type='image']"))
+    .not.toHaveAttribute("opacity");
+  await expect(reopenedDialog.locator("[data-annotation-canvas] [data-annotation-object-type='rectangle'][opacity='0.42']"))
+    .toHaveCount(2);
+  await expect(reopenedDialog.locator("[data-annotation-canvas] [data-annotation-object-type='arrow'][opacity='0.42']"))
+    .toHaveCount(2);
+  await expect(reopenedDialog.locator("[data-annotation-canvas] [data-annotation-object-type='textbox'][opacity='0.42']"))
+    .toHaveCount(2);
+  await reopenedDialog.getByRole("button", { name: "Cancel", exact: true }).click();
+});
+
 test("RTE Select shows eight proportional image resize handles", async ({ page }) => {
   const appState = createTestState();
   const apiCalls = { securityReset: 0 };
@@ -2681,6 +4543,10 @@ async function installApiMocks(page, appState, apiCalls) {
   let nextVacationId = Math.max(0, ...vacationPlans.map(item => Number(item.id) || 0)) + 1;
   let nextAttendanceMutationSecond = 1;
   let sessionUserId = Number(apiCalls.sessionUserId) || 0;
+  const annotationTemplateLibraries = apiCalls.annotationTemplateLibraries instanceof Map
+    ? apiCalls.annotationTemplateLibraries
+    : new Map();
+  apiCalls.annotationTemplateLibraries = annotationTemplateLibraries;
 
   apiCalls.setSessionUserId = userId => {
     sessionUserId = Number(userId) || 0;
@@ -2694,6 +4560,19 @@ async function installApiMocks(page, appState, apiCalls) {
     }
 
     await route.fulfill(jsonResponse(testSessionPayload(user)));
+  });
+
+  await page.route("**/api/image-annotation/template-library", async route => {
+    const emptyLibrary = { version: 1, templates: [], defaults: { arrow: null, rectangle: null } };
+    if (route.request().method() === "GET") {
+      await route.fulfill(jsonResponse(annotationTemplateLibraries.get(sessionUserId) || emptyLibrary));
+      return;
+    }
+    const library = requestJson(route);
+    annotationTemplateLibraries.set(sessionUserId, structuredClone(library));
+    if (!Array.isArray(apiCalls.annotationTemplateLibraryPuts)) apiCalls.annotationTemplateLibraryPuts = [];
+    apiCalls.annotationTemplateLibraryPuts.push({ userId: sessionUserId, library: structuredClone(library) });
+    await route.fulfill(jsonResponse(library));
   });
 
   await page.route("**/api/login", async route => {
@@ -3046,9 +4925,9 @@ async function installApiMocks(page, appState, apiCalls) {
 }
 
 async function markCurrentReleaseSeen(page, userId) {
-  await page.addInitScript(id => {
-    localStorage.setItem(`pmt-release-notes-last-seen:${id}`, "2026-07-16-day-29");
-  }, userId);
+  await page.addInitScript(({ id, seenToken }) => {
+    localStorage.setItem(`pmt-release-notes-last-seen:${id}`, seenToken);
+  }, { id: userId, seenToken: releaseNotes[0].seenToken });
 }
 
 function requestJson(route) {

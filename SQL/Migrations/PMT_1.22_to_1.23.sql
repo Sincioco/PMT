@@ -14,6 +14,8 @@
       removal of explicit attendance calendar entries.
     - Adds current-month vacation examples for shared PMT, LMS, and HLS demo
       members without replacing or overlapping an existing active plan.
+    - Adds a per-user, server-synchronized image-annotation template library
+      stored as versioned JSON without creating upload-folder assets.
 
     This canonical step is included by PMT_1.22_to_1.23_All.sql, the tested
     operator-facing SQLCMD entry point.
@@ -188,6 +190,147 @@ VALUES
 (N'PMT', N'bill.gates@microsoft.com', DATEADD(DAY, 3, @DemoVacationMonthStart), DATEADD(DAY, 5, @DemoVacationMonthStart)),
 (N'LMS', N'sam.altman@openai.com', DATEADD(DAY, 11, @DemoVacationMonthStart), DATEADD(DAY, 13, @DemoVacationMonthStart)),
 (N'HLS', N'Jensen.Huang@nvidia.com', DATEADD(DAY, 19, @DemoVacationMonthStart), DATEADD(DAY, 22, @DemoVacationMonthStart));
+GO
+
+IF OBJECT_ID(N'[pmt].[UserImageAnnotationTemplateLibraries]', N'U') IS NULL
+BEGIN
+    CREATE TABLE [pmt].[UserImageAnnotationTemplateLibraries]
+    (
+        [UserId] INT NOT NULL CONSTRAINT [PK_pmt_UserImageAnnotationTemplateLibraries] PRIMARY KEY,
+        [LibraryJson] NVARCHAR(MAX) NOT NULL,
+        [CreatedAt] DATETIME2(0) NOT NULL CONSTRAINT [DF_pmt_UserImageAnnotationTemplateLibraries_CreatedAt] DEFAULT (SYSUTCDATETIME()),
+        [UpdatedAt] DATETIME2(0) NOT NULL CONSTRAINT [DF_pmt_UserImageAnnotationTemplateLibraries_UpdatedAt] DEFAULT (SYSUTCDATETIME()),
+        CONSTRAINT [FK_pmt_UserImageAnnotationTemplateLibraries_User] FOREIGN KEY ([UserId])
+            REFERENCES [pmt].[Users]([UserId]) ON DELETE CASCADE,
+        CONSTRAINT [CK_pmt_UserImageAnnotationTemplateLibraries_Json] CHECK (ISJSON([LibraryJson]) = 1),
+        CONSTRAINT [CK_pmt_UserImageAnnotationTemplateLibraries_Version] CHECK (TRY_CONVERT(INT, JSON_VALUE([LibraryJson], N'$.version')) = 1),
+        CONSTRAINT [CK_pmt_UserImageAnnotationTemplateLibraries_Size] CHECK (DATALENGTH([LibraryJson]) <= 104857600)
+    );
+END;
+GO
+
+CREATE OR ALTER PROCEDURE [pmt].[GetUserImageAnnotationTemplateLibrary]
+    @CurrentUserId INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    IF NOT EXISTS
+    (
+        SELECT 1
+        FROM [pmt].[Users]
+        WHERE [UserId] = @CurrentUserId
+          AND [IsActive] = 1
+    )
+    BEGIN
+        THROW 50281, 'The image annotation template-library user was not found or is inactive.', 1;
+    END;
+
+    SELECT [LibraryJson] = ISNULL
+    (
+        (
+            SELECT [LibraryJson]
+            FROM [pmt].[UserImageAnnotationTemplateLibraries]
+            WHERE [UserId] = @CurrentUserId
+        ),
+        N'{"version":1,"templates":[],"defaults":{"arrow":null,"rectangle":null}}'
+    );
+END;
+GO
+
+CREATE OR ALTER PROCEDURE [pmt].[SaveUserImageAnnotationTemplateLibrary]
+    @LibraryJson NVARCHAR(MAX),
+    @CurrentUserId INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    SET XACT_ABORT ON;
+
+    IF @LibraryJson IS NULL
+       OR ISJSON(@LibraryJson) <> 1
+       OR DATALENGTH(@LibraryJson) > 104857600
+    BEGIN
+        THROW 50280, 'The image annotation template library must be valid JSON no larger than 50 MiB.', 1;
+    END;
+
+    IF NOT EXISTS
+       (
+           SELECT 1
+           FROM OPENJSON(@LibraryJson)
+           WHERE [key] = N'version'
+             AND [type] = 2
+             AND TRY_CONVERT(INT, [value]) = 1
+       )
+       OR NOT EXISTS
+       (
+           SELECT 1
+           FROM OPENJSON(@LibraryJson)
+           WHERE [key] = N'templates'
+             AND [type] = 4
+       )
+       OR NOT EXISTS
+       (
+           SELECT 1
+           FROM OPENJSON(@LibraryJson)
+           WHERE [key] = N'defaults'
+             AND [type] = 5
+       )
+       OR (SELECT COUNT(*) FROM OPENJSON(JSON_QUERY(@LibraryJson, N'$.templates'))) > 50
+    BEGIN
+        THROW 50280, 'The image annotation template library must be version 1 with defaults and no more than 50 templates.', 1;
+    END;
+
+    IF NOT EXISTS
+    (
+        SELECT 1
+        FROM [pmt].[Users]
+        WHERE [UserId] = @CurrentUserId
+          AND [IsActive] = 1
+    )
+    BEGIN
+        THROW 50281, 'The image annotation template-library user was not found or is inactive.', 1;
+    END;
+
+    BEGIN TRY
+        BEGIN TRANSACTION;
+
+        IF EXISTS
+        (
+            SELECT 1
+            FROM [pmt].[UserImageAnnotationTemplateLibraries] WITH (UPDLOCK, HOLDLOCK)
+            WHERE [UserId] = @CurrentUserId
+        )
+        BEGIN
+            UPDATE [pmt].[UserImageAnnotationTemplateLibraries]
+            SET [LibraryJson] = @LibraryJson,
+                [UpdatedAt] = SYSUTCDATETIME()
+            WHERE [UserId] = @CurrentUserId;
+        END;
+        ELSE
+        BEGIN
+            INSERT INTO [pmt].[UserImageAnnotationTemplateLibraries]
+            (
+                [UserId],
+                [LibraryJson]
+            )
+            VALUES
+            (
+                @CurrentUserId,
+                @LibraryJson
+            );
+        END;
+
+        COMMIT TRANSACTION;
+    END TRY
+    BEGIN CATCH
+        IF XACT_STATE() <> 0 ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH;
+
+    SELECT [LibraryJson]
+    FROM [pmt].[UserImageAnnotationTemplateLibraries]
+    WHERE [UserId] = @CurrentUserId;
+END;
 GO
 
 CREATE OR ALTER PROCEDURE [pmt].[RecordAttendance]
@@ -1598,6 +1741,21 @@ BEGIN
     THROW 51076, 'The selected-date or attendance-removal contract could not be verified.', 1;
 END;
 
+IF OBJECT_ID(N'[pmt].[UserImageAnnotationTemplateLibraries]', N'U') IS NULL
+   OR OBJECT_ID(N'[pmt].[GetUserImageAnnotationTemplateLibrary]', N'P') IS NULL
+   OR OBJECT_ID(N'[pmt].[SaveUserImageAnnotationTemplateLibrary]', N'P') IS NULL
+   OR NOT EXISTS
+      (
+          SELECT 1
+          FROM sys.foreign_keys
+          WHERE [name] = N'FK_pmt_UserImageAnnotationTemplateLibraries_User'
+            AND [parent_object_id] = OBJECT_ID(N'[pmt].[UserImageAnnotationTemplateLibraries]')
+            AND [delete_referential_action] = 1
+      )
+BEGIN
+    THROW 51078, 'The per-user image annotation template-library contract could not be verified.', 1;
+END;
+
 EXEC sys.sp_updateextendedproperty
     @name = N'PMT_DatabaseVersion',
     @value = N'1.23';
@@ -1617,5 +1775,5 @@ END;
 COMMIT TRANSACTION;
 GO
 
-PRINT N'PMT Database Version 1.23 applied: PMTQA was preserved, the PMT demo and shared demo vacations were restored, Development resets were updated, and selected-date attendance plus audited attendance removal are available.';
+PRINT N'PMT Database Version 1.23 applied: PMTQA was preserved, the PMT demo and shared demo vacations were restored, Development resets were updated, selected-date attendance plus audited attendance removal are available, and per-user image annotation template libraries are synchronized through SQL.';
 GO

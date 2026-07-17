@@ -14,7 +14,7 @@ import { initializeWindowedDialog } from "../../components/dialogs.js?v=20260713
 import {
   checkList,
   checkedNumbers
-} from "../../components/forms.js?v=20260715-day28-v118";
+} from "../../components/forms.js?v=20260717-day30-image-annotation";
 import {
   bindProfileAvatarPicker,
   focusProfileAvatarPicker,

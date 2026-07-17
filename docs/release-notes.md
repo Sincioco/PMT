@@ -8,7 +8,7 @@ The Release Notes screen and the login-time What's New dialog consume the same g
 - `scripts/release-notes.json` contains the curated, business-facing title and grouped release-note sections for each available prompt file.
 - `wwwroot/js/shared/release-notes-data.js`, `wwwroot/release-notes-data.json`, and `wwwroot/release-notes-version.json` are generated from both sources and must not be edited by hand. The small version manifest lets an open PMT session detect an update without repeatedly downloading the full history.
 
-Days 10 and 11 have no source prompt files in the repository, so the historical sequence currently contains 27 real releases rather than invented placeholders.
+Days 10 and 11 have no source prompt files in the repository, so the historical sequence currently contains 28 real releases rather than invented placeholders.
 
 ## Add a release
 

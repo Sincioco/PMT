@@ -2,6 +2,7 @@ using System.Net;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Http.Features;
 using Microsoft.Extensions.FileProviders;
 using PMT.Data;
 using PMT.Endpoints;
@@ -122,6 +123,31 @@ app.Use(async (context, next) =>
     }
 });
 
+app.Use(async (context, next) =>
+{
+    if (HttpMethods.IsPut(context.Request.Method)
+        && context.Request.Path == "/api/image-annotation/template-library")
+    {
+        if (context.Request.ContentLength > ImageAnnotationEndpoints.MaximumLibraryBytes)
+        {
+            context.Response.StatusCode = StatusCodes.Status413PayloadTooLarge;
+            await context.Response.WriteAsJsonAsync(new
+            {
+                error = "The image annotation template library cannot exceed 50 MiB."
+            });
+            return;
+        }
+
+        var requestSizeFeature = context.Features.Get<IHttpMaxRequestBodySizeFeature>();
+        if (requestSizeFeature is { IsReadOnly: false })
+        {
+            requestSizeFeature.MaxRequestBodySize = ImageAnnotationEndpoints.MaximumLibraryBytes;
+        }
+    }
+
+    await next();
+});
+
 app.UseExceptionHandler(errorApp =>
 {
     errorApp.Run(async context =>
@@ -186,7 +212,18 @@ try
         // Uploaded files stay outside wwwroot. In production this path can be a
         // file share, while SQL stores only the URL and metadata.
         FileProvider = new PhysicalFileProvider(uploadStorage.RootPath),
-        RequestPath = uploadStorage.RequestPath
+        RequestPath = uploadStorage.RequestPath,
+        OnPrepareResponse = context =>
+        {
+            context.Context.Response.Headers["X-Content-Type-Options"] = "nosniff";
+            if (string.Equals(Path.GetExtension(context.File.Name), ".svg", StringComparison.OrdinalIgnoreCase))
+            {
+                // RTE SVGs are image assets, never executable same-origin documents.
+                // The annotation editor emits only controlled SVG plus an embedded data image.
+                context.Context.Response.Headers["Content-Security-Policy"] =
+                    "sandbox; default-src 'none'; img-src data:; style-src 'unsafe-inline'";
+            }
+        }
     };
 }
 catch (Exception exception) when (IsUploadStorageStartupException(exception))
@@ -273,6 +310,7 @@ app.MapAttendanceEndpoints();
 app.MapSettingsEndpoints();
 app.MapSecurityEndpoints();
 app.MapContentEndpoints();
+app.MapImageAnnotationEndpoints();
 app.MapUploadEndpoints(uploadStorageWarning);
 app.MapDevelopmentEndpoints();
 

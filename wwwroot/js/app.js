@@ -4,7 +4,8 @@ import { avatarsHtml, taskRowAvatarsHtml } from "./components/avatars.js?v=20260
 import { bindAttachmentDeletion } from "./components/attachments.js?v=20260714-attachment-delete";
 import { buttonContent } from "./components/buttons.js?v=20260715-admin-impersonation";
 import { copyTextToClipboard } from "./components/clipboard.js?v=20260714-invite-email-body";
-import { createWhatsNew } from "./components/whats-new.js?v=release-notes-2026-07-16-day-29-4dbfab99e9a6";
+import { openImageAnnotationDialog } from "./components/image-annotation.js?v=20260718-day30-annotation-v11";
+import { createWhatsNew } from "./components/whats-new.js?v=release-notes-2026-07-17-day-30-35c4aa65c202";
 import {
   htmlWithoutUserMentionMarkup,
   initializeUserMentions
@@ -23,14 +24,14 @@ import {
 import {
   field,
   value
-} from "./components/forms.js?v=20260715-day28-v118";
+} from "./components/forms.js?v=20260717-day30-image-annotation";
 import { configureProgressAndStatus } from "./components/progress-and-status.js?v=20260714-linked-bug-percent";
 import {
   bindAttachmentPreview,
   showTaskAudit,
   viewWorkItem
 } from "./components/work-items.js?v=20260716-dialog-route-close";
-import { createApplicationShell } from "./core/application-shell.js?v=release-notes-2026-07-16-day-29-4dbfab99e9a6";
+import { createApplicationShell } from "./core/application-shell.js?v=release-notes-2026-07-17-day-30-35c4aa65c202";
 import {
   currentView,
   ensureCurrentViewRoute,
@@ -39,44 +40,44 @@ import {
   routeForContent,
   routeForView,
   updateBrowserUrl
-} from "./core/router.js?v=release-notes-2026-07-16-day-29-4dbfab99e9a6";
+} from "./core/router.js?v=release-notes-2026-07-17-day-30-35c4aa65c202";
 import {
   registeredScreenHandlers,
   registerScreen,
   screenHandlerFor,
   screenRegistry
-} from "./core/screen-registry.js?v=release-notes-2026-07-16-day-29-4dbfab99e9a6";
+} from "./core/screen-registry.js?v=release-notes-2026-07-17-day-30-35c4aa65c202";
 import {
   preferenceKeys,
   readBooleanPreference,
   writePreference
-} from "./core/preferences.js?v=release-notes-2026-07-16-day-29-4dbfab99e9a6";
+} from "./core/preferences.js?v=release-notes-2026-07-17-day-30-35c4aa65c202";
 import { state } from "./core/store.js";
-import { appUrl } from "./shared/app-urls.js";
+import { appUrl, storageUrl } from "./shared/app-urls.js";
 import {
   createAboutFeature,
   createAboutScreenSaver
 } from "./features/about/about.js?v=20260716-db-v122";
-import { createBacklogFeature } from "./features/backlog/backlog.js?v=release-notes-2026-07-16-day-29-4dbfab99e9a6";
-import { createBoardFeature } from "./features/board/board.js?v=release-notes-2026-07-16-day-29-4dbfab99e9a6";
-import { createBugsFeature } from "./features/bugs/bugs.js?v=release-notes-2026-07-16-day-29-4dbfab99e9a6";
-import { createDashboardFeature } from "./features/dashboard/dashboard.js?v=release-notes-2026-07-16-day-29-4dbfab99e9a6";
-import { createDocumentationFeature } from "./features/documentation/documentation.js?v=release-notes-2026-07-16-day-29-4dbfab99e9a6";
+import { createBacklogFeature } from "./features/backlog/backlog.js?v=release-notes-2026-07-17-day-30-35c4aa65c202";
+import { createBoardFeature } from "./features/board/board.js?v=release-notes-2026-07-17-day-30-35c4aa65c202";
+import { createBugsFeature } from "./features/bugs/bugs.js?v=release-notes-2026-07-17-day-30-35c4aa65c202";
+import { createDashboardFeature } from "./features/dashboard/dashboard.js?v=release-notes-2026-07-17-day-30-35c4aa65c202";
+import { createDocumentationFeature } from "./features/documentation/documentation.js?v=release-notes-2026-07-17-day-30-35c4aa65c202";
 import {
   createGanttFeature,
   currentSprintForProject,
   ganttStartDate
-} from "./features/gantt/gantt.js?v=release-notes-2026-07-16-day-29-4dbfab99e9a6";
+} from "./features/gantt/gantt.js?v=release-notes-2026-07-17-day-30-35c4aa65c202";
 import { createInvitationsFeature } from "./features/invitations/invitations.js?v=20260715-admin-impersonation";
-import { createProjectsFeature } from "./features/projects/projects.js?v=release-notes-2026-07-16-day-29-4dbfab99e9a6";
-import { createReleaseNotesFeature } from "./features/release-notes/release-notes.js?v=release-notes-2026-07-16-day-29-4dbfab99e9a6";
-import { createRoadMapFeature } from "./features/roadmap/roadmap.js?v=release-notes-2026-07-16-day-29-4dbfab99e9a6";
-import { createLogFeature } from "./features/personal-log/log.js?v=release-notes-2026-07-16-day-29-4dbfab99e9a6";
-import { createScrumFeature } from "./features/scrum/scrum.js?v=release-notes-2026-07-16-day-29-4dbfab99e9a6";
-import { createSettingsFeature } from "./features/settings/settings.js?v=release-notes-2026-07-16-day-29-4dbfab99e9a6";
-import { createSprintsFeature } from "./features/sprints/sprints.js?v=release-notes-2026-07-16-day-29-4dbfab99e9a6";
-import { createTasksFeature } from "./features/tasks/tasks.js?v=release-notes-2026-07-16-day-29-4dbfab99e9a6";
-import { createWfhScheduleFeature } from "./features/wfh-schedule/wfh-schedule.js?v=release-notes-2026-07-16-day-29-4dbfab99e9a6";
+import { createProjectsFeature } from "./features/projects/projects.js?v=release-notes-2026-07-17-day-30-35c4aa65c202";
+import { createReleaseNotesFeature } from "./features/release-notes/release-notes.js?v=release-notes-2026-07-17-day-30-35c4aa65c202";
+import { createRoadMapFeature } from "./features/roadmap/roadmap.js?v=release-notes-2026-07-17-day-30-35c4aa65c202";
+import { createLogFeature } from "./features/personal-log/log.js?v=release-notes-2026-07-17-day-30-35c4aa65c202";
+import { createScrumFeature } from "./features/scrum/scrum.js?v=release-notes-2026-07-17-day-30-35c4aa65c202";
+import { createSettingsFeature } from "./features/settings/settings.js?v=release-notes-2026-07-17-day-30-35c4aa65c202";
+import { createSprintsFeature } from "./features/sprints/sprints.js?v=release-notes-2026-07-17-day-30-35c4aa65c202";
+import { createTasksFeature } from "./features/tasks/tasks.js?v=release-notes-2026-07-17-day-30-35c4aa65c202";
+import { createWfhScheduleFeature } from "./features/wfh-schedule/wfh-schedule.js?v=release-notes-2026-07-17-day-30-35c4aa65c202";
 import {
   fallbackEnvironments,
   fallbackForLookup,
@@ -1184,8 +1185,12 @@ function showRichTextImageMenu(image, anchorEvent) {
   menu.setAttribute("role", "menu");
   menu.innerHTML = [
     richTextImageMenuItemHtml("select", "&#9635;", "Select"),
+    richTextImageMenuItemHtml("annotate", "A", image.dataset.pmtAnnotationVersion ? "Edit Annotation" : "Annotate"),
     richTextImageMenuItemHtml("resize", "&#8596;", "Resize"),
     richTextImageMenuItemHtml("zoom", "&#128269;", "Open in New Tab"),
+    image.dataset.pmtAnnotationSource
+      ? richTextImageMenuItemHtml("original", "O", "Open Original")
+      : "",
     richTextImageMenuSeparatorHtml(),
     richTextImageMenuItemHtml("delete", "&#128465;", "Delete")
   ].join("");
@@ -1220,6 +1225,18 @@ function showRichTextImageMenu(image, anchorEvent) {
     if (action === "resize") {
       finish();
       requestAnimationFrame(() => showRichTextImageResizeDialog(image));
+      return;
+    }
+
+    if (action === "annotate") {
+      finish();
+      requestAnimationFrame(() => annotateRichTextImage(image));
+      return;
+    }
+
+    if (action === "original") {
+      openRichTextSourceInNewTab(image.dataset.pmtAnnotationSource);
+      finish();
       return;
     }
 
@@ -1699,13 +1716,17 @@ function resetRichTextImageSize(image) {
 
 function openRichTextImageInNewTab(image) {
   const source = richTextImageSource(image);
+  openRichTextSourceInNewTab(source);
+}
+
+function openRichTextSourceInNewTab(source) {
   if (!source) return;
 
-  let targetUrl = source;
+  let targetUrl = appUrl(storageUrl(source));
   try {
-    targetUrl = new URL(source, window.location.href).href;
+    targetUrl = new URL(targetUrl, window.location.href).href;
   } catch {
-    targetUrl = source;
+    // Keep the normalized path when an unusual but browser-supported source is used.
   }
 
   const opened = window.open(targetUrl, "_blank", "noopener,noreferrer");
@@ -1974,6 +1995,47 @@ function showReadOnlyDialog(title, html) {
   });
   modal.showModal();
   normalizeLinksInElement(modal);
+}
+
+async function annotateRichTextImage(image) {
+  const editor = image?.closest(".rich-editor");
+  if (!image?.isConnected || !editor) return;
+
+  closeRichTextImageSelection();
+  const currentSource = storageUrl(image.getAttribute("src") || richTextImageSource(image));
+  const originalReference = storageUrl(image.dataset.pmtAnnotationSource || currentSource);
+  const isAnnotated = image.dataset.pmtAnnotationVersion === "1";
+  try {
+    const result = await openImageAnnotationDialog({
+      originalReference,
+      originalUrl: appUrl(originalReference),
+      annotationUrl: isAnnotated ? appUrl(currentSource) : "",
+      originalFileName: image.getAttribute("alt") || originalReference.split("/").pop() || "image",
+      askForColor: current => askForText("HEX (#126BFF) or RGB (18, 107, 255)", "Custom Color", current),
+      askForText,
+      confirm: askYesNo,
+      notify: showToast,
+      loadTemplateLibrary: () => api("/api/image-annotation/template-library", { cache: "no-store" }),
+      saveTemplateLibrary: library => saveJson("/api/image-annotation/template-library", "PUT", library),
+      apply: async annotation => {
+        if (!image.isConnected) throw new Error("The rich-text editor is no longer open.");
+        const file = new File([annotation.svg], annotation.fileName, { type: "image/svg+xml" });
+        const upload = await uploadFile("richtext", file);
+        if (!image.isConnected) throw new Error("The rich-text editor is no longer open.");
+        image.setAttribute("src", appUrl(upload.url));
+        image.dataset.pmtAnnotationSource = annotation.originalReference;
+        image.dataset.pmtAnnotationVersion = String(annotation.state.version || 1);
+        image.classList.add("rich-svg-image", "pmt-annotation-image");
+        image.setAttribute("alt", image.getAttribute("alt") || "Annotated image");
+      }
+    });
+    if (!result || !image.isConnected) return;
+    editor.focus({ preventScroll: true });
+    setRichTextImageBrowserSelection(image);
+    showToast("Image annotation applied. Save the record to keep it.");
+  } catch (error) {
+    showToast(error.message || "The image annotation could not be applied.");
+  }
 }
 
 function detailField(label, html, full = false) {

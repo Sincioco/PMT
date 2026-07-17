@@ -108,7 +108,7 @@ async function prepareDocumentationPage(page, currentUserId, calls) {
 
   await page.addInitScript(userId => {
     localStorage.clear();
-    localStorage.setItem(`pmt-release-notes-last-seen:${userId}`, "2026-07-16-day-29");
+    localStorage.setItem(`pmt-release-notes-last-seen:${userId}`, "2026-07-17-day-30@35c4aa65c202");
   }, currentUserId);
   await page.route("**/api/login", async route => {
     await route.fulfill(jsonResponse({
