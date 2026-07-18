@@ -1200,5 +1200,41 @@
         ]
       }
     ]
+  },
+  {
+    "day": 32,
+    "title": "Faster Diagrams, Flexible Cropping, and Live Database Schemas",
+    "sections": [
+      {
+        "title": "Unified Images and Cropping",
+        "items": [
+          "Treat Original Image as a normal editable image layer on the shared annotation and Diagram canvas instead of a special fixed background.",
+          "Mark cropped images in the Objects tree and let users temporarily show or hide each saved crop without removing it.",
+          "Offer Remove Crop or Apply Crop Permanently when cropping an already-cropped image, with an irreversible-action warning and normal Maintenance orphan detection for the replaced source after the record is saved."
+        ]
+      },
+      {
+        "title": "Diagrams in Rich Text",
+        "items": [
+          "Add Insert Diagram to rich-text editors so users can create an editable diagram at the current caret without starting from an image.",
+          "Keep image annotations and image-free diagrams on the same canvas, object, history, formatting, and reopen behavior."
+        ]
+      },
+      {
+        "title": "Faster and Cleaner Diagram Navigation",
+        "items": [
+          "Make edit-mode zooming substantially more responsive on large entity-relationship diagrams while preserving pointer-centered zoom and fast panning.",
+          "Return a cancelled Diagram edit to a fitted, centered Tree view and keep read-only zooming responsive.",
+          "Match edit mode in read-only Diagrams by hiding each Entity's expand, collapse, and Data Type controls until the pointer is over or near that Entity."
+        ]
+      },
+      {
+        "title": "Live PMT Database Schema",
+        "items": [
+          "Generate a new private PMT's Database Schema Diagram from the connected database's current tables, columns, keys, relationships, and data types without replacing the Diagram being edited.",
+          "Protect live schema generation with Documentation/Create permission and deliver its stored procedure through the Version 1.22-to-1.23 forward migration and operator verification runbook."
+        ]
+      }
+    ]
   }
 ]

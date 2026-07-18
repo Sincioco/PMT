@@ -986,6 +986,104 @@ BEGIN
 END;
 GO
 
+CREATE OR ALTER PROCEDURE [pmt].[GetPmtDatabaseSchema]
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    SELECT [SchemaJson] =
+    (
+        SELECT
+            1 AS [version],
+            JSON_QUERY
+            (
+                (
+                    SELECT
+                        [Schema].[name] AS [schemaName],
+                        [Table].[name] AS [tableName],
+                        [Column].[column_id] AS [columnOrder],
+                        [Column].[name] AS [columnName],
+                        [Type].[name] AS [typeName],
+                        [Column].[max_length] AS [maxLength],
+                        [Column].[precision] AS [precision],
+                        [Column].[scale] AS [scale],
+                        CONVERT(BIT, [Column].[is_nullable]) AS [nullable],
+                        CONVERT(BIT, [Column].[is_identity]) AS [isIdentity],
+                        CONVERT(NVARCHAR(80), [Identity].[seed_value]) AS [identitySeed],
+                        CONVERT(NVARCHAR(80), [Identity].[increment_value]) AS [identityIncrement],
+                        CONVERT(BIT, CASE WHEN EXISTS
+                        (
+                            SELECT 1
+                            FROM sys.indexes AS [Index]
+                            INNER JOIN sys.index_columns AS [IndexColumn]
+                                ON [IndexColumn].[object_id] = [Index].[object_id]
+                               AND [IndexColumn].[index_id] = [Index].[index_id]
+                            WHERE [Index].[object_id] = [Column].[object_id]
+                              AND [Index].[is_primary_key] = 1
+                              AND [IndexColumn].[column_id] = [Column].[column_id]
+                        ) THEN 1 ELSE 0 END) AS [isPrimaryKey],
+                        CONVERT(BIT, CASE WHEN EXISTS
+                        (
+                            SELECT 1
+                            FROM sys.foreign_key_columns AS [ForeignKeyColumn]
+                            WHERE [ForeignKeyColumn].[parent_object_id] = [Column].[object_id]
+                              AND [ForeignKeyColumn].[parent_column_id] = [Column].[column_id]
+                        ) THEN 1 ELSE 0 END) AS [isForeignKey]
+                    FROM sys.tables AS [Table]
+                    INNER JOIN sys.schemas AS [Schema]
+                        ON [Schema].[schema_id] = [Table].[schema_id]
+                    INNER JOIN sys.columns AS [Column]
+                        ON [Column].[object_id] = [Table].[object_id]
+                    INNER JOIN sys.types AS [Type]
+                        ON [Type].[user_type_id] = [Column].[user_type_id]
+                    LEFT JOIN sys.identity_columns AS [Identity]
+                        ON [Identity].[object_id] = [Column].[object_id]
+                       AND [Identity].[column_id] = [Column].[column_id]
+                    WHERE [Schema].[name] = N'pmt'
+                      AND [Table].[is_ms_shipped] = 0
+                    ORDER BY [Table].[name], [Column].[column_id]
+                    FOR JSON PATH
+                )
+            ) AS [columns],
+            JSON_QUERY
+            (
+                (
+                    SELECT
+                        [ParentSchema].[name] AS [schemaName],
+                        [ParentTable].[name] AS [tableName],
+                        [ForeignKey].[name] AS [foreignKeyName],
+                        [ForeignKeyColumn].[constraint_column_id] AS [columnOrder],
+                        [ParentColumn].[name] AS [columnName],
+                        [ReferencedSchema].[name] AS [referencedSchema],
+                        [ReferencedTable].[name] AS [referencedTable],
+                        [ReferencedColumn].[name] AS [referencedColumn]
+                    FROM sys.foreign_keys AS [ForeignKey]
+                    INNER JOIN sys.foreign_key_columns AS [ForeignKeyColumn]
+                        ON [ForeignKeyColumn].[constraint_object_id] = [ForeignKey].[object_id]
+                    INNER JOIN sys.tables AS [ParentTable]
+                        ON [ParentTable].[object_id] = [ForeignKey].[parent_object_id]
+                    INNER JOIN sys.schemas AS [ParentSchema]
+                        ON [ParentSchema].[schema_id] = [ParentTable].[schema_id]
+                    INNER JOIN sys.columns AS [ParentColumn]
+                        ON [ParentColumn].[object_id] = [ForeignKeyColumn].[parent_object_id]
+                       AND [ParentColumn].[column_id] = [ForeignKeyColumn].[parent_column_id]
+                    INNER JOIN sys.tables AS [ReferencedTable]
+                        ON [ReferencedTable].[object_id] = [ForeignKey].[referenced_object_id]
+                    INNER JOIN sys.schemas AS [ReferencedSchema]
+                        ON [ReferencedSchema].[schema_id] = [ReferencedTable].[schema_id]
+                    INNER JOIN sys.columns AS [ReferencedColumn]
+                        ON [ReferencedColumn].[object_id] = [ForeignKeyColumn].[referenced_object_id]
+                       AND [ReferencedColumn].[column_id] = [ForeignKeyColumn].[referenced_column_id]
+                    WHERE [ParentSchema].[name] = N'pmt'
+                    ORDER BY [ParentTable].[name], [ForeignKey].[name], [ForeignKeyColumn].[constraint_column_id]
+                    FOR JSON PATH
+                )
+            ) AS [foreignKeys]
+        FOR JSON PATH, WITHOUT_ARRAY_WRAPPER
+    );
+END;
+GO
+
 CREATE OR ALTER PROCEDURE [pmt].[SaveUserImageAnnotationTemplateLibrary]
     @LibraryJson NVARCHAR(MAX),
     @CurrentUserId INT
@@ -2810,6 +2908,7 @@ IF OBJECT_ID(N'[pmt].[UserImageAnnotationTemplateLibraries]', N'U') IS NULL
    OR OBJECT_ID(N'[pmt].[ImageAnnotationDefaultTemplateLibraries]', N'U') IS NULL
    OR OBJECT_ID(N'[pmt].[GetUserImageAnnotationTemplateLibrary]', N'P') IS NULL
    OR OBJECT_ID(N'[pmt].[GetImageAnnotationDefaultTemplateLibrary]', N'P') IS NULL
+   OR OBJECT_ID(N'[pmt].[GetPmtDatabaseSchema]', N'P') IS NULL
    OR OBJECT_ID(N'[pmt].[SaveUserImageAnnotationTemplateLibrary]', N'P') IS NULL
    OR (SELECT COUNT(*) FROM [pmt].[ImageAnnotationDefaultTemplateLibraries] WHERE [DefaultLibraryId] = 1) <> 1
    OR (SELECT COUNT(*) FROM OPENJSON((SELECT [LibraryJson] FROM [pmt].[ImageAnnotationDefaultTemplateLibraries] WHERE [DefaultLibraryId] = 1), N'$.templates')) <> 13
@@ -2869,5 +2968,5 @@ END;
 COMMIT TRANSACTION;
 GO
 
-PRINT N'PMT Database Version 1.23 applied: PMTQA was preserved, the PMT demo and shared demo vacations were restored, Development resets were updated, selected-date attendance plus audited attendance removal are available, shared default plus per-user image annotation template libraries are synchronized through SQL, Diagram hierarchy order is persistent, and the public PMT database-schema Diagram is seeded.';
+PRINT N'PMT Database Version 1.23 applied: PMTQA was preserved, the PMT demo and shared demo vacations were restored, Development resets were updated, selected-date attendance plus audited attendance removal are available, shared default plus per-user image annotation template libraries are synchronized through SQL, Diagram hierarchy order is persistent, the public PMT database-schema Diagram is seeded, and live PMT schema metadata is available for Diagram generation.';
 GO

@@ -7,8 +7,8 @@ import { copyTextToClipboard } from "./components/clipboard.js?v=20260714-invite
 import {
   annotationSvgDataUrl,
   openImageAnnotationDialog
-} from "./components/image-annotation.js?v=20260718-diagram-library-v8";
-import { createWhatsNew } from "./components/whats-new.js?v=release-notes-2026-07-18-day-31-59d6c74b8c72";
+} from "./components/image-annotation.js?v=20260719-edit-zoom-schema";
+import { createWhatsNew } from "./components/whats-new.js?v=release-notes-2026-07-19-day-32-9a019dda874c";
 import {
   htmlWithoutUserMentionMarkup,
   initializeUserMentions
@@ -27,13 +27,13 @@ import {
 import {
   field,
   value
-} from "./components/forms.js?v=20260717-day30-image-annotation";
+} from "./components/forms.js?v=20260719-rte-insert-diagram";
 import { configureProgressAndStatus } from "./components/progress-and-status.js?v=20260714-linked-bug-percent";
 import {
   bindAttachmentPreview,
   showTaskAudit,
   viewWorkItem
-} from "./components/work-items.js?v=20260716-dialog-route-close";
+} from "./components/work-items.js?v=20260719-day32-rte-diagram";
 import { createApplicationShell } from "./core/application-shell.js?v=20260718-diagram-library-v8";
 import {
   currentView,
@@ -61,27 +61,27 @@ import {
   createAboutFeature,
   createAboutScreenSaver
 } from "./features/about/about.js?v=20260716-db-v122";
-import { createBacklogFeature } from "./features/backlog/backlog.js?v=release-notes-2026-07-18-day-31-59d6c74b8c72";
-import { createBoardFeature } from "./features/board/board.js?v=release-notes-2026-07-18-day-31-59d6c74b8c72";
-import { createBugsFeature } from "./features/bugs/bugs.js?v=release-notes-2026-07-18-day-31-59d6c74b8c72";
-import { createDashboardFeature } from "./features/dashboard/dashboard.js?v=release-notes-2026-07-18-day-31-59d6c74b8c72";
-import { createDiagramFeature } from "./features/diagram/diagram.js?v=20260718-diagram-library-v9";
-import { createDocumentationFeature } from "./features/documentation/documentation.js?v=20260718-diagram-library-v4";
+import { createBacklogFeature } from "./features/backlog/backlog.js?v=20260719-day32-rte-diagram";
+import { createBoardFeature } from "./features/board/board.js?v=20260719-day32-rte-diagram";
+import { createBugsFeature } from "./features/bugs/bugs.js?v=20260719-day32-rte-diagram";
+import { createDashboardFeature } from "./features/dashboard/dashboard.js?v=release-notes-2026-07-19-day-32-9a019dda874c";
+import { createDiagramFeature } from "./features/diagram/diagram.js?v=20260719-diagram-return-hover";
+import { createDocumentationFeature } from "./features/documentation/documentation.js?v=20260719-day32-rte-diagram";
 import {
   createGanttFeature,
   currentSprintForProject,
   ganttStartDate
-} from "./features/gantt/gantt.js?v=release-notes-2026-07-18-day-31-59d6c74b8c72";
-import { createInvitationsFeature } from "./features/invitations/invitations.js?v=20260715-admin-impersonation";
-import { createProjectsFeature } from "./features/projects/projects.js?v=release-notes-2026-07-18-day-31-59d6c74b8c72";
-import { createReleaseNotesFeature } from "./features/release-notes/release-notes.js?v=release-notes-2026-07-18-day-31-59d6c74b8c72";
-import { createRoadMapFeature } from "./features/roadmap/roadmap.js?v=release-notes-2026-07-18-day-31-59d6c74b8c72";
-import { createLogFeature } from "./features/personal-log/log.js?v=release-notes-2026-07-18-day-31-59d6c74b8c72";
-import { createScrumFeature } from "./features/scrum/scrum.js?v=release-notes-2026-07-18-day-31-59d6c74b8c72";
-import { createSettingsFeature } from "./features/settings/settings.js?v=20260718-diagram-entity-v22";
-import { createSprintsFeature } from "./features/sprints/sprints.js?v=release-notes-2026-07-18-day-31-59d6c74b8c72";
-import { createTasksFeature } from "./features/tasks/tasks.js?v=release-notes-2026-07-18-day-31-59d6c74b8c72";
-import { createWfhScheduleFeature } from "./features/wfh-schedule/wfh-schedule.js?v=release-notes-2026-07-18-day-31-59d6c74b8c72";
+} from "./features/gantt/gantt.js?v=release-notes-2026-07-19-day-32-9a019dda874c";
+import { createInvitationsFeature } from "./features/invitations/invitations.js?v=20260719-day32-rte-diagram";
+import { createProjectsFeature } from "./features/projects/projects.js?v=20260719-day32-rte-diagram";
+import { createReleaseNotesFeature } from "./features/release-notes/release-notes.js?v=release-notes-2026-07-19-day-32-9a019dda874c";
+import { createRoadMapFeature } from "./features/roadmap/roadmap.js?v=release-notes-2026-07-19-day-32-9a019dda874c";
+import { createLogFeature } from "./features/personal-log/log.js?v=20260719-day32-rte-diagram";
+import { createScrumFeature } from "./features/scrum/scrum.js?v=20260719-day32-rte-diagram";
+import { createSettingsFeature } from "./features/settings/settings.js?v=20260719-day32-rte-diagram";
+import { createSprintsFeature } from "./features/sprints/sprints.js?v=20260719-day32-rte-diagram";
+import { createTasksFeature } from "./features/tasks/tasks.js?v=20260719-day32-rte-diagram";
+import { createWfhScheduleFeature } from "./features/wfh-schedule/wfh-schedule.js?v=release-notes-2026-07-19-day-32-9a019dda874c";
 import {
   fallbackEnvironments,
   fallbackForLookup,
@@ -446,6 +446,7 @@ const diagramFeature = createDiagramFeature({
   loadTemplateLibrary: () => api("/api/image-annotation/template-library", { cache: "no-store" }),
   loadDefaultTemplateLibrary: () => api("/api/image-annotation/default-template-library", { cache: "no-store" }),
   saveTemplateLibrary: library => saveJson("/api/image-annotation/template-library", "PUT", library),
+  loadPmtDatabaseSchema: () => api("/api/diagram/pmt-database-schema", { cache: "no-store" }),
   createDiagramDocument: createDiagramBackingDocument,
   saveDiagramDocument: updateDiagramBackingDocument,
   openEditor,
@@ -2028,12 +2029,14 @@ async function annotateRichTextImage(image) {
 
   closeRichTextImageSelection();
   const currentSource = storageUrl(image.getAttribute("src") || richTextImageSource(image));
-  const originalReference = storageUrl(image.dataset.pmtAnnotationSource || currentSource);
   const isAnnotated = image.dataset.pmtAnnotationVersion === "1";
+  const isStoredDiagram = image.dataset.pmtDiagram === "true" || image.dataset.pmtPrivateDiagram === "true";
+  const storedOriginalReference = storageUrl(image.dataset.pmtAnnotationSource || "");
+  const originalReference = isAnnotated ? storedOriginalReference : currentSource;
   try {
     const result = await openImageAnnotationDialog({
       originalReference,
-      originalUrl: appUrl(originalReference),
+      originalUrl: isAnnotated ? "" : appUrl(originalReference),
       annotationUrl: isAnnotated ? appUrl(currentSource) : "",
       originalFileName: image.getAttribute("alt") || originalReference.split("/").pop() || "image",
       askForColor: current => askForText("HEX (#126BFF) or RGB (18, 107, 255)", "Custom Color", current),
@@ -2043,9 +2046,13 @@ async function annotateRichTextImage(image) {
       loadTemplateLibrary: () => api("/api/image-annotation/template-library", { cache: "no-store" }),
       loadDefaultTemplateLibrary: () => api("/api/image-annotation/default-template-library", { cache: "no-store" }),
       saveTemplateLibrary: library => saveJson("/api/image-annotation/template-library", "PUT", library),
+      persistCroppedOriginal: async ({ blob, fileName }) => {
+        const file = new File([blob], fileName, { type: blob.type || "image/png" });
+        const upload = await uploadFile("richtext", file);
+        return storageUrl(upload.url);
+      },
       apply: async annotation => {
         if (!image.isConnected) throw new Error("The rich-text editor is no longer open.");
-        const isStoredDiagram = image.dataset.pmtDiagram === "true" || image.dataset.pmtPrivateDiagram === "true";
         let annotationSource;
         if (isStoredDiagram) {
           annotationSource = annotationSvgDataUrl(annotation.svg);
@@ -2056,7 +2063,8 @@ async function annotateRichTextImage(image) {
         }
         if (!image.isConnected) throw new Error("The rich-text editor is no longer open.");
         image.setAttribute("src", annotationSource);
-        image.dataset.pmtAnnotationSource = annotation.originalReference;
+        if (annotation.originalReference) image.dataset.pmtAnnotationSource = annotation.originalReference;
+        else image.removeAttribute("data-pmt-annotation-source");
         image.dataset.pmtAnnotationVersion = String(annotation.state.version || 1);
         image.classList.add("rich-svg-image", "pmt-annotation-image");
         image.setAttribute("alt", image.getAttribute("alt") || "Annotated image");
@@ -2367,6 +2375,11 @@ function bindRichTextButtons(root) {
         } catch (error) {
           showToast(error.message || "SVG could not be inserted.");
         }
+        return;
+      }
+
+      if (command === "insertDiagram") {
+        await insertRichTextDiagram(editor, savedSelection);
         return;
       }
 
@@ -4086,6 +4099,46 @@ async function insertRichUploadedImage(editor, file) {
   const upload = await uploadFile("richtext", file);
   editor.focus();
   document.execCommand("insertHTML", false, richUploadedImageHtml(upload));
+}
+
+async function insertRichTextDiagram(editor, savedSelection) {
+  let uploadedDiagram = null;
+  try {
+    const result = await openImageAnnotationDialog({
+      canvasWidth: 1600,
+      canvasHeight: 900,
+      originalFileName: "diagram.svg",
+      title: "Diagram",
+      subtitle: "Editable vector diagram",
+      applyLabel: "Insert Diagram",
+      applyingMessage: "Uploading the diagram...",
+      initialSelection: "none",
+      askForColor: current => askForText("HEX (#126BFF) or RGB (18, 107, 255)", "Custom Color", current),
+      askForText,
+      confirm: askYesNo,
+      notify: showToast,
+      loadTemplateLibrary: () => api("/api/image-annotation/template-library", { cache: "no-store" }),
+      loadDefaultTemplateLibrary: () => api("/api/image-annotation/default-template-library", { cache: "no-store" }),
+      saveTemplateLibrary: library => saveJson("/api/image-annotation/template-library", "PUT", library),
+      apply: async annotation => {
+        if (!editor.isConnected) throw new Error("The rich-text editor is no longer open.");
+        const file = new File([annotation.svg], annotation.fileName, { type: "image/svg+xml" });
+        uploadedDiagram = await uploadFile("richtext", file);
+      }
+    });
+    if (!result || !uploadedDiagram || !editor.isConnected) return;
+
+    editor.focus({ preventScroll: true });
+    restoreEditorSelection(savedSelection);
+    document.execCommand("insertHTML", false, richUploadedDiagramHtml(uploadedDiagram, result.state?.version));
+    showToast("Diagram inserted. Save the record to keep it.");
+  } catch (error) {
+    showToast(error.message || "The Diagram could not be inserted.");
+  }
+}
+
+function richUploadedDiagramHtml(upload, version) {
+  return `<img class="rich-svg-image pmt-annotation-image" src="${escapeAttr(appUrl(upload.url))}" alt="Diagram" data-pmt-annotation-version="${escapeAttr(Number(version || 1))}">`;
 }
 
 function richUploadedImageHtml(upload) {

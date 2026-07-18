@@ -1,6 +1,6 @@
 import { buttonContent, iconButton } from "../../components/buttons.js";
 import { askYesNo } from "../../components/dialogs.js";
-import { sectionHead } from "../../components/sections.js?v=release-notes-2026-07-18-day-31-59d6c74b8c72";
+import { sectionHead } from "../../components/sections.js?v=release-notes-2026-07-19-day-32-9a019dda874c";
 import { createWorkItemTableMode } from "../../components/work-items.js?v=20260715-admin-impersonation";
 import { api } from "../../core/api.js";
 import { currentUser } from "../../core/authentication.js?v=20260715-admin-impersonation";

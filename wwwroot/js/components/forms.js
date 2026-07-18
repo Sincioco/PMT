@@ -216,6 +216,7 @@ export function richTextToolsHtml(options = {}) {
             <path d="M19 12h-2a1 1 0 0 0-1 1v2a1 1 0 0 0 1 1h2v-2h-1"></path>
           </svg>
         </button>
+        <button type="button" data-command="insertDiagram" title="Insert Diagram" aria-label="Insert Diagram">Insert Diagram</button>
         <button type="button" data-command="insertHorizontalRule" title="Horizontal Divider" aria-label="Horizontal Divider" class="rich-divider-tool">
           <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
             <path d="M4 12h16"></path>

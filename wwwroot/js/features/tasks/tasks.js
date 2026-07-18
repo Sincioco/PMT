@@ -25,9 +25,9 @@ import {
   selectTextField,
   userCardCheckListLabelHtml,
   value
-} from "../../components/forms.js?v=20260717-day30-image-annotation";
+} from "../../components/forms.js?v=20260719-rte-insert-diagram";
 import { progressHtml, statusColor } from "../../components/progress-and-status.js?v=20260714-linked-bug-percent";
-import { sectionHead } from "../../components/sections.js?v=release-notes-2026-07-18-day-31-59d6c74b8c72";
+import { sectionHead } from "../../components/sections.js?v=release-notes-2026-07-19-day-32-9a019dda874c";
 import {
   attachmentEditorFieldHtml,
   bindAssigneeList,

@@ -207,7 +207,7 @@
   margin: 0 auto;
 }
 
-.diagram-readonly-stage img {
+.diagram-readonly-stage [data-diagram-image] {
   position: absolute;
   top: 0;
   left: 0;
@@ -216,7 +216,24 @@
   max-height: none;
   transform-origin: 0 0;
   background: #ffffff;
+}
+
+.diagram-readonly-stage img[data-diagram-image] {
   pointer-events: none;
+}
+
+.diagram-readonly-svg g:has(> .image-annotation-entity-header-button) > .image-annotation-entity-header-button {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 120ms ease;
+}
+
+.diagram-readonly-svg g:has(> .image-annotation-entity-header-button):hover > .image-annotation-entity-header-button {
+  opacity: 1;
+}
+
+.diagram-readonly-viewer.is-zooming .diagram-readonly-stage [data-diagram-image] {
+  will-change: transform;
 }
 
 @media (max-width: 700px) {

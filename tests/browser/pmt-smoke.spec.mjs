@@ -2412,7 +2412,10 @@ test("Log shares the synchronized idle header and owner-only bulk delete", async
 
 test("Diagram parses T-SQL Entities and exposes individual relationship Objects", async ({ page }) => {
   const appState = createTestState();
-  const apiCalls = { securityReset: 0 };
+  const apiCalls = {
+    securityReset: 0,
+    pmtDatabaseSchema: testPmtDatabaseSchema()
+  };
   await markCurrentReleaseSeen(page, 1);
   await installApiMocks(page, appState, apiCalls);
 
@@ -2468,6 +2471,28 @@ test("Diagram parses T-SQL Entities and exposes individual relationship Objects"
   await firstEntity.hover();
   await expect(firstEntityHeaderButton).toHaveCSS("opacity", "1");
   await expect(canvas.locator(".image-annotation-entity-relationship-path")).toHaveCount(1);
+  const relationshipPath = canvas.locator(".image-annotation-entity-relationship-path").first();
+  await relationshipPath.evaluate(element => { element.dataset.zoomRetentionProbe = "true"; });
+  await dialog.locator("[data-annotation-zoom-select]").selectOption("75");
+  await expect(relationshipPath).toHaveAttribute("data-zoom-retention-probe", "true");
+  const zoomPresentation = await dialog.locator("[data-annotation-canvas-stage]").evaluate(stage => {
+    const zoomCanvas = stage.querySelector("[data-annotation-canvas]");
+    return {
+      stageWidth: Number.parseFloat(stage.style.width),
+      canvasWidth: Number.parseFloat(zoomCanvas.getAttribute("width")),
+      transform: zoomCanvas.style.transform
+    };
+  });
+  expect(zoomPresentation.stageWidth).toBeCloseTo(zoomPresentation.canvasWidth * 0.75, 4);
+  expect(zoomPresentation.transform).toBe("scale(0.75)");
+  await dialog.getByRole("tab", { name: "Entity", exact: true }).click();
+  const generateSchemaButton = dialog.getByRole("button", { name: "Generate PMT Database Schema", exact: true });
+  await expect(generateSchemaButton).toBeVisible();
+  await generateSchemaButton.click();
+  await expect.poll(() => apiCalls.blogCreates?.length || 0).toBe(2);
+  expect(apiCalls.blogCreates[1]).toMatchObject({ title: "PMT's Database Schema", isPrivate: true });
+  expect(apiCalls.blogCreates[1].bodyHtml).toContain('data-pmt-diagram="true"');
+  await expect(dialog.locator("[data-annotation-status]")).toContainText("created as a separate Diagram");
   await dialog.getByRole("tab", { name: "Objects", exact: true }).click();
   const tree = dialog.locator("[data-annotation-object-tree]");
   await expect(tree.locator("[data-annotation-tree-node-type='relationships']"))
@@ -2478,7 +2503,14 @@ test("Diagram parses T-SQL Entities and exposes individual relationship Objects"
   await expect(dialog).toHaveCount(0);
   await expect.poll(() => apiCalls.blogUpdates?.length || 0).toBe(1);
   expect(apiCalls.blogUpdates[0]).toMatchObject({ id: 2, title: "Untitled 1", isPrivate: true });
-  await expect(page.locator(".diagram-tree-preview-image img")).toBeVisible();
+  const readonlyEntity = page.locator("[data-diagram-image].diagram-readonly-svg g:has(> .image-annotation-entity-header-button)").first();
+  const readonlyEntityHeaderButton = readonlyEntity.locator(":scope > .image-annotation-entity-header-button").first();
+  await expect(readonlyEntity).toBeVisible();
+  await expect(readonlyEntityHeaderButton).toHaveCSS("opacity", "0");
+  await readonlyEntity.hover();
+  await expect(readonlyEntityHeaderButton).toHaveCSS("opacity", "1");
+  await page.locator("[data-diagram-fit]").hover();
+  await expect(readonlyEntityHeaderButton).toHaveCSS("opacity", "0");
 
   await page.getByRole("button", { name: "Edit Diagram", exact: true }).click();
   await expect(dialog).toBeVisible();
@@ -2487,11 +2519,76 @@ test("Diagram parses T-SQL Entities and exposes individual relationship Objects"
   await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
 
   await page.getByRole("button", { name: "New Diagram", exact: true }).click();
-  await expect.poll(() => apiCalls.blogCreates?.length || 0).toBe(2);
-  expect(apiCalls.blogCreates[1]).toMatchObject({ title: "Untitled 2", isPrivate: true });
+  await expect.poll(() => apiCalls.blogCreates?.length || 0).toBe(3);
+  expect(apiCalls.blogCreates[2]).toMatchObject({ title: "Untitled 2", isPrivate: true });
   await expect(page.locator(".diagram-tree-pane")).toContainText("Untitled 2");
   await expect(dialog).toBeVisible();
   await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
+});
+
+test("Canceling Diagram edit refits and centers the recreated Treeview preview", async ({ page }) => {
+  const appState = createTestState();
+  const apiCalls = { securityReset: 0 };
+  const annotationState = JSON.stringify({
+    version: 1,
+    width: 1600,
+    height: 900,
+    gridVisible: false,
+    snapToGrid: false,
+    objects: []
+  });
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900" data-pmt-image-annotation-version="1"><metadata data-pmt-image-annotation-state="true">${annotationState}</metadata><rect width="1600" height="900" fill="white"/></svg>`;
+  const source = `data:image/svg+xml;base64,${Buffer.from(svg).toString("base64")}`;
+  appState.blogs.push({
+    id: 2,
+    title: "Cancel Return Fit",
+    bodyHtml: `<p><img src="${source}" alt="Cancel Return Fit" data-pmt-diagram="true" data-pmt-private-diagram="true" data-pmt-annotation-version="1"></p>`,
+    isPrivate: true,
+    createdByUserId: 1,
+    createdAt: "2026-07-19T08:00:00Z",
+    updatedAt: "2026-07-19T08:00:00Z",
+    rowVersion: "row-2-1",
+    attachments: []
+  });
+
+  await page.addInitScript(() => localStorage.setItem("pmt-diagram-view-mode", "tree"));
+  await markCurrentReleaseSeen(page, 1);
+  await installApiMocks(page, appState, apiCalls);
+  await page.goto("/");
+  await page.locator("#loginName").fill("Sin");
+  await page.locator("#loginPassword").fill("Password1");
+  await page.getByRole("button", { name: /log in/i }).click();
+  await openNavView(page, "Diagram", "Diagram");
+
+  await expect(page.locator(".diagram-tree-content h2")).toHaveText("Cancel Return Fit");
+  await page.locator("[data-diagram-zoom]").selectOption("100");
+  await expect(page.locator("[data-diagram-image]")).toHaveCSS("transform", "matrix(1, 0, 0, 1, 0, 0)");
+  await page.getByRole("button", { name: "Edit Diagram", exact: true }).click();
+  const dialog = page.locator("[data-diagram-editor-host] > dialog.image-annotation-dialog");
+  await expect(dialog).toBeVisible();
+  await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
+
+  const returnedViewport = page.locator("[data-diagram-viewport]");
+  await expect(returnedViewport).toBeVisible();
+  await expect.poll(() => returnedViewport.evaluate(viewport => {
+    const image = viewport.querySelector("[data-diagram-image]");
+    if (!image) return { centered: false, fits: false };
+    const viewportBounds = viewport.getBoundingClientRect();
+    const imageBounds = image.getBoundingClientRect();
+    const centerDeltaX = Math.abs(
+      (imageBounds.left + (imageBounds.width / 2))
+      - (viewportBounds.left + (viewportBounds.width / 2))
+    );
+    const centerDeltaY = Math.abs(
+      (imageBounds.top + (imageBounds.height / 2))
+      - (viewportBounds.top + (viewportBounds.height / 2))
+    );
+    return {
+      centered: centerDeltaX < 2 && centerDeltaY < 2,
+      fits: imageBounds.width <= viewportBounds.width
+        && imageBounds.height <= viewportBounds.height
+    };
+  })).toEqual({ centered: true, fits: true });
 });
 
 test("Diagram Card and Tree views show the current user's private and public Diagrams", async ({ page }) => {
@@ -2617,6 +2714,21 @@ test("Diagram Card and Tree views show the current user's private and public Dia
   await expect(page.locator("[data-diagram-zoom]")).toHaveValue(/^(?:10|15|20|25|30|35|40|45|50|55|60|65|70|75|80|85|90|95|100|105|110|115|120|125|130|135|140|145|150|155|160|165|170|175|180|185|190|195|200)$/);
   await page.locator("[data-diagram-zoom]").selectOption("100");
   await expect(page.locator("[data-diagram-image]")).toHaveCSS("transform", "matrix(1, 0, 0, 1, 0, 0)");
+  await virtualViewport.evaluate(element => {
+    const bounds = element.getBoundingClientRect();
+    for (let index = 0; index < 4; index += 1) {
+      element.dispatchEvent(new WheelEvent("wheel", {
+        bubbles: true,
+        cancelable: true,
+        ctrlKey: true,
+        deltaY: -100,
+        clientX: bounds.left + (bounds.width / 2),
+        clientY: bounds.top + (bounds.height / 2)
+      }));
+    }
+  });
+  await expect(page.locator("[data-diagram-zoom]")).toHaveValue("120");
+  await expect(page.locator("[data-diagram-image]")).toHaveCSS("transform", "matrix(1.2, 0, 0, 1.2, 0, 0)");
 
   await page.locator("[data-action='select-diagram-document']", { hasText: "Public Diagram Marker" }).click();
   await expect(page.getByRole("button", { name: "Share public Diagram" })).toBeVisible();
@@ -2711,6 +2823,106 @@ test("draw.io SVG clipboard paste preserves UTF-8 spaces", async ({ page }) => {
   await expect(editor.locator("img.rich-svg-image")).toHaveAttribute("src", /drawio-diagram\.svg$/);
   await expect.poll(() => uploadedRequestBody).toContain(expectedText);
   expect(uploadedRequestBody).not.toContain("\u00c2");
+});
+
+test("RTE Insert Diagram creates a blank editable diagram at the caret", async ({ page }) => {
+  test.setTimeout(120_000);
+  const appState = createTestState();
+  const apiCalls = { securityReset: 0 };
+  let uploadedDiagramSvg = "";
+  let diagramUploadAttempts = 0;
+
+  await markCurrentReleaseSeen(page, 1);
+  await installApiMocks(page, appState, apiCalls);
+  await page.route("**/uploads/richtext/blank-rte-diagram.svg", async route => {
+    await route.fulfill({
+      status: 200,
+      contentType: "image/svg+xml",
+      body: uploadedDiagramSvg
+    });
+  });
+  await page.route("**/api/uploads/richtext", async route => {
+    const requestBody = route.request().postDataBuffer()?.toString("utf8") || "";
+    const start = requestBody.indexOf("<?xml");
+    const end = requestBody.lastIndexOf("</svg>");
+    uploadedDiagramSvg = start >= 0 && end >= start
+      ? requestBody.slice(start, end + "</svg>".length)
+      : requestBody;
+    diagramUploadAttempts += 1;
+    await route.fulfill(jsonResponse({
+      fileName: "blank-rte-diagram.svg",
+      url: "/uploads/richtext/blank-rte-diagram.svg",
+      contentType: "image/svg+xml",
+      byteLength: Buffer.byteLength(uploadedDiagramSvg)
+    }));
+  });
+
+  await page.goto("/");
+  await page.locator("#loginName").fill("Sin");
+  await page.locator("#loginPassword").fill("Password1");
+  await page.getByRole("button", { name: /log in/i }).click();
+  await openNavView(page, "Tasks", "Dev Tasks");
+  await page.locator("tr[data-task-id='1']").click();
+  await page.locator("dialog.detail-dialog").getByRole("button", { name: "Edit" }).click();
+
+  const editor = page.locator("#editorDialog [data-rich='descriptionHtml']");
+  const insertDiagramButton = page.locator("#editorDialog [data-command='insertDiagram']").first();
+  const placeCaret = () => editor.evaluate(element => {
+    element.textContent = "BeforeAfter";
+    const range = document.createRange();
+    range.setStart(element.firstChild, "Before".length);
+    range.collapse(true);
+    const selection = window.getSelection();
+    selection.removeAllRanges();
+    selection.addRange(range);
+    element.focus();
+  });
+
+  await placeCaret();
+  await insertDiagramButton.click();
+  let diagramDialog = page.locator("dialog.image-annotation-dialog");
+  await expect(diagramDialog).toBeVisible();
+  await expect(diagramDialog.locator("[data-annotation-canvas] [data-annotation-object-type='embedded-image']")).toHaveCount(0);
+  await diagramDialog.getByRole("button", { name: "Cancel", exact: true }).click();
+  await expect(diagramDialog).toHaveCount(0);
+  await expect(editor.locator("img")).toHaveCount(0);
+  expect(diagramUploadAttempts).toBe(0);
+
+  await placeCaret();
+  await insertDiagramButton.click();
+  diagramDialog = page.locator("dialog.image-annotation-dialog");
+  await expect(diagramDialog).toBeVisible();
+  await diagramDialog.getByRole("button", { name: "Rectangle (R)", exact: true }).click();
+  await expect(diagramDialog.locator("[data-annotation-canvas] [data-annotation-object-type='rectangle']")).toHaveCount(1);
+  await diagramDialog.getByRole("button", { name: "Insert Diagram", exact: true }).click();
+  await expect(diagramDialog).toHaveCount(0);
+  expect(diagramUploadAttempts).toBe(1);
+  expect(uploadedDiagramSvg).toContain("data-pmt-image-annotation-state=\"true\"");
+  expect(uploadedDiagramSvg).toContain('"type":"rectangle"');
+  expect(uploadedDiagramSvg).not.toContain('"type":"embedded-image"');
+  expect(uploadedDiagramSvg).not.toContain("Original Image");
+
+  const insertedDiagram = editor.locator("img.pmt-annotation-image");
+  await expect(insertedDiagram).toHaveCount(1);
+  await expect(insertedDiagram).toHaveAttribute("src", /blank-rte-diagram\.svg$/);
+  await expect(insertedDiagram).toHaveAttribute("data-pmt-annotation-version", "1");
+  await expect(insertedDiagram).not.toHaveAttribute("data-pmt-annotation-source", /.+/);
+  const editorHtml = await editor.innerHTML();
+  expect(editorHtml.indexOf("Before")).toBeLessThan(editorHtml.indexOf("<img"));
+  expect(editorHtml.indexOf("<img")).toBeLessThan(editorHtml.indexOf("After"));
+
+  await insertedDiagram.evaluate(element => element.decode());
+  await insertedDiagram.evaluate(element => {
+    element.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+  });
+  const editAnnotationMenuItem = page.getByRole("menuitem", { name: "Edit Annotation", exact: true });
+  await expect(editAnnotationMenuItem).toBeVisible();
+  await editAnnotationMenuItem.click();
+  const reopenedDialog = page.locator("dialog.image-annotation-dialog");
+  await expect(reopenedDialog).toBeVisible();
+  await expect(reopenedDialog.locator("[data-annotation-canvas] [data-annotation-object-type='rectangle']")).toHaveCount(1);
+  await expect(reopenedDialog.locator("[data-annotation-canvas] [data-annotation-object-type='embedded-image']")).toHaveCount(0);
+  await reopenedDialog.getByRole("button", { name: "Cancel", exact: true }).click();
 });
 
 test("RTE image annotation creates, crops, groups, locks, undoes, and reopens editable SVG", async ({ page, context, baseURL }) => {
@@ -3010,8 +3222,11 @@ test("RTE image annotation creates, crops, groups, locks, undoes, and reopens ed
   expect(selectionChrome.outlineWidth).toBeLessThanOrEqual(1);
   expect(selectionChrome.outlineOpacity).toBeLessThanOrEqual(0.72);
 
-  const imageObject = canvas.locator("[data-annotation-object-id]").first();
-  const imageClipRect = canvas.locator("#pmt-annotation-image-clip rect");
+  const imageObject = canvas.locator("[data-annotation-object-type='embedded-image']");
+  const imageClipPath = canvas.locator("clipPath[id^='pmt-annotation-image-clip-']");
+  const imageClipRect = imageClipPath.locator("rect");
+  await expect(imageObject).toHaveAttribute("data-annotation-object-id", /^embedded-image-/);
+  await expect(imageClipPath).toHaveCount(0);
   await openAnnotationContextMenu(imageObject);
   expect(await annotationContextMenu.locator(":scope > *").evaluateAll(items => items.map(item =>
     item.getAttribute("role") === "separator"
@@ -3033,26 +3248,26 @@ test("RTE image annotation creates, crops, groups, locks, undoes, and reopens ed
     "Copy as Image"
   ]);
   await expect(annotationContextMenu.getByRole("menuitem", { name: "Crop", exact: true })).toBeEnabled();
-  await expect(annotationContextMenu.getByRole("menuitem", { name: "To Front", exact: true })).toBeDisabled();
-  await expect(annotationContextMenu.getByRole("menuitem", { name: "To Back", exact: true })).toBeDisabled();
-  await expect(annotationContextMenu.getByRole("menuitem", { name: "Forward", exact: true })).toBeDisabled();
-  await expect(annotationContextMenu.getByRole("menuitem", { name: "Backward", exact: true })).toBeDisabled();
+  await expect(annotationContextMenu.getByRole("menuitem", { name: "To Front", exact: true })).toBeEnabled();
+  await expect(annotationContextMenu.getByRole("menuitem", { name: "To Back", exact: true })).toBeEnabled();
+  await expect(annotationContextMenu.getByRole("menuitem", { name: "Forward", exact: true })).toBeEnabled();
+  await expect(annotationContextMenu.getByRole("menuitem", { name: "Backward", exact: true })).toBeEnabled();
   await expect(annotationContextMenu.getByRole("menuitem", { name: "Group", exact: true })).toBeDisabled();
   await expect(annotationContextMenu.getByRole("menuitem", { name: "Ungroup", exact: true })).toBeDisabled();
   await expect(annotationContextMenu.getByRole("menuitem", { name: "Reset Crop", exact: true })).toBeDisabled();
   await expect(annotationContextMenu.getByRole("menuitem", { name: "Lock selected objects", exact: true })).toBeEnabled();
   await page.keyboard.press("Escape");
   await expect(annotationContextMenu).toBeHidden();
-  await expect(dialog.locator("[data-annotation-selection-label]")).toHaveText("Original image");
+  await expect(dialog.locator("[data-annotation-selection-label]")).toHaveText("Original Image");
   await expect(imageObject).toBeFocused();
   await page.keyboard.press("Shift+F10");
   await expect(annotationContextMenu).toBeVisible();
   const cropContextMenuItem = annotationContextMenu.getByRole("menuitem", { name: "Crop", exact: true });
-  const lockContextMenuItem = annotationContextMenu.getByRole("menuitem", { name: "Lock selected objects", exact: true });
+  const toFrontContextMenuItem = annotationContextMenu.getByRole("menuitem", { name: "To Front", exact: true });
   const copyImageContextMenuItem = annotationContextMenu.getByRole("menuitem", { name: "Copy as Image", exact: true });
   await expect(cropContextMenuItem).toBeFocused();
   await page.keyboard.press("ArrowDown");
-  await expect(lockContextMenuItem).toBeFocused();
+  await expect(toFrontContextMenuItem).toBeFocused();
   await page.keyboard.press("ArrowUp");
   await expect(cropContextMenuItem).toBeFocused();
   await page.keyboard.press("End");
@@ -3061,24 +3276,20 @@ test("RTE image annotation creates, crops, groups, locks, undoes, and reopens ed
   await expect(cropContextMenuItem).toBeFocused();
   await page.keyboard.press("Escape");
   await expect(annotationContextMenu).toBeHidden();
-  await expect(dialog.locator("[data-annotation-selection-label]")).toHaveText("Original image");
+  await expect(dialog.locator("[data-annotation-selection-label]")).toHaveText("Original Image");
   await expect(imageObject).toBeFocused();
   await openAnnotationContextMenu(imageObject);
   await dialog.getByRole("tab", { name: "Format", exact: true }).click();
   await expect(annotationContextMenu).toBeHidden();
-  await expect(dialog.locator("[data-annotation-selection-label]")).toHaveText("Original image");
+  await expect(dialog.locator("[data-annotation-selection-label]")).toHaveText("Original Image");
   await dragCanvas(400, 225, 520, 285);
   await expect(imageObject).toHaveAttribute("x", "120");
   await expect(imageObject).toHaveAttribute("y", "60");
-  await expect(imageClipRect).toHaveAttribute("x", "120");
-  await expect(imageClipRect).toHaveAttribute("y", "60");
-  await expect(imageClipRect).toHaveAttribute("width", "800");
-  await expect(imageClipRect).toHaveAttribute("height", "450");
+  await expect(imageClipPath).toHaveCount(0);
   await dragCanvas(520, 285, 400, 225);
   await expect(imageObject).toHaveAttribute("x", "0");
   await expect(imageObject).toHaveAttribute("y", "0");
-  await expect(imageClipRect).toHaveAttribute("x", "0");
-  await expect(imageClipRect).toHaveAttribute("y", "0");
+  await expect(imageClipPath).toHaveCount(0);
 
   await dialog.getByRole("button", { name: "Rectangle (R)" }).click();
   await expect(canvas.locator("[data-annotation-object-id]")).toHaveCount(2);
@@ -3257,7 +3468,7 @@ test("RTE image annotation creates, crops, groups, locks, undoes, and reopens ed
   const arrowBeforeHitTesting = await readArrowGeometry(primaryArrow);
   const arrowBlankBoxPoint = await canvasClientPoint(530, 160);
   await page.mouse.click(arrowBlankBoxPoint.x, arrowBlankBoxPoint.y);
-  await expect(dialog.locator("[data-annotation-selection-label]")).toHaveText("Original image");
+  await expect(dialog.locator("[data-annotation-selection-label]")).toHaveText("Original Image");
   const arrowDeltaX = arrowBeforeHitTesting.shaftEnd.x - arrowBeforeHitTesting.base.x;
   const arrowDeltaY = arrowBeforeHitTesting.shaftEnd.y - arrowBeforeHitTesting.base.y;
   const arrowShaftLength = Math.hypot(arrowDeltaX, arrowDeltaY);
@@ -3277,7 +3488,7 @@ test("RTE image annotation creates, crops, groups, locks, undoes, and reopens ed
   await page.mouse.click(arrowShaftPoint.x, arrowShaftPoint.y);
   await expect(dialog.locator("[data-annotation-selection-label]")).toHaveText("Arrow");
   await page.mouse.click(arrowBlankBoxPoint.x, arrowBlankBoxPoint.y);
-  await expect(dialog.locator("[data-annotation-selection-label]")).toHaveText("Original image");
+  await expect(dialog.locator("[data-annotation-selection-label]")).toHaveText("Original Image");
   const arrowHeadPoint = await canvasClientPoint(
     arrowBeforeHitTesting.headCenter.x,
     arrowBeforeHitTesting.headCenter.y
@@ -3468,8 +3679,8 @@ test("RTE image annotation creates, crops, groups, locks, undoes, and reopens ed
 
   await openAnnotationContextMenu(textObject);
   await annotationContextMenu.getByRole("menuitem", { name: "To Back", exact: true }).click();
-  await expect(annotationObjects.nth(0)).toHaveAttribute("data-annotation-object-id", /^image-/);
-  await expect(annotationObjects.nth(1)).toHaveAttribute("data-annotation-object-id", /^textbox-/);
+  await expect(annotationObjects.nth(0)).toHaveAttribute("data-annotation-object-id", /^textbox-/);
+  await expect(annotationObjects.nth(1)).toHaveAttribute("data-annotation-object-id", /^embedded-image-/);
   await openAnnotationContextMenu(textObject);
   await annotationContextMenu.getByRole("menuitem", { name: "To Front", exact: true }).click();
   await expect(annotationObjects.last()).toHaveAttribute("data-annotation-object-id", /^textbox-/);
@@ -3691,8 +3902,7 @@ test("RTE image annotation creates, crops, groups, locks, undoes, and reopens ed
   await expect.poll(() => annotationObjects.evaluateAll(objects => objects.map(object => object.getAttribute("data-annotation-object-id"))))
     .toEqual(lockedOrder);
 
-  await expect(imageClipRect).toHaveAttribute("width", "800");
-  await expect(imageClipRect).toHaveAttribute("height", "450");
+  await expect(imageClipPath).toHaveCount(0);
   await openAnnotationContextMenu(imageObject);
   await annotationContextMenu.getByRole("menuitem", { name: "Crop", exact: true }).click();
   await expect(workspace).toHaveCSS("cursor", "crosshair");
@@ -3704,6 +3914,7 @@ test("RTE image annotation creates, crops, groups, locks, undoes, and reopens ed
   const cropPreview = canvas.locator(".image-annotation-crop-outline.image-annotation-marquee");
   await expect(cropPreview).toHaveCount(1);
   await page.mouse.up();
+  await expect(imageClipPath).toHaveCount(1);
   await expect(imageClipRect).toHaveAttribute("x", "40");
   await expect(imageClipRect).toHaveAttribute("y", "40");
   await expect(imageClipRect).toHaveAttribute("width", "720");
@@ -3711,10 +3922,8 @@ test("RTE image annotation creates, crops, groups, locks, undoes, and reopens ed
   await openAnnotationContextMenu(imageObject);
   await expect(annotationContextMenu.getByRole("menuitem", { name: "Reset Crop", exact: true })).toBeEnabled();
   await annotationContextMenu.getByRole("menuitem", { name: "Reset Crop", exact: true }).click();
-  await expect(imageClipRect).toHaveAttribute("x", "0");
-  await expect(imageClipRect).toHaveAttribute("y", "0");
-  await expect(imageClipRect).toHaveAttribute("width", "800");
-  await expect(imageClipRect).toHaveAttribute("height", "450");
+  await expect(imageClipPath).toHaveCount(0);
+  await expect(imageObject).not.toHaveAttribute("clip-path", /.+/);
 
   await openAnnotationContextMenu(imageObject);
   await annotationContextMenu.getByRole("menuitem", { name: "Crop", exact: true }).click();
@@ -3725,9 +3934,56 @@ test("RTE image annotation creates, crops, groups, locks, undoes, and reopens ed
   await expect(imageClipRect).toHaveAttribute("width", "680");
   await expect(imageClipRect).toHaveAttribute("height", "360");
 
+  await openAnnotationContextMenu(imageObject);
+  await annotationContextMenu.getByRole("menuitem", { name: "Crop", exact: true }).click();
+  const cropOptionsDialog = page.locator("dialog.image-annotation-crop-options-dialog");
+  await expect(cropOptionsDialog.getByRole("heading", { name: "Crop Options", exact: true })).toBeVisible();
+  await cropOptionsDialog.getByRole("button", { name: "Remove Crop", exact: true }).click();
+  await expect(imageClipPath).toHaveCount(0);
+  await expect(imageObject).not.toHaveAttribute("clip-path", /.+/);
+
+  await openAnnotationContextMenu(imageObject);
+  await annotationContextMenu.getByRole("menuitem", { name: "Crop", exact: true }).click();
+  await expect(workspace).toHaveCSS("cursor", "crosshair");
+  await dragCanvas(60, 40, 740, 400);
+  await expect(imageClipPath).toHaveCount(1);
+  await expect(imageClipRect).toHaveAttribute("x", "60");
+  await expect(imageClipRect).toHaveAttribute("y", "40");
+  await expect(imageClipRect).toHaveAttribute("width", "680");
+  await expect(imageClipRect).toHaveAttribute("height", "360");
+
+  await dialog.getByRole("tab", { name: "Objects", exact: true }).click();
+  const croppedImageRow = dialog.locator("[data-annotation-object-tree] [data-annotation-tree-node-type='object'][data-annotation-tree-cropped='true']");
+  await expect(croppedImageRow).toHaveCount(1);
+  await expect(croppedImageRow.getByText("Cropped", { exact: true })).toBeVisible();
+  const cropVisibilityToggle = croppedImageRow.locator("[data-annotation-tree-node-action='crop-toggle']");
+  await expect(cropVisibilityToggle).toHaveAccessibleName("Turn crop off for Original Image");
+  await cropVisibilityToggle.click();
+  await expect(imageClipPath).toHaveCount(0);
+  await expect(imageObject).not.toHaveAttribute("clip-path", /.+/);
+  await expect(cropVisibilityToggle).toHaveAccessibleName("Turn crop on for Original Image");
+  await cropVisibilityToggle.click();
+  await expect(imageClipPath).toHaveCount(1);
+  await expect(imageClipRect).toHaveAttribute("x", "60");
+  await expect(imageClipRect).toHaveAttribute("y", "40");
+  await expect(imageClipRect).toHaveAttribute("width", "680");
+  await expect(imageClipRect).toHaveAttribute("height", "360");
+
+  await openAnnotationContextMenu(imageObject);
+  await annotationContextMenu.getByRole("menuitem", { name: "Crop", exact: true }).click();
+  await expect(cropOptionsDialog.getByRole("heading", { name: "Crop Options", exact: true })).toBeVisible();
+  await expect(cropOptionsDialog.getByRole("button", { name: "Remove Crop", exact: true })).toBeVisible();
+  await cropOptionsDialog.getByRole("button", { name: "Apply Crop Permanently", exact: true }).click();
+  const permanentCropWarning = page.locator("dialog.image-annotation-crop-options-dialog");
+  await expect(permanentCropWarning.getByRole("heading", { name: "Apply Crop Permanently?", exact: true })).toBeVisible();
+  await expect(permanentCropWarning).toContainText("This action is irreversible.");
+  await permanentCropWarning.getByRole("button", { name: "Cancel", exact: true }).click();
+  await expect(imageClipRect).toHaveAttribute("x", "60");
+  await expect(imageClipRect).toHaveAttribute("y", "40");
+
   const croppedImageSelectionPoint = await canvasClientPoint(700, 380);
   await page.mouse.click(croppedImageSelectionPoint.x, croppedImageSelectionPoint.y);
-  await expect(dialog.locator("[data-annotation-selection-label]")).toHaveText("Original image");
+  await expect(dialog.locator("[data-annotation-selection-label]")).toHaveText("Original Image");
   await dragCanvas(740, 400, 840, 460);
   await expect.poll(() => imageObject.getAttribute("width").then(Number)).toBeGreaterThan(800);
   await expect(imageObject).toHaveAttribute("height", "525");
@@ -3770,7 +4026,7 @@ test("RTE image annotation creates, crops, groups, locks, undoes, and reopens ed
   await expect(imageClipRect).toHaveAttribute("x", movedCroppedClip.x);
   await expect(imageClipRect).toHaveAttribute("y", movedCroppedClip.y);
   const movedImageSelectionPoint = await canvas.evaluate((element, imageId) => {
-    const clip = element.querySelector("#pmt-annotation-image-clip rect");
+    const clip = element.querySelector("clipPath[id^='pmt-annotation-image-clip-'] rect");
     const x = Number(clip?.getAttribute("x"));
     const y = Number(clip?.getAttribute("y"));
     const width = Number(clip?.getAttribute("width"));
@@ -3794,7 +4050,7 @@ test("RTE image annotation creates, crops, groups, locks, undoes, and reopens ed
   }, await imageObject.getAttribute("data-annotation-object-id"));
   expect(movedImageSelectionPoint).not.toBeNull();
   await page.mouse.click(movedImageSelectionPoint.x, movedImageSelectionPoint.y);
-  await expect(dialog.locator("[data-annotation-selection-label]")).toHaveText("Original image");
+  await expect(dialog.locator("[data-annotation-selection-label]")).toHaveText("Original Image");
   const movedImageX = Number(await imageObject.getAttribute("x"));
   await page.keyboard.press("ArrowRight");
   await expect.poll(() => imageObject.getAttribute("x").then(Number)).toBeCloseTo(movedImageX + 20, 2);
@@ -3847,7 +4103,7 @@ test("RTE image annotation creates, crops, groups, locks, undoes, and reopens ed
 
   const imageGroupSelectionPoint = await canvasClientPoint(900, 500);
   await page.mouse.click(imageGroupSelectionPoint.x, imageGroupSelectionPoint.y);
-  await expect(dialog.locator("[data-annotation-selection-label]")).toHaveText("Original image");
+  await expect(dialog.locator("[data-annotation-selection-label]")).toHaveText("Original Image");
   await outsideRectangle.click({ modifiers: ["Shift"] });
   await expect(dialog.locator("[data-annotation-selection-label]")).toHaveText("2 objects selected");
   await openAnnotationContextMenu(outsideRectangle);
@@ -3882,7 +4138,7 @@ test("RTE image annotation creates, crops, groups, locks, undoes, and reopens ed
   expect(uploadedSvg).toContain(recentTextColor);
   expect(uploadedSvg).toContain('text-anchor="middle"');
   expect(uploadedSvg).toContain('"textVerticalAlign":"bottom"');
-  expect(uploadedSvg).toContain('clipPath id="pmt-annotation-image-clip"');
+  expect(uploadedSvg).toContain('clipPath id="pmt-annotation-image-clip-embedded-image-');
   expect(uploadedSvg).toContain("data-pmt-annotation-group=");
   expect(uploadedSvg).toContain("data-pmt-annotation-locked=\"true\"");
   expect(uploadedSvg).not.toContain("<script");
@@ -3920,14 +4176,14 @@ test("RTE image annotation creates, crops, groups, locks, undoes, and reopens ed
   await expect(reopenedDialog.locator("[data-annotation-selection-label]")).toHaveText("2 objects selected");
   await expect(reopenedCanvas.locator(".image-annotation-group-member-guide")).toHaveCount(2);
   await expect(reopenedCanvas.locator("[data-annotation-handle]")).toHaveCount(8);
-  const reopenedClip = reopenedCanvas.locator("#pmt-annotation-image-clip rect");
+  const reopenedClip = reopenedCanvas.locator("clipPath[id^='pmt-annotation-image-clip-'] rect");
   await expect(reopenedClip).toHaveAttribute("x", movedCroppedClip.x);
   await expect(reopenedClip).toHaveAttribute("y", movedCroppedClip.y);
   await expect(reopenedClip).toHaveAttribute("width", movedCroppedClip.width);
   await expect(reopenedClip).toHaveAttribute("height", movedCroppedClip.height);
   const reopenedViewBox = (await reopenedCanvas.getAttribute("viewBox")).split(/\s+/).map(Number);
   expect(reopenedViewBox[2]).toBeGreaterThan(exportedViewBox[2] * 3);
-  const reopenedImageObject = reopenedCanvas.locator("[data-annotation-object-type='image']");
+  const reopenedImageObject = reopenedCanvas.locator("[data-annotation-object-type='embedded-image']");
   await expect(reopenedImageObject).toHaveAttribute("data-pmt-annotation-group", imageGroupId);
   const reopenedImageGroupMembers = reopenedCanvas.locator(`[data-pmt-annotation-group='${imageGroupId}']`);
   await expect(reopenedImageGroupMembers).toHaveCount(2);
@@ -5096,6 +5352,45 @@ test.describe("local timestamp display", () => {
   });
 });
 
+function testPmtDatabaseSchema() {
+  const column = (tableName, columnName, options = {}) => ({
+    schemaName: "pmt",
+    tableName,
+    columnOrder: options.columnOrder || 1,
+    columnName,
+    typeName: options.typeName || "int",
+    maxLength: options.maxLength ?? 4,
+    precision: options.precision ?? 10,
+    scale: options.scale ?? 0,
+    nullable: options.nullable === true,
+    isIdentity: options.identity === true,
+    identitySeed: options.identity ? "1" : null,
+    identityIncrement: options.identity ? "1" : null,
+    isPrimaryKey: options.primaryKey === true,
+    isForeignKey: options.foreignKey === true
+  });
+  return {
+    version: 1,
+    columns: [
+      column("Projects", "ProjectId", { primaryKey: true, identity: true }),
+      column("Projects", "Title", { columnOrder: 2, typeName: "nvarchar", maxLength: 440 }),
+      column("WorkTasks", "TaskId", { primaryKey: true, identity: true }),
+      column("WorkTasks", "ProjectId", { columnOrder: 2, foreignKey: true }),
+      column("WorkTasks", "Title", { columnOrder: 3, typeName: "nvarchar", maxLength: 440 })
+    ],
+    foreignKeys: [{
+      schemaName: "pmt",
+      tableName: "WorkTasks",
+      foreignKeyName: "FK_pmt_WorkTasks_Project",
+      columnOrder: 1,
+      columnName: "ProjectId",
+      referencedSchema: "pmt",
+      referencedTable: "Projects",
+      referencedColumn: "ProjectId"
+    }]
+  };
+}
+
 async function installApiMocks(page, appState, apiCalls) {
   let wfhSchedule = createWfhScheduleRows(appState.users);
   const attendanceEntries = appState.attendanceEntries || [];
@@ -5139,6 +5434,14 @@ async function installApiMocks(page, appState, apiCalls) {
   await page.route("**/api/image-annotation/default-template-library", async route => {
     const emptyLibrary = { version: 1, templates: [], defaults: { arrow: null, rectangle: null } };
     await route.fulfill(jsonResponse(apiCalls.annotationDefaultTemplateLibrary || emptyLibrary));
+  });
+
+  await page.route("**/api/diagram/pmt-database-schema", async route => {
+    await route.fulfill(jsonResponse(apiCalls.pmtDatabaseSchema || {
+      version: 1,
+      columns: [],
+      foreignKeys: []
+    }));
   });
 
   await page.route("**/api/login", async route => {

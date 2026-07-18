@@ -251,6 +251,8 @@
 }
 
 .image-annotation-canvas {
+  position: absolute;
+  inset: 0 auto auto 0;
   display: block;
   max-width: none;
   overflow: visible;
@@ -258,6 +260,13 @@
   box-shadow: var(--shadow-elevated);
   color: var(--color-chart-gridline);
   user-select: none;
+  transform-origin: top left;
+  will-change: transform;
+}
+
+.image-annotation-canvas-stage {
+  position: relative;
+  flex: 0 0 auto;
 }
 
 .image-annotation-object {
@@ -555,6 +564,11 @@
   max-height: 360px;
   gap: 2px;
   overflow-y: auto;
+}
+
+.image-annotation-generate-pmt-schema {
+  width: 100%;
+  margin-top: var(--space-3);
 }
 
 .image-annotation-entity-field-columns,
@@ -907,6 +921,24 @@
   white-space: nowrap;
 }
 
+.image-annotation-object-tree-crop-status {
+  flex: 0 0 auto;
+  padding: 1px var(--space-2);
+  border: var(--border-width) solid var(--color-primary);
+  border-radius: var(--radius-pill);
+  background: var(--color-control-selected);
+  color: var(--color-primary);
+  font-size: 10px;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+.image-annotation-object-tree-crop-status.is-permanent {
+  border-color: var(--color-danger-border);
+  background: var(--color-danger-surface);
+  color: var(--color-danger-text);
+}
+
 .image-annotation-object-tree-row[data-annotation-tree-kind="group"] .image-annotation-object-tree-label,
 .image-annotation-object-tree-row[data-annotation-tree-node-type="group"] .image-annotation-object-tree-label {
   font-weight: var(--font-weight-medium);
@@ -930,6 +962,42 @@
   color: var(--color-text-tertiary);
   font-size: var(--font-size-sm);
   line-height: 1;
+}
+
+.image-annotation-object-tree-crop-toggle {
+  position: relative;
+  display: inline-grid;
+  flex: 0 0 24px;
+  min-width: 24px;
+  min-height: 24px;
+  padding: 0;
+  place-items: center;
+  border-color: var(--color-primary);
+  background: var(--color-control-selected);
+  color: var(--color-primary);
+  font-size: var(--font-size-sm);
+  line-height: 1;
+}
+
+.image-annotation-object-tree-crop-toggle:hover,
+.image-annotation-object-tree-crop-toggle:focus-visible {
+  border-color: var(--color-primary);
+  color: var(--color-text-primary);
+}
+
+.image-annotation-object-tree-crop-toggle.is-disabled {
+  border-color: var(--color-border-control);
+  background: transparent;
+  color: var(--color-text-tertiary);
+}
+
+.image-annotation-object-tree-crop-toggle.is-disabled::after {
+  content: "";
+  position: absolute;
+  width: 16px;
+  border-top: 2px solid currentcolor;
+  transform: rotate(-45deg);
+  pointer-events: none;
 }
 
 .image-annotation-object-tree-visibility:hover,
@@ -985,6 +1053,14 @@
   color: var(--color-text-tertiary);
   font-size: var(--font-size-sm);
   text-align: center;
+}
+
+.image-annotation-crop-warning {
+  padding: var(--space-3) var(--space-4);
+  border: var(--border-width) solid var(--color-danger-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-danger-surface);
+  color: var(--color-danger-text);
 }
 
 .image-annotation-actions {

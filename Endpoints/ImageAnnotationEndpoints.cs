@@ -29,6 +29,14 @@ internal static class ImageAnnotationEndpoints
             return Results.Content(libraryJson, "application/json", Encoding.UTF8);
         });
 
+        app.MapGet("/api/diagram/pmt-database-schema", async (HttpContext context, SqlPmtStore store, CancellationToken cancellationToken) =>
+        {
+            var currentUserId = ExplicitCurrentUserId(context);
+            await store.RequirePermissionAsync(currentUserId, "Documentation", "Create", cancellationToken);
+            var schemaJson = await store.GetPmtDatabaseSchemaAsync(cancellationToken);
+            return Results.Content(schemaJson, "application/json", Encoding.UTF8);
+        });
+
         app.MapPut("/api/image-annotation/template-library", async (JsonElement library, HttpContext context, SqlPmtStore store, CancellationToken cancellationToken) =>
         {
             var libraryJson = ValidateLibrary(library);

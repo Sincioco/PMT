@@ -10,7 +10,7 @@ import {
   annotationArrowGeometry,
   annotationEntityRelationshipsSvg,
   annotationEntityVisibleFields,
-  annotationExpandedWorkspaceBounds,
+  annotationImageHasReversibleCrop,
   annotationObjectsIntersectingRect,
   annotationOutputBounds,
   annotationSelectionIdsForObject,
@@ -27,6 +27,7 @@ import {
   fitAnnotationArrowToHead,
   formatAnnotationEntityIdentifier,
   instantiateAnnotationTemplate,
+  moveAnnotationObjects,
   moveAnnotationLayers,
   normalizeAnnotationState,
   normalizeAnnotationTemplateLibrary,
@@ -34,6 +35,7 @@ import {
   parseAnnotationEntityDefinition,
   parseAnnotationTemplateUpload,
   parseAnnotationSvg,
+  permanentlyCropAnnotationImage,
   reorderAnnotationEntityFields,
   reorderAnnotationObjectTree,
   restoreAnnotationDefaultTemplates,
@@ -43,11 +45,14 @@ import {
   setAnnotationEntityCollapsedState,
   setAnnotationEntityDataTypeVisibility,
   setAnnotationEntityFieldForeignKeyMapping,
+  setAnnotationImageCropVisibility,
   snapAnnotationCropPoint,
   snapAnnotationValue,
   wrapAnnotationText,
   zoomAnnotationAtPoint
 } from "../../wwwroot/js/components/image-annotation.js";
+
+const sampleImageDataUrl = "data:image/png;base64,AAECAwQ=";
 
 const workTasksCreateTableSql = String.raw`
 CREATE TABLE [pmt].[WorkTasks]
@@ -171,7 +176,6 @@ function entityRelationshipState(style = {}) {
   return normalizeAnnotationState({
     width: 1500,
     height: 1000,
-    includeOriginalImage: false,
     relationshipStyle: {
       stroke: "#d946ef",
       strokeWidth: 7,
@@ -698,7 +702,6 @@ test("data type visibility compacts from the left while keeping the upper-right 
   const restored = parseAnnotationSvg(buildAnnotationSvg({
     width: 1200,
     height: 900,
-    includeOriginalImage: false,
     objects: [blogs]
   }, "")).objects[0];
   assert.equal(restored.x + restored.width, right);
@@ -817,7 +820,6 @@ test("self-referencing Entity relationships use a visible loop and remain in sel
   const hiddenBounds = annotationOutputBounds({
     width: 1200,
     height: 1000,
-    includeOriginalImage: false,
     objects: [workTasks]
   });
   assert.equal(hiddenBounds.x, 0);
@@ -833,7 +835,6 @@ test("self-referencing Entity relationships use a visible loop and remain in sel
   const state = {
     width: 1200,
     height: 1000,
-    includeOriginalImage: false,
     objects: [workTasks]
   };
   const bounds = annotationOutputBounds(state);
@@ -1101,7 +1102,6 @@ test("annotation output and copied-selection bounds include cardinality markers 
     const state = normalizeAnnotationState({
       width: 1200,
       height: 800,
-      includeOriginalImage: true,
       relationshipStyle,
       objects
     });
@@ -1286,7 +1286,6 @@ test("Objects tree and live SVG expose one fixed selectable Entity Relationships
   const workTasksOnly = normalizeAnnotationState({
     width: 1000,
     height: 800,
-    includeOriginalImage: false,
     objects: [state.objects.find(object => object.id === "work-tasks")]
   });
   assert.equal(buildAnnotationObjectTree(workTasksOnly)
@@ -1505,7 +1504,6 @@ test("manual field flags, collapsed state, and FK cardinality survive editable S
   const svg = buildAnnotationSvg({
     width: 1500,
     height: 1100,
-    includeOriginalImage: false,
     objects: [workTasks, blogs]
   }, "");
   assert.match(svg, /data-pmt-relationship-type="one-to-many"/);
@@ -1552,13 +1550,11 @@ test("diagram canvas persists a white background without an Original Image objec
   const state = normalizeAnnotationState({
     width: 1600,
     height: 900,
-    includeOriginalImage: false,
     objects: []
   });
 
-  assert.equal(state.includeOriginalImage, false);
-  assert.equal(state.objects.some(object => object.type === "image"), false);
-  assert.deepEqual(state.imageClip, { x: 0, y: 0, width: 1600, height: 900 });
+  assert.equal(state.objects.some(object => object.type === "embedded-image"), false);
+  assert.deepEqual(state.canvasBounds, { x: 0, y: 0, width: 1600, height: 900 });
   assert.deepEqual(annotationOutputBounds(state), { x: 0, y: 0, width: 1600, height: 900 });
 
   const svg = buildAnnotationSvg(state, "data:image/svg+xml;charset=utf-8,test");
@@ -1566,16 +1562,44 @@ test("diagram canvas persists a white background without an Original Image objec
   assert.doesNotMatch(svg, /<image\b/);
 
   const restored = parseAnnotationSvg(svg);
-  assert.equal(restored?.includeOriginalImage, false);
-  assert.equal(restored?.objects.some(object => object.type === "image"), false);
+  assert.equal(restored?.objects.some(object => object.type === "embedded-image"), false);
+});
+
+test("a new source-backed annotation seeds one ordinary embedded Original Image", () => {
+  const state = normalizeAnnotationState(null, {
+    width: 640,
+    height: 360,
+    seedImageSource: sampleImageDataUrl,
+    originalReference: "/uploads/richtext/source.png"
+  });
+
+  assert.equal(state.objects.length, 1);
+  assert.deepEqual(state.objects[0], {
+    id: state.objects[0].id,
+    type: "embedded-image",
+    name: "Original Image",
+    visible: true,
+    locked: false,
+    groupId: "",
+    x: 0,
+    y: 0,
+    width: 640,
+    height: 360,
+    source: sampleImageDataUrl,
+    imageClip: { x: 0, y: 0, width: 640, height: 360 },
+    cropVisible: true,
+    cropPermanent: false,
+    isOriginalImage: true
+  });
+  assert.equal(state.originalReference, "/uploads/richtext/source.png");
+  assert.equal(buildAnnotationObjectTree(state)[0].fixed, undefined);
 });
 
 test("new annotation canvases default the grid and grid snapping to off", () => {
-  const defaults = normalizeAnnotationState({ width: 1600, height: 900, includeOriginalImage: false });
+  const defaults = normalizeAnnotationState({ width: 1600, height: 900 });
   const enabled = normalizeAnnotationState({
     width: 1600,
     height: 900,
-    includeOriginalImage: false,
     gridVisible: true,
     snapToGrid: true
   });
@@ -1704,7 +1728,7 @@ test("group arrow width and head scale beyond direct editor limits and survive p
     width: 100,
     height: 50,
     objects: [
-      { id: "image", type: "image", x: 0, y: 0, width: 100, height: 50 },
+      { id: "image", type: "embedded-image", x: 0, y: 0, width: 100, height: 50, source: sampleImageDataUrl },
       {
         id: "arrow",
         type: "arrow",
@@ -1718,7 +1742,7 @@ test("group arrow width and head scale beyond direct editor limits and survive p
       }
     ]
   });
-  const svg = buildAnnotationSvg(state, "data:image/png;base64,AAECAwQ=");
+  const svg = buildAnnotationSvg(state);
   const restored = parseAnnotationSvg(svg).objects.find(object => object.type === "arrow");
   assert.equal(restored.strokeWidth, 80);
   assert.equal(restored.arrowSize, 320);
@@ -1729,16 +1753,23 @@ test("annotation SVG is self-contained, vector, editable, and escapes hostile te
     version: 1,
     width: 800,
     height: 450,
-    sourceWidth: 1200,
-    sourceHeight: 700,
-    cropOffsetX: 120,
-    cropOffsetY: 80,
     originalReference: "/uploads/richtext/original.png",
     gridVisible: true,
     snapToGrid: true,
     gridSize: 20,
     objects: [
-      { id: "image-1", type: "image", x: -120, y: -80, width: 1200, height: 700, locked: true },
+      {
+        id: "image-1",
+        type: "embedded-image",
+        x: -120,
+        y: -80,
+        width: 1200,
+        height: 700,
+        source: sampleImageDataUrl,
+        imageClip: { x: 0, y: 0, width: 800, height: 450 },
+        isOriginalImage: true,
+        locked: true
+      },
       { id: "rect-1", type: "rectangle", x: 30, y: 40, width: 240, height: 120, fill: "none", stroke: "#ff0000", strokeWidth: 5 },
       { id: "arrow-1", type: "arrow", x1: 100, y1: 100, x2: 400, y2: 250, stroke: "#00b050", strokeWidth: 6, arrowSize: 28 },
       {
@@ -1761,9 +1792,9 @@ test("annotation SVG is self-contained, vector, editable, and escapes hostile te
       }
     ]
   });
-  assert.deepEqual(state.imageClip, { x: 0, y: 0, width: 800, height: 450 });
-  const original = "data:image/png;base64,AAECAwQ=";
-  const svg = buildAnnotationSvg(state, original);
+  const sourceImage = state.objects.find(object => object.id === "image-1");
+  assert.deepEqual(sourceImage.imageClip, { x: 0, y: 0, width: 800, height: 450 });
+  const svg = buildAnnotationSvg(state);
 
   assert.match(svg, /<image[^>]+data:image\/png;base64,AAECAwQ=/);
   assert.match(svg, /<rect/);
@@ -1779,14 +1810,14 @@ test("annotation SVG is self-contained, vector, editable, and escapes hostile te
 
   const restored = parseAnnotationSvg(svg);
   assert.equal(restored.originalReference, "/uploads/richtext/original.png");
-  assert.equal(restored.sourceWidth, 1200);
-  assert.equal(restored.cropOffsetX, 120);
-  assert.deepEqual(restored.imageClip, state.imageClip);
   assert.equal(restored.objects.length, 4);
   assert.equal(restored.objects.find(object => object.id === "text-1").text, "Review <script>alert('x')</script> & keep the source");
   assert.equal(restored.objects.find(object => object.id === "text-1").textAlign, "right");
   assert.equal(restored.objects.find(object => object.id === "text-1").textVerticalAlign, "bottom");
-  assert.equal(restored.objects.find(object => object.id === "image-1").locked, true);
+  const restoredImage = restored.objects.find(object => object.id === "image-1");
+  assert.equal(restoredImage.locked, true);
+  assert.equal(restoredImage.source, sampleImageDataUrl);
+  assert.deepEqual(restoredImage.imageClip, sourceImage.imageClip);
 });
 
 test("rectangle and text outlines can be hidden without losing their saved colors", () => {
@@ -1794,12 +1825,12 @@ test("rectangle and text outlines can be hidden without losing their saved color
     width: 120,
     height: 80,
     objects: [
-      { id: "image", type: "image", x: 0, y: 0, width: 120, height: 80 },
+      { id: "image", type: "embedded-image", x: 0, y: 0, width: 120, height: 80, source: sampleImageDataUrl },
       { id: "rectangle", type: "rectangle", x: 10, y: 10, width: 30, height: 20, fill: "#ffffff", stroke: "#123456", strokeWidth: 4, outlineVisible: false },
       { id: "text", type: "textbox", x: 50, y: 10, width: 50, height: 40, fill: "#ffffff", stroke: "#654321", strokeWidth: 3, outlineVisible: false, text: "No outline" }
     ]
   });
-  const svg = buildAnnotationSvg(state, "data:image/png;base64,AAECAwQ=");
+  const svg = buildAnnotationSvg(state);
 
   assert.match(svg, /<rect x="10" y="10" width="30" height="20"[^>]+stroke="none"/);
   assert.match(svg, /<rect x="50" y="10" width="50" height="40"[^>]+stroke="none"/);
@@ -1818,7 +1849,7 @@ test("rectangle and text outlines can be hidden without losing their saved color
   assert.equal(normalizeAnnotationState({
     width: 10,
     height: 10,
-    objects: [{ id: "legacy", type: "rectangle", x: 0, y: 0, width: 10, height: 10 }]
+    objects: [{ id: "default-rectangle", type: "rectangle", x: 0, y: 0, width: 10, height: 10 }]
   }).objects.find(object => object.type === "rectangle").outlineVisible, true);
 });
 
@@ -1827,7 +1858,7 @@ test("vector opacity persists through SVG, templates, and copied native instance
     width: 160,
     height: 90,
     objects: [
-      { id: "image", type: "image", x: 0, y: 0, width: 160, height: 90, opacity: 0.2 },
+      { id: "image", type: "embedded-image", x: 0, y: 0, width: 160, height: 90, source: sampleImageDataUrl, opacity: 0.2 },
       { id: "rectangle", type: "rectangle", x: 10, y: 10, width: 40, height: 25, opacity: 0.35 },
       { id: "arrow", type: "arrow", x1: 20, y1: 70, x2: 90, y2: 30, opacity: 0.65 },
       { id: "text", type: "textbox", x: 80, y: 10, width: 70, height: 40, text: "Faded", opacity: 0 }
@@ -1836,7 +1867,7 @@ test("vector opacity persists through SVG, templates, and copied native instance
   assert.equal(Object.hasOwn(state.objects[0], "opacity"), false);
   assert.deepEqual(state.objects.slice(1).map(object => object.opacity), [0.35, 0.65, 0]);
 
-  const svg = buildAnnotationSvg(state, "data:image/png;base64,AAECAwQ=");
+  const svg = buildAnnotationSvg(state);
   assert.doesNotMatch(svg, /<image\b[^>]*\bopacity=/);
   assert.match(svg, /<rect\b[^>]*\bx="10"[^>]*\bopacity="0\.35"/);
   assert.match(svg, /<g\b[^>]*\bopacity="0\.65"[^>]*>[^]*image-annotation-arrow-shaft/);
@@ -1845,7 +1876,7 @@ test("vector opacity persists through SVG, templates, and copied native instance
   assert.deepEqual(restored.objects.slice(1).map(object => object.opacity), [0.35, 0.65, 0]);
 
   const vectorIds = new Set(["rectangle", "arrow", "text"]);
-  const template = captureAnnotationTemplate(state, vectorIds, "data:image/png;base64,AAECAwQ=", "Opacity");
+  const template = captureAnnotationTemplate(state, vectorIds, "", "Opacity");
   assert.deepEqual(template.objects.map(object => object.opacity), [0.35, 0.65, 0]);
   let sequence = 0;
   const instances = instantiateAnnotationTemplate(
@@ -1856,7 +1887,7 @@ test("vector opacity persists through SVG, templates, and copied native instance
   );
   assert.deepEqual(instances.map(object => object.opacity), [0.35, 0.65, 0]);
 
-  const copiedSvg = buildAnnotationSelectionSvg(state, vectorIds, "data:image/png;base64,AAECAwQ=");
+  const copiedSvg = buildAnnotationSelectionSvg(state, vectorIds);
   assert.match(copiedSvg, /opacity="0\.35"/);
   assert.match(copiedSvg, /opacity="0\.65"/);
   assert.match(copiedSvg, /opacity="0"/);
@@ -1868,11 +1899,11 @@ test("copied annotation SVG contains only the selected artwork at tight painted 
     width: 120,
     height: 80,
     objects: [
-      { id: "image", type: "image", x: 0, y: 0, width: 120, height: 80 },
+      { id: "image", type: "embedded-image", x: 0, y: 0, width: 120, height: 80, source: sampleImageDataUrl },
       { id: "rectangle", type: "rectangle", x: 10, y: 10, width: 30, height: 20, fill: "#ffffff", stroke: "#123456", strokeWidth: 4 }
     ]
   });
-  const svg = buildAnnotationSelectionSvg(state, new Set(["rectangle"]), "data:image/png;base64,AAECAwQ=");
+  const svg = buildAnnotationSelectionSvg(state, new Set(["rectangle"]));
 
   assert.match(svg, /^<svg[^>]+width="34" height="24" viewBox="8 8 34 24"/);
   assert.match(svg, /<rect x="10" y="10" width="30" height="20"/);
@@ -1885,17 +1916,17 @@ test("template capture preserves cropped source bytes and native vectors while i
   const state = normalizeAnnotationState({
     width: 80,
     height: 50,
-    sourceWidth: 120,
-    sourceHeight: 80,
-    imageClip: { x: 0, y: 0, width: 80, height: 50 },
     objects: [
       {
         id: "source-image",
-        type: "image",
+        type: "embedded-image",
         x: -20,
         y: -10,
         width: 120,
         height: 80,
+        source: originalDataUrl,
+        imageClip: { x: 0, y: 0, width: 80, height: 50 },
+        isOriginalImage: true,
         locked: true,
         groupId: "source-group"
       },
@@ -1926,7 +1957,7 @@ test("template capture preserves cropped source bytes and native vectors while i
     ]
   });
   const selectedIds = new Set(state.objects.map(object => object.id));
-  const template = captureAnnotationTemplate(state, selectedIds, originalDataUrl, "Mixed cropped source");
+  const template = captureAnnotationTemplate(state, selectedIds, "", "Mixed cropped source");
 
   assert.ok(template);
   assert.equal(template.name, "Mixed cropped source");
@@ -1936,18 +1967,8 @@ test("template capture preserves cropped source bytes and native vectors while i
   const embedded = template.objects.find(object => object.type === "embedded-image");
   const rectangle = template.objects.find(object => object.type === "rectangle");
   const arrow = template.objects.find(object => object.type === "arrow");
-  assert.match(embedded.source, /^data:image\/svg\+xml;charset=utf-8,/);
-  const wrapperSvg = decodeURIComponent(embedded.source.slice(embedded.source.indexOf(",") + 1));
-  assert.match(wrapperSvg, /^<svg[^>]+width="80" height="50" viewBox="0 0 80 50"/);
-  assert.match(wrapperSvg, /<image\b/);
-  assert.ok(wrapperSvg.includes(`href="${originalDataUrl}"`));
-  assert.equal((wrapperSvg.match(/<image\b/g) || []).length, 1);
-  const wrappedSource = wrapperSvg.match(/<image\b[^>]*\bhref="([^"]+)"/)?.[1];
-  assert.ok(wrappedSource);
-  assert.deepEqual(
-    Buffer.from(wrappedSource.slice(wrappedSource.indexOf(",") + 1), "base64"),
-    Buffer.from(originalDataUrl.slice(originalDataUrl.indexOf(",") + 1), "base64")
-  );
+  assert.equal(embedded.source, originalDataUrl);
+  assert.deepEqual(embedded.imageClip, { x: 0, y: 0, width: 80, height: 50 });
   assert.deepEqual(
     {
       type: rectangle.type,
@@ -1991,17 +2012,17 @@ test("template capture preserves cropped source bytes and native vectors while i
     width: 500,
     height: 300,
     objects: [
-      { id: "document-image", type: "image", x: 0, y: 0, width: 500, height: 300 },
+      { id: "document-image", type: "embedded-image", x: 0, y: 0, width: 500, height: 300, source: sampleImageDataUrl },
       ...firstInstance
     ]
   });
-  const persistedSvg = buildAnnotationSvg(persistedState, "data:image/png;base64,AQID");
-  assert.match(persistedSvg, /<image\b[^>]+data:image\/svg\+xml;charset=utf-8,/);
+  const persistedSvg = buildAnnotationSvg(persistedState);
+  assert.match(persistedSvg, /<image\b[^>]+data:image\/png;base64,/);
   assert.match(persistedSvg, /<rect\b/);
   assert.match(persistedSvg, /<line\b/);
   assert.match(persistedSvg, /<polygon\b/);
   const restoredEmbedded = parseAnnotationSvg(persistedSvg).objects
-    .find(object => object.type === "embedded-image");
+    .find(object => object.id === firstInstance.find(item => item.type === "embedded-image").id);
   assert.ok(restoredEmbedded);
   assert.equal(restoredEmbedded.source, embedded.source);
 });
@@ -2010,7 +2031,6 @@ test("individual template files download and upload without losing Entity metada
   const state = normalizeAnnotationState({
     width: 1200,
     height: 1000,
-    includeOriginalImage: false,
     objects: [entityObject(
       parseAnnotationEntityDefinition(workTasksCreateTableSql),
       "download-entity",
@@ -2636,7 +2656,7 @@ test("mismatched template formatting pairs by type, reuses the last available st
   assert.equal(destination[4].stroke, "#0000ff");
   assert.deepEqual(destination[2], lockedBefore);
 
-  const image = { id: "destination-image", type: "image", x: 0, y: 0, width: 100, height: 60, locked: false, groupId: "" };
+  const image = { id: "destination-image", type: "embedded-image", x: 0, y: 0, width: 100, height: 60, source: sampleImageDataUrl, locked: false, groupId: "" };
   const imageBefore = structuredClone(image);
   const noMatch = applyAnnotationTemplateFormatting(template, [image]);
   assert.equal(noMatch.structureMatches, false);
@@ -2681,7 +2701,7 @@ test("template arrow formatting is limited when needed so normalization never mo
     width: 100,
     height: 80,
     objects: [
-      { id: "image", type: "image", x: 0, y: 0, width: 100, height: 80 },
+      { id: "image", type: "embedded-image", x: 0, y: 0, width: 100, height: 80, source: sampleImageDataUrl },
       structuredClone(destination)
     ]
   });
@@ -2733,8 +2753,7 @@ test("grouped embedded image and arrow template instances resize proportionally"
   resizeAnnotationObjects(state, {
     startBounds,
     direction: "se",
-    originals,
-    startImageClip: null
+    originals
   }, {
     x: startBounds.x + (startBounds.width * 2),
     y: startBounds.y + (startBounds.height * 2)
@@ -2768,12 +2787,14 @@ test("object tree projects topmost-first groups and preserves custom object and 
     objects: [
       {
         id: "source-image",
-        type: "image",
+        type: "embedded-image",
         name: "Quarterly dashboard",
         x: 0,
         y: 0,
         width: 320,
-        height: 180
+        height: 180,
+        source: sampleImageDataUrl,
+        isOriginalImage: true
       },
       {
         id: "lower-rectangle",
@@ -2819,7 +2840,7 @@ test("object tree projects topmost-first groups and preserves custom object and 
     { id: "lower-rectangle", name: "Callout box" }
   ]);
 
-  const restored = parseAnnotationSvg(buildAnnotationSvg(state, "data:image/png;base64,AAECAwQ="));
+  const restored = parseAnnotationSvg(buildAnnotationSvg(state));
   assert.equal(restored.groupNames["callout-group"], "Release callout");
   assert.deepEqual(
     restored.objects.map(object => [object.id, object.name]),
@@ -2838,7 +2859,7 @@ test("copying one child does not preserve a larger parent group identity", () =>
     height: 90,
     groupNames: { callout: "Callout Group" },
     objects: [
-      { id: "image", type: "image", x: 0, y: 0, width: 160, height: 90 },
+      { id: "image", type: "embedded-image", x: 0, y: 0, width: 160, height: 90, source: sampleImageDataUrl },
       { id: "box", type: "rectangle", x: 10, y: 10, width: 40, height: 30, groupId: "callout" },
       { id: "arrow", type: "arrow", x1: 20, y1: 70, x2: 90, y2: 30, groupId: "callout" }
     ]
@@ -2864,13 +2885,13 @@ test("copying one child does not preserve a larger parent group identity", () =>
   assert.equal(groupTemplate.groupName, "Callout Group");
 });
 
-test("object tree reorder and reparent keep z-order coherent and the original image at the bottom", () => {
+test("object tree reorder and reparent keep z-order coherent for ordinary image layers", () => {
   const source = normalizeAnnotationState({
     width: 320,
     height: 180,
     groupNames: { "callout-group": "Callout" },
     objects: [
-      { id: "source-image", type: "image", x: 0, y: 0, width: 320, height: 180 },
+      { id: "source-image", type: "embedded-image", x: 0, y: 0, width: 320, height: 180, source: sampleImageDataUrl, isOriginalImage: true },
       { id: "group-rectangle", type: "rectangle", x: 20, y: 30, width: 100, height: 60, groupId: "callout-group" },
       { id: "group-arrow", type: "arrow", x1: 40, y1: 140, x2: 180, y2: 70, groupId: "callout-group" },
       { id: "top-text", type: "textbox", x: 160, y: 20, width: 130, height: 70, text: "Review" }
@@ -2920,14 +2941,14 @@ test("object tree reorder and reparent keep z-order coherent and the original im
     "top-text"
   ]);
 
-  const attemptedImageRaise = reorderAnnotationObjectTree(movedGroup, {
+  const raisedImage = reorderAnnotationObjectTree(movedGroup, {
     draggedKind: "object",
     draggedId: "source-image",
     targetKind: "root",
     targetId: ""
   });
-  assert.equal(attemptedImageRaise.objects[0].id, "source-image");
-  assert.equal(buildAnnotationObjectTree(attemptedImageRaise).at(-1).id, "source-image");
+  assert.equal(raisedImage.objects.at(-1).id, "source-image");
+  assert.equal(buildAnnotationObjectTree(raisedImage)[0].id, "source-image");
 });
 
 test("object tree drop placement can promote an item above a top group without joining it", () => {
@@ -2936,7 +2957,7 @@ test("object tree drop placement can promote an item above a top group without j
     height: 180,
     groupNames: { "top-group": "Top Group" },
     objects: [
-      { id: "source-image", type: "image", x: 0, y: 0, width: 320, height: 180 },
+      { id: "source-image", type: "embedded-image", x: 0, y: 0, width: 320, height: 180, source: sampleImageDataUrl },
       { id: "candidate", type: "textbox", x: 20, y: 20, width: 80, height: 40, text: "Promote" },
       { id: "group-box", type: "rectangle", x: 120, y: 30, width: 80, height: 60, groupId: "top-group" },
       { id: "group-arrow", type: "arrow", x1: 140, y1: 130, x2: 240, y2: 60, groupId: "top-group" }
@@ -2975,7 +2996,7 @@ test("object tree drop placement can promote a group above a top group without m
       "top-group": "Top Group"
     },
     objects: [
-      { id: "source-image", type: "image", x: 0, y: 0, width: 320, height: 180 },
+      { id: "source-image", type: "embedded-image", x: 0, y: 0, width: 320, height: 180, source: sampleImageDataUrl },
       { id: "candidate-box", type: "rectangle", x: 20, y: 20, width: 80, height: 40, groupId: "candidate-group" },
       { id: "candidate-arrow", type: "arrow", x1: 30, y1: 120, x2: 100, y2: 70, groupId: "candidate-group" },
       { id: "top-box", type: "rectangle", x: 120, y: 30, width: 80, height: 60, groupId: "top-group" },
@@ -3009,7 +3030,7 @@ test("object tree before and after placements map to the visible root order", ()
     width: 200,
     height: 120,
     objects: [
-      { id: "image", type: "image", x: 0, y: 0, width: 200, height: 120 },
+      { id: "image", type: "embedded-image", x: 0, y: 0, width: 200, height: 120, source: sampleImageDataUrl },
       { id: "bottom", type: "rectangle", x: 10, y: 10, width: 30, height: 30 },
       { id: "middle", type: "rectangle", x: 50, y: 10, width: 30, height: 30 },
       { id: "top", type: "rectangle", x: 90, y: 10, width: 30, height: 30 }
@@ -3037,7 +3058,7 @@ test("object tree search is case-insensitive and retains matching group context"
     height: 120,
     groupNames: { callouts: "Primary Callouts" },
     objects: [
-      { id: "image", type: "image", name: "Dashboard Source", x: 0, y: 0, width: 200, height: 120 },
+      { id: "image", type: "embedded-image", name: "Dashboard Source", x: 0, y: 0, width: 200, height: 120, source: sampleImageDataUrl },
       { id: "box", type: "rectangle", name: "Revenue Box", x: 10, y: 10, width: 60, height: 40, groupId: "callouts" },
       { id: "arrow", type: "arrow", name: "Margin Arrow", x1: 20, y1: 90, x2: 120, y2: 45, groupId: "callouts" },
       { id: "note", type: "textbox", name: "Executive Note", x: 100, y: 10, width: 80, height: 50, text: "Review" }
@@ -3057,9 +3078,9 @@ test("object tree search is case-insensitive and retains matching group context"
   assert.deepEqual(tree.map(node => node.id), ["note", "callouts", "image"]);
 });
 
-test("object tree compacts interleaved groups into paint-order blocks with source-image groups at the bottom", () => {
+test("object tree compacts interleaved groups into paint-order blocks without special image ordering", () => {
   const objects = [
-    { id: "image", type: "image", groupId: "image-group" },
+    { id: "image", type: "embedded-image", source: sampleImageDataUrl, groupId: "image-group" },
     { id: "background-note", type: "textbox", groupId: "" },
     { id: "first-member", type: "rectangle", groupId: "callout-group" },
     { id: "middle-note", type: "textbox", groupId: "" },
@@ -3070,16 +3091,16 @@ test("object tree compacts interleaved groups into paint-order blocks with sourc
 
   compactAnnotationGroupLayers(objects);
   assert.deepEqual(objects.map(object => object.id), [
-    "image",
-    "image-outline",
     "background-note",
     "middle-note",
+    "image",
+    "image-outline",
     "first-member",
     "second-member",
     "top-note"
   ]);
-  assert.equal(objects[0].type, "image");
-  assert.deepEqual(objects.slice(0, 2).map(object => object.groupId), ["image-group", "image-group"]);
+  assert.equal(objects[2].type, "embedded-image");
+  assert.deepEqual(objects.slice(2, 4).map(object => object.groupId), ["image-group", "image-group"]);
   assert.deepEqual(objects.slice(4, 6).map(object => object.groupId), ["callout-group", "callout-group"]);
 });
 
@@ -3088,7 +3109,7 @@ test("text vertical alignment persists and places text at the top, middle, or bo
     width: 300,
     height: 180,
     objects: [
-      { id: "image", type: "image", x: 0, y: 0, width: 300, height: 180 },
+      { id: "image", type: "embedded-image", x: 0, y: 0, width: 300, height: 180, source: sampleImageDataUrl },
       {
         id: "text",
         type: "textbox",
@@ -3105,7 +3126,7 @@ test("text vertical alignment persists and places text at the top, middle, or bo
   const textY = alignment => {
     const state = structuredClone(base);
     state.objects[1].textVerticalAlign = alignment;
-    const match = buildAnnotationSvg(state, "data:image/png;base64,AAECAwQ=")
+    const match = buildAnnotationSvg(state)
       .match(/<text\b[^>]*\by="([^"]+)"/);
     return Number(match?.[1]);
   };
@@ -3121,7 +3142,7 @@ test("persisted groups resolve from the initially selected image", () => {
     width: 100,
     height: 50,
     objects: [
-      { id: "image", type: "image", x: 0, y: 0, width: 100, height: 50, groupId: "group-1" },
+      { id: "image", type: "embedded-image", x: 0, y: 0, width: 100, height: 50, source: sampleImageDataUrl, groupId: "group-1" },
       { id: "rectangle", type: "rectangle", x: 10, y: 10, width: 20, height: 20, groupId: "group-1" },
       { id: "text", type: "textbox", x: 40, y: 10, width: 20, height: 20 }
     ]
@@ -3138,7 +3159,7 @@ test("object and group visibility persist while hidden layers stay out of render
     groupNames: { "overlay-group": "Entity Descriptions" },
     groupVisibility: { "overlay-group": false },
     objects: [
-      { id: "image", type: "image", x: 0, y: 0, width: 500, height: 300, visible: false },
+      { id: "image", type: "embedded-image", x: 0, y: 0, width: 500, height: 300, source: sampleImageDataUrl, visible: false },
       {
         id: "overlay-label",
         type: "textbox",
@@ -3191,7 +3212,7 @@ test("object and group visibility persist while hidden layers stay out of render
   assert.equal(tree.find(node => node.id === "hidden-root").effectiveVisible, false);
   assert.equal(tree.find(node => node.id === "visible-root").effectiveVisible, true);
 
-  const svg = buildAnnotationSvg(state, "data:image/png;base64,AAECAwQ=");
+  const svg = buildAnnotationSvg(state);
   const renderedBody = svg.split("</metadata>")[1];
   assert.match(renderedBody, />VISIBLE</);
   assert.doesNotMatch(renderedBody, />HIDDEN|>GROUP|>ROOT/);
@@ -3203,7 +3224,7 @@ test("object and group visibility persist while hidden layers stay out of render
     annotationObjectsIntersectingRect(
       state.objects,
       { x: 0, y: 0, width: 500, height: 300 },
-      state.imageClip,
+      null,
       state.groupVisibility
     ).map(object => object.id),
     ["visible-root"]
@@ -3252,11 +3273,14 @@ test("side resizing preserves text size and corner resizing scales text proporti
   const startBounds = { x: 10, y: 20, width: 100, height: 50 };
   const base = { x: 10, y: 20, width: 100, height: 50, groupId: "" };
 
-  for (const type of ["rectangle", "image", "embedded-image", "textbox", "entity"]) {
+  for (const type of ["rectangle", "embedded-image", "textbox", "entity"]) {
     const original = {
       ...base,
       id: type,
       type,
+      ...(type === "embedded-image"
+        ? { source: sampleImageDataUrl, imageClip: { x: base.x, y: base.y, width: base.width, height: base.height } }
+        : {}),
       ...(["textbox", "entity"].includes(type) ? { fontSize: 20 } : {}),
       ...(type === "entity" ? { expandedHeight: 50, collapsed: false } : {})
     };
@@ -3264,8 +3288,7 @@ test("side resizing preserves text size and corner resizing scales text proporti
     resizeAnnotationObjects(edgeState, {
       startBounds,
       direction: "e",
-      originals: [structuredClone(original)],
-      startImageClip: null
+      originals: [structuredClone(original)]
     }, { x: 160, y: 45 });
     assert.deepEqual(
       annotationSelectionBounds(edgeState.objects),
@@ -3280,8 +3303,7 @@ test("side resizing preserves text size and corner resizing scales text proporti
     resizeAnnotationObjects(cornerState, {
       startBounds,
       direction: "se",
-      originals: [structuredClone(original)],
-      startImageClip: null
+      originals: [structuredClone(original)]
     }, { x: 160, y: 120 });
     assert.deepEqual(
       annotationSelectionBounds(cornerState.objects),
@@ -3301,8 +3323,7 @@ test("side resizing preserves text size and corner resizing scales text proporti
   resizeAnnotationObjects(groupedState, {
     startBounds,
     direction: "e",
-    originals: structuredClone(groupedObjects),
-    startImageClip: null
+    originals: structuredClone(groupedObjects)
   }, { x: 160, y: 45 });
   const groupedBounds = annotationSelectionBounds(groupedState.objects);
   assert.deepEqual(groupedBounds, { x: 10, y: 20, width: 150, height: 50 });
@@ -3339,8 +3360,7 @@ test("side resizing a selection keeps contained arrows proportional", () => {
   resizeAnnotationObjects(state, {
     startBounds,
     direction: "e",
-    originals: [structuredClone(rectangle), structuredClone(arrow)],
-    startImageClip: null
+    originals: [structuredClone(rectangle), structuredClone(arrow)]
   }, { x: 160, y: 45 });
 
   const resizedArrow = state.objects.find(object => object.type === "arrow");
@@ -3356,7 +3376,6 @@ test("Entity side resizing keeps the PK/FK column fixed and gives width to field
   const state = normalizeAnnotationState({
     width: 1600,
     height: 1200,
-    includeOriginalImage: false,
     objects: [entityObject(
       parseAnnotationEntityDefinition(workTasksCreateTableSql),
       "entity-resize",
@@ -3379,8 +3398,7 @@ test("Entity side resizing keeps the PK/FK column fixed and gives width to field
   resizeAnnotationObjects(state, {
     startBounds: annotationSelectionBounds([entity]),
     direction: "e",
-    originals: [original],
-    startImageClip: null
+    originals: [original]
   }, { x: original.x + original.width + 180, y: original.y + (original.height / 2) });
 
   assert.equal(entity.width, original.width + 180);
@@ -3396,10 +3414,8 @@ test("temporary workspace is centered while exported SVG trims to image and anno
   const state = normalizeAnnotationState({
     width: 100,
     height: 50,
-    sourceWidth: 100,
-    sourceHeight: 50,
     objects: [
-      { id: "image", type: "image", x: 0, y: 0, width: 100, height: 50 },
+      { id: "image", type: "embedded-image", x: 0, y: 0, width: 100, height: 50, source: sampleImageDataUrl },
       { id: "outside", type: "rectangle", x: -20, y: 10, width: 10, height: 10, fill: "none", stroke: "#ff0000", strokeWidth: 4 },
       { id: "arrow", type: "arrow", x1: 100, y1: 25, x2: 140, y2: 25, stroke: "#00b050", strokeWidth: 4, arrowSize: 10 }
     ]
@@ -3414,60 +3430,82 @@ test("temporary workspace is centered while exported SVG trims to image and anno
   assert.equal(workspace.x + (workspace.width / 2), output.x + (output.width / 2));
   assert.equal(workspace.y + (workspace.height / 2), output.y + (output.height / 2));
 
-  const svg = buildAnnotationSvg(state, "data:image/png;base64,AAECAwQ=");
+  const svg = buildAnnotationSvg(state);
   assert.match(svg, /width="162" height="50" viewBox="-22 0 162 50"/);
-  assert.match(svg, /clipPath id="pmt-annotation-image-clip"/);
-  assert.match(svg, /<rect x="0" y="0" width="100" height="50"><\/rect><\/clipPath>/);
+  assert.match(svg, /<image\b[^>]*href="data:image\/png;base64,AAECAwQ="[^>]*width="100"[^>]*height="50"/);
+  assert.doesNotMatch(svg, /pmt-annotation-image-clip-image/);
   assert.deepEqual(state, before);
 });
 
-test("the image clip follows a moved image and the temporary workspace grows around it", () => {
+test("moving and resizing an embedded image keep its crop aligned", () => {
   const state = normalizeAnnotationState({
-    width: 100,
-    height: 50,
-    sourceWidth: 100,
-    sourceHeight: 50,
-    imageClip: { x: 340, y: 220, width: 100, height: 50 },
-    objects: [
-      { id: "image", type: "image", x: 340, y: 220, width: 100, height: 50 }
-    ]
+    width: 300,
+    height: 200,
+    objects: [{
+      id: "image",
+      type: "embedded-image",
+      x: 10,
+      y: 20,
+      width: 100,
+      height: 60,
+      source: sampleImageDataUrl,
+      imageClip: { x: 30, y: 30, width: 40, height: 30 }
+    }]
   });
+  const image = state.objects[0];
 
-  assert.deepEqual(state.imageClip, { x: 340, y: 220, width: 100, height: 50 });
-  assert.deepEqual(annotationOutputBounds(state), { x: 340, y: 220, width: 100, height: 50 });
-  assert.deepEqual(annotationSelectionBounds(state.objects, state.imageClip), state.imageClip);
-
-  const expanded = annotationExpandedWorkspaceBounds(
-    { x: 0, y: 0, width: 300, height: 200 },
-    state
+  moveAnnotationObjects(state, {
+    startPoint: { x: 0, y: 0 },
+    startBounds: annotationSelectionBounds([image]),
+    originals: [structuredClone(image)]
+  }, { x: 25, y: 15 });
+  assert.deepEqual(
+    { x: image.x, y: image.y, imageClip: image.imageClip },
+    { x: 35, y: 35, imageClip: { x: 55, y: 45, width: 40, height: 30 } }
   );
-  assert.ok(expanded.x <= 0);
-  assert.ok(expanded.y <= 0);
-  assert.ok(expanded.x + expanded.width >= 440);
-  assert.ok(expanded.y + expanded.height >= 270);
-  assert.ok(expanded.width > 300);
-  assert.ok(expanded.height > 200);
 
-  const svg = buildAnnotationSvg(state, "data:image/png;base64,AAECAwQ=");
-  assert.match(svg, /viewBox="340 220 100 50"/);
-  assert.match(svg, /<rect x="340" y="220" width="100" height="50"><\/rect><\/clipPath>/);
-  assert.deepEqual(parseAnnotationSvg(svg).imageClip, state.imageClip);
+  const moved = structuredClone(image);
+  const startBounds = annotationSelectionBounds([image]);
+  resizeAnnotationObjects(state, {
+    startBounds,
+    direction: "se",
+    originals: [moved]
+  }, {
+    x: startBounds.x + (startBounds.width * 2),
+    y: startBounds.y + (startBounds.height * 2)
+  });
+  assert.deepEqual(
+    { x: image.x, y: image.y, width: image.width, height: image.height },
+    { x: 15, y: 25, width: 200, height: 120 }
+  );
+  assert.deepEqual(image.imageClip, { x: 55, y: 45, width: 80, height: 60 });
+
+  const svg = buildAnnotationSvg(state);
+  assert.match(svg, /viewBox="0 0 300 200"/);
+  assert.match(svg, /<rect x="55" y="45" width="80" height="60"><\/rect><\/clipPath>/);
+  assert.deepEqual(parseAnnotationSvg(svg).objects[0].imageClip, image.imageClip);
 });
 
-test("legacy cropped state keeps its image crop while retaining vectors beyond that crop", () => {
+test("a cropped embedded image retains vectors beyond its crop", () => {
   const state = normalizeAnnotationState({
     width: 80,
     height: 50,
-    sourceWidth: 100,
-    sourceHeight: 50,
-    cropOffsetX: 20,
     objects: [
-      { id: "image", type: "image", x: -20, y: 0, width: 100, height: 50 },
+      {
+        id: "image",
+        type: "embedded-image",
+        x: -20,
+        y: 0,
+        width: 100,
+        height: 50,
+        source: sampleImageDataUrl,
+        imageClip: { x: 0, y: 0, width: 80, height: 50 }
+      },
       { id: "outside", type: "rectangle", x: 90, y: 10, width: 10, height: 10, fill: "none", stroke: "#ff0000", strokeWidth: 2 }
     ]
   });
 
-  assert.deepEqual(state.imageClip, { x: 0, y: 0, width: 80, height: 50 });
+  assert.deepEqual(state.objects[0].imageClip, { x: 0, y: 0, width: 80, height: 50 });
   assert.deepEqual(annotationOutputBounds(state), { x: 0, y: 0, width: 101, height: 50 });
 });
 
@@ -3476,7 +3514,7 @@ test("marquee intersection includes edge touches, groups, locked objects, arrows
     width: 100,
     height: 50,
     objects: [
-      { id: "image", type: "image", x: 0, y: 0, width: 100, height: 50 },
+      { id: "image", type: "embedded-image", x: 0, y: 0, width: 100, height: 50, source: sampleImageDataUrl },
       { id: "group-a", type: "rectangle", x: 110, y: 10, width: 20, height: 20, stroke: "#000000", strokeWidth: 2, groupId: "group-1" },
       { id: "group-b", type: "textbox", x: 170, y: 10, width: 20, height: 20, stroke: "#000000", strokeWidth: 2, groupId: "group-1" },
       { id: "locked", type: "rectangle", x: 210, y: 10, width: 20, height: 20, stroke: "#000000", strokeWidth: 2, locked: true },
@@ -3507,7 +3545,7 @@ test("marquee intersection includes edge touches, groups, locked objects, arrows
     width: 10,
     height: 10,
     objects: [
-      { id: "image", type: "image", x: 0, y: 0, width: 10, height: 10 },
+      { id: "image", type: "embedded-image", x: 0, y: 0, width: 10, height: 10, source: sampleImageDataUrl },
       { id: "diagonal", type: "arrow", x1: 0, y1: 0, x2: 100, y2: 100, stroke: "#000000", strokeWidth: 4, arrowSize: 14 }
     ]
   }).objects.filter(object => object.type === "arrow");
@@ -3524,7 +3562,7 @@ test("marquee intersection includes edge touches, groups, locked objects, arrows
     width: 10,
     height: 10,
     objects: [
-      { id: "image", type: "image", x: 0, y: 0, width: 10, height: 10 },
+      { id: "image", type: "embedded-image", x: 0, y: 0, width: 10, height: 10, source: sampleImageDataUrl },
       { id: "thick-diagonal", type: "arrow", x1: 0, y1: 0, x2: 100, y2: 100, stroke: "#000000", strokeWidth: 40, arrowSize: 6 }
     ]
   }).objects.filter(object => object.type === "arrow");
@@ -3579,6 +3617,197 @@ test("annotation snapping and cursor-centered zoom preserve the pointed document
   assert.equal((160 + 100 - 24) / 1, (paddedResult.scrollTop + 100 - 24) / paddedResult.zoom);
 });
 
+test("two embedded images keep independent crop cues and visibility toggles", () => {
+  const state = normalizeAnnotationState({
+    width: 220,
+    height: 60,
+    objects: [
+      {
+        id: "first-image",
+        type: "embedded-image",
+        x: 0,
+        y: 0,
+        width: 100,
+        height: 60,
+        source: sampleImageDataUrl,
+        imageClip: { x: 20, y: 10, width: 40, height: 30 }
+      },
+      {
+        id: "second-image",
+        type: "embedded-image",
+        x: 120,
+        y: 0,
+        width: 100,
+        height: 60,
+        source: "data:image/png;base64,AQID",
+        imageClip: { x: 130, y: 5, width: 60, height: 40 }
+      }
+    ]
+  });
+  const firstImage = state.objects[0];
+  const secondImage = state.objects[1];
+
+  assert.equal(annotationImageHasReversibleCrop(state, firstImage), true);
+  assert.equal(annotationImageHasReversibleCrop(state, secondImage), true);
+  assert.equal(firstImage.cropVisible, true);
+  assert.equal(secondImage.cropVisible, true);
+
+  assert.equal(setAnnotationImageCropVisibility(state, false, firstImage), true);
+  assert.deepEqual(firstImage.imageClip, { x: 20, y: 10, width: 40, height: 30 });
+  assert.equal(secondImage.cropVisible, true);
+  const tree = buildAnnotationObjectTree(state);
+  const hiddenTreeImage = tree.find(node => node.id === "first-image");
+  const visibleTreeImage = tree.find(node => node.id === "second-image");
+  assert.equal(hiddenTreeImage.cropped, true);
+  assert.equal(hiddenTreeImage.reversibleCrop, true);
+  assert.equal(hiddenTreeImage.cropVisible, false);
+  assert.equal(visibleTreeImage.cropped, true);
+  assert.equal(visibleTreeImage.cropVisible, true);
+  assert.doesNotMatch(buildAnnotationSvg(state), /pmt-annotation-image-clip-first-image/);
+  assert.match(buildAnnotationSvg(state), /pmt-annotation-image-clip-second-image/);
+
+  const restored = parseAnnotationSvg(buildAnnotationSvg(state));
+  const restoredImage = restored.objects.find(object => object.id === "first-image");
+  const restoredSecondImage = restored.objects.find(object => object.id === "second-image");
+  assert.equal(restoredImage.cropVisible, false);
+  assert.deepEqual(restoredImage.imageClip, firstImage.imageClip);
+  assert.equal(restoredSecondImage.cropVisible, true);
+  assert.deepEqual(restoredSecondImage.imageClip, secondImage.imageClip);
+  assert.equal(setAnnotationImageCropVisibility(restored, true, restoredImage), true);
+  assert.match(buildAnnotationSvg(restored), /pmt-annotation-image-clip-first-image/);
+});
+
+test("object tree keeps a permanent-crop cue after the baked image becomes the full source", () => {
+  const state = normalizeAnnotationState({
+    width: 40,
+    height: 30,
+    objects: [{
+      id: "source-image",
+      type: "embedded-image",
+      x: 10,
+      y: 15,
+      width: 40,
+      height: 30,
+      source: "data:image/png;base64,AA==",
+      cropPermanent: true
+    }]
+  });
+  const imageNode = buildAnnotationObjectTree(state).at(-1);
+  assert.equal(annotationImageHasReversibleCrop(state), false);
+  assert.equal(imageNode.cropped, true);
+  assert.equal(imageNode.reversibleCrop, false);
+  assert.equal(imageNode.permanentCrop, true);
+});
+
+test("a permanent crop rasterizes only the selected embedded image", async () => {
+  const originalDocument = globalThis.document;
+  const OriginalImage = globalThis.Image;
+  const OriginalFileReader = globalThis.FileReader;
+  const drawCalls = [];
+
+  class TestImage {
+    listeners = {};
+    naturalWidth = 400;
+    naturalHeight = 240;
+
+    addEventListener(type, listener) {
+      this.listeners[type] = listener;
+    }
+
+    set src(value) {
+      this.source = value;
+      queueMicrotask(() => this.listeners.load?.());
+    }
+  }
+
+  class TestFileReader {
+    listeners = {};
+    result = "";
+
+    addEventListener(type, listener) {
+      this.listeners[type] = listener;
+    }
+
+    readAsDataURL() {
+      this.result = "data:image/png;base64,Y3JvcHBlZA==";
+      queueMicrotask(() => this.listeners.load?.());
+    }
+  }
+
+  globalThis.Image = TestImage;
+  globalThis.FileReader = TestFileReader;
+  globalThis.document = {
+    createElement(tagName) {
+      assert.equal(tagName, "canvas");
+      return {
+        width: 0,
+        height: 0,
+        getContext(contextType) {
+          assert.equal(contextType, "2d");
+          return { drawImage: (...args) => drawCalls.push(args) };
+        },
+        toBlob(callback, type) {
+          callback(new Blob(["cropped"], { type }));
+        }
+      };
+    }
+  };
+
+  try {
+    const state = normalizeAnnotationState({
+      width: 320,
+      height: 120,
+      objects: [
+        {
+          id: "source-image",
+          type: "embedded-image",
+          x: 0,
+          y: 0,
+          width: 200,
+          height: 120,
+          source: "data:image/png;base64,b2xkLWZ1bGwtaW1hZ2U=",
+          cropVisible: false,
+          imageClip: { x: 40, y: 20, width: 80, height: 60 }
+        },
+        {
+          id: "untouched-image",
+          type: "embedded-image",
+          x: 220,
+          y: 10,
+          width: 80,
+          height: 80,
+          source: "data:image/png;base64,c2Vjb25k",
+          imageClip: { x: 230, y: 20, width: 50, height: 50 }
+        }
+      ]
+    });
+    const untouchedBefore = structuredClone(state.objects[1]);
+    const result = await permanentlyCropAnnotationImage(state, "source-image");
+
+    assert.equal(result.dataUrl, "data:image/png;base64,Y3JvcHBlZA==");
+    assert.equal(result.width, 160);
+    assert.equal(result.height, 120);
+    assert.deepEqual(drawCalls[0].slice(1), [80, 40, 160, 120, 0, 0, 160, 120]);
+    const image = state.objects[0];
+    assert.deepEqual(
+      { x: image.x, y: image.y, width: image.width, height: image.height },
+      { x: 40, y: 20, width: 80, height: 60 }
+    );
+    assert.deepEqual(image.imageClip, { x: 40, y: 20, width: 80, height: 60 });
+    assert.equal(image.cropVisible, true);
+    assert.equal(image.cropPermanent, true);
+    assert.deepEqual(state.objects[1], untouchedBefore);
+    const svg = buildAnnotationSvg(state);
+    assert.match(svg, /Y3JvcHBlZA==/);
+    assert.doesNotMatch(svg, /b2xkLWZ1bGwtaW1hZ2U=/);
+    assert.match(svg, /c2Vjb25k/);
+  } finally {
+    globalThis.document = originalDocument;
+    globalThis.Image = OriginalImage;
+    globalThis.FileReader = OriginalFileReader;
+  }
+});
+
 test("annotation text wraps more as the box narrows or the font grows", () => {
   const text = "The quick brown fox jumps over the lazy dog";
   const wide = wrapAnnotationText(text, 480, 20);
@@ -3591,7 +3820,7 @@ test("annotation text wraps more as the box narrows or the font grows", () => {
 
 test("selection bounds cover grouped geometry and layer commands preserve selected order", () => {
   const objects = [
-    { id: "image", type: "image", x: 0, y: 0, width: 800, height: 450 },
+    { id: "image", type: "embedded-image", x: 0, y: 0, width: 800, height: 450, source: sampleImageDataUrl },
     { id: "a", type: "rectangle", x: 10, y: 20, width: 100, height: 80 },
     { id: "b", type: "arrow", x1: 80, y1: 10, x2: 240, y2: 180 },
     { id: "c", type: "textbox", x: 300, y: 40, width: 100, height: 60 }
@@ -3608,14 +3837,72 @@ test("selection bounds cover grouped geometry and layer commands preserve select
   moveAnnotationLayers(objects, new Set(["a", "b"]), "backward");
   assert.deepEqual(objects.map(object => object.id), ["image", "a", "b", "c"]);
   moveAnnotationLayers(objects, new Set(["image"]), "front");
-  assert.deepEqual(objects.map(object => object.id), ["image", "a", "b", "c"]);
+  assert.deepEqual(objects.map(object => object.id), ["a", "b", "c", "image"]);
+});
+
+test("Entity relationships render above Original Image and below Entity objects", () => {
+  const state = normalizeAnnotationState({
+    width: 900,
+    height: 600,
+    objects: [
+      {
+        id: "original-image",
+        type: "embedded-image",
+        x: 0,
+        y: 0,
+        width: 900,
+        height: 600,
+        source: sampleImageDataUrl,
+        isOriginalImage: true
+      },
+      {
+        id: "parent",
+        type: "entity",
+        x: 80,
+        y: 60,
+        width: 280,
+        height: 120,
+        entitySchema: "pmt",
+        entityName: "Parent",
+        fields: [{ name: "ParentId", dataType: "int", isPrimaryKey: true }]
+      },
+      {
+        id: "child",
+        type: "entity",
+        x: 480,
+        y: 300,
+        width: 280,
+        height: 140,
+        entitySchema: "pmt",
+        entityName: "Child",
+        fields: [
+          { name: "ChildId", dataType: "int", isPrimaryKey: true },
+          { name: "ParentId", dataType: "int", isForeignKey: true }
+        ],
+        foreignKeys: [{
+          columns: ["ParentId"],
+          referencedSchema: "pmt",
+          referencedTable: "Parent",
+          referencedColumns: ["ParentId"],
+          relationshipType: "one-to-many"
+        }]
+      }
+    ]
+  });
+  const svg = buildAnnotationSvg(state);
+  const imageIndex = svg.indexOf(`<image href="${sampleImageDataUrl}"`);
+  const relationshipsIndex = svg.indexOf('class="image-annotation-entity-relationships"');
+  const parentIndex = svg.indexOf("pmt.Parent");
+
+  assert.ok(imageIndex >= 0);
+  assert.ok(relationshipsIndex > imageIndex);
+  assert.ok(parentIndex > relationshipsIndex);
 });
 
 test("reopening, editing, and applying an inline Diagram preserves Unicode Entity SQL metadata", async () => {
   const svg = buildAnnotationSvg({
     width: 800,
     height: 600,
-    includeOriginalImage: false,
     objects: [{
       id: "entity-private",
       type: "entity",
@@ -3691,5 +3978,37 @@ test("editing a stored Diagram keeps Apply inline while normal RTE annotations s
     annotateImage,
     /if \(isStoredDiagram\) \{\s*annotationSource = annotationSvgDataUrl\(annotation\.svg\);\s*\} else \{[\s\S]*uploadFile\("richtext", file\)/
   );
+  assert.match(
+    annotateImage,
+    /persistCroppedOriginal:\s*async \(\{ blob, fileName \}\)[\s\S]*uploadFile\("richtext", file\)[\s\S]*return storageUrl\(upload\.url\)/
+  );
   assert.match(annotateImage, /image\.setAttribute\("src", annotationSource\)/);
+  assert.match(annotateImage, /image\.dataset\.pmtAnnotationSource = annotation\.originalReference/);
+});
+
+test("RTE Insert Diagram uses the shared blank canvas without a fake Original Image", async () => {
+  const appSource = await readFile(new URL("../../wwwroot/js/app.js", import.meta.url), "utf8");
+  const formsSource = await readFile(new URL("../../wwwroot/js/components/forms.js", import.meta.url), "utf8");
+  const diagramSource = await readFile(new URL("../../wwwroot/js/features/diagram/diagram.js", import.meta.url), "utf8");
+  const insertStart = appSource.indexOf("async function insertRichTextDiagram");
+  const insertEnd = appSource.indexOf("\nfunction richUploadedDiagramHtml", insertStart);
+  const insertDiagram = appSource.slice(insertStart, insertEnd);
+  const markupStart = appSource.indexOf("function richUploadedDiagramHtml", insertEnd);
+  const markupEnd = appSource.indexOf("\nfunction richUploadedImageHtml", markupStart);
+  const insertedMarkup = appSource.slice(markupStart, markupEnd);
+  const editStart = diagramSource.indexOf("async function editDiagram");
+  const editEnd = diagramSource.indexOf("\n  function bindDiagramTreeSplitter", editStart);
+  const editDiagram = diagramSource.slice(editStart, editEnd);
+
+  assert.match(formsSource, /data-command="insertDiagram"[^>]+aria-label="Insert Diagram"/);
+  assert.match(insertDiagram, /canvasWidth:\s*1600/);
+  assert.match(insertDiagram, /canvasHeight:\s*900/);
+  assert.doesNotMatch(insertDiagram, /originalUrl|includeOriginalImage/);
+  assert.match(insertDiagram, /uploadFile\("richtext", file\)/);
+  assert.match(insertDiagram, /restoreEditorSelection\(savedSelection\)[\s\S]*execCommand\("insertHTML"/);
+  assert.match(insertedMarkup, /data-pmt-annotation-version=/);
+  assert.doesNotMatch(insertedMarkup, /data-pmt-annotation-source|data-pmt-blank-diagram/);
+  assert.match(editDiagram, /canvasWidth:\s*blankDiagramWidth/);
+  assert.match(editDiagram, /canvasHeight:\s*blankDiagramHeight/);
+  assert.doesNotMatch(editDiagram, /originalUrl|includeOriginalImage/);
 });

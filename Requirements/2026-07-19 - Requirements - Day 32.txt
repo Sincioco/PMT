@@ -1,0 +1,54 @@
+Project Management Tool (PMT):  Day 33 of Codex Agentic AI Coding
+-----------------------------------------------------------------
+Total Dev Time in Hours:  42
+
+AI Instructions
+--------------
+Design and Coding Methodology:
+	KISS (Keep It Simple Stupid) - The simpler the better.  Avoid over-engineering.  Avoid unnecessary complexity.  Avoid unnecessary features.  Avoid unnecessary bells and whistles.  Avoid unnecessary abstractions.  Avoid unnecessary patterns.  Avoid unnecessary frameworks.  Avoid unnecessary libraries.  Avoid unnecessary dependencies.  Avoid unnecessary code.  Avoid unnecessary files.  Avoid unnecessary folders.  Avoid unnecessary classes.  Avoid unnecessary methods.  Avoid unnecessary variables.
+
+Testing:
+	In addition to your normal testing, be sure to inform me if I have to recompile the .Net portion of the project or just Press Ctrl + F5 on the browser to reload to see the latest changes.  If making CSS / image changes, ensure that I will encounter no caching issue when testing in the browser.  Do not test the 3D About flyby unless you made changes to it.
+
+Environment:
+	You are in a dev machine.  You can drop and re-create the database as you see fit, especially when testing migrations scripts.  You don't need to preseve data in the backend or frontend.  You can also clear preferences, local storage settings and any cache as you see fit.
+
+Database:
+	If making changes to the database, that affects existing users see database-versioning.md under the docs folder.
+
+
+Commits:
+	PMT is a public repo, write a detailed commit message so people can follow its progression.
+
+
+Diagram
+-------
+1.) I would like additional functionality in the crop tool. When an image that is selected has been cropped and the user clicks on the crop tool bring up a dialogue box asking the user if they want to remove the crop or apply the crop permanently and then warn them that if they do that action it is irreversible. Orphan the original image so it shows up in PMT's Maintenance Screen as an orphaned image.
+
+2.) In the Objects tab in the layers tree section provide a visual cue that an image has been cropped and a way to toggle on and off the cropping.
+
+3.) Performance problem:  When I zoom in or out of PMT's Database Schema diagram that you created in the Diagram screen tool, the performance is really sluggish.
+
+5.) In an RTE, I would like to add an Insert a Diagram button.  That way, I can create diagrams with or without an image first to annotate.
+
+4.) I would like to normalize this "Original Image" layer/behavior between the RTE/Image Anotation Diagram and the Diagram Screen.  If an image is to be anotated, could you not just start the diagram tool like I'm just inserting a blank daigram and just very quickly auto-create an "Original Image" and apply any cropping, then the annotations on top of it?  Why does the RTE/Image annotation have to behave differently than the normal Diagram screen?
+
+5.) In the Entity tab, at the very bottom, put a button called "Generate PMT Database Schema".  Clicking that will Create another diagram of PMT's Database Schema with the latest database schema.
+
+Following up on #3, you fixed it in read-mode.  In Edit mode it's still not fixed.  The diagram you created, PMT's Database Schema is still very slow when I go to edit mode and zoom in and out.  Considering that I have a very fast machine, why is this?  This would probably be even slower for users with an even slower machine.
+
+6.) When I edit a diagram and hit cancel, when the view returns back to the Diagram's Treenav view, the content area is no longer fit / centered.
+7.) Also, in read mode, hide the expand/collapse and the Data Type button unless the mouse cursor is at or near the entity.  Just like what you do now in edit mode.
+
+For #6, it looks like the viewport is not re-centered.
+
+8.) Spend more time optimizing the zoom in and zoom out speed of the Diagram when in edit mode.  I want zooming and panning (which is fast right now, btw) to be as snappy and fast as possible.  At work, we have faily slow computers.  So, if the Diagram is acting slow on a very fast machine, it would be unusuable on our work computer.  I just got my weekly Codex quota refreshed, so I have plenty of Codex credits.  Use it and find ways to optimize the Diagram editing experience so zooming in and zooming out is as fast as possible.  Don't stop until you have exhausted all means of optimizing it.  Draw.io can render really large diagrams very fast when you zoom in and out.  Be creative and find a way!  Surely, you, the most advance AI man has ever conceived, can beat a human in programming, right?  Either way, do your best, be creative, research and optimize.  Find a way!
+
+Database Migration Script Testing
+---------------------------------
+Update the migration scripts and test them by dropping and re-creating the database from the baseline and executing your combined migration script as that is how I will execute it during deployment.  Be sure it works without any errors and fix errors that you do encounter.
+
+Commit and Push
+---------------
+When all your tests are green, commit and push to the repo.
+Also commit the file named "2026-07-19 - Requirements - Day 32.txt"

@@ -31,6 +31,16 @@ public sealed partial class SqlPmtStore
             : EmptyImageAnnotationTemplateLibrary;
     }
 
+    public async Task<string> GetPmtDatabaseSchemaAsync(CancellationToken cancellationToken)
+    {
+        await using var connection = await OpenConnectionAsync(cancellationToken);
+        await using var command = StoredProcedure(connection, "[pmt].[GetPmtDatabaseSchema]");
+        var value = await command.ExecuteScalarAsync(cancellationToken);
+        return value is string schemaJson && !string.IsNullOrWhiteSpace(schemaJson)
+            ? schemaJson
+            : "{\"version\":1,\"columns\":[],\"foreignKeys\":[]}";
+    }
+
     public async Task<string> SaveUserImageAnnotationTemplateLibraryAsync(
         string libraryJson,
         int currentUserId,

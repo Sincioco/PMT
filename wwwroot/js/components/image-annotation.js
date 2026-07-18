@@ -1,4 +1,4 @@
-import { sharedRichColorPickerHtml } from "./forms.js?v=20260717-day30-image-annotation";
+import { sharedRichColorPickerHtml } from "./forms.js?v=20260719-rte-insert-diagram";
 import { copyTextToClipboard } from "./clipboard.js?v=20260714-invite-email-body";
 
 const svgNamespace = "http://www.w3.org/2000/svg";
@@ -9,7 +9,6 @@ const maximumZoom = 2;
 const annotationZoomStep = 0.05;
 const annotationZoomPercentages = Array.from({ length: 39 }, (_, index) => 10 + (index * 5));
 const defaultGridSize = 20;
-const imageClipId = "pmt-annotation-image-clip";
 const minimumScaledStrokeWidth = 0.001;
 const maximumScaledStrokeWidth = 1000000;
 const minimumScaledArrowSize = 0.001;
@@ -84,10 +83,14 @@ const annotationTemplateStyleFields = {
 
 export async function openImageAnnotationDialog(options) {
   const originalReference = String(options?.originalReference || "").trim();
-  const originalUrl = String(options?.originalUrl || originalReference).trim();
-  if (!originalUrl) throw new Error("The original image could not be found.");
-
-  const original = await loadOriginalImage(originalUrl);
+  const originalUrl = String(options?.originalUrl || "").trim();
+  const original = originalUrl
+    ? await loadOriginalImage(originalUrl)
+    : {
+        dataUrl: "",
+        width: positiveNumber(options?.canvasWidth, 1600),
+        height: positiveNumber(options?.canvasHeight, 900)
+      };
   let state = null;
   if (options?.annotationUrl) {
     state = await loadExistingAnnotation(options.annotationUrl);
@@ -97,7 +100,7 @@ export async function openImageAnnotationDialog(options) {
     width: original.width,
     height: original.height,
     originalReference,
-    includeOriginalImage: options?.includeOriginalImage
+    seedImageSource: original.dataUrl
   });
 
   let templateLibrary = normalizeAnnotationTemplateLibrary(null);
@@ -112,8 +115,7 @@ export async function openImageAnnotationDialog(options) {
 
   return createAnnotationDialog({
     state,
-    originalDataUrl: original.dataUrl,
-    originalReference,
+    originalReference: state.originalReference || originalReference,
     originalFileName: options?.originalFileName || "image",
     title: options?.title,
     subtitle: options?.subtitle,
@@ -124,8 +126,10 @@ export async function openImageAnnotationDialog(options) {
     askForText: options?.askForText,
     confirm: options?.confirm,
     notify: options?.notify,
+    persistCroppedOriginal: options?.persistCroppedOriginal,
     loadDefaultTemplateLibrary: options?.loadDefaultTemplateLibrary,
     saveTemplateLibrary: options?.saveTemplateLibrary,
+    generatePmtDatabaseSchema: options?.generatePmtDatabaseSchema,
     templateLibrary,
     templateLibraryError,
     apply: options?.apply,
@@ -136,42 +140,51 @@ export async function openImageAnnotationDialog(options) {
   });
 }
 
-export function buildAnnotationSvg(inputState, originalDataUrl) {
+export function buildAnnotationSvg(inputState) {
   const state = normalizeAnnotationState(inputState);
   const outputBounds = annotationOutputBounds(state);
   const visibleObjects = annotationVisibleObjects(state);
+  const relationshipLayers = annotationObjectsAroundRelationshipLayer(visibleObjects);
   const metadata = escapeXmlText(JSON.stringify(state));
-  const background = state.includeOriginalImage ? "" : annotationCanvasBackgroundSvg(state, outputBounds);
+  const background = annotationCanvasBackgroundSvg(state, outputBounds);
   const relationships = annotationEntityRelationshipsSvg(visibleObjects, state.relationshipStyle, {
     allowOverlappingLines: state.allowOverlappingEntityLines
   });
-  const imageBody = visibleObjects
-    .filter(object => object.type === "image")
-    .map(object => annotationObjectSvg(object, originalDataUrl, { exportMode: true }))
+  const belowRelationships = relationshipLayers.below
+    .map(object => annotationObjectSvg(object, { exportMode: true }))
     .join("");
-  const body = visibleObjects
-    .filter(object => object.type !== "image")
-    .map(object => annotationObjectSvg(object, originalDataUrl, { exportMode: true }))
+  const aboveRelationships = relationshipLayers.above
+    .map(object => annotationObjectSvg(object, { exportMode: true }))
     .join("");
 
   return [
     `<?xml version="1.0" encoding="UTF-8"?>`,
     `<svg xmlns="${svgNamespace}" width="${formatNumber(outputBounds.width)}" height="${formatNumber(outputBounds.height)}" viewBox="${formatNumber(outputBounds.x)} ${formatNumber(outputBounds.y)} ${formatNumber(outputBounds.width)} ${formatNumber(outputBounds.height)}" role="img" aria-label="Annotated image" data-pmt-image-annotation-version="${annotationVersion}">`,
     `<metadata data-pmt-image-annotation-state="true">${metadata}</metadata>`,
-    annotationImageClipDefinition(state),
     background,
-    imageBody,
+    belowRelationships,
     relationships,
-    body,
+    aboveRelationships,
     `</svg>`
   ].join("");
 }
 
-export function buildAnnotationSelectionSvg(inputState, selectedObjectIds, originalDataUrl) {
-  return annotationSelectionClipboardExport(inputState, selectedObjectIds, originalDataUrl).svg;
+function annotationObjectsAroundRelationshipLayer(objects) {
+  const source = Array.isArray(objects) ? objects : [];
+  const originalImageIndex = source.findIndex(object => object.type === "embedded-image"
+    && object.isOriginalImage);
+  const splitIndex = originalImageIndex >= 0 ? originalImageIndex + 1 : 0;
+  return {
+    below: source.slice(0, splitIndex),
+    above: source.slice(splitIndex)
+  };
 }
 
-function annotationSelectionClipboardExport(inputState, selectedObjectIds, originalDataUrl) {
+export function buildAnnotationSelectionSvg(inputState, selectedObjectIds) {
+  return annotationSelectionClipboardExport(inputState, selectedObjectIds).svg;
+}
+
+function annotationSelectionClipboardExport(inputState, selectedObjectIds) {
   const state = normalizeAnnotationState(inputState);
   const ids = new Set(
     selectedObjectIds && typeof selectedObjectIds[Symbol.iterator] === "function"
@@ -183,7 +196,7 @@ function annotationSelectionClipboardExport(inputState, selectedObjectIds, origi
 
   const bounds = unionAnnotationBounds(
     [
-      ...objects.map(object => annotationObjectVisualBounds(object, state.imageClip)),
+      ...objects.map(object => annotationObjectVisualBounds(object)),
       ...annotationEntityRelationshipVisualBounds(objects, state.relationshipStyle, {
         allowOverlappingLines: state.allowOverlappingEntityLines
       })
@@ -193,18 +206,11 @@ function annotationSelectionClipboardExport(inputState, selectedObjectIds, origi
   const relationships = annotationEntityRelationshipsSvg(objects, state.relationshipStyle, {
     allowOverlappingLines: state.allowOverlappingEntityLines
   });
-  const imageBody = objects
-    .filter(object => object.type === "image")
-    .map(object => annotationObjectSvg(object, originalDataUrl, { exportMode: true }))
-    .join("");
   const body = objects
-    .filter(object => object.type !== "image")
-    .map(object => annotationObjectSvg(object, originalDataUrl, { exportMode: true }))
+    .map(object => annotationObjectSvg(object, { exportMode: true }))
     .join("");
   const svg = [
     `<svg xmlns="${svgNamespace}" width="${formatNumber(bounds.width)}" height="${formatNumber(bounds.height)}" viewBox="${formatNumber(bounds.x)} ${formatNumber(bounds.y)} ${formatNumber(bounds.width)} ${formatNumber(bounds.height)}" role="img" aria-label="Copied annotation selection">`,
-    objects.some(object => object.type === "image") ? annotationImageClipDefinition(state) : "",
-    imageBody,
     relationships,
     body,
     `</svg>`
@@ -829,6 +835,84 @@ function openAnnotationInformationDialog(message, title = "Diagram Information")
   });
 }
 
+function openAnnotationCropOptionsDialog() {
+  return new Promise(resolve => {
+    const dialog = document.createElement("dialog");
+    dialog.className = "dialog mini-dialog image-annotation-crop-options-dialog";
+    dialog.setAttribute("aria-labelledby", "annotationCropOptionsTitle");
+    dialog.innerHTML = `
+      <div class="dialog-head">
+        <h2 id="annotationCropOptionsTitle">Crop Options</h2>
+      </div>
+      <div class="dialog-body">
+        <p>This image already has a crop. You can remove the crop or permanently replace the source with only the cropped area.</p>
+        <p class="image-annotation-crop-warning">Applying the crop permanently cannot be undone.</p>
+      </div>
+      <div class="dialog-actions">
+        <button type="button" class="secondary text-icon-button" data-annotation-crop-choice=""><span class="button-icon" aria-hidden="true">&#10005;</span><span>Cancel</span></button>
+        <button type="button" class="secondary text-icon-button" data-annotation-crop-choice="remove"><span class="button-icon" aria-hidden="true">&#8634;</span><span>Remove Crop</span></button>
+        <button type="button" class="danger text-icon-button" data-annotation-crop-choice="permanent"><span class="button-icon" aria-hidden="true">&#9888;</span><span>Apply Crop Permanently</span></button>
+      </div>
+    `;
+    document.body.appendChild(dialog);
+    let finished = false;
+    const finish = value => {
+      if (finished) return;
+      finished = true;
+      if (dialog.open) dialog.close();
+      dialog.remove();
+      resolve(value);
+    };
+    dialog.querySelectorAll("[data-annotation-crop-choice]").forEach(button => {
+      button.addEventListener("click", () => finish(button.dataset.annotationCropChoice || ""));
+    });
+    dialog.addEventListener("cancel", event => {
+      event.preventDefault();
+      finish("");
+    });
+    dialog.showModal();
+    dialog.querySelector("[data-annotation-crop-choice='']")?.focus();
+  });
+}
+
+function openAnnotationPermanentCropWarningDialog() {
+  return new Promise(resolve => {
+    const dialog = document.createElement("dialog");
+    dialog.className = "dialog mini-dialog image-annotation-crop-options-dialog";
+    dialog.setAttribute("aria-labelledby", "annotationPermanentCropTitle");
+    dialog.innerHTML = `
+      <div class="dialog-head">
+        <h2 id="annotationPermanentCropTitle">Apply Crop Permanently?</h2>
+      </div>
+      <div class="dialog-body">
+        <p>The source stored with this annotation will be replaced by only the cropped pixels.</p>
+        <p class="image-annotation-crop-warning"><strong>This action is irreversible.</strong> The removed area cannot be restored inside the annotation.</p>
+      </div>
+      <div class="dialog-actions">
+        <button type="button" class="secondary text-icon-button" data-annotation-permanent-crop="false"><span class="button-icon" aria-hidden="true">&#10005;</span><span>Cancel</span></button>
+        <button type="button" class="danger text-icon-button" data-annotation-permanent-crop="true"><span class="button-icon" aria-hidden="true">&#9888;</span><span>Apply Permanently</span></button>
+      </div>
+    `;
+    document.body.appendChild(dialog);
+    let finished = false;
+    const finish = value => {
+      if (finished) return;
+      finished = true;
+      if (dialog.open) dialog.close();
+      dialog.remove();
+      resolve(value);
+    };
+    dialog.querySelector("[data-annotation-permanent-crop='false']").addEventListener("click", () => finish(false));
+    dialog.querySelector("[data-annotation-permanent-crop='true']").addEventListener("click", () => finish(true));
+    dialog.addEventListener("cancel", event => {
+      event.preventDefault();
+      finish(false);
+    });
+    dialog.showModal();
+    dialog.querySelector("[data-annotation-permanent-crop='false']")?.focus();
+  });
+}
+
 function openAnnotationEntityForeignKeyDialog(entity, field) {
   return new Promise(resolve => {
     const mapping = annotationEntityFieldForeignKeyMapping(entity, field?.name);
@@ -1149,65 +1233,39 @@ export function normalizeAnnotationState(input, fallback = {}) {
   const source = input && typeof input === "object" ? input : {};
   const width = positiveNumber(source.width, positiveNumber(fallback.width, 1));
   const height = positiveNumber(source.height, positiveNumber(fallback.height, 1));
-  const sourceWidth = positiveNumber(source.sourceWidth, positiveNumber(fallback.width, width));
-  const sourceHeight = positiveNumber(source.sourceHeight, positiveNumber(fallback.height, height));
-  const cropOffsetX = clampNumber(finiteNumber(source.cropOffsetX, 0), 0, Math.max(0, sourceWidth - width));
-  const cropOffsetY = clampNumber(finiteNumber(source.cropOffsetY, 0), 0, Math.max(0, sourceHeight - height));
   const objects = Array.isArray(source.objects)
     ? source.objects.map(normalizeAnnotationObject).filter(Boolean)
     : [];
   const originalReference = String(
-    fallback.originalReference || source.originalReference || ""
+    source.originalReference || fallback.originalReference || ""
   ).trim();
-  const includeOriginalImage = typeof fallback.includeOriginalImage === "boolean"
-    ? fallback.includeOriginalImage
-    : source.includeOriginalImage !== false;
-
-  const existingImage = objects.find(object => object.type === "image");
-  if (!includeOriginalImage) {
-    for (let index = objects.length - 1; index >= 0; index -= 1) {
-      if (objects[index].type === "image") objects.splice(index, 1);
-    }
-  } else if (!existingImage) {
-    objects.unshift({
-      id: annotationObjectId("image"),
-      type: "image",
-      x: -cropOffsetX,
-      y: -cropOffsetY,
-      width: sourceWidth,
-      height: sourceHeight,
+  const isNewState = !Array.isArray(source.objects);
+  if (isNewState && safeEmbeddedImageSource(fallback.seedImageSource)) {
+    objects.unshift(normalizeAnnotationObject({
+      id: annotationObjectId("embedded-image"),
+      type: "embedded-image",
+      x: 0,
+      y: 0,
+      width,
+      height,
+      source: safeEmbeddedImageSource(fallback.seedImageSource),
+      name: "Original Image",
+      isOriginalImage: true,
       locked: false,
       groupId: ""
-    });
-  } else {
-    for (let index = objects.length - 1; index >= 0; index -= 1) {
-      if (objects[index].type === "image") objects.splice(index, 1);
-    }
-    objects.unshift(existingImage);
+    }));
   }
   compactAnnotationGroupLayers(objects);
 
-  const image = objects.find(object => object.type === "image");
-  const imageBounds = image
-    ? { x: image.x, y: image.y, width: image.width, height: image.height }
-    : { x: 0, y: 0, width, height };
-  const suppliedImageClip = source.imageClip && typeof source.imageClip === "object"
+  const suppliedCanvasBounds = source.canvasBounds && typeof source.canvasBounds === "object"
     ? {
-        x: finiteNumber(source.imageClip.x, imageBounds.x),
-        y: finiteNumber(source.imageClip.y, imageBounds.y),
-        width: positiveNumber(source.imageClip.width, imageBounds.width),
-        height: positiveNumber(source.imageClip.height, imageBounds.height)
+        x: finiteNumber(source.canvasBounds.x, 0),
+        y: finiteNumber(source.canvasBounds.y, 0),
+        width: positiveNumber(source.canvasBounds.width, width),
+        height: positiveNumber(source.canvasBounds.height, height)
       }
     : null;
-  const legacyCrop = cropOffsetX > 0 || cropOffsetY > 0
-    || width < sourceWidth || height < sourceHeight;
-  const legacyImageClip = legacyCrop
-    ? { x: 0, y: 0, width, height }
-    : imageBounds;
-  const imageClip = intersectAnnotationBounds(
-    imageBounds,
-    suppliedImageClip || legacyImageClip
-  ) || imageBounds;
+  const canvasBounds = suppliedCanvasBounds || { x: 0, y: 0, width, height };
   const groupIds = new Set(objects.map(object => object.groupId).filter(Boolean));
   const suppliedGroupNames = source.groupNames && typeof source.groupNames === "object"
     ? source.groupNames
@@ -1229,17 +1287,12 @@ export function normalizeAnnotationState(input, fallback = {}) {
     version: annotationVersion,
     width,
     height,
-    sourceWidth,
-    sourceHeight,
-    cropOffsetX,
-    cropOffsetY,
     originalReference,
-    includeOriginalImage,
+    canvasBounds,
     gridVisible: source.gridVisible === true,
     snapToGrid: source.snapToGrid === true,
     allowOverlappingEntityLines: source.allowOverlappingEntityLines === true,
     gridSize: clampNumber(positiveNumber(source.gridSize, defaultGridSize), 4, 200),
-    imageClip,
     relationshipStyle: normalizeAnnotationEntityRelationshipStyle(source.relationshipStyle),
     groupNames,
     groupVisibility,
@@ -1413,7 +1466,7 @@ function uniqueRestoredTemplateId(templateId, usedIds) {
   return candidate;
 }
 
-export function captureAnnotationTemplate(inputState, selectedObjectIds, originalDataUrl, name = "Template") {
+export function captureAnnotationTemplate(inputState, selectedObjectIds, _unusedImageSource, name = "Template") {
   const state = normalizeAnnotationState(inputState);
   const ids = new Set(
     selectedObjectIds && typeof selectedObjectIds[Symbol.iterator] === "function"
@@ -1440,9 +1493,11 @@ export function captureAnnotationTemplate(inputState, selectedObjectIds, origina
     ? state.groupVisibility[selectedGroupId] !== false
     : true;
   const objects = selected
-    .map(object => object.type === "image"
-      ? annotationEmbeddedImageFromSource(object, state, originalDataUrl)
-      : { ...deepCopy(object), locked: false, groupId: "" })
+    .map(object => {
+      const copy = { ...deepCopy(object), locked: false, groupId: "" };
+      if (copy.type === "embedded-image") copy.isOriginalImage = false;
+      return copy;
+    })
     .filter(Boolean);
   if (!objects.length && !relationshipStyle) return null;
 
@@ -1651,17 +1706,47 @@ export function annotationExpandedWorkspaceBounds(currentBounds, inputState, vie
 
 export function annotationOutputBounds(inputState) {
   const state = normalizeAnnotationState(inputState);
-  const imageFrame = state.imageClip;
   const visibleObjects = annotationVisibleObjects(state);
   const bounds = [
-    state.includeOriginalImage ? null : imageFrame,
+    state.canvasBounds,
     ...visibleObjects
-    .map(object => annotationObjectVisualBounds(object, imageFrame)),
+    .map(object => annotationObjectVisualBounds(object)),
     ...annotationEntityRelationshipVisualBounds(visibleObjects, state.relationshipStyle, {
       allowOverlappingLines: state.allowOverlappingEntityLines
     })
   ].filter(Boolean);
-  return unionAnnotationBounds(bounds) || imageFrame;
+  return unionAnnotationBounds(bounds) || state.canvasBounds;
+}
+
+function annotationCropImage(state, imageOrId = null) {
+  if (imageOrId && typeof imageOrId === "object") return imageOrId;
+  const requestedId = String(imageOrId || "");
+  if (requestedId) return state?.objects?.find(object => object.id === requestedId) || null;
+  return state?.objects?.find(object => object.type === "embedded-image" && object.isOriginalImage)
+    || state?.objects?.find(object => object.type === "embedded-image")
+    || null;
+}
+
+function annotationEmbeddedImageEffectiveClip(object) {
+  const fullBounds = annotationObjectBounds(object);
+  if (!fullBounds) return null;
+  if (object?.cropVisible === false) return fullBounds;
+  return intersectAnnotationBounds(fullBounds, object?.imageClip || fullBounds) || fullBounds;
+}
+
+export function annotationImageHasReversibleCrop(inputState, imageOrId = null) {
+  const state = normalizeAnnotationState(inputState);
+  const image = annotationCropImage(state, imageOrId);
+  return image?.type === "embedded-image"
+    && !annotationBoundsEqual(image.imageClip, annotationObjectBounds(image));
+}
+
+export function setAnnotationImageCropVisibility(state, visible, imageOrId = null) {
+  if (!state) return false;
+  const image = annotationCropImage(state, imageOrId);
+  if (!image || !annotationImageHasReversibleCrop(state, image)) return false;
+  image.cropVisible = visible !== false;
+  return true;
 }
 
 export function annotationObjectIsVisible(object, groupVisibility = {}) {
@@ -1710,14 +1795,24 @@ export function buildAnnotationObjectTree(inputState) {
   const topmostFirst = [...state.objects].reverse();
   const renderedGroups = new Set();
   let unnamedGroupSequence = 0;
-  const objectNode = object => ({
-    kind: "object",
-    id: object.id,
-    name: object.name || annotationObjectLabel(object),
-    visible: object.visible !== false,
-    effectiveVisible: annotationObjectIsVisible(object, state.groupVisibility),
-    object
-  });
+  const objectNode = object => {
+    const image = object.type === "embedded-image";
+    const reversibleCrop = image && annotationImageHasReversibleCrop(state, object);
+    const permanentCrop = image && object.cropPermanent === true;
+    const cropVisible = image && object.cropVisible !== false;
+    return {
+      kind: "object",
+      id: object.id,
+      name: object.name || annotationObjectLabel(object),
+      visible: object.visible !== false,
+      effectiveVisible: annotationObjectIsVisible(object, state.groupVisibility),
+      cropped: image && (reversibleCrop || permanentCrop),
+      reversibleCrop,
+      cropVisible,
+      permanentCrop,
+      object
+    };
+  };
 
   const nodes = topmostFirst.flatMap(object => {
     if (!object.groupId) return [objectNode(object)];
@@ -1758,7 +1853,9 @@ export function buildAnnotationObjectTree(inputState) {
       children,
       allChildren: children
     };
-    const imageIndex = nodes.findIndex(node => node.kind === "object" && node.object?.type === "image");
+    const imageIndex = nodes.findIndex(node => node.kind === "object"
+      && node.object?.type === "embedded-image"
+      && node.object?.isOriginalImage);
     nodes.splice(imageIndex >= 0 ? imageIndex : nodes.length, 0, relationshipNode);
   }
   return nodes;
@@ -1820,9 +1917,8 @@ export function reorderAnnotationObjectTree(inputState, move = {}) {
     delete state.groupNames[draggedId];
   }
 
-  const fixedImages = state.objects.filter(object => object.type === "image");
-  const movingLayers = moving.filter(object => object.type !== "image");
-  const remainingLayers = state.objects.filter(object => object.type !== "image" && !movingIds.has(object.id));
+  const movingLayers = moving;
+  const remainingLayers = state.objects.filter(object => !movingIds.has(object.id));
   let insertionIndex = remainingLayers.length;
   if (targetKind === "object") {
     const targetIndex = remainingLayers.findIndex(object => object.id === targetId);
@@ -1836,7 +1932,7 @@ export function reorderAnnotationObjectTree(inputState, move = {}) {
     insertionIndex = groupIndexes.length ? Math.max(...groupIndexes) + 1 : remainingLayers.length;
   }
   remainingLayers.splice(insertionIndex, 0, ...movingLayers);
-  state.objects = [...fixedImages, ...remainingLayers];
+  state.objects = remainingLayers;
   compactAnnotationGroupLayers(state.objects);
 
   if (draggedKind === "object" && sourceGroupId && sourceGroupId !== destinationGroupId
@@ -1849,13 +1945,8 @@ export function reorderAnnotationObjectTree(inputState, move = {}) {
 
 export function compactAnnotationGroupLayers(objects) {
   if (!Array.isArray(objects) || objects.length < 2) return objects;
-  const images = objects.filter(object => object.type === "image");
-  const layers = objects.filter(object => object.type !== "image");
-  const imageGroupIds = new Set(images.map(object => object.groupId).filter(Boolean));
-  const imageGroupLayers = layers.filter(object => imageGroupIds.has(object.groupId));
-  const remaining = layers.filter(object => !imageGroupIds.has(object.groupId));
   const grouped = new Map();
-  remaining.forEach((object, index) => {
+  objects.forEach((object, index) => {
     if (!object.groupId) return;
     const entry = grouped.get(object.groupId) || { members: [], topmostIndex: index };
     entry.members.push(object);
@@ -1863,7 +1954,7 @@ export function compactAnnotationGroupLayers(objects) {
     grouped.set(object.groupId, entry);
   });
   const compacted = [];
-  remaining.forEach((object, index) => {
+  objects.forEach((object, index) => {
     if (!object.groupId) {
       compacted.push(object);
       return;
@@ -1871,7 +1962,7 @@ export function compactAnnotationGroupLayers(objects) {
     const entry = grouped.get(object.groupId);
     if (entry?.topmostIndex === index) compacted.push(...entry.members);
   });
-  objects.splice(0, objects.length, ...images, ...imageGroupLayers, ...compacted);
+  objects.splice(0, objects.length, ...compacted);
   return objects;
 }
 
@@ -2007,8 +2098,11 @@ export function wrapAnnotationText(text, width, fontSize) {
 function createAnnotationDialog(context) {
   return new Promise(resolve => {
     let state = deepCopy(context.state);
+    let originalReference = context.originalReference;
+    let pendingPermanentCrop = null;
     let templateLibrary = normalizeAnnotationTemplateLibrary(context.templateLibrary);
     let templateBusy = false;
+    let pmtSchemaBusy = false;
     const templateLibraryAvailable = !context.templateLibraryError
       && typeof context.saveTemplateLibrary === "function";
     const defaultTemplateLibraryAvailable = typeof context.loadDefaultTemplateLibrary === "function";
@@ -2024,7 +2118,8 @@ function createAnnotationDialog(context) {
     let activeTool = "select";
     const initialObject = context.initialSelection === "none"
       ? null
-      : state.objects.find(object => object.type === "image") || null;
+      : state.objects.find(object => object.type === "embedded-image" && object.isOriginalImage)
+        || null;
     let selectedIds = new Set(annotationSelectionIdsForObject(state.objects, initialObject, state.groupVisibility));
     let lastSelectedObjectId = initialObject?.id || "";
     let gesture = null;
@@ -2041,6 +2136,7 @@ function createAnnotationDialog(context) {
     let lastZoomPoint = null;
     let applying = false;
     let copying = false;
+    let cropBusy = false;
     let inspectorVisible = true;
     let maximized = false;
     let resolved = false;
@@ -2062,6 +2158,7 @@ function createAnnotationDialog(context) {
     }
 
     const canvas = dialog.querySelector("[data-annotation-canvas]");
+    const canvasStage = dialog.querySelector("[data-annotation-canvas-stage]");
     const workspace = dialog.querySelector("[data-annotation-workspace]");
     const statusRegions = [...dialog.querySelectorAll("[data-annotation-status], [data-annotation-maximized-status]")];
     const textInput = dialog.querySelector("[data-annotation-text]");
@@ -2197,6 +2294,12 @@ function createAnnotationDialog(context) {
     };
     const editableSelection = () => selectedObjects()
       .filter(object => !object.locked && !isAnnotationEntityRelationshipSelectionType(object.type));
+    const selectedCropImage = () => {
+      const selection = selectedObjects();
+      return selection.length === 1 && selection[0]?.type === "embedded-image"
+        ? selection[0]
+        : null;
+    };
 
     const syncControls = () => {
       const selection = selectedObjects();
@@ -2205,11 +2308,11 @@ function createAnnotationDialog(context) {
       const singleEntity = selection.length === 1 && first?.type === "entity" ? first : null;
       const hasSelection = selection.length > 0;
       const hasRelationshipSelection = selection.some(object => isAnnotationEntityRelationshipSelectionType(object.type));
-      const annotationCount = selection.filter(object => object.type !== "image" && !isAnnotationEntityRelationshipSelectionType(object.type)).length;
+      const annotationCount = selection.filter(object => !isAnnotationEntityRelationshipSelectionType(object.type)).length;
       const allLocked = hasSelection && selection.every(object => object.locked);
       const hasLocked = selection.some(object => object.locked);
-      const containsImage = selection.some(object => object.type === "image");
-      const image = state.objects.find(object => object.type === "image");
+      const image = selectedCropImage();
+      const containsImage = Boolean(image);
       const imageLocked = image?.locked === true;
       const groupIds = new Set(selection.map(object => object.groupId).filter(Boolean));
       const alreadyOneGroup = groupIds.size === 1
@@ -2259,6 +2362,7 @@ function createAnnotationDialog(context) {
       const anchorTable = dialog.querySelector("[data-annotation-entity-anchor-table]");
       const allowOverlappingLines = dialog.querySelector("[data-annotation-entity-allow-overlapping-lines]");
       const autoFormatOrgTree = dialog.querySelector("[data-annotation-entity-auto-format-org-tree]");
+      const generatePmtSchema = dialog.querySelector("[data-annotation-generate-pmt-schema]");
       showKeyColumn.checked = singleEntity?.showKeyColumn !== false;
       showDataTypes.checked = singleEntity?.showDataTypes === true;
       foreignKeysAtTop.checked = singleEntity?.foreignKeysAtTop === true;
@@ -2275,6 +2379,7 @@ function createAnnotationDialog(context) {
       autoFormatOrgTree.disabled = !singleEntity
         || canvasEntities.length < 2
         || canvasEntities.some(entity => entity.locked);
+      if (generatePmtSchema) generatePmtSchema.disabled = pmtSchemaBusy;
       const entityFieldScrollTop = entityFieldList.scrollTop;
       entityFieldList.innerHTML = singleEntity ? annotationEntityFieldListHtml(singleEntity) : "";
       entityFieldList.scrollTop = entityFieldScrollTop;
@@ -2318,7 +2423,7 @@ function createAnnotationDialog(context) {
       });
       dialog.querySelector("[data-annotation-action='delete']").disabled = annotationCount === 0;
       dialog.querySelector("button[data-annotation-tool='crop']").disabled = !image || imageLocked;
-      dialog.querySelector("[data-annotation-context-tool='crop']").disabled = !containsImage || hasLocked || imageLocked;
+      dialog.querySelector("[data-annotation-context-tool='crop']").disabled = !image || imageLocked;
       dialog.querySelector("[data-annotation-action='group']").disabled = hasRelationshipSelection || selection.length < 2 || hasLocked || alreadyOneGroup;
       dialog.querySelector("[data-annotation-action='ungroup']").disabled = hasRelationshipSelection || groupIds.size === 0 || hasLocked;
       ["back", "backward", "forward", "front"].forEach(action => {
@@ -2331,13 +2436,9 @@ function createAnnotationDialog(context) {
       lockButton.title = allLocked ? "Unlock selected objects" : "Lock selected objects";
       lockButton.setAttribute("aria-label", lockButton.title);
       lockButton.disabled = !hasSelection || hasRelationshipSelection;
-      const fullImageBounds = image
-        ? { x: image.x, y: image.y, width: image.width, height: image.height }
-        : null;
       dialog.querySelector("[data-annotation-action='reset-crop']").disabled = !containsImage
-        || hasLocked
-        || !fullImageBounds
-        || annotationBoundsEqual(state.imageClip, fullImageBounds);
+        || imageLocked
+        || !annotationImageHasReversibleCrop(state, image);
       dialog.querySelector("[data-annotation-action='undo']").disabled = historyIndex <= 0;
       dialog.querySelector("[data-annotation-action='redo']").disabled = historyIndex >= history.length - 1;
       dialog.querySelector("[data-annotation-zoom-select]").value = String(Math.round(zoom * 100));
@@ -2373,8 +2474,7 @@ function createAnnotationDialog(context) {
         || ["relationships", "relationship"].includes(selectedTreeTarget.kind);
       if (treeCopyButton) treeCopyButton.disabled = !hasSelection || hasRelationshipSelection;
       if (treePasteButton) treePasteButton.disabled = !nativeClipboard;
-      if (treeDeleteButton) treeDeleteButton.disabled = !selection.some(object => object.type !== "image"
-        && !isAnnotationEntityRelationshipSelectionType(object.type)
+      if (treeDeleteButton) treeDeleteButton.disabled = !selection.some(object => !isAnnotationEntityRelationshipSelectionType(object.type)
         && !object.locked);
       const rootDropButton = dialog.querySelector("[data-annotation-tree-root-drop]");
       if (rootDropButton) {
@@ -2406,6 +2506,52 @@ function createAnnotationDialog(context) {
       );
     };
 
+    let canvasWorkspaceOffset = null;
+    let zoomHandles = [];
+    let zoomRelationshipGroups = [];
+    let zoomGridPath = null;
+
+    const refreshZoomTargets = () => {
+      zoomHandles = [...canvas.querySelectorAll(".image-annotation-handle")];
+      zoomRelationshipGroups = [...canvas.querySelectorAll(".image-annotation-entity-relationship")];
+      zoomGridPath = canvas.querySelector("#pmt-annotation-grid path");
+    };
+
+    const applyCanvasZoom = () => {
+      const effectiveZoom = Math.max(minimumZoom, zoom);
+      canvasStage.style.width = `${formatNumber(workspaceBounds.width * effectiveZoom)}px`;
+      canvasStage.style.height = `${formatNumber(workspaceBounds.height * effectiveZoom)}px`;
+      canvas.style.transform = `scale(${formatNumber(effectiveZoom)})`;
+
+      const handleRadius = formatNumber(3.5 / effectiveZoom);
+      zoomHandles.forEach(handle => handle.setAttribute("r", handleRadius));
+      if (zoomGridPath) {
+        zoomGridPath.setAttribute("stroke-width", formatNumber(Math.max(0.5, 1 / effectiveZoom)));
+      }
+      zoomRelationshipGroups.forEach(group => {
+        const strokeWidth = positiveNumber(group.dataset.annotationRelationshipStrokeWidth, 1);
+        group.querySelector(".image-annotation-entity-relationship-selection")
+          ?.setAttribute("stroke-width", formatNumber(strokeWidth + (4 / effectiveZoom)));
+        group.querySelector(".image-annotation-entity-relationship-hit")
+          ?.setAttribute("stroke-width", formatNumber(Math.max(
+            strokeWidth + (10 / effectiveZoom),
+            14 / effectiveZoom
+          )));
+      });
+      dialog.querySelector("[data-annotation-zoom-select]").value = String(Math.round(effectiveZoom * 100));
+    };
+
+    const measureCanvasWorkspaceOffset = () => {
+      if (canvasWorkspaceOffset) return canvasWorkspaceOffset;
+      const workspaceRect = workspace.getBoundingClientRect();
+      const canvasRect = canvas.getBoundingClientRect();
+      canvasWorkspaceOffset = {
+        x: canvasRect.left - workspaceRect.left + workspace.scrollLeft,
+        y: canvasRect.top - workspaceRect.top + workspace.scrollTop
+      };
+      return canvasWorkspaceOffset;
+    };
+
     const render = () => {
       const currentRelationships = resolveAnnotationEntityRelationships(annotationVisibleObjects(state));
       if (!currentRelationships.length) {
@@ -2418,19 +2564,21 @@ function createAnnotationDialog(context) {
       pruneAnnotationGroupMetadata(state);
       compactAnnotationGroupLayers(state.objects);
       canvas.setAttribute("viewBox", `${formatNumber(workspaceBounds.x)} ${formatNumber(workspaceBounds.y)} ${formatNumber(workspaceBounds.width)} ${formatNumber(workspaceBounds.height)}`);
-      canvas.setAttribute("width", formatNumber(workspaceBounds.width * zoom));
-      canvas.setAttribute("height", formatNumber(workspaceBounds.height * zoom));
+      canvas.setAttribute("width", formatNumber(workspaceBounds.width));
+      canvas.setAttribute("height", formatNumber(workspaceBounds.height));
       canvas.innerHTML = annotationCanvasSvg(
         state,
-        context.originalDataUrl,
         selectedIds,
         zoom,
         workspaceBounds,
         cropPreview,
         marqueePreview
       );
+      refreshZoomTargets();
+      applyCanvasZoom();
       renderObjectTree();
       syncControls();
+      measureCanvasWorkspaceOffset();
     };
 
     const focusLastSelectedObject = () => {
@@ -2475,7 +2623,7 @@ function createAnnotationDialog(context) {
       state = normalizeAnnotationState(restoredState, {
         width: state.width,
         height: state.height,
-        originalReference: context.originalReference
+        originalReference
       });
       selectedIds.clear();
       gesture = null;
@@ -2501,6 +2649,96 @@ function createAnnotationDialog(context) {
     const scheduleHistory = () => {
       if (historyTimer) window.clearTimeout(historyTimer);
       historyTimer = window.setTimeout(pushHistory, 350);
+    };
+
+    const activateCropTool = async () => {
+      if (cropBusy) return;
+      let cropTemporarilyShown = false;
+      const image = selectedCropImage();
+      if (!image) {
+        setTool("select");
+        setStatus("Select one image before cropping it.");
+        return;
+      }
+      if (image.locked) {
+        setTool("select");
+        setStatus("Unlock the image before cropping it.");
+        return;
+      }
+      if (!annotationImageHasReversibleCrop(state, image)) {
+        setTool("crop");
+        workspace.focus({ preventScroll: true });
+        return;
+      }
+
+      cropBusy = true;
+      setTool("select");
+      try {
+        const choice = await openAnnotationCropOptionsDialog();
+        if (choice === "remove") {
+          pushHistory();
+          resetAnnotationCrop(state, image);
+          pushHistory();
+          setStatus("Crop removed. The full source is visible again.");
+          renderWithWorkspaceExpansion();
+          workspace.focus({ preventScroll: true });
+          return;
+        }
+        if (choice !== "permanent") {
+          setStatus("Crop left unchanged.");
+          workspace.focus({ preventScroll: true });
+          return;
+        }
+        const cropWasVisible = image.cropVisible !== false;
+        if (!cropWasVisible) {
+          setAnnotationImageCropVisibility(state, true, image);
+          cropTemporarilyShown = true;
+          setStatus("The saved crop is shown so you can verify the pixels that will remain.");
+          renderWithWorkspaceExpansion();
+        }
+        if (!await openAnnotationPermanentCropWarningDialog()) {
+          if (cropTemporarilyShown) {
+            setAnnotationImageCropVisibility(state, false, image);
+            cropTemporarilyShown = false;
+            renderWithWorkspaceExpansion();
+          }
+          setStatus("Crop left unchanged.");
+          workspace.focus({ preventScroll: true });
+          return;
+        }
+
+        setStatus("Applying the crop permanently...");
+        const cropped = await permanentlyCropAnnotationImage(state, image.id);
+        embeddedSources.set(image.id, cropped.dataUrl);
+        if (image.isOriginalImage && typeof context.persistCroppedOriginal === "function") {
+          pendingPermanentCrop = {
+            blob: cropped.blob,
+            fileName: annotationPermanentCropFileName(context.originalFileName),
+            reference: ""
+          };
+        }
+        cropTemporarilyShown = false;
+        if (historyTimer) {
+          window.clearTimeout(historyTimer);
+          historyTimer = 0;
+        }
+        history = [annotationSnapshot(state, embeddedSources)];
+        historyIndex = 0;
+        selectedIds = new Set([image.id]);
+        lastSelectedObjectId = image.id;
+        setStatus(pendingPermanentCrop
+          ? "Crop permanently applied. The previous image source will become an orphan after you save the record."
+          : "Crop permanently applied to this Diagram image.");
+        renderWithWorkspaceExpansion();
+        focusLastSelectedObject();
+      } catch (error) {
+        if (cropTemporarilyShown) setAnnotationImageCropVisibility(state, false, image);
+        setStatus(error?.message || "The crop could not be applied permanently.");
+        renderWithWorkspaceExpansion();
+        workspace.focus({ preventScroll: true });
+      } finally {
+        cropBusy = false;
+      }
     };
 
     const clearEntityRelationshipSelection = () => {
@@ -2654,9 +2892,9 @@ function createAnnotationDialog(context) {
       };
     };
 
-    const cropPoint = point => snapAnnotationCropPoint(
+    const cropPoint = (point, image) => snapAnnotationCropPoint(
       point,
-      state.imageClip,
+      annotationObjectBounds(image),
       state.snapToGrid,
       state.gridSize
     );
@@ -2719,11 +2957,8 @@ function createAnnotationDialog(context) {
           pointerId: event.pointerId,
           direction: handle.dataset.annotationHandle,
           startPoint: point,
-          startBounds: annotationSelectionBounds(selection, state.imageClip),
-          originals: annotationGestureObjects(selection),
-          startImageClip: selection.some(object => object.type === "image")
-            ? deepCopy(state.imageClip)
-            : null
+          startBounds: annotationSelectionBounds(selection),
+          originals: annotationGestureObjects(selection)
         };
         canvas.setPointerCapture?.(event.pointerId);
         event.preventDefault();
@@ -2742,11 +2977,8 @@ function createAnnotationDialog(context) {
             type: "move",
             pointerId: event.pointerId,
             startPoint: point,
-            startBounds: annotationSelectionBounds(selection, state.imageClip),
-            originals: annotationGestureObjects(selection),
-            startImageClip: selection.some(item => item.type === "image")
-              ? deepCopy(state.imageClip)
-              : null
+            startBounds: annotationSelectionBounds(selection),
+            originals: annotationGestureObjects(selection)
           };
           canvas.setPointerCapture?.(event.pointerId);
         } else if (objectRemainsSelected && object.locked) {
@@ -2778,22 +3010,23 @@ function createAnnotationDialog(context) {
       }
 
       if (activeTool === "crop") {
-        const image = state.objects.find(object => object.type === "image");
+        const image = selectedCropImage();
         if (!image) {
           setTool("select");
-          setStatus("Cropping requires an original image.");
+          setStatus("Select one image before cropping it.");
           return;
         }
         if (image?.locked) {
           setStatus("Unlock the image before cropping it.");
           return;
         }
-        const start = cropPoint(point);
-        cropPreview = { x: start.x, y: start.y, width: 1, height: 1 };
+        const start = cropPoint(point, image);
+        cropPreview = { x: start.x, y: start.y, width: 1, height: 1, imageId: image.id };
         gesture = {
           type: "crop",
           pointerId: event.pointerId,
-          startPoint: start
+          startPoint: start,
+          imageId: image.id
         };
         canvas.setPointerCapture?.(event.pointerId);
         render();
@@ -2826,7 +3059,11 @@ function createAnnotationDialog(context) {
         if (!object) return;
         updateCreatedObject(object, gesture.startPoint, snappedPoint(point, state));
       } else if (gesture.type === "crop") {
-        cropPreview = normalizedRect(gesture.startPoint, cropPoint(point));
+        const image = annotationCropImage(state, gesture.imageId);
+        cropPreview = {
+          ...normalizedRect(gesture.startPoint, cropPoint(point, image)),
+          imageId: gesture.imageId
+        };
       } else if (gesture.type === "marquee") {
         gesture.moved = Math.hypot(
           event.clientX - gesture.startClientX,
@@ -2837,7 +3074,7 @@ function createAnnotationDialog(context) {
           ? annotationObjectsIntersectingRect(
               state.objects,
               marqueePreview,
-              state.imageClip,
+              null,
               state.groupVisibility
             )
           : [];
@@ -2910,9 +3147,9 @@ function createAnnotationDialog(context) {
         setStatus(selectedIds.size ? `${selectedIds.size} objects selected.` : "Selection cleared.");
       } else if (completed.type === "crop") {
         if (cropPreview && cropPreview.width >= minimumObjectSize && cropPreview.height >= minimumObjectSize) {
-          applyAnnotationCrop(state, cropPreview);
-          selectedIds.clear();
-          lastSelectedObjectId = "";
+          applyAnnotationCrop(state, cropPreview, completed.imageId);
+          selectedIds = new Set([completed.imageId]);
+          lastSelectedObjectId = completed.imageId;
           setStatus("Crop applied. Use Reset Crop to restore the full source.");
         } else {
           setStatus("Drag a larger crop area.");
@@ -3003,10 +3240,10 @@ function createAnnotationDialog(context) {
     }, { passive: false });
 
     const setZoom = (nextZoom, pointX = workspace.clientWidth / 2, pointY = workspace.clientHeight / 2) => {
-      const workspaceRect = workspace.getBoundingClientRect();
-      const canvasRect = canvas.getBoundingClientRect();
       const steppedZoom = Math.round(clampNumber(nextZoom, minimumZoom, maximumZoom) / annotationZoomStep)
         * annotationZoomStep;
+      if (Math.abs(steppedZoom - zoom) < 0.000001) return;
+      const contentOffset = measureCanvasWorkspaceOffset();
       const next = zoomAnnotationAtPoint({
         oldZoom: zoom,
         newZoom: steppedZoom,
@@ -3014,11 +3251,11 @@ function createAnnotationDialog(context) {
         scrollTop: workspace.scrollTop,
         pointX,
         pointY,
-        contentOffsetX: canvasRect.left - workspaceRect.left + workspace.scrollLeft,
-        contentOffsetY: canvasRect.top - workspaceRect.top + workspace.scrollTop
+        contentOffsetX: contentOffset.x,
+        contentOffsetY: contentOffset.y
       });
       zoom = next.zoom;
-      render();
+      applyCanvasZoom();
       workspace.scrollLeft = next.scrollLeft;
       workspace.scrollTop = next.scrollTop;
     };
@@ -3029,15 +3266,12 @@ function createAnnotationDialog(context) {
       const vertical = Math.max(1, workspace.clientHeight - 40) / contentBounds.height;
       zoom = Math.round(clampNumber(Math.min(horizontal, vertical), minimumZoom, maximumZoom) / annotationZoomStep)
         * annotationZoomStep;
-      render();
-      const workspaceRect = workspace.getBoundingClientRect();
-      const canvasRect = canvas.getBoundingClientRect();
-      const canvasOffsetX = canvasRect.left - workspaceRect.left + workspace.scrollLeft;
-      const canvasOffsetY = canvasRect.top - workspaceRect.top + workspace.scrollTop;
-      workspace.scrollLeft = canvasOffsetX
+      applyCanvasZoom();
+      const contentOffset = measureCanvasWorkspaceOffset();
+      workspace.scrollLeft = contentOffset.x
         + ((contentBounds.x + (contentBounds.width / 2) - workspaceBounds.x) * zoom)
         - (workspace.clientWidth / 2);
-      workspace.scrollTop = canvasOffsetY
+      workspace.scrollTop = contentOffset.y
         + ((contentBounds.y + (contentBounds.height / 2) - workspaceBounds.y) * zoom)
         - (workspace.clientHeight / 2);
       lastZoomPoint = { x: workspace.clientWidth / 2, y: workspace.clientHeight / 2 };
@@ -3147,7 +3381,7 @@ function createAnnotationDialog(context) {
       }
       const name = await askTemplateName("Save Annotation Template", `Template ${templateLibrary.templates.length + 1}`);
       if (!name) return;
-      const template = captureAnnotationTemplate(state, selectedIds, context.originalDataUrl, name);
+      const template = captureAnnotationTemplate(state, selectedIds, "", name);
       if (!template) {
         setStatus("Select one or more canvas objects to create a template.");
         return;
@@ -3205,7 +3439,7 @@ function createAnnotationDialog(context) {
       }
       const existing = templateLibrary.templates.find(template => template.id === templateId);
       if (!existing) return;
-      const replacement = captureAnnotationTemplate(state, selectedIds, context.originalDataUrl, existing.name);
+      const replacement = captureAnnotationTemplate(state, selectedIds, "", existing.name);
       if (!replacement) return;
       replacement.id = existing.id;
       replacement.createdAt = existing.createdAt;
@@ -3458,8 +3692,8 @@ function createAnnotationDialog(context) {
         setStatus("Save the selected Entity relationship as a template to reuse its connector formatting.");
         return false;
       }
-      const template = captureAnnotationTemplate(state, selectedIds, context.originalDataUrl, "Clipboard");
-      const bounds = annotationSelectionVisualBounds(selectedObjects(), state.imageClip);
+      const template = captureAnnotationTemplate(state, selectedIds, "", "Clipboard");
+      const bounds = annotationSelectionVisualBounds(selectedObjects());
       if (!template || !bounds) return false;
       nativeClipboard = {
         template,
@@ -3492,8 +3726,8 @@ function createAnnotationDialog(context) {
         setStatus("Entity Relationships are fixed connectors and cannot be duplicated.");
         return false;
       }
-      const template = captureAnnotationTemplate(state, selectedIds, context.originalDataUrl, "Duplicate");
-      const bounds = annotationSelectionVisualBounds(selectedObjects(), state.imageClip);
+      const template = captureAnnotationTemplate(state, selectedIds, "", "Duplicate");
+      const bounds = annotationSelectionVisualBounds(selectedObjects());
       if (!template || !bounds) return false;
       const distance = state.gridVisible ? state.gridSize : 10;
       const objects = insertTemplate(template, {
@@ -3556,7 +3790,6 @@ function createAnnotationDialog(context) {
     const treeTargetCanMoveToRoot = target => {
       if (!target?.ids?.length) return false;
       if (["relationships", "relationship"].includes(target.kind)) return false;
-      if (target.ids.some(id => state.objects.find(object => object.id === id)?.type === "image")) return false;
       const nextState = reorderAnnotationObjectTree(state, {
         draggedKind: target.kind,
         draggedId: target.id,
@@ -3566,10 +3799,6 @@ function createAnnotationDialog(context) {
     };
 
     const setRootMoveNoopStatus = target => {
-      if (target?.ids?.some(id => state.objects.find(object => object.id === id)?.type === "image")) {
-        setStatus("The original image is protected as the bottom canvas layer and cannot move to the root top.");
-        return;
-      }
       setStatus(target ? "That object or group is already at the top of the root." : "Select one object or one group before moving it to the root.");
     };
 
@@ -3685,12 +3914,11 @@ function createAnnotationDialog(context) {
 
     const deleteTreeSelection = () => {
       const removable = new Set(selectedObjects()
-        .filter(object => object.type !== "image"
-          && !isAnnotationEntityRelationshipSelectionType(object.type)
+        .filter(object => !isAnnotationEntityRelationshipSelectionType(object.type)
           && !object.locked)
         .map(object => object.id));
       if (!removable.size) {
-        setStatus("The original image cannot be deleted. Unlock other objects before deleting them.");
+        setStatus("Unlock the selected objects before deleting them.");
         return false;
       }
       pushHistory();
@@ -3840,8 +4068,7 @@ function createAnnotationDialog(context) {
       const copiedObjects = selectedObjects();
       const selectionExport = annotationSelectionClipboardExport(
         state,
-        selectedIds,
-        context.originalDataUrl
+        selectedIds
       );
       if (!copiedObjects.length || !selectionExport.svg) {
         setStatus("Select an object to copy.");
@@ -3864,6 +4091,25 @@ function createAnnotationDialog(context) {
     };
 
     dialog.addEventListener("click", async event => {
+      if (event.target.closest("[data-annotation-generate-pmt-schema]")) {
+        if (pmtSchemaBusy || typeof context.generatePmtDatabaseSchema !== "function") return;
+        pmtSchemaBusy = true;
+        syncControls();
+        setStatus("Generating PMT's latest database schema...");
+        try {
+          const result = await context.generatePmtDatabaseSchema();
+          setStatus(result
+            ? "PMT's Database Schema was created as a separate Diagram."
+            : "The PMT database schema was not created.");
+        } catch (error) {
+          setStatus(error?.message || "The PMT database schema could not be generated.");
+        } finally {
+          pmtSchemaBusy = false;
+          syncControls();
+        }
+        return;
+      }
+
       const fieldMapButton = event.target.closest("[data-annotation-entity-field-map]");
       if (fieldMapButton) {
         await mapEntityFieldForeignKey(
@@ -3922,6 +4168,26 @@ function createAnnotationDialog(context) {
         const kind = row?.dataset.annotationTreeKind;
         const id = row?.dataset.annotationTreeId;
         if (!kind || !id) return;
+        if (treeNodeAction.dataset.annotationTreeNodeAction === "crop-toggle") {
+          const image = kind === "object"
+            ? state.objects.find(object => object.id === id && object.type === "embedded-image")
+            : null;
+          if (!image || !annotationImageHasReversibleCrop(state, image)) return;
+          pushHistory();
+          const nextVisible = image.cropVisible === false;
+          setAnnotationImageCropVisibility(state, nextVisible, image);
+          pushHistory();
+          setStatus(nextVisible
+            ? "Crop shown. Only the cropped area is visible."
+            : "Crop hidden. The full source is visible; the crop is still saved.");
+          renderWithWorkspaceExpansion();
+          window.setTimeout(() => {
+            const imageRow = [...objectTree.querySelectorAll("[data-annotation-tree-node]")]
+              .find(candidate => candidate.dataset.annotationTreeId === id);
+            imageRow?.querySelector("[data-annotation-tree-node-action='crop-toggle']")?.focus({ preventScroll: true });
+          }, 0);
+          return;
+        }
         if (treeNodeAction.dataset.annotationTreeNodeAction === "visibility") {
           toggleTreeNodeVisibility(kind, id);
           return;
@@ -4021,7 +4287,8 @@ function createAnnotationDialog(context) {
       const contextTool = event.target.closest("[data-annotation-context-tool]");
       if (contextTool) {
         closeAnnotationContextMenu();
-        setTool(contextTool.dataset.annotationContextTool);
+        if (contextTool.dataset.annotationContextTool === "crop") await activateCropTool();
+        else setTool(contextTool.dataset.annotationContextTool);
         workspace.focus({ preventScroll: true });
         return;
       }
@@ -4032,6 +4299,8 @@ function createAnnotationDialog(context) {
         const toolName = tool.dataset.annotationTool;
         if (["rectangle", "arrow", "textbox", "entity"].includes(toolName)) {
           await insertToolbarObject(toolName);
+        } else if (toolName === "crop") {
+          await activateCropTool();
         } else {
           setTool(toolName);
         }
@@ -4086,10 +4355,6 @@ function createAnnotationDialog(context) {
       dialog.querySelectorAll(".is-dragging").forEach(element => element.classList.remove("is-dragging"));
     };
     const treeDropPlacement = (target, clientY) => {
-      if (target.dataset.annotationTreeKind === "object"
-        && state.objects.find(object => object.id === target.dataset.annotationTreeId)?.type === "image") {
-        return "before";
-      }
       const bounds = target.getBoundingClientRect();
       return clientY > bounds.top + (bounds.height / 2) ? "after" : "before";
     };
@@ -4354,20 +4619,38 @@ function createAnnotationDialog(context) {
       if (applying) return;
       const applyButton = event.currentTarget;
       pushHistory();
-      const finalState = normalizeAnnotationState(state, {
-        width: state.width,
-        height: state.height,
-        originalReference: context.originalReference
-      });
-      const result = {
-        state: finalState,
-        svg: buildAnnotationSvg(finalState, context.originalDataUrl),
-        originalReference: context.originalReference,
-        fileName: annotationFileName(context.originalFileName)
-      };
       setApplyingUi(true);
       setStatus(context.applyingMessage || "Applying the annotation...");
       try {
+        const hasOriginalImage = state.objects.some(object => object.type === "embedded-image"
+          && object.isOriginalImage);
+        if (!hasOriginalImage) {
+          pendingPermanentCrop = null;
+          originalReference = "";
+          state.originalReference = "";
+        }
+        if (pendingPermanentCrop && !pendingPermanentCrop.reference) {
+          const stored = await context.persistCroppedOriginal({
+            blob: pendingPermanentCrop.blob,
+            fileName: pendingPermanentCrop.fileName
+          });
+          const storedReference = String(stored?.url || stored || "").trim();
+          if (!storedReference) throw new Error("The permanently cropped image could not be stored.");
+          pendingPermanentCrop.reference = storedReference;
+          originalReference = storedReference;
+          state.originalReference = storedReference;
+        }
+        const finalState = normalizeAnnotationState(state, {
+          width: state.width,
+          height: state.height,
+          originalReference
+        });
+        const result = {
+          state: finalState,
+          svg: buildAnnotationSvg(finalState),
+          originalReference,
+          fileName: annotationFileName(context.originalFileName)
+        };
         if (typeof context.apply === "function") await context.apply(result);
         finish(result);
       } catch (error) {
@@ -4518,6 +4801,7 @@ function createAnnotationDialog(context) {
         pasteSelection: pasteNativeSelection,
         duplicateSelection,
         insertObject: insertToolbarObject,
+        activateCropTool,
         focusSelection: focusLastSelectedObject,
         focusWorkspace: () => workspace.focus({ preventScroll: true })
       });
@@ -4591,7 +4875,9 @@ function annotationDialogHtml(context = {}) {
       </div>
       <div class="image-annotation-main" data-annotation-main>
         <div class="image-annotation-workspace" data-annotation-workspace tabindex="0" aria-label="Annotation canvas. Mouse wheel scrolls. Control plus mouse wheel zooms. Middle mouse drag pans.">
-          <svg class="image-annotation-canvas" data-annotation-canvas xmlns="${svgNamespace}" role="group" aria-label="Image annotation canvas"></svg>
+          <div class="image-annotation-canvas-stage" data-annotation-canvas-stage>
+            <svg class="image-annotation-canvas" data-annotation-canvas xmlns="${svgNamespace}" role="group" aria-label="Image annotation canvas"></svg>
+          </div>
         </div>
         <aside class="image-annotation-inspector" id="imageAnnotationInspector" data-annotation-inspector aria-label="Annotation right pane">
           <div class="image-annotation-inspector-tabs" role="tablist" aria-label="Annotation right pane">
@@ -4657,6 +4943,9 @@ function annotationDialogHtml(context = {}) {
               <p class="image-annotation-entity-fields-help">Drag fields to set their original order. Mark PK, FK, or Important fields here; map FK targets with Map. FK at the Top changes only the Entity view.</p>
               <div class="image-annotation-entity-field-columns" aria-hidden="true"><span></span><span>Field</span><span>PK</span><span>FK</span><span>Imp.</span><span></span></div>
               <div class="image-annotation-entity-fields" role="list" aria-label="Entity fields" data-annotation-entity-fields></div>
+              ${typeof context.generatePmtDatabaseSchema === "function"
+                ? `<button type="button" class="image-annotation-generate-pmt-schema" data-annotation-generate-pmt-schema>Generate PMT Database Schema</button>`
+                : ""}
             </section>
           </div>
           <div id="imageAnnotationTemplatePanel" role="tabpanel" aria-labelledby="imageAnnotationTemplateTab" data-annotation-inspector-panel="template" hidden>
@@ -4760,24 +5049,33 @@ function annotationObjectTreeHtml(nodes, selectedIds, emptyMessage = "No canvas 
     const canDrag = fixedRelationships
       ? false
       : node.kind === "group"
-      ? groupChildren.some(child => child.object.type !== "image") && groupChildren.every(child => !child.object.locked)
-      : object.type !== "image" && !object.locked;
+      ? groupChildren.every(child => !child.object.locked)
+      : !object.locked;
     const canDelete = fixedRelationships
       ? false
       : node.kind === "group"
-      ? groupChildren.some(child => child.object.type !== "image" && !child.object.locked)
-      : object.type !== "image" && !object.locked;
+      ? groupChildren.some(child => !child.object.locked)
+      : !object.locked;
     const ownVisible = node.visible !== false;
     const effectiveVisible = node.effectiveVisible !== false;
     const visibilityAction = fixedRelationships
       ? ""
       : `<button type="button" class="image-annotation-object-tree-visibility${ownVisible ? "" : " is-hidden"}" data-annotation-tree-node-action="visibility" title="${ownVisible ? "Hide" : "Show"} ${escapeXmlAttr(node.name)}" aria-label="${ownVisible ? "Hide" : "Show"} ${escapeXmlAttr(node.name)}" aria-pressed="${ownVisible}"><span aria-hidden="true">&#128065;</span></button>`;
+    const cropStatus = object?.type === "embedded-image" && node.cropped
+      ? `<span class="image-annotation-object-tree-crop-status${node.permanentCrop && !node.reversibleCrop ? " is-permanent" : ""}" title="${node.permanentCrop && !node.reversibleCrop ? "This source was permanently cropped" : "This image has a reversible crop"}">${node.permanentCrop && !node.reversibleCrop ? "Permanent crop" : "Cropped"}</span>`
+      : "";
+    const cropAction = object?.type === "embedded-image" && node.reversibleCrop
+      ? `<button type="button" class="image-annotation-object-tree-crop-toggle${node.cropVisible ? "" : " is-disabled"}" data-annotation-tree-node-action="crop-toggle" title="Turn crop ${node.cropVisible ? "off" : "on"} for ${escapeXmlAttr(node.name)}" aria-label="Turn crop ${node.cropVisible ? "off" : "on"} for ${escapeXmlAttr(node.name)}" aria-pressed="${node.cropVisible}"><span aria-hidden="true">&#9635;</span></button>`
+      : "";
     const icon = fixedRelationships ? "&#8644;" : node.kind === "group" ? "&#9638;" : annotationObjectTreeIcon(node.object.type);
     const actions = fixedRelationships
       ? `<span class="image-annotation-object-tree-row-actions" aria-hidden="true"></span>`
       : `<span class="image-annotation-object-tree-row-actions"><button type="button" data-annotation-tree-node-action="rename" title="Rename ${escapeXmlAttr(node.name)}" aria-label="Rename ${escapeXmlAttr(node.name)}">&#9998;</button><button type="button" data-annotation-tree-node-action="delete" title="Delete ${escapeXmlAttr(node.name)}" aria-label="Delete ${escapeXmlAttr(node.name)}"${canDelete ? "" : " disabled"}>&#10005;</button></span>`;
     const label = node.kind === "relationships" ? `${node.name} (${node.count})` : node.name;
-    return `<div class="image-annotation-object-tree-row${isSelected ? " is-selected" : ""}${isPartial ? " is-partially-selected" : ""}${effectiveVisible ? "" : " is-hidden"}" role="treeitem" aria-level="${level}" aria-selected="${isSelected}"${["group", "relationships"].includes(node.kind) ? ` aria-expanded="true"` : ""} tabindex="0" draggable="${canDrag}" data-annotation-tree-node data-annotation-tree-id="${escapeXmlAttr(node.id)}" data-annotation-tree-kind="${node.kind}" data-annotation-tree-node-id="${escapeXmlAttr(node.id)}" data-annotation-tree-node-type="${node.kind}" data-annotation-tree-visible="${ownVisible}" data-annotation-tree-effective-visible="${effectiveVisible}"><span class="image-annotation-object-tree-icon" aria-hidden="true">${icon}</span><span class="image-annotation-object-tree-label">${escapeXmlText(label)}</span>${visibilityAction}${actions}</div>`;
+    const cropAttributes = object?.type === "embedded-image"
+      ? ` data-annotation-tree-cropped="${node.cropped === true}" data-annotation-tree-crop-enabled="${node.cropVisible === true}"`
+      : "";
+    return `<div class="image-annotation-object-tree-row${isSelected ? " is-selected" : ""}${isPartial ? " is-partially-selected" : ""}${effectiveVisible ? "" : " is-hidden"}" role="treeitem" aria-level="${level}" aria-selected="${isSelected}"${["group", "relationships"].includes(node.kind) ? ` aria-expanded="true"` : ""} tabindex="0" draggable="${canDrag}" data-annotation-tree-node data-annotation-tree-id="${escapeXmlAttr(node.id)}" data-annotation-tree-kind="${node.kind}" data-annotation-tree-node-id="${escapeXmlAttr(node.id)}" data-annotation-tree-node-type="${node.kind}" data-annotation-tree-visible="${ownVisible}" data-annotation-tree-effective-visible="${effectiveVisible}"${cropAttributes}><span class="image-annotation-object-tree-icon" aria-hidden="true">${icon}</span><span class="image-annotation-object-tree-label">${escapeXmlText(label)}</span>${cropStatus}${cropAction}${visibilityAction}${actions}</div>`;
   };
   return nodes.map(node => ["group", "relationships"].includes(node.kind)
     ? `<div class="image-annotation-object-tree-group" data-annotation-tree-group-id="${escapeXmlAttr(node.id)}">${row(node, 1)}<div class="image-annotation-object-tree-group-children" role="group">${node.children.map(child => row(child, 2)).join("")}</div></div>`
@@ -4786,7 +5084,6 @@ function annotationObjectTreeHtml(nodes, selectedIds, emptyMessage = "No canvas 
 
 function annotationObjectTreeIcon(type) {
   return {
-    image: "&#128444;",
     "embedded-image": "&#128444;",
     rectangle: "&#9633;",
     arrow: "&#8599;",
@@ -4887,7 +5184,7 @@ function annotationTemplatePreviewDataUrl(template) {
     ? []
     : (template?.objects || []).filter(object => object.visible !== false);
   const body = visibleObjects
-    .map(object => annotationObjectSvg(object, "", { exportMode: true, previewMode: true }))
+    .map(object => annotationObjectSvg(object, { exportMode: true, previewMode: true }))
     .join("");
   const relationships = annotationEntityRelationshipsSvg(visibleObjects, template?.relationshipStyle);
   const relationshipSample = !body && template?.relationshipStyle
@@ -4977,9 +5274,10 @@ function annotationFontOptions(selectedFont) {
     .join("");
 }
 
-function annotationCanvasSvg(state, originalDataUrl, selectedIds, zoom, workspaceBounds, cropPreview, marqueePreview) {
-  const background = state.includeOriginalImage ? "" : annotationCanvasBackgroundSvg(state);
+function annotationCanvasSvg(state, selectedIds, zoom, workspaceBounds, cropPreview, marqueePreview) {
+  const background = annotationCanvasBackgroundSvg(state);
   const visibleObjects = annotationVisibleObjects(state);
+  const relationshipLayers = annotationObjectsAroundRelationshipLayer(visibleObjects);
   const relationships = annotationEntityRelationshipsSvg(visibleObjects, state.relationshipStyle, {
     interactive: true,
     selected: selectedIds.has(entityRelationshipsSelectionId),
@@ -4987,23 +5285,20 @@ function annotationCanvasSvg(state, originalDataUrl, selectedIds, zoom, workspac
     zoom,
     allowOverlappingLines: state.allowOverlappingEntityLines
   });
-  const imageObjects = visibleObjects
-    .filter(object => object.type === "image")
-    .map(object => annotationObjectSvg(object, originalDataUrl, { exportMode: false, zoom }))
+  const belowRelationships = relationshipLayers.below
+    .map(object => annotationObjectSvg(object, { exportMode: false, zoom }))
     .join("");
-  const objects = visibleObjects
-    .filter(object => object.type !== "image")
-    .map(object => annotationObjectSvg(object, originalDataUrl, { exportMode: false, zoom }))
+  const aboveRelationships = relationshipLayers.above
+    .map(object => annotationObjectSvg(object, { exportMode: false, zoom }))
     .join("");
   const grid = state.gridVisible ? annotationGridSvg(workspaceBounds) : "";
   const selection = annotationSelectionSvg(
     visibleObjects.filter(object => selectedIds.has(object.id)),
-    zoom,
-    state.imageClip
+    zoom
   );
   const crop = cropPreview ? annotationCropPreviewSvg(cropPreview, state) : "";
   const marquee = marqueePreview ? annotationMarqueeSvg(marqueePreview) : "";
-  return `${annotationCanvasDefs(state, zoom)}${background}${imageObjects}${relationships}${objects}${grid}${selection}${marquee}${crop}`;
+  return `${annotationCanvasDefs(state, zoom)}${background}${belowRelationships}${relationships}${aboveRelationships}${grid}${selection}${marquee}${crop}`;
 }
 
 export function annotationEntityRelationshipsSvg(objectsInput, relationshipStyleInput = null, options = {}) {
@@ -5397,7 +5692,7 @@ function annotationEntityRelationshipSvg(relationship, style, options = {}) {
   const interaction = options.interactive
     ? ` data-annotation-object-id="${escapeXmlAttr(relationship.id)}" data-annotation-object-type="${entityRelationshipObjectType}" role="button" tabindex="0" aria-label="${escapeXmlAttr(annotationEntityRelationshipName(relationship))}"`
     : "";
-  return `<g class="image-annotation-entity-relationship${options.selected ? " is-selected" : ""}"${interaction} data-pmt-relationship-type="${relationshipType || "arrow"}" data-pmt-relationship-source="${escapeXmlAttr(sourceName)}" data-pmt-relationship-target="${escapeXmlAttr(targetName)}"><title>${escapeXmlText(`${sourceName} points to ${targetName}`)}</title>${selection}<path class="image-annotation-entity-relationship-path" d="${path}" fill="none" stroke="${escapeXmlAttr(color)}" stroke-width="${formatNumber(style.strokeWidth)}" stroke-linejoin="round" pointer-events="none" vector-effect="non-scaling-stroke"></path>${markers}${hit}</g>`;
+  return `<g class="image-annotation-entity-relationship${options.selected ? " is-selected" : ""}"${interaction} data-annotation-relationship-stroke-width="${formatNumber(style.strokeWidth)}" data-pmt-relationship-type="${relationshipType || "arrow"}" data-pmt-relationship-source="${escapeXmlAttr(sourceName)}" data-pmt-relationship-target="${escapeXmlAttr(targetName)}"><title>${escapeXmlText(`${sourceName} points to ${targetName}`)}</title>${selection}<path class="image-annotation-entity-relationship-path" d="${path}" fill="none" stroke="${escapeXmlAttr(color)}" stroke-width="${formatNumber(style.strokeWidth)}" stroke-linejoin="round" pointer-events="none" vector-effect="non-scaling-stroke"></path>${markers}${hit}</g>`;
 }
 
 function annotationEntityRelationshipGeometry(relationship, style, options = {}) {
@@ -5867,12 +6162,8 @@ function annotationEntityRelationshipMarkers(start, end, sourceUnit, targetUnit,
 function annotationCanvasDefs(state, zoom) {
   const size = state.gridSize;
   const lineWidth = Math.max(0.5, 1 / zoom);
-  const clip = state.imageClip;
   return `
     <defs>
-      <clipPath id="${imageClipId}">
-        <rect x="${formatNumber(clip.x)}" y="${formatNumber(clip.y)}" width="${formatNumber(clip.width)}" height="${formatNumber(clip.height)}"></rect>
-      </clipPath>
       <pattern id="pmt-annotation-grid" width="${formatNumber(size)}" height="${formatNumber(size)}" patternUnits="userSpaceOnUse">
         <path d="M ${formatNumber(size)} 0 L 0 0 0 ${formatNumber(size)}" fill="none" stroke="currentColor" stroke-width="${formatNumber(lineWidth)}" opacity="0.34"></path>
       </pattern>
@@ -5880,13 +6171,8 @@ function annotationCanvasDefs(state, zoom) {
   `;
 }
 
-function annotationImageClipDefinition(state) {
-  const clip = state.imageClip;
-  return `<defs><clipPath id="${imageClipId}"><rect x="${formatNumber(clip.x)}" y="${formatNumber(clip.y)}" width="${formatNumber(clip.width)}" height="${formatNumber(clip.height)}"></rect></clipPath></defs>`;
-}
-
 function annotationCanvasBackgroundSvg(state, requestedBounds = null) {
-  const bounds = requestedBounds || state.imageClip;
+  const bounds = requestedBounds || state.canvasBounds;
   return `<rect class="image-annotation-canvas-background" x="${formatNumber(bounds.x)}" y="${formatNumber(bounds.y)}" width="${formatNumber(bounds.width)}" height="${formatNumber(bounds.height)}" fill="#ffffff" pointer-events="none"></rect>`;
 }
 
@@ -5894,17 +6180,22 @@ function annotationGridSvg(bounds) {
   return `<rect class="image-annotation-grid" x="${formatNumber(bounds.x)}" y="${formatNumber(bounds.y)}" width="${formatNumber(bounds.width)}" height="${formatNumber(bounds.height)}" fill="url(#pmt-annotation-grid)" pointer-events="none"></rect>`;
 }
 
-function annotationObjectSvg(object, originalDataUrl, options = {}) {
+function annotationObjectSvg(object, options = {}) {
   const id = options.exportMode ? "" : ` data-annotation-object-id="${escapeXmlAttr(object.id)}"`;
   const type = options.exportMode ? "" : ` data-annotation-object-type="${escapeXmlAttr(object.type)}"`;
   const classes = options.exportMode ? "" : ` class="image-annotation-object${object.locked ? " is-locked" : ""}"`;
   const group = object.groupId ? ` data-pmt-annotation-group="${escapeXmlAttr(object.groupId)}"` : "";
   const locked = object.locked ? ` data-pmt-annotation-locked="true"` : "";
-  if (object.type === "image") {
-    return `<image${id}${type}${classes}${group}${locked} href="${escapeXmlAttr(originalDataUrl || "")}" x="${formatNumber(object.x)}" y="${formatNumber(object.y)}" width="${formatNumber(object.width)}" height="${formatNumber(object.height)}" preserveAspectRatio="none" clip-path="url(#${imageClipId})"></image>`;
-  }
   if (object.type === "embedded-image") {
-    return `<image${id}${type}${classes}${group}${locked} href="${escapeXmlAttr(object.source)}" x="${formatNumber(object.x)}" y="${formatNumber(object.y)}" width="${formatNumber(object.width)}" height="${formatNumber(object.height)}" preserveAspectRatio="none"></image>`;
+    const clip = annotationEmbeddedImageEffectiveClip(object);
+    const fullBounds = annotationObjectBounds(object);
+    const cropped = object.cropVisible !== false && !annotationBoundsEqual(clip, fullBounds);
+    const clipId = `pmt-annotation-image-clip-${safeSvgId(object.id)}`;
+    const definition = cropped
+      ? `<defs><clipPath id="${clipId}"><rect x="${formatNumber(clip.x)}" y="${formatNumber(clip.y)}" width="${formatNumber(clip.width)}" height="${formatNumber(clip.height)}"></rect></clipPath></defs>`
+      : "";
+    const clipPath = cropped ? ` clip-path="url(#${clipId})"` : "";
+    return `${definition}<image${id}${type}${classes}${group}${locked} href="${escapeXmlAttr(object.source)}" x="${formatNumber(object.x)}" y="${formatNumber(object.y)}" width="${formatNumber(object.width)}" height="${formatNumber(object.height)}" preserveAspectRatio="none"${clipPath}></image>`;
   }
   if (object.type === "rectangle") {
     const stroke = object.outlineVisible === false ? "none" : object.stroke;
@@ -6110,7 +6401,7 @@ function annotationGroupMemberGuidesSvg(objects, imageFrame) {
       if (object.type === "arrow") {
         return `<line class="image-annotation-group-member-guide is-arrow"${id} x1="${formatNumber(object.x1)}" y1="${formatNumber(object.y1)}" x2="${formatNumber(object.x2)}" y2="${formatNumber(object.y2)}" pointer-events="none"></line>`;
       }
-      const bounds = annotationObjectVisualBounds(object, object.type === "image" ? imageFrame : null);
+      const bounds = annotationObjectVisualBounds(object);
       if (!bounds) return "";
       return `<rect class="image-annotation-group-member-guide"${id} x="${formatNumber(bounds.x)}" y="${formatNumber(bounds.y)}" width="${formatNumber(bounds.width)}" height="${formatNumber(bounds.height)}" fill="none" pointer-events="none"></rect>`;
     })
@@ -6126,7 +6417,8 @@ function annotationArrowSelectionSvg(object, zoom) {
 }
 
 function annotationCropPreviewSvg(rect, state) {
-  const clip = state.imageClip;
+  const image = annotationCropImage(state, rect.imageId);
+  const clip = annotationObjectBounds(image) || rect;
   return `<path class="image-annotation-crop-mask" d="M${formatNumber(clip.x)} ${formatNumber(clip.y)}H${formatNumber(clip.x + clip.width)}V${formatNumber(clip.y + clip.height)}H${formatNumber(clip.x)}Z M${formatNumber(rect.x)} ${formatNumber(rect.y)}V${formatNumber(rect.y + rect.height)}H${formatNumber(rect.x + rect.width)}V${formatNumber(rect.y)}Z" fill-rule="evenodd" pointer-events="none"></path><rect class="image-annotation-crop-outline image-annotation-marquee" x="${formatNumber(rect.x)}" y="${formatNumber(rect.y)}" width="${formatNumber(rect.width)}" height="${formatNumber(rect.height)}" pointer-events="none"></rect>`;
 }
 
@@ -6154,8 +6446,8 @@ function annotationHandlePoints(bounds) {
 }
 
 export function annotationSelectionBounds(objects, imageFrame = null) {
-  const boxes = (objects || []).map(object => object?.type === "image" && imageFrame
-    ? annotationObjectVisualBounds(object, imageFrame)
+  const boxes = (objects || []).map(object => object?.type === "embedded-image"
+    ? annotationObjectVisualBounds(object)
     : annotationObjectBounds(object)).filter(Boolean);
   if (!boxes.length) return null;
   const left = Math.min(...boxes.map(box => box.x));
@@ -6192,15 +6484,7 @@ function annotationObjectBounds(object) {
 
 function annotationObjectVisualBounds(object, imageFrame = null) {
   if (!object) return null;
-  if (object.type === "image") {
-    const bounds = {
-      x: finiteNumber(object.x, 0),
-      y: finiteNumber(object.y, 0),
-      width: positiveNumber(object.width, 1),
-      height: positiveNumber(object.height, 1)
-    };
-    return imageFrame ? intersectAnnotationBounds(bounds, imageFrame) : bounds;
-  }
+  if (object.type === "embedded-image") return annotationEmbeddedImageEffectiveClip(object);
   if (object.type === "arrow") {
     const geometry = annotationArrowGeometry(object);
     const strokeRadius = annotationArrowStrokeWidth(object) / 2;
@@ -6395,7 +6679,7 @@ function unionAnnotationBounds(bounds) {
   };
 }
 
-function moveAnnotationObjects(state, gesture, point, horizontalOnly = false, verticalOnly = false) {
+export function moveAnnotationObjects(state, gesture, point, horizontalOnly = false, verticalOnly = false) {
   const rawDeltaX = verticalOnly ? 0 : point.x - gesture.startPoint.x;
   const rawDeltaY = horizontalOnly ? 0 : point.y - gesture.startPoint.y;
   const desiredX = verticalOnly
@@ -6417,11 +6701,11 @@ function moveAnnotationObjects(state, gesture, point, horizontalOnly = false, ve
     } else {
       object.x = original.x + deltaX;
       object.y = original.y + deltaY;
+      if (object.type === "embedded-image" && original.imageClip) {
+        object.imageClip = translatedAnnotationBounds(original.imageClip, deltaX, deltaY);
+      }
     }
   });
-  if (gesture.startImageClip) {
-    state.imageClip = translatedAnnotationBounds(gesture.startImageClip, deltaX, deltaY);
-  }
 }
 
 export function resizeAnnotationObjects(
@@ -6464,6 +6748,15 @@ export function resizeAnnotationObjects(
     object.y = bounds.y + ((original.y - gesture.startBounds.y) * scaleY);
     object.width = Math.max(1, original.width * scaleX);
     object.height = Math.max(1, original.height * scaleY);
+    if (object.type === "embedded-image" && original.imageClip) {
+      object.imageClip = scaledAnnotationBounds(
+        original.imageClip,
+        gesture.startBounds,
+        bounds,
+        scaleX,
+        scaleY
+      );
+    }
     if (["textbox", "entity"].includes(object.type)) {
       object.fontSize = proportionalResize
         ? clampNumber(original.fontSize * Math.max(0.1, Math.min(scaleX, scaleY)), 6, 240)
@@ -6478,15 +6771,6 @@ export function resizeAnnotationObjects(
         : object.width + annotationEntityDataTypeColumnsWidth(object);
     }
   });
-  if (gesture.startImageClip) {
-    state.imageClip = scaledAnnotationBounds(
-      gesture.startImageClip,
-      gesture.startBounds,
-      bounds,
-      scaleX,
-      scaleY
-    );
-  }
 }
 
 export function resizedAnnotationBounds(
@@ -6598,41 +6882,85 @@ function ensureCreatedObjectSize(object, state) {
   if (object.type === "entity") ensureAnnotationEntitySize(object);
 }
 
-function applyAnnotationCrop(state, crop) {
-  const rect = intersectAnnotationBounds(state.imageClip, crop);
+function applyAnnotationCrop(state, crop, imageOrId = null) {
+  const image = annotationCropImage(state, imageOrId);
+  if (!image || image.type !== "embedded-image") return false;
+  const rect = intersectAnnotationBounds(annotationObjectBounds(image), crop);
   if (!rect || rect.width < minimumObjectSize || rect.height < minimumObjectSize) return false;
-  const image = state.objects.find(object => object.type === "image");
-  state.imageClip = rect;
-  if (image) {
-    const sourceScaleX = state.sourceWidth / Math.max(1, image.width);
-    const sourceScaleY = state.sourceHeight / Math.max(1, image.height);
-    state.cropOffsetX = clampNumber(
-      (rect.x - image.x) * sourceScaleX,
-      0,
-      Math.max(0, state.sourceWidth - (rect.width * sourceScaleX))
-    );
-    state.cropOffsetY = clampNumber(
-      (rect.y - image.y) * sourceScaleY,
-      0,
-      Math.max(0, state.sourceHeight - (rect.height * sourceScaleY))
-    );
-    state.width = rect.width * sourceScaleX;
-    state.height = rect.height * sourceScaleY;
-  }
+  image.imageClip = rect;
+  image.cropVisible = true;
   return true;
 }
 
-function resetAnnotationCrop(state) {
-  const image = state.objects.find(object => object.type === "image");
-  if (!image) return false;
+function resetAnnotationCrop(state, imageOrId = null) {
+  const image = annotationCropImage(state, imageOrId);
+  if (!image || image.type !== "embedded-image") return false;
   const fullImage = annotationObjectBounds(image);
-  if (annotationBoundsEqual(state.imageClip, fullImage)) return false;
-  state.imageClip = fullImage;
-  state.cropOffsetX = 0;
-  state.cropOffsetY = 0;
-  state.width = state.sourceWidth;
-  state.height = state.sourceHeight;
+  if (annotationBoundsEqual(image.imageClip, fullImage)) return false;
+  image.imageClip = fullImage;
+  image.cropVisible = true;
   return true;
+}
+
+export async function permanentlyCropAnnotationImage(state, imageOrId = null) {
+  const imageObject = annotationCropImage(state, imageOrId);
+  if (!imageObject || imageObject.type !== "embedded-image"
+    || !annotationImageHasReversibleCrop(state, imageObject)) {
+    throw new Error("Apply a crop before making it permanent.");
+  }
+
+  const fullBounds = annotationObjectBounds(imageObject);
+  const visibleBounds = intersectAnnotationBounds(fullBounds, imageObject.imageClip);
+  const decoded = await decodeAnnotationImage(imageObject.source);
+  const scaleX = decoded.naturalWidth / Math.max(1, fullBounds.width);
+  const scaleY = decoded.naturalHeight / Math.max(1, fullBounds.height);
+  const sourceX = clampNumber((visibleBounds.x - fullBounds.x) * scaleX, 0, Math.max(0, decoded.naturalWidth - 1));
+  const sourceY = clampNumber((visibleBounds.y - fullBounds.y) * scaleY, 0, Math.max(0, decoded.naturalHeight - 1));
+  const sourceWidth = clampNumber(visibleBounds.width * scaleX, 1, decoded.naturalWidth - sourceX);
+  const sourceHeight = clampNumber(visibleBounds.height * scaleY, 1, decoded.naturalHeight - sourceY);
+  const outputWidth = Math.max(1, Math.round(sourceWidth));
+  const outputHeight = Math.max(1, Math.round(sourceHeight));
+  const raster = document.createElement("canvas");
+  raster.width = outputWidth;
+  raster.height = outputHeight;
+  const drawing = raster.getContext("2d");
+  if (!drawing) throw new Error("The cropped image could not be rendered.");
+  drawing.drawImage(
+    decoded,
+    sourceX,
+    sourceY,
+    sourceWidth,
+    sourceHeight,
+    0,
+    0,
+    outputWidth,
+    outputHeight
+  );
+  const blob = await new Promise((resolve, reject) => {
+    raster.toBlob(result => {
+      if (result) resolve(result);
+      else reject(new Error("The cropped image could not be saved."));
+    }, "image/png");
+  });
+  const dataUrl = await blobToDataUrl(blob);
+  imageObject.x = visibleBounds.x;
+  imageObject.y = visibleBounds.y;
+  imageObject.width = visibleBounds.width;
+  imageObject.height = visibleBounds.height;
+  imageObject.source = dataUrl;
+  imageObject.imageClip = annotationObjectBounds(imageObject);
+  imageObject.cropVisible = true;
+  imageObject.cropPermanent = true;
+  return { blob, dataUrl, width: outputWidth, height: outputHeight };
+}
+
+function decodeAnnotationImage(source) {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.addEventListener("load", () => resolve(image), { once: true });
+    image.addEventListener("error", () => reject(new Error("The cropped image could not be decoded.")), { once: true });
+    image.src = source;
+  });
 }
 
 function translatedAnnotationBounds(bounds, deltaX, deltaY) {
@@ -6663,6 +6991,9 @@ function translateAllAnnotationObjects(objects, deltaX, deltaY) {
     } else {
       object.x += deltaX;
       object.y += deltaY;
+      if (object.type === "embedded-image" && object.imageClip) {
+        object.imageClip = translatedAnnotationBounds(object.imageClip, deltaX, deltaY);
+      }
     }
   });
 }
@@ -6679,7 +7010,11 @@ function handleAnnotationAction(action, context) {
     return;
   }
   if (action === "reset-crop") {
-    if (resetAnnotationCrop(context.state)) {
+    const image = context.selectedObjects().length === 1
+      && context.selectedObjects()[0]?.type === "embedded-image"
+      ? context.selectedObjects()[0]
+      : null;
+    if (image && resetAnnotationCrop(context.state, image)) {
       context.pushHistory();
       context.setStatus("Full source restored.");
     } else {
@@ -6697,8 +7032,7 @@ function handleAnnotationAction(action, context) {
   }
   if (action === "delete") {
     const deletedIds = new Set(selection
-      .filter(object => object.type !== "image"
-        && !isAnnotationEntityRelationshipSelectionType(object.type)
+      .filter(object => !isAnnotationEntityRelationshipSelectionType(object.type)
         && !object.locked)
       .map(object => object.id));
     context.state.objects = context.state.objects.filter(object => !deletedIds.has(object.id));
@@ -6752,12 +7086,11 @@ function handleAnnotationAction(action, context) {
 
 export function moveAnnotationLayers(objects, selectedIds, action) {
   const selected = id => selectedIds instanceof Set ? selectedIds.has(id) : selectedIds.includes(id);
-  const baseObjects = objects.filter(object => object.type === "image");
-  const layers = objects.filter(object => object.type !== "image");
+  const layers = objects;
   if (action === "front" || action === "back") {
     const moving = layers.filter(object => selected(object.id));
     const remaining = layers.filter(object => !selected(object.id));
-    objects.splice(0, objects.length, ...baseObjects, ...(action === "front" ? [...remaining, ...moving] : [...moving, ...remaining]));
+    objects.splice(0, objects.length, ...(action === "front" ? [...remaining, ...moving] : [...moving, ...remaining]));
     return objects;
   }
   if (action === "forward") {
@@ -6766,7 +7099,7 @@ export function moveAnnotationLayers(objects, selectedIds, action) {
         [layers[index], layers[index + 1]] = [layers[index + 1], layers[index]];
       }
     }
-    objects.splice(0, objects.length, ...baseObjects, ...layers);
+    objects.splice(0, objects.length, ...layers);
     return objects;
   }
   if (action === "backward") {
@@ -6775,7 +7108,7 @@ export function moveAnnotationLayers(objects, selectedIds, action) {
         [layers[index], layers[index - 1]] = [layers[index - 1], layers[index]];
       }
     }
-    objects.splice(0, objects.length, ...baseObjects, ...layers);
+    objects.splice(0, objects.length, ...layers);
   }
   return objects;
 }
@@ -6858,8 +7191,7 @@ function handleAnnotationKeyDown(event, context) {
   if (["delete", "backspace"].includes(key)) {
     event.preventDefault();
     const removable = new Set(context.selectedObjects()
-      .filter(object => object.type !== "image"
-        && !isAnnotationEntityRelationshipSelectionType(object.type)
+      .filter(object => !isAnnotationEntityRelationshipSelectionType(object.type)
         && !object.locked)
       .map(object => object.id));
     if (!removable.size && [...context.selectedIds].some(id => id === entityRelationshipsSelectionId
@@ -6887,9 +7219,6 @@ function handleAnnotationKeyDown(event, context) {
     const deltaX = key === "arrowleft" ? -distance : key === "arrowright" ? distance : 0;
     const deltaY = key === "arrowup" ? -distance : key === "arrowdown" ? distance : 0;
     translateAllAnnotationObjects(selection, deltaX, deltaY);
-    if (selection.some(object => object.type === "image")) {
-      context.state.imageClip = translatedAnnotationBounds(context.state.imageClip, deltaX, deltaY);
-    }
     context.pushHistory();
     context.render();
     context.focusSelection?.();
@@ -6900,6 +7229,8 @@ function handleAnnotationKeyDown(event, context) {
     event.preventDefault();
     if (["rectangle", "arrow", "textbox", "entity"].includes(shortcutTool)) {
       if (!event.repeat) void context.insertObject?.(shortcutTool);
+    } else if (shortcutTool === "crop") {
+      if (!event.repeat) void context.activateCropTool?.();
     } else {
       context.setTool(shortcutTool);
     }
@@ -7175,8 +7506,13 @@ function normalizeAnnotationTemplate(input) {
   const objects = Array.isArray(input.objects)
     ? input.objects
         .map(normalizeAnnotationObject)
-        .filter(object => object && object.type !== "image")
-        .map(object => ({ ...object, locked: false, groupId: "" }))
+        .filter(Boolean)
+        .map(object => ({
+          ...object,
+          locked: false,
+          groupId: "",
+          ...(object.type === "embedded-image" ? { isOriginalImage: false } : {})
+        }))
     : [];
   const relationshipStyle = input.relationshipStyle && typeof input.relationshipStyle === "object"
     ? normalizeAnnotationEntityRelationshipStyle(input.relationshipStyle)
@@ -7244,38 +7580,9 @@ function annotationDrawingDefaultFromObject(object) {
   return normalizeAnnotationDrawingDefault(object?.type, object);
 }
 
-function annotationEmbeddedImageFromSource(image, state, originalDataUrl) {
-  const source = safeEmbeddedImageSource(originalDataUrl);
-  if (!source) return null;
-  const imageBounds = annotationObjectBounds(image);
-  const visible = intersectAnnotationBounds(imageBounds, state.imageClip);
-  if (!visible) return null;
-  const fullImageVisible = annotationBoundsEqual(imageBounds, visible);
-  const embeddedSource = fullImageVisible
-    ? source
-    : annotationCroppedImageDataUrl(source, imageBounds, visible);
-  return {
-    id: image.id,
-    type: "embedded-image",
-    x: visible.x,
-    y: visible.y,
-    width: visible.width,
-    height: visible.height,
-    source: embeddedSource,
-    name: image.name || "",
-    locked: false,
-    groupId: ""
-  };
-}
-
-function annotationCroppedImageDataUrl(source, imageBounds, visibleBounds) {
-  const svg = `<svg xmlns="${svgNamespace}" width="${formatNumber(visibleBounds.width)}" height="${formatNumber(visibleBounds.height)}" viewBox="${formatNumber(visibleBounds.x)} ${formatNumber(visibleBounds.y)} ${formatNumber(visibleBounds.width)} ${formatNumber(visibleBounds.height)}"><image href="${escapeXmlAttr(source)}" x="${formatNumber(imageBounds.x)}" y="${formatNumber(imageBounds.y)}" width="${formatNumber(imageBounds.width)}" height="${formatNumber(imageBounds.height)}" preserveAspectRatio="none"></image></svg>`;
-  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
-}
-
 function annotationSelectionVisualBounds(objects, imageFrame = null) {
   return unionAnnotationBounds((objects || [])
-    .map(object => annotationObjectVisualBounds(object, object.type === "image" ? imageFrame : null))
+    .map(object => annotationObjectVisualBounds(object))
     .filter(Boolean));
 }
 
@@ -7305,7 +7612,10 @@ function restoreAnnotationEmbeddedSources(objects, sourceRegistry) {
 function annotationGestureObjects(objects) {
   return (objects || []).map(object => {
     const copy = { ...object };
-    if (copy.type === "embedded-image") delete copy.source;
+    if (copy.type === "embedded-image") {
+      delete copy.source;
+      copy.imageClip = deepCopy(object.imageClip);
+    }
     return copy;
   });
 }
@@ -7313,7 +7623,7 @@ function annotationGestureObjects(objects) {
 function normalizeAnnotationObject(input) {
   if (!input || typeof input !== "object") return null;
   const type = String(input.type || "").toLowerCase();
-  if (!["image", "embedded-image", "rectangle", "arrow", "textbox", "entity"].includes(type)) return null;
+  if (!["embedded-image", "rectangle", "arrow", "textbox", "entity"].includes(type)) return null;
   const common = {
     id: safeObjectId(input.id, type),
     type,
@@ -7342,10 +7652,26 @@ function normalizeAnnotationObject(input) {
     width: positiveNumber(input.width, 1),
     height: positiveNumber(input.height, 1)
   };
-  if (type === "image") return normalized;
   if (type === "embedded-image") {
     const source = safeEmbeddedImageSource(input.source);
-    return source ? { ...normalized, source } : null;
+    if (!source) return null;
+    const fullBounds = annotationObjectBounds(normalized);
+    const requestedClip = input.imageClip && typeof input.imageClip === "object"
+      ? {
+          x: finiteNumber(input.imageClip.x, fullBounds.x),
+          y: finiteNumber(input.imageClip.y, fullBounds.y),
+          width: positiveNumber(input.imageClip.width, fullBounds.width),
+          height: positiveNumber(input.imageClip.height, fullBounds.height)
+        }
+      : fullBounds;
+    return {
+      ...normalized,
+      source,
+      imageClip: intersectAnnotationBounds(fullBounds, requestedClip) || fullBounds,
+      cropVisible: input.cropVisible !== false,
+      cropPermanent: input.cropPermanent === true,
+      isOriginalImage: input.isOriginalImage === true
+    };
   }
   const fillFallback = type === "textbox"
     ? defaultStyles.fill
@@ -7598,6 +7924,16 @@ function annotationFileName(originalFileName) {
     .slice(0, 60) || "image";
   const stamp = new Date().toISOString().replace(/[:.]/g, "-");
   return `${baseName}-annotation-${stamp}.svg`;
+}
+
+function annotationPermanentCropFileName(originalFileName) {
+  const baseName = String(originalFileName || "image")
+    .replace(/\.[^.]+$/, "")
+    .replace(/[^a-z0-9_-]+/gi, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 60) || "image";
+  const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+  return `${baseName}-permanent-crop-${stamp}.png`;
 }
 
 function annotationObjectId(prefix) {

@@ -3,11 +3,12 @@ import {
   annotationSvgDataUrl,
   buildAnnotationSvg,
   openImageAnnotationDialog,
+  parseAnnotationSvg,
   zoomAnnotationAtPoint
-} from "../../components/image-annotation.js?v=20260718-diagram-library-v8";
+} from "../../components/image-annotation.js?v=20260719-edit-zoom-schema";
 import { copyTextToClipboard } from "../../components/clipboard.js";
 import { filterSelect } from "../../components/filters.js";
-import { field, optionalNumberValue, selectOptionsField, value } from "../../components/forms.js?v=20260627-rich-text-toolbar";
+import { field, optionalNumberValue, selectOptionsField, value } from "../../components/forms.js?v=20260719-rte-insert-diagram";
 import { sectionHead } from "../../components/sections.js?v=20260718-diagram-library-v8";
 import { currentUserId } from "../../core/authentication.js?v=20260715-admin-impersonation";
 import { routeForContent, updateBrowserUrl } from "../../core/router.js?v=20260718-diagram-library-v8";
@@ -22,6 +23,7 @@ import { formatDate } from "../../shared/dates.js";
 import { appAbsoluteUrl } from "../../shared/app-urls.js";
 import { canAccessResource } from "../../shared/security.js";
 import { escapeAttr, escapeHtml } from "../../shared/text-and-links.js";
+import { buildPmtDatabaseSchemaDiagram } from "./pmt-database-schema.js?v=20260719-edit-zoom-schema";
 
 const diagramViewModes = new Set(["cards", "tree"]);
 const diagramSortModes = new Set(["latest", "oldest", "name", "custom"]);
@@ -62,6 +64,7 @@ export function createDiagramFeature({
   loadTemplateLibrary,
   loadDefaultTemplateLibrary,
   saveTemplateLibrary,
+  loadPmtDatabaseSchema,
   createDiagramDocument,
   saveDiagramDocument,
   openEditor,
@@ -70,6 +73,7 @@ export function createDiagramFeature({
 }) {
   let active = false;
   let creating = false;
+  let generatingDatabaseSchema = false;
   let editingDocumentId = 0;
   let editorAbortController = null;
 
@@ -257,7 +261,7 @@ export function createDiagramFeature({
         </div>
         <div class="diagram-preview diagram-readonly-viewport" data-diagram-viewport tabindex="0" aria-label="Read-only Diagram canvas. Drag to pan; use Control plus mouse wheel to zoom.">
           <div class="diagram-readonly-stage" data-diagram-stage>
-            <img src="${escapeAttr(image?.source || blankDiagramSource)}" alt="${escapeAttr(document.title)} preview" data-diagram-image draggable="false">
+            ${diagramReadonlyImageHtml(image?.source || blankDiagramSource, document.title)}
           </div>
         </div>
       </div>
@@ -564,8 +568,8 @@ export function createDiagramFeature({
 
     try {
       const result = await openImageAnnotationDialog({
-        originalReference: image.originalReference || blankDiagramSource,
-        originalUrl: blankDiagramSource,
+        canvasWidth: blankDiagramWidth,
+        canvasHeight: blankDiagramHeight,
         annotationUrl: image.source,
         originalFileName: `${safeFileName(document.title)}.svg`,
         title: document.title,
@@ -573,7 +577,6 @@ export function createDiagramFeature({
         applyLabel: "Save",
         applyingMessage: "Saving the diagram...",
         initialSelection: "none",
-        includeOriginalImage: false,
         entityHeaderActionsOnHover: true,
         embedded: true,
         host,
@@ -585,6 +588,10 @@ export function createDiagramFeature({
         loadTemplateLibrary,
         loadDefaultTemplateLibrary,
         saveTemplateLibrary,
+        generatePmtDatabaseSchema: typeof loadPmtDatabaseSchema === "function"
+          && canAccessResource("Documentation", "Create")
+          ? generatePmtDatabaseSchema
+          : undefined,
         apply: diagram => saveDiagramDocument?.(document, {
           diagram,
           bodyHtml: diagramDocumentBodyHtml(document.title, diagram)
@@ -596,7 +603,25 @@ export function createDiagramFeature({
     } finally {
       editingDocumentId = 0;
       editorAbortController = null;
+      previewDiagramDocumentId = 0;
       if (active) renderDiagram();
+    }
+  }
+
+  async function generatePmtDatabaseSchema() {
+    if (generatingDatabaseSchema) return null;
+    generatingDatabaseSchema = true;
+    try {
+      const schema = await loadPmtDatabaseSchema?.();
+      const diagram = buildPmtDatabaseSchemaDiagram(schema);
+      const result = await createDiagramDocument?.({
+        title: diagram.title,
+        bodyHtml: diagramDocumentBodyHtml(diagram.title, diagram)
+      });
+      selectedDiagramDocumentId = Number(result?.id || 0);
+      return result;
+    } finally {
+      generatingDatabaseSchema = false;
     }
   }
 
@@ -762,18 +787,24 @@ export function createDiagramFeature({
     const zoomSelect = viewer.querySelector("[data-diagram-zoom]");
     if (!documentId || !viewport || !stage || !image || !zoomSelect) return;
 
-    const stageMetrics = zoom => {
-      const imageWidth = image.naturalWidth || blankDiagramWidth;
-      const imageHeight = image.naturalHeight || blankDiagramHeight;
+    let imageWidth = blankDiagramWidth;
+    let imageHeight = blankDiagramHeight;
+    let renderedZoom = 1;
+    let pendingZoom = null;
+    let zoomFrame = 0;
+    let zoomIdleTimer = 0;
+
+    const viewportSize = () => ({
+      width: Math.max(1, viewport.clientWidth),
+      height: Math.max(1, viewport.clientHeight)
+    });
+
+    const stageMetrics = (zoom, size = viewportSize()) => {
       const scaledWidth = imageWidth * zoom;
       const scaledHeight = imageHeight * zoom;
-      const viewportWidth = Math.max(1, viewport.clientWidth);
-      const viewportHeight = Math.max(1, viewport.clientHeight);
-      const stageWidth = Math.max(scaledWidth + (viewportWidth * 2), viewportWidth * 3);
-      const stageHeight = Math.max(scaledHeight + (viewportHeight * 2), viewportHeight * 3);
+      const stageWidth = Math.max(scaledWidth + (size.width * 2), size.width * 3);
+      const stageHeight = Math.max(scaledHeight + (size.height * 2), size.height * 3);
       return {
-        imageWidth,
-        imageHeight,
         scaledWidth,
         scaledHeight,
         stageWidth,
@@ -783,81 +814,115 @@ export function createDiagramFeature({
       };
     };
 
-    const drawStage = zoom => {
-      const metrics = stageMetrics(zoom);
+    const drawStage = (zoom, metrics) => {
       stage.style.width = `${metrics.stageWidth}px`;
       stage.style.height = `${metrics.stageHeight}px`;
       image.style.left = `${metrics.offsetX}px`;
       image.style.top = `${metrics.offsetY}px`;
-      image.style.width = `${metrics.imageWidth}px`;
-      image.style.height = `${metrics.imageHeight}px`;
       image.style.transform = `scale(${zoom})`;
       zoomSelect.value = String(Math.round(zoom * 100));
-      return metrics;
     };
 
-    const applyZoom = (nextZoom, anchor = null) => {
-      const oldZoom = previewZoom;
+    const markZooming = () => {
+      viewer.classList.add("is-zooming");
+      if (zoomIdleTimer) window.clearTimeout(zoomIdleTimer);
+      zoomIdleTimer = window.setTimeout(() => {
+        viewer.classList.remove("is-zooming");
+        zoomIdleTimer = 0;
+      }, 180);
+    };
+
+    const scheduleZoom = (nextZoom, anchor = null, center = false) => {
       const zoom = clampDiagramZoom(nextZoom);
-      const pointX = anchor?.x ?? viewport.clientWidth / 2;
-      const pointY = anchor?.y ?? viewport.clientHeight / 2;
-      const oldMetrics = stageMetrics(oldZoom);
-      const next = zoomAnnotationAtPoint({
-        oldZoom,
-        newZoom: zoom,
-        scrollLeft: viewport.scrollLeft - oldMetrics.offsetX,
-        scrollTop: viewport.scrollTop - oldMetrics.offsetY,
-        pointX,
-        pointY
-      });
-      previewZoom = next.zoom;
-      const nextMetrics = drawStage(previewZoom);
-      requestAnimationFrame(() => {
-        viewport.scrollLeft = Math.max(0, next.scrollLeft + nextMetrics.offsetX);
-        viewport.scrollTop = Math.max(0, next.scrollTop + nextMetrics.offsetY);
+      previewZoom = zoom;
+      pendingZoom = { zoom, anchor, center };
+      markZooming();
+      if (zoomFrame) return;
+
+      zoomFrame = window.requestAnimationFrame(() => {
+        zoomFrame = 0;
+        if (!viewer.isConnected || !pendingZoom) return;
+
+        const request = pendingZoom;
+        pendingZoom = null;
+        const size = viewportSize();
+        const oldMetrics = stageMetrics(renderedZoom, size);
+        const nextMetrics = stageMetrics(request.zoom, size);
+        const pointX = request.anchor?.x ?? size.width / 2;
+        const pointY = request.anchor?.y ?? size.height / 2;
+        const next = zoomAnnotationAtPoint({
+          oldZoom: renderedZoom,
+          newZoom: request.zoom,
+          scrollLeft: viewport.scrollLeft - oldMetrics.offsetX,
+          scrollTop: viewport.scrollTop - oldMetrics.offsetY,
+          pointX,
+          pointY
+        });
+
+        drawStage(request.zoom, nextMetrics);
+        renderedZoom = request.zoom;
+        if (request.center) {
+          window.requestAnimationFrame(() => {
+            if (!viewer.isConnected) return;
+            const settledSize = viewportSize();
+            viewport.scrollLeft = stage.offsetLeft + nextMetrics.offsetX
+              + (nextMetrics.scaledWidth / 2) - (settledSize.width / 2);
+            viewport.scrollTop = stage.offsetTop + nextMetrics.offsetY
+              + (nextMetrics.scaledHeight / 2) - (settledSize.height / 2);
+          });
+        } else {
+          viewport.scrollLeft = Math.max(0, next.scrollLeft + nextMetrics.offsetX);
+          viewport.scrollTop = Math.max(0, next.scrollTop + nextMetrics.offsetY);
+        }
       });
     };
 
     const fit = () => {
-      const width = image.naturalWidth || blankDiagramWidth;
-      const height = image.naturalHeight || blankDiagramHeight;
-      const availableWidth = Math.max(1, viewport.clientWidth - 32);
-      const availableHeight = Math.max(1, viewport.clientHeight - 32);
-      previewZoom = clampDiagramZoom(Math.min(availableWidth / width, availableHeight / height));
-      const metrics = drawStage(previewZoom);
-      requestAnimationFrame(() => {
-        viewport.scrollLeft = metrics.offsetX + (metrics.scaledWidth / 2) - (viewport.clientWidth / 2);
-        viewport.scrollTop = metrics.offsetY + (metrics.scaledHeight / 2) - (viewport.clientHeight / 2);
-      });
+      const size = viewportSize();
+      const availableWidth = Math.max(1, size.width - 32);
+      const availableHeight = Math.max(1, size.height - 32);
+      scheduleZoom(Math.min(availableWidth / imageWidth, availableHeight / imageHeight), null, true);
     };
 
     const initialize = () => {
+      const viewBox = image.viewBox?.baseVal;
+      imageWidth = image.naturalWidth
+        || Number.parseFloat(image.getAttribute("width"))
+        || viewBox?.width
+        || blankDiagramWidth;
+      imageHeight = image.naturalHeight
+        || Number.parseFloat(image.getAttribute("height"))
+        || viewBox?.height
+        || blankDiagramHeight;
+      image.style.width = `${imageWidth}px`;
+      image.style.height = `${imageHeight}px`;
       if (previewDiagramDocumentId !== documentId) {
         previewDiagramDocumentId = documentId;
         fit();
       } else {
-        applyZoom(previewZoom);
+        scheduleZoom(previewZoom);
       }
     };
-    if (image.complete) initialize(); else image.addEventListener("load", initialize, { once: true });
+    if (image.matches("svg") || image.complete) initialize();
+    else image.addEventListener("load", initialize, { once: true });
 
-    viewer.querySelector("[data-diagram-zoom-out]")?.addEventListener("click", () => applyZoom(previewZoom - 0.05));
-    viewer.querySelector("[data-diagram-zoom-in]")?.addEventListener("click", () => applyZoom(previewZoom + 0.05));
+    viewer.querySelector("[data-diagram-zoom-out]")?.addEventListener("click", () => scheduleZoom(previewZoom - 0.05));
+    viewer.querySelector("[data-diagram-zoom-in]")?.addEventListener("click", () => scheduleZoom(previewZoom + 0.05));
     viewer.querySelector("[data-diagram-fit]")?.addEventListener("click", fit);
-    zoomSelect.addEventListener("change", () => applyZoom(Number(zoomSelect.value || 100) / 100));
+    zoomSelect.addEventListener("change", () => scheduleZoom(Number(zoomSelect.value || 100) / 100));
     viewport.addEventListener("wheel", event => {
       if (!event.ctrlKey) return;
       event.preventDefault();
       const rect = viewport.getBoundingClientRect();
-      applyZoom(previewZoom + (event.deltaY < 0 ? 0.05 : -0.05), {
+      scheduleZoom(previewZoom + (event.deltaY < 0 ? 0.05 : -0.05), {
         x: event.clientX - rect.left,
         y: event.clientY - rect.top
       });
     }, { passive: false });
 
     viewport.addEventListener("keydown", event => {
-      if (event.key === "+" || event.key === "=") applyZoom(previewZoom + 0.05);
-      if (event.key === "-") applyZoom(previewZoom - 0.05);
+      if (event.key === "+" || event.key === "=") scheduleZoom(previewZoom + 0.05);
+      if (event.key === "-") scheduleZoom(previewZoom - 0.05);
       if (event.key === "0") fit();
     });
 
@@ -1008,28 +1073,51 @@ function diagramImage(document) {
   if (!image) return null;
   const source = String(image.getAttribute("src") || "").trim();
   if (!source) return null;
-  return {
-    source,
-    originalReference: String(image.dataset.pmtAnnotationSource || "").trim()
-  };
+  return { source };
+}
+
+function diagramReadonlyImageHtml(sourceInput, title) {
+  const source = String(sourceInput || blankDiagramSource);
+  const svgSource = decodeDiagramSvgDataUrl(source);
+  const state = parseAnnotationSvg(svgSource);
+  if (!state) {
+    return `<img src="${escapeAttr(source)}" alt="${escapeAttr(title)} preview" data-diagram-image draggable="false">`;
+  }
+
+  return buildAnnotationSvg(state)
+    .replace(/^<\?xml[^>]*>\s*/i, "")
+    .replace("<svg ", `<svg class="diagram-readonly-svg" data-diagram-image `)
+    .replace('aria-label="Annotated image"', `aria-label="${escapeAttr(title)} preview"`);
+}
+
+function decodeDiagramSvgDataUrl(sourceInput) {
+  const source = String(sourceInput || "");
+  const separator = source.indexOf(",");
+  if (separator < 0 || !/^data:image\/svg\+xml(?:;|,)/i.test(source)) return "";
+
+  try {
+    const metadata = source.slice(0, separator).toLowerCase();
+    const payload = source.slice(separator + 1);
+    if (!metadata.includes(";base64")) return decodeURIComponent(payload);
+    const binary = atob(payload.replace(/\s+/g, ""));
+    const bytes = Uint8Array.from(binary, character => character.charCodeAt(0));
+    return new TextDecoder().decode(bytes);
+  } catch {
+    return "";
+  }
 }
 
 function createBlankDiagram() {
   const annotationState = {
     width: blankDiagramWidth,
     height: blankDiagramHeight,
-    sourceWidth: blankDiagramWidth,
-    sourceHeight: blankDiagramHeight,
-    originalReference: blankDiagramSource,
-    includeOriginalImage: false,
     gridVisible: false,
     snapToGrid: false,
     objects: []
   };
   return {
     state: annotationState,
-    svg: buildAnnotationSvg(annotationState, ""),
-    originalReference: blankDiagramSource,
+    svg: buildAnnotationSvg(annotationState),
     fileName: "diagram.svg"
   };
 }
@@ -1037,7 +1125,7 @@ function createBlankDiagram() {
 function diagramDocumentBodyHtml(title, diagram) {
   const source = annotationSvgDataUrl(diagram.svg);
   const version = Number(diagram.state?.version || 1);
-  return `<p><img class="rich-svg-image pmt-annotation-image" src="${escapeAttr(source)}" alt="${escapeAttr(title)}" data-pmt-diagram="true" data-pmt-private-diagram="true" data-pmt-annotation-source="${escapeAttr(diagram.originalReference || blankDiagramSource)}" data-pmt-annotation-version="${escapeAttr(version)}"></p>`;
+  return `<p><img class="rich-svg-image pmt-annotation-image" src="${escapeAttr(source)}" alt="${escapeAttr(title)}" data-pmt-diagram="true" data-pmt-private-diagram="true" data-pmt-annotation-version="${escapeAttr(version)}"></p>`;
 }
 
 function diagramProjectOptions() {

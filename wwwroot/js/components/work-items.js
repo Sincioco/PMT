@@ -20,7 +20,7 @@ import {
   checkListOrEmpty,
   checkedNumbers,
   userCardCheckListLabelHtml
-} from "./forms.js?v=20260710-export-rich-kanban";
+} from "./forms.js?v=20260719-rte-insert-diagram";
 import { state } from "../core/store.js";
 import { formatDate, formatDateTime } from "../shared/dates.js";
 import { canEditTask } from "../shared/permissions.js?v=20260715-admin-impersonation";
