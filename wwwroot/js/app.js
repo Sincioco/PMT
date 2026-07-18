@@ -4,8 +4,11 @@ import { avatarsHtml, taskRowAvatarsHtml } from "./components/avatars.js?v=20260
 import { bindAttachmentDeletion } from "./components/attachments.js?v=20260714-attachment-delete";
 import { buttonContent } from "./components/buttons.js?v=20260715-admin-impersonation";
 import { copyTextToClipboard } from "./components/clipboard.js?v=20260714-invite-email-body";
-import { openImageAnnotationDialog } from "./components/image-annotation.js?v=20260718-day31-annotation-v1";
-import { createWhatsNew } from "./components/whats-new.js?v=release-notes-2026-07-17-day-31-fb8032719c56";
+import {
+  annotationSvgDataUrl,
+  openImageAnnotationDialog
+} from "./components/image-annotation.js?v=20260718-diagram-entity-v22";
+import { createWhatsNew } from "./components/whats-new.js?v=release-notes-2026-07-18-day-31-572729605b60";
 import {
   htmlWithoutUserMentionMarkup,
   initializeUserMentions
@@ -31,7 +34,7 @@ import {
   showTaskAudit,
   viewWorkItem
 } from "./components/work-items.js?v=20260716-dialog-route-close";
-import { createApplicationShell } from "./core/application-shell.js?v=release-notes-2026-07-17-day-31-fb8032719c56";
+import { createApplicationShell } from "./core/application-shell.js?v=20260718-diagram-entity-v22";
 import {
   currentView,
   ensureCurrentViewRoute,
@@ -40,44 +43,45 @@ import {
   routeForContent,
   routeForView,
   updateBrowserUrl
-} from "./core/router.js?v=release-notes-2026-07-17-day-31-fb8032719c56";
+} from "./core/router.js?v=20260718-diagram-entity-v22";
 import {
   registeredScreenHandlers,
   registerScreen,
   screenHandlerFor,
   screenRegistry
-} from "./core/screen-registry.js?v=release-notes-2026-07-17-day-31-fb8032719c56";
+} from "./core/screen-registry.js?v=20260718-diagram-entity-v22";
 import {
   preferenceKeys,
   readBooleanPreference,
   writePreference
-} from "./core/preferences.js?v=release-notes-2026-07-17-day-31-fb8032719c56";
+} from "./core/preferences.js?v=release-notes-2026-07-18-day-31-572729605b60";
 import { state } from "./core/store.js";
 import { appUrl, storageUrl } from "./shared/app-urls.js";
 import {
   createAboutFeature,
   createAboutScreenSaver
 } from "./features/about/about.js?v=20260716-db-v122";
-import { createBacklogFeature } from "./features/backlog/backlog.js?v=release-notes-2026-07-17-day-31-fb8032719c56";
-import { createBoardFeature } from "./features/board/board.js?v=release-notes-2026-07-17-day-31-fb8032719c56";
-import { createBugsFeature } from "./features/bugs/bugs.js?v=release-notes-2026-07-17-day-31-fb8032719c56";
-import { createDashboardFeature } from "./features/dashboard/dashboard.js?v=release-notes-2026-07-17-day-31-fb8032719c56";
-import { createDocumentationFeature } from "./features/documentation/documentation.js?v=release-notes-2026-07-17-day-31-fb8032719c56";
+import { createBacklogFeature } from "./features/backlog/backlog.js?v=release-notes-2026-07-18-day-31-572729605b60";
+import { createBoardFeature } from "./features/board/board.js?v=release-notes-2026-07-18-day-31-572729605b60";
+import { createBugsFeature } from "./features/bugs/bugs.js?v=release-notes-2026-07-18-day-31-572729605b60";
+import { createDashboardFeature } from "./features/dashboard/dashboard.js?v=release-notes-2026-07-18-day-31-572729605b60";
+import { createDiagramFeature } from "./features/diagram/diagram.js?v=20260718-diagram-entity-v22";
+import { createDocumentationFeature } from "./features/documentation/documentation.js?v=release-notes-2026-07-18-day-31-572729605b60";
 import {
   createGanttFeature,
   currentSprintForProject,
   ganttStartDate
-} from "./features/gantt/gantt.js?v=release-notes-2026-07-17-day-31-fb8032719c56";
+} from "./features/gantt/gantt.js?v=release-notes-2026-07-18-day-31-572729605b60";
 import { createInvitationsFeature } from "./features/invitations/invitations.js?v=20260715-admin-impersonation";
-import { createProjectsFeature } from "./features/projects/projects.js?v=release-notes-2026-07-17-day-31-fb8032719c56";
-import { createReleaseNotesFeature } from "./features/release-notes/release-notes.js?v=release-notes-2026-07-17-day-31-fb8032719c56";
-import { createRoadMapFeature } from "./features/roadmap/roadmap.js?v=release-notes-2026-07-17-day-31-fb8032719c56";
-import { createLogFeature } from "./features/personal-log/log.js?v=release-notes-2026-07-17-day-31-fb8032719c56";
-import { createScrumFeature } from "./features/scrum/scrum.js?v=release-notes-2026-07-17-day-31-fb8032719c56";
-import { createSettingsFeature } from "./features/settings/settings.js?v=release-notes-2026-07-17-day-31-fb8032719c56";
-import { createSprintsFeature } from "./features/sprints/sprints.js?v=release-notes-2026-07-17-day-31-fb8032719c56";
-import { createTasksFeature } from "./features/tasks/tasks.js?v=release-notes-2026-07-17-day-31-fb8032719c56";
-import { createWfhScheduleFeature } from "./features/wfh-schedule/wfh-schedule.js?v=release-notes-2026-07-17-day-31-fb8032719c56";
+import { createProjectsFeature } from "./features/projects/projects.js?v=release-notes-2026-07-18-day-31-572729605b60";
+import { createReleaseNotesFeature } from "./features/release-notes/release-notes.js?v=release-notes-2026-07-18-day-31-572729605b60";
+import { createRoadMapFeature } from "./features/roadmap/roadmap.js?v=release-notes-2026-07-18-day-31-572729605b60";
+import { createLogFeature } from "./features/personal-log/log.js?v=release-notes-2026-07-18-day-31-572729605b60";
+import { createScrumFeature } from "./features/scrum/scrum.js?v=release-notes-2026-07-18-day-31-572729605b60";
+import { createSettingsFeature } from "./features/settings/settings.js?v=20260718-diagram-entity-v22";
+import { createSprintsFeature } from "./features/sprints/sprints.js?v=release-notes-2026-07-18-day-31-572729605b60";
+import { createTasksFeature } from "./features/tasks/tasks.js?v=release-notes-2026-07-18-day-31-572729605b60";
+import { createWfhScheduleFeature } from "./features/wfh-schedule/wfh-schedule.js?v=release-notes-2026-07-18-day-31-572729605b60";
 import {
   fallbackEnvironments,
   fallbackForLookup,
@@ -87,7 +91,7 @@ import {
 } from "./shared/constants.js";
 import { formatDate, toDateInput } from "./shared/dates.js";
 import { canEditTask } from "./shared/permissions.js?v=20260715-admin-impersonation";
-import { applyActionPermissions, canReadView, firstReadableView } from "./shared/security.js?v=20260717-multi-screen-header";
+import { applyActionPermissions, canAccessResource, canReadView, firstReadableView } from "./shared/security.js?v=20260718-diagram-entity-v22";
 import {
   projectCode,
   projectName,
@@ -433,6 +437,17 @@ const documentationFeature = createDocumentationFeature({
   saveJson,
   showToast
 });
+const diagramFeature = createDiagramFeature({
+  app,
+  askForColor: current => askForText("HEX (#126BFF) or RGB (18, 107, 255)", "Custom Color", current),
+  askForText,
+  confirm: askYesNo,
+  notify: showToast,
+  loadTemplateLibrary: () => api("/api/image-annotation/template-library", { cache: "no-store" }),
+  loadDefaultTemplateLibrary: () => api("/api/image-annotation/default-template-library", { cache: "no-store" }),
+  saveTemplateLibrary: library => saveJson("/api/image-annotation/template-library", "PUT", library),
+  saveDiagram: saveDiagramAsDocument
+});
 const wfhScheduleFeature = createWfhScheduleFeature({
   app,
   render,
@@ -465,6 +480,7 @@ registerScreen("Scrum", scrumFeature);
 registerScreen("Log", logFeature);
 registerScreen("Documentation", documentationFeature);
 registerScreen("WFH Schedule", wfhScheduleFeature);
+registerScreen("Diagram", diagramFeature);
 registerScreen("Release Notes", releaseNotesFeature);
 
 document.getElementById("closeDialog").addEventListener("click", () => dialog.close());
@@ -660,6 +676,7 @@ function renderCurrentScreen() {
   if (currentView !== "Scrum") scrumFeature.deactivate();
   if (currentView !== "Log") logFeature.deactivate();
   if (currentView !== "Documentation") documentationFeature.deactivate?.();
+  if (currentView !== "Diagram") diagramFeature.deactivate();
 
   const registeredScreen = screenHandlerFor(currentView);
   if (registeredScreen?.render) registeredScreen.render();
@@ -2020,10 +2037,17 @@ async function annotateRichTextImage(image) {
       saveTemplateLibrary: library => saveJson("/api/image-annotation/template-library", "PUT", library),
       apply: async annotation => {
         if (!image.isConnected) throw new Error("The rich-text editor is no longer open.");
-        const file = new File([annotation.svg], annotation.fileName, { type: "image/svg+xml" });
-        const upload = await uploadFile("richtext", file);
+        const isPrivateDiagram = image.dataset.pmtPrivateDiagram === "true";
+        let annotationSource;
+        if (isPrivateDiagram) {
+          annotationSource = annotationSvgDataUrl(annotation.svg);
+        } else {
+          const file = new File([annotation.svg], annotation.fileName, { type: "image/svg+xml" });
+          const upload = await uploadFile("richtext", file);
+          annotationSource = appUrl(upload.url);
+        }
         if (!image.isConnected) throw new Error("The rich-text editor is no longer open.");
-        image.setAttribute("src", appUrl(upload.url));
+        image.setAttribute("src", annotationSource);
         image.dataset.pmtAnnotationSource = annotation.originalReference;
         image.dataset.pmtAnnotationVersion = String(annotation.state.version || 1);
         image.classList.add("rich-svg-image", "pmt-annotation-image");
@@ -4381,6 +4405,62 @@ function updateWorkItemContentUrl(task) {
 
   updateBrowserUrl(workItemContentRoute(task.id));
   lastOpenedContentRouteKey = contentRouteKey(parseRouteFromLocation());
+}
+
+async function saveDiagramAsDocument(diagram) {
+  if (!canAccessResource("Documentation", "Create")) {
+    throw new Error("You do not have permission to create Documentation.");
+  }
+  if (!diagram?.svg) throw new Error("Create a diagram before saving it.");
+
+  const entities = (diagram.state?.objects || []).filter(object => object.type === "entity");
+  const pmtTopTenTables = new Set([
+    "pmt.projects",
+    "pmt.worktasks",
+    "pmt.users",
+    "pmt.sprints",
+    "pmt.blogs",
+    "pmt.devlogs",
+    "pmt.projectmembers",
+    "pmt.taskassignees",
+    "pmt.lookups",
+    "pmt.taskdependencies"
+  ]);
+  const entityNames = new Set(entities.map(entity => [entity.entitySchema, entity.entityName]
+    .filter(Boolean)
+    .join(".")
+    .toLocaleLowerCase()));
+  const isPmtTopTen = entityNames.size === pmtTopTenTables.size
+    && [...pmtTopTenTables].every(name => entityNames.has(name));
+  const title = isPmtTopTen
+    ? "PMT's Top 10 Tables"
+    : entities.length === 1
+    ? `Diagram - ${entities[0].name || [entities[0].entitySchema, entities[0].entityName].filter(Boolean).join(".")}`
+    : entities.length > 1
+      ? `Diagram - ${entities.length} Entities`
+      : "Diagram";
+  // Keep the editable SVG inside the private Document. Unlike a regular RTE
+  // upload, this prevents Entity SQL metadata from becoming a public file.
+  const diagramSource = annotationSvgDataUrl(diagram.svg);
+  const version = Number(diagram.state?.version || 1);
+  const bodyHtml = `<p><img class="rich-svg-image pmt-annotation-image" src="${escapeAttr(diagramSource)}" alt="${escapeAttr(title)}" data-pmt-private-diagram="true" data-pmt-annotation-source="${escapeAttr(diagram.originalReference || "")}" data-pmt-annotation-version="${escapeAttr(version)}"></p>`;
+  const result = await saveJson("/api/blogs", "POST", {
+    id: 0,
+    projectId: null,
+    sprintId: null,
+    parentBlogId: null,
+    title,
+    bodyHtml,
+    isPrivate: true,
+    isPinned: false
+  });
+
+  await loadState();
+  navigate("Documentation");
+  render();
+  openDocumentationById(result.id);
+  showToast("Diagram saved as a Document.");
+  return result;
 }
 
 async function convertWorkItemToDocument(task) {

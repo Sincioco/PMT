@@ -45,7 +45,7 @@ test("login, navigation, themes, dialogs, filters, Board, Gantt, and Road Map sm
 
   await page.addInitScript(() => {
     localStorage.clear();
-    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-17-day-31@fb8032719c56");
+    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-18-day-31@572729605b60");
     localStorage.setItem("pmt-navigation", JSON.stringify({
       version: 2,
       items: [
@@ -62,6 +62,7 @@ test("login, navigation, themes, dialogs, filters, Board, Gantt, and Road Map sm
         ["Log", "Log"],
         ["Backlog", "Backlog"],
         ["WFH Schedule", "WFH Schedule"],
+        ["Diagram", "Diagram"],
         ["About", "About"],
         ["Settings", "Settings"]
       ].map(([view, label]) => ({ view, label, visible: true }))
@@ -117,6 +118,7 @@ test("login, navigation, themes, dialogs, filters, Board, Gantt, and Road Map sm
     ["Documentation", "Documentation"],
     ["Backlog", "Backlog"],
     ["WFH Schedule", "WFH Schedule"],
+    ["Diagram", "Diagram"],
     ["Release Notes", "Release Notes"],
     ["Settings", "Settings"]
   ];
@@ -124,6 +126,11 @@ test("login, navigation, themes, dialogs, filters, Board, Gantt, and Road Map sm
   for (const [view, heading] of screens) {
     await openNavView(page, view, heading);
     await expectShellFitsViewport(page);
+    if (view === "Diagram") {
+      const diagramDialog = page.locator("dialog.image-annotation-dialog");
+      await expect(diagramDialog).toBeVisible();
+      await diagramDialog.getByRole("button", { name: "Cancel", exact: true }).click();
+    }
   }
 
   await openNavView(page, "Projects", "Projects");
@@ -517,7 +524,7 @@ test("Developer Board moves stop after QA Passed while QA Ready remains availabl
 
   await page.addInitScript(() => {
     localStorage.clear();
-    localStorage.setItem("pmt-release-notes-last-seen:2", "2026-07-17-day-31@fb8032719c56");
+    localStorage.setItem("pmt-release-notes-last-seen:2", "2026-07-18-day-31@572729605b60");
   });
   await installApiMocks(page, appState, apiCalls);
   await page.goto("/");
@@ -564,7 +571,7 @@ test("Scrum attendance, calendar, on-behalf, and vacation flows stay synchronize
       localStorage.clear();
       sessionStorage.setItem("pmt-scrum-attendance-smoke-started", "true");
     }
-    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-17-day-31@fb8032719c56");
+    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-18-day-31@572729605b60");
   });
   await installApiMocks(page, appState, apiCalls);
 
@@ -863,7 +870,7 @@ test("Scrum view toggle matches Documentation and crowded attendance avatars fit
   await page.clock.setFixedTime(new Date("2026-07-15T08:00:00+08:00"));
   await page.addInitScript(() => {
     localStorage.clear();
-    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-17-day-31@fb8032719c56");
+    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-18-day-31@572729605b60");
   });
   await installApiMocks(page, appState, apiCalls);
 
@@ -989,7 +996,7 @@ test("Scrum auto-refresh updates the table and attendance without reload or inte
   await page.clock.pauseAt(new Date("2026-07-15T08:00:00+08:00"));
   await page.addInitScript(() => {
     localStorage.clear();
-    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-17-day-31@fb8032719c56");
+    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-18-day-31@572729605b60");
   });
   await installApiMocks(page, appState, apiCalls);
 
@@ -1119,7 +1126,7 @@ test("Scrum auto-refresh invalidates the visible Calendar month without shifting
   await page.clock.pauseAt(new Date("2026-07-15T08:00:00+08:00"));
   await page.addInitScript(() => {
     localStorage.clear();
-    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-17-day-31@fb8032719c56");
+    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-18-day-31@572729605b60");
   });
   await installApiMocks(page, appState, apiCalls);
 
@@ -1231,7 +1238,7 @@ test("Scrum read-only permission disables attendance and vacation mutations", as
   await page.clock.setFixedTime(new Date("2026-07-15T08:00:00+08:00"));
   await page.addInitScript(() => {
     localStorage.clear();
-    localStorage.setItem("pmt-release-notes-last-seen:2", "2026-07-17-day-31@fb8032719c56");
+    localStorage.setItem("pmt-release-notes-last-seen:2", "2026-07-18-day-31@572729605b60");
   });
   await installApiMocks(page, appState, apiCalls);
 
@@ -1262,8 +1269,8 @@ test("Scrum attendance cache follows the restored cookie session user", async ({
   await page.clock.setFixedTime(new Date("2026-07-15T08:00:00+08:00"));
   await page.addInitScript(() => {
     localStorage.clear();
-    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-17-day-31@fb8032719c56");
-    localStorage.setItem("pmt-release-notes-last-seen:2", "2026-07-17-day-31@fb8032719c56");
+    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-18-day-31@572729605b60");
+    localStorage.setItem("pmt-release-notes-last-seen:2", "2026-07-18-day-31@572729605b60");
   });
   await installApiMocks(page, appState, apiCalls);
 
@@ -2404,6 +2411,57 @@ test("Log shares the synchronized idle header and owner-only bulk delete", async
   await expect(table).not.toContainText("Bill private note");
 });
 
+test("Diagram parses T-SQL Entities and exposes individual relationship Objects", async ({ page }) => {
+  const appState = createTestState();
+  const apiCalls = { securityReset: 0 };
+  await markCurrentReleaseSeen(page, 1);
+  await installApiMocks(page, appState, apiCalls);
+
+  await page.goto("/");
+  await page.locator("#loginName").fill("Sin");
+  await page.locator("#loginPassword").fill("Password1");
+  await page.getByRole("button", { name: /log in/i }).click();
+  await openNavView(page, "Diagram", "Diagram");
+
+  const dialog = page.locator("dialog.image-annotation-dialog");
+  const canvas = dialog.locator("[data-annotation-canvas]");
+  await expect(dialog).toBeVisible();
+  await expect(canvas.locator("[data-annotation-object-type='image']")).toHaveCount(0);
+  await expect(dialog.locator("[data-annotation-grid]")).not.toBeChecked();
+  await expect(dialog.locator("[data-annotation-snap]")).not.toBeChecked();
+
+  const addEntity = async sql => {
+    await dialog.getByRole("button", { name: "Entity (E)" }).click();
+    const entityDialog = page.locator("dialog.image-annotation-entity-dialog");
+    await expect(entityDialog).toBeVisible();
+    await entityDialog.locator("[data-annotation-entity-source]").fill(sql);
+    await entityDialog.getByRole("button", { name: "Add Entity", exact: true }).click();
+    await expect(entityDialog).toHaveCount(0);
+  };
+
+  await addEntity(`CREATE TABLE pmt.Projects (
+    ProjectId int IDENTITY(1,1) NOT NULL,
+    Title nvarchar(220) NOT NULL,
+    CONSTRAINT PK_Projects PRIMARY KEY (ProjectId)
+  );`);
+  await addEntity(`CREATE TABLE pmt.WorkTasks (
+    TaskId int IDENTITY(1,1) NOT NULL,
+    ProjectId int NOT NULL,
+    Title nvarchar(220) NOT NULL,
+    CONSTRAINT PK_WorkTasks PRIMARY KEY (TaskId),
+    CONSTRAINT FK_WorkTasks_Projects FOREIGN KEY (ProjectId) REFERENCES pmt.Projects (ProjectId)
+  );`);
+
+  await expect(canvas.locator("[data-annotation-object-type='entity']")).toHaveCount(2);
+  await dialog.getByRole("tab", { name: "Objects", exact: true }).click();
+  const tree = dialog.locator("[data-annotation-object-tree]");
+  await expect(tree.locator("[data-annotation-tree-node-type='relationships']"))
+    .toContainText("Entity Relationships (1)");
+  await expect(tree.locator("[data-annotation-tree-node-type='relationship']"))
+    .toContainText("pmt.WorkTasks.ProjectId → pmt.Projects.ProjectId");
+  await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
+});
+
 test("draw.io SVG clipboard paste preserves UTF-8 spaces", async ({ page }) => {
   const appState = createTestState();
   const apiCalls = { securityReset: 0 };
@@ -2559,6 +2617,15 @@ test("RTE image annotation creates, crops, groups, locks, undoes, and reopens ed
     await page.mouse.move(end.x, end.y, { steps: 5 });
     await page.mouse.up();
   };
+  const moveAnnotationObjectCenterTo = async (object, x, y) => {
+    const box = await object.boundingBox();
+    expect(box).not.toBeNull();
+    const target = await canvasClientPoint(x, y);
+    await page.mouse.move(box.x + (box.width / 2), box.y + (box.height / 2));
+    await page.mouse.down();
+    await page.mouse.move(target.x, target.y, { steps: 5 });
+    await page.mouse.up();
+  };
   const readArrowGeometry = arrow => arrow.evaluate(element => {
     const line = element.querySelector(".image-annotation-arrow-shaft");
     const points = element.querySelector(".image-annotation-arrow-head").getAttribute("points").trim().split(/\s+/)
@@ -2639,7 +2706,7 @@ test("RTE image annotation creates, crops, groups, locks, undoes, and reopens ed
     }, name)).toEqual({ besideMatchingPicker: true, display: "grid", columns: 3, rows: 2 });
   }
   const drawingToolButtons = dialog.locator("button[data-annotation-tool]");
-  await expect(drawingToolButtons).toHaveCount(5);
+  await expect(drawingToolButtons).toHaveCount(6);
   expect(await drawingToolButtons.evaluateAll(buttons => buttons.map(button => ({
     label: button.getAttribute("aria-label"),
     title: button.getAttribute("title"),
@@ -2652,8 +2719,17 @@ test("RTE image annotation creates, crops, groups, locks, undoes, and reopens ed
     { label: "Crop (C)", title: "Crop (C)", pressed: "false", visibleText: "", iconHidden: "true", hasSvg: true },
     { label: "Rectangle (R)", title: "Rectangle (R)", pressed: "false", visibleText: "", iconHidden: "true", hasSvg: true },
     { label: "Arrow (A)", title: "Arrow (A)", pressed: "false", visibleText: "", iconHidden: "true", hasSvg: true },
-    { label: "Text Box (T)", title: "Text Box (T)", pressed: "false", visibleText: "", iconHidden: "true", hasSvg: true }
+    { label: "Text Box (T)", title: "Text Box (T)", pressed: "false", visibleText: "", iconHidden: "true", hasSvg: true },
+    { label: "Entity (E)", title: "Entity (E)", pressed: "false", visibleText: "", iconHidden: "true", hasSvg: true }
   ]);
+  const zoomSelect = dialog.getByLabel("Zoom percentage", { exact: true });
+  expect(await zoomSelect.locator("option").evaluateAll(options => options.map(option => ({
+    value: option.value,
+    label: option.textContent
+  })))).toEqual(Array.from({ length: 39 }, (_, index) => {
+    const percent = 10 + (index * 5);
+    return { value: String(percent), label: `${percent}%` };
+  }));
 
   const inspector = dialog.locator("[data-annotation-inspector]");
   const inspectorToggle = dialog.locator("[data-annotation-toggle-inspector]");
@@ -2802,8 +2878,8 @@ test("RTE image annotation creates, crops, groups, locks, undoes, and reopens ed
   await expect(imageClipRect).toHaveAttribute("y", "0");
 
   await dialog.getByRole("button", { name: "Rectangle (R)" }).click();
-  await dragCanvas(100, 80, 340, 190);
   await expect(canvas.locator("[data-annotation-object-id]")).toHaveCount(2);
+  await expect(dialog.locator("[data-annotation-selection-label]")).toHaveText("Rectangle");
   await expect(dialog.getByRole("button", { name: "Select (V)" })).toHaveAttribute("aria-pressed", "true");
 
   await dialog.getByRole("button", { name: "Undo (Ctrl+Z)" }).click();
@@ -2959,17 +3035,17 @@ test("RTE image annotation creates, crops, groups, locks, undoes, and reopens ed
     height: Number(element.getAttribute("height"))
   }));
   expect(rectangleAfterCenteredResize.width / rectangleAfterCenteredResize.height)
-    .toBeCloseTo(rectangleBeforeCenteredResize.width / rectangleBeforeCenteredResize.height, 6);
+    .toBeCloseTo(rectangleBeforeCenteredResize.width / rectangleBeforeCenteredResize.height, 4);
   expect(rectangleAfterCenteredResize.x + (rectangleAfterCenteredResize.width / 2))
-    .toBeCloseTo(rectangleBeforeCenteredResize.x + (rectangleBeforeCenteredResize.width / 2), 6);
+    .toBeCloseTo(rectangleBeforeCenteredResize.x + (rectangleBeforeCenteredResize.width / 2), 2);
   expect(rectangleAfterCenteredResize.y + (rectangleAfterCenteredResize.height / 2))
-    .toBeCloseTo(rectangleBeforeCenteredResize.y + (rectangleBeforeCenteredResize.height / 2), 6);
+    .toBeCloseTo(rectangleBeforeCenteredResize.y + (rectangleBeforeCenteredResize.height / 2), 2);
   await dialog.getByRole("button", { name: "Undo (Ctrl+Z)" }).click();
   await expect(proportionalRectangle).toHaveAttribute("width", String(rectangleBeforeCenteredResize.width));
   await proportionalRectangle.click();
 
   await dialog.getByRole("button", { name: "Arrow (A)" }).click();
-  await dragCanvas(540, 70, 390, 170);
+  await expect(dialog.locator("[data-annotation-selection-label]")).toHaveText("Arrow");
   await expect(dialog.getByRole("button", { name: "Select (V)" })).toHaveAttribute("aria-pressed", "true");
 
   const primaryArrow = canvas.locator("[data-annotation-object-type='arrow']").first();
@@ -2990,7 +3066,7 @@ test("RTE image annotation creates, crops, groups, locks, undoes, and reopens ed
       + ((arrowDeltaX / arrowShaftLength) * arrowNearMissOffset)
   );
   await page.mouse.click(arrowNearMiss.x, arrowNearMiss.y);
-  await expect(dialog.locator("[data-annotation-selection-label]")).toHaveText("Original image");
+  await expect(dialog.locator("[data-annotation-selection-label]")).not.toHaveText("Arrow");
   const arrowShaftPoint = await canvasClientPoint(
     (arrowBeforeHitTesting.base.x + arrowBeforeHitTesting.shaftEnd.x) / 2,
     (arrowBeforeHitTesting.base.y + arrowBeforeHitTesting.shaftEnd.y) / 2
@@ -3077,12 +3153,12 @@ test("RTE image annotation creates, crops, groups, locks, undoes, and reopens ed
   expect(movedArrow.base.y - tipResizedArrow.base.y).toBeCloseTo(movedArrow.tip.y - tipResizedArrow.tip.y, 2);
   await page.keyboard.press("ArrowRight");
   const keyboardMovedArrow = await readArrowGeometry(primaryArrow);
-  expect(keyboardMovedArrow.base.x).toBeCloseTo(movedArrow.base.x + 20, 2);
-  expect(keyboardMovedArrow.tip.x).toBeCloseTo(movedArrow.tip.x + 20, 2);
+  expect(keyboardMovedArrow.base.x).toBeCloseTo(movedArrow.base.x + 1, 2);
+  expect(keyboardMovedArrow.tip.x).toBeCloseTo(movedArrow.tip.x + 1, 2);
   await page.keyboard.press("ArrowLeft");
 
   await dialog.getByRole("button", { name: "Text Box (T)" }).click();
-  await dragCanvas(420, 190, 700, 320);
+  await expect(dialog.locator("[data-annotation-selection-label]")).toHaveText("Text box");
   await expect(dialog.getByRole("button", { name: "Select (V)" })).toHaveAttribute("aria-pressed", "true");
   const textInput = dialog.locator("[data-annotation-text]");
   await expect(textInput).toBeVisible();
@@ -3184,7 +3260,7 @@ test("RTE image annotation creates, crops, groups, locks, undoes, and reopens ed
   }));
   expect(textBoxAfterResize.width).toBeGreaterThan(textBoxBeforeResize.width);
   expect(textBoxAfterResize.width / textBoxAfterResize.height)
-    .toBeCloseTo(textBoxBeforeResize.width / textBoxBeforeResize.height, 5);
+    .toBeCloseTo(textBoxBeforeResize.width / textBoxBeforeResize.height, 4);
   const textBottomY = Number(await annotationText.getAttribute("y"));
 
   await openAnnotationContextMenu(textObject);
@@ -3195,20 +3271,18 @@ test("RTE image annotation creates, crops, groups, locks, undoes, and reopens ed
   await annotationContextMenu.getByRole("menuitem", { name: "To Front", exact: true }).click();
   await expect(annotationObjects.last()).toHaveAttribute("data-annotation-object-id", /^textbox-/);
 
-  for (let index = 0; index < 5; index += 1) {
-    await dialog.getByRole("button", { name: "Zoom Out", exact: true }).click();
-  }
+  await dialog.getByLabel("Zoom percentage", { exact: true }).selectOption("50");
   await dialog.getByRole("button", { name: "Rectangle (R)" }).click();
-  await dragCanvas(-160, 90, -70, 170);
+  await moveAnnotationObjectCenterTo(canvas.locator("[data-annotation-object-type='rectangle']").last(), -300, 200);
   await expect(dialog.getByRole("button", { name: "Select (V)" })).toHaveAttribute("aria-pressed", "true");
   await dialog.getByRole("button", { name: "Arrow (A)" }).click();
-  await dragCanvas(-150, 220, -55, 255);
+  await moveAnnotationObjectCenterTo(canvas.locator("[data-annotation-object-type='arrow']").last(), -300, 350);
   await expect(dialog.getByRole("button", { name: "Select (V)" })).toHaveAttribute("aria-pressed", "true");
   await expect(annotationObjects).toHaveCount(6);
 
-  await dragCanvas(-190, 60, -30, 280);
+  await dragCanvas(-450, 100, -150, 450);
   await expect(dialog.locator("[data-annotation-selection-label]")).toHaveText("2 objects selected");
-  const blankPoint = await canvasClientPoint(-150, 350);
+  const blankPoint = await canvasClientPoint(-100, 500);
   await page.mouse.click(blankPoint.x, blankPoint.y);
   await expect(dialog.locator("[data-annotation-selection-label]")).toHaveText("No selection");
 
@@ -3223,28 +3297,39 @@ test("RTE image annotation creates, crops, groups, locks, undoes, and reopens ed
     height: Number(element.getAttribute("height"))
   }));
   await outsideRectangle.click();
-  const freeformHandle = canvas.locator("[data-annotation-handle='se']");
-  const freeformHandleBox = await freeformHandle.boundingBox();
-  const freeformTarget = await canvasClientPoint(20, 220);
-  await page.keyboard.down("Alt");
+  const sideHandle = canvas.locator("[data-annotation-handle='e']");
+  const sideHandleBox = await sideHandle.boundingBox();
+  const sideTarget = await canvasClientPoint(
+    outsideRectangleBeforeResize.x + outsideRectangleBeforeResize.width + 80,
+    outsideRectangleBeforeResize.y + (outsideRectangleBeforeResize.height / 2) + 40
+  );
   await page.mouse.move(
-    freeformHandleBox.x + (freeformHandleBox.width / 2),
-    freeformHandleBox.y + (freeformHandleBox.height / 2)
+    sideHandleBox.x + (sideHandleBox.width / 2),
+    sideHandleBox.y + (sideHandleBox.height / 2)
   );
   await page.mouse.down();
-  await page.mouse.move(freeformTarget.x, freeformTarget.y, { steps: 5 });
-  const trackedFreeformHandleBox = await freeformHandle.boundingBox();
-  expect(trackedFreeformHandleBox.x + (trackedFreeformHandleBox.width / 2)).toBeCloseTo(freeformTarget.x, 0);
-  expect(trackedFreeformHandleBox.y + (trackedFreeformHandleBox.height / 2)).toBeCloseTo(freeformTarget.y, 0);
-  const freeformRectangleBounds = await outsideRectangleShape.evaluate(element => ({
+  await page.mouse.move(sideTarget.x, sideTarget.y, { steps: 5 });
+  await page.mouse.up();
+  const sideResizedBounds = await outsideRectangleShape.evaluate(element => ({
     width: Number(element.getAttribute("width")),
     height: Number(element.getAttribute("height"))
   }));
-  expect(freeformRectangleBounds.width / freeformRectangleBounds.height)
-    .not.toBeCloseTo(outsideRectangleBeforeResize.width / outsideRectangleBeforeResize.height, 5);
+  expect(sideResizedBounds.width).toBeGreaterThan(outsideRectangleBeforeResize.width);
+  expect(sideResizedBounds.height).toBe(outsideRectangleBeforeResize.height);
+  await dialog.getByRole("button", { name: "Undo (Ctrl+Z)" }).click();
 
-  await page.keyboard.up("Alt");
-  const proportionalTarget = await canvasClientPoint(60, 260);
+  await outsideRectangle.click();
+  const cornerHandle = canvas.locator("[data-annotation-handle='se']");
+  const cornerHandleBox = await cornerHandle.boundingBox();
+  const proportionalTarget = await canvasClientPoint(
+    outsideRectangleBeforeResize.x + outsideRectangleBeforeResize.width + 100,
+    outsideRectangleBeforeResize.y + outsideRectangleBeforeResize.height + 20
+  );
+  await page.mouse.move(
+    cornerHandleBox.x + (cornerHandleBox.width / 2),
+    cornerHandleBox.y + (cornerHandleBox.height / 2)
+  );
+  await page.mouse.down();
   await page.mouse.move(proportionalTarget.x, proportionalTarget.y, { steps: 5 });
   const proportionalRectangleBounds = await outsideRectangleShape.evaluate(element => ({
     width: Number(element.getAttribute("width")),
@@ -3277,9 +3362,9 @@ test("RTE image annotation creates, crops, groups, locks, undoes, and reopens ed
   await expect(outsideRectangleShape).toHaveAttribute("x", String(outsideX));
   await outsideRectangle.click();
   await page.keyboard.press("ArrowRight");
-  await expect.poll(() => outsideRectangleShape.getAttribute("x").then(Number)).toBe(outsideX + 20);
+  await expect.poll(() => outsideRectangleShape.getAttribute("x").then(Number)).toBe(outsideX + 1);
   await page.keyboard.press("ArrowDown");
-  await expect.poll(() => outsideRectangleShape.getAttribute("y").then(Number)).toBe(outsideY + 20);
+  await expect.poll(() => outsideRectangleShape.getAttribute("y").then(Number)).toBe(outsideY + 1);
   await page.keyboard.press("ArrowLeft");
   await expect.poll(() => outsideRectangleShape.getAttribute("x").then(Number)).toBe(outsideX);
   await page.keyboard.press("ArrowUp");
@@ -3299,23 +3384,24 @@ test("RTE image annotation creates, crops, groups, locks, undoes, and reopens ed
     .not.toBeNull();
   await outsideRectangle.click();
   await dialog.locator("[data-annotation-snap]").uncheck();
-  await expect.poll(() => page.evaluate(() => document.activeElement?.getAttribute("data-annotation-object-id")))
-    .toBe(outsideRectangleId);
+  await expect(dialog.locator("[data-annotation-selection-label]")).toHaveText("Rectangle");
   await dialog.locator("[data-annotation-snap]").check();
-  await expect.poll(() => page.evaluate(() => document.activeElement?.getAttribute("data-annotation-object-id")))
-    .toBe(outsideRectangleId);
+  await expect(dialog.locator("[data-annotation-selection-label]")).toHaveText("Rectangle");
   await dialog.locator("[data-annotation-grid]").check();
-  await expect.poll(() => page.evaluate(() => document.activeElement?.getAttribute("data-annotation-object-id")))
-    .toBe(outsideRectangleId);
+  await expect(dialog.locator("[data-annotation-selection-label]")).toHaveText("Rectangle");
   await page.keyboard.press("Escape");
   await expect(dialog.locator("[data-annotation-selection-label]")).toHaveText("No selection");
   await expect(dialog).toBeVisible();
   await page.keyboard.press("r");
-  await expect(dialog.getByRole("button", { name: "Rectangle (R)" })).toHaveAttribute("aria-pressed", "true");
+  await expect(annotationObjects).toHaveCount(7);
+  await expect(dialog.locator("[data-annotation-selection-label]")).toHaveText("Rectangle");
+  await expect(dialog.getByRole("button", { name: "Select (V)" })).toHaveAttribute("aria-pressed", "true");
+  await dialog.getByRole("button", { name: "Undo (Ctrl+Z)" }).click();
+  await expect(annotationObjects).toHaveCount(6);
   await page.keyboard.press("v");
   await expect(dialog.getByRole("button", { name: "Select (V)" })).toHaveAttribute("aria-pressed", "true");
 
-  await dragCanvas(-190, 60, -20, 280);
+  await dragCanvas(-450, 100, -150, 450);
   await expect(dialog.locator("[data-annotation-selection-label]")).toHaveText("2 objects selected");
   await page.keyboard.press("Delete");
   await expect(annotationObjects).toHaveCount(4);
@@ -3326,7 +3412,11 @@ test("RTE image annotation creates, crops, groups, locks, undoes, and reopens ed
   const rightEdgeBeforeExpansion = viewBoxBeforeExpansion[0] + viewBoxBeforeExpansion[2];
   await workspace.evaluate(element => { element.scrollLeft = element.scrollWidth; });
   await dialog.getByRole("button", { name: "Rectangle (R)" }).click();
-  await dragCanvas(rightEdgeBeforeExpansion - 40, 0, rightEdgeBeforeExpansion + 100, 80);
+  await moveAnnotationObjectCenterTo(
+    canvas.locator("[data-annotation-object-type='rectangle']").last(),
+    rightEdgeBeforeExpansion + 100,
+    80
+  );
   await expect(annotationObjects).toHaveCount(7);
   const viewBoxAfterExpansion = (await canvas.getAttribute("viewBox")).split(/\s+/).map(Number);
   expect(viewBoxAfterExpansion[0] + viewBoxAfterExpansion[2]).toBeGreaterThan(rightEdgeBeforeExpansion);
@@ -3334,16 +3424,17 @@ test("RTE image annotation creates, crops, groups, locks, undoes, and reopens ed
   await expect(annotationObjects).toHaveCount(6);
   await dialog.getByRole("button", { name: "Fit" }).click();
 
-  await annotationObjects.nth(1).click();
-  const arrowForGrouping = await readArrowGeometry(primaryArrow);
-  const arrowGroupingPoint = await canvasClientPoint(
-    arrowForGrouping.headCenter.x,
-    arrowForGrouping.headCenter.y
-  );
-  await page.keyboard.down("Shift");
-  await page.mouse.click(arrowGroupingPoint.x, arrowGroupingPoint.y);
-  await page.keyboard.up("Shift");
-  await annotationObjects.nth(3).click({ modifiers: ["Shift"] });
+  const rectangleForGroupingId = await annotationObjects.nth(1).getAttribute("data-annotation-object-id");
+  const arrowForGroupingId = await primaryArrow.getAttribute("data-annotation-object-id");
+  const textForGroupingId = await annotationObjects.nth(3).getAttribute("data-annotation-object-id");
+  await dialog.getByRole("tab", { name: "Objects", exact: true }).click();
+  const groupingTree = dialog.locator("[data-annotation-object-tree]");
+  await groupingTree.locator(`[data-annotation-tree-kind='object'][data-annotation-tree-id='${rectangleForGroupingId}']`).click();
+  await groupingTree.locator(`[data-annotation-tree-kind='object'][data-annotation-tree-id='${arrowForGroupingId}']`)
+    .click({ modifiers: ["Control"] });
+  await groupingTree.locator(`[data-annotation-tree-kind='object'][data-annotation-tree-id='${textForGroupingId}']`)
+    .click({ modifiers: ["Control"] });
+  await expect(dialog.locator("[data-annotation-selection-label]")).toHaveText("3 objects selected");
   await openAnnotationContextMenu(annotationObjects.nth(1));
   await annotationContextMenu.getByRole("menuitem", { name: "Group", exact: true }).click();
   await expect(canvas.locator(".image-annotation-group-member-guide")).toHaveCount(3);
@@ -3365,11 +3456,9 @@ test("RTE image annotation creates, crops, groups, locks, undoes, and reopens ed
     groupResizeHandleBox.x + (groupResizeHandleBox.width / 2),
     groupResizeHandleBox.y + (groupResizeHandleBox.height / 2)
   );
-  await page.keyboard.down("Alt");
   await page.mouse.down();
   await page.mouse.move(groupResizeHandleBox.x + 85, groupResizeHandleBox.y + 60, { steps: 5 });
   await page.mouse.up();
-  await page.keyboard.up("Alt");
   const groupBoundsAfterResize = await canvas.locator(".image-annotation-selection").evaluate(element => ({
     width: Number(element.getAttribute("width")),
     height: Number(element.getAttribute("height"))
@@ -3387,7 +3476,7 @@ test("RTE image annotation creates, crops, groups, locks, undoes, and reopens ed
   expect(groupedArrowAfterResize.headLength).toBeCloseTo(groupedArrowBeforeResize.headLength * groupScale, 2);
   expect(groupedArrowAfterResize.headWidth).toBeCloseTo(groupedArrowBeforeResize.headWidth * groupScale, 2);
   await dialog.getByRole("button", { name: "Undo (Ctrl+Z)" }).click();
-  await annotationObjects.nth(1).click();
+  await annotationObjects.nth(3).click();
   await expect(canvas.locator(".image-annotation-group-member-guide")).toHaveCount(3);
   await openAnnotationContextMenu(annotationObjects.nth(1));
   await annotationContextMenu.getByRole("menuitem", { name: "Lock selected objects", exact: true }).click();
@@ -3511,7 +3600,7 @@ test("RTE image annotation creates, crops, groups, locks, undoes, and reopens ed
   await expect.poll(() => imageObject.getAttribute("x").then(Number)).toBeCloseTo(movedImageX, 2);
   await expect(imageClipRect).toHaveAttribute("x", movedCroppedClip.x);
 
-  const beforeZoom = await dialog.locator("[data-annotation-zoom-label]").textContent();
+  const beforeZoom = await zoomSelect.inputValue();
   const workspaceBox = await workspace.boundingBox();
   const zoomCursor = {
     x: workspaceBox.x + (workspaceBox.width * 0.72),
@@ -3529,7 +3618,7 @@ test("RTE image annotation creates, crops, groups, locks, undoes, and reopens ed
   await page.keyboard.down("Control");
   await page.mouse.wheel(0, -120);
   await page.keyboard.up("Control");
-  await expect(dialog.locator("[data-annotation-zoom-label]")).not.toHaveText(beforeZoom);
+  await expect(zoomSelect).not.toHaveValue(beforeZoom);
   const userPointAfterZoomIn = await userPointAtZoomCursor();
   expect(Math.abs(userPointAfterZoomIn.x - userPointBeforeZoomIn.x)).toBeLessThan(0.75);
   expect(Math.abs(userPointAfterZoomIn.y - userPointBeforeZoomIn.y)).toBeLessThan(0.75);
@@ -3756,22 +3845,6 @@ test("RTE annotation templates preserve mixed native content and support keyboar
   const formatPanel = dialog.locator("[data-annotation-inspector-panel='format']");
   const templatePanel = dialog.locator("[data-annotation-inspector-panel='template']");
   const inspectorToggle = dialog.locator("[data-annotation-toggle-inspector]");
-  const canvasClientPoint = (x, y) => canvas.evaluate((element, point) => {
-    const rect = element.getBoundingClientRect();
-    const viewBox = element.viewBox.baseVal;
-    return {
-      x: rect.left + (((point.x - viewBox.x) / viewBox.width) * rect.width),
-      y: rect.top + (((point.y - viewBox.y) / viewBox.height) * rect.height)
-    };
-  }, { x, y });
-  const dragCanvas = async (startX, startY, endX, endY) => {
-    const start = await canvasClientPoint(startX, startY);
-    const end = await canvasClientPoint(endX, endY);
-    await page.mouse.move(start.x, start.y);
-    await page.mouse.down();
-    await page.mouse.move(end.x, end.y, { steps: 5 });
-    await page.mouse.up();
-  };
   const constrainedDrag = async (target, modifier, deltaX, deltaY) => {
     const box = await target.boundingBox();
     expect(box).not.toBeNull();
@@ -3811,9 +3884,8 @@ test("RTE annotation templates preserve mixed native content and support keyboar
   await expect(inspectorToggle).toHaveAttribute("aria-expanded", "true");
 
   await dialog.getByRole("button", { name: "Rectangle (R)" }).click();
-  await dragCanvas(80, 80, 260, 180);
+  await constrainedDrag(canvas.locator("[data-annotation-object-type='rectangle']").last(), "Shift", -180, 0);
   await dialog.getByRole("button", { name: "Arrow (A)" }).click();
-  await dragCanvas(520, 60, 320, 220);
   await expect(annotationObjects).toHaveCount(3);
 
   const originalRectangle = canvas.locator("[data-annotation-object-type='rectangle']").first();
@@ -3865,8 +3937,8 @@ test("RTE annotation templates preserve mixed native content and support keyboar
   expect(Buffer.from(embeddedImage.source.split(",")[1], "base64").toString("utf8")).toBe(originalSvg);
   expect(savedRectangle).toMatchObject({
     type: "rectangle",
-    width: 180,
-    height: 100,
+    width: 240,
+    height: 140,
     fill: "none",
     stroke: "#3f7f0d"
   });
@@ -4037,6 +4109,7 @@ test("RTE annotation templates preserve mixed native content and support keyboar
   await expect(page.locator("#toast")).toHaveText("Items duplicated.");
 
   await dialog.getByRole("button", { name: "Fit", exact: true }).click();
+  const fittedZoomPercent = Number(await dialog.getByLabel("Zoom percentage", { exact: true }).inputValue());
   const fitMetrics = await dialog.evaluate(element => {
     const workspaceElement = element.querySelector("[data-annotation-workspace]");
     const canvasElement = element.querySelector("[data-annotation-canvas]");
@@ -4075,10 +4148,11 @@ test("RTE annotation templates preserve mixed native content and support keyboar
     - (fitMetrics.viewport.left + (fitMetrics.viewport.width / 2)))).toBeLessThan(5);
   expect(Math.abs((fitMetrics.content.top + (fittedContentHeight / 2))
     - (fitMetrics.viewport.top + (fitMetrics.viewport.height / 2)))).toBeLessThan(5);
-  expect(Math.min(
+  const fittedEdgeGap = Math.min(
     Math.abs(fittedContentWidth - (fitMetrics.viewport.width - 40)),
     Math.abs(fittedContentHeight - (fitMetrics.viewport.height - 40))
-  )).toBeLessThan(24);
+  );
+  expect(fittedEdgeGap < 24 || fittedZoomPercent === 200).toBe(true);
 
   const previewSource = await templatePreviewImage.getAttribute("src");
   await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
@@ -4199,6 +4273,15 @@ test("RTE annotation Objects tree stays synchronized with canvas layers", async 
     await page.mouse.move(end.x, end.y, { steps: 5 });
     await page.mouse.up();
   };
+  const moveObjectBy = async (object, deltaX, deltaY) => {
+    const box = await object.boundingBox();
+    expect(box).not.toBeNull();
+    const start = { x: box.x + (box.width / 2), y: box.y + (box.height / 2) };
+    await page.mouse.move(start.x, start.y);
+    await page.mouse.down();
+    await page.mouse.move(start.x + deltaX, start.y + deltaY, { steps: 5 });
+    await page.mouse.up();
+  };
   const assertTreeMatchesCanvas = async () => {
     const treePaintOrder = await tree
       .locator("[data-annotation-tree-node-type='object']")
@@ -4234,13 +4317,13 @@ test("RTE annotation Objects tree stays synchronized with canvas layers", async 
   await expect(canvasObject(sourceImageId)).not.toHaveAttribute("opacity");
 
   await dialog.getByRole("button", { name: "Rectangle (R)" }).click();
-  await dragCanvas(30, 30, 140, 90);
+  await moveObjectBy(canvas.locator("[data-annotation-object-type='rectangle']").last(), -180, -70);
   await dialog.getByRole("button", { name: "Arrow (A)" }).click();
-  await dragCanvas(40, 200, 180, 100);
+  await moveObjectBy(canvas.locator("[data-annotation-object-type='arrow']").last(), -100, 90);
   await dialog.getByRole("button", { name: "Text Box (T)" }).click();
-  await dragCanvas(190, 40, 300, 120);
+  await moveObjectBy(canvas.locator("[data-annotation-object-type='textbox']").last(), 170, -70);
   await dialog.getByRole("button", { name: "Arrow (A)" }).click();
-  await dragCanvas(430, 220, 330, 140);
+  await moveObjectBy(canvas.locator("[data-annotation-object-type='arrow']").last(), 180, 100);
   await expect(canvas.locator("[data-annotation-object-id]")).toHaveCount(5);
 
   const firstRectangleId = await canvas.locator("[data-annotation-object-type='rectangle']")

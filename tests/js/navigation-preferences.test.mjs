@@ -62,12 +62,31 @@ test("visible navigation screens follow saved order and hidden items", () => {
   assert.equal(visibleNavigationScreens().some(screen => screen.view === "Settings"), true);
 });
 
-test("new navigation configurations place Release Notes immediately before About", () => {
+test("new navigation configurations place Diagram immediately before Release Notes", () => {
   storage.clear();
   const config = readNavigationConfig();
+  const diagramIndex = config.items.findIndex(item => item.view === "Diagram");
   const releaseNotesIndex = config.items.findIndex(item => item.view === "Release Notes");
   const aboutIndex = config.items.findIndex(item => item.view === "About");
 
+  assert.equal(config.items[diagramIndex].visible, true);
   assert.equal(config.items[releaseNotesIndex].visible, true);
+  assert.equal(diagramIndex + 1, releaseNotesIndex);
   assert.equal(releaseNotesIndex + 1, aboutIndex);
+});
+
+test("existing navigation configurations receive Diagram before Release Notes", () => {
+  const config = normalizeNavigationConfig({
+    version: 2,
+    items: [
+      { view: "Tasks", visible: true },
+      { view: "Release Notes", visible: true },
+      { view: "About", visible: true },
+      { view: "Settings", visible: true }
+    ]
+  });
+  const diagramIndex = config.items.findIndex(item => item.view === "Diagram");
+  const releaseNotesIndex = config.items.findIndex(item => item.view === "Release Notes");
+
+  assert.equal(diagramIndex + 1, releaseNotesIndex);
 });

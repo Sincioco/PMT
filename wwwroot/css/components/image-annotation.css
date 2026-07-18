@@ -134,11 +134,12 @@
   font-size: var(--font-size-sm);
 }
 
-.image-annotation-zoom-label {
-  min-width: 48px;
+.image-annotation-zoom-select {
+  width: 72px;
+  min-height: var(--control-height-sm);
+  padding: 0 var(--space-2);
   color: var(--color-text-secondary);
   font-size: var(--font-size-sm);
-  text-align: center;
 }
 
 .image-annotation-main {
@@ -180,8 +181,51 @@
 
 .image-annotation-workspace[data-annotation-tool="rectangle"],
 .image-annotation-workspace[data-annotation-tool="arrow"],
-.image-annotation-workspace[data-annotation-tool="textbox"] {
+.image-annotation-workspace[data-annotation-tool="textbox"],
+.image-annotation-workspace[data-annotation-tool="entity"] {
   cursor: crosshair;
+}
+
+.image-annotation-entity-dialog {
+  width: min(900px, calc(100vw - 2 * var(--shell-padding-compact)));
+}
+
+.image-annotation-entity-dialog-body {
+  display: grid;
+  gap: var(--space-5);
+  min-height: 0;
+  overflow: auto;
+  padding: var(--space-6) var(--space-7);
+}
+
+.image-annotation-entity-dialog textarea {
+  min-height: 360px;
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-sm);
+  white-space: pre;
+  overflow-x: auto;
+  resize: vertical;
+}
+
+.image-annotation-foreign-key-dialog {
+  width: min(620px, calc(100vw - 2 * var(--shell-padding-compact)));
+}
+
+.image-annotation-foreign-key-dialog-body {
+  display: grid;
+  gap: var(--space-5);
+  padding: var(--space-6) var(--space-7);
+}
+
+.image-annotation-entity-hint,
+.image-annotation-entity-status {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+}
+
+.image-annotation-entity-status:not(:empty) {
+  color: var(--color-danger-text);
 }
 
 .image-annotation-workspace.is-panning {
@@ -240,6 +284,16 @@
 
 .image-annotation-grid {
   color: var(--color-chart-gridline);
+}
+
+.image-annotation-entity-relationship-hit {
+  cursor: pointer;
+}
+
+.image-annotation-entity-relationship-selection {
+  stroke: var(--color-focus-ring);
+  stroke-dasharray: 5 4;
+  opacity: 0.72;
 }
 
 .image-annotation-selection {
@@ -309,16 +363,23 @@
   min-width: 0;
   min-height: 0;
   overflow: auto;
-  padding: var(--space-5);
+  scrollbar-gutter: stable;
+  padding: 0 var(--space-5) var(--space-5);
   border-left: var(--border-width) solid var(--color-border);
   background: var(--color-surface-dialog);
   overscroll-behavior: contain;
 }
 
 .image-annotation-inspector-tabs {
+  position: sticky;
+  top: 0;
+  z-index: 3;
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+  margin: 0 calc(-1 * var(--space-5));
   border-bottom: var(--border-width) solid var(--color-border);
+  background: var(--color-surface-dialog);
 }
 
 .image-annotation-inspector-tabs button {
@@ -360,6 +421,12 @@
   gap: var(--space-3);
   padding: var(--space-4) 0;
   border-bottom: var(--border-width) solid var(--color-border-subtle);
+}
+
+.image-annotation-format-section[hidden],
+.image-annotation-color-field[hidden],
+.image-annotation-inspector-grid > label[hidden] {
+  display: none;
 }
 
 .image-annotation-format-section h4 {
@@ -451,6 +518,94 @@
 .image-annotation-inspector textarea {
   min-height: 116px;
   resize: vertical;
+}
+
+.image-annotation-entity-format[hidden] {
+  display: none;
+}
+
+.image-annotation-entity-display-options {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.image-annotation-entity-fields-help {
+  margin: 0;
+  color: var(--color-text-tertiary);
+  font-size: var(--font-size-xs);
+}
+
+.image-annotation-entity-fields {
+  display: grid;
+  align-content: start;
+  grid-auto-rows: minmax(30px, auto);
+  max-height: 360px;
+  gap: 2px;
+  overflow-y: auto;
+}
+
+.image-annotation-entity-field-columns,
+.image-annotation-entity-fields .image-annotation-entity-field-row {
+  display: grid;
+  grid-template-columns: 14px minmax(0, 1fr) 22px 22px 30px 38px;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.image-annotation-entity-field-columns {
+  padding: 0 var(--space-1) 2px var(--space-2);
+  color: var(--color-text-tertiary);
+  font-size: 10px;
+  font-weight: var(--font-weight-semibold);
+  text-align: center;
+}
+
+.image-annotation-entity-field-columns span:nth-child(2) {
+  text-align: left;
+}
+
+.image-annotation-entity-fields .image-annotation-entity-field-row {
+  min-height: 30px;
+  padding: 2px var(--space-1) 2px var(--space-2);
+}
+
+.image-annotation-entity-field-drag {
+  letter-spacing: -5px;
+  transform: translateX(-2px);
+}
+
+.image-annotation-entity-field-row .image-annotation-object-tree-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.image-annotation-entity-field-checkbox {
+  width: 14px;
+  height: 14px;
+  margin: 0 auto;
+}
+
+.image-annotation-entity-field-map {
+  min-width: 0;
+  min-height: 22px;
+  padding: 0 var(--space-1);
+  font-size: 10px;
+}
+
+.image-annotation-entity-header-button {
+  cursor: pointer;
+  pointer-events: all;
+}
+
+.image-annotation-object.is-locked .image-annotation-entity-header-button {
+  cursor: not-allowed;
+}
+
+.image-annotation-entity-header-button:focus-visible rect {
+  stroke: var(--color-focus-ring);
+  stroke-width: 2px;
 }
 
 .image-annotation-help {
@@ -552,7 +707,7 @@
 
 .image-annotation-template-card-actions {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: var(--space-1);
 }
 

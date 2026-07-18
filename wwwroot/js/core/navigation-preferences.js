@@ -3,8 +3,8 @@ import {
   readJsonPreference,
   writeJsonPreference
 } from "./preferences.js";
-import { screenRegistry } from "./screen-registry.js?v=release-notes-2026-07-17-day-31-fb8032719c56";
-import { canReadView } from "../shared/security.js?v=20260715-admin-impersonation";
+import { screenRegistry } from "./screen-registry.js?v=20260718-diagram-entity-v22";
+import { canReadView } from "../shared/security.js?v=20260718-diagram-entity-v22";
 
 const navigationVersion = 2;
 const betaNavigationViews = new Set(["Dashboard", "Road Map", "Gantt"]);
@@ -54,7 +54,11 @@ export function normalizeNavigationConfig(value = {}) {
 
   defaultNavigationItems().forEach(item => {
     if (seenViews.has(item.view)) return;
-    items.push(item);
+    const releaseNotesIndex = item.view === "Diagram"
+      ? items.findIndex(existing => existing.view === "Release Notes")
+      : -1;
+    if (releaseNotesIndex >= 0) items.splice(releaseNotesIndex, 0, item);
+    else items.push(item);
   });
 
   return {
@@ -167,6 +171,7 @@ export function navIconHtml(view) {
     Log: logWritingIconHtml(),
     Documentation: "&#128214;",
     "WFH Schedule": "&#8962;",
+    Diagram: "&#128208;",
     "Release Notes": "&#128227;",
     About: "&#9432;",
     Settings: "&#9881;"

@@ -16,7 +16,7 @@ import {
   defaultStatusColor,
   statusColor
 } from "../../components/progress-and-status.js?v=20260714-linked-bug-percent";
-import { sectionHead } from "../../components/sections.js?v=release-notes-2026-07-17-day-31-fb8032719c56";
+import { sectionHead } from "../../components/sections.js?v=release-notes-2026-07-18-day-31-572729605b60";
 import { api } from "../../core/api.js";
 import {
   beginImpersonation,
@@ -29,7 +29,7 @@ import {
   readNavigationConfig,
   resetNavigationConfig,
   writeNavigationConfig
-} from "../../core/navigation-preferences.js?v=release-notes-2026-07-17-day-31-fb8032719c56";
+} from "../../core/navigation-preferences.js?v=20260718-diagram-entity-v22";
 import {
   clearPmtPreferences,
   preferenceKeys,
@@ -44,7 +44,7 @@ import {
   routeForView,
   savedViewPreference,
   updateBrowserUrl
-} from "../../core/router.js?v=release-notes-2026-07-17-day-31-fb8032719c56";
+} from "../../core/router.js?v=20260718-diagram-entity-v22";
 import { state } from "../../core/store.js";
 import {
   formatDate,

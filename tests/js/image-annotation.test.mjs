@@ -1,14 +1,22 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import test from "node:test";
 import {
   adjustAnnotationArrowEndpoint,
+  autoFormatAnnotationEntitiesOrgTree,
+  applyAnnotationEntityDefinition,
+  applyAnnotationEntityRelationshipGroupStyle,
   applyAnnotationTemplateFormatting,
   annotationArrowGeometry,
+  annotationEntityRelationshipsSvg,
+  annotationEntityVisibleFields,
   annotationExpandedWorkspaceBounds,
   annotationObjectsIntersectingRect,
   annotationOutputBounds,
   annotationSelectionIdsForObject,
   annotationSelectionBounds,
+  annotationSvgDataUrl,
+  annotationTemplateDownloadFile,
   annotationWorkspaceBounds,
   buildAnnotationObjectTree,
   buildAnnotationSelectionSvg,
@@ -17,21 +25,1446 @@ import {
   compactAnnotationGroupLayers,
   filterAnnotationObjectTree,
   fitAnnotationArrowToHead,
+  formatAnnotationEntityIdentifier,
   instantiateAnnotationTemplate,
   moveAnnotationLayers,
   normalizeAnnotationState,
   normalizeAnnotationTemplateLibrary,
+  orderAnnotationEntityForeignKeysAtTop,
+  parseAnnotationEntityDefinition,
+  parseAnnotationTemplateUpload,
   parseAnnotationSvg,
+  reorderAnnotationEntityFields,
   reorderAnnotationObjectTree,
   restoreAnnotationDefaultTemplates,
   resizeAnnotationObjects,
   resizedAnnotationBounds,
   scaleGroupedAnnotationArrowStyle,
+  setAnnotationEntityCollapsedState,
+  setAnnotationEntityDataTypeVisibility,
+  setAnnotationEntityFieldForeignKeyMapping,
   snapAnnotationCropPoint,
   snapAnnotationValue,
   wrapAnnotationText,
   zoomAnnotationAtPoint
 } from "../../wwwroot/js/components/image-annotation.js";
+
+const workTasksCreateTableSql = String.raw`
+CREATE TABLE [pmt].[WorkTasks]
+(
+    [TaskId] INT IDENTITY(1,1) NOT NULL CONSTRAINT [PK_pmt_WorkTasks] PRIMARY KEY,
+    [ProjectId] INT NOT NULL,
+    [SprintId] INT NULL,
+    [ParentTaskId] INT NULL,
+    [Code] NVARCHAR(40) NOT NULL,
+    [Title] NVARCHAR(220) NOT NULL,
+    [DescriptionHtml] NVARCHAR(MAX) NULL,
+    [Status] NVARCHAR(40) NOT NULL CONSTRAINT [DF_pmt_WorkTasks_Status] DEFAULT (N'Todo'),
+    [Priority] NVARCHAR(20) NOT NULL CONSTRAINT [DF_pmt_WorkTasks_Priority] DEFAULT (N'Low'),
+    [SortOrder] INT NOT NULL CONSTRAINT [DF_pmt_WorkTasks_SortOrder] DEFAULT (0),
+    [PercentCompleted] INT NOT NULL CONSTRAINT [DF_pmt_WorkTasks_PercentCompleted] DEFAULT (0),
+    [Url] NVARCHAR(500) NULL,
+    [StartDate] DATETIME2(0) NULL,
+    [EndDate] DATETIME2(0) NULL,
+    [StartedAt] DATETIME2(0) NULL,
+    [CreatedByUserId] INT NOT NULL,
+    [UpdatedByUserId] INT NULL,
+    [IsDeleted] BIT NOT NULL CONSTRAINT [DF_pmt_WorkTasks_IsDeleted] DEFAULT (0),
+    [CreatedAt] DATETIME2(0) NOT NULL CONSTRAINT [DF_pmt_WorkTasks_CreatedAt] DEFAULT (SYSUTCDATETIME()),
+    [UpdatedAt] DATETIME2(0) NOT NULL CONSTRAINT [DF_pmt_WorkTasks_UpdatedAt] DEFAULT (SYSUTCDATETIME()),
+    [RowVersion] ROWVERSION NOT NULL,
+    [TaskType] NVARCHAR(20) NOT NULL CONSTRAINT [DF_pmt_WorkTasks_TaskType] DEFAULT (N'Dev'),
+    [StepsToReproduceHtml] NVARCHAR(MAX) NULL,
+    [ActualResultHtml] NVARCHAR(MAX) NULL,
+    [ExpectedResultHtml] NVARCHAR(MAX) NULL,
+    [RootCauseAnalysisHtml] NVARCHAR(MAX) NULL,
+    [Environment] NVARCHAR(40) NULL,
+    [Severity] NVARCHAR(40) NULL,
+    [LinkedBugTaskId] INT NULL,
+    [LinkedBlogId] INT NULL,
+    CONSTRAINT [FK_pmt_WorkTasks_Project] FOREIGN KEY ([ProjectId]) REFERENCES [pmt].[Projects]([ProjectId]),
+    CONSTRAINT [FK_pmt_WorkTasks_Sprint] FOREIGN KEY ([SprintId]) REFERENCES [pmt].[Sprints]([SprintId]),
+    CONSTRAINT [FK_pmt_WorkTasks_ParentTask] FOREIGN KEY ([ParentTaskId]) REFERENCES [pmt].[WorkTasks]([TaskId]),
+    CONSTRAINT [FK_pmt_WorkTasks_CreatedBy] FOREIGN KEY ([CreatedByUserId]) REFERENCES [pmt].[Users]([UserId]),
+    CONSTRAINT [FK_pmt_WorkTasks_UpdatedBy] FOREIGN KEY ([UpdatedByUserId]) REFERENCES [pmt].[Users]([UserId]),
+    CONSTRAINT [FK_pmt_WorkTasks_LinkedBlog] FOREIGN KEY ([LinkedBlogId]) REFERENCES [pmt].[Blogs]([BlogId]),
+    CONSTRAINT [CK_pmt_WorkTasks_Percent] CHECK ([PercentCompleted] BETWEEN 0 AND 100),
+    CONSTRAINT [UQ_pmt_WorkTasks_Code] UNIQUE ([Code])
+);`;
+
+const blogsCreateTableSql = String.raw`
+CREATE TABLE [pmt].[Blogs]
+(
+    [BlogId] INT IDENTITY(1,1) NOT NULL CONSTRAINT [PK_pmt_Blogs] PRIMARY KEY,
+    [ProjectId] INT NULL,
+    [SprintId] INT NULL,
+    [ParentBlogId] INT NULL,
+    [Title] NVARCHAR(220) NOT NULL,
+    [BodyHtml] NVARCHAR(MAX) NOT NULL,
+    [IsPrivate] BIT NOT NULL CONSTRAINT [DF_pmt_Blogs_IsPrivate] DEFAULT (1),
+    [IsPinned] BIT NOT NULL CONSTRAINT [DF_pmt_Blogs_IsPinned] DEFAULT (0),
+    [CreatedByUserId] INT NOT NULL,
+    [UpdatedByUserId] INT NULL,
+    [IsDeleted] BIT NOT NULL CONSTRAINT [DF_pmt_Blogs_IsDeleted] DEFAULT (0),
+    [CreatedAt] DATETIME2(0) NOT NULL CONSTRAINT [DF_pmt_Blogs_CreatedAt] DEFAULT (SYSUTCDATETIME()),
+    [UpdatedAt] DATETIME2(0) NOT NULL CONSTRAINT [DF_pmt_Blogs_UpdatedAt] DEFAULT (SYSUTCDATETIME()),
+    [RowVersion] ROWVERSION NOT NULL,
+    CONSTRAINT [FK_pmt_Blogs_Project] FOREIGN KEY ([ProjectId]) REFERENCES [pmt].[Projects]([ProjectId]),
+    CONSTRAINT [FK_pmt_Blogs_Sprint] FOREIGN KEY ([SprintId]) REFERENCES [pmt].[Sprints]([SprintId]),
+    CONSTRAINT [FK_pmt_Blogs_ParentBlog] FOREIGN KEY ([ParentBlogId]) REFERENCES [pmt].[Blogs]([BlogId]),
+    CONSTRAINT [FK_pmt_Blogs_CreatedBy] FOREIGN KEY ([CreatedByUserId]) REFERENCES [pmt].[Users]([UserId]),
+    CONSTRAINT [FK_pmt_Blogs_UpdatedBy] FOREIGN KEY ([UpdatedByUserId]) REFERENCES [pmt].[Users]([UserId])
+);`;
+
+function entityObject(definition, id, x, y, overrides = {}) {
+  return {
+    id,
+    type: "entity",
+    x,
+    y,
+    width: 520,
+    height: 900,
+    fill: "#ffffff",
+    stroke: "#42526b",
+    outlineVisible: true,
+    strokeWidth: 2,
+    opacity: 1,
+    textColor: "#172b4d",
+    fontFamily: "Arial",
+    fontSize: 18,
+    entitySchema: definition.schema,
+    entityName: definition.name,
+    fields: structuredClone(definition.fields),
+    foreignKeys: structuredClone(definition.foreignKeys),
+    foreignKeysAtTop: false,
+    showSelfRelationships: false,
+    collapsed: false,
+    sourceText: definition.sourceText,
+    showKeyColumn: true,
+    showDataTypes: false,
+    ...overrides
+  };
+}
+
+function entityRelationshipState(style = {}) {
+  const workTasks = entityObject(
+    parseAnnotationEntityDefinition(workTasksCreateTableSql),
+    "work-tasks",
+    40,
+    80
+  );
+  const blogs = entityObject(
+    parseAnnotationEntityDefinition(blogsCreateTableSql),
+    "blogs",
+    800,
+    80
+  );
+  workTasks.foreignKeys = setAnnotationEntityFieldForeignKeyMapping(
+    workTasks.foreignKeys,
+    "LinkedBlogId",
+    {
+      referencedEntity: "pmt.Blogs",
+      referencedField: "BlogId",
+      relationshipType: "one-to-many"
+    }
+  );
+  return normalizeAnnotationState({
+    width: 1500,
+    height: 1000,
+    includeOriginalImage: false,
+    relationshipStyle: {
+      stroke: "#d946ef",
+      strokeWidth: 7,
+      arrowSize: 30,
+      ...style
+    },
+    objects: [workTasks, blogs]
+  });
+}
+
+function simpleRelationshipEntity(id, name, x, y, parentName = "") {
+  return {
+    id,
+    type: "entity",
+    x,
+    y,
+    width: 260,
+    height: 180,
+    entitySchema: "pmt",
+    entityName: name,
+    fields: [
+      { name: `${name}Id`, dataType: "INT", nullable: false, isPrimaryKey: true, isForeignKey: false },
+      ...(parentName
+        ? [{ name: `${parentName}Id`, dataType: "INT", nullable: false, isPrimaryKey: false, isForeignKey: true }]
+        : [])
+    ],
+    foreignKeys: parentName
+      ? [{
+          name: `FK_${name}_${parentName}`,
+          columns: [`${parentName}Id`],
+          referencedSchema: "pmt",
+          referencedTable: parentName,
+          referencedColumns: [`${parentName}Id`],
+          relationshipType: "one-to-many"
+        }]
+      : [],
+    showSelfRelationships: false
+  };
+}
+
+function expectedEntityFieldAnchorY(entity, fieldName) {
+  const fontSize = entity.fontSize || 18;
+  const headerHeight = Math.max(28, fontSize * 1.85);
+  const rowHeight = Math.max(23, fontSize * 1.45);
+  const fieldIndex = entity.fields.findIndex(field => field.name === fieldName);
+  return Math.round((entity.y + headerHeight + ((fieldIndex + 0.5) * rowHeight)) * 1000) / 1000;
+}
+
+function relationshipArrowTip(svg) {
+  const point = svg.match(/<polygon[^>]+points="([^ ]+) /)?.[1];
+  return point ? point.split(",").map(Number) : null;
+}
+
+function orthogonalPathPoints(path) {
+  const tokens = String(path || "").match(/[MHV]|-?\d+(?:\.\d+)?/g) || [];
+  const points = [];
+  let x = 0;
+  let y = 0;
+  for (let index = 0; index < tokens.length;) {
+    const command = tokens[index++];
+    if (command === "M") {
+      x = Number(tokens[index++]);
+      y = Number(tokens[index++]);
+    } else if (command === "H") x = Number(tokens[index++]);
+    else if (command === "V") y = Number(tokens[index++]);
+    points.push({ x, y });
+  }
+  return points;
+}
+
+function orthogonalSegmentIntersectsEntityInterior(first, second, entity) {
+  const epsilon = 0.000001;
+  const left = entity.x + epsilon;
+  const right = entity.x + entity.width - epsilon;
+  const top = entity.y + epsilon;
+  const bottom = entity.y + entity.height - epsilon;
+  if (Math.abs(first.x - second.x) < epsilon) {
+    return first.x > left
+      && first.x < right
+      && Math.max(Math.min(first.y, second.y), top) < Math.min(Math.max(first.y, second.y), bottom);
+  }
+  assert.ok(Math.abs(first.y - second.y) < epsilon, "relationship route must remain orthogonal");
+  return first.y > top
+    && first.y < bottom
+    && Math.max(Math.min(first.x, second.x), left) < Math.min(Math.max(first.x, second.x), right);
+}
+
+function annotationSvgViewBox(svg) {
+  const values = String(svg || "").match(/<svg\b[^>]*\bviewBox="([^"]+)"/)?.[1]
+    ?.trim()
+    .split(/\s+/)
+    .map(Number);
+  assert.equal(values?.length, 4, "annotation SVG should have a four-number viewBox");
+  return { x: values[0], y: values[1], width: values[2], height: values[3] };
+}
+
+function relationshipPaintPoints(svg) {
+  const relationship = String(svg || "").match(/<g class="image-annotation-entity-relationship"[\s\S]*?<\/g>/)?.[0] || "";
+  const path = relationship.match(/class="image-annotation-entity-relationship-path" d="([^"]+)"/)?.[1];
+  const points = orthogonalPathPoints(path);
+  for (const polygon of relationship.matchAll(/<polygon\b[^>]*\bpoints="([^"]+)"/g)) {
+    polygon[1].trim().split(/\s+/).forEach(value => {
+      const [x, y] = value.split(",").map(Number);
+      points.push({ x, y });
+    });
+  }
+  for (const line of relationship.matchAll(/<line\b[^>]*\bx1="([^"]+)"[^>]*\by1="([^"]+)"[^>]*\bx2="([^"]+)"[^>]*\by2="([^"]+)"/g)) {
+    points.push(
+      { x: Number(line[1]), y: Number(line[2]) },
+      { x: Number(line[3]), y: Number(line[4]) }
+    );
+  }
+  return points;
+}
+
+function assertRelationshipPaintFitsViewBox(svg, strokeWidth) {
+  const viewBox = annotationSvgViewBox(svg);
+  const points = relationshipPaintPoints(svg);
+  assert.ok(points.length > 0, "relationship paint should render");
+  const strokeRadius = strokeWidth / 2;
+  const left = Math.min(...points.map(point => point.x)) - strokeRadius;
+  const top = Math.min(...points.map(point => point.y)) - strokeRadius;
+  const right = Math.max(...points.map(point => point.x)) + strokeRadius;
+  const bottom = Math.max(...points.map(point => point.y)) + strokeRadius;
+  const epsilon = 0.001;
+  assert.ok(viewBox.x <= left + epsilon, `${viewBox.x} should include relationship left ${left}`);
+  assert.ok(viewBox.y <= top + epsilon, `${viewBox.y} should include relationship top ${top}`);
+  assert.ok(viewBox.x + viewBox.width >= right - epsilon, "viewBox should include relationship right");
+  assert.ok(viewBox.y + viewBox.height >= bottom - epsilon, "viewBox should include relationship bottom");
+}
+
+test("entity parser reads the real PMT WorkTasks CREATE TABLE definition", () => {
+  const entity = parseAnnotationEntityDefinition(workTasksCreateTableSql, "ManualNameIsOverridden");
+
+  assert.equal(entity.schema, "pmt");
+  assert.equal(entity.name, "WorkTasks");
+  assert.equal(entity.fields.length, 30);
+
+  const taskId = entity.fields.find(field => field.name === "TaskId");
+  assert.deepEqual(
+    {
+      dataType: taskId?.dataType,
+      nullable: taskId?.nullable,
+      isPrimaryKey: taskId?.isPrimaryKey,
+      isForeignKey: taskId?.isForeignKey,
+      isIdentity: taskId?.isIdentity,
+      identity: taskId?.identity
+    },
+    {
+      dataType: "INT",
+      nullable: false,
+      isPrimaryKey: true,
+      isForeignKey: false,
+      isIdentity: true,
+      identity: "IDENTITY(1,1)"
+    }
+  );
+
+  const projectId = entity.fields.find(field => field.name === "ProjectId");
+  assert.equal(projectId?.dataType, "INT");
+  assert.equal(projectId?.nullable, false);
+  assert.equal(projectId?.isForeignKey, true);
+
+  const sprintId = entity.fields.find(field => field.name === "SprintId");
+  assert.equal(sprintId?.nullable, true);
+  assert.equal(sprintId?.isForeignKey, true);
+
+  const linkedBlogId = entity.fields.find(field => field.name === "LinkedBlogId");
+  assert.equal(linkedBlogId?.dataType, "INT");
+  assert.equal(linkedBlogId?.nullable, true);
+  assert.equal(linkedBlogId?.isForeignKey, true);
+  assert.equal(linkedBlogId?.isImportant, false);
+
+  assert.deepEqual(
+    entity.foreignKeys.map(foreignKey => ({
+      name: foreignKey.name,
+      columns: foreignKey.columns,
+      referencedSchema: foreignKey.referencedSchema,
+      referencedTable: foreignKey.referencedTable,
+      referencedColumns: foreignKey.referencedColumns
+    })),
+    [
+      {
+        name: "FK_pmt_WorkTasks_Project",
+        columns: ["ProjectId"],
+        referencedSchema: "pmt",
+        referencedTable: "Projects",
+        referencedColumns: ["ProjectId"]
+      },
+      {
+        name: "FK_pmt_WorkTasks_Sprint",
+        columns: ["SprintId"],
+        referencedSchema: "pmt",
+        referencedTable: "Sprints",
+        referencedColumns: ["SprintId"]
+      },
+      {
+        name: "FK_pmt_WorkTasks_ParentTask",
+        columns: ["ParentTaskId"],
+        referencedSchema: "pmt",
+        referencedTable: "WorkTasks",
+        referencedColumns: ["TaskId"]
+      },
+      {
+        name: "FK_pmt_WorkTasks_CreatedBy",
+        columns: ["CreatedByUserId"],
+        referencedSchema: "pmt",
+        referencedTable: "Users",
+        referencedColumns: ["UserId"]
+      },
+      {
+        name: "FK_pmt_WorkTasks_UpdatedBy",
+        columns: ["UpdatedByUserId"],
+        referencedSchema: "pmt",
+        referencedTable: "Users",
+        referencedColumns: ["UserId"]
+      },
+      {
+        name: "FK_pmt_WorkTasks_LinkedBlog",
+        columns: ["LinkedBlogId"],
+        referencedSchema: "pmt",
+        referencedTable: "Blogs",
+        referencedColumns: ["BlogId"]
+      }
+    ]
+  );
+  assert.deepEqual(
+    entity.foreignKeys.map(foreignKey => foreignKey.relationshipType),
+    Array(6).fill("one-to-many")
+  );
+});
+
+test("entity parser reads the current PMT Blogs definition used by the prototype ERD", () => {
+  const entity = parseAnnotationEntityDefinition(blogsCreateTableSql);
+
+  assert.equal(entity.schema, "pmt");
+  assert.equal(entity.name, "Blogs");
+  assert.equal(entity.fields.length, 14);
+  assert.equal(entity.fields.find(field => field.name === "BlogId")?.isPrimaryKey, true);
+  assert.equal(entity.fields.find(field => field.name === "BlogId")?.identity, "IDENTITY(1,1)");
+  assert.deepEqual(
+    entity.fields.filter(field => field.isForeignKey).map(field => field.name),
+    ["ProjectId", "SprintId", "ParentBlogId", "CreatedByUserId", "UpdatedByUserId"]
+  );
+  assert.deepEqual(
+    entity.foreignKeys.map(foreignKey => `${foreignKey.referencedSchema}.${foreignKey.referencedTable}`),
+    ["pmt.Projects", "pmt.Sprints", "pmt.Blogs", "pmt.Users", "pmt.Users"]
+  );
+  assert.ok(entity.foreignKeys.every(foreignKey => foreignKey.relationshipType === "one-to-many"));
+});
+
+test("entity parser accepts newline and comma field lists without inventing data types", () => {
+  const entity = parseAnnotationEntityDefinition(
+    "CustomerId\nDisplay Name,EmailAddress\r\nCreatedAt",
+    "Customer"
+  );
+
+  assert.equal(entity.schema, "");
+  assert.equal(entity.name, "Customer");
+  assert.deepEqual(
+    entity.fields.map(field => ({ name: field.name, dataType: field.dataType, nullable: field.nullable })),
+    [
+      { name: "CustomerId", dataType: "", nullable: null },
+      { name: "Display Name", dataType: "", nullable: null },
+      { name: "EmailAddress", dataType: "", nullable: null },
+      { name: "CreatedAt", dataType: "", nullable: null }
+    ]
+  );
+  assert.deepEqual(entity.foreignKeys, []);
+});
+
+test("entity parser recognizes ordered columns in an SSMS table-level primary key", () => {
+  const entity = parseAnnotationEntityDefinition(String.raw`
+    CREATE TABLE [dbo].[Order Details] (
+      [Order ID] INT NOT NULL,
+      [Line Number] INT NOT NULL,
+      [Description] NVARCHAR(200) NULL,
+      CONSTRAINT [PK_Order Details] PRIMARY KEY CLUSTERED
+      (
+        [Order ID] ASC,
+        [Line Number] DESC
+      )
+    );
+  `);
+
+  assert.equal(entity.name, "Order Details");
+  assert.deepEqual(
+    entity.fields.filter(field => field.isPrimaryKey).map(field => field.name),
+    ["Order ID", "Line Number"]
+  );
+});
+
+test("entity parser retains SSMS ALTER TABLE foreign keys and removes optional type brackets", () => {
+  const entity = parseAnnotationEntityDefinition(String.raw`
+    CREATE TABLE [pmt].[Children] (
+      [ChildId] [int] IDENTITY(1,1) NOT NULL,
+      [ParentId] [int] NOT NULL,
+      [DisplayName] [nvarchar](50) NULL,
+      CONSTRAINT [PK_Children] PRIMARY KEY CLUSTERED ([ChildId] ASC)
+    );
+    GO
+    ALTER TABLE [pmt].[Children] WITH CHECK ADD CONSTRAINT [FK_Children_Parents]
+      FOREIGN KEY ([ParentId]) REFERENCES [pmt].[Parents] ([ParentId]);
+    GO
+    ALTER TABLE [pmt].[Children] CHECK CONSTRAINT [FK_Children_Parents];
+  `);
+
+  assert.deepEqual(entity.fields.map(field => field.dataType), ["int", "int", "nvarchar(50)"]);
+  assert.equal(entity.fields.find(field => field.name === "ParentId")?.isForeignKey, true);
+  assert.deepEqual(entity.foreignKeys, [{
+    name: "FK_Children_Parents",
+    columns: ["ParentId"],
+    referencedSchema: "pmt",
+    referencedTable: "Parents",
+    referencedColumns: ["ParentId"],
+    relationshipType: "one-to-many"
+  }]);
+});
+
+test("entity parser marks inline SQL foreign keys as one-to-many", () => {
+  const entity = parseAnnotationEntityDefinition(String.raw`
+    CREATE TABLE pmt.Children (
+      ChildId INT NOT NULL PRIMARY KEY,
+      ParentId INT NOT NULL REFERENCES pmt.Parents (ParentId)
+    );
+  `);
+
+  assert.equal(entity.foreignKeys[0]?.relationshipType, "one-to-many");
+});
+
+test("entity identifier formatting removes optional brackets but keeps brackets required by spaces", () => {
+  assert.equal(formatAnnotationEntityIdentifier("[pmt].[WorkTasks]"), "pmt.WorkTasks");
+  assert.equal(formatAnnotationEntityIdentifier("[TaskId]"), "TaskId");
+  assert.equal(formatAnnotationEntityIdentifier("[Order Details]"), "[Order Details]");
+  assert.equal(formatAnnotationEntityIdentifier("[pmt].[Order Details]"), "pmt.[Order Details]");
+  assert.equal(formatAnnotationEntityIdentifier("dbo.Customer"), "dbo.Customer");
+});
+
+test("entity fields reorder without losing their parsed metadata", () => {
+  const taskId = { name: "TaskId", dataType: "INT", isPrimaryKey: true, isIdentity: true };
+  const projectId = { name: "ProjectId", dataType: "INT", isForeignKey: true, nullable: false };
+  const title = { name: "Title", dataType: "NVARCHAR(220)", nullable: false };
+  const fields = [taskId, projectId, title];
+
+  const movedUp = reorderAnnotationEntityFields(fields, 2, 0, "before");
+  assert.deepEqual(movedUp.map(field => field.name), ["Title", "TaskId", "ProjectId"]);
+  assert.equal(movedUp[0], title);
+  assert.equal(movedUp[1], taskId);
+  assert.equal(movedUp[2], projectId);
+
+  const movedDown = reorderAnnotationEntityFields(fields, 0, 2, "after");
+  assert.deepEqual(movedDown.map(field => field.name), ["ProjectId", "Title", "TaskId"]);
+  assert.deepEqual(movedDown.at(-1), {
+    name: "TaskId",
+    dataType: "INT",
+    isPrimaryKey: true,
+    isIdentity: true
+  });
+
+  assert.deepEqual(reorderAnnotationEntityFields(fields, 1, 1, "after"), fields);
+  assert.deepEqual(fields.map(field => field.name), ["TaskId", "ProjectId", "Title"]);
+});
+
+test("entity FK-at-top ordering keeps PKs first and preserves each section's order", () => {
+  const fields = [
+    { name: "Title", isPrimaryKey: false, isForeignKey: false },
+    { name: "ProjectId", isPrimaryKey: false, isForeignKey: true },
+    { name: "Id", isPrimaryKey: true, isForeignKey: false },
+    { name: "SprintId", isPrimaryKey: false, isForeignKey: true },
+    { name: "Code", isPrimaryKey: true, isForeignKey: true },
+    { name: "Body", isPrimaryKey: false, isForeignKey: false }
+  ];
+
+  assert.deepEqual(
+    orderAnnotationEntityForeignKeysAtTop(fields).map(field => field.name),
+    ["Id", "Code", "ProjectId", "SprintId", "Title", "Body"]
+  );
+  assert.deepEqual(fields.map(field => field.name), ["Title", "ProjectId", "Id", "SprintId", "Code", "Body"]);
+});
+
+test("collapsed Entity view keeps PK, FK, and important fields without changing the stored order", () => {
+  const definition = parseAnnotationEntityDefinition(workTasksCreateTableSql);
+  const entity = entityObject(definition, "work-tasks", 40, 40, {
+    height: 1000,
+    foreignKeysAtTop: true
+  });
+  entity.fields.find(field => field.name === "Title").isImportant = true;
+  entity.fields.find(field => field.name === "Severity").isPrimaryKey = true;
+  entity.fields.find(field => field.name === "Environment").isForeignKey = true;
+  const originalOrder = entity.fields.map(field => field.name);
+
+  assert.equal(annotationEntityVisibleFields(entity).length, 30);
+  setAnnotationEntityCollapsedState(entity, true);
+
+  assert.equal(entity.collapsed, true);
+  assert.ok(entity.height < 1000);
+  assert.deepEqual(
+    annotationEntityVisibleFields(entity).map(field => field.name),
+    [
+      "TaskId",
+      "Severity",
+      "ProjectId",
+      "SprintId",
+      "ParentTaskId",
+      "CreatedByUserId",
+      "UpdatedByUserId",
+      "Environment",
+      "LinkedBlogId",
+      "Title"
+    ]
+  );
+  assert.deepEqual(entity.fields.map(field => field.name), originalOrder);
+  assert.equal(entity.fields.length, 30);
+
+  const collapsedSvg = buildAnnotationSvg({ width: 1200, height: 900, objects: [entity] }, "");
+  assert.match(collapsedSvg, /<title>Expand Entity<\/title>/);
+  assert.match(collapsedSvg, />Severity<\/text>/);
+  assert.match(collapsedSvg, />Environment<\/text>/);
+  assert.match(collapsedSvg, />Title<\/text>/);
+  assert.doesNotMatch(collapsedSvg, />Code<\/text>/);
+
+  setAnnotationEntityCollapsedState(entity, false);
+  assert.equal(entity.collapsed, false);
+  assert.equal(entity.height, 1000);
+  assert.equal(annotationEntityVisibleFields(entity).length, 30);
+});
+
+test("manual Entity field flags survive reorder and continue driving the collapsed view", () => {
+  const fields = [
+    { name: "Name", dataType: "NVARCHAR(100)", isPrimaryKey: false, isForeignKey: false, isImportant: true },
+    { name: "ParentId", dataType: "INT", isPrimaryKey: false, isForeignKey: true, isImportant: false },
+    { name: "Id", dataType: "INT", isPrimaryKey: true, isForeignKey: false, isImportant: false },
+    { name: "Notes", dataType: "NVARCHAR(MAX)", isPrimaryKey: false, isForeignKey: false, isImportant: false }
+  ];
+
+  const reordered = reorderAnnotationEntityFields(fields, 0, 3, "after");
+  assert.deepEqual(reordered.map(field => field.name), ["ParentId", "Id", "Notes", "Name"]);
+  assert.equal(reordered.at(-1), fields[0]);
+  assert.equal(reordered.at(-1).isImportant, true);
+  assert.equal(reordered[0].isForeignKey, true);
+  assert.equal(reordered[1].isPrimaryKey, true);
+  assert.deepEqual(fields.map(field => field.name), ["Name", "ParentId", "Id", "Notes"]);
+
+  assert.deepEqual(
+    annotationEntityVisibleFields({ fields: reordered, collapsed: true, foreignKeysAtTop: true })
+      .map(field => field.name),
+    ["Id", "ParentId", "Name"]
+  );
+});
+
+test("compact entity display options and relationship metadata survive SVG round trip", () => {
+  const definition = parseAnnotationEntityDefinition(workTasksCreateTableSql);
+  const state = normalizeAnnotationState({
+    width: 1200,
+    height: 900,
+    objects: [{
+      id: "work-tasks-entity",
+      type: "entity",
+      x: 80,
+      y: 60,
+      width: 520,
+      height: 650,
+      fill: "#ffffff",
+      stroke: "#42526b",
+      outlineVisible: true,
+      strokeWidth: 2,
+      opacity: 1,
+      textColor: "#172b4d",
+      fontFamily: "Arial",
+      fontSize: 18,
+      entitySchema: definition.schema,
+      entityName: definition.name,
+      fields: definition.fields,
+      foreignKeys: definition.foreignKeys,
+      foreignKeysAtTop: true,
+      showSelfRelationships: true,
+      sourceText: definition.sourceText,
+      showKeyColumn: false,
+      showDataTypes: true
+    }]
+  });
+
+  const svg = buildAnnotationSvg(state, "data:image/png;base64,AAECAwQ=");
+  assert.match(svg, />pmt\.WorkTasks<\/text>/);
+  assert.match(svg, /text-anchor="middle"/);
+  assert.doesNotMatch(svg, />PK<\/text>/);
+  assert.match(svg, />INT IDENTITY\(1,1\)<\/text>/);
+  assert.match(svg, />NOT<\/text>/);
+  assert.match(svg, />NULL<\/text>/);
+  assert.doesNotMatch(svg, /,<\/text>/);
+  assert.match(svg, /text-decoration="underline"/);
+  assert.ok(svg.indexOf(">UpdatedByUserId<\/text>") < svg.indexOf(">Code<\/text>"));
+  const stateEntity = state.objects.find(object => object.type === "entity");
+  assert.equal(stateEntity.fields[4].name, "Code");
+
+  stateEntity.foreignKeysAtTop = false;
+  const originalOrderSvg = buildAnnotationSvg(state, "data:image/png;base64,AAECAwQ=");
+  assert.ok(originalOrderSvg.indexOf(">Code<\/text>") < originalOrderSvg.indexOf(">CreatedByUserId<\/text>"));
+  stateEntity.foreignKeysAtTop = true;
+
+  const restored = parseAnnotationSvg(svg).objects.find(object => object.type === "entity");
+  assert.equal(restored?.showKeyColumn, false);
+  assert.equal(restored?.showDataTypes, true);
+  assert.equal(restored?.foreignKeysAtTop, true);
+  assert.equal(restored?.showSelfRelationships, true);
+  assert.equal(restored?.fields.length, 30);
+  assert.equal(restored?.foreignKeys.length, 6);
+  assert.equal(restored?.foreignKeys[0].referencedTable, "Projects");
+});
+
+test("data type visibility compacts from the left while keeping the upper-right toggle fixed", () => {
+  const blogs = entityObject(parseAnnotationEntityDefinition(blogsCreateTableSql), "blogs", 40, 80);
+  const right = blogs.x + blogs.width;
+
+  setAnnotationEntityDataTypeVisibility(blogs, true);
+  assert.deepEqual({ x: blogs.x, width: blogs.width, right: blogs.x + blogs.width }, { x: 40, width: 520, right });
+
+  setAnnotationEntityDataTypeVisibility(blogs, false);
+  const compact = { x: blogs.x, width: blogs.width };
+  assert.ok(compact.width < 520);
+  assert.ok(compact.x > 40);
+  assert.equal(blogs.x + blogs.width, right);
+
+  const restored = parseAnnotationSvg(buildAnnotationSvg({
+    width: 1200,
+    height: 900,
+    includeOriginalImage: false,
+    objects: [blogs]
+  }, "")).objects[0];
+  assert.equal(restored.x + restored.width, right);
+  assert.equal(restored.showDataTypes, false);
+
+  setAnnotationEntityDataTypeVisibility(blogs, true);
+  assert.deepEqual({ x: blogs.x, width: blogs.width, right: blogs.x + blogs.width }, { x: 40, width: 520, right });
+  setAnnotationEntityDataTypeVisibility(blogs, false);
+  assert.deepEqual({ x: blogs.x, width: blogs.width }, compact);
+});
+
+test("FK mapping replaces only the selected field mapping and normalizes cardinality", () => {
+  const definition = parseAnnotationEntityDefinition(workTasksCreateTableSql);
+  const original = structuredClone(definition.foreignKeys);
+
+  const oneToOne = setAnnotationEntityFieldForeignKeyMapping(
+    definition.foreignKeys,
+    "LinkedBlogId",
+    {
+      referencedEntity: "[pmt].[Blogs]",
+      referencedField: "[BlogId]",
+      relationshipType: "one-to-one"
+    }
+  );
+  assert.deepEqual(definition.foreignKeys, original);
+  assert.equal(oneToOne.length, 6);
+  assert.deepEqual(
+    oneToOne.find(foreignKey => foreignKey.columns.includes("LinkedBlogId")),
+    {
+      name: "",
+      columns: ["LinkedBlogId"],
+      referencedSchema: "pmt",
+      referencedTable: "Blogs",
+      referencedColumns: ["BlogId"],
+      relationshipType: "one-to-one"
+    }
+  );
+
+  const oneToMany = setAnnotationEntityFieldForeignKeyMapping(oneToOne, "LinkedBlogId", {
+    referencedEntity: "pmt.Blogs",
+    referencedField: "BlogId",
+    relationshipType: "one-to-many"
+  });
+  assert.equal(oneToMany.length, 6);
+  assert.equal(
+    oneToMany.filter(foreignKey => foreignKey.columns.includes("LinkedBlogId")).length,
+    1
+  );
+  assert.equal(
+    oneToMany.find(foreignKey => foreignKey.columns.includes("LinkedBlogId"))?.relationshipType,
+    "one-to-many"
+  );
+
+  const invalidCardinality = setAnnotationEntityFieldForeignKeyMapping(oneToMany, "LinkedBlogId", {
+    referencedEntity: "pmt.Blogs",
+    referencedField: "BlogId",
+    relationshipType: "many-to-many"
+  });
+  assert.equal(
+    invalidCardinality.find(foreignKey => foreignKey.columns.includes("LinkedBlogId"))?.relationshipType,
+    ""
+  );
+
+  const cleared = setAnnotationEntityFieldForeignKeyMapping(oneToMany, "LinkedBlogId");
+  assert.equal(cleared.length, 5);
+  assert.equal(cleared.some(foreignKey => foreignKey.columns.includes("LinkedBlogId")), false);
+  assert.deepEqual(
+    cleared.map(foreignKey => foreignKey.columns[0]),
+    ["ProjectId", "SprintId", "ParentTaskId", "CreatedByUserId", "UpdatedByUserId"]
+  );
+});
+
+test("changed Entity source preserves manual field designations and mappings for existing fields", () => {
+  const originalDefinition = parseAnnotationEntityDefinition(workTasksCreateTableSql);
+  const entity = entityObject(originalDefinition, "work-tasks", 40, 80);
+  entity.fields.find(field => field.name === "Severity").isPrimaryKey = true;
+  entity.fields.find(field => field.name === "Environment").isForeignKey = true;
+  entity.fields.find(field => field.name === "Title").isImportant = true;
+  entity.foreignKeys = setAnnotationEntityFieldForeignKeyMapping(
+    entity.foreignKeys,
+    "Environment",
+    {
+      referencedEntity: "pmt.Blogs",
+      referencedField: "BlogId",
+      relationshipType: "one-to-many"
+    }
+  );
+
+  const revisedDefinition = parseAnnotationEntityDefinition(workTasksCreateTableSql.replace(
+    "    [LinkedBlogId] INT NULL,",
+    "    [LinkedBlogId] INT NULL,\n    [ReviewNotes] NVARCHAR(500) NULL,"
+  ));
+  applyAnnotationEntityDefinition(entity, revisedDefinition);
+
+  assert.equal(entity.fields.find(field => field.name === "Severity")?.isPrimaryKey, true);
+  assert.equal(entity.fields.find(field => field.name === "Environment")?.isForeignKey, true);
+  assert.equal(entity.fields.find(field => field.name === "Title")?.isImportant, true);
+  assert.equal(entity.fields.find(field => field.name === "ReviewNotes")?.dataType, "NVARCHAR(500)");
+  assert.deepEqual(
+    entity.foreignKeys.find(foreignKey => foreignKey.columns.includes("Environment")),
+    {
+      name: "",
+      columns: ["Environment"],
+      referencedSchema: "pmt",
+      referencedTable: "Blogs",
+      referencedColumns: ["BlogId"],
+      relationshipType: "one-to-many"
+    }
+  );
+});
+
+test("self-referencing Entity relationships use a visible loop and remain in selection exports", () => {
+  const definition = parseAnnotationEntityDefinition(workTasksCreateTableSql);
+  const workTasks = entityObject(definition, "work-tasks", 40, 80);
+  assert.doesNotMatch(annotationEntityRelationshipsSvg([workTasks]), /pmt\.WorkTasks\.ParentTaskId/);
+  const hiddenBounds = annotationOutputBounds({
+    width: 1200,
+    height: 1000,
+    includeOriginalImage: false,
+    objects: [workTasks]
+  });
+  assert.equal(hiddenBounds.x, 0);
+  assert.equal(hiddenBounds.y, 0);
+
+  workTasks.showSelfRelationships = true;
+  const relationships = annotationEntityRelationshipsSvg([workTasks]);
+
+  assert.match(relationships, /data-pmt-relationship-source="pmt\.WorkTasks\.ParentTaskId"/);
+  assert.match(relationships, /data-pmt-relationship-target="pmt\.WorkTasks\.TaskId"/);
+  assert.match(relationships, /M [^<]+ H [^<]+ V [^<]+ H [^<]+ V [^<]+ H /);
+
+  const state = {
+    width: 1200,
+    height: 1000,
+    includeOriginalImage: false,
+    objects: [workTasks]
+  };
+  const bounds = annotationOutputBounds(state);
+  assert.ok(bounds.x < hiddenBounds.x);
+  assert.ok(bounds.y < workTasks.y);
+  assert.ok(bounds.width > workTasks.width);
+
+  const selectionSvg = buildAnnotationSelectionSvg(state, new Set([workTasks.id]), "");
+  assert.match(selectionSvg, /image-annotation-entity-relationships/);
+  assert.match(selectionSvg, /pmt\.WorkTasks\.ParentTaskId/);
+  assert.match(selectionSvg, /pmt\.WorkTasks\.TaskId/);
+  assert.ok(selectionSvg.indexOf("image-annotation-entity-relationships") < selectionSvg.indexOf(">pmt.WorkTasks<\/text>"));
+});
+
+test("Entity relationship SVG resolves mapped fields and renders both supported cardinalities", () => {
+  const workTasksDefinition = parseAnnotationEntityDefinition(workTasksCreateTableSql);
+  const blogsDefinition = parseAnnotationEntityDefinition(blogsCreateTableSql);
+  const workTasks = entityObject(workTasksDefinition, "work-tasks", 40, 80);
+  const blogs = entityObject(blogsDefinition, "blogs", 800, 80);
+  workTasks.foreignKeys = setAnnotationEntityFieldForeignKeyMapping(
+    workTasks.foreignKeys,
+    "LinkedBlogId",
+    {
+      referencedEntity: "pmt.Blogs",
+      referencedField: "BlogId",
+      relationshipType: "one-to-many"
+    }
+  );
+
+  const oneToMany = annotationEntityRelationshipsSvg([workTasks, blogs]);
+  assert.match(oneToMany, /data-pmt-relationship-type="one-to-many"/);
+  assert.match(oneToMany, /data-pmt-relationship-source="pmt\.WorkTasks\.LinkedBlogId"/);
+  assert.match(oneToMany, /data-pmt-relationship-target="pmt\.Blogs\.BlogId"/);
+  assert.match(oneToMany, /<path\b/);
+  assert.match(oneToMany, /<polygon\b/);
+  assert.equal((oneToMany.match(/<line\b/g) || []).length, 4);
+  const relationshipPath = oneToMany.match(/class="image-annotation-entity-relationship-path" d="([^"]+)"/)?.[1];
+  const route = relationshipPath?.match(/^M ([\d.-]+) ([\d.-]+) H ([\d.-]+) V ([\d.-]+) H ([\d.-]+)$/);
+  assert.ok(route);
+  assert.equal(Number(route[1]), workTasks.x + workTasks.width);
+  assert.equal(Number(route[2]), expectedEntityFieldAnchorY(workTasks, "LinkedBlogId"));
+  assert.equal(Number(route[4]), expectedEntityFieldAnchorY(blogs, "BlogId"));
+  assert.equal(Number(route[5]), blogs.x);
+  assert.deepEqual(relationshipArrowTip(oneToMany), [blogs.x, expectedEntityFieldAnchorY(blogs, "BlogId")]);
+
+  workTasks.foreignKeys = setAnnotationEntityFieldForeignKeyMapping(
+    workTasks.foreignKeys,
+    "LinkedBlogId",
+    {
+      referencedEntity: "pmt.Blogs",
+      referencedField: "BlogId",
+      relationshipType: "one-to-one"
+    }
+  );
+  const oneToOne = annotationEntityRelationshipsSvg([workTasks, blogs]);
+  assert.match(oneToOne, /data-pmt-relationship-type="one-to-one"/);
+  assert.equal((oneToOne.match(/<line\b/g) || []).length, 2);
+
+  workTasks.foreignKeys = setAnnotationEntityFieldForeignKeyMapping(
+    workTasks.foreignKeys,
+    "LinkedBlogId",
+    {
+      referencedEntity: "pmt.Blogs",
+      referencedField: "BlogId",
+      relationshipType: ""
+    }
+  );
+  const plainArrow = annotationEntityRelationshipsSvg([workTasks, blogs]);
+  assert.match(plainArrow, /data-pmt-relationship-type="arrow"/);
+  assert.equal((plainArrow.match(/<line\b/g) || []).length, 0);
+
+  const linkedBlogIndex = workTasks.fields.findIndex(field => field.name === "LinkedBlogId");
+  workTasks.fields = reorderAnnotationEntityFields(workTasks.fields, linkedBlogIndex, 0, "before");
+  assert.match(annotationEntityRelationshipsSvg([workTasks, blogs]), /pmt\.WorkTasks\.LinkedBlogId/);
+
+  setAnnotationEntityCollapsedState(workTasks, true);
+  assert.match(annotationEntityRelationshipsSvg([workTasks, blogs]), /pmt\.Blogs\.BlogId/);
+
+  workTasks.fields.find(field => field.name === "LinkedBlogId").isForeignKey = false;
+  const withoutLinkedBlog = annotationEntityRelationshipsSvg([workTasks, blogs]);
+  assert.doesNotMatch(withoutLinkedBlog, /pmt\.WorkTasks\.LinkedBlogId/);
+  assert.doesNotMatch(withoutLinkedBlog, /pmt\.WorkTasks\.ParentTaskId/);
+  workTasks.showSelfRelationships = true;
+  assert.match(annotationEntityRelationshipsSvg([workTasks, blogs]), /pmt\.WorkTasks\.ParentTaskId/);
+});
+
+test("Entity relationship lines never fall back to generic table endpoints", () => {
+  const workTasks = entityObject(parseAnnotationEntityDefinition(workTasksCreateTableSql), "work-tasks", 40, 80);
+  const blogs = entityObject(parseAnnotationEntityDefinition(blogsCreateTableSql), "blogs", 800, 80);
+  workTasks.foreignKeys = setAnnotationEntityFieldForeignKeyMapping(workTasks.foreignKeys, "LinkedBlogId", {
+    referencedEntity: "pmt.Blogs",
+    referencedField: "BlogId",
+    relationshipType: "one-to-many"
+  });
+  blogs.fields = blogs.fields.filter(field => field.name !== "BlogId");
+
+  assert.equal(annotationEntityRelationshipsSvg([workTasks, blogs]), "");
+});
+
+test("Entity relationship routes never pass behind an unrelated Entity", () => {
+  const projects = simpleRelationshipEntity("projects", "Projects", 15, 10);
+  const workTasks = simpleRelationshipEntity("work-tasks", "WorkTasks", 353, 173);
+  workTasks.width = 286;
+  workTasks.height = 190;
+  const blogs = simpleRelationshipEntity("blogs", "Blogs", 743, 500, "Projects");
+  const entities = [projects, workTasks, blogs];
+  const naiveMiddleX = (blogs.x + (projects.x + projects.width)) / 2;
+  assert.equal(orthogonalSegmentIntersectsEntityInterior(
+    { x: naiveMiddleX, y: expectedEntityFieldAnchorY(blogs, "ProjectsId") },
+    { x: naiveMiddleX, y: expectedEntityFieldAnchorY(projects, "ProjectsId") },
+    workTasks
+  ), true);
+
+  for (const allowOverlappingLines of [false, true]) {
+    const svg = annotationEntityRelationshipsSvg(entities, null, { allowOverlappingLines });
+    const path = svg.match(/class="image-annotation-entity-relationship-path" d="([^"]+)"/)?.[1];
+    const points = orthogonalPathPoints(path);
+    assert.ok(points.length >= 4);
+    points.slice(1).forEach((point, index) => {
+      entities.forEach(entity => {
+        assert.equal(
+          orthogonalSegmentIntersectsEntityInterior(points[index], point, entity),
+          false,
+          `${path} crosses ${entity.entityName}`
+        );
+      });
+    });
+    assert.deepEqual(points[0], {
+      x: blogs.x,
+      y: expectedEntityFieldAnchorY(blogs, "ProjectsId")
+    });
+    assert.deepEqual(points.at(-1), {
+      x: projects.x + projects.width,
+      y: expectedEntityFieldAnchorY(projects, "ProjectsId")
+    });
+    assert.deepEqual(relationshipArrowTip(svg), [
+      projects.x + projects.width,
+      expectedEntityFieldAnchorY(projects, "ProjectsId")
+    ]);
+  }
+});
+
+test("annotation output and copied-selection bounds include cardinality markers and obstacle detours", () => {
+  const verifyOutputAndSelection = (objects, relationshipStyle, verifyRoute) => {
+    const state = normalizeAnnotationState({
+      width: 1200,
+      height: 800,
+      includeOriginalImage: true,
+      relationshipStyle,
+      objects
+    });
+    const outputSvg = buildAnnotationSvg(state, "");
+    const selectionSvg = buildAnnotationSelectionSvg(
+      state,
+      new Set(state.objects.map(object => object.id)),
+      ""
+    );
+    [outputSvg, selectionSvg].forEach(svg => {
+      assertRelationshipPaintFitsViewBox(svg, relationshipStyle.strokeWidth);
+      verifyRoute(relationshipPaintPoints(svg));
+    });
+  };
+
+  const normalParent = simpleRelationshipEntity("normal-parent", "NormalParent", 0, 0);
+  const normalChild = simpleRelationshipEntity("normal-child", "NormalChild", 800, 0, "NormalParent");
+  verifyOutputAndSelection(
+    [normalParent, normalChild],
+    { stroke: "#42526b", strokeWidth: 12, arrowSize: 100 },
+    points => assert.ok(Math.min(...points.map(point => point.y)) < normalChild.y)
+  );
+
+  const detourParent = simpleRelationshipEntity("detour-parent", "DetourParent", 0, 0);
+  const detourChild = simpleRelationshipEntity("detour-child", "DetourChild", 800, 0, "DetourParent");
+  const blocker = simpleRelationshipEntity("detour-blocker", "DetourBlocker", 350, -100);
+  blocker.height = 1000;
+  verifyOutputAndSelection(
+    [detourParent, blocker, detourChild],
+    { stroke: "#42526b", strokeWidth: 10, arrowSize: 30 },
+    points => assert.ok(Math.min(...points.map(point => point.y)) < blocker.y)
+  );
+});
+
+test("an Entity relationship is omitted instead of falling back to a route through another Entity", () => {
+  const parent = simpleRelationshipEntity("parent", "Parent", 0, 0);
+  const child = simpleRelationshipEntity("child", "Child", 800, 0, "Parent");
+  const blockingEndpoint = simpleRelationshipEntity("blocking-endpoint", "BlockingEndpoint", 790, 0);
+  blockingEndpoint.width = 20;
+
+  const svg = annotationEntityRelationshipsSvg([parent, blockingEndpoint, child]);
+
+  assert.doesNotMatch(svg, /image-annotation-entity-relationship-path/);
+  assert.doesNotMatch(svg, /<polygon\b/);
+});
+
+test("global Entity Relationships formatting persists and styles every connector", () => {
+  const state = entityRelationshipState();
+  assert.equal(state.allowOverlappingEntityLines, false);
+  assert.deepEqual(
+    {
+      stroke: state.relationshipStyle.stroke,
+      strokeWidth: state.relationshipStyle.strokeWidth,
+      arrowSize: state.relationshipStyle.arrowSize
+    },
+    { stroke: "#d946ef", strokeWidth: 7, arrowSize: 30 }
+  );
+  assert.equal(state.objects.some(object => object.type === "entity-relationships"), false);
+
+  state.allowOverlappingEntityLines = true;
+  const svg = buildAnnotationSvg(state, "");
+  assert.match(svg, /class="image-annotation-entity-relationship-path"[^>]+stroke="#d946ef"[^>]+stroke-width="7"/);
+  assert.equal((svg.match(/class="image-annotation-entity-relationship-marker"/g) || []).length, 5);
+  assert.match(svg, /<polygon[^>]+fill="#d946ef"/);
+
+  const restored = parseAnnotationSvg(svg);
+  assert.deepEqual(
+    {
+      stroke: restored.relationshipStyle.stroke,
+      strokeWidth: restored.relationshipStyle.strokeWidth,
+      arrowSize: restored.relationshipStyle.arrowSize
+    },
+    { stroke: "#d946ef", strokeWidth: 7, arrowSize: 30 }
+  );
+  assert.equal(restored.allowOverlappingEntityLines, true);
+});
+
+test("individual Entity relationships persist and render independent style overrides", () => {
+  const state = entityRelationshipState();
+  const workTasks = state.objects.find(object => object.id === "work-tasks");
+  const linkedBlog = workTasks.foreignKeys.find(foreignKey => foreignKey.columns.includes("LinkedBlogId"));
+  linkedBlog.styleOverride = {
+    stroke: "#dc2626",
+    strokeWidth: 8,
+    arrowSize: 34
+  };
+
+  const svg = buildAnnotationSvg(state, "");
+  const relationshipMarkup = svg.match(/<g class="image-annotation-entity-relationship"[^>]+data-pmt-relationship-source="pmt\.WorkTasks\.LinkedBlogId"[\s\S]*?<\/g>/)?.[0];
+  assert.ok(relationshipMarkup);
+  assert.match(relationshipMarkup, /stroke="#dc2626"/);
+  assert.match(relationshipMarkup, /stroke-width="8"/);
+
+  const restored = parseAnnotationSvg(svg);
+  assert.deepEqual(
+    restored.objects.find(object => object.id === "work-tasks")
+      .foreignKeys.find(foreignKey => foreignKey.columns.includes("LinkedBlogId"))
+      .styleOverride,
+    { stroke: "#dc2626", strokeWidth: 8, arrowSize: 34 }
+  );
+});
+
+test("formatting the Entity Relationships parent clears only that property from child overrides", () => {
+  const state = entityRelationshipState();
+  const workTasks = state.objects.find(object => object.id === "work-tasks");
+  const linkedBlog = workTasks.foreignKeys.find(foreignKey => foreignKey.columns.includes("LinkedBlogId"));
+  linkedBlog.styleOverride = {
+    stroke: "#dc2626",
+    strokeWidth: 8,
+    arrowSize: 34
+  };
+
+  applyAnnotationEntityRelationshipGroupStyle(state, { stroke: "#111827", strokeWidth: 4 });
+
+  assert.equal(state.relationshipStyle.stroke, "#111827");
+  assert.equal(state.relationshipStyle.strokeWidth, 4);
+  assert.deepEqual(linkedBlog.styleOverride, { arrowSize: 34 });
+  const svg = buildAnnotationSvg(state, "");
+  assert.match(svg, /class="image-annotation-entity-relationship-path"[^>]+stroke="#111827"[^>]+stroke-width="4"/);
+});
+
+test("remapping a styled foreign key preserves its connector override", () => {
+  const original = [{
+    name: "",
+    columns: ["ParentId"],
+    referencedSchema: "pmt",
+    referencedTable: "ParentA",
+    referencedColumns: ["ParentAId"],
+    relationshipType: "one-to-many",
+    styleOverride: { stroke: "#dc2626", strokeWidth: 6 }
+  }];
+  const remapped = setAnnotationEntityFieldForeignKeyMapping(original, "ParentId", {
+    referencedEntity: "pmt.ParentB",
+    referencedField: "ParentBId",
+    relationshipType: "one-to-one"
+  });
+  assert.deepEqual(remapped[0].styleOverride, { stroke: "#dc2626", strokeWidth: 6 });
+  assert.deepEqual(setAnnotationEntityFieldForeignKeyMapping(remapped, "ParentId"), []);
+});
+
+test("Objects tree and live SVG expose one fixed selectable Entity Relationships unit", () => {
+  const state = entityRelationshipState();
+  const relationshipNodes = buildAnnotationObjectTree(state)
+    .filter(node => node.id === "entity-relationships");
+  assert.equal(relationshipNodes.length, 1);
+  assert.equal(relationshipNodes[0].name, "Entity Relationships");
+  assert.equal(relationshipNodes[0].fixed, true);
+  assert.equal(relationshipNodes[0].count, 1);
+  assert.equal(relationshipNodes[0].children.length, 1);
+  assert.equal(relationshipNodes[0].children[0].kind, "relationship");
+  assert.equal(relationshipNodes[0].children[0].fixed, true);
+  assert.equal(relationshipNodes[0].children[0].name, "pmt.WorkTasks.LinkedBlogId → pmt.Blogs.BlogId");
+  const relationshipId = relationshipNodes[0].children[0].id;
+
+  const liveSvg = annotationEntityRelationshipsSvg(
+    state.objects,
+    state.relationshipStyle,
+    { interactive: true, selected: true, zoom: 1 }
+  );
+  assert.equal((liveSvg.match(/data-annotation-object-id="entity-relationships"/g) || []).length, 1);
+  assert.match(liveSvg, /data-annotation-object-type="entity-relationships"/);
+  assert.match(liveSvg, /class="image-annotation-entity-relationship-hit"[^>]+stroke="transparent"[^>]+pointer-events="stroke"/);
+  assert.match(liveSvg, /class="image-annotation-entity-relationship-selection"/);
+  assert.match(liveSvg, new RegExp(`data-annotation-object-id="${relationshipId.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}"`));
+
+  const individuallySelectedSvg = annotationEntityRelationshipsSvg(
+    state.objects,
+    state.relationshipStyle,
+    { interactive: true, selectedIds: new Set([relationshipId]), zoom: 1 }
+  );
+  assert.equal((individuallySelectedSvg.match(/class="image-annotation-entity-relationship-selection"/g) || []).length, 1);
+
+  const relationshipTemplate = captureAnnotationTemplate(
+    state,
+    new Set([relationshipId]),
+    "",
+    "One Connector"
+  );
+  assert.ok(relationshipTemplate.relationshipStyle);
+  assert.equal(relationshipTemplate.objects.length, 0);
+
+  const workTasksOnly = normalizeAnnotationState({
+    width: 1000,
+    height: 800,
+    includeOriginalImage: false,
+    objects: [state.objects.find(object => object.id === "work-tasks")]
+  });
+  assert.equal(buildAnnotationObjectTree(workTasksOnly)
+    .some(node => node.id === "entity-relationships"), false);
+});
+
+test("relationship-only templates change global connector formatting without changing Entities", () => {
+  const source = entityRelationshipState();
+  const template = captureAnnotationTemplate(
+    source,
+    new Set(["entity-relationships"]),
+    "",
+    "ERD Connections"
+  );
+  assert.ok(template);
+  assert.equal(template.objects.length, 0);
+  assert.deepEqual(
+    {
+      type: template.relationshipStyle.type,
+      stroke: template.relationshipStyle.stroke,
+      strokeWidth: template.relationshipStyle.strokeWidth,
+      arrowSize: template.relationshipStyle.arrowSize
+    },
+    {
+      type: "entity-relationships",
+      stroke: "#d946ef",
+      strokeWidth: 7,
+      arrowSize: 30
+    }
+  );
+
+  const destination = entityRelationshipState({
+    stroke: "#111111",
+    strokeWidth: 2,
+    arrowSize: 10
+  });
+  const entitiesBefore = structuredClone(destination.objects);
+  const result = applyAnnotationTemplateFormatting(template, [destination.relationshipStyle]);
+  assert.equal(result.structureMatches, true);
+  assert.equal(result.appliedCount, 1);
+  assert.equal(result.changedCount, 1);
+  assert.deepEqual(
+    {
+      stroke: destination.relationshipStyle.stroke,
+      strokeWidth: destination.relationshipStyle.strokeWidth,
+      arrowSize: destination.relationshipStyle.arrowSize
+    },
+    { stroke: "#d946ef", strokeWidth: 7, arrowSize: 30 }
+  );
+  assert.deepEqual(destination.objects, entitiesBefore);
+});
+
+test("Org Tree auto-format puts parents above descendants and only changes Entity positions", () => {
+  const root = simpleRelationshipEntity("root", "Root", 700, 500);
+  const childA = simpleRelationshipEntity("child-a", "ChildA", 50, 40, "Root");
+  const childB = simpleRelationshipEntity("child-b", "ChildB", 1200, 900, "Root");
+  const grandchild = simpleRelationshipEntity("grandchild", "Grandchild", 300, 120, "ChildA");
+  const entities = [root, childA, childB, grandchild];
+  const contentBefore = entities.map(entity => {
+    const copy = structuredClone(entity);
+    delete copy.x;
+    delete copy.y;
+    return copy;
+  });
+
+  const result = autoFormatAnnotationEntitiesOrgTree(entities, {
+    preferredRootId: root.id,
+    allowOverlappingLines: false
+  });
+  assert.deepEqual(
+    { levelCount: result.levelCount, cycleBreakCount: result.cycleBreakCount, relationshipCount: result.relationshipCount },
+    { levelCount: 3, cycleBreakCount: 0, relationshipCount: 3 }
+  );
+  assert.ok(root.y < childA.y);
+  assert.equal(childA.y, childB.y);
+  assert.ok(childA.y < grandchild.y);
+  assert.ok(Math.abs(childA.x - childB.x) >= childA.width + 150);
+  const relationships = annotationEntityRelationshipsSvg(entities, null, { allowOverlappingLines: false });
+  assert.match(relationships, /data-pmt-relationship-source="pmt\.ChildA\.RootId"/);
+  assert.match(relationships, /data-pmt-relationship-target="pmt\.Root\.RootId"/);
+  const arrowTip = relationshipArrowTip(relationships);
+  assert.ok(arrowTip);
+  assert.ok([root.x, root.x + root.width].includes(arrowTip[0]));
+  assert.equal(arrowTip[1], expectedEntityFieldAnchorY(root, "RootId"));
+  assert.deepEqual(entities.map(entity => {
+    const copy = structuredClone(entity);
+    delete copy.x;
+    delete copy.y;
+    return copy;
+  }), contentBefore);
+
+  const second = autoFormatAnnotationEntitiesOrgTree(entities, {
+    preferredRootId: root.id,
+    allowOverlappingLines: false
+  });
+  assert.equal(second.movedCount, 0);
+});
+
+test("Org Tree treats the selected central Entity as most important without reversing FK arrows", () => {
+  const projects = simpleRelationshipEntity("projects", "Projects", 1100, 700);
+  const blogs = simpleRelationshipEntity("blogs", "Blogs", 40, 700);
+  const workTasks = simpleRelationshipEntity("work-tasks", "WorkTasks", 500, 40, "Projects");
+  workTasks.fields.push({
+    name: "BlogId",
+    dataType: "int",
+    isNullable: false,
+    isPrimaryKey: false,
+    isForeignKey: true,
+    isImportant: false
+  });
+  workTasks.foreignKeys.push({
+    name: "FK_WorkTasks_Blogs",
+    columns: ["BlogId"],
+    referencedSchema: "pmt",
+    referencedTable: "Blogs",
+    referencedColumns: ["BlogsId"],
+    relationshipType: "one-to-many"
+  });
+
+  const result = autoFormatAnnotationEntitiesOrgTree([projects, blogs, workTasks], {
+    preferredRootId: workTasks.id,
+    allowOverlappingLines: false
+  });
+
+  assert.equal(result.levelCount, 2);
+  assert.ok(workTasks.y < projects.y);
+  assert.equal(projects.y, blogs.y);
+  const relationships = annotationEntityRelationshipsSvg(
+    [projects, blogs, workTasks],
+    null,
+    { allowOverlappingLines: false }
+  );
+  assert.match(relationships, /data-pmt-relationship-source="pmt\.WorkTasks\.ProjectsId"/);
+  assert.match(relationships, /data-pmt-relationship-target="pmt\.Projects\.ProjectsId"/);
+  assert.match(relationships, /data-pmt-relationship-source="pmt\.WorkTasks\.BlogId"/);
+  assert.match(relationships, /data-pmt-relationship-target="pmt\.Blogs\.BlogsId"/);
+});
+
+test("Org Tree auto-format preserves Anchor tables and top-aligns their direct children", () => {
+  const root = simpleRelationshipEntity("root", "Root", 940, 620);
+  root.anchorTable = true;
+  const childA = simpleRelationshipEntity("child-a", "ChildA", 20, 20, "Root");
+  const childB = simpleRelationshipEntity("child-b", "ChildB", 1500, 1200, "Root");
+
+  const result = autoFormatAnnotationEntitiesOrgTree([root, childA, childB], {
+    preferredRootId: root.id,
+    allowOverlappingLines: false
+  });
+
+  assert.equal(result.anchorCount, 1);
+  assert.deepEqual({ x: root.x, y: root.y }, { x: 940, y: 620 });
+  assert.equal(childA.y, childB.y);
+  assert.ok(childA.y >= root.y + root.height + 240);
+});
+
+test("Org Tree uses a best-effort field route when both parent and child are Anchor tables", () => {
+  const root = simpleRelationshipEntity("root", "Root", 940, 620);
+  const child = simpleRelationshipEntity("child", "Child", 20, 20, "Root");
+  root.anchorTable = true;
+  child.anchorTable = true;
+
+  const result = autoFormatAnnotationEntitiesOrgTree([root, child], {
+    preferredRootId: root.id,
+    allowOverlappingLines: false
+  });
+
+  assert.equal(result.anchorCount, 2);
+  assert.equal(result.anchoredRelationshipCount, 1);
+  assert.deepEqual(
+    [{ x: root.x, y: root.y }, { x: child.x, y: child.y }],
+    [{ x: 940, y: 620 }, { x: 20, y: 20 }]
+  );
+  const relationships = annotationEntityRelationshipsSvg([root, child], null, { allowOverlappingLines: false });
+  assert.match(relationships, /data-pmt-relationship-source="pmt\.Child\.RootId"/);
+  assert.match(relationships, /data-pmt-relationship-target="pmt\.Root\.RootId"/);
+  assert.deepEqual(relationshipArrowTip(relationships), [root.x, expectedEntityFieldAnchorY(root, "RootId")]);
+});
+
+test("Org Tree auto-format breaks dependency cycles deterministically", () => {
+  const first = simpleRelationshipEntity("first", "First", 400, 400, "Second");
+  const second = simpleRelationshipEntity("second", "Second", 40, 40, "First");
+  const result = autoFormatAnnotationEntitiesOrgTree([first, second], {
+    allowOverlappingLines: true
+  });
+  assert.equal(result.cycleBreakCount, 1);
+  assert.equal(result.levelCount, 2);
+  assert.notEqual(first.y, second.y);
+  const positions = [{ x: first.x, y: first.y }, { x: second.x, y: second.y }];
+  autoFormatAnnotationEntitiesOrgTree([first, second], { allowOverlappingLines: true });
+  assert.deepEqual([{ x: first.x, y: first.y }, { x: second.x, y: second.y }], positions);
+});
+
+test("manual field flags, collapsed state, and FK cardinality survive editable SVG round trip", () => {
+  const workTasksDefinition = parseAnnotationEntityDefinition(workTasksCreateTableSql);
+  const blogsDefinition = parseAnnotationEntityDefinition(blogsCreateTableSql);
+  const workTasks = entityObject(workTasksDefinition, "work-tasks", 40, 80, {
+    foreignKeysAtTop: true,
+    showDataTypes: true,
+    anchorTable: true
+  });
+  const blogs = entityObject(blogsDefinition, "blogs", 800, 80);
+  workTasks.fields.find(field => field.name === "Title").isImportant = true;
+  workTasks.fields.find(field => field.name === "Severity").isPrimaryKey = true;
+  workTasks.fields.find(field => field.name === "LinkedBlogId").isForeignKey = true;
+  workTasks.foreignKeys = setAnnotationEntityFieldForeignKeyMapping(
+    workTasks.foreignKeys,
+    "LinkedBlogId",
+    {
+      referencedEntity: "pmt.Blogs",
+      referencedField: "BlogId",
+      relationshipType: "one-to-many"
+    }
+  );
+  setAnnotationEntityCollapsedState(workTasks, true);
+
+  const svg = buildAnnotationSvg({
+    width: 1500,
+    height: 1100,
+    includeOriginalImage: false,
+    objects: [workTasks, blogs]
+  }, "");
+  assert.match(svg, /data-pmt-relationship-type="one-to-many"/);
+  assert.ok(svg.indexOf("image-annotation-entity-relationships") < svg.indexOf(">pmt.WorkTasks</text>"));
+
+  const restored = parseAnnotationSvg(svg);
+  const restoredWorkTasks = restored.objects.find(object => object.id === "work-tasks");
+  assert.equal(restoredWorkTasks.collapsed, true);
+  assert.equal(restoredWorkTasks.showDataTypes, true);
+  assert.equal(restoredWorkTasks.foreignKeysAtTop, true);
+  assert.equal(restoredWorkTasks.anchorTable, true);
+  assert.equal(restoredWorkTasks.fields.length, 30);
+  assert.equal(restoredWorkTasks.fields.find(field => field.name === "Title")?.isImportant, true);
+  assert.equal(restoredWorkTasks.fields.find(field => field.name === "Severity")?.isPrimaryKey, true);
+  assert.equal(restoredWorkTasks.fields.find(field => field.name === "LinkedBlogId")?.isForeignKey, true);
+  assert.deepEqual(
+    restoredWorkTasks.foreignKeys.find(foreignKey => foreignKey.columns.includes("LinkedBlogId")),
+    {
+      name: "",
+      columns: ["LinkedBlogId"],
+      referencedSchema: "pmt",
+      referencedTable: "Blogs",
+      referencedColumns: ["BlogId"],
+      relationshipType: "one-to-many"
+    }
+  );
+  assert.deepEqual(
+    annotationEntityVisibleFields(restoredWorkTasks).map(field => field.name),
+    [
+      "TaskId",
+      "Severity",
+      "ProjectId",
+      "SprintId",
+      "ParentTaskId",
+      "CreatedByUserId",
+      "UpdatedByUserId",
+      "LinkedBlogId",
+      "Title"
+    ]
+  );
+});
+
+test("diagram canvas persists a white background without an Original Image object", () => {
+  const state = normalizeAnnotationState({
+    width: 1600,
+    height: 900,
+    includeOriginalImage: false,
+    objects: []
+  });
+
+  assert.equal(state.includeOriginalImage, false);
+  assert.equal(state.objects.some(object => object.type === "image"), false);
+  assert.deepEqual(state.imageClip, { x: 0, y: 0, width: 1600, height: 900 });
+  assert.deepEqual(annotationOutputBounds(state), { x: 0, y: 0, width: 1600, height: 900 });
+
+  const svg = buildAnnotationSvg(state, "data:image/svg+xml;charset=utf-8,test");
+  assert.match(svg, /class="image-annotation-canvas-background"/);
+  assert.doesNotMatch(svg, /<image\b/);
+
+  const restored = parseAnnotationSvg(svg);
+  assert.equal(restored?.includeOriginalImage, false);
+  assert.equal(restored?.objects.some(object => object.type === "image"), false);
+});
+
+test("new annotation canvases default the grid and grid snapping to off", () => {
+  const defaults = normalizeAnnotationState({ width: 1600, height: 900, includeOriginalImage: false });
+  const enabled = normalizeAnnotationState({
+    width: 1600,
+    height: 900,
+    includeOriginalImage: false,
+    gridVisible: true,
+    snapToGrid: true
+  });
+
+  assert.equal(defaults.gridVisible, false);
+  assert.equal(defaults.snapToGrid, false);
+  assert.equal(enabled.gridVisible, true);
+  assert.equal(enabled.snapToGrid, true);
+});
 
 test("arrow shaft stops at a proportioned head across line widths and head sizes", () => {
   const normal = annotationArrowGeometry({
@@ -453,6 +1886,45 @@ test("template capture preserves cropped source bytes and native vectors while i
   assert.equal(restoredEmbedded.source, embedded.source);
 });
 
+test("individual template files download and upload without losing Entity metadata", () => {
+  const state = normalizeAnnotationState({
+    width: 1200,
+    height: 1000,
+    includeOriginalImage: false,
+    objects: [entityObject(
+      parseAnnotationEntityDefinition(workTasksCreateTableSql),
+      "download-entity",
+      40,
+      80,
+      { showDataTypes: true, foreignKeysAtTop: true }
+    )]
+  });
+  const template = captureAnnotationTemplate(
+    state,
+    new Set(["download-entity"]),
+    "",
+    "pmt.WorkTasks"
+  );
+  const file = annotationTemplateDownloadFile(template);
+
+  assert.equal(file.fileName, "pmt.WorkTasks.pmt-template.json");
+  const uploaded = parseAnnotationTemplateUpload(file.contents);
+  assert.deepEqual(uploaded, template);
+  assert.equal(uploaded.objects[0].entityName, "WorkTasks");
+  assert.equal(uploaded.objects[0].fields.length, 30);
+  assert.equal(uploaded.objects[0].foreignKeys.length, 6);
+  assert.deepEqual(parseAnnotationTemplateUpload(JSON.stringify(template)), template);
+  assert.throws(
+    () => parseAnnotationTemplateUpload(JSON.stringify({
+      format: "pmt-image-annotation-template",
+      version: 999,
+      template
+    })),
+    /version is not supported/
+  );
+  assert.throws(() => parseAnnotationTemplateUpload("not json"), /valid PMT template JSON/);
+});
+
 test("template library normalizes drawing defaults and preserves explicit reset data", () => {
   const library = normalizeAnnotationTemplateLibrary({
     version: 99,
@@ -853,6 +2325,141 @@ test("template formatting applies exact structures one-to-one without changing c
     }
   );
   assert.deepEqual(template, templateBefore);
+});
+
+test("Entity template formatting preserves schema, content, and every destination geometry value", () => {
+  const workTasksDefinition = parseAnnotationEntityDefinition(workTasksCreateTableSql);
+  const blogsDefinition = parseAnnotationEntityDefinition(blogsCreateTableSql);
+  const destination = entityObject(workTasksDefinition, "destination-work-tasks", 430, 260, {
+    width: 640,
+    height: 980,
+    fill: "#ffffff",
+    stroke: "#111111",
+    strokeWidth: 2,
+    opacity: 1,
+    textColor: "#222222",
+    fontFamily: "Arial",
+    fontSize: 18,
+    showKeyColumn: true,
+    showDataTypes: false,
+    foreignKeysAtTop: false
+  });
+  destination.fields.find(field => field.name === "Title").isImportant = true;
+  destination.fields.find(field => field.name === "Severity").isPrimaryKey = true;
+  destination.foreignKeys = setAnnotationEntityFieldForeignKeyMapping(
+    destination.foreignKeys,
+    "LinkedBlogId",
+    {
+      referencedEntity: "pmt.Blogs",
+      referencedField: "BlogId",
+      relationshipType: "one-to-many"
+    }
+  );
+  setAnnotationEntityCollapsedState(destination, true);
+  const invariants = {
+    id: destination.id,
+    x: destination.x,
+    y: destination.y,
+    width: destination.width,
+    height: destination.height,
+    expandedHeight: destination.expandedHeight,
+    collapsed: destination.collapsed,
+    entitySchema: destination.entitySchema,
+    entityName: destination.entityName,
+    sourceText: destination.sourceText,
+    fields: structuredClone(destination.fields),
+    foreignKeys: structuredClone(destination.foreignKeys)
+  };
+  const templateEntity = entityObject(blogsDefinition, "template-blogs", 0, 0, {
+    fill: "#f2f7ff",
+    stroke: "#0b57d0",
+    outlineVisible: false,
+    strokeWidth: 6,
+    opacity: 0.65,
+    textColor: "#102030",
+    fontFamily: "Georgia",
+    fontSize: 24,
+    showKeyColumn: false,
+    showDataTypes: true,
+    foreignKeysAtTop: true,
+    collapsed: false
+  });
+
+  const result = applyAnnotationTemplateFormatting({
+    id: "entity-style-template",
+    name: "Entity style",
+    width: 520,
+    height: 900,
+    objects: [templateEntity]
+  }, [destination]);
+
+  assert.deepEqual(result, {
+    structureMatches: true,
+    selectedCount: 1,
+    matchedCount: 1,
+    appliedCount: 1,
+    changedCount: 1,
+    lockedCount: 0,
+    geometryConstrainedCount: 0
+  });
+  assert.deepEqual(
+    {
+      fill: destination.fill,
+      stroke: destination.stroke,
+      outlineVisible: destination.outlineVisible,
+      strokeWidth: destination.strokeWidth,
+      opacity: destination.opacity,
+      textColor: destination.textColor,
+      fontFamily: destination.fontFamily,
+      fontSize: destination.fontSize,
+      showKeyColumn: destination.showKeyColumn,
+      showDataTypes: destination.showDataTypes,
+      foreignKeysAtTop: destination.foreignKeysAtTop
+    },
+    {
+      fill: "#f2f7ff",
+      stroke: "#0b57d0",
+      outlineVisible: false,
+      strokeWidth: 6,
+      opacity: 0.65,
+      textColor: "#102030",
+      fontFamily: "Georgia",
+      fontSize: 24,
+      showKeyColumn: false,
+      showDataTypes: true,
+      foreignKeysAtTop: true
+    }
+  );
+  assert.deepEqual(
+    {
+      id: destination.id,
+      x: destination.x,
+      y: destination.y,
+      width: destination.width,
+      height: destination.height,
+      expandedHeight: destination.expandedHeight,
+      collapsed: destination.collapsed,
+      entitySchema: destination.entitySchema,
+      entityName: destination.entityName,
+      sourceText: destination.sourceText,
+      fields: destination.fields,
+      foreignKeys: destination.foreignKeys
+    },
+    {
+      id: invariants.id,
+      x: invariants.x,
+      y: invariants.y,
+      width: invariants.width,
+      height: invariants.height,
+      expandedHeight: invariants.expandedHeight,
+      collapsed: invariants.collapsed,
+      entitySchema: invariants.entitySchema,
+      entityName: invariants.entityName,
+      sourceText: invariants.sourceText,
+      fields: invariants.fields,
+      foreignKeys: invariants.foreignKeys
+    }
+  );
 });
 
 test("mismatched template formatting pairs by type, reuses the last available style, and skips locks", () => {
@@ -1404,92 +3011,167 @@ test("persisted groups resolve from the initially selected image", () => {
   assert.deepEqual(annotationSelectionIdsForObject(objects, objects[2]), ["text"]);
 });
 
-test("object and group resize stays proportional and Ctrl anchors it at the center", () => {
+test("corner handles resize proportionally while side handles resize one axis", () => {
   const start = { x: 10, y: 20, width: 100, height: 50 };
   const state = { snapToGrid: false, gridSize: 20 };
   const edgeResize = resizedAnnotationBounds(start, "e", { x: 160, y: 45 }, state);
-  assert.deepEqual(edgeResize, { x: 10, y: 7.5, width: 150, height: 75 });
-  assert.equal(edgeResize.width / edgeResize.height, 2);
+  assert.deepEqual(edgeResize, { x: 10, y: 20, width: 150, height: 50 });
+
+  const topResize = resizedAnnotationBounds(start, "n", { x: 60, y: 5 }, state);
+  assert.deepEqual(topResize, { x: 10, y: 5, width: 100, height: 65 });
 
   const cornerResize = resizedAnnotationBounds(start, "se", { x: 160, y: 120 }, state);
   assert.deepEqual(cornerResize, { x: 10, y: 20, width: 200, height: 100 });
   assert.equal(cornerResize.width / cornerResize.height, 2);
 
   const centered = resizedAnnotationBounds(start, "e", { x: 160, y: 45 }, state, true);
-  assert.deepEqual(centered, { x: -40, y: -5, width: 200, height: 100 });
+  assert.deepEqual(centered, { x: -40, y: 20, width: 200, height: 50 });
   assert.equal(centered.x + (centered.width / 2), start.x + (start.width / 2));
   assert.equal(centered.y + (centered.height / 2), start.y + (start.height / 2));
 });
 
-test("Alt freeforms only a standalone rectangle and follows live Alt and Ctrl state", () => {
+test("side resizing preserves text size and corner resizing scales text proportionally", () => {
   const startBounds = { x: 10, y: 20, width: 100, height: 50 };
+  const base = { x: 10, y: 20, width: 100, height: 50, groupId: "" };
+
+  for (const type of ["rectangle", "image", "embedded-image", "textbox", "entity"]) {
+    const original = {
+      ...base,
+      id: type,
+      type,
+      ...(["textbox", "entity"].includes(type) ? { fontSize: 20 } : {}),
+      ...(type === "entity" ? { expandedHeight: 50, collapsed: false } : {})
+    };
+    const edgeState = { snapToGrid: false, gridSize: 20, objects: [structuredClone(original)] };
+    resizeAnnotationObjects(edgeState, {
+      startBounds,
+      direction: "e",
+      originals: [structuredClone(original)],
+      startImageClip: null
+    }, { x: 160, y: 45 });
+    assert.deepEqual(
+      annotationSelectionBounds(edgeState.objects),
+      { x: 10, y: 20, width: 150, height: 50 },
+      `${type} side resize should change only width`
+    );
+    if (["textbox", "entity"].includes(type)) {
+      assert.equal(edgeState.objects[0].fontSize, 20, `${type} side resize must preserve text size`);
+    }
+
+    const cornerState = { snapToGrid: false, gridSize: 20, objects: [structuredClone(original)] };
+    resizeAnnotationObjects(cornerState, {
+      startBounds,
+      direction: "se",
+      originals: [structuredClone(original)],
+      startImageClip: null
+    }, { x: 160, y: 120 });
+    assert.deepEqual(
+      annotationSelectionBounds(cornerState.objects),
+      { x: 10, y: 20, width: 200, height: 100 },
+      `${type} corner resize should remain proportional`
+    );
+    if (["textbox", "entity"].includes(type)) {
+      assert.equal(cornerState.objects[0].fontSize, 40, `${type} corner resize should scale text`);
+    }
+  }
+
+  const groupedObjects = [
+    { ...base, id: "group-a", type: "rectangle", width: 40, height: 20, groupId: "group" },
+    { ...base, id: "group-b", type: "rectangle", x: 70, y: 40, width: 40, height: 30, groupId: "group" }
+  ];
+  const groupedState = { snapToGrid: false, gridSize: 20, objects: structuredClone(groupedObjects) };
+  resizeAnnotationObjects(groupedState, {
+    startBounds,
+    direction: "e",
+    originals: structuredClone(groupedObjects),
+    startImageClip: null
+  }, { x: 160, y: 45 });
+  const groupedBounds = annotationSelectionBounds(groupedState.objects);
+  assert.deepEqual(groupedBounds, { x: 10, y: 20, width: 150, height: 50 });
+});
+
+test("side resizing a selection keeps contained arrows proportional", () => {
+  const startBounds = { x: 10, y: 20, width: 100, height: 50 };
+  const arrow = {
+    id: "group-arrow",
+    type: "arrow",
+    x1: 20,
+    y1: 30,
+    x2: 100,
+    y2: 60,
+    strokeWidth: 4,
+    arrowSize: 10,
+    groupId: "group"
+  };
   const rectangle = {
-    id: "rectangle",
+    id: "group-rectangle",
     type: "rectangle",
     x: 10,
     y: 20,
     width: 100,
     height: 50,
-    groupId: ""
+    groupId: "group"
   };
   const state = {
-    snapToGrid: true,
+    snapToGrid: false,
     gridSize: 20,
-    objects: [structuredClone(rectangle)]
+    objects: [structuredClone(rectangle), structuredClone(arrow)]
   };
-  const gesture = {
+
+  resizeAnnotationObjects(state, {
     startBounds,
-    direction: "se",
-    originals: [structuredClone(rectangle)],
+    direction: "e",
+    originals: [structuredClone(rectangle), structuredClone(arrow)],
     startImageClip: null
+  }, { x: 160, y: 45 });
+
+  const resizedArrow = state.objects.find(object => object.type === "arrow");
+  assert.equal(resizedArrow.x2 - resizedArrow.x1, arrow.x2 - arrow.x1);
+  assert.equal(resizedArrow.y2 - resizedArrow.y1, arrow.y2 - arrow.y1);
+  assert.equal((resizedArrow.x1 + resizedArrow.x2) / 2, 85);
+  assert.equal((resizedArrow.y1 + resizedArrow.y2) / 2, 45);
+  assert.equal(resizedArrow.strokeWidth, arrow.strokeWidth);
+  assert.equal(resizedArrow.arrowSize, arrow.arrowSize);
+});
+
+test("Entity side resizing keeps the PK/FK column fixed and gives width to field names", () => {
+  const state = normalizeAnnotationState({
+    width: 1600,
+    height: 1200,
+    includeOriginalImage: false,
+    objects: [entityObject(
+      parseAnnotationEntityDefinition(workTasksCreateTableSql),
+      "entity-resize",
+      40,
+      80,
+      { showDataTypes: true }
+    )]
+  });
+  const entity = state.objects[0];
+  const original = structuredClone(entity);
+  const clipWidth = (svg, name) => {
+    const match = svg.match(new RegExp(`id="pmt-annotation-entity-clip-entity-resize-${name}"><rect[^>]*width="([^"]+)"`));
+    assert.ok(match, `${name} clip should render`);
+    return Number(match[1]);
   };
+  const beforeSvg = buildAnnotationSvg(state, "");
+  const beforeKeyWidth = clipWidth(beforeSvg, "keys");
+  const beforeFieldWidth = clipWidth(beforeSvg, "fields");
 
-  resizeAnnotationObjects(state, gesture, { x: 153, y: 111 }, false, true);
-  assert.deepEqual(
-    { x: state.objects[0].x, y: state.objects[0].y, width: state.objects[0].width, height: state.objects[0].height },
-    { x: 10, y: 20, width: 150, height: 100 }
-  );
-  assert.deepEqual(
-    { x: state.objects[0].x + state.objects[0].width, y: state.objects[0].y + state.objects[0].height },
-    { x: 160, y: 120 }
-  );
+  resizeAnnotationObjects(state, {
+    startBounds: annotationSelectionBounds([entity]),
+    direction: "e",
+    originals: [original],
+    startImageClip: null
+  }, { x: original.x + original.width + 180, y: original.y + (original.height / 2) });
 
-  resizeAnnotationObjects(state, gesture, { x: 153, y: 111 }, false, false);
-  assert.deepEqual(
-    { x: state.objects[0].x, y: state.objects[0].y, width: state.objects[0].width, height: state.objects[0].height },
-    { x: 10, y: 20, width: 200, height: 100 }
-  );
-
-  resizeAnnotationObjects(state, gesture, { x: 153, y: 111 }, true, true);
-  assert.deepEqual(
-    { x: state.objects[0].x, y: state.objects[0].y, width: state.objects[0].width, height: state.objects[0].height },
-    { x: -40, y: -30, width: 200, height: 150 }
-  );
-  assert.equal(state.objects[0].x + (state.objects[0].width / 2), 60);
-  assert.equal(state.objects[0].y + (state.objects[0].height / 2), 45);
-
-  for (const type of ["image", "textbox", "arrow"]) {
-    const original = type === "arrow"
-      ? { ...rectangle, id: type, type, x1: 10, y1: 20, x2: 110, y2: 70 }
-      : { ...rectangle, id: type, type };
-    const restrictedState = { snapToGrid: false, gridSize: 20, objects: [structuredClone(original)] };
-    resizeAnnotationObjects(restrictedState, { ...gesture, originals: [structuredClone(original)] }, { x: 160, y: 120 }, false, true);
-    const resized = annotationSelectionBounds(restrictedState.objects);
-    assert.equal(resized.width / resized.height, 2, `${type} must remain proportional`);
-  }
-
-  const groupedObjects = [
-    { ...rectangle, id: "group-a", width: 40, height: 20, groupId: "group" },
-    { ...rectangle, id: "group-b", x: 70, y: 40, width: 40, height: 30, groupId: "group" }
-  ];
-  const groupedState = { snapToGrid: false, gridSize: 20, objects: structuredClone(groupedObjects) };
-  resizeAnnotationObjects(groupedState, {
-    ...gesture,
-    originals: structuredClone(groupedObjects)
-  }, { x: 160, y: 120 }, false, true);
-  const groupedBounds = annotationSelectionBounds(groupedState.objects);
-  assert.equal(groupedBounds.width / groupedBounds.height, 2);
-  assert.deepEqual(groupedBounds, { x: 10, y: 20, width: 200, height: 100 });
+  assert.equal(entity.width, original.width + 180);
+  assert.equal(entity.height, original.height);
+  assert.equal(entity.fontSize, original.fontSize);
+  assert.equal(entity.expandedHeight, original.expandedHeight);
+  const afterSvg = buildAnnotationSvg(state, "");
+  assert.equal(clipWidth(afterSvg, "keys"), beforeKeyWidth);
+  assert.equal(clipWidth(afterSvg, "fields"), beforeFieldWidth + 180);
 });
 
 test("temporary workspace is centered while exported SVG trims to image and annotation paint", () => {
@@ -1709,4 +3391,83 @@ test("selection bounds cover grouped geometry and layer commands preserve select
   assert.deepEqual(objects.map(object => object.id), ["image", "a", "b", "c"]);
   moveAnnotationLayers(objects, new Set(["image"]), "front");
   assert.deepEqual(objects.map(object => object.id), ["image", "a", "b", "c"]);
+});
+
+test("reopening, editing, and applying an inline Diagram preserves Unicode Entity SQL metadata", async () => {
+  const svg = buildAnnotationSvg({
+    width: 800,
+    height: 600,
+    includeOriginalImage: false,
+    objects: [{
+      id: "entity-private",
+      type: "entity",
+      x: 20,
+      y: 30,
+      width: 320,
+      height: 180,
+      entitySchema: "pmt",
+      entityName: "PrivateNotes",
+      sourceText: "CREATE TABLE pmt.PrivateNotes (Title nvarchar(220)); -- 私密",
+      fields: [{ name: "Title", dataType: "nvarchar(220)", nullable: false }]
+    }]
+  }, "");
+
+  const dataUrl = annotationSvgDataUrl(svg);
+  assert.match(dataUrl, /^data:image\/svg\+xml;base64,/);
+
+  const response = await fetch(dataUrl, { cache: "no-store", credentials: "same-origin" });
+  assert.equal(response.ok, true);
+  assert.equal(response.headers.get("content-type"), "image/svg+xml");
+  const restoredSvg = await response.text();
+  assert.equal(restoredSvg, svg);
+  const reopened = parseAnnotationSvg(restoredSvg);
+  assert.equal(
+    reopened.objects[0].sourceText,
+    "CREATE TABLE pmt.PrivateNotes (Title nvarchar(220)); -- 私密"
+  );
+
+  reopened.objects[0].fields.push({
+    name: "Description",
+    dataType: "nvarchar(max)",
+    nullable: true
+  });
+  const editedDataUrl = annotationSvgDataUrl(buildAnnotationSvg(reopened, ""));
+  const editedResponse = await fetch(editedDataUrl, { cache: "no-store", credentials: "same-origin" });
+  const reapplied = parseAnnotationSvg(await editedResponse.text());
+
+  assert.equal(reapplied.objects[0].sourceText, reopened.objects[0].sourceText);
+  assert.deepEqual(
+    reapplied.objects[0].fields.map(field => field.name),
+    ["Title", "Description"]
+  );
+});
+
+test("saving a Diagram keeps its SVG inside one private Document write", async () => {
+  const appSource = await readFile(new URL("../../wwwroot/js/app.js", import.meta.url), "utf8");
+  const start = appSource.indexOf("async function saveDiagramAsDocument(diagram)");
+  const end = appSource.indexOf("\nasync function convertWorkItemToDocument", start);
+  const saveDiagram = appSource.slice(start, end);
+
+  assert.ok(start >= 0 && end > start, "saveDiagramAsDocument was not found");
+  assert.match(saveDiagram, /const diagramSource = annotationSvgDataUrl\(diagram\.svg\)/);
+  assert.match(saveDiagram, /src=\"\$\{escapeAttr\(diagramSource\)\}\"/);
+  assert.match(saveDiagram, /data-pmt-private-diagram=\"true\"/);
+  assert.match(saveDiagram, /isPrivate:\s*true/);
+  assert.doesNotMatch(saveDiagram, /uploadFile\s*\(/);
+  assert.equal((saveDiagram.match(/saveJson\s*\(/g) || []).length, 1);
+});
+
+test("editing a private Diagram keeps Apply inline while normal RTE annotations still upload", async () => {
+  const appSource = await readFile(new URL("../../wwwroot/js/app.js", import.meta.url), "utf8");
+  const start = appSource.indexOf("async function annotateRichTextImage(image)");
+  const end = appSource.indexOf("\nfunction detailField", start);
+  const annotateImage = appSource.slice(start, end);
+
+  assert.ok(start >= 0 && end > start, "annotateRichTextImage was not found");
+  assert.match(annotateImage, /image\.dataset\.pmtPrivateDiagram === \"true\"/);
+  assert.match(
+    annotateImage,
+    /if \(isPrivateDiagram\) \{\s*annotationSource = annotationSvgDataUrl\(annotation\.svg\);\s*\} else \{[\s\S]*uploadFile\("richtext", file\)/
+  );
+  assert.match(annotateImage, /image\.setAttribute\("src", annotationSource\)/);
 });
