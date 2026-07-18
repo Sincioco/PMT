@@ -139,6 +139,22 @@ BEGIN
 END;
 GO
 
+IF OBJECT_ID(N'[pmt].[ImageAnnotationDefaultTemplateLibraries]', N'U') IS NULL
+BEGIN
+    CREATE TABLE [pmt].[ImageAnnotationDefaultTemplateLibraries]
+    (
+        [DefaultLibraryId] TINYINT NOT NULL CONSTRAINT [PK_pmt_ImageAnnotationDefaultTemplateLibraries] PRIMARY KEY,
+        [LibraryJson] NVARCHAR(MAX) NOT NULL,
+        [CreatedAt] DATETIME2(0) NOT NULL CONSTRAINT [DF_pmt_ImageAnnotationDefaultTemplateLibraries_CreatedAt] DEFAULT (SYSUTCDATETIME()),
+        [UpdatedAt] DATETIME2(0) NOT NULL CONSTRAINT [DF_pmt_ImageAnnotationDefaultTemplateLibraries_UpdatedAt] DEFAULT (SYSUTCDATETIME()),
+        CONSTRAINT [CK_pmt_ImageAnnotationDefaultTemplateLibraries_Id] CHECK ([DefaultLibraryId] = 1),
+        CONSTRAINT [CK_pmt_ImageAnnotationDefaultTemplateLibraries_Json] CHECK (ISJSON([LibraryJson]) = 1),
+        CONSTRAINT [CK_pmt_ImageAnnotationDefaultTemplateLibraries_Version] CHECK (TRY_CONVERT(INT, JSON_VALUE([LibraryJson], N'$.version')) = 1),
+        CONSTRAINT [CK_pmt_ImageAnnotationDefaultTemplateLibraries_Size] CHECK (DATALENGTH([LibraryJson]) <= 104857600)
+    );
+END;
+GO
+
 IF OBJECT_ID(N'[pmt].[WfhSchedules]', N'U') IS NULL
 BEGIN
     CREATE TABLE [pmt].[WfhSchedules]

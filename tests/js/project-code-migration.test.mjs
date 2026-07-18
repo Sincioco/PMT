@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import test from "node:test";
 
@@ -10,6 +11,12 @@ const sourceProcedures = read("../../SQL/02_CreateStoredProcedures.sql");
 const sourceSeed = read("../../SQL/03_SeedData.sql");
 const pmtSeed = read("../../SQL/03_SeedData_PMT.sql");
 const developmentStore = read("../../Data/SqlPmtStore.Development.cs");
+const createDatabase = read("../../SQL/01_CreateDatabase.sql");
+const imageAnnotationSeed = read("../../SQL/03_SeedData_ImageAnnotationTemplates.sql");
+const imageAnnotationStore = read("../../Data/SqlPmtStore.ImageAnnotation.cs");
+const imageAnnotationEndpoints = read("../../Endpoints/ImageAnnotationEndpoints.cs");
+const rebuildScript = read("../../SQL/00_DropAndRebuild_PMT.sql");
+const projectFile = read("../../PMT.csproj");
 
 test("Version 1.20 contains a one-time PMT-only legacy child-code repair", () => {
   const versionGuard = migration.indexOf("IF @DatabaseVersion = N'1.19'");
@@ -128,6 +135,47 @@ test("Version 1.23 provides the requested one-file combined SQLCMD runner", () =
   assert.match(demoMigrationRunner, /:r "\.\\PMT_1\.22_to_1\.23\.sql"/);
 });
 
+test("shared annotation defaults stay identical in fresh installs and the 1.22 to 1.23 migration", () => {
+  const seedJson = sqlJsonLiteral(imageAnnotationSeed, "LibraryJson");
+  const migrationJson = sqlJsonLiteral(demoMigration, "DefaultImageAnnotationTemplateLibraryJson");
+  const library = JSON.parse(seedJson);
+  const expectedNames = [
+    "Normal Text",
+    "Green Arrow",
+    "Green Highlight",
+    "Green Box with Text",
+    "Green Caption",
+    "Orange Arrow",
+    "Orange Box",
+    "Orange Box with Text",
+    "Orange Caption",
+    "Red Arrow",
+    "Red Box",
+    "Red Box and Text",
+    "Red Caption"
+  ];
+
+  assert.equal(migrationJson, seedJson);
+  assert.equal(seedJson.length, 7362);
+  assert.equal(
+    createHash("sha256").update(Buffer.from(seedJson, "utf16le")).digest("hex").toUpperCase(),
+    "C3753FBAC848B93BD44F1ECA730B69553E06ED3C1E403238338069ED3FA6923A"
+  );
+  assert.equal(library.version, 1);
+  assert.deepEqual(library.templates.map(template => template.name), expectedNames);
+  assert.match(createDatabase, /CREATE TABLE \[pmt\]\.\[ImageAnnotationDefaultTemplateLibraries\]/);
+  assert.match(sourceProcedures, /CREATE OR ALTER PROCEDURE \[pmt\]\.\[GetImageAnnotationDefaultTemplateLibrary\]/);
+  assert.match(sourceProcedures, /COALESCE[\s\S]+\[pmt\]\.\[UserImageAnnotationTemplateLibraries\][\s\S]+\[pmt\]\.\[ImageAnnotationDefaultTemplateLibraries\]/);
+  assert.match(imageAnnotationStore, /GetImageAnnotationDefaultTemplateLibraryAsync/);
+  assert.match(imageAnnotationEndpoints, /\/api\/image-annotation\/default-template-library/);
+  assert.match(imageAnnotationEndpoints, /ExplicitCurrentUserId\(context\)/);
+  assert.match(developmentStore, /03_SeedData_ImageAnnotationTemplates\.sql/);
+  assert.match(developmentStore, /var paths = scriptPaths\.ToArray\(\);[\s\S]+FirstOrDefault\(path => !File\.Exists\(path\)\)[\s\S]+foreach \(var scriptPath in paths\)/);
+  assert.match(projectFile, /03_SeedData_ImageAnnotationTemplates\.sql/);
+  assert.match(sourceSeed, /DELETE FROM \[pmt\]\.\[UserImageAnnotationTemplateLibraries\]/);
+  assert.match(rebuildScript, /03_SeedData_ImageAnnotationTemplates\.sql/);
+});
+
 test("the released Version 1.19 recovery uses one ordered SQLCMD runner", () => {
   const expectedSteps = [
     "PMT_1.19_to_1.20.sql",
@@ -161,6 +209,12 @@ test("historical combined migration runners resolve every SQLCMD include", () =>
 
 function read(relativePath) {
   return readFileSync(new URL(relativePath, import.meta.url), "utf8");
+}
+
+function sqlJsonLiteral(sql, variableName) {
+  const match = sql.match(new RegExp(`DECLARE @${variableName} NVARCHAR\\(MAX\\) = N'(\\{.*\\})';`));
+  assert.ok(match, `${variableName} JSON literal was not found.`);
+  return match[1].replaceAll("''", "'");
 }
 
 function procedureBody(sql, name) {

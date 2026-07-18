@@ -4,8 +4,8 @@ import { avatarsHtml, taskRowAvatarsHtml } from "./components/avatars.js?v=20260
 import { bindAttachmentDeletion } from "./components/attachments.js?v=20260714-attachment-delete";
 import { buttonContent } from "./components/buttons.js?v=20260715-admin-impersonation";
 import { copyTextToClipboard } from "./components/clipboard.js?v=20260714-invite-email-body";
-import { openImageAnnotationDialog } from "./components/image-annotation.js?v=20260718-day30-annotation-v11";
-import { createWhatsNew } from "./components/whats-new.js?v=release-notes-2026-07-17-day-30-35c4aa65c202";
+import { openImageAnnotationDialog } from "./components/image-annotation.js?v=20260718-day31-annotation-v1";
+import { createWhatsNew } from "./components/whats-new.js?v=release-notes-2026-07-18-day-31-fb8032719c56";
 import {
   htmlWithoutUserMentionMarkup,
   initializeUserMentions
@@ -31,7 +31,7 @@ import {
   showTaskAudit,
   viewWorkItem
 } from "./components/work-items.js?v=20260716-dialog-route-close";
-import { createApplicationShell } from "./core/application-shell.js?v=release-notes-2026-07-17-day-30-35c4aa65c202";
+import { createApplicationShell } from "./core/application-shell.js?v=release-notes-2026-07-18-day-31-fb8032719c56";
 import {
   currentView,
   ensureCurrentViewRoute,
@@ -40,44 +40,44 @@ import {
   routeForContent,
   routeForView,
   updateBrowserUrl
-} from "./core/router.js?v=release-notes-2026-07-17-day-30-35c4aa65c202";
+} from "./core/router.js?v=release-notes-2026-07-18-day-31-fb8032719c56";
 import {
   registeredScreenHandlers,
   registerScreen,
   screenHandlerFor,
   screenRegistry
-} from "./core/screen-registry.js?v=release-notes-2026-07-17-day-30-35c4aa65c202";
+} from "./core/screen-registry.js?v=release-notes-2026-07-18-day-31-fb8032719c56";
 import {
   preferenceKeys,
   readBooleanPreference,
   writePreference
-} from "./core/preferences.js?v=release-notes-2026-07-17-day-30-35c4aa65c202";
+} from "./core/preferences.js?v=release-notes-2026-07-18-day-31-fb8032719c56";
 import { state } from "./core/store.js";
 import { appUrl, storageUrl } from "./shared/app-urls.js";
 import {
   createAboutFeature,
   createAboutScreenSaver
 } from "./features/about/about.js?v=20260716-db-v122";
-import { createBacklogFeature } from "./features/backlog/backlog.js?v=release-notes-2026-07-17-day-30-35c4aa65c202";
-import { createBoardFeature } from "./features/board/board.js?v=release-notes-2026-07-17-day-30-35c4aa65c202";
-import { createBugsFeature } from "./features/bugs/bugs.js?v=release-notes-2026-07-17-day-30-35c4aa65c202";
-import { createDashboardFeature } from "./features/dashboard/dashboard.js?v=release-notes-2026-07-17-day-30-35c4aa65c202";
-import { createDocumentationFeature } from "./features/documentation/documentation.js?v=release-notes-2026-07-17-day-30-35c4aa65c202";
+import { createBacklogFeature } from "./features/backlog/backlog.js?v=release-notes-2026-07-18-day-31-fb8032719c56";
+import { createBoardFeature } from "./features/board/board.js?v=release-notes-2026-07-18-day-31-fb8032719c56";
+import { createBugsFeature } from "./features/bugs/bugs.js?v=release-notes-2026-07-18-day-31-fb8032719c56";
+import { createDashboardFeature } from "./features/dashboard/dashboard.js?v=release-notes-2026-07-18-day-31-fb8032719c56";
+import { createDocumentationFeature } from "./features/documentation/documentation.js?v=release-notes-2026-07-18-day-31-fb8032719c56";
 import {
   createGanttFeature,
   currentSprintForProject,
   ganttStartDate
-} from "./features/gantt/gantt.js?v=release-notes-2026-07-17-day-30-35c4aa65c202";
+} from "./features/gantt/gantt.js?v=release-notes-2026-07-18-day-31-fb8032719c56";
 import { createInvitationsFeature } from "./features/invitations/invitations.js?v=20260715-admin-impersonation";
-import { createProjectsFeature } from "./features/projects/projects.js?v=release-notes-2026-07-17-day-30-35c4aa65c202";
-import { createReleaseNotesFeature } from "./features/release-notes/release-notes.js?v=release-notes-2026-07-17-day-30-35c4aa65c202";
-import { createRoadMapFeature } from "./features/roadmap/roadmap.js?v=release-notes-2026-07-17-day-30-35c4aa65c202";
-import { createLogFeature } from "./features/personal-log/log.js?v=release-notes-2026-07-17-day-30-35c4aa65c202";
-import { createScrumFeature } from "./features/scrum/scrum.js?v=release-notes-2026-07-17-day-30-35c4aa65c202";
-import { createSettingsFeature } from "./features/settings/settings.js?v=release-notes-2026-07-17-day-30-35c4aa65c202";
-import { createSprintsFeature } from "./features/sprints/sprints.js?v=release-notes-2026-07-17-day-30-35c4aa65c202";
-import { createTasksFeature } from "./features/tasks/tasks.js?v=release-notes-2026-07-17-day-30-35c4aa65c202";
-import { createWfhScheduleFeature } from "./features/wfh-schedule/wfh-schedule.js?v=release-notes-2026-07-17-day-30-35c4aa65c202";
+import { createProjectsFeature } from "./features/projects/projects.js?v=release-notes-2026-07-18-day-31-fb8032719c56";
+import { createReleaseNotesFeature } from "./features/release-notes/release-notes.js?v=release-notes-2026-07-18-day-31-fb8032719c56";
+import { createRoadMapFeature } from "./features/roadmap/roadmap.js?v=release-notes-2026-07-18-day-31-fb8032719c56";
+import { createLogFeature } from "./features/personal-log/log.js?v=release-notes-2026-07-18-day-31-fb8032719c56";
+import { createScrumFeature } from "./features/scrum/scrum.js?v=release-notes-2026-07-18-day-31-fb8032719c56";
+import { createSettingsFeature } from "./features/settings/settings.js?v=release-notes-2026-07-18-day-31-fb8032719c56";
+import { createSprintsFeature } from "./features/sprints/sprints.js?v=release-notes-2026-07-18-day-31-fb8032719c56";
+import { createTasksFeature } from "./features/tasks/tasks.js?v=release-notes-2026-07-18-day-31-fb8032719c56";
+import { createWfhScheduleFeature } from "./features/wfh-schedule/wfh-schedule.js?v=release-notes-2026-07-18-day-31-fb8032719c56";
 import {
   fallbackEnvironments,
   fallbackForLookup,
@@ -2016,6 +2016,7 @@ async function annotateRichTextImage(image) {
       confirm: askYesNo,
       notify: showToast,
       loadTemplateLibrary: () => api("/api/image-annotation/template-library", { cache: "no-store" }),
+      loadDefaultTemplateLibrary: () => api("/api/image-annotation/default-template-library", { cache: "no-store" }),
       saveTemplateLibrary: library => saveJson("/api/image-annotation/template-library", "PUT", library),
       apply: async annotation => {
         if (!image.isConnected) throw new Error("The rich-text editor is no longer open.");

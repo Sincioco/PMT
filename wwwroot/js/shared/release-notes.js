@@ -1,4 +1,4 @@
-import { releaseNotes as generatedReleaseNotes } from "./release-notes-data.js?v=release-notes-2026-07-17-day-30-35c4aa65c202";
+import { releaseNotes as generatedReleaseNotes } from "./release-notes-data.js?v=release-notes-2026-07-18-day-31-fb8032719c56";
 import { appUrl } from "./app-urls.js";
 
 export let releaseNotes = generatedReleaseNotes;

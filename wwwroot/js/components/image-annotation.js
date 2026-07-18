@@ -27,6 +27,22 @@ const defaultStyles = {
   strokeWidth: 4,
   arrowSize: 24
 };
+const annotationTemplateStyleFields = {
+  arrow: ["stroke", "strokeWidth", "arrowSize", "opacity"],
+  rectangle: ["fill", "stroke", "outlineVisible", "strokeWidth", "opacity"],
+  textbox: [
+    "fill",
+    "stroke",
+    "outlineVisible",
+    "strokeWidth",
+    "opacity",
+    "textColor",
+    "fontFamily",
+    "fontSize",
+    "textAlign",
+    "textVerticalAlign"
+  ]
+};
 
 export async function openImageAnnotationDialog(options) {
   const originalReference = String(options?.originalReference || "").trim();
@@ -64,6 +80,7 @@ export async function openImageAnnotationDialog(options) {
     askForText: options?.askForText,
     confirm: options?.confirm,
     notify: options?.notify,
+    loadDefaultTemplateLibrary: options?.loadDefaultTemplateLibrary,
     saveTemplateLibrary: options?.saveTemplateLibrary,
     templateLibrary,
     templateLibraryError,
@@ -234,6 +251,76 @@ export function normalizeAnnotationTemplateLibrary(input) {
   };
 }
 
+export function restoreAnnotationDefaultTemplates(inputLibrary, inputDefaults) {
+  const library = normalizeAnnotationTemplateLibrary(inputLibrary);
+  const defaults = normalizeAnnotationTemplateLibrary(inputDefaults);
+  const signatures = new Set(library.templates.map(annotationTemplateSignature));
+  const missing = [];
+  defaults.templates.forEach(template => {
+    const signature = annotationTemplateSignature(template);
+    if (signatures.has(signature)) return;
+    signatures.add(signature);
+    missing.push(template);
+  });
+
+  if (library.templates.length + missing.length > maximumAnnotationTemplates) {
+    return {
+      library,
+      addedCount: 0,
+      missingCount: missing.length,
+      requiredSlots: library.templates.length + missing.length - maximumAnnotationTemplates,
+      capacityExceeded: true
+    };
+  }
+
+  const usedIds = new Set(library.templates.map(template => template.id));
+  const restored = missing.map(template => {
+    const copy = deepCopy(template);
+    copy.id = uniqueRestoredTemplateId(copy.id, usedIds);
+    usedIds.add(copy.id);
+    return copy;
+  });
+
+  return {
+    library: {
+      ...library,
+      templates: [...restored, ...library.templates]
+    },
+    addedCount: restored.length,
+    missingCount: restored.length,
+    requiredSlots: 0,
+    capacityExceeded: false
+  };
+}
+
+function annotationTemplateSignature(template) {
+  const normalized = normalizeAnnotationTemplate(template);
+  if (!normalized) return "";
+  return JSON.stringify({
+    name: normalized.name,
+    grouped: normalized.grouped,
+    groupName: normalized.groupName,
+    width: normalized.width,
+    height: normalized.height,
+    objects: normalized.objects.map(object => {
+      const { id, groupId, locked, ...definition } = object;
+      return definition;
+    })
+  });
+}
+
+function uniqueRestoredTemplateId(templateId, usedIds) {
+  if (!usedIds.has(templateId)) return templateId;
+  const base = `${String(templateId || "template").slice(0, 108)}-default`;
+  let candidate = base;
+  let suffix = 2;
+  while (usedIds.has(candidate)) {
+    candidate = `${base.slice(0, 116 - String(suffix).length)}-${suffix}`;
+    suffix += 1;
+  }
+  return candidate;
+}
+
 export function captureAnnotationTemplate(inputState, selectedObjectIds, originalDataUrl, name = "Template") {
   const state = normalizeAnnotationState(inputState);
   const ids = new Set(
@@ -290,6 +377,94 @@ export function instantiateAnnotationTemplate(templateInput, center, idFactory =
   });
   translateAllAnnotationObjects(objects, offsetX, offsetY);
   return objects;
+}
+
+function annotationTemplateFormattingPlan(templateInput, destinationObjectsInput) {
+  const template = normalizeAnnotationTemplate(templateInput);
+  const destinations = Array.isArray(destinationObjectsInput)
+    ? destinationObjectsInput.filter(object => object && typeof object === "object")
+    : [];
+  const sources = template?.objects || [];
+  const structureMatches = destinations.length === sources.length
+    && destinations.every((object, index) => object.type === sources[index]?.type);
+  const sourcesByType = new Map();
+  sources.forEach(source => {
+    if (!annotationTemplateStyleFields[source.type]) return;
+    const matches = sourcesByType.get(source.type) || [];
+    matches.push(source);
+    sourcesByType.set(source.type, matches);
+  });
+
+  const typeIndexes = new Map();
+  const matches = [];
+  destinations.forEach((destination, index) => {
+    if (!annotationTemplateStyleFields[destination.type]) return;
+    let source = null;
+    if (structureMatches) {
+      source = sources[index];
+    } else {
+      const candidates = sourcesByType.get(destination.type) || [];
+      const typeIndex = typeIndexes.get(destination.type) || 0;
+      source = candidates[Math.min(typeIndex, Math.max(0, candidates.length - 1))] || null;
+      typeIndexes.set(destination.type, typeIndex + 1);
+    }
+    if (source?.type === destination.type) matches.push({ destination, source });
+  });
+
+  return {
+    structureMatches,
+    selectedCount: destinations.length,
+    matches,
+    editableMatchCount: matches.filter(match => !match.destination.locked).length
+  };
+}
+
+export function applyAnnotationTemplateFormatting(templateInput, destinationObjectsInput) {
+  const plan = annotationTemplateFormattingPlan(templateInput, destinationObjectsInput);
+  let appliedCount = 0;
+  let changedCount = 0;
+  let lockedCount = 0;
+  let geometryConstrainedCount = 0;
+
+  plan.matches.forEach(({ destination, source }) => {
+    if (destination.locked) {
+      lockedCount += 1;
+      return;
+    }
+    const fields = annotationTemplateStyleFields[destination.type];
+    const before = JSON.stringify(fields.map(field => destination[field]));
+    let geometryConstrained = false;
+
+    if (destination.type === "arrow") {
+      const requestedStrokeWidth = annotationArrowStrokeWidth(source);
+      const requestedArrowSize = annotationArrowRequestedHeadLength(source);
+      const length = Math.hypot(destination.x2 - destination.x1, destination.y2 - destination.y1);
+      const maximumHeadSpan = Math.max(minimumScaledArrowSize, (length * 0.8) - 0.000001);
+      const maximumStrokeWidth = Math.max(minimumScaledStrokeWidth, maximumHeadSpan / 1.5);
+      destination.stroke = source.stroke;
+      destination.strokeWidth = Math.min(requestedStrokeWidth, maximumStrokeWidth);
+      destination.arrowSize = Math.min(requestedArrowSize, maximumHeadSpan);
+      destination.opacity = source.opacity;
+      geometryConstrained = destination.strokeWidth !== requestedStrokeWidth
+        || destination.arrowSize !== requestedArrowSize;
+    } else {
+      fields.forEach(field => { destination[field] = source[field]; });
+    }
+
+    appliedCount += 1;
+    if (before !== JSON.stringify(fields.map(field => destination[field]))) changedCount += 1;
+    if (geometryConstrained) geometryConstrainedCount += 1;
+  });
+
+  return {
+    structureMatches: plan.structureMatches,
+    selectedCount: plan.selectedCount,
+    matchedCount: plan.matches.length,
+    appliedCount,
+    changedCount,
+    lockedCount,
+    geometryConstrainedCount
+  };
 }
 
 export function annotationWorkspaceBounds(inputState, viewportWidth = 0, viewportHeight = 0) {
@@ -410,6 +585,12 @@ export function reorderAnnotationObjectTree(inputState, move = {}) {
     ? move.targetKind
     : "root";
   const targetId = String(move.targetId || "");
+  const requestedPlacement = ["before", "after", "inside"].includes(move.targetPlacement)
+    ? move.targetPlacement
+    : targetKind === "group" ? "inside" : "before";
+  const targetPlacement = targetKind === "group" && requestedPlacement === "after"
+    ? "inside"
+    : requestedPlacement;
   const moving = draggedKind === "group"
     ? state.objects.filter(object => object.groupId === draggedId)
     : state.objects.filter(object => object.id === draggedId);
@@ -425,6 +606,9 @@ export function reorderAnnotationObjectTree(inputState, move = {}) {
     : targetKind === "object"
       ? targetObject?.groupId || ""
       : "";
+  const destinationGroupId = targetKind === "group" && targetPlacement !== "inside"
+    ? ""
+    : targetGroupId;
   if (targetKind === "group" && !state.objects.some(object => object.groupId === targetGroupId)) return state;
   if (targetKind === "object" && !targetObject) return state;
   if (targetObject && moving.some(object => object.id === targetObject.id)) return state;
@@ -432,9 +616,9 @@ export function reorderAnnotationObjectTree(inputState, move = {}) {
   const movingIds = new Set(moving.map(object => object.id));
   const sourceGroupId = draggedKind === "group" ? draggedId : moving[0].groupId;
   if (draggedKind === "object") {
-    moving[0].groupId = targetGroupId;
-  } else if (targetGroupId && targetGroupId !== draggedId) {
-    moving.forEach(object => { object.groupId = targetGroupId; });
+    moving[0].groupId = destinationGroupId;
+  } else if (destinationGroupId && destinationGroupId !== draggedId) {
+    moving.forEach(object => { object.groupId = destinationGroupId; });
     delete state.groupNames[draggedId];
   }
 
@@ -444,7 +628,9 @@ export function reorderAnnotationObjectTree(inputState, move = {}) {
   let insertionIndex = remainingLayers.length;
   if (targetKind === "object") {
     const targetIndex = remainingLayers.findIndex(object => object.id === targetId);
-    insertionIndex = targetIndex < 0 ? 0 : targetIndex + 1;
+    insertionIndex = targetIndex < 0
+      ? 0
+      : targetIndex + (targetPlacement === "after" ? 0 : 1);
   } else if (targetKind === "group") {
     const groupIndexes = remainingLayers
       .map((object, index) => object.groupId === targetGroupId ? index : -1)
@@ -455,7 +641,7 @@ export function reorderAnnotationObjectTree(inputState, move = {}) {
   state.objects = [...fixedImages, ...remainingLayers];
   compactAnnotationGroupLayers(state.objects);
 
-  if (draggedKind === "object" && sourceGroupId && sourceGroupId !== targetGroupId
+  if (draggedKind === "object" && sourceGroupId && sourceGroupId !== destinationGroupId
     && !state.objects.some(object => object.groupId === sourceGroupId)) {
     delete state.groupNames[sourceGroupId];
   }
@@ -627,6 +813,7 @@ function createAnnotationDialog(context) {
     let templateBusy = false;
     const templateLibraryAvailable = !context.templateLibraryError
       && typeof context.saveTemplateLibrary === "function";
+    const defaultTemplateLibraryAvailable = typeof context.loadDefaultTemplateLibrary === "function";
     let activeInspectorTab = "format";
     let nativeClipboard = null;
     let pasteSequence = 0;
@@ -876,6 +1063,7 @@ function createAnnotationDialog(context) {
       if (resetRectangleDefault) resetRectangleDefault.disabled = !templateLibrary.defaults.rectangle || templateBusy || !templateLibraryAvailable;
       dialog.querySelectorAll("[data-annotation-template-action]").forEach(button => {
         button.disabled = templateBusy || !templateLibraryAvailable
+          || (button.dataset.annotationTemplateAction === "restore-defaults" && !defaultTemplateLibraryAvailable)
           || button.dataset.annotationTemplateBoundaryDisabled === "true";
       });
       const selectedTreeTarget = resolveSelectedTreeTarget();
@@ -1462,6 +1650,52 @@ function createAnnotationDialog(context) {
       }
     };
 
+    const restoreDefaultTemplates = async () => {
+      if (templateBusy) return false;
+      if (!templateLibraryAvailable || !defaultTemplateLibraryAvailable) {
+        const message = "Default template storage is unavailable. Your templates were not changed.";
+        if (templateStatus) templateStatus.textContent = message;
+        setStatus(message);
+        return false;
+      }
+
+      templateBusy = true;
+      if (templateStatus) templateStatus.textContent = "Checking default templates...";
+      syncControls();
+      try {
+        const defaults = await context.loadDefaultTemplateLibrary();
+        const restored = restoreAnnotationDefaultTemplates(templateLibrary, defaults);
+        if (restored.capacityExceeded) {
+          const message = `Restore needs ${restored.requiredSlots} more template slot${restored.requiredSlots === 1 ? "" : "s"}. Delete that many templates and try again.`;
+          if (templateStatus) templateStatus.textContent = message;
+          setStatus(message);
+          return false;
+        }
+        if (!restored.addedCount) {
+          const message = "All default templates are already in your library.";
+          if (templateStatus) templateStatus.textContent = message;
+          setStatus(message);
+          return true;
+        }
+
+        const saved = await context.saveTemplateLibrary(restored.library);
+        templateLibrary = normalizeAnnotationTemplateLibrary(saved || restored.library);
+        renderTemplateList();
+        const message = `${restored.addedCount} default template${restored.addedCount === 1 ? "" : "s"} restored at the top of your library.`;
+        if (templateStatus) templateStatus.textContent = message;
+        setStatus(message);
+        return true;
+      } catch (error) {
+        const message = error?.message || "The default templates could not be restored. Your templates were not changed.";
+        if (templateStatus) templateStatus.textContent = message;
+        setStatus(message);
+        return false;
+      } finally {
+        templateBusy = false;
+        syncControls();
+      }
+    };
+
     const askTemplateName = async (title, currentName) => {
       const value = typeof context.askForText === "function"
         ? await context.askForText("Template name", title, currentName)
@@ -1593,6 +1827,64 @@ function createAnnotationDialog(context) {
       renderWithWorkspaceExpansion();
       window.setTimeout(focusLastSelectedObject, 0);
       return objects;
+    };
+
+    const useTemplate = async template => {
+      const selection = selectedObjects();
+      if (!selection.length) {
+        const objects = insertTemplate(template);
+        if (objects.length) setStatus(`Template "${template.name}" added to the canvas.`);
+        return objects.length > 0;
+      }
+
+      const plan = annotationTemplateFormattingPlan(template, selection);
+      if (plan.matches.length && !plan.editableMatchCount) {
+        const message = "Unlock the selected objects before applying template formatting.";
+        if (templateStatus) templateStatus.textContent = message;
+        setStatus(message);
+        return false;
+      }
+      if (!plan.structureMatches) {
+        const message = `The selected objects do not have the same structure as the "${template.name}" template. Applying it may not produce the same result. PMT will match objects by type and apply the formatting it can without changing text or geometry.`;
+        const confirmed = typeof context.confirm === "function"
+          ? await context.confirm(message, "Apply Template Formatting", "Apply Formatting")
+          : window.confirm(message);
+        if (!confirmed) {
+          const canceledMessage = "Template formatting was not applied.";
+          if (templateStatus) templateStatus.textContent = canceledMessage;
+          setStatus(canceledMessage);
+          return false;
+        }
+      }
+
+      pushHistory();
+      const result = applyAnnotationTemplateFormatting(template, selection);
+      if (!result.appliedCount) {
+        const message = `Template "${template.name}" has no formatting compatible with the selected objects.`;
+        if (templateStatus) templateStatus.textContent = message;
+        setStatus(message);
+        return false;
+      }
+
+      if (result.changedCount) {
+        setTool("select");
+        pushHistory();
+        renderWithWorkspaceExpansion();
+        window.setTimeout(focusLastSelectedObject, 0);
+      }
+      const changedMessage = result.changedCount
+        ? `Template "${template.name}" formatting applied to ${result.appliedCount} selected object${result.appliedCount === 1 ? "" : "s"}.`
+        : `The selected objects already use the formatting from template "${template.name}".`;
+      const lockedMessage = result.lockedCount
+        ? ` ${result.lockedCount} locked object${result.lockedCount === 1 ? " was" : "s were"} left unchanged.`
+        : "";
+      const constrainedMessage = result.geometryConstrainedCount
+        ? " Some arrow formatting was limited to preserve the destination geometry."
+        : "";
+      const message = `${changedMessage}${lockedMessage}${constrainedMessage}`;
+      if (templateStatus) templateStatus.textContent = message;
+      setStatus(message);
+      return result.changedCount > 0;
     };
 
     const copyNativeSelection = () => {
@@ -1778,7 +2070,7 @@ function createAnnotationDialog(context) {
       return true;
     };
 
-    const moveTreeNode = (dragged, targetKind, targetId = "") => {
+    const moveTreeNode = (dragged, targetKind, targetId = "", targetPlacement = "before") => {
       if (!dragged) return false;
       const draggedObjectIds = treeNodeIds(dragged.kind, dragged.id);
       const before = annotationSnapshot(state, embeddedSources);
@@ -1786,7 +2078,8 @@ function createAnnotationDialog(context) {
         draggedKind: dragged.kind,
         draggedId: dragged.id,
         targetKind,
-        targetId
+        targetId,
+        targetPlacement
       });
       const after = annotationSnapshot(nextState, embeddedSources);
       if (before === after) return false;
@@ -1804,9 +2097,9 @@ function createAnnotationDialog(context) {
       pushHistory();
       setStatus(targetKind === "root"
         ? "Object moved to the top of the root. Canvas z-order updated."
-        : targetKind === "group"
+        : targetKind === "group" && targetPlacement === "inside"
           ? "Object moved to the top of the selected group. Canvas z-order updated."
-          : "Object moved directly above the target. Canvas z-order updated.");
+          : `Object moved directly ${targetPlacement === "after" ? "below" : "above"} the target. Canvas z-order updated.`);
       render();
       return true;
     };
@@ -1925,13 +2218,15 @@ function createAnnotationDialog(context) {
 
       const templateActionButton = event.target.closest("[data-annotation-template-action]");
       if (templateActionButton) {
+        const action = templateActionButton.dataset.annotationTemplateAction;
+        if (action === "restore-defaults") {
+          await restoreDefaultTemplates();
+          return;
+        }
         const templateId = templateActionButton.dataset.annotationTemplateId || "";
         const template = templateLibrary.templates.find(item => item.id === templateId);
-        const action = templateActionButton.dataset.annotationTemplateAction;
-        if (action === "create" && template) {
-          const objects = insertTemplate(template);
-          if (objects.length) setStatus(`Template “${template.name}” added to the canvas.`);
-        } else if (action === "rename") await renameTemplate(templateId);
+        if (action === "create" && template) await useTemplate(template);
+        else if (action === "rename") await renameTemplate(templateId);
         else if (action === "replace") await replaceTemplateFromSelection(templateId);
         else if (action === "delete") await deleteTemplate(templateId);
         else if (action === "up") await moveTemplate(templateId, -1);
@@ -1992,10 +2287,22 @@ function createAnnotationDialog(context) {
     dialog.addEventListener("pointerdown", event => {
       if (!contextMenu.hidden && !contextMenu.contains(event.target)) closeAnnotationContextMenu();
     });
-    const clearTreeDragStyles = () => {
-      dialog.querySelectorAll(".is-dragging, .is-drop-target").forEach(element => {
-        element.classList.remove("is-dragging", "is-drop-target");
+    const clearTreeDropStyles = () => {
+      dialog.querySelectorAll(".is-drop-target, .reorder-before, .reorder-after").forEach(element => {
+        element.classList.remove("is-drop-target", "reorder-before", "reorder-after");
       });
+    };
+    const clearTreeDragStyles = () => {
+      clearTreeDropStyles();
+      dialog.querySelectorAll(".is-dragging").forEach(element => element.classList.remove("is-dragging"));
+    };
+    const treeDropPlacement = (target, clientY) => {
+      if (target.dataset.annotationTreeKind === "object"
+        && state.objects.find(object => object.id === target.dataset.annotationTreeId)?.type === "image") {
+        return "before";
+      }
+      const bounds = target.getBoundingClientRect();
+      return clientY > bounds.top + (bounds.height / 2) ? "after" : "before";
     };
     dialog.addEventListener("dragstart", event => {
       const row = event.target.closest?.("[data-annotation-tree-node]");
@@ -2015,11 +2322,14 @@ function createAnnotationDialog(context) {
     });
     dialog.addEventListener("dragover", event => {
       if (!draggedTreeNode) return;
+      clearTreeDropStyles();
       const target = event.target.closest?.("[data-annotation-tree-node], [data-annotation-tree-root-drop]");
       if (!target) return;
       event.preventDefault();
-      dialog.querySelectorAll(".is-drop-target").forEach(element => element.classList.remove("is-drop-target"));
-      target.classList.add("is-drop-target");
+      const placement = target.matches("[data-annotation-tree-root-drop]")
+        ? "after"
+        : treeDropPlacement(target, event.clientY);
+      target.classList.add(`reorder-${placement}`);
       if (event.dataTransfer) event.dataTransfer.dropEffect = "move";
     });
     dialog.addEventListener("drop", event => {
@@ -2036,15 +2346,20 @@ function createAnnotationDialog(context) {
         }
         return;
       }
+      const placement = treeDropPlacement(target, event.clientY);
       moveTreeNode(
         dragged,
         target.dataset.annotationTreeKind,
-        target.dataset.annotationTreeId
+        target.dataset.annotationTreeId,
+        target.dataset.annotationTreeKind === "group" && placement === "after" ? "inside" : placement
       );
     });
     dialog.addEventListener("dragend", () => {
       draggedTreeNode = null;
       clearTreeDragStyles();
+    });
+    dialog.addEventListener("dragleave", event => {
+      if (!dialog.contains(event.relatedTarget)) clearTreeDropStyles();
     });
     contextMenu.addEventListener("contextmenu", event => event.preventDefault());
     window.addEventListener("resize", closeAnnotationContextMenu);
@@ -2397,8 +2712,9 @@ function annotationDialogHtml() {
           </div>
           <div id="imageAnnotationTemplatePanel" role="tabpanel" aria-labelledby="imageAnnotationTemplateTab" data-annotation-inspector-panel="template" hidden>
             <div class="image-annotation-template-actions">
-              <p>Save the current selection as a reusable, editable template for your PMT account.</p>
+              <p>With no selection, a template adds new objects. With a selection, it applies formatting only. You can also save personal templates or restore missing shared defaults.</p>
               <button type="button" class="primary" data-annotation-template-save>Save Selection as Template</button>
+              <button type="button" data-annotation-template-action="restore-defaults">Restore Default Templates</button>
             </div>
             <section class="image-annotation-format-section" aria-labelledby="imageAnnotationDrawingDefaults">
               <h4 id="imageAnnotationDrawingDefaults">Drawing defaults</h4>
@@ -2420,7 +2736,7 @@ function annotationDialogHtml() {
               <button type="button" data-annotation-tree-action="delete">Delete</button>
             </div>
             <label class="image-annotation-object-tree-search"><span>Search objects</span><input type="search" placeholder="Search objects" aria-label="Search objects" autocomplete="off" data-annotation-object-search data-annotation-object-tree-search data-annotation-tree-search></label>
-            <p class="image-annotation-object-tree-help">Top items appear in front. Drag a row to reorder it, drop it on a group to move it into that group, or drop it below to move it to the root.</p>
+            <p class="image-annotation-object-tree-help">Top items appear in front. The line shows where a dragged row will land. Drop above a group header to keep it at the root, or below the header to move it into that group.</p>
             <button type="button" class="image-annotation-object-tree-root-drop" data-annotation-tree-root-drop aria-label="Move selected object or group to the top of the root object list">Move to root (top)</button>
             <div class="image-annotation-object-tree" data-annotation-object-tree role="tree" tabindex="0" aria-label="Canvas objects, topmost first"></div>
           </div>
@@ -2537,7 +2853,7 @@ function annotationTemplateCardHtml(template, index, templateCount) {
   const downDisabled = index === templateCount - 1;
   return `
     <article class="image-annotation-template-card" data-annotation-template-card="${id}">
-      <button type="button" class="image-annotation-template-preview" data-annotation-template-action="create" data-annotation-template-id="${id}" aria-label="Insert ${name} template">
+      <button type="button" class="image-annotation-template-preview" data-annotation-template-action="create" data-annotation-template-id="${id}" aria-label="Use ${name} template">
         <img src="${preview}" alt="${name} template preview">
       </button>
       <strong title="${name}">${name}</strong>

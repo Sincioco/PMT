@@ -38,6 +38,7 @@ public sealed partial class SqlPmtStore
             Path.Combine(contentRootPath, "SQL", "01_CreateDatabase.sql"),
             Path.Combine(contentRootPath, "SQL", "02_CreateStoredProcedures.sql"),
             Path.Combine(contentRootPath, "SQL", "03_SeedData.sql"),
+            Path.Combine(contentRootPath, "SQL", "03_SeedData_ImageAnnotationTemplates.sql"),
             Path.Combine(contentRootPath, "SQL", "03_SeedData_PMT.sql"),
             Path.Combine(contentRootPath, "SQL", "03_SeedData_LMS.sql"),
             Path.Combine(contentRootPath, "SQL", "03_SeedData_HLS.sql")
@@ -94,13 +95,15 @@ public sealed partial class SqlPmtStore
         CancellationToken cancellationToken,
         SqlTransaction? transaction = null)
     {
-        foreach (var scriptPath in scriptPaths)
+        var paths = scriptPaths.ToArray();
+        var missingPath = paths.FirstOrDefault(path => !File.Exists(path));
+        if (missingPath is not null)
         {
-            if (!File.Exists(scriptPath))
-            {
-                throw new FileNotFoundException($"Seed script was not found: {scriptPath}");
-            }
+            throw new FileNotFoundException($"Seed script was not found: {missingPath}");
+        }
 
+        foreach (var scriptPath in paths)
+        {
             var script = await File.ReadAllTextAsync(scriptPath, cancellationToken);
             foreach (var batch in SplitSqlBatches(script))
             {

@@ -13,6 +13,7 @@
        - 01_CreateDatabase.sql
        - 02_CreateStoredProcedures.sql
        - 03_SeedData.sql
+       - 03_SeedData_ImageAnnotationTemplates.sql
        - 03_SeedData_PMT.sql
        - 03_SeedData_LMS.sql
        - 03_SeedData_HLS.sql
@@ -45,6 +46,9 @@ GO
 GO
 
 :r "D:\Project Management Tool (PMT)\SQL\03_SeedData.sql"
+GO
+
+:r "D:\Project Management Tool (PMT)\SQL\03_SeedData_ImageAnnotationTemplates.sql"
 GO
 
 :r "D:\Project Management Tool (PMT)\SQL\03_SeedData_PMT.sql"

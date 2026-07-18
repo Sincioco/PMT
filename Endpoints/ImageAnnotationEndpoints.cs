@@ -22,6 +22,13 @@ internal static class ImageAnnotationEndpoints
             return Results.Content(libraryJson, "application/json", Encoding.UTF8);
         });
 
+        app.MapGet("/api/image-annotation/default-template-library", async (HttpContext context, SqlPmtStore store, CancellationToken cancellationToken) =>
+        {
+            _ = ExplicitCurrentUserId(context);
+            var libraryJson = await store.GetImageAnnotationDefaultTemplateLibraryAsync(cancellationToken);
+            return Results.Content(libraryJson, "application/json", Encoding.UTF8);
+        });
+
         app.MapPut("/api/image-annotation/template-library", async (JsonElement library, HttpContext context, SqlPmtStore store, CancellationToken cancellationToken) =>
         {
             var libraryJson = ValidateLibrary(library);

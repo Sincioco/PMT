@@ -1274,12 +1274,34 @@ BEGIN
         THROW 50281, 'The image annotation template-library user was not found or is inactive.', 1;
     END;
 
-    SELECT [LibraryJson] = ISNULL
+    SELECT [LibraryJson] = COALESCE
     (
         (
             SELECT [LibraryJson]
             FROM [pmt].[UserImageAnnotationTemplateLibraries]
             WHERE [UserId] = @CurrentUserId
+        ),
+        (
+            SELECT [LibraryJson]
+            FROM [pmt].[ImageAnnotationDefaultTemplateLibraries]
+            WHERE [DefaultLibraryId] = 1
+        ),
+        N'{"version":1,"templates":[],"defaults":{"arrow":null,"rectangle":null}}'
+    );
+END;
+GO
+
+CREATE OR ALTER PROCEDURE [pmt].[GetImageAnnotationDefaultTemplateLibrary]
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    SELECT [LibraryJson] = ISNULL
+    (
+        (
+            SELECT [LibraryJson]
+            FROM [pmt].[ImageAnnotationDefaultTemplateLibraries]
+            WHERE [DefaultLibraryId] = 1
         ),
         N'{"version":1,"templates":[],"defaults":{"arrow":null,"rectangle":null}}'
     );

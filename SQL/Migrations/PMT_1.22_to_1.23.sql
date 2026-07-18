@@ -14,7 +14,7 @@
       removal of explicit attendance calendar entries.
     - Adds current-month vacation examples for shared PMT, LMS, and HLS demo
       members without replacing or overlapping an existing active plan.
-    - Adds a per-user, server-synchronized image-annotation template library
+    - Adds shared default and per-user image-annotation template libraries
       stored as versioned JSON without creating upload-folder assets.
 
     This canonical step is included by PMT_1.22_to_1.23_All.sql, the tested
@@ -209,6 +209,22 @@ BEGIN
 END;
 GO
 
+IF OBJECT_ID(N'[pmt].[ImageAnnotationDefaultTemplateLibraries]', N'U') IS NULL
+BEGIN
+    CREATE TABLE [pmt].[ImageAnnotationDefaultTemplateLibraries]
+    (
+        [DefaultLibraryId] TINYINT NOT NULL CONSTRAINT [PK_pmt_ImageAnnotationDefaultTemplateLibraries] PRIMARY KEY,
+        [LibraryJson] NVARCHAR(MAX) NOT NULL,
+        [CreatedAt] DATETIME2(0) NOT NULL CONSTRAINT [DF_pmt_ImageAnnotationDefaultTemplateLibraries_CreatedAt] DEFAULT (SYSUTCDATETIME()),
+        [UpdatedAt] DATETIME2(0) NOT NULL CONSTRAINT [DF_pmt_ImageAnnotationDefaultTemplateLibraries_UpdatedAt] DEFAULT (SYSUTCDATETIME()),
+        CONSTRAINT [CK_pmt_ImageAnnotationDefaultTemplateLibraries_Id] CHECK ([DefaultLibraryId] = 1),
+        CONSTRAINT [CK_pmt_ImageAnnotationDefaultTemplateLibraries_Json] CHECK (ISJSON([LibraryJson]) = 1),
+        CONSTRAINT [CK_pmt_ImageAnnotationDefaultTemplateLibraries_Version] CHECK (TRY_CONVERT(INT, JSON_VALUE([LibraryJson], N'$.version')) = 1),
+        CONSTRAINT [CK_pmt_ImageAnnotationDefaultTemplateLibraries_Size] CHECK (DATALENGTH([LibraryJson]) <= 104857600)
+    );
+END;
+GO
+
 CREATE OR ALTER PROCEDURE [pmt].[GetUserImageAnnotationTemplateLibrary]
     @CurrentUserId INT
 AS
@@ -226,12 +242,34 @@ BEGIN
         THROW 50281, 'The image annotation template-library user was not found or is inactive.', 1;
     END;
 
-    SELECT [LibraryJson] = ISNULL
+    SELECT [LibraryJson] = COALESCE
     (
         (
             SELECT [LibraryJson]
             FROM [pmt].[UserImageAnnotationTemplateLibraries]
             WHERE [UserId] = @CurrentUserId
+        ),
+        (
+            SELECT [LibraryJson]
+            FROM [pmt].[ImageAnnotationDefaultTemplateLibraries]
+            WHERE [DefaultLibraryId] = 1
+        ),
+        N'{"version":1,"templates":[],"defaults":{"arrow":null,"rectangle":null}}'
+    );
+END;
+GO
+
+CREATE OR ALTER PROCEDURE [pmt].[GetImageAnnotationDefaultTemplateLibrary]
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    SELECT [LibraryJson] = ISNULL
+    (
+        (
+            SELECT [LibraryJson]
+            FROM [pmt].[ImageAnnotationDefaultTemplateLibraries]
+            WHERE [DefaultLibraryId] = 1
         ),
         N'{"version":1,"templates":[],"defaults":{"arrow":null,"rectangle":null}}'
     );
@@ -330,6 +368,36 @@ BEGIN
     SELECT [LibraryJson]
     FROM [pmt].[UserImageAnnotationTemplateLibraries]
     WHERE [UserId] = @CurrentUserId;
+END;
+GO
+
+DECLARE @DefaultImageAnnotationTemplateLibraryJson NVARCHAR(MAX) = N'{"version":1,"templates":[{"id":"template-mrppoehr-gbsv6u","name":"Normal Text","grouped":false,"groupName":"","width":202.53644724785136,"height":166.41546742832043,"createdAt":"2026-07-18T01:51:56.511Z","updatedAt":"2026-07-18T01:51:56.511Z","objects":[{"id":"textbox-mrppnaro-8","type":"textbox","name":"","locked":false,"groupId":"","x":0,"y":0,"width":202.53644724785136,"height":166.41546742832043,"fill":"none","stroke":"#3f7f0d","outlineVisible":false,"strokeWidth":4,"opacity":1,"text":"Text","textColor":"#0d0d0d","fontFamily":"Arial","fontSize":28,"textAlign":"left","textVerticalAlign":"top"}]},{"id":"template-mrp9i8vj-vgwm0p","name":"Green Arrow","grouped":false,"groupName":"","width":146,"height":126,"createdAt":"2026-07-17T18:19:15.439Z","updatedAt":"2026-07-18T02:05:09.880Z","objects":[{"id":"arrow-mrpq53a1-10","type":"arrow","name":"","locked":false,"groupId":"","x1":6,"y1":6,"x2":146,"y2":126,"stroke":"#4ea72e","strokeWidth":12,"arrowSize":48,"opacity":1}]},{"id":"template-mrpa9kpd-tuuusc","name":"Green Highlight","grouped":false,"groupName":"","width":184,"height":104,"createdAt":"2026-07-17T18:40:30.481Z","updatedAt":"2026-07-17T18:40:30.481Z","objects":[{"id":"rectangle-mrpa8em9-4","type":"rectangle","name":"","locked":false,"groupId":"","x":2,"y":2,"width":180,"height":100,"fill":"none","stroke":"#4ea72e","outlineVisible":true,"strokeWidth":4,"opacity":1}]},{"id":"template-mrpqf0lk-l8bt1m","name":"Green Box with Text","grouped":false,"groupName":"","width":226.9190420400173,"height":118.94254142122008,"createdAt":"2026-07-18T02:12:38.216Z","updatedAt":"2026-07-18T02:12:38.216Z","objects":[{"id":"textbox-mrpqek5p-22","type":"textbox","name":"","locked":false,"groupId":"","x":2,"y":2,"width":222.9190420400173,"height":114.94254142122008,"fill":"#4ea72e","stroke":"#4ea72e","outlineVisible":true,"strokeWidth":4,"opacity":1,"text":"Hello World","textColor":"#ffffff","fontFamily":"Arial","fontSize":28,"textAlign":"center","textVerticalAlign":"middle"}]},{"id":"template-mrpa72da-o1xtpx","name":"Green Caption","grouped":false,"groupName":"","width":382.44979917050296,"height":349.5666671265194,"createdAt":"2026-07-17T18:38:33.406Z","updatedAt":"2026-07-17T18:38:33.406Z","objects":[{"id":"arrow-mrpa57nj-2","type":"arrow","name":"","locked":false,"groupId":"","x1":250.41369131382453,"y1":97.20493329838473,"x2":0,"y2":349.5666671265194,"stroke":"#4ea72e","strokeWidth":12,"arrowSize":48,"opacity":1},{"id":"textbox-mrpa67x7-4","type":"textbox","name":"","locked":false,"groupId":"","x":157.53075713048565,"y":2,"width":222.9190420400173,"height":114.94254142122008,"fill":"#4ea72e","stroke":"#4ea72e","outlineVisible":true,"strokeWidth":4,"opacity":1,"text":"Hello World","textColor":"#ffffff","fontFamily":"Arial","fontSize":28,"textAlign":"center","textVerticalAlign":"middle"}]},{"id":"template-mrp9iwy6-wqbtv8","name":"Orange Arrow","grouped":false,"groupName":"","width":146,"height":126,"createdAt":"2026-07-17T18:19:46.638Z","updatedAt":"2026-07-18T02:09:26.907Z","objects":[{"id":"arrow-mrp9ih6n-3","type":"arrow","name":"","locked":false,"groupId":"","x1":6,"y1":6,"x2":146,"y2":126,"stroke":"#ffc000","strokeWidth":12,"arrowSize":48,"opacity":1}]},{"id":"template-mrpq5woy-sf64gf","name":"Orange Box","grouped":false,"groupName":"","width":184,"height":104,"createdAt":"2026-07-18T02:05:33.250Z","updatedAt":"2026-07-18T02:05:33.250Z","objects":[{"id":"rectangle-mrpq5hep-11","type":"rectangle","name":"","locked":false,"groupId":"","x":2,"y":2,"width":180,"height":100,"fill":"none","stroke":"#ffc000","outlineVisible":true,"strokeWidth":4,"opacity":1}]},{"id":"template-mrpqe2wj-qm1c7c","name":"Orange Box with Text","grouped":false,"groupName":"","width":222.9190420400173,"height":114.94254142122008,"createdAt":"2026-07-18T02:11:54.547Z","updatedAt":"2026-07-18T02:11:54.547Z","objects":[{"id":"textbox-mrpqdqka-20","type":"textbox","name":"","locked":false,"groupId":"","x":0,"y":0,"width":222.9190420400173,"height":114.94254142122008,"fill":"#ffc000","stroke":"#4ea72e","outlineVisible":false,"strokeWidth":4,"opacity":1,"text":"Hello World","textColor":"#ffffff","fontFamily":"Arial","fontSize":28,"textAlign":"center","textVerticalAlign":"middle"}]},{"id":"template-mrpq89ge-cicw6i","name":"Orange Caption","grouped":true,"groupName":"","width":380.44979917050296,"height":347.5666671265194,"createdAt":"2026-07-18T02:07:23.102Z","updatedAt":"2026-07-18T02:07:23.102Z","objects":[{"id":"arrow-mrpq529g-8","type":"arrow","name":"","locked":false,"groupId":"","x1":250.41369131382453,"y1":95.20493329838473,"x2":0,"y2":347.5666671265194,"stroke":"#ffc000","strokeWidth":12,"arrowSize":48,"opacity":1},{"id":"textbox-mrpq529g-9","type":"textbox","name":"","locked":false,"groupId":"","x":157.53075713048565,"y":0,"width":222.9190420400173,"height":114.94254142122008,"fill":"#ffc000","stroke":"#4ea72e","outlineVisible":false,"strokeWidth":4,"opacity":1,"text":"Hello World","textColor":"#ffffff","fontFamily":"Arial","fontSize":28,"textAlign":"center","textVerticalAlign":"middle"}]},{"id":"template-mrpq9wwo-0u4drh","name":"Red Arrow","grouped":false,"groupName":"","width":146,"height":126,"createdAt":"2026-07-18T02:08:40.152Z","updatedAt":"2026-07-18T02:08:40.152Z","objects":[{"id":"arrow-mrpq9nep-15","type":"arrow","name":"","locked":false,"groupId":"","x1":6,"y1":6,"x2":146,"y2":126,"stroke":"#ff0000","strokeWidth":12,"arrowSize":48,"opacity":1}]},{"id":"template-mrpqancx-3y8xl1","name":"Red Box","grouped":false,"groupName":"","width":184,"height":104,"createdAt":"2026-07-18T02:09:14.433Z","updatedAt":"2026-07-18T02:09:40.633Z","objects":[{"id":"rectangle-mrpqaezk-16","type":"rectangle","name":"","locked":false,"groupId":"","x":2,"y":2,"width":180,"height":100,"fill":"none","stroke":"#ff0000","outlineVisible":true,"strokeWidth":4,"opacity":1}]},{"id":"template-mrpqdfgx-vn26f8","name":"Red Box and Text","grouped":false,"groupName":"","width":222.9190420400173,"height":114.94254142122008,"createdAt":"2026-07-18T02:11:24.177Z","updatedAt":"2026-07-18T02:11:31.251Z","objects":[{"id":"textbox-mrpqd1kk-18","type":"textbox","name":"","locked":false,"groupId":"","x":0,"y":0,"width":222.9190420400173,"height":114.94254142122008,"fill":"#ff0000","stroke":"#ff0000","outlineVisible":false,"strokeWidth":4,"opacity":1,"text":"Hello World","textColor":"#ffffff","fontFamily":"Arial","fontSize":28,"textAlign":"center","textVerticalAlign":"middle"}]},{"id":"template-mrpq99ai-qii9gx","name":"Red Caption","grouped":true,"groupName":"","width":380.44979917050296,"height":347.5666671265194,"createdAt":"2026-07-18T02:08:09.546Z","updatedAt":"2026-07-18T02:08:09.546Z","objects":[{"id":"arrow-mrpq8m96-13","type":"arrow","name":"","locked":false,"groupId":"","x1":250.41369131382453,"y1":95.20493329838473,"x2":0,"y2":347.5666671265194,"stroke":"#ff0000","strokeWidth":12,"arrowSize":48,"opacity":1},{"id":"textbox-mrpq8m96-14","type":"textbox","name":"","locked":false,"groupId":"","x":157.53075713048565,"y":0,"width":222.9190420400173,"height":114.94254142122008,"fill":"#ff0000","stroke":"#ff0000","outlineVisible":false,"strokeWidth":4,"opacity":1,"text":"Hello World","textColor":"#ffffff","fontFamily":"Arial","fontSize":28,"textAlign":"center","textVerticalAlign":"middle"}]}],"defaults":{"arrow":{"stroke":"#3f7f0d","strokeWidth":12,"arrowSize":48,"opacity":1},"rectangle":null}}';
+
+IF ISJSON(@DefaultImageAnnotationTemplateLibraryJson) <> 1
+   OR TRY_CONVERT(INT, JSON_VALUE(@DefaultImageAnnotationTemplateLibraryJson, N'$.version')) <> 1
+   OR JSON_QUERY(@DefaultImageAnnotationTemplateLibraryJson, N'$.defaults') IS NULL
+   OR (SELECT COUNT(*) FROM OPENJSON(JSON_QUERY(@DefaultImageAnnotationTemplateLibraryJson, N'$.templates'))) <> 13
+BEGIN
+    THROW 51079, 'The shared image annotation template defaults are invalid.', 1;
+END;
+
+UPDATE [pmt].[ImageAnnotationDefaultTemplateLibraries]
+SET [LibraryJson] = @DefaultImageAnnotationTemplateLibraryJson,
+    [UpdatedAt] = SYSUTCDATETIME()
+WHERE [DefaultLibraryId] = 1;
+
+IF @@ROWCOUNT = 0
+BEGIN
+    INSERT INTO [pmt].[ImageAnnotationDefaultTemplateLibraries]
+    (
+        [DefaultLibraryId],
+        [LibraryJson]
+    )
+    VALUES
+    (
+        1,
+        @DefaultImageAnnotationTemplateLibraryJson
+    );
 END;
 GO
 
@@ -1742,8 +1810,12 @@ BEGIN
 END;
 
 IF OBJECT_ID(N'[pmt].[UserImageAnnotationTemplateLibraries]', N'U') IS NULL
+   OR OBJECT_ID(N'[pmt].[ImageAnnotationDefaultTemplateLibraries]', N'U') IS NULL
    OR OBJECT_ID(N'[pmt].[GetUserImageAnnotationTemplateLibrary]', N'P') IS NULL
+   OR OBJECT_ID(N'[pmt].[GetImageAnnotationDefaultTemplateLibrary]', N'P') IS NULL
    OR OBJECT_ID(N'[pmt].[SaveUserImageAnnotationTemplateLibrary]', N'P') IS NULL
+   OR (SELECT COUNT(*) FROM [pmt].[ImageAnnotationDefaultTemplateLibraries] WHERE [DefaultLibraryId] = 1) <> 1
+   OR (SELECT COUNT(*) FROM OPENJSON((SELECT [LibraryJson] FROM [pmt].[ImageAnnotationDefaultTemplateLibraries] WHERE [DefaultLibraryId] = 1), N'$.templates')) <> 13
    OR NOT EXISTS
       (
           SELECT 1
@@ -1753,7 +1825,7 @@ IF OBJECT_ID(N'[pmt].[UserImageAnnotationTemplateLibraries]', N'U') IS NULL
             AND [delete_referential_action] = 1
       )
 BEGIN
-    THROW 51078, 'The per-user image annotation template-library contract could not be verified.', 1;
+    THROW 51078, 'The shared default or per-user image annotation template-library contract could not be verified.', 1;
 END;
 
 EXEC sys.sp_updateextendedproperty
@@ -1775,5 +1847,5 @@ END;
 COMMIT TRANSACTION;
 GO
 
-PRINT N'PMT Database Version 1.23 applied: PMTQA was preserved, the PMT demo and shared demo vacations were restored, Development resets were updated, selected-date attendance plus audited attendance removal are available, and per-user image annotation template libraries are synchronized through SQL.';
+PRINT N'PMT Database Version 1.23 applied: PMTQA was preserved, the PMT demo and shared demo vacations were restored, Development resets were updated, selected-date attendance plus audited attendance removal are available, and shared default plus per-user image annotation template libraries are synchronized through SQL.';
 GO

@@ -56,6 +56,7 @@ WHERE [UserId] = @Sin;
 IF OBJECT_ID(N'[pmt].[UserPermissions]', N'U') IS NOT NULL DELETE FROM [pmt].[UserPermissions];
 IF OBJECT_ID(N'[pmt].[RolePermissions]', N'U') IS NOT NULL DELETE FROM [pmt].[RolePermissions];
 IF OBJECT_ID(N'[pmt].[SecurityResources]', N'U') IS NOT NULL DELETE FROM [pmt].[SecurityResources];
+IF OBJECT_ID(N'[pmt].[UserImageAnnotationTemplateLibraries]', N'U') IS NOT NULL DELETE FROM [pmt].[UserImageAnnotationTemplateLibraries];
 DELETE FROM [pmt].[BlogAttachments];
 DELETE FROM [pmt].[BlogHistory];
 DELETE FROM [pmt].[TaskAttachments];

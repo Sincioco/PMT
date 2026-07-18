@@ -1,5 +1,47 @@
 [
   {
+    "id": "2026-07-18-day-31",
+    "version": "fb8032719c56",
+    "seenToken": "2026-07-18-day-31@fb8032719c56",
+    "date": "2026-07-18",
+    "day": 31,
+    "title": "Shared Annotation Templates and Clearer Layer Placement",
+    "sourceFile": "2026-07-18 - Requirements - Day 31.txt",
+    "sections": [
+      {
+        "title": "Default Annotation Templates",
+        "items": [
+          "Make the complete 13-template PMT annotation library available by default to every user on existing and newly created Projects.",
+          "Add a non-destructive Restore Default Templates action that places only missing defaults at the top while preserving each user's personal templates and drawing defaults.",
+          "Recognize matching template designs even when their internal identities differ, and leave customized personal versions untouched."
+        ]
+      },
+      {
+        "title": "Selection-Aware Template Formatting",
+        "items": [
+          "Insert a detached template instance only when the canvas has no current selection; otherwise apply the template's formatting to the selected objects.",
+          "Map matching structures one-to-one, and warn before using best-effort type matching when the template and destination structures differ.",
+          "Preserve destination text, geometry, identities, grouping, lock state, and layer order while applying formatting, with the complete change available through one Undo or Redo operation."
+        ]
+      },
+      {
+        "title": "Confident Layer Reordering",
+        "items": [
+          "Show one horizontal insertion line while dragging annotation objects or groups so the destination layer is clear before dropping.",
+          "Allow an object or group to be placed above the current top group by dropping on its upper edge without accidentally joining that group.",
+          "Keep lower-edge group drops available for intentionally moving objects into an existing group."
+        ]
+      },
+      {
+        "title": "Documentation Header Polish",
+        "items": [
+          "Keep the Project and Sprint dropdown top borders fully visible in Documentation Tree View, matching Card View."
+        ]
+      }
+    ],
+    "prompt": "Project Management Tool (PMT):  Day 31 of Codex Agentic AI Coding\n-----------------------------------------------------------------\nTotal Dev Time in Hours:  41\n\nAI Instructions\n--------------\nDesign and Coding Methodology:\n\tKISS (Keep It Simple Stupid) - The simpler the better.  Avoid over-engineering.  Avoid unnecessary complexity.  Avoid unnecessary features.  Avoid unnecessary bells and whistles.  Avoid unnecessary abstractions.  Avoid unnecessary patterns.  Avoid unnecessary frameworks.  Avoid unnecessary libraries.  Avoid unnecessary dependencies.  Avoid unnecessary code.  Avoid unnecessary files.  Avoid unnecessary folders.  Avoid unnecessary classes.  Avoid unnecessary methods.  Avoid unnecessary variables.\n\nTesting:\n\tIn addition to your normal testing, be sure to inform me if I have to recompile the .Net portion of the project or just Press Ctrl + F5 on the browser to reload to see the latest changes.  If making CSS / image changes, ensure that I will encounter no caching issue when testing in the browser.\n\nEnvironment:\n\tYou are in a dev machine.  You can drop and re-create the database as you see fit, especially when testing migrations scripts.  You don't need to preseve data in the backend or frontend.  You can also clear preferences, local storage settings and any cache as you see fit.\n\nDatabase:\n\tIf making changes to the database, that affects existing users see database-versioning.md under the docs folder.\n\n\nCommits:\n\tPMT is a public repo, write a detailed commit message so people can follow its progression.\n\n\nDocumentation Image Notation\n----------------------------\nThe Documentation Image Annotation is looking really great!  So good job ChatGpt Codex!  I'd buy you Starbucks coffee if you were a person.\n\n1.) If you examine the Documentation Image Annotation, I made a bunch of Templates.  Permanently take those templates I spent time doing and create a seed .sql script file so they can be inserted into an install of PMT and in future installs of PMT.  Make these templates available for everyone as a default.  And in the Templates tab, provide a way for them to restore the default (non-destructive), by simply adding it to their existing templates but just put it at the top.  If an item in their template library already matches the default template, don't add it again.  Just add the ones that are not already in their library.  This way, they can always restore the default templates without losing their own templates.\n2.) As I move objects, it's not clear where it's going.  Use the Kanban Board's way of showing where the destination of the drag and drop would be. Basically, best use a single horizontal line, so it's clear where the destination object will land.\n3.) Bug:  If I want to drag an item or a group of items to be the new first / top layer, and the current item at the top is a group already, it's simply adding whatever I drag to be the first item as new members of the existing group.  I need to be able to drag an item past the header of the current first / top layer and see a visual cue that the destination target is above the current first / top layer group.  Currently, I get around this by doing the reverse, by dragging the current first / top layer down, in order to promote the new item/group I want to be the new first / top layer.  A bit incovenient.\n\n4.) Bug:  When I am in Documentation and in TreeView, the top border around the Project and Sprint dropdown seems incorrect.  I've attached 2 images.  The first one is the incorrect borders picture.  The second picture is on the Cardview and is the correct / expected borders.\n\n5.) Updated logic for the use of templates.  If no object is currently selected on the canvas, insert a new instance of the template onto the canvas.  If an object is selected, and the user click's on template, take the formatting of what is in the template and apply it to the selected objects.  For example, if the selected object is a grouping of arrows, boxes, text, etc., and the template they want to apply the formatting to it has the same objects, take the template object's formatting and apply it to the selected objects on the canvas.  In short, if no object is selected on the canvas, instantiate a new instance of the template on the canvas.  If objects are selected, apply the formatting of the each type of objects on the template.  If the selected objects (destination) is really just the same structure (just an instance probably of the template) as the (template or user defined template) then just apply the formatting of the template's objects 1-to-1 to the destination.  If the template has more objects than the destination, then just apply to the destination the styling that applies.  If the destination and template objects are different in structure, warn the user that apply the template to the currently selected object may not have the same result since they do not have the same structure.  If they click OK, proceed and do the best you can.  Be sure that undo/redo operations work throughout.\n6.) And just to be clear for #5, on the destination object when applying a template over it, you do not change the destination's text, or geometric attributes, like scaling, x, y, w, height, etc.  Only formatting and colors.\n\nDatabase Migration Script Testing\n---------------------------------\nUpdate the migration scripts and test them by dropping and re-creating the database from the baseline and executing your combined migration script as that is how I will execute it during deployment.  Be sure it works without any errors and fix errors that you do encounter.\n\nCommit and Push\n---------------\nWhen all your tests are green, commit and push to the repo.\nAlso commit the file named \"2026-07-17 - Requirements - Day 31.txt\""
+  },
+  {
     "id": "2026-07-17-day-30",
     "version": "35c4aa65c202",
     "seenToken": "2026-07-17-day-30@35c4aa65c202",

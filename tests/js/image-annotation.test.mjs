@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   adjustAnnotationArrowEndpoint,
+  applyAnnotationTemplateFormatting,
   annotationArrowGeometry,
   annotationExpandedWorkspaceBounds,
   annotationObjectsIntersectingRect,
@@ -22,6 +23,7 @@ import {
   normalizeAnnotationTemplateLibrary,
   parseAnnotationSvg,
   reorderAnnotationObjectTree,
+  restoreAnnotationDefaultTemplates,
   resizeAnnotationObjects,
   resizedAnnotationBounds,
   scaleGroupedAnnotationArrowStyle,
@@ -509,6 +511,460 @@ test("template library normalizes drawing defaults and preserves explicit reset 
   });
 });
 
+test("restoring defaults prepends only missing template designs and preserves personal data", () => {
+  const template = (id, name, stroke = "#4ea72e", updatedAt = "2026-07-18T00:00:00.000Z") => ({
+    id,
+    name,
+    width: 40,
+    height: 20,
+    createdAt: updatedAt,
+    updatedAt,
+    objects: [
+      { id: `${id}-object`, type: "rectangle", x: 0, y: 0, width: 40, height: 20, fill: "none", stroke }
+    ]
+  });
+  const personalDuplicate = template("personal-green", "Green Box", "#4ea72e", "2026-07-19T00:00:00.000Z");
+  const personal = template("personal-note", "Personal Note", "#126bff");
+  const library = {
+    version: 1,
+    templates: [personalDuplicate, personal],
+    defaults: { arrow: { stroke: "#126bff", strokeWidth: 8, arrowSize: 24, opacity: 0.8 }, rectangle: null }
+  };
+  const defaults = {
+    version: 1,
+    templates: [
+      template("default-green", "Green Box"),
+      template("default-red", "Red Box", "#ff0000")
+    ],
+    defaults: { arrow: null, rectangle: null }
+  };
+
+  const restored = restoreAnnotationDefaultTemplates(library, defaults);
+  assert.equal(restored.addedCount, 1);
+  assert.equal(restored.capacityExceeded, false);
+  assert.deepEqual(restored.library.templates.map(item => item.id), [
+    "default-red",
+    "personal-green",
+    "personal-note"
+  ]);
+  assert.deepEqual(restored.library.defaults, normalizeAnnotationTemplateLibrary(library).defaults);
+});
+
+test("restoring a customized default keeps both versions with unique IDs and is idempotent", () => {
+  const base = {
+    id: "default-arrow",
+    name: "Green Arrow",
+    width: 100,
+    height: 60,
+    createdAt: "2026-07-18T00:00:00.000Z",
+    updatedAt: "2026-07-18T00:00:00.000Z",
+    objects: [
+      { id: "arrow", type: "arrow", x1: 0, y1: 0, x2: 100, y2: 60, stroke: "#4ea72e", strokeWidth: 12, arrowSize: 48 }
+    ]
+  };
+  const customized = structuredClone(base);
+  customized.objects[0].stroke = "#126bff";
+
+  const first = restoreAnnotationDefaultTemplates(
+    { version: 1, templates: [customized], defaults: { arrow: null, rectangle: null } },
+    { version: 1, templates: [base], defaults: { arrow: null, rectangle: null } }
+  );
+  assert.equal(first.addedCount, 1);
+  assert.deepEqual(first.library.templates.map(item => item.id), ["default-arrow-default", "default-arrow"]);
+  assert.equal(first.library.templates[1].objects[0].stroke, "#126bff");
+
+  const second = restoreAnnotationDefaultTemplates(
+    first.library,
+    { version: 1, templates: [base], defaults: { arrow: null, rectangle: null } }
+  );
+  assert.equal(second.addedCount, 0);
+  assert.deepEqual(second.library, first.library);
+});
+
+test("restoring defaults ignores duplicate designs inside the shared catalog", () => {
+  const first = {
+    id: "default-green",
+    name: "Green Box",
+    width: 40,
+    height: 20,
+    createdAt: "2026-07-18T00:00:00.000Z",
+    updatedAt: "2026-07-18T00:00:00.000Z",
+    objects: [
+      { id: "green-object", type: "rectangle", x: 0, y: 0, width: 40, height: 20, fill: "none", stroke: "#4ea72e" }
+    ]
+  };
+  const duplicate = structuredClone(first);
+  duplicate.id = "default-green-copy";
+  duplicate.createdAt = "2026-07-19T00:00:00.000Z";
+  duplicate.updatedAt = "2026-07-19T00:00:00.000Z";
+  duplicate.objects[0].id = "green-object-copy";
+
+  const restored = restoreAnnotationDefaultTemplates(
+    { version: 1, templates: [], defaults: { arrow: null, rectangle: null } },
+    { version: 1, templates: [first, duplicate], defaults: { arrow: null, rectangle: null } }
+  );
+
+  assert.equal(restored.addedCount, 1);
+  assert.deepEqual(restored.library.templates.map(template => template.id), ["default-green"]);
+});
+
+test("restoring defaults refuses atomically when personal templates need more than 50 slots", () => {
+  const rectangle = (id, name, stroke) => ({
+    id,
+    name,
+    width: 20,
+    height: 20,
+    objects: [{ id: `${id}-object`, type: "rectangle", x: 0, y: 0, width: 20, height: 20, fill: "none", stroke }]
+  });
+  const personalTemplates = Array.from({ length: 49 }, (_, index) => rectangle(
+    `personal-${index}`,
+    `Personal ${index}`,
+    `#${index.toString(16).padStart(6, "0")}`
+  ));
+  const library = normalizeAnnotationTemplateLibrary({
+    version: 1,
+    templates: personalTemplates,
+    defaults: { arrow: null, rectangle: null }
+  });
+  const restored = restoreAnnotationDefaultTemplates(library, {
+    version: 1,
+    templates: [rectangle("default-a", "Default A", "#ff0000"), rectangle("default-b", "Default B", "#00ff00")],
+    defaults: { arrow: null, rectangle: null }
+  });
+
+  assert.equal(restored.capacityExceeded, true);
+  assert.equal(restored.requiredSlots, 1);
+  assert.equal(restored.addedCount, 0);
+  assert.deepEqual(restored.library, library);
+});
+
+test("template formatting applies exact structures one-to-one without changing content or geometry", () => {
+  const template = {
+    id: "format-template",
+    name: "Formatted callout",
+    width: 320,
+    height: 180,
+    objects: [
+      {
+        id: "template-rectangle",
+        type: "rectangle",
+        x: 0,
+        y: 0,
+        width: 120,
+        height: 70,
+        fill: "#112233",
+        stroke: "#445566",
+        outlineVisible: false,
+        strokeWidth: 7,
+        opacity: 0.4
+      },
+      {
+        id: "template-arrow",
+        type: "arrow",
+        x1: 10,
+        y1: 90,
+        x2: 250,
+        y2: 90,
+        stroke: "#778899",
+        strokeWidth: 9,
+        arrowSize: 36,
+        opacity: 0.55
+      },
+      {
+        id: "template-text",
+        type: "textbox",
+        x: 20,
+        y: 110,
+        width: 220,
+        height: 60,
+        text: "Template text must not replace destination text",
+        fill: "#aabbcc",
+        stroke: "#ddeeff",
+        outlineVisible: true,
+        strokeWidth: 5,
+        opacity: 0.65,
+        textColor: "#102030",
+        fontFamily: "Georgia",
+        fontSize: 42,
+        textAlign: "center",
+        textVerticalAlign: "bottom"
+      }
+    ]
+  };
+  const destination = [
+    {
+      id: "destination-rectangle",
+      type: "rectangle",
+      name: "Destination rectangle",
+      groupId: "destination-group",
+      locked: false,
+      x: 410,
+      y: 220,
+      width: 75,
+      height: 45,
+      fill: "none",
+      stroke: "#000000",
+      outlineVisible: true,
+      strokeWidth: 2,
+      opacity: 1
+    },
+    {
+      id: "destination-arrow",
+      type: "arrow",
+      name: "Destination arrow",
+      groupId: "destination-group",
+      locked: false,
+      x1: 500,
+      y1: 310,
+      x2: 710,
+      y2: 365,
+      stroke: "#000000",
+      strokeWidth: 2,
+      arrowSize: 10,
+      opacity: 1
+    },
+    {
+      id: "destination-text",
+      type: "textbox",
+      name: "Destination text",
+      groupId: "destination-group",
+      locked: false,
+      x: 530,
+      y: 390,
+      width: 260,
+      height: 90,
+      text: "Keep this destination text",
+      fill: "none",
+      stroke: "#000000",
+      outlineVisible: false,
+      strokeWidth: 2,
+      opacity: 1,
+      textColor: "#ffffff",
+      fontFamily: "Arial",
+      fontSize: 18,
+      textAlign: "left",
+      textVerticalAlign: "top"
+    }
+  ];
+  const templateBefore = structuredClone(template);
+  const destinationIdentityAndGeometry = destination.map(object => object.type === "arrow"
+    ? {
+        id: object.id,
+        name: object.name,
+        groupId: object.groupId,
+        locked: object.locked,
+        x1: object.x1,
+        y1: object.y1,
+        x2: object.x2,
+        y2: object.y2
+      }
+    : {
+        id: object.id,
+        name: object.name,
+        groupId: object.groupId,
+        locked: object.locked,
+        x: object.x,
+        y: object.y,
+        width: object.width,
+        height: object.height,
+        ...(object.type === "textbox" ? { text: object.text } : {})
+      });
+
+  const result = applyAnnotationTemplateFormatting(template, destination);
+
+  assert.deepEqual(result, {
+    structureMatches: true,
+    selectedCount: 3,
+    matchedCount: 3,
+    appliedCount: 3,
+    changedCount: 3,
+    lockedCount: 0,
+    geometryConstrainedCount: 0
+  });
+  assert.deepEqual(destination.map(object => object.type === "arrow"
+    ? {
+        id: object.id,
+        name: object.name,
+        groupId: object.groupId,
+        locked: object.locked,
+        x1: object.x1,
+        y1: object.y1,
+        x2: object.x2,
+        y2: object.y2
+      }
+    : {
+        id: object.id,
+        name: object.name,
+        groupId: object.groupId,
+        locked: object.locked,
+        x: object.x,
+        y: object.y,
+        width: object.width,
+        height: object.height,
+        ...(object.type === "textbox" ? { text: object.text } : {})
+      }), destinationIdentityAndGeometry);
+  assert.deepEqual(destination[0], {
+    ...destination[0],
+    fill: "#112233",
+    stroke: "#445566",
+    outlineVisible: false,
+    strokeWidth: 7,
+    opacity: 0.4
+  });
+  assert.deepEqual(
+    (({ stroke, strokeWidth, arrowSize, opacity }) => ({ stroke, strokeWidth, arrowSize, opacity }))(destination[1]),
+    { stroke: "#778899", strokeWidth: 9, arrowSize: 36, opacity: 0.55 }
+  );
+  assert.deepEqual(
+    (({
+      fill,
+      stroke,
+      outlineVisible,
+      strokeWidth,
+      opacity,
+      textColor,
+      fontFamily,
+      fontSize,
+      textAlign,
+      textVerticalAlign
+    }) => ({
+      fill,
+      stroke,
+      outlineVisible,
+      strokeWidth,
+      opacity,
+      textColor,
+      fontFamily,
+      fontSize,
+      textAlign,
+      textVerticalAlign
+    }))(destination[2]),
+    {
+      fill: "#aabbcc",
+      stroke: "#ddeeff",
+      outlineVisible: true,
+      strokeWidth: 5,
+      opacity: 0.65,
+      textColor: "#102030",
+      fontFamily: "Georgia",
+      fontSize: 42,
+      textAlign: "center",
+      textVerticalAlign: "bottom"
+    }
+  );
+  assert.deepEqual(template, templateBefore);
+});
+
+test("mismatched template formatting pairs by type, reuses the last available style, and skips locks", () => {
+  const template = {
+    id: "mixed-format-template",
+    name: "Mixed formatting",
+    width: 300,
+    height: 180,
+    objects: [
+      { id: "source-arrow-1", type: "arrow", x1: 0, y1: 0, x2: 160, y2: 0, stroke: "#ff0000", strokeWidth: 4, arrowSize: 20, opacity: 0.7 },
+      { id: "source-arrow-2", type: "arrow", x1: 0, y1: 30, x2: 160, y2: 30, stroke: "#0000ff", strokeWidth: 8, arrowSize: 30, opacity: 0.8 },
+      { id: "source-rectangle-1", type: "rectangle", x: 0, y: 60, width: 80, height: 40, fill: "#00ff00", stroke: "#006600", strokeWidth: 6, opacity: 0.5 },
+      { id: "source-rectangle-extra", type: "rectangle", x: 90, y: 60, width: 80, height: 40, fill: "#ffff00", stroke: "#666600", strokeWidth: 3, opacity: 0.6 },
+      { id: "source-text", type: "textbox", x: 0, y: 110, width: 140, height: 50, text: "Source", fill: "none", stroke: "#333333", textColor: "#abcdef", fontFamily: "Verdana", fontSize: 30 }
+    ]
+  };
+  const arrow = (id, y, locked = false) => ({
+    id,
+    type: "arrow",
+    x1: 200,
+    y1: y,
+    x2: 400,
+    y2: y,
+    stroke: "#111111",
+    strokeWidth: 2,
+    arrowSize: 12,
+    opacity: 1,
+    locked
+  });
+  const destination = [
+    { id: "destination-rectangle", type: "rectangle", x: 10, y: 10, width: 45, height: 25, fill: "none", stroke: "#111111", strokeWidth: 1, opacity: 1 },
+    arrow("destination-arrow-1", 40),
+    { id: "destination-text", type: "textbox", x: 10, y: 70, width: 120, height: 40, text: "Keep me", fill: "#ffffff", stroke: "#111111", textColor: "#111111", fontFamily: "Arial", fontSize: 18, locked: true },
+    arrow("destination-arrow-2", 110),
+    arrow("destination-arrow-3", 150)
+  ];
+  const lockedBefore = structuredClone(destination[2]);
+
+  const result = applyAnnotationTemplateFormatting(template, destination);
+
+  assert.equal(result.structureMatches, false);
+  assert.equal(result.selectedCount, 5);
+  assert.equal(result.matchedCount, 5);
+  assert.equal(result.appliedCount, 4);
+  assert.equal(result.changedCount, 4);
+  assert.equal(result.lockedCount, 1);
+  assert.equal(destination.length, 5);
+  assert.deepEqual(
+    (({ fill, stroke, strokeWidth, opacity }) => ({ fill, stroke, strokeWidth, opacity }))(destination[0]),
+    { fill: "#00ff00", stroke: "#006600", strokeWidth: 6, opacity: 0.5 }
+  );
+  assert.equal(destination[1].stroke, "#ff0000");
+  assert.equal(destination[3].stroke, "#0000ff");
+  assert.equal(destination[4].stroke, "#0000ff");
+  assert.deepEqual(destination[2], lockedBefore);
+
+  const image = { id: "destination-image", type: "image", x: 0, y: 0, width: 100, height: 60, locked: false, groupId: "" };
+  const imageBefore = structuredClone(image);
+  const noMatch = applyAnnotationTemplateFormatting(template, [image]);
+  assert.equal(noMatch.structureMatches, false);
+  assert.equal(noMatch.appliedCount, 0);
+  assert.equal(noMatch.changedCount, 0);
+  assert.deepEqual(image, imageBefore);
+});
+
+test("template arrow formatting is limited when needed so normalization never moves destination endpoints", () => {
+  const destination = {
+    id: "short-destination-arrow",
+    type: "arrow",
+    x1: 10,
+    y1: 15,
+    x2: 30,
+    y2: 15,
+    stroke: "#111111",
+    strokeWidth: 1,
+    arrowSize: 4,
+    opacity: 1,
+    locked: false,
+    groupId: ""
+  };
+  const endpoints = { x1: destination.x1, y1: destination.y1, x2: destination.x2, y2: destination.y2 };
+  const result = applyAnnotationTemplateFormatting({
+    id: "oversized-arrow-style",
+    name: "Oversized arrow style",
+    width: 300,
+    height: 80,
+    objects: [
+      { id: "large-source-arrow", type: "arrow", x1: 0, y1: 40, x2: 300, y2: 40, stroke: "#ff0000", strokeWidth: 40, arrowSize: 160, opacity: 0.4 }
+    ]
+  }, [destination]);
+
+  assert.equal(result.structureMatches, true);
+  assert.equal(result.geometryConstrainedCount, 1);
+  assert.deepEqual(
+    { x1: destination.x1, y1: destination.y1, x2: destination.x2, y2: destination.y2 },
+    endpoints
+  );
+  const normalized = normalizeAnnotationState({
+    width: 100,
+    height: 80,
+    objects: [
+      { id: "image", type: "image", x: 0, y: 0, width: 100, height: 80 },
+      structuredClone(destination)
+    ]
+  });
+  const normalizedArrow = normalized.objects.find(object => object.id === destination.id);
+  assert.deepEqual(
+    { x1: normalizedArrow.x1, y1: normalizedArrow.y1, x2: normalizedArrow.x2, y2: normalizedArrow.y2 },
+    endpoints
+  );
+});
+
 test("grouped embedded image and arrow template instances resize proportionally", () => {
   const embeddedSource = "data:image/png;base64,AAECAwQ=";
   let sequence = 0;
@@ -745,6 +1201,107 @@ test("object tree reorder and reparent keep z-order coherent and the original im
   });
   assert.equal(attemptedImageRaise.objects[0].id, "source-image");
   assert.equal(buildAnnotationObjectTree(attemptedImageRaise).at(-1).id, "source-image");
+});
+
+test("object tree drop placement can promote an item above a top group without joining it", () => {
+  const source = normalizeAnnotationState({
+    width: 320,
+    height: 180,
+    groupNames: { "top-group": "Top Group" },
+    objects: [
+      { id: "source-image", type: "image", x: 0, y: 0, width: 320, height: 180 },
+      { id: "candidate", type: "textbox", x: 20, y: 20, width: 80, height: 40, text: "Promote" },
+      { id: "group-box", type: "rectangle", x: 120, y: 30, width: 80, height: 60, groupId: "top-group" },
+      { id: "group-arrow", type: "arrow", x1: 140, y1: 130, x2: 240, y2: 60, groupId: "top-group" }
+    ]
+  });
+
+  const promoted = reorderAnnotationObjectTree(source, {
+    draggedKind: "object",
+    draggedId: "candidate",
+    targetKind: "group",
+    targetId: "top-group",
+    targetPlacement: "before"
+  });
+  const tree = buildAnnotationObjectTree(promoted);
+  assert.deepEqual(tree.map(node => node.id), ["candidate", "top-group", "source-image"]);
+  assert.equal(promoted.objects.find(object => object.id === "candidate").groupId, "");
+  assert.deepEqual(tree[1].children.map(node => node.id), ["group-arrow", "group-box"]);
+
+  const joined = reorderAnnotationObjectTree(source, {
+    draggedKind: "object",
+    draggedId: "candidate",
+    targetKind: "group",
+    targetId: "top-group",
+    targetPlacement: "after"
+  });
+  assert.equal(joined.objects.find(object => object.id === "candidate").groupId, "top-group");
+  assert.deepEqual(buildAnnotationObjectTree(joined).map(node => node.id), ["top-group", "source-image"]);
+});
+
+test("object tree drop placement can promote a group above a top group without merging it", () => {
+  const source = normalizeAnnotationState({
+    width: 320,
+    height: 180,
+    groupNames: {
+      "candidate-group": "Candidate Group",
+      "top-group": "Top Group"
+    },
+    objects: [
+      { id: "source-image", type: "image", x: 0, y: 0, width: 320, height: 180 },
+      { id: "candidate-box", type: "rectangle", x: 20, y: 20, width: 80, height: 40, groupId: "candidate-group" },
+      { id: "candidate-arrow", type: "arrow", x1: 30, y1: 120, x2: 100, y2: 70, groupId: "candidate-group" },
+      { id: "top-box", type: "rectangle", x: 120, y: 30, width: 80, height: 60, groupId: "top-group" },
+      { id: "top-arrow", type: "arrow", x1: 140, y1: 130, x2: 240, y2: 60, groupId: "top-group" }
+    ]
+  });
+
+  assert.deepEqual(buildAnnotationObjectTree(source).map(node => node.id), [
+    "top-group",
+    "candidate-group",
+    "source-image"
+  ]);
+
+  const promoted = reorderAnnotationObjectTree(source, {
+    draggedKind: "group",
+    draggedId: "candidate-group",
+    targetKind: "group",
+    targetId: "top-group",
+    targetPlacement: "before"
+  });
+  const tree = buildAnnotationObjectTree(promoted);
+  assert.deepEqual(tree.map(node => node.id), ["candidate-group", "top-group", "source-image"]);
+  assert.deepEqual(tree[0].children.map(node => node.id), ["candidate-arrow", "candidate-box"]);
+  assert.deepEqual(tree[1].children.map(node => node.id), ["top-arrow", "top-box"]);
+  assert.equal(promoted.objects.find(object => object.id === "candidate-box").groupId, "candidate-group");
+  assert.equal(promoted.objects.find(object => object.id === "top-box").groupId, "top-group");
+});
+
+test("object tree before and after placements map to the visible root order", () => {
+  const source = normalizeAnnotationState({
+    width: 200,
+    height: 120,
+    objects: [
+      { id: "image", type: "image", x: 0, y: 0, width: 200, height: 120 },
+      { id: "bottom", type: "rectangle", x: 10, y: 10, width: 30, height: 30 },
+      { id: "middle", type: "rectangle", x: 50, y: 10, width: 30, height: 30 },
+      { id: "top", type: "rectangle", x: 90, y: 10, width: 30, height: 30 }
+    ]
+  });
+
+  const belowMiddle = reorderAnnotationObjectTree(source, {
+    draggedKind: "object",
+    draggedId: "top",
+    targetKind: "object",
+    targetId: "middle",
+    targetPlacement: "after"
+  });
+  assert.deepEqual(buildAnnotationObjectTree(belowMiddle).map(node => node.id), [
+    "middle",
+    "top",
+    "bottom",
+    "image"
+  ]);
 });
 
 test("object tree search is case-insensitive and retains matching group context", () => {

@@ -6,11 +6,12 @@ As of July 16, 2026, PMT Database Version 1.22 and its matching application rele
 
 Future work does not need new upgrade compatibility for database versions before 1.22. Keep released migrations, combined runners, and deployment runbooks through Version 1.22 under `SQL/Migrations/Migration History/`. Start the next forward migration from Version 1.22; after a later version is deployed to every known instance, that version becomes the new baseline.
 
-The current source tree and fresh-rebuild scripts represent Version 1.23. Version 1.23 preserves BDO's deployed PMT Project as `PMTQA` during migration, restores the original SQL-seeded `PMT` Project for demos, recreates missing demo identities without public default passwords, adapts demo Bug values to active BDO lookups, seeds current-month vacation examples for shared PMT/LMS/HLS demo members, supports repeated focused PMT demo clear-and-restore cycles, and updates the Development tools so broad cleanup protects only `PMT`, Clear Users remaps private ownership to Sin, and Factory Reset may replace all data including private content:
+The current source tree and fresh-rebuild scripts represent Version 1.23. Version 1.23 preserves BDO's deployed PMT Project as `PMTQA` during migration, restores the original SQL-seeded `PMT` Project for demos, recreates missing demo identities without public default passwords, adapts demo Bug values to active BDO lookups, seeds current-month vacation examples for shared PMT/LMS/HLS demo members and 13 shared image-annotation templates for every user, supports repeated focused PMT demo clear-and-restore cycles, and updates the Development tools so broad cleanup protects only `PMT`, Clear Users remaps private ownership to Sin, and Factory Reset may replace all data including private content:
 
 - `SQL/01_CreateDatabase.sql`
 - `SQL/02_CreateStoredProcedures.sql`
 - `SQL/03_SeedData.sql`
+- `SQL/03_SeedData_ImageAnnotationTemplates.sql`
 - `SQL/03_SeedData_PMT.sql`
 - `SQL/03_SeedData_LMS.sql`
 - `SQL/03_SeedData_HLS.sql`

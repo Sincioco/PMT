@@ -1120,5 +1120,41 @@
         ]
       }
     ]
+  },
+  {
+    "day": 31,
+    "title": "Shared Annotation Templates and Clearer Layer Placement",
+    "sections": [
+      {
+        "title": "Default Annotation Templates",
+        "items": [
+          "Make the complete 13-template PMT annotation library available by default to every user on existing and newly created Projects.",
+          "Add a non-destructive Restore Default Templates action that places only missing defaults at the top while preserving each user's personal templates and drawing defaults.",
+          "Recognize matching template designs even when their internal identities differ, and leave customized personal versions untouched."
+        ]
+      },
+      {
+        "title": "Selection-Aware Template Formatting",
+        "items": [
+          "Insert a detached template instance only when the canvas has no current selection; otherwise apply the template's formatting to the selected objects.",
+          "Map matching structures one-to-one, and warn before using best-effort type matching when the template and destination structures differ.",
+          "Preserve destination text, geometry, identities, grouping, lock state, and layer order while applying formatting, with the complete change available through one Undo or Redo operation."
+        ]
+      },
+      {
+        "title": "Confident Layer Reordering",
+        "items": [
+          "Show one horizontal insertion line while dragging annotation objects or groups so the destination layer is clear before dropping.",
+          "Allow an object or group to be placed above the current top group by dropping on its upper edge without accidentally joining that group.",
+          "Keep lower-edge group drops available for intentionally moving objects into an existing group."
+        ]
+      },
+      {
+        "title": "Documentation Header Polish",
+        "items": [
+          "Keep the Project and Sprint dropdown top borders fully visible in Documentation Tree View, matching Card View."
+        ]
+      }
+    ]
   }
 ]

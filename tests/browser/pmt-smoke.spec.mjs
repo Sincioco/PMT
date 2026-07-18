@@ -45,7 +45,7 @@ test("login, navigation, themes, dialogs, filters, Board, Gantt, and Road Map sm
 
   await page.addInitScript(() => {
     localStorage.clear();
-    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-17-day-30@35c4aa65c202");
+    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-18-day-31@fb8032719c56");
     localStorage.setItem("pmt-navigation", JSON.stringify({
       version: 2,
       items: [
@@ -517,7 +517,7 @@ test("Developer Board moves stop after QA Passed while QA Ready remains availabl
 
   await page.addInitScript(() => {
     localStorage.clear();
-    localStorage.setItem("pmt-release-notes-last-seen:2", "2026-07-17-day-30@35c4aa65c202");
+    localStorage.setItem("pmt-release-notes-last-seen:2", "2026-07-18-day-31@fb8032719c56");
   });
   await installApiMocks(page, appState, apiCalls);
   await page.goto("/");
@@ -564,7 +564,7 @@ test("Scrum attendance, calendar, on-behalf, and vacation flows stay synchronize
       localStorage.clear();
       sessionStorage.setItem("pmt-scrum-attendance-smoke-started", "true");
     }
-    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-17-day-30@35c4aa65c202");
+    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-18-day-31@fb8032719c56");
   });
   await installApiMocks(page, appState, apiCalls);
 
@@ -863,7 +863,7 @@ test("Scrum view toggle matches Documentation and crowded attendance avatars fit
   await page.clock.setFixedTime(new Date("2026-07-15T08:00:00+08:00"));
   await page.addInitScript(() => {
     localStorage.clear();
-    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-17-day-30@35c4aa65c202");
+    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-18-day-31@fb8032719c56");
   });
   await installApiMocks(page, appState, apiCalls);
 
@@ -986,9 +986,10 @@ test("Scrum auto-refresh updates the table and attendance without reload or inte
   }
 
   await page.clock.install({ time: new Date("2026-07-15T08:00:00+08:00") });
+  await page.clock.pauseAt(new Date("2026-07-15T08:00:00+08:00"));
   await page.addInitScript(() => {
     localStorage.clear();
-    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-17-day-30@35c4aa65c202");
+    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-18-day-31@fb8032719c56");
   });
   await installApiMocks(page, appState, apiCalls);
 
@@ -1115,9 +1116,10 @@ test("Scrum auto-refresh invalidates the visible Calendar month without shifting
   const appState = createTestState();
   const apiCalls = { securityReset: 0, sessionUserId: 1, stateGets: 0 };
   await page.clock.install({ time: new Date("2026-07-15T08:00:00+08:00") });
+  await page.clock.pauseAt(new Date("2026-07-15T08:00:00+08:00"));
   await page.addInitScript(() => {
     localStorage.clear();
-    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-17-day-30@35c4aa65c202");
+    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-18-day-31@fb8032719c56");
   });
   await installApiMocks(page, appState, apiCalls);
 
@@ -1229,7 +1231,7 @@ test("Scrum read-only permission disables attendance and vacation mutations", as
   await page.clock.setFixedTime(new Date("2026-07-15T08:00:00+08:00"));
   await page.addInitScript(() => {
     localStorage.clear();
-    localStorage.setItem("pmt-release-notes-last-seen:2", "2026-07-17-day-30@35c4aa65c202");
+    localStorage.setItem("pmt-release-notes-last-seen:2", "2026-07-18-day-31@fb8032719c56");
   });
   await installApiMocks(page, appState, apiCalls);
 
@@ -1260,8 +1262,8 @@ test("Scrum attendance cache follows the restored cookie session user", async ({
   await page.clock.setFixedTime(new Date("2026-07-15T08:00:00+08:00"));
   await page.addInitScript(() => {
     localStorage.clear();
-    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-17-day-30@35c4aa65c202");
-    localStorage.setItem("pmt-release-notes-last-seen:2", "2026-07-17-day-30@35c4aa65c202");
+    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-18-day-31@fb8032719c56");
+    localStorage.setItem("pmt-release-notes-last-seen:2", "2026-07-18-day-31@fb8032719c56");
   });
   await installApiMocks(page, appState, apiCalls);
 
@@ -2074,6 +2076,25 @@ test("Documentation and Sprints share synchronized idle headers and bulk delete"
   await expect(documentationViewLabels).toHaveCount(2);
   await expect(documentationViewLabels.nth(0)).not.toHaveCSS("display", "none");
   await expect(documentationViewLabels.nth(1)).not.toHaveCSS("display", "none");
+  const readDocumentationHeaderBorders = () => page.locator(".documentation-screen").evaluate(screen => {
+    const border = selector => {
+      const style = getComputedStyle(screen.querySelector(selector));
+      return {
+        color: style.borderTopColor,
+        style: style.borderTopStyle,
+        width: style.borderTopWidth
+      };
+    };
+    return {
+      overflow: getComputedStyle(screen).overflow,
+      project: border("[data-filter='documentation-project']"),
+      sprint: border("[data-filter='documentation-sprint']")
+    };
+  });
+  const cardHeaderBorders = await readDocumentationHeaderBorders();
+  expect(cardHeaderBorders.overflow).toBe("visible");
+  expect(cardHeaderBorders.project.width).toBe("1px");
+  expect(cardHeaderBorders.sprint.width).toBe("1px");
   await expectIdleHeaderControlsNotToOverlap(documentationHeader);
   await expectIdleHeaderExpandedSearch(documentationHeader);
 
@@ -2099,6 +2120,7 @@ test("Documentation and Sprints share synchronized idle headers and bulk delete"
   await documentationHeader.locator("[data-action='set-documentation-view'][data-mode='tree']").click();
   await expect(page.locator(".documentation-tree-document[data-id='2']")).toBeVisible();
   await expect(page.locator(".documentation-tree-document[data-id='1']")).toHaveCount(0);
+  await expect.poll(readDocumentationHeaderBorders).toEqual(cardHeaderBorders);
 
   await documentationSearch.evaluate(element => element.blur());
   await page.locator(".documentation-tree-layout").hover();
@@ -3668,7 +3690,26 @@ test("RTE image annotation creates, crops, groups, locks, undoes, and reopens ed
 test("RTE annotation templates preserve mixed native content and support keyboard workflows", async ({ page }) => {
   test.setTimeout(120_000);
   const appState = createTestState();
-  const apiCalls = { securityReset: 0 };
+  const apiCalls = {
+    securityReset: 0,
+    annotationDefaultTemplateLibrary: {
+      version: 1,
+      templates: [
+        {
+          id: "default-green-box",
+          name: "Green Box",
+          width: 84,
+          height: 44,
+          createdAt: "2026-07-18T00:00:00.000Z",
+          updatedAt: "2026-07-18T00:00:00.000Z",
+          objects: [
+            { id: "default-green-box-object", type: "rectangle", x: 2, y: 2, width: 80, height: 40, fill: "none", stroke: "#4ea72e", strokeWidth: 4 }
+          ]
+        }
+      ],
+      defaults: { arrow: null, rectangle: null }
+    }
+  };
   const originalSvg = [
     '<svg xmlns="http://www.w3.org/2000/svg" width="640" height="360" viewBox="0 0 640 360">',
     '<rect width="640" height="360" fill="#f4f7f1"/>',
@@ -3711,6 +3752,7 @@ test("RTE annotation templates preserve mixed native content and support keyboar
   const annotationObjects = canvas.locator("[data-annotation-object-id]");
   const formatTab = dialog.getByRole("tab", { name: "Format", exact: true });
   const templateTab = dialog.getByRole("tab", { name: "Template", exact: true });
+  const objectsTab = dialog.getByRole("tab", { name: "Objects", exact: true });
   const formatPanel = dialog.locator("[data-annotation-inspector-panel='format']");
   const templatePanel = dialog.locator("[data-annotation-inspector-panel='template']");
   const inspectorToggle = dialog.locator("[data-annotation-toggle-inspector]");
@@ -3792,9 +3834,12 @@ test("RTE annotation templates preserve mixed native content and support keyboar
   await workspace.focus();
   await page.keyboard.press("Control+A");
   await expect(dialog.locator("[data-annotation-selection-label]")).toHaveText("3 objects selected");
-  const sourceObjectIds = await annotationObjects.evaluateAll(objects =>
-    objects.map(object => object.dataset.annotationObjectId)
-  );
+  const sourceObjects = await annotationObjects.evaluateAll(objects => objects.map(object => ({
+    id: object.dataset.annotationObjectId,
+    type: object.dataset.annotationObjectType
+  })));
+  const sourceObjectIds = sourceObjects.map(object => object.id);
+  const sourceRectangleId = sourceObjects.find(object => object.type === "rectangle").id;
 
   await templateTab.click();
   await expect(templatePanel).toBeVisible();
@@ -3849,6 +3894,9 @@ test("RTE annotation templates preserve mixed native content and support keyboar
   expect(previewSvg).toContain("<rect");
   expect(previewSvg).toContain("image-annotation-arrow-shaft");
 
+  await workspace.focus();
+  await page.keyboard.press("Escape");
+  await expect(dialog.locator("[data-annotation-selection-label]")).toHaveText("No selection");
   await templatePreview.click();
   await expect(annotationObjects).toHaveCount(6);
   const instantiatedObjects = await annotationObjects.evaluateAll((objects, existingIds) => objects
@@ -3866,6 +3914,107 @@ test("RTE annotation templates preserve mixed native content and support keyboar
   expect(instantiatedObjects[0].groupId).not.toBe("");
   expect(instantiatedObjects.find(object => object.type === "embedded-image").source).toBe(embeddedImage.source);
   await expect(canvas.locator(".image-annotation-group-member-guide")).toHaveCount(3);
+
+  await workspace.focus();
+  await page.keyboard.press("Control+z");
+  await expect(annotationObjects).toHaveCount(3);
+  await page.keyboard.press("Control+y");
+  await expect(annotationObjects).toHaveCount(6);
+  await expect(dialog.locator("[data-annotation-selection-label]")).toHaveText("No selection");
+  expect(await annotationObjects.evaluateAll(objects => objects.map(object => object.dataset.annotationObjectId)))
+    .toEqual([...sourceObjectIds, ...instantiatedObjects.map(object => object.id)]);
+
+  const instantiatedRectangleId = instantiatedObjects.find(object => object.type === "rectangle").id;
+  const insertedGroup = canvas.locator(`[data-pmt-annotation-group='${instantiatedObjects[0].groupId}']`);
+  const insertedRectangle = canvas.locator(`[data-annotation-object-id='${instantiatedRectangleId}']`);
+  const insertedGroupGeometry = () => insertedGroup.evaluateAll(objects => objects.map(object => {
+    const type = object.dataset.annotationObjectType;
+    if (type === "arrow") {
+      const shaft = object.querySelector(".image-annotation-arrow-shaft");
+      const head = object.querySelector(".image-annotation-arrow-head");
+      return {
+        id: object.dataset.annotationObjectId,
+        type,
+        x1: shaft.getAttribute("x1"),
+        y1: shaft.getAttribute("y1"),
+        tip: head.getAttribute("points").split(" ")[0]
+      };
+    }
+    return {
+      id: object.dataset.annotationObjectId,
+      type,
+      x: object.getAttribute("x"),
+      y: object.getAttribute("y"),
+      width: object.getAttribute("width"),
+      height: object.getAttribute("height"),
+      source: object.getAttribute("href") || ""
+    };
+  }));
+  const insertedStrokeWidths = () => insertedGroup.evaluateAll(objects => objects
+    .filter(object => ["rectangle", "arrow"].includes(object.dataset.annotationObjectType))
+    .map(object => object.dataset.annotationObjectType === "arrow"
+      ? Number(object.querySelector(".image-annotation-arrow-shaft").getAttribute("stroke-width"))
+      : Number(object.getAttribute("stroke-width"))));
+
+  await insertedRectangle.click();
+  await expect(dialog.locator("[data-annotation-selection-label]")).toHaveText("3 objects selected");
+  await formatTab.click();
+  await dialog.getByLabel("Line width").fill("12");
+  await expect.poll(insertedStrokeWidths).toEqual([12, 12]);
+  const exactGeometryBefore = await insertedGroupGeometry();
+  await templateTab.click();
+  await templatePreview.click();
+  await expect(page.locator("dialog.mini-dialog")).toHaveCount(0);
+  await expect(annotationObjects).toHaveCount(6);
+  await expect.poll(insertedStrokeWidths).toEqual([4, 4]);
+  expect(await insertedGroupGeometry()).toEqual(exactGeometryBefore);
+  await workspace.focus();
+  await page.keyboard.press("Control+z");
+  await expect.poll(insertedStrokeWidths).toEqual([12, 12]);
+  expect(await insertedGroupGeometry()).toEqual(exactGeometryBefore);
+  await page.keyboard.press("Control+y");
+  await expect.poll(insertedStrokeWidths).toEqual([4, 4]);
+  expect(await insertedGroupGeometry()).toEqual(exactGeometryBefore);
+
+  const sourceRectangle = canvas.locator(`[data-annotation-object-id='${sourceRectangleId}']`);
+  await objectsTab.click();
+  await dialog.locator(`[data-annotation-tree-kind='object'][data-annotation-tree-id='${sourceRectangleId}']`).click();
+  await expect(dialog.locator("[data-annotation-selection-label]")).toHaveText("Rectangle");
+  await formatTab.click();
+  await dialog.getByLabel("Line width").fill("12");
+  await expect(sourceRectangle).toHaveAttribute("stroke-width", "12");
+  const sourceRectangleGeometry = await sourceRectangle.evaluate(object => ({
+    x: object.getAttribute("x"),
+    y: object.getAttribute("y"),
+    width: object.getAttribute("width"),
+    height: object.getAttribute("height")
+  }));
+  await templateTab.click();
+  await templatePreview.click();
+  const structureWarning = page.locator("dialog.mini-dialog");
+  await expect(structureWarning.getByRole("heading", { name: "Apply Template Formatting", exact: true })).toBeVisible();
+  await expect(structureWarning).toContainText("without changing text or geometry");
+  await structureWarning.getByRole("button", { name: "Cancel", exact: true }).click();
+  await expect(sourceRectangle).toHaveAttribute("stroke-width", "12");
+  await expect(annotationObjects).toHaveCount(6);
+  await templatePreview.click();
+  await structureWarning.getByRole("button", { name: "Apply Formatting", exact: true }).click();
+  await expect(sourceRectangle).toHaveAttribute("stroke-width", "4");
+  await expect(annotationObjects).toHaveCount(6);
+  expect(await sourceRectangle.evaluate(object => ({
+    x: object.getAttribute("x"),
+    y: object.getAttribute("y"),
+    width: object.getAttribute("width"),
+    height: object.getAttribute("height")
+  }))).toEqual(sourceRectangleGeometry);
+  await workspace.focus();
+  await page.keyboard.press("Control+z");
+  await expect(sourceRectangle).toHaveAttribute("stroke-width", "12");
+  await page.keyboard.press("Control+y");
+  await expect(sourceRectangle).toHaveAttribute("stroke-width", "4");
+
+  await insertedRectangle.click();
+  await expect(dialog.locator("[data-annotation-selection-label]")).toHaveText("3 objects selected");
 
   await workspace.focus();
   await page.keyboard.press("Control+C");
@@ -3942,7 +4091,28 @@ test("RTE annotation templates preserve mixed native content and support keyboar
   await expect(reopenedCard).toHaveCount(1);
   await expect(reopenedCard.getByText("Screenshot callout", { exact: true })).toBeVisible();
   await expect(reopenedCard.locator("[data-annotation-template-action='create'] img")).toHaveAttribute("src", previewSource);
+  const reopenedCanvasObjectCount = await reopenedDialog.locator("[data-annotation-object-id]").count();
+  await reopenedDialog.getByRole("button", { name: "Restore Default Templates", exact: true }).click();
+  await expect.poll(() => apiCalls.annotationTemplateLibraryPuts?.length || 0).toBe(2);
+  await expect(reopenedDialog.locator("[data-annotation-template-card]")).toHaveCount(2);
+  await expect(reopenedDialog.locator("[data-annotation-template-card]").nth(0)).toContainText("Green Box");
+  await expect(reopenedDialog.locator("[data-annotation-template-card]").nth(1)).toContainText("Screenshot callout");
+  await expect(reopenedDialog.locator("[data-annotation-object-id]")).toHaveCount(reopenedCanvasObjectCount);
+  expect(apiCalls.annotationTemplateLibraries.get(1).templates.map(template => template.name)).toEqual([
+    "Green Box",
+    "Screenshot callout"
+  ]);
   await reopenedDialog.getByRole("button", { name: "Cancel", exact: true }).click();
+
+  await openRteImageMenu();
+  await page.getByRole("menuitem", { name: "Annotate", exact: true }).click();
+  const restoredDialog = page.locator("dialog.image-annotation-dialog");
+  await restoredDialog.getByRole("tab", { name: "Template", exact: true }).click();
+  await expect(restoredDialog.locator("[data-annotation-template-card]")).toHaveCount(2);
+  await restoredDialog.getByRole("button", { name: "Restore Default Templates", exact: true }).click();
+  await expect(restoredDialog.locator("[data-annotation-template-status]")).toHaveText("All default templates are already in your library.");
+  expect(apiCalls.annotationTemplateLibraryPuts).toHaveLength(2);
+  await restoredDialog.getByRole("button", { name: "Cancel", exact: true }).click();
 });
 
 test("RTE annotation Objects tree stays synchronized with canvas layers", async ({ page }) => {
@@ -4174,7 +4344,7 @@ test("RTE annotation Objects tree stays synchronized with canvas layers", async 
   )).toEqual(canvasOrderBeforeSearch);
   await assertTreeMatchesCanvas();
 
-  await treeRow("object", rootArrowId).dragTo(groupRow());
+  await treeRow("object", rootArrowId).dragTo(groupRow(), { targetPosition: { x: 12, y: 24 } });
   await expect(canvasObject(rootArrowId)).toHaveAttribute("data-pmt-annotation-group", groupId);
   await expect(tree.locator(`[data-annotation-tree-group-id='${groupId}'] [role='group'] [data-annotation-tree-node]`))
     .toHaveCount(4);
@@ -4216,7 +4386,53 @@ test("RTE annotation Objects tree stays synchronized with canvas layers", async 
   expect(canvasOrderAfterGroupMove.slice(-3).every(item => item.groupId === groupId)).toBe(true);
   await assertTreeMatchesCanvas();
 
-  const orderBeforeImageAttempt = canvasOrderAfterGroupMove.map(item => item.id);
+  const groupHeaderBox = await groupRow().boundingBox();
+  expect(groupHeaderBox).not.toBeNull();
+  const dataTransfer = await page.evaluateHandle(() => new DataTransfer());
+  await treeRow("object", rootArrowId).dispatchEvent("dragstart", { dataTransfer });
+  await groupRow().dispatchEvent("dragover", {
+    dataTransfer,
+    clientX: groupHeaderBox.x + 12,
+    clientY: groupHeaderBox.y + 1
+  });
+  await expect(groupRow()).toHaveClass(/reorder-before/);
+  await groupRow().dispatchEvent("drop", {
+    dataTransfer,
+    clientX: groupHeaderBox.x + 12,
+    clientY: groupHeaderBox.y + 1
+  });
+  const rootKindsAfterPromotion = await tree.locator(":scope > [data-annotation-tree-node], :scope > [data-annotation-tree-group-id] > [data-annotation-tree-node]")
+    .evaluateAll(rows => rows.map(row => `${row.dataset.annotationTreeKind}:${row.dataset.annotationTreeId}`));
+  expect(rootKindsAfterPromotion.slice(0, 3)).toEqual([
+    `object:${rootArrowId}`,
+    `group:${groupId}`,
+    `object:${sourceImageId}`
+  ]);
+  await expect(canvasObject(rootArrowId)).not.toHaveAttribute("data-pmt-annotation-group", groupId);
+  await expect(tree.locator(`[data-annotation-tree-group-id='${groupId}'] [role='group'] [data-annotation-tree-node]`))
+    .toHaveCount(3);
+  await assertTreeMatchesCanvas();
+
+  const sourceImageRow = treeRow("object", sourceImageId);
+  const sourceImageBox = await sourceImageRow.boundingBox();
+  expect(sourceImageBox).not.toBeNull();
+  const sourceTargetDataTransfer = await page.evaluateHandle(() => new DataTransfer());
+  await treeRow("object", rootArrowId).dispatchEvent("dragstart", { dataTransfer: sourceTargetDataTransfer });
+  await sourceImageRow.dispatchEvent("dragover", {
+    dataTransfer: sourceTargetDataTransfer,
+    clientX: sourceImageBox.x + 12,
+    clientY: sourceImageBox.y + sourceImageBox.height - 1
+  });
+  await expect(sourceImageRow).toHaveClass(/reorder-before/);
+  await expect(sourceImageRow).not.toHaveClass(/reorder-after/);
+  await dialog.locator(".image-annotation-object-tree-help").dispatchEvent("dragover", {
+    dataTransfer: sourceTargetDataTransfer
+  });
+  await expect(dialog.locator(".reorder-before, .reorder-after")).toHaveCount(0);
+  await treeRow("object", rootArrowId).dispatchEvent("dragend", { dataTransfer: sourceTargetDataTransfer });
+
+  const orderBeforeImageAttempt = await canvas.locator("[data-annotation-object-id]")
+    .evaluateAll(elements => elements.map(element => element.dataset.annotationObjectId));
   await expect(treeRow("object", sourceImageId)).toHaveAttribute("draggable", "false");
   await treeRow("object", sourceImageId).click();
   await expect(dialog.locator("[data-annotation-tree-action='delete']")).toBeDisabled();
@@ -4243,6 +4459,36 @@ test("RTE annotation Objects tree stays synchronized with canvas layers", async 
   const pastedOpacityValues = await canvas.locator(`[data-pmt-annotation-group='${pastedGroupId}']`)
     .evaluateAll(elements => elements.map(element => element.getAttribute("opacity")));
   expect(pastedOpacityValues).toEqual(["0.42", "0.42", "0.42"]);
+  await assertTreeMatchesCanvas();
+
+  const pastedGroupHeaderBox = await treeRow("group", pastedGroupId).boundingBox();
+  expect(pastedGroupHeaderBox).not.toBeNull();
+  const groupPromotionDataTransfer = await page.evaluateHandle(() => new DataTransfer());
+  await groupRow().dispatchEvent("dragstart", { dataTransfer: groupPromotionDataTransfer });
+  await treeRow("group", pastedGroupId).dispatchEvent("dragover", {
+    dataTransfer: groupPromotionDataTransfer,
+    clientX: pastedGroupHeaderBox.x + 12,
+    clientY: pastedGroupHeaderBox.y + 1
+  });
+  await expect(treeRow("group", pastedGroupId)).toHaveClass(/reorder-before/);
+  await treeRow("group", pastedGroupId).dispatchEvent("drop", {
+    dataTransfer: groupPromotionDataTransfer,
+    clientX: pastedGroupHeaderBox.x + 12,
+    clientY: pastedGroupHeaderBox.y + 1
+  });
+  const rootKindsAfterGroupPromotion = await tree
+    .locator(":scope > [data-annotation-tree-node], :scope > [data-annotation-tree-group-id] > [data-annotation-tree-node]")
+    .evaluateAll(rows => rows.map(row => `${row.dataset.annotationTreeKind}:${row.dataset.annotationTreeId}`));
+  expect(rootKindsAfterGroupPromotion.slice(0, 4)).toEqual([
+    `group:${groupId}`,
+    `group:${pastedGroupId}`,
+    `object:${rootArrowId}`,
+    `object:${sourceImageId}`
+  ]);
+  await expect(tree.locator(`[data-annotation-tree-group-id='${groupId}'] [role='group'] [data-annotation-tree-node]`))
+    .toHaveCount(3);
+  await expect(tree.locator(`[data-annotation-tree-group-id='${pastedGroupId}'] [role='group'] [data-annotation-tree-node]`))
+    .toHaveCount(3);
   await assertTreeMatchesCanvas();
 
   await treeRow("group", pastedGroupId).click();
@@ -4573,6 +4819,11 @@ async function installApiMocks(page, appState, apiCalls) {
     if (!Array.isArray(apiCalls.annotationTemplateLibraryPuts)) apiCalls.annotationTemplateLibraryPuts = [];
     apiCalls.annotationTemplateLibraryPuts.push({ userId: sessionUserId, library: structuredClone(library) });
     await route.fulfill(jsonResponse(library));
+  });
+
+  await page.route("**/api/image-annotation/default-template-library", async route => {
+    const emptyLibrary = { version: 1, templates: [], defaults: { arrow: null, rectangle: null } };
+    await route.fulfill(jsonResponse(apiCalls.annotationDefaultTemplateLibrary || emptyLibrary));
   });
 
   await page.route("**/api/login", async route => {

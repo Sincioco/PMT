@@ -10,6 +10,7 @@ Open SQL Server Management Studio or `sqlcmd` and run the scripts in this order:
 SQL\01_CreateDatabase.sql
 SQL\02_CreateStoredProcedures.sql
 SQL\03_SeedData.sql
+SQL\03_SeedData_ImageAnnotationTemplates.sql
 SQL\03_SeedData_PMT.sql
 SQL\03_SeedData_LMS.sql
 SQL\03_SeedData_HLS.sql
@@ -166,6 +167,6 @@ If PMT encounters a configuration or file-system access error while initializing
 
 The completed July 16, 2026 BDO deployment established PMT Database Version 1.22 as the baseline for every known instance. The completed Version 1.15-to-1.22 migration steps, combined runner, and incident-recovery runner are retained under `SQL/Migrations/Migration History/`; do not rerun them on a current installation. Future deployment runbooks must begin at Version 1.22 and use a combined migration runner whenever a release spans more than one versioned migration.
 
-The current source release and BDO Production both represent Database Version 1.22, so there is no active database migration. The next database-affecting release must add a forward migration from Version 1.22 under `SQL/Migrations/`, and that migration must complete successfully before starting its matching application binary.
+The current source release represents Database Version 1.23 while BDO Production remains at Version 1.22. Before starting the matching Version 1.23 application binary, run `SQL/Migrations/PMT_1.22_to_1.23_All.sql` in SQLCMD mode and complete the Version 1.23 verification runbook. Do not run the individual migration directly during deployment; the combined runner is the one-file operator entry point.
 
 For future application releases, recompile and republish .NET when ASP.NET or ADO.NET code changes, restart the IIS application pool after application deployment, and use Ctrl+F5 when browser-loaded assets change. Versioned JavaScript and CSS URLs prevent normal cache reuse; Ctrl+F5 is a final verification refresh, not a substitute for rebuilding or restarting .NET.

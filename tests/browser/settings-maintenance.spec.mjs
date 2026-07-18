@@ -244,7 +244,7 @@ test("Maintenance confirms only selected orphan paths before delete and rescans 
 async function prepareMaintenancePage(page, handlers = {}) {
   await page.addInitScript(() => {
     localStorage.clear();
-    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-17-day-30@35c4aa65c202");
+    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-18-day-31@fb8032719c56");
   });
   await page.route("**/api/login", async route => {
     await route.fulfill(jsonResponse({

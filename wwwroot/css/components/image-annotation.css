@@ -601,6 +601,7 @@
 }
 
 .image-annotation-object-tree-root-drop {
+  position: relative;
   margin: var(--space-2) 0;
   padding: var(--space-2);
   border: var(--border-width) dashed var(--color-border-control);
@@ -611,13 +612,7 @@
   transition: var(--transition-control);
 }
 
-.image-annotation-object-tree-root-drop.is-drop-target {
-  border-color: var(--color-primary);
-  background: var(--color-control-selected);
-  color: var(--color-text-primary);
-}
-
-.image-annotation-object-tree-root-drop.is-disabled:not(.is-drop-target) {
+.image-annotation-object-tree-root-drop.is-disabled:not(.reorder-after) {
   opacity: 0.58;
   cursor: not-allowed;
 }
@@ -643,6 +638,7 @@
 }
 
 .image-annotation-object-tree-row {
+  position: relative;
   display: flex;
   align-items: center;
   gap: var(--space-1);
@@ -686,9 +682,28 @@
   cursor: grabbing;
 }
 
-.image-annotation-object-tree-row.is-drop-target {
-  border-color: var(--color-primary);
-  box-shadow: inset 0 0 0 1px var(--color-primary);
+.image-annotation-object-tree-row.reorder-before::before,
+.image-annotation-object-tree-row.reorder-after::after,
+.image-annotation-object-tree-root-drop.reorder-after::after {
+  content: "";
+  position: absolute;
+  z-index: 2;
+  right: var(--space-1);
+  left: var(--space-1);
+  height: 3px;
+  border-radius: var(--radius-pill);
+  background: var(--color-primary);
+  box-shadow: var(--shadow-focus);
+  pointer-events: none;
+}
+
+.image-annotation-object-tree-row.reorder-before::before {
+  top: -2px;
+}
+
+.image-annotation-object-tree-row.reorder-after::after,
+.image-annotation-object-tree-root-drop.reorder-after::after {
+  bottom: -2px;
 }
 
 .image-annotation-object-tree-row[draggable="false"] {

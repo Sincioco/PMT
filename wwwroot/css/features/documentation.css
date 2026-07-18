@@ -68,7 +68,6 @@
   grid-template-rows: auto minmax(0, 1fr);
   height: 100%;
   min-height: 0;
-  overflow: hidden;
 }
 
 .documentation-filter-dialog {
@@ -823,7 +822,6 @@ html[data-theme] .documentation-inline-editor .rich-tools .documentation-inline-
     grid-template-rows: auto minmax(0, 1fr);
     height: 100%;
     min-height: 0;
-    overflow: hidden;
   }
 
   .documentation-screen.idle-filter-header-screen .section-head > .toolbar {

@@ -44,9 +44,10 @@ Run these scripts in order:
 1. `SQL\01_CreateDatabase.sql`
 2. `SQL\02_CreateStoredProcedures.sql`
 3. `SQL\03_SeedData.sql`
-4. `SQL\03_SeedData_PMT.sql`
-5. `SQL\03_SeedData_LMS.sql`
-6. `SQL\03_SeedData_HLS.sql`
+4. `SQL\03_SeedData_ImageAnnotationTemplates.sql`
+5. `SQL\03_SeedData_PMT.sql`
+6. `SQL\03_SeedData_LMS.sql`
+7. `SQL\03_SeedData_HLS.sql`
 
 ## Local Run
 
