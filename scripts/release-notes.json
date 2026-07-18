@@ -1158,9 +1158,12 @@
       {
         "title": "Dedicated Diagram Workspace",
         "items": [
-          "Add a top-level Diagram workspace immediately before Release Notes while reusing the same annotation editor available from rich-text content.",
+          "Add a top-level Diagram workspace immediately after Documentation while reusing the same annotation editor available from rich-text content.",
           "Insert Rectangle, Arrow, Text, and Entity objects immediately from the toolbar, start with Grid and Snap disabled, and provide direct 10% through 200% zoom selection in 5% increments.",
-          "Save a Diagram as private Documentation content with its editable SVG embedded in the private document instead of a public upload, so it can be reopened without exposing diagram or SQL metadata."
+          "Create a private backing Document immediately for every new Diagram, then edit the same saved Diagram inline or in a maximized workspace.",
+          "Browse Diagrams in Card or hierarchical Tree views, edit their name, visibility, Project, Sprint, parent, and pinned state, and share direct links to public Diagrams.",
+          "Filter Diagrams by search, Project, Sprint, and visibility; sort latest-first, oldest-first, alphabetically, or by a custom drag-and-drop order while keeping pinned Diagrams at the top.",
+          "Navigate read-only Diagrams with Fit, direct zoom selection, pointer-centered zoom, and drag panning across a virtual canvas even when the artwork already fits the viewport."
         ]
       },
       {
@@ -1184,7 +1187,16 @@
         "items": [
           "Format all Entity relationships through their shared Objects container or select an individual relationship to change only its line color, line width, and arrow-head size.",
           "Save relationship formatting as a reusable template and download or upload individual template files, including the ten key PMT Entity templates created for ERD testing.",
-          "Resize objects proportionally from corner handles or along one axis from side handles while keeping Entity key columns stable and scaling embedded text or arrows proportionally."
+          "Resize objects proportionally from corner handles or along one axis from side handles while keeping Entity key columns stable and scaling embedded text or arrows proportionally.",
+          "Hide or show any individual canvas object or complete object group from the Objects tab, with visibility preserved through Undo, Redo, templates, saving, and reopening."
+        ]
+      },
+      {
+        "title": "Permanent PMT Database Schema Demo",
+        "items": [
+          "Seed a public PMT's Database Schema Diagram that models every PMT application table and its real field-to-field foreign-key relationships.",
+          "Arrange the schema on a large editable canvas beneath the title PMT's Diagram Tool by Sin so the Diagram workspace has a durable, realistic demonstration after fresh installation or migration.",
+          "Group the per-entity explanatory text and pointing arrows into one Entity Descriptions overlay that can be shown or hidden without affecting the underlying ERD."
         ]
       }
     ]

@@ -360,6 +360,7 @@ public sealed partial class SqlPmtStore
                 BodyHtml = reader.GetStringOrEmpty("BodyHtml"),
                 IsPrivate = reader.GetBoolean("IsPrivate"),
                 IsPinned = reader.GetBoolean("IsPinned"),
+                SortOrder = reader.GetInt32("SortOrder"),
                 CreatedByUserId = reader.GetInt32("CreatedByUserId"),
                 CreatedAt = reader.GetUtcDateTime("CreatedAt"),
                 UpdatedAt = reader.GetUtcDateTime("UpdatedAt")

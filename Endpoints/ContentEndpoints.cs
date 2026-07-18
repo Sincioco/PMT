@@ -55,6 +55,14 @@ internal static class ContentEndpoints
             return Results.Ok(new { id = savedId });
         });
 
+        app.MapPut("/api/blogs/{id:int}/move", async (int id, MoveBlogInput input, HttpContext context, SqlPmtStore store, CancellationToken cancellationToken) =>
+        {
+            var currentUserId = ExplicitCurrentUserId(context);
+            await store.RequirePermissionAsync(currentUserId, "Documentation", "Update", cancellationToken);
+            await store.MoveBlogAsync(id, input, currentUserId, cancellationToken);
+            return Results.NoContent();
+        });
+
         app.MapDelete("/api/blogs/{id:int}", async (int id, HttpContext context, SqlPmtStore store, CancellationToken cancellationToken) =>
         {
             var currentUserId = ExplicitCurrentUserId(context);

@@ -737,6 +737,7 @@ BEGIN
         [BodyHtml] NVARCHAR(MAX) NOT NULL,
         [IsPrivate] BIT NOT NULL CONSTRAINT [DF_pmt_Blogs_IsPrivate] DEFAULT (1),
         [IsPinned] BIT NOT NULL CONSTRAINT [DF_pmt_Blogs_IsPinned] DEFAULT (0),
+        [SortOrder] INT NOT NULL CONSTRAINT [DF_pmt_Blogs_SortOrder] DEFAULT (0),
         [CreatedByUserId] INT NOT NULL,
         [UpdatedByUserId] INT NULL,
         [IsDeleted] BIT NOT NULL CONSTRAINT [DF_pmt_Blogs_IsDeleted] DEFAULT (0),
@@ -781,6 +782,13 @@ IF COL_LENGTH(N'pmt.Blogs', N'IsPinned') IS NULL
 BEGIN
     ALTER TABLE [pmt].[Blogs]
     ADD [IsPinned] BIT NOT NULL CONSTRAINT [DF_pmt_Blogs_IsPinned] DEFAULT (0) WITH VALUES;
+END;
+GO
+
+IF COL_LENGTH(N'pmt.Blogs', N'SortOrder') IS NULL
+BEGIN
+    ALTER TABLE [pmt].[Blogs]
+    ADD [SortOrder] INT NOT NULL CONSTRAINT [DF_pmt_Blogs_SortOrder] DEFAULT (0) WITH VALUES;
 END;
 GO
 

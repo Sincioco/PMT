@@ -41,7 +41,8 @@ public sealed partial class SqlPmtStore
             Path.Combine(contentRootPath, "SQL", "03_SeedData_ImageAnnotationTemplates.sql"),
             Path.Combine(contentRootPath, "SQL", "03_SeedData_PMT.sql"),
             Path.Combine(contentRootPath, "SQL", "03_SeedData_LMS.sql"),
-            Path.Combine(contentRootPath, "SQL", "03_SeedData_HLS.sql")
+            Path.Combine(contentRootPath, "SQL", "03_SeedData_HLS.sql"),
+            Path.Combine(contentRootPath, "SQL", "03_SeedData_DiagramDemo.sql")
         };
 
         await using var connection = await OpenConnectionAsync(cancellationToken);

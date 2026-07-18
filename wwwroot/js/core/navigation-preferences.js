@@ -3,10 +3,11 @@ import {
   readJsonPreference,
   writeJsonPreference
 } from "./preferences.js";
-import { screenRegistry } from "./screen-registry.js?v=20260718-diagram-entity-v22";
+import { screenRegistry } from "./screen-registry.js?v=20260718-diagram-library-v7";
 import { canReadView } from "../shared/security.js?v=20260718-diagram-entity-v22";
 
-const navigationVersion = 2;
+const navigationVersion = 3;
+const betaVisibilityVersion = 2;
 const betaNavigationViews = new Set(["Dashboard", "Road Map", "Gantt"]);
 const lockedVisibleViews = new Set(["About", "Settings"]);
 
@@ -53,12 +54,7 @@ export function normalizeNavigationConfig(value = {}) {
   });
 
   defaultNavigationItems().forEach(item => {
-    if (seenViews.has(item.view)) return;
-    const releaseNotesIndex = item.view === "Diagram"
-      ? items.findIndex(existing => existing.view === "Release Notes")
-      : -1;
-    if (releaseNotesIndex >= 0) items.splice(releaseNotesIndex, 0, item);
-    else items.push(item);
+    if (!seenViews.has(item.view)) items.push(item);
   });
 
   return {
@@ -119,7 +115,7 @@ function navigationLabelFor(item, screen) {
 function navigationVisibleFor(item, screen, savedVersion) {
   if (!screen) return false;
   if (isNavigationVisibilityLocked(screen.view)) return true;
-  if (savedVersion < navigationVersion && betaNavigationViews.has(screen.view)) return false;
+  if (savedVersion < betaVisibilityVersion && betaNavigationViews.has(screen.view)) return false;
   if (typeof item?.visible === "boolean") return item.visible;
   return defaultNavigationVisible(screen);
 }
@@ -132,11 +128,13 @@ function defaultNavigationVisible(screen) {
 
 function enforceFixedNavigationOrder(items) {
   const boardItem = items.find(item => item.view === "Board");
+  const diagramItem = items.find(item => item.view === "Diagram");
   const logItem = items.find(item => item.view === "Log");
   const aboutItem = items.find(item => item.view === "About");
   const settingsItem = items.find(item => item.view === "Settings");
   const orderedItems = items.filter(item =>
     item.view !== "Board"
+    && item.view !== "Diagram"
     && item.view !== "Log"
     && item.view !== "About"
     && item.view !== "Settings");
@@ -146,9 +144,16 @@ function enforceFixedNavigationOrder(items) {
     orderedItems.splice(sprintIndex >= 0 ? sprintIndex + 1 : orderedItems.length, 0, boardItem);
   }
 
-  if (logItem) {
+  if (diagramItem) {
     const documentationIndex = orderedItems.findIndex(item => item.view === "Documentation");
-    orderedItems.splice(documentationIndex >= 0 ? documentationIndex + 1 : orderedItems.length, 0, logItem);
+    orderedItems.splice(documentationIndex >= 0 ? documentationIndex + 1 : orderedItems.length, 0, diagramItem);
+  }
+
+  if (logItem) {
+    const diagramIndex = orderedItems.findIndex(item => item.view === "Diagram");
+    const documentationIndex = orderedItems.findIndex(item => item.view === "Documentation");
+    const insertIndex = diagramIndex >= 0 ? diagramIndex + 1 : documentationIndex >= 0 ? documentationIndex + 1 : orderedItems.length;
+    orderedItems.splice(insertIndex, 0, logItem);
   }
 
   if (aboutItem) orderedItems.push(aboutItem);

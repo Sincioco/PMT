@@ -14,6 +14,7 @@ SQL\03_SeedData_ImageAnnotationTemplates.sql
 SQL\03_SeedData_PMT.sql
 SQL\03_SeedData_LMS.sql
 SQL\03_SeedData_HLS.sql
+SQL\03_SeedData_DiagramDemo.sql
 ```
 
 Every table, function, and stored procedure is under the `[pmt]` schema.

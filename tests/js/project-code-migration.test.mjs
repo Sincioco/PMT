@@ -135,6 +135,25 @@ test("Version 1.23 provides the requested one-file combined SQLCMD runner", () =
   assert.match(demoMigrationRunner, /:r "\.\\PMT_1\.22_to_1\.23\.sql"/);
 });
 
+test("Diagram custom order spans root scopes while child parents remain scoped", () => {
+  const sourceMoveBlog = procedureBody(sourceProcedures, "MoveBlog");
+  const migratedMoveBlog = procedureBody(demoMigration, "MoveBlog");
+  const parentValidation = sourceMoveBlog.slice(
+    sourceMoveBlog.indexOf("IF @ParentBlogId IS NOT NULL"),
+    sourceMoveBlog.indexOf("SET @CycleBlogId")
+  );
+  const orderValidation = sourceMoveBlog.slice(
+    sourceMoveBlog.indexOf("IF NOT EXISTS (SELECT 1 FROM @BlogIds"),
+    sourceMoveBlog.indexOf("UPDATE [pmt].[Blogs]")
+  );
+
+  assert.equal(migratedMoveBlog, sourceMoveBlog);
+  assert.match(parentValidation, /\[ProjectId\]/);
+  assert.match(parentValidation, /\[SprintId\]/);
+  assert.doesNotMatch(orderValidation, /\[Blog\]\.\[ProjectId\]/);
+  assert.doesNotMatch(orderValidation, /\[Blog\]\.\[SprintId\]/);
+});
+
 test("shared annotation defaults stay identical in fresh installs and the 1.22 to 1.23 migration", () => {
   const seedJson = sqlJsonLiteral(imageAnnotationSeed, "LibraryJson");
   const migrationJson = sqlJsonLiteral(demoMigration, "DefaultImageAnnotationTemplateLibraryJson");

@@ -63,6 +63,17 @@ public sealed partial class SqlPmtStore
         }, cancellationToken);
     }
 
+    public Task MoveBlogAsync(int blogId, MoveBlogInput input, int currentUserId, CancellationToken cancellationToken)
+    {
+        return ExecuteLockedProcedureAsync("[pmt].[MoveBlog]", command =>
+        {
+            Add(command, "@BlogId", blogId);
+            AddNullable(command, "@ParentBlogId", input.ParentBlogId);
+            Add(command, "@OrderedBlogIds", SqlDbType.NVarChar, -1, string.Join(',', input.OrderedBlogIds));
+            Add(command, "@CurrentUserId", currentUserId);
+        }, cancellationToken, lockBlogWrites: true);
+    }
+
     public async Task<string> DeleteBlogAttachmentAsync(int blogId, int attachmentId, int currentUserId, CancellationToken cancellationToken)
     {
         await using var connection = await OpenConnectionAsync(cancellationToken);

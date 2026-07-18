@@ -976,6 +976,126 @@ test("Entity relationship routes never pass behind an unrelated Entity", () => {
   }
 });
 
+test("Entity relationship routes remain visible at fractional drag coordinates", () => {
+  const parent = simpleRelationshipEntity("fractional-parent", "FractionalParent", 0, 0);
+  const child = simpleRelationshipEntity("fractional-child", "FractionalChild", 800, 0, "FractionalParent");
+
+  [800, 800.0004, 800.0006, 800.0014, 800.0016].forEach(x => {
+    child.x = x;
+    const svg = annotationEntityRelationshipsSvg([parent, child]);
+    assert.match(
+      svg,
+      /class="image-annotation-entity-relationship-path"/,
+      `relationship should remain visible when the dragged Entity x-coordinate is ${x}`
+    );
+    assert.match(svg, /data-pmt-relationship-source="pmt\.FractionalChild\.FractionalParentId"/);
+    assert.match(svg, /data-pmt-relationship-target="pmt\.FractionalParent\.FractionalParentId"/);
+  });
+});
+
+test("Entity relationship routes remain visible while moving beside a non-overlapping Entity", () => {
+  const parent = simpleRelationshipEntity("nearby-parent", "NearbyParent", 0, 0);
+  const blocker = simpleRelationshipEntity("nearby-blocker", "NearbyBlocker", 680, 0);
+  blocker.width = 100;
+  const child = simpleRelationshipEntity("nearby-child", "NearbyChild", 804, 0, "NearbyParent");
+  const entities = [parent, blocker, child];
+
+  [804, 803, 802, 801, 800, 801, 802, 803, 804].forEach(x => {
+    child.x = x;
+    const svg = annotationEntityRelationshipsSvg(entities, null, {
+      interactive: true,
+      selectedIds: new Set([child.id])
+    });
+    const paths = [...svg.matchAll(/class="image-annotation-entity-relationship-path" d="([^"]+)"/g)];
+    assert.equal(paths.length, 1, `relationship should remain visible when the nearby Entity gap is ${x - 780}px`);
+    const points = orthogonalPathPoints(paths[0][1]);
+    assert.deepEqual(points[0], { x, y: expectedEntityFieldAnchorY(child, "NearbyParentId") });
+    assert.deepEqual(points.at(-1), {
+      x: parent.x + parent.width,
+      y: expectedEntityFieldAnchorY(parent, "NearbyParentId")
+    });
+    points.slice(1).forEach((point, index) => {
+      entities.forEach(entity => {
+        assert.equal(
+          orthogonalSegmentIntersectsEntityInterior(points[index], point, entity),
+          false,
+          `${paths[0][1]} crosses ${entity.entityName}`
+        );
+      });
+    });
+  });
+});
+
+test("matching Entity relationships share an aligned target lane without moving field anchors", () => {
+  const users = simpleRelationshipEntity("aligned-users", "Users", 33, 444);
+  users.width = 313;
+  users.height = 317;
+  users.fields[0].name = "UserId";
+
+  const auditEntity = (id, name, x, y) => ({
+    ...simpleRelationshipEntity(id, name, x, y),
+    width: 313,
+    height: 255,
+    fields: [
+      { name: `${name}Id`, dataType: "INT", nullable: false, isPrimaryKey: true, isForeignKey: false },
+      { name: "CreatedByUserId", dataType: "INT", nullable: false, isPrimaryKey: false, isForeignKey: true },
+      { name: "UpdatedByUserId", dataType: "INT", nullable: true, isPrimaryKey: false, isForeignKey: true }
+    ],
+    foreignKeys: [
+      {
+        name: `FK_${name}_CreatedBy`,
+        columns: ["CreatedByUserId"],
+        referencedSchema: "pmt",
+        referencedTable: "Users",
+        referencedColumns: ["UserId"],
+        relationshipType: "one-to-many"
+      },
+      {
+        name: `FK_${name}_UpdatedBy`,
+        columns: ["UpdatedByUserId"],
+        referencedSchema: "pmt",
+        referencedTable: "Users",
+        referencedColumns: ["UserId"],
+        relationshipType: "one-to-many"
+      }
+    ]
+  });
+  const projects = auditEntity("aligned-projects", "Projects", 588, 34);
+  const sprints = auditEntity("aligned-sprints", "Sprints", 591, 438);
+  const entities = [users, projects, sprints];
+  const expectedTarget = {
+    x: users.x + users.width,
+    y: expectedEntityFieldAnchorY(users, "UserId")
+  };
+  const pathForSource = (svg, source) => {
+    const relationshipStart = svg.indexOf(`data-pmt-relationship-source="${source}"`);
+    assert.ok(relationshipStart >= 0, `${source} relationship should render`);
+    const relationshipEnd = svg.indexOf("</g>", relationshipStart);
+    const relationshipSvg = svg.slice(relationshipStart, relationshipEnd);
+    const path = relationshipSvg.match(/class="image-annotation-entity-relationship-path" d="([^"]+)"/)?.[1];
+    assert.ok(path, `${source} relationship should have a visible path`);
+    return orthogonalPathPoints(path);
+  };
+
+  for (const sprintX of [591, 588]) {
+    sprints.x = sprintX;
+    for (const allowOverlappingLines of [false, true]) {
+      const svg = annotationEntityRelationshipsSvg(entities, null, { allowOverlappingLines });
+      const projectCreated = pathForSource(svg, "pmt.Projects.CreatedByUserId");
+      const sprintCreated = pathForSource(svg, "pmt.Sprints.CreatedByUserId");
+      const projectUpdated = pathForSource(svg, "pmt.Projects.UpdatedByUserId");
+      const sprintUpdated = pathForSource(svg, "pmt.Sprints.UpdatedByUserId");
+
+      assert.equal(projectCreated[1].x, sprintCreated[1].x);
+      assert.equal(projectUpdated[1].x, sprintUpdated[1].x);
+      if (!allowOverlappingLines) assert.notEqual(projectCreated[1].x, projectUpdated[1].x);
+      [projectCreated, sprintCreated, projectUpdated, sprintUpdated].forEach(points => {
+        assert.deepEqual(points.at(-1), expectedTarget);
+      });
+    }
+  }
+});
+
 test("annotation output and copied-selection bounds include cardinality markers and obstacle detours", () => {
   const verifyOutputAndSelection = (objects, relationshipStyle, verifyRoute) => {
     const state = normalizeAnnotationState({
@@ -3011,6 +3131,104 @@ test("persisted groups resolve from the initially selected image", () => {
   assert.deepEqual(annotationSelectionIdsForObject(objects, objects[2]), ["text"]);
 });
 
+test("object and group visibility persist while hidden layers stay out of rendering and hit testing", () => {
+  const state = normalizeAnnotationState({
+    width: 500,
+    height: 300,
+    groupNames: { "overlay-group": "Entity Descriptions" },
+    groupVisibility: { "overlay-group": false },
+    objects: [
+      { id: "image", type: "image", x: 0, y: 0, width: 500, height: 300, visible: false },
+      {
+        id: "overlay-label",
+        type: "textbox",
+        x: 20,
+        y: 20,
+        width: 180,
+        height: 60,
+        text: "HIDDEN GROUP LABEL",
+        groupId: "overlay-group"
+      },
+      {
+        id: "overlay-arrow",
+        type: "arrow",
+        x1: 40,
+        y1: 90,
+        x2: 180,
+        y2: 130,
+        groupId: "overlay-group"
+      },
+      {
+        id: "hidden-root",
+        type: "textbox",
+        x: 220,
+        y: 20,
+        width: 120,
+        height: 50,
+        text: "HIDDEN ROOT LABEL",
+        visible: false
+      },
+      {
+        id: "visible-root",
+        type: "textbox",
+        x: 300,
+        y: 180,
+        width: 140,
+        height: 50,
+        text: "VISIBLE ROOT LABEL"
+      }
+    ]
+  });
+
+  assert.equal(state.groupVisibility["overlay-group"], false);
+  assert.equal(state.objects.find(object => object.id === "overlay-label").visible, true);
+  assert.equal(state.objects.find(object => object.id === "hidden-root").visible, false);
+
+  const tree = buildAnnotationObjectTree(state);
+  const overlayGroup = tree.find(node => node.id === "overlay-group");
+  assert.equal(overlayGroup.visible, false);
+  assert.ok(overlayGroup.children.every(child => child.visible === true && child.effectiveVisible === false));
+  assert.equal(tree.find(node => node.id === "hidden-root").effectiveVisible, false);
+  assert.equal(tree.find(node => node.id === "visible-root").effectiveVisible, true);
+
+  const svg = buildAnnotationSvg(state, "data:image/png;base64,AAECAwQ=");
+  const renderedBody = svg.split("</metadata>")[1];
+  assert.match(renderedBody, />VISIBLE</);
+  assert.doesNotMatch(renderedBody, />HIDDEN|>GROUP|>ROOT/);
+  const reopened = parseAnnotationSvg(svg);
+  assert.equal(reopened.groupVisibility["overlay-group"], false);
+  assert.equal(reopened.objects.find(object => object.id === "hidden-root").visible, false);
+
+  assert.deepEqual(
+    annotationObjectsIntersectingRect(
+      state.objects,
+      { x: 0, y: 0, width: 500, height: 300 },
+      state.imageClip,
+      state.groupVisibility
+    ).map(object => object.id),
+    ["visible-root"]
+  );
+  assert.deepEqual(
+    annotationSelectionIdsForObject(
+      state.objects,
+      state.objects.find(object => object.id === "overlay-label"),
+      state.groupVisibility
+    ),
+    []
+  );
+
+  const overlayTemplate = captureAnnotationTemplate(
+    state,
+    new Set(["overlay-label", "overlay-arrow"]),
+    "",
+    "Entity Descriptions"
+  );
+  assert.equal(overlayTemplate.groupVisible, false);
+  const uploadedTemplate = parseAnnotationTemplateUpload(annotationTemplateDownloadFile(overlayTemplate).contents);
+  assert.equal(uploadedTemplate.groupVisible, false);
+  assert.ok(uploadedTemplate.objects.every(object => object.visible === true));
+});
+
 test("corner handles resize proportionally while side handles resize one axis", () => {
   const start = { x: 10, y: 20, width: 100, height: 50 };
   const state = { snapToGrid: false, gridSize: 20 };
@@ -3442,32 +3660,36 @@ test("reopening, editing, and applying an inline Diagram preserves Unicode Entit
   );
 });
 
-test("saving a Diagram keeps its SVG inside one private Document write", async () => {
+test("Diagram backing Documents are created once, then updated in place without changing visibility", async () => {
   const appSource = await readFile(new URL("../../wwwroot/js/app.js", import.meta.url), "utf8");
-  const start = appSource.indexOf("async function saveDiagramAsDocument(diagram)");
-  const end = appSource.indexOf("\nasync function convertWorkItemToDocument", start);
-  const saveDiagram = appSource.slice(start, end);
+  const createStart = appSource.indexOf("async function createDiagramBackingDocument");
+  const updateStart = appSource.indexOf("async function updateDiagramBackingDocument", createStart);
+  const end = appSource.indexOf("\nasync function updateDiagramBackingInfo", updateStart);
+  const createDiagram = appSource.slice(createStart, updateStart);
+  const updateDiagram = appSource.slice(updateStart, end);
 
-  assert.ok(start >= 0 && end > start, "saveDiagramAsDocument was not found");
-  assert.match(saveDiagram, /const diagramSource = annotationSvgDataUrl\(diagram\.svg\)/);
-  assert.match(saveDiagram, /src=\"\$\{escapeAttr\(diagramSource\)\}\"/);
-  assert.match(saveDiagram, /data-pmt-private-diagram=\"true\"/);
-  assert.match(saveDiagram, /isPrivate:\s*true/);
-  assert.doesNotMatch(saveDiagram, /uploadFile\s*\(/);
-  assert.equal((saveDiagram.match(/saveJson\s*\(/g) || []).length, 1);
+  assert.ok(createStart >= 0 && updateStart > createStart && end > updateStart, "Diagram backing Document functions were not found");
+  assert.match(createDiagram, /saveJson\("\/api\/blogs",\s*"POST"/);
+  assert.match(createDiagram, /isPrivate:\s*true/);
+  assert.match(updateDiagram, /saveJson\(`\/api\/blogs\/\$\{document\.id\}`,\s*"PUT"/);
+  assert.match(updateDiagram, /expectedRowVersion:\s*document\.rowVersion/);
+  assert.match(updateDiagram, /isPrivate:\s*document\.isPrivate !== false/);
+  assert.doesNotMatch(`${createDiagram}\n${updateDiagram}`, /uploadFile\s*\(/);
+  assert.equal((createDiagram.match(/saveJson\s*\(/g) || []).length, 1);
+  assert.equal((updateDiagram.match(/saveJson\s*\(/g) || []).length, 1);
 });
 
-test("editing a private Diagram keeps Apply inline while normal RTE annotations still upload", async () => {
+test("editing a stored Diagram keeps Apply inline while normal RTE annotations still upload", async () => {
   const appSource = await readFile(new URL("../../wwwroot/js/app.js", import.meta.url), "utf8");
   const start = appSource.indexOf("async function annotateRichTextImage(image)");
   const end = appSource.indexOf("\nfunction detailField", start);
   const annotateImage = appSource.slice(start, end);
 
   assert.ok(start >= 0 && end > start, "annotateRichTextImage was not found");
-  assert.match(annotateImage, /image\.dataset\.pmtPrivateDiagram === \"true\"/);
+  assert.match(annotateImage, /image\.dataset\.pmtDiagram === \"true\" \|\| image\.dataset\.pmtPrivateDiagram === \"true\"/);
   assert.match(
     annotateImage,
-    /if \(isPrivateDiagram\) \{\s*annotationSource = annotationSvgDataUrl\(annotation\.svg\);\s*\} else \{[\s\S]*uploadFile\("richtext", file\)/
+    /if \(isStoredDiagram\) \{\s*annotationSource = annotationSvgDataUrl\(annotation\.svg\);\s*\} else \{[\s\S]*uploadFile\("richtext", file\)/
   );
   assert.match(annotateImage, /image\.setAttribute\("src", annotationSource\)/);
 });

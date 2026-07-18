@@ -62,31 +62,49 @@ test("visible navigation screens follow saved order and hidden items", () => {
   assert.equal(visibleNavigationScreens().some(screen => screen.view === "Settings"), true);
 });
 
-test("new navigation configurations place Diagram immediately before Release Notes", () => {
+test("new navigation configurations place Diagram immediately after Documentation", () => {
   storage.clear();
   const config = readNavigationConfig();
+  const documentationIndex = config.items.findIndex(item => item.view === "Documentation");
   const diagramIndex = config.items.findIndex(item => item.view === "Diagram");
-  const releaseNotesIndex = config.items.findIndex(item => item.view === "Release Notes");
-  const aboutIndex = config.items.findIndex(item => item.view === "About");
+  const logIndex = config.items.findIndex(item => item.view === "Log");
 
   assert.equal(config.items[diagramIndex].visible, true);
-  assert.equal(config.items[releaseNotesIndex].visible, true);
-  assert.equal(diagramIndex + 1, releaseNotesIndex);
-  assert.equal(releaseNotesIndex + 1, aboutIndex);
+  assert.equal(documentationIndex + 1, diagramIndex);
+  assert.equal(diagramIndex + 1, logIndex);
 });
 
-test("existing navigation configurations receive Diagram before Release Notes", () => {
+test("existing navigation configurations move Diagram immediately after Documentation", () => {
   const config = normalizeNavigationConfig({
     version: 2,
     items: [
+      { view: "Diagram", visible: true },
       { view: "Tasks", visible: true },
+      { view: "Documentation", visible: true },
       { view: "Release Notes", visible: true },
       { view: "About", visible: true },
       { view: "Settings", visible: true }
     ]
   });
+  const documentationIndex = config.items.findIndex(item => item.view === "Documentation");
   const diagramIndex = config.items.findIndex(item => item.view === "Diagram");
-  const releaseNotesIndex = config.items.findIndex(item => item.view === "Release Notes");
+  const logIndex = config.items.findIndex(item => item.view === "Log");
 
-  assert.equal(diagramIndex + 1, releaseNotesIndex);
+  assert.equal(documentationIndex + 1, diagramIndex);
+  assert.equal(diagramIndex + 1, logIndex);
+});
+
+test("Version 2 navigation migrations preserve visible beta screens", () => {
+  const config = normalizeNavigationConfig({
+    version: 2,
+    items: [
+      { view: "Dashboard", visible: true },
+      { view: "Road Map", visible: true },
+      { view: "Gantt", visible: true }
+    ]
+  });
+
+  assert.equal(config.items.find(item => item.view === "Dashboard").visible, true);
+  assert.equal(config.items.find(item => item.view === "Road Map").visible, true);
+  assert.equal(config.items.find(item => item.view === "Gantt").visible, true);
 });

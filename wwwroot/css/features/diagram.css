@@ -4,14 +4,125 @@
   min-width: 0;
 }
 
-.diagram-panel {
+#app:has(.diagram-screen.is-tree-view) {
+  overflow-y: hidden;
+}
+
+.diagram-screen.is-tree-view {
+  grid-template-rows: auto minmax(0, 1fr);
+  height: 100%;
+  min-height: 0;
+}
+
+.diagram-screen .section-head .toolbar {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.diagram-view-toggle {
+  margin-left: auto;
+}
+
+.diagram-grid {
+  align-items: stretch;
+}
+
+.diagram-card-preview {
   display: grid;
-  min-height: min(70vh, 720px);
+  place-items: center;
+  border: var(--border-width) solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-subtle);
+}
+
+.diagram-card-preview img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: #ffffff;
+}
+
+.diagram-tree-layout {
+  min-height: 0;
+}
+
+.diagram-tree-root-drop {
+  height: 8px;
+  margin: 0 4px;
+  border-top: 2px solid transparent;
+}
+
+.diagram-tree-root-drop.is-drop-target {
+  border-top-color: var(--color-primary);
+}
+
+.diagram-tree-row {
+  position: relative;
+}
+
+.diagram-tree-row.is-dragging {
+  opacity: 0.42;
+}
+
+.diagram-tree-row.is-drop-before::before,
+.diagram-tree-row.is-drop-after::after {
+  position: absolute;
+  right: 4px;
+  left: 4px;
+  z-index: 2;
+  height: 2px;
+  background: var(--color-primary);
+  content: "";
+  pointer-events: none;
+}
+
+.diagram-tree-row.is-drop-before::before {
+  top: -1px;
+}
+
+.diagram-tree-row.is-drop-after::after {
+  bottom: -1px;
+}
+
+.diagram-tree-row.is-drop-inside {
+  border-radius: var(--radius-md);
+  outline: 2px solid var(--color-primary);
+  outline-offset: -2px;
+}
+
+.diagram-tree-content.is-editing {
+  padding: 0;
+  overflow: hidden;
+}
+
+.diagram-tree-content:not(.is-editing) {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  overflow: hidden;
+}
+
+.diagram-inline-editor-host {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--color-surface);
+}
+
+.diagram-inline-editor-host > .empty {
+  display: grid;
+  min-height: 320px;
   place-items: center;
 }
 
 .diagram-empty {
+  display: grid;
+  min-height: 360px;
+  align-content: center;
+  justify-self: center;
   max-width: 540px;
+  padding: var(--space-7);
   text-align: center;
 }
 
@@ -22,36 +133,99 @@
 }
 
 .diagram-empty h2,
-.diagram-empty p,
-.diagram-note {
+.diagram-empty p {
   margin-top: 0;
 }
 
-.diagram-empty p,
-.diagram-note {
+.diagram-empty p {
   color: var(--color-text-secondary);
 }
 
 .diagram-preview {
-  display: grid;
   width: 100%;
   min-height: 420px;
   overflow: auto;
-  place-items: center;
   border: var(--border-width) solid var(--color-border);
   border-radius: var(--radius-md);
   background: var(--color-surface-subtle);
 }
 
-.diagram-preview img {
+.diagram-card-preview img {
   display: block;
   max-width: 100%;
   max-height: 65vh;
   background: #ffffff;
 }
 
-.diagram-note {
-  width: 100%;
-  margin-bottom: 0;
-  text-align: center;
+.diagram-tree-preview-image {
+  min-height: 0;
+  margin-top: var(--space-7);
+  margin-bottom: var(--space-7);
+}
+
+.diagram-readonly-viewer {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  min-height: 0;
+}
+
+.diagram-readonly-toolbar {
+  justify-content: flex-end;
+  padding-bottom: var(--space-2);
+}
+
+.diagram-readonly-toolbar button {
+  min-width: var(--control-height-sm);
+  min-height: var(--control-height-sm);
+  padding: 0 var(--space-2);
+}
+
+.diagram-readonly-toolbar select {
+  width: 76px;
+  min-height: var(--control-height-sm);
+  padding: 0 var(--space-2);
+}
+
+.diagram-readonly-viewport {
+  position: relative;
+  display: block;
+  min-height: 420px;
+  padding: 16px;
+  cursor: grab;
+  overscroll-behavior: contain;
+}
+
+.diagram-readonly-viewport.is-panning {
+  cursor: grabbing;
+  user-select: none;
+}
+
+.diagram-readonly-stage {
+  position: relative;
+  min-width: 1px;
+  min-height: 1px;
+  margin: 0 auto;
+}
+
+.diagram-readonly-stage img {
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: block;
+  max-width: none;
+  max-height: none;
+  transform-origin: 0 0;
+  background: #ffffff;
+  pointer-events: none;
+}
+
+@media (max-width: 700px) {
+  .diagram-screen.is-tree-view {
+    height: auto;
+  }
+
+  .diagram-tree-content.is-editing,
+  .diagram-inline-editor-host {
+    min-height: 720px;
+  }
 }

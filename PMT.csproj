@@ -11,7 +11,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <None Update="SQL\01_CreateDatabase.sql;SQL\02_CreateStoredProcedures.sql;SQL\03_SeedData.sql;SQL\03_SeedData_ImageAnnotationTemplates.sql;SQL\03_SeedData_PMT.sql;SQL\03_SeedData_LMS.sql;SQL\03_SeedData_HLS.sql">
+    <None Update="SQL\01_CreateDatabase.sql;SQL\02_CreateStoredProcedures.sql;SQL\03_SeedData.sql;SQL\03_SeedData_ImageAnnotationTemplates.sql;SQL\03_SeedData_PMT.sql;SQL\03_SeedData_LMS.sql;SQL\03_SeedData_HLS.sql;SQL\03_SeedData_DiagramDemo.sql">
       <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
     </None>
   </ItemGroup>

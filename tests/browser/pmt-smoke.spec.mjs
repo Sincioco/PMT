@@ -45,7 +45,7 @@ test("login, navigation, themes, dialogs, filters, Board, Gantt, and Road Map sm
 
   await page.addInitScript(() => {
     localStorage.clear();
-    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-18-day-31@572729605b60");
+    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-18-day-31@59d6c74b8c72");
     localStorage.setItem("pmt-navigation", JSON.stringify({
       version: 2,
       items: [
@@ -127,9 +127,8 @@ test("login, navigation, themes, dialogs, filters, Board, Gantt, and Road Map sm
     await openNavView(page, view, heading);
     await expectShellFitsViewport(page);
     if (view === "Diagram") {
-      const diagramDialog = page.locator("dialog.image-annotation-dialog");
-      await expect(diagramDialog).toBeVisible();
-      await diagramDialog.getByRole("button", { name: "Cancel", exact: true }).click();
+      await expect(page.locator(".diagram-screen.is-tree-view")).toBeVisible();
+      await expect(page.locator("dialog.image-annotation-dialog")).toHaveCount(0);
     }
   }
 
@@ -524,7 +523,7 @@ test("Developer Board moves stop after QA Passed while QA Ready remains availabl
 
   await page.addInitScript(() => {
     localStorage.clear();
-    localStorage.setItem("pmt-release-notes-last-seen:2", "2026-07-18-day-31@572729605b60");
+    localStorage.setItem("pmt-release-notes-last-seen:2", "2026-07-18-day-31@59d6c74b8c72");
   });
   await installApiMocks(page, appState, apiCalls);
   await page.goto("/");
@@ -571,7 +570,7 @@ test("Scrum attendance, calendar, on-behalf, and vacation flows stay synchronize
       localStorage.clear();
       sessionStorage.setItem("pmt-scrum-attendance-smoke-started", "true");
     }
-    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-18-day-31@572729605b60");
+    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-18-day-31@59d6c74b8c72");
   });
   await installApiMocks(page, appState, apiCalls);
 
@@ -870,7 +869,7 @@ test("Scrum view toggle matches Documentation and crowded attendance avatars fit
   await page.clock.setFixedTime(new Date("2026-07-15T08:00:00+08:00"));
   await page.addInitScript(() => {
     localStorage.clear();
-    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-18-day-31@572729605b60");
+    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-18-day-31@59d6c74b8c72");
   });
   await installApiMocks(page, appState, apiCalls);
 
@@ -996,7 +995,7 @@ test("Scrum auto-refresh updates the table and attendance without reload or inte
   await page.clock.pauseAt(new Date("2026-07-15T08:00:00+08:00"));
   await page.addInitScript(() => {
     localStorage.clear();
-    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-18-day-31@572729605b60");
+    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-18-day-31@59d6c74b8c72");
   });
   await installApiMocks(page, appState, apiCalls);
 
@@ -1126,7 +1125,7 @@ test("Scrum auto-refresh invalidates the visible Calendar month without shifting
   await page.clock.pauseAt(new Date("2026-07-15T08:00:00+08:00"));
   await page.addInitScript(() => {
     localStorage.clear();
-    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-18-day-31@572729605b60");
+    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-18-day-31@59d6c74b8c72");
   });
   await installApiMocks(page, appState, apiCalls);
 
@@ -1238,7 +1237,7 @@ test("Scrum read-only permission disables attendance and vacation mutations", as
   await page.clock.setFixedTime(new Date("2026-07-15T08:00:00+08:00"));
   await page.addInitScript(() => {
     localStorage.clear();
-    localStorage.setItem("pmt-release-notes-last-seen:2", "2026-07-18-day-31@572729605b60");
+    localStorage.setItem("pmt-release-notes-last-seen:2", "2026-07-18-day-31@59d6c74b8c72");
   });
   await installApiMocks(page, appState, apiCalls);
 
@@ -1269,8 +1268,8 @@ test("Scrum attendance cache follows the restored cookie session user", async ({
   await page.clock.setFixedTime(new Date("2026-07-15T08:00:00+08:00"));
   await page.addInitScript(() => {
     localStorage.clear();
-    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-18-day-31@572729605b60");
-    localStorage.setItem("pmt-release-notes-last-seen:2", "2026-07-18-day-31@572729605b60");
+    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-18-day-31@59d6c74b8c72");
+    localStorage.setItem("pmt-release-notes-last-seen:2", "2026-07-18-day-31@59d6c74b8c72");
   });
   await installApiMocks(page, appState, apiCalls);
 
@@ -2422,10 +2421,20 @@ test("Diagram parses T-SQL Entities and exposes individual relationship Objects"
   await page.locator("#loginPassword").fill("Password1");
   await page.getByRole("button", { name: /log in/i }).click();
   await openNavView(page, "Diagram", "Diagram");
+  await page.getByRole("button", { name: "New Diagram", exact: true }).click();
+  await expect.poll(() => apiCalls.blogCreates?.length || 0).toBe(1);
 
-  const dialog = page.locator("dialog.image-annotation-dialog");
+  const dialog = page.locator("[data-diagram-editor-host] > dialog.image-annotation-dialog");
   const canvas = dialog.locator("[data-annotation-canvas]");
   await expect(dialog).toBeVisible();
+  await expect(page.locator("dialog.image-annotation-dialog:modal")).toHaveCount(0);
+  await expect(page.locator(".diagram-tree-pane")).toContainText("Untitled 1");
+  expect(apiCalls.blogCreates).toHaveLength(1);
+  expect(apiCalls.blogCreates[0]).toMatchObject({ title: "Untitled 1", isPrivate: true });
+  await dialog.getByRole("button", { name: "Maximize", exact: true }).click();
+  await expect(dialog).toHaveClass(/is-annotation-maximized/);
+  await dialog.getByRole("button", { name: "Restore", exact: true }).click();
+  await expect(dialog).not.toHaveClass(/is-annotation-maximized/);
   await expect(canvas.locator("[data-annotation-object-type='image']")).toHaveCount(0);
   await expect(dialog.locator("[data-annotation-grid]")).not.toBeChecked();
   await expect(dialog.locator("[data-annotation-snap]")).not.toBeChecked();
@@ -2453,13 +2462,207 @@ test("Diagram parses T-SQL Entities and exposes individual relationship Objects"
   );`);
 
   await expect(canvas.locator("[data-annotation-object-type='entity']")).toHaveCount(2);
+  const firstEntity = canvas.locator("[data-annotation-object-type='entity']").last();
+  const firstEntityHeaderButton = firstEntity.locator(".image-annotation-entity-header-button").first();
+  await expect(firstEntityHeaderButton).toHaveCSS("opacity", "0");
+  await firstEntity.hover();
+  await expect(firstEntityHeaderButton).toHaveCSS("opacity", "1");
+  await expect(canvas.locator(".image-annotation-entity-relationship-path")).toHaveCount(1);
   await dialog.getByRole("tab", { name: "Objects", exact: true }).click();
   const tree = dialog.locator("[data-annotation-object-tree]");
   await expect(tree.locator("[data-annotation-tree-node-type='relationships']"))
     .toContainText("Entity Relationships (1)");
   await expect(tree.locator("[data-annotation-tree-node-type='relationship']"))
     .toContainText("pmt.WorkTasks.ProjectId → pmt.Projects.ProjectId");
+  await dialog.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(dialog).toHaveCount(0);
+  await expect.poll(() => apiCalls.blogUpdates?.length || 0).toBe(1);
+  expect(apiCalls.blogUpdates[0]).toMatchObject({ id: 2, title: "Untitled 1", isPrivate: true });
+  await expect(page.locator(".diagram-tree-preview-image img")).toBeVisible();
+
+  await page.getByRole("button", { name: "Edit Diagram", exact: true }).click();
+  await expect(dialog).toBeVisible();
+  await expect(canvas.locator("[data-annotation-object-type='entity']")).toHaveCount(2);
+  await expect(canvas.locator(".image-annotation-entity-relationship-path")).toHaveCount(1);
   await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
+
+  await page.getByRole("button", { name: "New Diagram", exact: true }).click();
+  await expect.poll(() => apiCalls.blogCreates?.length || 0).toBe(2);
+  expect(apiCalls.blogCreates[1]).toMatchObject({ title: "Untitled 2", isPrivate: true });
+  await expect(page.locator(".diagram-tree-pane")).toContainText("Untitled 2");
+  await expect(dialog).toBeVisible();
+  await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
+});
+
+test("Diagram Card and Tree views show the current user's private and public Diagrams", async ({ page }) => {
+  const appState = createTestState();
+  const apiCalls = { securityReset: 0 };
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="160" height="90"><rect width="160" height="90" fill="white"/><path d="M20 20h120v50H20z" fill="none" stroke="#42526b"/></svg>`;
+  const source = `data:image/svg+xml,${encodeURIComponent(svg)}`;
+  const diagramBody = title => `<p><img src="${source}" alt="${title}" data-pmt-private-diagram="true" data-pmt-annotation-source="${source}" data-pmt-annotation-version="1"></p>`;
+  appState.blogs.push(
+    {
+      id: 2,
+      title: "Architecture",
+      bodyHtml: diagramBody("Architecture"),
+      isPrivate: true,
+      createdByUserId: 1,
+      createdAt: "2026-07-17T08:00:00Z",
+      updatedAt: "2026-07-17T08:00:00Z",
+      rowVersion: "row-2-1",
+      attachments: []
+    },
+    {
+      id: 3,
+      title: "Untitled 2",
+      bodyHtml: diagramBody("Untitled 2"),
+      isPrivate: true,
+      createdByUserId: 1,
+      createdAt: "2026-07-18T08:00:00Z",
+      updatedAt: "2026-07-18T08:00:00Z",
+      rowVersion: "row-3-1",
+      attachments: []
+    },
+    {
+      id: 4,
+      title: "Someone Else's Diagram",
+      bodyHtml: diagramBody("Someone Else's Diagram"),
+      isPrivate: true,
+      createdByUserId: 2,
+      createdAt: "2026-07-18T09:00:00Z",
+      updatedAt: "2026-07-18T09:00:00Z",
+      attachments: []
+    },
+    {
+      id: 5,
+      title: "Public Diagram Marker",
+      bodyHtml: diagramBody("Public Diagram Marker"),
+      isPrivate: false,
+      createdByUserId: 1,
+      createdAt: "2026-07-18T10:00:00Z",
+      updatedAt: "2026-07-18T10:00:00Z",
+      attachments: []
+    },
+    {
+      id: 6,
+      title: "Shared Team Diagram",
+      bodyHtml: diagramBody("Shared Team Diagram"),
+      isPrivate: false,
+      createdByUserId: 2,
+      createdAt: "2026-07-18T09:30:00Z",
+      updatedAt: "2026-07-18T09:30:00Z",
+      attachments: []
+    }
+  );
+
+  await page.addInitScript(() => localStorage.setItem("pmt-diagram-view-mode", "cards"));
+  await markCurrentReleaseSeen(page, 1);
+  await installApiMocks(page, appState, apiCalls);
+  await page.goto("/");
+  await page.locator("#loginName").fill("Sin");
+  await page.locator("#loginPassword").fill("Password1");
+  await page.getByRole("button", { name: /log in/i }).click();
+  await openNavView(page, "Diagram", "Diagram");
+
+  await expect(page.getByRole("button", { name: "Cards", exact: true })).toHaveAttribute("aria-pressed", "true");
+  expect(await page.locator(".diagram-screen .section-head .toolbar").evaluate(toolbar =>
+    toolbar.lastElementChild?.matches("[data-action='new-diagram']") === true
+  )).toBe(true);
+  await expect(page.locator(".diagram-card")).toHaveCount(4);
+  await expect(page.locator(".diagram-card").first()).toContainText("Public Diagram Marker");
+  await expect(page.locator(".diagram-grid")).toContainText("Architecture");
+  await expect(page.locator(".diagram-grid")).toContainText("Untitled 2");
+  await expect(page.locator(".diagram-grid")).not.toContainText("Smoke Test Notes");
+  await expect(page.locator(".diagram-grid")).not.toContainText("Someone Else's Diagram");
+  await expect(page.locator(".diagram-grid")).toContainText("Public Diagram Marker");
+  await expect(page.locator(".diagram-grid")).toContainText("Shared Team Diagram");
+  await expect(page.locator(".diagram-card", { hasText: "Public Diagram Marker" }).getByRole("button", { name: "Share public Diagram" })).toBeVisible();
+
+  await page.getByRole("button", { name: "Filters", exact: true }).click();
+  let diagramFilters = page.locator("[data-diagram-filter-dialog]");
+  await expect(diagramFilters).toBeVisible();
+  await expect(diagramFilters.locator("[data-filter='diagram-sort']")).toHaveValue("latest");
+  await expect(diagramFilters.locator("[data-filter='diagram-sort'] option")).toHaveText([
+    "Latest First",
+    "Oldest First",
+    "Name (Alphabetically)",
+    "Custom"
+  ]);
+  await diagramFilters.locator("[data-filter='diagram-visibility']").selectOption("private");
+  await expect(page.locator(".diagram-card")).toHaveCount(2);
+  await diagramFilters.locator("[data-reset-diagram-filters]").click();
+  await expect(page.locator(".diagram-card")).toHaveCount(4);
+  await diagramFilters.locator("[data-filter='diagram-sort']").selectOption("oldest");
+  await expect(page.locator(".diagram-card").first()).toContainText("Architecture");
+  await diagramFilters.locator("[data-reset-diagram-filters]").click();
+  await diagramFilters.locator("[data-close-diagram-filters]").last().click();
+  await expect(diagramFilters).toHaveCount(0);
+
+  await page.getByRole("button", { name: "Treeview", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Treeview", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await expect(page.locator(".diagram-tree-pane [data-action='select-diagram-document']")).toHaveCount(4);
+  await page.locator("[data-action='select-diagram-document']", { hasText: "Architecture" }).click();
+  await expect(page.locator(".diagram-tree-content h2")).toHaveText("Architecture");
+  await expect(page.getByRole("button", { name: "Edit Info", exact: true })).toBeVisible();
+  await expect(page.locator("[data-diagram-readonly-viewer]")).toBeVisible();
+  const virtualViewport = page.locator("[data-diagram-viewport]");
+  await expect.poll(() => virtualViewport.evaluate(element => element.scrollWidth > element.clientWidth && element.scrollHeight > element.clientHeight)).toBe(true);
+  const beforePan = await virtualViewport.evaluate(element => ({ left: element.scrollLeft, top: element.scrollTop }));
+  const viewportBox = await virtualViewport.boundingBox();
+  await page.mouse.move(viewportBox.x + (viewportBox.width * 0.65), viewportBox.y + (viewportBox.height * 0.65));
+  await page.mouse.down();
+  await page.mouse.move(viewportBox.x + (viewportBox.width * 0.35), viewportBox.y + (viewportBox.height * 0.35));
+  await page.mouse.up();
+  await expect.poll(() => virtualViewport.evaluate((element, previous) => element.scrollLeft > previous.left && element.scrollTop > previous.top, beforePan)).toBe(true);
+  await expect(page.locator("[data-diagram-zoom]")).toHaveValue(/^(?:10|15|20|25|30|35|40|45|50|55|60|65|70|75|80|85|90|95|100|105|110|115|120|125|130|135|140|145|150|155|160|165|170|175|180|185|190|195|200)$/);
+  await page.locator("[data-diagram-zoom]").selectOption("100");
+  await expect(page.locator("[data-diagram-image]")).toHaveCSS("transform", "matrix(1, 0, 0, 1, 0, 0)");
+
+  await page.locator("[data-action='select-diagram-document']", { hasText: "Public Diagram Marker" }).click();
+  await expect(page.getByRole("button", { name: "Share public Diagram" })).toBeVisible();
+  await page.getByRole("button", { name: "Edit Info", exact: true }).click();
+  const infoDialog = page.locator("#editorDialog");
+  await expect(infoDialog).toBeVisible();
+  await expect(infoDialog.locator("[name='visibility']")).toHaveValue("public");
+  await infoDialog.locator("[name='title']").fill("Public Architecture");
+  await infoDialog.locator("[name='isPinned']").check();
+  await infoDialog.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(infoDialog).not.toBeVisible();
+  await expect(page.locator(".diagram-tree-content h2")).toHaveText("Public Architecture");
+  expect(apiCalls.blogUpdates.at(-1)).toMatchObject({
+    id: 5,
+    title: "Public Architecture",
+    isPrivate: false,
+    isPinned: true,
+    bodyHtml: diagramBody("Public Diagram Marker")
+  });
+  await expect(page.locator("[data-diagram-tree-row]").first()).toContainText("Public Architecture");
+  await page.getByRole("button", { name: "Share public Diagram" }).click();
+  await expect(page.locator("#toast")).toContainText(/Public Diagram link (copied|:)/);
+
+  await page.locator("[data-diagram-tree-row][data-id='2']").dragTo(page.locator("[data-diagram-tree-row][data-id='5']"));
+  await expect.poll(() => apiCalls.blogMoves?.length || 0).toBe(1);
+  expect(apiCalls.blogMoves[0]).toMatchObject({ id: 2, parentBlogId: 5 });
+  await expect(page.locator("[data-diagram-tree-row][data-id='2']")).toHaveCSS("margin-left", "14px");
+  await page.getByRole("button", { name: "Filters", exact: true }).click();
+  diagramFilters = page.locator("[data-diagram-filter-dialog]");
+  await expect(diagramFilters.locator("[data-filter='diagram-sort']")).toHaveValue("custom");
+  await diagramFilters.locator("[data-close-diagram-filters]").last().click();
+
+  await page.getByRole("button", { name: "Cards", exact: true }).click();
+  await expect(page.locator(".diagram-card")).toHaveCount(4);
+  await page.reload();
+  await expect(page.getByRole("heading", { name: "Diagram", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Cards", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await expect(page.locator(".diagram-card")).toHaveCount(4);
+
+  await page.evaluate(() => localStorage.setItem("pmt-diagram-visibility", "private"));
+  await page.goto("/#/diagram/5");
+  await expect(page.locator(".diagram-tree-content h2")).toHaveText("Public Architecture");
+  await page.getByRole("button", { name: "Filters", exact: true }).click();
+  await page.locator("[data-diagram-filter-dialog] [data-filter='diagram-search']").fill("Untitled 2");
+  await expect(page.locator(".diagram-tree-content h2")).toHaveText("Untitled 2");
+  await expect(page).toHaveURL(/#\/diagram\/3$/);
 });
 
 test("draw.io SVG clipboard paste preserves UTF-8 spaces", async ({ page }) => {
@@ -4378,6 +4581,35 @@ test("RTE annotation Objects tree stays synchronized with canvas layers", async 
   expect(groupIndent).toBeGreaterThan(8);
   await assertTreeMatchesCanvas();
 
+  const visibilityAction = (kind, id) => treeRow(kind, id)
+    .locator("[data-annotation-tree-node-action='visibility']");
+  await expect(visibilityAction("group", groupId)).toHaveAccessibleName(/Hide /);
+  await visibilityAction("group", groupId).click();
+  await expect(groupRow()).toHaveAttribute("data-annotation-tree-visible", "false");
+  for (const id of [firstRectangleId, groupArrowId, groupTextId]) {
+    await expect(canvasObject(id)).toHaveCount(0);
+    await expect(treeRow("object", id)).toHaveAttribute("data-annotation-tree-effective-visible", "false");
+  }
+  await dialog.getByRole("button", { name: "Undo (Ctrl+Z)" }).click();
+  for (const id of [firstRectangleId, groupArrowId, groupTextId]) {
+    await expect(canvasObject(id)).toHaveCount(1);
+  }
+  await dialog.getByRole("button", { name: "Redo (Ctrl+Y)" }).click();
+  for (const id of [firstRectangleId, groupArrowId, groupTextId]) {
+    await expect(canvasObject(id)).toHaveCount(0);
+  }
+  await expect(visibilityAction("group", groupId)).toHaveAccessibleName(/Show /);
+  await visibilityAction("group", groupId).click();
+  await visibilityAction("object", groupArrowId).click();
+  await expect(canvasObject(groupArrowId)).toHaveCount(0);
+  await expect(canvasObject(groupTextId)).toHaveCount(1);
+  await expect(groupRow()).toHaveAttribute("data-annotation-tree-visible", "true");
+  await dialog.getByRole("button", { name: "Undo (Ctrl+Z)" }).click();
+  await expect(canvasObject(groupArrowId)).toHaveCount(1);
+  await assertTreeMatchesCanvas();
+  await groupRow().click();
+  await expect(dialog.locator("[data-annotation-selection-label]")).toHaveText("3 objects selected");
+
   await formatTab.click();
   await expect(opacityControl).toBeEnabled();
   await opacityControl.fill("42");
@@ -5156,13 +5388,53 @@ async function installApiMocks(page, appState, apiCalls) {
     await route.fulfill({ status: 204, body: "" });
   });
 
+  await page.route(/\/api\/blogs\/\d+\/move$/, async route => {
+    const blogId = Number(route.request().url().match(/\/api\/blogs\/(\d+)\/move$/)?.[1] || 0);
+    const input = requestJson(route);
+    const moved = appState.blogs.find(item => item.id === blogId);
+    if (!moved) {
+      await route.fulfill(jsonResponse({ error: "Document not found" }, 404));
+      return;
+    }
+    moved.parentBlogId = input.parentBlogId || null;
+    (input.orderedBlogIds || []).forEach((id, index) => {
+      const blog = appState.blogs.find(item => item.id === Number(id));
+      if (blog) blog.sortOrder = (index + 1) * 10;
+    });
+    if (!Array.isArray(apiCalls.blogMoves)) apiCalls.blogMoves = [];
+    apiCalls.blogMoves.push({ id: blogId, ...structuredClone(input) });
+    await route.fulfill({ status: 204, body: "" });
+  });
+
   await page.route(/\/api\/blogs\/\d+$/, async route => {
-    if (route.request().method() !== "DELETE") {
+    const method = route.request().method();
+    const blogId = Number(route.request().url().match(/\/api\/blogs\/(\d+)$/)?.[1] || 0);
+    if (method === "PUT") {
+      const payload = requestJson(route);
+      const existingIndex = appState.blogs.findIndex(item => item.id === blogId);
+      if (existingIndex < 0) {
+        await route.fulfill(jsonResponse({ error: "Document not found" }, 404));
+        return;
+      }
+
+      if (!Array.isArray(apiCalls.blogUpdates)) apiCalls.blogUpdates = [];
+      apiCalls.blogUpdates.push(structuredClone(payload));
+      appState.blogs[existingIndex] = {
+        ...appState.blogs[existingIndex],
+        ...payload,
+        id: blogId,
+        rowVersion: `row-${blogId}-${apiCalls.blogUpdates.length}`,
+        updatedByUserId: sessionUserId,
+        updatedAt: new Date().toISOString()
+      };
+      await route.fulfill(jsonResponse({ id: blogId }));
+      return;
+    }
+    if (method !== "DELETE") {
       await route.fallback();
       return;
     }
 
-    const blogId = Number(route.request().url().match(/\/api\/blogs\/(\d+)$/)?.[1] || 0);
     if (!appState.blogs.some(item => item.id === blogId)) {
       await route.fulfill(jsonResponse({ error: "Document not found" }, 404));
       return;
@@ -5174,6 +5446,32 @@ async function installApiMocks(page, appState, apiCalls) {
       .filter(item => item.id !== blogId)
       .map(item => item.parentBlogId === blogId ? { ...item, parentBlogId: null } : item);
     await route.fulfill({ status: 204, body: "" });
+  });
+
+  await page.route(/\/api\/blogs$/, async route => {
+    if (route.request().method() !== "POST") {
+      await route.fallback();
+      return;
+    }
+
+    const payload = requestJson(route);
+    const id = Math.max(0, ...appState.blogs.map(item => Number(item.id) || 0)) + 1;
+    const now = new Date().toISOString();
+    const blog = {
+      ...payload,
+      id,
+      createdByUserId: sessionUserId,
+      updatedByUserId: sessionUserId,
+      createdAt: now,
+      updatedAt: now,
+      rowVersion: `row-${id}-1`,
+      attachments: [],
+      history: []
+    };
+    if (!Array.isArray(apiCalls.blogCreates)) apiCalls.blogCreates = [];
+    apiCalls.blogCreates.push(structuredClone(payload));
+    appState.blogs.push(blog);
+    await route.fulfill(jsonResponse({ id }));
   });
 
   await page.route(/\/api\/sprints\/\d+$/, async route => {

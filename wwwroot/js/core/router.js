@@ -1,6 +1,6 @@
 import { preferenceKeys, readPreference, writePreference } from "./preferences.js";
-import { visibleNavigationScreens } from "./navigation-preferences.js?v=20260718-diagram-entity-v22";
-import { screenRegistry } from "./screen-registry.js?v=20260718-diagram-entity-v22";
+import { visibleNavigationScreens } from "./navigation-preferences.js?v=20260718-diagram-library-v8";
+import { screenRegistry } from "./screen-registry.js?v=20260718-diagram-library-v7";
 import { canReadView, firstReadableView } from "../shared/security.js?v=20260718-diagram-entity-v22";
 
 const legacyViews = Object.freeze({
@@ -28,6 +28,8 @@ const contentRoutes = Object.freeze({
   documentation: { route: "documentation", view: "Documentation" },
   document: { route: "documentation", view: "Documentation" },
   docs: { route: "documentation", view: "Documentation" },
+  diagram: { route: "diagram", view: "Diagram" },
+  diagrams: { route: "diagram", view: "Diagram" },
   log: { route: "log", view: "Log" },
   logs: { route: "log", view: "Log" },
   scrum: { route: "scrum", view: "Scrum" }

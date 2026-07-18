@@ -14,6 +14,8 @@ const minimumScaledStrokeWidth = 0.001;
 const maximumScaledStrokeWidth = 1000000;
 const minimumScaledArrowSize = 0.001;
 const maximumScaledArrowSize = 1000000;
+const annotationCoordinateScale = 1000;
+const annotationCoordinateTolerance = 1 / annotationCoordinateScale;
 const maximumAnnotationTemplates = 50;
 const maximumAnnotationTemplateFileBytes = 50 * 1024 * 1024;
 const annotationTemplateVersion = 1;
@@ -126,23 +128,28 @@ export async function openImageAnnotationDialog(options) {
     saveTemplateLibrary: options?.saveTemplateLibrary,
     templateLibrary,
     templateLibraryError,
-    apply: options?.apply
+    apply: options?.apply,
+    embedded: options?.embedded === true,
+    entityHeaderActionsOnHover: options?.entityHeaderActionsOnHover === true,
+    host: options?.host,
+    signal: options?.signal
   });
 }
 
 export function buildAnnotationSvg(inputState, originalDataUrl) {
   const state = normalizeAnnotationState(inputState);
   const outputBounds = annotationOutputBounds(state);
+  const visibleObjects = annotationVisibleObjects(state);
   const metadata = escapeXmlText(JSON.stringify(state));
   const background = state.includeOriginalImage ? "" : annotationCanvasBackgroundSvg(state, outputBounds);
-  const relationships = annotationEntityRelationshipsSvg(state.objects, state.relationshipStyle, {
+  const relationships = annotationEntityRelationshipsSvg(visibleObjects, state.relationshipStyle, {
     allowOverlappingLines: state.allowOverlappingEntityLines
   });
-  const imageBody = state.objects
+  const imageBody = visibleObjects
     .filter(object => object.type === "image")
     .map(object => annotationObjectSvg(object, originalDataUrl, { exportMode: true }))
     .join("");
-  const body = state.objects
+  const body = visibleObjects
     .filter(object => object.type !== "image")
     .map(object => annotationObjectSvg(object, originalDataUrl, { exportMode: true }))
     .join("");
@@ -171,7 +178,7 @@ function annotationSelectionClipboardExport(inputState, selectedObjectIds, origi
       ? selectedObjectIds
       : []
   );
-  const objects = state.objects.filter(object => ids.has(object.id));
+  const objects = annotationVisibleObjects(state).filter(object => ids.has(object.id));
   if (!objects.length) return { svg: "", width: 0, height: 0 };
 
   const bounds = unionAnnotationBounds(
@@ -1210,6 +1217,13 @@ export function normalizeAnnotationState(input, fallback = {}) {
     const name = safeAnnotationName(suppliedGroupNames[groupId]);
     if (name) groupNames[groupId] = name;
   });
+  const suppliedGroupVisibility = source.groupVisibility && typeof source.groupVisibility === "object"
+    ? source.groupVisibility
+    : {};
+  const groupVisibility = {};
+  groupIds.forEach(groupId => {
+    groupVisibility[groupId] = suppliedGroupVisibility[groupId] !== false;
+  });
 
   return {
     version: annotationVersion,
@@ -1228,6 +1242,7 @@ export function normalizeAnnotationState(input, fallback = {}) {
     imageClip,
     relationshipStyle: normalizeAnnotationEntityRelationshipStyle(source.relationshipStyle),
     groupNames,
+    groupVisibility,
     objects
   };
 }
@@ -1369,6 +1384,7 @@ function annotationTemplateSignature(template) {
     name: normalized.name,
     grouped: normalized.grouped,
     groupName: normalized.groupName,
+    groupVisible: normalized.groupVisible,
     width: normalized.width,
     height: normalized.height,
     relationshipStyle: normalized.relationshipStyle
@@ -1420,6 +1436,9 @@ export function captureAnnotationTemplate(inputState, selectedObjectIds, origina
   const groupName = grouped
     ? state.groupNames[selectedGroupId] || ""
     : "";
+  const groupVisible = grouped
+    ? state.groupVisibility[selectedGroupId] !== false
+    : true;
   const objects = selected
     .map(object => object.type === "image"
       ? annotationEmbeddedImageFromSource(object, state, originalDataUrl)
@@ -1438,6 +1457,7 @@ export function captureAnnotationTemplate(inputState, selectedObjectIds, origina
     updatedAt: new Date().toISOString(),
     grouped,
     groupName,
+    groupVisible,
     relationshipStyle,
     objects
   });
@@ -1632,18 +1652,28 @@ export function annotationExpandedWorkspaceBounds(currentBounds, inputState, vie
 export function annotationOutputBounds(inputState) {
   const state = normalizeAnnotationState(inputState);
   const imageFrame = state.imageClip;
+  const visibleObjects = annotationVisibleObjects(state);
   const bounds = [
     state.includeOriginalImage ? null : imageFrame,
-    ...state.objects
+    ...visibleObjects
     .map(object => annotationObjectVisualBounds(object, imageFrame)),
-    ...annotationEntityRelationshipVisualBounds(state.objects, state.relationshipStyle, {
+    ...annotationEntityRelationshipVisualBounds(visibleObjects, state.relationshipStyle, {
       allowOverlappingLines: state.allowOverlappingEntityLines
     })
   ].filter(Boolean);
   return unionAnnotationBounds(bounds) || imageFrame;
 }
 
-export function annotationObjectsIntersectingRect(objects, rect, imageFrame = null) {
+export function annotationObjectIsVisible(object, groupVisibility = {}) {
+  if (!object || object.visible === false) return false;
+  return !object.groupId || groupVisibility?.[object.groupId] !== false;
+}
+
+function annotationVisibleObjects(state) {
+  return (state?.objects || []).filter(object => annotationObjectIsVisible(object, state?.groupVisibility));
+}
+
+export function annotationObjectsIntersectingRect(objects, rect, imageFrame = null, groupVisibility = {}) {
   const selectionRect = normalizedRect(
     { x: finiteNumber(rect?.x, 0), y: finiteNumber(rect?.y, 0) },
     {
@@ -1651,7 +1681,8 @@ export function annotationObjectsIntersectingRect(objects, rect, imageFrame = nu
       y: finiteNumber(rect?.y, 0) + Math.max(0, finiteNumber(rect?.height, 0))
     }
   );
-  const source = Array.isArray(objects) ? objects : [];
+  const source = (Array.isArray(objects) ? objects : [])
+    .filter(object => annotationObjectIsVisible(object, groupVisibility));
   const directlyTouched = source.filter(object => {
     const bounds = annotationObjectVisualBounds(object, imageFrame);
     if (!bounds) return false;
@@ -1663,11 +1694,14 @@ export function annotationObjectsIntersectingRect(objects, rect, imageFrame = nu
   return source.filter(object => directlyTouched.includes(object) || (object.groupId && groupIds.has(object.groupId)));
 }
 
-export function annotationSelectionIdsForObject(objects, object) {
+export function annotationSelectionIdsForObject(objects, object, groupVisibility = null) {
   if (!object?.id) return [];
   const source = Array.isArray(objects) ? objects : [];
+  const selectable = groupVisibility && typeof groupVisibility === "object"
+    ? source.filter(item => annotationObjectIsVisible(item, groupVisibility))
+    : source;
   return object.groupId
-    ? source.filter(item => item.groupId === object.groupId).map(item => item.id)
+    ? selectable.filter(item => item.groupId === object.groupId).map(item => item.id)
     : [object.id];
 }
 
@@ -1680,6 +1714,8 @@ export function buildAnnotationObjectTree(inputState) {
     kind: "object",
     id: object.id,
     name: object.name || annotationObjectLabel(object),
+    visible: object.visible !== false,
+    effectiveVisible: annotationObjectIsVisible(object, state.groupVisibility),
     object
   });
 
@@ -1695,11 +1731,14 @@ export function buildAnnotationObjectTree(inputState) {
       kind: "group",
       id: object.groupId,
       name: state.groupNames[object.groupId] || `Group ${unnamedGroupSequence}`,
+      visible: state.groupVisibility[object.groupId] !== false,
+      effectiveVisible: state.groupVisibility[object.groupId] !== false,
       children,
       allChildren: children
     }];
   });
-  const relationships = resolveAnnotationEntityRelationships(state.objects).sort(compareAnnotationEntityRelationships);
+  const relationships = resolveAnnotationEntityRelationships(annotationVisibleObjects(state))
+    .sort(compareAnnotationEntityRelationships);
   if (relationships.length) {
     const children = relationships.map(relationship => ({
       kind: "relationship",
@@ -1804,7 +1843,7 @@ export function reorderAnnotationObjectTree(inputState, move = {}) {
     && !state.objects.some(object => object.groupId === sourceGroupId)) {
     delete state.groupNames[sourceGroupId];
   }
-  pruneAnnotationGroupNames(state);
+  pruneAnnotationGroupMetadata(state);
   return state;
 }
 
@@ -1986,7 +2025,7 @@ function createAnnotationDialog(context) {
     const initialObject = context.initialSelection === "none"
       ? null
       : state.objects.find(object => object.type === "image") || null;
-    let selectedIds = new Set(annotationSelectionIdsForObject(state.objects, initialObject));
+    let selectedIds = new Set(annotationSelectionIdsForObject(state.objects, initialObject, state.groupVisibility));
     let lastSelectedObjectId = initialObject?.id || "";
     let gesture = null;
     let panGesture = null;
@@ -2009,11 +2048,18 @@ function createAnnotationDialog(context) {
     let contextMenuScrollGuardActive = false;
     const styles = { ...defaultStyles };
 
+    const embedded = context.embedded === true && context.host?.appendChild;
     const dialog = document.createElement("dialog");
     dialog.className = "dialog image-annotation-dialog";
+    dialog.classList.toggle("is-annotation-embedded", Boolean(embedded));
+    dialog.classList.toggle("is-diagram-editor", context.entityHeaderActionsOnHover === true);
     dialog.setAttribute("aria-labelledby", "imageAnnotationTitle");
     dialog.innerHTML = annotationDialogHtml(context);
-    document.body.appendChild(dialog);
+    if (embedded) {
+      context.host.replaceChildren(dialog);
+    } else {
+      document.body.appendChild(dialog);
+    }
 
     const canvas = dialog.querySelector("[data-annotation-canvas]");
     const workspace = dialog.querySelector("[data-annotation-workspace]");
@@ -2036,15 +2082,18 @@ function createAnnotationDialog(context) {
     const entityInspectorPanel = dialog.querySelector("[data-annotation-inspector-panel='entity']");
     const entityFieldList = dialog.querySelector("[data-annotation-entity-fields]");
 
+    const abortEditor = () => finish(null);
     const finish = value => {
       if (resolved) return;
       resolved = true;
       if (historyTimer) window.clearTimeout(historyTimer);
       window.removeEventListener("resize", closeAnnotationContextMenu);
+      context.signal?.removeEventListener?.("abort", abortEditor);
       if (dialog.open) dialog.close();
       dialog.remove();
       resolve(value);
     };
+    context.signal?.addEventListener?.("abort", abortEditor, { once: true });
 
     const setStatus = message => {
       statusRegions.forEach(region => { region.textContent = message || ""; });
@@ -2137,7 +2186,7 @@ function createAnnotationDialog(context) {
     };
 
     const selectedObjects = () => {
-      const relationships = resolveAnnotationEntityRelationships(state.objects);
+      const relationships = resolveAnnotationEntityRelationships(annotationVisibleObjects(state));
       return [
         ...state.objects.filter(object => selectedIds.has(object.id)),
         ...(selectedIds.has(entityRelationshipsSelectionId) ? [state.relationshipStyle] : []),
@@ -2349,7 +2398,7 @@ function createAnnotationDialog(context) {
 
     const renderObjectTree = () => {
       if (!objectTree) return;
-      pruneAnnotationGroupNames(state);
+      pruneAnnotationGroupMetadata(state);
       objectTree.innerHTML = annotationObjectTreeHtml(
         filterAnnotationObjectTree(buildAnnotationObjectTree(state), objectTreeSearchQuery),
         selectedIds,
@@ -2358,7 +2407,7 @@ function createAnnotationDialog(context) {
     };
 
     const render = () => {
-      const currentRelationships = resolveAnnotationEntityRelationships(state.objects);
+      const currentRelationships = resolveAnnotationEntityRelationships(annotationVisibleObjects(state));
       if (!currentRelationships.length) {
         selectedIds.delete(entityRelationshipsSelectionId);
       }
@@ -2366,7 +2415,7 @@ function createAnnotationDialog(context) {
       [...selectedIds]
         .filter(id => isAnnotationEntityRelationshipSelectionId(id) && !currentRelationshipIds.has(id))
         .forEach(id => selectedIds.delete(id));
-      pruneAnnotationGroupNames(state);
+      pruneAnnotationGroupMetadata(state);
       compactAnnotationGroupLayers(state.objects);
       canvas.setAttribute("viewBox", `${formatNumber(workspaceBounds.x)} ${formatNumber(workspaceBounds.y)} ${formatNumber(workspaceBounds.width)} ${formatNumber(workspaceBounds.height)}`);
       canvas.setAttribute("width", formatNumber(workspaceBounds.width * zoom));
@@ -2462,7 +2511,7 @@ function createAnnotationDialog(context) {
 
     const selectObject = (object, additive = false) => {
       clearEntityRelationshipSelection();
-      const ids = annotationSelectionIdsForObject(state.objects, object);
+      const ids = annotationSelectionIdsForObject(state.objects, object, state.groupVisibility);
       if (!additive) selectedIds.clear();
       const shouldRemove = additive && ids.every(id => selectedIds.has(id));
       ids.forEach(id => shouldRemove ? selectedIds.delete(id) : selectedIds.add(id));
@@ -2472,7 +2521,7 @@ function createAnnotationDialog(context) {
     };
 
     const selectEntityRelationships = () => {
-      if (!resolveAnnotationEntityRelationships(state.objects).length) return false;
+      if (!resolveAnnotationEntityRelationships(annotationVisibleObjects(state)).length) return false;
       selectedIds = new Set([entityRelationshipsSelectionId]);
       lastSelectedObjectId = entityRelationshipsSelectionId;
       lastTreeSelectionKey = `relationships:${entityRelationshipsSelectionId}`;
@@ -2482,7 +2531,7 @@ function createAnnotationDialog(context) {
     };
 
     const selectEntityRelationship = relationshipId => {
-      const relationship = resolveAnnotationEntityRelationships(state.objects)
+      const relationship = resolveAnnotationEntityRelationships(annotationVisibleObjects(state))
         .find(candidate => candidate.id === relationshipId);
       if (!relationship) return false;
       selectedIds = new Set([relationship.id]);
@@ -2788,7 +2837,8 @@ function createAnnotationDialog(context) {
           ? annotationObjectsIntersectingRect(
               state.objects,
               marqueePreview,
-              state.imageClip
+              state.imageClip,
+              state.groupVisibility
             )
           : [];
         selectedIds = new Set([
@@ -3326,6 +3376,9 @@ function createAnnotationDialog(context) {
       if (insertionGroupId && normalizedTemplate.groupName) {
         state.groupNames[insertionGroupId] = normalizedTemplate.groupName;
       }
+      if (insertionGroupId) {
+        state.groupVisibility[insertionGroupId] = normalizedTemplate.groupVisible !== false;
+      }
       selectedIds = new Set(objects.map(object => object.id));
       lastSelectedObjectId = objects.at(-1)?.id || "";
       setTool("select");
@@ -3604,6 +3657,32 @@ function createAnnotationDialog(context) {
       window.setTimeout(() => focusTreeNode(kind, id), 0);
     };
 
+    const toggleTreeNodeVisibility = (kind, id) => {
+      if (!["group", "object"].includes(kind)) return false;
+      const object = kind === "object" ? state.objects.find(item => item.id === id) : null;
+      if (kind === "group" && !state.objects.some(item => item.groupId === id)) return false;
+      if (kind === "object" && !object) return false;
+      const currentlyVisible = kind === "group"
+        ? state.groupVisibility[id] !== false
+        : object.visible !== false;
+      pushHistory();
+      if (kind === "group") state.groupVisibility[id] = !currentlyVisible;
+      else object.visible = !currentlyVisible;
+      pushHistory();
+      const treeNode = buildAnnotationObjectTree(state)
+        .flatMap(node => node.kind === "group" ? [node, ...node.children] : [node])
+        .find(node => node.kind === kind && node.id === id);
+      const name = treeNode?.name || (kind === "group" ? "Group" : annotationObjectLabel(object));
+      setStatus(`${kind === "group" ? "Group" : "Object"} "${name}" ${currentlyVisible ? "hidden" : "shown"}.`);
+      renderWithWorkspaceExpansion();
+      window.setTimeout(() => {
+        const row = [...objectTree.querySelectorAll("[data-annotation-tree-node]")]
+          .find(element => element.dataset.annotationTreeKind === kind && element.dataset.annotationTreeId === id);
+        row?.querySelector("[data-annotation-tree-node-action='visibility']")?.focus({ preventScroll: true });
+      }, 0);
+      return true;
+    };
+
     const deleteTreeSelection = () => {
       const removable = new Set(selectedObjects()
         .filter(object => object.type !== "image"
@@ -3617,7 +3696,7 @@ function createAnnotationDialog(context) {
       pushHistory();
       state.objects = state.objects.filter(object => !removable.has(object.id));
       removable.forEach(id => selectedIds.delete(id));
-      pruneAnnotationGroupNames(state);
+      pruneAnnotationGroupMetadata(state);
       pushHistory();
       lastTreeSelectionKey = "";
       treeRangeAnchorKey = "";
@@ -3843,6 +3922,10 @@ function createAnnotationDialog(context) {
         const kind = row?.dataset.annotationTreeKind;
         const id = row?.dataset.annotationTreeId;
         if (!kind || !id) return;
+        if (treeNodeAction.dataset.annotationTreeNodeAction === "visibility") {
+          toggleTreeNodeVisibility(kind, id);
+          return;
+        }
         selectTreeNode(kind, id);
         if (treeNodeAction.dataset.annotationTreeNodeAction === "rename") await renameTreeNode(kind, id);
         else if (treeNodeAction.dataset.annotationTreeNodeAction === "delete") deleteTreeSelection();
@@ -4440,7 +4523,15 @@ function createAnnotationDialog(context) {
       });
     });
 
-    dialog.showModal();
+    if (context.signal?.aborted) {
+      finish(null);
+      return;
+    }
+    if (embedded) {
+      dialog.show();
+    } else {
+      dialog.showModal();
+    }
     workspaceBounds = annotationWorkspaceBounds(state, workspace.clientWidth, workspace.clientHeight);
     setTool("select");
     setInspectorTab("format");
@@ -4676,12 +4767,17 @@ function annotationObjectTreeHtml(nodes, selectedIds, emptyMessage = "No canvas 
       : node.kind === "group"
       ? groupChildren.some(child => child.object.type !== "image" && !child.object.locked)
       : object.type !== "image" && !object.locked;
+    const ownVisible = node.visible !== false;
+    const effectiveVisible = node.effectiveVisible !== false;
+    const visibilityAction = fixedRelationships
+      ? ""
+      : `<button type="button" class="image-annotation-object-tree-visibility${ownVisible ? "" : " is-hidden"}" data-annotation-tree-node-action="visibility" title="${ownVisible ? "Hide" : "Show"} ${escapeXmlAttr(node.name)}" aria-label="${ownVisible ? "Hide" : "Show"} ${escapeXmlAttr(node.name)}" aria-pressed="${ownVisible}"><span aria-hidden="true">&#128065;</span></button>`;
     const icon = fixedRelationships ? "&#8644;" : node.kind === "group" ? "&#9638;" : annotationObjectTreeIcon(node.object.type);
     const actions = fixedRelationships
       ? `<span class="image-annotation-object-tree-row-actions" aria-hidden="true"></span>`
       : `<span class="image-annotation-object-tree-row-actions"><button type="button" data-annotation-tree-node-action="rename" title="Rename ${escapeXmlAttr(node.name)}" aria-label="Rename ${escapeXmlAttr(node.name)}">&#9998;</button><button type="button" data-annotation-tree-node-action="delete" title="Delete ${escapeXmlAttr(node.name)}" aria-label="Delete ${escapeXmlAttr(node.name)}"${canDelete ? "" : " disabled"}>&#10005;</button></span>`;
     const label = node.kind === "relationships" ? `${node.name} (${node.count})` : node.name;
-    return `<div class="image-annotation-object-tree-row${isSelected ? " is-selected" : ""}${isPartial ? " is-partially-selected" : ""}" role="treeitem" aria-level="${level}" aria-selected="${isSelected}"${["group", "relationships"].includes(node.kind) ? ` aria-expanded="true"` : ""} tabindex="0" draggable="${canDrag}" data-annotation-tree-node data-annotation-tree-id="${escapeXmlAttr(node.id)}" data-annotation-tree-kind="${node.kind}" data-annotation-tree-node-id="${escapeXmlAttr(node.id)}" data-annotation-tree-node-type="${node.kind}"><span class="image-annotation-object-tree-icon" aria-hidden="true">${icon}</span><span class="image-annotation-object-tree-label">${escapeXmlText(label)}</span>${actions}</div>`;
+    return `<div class="image-annotation-object-tree-row${isSelected ? " is-selected" : ""}${isPartial ? " is-partially-selected" : ""}${effectiveVisible ? "" : " is-hidden"}" role="treeitem" aria-level="${level}" aria-selected="${isSelected}"${["group", "relationships"].includes(node.kind) ? ` aria-expanded="true"` : ""} tabindex="0" draggable="${canDrag}" data-annotation-tree-node data-annotation-tree-id="${escapeXmlAttr(node.id)}" data-annotation-tree-kind="${node.kind}" data-annotation-tree-node-id="${escapeXmlAttr(node.id)}" data-annotation-tree-node-type="${node.kind}" data-annotation-tree-visible="${ownVisible}" data-annotation-tree-effective-visible="${effectiveVisible}"><span class="image-annotation-object-tree-icon" aria-hidden="true">${icon}</span><span class="image-annotation-object-tree-label">${escapeXmlText(label)}</span>${visibilityAction}${actions}</div>`;
   };
   return nodes.map(node => ["group", "relationships"].includes(node.kind)
     ? `<div class="image-annotation-object-tree-group" data-annotation-tree-group-id="${escapeXmlAttr(node.id)}">${row(node, 1)}<div class="image-annotation-object-tree-group-children" role="group">${node.children.map(child => row(child, 2)).join("")}</div></div>`
@@ -4787,10 +4883,13 @@ function downloadAnnotationTemplate(template) {
 function annotationTemplatePreviewDataUrl(template) {
   const width = positiveNumber(template?.width, 1);
   const height = positiveNumber(template?.height, 1);
-  const body = (template?.objects || [])
+  const visibleObjects = template?.groupVisible === false
+    ? []
+    : (template?.objects || []).filter(object => object.visible !== false);
+  const body = visibleObjects
     .map(object => annotationObjectSvg(object, "", { exportMode: true, previewMode: true }))
     .join("");
-  const relationships = annotationEntityRelationshipsSvg(template?.objects, template?.relationshipStyle);
+  const relationships = annotationEntityRelationshipsSvg(visibleObjects, template?.relationshipStyle);
   const relationshipSample = !body && template?.relationshipStyle
     ? annotationEntityRelationshipStylePreviewSvg(template.relationshipStyle, width, height)
     : "";
@@ -4880,24 +4979,25 @@ function annotationFontOptions(selectedFont) {
 
 function annotationCanvasSvg(state, originalDataUrl, selectedIds, zoom, workspaceBounds, cropPreview, marqueePreview) {
   const background = state.includeOriginalImage ? "" : annotationCanvasBackgroundSvg(state);
-  const relationships = annotationEntityRelationshipsSvg(state.objects, state.relationshipStyle, {
+  const visibleObjects = annotationVisibleObjects(state);
+  const relationships = annotationEntityRelationshipsSvg(visibleObjects, state.relationshipStyle, {
     interactive: true,
     selected: selectedIds.has(entityRelationshipsSelectionId),
     selectedIds,
     zoom,
     allowOverlappingLines: state.allowOverlappingEntityLines
   });
-  const imageObjects = state.objects
+  const imageObjects = visibleObjects
     .filter(object => object.type === "image")
     .map(object => annotationObjectSvg(object, originalDataUrl, { exportMode: false, zoom }))
     .join("");
-  const objects = state.objects
+  const objects = visibleObjects
     .filter(object => object.type !== "image")
     .map(object => annotationObjectSvg(object, originalDataUrl, { exportMode: false, zoom }))
     .join("");
   const grid = state.gridVisible ? annotationGridSvg(workspaceBounds) : "";
   const selection = annotationSelectionSvg(
-    state.objects.filter(object => selectedIds.has(object.id)),
+    visibleObjects.filter(object => selectedIds.has(object.id)),
     zoom,
     state.imageClip
   );
@@ -4909,7 +5009,8 @@ function annotationCanvasSvg(state, originalDataUrl, selectedIds, zoom, workspac
 export function annotationEntityRelationshipsSvg(objectsInput, relationshipStyleInput = null, options = {}) {
   const relationships = resolveAnnotationEntityRelationships(objectsInput);
   if (!relationships.length) return "";
-  const entities = (Array.isArray(objectsInput) ? objectsInput : []).filter(object => object?.type === "entity");
+  const entities = (Array.isArray(objectsInput) ? objectsInput : [])
+    .filter(object => object?.type === "entity" && object.visible !== false);
   const style = normalizeAnnotationEntityRelationshipStyle(relationshipStyleInput);
   const interactive = options?.interactive === true;
   const selected = interactive && options?.selected === true;
@@ -4937,7 +5038,8 @@ export function annotationEntityRelationshipsSvg(objectsInput, relationshipStyle
 }
 
 function resolveAnnotationEntityRelationships(objectsInput) {
-  const entities = (Array.isArray(objectsInput) ? objectsInput : []).filter(object => object?.type === "entity");
+  const entities = (Array.isArray(objectsInput) ? objectsInput : [])
+    .filter(object => object?.type === "entity" && object.visible !== false);
   const relationships = [];
   entities.forEach(source => {
     (source.foreignKeys || []).forEach((foreignKeySource, foreignKeyIndex) => {
@@ -5341,9 +5443,13 @@ function annotationEntityRelationshipGeometry(relationship, style, options = {})
     };
     sourceUnit = { x: direction, y: 0 };
     targetUnit = { x: direction, y: 0 };
-    const middleX = allowSharedRoute
-      ? (start.x + end.x) / 2
-      : annotationEntityRelationshipLane(start.x, end.x, relationship, options.relationships, "x");
+    const middleX = snapAnnotationValue(
+      allowSharedRoute
+        ? (start.x + end.x) / 2
+        : annotationEntityRelationshipLane(start.x, end.x, relationship, options.relationships),
+      true,
+      defaultGridSize
+    );
     points = annotationEntityRelationshipObstacleRoute(
       [start, { x: middleX, y: start.y }, { x: middleX, y: end.y }, end],
       sourceUnit,
@@ -5362,7 +5468,11 @@ function annotationEntityRelationshipGeometry(relationship, style, options = {})
       ? 0
       : annotationEntityRelationshipPairIndex(relationship, options.relationships);
     const laneOffset = laneIndex * Math.max(24, style.arrowSize * 2, style.strokeWidth * 4);
-    const middleX = useRightLane ? rightLane + laneOffset : leftLane - laneOffset;
+    const middleX = snapAnnotationValue(
+      useRightLane ? rightLane + laneOffset : leftLane - laneOffset,
+      true,
+      defaultGridSize
+    );
     start = {
       x: useRightLane ? source.x + source.width : source.x,
       y: annotationEntityFieldAnchorY(source, sourceField)
@@ -5402,15 +5512,13 @@ function annotationEntityRelationshipPairIndex(relationship, relationshipsInput)
   return Math.max(0, relationships.indexOf(relationship));
 }
 
-function annotationEntityRelationshipLane(start, end, relationship, relationshipsInput, axis) {
-  const coordinate = entity => axis === "y" ? entity.y : entity.x;
-  const sameBand = (relationshipsInput || [])
-    .filter(candidate => candidate.source !== candidate.target
-      && Math.abs(coordinate(candidate.source) - coordinate(relationship.source)) < 0.001
-      && Math.abs(coordinate(candidate.target) - coordinate(relationship.target)) < 0.001)
+function annotationEntityRelationshipLane(start, end, relationship, relationshipsInput) {
+  const samePair = (relationshipsInput || [])
+    .filter(candidate => candidate.source === relationship.source
+      && candidate.target === relationship.target)
     .sort(compareAnnotationEntityRelationships);
-  const index = Math.max(0, sameBand.indexOf(relationship));
-  return start + ((end - start) * ((index + 1) / (sameBand.length + 1)));
+  const index = Math.max(0, samePair.indexOf(relationship));
+  return start + ((end - start) * ((index + 1) / (samePair.length + 1)));
 }
 
 function annotationEntityRelationshipObstacleRoute(basePointsInput, sourceUnit, targetUnit, entitiesInput, style) {
@@ -5422,14 +5530,13 @@ function annotationEntityRelationshipObstacleRoute(basePointsInput, sourceUnit, 
   const clearance = Math.max(24, style.arrowSize * 2, style.strokeWidth * 4);
   const start = basePoints[0];
   const end = basePoints.at(-1);
-  const startEscape = {
-    x: start.x + (sourceUnit.x * clearance),
-    y: start.y + (sourceUnit.y * clearance)
-  };
-  const endEscape = {
-    x: end.x - (targetUnit.x * clearance),
-    y: end.y - (targetUnit.y * clearance)
-  };
+  const startEscape = annotationEntityRelationshipEscapePoint(start, sourceUnit, clearance, entities);
+  const endEscape = annotationEntityRelationshipEscapePoint(
+    end,
+    { x: -targetUnit.x, y: -targetUnit.y },
+    clearance,
+    entities
+  );
   const middle = annotationEntityRelationshipVisibilityRoute(
     startEscape,
     endEscape,
@@ -5450,6 +5557,27 @@ function annotationEntityRelationshipObstacleRoute(basePointsInput, sourceUnit, 
     entities,
     clearance
   );
+}
+
+function annotationEntityRelationshipEscapePoint(point, unit, clearance, entities) {
+  let distance = clearance;
+  entities.forEach(entity => {
+    let gap = Number.POSITIVE_INFINITY;
+    if (unit.x && point.y > entity.y + annotationCoordinateTolerance
+      && point.y < entity.y + entity.height - annotationCoordinateTolerance) {
+      const boundary = unit.x > 0 ? entity.x : entity.x + entity.width;
+      gap = unit.x > 0 ? boundary - point.x : point.x - boundary;
+    } else if (unit.y && point.x > entity.x + annotationCoordinateTolerance
+      && point.x < entity.x + entity.width - annotationCoordinateTolerance) {
+      const boundary = unit.y > 0 ? entity.y : entity.y + entity.height;
+      gap = unit.y > 0 ? boundary - point.y : point.y - boundary;
+    }
+    if (gap >= 0 && gap <= distance) distance = gap / 2;
+  });
+  return {
+    x: point.x + (unit.x * distance),
+    y: point.y + (unit.y * distance)
+  };
 }
 
 function annotationEntityRelationshipExteriorFallbackRoute(start, end, startEscape, endEscape, entities, clearance) {
@@ -5595,25 +5723,23 @@ function annotationEntityRelationshipVisibilityRoute(start, end, entities, clear
 }
 
 function annotationPointInsideEntity(point, entity) {
-  const epsilon = 0.000001;
-  return point.x > entity.x + epsilon
-    && point.x < entity.x + entity.width - epsilon
-    && point.y > entity.y + epsilon
-    && point.y < entity.y + entity.height - epsilon;
+  return point.x > entity.x + annotationCoordinateTolerance
+    && point.x < entity.x + entity.width - annotationCoordinateTolerance
+    && point.y > entity.y + annotationCoordinateTolerance
+    && point.y < entity.y + entity.height - annotationCoordinateTolerance;
 }
 
 function annotationOrthogonalSegmentCrossesEntity(first, second, entity) {
-  const epsilon = 0.000001;
-  const left = entity.x + epsilon;
-  const right = entity.x + entity.width - epsilon;
-  const top = entity.y + epsilon;
-  const bottom = entity.y + entity.height - epsilon;
-  if (Math.abs(first.x - second.x) < epsilon) {
+  const left = entity.x + annotationCoordinateTolerance;
+  const right = entity.x + entity.width - annotationCoordinateTolerance;
+  const top = entity.y + annotationCoordinateTolerance;
+  const bottom = entity.y + entity.height - annotationCoordinateTolerance;
+  if (Math.abs(first.x - second.x) < annotationCoordinateTolerance) {
     return first.x > left
       && first.x < right
       && Math.max(Math.min(first.y, second.y), top) < Math.min(Math.max(first.y, second.y), bottom);
   }
-  if (Math.abs(first.y - second.y) >= epsilon) return true;
+  if (Math.abs(first.y - second.y) >= annotationCoordinateTolerance) return true;
   return first.y > top
     && first.y < bottom
     && Math.max(Math.min(first.x, second.x), left) < Math.min(Math.max(first.x, second.x), right);
@@ -6579,7 +6705,7 @@ function handleAnnotationAction(action, context) {
     deletedIds.forEach(id => context.selectedIds.delete(id));
     context.setStatus(deletedIds.size ? "Selected annotations deleted." : "Unlock annotations before deleting them.");
     if (deletedIds.size) {
-      pruneAnnotationGroupNames(context.state);
+      pruneAnnotationGroupMetadata(context.state);
       context.pushHistory();
     }
     return;
@@ -6601,7 +6727,7 @@ function handleAnnotationAction(action, context) {
     const groupId = context.nextGroupId();
     selection.forEach(object => { object.groupId = groupId; });
     compactAnnotationGroupLayers(context.state.objects);
-    pruneAnnotationGroupNames(context.state);
+    pruneAnnotationGroupMetadata(context.state);
     context.setStatus("Selection grouped.");
     context.pushHistory();
     return;
@@ -6612,7 +6738,7 @@ function handleAnnotationAction(action, context) {
     context.state.objects.forEach(object => {
       if (groupIds.has(object.groupId)) object.groupId = "";
     });
-    pruneAnnotationGroupNames(context.state);
+    pruneAnnotationGroupMetadata(context.state);
     context.setStatus("Selection ungrouped.");
     context.pushHistory();
     return;
@@ -7063,6 +7189,7 @@ function normalizeAnnotationTemplate(input) {
     name,
     grouped: input.grouped === true,
     groupName: safeAnnotationName(input.groupName),
+    groupVisible: input.groupVisible !== false,
     width: positiveNumber(input.width, bounds?.width || 240),
     height: positiveNumber(input.height, bounds?.height || 80),
     createdAt: safeAnnotationTimestamp(input.createdAt),
@@ -7191,6 +7318,7 @@ function normalizeAnnotationObject(input) {
     id: safeObjectId(input.id, type),
     type,
     name: safeAnnotationName(input.name),
+    visible: input.visible !== false,
     locked: input.locked === true,
     groupId: safeGroupId(input.groupId)
   };
@@ -7557,16 +7685,22 @@ function safeAnnotationName(value) {
   return String(value || "").replace(/\s+/g, " ").trim().slice(0, 120);
 }
 
-function pruneAnnotationGroupNames(state) {
+function pruneAnnotationGroupMetadata(state) {
   if (!state || typeof state !== "object") return;
   const groupIds = new Set((state.objects || []).map(object => object.groupId).filter(Boolean));
-  const source = state.groupNames && typeof state.groupNames === "object" ? state.groupNames : {};
+  const nameSource = state.groupNames && typeof state.groupNames === "object" ? state.groupNames : {};
+  const visibilitySource = state.groupVisibility && typeof state.groupVisibility === "object"
+    ? state.groupVisibility
+    : {};
   const groupNames = {};
+  const groupVisibility = {};
   groupIds.forEach(groupId => {
-    const name = safeAnnotationName(source[groupId]);
+    const name = safeAnnotationName(nameSource[groupId]);
     if (name) groupNames[groupId] = name;
+    groupVisibility[groupId] = visibilitySource[groupId] !== false;
   });
   state.groupNames = groupNames;
+  state.groupVisibility = groupVisibility;
 }
 
 function safeSvgId(value) {
@@ -7596,7 +7730,7 @@ function clampNumber(value, minimum, maximum) {
 }
 
 function formatNumber(value) {
-  return String(Math.round(finiteNumber(value, 0) * 1000) / 1000);
+  return String(Math.round(finiteNumber(value, 0) * annotationCoordinateScale) / annotationCoordinateScale);
 }
 
 function deepCopy(value) {

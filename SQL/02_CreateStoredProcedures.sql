@@ -517,6 +517,7 @@ BEGIN
         [BodyHtml],
         [IsPrivate],
         [IsPinned],
+        [SortOrder],
         [CreatedByUserId],
         [CreatedAt],
         [UpdatedAt]
@@ -524,7 +525,7 @@ BEGIN
     WHERE [Blog].[IsDeleted] = 0
       -- Private Documentation is owner-only even for administrators.
       AND ([Blog].[IsPrivate] = 0 OR [Blog].[CreatedByUserId] = @CurrentUserId)
-    ORDER BY [UpdatedAt] DESC;
+    ORDER BY [SortOrder], [UpdatedAt] DESC;
 
     SELECT
         [BlogAttachment].[BlogId],
@@ -6319,6 +6320,7 @@ BEGIN
             [BodyHtml],
             [IsPrivate],
             [IsPinned],
+            [SortOrder],
             [CreatedByUserId],
             [CreatedAt],
             [UpdatedAt]
@@ -6332,6 +6334,7 @@ BEGIN
             @BodyHtml,
             @IsPrivate,
             @IsPinned,
+            0,
             @CurrentUserId,
             @Now,
             @Now
@@ -6411,6 +6414,148 @@ BEGIN
             ROLLBACK TRANSACTION;
         END;
 
+        THROW;
+    END CATCH;
+END;
+GO
+
+CREATE OR ALTER PROCEDURE [pmt].[MoveBlog]
+    @BlogId INT,
+    @ParentBlogId INT = NULL,
+    @OrderedBlogIds NVARCHAR(MAX),
+    @CurrentUserId INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    SET XACT_ABORT ON;
+
+    DECLARE @Now DATETIME2(0) = SYSUTCDATETIME();
+    DECLARE @ProjectId INT;
+    DECLARE @SprintId INT;
+    DECLARE @OwnerUserId INT;
+    DECLARE @CycleBlogId INT;
+    DECLARE @Title NVARCHAR(220);
+
+    BEGIN TRY
+        BEGIN TRANSACTION;
+
+        SELECT
+            @ProjectId = [ProjectId],
+            @SprintId = [SprintId],
+            @OwnerUserId = [CreatedByUserId],
+            @Title = [Title]
+        FROM [pmt].[Blogs] WITH (UPDLOCK, HOLDLOCK)
+        WHERE [BlogId] = @BlogId
+          AND [IsDeleted] = 0;
+
+        IF @OwnerUserId IS NULL OR @OwnerUserId <> @CurrentUserId
+        BEGIN
+            THROW 50072, 'Blog was not found.', 1;
+        END;
+
+        IF @ParentBlogId = @BlogId
+        BEGIN
+            THROW 50077, 'A document cannot be its own parent.', 1;
+        END;
+
+        IF @ParentBlogId IS NOT NULL
+           AND NOT EXISTS
+           (
+                SELECT 1
+                FROM [pmt].[Blogs]
+                WHERE [BlogId] = @ParentBlogId
+                  AND [CreatedByUserId] = @CurrentUserId
+                  AND [IsDeleted] = 0
+                  AND ISNULL([ProjectId], 0) = ISNULL(@ProjectId, 0)
+                  AND ISNULL([SprintId], 0) = ISNULL(@SprintId, 0)
+           )
+        BEGIN
+            THROW 50079, 'Parent document must be one of your diagrams in the same Project and Sprint.', 1;
+        END;
+
+        SET @CycleBlogId = @ParentBlogId;
+        WHILE @CycleBlogId IS NOT NULL
+        BEGIN
+            IF @CycleBlogId = @BlogId
+            BEGIN
+                THROW 50080, 'A document cannot use one of its children as its parent.', 1;
+            END;
+
+            SELECT @CycleBlogId =
+            (
+                SELECT [ParentBlogId]
+                FROM [pmt].[Blogs]
+                WHERE [BlogId] = @CycleBlogId
+                  AND [IsDeleted] = 0
+            );
+        END;
+
+        DECLARE @BlogIds TABLE
+        (
+            [BlogId] INT NOT NULL PRIMARY KEY,
+            [NewSortOrder] INT NOT NULL
+        );
+        DECLARE @Remaining NVARCHAR(MAX) = ISNULL(@OrderedBlogIds, N'') + N',';
+        DECLARE @CommaIndex INT;
+        DECLARE @BlogIdText NVARCHAR(20);
+        DECLARE @BlogIdFromCsv INT;
+        DECLARE @NextSortOrder INT = 10;
+
+        WHILE LEN(@Remaining) > 0
+        BEGIN
+            SET @CommaIndex = CHARINDEX(N',', @Remaining);
+            SET @BlogIdText = LTRIM(RTRIM(LEFT(@Remaining, @CommaIndex - 1)));
+            SET @BlogIdFromCsv = TRY_CONVERT(INT, @BlogIdText);
+
+            IF @BlogIdFromCsv IS NOT NULL
+               AND NOT EXISTS (SELECT 1 FROM @BlogIds WHERE [BlogId] = @BlogIdFromCsv)
+            BEGIN
+                INSERT INTO @BlogIds ([BlogId], [NewSortOrder])
+                VALUES (@BlogIdFromCsv, @NextSortOrder);
+                SET @NextSortOrder += 10;
+            END;
+
+            SET @Remaining = SUBSTRING(@Remaining, @CommaIndex + 1, LEN(@Remaining));
+        END;
+
+        IF NOT EXISTS (SELECT 1 FROM @BlogIds WHERE [BlogId] = @BlogId)
+           OR EXISTS
+           (
+                SELECT 1
+                FROM @BlogIds AS [Ids]
+                LEFT JOIN [pmt].[Blogs] AS [Blog]
+                    ON [Blog].[BlogId] = [Ids].[BlogId]
+                   AND [Blog].[CreatedByUserId] = @CurrentUserId
+                   AND [Blog].[IsDeleted] = 0
+                   AND ISNULL(CASE WHEN [Blog].[BlogId] = @BlogId THEN @ParentBlogId ELSE [Blog].[ParentBlogId] END, 0) = ISNULL(@ParentBlogId, 0)
+                WHERE [Blog].[BlogId] IS NULL
+           )
+        BEGIN
+            THROW 50081, 'The diagram order is no longer current. Refresh and try again.', 1;
+        END;
+
+        UPDATE [pmt].[Blogs]
+        SET
+            [ParentBlogId] = @ParentBlogId,
+            [UpdatedByUserId] = @CurrentUserId,
+            [UpdatedAt] = @Now
+        WHERE [BlogId] = @BlogId;
+
+        UPDATE [Blog]
+        SET [SortOrder] = [Ids].[NewSortOrder]
+        FROM [pmt].[Blogs] AS [Blog]
+        INNER JOIN @BlogIds AS [Ids]
+            ON [Ids].[BlogId] = [Blog].[BlogId];
+
+        INSERT INTO [pmt].[BlogHistory] ([BlogId], [Action], [UserId], [CreatedByUserId], [CreatedAt])
+        VALUES (@BlogId, N'Moved', @CurrentUserId, @CurrentUserId, @Now);
+
+        EXEC [pmt].[WriteAudit] N'Blog', @BlogId, N'Moved', @Title, @CurrentUserId;
+
+        COMMIT TRANSACTION;
+    END TRY
+    BEGIN CATCH
+        IF XACT_STATE() <> 0 ROLLBACK TRANSACTION;
         THROW;
     END CATCH;
 END;

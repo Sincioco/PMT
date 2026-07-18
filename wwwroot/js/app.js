@@ -7,8 +7,8 @@ import { copyTextToClipboard } from "./components/clipboard.js?v=20260714-invite
 import {
   annotationSvgDataUrl,
   openImageAnnotationDialog
-} from "./components/image-annotation.js?v=20260718-diagram-entity-v22";
-import { createWhatsNew } from "./components/whats-new.js?v=release-notes-2026-07-18-day-31-572729605b60";
+} from "./components/image-annotation.js?v=20260718-diagram-library-v8";
+import { createWhatsNew } from "./components/whats-new.js?v=release-notes-2026-07-18-day-31-59d6c74b8c72";
 import {
   htmlWithoutUserMentionMarkup,
   initializeUserMentions
@@ -34,7 +34,7 @@ import {
   showTaskAudit,
   viewWorkItem
 } from "./components/work-items.js?v=20260716-dialog-route-close";
-import { createApplicationShell } from "./core/application-shell.js?v=20260718-diagram-entity-v22";
+import { createApplicationShell } from "./core/application-shell.js?v=20260718-diagram-library-v8";
 import {
   currentView,
   ensureCurrentViewRoute,
@@ -43,45 +43,45 @@ import {
   routeForContent,
   routeForView,
   updateBrowserUrl
-} from "./core/router.js?v=20260718-diagram-entity-v22";
+} from "./core/router.js?v=20260718-diagram-library-v8";
 import {
   registeredScreenHandlers,
   registerScreen,
   screenHandlerFor,
   screenRegistry
-} from "./core/screen-registry.js?v=20260718-diagram-entity-v22";
+} from "./core/screen-registry.js?v=20260718-diagram-library-v7";
 import {
   preferenceKeys,
   readBooleanPreference,
   writePreference
-} from "./core/preferences.js?v=release-notes-2026-07-18-day-31-572729605b60";
+} from "./core/preferences.js?v=20260718-diagram-library-v8";
 import { state } from "./core/store.js";
 import { appUrl, storageUrl } from "./shared/app-urls.js";
 import {
   createAboutFeature,
   createAboutScreenSaver
 } from "./features/about/about.js?v=20260716-db-v122";
-import { createBacklogFeature } from "./features/backlog/backlog.js?v=release-notes-2026-07-18-day-31-572729605b60";
-import { createBoardFeature } from "./features/board/board.js?v=release-notes-2026-07-18-day-31-572729605b60";
-import { createBugsFeature } from "./features/bugs/bugs.js?v=release-notes-2026-07-18-day-31-572729605b60";
-import { createDashboardFeature } from "./features/dashboard/dashboard.js?v=release-notes-2026-07-18-day-31-572729605b60";
-import { createDiagramFeature } from "./features/diagram/diagram.js?v=20260718-diagram-entity-v22";
-import { createDocumentationFeature } from "./features/documentation/documentation.js?v=release-notes-2026-07-18-day-31-572729605b60";
+import { createBacklogFeature } from "./features/backlog/backlog.js?v=release-notes-2026-07-18-day-31-59d6c74b8c72";
+import { createBoardFeature } from "./features/board/board.js?v=release-notes-2026-07-18-day-31-59d6c74b8c72";
+import { createBugsFeature } from "./features/bugs/bugs.js?v=release-notes-2026-07-18-day-31-59d6c74b8c72";
+import { createDashboardFeature } from "./features/dashboard/dashboard.js?v=release-notes-2026-07-18-day-31-59d6c74b8c72";
+import { createDiagramFeature } from "./features/diagram/diagram.js?v=20260718-diagram-library-v9";
+import { createDocumentationFeature } from "./features/documentation/documentation.js?v=20260718-diagram-library-v4";
 import {
   createGanttFeature,
   currentSprintForProject,
   ganttStartDate
-} from "./features/gantt/gantt.js?v=release-notes-2026-07-18-day-31-572729605b60";
+} from "./features/gantt/gantt.js?v=release-notes-2026-07-18-day-31-59d6c74b8c72";
 import { createInvitationsFeature } from "./features/invitations/invitations.js?v=20260715-admin-impersonation";
-import { createProjectsFeature } from "./features/projects/projects.js?v=release-notes-2026-07-18-day-31-572729605b60";
-import { createReleaseNotesFeature } from "./features/release-notes/release-notes.js?v=release-notes-2026-07-18-day-31-572729605b60";
-import { createRoadMapFeature } from "./features/roadmap/roadmap.js?v=release-notes-2026-07-18-day-31-572729605b60";
-import { createLogFeature } from "./features/personal-log/log.js?v=release-notes-2026-07-18-day-31-572729605b60";
-import { createScrumFeature } from "./features/scrum/scrum.js?v=release-notes-2026-07-18-day-31-572729605b60";
+import { createProjectsFeature } from "./features/projects/projects.js?v=release-notes-2026-07-18-day-31-59d6c74b8c72";
+import { createReleaseNotesFeature } from "./features/release-notes/release-notes.js?v=release-notes-2026-07-18-day-31-59d6c74b8c72";
+import { createRoadMapFeature } from "./features/roadmap/roadmap.js?v=release-notes-2026-07-18-day-31-59d6c74b8c72";
+import { createLogFeature } from "./features/personal-log/log.js?v=release-notes-2026-07-18-day-31-59d6c74b8c72";
+import { createScrumFeature } from "./features/scrum/scrum.js?v=release-notes-2026-07-18-day-31-59d6c74b8c72";
 import { createSettingsFeature } from "./features/settings/settings.js?v=20260718-diagram-entity-v22";
-import { createSprintsFeature } from "./features/sprints/sprints.js?v=release-notes-2026-07-18-day-31-572729605b60";
-import { createTasksFeature } from "./features/tasks/tasks.js?v=release-notes-2026-07-18-day-31-572729605b60";
-import { createWfhScheduleFeature } from "./features/wfh-schedule/wfh-schedule.js?v=release-notes-2026-07-18-day-31-572729605b60";
+import { createSprintsFeature } from "./features/sprints/sprints.js?v=release-notes-2026-07-18-day-31-59d6c74b8c72";
+import { createTasksFeature } from "./features/tasks/tasks.js?v=release-notes-2026-07-18-day-31-59d6c74b8c72";
+import { createWfhScheduleFeature } from "./features/wfh-schedule/wfh-schedule.js?v=release-notes-2026-07-18-day-31-59d6c74b8c72";
 import {
   fallbackEnvironments,
   fallbackForLookup,
@@ -446,7 +446,11 @@ const diagramFeature = createDiagramFeature({
   loadTemplateLibrary: () => api("/api/image-annotation/template-library", { cache: "no-store" }),
   loadDefaultTemplateLibrary: () => api("/api/image-annotation/default-template-library", { cache: "no-store" }),
   saveTemplateLibrary: library => saveJson("/api/image-annotation/template-library", "PUT", library),
-  saveDiagram: saveDiagramAsDocument
+  createDiagramDocument: createDiagramBackingDocument,
+  saveDiagramDocument: updateDiagramBackingDocument,
+  openEditor,
+  saveDiagramInfo: updateDiagramBackingInfo,
+  moveDiagramDocument: moveDiagramBackingDocument
 });
 const wfhScheduleFeature = createWfhScheduleFeature({
   app,
@@ -600,6 +604,7 @@ function openRouteContent(route) {
   if (route.contentType === "bugs") return openWorkItemRoute(id, "Bug");
   if (route.contentType === "backlog") return openBacklogRoute(id);
   if (route.contentType === "documentation") return openDocumentationById(id, { showMissingToast: false, updateUrl: false });
+  if (route.contentType === "diagram") return diagramFeature.view?.(id) === true;
   if (route.contentType === "log") return logFeature.view?.(id) === true;
   if (route.contentType === "scrum") return scrumFeature.view?.(id) === true;
 
@@ -740,6 +745,9 @@ function contentRouteForAction(action, id) {
 
   if (action === "view-blog" || action === "select-documentation-tree-blog") {
     return state.blogs.some(blog => blog.id === id) ? routeForContent("documentation", id) : "";
+  }
+  if (action === "select-diagram-card" || action === "select-diagram-document") {
+    return state.blogs.some(blog => blog.id === id) ? routeForContent("diagram", id) : "";
   }
 
   if (action === "view-personal-log") {
@@ -2037,9 +2045,9 @@ async function annotateRichTextImage(image) {
       saveTemplateLibrary: library => saveJson("/api/image-annotation/template-library", "PUT", library),
       apply: async annotation => {
         if (!image.isConnected) throw new Error("The rich-text editor is no longer open.");
-        const isPrivateDiagram = image.dataset.pmtPrivateDiagram === "true";
+        const isStoredDiagram = image.dataset.pmtDiagram === "true" || image.dataset.pmtPrivateDiagram === "true";
         let annotationSource;
-        if (isPrivateDiagram) {
+        if (isStoredDiagram) {
           annotationSource = annotationSvgDataUrl(annotation.svg);
         } else {
           const file = new File([annotation.svg], annotation.fileName, { type: "image/svg+xml" });
@@ -4407,43 +4415,12 @@ function updateWorkItemContentUrl(task) {
   lastOpenedContentRouteKey = contentRouteKey(parseRouteFromLocation());
 }
 
-async function saveDiagramAsDocument(diagram) {
+async function createDiagramBackingDocument({ title, bodyHtml }) {
   if (!canAccessResource("Documentation", "Create")) {
     throw new Error("You do not have permission to create Documentation.");
   }
-  if (!diagram?.svg) throw new Error("Create a diagram before saving it.");
+  if (!title || !bodyHtml) throw new Error("The Diagram backing Document is incomplete.");
 
-  const entities = (diagram.state?.objects || []).filter(object => object.type === "entity");
-  const pmtTopTenTables = new Set([
-    "pmt.projects",
-    "pmt.worktasks",
-    "pmt.users",
-    "pmt.sprints",
-    "pmt.blogs",
-    "pmt.devlogs",
-    "pmt.projectmembers",
-    "pmt.taskassignees",
-    "pmt.lookups",
-    "pmt.taskdependencies"
-  ]);
-  const entityNames = new Set(entities.map(entity => [entity.entitySchema, entity.entityName]
-    .filter(Boolean)
-    .join(".")
-    .toLocaleLowerCase()));
-  const isPmtTopTen = entityNames.size === pmtTopTenTables.size
-    && [...pmtTopTenTables].every(name => entityNames.has(name));
-  const title = isPmtTopTen
-    ? "PMT's Top 10 Tables"
-    : entities.length === 1
-    ? `Diagram - ${entities[0].name || [entities[0].entitySchema, entities[0].entityName].filter(Boolean).join(".")}`
-    : entities.length > 1
-      ? `Diagram - ${entities.length} Entities`
-      : "Diagram";
-  // Keep the editable SVG inside the private Document. Unlike a regular RTE
-  // upload, this prevents Entity SQL metadata from becoming a public file.
-  const diagramSource = annotationSvgDataUrl(diagram.svg);
-  const version = Number(diagram.state?.version || 1);
-  const bodyHtml = `<p><img class="rich-svg-image pmt-annotation-image" src="${escapeAttr(diagramSource)}" alt="${escapeAttr(title)}" data-pmt-private-diagram="true" data-pmt-annotation-source="${escapeAttr(diagram.originalReference || "")}" data-pmt-annotation-version="${escapeAttr(version)}"></p>`;
   const result = await saveJson("/api/blogs", "POST", {
     id: 0,
     projectId: null,
@@ -4456,11 +4433,65 @@ async function saveDiagramAsDocument(diagram) {
   });
 
   await loadState();
-  navigate("Documentation");
-  render();
-  openDocumentationById(result.id);
-  showToast("Diagram saved as a Document.");
-  return result;
+  return state.blogs.find(blog => blog.id === result.id) || result;
+}
+
+async function updateDiagramBackingDocument(document, { diagram, bodyHtml }) {
+  if (!canAccessResource("Documentation", "Update")) {
+    throw new Error("You do not have permission to update Documentation.");
+  }
+  if (!document?.id || !diagram?.svg || !bodyHtml) {
+    throw new Error("The Diagram could not be saved.");
+  }
+
+  const result = await saveJson(`/api/blogs/${document.id}`, "PUT", {
+    id: document.id,
+    projectId: document.projectId || null,
+    sprintId: document.sprintId || null,
+    parentBlogId: document.parentBlogId || null,
+    title: document.title,
+    bodyHtml,
+    isPrivate: document.isPrivate !== false,
+    isPinned: Boolean(document.isPinned),
+    expectedRowVersion: document.rowVersion || null
+  });
+
+  await loadState();
+  return state.blogs.find(blog => blog.id === document.id) || result;
+}
+
+async function updateDiagramBackingInfo(document, metadata) {
+  if (!canAccessResource("Documentation", "Update")) {
+    throw new Error("You do not have permission to update Documentation.");
+  }
+  if (!document?.id || !metadata?.title) throw new Error("The Diagram information is incomplete.");
+
+  return saveJson(`/api/blogs/${document.id}`, "PUT", {
+    id: document.id,
+    projectId: metadata.projectId || null,
+    sprintId: metadata.sprintId || null,
+    parentBlogId: metadata.parentBlogId || null,
+    title: metadata.title,
+    bodyHtml: document.bodyHtml,
+    isPrivate: metadata.isPrivate !== false,
+    isPinned: Boolean(metadata.isPinned),
+    expectedRowVersion: document.rowVersion || null
+  });
+}
+
+async function moveDiagramBackingDocument(document, { parentBlogId, orderedBlogIds }) {
+  if (!canAccessResource("Documentation", "Update")) {
+    throw new Error("You do not have permission to update Documentation.");
+  }
+  if (!document?.id || !Array.isArray(orderedBlogIds) || !orderedBlogIds.length) {
+    throw new Error("The Diagram move is incomplete.");
+  }
+
+  await saveJson(`/api/blogs/${document.id}/move`, "PUT", {
+    parentBlogId: parentBlogId || null,
+    orderedBlogIds
+  });
+  await loadState();
 }
 
 async function convertWorkItemToDocument(task) {

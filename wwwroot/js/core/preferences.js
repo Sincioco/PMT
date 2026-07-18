@@ -75,7 +75,14 @@ export const preferenceKeys = Object.freeze({
   documentationTreeSort: "pmt-documentation-tree-sort",
   documentationTreeSearch: "pmt-documentation-tree-search",
   documentationTreePaneWidth: "pmt-documentation-tree-pane-width",
-  documentationTreePaneHidden: "pmt-documentation-tree-pane-hidden"
+  documentationTreePaneHidden: "pmt-documentation-tree-pane-hidden",
+  diagramViewMode: "pmt-diagram-view-mode",
+  diagramTreePaneWidth: "pmt-diagram-tree-pane-width",
+  diagramSearch: "pmt-diagram-search",
+  diagramProject: "pmt-diagram-project",
+  diagramSprint: "pmt-diagram-sprint",
+  diagramVisibility: "pmt-diagram-visibility",
+  diagramSort: "pmt-diagram-sort"
 });
 
 const impersonationPreferenceBackupKey = "pmt-impersonation-admin-preferences";

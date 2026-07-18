@@ -154,24 +154,33 @@ On second thought, maybe only give me the top 10 tables in PMT that is used ofte
 68.) Can you expose / show the individual Entity Relationships objects in the Objects tab so that, if I wanted to, I can manually style a specific relationship line?  Still keep them grouped together in the Entity Relationships container that you have now, in case I want to apply formatting all of the relationship lines.
 
 
+69.) Bug:  The relationship lines flicker on screen.  Sometimes it is there and sometimes it is not there.  See attach images.
+70.) Minor Bug:  There's this persistent misalignment pointed to by the red arrow.  No matter how much or how little I drag the entities, where the arrow is pointing at just never aligns perfectly.
 
+71.) In the Diagram Screen, move the New Diagram button as the right-most page level button.
+72.) In the Diagram Screen, add a button in front of the Edit Diagram button and call it "Edit Info".  Clicking on it brings up a dialog box where I can enter basic info like renaming the Diagram, public/private, specifying it's Project and Sprint.  Specifying it's parent so it can be drawn as a child node on the left pane.
+72.) In the Diagram Screen, allow me to manually re-sort the diagrams manually by dragging and dropping.  You already have an excellent drag and drop logic in the Objects tab that understands groupings of objects (the group serving as a parent node).
+73.) For public diagrams, can you provide a Share icon so that it will give you the URL of the diagram so that they can see it.
 
-46.) When a diagram is saved in the Diagram Screen and it generates a document to save itself, make the document private.
+74.) In the Diagram Screen, when a diagram is in read-only mode, not being edited, allow the user to navigate the diagram/canvas normally like in edit mode, zoom in, zoom out, pan, etc.
 
+75.) Bug:  The top navigation doesn't seem to work now.  When I click to navigate somewhere it does not go there.
 
+76.) In the Diagram Screen in edit mode, unless the cursor is near the entity, hide the expand/collapse and data type buttons.
+77.) In the Diagram Screen in edit mode, when cursor is near the entity, hide the expand/collapse and data type buttons and let them click it.
 
-17.) Add a pencil/edit icon at the top of the table's header and when clicked, brings up the original Add (now Edit) dialog box where the original scripts / fields that was used to create the entity object shows allowing the user to edit/update information as needed.  Test this by making an edit and see that the entity object on the canvas was updated.  One special care, if the user had re-ordered the columns by dragging and drag
+78.) In the Top Navigation, move the Diagram screen right after the Documentation.
+79.) In the Diagram Screen, provide a Filter Dialog box just like what the Documentation has.  In the Sort dropdown, add Custom, so that if the user manually orders the diagram on the diagram tree, respect the user's manual ordering.  By default, we want the diagrams sorted by latest at the top, oldest at the bottom.
+80.) In the Diagram Screen, in read-only mode, create a virtual canvas so the diagram can be panned around by the user without needing to zoom.
 
+81.) When you are done, create an ERD Diagram for PMT's actual tables, all of them.  Save it and call it "PMT's Tables".  With a big letters for the titles above it that reads "PMT's Diagram Tool by Sin".  Save this permanently in PMT as a demo diagram.  Include it in the database seed scripts.
 
-----------------------------------------------
-
-14.) In PMT's ERD tool, everything begins with one table that is the central anchor point of the whole ERD diagram.  Later on, we will give the user other tables that may be anchor points, but for now, don't worry about that.  To make things easier, let's call this first central table as level 1.  It's the top most.  I want an ERD diagram that's like an org chart, just so you know.  Where subordinate entities are in level 2 and if level 2 entities have subordinates they are level 3.  Just to make the conversation easier.
-15.) When I add a second entity on the canvas and paste the second table's fields or scripts, parse it and render the entity as Level 2.  So that means, it will be rendered lower than the first table (from a visual point of view).  And if there are foreign keys in the script, auto connect the lines to the parent/FK entities.  If no FK are establish, do the best you can to try to see if it links to other tables by extrapolating based on the field name.  For example, if there is an Order table, and one of the field is OrderId or OrderID, that probably links to the Order.Id table.  When you make guesses or extrapolation, show a dialog box after and inform the user how you have mapped the fields/foreign keys to their related tables.
-16.) I've attached an image for reference on how the basic ERD diagram may be drawn (see first image).
-17.) I want PMT's ERD diagram tool to be different than other diagram tools.  In other diagram tools, the entities are laid out on the screen and it's the arrows that move around to compensate for the locations of the entities.  In PMT, I want you to move the entities to compensate for the lines and arrows!  I want the entities to make way for the lines and arrows!  So in PMT, you have full rights to move the entities as needed to make the arrows visually look good.  Avoid overlapping lines.  Move the entity if you have to so the lines have a clear path to its destination.  Look the 2nd image as a reference.  The Shipping Info entity was move to the left more to make room for the arrow lines.  The 2nd image is not a real ERD diagram, but I just wanted to illustrate how you can move the entities as needed to make room for the lines.
-18.) Pick tables candidates in PMT's database and render it.  Connect the lines as needed.  I would like to see that you logic for how you connect the lines and that you are nudging / moving tables to make room for the arrows.  Put more items on the diagram again using PMT's real database objects.
-19.) Once you have a diagram that can illustrate your code is correct save this diagram in the Documentation with the title "ERD:  Step 2 - Dynamic Entity Adjustments Based on Relationship Lines"
-20.) Execute.
+82.) If possible for the sorting of the diagrams on the tree, I'd like to apply latest diagrams at the top, oldest at the bottom and then the user's custom order.  Only if that is possible and would not cause too many issues.
+83.) That's the logic I would like "Custom" to have.
+84.) In most cases, we want the latest diagrams at the top.  But sometimes, if I am working on certain diagrams that I may work on for days, I want those pinned / ordered at the top.
+85.) Oh, allow me to pin diagrams so they are always on the top of the diagram treenav.
+86.) Rename "PMT's Tables" to "PMT's Database Schema".
+87.) If you could add a layer (grouping) of annotations describing each entity with arrows pointing at them as an overlay.  I would like to be able to turn on / off this layer in the Objects tab.  Oh, do we even have a way to hide/show layers (objects)?  If not, add it please.
 
 Database Migration Script Testing
 ---------------------------------

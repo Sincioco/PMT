@@ -48,6 +48,7 @@ Run these scripts in order:
 5. `SQL\03_SeedData_PMT.sql`
 6. `SQL\03_SeedData_LMS.sql`
 7. `SQL\03_SeedData_HLS.sql`
+8. `SQL\03_SeedData_DiagramDemo.sql`
 
 ## Local Run
 

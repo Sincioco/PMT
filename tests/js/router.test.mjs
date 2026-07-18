@@ -48,6 +48,7 @@ test("every registered navigation screen has a stable hash route", () => {
   assert.equal(routeForView("Release Notes"), "#/release-notes");
   assert.equal(routeForView("Settings"), "#/settings");
   assert.equal(routeForContent("tasks", 123), "#/tasks/123");
+  assert.equal(routeForContent("diagram", 45), "#/diagram/45");
 
   screenRegistry.forEach(screen => {
     window.location.hash = routeForView(screen.view);
@@ -79,6 +80,13 @@ test("Settings category routes parse without changing legacy screen routes", () 
     view: "Tasks",
     contentType: "tasks",
     id: 123
+  });
+
+  window.location.hash = "#/diagram/45";
+  assert.deepEqual(parseRouteFromLocation(), {
+    view: "Diagram",
+    contentType: "diagram",
+    id: 45
   });
 });
 
