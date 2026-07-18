@@ -1,12 +1,12 @@
 [
   {
-    "id": "2026-07-18-day-31",
+    "id": "2026-07-17-day-31",
     "version": "fb8032719c56",
-    "seenToken": "2026-07-18-day-31@fb8032719c56",
-    "date": "2026-07-18",
+    "seenToken": "2026-07-17-day-31@fb8032719c56",
+    "date": "2026-07-17",
     "day": 31,
     "title": "Shared Annotation Templates and Clearer Layer Placement",
-    "sourceFile": "2026-07-18 - Requirements - Day 31.txt",
+    "sourceFile": "2026-07-17 - Requirements - Day 31.txt",
     "sections": [
       {
         "title": "Default Annotation Templates",

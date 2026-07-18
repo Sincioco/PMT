@@ -18,7 +18,7 @@ test("cookie session impersonation isolates preferences and records the Settings
     localStorage.setItem("pmt-auth-user", "999");
     localStorage.setItem("pmt-theme", "dark");
     localStorage.setItem("pmt-task-project", "10");
-    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-18-day-31@fb8032719c56");
+    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-17-day-31@fb8032719c56");
   });
 
   await page.route("**/api/session", async route => {

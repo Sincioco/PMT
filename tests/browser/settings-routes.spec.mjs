@@ -5,7 +5,7 @@ test.use({ locale: "en-US", timezoneId: "Asia/Taipei" });
 test("Settings categories have shareable routes with browser history support", async ({ page }) => {
   await page.addInitScript(() => {
     localStorage.clear();
-    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-18-day-31@fb8032719c56");
+    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-17-day-31@fb8032719c56");
   });
 
   await page.route("**/api/login", async route => {
@@ -95,7 +95,7 @@ test("non-admin direct routes do not expose Admin-only Settings categories", asy
   let maintenanceRequests = 0;
   await page.addInitScript(() => {
     localStorage.clear();
-    localStorage.setItem("pmt-release-notes-last-seen:2", "2026-07-18-day-31@fb8032719c56");
+    localStorage.setItem("pmt-release-notes-last-seen:2", "2026-07-17-day-31@fb8032719c56");
   });
   await page.route("**/api/login", async route => {
     await route.fulfill({
@@ -137,7 +137,7 @@ test("non-admin direct routes do not expose Admin-only Settings categories", asy
 test("Settings user cards show the last login and preserve an administrator's configured role", async ({ page }) => {
   await page.addInitScript(() => {
     localStorage.clear();
-    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-18-day-31@fb8032719c56");
+    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-17-day-31@fb8032719c56");
   });
 
   const appState = testState();

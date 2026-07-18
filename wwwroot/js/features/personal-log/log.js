@@ -13,7 +13,7 @@ import {
   selectOptionsField,
   value
 } from "../../components/forms.js?v=20260717-day30-image-annotation";
-import { sectionHead } from "../../components/sections.js?v=release-notes-2026-07-18-day-31-fb8032719c56";
+import { sectionHead } from "../../components/sections.js?v=release-notes-2026-07-17-day-31-fb8032719c56";
 import { createWorkItemTableMode } from "../../components/work-items.js?v=20260715-admin-impersonation";
 import { currentUser } from "../../core/authentication.js?v=20260715-admin-impersonation";
 import {
