@@ -48,6 +48,7 @@ import {
   restoreAnnotationDefaultTemplates,
   resizeAnnotationObjects,
   resizedAnnotationBounds,
+  resolveAnnotationEntityOverlaps,
   resolveAnnotationEntitySizeChangeLayout,
   scaleGroupedAnnotationArrowStyle,
   setAnnotationEntityCollapsedState,
@@ -1493,6 +1494,33 @@ test("an Entity relationship reroutes instead of touching an endpoint Entity awa
   assert.equal(entityRouteContactsAwayFromConnectedFields(svg, [parent, blockingEndpoint, child]).length, 0);
 });
 
+test("PMT WorkTasks to Blogs uses the shortest clear field route", async () => {
+  const storedSvg = await readFile(
+    new URL("../../wwwroot/assets/docs/pmt-database-schema.svg", import.meta.url),
+    "utf8"
+  );
+  const state = parseAnnotationSvg(storedSvg);
+  const relationshipsSvg = annotationEntityRelationshipsSvg(
+    state.objects,
+    state.relationshipStyle,
+    {
+      interactive: true,
+      zoom: 1,
+      allowOverlappingLines: state.allowOverlappingEntityLines
+    }
+  );
+  const match = [...relationshipsSvg.matchAll(
+    /data-pmt-relationship-source="([^"]+)" data-pmt-relationship-target="([^"]+)"[\s\S]*?<path class="image-annotation-entity-relationship-hit" d="([^"]+)"/g
+  )].find(item => item[1] === "pmt.WorkTasks.LinkedBlogId" && item[2] === "pmt.Blogs.BlogId");
+
+  assert.ok(match, "the bundled PMT schema should include WorkTasks.LinkedBlogId to Blogs.BlogId");
+  const points = orthogonalPathPoints(match[3]);
+  const length = points.slice(1).reduce((total, point, index) => total
+    + Math.abs(point.x - points[index].x)
+    + Math.abs(point.y - points[index].y), 0);
+  assert.ok(length < 500, `expected a short clear route, received ${length}px: ${match[3]}`);
+});
+
 test("Entity size layout separates overlapping relationship endpoints before routing", () => {
   const parent = simpleRelationshipEntity("overlap-parent", "Parent", 100, 100);
   const child = simpleRelationshipEntity("overlap-child", "Child", 100, 100, "Parent");
@@ -1509,6 +1537,34 @@ test("Entity size layout separates overlapping relationship endpoints before rou
   assert.equal(result.unresolvedOverlapCount, 0);
   assert.notEqual(stateParent.x, stateChild.x);
   assert.match(annotationEntityRelationshipsSvg(state.objects), /image-annotation-entity-relationship-path/);
+});
+
+test("Entity overlap resolution cascades until every movable table is visible", () => {
+  const first = simpleRelationshipEntity("overlap-first", "First", 100, 100);
+  const second = simpleRelationshipEntity("overlap-second", "Second", 180, 100);
+  const third = simpleRelationshipEntity("overlap-third", "Third", 260, 100);
+  first.anchorTable = true;
+  const state = normalizeAnnotationState({
+    width: 1200,
+    height: 700,
+    objects: [first, second, third]
+  });
+
+  const result = resolveAnnotationEntityOverlaps(state);
+  const entities = state.objects.filter(object => object.type === "entity");
+  const overlaps = entities.flatMap((entity, index) => entities.slice(index + 1).filter(other =>
+    Math.min(entity.x + entity.width, other.x + other.width) - Math.max(entity.x, other.x) > 0
+      && Math.min(entity.y + entity.height, other.y + other.height) - Math.max(entity.y, other.y) > 0
+  ));
+
+  assert.equal(result.unresolvedOverlapCount, 0);
+  assert.ok(result.movedCount >= 2);
+  assert.equal(overlaps.length, 0);
+  assert.deepEqual(
+    { x: state.objects[0].x, y: state.objects[0].y },
+    { x: first.x, y: first.y },
+    "the Anchor table should remain fixed"
+  );
 });
 
 test("global Entity Relationships formatting defaults to simple lines and persists opt-in symbols", () => {

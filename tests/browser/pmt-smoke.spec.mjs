@@ -2890,6 +2890,28 @@ test("Diagram parses T-SQL Entities and exposes individual relationship Objects"
   await expect(workTasksEntity).toContainText("pmt.WorkTasks");
   await expect(workTasksEntity).toContainText("TaskId");
   await expect(workTasksEntity).toContainText("int IDENTITY(1,1)");
+  const projectsEntity = canvas.locator("[data-annotation-object-type='entity']", { hasText: "pmt.Projects" });
+  const workTasksOverlapBox = await workTasksEntity.boundingBox();
+  const projectsOverlapBox = await projectsEntity.boundingBox();
+  await page.mouse.move(
+    workTasksOverlapBox.x + (workTasksOverlapBox.width / 2),
+    workTasksOverlapBox.y + (workTasksOverlapBox.height / 2)
+  );
+  await page.mouse.down();
+  await page.mouse.move(
+    projectsOverlapBox.x + (projectsOverlapBox.width / 2),
+    projectsOverlapBox.y + (projectsOverlapBox.height / 2),
+    { steps: 5 }
+  );
+  await page.mouse.up();
+  await expect.poll(async () => {
+    const first = await workTasksEntity.boundingBox();
+    const second = await projectsEntity.boundingBox();
+    return first.x + first.width <= second.x
+      || second.x + second.width <= first.x
+      || first.y + first.height <= second.y
+      || second.y + second.height <= first.y;
+  }).toBe(true);
   const generateSchemaButton = dialog.getByRole("button", { name: "Generate PMT Database Schema", exact: true });
   await expect(generateSchemaButton).toBeVisible();
   await generateSchemaButton.click();
@@ -2906,7 +2928,15 @@ test("Diagram parses T-SQL Entities and exposes individual relationship Objects"
   await expect(dialog).toHaveCount(0);
   await expect.poll(() => apiCalls.blogUpdates?.length || 0).toBe(1);
   expect(apiCalls.blogUpdates[0]).toMatchObject({ id: 2, title: "Untitled 1", isPrivate: true });
-  const readonlyEntity = page.locator("[data-diagram-image].diagram-readonly-svg g:has(> .image-annotation-entity-header-button)").first();
+  const firstReadonlyEntity = page.locator(
+    "[data-diagram-image].diagram-readonly-svg g:has(> .image-annotation-entity-header-button)"
+  ).first();
+  const readonlyEntityId = await firstReadonlyEntity.locator(":scope > .image-annotation-entity-header-button")
+    .first()
+    .getAttribute("data-annotation-entity-id");
+  const readonlyEntity = page.locator(
+    `[data-diagram-image].diagram-readonly-svg g:has(> .image-annotation-entity-header-button[data-annotation-entity-id='${readonlyEntityId}'])`
+  );
   const readonlyEntityHeaderButton = readonlyEntity.locator(":scope > .image-annotation-entity-header-button").first();
   await expect(readonlyEntity).toBeVisible();
   await expect(readonlyEntityHeaderButton).toHaveCSS("opacity", "0");
@@ -3218,6 +3248,87 @@ test("Canceling Diagram edit refits and centers the recreated Treeview preview",
         && imageBounds.height <= viewportBounds.height
     };
   })).toEqual({ centered: true, fits: true });
+});
+
+test("read-only Diagram expansion raises the Entity and moves an overlapping neighbor", async ({ page }) => {
+  const appState = createTestState();
+  const apiCalls = { securityReset: 0 };
+  const entity = (id, name, x) => ({
+    id,
+    type: "entity",
+    x,
+    y: 80,
+    width: 240,
+    height: 120,
+    entitySchema: "pmt",
+    entityName: name,
+    fields: [
+      { name: `${name}Id`, dataType: "INT IDENTITY(1,1)", nullable: false, isPrimaryKey: true, isForeignKey: false },
+      { name: "Description", dataType: "NVARCHAR(220)", nullable: true, isPrimaryKey: false, isForeignKey: false }
+    ],
+    foreignKeys: [],
+    showKeyColumn: true,
+    showDataTypes: false,
+    dataTypeExpandedWidth: 520
+  });
+  const svg = buildAnnotationSvg({
+    width: 900,
+    height: 400,
+    objects: [
+      entity("expand-target", "AttendanceEntries", 350),
+      entity("left-neighbor", "UserInvitations", 100)
+    ]
+  });
+  const source = `data:image/svg+xml;base64,${Buffer.from(svg).toString("base64")}`;
+  appState.blogs.push({
+    id: 2,
+    title: "Read Mode Entity Expansion",
+    bodyHtml: `<p><img src="${source}" alt="Read Mode Entity Expansion" data-pmt-diagram="true" data-pmt-private-diagram="true" data-pmt-annotation-version="1"></p>`,
+    isPrivate: true,
+    createdByUserId: 1,
+    createdAt: "2026-07-20T08:00:00Z",
+    updatedAt: "2026-07-20T08:00:00Z",
+    rowVersion: "row-2-1",
+    attachments: []
+  });
+
+  await page.addInitScript(() => localStorage.setItem("pmt-diagram-view-mode", "tree"));
+  await markCurrentReleaseSeen(page, 1);
+  await installApiMocks(page, appState, apiCalls);
+  await page.goto("/");
+  await page.locator("#loginName").fill("Sin");
+  await page.locator("#loginPassword").fill("Password1");
+  await page.getByRole("button", { name: /log in/i }).click();
+  await openNavView(page, "Diagram", "Diagram");
+
+  await expect(page.locator("[data-diagram-page-document-head] h2")).toHaveText("Read Mode Entity Expansion");
+  const image = page.locator("[data-diagram-image].diagram-readonly-svg");
+  const entityGroup = id => image.locator(
+    `g:has(> [data-annotation-entity-header-action='showDataTypes'][data-annotation-entity-id='${id}'])`
+  );
+  const target = entityGroup("expand-target");
+  const neighbor = entityGroup("left-neighbor");
+  const outline = group => group.locator(":scope > rect:last-child");
+  const initialNeighborX = Number(await outline(neighbor).getAttribute("x"));
+  const dataTypeButton = target.locator(
+    ":scope > [data-annotation-entity-header-action='showDataTypes']"
+  );
+
+  await target.hover();
+  await dataTypeButton.click();
+  await expect(dataTypeButton).toHaveAttribute("aria-pressed", "true");
+  await expect(target).toContainText("NVARCHAR(220)");
+  const order = await image.locator("g:has(> [data-annotation-entity-header-action='showDataTypes'])")
+    .evaluateAll(groups => groups.map(group => group.querySelector(
+      ":scope > [data-annotation-entity-header-action='showDataTypes']"
+    )?.dataset.annotationEntityId));
+  expect(order.at(-1)).toBe("expand-target");
+
+  const movedNeighborX = Number(await outline(neighbor).getAttribute("x"));
+  const neighborWidth = Number(await outline(neighbor).getAttribute("width"));
+  const expandedTargetX = Number(await outline(target).getAttribute("x"));
+  expect(movedNeighborX).toBeLessThan(initialNeighborX);
+  expect(movedNeighborX + neighborWidth).toBeLessThanOrEqual(expandedTargetX);
 });
 
 test("Diagram save collision preserves the edit as a newly named Diagram", async ({ page }) => {

@@ -4,10 +4,12 @@ import {
   buildAnnotationSvg,
   openImageAnnotationDialog,
   parseAnnotationSvg,
+  resolveAnnotationEntityOverlaps,
+  resolveAnnotationEntitySizeChangeLayout,
   setAnnotationEntityCollapsedState,
   setAnnotationEntityDataTypeVisibility,
   zoomAnnotationAtPoint
-} from "../../components/image-annotation.js?v=20260719-diagram-tools-v35";
+} from "../../components/image-annotation.js?v=20260720-entity-no-overlap-v37";
 import { filterSelect } from "../../components/filters.js";
 import { field, optionalNumberValue, selectOptionsField, value } from "../../components/forms.js?v=20260719-rte-insert-diagram";
 import { sectionHead } from "../../components/sections.js?v=20260718-diagram-library-v8";
@@ -990,6 +992,16 @@ export function createDiagramFeature({
     const zoomSmoothingMilliseconds = 30;
     const zoomIdleMilliseconds = 90;
     let readonlyState = image.matches("svg") ? parseAnnotationSvg(image.outerHTML) : null;
+    if (readonlyState) {
+      const layoutResult = resolveAnnotationEntityOverlaps(readonlyState);
+      if (layoutResult.movedCount) {
+        const markup = buildAnnotationSvg(readonlyState, { interactiveEntityHeaders: true });
+        const next = new DOMParser().parseFromString(markup, "image/svg+xml").documentElement;
+        ["width", "height", "viewBox", "role", "aria-label", "data-pmt-image-annotation-version"]
+          .forEach(name => image.setAttribute(name, next.getAttribute(name) || ""));
+        image.replaceChildren(...[...next.childNodes].map(node => document.importNode(node, true)));
+      }
+    }
 
     const viewportSize = () => ({
       width: Math.max(1, viewport.clientWidth),
@@ -1260,6 +1272,12 @@ export function createDiagramFeature({
       const before = control.getBoundingClientRect();
       if (action === "collapsed") setAnnotationEntityCollapsedState(entity, entity.collapsed !== true);
       else setAnnotationEntityDataTypeVisibility(entity, entity.showDataTypes !== true);
+      resolveAnnotationEntitySizeChangeLayout(readonlyState, entity);
+      const entityIndex = readonlyState.objects.indexOf(entity);
+      if (entityIndex >= 0 && entityIndex !== readonlyState.objects.length - 1) {
+        readonlyState.objects.splice(entityIndex, 1);
+        readonlyState.objects.push(entity);
+      }
 
       const markup = buildAnnotationSvg(readonlyState, { interactiveEntityHeaders: true });
       const next = new DOMParser().parseFromString(markup, "image/svg+xml").documentElement;

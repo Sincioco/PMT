@@ -1308,5 +1308,24 @@
         ]
       }
     ]
+  },
+  {
+    "day": 33,
+    "title": "Shorter and Clearer Diagram Connections",
+    "sections": [
+      {
+        "title": "Smarter Relationship Routes",
+        "items": [
+          "Choose the shortest clear orthogonal path between mapped Entity fields before considering longer obstacle detours, while continuing to avoid tables and non-field attachment points."
+        ]
+      },
+      {
+        "title": "Always-Visible Entities",
+        "items": [
+          "Bring an Entity to the front when its read-only header controls are used, and move overlapping movable tables aside when Data Types or fields expand.",
+          "Prevent Entity overlaps in both read-only and edit modes, cascading movable tables aside after loading, dragging, resizing, pasting, or duplicating until every table is visible."
+        ]
+      }
+    ]
   }
 ]

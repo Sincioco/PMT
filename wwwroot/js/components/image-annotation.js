@@ -115,6 +115,7 @@ export async function openImageAnnotationDialog(options) {
     originalReference,
     seedImageSource: original.source
   });
+  resolveAnnotationEntityOverlaps(state);
 
   let templateLibrary = normalizeAnnotationTemplateLibrary(null);
   let templateLibraryError = "";
@@ -1393,18 +1394,28 @@ export function annotationEntityAnchorShortcutWarningAllowed(inputState) {
   return !annotationEntityGlobalUnanchorControlState(inputState).checked;
 }
 
+export function resolveAnnotationEntityOverlaps(inputState, options = {}) {
+  return resolveAnnotationEntitySizeChangeLayout(inputState, null, {
+    ...options,
+    separateRoutes: false
+  });
+}
+
 export function resolveAnnotationEntitySizeChangeLayout(inputState, resizedEntityOrId, options = {}) {
   const state = inputState && typeof inputState === "object" ? inputState : {};
   const entities = annotationVisibleObjects(state).filter(object => object.type === "entity");
-  const resizedEntity = typeof resizedEntityOrId === "object"
-    ? resizedEntityOrId
-    : entities.find(entity => entity.id === resizedEntityOrId);
-  if (!resizedEntity || !entities.includes(resizedEntity)) {
+  const resolveAll = resizedEntityOrId == null;
+  const resizedEntity = resolveAll
+    ? null
+    : typeof resizedEntityOrId === "object"
+      ? resizedEntityOrId
+      : entities.find(entity => entity.id === resizedEntityOrId);
+  if (!entities.length || (!resolveAll && (!resizedEntity || !entities.includes(resizedEntity)))) {
     return { movedCount: 0, unresolvedOverlapCount: 0, unresolvedRouteContactCount: 0 };
   }
 
   const clearance = Math.max(48, positiveNumber(options?.clearance, state.gridSize || defaultGridSize));
-  const queuedIds = [resizedEntity.id];
+  const queuedIds = resolveAll ? entities.map(entity => entity.id) : [resizedEntity.id];
   const movedIds = new Set();
   let unresolvedOverlapCount = 0;
   let passCount = 0;
@@ -1430,15 +1441,21 @@ export function resolveAnnotationEntitySizeChangeLayout(inputState, resizedEntit
 
       const currentMovable = current.anchorTable !== true && current.locked !== true;
       const otherMovable = other.anchorTable !== true && other.locked !== true;
-      const moveEntity = other !== resizedEntity && otherMovable
-        ? other
-        : current !== resizedEntity && currentMovable
-          ? current
-          : otherMovable
-            ? other
-            : currentMovable
-              ? current
-              : null;
+      const moveEntity = resolveAll
+        ? otherMovable
+          ? other
+          : currentMovable
+            ? current
+            : null
+        : other !== resizedEntity && otherMovable
+          ? other
+          : current !== resizedEntity && currentMovable
+            ? current
+            : otherMovable
+              ? other
+              : currentMovable
+                ? current
+                : null;
       if (!moveEntity) {
         unresolvedOverlapCount += 1;
         return;
@@ -1454,24 +1471,27 @@ export function resolveAnnotationEntitySizeChangeLayout(inputState, resizedEntit
     });
   }
 
-  const positionsBeforeRouting = new Map(entities.map(entity => [
-    entity.id,
-    { x: entity.x, y: entity.y }
-  ]));
-  const relationships = resolveAnnotationEntityRelationships(entities);
-  const routeResult = separateAnnotationEntitiesFromRelationshipRoutes(entities, relationships, {
-    allowOverlappingLines: state.allowOverlappingEntityLines,
-    gridSize: state.gridSize,
-    relationshipStyle: state.relationshipStyle
-  });
-  entities.forEach(entity => {
-    const previous = positionsBeforeRouting.get(entity.id);
-    const deltaX = entity.x - previous.x;
-    const deltaY = entity.y - previous.y;
-    if (!deltaX && !deltaY) return;
-    translateAllAnnotationObjects(annotationEntityAnnotationChildren(state, entity), deltaX, deltaY);
-    movedIds.add(entity.id);
-  });
+  let routeResult = { unresolvedContactCount: 0 };
+  if (options?.separateRoutes !== false) {
+    const positionsBeforeRouting = new Map(entities.map(entity => [
+      entity.id,
+      { x: entity.x, y: entity.y }
+    ]));
+    const relationships = resolveAnnotationEntityRelationships(entities);
+    routeResult = separateAnnotationEntitiesFromRelationshipRoutes(entities, relationships, {
+      allowOverlappingLines: state.allowOverlappingEntityLines,
+      gridSize: state.gridSize,
+      relationshipStyle: state.relationshipStyle
+    });
+    entities.forEach(entity => {
+      const previous = positionsBeforeRouting.get(entity.id);
+      const deltaX = entity.x - previous.x;
+      const deltaY = entity.y - previous.y;
+      if (!deltaX && !deltaY) return;
+      translateAllAnnotationObjects(annotationEntityAnnotationChildren(state, entity), deltaX, deltaY);
+      movedIds.add(entity.id);
+    });
+  }
   syncAnnotationEntityAnnotationArrows(state);
   return {
     movedCount: movedIds.size,
@@ -4228,9 +4248,19 @@ function createAnnotationDialog(context) {
           setStatus(selectedIds.size === 1 ? "Object selected." : `${selectedIds.size} objects selected.`);
           return;
         }
+        const movedEntity = completed.originals
+          .map(original => state.objects.find(object => object.id === original.id))
+          .find(object => object?.type === "entity");
+        if (movedEntity) resolveAnnotationEntitySizeChangeLayout(state, movedEntity);
         pushHistory();
         renderWithWorkspaceExpansion();
         return;
+      }
+      if (completed.type === "resize") {
+        const resizedEntity = completed.originals
+          .map(original => state.objects.find(object => object.id === original.id))
+          .find(object => object?.type === "entity");
+        if (resizedEntity) resolveAnnotationEntitySizeChangeLayout(state, resizedEntity);
       }
       if (completed.type === "create") {
         const object = state.objects.find(item => item.id === completed.objectId);
@@ -4304,6 +4334,7 @@ function createAnnotationDialog(context) {
         if (!definition) return;
         applyAnnotationEntityDefinition(object, definition);
         ensureAnnotationEntitySize(object);
+        resolveAnnotationEntitySizeChangeLayout(state, object);
         pushHistory();
         renderWithWorkspaceExpansion();
         return;
@@ -4800,6 +4831,7 @@ function createAnnotationDialog(context) {
         return [state.relationshipStyle];
       }
       state.objects.push(...objects);
+      if (objects.some(object => object.type === "entity")) resolveAnnotationEntityOverlaps(state);
       if (insertionGroupId && normalizedTemplate.groupName) {
         state.groupNames[insertionGroupId] = normalizedTemplate.groupName;
       }
@@ -7835,6 +7867,16 @@ function annotationEntityRelationshipObstacleRoute(
       clearance,
       entities
     );
+    const directRoutes = [
+      [start, startEscape, { x: endEscape.x, y: startEscape.y }, endEscape, end],
+      [start, startEscape, { x: startEscape.x, y: endEscape.y }, endEscape, end]
+    ]
+      .map(compactAnnotationEntityRelationshipPoints)
+      .filter(route => !routeTouchesEntries(route, entries, requiredClearance))
+      .sort((first, second) => annotationEntityRelationshipRouteLength(first)
+        - annotationEntityRelationshipRouteLength(second)
+        || annotationEntityRelationshipPath(first).localeCompare(annotationEntityRelationshipPath(second)));
+    if (directRoutes.length) return directRoutes[0];
     const middle = annotationEntityRelationshipVisibilityRoute(
       startEscape,
       endEscape,

@@ -1,0 +1,37 @@
+Project Management Tool (PMT):  Day 32 of Codex Agentic AI Coding
+-----------------------------------------------------------------
+Total Dev Time in Hours:  51
+
+AI Instructions
+--------------
+Design and Coding Methodology:
+	KISS (Keep It Simple Stupid) - The simpler the better.  Avoid over-engineering.  Avoid unnecessary complexity.  Avoid unnecessary features.  Avoid unnecessary bells and whistles.  Avoid unnecessary abstractions.  Avoid unnecessary patterns.  Avoid unnecessary frameworks.  Avoid unnecessary libraries.  Avoid unnecessary dependencies.  Avoid unnecessary code.  Avoid unnecessary files.  Avoid unnecessary folders.  Avoid unnecessary classes.  Avoid unnecessary methods.  Avoid unnecessary variables.
+
+Testing:
+	In addition to your normal testing, be sure to inform me if I have to recompile the .Net portion of the project or just Press Ctrl + F5 on the browser to reload to see the latest changes.  If making CSS / image changes, ensure that I will encounter no caching issue when testing in the browser.  Do not test the 3D About flyby unless you made changes to it.
+
+Environment:
+	You are in a dev machine.  You can drop and re-create the database as you see fit, especially when testing migrations scripts.  You don't need to preseve data in the backend or frontend.  You can also clear preferences, local storage settings and any cache as you see fit.
+
+Database:
+	If making changes to the database, that affects existing users see database-versioning.md under the docs folder.
+
+
+Commits:
+	PMT is a public repo, write a detailed commit message so people can follow its progression.  Prefix all of your commits with "Sin and Codex: ".
+
+
+Diagram
+-------
+1.) Bug:  See picture.  Why did it take the longst path to connect the two fields?  Connect them the shortest way if possible please.
+2.) Bug:  Expanding the data type of one table did not put it in the front and did not move the table to the left of it.  This is a bug in read-mode.  It seems to work just fine in edit mode.  See picture.
+3.) In Diagram as a general rule, don't allow entities to overlap one another.  Move them so they are always visible.  And if it has a cascading effect, then keep moving entities/tables until they all become visible.  This is for both read and write mode.
+
+Database Migration Script Testing
+---------------------------------
+Update the migration scripts and test them by dropping and re-creating the database from the baseline and executing your combined migration script as that is how I will execute it during deployment.  Be sure it works without any errors and fix errors that you do encounter.
+
+Commit and Push
+---------------
+When all your tests are green, commit and push to the repo.
+Also commit the file named "2026-07-20 - Requirements - Day 33.txt"
