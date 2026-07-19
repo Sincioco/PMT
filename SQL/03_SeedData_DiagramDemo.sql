@@ -76,7 +76,7 @@ BEGIN TRY
             N'PMT''s Database Schema',
             @DatabaseSchemaDiagramBodyHtml,
             0,
-            1,
+            0,
             0,
             @Sin,
             @Sin,
@@ -103,6 +103,11 @@ BEGIN TRY
             @Now
         );
     END;
+
+    -- Pinning is temporarily disabled in Documentation and Diagram.
+    UPDATE [pmt].[Blogs]
+    SET [IsPinned] = 0
+    WHERE [IsPinned] = 1;
 
     COMMIT TRANSACTION;
 END TRY

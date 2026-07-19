@@ -1,7 +1,7 @@
 import { avatarsHtml } from "../../components/avatars.js";
 import { buttonContent, funnelIconHtml } from "../../components/buttons.js";
 import { statusColor } from "../../components/progress-and-status.js?v=20260714-linked-bug-percent";
-import { sectionHead } from "../../components/sections.js?v=release-notes-2026-07-19-day-32-ec1e53051fce";
+import { sectionHead } from "../../components/sections.js?v=release-notes-2026-07-19-day-32-b77111c5864f";
 import {
   groupedTimelineHeader,
   monthName,

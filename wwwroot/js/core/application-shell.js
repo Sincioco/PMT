@@ -12,7 +12,6 @@ import { overflowIconHtml } from "../components/buttons.js?v=20260715-admin-impe
 import { navIconHtml } from "./navigation-preferences.js?v=20260718-diagram-library-v8";
 import {
   preferenceKeys,
-  readPreference,
   writePreference
 } from "./preferences.js";
 import { currentView, getNavigationScreens, navigate } from "./router.js?v=20260718-diagram-library-v8";
@@ -42,7 +41,6 @@ export function createApplicationShell({
     userAvatar: document.getElementById("currentUserAvatar"),
     userMenuToggle: document.getElementById("userMenuToggle"),
     userMenu: document.getElementById("userMenu"),
-    themeToggle: document.getElementById("themeToggle"),
     dialog: document.getElementById("editorDialog"),
     dialogTitle: document.getElementById("dialogTitle"),
     dialogBody: document.getElementById("dialogBody"),
@@ -170,11 +168,6 @@ export function createApplicationShell({
         navigate(resolveNavigationView?.(viewButton.dataset.view) ?? viewButton.dataset.view);
         closeUserMenu();
         render();
-        return;
-      }
-
-      if (event.target.closest("button[data-action='toggle-theme']")) {
-        toggleTheme();
         return;
       }
 
@@ -418,7 +411,6 @@ export function createApplicationShell({
     }
 
     renderImpersonationBanner();
-    updateThemeToggle();
   }
 
   function renderImpersonationBanner() {
@@ -436,33 +428,15 @@ export function createApplicationShell({
   }
 
   function applySavedTheme() {
-    const savedTheme = readPreference(preferenceKeys.theme, "light");
-    applyTheme(savedTheme === "dark" ? "dark" : "light");
+    writePreference(preferenceKeys.theme, "light");
+    applyTheme();
   }
 
-  function toggleTheme() {
-    const nextTheme = document.documentElement.dataset.theme === "light" ? "dark" : "light";
-    writePreference(preferenceKeys.theme, nextTheme);
-    applyTheme(nextTheme);
-  }
-
-  function applyTheme(theme) {
-    document.documentElement.dataset.theme = theme;
-    document.documentElement.style.colorScheme = theme;
+  function applyTheme() {
+    document.documentElement.dataset.theme = "light";
+    document.documentElement.style.colorScheme = "light";
     const colorSchemeMeta = document.querySelector('meta[name="color-scheme"]');
-    if (colorSchemeMeta) colorSchemeMeta.content = theme === "light" ? "light dark" : "dark light";
-    updateThemeToggle();
-  }
-
-  function updateThemeToggle() {
-    if (!elements.themeToggle) return;
-
-    const isLight = document.documentElement.dataset.theme === "light";
-    const icon = elements.themeToggle.querySelector("[data-theme-icon]");
-    const label = elements.themeToggle.querySelector("[data-theme-label]");
-    if (icon) icon.innerHTML = isLight ? "&#9790;" : "&#9728;";
-    if (label) label.textContent = isLight ? "Dark Theme" : "Light Theme";
-    elements.themeToggle.title = isLight ? "Switch to dark theme" : "Switch to light theme";
+    if (colorSchemeMeta) colorSchemeMeta.content = "light";
   }
 
   return {

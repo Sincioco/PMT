@@ -2553,6 +2553,7 @@ test("Diagram parses T-SQL Entities and exposes individual relationship Objects"
   await expect(canvas.locator("[data-annotation-object-type='entity']")).toHaveCount(2);
   const firstEntity = canvas.locator("[data-annotation-object-type='entity']").last();
   const firstEntityHeaderButton = firstEntity.locator(".image-annotation-entity-header-button").first();
+  await dialog.getByRole("button", { name: "Cancel", exact: true }).focus();
   await expect(firstEntityHeaderButton).toHaveCSS("opacity", "0");
   await firstEntity.hover();
   await expect(firstEntityHeaderButton).toHaveCSS("opacity", "1");
@@ -3101,8 +3102,8 @@ test("Diagram parses T-SQL Entities and exposes individual relationship Objects"
 
   await page.getByRole("button", { name: "Edit Diagram", exact: true }).click();
   await expect(dialog).toBeVisible();
-  await expect(page.locator("[data-diagram-editor-host] > dialog.image-annotation-dialog")).toHaveCount(1);
-  await expect(page.locator("dialog.image-annotation-dialog:modal")).toHaveCount(0);
+  await expect(page.locator("dialog.image-annotation-dialog")).toHaveCount(1);
+  await expect(page.locator("dialog.image-annotation-dialog:modal")).toHaveCount(1);
   await expect(canvas.locator("[data-annotation-object-type='entity']")).toHaveCount(2);
   await expect(canvas.locator(".image-annotation-entity-relationship-path")).toHaveCount(1);
   await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
@@ -3159,7 +3160,7 @@ test("Canceling Diagram edit refits and centers the recreated Treeview preview",
     transform: image.style.transform
   }))).toEqual({ width: 1600, transform: "scale(1)" });
   await page.getByRole("button", { name: "Edit Diagram", exact: true }).click();
-  const dialog = page.locator("[data-diagram-editor-host] > dialog.image-annotation-dialog");
+  const dialog = page.locator("dialog.image-annotation-dialog");
   await expect(dialog).toBeVisible();
   await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
 
@@ -3234,7 +3235,7 @@ test("Diagram save collision preserves the edit as a newly named Diagram", async
   await openNavView(page, "Diagram", "Diagram");
 
   await page.getByRole("button", { name: "Edit Diagram", exact: true }).click();
-  const editor = page.locator("[data-diagram-editor-host] > dialog.image-annotation-dialog");
+  const editor = page.locator("dialog.image-annotation-dialog");
   await expect(editor).toBeVisible();
   await editor.getByRole("button", { name: "Save", exact: true }).click();
 
@@ -3354,7 +3355,7 @@ test("Diagram Card and Tree views show the current user's private and public Dia
   await expect(page.locator(".diagram-grid")).not.toContainText("Someone Else's Diagram");
   await expect(page.locator(".diagram-grid")).toContainText("Public Diagram Marker");
   await expect(page.locator(".diagram-grid")).toContainText("Shared Team Diagram");
-  await expect(page.locator(".diagram-card", { hasText: "Public Diagram Marker" }).getByRole("button", { name: "Share public Diagram" })).toBeVisible();
+  await expect(page.locator("[data-action='share-diagram']")).toHaveCount(0);
   await expect(page.getByRole("button", { name: "New Diagram", exact: true }).locator(".button-icon + span")).toHaveCSS("display", "none");
   await expect(page.getByRole("button", { name: "Filters", exact: true }).locator(".button-icon + span")).toHaveCSS("display", "none");
 
@@ -3450,13 +3451,13 @@ test("Diagram Card and Tree views show the current user's private and public Dia
       y: Math.round((imageRect.top + (imageRect.height / 2)) - (viewportRect.top + (viewportRect.height / 2)))
     };
   })).toEqual({ x: 0, y: 0 });
-  await expect(page.getByRole("button", { name: "Share public Diagram" })).toBeVisible();
+  await expect(page.locator("[data-action='share-diagram']")).toHaveCount(0);
   await page.getByRole("button", { name: "Edit Info", exact: true }).click();
   const infoDialog = page.locator("#editorDialog");
   await expect(infoDialog).toBeVisible();
   await expect(infoDialog.locator("[name='visibility']")).toHaveValue("public");
   await infoDialog.locator("[name='title']").fill("Public Architecture");
-  await infoDialog.locator("[name='isPinned']").check();
+  await expect(infoDialog.locator("[name='isPinned']")).toHaveCount(0);
   await infoDialog.getByRole("button", { name: "Save", exact: true }).click();
   await expect(infoDialog).not.toBeVisible();
   await expect(page.locator("[data-diagram-page-document-head] h2")).toHaveText("Public Architecture");
@@ -3464,12 +3465,10 @@ test("Diagram Card and Tree views show the current user's private and public Dia
     id: 5,
     title: "Public Architecture",
     isPrivate: false,
-    isPinned: true,
+    isPinned: false,
     bodyHtml: diagramBody("Public Diagram Marker")
   });
   await expect(page.locator("[data-diagram-tree-row]").first()).toContainText("Public Architecture");
-  await page.getByRole("button", { name: "Share public Diagram" }).click();
-  await expect(page.locator("#toast")).toContainText(/Public Diagram link (copied|:)/);
 
   await page.locator("[data-diagram-tree-row][data-id='2']").dragTo(page.locator("[data-diagram-tree-row][data-id='5']"));
   await expect.poll(() => apiCalls.blogMoves?.length || 0).toBe(1);

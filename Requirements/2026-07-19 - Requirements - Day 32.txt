@@ -1,6 +1,6 @@
-Project Management Tool (PMT):  Day 33 of Codex Agentic AI Coding
+Project Management Tool (PMT):  Day 32 of Codex Agentic AI Coding
 -----------------------------------------------------------------
-Total Dev Time in Hours:  42
+Total Dev Time in Hours:  50
 
 AI Instructions
 --------------
@@ -18,7 +18,7 @@ Database:
 
 
 Commits:
-	PMT is a public repo, write a detailed commit message so people can follow its progression.
+	PMT is a public repo, write a detailed commit message so people can follow its progression.  Prefix all of your commits with "Sin and Codex: ".
 
 
 Diagram
@@ -157,29 +157,32 @@ Scrum
 74.) In the Diagram screen, can we extend the zoom that currently only goes to 200% all the way to 300%?
 
 75.) In the Diagram screen, when a new diagram is created, after you have changed the zoom level to 100%, put a template object named "Green Box with Text" and center the viewport around that object.
-76.) When they double click a textbox, if it contains text, open the Format tab, and scroll to the text box where they can type text.
+76.) When they double click a textbox, open the Format tab, and scroll to the text box where they can type text.  If there's already text, select all text so the user can easy override.
 
 77.) In the Scrum screen, the highlight border is touching the top of the browser and is getting clipped.  Maybe you'll have to shrink the icon a little bit.  Maybe 74x74?  Do what you think is best.
 
-ToDo: Viewport-Plus-Halo Segmentation for the Diagram
-Implement viewport-plus-halo segmentation in the Diagram tool to improve rendering performance and reduce jitter during zooming and panning. This involves creating a halo around the viewport that pre-renders entities and relationships just outside the visible area, allowing for smoother transitions as the user navigates the diagram.
+78.) In the Document Tree View, read only mode, add the same Created by or Edited by info as the Card view version, except put it underneath the Tash, Download and Pencil icon (denoted by the green box in the attached picture).
+79.) In the Document Tree View, put the Created by date/time and Edited by date/time just right after the Project and Sprint info (pointed to by the red arrow) and compress the document header area more to make more room for the document.
+80.) In the Document Tree Nav, add a right-mouse click menu so that they can Edit Info, Edit Document, Download and Delete.  When Edit Info is clicked, bring up the Edit Document Dialog box.  When Edit Document is clicked, edit the document in full-screen view.
+81.) Similar to what was already done in the Diagram screen, add a trully full-screen view.  When a new Diagram is created or an existing one Edited, the Diagram Screen goes into full screen view.  Please copy that same UI/UX for the Documentation Screen.
+82.) In the Document Tree's Left Nav, if a document is pinned it should render the same pinned icon as what is used in the Diagram's Left nav.
+83.) In the Document in Tree View, also show the person who created the document with the date/time in addition to the last person who edited it with the date/time.
 
+84.) In the Diagram screen, update the Left Nav so that it's right-mouse click menu is just like what the Document Tree View's Left Nav has so that the two are from the UI/UX standpoint in sync.
 
-Sector foundation
-Add sector indexing and viewport/halo calculations without changing rendering. Benchmark it against the existing 28- and 232-table diagrams.
+85.) In the Document screen, apply the same drag and drop behavior on the Left Nav as what the Diagram Screen's Left Nav has so that the two are in sync from a UI/UX standpoint.
+86.) For now in both the Document and Diagram screens, hide the pin functionality.  I don't know how to correctly implement that on top of the existing sorting/grouping logic the Left nav already has.
+87.) During the next databse migration, if there are any Documents that have been pinned, unpin them.
+88.) Hide the Dark Theme feature for now.  And in the next database migration / upgrade reset the user's Theme preference back to Light Theme as I need to go over the Dark Theme in more detail.  It is improperly implemented right now.
+89.) Basically, ignore the user's preferences for now and always be in Light Theme.
+90.) Update the .svg that was generated for the What's New Dialog box.  Create an simple SVG illustration to show that there is now a new Diagram screen.
+91.) In the Diagram screen, update the Filter Dialog box's search so that it can also search the contents of the .svg and not just the metadata.
 
-Read-only Entity virtualization
-Attach only visible and halo Entities/annotations. Initially retain the complete merged relationship-line layer. Pan and zoom remain functional, with the existing full-plane renderer as fallback.
+92.) Bug:  On a 720p screen resolution, the Kanban Board is not rendering a task with sub-tasks properly.  The sub task's label and progress is going past the task card.  See attached image.
+93.) In the Scrum screen, update the logic so that the "New Scrum" logic picks up whatever was the last scrum entry the user has in the system, including today's entries.  Basically, the logic is now simple, just find the user's last Scrum entry (irrespectful of any date logic) and use that to prefill the "What did you accomplish yesterday?" section.  If the user is in multiple projects and participate in multiple scrums, continue to honor that logic.  If the user has no existing scrum entry for the current project, just leave it blank.
+94.) When you edit a Diagram, do not add the "Hello World" text box unless it's a new/blank diagram.
 
-Relationship segmentation
-Load only relationship geometry intersecting the viewport and halo. Preserve cross-sector continuity and preload adjacent segments before removing old ones.
-
-Edit-mode virtualization
-Add selection, hit testing, dragging, resizing, Entity controls, and boundary crossing. Recalculate only relationships affected by edited Entities.
-
-Integration and hardening
-Verify saving/exporting the complete Diagram, undo/redo, templates, RTE/Image Annotation parity, Auto Format, and large-schema performance on simulated slower hardware.
-
+95.) In the Diagram screen, I keep getting the "Achor Table Shortcut" dialog box even though the checkbox "Unachor all Entities (global)" is checked in the Entity tab.
 
 Database Migration Script Testing
 ---------------------------------

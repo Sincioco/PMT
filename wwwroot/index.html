@@ -3,23 +3,20 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="color-scheme" content="light dark">
+  <meta name="color-scheme" content="light">
   <title>PMT</title>
   <meta name="pmt-path-base" content="">
   <meta name="pmt-upload-storage-warning" content="">
   <base href="/">
   <script>
     (() => {
-      let theme = "light";
       try {
-        if (localStorage.getItem("pmt-theme") === "dark") theme = "dark";
+        localStorage.setItem("pmt-theme", "light");
       } catch {
         // Local preferences are optional.
       }
-      document.documentElement.dataset.theme = theme;
-      document.documentElement.style.colorScheme = theme;
-      document.querySelector('meta[name="color-scheme"]').content =
-        theme === "light" ? "light dark" : "dark light";
+      document.documentElement.dataset.theme = "light";
+      document.documentElement.style.colorScheme = "light";
     })();
   </script>
   <!-- CSS loads from broad foundations to shared components, then feature-specific rules. -->
@@ -48,18 +45,18 @@
   <link rel="stylesheet" href="css/features/dashboard.css?v=20260620-token-depth">
   <link rel="stylesheet" href="css/features/roadmap.css?v=20260627-roadmap-scrollbar-width">
   <link rel="stylesheet" href="css/features/gantt.css?v=20260629-gantt-filter-dialog">
-  <link rel="stylesheet" href="css/features/board.css?v=20260717-multi-screen-header">
+  <link rel="stylesheet" href="css/features/board.css?v=20260719-subtask-card-containment-v2">
   <link rel="stylesheet" href="css/features/projects.css?v=20260627-project-sprint-avatar-pad">
   <link rel="stylesheet" href="css/features/sprints.css?v=20260717-multi-screen-header">
   <link rel="stylesheet" href="css/features/tasks.css?v=20260717-dev-task-search-persistent">
   <link rel="stylesheet" href="css/features/bugs.css?v=20260717-multi-screen-header">
   <link rel="stylesheet" href="css/features/scrum.css?v=20260719-scrum-avatar-clearance-v22">
   <link rel="stylesheet" href="css/features/log.css?v=20260717-idle-header-bulk-delete">
-  <link rel="stylesheet" href="css/features/documentation.css?v=20260718-diagram-library-v4">
+  <link rel="stylesheet" href="css/features/documentation.css?v=20260719-document-tree-sync-v33">
   <link rel="stylesheet" href="css/features/backlog.css?v=20260717-multi-screen-header">
   <link rel="stylesheet" href="css/features/wfh-schedule.css?v=20260709-wfh-undo-large-days">
-  <link rel="stylesheet" href="css/features/diagram.css?v=20260719-diagram-shell-v18">
-  <link rel="stylesheet" href="css/features/release-notes.css?v=release-notes-2026-07-19-day-32-ec1e53051fce">
+  <link rel="stylesheet" href="css/features/diagram.css?v=20260719-diagram-tree-sync-v19">
+  <link rel="stylesheet" href="css/features/release-notes.css?v=release-notes-2026-07-19-day-32-b77111c5864f">
   <link rel="stylesheet" href="css/features/settings.css?v=20260715-admin-impersonation">
 </head>
 <body>
@@ -81,10 +78,6 @@
         </button>
         <select id="currentUser" disabled hidden></select>
         <div id="userMenu" class="user-menu-dropdown dropdown-menu" role="menu" hidden>
-          <button class="dropdown-menu-item" type="button" data-action="toggle-theme" id="themeToggle" role="menuitem">
-            <span class="button-icon" aria-hidden="true" data-theme-icon>&#9728;</span>
-            <span class="dropdown-menu-label" data-theme-label>Light Theme</span>
-          </button>
           <button class="dropdown-menu-item" type="button" data-action="change-password" role="menuitem">
             <span class="button-icon" aria-hidden="true">&#128273;</span>
             <span class="dropdown-menu-label">Change Password</span>
@@ -140,6 +133,6 @@
   </dialog>
 
   <div id="toast" class="toast" hidden></div>
-  <script type="module" src="js/app.js?v=20260719-diagram-textbox-edit-v27"></script>
+  <script type="module" src="js/app.js?v=20260719-day32-finish-v38"></script>
 </body>
 </html>

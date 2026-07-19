@@ -125,7 +125,7 @@
 }
 
 .diagram-tree-row .documentation-tree-document {
-  grid-template-columns: 18px minmax(0, 1fr) auto auto auto;
+  grid-template-columns: 18px minmax(0, 1fr) auto auto;
 }
 
 .diagram-tree-private {

@@ -18,6 +18,7 @@
       stored as versioned JSON without creating upload-folder assets.
     - Adds persistent Diagram hierarchy ordering through Blogs.SortOrder and
       an owner-scoped MoveBlog stored procedure.
+    - Clears existing Documentation and Diagram pins while pinning is disabled.
     - Seeds the public, editable PMT database-schema Diagram without replacing
       an existing Diagram with the same owner and title.
 
@@ -2477,7 +2478,7 @@ BEGIN
         N'PMT''s Database Schema',
         @DatabaseSchemaDiagramBodyHtml,
         0,
-        1,
+        0,
         0,
         @DatabaseSchemaDiagramOwnerId,
         @DatabaseSchemaDiagramOwnerId,
@@ -2504,6 +2505,12 @@ BEGIN
         @DatabaseSchemaDiagramNow
     );
 END;
+
+-- Pinning is temporarily hidden in the application. Clear every existing
+-- Document and Diagram pin so ordering depends only on the selected sort mode.
+UPDATE [pmt].[Blogs]
+SET [IsPinned] = 0
+WHERE [IsPinned] = 1;
 GO
 
 DECLARE @RetainedPmtQaProjectId INT = (SELECT [PmtProjectId] FROM #Pmt122To123State);
@@ -2739,12 +2746,13 @@ IF NOT EXISTS
     FROM [pmt].[Blogs]
     WHERE [Title] = N'PMT''s Database Schema'
       AND [IsPrivate] = 0
-      AND [IsPinned] = 1
+      AND [IsPinned] = 0
       AND [IsDeleted] = 0
       AND [BodyHtml] LIKE N'%data-pmt-seeded-diagram="pmt-database-schema-v1"%'
 )
+   OR EXISTS (SELECT 1 FROM [pmt].[Blogs] WHERE [IsPinned] = 1)
 BEGIN
-    THROW 51082, 'The PMT public database-schema Diagram seed could not be verified.', 1;
+    THROW 51082, 'The PMT public database-schema Diagram seed or unpinned Blog state could not be verified.', 1;
 END;
 
 EXEC sys.sp_updateextendedproperty

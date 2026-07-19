@@ -13,7 +13,7 @@ import {
   userCardCheckListLabelHtml,
   value
 } from "../../components/forms.js?v=20260719-rte-insert-diagram";
-import { sectionHead } from "../../components/sections.js?v=release-notes-2026-07-19-day-32-ec1e53051fce";
+import { sectionHead } from "../../components/sections.js?v=release-notes-2026-07-19-day-32-b77111c5864f";
 import { createWorkItemTableMode } from "../../components/work-items.js?v=20260715-admin-impersonation";
 import { currentUser } from "../../core/authentication.js?v=20260715-admin-impersonation";
 import {
@@ -1912,7 +1912,7 @@ export function createScrumFeature({
       : 0;
     const selectedProjectId = log.id ? log.projectId || "" : rememberedProjectId || "";
     const selectedLogDate = scrumDateInputValue(log.logDate || new Date());
-    const scrumHtml = log.bodyHtml || newScrumEntryHtml(selectedProjectId, selectedLogDate);
+    const scrumHtml = log.bodyHtml || newScrumEntryHtml(selectedProjectId);
 
     openEditor(scrumDialogTitle(log, "New Scrum"), `
       <div class="form-grid scrum-editor-grid">
@@ -2500,9 +2500,9 @@ export function createScrumFeature({
     }
   }
 
-  function newScrumEntryHtml(projectId, logDate) {
+  function newScrumEntryHtml(projectId) {
     return [
-      scrumSectionHtml(scrumYesterdayPrompt, previousScrumTodayItems(projectId, logDate)),
+      scrumSectionHtml(scrumYesterdayPrompt, previousScrumTodayItems(projectId)),
       scrumSectionHtml(scrumTodayPrompt, []),
       scrumSectionHtml(scrumRoadblocksPrompt, [])
     ].join("");
@@ -2517,34 +2517,24 @@ export function createScrumFeature({
     return `<p><strong>${escapeHtml(prompt)}</strong></p><ul>${listHtml}</ul>`;
   }
 
-  function previousScrumTodayItems(projectId, logDate) {
-    const previousLog = previousScrumLog(projectId, logDate);
+  function previousScrumTodayItems(projectId) {
+    const previousLog = previousScrumLog(projectId);
     return previousLog ? scrumSectionItems(previousLog.bodyHtml, scrumTodayPrompt) : [];
   }
 
-  function previousScrumLog(projectId, logDate) {
+  function previousScrumLog(projectId) {
     const userId = currentUser().id;
     const selectedProjectId = Number(projectId || 0);
-    const selectedDate = scrumDateInputValue(logDate);
     const userLogs = state.devLogs
       .filter(isSharedScrumLog)
-      .filter(item => item.userId === userId)
-      .filter(item => !selectedDate || scrumDateInputValue(item.logDate) < selectedDate);
-    const projectLogs = selectedProjectId
-      ? userLogs.filter(item => item.projectId === selectedProjectId)
-      : userLogs;
-    const preferredLog = sortPreviousScrumLogs(projectLogs)[0];
+      .filter(item => item.userId === userId);
+    const projectLogs = userLogs.filter(item => Number(item.projectId || 0) === selectedProjectId);
 
-    return preferredLog || (selectedProjectId ? sortPreviousScrumLogs(userLogs)[0] : null) || null;
+    return latestScrumLog(projectLogs);
   }
 
-  function sortPreviousScrumLogs(logs) {
-    return [...logs].sort((a, b) => {
-      return scrumTimeValue(b.logDate) - scrumTimeValue(a.logDate)
-        || scrumTimeValue(b.updatedAt) - scrumTimeValue(a.updatedAt)
-        || scrumTimeValue(b.createdAt) - scrumTimeValue(a.createdAt)
-        || b.id - a.id;
-    });
+  function latestScrumLog(logs) {
+    return [...logs].sort((a, b) => b.id - a.id)[0] || null;
   }
 
   function scrumSectionItems(html, prompt) {

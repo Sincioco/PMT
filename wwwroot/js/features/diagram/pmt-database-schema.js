@@ -2,7 +2,7 @@ import {
   autoFormatAnnotationEntitiesOrgTree,
   buildAnnotationSvg,
   normalizeAnnotationState
-} from "../../components/image-annotation.js?v=20260719-diagram-textbox-edit-v23";
+} from "../../components/image-annotation.js?v=20260719-diagram-anchor-warning-v29";
 
 const schemaTitle = "PMT's Diagram Tool by Sin";
 const schemaDiagramName = "PMT's Database Schema";

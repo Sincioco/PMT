@@ -7,8 +7,7 @@ import {
   setAnnotationEntityCollapsedState,
   setAnnotationEntityDataTypeVisibility,
   zoomAnnotationAtPoint
-} from "../../components/image-annotation.js?v=20260719-diagram-textbox-edit-v23";
-import { copyTextToClipboard } from "../../components/clipboard.js";
+} from "../../components/image-annotation.js?v=20260719-diagram-anchor-warning-v29";
 import { filterSelect } from "../../components/filters.js";
 import { field, optionalNumberValue, selectOptionsField, value } from "../../components/forms.js?v=20260719-rte-insert-diagram";
 import { sectionHead } from "../../components/sections.js?v=20260718-diagram-library-v8";
@@ -23,10 +22,10 @@ import {
 } from "../../core/preferences.js?v=20260719-diagram-shell-v18";
 import { state } from "../../core/store.js";
 import { formatDate } from "../../shared/dates.js";
-import { appAbsoluteUrl, appUrl } from "../../shared/app-urls.js";
+import { appUrl } from "../../shared/app-urls.js";
 import { canAccessResource } from "../../shared/security.js";
 import { escapeAttr, escapeHtml } from "../../shared/text-and-links.js";
-import { buildPmtDatabaseSchemaDiagram } from "./pmt-database-schema.js?v=20260719-diagram-textbox-edit-v23";
+import { buildPmtDatabaseSchemaDiagram } from "./pmt-database-schema.js?v=20260719-diagram-anchor-warning-v29";
 
 const diagramViewModes = new Set(["cards", "tree"]);
 const diagramSortModes = new Set(["latest", "oldest", "name", "custom"]);
@@ -35,6 +34,7 @@ const blankDiagramWidth = 1600;
 const blankDiagramHeight = 900;
 const diagramSvgSourceCache = new Map();
 const diagramSvgSourceLoads = new Map();
+const diagramSvgSearchTextCache = new Map();
 const blankDiagramSource = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(`
   <svg xmlns="http://www.w3.org/2000/svg" width="${blankDiagramWidth}" height="${blankDiagramHeight}" viewBox="0 0 ${blankDiagramWidth} ${blankDiagramHeight}">
     <rect width="${blankDiagramWidth}" height="${blankDiagramHeight}" fill="#ffffff"/>
@@ -77,7 +77,8 @@ export function createDiagramFeature({
   saveDiagramDocument,
   openEditor,
   saveDiagramInfo,
-  moveDiagramDocument
+  moveDiagramDocument,
+  deleteItem
 }) {
   let active = false;
   let creating = false;
@@ -85,6 +86,7 @@ export function createDiagramFeature({
   let editingDocumentId = 0;
   let editingFullScreen = false;
   let editorAbortController = null;
+  let diagramTreeContextMenuController = null;
 
   function renderDiagram() {
     active = true;
@@ -111,6 +113,7 @@ export function createDiagramFeature({
     if (diagramViewMode === "tree") {
       bindDiagramTreeSplitter();
       bindDiagramTreeDragAndDrop();
+      bindDiagramTreeContextMenu();
       bindDiagramReadonlyViewer();
       const source = diagramImage(selectedDocument)?.source || "";
       if (source && !decodeDiagramSvgDataUrl(source) && !diagramSvgSourceCache.has(source)) {
@@ -119,10 +122,20 @@ export function createDiagramFeature({
               || !active
               || editingDocumentId
               || selectedDiagramDocumentId !== selectedDocument?.id) return;
-          previewDiagramDocumentId = 0;
-          renderDiagram();
-        });
+              previewDiagramDocumentId = 0;
+              renderDiagram();
+            });
       }
+    } else {
+      diagramTreeContextMenuController?.abort();
+      diagramTreeContextMenuController = null;
+    }
+
+    if (diagramSearch) {
+      const searchAtRender = diagramSearch;
+      void loadDiagramSearchSources().then(loaded => {
+        if (loaded && active && diagramSearch === searchAtRender) renderDiagram();
+      });
     }
   }
 
@@ -171,7 +184,6 @@ export function createDiagramFeature({
           </div>
         </div>
         <div class="diagram-page-document-actions">
-          ${document.isPrivate === false ? `<button type="button" class="icon-action" data-action="share-diagram" data-id="${document.id}" title="Share public Diagram" aria-label="Share public Diagram"><span aria-hidden="true">&#128279;</span></button>` : ""}
           <button type="button" class="secondary text-icon-button diagram-page-icon-action" data-action="edit-diagram-info" data-id="${document.id}" title="Edit Info" aria-label="Edit Info" ${!canEdit || editingDocumentId ? "disabled" : ""}>
             ${buttonContent("&#9432;", "Edit Info")}
           </button>
@@ -209,9 +221,7 @@ export function createDiagramFeature({
           <div class="documentation-card-title-row">
             <div class="documentation-title-block"><h3>${escapeHtml(document.title)}</h3></div>
             <div class="row documentation-project documentation-card-badges">
-              ${document.isPinned ? `<span class="pill">Pinned</span>` : ""}
               <span class="pill">${document.isPrivate === false ? "Public" : "Private"}</span>
-              ${document.isPrivate === false ? `<button type="button" class="icon-action" data-action="share-diagram" data-id="${document.id}" title="Share public Diagram" aria-label="Share public Diagram"><span aria-hidden="true">&#128279;</span></button>` : ""}
             </div>
           </div>
           <div class="documentation-card-meta"><span>Updated ${escapeHtml(formatDate(document.updatedAt || document.createdAt))}</span></div>
@@ -241,6 +251,7 @@ export function createDiagramFeature({
             ? `<div class="diagram-inline-editor-host" data-diagram-editor-host><div class="empty">Loading diagram editor...</div></div>`
             : diagramTreePreviewHtml(selectedDocument)}
         </section>
+        ${diagramTreeContextMenuHtml()}
       </div>
     `;
   }
@@ -279,7 +290,6 @@ export function createDiagramFeature({
           <span class="documentation-tree-label">${escapeHtml(document.title)}</span>
           <span class="documentation-tree-date">${escapeHtml(formatDate(document.updatedAt || document.createdAt))}</span>
           ${document.isPrivate !== false ? `<span class="diagram-tree-private" title="Private" aria-label="Private">${diagramLockIconHtml()}</span>` : ""}
-          ${document.isPinned ? `<span class="diagram-tree-pin" title="Pinned" aria-label="Pinned">&#128204;</span>` : ""}
         </button>
       </div>
       ${hasChildren && !collapsed ? renderChildren(document.id, depth + 1) : ""}
@@ -304,6 +314,27 @@ export function createDiagramFeature({
           </div>
         </div>
       </div>
+    `;
+  }
+
+  function diagramTreeContextMenuHtml() {
+    return `
+      <div class="dropdown-menu documentation-tree-context-menu diagram-tree-context-menu" data-diagram-tree-context-menu role="menu" aria-label="Diagram actions" hidden>
+        ${diagramTreeContextMenuItemHtml("edit-diagram-info", "Edit Info", "&#9432;", "data-diagram-context-requires-update")}
+        ${diagramTreeContextMenuItemHtml("edit-diagram", "Edit Diagram", "&#9998;", "data-diagram-context-requires-update")}
+        ${diagramTreeContextMenuItemHtml("download-diagram", "Download", diagramDownloadIconHtml())}
+        ${diagramTreeContextMenuItemHtml("delete-diagram", "Delete", "&#128465;", "data-diagram-context-requires-delete", "is-danger")}
+      </div>
+    `;
+  }
+
+  function diagramTreeContextMenuItemHtml(action, label, iconHtml, permissionAttribute = "", className = "") {
+    return `
+      <button type="button" class="dropdown-menu-item ${className}" data-action="${action}" ${permissionAttribute} role="menuitem" title="${label}" aria-label="${label}">
+        <span class="dropdown-menu-icon" aria-hidden="true">${iconHtml}</span>
+        <span class="dropdown-menu-label">${label}</span>
+        <span class="dropdown-menu-check" aria-hidden="true"></span>
+      </button>
     `;
   }
 
@@ -356,7 +387,7 @@ export function createDiagramFeature({
     }
     if (action === "edit-diagram") {
       const document = diagramDocuments().find(item => item.id === (id || selectedDiagramDocumentId));
-      if (document) await editDiagram(document);
+      if (document) await editDiagram(document, { fullScreen: true });
       return true;
     }
     if (action === "edit-diagram-info") {
@@ -364,12 +395,34 @@ export function createDiagramFeature({
       if (document && diagramCanEdit(document)) editDiagramInfo(document);
       return true;
     }
-    if (action === "share-diagram") {
+    if (action === "download-diagram") {
       const document = diagramDocuments().find(item => item.id === (id || selectedDiagramDocumentId));
-      if (document?.isPrivate === false) await shareDiagram(document);
+      if (document) downloadDiagram(document);
+      return true;
+    }
+    if (action === "delete-diagram") {
+      const document = diagramDocuments().find(item => item.id === (id || selectedDiagramDocumentId));
+      if (!diagramCanDelete(document)) return true;
+      if (selectedDiagramDocumentId === document.id) selectedDiagramDocumentId = 0;
+      await deleteItem?.(`/api/blogs/${document.id}`, "Delete this Diagram?");
       return true;
     }
     return false;
+  }
+
+  function downloadDiagram(document) {
+    const source = diagramImage(document)?.source || "";
+    if (!source) {
+      notify?.("The Diagram file could not be found.");
+      return;
+    }
+
+    const link = globalThis.document.createElement("a");
+    link.href = appUrl(source);
+    link.download = `${safeFileName(document.title)}.${diagramDownloadExtension(source)}`;
+    globalThis.document.body.appendChild(link);
+    link.click();
+    link.remove();
   }
 
   function editDiagramInfo(document) {
@@ -385,10 +438,6 @@ export function createDiagramFeature({
         ${selectOptionsField("Project", "projectId", diagramProjectOptions(), selectedProjectId)}
         ${selectOptionsField("Sprint", "sprintId", diagramSprintOptions(selectedProjectId), selectedSprintId)}
         ${selectOptionsField("Parent", "parentBlogId", diagramParentOptions(document, selectedProjectId, selectedSprintId, document.isPrivate === false), document.parentBlogId || "")}
-        <label class="inline-check field">
-          <input name="isPinned" type="checkbox" ${document.isPinned ? "checked" : ""}>
-          <span>Pinned at the top of the Diagram tree</span>
-        </label>
       </div>
     `, async root => {
       const projectId = optionalNumberValue(root, "projectId");
@@ -398,7 +447,7 @@ export function createDiagramFeature({
         sprintId: projectId ? optionalNumberValue(root, "sprintId") : null,
         parentBlogId: optionalNumberValue(root, "parentBlogId"),
         isPrivate: root.querySelector("[name='visibility']")?.value !== "public",
-        isPinned: root.querySelector("[name='isPinned']")?.checked ?? false
+        isPinned: false
       });
     }, "title", root => bindDiagramInfoRules(root, document));
   }
@@ -560,12 +609,6 @@ export function createDiagramFeature({
     writePreference(preferenceKeys.diagramSort, diagramSort);
   }
 
-  async function shareDiagram(document) {
-    const url = appAbsoluteUrl(routeForContent("diagram", document.id));
-    const copied = await copyTextToClipboard(url);
-    notify?.(copied ? "Public Diagram link copied." : `Public Diagram link: ${url}`);
-  }
-
   async function createNewDiagram() {
     if (creating || editingDocumentId) return;
     creating = true;
@@ -585,9 +628,12 @@ export function createDiagramFeature({
       creating = false;
       renderDiagram();
 
-      const document = diagramDocuments().find(item => item.id === selectedDiagramDocumentId);
+      const document = diagramAllDocuments().find(item => item.id === selectedDiagramDocumentId);
       if (!document) throw new Error("The new Diagram could not be loaded.");
-      await editDiagram(document, { fullScreen: true });
+      await editDiagram(document, {
+        fullScreen: true,
+        initialTemplateName: "Green Box with Text"
+      });
     } catch (error) {
       creating = false;
       if (active) {
@@ -634,7 +680,7 @@ export function createDiagramFeature({
         embedded: !editingFullScreen,
         initiallyMaximized: editingFullScreen,
         initialZoom: editingFullScreen ? 1 : null,
-        initialTemplateName: editingFullScreen ? "Green Box with Text" : "",
+        initialTemplateName: options.initialTemplateName || "",
         host,
         signal: editorAbortController.signal,
         askForColor,
@@ -739,6 +785,72 @@ export function createDiagramFeature({
     });
   }
 
+  function bindDiagramTreeContextMenu() {
+    diagramTreeContextMenuController?.abort();
+    diagramTreeContextMenuController = null;
+
+    const tree = app.querySelector(".diagram-tree-pane .documentation-tree");
+    const menu = app.querySelector("[data-diagram-tree-context-menu]");
+    if (!tree || !menu) return;
+
+    const controller = new AbortController();
+    const { signal } = controller;
+    diagramTreeContextMenuController = controller;
+
+    const closeMenu = () => {
+      menu.hidden = true;
+    };
+
+    const showMenu = (document, clientX, clientY) => {
+      if (selectedDiagramDocumentId !== document.id) {
+        selectedDiagramDocumentId = document.id;
+        previewDiagramDocumentId = 0;
+        renderDiagram();
+      }
+
+      const activeMenu = app.querySelector("[data-diagram-tree-context-menu]");
+      if (!activeMenu) return;
+
+      activeMenu.querySelectorAll("[data-action]").forEach(button => {
+        button.dataset.id = String(document.id);
+      });
+      activeMenu.querySelectorAll("[data-diagram-context-requires-update]").forEach(button => {
+        button.disabled = !diagramCanEdit(document);
+      });
+      activeMenu.querySelectorAll("[data-diagram-context-requires-delete]").forEach(button => {
+        button.disabled = !diagramCanDelete(document);
+      });
+
+      activeMenu.hidden = false;
+      const margin = 8;
+      const maximumLeft = Math.max(margin, window.innerWidth - activeMenu.offsetWidth - margin);
+      const maximumTop = Math.max(margin, window.innerHeight - activeMenu.offsetHeight - margin);
+      activeMenu.style.left = `${Math.round(Math.max(margin, Math.min(clientX, maximumLeft)))}px`;
+      activeMenu.style.top = `${Math.round(Math.max(margin, Math.min(clientY, maximumTop)))}px`;
+      activeMenu.querySelector("button:not(:disabled)")?.focus({ preventScroll: true });
+    };
+
+    tree.addEventListener("contextmenu", event => {
+      const documentButton = event.target.closest?.("[data-action='select-diagram-document']");
+      const document = diagramDocuments().find(item => item.id === Number(documentButton?.dataset.id || 0));
+      if (!documentButton || !document) return;
+
+      event.preventDefault();
+      event.stopPropagation();
+      showMenu(document, event.clientX, event.clientY);
+    }, { signal });
+    menu.addEventListener("contextmenu", event => event.preventDefault(), { signal });
+    menu.addEventListener("click", closeMenu, { signal });
+    window.addEventListener("pointerdown", event => {
+      if (!menu.hidden && !menu.contains(event.target)) closeMenu();
+    }, { signal });
+    window.addEventListener("scroll", closeMenu, { capture: true, passive: true, signal });
+    window.addEventListener("resize", closeMenu, { signal });
+    window.addEventListener("keydown", event => {
+      if (event.key === "Escape") closeMenu();
+    }, { signal });
+  }
+
   function bindDiagramTreeDragAndDrop() {
     const tree = app.querySelector(".diagram-tree-pane .documentation-tree");
     if (!tree) return;
@@ -840,14 +952,10 @@ export function createDiagramFeature({
       insertIndex = Math.max(0, targetIndex + (placement === "after" ? 1 : 0));
     }
     siblings.splice(insertIndex, 0, document);
-    const orderedSiblings = [
-      ...siblings.filter(item => item.isPinned),
-      ...siblings.filter(item => !item.isPinned)
-    ];
     return {
       document,
       parentBlogId,
-      orderedBlogIds: orderedSiblings.map(item => item.id)
+      orderedBlogIds: siblings.map(item => item.id)
     };
   }
 
@@ -1245,6 +1353,8 @@ export function createDiagramFeature({
   function deactivate() {
     active = false;
     creating = false;
+    diagramTreeContextMenuController?.abort();
+    diagramTreeContextMenuController = null;
     cancelEmbeddedEditor();
   }
 
@@ -1296,8 +1406,6 @@ function diagramAllDocuments() {
 }
 
 function diagramDocumentCompare(left, right) {
-  const pinnedCompare = Number(Boolean(right.isPinned)) - Number(Boolean(left.isPinned));
-  if (pinnedCompare) return pinnedCompare;
   if (diagramSort === "name") {
     return String(left.title || "").localeCompare(String(right.title || "")) || left.id - right.id;
   }
@@ -1311,8 +1419,6 @@ function diagramDocumentCompare(left, right) {
 }
 
 function diagramLatestCompare(left, right) {
-  const pinnedCompare = Number(Boolean(right.isPinned)) - Number(Boolean(left.isPinned));
-  if (pinnedCompare) return pinnedCompare;
   return diagramUpdatedTime(right) - diagramUpdatedTime(left)
     || String(left.title || "").localeCompare(String(right.title || ""))
     || right.id - left.id;
@@ -1341,9 +1447,40 @@ function diagramMatchesFilters(document) {
     project?.title,
     sprint?.code,
     sprint?.title,
-    document.isPrivate === false ? "public" : "private"
+    document.isPrivate === false ? "public" : "private",
+    diagramSvgSearchText(document)
   ].filter(Boolean).join(" ").toLowerCase();
   return haystack.includes(diagramSearch.toLowerCase());
+}
+
+function diagramSvgSearchText(document) {
+  const source = diagramImage(document)?.source || "";
+  if (!source || !diagramSourceIsSvg(source)) return "";
+  if (diagramSvgSearchTextCache.has(source)) return diagramSvgSearchTextCache.get(source);
+
+  const svg = decodeDiagramSvgDataUrl(source) || diagramSvgSourceCache.get(source) || "";
+  const searchText = svg.toLowerCase();
+  if (svg) diagramSvgSearchTextCache.set(source, searchText);
+  return searchText;
+}
+
+async function loadDiagramSearchSources() {
+  const sources = [...new Set(diagramAllDocuments()
+    .map(document => diagramImage(document)?.source || "")
+    .filter(source => source
+      && diagramSourceIsSvg(source)
+      && !decodeDiagramSvgDataUrl(source)
+      && !diagramSvgSourceCache.has(source)))];
+  if (!sources.length) return false;
+
+  const loaded = await Promise.all(sources.map(source => loadDiagramSvgSource(source)));
+  return loaded.some(Boolean);
+}
+
+function diagramSourceIsSvg(sourceInput) {
+  const source = String(sourceInput || "");
+  return /^data:image\/svg\+xml(?:;|,)/i.test(source)
+    || /\.svg(?:[?#]|$)/i.test(source);
 }
 
 function diagramOwnedByCurrentUser(document) {
@@ -1352,6 +1489,10 @@ function diagramOwnedByCurrentUser(document) {
 
 function diagramCanEdit(document) {
   return diagramOwnedByCurrentUser(document) && canAccessResource("Documentation", "Update");
+}
+
+function diagramCanDelete(document) {
+  return diagramOwnedByCurrentUser(document) && canAccessResource("Documentation", "Delete");
 }
 
 function diagramUpdatedTime(document) {
@@ -1399,7 +1540,7 @@ async function loadDiagramSvgSource(sourceInput) {
       });
       if (!response.ok) return "";
       const svg = await response.text();
-      if (!parseAnnotationSvg(svg)) return "";
+      if (!/<svg(?:\s|>)/i.test(svg)) return "";
       diagramSvgSourceCache.set(source, svg);
       return svg;
     } catch {
@@ -1452,6 +1593,23 @@ function diagramLockIconHtml() {
       <path d="M12 14v3"></path>
     </svg>
   `;
+}
+
+function diagramDownloadIconHtml() {
+  return `
+    <svg class="button-svg-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path d="M12 3v11M8 10l4 4 4-4M5 17v3h14v-3"></path>
+    </svg>
+  `;
+}
+
+function diagramDownloadExtension(sourceInput) {
+  const source = String(sourceInput || "").toLowerCase();
+  const dataType = source.match(/^data:image\/(svg\+xml|png|jpeg|webp|gif)/)?.[1];
+  if (dataType) return dataType === "svg+xml" ? "svg" : dataType === "jpeg" ? "jpg" : dataType;
+
+  const fileType = source.split(/[?#]/, 1)[0].match(/\.(svg|png|jpe?g|webp|gif)$/)?.[1];
+  return fileType === "jpeg" ? "jpg" : fileType || "svg";
 }
 
 function diagramSaveConflict(error) {

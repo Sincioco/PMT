@@ -21,7 +21,7 @@ import { createGanttFlyBy } from "./gantt-flyby.js?v=20260627-gantt-initial-desc
 import {
   ganttFilterFieldsHtml,
   ganttScreenHtml
-} from "./gantt-rendering.js?v=release-notes-2026-07-19-day-32-ec1e53051fce";
+} from "./gantt-rendering.js?v=release-notes-2026-07-19-day-32-b77111c5864f";
 
 export { currentSprintForProject, ganttStartDate } from "./gantt-calculations.js?v=20260620-gantt-scaled-buffer";
 

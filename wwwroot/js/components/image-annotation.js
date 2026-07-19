@@ -1358,6 +1358,10 @@ export function annotationEntityGlobalUnanchorControlState(inputState) {
   };
 }
 
+export function annotationEntityAnchorShortcutWarningAllowed(inputState) {
+  return !annotationEntityGlobalUnanchorControlState(inputState).checked;
+}
+
 export function resolveAnnotationEntitySizeChangeLayout(inputState, resizedEntityOrId, options = {}) {
   const state = inputState && typeof inputState === "object" ? inputState : {};
   const entities = annotationVisibleObjects(state).filter(object => object.type === "entity");
@@ -4259,7 +4263,7 @@ function createAnnotationDialog(context) {
         event.preventDefault();
         selectObject(object);
         renderWithWorkspaceExpansion();
-        if (String(object.text || "").trim()) focusAnnotationTextEditor();
+        focusAnnotationTextEditor();
       }
     });
 
@@ -5242,7 +5246,8 @@ function createAnnotationDialog(context) {
         ? `Entity ${entity.collapsed ? "collapsed to key and important fields" : "expanded to all fields"}.`
         : `Data types ${entity.showDataTypes ? "shown" : "hidden"}.`);
       renderWithWorkspaceExpansion();
-      if (layoutResult.unresolvedOverlapCount || layoutResult.unresolvedRouteContactCount) {
+      if (annotationEntityAnchorShortcutWarningAllowed(state)
+        && (layoutResult.unresolvedOverlapCount || layoutResult.unresolvedRouteContactCount)) {
         void openAnnotationInformationDialog(
           "Because an Anchor or otherwise fixed table could not be moved, PMT kept the fixed table in place and rendered the affected relationships using the best available route.",
           "Anchor Table Shortcut"
@@ -5354,7 +5359,8 @@ function createAnnotationDialog(context) {
           : "";
         setStatus(`${result.movedCount} Entit${result.movedCount === 1 ? "y" : "ies"} arranged in ${result.levelCount} org-tree level${result.levelCount === 1 ? "" : "s"}.${anchorMessage}${cycleMessage}`);
         renderWithWorkspaceExpansion();
-        if (annotationOrgTreeShortcutWarningRequired(result)) {
+        if (annotationEntityAnchorShortcutWarningAllowed(state)
+          && annotationOrgTreeShortcutWarningRequired(result)) {
           const unresolvedMessage = result.unresolvedRouteContactCount
             ? ` ${result.unresolvedRouteContactCount} relationship contact${result.unresolvedRouteContactCount === 1 ? "" : "s"} could not be fully separated from an Anchor or otherwise fixed table.`
             : "";
@@ -5793,7 +5799,8 @@ function createAnnotationDialog(context) {
       pushHistory();
       setStatus(`Data types ${event.target.checked ? "shown" : "hidden"}.`);
       renderWithWorkspaceExpansion();
-      if (layoutResult.unresolvedOverlapCount || layoutResult.unresolvedRouteContactCount) {
+      if (annotationEntityAnchorShortcutWarningAllowed(state)
+        && (layoutResult.unresolvedOverlapCount || layoutResult.unresolvedRouteContactCount)) {
         void openAnnotationInformationDialog(
           "Because an Anchor or otherwise fixed table could not be moved, PMT kept the fixed table in place and rendered the affected relationships using the best available route.",
           "Anchor Table Shortcut"

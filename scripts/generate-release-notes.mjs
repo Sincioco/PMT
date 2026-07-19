@@ -170,7 +170,7 @@ function normalizeLineEndings(value) {
 
 function releaseIllustration(day, title, sections) {
   const searchableText = [title, ...sections.map(section => section.title)].join(" ").toLowerCase();
-  const kind = illustrationKind(searchableText);
+  const kind = Number(day) === 32 ? "diagram-screen" : illustrationKind(searchableText);
   const palette = illustrationPalettes[Math.abs(Number(day) || 0) % illustrationPalettes.length];
   const offset = 34 + ((Number(day) || 0) * 17) % 44;
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 180">
@@ -202,6 +202,17 @@ function illustrationIcon(kind, palette) {
   const secondary = palette.secondary;
   const common = `fill="none" stroke="${stroke}" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"`;
   const icons = {
+    "diagram-screen": `<g ${common}>
+    <rect x="220" y="24" width="280" height="136" rx="12" fill="#fff"/>
+    <path d="M220 55h280M300 55v105"/>
+    <circle cx="241" cy="40" r="5" fill="${accent}" stroke="none"/>
+    <circle cx="258" cy="40" r="5" fill="${secondary}" stroke="none"/>
+    <path d="M239 78h42M239 98h32M239 118h42M239 138h26" stroke-width="5"/>
+    <rect x="326" y="75" width="58" height="34" rx="6" fill="${accent}" stroke="none" opacity=".22"/>
+    <rect x="417" y="108" width="58" height="34" rx="6" fill="${secondary}" stroke="none" opacity=".28"/>
+    <path d="M384 92h49v16"/>
+    <path d="m425 100 8 8-8 8" stroke="${accent}"/>
+  </g>`,
     diagram: `<g ${common}>
     <rect x="238" y="40" width="100" height="52" rx="8" fill="#fff"/>
     <rect x="382" y="88" width="100" height="52" rx="8" fill="#fff"/>
@@ -260,6 +271,7 @@ function illustrationIcon(kind, palette) {
 
 function illustrationAlt(kind) {
   const descriptions = {
+    "diagram-screen": "New Diagram screen illustration.",
     diagram: "Diagram and database connection illustration.",
     image: "Image and annotation illustration.",
     release: "Product update announcement illustration.",

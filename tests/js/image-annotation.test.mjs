@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 import {
   adjustAnnotationArrowEndpoint,
+  annotationEntityAnchorShortcutWarningAllowed,
   annotationEntityGlobalUnanchorControlState,
   annotationOrgTreeShortcutWarningRequired,
   autoFormatAnnotationEntitiesOrgTree,
@@ -1819,6 +1820,8 @@ test("global Entity unanchor state prevents an Anchor shortcut warning during Or
   assert.equal(annotationOrgTreeShortcutWarningRequired(result), false);
   assert.equal(annotationEntityGlobalUnanchorControlState(state).checked, true,
     "Org Tree must leave the current global-unanchor checkbox state accurate");
+  assert.equal(annotationEntityAnchorShortcutWarningAllowed(state), false,
+    "the global-unanchor checkbox must suppress Anchor shortcut dialogs");
   assert.equal(annotationOrgTreeShortcutWarningRequired({
     anchoredRelationshipCount: 0,
     fixedConstraintShortcutCount: 0,
@@ -4804,6 +4807,6 @@ test("textbox double-click opens, scrolls, and focuses its Format text editor", 
   );
   assert.match(
     componentSource,
-    /object\?\.type === "textbox"[\s\S]*selectObject\(object\)[\s\S]*renderWithWorkspaceExpansion\(\)[\s\S]*if \(String\(object\.text \|\| ""\)\.trim\(\)\) focusAnnotationTextEditor\(\)/
+    /object\?\.type === "textbox"[\s\S]*selectObject\(object\)[\s\S]*renderWithWorkspaceExpansion\(\)[\s\S]*focusAnnotationTextEditor\(\)/
   );
 });

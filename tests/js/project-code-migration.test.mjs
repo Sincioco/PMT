@@ -48,8 +48,8 @@ test("runtime Project renames retain strict collision handling", () => {
 });
 
 test("Version 1.23 atomically preserves PMTQA and restores the PMT demo", () => {
-  const migrationDataStart = demoMigration.indexOf("BEGIN TRANSACTION;\n\nEXEC [pmt].[LockBlogWrites]");
-  const seedStart = demoMigration.indexOf("/*\n    PMT project seed data.", migrationDataStart);
+  const migrationDataStart = demoMigration.search(/BEGIN TRANSACTION;\r?\n\r?\nEXEC \[pmt\]\.\[LockBlogWrites\]/);
+  const seedStart = demoMigration.slice(migrationDataStart).search(/\/\*\r?\n    PMT project seed data\./) + migrationDataStart;
   const projectRename = demoMigration.slice(migrationDataStart, seedStart);
 
   assert.ok(migrationDataStart >= 0 && seedStart > migrationDataStart);
@@ -61,6 +61,7 @@ test("Version 1.23 atomically preserves PMTQA and restores the PMT demo", () => 
   assert.match(demoMigration, /OBJECT_ID\(N'\[pmt\]\.\[LockSprintWrites\]', N'P'\) IS NULL/);
   assert.match(demoMigration, /@value = N'1\.23'/);
   assert.match(demoMigration, /COMMIT TRANSACTION/);
+  assert.match(demoMigration, /UPDATE \[pmt\]\.\[Blogs\]\s+SET \[IsPinned\] = 0\s+WHERE \[IsPinned\] = 1/);
   assert.doesNotMatch(demoMigration, /:r\s+/);
   assert.match(projectRename, /UPDATE \[pmt\]\.\[Projects\]/);
   assert.match(projectRename, /WHERE \[ProjectId\] = @PmtProjectId/);

@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { releaseNotes } from "../../wwwroot/js/shared/release-notes-data.js";
 
 const adminPrivateTitle = "Admin Private Document";
 const ownerPrivateTitle = "Owner Private Document";
@@ -53,13 +54,14 @@ test("private document owner can view, edit, and delete their document", async (
 
   const ownerCard = documentCard(page, ownerPrivateTitle);
   await ownerCard.locator("[data-action='edit-blog']").click({ force: true });
-  await expect(page.locator("#editorDialog")).toBeVisible();
-  await expect(page.locator("#dialogTitle")).toHaveText("Edit Document");
-  await expect(page.locator("#dialogBody [name='isPrivate']")).toBeChecked();
-  await page.locator("#dialogBody [name='title']").fill("Owner Private Document Updated");
-  await page.locator("#editorForm button[type='submit']").click();
+  const fullScreenEditor = page.locator(".documentation-screen.is-full-screen-editor");
+  await expect(fullScreenEditor).toBeVisible();
+  await expect(fullScreenEditor.locator("[name='isPrivate']")).toBeChecked();
+  await fullScreenEditor.locator("[name='title']").fill("Owner Private Document Updated");
+  await fullScreenEditor.locator("[data-action='save-documentation-inline-edit']").first().click();
 
   await expect.poll(() => calls.filter(call => call.method === "PUT")).toHaveLength(1);
+  await page.getByRole("button", { name: "Cards", exact: true }).click();
   await expect(documentCard(page, "Owner Private Document Updated")).toBeVisible();
 
   await documentCard(page, "Owner Private Document Updated")
@@ -108,8 +110,8 @@ async function prepareDocumentationPage(page, currentUserId, calls) {
 
   await page.addInitScript(userId => {
     localStorage.clear();
-    localStorage.setItem(`pmt-release-notes-last-seen:${userId}`, "2026-07-18-day-31@59d6c74b8c72");
-  }, currentUserId);
+    localStorage.setItem(`pmt-release-notes-last-seen:${userId.id}`, userId.seenToken);
+  }, { id: currentUserId, seenToken: releaseNotes[0].seenToken });
   await page.route("**/api/login", async route => {
     await route.fulfill(jsonResponse({
       userId: currentUser.id,

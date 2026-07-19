@@ -1265,16 +1265,19 @@
           "Keep Diagram title, visibility, Project and Sprint details, editing actions, zoom, and Fit together in the page header; show private locks in the tree and use compact icon-only New Diagram and Filters actions.",
           "Use a checkable Left Nav menu, always reveal the Left Nav when Treeview is chosen, resize the right inspector, and automatically fit and center each Diagram selected from the tree.",
           "Create new Diagrams directly in the full-screen editor at 100% zoom, start with the Green Box with Text template centered and selected, and support zoom levels through 300%.",
-          "Double-click a populated text box to open Format, bring its Text field into view, and focus it for immediate editing.",
-          "Show lock cues for locked or anchored Objects, temporarily unanchor or re-anchor every Entity from one global control, and display the routing-shortcut warning only when an Entity is genuinely immovable.",
-          "When another edit wins a save conflict, preserve that newer version and offer to save the user's work as a newly numbered Diagram instead of discarding it."
+          "Double-click a text box to open Format, bring its Text field into view, focus it, and select existing text for immediate replacement.",
+          "Show lock cues for locked or anchored Objects, temporarily unanchor or re-anchor every Entity from one global control, and suppress Anchor Table Shortcut warnings while every Entity is globally unanchored.",
+          "When another edit wins a save conflict, preserve that newer version and offer to save the user's work as a newly numbered Diagram instead of discarding it.",
+          "Search both Diagram metadata and SVG contents, and use matching right-click actions for Edit Info, Edit Diagram, Download, and Delete while public-link sharing and pinning are temporarily hidden."
         ]
       },
       {
         "title": "Focused Documentation Editing",
         "items": [
           "Use one checked Left Nav item in Documentation's overflow menu, and open new Documents or card edits in the full-screen editor with the Left Nav hidden.",
-          "Keep View Full-Screen available after entering edit mode from a Documentation card."
+          "Keep View Full-Screen available after entering edit mode from a Documentation card.",
+          "Show compact Created by and Last Edited by names and timestamps beside Project and Sprint details in Treeview.",
+          "Match Diagram Treeview with document right-click actions and drag-and-drop hierarchy ordering while document pinning is temporarily hidden."
         ]
       },
       {
@@ -1282,13 +1285,21 @@
         "items": [
           "Keep the attendance table visible, hide the optional Calendar by default, and toggle the Calendar from the overflow menu without replacing the table.",
           "Choose a Check-In status from a focused dialog with Office first and selected by default instead of using a separate Attendance dropdown.",
-          "Align 80-pixel checked-in avatars and Scrum content with other PMT screens without a clipped hover outline, and click the same avatar again to clear its user filter."
+          "Align 80-pixel checked-in avatars and Scrum content with other PMT screens without a clipped hover outline, and click the same avatar again to clear its user filter.",
+          "Prefill a new Scrum's Yesterday list from that user's newest-created Scrum in the selected Project, including entries dated today, and leave it blank when the Project has no prior entry."
+        ]
+      },
+      {
+        "title": "Consistent Light Theme and Compact Kanban",
+        "items": [
+          "Temporarily hide Dark Theme and consistently restore Light Theme while the alternate theme is reviewed.",
+          "Keep Subtask labels, percentages, and progress bars contained inside narrow Kanban cards on 720p displays."
         ]
       },
       {
         "title": "More Noticeable What's New",
         "items": [
-          "Show one small, distinctive, update-themed SVG above each day's What's New entry so new releases are easier to notice and remember."
+          "Show a simple Diagram-screen SVG above this What's New entry so the new workspace is easier to notice and remember."
         ]
       }
     ]
