@@ -2473,19 +2473,306 @@ test("Diagram parses T-SQL Entities and exposes individual relationship Objects"
   await expect(canvas.locator(".image-annotation-entity-relationship-path")).toHaveCount(1);
   const relationshipPath = canvas.locator(".image-annotation-entity-relationship-path").first();
   await relationshipPath.evaluate(element => { element.dataset.zoomRetentionProbe = "true"; });
+  const firstEntityTitle = firstEntity.locator("text").filter({ hasText: "pmt.WorkTasks" });
+  await firstEntityTitle.click();
+  await expect(canvas.locator(".image-annotation-selection-group")).toHaveCount(1);
+  await expect(relationshipPath).toHaveAttribute("data-zoom-retention-probe", "true");
+  const entityBeforeDrag = await firstEntity.boundingBox();
+  const entityTitleBeforeDrag = await firstEntityTitle.boundingBox();
+  expect(entityBeforeDrag).toBeTruthy();
+  expect(entityTitleBeforeDrag).toBeTruthy();
+  await page.mouse.move(
+    entityTitleBeforeDrag.x + (entityTitleBeforeDrag.width / 2),
+    entityTitleBeforeDrag.y + (entityTitleBeforeDrag.height / 2)
+  );
+  await page.mouse.down();
+  await page.mouse.move(
+    entityTitleBeforeDrag.x + (entityTitleBeforeDrag.width / 2) + 60,
+    entityTitleBeforeDrag.y + (entityTitleBeforeDrag.height / 2) + 40,
+    { steps: 6 }
+  );
+  await expect(firstEntity).toHaveAttribute("transform", /^translate\(/);
+  await expect(relationshipPath).toHaveAttribute("data-zoom-retention-probe", "true");
+  await page.mouse.up();
+  await expect(firstEntity).not.toHaveAttribute("transform");
+  const entityAfterDrag = await firstEntity.boundingBox();
+  expect(entityAfterDrag.x - entityBeforeDrag.x).toBeCloseTo(60, 0);
+  expect(entityAfterDrag.y - entityBeforeDrag.y).toBeCloseTo(40, 0);
+  await relationshipPath.evaluate(element => { element.dataset.zoomRetentionProbe = "true"; });
   await dialog.locator("[data-annotation-zoom-select]").selectOption("75");
   await expect(relationshipPath).toHaveAttribute("data-zoom-retention-probe", "true");
+  await expect(canvas).not.toHaveClass(/is-zooming/);
   const zoomPresentation = await dialog.locator("[data-annotation-canvas-stage]").evaluate(stage => {
     const zoomCanvas = stage.querySelector("[data-annotation-canvas]");
     return {
       stageWidth: Number.parseFloat(stage.style.width),
-      canvasWidth: Number.parseFloat(zoomCanvas.getAttribute("width")),
-      transform: zoomCanvas.style.transform
+      stageHeight: Number.parseFloat(stage.style.height),
+      canvasWidth: Number.parseFloat(zoomCanvas.style.width),
+      canvasHeight: Number.parseFloat(zoomCanvas.style.height),
+      paintedWidth: zoomCanvas.getBoundingClientRect().width,
+      paintedHeight: zoomCanvas.getBoundingClientRect().height,
+      logicalWidth: Number.parseFloat(zoomCanvas.getAttribute("width")),
+      logicalHeight: Number.parseFloat(zoomCanvas.getAttribute("height")),
+      transform: zoomCanvas.style.transform,
+      transformScale: new DOMMatrix(zoomCanvas.style.transform).a
     };
   });
-  expect(zoomPresentation.stageWidth).toBeCloseTo(zoomPresentation.canvasWidth * 0.75, 4);
-  expect(zoomPresentation.transform).toBe("scale(0.75)");
+  expect(zoomPresentation.stageWidth).toBeCloseTo(zoomPresentation.logicalWidth * 0.75, 4);
+  expect(zoomPresentation.stageHeight).toBeCloseTo(zoomPresentation.logicalHeight * 0.75, 4);
+  expect(zoomPresentation.paintedWidth).toBeCloseTo(zoomPresentation.stageWidth, 1);
+  expect(zoomPresentation.paintedHeight).toBeCloseTo(zoomPresentation.stageHeight, 1);
+  expect(zoomPresentation.transformScale).toBeCloseTo(
+    0.75 / (zoomPresentation.canvasWidth / zoomPresentation.logicalWidth),
+    4
+  );
+  const workspace = dialog.locator("[data-annotation-workspace]");
+  const wheelZoomResult = await workspace.evaluate(async workspaceElement => {
+    const workspace = workspaceElement;
+    const canvas = workspace.querySelector("[data-annotation-canvas]");
+    const stage = workspace.querySelector("[data-annotation-canvas-stage]");
+    const shield = workspace.parentElement.querySelector("[data-annotation-zoom-shield]");
+    const zoomSelect = workspace.closest("dialog").querySelector("[data-annotation-zoom-select]");
+    const workspaceRect = workspace.getBoundingClientRect();
+    const canvasRect = canvas.getBoundingClientRect();
+    const point = { x: workspace.clientWidth * 0.55, y: workspace.clientHeight * 0.45 };
+    const latestPoint = { x: point.x + 40, y: point.y + 30 };
+    const eventPoints = [point, point, latestPoint];
+    const beforeZoom = Number(zoomSelect.value) / 100;
+    const beforeOffset = {
+      x: canvasRect.left - workspaceRect.left + workspace.scrollLeft,
+      y: canvasRect.top - workspaceRect.top + workspace.scrollTop
+    };
+    let expectedZoom = beforeZoom;
+    let expectedScrollLeft = workspace.scrollLeft;
+    let expectedScrollTop = workspace.scrollTop;
+    let expectedLatestDocumentPoint = null;
+    eventPoints.forEach((eventPoint, index) => {
+      if (index === eventPoints.length - 1) {
+        expectedLatestDocumentPoint = {
+          x: (expectedScrollLeft + eventPoint.x - beforeOffset.x) / expectedZoom,
+          y: (expectedScrollTop + eventPoint.y - beforeOffset.y) / expectedZoom
+        };
+      }
+      const nextZoom = expectedZoom + 0.05;
+      expectedScrollLeft = (((expectedScrollLeft + eventPoint.x - beforeOffset.x) / expectedZoom) * nextZoom)
+        - eventPoint.x + beforeOffset.x;
+      expectedScrollTop = (((expectedScrollTop + eventPoint.y - beforeOffset.y) / expectedZoom) * nextZoom)
+        - eventPoint.y + beforeOffset.y;
+      expectedZoom = nextZoom;
+    });
+    const before = {
+      scrollLeft: workspace.scrollLeft,
+      scrollTop: workspace.scrollTop,
+      stageWidth: stage.style.width,
+      stageHeight: stage.style.height,
+      canvasWidth: canvas.style.width,
+      canvasHeight: canvas.style.height,
+      transformScale: new DOMMatrix(canvas.style.transform).a,
+      entityCount: canvas.querySelectorAll("[data-annotation-object-type='entity']").length,
+      relationshipCount: canvas.querySelectorAll(".image-annotation-entity-relationship-path").length
+    };
+    for (const eventPoint of eventPoints) {
+      workspace.dispatchEvent(new WheelEvent("wheel", {
+        bubbles: true,
+        cancelable: true,
+        ctrlKey: true,
+        deltaY: -100,
+        clientX: workspaceRect.left + eventPoint.x,
+        clientY: workspaceRect.top + eventPoint.y
+      }));
+    }
+    const transformScales = [];
+    for (let index = 0; index < 5; index += 1) {
+      await new Promise(requestAnimationFrame);
+      transformScales.push(new DOMMatrix(canvas.style.transform).a);
+    }
+    const preview = {
+      zoom: Number(zoomSelect.value) / 100,
+      scrollLeft: workspace.scrollLeft,
+      scrollTop: workspace.scrollTop,
+      stageWidth: stage.style.width,
+      stageHeight: stage.style.height,
+      canvasWidth: canvas.style.width,
+      canvasHeight: canvas.style.height,
+      transform: canvas.style.transform,
+      transformScale: new DOMMatrix(canvas.style.transform).a,
+      baseScale: Number.parseFloat(canvas.style.width) / Number.parseFloat(canvas.getAttribute("width")),
+      isZooming: canvas.classList.contains("is-zooming"),
+      shieldActive: !shield.hidden && shield.classList.contains("is-active"),
+      entityCount: canvas.querySelectorAll("[data-annotation-object-type='entity']").length,
+      relationshipCount: canvas.querySelectorAll(".image-annotation-entity-relationship-path").length
+    };
+    return {
+      before,
+      expectedLatestDocumentPoint,
+      expectedScrollLeft,
+      expectedScrollTop,
+      latestPoint,
+      transformScales,
+      preview
+    };
+  });
+  expect(wheelZoomResult.preview.zoom).toBeCloseTo(0.75, 5);
+  expect(wheelZoomResult.preview.scrollLeft).toBe(wheelZoomResult.before.scrollLeft);
+  expect(wheelZoomResult.preview.scrollTop).toBe(wheelZoomResult.before.scrollTop);
+  expect(wheelZoomResult.preview.stageWidth).toBe(wheelZoomResult.before.stageWidth);
+  expect(wheelZoomResult.preview.stageHeight).toBe(wheelZoomResult.before.stageHeight);
+  expect(wheelZoomResult.preview.canvasWidth).toBe(wheelZoomResult.before.canvasWidth);
+  expect(wheelZoomResult.preview.canvasHeight).toBe(wheelZoomResult.before.canvasHeight);
+  expect(wheelZoomResult.preview.transform).toMatch(/^translate3d\([^)]*\) scale\(/);
+  expect(new Set(wheelZoomResult.transformScales.map(value => value.toFixed(5))).size).toBeGreaterThanOrEqual(3);
+  expect(wheelZoomResult.transformScales.every((value, index, values) => index === 0 || value >= values[index - 1]))
+    .toBe(true);
+  expect(wheelZoomResult.preview.transformScale).toBeGreaterThan(wheelZoomResult.before.transformScale);
+  expect(wheelZoomResult.preview.transformScale).toBeLessThan(0.9 / wheelZoomResult.preview.baseScale);
+  expect(wheelZoomResult.preview.isZooming).toBe(true);
+  expect(wheelZoomResult.preview.shieldActive).toBe(true);
+  expect(wheelZoomResult.preview.entityCount).toBe(wheelZoomResult.before.entityCount);
+  expect(wheelZoomResult.preview.relationshipCount).toBe(wheelZoomResult.before.relationshipCount);
+  await expect(canvas).not.toHaveClass(/is-zooming/);
+  const settledZoomResult = await workspace.evaluate((workspaceElement, latestPoint) => {
+    const workspace = workspaceElement;
+    const canvas = workspace.querySelector("[data-annotation-canvas]");
+    const stage = workspace.querySelector("[data-annotation-canvas-stage]");
+    const shield = workspace.parentElement.querySelector("[data-annotation-zoom-shield]");
+    const zoomSelect = workspace.closest("dialog").querySelector("[data-annotation-zoom-select]");
+    const settledWorkspaceRect = workspace.getBoundingClientRect();
+    const settledCanvasRect = canvas.getBoundingClientRect();
+    const settledZoom = Number(zoomSelect.value) / 100;
+    const settledOffset = {
+      x: settledCanvasRect.left - settledWorkspaceRect.left + workspace.scrollLeft,
+      y: settledCanvasRect.top - settledWorkspaceRect.top + workspace.scrollTop
+    };
+    return {
+      zoom: settledZoom,
+      scrollLeft: workspace.scrollLeft,
+      scrollTop: workspace.scrollTop,
+      stageWidth: Number.parseFloat(stage.style.width),
+      stageHeight: Number.parseFloat(stage.style.height),
+      canvasWidth: Number.parseFloat(canvas.style.width),
+      canvasHeight: Number.parseFloat(canvas.style.height),
+      paintedWidth: canvas.getBoundingClientRect().width,
+      paintedHeight: canvas.getBoundingClientRect().height,
+      transform: canvas.style.transform,
+      transformScale: new DOMMatrix(canvas.style.transform).a,
+      baseScale: Number.parseFloat(canvas.style.width) / Number.parseFloat(canvas.getAttribute("width")),
+      isZooming: canvas.classList.contains("is-zooming"),
+      shieldActive: !shield.hidden && shield.classList.contains("is-active"),
+      documentPoint: {
+        x: (workspace.scrollLeft + latestPoint.x - settledOffset.x) / settledZoom,
+        y: (workspace.scrollTop + latestPoint.y - settledOffset.y) / settledZoom
+      }
+    };
+  }, wheelZoomResult.latestPoint);
+  expect(settledZoomResult.stageWidth).not.toBe(Number.parseFloat(wheelZoomResult.before.stageWidth));
+  expect(settledZoomResult.stageWidth).toBeCloseTo(settledZoomResult.paintedWidth, 1);
+  expect(settledZoomResult.stageHeight).toBeCloseTo(settledZoomResult.paintedHeight, 1);
+  expect(settledZoomResult.transformScale).toBeCloseTo(0.9 / settledZoomResult.baseScale, 4);
+  expect(settledZoomResult.isZooming).toBe(false);
+  expect(settledZoomResult.shieldActive).toBe(false);
+  expect(Math.abs(settledZoomResult.documentPoint.x - wheelZoomResult.expectedLatestDocumentPoint.x)).toBeLessThan(2);
+  expect(Math.abs(settledZoomResult.documentPoint.y - wheelZoomResult.expectedLatestDocumentPoint.y)).toBeLessThan(2);
+  expect(Math.abs(settledZoomResult.scrollLeft - wheelZoomResult.expectedScrollLeft)).toBeLessThan(2);
+  expect(Math.abs(settledZoomResult.scrollTop - wheelZoomResult.expectedScrollTop)).toBeLessThan(2);
+  await dialog.locator("[data-annotation-zoom-select]").selectOption("10");
+  await expect(canvas).not.toHaveClass(/is-zooming/);
+  await expect(relationshipPath).toHaveAttribute("data-zoom-retention-probe", "true");
+  const minimumZoomPresentation = await dialog.evaluate(dialogElement => {
+    const workspace = dialogElement.querySelector("[data-annotation-workspace]");
+    const canvas = dialogElement.querySelector("[data-annotation-canvas]");
+    const stage = dialogElement.querySelector("[data-annotation-canvas-stage]");
+    const shield = dialogElement.querySelector("[data-annotation-zoom-shield]");
+    const relationship = canvas.querySelector(".image-annotation-entity-relationship-path");
+    const marker = canvas.querySelector(".image-annotation-entity-relationship-marker");
+    const entity = canvas.querySelector("[data-annotation-object-type='entity']");
+    const outline = entity.querySelector(":scope > rect:last-child");
+    const scale = canvas.getBoundingClientRect().width / canvas.viewBox.baseVal.width;
+    const screenStroke = element => Number.parseFloat(element.getAttribute("stroke-width")) * scale;
+    return {
+      stageWidth: Number.parseFloat(stage.style.width),
+      stageHeight: Number.parseFloat(stage.style.height),
+      canvasWidth: Number.parseFloat(canvas.style.width),
+      canvasHeight: Number.parseFloat(canvas.style.height),
+      paintedWidth: canvas.getBoundingClientRect().width,
+      paintedHeight: canvas.getBoundingClientRect().height,
+      logicalWidth: Number.parseFloat(canvas.getAttribute("width")),
+      logicalHeight: Number.parseFloat(canvas.getAttribute("height")),
+      transform: canvas.style.transform,
+      transformScale: new DOMMatrix(canvas.style.transform).a,
+      baseScale: Number.parseFloat(canvas.style.width) / Number.parseFloat(canvas.getAttribute("width")),
+      stageBackground: getComputedStyle(stage).backgroundColor,
+      workspaceBackground: getComputedStyle(workspace).backgroundColor,
+      rasterCanvasCount: dialogElement.querySelectorAll("canvas[data-annotation-zoom-preview-canvas]").length,
+      shieldActive: !shield.hidden && shield.classList.contains("is-active"),
+      isZooming: canvas.classList.contains("is-zooming"),
+      relationshipVectorEffect: relationship.getAttribute("vector-effect"),
+      markerVectorEffect: marker?.getAttribute("vector-effect") || null,
+      relationshipScreenStroke: screenStroke(relationship),
+      markerScreenStroke: marker ? screenStroke(marker) : null,
+      entityScreenStroke: screenStroke(outline),
+      relationshipLogicalStroke: Number.parseFloat(relationship.getAttribute("stroke-width")),
+      markerLogicalStroke: marker ? Number.parseFloat(marker.getAttribute("stroke-width")) : null,
+      entityLogicalStroke: Number.parseFloat(outline.getAttribute("stroke-width")),
+      entityCount: canvas.querySelectorAll("[data-annotation-object-type='entity']").length,
+      relationshipCount: canvas.querySelectorAll(".image-annotation-entity-relationship-path").length,
+      workspacePainted: workspace.getBoundingClientRect().width > 0 && stage.getBoundingClientRect().width > 0
+    };
+  });
+  expect(minimumZoomPresentation.stageWidth).toBeCloseTo(minimumZoomPresentation.logicalWidth * 0.1, 4);
+  expect(minimumZoomPresentation.stageHeight).toBeCloseTo(minimumZoomPresentation.logicalHeight * 0.1, 4);
+  expect(minimumZoomPresentation.paintedWidth).toBeCloseTo(minimumZoomPresentation.stageWidth, 1);
+  expect(minimumZoomPresentation.paintedHeight).toBeCloseTo(minimumZoomPresentation.stageHeight, 1);
+  expect(minimumZoomPresentation.transformScale).toBeCloseTo(0.1 / minimumZoomPresentation.baseScale, 4);
+  expect(minimumZoomPresentation.stageBackground).toBe("rgba(0, 0, 0, 0)");
+  expect(minimumZoomPresentation.workspaceBackground).toBe("rgb(255, 255, 255)");
+  expect(minimumZoomPresentation.rasterCanvasCount).toBe(0);
+  expect(minimumZoomPresentation.shieldActive).toBe(false);
+  expect(minimumZoomPresentation.isZooming).toBe(false);
+  expect(minimumZoomPresentation.relationshipVectorEffect).toBeNull();
+  expect(minimumZoomPresentation.markerVectorEffect).toBeNull();
+  expect(minimumZoomPresentation.relationshipScreenStroke / minimumZoomPresentation.entityScreenStroke)
+    .toBeCloseTo(minimumZoomPresentation.relationshipLogicalStroke / minimumZoomPresentation.entityLogicalStroke, 4);
+  expect(minimumZoomPresentation.markerScreenStroke).toBeNull();
+  expect(minimumZoomPresentation.markerLogicalStroke).toBeNull();
+  expect(minimumZoomPresentation.entityCount).toBe(2);
+  expect(minimumZoomPresentation.relationshipCount).toBe(1);
+  expect(minimumZoomPresentation.workspacePainted).toBe(true);
+
+  await dialog.getByRole("tab", { name: "Objects", exact: true }).click();
+  const tree = dialog.locator("[data-annotation-object-tree]");
+  const relationshipTreeRow = tree.locator("[data-annotation-tree-node-type='relationship']");
+  await relationshipTreeRow.click();
+  const relationshipTargetPresentation = await canvas.evaluate(element => {
+    const relationship = element.querySelector(".image-annotation-entity-relationship-path");
+    const selection = element.querySelector(".image-annotation-entity-relationship-selection");
+    const hit = element.querySelector(".image-annotation-entity-relationship-hit");
+    const scale = element.getBoundingClientRect().width / element.viewBox.baseVal.width;
+    const screenStroke = target => Number.parseFloat(target.getAttribute("stroke-width")) * scale;
+    return {
+      relationship: screenStroke(relationship),
+      selection: screenStroke(selection),
+      hit: screenStroke(hit),
+      selectionVectorEffect: selection.getAttribute("vector-effect"),
+      hitVectorEffect: hit.getAttribute("vector-effect")
+    };
+  });
+  expect(relationshipTargetPresentation.selection - relationshipTargetPresentation.relationship).toBeCloseTo(4, 2);
+  expect(relationshipTargetPresentation.hit).toBeGreaterThanOrEqual(13.9);
+  expect(relationshipTargetPresentation.selectionVectorEffect).toBeNull();
+  expect(relationshipTargetPresentation.hitVectorEffect).toBeNull();
+  await dialog.getByRole("tab", { name: "Format", exact: true }).click();
+  const showRelationshipSymbols = dialog.locator("[data-annotation-relationship-show-symbols]");
+  await expect(showRelationshipSymbols).not.toBeChecked();
+  await showRelationshipSymbols.check();
+  await expect(canvas.locator(".image-annotation-entity-relationship-marker")).toHaveCount(2);
+  await dialog.getByRole("tab", { name: "Objects", exact: true }).click();
+  await tree.locator("[data-annotation-tree-node-type='object']", { hasText: "pmt.WorkTasks" }).click();
   await dialog.getByRole("tab", { name: "Entity", exact: true }).click();
+  const entityShowRelationshipSymbols = dialog.locator("[data-annotation-entity-relationship-show-symbols]");
+  await expect(entityShowRelationshipSymbols).toBeChecked();
+  await entityShowRelationshipSymbols.uncheck();
+  await expect(showRelationshipSymbols).not.toBeChecked();
+  await expect(canvas.locator(".image-annotation-entity-relationship-marker")).toHaveCount(0);
   const generateSchemaButton = dialog.getByRole("button", { name: "Generate PMT Database Schema", exact: true });
   await expect(generateSchemaButton).toBeVisible();
   await generateSchemaButton.click();
@@ -2494,7 +2781,6 @@ test("Diagram parses T-SQL Entities and exposes individual relationship Objects"
   expect(apiCalls.blogCreates[1].bodyHtml).toContain('data-pmt-diagram="true"');
   await expect(dialog.locator("[data-annotation-status]")).toContainText("created as a separate Diagram");
   await dialog.getByRole("tab", { name: "Objects", exact: true }).click();
-  const tree = dialog.locator("[data-annotation-object-tree]");
   await expect(tree.locator("[data-annotation-tree-node-type='relationships']"))
     .toContainText("Entity Relationships (1)");
   await expect(tree.locator("[data-annotation-tree-node-type='relationship']"))
@@ -2509,8 +2795,223 @@ test("Diagram parses T-SQL Entities and exposes individual relationship Objects"
   await expect(readonlyEntityHeaderButton).toHaveCSS("opacity", "0");
   await readonlyEntity.hover();
   await expect(readonlyEntityHeaderButton).toHaveCSS("opacity", "1");
+  const readonlyImageRoot = page.locator("[data-diagram-image].diagram-readonly-svg");
+  await readonlyImageRoot.evaluate(image => { image.dataset.readonlyControlProbe = "same-root"; });
+  await readonlyEntityHeaderButton.click();
+  await expect(readonlyEntityHeaderButton).toHaveAttribute("aria-pressed", "true");
+  await expect(readonlyEntityHeaderButton).toHaveCSS("opacity", "1");
+  await expect(readonlyImageRoot).toHaveAttribute("data-readonly-control-probe", "same-root");
+  const readonlyDataTypeButton = readonlyEntity.locator(
+    ":scope > [data-annotation-entity-header-action='showDataTypes']"
+  );
+  await readonlyDataTypeButton.click();
+  await expect(readonlyDataTypeButton).toHaveAttribute("aria-pressed", "true");
+  await expect(readonlyDataTypeButton).toHaveCSS("opacity", "1");
+  await expect(readonlyImageRoot).toHaveAttribute("data-readonly-control-probe", "same-root");
   await page.locator("[data-diagram-fit]").hover();
   await expect(readonlyEntityHeaderButton).toHaveCSS("opacity", "0");
+
+  const readonlyViewer = page.locator("[data-diagram-readonly-viewer]");
+  const readonlyViewport = readonlyViewer.locator("[data-diagram-viewport]");
+  const readonlyStage = readonlyViewer.locator("[data-diagram-stage]");
+  const readonlyImage = readonlyViewer.locator("[data-diagram-image]");
+  const readonlyZoom = readonlyViewer.locator("[data-diagram-zoom]");
+  await expect(readonlyStage).toHaveCSS("overflow", "clip");
+  const readonlyStrokePresentation = () => readonlyImage.evaluate(image => {
+    const relationship = image.querySelector(".image-annotation-entity-relationship-path");
+    const marker = image.querySelector(".image-annotation-entity-relationship-marker");
+    const entity = image.querySelector("g:has(> .image-annotation-entity-header-button)");
+    const outline = entity.querySelector(":scope > rect:last-child");
+    const scale = image.getBoundingClientRect().width / image.viewBox.baseVal.width;
+    const screenStroke = element => Number.parseFloat(element.getAttribute("stroke-width")) * scale;
+    return {
+      cssWidth: Number.parseFloat(image.style.width),
+      cssHeight: Number.parseFloat(image.style.height),
+      paintedWidth: image.getBoundingClientRect().width,
+      paintedHeight: image.getBoundingClientRect().height,
+      logicalWidth: Number.parseFloat(image.getAttribute("width")),
+      logicalHeight: Number.parseFloat(image.getAttribute("height")),
+      transform: image.style.transform,
+      relationship: screenStroke(relationship),
+      marker: marker ? screenStroke(marker) : null,
+      entity: screenStroke(outline),
+      relationshipVectorEffect: relationship.getAttribute("vector-effect"),
+      markerVectorEffect: marker?.getAttribute("vector-effect") || null
+    };
+  });
+  await readonlyZoom.selectOption("100");
+  await expect(readonlyViewer).not.toHaveClass(/is-zooming/);
+  const readonlyAt100 = await readonlyStrokePresentation();
+  expect(readonlyAt100.cssWidth).toBeCloseTo(readonlyAt100.logicalWidth, 4);
+  expect(readonlyAt100.cssHeight).toBeCloseTo(readonlyAt100.logicalHeight, 4);
+  expect(readonlyAt100.paintedWidth).toBeCloseTo(readonlyAt100.logicalWidth, 1);
+  expect(readonlyAt100.paintedHeight).toBeCloseTo(readonlyAt100.logicalHeight, 1);
+  expect(readonlyAt100.transform).toBe("scale(1)");
+
+  const readonlyBurst = await readonlyViewport.evaluate(async viewportElement => {
+    const viewport = viewportElement;
+    const viewer = viewport.closest("[data-diagram-readonly-viewer]");
+    const stage = viewer.querySelector("[data-diagram-stage]");
+    const image = viewer.querySelector("[data-diagram-image]");
+    const zoomSelect = viewer.querySelector("[data-diagram-zoom]");
+    const viewportRect = viewport.getBoundingClientRect();
+    const point = { x: viewport.clientWidth * 0.55, y: viewport.clientHeight * 0.45 };
+    const latestPoint = { x: point.x + 40, y: point.y + 30 };
+    const eventPoints = [point, point, latestPoint];
+    const logicalWidth = Number.parseFloat(image.getAttribute("width"));
+    const logicalHeight = Number.parseFloat(image.getAttribute("height"));
+    const viewportSize = { width: viewport.clientWidth, height: viewport.clientHeight };
+    const metrics = zoom => {
+      const scaledWidth = logicalWidth * zoom;
+      const scaledHeight = logicalHeight * zoom;
+      const stageWidth = Math.max(scaledWidth + (viewportSize.width * 2), viewportSize.width * 3);
+      const stageHeight = Math.max(scaledHeight + (viewportSize.height * 2), viewportSize.height * 3);
+      return {
+        scaledWidth,
+        scaledHeight,
+        stageWidth,
+        stageHeight,
+        offsetX: (stageWidth - scaledWidth) / 2,
+        offsetY: (stageHeight - scaledHeight) / 2
+      };
+    };
+    const beforeZoom = Number(zoomSelect.value) / 100;
+    const beforeMetrics = metrics(beforeZoom);
+    let expectedZoom = beforeZoom;
+    let expectedContentScrollLeft = viewport.scrollLeft - stage.offsetLeft - beforeMetrics.offsetX;
+    let expectedContentScrollTop = viewport.scrollTop - stage.offsetTop - beforeMetrics.offsetY;
+    let expectedLatestDocumentPoint = null;
+    eventPoints.forEach((eventPoint, index) => {
+      if (index === eventPoints.length - 1) {
+        expectedLatestDocumentPoint = {
+          x: (expectedContentScrollLeft + eventPoint.x) / expectedZoom,
+          y: (expectedContentScrollTop + eventPoint.y) / expectedZoom
+        };
+      }
+      const nextZoom = expectedZoom + 0.05;
+      expectedContentScrollLeft = (((expectedContentScrollLeft + eventPoint.x) / expectedZoom) * nextZoom)
+        - eventPoint.x;
+      expectedContentScrollTop = (((expectedContentScrollTop + eventPoint.y) / expectedZoom) * nextZoom)
+        - eventPoint.y;
+      expectedZoom = nextZoom;
+    });
+    const targetMetrics = metrics(expectedZoom);
+    const before = {
+      scrollLeft: viewport.scrollLeft,
+      scrollTop: viewport.scrollTop,
+      stageWidth: stage.style.width,
+      stageHeight: stage.style.height,
+      imageWidth: image.style.width,
+      imageHeight: image.style.height
+    };
+    eventPoints.forEach(eventPoint => viewport.dispatchEvent(new WheelEvent("wheel", {
+      bubbles: true,
+      cancelable: true,
+      ctrlKey: true,
+      deltaY: -100,
+      clientX: viewportRect.left + eventPoint.x,
+      clientY: viewportRect.top + eventPoint.y
+    })));
+    const transformScales = [];
+    for (let frame = 0; frame < 5; frame += 1) {
+      await new Promise(requestAnimationFrame);
+      transformScales.push(new DOMMatrix(image.style.transform).a);
+    }
+    return {
+      before,
+      latestPoint,
+      expectedZoom,
+      expectedLatestDocumentPoint,
+      expectedScrollLeft: Math.max(0, stage.offsetLeft + targetMetrics.offsetX + expectedContentScrollLeft),
+      expectedScrollTop: Math.max(0, stage.offsetTop + targetMetrics.offsetY + expectedContentScrollTop),
+      transformScales,
+      transient: {
+        zoom: Number(zoomSelect.value) / 100,
+        scrollLeft: viewport.scrollLeft,
+        scrollTop: viewport.scrollTop,
+        stageWidth: stage.style.width,
+        stageHeight: stage.style.height,
+        imageWidth: image.style.width,
+        imageHeight: image.style.height,
+        transform: image.style.transform,
+        isZooming: viewer.classList.contains("is-zooming")
+      }
+    };
+  });
+  expect(readonlyBurst.transient.zoom).toBeCloseTo(1, 5);
+  expect(readonlyBurst.transient.scrollLeft).toBe(readonlyBurst.before.scrollLeft);
+  expect(readonlyBurst.transient.scrollTop).toBe(readonlyBurst.before.scrollTop);
+  expect(readonlyBurst.transient.stageWidth).toBe(readonlyBurst.before.stageWidth);
+  expect(readonlyBurst.transient.stageHeight).toBe(readonlyBurst.before.stageHeight);
+  expect(readonlyBurst.transient.imageWidth).toBe(readonlyBurst.before.imageWidth);
+  expect(readonlyBurst.transient.imageHeight).toBe(readonlyBurst.before.imageHeight);
+  expect(new Set(readonlyBurst.transformScales.map(value => value.toFixed(5))).size).toBeGreaterThanOrEqual(3);
+  expect(readonlyBurst.transformScales.every((value, index, values) => index === 0 || value >= values[index - 1]))
+    .toBe(true);
+  expect(readonlyBurst.transformScales[0]).toBeGreaterThan(1);
+  expect(readonlyBurst.transformScales.at(-1)).toBeLessThan(readonlyBurst.expectedZoom);
+  expect(readonlyBurst.transient.isZooming).toBe(true);
+  await expect(readonlyViewer).not.toHaveClass(/is-zooming/);
+  const readonlySettledBurst = await readonlyViewport.evaluate((viewportElement, latestPoint) => {
+    const viewport = viewportElement;
+    const viewer = viewport.closest("[data-diagram-readonly-viewer]");
+    const stage = viewer.querySelector("[data-diagram-stage]");
+    const image = viewer.querySelector("[data-diagram-image]");
+    const zoom = Number(viewer.querySelector("[data-diagram-zoom]").value) / 100;
+    const logicalWidth = Number.parseFloat(image.getAttribute("width"));
+    const logicalHeight = Number.parseFloat(image.getAttribute("height"));
+    const expectedStageWidth = Math.max(logicalWidth * zoom + (viewport.clientWidth * 2), viewport.clientWidth * 3);
+    const expectedStageHeight = Math.max(logicalHeight * zoom + (viewport.clientHeight * 2), viewport.clientHeight * 3);
+    const offsetX = (expectedStageWidth - (logicalWidth * zoom)) / 2;
+    const offsetY = (expectedStageHeight - (logicalHeight * zoom)) / 2;
+    return {
+      zoom,
+      scrollLeft: viewport.scrollLeft,
+      scrollTop: viewport.scrollTop,
+      stageWidth: Number.parseFloat(stage.style.width),
+      stageHeight: Number.parseFloat(stage.style.height),
+      expectedStageWidth,
+      expectedStageHeight,
+      imageWidth: Number.parseFloat(image.style.width),
+      imageHeight: Number.parseFloat(image.style.height),
+      paintedWidth: image.getBoundingClientRect().width,
+      paintedHeight: image.getBoundingClientRect().height,
+      logicalWidth,
+      logicalHeight,
+      transform: image.style.transform,
+      documentPoint: {
+        x: (viewport.scrollLeft - stage.offsetLeft - offsetX + latestPoint.x) / zoom,
+        y: (viewport.scrollTop - stage.offsetTop - offsetY + latestPoint.y) / zoom
+      }
+    };
+  }, readonlyBurst.latestPoint);
+  expect(readonlySettledBurst.zoom).toBeCloseTo(readonlyBurst.expectedZoom, 5);
+  expect(readonlySettledBurst.stageWidth).toBeCloseTo(readonlySettledBurst.expectedStageWidth, 3);
+  expect(readonlySettledBurst.stageHeight).toBeCloseTo(readonlySettledBurst.expectedStageHeight, 3);
+  expect(readonlySettledBurst.paintedWidth).toBeCloseTo(readonlySettledBurst.logicalWidth * readonlySettledBurst.zoom, 1);
+  expect(readonlySettledBurst.paintedHeight).toBeCloseTo(readonlySettledBurst.logicalHeight * readonlySettledBurst.zoom, 1);
+  expect(readonlySettledBurst.transform).toBe("scale(1.15)");
+  expect(Math.abs(readonlySettledBurst.scrollLeft - readonlyBurst.expectedScrollLeft)).toBeLessThan(2);
+  expect(Math.abs(readonlySettledBurst.scrollTop - readonlyBurst.expectedScrollTop)).toBeLessThan(2);
+  expect(Math.abs(readonlySettledBurst.documentPoint.x - readonlyBurst.expectedLatestDocumentPoint.x)).toBeLessThan(2);
+  expect(Math.abs(readonlySettledBurst.documentPoint.y - readonlyBurst.expectedLatestDocumentPoint.y)).toBeLessThan(2);
+
+  await readonlyZoom.selectOption("10");
+  await expect(readonlyViewer).not.toHaveClass(/is-zooming/);
+  const readonlyAt10 = await readonlyStrokePresentation();
+  expect(readonlyAt10.cssWidth).toBeCloseTo(readonlyAt100.cssWidth, 4);
+  expect(readonlyAt10.cssHeight).toBeCloseTo(readonlyAt100.cssHeight, 4);
+  expect(readonlyAt10.paintedWidth).toBeCloseTo(readonlyAt10.logicalWidth * 0.1, 1);
+  expect(readonlyAt10.paintedHeight).toBeCloseTo(readonlyAt10.logicalHeight * 0.1, 1);
+  expect(readonlyAt10.transform).toBe("scale(0.1)");
+  expect(readonlyAt10.relationship / readonlyAt100.relationship).toBeCloseTo(0.1, 3);
+  expect(readonlyAt100.marker).toBeNull();
+  expect(readonlyAt10.marker).toBeNull();
+  expect(readonlyAt10.entity / readonlyAt100.entity).toBeCloseTo(0.1, 3);
+  expect(readonlyAt10.relationship / readonlyAt10.entity)
+    .toBeCloseTo(readonlyAt100.relationship / readonlyAt100.entity, 3);
+  expect(readonlyAt10.relationshipVectorEffect).toBeNull();
+  expect(readonlyAt10.markerVectorEffect).toBeNull();
 
   await page.getByRole("button", { name: "Edit Diagram", exact: true }).click();
   await expect(dialog).toBeVisible();
@@ -2562,7 +3063,10 @@ test("Canceling Diagram edit refits and centers the recreated Treeview preview",
 
   await expect(page.locator(".diagram-tree-content h2")).toHaveText("Cancel Return Fit");
   await page.locator("[data-diagram-zoom]").selectOption("100");
-  await expect(page.locator("[data-diagram-image]")).toHaveCSS("transform", "matrix(1, 0, 0, 1, 0, 0)");
+  await expect.poll(() => page.locator("[data-diagram-image]").evaluate(image => ({
+    width: Number.parseFloat(image.style.width),
+    transform: image.style.transform
+  }))).toEqual({ width: 1600, transform: "scale(1)" });
   await page.getByRole("button", { name: "Edit Diagram", exact: true }).click();
   const dialog = page.locator("[data-diagram-editor-host] > dialog.image-annotation-dialog");
   await expect(dialog).toBeVisible();
@@ -2713,7 +3217,10 @@ test("Diagram Card and Tree views show the current user's private and public Dia
   await expect.poll(() => virtualViewport.evaluate((element, previous) => element.scrollLeft > previous.left && element.scrollTop > previous.top, beforePan)).toBe(true);
   await expect(page.locator("[data-diagram-zoom]")).toHaveValue(/^(?:10|15|20|25|30|35|40|45|50|55|60|65|70|75|80|85|90|95|100|105|110|115|120|125|130|135|140|145|150|155|160|165|170|175|180|185|190|195|200)$/);
   await page.locator("[data-diagram-zoom]").selectOption("100");
-  await expect(page.locator("[data-diagram-image]")).toHaveCSS("transform", "matrix(1, 0, 0, 1, 0, 0)");
+  await expect.poll(() => page.locator("[data-diagram-image]").evaluate(image => ({
+    width: Number.parseFloat(image.style.width),
+    transform: image.style.transform
+  }))).toEqual({ width: 160, transform: "scale(1)" });
   await virtualViewport.evaluate(element => {
     const bounds = element.getBoundingClientRect();
     for (let index = 0; index < 4; index += 1) {
@@ -2728,7 +3235,10 @@ test("Diagram Card and Tree views show the current user's private and public Dia
     }
   });
   await expect(page.locator("[data-diagram-zoom]")).toHaveValue("120");
-  await expect(page.locator("[data-diagram-image]")).toHaveCSS("transform", "matrix(1.2, 0, 0, 1.2, 0, 0)");
+  await expect.poll(() => page.locator("[data-diagram-image]").evaluate(image => ({
+    width: Number.parseFloat(image.style.width),
+    transform: image.style.transform
+  }))).toEqual({ width: 160, transform: "scale(1.2)" });
 
   await page.locator("[data-action='select-diagram-document']", { hasText: "Public Diagram Marker" }).click();
   await expect(page.getByRole("button", { name: "Share public Diagram" })).toBeVisible();
@@ -3675,8 +4185,6 @@ test("RTE image annotation creates, crops, groups, locks, undoes, and reopens ed
   expect(textBoxAfterResize.width).toBeGreaterThan(textBoxBeforeResize.width);
   expect(textBoxAfterResize.width / textBoxAfterResize.height)
     .toBeCloseTo(textBoxBeforeResize.width / textBoxBeforeResize.height, 4);
-  const textBottomY = Number(await annotationText.getAttribute("y"));
-
   await openAnnotationContextMenu(textObject);
   await annotationContextMenu.getByRole("menuitem", { name: "To Back", exact: true }).click();
   await expect(annotationObjects.nth(0)).toHaveAttribute("data-annotation-object-id", /^textbox-/);
@@ -4086,6 +4594,7 @@ test("RTE image annotation creates, crops, groups, locks, undoes, and reopens ed
   await page.keyboard.down("Control");
   await page.mouse.wheel(0, 120);
   await page.keyboard.up("Control");
+  await expect(canvas).not.toHaveClass(/is-zooming/);
   const userPointAfterZoomOut = await userPointAtZoomCursor();
   expect(Math.abs(userPointAfterZoomOut.x - userPointBeforeZoomOut.x)).toBeLessThan(0.75);
   expect(Math.abs(userPointAfterZoomOut.y - userPointBeforeZoomOut.y)).toBeLessThan(0.75);
@@ -4111,6 +4620,7 @@ test("RTE image annotation creates, crops, groups, locks, undoes, and reopens ed
   await expect(canvas.locator(".image-annotation-group-member-guide")).toHaveCount(2);
   const imageGroupId = await imageObject.getAttribute("data-pmt-annotation-group");
   expect(imageGroupId).toMatch(/^group-/);
+  const textYBeforeExport = Number(await textObject.locator("text").getAttribute("y"));
 
   await maximizeButton.click();
   await expect(dialog).toHaveClass(/is-annotation-maximized/);
@@ -4172,7 +4682,7 @@ test("RTE image annotation creates, crops, groups, locks, undoes, and reopens ed
   const reopenedCanvas = reopenedDialog.locator("[data-annotation-canvas]");
   await expect(reopenedCanvas.locator("[data-annotation-object-id]")).toHaveCount(6);
   await expect(reopenedCanvas.locator("text")).toHaveAttribute("text-anchor", "middle");
-  expect(Number(await reopenedCanvas.locator("text").getAttribute("y"))).toBeCloseTo(textBottomY, 5);
+  expect(Number(await reopenedCanvas.locator("text").getAttribute("y"))).toBeCloseTo(textYBeforeExport, 5);
   await expect(reopenedDialog.locator("[data-annotation-selection-label]")).toHaveText("2 objects selected");
   await expect(reopenedCanvas.locator(".image-annotation-group-member-guide")).toHaveCount(2);
   await expect(reopenedCanvas.locator("[data-annotation-handle]")).toHaveCount(8);
@@ -4770,7 +5280,7 @@ test("RTE annotation Objects tree stays synchronized with canvas layers", async 
 
   await expect(dialog).toBeVisible();
   await expect(canvas.locator("[data-annotation-object-id]")).toHaveCount(1);
-  const sourceImageId = await canvas.locator("[data-annotation-object-type='image']")
+  const sourceImageId = await canvas.locator("[data-annotation-object-type='embedded-image']")
     .getAttribute("data-annotation-object-id");
   await expect(opacityControl).toBeDisabled();
   await expect(canvasObject(sourceImageId)).not.toHaveAttribute("opacity");
@@ -5097,7 +5607,7 @@ test("RTE annotation Objects tree stays synchronized with canvas layers", async 
     .evaluateAll(elements => elements.map(element => element.dataset.annotationObjectId));
   expect(reopenedTreePaintOrder).toEqual([...reopenedCanvasPaintOrder].reverse());
   expect(reopenedCanvasPaintOrder[0]).toBe(sourceImageId);
-  await expect(reopenedDialog.locator("[data-annotation-canvas] [data-annotation-object-type='image']"))
+  await expect(reopenedDialog.locator("[data-annotation-canvas] [data-annotation-object-type='embedded-image']"))
     .not.toHaveAttribute("opacity");
   await expect(reopenedDialog.locator("[data-annotation-canvas] [data-annotation-object-type='rectangle'][opacity='0.42']"))
     .toHaveCount(2);

@@ -16,7 +16,7 @@ import {
   defaultStatusColor,
   statusColor
 } from "../../components/progress-and-status.js?v=20260714-linked-bug-percent";
-import { sectionHead } from "../../components/sections.js?v=release-notes-2026-07-19-day-32-9a019dda874c";
+import { sectionHead } from "../../components/sections.js?v=release-notes-2026-07-19-day-32-3db2c1ae13fc";
 import { api } from "../../core/api.js";
 import {
   beginImpersonation,

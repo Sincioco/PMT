@@ -10,7 +10,7 @@ import {
   roadMapProjects,
   roadMapSprintOptions
 } from "./roadmap-calculations.js?v=20260627-roadmap-ongoing-width";
-import { roadMapScreenHtml } from "./roadmap-rendering.js?v=release-notes-2026-07-19-day-32-9a019dda874c";
+import { roadMapScreenHtml } from "./roadmap-rendering.js?v=release-notes-2026-07-19-day-32-3db2c1ae13fc";
 
 export function createRoadMapFeature({ app }) {
   let roadMapProjectFilter = readPreference(preferenceKeys.roadMapProject, "all");

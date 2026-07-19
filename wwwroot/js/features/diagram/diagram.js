@@ -1,11 +1,14 @@
 import { buttonContent, funnelIconHtml } from "../../components/buttons.js?v=20260718-diagram-library-v7";
 import {
+  annotationSvgPlaneMetrics,
   annotationSvgDataUrl,
   buildAnnotationSvg,
   openImageAnnotationDialog,
   parseAnnotationSvg,
+  setAnnotationEntityCollapsedState,
+  setAnnotationEntityDataTypeVisibility,
   zoomAnnotationAtPoint
-} from "../../components/image-annotation.js?v=20260719-edit-zoom-schema";
+} from "../../components/image-annotation.js?v=20260719-vector-zoom-v15";
 import { copyTextToClipboard } from "../../components/clipboard.js";
 import { filterSelect } from "../../components/filters.js";
 import { field, optionalNumberValue, selectOptionsField, value } from "../../components/forms.js?v=20260719-rte-insert-diagram";
@@ -23,7 +26,7 @@ import { formatDate } from "../../shared/dates.js";
 import { appAbsoluteUrl } from "../../shared/app-urls.js";
 import { canAccessResource } from "../../shared/security.js";
 import { escapeAttr, escapeHtml } from "../../shared/text-and-links.js";
-import { buildPmtDatabaseSchemaDiagram } from "./pmt-database-schema.js?v=20260719-edit-zoom-schema";
+import { buildPmtDatabaseSchemaDiagram } from "./pmt-database-schema.js?v=20260719-vector-zoom-v15";
 
 const diagramViewModes = new Set(["cards", "tree"]);
 const diagramSortModes = new Set(["latest", "oldest", "name", "custom"]);
@@ -790,9 +793,12 @@ export function createDiagramFeature({
     let imageWidth = blankDiagramWidth;
     let imageHeight = blankDiagramHeight;
     let renderedZoom = 1;
-    let pendingZoom = null;
     let zoomFrame = 0;
     let zoomIdleTimer = 0;
+    let suppressZoomScroll = false;
+    const zoomSmoothingMilliseconds = 30;
+    const zoomIdleMilliseconds = 90;
+    let readonlyState = image.matches("svg") ? parseAnnotationSvg(image.outerHTML) : null;
 
     const viewportSize = () => ({
       width: Math.max(1, viewport.clientWidth),
@@ -815,73 +821,221 @@ export function createDiagramFeature({
     };
 
     const drawStage = (zoom, metrics) => {
+      const plane = annotationSvgPlaneMetrics(imageWidth, imageHeight, window.devicePixelRatio);
       stage.style.width = `${metrics.stageWidth}px`;
       stage.style.height = `${metrics.stageHeight}px`;
       image.style.left = `${metrics.offsetX}px`;
       image.style.top = `${metrics.offsetY}px`;
-      image.style.transform = `scale(${zoom})`;
+      image.style.width = `${plane.width}px`;
+      image.style.height = `${plane.height}px`;
+      image.style.transform = `scale(${zoom / plane.baseScale})`;
+      image.style.visibility = "";
       zoomSelect.value = String(Math.round(zoom * 100));
     };
 
-    const markZooming = () => {
-      viewer.classList.add("is-zooming");
-      if (zoomIdleTimer) window.clearTimeout(zoomIdleTimer);
-      zoomIdleTimer = window.setTimeout(() => {
-        viewer.classList.remove("is-zooming");
-        zoomIdleTimer = 0;
-      }, 180);
+    let zoomGesture = null;
+
+    const renderTransientZoom = timestamp => {
+      zoomFrame = 0;
+      if (!viewer.isConnected || !zoomGesture) return;
+      const gesture = zoomGesture;
+      const frameTime = Number.isFinite(timestamp) ? timestamp : performance.now();
+      const elapsed = Math.max(1, Math.min(50, frameTime - gesture.lastFrameAt));
+      const blend = 1 - Math.exp(-elapsed / zoomSmoothingMilliseconds);
+      gesture.lastFrameAt = frameTime;
+      gesture.displayZoom += (gesture.targetZoom - gesture.displayZoom) * blend;
+      gesture.displayContentScrollLeft += (gesture.targetContentScrollLeft - gesture.displayContentScrollLeft) * blend;
+      gesture.displayContentScrollTop += (gesture.targetContentScrollTop - gesture.displayContentScrollTop) * blend;
+      const complete = Math.abs(gesture.targetZoom - gesture.displayZoom) < 0.00005
+        && Math.max(
+          Math.abs(gesture.targetContentScrollLeft - gesture.displayContentScrollLeft),
+          Math.abs(gesture.targetContentScrollTop - gesture.displayContentScrollTop)
+        ) < 0.1;
+      if (complete) {
+        gesture.displayZoom = gesture.targetZoom;
+        gesture.displayContentScrollLeft = gesture.targetContentScrollLeft;
+        gesture.displayContentScrollTop = gesture.targetContentScrollTop;
+      }
+      const translateX = gesture.contentScrollLeft - gesture.displayContentScrollLeft;
+      const translateY = gesture.contentScrollTop - gesture.displayContentScrollTop;
+      const plane = annotationSvgPlaneMetrics(imageWidth, imageHeight, window.devicePixelRatio);
+      const scale = gesture.displayZoom / plane.baseScale;
+      image.style.transform = `translate3d(${translateX}px, ${translateY}px, 0) scale(${scale})`;
+      if (!complete) {
+        zoomFrame = window.requestAnimationFrame(renderTransientZoom);
+      } else if (gesture.inputIdle) {
+        settleZoom();
+      }
     };
 
-    const scheduleZoom = (nextZoom, anchor = null, center = false) => {
+    const settleZoom = () => {
+      if (!zoomGesture) return;
+      const gesture = zoomGesture;
+      zoomGesture = null;
+      if (zoomFrame) window.cancelAnimationFrame(zoomFrame);
+      if (zoomIdleTimer) window.clearTimeout(zoomIdleTimer);
+      zoomFrame = 0;
+      zoomIdleTimer = 0;
+      if (!viewer.isConnected) return;
+
+      const metrics = stageMetrics(gesture.targetZoom, gesture.viewportSize);
+      drawStage(gesture.targetZoom, metrics);
+      renderedZoom = gesture.targetZoom;
+      suppressZoomScroll = true;
+      viewport.scrollLeft = Math.max(
+        0,
+        stage.offsetLeft + metrics.offsetX + gesture.targetContentScrollLeft
+      );
+      viewport.scrollTop = Math.max(
+        0,
+        stage.offsetTop + metrics.offsetY + gesture.targetContentScrollTop
+      );
+      window.requestAnimationFrame(() => {
+        suppressZoomScroll = false;
+      });
+      viewer.classList.remove("is-zooming");
+      image.style.willChange = "";
+    };
+
+    const settleZoomAtCurrentDisplay = () => {
+      if (!zoomGesture) return;
+      const gesture = zoomGesture;
+      const currentZoom = clampDiagramZoom(gesture.displayZoom);
+      const currentView = zoomAnnotationAtPoint({
+        oldZoom: gesture.displayZoom,
+        newZoom: currentZoom,
+        scrollLeft: gesture.displayContentScrollLeft,
+        scrollTop: gesture.displayContentScrollTop,
+        pointX: gesture.pointX ?? gesture.viewportSize.width / 2,
+        pointY: gesture.pointY ?? gesture.viewportSize.height / 2
+      });
+      gesture.targetZoom = currentZoom;
+      gesture.targetContentScrollLeft = currentView.scrollLeft;
+      gesture.targetContentScrollTop = currentView.scrollTop;
+      previewZoom = currentZoom;
+      settleZoom();
+    };
+
+    const scheduleZoom = (nextZoom, anchor = null, center = false, settleImmediately = false) => {
       const zoom = clampDiagramZoom(nextZoom);
+      const currentTargetZoom = zoomGesture?.targetZoom ?? renderedZoom;
+      if (!center
+          && !settleImmediately
+          && Math.abs(zoom - currentTargetZoom) < 0.000001) return;
       previewZoom = zoom;
-      pendingZoom = { zoom, anchor, center };
-      markZooming();
-      if (zoomFrame) return;
 
-      zoomFrame = window.requestAnimationFrame(() => {
-        zoomFrame = 0;
-        if (!viewer.isConnected || !pendingZoom) return;
-
-        const request = pendingZoom;
-        pendingZoom = null;
+      if (!zoomGesture) {
         const size = viewportSize();
-        const oldMetrics = stageMetrics(renderedZoom, size);
-        const nextMetrics = stageMetrics(request.zoom, size);
-        const pointX = request.anchor?.x ?? size.width / 2;
-        const pointY = request.anchor?.y ?? size.height / 2;
+        const metrics = stageMetrics(renderedZoom, size);
+        const viewportStyle = window.getComputedStyle(viewport);
+        zoomGesture = {
+          viewportSize: size,
+          stageOffsetLeft: stage.offsetLeft,
+          stageOffsetTop: stage.offsetTop,
+          paddingRight: Number.parseFloat(viewportStyle.paddingRight) || 0,
+          paddingBottom: Number.parseFloat(viewportStyle.paddingBottom) || 0,
+          contentScrollLeft: viewport.scrollLeft - stage.offsetLeft - metrics.offsetX,
+          contentScrollTop: viewport.scrollTop - stage.offsetTop - metrics.offsetY,
+          targetZoom: renderedZoom,
+          targetContentScrollLeft: viewport.scrollLeft - stage.offsetLeft - metrics.offsetX,
+          targetContentScrollTop: viewport.scrollTop - stage.offsetTop - metrics.offsetY,
+          displayZoom: renderedZoom,
+          displayContentScrollLeft: viewport.scrollLeft - stage.offsetLeft - metrics.offsetX,
+          displayContentScrollTop: viewport.scrollTop - stage.offsetTop - metrics.offsetY,
+          lastFrameAt: performance.now(),
+          inputIdle: false
+        };
+        viewer.classList.add("is-zooming");
+        image.style.transformOrigin = "0 0";
+      }
+
+      const gesture = zoomGesture;
+      const pointX = anchor?.x ?? gesture.viewportSize.width / 2;
+      const pointY = anchor?.y ?? gesture.viewportSize.height / 2;
+      gesture.pointX = pointX;
+      gesture.pointY = pointY;
+      const metrics = stageMetrics(zoom, gesture.viewportSize);
+      if (center) {
+        gesture.targetContentScrollLeft = (metrics.scaledWidth / 2) - (gesture.viewportSize.width / 2);
+        gesture.targetContentScrollTop = (metrics.scaledHeight / 2) - (gesture.viewportSize.height / 2);
+      } else {
         const next = zoomAnnotationAtPoint({
-          oldZoom: renderedZoom,
-          newZoom: request.zoom,
-          scrollLeft: viewport.scrollLeft - oldMetrics.offsetX,
-          scrollTop: viewport.scrollTop - oldMetrics.offsetY,
+          oldZoom: gesture.targetZoom,
+          newZoom: zoom,
+          scrollLeft: gesture.targetContentScrollLeft,
+          scrollTop: gesture.targetContentScrollTop,
           pointX,
           pointY
         });
+        gesture.targetContentScrollLeft = next.scrollLeft;
+        gesture.targetContentScrollTop = next.scrollTop;
+      }
+      gesture.targetZoom = zoom;
+      const maximumScrollLeft = Math.max(
+        0,
+        gesture.stageOffsetLeft
+          + metrics.stageWidth
+          + gesture.paddingRight
+          - gesture.viewportSize.width
+      );
+      const maximumScrollTop = Math.max(
+        0,
+        gesture.stageOffsetTop
+          + metrics.stageHeight
+          + gesture.paddingBottom
+          - gesture.viewportSize.height
+      );
+      const minimumVisibleWidth = Math.min(32, metrics.scaledWidth / 2);
+      const minimumVisibleHeight = Math.min(32, metrics.scaledHeight / 2);
+      const minimumContentScrollLeft = Math.max(
+        -gesture.stageOffsetLeft - metrics.offsetX,
+        -gesture.viewportSize.width + minimumVisibleWidth
+      );
+      const maximumContentScrollLeft = Math.min(
+        maximumScrollLeft - gesture.stageOffsetLeft - metrics.offsetX,
+        metrics.scaledWidth - minimumVisibleWidth
+      );
+      const minimumContentScrollTop = Math.max(
+        -gesture.stageOffsetTop - metrics.offsetY,
+        -gesture.viewportSize.height + minimumVisibleHeight
+      );
+      const maximumContentScrollTop = Math.min(
+        maximumScrollTop - gesture.stageOffsetTop - metrics.offsetY,
+        metrics.scaledHeight - minimumVisibleHeight
+      );
+      gesture.targetContentScrollLeft = Math.max(
+        minimumContentScrollLeft,
+        Math.min(maximumContentScrollLeft, gesture.targetContentScrollLeft)
+      );
+      gesture.targetContentScrollTop = Math.max(
+        minimumContentScrollTop,
+        Math.min(maximumContentScrollTop, gesture.targetContentScrollTop)
+      );
+      gesture.inputIdle = false;
 
-        drawStage(request.zoom, nextMetrics);
-        renderedZoom = request.zoom;
-        if (request.center) {
-          window.requestAnimationFrame(() => {
-            if (!viewer.isConnected) return;
-            const settledSize = viewportSize();
-            viewport.scrollLeft = stage.offsetLeft + nextMetrics.offsetX
-              + (nextMetrics.scaledWidth / 2) - (settledSize.width / 2);
-            viewport.scrollTop = stage.offsetTop + nextMetrics.offsetY
-              + (nextMetrics.scaledHeight / 2) - (settledSize.height / 2);
-          });
-        } else {
-          viewport.scrollLeft = Math.max(0, next.scrollLeft + nextMetrics.offsetX);
-          viewport.scrollTop = Math.max(0, next.scrollTop + nextMetrics.offsetY);
-        }
-      });
+      if (settleImmediately) {
+        settleZoom();
+        return;
+      }
+      if (!zoomFrame) zoomFrame = window.requestAnimationFrame(renderTransientZoom);
+      if (zoomIdleTimer) window.clearTimeout(zoomIdleTimer);
+      zoomIdleTimer = window.setTimeout(() => {
+        if (!zoomGesture) return;
+        zoomGesture.inputIdle = true;
+        if (!zoomFrame) settleZoom();
+      }, zoomIdleMilliseconds);
     };
 
-    const fit = () => {
+    const fit = (settleImmediately = false) => {
       const size = viewportSize();
       const availableWidth = Math.max(1, size.width - 32);
       const availableHeight = Math.max(1, size.height - 32);
-      scheduleZoom(Math.min(availableWidth / imageWidth, availableHeight / imageHeight), null, true);
+      scheduleZoom(
+        Math.min(availableWidth / imageWidth, availableHeight / imageHeight),
+        null,
+        true,
+        settleImmediately
+      );
     };
 
     const initialize = () => {
@@ -894,40 +1048,93 @@ export function createDiagramFeature({
         || Number.parseFloat(image.getAttribute("height"))
         || viewBox?.height
         || blankDiagramHeight;
-      image.style.width = `${imageWidth}px`;
-      image.style.height = `${imageHeight}px`;
+      image.style.visibility = "hidden";
       if (previewDiagramDocumentId !== documentId) {
         previewDiagramDocumentId = documentId;
-        fit();
+        fit(true);
       } else {
-        scheduleZoom(previewZoom);
+        scheduleZoom(previewZoom, null, false, true);
       }
     };
     if (image.matches("svg") || image.complete) initialize();
     else image.addEventListener("load", initialize, { once: true });
 
+    const activateEntityHeaderControl = control => {
+      if (!readonlyState || !control || control.getAttribute("aria-disabled") === "true") return;
+      const entity = readonlyState.objects.find(object => object.type === "entity"
+        && object.id === control.dataset.annotationEntityId);
+      const action = control.dataset.annotationEntityHeaderAction;
+      if (!entity || !["collapsed", "showDataTypes"].includes(action)) return;
+
+      const before = control.getBoundingClientRect();
+      if (action === "collapsed") setAnnotationEntityCollapsedState(entity, entity.collapsed !== true);
+      else setAnnotationEntityDataTypeVisibility(entity, entity.showDataTypes !== true);
+
+      const markup = buildAnnotationSvg(readonlyState, { interactiveEntityHeaders: true });
+      const next = new DOMParser().parseFromString(markup, "image/svg+xml").documentElement;
+      ["width", "height", "viewBox", "role", "aria-label", "data-pmt-image-annotation-version"]
+        .forEach(name => image.setAttribute(name, next.getAttribute(name) || ""));
+      image.replaceChildren(...[...next.childNodes].map(node => document.importNode(node, true)));
+      const viewBox = image.viewBox?.baseVal;
+      imageWidth = Number.parseFloat(image.getAttribute("width")) || viewBox?.width || imageWidth;
+      imageHeight = Number.parseFloat(image.getAttribute("height")) || viewBox?.height || imageHeight;
+      drawStage(renderedZoom, stageMetrics(renderedZoom));
+
+      const replacement = image.querySelector(
+        `[data-annotation-entity-id='${CSS.escape(entity.id)}'][data-annotation-entity-header-action='${action}']`
+      );
+      if (replacement) {
+        const after = replacement.getBoundingClientRect();
+        viewport.scrollLeft += after.left - before.left;
+        viewport.scrollTop += after.top - before.top;
+        replacement.focus({ preventScroll: true });
+      }
+    };
+
+    viewport.addEventListener("click", event => {
+      const control = event.target.closest?.("[data-annotation-entity-header-action]");
+      if (!control) return;
+      event.preventDefault();
+      event.stopPropagation();
+      activateEntityHeaderControl(control);
+    });
+
     viewer.querySelector("[data-diagram-zoom-out]")?.addEventListener("click", () => scheduleZoom(previewZoom - 0.05));
     viewer.querySelector("[data-diagram-zoom-in]")?.addEventListener("click", () => scheduleZoom(previewZoom + 0.05));
-    viewer.querySelector("[data-diagram-fit]")?.addEventListener("click", fit);
+    viewer.querySelector("[data-diagram-fit]")?.addEventListener("click", () => fit());
     zoomSelect.addEventListener("change", () => scheduleZoom(Number(zoomSelect.value || 100) / 100));
     viewport.addEventListener("wheel", event => {
-      if (!event.ctrlKey) return;
+      if (!event.ctrlKey) {
+        settleZoomAtCurrentDisplay();
+        return;
+      }
       event.preventDefault();
       const rect = viewport.getBoundingClientRect();
       scheduleZoom(previewZoom + (event.deltaY < 0 ? 0.05 : -0.05), {
-        x: event.clientX - rect.left,
-        y: event.clientY - rect.top
+        x: event.clientX - rect.left - viewport.clientLeft,
+        y: event.clientY - rect.top - viewport.clientTop
       });
     }, { passive: false });
+    viewport.addEventListener("scroll", () => {
+      if (!suppressZoomScroll) settleZoomAtCurrentDisplay();
+    });
 
     viewport.addEventListener("keydown", event => {
+      const control = event.target.closest?.("[data-annotation-entity-header-action]");
+      if (control && (event.key === "Enter" || event.key === " ")) {
+        event.preventDefault();
+        activateEntityHeaderControl(control);
+        return;
+      }
       if (event.key === "+" || event.key === "=") scheduleZoom(previewZoom + 0.05);
       if (event.key === "-") scheduleZoom(previewZoom - 0.05);
       if (event.key === "0") fit();
     });
 
     viewport.addEventListener("pointerdown", event => {
+      if (event.target.closest?.("[data-annotation-entity-header-action]")) return;
       if (event.button !== 0 && event.button !== 1) return;
+      settleZoomAtCurrentDisplay();
       event.preventDefault();
       viewport.setPointerCapture(event.pointerId);
       viewport.classList.add("is-panning");
@@ -1084,7 +1291,7 @@ function diagramReadonlyImageHtml(sourceInput, title) {
     return `<img src="${escapeAttr(source)}" alt="${escapeAttr(title)} preview" data-diagram-image draggable="false">`;
   }
 
-  return buildAnnotationSvg(state)
+  return buildAnnotationSvg(state, { interactiveEntityHeaders: true })
     .replace(/^<\?xml[^>]*>\s*/i, "")
     .replace("<svg ", `<svg class="diagram-readonly-svg" data-diagram-image `)
     .replace('aria-label="Annotated image"', `aria-label="${escapeAttr(title)} preview"`);

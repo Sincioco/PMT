@@ -1224,8 +1224,22 @@
         "title": "Faster and Cleaner Diagram Navigation",
         "items": [
           "Make edit-mode zooming substantially more responsive on large entity-relationship diagrams while preserving pointer-centered zoom and fast panning.",
+          "Smooth pointer-centered wheel zoom in both edit and read-only modes with lightweight vector transforms, then settle the canvas once after each gesture instead of rebuilding it on every frame.",
+          "Keep oversized SVG canvases within the browser's safe rendering budget so minimum zoom stays fully painted and Entity borders, relationship lines, and symbols scale together without flicker, thick lines, or incomplete rendering.",
+          "Highlight and drag visible Entities without rerendering the full schema on every pointer movement, keeping interaction responsive on large diagrams.",
+          "Scale relationship rendering for schemas with hundreds of tables by reusing route geometry, checking nearby obstacles, and painting shared same-style line segments once.",
           "Return a cancelled Diagram edit to a fitted, centered Tree view and keep read-only zooming responsive.",
-          "Match edit mode in read-only Diagrams by hiding each Entity's expand, collapse, and Data Type controls until the pointer is over or near that Entity."
+          "Match edit mode in read-only Diagrams by hiding each Entity's expand, collapse, and Data Type controls until the pointer is over or near that Entity.",
+          "Use the expand, collapse, and Data Type controls directly in read-only Diagrams without losing the current view position."
+        ]
+      },
+      {
+        "title": "More Expressive and Readable ERDs",
+        "items": [
+          "Keep arrows and relationship symbols off by default, control them from synchronized global switches, and temporarily turn off every relationship line when users want an Entity-only view.",
+          "Add an Entity Annotation field that creates a linked, styleable callout and arrow which follow the Entity as it moves and persist with the Diagram.",
+          "Style each Entity name and header background independently to highlight important tables.",
+          "Route relationships around unrelated Entities and Entity Annotation callouts, and move non-anchored tables away from relationship lines during Org Tree formatting while leaving Anchor tables fixed."
         ]
       },
       {

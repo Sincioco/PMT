@@ -2,10 +2,16 @@ import {
   autoFormatAnnotationEntitiesOrgTree,
   buildAnnotationSvg,
   normalizeAnnotationState
-} from "../../components/image-annotation.js?v=20260719-edit-zoom-schema";
+} from "../../components/image-annotation.js?v=20260719-vector-zoom-v15";
 
 const schemaTitle = "PMT's Diagram Tool by Sin";
 const schemaDiagramName = "PMT's Database Schema";
+const schemaRelationshipStyle = {
+  stroke: "#42526b",
+  strokeWidth: 2,
+  arrowSize: 14,
+  showSymbols: false
+};
 
 export function buildPmtDatabaseSchemaDiagram(schemaInput) {
   const schema = normalizeSchema(schemaInput);
@@ -19,7 +25,9 @@ export function buildPmtDatabaseSchemaDiagram(schemaInput) {
 
   autoFormatAnnotationEntitiesOrgTree(entities, {
     preferredRootId: entities.find(entity => entity.entityName === "WorkTasks")?.id || entities[0]?.id,
-    allowOverlappingLines: false
+    allowOverlappingLines: false,
+    relationshipStyle: schemaRelationshipStyle,
+    gridSize: 20
   });
 
   const minX = Math.min(...entities.map(entity => entity.x));
@@ -38,11 +46,7 @@ export function buildPmtDatabaseSchemaDiagram(schemaInput) {
     snapToGrid: false,
     allowOverlappingEntityLines: false,
     gridSize: 20,
-    relationshipStyle: {
-      stroke: "#42526b",
-      strokeWidth: 2,
-      arrowSize: 14
-    },
+    relationshipStyle: schemaRelationshipStyle,
     objects: [
       ...entities,
       {

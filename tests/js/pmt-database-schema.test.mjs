@@ -57,9 +57,11 @@ test("PMT database metadata becomes a new editable ERD Diagram", () => {
   assert.equal(workTasks.foreignKeys[0].relationshipType, "one-to-many");
   assert.deepEqual(workTasks.foreignKeys[0].columns, ["ProjectId"]);
   assert.deepEqual(workTasks.foreignKeys[0].referencedColumns, ["ProjectId"]);
+  assert.equal(diagram.state.relationshipStyle.showSymbols, false);
   assert.ok(workTasks.y <= projects.y, "The preferred WorkTasks root should be at the highest hierarchy level.");
   assert.match(diagram.svg, /data-pmt-image-annotation-state="true"/);
   assert.match(diagram.svg, /PMT's Diagram Tool by Sin/);
+  assert.doesNotMatch(diagram.svg, /image-annotation-entity-relationship-marker|<polygon\b/);
 });
 
 function column(tableName, columnName, options = {}) {

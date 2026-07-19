@@ -172,7 +172,7 @@
   min-height: 0;
   overflow: auto;
   padding: 24px;
-  background: var(--color-page-muted);
+  background: var(--color-surface);
   color: var(--color-chart-gridline);
   outline: 0;
   overscroll-behavior: contain;
@@ -256,17 +256,30 @@
   display: block;
   max-width: none;
   overflow: visible;
-  background: var(--color-surface);
-  box-shadow: var(--shadow-elevated);
   color: var(--color-chart-gridline);
   user-select: none;
   transform-origin: top left;
-  will-change: transform;
+}
+
+.image-annotation-zoom-shield {
+  position: fixed;
+  z-index: 2;
+  pointer-events: none;
+  contain: strict;
+}
+
+.image-annotation-zoom-shield[hidden] {
+  display: none;
+}
+
+.image-annotation-zoom-shield.is-active {
+  pointer-events: auto;
 }
 
 .image-annotation-canvas-stage {
   position: relative;
   flex: 0 0 auto;
+  background: transparent;
 }
 
 .image-annotation-object {
@@ -549,6 +562,18 @@
 .image-annotation-entity-display-options {
   display: grid;
   gap: var(--space-2);
+}
+
+.image-annotation-entity-annotation-field {
+  display: grid;
+  gap: var(--space-2);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+}
+
+.image-annotation-entity-annotation-field textarea {
+  box-sizing: border-box;
+  width: 100%;
 }
 
 .image-annotation-entity-fields-help {
