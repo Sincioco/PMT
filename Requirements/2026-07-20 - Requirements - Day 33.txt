@@ -26,6 +26,7 @@ Diagram
 1.) Bug:  See picture.  Why did it take the longst path to connect the two fields?  Connect them the shortest way if possible please.
 2.) Bug:  Expanding the data type of one table did not put it in the front and did not move the table to the left of it.  This is a bug in read-mode.  It seems to work just fine in edit mode.  See picture.
 3.) In Diagram as a general rule, don't allow entities to overlap one another.  Move them so they are always visible.  And if it has a cascading effect, then keep moving entities/tables until they all become visible.  This is for both read and write mode.
+4.) Bug:  Another example of why choose such a long way to get to a field?  Fix it please.
 
 Database Migration Script Testing
 ---------------------------------

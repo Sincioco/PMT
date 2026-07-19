@@ -9,7 +9,7 @@ import {
   setAnnotationEntityCollapsedState,
   setAnnotationEntityDataTypeVisibility,
   zoomAnnotationAtPoint
-} from "../../components/image-annotation.js?v=20260720-entity-no-overlap-v37";
+} from "../../components/image-annotation.js?v=20260720-shortest-field-route-v38";
 import { filterSelect } from "../../components/filters.js";
 import { field, optionalNumberValue, selectOptionsField, value } from "../../components/forms.js?v=20260719-rte-insert-diagram";
 import { sectionHead } from "../../components/sections.js?v=20260718-diagram-library-v8";
@@ -27,7 +27,7 @@ import { formatDate } from "../../shared/dates.js";
 import { appUrl } from "../../shared/app-urls.js";
 import { canAccessResource } from "../../shared/security.js";
 import { escapeAttr, escapeHtml } from "../../shared/text-and-links.js";
-import { buildPmtDatabaseSchemaDiagram } from "./pmt-database-schema.js?v=20260719-diagram-anchor-warning-v29";
+import { buildPmtDatabaseSchemaDiagram } from "./pmt-database-schema.js?v=20260720-shortest-field-route-v30";
 
 const diagramViewModes = new Set(["cards", "tree"]);
 const diagramSortModes = new Set(["latest", "oldest", "name", "custom"]);

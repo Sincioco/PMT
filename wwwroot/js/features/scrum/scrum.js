@@ -13,7 +13,7 @@ import {
   userCardCheckListLabelHtml,
   value
 } from "../../components/forms.js?v=20260719-rte-insert-diagram";
-import { sectionHead } from "../../components/sections.js?v=release-notes-2026-07-20-day-33-7a64f6e35b37";
+import { sectionHead } from "../../components/sections.js?v=release-notes-2026-07-20-day-33-8cbc41e9965d";
 import { createWorkItemTableMode } from "../../components/work-items.js?v=20260715-admin-impersonation";
 import { currentUser } from "../../core/authentication.js?v=20260715-admin-impersonation";
 import {

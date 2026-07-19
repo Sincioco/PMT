@@ -1494,7 +1494,7 @@ test("an Entity relationship reroutes instead of touching an endpoint Entity awa
   assert.equal(entityRouteContactsAwayFromConnectedFields(svg, [parent, blockingEndpoint, child]).length, 0);
 });
 
-test("PMT WorkTasks to Blogs uses the shortest clear field route", async () => {
+test("PMT schema relationships use the shortest clear field routes", async () => {
   const storedSvg = await readFile(
     new URL("../../wwwroot/assets/docs/pmt-database-schema.svg", import.meta.url),
     "utf8"
@@ -1509,16 +1509,22 @@ test("PMT WorkTasks to Blogs uses the shortest clear field route", async () => {
       allowOverlappingLines: state.allowOverlappingEntityLines
     }
   );
-  const match = [...relationshipsSvg.matchAll(
+  const matches = [...relationshipsSvg.matchAll(
     /data-pmt-relationship-source="([^"]+)" data-pmt-relationship-target="([^"]+)"[\s\S]*?<path class="image-annotation-entity-relationship-hit" d="([^"]+)"/g
-  )].find(item => item[1] === "pmt.WorkTasks.LinkedBlogId" && item[2] === "pmt.Blogs.BlogId");
+  )];
+  const assertShortRoute = (source, target, maximumLength) => {
+    const match = matches.find(item => item[1] === source && item[2] === target);
+    assert.ok(match, `the bundled PMT schema should include ${source} to ${target}`);
+    const points = orthogonalPathPoints(match[3]);
+    const length = points.slice(1).reduce((total, point, index) => total
+      + Math.abs(point.x - points[index].x)
+      + Math.abs(point.y - points[index].y), 0);
+    assert.ok(length < maximumLength, `expected a short clear route, received ${length}px: ${match[3]}`);
+  };
 
-  assert.ok(match, "the bundled PMT schema should include WorkTasks.LinkedBlogId to Blogs.BlogId");
-  const points = orthogonalPathPoints(match[3]);
-  const length = points.slice(1).reduce((total, point, index) => total
-    + Math.abs(point.x - points[index].x)
-    + Math.abs(point.y - points[index].y), 0);
-  assert.ok(length < 500, `expected a short clear route, received ${length}px: ${match[3]}`);
+  assertShortRoute("pmt.WorkTasks.LinkedBlogId", "pmt.Blogs.BlogId", 500);
+  assertShortRoute("pmt.UserImageAnnotationTemplateLibraries.UserId", "pmt.Users.UserId", 1000);
+  assertShortRoute("pmt.Lookups.UpdatedByUserId", "pmt.Users.UserId", 1200);
 });
 
 test("Entity size layout separates overlapping relationship endpoints before routing", () => {

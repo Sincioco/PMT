@@ -7641,7 +7641,17 @@ function annotationEntityRelationshipGeometry(relationship, style, options = {})
       );
   }
 
-  if (!points?.length && !skipObstacleRouting && source !== target) {
+  if (!skipObstacleRouting && source !== target) {
+    let bestRoute = points?.length
+      ? {
+          start,
+          end,
+          sourceUnit,
+          targetUnit,
+          points,
+          length: annotationEntityRelationshipRouteLength(points)
+        }
+      : null;
     const sourceSide = start.x === source.x ? "left" : "right";
     const targetSide = end.x === target.x ? "left" : "right";
     const oppositeSide = side => side === "left" ? "right" : "left";
@@ -7661,6 +7671,9 @@ function annotationEntityRelationshipGeometry(relationship, style, options = {})
       };
       const alternateSourceUnit = { x: alternateSourceSide === "right" ? 1 : -1, y: 0 };
       const alternateTargetUnit = { x: alternateTargetSide === "left" ? 1 : -1, y: 0 };
+      const minimumAlternateLength = Math.abs(alternateStart.x - alternateEnd.x)
+        + Math.abs(alternateStart.y - alternateEnd.y);
+      if (bestRoute && minimumAlternateLength >= bestRoute.length) continue;
       const escapeDistance = annotationEntityRelationshipClearance(style);
       const alternateStartEscape = {
         x: alternateStart.x + (alternateSourceUnit.x * escapeDistance),
@@ -7686,12 +7699,27 @@ function annotationEntityRelationshipGeometry(relationship, style, options = {})
         obstacleRouteOptions
       );
       if (!alternatePoints?.length) continue;
-      start = alternateStart;
-      end = alternateEnd;
-      sourceUnit = alternateSourceUnit;
-      targetUnit = alternateTargetUnit;
-      points = alternatePoints;
-      break;
+      const alternateLength = annotationEntityRelationshipRouteLength(alternatePoints);
+      const alternatePath = annotationEntityRelationshipPath(alternatePoints);
+      const bestPath = bestRoute ? annotationEntityRelationshipPath(bestRoute.points) : "";
+      if (bestRoute
+        && (alternateLength > bestRoute.length
+          || (alternateLength === bestRoute.length && alternatePath >= bestPath))) continue;
+      bestRoute = {
+        start: alternateStart,
+        end: alternateEnd,
+        sourceUnit: alternateSourceUnit,
+        targetUnit: alternateTargetUnit,
+        points: alternatePoints,
+        length: alternateLength
+      };
+    }
+    if (bestRoute) {
+      start = bestRoute.start;
+      end = bestRoute.end;
+      sourceUnit = bestRoute.sourceUnit;
+      targetUnit = bestRoute.targetUnit;
+      points = bestRoute.points;
     }
   }
 
@@ -7854,7 +7882,6 @@ function annotationEntityRelationshipObstacleRoute(
   const routeWithEntries = (entries, requiredClearance) => {
     const entities = entries.map(entry => entry.bounds);
     const routingObstacles = entries
-      .filter(entry => !isEndpointObject(entry.object))
       .map(entry => annotationEntityRelationshipRoutingObstacleBounds(
         entry.object,
         entry.bounds,

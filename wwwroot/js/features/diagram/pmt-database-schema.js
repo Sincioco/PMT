@@ -2,7 +2,7 @@ import {
   autoFormatAnnotationEntitiesOrgTree,
   buildAnnotationSvg,
   normalizeAnnotationState
-} from "../../components/image-annotation.js?v=20260720-entity-no-overlap-v37";
+} from "../../components/image-annotation.js?v=20260720-shortest-field-route-v38";
 
 const schemaTitle = "PMT's Diagram Tool by Sin";
 const schemaDiagramName = "PMT's Database Schema";

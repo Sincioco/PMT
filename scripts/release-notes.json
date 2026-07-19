@@ -1316,7 +1316,7 @@
       {
         "title": "Smarter Relationship Routes",
         "items": [
-          "Choose the shortest clear orthogonal path between mapped Entity fields before considering longer obstacle detours, while continuing to avoid tables and non-field attachment points."
+          "Choose the shortest clear orthogonal path between mapped Entity fields, including alternate table sides, and use a perimeter route only when no shorter local route is available."
         ]
       },
       {
