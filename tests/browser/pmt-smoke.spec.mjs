@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { buildAnnotationSvg } from "../../wwwroot/js/components/image-annotation.js";
 import { releaseNotes } from "../../wwwroot/js/shared/release-notes-data.js";
 
 const statuses = [
@@ -15,7 +16,7 @@ const statuses = [
   "Deployed in Prod"
 ];
 
-const attendanceStatuses = ["Home", "Office", "Sick Leave", "Vacation", "EL", "Other"];
+const attendanceStatuses = ["Office", "Home", "Sick Leave", "Vacation", "EL", "Other"];
 const smokeToday = "2026-07-15";
 
 test.use({ timezoneId: "Asia/Taipei" });
@@ -45,7 +46,7 @@ test("login, navigation, themes, dialogs, filters, Board, Gantt, and Road Map sm
 
   await page.addInitScript(() => {
     localStorage.clear();
-    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-18-day-31@59d6c74b8c72");
+    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-19-day-32@e6da1a611017");
     localStorage.setItem("pmt-navigation", JSON.stringify({
       version: 2,
       items: [
@@ -523,7 +524,7 @@ test("Developer Board moves stop after QA Passed while QA Ready remains availabl
 
   await page.addInitScript(() => {
     localStorage.clear();
-    localStorage.setItem("pmt-release-notes-last-seen:2", "2026-07-18-day-31@59d6c74b8c72");
+    localStorage.setItem("pmt-release-notes-last-seen:2", "2026-07-19-day-32@e6da1a611017");
   });
   await installApiMocks(page, appState, apiCalls);
   await page.goto("/");
@@ -570,7 +571,7 @@ test("Scrum attendance, calendar, on-behalf, and vacation flows stay synchronize
       localStorage.clear();
       sessionStorage.setItem("pmt-scrum-attendance-smoke-started", "true");
     }
-    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-18-day-31@59d6c74b8c72");
+    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-19-day-32@e6da1a611017");
   });
   await installApiMocks(page, appState, apiCalls);
 
@@ -579,55 +580,40 @@ test("Scrum attendance, calendar, on-behalf, and vacation flows stay synchronize
 
   const scrumHeader = page.locator(".scrum-screen .section-head");
   const scrumTablePanel = page.locator(".scrum-table-panel");
-  const scrumViewToggle = page.locator(".scrum-view-toggle");
-  const tableViewButton = page.locator("[data-action='set-scrum-view'][data-mode='table']");
-  const calendarViewButton = page.locator("[data-action='set-scrum-view'][data-mode='calendar']");
+  const checkInButton = page.locator("[data-action='check-in-attendance']");
+  await expect(scrumTablePanel).toBeVisible();
+  await expect(page.locator("[data-scrum-calendar]")).toHaveCount(0);
   await expect.poll(() => typeof apiCalls.releaseAttendanceGets).toBe("function");
   await expect(page.locator("[data-scrum-attendance-roster] [data-scrum-today-user]")).toHaveCount(0);
   const headerBeforeAttendance = await scrumHeader.boundingBox();
   const tableBeforeAttendance = await scrumTablePanel.boundingBox();
-  const toggleBeforeAttendance = await scrumViewToggle.boundingBox();
   apiCalls.releaseAttendanceGets();
 
-  const attendanceSelect = page.locator("[data-scrum-attendance-select]");
-  await expect(attendanceSelect).toBeVisible();
-  await expect(attendanceSelect).toHaveValue("Office");
-  const attendanceLabels = (await attendanceSelect.locator("option").allTextContents()).map(label => label.trim());
-  for (const label of ["🏠 Home", "🏢 Office", "🤒 Sick Leave", "☀ Vacation", "⚠ EL", "… Other"]) {
-    expect(attendanceLabels).toContain(label);
-  }
-  await expect(attendanceSelect.locator("option[value='EL']")).toHaveAttribute("title", "Emergency Leave");
+  await expect(page.locator(".scrum-view-toggle, [data-scrum-attendance-select]")).toHaveCount(0);
+  await expect(checkInButton).toBeVisible();
 
   await expect(scrumTodayStatus(page, 1, "Office")).toBeVisible();
   await expect(scrumTodayStatus(page, 2, "Home")).toBeVisible();
   await expect(scrumTodayStatus(page, 3, "Vacation")).toBeVisible();
   const headerAfterAttendance = await scrumHeader.boundingBox();
   const tableAfterAttendance = await scrumTablePanel.boundingBox();
-  const toggleAfterAttendance = await scrumViewToggle.boundingBox();
   expect(headerBeforeAttendance).not.toBeNull();
   expect(tableBeforeAttendance).not.toBeNull();
-  expect(toggleBeforeAttendance).not.toBeNull();
   expect(headerAfterAttendance).not.toBeNull();
   expect(tableAfterAttendance).not.toBeNull();
-  expect(toggleAfterAttendance).not.toBeNull();
   expect(headerAfterAttendance.height).toBeCloseTo(headerBeforeAttendance.height, 0);
   expect(tableAfterAttendance.y).toBeCloseTo(tableBeforeAttendance.y, 0);
-  expect(toggleAfterAttendance.x).toBeCloseTo(toggleBeforeAttendance.x, 0);
-  expect(toggleAfterAttendance.y).toBeCloseTo(toggleBeforeAttendance.y, 0);
   const titleAvatarBox = await page.locator(".scrum-today-avatar").first().boundingBox();
   const statusBadgeBox = await page.locator(".scrum-attendance-badge").first().boundingBox();
-  const scrumScreenBox = await page.locator(".scrum-screen").boundingBox();
+  const appShellBox = await page.locator(".app-shell").boundingBox();
   expect(titleAvatarBox).not.toBeNull();
   expect(statusBadgeBox).not.toBeNull();
-  expect(scrumScreenBox).not.toBeNull();
-  expect(titleAvatarBox.width).toBeCloseTo(80, 0);
-  expect(titleAvatarBox.height).toBeCloseTo(80, 0);
-  expect(statusBadgeBox.width).toBeGreaterThanOrEqual(28);
-  expect(statusBadgeBox.height).toBeGreaterThanOrEqual(28);
-  expect(titleAvatarBox.y + titleAvatarBox.height / 2)
-    .toBeCloseTo((scrumScreenBox.y + tableAfterAttendance.y) / 2, 0);
-  await expect(tableViewButton).toHaveAttribute("aria-pressed", "true");
-  await expect(calendarViewButton).toHaveAttribute("aria-pressed", "false");
+  expect(appShellBox).not.toBeNull();
+  expect(titleAvatarBox.width).toBeCloseTo(74, 0);
+  expect(titleAvatarBox.height).toBeCloseTo(74, 0);
+  expect(statusBadgeBox.width).toBeGreaterThanOrEqual(18);
+  expect(statusBadgeBox.height).toBeGreaterThanOrEqual(18);
+  expect(titleAvatarBox.y - appShellBox.y).toBeGreaterThanOrEqual(4);
   expect(await page.locator("[data-scrum-today-user]").evaluateAll(buttons => buttons.every((button, index) => {
     const box = button.getBoundingClientRect();
     return buttons.slice(index + 1).every(other => {
@@ -637,6 +623,24 @@ test("Scrum attendance, calendar, on-behalf, and vacation flows stay synchronize
   }))).toBe(true);
 
   const billRosterButton = scrumTodayPersonButton(page, 2);
+  await billRosterButton.click();
+  await expect(page.locator(".scrum-table tbody")).toContainText("No Scrum entries match");
+  await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem("pmt-scrum-filters") || "{}").personIds || []))
+    .toEqual(["2"]);
+  await billRosterButton.click();
+  await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem("pmt-scrum-filters") || "{}").personIds || []))
+    .toEqual([]);
+  await expect(page.locator(".scrum-table tbody")).toContainText("Validated smoke data and regression coverage.");
+  await expect(billRosterButton).toHaveAttribute("aria-pressed", "false");
+
+  await billRosterButton.click();
+  await scrumTodayPersonButton(page, 1).click();
+  await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem("pmt-scrum-filters") || "{}").personIds || []))
+    .toEqual(["1"]);
+  await expect(scrumTodayPersonButton(page, 1)).toHaveAttribute("aria-pressed", "true");
+  await expect(billRosterButton).toHaveAttribute("aria-pressed", "false");
+  await expect(page.locator(".scrum-table tbody")).toContainText("Validated smoke data and regression coverage.");
+
   await billRosterButton.click();
   await expect(page.locator(".scrum-table tbody")).toContainText("No Scrum entries match");
   await showFilters(page, "open-scrum-filters");
@@ -654,30 +658,50 @@ test("Scrum attendance, calendar, on-behalf, and vacation flows stay synchronize
     .toEqual(["1", "2", "3"]);
   await page.getByRole("button", { name: "Done" }).click();
 
-  await attendanceSelect.selectOption("Other");
+  await checkInButton.click();
+  let checkInDialog = page.locator("[data-scrum-check-in-dialog]");
+  await expect(checkInDialog.getByRole("heading", { name: "Check-In", exact: true })).toBeVisible();
+  await expectDialogLabelledByOwnHeading(checkInDialog, "Check-In");
+  const attendanceChoices = checkInDialog.locator("input[name='status']");
+  await expect(attendanceChoices).toHaveCount(6);
+  expect(await attendanceChoices.evaluateAll(inputs => inputs.map(input => input.value))).toEqual([
+    "Office",
+    "Home",
+    "Sick Leave",
+    "Vacation",
+    "EL",
+    "Other"
+  ]);
+  await expect(checkInDialog.locator("input[name='status'][value='Office']")).toBeChecked();
+  await expect(checkInDialog.locator("label[title='Emergency Leave'] input[value='EL']")).toHaveCount(1);
+  await checkInDialog.locator("input[name='status'][value='Other']").check();
+  await checkInDialog.getByRole("button", { name: "Check-In", exact: true }).click();
   await expect.poll(() => page.evaluate(() => localStorage.getItem("pmt-scrum-attendance-status"))).toBe("Other");
-  await page.locator("[data-action='check-in-attendance']").click();
   await expect.poll(() => appState.attendanceEntries.some(item => item.userId === 1
     && item.attendanceDate === smokeToday
     && item.status === "Other")).toBe(true);
   await expect(scrumTodayStatus(page, 1, "Other")).toBeVisible();
   await page.reload();
-  await expect(attendanceSelect).toHaveValue("Other");
   await expect(scrumTodayStatus(page, 1, "Other")).toBeVisible();
+  await checkInButton.click();
+  checkInDialog = page.locator("[data-scrum-check-in-dialog]");
+  await expect(checkInDialog.locator("input[name='status'][value='Other']")).toBeChecked();
+  await checkInDialog.getByRole("button", { name: "Cancel", exact: true }).click();
 
   await page.locator(".page-actions-summary").click();
   const scrumActions = page.locator(".page-actions-list");
   await expect(scrumActions).not.toContainText("Graphs");
-  await expect(scrumActions.locator("[data-action='toggle-scrum-calendar']")).toHaveCount(0);
+  const calendarViewAction = scrumActions.locator("[data-action='toggle-scrum-calendar-view']");
+  await expect(scrumActions.locator("[data-action='set-scrum-table-view']")).toHaveCount(0);
+  await expect(scrumActions).not.toContainText("Table View");
+  await expect(calendarViewAction).toContainText("Calendar View");
+  await expect(calendarViewAction).toHaveAttribute("aria-checked", "false");
   await expect(scrumActions.locator("[data-action='open-scrum-on-behalf']")).toContainText("On Behalf Of...");
   await expect(scrumActions.locator("[data-action='open-scrum-vacation']")).toContainText("Vacation...");
-  await page.locator(".page-actions-summary").click();
   const headerBeforeCalendar = await scrumHeader.boundingBox();
-  const toggleBeforeCalendar = await scrumViewToggle.boundingBox();
-  await calendarViewButton.click();
-  await expect(tableViewButton).toHaveAttribute("aria-pressed", "false");
-  await expect(calendarViewButton).toHaveAttribute("aria-pressed", "true");
+  await calendarViewAction.click();
   await expect.poll(() => page.evaluate(() => localStorage.getItem("pmt-scrum-calendar-visible"))).toBe("true");
+  await expect(calendarViewAction).toHaveAttribute("aria-checked", "true");
 
   const calendar = page.locator("[data-scrum-calendar]");
   const todayCell = calendar.locator(`[data-scrum-calendar-day='${smokeToday}']`);
@@ -705,16 +729,11 @@ test("Scrum attendance, calendar, on-behalf, and vacation flows stay synchronize
   const calendarBox = await calendar.boundingBox();
   const tableBox = await page.locator(".scrum-table").boundingBox();
   const headerAfterCalendar = await scrumHeader.boundingBox();
-  const toggleAfterCalendar = await scrumViewToggle.boundingBox();
   expect(calendarBox).not.toBeNull();
   expect(tableBox).not.toBeNull();
   expect(headerBeforeCalendar).not.toBeNull();
-  expect(toggleBeforeCalendar).not.toBeNull();
   expect(headerAfterCalendar).not.toBeNull();
-  expect(toggleAfterCalendar).not.toBeNull();
   expect(headerAfterCalendar.height).toBeCloseTo(headerBeforeCalendar.height, 0);
-  expect(toggleAfterCalendar.x).toBeCloseTo(toggleBeforeCalendar.x, 0);
-  expect(toggleAfterCalendar.y).toBeCloseTo(toggleBeforeCalendar.y, 0);
   expect(calendarBox.y + calendarBox.height).toBeLessThanOrEqual(tableBox.y + 1);
 
   const ownOfficeAttendance = scrumCalendarOccurrenceButton(page, smokeToday, 1, "Office", "attendance");
@@ -822,21 +841,23 @@ test("Scrum attendance, calendar, on-behalf, and vacation flows stay synchronize
     await expect(scrumCalendarVacationAvatar(page, `2026-08-${day}`, 1)).toHaveCount(0);
   }
 
-  await tableViewButton.click();
-  await expect(tableViewButton).toHaveAttribute("aria-pressed", "true");
-  await expect(calendarViewButton).toHaveAttribute("aria-pressed", "false");
+  await clickPageAction(page, "toggle-scrum-calendar-view");
+  await expect(calendarViewAction).toHaveAttribute("aria-checked", "false");
   await expect(calendar).toHaveCount(0);
   await expect(scrumTablePanel).toBeVisible();
   await expect.poll(() => page.evaluate(() => localStorage.getItem("pmt-scrum-calendar-visible"))).toBe("false");
 
   await clickPageAction(page, "reset-scrum-view");
-  await expect(attendanceSelect).toHaveValue("Office");
   await expect.poll(() => page.evaluate(() => localStorage.getItem("pmt-scrum-attendance-status"))).toBeNull();
+  await checkInButton.click();
+  checkInDialog = page.locator("[data-scrum-check-in-dialog]");
+  await expect(checkInDialog.locator("input[name='status'][value='Office']")).toBeChecked();
+  await checkInDialog.getByRole("button", { name: "Cancel", exact: true }).click();
 
   expect(browserErrors).toEqual([]);
 });
 
-test("Scrum view toggle matches Documentation and crowded attendance avatars fit its header lane", async ({ page }) => {
+test("Scrum header reserves its title and attendance avatars expand toward Check-In", async ({ page }) => {
   const appState = createTestState();
   const apiCalls = { securityReset: 0, sessionUserId: 1 };
   const addedUsers = Array.from({ length: 7 }, (_, index) => {
@@ -869,7 +890,7 @@ test("Scrum view toggle matches Documentation and crowded attendance avatars fit
   await page.clock.setFixedTime(new Date("2026-07-15T08:00:00+08:00"));
   await page.addInitScript(() => {
     localStorage.clear();
-    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-18-day-31@59d6c74b8c72");
+    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-19-day-32@e6da1a611017");
   });
   await installApiMocks(page, appState, apiCalls);
 
@@ -877,60 +898,57 @@ test("Scrum view toggle matches Documentation and crowded attendance avatars fit
   await openNavView(page, "Scrum", "Scrum");
   const scrumRoster = page.locator("[data-scrum-attendance-roster]");
   await expect(scrumRoster.locator("[data-scrum-today-user]")).toHaveCount(10);
+  await expect(page.locator(".scrum-screen .section-head .scrum-view-toggle, .scrum-screen .section-head [data-scrum-attendance-select]")).toHaveCount(0);
+  const selectedAvatar = scrumTodayPersonButton(page, 1);
+  await selectedAvatar.click();
+  await expect(selectedAvatar).toHaveAttribute("aria-pressed", "true");
+  const scrumTableTop = (await page.locator(".scrum-table-panel").boundingBox()).y;
 
   const scrumLayout = await page.locator(".scrum-screen .section-head").evaluate(header => {
     const title = header.querySelector("h1");
-    const toggle = header.querySelector(".scrum-view-toggle");
-    const toggleButton = toggle.querySelector(".scrum-view-toggle-button");
-    const toggleButtons = [...toggle.querySelectorAll(".scrum-view-toggle-button")];
-    const icon = toggleButton.querySelector(".button-icon");
-    const label = toggleButton.querySelector(".button-icon + span");
     const rosterButtons = [...header.querySelectorAll("[data-scrum-today-user]")];
-    const headerBox = header.getBoundingClientRect();
     const titleBox = title.getBoundingClientRect();
-    const toggleBox = toggle.getBoundingClientRect();
-    const attendanceControl = header.querySelector("[data-scrum-attendance-control]");
-    const actionBox = attendanceControl.getBoundingClientRect();
+    const checkIn = header.querySelector("[data-action='check-in-attendance']");
+    const checkInBox = checkIn.getBoundingClientRect();
     const avatarBoxes = rosterButtons.map(button => button.getBoundingClientRect());
     const avatarImageBoxes = rosterButtons.map(button => button.querySelector(".scrum-today-avatar").getBoundingClientRect());
-    const buttonStyle = getComputedStyle(toggleButton);
-    const iconStyle = getComputedStyle(icon);
-    const labelStyle = getComputedStyle(label);
+    const selectedButton = header.querySelector(".scrum-today-person.is-selected");
+    const selectedBox = selectedButton.getBoundingClientRect();
     return {
       avatarBoxes: avatarBoxes.map(box => ({ left: box.left, right: box.right })),
       avatarWidths: avatarImageBoxes.map(box => box.width),
-      buttonHeight: toggleButton.getBoundingClientRect().height,
-      buttonFontSize: labelStyle.fontSize,
-      buttonGap: buttonStyle.columnGap,
-      headerCenter: headerBox.left + headerBox.width / 2,
-      iconFontSize: iconStyle.fontSize,
+      avatarTop: avatarImageBoxes[0]?.top || 0,
+      checkInLeft: checkInBox.left,
+      appTop: header.closest(".app-shell").getBoundingClientRect().top,
+      headerGap: Number.parseFloat(getComputedStyle(header).columnGap) || 0,
+      selectedBorderWidth: Number.parseFloat(getComputedStyle(selectedButton).borderTopWidth) || 0,
+      selectedBottom: selectedBox.bottom,
+      selectedTop: selectedBox.top,
       titleTop: titleBox.top,
       titleRight: titleBox.right,
-      toggleCenter: toggleBox.left + toggleBox.width / 2,
-      toggleLeft: toggleBox.left,
-      toggleRight: toggleBox.right,
       actionTops: {
-        table: toggleButtons[0].getBoundingClientRect().top,
-        calendar: toggleButtons[1].getBoundingClientRect().top,
-        attendanceControl: actionBox.top,
-        attendance: attendanceControl.querySelector("[data-scrum-attendance-select]").getBoundingClientRect().top,
-        checkIn: attendanceControl.querySelector("[data-action='check-in-attendance']").getBoundingClientRect().top,
+        checkIn: checkInBox.top,
         newItem: header.querySelector("[data-action='new-log']").getBoundingClientRect().top,
         filters: header.querySelector("[data-action='open-scrum-filters']").getBoundingClientRect().top,
         overflow: header.querySelector(".page-actions-summary").getBoundingClientRect().top
-      },
-      actionLeft: actionBox.left
+      }
     };
   });
 
-  expect(scrumLayout.toggleCenter).toBeCloseTo(scrumLayout.headerCenter, 0);
-  expect(scrumLayout.avatarWidths.every(width => width > 0 && width < 80)).toBe(true);
+  expect(scrumLayout.avatarWidths.every(width => width > 38 && width <= 74)).toBe(true);
+  if (page.viewportSize().width >= 1920) {
+    expect(scrumLayout.avatarWidths.every(width => Math.abs(width - 74) <= 1)).toBe(true);
+  }
+  expect(scrumLayout.avatarTop - scrumLayout.appTop).toBeGreaterThanOrEqual(4);
+  expect(scrumLayout.selectedTop - scrumLayout.appTop).toBeGreaterThanOrEqual(2);
+  expect(scrumLayout.selectedBottom).toBeLessThanOrEqual(scrumTableTop - 2);
+  expect(scrumLayout.selectedBorderWidth).toBeGreaterThanOrEqual(1);
   expect(scrumLayout.avatarBoxes[0].left).toBeGreaterThanOrEqual(scrumLayout.titleRight);
-  expect(scrumLayout.avatarBoxes.at(-1).right).toBeLessThanOrEqual(scrumLayout.toggleLeft);
-  expect(scrumLayout.toggleRight).toBeLessThanOrEqual(scrumLayout.actionLeft);
+  expect(scrumLayout.avatarBoxes.at(-1).right).toBeLessThanOrEqual(scrumLayout.checkInLeft - scrumLayout.headerGap);
   expect(scrumLayout.avatarBoxes.every((box, index) => index === 0 || scrumLayout.avatarBoxes[index - 1].right <= box.left)).toBe(true);
 
   await openNavView(page, "Tasks", "Dev Tasks");
+  const devTaskContentTop = (await page.locator(".tasks-chart-panel, .tasks-table-panel").first().boundingBox()).y;
   const devTaskLayout = await page.locator(".tasks-screen .section-head").evaluate(header => ({
     actionTops: {
       newItem: header.querySelector("[data-action='new-task']").getBoundingClientRect().top,
@@ -940,6 +958,7 @@ test("Scrum view toggle matches Documentation and crowded attendance avatars fit
     titleTop: header.querySelector("h1").getBoundingClientRect().top
   }));
   expect(scrumLayout.titleTop).toBeCloseTo(devTaskLayout.titleTop, 0);
+  expect(scrumTableTop).toBeCloseTo(devTaskContentTop, 0);
   const devTaskActionTop = devTaskLayout.actionTops.newItem;
   for (const top of Object.values(devTaskLayout.actionTops)) {
     expect(Math.abs(top - devTaskActionTop)).toBeLessThanOrEqual(1);
@@ -947,32 +966,6 @@ test("Scrum view toggle matches Documentation and crowded attendance avatars fit
   for (const top of Object.values(scrumLayout.actionTops)) {
     expect(Math.abs(top - devTaskActionTop)).toBeLessThanOrEqual(1);
   }
-
-  await openNavView(page, "Documentation", "Documentation");
-  const documentationLayout = await page.locator(".documentation-screen .section-head").evaluate(header => {
-    const toggle = header.querySelector(".documentation-view-toggle");
-    const toggleButton = toggle.querySelector(".documentation-view-toggle-button");
-    const icon = toggleButton.querySelector(".button-icon");
-    const label = toggleButton.querySelector(".button-icon + span");
-    const search = header.querySelector("[data-idle-filter-header-search-control]");
-    const headerBox = header.getBoundingClientRect();
-    const searchBox = search.getBoundingClientRect();
-    const buttonStyle = getComputedStyle(toggleButton);
-    return {
-      buttonHeight: toggleButton.getBoundingClientRect().height,
-      buttonFontSize: getComputedStyle(label).fontSize,
-      buttonGap: buttonStyle.columnGap,
-      headerCenter: headerBox.left + headerBox.width / 2,
-      iconFontSize: getComputedStyle(icon).fontSize,
-      searchCenter: searchBox.left + searchBox.width / 2
-    };
-  });
-
-  expect(documentationLayout.searchCenter).toBeCloseTo(documentationLayout.headerCenter, 0);
-  expect(scrumLayout.buttonHeight).toBeCloseTo(documentationLayout.buttonHeight, 0);
-  expect(scrumLayout.buttonFontSize).toBe(documentationLayout.buttonFontSize);
-  expect(scrumLayout.buttonGap).toBe(documentationLayout.buttonGap);
-  expect(scrumLayout.iconFontSize).toBe(documentationLayout.iconFontSize);
 });
 
 test("Scrum auto-refresh updates the table and attendance without reload or interaction loss", async ({ page }) => {
@@ -995,7 +988,7 @@ test("Scrum auto-refresh updates the table and attendance without reload or inte
   await page.clock.pauseAt(new Date("2026-07-15T08:00:00+08:00"));
   await page.addInitScript(() => {
     localStorage.clear();
-    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-18-day-31@59d6c74b8c72");
+    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-19-day-32@e6da1a611017");
   });
   await installApiMocks(page, appState, apiCalls);
 
@@ -1009,11 +1002,13 @@ test("Scrum auto-refresh updates the table and attendance without reload or inte
   await expect(scrumTodayStatus(page, 2, "Home")).toBeVisible();
 
   const initialStateGets = apiCalls.stateGets;
-  const attendanceSelect = page.locator("[data-scrum-attendance-select]");
-  await attendanceSelect.selectOption("Other");
+  await page.locator("[data-action='check-in-attendance']").click();
+  const checkInDialog = page.locator("[data-scrum-check-in-dialog]");
+  await checkInDialog.locator("input[name='status'][value='Other']").check();
   await page.clock.fastForward(5000);
   expect(apiCalls.stateGets).toBe(initialStateGets);
-  await expect(attendanceSelect).toHaveValue("Other");
+  await expect(checkInDialog.locator("input[name='status'][value='Other']")).toBeChecked();
+  await checkInDialog.getByRole("button", { name: "Cancel", exact: true }).click();
 
   await openNavView(page, "Documentation", "Documentation");
   await page.clock.fastForward(5000);
@@ -1125,7 +1120,7 @@ test("Scrum auto-refresh invalidates the visible Calendar month without shifting
   await page.clock.pauseAt(new Date("2026-07-15T08:00:00+08:00"));
   await page.addInitScript(() => {
     localStorage.clear();
-    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-18-day-31@59d6c74b8c72");
+    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-19-day-32@e6da1a611017");
   });
   await installApiMocks(page, appState, apiCalls);
 
@@ -1136,13 +1131,12 @@ test("Scrum auto-refresh invalidates the visible Calendar month without shifting
   await page.goto("/");
   documentNavigationRequests = 0;
   await openNavView(page, "Scrum", "Scrum");
-  await page.locator("[data-action='set-scrum-view'][data-mode='calendar']").click();
+  await clickPageAction(page, "toggle-scrum-calendar-view");
   const calendar = page.locator("[data-scrum-calendar]");
   const todayCell = calendar.locator(`[data-scrum-calendar-day='${smokeToday}']`);
   await expect(todayCell.locator("[data-attendance-status='Home'] [data-scrum-calendar-user='2']")).toBeVisible();
 
   const header = page.locator(".scrum-screen .section-head");
-  const toggle = page.locator(".scrum-view-toggle");
   const tablePanel = page.locator(".scrum-table-panel");
   await page.locator("[data-action='scrum-calendar-next']").focus();
   const scrollBefore = await page.evaluate(() => {
@@ -1161,7 +1155,6 @@ test("Scrum auto-refresh invalidates the visible Calendar month without shifting
     };
   });
   const headerBefore = await header.boundingBox();
-  const toggleBefore = await toggle.boundingBox();
   const calendarBefore = await calendar.boundingBox();
   const tableBefore = await tablePanel.boundingBox();
 
@@ -1190,19 +1183,17 @@ test("Scrum auto-refresh invalidates the visible Calendar month without shifting
   await expect(todayCell.locator("[data-attendance-status='Office'] [data-scrum-calendar-user='2']")).toBeVisible();
   await expect(todayCell.locator("[data-attendance-status='Vacation'] [data-scrum-calendar-user='1']")).toBeVisible();
   await expect(scrumTodayStatus(page, 2, "Office")).toBeVisible();
-  await expect(page.locator("[data-action='set-scrum-view'][data-mode='calendar']")).toHaveAttribute("aria-pressed", "true");
+  await expect(page.locator("[data-action='toggle-scrum-calendar-view']")).toHaveAttribute("aria-checked", "true");
+  await expect(page.locator("[data-action='set-scrum-table-view']")).toHaveCount(0);
   await expect(page.locator("[data-action='scrum-calendar-next']")).toBeFocused();
 
   const headerAfter = await header.boundingBox();
-  const toggleAfter = await toggle.boundingBox();
   const calendarAfter = await calendar.boundingBox();
   const tableAfter = await tablePanel.boundingBox();
   expect(headerAfter.x).toBeCloseTo(headerBefore.x, 0);
   expect(headerAfter.y).toBeCloseTo(headerBefore.y, 0);
   expect(headerAfter.width).toBeCloseTo(headerBefore.width, 0);
   expect(headerAfter.height).toBeCloseTo(headerBefore.height, 0);
-  expect(toggleAfter.x).toBeCloseTo(toggleBefore.x, 0);
-  expect(toggleAfter.y).toBeCloseTo(toggleBefore.y, 0);
   expect(calendarAfter.x).toBeCloseTo(calendarBefore.x, 0);
   expect(calendarAfter.y).toBeCloseTo(calendarBefore.y, 0);
   expect(calendarAfter.width).toBeCloseTo(calendarBefore.width, 0);
@@ -1237,16 +1228,20 @@ test("Scrum read-only permission disables attendance and vacation mutations", as
   await page.clock.setFixedTime(new Date("2026-07-15T08:00:00+08:00"));
   await page.addInitScript(() => {
     localStorage.clear();
-    localStorage.setItem("pmt-release-notes-last-seen:2", "2026-07-18-day-31@59d6c74b8c72");
+    localStorage.setItem("pmt-release-notes-last-seen:2", "2026-07-19-day-32@e6da1a611017");
   });
   await installApiMocks(page, appState, apiCalls);
 
   await page.goto("/");
   await openNavView(page, "Scrum", "Scrum");
-  await expect(page.locator("[data-scrum-attendance-select]")).toBeDisabled();
+  await expect(page.locator("[data-scrum-attendance-select]")).toHaveCount(0);
   await expect(page.locator("[data-action='check-in-attendance']")).toBeDisabled();
+  await page.locator("[data-action='check-in-attendance']").evaluate(button => button.click());
+  await expect(page.locator("[data-scrum-check-in-dialog]")).toHaveCount(0);
 
   await page.locator(".page-actions-summary").click();
+  await expect(page.locator(".page-actions-list [data-action='set-scrum-table-view']")).toHaveCount(0);
+  await expect(page.locator(".page-actions-list [data-action='toggle-scrum-calendar-view']")).toBeEnabled();
   await expect(page.locator(".page-actions-list [data-action='open-scrum-on-behalf']")).toBeDisabled();
   await expect(page.locator(".page-actions-list [data-action='open-scrum-vacation']")).toBeDisabled();
   await expect(page.locator("[data-scrum-on-behalf-dialog], [data-scrum-vacation-dialog]")).toHaveCount(0);
@@ -1268,8 +1263,8 @@ test("Scrum attendance cache follows the restored cookie session user", async ({
   await page.clock.setFixedTime(new Date("2026-07-15T08:00:00+08:00"));
   await page.addInitScript(() => {
     localStorage.clear();
-    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-18-day-31@59d6c74b8c72");
-    localStorage.setItem("pmt-release-notes-last-seen:2", "2026-07-18-day-31@59d6c74b8c72");
+    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-19-day-32@e6da1a611017");
+    localStorage.setItem("pmt-release-notes-last-seen:2", "2026-07-19-day-32@e6da1a611017");
   });
   await installApiMocks(page, appState, apiCalls);
 
@@ -2104,6 +2099,44 @@ test("Documentation and Sprints share synchronized idle headers and bulk delete"
   await expectIdleHeaderControlsNotToOverlap(documentationHeader);
   await expectIdleHeaderExpandedSearch(documentationHeader);
 
+  await newDocumentButton.click();
+  await expect(page.locator(".documentation-screen")).toHaveClass(/is-tree-view/);
+  await expect(page.locator(".documentation-tree-layout")).toHaveClass(/is-tree-hidden/);
+  await expect(page.locator(".documentation-tree-pane")).toBeHidden();
+  await expect(page.locator("[data-documentation-inline-editor][data-blog-id='-1']")).toBeVisible();
+  await page.locator("[data-action='cancel-documentation-inline-edit']").first().click();
+  await documentationHeader.locator("[data-action='set-documentation-view'][data-mode='cards']").click();
+
+  await page.locator(".documentation-card[data-id='1']").click();
+  const documentationReadOnlyDialog = page.locator("dialog.documentation-readonly-dialog");
+  await expect(documentationReadOnlyDialog).toBeVisible();
+  await documentationReadOnlyDialog.locator("[data-edit-readonly-blog='1']").click();
+  await expect(page.locator("#editorDialog")).toBeVisible();
+  const documentationFullScreenEdit = page.locator("[data-documentation-full-screen-edit='1']");
+  await expect(documentationFullScreenEdit).toBeVisible();
+  await expect(documentationFullScreenEdit).toHaveAttribute("title", "View Full-Screen");
+  await documentationFullScreenEdit.click();
+  await expect(page.locator("#editorDialog")).not.toBeVisible();
+  await expect(page.locator(".documentation-tree-layout")).toHaveClass(/is-tree-hidden/);
+  await expect(page.locator("[data-documentation-inline-editor][data-blog-id='1']")).toBeVisible();
+  await page.locator("[data-action='cancel-documentation-inline-edit']").first().click();
+
+  await documentationHeader.locator("[data-action='set-documentation-view'][data-mode='cards']").click();
+  await documentationHeader.locator("[data-action='set-documentation-view'][data-mode='tree']").click();
+  await page.locator(".page-actions-summary").click();
+  let leftNavMenuItem = page.locator(".page-actions-list [data-action='toggle-documentation-tree-pane']");
+  await expect(leftNavMenuItem.locator(".page-actions-label")).toHaveText("Left Nav");
+  await expect(leftNavMenuItem).toHaveClass(/is-checked/);
+  await leftNavMenuItem.click();
+  await expect(page.locator(".documentation-tree-layout")).toHaveClass(/is-tree-hidden/);
+  await page.locator(".page-actions-summary").click();
+  leftNavMenuItem = page.locator(".page-actions-list [data-action='toggle-documentation-tree-pane']");
+  await expect(leftNavMenuItem).not.toHaveClass(/is-checked/);
+  await expect(leftNavMenuItem.locator(".page-actions-check")).toHaveText("");
+  await leftNavMenuItem.click();
+  await expect(page.locator(".documentation-tree-layout")).not.toHaveClass(/is-tree-hidden/);
+  await documentationHeader.locator("[data-action='set-documentation-view'][data-mode='cards']").click();
+
   await documentationProject.selectOption("10");
   await documentationSprint.selectOption("all");
   await documentationSearch.fill("regression guide");
@@ -2414,7 +2447,37 @@ test("Diagram parses T-SQL Entities and exposes individual relationship Objects"
   const appState = createTestState();
   const apiCalls = {
     securityReset: 0,
-    pmtDatabaseSchema: testPmtDatabaseSchema()
+    pmtDatabaseSchema: testPmtDatabaseSchema(),
+    annotationDefaultTemplateLibrary: {
+      version: 1,
+      templates: [{
+        id: "template-green-box-with-text",
+        name: "Green Box with Text",
+        grouped: false,
+        width: 224,
+        height: 116,
+        objects: [{
+          id: "green-box-text",
+          type: "textbox",
+          x: 0,
+          y: 0,
+          width: 224,
+          height: 116,
+          fill: "#4ea72e",
+          stroke: "#4ea72e",
+          outlineVisible: true,
+          strokeWidth: 4,
+          opacity: 1,
+          text: "Hello World",
+          textColor: "#ffffff",
+          fontFamily: "Arial",
+          fontSize: 28,
+          textAlign: "center",
+          textVerticalAlign: "middle"
+        }]
+      }],
+      defaults: { arrow: null, rectangle: null }
+    }
   };
   await markCurrentReleaseSeen(page, 1);
   await installApiMocks(page, appState, apiCalls);
@@ -2427,13 +2490,36 @@ test("Diagram parses T-SQL Entities and exposes individual relationship Objects"
   await page.getByRole("button", { name: "New Diagram", exact: true }).click();
   await expect.poll(() => apiCalls.blogCreates?.length || 0).toBe(1);
 
-  const dialog = page.locator("[data-diagram-editor-host] > dialog.image-annotation-dialog");
+  const dialog = page.locator("dialog.image-annotation-dialog");
   const canvas = dialog.locator("[data-annotation-canvas]");
   await expect(dialog).toBeVisible();
-  await expect(page.locator("dialog.image-annotation-dialog:modal")).toHaveCount(0);
+  await expect(dialog).toHaveClass(/is-annotation-maximized/);
+  await expect(page.locator("dialog.image-annotation-dialog:modal")).toHaveCount(1);
+  await expect(page.locator("[data-diagram-editor-host]")).toHaveCount(0);
+  await expect(dialog.locator("[data-annotation-zoom-select]")).toHaveValue("100");
+  await expect(dialog.locator("[data-annotation-zoom-select] option")).toHaveCount(59);
+  await expect(dialog.locator("[data-annotation-zoom-select] option").last()).toHaveText("300%");
+  const initialTemplateObject = canvas.locator("[data-annotation-object-type='textbox']", { hasText: "Hello World" });
+  await expect(initialTemplateObject).toHaveCount(1);
+  await expect.poll(async () => {
+    const objectBox = await initialTemplateObject.boundingBox();
+    const workspaceCenter = await dialog.locator("[data-annotation-workspace]").evaluate(workspace => {
+      const bounds = workspace.getBoundingClientRect();
+      return {
+        x: bounds.left + workspace.clientLeft + (workspace.clientWidth / 2),
+        y: bounds.top + workspace.clientTop + (workspace.clientHeight / 2)
+      };
+    });
+    return {
+      x: Math.round((objectBox.x + (objectBox.width / 2)) - workspaceCenter.x),
+      y: Math.round((objectBox.y + (objectBox.height / 2)) - workspaceCenter.y)
+    };
+  }).toEqual({ x: 0, y: 0 });
   await expect(page.locator(".diagram-tree-pane")).toContainText("Untitled 1");
   expect(apiCalls.blogCreates).toHaveLength(1);
   expect(apiCalls.blogCreates[0]).toMatchObject({ title: "Untitled 1", isPrivate: true });
+  await dialog.getByRole("button", { name: "Restore", exact: true }).click();
+  await expect(dialog).not.toHaveClass(/is-annotation-maximized/);
   await dialog.getByRole("button", { name: "Maximize", exact: true }).click();
   await expect(dialog).toHaveClass(/is-annotation-maximized/);
   await dialog.getByRole("button", { name: "Restore", exact: true }).click();
@@ -2815,7 +2901,7 @@ test("Diagram parses T-SQL Entities and exposes individual relationship Objects"
   const readonlyViewport = readonlyViewer.locator("[data-diagram-viewport]");
   const readonlyStage = readonlyViewer.locator("[data-diagram-stage]");
   const readonlyImage = readonlyViewer.locator("[data-diagram-image]");
-  const readonlyZoom = readonlyViewer.locator("[data-diagram-zoom]");
+  const readonlyZoom = page.locator(".diagram-screen .section-head [data-diagram-zoom]");
   await expect(readonlyStage).toHaveCSS("overflow", "clip");
   const readonlyStrokePresentation = () => readonlyImage.evaluate(image => {
     const relationship = image.querySelector(".image-annotation-entity-relationship-path");
@@ -2853,7 +2939,7 @@ test("Diagram parses T-SQL Entities and exposes individual relationship Objects"
     const viewer = viewport.closest("[data-diagram-readonly-viewer]");
     const stage = viewer.querySelector("[data-diagram-stage]");
     const image = viewer.querySelector("[data-diagram-image]");
-    const zoomSelect = viewer.querySelector("[data-diagram-zoom]");
+    const zoomSelect = document.querySelector(".diagram-screen .section-head [data-diagram-zoom]");
     const viewportRect = viewport.getBoundingClientRect();
     const point = { x: viewport.clientWidth * 0.55, y: viewport.clientHeight * 0.45 };
     const latestPoint = { x: point.x + 40, y: point.y + 30 };
@@ -2957,7 +3043,7 @@ test("Diagram parses T-SQL Entities and exposes individual relationship Objects"
     const viewer = viewport.closest("[data-diagram-readonly-viewer]");
     const stage = viewer.querySelector("[data-diagram-stage]");
     const image = viewer.querySelector("[data-diagram-image]");
-    const zoom = Number(viewer.querySelector("[data-diagram-zoom]").value) / 100;
+    const zoom = Number(document.querySelector(".diagram-screen .section-head [data-diagram-zoom]").value) / 100;
     const logicalWidth = Number.parseFloat(image.getAttribute("width"));
     const logicalHeight = Number.parseFloat(image.getAttribute("height"));
     const expectedStageWidth = Math.max(logicalWidth * zoom + (viewport.clientWidth * 2), viewport.clientWidth * 3);
@@ -3015,6 +3101,8 @@ test("Diagram parses T-SQL Entities and exposes individual relationship Objects"
 
   await page.getByRole("button", { name: "Edit Diagram", exact: true }).click();
   await expect(dialog).toBeVisible();
+  await expect(page.locator("[data-diagram-editor-host] > dialog.image-annotation-dialog")).toHaveCount(1);
+  await expect(page.locator("dialog.image-annotation-dialog:modal")).toHaveCount(0);
   await expect(canvas.locator("[data-annotation-object-type='entity']")).toHaveCount(2);
   await expect(canvas.locator(".image-annotation-entity-relationship-path")).toHaveCount(1);
   await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
@@ -3024,6 +3112,9 @@ test("Diagram parses T-SQL Entities and exposes individual relationship Objects"
   expect(apiCalls.blogCreates[2]).toMatchObject({ title: "Untitled 2", isPrivate: true });
   await expect(page.locator(".diagram-tree-pane")).toContainText("Untitled 2");
   await expect(dialog).toBeVisible();
+  await expect(dialog).toHaveClass(/is-annotation-maximized/);
+  await expect(page.locator("dialog.image-annotation-dialog:modal")).toHaveCount(1);
+  await expect(page.locator("[data-diagram-editor-host]")).toHaveCount(0);
   await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
 });
 
@@ -3061,7 +3152,7 @@ test("Canceling Diagram edit refits and centers the recreated Treeview preview",
   await page.getByRole("button", { name: /log in/i }).click();
   await openNavView(page, "Diagram", "Diagram");
 
-  await expect(page.locator(".diagram-tree-content h2")).toHaveText("Cancel Return Fit");
+  await expect(page.locator("[data-diagram-page-document-head] h2")).toHaveText("Cancel Return Fit");
   await page.locator("[data-diagram-zoom]").selectOption("100");
   await expect.poll(() => page.locator("[data-diagram-image]").evaluate(image => ({
     width: Number.parseFloat(image.style.width),
@@ -3095,17 +3186,91 @@ test("Canceling Diagram edit refits and centers the recreated Treeview preview",
   })).toEqual({ centered: true, fits: true });
 });
 
+test("Diagram save collision preserves the edit as a newly named Diagram", async ({ page }) => {
+  const appState = createTestState();
+  const apiCalls = { securityReset: 0, blogUpdateConflictIds: [2] };
+  const annotationState = JSON.stringify({
+    version: 1,
+    width: 800,
+    height: 450,
+    gridVisible: false,
+    snapToGrid: false,
+    objects: []
+  });
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="800" height="450" viewBox="0 0 800 450" data-pmt-image-annotation-version="1"><metadata data-pmt-image-annotation-state="true">${annotationState}</metadata><rect width="800" height="450" fill="white"/></svg>`;
+  const source = `data:image/svg+xml;base64,${Buffer.from(svg).toString("base64")}`;
+  appState.blogs.push({
+    id: 2,
+    title: "Collision Diagram",
+    bodyHtml: `<p><img src="${source}" alt="Collision Diagram" data-pmt-diagram="true" data-pmt-private-diagram="true" data-pmt-annotation-version="1"></p>`,
+    isPrivate: true,
+    projectId: 10,
+    sprintId: 101,
+    createdByUserId: 1,
+    createdAt: "2026-07-19T08:00:00Z",
+    updatedAt: "2026-07-19T08:00:00Z",
+    rowVersion: "row-2-1",
+    attachments: []
+  });
+
+  await page.route("**/api/uploads/richtext", async route => {
+    await route.fulfill(jsonResponse({
+      fileName: "collision-diagram.svg",
+      url: "/uploads/richtext/collision-diagram.svg",
+      contentType: "image/svg+xml",
+      byteLength: svg.length
+    }));
+  });
+  await page.route("**/uploads/richtext/collision-diagram.svg", async route => {
+    await route.fulfill({ status: 200, contentType: "image/svg+xml", body: svg });
+  });
+  await page.addInitScript(() => localStorage.setItem("pmt-diagram-view-mode", "tree"));
+  await markCurrentReleaseSeen(page, 1);
+  await installApiMocks(page, appState, apiCalls);
+  await page.goto("/");
+  await page.locator("#loginName").fill("Sin");
+  await page.locator("#loginPassword").fill("Password1");
+  await page.getByRole("button", { name: /log in/i }).click();
+  await openNavView(page, "Diagram", "Diagram");
+
+  await page.getByRole("button", { name: "Edit Diagram", exact: true }).click();
+  const editor = page.locator("[data-diagram-editor-host] > dialog.image-annotation-dialog");
+  await expect(editor).toBeVisible();
+  await editor.getByRole("button", { name: "Save", exact: true }).click();
+
+  const renameDialog = page.locator("dialog.mini-dialog", { hasText: "A newer Diagram was saved" });
+  await expect(renameDialog).toBeVisible();
+  await expect(renameDialog.locator("[name='dialogText']")).toHaveValue("Collision Diagram 2");
+  await renameDialog.locator("[name='dialogText']").fill("Collision Diagram Saved Copy");
+  await renameDialog.getByRole("button", { name: "Apply", exact: true }).click();
+
+  await expect(editor).toHaveCount(0);
+  await expect(page.locator("[data-diagram-page-document-head] h2"))
+    .toHaveText("Collision Diagram Saved Copy");
+  expect(apiCalls.blogUpdates || []).toHaveLength(0);
+  expect(apiCalls.blogCreates).toHaveLength(1);
+  expect(apiCalls.blogCreates[0]).toMatchObject({
+    title: "Collision Diagram Saved Copy",
+    projectId: 10,
+    sprintId: 101,
+    isPrivate: true,
+    isPinned: false
+  });
+  expect(appState.blogs.find(blog => blog.id === 2)?.title).toBe("Collision Diagram");
+});
+
 test("Diagram Card and Tree views show the current user's private and public Diagrams", async ({ page }) => {
   const appState = createTestState();
   const apiCalls = { securityReset: 0 };
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="160" height="90"><rect width="160" height="90" fill="white"/><path d="M20 20h120v50H20z" fill="none" stroke="#42526b"/></svg>`;
+  const svg = buildAnnotationSvg({ width: 160, height: 90, objects: [] });
   const source = `data:image/svg+xml,${encodeURIComponent(svg)}`;
-  const diagramBody = title => `<p><img src="${source}" alt="${title}" data-pmt-private-diagram="true" data-pmt-annotation-source="${source}" data-pmt-annotation-version="1"></p>`;
+  const externalSource = "/uploads/richtext/architecture.svg";
+  const diagramBody = (title, imageSource = source) => `<p><img src="${imageSource}" alt="${title}" data-pmt-private-diagram="true" data-pmt-annotation-source="${imageSource}" data-pmt-annotation-version="1"></p>`;
   appState.blogs.push(
     {
       id: 2,
       title: "Architecture",
-      bodyHtml: diagramBody("Architecture"),
+      bodyHtml: diagramBody("Architecture", externalSource),
       isPrivate: true,
       createdByUserId: 1,
       createdAt: "2026-07-17T08:00:00Z",
@@ -3158,6 +3323,9 @@ test("Diagram Card and Tree views show the current user's private and public Dia
 
   await page.addInitScript(() => localStorage.setItem("pmt-diagram-view-mode", "cards"));
   await markCurrentReleaseSeen(page, 1);
+  await page.route("**/uploads/richtext/architecture.svg", async route => {
+    await route.fulfill({ status: 200, contentType: "image/svg+xml", body: svg });
+  });
   await installApiMocks(page, appState, apiCalls);
   await page.goto("/");
   await page.locator("#loginName").fill("Sin");
@@ -3166,9 +3334,18 @@ test("Diagram Card and Tree views show the current user's private and public Dia
   await openNavView(page, "Diagram", "Diagram");
 
   await expect(page.getByRole("button", { name: "Cards", exact: true })).toHaveAttribute("aria-pressed", "true");
-  expect(await page.locator(".diagram-screen .section-head .toolbar").evaluate(toolbar =>
-    toolbar.lastElementChild?.matches("[data-action='new-diagram']") === true
-  )).toBe(true);
+  expect(await page.locator(".diagram-screen .section-head > .toolbar").evaluate(toolbar =>
+    [...toolbar.children].flatMap(element => {
+      if (element.matches("[data-action='new-diagram']")) return ["new"];
+      if (element.matches(".diagram-view-toggle")) {
+        return [...element.querySelectorAll("[data-action='set-diagram-view']")]
+          .map(button => button.dataset.mode);
+      }
+      if (element.matches("[data-action='open-diagram-filters']")) return ["filters"];
+      if (element.matches(".page-actions-menu")) return ["more"];
+      return [];
+    })
+  )).toEqual(["new", "cards", "tree", "filters", "more"]);
   await expect(page.locator(".diagram-card")).toHaveCount(4);
   await expect(page.locator(".diagram-card").first()).toContainText("Public Diagram Marker");
   await expect(page.locator(".diagram-grid")).toContainText("Architecture");
@@ -3178,6 +3355,8 @@ test("Diagram Card and Tree views show the current user's private and public Dia
   await expect(page.locator(".diagram-grid")).toContainText("Public Diagram Marker");
   await expect(page.locator(".diagram-grid")).toContainText("Shared Team Diagram");
   await expect(page.locator(".diagram-card", { hasText: "Public Diagram Marker" }).getByRole("button", { name: "Share public Diagram" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "New Diagram", exact: true }).locator(".button-icon + span")).toHaveCSS("display", "none");
+  await expect(page.getByRole("button", { name: "Filters", exact: true }).locator(".button-icon + span")).toHaveCSS("display", "none");
 
   await page.getByRole("button", { name: "Filters", exact: true }).click();
   let diagramFilters = page.locator("[data-diagram-filter-dialog]");
@@ -3203,9 +3382,29 @@ test("Diagram Card and Tree views show the current user's private and public Dia
   await expect(page.getByRole("button", { name: "Treeview", exact: true })).toHaveAttribute("aria-pressed", "true");
   await expect(page.locator(".diagram-tree-pane [data-action='select-diagram-document']")).toHaveCount(4);
   await page.locator("[data-action='select-diagram-document']", { hasText: "Architecture" }).click();
-  await expect(page.locator(".diagram-tree-content h2")).toHaveText("Architecture");
+  await expect(page.locator("[data-diagram-page-document-head] h2")).toHaveText("Architecture");
+  await expect(page.locator(".diagram-tree-content .documentation-tree-preview-head")).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Edit Info", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Edit Info", exact: true }).locator(".button-icon + span")).toHaveCSS("display", "none");
+  await expect(page.getByRole("button", { name: "Edit Diagram", exact: true }).locator(".button-icon + span")).toHaveCSS("display", "none");
   await expect(page.locator("[data-diagram-readonly-viewer]")).toBeVisible();
+  await expect(page.locator("[data-diagram-readonly-viewer] [data-diagram-zoom]")).toHaveCount(0);
+  await expect(page.locator(".diagram-screen .section-head [data-diagram-zoom]")).toBeVisible();
+  await expect(page.locator(".diagram-screen .section-head [data-diagram-zoom] option")).toHaveCount(59);
+  await expect(page.locator(".diagram-screen .section-head [data-diagram-zoom] option").last()).toHaveText("300%");
+  await expect(page.locator("[data-diagram-tree-row][data-id='2'] .diagram-tree-private")).toHaveAttribute("aria-label", "Private");
+  await page.locator(".diagram-screen .page-actions-summary").click();
+  let leftNavItem = page.getByRole("menuitemcheckbox", { name: "Left Nav", exact: true });
+  await expect(leftNavItem).toHaveAttribute("aria-checked", "true");
+  await leftNavItem.click();
+  await expect(page.locator(".diagram-tree-pane")).toBeHidden();
+  await page.getByRole("button", { name: "Cards", exact: true }).click();
+  await page.getByRole("button", { name: "Treeview", exact: true }).click();
+  await expect(page.locator(".diagram-tree-pane")).toBeVisible();
+  await page.locator(".diagram-screen .page-actions-summary").click();
+  leftNavItem = page.getByRole("menuitemcheckbox", { name: "Left Nav", exact: true });
+  await expect(leftNavItem).toHaveAttribute("aria-checked", "true");
+  await page.keyboard.press("Escape");
   const virtualViewport = page.locator("[data-diagram-viewport]");
   await expect.poll(() => virtualViewport.evaluate(element => element.scrollWidth > element.clientWidth && element.scrollHeight > element.clientHeight)).toBe(true);
   const beforePan = await virtualViewport.evaluate(element => ({ left: element.scrollLeft, top: element.scrollTop }));
@@ -3215,7 +3414,7 @@ test("Diagram Card and Tree views show the current user's private and public Dia
   await page.mouse.move(viewportBox.x + (viewportBox.width * 0.35), viewportBox.y + (viewportBox.height * 0.35));
   await page.mouse.up();
   await expect.poll(() => virtualViewport.evaluate((element, previous) => element.scrollLeft > previous.left && element.scrollTop > previous.top, beforePan)).toBe(true);
-  await expect(page.locator("[data-diagram-zoom]")).toHaveValue(/^(?:10|15|20|25|30|35|40|45|50|55|60|65|70|75|80|85|90|95|100|105|110|115|120|125|130|135|140|145|150|155|160|165|170|175|180|185|190|195|200)$/);
+  await expect(page.locator("[data-diagram-zoom]")).toHaveValue(/^(?:[1-9]\d|[12]\d{2}|300)$/);
   await page.locator("[data-diagram-zoom]").selectOption("100");
   await expect.poll(() => page.locator("[data-diagram-image]").evaluate(image => ({
     width: Number.parseFloat(image.style.width),
@@ -3241,6 +3440,16 @@ test("Diagram Card and Tree views show the current user's private and public Dia
   }))).toEqual({ width: 160, transform: "scale(1.2)" });
 
   await page.locator("[data-action='select-diagram-document']", { hasText: "Public Diagram Marker" }).click();
+  await expect.poll(() => page.locator("[data-diagram-readonly-viewer]").evaluate(viewer => {
+    const viewport = viewer.querySelector("[data-diagram-viewport]");
+    const image = viewer.querySelector("[data-diagram-image]");
+    const viewportRect = viewport.getBoundingClientRect();
+    const imageRect = image.getBoundingClientRect();
+    return {
+      x: Math.round((imageRect.left + (imageRect.width / 2)) - (viewportRect.left + (viewportRect.width / 2))),
+      y: Math.round((imageRect.top + (imageRect.height / 2)) - (viewportRect.top + (viewportRect.height / 2)))
+    };
+  })).toEqual({ x: 0, y: 0 });
   await expect(page.getByRole("button", { name: "Share public Diagram" })).toBeVisible();
   await page.getByRole("button", { name: "Edit Info", exact: true }).click();
   const infoDialog = page.locator("#editorDialog");
@@ -3250,7 +3459,7 @@ test("Diagram Card and Tree views show the current user's private and public Dia
   await infoDialog.locator("[name='isPinned']").check();
   await infoDialog.getByRole("button", { name: "Save", exact: true }).click();
   await expect(infoDialog).not.toBeVisible();
-  await expect(page.locator(".diagram-tree-content h2")).toHaveText("Public Architecture");
+  await expect(page.locator("[data-diagram-page-document-head] h2")).toHaveText("Public Architecture");
   expect(apiCalls.blogUpdates.at(-1)).toMatchObject({
     id: 5,
     title: "Public Architecture",
@@ -3280,10 +3489,10 @@ test("Diagram Card and Tree views show the current user's private and public Dia
 
   await page.evaluate(() => localStorage.setItem("pmt-diagram-visibility", "private"));
   await page.goto("/#/diagram/5");
-  await expect(page.locator(".diagram-tree-content h2")).toHaveText("Public Architecture");
+  await expect(page.locator("[data-diagram-page-document-head] h2")).toHaveText("Public Architecture");
   await page.getByRole("button", { name: "Filters", exact: true }).click();
   await page.locator("[data-diagram-filter-dialog] [data-filter='diagram-search']").fill("Untitled 2");
-  await expect(page.locator(".diagram-tree-content h2")).toHaveText("Untitled 2");
+  await expect(page.locator("[data-diagram-page-document-head] h2")).toHaveText("Untitled 2");
   await expect(page).toHaveURL(/#\/diagram\/3$/);
 });
 
@@ -3319,6 +3528,15 @@ test("draw.io SVG clipboard paste preserves UTF-8 spaces", async ({ page }) => {
 
   const editor = page.locator("#editorDialog [data-rich='descriptionHtml']");
   await editor.evaluate((element, svg) => {
+    element.textContent = "BeforeAfter";
+    const pasteRange = document.createRange();
+    pasteRange.setStart(element.firstChild, "Before".length);
+    pasteRange.collapse(true);
+    const selection = window.getSelection();
+    selection.removeAllRanges();
+    selection.addRange(pasteRange);
+    element.focus();
+
     const bytes = new TextEncoder().encode(svg);
     const base64 = btoa(String.fromCharCode(...bytes));
     const clipboardData = new DataTransfer();
@@ -3328,11 +3546,217 @@ test("draw.io SVG clipboard paste preserves UTF-8 spaces", async ({ page }) => {
       cancelable: true,
       clipboardData
     }));
+
+    const movedRange = document.createRange();
+    movedRange.setStart(element.firstChild, element.firstChild.length);
+    movedRange.collapse(true);
+    selection.removeAllRanges();
+    selection.addRange(movedRange);
   }, sourceSvg);
 
-  await expect(editor.locator("img.rich-svg-image")).toHaveAttribute("src", /drawio-diagram\.svg$/);
+  const pastedSvg = editor.locator("img.rich-svg-image");
+  await expect(pastedSvg).toHaveAttribute("src", "/uploads/richtext/drawio-diagram.svg");
+  await expect(pastedSvg).not.toHaveAttribute("src", /^data:image\//i);
+  await expect.poll(() => editor.evaluate(element => {
+    const image = element.querySelector("img.rich-svg-image");
+    return [image?.previousSibling?.textContent, image?.nextSibling?.textContent];
+  })).toEqual(["Before", "After"]);
   await expect.poll(() => uploadedRequestBody).toContain(expectedText);
+  expect(uploadedRequestBody).not.toContain("data:image/");
   expect(uploadedRequestBody).not.toContain("\u00c2");
+});
+
+test("RTE image clipboard paste handles file-only PNG and preserves the caret", async ({ page }) => {
+  const appState = createTestState();
+  const apiCalls = { securityReset: 0 };
+  let uploadedRequestBody = "";
+
+  await markCurrentReleaseSeen(page, 1);
+  await installApiMocks(page, appState, apiCalls);
+  await page.route("**/api/uploads/richtext", async route => {
+    uploadedRequestBody = route.request().postDataBuffer()?.toString("latin1") || "";
+    await route.fulfill(jsonResponse({
+      fileName: "clipboard.png",
+      url: "/uploads/richtext/clipboard.png",
+      contentType: "image/png",
+      byteLength: 8
+    }));
+  });
+  await page.route("**/uploads/richtext/clipboard.png", async route => {
+    await route.fulfill({
+      status: 200,
+      contentType: "image/png",
+      body: Buffer.from([137, 80, 78, 71, 13, 10, 26, 10])
+    });
+  });
+
+  await page.goto("/");
+  await page.locator("#loginName").fill("Sin");
+  await page.locator("#loginPassword").fill("Password1");
+  await page.getByRole("button", { name: /log in/i }).click();
+  await openNavView(page, "Tasks", "Dev Tasks");
+  await page.locator("tr[data-task-id='1']").click();
+  await page.locator("dialog.detail-dialog").getByRole("button", { name: "Edit" }).click();
+
+  const editor = page.locator("#editorDialog [data-rich='descriptionHtml']");
+  await editor.evaluate(element => {
+    element.textContent = "BeforeAfter";
+    const pasteRange = document.createRange();
+    pasteRange.setStart(element.firstChild, "Before".length);
+    pasteRange.collapse(true);
+    const selection = window.getSelection();
+    selection.removeAllRanges();
+    selection.addRange(pasteRange);
+    element.focus();
+
+    const png = new File([
+      Uint8Array.from([137, 80, 78, 71, 13, 10, 26, 10])
+    ], "clipboard.png", { type: "image/png" });
+    const clipboardData = {
+      files: [png],
+      items: [],
+      getData: () => ""
+    };
+    const pasteEvent = new Event("paste", { bubbles: true, cancelable: true });
+    Object.defineProperty(pasteEvent, "clipboardData", { value: clipboardData });
+    element.dispatchEvent(pasteEvent);
+
+    const movedRange = document.createRange();
+    movedRange.setStart(element.firstChild, element.firstChild.length);
+    movedRange.collapse(true);
+    selection.removeAllRanges();
+    selection.addRange(movedRange);
+  });
+
+  const image = editor.locator("img[src$='clipboard.png']");
+  await expect(image).toHaveCount(1);
+  await expect(image).toHaveAttribute("src", "/uploads/richtext/clipboard.png");
+  await expect(image).not.toHaveAttribute("src", /^data:image\//i);
+  await expect.poll(() => editor.evaluate(element => {
+    const pastedImage = element.querySelector("img[src$='clipboard.png']");
+    return [pastedImage?.previousSibling?.textContent, pastedImage?.nextSibling?.textContent];
+  })).toEqual(["Before", "After"]);
+  await expect.poll(() => uploadedRequestBody).toContain("filename=\"clipboard.png\"");
+  expect(uploadedRequestBody).toContain("Content-Type: image/png");
+});
+
+test("RTE View Source stays plain while Code Block formats and highlights selected code", async ({ page }) => {
+  const appState = createTestState();
+  const apiCalls = { securityReset: 0 };
+
+  await markCurrentReleaseSeen(page, 1);
+  await installApiMocks(page, appState, apiCalls);
+  await page.goto("/");
+  await page.locator("#loginName").fill("Sin");
+  await page.locator("#loginPassword").fill("Password1");
+  await page.getByRole("button", { name: /log in/i }).click();
+  await openNavView(page, "Tasks", "Dev Tasks");
+  await page.locator("tr[data-task-id='1']").click();
+  await page.locator("dialog.detail-dialog").getByRole("button", { name: "Edit" }).click();
+
+  const editDialog = page.locator("#editorDialog");
+  const editor = editDialog.locator("[data-rich='descriptionHtml']");
+  const descriptionField = editor.locator("xpath=..");
+  const insertDiagram = descriptionField.getByRole("button", { name: "Insert Diagram", exact: true });
+  await expect(insertDiagram).toHaveAttribute("title", "Insert Diagram");
+  await expect(insertDiagram.locator("svg")).toBeVisible();
+  expect((await insertDiagram.innerText()).trim()).toBe("");
+
+  await descriptionField.getByRole("button", { name: "View Source", exact: true }).click();
+  const sourceDialog = page.locator("dialog.rich-source-dialog");
+  const sourceTextarea = sourceDialog.locator("[name='sourceHtml']");
+  const wordWrap = sourceDialog.getByLabel("Word Wrap", { exact: true });
+
+  await expect(sourceDialog).toBeVisible();
+  await expect(wordWrap).toBeChecked();
+  await expect(sourceDialog.locator("[data-rich-source-type]")).toHaveCount(0);
+  await expect(sourceDialog.locator("[data-rich-source-highlight]")).toHaveCount(0);
+  expect(await sourceTextarea.evaluate(element => getComputedStyle(element).fontFamily)).toContain("Consolas");
+  await sourceTextarea.fill('<p data-value="plain">View Source remains plain.</p>');
+  await expect(sourceTextarea).toHaveValue('<p data-value="plain">View Source remains plain.</p>');
+  await sourceDialog.getByRole("button", { name: "Cancel", exact: true }).click();
+  await expect(sourceDialog).toHaveCount(0);
+
+  await editor.click();
+  await descriptionField.getByRole("button", { name: "Code Block", exact: true }).click();
+  const codeDialog = page.locator("dialog.rich-code-dialog");
+  const codeLanguage = codeDialog.locator("[data-rich-code-language]");
+  const codeTextarea = codeDialog.locator("[name='codeText']");
+  const codeHighlight = codeDialog.locator("[data-rich-code-highlight]");
+
+  await expect(codeDialog).toBeVisible();
+  await expect(codeLanguage).toHaveValue("");
+  await expect(codeLanguage.locator("option")).toHaveText([
+    "None",
+    "C#",
+    "T-SQL",
+    "HTML",
+    "CSS",
+    "JavaScript",
+    "TypeScript",
+    "JSON",
+    "JAVA"
+  ]);
+  expect(await codeTextarea.evaluate(element => getComputedStyle(element).fontFamily)).toContain("Consolas");
+
+  await codeTextarea.fill('{"name":"PMT","count":2,"active":true}');
+  await codeLanguage.selectOption("json");
+  await expect(codeTextarea).toHaveValue([
+    "{",
+    '  "name": "PMT",',
+    '  "count": 2,',
+    '  "active": true',
+    "}"
+  ].join("\n"));
+  await expect(codeHighlight).toBeVisible();
+  await expect(codeHighlight.locator(".rich-source-token-property", { hasText: '"name"' })).toHaveCount(1);
+  await expect(codeHighlight.locator(".rich-source-token-string", { hasText: '"PMT"' })).toHaveCount(1);
+  await expect(codeHighlight.locator(".rich-source-token-number", { hasText: "2" })).toHaveCount(1);
+  await expect(codeHighlight.locator(".rich-source-token-keyword", { hasText: "true" })).toHaveCount(1);
+
+  await codeTextarea.fill("{not valid JSON}");
+  await expect(codeTextarea).toHaveValue("{not valid JSON}");
+  await expect(codeHighlight).toBeHidden();
+  await expect(page.locator("#toast")).toContainText("JSON is invalid, so it is being shown as plain text.");
+
+  await codeLanguage.selectOption("");
+  await expect(codeHighlight).toBeHidden();
+  await expect(codeTextarea).toHaveValue("{not valid JSON}");
+  await codeTextarea.fill("public class Demo { return; }");
+  await codeLanguage.selectOption("csharp");
+  await expect(codeHighlight.locator(".rich-source-token-keyword", { hasText: "public" })).toHaveCount(1);
+  await codeLanguage.selectOption("");
+  await expect(codeHighlight).toBeHidden();
+  await expect(codeTextarea).toHaveValue("public class Demo { return; }");
+  await codeTextarea.fill('{"name":"PMT","count":2,"active":true}');
+  await codeLanguage.selectOption("json");
+  await codeDialog.getByRole("button", { name: "Insert", exact: true }).click();
+  await expect(codeDialog).toHaveCount(0);
+
+  const insertedBlock = editor.locator("details.rich-code-block").last();
+  const insertedCode = insertedBlock.locator("code[data-code-language='json']");
+  await expect(insertedBlock).toHaveCount(1);
+  expect(await insertedBlock.evaluate(element => element.open)).toBe(false);
+  await expect(insertedCode.locator(".rich-source-token-property", { hasText: '"name"' })).toHaveCount(1);
+  await expect(insertedCode.locator(".rich-source-token-string", { hasText: '"PMT"' })).toHaveCount(1);
+  await expect(insertedBlock.locator(".rich-source-editor, .rich-source-highlight")).toHaveCount(0);
+
+  await insertedBlock.locator("summary").click();
+  expect(await insertedBlock.evaluate(element => element.open)).toBe(true);
+  await insertedBlock.locator("summary").click();
+  expect(await insertedBlock.evaluate(element => element.open)).toBe(false);
+
+  await editDialog.locator("button[type='submit']").click();
+  await expect(editDialog).not.toBeVisible();
+  await expect.poll(() => appState.tasks.find(task => task.id === 1)?.descriptionHtml || "")
+    .toContain('data-code-language="json"');
+  await page.locator("tr[data-task-id='1']").click();
+  const readOnlyBlock = page.locator("dialog.detail-dialog .rich-readonly details.rich-code-block");
+  await expect(readOnlyBlock).toHaveCount(1);
+  expect(await readOnlyBlock.evaluate(element => element.open)).toBe(false);
+  await readOnlyBlock.locator("summary").click();
+  expect(await readOnlyBlock.evaluate(element => element.open)).toBe(true);
+  await expect(readOnlyBlock.locator(".rich-source-token-property", { hasText: '"name"' })).toHaveCount(1);
 });
 
 test("RTE Insert Diagram creates a blank editable diagram at the caret", async ({ page }) => {
@@ -3651,7 +4075,7 @@ test("RTE image annotation creates, crops, groups, locks, undoes, and reopens ed
   expect(await zoomSelect.locator("option").evaluateAll(options => options.map(option => ({
     value: option.value,
     label: option.textContent
-  })))).toEqual(Array.from({ length: 39 }, (_, index) => {
+  })))).toEqual(Array.from({ length: 59 }, (_, index) => {
     const percent = 10 + (index * 5);
     return { value: String(percent), label: `${percent}%` };
   }));
@@ -4095,12 +4519,39 @@ test("RTE image annotation creates, crops, groups, locks, undoes, and reopens ed
   await outlineCheckbox.check();
   await expect(textBoxShape).toHaveAttribute("stroke", chosenOutlineColor);
   await textInput.fill("New Search Feature with wrapped annotation text");
+  const formatTab = dialog.getByRole("tab", { name: "Format", exact: true });
+  const templateTab = dialog.getByRole("tab", { name: "Template", exact: true });
+  await templateTab.click();
+  await inspectorToggle.click();
+  await expect(inspectorToggle).toHaveAttribute("aria-expanded", "false");
+  await textObject.dblclick();
+  await expect(inspectorToggle).toHaveAttribute("aria-expanded", "true");
+  await expect(formatTab).toHaveAttribute("aria-selected", "true");
+  await expect(textInput).toBeFocused();
+  await expect(textInput).toHaveValue("New Search Feature with wrapped annotation text");
+  expect(await textInput.evaluate(element => {
+    const inspector = element.closest("[data-annotation-inspector]");
+    const tabs = inspector.querySelector(".image-annotation-inspector-tabs");
+    const fieldBounds = element.closest("[data-annotation-text-field]").getBoundingClientRect();
+    const inspectorBounds = inspector.getBoundingClientRect();
+    return fieldBounds.top >= inspectorBounds.top + tabs.getBoundingClientRect().height - 1
+      && fieldBounds.bottom <= inspectorBounds.bottom + 1;
+  })).toBe(true);
   await page.keyboard.press("Control+z");
   await textObject.click();
   await expect(textInput).toHaveValue("Text");
   await page.keyboard.press("Control+y");
   await textObject.click();
   await expect(textInput).toHaveValue("New Search Feature with wrapped annotation text");
+  await textInput.fill("");
+  await templateTab.click();
+  await inspectorToggle.click();
+  await textObject.dblclick();
+  await expect(inspectorToggle).toHaveAttribute("aria-expanded", "false");
+  await expect(templateTab).toHaveAttribute("aria-selected", "true");
+  await inspectorToggle.click();
+  await formatTab.click();
+  await textInput.fill("New Search Feature with wrapped annotation text");
   const recentTextColor = seededRecentColors[1];
   await dialog.locator("[data-annotation-recent-colors='textColor']")
     .locator(`[data-rich-color-value='${recentTextColor}']`).click();
@@ -6227,6 +6678,17 @@ async function installApiMocks(page, appState, apiCalls) {
       const existingIndex = appState.blogs.findIndex(item => item.id === blogId);
       if (existingIndex < 0) {
         await route.fulfill(jsonResponse({ error: "Document not found" }, 404));
+        return;
+      }
+
+      const conflictIndex = Array.isArray(apiCalls.blogUpdateConflictIds)
+        ? apiCalls.blogUpdateConflictIds.indexOf(blogId)
+        : -1;
+      if (conflictIndex >= 0) {
+        apiCalls.blogUpdateConflictIds.splice(conflictIndex, 1);
+        await route.fulfill(jsonResponse({
+          error: "A newer version of this item exists. Your changes were not applied."
+        }, 409));
         return;
       }
 

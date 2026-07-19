@@ -216,7 +216,14 @@ export function richTextToolsHtml(options = {}) {
             <path d="M19 12h-2a1 1 0 0 0-1 1v2a1 1 0 0 0 1 1h2v-2h-1"></path>
           </svg>
         </button>
-        <button type="button" data-command="insertDiagram" title="Insert Diagram" aria-label="Insert Diagram">Insert Diagram</button>
+        <button type="button" data-command="insertDiagram" title="Insert Diagram" aria-label="Insert Diagram" class="rich-diagram-insert-tool">
+          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <rect x="3" y="4" width="18" height="16" rx="2"></rect>
+            <rect x="6" y="7" width="5" height="4" rx="1"></rect>
+            <rect x="13" y="13" width="5" height="4" rx="1"></rect>
+            <path d="M11 9h4v4"></path>
+          </svg>
+        </button>
         <button type="button" data-command="insertHorizontalRule" title="Horizontal Divider" aria-label="Horizontal Divider" class="rich-divider-tool">
           <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
             <path d="M4 12h16"></path>

@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { readdir } from "node:fs/promises";
+import { readFile, readdir } from "node:fs/promises";
 
 const releaseNotesModule = await import("../../wwwroot/js/shared/release-notes.js");
 const {
@@ -19,14 +19,14 @@ const availablePrompts = (await readdir(new URL("../../Requirements/", import.me
   .map(match => ({ date: match[1], day: Number(match[2]) }))
   .sort((left, right) => right.date.localeCompare(left.date) || right.day - left.day);
 
-test("release-note data covers every available historical prompt in latest-first order", () => {
+test("release-note data covers every available historical prompt in latest-first order", async () => {
   assert.equal(releaseNotes.length, availablePrompts.length);
   assert.deepEqual(
     releaseNotes.map(note => note.id),
     availablePrompts.map(prompt => `${prompt.date}-day-${prompt.day}`)
   );
 
-  releaseNotes.forEach(note => {
+  for (const note of releaseNotes) {
     assert.match(note.sourceFile, new RegExp(`Day ${note.day}\\.txt$`));
     assert.ok(note.title.length > 0);
     assert.ok(note.sections.length > 0);
@@ -34,7 +34,16 @@ test("release-note data covers every available historical prompt in latest-first
     assert.ok(note.prompt.length > 0);
     assert.match(note.version, /^[a-f0-9]{12}$/);
     assert.equal(note.seenToken, `${note.id}@${note.version}`);
-  });
+    assert.match(note.illustration?.url || "", new RegExp(`^/assets/release-notes/${note.id}\\.svg\\?v=${note.version}$`));
+    assert.ok(note.illustration?.alt);
+
+    const assetUrl = new URL(`../../wwwroot${note.illustration.url}`, import.meta.url);
+    assetUrl.search = "";
+    const svg = await readFile(assetUrl, "utf8");
+    assert.match(svg, /^<svg xmlns="http:\/\/www\.w3\.org\/2000\/svg"/);
+    assert.ok(Buffer.byteLength(svg) < 3000, `${note.id} illustration should remain lightweight`);
+  }
+  assert.equal(new Set(releaseNotes.map(note => note.illustration.url.split("?", 1)[0])).size, releaseNotes.length);
 });
 
 test("first login returns only the latest three releases", () => {

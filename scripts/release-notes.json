@@ -1210,7 +1210,9 @@
         "items": [
           "Treat Original Image as a normal editable image layer on the shared annotation and Diagram canvas instead of a special fixed background.",
           "Mark cropped images in the Objects tree and let users temporarily show or hide each saved crop without removing it.",
-          "Offer Remove Crop or Apply Crop Permanently when cropping an already-cropped image, with an irreversible-action warning and normal Maintenance orphan detection for the replaced source after the record is saved."
+          "Offer Remove Crop or Apply Crop Permanently when cropping an already-cropped image, with an irreversible-action warning and normal Maintenance orphan detection for the replaced source after the record is saved.",
+          "Upload pasted PNG and SVG images to PMT storage from both rich-text and Diagram canvases, then keep the saved content URL-backed instead of embedding base64 image data.",
+          "Include pasted source images together with arrows and other annotations when copying a Diagram selection as PNG or SVG."
         ]
       },
       {
@@ -1218,6 +1220,14 @@
         "items": [
           "Add Insert Diagram to rich-text editors so users can create an editable diagram at the current caret without starting from an image.",
           "Keep image annotations and image-free diagrams on the same canvas, object, history, formatting, and reopen behavior."
+        ]
+      },
+      {
+        "title": "Readable Source and Code Blocks",
+        "items": [
+          "Use Consolas in View Source and enable its shortened Word Wrap option by default.",
+          "Choose None, C#, T-SQL, HTML, CSS, JavaScript, TypeScript, JSON, or Java from the Code Block dialog, with each language change reapplied from the plain source instead of stacking formatting.",
+          "Format and color valid JSON, keep invalid or unsupported content as plain text with a helpful notification, and render inserted code blocks collapsed by default in both edit and read-only views."
         ]
       },
       {
@@ -1239,7 +1249,7 @@
           "Keep arrows and relationship symbols off by default, control them from synchronized global switches, and temporarily turn off every relationship line when users want an Entity-only view.",
           "Add an Entity Annotation field that creates a linked, styleable callout and arrow which follow the Entity as it moves and persist with the Diagram.",
           "Style each Entity name and header background independently to highlight important tables.",
-          "Route relationships around unrelated Entities and Entity Annotation callouts, and move non-anchored tables away from relationship lines during Org Tree formatting while leaving Anchor tables fixed."
+          "Route relationships around unrelated Entities and Entity Annotation callouts with visible clearance, and move non-anchored tables away from relationship lines during Org Tree formatting while leaving Anchor tables fixed."
         ]
       },
       {
@@ -1247,6 +1257,38 @@
         "items": [
           "Generate a new private PMT's Database Schema Diagram from the connected database's current tables, columns, keys, relationships, and data types without replacing the Diagram being edited.",
           "Protect live schema generation with Documentation/Create permission and deliver its stored procedure through the Version 1.22-to-1.23 forward migration and operator verification runbook."
+        ]
+      },
+      {
+        "title": "Polished Diagram Workspace",
+        "items": [
+          "Keep Diagram title, visibility, Project and Sprint details, editing actions, zoom, and Fit together in the page header; show private locks in the tree and use compact icon-only New Diagram and Filters actions.",
+          "Use a checkable Left Nav menu, always reveal the Left Nav when Treeview is chosen, resize the right inspector, and automatically fit and center each Diagram selected from the tree.",
+          "Create new Diagrams directly in the full-screen editor at 100% zoom, start with the Green Box with Text template centered and selected, and support zoom levels through 300%.",
+          "Double-click a populated text box to open Format, bring its Text field into view, and focus it for immediate editing.",
+          "Show lock cues for locked or anchored Objects, temporarily unanchor or re-anchor every Entity from one global control, and display the routing-shortcut warning only when an Entity is genuinely immovable.",
+          "When another edit wins a save conflict, preserve that newer version and offer to save the user's work as a newly numbered Diagram instead of discarding it."
+        ]
+      },
+      {
+        "title": "Focused Documentation Editing",
+        "items": [
+          "Use one checked Left Nav item in Documentation's overflow menu, and open new Documents or card edits in the full-screen editor with the Left Nav hidden.",
+          "Keep View Full-Screen available after entering edit mode from a Documentation card."
+        ]
+      },
+      {
+        "title": "Streamlined Scrum",
+        "items": [
+          "Keep the attendance table visible, hide the optional Calendar by default, and toggle the Calendar from the overflow menu without replacing the table.",
+          "Choose a Check-In status from a focused dialog with Office first and selected by default instead of using a separate Attendance dropdown.",
+          "Align 80-pixel checked-in avatars and Scrum content with other PMT screens without a clipped hover outline, and click the same avatar again to clear its user filter."
+        ]
+      },
+      {
+        "title": "More Noticeable What's New",
+        "items": [
+          "Show one small, distinctive, update-themed SVG above each day's What's New entry so new releases are easier to notice and remember."
         ]
       }
     ]

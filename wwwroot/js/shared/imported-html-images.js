@@ -22,7 +22,8 @@ export async function externalizeImportedHtmlImagesInPayload(payload, fields, op
 export async function externalizeImportedHtmlImages(html, options = {}) {
   const container = document.createElement("div");
   container.innerHTML = String(html || "");
-  const images = [...container.querySelectorAll("img[src^='data:image/']")];
+  const images = [...container.querySelectorAll("img[src]")]
+    .filter(image => isImportedImageDataUrl(image.getAttribute("src") || ""));
   const uploadsBySource = options.uploadsBySource || new Map();
   let uploaded = 0;
   let failed = 0;
@@ -58,7 +59,7 @@ async function uploadedImageForSource(source, options) {
 }
 
 async function uploadDataUrlImage(source, kind) {
-  const parsed = dataUrlImage(source);
+  const parsed = parseImportedImageDataUrl(source);
   if (!parsed) return null;
 
   const body = new FormData();
@@ -66,16 +67,30 @@ async function uploadDataUrlImage(source, kind) {
   return api(`/api/uploads/${kind}`, { method: "POST", body });
 }
 
-function dataUrlImage(source) {
-  const match = /^data:(image\/[a-z0-9.+-]+)(?:;[^,]*)?;base64,(.*)$/i.exec(source || "");
+export function isImportedImageDataUrl(source) {
+  return /^data:image\//i.test(String(source || ""));
+}
+
+export function parseImportedImageDataUrl(source) {
+  const match = /^data:(image\/[a-z0-9.+-]+)((?:;[^,]*)?),(.*)$/is.exec(source || "");
   if (!match) return null;
 
   const contentType = match[1].toLowerCase();
-  const binary = atob(match[2].replace(/\s+/g, ""));
-  const bytes = new Uint8Array(binary.length);
-  for (let index = 0; index < binary.length; index += 1) {
-    bytes[index] = binary.charCodeAt(index);
+  const metadata = match[2].toLowerCase();
+  const payload = match[3] || "";
+  if (!metadata.includes(";base64")) {
+    try {
+      return {
+        contentType,
+        blob: new Blob([decodeURIComponent(payload)], { type: contentType })
+      };
+    } catch {
+      return null;
+    }
   }
+
+  const binary = atob(payload.replace(/\s+/g, ""));
+  const bytes = Uint8Array.from(binary, character => character.charCodeAt(0));
 
   return {
     contentType,

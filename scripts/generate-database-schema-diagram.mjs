@@ -1,4 +1,5 @@
 import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -11,6 +12,7 @@ import {
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const seedPath = resolve(root, "SQL/03_SeedData_DiagramDemo.sql");
 const migrationPath = resolve(root, "SQL/Migrations/PMT_1.22_to_1.23.sql");
+const svgAssetPath = resolve(root, "wwwroot/assets/docs/pmt-database-schema.svg");
 const optionalSvgOutputPath = String(process.env.PMT_SCHEMA_DIAGRAM_SVG_OUTPUT || "").trim();
 const sqlServer = process.env.PMT_SQL_SERVER || "localhost";
 const sqlDatabase = process.env.PMT_SQL_DATABASE || "PMT";
@@ -398,7 +400,7 @@ const state = normalizeAnnotationState({
 });
 
 const svg = `${buildAnnotationSvg(state, "")}\n`;
-const relationshipCount = (svg.match(/class="image-annotation-entity-relationship-path"/g) || []).length;
+const relationshipCount = (svg.match(/data-pmt-relationship-source=/g) || []).length;
 const fieldCount = entities.reduce((total, entity) => total + entity.fields.length, 0);
 const hiddenSelfRelationshipCount = [...foreignKeys.values()]
   .filter(foreignKey => foreignKey.schemaName === foreignKey.referencedSchema
@@ -411,19 +413,12 @@ if (relationshipCount !== foreignKeys.size - hiddenSelfRelationshipCount) {
   throw new Error(`Expected ${foreignKeys.size - hiddenSelfRelationshipCount} visible relationships after hiding self-references, rendered ${relationshipCount}.`);
 }
 
-const svgDataUrl = `data:image/svg+xml;base64,${Buffer.from(svg, "utf8").toString("base64")}`;
-const dataUrlChunks = svgDataUrl.match(/.{1,3000}/g) || [];
 const sqlLiteral = value => String(value).replaceAll("'", "''");
-const dataUrlSql = dataUrlChunks
-  .map((chunk, index) => `${index ? "    +" : "    CONVERT(NVARCHAR(MAX),"} N'${sqlLiteral(chunk)}'${index ? "" : ")"}`)
-  .join("\n");
+const svgVersion = createHash("sha256").update(svg).digest("hex").slice(0, 12);
+const svgAssetUrl = `/assets/docs/pmt-database-schema.svg?v=${svgVersion}`;
 const generatedSql = [
-  "DECLARE @DatabaseSchemaDiagramSvgDataUrl NVARCHAR(MAX) =",
-  `${dataUrlSql};`,
   "DECLARE @DatabaseSchemaDiagramBodyHtml NVARCHAR(MAX) =",
-  "    N'<p><img class=\"rich-svg-image pmt-annotation-image\" src=\"'",
-  "    + @DatabaseSchemaDiagramSvgDataUrl",
-  "    + N'\" alt=\"PMT''s Database Schema\" data-pmt-diagram=\"true\" data-pmt-private-diagram=\"true\" data-pmt-seeded-diagram=\"pmt-database-schema-v1\" data-pmt-annotation-version=\"1\"></p>';"
+  `    N'<p><img class="rich-svg-image pmt-annotation-image" src="${sqlLiteral(svgAssetUrl)}" alt="PMT''s Database Schema" data-pmt-diagram="true" data-pmt-private-diagram="true" data-pmt-seeded-diagram="pmt-database-schema-v1" data-pmt-annotation-version="1"></p>';`
 ].join("\n");
 const beginMarker = "-- BEGIN GENERATED PMT DATABASE SCHEMA DIAGRAM";
 const endMarker = "-- END GENERATED PMT DATABASE SCHEMA DIAGRAM";
@@ -437,10 +432,14 @@ for (const path of [seedPath, migrationPath]) {
   writeFileSync(path, `${source.slice(0, start)}${generatedBlock}${source.slice(end + endMarker.length)}`, "utf8");
 }
 
+mkdirSync(dirname(svgAssetPath), { recursive: true });
+writeFileSync(svgAssetPath, svg, "utf8");
+
 if (optionalSvgOutputPath) {
   mkdirSync(dirname(optionalSvgOutputPath), { recursive: true });
   writeFileSync(optionalSvgOutputPath, svg, "utf8");
   console.log(`Generated SVG preview ${optionalSvgOutputPath}`);
 }
-console.log(`Embedded the Diagram data URL in ${seedPath} and the active migration.`);
+console.log(`Generated editable SVG asset ${svgAssetPath}`);
+console.log(`Stored ${svgAssetUrl} in ${seedPath} and the active migration.`);
 console.log(`${entities.length} entities; ${fieldCount} fields; ${foreignKeys.size} foreign keys; ${relationshipCount} visible relationship lines; ${layout.levelCount} hierarchy levels.`);

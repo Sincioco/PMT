@@ -2,14 +2,14 @@ import { buttonContent } from "../../components/buttons.js";
 import {
   releaseNoteContentHtml,
   releaseNoteNavigationHtml
-} from "../../components/release-notes.js?v=release-notes-2026-07-19-day-32-3db2c1ae13fc";
-import { sectionHead } from "../../components/sections.js?v=release-notes-2026-07-19-day-32-3db2c1ae13fc";
+} from "../../components/release-notes.js?v=release-notes-2026-07-19-day-32-ec1e53051fce";
+import { sectionHead } from "../../components/sections.js?v=release-notes-2026-07-19-day-32-ec1e53051fce";
 import {
   preferenceKeys,
   readPreference,
   writePreference
-} from "../../core/preferences.js?v=release-notes-2026-07-19-day-32-3db2c1ae13fc";
-import { releaseNoteById, releaseNotes } from "../../shared/release-notes.js?v=release-notes-2026-07-19-day-32-3db2c1ae13fc";
+} from "../../core/preferences.js?v=release-notes-2026-07-19-day-32-ec1e53051fce";
+import { releaseNoteById, releaseNotes } from "../../shared/release-notes.js?v=release-notes-2026-07-19-day-32-ec1e53051fce";
 
 const releaseNoteModes = new Set(["release", "prompts"]);
 

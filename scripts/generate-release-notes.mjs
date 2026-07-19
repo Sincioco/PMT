@@ -1,4 +1,4 @@
-import { readFile, readdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -9,9 +9,18 @@ const summariesPath = path.join(root, "scripts", "release-notes.json");
 const outputPath = path.join(root, "wwwroot", "js", "shared", "release-notes-data.js");
 const jsonOutputPath = path.join(root, "wwwroot", "release-notes-data.json");
 const versionOutputPath = path.join(root, "wwwroot", "release-notes-version.json");
+const illustrationDirectory = path.join(root, "wwwroot", "assets", "release-notes");
 const wwwrootDirectory = path.join(root, "wwwroot");
 const filePattern = /^(\d{4}-\d{2}-\d{2}) - Requirements - Day (\d+)\.txt$/;
 const checkOnly = process.argv.includes("--check");
+const illustrationPalettes = [
+  { background: "#eef4ff", ink: "#294a72", accent: "#ed7d31", secondary: "#4f7cac" },
+  { background: "#f2f8ee", ink: "#35543b", accent: "#c76d3d", secondary: "#78a56a" },
+  { background: "#fff4e8", ink: "#5a4434", accent: "#397a9f", secondary: "#e1a14a" },
+  { background: "#f6efff", ink: "#4b3d66", accent: "#d26b5f", secondary: "#8b6fbd" },
+  { background: "#edf8f8", ink: "#28555d", accent: "#d87937", secondary: "#58a3a9" },
+  { background: "#fff0f3", ink: "#613e4a", accent: "#467aa6", secondary: "#cf718c" }
+];
 
 const summaries = JSON.parse(await readFile(summariesPath, "utf8"));
 if (!Array.isArray(summaries)) throw new Error("scripts/release-notes.json must contain an array.");
@@ -46,6 +55,7 @@ if (orphanedSummaries.length) {
 }
 
 const releaseNotes = [];
+const illustrationOutputs = [];
 for (const source of sourceFiles) {
   const summary = summaryByDay.get(source.day);
   const prompt = normalizeLineEndings(await readFile(path.join(requirementsDirectory, source.name), "utf8")).trimEnd();
@@ -54,11 +64,17 @@ for (const source of sourceFiles) {
     title: section.title.trim(),
     items: section.items.map(item => item.trim())
   }));
+  const id = `${source.date}-day-${source.day}`;
+  const illustration = releaseIllustration(source.day, title, sections);
   const version = createHash("sha256")
-    .update(JSON.stringify({ title, sections, prompt }))
+    .update(JSON.stringify({ title, sections, prompt, illustration: illustration.svg }))
     .digest("hex")
     .slice(0, 12);
-  const id = `${source.date}-day-${source.day}`;
+  const illustrationFileName = `${id}.svg`;
+  illustrationOutputs.push({
+    file: path.join(illustrationDirectory, illustrationFileName),
+    content: illustration.svg
+  });
   releaseNotes.push({
     id,
     version,
@@ -66,6 +82,10 @@ for (const source of sourceFiles) {
     date: source.date,
     day: source.day,
     title,
+    illustration: {
+      url: `/assets/release-notes/${illustrationFileName}?v=${version}`,
+      alt: illustration.alt
+    },
     sourceFile: source.name,
     sections,
     prompt
@@ -89,6 +109,11 @@ for (const file of cacheFiles) {
   const updated = current.replace(cacheUrlPattern, cacheUrl);
   if (updated !== current) cacheUpdates.push({ file, updated });
 }
+const illustrationUpdates = [];
+for (const illustration of illustrationOutputs) {
+  const current = await readFile(illustration.file, "utf8").catch(() => "");
+  if (current !== illustration.content) illustrationUpdates.push(illustration);
+}
 
 if (checkOnly) {
   const current = await readFile(outputPath, "utf8").catch(() => "");
@@ -106,13 +131,18 @@ if (checkOnly) {
   if (cacheUpdates.length) {
     throw new Error(`Release-note browser cache keys are out of date in: ${cacheUpdates.map(item => path.relative(root, item.file)).join(", ")}`);
   }
+  if (illustrationUpdates.length) {
+    throw new Error(`Release-note illustrations are out of date in: ${illustrationUpdates.map(item => path.relative(root, item.file)).join(", ")}`);
+  }
   console.log(`Release-note data is current (${releaseNotes.length} releases).`);
 } else {
+  await mkdir(illustrationDirectory, { recursive: true });
   await Promise.all([
     writeFile(outputPath, output, "utf8"),
     writeFile(jsonOutputPath, jsonOutput, "utf8"),
     writeFile(versionOutputPath, versionOutput, "utf8")
   ]);
+  await Promise.all(illustrationUpdates.map(item => writeFile(item.file, item.content, "utf8")));
   await Promise.all(cacheUpdates.map(item => writeFile(item.file, item.updated, "utf8")));
   console.log(`Generated ${releaseNotes.length} releases and synchronized browser cache key ${cacheUrl.slice(3)}.`);
 }
@@ -136,6 +166,111 @@ function validateSummary(summary) {
 
 function normalizeLineEndings(value) {
   return String(value || "").replace(/\r\n?/g, "\n");
+}
+
+function releaseIllustration(day, title, sections) {
+  const searchableText = [title, ...sections.map(section => section.title)].join(" ").toLowerCase();
+  const kind = illustrationKind(searchableText);
+  const palette = illustrationPalettes[Math.abs(Number(day) || 0) % illustrationPalettes.length];
+  const offset = 34 + ((Number(day) || 0) * 17) % 44;
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 180">
+  <rect width="720" height="180" rx="24" fill="${palette.background}"/>
+  <circle cx="${offset}" cy="42" r="18" fill="${palette.accent}" opacity=".18"/>
+  <circle cx="${720 - offset}" cy="138" r="28" fill="${palette.secondary}" opacity=".2"/>
+  <path d="M42 142h96M582 38h96" stroke="${palette.secondary}" stroke-width="8" stroke-linecap="round" opacity=".28"/>
+  ${illustrationIcon(kind, palette)}
+</svg>
+`;
+  return { svg, alt: illustrationAlt(kind) };
+}
+
+function illustrationKind(text) {
+  if (/diagram|schema|entity|relationship/.test(text)) return "diagram";
+  if (/annotation|image|crop|photo|gallery|3d/.test(text)) return "image";
+  if (/release note|what's new/.test(text)) return "release";
+  if (/privacy|security|administration|invitation|permission/.test(text)) return "security";
+  if (/scrum|attendance|team|profile|collaboration/.test(text)) return "team";
+  if (/gantt|schedul|road map|calendar|timeline/.test(text)) return "schedule";
+  if (/bug|qa|audit/.test(text)) return "bug";
+  if (/documentation|rich text|source|content|export|import/.test(text)) return "document";
+  return "board";
+}
+
+function illustrationIcon(kind, palette) {
+  const stroke = palette.ink;
+  const accent = palette.accent;
+  const secondary = palette.secondary;
+  const common = `fill="none" stroke="${stroke}" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"`;
+  const icons = {
+    diagram: `<g ${common}>
+    <rect x="238" y="40" width="100" height="52" rx="8" fill="#fff"/>
+    <rect x="382" y="88" width="100" height="52" rx="8" fill="#fff"/>
+    <path d="M338 66h55v48h-11"/>
+    <circle cx="394" cy="66" r="7" fill="${accent}" stroke="none"/>
+    <circle cx="382" cy="114" r="7" fill="${secondary}" stroke="none"/>
+  </g>`,
+    image: `<g ${common}>
+    <rect x="250" y="33" width="220" height="114" rx="12" fill="#fff"/>
+    <circle cx="303" cy="72" r="15" fill="${accent}" stroke="none"/>
+    <path d="m275 128 49-42 32 28 25-19 64 33"/>
+    <path d="M432 42v27M418 55h28" stroke="${secondary}"/>
+  </g>`,
+    release: `<g ${common}>
+    <path d="m272 75 103-37v91L272 92Z" fill="#fff"/>
+    <path d="M272 75h-29v36h29M298 102l14 39h31l-17-49"/>
+    <path d="m420 48 15-15M435 83h24M420 117l15 15" stroke="${accent}"/>
+  </g>`,
+    security: `<g ${common}>
+    <path d="M360 27c31 22 60 26 86 27v32c0 40-30 62-86 76-56-14-86-36-86-76V54c26-1 55-5 86-27Z" fill="#fff"/>
+    <path d="m326 90 23 23 47-51" stroke="${accent}"/>
+  </g>`,
+    team: `<g ${common}>
+    <circle cx="360" cy="61" r="25" fill="#fff"/>
+    <circle cx="290" cy="78" r="19" fill="#fff"/>
+    <circle cx="430" cy="78" r="19" fill="#fff"/>
+    <path d="M310 145c4-32 20-48 50-48s46 16 50 48M252 145c3-28 16-42 38-42 10 0 18 3 25 8M468 145c-3-28-16-42-38-42-10 0-18 3-25 8"/>
+    <path d="M343 127h34" stroke="${accent}"/>
+  </g>`,
+    schedule: `<g ${common}>
+    <rect x="258" y="39" width="204" height="112" rx="12" fill="#fff"/>
+    <path d="M258 73h204M305 28v23M415 28v23"/>
+    <path d="M294 99h28M346 99h28M398 99h28M294 125h28M346 125h28" stroke="${accent}"/>
+  </g>`,
+    bug: `<g ${common}>
+    <rect x="316" y="57" width="88" height="90" rx="42" fill="#fff"/>
+    <path d="M330 57c0-22 12-34 30-34s30 12 30 34M316 84h88M360 84v63M285 69l31 15M285 111h31M435 69l-31 15M435 111h-31M294 146l28-17M426 146l-28-17"/>
+    <circle cx="344" cy="73" r="6" fill="${accent}" stroke="none"/>
+    <circle cx="376" cy="73" r="6" fill="${accent}" stroke="none"/>
+  </g>`,
+    document: `<g ${common}>
+    <path d="M292 25h98l38 38v92H292Z" fill="#fff"/>
+    <path d="M390 25v38h38M322 91h76M322 116h76M322 141h48"/>
+    <path d="m265 72-24 18 24 18M455 72l24 18-24 18" stroke="${accent}"/>
+  </g>`,
+    board: `<g ${common}>
+    <rect x="247" y="35" width="226" height="112" rx="12" fill="#fff"/>
+    <path d="M322 35v112M398 35v112"/>
+    <rect x="265" y="55" width="39" height="27" rx="5" fill="${accent}" stroke="none"/>
+    <rect x="340" y="55" width="40" height="49" rx="5" fill="${secondary}" stroke="none"/>
+    <rect x="416" y="55" width="39" height="34" rx="5" fill="${accent}" stroke="none" opacity=".7"/>
+  </g>`
+  };
+  return icons[kind] || icons.board;
+}
+
+function illustrationAlt(kind) {
+  const descriptions = {
+    diagram: "Diagram and database connection illustration.",
+    image: "Image and annotation illustration.",
+    release: "Product update announcement illustration.",
+    security: "Security and privacy illustration.",
+    team: "Team collaboration illustration.",
+    schedule: "Schedule and calendar illustration.",
+    bug: "Bug tracking illustration.",
+    document: "Document and source editing illustration.",
+    board: "Project workflow illustration."
+  };
+  return descriptions[kind] || descriptions.board;
 }
 
 async function listFiles(directory) {

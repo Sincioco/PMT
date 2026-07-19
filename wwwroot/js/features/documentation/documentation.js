@@ -16,7 +16,7 @@ import {
   selectOptionsField,
   value
 } from "../../components/forms.js?v=20260719-rte-insert-diagram";
-import { sectionHead } from "../../components/sections.js?v=release-notes-2026-07-19-day-32-3db2c1ae13fc";
+import { sectionHead } from "../../components/sections.js?v=release-notes-2026-07-19-day-32-ec1e53051fce";
 import {
   preferenceKeys,
   readBooleanPreference,
@@ -197,9 +197,9 @@ export function createDocumentationFeature({
         ...(documentationViewMode === "tree"
           ? [{
               action: "toggle-documentation-tree-pane",
-              icon: documentationTreePaneHidden ? "&#9776;" : "&#10005;",
-              label: documentationTreePaneHidden ? "Show Tree" : "Hide Tree",
-              title: documentationTreePaneHidden ? "Show Tree" : "Hide Tree",
+              icon: "&#9776;",
+              label: "Left Nav",
+              title: "Left Nav",
               checked: !documentationTreePaneHidden,
               separatorBefore: true
             }]
@@ -426,12 +426,8 @@ export function createDocumentationFeature({
       return selectDocumentationTreeBlog(id);
     }
     if (action === "new-blog") {
-      if (documentationViewMode === "tree") {
-        startDocumentationInlineNew();
-        return true;
-      }
-
-      editBlog();
+      showDocumentationTreeFullScreen();
+      startDocumentationInlineNew();
       return true;
     }
     if (action === "import-documentation") {
@@ -832,6 +828,13 @@ export function createDocumentationFeature({
 
     openEditor(blog.id ? "Edit Document" : "New Document", `
       <div class="form-grid">
+        ${blog.id ? `
+          <template data-editor-head-action>
+            <button class="secondary text-icon-button" type="button" data-documentation-full-screen-edit="${blog.id}" title="View Full-Screen" aria-label="View Full-Screen">
+              ${buttonContent("&#9974;", "View Full-Screen")}
+            </button>
+          </template>
+        ` : ""}
         ${selectOptionsField("Project", "projectId", [{ id: "", title: "Global" }, ...state.projects.map(project => ({ id: project.id, title: `${project.code} - ${project.title}` }))], selectedProjectId)}
         ${selectOptionsField("Sprint", "sprintId", documentationSprintOptions(selectedProjectId), selectedSprintId)}
         ${field("Title", "title", blog.title || "", "text", "", "", "", { required: true })}
@@ -878,6 +881,12 @@ export function createDocumentationFeature({
       root.querySelector("[data-rich='bodyHtml']")?.classList.add("documentation-image-open-area");
       bindDocumentationBodyImageOpen(root);
       bindDocumentationEditorRules(root, blog);
+      const fullScreenButton = root.closest("dialog")?.querySelector(`[data-documentation-full-screen-edit='${blog.id || 0}']`);
+      fullScreenButton?.addEventListener("click", () => {
+        root.closest("dialog")?.close();
+        showDocumentationTreeFullScreen();
+        startDocumentationInlineEdit(blog.id);
+      });
     });
   }
 

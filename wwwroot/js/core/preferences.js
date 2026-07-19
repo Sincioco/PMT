@@ -78,6 +78,7 @@ export const preferenceKeys = Object.freeze({
   documentationTreePaneHidden: "pmt-documentation-tree-pane-hidden",
   diagramViewMode: "pmt-diagram-view-mode",
   diagramTreePaneWidth: "pmt-diagram-tree-pane-width",
+  diagramTreePaneHidden: "pmt-diagram-tree-pane-hidden",
   diagramSearch: "pmt-diagram-search",
   diagramProject: "pmt-diagram-project",
   diagramSprint: "pmt-diagram-sprint",

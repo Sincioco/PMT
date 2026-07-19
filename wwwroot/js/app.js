@@ -5,10 +5,9 @@ import { bindAttachmentDeletion } from "./components/attachments.js?v=20260714-a
 import { buttonContent } from "./components/buttons.js?v=20260715-admin-impersonation";
 import { copyTextToClipboard } from "./components/clipboard.js?v=20260714-invite-email-body";
 import {
-  annotationSvgDataUrl,
   openImageAnnotationDialog
-} from "./components/image-annotation.js?v=20260719-vector-zoom-v15";
-import { createWhatsNew } from "./components/whats-new.js?v=release-notes-2026-07-19-day-32-3db2c1ae13fc";
+} from "./components/image-annotation.js?v=20260719-diagram-textbox-edit-v23";
+import { createWhatsNew } from "./components/whats-new.js?v=release-notes-2026-07-19-day-32-ec1e53051fce";
 import {
   htmlWithoutUserMentionMarkup,
   initializeUserMentions
@@ -64,24 +63,24 @@ import {
 import { createBacklogFeature } from "./features/backlog/backlog.js?v=20260719-day32-rte-diagram";
 import { createBoardFeature } from "./features/board/board.js?v=20260719-day32-rte-diagram";
 import { createBugsFeature } from "./features/bugs/bugs.js?v=20260719-day32-rte-diagram";
-import { createDashboardFeature } from "./features/dashboard/dashboard.js?v=release-notes-2026-07-19-day-32-3db2c1ae13fc";
-import { createDiagramFeature } from "./features/diagram/diagram.js?v=20260719-vector-zoom-v15";
+import { createDashboardFeature } from "./features/dashboard/dashboard.js?v=release-notes-2026-07-19-day-32-ec1e53051fce";
+import { createDiagramFeature } from "./features/diagram/diagram.js?v=20260719-diagram-textbox-edit-v23";
 import { createDocumentationFeature } from "./features/documentation/documentation.js?v=20260719-day32-rte-diagram";
 import {
   createGanttFeature,
   currentSprintForProject,
   ganttStartDate
-} from "./features/gantt/gantt.js?v=release-notes-2026-07-19-day-32-3db2c1ae13fc";
+} from "./features/gantt/gantt.js?v=release-notes-2026-07-19-day-32-ec1e53051fce";
 import { createInvitationsFeature } from "./features/invitations/invitations.js?v=20260719-day32-rte-diagram";
 import { createProjectsFeature } from "./features/projects/projects.js?v=20260719-day32-rte-diagram";
-import { createReleaseNotesFeature } from "./features/release-notes/release-notes.js?v=release-notes-2026-07-19-day-32-3db2c1ae13fc";
-import { createRoadMapFeature } from "./features/roadmap/roadmap.js?v=release-notes-2026-07-19-day-32-3db2c1ae13fc";
+import { createReleaseNotesFeature } from "./features/release-notes/release-notes.js?v=release-notes-2026-07-19-day-32-ec1e53051fce";
+import { createRoadMapFeature } from "./features/roadmap/roadmap.js?v=release-notes-2026-07-19-day-32-ec1e53051fce";
 import { createLogFeature } from "./features/personal-log/log.js?v=20260719-day32-rte-diagram";
-import { createScrumFeature } from "./features/scrum/scrum.js?v=20260719-day32-rte-diagram";
+import { createScrumFeature } from "./features/scrum/scrum.js?v=20260719-scrum-avatar-clearance-v21";
 import { createSettingsFeature } from "./features/settings/settings.js?v=20260719-day32-rte-diagram";
 import { createSprintsFeature } from "./features/sprints/sprints.js?v=20260719-day32-rte-diagram";
 import { createTasksFeature } from "./features/tasks/tasks.js?v=20260719-day32-rte-diagram";
-import { createWfhScheduleFeature } from "./features/wfh-schedule/wfh-schedule.js?v=release-notes-2026-07-19-day-32-3db2c1ae13fc";
+import { createWfhScheduleFeature } from "./features/wfh-schedule/wfh-schedule.js?v=release-notes-2026-07-19-day-32-ec1e53051fce";
 import {
   fallbackEnvironments,
   fallbackForLookup,
@@ -89,7 +88,12 @@ import {
   fallbackSeverities,
   fallbackStatuses
 } from "./shared/constants.js";
+import {
+  prepareRichSourceHighlight,
+  RICH_SOURCE_TEXT_TYPES
+} from "./shared/source-highlighting.js?v=20260719-rte-source-v17";
 import { formatDate, toDateInput } from "./shared/dates.js";
+import { externalizeImportedHtmlImages } from "./shared/imported-html-images.js?v=20260719-rte-upload-v17";
 import { canEditTask } from "./shared/permissions.js?v=20260715-admin-impersonation";
 import { applyActionPermissions, canAccessResource, canReadView, firstReadableView } from "./shared/security.js?v=20260718-diagram-entity-v22";
 import {
@@ -447,6 +451,8 @@ const diagramFeature = createDiagramFeature({
   loadDefaultTemplateLibrary: () => api("/api/image-annotation/default-template-library", { cache: "no-store" }),
   saveTemplateLibrary: library => saveJson("/api/image-annotation/template-library", "PUT", library),
   loadPmtDatabaseSchema: () => api("/api/diagram/pmt-database-schema", { cache: "no-store" }),
+  uploadEmbeddedImage: uploadRichTextCanvasImage,
+  persistCroppedOriginal: uploadRichTextCanvasImage,
   createDiagramDocument: createDiagramBackingDocument,
   saveDiagramDocument: updateDiagramBackingDocument,
   openEditor,
@@ -2030,7 +2036,6 @@ async function annotateRichTextImage(image) {
   closeRichTextImageSelection();
   const currentSource = storageUrl(image.getAttribute("src") || richTextImageSource(image));
   const isAnnotated = image.dataset.pmtAnnotationVersion === "1";
-  const isStoredDiagram = image.dataset.pmtDiagram === "true" || image.dataset.pmtPrivateDiagram === "true";
   const storedOriginalReference = storageUrl(image.dataset.pmtAnnotationSource || "");
   const originalReference = isAnnotated ? storedOriginalReference : currentSource;
   try {
@@ -2043,24 +2048,16 @@ async function annotateRichTextImage(image) {
       askForText,
       confirm: askYesNo,
       notify: showToast,
+      uploadEmbeddedImage: uploadRichTextCanvasImage,
       loadTemplateLibrary: () => api("/api/image-annotation/template-library", { cache: "no-store" }),
       loadDefaultTemplateLibrary: () => api("/api/image-annotation/default-template-library", { cache: "no-store" }),
       saveTemplateLibrary: library => saveJson("/api/image-annotation/template-library", "PUT", library),
-      persistCroppedOriginal: async ({ blob, fileName }) => {
-        const file = new File([blob], fileName, { type: blob.type || "image/png" });
-        const upload = await uploadFile("richtext", file);
-        return storageUrl(upload.url);
-      },
+      persistCroppedOriginal: uploadRichTextCanvasImage,
       apply: async annotation => {
         if (!image.isConnected) throw new Error("The rich-text editor is no longer open.");
-        let annotationSource;
-        if (isStoredDiagram) {
-          annotationSource = annotationSvgDataUrl(annotation.svg);
-        } else {
-          const file = new File([annotation.svg], annotation.fileName, { type: "image/svg+xml" });
-          const upload = await uploadFile("richtext", file);
-          annotationSource = appUrl(upload.url);
-        }
+        const file = new File([annotation.svg], annotation.fileName, { type: "image/svg+xml" });
+        const upload = await uploadFile("richtext", file);
+        const annotationSource = appUrl(upload.url);
         if (!image.isConnected) throw new Error("The rich-text editor is no longer open.");
         image.setAttribute("src", annotationSource);
         if (annotation.originalReference) image.dataset.pmtAnnotationSource = annotation.originalReference;
@@ -2338,7 +2335,7 @@ function bindRichTextButtons(root) {
 
         editor.focus();
         restoreEditorSelection(savedSelection);
-        document.execCommand("insertHTML", false, richCodeBlockHtml(codeBlock));
+        insertRichHtmlAtSelection(editor, richCodeBlockHtml(codeBlock));
         return;
       }
 
@@ -2580,30 +2577,74 @@ function bindRichTextButtons(root) {
     bindRichCheckboxShortcut(editor);
 
     editor.addEventListener("paste", async event => {
+      const pasteSelection = saveEditorSelection(editor);
       const svgFile = richSvgFileFromClipboard(event.clipboardData);
       if (svgFile) {
         event.preventDefault();
         editor.focus();
         try {
-          await insertRichUploadedImage(editor, svgFile);
+          await insertRichUploadedImage(editor, svgFile, pasteSelection);
         } catch (error) {
           showToast(error.message || "SVG could not be inserted.");
         }
         return;
       }
 
-      const imageItems = [...(event.clipboardData?.items || [])].filter(item => item.type.startsWith("image/"));
-      if (!imageItems.length) return;
+      const imageFiles = richImageFilesFromClipboard(event.clipboardData);
+      if (!imageFiles.length) {
+        const dataImageHtml = richClipboardDataImageHtml(event.clipboardData);
+        if (!dataImageHtml) return;
+
+        event.preventDefault();
+        editor.focus();
+        try {
+          const result = await externalizeImportedHtmlImages(dataImageHtml);
+          if (result.failed) throw new Error("The pasted image could not be uploaded.");
+          restoreEditorSelection(pasteSelection);
+          document.execCommand("insertHTML", false, result.html);
+        } catch (error) {
+          showToast(error.message || "Image could not be inserted.");
+        }
+        return;
+      }
 
       event.preventDefault();
       editor.focus();
 
-      for (const item of imageItems) {
-        const file = item.getAsFile();
-        if (!file) continue;
-
+      let insertionSelection = pasteSelection;
+      for (const file of imageFiles) {
         try {
-          await insertRichUploadedImage(editor, file);
+          await insertRichUploadedImage(editor, file, insertionSelection);
+          insertionSelection = saveEditorSelection(editor);
+        } catch (error) {
+          showToast(error.message || "Image could not be inserted.");
+        }
+      }
+    });
+
+    editor.addEventListener("dragover", event => {
+      if (!richImageFilesFromClipboard(event.dataTransfer).length) return;
+      event.preventDefault();
+    });
+
+    editor.addEventListener("drop", async event => {
+      const imageFiles = richImageFilesFromClipboard(event.dataTransfer);
+      if (!imageFiles.length) return;
+
+      event.preventDefault();
+      editor.focus();
+      const dropRange = richCaretRangeFromPoint(event.clientX, event.clientY);
+      if (dropRange && editor.contains(dropRange.startContainer)) {
+        const selection = window.getSelection();
+        selection?.removeAllRanges();
+        selection?.addRange(dropRange);
+      }
+
+      let insertionSelection = saveEditorSelection(editor);
+      for (const file of imageFiles) {
+        try {
+          await insertRichUploadedImage(editor, file, insertionSelection);
+          insertionSelection = saveEditorSelection(editor);
         } catch (error) {
           showToast(error.message || "Image could not be inserted.");
         }
@@ -3936,6 +3977,9 @@ function askForCodeBlock(initialCode = "") {
   return new Promise(resolve => {
     const modal = document.createElement("dialog");
     modal.className = "dialog rich-code-dialog";
+    const codeLanguageOptions = RICH_SOURCE_TEXT_TYPES
+      .map(option => `<option value="${escapeAttr(option.value)}">${escapeHtml(option.label)}</option>`)
+      .join("");
     modal.innerHTML = `
       <form method="dialog">
         <div class="dialog-head">
@@ -3946,9 +3990,16 @@ function askForCodeBlock(initialCode = "") {
             <label>Caption</label>
             <input name="codeCaption" value="Code">
           </div>
-          <div class="field full">
+          <div class="field">
             <label>Code</label>
-            <textarea name="codeText" rows="12" spellcheck="false">${escapeHtml(initialCode)}</textarea>
+            <select name="codeLanguage" data-rich-code-language>${codeLanguageOptions}</select>
+          </div>
+          <div class="field full">
+            <label>Content</label>
+            <div class="rich-source-editor" data-rich-code-editor>
+              <pre class="rich-source-highlight" data-rich-code-highlight aria-hidden="true"><code></code></pre>
+              <textarea name="codeText" rows="12" spellcheck="false">${escapeHtml(initialCode)}</textarea>
+            </div>
           </div>
         </div>
         <div class="dialog-actions">
@@ -3959,19 +4010,88 @@ function askForCodeBlock(initialCode = "") {
     `;
 
     document.body.appendChild(modal);
+    const codeTextarea = modal.querySelector("[name='codeText']");
+    const codeLanguage = modal.querySelector("[data-rich-code-language]");
+    const codeEditor = modal.querySelector("[data-rich-code-editor]");
+    const codeHighlight = modal.querySelector("[data-rich-code-highlight]");
+    const codeHighlightContent = codeHighlight?.querySelector("code");
+    let highlightFrame = 0;
+
+    const syncCodeScroll = () => {
+      if (!codeTextarea || !codeHighlight) return;
+      codeHighlight.scrollTop = codeTextarea.scrollTop;
+      codeHighlight.scrollLeft = codeTextarea.scrollLeft;
+    };
+
+    const renderCodeHighlight = ({ formatJson = false } = {}) => {
+      if (!codeTextarea || !codeHighlight || !codeHighlightContent) return;
+
+      let result;
+      try {
+        result = prepareRichSourceHighlight(codeTextarea.value, codeLanguage?.value, { formatJson });
+      } catch {
+        result = {
+          error: `Unable to color code ${codeLanguage?.selectedOptions?.[0]?.textContent || "the code"}. The code is being shown as plain text.`,
+          highlighted: false,
+          html: "",
+          text: codeTextarea.value
+        };
+      }
+
+      if (formatJson && result.text !== codeTextarea.value) {
+        codeTextarea.value = result.text;
+        codeTextarea.scrollTop = 0;
+        codeTextarea.scrollLeft = 0;
+      }
+
+      codeHighlightContent.innerHTML = result.highlighted
+        ? `${result.html}${result.text.endsWith("\n") ? " " : ""}`
+        : "";
+      codeHighlight.hidden = !result.highlighted;
+      codeTextarea.classList.toggle("has-syntax-highlighting", result.highlighted);
+      codeEditor?.classList.toggle("has-syntax-highlighting", result.highlighted);
+      syncCodeScroll();
+
+      if (result.error && codeEditor?.dataset.richCodeError !== result.error) {
+        codeEditor.dataset.richCodeError = result.error;
+        showToast(result.error);
+      } else if (!result.error && codeEditor) {
+        delete codeEditor.dataset.richCodeError;
+      }
+    };
+
+    const scheduleCodeHighlight = () => {
+      cancelAnimationFrame(highlightFrame);
+      highlightFrame = requestAnimationFrame(() => {
+        highlightFrame = 0;
+        renderCodeHighlight();
+      });
+    };
 
     const finish = value => {
+      cancelAnimationFrame(highlightFrame);
       modal.close();
       modal.remove();
       resolve(value);
     };
 
     modal.querySelector("[data-result='cancel']").addEventListener("click", () => finish(null));
+    codeLanguage?.addEventListener("change", () => {
+      if (codeHighlightContent) codeHighlightContent.textContent = "";
+      codeHighlight?.setAttribute("hidden", "");
+      codeTextarea?.classList.remove("has-syntax-highlighting");
+      if (codeEditor) delete codeEditor.dataset.richCodeError;
+      renderCodeHighlight({ formatJson: codeLanguage.value === "json" });
+      codeTextarea?.focus({ preventScroll: true });
+    });
+    codeTextarea?.addEventListener("input", scheduleCodeHighlight);
+    codeTextarea?.addEventListener("scroll", syncCodeScroll, { passive: true });
     modal.querySelector("form").addEventListener("submit", event => {
       event.preventDefault();
       finish({
         caption: modal.querySelector("[name='codeCaption']").value,
-        code: modal.querySelector("[name='codeText']").value
+        code: codeTextarea?.value || "",
+        language: codeLanguage?.value || ""
       });
     });
     modal.addEventListener("cancel", event => {
@@ -4048,13 +4168,12 @@ function openRichSourceDialog(editor) {
       <div class="dialog-body">
         <div class="field full">
           <div class="rich-source-dialog-toolbar">
-            <span class="rich-source-dialog-label">HTML</span>
             <label class="inline-check rich-source-wrap-option">
-              <input type="checkbox" data-rich-source-wrap>
-              <span>Word wrap source code</span>
+              <input type="checkbox" data-rich-source-wrap checked>
+              <span>Word Wrap</span>
             </label>
           </div>
-          <textarea name="sourceHtml" rows="16" spellcheck="false" wrap="off">${escapeHtml(editor.innerHTML || "")}</textarea>
+          <textarea name="sourceHtml" rows="16" spellcheck="false" wrap="soft" class="is-word-wrapped">${escapeHtml(editor.innerHTML || "")}</textarea>
         </div>
       </div>
       <div class="dialog-actions">
@@ -4072,10 +4191,12 @@ function openRichSourceDialog(editor) {
   document.body.appendChild(modal);
   initializeWindowedDialog(modal);
   const sourceTextarea = modal.querySelector("[name='sourceHtml']");
+
   modal.querySelector("[data-rich-source-wrap]")?.addEventListener("change", event => {
     const wrapped = event.target.checked;
     sourceTextarea?.classList.toggle("is-word-wrapped", wrapped);
     sourceTextarea?.setAttribute("wrap", wrapped ? "soft" : "off");
+    if (wrapped && sourceTextarea) sourceTextarea.scrollLeft = 0;
   });
   modal.querySelector("[data-copy-rich-source]")?.addEventListener("click", async () => {
     const copied = await copyTextToClipboard(sourceTextarea?.value || "", sourceTextarea);
@@ -4084,20 +4205,28 @@ function openRichSourceDialog(editor) {
   modal.querySelectorAll("[data-close-rich-source]").forEach(button => {
     button.addEventListener("click", () => modal.close());
   });
-  modal.querySelector("form")?.addEventListener("submit", event => {
+  modal.querySelector("form")?.addEventListener("submit", async event => {
     event.preventDefault();
-    editor.innerHTML = sourceTextarea?.value || "";
+    const result = await externalizeImportedHtmlImages(sourceTextarea?.value || "");
+    if (result.failed) {
+      showToast("One or more embedded images could not be uploaded. The source was not applied.");
+      return;
+    }
+    editor.innerHTML = result.html;
     normalizeLinksInElement(editor);
     modal.close();
   });
-  modal.addEventListener("close", () => modal.remove());
+  modal.addEventListener("close", () => {
+    modal.remove();
+  });
   modal.showModal();
   setTimeout(() => modal.querySelector("[name='sourceHtml']")?.focus({ preventScroll: true }), 0);
 }
 
-async function insertRichUploadedImage(editor, file) {
+async function insertRichUploadedImage(editor, file, savedSelection = null) {
   const upload = await uploadFile("richtext", file);
-  editor.focus();
+  editor.focus({ preventScroll: true });
+  restoreEditorSelection(savedSelection);
   document.execCommand("insertHTML", false, richUploadedImageHtml(upload));
 }
 
@@ -4117,6 +4246,7 @@ async function insertRichTextDiagram(editor, savedSelection) {
       askForText,
       confirm: askYesNo,
       notify: showToast,
+      uploadEmbeddedImage: uploadRichTextCanvasImage,
       loadTemplateLibrary: () => api("/api/image-annotation/template-library", { cache: "no-store" }),
       loadDefaultTemplateLibrary: () => api("/api/image-annotation/default-template-library", { cache: "no-store" }),
       saveTemplateLibrary: library => saveJson("/api/image-annotation/template-library", "PUT", library),
@@ -4151,6 +4281,30 @@ function richUploadIsSvg(upload) {
   const fileName = upload?.fileName || "";
   const url = upload?.url || "";
   return /^image\/svg(?:\+xml)?$/i.test(contentType) || /\.svg$/i.test(fileName) || /\.svg(?:[?#]|$)/i.test(url);
+}
+
+function richImageFilesFromClipboard(clipboardData) {
+  if (!clipboardData) return [];
+
+  const itemFiles = [...(clipboardData.items || [])]
+    .filter(item => item.kind === "file" && /^image\//i.test(item.type || ""))
+    .map(item => item.getAsFile())
+    .filter(Boolean);
+  if (itemFiles.length) return itemFiles;
+
+  return [...(clipboardData.files || [])]
+    .filter(file => /^image\//i.test(file.type || ""));
+}
+
+function richClipboardDataImageHtml(clipboardData) {
+  const source = clipboardData?.getData?.("text/html") || "";
+  if (!source) return "";
+
+  const container = document.createElement("div");
+  container.innerHTML = source;
+  const images = [...container.querySelectorAll("img[src]")]
+    .filter(image => /^data:image\//i.test(image.getAttribute("src") || ""));
+  return images.map(image => image.outerHTML).join("");
 }
 
 function richSvgFileFromClipboard(clipboardData) {
@@ -4276,10 +4430,42 @@ function sanitizeRichSvgElement(svg) {
   });
 }
 
-function richCodeBlockHtml({ caption, code }) {
+function richCodeBlockHtml({ caption, code, language }) {
   const summary = escapeHtml((caption || "Code").trim() || "Code");
-  const codeHtml = escapeHtml(code || "") || "<br>";
-  return `<details class="rich-code-block" open><summary>${summary}</summary><pre><code>${codeHtml}</code></pre></details><p><br></p>`;
+  const normalizedLanguage = RICH_SOURCE_TEXT_TYPES.some(option => option.value === language)
+    ? language
+    : "";
+  const result = prepareRichSourceHighlight(code || "", normalizedLanguage);
+  const codeHtml = (result.highlighted ? result.html : escapeHtml(code || "")) || "<br>";
+  const languageAttribute = normalizedLanguage
+    ? ` data-code-language="${escapeAttr(normalizedLanguage)}"`
+    : "";
+  return `<details class="rich-code-block"><summary>${summary}</summary><pre><code${languageAttribute}>${codeHtml}</code></pre></details><p><br></p>`;
+}
+
+function insertRichHtmlAtSelection(editor, html) {
+  const template = document.createElement("template");
+  template.innerHTML = String(html || "");
+  const fragment = template.content;
+  const lastNode = fragment.lastChild;
+  if (!lastNode) return;
+
+  const selection = window.getSelection();
+  const selectedRange = selection?.rangeCount ? selection.getRangeAt(0) : null;
+  const range = selectedRange && editor.contains(selectedRange.commonAncestorContainer)
+    ? selectedRange
+    : document.createRange();
+  if (!selectedRange || !editor.contains(selectedRange.commonAncestorContainer)) {
+    range.selectNodeContents(editor);
+    range.collapse(false);
+  }
+
+  range.deleteContents();
+  range.insertNode(fragment);
+  range.setStartAfter(lastNode);
+  range.collapse(true);
+  selection?.removeAllRanges();
+  selection?.addRange(range);
 }
 
 function richPlainTextHtml(text) {
@@ -4358,6 +4544,22 @@ async function attachFile(path, file) {
   const body = new FormData();
   body.append("file", file);
   return api(path, { method: "POST", body });
+}
+
+async function uploadRichTextCanvasImage(input) {
+  const file = input instanceof File
+    ? input
+    : new File(
+        [input?.blob],
+        input?.fileName || "diagram-image.png",
+        { type: input?.blob?.type || "image/png" }
+      );
+  const upload = await uploadFile("richtext", file);
+  return {
+    ...upload,
+    reference: storageUrl(upload.url),
+    url: appUrl(upload.url)
+  };
 }
 
 async function deleteAttachment(path, fileName) {
@@ -4468,20 +4670,21 @@ function updateWorkItemContentUrl(task) {
   lastOpenedContentRouteKey = contentRouteKey(parseRouteFromLocation());
 }
 
-async function createDiagramBackingDocument({ title, bodyHtml }) {
+async function createDiagramBackingDocument({ title, diagram, sourceDocument = null }) {
   if (!canAccessResource("Documentation", "Create")) {
     throw new Error("You do not have permission to create Documentation.");
   }
-  if (!title || !bodyHtml) throw new Error("The Diagram backing Document is incomplete.");
+  if (!title || !diagram?.svg) throw new Error("The Diagram backing Document is incomplete.");
+  const bodyHtml = await uploadedDiagramBackingBodyHtml(title, diagram);
 
   const result = await saveJson("/api/blogs", "POST", {
     id: 0,
-    projectId: null,
-    sprintId: null,
-    parentBlogId: null,
+    projectId: sourceDocument?.projectId || null,
+    sprintId: sourceDocument?.sprintId || null,
+    parentBlogId: sourceDocument?.parentBlogId || null,
     title,
     bodyHtml,
-    isPrivate: true,
+    isPrivate: sourceDocument ? sourceDocument.isPrivate !== false : true,
     isPinned: false
   });
 
@@ -4489,13 +4692,14 @@ async function createDiagramBackingDocument({ title, bodyHtml }) {
   return state.blogs.find(blog => blog.id === result.id) || result;
 }
 
-async function updateDiagramBackingDocument(document, { diagram, bodyHtml }) {
+async function updateDiagramBackingDocument(document, { diagram }) {
   if (!canAccessResource("Documentation", "Update")) {
     throw new Error("You do not have permission to update Documentation.");
   }
-  if (!document?.id || !diagram?.svg || !bodyHtml) {
+  if (!document?.id || !diagram?.svg) {
     throw new Error("The Diagram could not be saved.");
   }
+  const bodyHtml = await uploadedDiagramBackingBodyHtml(document.title, diagram);
 
   const result = await saveJson(`/api/blogs/${document.id}`, "PUT", {
     id: document.id,
@@ -4511,6 +4715,19 @@ async function updateDiagramBackingDocument(document, { diagram, bodyHtml }) {
 
   await loadState();
   return state.blogs.find(blog => blog.id === document.id) || result;
+}
+
+async function uploadedDiagramBackingBodyHtml(title, diagram) {
+  const fileName = `${String(title || "diagram")
+    .replace(/[^a-z0-9_-]+/gi, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 60) || "diagram"}.svg`;
+  const upload = await uploadFile(
+    "richtext",
+    new File([diagram.svg], fileName, { type: "image/svg+xml" })
+  );
+  const version = Number(diagram.state?.version || 1);
+  return `<p><img class="rich-svg-image pmt-annotation-image" src="${escapeAttr(storageUrl(upload.url))}" alt="${escapeAttr(title)}" data-pmt-diagram="true" data-pmt-private-diagram="true" data-pmt-annotation-version="${escapeAttr(version)}"></p>`;
 }
 
 async function updateDiagramBackingInfo(document, metadata) {

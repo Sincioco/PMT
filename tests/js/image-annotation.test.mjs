@@ -3,6 +3,8 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 import {
   adjustAnnotationArrowEndpoint,
+  annotationEntityGlobalUnanchorControlState,
+  annotationOrgTreeShortcutWarningRequired,
   autoFormatAnnotationEntitiesOrgTree,
   applyAnnotationEntityDefinition,
   applyAnnotationEntityRelationshipGroupStyle,
@@ -14,6 +16,7 @@ import {
   annotationImageHasReversibleCrop,
   annotationObjectsIntersectingRect,
   annotationOutputBounds,
+  annotationObjectTreeHtml,
   annotationSelectionIdsForObject,
   annotationSelectionBounds,
   annotationSvgPlaneMetrics,
@@ -21,6 +24,7 @@ import {
   annotationTemplateDownloadFile,
   annotationWorkspaceBounds,
   buildAnnotationObjectTree,
+  buildPortableAnnotationSelectionSvg,
   buildAnnotationSelectionSvg,
   buildAnnotationSvg,
   captureAnnotationTemplate,
@@ -47,6 +51,7 @@ import {
   setAnnotationEntityCollapsedState,
   setAnnotationEntityAnnotation,
   setAnnotationEntityDataTypeVisibility,
+  setAnnotationEntitiesUnanchored,
   setAnnotationEntityFieldForeignKeyMapping,
   setAnnotationImageCropVisibility,
   syncAnnotationEntityAnnotationArrows,
@@ -355,6 +360,25 @@ function orthogonalSegmentTouchesEntity(first, second, entity) {
   return first.y >= top
     && first.y <= bottom
     && Math.max(Math.min(first.x, second.x), left) <= Math.min(Math.max(first.x, second.x), right);
+}
+
+function orthogonalSegmentDistanceFromEntity(first, second, entity) {
+  const segment = {
+    left: Math.min(first.x, second.x),
+    right: Math.max(first.x, second.x),
+    top: Math.min(first.y, second.y),
+    bottom: Math.max(first.y, second.y)
+  };
+  const entityRight = entity.x + entity.width;
+  const entityBottom = entity.y + entity.height;
+  const deltaX = Math.max(entity.x - segment.right, segment.left - entityRight, 0);
+  const deltaY = Math.max(entity.y - segment.bottom, segment.top - entityBottom, 0);
+  return Math.hypot(deltaX, deltaY);
+}
+
+function minimumOrthogonalPathDistanceFromEntity(points, entity) {
+  return Math.min(...points.slice(1).map((point, index) =>
+    orthogonalSegmentDistanceFromEntity(points[index], point, entity)));
 }
 
 function unrelatedEntityRouteContacts(svg, entities) {
@@ -1166,6 +1190,78 @@ test("Entity relationship routes treat an unrelated Entity border as an obstacle
   assert.equal(unrelatedEntityRouteContacts(relationships, entities).length, 0);
 });
 
+test("Entity relationship routes preserve a 24px corridor around a 1px Entity near-miss", () => {
+  const parent = simpleRelationshipEntity("clearance-parent", "ClearanceParent", 0, 0);
+  const child = simpleRelationshipEntity(
+    "clearance-child",
+    "ClearanceChild",
+    800,
+    0,
+    "ClearanceParent"
+  );
+  const directY = expectedEntityFieldAnchorY(child, "ClearanceParentId");
+  const blocker = simpleRelationshipEntity("clearance-blocker", "ClearanceBlocker", 600, directY + 1);
+  blocker.width = 100;
+  blocker.height = 100;
+
+  const svg = annotationEntityRelationshipsSvg([parent, blocker, child], null, { interactive: true });
+  const path = svg.match(/class="image-annotation-entity-relationship-hit" d="([^"]+)"/)?.[1];
+  const points = orthogonalPathPoints(path);
+
+  assert.ok(path, "relationship should render");
+  assert.ok(
+    minimumOrthogonalPathDistanceFromEntity(points, blocker) >= 24 - 0.001,
+    `${path} should preserve the default 24px Entity clearance`
+  );
+});
+
+test("indexed Entity routing preserves the clearance corridor with more than 32 obstacles", () => {
+  const parent = simpleRelationshipEntity("indexed-clearance-parent", "IndexedClearanceParent", 0, 0);
+  const child = simpleRelationshipEntity(
+    "indexed-clearance-child",
+    "IndexedClearanceChild",
+    800,
+    0,
+    "IndexedClearanceParent"
+  );
+  const directY = expectedEntityFieldAnchorY(child, "IndexedClearanceParentId");
+  const blocker = simpleRelationshipEntity(
+    "indexed-clearance-blocker",
+    "IndexedClearanceBlocker",
+    600,
+    directY + 1
+  );
+  blocker.width = 100;
+  blocker.height = 100;
+  const distantEntities = Array.from({ length: 40 }, (_, index) => simpleRelationshipEntity(
+    `indexed-clearance-distant-${index}`,
+    `IndexedClearanceDistant${index}`,
+    12000 + ((index % 8) * 400),
+    12000 + (Math.floor(index / 8) * 260)
+  ));
+  const relationshipStyle = { strokeWidth: 3, arrowSize: 20 };
+
+  const localSvg = annotationEntityRelationshipsSvg(
+    [parent, blocker, child],
+    relationshipStyle,
+    { interactive: true }
+  );
+  const indexedSvg = annotationEntityRelationshipsSvg(
+    [parent, blocker, child, ...distantEntities],
+    relationshipStyle,
+    { interactive: true }
+  );
+  const localPath = localSvg.match(/class="image-annotation-entity-relationship-hit" d="([^"]+)"/)?.[1];
+  const indexedPath = indexedSvg.match(/class="image-annotation-entity-relationship-hit" d="([^"]+)"/)?.[1];
+  const points = orthogonalPathPoints(indexedPath);
+
+  assert.equal(indexedPath, localPath, "distant sectors should not change local clearance routing");
+  assert.ok(
+    minimumOrthogonalPathDistanceFromEntity(points, blocker) >= 40 - 0.001,
+    `${indexedPath} should preserve the indexed style-aware Entity clearance`
+  );
+});
+
 test("Entity relationship routes remain visible at fractional drag coordinates", () => {
   const parent = simpleRelationshipEntity("fractional-parent", "FractionalParent", 0, 0);
   const child = simpleRelationshipEntity("fractional-child", "FractionalChild", 800, 0, "FractionalParent");
@@ -1650,7 +1746,7 @@ test("Org Tree nudges movable Entities off unrelated relationship routes and sta
     gridSize: 20
   });
 
-  assert.equal(result.routeAdjustedCount, 1);
+  assert.equal(result.routeAdjustedCount, 2);
   assert.equal(result.unresolvedRouteContactCount, 0);
   assert.equal(entities.find(entity => entity.id === "route-child-a").x, 0);
   assert.equal(new Set(entities
@@ -1682,9 +1778,52 @@ test("Org Tree reports a best-effort route when an unrelated Anchor table cannot
     gridSize: 20
   });
 
-  assert.equal(result.routeAdjustedCount, 0);
+  assert.equal(result.routeAdjustedCount, 1);
   assert.equal(result.unresolvedRouteContactCount, 1);
+  assert.equal(result.fixedConstraintShortcutCount, 1);
+  assert.equal(annotationOrgTreeShortcutWarningRequired(result), true);
   assert.deepEqual({ x: anchor.x, y: anchor.y }, originalPosition);
+});
+
+test("global Entity unanchor state prevents an Anchor shortcut warning during Org Tree layout", () => {
+  const state = normalizeAnnotationState({
+    width: 2200,
+    height: 1800,
+    objects: orgTreeRouteCollisionEntities(true)
+  });
+  assert.deepEqual(annotationEntityGlobalUnanchorControlState(state), {
+    entityCount: 6,
+    anchoredEntityCount: 1,
+    checked: false,
+    indeterminate: true,
+    disabled: false
+  });
+
+  setAnnotationEntitiesUnanchored(state, true);
+  assert.deepEqual(annotationEntityGlobalUnanchorControlState(state), {
+    entityCount: 6,
+    anchoredEntityCount: 0,
+    checked: true,
+    indeterminate: false,
+    disabled: false
+  });
+
+  const result = autoFormatAnnotationEntitiesOrgTree(state.objects, {
+    preferredRootId: "route-root",
+    allowOverlappingLines: false,
+    gridSize: 20
+  });
+  assert.equal(result.anchorCount, 0);
+  assert.equal(result.anchoredRelationshipCount, 0);
+  assert.equal(result.fixedConstraintShortcutCount, 0);
+  assert.equal(annotationOrgTreeShortcutWarningRequired(result), false);
+  assert.equal(annotationEntityGlobalUnanchorControlState(state).checked, true,
+    "Org Tree must leave the current global-unanchor checkbox state accurate");
+  assert.equal(annotationOrgTreeShortcutWarningRequired({
+    anchoredRelationshipCount: 0,
+    fixedConstraintShortcutCount: 0,
+    unresolvedRouteContactCount: 3
+  }), false, "unresolved movable contacts alone must not claim an Anchor shortcut");
 });
 
 test("Org Tree treats the selected central Entity as most important without reversing FK arrows", () => {
@@ -1851,6 +1990,82 @@ test("manual field flags, collapsed state, and FK cardinality survive editable S
       "Title"
     ]
   );
+});
+
+test("global Entity unanchor control sets every Entity together and persists through SVG", () => {
+  const root = simpleRelationshipEntity("global-anchor-root", "Root", 40, 40);
+  const child = simpleRelationshipEntity("global-anchor-child", "Child", 420, 240, "Root");
+  root.anchorTable = true;
+  child.anchorTable = false;
+  const state = normalizeAnnotationState({
+    width: 1000,
+    height: 700,
+    objects: [root, child]
+  });
+
+  const unanchored = setAnnotationEntitiesUnanchored(state, true);
+  assert.deepEqual(unanchored, { entityCount: 2, changedCount: 1, anchorTable: false });
+  assert.ok(state.objects.filter(object => object.type === "entity").every(entity => entity.anchorTable === false));
+  const unanchoredRoundTrip = parseAnnotationSvg(buildAnnotationSvg(state, ""));
+  assert.ok(unanchoredRoundTrip.objects.filter(object => object.type === "entity")
+    .every(entity => entity.anchorTable === false));
+
+  const anchored = setAnnotationEntitiesUnanchored(state, false);
+  assert.deepEqual(anchored, { entityCount: 2, changedCount: 2, anchorTable: true });
+  assert.ok(state.objects.filter(object => object.type === "entity").every(entity => entity.anchorTable === true));
+  const anchoredRoundTrip = parseAnnotationSvg(buildAnnotationSvg(state, ""));
+  assert.ok(anchoredRoundTrip.objects.filter(object => object.type === "entity")
+    .every(entity => entity.anchorTable === true));
+});
+
+test("Objects tree shows lock icons for locked and anchored canvas objects", () => {
+  const anchored = simpleRelationshipEntity("anchored-entity", "Anchored", 40, 40);
+  anchored.anchorTable = true;
+  const state = normalizeAnnotationState({
+    width: 900,
+    height: 600,
+    objects: [
+      anchored,
+      {
+        id: "locked-rectangle",
+        type: "rectangle",
+        name: "Locked rectangle",
+        x: 400,
+        y: 80,
+        width: 140,
+        height: 80,
+        fill: "#ffffff",
+        stroke: "#172b4d",
+        strokeWidth: 2,
+        opacity: 1,
+        locked: true
+      },
+      {
+        id: "plain-text",
+        type: "textbox",
+        name: "Plain text",
+        x: 400,
+        y: 220,
+        width: 140,
+        height: 80,
+        fill: "#ffffff",
+        stroke: "#172b4d",
+        strokeWidth: 2,
+        opacity: 1,
+        text: "Plain",
+        textColor: "#172b4d",
+        fontFamily: "Arial",
+        fontSize: 18
+      }
+    ]
+  });
+
+  const html = annotationObjectTreeHtml(buildAnnotationObjectTree(state), new Set());
+  assert.match(html, /data-annotation-tree-id="anchored-entity"[^>]*data-annotation-tree-anchored="true"/);
+  assert.match(html, /data-annotation-tree-id="locked-rectangle"[^>]*data-annotation-tree-locked="true"/);
+  assert.equal((html.match(/data-annotation-tree-lock-status/g) || []).length, 2);
+  assert.match(html, /title="Anchor table"/);
+  assert.match(html, /title="Locked"/);
 });
 
 test("diagram canvas persists a white background without an Original Image object", () => {
@@ -2216,6 +2431,107 @@ test("copied annotation SVG contains only the selected artwork at tight painted 
   assert.match(svg, /<rect x="10" y="10" width="30" height="20"/);
   assert.doesNotMatch(svg, /<image\b/);
   assert.doesNotMatch(svg, /image-annotation-selection|data-pmt-image-annotation-state/);
+});
+
+test("portable copied selections inline URL-backed images with their crop and vector annotations", async () => {
+  const uploadedSvg = [
+    '<svg xmlns="http://www.w3.org/2000/svg" width="240" height="120">',
+    '<rect width="240" height="120" fill="#1677c8"/>',
+    '<text x="12" y="32">Uploaded Diagram Image</text>',
+    '</svg>'
+  ].join("");
+  const requests = [];
+  const state = normalizeAnnotationState({
+    width: 500,
+    height: 300,
+    objects: [
+      {
+        id: "uploaded-image",
+        type: "embedded-image",
+        name: "diagram-background.svg",
+        x: -10,
+        y: 20,
+        width: 240,
+        height: 120,
+        source: "/uploads/richtext/diagram-background.svg",
+        imageClip: { x: 20, y: 35, width: 150, height: 70 },
+        cropVisible: true
+      },
+      {
+        id: "hidden-image",
+        type: "embedded-image",
+        name: "hidden.png",
+        x: 0,
+        y: 0,
+        width: 40,
+        height: 40,
+        source: "/uploads/richtext/hidden.png",
+        visible: false
+      },
+      {
+        id: "red-arrow",
+        type: "arrow",
+        x1: 30,
+        y1: 45,
+        x2: 150,
+        y2: 90,
+        stroke: "#ff0000",
+        strokeWidth: 6,
+        arrowSize: 24
+      }
+    ]
+  });
+
+  const copiedSvg = await buildPortableAnnotationSelectionSvg(
+    state,
+    new Set(["uploaded-image", "hidden-image", "red-arrow"]),
+    {
+      fetch: async (url, options) => {
+        requests.push({ url, options });
+        return {
+          ok: true,
+          blob: async () => new Blob([uploadedSvg], { type: "image/svg+xml" })
+        };
+      }
+    }
+  );
+
+  assert.deepEqual(requests, [{
+    url: "/uploads/richtext/diagram-background.svg",
+    options: { cache: "no-store", credentials: "same-origin" }
+  }]);
+  assert.doesNotMatch(copiedSvg, /\/uploads\/richtext\//);
+  assert.doesNotMatch(copiedSvg, /hidden\.png/);
+  assert.match(copiedSvg, /<image\b[^>]*\bx="-10"[^>]*\by="20"[^>]*\bwidth="240"[^>]*\bheight="120"/);
+  assert.match(copiedSvg, /<clipPath\b[^>]*><rect x="20" y="35" width="150" height="70"><\/rect><\/clipPath>/);
+  assert.match(copiedSvg, /image-annotation-arrow-shaft[^>]*stroke="#ff0000"/);
+  const inlineSource = copiedSvg.match(/<image\b[^>]*\bhref="([^"]+)"/)?.[1] || "";
+  assert.match(inlineSource, /^data:image\/svg\+xml;base64,/);
+  assert.equal(Buffer.from(inlineSource.split(",")[1], "base64").toString("utf8"), uploadedSvg);
+});
+
+test("portable copied selections fail instead of silently omitting an unavailable selected image", async () => {
+  const state = normalizeAnnotationState({
+    width: 120,
+    height: 80,
+    objects: [{
+      id: "missing-image",
+      type: "embedded-image",
+      name: "missing.png",
+      x: 0,
+      y: 0,
+      width: 120,
+      height: 80,
+      source: "/uploads/richtext/missing.png"
+    }]
+  });
+
+  await assert.rejects(
+    buildPortableAnnotationSelectionSvg(state, new Set(["missing-image"]), {
+      fetch: async () => ({ ok: false })
+    }),
+    /selected image "missing\.png" could not be loaded for copying/
+  );
 });
 
 test("template capture preserves cropped source bytes and native vectors while instances get fresh identity", () => {
@@ -4280,31 +4596,32 @@ test("Diagram backing Documents are created once, then updated in place without 
 
   assert.ok(createStart >= 0 && updateStart > createStart && end > updateStart, "Diagram backing Document functions were not found");
   assert.match(createDiagram, /saveJson\("\/api\/blogs",\s*"POST"/);
-  assert.match(createDiagram, /isPrivate:\s*true/);
+  assert.match(createDiagram, /isPrivate:\s*sourceDocument \? sourceDocument\.isPrivate !== false : true/);
+  assert.match(createDiagram, /uploadedDiagramBackingBodyHtml\(title, diagram\)/);
   assert.match(updateDiagram, /saveJson\(`\/api\/blogs\/\$\{document\.id\}`,\s*"PUT"/);
   assert.match(updateDiagram, /expectedRowVersion:\s*document\.rowVersion/);
   assert.match(updateDiagram, /isPrivate:\s*document\.isPrivate !== false/);
-  assert.doesNotMatch(`${createDiagram}\n${updateDiagram}`, /uploadFile\s*\(/);
+  assert.match(updateDiagram, /uploadedDiagramBackingBodyHtml\(document\.title, diagram\)/);
+  assert.match(appSource, /async function uploadedDiagramBackingBodyHtml[\s\S]*uploadFile\([\s\S]*"richtext"/);
+  const uploadStart = appSource.indexOf("async function uploadedDiagramBackingBodyHtml");
+  const uploadEnd = appSource.indexOf("\nasync function updateDiagramBackingInfo", uploadStart);
+  assert.doesNotMatch(appSource.slice(uploadStart, uploadEnd), /data:image\/svg\+xml;base64/);
   assert.equal((createDiagram.match(/saveJson\s*\(/g) || []).length, 1);
   assert.equal((updateDiagram.match(/saveJson\s*\(/g) || []).length, 1);
 });
 
-test("editing a stored Diagram keeps Apply inline while normal RTE annotations still upload", async () => {
+test("editing a stored Diagram and normal RTE annotations both upload before changing the image source", async () => {
   const appSource = await readFile(new URL("../../wwwroot/js/app.js", import.meta.url), "utf8");
   const start = appSource.indexOf("async function annotateRichTextImage(image)");
   const end = appSource.indexOf("\nfunction detailField", start);
   const annotateImage = appSource.slice(start, end);
 
   assert.ok(start >= 0 && end > start, "annotateRichTextImage was not found");
-  assert.match(annotateImage, /image\.dataset\.pmtDiagram === \"true\" \|\| image\.dataset\.pmtPrivateDiagram === \"true\"/);
-  assert.match(
-    annotateImage,
-    /if \(isStoredDiagram\) \{\s*annotationSource = annotationSvgDataUrl\(annotation\.svg\);\s*\} else \{[\s\S]*uploadFile\("richtext", file\)/
-  );
-  assert.match(
-    annotateImage,
-    /persistCroppedOriginal:\s*async \(\{ blob, fileName \}\)[\s\S]*uploadFile\("richtext", file\)[\s\S]*return storageUrl\(upload\.url\)/
-  );
+  assert.doesNotMatch(annotateImage, /pmtDiagram|pmtPrivateDiagram|annotationSvgDataUrl/);
+  assert.match(annotateImage, /uploadEmbeddedImage:\s*uploadRichTextCanvasImage/);
+  assert.match(annotateImage, /persistCroppedOriginal:\s*uploadRichTextCanvasImage/);
+  assert.match(annotateImage, /uploadFile\("richtext", file\)/);
+  assert.match(annotateImage, /const annotationSource = appUrl\(upload\.url\)/);
   assert.match(annotateImage, /image\.setAttribute\("src", annotationSource\)/);
   assert.match(annotateImage, /image\.dataset\.pmtAnnotationSource = annotation\.originalReference/);
 });
@@ -4359,7 +4676,7 @@ test("Entity Annotation creates one grouped callout and arrow that follow the En
   assert.equal(callout.entityAnnotationOwnerId, entity.id);
   assert.deepEqual(
     new Set(annotationSelectionIdsForObject(state.objects, callout, state.groupVisibility)),
-    new Set([callout.id, arrow.id])
+    new Set([callout.id])
   );
   assert.deepEqual(
     annotationEntityRelationshipRoutingObstacles(state.objects).map(object => object.id),
@@ -4375,6 +4692,16 @@ test("Entity Annotation creates one grouped callout and arrow that follow the En
   }, { x: startBounds.x + 80, y: startBounds.y + 40 });
   assert.equal(callout.x, calloutStart.x + 80);
   assert.equal(callout.y, calloutStart.y + 40);
+
+  const entityStart = { x: entity.x, y: entity.y };
+  const calloutBounds = annotationSelectionBounds([callout]);
+  moveAnnotationObjects(state, {
+    startPoint: { x: calloutBounds.x, y: calloutBounds.y },
+    startBounds: calloutBounds,
+    originals: [structuredClone(callout)]
+  }, { x: calloutBounds.x + 30, y: calloutBounds.y + 20 });
+  assert.equal(entity.x, entityStart.x + 30);
+  assert.equal(entity.y, entityStart.y + 20);
   syncAnnotationEntityAnnotationArrows(state);
   assert.ok(
     arrow.x2 === entity.x || arrow.x2 === entity.x + entity.width
@@ -4464,4 +4791,19 @@ test("the global relationship-line switch persists and removes routes, markers, 
   assert.match(componentSource, /data-annotation-entity-annotation/);
   assert.match(componentSource, /Entity name text color/);
   assert.match(componentSource, /Header background color/);
+});
+
+test("textbox double-click opens, scrolls, and focuses its Format text editor", async () => {
+  const componentSource = await readFile(
+    new URL("../../wwwroot/js/components/image-annotation.js", import.meta.url),
+    "utf8"
+  );
+  assert.match(
+    componentSource,
+    /const focusAnnotationTextEditor = \(\) => \{[\s\S]*setInspectorVisible\(true\)[\s\S]*setInspectorTab\("format"\)[\s\S]*scrollIntoView\([\s\S]*textInput\.focus\(\{ preventScroll: true \}\)[\s\S]*textInput\.select\(\)/
+  );
+  assert.match(
+    componentSource,
+    /object\?\.type === "textbox"[\s\S]*selectObject\(object\)[\s\S]*renderWithWorkspaceExpansion\(\)[\s\S]*if \(String\(object\.text \|\| ""\)\.trim\(\)\) focusAnnotationTextEditor\(\)/
+  );
 });

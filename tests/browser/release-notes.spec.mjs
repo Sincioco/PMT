@@ -21,9 +21,12 @@ test("first login shows the latest three releases and opens the shared Release N
   await expect(dialog.locator(".release-note-navigation-item").nth(1)).toContainText(`Day ${previousRelease.day}`);
   await expect(dialog.locator(".release-note-navigation-item").nth(2)).toContainText(`Day ${thirdRelease.day}`);
   await expect(dialog.locator(".release-note-content h2")).toHaveText(latestRelease.title);
+  await expect(dialog.locator(".release-note-illustration img")).toBeVisible();
+  await expect(dialog.locator(".release-note-illustration img")).toHaveAttribute("src", new RegExp(`${latestRelease.id}\\.svg`));
 
   await dialog.locator(".release-note-navigation-item").nth(2).click();
   await expect(dialog.locator(".release-note-content h2")).toHaveText(thirdRelease.title);
+  await expect(dialog.locator(".release-note-illustration img")).toHaveAttribute("src", new RegExp(`${thirdRelease.id}\\.svg`));
   await expect(dialog.locator(".release-note-navigation-item").nth(2)).toBeFocused();
   await expectPageFitsViewport(page);
 

@@ -989,12 +989,6 @@ html[data-theme] .rich-color-palette button.rich-color-custom {
   justify-content: space-between;
 }
 
-.rich-source-dialog-label {
-  color: var(--color-text-secondary);
-  font-size: var(--font-size-md);
-  font-weight: var(--font-weight-medium);
-}
-
 .rich-source-wrap-option {
   font-size: var(--font-size-sm);
   font-weight: var(--font-weight-regular);
@@ -1003,10 +997,77 @@ html[data-theme] .rich-color-palette button.rich-color-custom {
 .rich-code-dialog textarea,
 .rich-source-dialog textarea {
   min-height: 260px;
-  font-family: var(--font-family-mono);
+  font-family: Consolas, "Courier New", monospace;
   font-size: var(--font-size-sm);
+  line-height: var(--line-height-body);
+  tab-size: 4;
   white-space: pre;
   overflow-x: auto;
+}
+
+.rich-source-editor {
+  position: relative;
+}
+
+.rich-source-highlight {
+  position: absolute;
+  z-index: 0;
+  inset: 0;
+  min-height: 260px;
+  margin: 0;
+  overflow: auto;
+  border: var(--border-width) solid transparent;
+  border-radius: var(--radius-md);
+  padding: var(--space-4) var(--control-padding-inline-md);
+  background: var(--color-control);
+  color: var(--color-text-primary);
+  font-family: Consolas, "Courier New", monospace;
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-body);
+  tab-size: 4;
+  white-space: pre;
+  pointer-events: none;
+  scrollbar-width: none;
+}
+
+.rich-source-highlight::-webkit-scrollbar {
+  display: none;
+}
+
+.rich-source-editor textarea {
+  position: relative;
+  z-index: 1;
+  resize: vertical;
+}
+
+.rich-source-editor textarea.has-syntax-highlighting {
+  background: transparent;
+  color: transparent;
+  caret-color: var(--color-text-primary);
+  -webkit-text-fill-color: transparent;
+}
+
+.rich-source-editor textarea.has-syntax-highlighting::selection {
+  background: color-mix(in srgb, var(--color-primary), transparent 70%);
+}
+
+.rich-source-token-keyword,
+.rich-source-token-property {
+  color: var(--color-primary);
+  font-weight: var(--font-weight-medium);
+}
+
+.rich-source-token-comment {
+  color: var(--color-text-tertiary);
+  font-style: italic;
+}
+
+.rich-source-token-string {
+  color: var(--color-success);
+}
+
+.rich-source-token-number {
+  color: var(--color-warning);
 }
 
 .rich-source-dialog textarea.is-word-wrapped {

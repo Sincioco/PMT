@@ -6,7 +6,7 @@ The Release Notes screen and the login-time What's New dialog consume the same g
 
 - `Requirements/YYYY-MM-DD - Requirements - Day N.txt` is the historical original prompt. Requirements files are planning records and do not authorize implementation by themselves.
 - `scripts/release-notes.json` contains the curated, business-facing title and grouped release-note sections for each available prompt file.
-- `wwwroot/js/shared/release-notes-data.js`, `wwwroot/release-notes-data.json`, and `wwwroot/release-notes-version.json` are generated from both sources and must not be edited by hand. The small version manifest lets an open PMT session detect an update without repeatedly downloading the full history.
+- `wwwroot/js/shared/release-notes-data.js`, `wwwroot/release-notes-data.json`, `wwwroot/release-notes-version.json`, and the small daily SVG files under `wwwroot/assets/release-notes/` are generated from both sources and must not be edited by hand. The small version manifest lets an open PMT session detect an update without repeatedly downloading the full history.
 
 Days 10 and 11 have no source prompt files in the repository, so the historical sequence currently contains 28 real releases rather than invented placeholders.
 
@@ -26,6 +26,8 @@ npx.cmd playwright test tests/browser/release-notes.spec.mjs
 ```
 
 The generator accepts future Day files automatically. It fails if an available prompt has no curated summary, a summary has no matching prompt, or any checked-in generated output is stale. It derives a short content revision from each prompt and business summary, then advances that revision throughout the browser module cache chain so returning users cannot be left on an older same-day update.
+
+The generator also creates one lightweight SVG visual for each release day. It selects a simple subject from the release title and section headings, varies the colors by day, and writes one deterministic dated asset, so same-day reruns are idempotent. What's New displays the visual above that day's title; the full Release Notes reader remains focused on the written history.
 
 ## What's New behavior
 

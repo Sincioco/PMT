@@ -13,7 +13,7 @@ import {
   selectOptionsField,
   value
 } from "../../components/forms.js?v=20260719-rte-insert-diagram";
-import { sectionHead } from "../../components/sections.js?v=release-notes-2026-07-19-day-32-3db2c1ae13fc";
+import { sectionHead } from "../../components/sections.js?v=release-notes-2026-07-19-day-32-ec1e53051fce";
 import { createWorkItemTableMode } from "../../components/work-items.js?v=20260715-admin-impersonation";
 import { currentUser } from "../../core/authentication.js?v=20260715-admin-impersonation";
 import {

@@ -1,4 +1,5 @@
 import { escapeAttr, escapeHtml } from "../shared/text-and-links.js";
+import { appUrl } from "../shared/app-urls.js";
 
 export function releaseNoteNavigationHtml(notes, selectedId, options = {}) {
   const action = options.action || "select-release-note";
@@ -22,8 +23,14 @@ export function releaseNoteNavigationHtml(notes, selectedId, options = {}) {
 export function releaseNoteContentHtml(note, options = {}) {
   if (!note) return `<div class="empty">No release note is available.</div>`;
   const showPrompt = options.mode === "prompts";
+  const showIllustration = options.showIllustration === true && note.illustration?.url;
   return `
     <div class="release-note-content" data-release-note-id="${escapeAttr(note.id)}">
+      ${showIllustration ? `
+        <div class="release-note-illustration">
+          <img src="${escapeAttr(appUrl(note.illustration.url))}" alt="${escapeAttr(note.illustration.alt || "")}" width="720" height="180">
+        </div>
+      ` : ""}
       <header class="release-note-content-head">
         <p class="release-note-kicker">Day ${escapeHtml(note.day)} &middot; ${escapeHtml(formatReleaseDate(note.date))}</p>
         <h2>${escapeHtml(note.title)}</h2>

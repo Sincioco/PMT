@@ -59,6 +59,127 @@ For #6, it looks like the viewport is not re-centered.
 21.) When I click on an entity on the PMT Schema Diagram you created, why is there such a long delay before the selected table is highlighted?
 22.) When I am zoomed into an entity and there is only 1-2 entities on screen, why is it so slow just moving / dragging the entity I am working on within the same viewport?  It should be very fast and snappy since I'm only moving 1 entity in this example.
 23.) Bug:  When you zoom in or out, it is definitely faster than before.  However, it jitters as you zoom in or out.  I made a video recording stored at "D:\Meld Studio Capture\MeldStudio_Recording_Local_1080p_Recording_2026-07-19_at_12.51.59pm.mkv" so you can visually see the jitter effect.  It's very jarring to a user.  Can you smooth out the jitter so that zooming in or out is a smooth experience / transition?
+24.) Bug, I lost the ability to select a table/entity on the canvas.  If I select it, I no longer see the Entity tab because you grouped it with the annotation and it is the group that is selected.  Could we maybe introduce the concept of a "invisible group".  It's basically a logical grouping that could contain the annotation and the table/entity, but when it comes to hit target / click events, it is invisible, it does not respond.  It's not included.  It's only goal is to geometrically group objects, but not participate in hit testing or mouse clicks.  So when I click an entity/table it goes right through the "invisible group" and actually select the entity/table.  If I click the annotation, it goes right through the "invisible group" and actually select the annotation.  But if I move either the entity/table, or the annotation, the "invisible group" informs your dragging algorithm that they are together via an "invisible group".  Does this make sense?  Echo what I just described and ask me any questions you have before proceeding.
+25.) Bug:  When I drag a table/entity, the relationship line becomes disconnected until I stop dragging.
+26.) Bug:  When I clicked on a table/entity, it is still being covered by another entity.  It should be on top of the other entity.
+27.) Bug:  When I clicked the Data Types button on the pmt.Sprints table, it expanded and covered the left table (pmt.WorkTasks) and their relationship line went behind the pmt.WorkTasks table.  I thought I had set a rule that relationship lines should not go behind entities unless it would cause an infinite loop.  The expected behavior is the relationship line should be rendered above or below the pmt.WorkTasks table and connect to the right-hand side of the pmt.Sprints table.  (see attached diagrams).
+28.) When I rubber select, to select multiple objects on the Canvas, you should use the new "invisible group" and momentarily group them together so I can drag what I selected together.  The moment I deselect them, you can remove the "invisible grouping".  Clicking on any one item in the canvas selects that new item and removes the "invisible group" or if the the canvas itself is clicked deselect all items and remove the "invisible group".
+29.) Bug:  If a diagram is pinned, the date is rendered to the next line and is clipped.  Keep it in the same line as the pin, just move it to the left of the pin icon.
+30.) Can you give me an ability to delete a diagram?  We seem to be missing that feature.
+31.) On the entity header, for the expand/collapse, can you change the icon to just an up/down arrow.  And for the Data Type button, can you change the icon to a "right" icon for expand and "left" icon for collapse?
+32.) Bug:  In the RTE Image Annotation, I seem to have lost the ability to paste an image both PNG and SVG.
+33.) In the Objects tab, if I double click an item in the Object tree, it should select that item in the canvas and center the viewport on it.  Change the zoom level to see the object or objects selected to view (in cases where the diagram is zoomed out and the user double clicks a field, we want to zoom in to see the field).
+
+Scrum
+-----
+34.) In Scrum, move the Table and Calendar view toggle and put them in the overflow menu.
+35.) In Scrum, remove the Attendance dropdown.  Change the behavior of the Check-In button so that when they click it they are presented with a dialog box with a list of the attendance options to choose from.  The same items that were on the Attendance dropdown.
+36.) In Scrum, with the Table View, Calendar View and Attendance dropdown removed, the Scrum header is not reserved primarily for the Scrum page title and the large avatar of the users who have checked in.  You may allow the large Avatar icons to expand all the way up to the Check-In button with some margin between them.
+
+Rich Text Editor Toolbar
+------------------------
+37.) In the RTE's toolbar, put an icon for the Insert a Diagram button.
+38.) In the RTE's View Source, by default check the Word wrap source code and just shorten that to "Word Wrap".
+39.) In the RTE's View Source, can you replace the font with "Consolas"?
+40.) In the RTE's View Source, add a Text Type dropdown with the following choices:  None, C#, T-SQL, HTML, CSS, JavaScript, TypeScript, JSON, JAVA.  None is the default.
+41.) Attempt to color code the source code with the 30 most used keywords in the following programing they selected.  If they pick None again, just revert everything back to plain text.  Or if they pick another language, revert back to plain text before applying the new language's color coding.
+42.) If JSON is selected, properly format the JSON with proper indentation and line breaks and color the fields and values differently.  If the JSON is invalid, just show it as plain text.
+43.) If at any time you are unable to color code the source code / text just show a toaster message stating why.
+
+
+Documentation
+-------------
+44.) In Documentation screen, update the Overflow menu's item of "Show Tree" / "Hide Tree" to "Left Nav" and just put a checkbox next to it when it is on or off.
+45.) In Documentation screen, if the user clicks on "New Document", take them to the full screen editor with the left nav hidden.
+46.) In Documentation screen, in the Card View, if they click a Card and then click the Edit button for that card, the "View Full Screen" button disappears.  It should be there so if the user clicks it, take them to the full screen editor with the left nav hidden.
+
+Diagram
+-------
+47.) In Diagram, when rendering lines passing through an entity, have some margin/padding so the lines are not too close to the entity/table if they are just passing by.  See attached picture.  The line pointed by the red arrow is too close to the entity/table it is just passing by.  There should be a gap/margin between the entity/table as denoted by the green box.  That's how much margin I want between the line and the entity/table if the line is just passing by and not connecting to the entity/table.  If the line is connecting to the entity/table, then it should connect to the entity/table as normal.
+
+What's New
+----------
+48.) Is it possible for you to generate a simple .svg image and incorporate it at the top of each What's New page for what is relevant for that day?  It doesn't have to be fancy, it can just be simple .svg icons, shapes just to distinguish and catch the user's attention every time PMT changes--preferrably the image has something to do with the update so the user can remember it.  Currently, it is just plain black and white and I notice users don't even read it.  Try to spruce it up a little bit to catch their attention.  Generate a new one every time you create a What's New page (only once per day).  Make it simple and distinct.  Don't over think it.  And make sure the .svg file remains small.
+
+Diagram
+-------
+48.) In Diagram, in the left nav, if it is a private diagram, place a lock icon to the right of the date.  Just use the same private simple you use from the Documentation screen.
+49.) Swap the "New Diagram" and the "Filter Button".
+50.) Add an Overflow menu to the right of the Filter button and put a "Left Nav" as a menu item which hides/shows the Diagram left Nav.  Be sure to put a checkmark to indicate if it is visible or hidden.  Use the Documentation Tree Nav's screen's implementation of the overflow menu and the Left Nav menu item.
+51.) Move the Document Header section, in the blue, into the Page Title as denoted by the green box.
+
+52.) Move the Edit Info, Edit Diagram, Zoom controls and Fit (in the blue box) somewhere at the top (green box).  Since the page level navigation will now be crowded, just use icons for all the icons, but keep the Cards and Treeview with both icons and words.
+53.) I just opened a diagram, and I edited it.  I tried to save it and it said "A newer version of this item exists. Your changes were not applied."  Instead of preventing the user from saving, just allow the user to save it and create a new version of the diagram.  Inform them that a new version now exists and they cannot overwrite someone else's new edits and prompt for a new diagram name.  Default it to the exact same diagram name just append the next available number at the end.
+
+54.) Could we make the right pane of the diagram resizeable just like we have the left nav of Documentation.
+55.) If an item is locked/anchored, show a lock icon in the Objects tab so we can see it.
+56.) In the Entity tab, add another checkbox with a label "Unachor all Entities (global)" which when checked will unanchor all entities in the diagram.  When unchecked, it will re-anchor all entities in the diagram.  This is useful when I want to move all entities around and then re-establish which entities we want to re-anchor again in their new positions.
+
+57.) I just rebuilt the database and I see the diagram you created as part of the seed named "PMT's Database Schema".  Why does it not appear centered on content on the right at first view?  Why do I have to click the "fit" button to re-center.  Can you just re-center the diagram every time the user select a different diagram from the left nav?
+
+
+Scrum
+-----
+59.) In Scrum, by default, the Calendar view should be hidden.  Change the behavior of the Calendar view in the overflow menu to be a toggle.  When the user clicks it, it will show the Calendar view and when they click it again, it will hide the Calendar view.  The Table view is always visible by default.  In fact, remove the Table view from the overflow menu and make it always visible.  The Calendar view is optional and can be toggled on/off by the user.
+
+60.) In Scrum, the content renders lower compared to the Dev Task.  In need you to realign the Scrum content to be aligned with the Dev Task content. Above the user's avatar is a large white space (see green box), reclaim it and render the user's avatar closer to the top edge with just a few pixels of margin.  If you need to shrink the user avatar so the calendar/table of the Scrum renders at the same top-position as the Dev Task content, then do so.  The Scrum content should be aligned with the Dev Task content.
+
+61.) In the RTE's View Source dialog box, move the Text Type dropdown and its functionality to the insert Code Block dialog box.  I made a mistake in the previous requirement.  and rename it from "Text Type" to "Code".  Just like before, as the user select what type of code it is color code the content accordingly.  If they select None, just show it as plain text.  If they select a language, color code the content accordingly.  If they select another language, revert back to plain text before applying the new language's color coding.
+62.) By default, Code blocks should be collapsed when rendered in read-only and in edit-mode.
+
+Diagram
+-------
+63.) In Diagram, if I paste an image, draw some arrows, then do a Select All and Copy as PNG or SVG, it copies only the arrows and not the image.  See attached pictures.  First picture is the copied image, second picture is the original image with arrows.
+64.) I keep getting this Anchor Table Shortcut dialog box.  As you can see from the attached picture, the checkbox "Unanchor all Entities (global)" is checked. There should be no anchor tables to get in the way.
+
+Scrum
+-----
+65.) In Scrum's Check-In dialog box, remove the word "Attendance" at the top and swap Home and Office's position and default to Office.
+
+Diagram
+-------
+66.) In Diagram, if the Treeview button is clicked, it should switch to the Treeview and always show the Left Nav.
+
+Scrum
+-----
+67.) In the Scrum screen, clicking on the user's avatar filter's the data to show only that user's data, which is working and great.  I'd like to make it so that if you click the same user again, it will unfilter the data.  So make it a toggle.
+
+
+68.) In the Diagram screen, remove the labels for the "New Diagram" and "Filters" we just want the icons.
+69.) In the Diagram screen, remove the "Share Public Diagram" button.
+
+
+70.) In the Scrum screen, there is plenty of room above and below the user's avatar as shown by the green boxes.  Without shifting anything else on screen, can you render the user's avatar as large as possible by occupying more of the green boxes above and below?  Preferrably 80x80, but get as close to that as you can without actually touching the top edge of the browser.  Allow for a 2 pixel gap if you need to sqeeze it.
+
+71.) In the Diagram screen, when the user clicks on the New Diagram icon, just take them to a new diagram in full-screen mode.
+72.) In the Diagram screen, move the position of the New Diagram button in front of the Cards button.
+73.) In the Diagram screen, when the user clicks on the New Diagram icon, just take them to the full-screen view right away and set the zoom to 100%.
+74.) In the Diagram screen, can we extend the zoom that currently only goes to 200% all the way to 300%?
+
+75.) In the Diagram screen, when a new diagram is created, after you have changed the zoom level to 100%, put a template object named "Green Box with Text" and center the viewport around that object.
+76.) When they double click a textbox, if it contains text, open the Format tab, and scroll to the text box where they can type text.
+
+77.) In the Scrum screen, the highlight border is touching the top of the browser and is getting clipped.  Maybe you'll have to shrink the icon a little bit.  Maybe 74x74?  Do what you think is best.
+
+ToDo: Viewport-Plus-Halo Segmentation for the Diagram
+Implement viewport-plus-halo segmentation in the Diagram tool to improve rendering performance and reduce jitter during zooming and panning. This involves creating a halo around the viewport that pre-renders entities and relationships just outside the visible area, allowing for smoother transitions as the user navigates the diagram.
+
+
+Sector foundation
+Add sector indexing and viewport/halo calculations without changing rendering. Benchmark it against the existing 28- and 232-table diagrams.
+
+Read-only Entity virtualization
+Attach only visible and halo Entities/annotations. Initially retain the complete merged relationship-line layer. Pan and zoom remain functional, with the existing full-plane renderer as fallback.
+
+Relationship segmentation
+Load only relationship geometry intersecting the viewport and halo. Preserve cross-sector continuity and preload adjacent segments before removing old ones.
+
+Edit-mode virtualization
+Add selection, hit testing, dragging, resizing, Entity controls, and boundary crossing. Recalculate only relationships affected by edited Entities.
+
+Integration and hardening
+Verify saving/exporting the complete Diagram, undo/redo, templates, RTE/Image Annotation parity, Auto Format, and large-schema performance on simulated slower hardware.
+
 
 Database Migration Script Testing
 ---------------------------------

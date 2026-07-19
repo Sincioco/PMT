@@ -1,14 +1,13 @@
-import { buttonContent, funnelIconHtml } from "../../components/buttons.js?v=20260718-diagram-library-v7";
+import { buttonContent, funnelIconHtml, pageActionsMenuHtml } from "../../components/buttons.js?v=20260717-multi-screen-header";
 import {
   annotationSvgPlaneMetrics,
-  annotationSvgDataUrl,
   buildAnnotationSvg,
   openImageAnnotationDialog,
   parseAnnotationSvg,
   setAnnotationEntityCollapsedState,
   setAnnotationEntityDataTypeVisibility,
   zoomAnnotationAtPoint
-} from "../../components/image-annotation.js?v=20260719-vector-zoom-v15";
+} from "../../components/image-annotation.js?v=20260719-diagram-textbox-edit-v23";
 import { copyTextToClipboard } from "../../components/clipboard.js";
 import { filterSelect } from "../../components/filters.js";
 import { field, optionalNumberValue, selectOptionsField, value } from "../../components/forms.js?v=20260719-rte-insert-diagram";
@@ -17,22 +16,25 @@ import { currentUserId } from "../../core/authentication.js?v=20260715-admin-imp
 import { routeForContent, updateBrowserUrl } from "../../core/router.js?v=20260718-diagram-library-v8";
 import {
   preferenceKeys,
+  readBooleanPreference,
   readNumberPreference,
   readPreference,
   writePreference
-} from "../../core/preferences.js?v=20260718-diagram-library-v8";
+} from "../../core/preferences.js?v=20260719-diagram-shell-v18";
 import { state } from "../../core/store.js";
 import { formatDate } from "../../shared/dates.js";
-import { appAbsoluteUrl } from "../../shared/app-urls.js";
+import { appAbsoluteUrl, appUrl } from "../../shared/app-urls.js";
 import { canAccessResource } from "../../shared/security.js";
 import { escapeAttr, escapeHtml } from "../../shared/text-and-links.js";
-import { buildPmtDatabaseSchemaDiagram } from "./pmt-database-schema.js?v=20260719-vector-zoom-v15";
+import { buildPmtDatabaseSchemaDiagram } from "./pmt-database-schema.js?v=20260719-diagram-textbox-edit-v23";
 
 const diagramViewModes = new Set(["cards", "tree"]);
 const diagramSortModes = new Set(["latest", "oldest", "name", "custom"]);
 const diagramVisibilityModes = new Set(["both", "private", "public"]);
 const blankDiagramWidth = 1600;
 const blankDiagramHeight = 900;
+const diagramSvgSourceCache = new Map();
+const diagramSvgSourceLoads = new Map();
 const blankDiagramSource = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(`
   <svg xmlns="http://www.w3.org/2000/svg" width="${blankDiagramWidth}" height="${blankDiagramHeight}" viewBox="0 0 ${blankDiagramWidth} ${blankDiagramHeight}">
     <rect width="${blankDiagramWidth}" height="${blankDiagramHeight}" fill="#ffffff"/>
@@ -43,6 +45,7 @@ let diagramViewMode = diagramViewModes.has(readPreference(preferenceKeys.diagram
   ? readPreference(preferenceKeys.diagramViewMode, "tree")
   : "tree";
 let diagramTreePaneWidth = readNumberPreference(preferenceKeys.diagramTreePaneWidth, 300);
+let diagramTreePaneHidden = readBooleanPreference(preferenceKeys.diagramTreePaneHidden, false);
 let diagramSearch = readPreference(preferenceKeys.diagramSearch, "").trim();
 let diagramProjectId = readNumberPreference(preferenceKeys.diagramProject, 0);
 let diagramSprintId = readPreference(preferenceKeys.diagramSprint, "all");
@@ -68,6 +71,8 @@ export function createDiagramFeature({
   loadDefaultTemplateLibrary,
   saveTemplateLibrary,
   loadPmtDatabaseSchema,
+  uploadEmbeddedImage,
+  persistCroppedOriginal,
   createDiagramDocument,
   saveDiagramDocument,
   openEditor,
@@ -78,6 +83,7 @@ export function createDiagramFeature({
   let creating = false;
   let generatingDatabaseSchema = false;
   let editingDocumentId = 0;
+  let editingFullScreen = false;
   let editorAbortController = null;
 
   function renderDiagram() {
@@ -87,15 +93,17 @@ export function createDiagramFeature({
     const documentIds = new Set(documents.map(document => document.id));
     if (!documentIds.has(selectedDiagramDocumentId)) {
       selectedDiagramDocumentId = documents[0]?.id || 0;
+      previewDiagramDocumentId = 0;
       if (/^#\/diagram\/\d+(?:\?|$)/i.test(globalThis.window?.location?.hash || "")) {
         updateBrowserUrl(routeForContent("diagram", selectedDiagramDocumentId), { replace: true });
       }
     }
     if (editingDocumentId && !documentIds.has(editingDocumentId)) cancelEmbeddedEditor();
+    const selectedDocument = documents.find(document => document.id === selectedDiagramDocumentId) || null;
 
     app.innerHTML = `
       <section class="diagram-screen ${diagramViewMode === "tree" ? "is-tree-view" : "is-card-view"}">
-        ${sectionHead("Diagram", diagramHeaderActionsHtml())}
+        ${sectionHead("Diagram", `${diagramPageDocumentHeaderHtml(selectedDocument)}${diagramHeaderActionsHtml()}`)}
         ${diagramViewMode === "tree" ? diagramTreeViewHtml(documents) : diagramCardViewHtml(documents)}
       </section>
     `;
@@ -104,12 +112,26 @@ export function createDiagramFeature({
       bindDiagramTreeSplitter();
       bindDiagramTreeDragAndDrop();
       bindDiagramReadonlyViewer();
+      const source = diagramImage(selectedDocument)?.source || "";
+      if (source && !decodeDiagramSvgDataUrl(source) && !diagramSvgSourceCache.has(source)) {
+        void loadDiagramSvgSource(source).then(loaded => {
+          if (!loaded
+              || !active
+              || editingDocumentId
+              || selectedDiagramDocumentId !== selectedDocument?.id) return;
+          previewDiagramDocumentId = 0;
+          renderDiagram();
+        });
+      }
     }
   }
 
   function diagramHeaderActionsHtml() {
     const busy = creating || Boolean(editingDocumentId);
     return `
+      <button type="button" class="primary text-icon-button diagram-page-icon-action" data-action="new-diagram" title="New Diagram" aria-label="New Diagram" ${busy || !canAccessResource("Documentation", "Create") ? "disabled" : ""}>
+        ${buttonContent("&#10010;", creating ? "Creating..." : "New Diagram")}
+      </button>
       <div class="documentation-view-toggle diagram-view-toggle" aria-label="Diagram view">
         <button class="secondary text-icon-button documentation-view-toggle-button ${diagramViewMode === "cards" ? "is-on" : ""}" type="button" data-action="set-diagram-view" data-mode="cards" aria-pressed="${diagramViewMode === "cards"}" title="Cards" aria-label="Cards" ${busy ? "disabled" : ""}>
           ${buttonContent("&#9638;", "Cards")}
@@ -118,12 +140,54 @@ export function createDiagramFeature({
           ${buttonContent("&#9776;", "Treeview")}
         </button>
       </div>
-      <button class="secondary text-icon-button" type="button" data-action="open-diagram-filters" title="Filters" aria-label="Filters" aria-haspopup="dialog" ${busy ? "disabled" : ""}>
+      <button class="secondary text-icon-button diagram-page-icon-action" type="button" data-action="open-diagram-filters" title="Filters" aria-label="Filters" aria-haspopup="dialog" ${busy ? "disabled" : ""}>
         ${buttonContent(funnelIconHtml(), "Filters")}
       </button>
-      <button type="button" class="primary text-icon-button" data-action="new-diagram" ${busy || !canAccessResource("Documentation", "Create") ? "disabled" : ""}>
-        ${buttonContent("&#10010;", creating ? "Creating..." : "New Diagram")}
-      </button>
+      ${pageActionsMenuHtml([{
+        action: "toggle-diagram-tree-pane",
+        icon: "&#9776;",
+        label: "Left Nav",
+        title: "Left Nav",
+        checked: diagramViewMode === "tree" && !diagramTreePaneHidden,
+        disabled: diagramViewMode !== "tree" || busy
+      }])}
+    `;
+  }
+
+  function diagramPageDocumentHeaderHtml(document) {
+    if (diagramViewMode !== "tree" || !document) return "";
+    const canEdit = diagramCanEdit(document);
+    const parent = diagramDocuments().find(item => item.id === document.parentBlogId);
+    return `
+      <div class="diagram-page-document-head" data-diagram-page-document-head>
+        <div class="diagram-page-document-title">
+          <h2>${escapeHtml(document.title)}</h2>
+          <div class="diagram-page-document-meta">
+            <span>${document.isPrivate === false ? "Public" : "Private"} Diagram</span>
+            <span>${escapeHtml(diagramProjectLabel(document.projectId))}</span>
+            ${document.sprintId ? `<span>${escapeHtml(diagramSprintLabel(document.sprintId))}</span>` : ""}
+            ${parent ? `<span>Parent: ${escapeHtml(parent.title)}</span>` : ""}
+            <span>Updated ${escapeHtml(formatDate(document.updatedAt || document.createdAt))}</span>
+          </div>
+        </div>
+        <div class="diagram-page-document-actions">
+          ${document.isPrivate === false ? `<button type="button" class="icon-action" data-action="share-diagram" data-id="${document.id}" title="Share public Diagram" aria-label="Share public Diagram"><span aria-hidden="true">&#128279;</span></button>` : ""}
+          <button type="button" class="secondary text-icon-button diagram-page-icon-action" data-action="edit-diagram-info" data-id="${document.id}" title="Edit Info" aria-label="Edit Info" ${!canEdit || editingDocumentId ? "disabled" : ""}>
+            ${buttonContent("&#9432;", "Edit Info")}
+          </button>
+          <button type="button" class="primary text-icon-button diagram-page-icon-action" data-action="edit-diagram" data-id="${document.id}" title="Edit Diagram" aria-label="Edit Diagram" ${!canEdit || editingDocumentId ? "disabled" : ""}>
+            ${buttonContent("&#9998;", "Edit Diagram")}
+          </button>
+          ${editingDocumentId ? "" : `
+            <div class="diagram-page-zoom-controls" aria-label="Read-only Diagram navigation">
+              <button type="button" class="secondary diagram-page-icon-action" data-diagram-zoom-out title="Zoom out" aria-label="Zoom out">&#8722;</button>
+              <select data-diagram-zoom aria-label="Zoom level" title="Zoom level">${diagramZoomOptionsHtml()}</select>
+              <button type="button" class="secondary diagram-page-icon-action" data-diagram-zoom-in title="Zoom in" aria-label="Zoom in">&#43;</button>
+              <button type="button" class="secondary text-icon-button diagram-page-icon-action" data-diagram-fit title="Fit Diagram" aria-label="Fit Diagram">${buttonContent("&#9633;", "Fit Diagram")}</button>
+            </div>
+          `}
+        </div>
+      </div>
     `;
   }
 
@@ -153,7 +217,7 @@ export function createDiagramFeature({
           <div class="documentation-card-meta"><span>Updated ${escapeHtml(formatDate(document.updatedAt || document.createdAt))}</span></div>
         </div>
         <div class="documentation-card-body diagram-card-preview">
-          <img src="${escapeAttr(image?.source || blankDiagramSource)}" alt="${escapeAttr(document.title)} preview" loading="lazy" decoding="async">
+          <img src="${escapeAttr(appUrl(image?.source || blankDiagramSource))}" alt="${escapeAttr(document.title)} preview" loading="lazy" decoding="async">
         </div>
         <div class="documentation-card-bottom has-top-created-meta">
           <div class="documentation-card-meta documentation-card-created-meta"><span>Diagram</span></div>
@@ -165,15 +229,15 @@ export function createDiagramFeature({
   function diagramTreeViewHtml(documents) {
     const selectedDocument = documents.find(document => document.id === selectedDiagramDocumentId) || null;
     return `
-      <div class="documentation-tree-layout diagram-tree-layout" style="--documentation-tree-pane-width:${diagramTreePaneWidth}px">
-        <aside class="panel documentation-tree-pane diagram-tree-pane">
+      <div class="documentation-tree-layout diagram-tree-layout ${diagramTreePaneHidden ? "is-tree-hidden" : ""}" style="--documentation-tree-pane-width:${diagramTreePaneWidth}px">
+        <aside class="panel documentation-tree-pane diagram-tree-pane" ${diagramTreePaneHidden ? "hidden" : ""}>
           <div class="documentation-tree" role="tree" aria-label="Diagrams">
             ${documents.length ? diagramTreeNavHtml(documents) : `<div class="documentation-tree-empty">No diagrams match the current filters.</div>`}
           </div>
         </aside>
-        <div class="documentation-tree-splitter" data-diagram-tree-splitter role="separator" aria-orientation="vertical" aria-label="Resize diagram navigation"></div>
+        <div class="documentation-tree-splitter" data-diagram-tree-splitter ${diagramTreePaneHidden ? "hidden" : ""} role="separator" aria-orientation="vertical" aria-label="Resize diagram navigation"></div>
         <section class="panel documentation-tree-preview diagram-tree-content ${editingDocumentId ? "is-editing" : ""}">
-          ${editingDocumentId && selectedDocument?.id === editingDocumentId
+          ${editingDocumentId && !editingFullScreen && selectedDocument?.id === editingDocumentId
             ? `<div class="diagram-inline-editor-host" data-diagram-editor-host><div class="empty">Loading diagram editor...</div></div>`
             : diagramTreePreviewHtml(selectedDocument)}
         </section>
@@ -213,8 +277,9 @@ export function createDiagramFeature({
         <button class="documentation-tree-document" type="button" data-action="select-diagram-document" data-id="${document.id}" title="${escapeAttr(document.title)}" ${editingDocumentId ? "disabled" : ""}>
           <span class="documentation-tree-icon" aria-hidden="true">&#128208;</span>
           <span class="documentation-tree-label">${escapeHtml(document.title)}</span>
-          ${document.isPinned ? `<span class="diagram-tree-pin" title="Pinned" aria-label="Pinned">&#128204;</span>` : ""}
           <span class="documentation-tree-date">${escapeHtml(formatDate(document.updatedAt || document.createdAt))}</span>
+          ${document.isPrivate !== false ? `<span class="diagram-tree-private" title="Private" aria-label="Private">${diagramLockIconHtml()}</span>` : ""}
+          ${document.isPinned ? `<span class="diagram-tree-pin" title="Pinned" aria-label="Pinned">&#128204;</span>` : ""}
         </button>
       </div>
       ${hasChildren && !collapsed ? renderChildren(document.id, depth + 1) : ""}
@@ -231,37 +296,8 @@ export function createDiagramFeature({
     }
 
     const image = diagramImage(document);
-    const canEdit = diagramCanEdit(document);
-    const parent = diagramDocuments().find(item => item.id === document.parentBlogId);
     return `
-      <div class="documentation-tree-preview-head">
-        <div class="documentation-tree-preview-title">
-          <h2>${escapeHtml(document.title)}</h2>
-          <div class="documentation-tree-preview-meta">
-            <span>${document.isPrivate === false ? "Public" : "Private"} Diagram</span>
-            <span>${escapeHtml(diagramProjectLabel(document.projectId))}</span>
-            ${document.sprintId ? `<span>${escapeHtml(diagramSprintLabel(document.sprintId))}</span>` : ""}
-            ${parent ? `<span>Parent: ${escapeHtml(parent.title)}</span>` : ""}
-            <span>Updated ${escapeHtml(formatDate(document.updatedAt || document.createdAt))}</span>
-          </div>
-        </div>
-        <div class="toolbar documentation-tree-preview-actions">
-          ${document.isPrivate === false ? `<button type="button" class="icon-action" data-action="share-diagram" data-id="${document.id}" title="Share public Diagram" aria-label="Share public Diagram"><span aria-hidden="true">&#128279;</span></button>` : ""}
-          <button type="button" class="secondary text-icon-button" data-action="edit-diagram-info" data-id="${document.id}" ${!canEdit ? "disabled" : ""}>
-            ${buttonContent("&#9432;", "Edit Info")}
-          </button>
-          <button type="button" class="primary text-icon-button" data-action="edit-diagram" data-id="${document.id}" ${!canEdit ? "disabled" : ""}>
-            ${buttonContent("&#9998;", "Edit Diagram")}
-          </button>
-        </div>
-      </div>
       <div class="diagram-readonly-viewer diagram-tree-preview-image" data-diagram-readonly-viewer data-id="${document.id}">
-        <div class="toolbar diagram-readonly-toolbar" aria-label="Read-only Diagram navigation">
-          <button type="button" class="secondary" data-diagram-zoom-out title="Zoom out" aria-label="Zoom out">&#8722;</button>
-          <select data-diagram-zoom aria-label="Zoom level" title="Zoom level">${diagramZoomOptionsHtml()}</select>
-          <button type="button" class="secondary" data-diagram-zoom-in title="Zoom in" aria-label="Zoom in">&#43;</button>
-          <button type="button" class="secondary" data-diagram-fit>Fit</button>
-        </div>
         <div class="diagram-preview diagram-readonly-viewport" data-diagram-viewport tabindex="0" aria-label="Read-only Diagram canvas. Drag to pan; use Control plus mouse wheel to zoom.">
           <div class="diagram-readonly-stage" data-diagram-stage>
             ${diagramReadonlyImageHtml(image?.source || blankDiagramSource, document.title)}
@@ -276,6 +312,10 @@ export function createDiagramFeature({
       if (creating || editingDocumentId) return true;
       const mode = button?.dataset?.mode || "tree";
       diagramViewMode = diagramViewModes.has(mode) ? mode : "tree";
+      if (diagramViewMode === "tree") {
+        diagramTreePaneHidden = false;
+        writePreference(preferenceKeys.diagramTreePaneHidden, false);
+      }
       writePreference(preferenceKeys.diagramViewMode, diagramViewMode);
       renderDiagram();
       return true;
@@ -283,6 +323,7 @@ export function createDiagramFeature({
     if (action === "select-diagram-card" || action === "select-diagram-document") {
       if (editingDocumentId) return true;
       selectedDiagramDocumentId = id;
+      previewDiagramDocumentId = 0;
       sharedDiagramDocumentId = 0;
       diagramViewMode = "tree";
       writePreference(preferenceKeys.diagramViewMode, diagramViewMode);
@@ -300,6 +341,13 @@ export function createDiagramFeature({
     }
     if (action === "open-diagram-filters") {
       openDiagramFiltersDialog();
+      return true;
+    }
+    if (action === "toggle-diagram-tree-pane") {
+      if (diagramViewMode !== "tree" || creating || editingDocumentId) return true;
+      diagramTreePaneHidden = !diagramTreePaneHidden;
+      writePreference(preferenceKeys.diagramTreePaneHidden, diagramTreePaneHidden);
+      renderDiagram();
       return true;
     }
     if (action === "new-diagram") {
@@ -528,7 +576,7 @@ export function createDiagramFeature({
       const diagram = createBlankDiagram();
       const result = await createDiagramDocument?.({
         title,
-        bodyHtml: diagramDocumentBodyHtml(title, diagram)
+        diagram
       });
       if (!active) return;
       selectedDiagramDocumentId = Number(result?.id || 0);
@@ -539,7 +587,7 @@ export function createDiagramFeature({
 
       const document = diagramDocuments().find(item => item.id === selectedDiagramDocumentId);
       if (!document) throw new Error("The new Diagram could not be loaded.");
-      await editDiagram(document);
+      await editDiagram(document, { fullScreen: true });
     } catch (error) {
       creating = false;
       if (active) {
@@ -549,7 +597,7 @@ export function createDiagramFeature({
     }
   }
 
-  async function editDiagram(document) {
+  async function editDiagram(document, options = {}) {
     if (!active || creating || editingDocumentId) return;
     const image = diagramImage(document);
     if (!image?.source) {
@@ -559,11 +607,13 @@ export function createDiagramFeature({
 
     selectedDiagramDocumentId = document.id;
     editingDocumentId = document.id;
+    editingFullScreen = options.fullScreen === true;
     editorAbortController = new AbortController();
     renderDiagram();
-    const host = app.querySelector("[data-diagram-editor-host]");
-    if (!host) {
+    const host = editingFullScreen ? null : app.querySelector("[data-diagram-editor-host]");
+    if (!editingFullScreen && !host) {
       editingDocumentId = 0;
+      editingFullScreen = false;
       editorAbortController = null;
       renderDiagram();
       return;
@@ -573,7 +623,7 @@ export function createDiagramFeature({
       const result = await openImageAnnotationDialog({
         canvasWidth: blankDiagramWidth,
         canvasHeight: blankDiagramHeight,
-        annotationUrl: image.source,
+        annotationUrl: appUrl(image.source),
         originalFileName: `${safeFileName(document.title)}.svg`,
         title: document.title,
         subtitle: "Editable vector diagram",
@@ -581,13 +631,18 @@ export function createDiagramFeature({
         applyingMessage: "Saving the diagram...",
         initialSelection: "none",
         entityHeaderActionsOnHover: true,
-        embedded: true,
+        embedded: !editingFullScreen,
+        initiallyMaximized: editingFullScreen,
+        initialZoom: editingFullScreen ? 1 : null,
+        initialTemplateName: editingFullScreen ? "Green Box with Text" : "",
         host,
         signal: editorAbortController.signal,
         askForColor,
         askForText,
         confirm,
         notify,
+        uploadEmbeddedImage,
+        persistCroppedOriginal,
         loadTemplateLibrary,
         loadDefaultTemplateLibrary,
         saveTemplateLibrary,
@@ -595,16 +650,44 @@ export function createDiagramFeature({
           && canAccessResource("Documentation", "Create")
           ? generatePmtDatabaseSchema
           : undefined,
-        apply: diagram => saveDiagramDocument?.(document, {
-          diagram,
-          bodyHtml: diagramDocumentBodyHtml(document.title, diagram)
-        })
+        apply: async diagram => {
+          try {
+            return await saveDiagramDocument?.(document, { diagram });
+          } catch (error) {
+            if (!diagramSaveConflict(error)) throw error;
+
+            notify?.("Someone else saved a newer version. Your edits can be saved as a new Diagram.");
+            const suggestedTitle = nextAvailableDiagramCopyTitle(
+              document.title,
+              diagramAllDocuments()
+            );
+            const title = typeof askForText === "function"
+              ? String(await askForText(
+                "New Diagram name",
+                "A newer Diagram was saved",
+                suggestedTitle
+              ) || "").trim()
+              : "";
+            if (!title) {
+              throw new Error("The newer Diagram was kept. Enter a new Diagram name to preserve these edits.");
+            }
+
+            const savedCopy = await createDiagramDocument?.({
+              title,
+              diagram,
+              sourceDocument: document
+            });
+            selectedDiagramDocumentId = Number(savedCopy?.id || 0);
+            return savedCopy;
+          }
+        }
       });
       if (result && active) notify?.("Diagram saved.");
     } catch (error) {
       if (active) notify?.(error?.message || "The Diagram could not be opened.");
     } finally {
       editingDocumentId = 0;
+      editingFullScreen = false;
       editorAbortController = null;
       previewDiagramDocumentId = 0;
       if (active) renderDiagram();
@@ -619,7 +702,7 @@ export function createDiagramFeature({
       const diagram = buildPmtDatabaseSchemaDiagram(schema);
       const result = await createDiagramDocument?.({
         title: diagram.title,
-        bodyHtml: diagramDocumentBodyHtml(diagram.title, diagram)
+        diagram
       });
       selectedDiagramDocumentId = Number(result?.id || 0);
       return result;
@@ -787,7 +870,7 @@ export function createDiagramFeature({
     const viewport = viewer.querySelector("[data-diagram-viewport]");
     const stage = viewer.querySelector("[data-diagram-stage]");
     const image = viewer.querySelector("[data-diagram-image]");
-    const zoomSelect = viewer.querySelector("[data-diagram-zoom]");
+    const zoomSelect = app.querySelector("[data-diagram-zoom]");
     if (!documentId || !viewport || !stage || !image || !zoomSelect) return;
 
     let imageWidth = blankDiagramWidth;
@@ -1099,9 +1182,9 @@ export function createDiagramFeature({
       activateEntityHeaderControl(control);
     });
 
-    viewer.querySelector("[data-diagram-zoom-out]")?.addEventListener("click", () => scheduleZoom(previewZoom - 0.05));
-    viewer.querySelector("[data-diagram-zoom-in]")?.addEventListener("click", () => scheduleZoom(previewZoom + 0.05));
-    viewer.querySelector("[data-diagram-fit]")?.addEventListener("click", () => fit());
+    app.querySelector("[data-diagram-zoom-out]")?.addEventListener("click", () => scheduleZoom(previewZoom - 0.05));
+    app.querySelector("[data-diagram-zoom-in]")?.addEventListener("click", () => scheduleZoom(previewZoom + 0.05));
+    app.querySelector("[data-diagram-fit]")?.addEventListener("click", () => fit());
     zoomSelect.addEventListener("change", () => scheduleZoom(Number(zoomSelect.value || 100) / 100));
     viewport.addEventListener("wheel", event => {
       if (!event.ctrlKey) {
@@ -1156,6 +1239,7 @@ export function createDiagramFeature({
       viewport.addEventListener("pointerup", finish);
       viewport.addEventListener("pointercancel", finish);
     });
+
   }
 
   function deactivate() {
@@ -1168,6 +1252,7 @@ export function createDiagramFeature({
     editorAbortController?.abort();
     editorAbortController = null;
     editingDocumentId = 0;
+    editingFullScreen = false;
   }
 
   return {
@@ -1185,6 +1270,7 @@ export function createDiagramFeature({
       sharedDiagramDocumentId = document.id;
       if (selectedDiagramDocumentId !== document.id || diagramViewMode !== "tree") {
         selectedDiagramDocumentId = document.id;
+        previewDiagramDocumentId = 0;
         diagramViewMode = "tree";
         writePreference(preferenceKeys.diagramViewMode, diagramViewMode);
         if (active) renderDiagram();
@@ -1285,16 +1371,45 @@ function diagramImage(document) {
 
 function diagramReadonlyImageHtml(sourceInput, title) {
   const source = String(sourceInput || blankDiagramSource);
-  const svgSource = decodeDiagramSvgDataUrl(source);
+  const svgSource = decodeDiagramSvgDataUrl(source) || diagramSvgSourceCache.get(source) || "";
   const state = parseAnnotationSvg(svgSource);
   if (!state) {
-    return `<img src="${escapeAttr(source)}" alt="${escapeAttr(title)} preview" data-diagram-image draggable="false">`;
+    return `<img src="${escapeAttr(appUrl(source))}" alt="${escapeAttr(title)} preview" data-diagram-image draggable="false">`;
   }
 
   return buildAnnotationSvg(state, { interactiveEntityHeaders: true })
     .replace(/^<\?xml[^>]*>\s*/i, "")
     .replace("<svg ", `<svg class="diagram-readonly-svg" data-diagram-image `)
     .replace('aria-label="Annotated image"', `aria-label="${escapeAttr(title)} preview"`);
+}
+
+async function loadDiagramSvgSource(sourceInput) {
+  const source = String(sourceInput || "").trim();
+  if (!source) return "";
+  const embedded = decodeDiagramSvgDataUrl(source);
+  if (embedded) return embedded;
+  if (diagramSvgSourceCache.has(source)) return diagramSvgSourceCache.get(source);
+  if (diagramSvgSourceLoads.has(source)) return diagramSvgSourceLoads.get(source);
+
+  const load = (async () => {
+    try {
+      const response = await fetch(appUrl(source), {
+        cache: "no-store",
+        credentials: "same-origin"
+      });
+      if (!response.ok) return "";
+      const svg = await response.text();
+      if (!parseAnnotationSvg(svg)) return "";
+      diagramSvgSourceCache.set(source, svg);
+      return svg;
+    } catch {
+      return "";
+    } finally {
+      diagramSvgSourceLoads.delete(source);
+    }
+  })();
+  diagramSvgSourceLoads.set(source, load);
+  return load;
 }
 
 function decodeDiagramSvgDataUrl(sourceInput) {
@@ -1329,10 +1444,27 @@ function createBlankDiagram() {
   };
 }
 
-function diagramDocumentBodyHtml(title, diagram) {
-  const source = annotationSvgDataUrl(diagram.svg);
-  const version = Number(diagram.state?.version || 1);
-  return `<p><img class="rich-svg-image pmt-annotation-image" src="${escapeAttr(source)}" alt="${escapeAttr(title)}" data-pmt-diagram="true" data-pmt-private-diagram="true" data-pmt-annotation-version="${escapeAttr(version)}"></p>`;
+function diagramLockIconHtml() {
+  return `
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <rect x="5" y="10" width="14" height="10" rx="2"></rect>
+      <path d="M8 10V7a4 4 0 0 1 8 0v3"></path>
+      <path d="M12 14v3"></path>
+    </svg>
+  `;
+}
+
+function diagramSaveConflict(error) {
+  return Number(error?.status || 0) === 409
+    || /newer version of this item exists/i.test(String(error?.message || ""));
+}
+
+function nextAvailableDiagramCopyTitle(title, documents) {
+  const baseTitle = String(title || "Diagram").trim() || "Diagram";
+  const titles = new Set((documents || []).map(document => String(document?.title || "").trim().toLocaleLowerCase()));
+  let suffix = 2;
+  while (titles.has(`${baseTitle} ${suffix}`.toLocaleLowerCase())) suffix += 1;
+  return `${baseTitle} ${suffix}`;
 }
 
 function diagramProjectOptions() {
@@ -1423,14 +1555,14 @@ function clearDiagramDropCues(tree) {
 }
 
 function diagramZoomOptionsHtml() {
-  return Array.from({ length: 39 }, (_, index) => 10 + (index * 5))
+  return Array.from({ length: 59 }, (_, index) => 10 + (index * 5))
     .map(percent => `<option value="${percent}">${percent}%</option>`)
     .join("");
 }
 
 function clampDiagramZoom(value) {
   const rounded = Math.round((Number(value) || 1) * 20) / 20;
-  return Math.min(2, Math.max(0.1, rounded));
+  return Math.min(3, Math.max(0.1, rounded));
 }
 
 function nextUntitledDiagramTitle(documents) {

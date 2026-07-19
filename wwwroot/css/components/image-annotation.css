@@ -157,7 +157,7 @@
 
 .image-annotation-main {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(300px, 320px);
+  grid-template-columns: minmax(0, 1fr) 4px minmax(300px, var(--image-annotation-inspector-width, 320px));
   min-width: 0;
   min-height: 0;
   overflow: hidden;
@@ -165,6 +165,26 @@
 
 .image-annotation-main.is-inspector-hidden {
   grid-template-columns: minmax(0, 1fr);
+}
+
+.image-annotation-inspector-splitter {
+  width: 4px;
+  min-height: 100%;
+  border-radius: var(--radius-pill);
+  background: var(--color-border-subtle);
+  cursor: col-resize;
+  touch-action: none;
+}
+
+.image-annotation-inspector-splitter:hover,
+.image-annotation-inspector-splitter:focus-visible,
+.image-annotation-dialog.is-resizing-inspector .image-annotation-inspector-splitter {
+  background: var(--color-border-strong);
+}
+
+.image-annotation-dialog.is-resizing-inspector {
+  cursor: col-resize;
+  user-select: none;
 }
 
 .image-annotation-workspace {
@@ -946,6 +966,25 @@
   white-space: nowrap;
 }
 
+.image-annotation-object-tree-lock-status {
+  display: inline-grid;
+  flex: 0 0 20px;
+  width: 20px;
+  height: 20px;
+  place-items: center;
+  color: var(--color-text-tertiary);
+}
+
+.image-annotation-object-tree-lock-status svg {
+  width: 15px;
+  height: 15px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.8;
+}
+
 .image-annotation-object-tree-crop-status {
   flex: 0 0 auto;
   padding: 1px var(--space-2);
@@ -1159,6 +1198,10 @@
     grid-template-columns: 1fr;
     grid-template-rows: minmax(240px, 1fr) auto;
     overflow: auto;
+  }
+
+  .image-annotation-inspector-splitter {
+    display: none;
   }
 
   .image-annotation-main.is-inspector-hidden {

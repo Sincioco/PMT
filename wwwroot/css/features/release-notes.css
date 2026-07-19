@@ -152,6 +152,21 @@
   margin-inline: auto;
 }
 
+.release-note-illustration {
+  height: clamp(108px, 16vw, 160px);
+  margin-bottom: var(--space-7);
+  overflow: hidden;
+  border-radius: var(--radius-lg);
+  background: var(--color-surface-subtle);
+}
+
+.release-note-illustration img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
 .release-note-content-head {
   padding-bottom: var(--space-8);
   border-bottom: var(--border-width) solid var(--color-border);

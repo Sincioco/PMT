@@ -7,7 +7,8 @@ import {
   scrumAutoRefreshCanRun,
   scrumAttendanceOccurrences,
   scrumAttendanceStatusGroups,
-  scrumCalendarDateKeys
+  scrumCalendarDateKeys,
+  scrumToggledPersonIds
 } from "../../wwwroot/js/features/scrum/scrum.js";
 
 test("Scrum auto-refresh uses one five-second cycle and runs only when safe", () => {
@@ -20,15 +21,22 @@ test("Scrum auto-refresh uses one five-second cycle and runs only when safe", ()
   assert.equal(scrumAutoRefreshCanRun({ active: true, blocked: false, enabled: true, inFlight: false, loading: true }), false);
 });
 
-test("Scrum exposes the six attendance choices in the required dropdown order", () => {
+test("Scrum exposes the six Check-In choices in the required dialog order", () => {
   assert.deepEqual(SCRUM_ATTENDANCE_STATUSES, [
-    "Home",
     "Office",
+    "Home",
     "Sick Leave",
     "Vacation",
     "EL",
     "Other"
   ]);
+});
+
+test("Scrum avatar filters select, switch, and clear the active person", () => {
+  assert.deepEqual(scrumToggledPersonIds([], 2), ["2"]);
+  assert.deepEqual(scrumToggledPersonIds(["2"], 2), []);
+  assert.deepEqual(scrumToggledPersonIds(["2"], 1), ["1"]);
+  assert.deepEqual(scrumToggledPersonIds(["1", "2"], 2), []);
 });
 
 test("Scrum calendar keys preserve local month alignment and leap days", () => {
