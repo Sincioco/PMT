@@ -48,6 +48,7 @@ import {
   restoreAnnotationDefaultTemplates,
   resizeAnnotationObjects,
   resizedAnnotationBounds,
+  resolveAnnotationEntitySizeChangeLayout,
   scaleGroupedAnnotationArrowStyle,
   setAnnotationEntityCollapsedState,
   setAnnotationEntityAnnotation,
@@ -406,6 +407,43 @@ function unrelatedEntityRouteContacts(svg, entities) {
   return contacts;
 }
 
+function entityRouteContactsAwayFromConnectedFields(svg, entities) {
+  const contacts = [];
+  const relationships = String(svg || "").matchAll(
+    /<g class="image-annotation-entity-relationship[^"]*"[^>]*data-pmt-relationship-source="([^"]+)" data-pmt-relationship-target="([^"]+)"[\s\S]*?<path class="image-annotation-entity-relationship-hit" d="([^"]+)"[\s\S]*?<\/g>/g
+  );
+  for (const relationship of relationships) {
+    const sourceParts = relationship[1].split(".");
+    const targetParts = relationship[2].split(".");
+    const sourceField = sourceParts.pop();
+    const targetField = targetParts.pop();
+    const sourceEntity = sourceParts.join(".");
+    const targetEntity = targetParts.join(".");
+    const points = orthogonalPathPoints(relationship[3]);
+    entities.forEach(entity => {
+      const entityName = `${entity.entitySchema}.${entity.entityName}`;
+      points.slice(1).forEach((point, index) => {
+        const previous = points[index];
+        if (!orthogonalSegmentTouchesEntity(previous, point, entity)) return;
+        const sourceConnector = entityName === sourceEntity
+          && index === 0
+          && previous.y === expectedEntityFieldAnchorY(entity, sourceField)
+          && [entity.x, entity.x + entity.width].includes(previous.x)
+          && (point.x - previous.x) * (previous.x === entity.x ? -1 : 1) > 0;
+        const targetConnector = entityName === targetEntity
+          && index === points.length - 2
+          && point.y === expectedEntityFieldAnchorY(entity, targetField)
+          && [entity.x, entity.x + entity.width].includes(point.x)
+          && (point.x - previous.x) * (point.x === entity.x ? 1 : -1) > 0;
+        if (!sourceConnector && !targetConnector) {
+          contacts.push({ relationship: `${relationship[1]} -> ${relationship[2]}`, entity, index });
+        }
+      });
+    });
+  }
+  return contacts;
+}
+
 function annotationSvgViewBox(svg) {
   const values = String(svg || "").match(/<svg\b[^>]*\bviewBox="([^"]+)"/)?.[1]
     ?.trim()
@@ -418,10 +456,18 @@ function annotationSvgViewBox(svg) {
 function relationshipPaintPoints(svg) {
   const markup = String(svg || "");
   const points = [];
-  for (const path of markup.matchAll(/class="image-annotation-entity-relationship-path" d="([^"]+)"/g)) {
+  const relationshipPaths = [...markup.matchAll(/class="image-annotation-entity-relationship-path" d="([^"]+)"/g)];
+  const pathMatches = relationshipPaths.length
+    ? relationshipPaths
+    : [...markup.matchAll(/<path\b[^>]*\bd="([^"]+)"[^>]*>/g)];
+  for (const path of pathMatches) {
     orthogonalPathSubpaths(path[1]).forEach(subpath => points.push(...subpath));
   }
-  for (const polygon of markup.matchAll(/<polygon\b[^>]*\bclass="image-annotation-entity-relationship-marker"[^>]*\bpoints="([^"]+)"/g)) {
+  const relationshipPolygons = [...markup.matchAll(/<polygon\b[^>]*\bclass="image-annotation-entity-relationship-marker"[^>]*\bpoints="([^"]+)"/g)];
+  const polygonMatches = relationshipPolygons.length
+    ? relationshipPolygons
+    : [...markup.matchAll(/<polygon\b[^>]*\bpoints="([^"]+)"/g)];
+  for (const polygon of polygonMatches) {
     polygon[1].trim().split(/\s+/).forEach(value => {
       const [x, y] = value.split(",").map(Number);
       points.push({ x, y });
@@ -857,6 +903,14 @@ test("data type visibility compacts from the left while keeping the upper-right 
 
   setAnnotationEntityDataTypeVisibility(blogs, true);
   assert.deepEqual({ x: blogs.x, width: blogs.width, right: blogs.x + blogs.width }, { x: 40, width: 520, right });
+  const expandedSvg = buildAnnotationSvg({ width: 1200, height: 900, objects: [blogs] }, "");
+  assert.doesNotMatch(
+    expandedSvg,
+    /<g clip-path="url\(#pmt-annotation-entity-clip-blogs\)"/,
+    "Entity contents must not use a stale outer clip while resizing or dragging in Chromium"
+  );
+  assert.match(expandedSvg, />pmt\.Blogs<\/text>/);
+  assert.match(expandedSvg, />NVARCHAR\(220\)<\/text>/);
   setAnnotationEntityDataTypeVisibility(blogs, false);
   assert.deepEqual({ x: blogs.x, width: blogs.width }, compact);
 });
@@ -991,10 +1045,10 @@ test("self-referencing Entity relationships use a visible loop and remain in sel
   assert.ok(bounds.width > workTasks.width);
 
   const selectionSvg = buildAnnotationSelectionSvg(state, new Set([workTasks.id]), "");
-  assert.match(selectionSvg, /image-annotation-entity-relationships/);
-  assert.match(selectionSvg, /pmt\.WorkTasks\.ParentTaskId/);
-  assert.match(selectionSvg, /pmt\.WorkTasks\.TaskId/);
-  assert.ok(selectionSvg.indexOf("image-annotation-entity-relationships") < selectionSvg.indexOf(">pmt.WorkTasks<\/text>"));
+  assert.match(selectionSvg, /<svg[^>]*><g><path d="M /);
+  assert.match(selectionSvg, />pmt\.WorkTasks<\/text>/);
+  assert.doesNotMatch(selectionSvg, /data-pmt-|\bclass=|<title>/);
+  assert.ok(selectionSvg.indexOf("<path") < selectionSvg.indexOf(">pmt.WorkTasks<\/text>"));
 });
 
 test("Entity relationship SVG defaults to simple field lines and can show both supported cardinalities", () => {
@@ -1135,6 +1189,7 @@ test("Entity relationship routes never pass behind an unrelated Entity", () => {
       projects.x + projects.width,
       expectedEntityFieldAnchorY(projects, "ProjectsId")
     ]);
+    assert.equal(entityRouteContactsAwayFromConnectedFields(svg, entities).length, 0);
   }
 });
 
@@ -1425,7 +1480,7 @@ test("annotation output and copied-selection bounds include cardinality markers 
   );
 });
 
-test("an Entity relationship is omitted instead of falling back to a route through another Entity", () => {
+test("an Entity relationship reroutes instead of touching an endpoint Entity away from its field", () => {
   const parent = simpleRelationshipEntity("parent", "Parent", 0, 0);
   const child = simpleRelationshipEntity("child", "Child", 800, 0, "Parent");
   const blockingEndpoint = simpleRelationshipEntity("blocking-endpoint", "BlockingEndpoint", 790, 0);
@@ -1433,8 +1488,27 @@ test("an Entity relationship is omitted instead of falling back to a route throu
 
   const svg = annotationEntityRelationshipsSvg([parent, blockingEndpoint, child]);
 
-  assert.doesNotMatch(svg, /image-annotation-entity-relationship-path/);
+  assert.match(svg, /image-annotation-entity-relationship-path/);
   assert.doesNotMatch(svg, /<polygon\b/);
+  assert.equal(entityRouteContactsAwayFromConnectedFields(svg, [parent, blockingEndpoint, child]).length, 0);
+});
+
+test("Entity size layout separates overlapping relationship endpoints before routing", () => {
+  const parent = simpleRelationshipEntity("overlap-parent", "Parent", 100, 100);
+  const child = simpleRelationshipEntity("overlap-child", "Child", 100, 100, "Parent");
+  const state = normalizeAnnotationState({
+    width: 1000,
+    height: 700,
+    objects: [parent, child]
+  });
+  const stateChild = state.objects.find(object => object.id === child.id);
+
+  const result = resolveAnnotationEntitySizeChangeLayout(state, stateChild);
+  const stateParent = state.objects.find(object => object.id === parent.id);
+
+  assert.equal(result.unresolvedOverlapCount, 0);
+  assert.notEqual(stateParent.x, stateChild.x);
+  assert.match(annotationEntityRelationshipsSvg(state.objects), /image-annotation-entity-relationship-path/);
 });
 
 test("global Entity Relationships formatting defaults to simple lines and persists opt-in symbols", () => {
@@ -2378,6 +2452,59 @@ test("rectangle and text outlines can be hidden without losing their saved color
   }).objects.find(object => object.type === "rectangle").outlineVisible, true);
 });
 
+test("circle and plain line objects render, select, copy, and survive SVG persistence", () => {
+  const state = normalizeAnnotationState({
+    width: 320,
+    height: 180,
+    objects: [
+      {
+        id: "circle",
+        type: "circle",
+        x: 20,
+        y: 30,
+        width: 100,
+        height: 80,
+        fill: "#dff0d8",
+        stroke: "#2f6b2f",
+        strokeWidth: 4,
+        opacity: 0.7
+      },
+      {
+        id: "line",
+        type: "line",
+        x1: 150,
+        y1: 40,
+        x2: 280,
+        y2: 130,
+        stroke: "#315c8a",
+        strokeWidth: 6,
+        opacity: 0.8
+      }
+    ]
+  });
+
+  const svg = buildAnnotationSvg(state, "");
+  assert.match(svg, /<ellipse[^>]+cx="70"[^>]+cy="70"[^>]+rx="50"[^>]+ry="40"/);
+  assert.match(svg, /class="image-annotation-line"[^>]+x1="150"[^>]+y1="40"[^>]+x2="280"[^>]+y2="130"/);
+  assert.doesNotMatch(svg, /image-annotation-arrow-head|<polygon/);
+
+  const restored = parseAnnotationSvg(svg);
+  assert.deepEqual(restored.objects.map(object => object.type), ["circle", "line"]);
+  assert.deepEqual(
+    restored.objects.map(object => object.opacity),
+    [0.7, 0.8]
+  );
+
+  const lineSelection = buildAnnotationSelectionSvg(state, new Set(["line"]));
+  assert.match(lineSelection, /<line x1="150" y1="40" x2="280" y2="130" stroke="#315c8a"/);
+  assert.doesNotMatch(lineSelection, /image-annotation-arrow-head|<polygon/);
+  assert.deepEqual(
+    annotationObjectsIntersectingRect(state.objects, { x: 140, y: 30, width: 150, height: 110 })
+      .map(object => object.id),
+    ["line"]
+  );
+});
+
 test("vector opacity persists through SVG, templates, and copied native instances without affecting images", () => {
   const state = normalizeAnnotationState({
     width: 160,
@@ -2433,7 +2560,37 @@ test("copied annotation SVG contains only the selected artwork at tight painted 
   assert.match(svg, /^<svg[^>]+width="34" height="24" viewBox="8 8 34 24"/);
   assert.match(svg, /<rect x="10" y="10" width="30" height="20"/);
   assert.doesNotMatch(svg, /<image\b/);
-  assert.doesNotMatch(svg, /image-annotation-selection|data-pmt-image-annotation-state/);
+  assert.doesNotMatch(svg, /\b(?:class|role|tabindex|aria-[\w-]+|data-(?:annotation|pmt)-[\w-]+|pointer-events)=|<title>/);
+});
+
+test("copied annotation SVG keeps logical groups as plain SVG groups without editor metadata", () => {
+  const state = normalizeAnnotationState({
+    width: 320,
+    height: 180,
+    objects: [
+      { id: "group-rectangle", type: "rectangle", groupId: "diagram-group", x: 10, y: 10, width: 80, height: 50 },
+      { id: "outside-circle", type: "circle", x: 220, y: 40, width: 60, height: 60 },
+      { id: "group-text", type: "textbox", groupId: "diagram-group", x: 20, y: 20, width: 60, height: 30, text: "Grouped" }
+    ]
+  });
+  const svg = buildAnnotationSelectionSvg(
+    state,
+    new Set(["group-rectangle", "group-text", "outside-circle"])
+  );
+
+  assert.match(svg, /^<svg[^>]*><ellipse[^]*<g><rect[^]*>Gr<\/tspan>[^]*<\/g><\/svg>$/);
+  assert.doesNotMatch(svg, /diagram-group|data-pmt-|data-annotation-|\bclass=|<metadata/);
+});
+
+test("copied Entity SVG omits editor header controls", () => {
+  const entity = entityObject(parseAnnotationEntityDefinition(blogsCreateTableSql), "blogs", 40, 80);
+  const svg = buildAnnotationSelectionSvg(
+    normalizeAnnotationState({ width: 900, height: 700, objects: [entity] }),
+    new Set([entity.id])
+  );
+
+  assert.match(svg, />pmt\.Blogs<\/text>/);
+  assert.doesNotMatch(svg, /Expand Entity|Collapse Entity|Show data types|Hide data types|&#859[34];/);
 });
 
 test("portable copied selections inline URL-backed images with their crop and vector annotations", async () => {
@@ -2507,7 +2664,7 @@ test("portable copied selections inline URL-backed images with their crop and ve
   assert.doesNotMatch(copiedSvg, /hidden\.png/);
   assert.match(copiedSvg, /<image\b[^>]*\bx="-10"[^>]*\by="20"[^>]*\bwidth="240"[^>]*\bheight="120"/);
   assert.match(copiedSvg, /<clipPath\b[^>]*><rect x="20" y="35" width="150" height="70"><\/rect><\/clipPath>/);
-  assert.match(copiedSvg, /image-annotation-arrow-shaft[^>]*stroke="#ff0000"/);
+  assert.match(copiedSvg, /<line x1="30" y1="45"[^>]*stroke="#ff0000"/);
   const inlineSource = copiedSvg.match(/<image\b[^>]*\bhref="([^"]+)"/)?.[1] || "";
   assert.match(inlineSource, /^data:image\/svg\+xml;base64,/);
   assert.equal(Buffer.from(inlineSource.split(",")[1], "base64").toString("utf8"), uploadedSvg);

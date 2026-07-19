@@ -6,8 +6,8 @@ import { buttonContent } from "./components/buttons.js?v=20260715-admin-imperson
 import { copyTextToClipboard } from "./components/clipboard.js?v=20260714-invite-email-body";
 import {
   openImageAnnotationDialog
-} from "./components/image-annotation.js?v=20260719-diagram-anchor-warning-v29";
-import { createWhatsNew } from "./components/whats-new.js?v=release-notes-2026-07-19-day-32-b77111c5864f";
+} from "./components/image-annotation.js?v=20260719-diagram-tools-v35";
+import { createWhatsNew } from "./components/whats-new.js?v=release-notes-2026-07-19-day-32-45ea96feea4d";
 import {
   htmlWithoutUserMentionMarkup,
   initializeUserMentions
@@ -63,24 +63,24 @@ import {
 import { createBacklogFeature } from "./features/backlog/backlog.js?v=20260719-day32-rte-diagram";
 import { createBoardFeature } from "./features/board/board.js?v=20260719-day32-rte-diagram";
 import { createBugsFeature } from "./features/bugs/bugs.js?v=20260719-day32-rte-diagram";
-import { createDashboardFeature } from "./features/dashboard/dashboard.js?v=release-notes-2026-07-19-day-32-b77111c5864f";
-import { createDiagramFeature } from "./features/diagram/diagram.js?v=20260719-diagram-anchor-warning-v33";
+import { createDashboardFeature } from "./features/dashboard/dashboard.js?v=release-notes-2026-07-19-day-32-45ea96feea4d";
+import { createDiagramFeature } from "./features/diagram/diagram.js?v=20260719-diagram-tools-v40";
 import { createDocumentationFeature } from "./features/documentation/documentation.js?v=20260719-document-tree-sync-v33";
 import {
   createGanttFeature,
   currentSprintForProject,
   ganttStartDate
-} from "./features/gantt/gantt.js?v=release-notes-2026-07-19-day-32-b77111c5864f";
+} from "./features/gantt/gantt.js?v=release-notes-2026-07-19-day-32-45ea96feea4d";
 import { createInvitationsFeature } from "./features/invitations/invitations.js?v=20260719-day32-rte-diagram";
 import { createProjectsFeature } from "./features/projects/projects.js?v=20260719-day32-rte-diagram";
-import { createReleaseNotesFeature } from "./features/release-notes/release-notes.js?v=release-notes-2026-07-19-day-32-b77111c5864f";
-import { createRoadMapFeature } from "./features/roadmap/roadmap.js?v=release-notes-2026-07-19-day-32-b77111c5864f";
+import { createReleaseNotesFeature } from "./features/release-notes/release-notes.js?v=release-notes-2026-07-19-day-32-45ea96feea4d";
+import { createRoadMapFeature } from "./features/roadmap/roadmap.js?v=release-notes-2026-07-19-day-32-45ea96feea4d";
 import { createLogFeature } from "./features/personal-log/log.js?v=20260719-day32-rte-diagram";
 import { createScrumFeature } from "./features/scrum/scrum.js?v=20260719-project-prefill-v22";
 import { createSettingsFeature } from "./features/settings/settings.js?v=20260719-day32-rte-diagram";
 import { createSprintsFeature } from "./features/sprints/sprints.js?v=20260719-day32-rte-diagram";
 import { createTasksFeature } from "./features/tasks/tasks.js?v=20260719-day32-rte-diagram";
-import { createWfhScheduleFeature } from "./features/wfh-schedule/wfh-schedule.js?v=release-notes-2026-07-19-day-32-b77111c5864f";
+import { createWfhScheduleFeature } from "./features/wfh-schedule/wfh-schedule.js?v=release-notes-2026-07-19-day-32-45ea96feea4d";
 import {
   fallbackEnvironments,
   fallbackForLookup,

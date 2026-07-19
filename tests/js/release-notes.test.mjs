@@ -42,6 +42,9 @@ test("release-note data covers every available historical prompt in latest-first
     const svg = await readFile(assetUrl, "utf8");
     assert.match(svg, /^<svg xmlns="http:\/\/www\.w3\.org\/2000\/svg"/);
     assert.ok(Buffer.byteLength(svg) < 3000, `${note.id} illustration should remain lightweight`);
+    if (note.id === "2026-07-19-day-32") {
+      assert.doesNotMatch(svg, /<(?:path|polygon)\b/i, "Day 32 should use only straight connector lines");
+    }
   }
   assert.equal(new Set(releaseNotes.map(note => note.illustration.url.split("?", 1)[0])).size, releaseNotes.length);
 });

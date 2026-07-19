@@ -468,7 +468,8 @@ input[type="checkbox"] {
   line-height: 1;
 }
 
-.rich-background-color-icon svg {
+.rich-background-color-icon svg,
+.rich-outline-color-icon svg {
   align-self: start;
   justify-self: start;
   width: 20px;
@@ -479,6 +480,10 @@ input[type="checkbox"] {
   stroke-width: 1.5;
   stroke-linecap: round;
   stroke-linejoin: round;
+}
+
+.rich-outline-color-icon svg {
+  stroke-width: 2;
 }
 
 .rich-color-palette {

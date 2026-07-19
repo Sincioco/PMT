@@ -173,11 +173,15 @@ function releaseIllustration(day, title, sections) {
   const kind = Number(day) === 32 ? "diagram-screen" : illustrationKind(searchableText);
   const palette = illustrationPalettes[Math.abs(Number(day) || 0) % illustrationPalettes.length];
   const offset = 34 + ((Number(day) || 0) * 17) % 44;
+  const decoration = kind === "diagram-screen"
+    ? `<rect x="42" y="136" width="96" height="8" rx="4" fill="${palette.secondary}" opacity=".28"/>
+  <rect x="582" y="34" width="96" height="8" rx="4" fill="${palette.secondary}" opacity=".28"/>`
+    : `<path d="M42 142h96M582 38h96" stroke="${palette.secondary}" stroke-width="8" stroke-linecap="round" opacity=".28"/>`;
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 180">
   <rect width="720" height="180" rx="24" fill="${palette.background}"/>
   <circle cx="${offset}" cy="42" r="18" fill="${palette.accent}" opacity=".18"/>
   <circle cx="${720 - offset}" cy="138" r="28" fill="${palette.secondary}" opacity=".2"/>
-  <path d="M42 142h96M582 38h96" stroke="${palette.secondary}" stroke-width="8" stroke-linecap="round" opacity=".28"/>
+  ${decoration}
   ${illustrationIcon(kind, palette)}
 </svg>
 `;
@@ -203,15 +207,22 @@ function illustrationIcon(kind, palette) {
   const common = `fill="none" stroke="${stroke}" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"`;
   const icons = {
     "diagram-screen": `<g ${common}>
-    <rect x="220" y="24" width="280" height="136" rx="12" fill="#fff"/>
-    <path d="M220 55h280M300 55v105"/>
-    <circle cx="241" cy="40" r="5" fill="${accent}" stroke="none"/>
-    <circle cx="258" cy="40" r="5" fill="${secondary}" stroke="none"/>
-    <path d="M239 78h42M239 98h32M239 118h42M239 138h26" stroke-width="5"/>
-    <rect x="326" y="75" width="58" height="34" rx="6" fill="${accent}" stroke="none" opacity=".22"/>
-    <rect x="417" y="108" width="58" height="34" rx="6" fill="${secondary}" stroke="none" opacity=".28"/>
-    <path d="M384 92h49v16"/>
-    <path d="m425 100 8 8-8 8" stroke="${accent}"/>
+    <rect x="190" y="22" width="340" height="136" rx="12" fill="#fff"/>
+    <line x1="190" y1="52" x2="530" y2="52"/>
+    <line x1="260" y1="52" x2="260" y2="158"/>
+    <rect x="207" y="32" width="16" height="10" rx="2" fill="${accent}" stroke="none"/>
+    <rect x="230" y="32" width="16" height="10" rx="2" fill="${secondary}" stroke="none"/>
+    <line x1="207" y1="72" x2="242" y2="72" stroke-width="5"/>
+    <line x1="207" y1="91" x2="242" y2="91" stroke-width="5"/>
+    <line x1="207" y1="110" x2="236" y2="110" stroke-width="5"/>
+    <rect x="284" y="68" width="72" height="38" rx="5" fill="${accent}" fill-opacity=".18"/>
+    <line x1="284" y1="82" x2="356" y2="82" stroke-width="4"/>
+    <rect x="424" y="65" width="78" height="42" rx="5" fill="${secondary}" fill-opacity=".2"/>
+    <line x1="424" y1="80" x2="502" y2="80" stroke-width="4"/>
+    <rect x="354" y="124" width="76" height="26" rx="5" fill="${accent}" fill-opacity=".12"/>
+    <line x1="356" y1="88" x2="424" y2="88" stroke="${accent}" stroke-width="5"/>
+    <line x1="463" y1="107" x2="463" y2="137" stroke="${accent}" stroke-width="5"/>
+    <line x1="430" y1="137" x2="463" y2="137" stroke="${accent}" stroke-width="5"/>
   </g>`,
     diagram: `<g ${common}>
     <rect x="238" y="40" width="100" height="52" rx="8" fill="#fff"/>

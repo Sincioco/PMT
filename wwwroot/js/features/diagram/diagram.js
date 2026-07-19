@@ -7,7 +7,7 @@ import {
   setAnnotationEntityCollapsedState,
   setAnnotationEntityDataTypeVisibility,
   zoomAnnotationAtPoint
-} from "../../components/image-annotation.js?v=20260719-diagram-anchor-warning-v29";
+} from "../../components/image-annotation.js?v=20260719-diagram-tools-v35";
 import { filterSelect } from "../../components/filters.js";
 import { field, optionalNumberValue, selectOptionsField, value } from "../../components/forms.js?v=20260719-rte-insert-diagram";
 import { sectionHead } from "../../components/sections.js?v=20260718-diagram-library-v8";
@@ -679,7 +679,7 @@ export function createDiagramFeature({
         entityHeaderActionsOnHover: true,
         embedded: !editingFullScreen,
         initiallyMaximized: editingFullScreen,
-        initialZoom: editingFullScreen ? 1 : null,
+        initialZoom: options.initialTemplateName ? 1 : null,
         initialTemplateName: options.initialTemplateName || "",
         host,
         signal: editorAbortController.signal,

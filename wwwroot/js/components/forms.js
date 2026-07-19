@@ -293,7 +293,11 @@ function richColorSwatchHtml(color, title) {
 }
 
 export function sharedRichColorPickerHtml({ name, title, selectedColor, icon = "font" }) {
-  const iconHtml = icon === "background" ? richBackgroundColorIconHtml() : richFontColorIconHtml();
+  const iconHtml = icon === "background"
+    ? richBackgroundColorIconHtml()
+    : icon === "outline"
+      ? richOutlineColorIconHtml()
+      : richFontColorIconHtml();
   return `
     <div class="rich-color-tool image-annotation-color-picker" data-annotation-color-picker="${escapeAttr(name)}" style="--rich-selected-color: ${escapeAttr(selectedColor)}">
       <button type="button" class="rich-color-trigger" data-annotation-color-trigger data-rich-color-default="${escapeAttr(selectedColor)}" title="${escapeAttr(title)}" aria-label="${escapeAttr(title)}" aria-haspopup="true" aria-expanded="false">
@@ -346,6 +350,18 @@ function richBackgroundColorIconHtml() {
                 <path d="M9 9 5 5"></path>
                 <path d="M15 19h5"></path>
                 <path d="M19 13.5c1.1 1.4 1.8 2.4 1.8 3.3a1.8 1.8 0 1 1-3.6 0c0-.9.7-1.9 1.8-3.3z"></path>
+              </svg>
+              <span class="rich-color-bar"></span>
+              <span class="rich-color-chevron"></span>
+            </span>
+  `;
+}
+
+function richOutlineColorIconHtml() {
+  return `
+            <span class="rich-color-button-icon rich-outline-color-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" focusable="false">
+                <rect x="4" y="4" width="15" height="15" rx="1"></rect>
               </svg>
               <span class="rich-color-bar"></span>
               <span class="rich-color-chevron"></span>

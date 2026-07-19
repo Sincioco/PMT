@@ -1,7 +1,7 @@
 import { avatarsHtml } from "../../components/avatars.js";
 import { buttonContent } from "../../components/buttons.js";
 import { completionColor } from "../../components/progress-and-status.js?v=20260714-linked-bug-percent";
-import { sectionHead } from "../../components/sections.js?v=release-notes-2026-07-19-day-32-b77111c5864f";
+import { sectionHead } from "../../components/sections.js?v=release-notes-2026-07-19-day-32-45ea96feea4d";
 import {
   dateRangeLabel,
   formatDate,

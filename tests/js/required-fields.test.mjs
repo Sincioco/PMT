@@ -5,7 +5,8 @@ import {
   checkList,
   field,
   richTextField,
-  selectOptionsField
+  selectOptionsField,
+  sharedRichColorPickerHtml
 } from "../../wwwroot/js/components/forms.js";
 import { profileAvatarPickerHtml } from "../../wwwroot/js/components/profile-avatar-picker.js";
 
@@ -35,4 +36,17 @@ test("avatar requirement describes the overall choice rather than the generic-on
   assert.match(html, /<label>Avatar<\/label>/);
   assert.match(html, /role="radiogroup" aria-label="Generic avatars"/);
   assert.doesNotMatch(html, /role="radiogroup"[^>]*aria-required/);
+});
+
+test("shared outline color picker uses an outline icon instead of a font letter", () => {
+  const html = sharedRichColorPickerHtml({
+    name: "stroke",
+    title: "Outline Color",
+    selectedColor: "#3F7F0D",
+    icon: "outline"
+  });
+
+  assert.match(html, /rich-outline-color-icon/);
+  assert.match(html, /<rect x="4" y="4" width="15" height="15" rx="1"><\/rect>/);
+  assert.doesNotMatch(html, /rich-font-color-letter/);
 });

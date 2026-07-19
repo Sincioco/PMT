@@ -184,6 +184,18 @@ Scrum
 
 95.) In the Diagram screen, I keep getting the "Achor Table Shortcut" dialog box even though the checkbox "Unachor all Entities (global)" is checked in the Entity tab.
 
+96.) In Diagram, a line should not touch an entity/table unless it is connecting to its primary key (PK) or foreign key (FK) fields.  In PMT relationship is always field-to-field.  Never directly to the table itself.  So never draw a line just touching the entity.  Move moveable objects (like tables) if you have to, to make way but connect the line connectors from one field to another field.  The diagram in the attached email is not what we want.
+
+97.) In Diagram, add a circle object in the toolbar that just follows the behavior of a rectangle but draws a circle instead.
+98.) In Diagram, add a line object in the toolbar that follows the behavior of the arrow, just without the arrow head.
+99.) Bug: In Diagram when in edit mode, expanding the data types causes it to redraw incorrectly.  It seems to work just fine in read-only mode though.  See attached picture.
+100.) Update the .svg that was generated for the What's New Dialog box.  Create an simple SVG illustration to show that there is now a new Diagram Tool / Screen.  Don't render any connector symbol, as you have generated 2 images with weird connectors so far, just straight lines are fine.
+101.) Bug: In Diagram when in edit mode, if you drag the entity/table around, it will eventually stop rendering its content.  See attached picture.
+102.) Minor correction:  In Diagram when adding a circle object from the toolbar, when you drop it on the canvas do make sure it is a circle (it needs a square dimension).
+103.) In Diagram, change the icon for the Outline color from what looks like the letter "A" to something more fitting for an outline.
+104.) In Diagram, if I copy objects (or the whole canvas) as SVG, don't add unnecessary thigs to the SVG so it becomes just a normal SVG.  Optionally, I need it to render correctly in draw.io.  Is it possible to paste them into draw.io and retain their grouping so I can ungroup them in draw.io or treat the diagram as one unit?
+105.) In Diagram, if editing an existing diagram, when the editor loads the diagram, immediately execute a "Fit to Screen" logic (click the Fit button).
+
 Database Migration Script Testing
 ---------------------------------
 Update the migration scripts and test them by dropping and re-creating the database from the baseline and executing your combined migration script as that is how I will execute it during deployment.  Be sure it works without any errors and fix errors that you do encounter.

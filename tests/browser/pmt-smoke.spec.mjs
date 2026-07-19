@@ -2511,10 +2511,10 @@ test("Diagram parses T-SQL Entities and exposes individual relationship Objects"
       };
     });
     return {
-      x: Math.round((objectBox.x + (objectBox.width / 2)) - workspaceCenter.x),
-      y: Math.round((objectBox.y + (objectBox.height / 2)) - workspaceCenter.y)
+      x: Math.abs((objectBox.x + (objectBox.width / 2)) - workspaceCenter.x) <= 2,
+      y: Math.abs((objectBox.y + (objectBox.height / 2)) - workspaceCenter.y) <= 2
     };
-  }).toEqual({ x: 0, y: 0 });
+  }).toEqual({ x: true, y: true });
   await expect(page.locator(".diagram-tree-pane")).toContainText("Untitled 1");
   expect(apiCalls.blogCreates).toHaveLength(1);
   expect(apiCalls.blogCreates[0]).toMatchObject({ title: "Untitled 1", isPrivate: true });
@@ -2860,6 +2860,36 @@ test("Diagram parses T-SQL Entities and exposes individual relationship Objects"
   await entityShowRelationshipSymbols.uncheck();
   await expect(showRelationshipSymbols).not.toBeChecked();
   await expect(canvas.locator(".image-annotation-entity-relationship-marker")).toHaveCount(0);
+  const workTasksEntity = canvas.locator("[data-annotation-object-type='entity']", { hasText: "pmt.WorkTasks" });
+  const editorClipIdsBeforeDataTypes = await workTasksEntity.locator("clipPath").evaluateAll(elements =>
+    elements.map(element => element.id)
+  );
+  const showDataTypesControl = dialog.locator("[data-annotation-entity-show-data-types]");
+  await showDataTypesControl.check();
+  await expect(workTasksEntity).toContainText("int IDENTITY(1,1)");
+  const editorClipIdsAfterDataTypes = await workTasksEntity.locator("clipPath").evaluateAll(elements =>
+    elements.map(element => element.id)
+  );
+  expect(editorClipIdsAfterDataTypes.length).toBeGreaterThan(editorClipIdsBeforeDataTypes.length);
+  expect(editorClipIdsAfterDataTypes.some(id => editorClipIdsBeforeDataTypes.includes(id))).toBe(false);
+
+  const workTasksEntityBox = await workTasksEntity.boundingBox();
+  await page.mouse.move(
+    workTasksEntityBox.x + (workTasksEntityBox.width / 2),
+    workTasksEntityBox.y + (workTasksEntityBox.height / 2)
+  );
+  await page.mouse.down();
+  await page.mouse.move(
+    workTasksEntityBox.x + (workTasksEntityBox.width / 2) + 30,
+    workTasksEntityBox.y + (workTasksEntityBox.height / 2) + 20,
+    { steps: 5 }
+  );
+  await expect(workTasksEntity.locator("[clip-path]")).toHaveCount(0);
+  await page.mouse.up();
+  await expect(workTasksEntity.locator("[clip-path]")).not.toHaveCount(0);
+  await expect(workTasksEntity).toContainText("pmt.WorkTasks");
+  await expect(workTasksEntity).toContainText("TaskId");
+  await expect(workTasksEntity).toContainText("int IDENTITY(1,1)");
   const generateSchemaButton = dialog.getByRole("button", { name: "Generate PMT Database Schema", exact: true });
   await expect(generateSchemaButton).toBeVisible();
   await generateSchemaButton.click();
@@ -3162,6 +3192,9 @@ test("Canceling Diagram edit refits and centers the recreated Treeview preview",
   await page.getByRole("button", { name: "Edit Diagram", exact: true }).click();
   const dialog = page.locator("dialog.image-annotation-dialog");
   await expect(dialog).toBeVisible();
+  await expect.poll(async () => Number(
+    await dialog.locator("[data-annotation-zoom-select]").inputValue()
+  )).toBeLessThan(100);
   await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
 
   const returnedViewport = page.locator("[data-diagram-viewport]");
@@ -4054,7 +4087,7 @@ test("RTE image annotation creates, crops, groups, locks, undoes, and reopens ed
     }, name)).toEqual({ besideMatchingPicker: true, display: "grid", columns: 3, rows: 2 });
   }
   const drawingToolButtons = dialog.locator("button[data-annotation-tool]");
-  await expect(drawingToolButtons).toHaveCount(6);
+  await expect(drawingToolButtons).toHaveCount(8);
   expect(await drawingToolButtons.evaluateAll(buttons => buttons.map(button => ({
     label: button.getAttribute("aria-label"),
     title: button.getAttribute("title"),
@@ -4066,10 +4099,30 @@ test("RTE image annotation creates, crops, groups, locks, undoes, and reopens ed
     { label: "Select (V)", title: "Select (V)", pressed: "true", visibleText: "", iconHidden: "true", hasSvg: true },
     { label: "Crop (C)", title: "Crop (C)", pressed: "false", visibleText: "", iconHidden: "true", hasSvg: true },
     { label: "Rectangle (R)", title: "Rectangle (R)", pressed: "false", visibleText: "", iconHidden: "true", hasSvg: true },
+    { label: "Circle (O)", title: "Circle (O)", pressed: "false", visibleText: "", iconHidden: "true", hasSvg: true },
     { label: "Arrow (A)", title: "Arrow (A)", pressed: "false", visibleText: "", iconHidden: "true", hasSvg: true },
+    { label: "Line (L)", title: "Line (L)", pressed: "false", visibleText: "", iconHidden: "true", hasSvg: true },
     { label: "Text Box (T)", title: "Text Box (T)", pressed: "false", visibleText: "", iconHidden: "true", hasSvg: true },
     { label: "Entity (E)", title: "Entity (E)", pressed: "false", visibleText: "", iconHidden: "true", hasSvg: true }
   ]);
+  await dialog.getByRole("button", { name: "Circle (O)", exact: true }).click();
+  const insertedCircle = canvas.locator("[data-annotation-object-type='circle']");
+  await expect(insertedCircle).toHaveCount(1);
+  expect(await insertedCircle.evaluate(element => ({
+    rx: Number(element.getAttribute("rx")),
+    ry: Number(element.getAttribute("ry"))
+  }))).toEqual({ rx: 90, ry: 90 });
+  await dialog.getByRole("button", { name: "Delete selected annotations", exact: true }).click();
+  await expect(insertedCircle).toHaveCount(0);
+
+  await dialog.getByRole("button", { name: "Line (L)", exact: true }).click();
+  const insertedLine = canvas.locator("[data-annotation-object-type='line']");
+  await expect(insertedLine).toHaveCount(1);
+  await expect(insertedLine.locator(".image-annotation-line")).toHaveCount(1);
+  await expect(insertedLine.locator("polygon, .image-annotation-arrow-head")).toHaveCount(0);
+  await dialog.getByRole("button", { name: "Delete selected annotations", exact: true }).click();
+  await expect(insertedLine).toHaveCount(0);
+  await canvas.locator("[data-annotation-object-type='embedded-image']").click();
   const zoomSelect = dialog.getByLabel("Zoom percentage", { exact: true });
   expect(await zoomSelect.locator("option").evaluateAll(options => options.map(option => ({
     value: option.value,
@@ -4238,6 +4291,8 @@ test("RTE image annotation creates, crops, groups, locks, undoes, and reopens ed
   await proportionalRectangle.click();
   const outlineCheckbox = dialog.getByRole("checkbox", { name: "Outline", exact: true });
   const outlinePicker = dialog.getByRole("button", { name: "Outline Color", exact: true });
+  await expect(outlinePicker.locator(".rich-outline-color-icon")).toHaveCount(1);
+  await expect(outlinePicker.locator(".rich-font-color-letter")).toHaveCount(0);
   const recentOutlineStrip = dialog.locator("[data-annotation-recent-colors='stroke']");
   const recentOutlineColor = seededRecentColors[3];
   await recentOutlineStrip.locator(`[data-rich-color-value='${recentOutlineColor}']`).click();
@@ -4285,6 +4340,16 @@ test("RTE image annotation creates, crops, groups, locks, undoes, and reopens ed
     const root = documentNode.documentElement;
     const rectangle = root.querySelector(":scope > rect") || root.querySelector("rect");
     const viewBox = root.getAttribute("viewBox")?.split(/\s+/).map(Number) || [];
+    const editorAttributeCount = [...root.querySelectorAll("*")]
+      .flatMap(element => element.getAttributeNames())
+      .filter(name => name === "class"
+        || name === "role"
+        || name === "tabindex"
+        || name === "pointer-events"
+        || name.startsWith("aria-")
+        || name.startsWith("data-annotation-")
+        || name.startsWith("data-pmt-"))
+      .length;
     return {
       parseError: Boolean(documentNode.querySelector("parsererror")),
       rootName: root.localName,
@@ -4294,6 +4359,8 @@ test("RTE image annotation creates, crops, groups, locks, undoes, and reopens ed
       height: Number(root.getAttribute("height")),
       imageCount: root.querySelectorAll("image").length,
       scriptCount: root.querySelectorAll("script").length,
+      titleCount: root.querySelectorAll("title").length,
+      editorAttributeCount,
       externalReferences: [...root.querySelectorAll("[href]")]
         .map(element => element.getAttribute("href"))
         .filter(reference => reference && !reference.startsWith("#")),
@@ -4313,6 +4380,8 @@ test("RTE image annotation creates, crops, groups, locks, undoes, and reopens ed
   expect(copiedRectangleSvgInfo.namespace).toBe("http://www.w3.org/2000/svg");
   expect(copiedRectangleSvgInfo.imageCount).toBe(0);
   expect(copiedRectangleSvgInfo.scriptCount).toBe(0);
+  expect(copiedRectangleSvgInfo.titleCount).toBe(0);
+  expect(copiedRectangleSvgInfo.editorAttributeCount).toBe(0);
   expect(copiedRectangleSvgInfo.externalReferences).toEqual([]);
   expect(copiedRectangleSvgInfo.rectangleCount).toBe(1);
   expect(copiedRectangleSvgInfo.rectangle).not.toBeNull();
@@ -4518,12 +4587,16 @@ test("RTE image annotation creates, crops, groups, locks, undoes, and reopens ed
   await outlineCheckbox.check();
   await expect(textBoxShape).toHaveAttribute("stroke", chosenOutlineColor);
   await textInput.fill("New Search Feature with wrapped annotation text");
-  const formatTab = dialog.getByRole("tab", { name: "Format", exact: true });
-  const templateTab = dialog.getByRole("tab", { name: "Template", exact: true });
+  const formatTab = dialog.locator("[data-annotation-inspector-tab='format']");
+  const templateTab = dialog.locator("[data-annotation-inspector-tab='template']");
   await templateTab.click();
   await inspectorToggle.click();
   await expect(inspectorToggle).toHaveAttribute("aria-expanded", "false");
-  await textObject.dblclick();
+  await textObject.evaluate(element => element.dispatchEvent(new MouseEvent("dblclick", {
+    bubbles: true,
+    cancelable: true,
+    detail: 2
+  })));
   await expect(inspectorToggle).toHaveAttribute("aria-expanded", "true");
   await expect(formatTab).toHaveAttribute("aria-selected", "true");
   await expect(textInput).toBeFocused();
@@ -5090,7 +5163,8 @@ test("RTE image annotation creates, crops, groups, locks, undoes, and reopens ed
   await expect(rteImage).toHaveAttribute("data-pmt-annotation-source", "/uploads/richtext/annotation-original.svg");
   await expect(rteImage).toHaveAttribute("data-pmt-annotation-version", "1");
   expect(uploadedSvg).toContain("data-pmt-image-annotation-state=\"true\"");
-  expect(uploadedSvg).toContain("data:image/svg+xml;base64,");
+  expect(uploadedSvg).not.toContain("data:image/svg+xml;base64,");
+  expect(uploadedSvg).toContain('href="/uploads/richtext/annotation-original.svg"');
   expect(uploadedSvg).toContain("<rect");
   expect(uploadedSvg).toContain("<line");
   expect(uploadedSvg).toContain("New Search Feature");

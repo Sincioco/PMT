@@ -1249,7 +1249,8 @@
           "Keep arrows and relationship symbols off by default, control them from synchronized global switches, and temporarily turn off every relationship line when users want an Entity-only view.",
           "Add an Entity Annotation field that creates a linked, styleable callout and arrow which follow the Entity as it moves and persist with the Diagram.",
           "Style each Entity name and header background independently to highlight important tables.",
-          "Route relationships around unrelated Entities and Entity Annotation callouts with visible clearance, and move non-anchored tables away from relationship lines during Org Tree formatting while leaving Anchor tables fixed."
+          "Route relationships around unrelated Entities and Entity Annotation callouts with visible clearance, and move non-anchored tables away from relationship lines during Org Tree formatting while leaving Anchor tables fixed.",
+          "Keep every Entity relationship field-to-field: connectors attach only to their mapped PK or FK rows and never terminate on or brush another part of an Entity."
         ]
       },
       {
@@ -1268,7 +1269,11 @@
           "Double-click a text box to open Format, bring its Text field into view, focus it, and select existing text for immediate replacement.",
           "Show lock cues for locked or anchored Objects, temporarily unanchor or re-anchor every Entity from one global control, and suppress Anchor Table Shortcut warnings while every Entity is globally unanchored.",
           "When another edit wins a save conflict, preserve that newer version and offer to save the user's work as a newly numbered Diagram instead of discarding it.",
-          "Search both Diagram metadata and SVG contents, and use matching right-click actions for Edit Info, Edit Diagram, Download, and Delete while public-link sharing and pinning are temporarily hidden."
+          "Search both Diagram metadata and SVG contents, and use matching right-click actions for Edit Info, Edit Diagram, Download, and Delete while public-link sharing and pinning are temporarily hidden.",
+          "Add Circle and plain Line objects to the toolbar, with new Circles starting at equal width and height, Lines following Arrow editing behavior without an arrowhead, and a clearer outlined-square icon for Outline color.",
+          "Keep Entity headers, fields, and data types visible while tables are resized or dragged in edit mode.",
+          "Copy selected objects or the full Diagram as lean, self-contained SVG, preserving logical groups as standard SVG groups without PMT editor metadata or controls.",
+          "Fit an existing Diagram to the available editor space as soon as editing opens, while new Diagrams retain their 100% starting zoom."
         ]
       },
       {
@@ -1299,7 +1304,7 @@
       {
         "title": "More Noticeable What's New",
         "items": [
-          "Show a simple Diagram-screen SVG above this What's New entry so the new workspace is easier to notice and remember."
+          "Show a lightweight Diagram Tool illustration above this What's New entry using simple tables and straight connector lines without connector symbols."
         ]
       }
     ]
