@@ -67,6 +67,8 @@ import {
 } from "../../wwwroot/js/components/image-annotation.js";
 
 const sampleImageDataUrl = "data:image/png;base64,AAECAwQ=";
+const compactEntityMargin = 48;
+const compactEntityGap = compactEntityMargin * 2;
 
 const workTasksCreateTableSql = String.raw`
 CREATE TABLE [pmt].[WorkTasks]
@@ -306,6 +308,11 @@ function orthogonalPathSegmentKeys(path) {
     const second = `${point.x},${point.y}`;
     return first < second ? `${first}|${second}` : `${second}|${first}`;
   }));
+}
+
+function relationshipHitPathForSource(svg, sourceName) {
+  const escaped = sourceName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return svg.match(new RegExp(`data-pmt-relationship-source="${escaped}"[\\s\\S]*?class="image-annotation-entity-relationship-hit" d="([^"]+)"`))?.[1] || "";
 }
 
 function assertNoOverlappingOrthogonalSegments(paths) {
@@ -1291,6 +1298,39 @@ test("Entity relationship routes preserve a readable corridor around a 1px Entit
   );
 });
 
+test("Entity relationship routes reserve two margins above Entity headers", () => {
+  const parent = simpleRelationshipEntity("header-margin-parent", "HeaderMarginParent", 0, 0);
+  const blocker = simpleRelationshipEntity("header-margin-blocker", "HeaderMarginBlocker", 350, 150);
+  const child = simpleRelationshipEntity(
+    "header-margin-child",
+    "HeaderMarginChild",
+    800,
+    0,
+    "HeaderMarginParent"
+  );
+  blocker.width = 160;
+  blocker.height = 100;
+
+  const svg = annotationEntityRelationshipsSvg([parent, blocker, child], null, { interactive: true });
+  const path = svg.match(/class="image-annotation-entity-relationship-hit" d="([^"]+)"/)?.[1];
+  const points = orthogonalPathPoints(path);
+  const topHeaderZone = {
+    x: blocker.x - 48,
+    y: blocker.y - 96,
+    width: blocker.width + 96,
+    height: 96
+  };
+
+  assert.ok(path, "relationship should render");
+  points.slice(1).forEach((point, index) => {
+    assert.equal(
+      orthogonalSegmentIntersectsEntityInterior(points[index], point, topHeaderZone),
+      false,
+      `${path} should not route through the double-margin header zone`
+    );
+  });
+});
+
 test("indexed Entity routing preserves the clearance corridor with more than 32 obstacles", () => {
   const parent = simpleRelationshipEntity("indexed-clearance-parent", "IndexedClearanceParent", 0, 0);
   const child = simpleRelationshipEntity(
@@ -1624,7 +1664,11 @@ test("annotation output and copied-selection bounds include cardinality markers 
   verifyOutputAndSelection(
     [detourParent, blocker, detourChild],
     { stroke: "#42526b", strokeWidth: 10, arrowSize: 30, showSymbols: true },
-    points => assert.ok(Math.min(...points.map(point => point.y)) < blocker.y)
+    points => assert.ok(
+      Math.min(...points.map(point => point.y)) <= blocker.y - compactEntityGap + 0.01
+        || Math.max(...points.map(point => point.y)) >= blocker.y + blocker.height + compactEntityMargin - 0.01,
+      "relationship should detour outside the blocker margin"
+    )
   );
 });
 
@@ -2024,7 +2068,7 @@ test("relationship-only templates change global connector formatting without cha
   assert.deepEqual(destination.objects, entitiesBefore);
 });
 
-test("Org Tree auto-format puts parents above descendants and only changes Entity positions", () => {
+test("Auto Format - Compact puts parents above descendants and only changes Entity positions", () => {
   const root = simpleRelationshipEntity("root", "Root", 700, 500);
   const childA = simpleRelationshipEntity("child-a", "ChildA", 50, 40, "Root");
   const childB = simpleRelationshipEntity("child-b", "ChildB", 1200, 900, "Root");
@@ -2048,7 +2092,8 @@ test("Org Tree auto-format puts parents above descendants and only changes Entit
   assert.ok(root.y < childA.y);
   assert.equal(childA.y, childB.y);
   assert.ok(childA.y < grandchild.y);
-  assert.ok(Math.abs(childA.x - childB.x) >= childA.width + 150);
+  assert.equal(Math.min(childA.x, childB.x) + childA.width + compactEntityGap, root.x);
+  assert.equal(Math.max(childA.x, childB.x), root.x + root.width + compactEntityGap);
   const relationships = annotationEntityRelationshipsSvg(
     entities,
     { showSymbols: true },
@@ -2074,7 +2119,7 @@ test("Org Tree auto-format puts parents above descendants and only changes Entit
   assert.equal(second.movedCount, 0);
 });
 
-test("Org Tree nudges movable Entities off unrelated relationship routes and stays idempotent", () => {
+test("Auto Format - Compact nudges movable Entities off unrelated relationship routes and stays idempotent", () => {
   const entities = orgTreeRouteCollisionEntities();
   const result = autoFormatAnnotationEntitiesOrgTree(entities, {
     preferredRootId: "route-root",
@@ -2082,7 +2127,7 @@ test("Org Tree nudges movable Entities off unrelated relationship routes and sta
     gridSize: 20
   });
 
-  assert.equal(result.routeAdjustedCount, 2);
+  assert.equal(result.routeAdjustedCount, 0);
   assert.equal(result.unresolvedRouteContactCount, 0);
   assert.equal(entities.find(entity => entity.id === "route-child-a").x, 0);
   assert.equal(new Set(entities
@@ -2104,7 +2149,7 @@ test("Org Tree nudges movable Entities off unrelated relationship routes and sta
   assert.deepEqual(entities.map(entity => ({ id: entity.id, x: entity.x, y: entity.y })), positions);
 });
 
-test("Org Tree reports a best-effort route when an unrelated Anchor table cannot move", () => {
+test("Auto Format - Compact preserves an unrelated Anchor table without needing the old spread-out shortcut", () => {
   const entities = orgTreeRouteCollisionEntities(true);
   const anchor = entities.find(entity => entity.id === "route-child-a");
   const originalPosition = { x: anchor.x, y: anchor.y };
@@ -2114,10 +2159,10 @@ test("Org Tree reports a best-effort route when an unrelated Anchor table cannot
     gridSize: 20
   });
 
-  assert.equal(result.routeAdjustedCount, 1);
-  assert.equal(result.unresolvedRouteContactCount, 1);
-  assert.equal(result.fixedConstraintShortcutCount, 1);
-  assert.equal(annotationOrgTreeShortcutWarningRequired(result), true);
+  assert.equal(result.routeAdjustedCount, 0);
+  assert.equal(result.unresolvedRouteContactCount, 0);
+  assert.equal(result.fixedConstraintShortcutCount, 0);
+  assert.equal(annotationOrgTreeShortcutWarningRequired(result), false);
   assert.deepEqual({ x: anchor.x, y: anchor.y }, originalPosition);
 });
 
@@ -2204,7 +2249,225 @@ test("Org Tree treats the selected central Entity as most important without reve
   assert.match(relationships, /data-pmt-relationship-target="pmt\.Blogs\.BlogsId"/);
 });
 
-test("Org Tree auto-format preserves Anchor tables and top-aligns their direct children", () => {
+test("Auto Format - Compact pulls unanchored side tables back to compact left and right corridors", () => {
+  const blogs = simpleRelationshipEntity("blogs", "Blogs", -1000, 900);
+  const workTasks = simpleRelationshipEntity("work-tasks", "WorkTasks", 900, 0, "Blogs");
+  const attachments = simpleRelationshipEntity("attachments", "TaskAttachments", 2400, 1200, "WorkTasks");
+  workTasks.height = 720;
+
+  const result = autoFormatAnnotationEntitiesOrgTree([blogs, workTasks, attachments], {
+    preferredRootId: workTasks.id,
+    allowOverlappingLines: false,
+    gridSize: 20
+  });
+
+  assert.equal(result.levelCount, 2);
+  assert.equal(blogs.y, attachments.y, "direct level 1 tables should keep the same top");
+  assert.equal(workTasks.x - (blogs.x + blogs.width), compactEntityGap);
+  assert.equal(attachments.x - (workTasks.x + workTasks.width), compactEntityGap);
+  assert.ok(workTasks.x - blogs.x < 1900, "left table should be pulled inward from the user's dragged-out distance");
+  assert.ok(attachments.x < 2400, "right table should be pulled inward from the user's dragged-out position");
+});
+
+test("Auto Format - Compact balances same-side direct parents around the central Entity", () => {
+  const projects = simpleRelationshipEntity("projects", "Projects", 400, 800);
+  const sprints = simpleRelationshipEntity("sprints", "Sprints", 0, 800, "Projects");
+  const workTasks = simpleRelationshipEntity("work-tasks", "WorkTasks", 900, 0, "Projects");
+  workTasks.height = 720;
+  workTasks.fields.push({
+    name: "SprintId",
+    dataType: "int",
+    isNullable: false,
+    isPrimaryKey: false,
+    isForeignKey: true,
+    isImportant: false
+  });
+  workTasks.foreignKeys.push({
+    name: "FK_WorkTasks_Sprints",
+    columns: ["SprintId"],
+    referencedSchema: "pmt",
+    referencedTable: "Sprints",
+    referencedColumns: ["SprintsId"],
+    relationshipType: "one-to-many"
+  });
+
+  const result = autoFormatAnnotationEntitiesOrgTree([sprints, projects, workTasks], {
+    preferredRootId: workTasks.id,
+    allowOverlappingLines: false,
+    gridSize: 20
+  });
+
+  assert.equal(result.levelCount, 2);
+  assert.equal(projects.y, sprints.y, "same-level direct parents should stay top-aligned");
+  assert.equal(workTasks.x - (projects.x + projects.width), compactEntityGap);
+  assert.equal(sprints.x - (workTasks.x + workTasks.width), compactEntityGap);
+  const relationships = annotationEntityRelationshipsSvg([sprints, projects, workTasks], null, {
+    allowOverlappingLines: false,
+    interactive: true
+  });
+  assert.match(relationships, /data-pmt-relationship-source="pmt\.WorkTasks\.ProjectsId"/);
+  assert.match(relationships, /data-pmt-relationship-source="pmt\.WorkTasks\.SprintId"/);
+});
+
+test("Auto Format - Compact keeps relationship trunks outside the protected entity margin", () => {
+  const blogs = simpleRelationshipEntity("blogs", "Blogs", -1000, 900);
+  const workTasks = simpleRelationshipEntity("work-tasks", "WorkTasks", 900, 0, "Blogs");
+  const attachments = simpleRelationshipEntity("attachments", "TaskAttachments", 2400, 1200, "WorkTasks");
+  workTasks.height = 720;
+
+  autoFormatAnnotationEntitiesOrgTree([blogs, workTasks, attachments], {
+    preferredRootId: workTasks.id,
+    allowOverlappingLines: false,
+    gridSize: 20
+  });
+  const relationships = annotationEntityRelationshipsSvg([blogs, workTasks, attachments], null, {
+    allowOverlappingLines: false,
+    interactive: true
+  });
+  const protectedMargin = compactEntityMargin;
+  const protectedBounds = {
+    x: workTasks.x - protectedMargin,
+    y: workTasks.y - protectedMargin,
+    width: workTasks.width + (protectedMargin * 2),
+    height: workTasks.height + (protectedMargin * 2)
+  };
+  const attachmentRelationshipPoints = orthogonalPathPoints(
+    relationshipHitPathForSource(relationships, "pmt.TaskAttachments.WorkTasksId")
+  );
+  attachmentRelationshipPoints.slice(1).forEach((point, index) => {
+    const previous = attachmentRelationshipPoints[index];
+    const isHorizontal = previous.y === point.y;
+    const segmentInsideHorizontalMargin = point.x > protectedBounds.x
+      && point.x < protectedBounds.x + protectedBounds.width
+      && previous.x > protectedBounds.x
+      && previous.x < protectedBounds.x + protectedBounds.width;
+    const segmentOverlapsVerticalMargin = Math.max(Math.min(previous.y, point.y), protectedBounds.y)
+      < Math.min(Math.max(previous.y, point.y), protectedBounds.y + protectedBounds.height);
+    assert.ok(
+      isHorizontal || !segmentInsideHorizontalMargin || !segmentOverlapsVerticalMargin,
+      "only short horizontal field connectors may enter the protected entity margin"
+    );
+  });
+});
+
+test("Auto Format - Compact keeps vertical trunks on the table margin instead of arrow-head spacing", () => {
+  const projects = simpleRelationshipEntity("projects", "Projects", 0, 700);
+  const blogs = simpleRelationshipEntity("blogs", "Blogs", 500, 700);
+  const workTasks = simpleRelationshipEntity("work-tasks", "WorkTasks", 900, 0, "Projects");
+  const attachments = simpleRelationshipEntity("attachments", "TaskAttachments", 1400, 700, "WorkTasks");
+  workTasks.height = 720;
+  workTasks.fields.push({
+    name: "BlogId",
+    dataType: "int",
+    isNullable: false,
+    isPrimaryKey: false,
+    isForeignKey: true,
+    isImportant: false
+  });
+  workTasks.foreignKeys.push({
+    name: "FK_WorkTasks_Blogs",
+    columns: ["BlogId"],
+    referencedSchema: "pmt",
+    referencedTable: "Blogs",
+    referencedColumns: ["BlogsId"],
+    relationshipType: "one-to-many"
+  });
+  const entities = [projects, blogs, workTasks, attachments];
+
+  autoFormatAnnotationEntitiesOrgTree(entities, {
+    preferredRootId: workTasks.id,
+    allowOverlappingLines: false,
+    gridSize: 20
+  });
+  const relationships = annotationEntityRelationshipsSvg(entities, {
+    strokeWidth: 3,
+    arrowSize: 30
+  }, {
+    allowOverlappingLines: false,
+    interactive: true
+  });
+  const projectRelationshipPoints = orthogonalPathPoints(
+    relationshipHitPathForSource(relationships, "pmt.WorkTasks.ProjectsId")
+  );
+  const projectRightMarginX = projects.x + projects.width + compactEntityMargin;
+  const verticalSegments = projectRelationshipPoints
+    .slice(1)
+    .map((point, index) => [projectRelationshipPoints[index], point])
+    .filter(([first, second]) => first.x === second.x);
+
+  assert.equal(workTasks.x - (projects.x + projects.width), compactEntityGap);
+  assert.equal(attachments.x - (workTasks.x + workTasks.width), compactEntityGap);
+  assert.equal(blogs.x - (attachments.x + attachments.width), compactEntityGap);
+  assert.equal(verticalSegments.length, 1);
+  assert.equal(verticalSegments[0][0].x, projectRightMarginX);
+  assert.equal(Math.abs(projectRelationshipPoints[1].x - projectRelationshipPoints[0].x), compactEntityMargin);
+  assert.equal(Math.abs(projectRelationshipPoints.at(-1).x - projectRelationshipPoints.at(-2).x), compactEntityMargin);
+  assert.deepEqual(projectRelationshipPoints, [
+    { x: workTasks.x, y: expectedEntityFieldAnchorY(workTasks, "ProjectsId") },
+    { x: projectRightMarginX, y: expectedEntityFieldAnchorY(workTasks, "ProjectsId") },
+    { x: projectRightMarginX, y: expectedEntityFieldAnchorY(projects, "ProjectsId") },
+    { x: projects.x + projects.width, y: expectedEntityFieldAnchorY(projects, "ProjectsId") }
+  ]);
+});
+
+test("Auto Format - Compact avoids perimeter fan-out around a central Entity", () => {
+  const projects = simpleRelationshipEntity("projects", "Projects", 0, 900);
+  const workTasks = simpleRelationshipEntity("work-tasks", "WorkTasks", 450, 0, "Projects");
+  const taskAssignees = simpleRelationshipEntity("task-assignees", "TaskAssignees", 900, 900, "WorkTasks");
+  const blogs = simpleRelationshipEntity("blogs", "Blogs", 1400, 900);
+  workTasks.height = 720;
+  workTasks.fields.push({
+    name: "LinkedBlogId",
+    dataType: "int",
+    isNullable: true,
+    isPrimaryKey: false,
+    isForeignKey: true,
+    isImportant: false
+  });
+  workTasks.foreignKeys.push({
+    name: "FK_WorkTasks_Blogs",
+    columns: ["LinkedBlogId"],
+    referencedSchema: "pmt",
+    referencedTable: "Blogs",
+    referencedColumns: ["BlogsId"],
+    relationshipType: "one-to-many"
+  });
+  const entities = [projects, workTasks, taskAssignees, blogs];
+
+  autoFormatAnnotationEntitiesOrgTree(entities, {
+    preferredRootId: workTasks.id,
+    allowOverlappingLines: false,
+    gridSize: 20
+  });
+  const relationships = annotationEntityRelationshipsSvg(entities, null, {
+    allowOverlappingLines: false,
+    interactive: true
+  });
+  [
+    "pmt.WorkTasks.ProjectsId",
+    "pmt.WorkTasks.LinkedBlogId",
+    "pmt.TaskAssignees.WorkTasksId"
+  ].forEach(source => {
+    const points = orthogonalPathPoints(relationshipHitPathForSource(relationships, source));
+    assert.ok(points.length >= 4, `${source} should render as an orthogonal field route`);
+    assert.equal(points[0].y, points[1].y, `${source} should leave its source field horizontally`);
+    assert.equal(points.at(-2).y, points.at(-1).y, `${source} should enter its target field horizontally`);
+    assert.ok(
+      Math.abs(points[1].x - points[0].x) <= compactEntityMargin,
+      `${source} should not fan out from the source by more than one table margin`
+    );
+    assert.ok(
+      Math.abs(points.at(-1).x - points.at(-2).x) <= compactEntityMargin,
+      `${source} should not fan out from the target by more than one table margin`
+    );
+    assert.ok(
+      Math.min(...points.map(point => point.y)) >= workTasks.y - compactEntityGap,
+      `${source} should not escape above the central Entity into a perimeter loop`
+    );
+  });
+});
+
+test("Auto Format - Compact preserves Anchor tables and top-aligns their direct children", () => {
   const root = simpleRelationshipEntity("root", "Root", 940, 620);
   root.anchorTable = true;
   const childA = simpleRelationshipEntity("child-a", "ChildA", 20, 20, "Root");
@@ -2218,7 +2481,7 @@ test("Org Tree auto-format preserves Anchor tables and top-aligns their direct c
   assert.equal(result.anchorCount, 1);
   assert.deepEqual({ x: root.x, y: root.y }, { x: 940, y: 620 });
   assert.equal(childA.y, childB.y);
-  assert.ok(childA.y >= root.y + root.height + 240);
+  assert.equal(childA.y, root.y + root.height + compactEntityGap);
 });
 
 test("Org Tree uses a best-effort field route when both parent and child are Anchor tables", () => {
@@ -5241,7 +5504,9 @@ test("the global relationship-line switch persists and removes routes, markers, 
   assert.match(componentSource, /data-annotation-entity-show-script/);
   assert.match(componentSource, /Manual relationship lines/);
   assert.match(componentSource, /data-annotation-entity-clear-manual-relationship-routes/);
+  assert.match(componentSource, /Auto Format - Compact/);
   assert.match(componentSource, /relationship-segment/);
+  assert.match(componentSource, /objectAlreadySelected && selectedIds\.size > objectSelectionIds\.length/);
   assert.match(componentSource, /Entity name text color/);
   assert.match(componentSource, /Header background color/);
 });

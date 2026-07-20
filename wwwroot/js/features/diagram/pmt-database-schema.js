@@ -2,7 +2,7 @@ import {
   autoFormatAnnotationEntitiesOrgTree,
   buildAnnotationSvg,
   normalizeAnnotationState
-} from "../../components/image-annotation.js?v=20260720-entity-route-handles-v2";
+} from "../../components/image-annotation.js?v=20260720-compact-margin-corridor-v1";
 
 const schemaTitle = "PMT's Diagram Tool by Sin";
 const schemaDiagramName = "PMT's Database Schema";

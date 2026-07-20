@@ -6,7 +6,7 @@ import { buttonContent } from "./components/buttons.js?v=20260715-admin-imperson
 import { copyTextToClipboard } from "./components/clipboard.js?v=20260714-invite-email-body";
 import {
   openImageAnnotationDialog
-} from "./components/image-annotation.js?v=20260720-entity-route-handles-v2";
+} from "./components/image-annotation.js?v=20260720-compact-margin-corridor-v1";
 import { createWhatsNew } from "./components/whats-new.js?v=release-notes-2026-07-20-day-33-f01459e78a5a";
 import {
   htmlWithoutUserMentionMarkup,
@@ -64,8 +64,8 @@ import { createBacklogFeature } from "./features/backlog/backlog.js?v=20260720-w
 import { createBoardFeature } from "./features/board/board.js?v=20260720-work-item-export-images-v4";
 import { createBugsFeature } from "./features/bugs/bugs.js?v=20260720-work-item-export-images-v4";
 import { createDashboardFeature } from "./features/dashboard/dashboard.js?v=release-notes-2026-07-20-day-33-f01459e78a5a";
-import { createDiagramFeature } from "./features/diagram/diagram.js?v=20260720-entity-route-handles-v2";
-import { createDocumentationFeature } from "./features/documentation/documentation.js?v=20260720-entity-route-handles-v2";
+import { createDiagramFeature } from "./features/diagram/diagram.js?v=20260720-compact-margin-corridor-v1";
+import { createDocumentationFeature } from "./features/documentation/documentation.js?v=20260720-compact-margin-corridor-v1";
 import {
   createGanttFeature,
   currentSprintForProject,

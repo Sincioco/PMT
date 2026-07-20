@@ -10,7 +10,7 @@ import {
   setAnnotationEntityCollapsedState,
   setAnnotationEntityDataTypeVisibility,
   zoomAnnotationAtPoint
-} from "../../components/image-annotation.js?v=20260720-entity-route-handles-v2";
+} from "../../components/image-annotation.js?v=20260720-compact-margin-corridor-v1";
 import {
   checkedFilterValues,
   filterCheckList,
@@ -34,7 +34,7 @@ import { formatDate } from "../../shared/dates.js";
 import { appUrl } from "../../shared/app-urls.js";
 import { canAccessResource } from "../../shared/security.js";
 import { escapeAttr, escapeHtml } from "../../shared/text-and-links.js";
-import { buildPmtDatabaseSchemaDiagram } from "./pmt-database-schema.js?v=20260720-entity-route-handles-v2";
+import { buildPmtDatabaseSchemaDiagram } from "./pmt-database-schema.js?v=20260720-compact-margin-corridor-v1";
 
 const diagramViewModes = new Set(["cards", "tree"]);
 const diagramSortModes = new Set(["latest", "oldest", "name", "custom"]);

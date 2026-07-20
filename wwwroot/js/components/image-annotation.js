@@ -4396,7 +4396,13 @@ function createAnnotationDialog(context) {
         const object = state.objects.find(item => item.id === objectElement.dataset.annotationObjectId);
         if (!object) return;
         const additive = event.shiftKey || event.metaKey || (event.ctrlKey && !["arrow", "line"].includes(object.type));
-        selectObject(object, additive);
+        const objectSelectionIds = annotationSelectionIdsForObject(state.objects, object, state.groupVisibility);
+        const objectAlreadySelected = objectSelectionIds.some(id => selectedIds.has(id));
+        if (!additive && objectAlreadySelected && selectedIds.size > objectSelectionIds.length) {
+          lastSelectedObjectId = object.id;
+        } else {
+          selectObject(object, additive);
+        }
         const selection = editableSelection();
         const objectRemainsSelected = selectedIds.has(object.id);
         if (objectRemainsSelected && !object.locked && selection.length && selection.length === selectedIds.size) {
@@ -5844,11 +5850,11 @@ function createAnnotationDialog(context) {
           : null;
         const entities = state.objects.filter(object => object.type === "entity");
         if (!entity || entities.length < 2) {
-          setStatus("Add at least two Entities before using Auto Format - Org Tree.");
+          setStatus("Add at least two Entities before using Auto Format - Compact.");
           return;
         }
         if (entities.some(item => item.locked)) {
-          setStatus("Unlock every Entity before using Auto Format - Org Tree.");
+          setStatus("Unlock every Entity before using Auto Format - Compact.");
           return;
         }
         pushHistory();
@@ -5874,7 +5880,7 @@ function createAnnotationDialog(context) {
         const anchorMessage = result.anchorCount
           ? ` ${result.anchorCount} anchor table${result.anchorCount === 1 ? " stayed" : "s stayed"} in place.`
           : "";
-        setStatus(`${result.movedCount} Entit${result.movedCount === 1 ? "y" : "ies"} arranged in ${result.levelCount} org-tree level${result.levelCount === 1 ? "" : "s"}.${anchorMessage}${cycleMessage}`);
+        setStatus(`${result.movedCount} Entit${result.movedCount === 1 ? "y" : "ies"} arranged using Auto Format - Compact in ${result.levelCount} compact level${result.levelCount === 1 ? "" : "s"}.${anchorMessage}${cycleMessage}`);
         renderWithWorkspaceExpansion();
         if (annotationEntityAnchorShortcutWarningAllowed(state)
           && annotationOrgTreeShortcutWarningRequired(result)) {
@@ -5882,7 +5888,7 @@ function createAnnotationDialog(context) {
             ? ` ${result.unresolvedRouteContactCount} relationship contact${result.unresolvedRouteContactCount === 1 ? "" : "s"} could not be fully separated from an Anchor or otherwise fixed table.`
             : "";
           await openAnnotationInformationDialog(
-            `Because an Anchor or otherwise fixed table could not be moved, Auto Format used a routing shortcut to avoid an infinite loop. Fixed tables stayed in place, and affected relationships were rendered using the best available route.${unresolvedMessage}`,
+            `Because an Anchor or otherwise fixed table could not be moved, Auto Format - Compact used a routing shortcut to avoid an infinite loop. Fixed tables stayed in place, and affected relationships were rendered using the best available route.${unresolvedMessage}`,
             "Anchor Table Shortcut"
           );
         }
@@ -6246,8 +6252,8 @@ function createAnnotationDialog(context) {
       state.allowOverlappingEntityLines = event.target.checked;
       pushHistory();
       setStatus(event.target.checked
-        ? "Relationship lines may share perfectly aligned routes. Select Auto Format - Org Tree to tighten the layout."
-        : "Relationship lines use separate ports and lanes. Select Auto Format - Org Tree to add routing space.");
+        ? "Relationship lines may share perfectly aligned routes. Select Auto Format - Compact to tighten the layout."
+        : "Relationship lines use separate ports and lanes. Select Auto Format - Compact to add routing space.");
       renderWithWorkspaceExpansion();
     });
     dialog.querySelector("[data-annotation-entity-hide-all-relationships]").addEventListener("change", event => {
@@ -6867,7 +6873,7 @@ function annotationDialogHtml(context = {}) {
                 ${annotationColorFieldHtml("entityHeaderFill", "Header background color", "Entity Header Background Color", defaultEntityFill, "background")}
               </div>
               <div class="image-annotation-entity-display-options">
-                <button type="button" data-annotation-entity-auto-format-org-tree>Auto Format - Org Tree</button>
+                <button type="button" data-annotation-entity-auto-format-org-tree>Auto Format - Compact</button>
                 <button type="button" data-annotation-entity-show-script>Show Original Script</button>
                 <label class="inline-check"><input type="checkbox" data-annotation-entity-anchor-table><span>Anchor table (do not move)</span></label>
                 <label class="inline-check"><input type="checkbox" data-annotation-entity-allow-overlapping-lines><span>Allow Overlapping Lines</span></label>
@@ -7755,8 +7761,11 @@ export function autoFormatAnnotationEntitiesOrgTree(objectsInput, options = {}) 
   });
 
   const allowOverlappingLines = options?.allowOverlappingLines === true;
-  const horizontalGap = allowOverlappingLines ? 90 : 150;
-  const verticalGap = allowOverlappingLines ? 150 : 240;
+  const relationshipStyle = normalizeAnnotationEntityRelationshipStyle(options?.relationshipStyle);
+  const gridSize = clampNumber(positiveNumber(options?.gridSize, defaultGridSize), 4, 200);
+  const compactGap = annotationEntityCompactLayoutGap(relationshipStyle, gridSize);
+  const horizontalGap = compactGap;
+  const verticalGap = annotationEntityCompactHeaderGap(relationshipStyle, gridSize);
   const rowWidths = new Map(orderedLevels.map(level => {
     const row = rows.get(level);
     return [level, row.reduce((sum, entity) => sum + entity.width, 0) + (horizontalGap * Math.max(0, row.length - 1))];
@@ -7777,6 +7786,14 @@ export function autoFormatAnnotationEntitiesOrgTree(objectsInput, options = {}) 
     });
     y += rowHeight + verticalGap;
   });
+  applyAnnotationEntitiesCompactSideLayout(
+    entities,
+    resolvedRelationships,
+    preferredRoot,
+    plannedPositions,
+    levels,
+    compactGap
+  );
 
   const anchoredEntities = entities.filter(entity => entity.anchorTable === true);
   const referenceAnchor = anchoredEntities.find(entity => entity.id === preferredRootId)
@@ -7827,6 +7844,111 @@ export function autoFormatAnnotationEntitiesOrgTree(objectsInput, options = {}) 
     unresolvedRouteContactCount: routeAdjustment.unresolvedContactCount,
     fixedConstraintShortcutCount: routeAdjustment.fixedConstraintShortcutCount
   };
+}
+
+function annotationEntityCompactLayoutGap(relationshipStyleInput, gridSizeInput = defaultGridSize) {
+  const gridSize = clampNumber(positiveNumber(gridSizeInput, defaultGridSize), 4, 200);
+  return Math.max(gridSize, annotationEntityRelationshipClearance(relationshipStyleInput) * 2);
+}
+
+function annotationEntityCompactHeaderGap(relationshipStyleInput, gridSizeInput = defaultGridSize) {
+  const gridSize = clampNumber(positiveNumber(gridSizeInput, defaultGridSize), 4, 200);
+  return Math.max(gridSize, annotationEntityRelationshipHeaderClearance(relationshipStyleInput));
+}
+
+function applyAnnotationEntitiesCompactSideLayout(
+  entities,
+  relationships,
+  preferredRoot,
+  plannedPositions,
+  levels,
+  compactGap
+) {
+  if (!preferredRoot || !plannedPositions?.has(preferredRoot.id)) return;
+  const rootPlan = plannedPositions.get(preferredRoot.id);
+  const rootLevel = levels.get(preferredRoot.id) || 0;
+  const direct = new Map();
+  [...relationships]
+    .filter(relationship => relationship.source === preferredRoot || relationship.target === preferredRoot)
+    .filter(relationship => relationship.source !== relationship.target)
+    .sort(compareAnnotationEntityRelationships)
+    .forEach(relationship => {
+      const other = relationship.source === preferredRoot ? relationship.target : relationship.source;
+      if (!other || other.anchorTable === true || other.locked === true) return;
+      const level = levels.get(other.id);
+      if (!Number.isFinite(level) || level <= rootLevel) return;
+      if (direct.has(other.id)) return;
+      direct.set(other.id, {
+        entity: other,
+        level,
+        relationship,
+        preferredSide: relationship.source === preferredRoot ? "left" : "right",
+        rootFieldIndex: annotationEntityCompactRootRelationshipFieldIndex(preferredRoot, relationship)
+      });
+    });
+
+  const byLevel = new Map();
+  direct.forEach(item => {
+    const row = byLevel.get(item.level) || [];
+    row.push(item);
+    byLevel.set(item.level, row);
+  });
+
+  [...byLevel.entries()]
+    .sort((first, second) => first[0] - second[0])
+    .forEach(([, items]) => {
+      const row = annotationEntityBalancedCompactSideRows(items);
+      const rowY = [...row.left, ...row.right]
+        .map(item => plannedPositions.get(item.entity.id)?.y)
+        .find(Number.isFinite);
+      if (!Number.isFinite(rowY)) return;
+
+      let leftX = rootPlan.x;
+      row.left.sort(compareAnnotationEntityCompactSideItems).forEach(({ entity }) => {
+        leftX -= entity.width + compactGap;
+        plannedPositions.set(entity.id, { x: Math.round(leftX), y: Math.round(rowY) });
+      });
+
+      let rightX = rootPlan.x + preferredRoot.width + compactGap;
+      row.right.sort(compareAnnotationEntityCompactSideItems).forEach(({ entity }) => {
+        plannedPositions.set(entity.id, { x: Math.round(rightX), y: Math.round(rowY) });
+        rightX += entity.width + compactGap;
+      });
+    });
+}
+
+function annotationEntityBalancedCompactSideRows(itemsInput) {
+  const items = (Array.isArray(itemsInput) ? itemsInput : [])
+    .filter(item => item?.entity)
+    .sort(compareAnnotationEntityCompactSideItems);
+  const row = { left: [], right: [] };
+  ["left", "right"].forEach(preferredSide => {
+    const otherSide = preferredSide === "left" ? "right" : "left";
+    items
+      .filter(item => (item.preferredSide === "right" ? "right" : "left") === preferredSide)
+      .forEach((item, index) => {
+        const side = index % 2 === 0 ? preferredSide : otherSide;
+        row[side].push(item);
+      });
+  });
+  return row;
+}
+
+function annotationEntityCompactRootRelationshipFieldIndex(root, relationship) {
+  const field = relationship?.source === root
+    ? relationship.sourceField
+    : relationship?.target === root
+      ? relationship.targetField
+      : null;
+  const index = annotationEntityVisibleFieldIndex(root, field);
+  return index >= 0 ? index : Number.MAX_SAFE_INTEGER;
+}
+
+function compareAnnotationEntityCompactSideItems(first, second) {
+  return finiteNumber(first?.rootFieldIndex, Number.MAX_SAFE_INTEGER)
+    - finiteNumber(second?.rootFieldIndex, Number.MAX_SAFE_INTEGER)
+    || compareAnnotationEntityRelationships(first.relationship, second.relationship)
+    || annotationEntityStableKey(first.entity).localeCompare(annotationEntityStableKey(second.entity));
 }
 
 export function annotationOrgTreeShortcutWarningRequired(result) {
@@ -7922,7 +8044,7 @@ function annotationEntityRelationshipRouteContacts(entities, relationships, glob
       relationships,
       entities,
       allowOverlappingLines,
-      skipObstacleRouting: true
+      skipObstacleRouting: false
     });
     if (!geometry) return;
     entities.forEach(entity => {
@@ -8237,7 +8359,7 @@ function annotationEntityRelationshipGeometry(relationship, style, options = {})
     const laneIndex = allowSharedRoute
       ? 0
       : annotationEntityRelationshipPairIndex(relationship, options.relationships);
-    const laneOffset = laneIndex * Math.max(24, style.arrowSize * 2, style.strokeWidth * 4);
+    const laneOffset = laneIndex * annotationEntityRelationshipClearance(style);
     const middleX = snapAnnotationValue(
       useRightLane ? rightLane + laneOffset : leftLane - laneOffset,
       true,
@@ -8475,7 +8597,7 @@ function annotationEntityRelationshipIndexedRouteContacts(
         entry.bounds,
         clearance
       );
-      if (!annotationOrthogonalSegmentTouchesObstacle(previous, point, routingBounds)) return;
+      if (!annotationOrthogonalSegmentCrossesRoutingObstacle(previous, point, routingBounds, clearance)) return;
       contacts.set(entry.index, entry);
     });
   });
@@ -8524,18 +8646,25 @@ function annotationEntityRelationshipObstacleRoute(
       );
     }
     return points.slice(1)
-      .some((point, index) => annotationOrthogonalSegmentTouchesObstacle(points[index], point, routingBounds));
+      .some((point, index) => annotationOrthogonalSegmentCrossesRoutingObstacle(
+        points[index],
+        point,
+        routingBounds,
+        requiredClearance
+      ));
   });
   const routeFanoutPenalty = route => {
-    if (!sourceUnit.x || !targetUnit.x || sourceUnit.x === targetUnit.x) return 0;
+    if (!sourceUnit.x || !targetUnit.x) return 0;
     const firstSegment = route[1]
       ? Math.abs(route[1].x - route[0].x) + Math.abs(route[1].y - route[0].y)
       : 0;
     const lastSegment = route.at(-2)
       ? Math.abs(route.at(-1).x - route.at(-2).x) + Math.abs(route.at(-1).y - route.at(-2).y)
       : 0;
-    const localConnectorLength = clearance * 2;
+    const localConnectorLength = clearance;
     return annotationEntityRelationshipRouteFootprintPenalty(route, start, end, clearance)
+      + annotationEntityRelationshipEndpointLanePenalty(route, start, sourceUnit, clearance)
+      + annotationEntityRelationshipEndpointLanePenalty(route, end, { x: -targetUnit.x, y: -targetUnit.y }, clearance)
       + Math.max(0, firstSegment - localConnectorLength)
       + Math.max(0, lastSegment - localConnectorLength);
   };
@@ -8564,6 +8693,14 @@ function annotationEntityRelationshipObstacleRoute(
       .map(compactAnnotationEntityRelationshipPoints)
       .filter(route => !routeTouchesEntries(route, entries, requiredClearance));
     const candidates = [...directRoutes];
+    annotationEntityRelationshipMarginCorridorRoutes(
+      start,
+      end,
+      startEscape,
+      endEscape,
+      routingObstacles,
+      route => routeTouchesEntries(route, entries, requiredClearance)
+    ).forEach(route => candidates.push(route));
     const middle = annotationEntityRelationshipVisibilityRoute(
       startEscape,
       endEscape,
@@ -8624,6 +8761,7 @@ function annotationEntityRelationshipObstacleRoute(
 
     const candidates = new Map();
     const addCandidates = entries => entries.forEach(entry => candidates.set(entry.index, entry));
+    addCandidates(allEntries.filter(entry => isEndpointObject(entry.object)));
     addCandidates(baseContacts);
     let padding = Math.max(384, clearance * 8);
     for (let pass = 0; pass < 5; pass += 1) {
@@ -8651,24 +8789,57 @@ function annotationEntityRelationshipObstacleRoute(
   return findRoute(clearance) || findRoute(0);
 }
 
+function annotationEntityRelationshipMarginCorridorRoutes(
+  start,
+  end,
+  startEscape,
+  endEscape,
+  routingObstacles,
+  routeTouchesObstacle
+) {
+  const uniqueCoordinates = values => [...new Set(values
+    .filter(Number.isFinite)
+    .map(value => Number(formatNumber(value))))]
+    .sort((first, second) => first - second);
+  const ys = uniqueCoordinates([
+    ...routingObstacles.flatMap(obstacle => [obstacle.y, obstacle.y + obstacle.height])
+  ]);
+  const xs = uniqueCoordinates([
+    ...routingObstacles.flatMap(obstacle => [obstacle.x, obstacle.x + obstacle.width])
+  ]);
+  const candidates = [
+    ...ys.map(y => [start, startEscape, { x: startEscape.x, y }, { x: endEscape.x, y }, endEscape, end]),
+    ...xs.map(x => [start, startEscape, { x, y: startEscape.y }, { x, y: endEscape.y }, endEscape, end])
+  ]
+    .map(compactAnnotationEntityRelationshipPoints)
+    .filter(route => route.length >= 4)
+    .filter(route => !routeTouchesObstacle(route));
+  return candidates;
+}
+
 function annotationEntityRelationshipClearance(styleInput) {
   const style = normalizeAnnotationEntityRelationshipStyle(styleInput);
   return Math.max(
     minimumEntityRelationshipClearance,
-    style.arrowSize * 2,
     style.strokeWidth * 4
   );
+}
+
+function annotationEntityRelationshipHeaderClearance(styleInput) {
+  return annotationEntityRelationshipClearance(styleInput) * 2;
 }
 
 function annotationEntityRelationshipRoutingObstacleBounds(object, boundsInput, clearance = 0) {
   const bounds = boundsInput || annotationObjectBounds(object);
   if (!bounds || object?.type !== "entity" || clearance <= 0) return bounds;
-  const padding = Math.max(0, clearance - (annotationCoordinateTolerance * 2));
+  const horizontalPadding = Math.max(0, clearance - (annotationCoordinateTolerance * 2));
+  const bottomPadding = horizontalPadding;
+  const topPadding = Math.max(0, (clearance * 2) - (annotationCoordinateTolerance * 2));
   return {
-    x: bounds.x - padding,
-    y: bounds.y - padding,
-    width: bounds.width + (padding * 2),
-    height: bounds.height + (padding * 2)
+    x: bounds.x - horizontalPadding,
+    y: bounds.y - topPadding,
+    width: bounds.width + (horizontalPadding * 2),
+    height: bounds.height + topPadding + bottomPadding
   };
 }
 
@@ -8680,7 +8851,12 @@ function annotationEntityRelationshipRouteTouchesAnyRoutingObstacle(points, obst
       clearance
     );
     return bounds && points.slice(1)
-      .some((point, index) => annotationOrthogonalSegmentTouchesObstacle(points[index], point, bounds));
+      .some((point, index) => annotationOrthogonalSegmentCrossesRoutingObstacle(
+        points[index],
+        point,
+        bounds,
+        clearance
+      ));
   });
 }
 
@@ -8766,7 +8942,7 @@ function annotationEntityRelationshipRouteTouchesEndpointAwayFromField(pointsInp
   };
   return points.slice(1).some((point, index) => {
     const previous = points[index];
-    if (!annotationOrthogonalSegmentTouchesObstacle(previous, point, bounds)) return false;
+    if (!annotationOrthogonalSegmentCrossesEntity(previous, point, bounds)) return false;
     if (options.allowStart === true
       && index === 0
       && connectorSegmentAllowed(previous, point, options.sourceUnit)) return false;
@@ -8781,6 +8957,22 @@ function annotationEntityRelationshipRouteLength(points) {
   return points.slice(1).reduce((total, point, index) => total
     + Math.abs(point.x - points[index].x)
     + Math.abs(point.y - points[index].y), 0);
+}
+
+function annotationEntityRelationshipEndpointLanePenalty(pointsInput, endpoint, unit, clearance) {
+  const points = compactAnnotationEntityRelationshipPoints(pointsInput);
+  if (!points.length || !endpoint || !unit?.x) return 0;
+  const isSamePoint = point => point
+    && Math.abs(point.x - endpoint.x) <= annotationCoordinateTolerance
+    && Math.abs(point.y - endpoint.y) <= annotationCoordinateTolerance;
+  let adjacent = null;
+  if (isSamePoint(points[0])) adjacent = points[1] || null;
+  else if (isSamePoint(points.at(-1))) adjacent = points.at(-2) || null;
+  if (!adjacent) return 0;
+  if (Math.abs(adjacent.y - endpoint.y) > annotationCoordinateTolerance) return clearance * 100;
+  const distance = (adjacent.x - endpoint.x) * unit.x;
+  if (distance <= clearance + annotationCoordinateTolerance) return 0;
+  return (distance - clearance) * 100;
 }
 
 function annotationEntityRelationshipRouteFootprintPenalty(pointsInput, start, end, clearance) {
@@ -8813,13 +9005,15 @@ function annotationEntityRelationshipVisibilityRoute(
     start.x,
     end.x,
     ...preferredPoints.map(point => point.x),
-    ...entities.flatMap(entity => [entity.x - clearance, entity.x + entity.width + clearance])
+    ...entities.flatMap(entity => [entity.x - clearance, entity.x + entity.width + clearance]),
+    ...routingObstacles.flatMap(obstacle => [obstacle.x, obstacle.x + obstacle.width])
   ]);
   const ys = uniqueCoordinates([
     start.y,
     end.y,
     ...preferredPoints.map(point => point.y),
-    ...entities.flatMap(entity => [entity.y - clearance, entity.y + entity.height + clearance])
+    ...entities.flatMap(entity => [entity.y - clearance, entity.y + entity.height + clearance]),
+    ...routingObstacles.flatMap(obstacle => [obstacle.y, obstacle.y + obstacle.height])
   ]);
   const nodes = [];
   const nodeIndexByPoint = new Map();
@@ -8840,7 +9034,12 @@ function annotationEntityRelationshipVisibilityRoute(
     if (!Number.isInteger(firstIndex) || !Number.isInteger(secondIndex)) return;
     const first = nodes[firstIndex];
     const second = nodes[secondIndex];
-    if (routingObstacles.some(entity => annotationOrthogonalSegmentTouchesObstacle(first, second, entity))) return;
+    if (routingObstacles.some(entity => annotationOrthogonalSegmentCrossesRoutingObstacle(
+      first,
+      second,
+      entity,
+      clearance
+    ))) return;
     const distance = Math.abs(first.x - second.x) + Math.abs(first.y - second.y);
     if (!distance) return;
     neighbors.get(firstIndex).push({ index: secondIndex, distance });
@@ -8932,12 +9131,23 @@ function annotationEntityRelationshipRouteTouchesObstacle(points, obstacle, clea
     clearance
   );
   return Boolean(bounds) && points.slice(1)
-    .some((point, index) => annotationOrthogonalSegmentTouchesObstacle(points[index], point, bounds));
+    .some((point, index) => annotationOrthogonalSegmentCrossesRoutingObstacle(
+      points[index],
+      point,
+      bounds,
+      clearance
+    ));
 }
 
 function annotationEntityRelationshipRouteTouchesAnyObstacle(points, obstacles) {
   return points.slice(1).some((point, index) => obstacles
     .some(obstacle => annotationOrthogonalSegmentTouchesObstacle(points[index], point, obstacle)));
+}
+
+function annotationOrthogonalSegmentCrossesRoutingObstacle(first, second, obstacle, clearance = 0) {
+  return clearance > 0
+    ? annotationOrthogonalSegmentCrossesEntity(first, second, obstacle)
+    : annotationOrthogonalSegmentTouchesObstacle(first, second, obstacle);
 }
 
 function annotationOrthogonalSegmentTouchesObstacle(first, second, obstacle) {
