@@ -162,7 +162,8 @@ test("About renders the drone flyby and supports camera takeover and speed keys"
   await expect(root).toHaveAttribute("data-about-lightning-ufo-strike", "random");
   await expect(root).toHaveAttribute("data-about-lightning-ufo-strike-chance", "0.5");
   await expect(root).toHaveAttribute("data-about-lightning-ufo-strike-planned", "false");
-  await expect(root).toHaveAttribute("data-about-event-hotkeys", "A,L,C,U,R,M,T,0,P,1,2,3,4");
+  await expect(root).toHaveAttribute("data-about-event-hotkeys", "A,L,C,U,R,M,T,0,P,G,1,2,3,4");
+  await expect(root).toHaveAttribute("data-about-pong-launch-mode", "dedicated-scene-disposes-about-flyby");
   await expect(root).toHaveAttribute("data-about-alien-events-enabled", "true");
   await expect(root).toHaveAttribute("data-about-alien-events-toggle-key", "0");
   await expect(root).toHaveAttribute("data-about-battle-picture-in-picture-toggle-key", "P");
@@ -508,6 +509,7 @@ test("About separates mouse look, keyboard manual mode, pause, and event hotkeys
   await expect(controls).toContainText("Alien + Lightning Strike");
   await expect(controls).toContainText("Show these hints");
   await expect(controls).toContainText("Intergalactic battle");
+  await expect(controls).toContainText("Pong + Blocks game");
   await expect(controls).toContainText("Track Alien Events on / off");
   await expect(controls).toContainText("Alien events on / off");
   await expect(controls).toContainText("PIP on / off");
@@ -516,7 +518,7 @@ test("About separates mouse look, keyboard manual mode, pause, and event hotkeys
   await expect(controls).toContainText("2 attackers vs UFO");
   await expect(controls).toContainText("3 attackers vs UFO");
   await expect(controls.locator(".about-flight-controls-title")).toHaveText("Controls");
-  await expect(controls.locator(".about-control-hint")).toHaveCount(22);
+  await expect(controls.locator(".about-control-hint")).toHaveCount(23);
   if (await root.getAttribute("data-about-control-hints-visible") !== "true") {
     await controlHintsTrigger.click();
     await expect(controls).toBeVisible();
@@ -762,6 +764,42 @@ test("About keeps the original SVG when WebGL2 is unavailable", async ({ page })
   expect(browserErrors).toEqual([]);
 });
 
+test("About launches Pong as a dedicated candy-polished scene", async ({ page }) => {
+  const browserErrors = collectBrowserErrors(page);
+  await prepareAboutPage(page);
+  await page.goto("/");
+
+  const flight = page.locator("[data-about-flight]");
+  await expect(flight).toHaveAttribute("data-about-pong-launch-mode", "dedicated-scene-disposes-about-flyby", {
+    timeout: 30000
+  });
+
+  await page.keyboard.press("G");
+  const pongRoot = page.locator("[data-about-pong-root]");
+  const pong = page.locator("[data-about-pong-overlay]");
+  await expect(pongRoot).toBeVisible();
+  await expect(pong).toBeVisible();
+  await expect(page.locator("[data-about-flight]")).toHaveCount(0);
+  await expect(pongRoot).toHaveAttribute("data-about-pong-flyby-isolation", "dedicated-scene-no-about-flyby-renderer");
+  await expect(pongRoot).toHaveAttribute("data-about-pong-candy-polish", "rounded-glossy-physical-materials");
+  await expect(pong.locator("[data-about-pong-scoreboard]")).toContainText("Sin");
+
+  const layout = await pong.evaluate(element => {
+    const rules = element.querySelector(".about-pong-rules").getBoundingClientRect();
+    const stage = element.querySelector(".about-pong-stage").getBoundingClientRect();
+    const board = element.querySelector(".about-pong-board").getBoundingClientRect();
+    return {
+      rulesWidth: rules.width,
+      stageWidth: stage.width,
+      boardWidth: board.width
+    };
+  });
+  expect(layout.stageWidth).toBeGreaterThan(layout.rulesWidth * 2);
+  expect(layout.stageWidth).toBeGreaterThan(layout.boardWidth * 2);
+
+  expect(browserErrors).toEqual([]);
+});
+
 test("idle screen saver preserves the current screen and unsaved editor state", async ({ page }) => {
   test.setTimeout(120000);
   await page.clock.install({ time: new Date("2026-07-14T12:00:00Z") });
@@ -834,7 +872,7 @@ async function prepareAboutPage(page, initialView = "About") {
     localStorage.setItem("pmt-task-project", "10");
     localStorage.setItem("pmt-task-sprint", "101");
     localStorage.setItem("pmt-bug-filters", JSON.stringify({ projectId: "10", sprintId: "all" }));
-    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-18-day-31@59d6c74b8c72");
+    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-21-day-34@e1d85055ec6f");
   }, initialView);
 
   await page.route("**/api/session", async route => {
@@ -851,6 +889,25 @@ async function prepareAboutPage(page, initialView = "About") {
         isImpersonating: false,
         impersonatedUserName: ""
       })
+    });
+  });
+
+  await page.route("**/api/game-scores/about-pong-blocks**", async route => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify([
+        {
+          id: 1,
+          gameKey: "about-pong-blocks",
+          playerUserId: 1,
+          playerName: "Sin",
+          score: 12345,
+          durationSeconds: 188,
+          won: true,
+          createdAt: "2026-07-21T00:00:00Z"
+        }
+      ])
     });
   });
 

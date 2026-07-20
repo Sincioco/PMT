@@ -725,10 +725,428 @@ dialog.about-screensaver-dialog::backdrop {
   align-content: start;
 }
 
+.about-pong {
+  position: absolute;
+  inset: 0;
+  z-index: 12;
+  display: grid;
+  place-items: stretch;
+  padding: clamp(10px, 2vw, 22px);
+  color: #eaf5ff;
+  background:
+    radial-gradient(circle at 50% 42%, rgb(38 134 254 / 22%), transparent 42%),
+    linear-gradient(135deg, rgb(3 7 17 / 96%), rgb(2 9 20 / 94%));
+}
+
+.about-pong-shell {
+  position: relative;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  border: 1px solid rgb(126 190 255 / 35%);
+  border-radius: 24px;
+  box-shadow:
+    0 28px 90px rgb(0 0 0 / 48%),
+    inset 0 0 38px rgb(83 201 255 / 8%);
+  background: rgb(4 13 28 / 72%);
+  backdrop-filter: blur(18px) saturate(130%);
+}
+
+.about-pong-topbar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 0.9fr) auto auto;
+  gap: 16px;
+  align-items: center;
+  padding: 14px 16px;
+  border-bottom: 1px solid rgb(126 190 255 / 22%);
+}
+
+.about-pong-kicker,
+.about-pong-topbar h2,
+.about-pong-rules h3,
+.about-pong-rules h4,
+.about-pong-rules p,
+.about-pong-board h3,
+.about-pong-board p,
+.about-pong-message,
+.about-pong-status {
+  margin: 0;
+}
+
+.about-pong-kicker {
+  color: #9dc8eb;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.about-pong-kicker kbd {
+  padding: 1px 6px;
+  color: #fff;
+  background: rgb(126 190 255 / 16%);
+  border: 1px solid rgb(126 190 255 / 32%);
+  border-radius: 7px;
+}
+
+.about-pong-topbar h2 {
+  color: #ffffff;
+  font-size: clamp(20px, 2.4vw, 32px);
+  line-height: 1.1;
+}
+
+.about-pong-stats {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+}
+
+.about-pong-stats span {
+  min-width: 92px;
+  padding: 8px 12px;
+  color: #dff8ff;
+  font-weight: var(--font-weight-bold);
+  text-align: center;
+  background: rgb(126 190 255 / 10%);
+  border: 1px solid rgb(126 190 255 / 24%);
+  border-radius: 999px;
+}
+
+.about-pong-live {
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.about-pong-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.about-pong-actions button {
+  padding: 8px 12px;
+  color: #eaf5ff;
+  font: inherit;
+  font-weight: var(--font-weight-bold);
+  background: rgb(15 39 70 / 78%);
+  border: 1px solid rgb(126 190 255 / 34%);
+  border-radius: 12px;
+  cursor: pointer;
+}
+
+.about-pong-actions button:hover,
+.about-pong-actions button:focus-visible {
+  background: rgb(38 134 254 / 32%);
+  outline: none;
+}
+
+.about-pong-body {
+  display: grid;
+  grid-template-columns: minmax(210px, 250px) minmax(0, 1fr) minmax(220px, 300px);
+  min-width: 0;
+  min-height: 0;
+  gap: 14px;
+  padding: 14px;
+}
+
+.about-pong-rules,
+.about-pong-board {
+  display: grid;
+  align-content: start;
+  gap: 12px;
+  min-width: 0;
+  overflow: auto;
+  scrollbar-color: rgb(91 176 255 / 78%) rgb(7 20 39 / 82%);
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  padding: 14px;
+  color: #d9ecff;
+  background:
+    linear-gradient(180deg, rgb(126 190 255 / 10%), transparent 34%),
+    rgb(4 13 28 / 68%);
+  border: 1px solid rgb(126 190 255 / 24%);
+  border-radius: 18px;
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 10%);
+}
+
+.about-pong-rules::-webkit-scrollbar,
+.about-pong-board::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+.about-pong-rules::-webkit-scrollbar-track,
+.about-pong-board::-webkit-scrollbar-track {
+  background: rgb(7 20 39 / 82%);
+  border: 1px solid rgb(126 190 255 / 14%);
+  border-radius: 999px;
+}
+
+.about-pong-rules::-webkit-scrollbar-thumb,
+.about-pong-board::-webkit-scrollbar-thumb {
+  background:
+    linear-gradient(180deg, rgb(142 244 255 / 88%), rgb(38 134 254 / 78%));
+  border: 2px solid rgb(7 20 39 / 92%);
+  border-radius: 999px;
+  box-shadow: 0 0 12px rgb(80 180 255 / 38%);
+}
+
+.about-pong-rules::-webkit-scrollbar-thumb:hover,
+.about-pong-board::-webkit-scrollbar-thumb:hover {
+  background:
+    linear-gradient(180deg, rgb(214 252 255 / 92%), rgb(80 180 255 / 88%));
+}
+
+.about-pong-rules h3,
+.about-pong-board h3 {
+  color: #ffffff;
+  font-size: 18px;
+}
+
+.about-pong-rules h4 {
+  color: #7be7ff;
+  font-size: 13px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.about-pong-rules p,
+.about-pong-rules li {
+  color: #b9cde0;
+  font-size: var(--font-size-sm);
+  line-height: 1.45;
+}
+
+.about-pong-rules ul {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding-left: 1.25em;
+}
+
+.about-pong-rules kbd {
+  padding: 1px 6px;
+  color: #ffffff;
+  background: rgb(126 190 255 / 16%);
+  border: 1px solid rgb(126 190 255 / 32%);
+  border-radius: 7px;
+}
+
+.about-pong-stage {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  background:
+    linear-gradient(90deg, rgb(123 231 255 / 8%) 1px, transparent 1px),
+    linear-gradient(rgb(123 231 255 / 8%) 1px, transparent 1px),
+    radial-gradient(circle at 50% 50%, rgb(126 190 255 / 14%), rgb(2 9 20 / 86%) 58%);
+  background-size: 42px 42px, 42px 42px, auto;
+  border: 1px solid rgb(126 190 255 / 26%);
+  border-radius: 18px;
+  box-shadow: inset 0 0 38px rgb(0 0 0 / 42%);
+  transform-origin: center;
+}
+
+.about-pong-stage canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.about-pong-stage::after {
+  position: absolute;
+  inset: 0;
+  content: "";
+  background:
+    radial-gradient(circle at 50% 50%, rgb(255 255 255 / 18%), transparent 42%),
+    linear-gradient(90deg, rgb(255 80 112 / 30%), transparent 28%, transparent 72%, rgb(255 80 112 / 30%));
+  opacity: 0;
+  pointer-events: none;
+}
+
+[data-about-pong-root][data-about-pong-damage-active="true"] .about-pong-stage {
+  animation: about-pong-hit-shake 0.42s ease-out both;
+}
+
+[data-about-pong-root][data-about-pong-damage-active="true"] .about-pong-stage::after {
+  animation: about-pong-hit-flash 0.58s ease-out both;
+}
+
+.about-pong-message {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  z-index: 3;
+  max-width: min(640px, 100%);
+  padding: 8px 14px;
+  color: #eaf5ff;
+  text-align: center;
+  background: rgb(4 13 28 / 72%);
+  border: 1px solid rgb(126 190 255 / 24%);
+  border-radius: 999px;
+  transform: translateX(-50%);
+  pointer-events: none;
+  backdrop-filter: blur(12px);
+  font-weight: var(--font-weight-bold);
+}
+
+.about-pong-message:empty {
+  display: none;
+}
+
+.about-pong-status {
+  justify-self: center;
+  max-width: min(500px, 100%);
+  padding: 8px 14px;
+  color: #b9cde0;
+  font-size: var(--font-size-sm);
+  text-align: center;
+  background: rgb(4 13 28 / 72%);
+  border: 1px solid rgb(126 190 255 / 24%);
+  border-radius: 999px;
+  pointer-events: none;
+  backdrop-filter: blur(12px);
+}
+
+.about-pong-board ol {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding-left: 1.4em;
+}
+
+.about-pong-board li {
+  padding: 8px 10px;
+  background: rgb(126 190 255 / 8%);
+  border: 1px solid rgb(126 190 255 / 16%);
+  border-radius: 12px;
+}
+
+.about-pong-board li::marker {
+  color: #7be7ff;
+  font-weight: var(--font-weight-bold);
+}
+
+.about-pong-board li span,
+.about-pong-board li strong,
+.about-pong-board li small {
+  display: block;
+}
+
+.about-pong-board li strong {
+  color: #ffffff;
+  font-size: 18px;
+}
+
+.about-pong-board li small,
+.about-pong-board p {
+  color: #9dc8eb;
+  font-size: var(--font-size-sm);
+  line-height: 1.45;
+}
+
+.about-pong-game-over {
+  position: absolute;
+  inset: 50% auto auto 50%;
+  display: grid;
+  gap: 10px;
+  width: min(520px, calc(100% - 36px));
+  padding: 24px 28px;
+  color: #ffffff;
+  text-align: center;
+  background:
+    radial-gradient(circle at 50% 0%, rgb(255 93 143 / 30%), transparent 62%),
+    linear-gradient(180deg, rgb(8 23 44 / 94%), rgb(4 13 28 / 92%));
+  border: 1px solid rgb(126 190 255 / 42%);
+  border-radius: 24px;
+  box-shadow:
+    0 20px 70px rgb(0 0 0 / 55%),
+    inset 0 1px 0 rgb(255 255 255 / 18%);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  backdrop-filter: blur(16px) saturate(130%);
+}
+
+.about-pong-game-over strong {
+  color: #ffffff;
+  font-size: clamp(42px, 7vw, 86px);
+  line-height: 0.95;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  text-shadow:
+    0 0 18px rgb(126 231 255 / 70%),
+    0 4px 18px rgb(0 0 0 / 80%);
+}
+
+.about-pong-game-over span {
+  color: #cfe9ff;
+  font-weight: var(--font-weight-bold);
+}
+
+@keyframes about-pong-hit-shake {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+
+  18% {
+    transform: translate3d(-8px, 2px, 0) rotate(-0.35deg);
+  }
+
+  36% {
+    transform: translate3d(7px, -2px, 0) rotate(0.28deg);
+  }
+
+  54% {
+    transform: translate3d(-5px, 1px, 0) rotate(-0.18deg);
+  }
+
+  72% {
+    transform: translate3d(3px, 0, 0) rotate(0.1deg);
+  }
+}
+
+@keyframes about-pong-hit-flash {
+  0% {
+    opacity: 0.95;
+  }
+
+  100% {
+    opacity: 0;
+  }
+}
+
+@media (max-width: 1180px) {
+  .about-pong-topbar,
+  .about-pong-body {
+    grid-template-columns: 1fr;
+  }
+
+  .about-pong-actions,
+  .about-pong-stats {
+    justify-content: start;
+  }
+
+  .about-pong-rules,
+  .about-pong-board {
+    max-height: 180px;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .about-flight-canvas,
   .about-flight-intro,
-  .about-intro-logo {
+  .about-intro-logo,
+  [data-about-pong-root][data-about-pong-damage-active="true"] .about-pong-stage {
     transition: none;
+    animation: none;
+  }
+
+  [data-about-pong-root][data-about-pong-damage-active="true"] .about-pong-stage::after {
+    animation: about-pong-hit-flash 0.58s ease-out both;
   }
 }

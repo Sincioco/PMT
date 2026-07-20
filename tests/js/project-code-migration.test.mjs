@@ -7,11 +7,15 @@ const migration = read("../../SQL/Migrations/Migration History/PMT_1.19_to_1.20.
 const recoveryRunner = read("../../SQL/Migrations/Migration History/PMT_1.19_to_1.22_All.sql");
 const demoMigration = read("../../SQL/Migrations/Migration History/PMT_1.22_to_1.23.sql");
 const demoMigrationRunner = read("../../SQL/Migrations/Migration History/PMT_1.22_to_1.23_All.sql");
+const gameScoreMigration = read("../../SQL/Migrations/PMT_1.24_to_1.25.sql");
+const gameScoreMigrationRunner = read("../../SQL/Migrations/PMT_1.23_to_1.25_All.sql");
 const sourceProcedures = read("../../SQL/02_CreateStoredProcedures.sql");
 const sourceSeed = read("../../SQL/03_SeedData.sql");
 const pmtSeed = read("../../SQL/03_SeedData_PMT.sql");
 const developmentStore = read("../../Data/SqlPmtStore.Development.cs");
 const createDatabase = read("../../SQL/01_CreateDatabase.sql");
+const gameScoreStore = read("../../Data/SqlPmtStore.GameScores.cs");
+const gameScoreEndpoints = read("../../Endpoints/GameScoreEndpoints.cs");
 const imageAnnotationSeed = read("../../SQL/03_SeedData_ImageAnnotationTemplates.sql");
 const imageAnnotationStore = read("../../Data/SqlPmtStore.ImageAnnotation.cs");
 const imageAnnotationEndpoints = read("../../Endpoints/ImageAnnotationEndpoints.cs");
@@ -134,6 +138,22 @@ test("Version 1.23 provides the requested one-file combined SQLCMD runner", () =
   assert.match(demoMigrationRunner, /:on error exit/);
   assert.equal(demoMigrationRunner.split(":r ").length - 1, 1);
   assert.match(demoMigrationRunner, /:r "\.\\PMT_1\.22_to_1\.23\.sql"/);
+});
+
+test("Version 1.25 adds shared game-score storage and a combined deployment runner", () => {
+  assert.match(createDatabase, /CREATE TABLE \[pmt\]\.\[GameScores\]/);
+  assert.match(createDatabase, /IX_pmt_GameScores_Leaderboard/);
+  assert.match(sourceProcedures, /CREATE OR ALTER PROCEDURE \[pmt\]\.\[GetGameScores\]/);
+  assert.match(sourceProcedures, /CREATE OR ALTER PROCEDURE \[pmt\]\.\[AddGameScore\]/);
+  assert.match(gameScoreMigration, /ISNULL\(@CurrentDatabaseVersion, N''\) <> N'1\.24'/);
+  assert.match(gameScoreMigration, /CREATE TABLE \[pmt\]\.\[GameScores\]/);
+  assert.match(gameScoreMigration, /@value = N'1\.25'/);
+  assert.match(gameScoreStore, /GetGameScoresAsync/);
+  assert.match(gameScoreStore, /\[pmt\]\.\[AddGameScore\]/);
+  assert.match(gameScoreEndpoints, /\/api\/game-scores\/\{gameKey\}/);
+  assert.match(gameScoreEndpoints, /ExplicitCurrentUserId\(context\)/);
+  assert.match(gameScoreMigrationRunner, /:on error exit/);
+  assert.ok(gameScoreMigrationRunner.indexOf("PMT_1.23_to_1.24.sql") < gameScoreMigrationRunner.indexOf("PMT_1.24_to_1.25.sql"));
 });
 
 test("Diagram custom order spans root scopes while child parents remain scoped", () => {

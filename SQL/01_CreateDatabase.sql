@@ -1,5 +1,5 @@
 /*
-    PMT Version 1.24 database and schema script.
+    PMT Version 1.25 database and schema script.
     Run this first. It creates the database, the pmt schema, the application
     tables, and the single required administrator account. The companion
     procedure and seed scripts complete the current fresh-install contract.
@@ -959,6 +959,27 @@ BEGIN
 END;
 GO
 
+IF OBJECT_ID(N'[pmt].[GameScores]', N'U') IS NULL
+BEGIN
+    CREATE TABLE [pmt].[GameScores]
+    (
+        [GameScoreId] INT IDENTITY(1,1) NOT NULL CONSTRAINT [PK_pmt_GameScores] PRIMARY KEY,
+        [GameKey] NVARCHAR(60) NOT NULL,
+        [PlayerUserId] INT NULL,
+        [PlayerName] NVARCHAR(160) NOT NULL,
+        [Score] INT NOT NULL,
+        [DurationSeconds] INT NOT NULL,
+        [Won] BIT NOT NULL CONSTRAINT [DF_pmt_GameScores_Won] DEFAULT (0),
+        [CreatedAt] DATETIME2(0) NOT NULL CONSTRAINT [DF_pmt_GameScores_CreatedAt] DEFAULT (SYSUTCDATETIME()),
+        CONSTRAINT [FK_pmt_GameScores_PlayerUser] FOREIGN KEY ([PlayerUserId]) REFERENCES [pmt].[Users]([UserId]) ON DELETE SET NULL,
+        CONSTRAINT [CK_pmt_GameScores_GameKey] CHECK (LEN(LTRIM(RTRIM([GameKey]))) > 0),
+        CONSTRAINT [CK_pmt_GameScores_PlayerName] CHECK (LEN(LTRIM(RTRIM([PlayerName]))) > 0),
+        CONSTRAINT [CK_pmt_GameScores_Score] CHECK ([Score] >= 0),
+        CONSTRAINT [CK_pmt_GameScores_DurationSeconds] CHECK ([DurationSeconds] >= 0)
+    );
+END;
+GO
+
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE [name] = N'IX_pmt_WorkTasks_ProjectSprint' AND [object_id] = OBJECT_ID(N'[pmt].[WorkTasks]'))
 BEGIN
     CREATE INDEX [IX_pmt_WorkTasks_ProjectSprint] ON [pmt].[WorkTasks]([ProjectId], [SprintId], [IsDeleted]);
@@ -986,5 +1007,11 @@ GO
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE [name] = N'IX_pmt_AuditEvents_Actor' AND [object_id] = OBJECT_ID(N'[pmt].[AuditEvents]'))
 BEGIN
     CREATE INDEX [IX_pmt_AuditEvents_Actor] ON [pmt].[AuditEvents]([ActorUserId], [CreatedAt] DESC);
+END;
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE [name] = N'IX_pmt_GameScores_Leaderboard' AND [object_id] = OBJECT_ID(N'[pmt].[GameScores]'))
+BEGIN
+    CREATE INDEX [IX_pmt_GameScores_Leaderboard] ON [pmt].[GameScores]([GameKey], [Score] DESC, [DurationSeconds], [CreatedAt] DESC);
 END;
 GO

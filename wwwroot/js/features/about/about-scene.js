@@ -59,6 +59,7 @@ export function createAboutScene({
   kanbanWebShowsAllColumns,
   getStatusColor,
   users,
+  onPongRequested = () => {},
   onFailure
 }) {
   const startedAt = performance.now();
@@ -289,6 +290,7 @@ export function createAboutScene({
     root.dataset.aboutBattleDialoguePersistence = "all-lines-until-battle-complete";
     root.dataset.aboutBattleDialogueLingerSeconds = String(SPACE_BATTLE_DIALOGUE_LINGER_SECONDS);
     root.dataset.aboutBattleDialogueLingering = "false";
+    root.dataset.aboutPongLaunchMode = "dedicated-scene-disposes-about-flyby";
     root.dataset.aboutLightningEnabled = "true";
     root.dataset.aboutLightningSchedule = "sequences-5-through-7-logo-approach";
     root.dataset.aboutLightningCameraInfluence = "none";
@@ -300,7 +302,7 @@ export function createAboutScene({
     root.dataset.aboutLightningStrikeCount = "0";
     root.dataset.aboutLightningUfoStrikeCount = "0";
     root.dataset.aboutLightningTarget = "";
-    root.dataset.aboutEventHotkeys = "A,L,C,U,R,M,T,0,P,1,2,3,4";
+    root.dataset.aboutEventHotkeys = "A,L,C,U,R,M,T,0,P,G,1,2,3,4";
     root.dataset.aboutAlienEventsEnabled = String(alienEventsEnabled);
     root.dataset.aboutAlienEventsToggleKey = "0";
     root.dataset.aboutAlienEventsPreferenceKey = preferenceKeys.aboutAlienEventsEnabled;
@@ -735,8 +737,13 @@ export function createAboutScene({
     if (event.repeat
       || event.ctrlKey
       || event.metaKey
-      || event.altKey
-      || isTypingTarget(event.target)) return;
+      || event.altKey) return;
+    if (event.code === "KeyG") {
+      event.preventDefault();
+      onPongRequested();
+      return;
+    }
+    if (isTypingTarget(event.target)) return;
     if (event.code === "Enter") {
       resetAlienPresentationForSequenceOne();
       return;

@@ -313,6 +313,7 @@ app.MapContentEndpoints();
 app.MapImageAnnotationEndpoints();
 app.MapUploadEndpoints(uploadStorageWarning);
 app.MapDevelopmentEndpoints();
+app.MapGameScoreEndpoints();
 
 app.MapFallback(ServeIndexAsync);
 

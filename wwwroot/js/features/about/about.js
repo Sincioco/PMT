@@ -11,9 +11,9 @@ import { appUrl } from "../../shared/app-urls.js";
 import { createBugChartsView } from "../../shared/bug-charts.js?v=20260714-linked-bug-percent";
 import { createDevTaskChartsView } from "../../shared/dev-task-charts.js?v=20260714-linked-bug-percent";
 
-const ABOUT_VERSION = "20260714-screen-saver-mt-gap";
+const ABOUT_VERSION = "20260721-about-pong-polish-v4";
 export const ABOUT_SCREEN_SAVER_IDLE_MS = 5 * 60 * 1000;
-export const ABOUT_DATABASE_VERSION = "1.22";
+export const ABOUT_DATABASE_VERSION = "1.25";
 
 export function aboutFooterHtml() {
   return `
@@ -35,6 +35,7 @@ export function createAboutFeature({
   getStatuses
 }) {
   let activeScene = null;
+  let activePong = null;
   let renderGeneration = 0;
 
   function renderAbout() {
@@ -103,6 +104,7 @@ export function createAboutFeature({
             <span class="about-control-hint"><kbd>+ / -</kbd><span>Speed</span></span>
             <span class="about-control-hint"><kbd>Space</kbd><span>Pause / resume</span></span>
             <span class="about-control-hint"><kbd>Enter</kbd><span>Restart sequence</span></span>
+            <span class="about-control-hint"><kbd>G</kbd><span>Pong + Blocks game</span></span>
             <span class="about-control-hint"><kbd>A</kbd><span>Alien + Lightning Strike</span></span>
             <span class="about-control-hint"><kbd>L</kbd><span>Lightning</span></span>
             <span class="about-control-hint"><kbd>C</kbd><span>Comet</span></span>
@@ -190,6 +192,7 @@ export function createAboutFeature({
           kanbanWebShowsAllColumns: kanbanBoard.webShowsAllColumns,
           getStatusColor: statusColor,
           users: state.users,
+          onPongRequested: () => startPongScene(generation),
           onFailure: message => showFallback(root, message)
         });
 
@@ -211,7 +214,57 @@ export function createAboutFeature({
     renderGeneration += 1;
     activeScene?.dispose();
     activeScene = null;
+    activePong?.dispose();
+    activePong = null;
     app.classList.remove("app-shell-about");
+  }
+
+  function startPongScene(expectedGeneration) {
+    if (expectedGeneration !== renderGeneration) return;
+    renderGeneration += 1;
+    activeScene?.dispose();
+    activeScene = null;
+    activePong?.dispose();
+    activePong = null;
+
+    app.classList.add("app-shell-about");
+    app.innerHTML = `
+      <section
+        class="about-screen about-pong-screen"
+        aria-label="Pong + Blocks + Aliens"
+        data-about-pong-root
+      ></section>
+    `;
+
+    const root = app.querySelector("[data-about-pong-root]");
+    const generation = renderGeneration;
+    Promise.all([
+      import("../../vendor/three/three.module.min.js"),
+      import(`./about-pong.js?v=${ABOUT_VERSION}`)
+    ])
+      .then(([THREE, { createAboutPongGame }]) => {
+        if (generation !== renderGeneration || !root?.isConnected) return;
+        const game = createAboutPongGame({
+          root,
+          THREE,
+          standalone: true,
+          allowClose: false,
+          onExit: () => {
+            if (generation === renderGeneration) renderAbout();
+          }
+        });
+        activePong = game;
+        game.open();
+      })
+      .catch(() => {
+        if (generation === renderGeneration && root?.isConnected) {
+          root.innerHTML = `
+            <p class="about-flight-fallback">
+              Pong is unavailable. The aliens deny responsibility, which is suspicious.
+            </p>
+          `;
+        }
+      });
   }
 
   return {

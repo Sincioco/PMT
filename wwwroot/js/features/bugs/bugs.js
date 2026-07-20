@@ -34,7 +34,7 @@ import {
   value
 } from "../../components/forms.js?v=20260719-rte-insert-diagram";
 import { progressHtml } from "../../components/progress-and-status.js?v=20260714-linked-bug-percent";
-import { sectionHead } from "../../components/sections.js?v=release-notes-2026-07-21-day-34-e1d85055ec6f";
+import { sectionHead } from "../../components/sections.js?v=release-notes-2026-07-21-day-34-0f94a61106d8";
 import {
   attachmentEditorFieldHtml,
   bindAssigneeList,

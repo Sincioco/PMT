@@ -47,6 +47,13 @@ Pong + Blocks + Alien Game
 11.) Still make the UFO/alien appear once in a while if only to make funny remarks.
 12.) Players get 3 lives.  Have a random diamon be on one of the blocks.  Who ever hits it gets an extra life.
 13.) The ball gets faster and faster every minute the game is running.
+14.) When the player dies have the alien  flyby and give some somewhat funny and insulting remarks.
+15.) When the alien comes let it sometimes tilt the camera and say something funny.  Change the perspective just to spruce things up.  But only for 5 seconds.  Then slowly smoothly bring it back to the normal view.
+16.) When the game ends, put a big sign saying "Game Over".  And put an instruction on the left side as to how to play the game and what the rules are more importantly.
+17.) When the game is over, put press any key to start over or press ESC to go back to the 3D flyby.
+18.) Use the same UFO/alien as the 3D Logo flyby scene and give the blocks and paddle a similar candy-like look/polish as the PMT logo.
+16.) When the game ends, put a big sign saying "Game Over".  And put an instruction on the left side as to how to play the game and what the rules are more importantly.
+17.) When the game is over, put press any key to start over or press ESC to go back to the 3D flyby.
 
 Database Migration Script Testing
 ---------------------------------
@@ -55,4 +62,4 @@ Update the migration scripts and test them by dropping and re-creating the datab
 Commit and Push
 ---------------
 When all your tests are green, create a detailed commit message and push to the repo.
-Also commit the file named "2026-07-20 - Requirements - Day 33.txt" and "2026-07-21 - Requirements - Day 34.txt"
+Also commit the file named "2026-07-21 - Requirements - Day 34.txt"

@@ -1,5 +1,5 @@
 /*
-    PMT Version 1.24 stored procedures.
+    PMT Version 1.25 stored procedures.
     The application uses ADO.NET and calls these procedures directly.
     The SQL is intentionally explicit so future maintainers can trace each save action.
 */
@@ -1255,6 +1255,133 @@ BEGIN
     FROM [pmt].[Users]
     WHERE [UserId] = @UserId
       AND [IsActive] = 1;
+END;
+GO
+
+CREATE OR ALTER PROCEDURE [pmt].[GetGameScores]
+    @GameKey NVARCHAR(60),
+    @Top INT = 10
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    DECLARE @TrimmedGameKey NVARCHAR(60) = LOWER(LTRIM(RTRIM(ISNULL(@GameKey, N''))));
+    DECLARE @SafeTop INT = CASE
+        WHEN @Top IS NULL OR @Top < 1 THEN 10
+        WHEN @Top > 50 THEN 50
+        ELSE @Top
+    END;
+
+    IF @TrimmedGameKey = N''
+    BEGIN
+        THROW 51110, 'A game key is required.', 1;
+    END;
+
+    ;WITH RankedScores AS
+    (
+        SELECT
+            [GameScoreId],
+            [GameKey],
+            [PlayerUserId],
+            [PlayerName],
+            [Score],
+            [DurationSeconds],
+            [Won],
+            [CreatedAt],
+            ROW_NUMBER() OVER
+            (
+                PARTITION BY COALESCE(CONVERT(NVARCHAR(20), [PlayerUserId]), LOWER([PlayerName]))
+                ORDER BY [Score] DESC, [DurationSeconds], [CreatedAt] DESC, [GameScoreId] DESC
+            ) AS [ScoreRank]
+        FROM [pmt].[GameScores]
+        WHERE [GameKey] = @TrimmedGameKey
+    )
+    SELECT TOP (@SafeTop)
+        [GameScoreId],
+        [GameKey],
+        [PlayerUserId],
+        [PlayerName],
+        [Score],
+        [DurationSeconds],
+        [Won],
+        [CreatedAt]
+    FROM RankedScores
+    WHERE [ScoreRank] = 1
+    ORDER BY [Score] DESC, [DurationSeconds], [CreatedAt] DESC, [GameScoreId] DESC;
+END;
+GO
+
+CREATE OR ALTER PROCEDURE [pmt].[AddGameScore]
+    @GameKey NVARCHAR(60),
+    @PlayerUserId INT,
+    @Score INT,
+    @DurationSeconds INT,
+    @Won BIT
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    DECLARE @TrimmedGameKey NVARCHAR(60) = LOWER(LTRIM(RTRIM(ISNULL(@GameKey, N''))));
+    DECLARE @PlayerName NVARCHAR(160);
+
+    IF @TrimmedGameKey = N''
+    BEGIN
+        THROW 51111, 'A game key is required.', 1;
+    END;
+
+    IF ISNULL(@Score, -1) < 0 OR ISNULL(@DurationSeconds, -1) < 0
+    BEGIN
+        THROW 51112, 'Game score and duration must be zero or greater.', 1;
+    END;
+
+    SELECT @PlayerName = COALESCE
+    (
+        NULLIF(LTRIM(RTRIM([Nickname])), N''),
+        NULLIF(LTRIM(RTRIM(CONCAT([FirstName], N' ', [LastName]))), N''),
+        NULLIF(LTRIM(RTRIM([Email])), N''),
+        N'Player'
+    )
+    FROM [pmt].[Users]
+    WHERE [UserId] = @PlayerUserId
+      AND [IsActive] = 1;
+
+    IF @PlayerName IS NULL
+    BEGIN
+        THROW 51113, 'The game-score user was not found or is inactive.', 1;
+    END;
+
+    INSERT INTO [pmt].[GameScores]
+    (
+        [GameKey],
+        [PlayerUserId],
+        [PlayerName],
+        [Score],
+        [DurationSeconds],
+        [Won]
+    )
+    VALUES
+    (
+        @TrimmedGameKey,
+        @PlayerUserId,
+        @PlayerName,
+        @Score,
+        @DurationSeconds,
+        ISNULL(@Won, 0)
+    );
+
+    DECLARE @GameScoreId INT = CONVERT(INT, SCOPE_IDENTITY());
+
+    SELECT
+        [GameScoreId],
+        [GameKey],
+        [PlayerUserId],
+        [PlayerName],
+        [Score],
+        [DurationSeconds],
+        [Won],
+        [CreatedAt]
+    FROM [pmt].[GameScores]
+    WHERE [GameScoreId] = @GameScoreId;
 END;
 GO
 
