@@ -126,15 +126,17 @@ Feedback
 59.) Bug:  Btw, if I select multiple objects on the canvas and they form a virtual group, clicking on an item and dragging it only drags that one item instead of the whole group.
 60.) In Diagram, treat the visual margin around an Entity as a protected no-cross zone.  A relationship line may enter that margin only when it is making the short horizontal connection into or out of one of that table's fields.
 
+
+Object-Linking and Embedding (OLE)
+----------------------------------
+In Documents, I'd like to be able to embed an editor that contains a reference to the diagram (not a copy of the diagram itself).  Similar to what Microsoft did with Object-Linking and Embedding.  So that when the diagram is changed, the documents that had the editor/diagram embedded is refreshed as well--not dynamically but just next time they refresh the browser or when they next load the document.  That way the Document always has a reference to the latest version of the diagram (good for sharing a diagram that is contantly changing).  So the workflow is, I create a diagram in the Diagram screen.  I go to the Document screen and create my document as usual.  Now I'd like to Object-Link and Embed (OLE) an existing diagram by clicking on a toolbar icon.  I click a button, a get a thumbnail of diagrams available (or a treeview) and select one.  Now the document has a "window" / "view" / "reference" / "link" (really you just embedded the viewer) to the diagram so that when the diagram itself changes, the document see the latest version.  Basically, the document always sees the last saved version of the diagram.  The embedded diagram in the document is like a shell/viewer, which the user can also resize to whatever dimension they need it to be for their document and the content should aware of the dimension of the viewer.  The viewer (which is really the diagram component in read-only view) will allow the user to interact with the diagram....pan and zoom.  Can this be done?  If so, can you do it?
+
 Don't Implement Yet - Wish List
 -------------------------------
 In Scrum, if an item is pinned and it has a road block, pin just the roadblock text at the top.
 Add a heartbeat to detect new version and lost of network connection.  When saving a document and the network connection has been lost.
 
 In Diagram, add a diagram map so the user can easily navigate large diagrams.
-
-New Idea:  In Documents, I'd like to be able to embed the Diagram Editor (not the diagram itself).  OLE.  So that when the diagram is changed, the documents version of its dynamically updated the next time they view it.
-
 
 
 Database Migration Script Testing
