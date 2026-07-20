@@ -913,6 +913,180 @@ html[data-theme] .rich-color-palette button.rich-color-custom {
   border-radius: 0;
 }
 
+.pmt-diagram-ole {
+  display: flex;
+  flex-direction: column;
+  min-width: 320px;
+  min-height: 220px;
+  max-width: 100%;
+  margin: var(--space-5) 0;
+  overflow: hidden;
+  border: var(--border-width) solid var(--color-border-subtle);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-sm);
+}
+
+.rich-editor .pmt-diagram-ole {
+  resize: both;
+}
+
+.pmt-diagram-ole-caption {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  min-height: var(--control-height-sm);
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  border-bottom: var(--border-width) solid var(--color-border-subtle);
+  background: var(--color-surface-subtle);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+}
+
+.pmt-diagram-ole-actions {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.pmt-diagram-ole-actions button {
+  min-width: 30px;
+  height: 28px;
+  padding: 0 var(--space-2);
+  border: var(--border-width) solid var(--color-border-subtle);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-text-primary);
+  cursor: pointer;
+}
+
+.pmt-diagram-ole-actions button:hover,
+.pmt-diagram-ole-actions button:focus-visible {
+  border-color: var(--color-border-strong);
+}
+
+.pmt-diagram-ole-viewport {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--color-surface);
+  cursor: grab;
+  user-select: none;
+}
+
+.pmt-diagram-ole-viewport:active {
+  cursor: grabbing;
+}
+
+.pmt-diagram-ole-surface {
+  width: max-content;
+  min-width: 100%;
+  transform-origin: 0 0;
+}
+
+.pmt-diagram-ole img,
+.rich-editor .pmt-diagram-ole img,
+.rich-readonly .pmt-diagram-ole img {
+  display: block;
+  width: auto;
+  max-width: none;
+  height: auto;
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  cursor: grab !important;
+}
+
+.pmt-diagram-ole-viewport:active img {
+  cursor: grabbing !important;
+}
+
+.pmt-diagram-ole-placeholder {
+  display: grid;
+  flex: 1 1 auto;
+  place-items: center;
+  min-height: 160px;
+  padding: var(--space-6);
+  color: var(--color-text-secondary);
+  text-align: center;
+}
+
+.pmt-diagram-ole-picker-dialog {
+  width: min(980px, calc(100vw - 48px));
+}
+
+.pmt-diagram-ole-picker-body {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.pmt-diagram-ole-picker-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: var(--space-4);
+  max-height: min(62vh, 620px);
+  overflow: auto;
+}
+
+.pmt-diagram-ole-picker-item {
+  display: grid;
+  grid-template-columns: 110px minmax(0, 1fr);
+  align-items: stretch;
+  gap: var(--space-3);
+  min-height: 92px;
+  padding: var(--space-3);
+  border: var(--border-width) solid var(--color-border-subtle);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  color: var(--color-text-primary);
+  text-align: left;
+  cursor: pointer;
+}
+
+.pmt-diagram-ole-picker-item:hover,
+.pmt-diagram-ole-picker-item:focus-visible,
+.pmt-diagram-ole-picker-item.is-selected {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-primary) 16%, transparent);
+}
+
+.pmt-diagram-ole-picker-thumb {
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border: var(--border-width) solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-subtle);
+}
+
+.pmt-diagram-ole-picker-thumb img {
+  display: block;
+  max-width: 100%;
+  max-height: 86px;
+  object-fit: contain;
+}
+
+.pmt-diagram-ole-picker-text {
+  display: grid;
+  align-content: center;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.pmt-diagram-ole-picker-title {
+  overflow: hidden;
+  color: var(--color-text-primary);
+  font-weight: var(--font-weight-semibold);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .rich-image-menu.dropdown-menu {
   position: fixed;
   inset: auto;

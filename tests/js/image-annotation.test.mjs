@@ -5337,6 +5337,29 @@ test("RTE Insert Diagram uses the shared blank canvas without a fake Original Im
   assert.doesNotMatch(editDiagram, /originalUrl|includeOriginalImage/);
 });
 
+test("RTE Insert Linked Diagram stores a database-backed Diagram OLE reference", async () => {
+  const appSource = await readFile(new URL("../../wwwroot/js/app.js", import.meta.url), "utf8");
+  const formsSource = await readFile(new URL("../../wwwroot/js/components/forms.js", import.meta.url), "utf8");
+  const textSource = await readFile(new URL("../../wwwroot/js/shared/text-and-links.js", import.meta.url), "utf8");
+  const documentationSource = await readFile(new URL("../../wwwroot/js/features/documentation/documentation.js", import.meta.url), "utf8");
+  const exportSource = await readFile(new URL("../../wwwroot/js/features/documentation/documentation-export.js", import.meta.url), "utf8");
+
+  assert.match(formsSource, /data-command="insertLinkedDiagram"[^>]+aria-label="Insert Linked Diagram"/);
+  assert.match(appSource, /if \(command === "insertLinkedDiagram"\)[\s\S]*insertRichLinkedDiagram\(editor, savedSelection\)/);
+  assert.match(appSource, /async function insertRichLinkedDiagram/);
+  assert.match(appSource, /await loadState\(\)/);
+  assert.match(appSource, /data-pmt-ole="diagram"/);
+  assert.match(appSource, /data-diagram-id=/);
+  assert.match(appSource, /function hydrateRichDiagramOleBlocks/);
+  assert.match(appSource, /pmt-diagram-ole:\$\{documentId\}:\$\{diagram\?\.id/);
+  assert.match(textSource, /function normalizeDiagramOleBlocksForStorage/);
+  assert.match(textSource, /block\.innerHTML = `<figcaption>Linked Diagram #\$\{diagramId\}<\/figcaption>`/);
+  assert.match(documentationSource, /hydrateLinkedDiagrams/);
+  assert.match(documentationSource, /hydrateLinkedDiagrams\?\.\(app\)/);
+  assert.match(exportSource, /resolveDiagramOleBlocksForExport\(body\)/);
+  assert.match(exportSource, /function diagramExportSourceUrl/);
+});
+
 test("Entity Annotation creates one grouped callout and arrow that follow the Entity and survive SVG persistence", () => {
   const definition = parseAnnotationEntityDefinition(workTasksCreateTableSql);
   const state = normalizeAnnotationState({

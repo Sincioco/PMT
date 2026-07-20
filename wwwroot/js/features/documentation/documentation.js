@@ -10,7 +10,7 @@ import { createIdleFilterHeader } from "../../components/idle-filter-header.js?v
 import {
   documentationExportIconHtml,
   openDocumentationExportDialog
-} from "./documentation-export.js?v=20260715-save-collision";
+} from "./documentation-export.js?v=20260721-diagram-ole-v1";
 import {
   field,
   optionalNumberValue,
@@ -19,8 +19,8 @@ import {
   richValue,
   selectOptionsField,
   value
-} from "../../components/forms.js?v=20260719-rte-insert-diagram";
-import { sectionHead } from "../../components/sections.js?v=release-notes-2026-07-20-day-33-f01459e78a5a";
+} from "../../components/forms.js?v=20260721-diagram-ole-v1";
+import { sectionHead } from "../../components/sections.js?v=release-notes-2026-07-21-day-34-02b7eca5e037";
 import {
   preferenceKeys,
   readBooleanPreference,
@@ -52,7 +52,7 @@ import {
   escapeHtml,
   normalizeLinksInElement,
   normalizeRichHtml
-} from "../../shared/text-and-links.js";
+} from "../../shared/text-and-links.js?v=20260721-diagram-ole-v1";
 import { externalizeImportedHtmlImagesInPayload } from "../../shared/imported-html-images.js";
 
 const documentationViewModes = new Set(["cards", "tree"]);
@@ -94,6 +94,7 @@ export function createDocumentationFeature({
   attachFile,
   bindAttachmentPreview,
   bindRichTextButtons,
+  hydrateLinkedDiagrams,
   deleteAttachment,
   deleteItem,
   deleteItems,
@@ -159,6 +160,7 @@ export function createDocumentationFeature({
       documentationTreeContextMenuController = null;
       bindDocumentationCardOverflowControls();
     }
+    hydrateLinkedDiagrams?.(app);
   }
 
   function documentationHeaderActionsHtml() {
@@ -780,6 +782,7 @@ export function createDocumentationFeature({
     });
     modal.showModal();
     normalizeLinksInElement(modal);
+    hydrateLinkedDiagrams?.(modal);
     bindDocumentationBodyImageOpen(modal);
   }
 
@@ -1358,6 +1361,7 @@ export function createDocumentationFeature({
     if (!blog) return;
 
     bindRichTextButtons?.(form);
+    hydrateLinkedDiagrams?.(form);
     bindAttachmentPreview?.(form);
     bindAttachmentDeletion(form, deleteAttachment);
     bindDocumentationEditorRules(form, blog);
@@ -2405,7 +2409,7 @@ function documentationTreeInlineEditorHtml(blog) {
       <div class="field full is-required documentation-inline-body-field">
         <label>Body</label>
         ${richTextToolsHtml({ actionsHtml: documentationInlineRichTextActionsHtml() })}
-        <div class="rich-editor documentation-inline-body-editor documentation-image-open-area" contenteditable="true" role="textbox" aria-label="Body" aria-multiline="true" data-rich="bodyHtml" aria-required="true">${blog.bodyHtml || ""}</div>
+        <div class="rich-editor documentation-inline-body-editor documentation-image-open-area" contenteditable="true" role="textbox" aria-label="Body" aria-multiline="true" data-rich="bodyHtml" aria-required="true" ${documentationRichPersistAttrs(blog)}>${blog.bodyHtml || ""}</div>
       </div>
       <div class="field full documentation-inline-attachments">
         <label>Attachments</label>
@@ -2711,6 +2715,7 @@ function bindDocumentationBodyImageOpen(root) {
       : null;
     if (!image || !root.contains(image)) return;
     if (image.closest(".rich-editor")) return;
+    if (image.closest(".pmt-diagram-ole")) return;
 
     const imageUrl = image.currentSrc || image.getAttribute("src") || "";
     if (!imageUrl) return;

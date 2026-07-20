@@ -7,9 +7,34 @@ export function normalizeRichHtml(html) {
   const container = document.createElement("div");
   container.innerHTML = html;
   container.querySelectorAll(".rich-code-actions").forEach(node => node.remove());
+  normalizeDiagramOleBlocksForStorage(container);
   linkifyTextNodes(container);
   normalizeLinksInElement(container, { forStorage: true });
   return container.innerHTML;
+}
+
+function normalizeDiagramOleBlocksForStorage(root) {
+  matchingElements(root, "[data-pmt-ole='diagram']").forEach(block => {
+    const diagramId = Number(block.getAttribute("data-diagram-id") || 0);
+    if (!diagramId) {
+      block.remove();
+      return;
+    }
+
+    const blockId = String(block.getAttribute("data-block-id") || "").trim()
+      || `pmt-ole-${Date.now().toString(36)}`;
+    const width = Math.max(320, Math.round(Number(block.style.width?.replace("px", "") || block.getAttribute("data-view-width") || 900) || 900));
+    const height = Math.max(220, Math.round(Number(block.style.height?.replace("px", "") || block.getAttribute("data-view-height") || 520) || 520));
+    block.className = "pmt-diagram-ole";
+    block.setAttribute("contenteditable", "false");
+    block.setAttribute("data-pmt-ole", "diagram");
+    block.setAttribute("data-diagram-id", String(diagramId));
+    block.setAttribute("data-block-id", blockId);
+    block.setAttribute("data-view-width", String(width));
+    block.setAttribute("data-view-height", String(height));
+    block.setAttribute("style", `width: ${width}px; height: ${height}px;`);
+    block.innerHTML = `<figcaption>Linked Diagram #${diagramId}</figcaption>`;
+  });
 }
 
 export function normalizeLinksInElement(root, options = {}) {

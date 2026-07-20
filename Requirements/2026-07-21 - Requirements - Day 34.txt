@@ -1,0 +1,38 @@
+Project Management Tool (PMT):  Day 34 of Codex Agentic AI Coding
+-----------------------------------------------------------------
+Total Dev Time in Hours:  52
+
+AI Instructions
+--------------
+Design and Coding Methodology:
+	KISS (Keep It Simple Stupid) - The simpler the better.  Avoid over-engineering.  Avoid unnecessary complexity.  Avoid unnecessary features.  Avoid unnecessary bells and whistles.  Avoid unnecessary abstractions.  Avoid unnecessary patterns.  Avoid unnecessary frameworks.  Avoid unnecessary libraries.  Avoid unnecessary dependencies.  Avoid unnecessary code.  Avoid unnecessary files.  Avoid unnecessary folders.  Avoid unnecessary classes.  Avoid unnecessary methods.  Avoid unnecessary variables.
+
+Testing:
+	In addition to your normal testing, be sure to inform me if I have to recompile the .Net portion of the project or just Press Ctrl + F5 on the browser to reload to see the latest changes.  If making CSS / image changes, ensure that I will encounter no caching issue when testing in the browser.  Do not test the 3D About flyby unless you made changes to it.
+
+Environment:
+	You are in a dev machine.  You can drop and re-create the database as you see fit, especially when testing migrations scripts.  You don't need to preseve data in the backend or frontend.  You can also clear preferences, local storage settings and any cache as you see fit.
+
+Database:
+	If making changes to the database, that affects existing users see database-versioning.md under the docs folder.
+
+
+Commits:
+	PMT is a public repo, write a detailed commit message so people can follow its progression.  Prefix all of your commits with "Sin and Codex: ".
+
+Object-Linking and Embedding (OLE)
+----------------------------------
+1.) In Documents, I'd like to be able to embed an editor that contains a reference to the diagram (not a copy of the diagram itself).  Similar to what Microsoft did with Object-Linking and Embedding.  So that when the diagram is changed, the documents that had the editor/diagram embedded is refreshed as well--not dynamically but just next time they refresh the browser or when they next load the document.  That way the Document always has a reference to the latest version of the diagram (good for sharing a diagram that is contantly changing).  So the workflow is, I create a diagram in the Diagram screen.  I go to the Document screen and create my document as usual.  Now I'd like to Object-Link and Embed (OLE) an existing diagram by clicking on a toolbar icon.  I click a button, a get a thumbnail of diagrams available (or a treeview) and select one.  Now the document has a "window" / "view" / "reference" / "link" (really you just embedded the viewer) to the diagram so that when the diagram itself changes, the document see the latest version.  Basically, the document always sees the last saved version of the diagram.  The embedded diagram in the document is like a shell/viewer, which the user can also resize to whatever dimension they need it to be for their document and the content should aware of the dimension of the viewer (if nothing else the content just extends its viewport).  The viewer (which is really the diagram component in read-only view) will allow the user to interact with the diagram....pan and zoom.  If so, can you do it?  The viewer embedded in the Document should over basic things like reset view and maybe even remember the x, y , zoom of the viewport so when they come back to the document they are in the exact same spot and zoom level as when they last looked at the diagram.  Can this be done?  If so, give me a breakdown of your plan in stages.
+
+2.) Wow, it worked! Are you using a different viewer for the embedded diagram?  When I zoom in, it's not zooming in anchored to the user's mouse cursor.
+3.) Regenerate a .svg you use for the What's New to something generic involving people, technology and teams.
+
+
+Database Migration Script Testing
+---------------------------------
+Update the migration scripts and test them by dropping and re-creating the database from the baseline and executing your combined migration script as that is how I will execute it during deployment.  Be sure it works without any errors and fix errors that you do encounter.
+
+Commit and Push
+---------------
+When all your tests are green, create a detailed commit message and push to the repo.
+Also commit the file named "2026-07-20 - Requirements - Day 33.txt" and "2026-07-21 - Requirements - Day 34.txt"

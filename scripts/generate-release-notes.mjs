@@ -170,7 +170,13 @@ function normalizeLineEndings(value) {
 
 function releaseIllustration(day, title, sections) {
   const searchableText = [title, ...sections.map(section => section.title)].join(" ").toLowerCase();
-  const kind = Number(day) === 33 ? "development-team" : Number(day) === 32 ? "diagram-screen" : illustrationKind(searchableText);
+  const kind = Number(day) === 34
+    ? "technology-team"
+    : Number(day) === 33
+      ? "development-team"
+      : Number(day) === 32
+        ? "diagram-screen"
+        : illustrationKind(searchableText);
   const palette = illustrationPalettes[Math.abs(Number(day) || 0) % illustrationPalettes.length];
   const offset = 34 + ((Number(day) || 0) * 17) % 44;
   const decoration = kind === "diagram-screen"
@@ -265,6 +271,19 @@ function illustrationIcon(kind, palette) {
     <path d="M276 164c5-14 13-20 24-20s19 6 24 20M336 164c5-14 13-20 24-20s19 6 24 20M396 164c5-14 13-20 24-20s19 6 24 20" stroke-width="5"/>
     <path d="M285 43h26M333 43h54M409 43h26" stroke="${accent}" stroke-width="5"/>
   </g>`,
+    "technology-team": `<g ${common}>
+    <rect x="282" y="34" width="156" height="90" rx="12" fill="#fff"/>
+    <path d="M282 60h156M332 124h56M346 146h28" stroke="${accent}" stroke-width="5"/>
+    <path d="M314 83h34l-12 20h38l-14-20h46" stroke-width="5"/>
+    <circle cx="315" cy="83" r="7" fill="${secondary}" stroke="none"/>
+    <circle cx="360" cy="103" r="7" fill="${accent}" stroke="none"/>
+    <circle cx="406" cy="83" r="7" fill="${secondary}" stroke="none"/>
+    <circle cx="232" cy="92" r="20" fill="#fff"/>
+    <circle cx="488" cy="92" r="20" fill="#fff"/>
+    <circle cx="360" cy="150" r="18" fill="#fff"/>
+    <path d="M198 150c5-27 16-40 34-40s29 13 34 40M454 150c5-27 16-40 34-40s29 13 34 40M324 169c6-20 18-30 36-30s30 10 36 30" stroke-width="5"/>
+    <path d="M252 92h30M438 92h30M360 124v14" stroke="${secondary}" stroke-width="5"/>
+  </g>`,
     schedule: `<g ${common}>
     <rect x="258" y="39" width="204" height="112" rx="12" fill="#fff"/>
     <path d="M258 73h204M305 28v23M415 28v23"/>
@@ -296,6 +315,7 @@ function illustrationAlt(kind) {
   const descriptions = {
     "diagram-screen": "New Diagram screen illustration.",
     "development-team": "Development team collaboration illustration.",
+    "technology-team": "People, technology, and teams illustration.",
     diagram: "Diagram and database connection illustration.",
     image: "Image and annotation illustration.",
     release: "Product update announcement illustration.",

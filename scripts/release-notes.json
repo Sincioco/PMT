@@ -1359,5 +1359,26 @@
         ]
       }
     ]
+  },
+  {
+    "day": 34,
+    "title": "Linked Diagram Embeds for Documentation",
+    "sections": [
+      {
+        "title": "Documentation Diagram-OLE",
+        "items": [
+          "Embed an existing Diagram inside a Documentation rich-text document as a live database-backed reference instead of copying the SVG into the document.",
+          "Pick from readable Diagram records, save only the Diagram reference and viewer dimensions in the document body, and render the latest saved Diagram whenever the document is opened or refreshed.",
+          "Interact with the embedded viewer using pan, fit/reset, and cursor-centered zoom while preserving each user's last viewport locally."
+        ]
+      },
+      {
+        "title": "Export and Safety",
+        "items": [
+          "Resolve linked Diagram blocks into the current Diagram snapshot when exporting Documentation so exported files remain understandable outside PMT.",
+          "Show a safe placeholder when a linked Diagram is missing or inaccessible instead of leaving stale content behind."
+        ]
+      }
+    ]
   }
 ]

@@ -1,6 +1,7 @@
 import { createZipBlob } from "../../shared/xlsx.js?v=20260706-documentation-export";
 import { exportFileName } from "../../shared/table-export.js?v=20260710-export-rich-kanban";
 import { state } from "../../core/store.js";
+import { currentUserId } from "../../core/authentication.js?v=20260715-admin-impersonation";
 import { formatDate } from "../../shared/dates.js";
 import {
   projectById,
@@ -184,6 +185,7 @@ async function buildDocumentationExportParts(blog, imageMode, options = {}) {
   body.innerHTML = blog.bodyHtml || "";
 
   body.querySelectorAll("script").forEach(node => node.remove());
+  resolveDiagramOleBlocksForExport(body);
 
   const images = [];
   const usedNames = new Set();
@@ -216,6 +218,58 @@ async function buildDocumentationExportParts(blog, imageMode, options = {}) {
     images,
     metadata
   };
+}
+
+function resolveDiagramOleBlocksForExport(body) {
+  body.querySelectorAll("[data-pmt-ole='diagram']").forEach((block, index) => {
+    const diagramId = Number(block.getAttribute("data-diagram-id") || 0);
+    const diagram = state.blogs.find(item => item.id === diagramId && diagramExportCanRead(item) && diagramExportSource(item));
+    const width = Math.max(320, Math.round(Number(block.getAttribute("data-view-width") || block.style.width?.replace("px", "") || 900) || 900));
+    const height = Math.max(220, Math.round(Number(block.getAttribute("data-view-height") || block.style.height?.replace("px", "") || 520) || 520));
+    const figure = body.ownerDocument.createElement("figure");
+    figure.className = "pmt-diagram-ole-export";
+    figure.style.width = `${width}px`;
+
+    const caption = body.ownerDocument.createElement("figcaption");
+    caption.textContent = diagram
+      ? `Linked Diagram: ${diagram.title || "Diagram"}`
+      : `Linked Diagram #${diagramId || index + 1}`;
+    figure.appendChild(caption);
+
+    if (diagram) {
+      const image = body.ownerDocument.createElement("img");
+      image.src = diagramExportSourceUrl(diagram);
+      image.alt = diagram.title || "Linked Diagram";
+      image.style.maxHeight = `${height}px`;
+      figure.appendChild(image);
+    } else {
+      const placeholder = body.ownerDocument.createElement("p");
+      placeholder.className = "muted";
+      placeholder.textContent = "This linked Diagram could not be found or is not available to export.";
+      figure.appendChild(placeholder);
+    }
+
+    block.replaceWith(figure);
+  });
+}
+
+function diagramExportSource(blog) {
+  const template = document.createElement("template");
+  template.innerHTML = String(blog?.bodyHtml || "");
+  return String(template.content.querySelector("img[data-pmt-diagram='true'], img[data-pmt-private-diagram='true']")?.getAttribute("src") || "").trim();
+}
+
+function diagramExportCanRead(blog) {
+  return Boolean(blog)
+    && (blog.isPrivate === false || Number(blog.createdByUserId || 0) === Number(currentUserId || 0));
+}
+
+function diagramExportSourceUrl(blog) {
+  const source = diagramExportSource(blog);
+  if (!source || /^data:/i.test(source)) return source;
+  const url = appUrl(source);
+  const version = Date.parse(blog?.updatedAt || blog?.createdAt || "") || Number(blog?.id || 0);
+  return `${url}${url.includes("?") ? "&" : "?"}pmtOleVersion=${encodeURIComponent(version)}`;
 }
 
 async function loadExportImage(source, index, usedNames) {
@@ -496,6 +550,27 @@ function documentationExportCss(options = {}) {
 
     .pmt-html-document .pmt-document-body img {
       cursor: zoom-in;
+    }
+
+    .pmt-diagram-ole-export {
+      max-width: 100%;
+      margin: 18px auto;
+      border: 1px solid #d8dee8;
+      background: #f8fafc;
+    }
+
+    .pmt-diagram-ole-export figcaption {
+      padding: 8px 10px;
+      border-bottom: 1px solid #d8dee8;
+      color: #586274;
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .pmt-diagram-ole-export img {
+      margin: 0 auto;
+      padding: 8px;
+      background: #ffffff;
     }
 
     .pmt-document-body h1,

@@ -3885,9 +3885,12 @@ test("RTE View Source stays plain while Code Block formats and highlights select
     "}"
   ].join("\n"));
 
+  await codeLanguage.selectOption("");
   await codeTextarea.fill("{not valid JSON}");
   await expect(codeTextarea).toHaveValue("{not valid JSON}");
+  await codeLanguage.selectOption("json");
   await expect(page.locator("#toast")).toContainText("JSON is invalid, so it is being shown as plain text.");
+  await expect(codeTextarea).toHaveValue("{not valid JSON}");
 
   await codeLanguage.selectOption("");
   await expect(codeTextarea).toHaveValue("{not valid JSON}");
@@ -3922,6 +3925,11 @@ test("RTE View Source stays plain while Code Block formats and highlights select
   await expect(editDialog).not.toBeVisible();
   await expect.poll(() => appState.tasks.find(task => task.id === 1)?.descriptionHtml || "")
     .toContain('data-code-language="json"');
+  const lingeringDetailDialog = page.locator("dialog.detail-dialog");
+  if (await lingeringDetailDialog.count()) {
+    await lingeringDetailDialog.locator("[data-close]").first().click();
+    await expect(lingeringDetailDialog).toHaveCount(0);
+  }
   await page.locator("tr[data-task-id='1']").click();
   const readOnlyBlock = page.locator("dialog.detail-dialog .rich-readonly details.rich-code-block");
   await expect(readOnlyBlock).toHaveCount(1);
