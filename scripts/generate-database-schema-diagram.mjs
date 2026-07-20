@@ -11,7 +11,7 @@ import {
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const seedPath = resolve(root, "SQL/03_SeedData_DiagramDemo.sql");
-const migrationPath = resolve(root, "SQL/Migrations/PMT_1.22_to_1.23.sql");
+const migrationPath = resolve(root, "SQL/Migrations/Migration History/PMT_1.22_to_1.23.sql");
 const svgAssetPath = resolve(root, "wwwroot/assets/docs/pmt-database-schema.svg");
 const optionalSvgOutputPath = String(process.env.PMT_SCHEMA_DIAGRAM_SVG_OUTPUT || "").trim();
 const sqlServer = process.env.PMT_SQL_SERVER || "localhost";

@@ -28,6 +28,61 @@ Diagram
 3.) In Diagram as a general rule, don't allow entities to overlap one another.  Move them so they are always visible.  And if it has a cascading effect, then keep moving entities/tables until they all become visible.  This is for both read and write mode.
 4.) Bug:  Another example of why choose such a long way to get to a field?  Fix it please.
 
+
+BDO Deployment Status
+---------------------
+Remember this:  The latest version of PMT has been deployed to BDO.  Please take the current database schema as the new baseline.  All known version of PMT are on the current version, so there is no need to worry about backwards compatibility with previous versions.  Going forward, any changes we make that changes the database in anyway that could impact the current deployed users is allowed as long as you provide a migration script.  So the stability of BDO's instance of PMT is top priority.  All changes we make going forward that affect the database or the stability of BDO's instance of PMT must have a migration script.  Record this milestone in the appropriate markdown file so you can remember this.  And if there are more than 1 migration scripts, please always create a combined version so I don't have to run them one by one during deployment.
+
+-----------------
+
+Dev Task
+--------
+1.) Bug:  In Dev Task, exporting a single Dev Task did not include the image in the task (it exported a broken image link).  It did not base64 encode the image it was referencing.
+
+Diagram
+-------
+2.) Bug:  In Diagrams, if you right click a diagram on the left nav and rename it, the diagram on the right pane disappears and you have to manually click the "Fit" button to manually re-center the diagram.
+3.) Bug:  In Diagrams, if you type an annotation it is super slow, as if it is refreshing the diagram with every keystroke.
+4.) Bug:  In Diagrams, if you create an annotation it is rendering it on the side.
+5.) In Diagram, add a hand tool that serves as the pan tool so the user can move around the canvas.  Still allow them to click the expand/collapse and data type buttons on the tables/entities.  The hand tool should be the default tool when the user is in read mode.  In edit mode, the default tool should be the select tool.
+6.) In Diagrams and in Documentation, in the Filter Dialog Box add 2 sections.  Filter by Creator and Filter by Last Edited.
+
+RTE Code Block
+--------------
+7.) In the Code block section in the RTE, there should be a copy icon so you can copy the content of the code block.
+8.) In the Code block, allow the user to edit it back using a dialog box to change the text or change the language color coding.
+9.) In the Code block, put an icon to delete the code block and then insert a blank line in its place.
+
+Dev Task and Bug Tracking
+-------------------------
+10.) In Dev and Bug Tracking, if the user maximizes the dialog box, make it a truly full-screen experience like what we do in the Diagram screen.
+
+Documentation and Diagram
+-------------------------
+11.) In the Documentation and Diagram screen, allow the user to change the icon on the Left Nav.  Popup a dialog box with icons filled with emojis (if possible use the same list of emojis that Windows provides) or allow the user to upload their own icon.  If the user uploads a picture larger than what is required, resize it be the correct size for what the left nav needs permanently.  Add the "Change Icon" functionality on the right-click menu of the Left Nav.
+
+Release Notes
+-------------
+12.) In the Release Notes, change "Sin's AI Prompts" to "Sin's AI Prompt Engineering".
+
+
+Diagram
+-------
+Allow the Entity to connect to a database via a connection string.  Show a list of tables so the user can select All, select one, or select many. 
+
+New Feature:  Add a @{DevTask/BugReport} and show a small card of the Dev Task/Bug Report showing the Title and Progress report and basic stats.
+
+In Diagrams, is it possible to have a Rich Text Editor object?  So, we can have rich text formatting on the diagram.  If so, add a RTE icon on the toolbar and instantiate a Rich Text Editor on the canvas with a transparent background and allow the user to resize it like a rectangle, but don't allow disproportional resizing as text should always be proportional.  So, if the user drags the left or right resize handle just change the width, or if the user drags the top and bottom resize handle, just change the height.  Basically the resizing behaves like a rectangle.
+
+In Scrum, if an item is pinned and it has a road block, pin just the roadblock text at the top.
+Add a heartbeat to detect new version and lost of network connection.  When saving a document and the network connection has been lost.
+
+In Diagram, add a diagram map so the user can easily navigate large diagrams.
+
+New Idea:  In Documents, I'd like to be able to embed the Diagram Editor (not the diagram itself).  OLE.  So that when the diagram is changed, the documents version of its dynamically updated the next time they view it.
+
+
+
 Database Migration Script Testing
 ---------------------------------
 Update the migration scripts and test them by dropping and re-creating the database from the baseline and executing your combined migration script as that is how I will execute it during deployment.  Be sure it works without any errors and fix errors that you do encounter.

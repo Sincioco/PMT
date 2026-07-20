@@ -5,8 +5,8 @@ import test from "node:test";
 
 const migration = read("../../SQL/Migrations/Migration History/PMT_1.19_to_1.20.sql");
 const recoveryRunner = read("../../SQL/Migrations/Migration History/PMT_1.19_to_1.22_All.sql");
-const demoMigration = read("../../SQL/Migrations/PMT_1.22_to_1.23.sql");
-const demoMigrationRunner = read("../../SQL/Migrations/PMT_1.22_to_1.23_All.sql");
+const demoMigration = read("../../SQL/Migrations/Migration History/PMT_1.22_to_1.23.sql");
+const demoMigrationRunner = read("../../SQL/Migrations/Migration History/PMT_1.22_to_1.23_All.sql");
 const sourceProcedures = read("../../SQL/02_CreateStoredProcedures.sql");
 const sourceSeed = read("../../SQL/03_SeedData.sql");
 const pmtSeed = read("../../SQL/03_SeedData_PMT.sql");

@@ -2,11 +2,11 @@
 
 ## Current Production Baseline
 
-As of July 16, 2026, PMT Database Version 1.22 and its matching application release are deployed to BDO Production and every other known PMT instance. Version 1.22 is the deployed baseline. Protecting the data and stability of those instances is the top priority.
+As of July 20, 2026, PMT Database Version 1.23 and its matching application release are deployed to BDO Production and every other known PMT instance. Version 1.23 is the deployed baseline. Protecting the data and stability of those instances is the top priority.
 
-Future work does not need new upgrade compatibility for database versions before 1.22. Keep released migrations, combined runners, and deployment runbooks through Version 1.22 under `SQL/Migrations/Migration History/`. Start the next forward migration from Version 1.22; after a later version is deployed to every known instance, that version becomes the new baseline.
+Future work does not need new upgrade compatibility for database versions before 1.23. Keep released migrations, combined runners, and deployment runbooks through Version 1.23 under `SQL/Migrations/Migration History/`. Start the next forward migration from Version 1.23; after a later version is deployed to every known instance, that version becomes the new baseline.
 
-The current source tree and fresh-rebuild scripts represent Version 1.23. Version 1.23 preserves BDO's deployed PMT Project as `PMTQA` during migration, restores the original SQL-seeded `PMT` Project for demos, recreates missing demo identities without public default passwords, adapts demo Bug values to active BDO lookups, seeds current-month vacation examples for shared PMT/LMS/HLS demo members and 13 shared image-annotation templates for every user, persists manual Diagram hierarchy order through `[pmt].[Blogs].[SortOrder]` and `[pmt].[MoveBlog]`, clears existing Documentation and Diagram pins while pinning is disabled, seeds the unpinned public `PMT's Database Schema` Diagram with all current `[pmt]` tables and foreign-key mappings, and exposes the connected database's current `[pmt]` catalog through `[pmt].[GetPmtDatabaseSchema]` for on-demand Diagram generation by users with Documentation/Create permission. It also supports repeated focused PMT demo clear-and-restore cycles and updates the Development tools so broad cleanup protects only `PMT`, Clear Users remaps private ownership to Sin, and Factory Reset may replace all data including private content. The schema Diagram Blog body references the cache-versioned bundled `/assets/docs/pmt-database-schema.svg` file so the large editable SVG stays out of SQL; the matching application asset must be deployed with the migration and does not create an upload-folder file:
+The current source tree and fresh-rebuild scripts also represent Version 1.23. This deployed version preserves BDO's former PMT Project as `PMTQA`, restores the original SQL-seeded `PMT` Project for demos, recreates missing demo identities without public default passwords, adapts demo Bug values to active BDO lookups, seeds current-month vacation examples for shared PMT/LMS/HLS demo members and 13 shared image-annotation templates for every user, persists manual Diagram hierarchy order through `[pmt].[Blogs].[SortOrder]` and `[pmt].[MoveBlog]`, clears existing Documentation and Diagram pins while pinning is disabled, seeds the unpinned public `PMT's Database Schema` Diagram with all current `[pmt]` tables and foreign-key mappings, and exposes the connected database's current `[pmt]` catalog through `[pmt].[GetPmtDatabaseSchema]` for on-demand Diagram generation by users with Documentation/Create permission. It also supports repeated focused PMT demo clear-and-restore cycles and updates the Development tools so broad cleanup protects only `PMT`, Clear Users remaps private ownership to Sin, and Factory Reset may replace all data including private content. The schema Diagram Blog body references the cache-versioned bundled `/assets/docs/pmt-database-schema.svg` file so the large editable SVG stays out of SQL and does not create an upload-folder file:
 
 - `SQL/01_CreateDatabase.sql`
 - `SQL/02_CreateStoredProcedures.sql`
@@ -18,15 +18,15 @@ The current source tree and fresh-rebuild scripts represent Version 1.23. Versio
 - `SQL/03_SeedData_DiagramDemo.sql`
 - `SQL/00_DropAndRebuild_PMT.sql`
 
-Deployed databases currently record `PMT_DatabaseVersion = 1.22` in a database-level extended property. The Version 1.23 source and fresh rebuild record `1.23`; `SQL/Migrations/PMT_1.22_to_1.23.sql` remains the canonical step, and operators run it through `SQL/Migrations/PMT_1.22_to_1.23_All.sql`. That migration adds Diagram ordering without replacing existing Documentation: current and newly created rows use `SortOrder = 0` as the latest-first baseline, and manual moves assign explicit order only to the selected owner-scoped sibling list. The database-schema demo insert is also non-destructive: an existing active Diagram with the same owner and title is retained. `PMT_SecurityRoleDefaultsVersion` remains `1.10`. Do not manually edit either version property.
+Deployed databases, the source schema, and fresh rebuilds currently record `PMT_DatabaseVersion = 1.23` in a database-level extended property. The completed `PMT_1.22_to_1.23.sql` step, its `PMT_1.22_to_1.23_All.sql` runner, and the Version 1.23 deployment runbook are historical artifacts under `SQL/Migrations/Migration History/`. Version 1.23 adds Diagram ordering without replacing existing Documentation: current and newly created rows use `SortOrder = 0` as the latest-first baseline, and manual moves assign explicit order only to the selected owner-scoped sibling list. The database-schema demo insert is also non-destructive: an existing active Diagram with the same owner and title is retained. `PMT_SecurityRoleDefaultsVersion` remains `1.10`. Do not manually edit either version property.
 
-The completed Version 1.15-to-1.22 steps, `PMT_1.15_to_1.22_All.sql` deployment runner, and incident-specific `PMT_1.19_to_1.22_All.sql` recovery runner are historical artifacts under `SQL/Migrations/Migration History/`. The Version 1.20 step includes the one-time, `ProjectId`-authoritative correction of legacy generated-prefix Sprint and work-item codes under the PMT Project. Those scripts remain available for controlled reconstruction and audit only; do not rerun them on a current Version 1.22 installation.
+All migrations and runbooks through Version 1.23 are historical artifacts under `SQL/Migrations/Migration History/`. The Version 1.20 step includes the one-time, `ProjectId`-authoritative correction of legacy generated-prefix Sprint and work-item codes under the PMT Project. Those scripts remain available for controlled reconstruction and audit only; do not rerun them on a current Version 1.23 installation.
 
 Fresh development or demo databases may use the rebuild scripts. Existing user databases must be upgraded with forward migrations from their deployed baseline; a source-tree rebuild change does not upgrade production.
 
 ## Required Rule
 
-From the deployed PMT Database Version 1.22 baseline forward, any change that affects the database, its SQL contract, production data, or the stability of BDO's deployed instance through database state or behavior must include a forward migration script from the immediately preceding deployed version.
+From the deployed PMT Database Version 1.23 baseline forward, any change that affects the database, its SQL contract, production data, or the stability of BDO's deployed instance through database state or behavior must include a forward migration script from the immediately preceding deployed version.
 
 This includes changes to:
 
@@ -42,21 +42,21 @@ Changing `SQL/01_CreateDatabase.sql`, `SQL/02_CreateStoredProcedures.sql`, or se
 
 Place the active forward migration chain and its combined operator runner in `SQL/Migrations/`. Store completed migration scripts and HTML runbooks in `SQL/Migrations/Migration History/`.
 
-Whenever a new deployed baseline is declared, automatically move every migration and runbook ending at or before that baseline into `Migration History/`. Keep only the forward chain from the declared baseline to the current source version, plus the matching combined runner, in the active directory. The active forward migration is currently `PMT_1.22_to_1.23.sql`; its operator-facing `PMT_1.22_to_1.23_All.sql` wrapper is intentionally retained even though this release has one step, so rehearsals and server execution use the same entry point.
+Whenever a new deployed baseline is declared, automatically move every migration and runbook ending at or before that baseline into `Migration History/`. Keep only the forward chain from the declared baseline to the current source version, plus the matching combined runner, in the active directory. There is currently no active forward migration because the source schema and all known deployments are at Version 1.23. The next database change must begin with `PMT_1.23_to_1.24.sql`.
 
 Use this naming pattern for the next steps:
 
 ```text
-PMT_1.22_to_1.23.sql
-PMT_1.22_to_1.23_All.sql
 PMT_1.23_to_1.24.sql
+PMT_1.24_to_1.25.sql
+PMT_1.23_to_1.25_All.sql
 ```
 
 Use one migration per released database-version step. Do not edit an already released migration except for comments or path maintenance that does not change database behavior.
 
 ## Combined Deployment Migration
 
-If one deployment requires two or more versioned migration scripts, always create a combined `PMT_<start>_to_<end>_All.sql` file in `SQL/Migrations/`. The individual version-step files remain the canonical migration history; the combined file is the operator-facing, one-command SQLCMD runner. Version 1.23 also provides a one-step combined wrapper because that is the required server execution contract.
+If one deployment requires two or more versioned migration scripts, always create a combined `PMT_<start>_to_<end>_All.sql` file in `SQL/Migrations/`. The individual version-step files remain the canonical migration history; the combined file is the operator-facing, one-command SQLCMD runner. The completed Version 1.23 deployment also has a historical one-step combined wrapper because that release used the same tested entry point for rehearsal and server execution.
 
 The combined runner must use `:on error exit` and ordered relative `:r` includes so any failed step stops the deployment. Deployment instructions must identify the database version and direct the operator to exactly one applicable combined runner instead of requiring constituent migrations to be run one by one.
 
