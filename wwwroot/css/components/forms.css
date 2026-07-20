@@ -786,11 +786,78 @@ html[data-theme] .rich-color-palette button.rich-color-custom {
 }
 
 .rich-code-block summary {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-3);
   min-height: var(--control-height-sm);
   padding: var(--space-3) var(--space-5);
   color: var(--color-text-primary);
   font-weight: var(--font-weight-medium);
   cursor: pointer;
+}
+
+.rich-code-block:focus,
+.rich-code-block summary:focus {
+  outline: none;
+}
+
+.rich-code-block summary:focus-visible {
+  box-shadow: inset 0 0 0 2px var(--color-focus-ring);
+}
+
+.rich-code-block summary::marker {
+  content: "";
+}
+
+.rich-code-block summary::-webkit-details-marker {
+  display: none;
+}
+
+.rich-code-block summary::before {
+  content: "▸";
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-md);
+  line-height: 1;
+}
+
+.rich-code-block[open] summary::before {
+  content: "▾";
+}
+
+.rich-code-caption {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.rich-code-actions {
+  display: inline-flex;
+  flex: 0 0 auto;
+  gap: var(--space-2);
+}
+
+.rich-code-action {
+  display: inline-grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: var(--border-width) solid var(--color-border-subtle);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+}
+
+.rich-code-action:hover,
+.rich-code-action:focus-visible {
+  color: var(--color-text-primary);
+  border-color: var(--color-border-strong);
+}
+
+.rich-code-delete-action:hover,
+.rich-code-delete-action:focus-visible {
+  color: var(--color-danger-text);
 }
 
 .rich-code-block pre {
@@ -1043,17 +1110,6 @@ html[data-theme] .rich-color-palette button.rich-color-custom {
   position: relative;
   z-index: 1;
   resize: vertical;
-}
-
-.rich-source-editor textarea.has-syntax-highlighting {
-  background: transparent;
-  color: transparent;
-  caret-color: var(--color-text-primary);
-  -webkit-text-fill-color: transparent;
-}
-
-.rich-source-editor textarea.has-syntax-highlighting::selection {
-  background: color-mix(in srgb, var(--color-primary), transparent 70%);
 }
 
 .rich-source-token-keyword,

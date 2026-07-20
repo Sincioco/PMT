@@ -74,6 +74,8 @@ export const preferenceKeys = Object.freeze({
   documentationTreeLayout: "pmt-documentation-tree-layout",
   documentationTreeSort: "pmt-documentation-tree-sort",
   documentationTreeSearch: "pmt-documentation-tree-search",
+  documentationCreatorFilters: "pmt-documentation-creator-filters",
+  documentationLastEditorFilters: "pmt-documentation-last-editor-filters",
   documentationTreePaneWidth: "pmt-documentation-tree-pane-width",
   documentationTreePaneHidden: "pmt-documentation-tree-pane-hidden",
   diagramViewMode: "pmt-diagram-view-mode",
@@ -83,7 +85,9 @@ export const preferenceKeys = Object.freeze({
   diagramProject: "pmt-diagram-project",
   diagramSprint: "pmt-diagram-sprint",
   diagramVisibility: "pmt-diagram-visibility",
-  diagramSort: "pmt-diagram-sort"
+  diagramSort: "pmt-diagram-sort",
+  diagramCreatorFilters: "pmt-diagram-creator-filters",
+  diagramLastEditorFilters: "pmt-diagram-last-editor-filters"
 });
 
 const impersonationPreferenceBackupKey = "pmt-impersonation-admin-preferences";

@@ -1002,7 +1002,7 @@
       {
         "title": "Release Notes",
         "items": [
-          "Add a Release Notes screen with polished business-facing notes and the original Sin's AI Prompts.",
+          "Add a Release Notes screen with polished business-facing notes and the original Sin's AI Prompt Engineering.",
           "Organize daily releases from newest to oldest with navigation between releases.",
           "Group features, enhancements, and bug fixes into clear sections.",
           "Keep the page title and view controls visible while reading long notes and align release navigation with the content area."
@@ -1311,7 +1311,7 @@
   },
   {
     "day": 33,
-    "title": "Shorter and Clearer Diagram Connections",
+    "title": "Diagram Polish, Rich Code Blocks, and Cleaner Exports",
     "sections": [
       {
         "title": "Smarter Relationship Routes",
@@ -1324,6 +1324,38 @@
         "items": [
           "Bring an Entity to the front when its read-only header controls are used, and move overlapping movable tables aside when Data Types or fields expand.",
           "Prevent Entity overlaps in both read-only and edit modes, cascading movable tables aside after loading, dragging, resizing, pasting, or duplicating until every table is visible."
+        ]
+      },
+      {
+        "title": "Diagram Editing and Navigation",
+        "items": [
+          "Add circle and plain-line drawing tools, a reusable Format Painter, live color hover previews, cleaner SVG copy output, and fit-to-screen behavior when editing existing Diagrams.",
+          "Use a hand-style drag pan in read-only Diagrams while opening edit mode with Select active, and keep Diagram content fitted and centered when entering the screen or changing Treeview state.",
+          "Create Entity Annotations from a dialog instead of a live text field, support optional annotation arrows, group Entity callouts with invisible group behavior, and edit text boxes from a dialog on double-click.",
+          "Duplicate Diagrams as independent copies, search SVG contents in Diagram filters, show Creator and Last Edited filter sections, and keep Diagram info metadata visible with created and last-modified user timestamps."
+        ]
+      },
+      {
+        "title": "Documentation and Header Layout",
+        "items": [
+          "Duplicate Documentation entries as independent copies, including copied rich-text images and best-effort copied attachments.",
+          "Align Project, Sprint, and Search controls across Documentation, Kanban, Backlog, Bugs, Sprints, Log, and Dev Task headers on narrower screens.",
+          "Tighten the Diagram Treeview content area, remove the extra outer frame around the read-only canvas, and give the Diagram more usable workspace."
+        ]
+      },
+      {
+        "title": "Rich Text Code Blocks",
+        "items": [
+          "Add copy, edit, and delete actions to rich-text Code Blocks while preserving undo when a block is removed.",
+          "Stabilize the Code Block editor so pasted multi-line code keeps its formatting, scrollbars, syntax highlighting, caption editing, and collapse indicator."
+        ]
+      },
+      {
+        "title": "Exports, Preferences, and Release Notes",
+        "items": [
+          "Export Dev Tasks and Bug Reports with pasted rich-text images embedded correctly and without PMT metadata in the exported HTML.",
+          "Clear browser-stored user preferences from Development by logging the user out so they can start from a clean local state.",
+          "Rename the prompt-history view to Sin's AI Prompt Engineering and keep the shared Release Notes and What's New data synchronized."
         ]
       }
     ]

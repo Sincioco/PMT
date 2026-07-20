@@ -2,14 +2,14 @@ import { buttonContent } from "../../components/buttons.js";
 import {
   releaseNoteContentHtml,
   releaseNoteNavigationHtml
-} from "../../components/release-notes.js?v=release-notes-2026-07-20-day-33-8cbc41e9965d";
-import { sectionHead } from "../../components/sections.js?v=release-notes-2026-07-20-day-33-8cbc41e9965d";
+} from "../../components/release-notes.js?v=release-notes-2026-07-20-day-33-f01459e78a5a";
+import { sectionHead } from "../../components/sections.js?v=release-notes-2026-07-20-day-33-f01459e78a5a";
 import {
   preferenceKeys,
   readPreference,
   writePreference
-} from "../../core/preferences.js?v=release-notes-2026-07-20-day-33-8cbc41e9965d";
-import { releaseNoteById, releaseNotes } from "../../shared/release-notes.js?v=release-notes-2026-07-20-day-33-8cbc41e9965d";
+} from "../../core/preferences.js?v=release-notes-2026-07-20-day-33-f01459e78a5a";
+import { releaseNoteById, releaseNotes } from "../../shared/release-notes.js?v=release-notes-2026-07-20-day-33-f01459e78a5a";
 
 const releaseNoteModes = new Set(["release", "prompts"]);
 
@@ -32,7 +32,7 @@ export function createReleaseNotesFeature({ app }) {
             ${releaseNoteNavigationHtml(releaseNotes, selectedId)}
           </aside>
           <article class="panel release-note-reader" aria-live="polite">
-            ${releaseNoteContentHtml(selected, { mode })}
+            ${releaseNoteContentHtml(selected, { mode, allNotes: releaseNotes })}
           </article>
         </div>
       </div>
@@ -74,7 +74,7 @@ export function createReleaseNotesFeature({ app }) {
           ${buttonContent("&#128240;", "Release Notes")}
         </button>
         <button class="secondary text-icon-button release-notes-view-toggle-button ${mode === "prompts" ? "is-on" : ""}" type="button" data-action="set-release-notes-view" data-mode="prompts" aria-pressed="${mode === "prompts"}">
-          ${buttonContent("&#10024;", "Sin's AI Prompts")}
+          ${buttonContent("&#10024;", "Sin's AI Prompt Engineering")}
         </button>
       </div>
     `;

@@ -6,8 +6,8 @@ import { buttonContent } from "./components/buttons.js?v=20260715-admin-imperson
 import { copyTextToClipboard } from "./components/clipboard.js?v=20260714-invite-email-body";
 import {
   openImageAnnotationDialog
-} from "./components/image-annotation.js?v=20260720-shortest-field-route-v38";
-import { createWhatsNew } from "./components/whats-new.js?v=release-notes-2026-07-20-day-33-8cbc41e9965d";
+} from "./components/image-annotation.js?v=20260720-layout-diagram-polish-v1";
+import { createWhatsNew } from "./components/whats-new.js?v=release-notes-2026-07-20-day-33-f01459e78a5a";
 import {
   htmlWithoutUserMentionMarkup,
   initializeUserMentions
@@ -26,13 +26,13 @@ import {
 import {
   field,
   value
-} from "./components/forms.js?v=20260719-rte-insert-diagram";
+} from "./components/forms.js?v=20260720-rte-code-block-actions-v1";
 import { configureProgressAndStatus } from "./components/progress-and-status.js?v=20260714-linked-bug-percent";
 import {
   bindAttachmentPreview,
   showTaskAudit,
   viewWorkItem
-} from "./components/work-items.js?v=20260719-day32-rte-diagram";
+} from "./components/work-items.js?v=20260720-work-item-export-images-v4";
 import { createApplicationShell } from "./core/application-shell.js?v=20260719-light-theme-only-v9";
 import {
   currentView,
@@ -60,27 +60,27 @@ import {
   createAboutFeature,
   createAboutScreenSaver
 } from "./features/about/about.js?v=20260716-db-v122";
-import { createBacklogFeature } from "./features/backlog/backlog.js?v=20260719-day32-rte-diagram";
-import { createBoardFeature } from "./features/board/board.js?v=20260719-day32-rte-diagram";
-import { createBugsFeature } from "./features/bugs/bugs.js?v=20260719-day32-rte-diagram";
-import { createDashboardFeature } from "./features/dashboard/dashboard.js?v=release-notes-2026-07-20-day-33-8cbc41e9965d";
-import { createDiagramFeature } from "./features/diagram/diagram.js?v=20260720-shortest-field-route-v43";
-import { createDocumentationFeature } from "./features/documentation/documentation.js?v=20260719-document-tree-sync-v33";
+import { createBacklogFeature } from "./features/backlog/backlog.js?v=20260720-work-item-export-images-v4";
+import { createBoardFeature } from "./features/board/board.js?v=20260720-work-item-export-images-v4";
+import { createBugsFeature } from "./features/bugs/bugs.js?v=20260720-work-item-export-images-v4";
+import { createDashboardFeature } from "./features/dashboard/dashboard.js?v=release-notes-2026-07-20-day-33-f01459e78a5a";
+import { createDiagramFeature } from "./features/diagram/diagram.js?v=20260720-layout-diagram-polish-v1";
+import { createDocumentationFeature } from "./features/documentation/documentation.js?v=20260720-layout-diagram-polish-v1";
 import {
   createGanttFeature,
   currentSprintForProject,
   ganttStartDate
-} from "./features/gantt/gantt.js?v=release-notes-2026-07-20-day-33-8cbc41e9965d";
+} from "./features/gantt/gantt.js?v=release-notes-2026-07-20-day-33-f01459e78a5a";
 import { createInvitationsFeature } from "./features/invitations/invitations.js?v=20260719-day32-rte-diagram";
 import { createProjectsFeature } from "./features/projects/projects.js?v=20260719-day32-rte-diagram";
-import { createReleaseNotesFeature } from "./features/release-notes/release-notes.js?v=release-notes-2026-07-20-day-33-8cbc41e9965d";
-import { createRoadMapFeature } from "./features/roadmap/roadmap.js?v=release-notes-2026-07-20-day-33-8cbc41e9965d";
-import { createLogFeature } from "./features/personal-log/log.js?v=20260719-day32-rte-diagram";
-import { createScrumFeature } from "./features/scrum/scrum.js?v=20260719-project-prefill-v22";
-import { createSettingsFeature } from "./features/settings/settings.js?v=20260719-day32-rte-diagram";
+import { createReleaseNotesFeature } from "./features/release-notes/release-notes.js?v=release-notes-2026-07-20-day-33-f01459e78a5a";
+import { createRoadMapFeature } from "./features/roadmap/roadmap.js?v=release-notes-2026-07-20-day-33-f01459e78a5a";
+import { createLogFeature } from "./features/personal-log/log.js?v=20260720-work-item-export-images-v4";
+import { createScrumFeature } from "./features/scrum/scrum.js?v=20260720-work-item-export-images-v4";
+import { createSettingsFeature } from "./features/settings/settings.js?v=20260720-clear-preferences-logout-v1";
 import { createSprintsFeature } from "./features/sprints/sprints.js?v=20260719-day32-rte-diagram";
-import { createTasksFeature } from "./features/tasks/tasks.js?v=20260719-day32-rte-diagram";
-import { createWfhScheduleFeature } from "./features/wfh-schedule/wfh-schedule.js?v=release-notes-2026-07-20-day-33-8cbc41e9965d";
+import { createTasksFeature } from "./features/tasks/tasks.js?v=20260720-work-item-export-images-v4";
+import { createWfhScheduleFeature } from "./features/wfh-schedule/wfh-schedule.js?v=20260720-work-item-export-images-v4";
 import {
   fallbackEnvironments,
   fallbackForLookup,
@@ -113,7 +113,7 @@ import {
   linkifyTextNodes,
   normalizeLinksInElement,
   normalizeUrl
-} from "./shared/text-and-links.js?v=20260627-rich-text-toolbar";
+} from "./shared/text-and-links.js?v=20260720-rte-code-block-actions-v1";
 import {
   configureWorkItemRules,
   isBugQaPassedOrLater,
@@ -133,6 +133,7 @@ const nativePickerSelector = [
 
 initializeDraggableDialogs();
 bindGlobalRichCheckboxSync();
+bindGlobalRichCodeBlockActions();
 initializeUserMentions({
   getUsers: () => state.users,
   getRoles: () => state.roles
@@ -439,7 +440,8 @@ const documentationFeature = createDocumentationFeature({
   openEditor,
   render,
   saveJson,
-  showToast
+  showToast,
+  copyRichTextImageAssets
 });
 const diagramFeature = createDiagramFeature({
   app,
@@ -539,6 +541,7 @@ async function loadState() {
 
 function render() {
   shell.render();
+  bindRichCodeBlocks(document.body);
 }
 
 function handlePageActionsOutsidePointer(event) {
@@ -2028,6 +2031,7 @@ function showReadOnlyDialog(title, html) {
   });
   modal.showModal();
   normalizeLinksInElement(modal);
+  bindRichCodeBlocks(modal);
 }
 
 async function annotateRichTextImage(image) {
@@ -2050,6 +2054,7 @@ async function annotateRichTextImage(image) {
       confirm: askYesNo,
       notify: showToast,
       uploadEmbeddedImage: uploadRichTextCanvasImage,
+      portableImageSources: true,
       loadTemplateLibrary: () => api("/api/image-annotation/template-library", { cache: "no-store" }),
       loadDefaultTemplateLibrary: () => api("/api/image-annotation/default-template-library", { cache: "no-store" }),
       saveTemplateLibrary: library => saveJson("/api/image-annotation/template-library", "PUT", library),
@@ -2337,6 +2342,7 @@ function bindRichTextButtons(root) {
         editor.focus();
         restoreEditorSelection(savedSelection);
         insertRichHtmlAtSelection(editor, richCodeBlockHtml(codeBlock));
+        bindRichCodeBlocks(editor);
         return;
       }
 
@@ -2653,8 +2659,128 @@ function bindRichTextButtons(root) {
     });
   });
 
+  bindRichCodeBlocks(root);
   bindRichCheckboxes(root);
   bindGlobalRichCheckboxSync();
+}
+
+function bindRichCodeBlocks(root) {
+  const childBlocks = root.querySelectorAll ? [...root.querySelectorAll(".rich-code-block")] : [];
+  const blocks = [
+    ...(root.matches?.(".rich-code-block") ? [root] : []),
+    ...childBlocks
+  ];
+  blocks.forEach(ensureRichCodeBlockActions);
+  if (!root.dataset || root.dataset.richCodeBlocksBound === "true") return;
+
+  root.dataset.richCodeBlocksBound = "true";
+  root.addEventListener("click", handleRichCodeBlockAction);
+}
+
+function bindGlobalRichCodeBlockActions() {
+  if (document.body.dataset.richCodeBlocksObserverBound === "true") return;
+
+  document.body.dataset.richCodeBlocksObserverBound = "true";
+  let frame = 0;
+  const decorate = () => {
+    frame = 0;
+    bindRichCodeBlocks(document.body);
+  };
+  const observer = new MutationObserver(() => {
+    if (!frame) frame = requestAnimationFrame(decorate);
+  });
+  observer.observe(document.body, { childList: true, subtree: true });
+  decorate();
+}
+
+async function handleRichCodeBlockAction(event) {
+  const button = event.target.closest?.("[data-rich-code-action]");
+  if (!button) return;
+
+  const block = button.closest(".rich-code-block");
+  if (!block) return;
+
+  event.preventDefault();
+  event.stopPropagation();
+
+  const action = button.dataset.richCodeAction || "";
+  const editor = block.closest(".rich-editor");
+  const data = richCodeBlockData(block);
+
+  if (action === "copy") {
+    const copied = await copyTextToClipboard(data.code, button);
+    showToast(copied ? "Code block copied." : "The code block could not be copied.");
+    return;
+  }
+
+  if (!editor) return;
+
+  if (action === "edit") {
+    const updated = await askForCodeBlock(data.code, {
+      caption: data.caption,
+      language: data.language,
+      actionLabel: "Save"
+    });
+    if (!updated) return;
+
+    const template = document.createElement("template");
+    template.innerHTML = richCodeBlockHtml(updated).trim();
+    const nextBlock = template.content.querySelector(".rich-code-block");
+    if (!nextBlock) return;
+
+    block.replaceWith(nextBlock);
+    bindRichCodeBlocks(nextBlock);
+    editor.focus({ preventScroll: true });
+    return;
+  }
+
+  if (action === "delete") {
+    const markerId = `richCodeFocus${Date.now()}${Math.floor(Math.random() * 100000)}`;
+    replaceRichNodeWithHtml(editor, block, `<p><span data-rich-code-focus="${escapeAttr(markerId)}"></span><br></p>`);
+    focusRichCodeMarker(editor, markerId);
+  }
+}
+
+function ensureRichCodeBlockActions(block) {
+  const summary = block.querySelector(":scope > summary");
+  if (!summary) return;
+
+  const editable = Boolean(block.closest(".rich-editor"));
+  const existingActions = summary.querySelector(":scope > .rich-code-actions");
+  if (existingActions?.dataset.richCodeEditable === String(editable)) return;
+  existingActions?.remove();
+
+  let caption = summary.querySelector(".rich-code-caption");
+  if (!caption) {
+    caption = document.createElement("span");
+    caption.className = "rich-code-caption";
+    while (summary.firstChild) caption.appendChild(summary.firstChild);
+    summary.appendChild(caption);
+  }
+
+  const actions = document.createElement("span");
+  actions.className = "rich-code-actions";
+  actions.dataset.richCodeEditable = String(editable);
+  actions.setAttribute("contenteditable", "false");
+  actions.innerHTML = `
+    <button type="button" class="rich-code-action" data-rich-code-action="copy" title="Copy code" aria-label="Copy code">&#128203;</button>
+    ${editable ? `<button type="button" class="rich-code-action" data-rich-code-action="edit" title="Edit code block" aria-label="Edit code block">&#9998;</button>` : ""}
+    ${editable ? `<button type="button" class="rich-code-action rich-code-delete-action" data-rich-code-action="delete" title="Delete code block" aria-label="Delete code block">&#128465;</button>` : ""}
+  `;
+  summary.appendChild(actions);
+}
+
+function richCodeBlockData(block) {
+  const summary = block.querySelector(":scope > summary");
+  const summaryCopy = summary?.cloneNode(true);
+  summaryCopy?.querySelector(".rich-code-actions")?.remove();
+  const code = block.querySelector(":scope > pre > code");
+
+  return {
+    caption: summaryCopy?.textContent?.trim() || "Code",
+    code: code?.textContent || "",
+    language: code?.getAttribute("data-code-language") || ""
+  };
 }
 
 function richTableHtml(rows, columns) {
@@ -3974,22 +4100,26 @@ function editorSelectionText(range) {
   return range.cloneContents().textContent || "";
 }
 
-function askForCodeBlock(initialCode = "") {
+function askForCodeBlock(initialCode = "", options = {}) {
   return new Promise(resolve => {
     const modal = document.createElement("dialog");
     modal.className = "dialog rich-code-dialog";
+    const selectedLanguage = String(options.language || "");
     const codeLanguageOptions = RICH_SOURCE_TEXT_TYPES
-      .map(option => `<option value="${escapeAttr(option.value)}">${escapeHtml(option.label)}</option>`)
+      .map(option => `<option value="${escapeAttr(option.value)}" ${option.value === selectedLanguage ? "selected" : ""}>${escapeHtml(option.label)}</option>`)
       .join("");
+    const title = options.title || "Code Block";
+    const actionLabel = options.actionLabel || "Insert";
+    const caption = options.caption ?? "Code";
     modal.innerHTML = `
       <form method="dialog">
         <div class="dialog-head">
-          <h2>Code Block</h2>
+          <h2>${escapeHtml(title)}</h2>
         </div>
         <div class="dialog-body">
           <div class="field">
             <label>Caption</label>
-            <input name="codeCaption" value="Code">
+            <input name="codeCaption" value="${escapeAttr(caption)}">
           </div>
           <div class="field">
             <label>Code</label>
@@ -3997,15 +4127,12 @@ function askForCodeBlock(initialCode = "") {
           </div>
           <div class="field full">
             <label>Content</label>
-            <div class="rich-source-editor" data-rich-code-editor>
-              <pre class="rich-source-highlight" data-rich-code-highlight aria-hidden="true"><code></code></pre>
-              <textarea name="codeText" rows="12" spellcheck="false">${escapeHtml(initialCode)}</textarea>
-            </div>
+            <textarea name="codeText" rows="12" spellcheck="false">${escapeHtml(initialCode)}</textarea>
           </div>
         </div>
         <div class="dialog-actions">
           <button type="button" class="secondary text-icon-button" data-result="cancel">${buttonContent("&#10005;", "Cancel")}</button>
-          <button type="submit" class="primary text-icon-button">${buttonContent("&#10003;", "Insert")}</button>
+          <button type="submit" class="primary text-icon-button">${buttonContent("&#10003;", actionLabel)}</button>
         </div>
       </form>
     `;
@@ -4013,23 +4140,13 @@ function askForCodeBlock(initialCode = "") {
     document.body.appendChild(modal);
     const codeTextarea = modal.querySelector("[name='codeText']");
     const codeLanguage = modal.querySelector("[data-rich-code-language]");
-    const codeEditor = modal.querySelector("[data-rich-code-editor]");
-    const codeHighlight = modal.querySelector("[data-rich-code-highlight]");
-    const codeHighlightContent = codeHighlight?.querySelector("code");
-    let highlightFrame = 0;
 
-    const syncCodeScroll = () => {
-      if (!codeTextarea || !codeHighlight) return;
-      codeHighlight.scrollTop = codeTextarea.scrollTop;
-      codeHighlight.scrollLeft = codeTextarea.scrollLeft;
-    };
-
-    const renderCodeHighlight = ({ formatJson = false } = {}) => {
-      if (!codeTextarea || !codeHighlight || !codeHighlightContent) return;
+    const formatCodeIfNeeded = () => {
+      if (!codeTextarea || codeLanguage?.value !== "json") return;
 
       let result;
       try {
-        result = prepareRichSourceHighlight(codeTextarea.value, codeLanguage?.value, { formatJson });
+        result = prepareRichSourceHighlight(codeTextarea.value, codeLanguage.value, { formatJson: true });
       } catch {
         result = {
           error: `Unable to color code ${codeLanguage?.selectedOptions?.[0]?.textContent || "the code"}. The code is being shown as plain text.`,
@@ -4039,38 +4156,21 @@ function askForCodeBlock(initialCode = "") {
         };
       }
 
-      if (formatJson && result.text !== codeTextarea.value) {
+      if (result.text !== codeTextarea.value) {
         codeTextarea.value = result.text;
         codeTextarea.scrollTop = 0;
         codeTextarea.scrollLeft = 0;
       }
 
-      codeHighlightContent.innerHTML = result.highlighted
-        ? `${result.html}${result.text.endsWith("\n") ? " " : ""}`
-        : "";
-      codeHighlight.hidden = !result.highlighted;
-      codeTextarea.classList.toggle("has-syntax-highlighting", result.highlighted);
-      codeEditor?.classList.toggle("has-syntax-highlighting", result.highlighted);
-      syncCodeScroll();
-
-      if (result.error && codeEditor?.dataset.richCodeError !== result.error) {
-        codeEditor.dataset.richCodeError = result.error;
+      if (result.error && codeTextarea?.dataset.richCodeError !== result.error) {
+        codeTextarea.dataset.richCodeError = result.error;
         showToast(result.error);
-      } else if (!result.error && codeEditor) {
-        delete codeEditor.dataset.richCodeError;
+      } else if (!result.error && codeTextarea) {
+        delete codeTextarea.dataset.richCodeError;
       }
     };
 
-    const scheduleCodeHighlight = () => {
-      cancelAnimationFrame(highlightFrame);
-      highlightFrame = requestAnimationFrame(() => {
-        highlightFrame = 0;
-        renderCodeHighlight();
-      });
-    };
-
     const finish = value => {
-      cancelAnimationFrame(highlightFrame);
       modal.close();
       modal.remove();
       resolve(value);
@@ -4078,15 +4178,10 @@ function askForCodeBlock(initialCode = "") {
 
     modal.querySelector("[data-result='cancel']").addEventListener("click", () => finish(null));
     codeLanguage?.addEventListener("change", () => {
-      if (codeHighlightContent) codeHighlightContent.textContent = "";
-      codeHighlight?.setAttribute("hidden", "");
-      codeTextarea?.classList.remove("has-syntax-highlighting");
-      if (codeEditor) delete codeEditor.dataset.richCodeError;
-      renderCodeHighlight({ formatJson: codeLanguage.value === "json" });
+      delete codeTextarea.dataset.richCodeError;
+      formatCodeIfNeeded();
       codeTextarea?.focus({ preventScroll: true });
     });
-    codeTextarea?.addEventListener("input", scheduleCodeHighlight);
-    codeTextarea?.addEventListener("scroll", syncCodeScroll, { passive: true });
     modal.querySelector("form").addEventListener("submit", event => {
       event.preventDefault();
       finish({
@@ -4101,6 +4196,7 @@ function askForCodeBlock(initialCode = "") {
     });
 
     modal.showModal();
+    formatCodeIfNeeded();
     setTimeout(() => modal.querySelector("[name='codeText']").focus(), 0);
   });
 }
@@ -4441,7 +4537,7 @@ function richCodeBlockHtml({ caption, code, language }) {
   const languageAttribute = normalizedLanguage
     ? ` data-code-language="${escapeAttr(normalizedLanguage)}"`
     : "";
-  return `<details class="rich-code-block"><summary>${summary}</summary><pre><code${languageAttribute}>${codeHtml}</code></pre></details><p><br></p>`;
+  return `<details class="rich-code-block"><summary><span class="rich-code-caption">${summary}</span></summary><pre><code${languageAttribute}>${codeHtml}</code></pre></details><p><br></p>`;
 }
 
 function insertRichHtmlAtSelection(editor, html) {
@@ -4467,6 +4563,24 @@ function insertRichHtmlAtSelection(editor, html) {
   range.collapse(true);
   selection?.removeAllRanges();
   selection?.addRange(range);
+}
+
+function focusRichCodeMarker(editor, markerId) {
+  const marker = editor.querySelector(`[data-rich-code-focus="${markerId}"]`);
+  if (!marker) {
+    editor.focus();
+    return;
+  }
+
+  const paragraph = marker.closest("p") || marker.parentElement;
+  marker.remove();
+  const range = document.createRange();
+  range.selectNodeContents(paragraph || editor);
+  range.collapse(false);
+  const selection = window.getSelection();
+  selection?.removeAllRanges();
+  selection?.addRange(range);
+  editor.focus({ preventScroll: true });
 }
 
 function richPlainTextHtml(text) {
@@ -4539,6 +4653,62 @@ async function uploadFile(kind, file) {
   const body = new FormData();
   body.append("file", file);
   return api(`/api/uploads/${kind}`, { method: "POST", body });
+}
+
+async function copyRichTextImageAssets(html) {
+  const container = document.createElement("div");
+  container.innerHTML = String(html || "");
+  const images = [...container.querySelectorAll("img[src]")];
+
+  for (const image of images) {
+    const source = String(image.getAttribute("src") || "").trim();
+    if (!source || richTextImageIsCrossOrigin(source)) continue;
+    try {
+      const response = await fetch(appUrl(source), { cache: "no-store", credentials: "same-origin" });
+      if (!response.ok) continue;
+      const blob = await response.blob();
+      if (!/^image\//i.test(blob.type || "")) continue;
+      const upload = await uploadFile("richtext", new File([blob], richTextImageCopyFileName(source, blob.type), {
+        type: blob.type
+      }));
+      image.setAttribute("src", appUrl(upload.url));
+    } catch {
+      // Keep the duplicate usable even if one image cannot be copied.
+    }
+  }
+
+  return container.innerHTML;
+}
+
+function richTextImageIsCrossOrigin(source) {
+  if (/^data:image\//i.test(source)) return false;
+  try {
+    const url = new URL(source, window.location.href);
+    return url.origin !== window.location.origin;
+  } catch {
+    return false;
+  }
+}
+
+function richTextImageCopyFileName(source, contentType) {
+  const extension = {
+    "image/svg+xml": "svg",
+    "image/jpeg": "jpg",
+    "image/png": "png",
+    "image/gif": "gif",
+    "image/webp": "webp"
+  }[String(contentType || "").toLowerCase()] || "png";
+  if (/^data:image\//i.test(source)) {
+    return `duplicated-image-${Date.now()}-${Math.random().toString(16).slice(2)}.${extension}`;
+  }
+  try {
+    const name = decodeURIComponent(new URL(source, window.location.href).pathname.split("/").filter(Boolean).pop() || "");
+    const safeName = name.replace(/[^a-z0-9._-]+/gi, "-").replace(/^-+|-+$/g, "");
+    if (safeName) return safeName;
+  } catch {
+    // Fall back below.
+  }
+  return `duplicated-image-${Date.now()}-${Math.random().toString(16).slice(2)}.${extension}`;
 }
 
 async function attachFile(path, file) {

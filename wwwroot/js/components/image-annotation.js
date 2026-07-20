@@ -24,6 +24,7 @@ const maximumAnnotationTemplates = 50;
 const maximumAnnotationTemplateFileBytes = 50 * 1024 * 1024;
 const annotationTemplateVersion = 1;
 const annotationTemplateFileFormat = "pmt-image-annotation-template";
+const annotationToolNames = new Set(["select", "pan", "format-painter", "crop", "rectangle", "circle", "arrow", "line", "textbox", "entity"]);
 const defaultEntityWidth = 520;
 const defaultEntityFill = "#ffffff";
 const defaultEntityStroke = "#42526b";
@@ -151,12 +152,14 @@ export async function openImageAnnotationDialog(options) {
     applyLabel: options?.applyLabel,
     applyingMessage: options?.applyingMessage,
     initialSelection: options?.initialSelection,
+    defaultTool: options?.defaultTool,
     askForColor: options?.askForColor,
     askForText: options?.askForText,
     confirm: options?.confirm,
     notify: options?.notify,
     uploadEmbeddedImage: options?.uploadEmbeddedImage,
     persistCroppedOriginal: options?.persistCroppedOriginal,
+    portableImageSources: options?.portableImageSources === true,
     loadDefaultTemplateLibrary: options?.loadDefaultTemplateLibrary,
     saveTemplateLibrary: options?.saveTemplateLibrary,
     generatePmtDatabaseSchema: options?.generatePmtDatabaseSchema,
@@ -176,6 +179,10 @@ export async function openImageAnnotationDialog(options) {
 export function buildAnnotationSvg(inputState, options = {}) {
   const state = normalizeAnnotationState(inputState);
   syncAnnotationEntityAnnotationArrows(state);
+  const metadataState = options?.metadataState
+    ? normalizeAnnotationState(options.metadataState)
+    : state;
+  if (metadataState !== state) syncAnnotationEntityAnnotationArrows(metadataState);
   const visibleObjects = annotationVisibleObjects(state);
   const relationshipRenderModel = state.hideAllEntityRelationships
     ? null
@@ -184,7 +191,7 @@ export function buildAnnotationSvg(inputState, options = {}) {
       });
   const outputBounds = annotationOutputBounds(state, { relationshipRenderModel });
   const relationshipLayers = annotationObjectsAroundRelationshipLayer(visibleObjects);
-  const metadata = escapeXmlText(JSON.stringify(state));
+  const metadata = escapeXmlText(JSON.stringify(metadataState));
   const background = annotationCanvasBackgroundSvg(state, outputBounds);
   const relationships = annotationEntityRelationshipsSvg(visibleObjects, state.relationshipStyle, {
     allowOverlappingLines: state.allowOverlappingEntityLines,
@@ -214,6 +221,23 @@ export function buildAnnotationSvg(inputState, options = {}) {
     aboveRelationships,
     `</svg>`
   ].join("");
+}
+
+export async function buildPortableAnnotationSvg(inputState, options = {}) {
+  const metadataState = normalizeAnnotationState(inputState);
+  const visualState = normalizeAnnotationState(inputState);
+  const images = annotationVisibleObjects(visualState)
+    .filter(object => object.type === "embedded-image" && object.source);
+  const fetchImage = options.fetch || globalThis.fetch;
+
+  await Promise.all(images.map(async object => {
+    object.source = await portableAnnotationImageSource(object.source, object.name, fetchImage);
+  }));
+
+  return buildAnnotationSvg(visualState, {
+    ...options,
+    metadataState
+  });
 }
 
 function annotationObjectsAroundRelationshipLayer(objects) {
@@ -1567,19 +1591,49 @@ function annotationEntityAnnotationConnection(entity, callout) {
   };
 }
 
+function annotationEntityAnnotationCalloutBounds(entity, text, showArrow = true) {
+  const fontSize = defaultEntityFontSize;
+  const width = Math.max(220, positiveNumber(entity?.width, 220));
+  const lines = wrapAnnotationText(text, width, fontSize);
+  const height = Math.max(76, (lines.length * fontSize * 1.2) + 28);
+  if (showArrow === false) {
+    return {
+      x: finiteNumber(entity?.x, 0) + ((positiveNumber(entity?.width, width) - width) / 2),
+      y: finiteNumber(entity?.y, 0),
+      width,
+      height
+    };
+  }
+  return {
+    x: finiteNumber(entity?.x, 0) + ((positiveNumber(entity?.width, width) - width) / 2),
+    y: finiteNumber(entity?.y, 0) - height - 52,
+    width,
+    height
+  };
+}
+
 export function syncAnnotationEntityAnnotationArrows(inputState) {
   const state = inputState && typeof inputState === "object" ? inputState : {};
   const objects = Array.isArray(state.objects) ? state.objects : [];
   objects.filter(object => object?.type === "entity").forEach(entity => {
-    const children = annotationEntityAnnotationChildren(state, entity);
+    let children = annotationEntityAnnotationChildren(state, entity);
+    if (entity.entityAnnotationShowArrow === false) {
+      const arrowIds = new Set(children
+        .filter(object => object.type === "arrow" && object.entityAnnotationRole === "arrow")
+        .map(object => object.id));
+      if (arrowIds.size) {
+        state.objects = objects.filter(object => !arrowIds.has(object.id));
+        children = annotationEntityAnnotationChildren(state, entity);
+      }
+    }
     const callout = children.find(object => object.type === "textbox"
       && object.entityAnnotationRole === "callout");
     const arrow = children.find(object => object.type === "arrow"
       && object.entityAnnotationRole === "arrow");
-    if (!callout || !arrow) return;
+    if (!callout) return;
     const groupId = safeGroupId(entity.entityAnnotationGroupId)
       || safeGroupId(callout.groupId)
-      || safeGroupId(arrow.groupId);
+      || safeGroupId(arrow?.groupId);
     if (groupId) {
       entity.entityAnnotationGroupId = groupId;
       entity.groupId = groupId;
@@ -1589,6 +1643,7 @@ export function syncAnnotationEntityAnnotationArrows(inputState) {
         child.groupHitTransparent = true;
       });
     }
+    if (!arrow || entity.entityAnnotationShowArrow === false) return;
     const connection = annotationEntityAnnotationConnection(entity, callout);
     Object.assign(arrow, fitAnnotationArrowToHead({
       ...arrow,
@@ -1601,7 +1656,7 @@ export function syncAnnotationEntityAnnotationArrows(inputState) {
   return state;
 }
 
-export function setAnnotationEntityAnnotation(inputState, entityOrId, value) {
+export function setAnnotationEntityAnnotation(inputState, entityOrId, value, options = {}) {
   const state = inputState && typeof inputState === "object" ? inputState : {};
   state.objects ||= [];
   const entity = typeof entityOrId === "object"
@@ -1620,16 +1675,22 @@ export function setAnnotationEntityAnnotation(inputState, entityOrId, value) {
     }
     entity.entityAnnotation = "";
     entity.entityAnnotationGroupId = "";
+    entity.entityAnnotationShowArrow = true;
     entity.groupId = "";
     delete entity.groupHitTransparent;
     return { createdCount: 0, removedCount: removedIds.size, removedIds };
   }
 
   const entityLabel = formatAnnotationEntityIdentifier(entity.entitySchema, entity.entityName) || "Entity";
+  const showArrow = Object.hasOwn(options, "showArrow")
+    ? options.showArrow !== false
+    : entity.entityAnnotationShowArrow !== false;
+  const calloutBounds = annotationEntityAnnotationCalloutBounds(entity, text, showArrow);
   const groupId = safeGroupId(entity.entityAnnotationGroupId)
     || safeGroupId(children[0]?.groupId)
     || annotationObjectId("group");
   entity.entityAnnotation = text;
+  entity.entityAnnotationShowArrow = showArrow;
   entity.entityAnnotationGroupId = groupId;
   entity.groupId = groupId;
   entity.groupHitTransparent = true;
@@ -1646,10 +1707,10 @@ export function setAnnotationEntityAnnotation(inputState, entityOrId, value) {
       id: annotationObjectId("textbox"),
       type: "textbox",
       name: `${entityLabel} Annotation`,
-      x: entity.x + entity.width + 96,
-      y: entity.y,
-      width: 360,
-      height: Math.max(110, (text.split(/\r?\n/).length * defaultEntityFontSize * 1.4) + 24),
+      x: calloutBounds.x,
+      y: calloutBounds.y,
+      width: calloutBounds.width,
+      height: calloutBounds.height,
       fill: "#eef4ff",
       stroke: entity.stroke || defaultEntityStroke,
       outlineVisible: true,
@@ -1659,8 +1720,8 @@ export function setAnnotationEntityAnnotation(inputState, entityOrId, value) {
       textColor: entity.textColor || defaultEntityTextColor,
       fontFamily: entity.fontFamily || defaultStyles.fontFamily,
       fontSize: defaultEntityFontSize,
-      textAlign: "left",
-      textVerticalAlign: "top",
+      textAlign: "center",
+      textVerticalAlign: "middle",
       groupId,
       groupHitTransparent: true,
       entityAnnotationOwnerId: entity.id,
@@ -1670,15 +1731,36 @@ export function setAnnotationEntityAnnotation(inputState, entityOrId, value) {
     createdCount += 1;
   } else {
     callout.text = text;
+    callout.x = calloutBounds.x;
+    callout.y = calloutBounds.y;
+    callout.width = calloutBounds.width;
+    callout.height = calloutBounds.height;
+    callout.fill = "#eef4ff";
+    callout.stroke = entity.stroke || defaultEntityStroke;
+    callout.outlineVisible = true;
+    callout.strokeWidth = 2;
+    callout.opacity = 1;
+    callout.textColor = entity.textColor || defaultEntityTextColor;
+    callout.fontFamily = entity.fontFamily || defaultStyles.fontFamily;
+    callout.fontSize = defaultEntityFontSize;
+    callout.textAlign = "center";
+    callout.textVerticalAlign = "middle";
     callout.groupId = groupId;
     callout.groupHitTransparent = true;
     callout.entityAnnotationOwnerId = entity.id;
     callout.entityAnnotationRole = "callout";
   }
 
+  let removedIds = new Set();
   let arrow = children.find(object => object.type === "arrow"
     && object.entityAnnotationRole === "arrow");
-  if (!arrow) {
+  if (!showArrow) {
+    if (arrow) {
+      removedIds = new Set([arrow.id]);
+      state.objects = state.objects.filter(object => object.id !== arrow.id);
+      arrow = null;
+    }
+  } else if (!arrow) {
     const connection = annotationEntityAnnotationConnection(entity, callout);
     arrow = normalizeAnnotationObject({
       id: annotationObjectId("arrow"),
@@ -1688,7 +1770,7 @@ export function setAnnotationEntityAnnotation(inputState, entityOrId, value) {
       y1: connection.start.y,
       x2: connection.end.x,
       y2: connection.end.y,
-      stroke: entity.stroke || defaultEntityStroke,
+      stroke: "#ed7d31",
       strokeWidth: defaultStyles.strokeWidth,
       arrowSize: defaultStyles.arrowSize,
       opacity: 1,
@@ -1700,13 +1782,17 @@ export function setAnnotationEntityAnnotation(inputState, entityOrId, value) {
     state.objects.push(arrow);
     createdCount += 1;
   } else {
+    arrow.stroke = "#ed7d31";
+    arrow.strokeWidth = defaultStyles.strokeWidth;
+    arrow.arrowSize = defaultStyles.arrowSize;
+    arrow.opacity = 1;
     arrow.groupId = groupId;
     arrow.groupHitTransparent = true;
     arrow.entityAnnotationOwnerId = entity.id;
     arrow.entityAnnotationRole = "arrow";
   }
   syncAnnotationEntityAnnotationArrows(state);
-  return { createdCount, removedCount: 0, groupId, callout, arrow };
+  return { createdCount, removedCount: removedIds.size, removedIds, groupId, callout, arrow };
 }
 
 export function annotationEntityRelationshipRoutingObstacles(objectsInput) {
@@ -1719,20 +1805,8 @@ export function annotationEntityRelationshipRoutingObstacles(objectsInput) {
 }
 
 function translateAnnotationObjectsWithEntityCallouts(state, objects, deltaX, deltaY) {
-  const moving = Array.isArray(objects) ? objects : [];
-  const movingIds = new Set(moving.map(object => object.id));
-  const linkedEntityIds = new Set(moving.flatMap(object => {
-    if (object.type === "entity") return [object.id];
-    const ownerId = annotationEntityAnnotationOwnerId(object);
-    return ownerId ? [ownerId] : [];
-  }));
-  const linked = [...linkedEntityIds]
-    .flatMap(entityId => {
-      const entity = state.objects.find(object => object.id === entityId && object.type === "entity");
-      return entity ? [entity, ...annotationEntityAnnotationChildren(state, entity)] : [];
-    })
-    .filter(object => !movingIds.has(object.id));
-  translateAllAnnotationObjects([...moving, ...linked], deltaX, deltaY);
+  const moving = annotationMoveUnitObjects(state, objects);
+  translateAllAnnotationObjects(moving, deltaX, deltaY);
   syncAnnotationEntityAnnotationArrows(state);
 }
 
@@ -2054,6 +2128,19 @@ export function captureAnnotationTemplate(inputState, selectedObjectIds, _unused
   });
 }
 
+export async function portableAnnotationTemplate(templateInput, options = {}) {
+  const template = normalizeAnnotationTemplate(templateInput);
+  if (!template) return null;
+  const portable = deepCopy(template);
+  const fetchImage = options.fetch || globalThis.fetch;
+  await Promise.all(portable.objects
+    .filter(object => object.type === "embedded-image" && object.source)
+    .map(async object => {
+      object.source = await portableAnnotationImageSource(object.source, object.name, fetchImage);
+    }));
+  return normalizeAnnotationTemplate(portable);
+}
+
 export function annotationTemplateDownloadFile(templateInput) {
   const template = normalizeAnnotationTemplate(templateInput);
   if (!template) throw new Error("The annotation template is invalid.");
@@ -2315,22 +2402,14 @@ export function annotationObjectsIntersectingRect(objects, rect, imageFrame = nu
       ? annotationArrowIntersectsRect(object, selectionRect)
       : annotationBoundsIntersect(selectionRect, bounds);
   });
-  const groupIds = new Set(directlyTouched
-    .filter(object => object.groupHitTransparent !== true)
-    .map(object => object.groupId)
-    .filter(Boolean));
-  return source.filter(object => directlyTouched.includes(object) || (object.groupId && groupIds.has(object.groupId)));
+  return directlyTouched;
 }
 
 export function annotationSelectionIdsForObject(objects, object, groupVisibility = null) {
   if (!object?.id) return [];
-  const source = Array.isArray(objects) ? objects : [];
-  const selectable = groupVisibility && typeof groupVisibility === "object"
-    ? source.filter(item => annotationObjectIsVisible(item, groupVisibility))
-    : source;
-  return object.groupId && object.groupHitTransparent !== true
-    ? selectable.filter(item => item.groupId === object.groupId).map(item => item.id)
-    : [object.id];
+  if (groupVisibility && typeof groupVisibility === "object"
+    && !annotationObjectIsVisible(object, groupVisibility)) return [];
+  return [object.id];
 }
 
 export function buildAnnotationObjectTree(inputState) {
@@ -2457,8 +2536,13 @@ export function reorderAnnotationObjectTree(inputState, move = {}) {
   const sourceGroupId = draggedKind === "group" ? draggedId : moving[0].groupId;
   if (draggedKind === "object") {
     moving[0].groupId = destinationGroupId;
+    if (destinationGroupId) moving[0].groupHitTransparent = true;
+    else delete moving[0].groupHitTransparent;
   } else if (destinationGroupId && destinationGroupId !== draggedId) {
-    moving.forEach(object => { object.groupId = destinationGroupId; });
+    moving.forEach(object => {
+      object.groupId = destinationGroupId;
+      object.groupHitTransparent = true;
+    });
     delete state.groupNames[draggedId];
   }
 
@@ -2674,7 +2758,10 @@ function createAnnotationDialog(context) {
     let draggedEntityField = null;
     let objectTreeSearchQuery = "";
     let zoom = 1;
-    let activeTool = "select";
+    const defaultEditorTool = safeAnnotationTool(context.defaultTool);
+    let activeTool = defaultEditorTool;
+    let formatPainterTemplate = null;
+    const templateInsertionCounts = new Map();
     const initialObject = context.initialSelection === "none"
       ? null
       : state.objects.find(object => object.type === "embedded-image" && object.isOriginalImage)
@@ -2688,6 +2775,7 @@ function createAnnotationDialog(context) {
     let history = [annotationSnapshot(state, embeddedSources)];
     let historyIndex = 0;
     let historyTimer = 0;
+    let textPreviewTimer = 0;
     let objectSequence = state.objects.length;
     let groupSequence = 0;
     let cropPreview = null;
@@ -2741,6 +2829,7 @@ function createAnnotationDialog(context) {
     const templateList = dialog.querySelector("[data-annotation-template-list]");
     const templateStatus = dialog.querySelector("[data-annotation-template-status]");
     const templateUploadInput = dialog.querySelector("[data-annotation-template-upload-input]");
+    const formatPainterIndicator = dialog.querySelector("[data-annotation-format-painter-indicator]");
     const objectTree = dialog.querySelector("[data-annotation-object-tree]");
     const objectTreeSearch = dialog.querySelector("[data-annotation-object-tree-search]");
     const entityInspectorTab = dialog.querySelector("[data-annotation-inspector-tab='entity']");
@@ -2753,6 +2842,7 @@ function createAnnotationDialog(context) {
       if (resolved) return;
       resolved = true;
       if (historyTimer) window.clearTimeout(historyTimer);
+      if (textPreviewTimer) window.clearTimeout(textPreviewTimer);
       cancelPendingCanvasZoom();
       disposeCanvasZoom();
       disconnectCanvasResizeObserver();
@@ -2866,6 +2956,59 @@ function createAnnotationDialog(context) {
       });
     };
 
+    const askAnnotationText = ({ title, label, value, includeArrow = false, showArrow = true }) => new Promise(resolve => {
+      const modal = document.createElement("dialog");
+      modal.className = "dialog mini-dialog image-annotation-text-dialog";
+      modal.innerHTML = `
+        <form method="dialog">
+          <div class="dialog-head">
+            <h2>${escapeXmlText(title)}</h2>
+          </div>
+          <div class="dialog-body">
+            <label class="field">
+              <span>${escapeXmlText(label)}</span>
+              <textarea name="annotationText" rows="7" maxlength="10000" spellcheck="true">${escapeXmlText(value)}</textarea>
+            </label>
+            ${includeArrow ? `
+              <label class="inline-check">
+                <input type="checkbox" name="annotationShowArrow" ${showArrow === false ? "" : "checked"}>
+                <span>Show arrow</span>
+              </label>
+            ` : ""}
+          </div>
+          <div class="dialog-actions">
+            <button type="button" class="secondary text-icon-button" data-result="cancel">&#10005; Cancel</button>
+            <button type="submit" class="primary text-icon-button">&#10003; Apply</button>
+          </div>
+        </form>
+      `;
+      document.body.appendChild(modal);
+
+      const finish = result => {
+        modal.close();
+        modal.remove();
+        resolve(result);
+      };
+      modal.querySelector("[data-result='cancel']")?.addEventListener("click", () => finish(null));
+      modal.querySelector("form")?.addEventListener("submit", event => {
+        event.preventDefault();
+        finish({
+          text: modal.querySelector("[name='annotationText']")?.value || "",
+          showArrow: modal.querySelector("[name='annotationShowArrow']")?.checked !== false
+        });
+      });
+      modal.addEventListener("cancel", event => {
+        event.preventDefault();
+        finish(null);
+      });
+      modal.showModal();
+      setTimeout(() => {
+        const textarea = modal.querySelector("[name='annotationText']");
+        textarea?.focus({ preventScroll: true });
+        textarea?.select();
+      }, 0);
+    });
+
     const setMaximized = value => {
       maximized = value === true;
       closeAnnotationContextMenu();
@@ -2896,21 +3039,30 @@ function createAnnotationDialog(context) {
     };
 
     const setTool = tool => {
-      activeTool = ["select", "crop", "rectangle", "circle", "arrow", "line", "textbox", "entity"].includes(tool) ? tool : "select";
+      const nextTool = safeAnnotationTool(tool);
+      if (nextTool !== "format-painter") formatPainterTemplate = null;
+      activeTool = nextTool;
       if (activeTool !== "select") marqueePreview = null;
       dialog.querySelectorAll("button[data-annotation-tool]").forEach(button => {
         const pressed = button.dataset.annotationTool === activeTool;
         button.classList.toggle("is-active", pressed);
         button.setAttribute("aria-pressed", String(pressed));
       });
+      const formatPainterActive = activeTool === "format-painter" && Boolean(formatPainterTemplate);
+      dialog.classList.toggle("is-format-painter-active", formatPainterActive);
+      if (formatPainterIndicator) formatPainterIndicator.hidden = !formatPainterActive;
       workspace.dataset.annotationTool = activeTool;
       setStatus(activeTool === "select"
         ? "Select, move, resize, or drag from blank canvas to marquee-select objects."
-        : activeTool === "crop"
-          ? "Drag over the area to keep. Cropping is non-destructive and can be reset."
-          : activeTool === "entity"
-            ? "Draw an Entity."
-            : `Draw a ${activeTool === "textbox" ? "text box" : activeTool}.`);
+        : activeTool === "pan"
+          ? "Drag the canvas to pan. Entity expand, collapse, and data-type buttons still work."
+          : activeTool === "format-painter"
+            ? "Format Painter is active. Click objects to apply formatting, or click blank canvas to stop."
+            : activeTool === "crop"
+              ? "Drag over the area to keep. Cropping is non-destructive and can be reset."
+              : activeTool === "entity"
+                ? "Draw an Entity."
+                : `Draw a ${activeTool === "textbox" ? "text box" : activeTool}.`);
     };
 
     const selectedObjects = () => {
@@ -2924,6 +3076,13 @@ function createAnnotationDialog(context) {
           .filter(relationship => selectedIds.has(relationship.id))
           .map(relationship => annotationEntityRelationshipSelectionObject(relationship, state.relationshipStyle))
       ];
+    };
+    const selectedArrowHeadObjects = () => {
+      const selection = selectedObjects().filter(object => !isAnnotationEntityRelationshipSelectionType(object.type));
+      const groupIds = new Set(selection.map(object => object.groupId).filter(Boolean));
+      const directIds = new Set(selection.map(object => object.id));
+      return state.objects.filter(object => object.type === "arrow"
+        && (directIds.has(object.id) || (object.groupId && groupIds.has(object.groupId))));
     };
     const editableSelection = () => selectedObjects()
       .filter(object => !object.locked && !isAnnotationEntityRelationshipSelectionType(object.type));
@@ -2974,7 +3133,10 @@ function createAnnotationDialog(context) {
       });
       const fillColorField = dialog.querySelector("[data-annotation-color-picker='fill']")
         ?.closest(".image-annotation-color-field");
-      if (fillColorField) fillColorField.hidden = hasRelationshipSelection;
+      const hasFillTarget = !hasRelationshipSelection
+        && selection.some(object => !object.locked
+          && ["rectangle", "circle", "textbox", "entity"].includes(object.type));
+      if (fillColorField) fillColorField.hidden = !hasFillTarget;
       const strokeColorField = dialog.querySelector("[data-annotation-color-picker='stroke']")
         ?.closest(".image-annotation-color-field");
       const strokeColorLabel = strokeColorField?.querySelector(":scope > span");
@@ -3035,10 +3197,24 @@ function createAnnotationDialog(context) {
       const entityFieldScrollTop = entityFieldList.scrollTop;
       entityFieldList.innerHTML = singleEntity ? annotationEntityFieldListHtml(singleEntity) : "";
       entityFieldList.scrollTop = entityFieldScrollTop;
-      setControlValue(entityAnnotationInput, singleEntity?.entityAnnotation || "");
-      entityAnnotationInput.disabled = !singleEntity || singleEntity.locked;
+      const entityAnnotationSummary = dialog.querySelector("[data-annotation-entity-annotation-summary]");
+      if (entityAnnotationInput) {
+        const hasEntityAnnotation = Boolean(String(singleEntity?.entityAnnotation || "").trim());
+        entityAnnotationInput.textContent = hasEntityAnnotation ? "Edit Entity Annotation" : "Add Entity Annotation";
+        entityAnnotationInput.disabled = !singleEntity || singleEntity.locked;
+      }
+      if (entityAnnotationSummary) {
+        const text = String(singleEntity?.entityAnnotation || "").trim();
+        entityAnnotationSummary.textContent = !singleEntity
+          ? ""
+          : text
+            ? `${text.split(/\r?\n/, 1)[0]} ${singleEntity.entityAnnotationShowArrow === false ? "(no arrow)" : "(with arrow)"}`
+            : "No annotation";
+      }
 
       const firstOpacityObject = selection.find(object => ["rectangle", "circle", "textbox", "arrow", "line", "entity"].includes(object.type));
+      const selectedArrowObjects = selectedArrowHeadObjects();
+      const hasArrowHeadTarget = selectedArrowObjects.length > 0;
       syncStyleControl("fill", first?.fill === "none" ? styles.fill : first?.fill || styles.fill);
       syncStyleControl("stroke", first?.stroke || styles.stroke);
       syncStyleControl("textColor", first?.textColor || styles.textColor);
@@ -3050,7 +3226,7 @@ function createAnnotationDialog(context) {
       syncStyleControl("textVerticalAlign", first?.textVerticalAlign || styles.textVerticalAlign);
       syncStyleControl("opacity", Math.round((firstOpacityObject?.opacity ?? styles.opacity) * 100));
       syncStyleControl("strokeWidth", first?.strokeWidth || styles.strokeWidth);
-      syncStyleControl("arrowSize", first?.arrowSize || styles.arrowSize);
+      syncStyleControl("arrowSize", selectedArrowObjects[0]?.arrowSize || styles.arrowSize);
       const opacityControl = dialog.querySelector("[data-annotation-style='opacity']");
       if (opacityControl) {
         opacityControl.disabled = hasSelection
@@ -3073,6 +3249,11 @@ function createAnnotationDialog(context) {
       transparent.disabled = !selection.some(object => ["rectangle", "circle", "textbox", "entity"].includes(object.type));
       const opacityLabel = opacityControl?.closest("label");
       if (opacityLabel) opacityLabel.hidden = hasRelationshipSelection;
+      const arrowSizeControl = dialog.querySelector("[data-annotation-style='arrowSize']");
+      const arrowSizeLabel = arrowSizeControl?.closest("label");
+      if (arrowSizeLabel) arrowSizeLabel.hidden = !hasArrowHeadTarget;
+      if (arrowSizeControl) arrowSizeControl.disabled = !hasArrowHeadTarget
+        || !selectedArrowObjects.some(object => !object.locked);
 
       dialog.querySelectorAll("[data-annotation-requires-selection]").forEach(button => {
         button.disabled = !hasSelection;
@@ -3530,9 +3711,12 @@ function createAnnotationDialog(context) {
             .find(candidate => candidate.dataset.annotationObjectId === object.id);
           if (element) canvas.appendChild(element);
         });
+      const visibleObjects = annotationVisibleObjects(state);
       const markup = annotationSelectionSvg(
-        annotationVisibleObjects(state).filter(object => selectedIds.has(object.id)),
-        zoom
+        visibleObjects.filter(object => selectedIds.has(object.id)),
+        zoom,
+        null,
+        visibleObjects
       );
       if (markup) canvas.insertAdjacentHTML("beforeend", markup);
       zoomHandles = [...canvas.querySelectorAll(".image-annotation-handle")];
@@ -3755,6 +3939,19 @@ function createAnnotationDialog(context) {
     const scheduleHistory = () => {
       if (historyTimer) window.clearTimeout(historyTimer);
       historyTimer = window.setTimeout(pushHistory, 350);
+    };
+
+    const flushTextPreviewRender = () => {
+      if (textPreviewTimer) {
+        window.clearTimeout(textPreviewTimer);
+        textPreviewTimer = 0;
+      }
+      render();
+    };
+
+    const scheduleTextPreviewRender = () => {
+      if (textPreviewTimer) window.clearTimeout(textPreviewTimer);
+      textPreviewTimer = window.setTimeout(flushTextPreviewRender, 120);
     };
 
     const activateCropTool = async () => {
@@ -4022,10 +4219,20 @@ function createAnnotationDialog(context) {
         activateEntityHeaderAction(entityHeaderAction);
         return;
       }
+      if (activeTool === "pan") return;
       workspace.focus({ preventScroll: true });
       const point = canvasPoint(event);
       const handle = event.target.closest?.("[data-annotation-handle]");
       const objectElement = event.target.closest?.("[data-annotation-object-id]");
+
+      if (activeTool === "format-painter") {
+        const handled = applyFormatPainterTo(objectElement);
+        if (handled) {
+          event.preventDefault();
+          event.stopPropagation();
+        }
+        return;
+      }
 
       if (activeTool === "select"
         && isAnnotationEntityRelationshipSelectionId(objectElement?.dataset.annotationObjectId)) {
@@ -4343,12 +4550,24 @@ function createAnnotationDialog(context) {
         event.preventDefault();
         selectObject(object);
         renderWithWorkspaceExpansion();
-        focusAnnotationTextEditor();
+        const result = await askAnnotationText({
+          title: "Text Box",
+          label: "Text",
+          value: object.text || ""
+        });
+        if (!result) return;
+        object.text = result.text;
+        pushHistory();
+        setStatus("Text box updated.");
+        renderWithWorkspaceExpansion();
       }
     });
 
     workspace.addEventListener("pointerdown", event => {
-      if (event.button !== 1) return;
+      const handPan = activeTool === "pan"
+        && event.button === 0
+        && !event.target.closest?.("[data-annotation-entity-header-action]");
+      if (event.button !== 1 && !handPan) return;
       settleCanvasZoom();
       panGesture = {
         pointerId: event.pointerId,
@@ -4550,6 +4769,17 @@ function createAnnotationDialog(context) {
       return String(value || "").trim().slice(0, 120);
     };
 
+    const makePortableTemplate = async template => {
+      try {
+        return await portableAnnotationTemplate(template);
+      } catch (error) {
+        const message = error?.message || "One of the template images could not be saved.";
+        if (templateStatus) templateStatus.textContent = message;
+        setStatus(message);
+        return null;
+      }
+    };
+
     const saveSelectionAsTemplate = async () => {
       if (!selectedIds.size) return;
       if (templateLibrary.templates.length >= maximumAnnotationTemplates) {
@@ -4565,9 +4795,11 @@ function createAnnotationDialog(context) {
         setStatus("Select one or more canvas objects to create a template.");
         return;
       }
+      const portableTemplate = await makePortableTemplate(template);
+      if (!portableTemplate) return;
       await persistTemplateLibrary({
         ...templateLibrary,
-        templates: [...templateLibrary.templates, template]
+        templates: [...templateLibrary.templates, portableTemplate]
       }, `Template “${name}” saved for your PMT account.`);
     };
 
@@ -4623,9 +4855,11 @@ function createAnnotationDialog(context) {
       replacement.id = existing.id;
       replacement.createdAt = existing.createdAt;
       replacement.updatedAt = new Date().toISOString();
+      const portableReplacement = await makePortableTemplate(replacement);
+      if (!portableReplacement) return;
       await persistTemplateLibrary({
         ...templateLibrary,
-        templates: templateLibrary.templates.map(template => template.id === templateId ? replacement : template)
+        templates: templateLibrary.templates.map(template => template.id === templateId ? portableReplacement : template)
       }, `Template “${existing.name}” updated from the current selection.`);
     };
 
@@ -4682,11 +4916,27 @@ function createAnnotationDialog(context) {
     };
 
     const templateInsertionCenter = () => {
-      const rect = workspace.getBoundingClientRect();
-      return canvasPoint({
-        clientX: rect.left + (workspace.clientWidth / 2),
-        clientY: rect.top + (workspace.clientHeight / 2)
-      });
+      settleCanvasZoomAtCurrentDisplay();
+      const offset = measureCanvasWorkspaceOffset();
+      return snappedPoint({
+        x: workspaceBounds.x + ((workspace.scrollLeft + (workspace.clientWidth / 2) - offset.x) / Math.max(minimumZoom, zoom)),
+        y: workspaceBounds.y + ((workspace.scrollTop + (workspace.clientHeight / 2) - offset.y) / Math.max(minimumZoom, zoom))
+      }, state);
+    };
+
+    const nextTemplateInsertionCenter = template => {
+      const normalizedTemplate = normalizeAnnotationTemplate(template);
+      const key = normalizedTemplate?.id || normalizedTemplate?.name || "template";
+      const count = templateInsertionCounts.get(key) || 0;
+      templateInsertionCounts.set(key, count + 1);
+      const step = Math.max(24, Math.min(80, positiveNumber(state.gridSize, defaultGridSize) * 2));
+      const column = count % 8;
+      const row = Math.floor(count / 8);
+      const center = templateInsertionCenter();
+      return snappedPoint({
+        x: center.x + (column * step),
+        y: center.y + ((column + row) * step)
+      }, state);
     };
 
     const insertToolbarObject = async type => {
@@ -4848,67 +5098,94 @@ function createAnnotationDialog(context) {
     };
 
     const useTemplate = async template => {
-      const selection = selectedObjects();
-      if (!selection.length) {
-        const objects = insertTemplate(template);
-        if (objects.length) setStatus(objects.length === 1 && objects[0].type === entityRelationshipsObjectType
-          ? `Template "${template.name}" applied to all Entity relationship lines and arrows.`
-          : `Template "${template.name}" added to the canvas.`);
-        return objects.length > 0;
+      const objects = insertTemplate(template, nextTemplateInsertionCenter(template));
+      const message = objects.length === 1 && objects[0].type === entityRelationshipsObjectType
+        ? `Template "${template.name}" applied to all Entity relationship lines and arrows.`
+        : objects.length
+          ? `Template "${template.name}" added to the canvas.`
+          : `Template "${template.name}" could not be added to the canvas.`;
+      if (templateStatus) templateStatus.textContent = message;
+      setStatus(message);
+      return objects.length > 0;
+    };
+
+    const stopFormatPainter = (message = "Format Painter is off.") => {
+      formatPainterTemplate = null;
+      setTool(defaultEditorTool);
+      setStatus(message);
+    };
+
+    const startFormatPainter = () => {
+      if (activeTool === "format-painter") {
+        stopFormatPainter();
+        return;
       }
 
-      const plan = annotationTemplateFormattingPlan(template, selection);
-      if (plan.matches.length && !plan.editableMatchCount) {
-        const message = "Unlock the selected objects before applying template formatting.";
-        if (templateStatus) templateStatus.textContent = message;
-        setStatus(message);
-        return false;
+      if (!selectedIds.size) {
+        setStatus("Select an object first, then click Format Painter.");
+        return;
       }
-      if (!plan.structureMatches) {
-        const message = `The selected objects do not have the same structure as the "${template.name}" template. Applying it may not produce the same result. PMT will match objects by type and apply the formatting it can without changing text or geometry.`;
-        const confirmed = typeof context.confirm === "function"
-          ? await context.confirm(message, "Apply Template Formatting", "Apply Formatting")
-          : window.confirm(message);
-        if (!confirmed) {
-          const canceledMessage = "Template formatting was not applied.";
-          if (templateStatus) templateStatus.textContent = canceledMessage;
-          setStatus(canceledMessage);
-          return false;
-        }
+
+      formatPainterTemplate = captureAnnotationTemplate(state, selectedIds, "", "Format Painter");
+      if (!formatPainterTemplate) {
+        setStatus("The selected object does not have formatting that Format Painter can copy.");
+        formatPainterTemplate = null;
+        return;
+      }
+
+      setTool("format-painter");
+    };
+
+    const formatPainterDestination = objectId => {
+      if (objectId === entityRelationshipsSelectionId) return state.relationshipStyle;
+      if (isAnnotationEntityRelationshipSelectionId(objectId)) {
+        const relationship = resolveAnnotationEntityRelationships(annotationVisibleObjects(state))
+          .find(item => item.id === objectId);
+        return relationship
+          ? annotationEntityRelationshipSelectionObject(relationship, state.relationshipStyle)
+          : null;
+      }
+      return state.objects.find(item => item.id === objectId) || null;
+    };
+
+    const applyFormatPainterTo = objectElement => {
+      if (!formatPainterTemplate) {
+        stopFormatPainter();
+        return true;
+      }
+
+      if (!objectElement) {
+        stopFormatPainter();
+        return true;
+      }
+
+      const destination = formatPainterDestination(objectElement.dataset.annotationObjectId || "");
+      if (!destination) return false;
+      const plan = annotationTemplateFormattingPlan(formatPainterTemplate, [destination]);
+      if (!plan.matches.length) {
+        setStatus("The copied formatting does not apply to that object type.");
+        return true;
+      }
+      if (!plan.editableMatchCount) {
+        setStatus("Unlock that object before applying formatting.");
+        return true;
       }
 
       pushHistory();
-      const result = applyAnnotationTemplateFormatting(template, selection);
-      if (selection.some(object => object.type === entityRelationshipsObjectType)
-        && template.relationshipStyle) {
-        applyAnnotationEntityRelationshipGroupStyle(state, template.relationshipStyle);
-      }
-      if (!result.appliedCount) {
-        const message = `Template "${template.name}" has no formatting compatible with the selected objects.`;
-        if (templateStatus) templateStatus.textContent = message;
-        setStatus(message);
-        return false;
-      }
-
-      if (result.changedCount) {
-        setTool("select");
-        pushHistory();
-        renderWithWorkspaceExpansion();
-        window.setTimeout(focusLastSelectedObject, 0);
-      }
+      const result = applyAnnotationTemplateFormatting(formatPainterTemplate, [destination]);
+      selectedIds = new Set([destination.id]);
+      lastSelectedObjectId = destination.id;
+      if (result.changedCount) pushHistory();
+      renderWithWorkspaceExpansion();
       const changedMessage = result.changedCount
-        ? `Template "${template.name}" formatting applied to ${result.appliedCount} selected object${result.appliedCount === 1 ? "" : "s"}.`
-        : `The selected objects already use the formatting from template "${template.name}".`;
-      const lockedMessage = result.lockedCount
-        ? ` ${result.lockedCount} locked object${result.lockedCount === 1 ? " was" : "s were"} left unchanged.`
-        : "";
+        ? "Format Painter applied."
+        : "That object already uses the copied formatting.";
       const constrainedMessage = result.geometryConstrainedCount
         ? " Some arrow formatting was limited to preserve the destination geometry."
         : "";
-      const message = `${changedMessage}${lockedMessage}${constrainedMessage}`;
-      if (templateStatus) templateStatus.textContent = message;
-      setStatus(message);
-      return result.changedCount > 0;
+      setStatus(`${changedMessage}${constrainedMessage}`);
+      window.setTimeout(focusLastSelectedObject, 0);
+      return true;
     };
 
     const copyNativeSelection = () => {
@@ -5599,6 +5876,8 @@ function createAnnotationDialog(context) {
         const toolName = tool.dataset.annotationTool;
         if (["rectangle", "circle", "arrow", "line", "textbox", "entity"].includes(toolName)) {
           await insertToolbarObject(toolName);
+        } else if (toolName === "format-painter") {
+          startFormatPainter();
         } else if (toolName === "crop") {
           await activateCropTool();
         } else {
@@ -5822,20 +6101,29 @@ function createAnnotationDialog(context) {
         : "All Entity relationship lines are visible.");
       renderWithWorkspaceExpansion();
     });
-    entityAnnotationInput.addEventListener("input", event => {
+    entityAnnotationInput.addEventListener("click", async () => {
       const entity = selectedObjects().length === 1 && selectedObjects()[0]?.type === "entity"
         ? selectedObjects()[0]
         : null;
       if (!entity || entity.locked) return;
-      const result = setAnnotationEntityAnnotation(state, entity, event.target.value);
+      const input = await askAnnotationText({
+        title: "Entity Annotation",
+        label: "Annotation text",
+        value: entity.entityAnnotation || "",
+        includeArrow: true,
+        showArrow: entity.entityAnnotationShowArrow !== false
+      });
+      if (!input) return;
+      const result = setAnnotationEntityAnnotation(state, entity, input.text, {
+        showArrow: input.showArrow
+      });
       result.removedIds?.forEach(id => selectedIds.delete(id));
-      scheduleHistory();
-      setStatus(event.target.value.trim()
+      pushHistory();
+      setStatus(input.text.trim()
         ? `${annotationObjectLabel(entity)} annotation updated.`
         : `${annotationObjectLabel(entity)} annotation removed.`);
       renderWithWorkspaceExpansion();
     });
-    entityAnnotationInput.addEventListener("change", pushHistory);
     dialog.querySelector("[data-annotation-entity-anchor-table]").addEventListener("change", event => {
       const entity = selectedObjects().length === 1 && selectedObjects()[0]?.type === "entity"
         ? selectedObjects()[0]
@@ -5942,7 +6230,11 @@ function createAnnotationDialog(context) {
     });
     dialog.querySelectorAll("[data-annotation-style]").forEach(control => {
       control.addEventListener("input", () => {
-        applyAnnotationStyle(control.dataset.annotationStyle, control.value, selectedObjects(), styles, state);
+        const styleName = control.dataset.annotationStyle;
+        const styleSelection = styleName === "arrowSize"
+          ? selectedArrowHeadObjects()
+          : selectedObjects();
+        applyAnnotationStyle(styleName, control.value, styleSelection, styles, state);
         scheduleHistory();
         renderWithWorkspaceExpansion();
       });
@@ -5954,6 +6246,9 @@ function createAnnotationDialog(context) {
         pushHistory();
         renderWithWorkspaceExpansion();
       },
+      preview(name, color) {
+        return previewAnnotationColor(name, color, selectedObjects(), styles, state, render);
+      },
       askForColor: context.askForColor,
       setStatus
     });
@@ -5962,10 +6257,13 @@ function createAnnotationDialog(context) {
       if (selectedIds.size === 1 && object?.type === "textbox" && !object.locked) {
         object.text = textInput.value;
         scheduleHistory();
-        render();
+        scheduleTextPreviewRender();
       }
     });
-    textInput.addEventListener("change", pushHistory);
+    textInput.addEventListener("change", () => {
+      flushTextPreviewRender();
+      pushHistory();
+    });
 
     const cancelButtons = [...dialog.querySelectorAll("[data-annotation-cancel]")];
     cancelButtons.forEach(button => {
@@ -6019,9 +6317,12 @@ function createAnnotationDialog(context) {
           height: state.height,
           originalReference
         });
+        const svg = context.portableImageSources
+          ? await buildPortableAnnotationSvg(finalState)
+          : buildAnnotationSvg(finalState);
         const result = {
           state: finalState,
-          svg: buildAnnotationSvg(finalState),
+          svg,
           originalReference,
           fileName: annotationFileName(context.originalFileName)
         };
@@ -6237,7 +6538,7 @@ function createAnnotationDialog(context) {
     if (context.initiallyMaximized === true) setMaximized(true);
     workspaceBounds = annotationWorkspaceBounds(state, workspace.clientWidth, workspace.clientHeight);
     setInspectorWidth(inspectorWidth);
-    setTool("select");
+    setTool(activeTool);
     setInspectorTab("format");
     renderTemplateList();
     if (templateStatus && context.templateLibraryError) templateStatus.textContent = context.templateLibraryError;
@@ -6257,6 +6558,7 @@ function annotationDialogHtml(context = {}) {
   const title = escapeXmlText(context.title || "Image Annotation");
   const subtitle = escapeXmlText(context.subtitle || "Original image plus editable vector annotations");
   const applyLabel = escapeXmlText(context.applyLabel || "Apply to RTE");
+  const defaultTool = safeAnnotationTool(context.defaultTool);
   return `
     <div class="image-annotation-window">
       <div class="dialog-head image-annotation-head" data-dialog-drag-ignore>
@@ -6271,7 +6573,9 @@ function annotationDialogHtml(context = {}) {
       </div>
       <div class="image-annotation-toolbar" role="toolbar" aria-label="Image annotation tools">
         <div class="image-annotation-tool-group" aria-label="Drawing tools">
-          ${annotationToolButton("select", "Select (V)", true)}
+          ${annotationToolButton("select", "Select (V)", defaultTool === "select")}
+          ${annotationToolButton("pan", "Pan (H)", defaultTool === "pan")}
+          ${annotationToolButton("format-painter", "Format Painter")}
           ${annotationToolButton("crop", "Crop (C)")}
           ${annotationToolButton("rectangle", "Rectangle (R)")}
           ${annotationToolButton("circle", "Circle (O)")}
@@ -6296,6 +6600,7 @@ function annotationDialogHtml(context = {}) {
           <button type="button" data-annotation-zoom="fit">Fit</button>
           <button type="button" data-annotation-toggle-inspector aria-controls="imageAnnotationInspector" aria-expanded="true" title="Hide Right Pane" aria-label="Hide Right Pane">Hide Right Pane</button>
         </div>
+        <span class="image-annotation-mode-indicator" data-annotation-format-painter-indicator hidden>Format Painter active — click objects to apply, click blank canvas to stop.</span>
         <div class="image-annotation-tool-group image-annotation-maximized-actions" data-annotation-maximized-actions hidden aria-label="Dialog actions">
           <span class="image-annotation-maximized-status" data-annotation-maximized-status role="status" aria-live="polite"></span>
           <button type="button" class="secondary text-icon-button" data-annotation-cancel><span class="button-icon" aria-hidden="true">&#10005;</span><span>Cancel</span></button>
@@ -6363,7 +6668,11 @@ function annotationDialogHtml(context = {}) {
           <div id="imageAnnotationEntityPanel" role="tabpanel" aria-labelledby="imageAnnotationEntityTab" data-annotation-inspector-panel="entity" hidden>
             <section class="image-annotation-format-section image-annotation-entity-format" aria-labelledby="imageAnnotationEntityFormat" data-annotation-entity-format>
               <h4 id="imageAnnotationEntityFormat">Entity</h4>
-              <label class="field image-annotation-entity-annotation-field"><span>Entity Annotation</span><textarea rows="5" maxlength="10000" spellcheck="true" data-annotation-entity-annotation></textarea></label>
+              <div class="field image-annotation-entity-annotation-field">
+                <span>Entity Annotation</span>
+                <button type="button" data-annotation-entity-annotation>Add Entity Annotation</button>
+                <small data-annotation-entity-annotation-summary>No annotation</small>
+              </div>
               <div class="image-annotation-inspector-grid">
                 ${annotationColorFieldHtml("entityNameTextColor", "Entity name text color", "Entity Name Text Color", defaultEntityTextColor, "font")}
                 ${annotationColorFieldHtml("entityHeaderFill", "Header background color", "Entity Header Background Color", defaultEntityFill, "background")}
@@ -6390,7 +6699,7 @@ function annotationDialogHtml(context = {}) {
           </div>
           <div id="imageAnnotationTemplatePanel" role="tabpanel" aria-labelledby="imageAnnotationTemplateTab" data-annotation-inspector-panel="template" hidden>
             <div class="image-annotation-template-actions">
-              <p>With no selection, a template adds new objects. With a selection, it applies formatting only. You can also save personal templates or restore missing shared defaults.</p>
+              <p>Clicking a template always adds a new object instance on the canvas. Use Format Painter on the toolbar when you want to copy formatting between objects. You can also save personal templates or restore missing shared defaults.</p>
               <button type="button" class="primary" data-annotation-template-save>Save Selection as Template</button>
               <button type="button" data-annotation-template-upload>Upload Template</button>
               <input type="file" accept=".json,.pmt-template.json,application/json" data-annotation-template-upload-input hidden>
@@ -6437,6 +6746,11 @@ function annotationDialogHtml(context = {}) {
 
 function annotationToolButton(tool, label, pressed = false) {
   return `<button type="button" data-annotation-tool="${tool}" title="${label}" aria-label="${label}" aria-pressed="${pressed}" class="${pressed ? "is-active" : ""}"><span class="button-icon" aria-hidden="true">${annotationToolIconSvg(tool)}</span></button>`;
+}
+
+function safeAnnotationTool(tool) {
+  const normalized = String(tool || "").trim().toLowerCase();
+  return annotationToolNames.has(normalized) ? normalized : "select";
 }
 
 function annotationColorFieldHtml(name, label, title, selectedColor, icon) {
@@ -6552,6 +6866,8 @@ function annotationActionButton(action, label, title, requiresSelection = false)
 function annotationToolIconSvg(tool) {
   const paths = {
     select: `<path d="M5 3l13 8-6 2-3 6z" fill="currentColor" stroke="currentColor" stroke-linejoin="round"></path>`,
+    pan: `<path d="M8 12V7.5a1.5 1.5 0 0 1 3 0V12M11 11V6.5a1.5 1.5 0 0 1 3 0V12M14 11V8a1.5 1.5 0 0 1 3 0v5M17 12.5V10a1.5 1.5 0 0 1 3 0v3.5c0 4-2.5 6.5-6.5 6.5H11a5 5 0 0 1-4.1-2.2L4 13.5a1.7 1.7 0 0 1 2.8-1.9L8 13"></path>`,
+    "format-painter": `<path d="M4 20c2.9 0 5-1.3 5-4.1 0-1.1-.8-1.9-1.9-1.9C4.6 14 4 16.4 4 20z" fill="currentColor" stroke="currentColor"></path><path d="M8.3 14.7 18.4 4.6a2.1 2.1 0 0 1 3 3L11.3 17.7"></path><path d="M15.6 7.4l3 3"></path>`,
     crop: `<path d="M6 3v13a2 2 0 0 0 2 2h13M3 6h13a2 2 0 0 1 2 2v13"></path>`,
     rectangle: `<rect x="4" y="5" width="16" height="14"></rect>`,
     circle: `<circle cx="12" cy="12" r="8"></circle>`,
@@ -6575,7 +6891,7 @@ function annotationContextMenuHtml() {
       ${annotationContextMenuItemHtml("group", "Group", "&#9719;")}
       ${annotationContextMenuItemHtml("ungroup", "Ungroup", "&#9711;")}
       ${annotationContextMenuItemHtml("reset-crop", "Reset Crop", "&#8634;")}
-      ${annotationContextMenuItemHtml("lock", "Lock", "&#9744;")}
+      ${annotationContextMenuItemHtml("lock", "Lock", annotationObjectTreeLockIconHtml())}
       <div class="rich-image-menu-separator" role="separator"></div>
       ${annotationContextMenuItemHtml("copy-svg", "Copy as SVG", "&#10697;")}
       ${annotationContextMenuItemHtml("copy-image", "Copy as Image", "&#9635;")}
@@ -6771,7 +7087,9 @@ function annotationCanvasSvg(
   const grid = state.gridVisible ? annotationGridSvg(workspaceBounds) : "";
   const selection = annotationSelectionSvg(
     allVisibleObjects.filter(object => selectedIds.has(object.id)),
-    zoom
+    zoom,
+    null,
+    allVisibleObjects
   );
   const crop = cropPreview ? annotationCropPreviewSvg(cropPreview, state) : "";
   const marquee = marqueePreview ? annotationMarqueeSvg(marqueePreview) : "";
@@ -8647,10 +8965,11 @@ function annotationEntityHeaderButtonSvg(object, attributes, options) {
   return `<g class="image-annotation-entity-header-button"${interaction}><title>${escapeXmlText(options.title)}</title><rect x="${formatNumber(options.x)}" y="${formatNumber(options.y)}" width="${formatNumber(options.size)}" height="${formatNumber(options.size)}" fill="${escapeXmlAttr(fill)}" stroke="${escapeXmlAttr(object.stroke)}" stroke-width="1"></rect><text x="${formatNumber(options.x + (options.size / 2))}" y="${formatNumber(options.y + (options.size * 0.7))}" text-anchor="middle" fill="${escapeXmlAttr(textColor)}" font-family="${escapeXmlAttr(object.fontFamily)}" font-size="${formatNumber(options.size * 0.72)}" font-weight="700" pointer-events="none">${options.label}</text></g>`;
 }
 
-function annotationSelectionSvg(objects, zoom, imageFrame = null) {
+function annotationSelectionSvg(objects, zoom, imageFrame = null, allObjects = null) {
   if (!objects.length) return "";
+  const groupGuides = annotationSelectedGroupContainerGuidesSvg(objects, allObjects || objects, imageFrame);
   if (objects.length === 1 && ["arrow", "line"].includes(objects[0].type)) {
-    return annotationArrowSelectionSvg(objects[0], zoom);
+    return annotationArrowSelectionSvg(objects[0], zoom, groupGuides);
   }
   const bounds = annotationSelectionBounds(objects, imageFrame);
   if (!bounds) return "";
@@ -8658,12 +8977,28 @@ function annotationSelectionSvg(objects, zoom, imageFrame = null) {
   const handleRadius = 3.5 / Math.max(minimumZoom, zoom);
   const memberGuides = annotationGroupMemberGuidesSvg(objects, imageFrame);
   const outline = `<rect class="image-annotation-selection${locked ? " is-locked" : ""}" x="${formatNumber(bounds.x)}" y="${formatNumber(bounds.y)}" width="${formatNumber(bounds.width)}" height="${formatNumber(bounds.height)}" fill="none" stroke-width="1" pointer-events="none"></rect>`;
-  if (locked) return `<g class="image-annotation-selection-group">${memberGuides}${outline}</g>`;
+  if (locked) return `<g class="image-annotation-selection-group">${groupGuides}${memberGuides}${outline}</g>`;
 
   const handles = annotationHandlePoints(bounds).map(handle =>
     `<circle class="image-annotation-handle" data-annotation-handle="${handle.direction}" cx="${formatNumber(handle.x)}" cy="${formatNumber(handle.y)}" r="${formatNumber(handleRadius)}" stroke-width="0.75"></circle>`
   ).join("");
-  return `<g class="image-annotation-selection-group">${memberGuides}${outline}${handles}</g>`;
+  return `<g class="image-annotation-selection-group">${groupGuides}${memberGuides}${outline}${handles}</g>`;
+}
+
+function annotationSelectedGroupContainerGuidesSvg(selectedObjects, allObjects, imageFrame) {
+  const selected = Array.isArray(selectedObjects) ? selectedObjects : [];
+  const source = Array.isArray(allObjects) ? allObjects : selected;
+  const selectedIds = new Set(selected.map(object => object.id));
+  const groupIds = [...new Set(selected.map(object => object.groupId).filter(Boolean))];
+  return groupIds.map(groupId => {
+    const members = source.filter(object => object.groupId === groupId);
+    if (members.length < 2) return "";
+    const selectedMemberCount = members.filter(object => selectedIds.has(object.id)).length;
+    if (selected.length === members.length && selectedMemberCount === members.length) return "";
+    const bounds = annotationSelectionBounds(members, imageFrame);
+    if (!bounds) return "";
+    return `<rect class="image-annotation-selection" data-annotation-group-selection-id="${escapeXmlAttr(groupId)}" x="${formatNumber(bounds.x)}" y="${formatNumber(bounds.y)}" width="${formatNumber(bounds.width)}" height="${formatNumber(bounds.height)}" fill="none" stroke-width="1" pointer-events="none"></rect>`;
+  }).join("");
 }
 
 function annotationGroupMemberGuidesSvg(objects, imageFrame) {
@@ -8686,12 +9021,12 @@ function annotationGroupMemberGuidesSvg(objects, imageFrame) {
     .join("");
 }
 
-function annotationArrowSelectionSvg(object, zoom) {
+function annotationArrowSelectionSvg(object, zoom, prefix = "") {
   const handleRadius = 3.5 / Math.max(minimumZoom, zoom);
   const lockedClass = object.locked ? " is-locked" : "";
   const baseHandle = object.locked ? "" : ` data-annotation-handle="arrow-base"`;
   const tipHandle = object.locked ? "" : ` data-annotation-handle="arrow-tip"`;
-  return `<g class="image-annotation-selection-group image-annotation-arrow-selection${lockedClass}"><circle class="image-annotation-handle image-annotation-arrow-handle${lockedClass}"${baseHandle} cx="${formatNumber(object.x1)}" cy="${formatNumber(object.y1)}" r="${formatNumber(handleRadius)}" stroke-width="0.75"></circle><circle class="image-annotation-handle image-annotation-arrow-handle${lockedClass}"${tipHandle} cx="${formatNumber(object.x2)}" cy="${formatNumber(object.y2)}" r="${formatNumber(handleRadius)}" stroke-width="0.75"></circle></g>`;
+  return `<g class="image-annotation-selection-group image-annotation-arrow-selection${lockedClass}">${prefix}<circle class="image-annotation-handle image-annotation-arrow-handle${lockedClass}"${baseHandle} cx="${formatNumber(object.x1)}" cy="${formatNumber(object.y1)}" r="${formatNumber(handleRadius)}" stroke-width="0.75"></circle><circle class="image-annotation-handle image-annotation-arrow-handle${lockedClass}"${tipHandle} cx="${formatNumber(object.x2)}" cy="${formatNumber(object.y2)}" r="${formatNumber(handleRadius)}" stroke-width="0.75"></circle></g>`;
 }
 
 function annotationCropPreviewSvg(rect, state) {
@@ -9384,10 +9719,13 @@ function handleAnnotationAction(action, context) {
   if (action === "group") {
     if (selection.length < 2) return;
     const groupId = context.nextGroupId();
-    selection.forEach(object => { object.groupId = groupId; });
+    selection.forEach(object => {
+      object.groupId = groupId;
+      object.groupHitTransparent = true;
+    });
     compactAnnotationGroupLayers(context.state.objects);
     pruneAnnotationGroupMetadata(context.state);
-    context.setStatus("Selection grouped.");
+    context.setStatus("Selection grouped in an invisible container.");
     context.pushHistory();
     return;
   }
@@ -9395,10 +9733,12 @@ function handleAnnotationAction(action, context) {
     const groupIds = new Set(selection.map(object => object.groupId).filter(Boolean));
     if (!groupIds.size) return;
     context.state.objects.forEach(object => {
-      if (groupIds.has(object.groupId)) object.groupId = "";
+      if (!groupIds.has(object.groupId)) return;
+      object.groupId = "";
+      delete object.groupHitTransparent;
     });
     pruneAnnotationGroupMetadata(context.state);
-    context.setStatus("Selection ungrouped.");
+      context.setStatus("Selection ungrouped.");
     context.pushHistory();
     return;
   }
@@ -9493,14 +9833,19 @@ function handleAnnotationKeyDown(event, context) {
     }
     if (action === "group" && selected.length >= 2) {
       const groupId = `group-${Date.now().toString(36)}`;
-      selected.forEach(object => { object.groupId = groupId; });
+      selected.forEach(object => {
+        object.groupId = groupId;
+        object.groupHitTransparent = true;
+      });
       context.pushHistory();
       context.render();
       context.focusSelection?.();
     } else if (action === "ungroup") {
       const groupIds = new Set(selected.map(object => object.groupId).filter(Boolean));
       context.state.objects.forEach(object => {
-        if (groupIds.has(object.groupId)) object.groupId = "";
+        if (!groupIds.has(object.groupId)) return;
+        object.groupId = "";
+        delete object.groupHitTransparent;
       });
       context.pushHistory();
       context.render();
@@ -9545,7 +9890,7 @@ function handleAnnotationKeyDown(event, context) {
     context.focusSelection?.();
     return;
   }
-  const shortcutTool = { v: "select", c: "crop", r: "rectangle", o: "circle", a: "arrow", l: "line", t: "textbox", e: "entity" }[key];
+  const shortcutTool = { v: "select", h: "pan", c: "crop", r: "rectangle", o: "circle", a: "arrow", l: "line", t: "textbox", e: "entity" }[key];
   if (shortcutTool && !event.ctrlKey && !event.metaKey && !event.altKey) {
     event.preventDefault();
     if (["rectangle", "circle", "arrow", "line", "textbox", "entity"].includes(shortcutTool)) {
@@ -9561,7 +9906,11 @@ function handleAnnotationKeyDown(event, context) {
 function bindAnnotationColorPickers(root, options) {
   const tools = [...root.querySelectorAll("[data-annotation-color-picker]")];
   const closeAll = except => tools.forEach(tool => {
-    if (tool !== except) closeAnnotationColorPicker(tool);
+    if (tool === except) return;
+    if (typeof tool.__annotationClearColorPreview === "function") {
+      tool.__annotationClearColorPreview();
+    }
+    closeAnnotationColorPicker(tool);
   });
   const renderMemory = () => renderAnnotationColorMemory(root);
 
@@ -9573,7 +9922,22 @@ function bindAnnotationColorPickers(root, options) {
     if (!name || !trigger || !palette) return;
     const defaultColor = normalizePickerColor(trigger.dataset.richColorDefault) || "#111827";
     const memoryKey = annotationColorMemoryKey(name);
+    let previewCleanup = null;
+    const clearPreview = () => {
+      if (typeof previewCleanup !== "function") return;
+      previewCleanup();
+      previewCleanup = null;
+    };
+    tool.__annotationClearColorPreview = clearPreview;
+    const preview = color => {
+      if (typeof options.preview !== "function") return;
+      const normalized = normalizePickerColor(color);
+      if (!normalized) return;
+      clearPreview();
+      previewCleanup = options.preview(name, normalized) || null;
+    };
     const apply = color => {
+      clearPreview();
       const normalized = normalizePickerColor(color) || defaultColor;
       tool.style.setProperty("--rich-selected-color", normalized);
       trigger.dataset.richSelectedColor = normalized;
@@ -9597,6 +9961,32 @@ function bindAnnotationColorPickers(root, options) {
       closeAll();
       if (shouldOpen) openAnnotationColorPicker(tool);
     });
+    [palette, recentColors].filter(Boolean).forEach(container => {
+      container.addEventListener("pointerover", event => {
+        const colorButton = event.target.closest("[data-rich-color-value]");
+        if (!colorButton || !container.contains(colorButton)) return;
+        preview(colorButton.dataset.richColorValue || defaultColor);
+      });
+      container.addEventListener("pointerout", event => {
+        const colorButton = event.target.closest("[data-rich-color-value]");
+        if (!colorButton || !container.contains(colorButton)) return;
+        if (colorButton.contains(event.relatedTarget)) return;
+        if (event.relatedTarget?.closest?.("[data-rich-color-value]")
+          && container.contains(event.relatedTarget.closest("[data-rich-color-value]"))) return;
+        clearPreview();
+      });
+      container.addEventListener("focusin", event => {
+        const colorButton = event.target.closest("[data-rich-color-value]");
+        if (!colorButton || !container.contains(colorButton)) return;
+        preview(colorButton.dataset.richColorValue || defaultColor);
+      });
+      container.addEventListener("focusout", event => {
+        const colorButton = event.target.closest("[data-rich-color-value]");
+        if (!colorButton || !container.contains(colorButton)) return;
+        clearPreview();
+      });
+      container.addEventListener("mouseleave", clearPreview);
+    });
     palette.addEventListener("click", async event => {
       const colorButton = event.target.closest("[data-rich-color-value]");
       if (colorButton && palette.contains(colorButton)) {
@@ -9607,6 +9997,7 @@ function bindAnnotationColorPickers(root, options) {
       }
       if (!event.target.closest("[data-rich-color-custom]")) return;
       event.preventDefault();
+      clearPreview();
       closeAnnotationColorPicker(tool);
       const current = trigger.dataset.richSelectedColor || defaultColor;
       const custom = typeof options.askForColor === "function"
@@ -9783,6 +10174,71 @@ function chooseNativeAnnotationColor(current) {
     input.addEventListener("cancel", () => finish(""), { once: true });
     input.click();
   });
+}
+
+function previewAnnotationColor(name, color, selection, styles, state, render) {
+  const colorName = ["fill", "stroke", "textColor", "entityNameTextColor", "entityHeaderFill"]
+    .includes(name)
+    ? name
+    : "";
+  const normalized = normalizePickerColor(color);
+  if (!colorName || !normalized || typeof render !== "function") return null;
+
+  const styleHadValue = Object.hasOwn(styles, colorName);
+  const styleValue = styleHadValue ? styles[colorName] : undefined;
+  const objectFields = ["fill", "stroke", "textColor", "entityNameTextColor", "entityHeaderFill"];
+  const objectSnapshots = (Array.isArray(selection) ? selection : [])
+    .filter(object => object && typeof object === "object" && !isAnnotationEntityRelationshipSelectionType(object.type))
+    .map(object => ({
+      object,
+      values: Object.fromEntries(objectFields.map(field => [
+        field,
+        { hadValue: Object.hasOwn(object, field), value: object[field] }
+      ]))
+    }));
+  const relationshipSnapshot = colorName === "stroke" && state && typeof state === "object"
+    ? {
+        relationshipStyle: state.relationshipStyle
+          ? deepCopy(state.relationshipStyle)
+          : null,
+        foreignKeys: (state.objects || [])
+          .filter(object => object?.type === "entity")
+          .flatMap(entity => (entity.foreignKeys || []).map((foreignKey, index) => ({
+            entity,
+            index,
+            hadStyleOverride: Object.hasOwn(foreignKey, "styleOverride"),
+            styleOverride: foreignKey.styleOverride ? deepCopy(foreignKey.styleOverride) : null
+          })))
+      }
+    : null;
+
+  applyAnnotationStyle(colorName, normalized, selection, styles, state);
+  render();
+  return () => {
+    if (styleHadValue) styles[colorName] = styleValue;
+    else delete styles[colorName];
+    objectSnapshots.forEach(snapshot => {
+      objectFields.forEach(field => {
+        const value = snapshot.values[field];
+        if (value.hadValue) snapshot.object[field] = value.value;
+        else delete snapshot.object[field];
+      });
+    });
+    if (relationshipSnapshot) {
+      if (relationshipSnapshot.relationshipStyle) {
+        state.relationshipStyle ||= {};
+        Object.keys(state.relationshipStyle).forEach(field => { delete state.relationshipStyle[field]; });
+        Object.assign(state.relationshipStyle, deepCopy(relationshipSnapshot.relationshipStyle));
+      }
+      relationshipSnapshot.foreignKeys.forEach(snapshot => {
+        const foreignKey = snapshot.entity.foreignKeys?.[snapshot.index];
+        if (!foreignKey) return;
+        if (snapshot.hadStyleOverride) foreignKey.styleOverride = deepCopy(snapshot.styleOverride);
+        else delete foreignKey.styleOverride;
+      });
+    }
+    render();
+  };
 }
 
 function applyAnnotationStyle(name, rawValue, selection, styles, state = null) {
@@ -10054,26 +10510,37 @@ function annotationGestureObjects(objects) {
   });
 }
 
-function annotationMoveGestureObjects(state, objects) {
+function annotationMoveUnitObjects(state, objects) {
+  const source = Array.isArray(state?.objects) ? state.objects : [];
   const moving = [...(objects || [])];
   const movingIds = new Set(moving.map(object => object.id));
-  moving.filter(object => object.groupId && object.groupHitTransparent === true).forEach(object => {
-    state.objects
-      .filter(member => member.groupId === object.groupId && member.groupHitTransparent === true)
-      .forEach(member => {
-        if (movingIds.has(member.id)) return;
-        movingIds.add(member.id);
-        moving.push(member);
-      });
-  });
-  moving.filter(object => object.type === "entity").forEach(entity => {
-    annotationEntityAnnotationChildren(state, entity).forEach(child => {
-      if (movingIds.has(child.id)) return;
-      movingIds.add(child.id);
-      moving.push(child);
-    });
-  });
-  return annotationGestureObjects(moving);
+  const add = object => {
+    if (!object?.id || movingIds.has(object.id)) return;
+    movingIds.add(object.id);
+    moving.push(object);
+  };
+  for (let index = 0; index < moving.length; index += 1) {
+    const object = moving[index];
+    if (object.groupId) {
+      source.filter(member => member.groupId === object.groupId).forEach(add);
+    }
+    if (object.type === "entity") {
+      annotationEntityAnnotationChildren(state, object).forEach(add);
+    }
+    const ownerId = annotationEntityAnnotationOwnerId(object);
+    if (ownerId) {
+      const owner = source.find(member => member.id === ownerId && member.type === "entity");
+      if (owner) {
+        add(owner);
+        annotationEntityAnnotationChildren(state, owner).forEach(add);
+      }
+    }
+  }
+  return moving;
+}
+
+function annotationMoveGestureObjects(state, objects) {
+  return annotationGestureObjects(annotationMoveUnitObjects(state, objects));
 }
 
 function normalizeAnnotationObject(input) {
@@ -10180,6 +10647,7 @@ function normalizeAnnotationObject(input) {
       normalized.fill === "none" ? defaultEntityFill : normalized.fill
     );
     normalized.entityAnnotation = String(input.entityAnnotation || "").slice(0, 10000);
+    normalized.entityAnnotationShowArrow = input.entityAnnotationShowArrow !== false;
     normalized.entityAnnotationGroupId = safeGroupId(input.entityAnnotationGroupId);
     normalized.fontFamily = safeFont(input.fontFamily);
     normalized.fontSize = clampNumber(positiveNumber(input.fontSize, defaultEntityFontSize), 6, 240);

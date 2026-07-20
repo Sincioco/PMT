@@ -134,6 +134,23 @@
   display: none;
 }
 
+.image-annotation-mode-indicator {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--control-height-sm);
+  padding: 0 var(--space-3);
+  border: var(--border-width) solid var(--color-focus-ring);
+  border-radius: var(--radius-pill);
+  background: var(--color-control-selected);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+}
+
+.image-annotation-mode-indicator[hidden] {
+  display: none;
+}
+
 .image-annotation-maximized-status {
   max-width: min(280px, 24vw);
   color: var(--color-text-secondary);
@@ -204,6 +221,14 @@
   cursor: default;
 }
 
+.image-annotation-workspace[data-annotation-tool="pan"] {
+  cursor: grab;
+}
+
+.image-annotation-workspace[data-annotation-tool="format-painter"] {
+  cursor: copy;
+}
+
 .image-annotation-workspace[data-annotation-tool="crop"] {
   cursor: crosshair;
 }
@@ -213,7 +238,9 @@
 }
 
 .image-annotation-workspace[data-annotation-tool="rectangle"],
+.image-annotation-workspace[data-annotation-tool="circle"],
 .image-annotation-workspace[data-annotation-tool="arrow"],
+.image-annotation-workspace[data-annotation-tool="line"],
 .image-annotation-workspace[data-annotation-tool="textbox"],
 .image-annotation-workspace[data-annotation-tool="entity"] {
   cursor: crosshair;
@@ -828,7 +855,25 @@
 .image-annotation-object-tree-search input {
   width: 100%;
   min-height: var(--control-height-sm);
+  padding: 0 var(--space-3);
+  border: var(--border-width) solid var(--color-border-control);
+  border-radius: var(--radius-md);
+  background: var(--color-control);
+  color: var(--color-text-primary);
   font-size: var(--font-size-sm);
+  outline: 0;
+  box-shadow: var(--shadow-inset-highlight);
+  transition: var(--transition-control);
+}
+
+.image-annotation-object-tree-search input:hover {
+  border-color: var(--color-border-strong);
+  background: var(--color-control-hover);
+}
+
+.image-annotation-object-tree-search input:focus {
+  border-color: var(--color-focus-ring);
+  box-shadow: var(--shadow-focus);
 }
 
 .image-annotation-object-tree-help {

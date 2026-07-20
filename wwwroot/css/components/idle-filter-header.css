@@ -106,7 +106,7 @@
 .idle-filter-header-search-control {
   position: absolute;
   z-index: 2;
-  top: 50%;
+  top: calc(50% + var(--idle-filter-header-context-y, 0px));
   left: 50%;
   display: block;
   width: clamp(182px, 15.4vw, 238px);
@@ -160,6 +160,7 @@
 }
 
 .idle-filter-header-screen .section-head.is-idle-filter-header-compact:not(.has-idle-filter-header-search-text) .idle-filter-header-search-control {
+  top: 50%;
   width: var(--touch-target-min);
   transform: translate(calc(-50% + var(--idle-filter-header-search-compact-x, 0px)), -50%);
 }
@@ -207,42 +208,50 @@
   }
 }
 
-@media (max-width: 1000px) {
+@media (max-width: 1280px) {
   .idle-filter-header-screen .section-head > .toolbar {
     flex-wrap: wrap;
+    align-items: flex-start;
+    justify-content: flex-start;
   }
 
   .idle-filter-header-context {
+    flex: 0 1 auto;
     gap: var(--space-1);
     margin-right: 0;
+    transform: none;
   }
 
   .idle-filter-header-project-slot,
   .idle-filter-header-sprint-slot {
-    width: 132px;
+    flex: 0 1 150px;
+    width: 150px;
   }
 
   .idle-filter-header-search-control {
     position: relative;
     top: auto;
     left: auto;
-    flex: 0 0 154px;
-    width: 154px;
+    flex: 1 1 180px;
+    width: auto;
+    min-width: var(--touch-target-min);
+    max-width: 240px;
     transform: none;
   }
 
   .idle-filter-header-screen .section-head.is-idle-filter-header-compact:not(.has-idle-filter-header-search-text) .idle-filter-header-search-control {
-    width: 154px;
+    width: auto;
     transform: none;
   }
 
   .idle-filter-header-search-input {
-    position: absolute;
-    top: 0;
-    right: 0;
+    position: static;
   }
 
   .idle-filter-header-screen .section-head.is-idle-filter-header-compact:not(.has-idle-filter-header-search-text) .idle-filter-header-search-input {
+    position: absolute;
+    top: 0;
+    right: 0;
     width: var(--touch-target-min);
   }
 
@@ -250,6 +259,19 @@
     right: 13px;
     left: auto;
     transform: translateY(-50%);
+  }
+}
+
+@media (max-width: 1000px) {
+  .idle-filter-header-project-slot,
+  .idle-filter-header-sprint-slot {
+    flex-basis: 132px;
+    width: 132px;
+  }
+
+  .idle-filter-header-search-control {
+    flex-basis: 154px;
+    max-width: 220px;
   }
 }
 

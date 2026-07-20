@@ -2,6 +2,7 @@ import { buttonContent, funnelIconHtml, pageActionsMenuHtml } from "../../compon
 import {
   annotationSvgPlaneMetrics,
   buildAnnotationSvg,
+  buildPortableAnnotationSvg,
   openImageAnnotationDialog,
   parseAnnotationSvg,
   resolveAnnotationEntityOverlaps,
@@ -9,8 +10,12 @@ import {
   setAnnotationEntityCollapsedState,
   setAnnotationEntityDataTypeVisibility,
   zoomAnnotationAtPoint
-} from "../../components/image-annotation.js?v=20260720-shortest-field-route-v38";
-import { filterSelect } from "../../components/filters.js";
+} from "../../components/image-annotation.js?v=20260720-layout-diagram-polish-v1";
+import {
+  checkedFilterValues,
+  filterCheckList,
+  filterSelect
+} from "../../components/filters.js";
 import { field, optionalNumberValue, selectOptionsField, value } from "../../components/forms.js?v=20260719-rte-insert-diagram";
 import { sectionHead } from "../../components/sections.js?v=20260718-diagram-library-v8";
 import { currentUserId } from "../../core/authentication.js?v=20260715-admin-impersonation";
@@ -18,16 +23,18 @@ import { routeForContent, updateBrowserUrl } from "../../core/router.js?v=202607
 import {
   preferenceKeys,
   readBooleanPreference,
+  readJsonPreference,
   readNumberPreference,
   readPreference,
+  writeJsonPreference,
   writePreference
-} from "../../core/preferences.js?v=20260719-diagram-shell-v18";
+} from "../../core/preferences.js?v=20260720-doc-diagram-user-filters-v1";
 import { state } from "../../core/store.js";
 import { formatDate } from "../../shared/dates.js";
 import { appUrl } from "../../shared/app-urls.js";
 import { canAccessResource } from "../../shared/security.js";
 import { escapeAttr, escapeHtml } from "../../shared/text-and-links.js";
-import { buildPmtDatabaseSchemaDiagram } from "./pmt-database-schema.js?v=20260720-shortest-field-route-v30";
+import { buildPmtDatabaseSchemaDiagram } from "./pmt-database-schema.js?v=20260720-layout-diagram-polish-v1";
 
 const diagramViewModes = new Set(["cards", "tree"]);
 const diagramSortModes = new Set(["latest", "oldest", "name", "custom"]);
@@ -57,6 +64,8 @@ let diagramVisibility = diagramVisibilityModes.has(readPreference(preferenceKeys
 let diagramSort = diagramSortModes.has(readPreference(preferenceKeys.diagramSort, "latest"))
   ? readPreference(preferenceKeys.diagramSort, "latest")
   : "latest";
+let diagramCreatorFilters = readJsonPreference(preferenceKeys.diagramCreatorFilters, []);
+let diagramLastEditorFilters = readJsonPreference(preferenceKeys.diagramLastEditorFilters, []);
 let selectedDiagramDocumentId = 0;
 let sharedDiagramDocumentId = 0;
 let previewDiagramDocumentId = 0;
@@ -91,7 +100,9 @@ export function createDiagramFeature({
   let diagramTreeContextMenuController = null;
 
   function renderDiagram() {
+    const wasActive = active;
     active = true;
+    if (!wasActive) previewDiagramDocumentId = 0;
     if (editingDocumentId && app.querySelector("[data-diagram-editor-host]")) return;
     const documents = diagramDocuments();
     const documentIds = new Set(documents.map(document => document.id));
@@ -324,6 +335,7 @@ export function createDiagramFeature({
       <div class="dropdown-menu documentation-tree-context-menu diagram-tree-context-menu" data-diagram-tree-context-menu role="menu" aria-label="Diagram actions" hidden>
         ${diagramTreeContextMenuItemHtml("edit-diagram-info", "Edit Info", "&#9432;", "data-diagram-context-requires-update")}
         ${diagramTreeContextMenuItemHtml("edit-diagram", "Edit Diagram", "&#9998;", "data-diagram-context-requires-update")}
+        ${diagramTreeContextMenuItemHtml("duplicate-diagram", "Duplicate", "&#128203;", "data-diagram-context-requires-create")}
         ${diagramTreeContextMenuItemHtml("download-diagram", "Download", diagramDownloadIconHtml())}
         ${diagramTreeContextMenuItemHtml("delete-diagram", "Delete", "&#128465;", "data-diagram-context-requires-delete", "is-danger")}
       </div>
@@ -347,6 +359,7 @@ export function createDiagramFeature({
       diagramViewMode = diagramViewModes.has(mode) ? mode : "tree";
       if (diagramViewMode === "tree") {
         diagramTreePaneHidden = false;
+        previewDiagramDocumentId = 0;
         writePreference(preferenceKeys.diagramTreePaneHidden, false);
       }
       writePreference(preferenceKeys.diagramViewMode, diagramViewMode);
@@ -379,6 +392,7 @@ export function createDiagramFeature({
     if (action === "toggle-diagram-tree-pane") {
       if (diagramViewMode !== "tree" || creating || editingDocumentId) return true;
       diagramTreePaneHidden = !diagramTreePaneHidden;
+      previewDiagramDocumentId = 0;
       writePreference(preferenceKeys.diagramTreePaneHidden, diagramTreePaneHidden);
       renderDiagram();
       return true;
@@ -400,6 +414,11 @@ export function createDiagramFeature({
     if (action === "download-diagram") {
       const document = diagramDocuments().find(item => item.id === (id || selectedDiagramDocumentId));
       if (document) downloadDiagram(document);
+      return true;
+    }
+    if (action === "duplicate-diagram") {
+      const document = diagramDocuments().find(item => item.id === (id || selectedDiagramDocumentId));
+      if (document) await duplicateDiagram(document);
       return true;
     }
     if (action === "delete-diagram") {
@@ -427,6 +446,40 @@ export function createDiagramFeature({
     link.remove();
   }
 
+  async function duplicateDiagram(document) {
+    if (!canAccessResource("Documentation", "Create")) {
+      notify?.("You do not have permission to create Diagrams.");
+      return;
+    }
+
+    try {
+      const source = diagramImage(document)?.source || "";
+      const svg = decodeDiagramSvgDataUrl(source) || await loadDiagramSvgSource(source);
+      if (!svg) throw new Error("The Diagram SVG could not be copied.");
+      const title = nextAvailableDiagramCopyTitle(document.title, diagramAllDocuments());
+      const state = parseAnnotationSvg(svg);
+      const portableSvg = state ? await buildPortableAnnotationSvg(state) : svg;
+      const result = await createDiagramDocument?.({
+        title,
+        diagram: {
+          svg: portableSvg,
+          state,
+          fileName: `${safeFileName(title)}.svg`
+        },
+        sourceDocument: document
+      });
+      selectedDiagramDocumentId = Number(result?.id || 0);
+      previewDiagramDocumentId = 0;
+      sharedDiagramDocumentId = 0;
+      diagramViewMode = "tree";
+      writePreference(preferenceKeys.diagramViewMode, diagramViewMode);
+      notify?.("Diagram duplicated.");
+      renderDiagram();
+    } catch (error) {
+      notify?.(error?.message || "The Diagram could not be duplicated.");
+    }
+  }
+
   function editDiagramInfo(document) {
     const selectedProjectId = document.projectId || "";
     const selectedSprintId = document.sprintId || "";
@@ -440,6 +493,7 @@ export function createDiagramFeature({
         ${selectOptionsField("Project", "projectId", diagramProjectOptions(), selectedProjectId)}
         ${selectOptionsField("Sprint", "sprintId", diagramSprintOptions(selectedProjectId), selectedSprintId)}
         ${selectOptionsField("Parent", "parentBlogId", diagramParentOptions(document, selectedProjectId, selectedSprintId, document.isPrivate === false), document.parentBlogId || "")}
+        ${diagramInfoMetaHtml(document)}
       </div>
     `, async root => {
       const projectId = optionalNumberValue(root, "projectId");
@@ -451,6 +505,10 @@ export function createDiagramFeature({
         isPrivate: root.querySelector("[name='visibility']")?.value !== "public",
         isPinned: false
       });
+      selectedDiagramDocumentId = document.id;
+      sharedDiagramDocumentId = document.id;
+      previewDiagramDocumentId = 0;
+      updateBrowserUrl(routeForContent("diagram", document.id), { replace: true });
     }, "title", root => bindDiagramInfoRules(root, document));
   }
 
@@ -484,6 +542,24 @@ export function createDiagramFeature({
     sprintSelect.addEventListener("change", syncParentOptions);
     visibilitySelect.addEventListener("change", syncParentOptions);
     syncSprintOptions();
+  }
+
+  function diagramInfoMetaHtml(document) {
+    const history = diagramLatestUpdatedHistory(document);
+    return `
+      <div class="diagram-info-meta">
+        <div>
+          <span>Created by</span>
+          <strong>${escapeHtml(diagramUserName(document.createdByUserId))}</strong>
+          <small>${escapeHtml(diagramDateTime(document.createdAt))}</small>
+        </div>
+        <div>
+          <span>Last modified by</span>
+          <strong>${escapeHtml(diagramUserName(history?.userId || document.updatedByUserId || document.createdByUserId))}</strong>
+          <small>${escapeHtml(diagramDateTime(history?.createdAt || document.updatedAt || document.createdAt))}</small>
+        </div>
+      </div>
+    `;
   }
 
   function openDiagramFiltersDialog() {
@@ -545,6 +621,14 @@ export function createDiagramFeature({
         diagramSort = diagramSortModes.has(event.target.value) ? event.target.value : "latest";
         writePreference(preferenceKeys.diagramSort, diagramSort);
         renderDiagram();
+      } else if (filter === "diagram-creator") {
+        diagramCreatorFilters = checkedFilterValues("diagram-creator");
+        writeJsonPreference(preferenceKeys.diagramCreatorFilters, diagramCreatorFilters);
+        renderDiagram();
+      } else if (filter === "diagram-last-editor") {
+        diagramLastEditorFilters = checkedFilterValues("diagram-last-editor");
+        writeJsonPreference(preferenceKeys.diagramLastEditorFilters, diagramLastEditorFilters);
+        renderDiagram();
       }
     });
     modal.addEventListener("click", event => {
@@ -593,6 +677,10 @@ export function createDiagramFeature({
             </select>
           </label>
         </div>
+        <div class="documentation-filter-user-sections">
+          ${filterCheckList("Filter by Creator", "diagram-creator", diagramUserFilterItems(), diagramCreatorFilters, { className: "documentation-filter-users" })}
+          ${filterCheckList("Filter by Last Edited", "diagram-last-editor", diagramUserFilterItems(), diagramLastEditorFilters, { className: "documentation-filter-users" })}
+        </div>
       </div>
     `;
   }
@@ -604,11 +692,15 @@ export function createDiagramFeature({
     diagramSprintId = "all";
     diagramVisibility = "both";
     diagramSort = "latest";
+    diagramCreatorFilters = [];
+    diagramLastEditorFilters = [];
     writePreference(preferenceKeys.diagramSearch, diagramSearch);
     writePreference(preferenceKeys.diagramProject, diagramProjectId);
     writePreference(preferenceKeys.diagramSprint, diagramSprintId);
     writePreference(preferenceKeys.diagramVisibility, diagramVisibility);
     writePreference(preferenceKeys.diagramSort, diagramSort);
+    writeJsonPreference(preferenceKeys.diagramCreatorFilters, diagramCreatorFilters);
+    writeJsonPreference(preferenceKeys.diagramLastEditorFilters, diagramLastEditorFilters);
   }
 
   async function createNewDiagram() {
@@ -678,6 +770,7 @@ export function createDiagramFeature({
         applyLabel: "Save",
         applyingMessage: "Saving the diagram...",
         initialSelection: "none",
+        defaultTool: "select",
         entityHeaderActionsOnHover: true,
         embedded: !editingFullScreen,
         initiallyMaximized: editingFullScreen,
@@ -818,6 +911,9 @@ export function createDiagramFeature({
       });
       activeMenu.querySelectorAll("[data-diagram-context-requires-update]").forEach(button => {
         button.disabled = !diagramCanEdit(document);
+      });
+      activeMenu.querySelectorAll("[data-diagram-context-requires-create]").forEach(button => {
+        button.disabled = !canAccessResource("Documentation", "Create");
       });
       activeMenu.querySelectorAll("[data-diagram-context-requires-delete]").forEach(button => {
         button.disabled = !diagramCanDelete(document);
@@ -1455,6 +1551,8 @@ function diagramMatchesFilters(document) {
   if (diagramSprintId !== "all" && Number(document.sprintId || 0) !== Number(diagramSprintId || 0)) return false;
   if (diagramVisibility === "private" && document.isPrivate === false) return false;
   if (diagramVisibility === "public" && document.isPrivate !== false) return false;
+  if (diagramCreatorFilters.length && !diagramCreatorFilters.map(String).includes(String(document.createdByUserId || ""))) return false;
+  if (diagramLastEditorFilters.length && !diagramLastEditorFilters.map(String).includes(String(diagramLastEditorUserId(document)))) return false;
   if (!diagramSearch) return true;
 
   const project = state.projects.find(item => item.id === Number(document.projectId || 0));
@@ -1469,6 +1567,51 @@ function diagramMatchesFilters(document) {
     diagramSvgSearchText(document)
   ].filter(Boolean).join(" ").toLowerCase();
   return haystack.includes(diagramSearch.toLowerCase());
+}
+
+function diagramLatestUpdatedHistory(document) {
+  return (document.history || []).find(item => item.action === "Updated") || null;
+}
+
+function diagramLastEditorUserId(document) {
+  return diagramLatestUpdatedHistory(document)?.userId
+    || document.updatedByUserId
+    || document.createdByUserId
+    || 0;
+}
+
+function diagramUserFilterItems() {
+  return state.users.map(user => ({
+    value: user.id,
+    text: diagramUserName(user.id),
+    avatarUrl: user.avatarUrl
+  }));
+}
+
+function diagramUserName(userId) {
+  const user = state.users.find(item => Number(item.id || 0) === Number(userId || 0));
+  if (!user) return "User";
+
+  const fullName = [user.firstName, user.lastName]
+    .map(part => (part || "").trim())
+    .filter(Boolean)
+    .join(" ");
+  const nickname = (user.nickname || "").trim();
+  if (fullName && nickname && fullName.toLowerCase() !== nickname.toLowerCase()) return `${fullName} (${nickname})`;
+
+  return fullName || nickname || "User";
+}
+
+function diagramDateTime(value) {
+  if (!value) return "";
+
+  return new Date(value).toLocaleString(undefined, {
+    month: "numeric",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit"
+  }).replace(",", "").toLowerCase();
 }
 
 function diagramSvgSearchText(document) {

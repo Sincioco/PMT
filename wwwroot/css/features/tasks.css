@@ -115,7 +115,7 @@ html[data-theme="light"] .tasks-screen.work-item-screen .section-head h1 {
 .task-header-search-control {
   position: absolute;
   z-index: 2;
-  top: 50%;
+  top: calc(50% + var(--task-header-context-y, 0px));
   left: 50%;
   display: block;
   width: clamp(182px, 15.4vw, 238px);
@@ -169,6 +169,7 @@ html[data-theme="light"] .tasks-screen.work-item-screen .section-head h1 {
 }
 
 .tasks-screen .section-head.is-task-header-compact:not(.has-task-header-search-text) .task-header-search-control {
+  top: 50%;
   width: var(--touch-target-min);
   transform: translate(calc(-50% + var(--task-header-search-compact-x, 0px)), -50%);
 }
@@ -1497,45 +1498,51 @@ html[data-theme="light"] .tasks-screen.work-item-screen .work-item-table .work-i
   }
 }
 
-@media (max-width: 900px) {
+@media (max-width: 1280px) {
   .tasks-screen .section-head > .toolbar {
     flex-wrap: wrap;
+    align-items: flex-start;
+    justify-content: flex-start;
   }
 
   .task-header-context {
-    flex: 0 0 268px;
+    flex: 0 1 auto;
     gap: var(--space-1);
-    width: 268px;
     min-width: 0;
     margin-right: 0;
+    transform: none;
   }
 
   .task-header-project-slot,
   .task-header-sprint-slot {
-    width: 132px;
+    flex: 0 1 150px;
+    width: 150px;
   }
 
   .task-header-search-control {
     position: relative;
     top: auto;
     left: auto;
-    flex: 0 0 154px;
-    width: 154px;
+    flex: 1 1 180px;
+    width: auto;
+    min-width: var(--touch-target-min);
+    max-width: 240px;
     transform: none;
   }
 
   .tasks-screen .section-head.is-task-header-compact:not(.has-task-header-search-text) .task-header-search-control {
-    width: 154px;
+    width: auto;
     transform: none;
   }
 
   .task-header-search-input {
-    position: absolute;
-    top: 0;
-    right: 0;
+    position: static;
   }
 
   .tasks-screen .section-head.is-task-header-compact:not(.has-task-header-search-text) .task-header-search-input {
+    position: absolute;
+    top: 0;
+    right: 0;
     width: var(--touch-target-min);
   }
 
@@ -1544,7 +1551,9 @@ html[data-theme="light"] .tasks-screen.work-item-screen .work-item-table .work-i
     left: auto;
     transform: translateY(-50%);
   }
+}
 
+@media (max-width: 900px) {
   .tasks-filter-panel .task-filter-row {
     display: grid;
     grid-template-columns: 1fr;

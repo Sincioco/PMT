@@ -35,45 +35,89 @@ Remember this:  The latest version of PMT has been deployed to BDO.  Please take
 
 -----------------
 
+As you finish each task below, please let me know so I can manually test.
+
 Dev Task
 --------
-1.) Bug:  In Dev Task, exporting a single Dev Task did not include the image in the task (it exported a broken image link).  It did not base64 encode the image it was referencing.
+5.) Bug:  In Dev Task, exporting a single Dev Task did not include the image in the task (it exported a broken image link).  It did not base64 encode the image it was referencing.
 
 Diagram
 -------
-2.) Bug:  In Diagrams, if you right click a diagram on the left nav and rename it, the diagram on the right pane disappears and you have to manually click the "Fit" button to manually re-center the diagram.
-3.) Bug:  In Diagrams, if you type an annotation it is super slow, as if it is refreshing the diagram with every keystroke.
-4.) Bug:  In Diagrams, if you create an annotation it is rendering it on the side.
-5.) In Diagram, add a hand tool that serves as the pan tool so the user can move around the canvas.  Still allow them to click the expand/collapse and data type buttons on the tables/entities.  The hand tool should be the default tool when the user is in read mode.  In edit mode, the default tool should be the select tool.
-6.) In Diagrams and in Documentation, in the Filter Dialog Box add 2 sections.  Filter by Creator and Filter by Last Edited.
+6.) Bug:  In Diagrams, if you right click a diagram on the left nav and rename it, the diagram on the right pane disappears and you have to manually click the "Fit" button to manually re-center the diagram.
+7.) Bug:  In Diagrams, if you type an annotation it is super slow, as if it is refreshing the diagram with every keystroke.
+8.) Bug:  In Diagrams, if you create an annotation it is rendering it on the side.
+9.) In Diagram, add a hand tool that serves as the pan tool so the user can move around the canvas.  Still allow them to click the expand/collapse and data type buttons on the tables/entities.  The hand tool should be the default tool when the user is in read mode.  In edit mode, the default tool should be the select tool.
+10.) In Diagrams and in Documentation, in the Filter Dialog Box add 2 sections.  Filter by Creator and Filter by Last Edited.
 
 RTE Code Block
 --------------
-7.) In the Code block section in the RTE, there should be a copy icon so you can copy the content of the code block.
-8.) In the Code block, allow the user to edit it back using a dialog box to change the text or change the language color coding.
-9.) In the Code block, put an icon to delete the code block and then insert a blank line in its place.
+11.) In the Code block section in the RTE, there should be a copy icon so you can copy the content of the code block.
+12.) In the Code block, allow the user to edit it back using a dialog box to change the text or change the language color coding.
+13.) In the Code block, put an icon to delete the code block and then insert a blank line in its place.
 
 Dev Task and Bug Tracking
 -------------------------
-10.) In Dev and Bug Tracking, if the user maximizes the dialog box, make it a truly full-screen experience like what we do in the Diagram screen.
+14.) In Dev and Bug Tracking, if the user maximizes the dialog box, make it a truly full-screen experience like what we do in the Diagram screen.
 
 Documentation and Diagram
 -------------------------
-11.) In the Documentation and Diagram screen, allow the user to change the icon on the Left Nav.  Popup a dialog box with icons filled with emojis (if possible use the same list of emojis that Windows provides) or allow the user to upload their own icon.  If the user uploads a picture larger than what is required, resize it be the correct size for what the left nav needs permanently.  Add the "Change Icon" functionality on the right-click menu of the Left Nav.
+15.) In the Documentation and Diagram screen, allow the user to change the icon on the Left Nav.  Popup a dialog box with icons filled with emojis (if possible use the same list of emojis that Windows provides) or allow the user to upload their own icon.  If the user uploads a picture larger than what is required, resize it be the correct size for what the left nav needs permanently.  Add the "Change Icon" functionality on the right-click menu of the Left Nav.
 
 Release Notes
 -------------
-12.) In the Release Notes, change "Sin's AI Prompts" to "Sin's AI Prompt Engineering".
+16.) In the Release Notes, change "Sin's AI Prompts" to "Sin's AI Prompt Engineering".
 
 
 Diagram
 -------
-Allow the Entity to connect to a database via a connection string.  Show a list of tables so the user can select All, select one, or select many. 
+17.) Leaving the current "Generate PMT Database Schema" button as it is right now in the Entity tab in Diagram, allow the user to connect to a database via a connection string (the user would have to supply the connection string).  Show a list of tables so the user can select All, select one, or select many.  And then allow the user to come back and select more tables in case they need to.  Give the user to save the connection string if they want to and then store and encrypt the connection string when you save it.
 
-New Feature:  Add a @{DevTask/BugReport} and show a small card of the Dev Task/Bug Report showing the Title and Progress report and basic stats.
+Dev Task and Bug Report Mentions using Hash Tags (#)
+--------------------------------------------------
+18.) New Feature:  Add a #/tasks/684 and show a small card of the Dev Task/Bug Report.  You can just re-use the task card in the Kanban Board so it's familiar to the user.
 
-In Diagrams, is it possible to have a Rich Text Editor object?  So, we can have rich text formatting on the diagram.  If so, add a RTE icon on the toolbar and instantiate a Rich Text Editor on the canvas with a transparent background and allow the user to resize it like a rectangle, but don't allow disproportional resizing as text should always be proportional.  So, if the user drags the left or right resize handle just change the width, or if the user drags the top and bottom resize handle, just change the height.  Basically the resizing behaves like a rectangle.
+Diagram
+-------
+19.) In Diagrams, is it possible to have a Rich Text Editor object?  So, we can have rich text formatting on the diagram.  If so, add a RTE icon on the toolbar and instantiate a Rich Text Editor on the canvas with a transparent background and allow the user to resize it like a rectangle, but don't allow disproportional resizing as text should always be proportional.  So, if the user drags the left or right resize handle just change the width, or if the user drags the top and bottom resize handle, just change the height.  Basically the resizing behaves like a rectangle.
 
+
+Feedback
+--------
+20.) For #5, when you export a Dev Task or a Bug Report, can you exclude the PMT Metadata Information?
+21.) In Diagram, let's just make the hand the default in both read and write mode.
+22.) In Diagram, let's change the way the Template objects are used, if they click a template object, just always intantiate it on the canvas.  If they click the same template object over and over, just offset the instances on the canvas.
+23.) In Diagram, add a "Format Painter" tool.  If an object is selected on the canvas, the Format Painter tool can be clicked.  Once clicked, it will remember the formatting of the source object.  The user can then click as many objects on the canvas as they want to to apply the formatting on the destination object.  The user can get out of the Format Painter mode by either clicking on the Format Painter tool again or clicking on the Canvas.  Put some sort of indicator on the screen that the user is in Format Painter mode.
+24.) In Development, when I click on "Clear User Preferences Stored in Local Storage", I expect the user storage of the user to be cleared and for the user to be logged out so they can log back in again on their own.
+25.) Bug:  In Diagram in read mode, clicking on the Treeview toggle causes the diagram on the screen to move and not be center/fit on the screen anymore.
+26.) Bug:  In Code block, after you paste code and select the Code type and it color codes it, if I hover the Content area (of where the code is) it just appears blank, but if I move away, I see the code color coded.  And if I scroll up or down, even though I cannot see the code in the text box, I can see a the bottom of the text box fragments of the color coded code being scrolled.  Do you have 2 versions of the code?  Can you just use a RTE (without the toolbar) and just use that as the code editor?  So it's easier to color code the code and also to remove the color coding?
+27.) Bug:  In the RTE, when I am editing the caption of the code block, sometimes a black outline appears.
+28.) Bug:  In Diagram, in the Object tab, the search text box has no formatting.
+29.) Bug:  In RTE Image Annotation, if I annotate an image with arrows and boxes and "Save to RTE", I don't see the original image.  But if I edit/annotate again, I see the image.
+30.) In Diagram, change the "Format Painter" icon to look more like a color palette or a brush.  Right now, it looks like a pencil.
+31.) In Diagram, when you right click an image, on the menu that drops down, the "Lock" menu item has a square as an icon.  Change you change that to look more like a lock?
+32.) In Diagram, change how grouping behaves.  When objects are group they should be contained in an invisible container.  I should still be able to select individual items in the group, but it's only if I move the items that they move as a unit.  If possible, if I click an item inside a group, keep both the group selection and the item selection.  Just use the same selection style, no needd to create a new one.
+33.) In Diagram, as I attempt to style objects, could you give a live preview of the color I am hovering on the affected objects on the canvas so I can visually see what it would look like if I were to select that color.
+34.) In Diagram, if an arrow is selected, hide or disable the Fill color in the Format tab since it currently does not apply to arrows.
+35.) In Diagram, the Arrow head property in the Format tab should only be visible if the selected object in the canvas is an arrow or a group of arrows.  Or if a group contains arrows of uniformly the same arrow head size, then sure show it.  Actually, if a group or a selection just contains at least one arrow show it.  And if it contains multiple arrows of varying arrow head size, then if the user changes or inputs a new arrow head value, then make all of them have that new value.
+36.) Bug:  I just clicked on the Diagram top nav button and look at how the diagram in the content area rendered.
+37.) In Diagram and Documentation, on the Left Nav, when the user right-clicks a diagram or document, add a "Duplicate" menu item that allows the user to duplicate an existing diagram or document.  The clones should be completely independent of the original.
+38.) As for #7, instead of providing a text box that still has refresh issues, provide a "Entity Annotation" button instead.  Click that popups up a dialog box asking the user for the annotation text.  Once they click ok/save, then set that as the annotation for the entity.
+39.) In Diagram, change it so that double-click a text box will bring up a dialog box asking the user for the new text.
+40.) In Diagram, make the arrow on the annotation optional.  When it is not there, just render the annotation box right on top of the entity/table.
+41.) In a RTE, if I insert a code block, and then use the delete icon on the code block header to delete it, I cannot undo.
+42.) In Documentation on a 720p monitor, the search box is colliding with the other controls on screen and the controls do not seem to be aligned.
+43.) On many of the screens, the Project, Sprint and Search text box do not seem aligned (the top part of the search box do not align with the Project and Sprint controls).
+44.) In Diagram, the top part of its content area is lower compared to the other screen.  Compare it to the Dev Task and Documentation screen to see the difference.
+45.) In Diagram, there is this double border around, as if the diagram is in a frame.  Can we just remove the other border so the diagram has more space?
+46.) In Diagram when in edit mode, can you revert it back so that the selection is the active tool.
+47.) In Diagram in read only mode, remove the pan icon on the page.
+48.) In Diagram the Get Info should also show who created it date/time and who last modified it date/time
+49.) In the Release Notes in Sin's AI Engineering Prompt, could you apply basic formatting?  If you see a Title, apply title-like style.  If you see a section header, apply section header-like styling.  If you see lines with numbers, apply normal HTML style numbers (if you can restart the numbers to the correct numbering sequence between sections, if not use bullet points).  And below the content title, put a muted subtitle that shows basic stats like:  Number of lines in prompt: xxx   Number of words in prompt: xxx
+50.) Re-generate the What's New svg image into something generic regarding Development Teams.
+51.) In addition to #49, it would be nice to keep a running total of the number of lines both per day and total as a whole since the project began....same with the number of words.....both updated for each requirements day.
+
+Don't Implement Yet - Wish List
+-------------------------------
 In Scrum, if an item is pinned and it has a road block, pin just the roadblock text at the top.
 Add a heartbeat to detect new version and lost of network connection.  When saving a document and the network connection has been lost.
 
@@ -89,5 +133,5 @@ Update the migration scripts and test them by dropping and re-creating the datab
 
 Commit and Push
 ---------------
-When all your tests are green, commit and push to the repo.
+When all your tests are green, create a detailed commit message and push to the repo.
 Also commit the file named "2026-07-20 - Requirements - Day 33.txt"

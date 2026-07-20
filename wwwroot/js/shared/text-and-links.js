@@ -6,6 +6,7 @@ import {
 export function normalizeRichHtml(html) {
   const container = document.createElement("div");
   container.innerHTML = html;
+  container.querySelectorAll(".rich-code-actions").forEach(node => node.remove());
   linkifyTextNodes(container);
   normalizeLinksInElement(container, { forStorage: true });
   return container.innerHTML;

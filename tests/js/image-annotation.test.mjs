@@ -3982,7 +3982,7 @@ test("text vertical alignment persists and places text at the top, middle, or bo
   assert.equal(normalizeAnnotationState(base).objects[1].textVerticalAlign, "top");
 });
 
-test("persisted groups resolve from the initially selected image", () => {
+test("persisted group members remain individually selectable", () => {
   const objects = normalizeAnnotationState({
     width: 100,
     height: 50,
@@ -3993,7 +3993,7 @@ test("persisted groups resolve from the initially selected image", () => {
     ]
   }).objects;
 
-  assert.deepEqual(annotationSelectionIdsForObject(objects, objects[0]), ["image", "rectangle"]);
+  assert.deepEqual(annotationSelectionIdsForObject(objects, objects[0]), ["image"]);
   assert.deepEqual(annotationSelectionIdsForObject(objects, objects[2]), ["text"]);
 });
 
@@ -4354,7 +4354,7 @@ test("a cropped embedded image retains vectors beyond its crop", () => {
   assert.deepEqual(annotationOutputBounds(state), { x: 0, y: 0, width: 101, height: 50 });
 });
 
-test("marquee intersection includes edge touches, groups, locked objects, arrows, and the image", () => {
+test("marquee intersection includes edge touches, grouped members, locked objects, arrows, and the image", () => {
   const objects = normalizeAnnotationState({
     width: 100,
     height: 50,
@@ -4370,7 +4370,7 @@ test("marquee intersection includes edge touches, groups, locked objects, arrows
 
   assert.deepEqual(
     annotationObjectsIntersectingRect(objects, { x: 131, y: 15, width: 0, height: 1 }, frame).map(object => object.id),
-    ["group-a", "group-b"]
+    ["group-a"]
   );
   assert.deepEqual(
     annotationObjectsIntersectingRect(objects, { x: 215, y: 15, width: 1, height: 1 }, frame).map(object => object.id),
@@ -4968,6 +4968,33 @@ test("Entity relationship routing treats an Entity Annotation callout box as an 
   });
 });
 
+test("Entity Annotation can render without an arrow directly over the Entity", () => {
+  const definition = parseAnnotationEntityDefinition(workTasksCreateTableSql);
+  const state = normalizeAnnotationState({
+    width: 900,
+    height: 600,
+    objects: [entityObject(definition, "annotated-entity", 100, 160, { height: 360 })]
+  });
+  const entity = state.objects[0];
+  setAnnotationEntityAnnotation(state, entity, "Overlay annotation", { showArrow: false });
+
+  const callout = state.objects.find(object => object.entityAnnotationRole === "callout");
+  assert.ok(callout);
+  assert.equal(state.objects.some(object => object.entityAnnotationRole === "arrow"), false);
+  assert.equal(entity.entityAnnotationShowArrow, false);
+  assert.equal(callout.x, entity.x);
+  assert.equal(callout.y, entity.y);
+  assert.equal(callout.groupId, entity.groupId);
+
+  const restored = parseAnnotationSvg(buildAnnotationSvg(state));
+  assert.equal(restored.objects.find(object => object.type === "entity").entityAnnotationShowArrow, false);
+  assert.equal(restored.objects.some(object => object.entityAnnotationRole === "arrow"), false);
+
+  setAnnotationEntityAnnotation(state, entity, "Overlay annotation with arrow", { showArrow: true });
+  assert.ok(state.objects.find(object => object.entityAnnotationRole === "arrow"));
+  assert.equal(entity.entityAnnotationShowArrow, true);
+});
+
 test("Entity name and header colors render independently, round trip, and apply from templates", () => {
   const definition = parseAnnotationEntityDefinition(workTasksCreateTableSql);
   const source = entityObject(definition, "colored-source", 40, 80, {
@@ -5015,17 +5042,17 @@ test("the global relationship-line switch persists and removes routes, markers, 
   assert.match(componentSource, /Header background color/);
 });
 
-test("textbox double-click opens, scrolls, and focuses its Format text editor", async () => {
+test("textbox double-click opens a text edit dialog instead of live-editing the canvas", async () => {
   const componentSource = await readFile(
     new URL("../../wwwroot/js/components/image-annotation.js", import.meta.url),
     "utf8"
   );
   assert.match(
     componentSource,
-    /const focusAnnotationTextEditor = \(\) => \{[\s\S]*setInspectorVisible\(true\)[\s\S]*setInspectorTab\("format"\)[\s\S]*scrollIntoView\([\s\S]*textInput\.focus\(\{ preventScroll: true \}\)[\s\S]*textInput\.select\(\)/
+    /const askAnnotationText = \(\{ title, label, value,[\s\S]*textarea name="annotationText"/
   );
   assert.match(
     componentSource,
-    /object\?\.type === "textbox"[\s\S]*selectObject\(object\)[\s\S]*renderWithWorkspaceExpansion\(\)[\s\S]*focusAnnotationTextEditor\(\)/
+    /object\?\.type === "textbox"[\s\S]*askAnnotationText\(\{[\s\S]*title: "Text Box"[\s\S]*object\.text = result\.text[\s\S]*pushHistory\(\)[\s\S]*renderWithWorkspaceExpansion\(\)/
   );
 });

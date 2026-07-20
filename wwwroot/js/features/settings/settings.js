@@ -16,13 +16,14 @@ import {
   defaultStatusColor,
   statusColor
 } from "../../components/progress-and-status.js?v=20260714-linked-bug-percent";
-import { sectionHead } from "../../components/sections.js?v=release-notes-2026-07-20-day-33-8cbc41e9965d";
+import { sectionHead } from "../../components/sections.js?v=release-notes-2026-07-20-day-33-f01459e78a5a";
 import { api } from "../../core/api.js";
 import {
   beginImpersonation,
   currentUser,
   currentUserId,
-  isImpersonating
+  isImpersonating,
+  logout
 } from "../../core/authentication.js?v=20260715-admin-impersonation";
 import {
   navigationSettingsItems,
@@ -809,7 +810,7 @@ export function createSettingsFeature({
           <div class="development-action-row">
             <div>
               <strong>Clear User Preferences Stored in Local Storage</strong>
-              <p class="muted">Clears this browser's PMT preferences and reloads the app with first-launch defaults.</p>
+              <p class="muted">Clears this browser's PMT preferences, logs out, and reloads the app so the user can log back in.</p>
             </div>
             <button class="secondary text-icon-button" type="button" data-action="development-clear-local-storage">${buttonContent("&#9003;", "Clear User Preferences Stored in Local Storage")}</button>
           </div>
@@ -2355,12 +2356,18 @@ export function createSettingsFeature({
 
   async function clearLocalStoragePreferences() {
     const confirmed = await askYesNo(
-      "Clear all PMT browser preferences stored in local storage? The app will reload and show first-launch defaults.",
+      "Clear all PMT browser preferences stored in local storage and log out? You will need to log back in.",
       "Development"
     );
     if (!confirmed) return;
 
     clearPmtPreferences();
+    try {
+      await logout();
+    } catch {
+      // Local storage is already cleared; reloading still returns the user to
+      // the server-controlled session state.
+    }
     window.location.reload();
   }
 

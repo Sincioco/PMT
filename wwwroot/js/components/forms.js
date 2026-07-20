@@ -2,7 +2,7 @@ import {
   escapeAttr,
   escapeHtml,
   normalizeRichHtml
-} from "../shared/text-and-links.js?v=20260627-rich-text-toolbar";
+} from "../shared/text-and-links.js?v=20260720-rte-code-block-actions-v1";
 import { roleLabel } from "../shared/selectors.js?v=20260713-managed-roles";
 
 export function field(label, name, currentValue, type, min = "", max = "", maxLength = "", options = {}) {

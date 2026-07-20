@@ -170,7 +170,7 @@ function normalizeLineEndings(value) {
 
 function releaseIllustration(day, title, sections) {
   const searchableText = [title, ...sections.map(section => section.title)].join(" ").toLowerCase();
-  const kind = Number(day) === 32 ? "diagram-screen" : illustrationKind(searchableText);
+  const kind = Number(day) === 33 ? "development-team" : Number(day) === 32 ? "diagram-screen" : illustrationKind(searchableText);
   const palette = illustrationPalettes[Math.abs(Number(day) || 0) % illustrationPalettes.length];
   const offset = 34 + ((Number(day) || 0) * 17) % 44;
   const decoration = kind === "diagram-screen"
@@ -253,6 +253,18 @@ function illustrationIcon(kind, palette) {
     <path d="M310 145c4-32 20-48 50-48s46 16 50 48M252 145c3-28 16-42 38-42 10 0 18 3 25 8M468 145c-3-28-16-42-38-42-10 0-18 3-25 8"/>
     <path d="M343 127h34" stroke="${accent}"/>
   </g>`,
+    "development-team": `<g ${common}>
+    <rect x="230" y="34" width="260" height="96" rx="12" fill="#fff"/>
+    <path d="M230 64h260M314 64v66M406 64v66"/>
+    <rect x="251" y="82" width="42" height="25" rx="5" fill="${accent}" stroke="none" opacity=".8"/>
+    <rect x="333" y="82" width="54" height="25" rx="5" fill="${secondary}" stroke="none" opacity=".75"/>
+    <rect x="425" y="82" width="44" height="25" rx="5" fill="${accent}" stroke="none" opacity=".5"/>
+    <circle cx="300" cy="144" r="14" fill="#fff"/>
+    <circle cx="360" cy="144" r="14" fill="#fff"/>
+    <circle cx="420" cy="144" r="14" fill="#fff"/>
+    <path d="M276 164c5-14 13-20 24-20s19 6 24 20M336 164c5-14 13-20 24-20s19 6 24 20M396 164c5-14 13-20 24-20s19 6 24 20" stroke-width="5"/>
+    <path d="M285 43h26M333 43h54M409 43h26" stroke="${accent}" stroke-width="5"/>
+  </g>`,
     schedule: `<g ${common}>
     <rect x="258" y="39" width="204" height="112" rx="12" fill="#fff"/>
     <path d="M258 73h204M305 28v23M415 28v23"/>
@@ -283,6 +295,7 @@ function illustrationIcon(kind, palette) {
 function illustrationAlt(kind) {
   const descriptions = {
     "diagram-screen": "New Diagram screen illustration.",
+    "development-team": "Development team collaboration illustration.",
     diagram: "Diagram and database connection illustration.",
     image: "Image and annotation illustration.",
     release: "Product update announcement illustration.",

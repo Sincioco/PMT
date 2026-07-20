@@ -27,7 +27,7 @@ import {
   value
 } from "../../components/forms.js?v=20260719-rte-insert-diagram";
 import { progressHtml, statusColor } from "../../components/progress-and-status.js?v=20260714-linked-bug-percent";
-import { sectionHead } from "../../components/sections.js?v=release-notes-2026-07-20-day-33-8cbc41e9965d";
+import { sectionHead } from "../../components/sections.js?v=release-notes-2026-07-20-day-33-f01459e78a5a";
 import {
   attachmentEditorFieldHtml,
   bindAssigneeList,
@@ -38,7 +38,7 @@ import {
   taskPercentField,
   workItemDialogMetaHtml,
   uploadWorkItemAttachments
-} from "../../components/work-items.js?v=20260716-dialog-route-close";
+} from "../../components/work-items.js?v=20260720-work-item-export-images-v4";
 import {
   currentUser
 } from "../../core/authentication.js?v=20260715-admin-impersonation";
@@ -112,7 +112,7 @@ import {
   taskRowsWithSubTasks,
   validateLinkedBugCompletion
 } from "../../shared/work-item-rules.js?v=20260716-developer-board-status";
-import { openWorkItemHtmlImport } from "../../shared/work-item-transfer.js?v=20260716-rca-one-way";
+import { openWorkItemHtmlImport } from "../../shared/work-item-transfer.js?v=20260720-work-item-export-images-v4";
 
 const taskBugFixIconUrl = "/assets/bug.svg?v=20260629-kanban-gantt-bug-icon";
 const taskHeaderIdleMs = 3000;

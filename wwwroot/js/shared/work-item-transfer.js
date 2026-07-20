@@ -25,11 +25,11 @@ const workItemImportMarker = "PMT Import Process Meta Data";
 const workItemExportSchema = "pmt.work-item.export.v1";
 const workItemImportFileExtensions = new Set(["html", "htm", "doc"]);
 
-export function exportWorkItemHtml(task) {
+export async function exportWorkItemHtml(task, options = {}) {
   if (!task) return;
 
-  const metadata = workItemExportMetadata(task);
-  const html = workItemExportHtml(task, metadata);
+  const portableTask = await workItemWithPortableImages(task, options);
+  const html = workItemExportHtml(portableTask);
   downloadBlob(workItemExportFileName(task), new Blob([html], { type: "text/html;charset=utf-8" }));
 }
 
@@ -101,14 +101,15 @@ function parseWorkItemImportFile(htmlText, options) {
   const source = String(htmlText || "");
   const parsedDocument = new DOMParser().parseFromString(source, "text/html");
   const parsedText = parsedDocument.body?.textContent || "";
+  const metadata = parseWorkItemImportMetadata(parsedDocument);
   const hasImportMarker = source.includes(workItemImportMarker)
-    || parsedText.includes(workItemImportMarker);
+    || parsedText.includes(workItemImportMarker)
+    || metadata?.schema === workItemExportSchema;
 
   if (!hasImportMarker) {
     throw new Error("The file cannot be imported because it is not a valid PMT export file.");
   }
 
-  const metadata = parseWorkItemImportMetadata(parsedDocument);
   const rawItems = workItemRawImportItems(metadata, parsedDocument, options);
   return rawItems.map(rawItem => ({
     rawItem,
@@ -661,7 +662,7 @@ function userMetadata(userId) {
   } : null;
 }
 
-function workItemExportHtml(task, metadata) {
+function workItemExportHtml(task) {
   const title = [task.code, task.title].filter(Boolean).join(" - ") || "PMT Work Item";
   const isBug = task.taskType === "Bug";
 
@@ -670,7 +671,6 @@ function workItemExportHtml(task, metadata) {
 <head>
   <meta charset="utf-8">
   <title>${escapeHtml(title)}</title>
-  <script type="application/json" id="pmt-import-metadata">${jsonForScript(metadata)}</script>
   <style>
     body { margin: 0; background: #ffffff; color: #172033; font-family: Arial, Helvetica, sans-serif; line-height: 1.6; }
     .pmt-work-item-export { max-width: 960px; margin: 0 auto; padding: 32px; }
@@ -679,7 +679,6 @@ function workItemExportHtml(task, metadata) {
     .pmt-work-item-meta dd { margin: 0; overflow-wrap: anywhere; }
     .pmt-work-item-body { margin-top: 24px; overflow-wrap: anywhere; }
     .pmt-work-item-body img { max-width: 100%; height: auto; }
-    .pmt-import-metadata { margin-top: 48px; padding-top: 18px; border-top: 1px solid #d8dee8; }
     pre { white-space: pre-wrap; overflow-wrap: anywhere; background: #f8fafc; border: 1px solid #d8dee8; padding: 12px; }
   </style>
 </head>
@@ -703,11 +702,6 @@ function workItemExportHtml(task, metadata) {
     ${isBug ? workItemBodySectionHtml("Actual Result", task.actualResultHtml) : ""}
     ${isBug ? workItemBodySectionHtml("Expected Result", task.expectedResultHtml) : ""}
     ${workItemBodySectionHtml("Root Cause Analysis", task.rootCauseAnalysisHtml)}
-    <section class="pmt-import-metadata">
-      <h2>${workItemImportMarker}</h2>
-      <p>This section is used by PMT to import this work item back into the application.</p>
-      <pre>${escapeHtml(JSON.stringify(metadata, null, 2))}</pre>
-    </section>
   </article>
 </body>
 </html>`;
@@ -725,6 +719,105 @@ function workItemBodySectionHtml(label, html) {
 
 function metaFieldHtml(label, value) {
   return `<div><dt>${escapeHtml(label)}</dt><dd>${escapeHtml(value || "None")}</dd></div>`;
+}
+
+async function workItemWithPortableImages(task, options = {}) {
+  const fetchImage = options.fetch || globalThis.fetch;
+  const portableTask = { ...task };
+  const richHtmlFields = [
+    "descriptionHtml",
+    "stepsToReproduceHtml",
+    "actualResultHtml",
+    "expectedResultHtml",
+    "rootCauseAnalysisHtml"
+  ];
+
+  for (const fieldName of richHtmlFields) {
+    portableTask[fieldName] = await richHtmlWithPortableImages(portableTask[fieldName], fetchImage);
+  }
+
+  return portableTask;
+}
+
+async function richHtmlWithPortableImages(html, fetchImage) {
+  const source = String(html || "");
+  if (!source.trim() || typeof document === "undefined") return source;
+
+  const container = document.createElement("div");
+  container.innerHTML = source;
+  const images = [...container.querySelectorAll("img[src]")];
+  if (!images.length) return source;
+
+  await Promise.all(images.map(async image => {
+    const currentSource = String(image.getAttribute("src") || "").trim();
+    if (!currentSource || /^data:image\//i.test(currentSource)) return;
+
+    const absoluteSource = appAbsoluteUrl(currentSource);
+    try {
+      image.setAttribute("src", await imageSourceDataUrl(currentSource, fetchImage));
+    } catch {
+      if (absoluteSource) image.setAttribute("src", absoluteSource);
+    }
+  }));
+
+  return container.innerHTML;
+}
+
+async function imageSourceDataUrl(source, fetchImage) {
+  const text = String(source || "").trim();
+  if (!text) throw new Error("Image source is empty.");
+  if (/^data:image\//i.test(text)) return text;
+  if (typeof fetchImage !== "function") throw new Error("Image fetch is unavailable.");
+
+  const response = await fetchImage(appAbsoluteUrl(text), { credentials: "same-origin" });
+  if (!response?.ok) throw new Error("Image could not be fetched.");
+
+  const blob = await response.blob();
+  if (!blob || blob.size === 0) throw new Error("Fetched image was empty.");
+
+  // Uploaded screenshots can come back with a blank or generic content type
+  // depending on the server/share. Use the file extension as a simple fallback
+  // so PMT exports still become self-contained HTML files.
+  const contentType = portableImageContentType(blob.type, text);
+  const portableBlob = String(blob.type || "").toLowerCase() === contentType
+    ? blob
+    : new Blob([blob], { type: contentType });
+  return blobToDataUrl(portableBlob);
+}
+
+function portableImageContentType(contentType, source) {
+  const normalizedType = String(contentType || "").toLowerCase();
+  if (normalizedType.startsWith("image/")) return normalizedType;
+
+  const knownTypes = {
+    ".apng": "image/apng",
+    ".bmp": "image/bmp",
+    ".gif": "image/gif",
+    ".ico": "image/x-icon",
+    ".jpeg": "image/jpeg",
+    ".jpg": "image/jpeg",
+    ".png": "image/png",
+    ".svg": "image/svg+xml",
+    ".webp": "image/webp"
+  };
+  return knownTypes[imageExtension(source)] || "image/png";
+}
+
+function imageExtension(source) {
+  try {
+    return new URL(appAbsoluteUrl(source)).pathname.toLowerCase().match(/\.[a-z0-9]+$/)?.[0] || "";
+  } catch {
+    return String(source || "").toLowerCase().split(/[?#]/)[0].match(/\.[a-z0-9]+$/)?.[0] || "";
+  }
+}
+
+function blobToDataUrl(blob) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.addEventListener("load", () => resolve(String(reader.result || "")), { once: true });
+    reader.addEventListener("error", () => reject(reader.error || new Error("Image could not be encoded.")), { once: true });
+    reader.readAsDataURL(blob);
+  });
 }
 
 function documentFallbackTitle(parsedDocument) {

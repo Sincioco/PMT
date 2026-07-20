@@ -43,7 +43,7 @@ import {
   allowedAssigneeUsers,
   taskDisplayPercent
 } from "../shared/work-item-rules.js?v=20260716-developer-board-status";
-import { exportWorkItemHtml } from "../shared/work-item-transfer.js?v=20260716-rca-one-way";
+import { exportWorkItemHtml } from "../shared/work-item-transfer.js?v=20260720-work-item-export-images-v4";
 
 export function taskButtonsHtml(task, { includeView = true, monochrome = false } = {}) {
   const canEdit = canEditTask(task);
@@ -340,7 +340,17 @@ export function viewWorkItem(task, editWorkItem, options = {}) {
 
     const exportButton = event.target.closest("[data-export-readonly-work-item]");
     if (exportButton) {
-      exportWorkItemHtml(taskById(Number(exportButton.dataset.exportReadonlyWorkItem)) || task);
+      if (exportButton.disabled) return;
+      exportButton.disabled = true;
+      exportButton.setAttribute("aria-busy", "true");
+      try {
+        await exportWorkItemHtml(taskById(Number(exportButton.dataset.exportReadonlyWorkItem)) || task);
+      } finally {
+        if (exportButton.isConnected) {
+          exportButton.disabled = false;
+          exportButton.removeAttribute("aria-busy");
+        }
+      }
       return;
     }
 

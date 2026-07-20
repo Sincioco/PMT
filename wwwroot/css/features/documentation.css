@@ -129,6 +129,11 @@
   max-width: none;
 }
 
+.documentation-filter-user-sections {
+  display: grid;
+  gap: var(--space-5);
+}
+
 .documentation-readonly-grid {
   align-items: start;
 }

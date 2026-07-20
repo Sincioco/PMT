@@ -3825,9 +3825,9 @@ test("RTE View Source stays plain while Code Block formats and highlights select
   const codeDialog = page.locator("dialog.rich-code-dialog");
   const codeLanguage = codeDialog.locator("[data-rich-code-language]");
   const codeTextarea = codeDialog.locator("[name='codeText']");
-  const codeHighlight = codeDialog.locator("[data-rich-code-highlight]");
 
   await expect(codeDialog).toBeVisible();
+  await expect(codeDialog.locator("[data-rich-code-highlight]")).toHaveCount(0);
   await expect(codeLanguage).toHaveValue("");
   await expect(codeLanguage.locator("option")).toHaveText([
     "None",
@@ -3851,25 +3851,16 @@ test("RTE View Source stays plain while Code Block formats and highlights select
     '  "active": true',
     "}"
   ].join("\n"));
-  await expect(codeHighlight).toBeVisible();
-  await expect(codeHighlight.locator(".rich-source-token-property", { hasText: '"name"' })).toHaveCount(1);
-  await expect(codeHighlight.locator(".rich-source-token-string", { hasText: '"PMT"' })).toHaveCount(1);
-  await expect(codeHighlight.locator(".rich-source-token-number", { hasText: "2" })).toHaveCount(1);
-  await expect(codeHighlight.locator(".rich-source-token-keyword", { hasText: "true" })).toHaveCount(1);
 
   await codeTextarea.fill("{not valid JSON}");
   await expect(codeTextarea).toHaveValue("{not valid JSON}");
-  await expect(codeHighlight).toBeHidden();
   await expect(page.locator("#toast")).toContainText("JSON is invalid, so it is being shown as plain text.");
 
   await codeLanguage.selectOption("");
-  await expect(codeHighlight).toBeHidden();
   await expect(codeTextarea).toHaveValue("{not valid JSON}");
   await codeTextarea.fill("public class Demo { return; }");
   await codeLanguage.selectOption("csharp");
-  await expect(codeHighlight.locator(".rich-source-token-keyword", { hasText: "public" })).toHaveCount(1);
   await codeLanguage.selectOption("");
-  await expect(codeHighlight).toBeHidden();
   await expect(codeTextarea).toHaveValue("public class Demo { return; }");
   await codeTextarea.fill('{"name":"PMT","count":2,"active":true}');
   await codeLanguage.selectOption("json");
@@ -3888,6 +3879,11 @@ test("RTE View Source stays plain while Code Block formats and highlights select
   expect(await insertedBlock.evaluate(element => element.open)).toBe(true);
   await insertedBlock.locator("summary").click();
   expect(await insertedBlock.evaluate(element => element.open)).toBe(false);
+  await insertedBlock.locator("[data-rich-code-action='delete']").click();
+  await expect(editor.locator("details.rich-code-block")).toHaveCount(0);
+  await page.keyboard.press("Control+Z");
+  await expect(editor.locator("details.rich-code-block")).toHaveCount(1);
+  await expect(editor.locator("details.rich-code-block code[data-code-language='json']").locator(".rich-source-token-property", { hasText: '"name"' })).toHaveCount(1);
 
   await editDialog.locator("button[type='submit']").click();
   await expect(editDialog).not.toBeVisible();
@@ -4161,7 +4157,7 @@ test("RTE image annotation creates, crops, groups, locks, undoes, and reopens ed
   expect(formatPaneMetrics.controlBackground).not.toBe("rgba(0, 0, 0, 0)");
   expect(formatPaneMetrics.controlBorder).toBe("1px");
   const expectedInitialRecentColors = seededRecentColors.slice(0, 6);
-  const recentColorNames = ["fill", "stroke", "textColor"];
+  const recentColorNames = ["stroke", "textColor"];
   const expectedRecentSwatchMetrics = expectedInitialRecentColors.map(color => {
     const value = Number.parseInt(color.slice(1), 16);
     return {
@@ -4219,6 +4215,9 @@ test("RTE image annotation creates, crops, groups, locks, undoes, and reopens ed
   await dialog.getByRole("button", { name: "Circle (O)", exact: true }).click();
   const insertedCircle = canvas.locator("[data-annotation-object-type='circle']");
   await expect(insertedCircle).toHaveCount(1);
+  const fillRecentStrip = dialog.locator("[data-annotation-recent-colors='fill']");
+  await expect(fillRecentStrip).toBeVisible();
+  await expect(fillRecentStrip.locator("[data-rich-color-value]")).toHaveCount(6);
   expect(await insertedCircle.evaluate(element => ({
     rx: Number(element.getAttribute("rx")),
     ry: Number(element.getAttribute("ry"))

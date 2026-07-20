@@ -1,15 +1,15 @@
 import {
   releaseNoteContentHtml,
   releaseNoteNavigationHtml
-} from "./release-notes.js?v=release-notes-2026-07-20-day-33-8cbc41e9965d";
-import { readPreference, writePreference } from "../core/preferences.js?v=release-notes-2026-07-20-day-33-8cbc41e9965d";
+} from "./release-notes.js?v=release-notes-2026-07-20-day-33-f01459e78a5a";
+import { readPreference, writePreference } from "../core/preferences.js?v=release-notes-2026-07-20-day-33-f01459e78a5a";
 import {
   releaseNoteById,
   releaseNotes,
   releaseNotesForLogin,
   releaseNotesSeenPreferenceKey,
   refreshReleaseNotes
-} from "../shared/release-notes.js?v=release-notes-2026-07-20-day-33-8cbc41e9965d";
+} from "../shared/release-notes.js?v=release-notes-2026-07-20-day-33-f01459e78a5a";
 
 export function createWhatsNew({ getUserId, onReleaseNotesUpdated, openReleaseNotes }) {
   let checkedUserId = 0;
@@ -91,7 +91,7 @@ export function createWhatsNew({ getUserId, onReleaseNotesUpdated, openReleaseNo
             </aside>
           ` : ""}
           <article class="whats-new-reader" aria-live="polite">
-            ${releaseNoteContentHtml(selected, { showIllustration: true })}
+            ${releaseNoteContentHtml(selected, { showIllustration: true, allNotes: releaseNotes })}
           </article>
         </div>
       `;

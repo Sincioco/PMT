@@ -213,6 +213,8 @@
 }
 
 .release-note-prompt {
+  display: grid;
+  gap: var(--space-4);
   max-width: 100%;
   margin: var(--space-8) 0 0;
   border: var(--border-width) solid var(--color-border);
@@ -223,8 +225,60 @@
   color: var(--color-text-primary);
   font: inherit;
   line-height: 1.55;
-  white-space: pre-wrap;
   overflow-wrap: anywhere;
+}
+
+.release-note-prompt-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-5);
+  margin: var(--space-3) 0 0;
+}
+
+.release-note-prompt-title,
+.release-note-prompt-section {
+  margin: 0;
+  color: var(--color-text-primary);
+  line-height: var(--line-height-heading);
+}
+
+.release-note-prompt-title {
+  font-size: var(--font-size-2xl);
+}
+
+.release-note-prompt-section {
+  padding-top: var(--space-4);
+  border-top: var(--border-width) solid var(--color-border-subtle);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xl);
+}
+
+.release-note-prompt-paragraph,
+.release-note-prompt-list p {
+  margin: 0;
+}
+
+.release-note-prompt-list {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0;
+  padding-left: var(--space-8);
+}
+
+.release-note-prompt-list li {
+  padding-left: var(--space-2);
+}
+
+.release-note-prompt-list li > p + p {
+  margin-top: var(--space-2);
+}
+
+.release-note-prompt-rule {
+  width: 100%;
+  height: var(--border-width);
+  border: 0;
+  margin: var(--space-3) 0;
+  background: var(--color-border-subtle);
 }
 
 .whats-new-dialog {

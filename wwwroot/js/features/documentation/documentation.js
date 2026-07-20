@@ -1,7 +1,11 @@
 import { attachmentsHtml, bindAttachmentDeletion } from "../../components/attachments.js?v=20260714-attachment-delete";
 import { buttonContent, funnelIconHtml, iconButton, pageActionsMenuHtml } from "../../components/buttons.js?v=20260717-multi-screen-header";
 import { hideEmptyReadOnlyFields, initializeWindowedDialog } from "../../components/dialogs.js?v=20260714-attachment-delete";
-import { filterSelect } from "../../components/filters.js";
+import {
+  checkedFilterValues,
+  filterCheckList,
+  filterSelect
+} from "../../components/filters.js";
 import { createIdleFilterHeader } from "../../components/idle-filter-header.js?v=20260717-multi-screen-search-persistent";
 import {
   documentationExportIconHtml,
@@ -16,14 +20,16 @@ import {
   selectOptionsField,
   value
 } from "../../components/forms.js?v=20260719-rte-insert-diagram";
-import { sectionHead } from "../../components/sections.js?v=release-notes-2026-07-20-day-33-8cbc41e9965d";
+import { sectionHead } from "../../components/sections.js?v=release-notes-2026-07-20-day-33-f01459e78a5a";
 import {
   preferenceKeys,
   readBooleanPreference,
+  readJsonPreference,
   readNumberPreference,
   readPreference,
+  writeJsonPreference,
   writePreference
-} from "../../core/preferences.js?v=20260717-multi-screen-header";
+} from "../../core/preferences.js?v=20260720-doc-diagram-user-filters-v1";
 import {
   currentUserId
 } from "../../core/authentication.js?v=20260715-admin-impersonation";
@@ -33,6 +39,7 @@ import {
   formatDate
 } from "../../shared/dates.js";
 import { canAccessResource } from "../../shared/security.js?v=20260715-admin-impersonation";
+import { appUrl } from "../../shared/app-urls.js";
 import {
   projectById,
   projectCode,
@@ -68,6 +75,8 @@ let documentationTreeGroup = "all";
 let documentationTreeLayout = "hierarchy";
 let documentationTreeSort = "latest";
 let documentationTreeSearch = "";
+let documentationCreatorFilters = [];
+let documentationLastEditorFilters = [];
 let documentationTreePaneWidth = 320;
 let documentationTreePaneHidden = false;
 let selectedTreeBlogId = 0;
@@ -91,7 +100,8 @@ export function createDocumentationFeature({
   loadState,
   openEditor,
   saveJson,
-  showToast
+  showToast,
+  copyRichTextImageAssets
 }) {
   documentationProjectId = readNumberPreference(preferenceKeys.documentationProject, 0);
   documentationSprintId = readPreference(preferenceKeys.documentationSprint, "all");
@@ -103,6 +113,8 @@ export function createDocumentationFeature({
   documentationTreeLayout = readKnownPreference(preferenceKeys.documentationTreeLayout, "hierarchy", documentationTreeLayouts);
   documentationTreeSort = readKnownPreference(preferenceKeys.documentationTreeSort, "latest", documentationTreeSorts);
   documentationTreeSearch = readPreference(preferenceKeys.documentationTreeSearch, "");
+  documentationCreatorFilters = readJsonPreference(preferenceKeys.documentationCreatorFilters, []);
+  documentationLastEditorFilters = readJsonPreference(preferenceKeys.documentationLastEditorFilters, []);
   documentationTreePaneWidth = Math.min(560, Math.max(220, readNumberPreference(preferenceKeys.documentationTreePaneWidth, 320)));
   documentationTreePaneHidden = readBooleanPreference(preferenceKeys.documentationTreePaneHidden, false);
   let documentationTreeContextMenuController = null;
@@ -458,6 +470,11 @@ export function createDocumentationFeature({
       if (blog) openDocumentationExportDialog(blog, { showToast });
       return true;
     }
+    if (action === "duplicate-blog") {
+      const blog = documentationBlogForCurrentUser(id);
+      if (blog) await duplicateDocumentationBlog(blog);
+      return true;
+    }
     if (action === "edit-blog") {
       startDocumentationInlineEdit(id);
       return true;
@@ -555,6 +572,20 @@ export function createDocumentationFeature({
       return true;
     }
 
+    if (filter === "documentation-creator") {
+      documentationCreatorFilters = checkedFilterValues("documentation-creator");
+      writeJsonPreference(preferenceKeys.documentationCreatorFilters, documentationCreatorFilters);
+      renderDocumentation();
+      return true;
+    }
+
+    if (filter === "documentation-last-editor") {
+      documentationLastEditorFilters = checkedFilterValues("documentation-last-editor");
+      writeJsonPreference(preferenceKeys.documentationLastEditorFilters, documentationLastEditorFilters);
+      renderDocumentation();
+      return true;
+    }
+
     return false;
   }
 
@@ -641,6 +672,12 @@ export function createDocumentationFeature({
       { value: "name", text: "Name (Alphabetically)" },
       { value: "custom", text: "Custom" }
     ], documentationTreeSort);
+    const userFilters = `
+      <div class="documentation-filter-user-sections">
+        ${filterCheckList("Filter by Creator", "documentation-creator", documentationUserFilterItems(), documentationCreatorFilters, { className: "documentation-filter-users" })}
+        ${filterCheckList("Filter by Last Edited", "documentation-last-editor", documentationUserFilterItems(), documentationLastEditorFilters, { className: "documentation-filter-users" })}
+      </div>
+    `;
 
     if (documentationViewMode === "tree") {
       return `
@@ -657,6 +694,7 @@ export function createDocumentationFeature({
             ${layoutSelect}
             ${sortSelect}
           </div>
+          ${userFilters}
         </div>
       `;
     }
@@ -674,6 +712,7 @@ export function createDocumentationFeature({
           ${groupSelect}
           ${sortSelect}
         </div>
+        ${userFilters}
       </div>
     `;
   }
@@ -937,6 +976,67 @@ export function createDocumentationFeature({
     projectSelect.addEventListener("change", syncSprintOptions);
     sprintSelect.addEventListener("change", syncParentOptions);
     syncSprintOptions();
+  }
+
+  async function duplicateDocumentationBlog(blog) {
+    if (!canAccessResource("Documentation", "Create")) {
+      showToast?.("You do not have permission to create Documentation.");
+      return;
+    }
+
+    try {
+      const bodyHtml = typeof copyRichTextImageAssets === "function"
+        ? await copyRichTextImageAssets(blog.bodyHtml || "")
+        : blog.bodyHtml || "";
+      const result = await saveJson("/api/blogs", "POST", {
+        id: 0,
+        projectId: blog.projectId || null,
+        sprintId: blog.sprintId || null,
+        parentBlogId: blog.parentBlogId || null,
+        title: nextAvailableDocumentationCopyTitle(blog.title),
+        isPrivate: blog.isPrivate !== false,
+        isPinned: false,
+        bodyHtml
+      });
+      const newBlogId = Number(result?.id || 0);
+      if (!newBlogId) throw new Error("The duplicated Document could not be loaded.");
+
+      await copyDocumentationAttachments(newBlogId, blog.attachments || []);
+      selectedTreeBlogId = newBlogId;
+      editingTreeBlogId = 0;
+      documentationFullScreenEditing = false;
+      documentationProjectId = blog.projectId || 0;
+      documentationSprintId = "all";
+      documentationTreeSearch = "";
+      writePreference(preferenceKeys.documentationProject, documentationProjectId);
+      writePreference(preferenceKeys.documentationSprint, documentationSprintId);
+      writePreference(preferenceKeys.documentationTreeSearch, documentationTreeSearch);
+      await loadState?.();
+      const copy = documentationBlogForCurrentUser(newBlogId);
+      if (copy) expandDocumentationTreePath(copy);
+      renderDocumentation();
+      showToast?.("Document duplicated.");
+    } catch (error) {
+      showToast?.(error?.message || "The Document could not be duplicated.");
+    }
+  }
+
+  async function copyDocumentationAttachments(blogId, attachments) {
+    for (const attachment of attachments || []) {
+      const source = String(attachment?.url || "").trim();
+      if (!source) continue;
+      try {
+        const response = await fetch(appUrl(source), { cache: "no-store", credentials: "same-origin" });
+        if (!response.ok) continue;
+        const blob = await response.blob();
+        const file = new File([blob], attachment.fileName || "attachment", {
+          type: blob.type || "application/octet-stream"
+        });
+        await attachFile(`/api/blogs/${blogId}/attachments`, file);
+      } catch {
+        // Keep the duplicated document even if one attachment cannot be copied.
+      }
+    }
   }
 
   function openDocumentationImportFilePicker() {
@@ -1212,6 +1312,9 @@ export function createDocumentationFeature({
       });
       activeMenu.querySelectorAll("[data-documentation-context-requires-update]").forEach(button => {
         button.disabled = !canAccessResource("Documentation", "Update");
+      });
+      activeMenu.querySelectorAll("[data-documentation-context-requires-create]").forEach(button => {
+        button.disabled = !canAccessResource("Documentation", "Create");
       });
       activeMenu.querySelectorAll("[data-documentation-context-requires-delete]").forEach(button => {
         button.disabled = !documentationCanDelete(blog);
@@ -1755,6 +1858,8 @@ function applyDocumentationDefaultFilters() {
   documentationTreeGroup = "all";
   documentationTreeSearch = "";
   documentationTreeSort = "latest";
+  documentationCreatorFilters = [];
+  documentationLastEditorFilters = [];
   expandedDocumentationCardIds.clear();
   writePreference(preferenceKeys.documentationProject, documentationProjectId);
   writePreference(preferenceKeys.documentationSprint, documentationSprintId);
@@ -1762,6 +1867,8 @@ function applyDocumentationDefaultFilters() {
   writePreference(preferenceKeys.documentationTreeGroup, documentationTreeGroup);
   writePreference(preferenceKeys.documentationTreeSearch, documentationTreeSearch);
   writePreference(preferenceKeys.documentationTreeSort, documentationTreeSort);
+  writeJsonPreference(preferenceKeys.documentationCreatorFilters, documentationCreatorFilters);
+  writeJsonPreference(preferenceKeys.documentationLastEditorFilters, documentationLastEditorFilters);
 }
 
 function normalizeDocumentationVisibilityFilter() {
@@ -1822,6 +1929,23 @@ function documentationBlogMatchesSprintFilter(blog) {
   return Number(blog.sprintId || 0) === Number(documentationSprintId);
 }
 
+function documentationBlogMatchesCreatorFilter(blog) {
+  if (!documentationCreatorFilters.length) return true;
+  return documentationCreatorFilters.map(String).includes(String(blog.createdByUserId || ""));
+}
+
+function documentationBlogMatchesLastEditorFilter(blog) {
+  if (!documentationLastEditorFilters.length) return true;
+  return documentationLastEditorFilters.map(String).includes(String(documentationLastEditorUserId(blog)));
+}
+
+function documentationLastEditorUserId(blog) {
+  return documentationLatestUpdatedHistory(blog)?.userId
+    || blog.updatedByUserId
+    || blog.createdByUserId
+    || 0;
+}
+
 function documentationBlogAccessibleToCurrentUser(blog) {
   return Boolean(blog)
     && (blog.isPrivate === false || documentationOwnedByCurrentUser(blog));
@@ -1834,6 +1958,16 @@ function documentationBlogForCurrentUser(blogId) {
 
 function documentationOwnedByCurrentUser(blog) {
   return Number(blog?.createdByUserId || 0) === Number(currentUserId || 0);
+}
+
+function nextAvailableDocumentationCopyTitle(title) {
+  const baseTitle = String(title || "Document").trim() || "Document";
+  const titles = new Set(state.blogs
+    .filter(documentationBlogAccessibleToCurrentUser)
+    .map(blog => String(blog.title || "").trim().toLocaleLowerCase()));
+  let suffix = 2;
+  while (titles.has(`${baseTitle} ${suffix}`.toLocaleLowerCase())) suffix += 1;
+  return `${baseTitle} ${suffix}`;
 }
 
 function documentationNewInlineDraft() {
@@ -1898,6 +2032,8 @@ function documentationCardBlogs() {
     .filter(documentationBlogVisibleByPrivacyFilter)
     .filter(blog => !documentationProjectId || blog.projectId === documentationProjectId)
     .filter(documentationBlogMatchesSprintFilter)
+    .filter(documentationBlogMatchesCreatorFilter)
+    .filter(documentationBlogMatchesLastEditorFilter)
     .filter(blog => !searchText || documentationBlogMatchesSearch(blog, searchText))
     .sort(documentationCardBlogCompare);
 }
@@ -2003,8 +2139,13 @@ function documentationTreeBlogs() {
     .filter(blog => !documentationProjectId || blog.projectId === documentationProjectId)
     .filter(documentationBlogMatchesSprintFilter);
   const matchedBlogs = searchText
-    ? sourceBlogs.filter(blog => documentationBlogMatchesSearch(blog, searchText))
-    : [...sourceBlogs];
+    ? sourceBlogs
+      .filter(documentationBlogMatchesCreatorFilter)
+      .filter(documentationBlogMatchesLastEditorFilter)
+      .filter(blog => documentationBlogMatchesSearch(blog, searchText))
+    : sourceBlogs
+      .filter(documentationBlogMatchesCreatorFilter)
+      .filter(documentationBlogMatchesLastEditorFilter);
 
   if (!searchText || documentationTreeLayout === "flat") return matchedBlogs.sort(documentationBlogCompare);
 
@@ -2116,6 +2257,7 @@ function documentationTreeContextMenuHtml() {
     <div class="dropdown-menu documentation-tree-context-menu" data-documentation-tree-context-menu role="menu" aria-label="Document actions" hidden>
       ${documentationTreeContextMenuItemHtml("edit-documentation-info", "Edit Info", "&#9432;", "data-documentation-context-requires-update")}
       ${documentationTreeContextMenuItemHtml("edit-documentation-full-screen", "Edit Document", "&#9998;", "data-documentation-context-requires-update")}
+      ${documentationTreeContextMenuItemHtml("duplicate-blog", "Duplicate", "&#128203;", "data-documentation-context-requires-create")}
       ${documentationTreeContextMenuItemHtml("export-blog", "Download", documentationExportIconHtml())}
       ${documentationTreeContextMenuItemHtml("delete-blog", "Delete", "&#128465;", "data-documentation-context-requires-delete", "is-danger")}
     </div>
@@ -2449,6 +2591,14 @@ function documentationCreatedMetaHtml(blog) {
 
 function documentationLatestUpdatedHistory(blog) {
   return (blog.history || []).find(item => item.action === "Updated") || null;
+}
+
+function documentationUserFilterItems() {
+  return state.users.map(user => ({
+    value: user.id,
+    text: documentationUserName(user.id),
+    avatarUrl: user.avatarUrl
+  }));
 }
 
 function documentationUserName(userId) {
