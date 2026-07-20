@@ -11,7 +11,6 @@ import {
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const seedPath = resolve(root, "SQL/03_SeedData_DiagramDemo.sql");
-const migrationPath = resolve(root, "SQL/Migrations/Migration History/PMT_1.22_to_1.23.sql");
 const svgAssetPath = resolve(root, "wwwroot/assets/docs/pmt-database-schema.svg");
 const optionalSvgOutputPath = String(process.env.PMT_SCHEMA_DIAGRAM_SVG_OUTPUT || "").trim();
 const sqlServer = process.env.PMT_SQL_SERVER || "localhost";
@@ -424,13 +423,13 @@ const beginMarker = "-- BEGIN GENERATED PMT DATABASE SCHEMA DIAGRAM";
 const endMarker = "-- END GENERATED PMT DATABASE SCHEMA DIAGRAM";
 const generatedBlock = `${beginMarker}\n${generatedSql}\n${endMarker}`;
 
-for (const path of [seedPath, migrationPath]) {
-  const source = readFileSync(path, "utf8");
-  const start = source.indexOf(beginMarker);
-  const end = source.indexOf(endMarker, start);
-  if (start < 0 || end < start) throw new Error(`Generated Diagram markers were not found in ${path}.`);
-  writeFileSync(path, `${source.slice(0, start)}${generatedBlock}${source.slice(end + endMarker.length)}`, "utf8");
+const seedSource = readFileSync(seedPath, "utf8");
+const seedStart = seedSource.indexOf(beginMarker);
+const seedEnd = seedSource.indexOf(endMarker, seedStart);
+if (seedStart < 0 || seedEnd < seedStart) {
+  throw new Error(`Generated Diagram markers were not found in ${seedPath}.`);
 }
+writeFileSync(seedPath, `${seedSource.slice(0, seedStart)}${generatedBlock}${seedSource.slice(seedEnd + endMarker.length)}`, "utf8");
 
 mkdirSync(dirname(svgAssetPath), { recursive: true });
 writeFileSync(svgAssetPath, svg, "utf8");
@@ -441,5 +440,5 @@ if (optionalSvgOutputPath) {
   console.log(`Generated SVG preview ${optionalSvgOutputPath}`);
 }
 console.log(`Generated editable SVG asset ${svgAssetPath}`);
-console.log(`Stored ${svgAssetUrl} in ${seedPath} and the active migration.`);
+console.log(`Stored ${svgAssetUrl} in ${seedPath}. Add or update the active forward migration separately.`);
 console.log(`${entities.length} entities; ${fieldCount} fields; ${foreignKeys.size} foreign keys; ${relationshipCount} visible relationship lines; ${layout.levelCount} hierarchy levels.`);

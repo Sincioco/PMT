@@ -1,5 +1,5 @@
 /*
-    PMT Version 1.23 base seed data.
+    PMT Version 1.24 base seed data.
 
     This script resets disposable development data, then seeds shared data:
     - Users

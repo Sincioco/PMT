@@ -1,5 +1,5 @@
 /*
-    PMT Version 1.23 database and schema script.
+    PMT Version 1.24 database and schema script.
     Run this first. It creates the database, the pmt schema, the application
     tables, and the single required administrator account. The companion
     procedure and seed scripts complete the current fresh-install contract.

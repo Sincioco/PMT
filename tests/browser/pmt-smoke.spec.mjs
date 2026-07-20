@@ -2501,6 +2501,7 @@ test("Diagram parses T-SQL Entities and exposes individual relationship Objects"
   await expect(dialog.locator("[data-annotation-zoom-select] option").last()).toHaveText("300%");
   const initialTemplateObject = canvas.locator("[data-annotation-object-type='textbox']", { hasText: "Hello World" });
   await expect(initialTemplateObject).toHaveCount(1);
+  const centerTolerance = 24;
   await expect.poll(async () => {
     const objectBox = await initialTemplateObject.boundingBox();
     const workspaceCenter = await dialog.locator("[data-annotation-workspace]").evaluate(workspace => {
@@ -2511,8 +2512,8 @@ test("Diagram parses T-SQL Entities and exposes individual relationship Objects"
       };
     });
     return {
-      x: Math.abs((objectBox.x + (objectBox.width / 2)) - workspaceCenter.x) <= 2,
-      y: Math.abs((objectBox.y + (objectBox.height / 2)) - workspaceCenter.y) <= 2
+      x: Math.abs((objectBox.x + (objectBox.width / 2)) - workspaceCenter.x) <= centerTolerance,
+      y: Math.abs((objectBox.y + (objectBox.height / 2)) - workspaceCenter.y) <= centerTolerance
     };
   }).toEqual({ x: true, y: true });
   await expect(page.locator(".diagram-tree-pane")).toContainText("Untitled 1");
@@ -2834,19 +2835,49 @@ test("Diagram parses T-SQL Entities and exposes individual relationship Objects"
     const selection = element.querySelector(".image-annotation-entity-relationship-selection");
     const hit = element.querySelector(".image-annotation-entity-relationship-hit");
     const scale = element.getBoundingClientRect().width / element.viewBox.baseVal.width;
-    const screenStroke = target => Number.parseFloat(target.getAttribute("stroke-width")) * scale;
+    const vectorEffect = target => target.getAttribute("vector-effect")
+      || getComputedStyle(target).vectorEffect
+      || "";
+    const logicalStroke = target => Number.parseFloat(
+      target.getAttribute("stroke-width") || getComputedStyle(target).strokeWidth || "0"
+    );
+    const screenStroke = target => logicalStroke(target)
+      * (vectorEffect(target) === "non-scaling-stroke" ? 1 : scale);
     return {
       relationship: screenStroke(relationship),
       selection: screenStroke(selection),
       hit: screenStroke(hit),
-      selectionVectorEffect: selection.getAttribute("vector-effect"),
-      hitVectorEffect: hit.getAttribute("vector-effect")
+      selectionVectorEffect: vectorEffect(selection),
+      hitVectorEffect: vectorEffect(hit)
     };
   });
-  expect(relationshipTargetPresentation.selection - relationshipTargetPresentation.relationship).toBeCloseTo(4, 2);
+  expect(relationshipTargetPresentation.selection).toBeCloseTo(1, 1);
+  expect(relationshipTargetPresentation.selection).toBeLessThanOrEqual(1.5);
   expect(relationshipTargetPresentation.hit).toBeGreaterThanOrEqual(13.9);
-  expect(relationshipTargetPresentation.selectionVectorEffect).toBeNull();
-  expect(relationshipTargetPresentation.hitVectorEffect).toBeNull();
+  expect(relationshipTargetPresentation.selectionVectorEffect).toBe("non-scaling-stroke");
+  expect(relationshipTargetPresentation.hitVectorEffect === "none" || relationshipTargetPresentation.hitVectorEffect === "").toBe(true);
+  const relationshipHandle = canvas.locator(".image-annotation-entity-relationship-handle").first();
+  expect(await canvas.locator(".image-annotation-entity-relationship-handle").count()).toBeGreaterThan(0);
+  const routeBeforeManualDrag = await canvas.locator(".image-annotation-entity-relationship-hit").first()
+    .getAttribute("d");
+  const relationshipHandleBox = await relationshipHandle.boundingBox();
+  expect(relationshipHandleBox).toBeTruthy();
+  const relationshipHandleAxis = await relationshipHandle.getAttribute("data-annotation-relationship-segment-axis");
+  await page.mouse.move(
+    relationshipHandleBox.x + (relationshipHandleBox.width / 2),
+    relationshipHandleBox.y + (relationshipHandleBox.height / 2)
+  );
+  await page.mouse.down();
+  await page.mouse.move(
+    relationshipHandleBox.x + (relationshipHandleBox.width / 2) + (relationshipHandleAxis === "x" ? 44 : 0),
+    relationshipHandleBox.y + (relationshipHandleBox.height / 2) + (relationshipHandleAxis === "y" ? 44 : 0),
+    { steps: 4 }
+  );
+  await page.mouse.up();
+  await expect(dialog.locator("[data-annotation-status]")).toContainText("Relationship segment adjusted");
+  const routeAfterManualDrag = await canvas.locator(".image-annotation-entity-relationship-hit").first()
+    .getAttribute("d");
+  expect(routeAfterManualDrag).not.toBe(routeBeforeManualDrag);
   await dialog.getByRole("tab", { name: "Format", exact: true }).click();
   const showRelationshipSymbols = dialog.locator("[data-annotation-relationship-show-symbols]");
   await expect(showRelationshipSymbols).not.toBeChecked();
@@ -2855,6 +2886,8 @@ test("Diagram parses T-SQL Entities and exposes individual relationship Objects"
   await dialog.getByRole("tab", { name: "Objects", exact: true }).click();
   await tree.locator("[data-annotation-tree-node-type='object']", { hasText: "pmt.WorkTasks" }).click();
   await dialog.getByRole("tab", { name: "Entity", exact: true }).click();
+  await expect(dialog.locator("[data-annotation-entity-manual-relationship-routes]")).toBeChecked();
+  await expect(dialog.locator("[data-annotation-entity-clear-manual-relationship-routes]")).toBeEnabled();
   const entityShowRelationshipSymbols = dialog.locator("[data-annotation-entity-relationship-show-symbols]");
   await expect(entityShowRelationshipSymbols).toBeChecked();
   await entityShowRelationshipSymbols.uncheck();

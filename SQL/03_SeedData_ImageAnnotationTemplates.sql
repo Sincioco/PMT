@@ -1,5 +1,5 @@
 /*
-    PMT Version 1.23 shared image-annotation template seed.
+    PMT Version 1.24 shared image-annotation template seed.
 
     The 13 templates were captured from Sin's completed template library on
     July 18, 2026. They are the default for users who have not saved a personal

@@ -1,5 +1,5 @@
 /*
-    PMT Version 1.23 public Diagram demo seed.
+    PMT Version 1.24 public Diagram demo seed.
 
     The Blog body references the editable bundled SVG asset under
     wwwroot/assets/docs. The SVG contains every current [pmt] table, its fields,
@@ -34,7 +34,7 @@ END;
 
 -- BEGIN GENERATED PMT DATABASE SCHEMA DIAGRAM
 DECLARE @DatabaseSchemaDiagramBodyHtml NVARCHAR(MAX) =
-    N'<p><img class="rich-svg-image pmt-annotation-image" src="/assets/docs/pmt-database-schema.svg?v=7d0ac4cf050d" alt="PMT''s Database Schema" data-pmt-diagram="true" data-pmt-private-diagram="true" data-pmt-seeded-diagram="pmt-database-schema-v1" data-pmt-annotation-version="1"></p>';
+    N'<p><img class="rich-svg-image pmt-annotation-image" src="/assets/docs/pmt-database-schema.svg?v=804c3165d4ba" alt="PMT''s Database Schema" data-pmt-diagram="true" data-pmt-private-diagram="true" data-pmt-seeded-diagram="pmt-database-schema-v1" data-pmt-annotation-version="1"></p>';
 -- END GENERATED PMT DATABASE SCHEMA DIAGRAM
 
 BEGIN TRY

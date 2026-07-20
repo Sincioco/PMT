@@ -19,7 +19,7 @@ const maximumScaledArrowSize = 1000000;
 const annotationCoordinateScale = 1000;
 const annotationCoordinateTolerance = 1 / annotationCoordinateScale;
 let annotationEditorRenderSequence = 0;
-const minimumEntityRelationshipClearance = 24;
+const minimumEntityRelationshipClearance = 48;
 const maximumAnnotationTemplates = 50;
 const maximumAnnotationTemplateFileBytes = 50 * 1024 * 1024;
 const annotationTemplateVersion = 1;
@@ -179,15 +179,20 @@ export async function openImageAnnotationDialog(options) {
 export function buildAnnotationSvg(inputState, options = {}) {
   const state = normalizeAnnotationState(inputState);
   syncAnnotationEntityAnnotationArrows(state);
+  resolveAnnotationEntityOverlaps(state);
   const metadataState = options?.metadataState
     ? normalizeAnnotationState(options.metadataState)
     : state;
-  if (metadataState !== state) syncAnnotationEntityAnnotationArrows(metadataState);
+  if (metadataState !== state) {
+    syncAnnotationEntityAnnotationArrows(metadataState);
+    resolveAnnotationEntityOverlaps(metadataState);
+  }
   const visibleObjects = annotationVisibleObjects(state);
   const relationshipRenderModel = state.hideAllEntityRelationships
     ? null
     : annotationEntityRelationshipRenderModel(visibleObjects, state.relationshipStyle, {
-        allowOverlappingLines: state.allowOverlappingEntityLines
+        allowOverlappingLines: state.allowOverlappingEntityLines,
+        manualRoutes: state.manualEntityRelationshipRoutes
       });
   const outputBounds = annotationOutputBounds(state, { relationshipRenderModel });
   const relationshipLayers = annotationObjectsAroundRelationshipLayer(visibleObjects);
@@ -196,6 +201,7 @@ export function buildAnnotationSvg(inputState, options = {}) {
   const relationships = annotationEntityRelationshipsSvg(visibleObjects, state.relationshipStyle, {
     allowOverlappingLines: state.allowOverlappingEntityLines,
     hidden: state.hideAllEntityRelationships,
+    manualRoutes: state.manualEntityRelationshipRoutes,
     relationshipRenderModel
   });
   const belowRelationships = relationshipLayers.below
@@ -336,7 +342,8 @@ function annotationSelectionClipboardExport(inputState, selectedObjectIds) {
   const relationshipRenderModel = state.hideAllEntityRelationships
     ? null
     : annotationEntityRelationshipRenderModel(objects, state.relationshipStyle, {
-        allowOverlappingLines: state.allowOverlappingEntityLines
+        allowOverlappingLines: state.allowOverlappingEntityLines,
+        manualRoutes: state.manualEntityRelationshipRoutes
       });
 
   const bounds = unionAnnotationBounds(
@@ -344,6 +351,7 @@ function annotationSelectionClipboardExport(inputState, selectedObjectIds) {
       ...objects.map(object => annotationObjectVisualBounds(object)),
       ...annotationEntityRelationshipVisualBounds(objects, state.relationshipStyle, {
         allowOverlappingLines: state.allowOverlappingEntityLines,
+        manualRoutes: state.manualEntityRelationshipRoutes,
         relationshipRenderModel
       })
     ].filter(Boolean)
@@ -352,6 +360,7 @@ function annotationSelectionClipboardExport(inputState, selectedObjectIds) {
   const relationships = annotationEntityRelationshipsSvg(objects, state.relationshipStyle, {
     allowOverlappingLines: state.allowOverlappingEntityLines,
     hidden: state.hideAllEntityRelationships,
+    manualRoutes: state.manualEntityRelationshipRoutes,
     relationshipRenderModel
   });
   const body = annotationClipboardObjectsSvg(objects);
@@ -1438,7 +1447,10 @@ export function resolveAnnotationEntitySizeChangeLayout(inputState, resizedEntit
     return { movedCount: 0, unresolvedOverlapCount: 0, unresolvedRouteContactCount: 0 };
   }
 
-  const clearance = Math.max(48, positiveNumber(options?.clearance, state.gridSize || defaultGridSize));
+  const clearance = Math.max(
+    minimumEntityRelationshipClearance * 2,
+    positiveNumber(options?.clearance, state.gridSize || defaultGridSize)
+  );
   const queuedIds = resolveAll ? entities.map(entity => entity.id) : [resizedEntity.id];
   const movedIds = new Set();
   let unresolvedOverlapCount = 0;
@@ -1451,8 +1463,8 @@ export function resolveAnnotationEntitySizeChangeLayout(inputState, resizedEntit
     const current = entities.find(entity => entity.id === currentId);
     if (!current) continue;
     entities.filter(entity => entity !== current).forEach(other => {
-      const currentBounds = annotationObjectBounds(current);
-      const otherBounds = annotationObjectBounds(other);
+      const currentBounds = expandedAnnotationBounds(annotationObjectBounds(current), clearance / 2);
+      const otherBounds = expandedAnnotationBounds(annotationObjectBounds(other), clearance / 2);
       const overlapX = Math.min(
         currentBounds.x + currentBounds.width,
         otherBounds.x + otherBounds.width
@@ -1488,7 +1500,7 @@ export function resolveAnnotationEntitySizeChangeLayout(inputState, resizedEntit
       const moveCenter = moveEntity.x + (moveEntity.width / 2);
       const fixedCenter = fixedEntity.x + (fixedEntity.width / 2);
       const direction = moveCenter < fixedCenter ? -1 : 1;
-      const deltaX = direction * (overlapX + clearance);
+      const deltaX = direction * overlapX;
       translateAnnotationObjectsWithEntityCallouts(state, [moveEntity], deltaX, 0);
       movedIds.add(moveEntity.id);
       queuedIds.push(moveEntity.id);
@@ -1899,6 +1911,7 @@ export function normalizeAnnotationState(input, fallback = {}) {
     snapToGrid: source.snapToGrid === true,
     allowOverlappingEntityLines: source.allowOverlappingEntityLines === true,
     hideAllEntityRelationships: source.hideAllEntityRelationships === true,
+    manualEntityRelationshipRoutes: source.manualEntityRelationshipRoutes === true,
     gridSize: clampNumber(positiveNumber(source.gridSize, defaultGridSize), 4, 200),
     relationshipStyle: normalizeAnnotationEntityRelationshipStyle(source.relationshipStyle),
     groupNames,
@@ -1979,6 +1992,20 @@ export function applyAnnotationEntityRelationshipGroupStyle(inputState, patchInp
       fields.forEach(field => { delete foreignKey.styleOverride[field]; });
       if (!Object.keys(foreignKey.styleOverride).length) delete foreignKey.styleOverride;
     });
+}
+
+export function clearAnnotationEntityRelationshipRouteOverrides(inputState) {
+  const state = inputState && typeof inputState === "object" ? inputState : {};
+  let clearedCount = 0;
+  (state.objects || [])
+    .filter(object => object?.type === "entity")
+    .flatMap(entity => entity.foreignKeys || [])
+    .forEach(foreignKey => {
+      if (!Object.hasOwn(foreignKey, "routeOverride")) return;
+      delete foreignKey.routeOverride;
+      clearedCount += 1;
+    });
+  return { clearedCount };
 }
 
 export function normalizeAnnotationTemplateLibrary(input) {
@@ -3167,8 +3194,15 @@ function createAnnotationDialog(context) {
       const unanchorAllEntities = dialog.querySelector("[data-annotation-entity-unanchor-all]");
       const anchorTable = dialog.querySelector("[data-annotation-entity-anchor-table]");
       const allowOverlappingLines = dialog.querySelector("[data-annotation-entity-allow-overlapping-lines]");
+      const manualRelationshipRoutes = dialog.querySelector("[data-annotation-entity-manual-relationship-routes]");
+      const clearManualRelationshipRoutes = dialog.querySelector("[data-annotation-entity-clear-manual-relationship-routes]");
       const autoFormatOrgTree = dialog.querySelector("[data-annotation-entity-auto-format-org-tree]");
+      const showOriginalScript = dialog.querySelector("[data-annotation-entity-show-script]");
       const generatePmtSchema = dialog.querySelector("[data-annotation-generate-pmt-schema]");
+      const manualRouteCount = state.objects
+        .filter(object => object.type === "entity")
+        .flatMap(entity => entity.foreignKeys || [])
+        .filter(foreignKey => Array.isArray(foreignKey.routeOverride) && foreignKey.routeOverride.length).length;
       showKeyColumn.checked = singleEntity?.showKeyColumn !== false;
       showDataTypes.checked = singleEntity?.showDataTypes === true;
       foreignKeysAtTop.checked = singleEntity?.foreignKeysAtTop === true;
@@ -3177,6 +3211,7 @@ function createAnnotationDialog(context) {
       hideAllEntityRelationships.checked = state.hideAllEntityRelationships === true;
       anchorTable.checked = singleEntity?.anchorTable === true;
       allowOverlappingLines.checked = state.allowOverlappingEntityLines === true;
+      if (manualRelationshipRoutes) manualRelationshipRoutes.checked = state.manualEntityRelationshipRoutes === true;
       showKeyColumn.disabled = !singleEntity || singleEntity.locked;
       showDataTypes.disabled = !singleEntity || singleEntity.locked;
       foreignKeysAtTop.disabled = !singleEntity || singleEntity.locked;
@@ -3185,6 +3220,8 @@ function createAnnotationDialog(context) {
       hideAllEntityRelationships.disabled = !singleEntity;
       anchorTable.disabled = !singleEntity || singleEntity.locked;
       allowOverlappingLines.disabled = !singleEntity;
+      if (manualRelationshipRoutes) manualRelationshipRoutes.disabled = !singleEntity;
+      if (clearManualRelationshipRoutes) clearManualRelationshipRoutes.disabled = !manualRouteCount;
       const canvasEntities = state.objects.filter(object => object.type === "entity");
       const globalUnanchorState = annotationEntityGlobalUnanchorControlState(state);
       unanchorAllEntities.checked = globalUnanchorState.checked;
@@ -3193,6 +3230,7 @@ function createAnnotationDialog(context) {
       autoFormatOrgTree.disabled = !singleEntity
         || canvasEntities.length < 2
         || canvasEntities.some(entity => entity.locked);
+      if (showOriginalScript) showOriginalScript.disabled = !singleEntity || singleEntity.locked;
       if (generatePmtSchema) generatePmtSchema.disabled = pmtSchemaBusy;
       const entityFieldScrollTop = entityFieldList.scrollTop;
       entityFieldList.innerHTML = singleEntity ? annotationEntityFieldListHtml(singleEntity) : "";
@@ -3359,13 +3397,7 @@ function createAnnotationDialog(context) {
       zoomHandles = [...canvas.querySelectorAll(".image-annotation-handle")];
       zoomRelationshipSelections = [...canvas.querySelectorAll(".image-annotation-entity-relationship-selection")]
         .map(selection => ({
-          selection,
-          strokeWidth: positiveNumber(
-            selection.dataset.annotationRelationshipStrokeWidth
-              || selection.closest("[data-annotation-relationship-stroke-width]")
-                ?.dataset.annotationRelationshipStrokeWidth,
-            1
-          )
+          selection
         }));
       zoomRelationshipHits = [...canvas.querySelectorAll(".image-annotation-entity-relationship-hit")]
         .map(hit => ({
@@ -3386,7 +3418,8 @@ function createAnnotationDialog(context) {
         zoomGridPath.setAttribute("stroke-width", formatNumber(Math.max(0.5, 1 / effectiveZoom)));
       }
       zoomRelationshipSelections.forEach(target => {
-        target.selection.setAttribute("stroke-width", formatNumber(target.strokeWidth + (4 / effectiveZoom)));
+        target.selection.setAttribute("stroke-width", "1");
+        target.selection.setAttribute("vector-effect", "non-scaling-stroke");
       });
       zoomRelationshipHits.forEach(target => {
         target.hit.setAttribute("stroke-width", formatNumber(Math.max(
@@ -3756,7 +3789,10 @@ function createAnnotationDialog(context) {
       const relationshipModel = annotationEntityRelationshipRenderModel(
         annotationVisibleObjects(state),
         state.relationshipStyle,
-        { allowOverlappingLines: state.allowOverlappingEntityLines }
+        {
+          allowOverlappingLines: state.allowOverlappingEntityLines,
+          manualRoutes: state.manualEntityRelationshipRoutes
+        }
       );
       if (!relationshipModel.renderedRelationships.some(item => movingEntityIds.has(item.relationship.source?.id)
         || movingEntityIds.has(item.relationship.target?.id))) return;
@@ -4086,6 +4122,48 @@ function createAnnotationDialog(context) {
       return true;
     };
 
+    const confirmAnnotation = (message, title, confirmLabel) => typeof context.confirm === "function"
+      ? context.confirm(message, title, confirmLabel)
+      : Promise.resolve(window.confirm(message));
+
+    const entityRelationshipRenderItem = relationshipId => {
+      if (!relationshipId || state.hideAllEntityRelationships) return null;
+      const model = annotationEntityRelationshipRenderModel(
+        annotationVisibleObjects(state),
+        state.relationshipStyle,
+        {
+          allowOverlappingLines: state.allowOverlappingEntityLines,
+          manualRoutes: state.manualEntityRelationshipRoutes
+        }
+      );
+      return model.renderedRelationships.find(item => item.relationship.id === relationshipId) || null;
+    };
+
+    const relationshipRouteKey = points => JSON.stringify(
+      normalizeAnnotationEntityRelationshipRouteOverride(points)
+        .map(point => [formatNumber(point.x), formatNumber(point.y)])
+    );
+
+    const applyEntityRelationshipSegmentGesture = (relationshipGesture, point) => {
+      const item = entityRelationshipRenderItem(relationshipGesture.relationshipId);
+      const relationship = item?.relationship;
+      if (!relationship?.foreignKeySource) return false;
+      const coordinate = relationshipGesture.axis === "x"
+        ? snapAnnotationValue(point.x, state.snapToGrid, state.gridSize)
+        : snapAnnotationValue(point.y, state.snapToGrid, state.gridSize);
+      const routeOverride = adjustAnnotationEntityRelationshipRoute(
+        relationshipGesture.originalPoints,
+        relationshipGesture.segmentIndex,
+        relationshipGesture.axis,
+        coordinate
+      );
+      const changed = relationshipRouteKey(routeOverride) !== relationshipGesture.originalKey;
+      if (changed) state.manualEntityRelationshipRoutes = true;
+      if (routeOverride.length) relationship.foreignKeySource.routeOverride = routeOverride;
+      else delete relationship.foreignKeySource.routeOverride;
+      return changed;
+    };
+
     const openAnnotationContextMenuAt = (point, refreshSelection = false) => {
       setTool("select");
       if (refreshSelection) render();
@@ -4219,10 +4297,12 @@ function createAnnotationDialog(context) {
         activateEntityHeaderAction(entityHeaderAction);
         return;
       }
-      if (activeTool === "pan") return;
+      const relationshipHandleBeforePan = event.target.closest?.("[data-annotation-relationship-handle]");
+      if (activeTool === "pan" && !relationshipHandleBeforePan) return;
       workspace.focus({ preventScroll: true });
       const point = canvasPoint(event);
       const handle = event.target.closest?.("[data-annotation-handle]");
+      const relationshipHandle = relationshipHandleBeforePan;
       const objectElement = event.target.closest?.("[data-annotation-object-id]");
 
       if (activeTool === "format-painter") {
@@ -4231,6 +4311,32 @@ function createAnnotationDialog(context) {
           event.preventDefault();
           event.stopPropagation();
         }
+        return;
+      }
+
+      if (["select", "pan"].includes(activeTool) && relationshipHandle) {
+        const relationshipId = relationshipHandle.dataset.annotationRelationshipId || "";
+        const item = entityRelationshipRenderItem(relationshipId);
+        if (!item) return;
+        const segmentIndex = Number.parseInt(relationshipHandle.dataset.annotationRelationshipSegmentIndex, 10);
+        const axis = relationshipHandle.dataset.annotationRelationshipSegmentAxis === "x" ? "x" : "y";
+        selectedIds = new Set([relationshipId]);
+        lastSelectedObjectId = relationshipId;
+        lastTreeSelectionKey = `relationship:${relationshipId}`;
+        gesture = {
+          type: "relationship-segment",
+          pointerId: event.pointerId,
+          relationshipId,
+          segmentIndex,
+          axis,
+          originalPoints: deepCopy(item.geometry.points),
+          originalKey: relationshipRouteKey(item.geometry.points),
+          moved: false
+        };
+        setStatus("Drag this relationship segment to set a manual route override.");
+        canvas.setPointerCapture?.(event.pointerId);
+        event.preventDefault();
+        event.stopPropagation();
         return;
       }
 
@@ -4436,6 +4542,8 @@ function createAnnotationDialog(context) {
             state.gridSize
           ));
         }
+      } else if (gesture.type === "relationship-segment") {
+        gesture.moved = applyEntityRelationshipSegmentGesture(gesture, point) || gesture.moved;
       }
       render();
       event.preventDefault();
@@ -4468,6 +4576,16 @@ function createAnnotationDialog(context) {
           .map(original => state.objects.find(object => object.id === original.id))
           .find(object => object?.type === "entity");
         if (resizedEntity) resolveAnnotationEntitySizeChangeLayout(state, resizedEntity);
+      }
+      if (completed.type === "relationship-segment") {
+        if (completed.moved) {
+          pushHistory();
+          setStatus("Relationship segment adjusted. The manual route is saved with this FK connector.");
+        } else {
+          setStatus("Relationship selected.");
+        }
+        renderWithWorkspaceExpansion();
+        return;
       }
       if (completed.type === "create") {
         const object = state.objects.find(item => item.id === completed.objectId);
@@ -5369,7 +5487,10 @@ function createAnnotationDialog(context) {
         const model = annotationEntityRelationshipRenderModel(
           annotationVisibleObjects(state),
           state.relationshipStyle,
-          { allowOverlappingLines: state.allowOverlappingEntityLines }
+          {
+            allowOverlappingLines: state.allowOverlappingEntityLines,
+            manualRoutes: state.manualEntityRelationshipRoutes
+          }
         );
         const items = kind === "relationship"
           ? model.renderedRelationships.filter(item => item.relationship.id === id)
@@ -5584,6 +5705,38 @@ function createAnnotationDialog(context) {
       return true;
     };
 
+    const editSelectedEntityScript = async () => {
+      const entity = selectedObjects().length === 1 && selectedObjects()[0]?.type === "entity"
+        ? selectedObjects()[0]
+        : null;
+      if (!entity) {
+        setStatus("Select one Entity first.");
+        return false;
+      }
+      if (entity.locked) {
+        setStatus("Unlock the Entity before editing its original script.");
+        return false;
+      }
+      const definition = await openAnnotationEntityDialog(entity);
+      if (!definition) return false;
+      pushHistory();
+      applyAnnotationEntityDefinition(entity, definition);
+      ensureAnnotationEntitySize(entity);
+      const layoutResult = resolveAnnotationEntitySizeChangeLayout(state, entity);
+      pushHistory();
+      setStatus(`${formatAnnotationEntityIdentifier(entity.entitySchema, entity.entityName)} updated.`);
+      renderWithWorkspaceExpansion();
+      if (annotationEntityAnchorShortcutWarningAllowed(state)
+        && (layoutResult.unresolvedOverlapCount || layoutResult.unresolvedRouteContactCount)) {
+        void openAnnotationInformationDialog(
+          "Because an Anchor or otherwise fixed table could not be moved, PMT kept the fixed table in place and rendered the affected relationships using the best available route.",
+          "Anchor Table Shortcut"
+        );
+      }
+      window.setTimeout(focusLastSelectedObject, 0);
+      return true;
+    };
+
     const activateEntityHeaderAction = actionElement => {
       const objectElement = actionElement?.closest?.("[data-annotation-object-id]");
       const entity = state.objects.find(object => object.id === objectElement?.dataset.annotationObjectId && object.type === "entity");
@@ -5677,6 +5830,11 @@ function createAnnotationDialog(context) {
           fieldMapButton.dataset.annotationEntityId,
           Number.parseInt(fieldMapButton.dataset.annotationEntityFieldIndex, 10)
         );
+        return;
+      }
+
+      if (event.target.closest("[data-annotation-entity-show-script]")) {
+        await editSelectedEntityScript();
         return;
       }
 
@@ -6099,6 +6257,37 @@ function createAnnotationDialog(context) {
       setStatus(event.target.checked
         ? "All Entity relationship lines are hidden."
         : "All Entity relationship lines are visible.");
+      renderWithWorkspaceExpansion();
+    });
+    dialog.querySelector("[data-annotation-entity-manual-relationship-routes]")?.addEventListener("change", async event => {
+      const enabled = event.target.checked;
+      pushHistory();
+      state.manualEntityRelationshipRoutes = enabled;
+      pushHistory();
+      setStatus(enabled
+        ? "Manual relationship lines are enabled. Select a relationship and drag its segment handles."
+        : "Manual relationship lines are off. Saved manual routes are ignored until this is turned back on.");
+      renderWithWorkspaceExpansion();
+    });
+    dialog.querySelector("[data-annotation-entity-clear-manual-relationship-routes]")?.addEventListener("click", async () => {
+      const existingRouteCount = state.objects
+        .filter(object => object.type === "entity")
+        .flatMap(entity => entity.foreignKeys || [])
+        .filter(foreignKey => Array.isArray(foreignKey.routeOverride) && foreignKey.routeOverride.length).length;
+      if (!existingRouteCount) {
+        setStatus("There are no manual relationship lines to clear.");
+        return;
+      }
+      const confirmed = await confirmAnnotation(
+        `Clear ${existingRouteCount} manual relationship route${existingRouteCount === 1 ? "" : "s"}?`,
+        "Clear Manual Relationship Lines",
+        "Clear"
+      );
+      if (!confirmed) return;
+      pushHistory();
+      const result = clearAnnotationEntityRelationshipRouteOverrides(state);
+      pushHistory();
+      setStatus(`${result.clearedCount} manual relationship route${result.clearedCount === 1 ? "" : "s"} cleared.`);
       renderWithWorkspaceExpansion();
     });
     entityAnnotationInput.addEventListener("click", async () => {
@@ -6679,8 +6868,11 @@ function annotationDialogHtml(context = {}) {
               </div>
               <div class="image-annotation-entity-display-options">
                 <button type="button" data-annotation-entity-auto-format-org-tree>Auto Format - Org Tree</button>
+                <button type="button" data-annotation-entity-show-script>Show Original Script</button>
                 <label class="inline-check"><input type="checkbox" data-annotation-entity-anchor-table><span>Anchor table (do not move)</span></label>
                 <label class="inline-check"><input type="checkbox" data-annotation-entity-allow-overlapping-lines><span>Allow Overlapping Lines</span></label>
+                <label class="inline-check"><input type="checkbox" data-annotation-entity-manual-relationship-routes><span>Manual relationship lines</span></label>
+                <button type="button" data-annotation-entity-clear-manual-relationship-routes>Clear Manual Lines</button>
                 <label class="inline-check"><input type="checkbox" data-annotation-entity-show-keys checked><span>Show PK/FK column</span></label>
                 <label class="inline-check"><input type="checkbox" data-annotation-entity-show-data-types><span>Show data types</span></label>
                 <label class="inline-check"><input type="checkbox" data-annotation-entity-fk-at-top><span>FK at the Top</span></label>
@@ -7062,7 +7254,8 @@ function annotationCanvasSvg(
   const relationshipRenderModel = state.hideAllEntityRelationships
     ? null
     : annotationEntityRelationshipRenderModel(allVisibleObjects, state.relationshipStyle, {
-        allowOverlappingLines: state.allowOverlappingEntityLines
+        allowOverlappingLines: state.allowOverlappingEntityLines,
+        manualRoutes: state.manualEntityRelationshipRoutes
       });
   const relationships = annotationEntityRelationshipsSvg(allVisibleObjects, state.relationshipStyle, {
     interactive: true,
@@ -7071,6 +7264,7 @@ function annotationCanvasSvg(
     zoom,
     allowOverlappingLines: state.allowOverlappingEntityLines,
     hidden: state.hideAllEntityRelationships,
+    manualRoutes: state.manualEntityRelationshipRoutes,
     relationshipRenderModel
   });
   const belowRelationships = relationshipLayers.below
@@ -7118,7 +7312,8 @@ export function annotationEntityRelationshipsSvg(objectsInput, relationshipStyle
       {
         interactive,
         selected: selectedIds.has(item.relationship.id),
-        zoom
+        zoom,
+        manualRoutes: options?.manualRoutes === true
       }
     ))
     .join("");
@@ -7138,11 +7333,13 @@ function annotationEntityRelationshipRenderModel(objectsInput, relationshipStyle
     style: annotationEntityRelationshipEffectiveStyle(relationship, style)
   }));
   const allowOverlappingLines = options?.allowOverlappingLines === true;
+  const manualRoutes = options?.manualRoutes === true;
   const cacheOwner = entities.find(entity => entity && typeof entity === "object") || null;
   const cacheKey = annotationEntityRelationshipGeometryCacheKey(
     entities,
     relationshipItems,
-    allowOverlappingLines
+    allowOverlappingLines,
+    manualRoutes
   );
   const cached = cacheOwner ? annotationEntityRelationshipGeometryCache.get(cacheOwner) : null;
   let geometryById = cached?.key === cacheKey ? cached.geometryById : null;
@@ -7155,7 +7352,8 @@ function annotationEntityRelationshipRenderModel(objectsInput, relationshipStyle
         relationships,
         entities,
         obstacleIndex,
-        allowOverlappingLines
+        allowOverlappingLines,
+        manualRoutes
       })
     ]));
     if (cacheOwner) {
@@ -7200,9 +7398,15 @@ function annotationEntityRelationshipGeometryVisualBounds(geometry, styleInput) 
   };
 }
 
-function annotationEntityRelationshipGeometryCacheKey(obstacles, relationshipItems, allowOverlappingLines) {
+function annotationEntityRelationshipGeometryCacheKey(
+  obstacles,
+  relationshipItems,
+  allowOverlappingLines,
+  manualRoutes
+) {
   return JSON.stringify([
     allowOverlappingLines ? 1 : 0,
+    manualRoutes ? 1 : 0,
     obstacles.map(object => {
       const bounds = annotationObjectBounds(object);
       return [
@@ -7229,6 +7433,11 @@ function annotationEntityRelationshipGeometryCacheKey(obstacles, relationshipIte
       relationship.target?.anchorTable === true ? 1 : 0,
       annotationEntityFieldAnchorY(relationship.target, relationship.targetField),
       safeAnnotationEntityRelationshipType(relationship.foreignKey?.relationshipType),
+      manualRoutes
+        ? normalizeAnnotationEntityRelationshipRouteOverride(
+            relationship.foreignKeySource?.routeOverride || relationship.foreignKey?.routeOverride
+          ).map(point => [formatNumber(point.x), formatNumber(point.y)])
+        : [],
       formatNumber(style.strokeWidth),
       formatNumber(style.arrowSize)
     ])
@@ -7294,6 +7503,78 @@ function annotationEntityRelationshipEffectiveStyle(relationship, globalStyleInp
       || normalizeAnnotationEntityRelationshipStyleOverride(relationship?.foreignKey?.styleOverride)
       || {})
   });
+}
+
+function annotationEntityRelationshipManualRoute(relationship, start, end) {
+  const route = normalizeAnnotationEntityRelationshipRouteOverride(
+    relationship?.foreignKeySource?.routeOverride || relationship?.foreignKey?.routeOverride
+  );
+  if (!route?.length) return null;
+  const routeStart = route[0];
+  const routeEnd = route.at(-1);
+  const samePoint = (first, second) => Math.abs(first.x - second.x) <= 1
+    && Math.abs(first.y - second.y) <= 1;
+  if (!samePoint(routeStart, start) || !samePoint(routeEnd, end)) return null;
+  const adjusted = route.map((point, index) => {
+    if (index === 0) return { x: start.x, y: start.y };
+    if (index === route.length - 1) return { x: end.x, y: end.y };
+    return point;
+  });
+  return compactAnnotationEntityRelationshipPoints(adjusted);
+}
+
+export function adjustAnnotationEntityRelationshipRoute(pointsInput, segmentIndexInput, axisInput, coordinateInput) {
+  const points = normalizeAnnotationEntityRelationshipRouteOverride(pointsInput);
+  const segmentIndex = Number.parseInt(segmentIndexInput, 10);
+  const axis = axisInput === "x" ? "x" : axisInput === "y" ? "y" : "";
+  const coordinate = finiteNumber(coordinateInput, Number.NaN);
+  if (!points.length
+    || !axis
+    || !Number.isFinite(coordinate)
+    || segmentIndex < 0
+    || segmentIndex >= points.length - 1) return points;
+  const first = points[segmentIndex];
+  const second = points[segmentIndex + 1];
+  const isVertical = Math.abs(first.x - second.x) <= annotationCoordinateTolerance;
+  const isHorizontal = Math.abs(first.y - second.y) <= annotationCoordinateTolerance;
+  if ((axis === "x" && !isVertical) || (axis === "y" && !isHorizontal)) return points;
+  const isFirstEndpointSegment = segmentIndex === 0;
+  const isLastEndpointSegment = segmentIndex === points.length - 2;
+  if (isFirstEndpointSegment || isLastEndpointSegment) {
+    if (Math.abs((isFirstEndpointSegment ? first : second)[axis] - coordinate) <= annotationCoordinateTolerance) {
+      return points;
+    }
+    const anchor = isFirstEndpointSegment ? first : second;
+    const neighbor = isFirstEndpointSegment ? second : first;
+    const alongAxis = axis === "y" ? "x" : "y";
+    const span = Math.abs(neighbor[alongAxis] - anchor[alongAxis]);
+    const direction = Math.sign(neighbor[alongAxis] - anchor[alongAxis]) || 1;
+    const doglegDistance = Math.min(Math.max(24, defaultGridSize), Math.max(4, span / 2));
+    const dogleg = {
+      ...anchor,
+      [alongAxis]: anchor[alongAxis] + (direction * doglegDistance)
+    };
+    const movedDogleg = { ...dogleg, [axis]: coordinate };
+    if (isFirstEndpointSegment) {
+      return compactAnnotationEntityRelationshipPoints([
+        anchor,
+        dogleg,
+        movedDogleg,
+        { ...neighbor, [axis]: coordinate },
+        ...points.slice(segmentIndex + 2)
+      ]);
+    }
+    return compactAnnotationEntityRelationshipPoints([
+      ...points.slice(0, segmentIndex),
+      { ...neighbor, [axis]: coordinate },
+      movedDogleg,
+      dogleg,
+      anchor
+    ]);
+  }
+  points[segmentIndex] = { ...first, [axis]: coordinate };
+  points[segmentIndex + 1] = { ...second, [axis]: coordinate };
+  return compactAnnotationEntityRelationshipPoints(points);
 }
 
 function annotationEntityRelationshipSelectionObject(relationship, globalStyleInput) {
@@ -7562,6 +7843,7 @@ function separateAnnotationEntitiesFromRelationshipRoutes(entitiesInput, relatio
   }
 
   const relationshipStyle = normalizeAnnotationEntityRelationshipStyle(options?.relationshipStyle);
+  const entityClearance = annotationEntityRelationshipClearance(relationshipStyle) * 2;
   const gridSize = clampNumber(positiveNumber(options?.gridSize, defaultGridSize), 4, 200);
   const chosenDirections = new Map();
   const adjustedIds = new Set();
@@ -7595,13 +7877,15 @@ function separateAnnotationEntitiesFromRelationshipRoutes(entitiesInput, relatio
       const direction = directions.find(candidate => annotationEntityCanNudgeHorizontally(
         entity,
         entities,
-        candidate * gridSize
+        candidate * gridSize,
+        entityClearance
       ));
       if (!direction) {
         directions.flatMap(candidate => annotationEntityHorizontalNudgeBlockers(
           entity,
           entities,
-          candidate * gridSize
+          candidate * gridSize,
+          entityClearance
         )).filter(blocker => blocker.anchorTable === true || blocker.locked === true)
           .forEach(blocker => fixedConstraintIds.add(blocker.id));
         return;
@@ -7681,24 +7965,25 @@ function annotationEntityRouteNudgeDirection(entity, entities, gridSize) {
   return rightSpace >= leftSpace ? 1 : -1;
 }
 
-function annotationEntityCanNudgeHorizontally(entity, entities, deltaX) {
+function annotationEntityCanNudgeHorizontally(entity, entities, deltaX, clearance = 0) {
   if (entity.x + deltaX < 0) return false;
-  return annotationEntityHorizontalNudgeBlockers(entity, entities, deltaX).length === 0;
+  return annotationEntityHorizontalNudgeBlockers(entity, entities, deltaX, clearance).length === 0;
 }
 
-function annotationEntityHorizontalNudgeBlockers(entity, entities, deltaX) {
-  const candidate = {
+function annotationEntityHorizontalNudgeBlockers(entity, entities, deltaX, clearance = 0) {
+  const safeClearance = Math.max(0, finiteNumber(clearance, 0));
+  const candidate = expandedAnnotationBounds({
     x: entity.x + deltaX,
     y: entity.y,
     width: entity.width,
     height: entity.height
-  };
+  }, safeClearance / 2);
   if (candidate.x < 0) return [];
   return entities.filter(other => other !== entity
-    && candidate.x < other.x + other.width
-    && candidate.x + candidate.width > other.x
-    && candidate.y < other.y + other.height
-    && candidate.y + candidate.height > other.y);
+    && annotationBoundsIntersect(
+      candidate,
+      expandedAnnotationBounds(annotationObjectBounds(other), safeClearance / 2)
+    ));
 }
 
 function annotationEntityRelationshipVisualBounds(objectsInput, relationshipStyleInput = null, options = {}) {
@@ -7811,7 +8096,7 @@ function annotationEntityRelationshipVisibleRoutesSvg(routeGroups) {
 
 function annotationEntityRelationshipGroupSelectionSvg(routeGroups, zoom) {
   return routeGroups
-    .map(group => `<path class="image-annotation-entity-relationship-selection" d="${group.path}" fill="none" stroke-width="${formatNumber(group.style.strokeWidth + (4 / zoom))}" stroke-linejoin="round" pointer-events="none" data-annotation-relationship-stroke-width="${formatNumber(group.style.strokeWidth)}"></path>`)
+    .map(group => `<path class="image-annotation-entity-relationship-selection" d="${group.path}" fill="none" stroke-width="1" vector-effect="non-scaling-stroke" pointer-events="none" data-annotation-relationship-stroke-width="${formatNumber(group.style.strokeWidth)}"></path>`)
     .join("");
 }
 
@@ -7829,7 +8114,10 @@ function annotationEntityRelationshipSvg(relationship, style, geometry, options 
   const sourceName = `${formatAnnotationEntityIdentifier(source.entitySchema, source.entityName)}.${formatAnnotationEntityIdentifier(sourceField.name)}`;
   const targetName = `${formatAnnotationEntityIdentifier(target.entitySchema, target.entityName)}.${formatAnnotationEntityIdentifier(targetField?.name || foreignKey.referencedColumns[0])}`;
   const selection = options.selected
-    ? `<path class="image-annotation-entity-relationship-selection" d="${path}" fill="none" stroke-width="${formatNumber(style.strokeWidth + (4 / options.zoom))}" stroke-linejoin="round" pointer-events="none"></path>`
+    ? `<path class="image-annotation-entity-relationship-selection" d="${path}" fill="none" stroke-width="1" vector-effect="non-scaling-stroke" pointer-events="none"></path>`
+    : "";
+  const handles = options.selected && options.interactive
+    ? annotationEntityRelationshipSegmentHandlesSvg(relationship, geometry, options.zoom)
     : "";
   const hit = options.interactive
     ? `<path class="image-annotation-entity-relationship-hit" d="${path}" fill="none" stroke="transparent" stroke-width="${formatNumber(Math.max(style.strokeWidth + (10 / options.zoom), 14 / options.zoom))}" stroke-linejoin="round" pointer-events="stroke"></path>`
@@ -7837,7 +8125,26 @@ function annotationEntityRelationshipSvg(relationship, style, geometry, options 
   const interaction = options.interactive
     ? ` data-annotation-object-id="${escapeXmlAttr(relationship.id)}" data-annotation-object-type="${entityRelationshipObjectType}" role="button" tabindex="0" aria-label="${escapeXmlAttr(annotationEntityRelationshipName(relationship))}"`
     : "";
-  return `<g class="image-annotation-entity-relationship${options.selected ? " is-selected" : ""}"${interaction} data-annotation-relationship-stroke-width="${formatNumber(style.strokeWidth)}" data-pmt-relationship-type="${relationshipType || "arrow"}" data-pmt-relationship-source="${escapeXmlAttr(sourceName)}" data-pmt-relationship-target="${escapeXmlAttr(targetName)}"><title>${escapeXmlText(`${sourceName} points to ${targetName}`)}</title>${selection}${markers}${hit}</g>`;
+  return `<g class="image-annotation-entity-relationship${options.selected ? " is-selected" : ""}"${interaction} data-annotation-relationship-stroke-width="${formatNumber(style.strokeWidth)}" data-pmt-relationship-type="${relationshipType || "arrow"}" data-pmt-relationship-source="${escapeXmlAttr(sourceName)}" data-pmt-relationship-target="${escapeXmlAttr(targetName)}"><title>${escapeXmlText(`${sourceName} points to ${targetName}`)}</title>${selection}${markers}${hit}${handles}</g>`;
+}
+
+function annotationEntityRelationshipSegmentHandlesSvg(relationship, geometry, zoom) {
+  const points = normalizeAnnotationEntityRelationshipRouteOverride(geometry?.points);
+  if (points.length < 2) return "";
+  const radius = 4 / Math.max(minimumZoom, zoom);
+  return points.slice(0, -1).map((point, index) => {
+    const next = points[index + 1];
+    const isVertical = Math.abs(point.x - next.x) <= annotationCoordinateTolerance;
+    const isHorizontal = Math.abs(point.y - next.y) <= annotationCoordinateTolerance;
+    if (!isVertical && !isHorizontal) return "";
+    if (Math.abs(point.x - next.x) + Math.abs(point.y - next.y) < 12) return "";
+    const axis = isVertical ? "x" : "y";
+    const handle = {
+      x: (point.x + next.x) / 2,
+      y: (point.y + next.y) / 2
+    };
+    return `<circle class="image-annotation-handle image-annotation-entity-relationship-handle" data-annotation-handle="entity-relationship-segment" data-annotation-relationship-handle="segment" data-annotation-relationship-id="${escapeXmlAttr(relationship.id)}" data-annotation-relationship-segment-index="${index}" data-annotation-relationship-segment-axis="${axis}" cx="${formatNumber(handle.x)}" cy="${formatNumber(handle.y)}" r="${formatNumber(radius)}" stroke-width="0.75"><title>Drag to adjust this relationship segment</title></circle>`;
+  }).join("");
 }
 
 function annotationEntityRelationshipGeometry(relationship, style, options = {}) {
@@ -7926,7 +8233,7 @@ function annotationEntityRelationshipGeometry(relationship, style, options = {})
     const rightLane = Math.max(source.x + source.width, target.x + target.width) + margin;
     const leftDistance = (source.x - leftLane) + (target.x - leftLane);
     const rightDistance = (rightLane - (source.x + source.width)) + (rightLane - (target.x + target.width));
-    const useRightLane = rightDistance <= leftDistance;
+    const useRightLane = rightDistance < leftDistance;
     const laneIndex = allowSharedRoute
       ? 0
       : annotationEntityRelationshipPairIndex(relationship, options.relationships);
@@ -7960,15 +8267,38 @@ function annotationEntityRelationshipGeometry(relationship, style, options = {})
   }
 
   if (!skipObstacleRouting && source !== target) {
+    const clearance = annotationEntityRelationshipClearance(style);
+    const clearanceContactCount = routePoints => obstacles
+      .filter(obstacle => obstacle !== source && obstacle !== target)
+      .filter(obstacle => annotationEntityRelationshipRouteTouchesObstacle(routePoints, obstacle, clearance))
+      .length;
+    const routeCandidate = (candidateStart, candidateEnd, candidateSourceUnit, candidateTargetUnit, candidatePoints) => {
+      const candidatePath = annotationEntityRelationshipPath(candidatePoints);
+      return {
+        start: candidateStart,
+        end: candidateEnd,
+        sourceUnit: candidateSourceUnit,
+        targetUnit: candidateTargetUnit,
+        points: candidatePoints,
+        length: annotationEntityRelationshipRouteLength(candidatePoints),
+        footprintPenalty: annotationEntityRelationshipRouteFootprintPenalty(candidatePoints, candidateStart, candidateEnd, clearance),
+        clearanceContactCount: clearanceContactCount(candidatePoints),
+        path: candidatePath
+      };
+    };
+    const routeIsBetter = (candidate, incumbent) => {
+      if (!incumbent) return true;
+      if (candidate.clearanceContactCount !== incumbent.clearanceContactCount) {
+        return candidate.clearanceContactCount < incumbent.clearanceContactCount;
+      }
+      if (candidate.footprintPenalty !== incumbent.footprintPenalty) {
+        return candidate.footprintPenalty < incumbent.footprintPenalty;
+      }
+      return candidate.length < incumbent.length
+        || (candidate.length === incumbent.length && candidate.path < incumbent.path);
+    };
     let bestRoute = points?.length
-      ? {
-          start,
-          end,
-          sourceUnit,
-          targetUnit,
-          points,
-          length: annotationEntityRelationshipRouteLength(points)
-        }
+      ? routeCandidate(start, end, sourceUnit, targetUnit, points)
       : null;
     const sourceSide = start.x === source.x ? "left" : "right";
     const targetSide = end.x === target.x ? "left" : "right";
@@ -7991,8 +8321,8 @@ function annotationEntityRelationshipGeometry(relationship, style, options = {})
       const alternateTargetUnit = { x: alternateTargetSide === "left" ? 1 : -1, y: 0 };
       const minimumAlternateLength = Math.abs(alternateStart.x - alternateEnd.x)
         + Math.abs(alternateStart.y - alternateEnd.y);
-      if (bestRoute && minimumAlternateLength >= bestRoute.length) continue;
-      const escapeDistance = annotationEntityRelationshipClearance(style);
+      if (bestRoute?.clearanceContactCount === 0 && minimumAlternateLength >= bestRoute.length) continue;
+      const escapeDistance = clearance;
       const alternateStartEscape = {
         x: alternateStart.x + (alternateSourceUnit.x * escapeDistance),
         y: alternateStart.y
@@ -8017,20 +8347,14 @@ function annotationEntityRelationshipGeometry(relationship, style, options = {})
         obstacleRouteOptions
       );
       if (!alternatePoints?.length) continue;
-      const alternateLength = annotationEntityRelationshipRouteLength(alternatePoints);
-      const alternatePath = annotationEntityRelationshipPath(alternatePoints);
-      const bestPath = bestRoute ? annotationEntityRelationshipPath(bestRoute.points) : "";
-      if (bestRoute
-        && (alternateLength > bestRoute.length
-          || (alternateLength === bestRoute.length && alternatePath >= bestPath))) continue;
-      bestRoute = {
-        start: alternateStart,
-        end: alternateEnd,
-        sourceUnit: alternateSourceUnit,
-        targetUnit: alternateTargetUnit,
-        points: alternatePoints,
-        length: alternateLength
-      };
+      const alternateRoute = routeCandidate(
+        alternateStart,
+        alternateEnd,
+        alternateSourceUnit,
+        alternateTargetUnit,
+        alternatePoints
+      );
+      if (routeIsBetter(alternateRoute, bestRoute)) bestRoute = alternateRoute;
     }
     if (bestRoute) {
       start = bestRoute.start;
@@ -8040,6 +8364,11 @@ function annotationEntityRelationshipGeometry(relationship, style, options = {})
       points = bestRoute.points;
     }
   }
+
+  const manualPoints = options.manualRoutes === true
+    ? annotationEntityRelationshipManualRoute(relationship, start, end)
+    : null;
+  if (manualPoints) points = manualPoints;
 
   const relationshipType = safeAnnotationEntityRelationshipType(foreignKey.relationshipType);
   if (!points?.length) return null;
@@ -8197,6 +8526,22 @@ function annotationEntityRelationshipObstacleRoute(
     return points.slice(1)
       .some((point, index) => annotationOrthogonalSegmentTouchesObstacle(points[index], point, routingBounds));
   });
+  const routeFanoutPenalty = route => {
+    if (!sourceUnit.x || !targetUnit.x || sourceUnit.x === targetUnit.x) return 0;
+    const firstSegment = route[1]
+      ? Math.abs(route[1].x - route[0].x) + Math.abs(route[1].y - route[0].y)
+      : 0;
+    const lastSegment = route.at(-2)
+      ? Math.abs(route.at(-1).x - route.at(-2).x) + Math.abs(route.at(-1).y - route.at(-2).y)
+      : 0;
+    const localConnectorLength = clearance * 2;
+    return annotationEntityRelationshipRouteFootprintPenalty(route, start, end, clearance)
+      + Math.max(0, firstSegment - localConnectorLength)
+      + Math.max(0, lastSegment - localConnectorLength);
+  };
+  const compareRoutes = (first, second) => routeFanoutPenalty(first) - routeFanoutPenalty(second)
+    || annotationEntityRelationshipRouteLength(first) - annotationEntityRelationshipRouteLength(second)
+    || annotationEntityRelationshipPath(first).localeCompare(annotationEntityRelationshipPath(second));
   const routeWithEntries = (entries, requiredClearance) => {
     const entities = entries.map(entry => entry.bounds);
     const routingObstacles = entries
@@ -8217,11 +8562,8 @@ function annotationEntityRelationshipObstacleRoute(
       [start, startEscape, { x: startEscape.x, y: endEscape.y }, endEscape, end]
     ]
       .map(compactAnnotationEntityRelationshipPoints)
-      .filter(route => !routeTouchesEntries(route, entries, requiredClearance))
-      .sort((first, second) => annotationEntityRelationshipRouteLength(first)
-        - annotationEntityRelationshipRouteLength(second)
-        || annotationEntityRelationshipPath(first).localeCompare(annotationEntityRelationshipPath(second)));
-    if (directRoutes.length) return directRoutes[0];
+      .filter(route => !routeTouchesEntries(route, entries, requiredClearance));
+    const candidates = [...directRoutes];
     const middle = annotationEntityRelationshipVisibilityRoute(
       startEscape,
       endEscape,
@@ -8232,7 +8574,7 @@ function annotationEntityRelationshipObstacleRoute(
     );
     if (middle) {
       const routed = compactAnnotationEntityRelationshipPoints([start, ...middle, end]);
-      if (!routeTouchesEntries(routed, entries, requiredClearance)) return routed;
+      if (!routeTouchesEntries(routed, entries, requiredClearance)) candidates.push(routed);
     }
     const exteriorRoute = annotationEntityRelationshipExteriorFallbackRoute(
       start,
@@ -8243,7 +8585,9 @@ function annotationEntityRelationshipObstacleRoute(
       clearance,
       route => routeTouchesEntries(route, entries, requiredClearance)
     );
-    return exteriorRoute || null;
+    if (exteriorRoute) candidates.push(exteriorRoute);
+    candidates.sort(compareRoutes);
+    return candidates[0] || null;
   };
 
   const routeContacts = (points, requiredClearance) => {
@@ -8437,6 +8781,22 @@ function annotationEntityRelationshipRouteLength(points) {
   return points.slice(1).reduce((total, point, index) => total
     + Math.abs(point.x - points[index].x)
     + Math.abs(point.y - points[index].y), 0);
+}
+
+function annotationEntityRelationshipRouteFootprintPenalty(pointsInput, start, end, clearance) {
+  const points = Array.isArray(pointsInput) ? pointsInput : [];
+  if (!points.length || !start || !end) return 0;
+  const bounds = annotationEntityRelationshipPointsBounds(points);
+  if (!bounds) return 0;
+  const localMargin = Math.max(clearance * 2, 96);
+  const left = Math.min(start.x, end.x) - localMargin;
+  const right = Math.max(start.x, end.x) + localMargin;
+  const top = Math.min(start.y, end.y) - localMargin;
+  const bottom = Math.max(start.y, end.y) + localMargin;
+  return Math.max(0, left - bounds.x)
+    + Math.max(0, (bounds.x + bounds.width) - right)
+    + Math.max(0, top - bounds.y)
+    + Math.max(0, (bounds.y + bounds.height) - bottom);
 }
 
 function annotationEntityRelationshipVisibilityRoute(
@@ -9142,6 +9502,17 @@ function annotationBoundsIntersect(first, second) {
     && first.x + first.width >= second.x
     && first.y <= second.y + second.height
     && first.y + first.height >= second.y;
+}
+
+function expandedAnnotationBounds(bounds, padding = 0) {
+  const safePadding = Math.max(0, finiteNumber(padding, 0));
+  if (!bounds || safePadding <= 0) return bounds;
+  return {
+    x: bounds.x - safePadding,
+    y: bounds.y - safePadding,
+    width: bounds.width + (safePadding * 2),
+    height: bounds.height + (safePadding * 2)
+  };
 }
 
 function annotationArrowIntersectsRect(object, rect) {
@@ -10688,6 +11059,7 @@ function normalizeAnnotationEntityForeignKey(input) {
   const referencedTable = unquoteAnnotationSqlIdentifier(input.referencedTable).slice(0, 240);
   if (!columns.length || !referencedTable) return null;
   const styleOverride = normalizeAnnotationEntityRelationshipStyleOverride(input.styleOverride);
+  const routeOverride = normalizeAnnotationEntityRelationshipRouteOverride(input.routeOverride);
   return {
     name: unquoteAnnotationSqlIdentifier(input.name).slice(0, 240),
     columns,
@@ -10695,8 +11067,23 @@ function normalizeAnnotationEntityForeignKey(input) {
     referencedTable,
     referencedColumns,
     relationshipType: safeAnnotationEntityRelationshipType(input.relationshipType),
-    ...(styleOverride ? { styleOverride } : {})
+    ...(styleOverride ? { styleOverride } : {}),
+    ...(routeOverride.length ? { routeOverride } : {})
   };
+}
+
+function normalizeAnnotationEntityRelationshipRouteOverride(input) {
+  const points = Array.isArray(input)
+    ? input
+        .map(point => ({
+          x: finiteNumber(point?.x, Number.NaN),
+          y: finiteNumber(point?.y, Number.NaN)
+        }))
+        .filter(point => Number.isFinite(point.x) && Number.isFinite(point.y))
+        .slice(0, 64)
+    : [];
+  if (points.length < 2) return [];
+  return compactAnnotationEntityRelationshipPoints(points);
 }
 
 function annotationArrowStrokeWidth(object) {

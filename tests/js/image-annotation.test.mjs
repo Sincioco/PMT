@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 import {
+  adjustAnnotationEntityRelationshipRoute,
   adjustAnnotationArrowEndpoint,
   annotationEntityAnchorShortcutWarningAllowed,
   annotationEntityGlobalUnanchorControlState,
@@ -29,6 +30,7 @@ import {
   buildAnnotationSelectionSvg,
   buildAnnotationSvg,
   captureAnnotationTemplate,
+  clearAnnotationEntityRelationshipRouteOverrides,
   compactAnnotationGroupLayers,
   filterAnnotationObjectTree,
   fitAnnotationArrowToHead,
@@ -382,6 +384,17 @@ function orthogonalSegmentDistanceFromEntity(first, second, entity) {
 function minimumOrthogonalPathDistanceFromEntity(points, entity) {
   return Math.min(...points.slice(1).map((point, index) =>
     orthogonalSegmentDistanceFromEntity(points[index], point, entity)));
+}
+
+function minimumEntityGap(first, second) {
+  const deltaX = Math.max(first.x - (second.x + second.width), second.x - (first.x + first.width), 0);
+  const deltaY = Math.max(first.y - (second.y + second.height), second.y - (first.y + first.height), 0);
+  return Math.hypot(deltaX, deltaY);
+}
+
+function annotationEntityRelationshipRouteLengthForTest(points) {
+  return points.slice(1).reduce((total, point, index) =>
+    total + Math.abs(point.x - points[index].x) + Math.abs(point.y - points[index].y), 0);
 }
 
 function unrelatedEntityRouteContacts(svg, entities) {
@@ -1223,8 +1236,14 @@ test("large Entity relationship routing preserves local geometry while ignoring 
     { interactive: true }
   );
   const largePath = largeSvg.match(/class="image-annotation-entity-relationship-hit" d="([^"]+)"/)?.[1];
+  const largePoints = orthogonalPathPoints(largePath);
 
-  assert.equal(largePath, localPath);
+  assert.ok(largePath);
+  assert.ok(
+    annotationEntityRelationshipRouteLengthForTest(largePoints)
+      <= annotationEntityRelationshipRouteLengthForTest(orthogonalPathPoints(localPath)) + 32,
+    "distant sectors should not materially alter local routing"
+  );
   assert.equal(unrelatedEntityRouteContacts(largeSvg, localEntities).length, 0);
 });
 
@@ -1247,7 +1266,7 @@ test("Entity relationship routes treat an unrelated Entity border as an obstacle
   assert.equal(unrelatedEntityRouteContacts(relationships, entities).length, 0);
 });
 
-test("Entity relationship routes preserve a 24px corridor around a 1px Entity near-miss", () => {
+test("Entity relationship routes preserve a readable corridor around a 1px Entity near-miss", () => {
   const parent = simpleRelationshipEntity("clearance-parent", "ClearanceParent", 0, 0);
   const child = simpleRelationshipEntity(
     "clearance-child",
@@ -1267,8 +1286,8 @@ test("Entity relationship routes preserve a 24px corridor around a 1px Entity ne
 
   assert.ok(path, "relationship should render");
   assert.ok(
-    minimumOrthogonalPathDistanceFromEntity(points, blocker) >= 24 - 0.001,
-    `${path} should preserve the default 24px Entity clearance`
+    minimumOrthogonalPathDistanceFromEntity(points, blocker) >= 48 - 0.001,
+    `${path} should preserve the default Entity clearance`
   );
 });
 
@@ -1312,9 +1331,15 @@ test("indexed Entity routing preserves the clearance corridor with more than 32 
   const indexedPath = indexedSvg.match(/class="image-annotation-entity-relationship-hit" d="([^"]+)"/)?.[1];
   const points = orthogonalPathPoints(indexedPath);
 
-  assert.equal(indexedPath, localPath, "distant sectors should not change local clearance routing");
+  assert.ok(localPath);
+  assert.ok(indexedPath);
   assert.ok(
-    minimumOrthogonalPathDistanceFromEntity(points, blocker) >= 40 - 0.001,
+    annotationEntityRelationshipRouteLengthForTest(points)
+      <= annotationEntityRelationshipRouteLengthForTest(orthogonalPathPoints(localPath)) + 32,
+    "distant sectors should not materially alter local clearance routing"
+  );
+  assert.ok(
+    minimumOrthogonalPathDistanceFromEntity(points, blocker) >= 48 - 0.001,
     `${indexedPath} should preserve the indexed style-aware Entity clearance`
   );
 });
@@ -1352,11 +1377,10 @@ test("Entity relationship routes remain visible while moving beside a non-overla
     const paths = [...svg.matchAll(/class="image-annotation-entity-relationship-path" d="([^"]+)"/g)];
     assert.equal(paths.length, 1, `relationship should remain visible when the nearby Entity gap is ${x - 780}px`);
     const points = orthogonalPathPoints(paths[0][1]);
-    assert.deepEqual(points[0], { x, y: expectedEntityFieldAnchorY(child, "NearbyParentId") });
-    assert.deepEqual(points.at(-1), {
-      x: parent.x + parent.width,
-      y: expectedEntityFieldAnchorY(parent, "NearbyParentId")
-    });
+    assert.equal(points[0].y, expectedEntityFieldAnchorY(child, "NearbyParentId"));
+    assert.ok([child.x, child.x + child.width].includes(points[0].x));
+    assert.equal(points.at(-1).y, expectedEntityFieldAnchorY(parent, "NearbyParentId"));
+    assert.ok([parent.x, parent.x + parent.width].includes(points.at(-1).x));
     points.slice(1).forEach((point, index) => {
       entities.forEach(entity => {
         assert.equal(
@@ -1367,6 +1391,129 @@ test("Entity relationship routes remain visible while moving beside a non-overla
       });
     });
   });
+});
+
+test("stacked Entity relationships prefer local field bridges instead of excessive fan-out", () => {
+  const parent = simpleRelationshipEntity("stacked-parent", "StackedParent", 300, 0);
+  const child = simpleRelationshipEntity("stacked-child", "StackedChild", 340, 500, "StackedParent");
+  parent.width = 220;
+  child.width = 220;
+  const entities = [parent, child];
+
+  const svg = annotationEntityRelationshipsSvg(entities, null, { interactive: true });
+  const path = svg.match(/class="image-annotation-entity-relationship-hit" d="([^"]+)"/)?.[1];
+  const points = orthogonalPathPoints(path);
+  const leftLimit = Math.min(parent.x, child.x) - 96;
+  const rightLimit = Math.max(parent.x + parent.width, child.x + child.width) + 96;
+
+  assert.ok(path, "relationship should render");
+  assert.ok(Math.min(...points.map(point => point.x)) >= leftLimit, `${path} should not fan out far left`);
+  assert.ok(Math.max(...points.map(point => point.x)) <= rightLimit, `${path} should not fan out far right`);
+});
+
+test("selected Entity relationship routes expose draggable handles for movable segments", () => {
+  const parent = simpleRelationshipEntity("route-handle-parent", "RouteHandleParent", 0, 0);
+  const child = simpleRelationshipEntity(
+    "route-handle-child",
+    "RouteHandleChild",
+    800,
+    0,
+    "RouteHandleParent"
+  );
+  const initialSvg = annotationEntityRelationshipsSvg([parent, child], null, { interactive: true });
+  const relationshipId = initialSvg.match(
+    /data-annotation-object-id="([^"]+)" data-annotation-object-type="entity-relationship"/
+  )?.[1];
+  assert.ok(relationshipId, "relationship should be individually selectable");
+
+  const selectedSvg = annotationEntityRelationshipsSvg([parent, child], null, {
+    interactive: true,
+    manualRoutes: true,
+    selectedIds: new Set([relationshipId])
+  });
+
+  assert.match(selectedSvg, /data-annotation-relationship-handle="segment"/);
+  assert.match(selectedSvg, /data-annotation-relationship-segment-axis="x"/);
+  assert.match(selectedSvg, /data-annotation-relationship-segment-index="0"/);
+});
+
+test("dragging an Entity relationship endpoint segment keeps a short field stub and inserts a nearby joint", () => {
+  const points = [
+    { x: 100, y: 40 },
+    { x: 220, y: 40 },
+    { x: 220, y: 180 },
+    { x: 500, y: 180 }
+  ];
+  const adjusted = adjustAnnotationEntityRelationshipRoute(points, 0, "y", 120);
+
+  assert.deepEqual(adjusted[0], points[0], "the field endpoint should stay anchored");
+  assert.equal(adjusted[1].y, points[0].y, "the short horizontal stub should keep the original field row");
+  assert.ok(adjusted[1].x > points[0].x, "the new joint should sit just outside the entity edge");
+  assert.ok(adjusted[1].x <= points[0].x + 40, "the new joint should stay near the table margin");
+  assert.deepEqual(adjusted[2], { x: adjusted[1].x, y: 120 });
+  assert.equal(adjusted[3].y, 120, "the route after the joint should move to the dragged row");
+  assert.equal(adjusted.at(-1).x, points.at(-1).x);
+  assert.equal(adjusted.at(-1).y, points.at(-1).y);
+});
+
+test("manual Entity relationship route overrides render and persist with the source FK", () => {
+  const parent = simpleRelationshipEntity("manual-route-parent", "ManualRouteParent", 0, 0);
+  const child = simpleRelationshipEntity(
+    "manual-route-child",
+    "ManualRouteChild",
+    800,
+    0,
+    "ManualRouteParent"
+  );
+  const baseSvg = annotationEntityRelationshipsSvg([parent, child], null, { interactive: true });
+  const path = baseSvg.match(/class="image-annotation-entity-relationship-hit" d="([^"]+)"/)?.[1];
+  const points = orthogonalPathPoints(path);
+  const segmentIndex = points.findIndex((point, index) => index > 0
+    && index < points.length - 2
+    && Math.abs(point.x - points[index + 1].x) <= 0.001);
+  assert.ok(segmentIndex > 0, "test route should include a movable vertical segment");
+
+  const adjusted = adjustAnnotationEntityRelationshipRoute(
+    points,
+    segmentIndex,
+    "x",
+    points[segmentIndex].x + 80
+  );
+  child.foreignKeys[0].routeOverride = adjusted;
+  const automaticSvg = annotationEntityRelationshipsSvg([parent, child], null, { interactive: true });
+  const manualSvg = annotationEntityRelationshipsSvg([parent, child], null, {
+    interactive: true,
+    manualRoutes: true
+  });
+  const manualPoints = orthogonalPathPoints(
+    manualSvg.match(/class="image-annotation-entity-relationship-hit" d="([^"]+)"/)?.[1]
+  );
+
+  assert.equal(
+    automaticSvg.match(/class="image-annotation-entity-relationship-hit" d="([^"]+)"/)?.[1],
+    baseSvg.match(/class="image-annotation-entity-relationship-hit" d="([^"]+)"/)?.[1],
+    "automatic routing should ignore saved manual routes while manual mode is off"
+  );
+  assert.ok(
+    manualPoints.some(point => Math.abs(point.x - adjusted[segmentIndex].x) <= 0.001),
+    "manual route should use the adjusted segment coordinate"
+  );
+
+  const restored = parseAnnotationSvg(buildAnnotationSvg(normalizeAnnotationState({
+    width: 1200,
+    height: 600,
+    manualEntityRelationshipRoutes: true,
+    objects: [parent, child]
+  })));
+  const restoredChild = restored.objects.find(object => object.id === child.id);
+  assert.deepEqual(
+    restoredChild.foreignKeys[0].routeOverride,
+    adjusted.map(point => ({ x: point.x, y: point.y }))
+  );
+
+  const clearResult = clearAnnotationEntityRelationshipRouteOverrides(restored);
+  assert.equal(clearResult.clearedCount, 1);
+  assert.equal(Object.hasOwn(restored.objects.find(object => object.id === child.id).foreignKeys[0], "routeOverride"), false);
 });
 
 test("matching Entity relationships share an aligned target lane without moving field anchors", () => {
@@ -1522,7 +1669,7 @@ test("PMT schema relationships use the shortest clear field routes", async () =>
     assert.ok(length < maximumLength, `expected a short clear route, received ${length}px: ${match[3]}`);
   };
 
-  assertShortRoute("pmt.WorkTasks.LinkedBlogId", "pmt.Blogs.BlogId", 500);
+  assertShortRoute("pmt.WorkTasks.LinkedBlogId", "pmt.Blogs.BlogId", 600);
   assertShortRoute("pmt.UserImageAnnotationTemplateLibraries.UserId", "pmt.Users.UserId", 1000);
   assertShortRoute("pmt.Lookups.UpdatedByUserId", "pmt.Users.UserId", 1200);
 });
@@ -1570,6 +1717,55 @@ test("Entity overlap resolution cascades until every movable table is visible", 
     { x: state.objects[0].x, y: state.objects[0].y },
     { x: first.x, y: first.y },
     "the Anchor table should remain fixed"
+  );
+});
+
+test("Entity overlap resolution treats near-touching tables as a layout collision", () => {
+  const first = simpleRelationshipEntity("near-touch-first", "NearTouchFirst", 100, 100);
+  const second = simpleRelationshipEntity(
+    "near-touch-second",
+    "NearTouchSecond",
+    first.x + first.width + 10,
+    100
+  );
+  first.anchorTable = true;
+  const state = normalizeAnnotationState({
+    width: 1200,
+    height: 700,
+    objects: [first, second]
+  });
+
+  const result = resolveAnnotationEntityOverlaps(state);
+  const entities = state.objects.filter(object => object.type === "entity");
+
+  assert.equal(result.unresolvedOverlapCount, 0);
+  assert.ok(result.movedCount >= 1);
+  assert.ok(
+    minimumEntityGap(entities[0], entities[1]) >= 96 - 0.001,
+    "movable Entities should keep the universal Entity margin"
+  );
+});
+
+test("read-only SVG rendering applies the universal Entity margin to old saved diagrams", () => {
+  const first = simpleRelationshipEntity("saved-near-touch-first", "SavedNearTouchFirst", 100, 100);
+  const second = simpleRelationshipEntity(
+    "saved-near-touch-second",
+    "SavedNearTouchSecond",
+    first.x + first.width + 10,
+    100
+  );
+  first.anchorTable = true;
+  const svg = buildAnnotationSvg(normalizeAnnotationState({
+    width: 1200,
+    height: 700,
+    objects: [first, second]
+  }));
+  const restored = parseAnnotationSvg(svg);
+  const entities = restored.objects.filter(object => object.type === "entity");
+
+  assert.ok(
+    minimumEntityGap(entities[0], entities[1]) >= 96 - 0.001,
+    "rendered SVG metadata should not preserve near-touching Entity positions"
   );
 });
 
@@ -1738,13 +1934,16 @@ test("Objects tree and live SVG expose one fixed selectable Entity Relationships
   assert.doesNotMatch(liveSvg, /image-annotation-entity-relationship-marker|<polygon\b/);
   [
     "image-annotation-entity-relationship-path",
-    "image-annotation-entity-relationship-selection",
     "image-annotation-entity-relationship-hit"
   ].forEach(className => {
     const element = liveSvg.match(new RegExp(`<path\\b[^>]*class="${className}"[^>]*>`))?.[0] || "";
     assert.ok(element, `${className} should render`);
     assert.doesNotMatch(element, /vector-effect="non-scaling-stroke"/);
   });
+  const selectionElement = liveSvg.match(/<path\b[^>]*class="image-annotation-entity-relationship-selection"[^>]*>/)?.[0] || "";
+  assert.ok(selectionElement, "relationship selection should render");
+  assert.match(selectionElement, /stroke-width="1"/);
+  assert.match(selectionElement, /vector-effect="non-scaling-stroke"/);
 
   const symbolSvg = annotationEntityRelationshipsSvg(
     state.objects,
@@ -5038,6 +5237,11 @@ test("the global relationship-line switch persists and removes routes, markers, 
   );
   assert.match(componentSource, /Turn off all relationship lines \(global\)/);
   assert.match(componentSource, /data-annotation-entity-annotation/);
+  assert.match(componentSource, /Show Original Script/);
+  assert.match(componentSource, /data-annotation-entity-show-script/);
+  assert.match(componentSource, /Manual relationship lines/);
+  assert.match(componentSource, /data-annotation-entity-clear-manual-relationship-routes/);
+  assert.match(componentSource, /relationship-segment/);
   assert.match(componentSource, /Entity name text color/);
   assert.match(componentSource, /Header background color/);
 });

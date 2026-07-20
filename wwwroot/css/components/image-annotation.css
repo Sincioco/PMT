@@ -359,6 +359,18 @@
   cursor: crosshair;
 }
 
+.image-annotation-entity-relationship-handle {
+  cursor: move;
+}
+
+.image-annotation-entity-relationship-handle[data-annotation-relationship-segment-axis="x"] {
+  cursor: ew-resize;
+}
+
+.image-annotation-entity-relationship-handle[data-annotation-relationship-segment-axis="y"] {
+  cursor: ns-resize;
+}
+
 .image-annotation-arrow-handle.is-locked {
   fill: var(--color-text-tertiary);
   pointer-events: none;
@@ -374,8 +386,11 @@
 
 .image-annotation-entity-relationship-selection {
   stroke: var(--color-focus-ring);
-  stroke-dasharray: 5 4;
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+  stroke-linecap: round;
   opacity: 0.72;
+  vector-effect: non-scaling-stroke;
 }
 
 .image-annotation-selection {

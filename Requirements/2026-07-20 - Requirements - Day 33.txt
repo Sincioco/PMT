@@ -116,6 +116,14 @@ Feedback
 50.) Re-generate the What's New svg image into something generic regarding Development Teams.
 51.) In addition to #49, it would be nice to keep a running total of the number of lines both per day and total as a whole since the project began....same with the number of words.....both updated for each requirements day.
 
+52.) Bug:  In Diagram, entities should not be rendered so close to each other.  And a relationship line should not be so close to an entity it's not connected.
+53.) In Diagram, at the bottom of the Entity tab, add a button called "Show Original Script" and when clicked brings up the same Add Entity dialog box, except now it is the "Edit Entity" dialog box.  Allow the user to rename the entity this way and/or modify the original script.
+54.) In Diagram, lines not connecting to an entity should not be so close to it.  The entity should have a margin around it that passing lines should try to respect.  This should be a universal diagram rendering rule.
+55.) Examine the attached picture.  The green lines are how I prefer the lines to be drawn between fields/entities.  The red lines are how I don't prefer lines to be drawn.  They are excessively fanning out.
+56.) Can you give the relationship lines handles so I can move them?  I just need 1 handle for each horizontal lines, and 1 handle for each vertical line.  I would like to arrange some of them manually so I can show you how I want you to arrange them automatically when you generate them.
+57.) Can you change the relationship line selected indicator and just use the same blue line style as when an entity / object is selected.  The one you use now is thick and it's just too much.
+58.) I don't seem to have a drag handle for the horizontal relationship line.  Give me that "breaks off" or creates a joint at where the line connects to the entity....maybe the distance is the virtual margine of the table, so I can grab a horizontal relationship line and bring it downwards.  So you'll have to dynamically create a line that connects the relationship line from
+
 Don't Implement Yet - Wish List
 -------------------------------
 In Scrum, if an item is pinned and it has a road block, pin just the roadblock text at the top.
