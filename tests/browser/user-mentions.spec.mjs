@@ -62,7 +62,7 @@ test("Release Notes, What's New, and read-only rich text reveal active-user card
   expect(cleanHtml).not.toContain("user-mention");
   expect(cleanHtml).not.toContain("data-user-mention-id");
 
-  await page.getByRole("button", { name: "Sin's AI Prompts", exact: true }).click();
+  await page.getByRole("button", { name: "Sin's AI Prompt Engineering", exact: true }).click();
   const prompt = page.locator(".release-note-prompt");
   await prompt.evaluate(element => {
     const fixture = document.createElement("span");

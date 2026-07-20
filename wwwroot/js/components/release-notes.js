@@ -157,14 +157,22 @@ function releaseNotePromptHtml(note) {
 function releaseNotePromptSubtitleHtml(note, allNotes) {
   const stats = releaseNotePromptStats(note, allNotes);
   return `
-    <p class="muted release-note-prompt-stats">
-      <span>Original prompt: ${escapeHtml(note.sourceFile)}</span>
-      <span>Day lines: ${escapeHtml(stats.lines.toLocaleString())}</span>
-      <span>Day words: ${escapeHtml(stats.words.toLocaleString())}</span>
-      <span>Project lines through Day ${escapeHtml(note.day)}: ${escapeHtml(stats.totalLines.toLocaleString())}</span>
-      <span>Project words through Day ${escapeHtml(note.day)}: ${escapeHtml(stats.totalWords.toLocaleString())}</span>
-    </p>
+    <div class="muted release-note-prompt-stats" aria-label="AI prompt statistics">
+      <div class="release-note-prompt-stat-source">Original prompt: ${escapeHtml(note.sourceFile)}</div>
+      <div class="release-note-prompt-stat-row">
+        <span>Line of AI prompts this day: ${escapeHtml(formatPromptStatNumber(stats.lines))}</span>
+        <span>Number of words: ${escapeHtml(formatPromptStatNumber(stats.words))}</span>
+      </div>
+      <div class="release-note-prompt-stat-row">
+        <span>Lines of AI prompts for the project: ${escapeHtml(formatPromptStatNumber(stats.totalLines))}</span>
+        <span>Number of words total: ${escapeHtml(formatPromptStatNumber(stats.totalWords))}</span>
+      </div>
+    </div>
   `;
+}
+
+function formatPromptStatNumber(value) {
+  return Number(value || 0).toLocaleString("en-US");
 }
 
 function releaseNotePromptStats(note, allNotes) {

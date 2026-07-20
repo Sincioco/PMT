@@ -4,6 +4,8 @@ import { releaseNotes } from "../../wwwroot/js/shared/release-notes-data.js";
 const latestRelease = releaseNotes[0];
 const previousRelease = releaseNotes[1];
 const thirdRelease = releaseNotes[2];
+const day32Release = releaseNotes.find(note => Number(note.day) === 32);
+const promptEngineeringLabel = "Sin's AI Prompt Engineering";
 
 test("first login shows the latest three releases and opens the shared Release Notes screen", async ({ page }) => {
   await page.addInitScript(() => {
@@ -36,12 +38,26 @@ test("first login shows the latest three releases and opens the shared Release N
   await expect(page.locator(".release-notes-screen .section-head h1")).toHaveText("Release Notes");
   await expect(page.locator(".release-notes-index .release-note-navigation-item")).toHaveCount(releaseNotes.length);
   await expect(page.locator(".release-notes-index .release-note-navigation-item").first()).toContainText(`Day ${latestRelease.day}`);
+  await page.locator(`.release-notes-index .release-note-navigation-item[data-release-id="${day32Release.id}"]`).click();
+  await expect(page.locator(".release-notes-screen .release-note-content h2")).toHaveText(day32Release.title);
 
   const reader = page.locator(".release-note-reader");
   const readerBefore = await reader.boundingBox();
-  await page.getByRole("button", { name: "Sin's AI Prompts", exact: true }).click();
-  await expect(page.getByRole("button", { name: "Sin's AI Prompts", exact: true })).toBeFocused();
-  await expect(page.locator(".release-note-prompt")).toContainText(latestRelease.prompt.slice(0, 80));
+  await page.getByRole("button", { name: promptEngineeringLabel, exact: true }).click();
+  await expect(page.getByRole("button", { name: promptEngineeringLabel, exact: true })).toBeFocused();
+  await expect(page.locator(".release-note-prompt")).toContainText(firstPromptLine(day32Release.prompt));
+  const day32Stats = promptStats(day32Release);
+  const promptStatsBlock = page.locator(".release-note-prompt-stats");
+  await expect(promptStatsBlock.locator(".release-note-prompt-stat-source"))
+    .toHaveText(`Original prompt: ${day32Release.sourceFile}`);
+  await expect(promptStatsBlock.locator(".release-note-prompt-stat-row").nth(0).locator("span")).toHaveText([
+    `Line of AI prompts this day: ${formatStat(day32Stats.lines)}`,
+    `Number of words: ${formatStat(day32Stats.words)}`
+  ]);
+  await expect(promptStatsBlock.locator(".release-note-prompt-stat-row").nth(1).locator("span")).toHaveText([
+    `Lines of AI prompts for the project: ${formatStat(day32Stats.totalLines)}`,
+    `Number of words total: ${formatStat(day32Stats.totalWords)}`
+  ]);
 
   const sectionHead = page.locator(".release-notes-screen .section-head");
   const releaseIndex = page.locator(".release-notes-index");
@@ -217,6 +233,36 @@ async function expectPageFitsViewport(page) {
   }));
   expect(overflow.body).toBeLessThanOrEqual(1);
   expect(overflow.document).toBeLessThanOrEqual(1);
+}
+
+function promptStats(note) {
+  const day = Number(note?.day || 0);
+  const notesThroughDay = releaseNotes
+    .filter(item => Number(item.day || 0) <= day)
+    .sort((left, right) => Number(left.day || 0) - Number(right.day || 0));
+  return {
+    lines: promptLineCount(note?.prompt),
+    words: promptWordCount(note?.prompt),
+    totalLines: notesThroughDay.reduce((total, item) => total + promptLineCount(item.prompt), 0),
+    totalWords: notesThroughDay.reduce((total, item) => total + promptWordCount(item.prompt), 0)
+  };
+}
+
+function promptLineCount(prompt) {
+  const text = String(prompt || "");
+  return text ? text.replace(/\r\n?/g, "\n").split("\n").length : 0;
+}
+
+function firstPromptLine(prompt) {
+  return String(prompt || "").replace(/\r\n?/g, "\n").split("\n")[0] || "";
+}
+
+function promptWordCount(prompt) {
+  return String(prompt || "").trim().split(/\s+/).filter(Boolean).length;
+}
+
+function formatStat(value) {
+  return Number(value || 0).toLocaleString("en-US");
 }
 
 function jsonResponse(body, status = 200) {

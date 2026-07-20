@@ -27,6 +27,26 @@ Object-Linking and Embedding (OLE)
 2.) Wow, it worked! Are you using a different viewer for the embedded diagram?  When I zoom in, it's not zooming in anchored to the user's mouse cursor.
 3.) Regenerate a .svg you use for the What's New to something generic involving people, technology and teams.
 
+Release Notes
+------------
+4.) In the Sin's AI Prompt Engineering section, reformat the muted subtitle text below the main title as follows (3 lines):
+
+Original prompt: 2026-07-19 - Requirements - Day 32.txt
+Line of AI prompts this day: 206              Number of words: 4,966
+Lines of AI prompts for the project: 3,867    Number of words total: 75,619
+
+5.) Regenerate the What's New and Release Notes for Day 33 and Day 34.
+
+Pong + Blocks + Alien Game
+--------------------------
+6.) In the 3D About flyby, can you add a hot key for "p" for Pong.
+7.) Create a pong game but modernize it!  Have the usual two paddles on the left and right, and the pong ball.  One player is the AI the other a real user.  Combine it with elements of the old arcade classic Blocks.  So there would be a few layers of blocks around the arena.  The winner is the one who first manages to knock all the blocks behind the opponents paddle.  Have real physics as the ball strikes the paddle and the blocks.  Each time the ball hits a block, it knocks it off.
+8.) Have different color blocks.  Make the red blocks explode and take surrounding blocks.  Make the yellow blocks slow down the ball.  Make the green blocks speed up the ball.  Make the purple block spawn more balls (randomly for 1-3).  Make the red block slow down the ball.
+9.) Keep scores that keeps track of the player, their score, and total game time.  Create a scoring board so users in PMT can compare scores.  Yes, persist this scoring system in the database.  Add a field to keep track of different games as we may add more games.
+10.) Modern graphics and in 3D.  Use the same 3D engine as the 3D About flyby, if possible, so we can you make the UFO in the 3D About flyby appear once in a while and hovers at the center of the arena and steal the ball?  Or have random lightning hit the ball once in a while to throw it off course.
+11.) Still make the UFO/alien appear once in a while if only to make funny remarks.
+12.) Players get 3 lives.  Have a random diamon be on one of the blocks.  Who ever hits it gets an extra life.
+13.) The ball gets faster and faster every minute the game is running.
 
 Database Migration Script Testing
 ---------------------------------

@@ -1311,26 +1311,29 @@
   },
   {
     "day": 33,
-    "title": "Diagram Polish, Rich Code Blocks, and Cleaner Exports",
+    "title": "Diagram ERD Routing, Rich Code Blocks, and Release Hardening",
     "sections": [
       {
-        "title": "Smarter Relationship Routes",
+        "title": "ERD Relationship Routing",
         "items": [
-          "Choose the shortest clear orthogonal path between mapped Entity fields, including alternate table sides, and use a perimeter route only when no shorter local route is available."
+          "Route Entity relationships field-to-field only, choosing short local paths between PK/FK fields instead of touching a table body or taking long perimeter routes.",
+          "Treat each Entity's visual margin as a protected no-cross zone, with relationship lines entering that margin only for the short horizontal connection into or out of a field.",
+          "Keep relationship trunks compact around tables, avoid excessive fan-out, reserve extra space above table headers, and keep passing lines away from unrelated Entities."
         ]
       },
       {
-        "title": "Always-Visible Entities",
+        "title": "Compact Diagram Layout",
         "items": [
-          "Bring an Entity to the front when its read-only header controls are used, and move overlapping movable tables aside when Data Types or fields expand.",
-          "Prevent Entity overlaps in both read-only and edit modes, cascading movable tables aside after loading, dragging, resizing, pasting, or duplicating until every table is visible."
+          "Rename the ERD layout action to Auto Format - Compact and use Sin's compact style to pull unanchored tables back toward balanced left and right corridors.",
+          "Prevent Entity overlaps in both read-only and edit modes, cascading movable tables aside after loading, dragging, resizing, pasting, duplicating, or expanding Data Types.",
+          "Bring an Entity forward when its controls are used and keep expanded tables visible instead of letting neighboring Entities cover their headers or fields."
         ]
       },
       {
-        "title": "Diagram Editing and Navigation",
+        "title": "Diagram Editing Tools",
         "items": [
           "Add circle and plain-line drawing tools, a reusable Format Painter, live color hover previews, cleaner SVG copy output, and fit-to-screen behavior when editing existing Diagrams.",
-          "Use a hand-style drag pan in read-only Diagrams while opening edit mode with Select active, and keep Diagram content fitted and centered when entering the screen or changing Treeview state.",
+          "Let selected relationship segments expose lightweight handles for manual path adjustment and provide a clearer selected-line indicator plus a way to clear manual paths.",
           "Create Entity Annotations from a dialog instead of a live text field, support optional annotation arrows, group Entity callouts with invisible group behavior, and edit text boxes from a dialog on double-click.",
           "Duplicate Diagrams as independent copies, search SVG contents in Diagram filters, show Creator and Last Edited filter sections, and keep Diagram info metadata visible with created and last-modified user timestamps."
         ]
@@ -1351,18 +1354,19 @@
         ]
       },
       {
-        "title": "Exports, Preferences, and Release Notes",
+        "title": "Exports, Preferences, and Release Readiness",
         "items": [
           "Export Dev Tasks and Bug Reports with pasted rich-text images embedded correctly and without PMT metadata in the exported HTML.",
           "Clear browser-stored user preferences from Development by logging the user out so they can start from a clean local state.",
-          "Rename the prompt-history view to Sin's AI Prompt Engineering and keep the shared Release Notes and What's New data synchronized."
+          "Rename the prompt-history view to Sin's AI Prompt Engineering, format the original prompts with headings and numbered lists, and show daily and running prompt statistics.",
+          "Record the BDO deployment milestone as the new database baseline and keep combined migration runners as the deployment path for future database changes."
         ]
       }
     ]
   },
   {
     "day": 34,
-    "title": "Linked Diagram Embeds for Documentation",
+    "title": "Linked Diagram Embeds and Prompt Engineering Stats",
     "sections": [
       {
         "title": "Documentation Diagram-OLE",
@@ -1377,6 +1381,14 @@
         "items": [
           "Resolve linked Diagram blocks into the current Diagram snapshot when exporting Documentation so exported files remain understandable outside PMT.",
           "Show a safe placeholder when a linked Diagram is missing or inaccessible instead of leaving stale content behind."
+        ]
+      },
+      {
+        "title": "Release Notes Prompt Engineering",
+        "items": [
+          "Reformat the Sin's AI Prompt Engineering subtitle into three readable lines that show the original prompt file, daily line and word counts, and running project totals.",
+          "Regenerate the Day 33 and Day 34 Release Notes and What's New entries from the current Requirements files so the latest prompt history and business summaries stay synchronized.",
+          "Refresh the What's New illustration for Day 34 with a generic people, technology, and teams visual."
         ]
       }
     ]

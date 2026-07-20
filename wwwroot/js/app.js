@@ -7,7 +7,7 @@ import { copyTextToClipboard } from "./components/clipboard.js?v=20260714-invite
 import {
   openImageAnnotationDialog
 } from "./components/image-annotation.js?v=20260720-compact-margin-corridor-v1";
-import { createWhatsNew } from "./components/whats-new.js?v=release-notes-2026-07-21-day-34-02b7eca5e037";
+import { createWhatsNew } from "./components/whats-new.js?v=release-notes-2026-07-21-day-34-e1d85055ec6f";
 import {
   htmlWithoutUserMentionMarkup,
   initializeUserMentions
@@ -63,18 +63,18 @@ import {
 import { createBacklogFeature } from "./features/backlog/backlog.js?v=20260720-work-item-export-images-v4";
 import { createBoardFeature } from "./features/board/board.js?v=20260720-work-item-export-images-v4";
 import { createBugsFeature } from "./features/bugs/bugs.js?v=20260720-work-item-export-images-v4";
-import { createDashboardFeature } from "./features/dashboard/dashboard.js?v=release-notes-2026-07-21-day-34-02b7eca5e037";
+import { createDashboardFeature } from "./features/dashboard/dashboard.js?v=release-notes-2026-07-21-day-34-e1d85055ec6f";
 import { createDiagramFeature } from "./features/diagram/diagram.js?v=20260720-compact-margin-corridor-v1";
 import { createDocumentationFeature } from "./features/documentation/documentation.js?v=20260721-diagram-ole-v1";
 import {
   createGanttFeature,
   currentSprintForProject,
   ganttStartDate
-} from "./features/gantt/gantt.js?v=release-notes-2026-07-21-day-34-02b7eca5e037";
+} from "./features/gantt/gantt.js?v=release-notes-2026-07-21-day-34-e1d85055ec6f";
 import { createInvitationsFeature } from "./features/invitations/invitations.js?v=20260719-day32-rte-diagram";
 import { createProjectsFeature } from "./features/projects/projects.js?v=20260719-day32-rte-diagram";
-import { createReleaseNotesFeature } from "./features/release-notes/release-notes.js?v=release-notes-2026-07-21-day-34-02b7eca5e037";
-import { createRoadMapFeature } from "./features/roadmap/roadmap.js?v=release-notes-2026-07-21-day-34-02b7eca5e037";
+import { createReleaseNotesFeature } from "./features/release-notes/release-notes.js?v=release-notes-2026-07-21-day-34-e1d85055ec6f";
+import { createRoadMapFeature } from "./features/roadmap/roadmap.js?v=release-notes-2026-07-21-day-34-e1d85055ec6f";
 import { createLogFeature } from "./features/personal-log/log.js?v=20260720-work-item-export-images-v4";
 import { createScrumFeature } from "./features/scrum/scrum.js?v=20260720-work-item-export-images-v4";
 import { createSettingsFeature } from "./features/settings/settings.js?v=20260720-clear-preferences-logout-v1";

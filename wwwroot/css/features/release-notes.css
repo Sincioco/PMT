@@ -229,10 +229,22 @@
 }
 
 .release-note-prompt-stats {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-1) var(--space-5);
+  display: grid;
+  gap: var(--space-1);
   margin: var(--space-3) 0 0;
+  font-size: var(--font-size-sm);
+}
+
+.release-note-prompt-stat-row {
+  display: grid;
+  grid-template-columns: max-content max-content;
+  gap: var(--space-1) clamp(var(--space-7), 8vw, var(--space-12));
+}
+
+@media (max-width: 720px) {
+  .release-note-prompt-stat-row {
+    grid-template-columns: 1fr;
+  }
 }
 
 .release-note-prompt-title,
