@@ -59,6 +59,8 @@ export function createAboutScene({
   kanbanWebShowsAllColumns,
   getStatusColor,
   users,
+  introDurationMs = INTRO_DURATION_MS,
+  introFadeDurationMs = INTRO_FADE_DURATION_MS,
   onPongRequested = () => {},
   onFailure
 }) {
@@ -419,7 +421,7 @@ export function createAboutScene({
         reducedMotion
       });
 
-      if (performance.now() - startedAt >= INTRO_DURATION_MS) {
+      if (performance.now() - startedAt >= introDurationMs) {
         beginExperience(performance.now());
       }
     } catch {
@@ -463,7 +465,7 @@ export function createAboutScene({
   function updateIntro(now) {
     if (experienceStarted) return;
     const elapsed = now - startedAt;
-    const remaining = Math.max(0, Math.ceil((INTRO_DURATION_MS - elapsed) / 1000));
+    const remaining = Math.max(0, Math.ceil((introDurationMs - elapsed) / 1000));
 
     if (remaining > 0) {
       setText(introCountdownElement, `3D flight begins in ${remaining}`);
@@ -487,7 +489,7 @@ export function createAboutScene({
     flightController.startAutopilot();
     introHiddenTimer = window.setTimeout(() => {
       if (!disposed) introElement.hidden = true;
-    }, reducedMotion ? 0 : INTRO_FADE_DURATION_MS);
+    }, reducedMotion ? 0 : introFadeDurationMs);
   }
 
   function updateSceneMotion(now) {

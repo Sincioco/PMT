@@ -11,7 +11,11 @@ import { appUrl } from "../../shared/app-urls.js";
 import { createBugChartsView } from "../../shared/bug-charts.js?v=20260714-linked-bug-percent";
 import { createDevTaskChartsView } from "../../shared/dev-task-charts.js?v=20260714-linked-bug-percent";
 
-const ABOUT_VERSION = "20260721-about-pong-polish-v4";
+const ABOUT_VERSION = "20260722-login-flyby-v1";
+const ABOUT_CANVAS_ARIA_LABEL = "Interactive 3D PMT gallery. Hold the left mouse button to look while autopilot continues. Use the wheel to zoom, WASD plus Q and E for manual movement, Space to pause, Enter to restart, and question mark to show controls.";
+const PMT_DEMO_PROJECT_ID = 10;
+const PMT_DEMO_SPRINT_ONE_ID = 101;
+const PMT_DEMO_SPRINT_TWO_ID = 102;
 export const ABOUT_SCREEN_SAVER_IDLE_MS = 5 * 60 * 1000;
 export const ABOUT_DATABASE_VERSION = "1.25";
 
@@ -25,6 +29,268 @@ export function aboutFooterHtml() {
       </p>
     </footer>
   `;
+}
+
+function aboutFlightHtml({
+  logoUrl,
+  rootClass = "",
+  rootAttributes = "",
+  ariaLabel = "About PMT 3D logo experience",
+  canvasTabIndex = "0",
+  canvasAriaLabel = ABOUT_CANVAS_ARIA_LABEL,
+  introCountdownText = "3D flight begins in 3",
+  includeFooter = true
+} = {}) {
+  const className = ["about-screen", rootClass].filter(Boolean).join(" ");
+
+  return `
+      <section class="${className}" aria-label="${ariaLabel}" data-about-flight ${rootAttributes}>
+        <canvas
+          class="about-flight-canvas"
+          data-about-canvas
+          tabindex="${canvasTabIndex}"
+          aria-label="${canvasAriaLabel}"
+        ></canvas>
+        <div class="about-flight-vignette" aria-hidden="true"></div>
+
+        <div class="about-flight-intro" data-about-intro>
+          <img class="about-intro-logo" src="${logoUrl}" alt="PMT - Project Management Tool">
+          <p class="about-intro-countdown" data-about-intro-countdown aria-live="polite">
+            ${introCountdownText}
+          </p>
+          ${includeFooter ? aboutFooterHtml() : ""}
+        </div>
+
+        <div class="about-flight-hud">
+          <p class="about-flight-status" data-about-status aria-live="polite">
+            Preparing the 3D flight&hellip;
+          </p>
+          <p class="about-flight-controls" aria-label="3D flight controls">
+            <span class="about-flight-controls-title">Controls</span>
+            <span class="about-control-hint"><kbd>Hold left mouse</kbd><span>Look around</span></span>
+            <span class="about-control-hint"><kbd>Wheel</kbd><span>Zoom</span></span>
+            <span class="about-control-hint"><kbd>WASD</kbd><span>Move</span></span>
+            <span class="about-control-hint"><kbd>Q / E</kbd><span>Down / up</span></span>
+            <span class="about-control-hint"><kbd>Shift</kbd><span>Manual boost</span></span>
+            <span class="about-control-hint"><kbd>+ / -</kbd><span>Speed</span></span>
+            <span class="about-control-hint"><kbd>Space</kbd><span>Pause / resume</span></span>
+            <span class="about-control-hint"><kbd>Enter</kbd><span>Restart sequence</span></span>
+            <span class="about-control-hint"><kbd>G</kbd><span>Pong + Blocks game</span></span>
+            <span class="about-control-hint"><kbd>A</kbd><span>Alien + Lightning Strike</span></span>
+            <span class="about-control-hint"><kbd>L</kbd><span>Lightning</span></span>
+            <span class="about-control-hint"><kbd>C</kbd><span>Comet</span></span>
+            <span class="about-control-hint"><kbd>U</kbd><span>UFO</span></span>
+            <span class="about-control-hint"><kbd>M</kbd><span>Intergalactic battle</span></span>
+            <span class="about-control-hint"><kbd>R</kbd><span>Random event</span></span>
+            <span class="about-control-hint"><kbd>T</kbd><span>Track Alien Events on / off</span></span>
+            <span class="about-control-hint"><kbd>0</kbd><span>Alien events on / off</span></span>
+            <span class="about-control-hint"><kbd>P</kbd><span>PIP on / off</span></span>
+            <span class="about-control-hint"><kbd>1</kbd><span>Original UFO</span></span>
+            <span class="about-control-hint"><kbd>2</kbd><span>1 attacker vs UFO</span></span>
+            <span class="about-control-hint"><kbd>3</kbd><span>2 attackers vs UFO</span></span>
+            <span class="about-control-hint"><kbd>4</kbd><span>3 attackers vs UFO</span></span>
+            <span class="about-control-hint"><kbd>?</kbd><span>Show these hints</span></span>
+          </p>
+          <button type="button" class="about-flight-mode" data-about-mode disabled>3D</button>
+        </div>
+
+        <button
+          type="button"
+          class="about-control-hints-trigger"
+          data-about-control-hints-button
+          aria-label="Show controls for five seconds"
+          title="Show controls"
+        >?</button>
+
+        <p class="about-flight-debug" data-about-flight-debug aria-live="polite">
+          Preparing 3D gallery
+        </p>
+
+        <div class="about-ufo-speech" data-about-ufo-speech role="status" hidden>
+          Incoming transmission&hellip;
+        </div>
+
+        <div class="about-battle-pip" data-about-battle-pip aria-label="Intergalactic battle picture in picture" hidden>
+          <span>PMT Defense Feed</span>
+        </div>
+
+        <div class="about-battle-dialogue" data-about-battle-dialogue role="status" aria-live="polite" hidden></div>
+
+        <div class="about-alien-toggle-notice" data-about-alien-notice role="status" aria-live="polite" hidden></div>
+
+        <p class="about-flight-fallback" data-about-fallback hidden></p>
+      </section>
+    `;
+}
+
+function aboutSceneElements(root) {
+  return {
+    root,
+    canvas: root.querySelector("[data-about-canvas]"),
+    introElement: root.querySelector("[data-about-intro]"),
+    introCountdownElement: root.querySelector("[data-about-intro-countdown]"),
+    statusElement: root.querySelector("[data-about-status]"),
+    modeElement: root.querySelector("[data-about-mode]"),
+    controlHintsTriggerElement: root.querySelector("[data-about-control-hints-button]"),
+    debugElement: root.querySelector("[data-about-flight-debug]"),
+    ufoSpeechElement: root.querySelector("[data-about-ufo-speech]"),
+    battlePictureInPictureElement: root.querySelector("[data-about-battle-pip]"),
+    battleDialogueElement: root.querySelector("[data-about-battle-dialogue]"),
+    alienNoticeElement: root.querySelector("[data-about-alien-notice]")
+  };
+}
+
+export function createPmtDemoFlybyData() {
+  const projects = [{
+    id: PMT_DEMO_PROJECT_ID,
+    code: "PMT",
+    title: "Project Management Tool",
+    name: "PMT Demo Project",
+    description: "A portable PMT demo project used for the login 3D flyby."
+  }];
+  const sprints = [
+    { id: PMT_DEMO_SPRINT_ONE_ID, projectId: PMT_DEMO_PROJECT_ID, code: "PMT-Sprint1", title: "Foundation", startDate: "2026-06-01" },
+    { id: PMT_DEMO_SPRINT_TWO_ID, projectId: PMT_DEMO_PROJECT_ID, code: "PMT-Sprint2", title: "Polish", startDate: "2026-07-01" }
+  ];
+  const users = [
+    { id: 1, nickname: "PMT Admin", fullName: "PMT Administrator", roleName: "Product Owner" },
+    { id: 2, nickname: "PMT Dev", fullName: "PMT Developer", roleName: "Developer" },
+    { id: 3, nickname: "PMT QA", fullName: "PMT QA", roleName: "QA" }
+  ];
+  const statuses = ["Backlog", "Todo", "In Progress", "Ready for QA", "QA Passed", "Deployed in Prod"];
+  const severities = ["Trivial", "Minor", "Major", "Critical"];
+  const tasks = [
+    { id: 1, projectId: PMT_DEMO_PROJECT_ID, sprintId: PMT_DEMO_SPRINT_ONE_ID, taskType: "Dev Task", code: "PMT-101", title: "Create Projects, Sprints, and Dev Tasks", status: "QA Passed", priority: "High", percentCompleted: 100, assigneeIds: [1, 2], createdAt: "2026-06-04", updatedAt: "2026-06-18" },
+    { id: 2, projectId: PMT_DEMO_PROJECT_ID, sprintId: PMT_DEMO_SPRINT_TWO_ID, taskType: "Dev Task", code: "PMT-204", title: "Polish Documentation and Diagram UX", status: "In Progress", priority: "High", percentCompleted: 65, assigneeIds: [2], createdAt: "2026-07-05", updatedAt: "2026-07-21" },
+    { id: 3, projectId: PMT_DEMO_PROJECT_ID, sprintId: PMT_DEMO_SPRINT_TWO_ID, taskType: "Dev Task", code: "PMT-218", title: "Prepare Deployment Migration Script", status: "Ready for QA", priority: "Medium", percentCompleted: 85, assigneeIds: [2, 3], createdAt: "2026-07-12", updatedAt: "2026-07-21" },
+    { id: 4, projectId: PMT_DEMO_PROJECT_ID, sprintId: PMT_DEMO_SPRINT_TWO_ID, taskType: "Dev Task", code: "PMT-230", title: "Review Release Notes and What's New", status: "Todo", priority: "Medium", percentCompleted: 0, assigneeIds: [1], createdAt: "2026-07-18", updatedAt: "2026-07-18" },
+    { id: 11, projectId: PMT_DEMO_PROJECT_ID, sprintId: PMT_DEMO_SPRINT_ONE_ID, taskType: "Bug", code: "PMT-BUG-014", title: "Fix linked diagram viewer rendering", status: "QA Passed", severity: "Major", priority: "High", percentCompleted: 100, assigneeIds: [2, 3], createdAt: "2026-06-20", updatedAt: "2026-07-15" },
+    { id: 12, projectId: PMT_DEMO_PROJECT_ID, sprintId: PMT_DEMO_SPRINT_TWO_ID, taskType: "Bug", code: "PMT-BUG-027", title: "Tighten rich text code block actions", status: "In Progress", severity: "Critical", priority: "High", percentCompleted: 50, assigneeIds: [2], createdAt: "2026-07-14", updatedAt: "2026-07-21" },
+    { id: 13, projectId: PMT_DEMO_PROJECT_ID, sprintId: PMT_DEMO_SPRINT_TWO_ID, taskType: "Bug", code: "PMT-BUG-031", title: "Align Diagram field controls", status: "Todo", severity: "Minor", priority: "Low", percentCompleted: 0, assigneeIds: [3], createdAt: "2026-07-19", updatedAt: "2026-07-19" }
+  ];
+  const blogs = [
+    {
+      id: 201,
+      projectId: PMT_DEMO_PROJECT_ID,
+      title: "PMT Quick Start",
+      bodyHtml: "<p>Use Projects, Sprints, Dev Tasks, Bug Tracking, Scrum, Documentation, and Diagrams together in one PMT workspace.</p>",
+      isPrivate: false,
+      createdByUserId: 1,
+      createdAt: "2026-07-01",
+      updatedAt: "2026-07-21",
+      history: [{ action: "Updated", userId: 2 }]
+    },
+    {
+      id: 202,
+      projectId: PMT_DEMO_PROJECT_ID,
+      title: "Diagramming PMT Data",
+      bodyHtml: "<p>PMT diagrams can capture database relationships, tutorial layouts, and rich-text notes for implementation handoff.</p>",
+      isPrivate: false,
+      createdByUserId: 2,
+      createdAt: "2026-07-10",
+      updatedAt: "2026-07-20",
+      history: [{ action: "Updated", userId: 3 }]
+    }
+  ];
+
+  return { projects, sprints, users, statuses, severities, tasks, blogs };
+}
+
+export function createAboutAuthFlyby({ host }) {
+  let activeScene = null;
+  let renderGeneration = 0;
+
+  function render() {
+    deactivate();
+    if (!host) return;
+
+    const generation = renderGeneration;
+    const logoUrl = appUrl(`/assets/pmt-logo-full.svg?v=${ABOUT_VERSION}`);
+    const demo = createPmtDemoFlybyData();
+    const currentSprint = items => [...items]
+      .sort((left, right) => String(left.startDate || "").localeCompare(String(right.startDate || "")))
+      .at(-1) || null;
+    const itemStartDate = item => new Date(item?.startDate || 0);
+    const devCharts = createDevTaskChartsView({
+      users: demo.users,
+      projects: demo.projects,
+      sprints: demo.sprints,
+      tasks: demo.tasks,
+      projectId: PMT_DEMO_PROJECT_ID,
+      sprintMode: "all",
+      getCurrentSprint: currentSprint,
+      getItemStartDate: itemStartDate,
+      statuses: demo.statuses,
+      getStatusColor: statusColor
+    });
+    const bugCharts = createBugChartsView({
+      projects: demo.projects,
+      sprints: demo.sprints,
+      tasks: demo.tasks,
+      filters: { projectId: PMT_DEMO_PROJECT_ID, sprintId: "all" },
+      severities: demo.severities,
+      getCurrentSprint: currentSprint,
+      getItemStartDate: itemStartDate
+    });
+
+    host.innerHTML = aboutFlightHtml({
+      logoUrl,
+      rootClass: "about-auth-flyby-screen",
+      rootAttributes: 'data-about-auth-flyby="true" aria-hidden="true"',
+      ariaLabel: "PMT 3D flyby background",
+      canvasTabIndex: "-1",
+      canvasAriaLabel: "PMT 3D flyby background",
+      introCountdownText: "",
+      includeFooter: false
+    });
+
+    const root = host.querySelector("[data-about-flight]");
+    if (!root) return;
+
+    void import(`./about-scene.js?v=${ABOUT_VERSION}`)
+      .then(({ createAboutScene }) => {
+        if (generation !== renderGeneration || !root.isConnected) return;
+
+        const scene = createAboutScene({
+          ...aboutSceneElements(root),
+          logoUrl,
+          devCharts,
+          bugCharts,
+          blogs: demo.blogs,
+          projects: demo.projects,
+          tasks: demo.tasks,
+          statuses: demo.statuses,
+          omitEmptyKanbanColumns: true,
+          kanbanWebShowsAllColumns: false,
+          getStatusColor: statusColor,
+          users: demo.users,
+          introDurationMs: 0,
+          introFadeDurationMs: 0,
+          onFailure: message => showFallback(root, message)
+        });
+
+        if (generation !== renderGeneration || !root.isConnected) {
+          scene.dispose();
+          return;
+        }
+
+        activeScene = scene;
+      })
+      .catch(() => {
+        if (generation === renderGeneration && root.isConnected) {
+          showFallback(root, "3D rendering is unavailable. The original PMT logo is shown instead.");
+        }
+      });
+  }
+
+  function deactivate() {
+    renderGeneration += 1;
+    activeScene?.dispose();
+    activeScene = null;
+    if (host) host.innerHTML = "";
+  }
+
+  return { render, deactivate };
 }
 
 export function createAboutFeature({

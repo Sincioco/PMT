@@ -1,0 +1,44 @@
+Project Management Tool (PMT):  Day 35 of Codex Agentic AI Coding
+-----------------------------------------------------------------
+Total Dev Time in Hours:  54
+
+AI Instructions
+--------------
+Design and Coding Methodology:
+	KISS (Keep It Simple Stupid) - The simpler the better.  Avoid over-engineering.  Avoid unnecessary complexity.  Avoid unnecessary features.  Avoid unnecessary bells and whistles.  Avoid unnecessary abstractions.  Avoid unnecessary patterns.  Avoid unnecessary frameworks.  Avoid unnecessary libraries.  Avoid unnecessary dependencies.  Avoid unnecessary code.  Avoid unnecessary files.  Avoid unnecessary folders.  Avoid unnecessary classes.  Avoid unnecessary methods.  Avoid unnecessary variables.
+
+Testing:
+	In addition to your normal testing, be sure to inform me if I have to recompile the .Net portion of the project or just Press Ctrl + F5 on the browser to reload to see the latest changes.  If making CSS / image changes, ensure that I will encounter no caching issue when testing in the browser.  Do not test the 3D About flyby unless you made changes to it.
+
+Environment:
+	You are in a dev machine.  You can drop and re-create the database as you see fit, especially when testing migrations scripts.  You don't need to preseve data in the backend or frontend.  You can also clear preferences, local storage settings and any cache as you see fit.
+
+Database:
+	If making changes to the database, that affects existing users see database-versioning.md under the docs folder.
+
+
+Commits:
+	PMT is a public repo, write a detailed commit message so people can follow its progression.  Prefix all of your commits with "Sin and Codex: ".
+
+Login and New User Invite Screen
+--------------------------------
+
+1.) In the Login screen, remove the header.  Put the login screen to the upper-left corner.  Change the background of the login screen so that it becomes the 3D About flyby.
+
+2.) For the 3D flyby in the login screen, use the PMT project. The PMT project is a demo project and should be accessible to every PMT instance/install.
+
+3.) Give the same treatment to the New User signup dialog box that comes up after they have been invited into PMT.  In that case, you can keep the header at the top, keep the New User signup centered on the screen, but the background becomes the 3D flyby.  Make the New User signup dialog box moveable so the user can see what's behind if they want to.
+
+4.) On the Invited Signup dialog box, at the lower left corner (dialog's footer), put a button that says "Go to Login to PMT" in case the user had registered before and just forgot to bookmark the Login page of PMT.
+
+5.) In both the Login and Invited Signup screen, change the background to the 3D flyby only after 30 seconds.
+
+
+Database Migration Script Testing
+---------------------------------
+Update the migration scripts and test them by dropping and re-creating the database from the baseline and executing your combined migration script as that is how I will execute it during deployment.  Be sure it works without any errors and fix errors that you do encounter.
+
+Commit and Push
+---------------
+When all your tests are green, create a detailed commit message and push to the repo.
+Also commit the file named "2026-07-21 - Requirements - Day 34.txt" and "2026-07-22 - Requirements - Day 35.txt"

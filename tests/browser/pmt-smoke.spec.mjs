@@ -46,7 +46,7 @@ test("login, navigation, themes, dialogs, filters, Board, Gantt, and Road Map sm
 
   await page.addInitScript(() => {
     localStorage.clear();
-    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-19-day-32@e6da1a611017");
+    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-22-day-35@0a0e45cffb8a");
     localStorage.setItem("pmt-navigation", JSON.stringify({
       version: 2,
       items: [
@@ -78,6 +78,9 @@ test("login, navigation, themes, dialogs, filters, Board, Gantt, and Road Map sm
   });
 
   await page.goto("/");
+  await expect(page.locator(".login-screen-flyby")).toBeVisible();
+  await expect(page.locator("[data-login-flyby]")).toBeVisible();
+  await expect(page.locator(".topbar")).toBeVisible();
   await expect(page.getByRole("heading", { name: "PMT", exact: true })).toBeVisible();
   await expect(page.locator("#loginName")).toHaveValue("");
   await expect(page.locator("#loginPassword")).toHaveValue("");
@@ -91,11 +94,7 @@ test("login, navigation, themes, dialogs, filters, Board, Gantt, and Road Map sm
   await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
   await openUserMenu(page);
   await expect(page.getByRole("menuitem", { name: "Invite Users" })).toBeVisible();
-  await page.locator("#themeToggle").click();
-  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
-  await page.keyboard.press("Escape");
-  await openUserMenu(page);
-  await page.locator("#themeToggle").click();
+  await expect(page.locator("#themeToggle")).toHaveCount(0);
   await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
   await page.keyboard.press("Escape");
 
@@ -524,7 +523,7 @@ test("Developer Board moves stop after QA Passed while QA Ready remains availabl
 
   await page.addInitScript(() => {
     localStorage.clear();
-    localStorage.setItem("pmt-release-notes-last-seen:2", "2026-07-19-day-32@e6da1a611017");
+    localStorage.setItem("pmt-release-notes-last-seen:2", "2026-07-22-day-35@0a0e45cffb8a");
   });
   await installApiMocks(page, appState, apiCalls);
   await page.goto("/");
@@ -571,7 +570,7 @@ test("Scrum attendance, calendar, on-behalf, and vacation flows stay synchronize
       localStorage.clear();
       sessionStorage.setItem("pmt-scrum-attendance-smoke-started", "true");
     }
-    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-19-day-32@e6da1a611017");
+    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-22-day-35@0a0e45cffb8a");
   });
   await installApiMocks(page, appState, apiCalls);
 
@@ -890,7 +889,7 @@ test("Scrum header reserves its title and attendance avatars expand toward Check
   await page.clock.setFixedTime(new Date("2026-07-15T08:00:00+08:00"));
   await page.addInitScript(() => {
     localStorage.clear();
-    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-19-day-32@e6da1a611017");
+    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-22-day-35@0a0e45cffb8a");
   });
   await installApiMocks(page, appState, apiCalls);
 
@@ -988,7 +987,7 @@ test("Scrum auto-refresh updates the table and attendance without reload or inte
   await page.clock.pauseAt(new Date("2026-07-15T08:00:00+08:00"));
   await page.addInitScript(() => {
     localStorage.clear();
-    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-19-day-32@e6da1a611017");
+    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-22-day-35@0a0e45cffb8a");
   });
   await installApiMocks(page, appState, apiCalls);
 
@@ -1120,7 +1119,7 @@ test("Scrum auto-refresh invalidates the visible Calendar month without shifting
   await page.clock.pauseAt(new Date("2026-07-15T08:00:00+08:00"));
   await page.addInitScript(() => {
     localStorage.clear();
-    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-19-day-32@e6da1a611017");
+    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-22-day-35@0a0e45cffb8a");
   });
   await installApiMocks(page, appState, apiCalls);
 
@@ -1228,7 +1227,7 @@ test("Scrum read-only permission disables attendance and vacation mutations", as
   await page.clock.setFixedTime(new Date("2026-07-15T08:00:00+08:00"));
   await page.addInitScript(() => {
     localStorage.clear();
-    localStorage.setItem("pmt-release-notes-last-seen:2", "2026-07-19-day-32@e6da1a611017");
+    localStorage.setItem("pmt-release-notes-last-seen:2", "2026-07-22-day-35@0a0e45cffb8a");
   });
   await installApiMocks(page, appState, apiCalls);
 
@@ -1263,8 +1262,8 @@ test("Scrum attendance cache follows the restored cookie session user", async ({
   await page.clock.setFixedTime(new Date("2026-07-15T08:00:00+08:00"));
   await page.addInitScript(() => {
     localStorage.clear();
-    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-19-day-32@e6da1a611017");
-    localStorage.setItem("pmt-release-notes-last-seen:2", "2026-07-19-day-32@e6da1a611017");
+    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-22-day-35@0a0e45cffb8a");
+    localStorage.setItem("pmt-release-notes-last-seen:2", "2026-07-22-day-35@0a0e45cffb8a");
   });
   await installApiMocks(page, appState, apiCalls);
 

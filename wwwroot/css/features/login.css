@@ -42,8 +42,99 @@
   min-height: var(--control-height-lg);
 }
 
+body.login-flyby-active .app-shell,
+body.invite-flyby-active .app-shell {
+  padding: 0;
+  overflow: hidden;
+  scrollbar-gutter: auto;
+}
+
+body.auth-flyby-rendering:is(.login-flyby-active, .invite-flyby-active) .app-shell {
+  background: #030711;
+}
+
+.login-screen-flyby {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-height: 100%;
+  margin: 0;
+  padding: clamp(24px, 4vw, 56px);
+  overflow: hidden;
+  isolation: isolate;
+  place-items: start center;
+}
+
+.login-flyby {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.login-flyby .about-screen {
+  width: 100%;
+  height: 100%;
+  min-height: 100%;
+}
+
+.login-flyby :is(
+  .about-flight-intro,
+  .about-flight-hud,
+  .about-control-hints-trigger,
+  .about-flight-debug,
+  .about-ufo-speech,
+  .about-battle-pip,
+  .about-battle-dialogue,
+  .about-alien-toggle-notice,
+  .about-flight-fallback
+) {
+  display: none !important;
+}
+
+.login-flyby .about-flight-canvas {
+  cursor: default;
+}
+
+.login-screen-flyby::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 16% 18%, rgb(255 255 255 / 12%), transparent 30%),
+    linear-gradient(90deg, rgb(3 7 17 / 24%), rgb(3 7 17 / 10%) 42%, rgb(3 7 17 / 30%));
+  opacity: 0;
+}
+
+body.auth-flyby-rendering .login-screen-flyby {
+  background: #030711;
+}
+
+body.auth-flyby-rendering .login-screen-flyby::after {
+  opacity: 1;
+}
+
+.login-screen-flyby .login-card {
+  position: relative;
+  z-index: 2;
+  width: min(440px, calc(100vw - 2 * var(--shell-padding-compact)));
+  margin: 8vh auto 0;
+}
+
 @media (max-width: 900px) {
-  .login-screen {
+  .login-screen:not(.login-screen-flyby) {
+    margin-top: var(--space-10);
+  }
+
+  .login-screen-flyby {
+    padding: 0 var(--shell-padding-compact);
+  }
+
+  .login-screen-flyby .login-card {
+    width: min(440px, calc(100vw - 2 * var(--shell-padding-compact)));
     margin-top: var(--space-10);
   }
 }

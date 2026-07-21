@@ -10,7 +10,7 @@ import {
   parseAnnotationSvg,
   openImageAnnotationDialog
 } from "./components/image-annotation.js?v=20260721-diagram-viewer-wheel-v1";
-import { createWhatsNew } from "./components/whats-new.js?v=release-notes-2026-07-21-day-34-e1bf39ab2b17";
+import { createWhatsNew } from "./components/whats-new.js?v=release-notes-2026-07-22-day-35-0a0e45cffb8a";
 import {
   htmlWithoutUserMentionMarkup,
   initializeUserMentions
@@ -36,7 +36,7 @@ import {
   showTaskAudit,
   viewWorkItem
 } from "./components/work-items.js?v=20260720-work-item-export-images-v4";
-import { createApplicationShell } from "./core/application-shell.js?v=20260719-light-theme-only-v9";
+import { createApplicationShell } from "./core/application-shell.js?v=20260722-auth-flyby-v1";
 import {
   currentView,
   ensureCurrentViewRoute,
@@ -60,24 +60,25 @@ import {
 import { state } from "./core/store.js";
 import { appUrl, storageUrl } from "./shared/app-urls.js";
 import {
+  createAboutAuthFlyby,
   createAboutFeature,
   createAboutScreenSaver
-} from "./features/about/about.js?v=20260721-about-pong-polish-v4";
+} from "./features/about/about.js?v=20260722-login-flyby-v1";
 import { createBacklogFeature } from "./features/backlog/backlog.js?v=20260720-work-item-export-images-v4";
 import { createBoardFeature } from "./features/board/board.js?v=20260720-work-item-export-images-v4";
 import { createBugsFeature } from "./features/bugs/bugs.js?v=20260721-rte-code-log-v1";
-import { createDashboardFeature } from "./features/dashboard/dashboard.js?v=release-notes-2026-07-21-day-34-e1bf39ab2b17";
+import { createDashboardFeature } from "./features/dashboard/dashboard.js?v=release-notes-2026-07-22-day-35-0a0e45cffb8a";
 import { createDiagramFeature } from "./features/diagram/diagram.js?v=20260721-rte-diagram-menu-v1";
 import { createDocumentationFeature } from "./features/documentation/documentation.js?v=20260721-diagram-rich-text-v3";
 import {
   createGanttFeature,
   currentSprintForProject,
   ganttStartDate
-} from "./features/gantt/gantt.js?v=release-notes-2026-07-21-day-34-e1bf39ab2b17";
-import { createInvitationsFeature } from "./features/invitations/invitations.js?v=20260719-day32-rte-diagram";
+} from "./features/gantt/gantt.js?v=release-notes-2026-07-22-day-35-0a0e45cffb8a";
+import { createInvitationsFeature } from "./features/invitations/invitations.js?v=20260722-auth-flyby-v1";
 import { createProjectsFeature } from "./features/projects/projects.js?v=20260719-day32-rte-diagram";
-import { createReleaseNotesFeature } from "./features/release-notes/release-notes.js?v=release-notes-2026-07-21-day-34-e1bf39ab2b17";
-import { createRoadMapFeature } from "./features/roadmap/roadmap.js?v=release-notes-2026-07-21-day-34-e1bf39ab2b17";
+import { createReleaseNotesFeature } from "./features/release-notes/release-notes.js?v=release-notes-2026-07-22-day-35-0a0e45cffb8a";
+import { createRoadMapFeature } from "./features/roadmap/roadmap.js?v=release-notes-2026-07-22-day-35-0a0e45cffb8a";
 import { createLogFeature } from "./features/personal-log/log.js?v=20260721-rte-code-log-v1";
 import { createScrumFeature } from "./features/scrum/scrum.js?v=20260721-rte-code-log-v1";
 import { createSettingsFeature } from "./features/settings/settings.js?v=20260720-clear-preferences-logout-v1";
@@ -211,6 +212,9 @@ let invitationsFeature = null;
 let whatsNew = null;
 let handlingBrowserRouteChange = false;
 let lastOpenedContentRouteKey = "";
+let activeAuthFlyby = null;
+let activeAuthFlybyTimer = 0;
+const authFlybyDelayMs = 30 * 1000;
 // let openCreateSprintOnRender = false;
 
 const workItemRuleOptions = {
@@ -225,6 +229,33 @@ configureProgressAndStatus({
   getTasks: () => state.tasks
 });
 
+function renderAuthFlyby(host) {
+  window.clearTimeout(activeAuthFlybyTimer);
+  activeAuthFlybyTimer = 0;
+  activeAuthFlyby?.deactivate();
+  activeAuthFlyby = null;
+  document.body.classList.remove("auth-flyby-rendering");
+  if (!host) return;
+
+  host.dataset.authFlybyDelayMs = String(authFlybyDelayMs);
+  activeAuthFlybyTimer = window.setTimeout(() => {
+    activeAuthFlybyTimer = 0;
+    if (!host.isConnected) return;
+
+    document.body.classList.add("auth-flyby-rendering");
+    activeAuthFlyby = createAboutAuthFlyby({ host });
+    activeAuthFlyby.render();
+  }, authFlybyDelayMs);
+}
+
+function clearAuthFlyby() {
+  window.clearTimeout(activeAuthFlybyTimer);
+  activeAuthFlybyTimer = 0;
+  activeAuthFlyby?.deactivate();
+  activeAuthFlyby = null;
+  document.body.classList.remove("auth-flyby-rendering", "login-flyby-active", "invite-flyby-active");
+}
+
 const shell = createApplicationShell({
   afterLogin: () => whatsNew?.showAfterLogin(),
   bindScreenEvents,
@@ -233,6 +264,8 @@ const shell = createApplicationShell({
   inviteUsers: () => invitationsFeature?.openInviteDialog(),
   // prepareRender,
   refreshLookupOptions,
+  clearLoginBackground: clearAuthFlyby,
+  renderLoginBackground: renderAuthFlyby,
   renderPendingInvitation: () => invitationsFeature?.renderInvitationProfile(),
   renderCurrentScreen,
   // resolveNavigationView,
@@ -337,6 +370,8 @@ invitationsFeature = createInvitationsFeature({
       shell.renderLogin();
     }
   },
+  clearAuthBackground: clearAuthFlyby,
+  renderAuthBackground: renderAuthFlyby,
   showToast,
   uploadFile
 });

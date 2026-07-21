@@ -5,7 +5,7 @@ test("Admin can confirm reuse of an archived project code without changing the r
 
   await page.addInitScript(() => {
     localStorage.clear();
-    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-18-day-31@59d6c74b8c72");
+    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-22-day-35@0a0e45cffb8a");
   });
   await page.route("**/api/login", async route => {
     await route.fulfill(jsonResponse({
@@ -73,7 +73,7 @@ test("a stale Project save is rejected and can be preserved as a new Project", a
 
   await page.addInitScript(() => {
     localStorage.clear();
-    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-18-day-31@59d6c74b8c72");
+    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-22-day-35@0a0e45cffb8a");
   });
   await page.route("**/api/login", async route => {
     await route.fulfill(jsonResponse({

@@ -1397,5 +1397,37 @@
         ]
       }
     ]
+  },
+  {
+    "day": 35,
+    "title": "3D PMT Flyby Login and Invited Signup",
+    "sections": [
+      {
+        "title": "Login Experience",
+        "items": [
+          "Keep the familiar PMT login card and header while changing the content-area background to the PMT 3D About flyby.",
+          "Render the flyby underneath the normal PMT header/topbar so the login screen still feels like part of the application shell.",
+          "Wait 30 seconds before switching login and invited-signup backgrounds into the animated 3D flyby.",
+          "Seed the auth-screen flyby with portable PMT demo project data so every PMT install has the same branded experience."
+        ]
+      },
+      {
+        "title": "Invited User Signup",
+        "items": [
+          "Apply the same PMT 3D flyby background to invited-user profile creation while keeping the PMT welcome header visible.",
+          "Keep the new-user signup card centered so the invitation flow still feels like a dialog over the PMT workspace.",
+          "Let invited users drag the signup card by its header so they can move it aside and see the animated flyby behind it.",
+          "Add a lower-left Go to Login to PMT button for invited users who already registered and only need to return to the normal login page."
+        ]
+      },
+      {
+        "title": "Release Readiness",
+        "items": [
+          "Cache-bust the updated auth screens and About flyby modules so browsers pick up the new login and invitation layouts immediately.",
+          "Regenerate the shared Release Notes and What's New data so Day 35 becomes the latest visible release entry.",
+          "Keep the database at Version 1.25 because this release changes only browser UI behavior and does not require a new SQL migration."
+        ]
+      }
+    ]
   }
 ]

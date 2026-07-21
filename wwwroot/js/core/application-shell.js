@@ -28,6 +28,8 @@ export function createApplicationShell({
   inviteUsers,
   prepareRender,
   refreshLookupOptions,
+  clearLoginBackground,
+  renderLoginBackground,
   renderPendingInvitation,
   renderCurrentScreen,
   resolveNavigationView,
@@ -62,6 +64,8 @@ export function createApplicationShell({
 
     if (hasPendingInvitation?.()) {
       document.body.classList.add("logged-out");
+      document.body.classList.remove("login-flyby-active");
+      clearLoginBackground?.();
       elements.nav.innerHTML = "";
       elements.userSelect.innerHTML = "";
       await renderPendingInvitation?.();
@@ -95,7 +99,8 @@ export function createApplicationShell({
   }
 
   async function start() {
-    document.body.classList.remove("logged-out");
+    clearLoginBackground?.();
+    document.body.classList.remove("logged-out", "login-flyby-active");
     renderImpersonationBanner();
     renderNavigation();
     if (await reloadState()) {
@@ -219,12 +224,14 @@ export function createApplicationShell({
   }
 
   function renderLogin() {
-    document.body.classList.add("logged-out");
+    clearLoginBackground?.();
+    document.body.classList.add("logged-out", "login-flyby-active");
     renderImpersonationBanner();
     elements.nav.innerHTML = "";
     elements.userSelect.innerHTML = "";
     elements.app.innerHTML = `
-      <section class="login-screen">
+      <section class="login-screen login-screen-flyby">
+        <div class="login-flyby" data-login-flyby aria-hidden="true"></div>
         <div class="panel login-card">
           <div class="login-brand">
             <img src="${appUrl("/assets/project-pmt.svg?v=20260621-transparent")}" alt="">
@@ -248,6 +255,7 @@ export function createApplicationShell({
       </section>
     `;
 
+    renderLoginBackground?.(elements.app.querySelector("[data-login-flyby]"));
     document.getElementById("loginButton").addEventListener("click", submitLogin);
     document.getElementById("loginPassword").addEventListener("keydown", event => {
       if (event.key === "Enter") submitLogin();

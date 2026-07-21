@@ -10,6 +10,9 @@ test.describe("unavailable upload storage", () => {
     await page.addInitScript(() => localStorage.clear());
     await page.goto("/");
 
+    await expect(page.locator(".login-screen-flyby")).toBeVisible();
+    await expect(page.locator("[data-login-flyby]")).toBeVisible();
+    await expect(page.locator(".topbar")).toBeVisible();
     await expect(page.getByRole("heading", { name: "PMT", exact: true })).toBeVisible();
     await expect(page.locator("#loginName")).toBeVisible();
     await expect(page.locator("#loginPassword")).toBeVisible();

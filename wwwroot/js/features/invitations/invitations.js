@@ -37,7 +37,9 @@ const invitationEmailLogoVersion = "20260714-invite-email-body";
 
 export function createInvitationsFeature({
   app,
+  clearAuthBackground,
   onAccepted,
+  renderAuthBackground,
   resumeApplication,
   showToast,
   uploadFile
@@ -239,14 +241,12 @@ export function createInvitationsFeature({
 
   async function renderInvitationProfile() {
     const token = invitationToken();
-    app.innerHTML = `
-      <section class="login-screen invite-profile-screen">
+    renderInviteAuthScreen(`
         <div class="panel invite-profile-card invite-profile-message">
           <h1>Preparing your PMT profile</h1>
           <p class="muted">Validating the invitation...</p>
         </div>
-      </section>
-    `;
+    `);
 
     try {
       const invitation = await api(`/api/invitations/${encodeURIComponent(token)}`);
@@ -258,10 +258,9 @@ export function createInvitationsFeature({
 
   function renderProfileForm(token, invitation) {
     const projects = invitation.projects || [];
-    app.innerHTML = `
-      <section class="login-screen invite-profile-screen">
+    renderInviteAuthScreen(`
         <form class="panel invite-profile-card invite-profile-form" data-invite-profile-form>
-          <div class="login-brand invite-profile-brand">
+          <div class="login-brand invite-profile-brand" data-invite-profile-drag-handle title="Drag to move this signup box">
             <img src="${appUrl("/assets/project-pmt.svg?v=20260621-transparent")}" alt="">
             <div>
               <h1>Welcome to PMT! You've been invited!</h1>
@@ -296,17 +295,21 @@ export function createInvitationsFeature({
             </div>
           </div>
           <div class="dialog-actions invite-profile-actions">
+            <button class="secondary text-icon-button invite-profile-login-button" type="button" data-invite-profile-login>
+              Go to Login to PMT
+            </button>
             <button class="primary text-icon-button" type="submit">${buttonContent("&#10003;", "Create Profile")}</button>
           </div>
         </form>
-      </section>
-    `;
+    `);
 
     const form = app.querySelector("[data-invite-profile-form]");
+    makeInviteProfileCardDraggable(form);
     const usernameInput = form.querySelector("[name='nickname']");
     const usernameHelp = form.querySelector("[data-username-help]");
     const clearAvatarPreview = bindProfileAvatarPicker(form);
     bindUsernameSuggestion(usernameInput, usernameHelp);
+    form.querySelector("[data-invite-profile-login]")?.addEventListener("click", leaveInvitation);
     usernameInput?.focus();
     const setProfileBusy = busy => {
       form.querySelectorAll("input, button").forEach(control => {
@@ -413,16 +416,82 @@ export function createInvitationsFeature({
   }
 
   function renderInvitationError(message) {
-    app.innerHTML = `
-      <section class="login-screen invite-profile-screen">
+    renderInviteAuthScreen(`
         <div class="panel invite-profile-card invite-profile-message">
           <h1>Invitation unavailable</h1>
           <p>${escapeHtml(message)}</p>
           <button class="secondary text-icon-button" type="button" data-leave-invitation>${buttonContent("&#8592;", "Back to PMT")}</button>
         </div>
+    `);
+    app.querySelector("[data-leave-invitation]")?.addEventListener("click", leaveInvitation);
+  }
+
+  function renderInviteAuthScreen(contentHtml) {
+    clearAuthBackground?.();
+    document.body.classList.add("logged-out", "invite-flyby-active");
+    app.innerHTML = `
+      <section class="login-screen invite-profile-screen invite-profile-flyby-screen">
+        <div class="login-flyby invite-profile-flyby" data-invite-auth-flyby aria-hidden="true"></div>
+        ${contentHtml}
       </section>
     `;
-    app.querySelector("[data-leave-invitation]")?.addEventListener("click", leaveInvitation);
+    renderAuthBackground?.(app.querySelector("[data-invite-auth-flyby]"));
+  }
+
+  function makeInviteProfileCardDraggable(card) {
+    const handle = card?.querySelector("[data-invite-profile-drag-handle]");
+    if (!card || !handle) return;
+
+    let translateX = 0;
+    let translateY = 0;
+
+    handle.addEventListener("pointerdown", event => {
+      if (event.button !== 0) return;
+
+      const host = card.closest(".invite-profile-flyby-screen") || app;
+      const cardRect = card.getBoundingClientRect();
+      const hostRect = host.getBoundingClientRect();
+      const startX = event.clientX;
+      const startY = event.clientY;
+      const startTranslateX = translateX;
+      const startTranslateY = translateY;
+      const baseLeft = cardRect.left - translateX;
+      const baseTop = cardRect.top - translateY;
+      const gutter = 16;
+
+      event.preventDefault();
+      handle.setPointerCapture?.(event.pointerId);
+      card.classList.add("is-dragging");
+
+      const clamp = (value, min, max) => {
+        if (max < min) return value;
+        return Math.max(min, Math.min(max, value));
+      };
+
+      const move = moveEvent => {
+        const proposedX = startTranslateX + moveEvent.clientX - startX;
+        const proposedY = startTranslateY + moveEvent.clientY - startY;
+        const minX = hostRect.left + gutter - baseLeft;
+        const maxX = hostRect.right - gutter - cardRect.width - baseLeft;
+        const minY = hostRect.top + gutter - baseTop;
+        const maxY = hostRect.bottom - gutter - cardRect.height - baseTop;
+        translateX = clamp(proposedX, minX, maxX);
+        translateY = clamp(proposedY, minY, maxY);
+        card.style.transform = `translate(${translateX}px, ${translateY}px)`;
+      };
+
+      const stop = stopEvent => {
+        handle.releasePointerCapture?.(stopEvent.pointerId);
+        card.classList.remove("is-dragging");
+        handle.removeEventListener("pointermove", move);
+        handle.removeEventListener("pointerup", stop);
+        handle.removeEventListener("pointercancel", stop);
+      };
+
+      handle.addEventListener("pointermove", move);
+      handle.addEventListener("pointerup", stop);
+      handle.addEventListener("pointercancel", stop);
+    });
   }
 
   async function leaveInvitation() {

@@ -26,7 +26,7 @@ test("Invite Users generates copyable URL and Outlook-safe email HTML", async ({
 
   await page.addInitScript(() => {
     localStorage.clear();
-    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-18-day-31@59d6c74b8c72");
+    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-22-day-35@0a0e45cffb8a");
   });
   await installCommonApiMocks(page, () => appState);
   await page.route("**/api/session", async route => {
@@ -175,7 +175,7 @@ for (const scenario of destinationScenarios) {
 
     await page.addInitScript(() => {
       localStorage.clear();
-      localStorage.setItem("pmt-release-notes-last-seen:42", "2026-07-18-day-31@59d6c74b8c72");
+      localStorage.setItem("pmt-release-notes-last-seen:42", "2026-07-22-day-35@0a0e45cffb8a");
     });
     await installCommonApiMocks(
       page,
@@ -220,10 +220,13 @@ for (const scenario of destinationScenarios) {
     await page.goto(`/?invite=${invitationToken}`);
 
     await expect(page.getByRole("heading", { name: "Welcome to PMT! You've been invited!" })).toBeVisible();
+    await expect(page.locator(".topbar")).toBeVisible();
+    await expect(page.locator("[data-invite-auth-flyby]")).toBeVisible();
     await expect(page.locator("#loginName")).toHaveCount(0);
     expect(await page.evaluate(() => localStorage.getItem("pmt-auth-user"))).toBeNull();
 
     const profileForm = page.locator("[data-invite-profile-form]");
+    await expect(profileForm.locator("[data-invite-profile-drag-handle]")).toBeVisible();
     await expect(profileForm.locator("input[type='email'], [name='email']")).toHaveCount(0);
     await expect(profileForm.locator(".invite-profile-project")).toHaveCount(scenario.projects.length);
     await profileForm.getByLabel("Username").fill(invitedUser.nickname);
