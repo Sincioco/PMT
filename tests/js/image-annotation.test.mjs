@@ -5601,6 +5601,15 @@ test("RTE Insert Linked Diagram stores a database-backed Diagram OLE reference",
   assert.match(appSource, /function diagramOleViewerSourceUrl/);
   assert.match(appSource, /buildAnnotationSvg\(diagramState,\s*{[\s\S]*entityHeaderButtonsVisible:\s*false/);
   assert.match(appSource, /function refreshRichDiagramOleViewerSource/);
+  assert.match(appSource, /data-diagram-ole-change/);
+  assert.match(appSource, /data-diagram-ole-delete/);
+  assert.match(appSource, /data-diagram-ole-edit-action/);
+  assert.match(appSource, /function deleteRichDiagramOleBlock\(editor, block\)/);
+  assert.match(appSource, /block\.replaceWith\(blankLine\)/);
+  assert.match(appSource, /block\.remove\(\)/);
+  assert.match(appSource, /block\.dataset\.diagramId = String\(nextDiagram\.id\)/);
+  assert.match(appSource, /askForRichLinkedDiagram\(\{[\s\S]*selectedId:\s*diagram\.id[\s\S]*actionLabel:\s*"Change Diagram"/);
+  assert.match(appSource, /showToast\("Linked Diagram changed\. Save the record to keep it\."\)/);
   assert.match(appSource, /block\.dataset\.diagramOleHydratedKey === hydratedKey/);
   assert.match(appSource, /bindRichDiagramOleViewer\(block, diagram\);[\s\S]*bindRichDiagramOleResizePersistence\(block\);[\s\S]*return;/);
   assert.match(appSource, /clampRichDiagramOleViewport\(block, viewport, surface, view\)/);
@@ -5610,6 +5619,12 @@ test("RTE Insert Linked Diagram stores a database-backed Diagram OLE reference",
   assert.match(viewerSource, /viewport\.addEventListener\("auxclick"[\s\S]*event\.button !== 1/);
   assert.match(viewerSource, /event\.button !== 0 && event\.button !== 1/);
   assert.match(formsCss, /\.pmt-diagram-ole-viewport\.is-panning/);
+  assert.match(formsCss, /\.pmt-diagram-ole-picker-dialog\s*{[\s\S]*width:\s*calc\(100vw - 24px\);[\s\S]*height:\s*calc\(100vh - 24px\);/);
+  assert.match(formsCss, /\.pmt-diagram-ole-picker-dialog\s*{[\s\S]*margin:\s*auto;/);
+  assert.match(formsCss, /\.pmt-diagram-ole-picker-list\s*{[\s\S]*grid-template-columns:\s*repeat\(auto-fit, minmax\(360px, 1fr\)\);/);
+  assert.match(formsCss, /\.pmt-diagram-ole-picker-item\s*{[\s\S]*grid-template-rows:\s*minmax\(220px, 1fr\) auto;/);
+  assert.match(formsCss, /\.pmt-diagram-ole-picker-thumb img\s*{[\s\S]*max-height:\s*260px;/);
+  assert.match(formsCss, /\.pmt-diagram-ole-actions \.pmt-diagram-ole-delete-action:hover/);
   assert.match(appSource, /event\.target\.closest\("\.rich-code-block, \.rich-collapsible-block, \.pmt-diagram-ole"\)/);
   assert.match(appSource, /pmt-diagram-ole:\$\{documentId\}:\$\{diagram\?\.id/);
   assert.match(textSource, /function normalizeDiagramOleBlocksForStorage/);
@@ -5637,6 +5652,22 @@ test("Diagram read and edit viewers use plain mouse wheel zoom", async () => {
   assert.doesNotMatch(readonlyWheelSource, /ctrlKey/);
   assert.match(annotationSource, /if \(!context\.wheelZoomsWithoutCtrl && !event\.ctrlKey\)/);
   assert.match(annotationSource, /Wheel: zoom at cursor/);
+});
+
+test("Diagram read-only context menu toggles connection symbols", async () => {
+  const diagramSource = await readFile(new URL("../../wwwroot/js/features/diagram/diagram.js", import.meta.url), "utf8");
+
+  assert.match(diagramSource, /data-diagram-toggle-connection-symbols/);
+  assert.match(diagramSource, /role="menuitemcheckbox"/);
+  assert.match(diagramSource, /Connection Symbols/);
+  assert.match(diagramSource, /function diagramReadonlyImageHtml/);
+  assert.match(diagramSource, /const renderReadonlyStateSvg = \(\) => \{/);
+  assert.match(diagramSource, /interactiveEntityHeaders:\s*true,\s*[\r\n\s]*interactiveRelationships:\s*true/);
+  assert.match(diagramSource, /const checked = readonlyState\?\.relationshipStyle\?\.showSymbols === true/);
+  assert.match(diagramSource, /button\.setAttribute\("aria-checked", String\(checked\)\)/);
+  assert.match(diagramSource, /button\.querySelector\("\.dropdown-menu-check"\)\.innerHTML = checked \? "&#10003;" : ""/);
+  assert.match(diagramSource, /showSymbols:\s*readonlyState\.relationshipStyle\?\.showSymbols !== true/);
+  assert.match(diagramSource, /renderReadonlyStateSvg\(\)/);
 });
 
 test("RTE Code Block delete removes the block directly and leaves a blank line", async () => {

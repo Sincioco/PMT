@@ -67,7 +67,7 @@ import { createBacklogFeature } from "./features/backlog/backlog.js?v=20260720-w
 import { createBoardFeature } from "./features/board/board.js?v=20260720-work-item-export-images-v4";
 import { createBugsFeature } from "./features/bugs/bugs.js?v=20260721-rte-code-log-v1";
 import { createDashboardFeature } from "./features/dashboard/dashboard.js?v=release-notes-2026-07-21-day-34-e1bf39ab2b17";
-import { createDiagramFeature } from "./features/diagram/diagram.js?v=20260721-diagram-viewer-wheel-v1";
+import { createDiagramFeature } from "./features/diagram/diagram.js?v=20260721-rte-diagram-menu-v1";
 import { createDocumentationFeature } from "./features/documentation/documentation.js?v=20260721-diagram-rich-text-v3";
 import {
   createGanttFeature,
@@ -4698,7 +4698,7 @@ function decodeDiagramOleSvgDataUrl(sourceInput) {
   }
 }
 
-function askForRichLinkedDiagram() {
+function askForRichLinkedDiagram(options = {}) {
   const diagrams = diagramOleDocuments();
   if (!diagrams.length) {
     showToast("Create a Diagram first, then insert it as a linked Diagram.");
@@ -4706,14 +4706,18 @@ function askForRichLinkedDiagram() {
   }
 
   return new Promise(resolve => {
-    let selectedId = diagrams[0]?.id || 0;
+    let selectedId = diagrams.some(diagram => diagram.id === Number(options.selectedId || 0))
+      ? Number(options.selectedId || 0)
+      : diagrams[0]?.id || 0;
     let search = "";
+    const dialogTitle = options.title || "Insert Linked Diagram";
+    const actionLabel = options.actionLabel || "Insert Linked Diagram";
     const modal = document.createElement("dialog");
     modal.className = "dialog pmt-diagram-ole-picker-dialog";
     modal.innerHTML = `
       <form method="dialog">
         <div class="dialog-head">
-          <h2>Insert Linked Diagram</h2>
+          <h2>${escapeHtml(dialogTitle)}</h2>
           <button type="button" class="icon-btn" data-close title="Close" aria-label="Close">x</button>
         </div>
         <div class="dialog-body pmt-diagram-ole-picker-body">
@@ -4725,7 +4729,7 @@ function askForRichLinkedDiagram() {
         </div>
         <div class="dialog-actions">
           <button type="button" class="secondary text-icon-button" data-close>${buttonContent("&#10005;", "Cancel")}</button>
-          <button type="button" class="primary text-icon-button" data-insert-linked-diagram>${buttonContent("&#10003;", "Insert Linked Diagram")}</button>
+          <button type="button" class="primary text-icon-button" data-insert-linked-diagram>${buttonContent("&#10003;", actionLabel)}</button>
         </div>
       </form>
     `;
@@ -4820,6 +4824,7 @@ function hydrateRichDiagramOleBlock(block) {
   const diagram = state.blogs.find(blog => blog.id === diagramId && diagramOleCanRead(blog) && diagramOleSource(blog));
   const width = Math.max(320, Math.round(Number(block.dataset.viewWidth || block.style.width?.replace("px", "") || 900) || 900));
   const height = Math.max(220, Math.round(Number(block.dataset.viewHeight || block.style.height?.replace("px", "") || 520) || 520));
+  const editable = Boolean(block.closest(".rich-editor"));
   block.classList.add("pmt-diagram-ole");
   block.setAttribute("contenteditable", "false");
   block.dataset.viewWidth = String(width);
@@ -4838,7 +4843,7 @@ function hydrateRichDiagramOleBlock(block) {
 
   const title = diagram.title || "Diagram";
   const sourceUrl = diagramOleSourceUrl(diagram);
-  const hydratedKey = `${diagram.id}:${sourceUrl}:${width}:${height}`;
+  const hydratedKey = `${diagram.id}:${sourceUrl}:${width}:${height}:${editable ? "edit" : "read"}`;
   if (block.dataset.diagramOleHydratedKey === hydratedKey
     && block.querySelector("[data-diagram-ole-viewport] img")) {
     refreshRichDiagramOleViewerSource(block, diagram, sourceUrl);
@@ -4855,6 +4860,8 @@ function hydrateRichDiagramOleBlock(block) {
         <button type="button" data-diagram-ole-zoom-out title="Zoom out" aria-label="Zoom out">-</button>
         <button type="button" data-diagram-ole-reset title="Fit diagram to viewer" aria-label="Fit diagram to viewer">Reset</button>
         <button type="button" data-diagram-ole-zoom-in title="Zoom in" aria-label="Zoom in">+</button>
+        ${editable ? `<button type="button" data-diagram-ole-edit-action data-diagram-ole-change title="Change linked Diagram" aria-label="Change linked Diagram">Change</button>` : ""}
+        ${editable ? `<button type="button" class="pmt-diagram-ole-delete-action" data-diagram-ole-edit-action data-diagram-ole-delete title="Delete linked Diagram" aria-label="Delete linked Diagram">&#128465;</button>` : ""}
       </span>
     </figcaption>
     <div class="pmt-diagram-ole-viewport" data-diagram-ole-viewport tabindex="0" aria-label="${escapeAttr(`${title} linked Diagram viewer`)}">
@@ -4934,6 +4941,42 @@ function bindRichDiagramOleViewer(block, diagram) {
   block.querySelector("[data-diagram-ole-zoom-out]")?.addEventListener("click", () => zoomBy(0.85));
   block.querySelector("[data-diagram-ole-zoom-in]")?.addEventListener("click", () => zoomBy(1.15));
   block.querySelector("[data-diagram-ole-reset]")?.addEventListener("click", fitView);
+  ["pointerdown", "mousedown"].forEach(eventName => {
+    block.addEventListener(eventName, event => {
+      if (!event.target.closest?.("[data-diagram-ole-edit-action]")) return;
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation?.();
+    }, true);
+  });
+  block.querySelector("[data-diagram-ole-delete]")?.addEventListener("click", event => {
+    event.preventDefault();
+    event.stopPropagation();
+    event.stopImmediatePropagation?.();
+    deleteRichDiagramOleBlock(block.closest(".rich-editor"), block);
+  });
+  block.querySelector("[data-diagram-ole-change]")?.addEventListener("click", async event => {
+    event.preventDefault();
+    event.stopPropagation();
+    event.stopImmediatePropagation?.();
+    const editor = block.closest(".rich-editor");
+    if (!editor) return;
+    const nextDiagram = await askForRichLinkedDiagram({
+      selectedId: diagram.id,
+      title: "Change Linked Diagram",
+      actionLabel: "Change Diagram"
+    });
+    if (!nextDiagram || !editor.contains(block)) return;
+
+    block.dataset.diagramId = String(nextDiagram.id);
+    delete block.dataset.diagramOleHydratedKey;
+    delete block.dataset.diagramOleViewerBound;
+    delete block.dataset.diagramOleSourceRequestKey;
+    delete block.dataset.diagramOleViewClamped;
+    hydrateRichDiagramOleBlock(block);
+    editor.dispatchEvent(new Event("input", { bubbles: true }));
+    showToast("Linked Diagram changed. Save the record to keep it.");
+  });
   ["pointerdown", "pointermove", "pointerup", "pointercancel", "click", "dblclick"].forEach(eventName => {
     viewport.addEventListener(eventName, event => event.stopPropagation());
   });
@@ -4997,6 +5040,22 @@ function bindRichDiagramOleViewer(block, diagram) {
     if (image?.complete) fitView();
     else image?.addEventListener("load", fitView, { once: true });
   }
+}
+
+function deleteRichDiagramOleBlock(editor, block) {
+  if (!editor?.contains(block) || !block?.isConnected) return;
+
+  const blankLine = richBlankParagraphSibling(block.nextElementSibling) || document.createElement("p");
+  if (!blankLine.isConnected) blankLine.innerHTML = "<br>";
+
+  if (blankLine.parentElement === block.parentElement) {
+    block.remove();
+  } else {
+    block.replaceWith(blankLine);
+  }
+
+  placeCaretInRichBlock(editor, blankLine);
+  editor.dispatchEvent(new Event("input", { bubbles: true }));
 }
 
 function clampRichDiagramOleViewport(block, viewport, surface, view) {

@@ -108,6 +108,12 @@ Pong + Blocks + Alien Game
 54.) In Linked Diagram viewer, don't render the expand/collapse and data type buttons on the entities.
 55.) In Diagram, make both read and edit mode use the mousewheel to zoom in and out.
 
+56.) In the RTE in edit mode, the Linked Diagram viewer should a delete button that allows me to delete the Linked Diagram viewer and inserts a blank line;
+57.) It should also allow me to change the diagram it is linked to;
+58.) The Insert Linked Diagram, make the dialog box full screen and make the diagram thumbnails larger.
+59.) In Diagram in read-only mode, add a right-click mouse menu item of "Connection Symbols" and put a checkmark when it is on or off.  Turn it on so it shows the arrow, 1-to-1, 1-to-many and the crows feet.  When it is off, it just shows the lines.
+60.) The Changed Link Diagram dialog box, make the width nearly full screen also, have it the same margin on the left and right as it does now with the top and bottom.
+
 
 Database Migration Script Testing
 ---------------------------------

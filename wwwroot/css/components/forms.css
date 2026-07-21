@@ -1025,6 +1025,11 @@ html[data-theme] .rich-color-palette button.rich-color-custom {
   border-color: var(--color-border-strong);
 }
 
+.pmt-diagram-ole-actions .pmt-diagram-ole-delete-action:hover,
+.pmt-diagram-ole-actions .pmt-diagram-ole-delete-action:focus-visible {
+  color: var(--color-danger-text);
+}
+
 .pmt-diagram-ole-viewport {
   position: relative;
   flex: 1 1 auto;
@@ -1076,28 +1081,42 @@ html[data-theme] .rich-color-palette button.rich-color-custom {
 }
 
 .pmt-diagram-ole-picker-dialog {
-  width: min(980px, calc(100vw - 48px));
+  width: calc(100vw - 24px);
+  height: calc(100vh - 24px);
+  max-width: none;
+  max-height: none;
+  margin: auto;
+}
+
+.pmt-diagram-ole-picker-dialog > form {
+  height: 100%;
+  max-height: 100%;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  overflow: hidden;
 }
 
 .pmt-diagram-ole-picker-body {
   display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
   gap: var(--space-4);
+  min-height: 0;
+  max-height: none;
 }
 
 .pmt-diagram-ole-picker-list {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+  align-content: start;
   gap: var(--space-4);
-  max-height: min(62vh, 620px);
+  min-height: 0;
   overflow: auto;
 }
 
 .pmt-diagram-ole-picker-item {
   display: grid;
-  grid-template-columns: 110px minmax(0, 1fr);
-  align-items: stretch;
+  grid-template-rows: minmax(220px, 1fr) auto;
   gap: var(--space-3);
-  min-height: 92px;
+  min-height: 310px;
   padding: var(--space-3);
   border: var(--border-width) solid var(--color-border-subtle);
   border-radius: var(--radius-lg);
@@ -1126,7 +1145,7 @@ html[data-theme] .rich-color-palette button.rich-color-custom {
 .pmt-diagram-ole-picker-thumb img {
   display: block;
   max-width: 100%;
-  max-height: 86px;
+  max-height: 260px;
   object-fit: contain;
 }
 

@@ -347,7 +347,8 @@ export function createDiagramFeature({
             ${diagramReadonlyImageHtml(image?.source || blankDiagramSource, document.title)}
           </div>
         </div>
-        <div class="dropdown-menu documentation-tree-context-menu diagram-readonly-context-menu" data-diagram-readonly-context-menu role="menu" aria-label="Copy Diagram" hidden>
+        <div class="dropdown-menu documentation-tree-context-menu diagram-readonly-context-menu" data-diagram-readonly-context-menu role="menu" aria-label="Diagram viewer options" hidden>
+          <button type="button" class="dropdown-menu-item" data-diagram-toggle-connection-symbols role="menuitemcheckbox" aria-checked="false"><span class="dropdown-menu-icon" aria-hidden="true">&#8644;</span><span class="dropdown-menu-label">Connection Symbols</span><span class="dropdown-menu-check" aria-hidden="true"></span></button>
           <button type="button" class="dropdown-menu-item" data-diagram-copy-format="svg" role="menuitem"><span class="dropdown-menu-icon" aria-hidden="true">&#128203;</span><span class="dropdown-menu-label">Copy as SVG</span><span class="dropdown-menu-check" aria-hidden="true"></span></button>
           <button type="button" class="dropdown-menu-item" data-diagram-copy-format="png" role="menuitem"><span class="dropdown-menu-icon" aria-hidden="true">&#128247;</span><span class="dropdown-menu-label">Copy as PNG</span><span class="dropdown-menu-check" aria-hidden="true"></span></button>
         </div>
@@ -1190,26 +1191,40 @@ export function createDiagramFeature({
     const zoomSmoothingMilliseconds = 30;
     const zoomIdleMilliseconds = 90;
     let readonlyState = image.matches("svg") ? parseAnnotationSvg(image.outerHTML) : null;
+    const replaceReadonlySvg = markup => {
+      const next = new DOMParser().parseFromString(markup, "image/svg+xml").documentElement;
+      ["width", "height", "viewBox", "role", "aria-label", "data-pmt-image-annotation-version"]
+        .forEach(name => image.setAttribute(name, next.getAttribute(name) || ""));
+      image.replaceChildren(...[...next.childNodes].map(node => document.importNode(node, true)));
+    };
     if (readonlyState) {
       const layoutResult = resolveAnnotationEntityOverlaps(readonlyState);
       if (layoutResult.movedCount) {
         const markup = buildAnnotationSvg(readonlyState, { interactiveEntityHeaders: true, interactiveRelationships: true });
-        const next = new DOMParser().parseFromString(markup, "image/svg+xml").documentElement;
-        ["width", "height", "viewBox", "role", "aria-label", "data-pmt-image-annotation-version"]
-          .forEach(name => image.setAttribute(name, next.getAttribute(name) || ""));
-        image.replaceChildren(...[...next.childNodes].map(node => document.importNode(node, true)));
+        replaceReadonlySvg(markup);
       }
     }
 
     const copyMenu = viewer.querySelector("[data-diagram-readonly-context-menu]");
+    let syncReadonlyConnectionSymbolsMenu = () => {};
     if (copyMenu) {
       const controller = new AbortController();
       const { signal } = controller;
       diagramReadonlyContextMenuController = controller;
       const closeCopyMenu = () => { copyMenu.hidden = true; };
+      syncReadonlyConnectionSymbolsMenu = () => {
+        const button = copyMenu.querySelector("[data-diagram-toggle-connection-symbols]");
+        if (!button) return;
+        const checked = readonlyState?.relationshipStyle?.showSymbols === true;
+        button.disabled = !readonlyState;
+        button.classList.toggle("is-checked", checked);
+        button.setAttribute("aria-checked", String(checked));
+        button.querySelector(".dropdown-menu-check").innerHTML = checked ? "&#10003;" : "";
+      };
       viewport.addEventListener("contextmenu", event => {
         event.preventDefault();
         event.stopPropagation();
+        syncReadonlyConnectionSymbolsMenu();
         copyMenu.hidden = false;
         const margin = 8;
         copyMenu.style.left = `${Math.round(Math.max(margin, Math.min(event.clientX, window.innerWidth - copyMenu.offsetWidth - margin)))}px`;
@@ -1218,6 +1233,23 @@ export function createDiagramFeature({
       }, { signal });
       copyMenu.addEventListener("contextmenu", event => event.preventDefault(), { signal });
       copyMenu.addEventListener("click", async event => {
+        const symbolToggle = event.target.closest?.("[data-diagram-toggle-connection-symbols]");
+        if (symbolToggle) {
+          event.preventDefault();
+          closeCopyMenu();
+          if (!readonlyState) {
+            notify?.("Connection symbols are only available for editable PMT Diagram SVGs.");
+            return;
+          }
+          readonlyState.relationshipStyle = {
+            ...readonlyState.relationshipStyle,
+            showSymbols: readonlyState.relationshipStyle?.showSymbols !== true
+          };
+          renderReadonlyStateSvg();
+          notify?.(readonlyState.relationshipStyle.showSymbols ? "Connection symbols on." : "Connection symbols off.");
+          return;
+        }
+
         const button = event.target.closest?.("[data-diagram-copy-format]");
         if (!button) return;
         closeCopyMenu();
@@ -1283,6 +1315,19 @@ export function createDiagramFeature({
       image.style.transform = `scale(${zoom / plane.baseScale})`;
       image.style.visibility = "";
       zoomSelect.value = String(Math.round(zoom * 100));
+    };
+
+    const renderReadonlyStateSvg = () => {
+      if (!readonlyState || !image.matches("svg")) return;
+      replaceReadonlySvg(buildAnnotationSvg(readonlyState, {
+        interactiveEntityHeaders: true,
+        interactiveRelationships: true
+      }));
+      const viewBox = image.viewBox?.baseVal;
+      imageWidth = Number.parseFloat(image.getAttribute("width")) || viewBox?.width || imageWidth;
+      imageHeight = Number.parseFloat(image.getAttribute("height")) || viewBox?.height || imageHeight;
+      drawStage(renderedZoom, stageMetrics(renderedZoom));
+      syncReadonlyConnectionSymbolsMenu();
     };
 
     let zoomGesture = null;
@@ -1528,15 +1573,7 @@ export function createDiagramFeature({
         readonlyState.objects.push(entity);
       }
 
-      const markup = buildAnnotationSvg(readonlyState, { interactiveEntityHeaders: true });
-      const next = new DOMParser().parseFromString(markup, "image/svg+xml").documentElement;
-      ["width", "height", "viewBox", "role", "aria-label", "data-pmt-image-annotation-version"]
-        .forEach(name => image.setAttribute(name, next.getAttribute(name) || ""));
-      image.replaceChildren(...[...next.childNodes].map(node => document.importNode(node, true)));
-      const viewBox = image.viewBox?.baseVal;
-      imageWidth = Number.parseFloat(image.getAttribute("width")) || viewBox?.width || imageWidth;
-      imageHeight = Number.parseFloat(image.getAttribute("height")) || viewBox?.height || imageHeight;
-      drawStage(renderedZoom, stageMetrics(renderedZoom));
+      renderReadonlyStateSvg();
 
       const replacement = image.querySelector(
         `[data-annotation-entity-id='${CSS.escape(entity.id)}'][data-annotation-entity-header-action='${action}']`
