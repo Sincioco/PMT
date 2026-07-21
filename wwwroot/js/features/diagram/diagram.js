@@ -13,7 +13,7 @@ import {
   setAnnotationEntityCollapsedState,
   setAnnotationEntityDataTypeVisibility,
   zoomAnnotationAtPoint
-} from "../../components/image-annotation.js?v=20260721-diagram-rich-text-v3";
+} from "../../components/image-annotation.js?v=20260721-diagram-viewer-wheel-v1";
 import {
   checkedFilterValues,
   filterCheckList,
@@ -342,7 +342,7 @@ export function createDiagramFeature({
     const image = diagramImage(document);
     return `
       <div class="diagram-readonly-viewer diagram-tree-preview-image" data-diagram-readonly-viewer data-id="${document.id}">
-        <div class="diagram-preview diagram-readonly-viewport" data-diagram-viewport tabindex="0" aria-label="Read-only Diagram canvas. Drag to pan; use Control plus mouse wheel to zoom.">
+        <div class="diagram-preview diagram-readonly-viewport" data-diagram-viewport tabindex="0" aria-label="Read-only Diagram canvas. Drag to pan; use mouse wheel to zoom.">
           <div class="diagram-readonly-stage" data-diagram-stage>
             ${diagramReadonlyImageHtml(image?.source || blankDiagramSource, document.title)}
           </div>
@@ -870,6 +870,7 @@ export function createDiagramFeature({
         initialSelection: "none",
         defaultTool: "select",
         entityHeaderActionsOnHover: true,
+        wheelZoomsWithoutCtrl: true,
         embedded: !editingFullScreen,
         initiallyMaximized: editingFullScreen,
         initialZoom: options.initialTemplateName ? 1 : null,
@@ -1590,10 +1591,6 @@ export function createDiagramFeature({
     app.querySelector("[data-diagram-fit]")?.addEventListener("click", () => fit());
     zoomSelect.addEventListener("change", () => scheduleZoom(Number(zoomSelect.value || 100) / 100));
     viewport.addEventListener("wheel", event => {
-      if (!event.ctrlKey) {
-        settleZoomAtCurrentDisplay();
-        return;
-      }
       event.preventDefault();
       const rect = viewport.getBoundingClientRect();
       scheduleZoom(previewZoom + (event.deltaY < 0 ? 0.05 : -0.05), {

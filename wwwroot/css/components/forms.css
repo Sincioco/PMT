@@ -1035,7 +1035,8 @@ html[data-theme] .rich-color-palette button.rich-color-custom {
   user-select: none;
 }
 
-.pmt-diagram-ole-viewport:active {
+.pmt-diagram-ole-viewport:active,
+.pmt-diagram-ole-viewport.is-panning {
   cursor: grabbing;
 }
 
@@ -1059,7 +1060,8 @@ html[data-theme] .rich-color-palette button.rich-color-custom {
   cursor: grab !important;
 }
 
-.pmt-diagram-ole-viewport:active img {
+.pmt-diagram-ole-viewport:active img,
+.pmt-diagram-ole-viewport.is-panning img {
   cursor: grabbing !important;
 }
 

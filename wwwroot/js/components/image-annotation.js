@@ -180,6 +180,7 @@ export async function openImageAnnotationDialog(options) {
     initialZoom: options?.initialZoom == null ? null : Number(options.initialZoom),
     initialTemplate,
     entityHeaderActionsOnHover: options?.entityHeaderActionsOnHover === true,
+    wheelZoomsWithoutCtrl: options?.wheelZoomsWithoutCtrl === true,
     host: options?.host,
     signal: options?.signal
   });
@@ -220,13 +221,15 @@ export function buildAnnotationSvg(inputState, options = {}) {
   const belowRelationships = relationshipLayers.below
     .map(object => annotationObjectSvg(object, {
       exportMode: true,
-      interactiveEntityHeaders: options?.interactiveEntityHeaders === true
+      interactiveEntityHeaders: options?.interactiveEntityHeaders === true,
+      entityHeaderButtonsVisible: options?.entityHeaderButtonsVisible !== false
     }))
     .join("");
   const aboveRelationships = relationshipLayers.above
     .map(object => annotationObjectSvg(object, {
       exportMode: true,
-      interactiveEntityHeaders: options?.interactiveEntityHeaders === true
+      interactiveEntityHeaders: options?.interactiveEntityHeaders === true,
+      entityHeaderButtonsVisible: options?.entityHeaderButtonsVisible !== false
     }))
     .join("");
 
@@ -5022,7 +5025,7 @@ function createAnnotationDialog(context) {
       if (!contextMenuScrollGuardActive) closeAnnotationContextMenu();
     });
     const handleCanvasZoomWheel = event => {
-      if (!event.ctrlKey) {
+      if (!context.wheelZoomsWithoutCtrl && !event.ctrlKey) {
         if (!transientZoomGesture) return;
         event.preventDefault();
         settleCanvasZoomAtCurrentDisplay();
@@ -7109,6 +7112,17 @@ function annotationDialogHtml(context = {}) {
   const subtitle = escapeXmlText(context.subtitle || "Original image plus editable vector annotations");
   const applyLabel = escapeXmlText(context.applyLabel || "Apply to RTE");
   const defaultTool = safeAnnotationTool(context.defaultTool);
+  const wheelZoomHelp = context.wheelZoomsWithoutCtrl === true
+    ? {
+        aria: "Diagram canvas. Mouse wheel zooms at cursor. Middle mouse drag pans.",
+        wheel: "Wheel: zoom at cursor",
+        ctrlWheel: ""
+      }
+    : {
+        aria: "Annotation canvas. Mouse wheel scrolls. Control plus mouse wheel zooms. Middle mouse drag pans.",
+        wheel: "Wheel: scroll",
+        ctrlWheel: "<span>Ctrl + wheel: zoom at cursor</span>"
+      };
   return `
     <div class="image-annotation-window">
       <div class="dialog-head image-annotation-head" data-dialog-drag-ignore>
@@ -7158,7 +7172,7 @@ function annotationDialogHtml(context = {}) {
         </div>
       </div>
       <div class="image-annotation-main" data-annotation-main>
-        <div class="image-annotation-workspace" data-annotation-workspace tabindex="0" aria-label="Annotation canvas. Mouse wheel scrolls. Control plus mouse wheel zooms. Middle mouse drag pans.">
+        <div class="image-annotation-workspace" data-annotation-workspace tabindex="0" aria-label="${wheelZoomHelp.aria}">
           <div class="image-annotation-canvas-stage" data-annotation-canvas-stage>
             <svg class="image-annotation-canvas" data-annotation-canvas xmlns="${svgNamespace}" role="group" aria-label="Image annotation canvas"></svg>
           </div>
@@ -7202,8 +7216,8 @@ function annotationDialogHtml(context = {}) {
           </section>
           <div class="image-annotation-help">
             <strong>Canvas controls</strong>
-            <span>Wheel: scroll</span>
-            <span>Ctrl + wheel: zoom at cursor</span>
+            <span>${wheelZoomHelp.wheel}</span>
+            ${wheelZoomHelp.ctrlWheel}
             <span>Middle drag: pan</span>
             <span>Shift/Ctrl + click: multi-select</span>
             <span>Shift drag: horizontal only</span>
@@ -9947,7 +9961,8 @@ function annotationObjectSvg(object, options = {}) {
       exportMode: options.exportMode,
       clipboardMode: options.clipboardMode === true,
       clipKey: options.clipKey,
-      interactiveEntityHeaders: options.interactiveEntityHeaders === true
+      interactiveEntityHeaders: options.interactiveEntityHeaders === true,
+      entityHeaderButtonsVisible: options.entityHeaderButtonsVisible !== false
     });
   }
   if (object.type === "arrow") {
@@ -10207,27 +10222,32 @@ function annotationEntitySvg(object, attributes) {
     ? `<line x1="${formatNumber(object.x)}" y1="${formatNumber(primaryKeyDividerY)}" x2="${formatNumber(object.x + object.width)}" y2="${formatNumber(primaryKeyDividerY)}" stroke="${escapeXmlAttr(stroke)}" stroke-width="${formatNumber(gridLineWidth)}"></line>`
     : "";
 
+  const headerButtonsVisible = attributes.entityHeaderButtonsVisible !== false;
   const headerButtonSize = Math.max(16, Math.min(20, metrics.headerHeight - 8));
   const headerButtonY = object.y + ((metrics.headerHeight - headerButtonSize) / 2);
-  const collapseButton = annotationEntityHeaderButtonSvg(object, attributes, {
-    action: "collapsed",
-    x: object.x + 5,
-    y: headerButtonY,
-    size: headerButtonSize,
-    label: object.collapsed ? "&#8595;" : "&#8593;",
-    title: object.collapsed ? "Expand Entity" : "Collapse Entity",
-    pressed: object.collapsed === true
-  });
-  const dataTypeButton = annotationEntityHeaderButtonSvg(object, attributes, {
-    action: "showDataTypes",
-    x: object.x + object.width - headerButtonSize - 5,
-    y: headerButtonY,
-    size: headerButtonSize,
-    label: object.showDataTypes ? "&#8592;" : "&#8594;",
-    title: object.showDataTypes ? "Hide data types" : "Show data types",
-    pressed: object.showDataTypes === true
-  });
-  const titleInset = headerButtonSize + 12;
+  const collapseButton = headerButtonsVisible
+    ? annotationEntityHeaderButtonSvg(object, attributes, {
+        action: "collapsed",
+        x: object.x + 5,
+        y: headerButtonY,
+        size: headerButtonSize,
+        label: object.collapsed ? "&#8595;" : "&#8593;",
+        title: object.collapsed ? "Expand Entity" : "Collapse Entity",
+        pressed: object.collapsed === true
+      })
+    : "";
+  const dataTypeButton = headerButtonsVisible
+    ? annotationEntityHeaderButtonSvg(object, attributes, {
+        action: "showDataTypes",
+        x: object.x + object.width - headerButtonSize - 5,
+        y: headerButtonY,
+        size: headerButtonSize,
+        label: object.showDataTypes ? "&#8592;" : "&#8594;",
+        title: object.showDataTypes ? "Hide data types" : "Show data types",
+        pressed: object.showDataTypes === true
+      })
+    : "";
+  const titleInset = headerButtonsVisible ? headerButtonSize + 12 : metrics.padding;
 
   const keyClip = showKeyColumn
     ? `<clipPath id="${keyClipId}"><rect x="${formatNumber(object.x)}" y="${formatNumber(headerY)}" width="${formatNumber(keyColumnWidth)}" height="${formatNumber(bodyHeight)}"></rect></clipPath>`

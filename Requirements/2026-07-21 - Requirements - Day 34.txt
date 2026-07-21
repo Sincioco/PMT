@@ -102,6 +102,12 @@ Pong + Blocks + Alien Game
 49.) In Documentation, the Left Nav does not show the private icon when a document is private. Just use the same private icon that the Diagram Left Nav uses.
 50.) In read-only mode / viewer, could you make the relationship lines of the diagram clickable?  When they click it, it becomes selected so they can visually trace the connection as they are viewing a complex diagram.
 
+51.) When a diagram is in read-only mode / viewer, when a relationship line is selected, it draws an extra lines, like it's trying to draw a box.
+52.) In Linked Diagram viewer, when middle mouse button is dragged, it should pan around the diagram just like the normal Diagram read-only / edit mode.
+53.) In Linked Diagram viewer, the mousewheel will zoom in and out.
+54.) In Linked Diagram viewer, don't render the expand/collapse and data type buttons on the entities.
+55.) In Diagram, make both read and edit mode use the mousewheel to zoom in and out.
+
 
 Database Migration Script Testing
 ---------------------------------

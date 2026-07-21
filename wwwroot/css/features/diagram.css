@@ -359,6 +359,10 @@
   cursor: pointer;
 }
 
+.diagram-readonly-svg [data-annotation-object-type="entity-relationship"]:focus {
+  outline: none;
+}
+
 .diagram-readonly-svg .image-annotation-entity-relationship.is-selected .image-annotation-entity-relationship-hit {
   stroke: var(--color-focus-ring);
   stroke-width: 3;

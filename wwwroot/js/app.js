@@ -5,8 +5,11 @@ import { bindAttachmentDeletion } from "./components/attachments.js?v=20260714-a
 import { buttonContent } from "./components/buttons.js?v=20260715-admin-impersonation";
 import { copyHtmlToClipboard, copyTextToClipboard } from "./components/clipboard.js?v=20260714-invite-email-body";
 import {
+  annotationSvgDataUrl,
+  buildAnnotationSvg,
+  parseAnnotationSvg,
   openImageAnnotationDialog
-} from "./components/image-annotation.js?v=20260721-diagram-rich-text-v3";
+} from "./components/image-annotation.js?v=20260721-diagram-viewer-wheel-v1";
 import { createWhatsNew } from "./components/whats-new.js?v=release-notes-2026-07-21-day-34-e1bf39ab2b17";
 import {
   htmlWithoutUserMentionMarkup,
@@ -64,7 +67,7 @@ import { createBacklogFeature } from "./features/backlog/backlog.js?v=20260720-w
 import { createBoardFeature } from "./features/board/board.js?v=20260720-work-item-export-images-v4";
 import { createBugsFeature } from "./features/bugs/bugs.js?v=20260721-rte-code-log-v1";
 import { createDashboardFeature } from "./features/dashboard/dashboard.js?v=release-notes-2026-07-21-day-34-e1bf39ab2b17";
-import { createDiagramFeature } from "./features/diagram/diagram.js?v=20260721-diagram-rich-text-v3";
+import { createDiagramFeature } from "./features/diagram/diagram.js?v=20260721-diagram-viewer-wheel-v1";
 import { createDocumentationFeature } from "./features/documentation/documentation.js?v=20260721-diagram-rich-text-v3";
 import {
   createGanttFeature,
@@ -4583,6 +4586,9 @@ function richLinkedDiagramHtml(diagram) {
   `;
 }
 
+const diagramOleViewerSourceCache = new Map();
+const diagramOleViewerSourceLoads = new Map();
+
 function diagramOleDocuments() {
   return state.blogs
     .filter(blog => diagramOleCanRead(blog) && diagramOleSource(blog))
@@ -4609,6 +4615,87 @@ function diagramOleSourceUrl(blog) {
   const url = appUrl(source);
   const version = Date.parse(blog?.updatedAt || blog?.createdAt || "") || Number(blog?.id || 0);
   return `${url}${url.includes("?") ? "&" : "?"}pmtOleVersion=${encodeURIComponent(version)}`;
+}
+
+function diagramOleSourceVersion(blog) {
+  return Date.parse(blog?.updatedAt || blog?.createdAt || "") || Number(blog?.id || 0);
+}
+
+function diagramOleViewerSourceCacheKey(blog) {
+  return `${diagramOleSource(blog)}:${diagramOleSourceVersion(blog)}`;
+}
+
+function diagramOleSourceIsSvg(sourceInput) {
+  const source = String(sourceInput || "").trim();
+  return /^data:image\/svg\+xml(?:;|,)/i.test(source)
+    || /\.svg(?:[?#]|$)/i.test(source);
+}
+
+async function diagramOleViewerSourceUrl(blog) {
+  const fallbackSourceUrl = diagramOleSourceUrl(blog);
+  const source = diagramOleSource(blog);
+  if (!source || !diagramOleSourceIsSvg(source)) return fallbackSourceUrl;
+
+  const cacheKey = diagramOleViewerSourceCacheKey(blog);
+  if (diagramOleViewerSourceCache.has(cacheKey)) return diagramOleViewerSourceCache.get(cacheKey) || fallbackSourceUrl;
+  if (diagramOleViewerSourceLoads.has(cacheKey)) return diagramOleViewerSourceLoads.get(cacheKey);
+
+  const load = (async () => {
+    try {
+      const svg = await loadDiagramOleSvgSource(source);
+      const diagramState = parseAnnotationSvg(svg);
+      if (!diagramState) {
+        diagramOleViewerSourceCache.set(cacheKey, fallbackSourceUrl);
+        return fallbackSourceUrl;
+      }
+
+      const viewerSource = annotationSvgDataUrl(buildAnnotationSvg(diagramState, {
+        entityHeaderButtonsVisible: false
+      }));
+      diagramOleViewerSourceCache.set(cacheKey, viewerSource);
+      return viewerSource;
+    } catch {
+      diagramOleViewerSourceCache.set(cacheKey, fallbackSourceUrl);
+      return fallbackSourceUrl;
+    } finally {
+      diagramOleViewerSourceLoads.delete(cacheKey);
+    }
+  })();
+
+  diagramOleViewerSourceLoads.set(cacheKey, load);
+  return load;
+}
+
+async function loadDiagramOleSvgSource(sourceInput) {
+  const source = String(sourceInput || "").trim();
+  if (!source) return "";
+  const embedded = decodeDiagramOleSvgDataUrl(source);
+  if (embedded) return embedded;
+
+  const response = await fetch(appUrl(source), {
+    cache: "no-store",
+    credentials: "same-origin"
+  });
+  if (!response.ok) return "";
+  const svg = await response.text();
+  return /<svg(?:\s|>)/i.test(svg) ? svg : "";
+}
+
+function decodeDiagramOleSvgDataUrl(sourceInput) {
+  const source = String(sourceInput || "");
+  const separator = source.indexOf(",");
+  if (separator < 0 || !/^data:image\/svg\+xml(?:;|,)/i.test(source)) return "";
+
+  try {
+    const metadata = source.slice(0, separator).toLowerCase();
+    const payload = source.slice(separator + 1);
+    if (!metadata.includes(";base64")) return decodeURIComponent(payload);
+    const binary = atob(payload.replace(/\s+/g, ""));
+    const bytes = Uint8Array.from(binary, character => character.charCodeAt(0));
+    return new TextDecoder().decode(bytes);
+  } catch {
+    return "";
+  }
 }
 
 function askForRichLinkedDiagram() {
@@ -4754,6 +4841,7 @@ function hydrateRichDiagramOleBlock(block) {
   const hydratedKey = `${diagram.id}:${sourceUrl}:${width}:${height}`;
   if (block.dataset.diagramOleHydratedKey === hydratedKey
     && block.querySelector("[data-diagram-ole-viewport] img")) {
+    refreshRichDiagramOleViewerSource(block, diagram, sourceUrl);
     bindRichDiagramOleViewer(block, diagram);
     bindRichDiagramOleResizePersistence(block);
     return;
@@ -4776,8 +4864,20 @@ function hydrateRichDiagramOleBlock(block) {
     </div>
   `;
 
+  refreshRichDiagramOleViewerSource(block, diagram, sourceUrl);
   bindRichDiagramOleViewer(block, diagram);
   bindRichDiagramOleResizePersistence(block);
+}
+
+function refreshRichDiagramOleViewerSource(block, diagram, fallbackSourceUrl) {
+  const requestKey = `${diagram?.id || 0}:${fallbackSourceUrl}:${diagramOleSourceVersion(diagram)}`;
+  block.dataset.diagramOleSourceRequestKey = requestKey;
+  diagramOleViewerSourceUrl(diagram).then(viewerSourceUrl => {
+    if (!block.isConnected || block.dataset.diagramOleSourceRequestKey !== requestKey) return;
+    const image = block.querySelector("[data-diagram-ole-surface] img");
+    if (!image || !viewerSourceUrl || image.getAttribute("src") === viewerSourceUrl) return;
+    image.setAttribute("src", viewerSourceUrl);
+  });
 }
 
 function bindRichDiagramOleViewer(block, diagram) {
@@ -4842,8 +4942,8 @@ function bindRichDiagramOleViewer(block, diagram) {
   });
   viewport.addEventListener("wheel", event => {
     event.stopPropagation();
-    if (!event.ctrlKey) return;
     event.preventDefault();
+    if (!event.deltaY) return;
     const rect = viewport.getBoundingClientRect();
     zoomBy(event.deltaY < 0 ? 1.08 : 0.92, {
       x: event.clientX - rect.left,
@@ -4852,9 +4952,15 @@ function bindRichDiagramOleViewer(block, diagram) {
   }, { passive: false });
 
   let drag = null;
-  viewport.addEventListener("pointerdown", event => {
-    if (event.button !== 0 || event.target.closest("button")) return;
+  viewport.addEventListener("auxclick", event => {
+    if (event.button !== 1) return;
     event.preventDefault();
+    event.stopPropagation();
+  });
+  viewport.addEventListener("pointerdown", event => {
+    if ((event.button !== 0 && event.button !== 1) || event.target.closest("button")) return;
+    event.preventDefault();
+    event.stopPropagation();
     drag = {
       pointerId: event.pointerId,
       startX: event.clientX,
@@ -4863,9 +4969,11 @@ function bindRichDiagramOleViewer(block, diagram) {
       viewY: view.y
     };
     viewport.setPointerCapture?.(event.pointerId);
+    viewport.classList.add("is-panning");
   });
   viewport.addEventListener("pointermove", event => {
     if (!drag || drag.pointerId !== event.pointerId) return;
+    event.preventDefault();
     view.x = drag.viewX + event.clientX - drag.startX;
     view.y = drag.viewY + event.clientY - drag.startY;
     render();
@@ -4875,6 +4983,7 @@ function bindRichDiagramOleViewer(block, diagram) {
       if (!drag || drag.pointerId !== event.pointerId) return;
       viewport.releasePointerCapture?.(event.pointerId);
       drag = null;
+      viewport.classList.remove("is-panning");
       render();
     });
   });

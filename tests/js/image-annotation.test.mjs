@@ -1272,6 +1272,32 @@ test("read-only Diagram SVG can expose clickable relationship hit paths", () => 
   assert.match(svg, /tabindex="0"/);
 });
 
+test("Linked Diagram viewer SVG can omit Entity header buttons", () => {
+  const state = entityRelationshipState();
+  const editableSvg = buildAnnotationSvg(state);
+  const linkedViewerSvg = buildAnnotationSvg(state, { entityHeaderButtonsVisible: false });
+
+  assert.match(editableSvg, /class="image-annotation-entity-header-button"/);
+  assert.match(editableSvg, /Expand Entity|Collapse Entity/);
+  assert.match(editableSvg, /Show data types|Hide data types/);
+  assert.doesNotMatch(linkedViewerSvg, /class="image-annotation-entity-header-button"/);
+  assert.doesNotMatch(linkedViewerSvg, /data-annotation-entity-header-action/);
+  assert.match(linkedViewerSvg, /pmt\.WorkTasks|WorkTasks/);
+});
+
+test("read-only Diagram relationship focus suppresses the native SVG focus box", async () => {
+  const css = await readFile(new URL("../../wwwroot/css/features/diagram.css", import.meta.url), "utf8");
+
+  assert.match(
+    css,
+    /\.diagram-readonly-svg \[data-annotation-object-type="entity-relationship"\]:focus\s*{[^}]*outline:\s*none;/s
+  );
+  assert.match(
+    css,
+    /\.diagram-readonly-svg \.image-annotation-entity-relationship\.is-selected \.image-annotation-entity-relationship-hit\s*{[^}]*stroke:\s*var\(--color-focus-ring\)/s
+  );
+});
+
 test("PK fields support manual mappings without being designated as foreign keys", () => {
   const parent = simpleRelationshipEntity("parent", "Parent", 40, 80);
   const other = simpleRelationshipEntity("other", "Other", 600, 80);
@@ -5553,10 +5579,14 @@ test("RTE Insert Diagram uses the shared blank canvas without a fake Original Im
 
 test("RTE Insert Linked Diagram stores a database-backed Diagram OLE reference", async () => {
   const appSource = await readFile(new URL("../../wwwroot/js/app.js", import.meta.url), "utf8");
+  const formsCss = await readFile(new URL("../../wwwroot/css/components/forms.css", import.meta.url), "utf8");
   const formsSource = await readFile(new URL("../../wwwroot/js/components/forms.js", import.meta.url), "utf8");
   const textSource = await readFile(new URL("../../wwwroot/js/shared/text-and-links.js", import.meta.url), "utf8");
   const documentationSource = await readFile(new URL("../../wwwroot/js/features/documentation/documentation.js", import.meta.url), "utf8");
   const exportSource = await readFile(new URL("../../wwwroot/js/features/documentation/documentation-export.js", import.meta.url), "utf8");
+  const viewerStart = appSource.indexOf("function bindRichDiagramOleViewer");
+  const viewerEnd = appSource.indexOf("\nfunction clampRichDiagramOleViewport", viewerStart);
+  const viewerSource = appSource.slice(viewerStart, viewerEnd);
 
   assert.match(formsSource, /const linkedDiagramTitle = linkedDiagramDisabled[\s\S]*: "Insert Linked Diagram"/);
   assert.match(formsSource, /data-command="insertLinkedDiagram"[^>]+aria-label="\$\{escapeAttr\(linkedDiagramTitle\)\}"/);
@@ -5568,9 +5598,18 @@ test("RTE Insert Linked Diagram stores a database-backed Diagram OLE reference",
   assert.match(appSource, /function hydrateRichDiagramOleBlocks/);
   assert.match(appSource, /function refreshRichDiagramOleBlocks/);
   assert.match(appSource, /function clampRichDiagramOleViewport/);
+  assert.match(appSource, /function diagramOleViewerSourceUrl/);
+  assert.match(appSource, /buildAnnotationSvg\(diagramState,\s*{[\s\S]*entityHeaderButtonsVisible:\s*false/);
+  assert.match(appSource, /function refreshRichDiagramOleViewerSource/);
   assert.match(appSource, /block\.dataset\.diagramOleHydratedKey === hydratedKey/);
   assert.match(appSource, /bindRichDiagramOleViewer\(block, diagram\);[\s\S]*bindRichDiagramOleResizePersistence\(block\);[\s\S]*return;/);
   assert.match(appSource, /clampRichDiagramOleViewport\(block, viewport, surface, view\)/);
+  assert.ok(viewerStart >= 0 && viewerEnd > viewerStart, "bindRichDiagramOleViewer was not found");
+  assert.match(viewerSource, /viewport\.addEventListener\("wheel"[\s\S]*event\.preventDefault\(\)[\s\S]*zoomBy/);
+  assert.doesNotMatch(viewerSource, /event\.ctrlKey/);
+  assert.match(viewerSource, /viewport\.addEventListener\("auxclick"[\s\S]*event\.button !== 1/);
+  assert.match(viewerSource, /event\.button !== 0 && event\.button !== 1/);
+  assert.match(formsCss, /\.pmt-diagram-ole-viewport\.is-panning/);
   assert.match(appSource, /event\.target\.closest\("\.rich-code-block, \.rich-collapsible-block, \.pmt-diagram-ole"\)/);
   assert.match(appSource, /pmt-diagram-ole:\$\{documentId\}:\$\{diagram\?\.id/);
   assert.match(textSource, /function normalizeDiagramOleBlocksForStorage/);
@@ -5581,6 +5620,23 @@ test("RTE Insert Linked Diagram stores a database-backed Diagram OLE reference",
   assert.match(documentationSource, /hydrateLinkedDiagrams\?\.\(app\)/);
   assert.match(exportSource, /resolveDiagramOleBlocksForExport\(body\)/);
   assert.match(exportSource, /function diagramExportSourceUrl/);
+});
+
+test("Diagram read and edit viewers use plain mouse wheel zoom", async () => {
+  const diagramSource = await readFile(new URL("../../wwwroot/js/features/diagram/diagram.js", import.meta.url), "utf8");
+  const annotationSource = await readFile(new URL("../../wwwroot/js/components/image-annotation.js", import.meta.url), "utf8");
+  const wheelStart = diagramSource.indexOf("viewport.addEventListener(\"wheel\"");
+  const wheelEnd = diagramSource.indexOf("}, { passive: false });", wheelStart);
+  const readonlyWheelSource = diagramSource.slice(wheelStart, wheelEnd);
+
+  assert.ok(wheelStart >= 0 && wheelEnd > wheelStart, "read-only Diagram wheel handler was not found");
+  assert.match(diagramSource, /Read-only Diagram canvas\. Drag to pan; use mouse wheel to zoom\./);
+  assert.match(diagramSource, /wheelZoomsWithoutCtrl:\s*true/);
+  assert.match(readonlyWheelSource, /event\.preventDefault\(\)/);
+  assert.match(readonlyWheelSource, /scheduleZoom\(previewZoom \+ \(event\.deltaY < 0 \? 0\.05 : -0\.05\)/);
+  assert.doesNotMatch(readonlyWheelSource, /ctrlKey/);
+  assert.match(annotationSource, /if \(!context\.wheelZoomsWithoutCtrl && !event\.ctrlKey\)/);
+  assert.match(annotationSource, /Wheel: zoom at cursor/);
 });
 
 test("RTE Code Block delete removes the block directly and leaves a blank line", async () => {
