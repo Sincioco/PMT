@@ -151,13 +151,6 @@
   display: none;
 }
 
-.image-annotation-maximized-status {
-  max-width: min(280px, 24vw);
-  color: var(--color-text-secondary);
-  font-size: var(--font-size-sm);
-  overflow-wrap: anywhere;
-}
-
 .image-annotation-toolbar .inline-check {
   min-height: var(--control-height-sm);
   padding: 0 var(--space-2);
@@ -242,6 +235,7 @@
 .image-annotation-workspace[data-annotation-tool="arrow"],
 .image-annotation-workspace[data-annotation-tool="line"],
 .image-annotation-workspace[data-annotation-tool="textbox"],
+.image-annotation-workspace[data-annotation-tool="rich-text"],
 .image-annotation-workspace[data-annotation-tool="entity"] {
   cursor: crosshair;
 }
@@ -275,6 +269,21 @@
   display: grid;
   gap: var(--space-5);
   padding: var(--space-6) var(--space-7);
+}
+
+.image-annotation-rich-text-dialog {
+  width: min(920px, calc(100vw - 2 * var(--shell-padding-compact)));
+}
+
+.image-annotation-rich-text-dialog-body {
+  display: grid;
+  gap: var(--space-5);
+  min-height: 420px;
+  padding: var(--space-6) var(--space-7);
+}
+
+.image-annotation-rich-text-editor {
+  min-height: 280px;
 }
 
 .image-annotation-entity-hint,
@@ -344,6 +353,13 @@
 
 .image-annotation-object[data-annotation-object-type="arrow"] {
   pointer-events: none;
+}
+
+.image-annotation-object[data-annotation-object-type="rich-text"] foreignObject,
+.image-annotation-object[data-annotation-object-type="rich-text"] .image-annotation-rich-text-surface {
+  cursor: move;
+  pointer-events: auto;
+  user-select: none;
 }
 
 .image-annotation-arrow-hit,
@@ -513,6 +529,19 @@
   font-size: var(--font-size-sm);
 }
 
+.image-annotation-format-status {
+  min-height: calc(var(--font-size-sm) * 2.8);
+  margin: var(--space-3) 0 0;
+  padding: var(--space-2) var(--space-3);
+  border: var(--border-width) solid var(--color-border-subtle);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
 .image-annotation-format-section {
   display: grid;
   gap: var(--space-3);
@@ -667,7 +696,7 @@
 }
 
 .image-annotation-entity-field-columns {
-  padding: 0 var(--space-1) 2px var(--space-2);
+  padding: 0 calc(var(--space-1) + var(--image-annotation-entity-field-scrollbar-width, 0px)) 2px var(--space-2);
   color: var(--color-text-tertiary);
   font-size: 10px;
   font-weight: var(--font-weight-semibold);
@@ -676,6 +705,26 @@
 
 .image-annotation-entity-field-columns span:nth-child(2) {
   text-align: left;
+}
+
+.image-annotation-entity-field-column-toggle,
+.image-annotation-entity-field-column-toggle:hover,
+.image-annotation-entity-field-column-toggle:active {
+  min-width: 0;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  color: inherit;
+  font: inherit;
+  line-height: inherit;
+}
+
+.image-annotation-entity-field-column-toggle:focus-visible {
+  outline: 1px solid var(--color-focus-ring);
+  outline-offset: 1px;
 }
 
 .image-annotation-entity-fields .image-annotation-entity-field-row {

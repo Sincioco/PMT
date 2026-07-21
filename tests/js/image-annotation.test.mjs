@@ -5,6 +5,8 @@ import {
   adjustAnnotationEntityRelationshipRoute,
   adjustAnnotationArrowEndpoint,
   annotationEntityAnchorShortcutWarningAllowed,
+  annotationEntityFieldSupportsMapping,
+  annotationEntityMappingTargets,
   annotationEntityGlobalUnanchorControlState,
   annotationOrgTreeShortcutWarningRequired,
   autoFormatAnnotationEntitiesOrgTree,
@@ -25,6 +27,7 @@ import {
   annotationSvgDataUrl,
   annotationTemplateDownloadFile,
   annotationWorkspaceBounds,
+  alphabetizeAnnotationEntityFields,
   buildAnnotationObjectTree,
   buildPortableAnnotationSelectionSvg,
   buildAnnotationSelectionSvg,
@@ -402,6 +405,32 @@ function minimumEntityGap(first, second) {
 function annotationEntityRelationshipRouteLengthForTest(points) {
   return points.slice(1).reduce((total, point, index) =>
     total + Math.abs(point.x - points[index].x) + Math.abs(point.y - points[index].y), 0);
+}
+
+function interiorHorizontalLaneYs(points, minimumLength = 120) {
+  return points.slice(1).flatMap((point, index) => {
+    const previous = points[index];
+    if (Math.abs(previous.y - point.y) > 0.001) return [];
+    if (index === 0 || index === points.length - 2) return [];
+    return Math.abs(point.x - previous.x) >= minimumLength ? [point.y] : [];
+  });
+}
+
+function orthogonalJogLengths(points) {
+  const lengths = [];
+  for (let index = 1; index < points.length - 2; index += 1) {
+    const before = points[index - 1];
+    const first = points[index];
+    const second = points[index + 1];
+    const after = points[index + 2];
+    const previousDirection = Math.abs(first.x - before.x) <= 0.001 ? "v" : "h";
+    const direction = Math.abs(second.x - first.x) <= 0.001 ? "v" : "h";
+    const nextDirection = Math.abs(after.x - second.x) <= 0.001 ? "v" : "h";
+    if (previousDirection === nextDirection && previousDirection !== direction) {
+      lengths.push(Math.abs(second.x - first.x) + Math.abs(second.y - first.y));
+    }
+  }
+  return lengths;
 }
 
 function unrelatedEntityRouteContacts(svg, entities) {
@@ -936,6 +965,25 @@ test("data type visibility compacts from the left while keeping the upper-right 
   assert.deepEqual({ x: blogs.x, width: blogs.width }, compact);
 });
 
+test("Entity alphabetizing sorts all fields unless the FK-at-top display is enabled", () => {
+  const fields = [
+    { name: "Title" },
+    { name: "ProjectId", isForeignKey: true },
+    { name: "Id", isPrimaryKey: true },
+    { name: "Body" },
+    { name: "SprintId", isForeignKey: true }
+  ];
+
+  assert.deepEqual(
+    alphabetizeAnnotationEntityFields(fields).map(field => field.name),
+    ["Body", "Id", "ProjectId", "SprintId", "Title"]
+  );
+  assert.deepEqual(
+    alphabetizeAnnotationEntityFields(fields, { foreignKeysAtTop: true }).map(field => field.name),
+    ["Id", "ProjectId", "SprintId", "Body", "Title"]
+  );
+});
+
 test("FK mapping replaces only the selected field mapping and normalizes cardinality", () => {
   const definition = parseAnnotationEntityDefinition(workTasksCreateTableSql);
   const original = structuredClone(definition.foreignKeys);
@@ -1214,6 +1262,48 @@ test("Entity relationship routes never pass behind an unrelated Entity", () => {
   }
 });
 
+test("read-only Diagram SVG can expose clickable relationship hit paths", () => {
+  const state = entityRelationshipState();
+  const svg = buildAnnotationSvg(state, { interactiveRelationships: true });
+
+  assert.match(svg, /data-annotation-object-type="entity-relationship"/);
+  assert.match(svg, /class="image-annotation-entity-relationship-hit"/);
+  assert.match(svg, /role="button"/);
+  assert.match(svg, /tabindex="0"/);
+});
+
+test("PK fields support manual mappings without being designated as foreign keys", () => {
+  const parent = simpleRelationshipEntity("parent", "Parent", 40, 80);
+  const other = simpleRelationshipEntity("other", "Other", 600, 80);
+  const primaryKey = parent.fields.find(field => field.name === "ParentId");
+
+  assert.equal(primaryKey.isForeignKey, false);
+  assert.equal(annotationEntityFieldSupportsMapping(primaryKey), true);
+  assert.equal(annotationEntityFieldSupportsMapping({ name: "Title" }), false);
+
+  parent.foreignKeys = setAnnotationEntityFieldForeignKeyMapping(parent.foreignKeys, "ParentId", {
+    referencedEntity: "pmt.Other",
+    referencedField: "OtherId",
+    relationshipType: "one-to-one"
+  });
+
+  const relationships = annotationEntityRelationshipsSvg([parent, other]);
+  assert.match(relationships, /data-pmt-relationship-source="pmt\.Parent\.ParentId"/);
+  assert.match(relationships, /data-pmt-relationship-target="pmt\.Other\.OtherId"/);
+  assert.equal(primaryKey.isForeignKey, false);
+});
+
+test("manual field mapping choices are derived from the Diagram Entities and their fields", () => {
+  const targets = annotationEntityMappingTargets([
+    simpleRelationshipEntity("parent", "Parent", 40, 80),
+    { type: "textbox", text: "Not an Entity" },
+    simpleRelationshipEntity("other", "Other", 600, 80)
+  ]);
+
+  assert.deepEqual(targets.map(target => target.label), ["pmt.Parent", "pmt.Other"]);
+  assert.deepEqual(targets[1].fields.map(field => field.value), ["OtherId"]);
+});
+
 test("large Entity relationship routing preserves local geometry while ignoring distant sectors", () => {
   const projects = simpleRelationshipEntity("spatial-projects", "SpatialProjects", 15, 10);
   const blocker = simpleRelationshipEntity("spatial-blocker", "SpatialBlocker", 353, 173);
@@ -1475,6 +1565,27 @@ test("selected Entity relationship routes expose draggable handles for movable s
   assert.match(selectedSvg, /data-annotation-relationship-handle="segment"/);
   assert.match(selectedSvg, /data-annotation-relationship-segment-axis="x"/);
   assert.match(selectedSvg, /data-annotation-relationship-segment-index="0"/);
+  assert.match(selectedSvg, /tabindex="0"/);
+  assert.match(selectedSvg, /aria-label="Nudge relationship segment with arrow keys"/);
+});
+
+test("selected Entity relationship segment handles can be nudged from the keyboard", async () => {
+  const source = await readFile(new URL("../../wwwroot/js/components/image-annotation.js", import.meta.url), "utf8");
+
+  assert.match(source, /function nudgeEntityRelationshipSegment/);
+  assert.match(source, /\["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"\]\.includes\(event\.key\)/);
+  assert.match(source, /adjustAnnotationEntityRelationshipRoute\(points, segmentIndex, axis, coordinate\)/);
+  assert.match(source, /state\.manualEntityRelationshipRoutes = true/);
+  assert.match(source, /Relationship segment nudged/);
+});
+
+test("selected Entity template name prompt includes the schema-qualified entity name", async () => {
+  const source = await readFile(new URL("../../wwwroot/js/components/image-annotation.js", import.meta.url), "utf8");
+
+  assert.match(
+    source,
+    /formatAnnotationEntityIdentifier\(selection\[0\]\.entitySchema,\s*selection\[0\]\.entityName\)/
+  );
 });
 
 test("dragging an Entity relationship endpoint segment keeps a short field stub and inserts a nearby joint", () => {
@@ -2408,6 +2519,109 @@ test("Auto Format - Compact keeps vertical trunks on the table margin instead of
     { x: projectRightMarginX, y: expectedEntityFieldAnchorY(projects, "ProjectsId") },
     { x: projects.x + projects.width, y: expectedEntityFieldAnchorY(projects, "ProjectsId") }
   ]);
+});
+
+test("Auto Format - Compact keeps same-corridor relationships on the same horizontal lane", () => {
+  const parentA = simpleRelationshipEntity("parent-a", "ParentA", 700, 100);
+  const childA = simpleRelationshipEntity("child-a", "ChildA", 0, 0, "ParentA");
+  const parentB = simpleRelationshipEntity("parent-b", "ParentB", 1020, 60);
+  const childB = simpleRelationshipEntity("child-b", "ChildB", 320, 20, "ParentB");
+  const blocker = simpleRelationshipEntity("blocker", "Blocker", 450, -100);
+  blocker.width = 220;
+  blocker.height = 180;
+  const entities = [parentA, childA, parentB, childB, blocker];
+  entities.forEach(entity => { entity.anchorTable = true; });
+
+  autoFormatAnnotationEntitiesOrgTree(entities, {
+    preferredRootId: parentA.id,
+    allowOverlappingLines: false,
+    gridSize: 20
+  });
+  const relationships = annotationEntityRelationshipsSvg(entities, null, {
+    allowOverlappingLines: false,
+    interactive: true,
+    compactRouting: true
+  });
+  const firstLane = interiorHorizontalLaneYs(
+    orthogonalPathPoints(relationshipHitPathForSource(relationships, "pmt.ChildA.ParentAId"))
+  );
+  const secondLane = interiorHorizontalLaneYs(
+    orthogonalPathPoints(relationshipHitPathForSource(relationships, "pmt.ChildB.ParentBId"))
+  );
+
+  assert.ok(firstLane.length, "first relationship should have a long horizontal lane");
+  assert.ok(secondLane.length, "second relationship should have a long horizontal lane");
+  assert.equal(secondLane[0], firstLane[0], "same-corridor relationships should share the green horizontal lane");
+});
+
+test("Auto Format - Compact avoids tiny jogs in otherwise clean relationship lanes", () => {
+  const parent = simpleRelationshipEntity("parent", "Parent", 700, 100);
+  const child = simpleRelationshipEntity("child", "Child", 0, 0, "Parent");
+  const blocker = simpleRelationshipEntity("blocker", "Blocker", 450, -100);
+  blocker.width = 220;
+  blocker.height = 180;
+  const entities = [parent, child, blocker];
+  entities.forEach(entity => { entity.anchorTable = true; });
+
+  autoFormatAnnotationEntitiesOrgTree(entities, {
+    preferredRootId: parent.id,
+    allowOverlappingLines: false,
+    gridSize: 20
+  });
+  const relationships = annotationEntityRelationshipsSvg(entities, null, {
+    allowOverlappingLines: false,
+    interactive: true,
+    compactRouting: true
+  });
+  const points = orthogonalPathPoints(relationshipHitPathForSource(relationships, "pmt.Child.ParentId"));
+  const jogLengths = orthogonalJogLengths(points);
+
+  assert.ok(jogLengths.length, "relationship should include a deliberate dogleg around the blocker");
+  assert.ok(
+    jogLengths.every(length => length >= compactEntityMargin),
+    `relationship should avoid tiny red-line jogs: ${JSON.stringify(points)}`
+  );
+});
+
+test("Auto Format - Compact routes lower children through a mid-corridor instead of an endpoint-level rectangle", () => {
+  const users = simpleRelationshipEntity("users", "Users", 460, 0);
+  const gameScores = simpleRelationshipEntity("game-scores", "GameScores", 0, 300, "Users");
+  const holidays = simpleRelationshipEntity("holidays", "Holidays", 40, 550, "Users");
+  const entities = [users, gameScores, holidays];
+  entities.forEach(entity => { entity.anchorTable = true; });
+
+  autoFormatAnnotationEntitiesOrgTree(entities, {
+    preferredRootId: users.id,
+    allowOverlappingLines: false,
+    gridSize: 20
+  });
+  const relationships = annotationEntityRelationshipsSvg(entities, null, {
+    allowOverlappingLines: false,
+    interactive: true,
+    compactRouting: true
+  });
+  const holidayPoints = orthogonalPathPoints(relationshipHitPathForSource(relationships, "pmt.Holidays.UsersId"));
+  const endpointYs = [
+    expectedEntityFieldAnchorY(holidays, "UsersId"),
+    expectedEntityFieldAnchorY(users, "UsersId")
+  ];
+  const interiorHorizontalSegments = holidayPoints.slice(1).flatMap((point, index) => {
+    const previous = holidayPoints[index];
+    if (Math.abs(previous.y - point.y) > 0.001) return [];
+    if (index === 0 || index === holidayPoints.length - 2) return [];
+    const length = Math.abs(point.x - previous.x);
+    return length > compactEntityMargin ? [{ y: point.y, length }] : [];
+  });
+
+  assert.ok(interiorHorizontalSegments.length, "lower child relationship should use a shared mid-corridor branch");
+  assert.ok(
+    interiorHorizontalSegments.every(segment => endpointYs.every(y => Math.abs(segment.y - y) > 0.001)),
+    `mid-corridor branch should not be a long red endpoint-level rectangle: ${JSON.stringify(holidayPoints)}`
+  );
+  assert.ok(
+    interiorHorizontalSegments.some(segment => segment.y >= users.y + users.height + compactEntityMargin - 0.01),
+    `mid-corridor branch should run below the upper Entity margin: ${JSON.stringify(holidayPoints)}`
+  );
 });
 
 test("Auto Format - Compact avoids perimeter fan-out around a central Entity", () => {
@@ -5344,20 +5558,50 @@ test("RTE Insert Linked Diagram stores a database-backed Diagram OLE reference",
   const documentationSource = await readFile(new URL("../../wwwroot/js/features/documentation/documentation.js", import.meta.url), "utf8");
   const exportSource = await readFile(new URL("../../wwwroot/js/features/documentation/documentation-export.js", import.meta.url), "utf8");
 
-  assert.match(formsSource, /data-command="insertLinkedDiagram"[^>]+aria-label="Insert Linked Diagram"/);
+  assert.match(formsSource, /const linkedDiagramTitle = linkedDiagramDisabled[\s\S]*: "Insert Linked Diagram"/);
+  assert.match(formsSource, /data-command="insertLinkedDiagram"[^>]+aria-label="\$\{escapeAttr\(linkedDiagramTitle\)\}"/);
   assert.match(appSource, /if \(command === "insertLinkedDiagram"\)[\s\S]*insertRichLinkedDiagram\(editor, savedSelection\)/);
   assert.match(appSource, /async function insertRichLinkedDiagram/);
   assert.match(appSource, /await loadState\(\)/);
   assert.match(appSource, /data-pmt-ole="diagram"/);
   assert.match(appSource, /data-diagram-id=/);
   assert.match(appSource, /function hydrateRichDiagramOleBlocks/);
+  assert.match(appSource, /function refreshRichDiagramOleBlocks/);
+  assert.match(appSource, /function clampRichDiagramOleViewport/);
+  assert.match(appSource, /block\.dataset\.diagramOleHydratedKey === hydratedKey/);
+  assert.match(appSource, /bindRichDiagramOleViewer\(block, diagram\);[\s\S]*bindRichDiagramOleResizePersistence\(block\);[\s\S]*return;/);
+  assert.match(appSource, /clampRichDiagramOleViewport\(block, viewport, surface, view\)/);
+  assert.match(appSource, /event\.target\.closest\("\.rich-code-block, \.rich-collapsible-block, \.pmt-diagram-ole"\)/);
   assert.match(appSource, /pmt-diagram-ole:\$\{documentId\}:\$\{diagram\?\.id/);
   assert.match(textSource, /function normalizeDiagramOleBlocksForStorage/);
+  assert.match(textSource, /removeAttribute\("data-diagram-ole-hydrated-key"\)/);
+  assert.match(textSource, /removeAttribute\("data-diagram-ole-viewer-bound"\)/);
   assert.match(textSource, /block\.innerHTML = `<figcaption>Linked Diagram #\$\{diagramId\}<\/figcaption>`/);
   assert.match(documentationSource, /hydrateLinkedDiagrams/);
   assert.match(documentationSource, /hydrateLinkedDiagrams\?\.\(app\)/);
   assert.match(exportSource, /resolveDiagramOleBlocksForExport\(body\)/);
   assert.match(exportSource, /function diagramExportSourceUrl/);
+});
+
+test("RTE Code Block delete removes the block directly and leaves a blank line", async () => {
+  const appSource = await readFile(new URL("../../wwwroot/js/app.js", import.meta.url), "utf8");
+  const formsCss = await readFile(new URL("../../wwwroot/css/components/forms.css", import.meta.url), "utf8");
+
+  assert.match(appSource, /initializeWindowedDialog\(modal, \{ showResetButton: false \}\)/);
+  assert.match(appSource, /data-rich-code-preview/);
+  assert.match(appSource, /function openRichCodePreviewDialog/);
+  assert.match(appSource, /class="rich-code-preview"/);
+  assert.match(formsCss, /\.rich-code-preview-dialog/);
+  assert.match(formsCss, /\.rich-code-preview/);
+  assert.match(appSource, /function normalizeRichCodeIndentation\(code\)/);
+  assert.match(appSource, /const contentLines = lines\.filter\(line => \/\\S\/\.test\(line\)\)/);
+  assert.match(appSource, /code: normalizeRichCodeIndentation\(codeTextarea\?\.value \|\| ""\)/);
+  assert.match(appSource, /root\.addEventListener\("mousedown", handleRichCodeBlockActionPointerDown, true\)/);
+  assert.match(appSource, /function deleteRichCodeBlock\(editor, block\)/);
+  assert.match(appSource, /block\.replaceWith\(blankLine\)/);
+  assert.match(appSource, /block\.remove\(\)/);
+  assert.match(appSource, /editor\.dispatchEvent\(new Event\("input", \{ bubbles: true \}\)\)/);
+  assert.doesNotMatch(appSource, /replaceRichNodeWithHtml\(editor, block/);
 });
 
 test("Entity Annotation creates one grouped callout and arrow that follow the Entity and survive SVG persistence", () => {
@@ -5545,6 +5789,77 @@ test("textbox double-click opens a text edit dialog instead of live-editing the 
   );
   assert.match(
     componentSource,
-    /object\?\.type === "textbox"[\s\S]*askAnnotationText\(\{[\s\S]*title: "Text Box"[\s\S]*object\.text = result\.text[\s\S]*pushHistory\(\)[\s\S]*renderWithWorkspaceExpansion\(\)/
+    /if \(object\.type === "textbox"\)[\s\S]*askAnnotationText\(\{[\s\S]*title: "Text Box"[\s\S]*object\.text = result\.text[\s\S]*pushHistory\(\)[\s\S]*renderWithWorkspaceExpansion\(\)/
   );
+});
+
+test("rich-text Diagram objects render on the canvas and round-trip editable HTML", () => {
+  const state = normalizeAnnotationState({
+    width: 900,
+    height: 600,
+    objects: [{
+      id: "tutorial-rich-text",
+      type: "rich-text",
+      x: 80,
+      y: 60,
+      width: 420,
+      height: 220,
+      fill: "none",
+      stroke: "#42526b",
+      strokeWidth: 2,
+      html: `<p><strong>Tutorial note</strong></p><details class="rich-code-block" open><summary>SQL</summary><pre><code><span class="rich-source-token-keyword">SELECT</span> 1<br></code></pre></details><script>alert("bad")</script>`
+    }]
+  });
+
+  const svg = buildAnnotationSvg(state);
+  assert.match(svg, /<foreignObject\b/);
+  assert.match(svg, /class="image-annotation-rich-text-surface rich-readonly"/);
+  assert.match(svg, /rich-source-token-keyword/);
+  assert.doesNotMatch(svg, /<script/i);
+
+  const restored = parseAnnotationSvg(svg).objects[0];
+  assert.equal(restored.type, "rich-text");
+  assert.match(restored.html, /Tutorial note/);
+  assert.match(restored.html, /rich-code-block/);
+  assert.doesNotMatch(restored.html, /<script/i);
+});
+
+test("rich-text Diagram editor surface participates in object double-click hit testing", async () => {
+  const componentSource = await readFile(
+    new URL("../../wwwroot/js/components/image-annotation.js", import.meta.url),
+    "utf8"
+  );
+  const formsSource = await readFile(
+    new URL("../../wwwroot/js/components/forms.js", import.meta.url),
+    "utf8"
+  );
+  assert.match(componentSource, /const richTextHitAttributes = `\$\{attributes\.id\}\$\{attributes\.type\}`/);
+  assert.match(componentSource, /<foreignObject\$\{richTextHitAttributes\}/);
+  assert.match(componentSource, /<div xmlns="http:\/\/www\.w3\.org\/1999\/xhtml"\$\{richTextHitAttributes\}/);
+  assert.match(componentSource, /richTextToolsHtml\(\{[\s\S]*disableLinkedDiagram: true[\s\S]*Linked Diagram OLE is not supported inside Diagram Rich Text\./);
+  assert.match(formsSource, /const linkedDiagramDisabled = options\.disableLinkedDiagram === true/);
+  assert.match(formsSource, /data-command-disabled-reason="\$\{escapeAttr\(linkedDiagramTitle\)\}"/);
+  assert.match(componentSource, /const topmostRichTextObjectAtPoint = point =>/);
+  assert.match(componentSource, /return topmostRichTextObjectAtPoint\(point \|\| canvasPoint\(event\)\)/);
+  assert.match(componentSource, /workspace\.addEventListener\("dblclick"[\s\S]*await editAnnotationObject\(object\)/);
+  assert.match(
+    componentSource,
+    /if \(object\.type === "rich-text"\)[\s\S]*askAnnotationRichText\(\{[\s\S]*object\.html = result\.html[\s\S]*setStatus\("Rich text updated\."\)/
+  );
+});
+
+test("Diagram editor status text lives in the Format tab instead of the canvas toolbar", async () => {
+  const componentSource = await readFile(
+    new URL("../../wwwroot/js/components/image-annotation.js", import.meta.url),
+    "utf8"
+  );
+  const cssSource = await readFile(
+    new URL("../../wwwroot/css/components/image-annotation.css", import.meta.url),
+    "utf8"
+  );
+  assert.match(componentSource, /class="image-annotation-format-status" data-annotation-status/);
+  assert.match(componentSource, /const statusRegions = \[\.\.\.dialog\.querySelectorAll\("\[data-annotation-status\]"\)\]/);
+  assert.doesNotMatch(componentSource, /data-annotation-maximized-status/);
+  assert.match(componentSource, /data-annotation-footer-status aria-hidden="true"/);
+  assert.match(cssSource, /\.image-annotation-format-status[\s\S]*min-height:/);
 });

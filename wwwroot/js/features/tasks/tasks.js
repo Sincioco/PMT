@@ -25,9 +25,9 @@ import {
   selectTextField,
   userCardCheckListLabelHtml,
   value
-} from "../../components/forms.js?v=20260719-rte-insert-diagram";
+} from "../../components/forms.js?v=20260721-rte-code-log-v1";
 import { progressHtml, statusColor } from "../../components/progress-and-status.js?v=20260714-linked-bug-percent";
-import { sectionHead } from "../../components/sections.js?v=release-notes-2026-07-21-day-34-0f94a61106d8";
+import { sectionHead } from "../../components/sections.js?v=release-notes-2026-07-21-day-34-e1bf39ab2b17";
 import {
   attachmentEditorFieldHtml,
   bindAssigneeList,
@@ -318,7 +318,7 @@ export function createTasksFeature({
     return `
       <option value="current" ${taskSprintId === "current" ? "selected" : ""}>Current Sprint</option>
       <option value="all" ${taskSprintId === "all" ? "selected" : ""}>All Sprints</option>
-      ${projectSprints.map(sprint => `<option value="${sprint.id}" ${String(sprint.id) === taskSprintId ? "selected" : ""}>${escapeHtml(sprint.code)} - ${escapeHtml(sprint.title)}</option>`).join("")}
+      ${projectSprints.map(sprint => `<option value="${sprint.id}" ${String(sprint.id) === taskSprintId ? "selected" : ""}>${escapeHtml(sprint.title || sprint.code)}</option>`).join("")}
     `;
   }
 
@@ -986,6 +986,7 @@ export function createTasksFeature({
 
     openEditor(workItemEditorTitle(task, "New Dev Task"), `
       <template data-editor-head-action>
+        ${task.id ? `<button class="secondary text-icon-button" type="button" data-task-full-screen-edit title="View Full-Screen" aria-label="View Full-Screen">${buttonContent("&#9974;", "View Full-Screen")}</button>` : ""}
         ${taskDialogCustomizationButtonHtml()}
       </template>
       <div class="form-grid task-editor-grid" data-work-item-dialog-root="task-edit">
@@ -1066,7 +1067,15 @@ export function createTasksFeature({
       const editorDialog = document.getElementById("editorDialog");
       editorDialog?.querySelector("[data-action='customize-task-dialog-view']")
         ?.addEventListener("click", openTaskDialogCustomizationDialog);
-      requestAnimationFrame(() => syncTaskDialogHeaderActionsMenu(editorDialog));
+      editorDialog?.querySelector("[data-task-full-screen-edit]")?.addEventListener("click", () => {
+        if (!editorDialog.classList.contains("is-maximized")) editorDialog.querySelector("#maximizeDialog")?.click();
+      });
+      requestAnimationFrame(() => {
+        if (!task.id && apiRoot === "/api/tasks" && !editorDialog?.classList.contains("is-maximized")) {
+          editorDialog?.querySelector("#maximizeDialog")?.click();
+        }
+        syncTaskDialogHeaderActionsMenu(editorDialog);
+      });
       bindTaskEditorRules(root, task);
       applyTaskDialogFieldPreferences(root);
     });

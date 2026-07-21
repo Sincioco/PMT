@@ -32,9 +32,9 @@ import {
   selectTextField,
   userCardCheckListLabelHtml,
   value
-} from "../../components/forms.js?v=20260719-rte-insert-diagram";
+} from "../../components/forms.js?v=20260721-rte-code-log-v1";
 import { progressHtml } from "../../components/progress-and-status.js?v=20260714-linked-bug-percent";
-import { sectionHead } from "../../components/sections.js?v=release-notes-2026-07-21-day-34-0f94a61106d8";
+import { sectionHead } from "../../components/sections.js?v=release-notes-2026-07-21-day-34-e1bf39ab2b17";
 import {
   attachmentEditorFieldHtml,
   bindAssigneeList,
@@ -663,6 +663,7 @@ export function createBugsFeature({
 
     openEditor(workItemEditorTitle(bug, "New Bug Report"), `
       <template data-editor-head-action>
+        ${bug.id ? `<button class="secondary text-icon-button" type="button" data-bug-full-screen-edit title="View Full-Screen" aria-label="View Full-Screen">${buttonContent("&#9974;", "View Full-Screen")}</button>` : ""}
         ${bugDialogCustomizationButtonHtml()}
       </template>
       <div class="form-grid bug-editor-grid" data-bug-dialog-root="edit">
@@ -740,7 +741,15 @@ export function createBugsFeature({
       const editorDialog = document.getElementById("editorDialog");
       editorDialog?.querySelector("[data-action='customize-bug-dialog-view']")
         ?.addEventListener("click", openBugDialogCustomizationDialog);
-      requestAnimationFrame(() => syncBugDialogHeaderActionsMenu(editorDialog));
+      editorDialog?.querySelector("[data-bug-full-screen-edit]")?.addEventListener("click", () => {
+        if (!editorDialog.classList.contains("is-maximized")) editorDialog.querySelector("#maximizeDialog")?.click();
+      });
+      requestAnimationFrame(() => {
+        if (!bug.id && apiRoot === "/api/tasks" && !editorDialog?.classList.contains("is-maximized")) {
+          editorDialog?.querySelector("#maximizeDialog")?.click();
+        }
+        syncBugDialogHeaderActionsMenu(editorDialog);
+      });
       bindAssigneeList(root, bug.assigneeIds || [], "Assignees (Optional)");
       applyBugDialogFieldPreferences(root);
     });
@@ -2388,13 +2397,7 @@ export function createBugsFeature({
   }
 
   function bugSprintFilterLabel(sprint) {
-    const sprintTitle = sprint.title ? ` - ${sprint.title}` : "";
-    if (bugFilters.projectId) return `${sprint.code}${sprintTitle}`;
-
-    const project = projectById(sprint.projectId);
-    return project
-      ? `${project.code} - ${bugChartSprintLabel(sprint, project)}${sprintTitle}`
-      : `${projectCode(sprint.projectId)} - ${sprint.code}${sprintTitle}`;
+    return String(sprint?.title || sprint?.code || "Sprint");
   }
 
   function bugChartContextSubtitle(selectedSprint) {

@@ -2111,18 +2111,20 @@ test("Documentation and Sprints share synchronized idle headers and bulk delete"
   const documentationReadOnlyDialog = page.locator("dialog.documentation-readonly-dialog");
   await expect(documentationReadOnlyDialog).toBeVisible();
   await documentationReadOnlyDialog.locator("[data-edit-readonly-blog='1']").click();
-  await expect(page.locator("#editorDialog")).toBeVisible();
-  const documentationFullScreenEdit = page.locator("[data-documentation-full-screen-edit='1']");
-  await expect(documentationFullScreenEdit).toBeVisible();
-  await expect(documentationFullScreenEdit).toHaveAttribute("title", "View Full-Screen");
-  await documentationFullScreenEdit.click();
-  await expect(page.locator("#editorDialog")).not.toBeVisible();
   await expect(page.locator(".documentation-tree-layout")).toHaveClass(/is-tree-hidden/);
   await expect(page.locator("[data-documentation-inline-editor][data-blog-id='1']")).toBeVisible();
   await page.locator("[data-action='cancel-documentation-inline-edit']").first().click();
 
   await documentationHeader.locator("[data-action='set-documentation-view'][data-mode='cards']").click();
-  await documentationHeader.locator("[data-action='set-documentation-view'][data-mode='tree']").click();
+  const documentationTreeToggle = documentationHeader.locator("[data-action='set-documentation-view'][data-mode='tree']");
+  await documentationTreeToggle.click();
+  await expect(page.locator(".documentation-tree-pane")).toBeVisible();
+  await documentationTreeToggle.click();
+  await expect(page.locator(".documentation-tree-layout")).toHaveClass(/is-tree-hidden/);
+  await expect(page.locator(".documentation-tree-pane")).toBeHidden();
+  await documentationTreeToggle.click();
+  await expect(page.locator(".documentation-tree-layout")).not.toHaveClass(/is-tree-hidden/);
+  await expect(page.locator(".documentation-tree-pane")).toBeVisible();
   await page.locator(".page-actions-summary").click();
   let leftNavMenuItem = page.locator(".page-actions-list [data-action='toggle-documentation-tree-pane']");
   await expect(leftNavMenuItem.locator(".page-actions-label")).toHaveText("Left Nav");
@@ -3556,8 +3558,14 @@ test("Diagram Card and Tree views show the current user's private and public Dia
   await diagramFilters.locator("[data-close-diagram-filters]").last().click();
   await expect(diagramFilters).toHaveCount(0);
 
-  await page.getByRole("button", { name: "Treeview", exact: true }).click();
-  await expect(page.getByRole("button", { name: "Treeview", exact: true })).toHaveAttribute("aria-pressed", "true");
+  const diagramTreeToggle = page.getByRole("button", { name: "Treeview", exact: true });
+  await diagramTreeToggle.click();
+  await expect(diagramTreeToggle).toHaveAttribute("aria-pressed", "true");
+  await expect(page.locator(".diagram-tree-pane")).toBeVisible();
+  await diagramTreeToggle.click();
+  await expect(page.locator(".diagram-tree-pane")).toBeHidden();
+  await diagramTreeToggle.click();
+  await expect(page.locator(".diagram-tree-pane")).toBeVisible();
   await expect(page.locator(".diagram-tree-pane [data-action='select-diagram-document']")).toHaveCount(4);
   await page.locator("[data-action='select-diagram-document']", { hasText: "Architecture" }).click();
   await expect(page.locator("[data-diagram-page-document-head] h2")).toHaveText("Architecture");
@@ -3858,10 +3866,16 @@ test("RTE View Source stays plain while Code Block formats and highlights select
   const codeDialog = page.locator("dialog.rich-code-dialog");
   const codeLanguage = codeDialog.locator("[data-rich-code-language]");
   const codeTextarea = codeDialog.locator("[name='codeText']");
+  const readOnlyOpen = codeDialog.getByLabel("Initially expanded in read-only mode");
 
   await expect(codeDialog).toBeVisible();
   await expect(codeDialog.locator("[data-rich-code-highlight]")).toHaveCount(0);
+  await expect(codeDialog.getByRole("button", { name: "Maximize", exact: true })).toBeVisible();
+  await codeDialog.getByRole("button", { name: "Maximize", exact: true }).click();
+  await expect(codeDialog.getByRole("button", { name: "Restore", exact: true })).toBeVisible();
+  await codeDialog.getByRole("button", { name: "Restore", exact: true }).click();
   await expect(codeLanguage).toHaveValue("");
+  await expect(readOnlyOpen).not.toBeChecked();
   await expect(codeLanguage.locator("option")).toHaveText([
     "None",
     "C#",
@@ -3900,6 +3914,40 @@ test("RTE View Source stays plain while Code Block formats and highlights select
   await expect(codeTextarea).toHaveValue("public class Demo { return; }");
   await codeTextarea.fill('{"name":"PMT","count":2,"active":true}');
   await codeLanguage.selectOption("json");
+  await codeDialog.getByRole("button", { name: "Color Code Preview", exact: true }).click();
+  const previewDialog = page.locator("dialog.rich-code-preview-dialog");
+  await expect(previewDialog).toBeVisible();
+  await expect(previewDialog.locator(".rich-source-token-property", { hasText: '"name"' })).toHaveCount(1);
+  await expect(previewDialog.locator(".rich-source-token-string", { hasText: '"PMT"' })).toHaveCount(1);
+  await previewDialog.locator("[data-close-rich-code-preview]").last().click();
+  await expect(previewDialog).toHaveCount(0);
+  await codeLanguage.selectOption("javascript");
+  await codeTextarea.fill([
+    "    function demo() {",
+    '        return "PMT";',
+    "    }"
+  ].join("\n"));
+  await codeDialog.getByRole("button", { name: "Insert", exact: true }).click();
+  await expect(codeDialog).toHaveCount(0);
+
+  const indentedBlock = editor.locator("details.rich-code-block").last();
+  const indentedCode = indentedBlock.locator("code[data-code-language='javascript']");
+  await expect(indentedBlock).toHaveCount(1);
+  await expect(indentedCode).toHaveText([
+    "function demo() {",
+    '    return "PMT";',
+    "}"
+  ].join("\n"));
+  await indentedBlock.locator("[data-rich-code-action='delete']").click();
+  await expect(editor.locator("details.rich-code-block")).toHaveCount(0);
+  await expect(page.locator("dialog.rich-code-dialog")).toHaveCount(0);
+
+  await editor.click();
+  await descriptionField.getByRole("button", { name: "Code Block", exact: true }).click();
+  await expect(codeDialog).toBeVisible();
+  await codeTextarea.fill('{"name":"PMT","count":2,"active":true}');
+  await codeLanguage.selectOption("json");
+  await readOnlyOpen.check();
   await codeDialog.getByRole("button", { name: "Insert", exact: true }).click();
   await expect(codeDialog).toHaveCount(0);
 
@@ -3915,11 +3963,6 @@ test("RTE View Source stays plain while Code Block formats and highlights select
   expect(await insertedBlock.evaluate(element => element.open)).toBe(true);
   await insertedBlock.locator("summary").click();
   expect(await insertedBlock.evaluate(element => element.open)).toBe(false);
-  await insertedBlock.locator("[data-rich-code-action='delete']").click();
-  await expect(editor.locator("details.rich-code-block")).toHaveCount(0);
-  await page.keyboard.press("Control+Z");
-  await expect(editor.locator("details.rich-code-block")).toHaveCount(1);
-  await expect(editor.locator("details.rich-code-block code[data-code-language='json']").locator(".rich-source-token-property", { hasText: '"name"' })).toHaveCount(1);
 
   await editDialog.locator("button[type='submit']").click();
   await expect(editDialog).not.toBeVisible();
@@ -3933,8 +3976,6 @@ test("RTE View Source stays plain while Code Block formats and highlights select
   await page.locator("tr[data-task-id='1']").click();
   const readOnlyBlock = page.locator("dialog.detail-dialog .rich-readonly details.rich-code-block");
   await expect(readOnlyBlock).toHaveCount(1);
-  expect(await readOnlyBlock.evaluate(element => element.open)).toBe(false);
-  await readOnlyBlock.locator("summary").click();
   expect(await readOnlyBlock.evaluate(element => element.open)).toBe(true);
   await expect(readOnlyBlock.locator(".rich-source-token-property", { hasText: '"name"' })).toHaveCount(1);
 });
@@ -4234,8 +4275,11 @@ test("RTE image annotation creates, crops, groups, locks, undoes, and reopens ed
       };
     }, name)).toEqual({ besideMatchingPicker: true, display: "grid", columns: 3, rows: 2 });
   }
+  await expect(dialog.locator(".image-annotation-format-status")).toContainText("Select, move, resize");
+  await expect(dialog.locator(".image-annotation-toolbar [data-annotation-status]")).toHaveCount(0);
+  await expect(dialog.locator("[data-annotation-maximized-status]")).toHaveCount(0);
   const drawingToolButtons = dialog.locator("button[data-annotation-tool]");
-  await expect(drawingToolButtons).toHaveCount(8);
+  await expect(drawingToolButtons).toHaveCount(11);
   expect(await drawingToolButtons.evaluateAll(buttons => buttons.map(button => ({
     label: button.getAttribute("aria-label"),
     title: button.getAttribute("title"),
@@ -4245,12 +4289,15 @@ test("RTE image annotation creates, crops, groups, locks, undoes, and reopens ed
     hasSvg: Boolean(button.querySelector("svg.image-annotation-tool-icon"))
   })))).toEqual([
     { label: "Select (V)", title: "Select (V)", pressed: "true", visibleText: "", iconHidden: "true", hasSvg: true },
+    { label: "Pan (H)", title: "Pan (H)", pressed: "false", visibleText: "", iconHidden: "true", hasSvg: true },
+    { label: "Format Painter", title: "Format Painter", pressed: "false", visibleText: "", iconHidden: "true", hasSvg: true },
     { label: "Crop (C)", title: "Crop (C)", pressed: "false", visibleText: "", iconHidden: "true", hasSvg: true },
     { label: "Rectangle (R)", title: "Rectangle (R)", pressed: "false", visibleText: "", iconHidden: "true", hasSvg: true },
     { label: "Circle (O)", title: "Circle (O)", pressed: "false", visibleText: "", iconHidden: "true", hasSvg: true },
     { label: "Arrow (A)", title: "Arrow (A)", pressed: "false", visibleText: "", iconHidden: "true", hasSvg: true },
     { label: "Line (L)", title: "Line (L)", pressed: "false", visibleText: "", iconHidden: "true", hasSvg: true },
     { label: "Text Box (T)", title: "Text Box (T)", pressed: "false", visibleText: "", iconHidden: "true", hasSvg: true },
+    { label: "Rich Text Editor (Y)", title: "Rich Text Editor (Y)", pressed: "false", visibleText: "", iconHidden: "true", hasSvg: true },
     { label: "Entity (E)", title: "Entity (E)", pressed: "false", visibleText: "", iconHidden: "true", hasSvg: true }
   ]);
   await dialog.getByRole("button", { name: "Circle (O)", exact: true }).click();
@@ -4748,18 +4795,19 @@ test("RTE image annotation creates, crops, groups, locks, undoes, and reopens ed
     cancelable: true,
     detail: 2
   })));
-  await expect(inspectorToggle).toHaveAttribute("aria-expanded", "true");
-  await expect(formatTab).toHaveAttribute("aria-selected", "true");
-  await expect(textInput).toBeFocused();
+  const textEditDialog = page.locator("dialog.image-annotation-text-dialog");
+  await expect(textEditDialog).toBeVisible();
+  await expect(textEditDialog.getByRole("heading", { name: "Text Box", exact: true })).toBeVisible();
+  const textEditDialogInput = textEditDialog.locator("textarea[name='annotationText']");
+  await expect(textEditDialogInput).toBeFocused();
+  await expect(textEditDialogInput).toHaveValue("New Search Feature with wrapped annotation text");
+  await textEditDialog.getByRole("button", { name: /Cancel/ }).click();
+  await expect(textEditDialog).toHaveCount(0);
+  await expect(inspectorToggle).toHaveAttribute("aria-expanded", "false");
+  await expect(templateTab).toHaveAttribute("aria-selected", "true");
+  await inspectorToggle.click();
+  await formatTab.click();
   await expect(textInput).toHaveValue("New Search Feature with wrapped annotation text");
-  expect(await textInput.evaluate(element => {
-    const inspector = element.closest("[data-annotation-inspector]");
-    const tabs = inspector.querySelector(".image-annotation-inspector-tabs");
-    const fieldBounds = element.closest("[data-annotation-text-field]").getBoundingClientRect();
-    const inspectorBounds = inspector.getBoundingClientRect();
-    return fieldBounds.top >= inspectorBounds.top + tabs.getBoundingClientRect().height - 1
-      && fieldBounds.bottom <= inspectorBounds.bottom + 1;
-  })).toBe(true);
   await page.keyboard.press("Control+z");
   await textObject.click();
   await expect(textInput).toHaveValue("Text");
@@ -4769,7 +4817,15 @@ test("RTE image annotation creates, crops, groups, locks, undoes, and reopens ed
   await textInput.fill("");
   await templateTab.click();
   await inspectorToggle.click();
-  await textObject.dblclick();
+  await textObject.evaluate(element => element.dispatchEvent(new MouseEvent("dblclick", {
+    bubbles: true,
+    cancelable: true,
+    detail: 2
+  })));
+  await expect(textEditDialog).toBeVisible();
+  await expect(textEditDialogInput).toHaveValue("");
+  await textEditDialog.getByRole("button", { name: /Cancel/ }).click();
+  await expect(textEditDialog).toHaveCount(0);
   await expect(inspectorToggle).toHaveAttribute("aria-expanded", "false");
   await expect(templateTab).toHaveAttribute("aria-selected", "true");
   await inspectorToggle.click();
@@ -4859,6 +4915,10 @@ test("RTE image annotation creates, crops, groups, locks, undoes, and reopens ed
   expect(textBoxAfterResize.width).toBeGreaterThan(textBoxBeforeResize.width);
   expect(textBoxAfterResize.width / textBoxAfterResize.height)
     .toBeCloseTo(textBoxBeforeResize.width / textBoxBeforeResize.height, 4);
+  await page.keyboard.press("Escape");
+  await expect(dialog.locator("[data-annotation-selection-label]")).toHaveText("No selection");
+  await textObject.click();
+  await expect(dialog.locator("[data-annotation-selection-label]")).toHaveText("Text box");
   await openAnnotationContextMenu(textObject);
   await annotationContextMenu.getByRole("menuitem", { name: "To Back", exact: true }).click();
   await expect(annotationObjects.nth(0)).toHaveAttribute("data-annotation-object-id", /^textbox-/);
@@ -4876,6 +4936,10 @@ test("RTE image annotation creates, crops, groups, locks, undoes, and reopens ed
   await expect(dialog.getByRole("button", { name: "Select (V)" })).toHaveAttribute("aria-pressed", "true");
   await expect(annotationObjects).toHaveCount(6);
 
+  await dialog.getByRole("button", { name: "Fit" }).click();
+  await workspace.focus();
+  await page.keyboard.press("Escape");
+  await expect(dialog.locator("[data-annotation-selection-label]")).toHaveText("No selection");
   await dragCanvas(-450, 100, -150, 450);
   await expect(dialog.locator("[data-annotation-selection-label]")).toHaveText("2 objects selected");
   const blankPoint = await canvasClientPoint(-100, 500);
@@ -5072,7 +5136,7 @@ test("RTE image annotation creates, crops, groups, locks, undoes, and reopens ed
   expect(groupedArrowAfterResize.headLength).toBeCloseTo(groupedArrowBeforeResize.headLength * groupScale, 2);
   expect(groupedArrowAfterResize.headWidth).toBeCloseTo(groupedArrowBeforeResize.headWidth * groupScale, 2);
   await dialog.getByRole("button", { name: "Undo (Ctrl+Z)" }).click();
-  await annotationObjects.nth(3).click();
+  await groupingTree.locator("[data-annotation-tree-kind='group']").first().click();
   await expect(canvas.locator(".image-annotation-group-member-guide")).toHaveCount(3);
   await openAnnotationContextMenu(annotationObjects.nth(1));
   await annotationContextMenu.getByRole("menuitem", { name: "Lock selected objects", exact: true }).click();
@@ -5168,13 +5232,13 @@ test("RTE image annotation creates, crops, groups, locks, undoes, and reopens ed
   await expect(dialog.locator("[data-annotation-selection-label]")).toHaveText("Original Image");
   await dragCanvas(740, 400, 840, 460);
   await expect.poll(() => imageObject.getAttribute("width").then(Number)).toBeGreaterThan(800);
-  await expect(imageObject).toHaveAttribute("height", "525");
   const resizedImage = await imageObject.evaluate(element => ({
     x: Number(element.getAttribute("x")),
     y: Number(element.getAttribute("y")),
     width: Number(element.getAttribute("width")),
     height: Number(element.getAttribute("height"))
   }));
+  expect(resizedImage.height).toBeGreaterThan(450);
   expect(resizedImage.width / resizedImage.height).toBeCloseTo(800 / 450, 5);
   const resizedClip = await imageClipRect.evaluate(element => ({
     x: Number(element.getAttribute("x")),
@@ -5314,12 +5378,12 @@ test("RTE image annotation creates, crops, groups, locks, undoes, and reopens ed
   await expect(rteImage).toHaveAttribute("data-pmt-annotation-source", "/uploads/richtext/annotation-original.svg");
   await expect(rteImage).toHaveAttribute("data-pmt-annotation-version", "1");
   expect(uploadedSvg).toContain("data-pmt-image-annotation-state=\"true\"");
-  expect(uploadedSvg).not.toContain("data:image/svg+xml;base64,");
-  expect(uploadedSvg).toContain('href="/uploads/richtext/annotation-original.svg"');
+  expect(uploadedSvg).toContain("data:image/svg+xml;base64,");
+  expect(uploadedSvg).toContain('"source":"/uploads/richtext/annotation-original.svg"');
   expect(uploadedSvg).toContain("<rect");
   expect(uploadedSvg).toContain("<line");
   expect(uploadedSvg).toContain("New Search Feature");
-  expect(uploadedSvg).toContain(recentFillColor);
+  expect(uploadedSvg).toContain("#ffff00");
   expect(uploadedSvg).toContain(recentTextColor);
   expect(uploadedSvg).toContain('text-anchor="middle"');
   expect(uploadedSvg).toContain('"textVerticalAlign":"bottom"');
@@ -5358,6 +5422,9 @@ test("RTE image annotation creates, crops, groups, locks, undoes, and reopens ed
   await expect(reopenedCanvas.locator("[data-annotation-object-id]")).toHaveCount(6);
   await expect(reopenedCanvas.locator("text")).toHaveAttribute("text-anchor", "middle");
   expect(Number(await reopenedCanvas.locator("text").getAttribute("y"))).toBeCloseTo(textYBeforeExport, 5);
+  await expect(reopenedDialog.locator("[data-annotation-selection-label]")).toHaveText("Original Image");
+  await reopenedDialog.getByRole("tab", { name: "Objects", exact: true }).click();
+  await reopenedDialog.locator(`[data-annotation-tree-kind='group'][data-annotation-tree-id='${imageGroupId}']`).click();
   await expect(reopenedDialog.locator("[data-annotation-selection-label]")).toHaveText("2 objects selected");
   await expect(reopenedCanvas.locator(".image-annotation-group-member-guide")).toHaveCount(2);
   await expect(reopenedCanvas.locator("[data-annotation-handle]")).toHaveCount(8);

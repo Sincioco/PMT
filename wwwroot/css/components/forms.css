@@ -860,6 +860,29 @@ html[data-theme] .rich-color-palette button.rich-color-custom {
   color: var(--color-danger-text);
 }
 
+.rich-readonly .rich-code-block summary,
+.log-content .rich-code-block summary,
+.scrum-content .rich-code-block summary {
+  min-height: 28px;
+  gap: var(--space-2);
+  padding: 4px var(--space-3);
+  font-size: var(--font-size-sm);
+}
+
+.rich-readonly .rich-code-block summary::before,
+.log-content .rich-code-block summary::before,
+.scrum-content .rich-code-block summary::before {
+  font-size: var(--font-size-sm);
+}
+
+.rich-readonly .rich-code-action,
+.log-content .rich-code-action,
+.scrum-content .rich-code-action {
+  width: 24px;
+  height: 24px;
+  font-size: var(--font-size-sm);
+}
+
 .rich-code-block pre {
   margin: 0;
   padding: var(--space-5);
@@ -911,6 +934,39 @@ html[data-theme] .rich-color-palette button.rich-color-custom {
 .scrum-content img[src$=".svg" i] {
   border: 0;
   border-radius: 0;
+}
+
+.rich-collapsible-block {
+  margin: var(--space-2) 0;
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+}
+
+.rich-collapsible-block > summary {
+  min-height: 26px;
+  padding: 3px var(--space-3);
+  cursor: pointer;
+  color: var(--color-text-secondary);
+  background: var(--color-surface-subtle);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+}
+
+.rich-collapsible-block > .rich-collapsible-content {
+  padding: var(--space-3);
+}
+
+.rich-collapsible-block > .rich-collapsible-content > :first-child {
+  margin-top: 0;
+}
+
+.rich-collapsible-block > .rich-collapsible-content > :last-child {
+  margin-bottom: 0;
+}
+
+.rich-collapsible-tool {
+  font-size: var(--font-size-md);
 }
 
 .pmt-diagram-ole {
@@ -1223,6 +1279,10 @@ html[data-theme] .rich-color-palette button.rich-color-custom {
   width: min(780px, calc(100vw - 2 * var(--shell-padding-compact)));
 }
 
+.rich-code-preview-dialog {
+  width: min(900px, calc(100vw - 2 * var(--shell-padding-compact)));
+}
+
 .rich-source-dialog {
   width: min(900px, calc(100vw - 2 * var(--shell-padding-compact)));
 }
@@ -1238,6 +1298,21 @@ html[data-theme] .rich-color-palette button.rich-color-custom {
 .rich-source-wrap-option {
   font-size: var(--font-size-sm);
   font-weight: var(--font-weight-regular);
+}
+
+.rich-code-readonly-open-option {
+  display: inline-flex;
+  grid-column: 1 / -1;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: calc(-1 * var(--space-2));
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-regular);
+}
+
+.rich-code-readonly-open-option input {
+  flex: 0 0 auto;
 }
 
 .rich-code-dialog textarea,
@@ -1278,6 +1353,23 @@ html[data-theme] .rich-color-palette button.rich-color-custom {
 
 .rich-source-highlight::-webkit-scrollbar {
   display: none;
+}
+
+.rich-code-preview {
+  min-height: 260px;
+  max-height: 70vh;
+  margin: 0;
+  overflow: auto;
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-4);
+  background: var(--color-control);
+  color: var(--color-text-primary);
+  font-family: Consolas, "Courier New", monospace;
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-body);
+  tab-size: 4;
+  white-space: pre;
 }
 
 .rich-source-editor textarea {

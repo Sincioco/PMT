@@ -110,10 +110,15 @@ Browser permission checks hide inaccessible navigation and disable unavailable a
 Browser permission checks live in `wwwroot/js/shared/security.js` and `wwwroot/js/shared/permissions.js` so screens and future feature modules share the same effective permission logic.
 Permission regressions are covered in `tests/js/permissions.test.mjs`.
 
-## Diagram ERD relationship routing
+## Diagram Auto Format - Compact ERD relationship routing
+
+These rules describe the current **Auto Format - Compact** connector preference. Future presets, such as Auto Format - Medium, may use a different routing style and should document their own rules separately.
 
 - PMT ERD relationships are field-to-field. A connector must leave the source FK/PK field with a short horizontal stub, route through open canvas space, and enter the target FK/PK field with a short horizontal stub. It must not attach to the table rectangle itself.
 - The preferred look is a compact orthogonal route: field stub -> joint just outside the table margin -> vertical trunk in the open corridor between the related tables -> joint just outside the other table margin -> field stub. This is the "green line" style: calm, local, and readable.
+- When multiple clear routes satisfy the protected-margin rules, prefer the one with the fewest practical bends before accepting tiny length savings. Do not introduce a small jog or step in an otherwise long horizontal or vertical run merely to shave a few pixels; keep the connector visually quiet unless the jog is needed to avoid a real obstruction.
+- When multiple relationship connectors travel through the same open horizontal corridor, they should share the same horizontal lane when that lane remains clear. Do not draw a second nearby horizontal trunk above or below an existing clean lane just because it is marginally shorter; the red-line route should follow the green-line lane.
+- When lower or side tables connect back to the same upper/nearby entity through the same area, bundle them through a shared trunk/corridor and branch from that trunk near the related fields. Avoid drawing a tall detached rectangular detour on the outside of the group; it visually boxes in unrelated tables and reads like a separate boundary instead of a relationship path.
 - Treat the visual margin around each entity as a protected no-cross zone. A relationship line may enter that margin only when it is making the short horizontal connection into or out of one of that table's fields. Vertical trunks, horizontal pass-throughs, unrelated relationships, and long detours must stay outside the protected margin.
 - Use the protected margin as the ERD routing spacing unit. The margin is an invisible yellow-zone/ruler around each table: it is the minimum breathing room around the table, the preferred field-stub length, and the step distance between adjacent relationship lanes.
 - The area above an entity is more sensitive because of the table title/header. Reserve two margin units above every table/entity, so passing lines and neighboring tables do not crowd the header. Side and bottom spacing may use one margin unit unless another rule requires more.

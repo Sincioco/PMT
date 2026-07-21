@@ -12,8 +12,8 @@ import {
   richValue,
   selectOptionsField,
   value
-} from "../../components/forms.js?v=20260719-rte-insert-diagram";
-import { sectionHead } from "../../components/sections.js?v=release-notes-2026-07-21-day-34-0f94a61106d8";
+} from "../../components/forms.js?v=20260721-rte-code-log-v1";
+import { sectionHead } from "../../components/sections.js?v=release-notes-2026-07-21-day-34-e1bf39ab2b17";
 import { createWorkItemTableMode } from "../../components/work-items.js?v=20260720-work-item-export-images-v4";
 import { currentUser } from "../../core/authentication.js?v=20260715-admin-impersonation";
 import {
@@ -113,7 +113,7 @@ export function createLogFeature({
 
     app.innerHTML = `
       <section class="log-screen work-item-screen idle-filter-header-screen">
-        ${sectionHead("Log", `
+        ${sectionHead("Personal Logs", `
           ${logHeader.controlsHtml(logHeaderFields())}
           ${logHeader.searchHtml(logFilters.search, "Search Log")}
           <button class="primary text-icon-button" type="button" data-action="new-personal-log" data-idle-filter-header-add-target title="New Log" aria-label="New Log">${buttonContent("&#10010;", "New Log")}</button>

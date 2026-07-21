@@ -272,17 +272,20 @@ function illustrationIcon(kind, palette) {
     <path d="M285 43h26M333 43h54M409 43h26" stroke="${accent}" stroke-width="5"/>
   </g>`,
     "technology-team": `<g ${common}>
-    <rect x="282" y="34" width="156" height="90" rx="12" fill="#fff"/>
-    <path d="M282 60h156M332 124h56M346 146h28" stroke="${accent}" stroke-width="5"/>
-    <path d="M314 83h34l-12 20h38l-14-20h46" stroke-width="5"/>
-    <circle cx="315" cy="83" r="7" fill="${secondary}" stroke="none"/>
-    <circle cx="360" cy="103" r="7" fill="${accent}" stroke="none"/>
-    <circle cx="406" cy="83" r="7" fill="${secondary}" stroke="none"/>
-    <circle cx="232" cy="92" r="20" fill="#fff"/>
-    <circle cx="488" cy="92" r="20" fill="#fff"/>
-    <circle cx="360" cy="150" r="18" fill="#fff"/>
-    <path d="M198 150c5-27 16-40 34-40s29 13 34 40M454 150c5-27 16-40 34-40s29 13 34 40M324 169c6-20 18-30 36-30s30 10 36 30" stroke-width="5"/>
-    <path d="M252 92h30M438 92h30M360 124v14" stroke="${secondary}" stroke-width="5"/>
+    <rect x="238" y="30" width="244" height="112" rx="14" fill="#fff"/>
+    <path d="M238 60h244M286 142h148M326 160h68" stroke="${accent}" stroke-width="5"/>
+    <rect x="262" y="78" width="66" height="36" rx="7" fill="${accent}" stroke="none" opacity=".16"/>
+    <rect x="348" y="78" width="94" height="36" rx="7" fill="${secondary}" stroke="none" opacity=".18"/>
+    <path d="M276 103h38M363 101l18-16 20 14 27-22" stroke="${accent}" stroke-width="5"/>
+    <circle cx="294" cy="43" r="5" fill="${accent}" stroke="none"/>
+    <circle cx="314" cy="43" r="5" fill="${secondary}" stroke="none"/>
+    <circle cx="334" cy="43" r="5" fill="${accent}" stroke="none" opacity=".55"/>
+    <circle cx="200" cy="102" r="18" fill="#fff"/>
+    <circle cx="520" cy="102" r="18" fill="#fff"/>
+    <circle cx="360" cy="142" r="16" fill="#fff"/>
+    <path d="M168 156c6-25 16-37 32-37s26 12 32 37M488 156c6-25 16-37 32-37s26 12 32 37M330 168c6-18 16-27 30-27s24 9 30 27" stroke-width="5"/>
+    <path d="M218 100h20M482 100h20M360 114v12" stroke="${secondary}" stroke-width="5"/>
+    <path d="M176 74c7 0 14-7 14-18 9 7 14 15 14 24M536 74c-7 0-14-7-14-18-9 7-14 15-14 24" stroke="${accent}" stroke-width="4"/>
   </g>`,
     schedule: `<g ${common}>
     <rect x="258" y="39" width="204" height="112" rx="12" fill="#fff"/>

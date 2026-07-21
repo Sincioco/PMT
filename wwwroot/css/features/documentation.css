@@ -644,7 +644,7 @@
 
 .documentation-tree-document {
   display: grid;
-  grid-template-columns: 18px minmax(0, 1fr) auto;
+  grid-template-columns: 18px minmax(0, 1fr) auto auto;
   gap: 6px;
   align-items: center;
 }
@@ -668,13 +668,31 @@
 }
 
 .documentation-tree-expander,
-.documentation-tree-icon {
+.documentation-tree-icon,
+.documentation-tree-private {
   display: inline-grid;
   place-items: center;
   width: 18px;
   min-width: 18px;
   height: 18px;
   line-height: 1;
+}
+
+.documentation-tree-private {
+  width: 16px;
+  min-width: 16px;
+  height: 16px;
+  color: var(--color-text-secondary);
+}
+
+.documentation-tree-private svg {
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.8;
 }
 
 .documentation-tree-expander {

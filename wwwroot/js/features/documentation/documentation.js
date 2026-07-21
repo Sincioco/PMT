@@ -19,8 +19,8 @@ import {
   richValue,
   selectOptionsField,
   value
-} from "../../components/forms.js?v=20260721-diagram-ole-v1";
-import { sectionHead } from "../../components/sections.js?v=release-notes-2026-07-21-day-34-0f94a61106d8";
+} from "../../components/forms.js?v=20260721-rte-code-log-v1";
+import { sectionHead } from "../../components/sections.js?v=release-notes-2026-07-21-day-34-e1bf39ab2b17";
 import {
   preferenceKeys,
   readBooleanPreference,
@@ -404,10 +404,13 @@ export function createDocumentationFeature({
       return true;
     }
     if (action === "set-documentation-view") {
+      const previousViewMode = documentationViewMode;
       const mode = button?.dataset?.mode || "cards";
       documentationViewMode = documentationViewModes.has(mode) ? mode : "cards";
       if (documentationViewMode === "tree") {
-        documentationTreePaneHidden = false;
+        documentationTreePaneHidden = previousViewMode === "tree"
+          ? !documentationTreePaneHidden
+          : false;
         writePreference(preferenceKeys.documentationTreePaneHidden, documentationTreePaneHidden);
       }
       writePreference(preferenceKeys.documentationViewMode, documentationViewMode);
@@ -2322,6 +2325,7 @@ function documentationDocumentNodeHtml(blog, children, depth, keyPrefix, renderN
         <span class="documentation-tree-icon" aria-hidden="true">&#128196;</span>
         <span class="documentation-tree-label">${escapeHtml(blog.title)}</span>
         <span class="documentation-tree-date">${escapeHtml(formatDate(blog.updatedAt || blog.createdAt))}</span>
+        ${blog.isPrivate !== false ? `<span class="documentation-tree-private" title="Private" aria-label="Private">${documentationLockIconHtml()}</span>` : ""}
       </button>
     </div>
     ${childHtml}

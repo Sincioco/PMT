@@ -7,13 +7,16 @@ export function normalizeRichHtml(html) {
   const container = document.createElement("div");
   container.innerHTML = html;
   container.querySelectorAll(".rich-code-actions").forEach(node => node.remove());
+  container.querySelectorAll(".rich-code-block[data-rich-code-readonly-initial-applied]").forEach(block => {
+    block.removeAttribute("data-rich-code-readonly-initial-applied");
+  });
   normalizeDiagramOleBlocksForStorage(container);
   linkifyTextNodes(container);
   normalizeLinksInElement(container, { forStorage: true });
   return container.innerHTML;
 }
 
-function normalizeDiagramOleBlocksForStorage(root) {
+export function normalizeDiagramOleBlocksForStorage(root) {
   matchingElements(root, "[data-pmt-ole='diagram']").forEach(block => {
     const diagramId = Number(block.getAttribute("data-diagram-id") || 0);
     if (!diagramId) {
@@ -32,6 +35,10 @@ function normalizeDiagramOleBlocksForStorage(root) {
     block.setAttribute("data-block-id", blockId);
     block.setAttribute("data-view-width", String(width));
     block.setAttribute("data-view-height", String(height));
+    block.removeAttribute("data-diagram-ole-hydrated-key");
+    block.removeAttribute("data-diagram-ole-resize-bound");
+    block.removeAttribute("data-diagram-ole-view-clamped");
+    block.removeAttribute("data-diagram-ole-viewer-bound");
     block.setAttribute("style", `width: ${width}px; height: ${height}px;`);
     block.innerHTML = `<figcaption>Linked Diagram #${diagramId}</figcaption>`;
   });

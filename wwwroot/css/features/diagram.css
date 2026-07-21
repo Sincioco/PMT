@@ -292,6 +292,14 @@
   min-height: 0;
 }
 
+.diagram-readonly-context-menu.dropdown-menu {
+  position: fixed;
+  top: 0;
+  right: auto;
+  left: 0;
+  z-index: calc(var(--z-dialog) + 1);
+}
+
 .diagram-readonly-toolbar {
   justify-content: flex-end;
   padding-bottom: var(--space-2);
@@ -345,6 +353,30 @@
 
 .diagram-readonly-stage img[data-diagram-image] {
   pointer-events: none;
+}
+
+.diagram-readonly-svg [data-annotation-object-type="entity-relationship"] {
+  cursor: pointer;
+}
+
+.diagram-readonly-svg .image-annotation-entity-relationship.is-selected .image-annotation-entity-relationship-hit {
+  stroke: var(--color-focus-ring);
+  stroke-width: 3;
+  stroke-dasharray: 7 4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  opacity: 0.9;
+  vector-effect: non-scaling-stroke;
+}
+
+.diagram-readonly-svg .image-annotation-entity-relationship:focus-visible .image-annotation-entity-relationship-hit {
+  stroke: var(--color-focus-ring);
+  stroke-width: 2;
+  stroke-dasharray: 5 3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  opacity: 0.72;
+  vector-effect: non-scaling-stroke;
 }
 
 .diagram-readonly-svg g:has(> .image-annotation-entity-header-button) > .image-annotation-entity-header-button {

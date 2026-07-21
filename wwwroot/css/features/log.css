@@ -317,6 +317,7 @@ html[data-theme] .log-screen.work-item-screen .work-item-table .icon-action:disa
 }
 
 .log-editor-grid {
+  align-content: start;
   column-gap: var(--space-9);
   row-gap: var(--space-5);
 }

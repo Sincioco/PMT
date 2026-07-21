@@ -2,7 +2,10 @@ import { buttonContent, funnelIconHtml, pageActionsMenuHtml } from "../../compon
 import {
   annotationSvgPlaneMetrics,
   buildAnnotationSvg,
+  buildPortableAnnotationState,
   buildPortableAnnotationSvg,
+  copyAnnotationPngToClipboard,
+  copyAnnotationSvgToClipboard,
   openImageAnnotationDialog,
   parseAnnotationSvg,
   resolveAnnotationEntityOverlaps,
@@ -10,13 +13,13 @@ import {
   setAnnotationEntityCollapsedState,
   setAnnotationEntityDataTypeVisibility,
   zoomAnnotationAtPoint
-} from "../../components/image-annotation.js?v=20260720-compact-margin-corridor-v1";
+} from "../../components/image-annotation.js?v=20260721-diagram-rich-text-v3";
 import {
   checkedFilterValues,
   filterCheckList,
   filterSelect
 } from "../../components/filters.js";
-import { field, optionalNumberValue, selectOptionsField, value } from "../../components/forms.js?v=20260719-rte-insert-diagram";
+import { field, optionalNumberValue, selectOptionsField, value } from "../../components/forms.js?v=20260721-rte-code-log-v1";
 import { sectionHead } from "../../components/sections.js?v=20260718-diagram-library-v8";
 import { currentUserId } from "../../core/authentication.js?v=20260715-admin-impersonation";
 import { routeForContent, updateBrowserUrl } from "../../core/router.js?v=20260718-diagram-library-v8";
@@ -34,7 +37,8 @@ import { formatDate } from "../../shared/dates.js";
 import { appUrl } from "../../shared/app-urls.js";
 import { canAccessResource } from "../../shared/security.js";
 import { escapeAttr, escapeHtml } from "../../shared/text-and-links.js";
-import { buildPmtDatabaseSchemaDiagram } from "./pmt-database-schema.js?v=20260720-compact-margin-corridor-v1";
+import { buildPmtDatabaseSchemaDiagram } from "./pmt-database-schema.js?v=20260721-rte-code-log-v1";
+import { createPmtDiagramFile, parsePmtDiagramFile } from "./pmt-diagram-file.js?v=20260721-rte-code-log-v1";
 
 const diagramViewModes = new Set(["cards", "tree"]);
 const diagramSortModes = new Set(["latest", "oldest", "name", "custom"]);
@@ -76,6 +80,7 @@ export function createDiagramFeature({
   app,
   askForColor,
   askForText,
+  bindRichTextButtons,
   confirm,
   notify,
   loadTemplateLibrary,
@@ -98,6 +103,7 @@ export function createDiagramFeature({
   let editingFullScreen = false;
   let editorAbortController = null;
   let diagramTreeContextMenuController = null;
+  let diagramReadonlyContextMenuController = null;
 
   function renderDiagram() {
     const wasActive = active;
@@ -142,6 +148,8 @@ export function createDiagramFeature({
     } else {
       diagramTreeContextMenuController?.abort();
       diagramTreeContextMenuController = null;
+      diagramReadonlyContextMenuController?.abort();
+      diagramReadonlyContextMenuController = null;
     }
 
     if (diagramSearch) {
@@ -176,7 +184,20 @@ export function createDiagramFeature({
         title: "Left Nav",
         checked: diagramViewMode === "tree" && !diagramTreePaneHidden,
         disabled: diagramViewMode !== "tree" || busy
+      }, {
+        action: "import-pmt-diagram",
+        icon: "&#8679;",
+        label: "Import PMT Diagram",
+        title: "Import PMT Diagram",
+        disabled: busy || !canAccessResource("Documentation", "Create")
+      }, {
+        action: "export-pmt-diagram",
+        icon: "&#8681;",
+        label: "Export PMT Diagram",
+        title: "Export PMT Diagram",
+        disabled: busy || !selectedDiagramDocumentId
       }])}
+      <input type="file" accept=".pmt-diagram.json,application/json" data-diagram-import-input hidden>
     `;
   }
 
@@ -326,6 +347,10 @@ export function createDiagramFeature({
             ${diagramReadonlyImageHtml(image?.source || blankDiagramSource, document.title)}
           </div>
         </div>
+        <div class="dropdown-menu documentation-tree-context-menu diagram-readonly-context-menu" data-diagram-readonly-context-menu role="menu" aria-label="Copy Diagram" hidden>
+          <button type="button" class="dropdown-menu-item" data-diagram-copy-format="svg" role="menuitem"><span class="dropdown-menu-icon" aria-hidden="true">&#128203;</span><span class="dropdown-menu-label">Copy as SVG</span><span class="dropdown-menu-check" aria-hidden="true"></span></button>
+          <button type="button" class="dropdown-menu-item" data-diagram-copy-format="png" role="menuitem"><span class="dropdown-menu-icon" aria-hidden="true">&#128247;</span><span class="dropdown-menu-label">Copy as PNG</span><span class="dropdown-menu-check" aria-hidden="true"></span></button>
+        </div>
       </div>
     `;
   }
@@ -337,6 +362,7 @@ export function createDiagramFeature({
         ${diagramTreeContextMenuItemHtml("edit-diagram", "Edit Diagram", "&#9998;", "data-diagram-context-requires-update")}
         ${diagramTreeContextMenuItemHtml("duplicate-diagram", "Duplicate", "&#128203;", "data-diagram-context-requires-create")}
         ${diagramTreeContextMenuItemHtml("download-diagram", "Download", diagramDownloadIconHtml())}
+        ${diagramTreeContextMenuItemHtml("export-pmt-diagram", "Export PMT Diagram", "&#8681;")}
         ${diagramTreeContextMenuItemHtml("delete-diagram", "Delete", "&#128465;", "data-diagram-context-requires-delete", "is-danger")}
       </div>
     `;
@@ -355,12 +381,15 @@ export function createDiagramFeature({
   async function handleAction(action, id, button) {
     if (action === "set-diagram-view") {
       if (creating || editingDocumentId) return true;
+      const previousViewMode = diagramViewMode;
       const mode = button?.dataset?.mode || "tree";
       diagramViewMode = diagramViewModes.has(mode) ? mode : "tree";
       if (diagramViewMode === "tree") {
-        diagramTreePaneHidden = false;
+        diagramTreePaneHidden = previousViewMode === "tree"
+          ? !diagramTreePaneHidden
+          : false;
         previewDiagramDocumentId = 0;
-        writePreference(preferenceKeys.diagramTreePaneHidden, false);
+        writePreference(preferenceKeys.diagramTreePaneHidden, diagramTreePaneHidden);
       }
       writePreference(preferenceKeys.diagramViewMode, diagramViewMode);
       renderDiagram();
@@ -399,6 +428,15 @@ export function createDiagramFeature({
     }
     if (action === "new-diagram") {
       await createNewDiagram();
+      return true;
+    }
+    if (action === "import-pmt-diagram") {
+      app.querySelector("[data-diagram-import-input]")?.click();
+      return true;
+    }
+    if (action === "export-pmt-diagram") {
+      const document = diagramDocuments().find(item => item.id === (id || selectedDiagramDocumentId));
+      if (document) await exportPmtDiagram(document);
       return true;
     }
     if (action === "edit-diagram") {
@@ -444,6 +482,66 @@ export function createDiagramFeature({
     globalThis.document.body.appendChild(link);
     link.click();
     link.remove();
+  }
+
+  async function exportPmtDiagram(document) {
+    try {
+      const source = diagramImage(document)?.source || "";
+      const svg = decodeDiagramSvgDataUrl(source) || await loadDiagramSvgSource(source);
+      const editorState = parseAnnotationSvg(svg);
+      if (!editorState) throw new Error("The editable Diagram data could not be read.");
+      const portableState = await buildPortableAnnotationState(editorState);
+      const contents = createPmtDiagramFile({
+        title: document.title,
+        state: portableState,
+        svg: buildAnnotationSvg(portableState)
+      });
+      downloadTextFile(contents, `${safeFileName(document.title)}.pmt-diagram.json`, "application/json");
+      notify?.("PMT Diagram exported.");
+    } catch (error) {
+      notify?.(error?.message || "The PMT Diagram could not be exported.");
+    }
+  }
+
+  async function importPmtDiagramFile(file) {
+    if (!file || creating || editingDocumentId) return;
+    if (!canAccessResource("Documentation", "Create")) {
+      notify?.("You do not have permission to create Diagrams.");
+      return;
+    }
+    creating = true;
+    renderDiagram();
+    try {
+      const imported = parsePmtDiagramFile(await file.text());
+      const title = availableDiagramTitle(imported.title, diagramAllDocuments());
+      const result = await createDiagramDocument?.({
+        title,
+        diagram: {
+          state: imported.state,
+          svg: imported.svg,
+          fileName: `${safeFileName(title)}.svg`
+        }
+      });
+      selectedDiagramDocumentId = Number(result?.id || 0);
+      previewDiagramDocumentId = 0;
+      sharedDiagramDocumentId = 0;
+      diagramViewMode = "tree";
+      writePreference(preferenceKeys.diagramViewMode, diagramViewMode);
+      notify?.("PMT Diagram imported.");
+    } catch (error) {
+      notify?.(error?.message || "The PMT Diagram could not be imported.");
+    } finally {
+      creating = false;
+      if (active) renderDiagram();
+    }
+  }
+
+  function handleFilterChange(target) {
+    if (!target?.matches?.("[data-diagram-import-input]")) return false;
+    const [file] = target.files || [];
+    target.value = "";
+    if (file) void importPmtDiagramFile(file);
+    return true;
   }
 
   async function duplicateDiagram(document) {
@@ -780,6 +878,7 @@ export function createDiagramFeature({
         signal: editorAbortController.signal,
         askForColor,
         askForText,
+        bindRichTextButtons,
         confirm,
         notify,
         uploadEmbeddedImage,
@@ -1070,6 +1169,8 @@ export function createDiagramFeature({
   }
 
   function bindDiagramReadonlyViewer() {
+    diagramReadonlyContextMenuController?.abort();
+    diagramReadonlyContextMenuController = null;
     const viewer = app.querySelector("[data-diagram-readonly-viewer]");
     if (!viewer) return;
     const documentId = Number(viewer.dataset.id || 0);
@@ -1091,12 +1192,63 @@ export function createDiagramFeature({
     if (readonlyState) {
       const layoutResult = resolveAnnotationEntityOverlaps(readonlyState);
       if (layoutResult.movedCount) {
-        const markup = buildAnnotationSvg(readonlyState, { interactiveEntityHeaders: true });
+        const markup = buildAnnotationSvg(readonlyState, { interactiveEntityHeaders: true, interactiveRelationships: true });
         const next = new DOMParser().parseFromString(markup, "image/svg+xml").documentElement;
         ["width", "height", "viewBox", "role", "aria-label", "data-pmt-image-annotation-version"]
           .forEach(name => image.setAttribute(name, next.getAttribute(name) || ""));
         image.replaceChildren(...[...next.childNodes].map(node => document.importNode(node, true)));
       }
+    }
+
+    const copyMenu = viewer.querySelector("[data-diagram-readonly-context-menu]");
+    if (copyMenu) {
+      const controller = new AbortController();
+      const { signal } = controller;
+      diagramReadonlyContextMenuController = controller;
+      const closeCopyMenu = () => { copyMenu.hidden = true; };
+      viewport.addEventListener("contextmenu", event => {
+        event.preventDefault();
+        event.stopPropagation();
+        copyMenu.hidden = false;
+        const margin = 8;
+        copyMenu.style.left = `${Math.round(Math.max(margin, Math.min(event.clientX, window.innerWidth - copyMenu.offsetWidth - margin)))}px`;
+        copyMenu.style.top = `${Math.round(Math.max(margin, Math.min(event.clientY, window.innerHeight - copyMenu.offsetHeight - margin)))}px`;
+        copyMenu.querySelector("button")?.focus({ preventScroll: true });
+      }, { signal });
+      copyMenu.addEventListener("contextmenu", event => event.preventDefault(), { signal });
+      copyMenu.addEventListener("click", async event => {
+        const button = event.target.closest?.("[data-diagram-copy-format]");
+        if (!button) return;
+        closeCopyMenu();
+        try {
+          let stateForCopy = readonlyState;
+          if (!stateForCopy) {
+            const document = diagramAllDocuments().find(item => item.id === documentId);
+            const source = diagramImage(document)?.source || "";
+            stateForCopy = parseAnnotationSvg(decodeDiagramSvgDataUrl(source) || await loadDiagramSvgSource(source));
+          }
+          if (!stateForCopy) throw new Error("The Diagram could not be read for copying.");
+          const portableState = await buildPortableAnnotationState(stateForCopy);
+          const svg = buildAnnotationSvg(portableState);
+          if (button.dataset.diagramCopyFormat === "png") {
+            await copyAnnotationPngToClipboard({ svg, ...annotationSvgClipboardMetrics(svg, portableState) });
+            notify?.("Diagram copied as PNG.");
+          } else {
+            await copyAnnotationSvgToClipboard(svg);
+            notify?.("Diagram copied as SVG.");
+          }
+        } catch (error) {
+          notify?.(error?.message || "The Diagram could not be copied.");
+        }
+      }, { signal });
+      window.addEventListener("pointerdown", event => {
+        if (!copyMenu.hidden && !copyMenu.contains(event.target)) closeCopyMenu();
+      }, { signal });
+      window.addEventListener("scroll", closeCopyMenu, { capture: true, passive: true, signal });
+      window.addEventListener("resize", closeCopyMenu, { signal });
+      window.addEventListener("keydown", event => {
+        if (event.key === "Escape") closeCopyMenu();
+      }, { signal });
     }
 
     const viewportSize = () => ({
@@ -1396,9 +1548,38 @@ export function createDiagramFeature({
       }
     };
 
+    const relationshipSelector = "[data-annotation-object-type='entity-relationship']";
+    const clearReadonlyRelationshipSelection = () => {
+      image.querySelectorAll(`${relationshipSelector}.is-selected`).forEach(relationship => {
+        relationship.classList.remove("is-selected");
+        relationship.removeAttribute("aria-current");
+        relationship.setAttribute("aria-pressed", "false");
+      });
+    };
+    const selectReadonlyRelationship = relationship => {
+      if (!relationship || !image.contains(relationship)) return;
+      clearReadonlyRelationshipSelection();
+      relationship.classList.add("is-selected");
+      relationship.setAttribute("aria-current", "true");
+      relationship.setAttribute("aria-pressed", "true");
+      relationship.focus?.({ preventScroll: true });
+    };
+
     viewport.addEventListener("click", event => {
+      const relationship = event.target.closest?.(relationshipSelector);
+      if (relationship && image.contains(relationship)) {
+        event.preventDefault();
+        event.stopPropagation();
+        selectReadonlyRelationship(relationship);
+        return;
+      }
       const control = event.target.closest?.("[data-annotation-entity-header-action]");
-      if (!control) return;
+      if (!control) {
+        if (event.target === image || event.target === stage || event.target === viewport) {
+          clearReadonlyRelationshipSelection();
+        }
+        return;
+      }
       event.preventDefault();
       event.stopPropagation();
       activateEntityHeaderControl(control);
@@ -1431,6 +1612,13 @@ export function createDiagramFeature({
         activateEntityHeaderControl(control);
         return;
       }
+      const relationship = event.target.closest?.(relationshipSelector);
+      if (relationship && (event.key === "Enter" || event.key === " ")) {
+        event.preventDefault();
+        selectReadonlyRelationship(relationship);
+        return;
+      }
+      if (event.key === "Escape") clearReadonlyRelationshipSelection();
       if (event.key === "+" || event.key === "=") scheduleZoom(previewZoom + 0.05);
       if (event.key === "-") scheduleZoom(previewZoom - 0.05);
       if (event.key === "0") fit();
@@ -1438,6 +1626,7 @@ export function createDiagramFeature({
 
     viewport.addEventListener("pointerdown", event => {
       if (event.target.closest?.("[data-annotation-entity-header-action]")) return;
+      if (event.target.closest?.(relationshipSelector)) return;
       if (event.button !== 0 && event.button !== 1) return;
       settleZoomAtCurrentDisplay();
       event.preventDefault();
@@ -1469,6 +1658,8 @@ export function createDiagramFeature({
     creating = false;
     diagramTreeContextMenuController?.abort();
     diagramTreeContextMenuController = null;
+    diagramReadonlyContextMenuController?.abort();
+    diagramReadonlyContextMenuController = null;
     cancelEmbeddedEditor();
   }
 
@@ -1482,6 +1673,7 @@ export function createDiagramFeature({
   return {
     deactivate,
     handleAction,
+    handleFilterChange,
     render: renderDiagram,
     view(id) {
       const requestedId = Number(id || 0);
@@ -1679,7 +1871,7 @@ function diagramReadonlyImageHtml(sourceInput, title) {
     return `<img src="${escapeAttr(appUrl(source))}" alt="${escapeAttr(title)} preview" data-diagram-image draggable="false">`;
   }
 
-  return buildAnnotationSvg(state, { interactiveEntityHeaders: true })
+  return buildAnnotationSvg(state, { interactiveEntityHeaders: true, interactiveRelationships: true })
     .replace(/^<\?xml[^>]*>\s*/i, "")
     .replace("<svg ", `<svg class="diagram-readonly-svg" data-diagram-image `)
     .replace('aria-label="Annotated image"', `aria-label="${escapeAttr(title)} preview"`);
@@ -1754,6 +1946,31 @@ function diagramLockIconHtml() {
       <path d="M12 14v3"></path>
     </svg>
   `;
+}
+
+function annotationSvgClipboardMetrics(svg, stateInput) {
+  const viewBox = String(svg || "").match(/\bviewBox=["']\s*[-+\d.e]+\s+[-+\d.e]+\s+([-+\d.e]+)\s+([-+\d.e]+)\s*["']/i);
+  return {
+    width: Math.max(1, Number(viewBox?.[1]) || Number(stateInput?.width) || blankDiagramWidth),
+    height: Math.max(1, Number(viewBox?.[2]) || Number(stateInput?.height) || blankDiagramHeight)
+  };
+}
+
+function downloadTextFile(contents, fileName, type) {
+  const url = URL.createObjectURL(new Blob([contents], { type }));
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = fileName;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
+function availableDiagramTitle(title, documents) {
+  const requested = String(title || "Imported Diagram").trim() || "Imported Diagram";
+  const exists = (documents || []).some(document => String(document?.title || "").trim().toLocaleLowerCase() === requested.toLocaleLowerCase());
+  return exists ? nextAvailableDiagramCopyTitle(requested, documents) : requested;
 }
 
 function diagramDownloadIconHtml() {

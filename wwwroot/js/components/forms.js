@@ -82,6 +82,14 @@ export function richTextField(name, label, html, options = {}) {
 }
 
 export function richTextToolsHtml(options = {}) {
+  const linkedDiagramDisabledReason = String(options.linkedDiagramDisabledReason || "").trim();
+  const linkedDiagramDisabled = options.disableLinkedDiagram === true || Boolean(linkedDiagramDisabledReason);
+  const linkedDiagramTitle = linkedDiagramDisabled
+    ? linkedDiagramDisabledReason || "Insert Linked Diagram is not available here."
+    : "Insert Linked Diagram";
+  const linkedDiagramDisabledAttributes = linkedDiagramDisabled
+    ? ` disabled aria-disabled="true" data-command-disabled-reason="${escapeAttr(linkedDiagramTitle)}"`
+    : "";
   return `
     <div class="rich-tools">
       <div class="rich-tools-row">
@@ -140,6 +148,7 @@ export function richTextToolsHtml(options = {}) {
             <path d="M8.5 10.5l5 5"></path>
           </svg>
         </button>
+        <button type="button" data-command="insertCodeBlock" title="Code Block" aria-label="Code Block" class="rich-code-tool">&lt;/&gt;</button>
       </div>
       <div class="rich-tools-row">
         <button type="button" data-command="bold" title="Bold"><b>B</b></button>
@@ -224,7 +233,7 @@ export function richTextToolsHtml(options = {}) {
             <path d="M11 9h4v4"></path>
           </svg>
         </button>
-        <button type="button" data-command="insertLinkedDiagram" title="Insert Linked Diagram" aria-label="Insert Linked Diagram" class="rich-linked-diagram-insert-tool">
+        <button type="button" data-command="insertLinkedDiagram" title="${escapeAttr(linkedDiagramTitle)}" aria-label="${escapeAttr(linkedDiagramTitle)}" class="rich-linked-diagram-insert-tool"${linkedDiagramDisabledAttributes}>
           <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
             <rect x="3" y="5" width="14" height="12" rx="2"></rect>
             <path d="M7 9h4"></path>
@@ -238,7 +247,7 @@ export function richTextToolsHtml(options = {}) {
             <path d="M4 12h16"></path>
           </svg>
         </button>
-        <button type="button" data-command="insertCodeBlock" title="Code Block" aria-label="Code Block" class="rich-code-tool">&lt;/&gt;</button>
+        <button type="button" data-command="insertCollapsible" title="Expand/Collapse Section" aria-label="Expand/Collapse Section" class="rich-collapsible-tool">&#9656;</button>
         ${options.actionsHtml || ""}
       </div>
       <div class="rich-tools-row rich-table-tools" data-rich-table-tools hidden>

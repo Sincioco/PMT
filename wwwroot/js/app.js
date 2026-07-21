@@ -3,15 +3,15 @@ import { currentUserId } from "./core/authentication.js?v=20260715-admin-imperso
 import { avatarsHtml, taskRowAvatarsHtml } from "./components/avatars.js?v=20260710-nav-avatar-fit";
 import { bindAttachmentDeletion } from "./components/attachments.js?v=20260714-attachment-delete";
 import { buttonContent } from "./components/buttons.js?v=20260715-admin-impersonation";
-import { copyTextToClipboard } from "./components/clipboard.js?v=20260714-invite-email-body";
+import { copyHtmlToClipboard, copyTextToClipboard } from "./components/clipboard.js?v=20260714-invite-email-body";
 import {
   openImageAnnotationDialog
-} from "./components/image-annotation.js?v=20260720-compact-margin-corridor-v1";
-import { createWhatsNew } from "./components/whats-new.js?v=release-notes-2026-07-21-day-34-0f94a61106d8";
+} from "./components/image-annotation.js?v=20260721-diagram-rich-text-v3";
+import { createWhatsNew } from "./components/whats-new.js?v=release-notes-2026-07-21-day-34-e1bf39ab2b17";
 import {
   htmlWithoutUserMentionMarkup,
   initializeUserMentions
-} from "./components/user-mentions.js?v=20260716-user-mentions";
+} from "./components/user-mentions.js?v=20260721-rte-code-log-v1";
 import {
   askForText,
   askYesNo,
@@ -26,7 +26,7 @@ import {
 import {
   field,
   value
-} from "./components/forms.js?v=20260721-diagram-ole-v1";
+} from "./components/forms.js?v=20260721-rte-code-log-v1";
 import { configureProgressAndStatus } from "./components/progress-and-status.js?v=20260714-linked-bug-percent";
 import {
   bindAttachmentPreview,
@@ -62,24 +62,24 @@ import {
 } from "./features/about/about.js?v=20260721-about-pong-polish-v4";
 import { createBacklogFeature } from "./features/backlog/backlog.js?v=20260720-work-item-export-images-v4";
 import { createBoardFeature } from "./features/board/board.js?v=20260720-work-item-export-images-v4";
-import { createBugsFeature } from "./features/bugs/bugs.js?v=20260720-work-item-export-images-v4";
-import { createDashboardFeature } from "./features/dashboard/dashboard.js?v=release-notes-2026-07-21-day-34-0f94a61106d8";
-import { createDiagramFeature } from "./features/diagram/diagram.js?v=20260720-compact-margin-corridor-v1";
-import { createDocumentationFeature } from "./features/documentation/documentation.js?v=20260721-diagram-ole-v1";
+import { createBugsFeature } from "./features/bugs/bugs.js?v=20260721-rte-code-log-v1";
+import { createDashboardFeature } from "./features/dashboard/dashboard.js?v=release-notes-2026-07-21-day-34-e1bf39ab2b17";
+import { createDiagramFeature } from "./features/diagram/diagram.js?v=20260721-diagram-rich-text-v3";
+import { createDocumentationFeature } from "./features/documentation/documentation.js?v=20260721-diagram-rich-text-v3";
 import {
   createGanttFeature,
   currentSprintForProject,
   ganttStartDate
-} from "./features/gantt/gantt.js?v=release-notes-2026-07-21-day-34-0f94a61106d8";
+} from "./features/gantt/gantt.js?v=release-notes-2026-07-21-day-34-e1bf39ab2b17";
 import { createInvitationsFeature } from "./features/invitations/invitations.js?v=20260719-day32-rte-diagram";
 import { createProjectsFeature } from "./features/projects/projects.js?v=20260719-day32-rte-diagram";
-import { createReleaseNotesFeature } from "./features/release-notes/release-notes.js?v=release-notes-2026-07-21-day-34-0f94a61106d8";
-import { createRoadMapFeature } from "./features/roadmap/roadmap.js?v=release-notes-2026-07-21-day-34-0f94a61106d8";
-import { createLogFeature } from "./features/personal-log/log.js?v=20260720-work-item-export-images-v4";
-import { createScrumFeature } from "./features/scrum/scrum.js?v=20260720-work-item-export-images-v4";
+import { createReleaseNotesFeature } from "./features/release-notes/release-notes.js?v=release-notes-2026-07-21-day-34-e1bf39ab2b17";
+import { createRoadMapFeature } from "./features/roadmap/roadmap.js?v=release-notes-2026-07-21-day-34-e1bf39ab2b17";
+import { createLogFeature } from "./features/personal-log/log.js?v=20260721-rte-code-log-v1";
+import { createScrumFeature } from "./features/scrum/scrum.js?v=20260721-rte-code-log-v1";
 import { createSettingsFeature } from "./features/settings/settings.js?v=20260720-clear-preferences-logout-v1";
 import { createSprintsFeature } from "./features/sprints/sprints.js?v=20260719-day32-rte-diagram";
-import { createTasksFeature } from "./features/tasks/tasks.js?v=20260720-work-item-export-images-v4";
+import { createTasksFeature } from "./features/tasks/tasks.js?v=20260721-rte-code-log-v1";
 import { createWfhScheduleFeature } from "./features/wfh-schedule/wfh-schedule.js?v=20260720-work-item-export-images-v4";
 import {
   fallbackEnvironments,
@@ -113,7 +113,7 @@ import {
   linkifyTextNodes,
   normalizeLinksInElement,
   normalizeUrl
-} from "./shared/text-and-links.js?v=20260721-diagram-ole-v1";
+} from "./shared/text-and-links.js?v=20260721-rte-code-log-v1";
 import {
   configureWorkItemRules,
   isBugQaPassedOrLater,
@@ -448,6 +448,7 @@ const diagramFeature = createDiagramFeature({
   app,
   askForColor: current => askForText("HEX (#126BFF) or RGB (18, 107, 255)", "Custom Color", current),
   askForText,
+  bindRichTextButtons,
   confirm: askYesNo,
   notify: showToast,
   loadTemplateLibrary: () => api("/api/image-annotation/template-library", { cache: "no-store" }),
@@ -543,6 +544,7 @@ async function loadState() {
 function render() {
   shell.render();
   bindRichCodeBlocks(document.body);
+  bindRichCollapsibleBlocks(document.body);
 }
 
 function handlePageActionsOutsidePointer(event) {
@@ -708,6 +710,7 @@ function renderCurrentScreen() {
   applyActionPermissions(app, currentView);
   linkifyTextNodes(app);
   normalizeLinksInElement(app);
+  hydrateRichDiagramOleBlocks(app);
   openCurrentRouteContent();
 }
 
@@ -722,6 +725,7 @@ async function handleActionClick(event) {
   if (event.target.closest("[data-drag-handle]")) return;
   if (event.target.closest("a")) return;
   if (event.target.closest(".rich-readonly .rich-check-item, .log-content .rich-check-item, .scrum-content .rich-check-item")) return;
+  if (event.target.closest(".rich-code-block, .rich-collapsible-block, .pmt-diagram-ole")) return;
 
   const button = event.target.closest("[data-action]");
   if (!button) return;
@@ -2033,6 +2037,7 @@ function showReadOnlyDialog(title, html) {
   modal.showModal();
   normalizeLinksInElement(modal);
   bindRichCodeBlocks(modal);
+  hydrateRichDiagramOleBlocks(modal);
 }
 
 async function annotateRichTextImage(image) {
@@ -2052,6 +2057,7 @@ async function annotateRichTextImage(image) {
       originalFileName: image.getAttribute("alt") || originalReference.split("/").pop() || "image",
       askForColor: current => askForText("HEX (#126BFF) or RGB (18, 107, 255)", "Custom Color", current),
       askForText,
+      bindRichTextButtons,
       confirm: askYesNo,
       notify: showToast,
       uploadEmbeddedImage: uploadRichTextCanvasImage,
@@ -2344,6 +2350,16 @@ function bindRichTextButtons(root) {
         restoreEditorSelection(savedSelection);
         insertRichHtmlAtSelection(editor, richCodeBlockHtml(codeBlock));
         bindRichCodeBlocks(editor);
+        return;
+      }
+
+      if (command === "insertCollapsible") {
+        const title = await askForText("Section title", "Expand/Collapse Section", "Details");
+        if (!title) return;
+        editor.focus();
+        restoreEditorSelection(savedSelection);
+        insertRichHtmlAtSelection(editor, richCollapsibleBlockHtml(title, editorSelectionHtml(savedSelection)));
+        hydrateRichDiagramOleBlocks(editor);
         return;
       }
 
@@ -2666,9 +2682,36 @@ function bindRichTextButtons(root) {
   });
 
   bindRichCodeBlocks(root);
+  bindRichCollapsibleBlocks(root);
   hydrateRichDiagramOleBlocks(root);
   bindRichCheckboxes(root);
   bindGlobalRichCheckboxSync();
+}
+
+function bindRichCollapsibleBlocks(root) {
+  const blocks = [];
+  if (root?.matches?.(".rich-collapsible-block")) blocks.push(root);
+  root?.querySelectorAll?.(".rich-collapsible-block").forEach(block => blocks.push(block));
+  blocks.forEach(block => {
+    if (block.dataset.richCollapsibleBound === "true") return;
+    block.dataset.richCollapsibleBound = "true";
+    block.addEventListener("toggle", () => {
+      if (!block.open) return;
+      refreshRichDiagramOleBlocks(block);
+    });
+  });
+}
+
+function refreshRichDiagramOleBlocks(root) {
+  const blocks = [];
+  if (root?.matches?.("[data-pmt-ole='diagram']")) blocks.push(root);
+  root?.querySelectorAll?.("[data-pmt-ole='diagram']").forEach(block => blocks.push(block));
+  blocks.forEach(block => {
+    delete block.dataset.diagramOleHydratedKey;
+    delete block.dataset.diagramOleViewerBound;
+    hydrateRichDiagramOleBlock(block);
+  });
+  requestAnimationFrame(() => blocks.forEach(block => hydrateRichDiagramOleBlock(block)));
 }
 
 function bindRichCodeBlocks(root) {
@@ -2681,7 +2724,9 @@ function bindRichCodeBlocks(root) {
   if (!root.dataset || root.dataset.richCodeBlocksBound === "true") return;
 
   root.dataset.richCodeBlocksBound = "true";
-  root.addEventListener("click", handleRichCodeBlockAction);
+  root.addEventListener("pointerdown", handleRichCodeBlockActionPointerDown, true);
+  root.addEventListener("mousedown", handleRichCodeBlockActionPointerDown, true);
+  root.addEventListener("click", handleRichCodeBlockAction, true);
 }
 
 function bindGlobalRichCodeBlockActions() {
@@ -2700,6 +2745,15 @@ function bindGlobalRichCodeBlockActions() {
   decorate();
 }
 
+function handleRichCodeBlockActionPointerDown(event) {
+  const button = event.target.closest?.("[data-rich-code-action]");
+  if (!button) return;
+
+  event.preventDefault();
+  event.stopPropagation();
+  event.stopImmediatePropagation?.();
+}
+
 async function handleRichCodeBlockAction(event) {
   const button = event.target.closest?.("[data-rich-code-action]");
   if (!button) return;
@@ -2709,13 +2763,14 @@ async function handleRichCodeBlockAction(event) {
 
   event.preventDefault();
   event.stopPropagation();
+  event.stopImmediatePropagation?.();
 
   const action = button.dataset.richCodeAction || "";
   const editor = block.closest(".rich-editor");
   const data = richCodeBlockData(block);
 
   if (action === "copy") {
-    const copied = await copyTextToClipboard(data.code, button);
+    const copied = await copyHtmlToClipboard(richCodeClipboardHtml(block), data.code, button);
     showToast(copied ? "Code block copied." : "The code block could not be copied.");
     return;
   }
@@ -2726,6 +2781,7 @@ async function handleRichCodeBlockAction(event) {
     const updated = await askForCodeBlock(data.code, {
       caption: data.caption,
       language: data.language,
+      readOnlyOpen: data.readOnlyOpen,
       actionLabel: "Save"
     });
     if (!updated) return;
@@ -2742,10 +2798,44 @@ async function handleRichCodeBlockAction(event) {
   }
 
   if (action === "delete") {
-    const markerId = `richCodeFocus${Date.now()}${Math.floor(Math.random() * 100000)}`;
-    replaceRichNodeWithHtml(editor, block, `<p><span data-rich-code-focus="${escapeAttr(markerId)}"></span><br></p>`);
-    focusRichCodeMarker(editor, markerId);
+    deleteRichCodeBlock(editor, block);
+    return;
   }
+}
+
+function deleteRichCodeBlock(editor, block) {
+  if (!editor?.contains(block) || !block?.isConnected) return;
+
+  const blankLine = richBlankParagraphSibling(block.nextElementSibling) || document.createElement("p");
+  if (!blankLine.isConnected) blankLine.innerHTML = "<br>";
+
+  if (blankLine.parentElement === block.parentElement) {
+    block.remove();
+  } else {
+    block.replaceWith(blankLine);
+  }
+
+  placeCaretInRichBlock(editor, blankLine);
+  editor.dispatchEvent(new Event("input", { bubbles: true }));
+}
+
+function richBlankParagraphSibling(node) {
+  if (!(node instanceof HTMLParagraphElement)) return null;
+
+  const clone = node.cloneNode(true);
+  clone.querySelectorAll("br").forEach(child => child.remove());
+  const html = clone.innerHTML.replace(/&nbsp;/gi, "").replace(/\s+/g, "");
+  return html ? null : node;
+}
+
+function placeCaretInRichBlock(editor, block) {
+  const range = document.createRange();
+  range.selectNodeContents(block || editor);
+  range.collapse(false);
+  const selection = window.getSelection();
+  selection?.removeAllRanges();
+  selection?.addRange(range);
+  editor.focus({ preventScroll: true });
 }
 
 function ensureRichCodeBlockActions(block) {
@@ -2753,6 +2843,7 @@ function ensureRichCodeBlockActions(block) {
   if (!summary) return;
 
   const editable = Boolean(block.closest(".rich-editor"));
+  applyRichCodeBlockReadonlyInitialState(block, editable);
   const existingActions = summary.querySelector(":scope > .rich-code-actions");
   if (existingActions?.dataset.richCodeEditable === String(editable)) return;
   existingActions?.remove();
@@ -2777,6 +2868,13 @@ function ensureRichCodeBlockActions(block) {
   summary.appendChild(actions);
 }
 
+function applyRichCodeBlockReadonlyInitialState(block, editable) {
+  if (editable || block.dataset.richCodeReadonlyInitialApplied === "true") return;
+
+  block.open = block.dataset.codeReadonlyOpen === "true";
+  block.dataset.richCodeReadonlyInitialApplied = "true";
+}
+
 function richCodeBlockData(block) {
   const summary = block.querySelector(":scope > summary");
   const summaryCopy = summary?.cloneNode(true);
@@ -2786,7 +2884,8 @@ function richCodeBlockData(block) {
   return {
     caption: summaryCopy?.textContent?.trim() || "Code",
     code: code?.textContent || "",
-    language: code?.getAttribute("data-code-language") || ""
+    language: code?.getAttribute("data-code-language") || "",
+    readOnlyOpen: block.dataset.codeReadonlyOpen === "true"
   };
 }
 
@@ -3063,6 +3162,7 @@ async function persistRichReadonlyCheckboxContainer(container) {
     if (previousHtml !== null) {
       container.innerHTML = previousHtml;
       bindRichCheckboxes(container);
+      hydrateRichDiagramOleBlocks(container);
     }
     showToast(error.message || "Checkbox could not be saved.");
   }
@@ -3125,6 +3225,7 @@ function syncMatchingRichReadonlyContainers(sourceContainer, bodyHtml) {
 
     container.innerHTML = bodyHtml;
     bindRichCheckboxes(container);
+    hydrateRichDiagramOleBlocks(container);
   });
 }
 
@@ -4118,6 +4219,7 @@ function askForCodeBlock(initialCode = "", options = {}) {
     const title = options.title || "Code Block";
     const actionLabel = options.actionLabel || "Insert";
     const caption = options.caption ?? "Code";
+    const readOnlyOpen = options.readOnlyOpen === true;
     modal.innerHTML = `
       <form method="dialog">
         <div class="dialog-head">
@@ -4132,12 +4234,17 @@ function askForCodeBlock(initialCode = "", options = {}) {
             <label>Code</label>
             <select name="codeLanguage" data-rich-code-language>${codeLanguageOptions}</select>
           </div>
+          <label class="rich-code-readonly-open-option">
+            <input type="checkbox" name="codeReadOnlyOpen"${readOnlyOpen ? " checked" : ""}>
+            <span>Initially expanded in read-only mode</span>
+          </label>
           <div class="field full">
             <label>Content</label>
             <textarea name="codeText" rows="12" spellcheck="false">${escapeHtml(initialCode)}</textarea>
           </div>
         </div>
         <div class="dialog-actions">
+          <button type="button" class="secondary text-icon-button" data-rich-code-preview>${buttonContent("&#128065;", "Color Code Preview")}</button>
           <button type="button" class="secondary text-icon-button" data-result="cancel">${buttonContent("&#10005;", "Cancel")}</button>
           <button type="submit" class="primary text-icon-button">${buttonContent("&#10003;", actionLabel)}</button>
         </div>
@@ -4145,6 +4252,7 @@ function askForCodeBlock(initialCode = "", options = {}) {
     `;
 
     document.body.appendChild(modal);
+    initializeWindowedDialog(modal, { showResetButton: false });
     const codeTextarea = modal.querySelector("[name='codeText']");
     const codeLanguage = modal.querySelector("[data-rich-code-language]");
 
@@ -4184,6 +4292,13 @@ function askForCodeBlock(initialCode = "", options = {}) {
     };
 
     modal.querySelector("[data-result='cancel']").addEventListener("click", () => finish(null));
+    modal.querySelector("[data-rich-code-preview]")?.addEventListener("click", () => {
+      openRichCodePreviewDialog({
+        code: normalizeRichCodeIndentation(codeTextarea?.value || ""),
+        language: codeLanguage?.value || "",
+        title: modal.querySelector("[name='codeCaption']")?.value || "Code"
+      });
+    });
     codeLanguage?.addEventListener("change", () => {
       delete codeTextarea.dataset.richCodeError;
       formatCodeIfNeeded();
@@ -4193,8 +4308,9 @@ function askForCodeBlock(initialCode = "", options = {}) {
       event.preventDefault();
       finish({
         caption: modal.querySelector("[name='codeCaption']").value,
-        code: codeTextarea?.value || "",
-        language: codeLanguage?.value || ""
+        code: normalizeRichCodeIndentation(codeTextarea?.value || ""),
+        language: codeLanguage?.value || "",
+        readOnlyOpen: modal.querySelector("[name='codeReadOnlyOpen']")?.checked === true
       });
     });
     modal.addEventListener("cancel", event => {
@@ -4206,6 +4322,70 @@ function askForCodeBlock(initialCode = "", options = {}) {
     formatCodeIfNeeded();
     setTimeout(() => modal.querySelector("[name='codeText']").focus(), 0);
   });
+}
+
+function openRichCodePreviewDialog({ code = "", language = "", title = "Code" } = {}) {
+  const normalizedLanguage = RICH_SOURCE_TEXT_TYPES.some(option => option.value === language)
+    ? language
+    : "";
+  const result = prepareRichSourceHighlight(code, normalizedLanguage);
+  const codeHtml = (result.highlighted ? result.html : escapeHtml(code)) || "<br>";
+  const modal = document.createElement("dialog");
+  modal.className = "dialog rich-code-preview-dialog";
+  modal.innerHTML = `
+    <form method="dialog">
+      <div class="dialog-head">
+        <h2>Color Code Preview: ${escapeHtml(String(title || "Code").trim() || "Code")}</h2>
+        <button type="button" class="icon-btn" data-close-rich-code-preview title="Close" aria-label="Close">x</button>
+      </div>
+      <div class="dialog-body">
+        ${result.error ? `<p class="field-note">${escapeHtml(result.error)}</p>` : ""}
+        <pre class="rich-code-preview"><code>${codeHtml}</code></pre>
+      </div>
+      <div class="dialog-actions">
+        <button type="button" class="secondary text-icon-button" data-close-rich-code-preview>${buttonContent("&#10005;", "Close")}</button>
+      </div>
+    </form>
+  `;
+  document.body.appendChild(modal);
+  initializeWindowedDialog(modal, { showResetButton: false });
+  modal.querySelectorAll("[data-close-rich-code-preview]").forEach(button => {
+    button.addEventListener("click", () => modal.close());
+  });
+  modal.addEventListener("cancel", event => {
+    event.preventDefault();
+    modal.close();
+  });
+  modal.addEventListener("close", () => modal.remove());
+  modal.showModal();
+}
+
+function normalizeRichCodeIndentation(code) {
+  const normalized = String(code || "").replace(/\r\n?/g, "\n");
+  const lines = normalized.split("\n");
+  const contentLines = lines.filter(line => /\S/.test(line));
+  if (!contentLines.length) return normalized;
+
+  let commonIndent = contentLines[0].match(/^[\t ]+/)?.[0] || "";
+  if (!commonIndent) return normalized;
+
+  for (const line of contentLines.slice(1)) {
+    while (commonIndent && !line.startsWith(commonIndent)) {
+      commonIndent = commonIndent.slice(0, -1);
+    }
+    if (!commonIndent) return normalized;
+  }
+
+  return lines
+    .map(line => line.startsWith(commonIndent) ? line.slice(commonIndent.length) : line)
+    .join("\n");
+}
+
+function editorSelectionHtml(range) {
+  if (!range || range.collapsed) return "";
+  const container = document.createElement("div");
+  container.appendChild(range.cloneContents());
+  return container.innerHTML;
 }
 
 function askRichSvgFile() {
@@ -4349,6 +4529,7 @@ async function insertRichTextDiagram(editor, savedSelection) {
       initialSelection: "none",
       askForColor: current => askForText("HEX (#126BFF) or RGB (18, 107, 255)", "Custom Color", current),
       askForText,
+      bindRichTextButtons,
       confirm: askYesNo,
       notify: showToast,
       uploadEmbeddedImage: uploadRichTextCanvasImage,
@@ -4560,6 +4741,7 @@ function hydrateRichDiagramOleBlock(block) {
   block.style.height = `${height}px`;
 
   if (!diagram) {
+    delete block.dataset.diagramOleHydratedKey;
     block.innerHTML = `
       <figcaption class="pmt-diagram-ole-caption">Linked Diagram unavailable</figcaption>
       <div class="pmt-diagram-ole-placeholder">This linked Diagram could not be found or you do not have permission to view it.</div>
@@ -4568,6 +4750,16 @@ function hydrateRichDiagramOleBlock(block) {
   }
 
   const title = diagram.title || "Diagram";
+  const sourceUrl = diagramOleSourceUrl(diagram);
+  const hydratedKey = `${diagram.id}:${sourceUrl}:${width}:${height}`;
+  if (block.dataset.diagramOleHydratedKey === hydratedKey
+    && block.querySelector("[data-diagram-ole-viewport] img")) {
+    bindRichDiagramOleViewer(block, diagram);
+    bindRichDiagramOleResizePersistence(block);
+    return;
+  }
+  block.dataset.diagramOleHydratedKey = hydratedKey;
+  delete block.dataset.diagramOleViewerBound;
   block.innerHTML = `
     <figcaption class="pmt-diagram-ole-caption">
       <span>Linked Diagram: ${escapeHtml(title)}</span>
@@ -4579,7 +4771,7 @@ function hydrateRichDiagramOleBlock(block) {
     </figcaption>
     <div class="pmt-diagram-ole-viewport" data-diagram-ole-viewport tabindex="0" aria-label="${escapeAttr(`${title} linked Diagram viewer`)}">
       <div class="pmt-diagram-ole-surface" data-diagram-ole-surface>
-        <img src="${escapeAttr(diagramOleSourceUrl(diagram))}" alt="${escapeAttr(title)}" draggable="false">
+        <img src="${escapeAttr(sourceUrl)}" alt="${escapeAttr(title)}" draggable="false">
       </div>
     </div>
   `;
@@ -4592,6 +4784,8 @@ function bindRichDiagramOleViewer(block, diagram) {
   const viewport = block.querySelector("[data-diagram-ole-viewport]");
   const surface = block.querySelector("[data-diagram-ole-surface]");
   if (!viewport || !surface) return;
+  if (block.dataset.diagramOleViewerBound === "true") return;
+  block.dataset.diagramOleViewerBound = "true";
 
   const hasStoredView = hasRichDiagramOleViewport(block, diagram);
   let view = readRichDiagramOleViewport(block, diagram);
@@ -4600,8 +4794,9 @@ function bindRichDiagramOleViewer(block, diagram) {
     view.zoom = clampZoom(view.zoom);
     view.x = Math.round(Number(view.x || 0));
     view.y = Math.round(Number(view.y || 0));
+    const hasMeasuredDiagram = clampRichDiagramOleViewport(block, viewport, surface, view);
     surface.style.transform = `translate(${view.x}px, ${view.y}px) scale(${view.zoom})`;
-    writeRichDiagramOleViewport(block, diagram, view);
+    if (hasMeasuredDiagram) writeRichDiagramOleViewport(block, diagram, view);
   };
   const zoomBy = (factor, anchor = null) => {
     const previousZoom = clampZoom(view.zoom);
@@ -4622,15 +4817,11 @@ function bindRichDiagramOleViewer(block, diagram) {
   };
   const fitView = () => {
     const image = surface.querySelector("img");
-    const viewportWidth = Math.max(1, viewport.clientWidth || 0);
-    const viewportHeight = Math.max(1, viewport.clientHeight || 0);
+    const viewportWidth = Math.round(viewport.clientWidth || 0);
+    const viewportHeight = Math.round(viewport.clientHeight || 0);
     const imageWidth = Math.max(1, image?.naturalWidth || image?.clientWidth || 0);
     const imageHeight = Math.max(1, image?.naturalHeight || image?.clientHeight || 0);
-    if (!viewportWidth || !viewportHeight || !imageWidth || !imageHeight) {
-      view = { x: 0, y: 0, zoom: 1 };
-      render();
-      return;
-    }
+    if (!richDiagramOleViewportHasLayout(viewport) || !viewportWidth || !viewportHeight || !imageWidth || !imageHeight) return;
 
     const zoom = Math.min(1, viewportWidth / imageWidth, viewportHeight / imageHeight);
     view = {
@@ -4643,10 +4834,14 @@ function bindRichDiagramOleViewer(block, diagram) {
   block.querySelector("[data-diagram-ole-zoom-out]")?.addEventListener("click", () => zoomBy(0.85));
   block.querySelector("[data-diagram-ole-zoom-in]")?.addEventListener("click", () => zoomBy(1.15));
   block.querySelector("[data-diagram-ole-reset]")?.addEventListener("click", fitView);
+  ["pointerdown", "pointermove", "pointerup", "pointercancel", "click", "dblclick"].forEach(eventName => {
+    viewport.addEventListener(eventName, event => event.stopPropagation());
+  });
   viewport.addEventListener("click", event => {
     event.stopPropagation();
   });
   viewport.addEventListener("wheel", event => {
+    event.stopPropagation();
     if (!event.ctrlKey) return;
     event.preventDefault();
     const rect = viewport.getBoundingClientRect();
@@ -4686,11 +4881,40 @@ function bindRichDiagramOleViewer(block, diagram) {
 
   if (hasStoredView) {
     render();
+    const image = surface.querySelector("img");
+    if (image && !richDiagramOleImageHasSize(image)) image.addEventListener("load", render, { once: true });
   } else {
     const image = surface.querySelector("img");
     if (image?.complete) fitView();
     else image?.addEventListener("load", fitView, { once: true });
   }
+}
+
+function clampRichDiagramOleViewport(block, viewport, surface, view) {
+  const image = surface.querySelector("img");
+  const viewportWidth = Math.round(viewport.clientWidth || 0);
+  const viewportHeight = Math.round(viewport.clientHeight || 0);
+  const imageWidth = Math.max(0, image?.naturalWidth || image?.clientWidth || 0);
+  const imageHeight = Math.max(0, image?.naturalHeight || image?.clientHeight || 0);
+  if (!richDiagramOleViewportHasLayout(viewport) || !viewportWidth || !viewportHeight || !imageWidth || !imageHeight) return false;
+
+  const zoom = Math.min(5, Math.max(0.1, Number(view.zoom || 1)));
+  const scaledWidth = imageWidth * zoom;
+  const scaledHeight = imageHeight * zoom;
+  const visibleWidth = Math.max(1, Math.min(96, viewportWidth / 2, scaledWidth / 2));
+  const visibleHeight = Math.max(1, Math.min(96, viewportHeight / 2, scaledHeight / 2));
+  view.x = Math.round(clampNumber(Number(view.x || 0), visibleWidth - scaledWidth, viewportWidth - visibleWidth));
+  view.y = Math.round(clampNumber(Number(view.y || 0), visibleHeight - scaledHeight, viewportHeight - visibleHeight));
+  block.dataset.diagramOleViewClamped = "true";
+  return true;
+}
+
+function richDiagramOleImageHasSize(image) {
+  return Boolean(image && (image.naturalWidth || image.clientWidth) && (image.naturalHeight || image.clientHeight));
+}
+
+function richDiagramOleViewportHasLayout(viewport) {
+  return Boolean(viewport?.isConnected && viewport.getClientRects().length && viewport.clientWidth && viewport.clientHeight);
 }
 
 function richDiagramOleStorageKey(block, diagram) {
@@ -4907,7 +5131,7 @@ function sanitizeRichSvgElement(svg) {
   });
 }
 
-function richCodeBlockHtml({ caption, code, language }) {
+function richCodeBlockHtml({ caption, code, language, readOnlyOpen = false }) {
   const summary = escapeHtml((caption || "Code").trim() || "Code");
   const normalizedLanguage = RICH_SOURCE_TEXT_TYPES.some(option => option.value === language)
     ? language
@@ -4917,7 +5141,31 @@ function richCodeBlockHtml({ caption, code, language }) {
   const languageAttribute = normalizedLanguage
     ? ` data-code-language="${escapeAttr(normalizedLanguage)}"`
     : "";
-  return `<details class="rich-code-block"><summary><span class="rich-code-caption">${summary}</span></summary><pre><code${languageAttribute}>${codeHtml}</code></pre></details><p><br></p>`;
+  const readOnlyOpenAttribute = readOnlyOpen ? ` data-code-readonly-open="true"` : "";
+  return `<details class="rich-code-block"${readOnlyOpenAttribute}><summary><span class="rich-code-caption">${summary}</span></summary><pre><code${languageAttribute}>${codeHtml}</code></pre></details><p><br></p>`;
+}
+
+function richCollapsibleBlockHtml(title, contents) {
+  return `<details class="rich-collapsible-block" open><summary>${escapeHtml(String(title || "Details").trim() || "Details")}</summary><div class="rich-collapsible-content">${contents || "<p><br></p>"}</div></details><p><br></p>`;
+}
+
+function richCodeClipboardHtml(block) {
+  const sourceCode = block.querySelector(":scope > pre > code");
+  if (!sourceCode) return `<pre><code>${escapeHtml(richCodeBlockData(block).code)}</code></pre>`;
+  const code = sourceCode.cloneNode(true);
+  const sources = [sourceCode, ...sourceCode.querySelectorAll("*")];
+  const targets = [code, ...code.querySelectorAll("*")];
+  sources.forEach((source, index) => {
+    const target = targets[index];
+    if (!target) return;
+    const style = getComputedStyle(source);
+    ["color", "background-color", "font-family", "font-size", "font-weight", "font-style", "text-decoration", "line-height", "white-space"]
+      .forEach(property => target.style.setProperty(property, style.getPropertyValue(property)));
+  });
+  const pre = document.createElement("pre");
+  pre.style.cssText = "margin:0;padding:12px;background:#0f172a;color:#e5e7eb;white-space:pre-wrap;font-family:Consolas,'Courier New',monospace;";
+  pre.appendChild(code);
+  return pre.outerHTML;
 }
 
 function insertRichHtmlAtSelection(editor, html) {

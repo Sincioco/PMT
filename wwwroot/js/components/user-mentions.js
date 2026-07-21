@@ -1,4 +1,8 @@
-import { escapeAttr, escapeHtml } from "../shared/text-and-links.js";
+import {
+  escapeAttr,
+  escapeHtml,
+  normalizeDiagramOleBlocksForStorage
+} from "../shared/text-and-links.js?v=20260721-rte-code-log-v1";
 
 const renderedMentionSelector = [
   ".rich-readonly",
@@ -56,6 +60,11 @@ export function htmlWithoutUserMentionMarkup(container) {
   clone.querySelectorAll?.(".user-mention[data-user-mention-id]").forEach(mention => {
     mention.replaceWith(mention.ownerDocument.createTextNode(mention.textContent || ""));
   });
+  clone.querySelectorAll?.(".rich-code-actions").forEach(node => node.remove());
+  clone.querySelectorAll?.(".rich-code-block[data-rich-code-readonly-initial-applied]").forEach(block => {
+    block.removeAttribute("data-rich-code-readonly-initial-applied");
+  });
+  normalizeDiagramOleBlocksForStorage(clone);
   return clone.innerHTML || "";
 }
 

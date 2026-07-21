@@ -1366,29 +1366,34 @@
   },
   {
     "day": 34,
-    "title": "Linked Diagram Embeds and Prompt Engineering Stats",
+    "title": "Diagram, RTE, and Documentation Usability",
     "sections": [
       {
-        "title": "Documentation Diagram-OLE",
+        "title": "Diagram Authoring and ERD Workflow",
         "items": [
-          "Embed an existing Diagram inside a Documentation rich-text document as a live database-backed reference instead of copying the SVG into the document.",
-          "Pick from readable Diagram records, save only the Diagram reference and viewer dimensions in the document body, and render the latest saved Diagram whenever the document is opened or refreshed.",
-          "Interact with the embedded viewer using pan, fit/reset, and cursor-centered zoom while preserving each user's last viewport locally."
+          "Add PMT Diagram export/import support so editable diagrams can move between PMT instances using a versioned PMT Diagram file format.",
+          "Improve Entity editing with better PK/FK/Important alignment, clickable Important headers, dropdown-based FK mapping, schema-aware template names, alphabetical field ordering, and manual connector nudging.",
+          "Teach Auto Format - Compact to honor the preferred compact ERD connector routing rules so related relationship lines share clean local lanes instead of fanning out into long perimeter routes.",
+          "Add a Rich Text Editor canvas object for tutorial-style Diagrams, letting users place formatted content and color-coded code directly on a Diagram.",
+          "Make relationship lines clickable in read-only Diagram viewers so users can select one connector at a time and visually trace complex ERDs."
         ]
       },
       {
-        "title": "Export and Safety",
+        "title": "Rich Text, Logs, Scrum, Dev Tasks, and Bugs",
         "items": [
-          "Resolve linked Diagram blocks into the current Diagram snapshot when exporting Documentation so exported files remain understandable outside PMT.",
-          "Show a safe placeholder when a linked Diagram is missing or inaccessible instead of leaving stale content behind."
+          "Add general RTE expand/collapse sections, compact code-block headers, default-collapsed code blocks with an override, rich color-aware code copying, code preview, indentation trimming, maximize support, and reliable code-block deletion.",
+          "Stabilize linked Diagram viewers embedded in Documentation and Scrum rich text so they stay hydrated after read-only rendering and interaction.",
+          "Fix Logs read-mode code-block clicks, update the default Logs heading to Personal Logs, correct the New Log dialog layout, and move the RTE code-block toolbar button after Clear Formatting.",
+          "Make Dev Task and Bug Tracking new/edit dialogs use the same full-screen experience, including auto full-screen for new records."
         ]
       },
       {
-        "title": "Release Notes Prompt Engineering",
+        "title": "Documentation, Navigation, and What's New",
         "items": [
-          "Reformat the Sin's AI Prompt Engineering subtitle into three readable lines that show the original prompt file, daily line and word counts, and running project totals.",
-          "Regenerate the Day 33 and Day 34 Release Notes and What's New entries from the current Requirements files so the latest prompt history and business summaries stay synchronized.",
-          "Refresh the What's New illustration for Day 34 with a generic people, technology, and teams visual."
+          "Make Documentation and Diagram TreeView toggles hide or show their left navigation panes without switching away from TreeView.",
+          "Show private Documentation items in the TreeView with the same lock icon style used by Diagram.",
+          "Refresh the Day 34 What's New artwork with a clean, corporate-safe people, technology, and teams illustration.",
+          "Regenerate the Day 34 Release Notes and What's New data from the current Requirements file so the latest prompt history and summaries stay synchronized."
         ]
       }
     ]
