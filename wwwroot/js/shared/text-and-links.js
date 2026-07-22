@@ -33,6 +33,7 @@ export function normalizeDiagramOleBlocksForStorage(root) {
     usedBlockIds.add(blockId);
     const activeTabId = String(block.getAttribute("data-active-tab-id") || "").trim();
     const activeTab = tabs.find(tab => tab.id === activeTabId) || tabs[0];
+    const header = diagramOleHeaderForStorage(block, activeTab, tabs);
     const width = Math.max(320, Math.round(Number(block.style.width?.replace("px", "") || block.getAttribute("data-view-width") || 900) || 900));
     const height = Math.max(220, Math.round(Number(block.style.height?.replace("px", "") || block.getAttribute("data-view-height") || 520) || 520));
     block.className = "pmt-diagram-ole";
@@ -42,6 +43,7 @@ export function normalizeDiagramOleBlocksForStorage(root) {
     block.setAttribute("data-block-id", blockId);
     block.setAttribute("data-active-tab-id", activeTab.id);
     block.setAttribute("data-tabs", JSON.stringify(tabs));
+    block.setAttribute("data-header", header);
     block.setAttribute("data-view-width", String(width));
     block.setAttribute("data-view-height", String(height));
     if (activeTab.view) {
@@ -61,8 +63,21 @@ export function normalizeDiagramOleBlocksForStorage(root) {
     block.removeAttribute("data-current-view-y");
     block.removeAttribute("data-current-view-zoom");
     block.setAttribute("style", `width: ${width}px; height: ${height}px;`);
-    block.innerHTML = `<figcaption>${tabs.length > 1 ? `${tabs.length} Linked Diagrams` : `Linked Diagram #${activeTab.diagramId}`}</figcaption>`;
+    block.innerHTML = `<figcaption>${escapeHtml(header)}</figcaption>`;
   });
+}
+
+function diagramOleHeaderForStorage(block, activeTab, tabs) {
+  const storedHeader = String(block.getAttribute("data-header") || "").trim();
+  if (storedHeader) return storedHeader;
+  const caption = block.querySelector("figcaption");
+  if (caption) {
+    const captionCopy = caption.cloneNode(true);
+    captionCopy.querySelectorAll("button, .pmt-diagram-ole-actions, .pmt-diagram-ole-tab-actions").forEach(node => node.remove());
+    const captionText = captionCopy.textContent.replace(/\s+/g, " ").trim();
+    if (captionText) return captionText;
+  }
+  return tabs.length > 1 ? `${tabs.length} Linked Diagrams` : `Linked Diagram #${activeTab.diagramId}`;
 }
 
 function createDiagramOleBlockId(usedBlockIds = new Set()) {

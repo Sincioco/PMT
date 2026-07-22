@@ -1429,7 +1429,9 @@
           "Split Reset and Fit controls so Reset returns to the saved initial viewport while Fit scales the whole Diagram as large as possible inside the viewer.",
           "Allow read-only Linked Diagram viewers to be resized with the native lower-right browser resize handle.",
           "Add optional pages/tabs inside one Linked Diagram viewer, including add, delete, rename, reorder, and per-tab initial viewport memory.",
-          "Add a Maximize control that expands a Linked Diagram viewer edge-to-edge across the browser viewport, above the PMT header, while keeping its tabs and viewport controls available."
+          "Add a Maximize control that expands a Linked Diagram viewer edge-to-edge across the browser viewport, above the PMT header, while keeping its tabs and viewport controls available.",
+          "Keep the selected Linked Diagram tab and maximized viewer state intact when Scrum auto-refresh redraws the entry.",
+          "Let editors rename the Linked Diagram viewer header separately from the individual tab/page names."
         ]
       },
       {

@@ -10,7 +10,7 @@ import {
   parseAnnotationSvg,
   openImageAnnotationDialog
 } from "./components/image-annotation.js?v=20260721-diagram-viewer-wheel-v1";
-import { createWhatsNew } from "./components/whats-new.js?v=release-notes-2026-07-22-day-35-ca15bff9d767";
+import { createWhatsNew } from "./components/whats-new.js?v=release-notes-2026-07-22-day-35-1a99b8bb4547";
 import {
   htmlWithoutUserMentionMarkup,
   initializeUserMentions
@@ -67,18 +67,18 @@ import {
 import { createBacklogFeature } from "./features/backlog/backlog.js?v=20260720-work-item-export-images-v4";
 import { createBoardFeature } from "./features/board/board.js?v=20260720-work-item-export-images-v4";
 import { createBugsFeature } from "./features/bugs/bugs.js?v=20260721-rte-code-log-v1";
-import { createDashboardFeature } from "./features/dashboard/dashboard.js?v=release-notes-2026-07-22-day-35-ca15bff9d767";
+import { createDashboardFeature } from "./features/dashboard/dashboard.js?v=release-notes-2026-07-22-day-35-1a99b8bb4547";
 import { createDiagramFeature } from "./features/diagram/diagram.js?v=20260721-rte-diagram-menu-v1";
 import { createDocumentationFeature } from "./features/documentation/documentation.js?v=20260721-diagram-rich-text-v3";
 import {
   createGanttFeature,
   currentSprintForProject,
   ganttStartDate
-} from "./features/gantt/gantt.js?v=release-notes-2026-07-22-day-35-ca15bff9d767";
+} from "./features/gantt/gantt.js?v=release-notes-2026-07-22-day-35-1a99b8bb4547";
 import { createInvitationsFeature } from "./features/invitations/invitations.js?v=20260722-auth-flyby-v1";
 import { createProjectsFeature } from "./features/projects/projects.js?v=20260719-day32-rte-diagram";
-import { createReleaseNotesFeature } from "./features/release-notes/release-notes.js?v=release-notes-2026-07-22-day-35-ca15bff9d767";
-import { createRoadMapFeature } from "./features/roadmap/roadmap.js?v=release-notes-2026-07-22-day-35-ca15bff9d767";
+import { createReleaseNotesFeature } from "./features/release-notes/release-notes.js?v=release-notes-2026-07-22-day-35-1a99b8bb4547";
+import { createRoadMapFeature } from "./features/roadmap/roadmap.js?v=release-notes-2026-07-22-day-35-1a99b8bb4547";
 import { createLogFeature } from "./features/personal-log/log.js?v=20260721-rte-code-log-v1";
 import { createScrumFeature } from "./features/scrum/scrum.js?v=20260722-ole-viewport-v1";
 import { createSettingsFeature } from "./features/settings/settings.js?v=20260720-clear-preferences-logout-v1";
@@ -4614,14 +4614,15 @@ async function insertRichLinkedDiagram(editor, savedSelection) {
 
 function richLinkedDiagramHtml(diagram) {
   const blockId = createRichDiagramOleBlockId();
+  const header = `Linked Diagram: ${diagram.title || "Diagram"}`;
   const tab = {
     id: createRichDiagramOleTabId(),
     diagramId: Number(diagram.id),
     title: diagram.title || "Diagram"
   };
   return `
-    <figure class="pmt-diagram-ole" contenteditable="false" data-pmt-ole="diagram" data-diagram-id="${escapeAttr(diagram.id)}" data-block-id="${escapeAttr(blockId)}" data-active-tab-id="${escapeAttr(tab.id)}" data-tabs="${escapeAttr(JSON.stringify([tab]))}" data-view-width="900" data-view-height="520" style="width: 900px; height: 520px;">
-      <figcaption>Linked Diagram: ${escapeHtml(diagram.title || "Diagram")}</figcaption>
+    <figure class="pmt-diagram-ole" contenteditable="false" data-pmt-ole="diagram" data-diagram-id="${escapeAttr(diagram.id)}" data-block-id="${escapeAttr(blockId)}" data-active-tab-id="${escapeAttr(tab.id)}" data-tabs="${escapeAttr(JSON.stringify([tab]))}" data-header="${escapeAttr(header)}" data-view-width="900" data-view-height="520" style="width: 900px; height: 520px;">
+      <figcaption>${escapeHtml(header)}</figcaption>
     </figure>
     <p><br></p>
   `;
@@ -4861,6 +4862,7 @@ function hydrateRichDiagramOleBlocks(root = document) {
   root?.querySelectorAll?.("[data-pmt-ole='diagram']").forEach(block => blocks.push(block));
   ensureRichDiagramOleBlockIds(blocks);
   blocks.forEach(hydrateRichDiagramOleBlock);
+  syncRichDiagramOleMaximizedBodyClass();
 }
 
 function ensureRichDiagramOleBlockIds(blocks) {
@@ -4913,6 +4915,8 @@ function hydrateRichDiagramOleBlock(block) {
   }
 
   if (!activeTab) {
+    block.classList.remove("is-maximized");
+    syncRichDiagramOleMaximizedBodyClass();
     delete block.dataset.diagramOleHydratedKey;
     block.innerHTML = `
       <figcaption class="pmt-diagram-ole-caption">Linked Diagram unavailable</figcaption>
@@ -4923,10 +4927,14 @@ function hydrateRichDiagramOleBlock(block) {
 
   const diagram = richDiagramOleDiagramForTab(activeTab);
   const title = activeTab.title || diagram?.title || "Diagram";
+  const header = richDiagramOleHeader(block, activeTab, diagram);
   const sourceUrl = diagram ? diagramOleSourceUrl(diagram) : "";
   const hydratedKey = `${block.dataset.activeTabId || activeTab.id}:${richDiagramOleTabsSignature(tabs)}:${richDiagramOleSourceSignature(tabs)}:${width}:${height}:${editable ? "edit" : "read"}`;
+  block.dataset.header = header;
   if (block.dataset.diagramOleHydratedKey === hydratedKey
     && block.querySelector("[data-diagram-ole-viewport]")) {
+    const headerNode = block.querySelector("[data-diagram-ole-header]");
+    if (headerNode) headerNode.textContent = header;
     if (diagram) refreshRichDiagramOleViewerSource(block, diagram, sourceUrl, activeTab);
     bindRichDiagramOleViewer(block, diagram, activeTab, tabs);
     bindRichDiagramOleResizePersistence(block, diagram, activeTab);
@@ -4937,13 +4945,14 @@ function hydrateRichDiagramOleBlock(block) {
   delete block.dataset.diagramOleResizeBound;
   block.innerHTML = `
     <figcaption class="pmt-diagram-ole-caption">
-      <span>Linked Diagram: <span data-diagram-ole-active-title>${escapeHtml(title)}</span></span>
+      <span data-diagram-ole-header>${escapeHtml(header)}</span>
       <span class="pmt-diagram-ole-actions">
         <button type="button" data-diagram-ole-zoom-out title="Zoom out" aria-label="Zoom out">-</button>
         <button type="button" data-diagram-ole-reset title="Reset to the saved initial view" aria-label="Reset to saved initial view">Reset</button>
         <button type="button" data-diagram-ole-fit title="Fit the whole Diagram in the viewer" aria-label="Fit Diagram to viewer">Fit</button>
         <button type="button" data-diagram-ole-maximize title="Maximize Linked Diagram viewer" aria-label="Maximize Linked Diagram viewer">Max</button>
         <button type="button" data-diagram-ole-zoom-in title="Zoom in" aria-label="Zoom in">+</button>
+        ${editable ? `<button type="button" data-diagram-ole-edit-action data-diagram-ole-rename-header title="Rename the viewer header" aria-label="Rename Linked Diagram viewer header">Rename</button>` : ""}
         ${editable ? `<button type="button" data-diagram-ole-edit-action data-diagram-ole-change title="Change the active tab's Diagram" aria-label="Change active tab Diagram">Change</button>` : ""}
         ${editable ? `<button type="button" class="pmt-diagram-ole-delete-action" data-diagram-ole-edit-action data-diagram-ole-delete title="Delete linked Diagram" aria-label="Delete linked Diagram">&#128465;</button>` : ""}
       </span>
@@ -4989,6 +4998,19 @@ function richDiagramOleTabsHtml(tabs, activeTabId, editable) {
       ${editActions}
     </div>
   `;
+}
+
+function richDiagramOleHeader(block, activeTab = null, diagram = null) {
+  const storedHeader = String(block.dataset.header || "").trim();
+  if (storedHeader) return storedHeader;
+  const caption = block.querySelector("figcaption");
+  if (caption) {
+    const captionCopy = caption.cloneNode(true);
+    captionCopy.querySelectorAll("button, .pmt-diagram-ole-actions, .pmt-diagram-ole-tab-actions").forEach(node => node.remove());
+    const captionText = captionCopy.textContent.replace(/\s+/g, " ").trim();
+    if (captionText) return captionText;
+  }
+  return `Linked Diagram: ${activeTab?.title || diagram?.title || "Diagram"}`;
 }
 
 function refreshRichDiagramOleViewerSource(block, diagram, fallbackSourceUrl, activeTab = null) {
@@ -5069,16 +5091,22 @@ function bindRichDiagramOleViewer(block, diagram, activeTab, tabs) {
     fitView({ remember: true, notify: true });
   };
   const setMaximized = maximized => {
-    block.classList.toggle("is-maximized", maximized);
-    document.body.classList.toggle("has-pmt-diagram-ole-maximized", maximized);
+    const nextMaximized = Boolean(maximized);
+    block.classList.toggle("is-maximized", nextMaximized);
+    rememberRichDiagramOleMaximized(block, nextMaximized);
+    if (nextMaximized) document.body.classList.add("has-pmt-diagram-ole-maximized");
+    else syncRichDiagramOleMaximizedBodyClass();
     const button = block.querySelector("[data-diagram-ole-maximize]");
     if (button) {
-      button.textContent = maximized ? "Restore" : "Max";
-      button.setAttribute("aria-label", maximized ? "Restore Linked Diagram viewer" : "Maximize Linked Diagram viewer");
-      button.setAttribute("title", maximized ? "Restore Linked Diagram viewer" : "Maximize Linked Diagram viewer");
+      button.textContent = nextMaximized ? "Restore" : "Max";
+      button.setAttribute("aria-label", nextMaximized ? "Restore Linked Diagram viewer" : "Maximize Linked Diagram viewer");
+      button.setAttribute("title", nextMaximized ? "Restore Linked Diagram viewer" : "Maximize Linked Diagram viewer");
     }
     requestAnimationFrame(() => render());
   };
+  const storedMaximized = readRichDiagramOleStoredMaximized(block);
+  if (storedMaximized !== null) setMaximized(storedMaximized);
+  else if (block.classList.contains("is-maximized")) setMaximized(true);
   block.addEventListener("diagram-ole-resized", () => render());
   block.querySelector("[data-diagram-ole-zoom-out]")?.addEventListener("click", () => zoomBy(0.85));
   block.querySelector("[data-diagram-ole-zoom-in]")?.addEventListener("click", () => zoomBy(1.15));
@@ -5114,6 +5142,21 @@ function bindRichDiagramOleViewer(block, diagram, activeTab, tabs) {
     event.stopPropagation();
     event.stopImmediatePropagation?.();
     deleteRichDiagramOleBlock(block.closest(".rich-editor"), block);
+  });
+  block.querySelector("[data-diagram-ole-rename-header]")?.addEventListener("click", async event => {
+    event.preventDefault();
+    event.stopPropagation();
+    event.stopImmediatePropagation?.();
+    const editor = block.closest(".rich-editor");
+    if (!editor) return;
+    const currentHeader = richDiagramOleHeader(block, activeTab, diagram);
+    const nextHeader = String(await askForText("Viewer header", "Rename Linked Diagram Header", currentHeader) || "").trim();
+    if (!nextHeader || !editor.contains(block)) return;
+    block.dataset.header = nextHeader;
+    const headerNode = block.querySelector("[data-diagram-ole-header]");
+    if (headerNode) headerNode.textContent = nextHeader;
+    richDiagramOleDispatchInput(block);
+    showToast("Linked Diagram header renamed. Save the record to keep it.");
   });
   block.querySelector("[data-diagram-ole-add-tab]")?.addEventListener("click", async event => {
     event.preventDefault();
@@ -5397,6 +5440,7 @@ function richDiagramOleWriteTabs(block, tabs, activeTabId, options = {}) {
   })));
   block.dataset.activeTabId = activeTab.id;
   block.dataset.diagramId = String(activeTab.diagramId);
+  rememberRichDiagramOleActiveTab(block, activeTab.id);
   richDiagramOleWriteLegacyActiveView(block, activeTab, { includeCurrent: options.includeCurrent === true });
   return normalizedTabs;
 }
@@ -5426,8 +5470,72 @@ function richDiagramOleWriteLegacyActiveView(block, activeTab, options = {}) {
 }
 
 function richDiagramOleActiveTab(block, tabs = richDiagramOleTabs(block)) {
-  const activeTabId = String(block.dataset.activeTabId || "");
+  const activeTabId = String(readRichDiagramOleStoredActiveTabId(block, tabs) || block.dataset.activeTabId || "");
   return tabs.find(tab => tab.id === activeTabId) || tabs[0] || null;
+}
+
+function richDiagramOleActiveTabStorageKey(block) {
+  const { persistType, documentId } = richDiagramOlePersistScope(block);
+  return `pmt-diagram-ole-active-tab:${persistType}:${documentId}:${block.dataset.blockId || "block"}`;
+}
+
+function richDiagramOlePersistScope(block) {
+  const persist = block.closest("[data-rich-persist-type]");
+  return {
+    persistType: persist?.dataset.richPersistType || "draft",
+    documentId: persist?.dataset.richPersistId || "draft"
+  };
+}
+
+function readRichDiagramOleStoredActiveTabId(block, tabs = []) {
+  if (block.closest(".rich-editor")) return "";
+  try {
+    const tabId = String(localStorage.getItem(richDiagramOleActiveTabStorageKey(block)) || "");
+    return tabs.some(tab => tab.id === tabId) ? tabId : "";
+  } catch {
+    return "";
+  }
+}
+
+function rememberRichDiagramOleActiveTab(block, tabId) {
+  try {
+    if (!tabId) return;
+    localStorage.setItem(richDiagramOleActiveTabStorageKey(block), String(tabId));
+  } catch {
+    // Active tab memory is optional.
+  }
+}
+
+function richDiagramOleMaximizedStorageKey(block) {
+  const { persistType, documentId } = richDiagramOlePersistScope(block);
+  return `pmt-diagram-ole-maximized:${persistType}:${documentId}:${block.dataset.blockId || "block"}`;
+}
+
+function readRichDiagramOleStoredMaximized(block) {
+  if (block.closest(".rich-editor")) return null;
+  try {
+    const value = localStorage.getItem(richDiagramOleMaximizedStorageKey(block));
+    return value === null ? null : value === "true";
+  } catch {
+    return null;
+  }
+}
+
+function rememberRichDiagramOleMaximized(block, maximized) {
+  if (block.closest(".rich-editor")) return;
+  try {
+    if (maximized) localStorage.setItem(richDiagramOleMaximizedStorageKey(block), "true");
+    else localStorage.removeItem(richDiagramOleMaximizedStorageKey(block));
+  } catch {
+    // Maximized viewer memory is optional.
+  }
+}
+
+function syncRichDiagramOleMaximizedBodyClass() {
+  document.body.classList.toggle(
+    "has-pmt-diagram-ole-maximized",
+    Boolean(document.querySelector(".pmt-diagram-ole.is-maximized"))
+  );
 }
 
 function richDiagramOleDiagramForTab(tab) {
@@ -5454,7 +5562,8 @@ function richDiagramOleSourceSignature(tabs) {
 function deleteRichDiagramOleBlock(editor, block) {
   if (!editor?.contains(block) || !block?.isConnected) return;
   if (block.classList.contains("is-maximized")) {
-    document.body.classList.remove("has-pmt-diagram-ole-maximized");
+    block.classList.remove("is-maximized");
+    syncRichDiagramOleMaximizedBodyClass();
   }
 
   const blankLine = richBlankParagraphSibling(block.nextElementSibling) || document.createElement("p");

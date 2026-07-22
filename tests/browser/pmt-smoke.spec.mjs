@@ -46,7 +46,7 @@ test("login, navigation, themes, dialogs, filters, Board, Gantt, and Road Map sm
 
   await page.addInitScript(() => {
     localStorage.clear();
-    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-22-day-35@ca15bff9d767");
+    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-22-day-35@1a99b8bb4547");
     localStorage.setItem("pmt-navigation", JSON.stringify({
       version: 2,
       items: [
@@ -523,7 +523,7 @@ test("Developer Board moves stop after QA Passed while QA Ready remains availabl
 
   await page.addInitScript(() => {
     localStorage.clear();
-    localStorage.setItem("pmt-release-notes-last-seen:2", "2026-07-22-day-35@ca15bff9d767");
+    localStorage.setItem("pmt-release-notes-last-seen:2", "2026-07-22-day-35@1a99b8bb4547");
   });
   await installApiMocks(page, appState, apiCalls);
   await page.goto("/");
@@ -570,7 +570,7 @@ test("Scrum attendance, calendar, on-behalf, and vacation flows stay synchronize
       localStorage.clear();
       sessionStorage.setItem("pmt-scrum-attendance-smoke-started", "true");
     }
-    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-22-day-35@ca15bff9d767");
+    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-22-day-35@1a99b8bb4547");
   });
   await installApiMocks(page, appState, apiCalls);
 
@@ -889,7 +889,7 @@ test("Scrum header reserves its title and attendance avatars expand toward Check
   await page.clock.setFixedTime(new Date("2026-07-15T08:00:00+08:00"));
   await page.addInitScript(() => {
     localStorage.clear();
-    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-22-day-35@ca15bff9d767");
+    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-22-day-35@1a99b8bb4547");
   });
   await installApiMocks(page, appState, apiCalls);
 
@@ -1021,7 +1021,7 @@ test("Scrum auto-refresh updates the table and attendance without reload or inte
   await page.clock.pauseAt(new Date("2026-07-15T08:00:00+08:00"));
   await page.addInitScript(() => {
     localStorage.clear();
-    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-22-day-35@ca15bff9d767");
+    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-22-day-35@1a99b8bb4547");
   });
   await installApiMocks(page, appState, apiCalls);
 
@@ -1035,6 +1035,7 @@ test("Scrum auto-refresh updates the table and attendance without reload or inte
   await expect(scrumTodayStatus(page, 2, "Home")).toBeVisible();
   const linkedDiagramOle = page.locator(".scrum-table [data-block-id='scrum-auto-refresh-ole']");
   await expect(linkedDiagramOle.locator("[data-diagram-ole-viewport] img")).toBeVisible();
+  await expect(linkedDiagramOle.locator("[data-diagram-ole-header]")).toHaveText("Linked Diagram tabs");
   await expect(linkedDiagramOle.locator("[data-diagram-ole-tab]")).toHaveCount(2);
   await expect(linkedDiagramOle.locator("[data-diagram-ole-tab].is-active")).toContainText("Overview");
   await expect.poll(() => linkedDiagramOle.locator("[data-diagram-ole-surface]").evaluate(node => node.style.transform))
@@ -1081,6 +1082,12 @@ test("Scrum auto-refresh updates the table and attendance without reload or inte
   });
   const headerBefore = await header.boundingBox();
   const tableBefore = await tablePanel.boundingBox();
+  await expect(linkedDiagramOle.locator("[data-diagram-ole-tab].is-active")).toContainText("Details");
+  await linkedDiagramOle.locator("[data-diagram-ole-maximize]").evaluate(button => button.click());
+  await expect(linkedDiagramOle).toHaveClass(/is-maximized/);
+  await expect(linkedDiagramOle.locator("[data-diagram-ole-maximize]")).toHaveText("Restore");
+  await expect(page.locator("body")).toHaveClass(/has-pmt-diagram-ole-maximized/);
+  await pageActionsSummary.evaluate(node => node.focus());
 
   appState.devLogs.push({
     id: 999,
@@ -1110,10 +1117,15 @@ test("Scrum auto-refresh updates the table and attendance without reload or inte
   await expect.poll(() => apiCalls.stateGets).toBe(stateGetsBeforeRefresh + 1);
   await expect(page.locator(".scrum-table tbody")).toContainText("Five-second refreshed Scrum entry");
   await expect(linkedDiagramOle.locator("[data-diagram-ole-viewport] img")).toBeVisible();
+  await expect(linkedDiagramOle.locator("[data-diagram-ole-header]")).toHaveText("Linked Diagram tabs");
   await expect(linkedDiagramOle.locator("[data-diagram-ole-tab]")).toHaveCount(2);
+  await expect(linkedDiagramOle.locator("[data-diagram-ole-tab].is-active")).toContainText("Details");
   await expect(page.locator(".scrum-table [data-block-id='scrum-single-ole'] [data-diagram-ole-tab]")).toHaveCount(0);
+  await expect(linkedDiagramOle).toHaveClass(/is-maximized/);
+  await expect(linkedDiagramOle.locator("[data-diagram-ole-maximize]")).toHaveText("Restore");
+  await expect(page.locator("body")).toHaveClass(/has-pmt-diagram-ole-maximized/);
   await expect.poll(() => linkedDiagramOle.locator("[data-diagram-ole-surface]").evaluate(node => node.style.transform))
-    .toBe("translate(-42px, -24px) scale(0.5)");
+    .toBe("translate(-18px, -12px) scale(0.75)");
   await expect(scrumTodayStatus(page, 2, "Sick Leave")).toBeVisible();
 
   const headerAfter = await header.boundingBox();
@@ -1133,6 +1145,9 @@ test("Scrum auto-refresh updates the table and attendance without reload or inte
     appTop: document.querySelector("#app").scrollTop,
     tableLeft: document.querySelector(".scrum-table-wrap").scrollLeft
   }))).toEqual(scrollBefore);
+  await linkedDiagramOle.locator("[data-diagram-ole-maximize]").evaluate(button => button.click());
+  await expect(linkedDiagramOle).not.toHaveClass(/is-maximized/);
+  await expect(page.locator("body")).not.toHaveClass(/has-pmt-diagram-ole-maximized/);
 
   await page.locator("[data-action='toggle-scrum-auto-refresh']").click();
   await expect.poll(() => page.evaluate(() => localStorage.getItem("pmt-scrum-auto-refresh"))).toBe("false");
@@ -1169,7 +1184,7 @@ test("Scrum auto-refresh invalidates the visible Calendar month without shifting
   await page.clock.pauseAt(new Date("2026-07-15T08:00:00+08:00"));
   await page.addInitScript(() => {
     localStorage.clear();
-    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-22-day-35@ca15bff9d767");
+    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-22-day-35@1a99b8bb4547");
   });
   await installApiMocks(page, appState, apiCalls);
 
@@ -1277,7 +1292,7 @@ test("Scrum read-only permission disables attendance and vacation mutations", as
   await page.clock.setFixedTime(new Date("2026-07-15T08:00:00+08:00"));
   await page.addInitScript(() => {
     localStorage.clear();
-    localStorage.setItem("pmt-release-notes-last-seen:2", "2026-07-22-day-35@ca15bff9d767");
+    localStorage.setItem("pmt-release-notes-last-seen:2", "2026-07-22-day-35@1a99b8bb4547");
   });
   await installApiMocks(page, appState, apiCalls);
 
@@ -1312,8 +1327,8 @@ test("Scrum attendance cache follows the restored cookie session user", async ({
   await page.clock.setFixedTime(new Date("2026-07-15T08:00:00+08:00"));
   await page.addInitScript(() => {
     localStorage.clear();
-    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-22-day-35@ca15bff9d767");
-    localStorage.setItem("pmt-release-notes-last-seen:2", "2026-07-22-day-35@ca15bff9d767");
+    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-22-day-35@1a99b8bb4547");
+    localStorage.setItem("pmt-release-notes-last-seen:2", "2026-07-22-day-35@1a99b8bb4547");
   });
   await installApiMocks(page, appState, apiCalls);
 
