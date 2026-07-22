@@ -1,0 +1,23 @@
+{
+  "project": "PMT Diagram 2 Daily Codex Instructions",
+  "file_count": 17,
+  "files": [
+    "00-README-Daily-Execution-Order.md",
+    "01-Day-01-Protect-Diagram-1-and-Measure-Baseline.md",
+    "02-Day-02-Create-Shared-Compatibility-Contracts.md",
+    "03-Day-03-Upgrade-Diagram-1-Compatibility.md",
+    "04-Day-04-Add-Diagram-2-Screen-and-Route.md",
+    "05-Day-05-Build-Diagram-2-Read-Only-Shell.md",
+    "06-Day-06-Create-Diagram-2-Live-Renderer-Core.md",
+    "07-Day-07-Transform-Only-Zoom-Pan-and-No-Settling.md",
+    "08-Day-08-Persistent-Keyed-SVG-Nodes.md",
+    "09-Day-09-Dirty-State-and-Batched-Rendering.md",
+    "10-Day-10-Live-Drag-and-Resize-Preview.md",
+    "11-Day-11-Selective-Relationship-Routing.md",
+    "12-Day-12-Viewport-Halo-Virtualization.md",
+    "13-Day-13-Low-Detail-Overview-Rendering.md",
+    "14-Day-14-Templates-Clipboard-and-File-Compatibility.md",
+    "15-Day-15-Save-Undo-Export-and-Same-Document-Roundtrip.md",
+    "16-Day-16-Stress-Test-Hardening-and-Beta-Readiness.md"
+  ]
+}
