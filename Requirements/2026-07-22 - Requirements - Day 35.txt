@@ -49,7 +49,8 @@ Linked Diagram (OLE)
 11.) Note that a user might put multiple Linked Diagram (OLE) in one RTE.
 12.) Can we also have pages/tabs to the Linked Diagram viewer.  So for example, if I want to share 5 diagrams, I would like the option to just use one Linked Diagram viewer but with tabs/pages.  Preferrably at the top just bellow the header stuff so the user can see right away that there are multiple diagrams being shared.  Can you provide an ability to add, delete, rename, re-order tabs.  And of course, remember the zoom / viewport of each tab during editing so it can become the user's initial view when viewing in read-mode.
 13.) Can you also add a maximize button that truly maximize and takes as much of the content area of the browser as possible.
-
+13a.) In the Linked Diagram viewer when in read-mode, I cannot resize it.  Also there are two resize indicators appearing in both read and edit mode.  Keep the small one and get rid of the bigger one that seems to appear inside the content area of the Linked Diagram Viewer's viewport.
+13b.) In the Linked Diagram viewer when in read-mode, I cannot resize it because the moment I try to grab the resize handle and drag, the diagram pans instead.
 
 Mention / Embed Live Dev Tasks and Bug Reports
 ----------------------------------------------

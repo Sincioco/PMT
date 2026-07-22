@@ -19,8 +19,9 @@ export function normalizeRichHtml(html) {
 export function normalizeDiagramOleBlocksForStorage(root) {
   const usedBlockIds = new Set();
   matchingElements(root, "[data-pmt-ole='diagram']").forEach(block => {
-    const diagramId = Number(block.getAttribute("data-diagram-id") || 0);
-    if (!diagramId) {
+    const fallbackDiagramId = Number(block.getAttribute("data-diagram-id") || 0);
+    const tabs = normalizeDiagramOleTabsForStorage(block, fallbackDiagramId);
+    if (!tabs.length) {
       block.remove();
       return;
     }
@@ -30,20 +31,23 @@ export function normalizeDiagramOleBlocksForStorage(root) {
       blockId = createDiagramOleBlockId(usedBlockIds);
     }
     usedBlockIds.add(blockId);
+    const activeTabId = String(block.getAttribute("data-active-tab-id") || "").trim();
+    const activeTab = tabs.find(tab => tab.id === activeTabId) || tabs[0];
     const width = Math.max(320, Math.round(Number(block.style.width?.replace("px", "") || block.getAttribute("data-view-width") || 900) || 900));
     const height = Math.max(220, Math.round(Number(block.style.height?.replace("px", "") || block.getAttribute("data-view-height") || 520) || 520));
-    const viewport = diagramOleViewportForStorage(block);
     block.className = "pmt-diagram-ole";
     block.setAttribute("contenteditable", "false");
     block.setAttribute("data-pmt-ole", "diagram");
-    block.setAttribute("data-diagram-id", String(diagramId));
+    block.setAttribute("data-diagram-id", String(activeTab.diagramId));
     block.setAttribute("data-block-id", blockId);
+    block.setAttribute("data-active-tab-id", activeTab.id);
+    block.setAttribute("data-tabs", JSON.stringify(tabs));
     block.setAttribute("data-view-width", String(width));
     block.setAttribute("data-view-height", String(height));
-    if (viewport) {
-      block.setAttribute("data-view-x", String(viewport.x));
-      block.setAttribute("data-view-y", String(viewport.y));
-      block.setAttribute("data-view-zoom", String(viewport.zoom));
+    if (activeTab.view) {
+      block.setAttribute("data-view-x", String(activeTab.view.x));
+      block.setAttribute("data-view-y", String(activeTab.view.y));
+      block.setAttribute("data-view-zoom", String(activeTab.view.zoom));
     } else {
       block.removeAttribute("data-view-x");
       block.removeAttribute("data-view-y");
@@ -57,7 +61,7 @@ export function normalizeDiagramOleBlocksForStorage(root) {
     block.removeAttribute("data-current-view-y");
     block.removeAttribute("data-current-view-zoom");
     block.setAttribute("style", `width: ${width}px; height: ${height}px;`);
-    block.innerHTML = `<figcaption>Linked Diagram #${diagramId}</figcaption>`;
+    block.innerHTML = `<figcaption>${tabs.length > 1 ? `${tabs.length} Linked Diagrams` : `Linked Diagram #${activeTab.diagramId}`}</figcaption>`;
   });
 }
 
@@ -69,11 +73,76 @@ function createDiagramOleBlockId(usedBlockIds = new Set()) {
   return blockId;
 }
 
+function createDiagramOleTabId(usedTabIds = new Set()) {
+  let tabId = "";
+  do {
+    tabId = `tab-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+  } while (usedTabIds.has(tabId));
+  return tabId;
+}
+
+function normalizeDiagramOleTabsForStorage(block, fallbackDiagramId) {
+  const usedTabIds = new Set();
+  const tabs = [];
+  try {
+    const parsed = JSON.parse(block.getAttribute("data-tabs") || "[]");
+    if (Array.isArray(parsed)) {
+      parsed.forEach((entry, index) => {
+        const tab = normalizeDiagramOleTabForStorage(entry, index, usedTabIds);
+        if (tab) {
+          tabs.push(tab);
+          usedTabIds.add(tab.id);
+        }
+      });
+    }
+  } catch {
+    // Legacy one-Diagram OLEs are handled below.
+  }
+
+  if (tabs.length) return tabs;
+  if (!fallbackDiagramId) return [];
+  const view = diagramOleViewportForStorage(block);
+  const tab = {
+    id: String(block.getAttribute("data-active-tab-id") || `tab-${fallbackDiagramId}`),
+    diagramId: fallbackDiagramId,
+    title: `Diagram #${fallbackDiagramId}`
+  };
+  if (view) tab.view = view;
+  return [tab];
+}
+
+function normalizeDiagramOleTabForStorage(entry, index, usedTabIds = new Set()) {
+  const diagramId = Number(entry?.diagramId || entry?.id || 0);
+  if (!diagramId) return null;
+  let id = String(entry?.tabId || entry?.key || entry?.id || "").trim();
+  if (!id || id === String(diagramId) || usedTabIds.has(id)) id = createDiagramOleTabId(usedTabIds);
+  const title = String(entry?.title || `Diagram ${index + 1}`).trim() || `Diagram ${index + 1}`;
+  const view = diagramOleViewportRecordForStorage(entry?.currentView) || diagramOleViewportRecordForStorage(entry?.view);
+  return {
+    id,
+    diagramId,
+    title,
+    ...(view ? { view } : {})
+  };
+}
+
 function diagramOleViewportForStorage(block) {
   const read = (name, fallbackName = "") => Number(block.getAttribute(name) || (fallbackName ? block.getAttribute(fallbackName) : ""));
   const x = read("data-current-view-x", "data-view-x");
   const y = read("data-current-view-y", "data-view-y");
   const zoom = read("data-current-view-zoom", "data-view-zoom");
+  if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(zoom) || zoom <= 0) return null;
+  return {
+    x: Math.round(x),
+    y: Math.round(y),
+    zoom: Math.round(zoom * 1000) / 1000
+  };
+}
+
+function diagramOleViewportRecordForStorage(record) {
+  const x = Number(record?.x);
+  const y = Number(record?.y);
+  const zoom = Number(record?.zoom);
   if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(zoom) || zoom <= 0) return null;
   return {
     x: Math.round(x),
