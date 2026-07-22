@@ -18,7 +18,7 @@ test("cookie session impersonation isolates preferences and records the Settings
     localStorage.setItem("pmt-auth-user", "999");
     localStorage.setItem("pmt-theme", "dark");
     localStorage.setItem("pmt-task-project", "10");
-    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-22-day-35@25009a8e2332");
+    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-22-day-35@b9e5ce970062");
   });
 
   await page.route("**/api/session", async route => {
@@ -94,7 +94,7 @@ test("cookie session impersonation isolates preferences and records the Settings
   await page.locator("#loginPassword").fill("Password1");
   await page.getByRole("button", { name: /log in/i }).click();
   await expect(page.getByRole("heading", { name: "Settings", exact: true })).toBeVisible();
-  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
 
   const authCookie = (await context.cookies()).find(cookie => cookie.name === "PMT.Auth");
   expect(authCookie).toMatchObject({ httpOnly: true, sameSite: "Strict" });
@@ -136,15 +136,15 @@ test("cookie session impersonation isolates preferences and records the Settings
     backup: JSON.parse(localStorage.getItem("pmt-impersonation-admin-preferences") || "{}")
   }));
   expect(isolatedPreferences.auth).toBeNull();
-  expect(isolatedPreferences.theme).toBeNull();
+  expect(isolatedPreferences.theme).toBe("light");
   expect(isolatedPreferences.taskProject).toBeNull();
-  expect(isolatedPreferences.backup["pmt-theme"]).toBe("dark");
+  expect(isolatedPreferences.backup["pmt-theme"]).toBe("light");
   expect(isolatedPreferences.backup["pmt-task-project"]).toBe("10");
 
   await page.locator("#userMenuToggle").click();
-  await page.locator("#themeToggle").click();
-  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
-  expect(await page.evaluate(() => localStorage.getItem("pmt-theme"))).toBe("dark");
+  await expect(page.locator("#themeToggle")).toHaveCount(0);
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+  expect(await page.evaluate(() => localStorage.getItem("pmt-theme"))).toBe("light");
   await page.keyboard.press("Escape");
   await expect(page.locator("#userMenu")).toBeHidden();
 
@@ -157,7 +157,7 @@ test("cookie session impersonation isolates preferences and records the Settings
   await page.locator("#exitImpersonation").click();
   await expect(page.locator("#impersonationBanner")).toBeHidden();
   await expect(page.locator("#userMenuToggle")).toHaveAttribute("title", "Sin menu");
-  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
   expect(stopRequests).toBe(1);
 
   const restoredPreferences = await page.evaluate(() => ({
@@ -165,7 +165,7 @@ test("cookie session impersonation isolates preferences and records the Settings
     taskProject: localStorage.getItem("pmt-task-project"),
     backup: localStorage.getItem("pmt-impersonation-admin-preferences")
   }));
-  expect(restoredPreferences).toEqual({ theme: "dark", taskProject: "10", backup: null });
+  expect(restoredPreferences).toEqual({ theme: "light", taskProject: "10", backup: null });
 
   await page.goto("/#/settings/audit-trail");
   await expect(page.getByRole("heading", { name: "Audit Trail", exact: true })).toBeVisible();

@@ -107,12 +107,14 @@ export function createDiagramFeature({
   let editorAbortController = null;
   let diagramTreeContextMenuController = null;
   let diagramReadonlyContextMenuController = null;
+  let diagramPreviewHydrationToken = 0;
 
   function renderDiagram() {
     const wasActive = active;
     active = true;
     if (!wasActive) previewDiagramDocumentId = 0;
     if (editingDocumentId && app.querySelector("[data-diagram-editor-host]")) return;
+    const previewHydrationToken = ++diagramPreviewHydrationToken;
     const documents = diagramDocuments();
     const documentIds = new Set(documents.map(document => document.id));
     if (!documentIds.has(selectedDiagramDocumentId)) {
@@ -137,17 +139,7 @@ export function createDiagramFeature({
       bindDiagramTreeDragAndDrop();
       bindDiagramTreeContextMenu();
       bindDiagramReadonlyViewer();
-      const source = diagramImage(selectedDocument)?.source || "";
-      if (source && !decodeDiagramSvgDataUrl(source) && !diagramSvgSourceCache.has(source)) {
-        void loadDiagramSvgSource(source).then(loaded => {
-          if (!loaded
-              || !active
-              || editingDocumentId
-              || selectedDiagramDocumentId !== selectedDocument?.id) return;
-              previewDiagramDocumentId = 0;
-              renderDiagram();
-            });
-      }
+      scheduleDiagramPreviewHydration(previewHydrationToken, selectedDocument?.id || 0);
     } else {
       diagramTreeContextMenuController?.abort();
       diagramTreeContextMenuController = null;
@@ -272,7 +264,7 @@ export function createDiagramFeature({
         <section class="panel documentation-tree-preview diagram-tree-content ${editingDocumentId ? "is-editing" : ""}">
           ${editingDocumentId && !editingFullScreen && selectedDocument?.id === editingDocumentId
             ? `<div class="diagram-inline-editor-host" data-diagram-editor-host><div class="empty">Loading diagram editor...</div></div>`
-            : diagramTreePreviewHtml(selectedDocument)}
+            : diagramTreePreviewShellHtml(selectedDocument)}
         </section>
         ${diagramTreeContextMenuHtml()}
       </div>
@@ -319,14 +311,22 @@ export function createDiagramFeature({
     `;
   }
 
+  function diagramTreePreviewShellHtml(document) {
+    if (!document) return diagramTreeEmptyPreviewHtml();
+
+    return `
+      <div class="diagram-readonly-viewer diagram-tree-preview-image is-loading" data-diagram-readonly-viewer data-diagram-preview-deferred data-id="${document.id}">
+        <div class="diagram-preview diagram-readonly-viewport is-loading" data-diagram-viewport tabindex="0" aria-label="Read-only Diagram canvas. Drag to pan; use mouse wheel to zoom." aria-busy="true">
+          <div class="diagram-preview-loader" data-diagram-preview-loader role="status" aria-live="polite">Loading...</div>
+          <div class="diagram-readonly-stage" data-diagram-stage></div>
+        </div>
+        ${diagramReadonlyContextMenuHtml()}
+      </div>
+    `;
+  }
+
   function diagramTreePreviewHtml(document) {
-    if (!document) {
-      return `<div class="diagram-empty">
-        <span class="diagram-empty-icon" aria-hidden="true">&#128208;</span>
-        <h2>Create a diagram</h2>
-        <p>New Diagram creates a private backing Document immediately, then opens the editor here.</p>
-      </div>`;
-    }
+    if (!document) return diagramTreeEmptyPreviewHtml();
 
     const image = diagramImage(document);
     return `
@@ -336,13 +336,71 @@ export function createDiagramFeature({
             ${diagramReadonlyImageHtml(image?.source || blankDiagramSource, document.title)}
           </div>
         </div>
-        <div class="dropdown-menu documentation-tree-context-menu diagram-readonly-context-menu" data-diagram-readonly-context-menu role="menu" aria-label="Diagram viewer options" hidden>
-          <button type="button" class="dropdown-menu-item" data-diagram-toggle-connection-symbols role="menuitemcheckbox" aria-checked="false"><span class="dropdown-menu-icon" aria-hidden="true">&#8644;</span><span class="dropdown-menu-label">Connection Symbols</span><span class="dropdown-menu-check" aria-hidden="true"></span></button>
-          <button type="button" class="dropdown-menu-item" data-diagram-copy-format="svg" role="menuitem"><span class="dropdown-menu-icon" aria-hidden="true">&#128203;</span><span class="dropdown-menu-label">Copy as SVG</span><span class="dropdown-menu-check" aria-hidden="true"></span></button>
-          <button type="button" class="dropdown-menu-item" data-diagram-copy-format="png" role="menuitem"><span class="dropdown-menu-icon" aria-hidden="true">&#128247;</span><span class="dropdown-menu-label">Copy as PNG</span><span class="dropdown-menu-check" aria-hidden="true"></span></button>
-        </div>
+        ${diagramReadonlyContextMenuHtml()}
       </div>
     `;
+  }
+
+  function diagramTreeEmptyPreviewHtml() {
+    return `<div class="diagram-empty">
+      <span class="diagram-empty-icon" aria-hidden="true">&#128208;</span>
+      <h2>Create a diagram</h2>
+      <p>New Diagram creates a private backing Document immediately, then opens the editor here.</p>
+    </div>`;
+  }
+
+  function diagramReadonlyContextMenuHtml() {
+    return `
+      <div class="dropdown-menu documentation-tree-context-menu diagram-readonly-context-menu" data-diagram-readonly-context-menu role="menu" aria-label="Diagram viewer options" hidden>
+        <button type="button" class="dropdown-menu-item" data-diagram-toggle-connection-symbols role="menuitemcheckbox" aria-checked="false"><span class="dropdown-menu-icon" aria-hidden="true">&#8644;</span><span class="dropdown-menu-label">Connection Symbols</span><span class="dropdown-menu-check" aria-hidden="true"></span></button>
+        <button type="button" class="dropdown-menu-item" data-diagram-copy-format="svg" role="menuitem"><span class="dropdown-menu-icon" aria-hidden="true">&#128203;</span><span class="dropdown-menu-label">Copy as SVG</span><span class="dropdown-menu-check" aria-hidden="true"></span></button>
+        <button type="button" class="dropdown-menu-item" data-diagram-copy-format="png" role="menuitem"><span class="dropdown-menu-icon" aria-hidden="true">&#128247;</span><span class="dropdown-menu-label">Copy as PNG</span><span class="dropdown-menu-check" aria-hidden="true"></span></button>
+      </div>
+    `;
+  }
+
+  function scheduleDiagramPreviewHydration(token, documentId) {
+    if (!documentId || !app.querySelector("[data-diagram-preview-deferred]")) return;
+
+    const callback = () => {
+      void hydrateDiagramTreePreview(token, documentId);
+    };
+    if (globalThis.window?.requestAnimationFrame) {
+      window.requestAnimationFrame(() => {
+        window.requestAnimationFrame(callback);
+      });
+      return;
+    }
+    const scheduleTimeout = globalThis.window?.setTimeout || globalThis.setTimeout;
+    scheduleTimeout?.(callback, 0);
+  }
+
+  async function hydrateDiagramTreePreview(token, documentId) {
+    if (!active || token !== diagramPreviewHydrationToken || diagramViewMode !== "tree" || editingDocumentId) return;
+    const viewer = app.querySelector(`[data-diagram-preview-deferred][data-id="${documentId}"]`);
+    if (!viewer) return;
+    const document = diagramDocuments().find(item => item.id === documentId);
+    if (!document || selectedDiagramDocumentId !== documentId) return;
+
+    const image = diagramImage(document);
+    const source = image?.source || blankDiagramSource;
+    if (diagramSourceIsSvg(source)
+        && !/^data:image\/svg\+xml(?:;|,)/i.test(source)
+        && !diagramSvgSourceCache.has(source)) {
+      await loadDiagramSvgSource(source);
+      if (!active || token !== diagramPreviewHydrationToken || selectedDiagramDocumentId !== documentId || editingDocumentId) return;
+    }
+
+    const stage = viewer.querySelector("[data-diagram-stage]");
+    if (!stage) return;
+    stage.innerHTML = diagramReadonlyImageHtml(source, document.title);
+    viewer.querySelector("[data-diagram-preview-loader]")?.remove();
+    viewer.classList.remove("is-loading");
+    viewer.removeAttribute("data-diagram-preview-deferred");
+    const viewport = viewer.querySelector("[data-diagram-viewport]");
+    viewport?.classList.remove("is-loading");
+    viewport?.removeAttribute("aria-busy");
+    bindDiagramReadonlyViewer();
   }
 
   function diagramTreeContextMenuHtml() {
@@ -1679,6 +1737,7 @@ export function createDiagramFeature({
   function deactivate() {
     active = false;
     creating = false;
+    diagramPreviewHydrationToken += 1;
     diagramTreeContextMenuController?.abort();
     diagramTreeContextMenuController = null;
     diagramReadonlyContextMenuController?.abort();

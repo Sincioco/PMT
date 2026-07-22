@@ -5717,6 +5717,29 @@ test("Diagram read and edit viewers use plain mouse wheel zoom", async () => {
   assert.match(annotationSource, /Wheel: zoom at cursor/);
 });
 
+test("Diagram tree view defers selected preview hydration and shows a loader", async () => {
+  const diagramSource = await readFile(new URL("../../wwwroot/js/features/diagram/diagram.js", import.meta.url), "utf8");
+  const diagramCss = await readFile(new URL("../../wwwroot/css/features/diagram.css", import.meta.url), "utf8");
+  const treeStart = diagramSource.indexOf("function diagramTreeViewHtml");
+  const treeEnd = diagramSource.indexOf("function diagramTreeNavHtml", treeStart);
+  const treeSource = diagramSource.slice(treeStart, treeEnd);
+
+  assert.ok(treeStart >= 0 && treeEnd > treeStart, "diagramTreeViewHtml was not found");
+  assert.match(treeSource, /diagramTreePreviewShellHtml\(selectedDocument\)/);
+  assert.doesNotMatch(treeSource, /diagramTreePreviewHtml\(selectedDocument\)/);
+  assert.match(diagramSource, /let diagramPreviewHydrationToken = 0/);
+  assert.match(diagramSource, /function diagramTreePreviewShellHtml/);
+  assert.match(diagramSource, /data-diagram-preview-deferred/);
+  assert.match(diagramSource, /data-diagram-preview-loader/);
+  assert.match(diagramSource, /Loading\.\.\./);
+  assert.match(diagramSource, /function scheduleDiagramPreviewHydration/);
+  assert.match(diagramSource, /window\.requestAnimationFrame\(\(\) => \{\s*window\.requestAnimationFrame\(callback\);/);
+  assert.match(diagramSource, /function hydrateDiagramTreePreview/);
+  assert.match(diagramSource, /stage\.innerHTML = diagramReadonlyImageHtml\(source, document\.title\)/);
+  assert.match(diagramSource, /bindDiagramReadonlyViewer\(\);/);
+  assert.match(diagramCss, /\.diagram-preview-loader\s*{[\s\S]*position:\s*absolute;[\s\S]*top:\s*12px;[\s\S]*left:\s*12px;/);
+});
+
 test("Diagram read-only context menu toggles connection symbols", async () => {
   const diagramSource = await readFile(new URL("../../wwwroot/js/features/diagram/diagram.js", import.meta.url), "utf8");
 

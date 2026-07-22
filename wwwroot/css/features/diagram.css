@@ -327,6 +327,25 @@
   background: #ffffff;
 }
 
+.diagram-readonly-viewport.is-loading {
+  cursor: default;
+}
+
+.diagram-preview-loader {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  z-index: 1;
+  padding: 4px 10px;
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-pill);
+  color: var(--color-text-secondary);
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: var(--shadow-sm);
+  font-size: 12px;
+  font-weight: 600;
+}
+
 .diagram-readonly-viewport.is-panning {
   cursor: grabbing;
   user-select: none;

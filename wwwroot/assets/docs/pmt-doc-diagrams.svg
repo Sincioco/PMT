@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 420" role="img" aria-labelledby="title desc">
+  <title id="title">PMT Diagram workspace</title>
+  <desc id="desc">Screenshot-style PMT Diagram workspace with left navigation, canvas objects, rich text, and export controls.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0" stop-color="#eef4ff"/>
+      <stop offset="1" stop-color="#f8fbff"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="150%">
+      <feDropShadow dx="0" dy="12" stdDeviation="16" flood-color="#1f2a44" flood-opacity=".14"/>
+    </filter>
+  </defs>
+  <rect width="960" height="420" rx="28" fill="url(#bg)"/>
+  <g filter="url(#shadow)">
+    <rect x="62" y="46" width="836" height="328" rx="24" fill="#fff"/>
+    <rect x="62" y="46" width="836" height="54" rx="24" fill="#20324d"/>
+    <path d="M62 82h836v18H62z" fill="#20324d"/>
+    <text x="92" y="80" font-family="Segoe UI, Arial, sans-serif" font-size="19" font-weight="700" fill="#fff">Diagram</text>
+    <rect x="718" y="60" width="68" height="26" rx="13" fill="#eef4ff"/>
+    <text x="738" y="78" font-family="Segoe UI, Arial, sans-serif" font-size="12" font-weight="700" fill="#294a72">Fit</text>
+    <rect x="798" y="60" width="74" height="26" rx="13" fill="#ed7d31"/>
+    <text x="818" y="78" font-family="Segoe UI, Arial, sans-serif" font-size="12" font-weight="700" fill="#fff">Export</text>
+  </g>
+  <g font-family="Segoe UI, Arial, sans-serif">
+    <rect x="88" y="122" width="176" height="222" rx="16" fill="#f8fafc" stroke="#d9e2ef"/>
+    <text x="112" y="150" font-size="14" font-weight="700" fill="#172033">Diagram Tree</text>
+    <rect x="112" y="170" width="128" height="26" rx="13" fill="#eaf3ff"/>
+    <text x="126" y="188" font-size="12" font-weight="700" fill="#294a72">PMT Overview</text>
+    <text x="126" y="224" font-size="12" fill="#52627a">Process Map</text>
+    <text x="126" y="254" font-size="12" fill="#52627a">Tutorial Page</text>
+    <text x="126" y="284" font-size="12" fill="#52627a">Release Flow</text>
+    <text x="126" y="314" font-size="12" fill="#52627a">ERD Notes</text>
+  </g>
+  <g>
+    <rect x="298" y="122" width="560" height="222" rx="16" fill="#ffffff" stroke="#d9e2ef"/>
+    <path d="M330 292h488" stroke="#c6d4e8" stroke-width="2"/>
+    <rect x="342" y="156" width="126" height="72" rx="12" fill="#f4f7fb" stroke="#294a72" stroke-width="2"/>
+    <rect x="530" y="148" width="118" height="86" rx="12" fill="#fff7ed" stroke="#ed7d31" stroke-width="2"/>
+    <rect x="704" y="168" width="92" height="54" rx="12" fill="#f1f8f3" stroke="#4f8f5c" stroke-width="2"/>
+    <path d="M468 192h62M648 192h56" stroke="#294a72" stroke-width="4" stroke-linecap="round"/>
+    <path d="M468 207c42 60 114 82 216 67" fill="none" stroke="#4f7cac" stroke-width="3" stroke-linecap="round"/>
+    <text x="362" y="186" font-family="Segoe UI, Arial, sans-serif" font-size="13" font-weight="700" fill="#172033">Shape</text>
+    <text x="362" y="207" font-family="Segoe UI, Arial, sans-serif" font-size="11" fill="#52627a">Boxes, arrows, lines</text>
+    <text x="552" y="178" font-family="Segoe UI, Arial, sans-serif" font-size="13" font-weight="700" fill="#172033">Rich Text</text>
+    <text x="552" y="200" font-family="Segoe UI, Arial, sans-serif" font-size="11" fill="#52627a">Formatted notes</text>
+    <text x="722" y="199" font-family="Segoe UI, Arial, sans-serif" font-size="13" font-weight="700" fill="#172033">Image</text>
+    <rect x="342" y="252" width="212" height="52" rx="12" fill="#f8fafc" stroke="#c6d4e8"/>
+    <text x="362" y="274" font-family="Segoe UI, Arial, sans-serif" font-size="12" font-weight="700" fill="#294a72">Canvas objects can be moved, resized, copied, pasted, grouped, and exported.</text>
+    <text x="362" y="292" font-family="Segoe UI, Arial, sans-serif" font-size="11" fill="#52627a">Use Diagrams for walkthroughs, visual specs, and tutorial pages.</text>
+  </g>
+</svg>

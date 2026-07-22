@@ -46,7 +46,7 @@ test("login, navigation, themes, dialogs, filters, Board, Gantt, and Road Map sm
 
   await page.addInitScript(() => {
     localStorage.clear();
-    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-22-day-35@25009a8e2332");
+    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-22-day-35@b9e5ce970062");
     localStorage.setItem("pmt-navigation", JSON.stringify({
       version: 2,
       items: [
@@ -523,7 +523,7 @@ test("Developer Board moves stop after QA Passed while QA Ready remains availabl
 
   await page.addInitScript(() => {
     localStorage.clear();
-    localStorage.setItem("pmt-release-notes-last-seen:2", "2026-07-22-day-35@25009a8e2332");
+    localStorage.setItem("pmt-release-notes-last-seen:2", "2026-07-22-day-35@b9e5ce970062");
   });
   await installApiMocks(page, appState, apiCalls);
   await page.goto("/");
@@ -570,7 +570,7 @@ test("Scrum attendance, calendar, on-behalf, and vacation flows stay synchronize
       localStorage.clear();
       sessionStorage.setItem("pmt-scrum-attendance-smoke-started", "true");
     }
-    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-22-day-35@25009a8e2332");
+    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-22-day-35@b9e5ce970062");
   });
   await installApiMocks(page, appState, apiCalls);
 
@@ -889,7 +889,7 @@ test("Scrum header reserves its title and attendance avatars expand toward Check
   await page.clock.setFixedTime(new Date("2026-07-15T08:00:00+08:00"));
   await page.addInitScript(() => {
     localStorage.clear();
-    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-22-day-35@25009a8e2332");
+    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-22-day-35@b9e5ce970062");
   });
   await installApiMocks(page, appState, apiCalls);
 
@@ -972,7 +972,7 @@ test("Scrum New/Edit editor maximize uses the true full-screen layout", async ({
   const apiCalls = { securityReset: 0, sessionUserId: 1 };
   await page.addInitScript(() => {
     localStorage.clear();
-    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-22-day-35@25009a8e2332");
+    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-22-day-35@b9e5ce970062");
   });
   await installApiMocks(page, appState, apiCalls);
 
@@ -1054,7 +1054,7 @@ test("Scrum auto-refresh updates the table and attendance without reload or inte
   await page.clock.pauseAt(new Date("2026-07-15T08:00:00+08:00"));
   await page.addInitScript(() => {
     localStorage.clear();
-    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-22-day-35@25009a8e2332");
+    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-22-day-35@b9e5ce970062");
   });
   await installApiMocks(page, appState, apiCalls);
 
@@ -1235,7 +1235,7 @@ test("Scrum auto-refresh invalidates the visible Calendar month without shifting
   await page.clock.pauseAt(new Date("2026-07-15T08:00:00+08:00"));
   await page.addInitScript(() => {
     localStorage.clear();
-    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-22-day-35@25009a8e2332");
+    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-22-day-35@b9e5ce970062");
   });
   await installApiMocks(page, appState, apiCalls);
 
@@ -1343,7 +1343,7 @@ test("Scrum read-only permission disables attendance and vacation mutations", as
   await page.clock.setFixedTime(new Date("2026-07-15T08:00:00+08:00"));
   await page.addInitScript(() => {
     localStorage.clear();
-    localStorage.setItem("pmt-release-notes-last-seen:2", "2026-07-22-day-35@25009a8e2332");
+    localStorage.setItem("pmt-release-notes-last-seen:2", "2026-07-22-day-35@b9e5ce970062");
   });
   await installApiMocks(page, appState, apiCalls);
 
@@ -1378,8 +1378,8 @@ test("Scrum attendance cache follows the restored cookie session user", async ({
   await page.clock.setFixedTime(new Date("2026-07-15T08:00:00+08:00"));
   await page.addInitScript(() => {
     localStorage.clear();
-    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-22-day-35@25009a8e2332");
-    localStorage.setItem("pmt-release-notes-last-seen:2", "2026-07-22-day-35@25009a8e2332");
+    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-22-day-35@b9e5ce970062");
+    localStorage.setItem("pmt-release-notes-last-seen:2", "2026-07-22-day-35@b9e5ce970062");
   });
   await installApiMocks(page, appState, apiCalls);
 
@@ -2444,7 +2444,7 @@ test("Log shares the synchronized idle header and owner-only bulk delete", async
   await page.locator("#loginName").fill("Sin");
   await page.locator("#loginPassword").fill("Password1");
   await page.getByRole("button", { name: /log in/i }).click();
-  await openNavView(page, "Log", "Log");
+  await openNavView(page, "Log", "Personal Logs");
 
   const header = page.locator(".log-screen .section-head");
   const project = header.locator("[data-filter='log-project']");
@@ -3689,6 +3689,7 @@ test("Diagram Card and Tree views show the current user's private and public Dia
   await expect(page.getByRole("button", { name: "Edit Info", exact: true }).locator(".button-icon + span")).toHaveCSS("display", "none");
   await expect(page.getByRole("button", { name: "Edit Diagram", exact: true }).locator(".button-icon + span")).toHaveCSS("display", "none");
   await expect(page.locator("[data-diagram-readonly-viewer]")).toBeVisible();
+  await expect(page.locator("[data-diagram-readonly-viewer] [data-diagram-image]")).toBeVisible();
   await expect(page.locator("[data-diagram-readonly-viewer] [data-diagram-zoom]")).toHaveCount(0);
   await expect(page.locator(".diagram-screen .section-head [data-diagram-zoom]")).toBeVisible();
   await expect(page.locator(".diagram-screen .section-head [data-diagram-zoom] option")).toHaveCount(59);
@@ -3741,6 +3742,7 @@ test("Diagram Card and Tree views show the current user's private and public Dia
   }))).toEqual({ width: 160, transform: "scale(1.2)" });
 
   await page.locator("[data-action='select-diagram-document']", { hasText: "Public Diagram Marker" }).click();
+  await expect(page.locator("[data-diagram-readonly-viewer] [data-diagram-image]")).toBeVisible();
   await expect.poll(() => page.locator("[data-diagram-readonly-viewer]").evaluate(viewer => {
     const viewport = viewer.querySelector("[data-diagram-viewport]");
     const image = viewer.querySelector("[data-diagram-image]");
@@ -6719,7 +6721,7 @@ test("QA can edit only owned Scrum rows and private Log stays owner-only", async
   await readOnlyDialog.getByRole("button", { name: "Close", exact: true }).click();
   await expect(page).toHaveURL(/#\/scrum$/);
 
-  await openNavView(page, "Log", "Log");
+  await openNavView(page, "Log", "Personal Logs");
   await expect(page.locator(".log-table tbody")).toContainText("QA private note");
   await expect(page.locator(".log-table tbody")).not.toContainText("Administrator private note");
   await page.locator(".log-row[data-id='4']").click();

@@ -399,6 +399,50 @@ VALUES
     NULL,
     @Now,
     @Now
+),
+(
+    @PmtProject,
+    @PmtSprint5,
+    N'PMT Mentions and Live Cards',
+    N'<p><img src="/assets/docs/pmt-doc-mentions-live-cards.svg?v=20260722-mentions-live-cards" alt="PMT rich text showing mentions that open shared cards and live embedded cards"></p><p>Mentions and live cards turn ordinary PMT rich text into connected work context. A Scrum entry, Log, Documentation page, Dev Task, or Bug Report can point to another PMT item without forcing the reader to leave the conversation they are reading.</p><p>Use mentions when you want a compact reference that opens a card on hover. Use live cards when the referenced item deserves to be visible directly inside the rich-text body.</p><ul><li>Type <code>@task/123</code> or <code>@bug/123</code> to reference a Dev Task or Bug Report by its PMT id.</li><li>Type <code>@doc/123</code> or <code>@diagram/123</code> to reference a Documentation page or Diagram.</li><li>Use <code>@livetask/123</code>, <code>@livebug/123</code>, <code>@livedoc/123</code>, or <code>@livediagram/123</code> when the card should appear inline as part of the content.</li><li>Hovering or focusing a mention opens the same shared card style used elsewhere in PMT, so a mention looks and behaves like the real work item.</li><li>Live work-item cards reuse the Kanban card shell, including title, status, priority, percent, assignees, and project context.</li><li>Live Documentation and Diagram cards reuse their existing card views, so future card design improvements automatically carry into rich-text references.</li><li>Multiple mentions and live cards can appear in one rich-text entry, which is useful for daily Scrum summaries, release notes, QA handoffs, and design reviews.</li><li>Unknown or mistyped references safely stay as text instead of creating a broken card.</li><li>The stored rich text remains simple HTML; the PMT viewer resolves references when content is rendered so readers see current PMT data.</li></ul>',
+    0,
+    @Sin,
+    NULL,
+    @Now,
+    @Now
+),
+(
+    @PmtProject,
+    @PmtSprint5,
+    N'PMT Diagram Workspace Guide',
+    N'<p><img src="/assets/docs/pmt-doc-diagrams.svg?v=20260722-diagram-guide" alt="PMT Diagram workspace with tree navigation, canvas objects, rich text, and export controls"></p><p>The Diagram workspace is PMT''s general-purpose visual canvas. It can be used for architecture sketches, process maps, training pages, release walkthroughs, and visual documentation that needs to live beside the rest of the project data.</p><p>Diagrams are backed by PMT Documentation records, which means they participate in normal project context, visibility, history, cards, and rich-text linking.</p><ul><li>Create diagrams from the Diagram screen or insert a diagram directly from a rich-text editor when a visual explanation belongs inside Documentation, Scrum, Logs, Dev Tasks, or Bug Reports.</li><li>Add canvas objects such as rectangles, circles, lines, arrows, text boxes, images, Entity tables, and rich-text blocks.</li><li>Use rich-text objects on the canvas for tutorial pages, runbooks, and manual-style layouts that need formatted paragraphs, lists, images, and color-coded code samples.</li><li>Select, move, resize, group, copy, paste, duplicate, layer, lock, hide, and rename visual objects from the canvas and object tree.</li><li>Save frequently used shapes or formatting as templates so repeat diagrams stay visually consistent.</li><li>Export diagrams as SVG or PNG for presentations, documents, and external review.</li><li>Export a PMT Diagram file when the intent is to re-import the editable diagram into another PMT instance.</li><li>Embed Linked Diagram viewers in rich text so readers can pan, zoom, fit, resize, tab between diagrams, and maximize a shared diagram without opening the full editor.</li><li>The Diagram screen now renders the page shell and left navigation before hydrating very large selected diagrams, with a Loading indicator inside the viewer so navigation feels responsive.</li><li>Use Diagram cards and mentions to reference visuals from Scrum, Documentation, Logs, Dev Tasks, and Bug Reports.</li></ul>',
+    0,
+    @Sin,
+    NULL,
+    @Now,
+    @Now
+),
+(
+    @PmtProject,
+    @PmtSprint5,
+    N'PMT ERD and Database Schema Guide',
+    N'<p><img src="/assets/docs/pmt-doc-erd.svg?v=20260722-erd-guide" alt="PMT entity relationship diagram showing tables, fields, PK and FK markers, and relationship routing"></p><p>PMT ERDs are specialized Diagrams for database structure. They preserve table names, schema names, fields, primary keys, foreign keys, important fields, data types, and field-to-field relationship mappings so the diagram remains useful after it is saved, shared, exported, and reopened.</p><p>The ERD tools are designed for both generated schemas and hand-built diagrams where the database does not have every foreign-key relationship declared.</p><ul><li>Generate PMT''s live database schema from the connected database when you need a current editable ERD of all <code>pmt</code> tables and relationships.</li><li>Paste or type SQL table definitions to create Entity objects with fields, data types, identity markers, nullability, primary keys, and foreign keys.</li><li>Mark fields as PK, FK, or important from the Entity tab, and use the Important header to quickly select all fields before deselecting less important ones.</li><li>Map foreign keys through dropdowns that list the referenced Entities and fields already present in the diagram.</li><li>Manually map primary-key fields when a database uses relationships that are not declared as physical foreign keys.</li><li>Alphabetize Entity fields in the canvas and Entity tab while respecting the Show FK at Top display option.</li><li>Collapse Entities so large tables show only the fields that matter most for the current conversation.</li><li>Use Auto Format - Compact to arrange ERDs with clean corridors, shared relationship lanes, and compact routing that avoids drawing through unrelated Entities.</li><li>Select relationship lines in read-only mode to visually trace a connection through a complex diagram.</li><li>Nudge selected relationship segments with the keyboard in edit mode for precise manual placement.</li><li>Toggle connection symbols in read-only mode when users need cardinality markers such as one-to-one, one-to-many, arrows, and crows feet.</li><li>Export and re-import ERDs through the PMT Diagram file format so another PMT instance can preserve editable Entities, relationships, templates, and layout behavior.</li></ul>',
+    0,
+    @Sin,
+    NULL,
+    @Now,
+    @Now
+),
+(
+    @PmtProject,
+    @PmtSprint5,
+    N'PMT Image Annotation Guide',
+    N'<p><img src="/assets/docs/pmt-doc-image-annotations.svg?v=20260722-image-annotations" alt="PMT image annotation editor with screenshot, crop frame, arrow, highlight, and callout"></p><p>Image Annotations let PMT users explain screenshots, mockups, diagrams, and pasted images without leaving PMT. The annotation layer stays editable, so a reviewer can adjust callouts, arrows, highlights, and notes later instead of starting over with a flattened picture.</p><p>This is useful for QA evidence, UI review, training material, troubleshooting notes, and design handoff.</p><ul><li>Open image annotation from rich text images, inserted diagrams, and visual assets that need explanation.</li><li>Add arrows, rectangles, circles, lines, text boxes, callouts, highlights, and grouped shapes over the original image.</li><li>Move, resize, rotate, layer, group, lock, hide, and rename annotation objects from the canvas and object tree.</li><li>Use crop tools when only part of a screenshot matters, while preserving vector annotations around the selected image.</li><li>Choose colors, line widths, arrow-head sizes, opacity, text alignment, text wrapping, fills, and hidden outlines for clean presentation.</li><li>Copy selected artwork as tight SVG so the result pastes cleanly into documents and presentation tools.</li><li>Use PNG export when the destination does not preserve SVG or vector formatting.</li><li>Save common annotation styles as templates, including green arrows, orange highlights, red callouts, text blocks, and grouped captions.</li><li>Restore shared default templates so every PMT user starts with the same annotation vocabulary.</li><li>Keep annotations self-contained in saved SVG so reopened PMT content remains editable and portable.</li><li>Use annotations in QA reports to point directly at defects, expected behavior, and acceptance-test evidence.</li><li>Use annotations in Documentation to build tutorials with screenshots, step numbers, warnings, and visual checkpoints.</li></ul>',
+    0,
+    @Sin,
+    NULL,
+    @Now,
+    @Now
 );
 
 DECLARE @PmtCurrentDemoDoc INT = (SELECT [BlogId] FROM [pmt].[Blogs] WHERE [ProjectId] = @PmtProject AND [Title] = N'PMT Current Demo Readiness');
@@ -412,7 +456,11 @@ WHERE [ProjectId] = @PmtProject
     N'PMT Day 7 - Navigation and Sprint Metrics',
     N'PMT Day 8 - Documentation Card Cleanup',
     N'PMT Reorder Design Note',
-    N'PMT About 3D Visualization and Flyby'
+    N'PMT About 3D Visualization and Flyby',
+    N'PMT Mentions and Live Cards',
+    N'PMT Diagram Workspace Guide',
+    N'PMT ERD and Database Schema Guide',
+    N'PMT Image Annotation Guide'
 );
 
 UPDATE [pmt].[Blogs]

@@ -17,7 +17,7 @@ const PMT_DEMO_PROJECT_ID = 10;
 const PMT_DEMO_SPRINT_ONE_ID = 101;
 const PMT_DEMO_SPRINT_TWO_ID = 102;
 export const ABOUT_SCREEN_SAVER_IDLE_MS = 5 * 60 * 1000;
-export const ABOUT_DATABASE_VERSION = "1.25";
+export const ABOUT_DATABASE_VERSION = "1.26";
 
 export function aboutFooterHtml() {
   return `

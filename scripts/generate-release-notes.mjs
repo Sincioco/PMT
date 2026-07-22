@@ -172,11 +172,13 @@ function releaseIllustration(day, title, sections) {
   const searchableText = [title, ...sections.map(section => section.title)].join(" ").toLowerCase();
   const kind = Number(day) === 34
     ? "technology-team"
-    : Number(day) === 33
-      ? "development-team"
-      : Number(day) === 32
-        ? "diagram-screen"
-        : illustrationKind(searchableText);
+    : Number(day) === 35
+      ? "mentions-live-cards"
+      : Number(day) === 33
+        ? "development-team"
+        : Number(day) === 32
+          ? "diagram-screen"
+          : illustrationKind(searchableText);
   const palette = illustrationPalettes[Math.abs(Number(day) || 0) % illustrationPalettes.length];
   const offset = 34 + ((Number(day) || 0) * 17) % 44;
   const decoration = kind === "diagram-screen"
@@ -287,6 +289,21 @@ function illustrationIcon(kind, palette) {
     <path d="M218 100h20M482 100h20M360 114v12" stroke="${secondary}" stroke-width="5"/>
     <path d="M176 74c7 0 14-7 14-18 9 7 14 15 14 24M536 74c-7 0-14-7-14-18-9 7-14 15-14 24" stroke="${accent}" stroke-width="4"/>
   </g>`,
+    "mentions-live-cards": `<g ${common}>
+    <rect x="205" y="34" width="310" height="112" rx="16" fill="#fff"/>
+    <path d="M205 64h310"/>
+    <circle cx="232" cy="49" r="5" fill="${accent}" stroke="none"/>
+    <circle cx="252" cy="49" r="5" fill="${secondary}" stroke="none"/>
+    <circle cx="272" cy="49" r="5" fill="${accent}" stroke="none" opacity=".55"/>
+    <rect x="232" y="84" width="104" height="36" rx="10" fill="${accent}" fill-opacity=".14"/>
+    <path d="M251 106c0-13 8-21 21-21h21c13 0 21 8 21 21s-8 21-21 21h-21c-13 0-21-8-21-21Z" stroke="${accent}" stroke-width="5"/>
+    <path d="M276 106c0-10 7-17 17-17s17 7 17 17-7 17-17 17" stroke="${accent}" stroke-width="5"/>
+    <rect x="366" y="76" width="116" height="58" rx="12" fill="${secondary}" fill-opacity=".16"/>
+    <path d="M386 96h76M386 115h48" stroke-width="5"/>
+    <circle cx="462" cy="115" r="10" fill="${accent}" stroke="none"/>
+    <path d="M336 102h30M336 118h30" stroke="${secondary}" stroke-width="5"/>
+    <path d="M191 149c24-14 47-14 70 0M459 34c21-15 43-15 64 0" stroke="${accent}" stroke-width="5"/>
+  </g>`,
     schedule: `<g ${common}>
     <rect x="258" y="39" width="204" height="112" rx="12" fill="#fff"/>
     <path d="M258 73h204M305 28v23M415 28v23"/>
@@ -319,6 +336,7 @@ function illustrationAlt(kind) {
     "diagram-screen": "New Diagram screen illustration.",
     "development-team": "Development team collaboration illustration.",
     "technology-team": "People, technology, and teams illustration.",
+    "mentions-live-cards": "Rich-text mentions and live cards illustration.",
     diagram: "Diagram and database connection illustration.",
     image: "Image and annotation illustration.",
     release: "Product update announcement illustration.",

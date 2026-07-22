@@ -3,7 +3,7 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 const seedFiles = [
-  ["../../SQL/03_SeedData_PMT.sql", 11],
+  ["../../SQL/03_SeedData_PMT.sql", 15],
   ["../../SQL/03_SeedData_LMS.sql", 2],
   ["../../SQL/03_SeedData_HLS.sql", 2]
 ];

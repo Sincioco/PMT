@@ -72,6 +72,18 @@ Mention / Embed Live Dev Tasks and Bug Reports
 16.) I would like to be able to mention tasks, bugs, documents and diagrams (much like what you do now with @username) so that when the mouse cursor hovers on it, a Card view shows up.  The the tasks and bugs, just use the same card view as what is in the Kanban Board.  For the documents and diagrams, just re-use the same Card View that is already in Documents and Diagrams.  Make it so that if in the future, I make change to the Kanban Board Cards and the Document/Diagram cards, these mention card versions gets the same treatment automatically (shared cards, basially).
 17.) I would also like to embed tasks, bugs, documents and diagrams.  Just use the exact same card you use now in the Kanban board.  Maybe have it update to reflect the dev task or bug report's status every 5-10 seconds.  Could you come up with an easy in-line (in RTE) way of inserting a dev task or a bug report as a live card.  For example, the user can type "@livetask/1" (without the quotes) and task1 is inserted as a live card in the RTE and remains as a live card even in read-mode.  You can decide on what the syntax should be. For documents and diagrams just use the same card that they use in their Card view.  (again, shared cards basically)
 
+Diagram
+-------
+18.) When you go to Diagram, it takes 2-3 seconds before it responds and goes to the Diagram screen because the one and only diagram that is in Diagrams is the PMT Database Schema which takes a long time to render.  Can you bring up the Diagram screen first, render its UI before trying to render the diagram that is selected on the Left Nav (which in this case is PMT's Database Diagram).  It is creating a slow / negative user experience.
+19.) In fact, when a diagram is selected, show some sort of loader on the screen "Loading..." on the upper-left corner of the diagram so the user would notice it.
+
+20.) Update the What's New and create an .svg to promote the new mention and live cards.
+21.) Create a new Documentation for the PMT project in the same style as the existing documentations promoting the new mention and live cards.
+22.) Create a new Documentation for the PMT project in the same style as the existing documentations promoting the Diagram and ERD.
+23.) For #21 and #22 make sure they are a part of the permanent seed of PMT and add it into existing installs of PMT.
+24.) In fact, separate and create 3 documentations.  One for Diagrams.  And one for ERDs.  And another for Image Anotations.  Write more bullets points in each documentation describing what they do in more details.  Make the documentation more detailed and informative. With screen shots if possible.
+
+
 Database Migration Script Testing
 ---------------------------------
 Update the migration scripts and test them by dropping and re-creating the database from the baseline and executing your combined migration script as that is how I will execute it during deployment.  Be sure it works without any errors and fix errors that you do encounter.

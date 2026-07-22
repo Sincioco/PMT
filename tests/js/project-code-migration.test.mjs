@@ -9,6 +9,8 @@ const demoMigration = read("../../SQL/Migrations/Migration History/PMT_1.22_to_1
 const demoMigrationRunner = read("../../SQL/Migrations/Migration History/PMT_1.22_to_1.23_All.sql");
 const gameScoreMigration = read("../../SQL/Migrations/Migration History/PMT_1.24_to_1.25.sql");
 const gameScoreMigrationRunner = read("../../SQL/Migrations/Migration History/PMT_1.23_to_1.25_All.sql");
+const tutorialDocsMigration = read("../../SQL/Migrations/PMT_1.25_to_1.26.sql");
+const tutorialDocsMigrationRunner = read("../../SQL/Migrations/PMT_1.25_to_1.26_All.sql");
 const sourceProcedures = read("../../SQL/02_CreateStoredProcedures.sql");
 const sourceSeed = read("../../SQL/03_SeedData.sql");
 const pmtSeed = read("../../SQL/03_SeedData_PMT.sql");
@@ -154,6 +156,33 @@ test("Version 1.25 adds shared game-score storage and a combined deployment runn
   assert.match(gameScoreEndpoints, /ExplicitCurrentUserId\(context\)/);
   assert.match(gameScoreMigrationRunner, /:on error exit/);
   assert.ok(gameScoreMigrationRunner.indexOf("PMT_1.23_to_1.24.sql") < gameScoreMigrationRunner.indexOf("PMT_1.24_to_1.25.sql"));
+});
+
+test("Version 1.26 seeds PMT tutorial Documentation for existing installs", () => {
+  const tutorialTitles = [
+    "PMT Mentions and Live Cards",
+    "PMT Diagram Workspace Guide",
+    "PMT ERD and Database Schema Guide",
+    "PMT Image Annotation Guide"
+  ];
+
+  assert.match(rebuildScript, /@value = N'1\.26'/);
+  assert.match(tutorialDocsMigration, /ISNULL\(@CurrentDatabaseVersion, N''\) NOT IN \(N'1\.25', N'1\.26'\)/);
+  assert.match(tutorialDocsMigration, /@value = N'1\.26'/);
+  assert.match(tutorialDocsMigration, /THROW 51134, 'One or more Version 1\.26 seed Documentation titles already exist in PMT/);
+  assert.match(tutorialDocsMigration, /\[Blog\]\.\[IsPrivate\] = 0/);
+  assert.match(tutorialDocsMigration, /PMT tutorial Documentation for mentions, diagrams, ERDs, and image annotations is available/);
+  assert.match(tutorialDocsMigrationRunner, /:on error exit/);
+  assert.match(tutorialDocsMigrationRunner, /:r "\.\\PMT_1\.25_to_1\.26\.sql"/);
+  assert.match(pmtSeed, /pmt-doc-mentions-live-cards\.svg\?v=20260722-mentions-live-cards/);
+  assert.match(pmtSeed, /pmt-doc-diagrams\.svg\?v=20260722-diagram-guide/);
+  assert.match(pmtSeed, /pmt-doc-erd\.svg\?v=20260722-erd-guide/);
+  assert.match(pmtSeed, /pmt-doc-image-annotations\.svg\?v=20260722-image-annotations/);
+  for (const title of tutorialTitles) {
+    const escapedTitle = title.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    assert.match(pmtSeed, new RegExp(`N'${escapedTitle}'`));
+    assert.match(tutorialDocsMigration, new RegExp(`N'${escapedTitle}'`));
+  }
 });
 
 test("Diagram custom order spans root scopes while child parents remain scoped", () => {
