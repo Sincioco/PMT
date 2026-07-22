@@ -10,11 +10,11 @@ import {
   parseAnnotationSvg,
   openImageAnnotationDialog
 } from "./components/image-annotation.js?v=20260721-diagram-viewer-wheel-v1";
-import { createWhatsNew } from "./components/whats-new.js?v=release-notes-2026-07-22-day-35-25009a8e2332";
+import { createWhatsNew } from "./components/whats-new.js?v=release-notes-2026-07-22-day-35-a57726c81c10";
 import {
   htmlWithoutUserMentionMarkup,
   initializeUserMentions
-} from "./components/user-mentions.js?v=20260722-rte-toggle-state-v1";
+} from "./components/user-mentions.js?v=20260722-rich-entity-mentions-v1";
 import {
   askForText,
   askYesNo,
@@ -35,7 +35,7 @@ import {
   bindAttachmentPreview,
   showTaskAudit,
   viewWorkItem
-} from "./components/work-items.js?v=20260720-work-item-export-images-v4";
+} from "./components/work-items.js?v=20260722-rich-entity-mentions-v1";
 import { createApplicationShell } from "./core/application-shell.js?v=20260722-auth-flyby-v1";
 import {
   currentView,
@@ -65,20 +65,20 @@ import {
   createAboutScreenSaver
 } from "./features/about/about.js?v=20260722-login-flyby-v1";
 import { createBacklogFeature } from "./features/backlog/backlog.js?v=20260720-work-item-export-images-v4";
-import { createBoardFeature } from "./features/board/board.js?v=20260720-work-item-export-images-v4";
+import { createBoardFeature } from "./features/board/board.js?v=20260722-rich-entity-mentions-v1";
 import { createBugsFeature } from "./features/bugs/bugs.js?v=20260722-rte-toggle-state-v1";
-import { createDashboardFeature } from "./features/dashboard/dashboard.js?v=release-notes-2026-07-22-day-35-25009a8e2332";
-import { createDiagramFeature } from "./features/diagram/diagram.js?v=20260721-rte-diagram-menu-v1";
-import { createDocumentationFeature } from "./features/documentation/documentation.js?v=20260721-diagram-rich-text-v3";
+import { createDashboardFeature } from "./features/dashboard/dashboard.js?v=release-notes-2026-07-22-day-35-a57726c81c10";
+import { createDiagramFeature } from "./features/diagram/diagram.js?v=20260722-rich-entity-mentions-v1";
+import { createDocumentationFeature } from "./features/documentation/documentation.js?v=20260722-rich-entity-mentions-v1";
 import {
   createGanttFeature,
   currentSprintForProject,
   ganttStartDate
-} from "./features/gantt/gantt.js?v=release-notes-2026-07-22-day-35-25009a8e2332";
+} from "./features/gantt/gantt.js?v=release-notes-2026-07-22-day-35-a57726c81c10";
 import { createInvitationsFeature } from "./features/invitations/invitations.js?v=20260722-auth-flyby-v1";
 import { createProjectsFeature } from "./features/projects/projects.js?v=20260719-day32-rte-diagram";
-import { createReleaseNotesFeature } from "./features/release-notes/release-notes.js?v=release-notes-2026-07-22-day-35-25009a8e2332";
-import { createRoadMapFeature } from "./features/roadmap/roadmap.js?v=release-notes-2026-07-22-day-35-25009a8e2332";
+import { createReleaseNotesFeature } from "./features/release-notes/release-notes.js?v=release-notes-2026-07-22-day-35-a57726c81c10";
+import { createRoadMapFeature } from "./features/roadmap/roadmap.js?v=release-notes-2026-07-22-day-35-a57726c81c10";
 import { createLogFeature } from "./features/personal-log/log.js?v=20260722-rte-toggle-state-v1";
 import { createScrumFeature } from "./features/scrum/scrum.js?v=20260722-ole-viewport-v1";
 import { createSettingsFeature } from "./features/settings/settings.js?v=20260720-clear-preferences-logout-v1";
@@ -141,7 +141,11 @@ bindGlobalRichCodeBlockActions();
 bindGlobalRichCollapsibleBlocks();
 initializeUserMentions({
   getUsers: () => state.users,
-  getRoles: () => state.roles
+  getRoles: () => state.roles,
+  getTasks: () => state.tasks,
+  getBlogs: () => state.blogs,
+  getProjects: () => state.projects,
+  getSprints: () => state.sprints
 });
 
 const richTextFormats = {

@@ -1,5 +1,8 @@
 import { buttonContent, funnelIconHtml, pageActionsMenuHtml } from "../../components/buttons.js?v=20260717-multi-screen-header";
 import {
+  diagramCardHtml as sharedDiagramCardHtml
+} from "../../components/entity-cards.js?v=20260722-rich-entity-mentions-v1";
+import {
   annotationSvgPlaneMetrics,
   buildAnnotationSvg,
   buildPortableAnnotationState,
@@ -249,25 +252,11 @@ export function createDiagramFeature({
 
   function diagramCardHtml(document) {
     const image = diagramImage(document);
-    return `
-      <article class="card clickable-card documentation-card diagram-card" data-action="select-diagram-card" data-id="${document.id}" title="${escapeAttr(document.title)}">
-        <div class="documentation-card-top">
-          <div class="documentation-card-title-row">
-            <div class="documentation-title-block"><h3>${escapeHtml(document.title)}</h3></div>
-            <div class="row documentation-project documentation-card-badges">
-              <span class="pill">${document.isPrivate === false ? "Public" : "Private"}</span>
-            </div>
-          </div>
-          <div class="documentation-card-meta"><span>Updated ${escapeHtml(formatDate(document.updatedAt || document.createdAt))}</span></div>
-        </div>
-        <div class="documentation-card-body diagram-card-preview">
-          <img src="${escapeAttr(appUrl(image?.source || blankDiagramSource))}" alt="${escapeAttr(document.title)} preview" loading="lazy" decoding="async">
-        </div>
-        <div class="documentation-card-bottom has-top-created-meta">
-          <div class="documentation-card-meta documentation-card-created-meta"><span>Diagram</span></div>
-        </div>
-      </article>
-    `;
+    return sharedDiagramCardHtml(document, {
+      actionAttrs: `data-action="select-diagram-card" data-id="${document.id}"`,
+      source: image?.source || blankDiagramSource,
+      updatedLabel: `Updated ${formatDate(document.updatedAt || document.createdAt)}`
+    });
   }
 
   function diagramTreeViewHtml(documents) {

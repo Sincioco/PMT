@@ -71,3 +71,78 @@
   font-size: var(--font-size-sm);
   overflow-wrap: anywhere;
 }
+
+.rich-entity-tooltip {
+  width: min(420px, calc(100vw - 2 * var(--shell-padding-compact)));
+  max-height: min(560px, calc(100vh - 2 * var(--shell-padding-compact)));
+  overflow: auto;
+  pointer-events: none;
+}
+
+.rich-entity-live-card {
+  display: block;
+  max-width: 520px;
+  margin: var(--space-5) 0;
+}
+
+.rich-entity-live-card > .task-card,
+.rich-entity-live-card > .documentation-card {
+  margin-bottom: 0;
+}
+
+.rich-entity-tooltip .task-card,
+.rich-entity-live-card .task-card {
+  cursor: default;
+}
+
+.rich-entity-tooltip .task-card {
+  margin-bottom: 0;
+}
+
+.rich-entity-tooltip .documentation-card,
+.rich-entity-live-card .documentation-card {
+  cursor: default;
+}
+
+.rich-entity-tooltip .documentation-card {
+  height: 340px;
+  min-height: 340px;
+  padding: var(--space-5);
+}
+
+.rich-entity-live-card .documentation-card {
+  height: 380px;
+  min-height: 380px;
+}
+
+.rich-entity-tooltip .documentation-card-top {
+  grid-template-rows: 28px 38px;
+  height: 92px;
+  min-height: 92px;
+  max-height: 92px;
+}
+
+.rich-entity-tooltip .documentation-card-bottom {
+  min-height: 48px;
+}
+
+.rich-entity-tooltip .documentation-card-overflow-toggle,
+.rich-entity-live-card .documentation-card-overflow-toggle {
+  display: none !important;
+}
+
+.rich-entity-unavailable-card {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-5);
+  border: var(--border-width) solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  color: var(--color-text-primary);
+  box-shadow: var(--shadow-compact);
+}
+
+.rich-entity-unavailable-card span {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+}

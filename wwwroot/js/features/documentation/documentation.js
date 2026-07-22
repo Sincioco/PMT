@@ -2,6 +2,9 @@ import { attachmentsHtml, bindAttachmentDeletion } from "../../components/attach
 import { buttonContent, funnelIconHtml, iconButton, pageActionsMenuHtml } from "../../components/buttons.js?v=20260717-multi-screen-header";
 import { hideEmptyReadOnlyFields, initializeWindowedDialog } from "../../components/dialogs.js?v=20260714-attachment-delete";
 import {
+  documentationCardHtml as sharedDocumentationCardHtml
+} from "../../components/entity-cards.js?v=20260722-rich-entity-mentions-v1";
+import {
   checkedFilterValues,
   filterCheckList,
   filterSelect
@@ -20,7 +23,7 @@ import {
   selectOptionsField,
   value
 } from "../../components/forms.js?v=20260722-rte-toggle-state-v1";
-import { sectionHead } from "../../components/sections.js?v=release-notes-2026-07-22-day-35-25009a8e2332";
+import { sectionHead } from "../../components/sections.js?v=release-notes-2026-07-22-day-35-a57726c81c10";
 import {
   preferenceKeys,
   readBooleanPreference,
@@ -2460,35 +2463,27 @@ function documentationCardHtml(blog) {
   const wasEdited = documentationWasEdited(blog);
   const isExpanded = expandedDocumentationCardIds.has(blog.id);
 
-  return `
-    <article class="card clickable-card documentation-card ${isExpanded ? "is-expanded" : ""}" data-action="view-blog" data-id="${blog.id}" title="${escapeAttr(blog.title)}">
-      <div class="documentation-card-top">
-        <div class="documentation-card-title-row">
-          <div class="documentation-title-block">
-            <h3>${escapeHtml(blog.title)}</h3>
-          </div>
-          <div class="row documentation-project documentation-card-badges">
-            ${documentationCardIndicatorsHtml(blog)}
-            ${blog.projectId ? `<span class="pill">${escapeHtml(projectCode(blog.projectId))}</span>` : `<span class="pill">General</span>`}
-          </div>
-        </div>
-        ${wasEdited ? documentationEditedMetaHtml(blog) : documentationCreatedMetaHtml(blog)}
+  return sharedDocumentationCardHtml(blog, {
+    actionAttrs: `data-action="view-blog" data-id="${blog.id}"`,
+    isExpanded,
+    wasEdited,
+    projectLabel: blog.projectId ? projectCode(blog.projectId) : "General",
+    createdMetaHtml: documentationCreatedMetaHtml(blog),
+    editedMetaHtml: documentationEditedMetaHtml(blog),
+    richPersistAttrs: documentationRichPersistAttrs(blog),
+    actionHtml: `
+      <div class="toolbar reveal-actions documentation-actions">
+        ${documentationDeleteSelectionHtml(blog)}
+        ${iconButton("delete-blog", blog.id, "Delete", "delete", canAccessResource("Documentation", "Delete"), "danger")}
+        ${iconButton("edit-blog", blog.id, "Edit", "edit", canAccessResource("Documentation", "Update"))}
       </div>
-      <div class="rich-readonly documentation-card-body" ${documentationRichPersistAttrs(blog)}>${blog.bodyHtml}</div>
-      ${blog.attachments.length ? `<div class="documentation-attachments">${blog.attachments.map(file => `<a href="${escapeAttr(file.url)}">${escapeHtml(file.fileName)}</a>`).join("")}</div>` : ""}
-      <div class="documentation-card-bottom ${wasEdited ? "" : "has-top-created-meta"}">
-        ${wasEdited ? documentationCreatedMetaHtml(blog) : ""}
-        <div class="toolbar reveal-actions documentation-actions">
-          ${documentationDeleteSelectionHtml(blog)}
-          ${iconButton("delete-blog", blog.id, "Delete", "delete", canAccessResource("Documentation", "Delete"), "danger")}
-          ${iconButton("edit-blog", blog.id, "Edit", "edit", canAccessResource("Documentation", "Update"))}
-        </div>
-      </div>
+    `,
+    overflowToggleHtml: `
       <button class="secondary text-icon-button documentation-card-overflow-toggle" type="button" data-action="toggle-documentation-card-expanded" data-id="${blog.id}" aria-expanded="${isExpanded}" title="${isExpanded ? "Collapse document card" : "Show more of this document card"}">
         ${buttonContent(isExpanded ? "&#9652;" : "&#9662;", isExpanded ? "Show Less" : "More")}
       </button>
-    </article>
-  `;
+    `
+  });
 }
 
 function documentationRichPersistAttrs(blog) {
@@ -2497,20 +2492,6 @@ function documentationRichPersistAttrs(blog) {
     `data-rich-persist-id="${escapeAttr(blog.id)}"`,
     `data-rich-persist-field="bodyHtml"`
   ].join(" ");
-}
-
-function documentationCardIndicatorsHtml(blog) {
-  return [
-    blog.isPrivate !== false ? documentationCardIndicatorHtml("Private", documentationLockIconHtml()) : ""
-  ].filter(Boolean).join("");
-}
-
-function documentationCardIndicatorHtml(label, iconHtml) {
-  return `
-    <span class="documentation-card-indicator" title="${escapeAttr(label)}" aria-label="${escapeAttr(label)}">
-      ${iconHtml}
-    </span>
-  `;
 }
 
 function documentationLockIconHtml() {

@@ -21,6 +21,7 @@ import {
   checkedNumbers,
   userCardCheckListLabelHtml
 } from "./forms.js?v=20260719-rte-insert-diagram";
+import { progressHtml } from "./progress-and-status.js?v=20260714-linked-bug-percent";
 import { state } from "../core/store.js";
 import { formatDate, formatDateTime } from "../shared/dates.js";
 import { canEditTask } from "../shared/permissions.js?v=20260715-admin-impersonation";
@@ -32,7 +33,10 @@ import {
   taskById,
   userById
 } from "../shared/selectors.js";
-import { severityTextHtml } from "../shared/severity.js?v=20260715-severity-prefix";
+import {
+  severityPillHtml,
+  severityTextHtml
+} from "../shared/severity.js?v=20260715-severity-prefix";
 import {
   escapeAttr,
   escapeHtml,
@@ -44,6 +48,8 @@ import {
   taskDisplayPercent
 } from "../shared/work-item-rules.js?v=20260716-developer-board-status";
 import { exportWorkItemHtml } from "../shared/work-item-transfer.js?v=20260720-work-item-export-images-v4";
+
+const workItemBugIconUrl = "/assets/bug.svg?v=20260629-kanban-gantt-bug-icon";
 
 export function taskButtonsHtml(task, { includeView = true, monochrome = false } = {}) {
   const canEdit = canEditTask(task);
@@ -111,6 +117,74 @@ export function taskAuditPanelHtml(task) {
 export function bugFixIconHtml(task) {
   if (task.taskType === "Bug" || !task.linkedBugTaskId) return "";
   return `<span class="bug-fix-icon" title="Bug Fix">&#128027;</span>`;
+}
+
+export function workItemKanbanCardHtml(task, options = {}) {
+  const canDrag = options.canDrag === true;
+  const actionAttrs = options.actionAttrs || "";
+  const actionsHtml = options.actionsHtml || "";
+  const extraClass = options.className ? ` ${options.className}` : "";
+
+  return `
+    <article class="task-card ${task.taskType === "Bug" ? "bug-card" : ""}${extraClass}" ${actionAttrs} data-task-id="${task.id}" data-can-drag="${canDrag ? "true" : "false"}" draggable="false">
+      <div class="task-card-top">
+        <div class="task-card-avatar">${avatarsHtml(task.assignees)}</div>
+        <div class="task-card-summary">
+          <div class="spread task-card-head">
+            <strong class="task-card-code">${escapeHtml(task.code)}</strong>
+            ${taskTypeMarkHtml(task)}
+          </div>
+          <p class="task-card-title">${bugFixIconHtml(task)}${escapeHtml(task.title)}</p>
+          <div class="task-card-tags">
+            <span class="pill priority-${escapeAttr(task.priority)}">${escapeHtml(task.priority)}</span>
+            ${task.taskType === "Bug" ? severityPillHtml(task.severity) : ""}
+          </div>
+        </div>
+      </div>
+      ${taskCardProgressHtml(task)}
+      ${actionsHtml ? `
+        <div class="toolbar reveal-actions task-card-actions">
+          ${actionsHtml}
+        </div>
+      ` : ""}
+    </article>
+  `;
+}
+
+function taskTypeMarkHtml(task) {
+  if (task.taskType === "Bug") {
+    return `<img class="task-card-bug-icon" src="${workItemBugIconUrl}" title="Bug" alt="Bug">`;
+  }
+
+  return `<span class="pill">${escapeHtml(task.taskType || "Dev")}</span>`;
+}
+
+function taskCardProgressHtml(task) {
+  const percent = taskDisplayPercent(task);
+  const subTasks = task.subTasks || [];
+
+  return `
+    <div class="task-card-progress">
+      <div class="task-card-progress-label">${percent}%</div>
+      ${progressHtml(percent)}
+      ${subTasks.map(taskCardSubTaskProgressHtml).join("")}
+    </div>
+  `;
+}
+
+function taskCardSubTaskProgressHtml(subTask) {
+  const percent = taskDisplayPercent(subTask);
+  const label = [subTask.code || "Sub-task", subTask.title].filter(Boolean).join(" - ");
+
+  return `
+    <div class="task-card-subtask-progress" title="${escapeAttr(`${label} ${percent}%`)}">
+      <div class="task-card-subtask-label">
+        <span class="task-card-subtask-name">${escapeHtml(label)}</span>
+        <span>${percent}%</span>
+      </div>
+      ${progressHtml(percent)}
+    </div>
+  `;
 }
 
 export function taskPercentField(task, isLocked) {

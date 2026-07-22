@@ -2,13 +2,13 @@
 export const releaseNotes = Object.freeze([
   {
     "id": "2026-07-22-day-35",
-    "version": "25009a8e2332",
-    "seenToken": "2026-07-22-day-35@25009a8e2332",
+    "version": "a57726c81c10",
+    "seenToken": "2026-07-22-day-35@a57726c81c10",
     "date": "2026-07-22",
     "day": 35,
     "title": "3D PMT Flyby Login and Invited Signup",
     "illustration": {
-      "url": "/assets/release-notes/2026-07-22-day-35.svg?v=25009a8e2332",
+      "url": "/assets/release-notes/2026-07-22-day-35.svg?v=a57726c81c10",
       "alt": "Diagram and database connection illustration."
     },
     "sourceFile": "2026-07-22 - Requirements - Day 35.txt",
@@ -58,6 +58,14 @@ export const releaseNotes = Object.freeze([
           "Add a Maximize control that expands a Linked Diagram viewer edge-to-edge across the browser viewport, above the PMT header, while keeping its tabs and viewport controls available.",
           "Keep the selected Linked Diagram tab and maximized viewer state intact when Scrum auto-refresh redraws the entry.",
           "Let editors rename the Linked Diagram viewer header separately from the individual tab/page names."
+        ]
+      },
+      {
+        "title": "Mentions and Live Cards",
+        "items": [
+          "Let read-only rich text mention Dev Tasks, Bug Reports, Documents, and Diagrams with @task/id, @bug/id, @doc/id, and @diagram/id tokens that reveal the shared card on hover.",
+          "Add live rich-text embeds with @livetask/id, @livebug/id, @livedoc/id, and @livediagram/id tokens so Scrum, Logs, Documentation, and other read-only RTE content can show current card views inline.",
+          "Reuse the Kanban work-item card shell and the Documentation or Diagram card shells for mention cards so future shared-card refinements carry into rich-text mentions."
         ]
       },
       {

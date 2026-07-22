@@ -1450,6 +1450,14 @@
         ]
       },
       {
+        "title": "Mentions and Live Cards",
+        "items": [
+          "Let read-only rich text mention Dev Tasks, Bug Reports, Documents, and Diagrams with @task/id, @bug/id, @doc/id, and @diagram/id tokens that reveal the shared card on hover.",
+          "Add live rich-text embeds with @livetask/id, @livebug/id, @livedoc/id, and @livediagram/id tokens so Scrum, Logs, Documentation, and other read-only RTE content can show current card views inline.",
+          "Reuse the Kanban work-item card shell and the Documentation or Diagram card shells for mention cards so future shared-card refinements carry into rich-text mentions."
+        ]
+      },
+      {
         "title": "Release Readiness",
         "items": [
           "Cache-bust the updated auth screens and About flyby modules so browsers pick up the new login and invitation layouts immediately.",

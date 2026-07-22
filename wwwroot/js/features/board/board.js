@@ -1,15 +1,13 @@
-import { avatarsHtml } from "../../components/avatars.js";
 import { buttonContent, funnelIconHtml } from "../../components/buttons.js";
 import { checkedFilterValues, filterCheckList } from "../../components/filters.js?v=20260621-task-filter-layout";
 import { userCardCheckListLabelHtml } from "../../components/forms.js?v=20260722-rte-toggle-state-v1";
 import { createIdleFilterHeader } from "../../components/idle-filter-header.js?v=20260717-multi-screen-search-persistent";
-import { progressHtml } from "../../components/progress-and-status.js?v=20260714-linked-bug-percent";
-import { sectionHead } from "../../components/sections.js?v=release-notes-2026-07-22-day-35-25009a8e2332";
+import { sectionHead } from "../../components/sections.js?v=release-notes-2026-07-22-day-35-a57726c81c10";
 import {
-  bugFixIconHtml,
   createWorkItemTableMode,
-  taskButtonsHtml
-} from "../../components/work-items.js?v=20260720-work-item-export-images-v4";
+  taskButtonsHtml,
+  workItemKanbanCardHtml
+} from "../../components/work-items.js?v=20260722-rich-entity-mentions-v1";
 import {
   currentUser
 } from "../../core/authentication.js?v=20260715-admin-impersonation";
@@ -28,7 +26,6 @@ import { normalizeSavedArray } from "../../shared/filter-values.js";
 import { canEditTask } from "../../shared/permissions.js?v=20260715-admin-impersonation";
 import { canAccessResource } from "../../shared/security.js?v=20260717-multi-screen-header";
 import { taskById } from "../../shared/selectors.js";
-import { severityPillHtml } from "../../shared/severity.js?v=20260715-severity-prefix";
 import {
   escapeAttr,
   escapeHtml
@@ -36,7 +33,6 @@ import {
 import {
   percentForDevTaskSave,
   percentForStatus,
-  taskDisplayPercent,
   taskOrderCompare,
   validateDeveloperDevTaskStatus
 } from "../../shared/work-item-rules.js?v=20260716-developer-board-status";
@@ -645,67 +641,11 @@ export function createBoardFeature({
       ? ""
       : `data-action="view-task" data-id="${task.id}" role="button" tabindex="0"`;
 
-    return `
-      <article class="task-card ${task.taskType === "Bug" ? "bug-card" : ""}" ${readOnlyActionAttrs} data-task-id="${task.id}" data-can-drag="${canDrag ? "true" : "false"}" draggable="false">
-        <div class="task-card-top">
-          <div class="task-card-avatar">${avatarsHtml(task.assignees)}</div>
-          <div class="task-card-summary">
-            <div class="spread task-card-head">
-              <strong class="task-card-code">${escapeHtml(task.code)}</strong>
-              ${taskTypeMarkHtml(task)}
-            </div>
-            <p class="task-card-title">${bugFixIconHtml(task)}${escapeHtml(task.title)}</p>
-            <div class="task-card-tags">
-              <span class="pill priority-${escapeAttr(task.priority)}">${escapeHtml(task.priority)}</span>
-              ${task.taskType === "Bug" ? severityPillHtml(task.severity) : ""}
-            </div>
-          </div>
-        </div>
-        ${taskCardProgressHtml(task)}
-        ${boardEditMode.active ? `
-          <div class="toolbar reveal-actions task-card-actions">
-            ${boardDeleteSelectionHtml(task)}
-            ${taskButtonsHtml(task)}
-          </div>
-        ` : ""}
-      </article>
-    `;
-  }
-
-  function taskTypeMarkHtml(task) {
-    if (task.taskType === "Bug") {
-      return `<img class="task-card-bug-icon" src="${bugIconUrl}" title="Bug" alt="Bug">`;
-    }
-
-    return `<span class="pill">${escapeHtml(task.taskType || "Dev")}</span>`;
-  }
-
-  function taskCardProgressHtml(task) {
-    const percent = taskDisplayPercent(task);
-    const subTasks = task.subTasks || [];
-
-    return `
-      <div class="task-card-progress">
-        <div class="task-card-progress-label">${percent}%</div>
-        ${progressHtml(percent)}
-        ${subTasks.map(taskCardSubTaskProgressHtml).join("")}
-      </div>
-    `;
-  }
-
-  function taskCardSubTaskProgressHtml(subTask) {
-    const percent = taskDisplayPercent(subTask);
-    const label = [subTask.code || "Sub-task", subTask.title].filter(Boolean).join(" - ");
-
-    return `
-      <div class="task-card-subtask-progress" title="${escapeAttr(`${label} ${percent}%`)}">
-        <div class="task-card-subtask-label">
-          <span class="task-card-subtask-name">${escapeHtml(label)}</span>
-          <span>${percent}%</span>
-        </div>
-        ${progressHtml(percent)}
-      </div>
-    `;
+    return workItemKanbanCardHtml(task, {
+      actionAttrs: readOnlyActionAttrs,
+      canDrag,
+      actionsHtml: boardEditMode.active ? `${boardDeleteSelectionHtml(task)}${taskButtonsHtml(task)}` : ""
+    });
   }
 
   function buttonIconImgHtml(className) {
