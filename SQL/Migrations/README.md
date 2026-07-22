@@ -16,7 +16,7 @@ All completed migration scripts and HTML runbooks live under `Migration History/
 
 ## Active Forward Migration
 
-There is no active forward migration because the deployed baseline and source version are both Version 1.25. The next database-affecting release must start with `PMT_1.25_to_1.26.sql`. Do not edit a completed historical migration to introduce new behavior.
+There is no active forward migration because the deployed baseline and source version are both Version 1.25. The Day 35 rich-text entity mention and live-card work changes browser/RTE rendering only and does not require new SQL objects, stored procedure contract changes, seed data changes, or a `PMT_1.25_to_1.26.sql` step. The next database-affecting release must start with `PMT_1.25_to_1.26.sql`. Do not edit a completed historical migration to introduce new behavior.
 
 Do not run `SQL/03_SeedData.sql` or **Factory Reset PMT** in Production. For later demos, use **Clear PMT Demo** followed by **Restore PMT Seed Data**; that focused cycle leaves `PMTQA` and BDO users intact. **Clear All Projects Except PMT** is different and permanently deletes `PMTQA` plus every other non-PMT Project.
 
