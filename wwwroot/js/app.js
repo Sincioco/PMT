@@ -10,7 +10,7 @@ import {
   parseAnnotationSvg,
   openImageAnnotationDialog
 } from "./components/image-annotation.js?v=20260721-diagram-viewer-wheel-v1";
-import { createWhatsNew } from "./components/whats-new.js?v=release-notes-2026-07-22-day-35-030fe4bab912";
+import { createWhatsNew } from "./components/whats-new.js?v=release-notes-2026-07-22-day-35-ca15bff9d767";
 import {
   htmlWithoutUserMentionMarkup,
   initializeUserMentions
@@ -67,18 +67,18 @@ import {
 import { createBacklogFeature } from "./features/backlog/backlog.js?v=20260720-work-item-export-images-v4";
 import { createBoardFeature } from "./features/board/board.js?v=20260720-work-item-export-images-v4";
 import { createBugsFeature } from "./features/bugs/bugs.js?v=20260721-rte-code-log-v1";
-import { createDashboardFeature } from "./features/dashboard/dashboard.js?v=release-notes-2026-07-22-day-35-030fe4bab912";
+import { createDashboardFeature } from "./features/dashboard/dashboard.js?v=release-notes-2026-07-22-day-35-ca15bff9d767";
 import { createDiagramFeature } from "./features/diagram/diagram.js?v=20260721-rte-diagram-menu-v1";
 import { createDocumentationFeature } from "./features/documentation/documentation.js?v=20260721-diagram-rich-text-v3";
 import {
   createGanttFeature,
   currentSprintForProject,
   ganttStartDate
-} from "./features/gantt/gantt.js?v=release-notes-2026-07-22-day-35-030fe4bab912";
+} from "./features/gantt/gantt.js?v=release-notes-2026-07-22-day-35-ca15bff9d767";
 import { createInvitationsFeature } from "./features/invitations/invitations.js?v=20260722-auth-flyby-v1";
 import { createProjectsFeature } from "./features/projects/projects.js?v=20260719-day32-rte-diagram";
-import { createReleaseNotesFeature } from "./features/release-notes/release-notes.js?v=release-notes-2026-07-22-day-35-030fe4bab912";
-import { createRoadMapFeature } from "./features/roadmap/roadmap.js?v=release-notes-2026-07-22-day-35-030fe4bab912";
+import { createReleaseNotesFeature } from "./features/release-notes/release-notes.js?v=release-notes-2026-07-22-day-35-ca15bff9d767";
+import { createRoadMapFeature } from "./features/roadmap/roadmap.js?v=release-notes-2026-07-22-day-35-ca15bff9d767";
 import { createLogFeature } from "./features/personal-log/log.js?v=20260721-rte-code-log-v1";
 import { createScrumFeature } from "./features/scrum/scrum.js?v=20260722-ole-viewport-v1";
 import { createSettingsFeature } from "./features/settings/settings.js?v=20260720-clear-preferences-logout-v1";
@@ -4629,6 +4629,8 @@ function richLinkedDiagramHtml(diagram) {
 
 const diagramOleViewerSourceCache = new Map();
 const diagramOleViewerSourceLoads = new Map();
+const RICH_DIAGRAM_OLE_MIN_ZOOM = 0.01;
+const RICH_DIAGRAM_OLE_MAX_ZOOM = 5;
 
 function diagramOleDocuments() {
   return state.blogs
@@ -5009,7 +5011,7 @@ function bindRichDiagramOleViewer(block, diagram, activeTab, tabs) {
 
   const hasStoredView = diagram ? hasRichDiagramOleViewport(block, diagram, activeTab) : false;
   let view = diagram ? readRichDiagramOleViewport(block, diagram, activeTab) : { x: 0, y: 0, zoom: 1 };
-  const clampZoom = value => Math.min(5, Math.max(0.1, Number(value || 1)));
+  const clampZoom = value => Math.min(RICH_DIAGRAM_OLE_MAX_ZOOM, Math.max(RICH_DIAGRAM_OLE_MIN_ZOOM, Number(value || 1)));
   const render = (options = {}) => {
     if (!surface || !diagram) return;
     view.zoom = clampZoom(view.zoom);
@@ -5048,7 +5050,7 @@ function bindRichDiagramOleViewer(block, diagram, activeTab, tabs) {
     const imageHeight = Math.max(1, image?.naturalHeight || image?.clientHeight || 0);
     if (!richDiagramOleViewportHasLayout(viewport) || !viewportWidth || !viewportHeight || !imageWidth || !imageHeight) return;
 
-    const zoom = Math.min(1, viewportWidth / imageWidth, viewportHeight / imageHeight);
+    const zoom = clampZoom(Math.min(viewportWidth / imageWidth, viewportHeight / imageHeight));
     view = {
       x: Math.round((viewportWidth - imageWidth * zoom) / 2),
       y: Math.round((viewportHeight - imageHeight * zoom) / 2),
@@ -5476,7 +5478,7 @@ function clampRichDiagramOleViewport(block, viewport, surface, view) {
   const imageHeight = Math.max(0, image?.naturalHeight || image?.clientHeight || 0);
   if (!richDiagramOleViewportHasLayout(viewport) || !viewportWidth || !viewportHeight || !imageWidth || !imageHeight) return false;
 
-  const zoom = Math.min(5, Math.max(0.1, Number(view.zoom || 1)));
+  const zoom = Math.min(RICH_DIAGRAM_OLE_MAX_ZOOM, Math.max(RICH_DIAGRAM_OLE_MIN_ZOOM, Number(view.zoom || 1)));
   const scaledWidth = imageWidth * zoom;
   const scaledHeight = imageHeight * zoom;
   const visibleWidth = Math.max(1, Math.min(96, viewportWidth / 2, scaledWidth / 2));

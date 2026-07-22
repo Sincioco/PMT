@@ -5608,6 +5608,7 @@ test("RTE Insert Linked Diagram stores a database-backed Diagram OLE reference",
   assert.match(appSource, /function richDiagramOleTabsHtml/);
   assert.match(appSource, /function richDiagramOleTabs/);
   assert.match(appSource, /function richDiagramOleWriteTabs/);
+  assert.match(appSource, /const RICH_DIAGRAM_OLE_MIN_ZOOM = 0\.01/);
   assert.match(appSource, /function richDiagramOleInitialViewport/);
   assert.match(appSource, /function richDiagramOleCurrentViewport/);
   assert.match(appSource, /function rememberRichDiagramOleViewport/);
@@ -5615,6 +5616,8 @@ test("RTE Insert Linked Diagram stores a database-backed Diagram OLE reference",
   assert.match(appSource, /buildAnnotationSvg\(diagramState,\s*{[\s\S]*entityHeaderButtonsVisible:\s*false/);
   assert.match(appSource, /function refreshRichDiagramOleViewerSource/);
   assert.match(appSource, /data-diagram-ole-fit/);
+  assert.match(appSource, /const zoom = clampZoom\(Math\.min\(viewportWidth \/ imageWidth, viewportHeight \/ imageHeight\)\)/);
+  assert.doesNotMatch(appSource, /Math\.min\(1,\s*viewportWidth \/ imageWidth,\s*viewportHeight \/ imageHeight\)/);
   assert.match(appSource, /data-diagram-ole-maximize/);
   assert.match(appSource, /data-diagram-ole-add-tab/);
   assert.match(appSource, /data-diagram-ole-rename-tab/);
@@ -5643,6 +5646,8 @@ test("RTE Insert Linked Diagram stores a database-backed Diagram OLE reference",
   assert.match(formsCss, /\.pmt-diagram-ole-viewport\.is-panning/);
   assert.match(formsCss, /\.pmt-diagram-ole\s*{[\s\S]*resize:\s*both;/);
   assert.match(formsCss, /\.pmt-diagram-ole\.is-maximized/);
+  assert.match(formsCss, /\.pmt-diagram-ole\.is-maximized\s*{[\s\S]*inset:\s*0;[\s\S]*z-index:\s*calc\(var\(--z-tooltip\) \+ 1\);/);
+  assert.match(formsCss, /body\.has-pmt-diagram-ole-maximized\s*{[\s\S]*overflow:\s*hidden;/);
   assert.match(formsCss, /\.pmt-diagram-ole-tabs/);
   assert.doesNotMatch(formsCss, /\.pmt-diagram-ole::after/);
   assert.match(formsCss, /\.pmt-diagram-ole-picker-dialog\s*{[\s\S]*width:\s*calc\(100vw - 24px\);[\s\S]*height:\s*calc\(100vh - 24px\);/);

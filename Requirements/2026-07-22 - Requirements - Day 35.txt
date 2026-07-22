@@ -51,10 +51,13 @@ Linked Diagram (OLE)
 13.) Can you also add a maximize button that truly maximize and takes as much of the content area of the browser as possible.
 13a.) In the Linked Diagram viewer when in read-mode, I cannot resize it.  Also there are two resize indicators appearing in both read and edit mode.  Keep the small one and get rid of the bigger one that seems to appear inside the content area of the Linked Diagram Viewer's viewport.
 13b.) In the Linked Diagram viewer when in read-mode, I cannot resize it because the moment I try to grab the resize handle and drag, the diagram pans instead.
+13c.) Why does "Reset" and "Fit" just do the same thing.  Fit should fit/scale the object as a whole so they fit in the viewport.
+13d.) As for #13, I meant the whole browser's content area, edge to edge.  So no PMT header, and no gaps on the edges.
 
 Mention / Embed Live Dev Tasks and Bug Reports
 ----------------------------------------------
-14.) I would also like to embed tasks and bug reports as a card in a document.  Just use the exact same card you use now in the Kanban board.  Maybe have it update to reflect the dev task or bug report's status every 5-10 seconds.  Could you come up with an easy in-line (in RTE) way of inserting a dev task or a bug report.  For example, the user can type "@task/1" (without the quotes) and task1 is inserted as a live card in the RTE and remains as a live card eve in read-mode.  You can decide on what the format is for the mention.
+14.) I would like to be able to mention tasks, bugs, documents and diagrams (much like what you do now with @username) so that when the mouse cursor hovers on it, a Card view shows up.  The the tasks and bugs, just use the same card view as what is in the Kanban Board.  For the documents and diagrams, just re-use the same Card View that is already in Documents and Diagrams.  Make it so that if in the future, I make change to the Kanban Board Cards and the Document/Diagram cards, these mention card versions gets the same treatment automatically (shared cards, basially).
+15.) I would also like to embed tasks, bugs, documents and diagrams.  Just use the exact same card you use now in the Kanban board.  Maybe have it update to reflect the dev task or bug report's status every 5-10 seconds.  Could you come up with an easy in-line (in RTE) way of inserting a dev task or a bug report as a live card.  For example, the user can type "@livetask/1" (without the quotes) and task1 is inserted as a live card in the RTE and remains as a live card even in read-mode.  You can decide on what the syntax should be. For documents and diagrams just use the same card that they use in their Card view.  (again, shared cards basically)
 
 Database Migration Script Testing
 ---------------------------------
