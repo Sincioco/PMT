@@ -938,14 +938,20 @@ html[data-theme] .rich-color-palette button.rich-color-custom {
 
 .rich-collapsible-block {
   margin: var(--space-2) 0;
+  overflow: hidden;
   border: var(--border-width) solid var(--color-border);
   border-radius: var(--radius-sm);
   background: var(--color-surface);
 }
 
 .rich-collapsible-block > summary {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-2);
   min-height: 26px;
   padding: 3px var(--space-3);
+  list-style: none;
   cursor: pointer;
   color: var(--color-text-secondary);
   background: var(--color-surface-subtle);
@@ -953,8 +959,66 @@ html[data-theme] .rich-color-palette button.rich-color-custom {
   font-weight: var(--font-weight-semibold);
 }
 
+.rich-collapsible-block > summary::marker {
+  content: "";
+}
+
+.rich-collapsible-block > summary::-webkit-details-marker {
+  display: none;
+}
+
+.rich-collapsible-block > summary::before {
+  content: "\25B8";
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  line-height: 1;
+}
+
+.rich-collapsible-block[open] > summary::before {
+  content: "\25BE";
+}
+
+.rich-collapsible-title {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.rich-collapsible-actions {
+  display: inline-flex;
+  justify-self: end;
+  gap: var(--space-2);
+}
+
+.rich-collapsible-action {
+  display: inline-grid;
+  place-items: center;
+  min-width: 0;
+  height: 22px;
+  padding: 0 var(--space-2);
+  border: var(--border-width) solid var(--color-border-subtle);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.rich-collapsible-action:hover,
+.rich-collapsible-action:focus-visible {
+  color: var(--color-text-primary);
+  border-color: var(--color-border-strong);
+}
+
+.rich-collapsible-delete-action:hover,
+.rich-collapsible-delete-action:focus-visible {
+  color: var(--color-danger-text);
+}
+
 .rich-collapsible-block > .rich-collapsible-content {
   padding: var(--space-3);
+  border-top: var(--border-width) solid var(--color-border);
 }
 
 .rich-collapsible-block > .rich-collapsible-content > :first-child {

@@ -5743,6 +5743,17 @@ test("RTE Code Block delete removes the block directly and leaves a blank line",
   assert.match(appSource, /class="rich-code-preview"/);
   assert.match(formsCss, /\.rich-code-preview-dialog/);
   assert.match(formsCss, /\.rich-code-preview/);
+  assert.match(appSource, /function askForCollapsibleBlock/);
+  assert.match(appSource, /data-collapsible-readonly-open/);
+  assert.match(appSource, /data-rich-collapsible-action="toggle-readonly-open"/);
+  assert.match(appSource, /data-rich-collapsible-action="delete"/);
+  assert.match(appSource, /function deleteRichCollapsibleBlock\(editor, block\)/);
+  assert.match(appSource, /function rememberRichCodeBlockOpen\(block, open\)/);
+  assert.match(appSource, /function rememberRichCollapsibleBlockOpen\(block, open\)/);
+  assert.match(appSource, /pmt-rich-\$\{options\.kind\}-open/);
+  assert.match(appSource, /data-code-block-id/);
+  assert.match(formsCss, /\.rich-collapsible-actions/);
+  assert.match(formsCss, /\.rich-collapsible-delete-action/);
   assert.match(appSource, /function normalizeRichCodeIndentation\(code\)/);
   assert.match(appSource, /const contentLines = lines\.filter\(line => \/\\S\/\.test\(line\)\)/);
   assert.match(appSource, /code: normalizeRichCodeIndentation\(codeTextarea\?\.value \|\| ""\)/);

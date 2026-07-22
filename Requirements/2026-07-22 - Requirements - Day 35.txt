@@ -59,6 +59,14 @@ Linked Diagram (OLE)
 
 14.) Update the Scrum's New/Edit dialog box so that the masimize button gives it the true full scren much like what we do now with Dev Tasks.
 
+15.) In RTE, the expand/collapse you insert should have an option during edit mode to specify whether it should be expanded or collapse when it is first rendered in read-mode.
+15a.) The expand/collapse is not maintaining state when the Scrum refresh.
+15b.) The Code block expand/collapse is not maintaining state when the Scrum refresh.
+15c.) Allow me to delete the expand/collapse when in edit mode and insert a blank line in its place.  Also move all the controls to the right side of the header.
+15d.) The expand/collapse is now keeping its state in between Scrum refresh, but the Code block is not.
+15e.) When Scrum refreshed the button for "Start Collapsed" appeared on the expand/collapse.
+15f.) The border of the expand/collapse does not seem to be connecting.
+
 Mention / Embed Live Dev Tasks and Bug Reports
 ----------------------------------------------
 16.) I would like to be able to mention tasks, bugs, documents and diagrams (much like what you do now with @username) so that when the mouse cursor hovers on it, a Card view shows up.  The the tasks and bugs, just use the same card view as what is in the Kanban Board.  For the documents and diagrams, just re-use the same Card View that is already in Documents and Diagrams.  Make it so that if in the future, I make change to the Kanban Board Cards and the Document/Diagram cards, these mention card versions gets the same treatment automatically (shared cards, basially).

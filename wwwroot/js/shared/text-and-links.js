@@ -7,13 +7,47 @@ export function normalizeRichHtml(html) {
   const container = document.createElement("div");
   container.innerHTML = html;
   container.querySelectorAll(".rich-code-actions").forEach(node => node.remove());
-  container.querySelectorAll(".rich-code-block[data-rich-code-readonly-initial-applied]").forEach(block => {
-    block.removeAttribute("data-rich-code-readonly-initial-applied");
-  });
+  normalizeCodeBlocksForStorage(container);
+  normalizeCollapsibleBlocksForStorage(container);
   normalizeDiagramOleBlocksForStorage(container);
   linkifyTextNodes(container);
   normalizeLinksInElement(container, { forStorage: true });
   return container.innerHTML;
+}
+
+export function normalizeCodeBlocksForStorage(root) {
+  const usedBlockIds = new Set();
+  matchingElements(root, ".rich-code-block").forEach(block => {
+    block.querySelectorAll(":scope > summary > .rich-code-actions").forEach(node => node.remove());
+    let blockId = String(block.getAttribute("data-code-block-id") || "").trim();
+    if (!blockId || usedBlockIds.has(blockId)) blockId = createCodeBlockId(usedBlockIds);
+    usedBlockIds.add(blockId);
+    block.setAttribute("data-code-block-id", blockId);
+    block.removeAttribute("data-rich-code-readonly-initial-applied");
+    block.removeAttribute("data-rich-code-toggle-bound");
+    block.querySelectorAll(":scope > summary[data-rich-code-state-click-bound]").forEach(summary => {
+      summary.removeAttribute("data-rich-code-state-click-bound");
+    });
+  });
+}
+
+export function normalizeCollapsibleBlocksForStorage(root) {
+  const usedBlockIds = new Set();
+  matchingElements(root, ".rich-collapsible-block").forEach(block => {
+    block.querySelectorAll(":scope > summary > .rich-collapsible-actions").forEach(node => node.remove());
+    let blockId = String(block.getAttribute("data-collapsible-id") || "").trim();
+    if (!blockId || usedBlockIds.has(blockId)) blockId = createCollapsibleBlockId(usedBlockIds);
+    usedBlockIds.add(blockId);
+    block.setAttribute("data-collapsible-id", blockId);
+    const readOnlyOpen = String(block.getAttribute("data-collapsible-readonly-open") || "").trim();
+    if (readOnlyOpen !== "true" && readOnlyOpen !== "false") block.removeAttribute("data-collapsible-readonly-open");
+    block.removeAttribute("data-rich-collapsible-bound");
+    block.removeAttribute("data-rich-collapsible-toggle-bound");
+    block.removeAttribute("data-rich-collapsible-readonly-initial-applied");
+    block.querySelectorAll(":scope > summary[data-rich-collapsible-state-click-bound]").forEach(summary => {
+      summary.removeAttribute("data-rich-collapsible-state-click-bound");
+    });
+  });
 }
 
 export function normalizeDiagramOleBlocksForStorage(root) {
@@ -84,6 +118,22 @@ function createDiagramOleBlockId(usedBlockIds = new Set()) {
   let blockId = "";
   do {
     blockId = `pmt-ole-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+  } while (usedBlockIds.has(blockId));
+  return blockId;
+}
+
+function createCodeBlockId(usedBlockIds = new Set()) {
+  let blockId = "";
+  do {
+    blockId = `pmt-code-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+  } while (usedBlockIds.has(blockId));
+  return blockId;
+}
+
+function createCollapsibleBlockId(usedBlockIds = new Set()) {
+  let blockId = "";
+  do {
+    blockId = `pmt-collapse-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
   } while (usedBlockIds.has(blockId));
   return blockId;
 }

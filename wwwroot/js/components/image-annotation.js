@@ -1,6 +1,6 @@
-import { richTextToolsHtml, sharedRichColorPickerHtml } from "./forms.js?v=20260721-rte-code-log-v1";
+import { richTextToolsHtml, sharedRichColorPickerHtml } from "./forms.js?v=20260722-rte-toggle-state-v1";
 import { copyTextToClipboard } from "./clipboard.js?v=20260714-invite-email-body";
-import { normalizeRichHtml } from "../shared/text-and-links.js?v=20260721-rte-code-log-v1";
+import { normalizeRichHtml } from "../shared/text-and-links.js?v=20260722-rte-toggle-state-v1";
 
 const svgNamespace = "http://www.w3.org/2000/svg";
 const annotationVersion = 1;

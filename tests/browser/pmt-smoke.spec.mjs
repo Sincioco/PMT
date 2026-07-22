@@ -46,7 +46,7 @@ test("login, navigation, themes, dialogs, filters, Board, Gantt, and Road Map sm
 
   await page.addInitScript(() => {
     localStorage.clear();
-    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-22-day-35@3cc33b8c7408");
+    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-22-day-35@25009a8e2332");
     localStorage.setItem("pmt-navigation", JSON.stringify({
       version: 2,
       items: [
@@ -523,7 +523,7 @@ test("Developer Board moves stop after QA Passed while QA Ready remains availabl
 
   await page.addInitScript(() => {
     localStorage.clear();
-    localStorage.setItem("pmt-release-notes-last-seen:2", "2026-07-22-day-35@3cc33b8c7408");
+    localStorage.setItem("pmt-release-notes-last-seen:2", "2026-07-22-day-35@25009a8e2332");
   });
   await installApiMocks(page, appState, apiCalls);
   await page.goto("/");
@@ -570,7 +570,7 @@ test("Scrum attendance, calendar, on-behalf, and vacation flows stay synchronize
       localStorage.clear();
       sessionStorage.setItem("pmt-scrum-attendance-smoke-started", "true");
     }
-    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-22-day-35@3cc33b8c7408");
+    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-22-day-35@25009a8e2332");
   });
   await installApiMocks(page, appState, apiCalls);
 
@@ -889,7 +889,7 @@ test("Scrum header reserves its title and attendance avatars expand toward Check
   await page.clock.setFixedTime(new Date("2026-07-15T08:00:00+08:00"));
   await page.addInitScript(() => {
     localStorage.clear();
-    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-22-day-35@3cc33b8c7408");
+    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-22-day-35@25009a8e2332");
   });
   await installApiMocks(page, appState, apiCalls);
 
@@ -972,7 +972,7 @@ test("Scrum New/Edit editor maximize uses the true full-screen layout", async ({
   const apiCalls = { securityReset: 0, sessionUserId: 1 };
   await page.addInitScript(() => {
     localStorage.clear();
-    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-22-day-35@3cc33b8c7408");
+    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-22-day-35@25009a8e2332");
   });
   await installApiMocks(page, appState, apiCalls);
 
@@ -1012,6 +1012,8 @@ test("Scrum auto-refresh updates the table and attendance without reload or inte
   const singleLinkedDiagramTabs = JSON.stringify([
     { id: "scrum-single-tab", diagramId: 77, title: "Single", view: { x: -10, y: -8, zoom: 0.6 } }
   ]);
+  const scrumCollapsibleHtml = `<details class="rich-collapsible-block" data-collapsible-id="scrum-refresh-collapsible" data-collapsible-readonly-open="false"><summary><span class="rich-collapsible-title">Refresh notes</span></summary><div class="rich-collapsible-content"><p>Keep the collapsible open across refresh.</p></div></details>`;
+  const scrumCodeBlockHtml = `<details class="rich-code-block" data-code-block-id="scrum-refresh-code"><summary><span class="rich-code-caption">Refresh code</span></summary><pre><code>SELECT 1;</code></pre></details>`;
   appState.blogs.push({
     id: 77,
     projectId: 10,
@@ -1040,7 +1042,7 @@ test("Scrum auto-refresh updates the table and attendance without reload or inte
       userId: 2,
       logDate: smokeToday,
       bodyHtml: index === 0
-        ? `<p>Existing Bill Scrum row ${index + 1}</p><figure class="pmt-diagram-ole" contenteditable="false" data-pmt-ole="diagram" data-diagram-id="77" data-block-id="scrum-auto-refresh-ole" data-active-tab-id="scrum-tab-one" data-tabs='${linkedDiagramTabs}' data-view-width="420" data-view-height="240" data-view-x="-42" data-view-y="-24" data-view-zoom="0.5" style="width: 420px; height: 240px;"><figcaption>Linked Diagram tabs</figcaption></figure><figure class="pmt-diagram-ole" contenteditable="false" data-pmt-ole="diagram" data-diagram-id="77" data-block-id="scrum-single-ole" data-active-tab-id="scrum-single-tab" data-tabs='${singleLinkedDiagramTabs}' data-view-width="360" data-view-height="220" data-view-x="-10" data-view-y="-8" data-view-zoom="0.6" style="width: 360px; height: 220px;"><figcaption>Linked Diagram #77</figcaption></figure>`
+        ? `<p>Existing Bill Scrum row ${index + 1}</p><figure class="pmt-diagram-ole" contenteditable="false" data-pmt-ole="diagram" data-diagram-id="77" data-block-id="scrum-auto-refresh-ole" data-active-tab-id="scrum-tab-one" data-tabs='${linkedDiagramTabs}' data-view-width="420" data-view-height="240" data-view-x="-42" data-view-y="-24" data-view-zoom="0.5" style="width: 420px; height: 240px;"><figcaption>Linked Diagram tabs</figcaption></figure><figure class="pmt-diagram-ole" contenteditable="false" data-pmt-ole="diagram" data-diagram-id="77" data-block-id="scrum-single-ole" data-active-tab-id="scrum-single-tab" data-tabs='${singleLinkedDiagramTabs}' data-view-width="360" data-view-height="220" data-view-x="-10" data-view-y="-8" data-view-zoom="0.6" style="width: 360px; height: 220px;"><figcaption>Linked Diagram #77</figcaption></figure>${scrumCollapsibleHtml}${scrumCodeBlockHtml}`
         : `<p>Existing Bill Scrum row ${index + 1}</p>`,
       isPinned: false,
       createdAt: `${smokeToday}T00:00:00Z`,
@@ -1052,7 +1054,7 @@ test("Scrum auto-refresh updates the table and attendance without reload or inte
   await page.clock.pauseAt(new Date("2026-07-15T08:00:00+08:00"));
   await page.addInitScript(() => {
     localStorage.clear();
-    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-22-day-35@3cc33b8c7408");
+    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-22-day-35@25009a8e2332");
   });
   await installApiMocks(page, appState, apiCalls);
 
@@ -1076,6 +1078,21 @@ test("Scrum auto-refresh updates the table and attendance without reload or inte
   await expect.poll(() => linkedDiagramOle.locator("[data-diagram-ole-surface]").evaluate(node => node.style.transform))
     .toBe("translate(-18px, -12px) scale(0.75)");
   await expect(page.locator(".scrum-table [data-block-id='scrum-single-ole'] [data-diagram-ole-tab]")).toHaveCount(0);
+  const refreshCollapsible = page.locator(".scrum-table [data-collapsible-id='scrum-refresh-collapsible']");
+  await expect(refreshCollapsible).toHaveCount(1);
+  await expect(refreshCollapsible.locator(".rich-collapsible-actions")).toHaveCount(0);
+  await expect.poll(() => refreshCollapsible.evaluate(node => node.open)).toBe(false);
+  await refreshCollapsible.locator("summary").click();
+  await expect.poll(() => refreshCollapsible.evaluate(node => node.open)).toBe(true);
+  await expect.poll(() => page.evaluate(() => localStorage.getItem("pmt-rich-collapsible-open:devLog:100:bodyHtml:id:scrum-refresh-collapsible")))
+    .toBe("true");
+  const refreshCodeBlock = page.locator(".scrum-table [data-code-block-id='scrum-refresh-code']");
+  await expect(refreshCodeBlock).toHaveCount(1);
+  await expect.poll(() => refreshCodeBlock.evaluate(node => node.open)).toBe(false);
+  await refreshCodeBlock.locator("summary").click();
+  await expect.poll(() => refreshCodeBlock.evaluate(node => node.open)).toBe(true);
+  await expect.poll(() => page.evaluate(() => localStorage.getItem("pmt-rich-code-open:devLog:100:bodyHtml:id:scrum-refresh-code")))
+    .toBe("true");
 
   const initialStateGets = apiCalls.stateGets;
   await page.locator("[data-action='check-in-attendance']").click();
@@ -1157,6 +1174,9 @@ test("Scrum auto-refresh updates the table and attendance without reload or inte
   await expect(page.locator("body")).toHaveClass(/has-pmt-diagram-ole-maximized/);
   await expect.poll(() => linkedDiagramOle.locator("[data-diagram-ole-surface]").evaluate(node => node.style.transform))
     .toBe("translate(-18px, -12px) scale(0.75)");
+  await expect.poll(() => refreshCollapsible.evaluate(node => node.open)).toBe(true);
+  await expect(refreshCollapsible.locator(".rich-collapsible-actions")).toHaveCount(0);
+  await expect.poll(() => refreshCodeBlock.evaluate(node => node.open)).toBe(true);
   await expect(scrumTodayStatus(page, 2, "Sick Leave")).toBeVisible();
 
   const headerAfter = await header.boundingBox();
@@ -1215,7 +1235,7 @@ test("Scrum auto-refresh invalidates the visible Calendar month without shifting
   await page.clock.pauseAt(new Date("2026-07-15T08:00:00+08:00"));
   await page.addInitScript(() => {
     localStorage.clear();
-    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-22-day-35@3cc33b8c7408");
+    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-22-day-35@25009a8e2332");
   });
   await installApiMocks(page, appState, apiCalls);
 
@@ -1323,7 +1343,7 @@ test("Scrum read-only permission disables attendance and vacation mutations", as
   await page.clock.setFixedTime(new Date("2026-07-15T08:00:00+08:00"));
   await page.addInitScript(() => {
     localStorage.clear();
-    localStorage.setItem("pmt-release-notes-last-seen:2", "2026-07-22-day-35@3cc33b8c7408");
+    localStorage.setItem("pmt-release-notes-last-seen:2", "2026-07-22-day-35@25009a8e2332");
   });
   await installApiMocks(page, appState, apiCalls);
 
@@ -1358,8 +1378,8 @@ test("Scrum attendance cache follows the restored cookie session user", async ({
   await page.clock.setFixedTime(new Date("2026-07-15T08:00:00+08:00"));
   await page.addInitScript(() => {
     localStorage.clear();
-    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-22-day-35@3cc33b8c7408");
-    localStorage.setItem("pmt-release-notes-last-seen:2", "2026-07-22-day-35@3cc33b8c7408");
+    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-22-day-35@25009a8e2332");
+    localStorage.setItem("pmt-release-notes-last-seen:2", "2026-07-22-day-35@25009a8e2332");
   });
   await installApiMocks(page, appState, apiCalls);
 
@@ -4049,6 +4069,7 @@ test("RTE View Source stays plain while Code Block formats and highlights select
   const insertedBlock = editor.locator("details.rich-code-block").last();
   const insertedCode = insertedBlock.locator("code[data-code-language='json']");
   await expect(insertedBlock).toHaveCount(1);
+  await expect(insertedBlock).toHaveAttribute("data-code-block-id", /pmt-code-/);
   expect(await insertedBlock.evaluate(element => element.open)).toBe(false);
   await expect(insertedCode.locator(".rich-source-token-property", { hasText: '"name"' })).toHaveCount(1);
   await expect(insertedCode.locator(".rich-source-token-string", { hasText: '"PMT"' })).toHaveCount(1);
@@ -4058,6 +4079,37 @@ test("RTE View Source stays plain while Code Block formats and highlights select
   expect(await insertedBlock.evaluate(element => element.open)).toBe(true);
   await insertedBlock.locator("summary").click();
   expect(await insertedBlock.evaluate(element => element.open)).toBe(false);
+
+  await editor.click();
+  await descriptionField.getByRole("button", { name: "Expand/Collapse Section", exact: true }).click();
+  const collapsibleDialog = page.locator("dialog.rich-collapsible-dialog");
+  const collapsibleReadOnlyOpen = collapsibleDialog.getByLabel("Initially expanded in read-only mode");
+  await expect(collapsibleDialog).toBeVisible();
+  await expect(collapsibleReadOnlyOpen).toBeChecked();
+  await collapsibleReadOnlyOpen.uncheck();
+  await collapsibleDialog.locator("[name='collapsibleTitle']").fill("Temporary notes");
+  await collapsibleDialog.getByRole("button", { name: "Insert", exact: true }).click();
+  await expect(collapsibleDialog).toHaveCount(0);
+
+  const temporaryCollapsible = editor.locator("details.rich-collapsible-block").last();
+  await expect(temporaryCollapsible).toHaveAttribute("data-collapsible-id", /pmt-collapse-/);
+  await expect(temporaryCollapsible).toHaveAttribute("data-collapsible-readonly-open", "false");
+  await expect(temporaryCollapsible.locator("[data-rich-collapsible-action='toggle-readonly-open']")).toHaveText("Starts Collapsed");
+  await temporaryCollapsible.locator("[data-rich-collapsible-action='toggle-readonly-open']").click();
+  await expect(temporaryCollapsible.locator("[data-rich-collapsible-action='toggle-readonly-open']")).toHaveText("Starts Open");
+  await expect(temporaryCollapsible).toHaveAttribute("data-collapsible-readonly-open", "true");
+  await temporaryCollapsible.locator("[data-rich-collapsible-action='delete']").click();
+  await expect(editor.locator("details.rich-collapsible-block")).toHaveCount(0);
+  await expect(page.locator("dialog.rich-collapsible-dialog")).toHaveCount(0);
+
+  await editor.click();
+  await descriptionField.getByRole("button", { name: "Expand/Collapse Section", exact: true }).click();
+  await expect(collapsibleDialog).toBeVisible();
+  await collapsibleReadOnlyOpen.uncheck();
+  await collapsibleDialog.locator("[name='collapsibleTitle']").fill("Release notes");
+  await collapsibleDialog.getByRole("button", { name: "Insert", exact: true }).click();
+  const savedCollapsible = editor.locator("details.rich-collapsible-block").last();
+  await expect(savedCollapsible).toHaveAttribute("data-collapsible-readonly-open", "false");
 
   await editDialog.locator("button[type='submit']").click();
   await expect(editDialog).not.toBeVisible();
@@ -4073,6 +4125,10 @@ test("RTE View Source stays plain while Code Block formats and highlights select
   await expect(readOnlyBlock).toHaveCount(1);
   expect(await readOnlyBlock.evaluate(element => element.open)).toBe(true);
   await expect(readOnlyBlock.locator(".rich-source-token-property", { hasText: '"name"' })).toHaveCount(1);
+  const readOnlyCollapsible = page.locator("dialog.detail-dialog .rich-readonly details.rich-collapsible-block");
+  await expect(readOnlyCollapsible).toHaveCount(1);
+  expect(await readOnlyCollapsible.evaluate(element => element.open)).toBe(false);
+  await expect(readOnlyCollapsible.locator(".rich-collapsible-actions")).toHaveCount(0);
 });
 
 test("RTE Insert Diagram creates a blank editable diagram at the caret", async ({ page }) => {

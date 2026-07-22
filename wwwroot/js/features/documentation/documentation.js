@@ -10,7 +10,7 @@ import { createIdleFilterHeader } from "../../components/idle-filter-header.js?v
 import {
   documentationExportIconHtml,
   openDocumentationExportDialog
-} from "./documentation-export.js?v=20260721-diagram-ole-v1";
+} from "./documentation-export.js?v=20260722-rte-toggle-state-v1";
 import {
   field,
   optionalNumberValue,
@@ -19,8 +19,8 @@ import {
   richValue,
   selectOptionsField,
   value
-} from "../../components/forms.js?v=20260721-rte-code-log-v1";
-import { sectionHead } from "../../components/sections.js?v=release-notes-2026-07-22-day-35-3cc33b8c7408";
+} from "../../components/forms.js?v=20260722-rte-toggle-state-v1";
+import { sectionHead } from "../../components/sections.js?v=release-notes-2026-07-22-day-35-25009a8e2332";
 import {
   preferenceKeys,
   readBooleanPreference,
@@ -52,7 +52,7 @@ import {
   escapeHtml,
   normalizeLinksInElement,
   normalizeRichHtml
-} from "../../shared/text-and-links.js?v=20260721-diagram-ole-v1";
+} from "../../shared/text-and-links.js?v=20260722-rte-toggle-state-v1";
 import { externalizeImportedHtmlImagesInPayload } from "../../shared/imported-html-images.js";
 
 const documentationViewModes = new Set(["cards", "tree"]);

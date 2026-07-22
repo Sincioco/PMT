@@ -1427,6 +1427,15 @@
         ]
       },
       {
+        "title": "Rich Text Editor",
+        "items": [
+          "Let inserted expand/collapse sections choose whether they initially render expanded or collapsed in read-only mode.",
+          "Preserve the current open or closed state of expand/collapse sections and code blocks when Scrum auto-refresh redraws entries.",
+          "Keep expand/collapse editor controls out of read-only Scrum entries while still allowing authors to delete the whole block from edit mode.",
+          "Tighten the compact expand/collapse frame so its header and content read as one connected control."
+        ]
+      },
+      {
         "title": "Linked Diagram OLE",
         "items": [
           "Keep Linked Diagram viewers embedded in Scrum entries hydrated after Scrum auto-refresh redraws the table.",

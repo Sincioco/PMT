@@ -1,8 +1,10 @@
 import {
   escapeAttr,
   escapeHtml,
+  normalizeCodeBlocksForStorage,
+  normalizeCollapsibleBlocksForStorage,
   normalizeDiagramOleBlocksForStorage
-} from "../shared/text-and-links.js?v=20260721-rte-code-log-v1";
+} from "../shared/text-and-links.js?v=20260722-rte-toggle-state-v1";
 
 const renderedMentionSelector = [
   ".rich-readonly",
@@ -61,9 +63,8 @@ export function htmlWithoutUserMentionMarkup(container) {
     mention.replaceWith(mention.ownerDocument.createTextNode(mention.textContent || ""));
   });
   clone.querySelectorAll?.(".rich-code-actions").forEach(node => node.remove());
-  clone.querySelectorAll?.(".rich-code-block[data-rich-code-readonly-initial-applied]").forEach(block => {
-    block.removeAttribute("data-rich-code-readonly-initial-applied");
-  });
+  normalizeCodeBlocksForStorage(clone);
+  normalizeCollapsibleBlocksForStorage(clone);
   normalizeDiagramOleBlocksForStorage(clone);
   return clone.innerHTML || "";
 }

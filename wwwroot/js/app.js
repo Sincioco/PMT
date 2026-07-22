@@ -10,11 +10,11 @@ import {
   parseAnnotationSvg,
   openImageAnnotationDialog
 } from "./components/image-annotation.js?v=20260721-diagram-viewer-wheel-v1";
-import { createWhatsNew } from "./components/whats-new.js?v=release-notes-2026-07-22-day-35-3cc33b8c7408";
+import { createWhatsNew } from "./components/whats-new.js?v=release-notes-2026-07-22-day-35-25009a8e2332";
 import {
   htmlWithoutUserMentionMarkup,
   initializeUserMentions
-} from "./components/user-mentions.js?v=20260721-rte-code-log-v1";
+} from "./components/user-mentions.js?v=20260722-rte-toggle-state-v1";
 import {
   askForText,
   askYesNo,
@@ -29,7 +29,7 @@ import {
 import {
   field,
   value
-} from "./components/forms.js?v=20260721-rte-code-log-v1";
+} from "./components/forms.js?v=20260722-rte-toggle-state-v1";
 import { configureProgressAndStatus } from "./components/progress-and-status.js?v=20260714-linked-bug-percent";
 import {
   bindAttachmentPreview,
@@ -66,24 +66,24 @@ import {
 } from "./features/about/about.js?v=20260722-login-flyby-v1";
 import { createBacklogFeature } from "./features/backlog/backlog.js?v=20260720-work-item-export-images-v4";
 import { createBoardFeature } from "./features/board/board.js?v=20260720-work-item-export-images-v4";
-import { createBugsFeature } from "./features/bugs/bugs.js?v=20260721-rte-code-log-v1";
-import { createDashboardFeature } from "./features/dashboard/dashboard.js?v=release-notes-2026-07-22-day-35-3cc33b8c7408";
+import { createBugsFeature } from "./features/bugs/bugs.js?v=20260722-rte-toggle-state-v1";
+import { createDashboardFeature } from "./features/dashboard/dashboard.js?v=release-notes-2026-07-22-day-35-25009a8e2332";
 import { createDiagramFeature } from "./features/diagram/diagram.js?v=20260721-rte-diagram-menu-v1";
 import { createDocumentationFeature } from "./features/documentation/documentation.js?v=20260721-diagram-rich-text-v3";
 import {
   createGanttFeature,
   currentSprintForProject,
   ganttStartDate
-} from "./features/gantt/gantt.js?v=release-notes-2026-07-22-day-35-3cc33b8c7408";
+} from "./features/gantt/gantt.js?v=release-notes-2026-07-22-day-35-25009a8e2332";
 import { createInvitationsFeature } from "./features/invitations/invitations.js?v=20260722-auth-flyby-v1";
 import { createProjectsFeature } from "./features/projects/projects.js?v=20260719-day32-rte-diagram";
-import { createReleaseNotesFeature } from "./features/release-notes/release-notes.js?v=release-notes-2026-07-22-day-35-3cc33b8c7408";
-import { createRoadMapFeature } from "./features/roadmap/roadmap.js?v=release-notes-2026-07-22-day-35-3cc33b8c7408";
-import { createLogFeature } from "./features/personal-log/log.js?v=20260721-rte-code-log-v1";
+import { createReleaseNotesFeature } from "./features/release-notes/release-notes.js?v=release-notes-2026-07-22-day-35-25009a8e2332";
+import { createRoadMapFeature } from "./features/roadmap/roadmap.js?v=release-notes-2026-07-22-day-35-25009a8e2332";
+import { createLogFeature } from "./features/personal-log/log.js?v=20260722-rte-toggle-state-v1";
 import { createScrumFeature } from "./features/scrum/scrum.js?v=20260722-ole-viewport-v1";
 import { createSettingsFeature } from "./features/settings/settings.js?v=20260720-clear-preferences-logout-v1";
 import { createSprintsFeature } from "./features/sprints/sprints.js?v=20260719-day32-rte-diagram";
-import { createTasksFeature } from "./features/tasks/tasks.js?v=20260721-rte-code-log-v1";
+import { createTasksFeature } from "./features/tasks/tasks.js?v=20260722-rte-toggle-state-v1";
 import { createWfhScheduleFeature } from "./features/wfh-schedule/wfh-schedule.js?v=20260720-work-item-export-images-v4";
 import {
   fallbackEnvironments,
@@ -117,7 +117,7 @@ import {
   linkifyTextNodes,
   normalizeLinksInElement,
   normalizeUrl
-} from "./shared/text-and-links.js?v=20260722-ole-tabs-v1";
+} from "./shared/text-and-links.js?v=20260722-rte-toggle-state-v1";
 import {
   configureWorkItemRules,
   isBugQaPassedOrLater,
@@ -138,6 +138,7 @@ const nativePickerSelector = [
 initializeDraggableDialogs();
 bindGlobalRichCheckboxSync();
 bindGlobalRichCodeBlockActions();
+bindGlobalRichCollapsibleBlocks();
 initializeUserMentions({
   getUsers: () => state.users,
   getRoles: () => state.roles
@@ -2076,6 +2077,7 @@ function showReadOnlyDialog(title, html) {
   modal.showModal();
   normalizeLinksInElement(modal);
   bindRichCodeBlocks(modal);
+  bindRichCollapsibleBlocks(modal);
   hydrateRichDiagramOleBlocks(modal);
 }
 
@@ -2393,11 +2395,16 @@ function bindRichTextButtons(root) {
       }
 
       if (command === "insertCollapsible") {
-        const title = await askForText("Section title", "Expand/Collapse Section", "Details");
-        if (!title) return;
+        const section = await askForCollapsibleBlock();
+        if (!section) return;
         editor.focus();
         restoreEditorSelection(savedSelection);
-        insertRichHtmlAtSelection(editor, richCollapsibleBlockHtml(title, editorSelectionHtml(savedSelection)));
+        insertRichHtmlAtSelection(editor, richCollapsibleBlockHtml({
+          title: section.title,
+          contents: editorSelectionHtml(savedSelection),
+          readOnlyOpen: section.readOnlyOpen
+        }));
+        bindRichCollapsibleBlocks(editor);
         hydrateRichDiagramOleBlocks(editor);
         return;
       }
@@ -2732,13 +2739,255 @@ function bindRichCollapsibleBlocks(root) {
   if (root?.matches?.(".rich-collapsible-block")) blocks.push(root);
   root?.querySelectorAll?.(".rich-collapsible-block").forEach(block => blocks.push(block));
   blocks.forEach(block => {
-    if (block.dataset.richCollapsibleBound === "true") return;
-    block.dataset.richCollapsibleBound = "true";
+    ensureRichCollapsibleBlock(block);
+  });
+  if (!root.dataset || root.dataset.richCollapsibleBlocksBound === "true") return;
+
+  root.dataset.richCollapsibleBlocksBound = "true";
+  root.addEventListener("pointerdown", handleRichCollapsibleActionPointerDown, true);
+  root.addEventListener("mousedown", handleRichCollapsibleActionPointerDown, true);
+  root.addEventListener("click", handleRichCollapsibleAction, true);
+}
+
+function bindGlobalRichCollapsibleBlocks() {
+  if (document.body.dataset.richCollapsibleBlocksObserverBound === "true") return;
+
+  document.body.dataset.richCollapsibleBlocksObserverBound = "true";
+  let pending = false;
+  const decorate = () => {
+    pending = false;
+    bindRichCollapsibleBlocks(document.body);
+  };
+  const observer = new MutationObserver(() => {
+    if (pending) return;
+    pending = true;
+    queueMicrotask(decorate);
+  });
+  observer.observe(document.body, { childList: true, subtree: true });
+  decorate();
+}
+
+const richCollapsibleReadonlyInitialAppliedBlocks = new WeakSet();
+
+function ensureRichCollapsibleBlock(block) {
+  const editable = Boolean(block.closest(".rich-editor"));
+  ensureRichCollapsibleBlockId(block, editable);
+  applyRichCollapsibleReadonlyInitialState(block, editable);
+  if (block.dataset.richCollapsibleToggleBound !== "true") {
+    block.dataset.richCollapsibleToggleBound = "true";
     block.addEventListener("toggle", () => {
+      if (!block.closest(".rich-editor")) rememberRichCollapsibleBlockOpen(block, block.open);
       if (!block.open) return;
       refreshRichDiagramOleBlocks(block);
     });
+  }
+
+  const summary = block.querySelector(":scope > summary");
+  if (!summary) return;
+
+  let existingActions = summary.querySelector(":scope > .rich-collapsible-actions");
+  if (!editable) {
+    existingActions?.remove();
+    existingActions = null;
+  }
+  let caption = summary.querySelector(":scope > .rich-collapsible-title");
+  if (!caption) {
+    caption = document.createElement("span");
+    caption.className = "rich-collapsible-title";
+    const nodes = [...summary.childNodes].filter(node => !(node.nodeType === Node.ELEMENT_NODE && node.classList?.contains("rich-collapsible-actions")));
+    nodes.forEach(node => caption.appendChild(node));
+    summary.insertBefore(caption, existingActions || null);
+  }
+  if (summary.dataset.richCollapsibleStateClickBound !== "true") {
+    summary.dataset.richCollapsibleStateClickBound = "true";
+    summary.addEventListener("click", () => {
+      if (block.closest(".rich-editor")) return;
+      requestAnimationFrame(() => rememberRichCollapsibleBlockOpen(block, block.open));
+    });
+  }
+  if (!editable) return;
+
+  if (existingActions?.dataset.richCollapsibleEditable === String(editable)) {
+    syncRichCollapsibleReadonlyOpenAction(block);
+    return;
+  }
+  existingActions?.remove();
+
+  const actions = document.createElement("span");
+  actions.className = "rich-collapsible-actions";
+  actions.dataset.richCollapsibleEditable = "true";
+  actions.setAttribute("contenteditable", "false");
+  actions.innerHTML = `
+    <button type="button" class="rich-collapsible-action" data-rich-collapsible-action="toggle-readonly-open"></button>
+    <button type="button" class="rich-collapsible-action rich-collapsible-delete-action" data-rich-collapsible-action="delete" title="Delete expand/collapse section" aria-label="Delete expand/collapse section">&#128465;</button>
+  `;
+  summary.appendChild(actions);
+  syncRichCollapsibleReadonlyOpenAction(block);
+}
+
+function applyRichCollapsibleReadonlyInitialState(block, editable) {
+  if (editable || richCollapsibleReadonlyInitialAppliedBlocks.has(block)) return;
+  block.removeAttribute("data-rich-collapsible-readonly-initial-applied");
+  const storedOpen = readRichCollapsibleBlockStoredOpen(block);
+  if (storedOpen !== null) {
+    block.open = storedOpen;
+    richCollapsibleReadonlyInitialAppliedBlocks.add(block);
+    block.dataset.richCollapsibleReadonlyInitialApplied = "true";
+    if (block.open) refreshRichDiagramOleBlocks(block);
+    return;
+  }
+
+  const setting = block.dataset.collapsibleReadonlyOpen;
+  if (setting !== "true" && setting !== "false") return;
+
+  block.open = setting === "true";
+  richCollapsibleReadonlyInitialAppliedBlocks.add(block);
+  block.dataset.richCollapsibleReadonlyInitialApplied = "true";
+  if (block.open) refreshRichDiagramOleBlocks(block);
+}
+
+function richCollapsibleReadonlyOpen(block) {
+  const setting = block.dataset.collapsibleReadonlyOpen;
+  if (setting === "false") return false;
+  if (setting === "true") return true;
+  return block.hasAttribute("open");
+}
+
+function setRichCollapsibleReadonlyOpen(block, readOnlyOpen) {
+  block.dataset.collapsibleReadonlyOpen = readOnlyOpen ? "true" : "false";
+  syncRichCollapsibleReadonlyOpenAction(block);
+}
+
+function syncRichCollapsibleReadonlyOpenAction(block) {
+  const button = block.querySelector(":scope > summary > .rich-collapsible-actions [data-rich-collapsible-action='toggle-readonly-open']");
+  if (!button) return;
+
+  const readOnlyOpen = richCollapsibleReadonlyOpen(block);
+  const label = readOnlyOpen ? "Starts Open" : "Starts Collapsed";
+  if (button.textContent !== label) button.textContent = label;
+  button.setAttribute("aria-pressed", String(readOnlyOpen));
+  button.setAttribute("title", readOnlyOpen
+    ? "Read-only mode starts expanded. Click to start collapsed."
+    : "Read-only mode starts collapsed. Click to start expanded.");
+  button.setAttribute("aria-label", readOnlyOpen
+    ? "Read-only mode starts expanded"
+    : "Read-only mode starts collapsed");
+}
+
+function handleRichCollapsibleActionPointerDown(event) {
+  const button = event.target.closest?.("[data-rich-collapsible-action]");
+  if (!button) return;
+
+  event.preventDefault();
+  event.stopPropagation();
+  event.stopImmediatePropagation?.();
+}
+
+function handleRichCollapsibleAction(event) {
+  const button = event.target.closest?.("[data-rich-collapsible-action]");
+  if (!button) return;
+
+  const block = button.closest(".rich-collapsible-block");
+  const editor = block?.closest(".rich-editor");
+  if (!block || !editor) return;
+
+  event.preventDefault();
+  event.stopPropagation();
+  event.stopImmediatePropagation?.();
+
+  if (button.dataset.richCollapsibleAction === "toggle-readonly-open") {
+    setRichCollapsibleReadonlyOpen(block, !richCollapsibleReadonlyOpen(block));
+    editor.dispatchEvent(new Event("input", { bubbles: true }));
+    showToast(`Expand/Collapse section will start ${richCollapsibleReadonlyOpen(block) ? "expanded" : "collapsed"} in read-only mode.`);
+    return;
+  }
+
+  if (button.dataset.richCollapsibleAction === "delete") {
+    deleteRichCollapsibleBlock(editor, block);
+  }
+}
+
+function deleteRichCollapsibleBlock(editor, block) {
+  if (!editor?.contains(block) || !block?.isConnected) return;
+
+  const blankLine = richBlankParagraphSibling(block.nextElementSibling) || document.createElement("p");
+  if (!blankLine.isConnected) blankLine.innerHTML = "<br>";
+
+  if (blankLine.parentElement === block.parentElement) {
+    block.remove();
+  } else {
+    block.replaceWith(blankLine);
+  }
+
+  placeCaretInRichBlock(editor, blankLine);
+  editor.dispatchEvent(new Event("input", { bubbles: true }));
+}
+
+function ensureRichCollapsibleBlockId(block, editable) {
+  if (String(block.dataset.collapsibleId || "").trim()) return;
+  if (!editable) return;
+  block.dataset.collapsibleId = createRichCollapsibleBlockId();
+}
+
+function createRichCollapsibleBlockId(usedBlockIds = new Set()) {
+  let blockId = "";
+  do {
+    blockId = `pmt-collapse-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+  } while (usedBlockIds.has(blockId));
+  return blockId;
+}
+
+function readRichCollapsibleBlockStoredOpen(block) {
+  return readRichToggleableBlockStoredOpen(block, {
+    kind: "collapsible",
+    selector: ".rich-collapsible-block",
+    datasetIdName: "collapsibleId"
   });
+}
+
+function rememberRichCollapsibleBlockOpen(block, open) {
+  rememberRichToggleableBlockOpen(block, open, {
+    kind: "collapsible",
+    selector: ".rich-collapsible-block",
+    datasetIdName: "collapsibleId"
+  });
+}
+
+function readRichToggleableBlockStoredOpen(block, options) {
+  if (block.closest(".rich-editor")) return null;
+  try {
+    const value = localStorage.getItem(richToggleableBlockStorageKey(block, options));
+    return value === null ? null : value === "true";
+  } catch {
+    return null;
+  }
+}
+
+function rememberRichToggleableBlockOpen(block, open, options) {
+  if (block.closest(".rich-editor")) return;
+  try {
+    localStorage.setItem(richToggleableBlockStorageKey(block, options), open ? "true" : "false");
+  } catch {
+    // Expand/collapse memory is optional.
+  }
+}
+
+function richToggleableBlockStorageKey(block, options) {
+  const persist = block.closest("[data-rich-persist-type]");
+  const persistType = persist?.dataset.richPersistType || "draft";
+  const documentId = persist?.dataset.richPersistId || "draft";
+  const field = persist?.dataset.richPersistField || "bodyHtml";
+  return `pmt-rich-${options.kind}-open:${persistType}:${documentId}:${field}:${richToggleableBlockIdentity(block, options)}`;
+}
+
+function richToggleableBlockIdentity(block, options) {
+  const blockId = String(block.dataset[options.datasetIdName] || "").trim();
+  if (blockId) return `id:${blockId}`;
+
+  const scope = block.closest("[data-rich-persist-type]") || block.parentElement || document.body;
+  const blocks = [...scope.querySelectorAll(options.selector)];
+  const index = Math.max(0, blocks.indexOf(block));
+  return `index:${index}`;
 }
 
 function refreshRichDiagramOleBlocks(root) {
@@ -2752,6 +3001,8 @@ function refreshRichDiagramOleBlocks(root) {
   });
   requestAnimationFrame(() => blocks.forEach(block => hydrateRichDiagramOleBlock(block)));
 }
+
+const richCodeReadonlyInitialAppliedBlocks = new WeakSet();
 
 function bindRichCodeBlocks(root) {
   const childBlocks = root.querySelectorAll ? [...root.querySelectorAll(".rich-code-block")] : [];
@@ -2772,13 +3023,15 @@ function bindGlobalRichCodeBlockActions() {
   if (document.body.dataset.richCodeBlocksObserverBound === "true") return;
 
   document.body.dataset.richCodeBlocksObserverBound = "true";
-  let frame = 0;
+  let pending = false;
   const decorate = () => {
-    frame = 0;
+    pending = false;
     bindRichCodeBlocks(document.body);
   };
   const observer = new MutationObserver(() => {
-    if (!frame) frame = requestAnimationFrame(decorate);
+    if (pending) return;
+    pending = true;
+    queueMicrotask(decorate);
   });
   observer.observe(document.body, { childList: true, subtree: true });
   decorate();
@@ -2821,12 +3074,13 @@ async function handleRichCodeBlockAction(event) {
       caption: data.caption,
       language: data.language,
       readOnlyOpen: data.readOnlyOpen,
+      blockId: data.blockId,
       actionLabel: "Save"
     });
     if (!updated) return;
 
     const template = document.createElement("template");
-    template.innerHTML = richCodeBlockHtml(updated).trim();
+    template.innerHTML = richCodeBlockHtml({ ...updated, blockId: data.blockId }).trim();
     const nextBlock = template.content.querySelector(".rich-code-block");
     if (!nextBlock) return;
 
@@ -2882,7 +3136,15 @@ function ensureRichCodeBlockActions(block) {
   if (!summary) return;
 
   const editable = Boolean(block.closest(".rich-editor"));
+  ensureRichCodeBlockId(block, editable);
   applyRichCodeBlockReadonlyInitialState(block, editable);
+  if (block.dataset.richCodeToggleBound !== "true") {
+    block.dataset.richCodeToggleBound = "true";
+    block.addEventListener("toggle", () => {
+      if (!block.closest(".rich-editor")) rememberRichCodeBlockOpen(block, block.open);
+    });
+  }
+
   const existingActions = summary.querySelector(":scope > .rich-code-actions");
   if (existingActions?.dataset.richCodeEditable === String(editable)) return;
   existingActions?.remove();
@@ -2893,6 +3155,13 @@ function ensureRichCodeBlockActions(block) {
     caption.className = "rich-code-caption";
     while (summary.firstChild) caption.appendChild(summary.firstChild);
     summary.appendChild(caption);
+  }
+  if (summary.dataset.richCodeStateClickBound !== "true") {
+    summary.dataset.richCodeStateClickBound = "true";
+    summary.addEventListener("click", () => {
+      if (block.closest(".rich-editor")) return;
+      requestAnimationFrame(() => rememberRichCodeBlockOpen(block, block.open));
+    });
   }
 
   const actions = document.createElement("span");
@@ -2908,9 +3177,12 @@ function ensureRichCodeBlockActions(block) {
 }
 
 function applyRichCodeBlockReadonlyInitialState(block, editable) {
-  if (editable || block.dataset.richCodeReadonlyInitialApplied === "true") return;
+  if (editable || richCodeReadonlyInitialAppliedBlocks.has(block)) return;
+  block.removeAttribute("data-rich-code-readonly-initial-applied");
 
-  block.open = block.dataset.codeReadonlyOpen === "true";
+  const storedOpen = readRichCodeBlockStoredOpen(block);
+  block.open = storedOpen ?? (block.dataset.codeReadonlyOpen === "true");
+  richCodeReadonlyInitialAppliedBlocks.add(block);
   block.dataset.richCodeReadonlyInitialApplied = "true";
 }
 
@@ -2924,8 +3196,39 @@ function richCodeBlockData(block) {
     caption: summaryCopy?.textContent?.trim() || "Code",
     code: code?.textContent || "",
     language: code?.getAttribute("data-code-language") || "",
-    readOnlyOpen: block.dataset.codeReadonlyOpen === "true"
+    readOnlyOpen: block.dataset.codeReadonlyOpen === "true",
+    blockId: block.dataset.codeBlockId || ""
   };
+}
+
+function ensureRichCodeBlockId(block, editable) {
+  if (String(block.dataset.codeBlockId || "").trim()) return;
+  if (!editable) return;
+  block.dataset.codeBlockId = createRichCodeBlockId();
+}
+
+function createRichCodeBlockId(usedBlockIds = new Set()) {
+  let blockId = "";
+  do {
+    blockId = `pmt-code-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+  } while (usedBlockIds.has(blockId));
+  return blockId;
+}
+
+function readRichCodeBlockStoredOpen(block) {
+  return readRichToggleableBlockStoredOpen(block, {
+    kind: "code",
+    selector: ".rich-code-block",
+    datasetIdName: "codeBlockId"
+  });
+}
+
+function rememberRichCodeBlockOpen(block, open) {
+  rememberRichToggleableBlockOpen(block, open, {
+    kind: "code",
+    selector: ".rich-code-block",
+    datasetIdName: "codeBlockId"
+  });
 }
 
 function richTableHtml(rows, columns) {
@@ -4245,6 +4548,69 @@ function closestRichBlock(node, editor) {
 function editorSelectionText(range) {
   if (!range || range.collapsed) return "";
   return range.cloneContents().textContent || "";
+}
+
+function askForCollapsibleBlock(options = {}) {
+  return new Promise(resolve => {
+    const modal = document.createElement("dialog");
+    modal.className = "dialog rich-collapsible-dialog";
+    const title = options.title || "Expand/Collapse Section";
+    const actionLabel = options.actionLabel || "Insert";
+    const sectionTitle = options.sectionTitle ?? "Details";
+    const readOnlyOpen = options.readOnlyOpen !== false;
+    modal.innerHTML = `
+      <form method="dialog">
+        <div class="dialog-head">
+          <h2>${escapeHtml(title)}</h2>
+        </div>
+        <div class="dialog-body">
+          <div class="field">
+            <label>Section title</label>
+            <input name="collapsibleTitle" value="${escapeAttr(sectionTitle)}">
+          </div>
+          <label class="rich-code-readonly-open-option">
+            <input type="checkbox" name="collapsibleReadOnlyOpen"${readOnlyOpen ? " checked" : ""}>
+            <span>Initially expanded in read-only mode</span>
+          </label>
+        </div>
+        <div class="dialog-actions">
+          <button type="button" class="secondary text-icon-button" data-result="cancel">${buttonContent("&#10005;", "Cancel")}</button>
+          <button type="submit" class="primary text-icon-button">${buttonContent("&#10003;", actionLabel)}</button>
+        </div>
+      </form>
+    `;
+
+    document.body.appendChild(modal);
+    initializeWindowedDialog(modal, { showResetButton: false });
+
+    const finish = value => {
+      modal.close();
+      modal.remove();
+      resolve(value);
+    };
+
+    modal.querySelector("[data-result='cancel']").addEventListener("click", () => finish(null));
+    modal.querySelector("form").addEventListener("submit", event => {
+      event.preventDefault();
+      const nextTitle = modal.querySelector("[name='collapsibleTitle']")?.value?.trim() || "";
+      if (!nextTitle) {
+        showToast("Section title is required.");
+        modal.querySelector("[name='collapsibleTitle']")?.focus({ preventScroll: true });
+        return;
+      }
+      finish({
+        title: nextTitle,
+        readOnlyOpen: modal.querySelector("[name='collapsibleReadOnlyOpen']")?.checked === true
+      });
+    });
+    modal.addEventListener("cancel", event => {
+      event.preventDefault();
+      finish(null);
+    });
+
+    modal.showModal();
+    setTimeout(() => modal.querySelector("[name='collapsibleTitle']")?.focus(), 0);
+  });
 }
 
 function askForCodeBlock(initialCode = "", options = {}) {
@@ -5937,7 +6303,7 @@ function sanitizeRichSvgElement(svg) {
   });
 }
 
-function richCodeBlockHtml({ caption, code, language, readOnlyOpen = false }) {
+function richCodeBlockHtml({ caption, code, language, readOnlyOpen = false, blockId = "" }) {
   const summary = escapeHtml((caption || "Code").trim() || "Code");
   const normalizedLanguage = RICH_SOURCE_TEXT_TYPES.some(option => option.value === language)
     ? language
@@ -5948,11 +6314,19 @@ function richCodeBlockHtml({ caption, code, language, readOnlyOpen = false }) {
     ? ` data-code-language="${escapeAttr(normalizedLanguage)}"`
     : "";
   const readOnlyOpenAttribute = readOnlyOpen ? ` data-code-readonly-open="true"` : "";
-  return `<details class="rich-code-block"${readOnlyOpenAttribute}><summary><span class="rich-code-caption">${summary}</span></summary><pre><code${languageAttribute}>${codeHtml}</code></pre></details><p><br></p>`;
+  const blockIdAttribute = ` data-code-block-id="${escapeAttr(String(blockId || createRichCodeBlockId()).trim())}"`;
+  return `<details class="rich-code-block"${blockIdAttribute}${readOnlyOpenAttribute}><summary><span class="rich-code-caption">${summary}</span></summary><pre><code${languageAttribute}>${codeHtml}</code></pre></details><p><br></p>`;
 }
 
-function richCollapsibleBlockHtml(title, contents) {
-  return `<details class="rich-collapsible-block" open><summary>${escapeHtml(String(title || "Details").trim() || "Details")}</summary><div class="rich-collapsible-content">${contents || "<p><br></p>"}</div></details><p><br></p>`;
+function richCollapsibleBlockHtml(options = {}, fallbackContents = "") {
+  const config = typeof options === "object" && options !== null
+    ? options
+    : { title: options, contents: fallbackContents };
+  const title = escapeHtml(String(config.title || "Details").trim() || "Details");
+  const contents = config.contents || "<p><br></p>";
+  const readOnlyOpen = config.readOnlyOpen !== false;
+  const blockId = String(config.blockId || createRichCollapsibleBlockId()).trim();
+  return `<details class="rich-collapsible-block" data-collapsible-id="${escapeAttr(blockId)}" data-collapsible-readonly-open="${readOnlyOpen ? "true" : "false"}" open><summary><span class="rich-collapsible-title">${title}</span></summary><div class="rich-collapsible-content">${contents}</div></details><p><br></p>`;
 }
 
 function richCodeClipboardHtml(block) {

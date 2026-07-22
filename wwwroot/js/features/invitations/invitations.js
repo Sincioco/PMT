@@ -14,7 +14,7 @@ import { initializeWindowedDialog } from "../../components/dialogs.js?v=20260713
 import {
   checkList,
   checkedNumbers
-} from "../../components/forms.js?v=20260721-rte-code-log-v1";
+} from "../../components/forms.js?v=20260722-rte-toggle-state-v1";
 import {
   bindProfileAvatarPicker,
   focusProfileAvatarPicker,
