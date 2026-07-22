@@ -165,7 +165,8 @@
 }
 
 .editor-dialog.is-maximized:has(.task-editor-grid),
-.editor-dialog.is-maximized:has(.bug-editor-grid) {
+.editor-dialog.is-maximized:has(.bug-editor-grid),
+.editor-dialog.is-maximized:has(.scrum-editor-grid) {
   inset: 0 !important;
   border-radius: 0;
 }

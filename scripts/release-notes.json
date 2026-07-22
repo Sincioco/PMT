@@ -1421,6 +1421,12 @@
         ]
       },
       {
+        "title": "Scrum Dialogs",
+        "items": [
+          "Make the Scrum New/Edit dialog's Maximize control use the same true edge-to-edge fullscreen layout as Dev Tasks."
+        ]
+      },
+      {
         "title": "Linked Diagram OLE",
         "items": [
           "Keep Linked Diagram viewers embedded in Scrum entries hydrated after Scrum auto-refresh redraws the table.",

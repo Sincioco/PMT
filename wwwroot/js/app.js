@@ -10,7 +10,7 @@ import {
   parseAnnotationSvg,
   openImageAnnotationDialog
 } from "./components/image-annotation.js?v=20260721-diagram-viewer-wheel-v1";
-import { createWhatsNew } from "./components/whats-new.js?v=release-notes-2026-07-22-day-35-1a99b8bb4547";
+import { createWhatsNew } from "./components/whats-new.js?v=release-notes-2026-07-22-day-35-3cc33b8c7408";
 import {
   htmlWithoutUserMentionMarkup,
   initializeUserMentions
@@ -67,18 +67,18 @@ import {
 import { createBacklogFeature } from "./features/backlog/backlog.js?v=20260720-work-item-export-images-v4";
 import { createBoardFeature } from "./features/board/board.js?v=20260720-work-item-export-images-v4";
 import { createBugsFeature } from "./features/bugs/bugs.js?v=20260721-rte-code-log-v1";
-import { createDashboardFeature } from "./features/dashboard/dashboard.js?v=release-notes-2026-07-22-day-35-1a99b8bb4547";
+import { createDashboardFeature } from "./features/dashboard/dashboard.js?v=release-notes-2026-07-22-day-35-3cc33b8c7408";
 import { createDiagramFeature } from "./features/diagram/diagram.js?v=20260721-rte-diagram-menu-v1";
 import { createDocumentationFeature } from "./features/documentation/documentation.js?v=20260721-diagram-rich-text-v3";
 import {
   createGanttFeature,
   currentSprintForProject,
   ganttStartDate
-} from "./features/gantt/gantt.js?v=release-notes-2026-07-22-day-35-1a99b8bb4547";
+} from "./features/gantt/gantt.js?v=release-notes-2026-07-22-day-35-3cc33b8c7408";
 import { createInvitationsFeature } from "./features/invitations/invitations.js?v=20260722-auth-flyby-v1";
 import { createProjectsFeature } from "./features/projects/projects.js?v=20260719-day32-rte-diagram";
-import { createReleaseNotesFeature } from "./features/release-notes/release-notes.js?v=release-notes-2026-07-22-day-35-1a99b8bb4547";
-import { createRoadMapFeature } from "./features/roadmap/roadmap.js?v=release-notes-2026-07-22-day-35-1a99b8bb4547";
+import { createReleaseNotesFeature } from "./features/release-notes/release-notes.js?v=release-notes-2026-07-22-day-35-3cc33b8c7408";
+import { createRoadMapFeature } from "./features/roadmap/roadmap.js?v=release-notes-2026-07-22-day-35-3cc33b8c7408";
 import { createLogFeature } from "./features/personal-log/log.js?v=20260721-rte-code-log-v1";
 import { createScrumFeature } from "./features/scrum/scrum.js?v=20260722-ole-viewport-v1";
 import { createSettingsFeature } from "./features/settings/settings.js?v=20260720-clear-preferences-logout-v1";

@@ -20,7 +20,7 @@ import {
   selectOptionsField,
   value
 } from "../../components/forms.js?v=20260721-rte-code-log-v1";
-import { sectionHead } from "../../components/sections.js?v=release-notes-2026-07-22-day-35-1a99b8bb4547";
+import { sectionHead } from "../../components/sections.js?v=release-notes-2026-07-22-day-35-3cc33b8c7408";
 import {
   preferenceKeys,
   readBooleanPreference,
