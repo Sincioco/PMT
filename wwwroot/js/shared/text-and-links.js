@@ -17,6 +17,7 @@ export function normalizeRichHtml(html) {
 }
 
 export function normalizeDiagramOleBlocksForStorage(root) {
+  const usedBlockIds = new Set();
   matchingElements(root, "[data-pmt-ole='diagram']").forEach(block => {
     const diagramId = Number(block.getAttribute("data-diagram-id") || 0);
     if (!diagramId) {
@@ -24,10 +25,14 @@ export function normalizeDiagramOleBlocksForStorage(root) {
       return;
     }
 
-    const blockId = String(block.getAttribute("data-block-id") || "").trim()
-      || `pmt-ole-${Date.now().toString(36)}`;
+    let blockId = String(block.getAttribute("data-block-id") || "").trim();
+    if (!blockId || usedBlockIds.has(blockId)) {
+      blockId = createDiagramOleBlockId(usedBlockIds);
+    }
+    usedBlockIds.add(blockId);
     const width = Math.max(320, Math.round(Number(block.style.width?.replace("px", "") || block.getAttribute("data-view-width") || 900) || 900));
     const height = Math.max(220, Math.round(Number(block.style.height?.replace("px", "") || block.getAttribute("data-view-height") || 520) || 520));
+    const viewport = diagramOleViewportForStorage(block);
     block.className = "pmt-diagram-ole";
     block.setAttribute("contenteditable", "false");
     block.setAttribute("data-pmt-ole", "diagram");
@@ -35,13 +40,46 @@ export function normalizeDiagramOleBlocksForStorage(root) {
     block.setAttribute("data-block-id", blockId);
     block.setAttribute("data-view-width", String(width));
     block.setAttribute("data-view-height", String(height));
+    if (viewport) {
+      block.setAttribute("data-view-x", String(viewport.x));
+      block.setAttribute("data-view-y", String(viewport.y));
+      block.setAttribute("data-view-zoom", String(viewport.zoom));
+    } else {
+      block.removeAttribute("data-view-x");
+      block.removeAttribute("data-view-y");
+      block.removeAttribute("data-view-zoom");
+    }
     block.removeAttribute("data-diagram-ole-hydrated-key");
     block.removeAttribute("data-diagram-ole-resize-bound");
     block.removeAttribute("data-diagram-ole-view-clamped");
     block.removeAttribute("data-diagram-ole-viewer-bound");
+    block.removeAttribute("data-current-view-x");
+    block.removeAttribute("data-current-view-y");
+    block.removeAttribute("data-current-view-zoom");
     block.setAttribute("style", `width: ${width}px; height: ${height}px;`);
     block.innerHTML = `<figcaption>Linked Diagram #${diagramId}</figcaption>`;
   });
+}
+
+function createDiagramOleBlockId(usedBlockIds = new Set()) {
+  let blockId = "";
+  do {
+    blockId = `pmt-ole-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+  } while (usedBlockIds.has(blockId));
+  return blockId;
+}
+
+function diagramOleViewportForStorage(block) {
+  const read = (name, fallbackName = "") => Number(block.getAttribute(name) || (fallbackName ? block.getAttribute(fallbackName) : ""));
+  const x = read("data-current-view-x", "data-view-x");
+  const y = read("data-current-view-y", "data-view-y");
+  const zoom = read("data-current-view-zoom", "data-view-zoom");
+  if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(zoom) || zoom <= 0) return null;
+  return {
+    x: Math.round(x),
+    y: Math.round(y),
+    zoom: Math.round(zoom * 1000) / 1000
+  };
 }
 
 export function normalizeLinksInElement(root, options = {}) {

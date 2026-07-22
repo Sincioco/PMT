@@ -872,7 +872,7 @@ async function prepareAboutPage(page, initialView = "About") {
     localStorage.setItem("pmt-task-project", "10");
     localStorage.setItem("pmt-task-sprint", "101");
     localStorage.setItem("pmt-bug-filters", JSON.stringify({ projectId: "10", sprintId: "all" }));
-    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-22-day-35@0a0e45cffb8a");
+    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-22-day-35@04389905c430");
   }, initialView);
 
   await page.route("**/api/session", async route => {

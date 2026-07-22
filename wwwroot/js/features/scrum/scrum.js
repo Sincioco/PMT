@@ -13,7 +13,7 @@ import {
   userCardCheckListLabelHtml,
   value
 } from "../../components/forms.js?v=20260721-rte-code-log-v1";
-import { sectionHead } from "../../components/sections.js?v=release-notes-2026-07-22-day-35-0a0e45cffb8a";
+import { sectionHead } from "../../components/sections.js?v=release-notes-2026-07-22-day-35-04389905c430";
 import { createWorkItemTableMode } from "../../components/work-items.js?v=20260720-work-item-export-images-v4";
 import { currentUser } from "../../core/authentication.js?v=20260715-admin-impersonation";
 import {
@@ -177,6 +177,7 @@ export function createScrumFeature({
   app,
   askYesNo,
   deleteItem,
+  hydrateLinkedDiagrams,
   loadState,
   openEditor,
   render,
@@ -276,6 +277,7 @@ export function createScrumFeature({
     `;
     fitScrumHeader();
     restoreScrumCalendarFocus();
+    hydrateLinkedDiagrams?.(app);
     scheduleScrumAutoRefresh();
   }
 
@@ -323,7 +325,9 @@ export function createScrumFeature({
     if (scrumColumnDrag) return true;
     if (scrumCalendarAvatarMenu) return true;
     if (document.querySelector("#editorDialog[open], dialog.detail-dialog[open], [data-scrum-filter-dialog][open], [data-scrum-check-in-dialog][open], [data-scrum-on-behalf-dialog][open], [data-scrum-vacation-dialog][open]")) return true;
+    if (app.querySelector(".pmt-diagram-ole-viewport.is-panning")) return true;
     const activeElement = document.activeElement;
+    if (activeElement?.closest?.(".pmt-diagram-ole")) return true;
     return Boolean(activeElement && app.contains(activeElement) && activeElement.matches("select, input, textarea, [contenteditable='true']"));
   }
 

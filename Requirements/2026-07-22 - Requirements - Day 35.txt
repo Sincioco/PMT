@@ -34,6 +34,27 @@ Login and New User Invite Screen
 5.) In both the Login and Invited Signup screen, change the background to the 3D flyby only after 30 seconds.
 
 
+Linked Diagram (OLE)
+-------------------
+6.) If I paste a linked diagram (OLE), it works for a little while and then it stops.  You tried to fix this yesterday and it's still not fixed.  My scenario is simple.  I want to embed/link a diagram in a Scrum entry.
+
+7.) Would it be possible for the Linked Diagram viewer to remember the zoom level / viewport when it is being configured inside an RTE?  And then during read-mode (not in a RTE), like in a Scrum entry, for it to have the same zoom level / viewport as what it had inside an RTE?  That way the person creating the embedded Linked Diagram can set the initial viewport of the diagram.
+
+8.) In addition to the "Reset" that is there now can you also add a "fit" button which will just try to fit the whole image on the viewer?
+
+10.) Would it be possible to have the option to have the viewer resizeable even during read mode?  Can we make it so it has a sizing hand on the lower-right corner when you are inside the viewer?  Sort of like the way the PMT dialog boxes have a little notch at the lower right corner to indicate it can be resized.  But only show it when the mouse/cursor is on the viewer.
+7.) Would it be possible for the Linked Diagram viewer to remember the zoom level / viewport when it is being configured inside an RTE?  And then during read-mode (not in a RTE), like in a Scrum entry, for it to have the same zoom level / viewport as what it had inside an RTE?  That way the person creating the embedded Linked Diagram can set the initial viewport of the diagram.
+8.) In addition to the "Reset" that is there now can you also add a "fit" button which will just try to fit the whole image on the viewer?
+10.) Would it be possible to have the option to have the viewer resizeable even during read mode?  Can we make it so it has a sizing hand on the lower-right corner when you are inside the viewer?  Sort of like the way the PMT dialog boxes have a little notch at the lower right corner to indicate it can be resized.  But only show it when the mouse/cursor is on the viewer.
+11.) Note that a user might put multiple Linked Diagram (OLE) in one RTE.
+12.) Can we also have pages/tabs to the Linked Diagram viewer.  So for example, if I want to share 5 diagrams, I would like the option to just use one Linked Diagram viewer but with tabs/pages.  Preferrably at the top just bellow the header stuff so the user can see right away that there are multiple diagrams being shared.  Can you provide an ability to add, delete, rename, re-order tabs.  And of course, remember the zoom / viewport of each tab during editing so it can become the user's initial view when viewing in read-mode.
+13.) Can you also add a maximize button that truly maximize and takes as much of the content area of the browser as possible.
+
+
+Mention / Embed Live Dev Tasks and Bug Reports
+----------------------------------------------
+14.) I would also like to embed tasks and bug reports as a card in a document.  Just use the exact same card you use now in the Kanban board.  Maybe have it update to reflect the dev task or bug report's status every 5-10 seconds.  Could you come up with an easy in-line (in RTE) way of inserting a dev task or a bug report.  For example, the user can type "@task/1" (without the quotes) and task1 is inserted as a live card in the RTE and remains as a live card eve in read-mode.  You can decide on what the format is for the mention.
+
 Database Migration Script Testing
 ---------------------------------
 Update the migration scripts and test them by dropping and re-creating the database from the baseline and executing your combined migration script as that is how I will execute it during deployment.  Be sure it works without any errors and fix errors that you do encounter.
@@ -41,4 +62,4 @@ Update the migration scripts and test them by dropping and re-creating the datab
 Commit and Push
 ---------------
 When all your tests are green, create a detailed commit message and push to the repo.
-Also commit the file named "2026-07-21 - Requirements - Day 34.txt" and "2026-07-22 - Requirements - Day 35.txt"
+Also commit the file named "2026-07-22 - Requirements - Day 35.txt"

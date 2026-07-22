@@ -1421,6 +1421,16 @@
         ]
       },
       {
+        "title": "Linked Diagram OLE",
+        "items": [
+          "Keep Linked Diagram viewers embedded in Scrum entries hydrated after Scrum auto-refresh redraws the table.",
+          "Pause Scrum auto-refresh while a linked Diagram viewer is focused or being panned so the viewer is not replaced during interaction.",
+          "Save each embedded Linked Diagram's configured viewport so read-only Scrum entries open to the same initial pan and zoom selected in the RTE.",
+          "Split Reset and Fit controls so Reset returns to the saved initial viewport while Fit shows the whole Diagram.",
+          "Allow read-only Linked Diagram viewers to be resized with a lower-right hover handle."
+        ]
+      },
+      {
         "title": "Release Readiness",
         "items": [
           "Cache-bust the updated auth screens and About flyby modules so browsers pick up the new login and invitation layouts immediately.",

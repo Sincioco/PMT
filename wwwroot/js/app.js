@@ -10,7 +10,7 @@ import {
   parseAnnotationSvg,
   openImageAnnotationDialog
 } from "./components/image-annotation.js?v=20260721-diagram-viewer-wheel-v1";
-import { createWhatsNew } from "./components/whats-new.js?v=release-notes-2026-07-22-day-35-0a0e45cffb8a";
+import { createWhatsNew } from "./components/whats-new.js?v=release-notes-2026-07-22-day-35-04389905c430";
 import {
   htmlWithoutUserMentionMarkup,
   initializeUserMentions
@@ -67,20 +67,20 @@ import {
 import { createBacklogFeature } from "./features/backlog/backlog.js?v=20260720-work-item-export-images-v4";
 import { createBoardFeature } from "./features/board/board.js?v=20260720-work-item-export-images-v4";
 import { createBugsFeature } from "./features/bugs/bugs.js?v=20260721-rte-code-log-v1";
-import { createDashboardFeature } from "./features/dashboard/dashboard.js?v=release-notes-2026-07-22-day-35-0a0e45cffb8a";
+import { createDashboardFeature } from "./features/dashboard/dashboard.js?v=release-notes-2026-07-22-day-35-04389905c430";
 import { createDiagramFeature } from "./features/diagram/diagram.js?v=20260721-rte-diagram-menu-v1";
 import { createDocumentationFeature } from "./features/documentation/documentation.js?v=20260721-diagram-rich-text-v3";
 import {
   createGanttFeature,
   currentSprintForProject,
   ganttStartDate
-} from "./features/gantt/gantt.js?v=release-notes-2026-07-22-day-35-0a0e45cffb8a";
+} from "./features/gantt/gantt.js?v=release-notes-2026-07-22-day-35-04389905c430";
 import { createInvitationsFeature } from "./features/invitations/invitations.js?v=20260722-auth-flyby-v1";
 import { createProjectsFeature } from "./features/projects/projects.js?v=20260719-day32-rte-diagram";
-import { createReleaseNotesFeature } from "./features/release-notes/release-notes.js?v=release-notes-2026-07-22-day-35-0a0e45cffb8a";
-import { createRoadMapFeature } from "./features/roadmap/roadmap.js?v=release-notes-2026-07-22-day-35-0a0e45cffb8a";
+import { createReleaseNotesFeature } from "./features/release-notes/release-notes.js?v=release-notes-2026-07-22-day-35-04389905c430";
+import { createRoadMapFeature } from "./features/roadmap/roadmap.js?v=release-notes-2026-07-22-day-35-04389905c430";
 import { createLogFeature } from "./features/personal-log/log.js?v=20260721-rte-code-log-v1";
-import { createScrumFeature } from "./features/scrum/scrum.js?v=20260721-rte-code-log-v1";
+import { createScrumFeature } from "./features/scrum/scrum.js?v=20260722-ole-viewport-v1";
 import { createSettingsFeature } from "./features/settings/settings.js?v=20260720-clear-preferences-logout-v1";
 import { createSprintsFeature } from "./features/sprints/sprints.js?v=20260719-day32-rte-diagram";
 import { createTasksFeature } from "./features/tasks/tasks.js?v=20260721-rte-code-log-v1";
@@ -117,7 +117,7 @@ import {
   linkifyTextNodes,
   normalizeLinksInElement,
   normalizeUrl
-} from "./shared/text-and-links.js?v=20260721-rte-code-log-v1";
+} from "./shared/text-and-links.js?v=20260722-ole-viewport-v1";
 import {
   configureWorkItemRules,
   isBugQaPassedOrLater,
@@ -448,6 +448,7 @@ const scrumFeature = createScrumFeature({
   app,
   askYesNo,
   deleteItem,
+  hydrateLinkedDiagrams: hydrateRichDiagramOleBlocks,
   loadState,
   openEditor,
   render,
@@ -4612,7 +4613,7 @@ async function insertRichLinkedDiagram(editor, savedSelection) {
 }
 
 function richLinkedDiagramHtml(diagram) {
-  const blockId = `pmt-ole-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+  const blockId = createRichDiagramOleBlockId();
   return `
     <figure class="pmt-diagram-ole" contenteditable="false" data-pmt-ole="diagram" data-diagram-id="${escapeAttr(diagram.id)}" data-block-id="${escapeAttr(blockId)}" data-view-width="900" data-view-height="520" style="width: 900px; height: 520px;">
       <figcaption>Linked Diagram: ${escapeHtml(diagram.title || "Diagram")}</figcaption>
@@ -4851,7 +4852,31 @@ function hydrateRichDiagramOleBlocks(root = document) {
   const blocks = [];
   if (root?.matches?.("[data-pmt-ole='diagram']")) blocks.push(root);
   root?.querySelectorAll?.("[data-pmt-ole='diagram']").forEach(block => blocks.push(block));
+  ensureRichDiagramOleBlockIds(blocks);
   blocks.forEach(hydrateRichDiagramOleBlock);
+}
+
+function ensureRichDiagramOleBlockIds(blocks) {
+  const usedByScope = new Map();
+  blocks.forEach(block => {
+    const scope = block.closest?.(".rich-editor, [data-rich-persist-type]") || block.parentElement || document.body;
+    const usedBlockIds = usedByScope.get(scope) || new Set();
+    let blockId = String(block.dataset.blockId || "").trim();
+    if (!blockId || usedBlockIds.has(blockId)) {
+      blockId = createRichDiagramOleBlockId(usedBlockIds);
+      block.dataset.blockId = blockId;
+    }
+    usedBlockIds.add(blockId);
+    usedByScope.set(scope, usedBlockIds);
+  });
+}
+
+function createRichDiagramOleBlockId(usedBlockIds = new Set()) {
+  let blockId = "";
+  do {
+    blockId = `pmt-ole-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+  } while (usedBlockIds.has(blockId));
+  return blockId;
 }
 
 function hydrateRichDiagramOleBlock(block) {
@@ -4883,7 +4908,7 @@ function hydrateRichDiagramOleBlock(block) {
     && block.querySelector("[data-diagram-ole-viewport] img")) {
     refreshRichDiagramOleViewerSource(block, diagram, sourceUrl);
     bindRichDiagramOleViewer(block, diagram);
-    bindRichDiagramOleResizePersistence(block);
+    bindRichDiagramOleResizePersistence(block, diagram);
     return;
   }
   block.dataset.diagramOleHydratedKey = hydratedKey;
@@ -4893,7 +4918,8 @@ function hydrateRichDiagramOleBlock(block) {
       <span>Linked Diagram: ${escapeHtml(title)}</span>
       <span class="pmt-diagram-ole-actions">
         <button type="button" data-diagram-ole-zoom-out title="Zoom out" aria-label="Zoom out">-</button>
-        <button type="button" data-diagram-ole-reset title="Fit diagram to viewer" aria-label="Fit diagram to viewer">Reset</button>
+        <button type="button" data-diagram-ole-reset title="Reset to the saved initial view" aria-label="Reset to saved initial view">Reset</button>
+        <button type="button" data-diagram-ole-fit title="Fit the whole Diagram in the viewer" aria-label="Fit Diagram to viewer">Fit</button>
         <button type="button" data-diagram-ole-zoom-in title="Zoom in" aria-label="Zoom in">+</button>
         ${editable ? `<button type="button" data-diagram-ole-edit-action data-diagram-ole-change title="Change linked Diagram" aria-label="Change linked Diagram">Change</button>` : ""}
         ${editable ? `<button type="button" class="pmt-diagram-ole-delete-action" data-diagram-ole-edit-action data-diagram-ole-delete title="Delete linked Diagram" aria-label="Delete linked Diagram">&#128465;</button>` : ""}
@@ -4908,7 +4934,7 @@ function hydrateRichDiagramOleBlock(block) {
 
   refreshRichDiagramOleViewerSource(block, diagram, sourceUrl);
   bindRichDiagramOleViewer(block, diagram);
-  bindRichDiagramOleResizePersistence(block);
+  bindRichDiagramOleResizePersistence(block, diagram);
 }
 
 function refreshRichDiagramOleViewerSource(block, diagram, fallbackSourceUrl) {
@@ -4932,13 +4958,15 @@ function bindRichDiagramOleViewer(block, diagram) {
   const hasStoredView = hasRichDiagramOleViewport(block, diagram);
   let view = readRichDiagramOleViewport(block, diagram);
   const clampZoom = value => Math.min(5, Math.max(0.1, Number(value || 1)));
-  const render = () => {
+  const render = (options = {}) => {
     view.zoom = clampZoom(view.zoom);
     view.x = Math.round(Number(view.x || 0));
     view.y = Math.round(Number(view.y || 0));
     const hasMeasuredDiagram = clampRichDiagramOleViewport(block, viewport, surface, view);
     surface.style.transform = `translate(${view.x}px, ${view.y}px) scale(${view.zoom})`;
-    if (hasMeasuredDiagram) writeRichDiagramOleViewport(block, diagram, view);
+    if (hasMeasuredDiagram && options.remember) {
+      rememberRichDiagramOleViewport(block, diagram, view, { notify: options.notify === true });
+    }
   };
   const zoomBy = (factor, anchor = null) => {
     const previousZoom = clampZoom(view.zoom);
@@ -4955,9 +4983,9 @@ function bindRichDiagramOleViewer(block, diagram) {
       y: anchorPoint.y - diagramY * nextZoom,
       zoom: nextZoom
     };
-    render();
+    render({ remember: true, notify: true });
   };
-  const fitView = () => {
+  const fitView = (options = {}) => {
     const image = surface.querySelector("img");
     const viewportWidth = Math.round(viewport.clientWidth || 0);
     const viewportHeight = Math.round(viewport.clientHeight || 0);
@@ -4971,11 +4999,22 @@ function bindRichDiagramOleViewer(block, diagram) {
       y: Math.round((viewportHeight - imageHeight * zoom) / 2),
       zoom
     };
-    render();
+    render(options);
+  };
+  const resetView = () => {
+    const initialView = richDiagramOleInitialViewport(block);
+    if (initialView) {
+      view = { ...initialView };
+      render({ remember: true, notify: true });
+      return;
+    }
+
+    fitView({ remember: true, notify: true });
   };
   block.querySelector("[data-diagram-ole-zoom-out]")?.addEventListener("click", () => zoomBy(0.85));
   block.querySelector("[data-diagram-ole-zoom-in]")?.addEventListener("click", () => zoomBy(1.15));
-  block.querySelector("[data-diagram-ole-reset]")?.addEventListener("click", fitView);
+  block.querySelector("[data-diagram-ole-reset]")?.addEventListener("click", resetView);
+  block.querySelector("[data-diagram-ole-fit]")?.addEventListener("click", () => fitView({ remember: true, notify: true }));
   ["pointerdown", "mousedown"].forEach(eventName => {
     block.addEventListener(eventName, event => {
       if (!event.target.closest?.("[data-diagram-ole-edit-action]")) return;
@@ -5004,6 +5043,7 @@ function bindRichDiagramOleViewer(block, diagram) {
     if (!nextDiagram || !editor.contains(block)) return;
 
     block.dataset.diagramId = String(nextDiagram.id);
+    clearRichDiagramOleSavedView(block);
     delete block.dataset.diagramOleHydratedKey;
     delete block.dataset.diagramOleViewerBound;
     delete block.dataset.diagramOleSourceRequestKey;
@@ -5054,7 +5094,7 @@ function bindRichDiagramOleViewer(block, diagram) {
     event.preventDefault();
     view.x = drag.viewX + event.clientX - drag.startX;
     view.y = drag.viewY + event.clientY - drag.startY;
-    render();
+    render({ remember: true });
   });
   ["pointerup", "pointercancel"].forEach(eventName => {
     viewport.addEventListener(eventName, event => {
@@ -5062,7 +5102,7 @@ function bindRichDiagramOleViewer(block, diagram) {
       viewport.releasePointerCapture?.(event.pointerId);
       drag = null;
       viewport.classList.remove("is-panning");
-      render();
+      render({ remember: true, notify: true });
     });
   });
 
@@ -5073,7 +5113,7 @@ function bindRichDiagramOleViewer(block, diagram) {
   } else {
     const image = surface.querySelector("img");
     if (image?.complete) fitView();
-    else image?.addEventListener("load", fitView, { once: true });
+    else image?.addEventListener("load", () => fitView(), { once: true });
   }
 }
 
@@ -5126,43 +5166,117 @@ function richDiagramOleStorageKey(block, diagram) {
   return `pmt-diagram-ole:${documentId}:${diagram?.id || block.dataset.diagramId || 0}:${block.dataset.blockId || "block"}`;
 }
 
-function readRichDiagramOleViewport(block, diagram) {
+function richDiagramOleViewportFromDataset(block, prefix = "view") {
+  const x = Number(block?.dataset?.[`${prefix}X`]);
+  const y = Number(block?.dataset?.[`${prefix}Y`]);
+  const zoom = Number(block?.dataset?.[`${prefix}Zoom`]);
+  if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(zoom) || zoom <= 0) return null;
+  return { x, y, zoom };
+}
+
+function richDiagramOleInitialViewport(block) {
+  return richDiagramOleViewportFromDataset(block, "view");
+}
+
+function richDiagramOleCurrentViewport(block) {
+  return richDiagramOleViewportFromDataset(block, "currentView");
+}
+
+function richDiagramOleViewSignature(view) {
+  if (!view) return "";
+  return [
+    Math.round(Number(view.x || 0)),
+    Math.round(Number(view.y || 0)),
+    Math.round(Number(view.zoom || 1) * 1000) / 1000
+  ].join(":");
+}
+
+function readRichDiagramOleStoredViewportRecord(block, diagram) {
   try {
     const parsed = JSON.parse(localStorage.getItem(richDiagramOleStorageKey(block, diagram)) || "{}");
-    return {
+    const view = {
       x: Number(parsed.x || 0),
       y: Number(parsed.y || 0),
       zoom: Number(parsed.zoom || 1) || 1
     };
+    if (!Number.isFinite(view.x) || !Number.isFinite(view.y) || !Number.isFinite(view.zoom) || view.zoom <= 0) return null;
+    return {
+      ...view,
+      initialViewSignature: String(parsed.initialViewSignature || "")
+    };
   } catch {
-    return { x: 0, y: 0, zoom: 1 };
+    return null;
   }
 }
 
-function hasRichDiagramOleViewport(block, diagram) {
-  try {
-    return localStorage.getItem(richDiagramOleStorageKey(block, diagram)) !== null;
-  } catch {
-    return false;
+function readRichDiagramOleViewport(block, diagram) {
+  const currentView = richDiagramOleCurrentViewport(block);
+  if (currentView) return currentView;
+
+  const initialView = richDiagramOleInitialViewport(block);
+  const initialSignature = richDiagramOleViewSignature(initialView);
+  const storedView = readRichDiagramOleStoredViewportRecord(block, diagram);
+  if (storedView && (!initialSignature || storedView.initialViewSignature === initialSignature)) {
+    return {
+      x: storedView.x,
+      y: storedView.y,
+      zoom: storedView.zoom
+    };
   }
+
+  return initialView || { x: 0, y: 0, zoom: 1 };
+}
+
+function hasRichDiagramOleViewport(block, diagram) {
+  if (richDiagramOleCurrentViewport(block) || richDiagramOleInitialViewport(block)) return true;
+  return Boolean(readRichDiagramOleStoredViewportRecord(block, diagram));
 }
 
 function writeRichDiagramOleViewport(block, diagram, view) {
   try {
+    const initialView = richDiagramOleInitialViewport(block);
     localStorage.setItem(richDiagramOleStorageKey(block, diagram), JSON.stringify({
       x: Math.round(Number(view.x || 0)),
       y: Math.round(Number(view.y || 0)),
-      zoom: Math.round(Number(view.zoom || 1) * 1000) / 1000
+      zoom: Math.round(Number(view.zoom || 1) * 1000) / 1000,
+      initialViewSignature: richDiagramOleViewSignature(initialView)
     }));
   } catch {
     // Viewport memory is optional.
   }
 }
 
-function bindRichDiagramOleResizePersistence(block) {
-  if (!block.closest(".rich-editor") || block.dataset.diagramOleResizeBound === "true") return;
+function writeRichDiagramOleCurrentViewport(block, view) {
+  block.dataset.currentViewX = String(Math.round(Number(view.x || 0)));
+  block.dataset.currentViewY = String(Math.round(Number(view.y || 0)));
+  block.dataset.currentViewZoom = String(Math.round(Number(view.zoom || 1) * 1000) / 1000);
+}
+
+function clearRichDiagramOleSavedView(block) {
+  [
+    "viewX",
+    "viewY",
+    "viewZoom",
+    "currentViewX",
+    "currentViewY",
+    "currentViewZoom"
+  ].forEach(name => {
+    delete block.dataset[name];
+  });
+}
+
+function rememberRichDiagramOleViewport(block, diagram, view, options = {}) {
+  writeRichDiagramOleCurrentViewport(block, view);
+  writeRichDiagramOleViewport(block, diagram, view);
+  if (options.notify) {
+    block.closest(".rich-editor")?.dispatchEvent(new Event("input", { bubbles: true }));
+  }
+}
+
+function bindRichDiagramOleResizePersistence(block, diagram) {
+  if (block.dataset.diagramOleResizeBound === "true") return;
   block.dataset.diagramOleResizeBound = "true";
-  const sync = () => {
+  const sync = (options = {}) => {
     const rect = block.getBoundingClientRect();
     const width = Math.max(320, Math.round(rect.width || Number(block.dataset.viewWidth || 900)));
     const height = Math.max(220, Math.round(rect.height || Number(block.dataset.viewHeight || 520)));
@@ -5170,9 +5284,14 @@ function bindRichDiagramOleResizePersistence(block) {
     block.dataset.viewHeight = String(height);
     block.style.width = `${width}px`;
     block.style.height = `${height}px`;
+    if (options.notify) {
+      block.closest(".rich-editor")?.dispatchEvent(new Event("input", { bubbles: true }));
+    }
+    const currentView = richDiagramOleCurrentViewport(block);
+    if (currentView) writeRichDiagramOleViewport(block, diagram, currentView);
   };
-  block.addEventListener("pointerup", sync);
-  block.addEventListener("keyup", sync);
+  block.addEventListener("pointerup", () => sync({ notify: true }));
+  block.addEventListener("keyup", () => sync({ notify: true }));
 }
 
 function richUploadedImageHtml(upload) {

@@ -46,7 +46,7 @@ test("login, navigation, themes, dialogs, filters, Board, Gantt, and Road Map sm
 
   await page.addInitScript(() => {
     localStorage.clear();
-    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-22-day-35@0a0e45cffb8a");
+    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-22-day-35@04389905c430");
     localStorage.setItem("pmt-navigation", JSON.stringify({
       version: 2,
       items: [
@@ -523,7 +523,7 @@ test("Developer Board moves stop after QA Passed while QA Ready remains availabl
 
   await page.addInitScript(() => {
     localStorage.clear();
-    localStorage.setItem("pmt-release-notes-last-seen:2", "2026-07-22-day-35@0a0e45cffb8a");
+    localStorage.setItem("pmt-release-notes-last-seen:2", "2026-07-22-day-35@04389905c430");
   });
   await installApiMocks(page, appState, apiCalls);
   await page.goto("/");
@@ -570,7 +570,7 @@ test("Scrum attendance, calendar, on-behalf, and vacation flows stay synchronize
       localStorage.clear();
       sessionStorage.setItem("pmt-scrum-attendance-smoke-started", "true");
     }
-    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-22-day-35@0a0e45cffb8a");
+    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-22-day-35@04389905c430");
   });
   await installApiMocks(page, appState, apiCalls);
 
@@ -889,7 +889,7 @@ test("Scrum header reserves its title and attendance avatars expand toward Check
   await page.clock.setFixedTime(new Date("2026-07-15T08:00:00+08:00"));
   await page.addInitScript(() => {
     localStorage.clear();
-    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-22-day-35@0a0e45cffb8a");
+    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-22-day-35@04389905c430");
   });
   await installApiMocks(page, appState, apiCalls);
 
@@ -970,13 +970,28 @@ test("Scrum header reserves its title and attendance avatars expand toward Check
 test("Scrum auto-refresh updates the table and attendance without reload or interaction loss", async ({ page }) => {
   const appState = createTestState();
   const apiCalls = { securityReset: 0, sessionUserId: 1, stateGets: 0 };
+  const linkedDiagramSvg = buildAnnotationSvg({ width: 420, height: 240, objects: [] });
+  const linkedDiagramSource = `data:image/svg+xml,${encodeURIComponent(linkedDiagramSvg)}`;
+  appState.blogs.push({
+    id: 77,
+    projectId: 10,
+    title: "Scrum Linked Diagram",
+    bodyHtml: `<p><img src="${linkedDiagramSource}" alt="Scrum Linked Diagram" data-pmt-diagram="true" data-pmt-annotation-version="1"></p>`,
+    createdByUserId: 1,
+    updatedByUserId: 1,
+    createdAt: `${smokeToday}T00:00:00Z`,
+    updatedAt: `${smokeToday}T00:00:00Z`,
+    attachments: []
+  });
   for (let index = 0; index < 14; index += 1) {
     appState.devLogs.push({
       id: 100 + index,
       projectId: 10,
       userId: 2,
       logDate: smokeToday,
-      bodyHtml: `<p>Existing Bill Scrum row ${index + 1}</p>`,
+      bodyHtml: index === 0
+        ? `<p>Existing Bill Scrum row ${index + 1}</p><figure class="pmt-diagram-ole" contenteditable="false" data-pmt-ole="diagram" data-diagram-id="77" data-block-id="scrum-auto-refresh-ole" data-view-width="420" data-view-height="240" data-view-x="-42" data-view-y="-24" data-view-zoom="0.5" style="width: 420px; height: 240px;"><figcaption>Linked Diagram #77</figcaption></figure>`
+        : `<p>Existing Bill Scrum row ${index + 1}</p>`,
       isPinned: false,
       createdAt: `${smokeToday}T00:00:00Z`,
       updatedAt: `${smokeToday}T00:00:00Z`
@@ -987,7 +1002,7 @@ test("Scrum auto-refresh updates the table and attendance without reload or inte
   await page.clock.pauseAt(new Date("2026-07-15T08:00:00+08:00"));
   await page.addInitScript(() => {
     localStorage.clear();
-    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-22-day-35@0a0e45cffb8a");
+    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-22-day-35@04389905c430");
   });
   await installApiMocks(page, appState, apiCalls);
 
@@ -999,6 +1014,10 @@ test("Scrum auto-refresh updates the table and attendance without reload or inte
   documentNavigationRequests = 0;
   await openNavView(page, "Scrum", "Scrum");
   await expect(scrumTodayStatus(page, 2, "Home")).toBeVisible();
+  const linkedDiagramOle = page.locator(".scrum-table [data-pmt-ole='diagram'][data-diagram-id='77']").first();
+  await expect(linkedDiagramOle.locator("[data-diagram-ole-viewport] img")).toBeVisible();
+  await expect.poll(() => linkedDiagramOle.locator("[data-diagram-ole-surface]").evaluate(node => node.style.transform))
+    .toBe("translate(-42px, -24px) scale(0.5)");
 
   const initialStateGets = apiCalls.stateGets;
   await page.locator("[data-action='check-in-attendance']").click();
@@ -1064,6 +1083,9 @@ test("Scrum auto-refresh updates the table and attendance without reload or inte
   await page.clock.fastForward(1);
   await expect.poll(() => apiCalls.stateGets).toBe(stateGetsBeforeRefresh + 1);
   await expect(page.locator(".scrum-table tbody")).toContainText("Five-second refreshed Scrum entry");
+  await expect(linkedDiagramOle.locator("[data-diagram-ole-viewport] img")).toBeVisible();
+  await expect.poll(() => linkedDiagramOle.locator("[data-diagram-ole-surface]").evaluate(node => node.style.transform))
+    .toBe("translate(-42px, -24px) scale(0.5)");
   await expect(scrumTodayStatus(page, 2, "Sick Leave")).toBeVisible();
 
   const headerAfter = await header.boundingBox();
@@ -1119,7 +1141,7 @@ test("Scrum auto-refresh invalidates the visible Calendar month without shifting
   await page.clock.pauseAt(new Date("2026-07-15T08:00:00+08:00"));
   await page.addInitScript(() => {
     localStorage.clear();
-    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-22-day-35@0a0e45cffb8a");
+    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-22-day-35@04389905c430");
   });
   await installApiMocks(page, appState, apiCalls);
 
@@ -1227,7 +1249,7 @@ test("Scrum read-only permission disables attendance and vacation mutations", as
   await page.clock.setFixedTime(new Date("2026-07-15T08:00:00+08:00"));
   await page.addInitScript(() => {
     localStorage.clear();
-    localStorage.setItem("pmt-release-notes-last-seen:2", "2026-07-22-day-35@0a0e45cffb8a");
+    localStorage.setItem("pmt-release-notes-last-seen:2", "2026-07-22-day-35@04389905c430");
   });
   await installApiMocks(page, appState, apiCalls);
 
@@ -1262,8 +1284,8 @@ test("Scrum attendance cache follows the restored cookie session user", async ({
   await page.clock.setFixedTime(new Date("2026-07-15T08:00:00+08:00"));
   await page.addInitScript(() => {
     localStorage.clear();
-    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-22-day-35@0a0e45cffb8a");
-    localStorage.setItem("pmt-release-notes-last-seen:2", "2026-07-22-day-35@0a0e45cffb8a");
+    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-22-day-35@04389905c430");
+    localStorage.setItem("pmt-release-notes-last-seen:2", "2026-07-22-day-35@04389905c430");
   });
   await installApiMocks(page, appState, apiCalls);
 
