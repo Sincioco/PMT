@@ -1,12 +1,13 @@
 import { expect, test } from "@playwright/test";
+import { releaseNotes } from "../../wwwroot/js/shared/release-notes-data.js";
 
 test.use({ locale: "en-US", timezoneId: "Asia/Taipei" });
 
 test("Settings categories have shareable routes with browser history support", async ({ page }) => {
-  await page.addInitScript(() => {
+  await page.addInitScript(seenToken => {
     localStorage.clear();
-    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-22-day-35@b9e5ce970062");
-  });
+    localStorage.setItem("pmt-release-notes-last-seen:1", seenToken);
+  }, releaseNotes[0].seenToken);
 
   await page.route("**/api/login", async route => {
     await route.fulfill({
@@ -93,10 +94,10 @@ test("Settings categories have shareable routes with browser history support", a
 
 test("non-admin direct routes do not expose Admin-only Settings categories", async ({ page }) => {
   let maintenanceRequests = 0;
-  await page.addInitScript(() => {
+  await page.addInitScript(seenToken => {
     localStorage.clear();
-    localStorage.setItem("pmt-release-notes-last-seen:2", "2026-07-22-day-35@b9e5ce970062");
-  });
+    localStorage.setItem("pmt-release-notes-last-seen:2", seenToken);
+  }, releaseNotes[0].seenToken);
   await page.route("**/api/login", async route => {
     await route.fulfill({
       status: 200,
@@ -135,10 +136,10 @@ test("non-admin direct routes do not expose Admin-only Settings categories", asy
 });
 
 test("Settings user cards show the last login and preserve an administrator's configured role", async ({ page }) => {
-  await page.addInitScript(() => {
+  await page.addInitScript(seenToken => {
     localStorage.clear();
-    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-22-day-35@b9e5ce970062");
-  });
+    localStorage.setItem("pmt-release-notes-last-seen:1", seenToken);
+  }, releaseNotes[0].seenToken);
 
   const appState = testState();
   Object.assign(appState.users[0], {

@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { releaseNotes } from "../../wwwroot/js/shared/release-notes-data.js";
 
 test("About renders the drone flyby and supports camera takeover and speed keys", async ({ page }, testInfo) => {
   test.setTimeout(180000);
@@ -866,14 +867,14 @@ test("idle screen saver preserves the current screen and unsaved editor state", 
 });
 
 async function prepareAboutPage(page, initialView = "About") {
-  await page.addInitScript(view => {
+  await page.addInitScript(({ view, seenToken }) => {
     localStorage.clear();
     localStorage.setItem("pmt-view", view);
     localStorage.setItem("pmt-task-project", "10");
     localStorage.setItem("pmt-task-sprint", "101");
     localStorage.setItem("pmt-bug-filters", JSON.stringify({ projectId: "10", sprintId: "all" }));
-    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-22-day-35@b9e5ce970062");
-  }, initialView);
+    localStorage.setItem("pmt-release-notes-last-seen:1", seenToken);
+  }, { view: initialView, seenToken: releaseNotes[0].seenToken });
 
   await page.route("**/api/session", async route => {
     await route.fulfill({

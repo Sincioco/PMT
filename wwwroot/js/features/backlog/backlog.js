@@ -10,7 +10,7 @@ import {
   userCardCheckListLabelHtml
 } from "../../components/forms.js?v=20260722-rte-toggle-state-v1";
 import { progressHtml } from "../../components/progress-and-status.js?v=20260714-linked-bug-percent";
-import { sectionHead } from "../../components/sections.js?v=release-notes-2026-07-24-day-36-c768b4298cb2";
+import { sectionHead } from "../../components/sections.js?v=release-notes-2026-07-24-day-36-60e81e5b5748";
 import {
   bugFixIconHtml,
   createWorkItemTableMode

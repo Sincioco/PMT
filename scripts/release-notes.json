@@ -1452,12 +1452,13 @@
   },
   {
     "day": 36,
-    "title": "Public Sharing, Suggestions, and Diagram Refinements",
+    "title": "Share Documents and Diagrams Outside PMT",
     "sections": [
       {
-        "title": "Public Documents and Diagrams",
+        "title": "Public Documents and Diagrams for External Viewers",
         "items": [
-          "Let users create GUID-based public links for public Documents and public Diagrams so people outside PMT can view shared content without a PMT login.",
+          "Share public Documents and public Diagrams with people outside PMT, even when they do not have a PMT login.",
+          "Use GUID-based public links so shared URLs do not expose or invite guessing of internal Document and Diagram numbers.",
           "Ask whether a public link is valid forever or expires after 15, 30, 60, or 90 days, and keep the generated URL visible in the dialog for manual copying.",
           "Show public Diagrams with the Linked Diagram viewer sized to fill the available browser content area, including Fit, Reset, Zoom, and Maximize controls.",
           "Display useful public viewer metadata such as created or last-modified date/time instead of a generic Public Diagram label."
@@ -1466,10 +1467,10 @@
       {
         "title": "Suggestions and What's New",
         "items": [
-          "Add a Suggestion action under the user avatar menu with a focused rich text editor so users can include formatted text and pictures.",
-          "Add a public Suggestions screen after Release Notes using the familiar Log-style table for browsing, viewing, editing, and duplicating suggestions.",
+          "Add a Suggestion action under the user avatar menu with a focused rich text editor so users can suggest PMT improvements with formatted text and pictures.",
+          "Add a public Suggestions screen after Release Notes using the familiar Log-style table for browsing, viewing, editing, and duplicating submitted ideas.",
           "Move What's New into the avatar menu while still letting users browse the complete release history from the beginning.",
-          "Refresh What's New so the latest entry highlights outside-PMT public sharing and the new Suggestion feature."
+          "Refresh What's New so the latest entry visibly highlights outside-PMT sharing and the new Suggestion feature."
         ]
       },
       {

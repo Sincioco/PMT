@@ -11,6 +11,7 @@ import {
   annotationOrgTreeShortcutWarningRequired,
   autoFormatAnnotationEntitiesOrgTree,
   applyAnnotationEntityDefinition,
+  applyAnnotationFieldRectangleRelationshipDefaultStyle,
   applyAnnotationEntityRelationshipGroupStyle,
   applyAnnotationTemplateFormatting,
   annotationArrowGeometry,
@@ -232,6 +233,26 @@ function simpleRelationshipEntity(id, name, x, y, parentName = "") {
         }]
       : [],
     showSelfRelationships: false
+  };
+}
+
+function fieldRectangleObject(id, name, x, y, overrides = {}) {
+  return {
+    id,
+    type: "entity",
+    entityKind: "field-rectangle",
+    fieldRectangleName: name,
+    fieldRectangleConnectionSide: "right",
+    x,
+    y,
+    width: 120,
+    height: 34,
+    fill: "none",
+    stroke: "#175fbd",
+    strokeWidth: 2,
+    fields: [{ name, dataType: "", nullable: null, isForeignKey: true, isImportant: true }],
+    foreignKeys: [],
+    ...overrides
   };
 }
 
@@ -1216,6 +1237,221 @@ test("Entity relationship lines never fall back to generic table endpoints", () 
   blogs.fields = blogs.fields.filter(field => field.name !== "BlogId");
 
   assert.equal(annotationEntityRelationshipsSvg([workTasks, blogs]), "");
+});
+
+test("Field Rectangles normalize as compact virtual Entities and map one-to-many to database fields", () => {
+  const customer = simpleRelationshipEntity("customers", "Customers", 620, 80);
+  customer.fields.push({
+    name: "FirstName",
+    dataType: "NVARCHAR(80)",
+    nullable: false,
+    isPrimaryKey: false,
+    isForeignKey: false,
+    isImportant: true
+  });
+  const fieldRectangle = fieldRectangleObject("ui-first-name", "First Name", 80, 120, {
+    width: 96,
+    height: 28,
+    fieldRectangleConnectionSide: "bottom"
+  });
+  fieldRectangle.foreignKeys = setAnnotationEntityFieldForeignKeyMapping(
+    fieldRectangle.foreignKeys,
+    "First Name",
+    {
+      referencedEntity: "pmt.Customers",
+      referencedField: "FirstName",
+      relationshipType: "one-to-many"
+    }
+  );
+
+  const state = normalizeAnnotationState({
+    width: 1000,
+    height: 600,
+    relationshipStyle: { showSymbols: true },
+    objects: [fieldRectangle, customer]
+  });
+  const normalizedRectangle = state.objects.find(object => object.id === "ui-first-name");
+
+  assert.equal(normalizedRectangle.name, "Field: First Name");
+  assert.equal(normalizedRectangle.entityName, "First Name");
+  assert.equal(normalizedRectangle.fields.length, 1);
+  assert.equal(normalizedRectangle.fields[0].name, "First Name");
+  assert.equal(normalizedRectangle.fields[0].isForeignKey, true);
+  assert.equal(normalizedRectangle.width, 96);
+  assert.equal(normalizedRectangle.height, 28);
+
+  const svg = annotationEntityRelationshipsSvg(state.objects, state.relationshipStyle);
+  assert.match(svg, /data-pmt-relationship-type="one-to-many"/);
+  assert.match(svg, /data-pmt-relationship-target="pmt\.Customers\.FirstName"/);
+  const path = svg.match(/class="image-annotation-entity-relationship-path" d="([^"]+)"/)?.[1];
+  const points = orthogonalPathPoints(path);
+  assert.deepEqual(points[0], { x: 128, y: 148 });
+});
+
+test("Field Rectangle relationship line opacity renders and persists with its style override", () => {
+  const customer = simpleRelationshipEntity("customers", "Customers", 620, 80);
+  customer.fields.push({
+    name: "FirstName",
+    dataType: "NVARCHAR(80)",
+    nullable: false,
+    isPrimaryKey: false,
+    isForeignKey: false,
+    isImportant: true
+  });
+  const fieldRectangle = fieldRectangleObject("ui-first-name", "First Name", 80, 120);
+  fieldRectangle.foreignKeys = setAnnotationEntityFieldForeignKeyMapping(
+    fieldRectangle.foreignKeys,
+    "First Name",
+    {
+      referencedEntity: "pmt.Customers",
+      referencedField: "FirstName",
+      relationshipType: "one-to-many",
+      styleOverride: {
+        stroke: "#dc2626",
+        strokeWidth: 5,
+        arrowSize: 22,
+        opacity: 0.35
+      }
+    }
+  );
+  const state = normalizeAnnotationState({
+    width: 1000,
+    height: 600,
+    relationshipStyle: { showSymbols: true },
+    objects: [fieldRectangle, customer]
+  });
+
+  const svg = annotationEntityRelationshipsSvg(state.objects, state.relationshipStyle);
+  const pathElement = svg.match(/<path\b[^>]*class="image-annotation-entity-relationship-path"[^>]*>/)?.[0] || "";
+  const markerElement = svg.match(/<path\b[^>]*class="image-annotation-entity-relationship-marker"[^>]*>/)?.[0] || "";
+
+  assert.match(pathElement, /stroke="#dc2626"/);
+  assert.match(pathElement, /stroke-width="5"/);
+  assert.match(pathElement, /opacity="0.35"/);
+  assert.match(markerElement, /opacity="0.35"/);
+
+  const restored = parseAnnotationSvg(buildAnnotationSvg(state)).objects
+    .find(object => object.id === "ui-first-name");
+  assert.equal(restored.foreignKeys[0].styleOverride.opacity, 0.35);
+});
+
+test("Field Rectangle relationship defaults apply to new mappings and all existing Field Rectangle lines", () => {
+  const defaultStyle = {
+    stroke: "#0f766e",
+    strokeWidth: 6,
+    arrowSize: 28,
+    opacity: 0.45
+  };
+  const customer = simpleRelationshipEntity("customers", "Customers", 620, 80);
+  customer.fields.push({
+    name: "FirstName",
+    dataType: "NVARCHAR(80)",
+    nullable: false,
+    isPrimaryKey: false,
+    isForeignKey: false,
+    isImportant: true
+  });
+  const first = fieldRectangleObject("ui-first-name", "First Name", 80, 120);
+  first.foreignKeys = setAnnotationEntityFieldForeignKeyMapping(
+    first.foreignKeys,
+    "First Name",
+    {
+      referencedEntity: "pmt.Customers",
+      referencedField: "FirstName",
+      relationshipType: "one-to-many",
+      styleOverride: defaultStyle
+    }
+  );
+  const second = fieldRectangleObject("ui-last-name", "Last Name", 90, 170);
+  second.foreignKeys = setAnnotationEntityFieldForeignKeyMapping(
+    second.foreignKeys,
+    "Last Name",
+    {
+      referencedEntity: "pmt.Customers",
+      referencedField: "FirstName",
+      relationshipType: "one-to-many",
+      styleOverride: { stroke: "#dc2626", strokeWidth: 2, arrowSize: 12, opacity: 1 }
+    }
+  );
+  const state = normalizeAnnotationState({
+    width: 1000,
+    height: 600,
+    objects: [first, second, customer]
+  });
+
+  assert.deepEqual(state.objects.find(object => object.id === "ui-first-name").foreignKeys[0].styleOverride, defaultStyle);
+
+  const result = applyAnnotationFieldRectangleRelationshipDefaultStyle(state, defaultStyle);
+
+  assert.equal(result.relationshipCount, 2);
+  assert.equal(result.updatedCount, 1);
+  state.objects
+    .filter(object => object.entityKind === "field-rectangle")
+    .forEach(object => {
+      assert.deepEqual(object.foreignKeys[0].styleOverride, defaultStyle);
+    });
+});
+
+test("Field Rectangles can overlap tightly without Entity auto-spacing", () => {
+  const first = fieldRectangleObject("ui-first", "First Name", 40, 40, { width: 140, height: 32 });
+  const last = fieldRectangleObject("ui-last", "Last Name", 60, 48, { width: 140, height: 32 });
+  const state = normalizeAnnotationState({
+    width: 500,
+    height: 300,
+    objects: [first, last]
+  });
+
+  const result = resolveAnnotationEntityOverlaps(state);
+
+  assert.equal(result.movedCount, 0);
+  assert.equal(state.objects.find(object => object.id === "ui-first").x, 40);
+  assert.equal(state.objects.find(object => object.id === "ui-last").x, 60);
+});
+
+test("Field Mapping Tables render and persist UI-to-database rows and colors", () => {
+  const state = normalizeAnnotationState({
+    width: 900,
+    height: 600,
+    objects: [{
+      id: "first-name-map-table",
+      type: "field-mapping-table",
+      name: "Field Mapping Table: Customer screen",
+      sourceImageId: "customer-screen",
+      x: 120,
+      y: 160,
+      width: 560,
+      height: 56,
+      headerTextColor: "#111111",
+      headerFill: "#d9ecff",
+      uiTextColor: "#223344",
+      uiFill: "#f7fbff",
+      databaseTextColor: "#334455",
+      databaseFill: "#ffffff",
+      rows: [{
+        uiEntityId: "ui-first-name",
+        uiField: "First Name",
+        databaseField: "pmt.Customers.FirstName"
+      }]
+    }]
+  });
+  const table = state.objects[0];
+  const svg = buildAnnotationSvg(state);
+
+  assert.equal(table.type, "field-mapping-table");
+  assert.equal(table.fontSize, 14);
+  assert.match(svg, /UI Field/);
+  assert.match(svg, /Database Field/);
+  assert.match(svg, /First Name/);
+  assert.match(svg, /pmt\.Customers\.FirstName/);
+  assert.match(svg, /fill="#d9ecff"/);
+
+  const restored = parseAnnotationSvg(svg);
+  const restoredTable = restored.objects.find(object => object.id === "first-name-map-table");
+  assert.equal(restoredTable.type, "field-mapping-table");
+  assert.equal(restoredTable.sourceImageId, "customer-screen");
+  assert.deepEqual(restoredTable.rows, table.rows);
+  assert.equal(restoredTable.headerFill, "#d9ecff");
+  assert.equal(restoredTable.uiFill, "#f7fbff");
 });
 
 test("Entity relationship routes never pass behind an unrelated Entity", () => {
@@ -3654,7 +3890,8 @@ test("template library normalizes drawing defaults and preserves explicit reset 
   assert.equal(library.templates[0].objects[0].groupId, "");
   assert.deepEqual(library.defaults, {
     arrow: { stroke: "#abcdef", strokeWidth: 40, arrowSize: 6, opacity: 1 },
-    rectangle: { fill: "#fedcba", stroke: "#3f7f0d", outlineVisible: false, strokeWidth: 40, opacity: 1 }
+    rectangle: { fill: "#fedcba", stroke: "#3f7f0d", outlineVisible: false, strokeWidth: 40, opacity: 1 },
+    fieldRectangleRelationship: null
   });
 
   const reset = normalizeAnnotationTemplateLibrary({
@@ -3662,11 +3899,11 @@ test("template library normalizes drawing defaults and preserves explicit reset 
     defaults: { arrow: null, rectangle: null }
   });
   assert.equal(reset.templates.length, 1);
-  assert.deepEqual(reset.defaults, { arrow: null, rectangle: null });
+  assert.deepEqual(reset.defaults, { arrow: null, rectangle: null, fieldRectangleRelationship: null });
   assert.deepEqual(normalizeAnnotationTemplateLibrary(null), {
     version: 1,
     templates: [],
-    defaults: { arrow: null, rectangle: null }
+    defaults: { arrow: null, rectangle: null, fieldRectangleRelationship: null }
   });
 });
 
@@ -5460,6 +5697,56 @@ test("Entity relationships render above Original Image and below Entity objects"
   assert.ok(imageIndex >= 0);
   assert.ok(relationshipsIndex > imageIndex);
   assert.ok(parentIndex > relationshipsIndex);
+});
+
+test("Field Rectangle relationships render above screenshot images", () => {
+  const customer = simpleRelationshipEntity("customers", "Customers", 560, 80);
+  customer.fields.push({
+    name: "FirstName",
+    dataType: "NVARCHAR(80)",
+    nullable: false,
+    isPrimaryKey: false,
+    isForeignKey: false,
+    isImportant: true
+  });
+  const fieldRectangle = fieldRectangleObject("ui-first-name", "First Name", 90, 120);
+  fieldRectangle.foreignKeys = setAnnotationEntityFieldForeignKeyMapping(
+    fieldRectangle.foreignKeys,
+    "First Name",
+    {
+      referencedEntity: "pmt.Customers",
+      referencedField: "FirstName",
+      relationshipType: "one-to-many"
+    }
+  );
+  const state = normalizeAnnotationState({
+    width: 900,
+    height: 600,
+    objects: [
+      {
+        id: "screen-shot",
+        type: "embedded-image",
+        x: 40,
+        y: 60,
+        width: 360,
+        height: 220,
+        source: sampleImageDataUrl
+      },
+      fieldRectangle,
+      customer
+    ]
+  });
+  const svg = buildAnnotationSvg(state);
+  const body = svg.slice(svg.indexOf("</metadata>") + "</metadata>".length);
+  const imageIndex = body.indexOf(`<image href="${sampleImageDataUrl}"`);
+  const relationshipIndex = body.indexOf('class="image-annotation-entity-relationships"');
+  const fieldIndex = body.indexOf("Field: First Name");
+  const customerIndex = body.indexOf(">pmt.Customers</text>", relationshipIndex);
+
+  assert.ok(imageIndex >= 0);
+  assert.ok(relationshipIndex > imageIndex);
+  assert.ok(fieldIndex > relationshipIndex);
+  assert.ok(customerIndex > relationshipIndex);
 });
 
 test("reopening, editing, and applying an inline Diagram preserves Unicode Entity SQL metadata", async () => {

@@ -25,7 +25,7 @@ const maximumAnnotationTemplates = 50;
 const maximumAnnotationTemplateFileBytes = 50 * 1024 * 1024;
 const annotationTemplateVersion = 1;
 const annotationTemplateFileFormat = "pmt-image-annotation-template";
-const annotationToolNames = new Set(["select", "pan", "format-painter", "crop", "rectangle", "circle", "arrow", "line", "textbox", "rich-text", "entity"]);
+const annotationToolNames = new Set(["select", "pan", "format-painter", "crop", "rectangle", "circle", "arrow", "line", "textbox", "rich-text", "entity", "field-rectangle"]);
 const defaultEntityWidth = 520;
 const defaultEntityFill = "#ffffff";
 const defaultEntityStroke = "#42526b";
@@ -33,6 +33,17 @@ const defaultEntityTextColor = "#172b4d";
 const defaultEntityFontSize = 18;
 const defaultEntityShowKeyColumn = true;
 const defaultEntityShowDataTypes = false;
+const fieldRectangleEntityKind = "field-rectangle";
+const fieldMappingTableObjectType = "field-mapping-table";
+const defaultFieldRectangleStroke = "#175fbd";
+const defaultFieldMappingTableStyle = {
+  headerTextColor: "#000000",
+  headerFill: "#d9ecff",
+  uiTextColor: "#172b4d",
+  uiFill: "#ffffff",
+  databaseTextColor: "#172b4d",
+  databaseFill: "#ffffff"
+};
 const entityRelationshipsSelectionId = "entity-relationships";
 const entityRelationshipsObjectType = "entity-relationships";
 const entityRelationshipSelectionPrefix = "entity-relationship:";
@@ -42,6 +53,7 @@ const defaultEntityRelationshipStyle = {
   stroke: defaultEntityStroke,
   strokeWidth: 2,
   arrowSize: 10,
+  opacity: 1,
   showSymbols: false
 };
 const defaultStyles = {
@@ -62,8 +74,8 @@ const defaultStyles = {
 const annotationTemplateStyleFields = {
   arrow: ["stroke", "strokeWidth", "arrowSize", "opacity"],
   line: ["stroke", "strokeWidth", "opacity"],
-  [entityRelationshipsObjectType]: ["stroke", "strokeWidth", "arrowSize", "showSymbols"],
-  [entityRelationshipObjectType]: ["stroke", "strokeWidth", "arrowSize", "showSymbols"],
+  [entityRelationshipsObjectType]: ["stroke", "strokeWidth", "arrowSize", "opacity", "showSymbols"],
+  [entityRelationshipObjectType]: ["stroke", "strokeWidth", "arrowSize", "opacity", "showSymbols"],
   rectangle: ["fill", "stroke", "outlineVisible", "strokeWidth", "opacity"],
   circle: ["fill", "stroke", "outlineVisible", "strokeWidth", "opacity"],
   entity: [
@@ -100,6 +112,17 @@ const annotationTemplateStyleFields = {
     "outlineVisible",
     "strokeWidth",
     "opacity"
+  ],
+  [fieldMappingTableObjectType]: [
+    "stroke",
+    "strokeWidth",
+    "opacity",
+    "headerTextColor",
+    "headerFill",
+    "uiTextColor",
+    "uiFill",
+    "databaseTextColor",
+    "databaseFill"
   ]
 };
 
@@ -209,7 +232,7 @@ export function buildAnnotationSvg(inputState, options = {}) {
   const relationshipLayers = annotationObjectsAroundRelationshipLayer(visibleObjects);
   const metadata = escapeXmlText(JSON.stringify(metadataState));
   const background = annotationCanvasBackgroundSvg(state, outputBounds);
-  const relationships = annotationEntityRelationshipsSvg(visibleObjects, state.relationshipStyle, {
+  const relationshipOptions = {
     interactive: options?.interactiveRelationships === true,
     selectedIds: options?.selectedRelationshipIds,
     allowOverlappingLines: state.allowOverlappingEntityLines,
@@ -217,8 +240,23 @@ export function buildAnnotationSvg(inputState, options = {}) {
     manualRoutes: state.manualEntityRelationshipRoutes,
     compactRouting: state.compactEntityRelationshipRouting,
     relationshipRenderModel
+  };
+  const relationships = annotationEntityRelationshipsSvg(visibleObjects, state.relationshipStyle, {
+    ...relationshipOptions,
+    fieldRectangleRelationships: "exclude"
+  });
+  const fieldRelationships = annotationEntityRelationshipsSvg(visibleObjects, state.relationshipStyle, {
+    ...relationshipOptions,
+    fieldRectangleRelationships: "only"
   });
   const belowRelationships = relationshipLayers.below
+    .map(object => annotationObjectSvg(object, {
+      exportMode: true,
+      interactiveEntityHeaders: options?.interactiveEntityHeaders === true,
+      entityHeaderButtonsVisible: options?.entityHeaderButtonsVisible !== false
+    }))
+    .join("");
+  const betweenRelationships = relationshipLayers.between
     .map(object => annotationObjectSvg(object, {
       exportMode: true,
       interactiveEntityHeaders: options?.interactiveEntityHeaders === true,
@@ -241,6 +279,8 @@ export function buildAnnotationSvg(inputState, options = {}) {
     background,
     belowRelationships,
     relationships,
+    betweenRelationships,
+    fieldRelationships,
     aboveRelationships,
     `</svg>`
   ].join("");
@@ -272,10 +312,17 @@ function annotationObjectsAroundRelationshipLayer(objects) {
   const source = Array.isArray(objects) ? objects : [];
   const originalImageIndex = source.findIndex(object => object.type === "embedded-image"
     && object.isOriginalImage);
-  const splitIndex = originalImageIndex >= 0 ? originalImageIndex + 1 : 0;
+  const relationshipSplitIndex = originalImageIndex >= 0 ? originalImageIndex + 1 : 0;
+  const lastImageIndex = source.reduce((lastIndex, object, index) =>
+    object?.type === "embedded-image" ? index : lastIndex, -1);
+  const fieldRelationshipSplitIndex = Math.max(
+    relationshipSplitIndex,
+    lastImageIndex >= 0 ? lastImageIndex + 1 : relationshipSplitIndex
+  );
   return {
-    below: source.slice(0, splitIndex),
-    above: source.slice(splitIndex)
+    below: source.slice(0, relationshipSplitIndex),
+    between: source.slice(relationshipSplitIndex, fieldRelationshipSplitIndex),
+    above: source.slice(fieldRelationshipSplitIndex)
   };
 }
 
@@ -617,7 +664,7 @@ export function annotationEntityFieldSupportsMapping(field) {
 
 export function annotationEntityMappingTargets(objectsInput) {
   return (Array.isArray(objectsInput) ? objectsInput : [])
-    .filter(object => object?.type === "entity")
+    .filter(object => object?.type === "entity" && !isAnnotationFieldRectangle(object))
     .map(entity => {
       const value = formatAnnotationEntityIdentifier(entity.entitySchema, entity.entityName);
       return {
@@ -667,6 +714,8 @@ export function setAnnotationEntityFieldForeignKeyMapping(
   const referencedParts = annotationEntityIdentifierParts(mappingInput?.referencedEntity || "");
   const referencedField = unquoteAnnotationSqlIdentifier(mappingInput?.referencedField);
   if (!referencedParts.length || !referencedField) return remaining;
+  const nextStyleOverride = previousStyleOverride
+    || normalizeAnnotationEntityRelationshipStyleOverride(mappingInput?.styleOverride);
   remaining.push({
     name: "",
     columns: [fieldName],
@@ -674,7 +723,7 @@ export function setAnnotationEntityFieldForeignKeyMapping(
     referencedTable: referencedParts.at(-1),
     referencedColumns: [referencedField],
     relationshipType: safeAnnotationEntityRelationshipType(mappingInput?.relationshipType),
-    ...(previousStyleOverride ? { styleOverride: previousStyleOverride } : {})
+    ...(nextStyleOverride ? { styleOverride: nextStyleOverride } : {})
   });
   return remaining;
 }
@@ -688,6 +737,161 @@ function annotationEntityFieldForeignKeyMapping(entity, fieldName) {
 function safeAnnotationEntityRelationshipType(value) {
   const normalized = String(value || "").trim().toLowerCase();
   return ["one-to-one", "one-to-many", "many-to-one"].includes(normalized) ? normalized : "";
+}
+
+function isAnnotationFieldRectangle(object) {
+  return object?.type === "entity" && object.entityKind === fieldRectangleEntityKind;
+}
+
+function isAnnotationFieldMappingTable(object) {
+  return object?.type === fieldMappingTableObjectType;
+}
+
+function safeAnnotationFieldRectangleConnectionSide(value) {
+  const normalized = String(value || "").trim().toLowerCase();
+  return ["left", "top", "right", "bottom"].includes(normalized) ? normalized : "right";
+}
+
+function annotationFieldRectangleName(object) {
+  return safeAnnotationName(
+    object?.fieldRectangleName
+    || object?.fields?.[0]?.name
+    || object?.entityName
+    || ""
+  ) || "Field";
+}
+
+function syncAnnotationFieldRectangle(object) {
+  if (!isAnnotationFieldRectangle(object)) return object;
+  const fieldName = annotationFieldRectangleName(object);
+  object.fieldRectangleName = fieldName;
+  object.entitySchema = "";
+  object.entityName = fieldName;
+  object.name = `Field: ${fieldName}`;
+  object.showKeyColumn = false;
+  object.showDataTypes = false;
+  object.foreignKeysAtTop = false;
+  object.showSelfRelationships = false;
+  object.anchorTable = false;
+  object.collapsed = false;
+  object.fieldRectangleConnectionSide = safeAnnotationFieldRectangleConnectionSide(object.fieldRectangleConnectionSide);
+  const existing = Array.isArray(object.fields) ? object.fields[0] || {} : {};
+  object.fields = [normalizeAnnotationEntityField({
+    ...existing,
+    name: fieldName,
+    isPrimaryKey: false,
+    isForeignKey: true,
+    isImportant: true
+  })].filter(Boolean);
+  object.expandedHeight = positiveNumber(object.height, 1);
+  return object;
+}
+
+function annotationFieldRectangleRelationship(entity) {
+  if (!isAnnotationFieldRectangle(entity)) return null;
+  const field = entity.fields?.[0] || null;
+  return field ? annotationEntityFieldForeignKeyMapping(entity, field.name) : null;
+}
+
+function annotationFieldRectangleDatabaseLabel(entity, objectsInput) {
+  const mapping = annotationFieldRectangleRelationship(entity);
+  if (!mapping) return "";
+  const sourceField = entity.fields?.[0]?.name || "";
+  const sourceIndex = mapping.columns.findIndex(column => column.toLowerCase() === String(sourceField).toLowerCase());
+  const referencedField = sourceIndex >= 0
+    ? mapping.referencedColumns[sourceIndex] || mapping.referencedColumns[0] || ""
+    : mapping.referencedColumns[0] || "";
+  const target = (objectsInput || []).find(candidate =>
+    candidate?.type === "entity"
+    && annotationEntityMatchesReference(candidate, mapping.referencedSchema, mapping.referencedTable));
+  const targetName = target
+    ? formatAnnotationEntityIdentifier(target.entitySchema, target.entityName)
+    : formatAnnotationEntityIdentifier(mapping.referencedSchema, mapping.referencedTable);
+  return [targetName, formatAnnotationEntityIdentifier(referencedField)].filter(Boolean).join(".");
+}
+
+function annotationFieldRectangleTableRows(objectsInput, image = null) {
+  const objects = Array.isArray(objectsInput) ? objectsInput : [];
+  return objects
+    .filter(isAnnotationFieldRectangle)
+    .filter(entity => !image || annotationFieldRectangleTouchesImage(entity, image))
+    .map(entity => ({
+      uiEntityId: entity.id,
+      uiField: annotationFieldRectangleName(entity),
+      databaseField: annotationFieldRectangleDatabaseLabel(entity, objects)
+    }))
+    .filter(row => row.uiField && row.databaseField)
+    .sort((left, right) => {
+      const leftEntity = objects.find(object => object.id === left.uiEntityId);
+      const rightEntity = objects.find(object => object.id === right.uiEntityId);
+      return finiteNumber(leftEntity?.y, 0) - finiteNumber(rightEntity?.y, 0)
+        || finiteNumber(leftEntity?.x, 0) - finiteNumber(rightEntity?.x, 0)
+        || left.uiField.localeCompare(right.uiField);
+    });
+}
+
+function annotationFieldRectangleTouchesImage(entity, image) {
+  const entityBounds = annotationObjectBounds(entity);
+  const imageBounds = annotationEmbeddedImageEffectiveClip(image);
+  return Boolean(entityBounds && imageBounds && annotationBoundsIntersect(entityBounds, imageBounds));
+}
+
+function annotationRelationshipUsesFieldRectangle(relationship) {
+  return isAnnotationFieldRectangle(relationship?.source)
+    || isAnnotationFieldRectangle(relationship?.target);
+}
+
+function annotationFieldMappingImages(objectsInput) {
+  const objects = Array.isArray(objectsInput) ? objectsInput : [];
+  return objects
+    .filter(object => object?.type === "embedded-image")
+    .map(image => ({
+      image,
+      rows: annotationFieldRectangleTableRows(objects, image)
+    }))
+    .filter(item => item.rows.length);
+}
+
+function normalizeAnnotationFieldMappingTableRow(input) {
+  if (!input || typeof input !== "object") return null;
+  const uiField = safeAnnotationName(input.uiField || input.ui || "");
+  const databaseField = String(input.databaseField || input.database || "").trim().slice(0, 500);
+  if (!uiField && !databaseField) return null;
+  return {
+    uiEntityId: String(input.uiEntityId || "").trim().slice(0, 160),
+    uiField,
+    databaseField
+  };
+}
+
+function normalizeAnnotationFieldMappingTableStyle(input) {
+  const source = input && typeof input === "object" ? input : {};
+  return {
+    headerTextColor: safeColor(source.headerTextColor, defaultFieldMappingTableStyle.headerTextColor),
+    headerFill: safeColor(source.headerFill, defaultFieldMappingTableStyle.headerFill),
+    uiTextColor: safeColor(source.uiTextColor, defaultFieldMappingTableStyle.uiTextColor),
+    uiFill: safeColor(source.uiFill, defaultFieldMappingTableStyle.uiFill),
+    databaseTextColor: safeColor(source.databaseTextColor, defaultFieldMappingTableStyle.databaseTextColor),
+    databaseFill: safeColor(source.databaseFill, defaultFieldMappingTableStyle.databaseFill)
+  };
+}
+
+function annotationFieldMappingTableText(object, delimiter = "\t") {
+  const escapeCell = value => {
+    const text = String(value || "");
+    if (delimiter === "\t") return text.replace(/\t/g, " ").replace(/\r?\n/g, " ");
+    return /[",\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+  };
+  const rows = Array.isArray(object?.rows) ? object.rows : [];
+  return [
+    ["UI Field", "Database Field"],
+    ...rows.map(row => [row.uiField, row.databaseField])
+  ].map(row => row.map(escapeCell).join(delimiter)).join("\r\n");
+}
+
+function annotationFieldMappingTableFileName(object, extension) {
+  const name = safeAnnotationName(object?.name).replace(/^Field Mapping Table:\s*/i, "") || "Field Mapping Table";
+  return `${name.replace(/[\\/:*?"<>|]+/g, "-")}.${extension}`;
 }
 
 function stripAnnotationSqlComments(source) {
@@ -1174,7 +1378,8 @@ function openAnnotationEntityForeignKeyDialog(entity, field, entitiesInput = [])
     const currentField = sourceIndex >= 0
       ? mapping?.referencedColumns[sourceIndex] || mapping?.referencedColumns[0] || ""
       : "";
-    const currentRelationshipType = safeAnnotationEntityRelationshipType(mapping?.relationshipType);
+    const currentRelationshipType = safeAnnotationEntityRelationshipType(mapping?.relationshipType)
+      || (isAnnotationFieldRectangle(entity) ? "one-to-many" : "");
     const sourceLabel = `${formatAnnotationEntityIdentifier(entity?.entitySchema, entity?.entityName)}.${formatAnnotationEntityIdentifier(field?.name)}`;
     const targets = annotationEntityMappingTargets(entitiesInput);
     if (currentEntity && !targets.some(target => target.value.toLowerCase() === currentEntity.toLowerCase())) {
@@ -1191,7 +1396,7 @@ function openAnnotationEntityForeignKeyDialog(entity, field, entitiesInput = [])
       <form data-annotation-foreign-key-form>
         <div class="dialog-head">
           <div>
-            <h2 id="annotationForeignKeyDialogTitle">Map Foreign Key</h2>
+            <h2 id="annotationForeignKeyDialogTitle">${isAnnotationFieldRectangle(entity) ? "Map Field Rectangle" : "Map Foreign Key"}</h2>
             <p>${escapeXmlText(sourceLabel)}</p>
           </div>
           <button type="button" class="icon-btn" data-annotation-foreign-key-cancel title="Close" aria-label="Close">Close</button>
@@ -1214,7 +1419,7 @@ function openAnnotationEntityForeignKeyDialog(entity, field, entitiesInput = [])
               <option value="many-to-one"${currentRelationshipType === "many-to-one" ? " selected" : ""}>Many-to-one</option>
             </select>
           </label>
-          <p class="image-annotation-entity-hint">The selected field points to this referenced Entity and field.</p>
+          <p class="image-annotation-entity-hint">${isAnnotationFieldRectangle(entity) ? "The UI field rectangle points to this database Entity and field." : "The selected field points to this referenced Entity and field."}</p>
           <p class="image-annotation-entity-status" role="status" aria-live="polite" data-annotation-foreign-key-status></p>
         </div>
         <div class="dialog-actions">
@@ -1418,6 +1623,14 @@ function annotationEntityMetrics(object) {
 }
 
 function ensureAnnotationEntitySize(object) {
+  if (isAnnotationFieldRectangle(object)) {
+    syncAnnotationFieldRectangle(object);
+    object.width = Math.max(minimumObjectSize, positiveNumber(object.width, 120));
+    object.height = Math.max(minimumObjectSize, positiveNumber(object.height, 36));
+    object.expandedHeight = object.height;
+    object.dataTypeExpandedWidth = object.width;
+    return;
+  }
   const compactWidth = annotationEntityCompactMinimumWidth(object);
   const detailWidth = annotationEntityDataTypeColumnsWidth(object);
   const expandedMinimumWidth = Math.max(defaultEntityWidth, compactWidth + detailWidth);
@@ -1465,6 +1678,7 @@ function annotationEntityCompactMinimumWidth(object) {
 
 export function setAnnotationEntityDataTypeVisibility(object, visible) {
   if (!object || object.type !== "entity") return object;
+  if (isAnnotationFieldRectangle(object)) return object;
   const nextVisible = visible === true;
   if (nextVisible === (object.showDataTypes === true)) return object;
   const right = object.x + object.width;
@@ -1491,7 +1705,7 @@ export function setAnnotationEntityDataTypeVisibility(object, visible) {
 
 export function setAnnotationEntitiesUnanchored(inputState, unanchored) {
   const entities = Array.isArray(inputState?.objects)
-    ? inputState.objects.filter(object => object?.type === "entity")
+    ? inputState.objects.filter(object => object?.type === "entity" && !isAnnotationFieldRectangle(object))
     : [];
   const anchorTable = unanchored !== true;
   let changedCount = 0;
@@ -1509,7 +1723,7 @@ export function setAnnotationEntitiesUnanchored(inputState, unanchored) {
 
 export function annotationEntityGlobalUnanchorControlState(inputState) {
   const entities = Array.isArray(inputState?.objects)
-    ? inputState.objects.filter(object => object?.type === "entity")
+    ? inputState.objects.filter(object => object?.type === "entity" && !isAnnotationFieldRectangle(object))
     : [];
   const anchoredEntityCount = entities.filter(entity => entity.anchorTable === true).length;
   return {
@@ -1534,7 +1748,7 @@ export function resolveAnnotationEntityOverlaps(inputState, options = {}) {
 
 export function resolveAnnotationEntitySizeChangeLayout(inputState, resizedEntityOrId, options = {}) {
   const state = inputState && typeof inputState === "object" ? inputState : {};
-  const entities = annotationVisibleObjects(state).filter(object => object.type === "entity");
+  const entities = annotationVisibleObjects(state).filter(object => object.type === "entity" && !isAnnotationFieldRectangle(object));
   const resolveAll = resizedEntityOrId == null;
   const resizedEntity = resolveAll
     ? null
@@ -2038,6 +2252,9 @@ function normalizeAnnotationEntityRelationshipStyle(input) {
       6,
       160
     ),
+    opacity: safeAnnotationOpacity(Object.hasOwn(source, "opacity")
+      ? source.opacity
+      : defaultEntityRelationshipStyle.opacity),
     showSymbols: source.showSymbols === true
   };
 }
@@ -2063,7 +2280,21 @@ function normalizeAnnotationEntityRelationshipStyleOverride(input) {
       160
     );
   }
+  if (Object.hasOwn(input, "opacity")) {
+    normalized.opacity = safeAnnotationOpacity(input.opacity);
+  }
   return Object.keys(normalized).length ? normalized : null;
+}
+
+function normalizeAnnotationFieldRectangleRelationshipDefault(input) {
+  if (!input || typeof input !== "object") return null;
+  const style = normalizeAnnotationEntityRelationshipStyle(input);
+  return {
+    stroke: style.stroke,
+    strokeWidth: style.strokeWidth,
+    arrowSize: style.arrowSize,
+    opacity: style.opacity
+  };
 }
 
 function isAnnotationEntityRelationshipSelectionId(id) {
@@ -2077,7 +2308,7 @@ function isAnnotationEntityRelationshipSelectionType(type) {
 export function applyAnnotationEntityRelationshipGroupStyle(inputState, patchInput) {
   const state = inputState && typeof inputState === "object" ? inputState : {};
   const patch = patchInput && typeof patchInput === "object" ? patchInput : {};
-  const fields = ["stroke", "strokeWidth", "arrowSize", "showSymbols"]
+  const fields = ["stroke", "strokeWidth", "arrowSize", "opacity", "showSymbols"]
     .filter(field => Object.hasOwn(patch, field));
   if (!fields.length) return;
   state.relationshipStyle ||= normalizeAnnotationEntityRelationshipStyle(null);
@@ -2091,6 +2322,29 @@ export function applyAnnotationEntityRelationshipGroupStyle(inputState, patchInp
       fields.forEach(field => { delete foreignKey.styleOverride[field]; });
       if (!Object.keys(foreignKey.styleOverride).length) delete foreignKey.styleOverride;
     });
+}
+
+export function applyAnnotationFieldRectangleRelationshipDefaultStyle(inputState, styleInput) {
+  const state = inputState && typeof inputState === "object" ? inputState : {};
+  const styleOverride = normalizeAnnotationEntityRelationshipStyleOverride(styleInput);
+  if (!styleOverride) return { relationshipCount: 0, updatedCount: 0 };
+  let relationshipCount = 0;
+  let updatedCount = 0;
+  (state.objects || [])
+    .filter(isAnnotationFieldRectangle)
+    .forEach(entity => {
+      const nextForeignKeys = (entity.foreignKeys || []).map(foreignKey => {
+        const normalized = normalizeAnnotationEntityForeignKey(foreignKey);
+        if (!normalized) return foreignKey;
+        relationshipCount += 1;
+        const before = JSON.stringify(normalizeAnnotationEntityRelationshipStyleOverride(normalized.styleOverride) || null);
+        const next = { ...normalized, styleOverride: deepCopy(styleOverride) };
+        if (before !== JSON.stringify(next.styleOverride)) updatedCount += 1;
+        return next;
+      });
+      entity.foreignKeys = nextForeignKeys;
+    });
+  return { relationshipCount, updatedCount };
 }
 
 export function clearAnnotationEntityRelationshipRouteOverrides(inputState) {
@@ -2118,7 +2372,8 @@ export function normalizeAnnotationTemplateLibrary(input) {
     templates,
     defaults: {
       arrow: normalizeAnnotationDrawingDefault("arrow", defaults.arrow),
-      rectangle: normalizeAnnotationDrawingDefault("rectangle", defaults.rectangle)
+      rectangle: normalizeAnnotationDrawingDefault("rectangle", defaults.rectangle),
+      fieldRectangleRelationship: normalizeAnnotationFieldRectangleRelationshipDefault(defaults.fieldRectangleRelationship)
     }
   };
 }
@@ -2180,6 +2435,7 @@ function annotationTemplateSignature(template) {
           stroke: normalized.relationshipStyle.stroke,
           strokeWidth: normalized.relationshipStyle.strokeWidth,
           arrowSize: normalized.relationshipStyle.arrowSize,
+          opacity: normalized.relationshipStyle.opacity,
           showSymbols: normalized.relationshipStyle.showSymbols
         }
       : null,
@@ -2924,6 +3180,7 @@ function createAnnotationDialog(context) {
         || null;
     let selectedIds = new Set(annotationSelectionIdsForObject(state.objects, initialObject, state.groupVisibility));
     let transientInvisibleSelectionIds = new Set();
+    let fieldMappingHoverIds = new Set();
     let lastSelectedObjectId = initialObject?.id || "";
     let gesture = null;
     let panGesture = null;
@@ -3271,6 +3528,8 @@ function createAnnotationDialog(context) {
             ? "Format Painter is active. Click objects to apply formatting, or click blank canvas to stop."
             : activeTool === "crop"
               ? "Drag the image crop handles inward. Cropping is non-destructive and can be reset."
+              : activeTool === "field-rectangle"
+                ? "Draw a Field Rectangle over a screenshot field."
               : activeTool === "entity"
                 ? "Draw an Entity."
                 : activeTool === "rich-text"
@@ -3291,9 +3550,12 @@ function createAnnotationDialog(context) {
       ];
     };
     const selectedArrowHeadObjects = () => {
-      const selection = selectedObjects().filter(object => !isAnnotationEntityRelationshipSelectionType(object.type));
-      const groupIds = new Set(selection.map(object => object.groupId).filter(Boolean));
-      const directIds = new Set(selection.map(object => object.id));
+      const selection = selectedObjects();
+      const relationshipSelection = selection.filter(object => isAnnotationEntityRelationshipSelectionType(object.type));
+      if (relationshipSelection.length) return relationshipSelection;
+      const objectSelection = selection.filter(object => !isAnnotationEntityRelationshipSelectionType(object.type));
+      const groupIds = new Set(objectSelection.map(object => object.groupId).filter(Boolean));
+      const directIds = new Set(objectSelection.map(object => object.id));
       return state.objects.filter(object => object.type === "arrow"
         && (directIds.has(object.id) || (object.groupId && groupIds.has(object.groupId))));
     };
@@ -3311,6 +3573,13 @@ function createAnnotationDialog(context) {
       const first = selection[0] || null;
       const singleText = selection.length === 1 && first?.type === "textbox" ? first : null;
       const singleEntity = selection.length === 1 && first?.type === "entity" ? first : null;
+      const singleFieldRectangle = isAnnotationFieldRectangle(singleEntity) ? singleEntity : null;
+      const singleFieldMappingTable = selection.length === 1 && first?.type === fieldMappingTableObjectType ? first : null;
+      const singleFieldRectangleRelationship = selection.length === 1
+        && first?.type === entityRelationshipObjectType
+        && first.fieldRectangleRelationship === true
+        ? first
+        : null;
       const hasSelection = selection.length > 0;
       const hasRelationshipSelection = selection.some(object => isAnnotationEntityRelationshipSelectionType(object.type));
       const annotationCount = selection.filter(object => !isAnnotationEntityRelationshipSelectionType(object.type)).length;
@@ -3333,8 +3602,23 @@ function createAnnotationDialog(context) {
       if (relationshipFormatHint) {
         relationshipFormatHint.hidden = !hasRelationshipSelection;
         relationshipFormatHint.textContent = first?.type === entityRelationshipObjectType
-          ? "Line color, line width, and arrow head apply only to this Entity relationship. Relationship symbols apply to every relationship on the canvas."
+          ? "Line color, line width, arrow head, and opacity apply only to this Entity relationship. Relationship symbols apply to every relationship on the canvas."
           : "Line color, line width, arrow head, and relationship symbols apply to every Entity relationship on this canvas.";
+      }
+      const fieldRectangleRelationshipActions = dialog.querySelector("[data-annotation-field-rectangle-relationship-actions]");
+      if (fieldRectangleRelationshipActions) fieldRectangleRelationshipActions.hidden = !singleFieldRectangleRelationship;
+      const setFieldRectangleRelationshipDefault = dialog.querySelector("[data-annotation-field-rectangle-relationship-default='set']");
+      const applyFieldRectangleRelationshipDefault = dialog.querySelector("[data-annotation-field-rectangle-relationship-default='apply']");
+      if (setFieldRectangleRelationshipDefault) {
+        setFieldRectangleRelationshipDefault.disabled = !singleFieldRectangleRelationship
+          || templateBusy
+          || !templateLibraryAvailable;
+      }
+      if (applyFieldRectangleRelationshipDefault) {
+        applyFieldRectangleRelationshipDefault.disabled = !singleFieldRectangleRelationship
+          || !templateLibrary.defaults.fieldRectangleRelationship
+          || templateBusy
+          || !templateLibraryAvailable;
       }
       const relationshipSymbolsField = dialog.querySelector("[data-annotation-relationship-symbols-field]");
       const relationshipShowSymbols = dialog.querySelectorAll(
@@ -3348,7 +3632,7 @@ function createAnnotationDialog(context) {
         ?.closest(".image-annotation-color-field");
       const hasFillTarget = !hasRelationshipSelection
         && selection.some(object => !object.locked
-          && ["rectangle", "circle", "textbox", "rich-text", "entity"].includes(object.type));
+      && ["rectangle", "circle", "textbox", "rich-text", "entity", fieldMappingTableObjectType].includes(object.type));
       if (fillColorField) fillColorField.hidden = !hasFillTarget;
       const strokeColorField = dialog.querySelector("[data-annotation-color-picker='stroke']")
         ?.closest(".image-annotation-color-field");
@@ -3386,6 +3670,12 @@ function createAnnotationDialog(context) {
       const alphabetizeFields = dialog.querySelector("[data-annotation-entity-alphabetize-fields]");
       const showOriginalScript = dialog.querySelector("[data-annotation-entity-show-script]");
       const generatePmtSchema = dialog.querySelector("[data-annotation-generate-pmt-schema]");
+      const fieldRectangleOptions = dialog.querySelector("[data-annotation-field-rectangle-options]");
+      const fieldRectangleNameInput = dialog.querySelector("[data-annotation-field-rectangle-name]");
+      const fieldRectangleConnectionSide = dialog.querySelector("[data-annotation-field-rectangle-connection-side]");
+      const generateFieldMappingTable = dialog.querySelector("[data-annotation-generate-field-mapping-table]");
+      const generateAllFieldMappingTables = dialog.querySelector("[data-annotation-generate-all-field-mapping-tables]");
+      const fieldMappingTableFormat = dialog.querySelector("[data-annotation-field-mapping-table-format]");
       const manualRouteCount = state.objects
         .filter(object => object.type === "entity")
         .flatMap(entity => entity.foreignKeys || [])
@@ -3427,6 +3717,38 @@ function createAnnotationDialog(context) {
       }
       if (showOriginalScript) showOriginalScript.disabled = !singleEntity || singleEntity.locked;
       if (generatePmtSchema) generatePmtSchema.disabled = pmtSchemaBusy;
+      if (fieldRectangleOptions) fieldRectangleOptions.hidden = !singleFieldRectangle;
+      if (fieldRectangleNameInput) {
+        fieldRectangleNameInput.value = singleFieldRectangle ? annotationFieldRectangleName(singleFieldRectangle) : "";
+        fieldRectangleNameInput.disabled = !singleFieldRectangle || singleFieldRectangle.locked;
+      }
+      if (fieldRectangleConnectionSide) {
+        fieldRectangleConnectionSide.value = singleFieldRectangle?.fieldRectangleConnectionSide || "right";
+        fieldRectangleConnectionSide.disabled = !singleFieldRectangle || singleFieldRectangle.locked;
+      }
+      const fieldMappingImages = annotationFieldMappingImages(state.objects);
+      if (generateFieldMappingTable) generateFieldMappingTable.disabled = !singleFieldRectangle || singleFieldRectangle.locked;
+      if (generateAllFieldMappingTables) generateAllFieldMappingTables.disabled = !fieldMappingImages.length;
+      if (fieldMappingTableFormat) fieldMappingTableFormat.hidden = !singleFieldMappingTable;
+      dialog.querySelectorAll("[data-annotation-field-mapping-table-color]").forEach(control => {
+        const name = control.dataset.annotationFieldMappingTableColor;
+        control.value = singleFieldMappingTable?.[name] || defaultFieldMappingTableStyle[name] || "#000000";
+        control.disabled = !singleFieldMappingTable || singleFieldMappingTable.locked;
+      });
+      dialog.querySelectorAll("[data-annotation-copy-field-mapping-table], [data-annotation-export-field-mapping-table-csv], [data-annotation-export-field-mapping-table-excel]").forEach(button => {
+        button.disabled = !singleFieldMappingTable || !singleFieldMappingTable.rows?.length;
+      });
+      if (singleFieldRectangle) {
+        showKeyColumn.disabled = true;
+        showDataTypes.disabled = true;
+        foreignKeysAtTop.disabled = true;
+        showSelfRelationships.disabled = true;
+        anchorTable.disabled = true;
+        autoFormatOrgTree.disabled = true;
+        if (alphabetizeFields) alphabetizeFields.disabled = true;
+        if (showOriginalScript) showOriginalScript.disabled = true;
+        if (entityAnnotationInput) entityAnnotationInput.disabled = true;
+      }
       const entityFieldScrollTop = entityFieldList.scrollTop;
       entityFieldList.innerHTML = singleEntity ? annotationEntityFieldListHtml(singleEntity) : "";
       entityFieldList.scrollTop = entityFieldScrollTop;
@@ -3460,7 +3782,7 @@ function createAnnotationDialog(context) {
             : "No annotation";
       }
 
-      const firstOpacityObject = selection.find(object => ["rectangle", "circle", "textbox", "rich-text", "arrow", "line", "entity"].includes(object.type));
+      const firstOpacityObject = selection.find(object => ["rectangle", "circle", "textbox", "rich-text", "arrow", "line", "entity", entityRelationshipObjectType, fieldMappingTableObjectType].includes(object.type));
       const selectedArrowObjects = selectedArrowHeadObjects();
       const hasArrowHeadTarget = selectedArrowObjects.length > 0;
       syncStyleControl("fill", first?.fill === "none" ? styles.fill : first?.fill || styles.fill);
@@ -3478,9 +3800,9 @@ function createAnnotationDialog(context) {
       const opacityControl = dialog.querySelector("[data-annotation-style='opacity']");
       if (opacityControl) {
         opacityControl.disabled = hasSelection
-          && !selection.some(object => ["rectangle", "circle", "textbox", "rich-text", "arrow", "line", "entity"].includes(object.type) && !object.locked);
+          && !selection.some(object => ["rectangle", "circle", "textbox", "rich-text", "arrow", "line", "entity", entityRelationshipObjectType, fieldMappingTableObjectType].includes(object.type) && !object.locked);
       }
-      const outlineObjects = selection.filter(object => ["rectangle", "circle", "textbox", "rich-text", "entity"].includes(object.type));
+      const outlineObjects = selection.filter(object => ["rectangle", "circle", "textbox", "rich-text", "entity", fieldMappingTableObjectType].includes(object.type));
       const outline = dialog.querySelector("[data-annotation-outline]");
       const outlineLabel = outline?.closest("label");
       if (outlineLabel) outlineLabel.hidden = hasRelationshipSelection;
@@ -3494,9 +3816,9 @@ function createAnnotationDialog(context) {
       const transparentLabel = transparent?.closest("label");
       if (transparentLabel) transparentLabel.hidden = hasRelationshipSelection;
       transparent.checked = first?.fill === "none";
-      transparent.disabled = !selection.some(object => ["rectangle", "circle", "textbox", "rich-text", "entity"].includes(object.type));
+      transparent.disabled = !selection.some(object => ["rectangle", "circle", "textbox", "rich-text", "entity", fieldMappingTableObjectType].includes(object.type));
       const opacityLabel = opacityControl?.closest("label");
-      if (opacityLabel) opacityLabel.hidden = hasRelationshipSelection;
+      if (opacityLabel) opacityLabel.hidden = hasRelationshipSelection && first?.type !== entityRelationshipObjectType;
       const arrowSizeControl = dialog.querySelector("[data-annotation-style='arrowSize']");
       const arrowSizeLabel = arrowSizeControl?.closest("label");
       if (arrowSizeLabel) arrowSizeLabel.hidden = !hasArrowHeadTarget;
@@ -3911,9 +4233,10 @@ function createAnnotationDialog(context) {
       canvas.dataset.annotationTransientInvisibleGroup = transientInvisibleSelectionIds.size > 1
         ? "true"
         : "false";
+      const renderSelectedIds = new Set([...selectedIds, ...fieldMappingHoverIds]);
       canvas.innerHTML = annotationCanvasSvg(
         state,
-        selectedIds,
+        renderSelectedIds,
         zoom,
         workspaceBounds,
         cropPreview,
@@ -4478,7 +4801,46 @@ function createAnnotationDialog(context) {
         if (type === "arrow") connector.arrowSize = preset.arrowSize;
         return connector;
       }
-      if (type === "entity") {
+      if (type === "entity" || type === "field-rectangle") {
+        if (type === "field-rectangle") {
+          return {
+            ...base,
+            type: "entity",
+            entityKind: fieldRectangleEntityKind,
+            x: point.x,
+            y: point.y,
+            width: 1,
+            height: 1,
+            fill: "none",
+            stroke: defaultFieldRectangleStroke,
+            outlineVisible: true,
+            strokeWidth: 2,
+            opacity: 1,
+            textColor: defaultFieldRectangleStroke,
+            entityNameTextColor: defaultEntityTextColor,
+            entityHeaderFill: defaultEntityFill,
+            fontFamily: styles.fontFamily,
+            fontSize: defaultEntityFontSize,
+            entitySchema: "",
+            entityName: "Field",
+            fieldRectangleName: "Field",
+            fieldRectangleConnectionSide: "right",
+            fields: [{ name: "Field", isPrimaryKey: false, isForeignKey: true, isImportant: true }],
+            foreignKeys: [],
+            foreignKeysAtTop: false,
+            showSelfRelationships: false,
+            anchorTable: false,
+            collapsed: false,
+            expandedHeight: 1,
+            sourceText: "",
+            entityAnnotation: "",
+            entityAnnotationGroupId: "",
+            showKeyColumn: false,
+            showDataTypes: false,
+            dataTypeExpandedWidth: 1,
+            name: "Field: Field"
+          };
+        }
         return {
           ...base,
           x: point.x,
@@ -4589,6 +4951,13 @@ function createAnnotationDialog(context) {
     const editAnnotationObject = async object => {
       if (!object || object.locked) return false;
       if (object.type === "entity") {
+        if (isAnnotationFieldRectangle(object)) {
+          selectObject(object);
+          setInspectorTab("entity");
+          renderWithWorkspaceExpansion();
+          setStatus("Use the Entity tab to name this Field Rectangle and map it to a database field.");
+          return true;
+        }
         selectObject(object);
         renderWithWorkspaceExpansion();
         const definition = await openAnnotationEntityDialog(object);
@@ -4965,6 +5334,14 @@ function createAnnotationDialog(context) {
         const object = state.objects.find(item => item.id === completed.objectId);
         ensureCreatedObjectSize(object, state);
         setTool("select");
+        if (isAnnotationFieldRectangle(object)) {
+          syncAnnotationFieldRectangle(object);
+          setInspectorTab("entity");
+          pushHistory();
+          setStatus("Field Rectangle added. Use the Entity tab to name it, choose its connector side, and map it to a database field.");
+          renderWithWorkspaceExpansion();
+          return;
+        }
         if (object?.type === "entity") {
           renderWithWorkspaceExpansion();
           const definition = await openAnnotationEntityDialog();
@@ -5045,8 +5422,29 @@ function createAnnotationDialog(context) {
     canvas.addEventListener("pointerup", finishCanvasGesture);
     canvas.addEventListener("pointercancel", finishCanvasGesture);
     canvas.addEventListener("contextmenu", showAnnotationContextMenu);
+    canvas.addEventListener("pointerdown", event => {
+      const cell = event.target.closest?.("[data-annotation-field-mapping-ui-cell]");
+      if (!cell || activeTool !== "select") return;
+      if (selectFieldRectangleFromMappingCell(cell, false)) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
+    }, true);
+    workspace.addEventListener("pointermove", event => {
+      if (gesture || panGesture) return;
+      setFieldMappingHover(event.target.closest?.("[data-annotation-field-mapping-ui-cell]") || null);
+    });
+    workspace.addEventListener("pointerleave", () => setFieldMappingHover(null));
     workspace.addEventListener("dblclick", async event => {
       if (event.__pmtAnnotationDoubleClickHandled) return;
+      const mappingCell = event.target.closest?.("[data-annotation-field-mapping-ui-cell]");
+      if (mappingCell) {
+        event.__pmtAnnotationDoubleClickHandled = true;
+        event.preventDefault();
+        event.stopPropagation();
+        selectFieldRectangleFromMappingCell(mappingCell, true);
+        return;
+      }
       if (event.target.closest?.("[data-annotation-entity-header-action]")) return;
       const object = canvasObjectFromEvent(event);
       if (!["entity", "textbox", "rich-text"].includes(object?.type) || object.locked) return;
@@ -5415,6 +5813,364 @@ function createAnnotationDialog(context) {
       }, `${type === "arrow" ? "Arrow" : "Rectangle"} drawing style reset to the PMT default.`);
     };
 
+    const selectedFieldRectangleRelationshipObject = () => {
+      const selection = selectedObjects();
+      return selection.length === 1
+        && selection[0]?.type === entityRelationshipObjectType
+        && selection[0].fieldRectangleRelationship === true
+        ? selection[0]
+        : null;
+    };
+
+    const setFieldRectangleRelationshipDefaultStyle = async () => {
+      const object = selectedFieldRectangleRelationshipObject();
+      if (!object) {
+        setStatus("Select a Field Rectangle relationship line first.");
+        return;
+      }
+      const defaultStyle = normalizeAnnotationFieldRectangleRelationshipDefault(object);
+      await persistTemplateLibrary({
+        ...templateLibrary,
+        defaults: { ...templateLibrary.defaults, fieldRectangleRelationship: defaultStyle }
+      }, "Field Rectangle relationship line style is now the default.");
+    };
+
+    const applyFieldRectangleRelationshipDefaultStyle = () => {
+      const defaultStyle = normalizeAnnotationFieldRectangleRelationshipDefault(
+        templateLibrary.defaults.fieldRectangleRelationship
+      );
+      if (!defaultStyle) {
+        setStatus("Set a Field Rectangle relationship default style first.");
+        return;
+      }
+      pushHistory();
+      const result = applyAnnotationFieldRectangleRelationshipDefaultStyle(state, defaultStyle);
+      pushHistory();
+      setStatus(result.relationshipCount
+        ? `Default style applied to ${result.relationshipCount} Field Rectangle relationship line${result.relationshipCount === 1 ? "" : "s"}.`
+        : "There are no Field Rectangle relationship lines to update.");
+      renderWithWorkspaceExpansion();
+    };
+
+    const fieldMappingTableBounds = (image, rows) => {
+      const imageBounds = annotationEmbeddedImageEffectiveClip(image) || annotationObjectBounds(image) || state.canvasBounds;
+      const rowHeight = 28;
+      const width = 560;
+      const height = Math.max(rowHeight * 2, rowHeight * (rows.length + 1));
+      const rightX = imageBounds.x + imageBounds.width + 40;
+      const fitsRight = rightX + width <= workspaceBounds.x + workspaceBounds.width - 40;
+      return {
+        x: fitsRight ? rightX : imageBounds.x,
+        y: fitsRight ? imageBounds.y : imageBounds.y + imageBounds.height + 40,
+        width,
+        height
+      };
+    };
+
+    const createFieldMappingTableObject = (image, rows) => {
+      objectSequence += 1;
+      const bounds = fieldMappingTableBounds(image, rows);
+      return normalizeAnnotationObject({
+        id: `field-mapping-table-${Date.now().toString(36)}-${objectSequence}`,
+        type: fieldMappingTableObjectType,
+        name: `Field Mapping Table: ${safeAnnotationName(image?.name) || `Image ${objectSequence}`}`,
+        sourceImageId: image?.id || "",
+        locked: false,
+        groupId: "",
+        x: bounds.x,
+        y: bounds.y,
+        width: bounds.width,
+        height: bounds.height,
+        stroke: defaultEntityStroke,
+        strokeWidth: 1,
+        opacity: 1,
+        fontFamily: styles.fontFamily,
+        fontSize: 14,
+        ...defaultFieldMappingTableStyle,
+        rows
+      });
+    };
+
+    const fieldMappingTablesForImage = imageId =>
+      state.objects.filter(object => object.type === fieldMappingTableObjectType
+        && object.sourceImageId === imageId);
+
+    const openAnnotationChoiceDialog = (title, message, choices) => new Promise(resolve => {
+      const modal = document.createElement("dialog");
+      modal.className = "dialog mini-dialog image-annotation-choice-dialog";
+      modal.innerHTML = `
+        <form method="dialog">
+          <div class="dialog-head"><h2>${escapeXmlText(title)}</h2></div>
+          <div class="dialog-body"><p>${escapeXmlText(message)}</p></div>
+          <div class="dialog-actions">
+            <button type="button" class="secondary text-icon-button" data-choice="">Cancel</button>
+            ${choices.map(choice => `<button type="button" class="${choice.primary ? "primary" : "secondary"} text-icon-button" data-choice="${escapeXmlAttr(choice.value)}">${escapeXmlText(choice.label)}</button>`).join("")}
+          </div>
+        </form>
+      `;
+      document.body.appendChild(modal);
+      const finish = value => {
+        if (modal.open) modal.close();
+        modal.remove();
+        resolve(value || "");
+      };
+      modal.addEventListener("click", event => {
+        const button = event.target.closest("[data-choice]");
+        if (button) finish(button.dataset.choice || "");
+      });
+      modal.addEventListener("cancel", event => {
+        event.preventDefault();
+        finish("");
+      });
+      modal.showModal();
+      modal.querySelector("[data-choice]:not([data-choice=''])")?.focus({ preventScroll: true });
+    });
+
+    const chooseFieldMappingImage = async items => {
+      if (items.length <= 1) return items[0]?.image || null;
+      const modal = document.createElement("dialog");
+      modal.className = "dialog image-annotation-field-image-dialog";
+      modal.innerHTML = `
+        <form method="dialog">
+          <div class="dialog-head">
+            <h2>Select Screenshot</h2>
+            <button type="button" class="icon-btn" data-image-choice="">Close</button>
+          </div>
+          <div class="dialog-body image-annotation-field-image-grid">
+            ${items.map(({ image, rows }) => `
+              <button type="button" class="image-annotation-field-image-choice" data-image-choice="${escapeXmlAttr(image.id)}">
+                <img src="${escapeXmlAttr(image.source)}" alt="">
+                <span>${escapeXmlText(safeAnnotationName(image.name) || "Screenshot")}</span>
+                <small>${rows.length} mapped field${rows.length === 1 ? "" : "s"}</small>
+              </button>
+            `).join("")}
+          </div>
+        </form>
+      `;
+      document.body.appendChild(modal);
+      return await new Promise(resolve => {
+        const finish = imageId => {
+          if (modal.open) modal.close();
+          modal.remove();
+          resolve(items.find(item => item.image.id === imageId)?.image || null);
+        };
+        modal.addEventListener("click", event => {
+          const button = event.target.closest("[data-image-choice]");
+          if (button) finish(button.dataset.imageChoice || "");
+        });
+        modal.addEventListener("cancel", event => {
+          event.preventDefault();
+          finish("");
+        });
+        modal.showModal();
+        modal.querySelector("[data-image-choice]:not([data-image-choice=''])")?.focus({ preventScroll: true });
+      });
+    };
+
+    const upsertFieldMappingTable = (image, rows, mode) => {
+      const existing = fieldMappingTablesForImage(image.id);
+      if (mode === "replace") {
+        const existingIds = new Set(existing.map(table => table.id));
+        state.objects = state.objects.filter(object => !existingIds.has(object.id));
+      }
+      if (mode === "update" && existing.length) {
+        const table = existing[0];
+        table.rows = rows.map(row => ({ ...row }));
+        table.height = Math.max(table.height, fieldMappingTableBounds(image, rows).height);
+        table.name = `Field Mapping Table: ${safeAnnotationName(image.name) || "Screenshot"}`;
+        return table;
+      }
+      const table = createFieldMappingTableObject(image, rows);
+      state.objects.push(table);
+      return table;
+    };
+
+    const generateFieldMappingTableForImage = async image => {
+      const rows = annotationFieldRectangleTableRows(state.objects, image);
+      if (!rows.length) {
+        setStatus("No mapped Field Rectangles touch that screenshot.");
+        return false;
+      }
+      const existing = fieldMappingTablesForImage(image.id);
+      let mode = "new";
+      if (existing.length) {
+        mode = await openAnnotationChoiceDialog(
+          "Field Mapping Table",
+          "A Field Mapping Table already exists for this screenshot. Replace it or update the existing table?",
+          [
+            { value: "replace", label: "Replace", primary: true },
+            { value: "update", label: "Update" }
+          ]
+        );
+        if (!mode) return false;
+      }
+      pushHistory();
+      const table = upsertFieldMappingTable(image, rows, mode);
+      selectedIds = new Set([table.id]);
+      lastSelectedObjectId = table.id;
+      pushHistory();
+      setStatus(`Field Mapping Table ${mode === "update" ? "updated" : "generated"} for ${rows.length} mapped field${rows.length === 1 ? "" : "s"}.`);
+      renderWithWorkspaceExpansion();
+      window.setTimeout(focusLastSelectedObject, 0);
+      return true;
+    };
+
+    const generateSelectedFieldMappingTable = async () => {
+      const items = annotationFieldMappingImages(state.objects);
+      if (!items.length) {
+        setStatus("Map at least one Field Rectangle that touches a screenshot first.");
+        return false;
+      }
+      const image = await chooseFieldMappingImage(items);
+      if (!image) return false;
+      return generateFieldMappingTableForImage(image);
+    };
+
+    const generateAllFieldMappingTables = async () => {
+      const items = annotationFieldMappingImages(state.objects);
+      if (!items.length) {
+        setStatus("Map at least one Field Rectangle that touches a screenshot first.");
+        return false;
+      }
+      const hasExisting = items.some(item => fieldMappingTablesForImage(item.image.id).length);
+      const mode = hasExisting
+        ? await openAnnotationChoiceDialog(
+            "All Field Mapping Tables",
+            "Existing Field Mapping Tables were found. Replace all existing tables or generate new ones?",
+            [
+              { value: "replace", label: "Replace All", primary: true },
+              { value: "new", label: "Generate New" }
+            ]
+          )
+        : "new";
+      if (!mode) return false;
+      pushHistory();
+      const tables = items.map(({ image, rows }) => upsertFieldMappingTable(image, rows, mode));
+      selectedIds = new Set(tables.map(table => table.id));
+      lastSelectedObjectId = tables.at(-1)?.id || "";
+      pushHistory();
+      setStatus(`${tables.length} Field Mapping Table${tables.length === 1 ? "" : "s"} ${mode === "replace" ? "replaced" : "generated"}.`);
+      renderWithWorkspaceExpansion();
+      window.setTimeout(focusLastSelectedObject, 0);
+      return true;
+    };
+
+    const selectedFieldMappingTable = () => {
+      const selection = selectedObjects();
+      return selection.length === 1 && selection[0]?.type === fieldMappingTableObjectType
+        ? selection[0]
+        : null;
+    };
+
+    const copySelectedFieldMappingTable = async () => {
+      const table = selectedFieldMappingTable();
+      if (!table?.rows?.length) return false;
+      const copied = await copyTextToClipboard(annotationFieldMappingTableText(table, "\t"));
+      setStatus(copied
+        ? "Field Mapping Table data copied. Paste it into Excel."
+        : "Clipboard copy failed. Try Export CSV instead.");
+      return copied;
+    };
+
+    const exportSelectedFieldMappingTable = format => {
+      const table = selectedFieldMappingTable();
+      if (!table?.rows?.length) return false;
+      if (format === "excel") {
+        const html = annotationFieldMappingTableExcelHtml(table);
+        downloadAnnotationTextFile(html, annotationFieldMappingTableFileName(table, "xls"), "application/vnd.ms-excel");
+        setStatus("Field Mapping Table exported for Excel.");
+        return true;
+      }
+      downloadAnnotationTextFile(
+        annotationFieldMappingTableText(table, ","),
+        annotationFieldMappingTableFileName(table, "csv"),
+        "text/csv"
+      );
+      setStatus("Field Mapping Table exported as CSV.");
+      return true;
+    };
+
+    const fieldRectangleFromMappingCell = cell => {
+      const id = String(cell?.dataset?.annotationFieldRectangleId || "");
+      return state.objects.find(object => object.id === id && isAnnotationFieldRectangle(object)) || null;
+    };
+
+    const fieldRectangleRelationshipIds = entity => {
+      if (!entity || state.hideAllEntityRelationships) return [];
+      return resolveAnnotationEntityRelationships(annotationVisibleObjects(state))
+        .filter(relationship => relationship.source?.id === entity.id || relationship.target?.id === entity.id)
+        .map(relationship => relationship.id);
+    };
+
+    const mappingCellHoverIds = cell => {
+      const entity = fieldRectangleFromMappingCell(cell);
+      if (!entity) return new Set();
+      return new Set([entity.id, ...fieldRectangleRelationshipIds(entity)]);
+    };
+
+    const sameIdSet = (left, right) => {
+      if (left.size !== right.size) return false;
+      for (const id of left) {
+        if (!right.has(id)) return false;
+      }
+      return true;
+    };
+
+    const setFieldMappingHover = cell => {
+      const nextIds = cell ? mappingCellHoverIds(cell) : new Set();
+      if (sameIdSet(fieldMappingHoverIds, nextIds)) return;
+      fieldMappingHoverIds = nextIds;
+      render();
+    };
+
+    const scrollObjectIntoView = object => {
+      const bounds = annotationObjectVisualBounds(object) || annotationObjectBounds(object);
+      if (!bounds) return false;
+      settleCanvasZoomAtCurrentDisplay();
+      canvasWorkspaceOffset = null;
+      const offset = measureCanvasWorkspaceOffset();
+      const centerX = bounds.x + (bounds.width / 2);
+      const centerY = bounds.y + (bounds.height / 2);
+      const targetLeft = offset.x + ((centerX - workspaceBounds.x) * zoom) - (workspace.clientWidth / 2);
+      const targetTop = offset.y + ((centerY - workspaceBounds.y) * zoom) - (workspace.clientHeight / 2);
+      scrollWorkspaceTo(
+        clampNumber(targetLeft, 0, Math.max(0, workspace.scrollWidth - workspace.clientWidth)),
+        clampNumber(targetTop, 0, Math.max(0, workspace.scrollHeight - workspace.clientHeight))
+      );
+      return true;
+    };
+
+    const selectFieldRectangleFromMappingCell = (cell, scrollIntoView = false) => {
+      const entity = fieldRectangleFromMappingCell(cell);
+      if (!entity) return false;
+      selectedIds = new Set([entity.id]);
+      lastSelectedObjectId = entity.id;
+      lastTreeSelectionKey = `object:${entity.id}`;
+      setInspectorTab("entity");
+      setTool("select");
+      renderWithWorkspaceExpansion();
+      if (scrollIntoView) {
+        window.setTimeout(() => {
+          scrollObjectIntoView(entity);
+          focusLastSelectedObject();
+        }, 0);
+        setStatus(`${annotationFieldRectangleName(entity)} selected and centered.`);
+      } else {
+        window.setTimeout(focusLastSelectedObject, 0);
+        setStatus(`${annotationFieldRectangleName(entity)} selected.`);
+      }
+      return true;
+    };
+
+    const updateSelectedFieldMappingTableColor = control => {
+      const table = selectedFieldMappingTable();
+      const property = control?.dataset?.annotationFieldMappingTableColor;
+      if (!table || table.locked || !Object.hasOwn(defaultFieldMappingTableStyle, property)) return false;
+      table[property] = safeColor(control.value, defaultFieldMappingTableStyle[property]);
+      control.value = table[property];
+      return true;
+    };
+
     const templateInsertionCenter = () => {
       settleCanvasZoomAtCurrentDisplay();
       const offset = measureCanvasWorkspaceOffset();
@@ -5440,7 +6196,7 @@ function createAnnotationDialog(context) {
     };
 
     const insertToolbarObject = async type => {
-      if (!["rectangle", "circle", "arrow", "line", "textbox", "rich-text", "entity"].includes(type)) return;
+      if (!["rectangle", "circle", "arrow", "line", "textbox", "rich-text", "entity", "field-rectangle"].includes(type)) return;
       const center = templateInsertionCenter();
       pushHistory();
       const object = addObject(type, center);
@@ -5453,9 +6209,9 @@ function createAnnotationDialog(context) {
         object.x2 = end.x;
         object.y2 = end.y;
       } else {
-        object.width = type === "rich-text" ? 520 : type === "textbox" ? 320 : type === "entity" ? defaultEntityWidth : type === "circle" ? 180 : 240;
-        object.height = type === "rich-text" ? 260 : type === "entity" ? 1 : type === "circle" ? 180 : 140;
-        if (type === "entity") ensureAnnotationEntitySize(object);
+        object.width = type === "rich-text" ? 520 : type === "textbox" ? 320 : type === "entity" ? defaultEntityWidth : type === "field-rectangle" ? 220 : type === "circle" ? 180 : 240;
+        object.height = type === "rich-text" ? 260 : type === "entity" ? 1 : type === "field-rectangle" ? 54 : type === "circle" ? 180 : 140;
+        if (["entity", "field-rectangle"].includes(type)) ensureAnnotationEntitySize(object);
         const topLeft = snappedPoint({
           x: center.x - (object.width / 2),
           y: center.y - (object.height / 2)
@@ -5492,6 +6248,14 @@ function createAnnotationDialog(context) {
         resolveAnnotationEntitySizeChangeLayout(state, object);
         pushHistory();
         setStatus(`${formatAnnotationEntityIdentifier(object.entitySchema, object.entityName)} added.`);
+        renderWithWorkspaceExpansion();
+        window.setTimeout(focusLastSelectedObject, 0);
+        return;
+      }
+      if (type === "field-rectangle") {
+        pushHistory();
+        setStatus("Field Rectangle added. Use the Entity tab to name it, choose its connector side, and map it to a database field.");
+        setInspectorTab("entity");
         renderWithWorkspaceExpansion();
         window.setTimeout(focusLastSelectedObject, 0);
         return;
@@ -5935,7 +6699,22 @@ function createAnnotationDialog(context) {
       } else {
         const object = state.objects.find(item => item.id === id);
         if (!object) return;
-        object.name = name;
+        if (isAnnotationFieldRectangle(object)) {
+          const oldFieldName = annotationFieldRectangleName(object);
+          const fieldName = safeAnnotationName(name.replace(/^Field:\s*/i, "")) || oldFieldName;
+          object.fieldRectangleName = fieldName;
+          object.foreignKeys = (object.foreignKeys || []).map(foreignKey => {
+            const normalized = normalizeAnnotationEntityForeignKey(foreignKey);
+            if (!normalized) return foreignKey;
+            return {
+              ...normalized,
+              columns: normalized.columns.map(column => column.toLowerCase() === oldFieldName.toLowerCase() ? fieldName : column)
+            };
+          });
+          syncAnnotationFieldRectangle(object);
+        } else {
+          object.name = name;
+        }
       }
       pushHistory();
       setStatus(`${kind === "group" ? "Group" : "Object"} renamed to “${name}”.`);
@@ -6077,7 +6856,16 @@ function createAnnotationDialog(context) {
       const mapping = await openAnnotationEntityForeignKeyDialog(entity, field, state.objects);
       if (!mapping) return false;
       pushHistory();
-      entity.foreignKeys = setAnnotationEntityFieldForeignKeyMapping(entity.foreignKeys, field.name, mapping);
+      const mappingWithDefault = isAnnotationFieldRectangle(entity)
+        && mapping.referencedEntity
+        && mapping.referencedField
+        && templateLibrary.defaults.fieldRectangleRelationship
+        ? {
+            ...mapping,
+            styleOverride: templateLibrary.defaults.fieldRectangleRelationship
+          }
+        : mapping;
+      entity.foreignKeys = setAnnotationEntityFieldForeignKeyMapping(entity.foreignKeys, field.name, mappingWithDefault);
       if (mapping.referencedEntity && mapping.referencedField && !field.isPrimaryKey) field.isForeignKey = true;
       ensureAnnotationEntitySize(entity);
       pushHistory();
@@ -6260,6 +7048,37 @@ function createAnnotationDialog(context) {
         return;
       }
 
+      if (event.target.closest("[data-annotation-generate-field-mapping-table]")) {
+        await generateSelectedFieldMappingTable();
+        return;
+      }
+
+      if (event.target.closest("[data-annotation-generate-all-field-mapping-tables]")) {
+        await generateAllFieldMappingTables();
+        return;
+      }
+
+      if (event.target.closest("[data-annotation-copy-field-mapping-table]")) {
+        await copySelectedFieldMappingTable();
+        return;
+      }
+
+      if (event.target.closest("[data-annotation-export-field-mapping-table-csv]")) {
+        exportSelectedFieldMappingTable("csv");
+        return;
+      }
+
+      if (event.target.closest("[data-annotation-export-field-mapping-table-excel]")) {
+        exportSelectedFieldMappingTable("excel");
+        return;
+      }
+
+      const fieldMappingCell = event.target.closest("[data-annotation-field-mapping-ui-cell]");
+      if (fieldMappingCell) {
+        selectFieldRectangleFromMappingCell(fieldMappingCell, false);
+        return;
+      }
+
       const fieldMapButton = event.target.closest("[data-annotation-entity-field-map]");
       if (fieldMapButton) {
         await mapEntityFieldForeignKey(
@@ -6437,6 +7256,16 @@ function createAnnotationDialog(context) {
         return;
       }
 
+      const fieldRectangleRelationshipDefaultButton = event.target.closest("[data-annotation-field-rectangle-relationship-default]");
+      if (fieldRectangleRelationshipDefaultButton) {
+        if (fieldRectangleRelationshipDefaultButton.dataset.annotationFieldRectangleRelationshipDefault === "set") {
+          await setFieldRectangleRelationshipDefaultStyle();
+        } else {
+          applyFieldRectangleRelationshipDefaultStyle();
+        }
+        return;
+      }
+
       const templateActionButton = event.target.closest("[data-annotation-template-action]");
       if (templateActionButton) {
         const action = templateActionButton.dataset.annotationTemplateAction;
@@ -6469,7 +7298,7 @@ function createAnnotationDialog(context) {
       if (tool) {
         closeAnnotationContextMenu();
         const toolName = tool.dataset.annotationTool;
-        if (["rectangle", "circle", "arrow", "line", "textbox", "rich-text", "entity"].includes(toolName)) {
+        if (["rectangle", "circle", "arrow", "line", "textbox", "rich-text", "entity", "field-rectangle"].includes(toolName)) {
           await insertToolbarObject(toolName);
         } else if (toolName === "format-painter") {
           startFormatPainter();
@@ -6792,6 +7621,44 @@ function createAnnotationDialog(context) {
         control.checked
       );
     });
+    dialog.querySelector("[data-annotation-field-rectangle-name]")?.addEventListener("change", event => {
+      const entity = selectedObjects().length === 1 && isAnnotationFieldRectangle(selectedObjects()[0])
+        ? selectedObjects()[0]
+        : null;
+      if (!entity || entity.locked) return;
+      const name = safeAnnotationName(event.target.value);
+      if (!name) {
+        event.target.value = annotationFieldRectangleName(entity);
+        setStatus("Enter a Field Rectangle name.");
+        return;
+      }
+      pushHistory();
+      const oldFieldName = annotationFieldRectangleName(entity);
+      entity.fieldRectangleName = name;
+      entity.foreignKeys = (entity.foreignKeys || []).map(foreignKey => {
+        const normalized = normalizeAnnotationEntityForeignKey(foreignKey);
+        if (!normalized) return foreignKey;
+        return {
+          ...normalized,
+          columns: normalized.columns.map(column => column.toLowerCase() === oldFieldName.toLowerCase() ? name : column)
+        };
+      });
+      syncAnnotationFieldRectangle(entity);
+      pushHistory();
+      setStatus(`Field Rectangle renamed to ${name}.`);
+      renderWithWorkspaceExpansion();
+    });
+    dialog.querySelector("[data-annotation-field-rectangle-connection-side]")?.addEventListener("change", event => {
+      const entity = selectedObjects().length === 1 && isAnnotationFieldRectangle(selectedObjects()[0])
+        ? selectedObjects()[0]
+        : null;
+      if (!entity || entity.locked) return;
+      pushHistory();
+      entity.fieldRectangleConnectionSide = safeAnnotationFieldRectangleConnectionSide(event.target.value);
+      pushHistory();
+      setStatus(`Field Rectangle relationship connection moved to the ${entity.fieldRectangleConnectionSide}.`);
+      renderWithWorkspaceExpansion();
+    });
     dialog.querySelector("[data-annotation-entity-show-data-types]").addEventListener("change", event => {
       const entity = selectedObjects().length === 1 && selectedObjects()[0]?.type === "entity"
         ? selectedObjects()[0]
@@ -6845,7 +7712,7 @@ function createAnnotationDialog(context) {
       event.target.indeterminate = false;
       styles.outlineVisible = visible;
       selectedObjects().forEach(object => {
-        if (["rectangle", "circle", "textbox", "rich-text", "entity"].includes(object.type) && !object.locked) {
+        if (["rectangle", "circle", "textbox", "rich-text", "entity", fieldMappingTableObjectType].includes(object.type) && !object.locked) {
           object.outlineVisible = visible;
         }
       });
@@ -6854,7 +7721,7 @@ function createAnnotationDialog(context) {
     });
     dialog.querySelector("[data-annotation-transparent-fill]").addEventListener("change", event => {
       selectedObjects().forEach(object => {
-        if (["rectangle", "circle", "textbox", "rich-text", "entity"].includes(object.type) && !object.locked) {
+        if (["rectangle", "circle", "textbox", "rich-text", "entity", fieldMappingTableObjectType].includes(object.type) && !object.locked) {
           object.fill = event.target.checked ? "none" : styles.fill;
         }
       });
@@ -6872,6 +7739,18 @@ function createAnnotationDialog(context) {
         renderWithWorkspaceExpansion();
       });
       control.addEventListener("change", pushHistory);
+    });
+    dialog.querySelectorAll("[data-annotation-field-mapping-table-color]").forEach(control => {
+      control.addEventListener("input", () => {
+        if (!updateSelectedFieldMappingTableColor(control)) return;
+        scheduleHistory();
+        renderWithWorkspaceExpansion();
+      });
+      control.addEventListener("change", () => {
+        if (!updateSelectedFieldMappingTableColor(control)) return;
+        pushHistory();
+        renderWithWorkspaceExpansion();
+      });
     });
     bindAnnotationColorPickers(dialog, {
       apply(name, color) {
@@ -7239,6 +8118,7 @@ function annotationDialogHtml(context = {}) {
           ${annotationToolButton("textbox", "Text Box (T)")}
           ${annotationToolButton("rich-text", "Rich Text Editor (Y)")}
           ${annotationToolButton("entity", "Entity (E)")}
+          ${annotationToolButton("field-rectangle", "Field Rectangle")}
         </div>
         <div class="image-annotation-tool-group" aria-label="History">
           ${annotationActionButton("undo", "Undo", "Undo (Ctrl+Z)")}
@@ -7292,6 +8172,10 @@ function annotationDialogHtml(context = {}) {
               <label class="field"><span>Line width</span><input type="number" min="1" max="40" step="1" value="${defaultStyles.strokeWidth}" data-annotation-style="strokeWidth"></label>
               <label class="field"><span>Arrow head</span><input type="number" min="6" max="160" step="2" value="${defaultStyles.arrowSize}" data-annotation-style="arrowSize"></label>
               <label class="inline-check image-annotation-wide" data-annotation-relationship-symbols-field hidden><input type="checkbox" data-annotation-relationship-show-symbols><span>Show arrows and relationship symbols (global)</span></label>
+              <div class="image-annotation-field-mapping-actions image-annotation-wide" data-annotation-field-rectangle-relationship-actions hidden>
+                <button type="button" data-annotation-field-rectangle-relationship-default="set">Set Default Style</button>
+                <button type="button" data-annotation-field-rectangle-relationship-default="apply">Apply Default Style to All Lines</button>
+              </div>
             </div>
           </section>
           <section class="image-annotation-format-section" aria-labelledby="imageAnnotationTextFormat">
@@ -7303,6 +8187,22 @@ function annotationDialogHtml(context = {}) {
               <label class="field"><span>Horizontal alignment</span><select aria-label="Horizontal alignment" data-annotation-style="textAlign"><option value="left">Left</option><option value="center">Center</option><option value="right">Right</option></select></label>
               <label class="field"><span>Vertical alignment</span><select aria-label="Vertical alignment" data-annotation-style="textVerticalAlign"><option value="top">Top</option><option value="middle">Middle</option><option value="bottom">Bottom</option></select></label>
               <label class="field image-annotation-wide" data-annotation-text-field hidden><span>Text</span><textarea rows="5" data-annotation-text></textarea></label>
+            </div>
+          </section>
+          <section class="image-annotation-format-section image-annotation-field-mapping-table-format" aria-labelledby="imageAnnotationFieldMappingTableFormat" data-annotation-field-mapping-table-format hidden>
+            <h4 id="imageAnnotationFieldMappingTableFormat">Field Mapping Table</h4>
+            <div class="image-annotation-inspector-grid">
+              <label class="field"><span>Header text</span><input type="color" value="${defaultFieldMappingTableStyle.headerTextColor}" data-annotation-field-mapping-table-color="headerTextColor"></label>
+              <label class="field"><span>Header background</span><input type="color" value="${defaultFieldMappingTableStyle.headerFill}" data-annotation-field-mapping-table-color="headerFill"></label>
+              <label class="field"><span>UI field text</span><input type="color" value="${defaultFieldMappingTableStyle.uiTextColor}" data-annotation-field-mapping-table-color="uiTextColor"></label>
+              <label class="field"><span>UI field background</span><input type="color" value="${defaultFieldMappingTableStyle.uiFill}" data-annotation-field-mapping-table-color="uiFill"></label>
+              <label class="field"><span>Database text</span><input type="color" value="${defaultFieldMappingTableStyle.databaseTextColor}" data-annotation-field-mapping-table-color="databaseTextColor"></label>
+              <label class="field"><span>Database background</span><input type="color" value="${defaultFieldMappingTableStyle.databaseFill}" data-annotation-field-mapping-table-color="databaseFill"></label>
+            </div>
+            <div class="image-annotation-field-mapping-actions">
+              <button type="button" data-annotation-copy-field-mapping-table>Copy Table Data</button>
+              <button type="button" data-annotation-export-field-mapping-table-csv>Export CSV</button>
+              <button type="button" data-annotation-export-field-mapping-table-excel>Export Excel</button>
             </div>
           </section>
           <div class="image-annotation-help">
@@ -7328,6 +8228,25 @@ function annotationDialogHtml(context = {}) {
                 <span>Entity Annotation</span>
                 <button type="button" data-annotation-entity-annotation>Add Entity Annotation</button>
                 <small data-annotation-entity-annotation-summary>No annotation</small>
+              </div>
+              <div class="image-annotation-field-rectangle-options" data-annotation-field-rectangle-options hidden>
+                <label class="field">
+                  <span>Field Rectangle Name</span>
+                  <input type="text" maxlength="120" autocomplete="off" data-annotation-field-rectangle-name>
+                </label>
+                <label class="field">
+                  <span>Relationship connection</span>
+                  <select data-annotation-field-rectangle-connection-side>
+                    <option value="left">Left</option>
+                    <option value="top">Top</option>
+                    <option value="right">Right</option>
+                    <option value="bottom">Bottom</option>
+                  </select>
+                </label>
+                <div class="image-annotation-field-mapping-actions">
+                  <button type="button" data-annotation-generate-field-mapping-table>Generate Field to Entity Mapping</button>
+                  <button type="button" data-annotation-generate-all-field-mapping-tables>Generate All Field Mapping Tables</button>
+                </div>
               </div>
               <div class="image-annotation-inspector-grid">
                 ${annotationColorFieldHtml("entityNameTextColor", "Entity name text color", "Entity Name Text Color", defaultEntityTextColor, "font")}
@@ -7518,7 +8437,8 @@ function annotationObjectTreeIcon(type) {
     line: "&#9585;",
     textbox: "T",
     "rich-text": "R",
-    entity: "&#8862;"
+    entity: "&#8862;",
+    [fieldMappingTableObjectType]: "&#8863;"
   }[type] || "&#9675;";
 }
 
@@ -7538,7 +8458,8 @@ function annotationToolIconSvg(tool) {
     line: `<path d="M5 19 19 5"></path>`,
     textbox: `<path d="M4 5h16v14H4zM8 9h8M12 9v6M9.5 15h5"></path>`,
     "rich-text": `<rect x="4" y="4" width="16" height="16" rx="2"></rect><path d="M8 9h8M8 13h5M8 17h8"></path><path d="M15 13l2 2-2 2"></path>`,
-    entity: `<rect x="4" y="3" width="16" height="18"></rect><path d="M4 8h16M9 8v13M4 13h16M4 17h16"></path>`
+    entity: `<rect x="4" y="3" width="16" height="18"></rect><path d="M4 8h16M9 8v13M4 13h16M4 17h16"></path>`,
+    "field-rectangle": `<rect x="4" y="7" width="16" height="10"></rect><path d="M8 12h8"></path><path d="M18 5l3-3M18 19l3 3M6 5 3 2M6 19l3-2"></path>`
   };
   return `<svg class="button-svg-icon image-annotation-tool-icon" viewBox="0 0 24 24" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${paths[tool] || ""}</svg>`;
 }
@@ -7612,6 +8533,42 @@ function downloadAnnotationTemplate(template) {
   window.setTimeout(() => URL.revokeObjectURL(url), 0);
 }
 
+function downloadAnnotationTextFile(contents, fileName, type = "text/plain") {
+  const url = URL.createObjectURL(new Blob([String(contents || "")], { type }));
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = fileName;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 0);
+}
+
+function annotationFieldMappingTableExcelHtml(table) {
+  const style = normalizeAnnotationFieldMappingTableStyle(table);
+  const rows = Array.isArray(table?.rows) ? table.rows : [];
+  const cell = value => escapeXmlText(value);
+  return `<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    table{border-collapse:collapse;font-family:Arial,Helvetica,sans-serif;font-size:12pt;}
+    th,td{border:1px solid #8a9bb2;padding:6px 10px;text-align:left;vertical-align:top;}
+    th{color:${style.headerTextColor};background:${style.headerFill};font-weight:700;}
+    td.ui-field{color:${style.uiTextColor};background:${style.uiFill};}
+    td.database-field{color:${style.databaseTextColor};background:${style.databaseFill};}
+  </style>
+</head>
+<body>
+  <table>
+    <thead><tr><th>UI Field</th><th>Database Field</th></tr></thead>
+    <tbody>${rows.map(row => `<tr><td class="ui-field">${cell(row.uiField)}</td><td class="database-field">${cell(row.databaseField)}</td></tr>`).join("")}</tbody>
+  </table>
+</body>
+</html>`;
+}
+
 function annotationTemplatePreviewDataUrl(template) {
   const width = positiveNumber(template?.width, 1);
   const height = positiveNumber(template?.height, 1);
@@ -7634,7 +8591,7 @@ function annotationEntityRelationshipStylePreviewSvg(styleInput, width, height) 
   const start = { x: Math.max(12, width * 0.12), y: height / 2 };
   const end = { x: Math.max(start.x + 24, width * 0.88), y: height / 2 };
   const pathEnd = style.showSymbols ? end.x - style.arrowSize : end.x;
-  return `<g class="image-annotation-entity-relationships"><path class="image-annotation-entity-relationship-path" d="M ${formatNumber(start.x)} ${formatNumber(start.y)} H ${formatNumber(pathEnd)}" fill="none" stroke="${escapeXmlAttr(style.stroke)}" stroke-width="${formatNumber(style.strokeWidth)}" stroke-linecap="round"></path>${annotationEntityRelationshipMarkers(start, end, { x: 1, y: 0 }, { x: 1, y: 0 }, "", style)}</g>`;
+  return `<g class="image-annotation-entity-relationships"><path class="image-annotation-entity-relationship-path" d="M ${formatNumber(start.x)} ${formatNumber(start.y)} H ${formatNumber(pathEnd)}" fill="none" stroke="${escapeXmlAttr(style.stroke)}" stroke-width="${formatNumber(style.strokeWidth)}" opacity="${formatNumber(style.opacity)}" stroke-linecap="round"></path>${annotationEntityRelationshipMarkers(start, end, { x: 1, y: 0 }, { x: 1, y: 0 }, "", style)}</g>`;
 }
 
 export async function copyAnnotationSvgToClipboard(svg) {
@@ -7730,7 +8687,7 @@ function annotationCanvasSvg(
         manualRoutes: state.manualEntityRelationshipRoutes,
         compactRouting: state.compactEntityRelationshipRouting
       });
-  const relationships = annotationEntityRelationshipsSvg(allVisibleObjects, state.relationshipStyle, {
+  const relationshipOptions = {
     interactive: true,
     selected: selectedIds.has(entityRelationshipsSelectionId),
     selectedIds,
@@ -7740,8 +8697,20 @@ function annotationCanvasSvg(
     manualRoutes: state.manualEntityRelationshipRoutes,
     compactRouting: state.compactEntityRelationshipRouting,
     relationshipRenderModel
+  };
+  const relationships = annotationEntityRelationshipsSvg(allVisibleObjects, state.relationshipStyle, {
+    ...relationshipOptions,
+    fieldRectangleRelationships: "exclude"
+  });
+  const fieldRelationships = annotationEntityRelationshipsSvg(allVisibleObjects, state.relationshipStyle, {
+    ...relationshipOptions,
+    fieldRectangleRelationships: "only"
   });
   const belowRelationships = relationshipLayers.below
+    .filter(object => !raisedEntityIds.has(object.id))
+    .map(object => annotationObjectSvg(object, { exportMode: false, zoom, clipKey }))
+    .join("");
+  const betweenRelationships = relationshipLayers.between
     .filter(object => !raisedEntityIds.has(object.id))
     .map(object => annotationObjectSvg(object, { exportMode: false, zoom, clipKey }))
     .join("");
@@ -7765,15 +8734,23 @@ function annotationCanvasSvg(
   );
   const crop = cropPreview ? annotationCropPreviewSvg(cropPreview, state, zoom) : "";
   const marquee = marqueePreview ? annotationMarqueeSvg(marqueePreview) : "";
-  return `${annotationCanvasDefs(state, zoom)}${background}${belowRelationships}${relationships}${aboveRelationships}${grid}${raised}${selection}${marquee}${crop}`;
+  return `${annotationCanvasDefs(state, zoom)}${background}${belowRelationships}${relationships}${betweenRelationships}${fieldRelationships}${aboveRelationships}${grid}${raised}${selection}${marquee}${crop}`;
 }
 
 export function annotationEntityRelationshipsSvg(objectsInput, relationshipStyleInput = null, options = {}) {
   if (options?.hidden === true) return "";
   const relationshipRenderModel = options?.relationshipRenderModel
     || annotationEntityRelationshipRenderModel(objectsInput, relationshipStyleInput, options);
-  const { renderedRelationships, visibleRouteGroups } = relationshipRenderModel;
+  let { renderedRelationships } = relationshipRenderModel;
+  if (options?.fieldRectangleRelationships === "only") {
+    renderedRelationships = renderedRelationships.filter(item =>
+      annotationRelationshipUsesFieldRectangle(item.relationship));
+  } else if (options?.fieldRectangleRelationships === "exclude") {
+    renderedRelationships = renderedRelationships.filter(item =>
+      !annotationRelationshipUsesFieldRectangle(item.relationship));
+  }
   if (!renderedRelationships.length) return "";
+  const visibleRouteGroups = annotationEntityRelationshipMergedRouteGroups(renderedRelationships);
   const interactive = options?.interactive === true;
   const selected = interactive && options?.selected === true;
   const selectedIds = options?.selectedIds instanceof Set ? options.selectedIds : new Set(options?.selectedIds || []);
@@ -7910,12 +8887,13 @@ function annotationEntityRelationshipGeometryCacheKey(
     obstacles.map(object => {
       const bounds = annotationObjectBounds(object);
       return [
-        object.type,
-        object.id || "",
-        bounds?.x,
-        bounds?.y,
-        bounds?.width,
-        bounds?.height
+      object.type,
+      object.id || "",
+      bounds?.x,
+      bounds?.y,
+      bounds?.width,
+      bounds?.height,
+      object.fieldRectangleConnectionSide || ""
       ];
     }),
     relationshipItems.map(({ relationship, style }) => [
@@ -7925,12 +8903,14 @@ function annotationEntityRelationshipGeometryCacheKey(
       relationship.source?.width,
       relationship.source?.height,
       relationship.source?.anchorTable === true ? 1 : 0,
+      relationship.source?.fieldRectangleConnectionSide || "",
       annotationEntityFieldAnchorY(relationship.source, relationship.sourceField),
       relationship.target?.x,
       relationship.target?.y,
       relationship.target?.width,
       relationship.target?.height,
       relationship.target?.anchorTable === true ? 1 : 0,
+      relationship.target?.fieldRectangleConnectionSide || "",
       annotationEntityFieldAnchorY(relationship.target, relationship.targetField),
       safeAnnotationEntityRelationshipType(relationship.foreignKey?.relationshipType),
       manualRoutes
@@ -8083,10 +9063,11 @@ function annotationEntityRelationshipSelectionObject(relationship, globalStyleIn
     type: entityRelationshipObjectType,
     name: annotationEntityRelationshipName(relationship),
     locked: false,
-    groupId: ""
+    groupId: "",
+    fieldRectangleRelationship: annotationRelationshipUsesFieldRectangle(relationship)
   };
   const foreignKey = relationship.foreignKeySource;
-  ["stroke", "strokeWidth", "arrowSize"].forEach(field => {
+  ["stroke", "strokeWidth", "arrowSize", "opacity"].forEach(field => {
     Object.defineProperty(object, field, {
       enumerable: true,
       get() {
@@ -8628,7 +9609,8 @@ function annotationEntityMatchesReference(entity, referencedSchema, referencedTa
 function annotationEntityRelationshipPaintKey(style) {
   return JSON.stringify({
     stroke: String(style.stroke || ""),
-    strokeWidth: formatNumber(style.strokeWidth)
+    strokeWidth: formatNumber(style.strokeWidth),
+    opacity: formatNumber(style.opacity)
   });
 }
 
@@ -8706,7 +9688,7 @@ function annotationEntityRelationshipMergedRouteGroups(renderedRelationships) {
 
 function annotationEntityRelationshipVisibleRoutesSvg(routeGroups) {
   return routeGroups
-    .map(group => `<path class="image-annotation-entity-relationship-path" d="${group.path}" fill="none" stroke="${escapeXmlAttr(group.style.stroke)}" stroke-width="${formatNumber(group.style.strokeWidth)}" stroke-linejoin="round" pointer-events="none"></path>`)
+    .map(group => `<path class="image-annotation-entity-relationship-path" d="${group.path}" fill="none" stroke="${escapeXmlAttr(group.style.stroke)}" stroke-width="${formatNumber(group.style.strokeWidth)}" opacity="${formatNumber(group.style.opacity)}" stroke-linejoin="round" pointer-events="none"></path>`)
     .join("");
 }
 
@@ -8787,7 +9769,19 @@ function annotationEntityRelationshipGeometry(relationship, style, options = {})
   let sourceUnit;
   let targetUnit;
   let points;
-  if (source === target) {
+  const fieldRectangleRoute = source !== target
+    ? annotationEntityRelationshipFieldRectangleRoute(relationship, style, obstacles, {
+        skipObstacleRouting,
+        obstacleRouteOptions
+      })
+    : null;
+  if (fieldRectangleRoute) {
+    start = fieldRectangleRoute.start;
+    end = fieldRectangleRoute.end;
+    sourceUnit = fieldRectangleRoute.sourceUnit;
+    targetUnit = fieldRectangleRoute.targetUnit;
+    points = fieldRectangleRoute.points;
+  } else if (source === target) {
     const margin = annotationEntitySelfRelationshipMargin(source, style);
     start = {
       x: source.x + source.width,
@@ -8886,7 +9880,7 @@ function annotationEntityRelationshipGeometry(relationship, style, options = {})
       );
   }
 
-  if (!skipObstacleRouting && source !== target) {
+  if (!skipObstacleRouting && source !== target && !fieldRectangleRoute) {
     const clearance = annotationEntityRelationshipClearance(style);
     const clearanceContactCount = routePoints => obstacles
       .filter(obstacle => obstacle !== source && obstacle !== target)
@@ -9933,6 +10927,92 @@ function annotationEntityFieldAnchorY(entity, field) {
     : null;
 }
 
+function annotationEntityRelationshipEndpoint(entity, field, side, role = "source") {
+  const safeSide = ["left", "top", "right", "bottom"].includes(side) ? side : "right";
+  const y = isAnnotationFieldRectangle(entity)
+    ? entity.y + (entity.height / 2)
+    : annotationEntityFieldAnchorY(entity, field);
+  const x = entity.x + (entity.width / 2);
+  const source = role !== "target";
+  if (safeSide === "left") {
+    return {
+      point: { x: entity.x, y },
+      unit: source ? { x: -1, y: 0 } : { x: 1, y: 0 }
+    };
+  }
+  if (safeSide === "top") {
+    return {
+      point: { x, y: entity.y },
+      unit: source ? { x: 0, y: -1 } : { x: 0, y: 1 }
+    };
+  }
+  if (safeSide === "bottom") {
+    return {
+      point: { x, y: entity.y + entity.height },
+      unit: source ? { x: 0, y: 1 } : { x: 0, y: -1 }
+    };
+  }
+  return {
+    point: { x: entity.x + entity.width, y },
+    unit: source ? { x: 1, y: 0 } : { x: -1, y: 0 }
+  };
+}
+
+function annotationEntityRelationshipFieldRectangleRoute(relationship, style, obstacles, options = {}) {
+  const { source, sourceField, target, targetField } = relationship;
+  if (!isAnnotationFieldRectangle(source) && !isAnnotationFieldRectangle(target)) return null;
+  const sourceCenter = { x: source.x + (source.width / 2), y: source.y + (source.height / 2) };
+  const targetCenter = { x: target.x + (target.width / 2), y: target.y + (target.height / 2) };
+  const defaultSourceSide = targetCenter.x >= sourceCenter.x ? "right" : "left";
+  const defaultTargetSide = targetCenter.x >= sourceCenter.x ? "left" : "right";
+  const sourceEndpoint = annotationEntityRelationshipEndpoint(
+    source,
+    sourceField,
+    isAnnotationFieldRectangle(source) ? source.fieldRectangleConnectionSide : defaultSourceSide,
+    "source"
+  );
+  const targetEndpoint = annotationEntityRelationshipEndpoint(
+    target,
+    targetField,
+    isAnnotationFieldRectangle(target) ? target.fieldRectangleConnectionSide : defaultTargetSide,
+    "target"
+  );
+  const clearance = annotationEntityRelationshipClearance(style);
+  const start = sourceEndpoint.point;
+  const end = targetEndpoint.point;
+  const sourceUnit = sourceEndpoint.unit;
+  const targetUnit = targetEndpoint.unit;
+  const startEscape = {
+    x: start.x + (sourceUnit.x * clearance),
+    y: start.y + (sourceUnit.y * clearance)
+  };
+  const endEscape = {
+    x: end.x - (targetUnit.x * clearance),
+    y: end.y - (targetUnit.y * clearance)
+  };
+  const bend = Math.abs(startEscape.x - endEscape.x) >= Math.abs(startEscape.y - endEscape.y)
+    ? { x: startEscape.x, y: endEscape.y }
+    : { x: endEscape.x, y: startEscape.y };
+  const basePoints = compactAnnotationEntityRelationshipPoints([start, startEscape, bend, endEscape, end]);
+  const points = options.skipObstacleRouting === true
+    ? basePoints
+    : annotationEntityRelationshipObstacleRoute(
+        basePoints,
+        sourceUnit,
+        targetUnit,
+        obstacles,
+        style,
+        options.obstacleRouteOptions || {}
+      );
+  return {
+    start,
+    end,
+    sourceUnit,
+    targetUnit,
+    points
+  };
+}
+
 function annotationEntityVisibleFieldIndex(entity, field) {
   return annotationEntityVisibleFields(entity)
     .findIndex(candidate => String(candidate.name || "").toLowerCase() === String(field?.name || "").toLowerCase());
@@ -10031,9 +11111,9 @@ function annotationEntityRelationshipMarkers(start, end, sourceUnit, targetUnit,
     style
   );
   const lines = geometry.lineSegments.length
-    ? `<path class="image-annotation-entity-relationship-marker" d="${geometry.lineSegments.map(([first, second]) => `M ${formatNumber(first.x)} ${formatNumber(first.y)} L ${formatNumber(second.x)} ${formatNumber(second.y)}`).join(" ")}" fill="none" stroke="${escapeXmlAttr(color)}" stroke-width="${formatNumber(style.strokeWidth)}" pointer-events="none"></path>`
+    ? `<path class="image-annotation-entity-relationship-marker" d="${geometry.lineSegments.map(([first, second]) => `M ${formatNumber(first.x)} ${formatNumber(first.y)} L ${formatNumber(second.x)} ${formatNumber(second.y)}`).join(" ")}" fill="none" stroke="${escapeXmlAttr(color)}" stroke-width="${formatNumber(style.strokeWidth)}" opacity="${formatNumber(style.opacity)}" pointer-events="none"></path>`
     : "";
-  const arrow = `<polygon class="image-annotation-entity-relationship-marker" points="${geometry.arrowPoints.map(point => `${formatNumber(point.x)},${formatNumber(point.y)}`).join(" ")}" fill="${escapeXmlAttr(color)}" pointer-events="none"></polygon>`;
+  const arrow = `<polygon class="image-annotation-entity-relationship-marker" points="${geometry.arrowPoints.map(point => `${formatNumber(point.x)},${formatNumber(point.y)}`).join(" ")}" fill="${escapeXmlAttr(color)}" opacity="${formatNumber(style.opacity)}" pointer-events="none"></polygon>`;
   return `${lines}${arrow}`;
 }
 
@@ -10061,7 +11141,9 @@ function annotationGridSvg(bounds) {
 function annotationObjectSvg(object, options = {}) {
   const id = options.exportMode ? "" : ` data-annotation-object-id="${escapeXmlAttr(object.id)}"`;
   const type = options.exportMode ? "" : ` data-annotation-object-type="${escapeXmlAttr(object.type)}"`;
-  const classes = options.exportMode ? "" : ` class="image-annotation-object${object.locked ? " is-locked" : ""}"`;
+  const classes = options.exportMode
+    ? ""
+    : ` class="image-annotation-object${object.locked ? " is-locked" : ""}${isAnnotationFieldRectangle(object) ? " is-field-rectangle" : ""}${isAnnotationFieldMappingTable(object) ? " is-field-mapping-table" : ""}"`;
   const group = object.groupId ? ` data-pmt-annotation-group="${escapeXmlAttr(object.groupId)}"` : "";
   const locked = object.locked ? ` data-pmt-annotation-locked="true"` : "";
   const clipSuffix = options.clipKey ? `-${safeSvgId(options.clipKey)}` : "";
@@ -10083,6 +11165,17 @@ function annotationObjectSvg(object, options = {}) {
   if (object.type === "circle") {
     const stroke = object.outlineVisible === false ? "none" : object.stroke;
     return `<ellipse${id}${type}${classes}${group}${locked} cx="${formatNumber(object.x + (object.width / 2))}" cy="${formatNumber(object.y + (object.height / 2))}" rx="${formatNumber(object.width / 2)}" ry="${formatNumber(object.height / 2)}" fill="${escapeXmlAttr(object.fill)}" stroke="${escapeXmlAttr(stroke)}" stroke-width="${formatNumber(object.strokeWidth)}" opacity="${formatNumber(object.opacity)}"></ellipse>`;
+  }
+  if (object.type === fieldMappingTableObjectType) {
+    return annotationFieldMappingTableSvg(object, {
+      id,
+      type,
+      classes,
+      group,
+      locked,
+      exportMode: options.exportMode,
+      clipKey: options.clipKey
+    });
   }
   if (object.type === "entity") {
     return annotationEntitySvg(object, {
@@ -10132,6 +11225,54 @@ function annotationObjectSvg(object, options = {}) {
     });
   }
   return "";
+}
+
+function annotationFieldMappingTableSvg(object, attributes) {
+  const style = normalizeAnnotationFieldMappingTableStyle(object);
+  const clipSuffix = attributes.clipKey ? `-${safeSvgId(attributes.clipKey)}` : "";
+  const clipId = `pmt-annotation-field-mapping-table-clip-${safeSvgId(object.id)}${clipSuffix}`;
+  const rows = Array.isArray(object.rows) ? object.rows : [];
+  const fontSize = clampNumber(positiveNumber(object.fontSize, 14), 1, 240);
+  const rowHeight = Math.max(24, fontSize * 1.75);
+  const headerHeight = rowHeight;
+  const columnWidth = object.width / 2;
+  const padding = Math.max(6, fontSize * 0.55);
+  const stroke = object.stroke || defaultEntityStroke;
+  const textY = top => top + (rowHeight * 0.66);
+  const headerText = (x, label) =>
+    `<text x="${formatNumber(x + padding)}" y="${formatNumber(textY(object.y))}" fill="${escapeXmlAttr(style.headerTextColor)}" font-family="${escapeXmlAttr(object.fontFamily)}" font-size="${formatNumber(fontSize)}" font-weight="700">${escapeXmlText(label)}</text>`;
+  const cellText = (x, top, width, color, value, extra = "") =>
+    `<text x="${formatNumber(x + padding)}" y="${formatNumber(textY(top))}" clip-path="url(#${clipId})" fill="${escapeXmlAttr(color)}" font-family="${escapeXmlAttr(object.fontFamily)}" font-size="${formatNumber(fontSize)}"${extra}>${escapeXmlText(value)}</text>`;
+  const dataRows = rows.map((row, index) => {
+    const top = object.y + headerHeight + (index * rowHeight);
+    const uiInteraction = attributes.exportMode
+      ? ""
+      : ` data-annotation-field-mapping-ui-cell data-annotation-field-rectangle-id="${escapeXmlAttr(row.uiEntityId)}" role="button" tabindex="0" aria-label="Select UI field ${escapeXmlAttr(row.uiField)}"`;
+    return `
+      <g${uiInteraction}>
+        <rect x="${formatNumber(object.x)}" y="${formatNumber(top)}" width="${formatNumber(columnWidth)}" height="${formatNumber(rowHeight)}" fill="${escapeXmlAttr(style.uiFill)}"></rect>
+        <rect x="${formatNumber(object.x + columnWidth)}" y="${formatNumber(top)}" width="${formatNumber(columnWidth)}" height="${formatNumber(rowHeight)}" fill="${escapeXmlAttr(style.databaseFill)}"></rect>
+        ${cellText(object.x, top, columnWidth, style.uiTextColor, row.uiField, ` text-decoration="underline"`)}
+        ${cellText(object.x + columnWidth, top, columnWidth, style.databaseTextColor, row.databaseField)}
+      </g>
+    `;
+  }).join("");
+  const horizontalLines = Array.from({ length: rows.length + 2 }, (_, index) => {
+    const y = object.y + (index * rowHeight);
+    return `<line x1="${formatNumber(object.x)}" y1="${formatNumber(y)}" x2="${formatNumber(object.x + object.width)}" y2="${formatNumber(y)}" stroke="${escapeXmlAttr(stroke)}" stroke-width="${formatNumber(object.strokeWidth)}"></line>`;
+  }).join("");
+  return `
+    <g${attributes.id}${attributes.type}${attributes.classes}${attributes.group}${attributes.locked} opacity="${formatNumber(object.opacity)}">
+      <defs><clipPath id="${clipId}"><rect x="${formatNumber(object.x)}" y="${formatNumber(object.y)}" width="${formatNumber(object.width)}" height="${formatNumber(object.height)}"></rect></clipPath></defs>
+      <rect x="${formatNumber(object.x)}" y="${formatNumber(object.y)}" width="${formatNumber(object.width)}" height="${formatNumber(headerHeight)}" fill="${escapeXmlAttr(style.headerFill)}"></rect>
+      <rect x="${formatNumber(object.x)}" y="${formatNumber(object.y)}" width="${formatNumber(object.width)}" height="${formatNumber(object.height)}" fill="none" stroke="${escapeXmlAttr(stroke)}" stroke-width="${formatNumber(object.strokeWidth)}"></rect>
+      <line x1="${formatNumber(object.x + columnWidth)}" y1="${formatNumber(object.y)}" x2="${formatNumber(object.x + columnWidth)}" y2="${formatNumber(object.y + object.height)}" stroke="${escapeXmlAttr(stroke)}" stroke-width="${formatNumber(object.strokeWidth)}"></line>
+      ${headerText(object.x, "UI Field")}
+      ${headerText(object.x + columnWidth, "Database Field")}
+      ${dataRows}
+      ${horizontalLines}
+    </g>
+  `;
 }
 
 function annotationRichTextSvg(object, attributes) {
@@ -10269,6 +11410,7 @@ function annotationTextBoxSvg(object, attributes) {
 }
 
 function annotationEntitySvg(object, attributes) {
+  if (isAnnotationFieldRectangle(object)) return annotationFieldRectangleSvg(object, attributes);
   const metrics = annotationEntityMetrics(object);
   const clipSuffix = attributes.clipKey ? `-${safeSvgId(attributes.clipKey)}` : "";
   const clipId = `pmt-annotation-entity-clip-${safeSvgId(object.id)}${clipSuffix}`;
@@ -10390,6 +11532,20 @@ function annotationEntitySvg(object, attributes) {
     : "";
 
   return `<g${attributes.id}${attributes.type}${attributes.classes}${attributes.group}${attributes.locked} opacity="${formatNumber(object.opacity)}"><defs><clipPath id="${headerTitleClipId}"><rect x="${formatNumber(object.x + titleInset)}" y="${formatNumber(object.y)}" width="${formatNumber(Math.max(0, object.width - (titleInset * 2)))}" height="${formatNumber(metrics.headerHeight)}"></rect></clipPath>${keyClip}<clipPath id="${fieldClipId}"><rect x="${formatNumber(fieldX)}" y="${formatNumber(headerY)}" width="${formatNumber(fieldWidth)}" height="${formatNumber(bodyHeight)}"></rect></clipPath>${dataTypeClips}</defs><g><rect x="${formatNumber(object.x)}" y="${formatNumber(object.y)}" width="${formatNumber(object.width)}" height="${formatNumber(object.height)}" fill="${escapeXmlAttr(object.fill)}"></rect><rect x="${formatNumber(object.x)}" y="${formatNumber(object.y)}" width="${formatNumber(object.width)}" height="${formatNumber(metrics.headerHeight)}" fill="${escapeXmlAttr(headerFill)}"></rect><text x="${formatNumber(object.x + (object.width / 2))}" y="${formatNumber(object.y + (metrics.headerHeight * 0.68))}" text-anchor="middle" clip-path="url(#${headerTitleClipId})" fill="${escapeXmlAttr(entityNameTextColor)}" font-family="${escapeXmlAttr(object.fontFamily)}" font-size="${formatNumber(metrics.fontSize * 1.05)}" font-weight="700">${escapeXmlText(entityName)}</text><line x1="${formatNumber(object.x)}" y1="${formatNumber(headerY)}" x2="${formatNumber(object.x + object.width)}" y2="${formatNumber(headerY)}" stroke="${escapeXmlAttr(stroke)}" stroke-width="${formatNumber(gridLineWidth)}"></line>${keyDivider}${dataTypeDivider}${notDivider}${nullDivider}${primaryKeyDivider}${rows}</g>${collapseButton}${dataTypeButton}<rect x="${formatNumber(object.x)}" y="${formatNumber(object.y)}" width="${formatNumber(object.width)}" height="${formatNumber(object.height)}" fill="none" stroke="${escapeXmlAttr(stroke)}" stroke-width="${formatNumber(object.strokeWidth)}" pointer-events="none"></rect></g>`;
+}
+
+function annotationFieldRectangleSvg(object, attributes) {
+  const clipSuffix = attributes.clipKey ? `-${safeSvgId(attributes.clipKey)}` : "";
+  const clipId = `pmt-annotation-field-rectangle-clip-${safeSvgId(object.id)}${clipSuffix}`;
+  const stroke = object.outlineVisible === false ? "none" : object.stroke;
+  const fieldName = annotationFieldRectangleName(object);
+  return `
+    <g${attributes.id}${attributes.type}${attributes.classes}${attributes.group}${attributes.locked} opacity="${formatNumber(object.opacity)}">
+      <title>${escapeXmlText(`Field: ${fieldName}`)}</title>
+      <defs><clipPath id="${clipId}"><rect x="${formatNumber(object.x)}" y="${formatNumber(object.y)}" width="${formatNumber(object.width)}" height="${formatNumber(object.height)}"></rect></clipPath></defs>
+      <rect x="${formatNumber(object.x)}" y="${formatNumber(object.y)}" width="${formatNumber(object.width)}" height="${formatNumber(object.height)}" fill="${escapeXmlAttr(object.fill)}" stroke="${escapeXmlAttr(stroke)}" stroke-width="${formatNumber(object.strokeWidth)}"></rect>
+    </g>
+  `;
 }
 
 function annotationEntityHeaderButtonSvg(object, attributes, options) {
@@ -10569,7 +11725,7 @@ function annotationObjectVisualBounds(object, imageFrame = null) {
       height: Math.abs(finiteNumber(object.y2, 0) - finiteNumber(object.y1, 0)) + (strokeRadius * 2)
     };
   }
-  const strokeRadius = ["rectangle", "circle", "textbox", "rich-text", "entity"].includes(object.type) && object.outlineVisible !== false
+  const strokeRadius = ["rectangle", "circle", "textbox", "rich-text", "entity", fieldMappingTableObjectType].includes(object.type) && object.outlineVisible !== false
     ? clampNumber(positiveNumber(object.strokeWidth, defaultStyles.strokeWidth), 1, 40) / 2
     : 0;
   return {
@@ -10868,7 +12024,7 @@ export function resizeAnnotationObjects(
         scaleY
       );
     }
-    if (["textbox", "entity"].includes(object.type)) {
+    if (["textbox", "entity", fieldMappingTableObjectType].includes(object.type)) {
       object.fontSize = proportionalResize
         ? clampNumber(original.fontSize * Math.max(0.1, Math.min(scaleX, scaleY)), 1, 240)
         : original.fontSize;
@@ -11388,7 +12544,7 @@ function handleAnnotationKeyDown(event, context) {
   const shortcutTool = { v: "select", h: "pan", c: "crop", r: "rectangle", o: "circle", a: "arrow", l: "line", t: "textbox", y: "rich-text", e: "entity" }[key];
   if (shortcutTool && !event.ctrlKey && !event.metaKey && !event.altKey) {
     event.preventDefault();
-    if (["rectangle", "circle", "arrow", "line", "textbox", "rich-text", "entity"].includes(shortcutTool)) {
+    if (["rectangle", "circle", "arrow", "line", "textbox", "rich-text", "entity", "field-rectangle"].includes(shortcutTool)) {
       if (!event.repeat) void context.insertObject?.(shortcutTool);
     } else if (shortcutTool === "crop") {
       if (!event.repeat) void context.activateCropTool?.();
@@ -11770,17 +12926,17 @@ function applyAnnotationStyle(name, rawValue, selection, styles, state = null) {
   }
   styles[name] = value;
   if (selection.some(object => object.type === entityRelationshipsObjectType)
-    && ["stroke", "strokeWidth", "arrowSize"].includes(name)) {
+    && ["stroke", "strokeWidth", "arrowSize", "opacity"].includes(name)) {
     applyAnnotationEntityRelationshipGroupStyle(state, { [name]: value });
   }
   selection.filter(object => !object.locked).forEach(object => {
     if (object.type === entityRelationshipsObjectType) return;
     if (name === "fill" && ["rectangle", "circle", "textbox", "rich-text", "entity"].includes(object.type)) object.fill = value;
-    else if (name === "stroke" && ["rectangle", "circle", "textbox", "rich-text", "arrow", "line", "entity", entityRelationshipObjectType].includes(object.type)) object.stroke = value;
-    else if (name === "strokeWidth" && ["rectangle", "circle", "textbox", "rich-text", "arrow", "line", "entity", entityRelationshipObjectType].includes(object.type)) object.strokeWidth = value;
+    else if (name === "stroke" && ["rectangle", "circle", "textbox", "rich-text", "arrow", "line", "entity", entityRelationshipObjectType, fieldMappingTableObjectType].includes(object.type)) object.stroke = value;
+    else if (name === "strokeWidth" && ["rectangle", "circle", "textbox", "rich-text", "arrow", "line", "entity", entityRelationshipObjectType, fieldMappingTableObjectType].includes(object.type)) object.strokeWidth = value;
     else if (name === "arrowSize" && ["arrow", entityRelationshipObjectType].includes(object.type)) object.arrowSize = value;
-    else if (name === "opacity" && ["rectangle", "circle", "textbox", "rich-text", "arrow", "line", "entity"].includes(object.type)) object.opacity = value;
-    else if (["textColor", "fontFamily", "fontSize"].includes(name) && ["textbox", "entity"].includes(object.type)) object[name] = value;
+    else if (name === "opacity" && ["rectangle", "circle", "textbox", "rich-text", "arrow", "line", "entity", entityRelationshipObjectType, fieldMappingTableObjectType].includes(object.type)) object.opacity = value;
+    else if (["textColor", "fontFamily", "fontSize"].includes(name) && ["textbox", "entity", fieldMappingTableObjectType].includes(object.type)) object[name] = value;
     else if (name === "entityNameTextColor" && object.type === "entity") object.entityNameTextColor = value;
     else if (name === "entityHeaderFill" && object.type === "entity") object.entityHeaderFill = value;
     else if (["textAlign", "textVerticalAlign"].includes(name) && object.type === "textbox") object[name] = value;
@@ -12057,7 +13213,7 @@ function annotationMoveGestureObjects(state, objects) {
 function normalizeAnnotationObject(input) {
   if (!input || typeof input !== "object") return null;
   const type = String(input.type || "").toLowerCase();
-  if (!["embedded-image", "rectangle", "circle", "arrow", "line", "textbox", "rich-text", "entity"].includes(type)) return null;
+  if (!["embedded-image", "rectangle", "circle", "arrow", "line", "textbox", "rich-text", "entity", fieldMappingTableObjectType].includes(type)) return null;
   const common = {
     id: safeObjectId(input.id, type),
     type,
@@ -12141,7 +13297,22 @@ function normalizeAnnotationObject(input) {
   if (type === "rich-text") {
     normalized.html = normalizeAnnotationRichTextHtml(input.html || input.text || "<p><strong>Rich Text</strong></p>");
   }
+  if (type === fieldMappingTableObjectType) {
+    const style = normalizeAnnotationFieldMappingTableStyle(input);
+    normalized.name = safeAnnotationName(input.name) || "Field Mapping Table";
+    normalized.stroke = safeColor(input.stroke, defaultEntityStroke);
+    normalized.strokeWidth = clampNumber(positiveNumber(input.strokeWidth, 1), 1, 40);
+    normalized.opacity = safeAnnotationOpacity(input.opacity);
+    normalized.fontFamily = safeFont(input.fontFamily);
+    normalized.fontSize = clampNumber(positiveNumber(input.fontSize, 14), 1, 240);
+    Object.assign(normalized, style);
+    normalized.sourceImageId = String(input.sourceImageId || "").trim().slice(0, 160);
+    normalized.rows = Array.isArray(input.rows)
+      ? input.rows.map(normalizeAnnotationFieldMappingTableRow).filter(Boolean).slice(0, 1000)
+      : [];
+  }
   if (type === "entity") {
+    normalized.entityKind = input.entityKind === fieldRectangleEntityKind ? fieldRectangleEntityKind : "";
     normalized.entitySchema = unquoteAnnotationSqlIdentifier(input.entitySchema).slice(0, 240);
     normalized.entityName = unquoteAnnotationSqlIdentifier(input.entityName || "Entity").slice(0, 240) || "Entity";
     normalized.fields = Array.isArray(input.fields)
@@ -12173,6 +13344,16 @@ function normalizeAnnotationObject(input) {
       input.dataTypeExpandedWidth,
       normalized.showDataTypes ? normalized.width : 0
     );
+    if (normalized.entityKind === fieldRectangleEntityKind) {
+      normalized.fieldRectangleName = safeAnnotationName(input.fieldRectangleName || input.entityName || normalized.fields?.[0]?.name) || "Field";
+      normalized.fieldRectangleConnectionSide = safeAnnotationFieldRectangleConnectionSide(input.fieldRectangleConnectionSide);
+      normalized.fill = input.fill === "none" ? "none" : safeColor(input.fill, "none");
+      normalized.stroke = safeColor(input.stroke, defaultFieldRectangleStroke);
+      normalized.strokeWidth = clampNumber(positiveNumber(input.strokeWidth, 2), 1, 40);
+      normalized.entityHeaderFill = safeColor(input.entityHeaderFill, defaultEntityFill);
+      normalized.entityNameTextColor = safeColor(input.entityNameTextColor, defaultEntityTextColor);
+      syncAnnotationFieldRectangle(normalized);
+    }
   }
   return normalized;
 }
@@ -12430,6 +13611,7 @@ function annotationObjectLabel(object) {
     textbox: "Text box",
     "rich-text": "Rich text",
     entity: "Entity",
+    [fieldMappingTableObjectType]: "Field Mapping Table",
     [entityRelationshipsObjectType]: "Entity Relationships"
   }[object.type] || "Object";
 }

@@ -17,7 +17,7 @@ import {
   projectStatusMetricsHtml,
   statusColor
 } from "../../components/progress-and-status.js?v=20260714-linked-bug-percent";
-import { sectionHead } from "../../components/sections.js?v=release-notes-2026-07-24-day-36-c768b4298cb2";
+import { sectionHead } from "../../components/sections.js?v=release-notes-2026-07-24-day-36-60e81e5b5748";
 import { state } from "../../core/store.js";
 import { toDateInput } from "../../shared/dates.js?v=20260620-null-end-date";
 import { canAccessResource } from "../../shared/security.js?v=20260715-admin-impersonation";

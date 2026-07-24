@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { releaseNotes } from "../../wwwroot/js/shared/release-notes-data.js";
 
 const recycleInventory = [
   {
@@ -242,10 +243,10 @@ test("Maintenance confirms only selected orphan paths before delete and rescans 
 });
 
 async function prepareMaintenancePage(page, handlers = {}) {
-  await page.addInitScript(() => {
+  await page.addInitScript(seenToken => {
     localStorage.clear();
-    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-22-day-35@b9e5ce970062");
-  });
+    localStorage.setItem("pmt-release-notes-last-seen:1", seenToken);
+  }, releaseNotes[0].seenToken);
   await page.route("**/api/login", async route => {
     await route.fulfill(jsonResponse({
       userId: 1,

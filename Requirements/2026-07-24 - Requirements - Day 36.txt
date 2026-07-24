@@ -98,7 +98,24 @@ Screen to Entity Field Mapping
 26.) Allow the user to generate or re-generate all Field Mapping Tables for all images (screenshots) on the canvas.
 27.) Prompt if they want to replace all of them (if there are existing) or generate new ones.
 28.) When a Field Mappint Table is selected, give the user an option to export it to Excel or CSV, or just copy the table data to the clipboard so they can paste it into Excel themselves.
+29.) Bug:  The field rectangle's relationship lines are rendering behind the image.
+30.) Bug:  The field rectangle is rendering it's field name in the center.  Don't render the field name and don't change anything else besides that.
+31.) Allow me to change the opacity of the field rectangle's relationship line.
+32.) Give me an option to select a field rectangle's relationship line and then make it a "Set Default Style" button that takes the current field rectangle relationship's formatting and make that the new one going forward.
+33.) Add another button that says "Apply Default Style to All Lines" that does just that, apply the default style to all the Field Rectangle's Relationship lines.
 
+29.) Test the following basic functionality:
+	a.) Grab an entity from PMT's real database.
+	b.) Take a screen shot of a real PMT screen like the New Dev Task.
+	c.) Draw a rectangles some fields on the screen shot.
+	d.) Map the rectangles to the corresponding entity fields.
+	e.) Generate the Field Mapping Table.
+	f.) Hover on a UI field value in the Field Mapping Table and see the corresponding rectangle and relationship line highlighted on the canvas.
+	g.) Double click on a UI field value in the Field Mapping Table and see the corresponding rectangle highlighted and scrolled into view on the canvas.
+	h.) Click on a UI field value in the Field Mapping Table and see the corresponding rectangle selected on the canvas.
+	j.) Change the formatting of the Field Mapping Table and see the changes reflected in the table.
+	k.) Generate a Field Mapping Table for a different screenshot/image on the canvas.
+	f.) Export the Field Mapping Table to Excel and CSV.
 
 
 What's New

@@ -1,12 +1,13 @@
 import { expect, test } from "@playwright/test";
+import { releaseNotes } from "../../wwwroot/js/shared/release-notes-data.js";
 
 test("Admin can confirm reuse of an archived project code without changing the requested code", async ({ page }) => {
   const saveRequests = [];
 
-  await page.addInitScript(() => {
+  await page.addInitScript(seenToken => {
     localStorage.clear();
-    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-22-day-35@b9e5ce970062");
-  });
+    localStorage.setItem("pmt-release-notes-last-seen:1", seenToken);
+  }, releaseNotes[0].seenToken);
   await page.route("**/api/login", async route => {
     await route.fulfill(jsonResponse({
       userId: 1,
@@ -71,10 +72,10 @@ test("a stale Project save is rejected and can be preserved as a new Project", a
   const updateRequests = [];
   const createRequests = [];
 
-  await page.addInitScript(() => {
+  await page.addInitScript(seenToken => {
     localStorage.clear();
-    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-22-day-35@b9e5ce970062");
-  });
+    localStorage.setItem("pmt-release-notes-last-seen:1", seenToken);
+  }, releaseNotes[0].seenToken);
   await page.route("**/api/login", async route => {
     await route.fulfill(jsonResponse({
       userId: 1,

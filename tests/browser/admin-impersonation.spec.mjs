@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { releaseNotes } from "../../wwwroot/js/shared/release-notes-data.js";
 
 test("cookie session impersonation isolates preferences and records the Settings Audit Trail", async ({ page, context }) => {
   const admin = user(1, "Louiery", "Sincioco", "Sin", "Admin", true);
@@ -11,15 +12,15 @@ test("cookie session impersonation isolates preferences and records the Settings
   const sessionCookies = [];
   const auditEvents = [];
 
-  await page.addInitScript(() => {
+  await page.addInitScript(seenToken => {
     if (sessionStorage.getItem("pmt-test-preferences-initialized")) return;
     sessionStorage.setItem("pmt-test-preferences-initialized", "true");
     localStorage.clear();
     localStorage.setItem("pmt-auth-user", "999");
     localStorage.setItem("pmt-theme", "dark");
     localStorage.setItem("pmt-task-project", "10");
-    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-22-day-35@b9e5ce970062");
-  });
+    localStorage.setItem("pmt-release-notes-last-seen:1", seenToken);
+  }, releaseNotes[0].seenToken);
 
   await page.route("**/api/session", async route => {
     recordIdentity(route, identityHeaders);

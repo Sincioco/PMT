@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { releaseNotes } from "../../wwwroot/js/shared/release-notes-data.js";
 
 const invitationToken = "ab".repeat(32);
 const invitationExpiresAt = "2026-08-12T12:00:00Z";
@@ -24,10 +25,10 @@ test("Invite Users generates copyable URL and Outlook-safe email HTML", async ({
   const createStarted = new Promise(resolve => { markCreateStarted = resolve; });
   const createCanFinish = new Promise(resolve => { releaseCreateResponse = resolve; });
 
-  await page.addInitScript(() => {
+  await page.addInitScript(seenToken => {
     localStorage.clear();
-    localStorage.setItem("pmt-release-notes-last-seen:1", "2026-07-22-day-35@b9e5ce970062");
-  });
+    localStorage.setItem("pmt-release-notes-last-seen:1", seenToken);
+  }, releaseNotes[0].seenToken);
   await installCommonApiMocks(page, () => appState);
   await page.route("**/api/session", async route => {
     await route.fulfill(jsonResponse(sessionPayload(admin)));
@@ -173,10 +174,10 @@ for (const scenario of destinationScenarios) {
     const acceptStarted = new Promise(resolve => { markAcceptStarted = resolve; });
     const acceptCanFinish = new Promise(resolve => { releaseAcceptResponse = resolve; });
 
-    await page.addInitScript(() => {
+    await page.addInitScript(seenToken => {
       localStorage.clear();
-      localStorage.setItem("pmt-release-notes-last-seen:42", "2026-07-22-day-35@b9e5ce970062");
-    });
+      localStorage.setItem("pmt-release-notes-last-seen:42", seenToken);
+    }, releaseNotes[0].seenToken);
     await installCommonApiMocks(
       page,
       () => appState,

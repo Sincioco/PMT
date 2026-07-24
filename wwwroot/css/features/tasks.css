@@ -128,6 +128,8 @@ html[data-theme="light"] .tasks-screen.work-item-screen .section-head h1 {
 
 .task-header-search-input {
   width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
   height: var(--touch-target-min);
   min-height: var(--touch-target-min);
   padding: 0 12px 0 42px !important;
