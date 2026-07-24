@@ -1,5 +1,5 @@
 /*
-    PMT Version 1.26 base seed data.
+    PMT Version 1.27 base seed data.
 
     This script resets disposable development data, then seeds shared data:
     - Users
@@ -57,6 +57,8 @@ IF OBJECT_ID(N'[pmt].[UserPermissions]', N'U') IS NOT NULL DELETE FROM [pmt].[Us
 IF OBJECT_ID(N'[pmt].[RolePermissions]', N'U') IS NOT NULL DELETE FROM [pmt].[RolePermissions];
 IF OBJECT_ID(N'[pmt].[SecurityResources]', N'U') IS NOT NULL DELETE FROM [pmt].[SecurityResources];
 IF OBJECT_ID(N'[pmt].[UserImageAnnotationTemplateLibraries]', N'U') IS NOT NULL DELETE FROM [pmt].[UserImageAnnotationTemplateLibraries];
+IF OBJECT_ID(N'[pmt].[Suggestions]', N'U') IS NOT NULL DELETE FROM [pmt].[Suggestions];
+IF OBJECT_ID(N'[pmt].[PublicBlogLinks]', N'U') IS NOT NULL DELETE FROM [pmt].[PublicBlogLinks];
 DELETE FROM [pmt].[BlogAttachments];
 DELETE FROM [pmt].[BlogHistory];
 DELETE FROM [pmt].[TaskAttachments];

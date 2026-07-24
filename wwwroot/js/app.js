@@ -1,4 +1,4 @@
-import { api } from "./core/api.js";
+import { api } from "./core/api.js?v=20260725-public-link-v1";
 import { currentUserId } from "./core/authentication.js?v=20260715-admin-impersonation";
 import { avatarsHtml, taskRowAvatarsHtml } from "./components/avatars.js?v=20260710-nav-avatar-fit";
 import { bindAttachmentDeletion } from "./components/attachments.js?v=20260714-attachment-delete";
@@ -9,8 +9,8 @@ import {
   buildAnnotationSvg,
   parseAnnotationSvg,
   openImageAnnotationDialog
-} from "./components/image-annotation.js?v=20260721-diagram-viewer-wheel-v1";
-import { createWhatsNew } from "./components/whats-new.js?v=release-notes-2026-07-22-day-35-b9e5ce970062";
+} from "./components/image-annotation.js?v=20260724-day36-v3";
+import { createWhatsNew } from "./components/whats-new.js?v=20260724-day36-v1";
 import {
   htmlWithoutUserMentionMarkup,
   initializeUserMentions
@@ -25,9 +25,11 @@ import {
   resetDialogLayoutPreference,
   restoreDialogLayout,
   setDialogLayoutStorageKey
-} from "./components/dialogs.js?v=20260715-save-collision-v2";
+} from "./components/dialogs.js?v=20260724-day36-v1";
 import {
   field,
+  richTextField,
+  richValue,
   value
 } from "./components/forms.js?v=20260722-rte-toggle-state-v1";
 import { configureProgressAndStatus } from "./components/progress-and-status.js?v=20260714-linked-bug-percent";
@@ -36,7 +38,7 @@ import {
   showTaskAudit,
   viewWorkItem
 } from "./components/work-items.js?v=20260722-rich-entity-mentions-v1";
-import { createApplicationShell } from "./core/application-shell.js?v=20260722-auth-flyby-v1";
+import { createApplicationShell } from "./core/application-shell.js?v=20260725-suggestions-v2";
 import {
   currentView,
   ensureCurrentViewRoute,
@@ -45,13 +47,13 @@ import {
   routeForContent,
   routeForView,
   updateBrowserUrl
-} from "./core/router.js?v=20260718-diagram-library-v8";
+} from "./core/router.js?v=20260725-suggestions-v1";
 import {
   registeredScreenHandlers,
   registerScreen,
   screenHandlerFor,
   screenRegistry
-} from "./core/screen-registry.js?v=20260718-diagram-library-v7";
+} from "./core/screen-registry.js?v=20260725-suggestions-v1";
 import {
   preferenceKeys,
   readBooleanPreference,
@@ -66,23 +68,24 @@ import {
 } from "./features/about/about.js?v=20260722-login-flyby-v1";
 import { createBacklogFeature } from "./features/backlog/backlog.js?v=20260720-work-item-export-images-v4";
 import { createBoardFeature } from "./features/board/board.js?v=20260722-rich-entity-mentions-v1";
-import { createBugsFeature } from "./features/bugs/bugs.js?v=20260722-rte-toggle-state-v1";
-import { createDashboardFeature } from "./features/dashboard/dashboard.js?v=release-notes-2026-07-22-day-35-b9e5ce970062";
-import { createDiagramFeature } from "./features/diagram/diagram.js?v=20260722-rich-entity-mentions-v1";
-import { createDocumentationFeature } from "./features/documentation/documentation.js?v=20260722-rich-entity-mentions-v1";
+import { createBugsFeature } from "./features/bugs/bugs.js?v=20260724-day36-v3";
+import { createDashboardFeature } from "./features/dashboard/dashboard.js?v=release-notes-2026-07-24-day-36-c768b4298cb2";
+import { createDiagramFeature } from "./features/diagram/diagram.js?v=20260725-day36-v7";
+import { createDocumentationFeature } from "./features/documentation/documentation.js?v=20260725-day36-v5";
 import {
   createGanttFeature,
   currentSprintForProject,
   ganttStartDate
-} from "./features/gantt/gantt.js?v=release-notes-2026-07-22-day-35-b9e5ce970062";
+} from "./features/gantt/gantt.js?v=release-notes-2026-07-24-day-36-c768b4298cb2";
 import { createInvitationsFeature } from "./features/invitations/invitations.js?v=20260722-auth-flyby-v1";
 import { createProjectsFeature } from "./features/projects/projects.js?v=20260719-day32-rte-diagram";
-import { createReleaseNotesFeature } from "./features/release-notes/release-notes.js?v=release-notes-2026-07-22-day-35-b9e5ce970062";
-import { createRoadMapFeature } from "./features/roadmap/roadmap.js?v=release-notes-2026-07-22-day-35-b9e5ce970062";
+import { createReleaseNotesFeature } from "./features/release-notes/release-notes.js?v=release-notes-2026-07-24-day-36-c768b4298cb2";
+import { createRoadMapFeature } from "./features/roadmap/roadmap.js?v=release-notes-2026-07-24-day-36-c768b4298cb2";
 import { createLogFeature } from "./features/personal-log/log.js?v=20260722-rte-toggle-state-v1";
 import { createScrumFeature } from "./features/scrum/scrum.js?v=20260722-ole-viewport-v1";
-import { createSettingsFeature } from "./features/settings/settings.js?v=20260720-clear-preferences-logout-v1";
+import { createSettingsFeature } from "./features/settings/settings.js?v=20260725-suggestions-v1";
 import { createSprintsFeature } from "./features/sprints/sprints.js?v=20260719-day32-rte-diagram";
+import { createSuggestionsFeature } from "./features/suggestions/suggestions.js?v=20260725-day36-v1";
 import { createTasksFeature } from "./features/tasks/tasks.js?v=20260722-rte-toggle-state-v1";
 import { createWfhScheduleFeature } from "./features/wfh-schedule/wfh-schedule.js?v=20260720-work-item-export-images-v4";
 import {
@@ -267,6 +270,8 @@ const shell = createApplicationShell({
   editPassword,
   hasPendingInvitation: () => invitationsFeature?.hasPendingInvitation(),
   inviteUsers: () => invitationsFeature?.openInviteDialog(),
+  openSuggestion: () => openSuggestionDialog(),
+  openWhatsNew: () => whatsNew?.showAll(),
   // prepareRender,
   refreshLookupOptions,
   clearLoginBackground: clearAuthFlyby,
@@ -472,6 +477,16 @@ const logFeature = createLogFeature({
   showReadOnlyDialog,
   showToast
 });
+const suggestionsFeature = createSuggestionsFeature({
+  app,
+  loadState,
+  loadSuggestions: () => api("/api/suggestions", { cache: "no-store" }),
+  openSuggestion: suggestion => openSuggestionDialog(suggestion),
+  render,
+  saveJson,
+  showReadOnlyDialog,
+  showToast
+});
 const documentationFeature = createDocumentationFeature({
   app,
   attachFile,
@@ -542,6 +557,7 @@ registerScreen("Documentation", documentationFeature);
 registerScreen("WFH Schedule", wfhScheduleFeature);
 registerScreen("Diagram", diagramFeature);
 registerScreen("Release Notes", releaseNotesFeature);
+registerScreen("Suggestions", suggestionsFeature);
 
 document.getElementById("closeDialog").addEventListener("click", () => dialog.close());
 document.getElementById("cancelDialog").addEventListener("click", () => dialog.close());
@@ -738,6 +754,7 @@ function renderCurrentScreen() {
   if (currentView !== "Backlog") backlogFeature.deactivate();
   if (currentView !== "Scrum") scrumFeature.deactivate();
   if (currentView !== "Log") logFeature.deactivate();
+  if (currentView !== "Suggestions") suggestionsFeature.deactivate?.();
   if (currentView !== "Documentation") documentationFeature.deactivate?.();
   if (currentView !== "Diagram") diagramFeature.deactivate();
 
@@ -2157,6 +2174,35 @@ function editPassword() {
   });
 }
 
+function openSuggestionDialog(suggestion = {}) {
+  const suggestionId = Number(suggestion.id || 0);
+  openEditor(suggestionId ? "Edit Suggestion" : "Suggestion", `
+    <div class="form-grid">
+      ${richTextField("bodyHtml", "Suggestion", suggestion.bodyHtml || "", { required: true })}
+    </div>
+  `, async root => {
+    const editor = root.querySelector("[data-rich='bodyHtml']");
+    if (!richEditorHasContent(editor)) throw new Error("Suggestion text is required.");
+    const payload = {
+      id: suggestionId,
+      bodyHtml: richValue(root, "bodyHtml"),
+      expectedRowVersion: suggestionId ? suggestion.rowVersion || null : undefined
+    };
+    await saveJson(suggestionId ? `/api/suggestions/${suggestionId}` : "/api/suggestions", suggestionId ? "PUT" : "POST", payload, {
+      saveAsNew: true,
+      canCreate: true,
+      createPath: "/api/suggestions"
+    });
+  }, "bodyHtml");
+}
+
+function richEditorHasContent(editor) {
+  return Boolean(
+    (editor?.textContent || "").trim()
+      || editor?.querySelector?.("img, table, video, iframe, svg, [data-pmt-ole]")
+  );
+}
+
 function resetUserPassword(user) {
   if (!user?.id) return;
   if (dialog.open) dialog.close();
@@ -2867,7 +2913,7 @@ function syncRichCollapsibleReadonlyOpenAction(block) {
   if (!button) return;
 
   const readOnlyOpen = richCollapsibleReadonlyOpen(block);
-  const label = readOnlyOpen ? "Starts Open" : "Starts Collapsed";
+  const label = readOnlyOpen ? "Read: Expanded" : "Read: Collapsed";
   if (button.textContent !== label) button.textContent = label;
   button.setAttribute("aria-pressed", String(readOnlyOpen));
   button.setAttribute("title", readOnlyOpen
@@ -4574,7 +4620,7 @@ function askForCollapsibleBlock(options = {}) {
           </div>
           <label class="rich-code-readonly-open-option">
             <input type="checkbox" name="collapsibleReadOnlyOpen"${readOnlyOpen ? " checked" : ""}>
-            <span>Initially expanded in read-only mode</span>
+            <span>Start expanded when rendered in read-only mode</span>
           </label>
         </div>
         <div class="dialog-actions">

@@ -230,6 +230,26 @@
   cursor: crosshair !important;
 }
 
+.image-annotation-workspace[data-annotation-tool="crop"]:not(.is-panning) .image-annotation-handle[data-annotation-handle="nw"],
+.image-annotation-workspace[data-annotation-tool="crop"]:not(.is-panning) .image-annotation-handle[data-annotation-handle="se"] {
+  cursor: nwse-resize !important;
+}
+
+.image-annotation-workspace[data-annotation-tool="crop"]:not(.is-panning) .image-annotation-handle[data-annotation-handle="ne"],
+.image-annotation-workspace[data-annotation-tool="crop"]:not(.is-panning) .image-annotation-handle[data-annotation-handle="sw"] {
+  cursor: nesw-resize !important;
+}
+
+.image-annotation-workspace[data-annotation-tool="crop"]:not(.is-panning) .image-annotation-handle[data-annotation-handle="n"],
+.image-annotation-workspace[data-annotation-tool="crop"]:not(.is-panning) .image-annotation-handle[data-annotation-handle="s"] {
+  cursor: ns-resize !important;
+}
+
+.image-annotation-workspace[data-annotation-tool="crop"]:not(.is-panning) .image-annotation-handle[data-annotation-handle="e"],
+.image-annotation-workspace[data-annotation-tool="crop"]:not(.is-panning) .image-annotation-handle[data-annotation-handle="w"] {
+  cursor: ew-resize !important;
+}
+
 .image-annotation-workspace[data-annotation-tool="rectangle"],
 .image-annotation-workspace[data-annotation-tool="circle"],
 .image-annotation-workspace[data-annotation-tool="arrow"],
@@ -680,6 +700,7 @@
   max-height: 360px;
   gap: 2px;
   overflow-y: auto;
+  scrollbar-gutter: stable;
 }
 
 .image-annotation-generate-pmt-schema {
@@ -690,13 +711,13 @@
 .image-annotation-entity-field-columns,
 .image-annotation-entity-fields .image-annotation-entity-field-row {
   display: grid;
-  grid-template-columns: 14px minmax(0, 1fr) 22px 22px 30px 38px;
+  grid-template-columns: 14px minmax(0, 1fr) 22px 22px 64px 38px;
   align-items: center;
   gap: var(--space-1);
 }
 
 .image-annotation-entity-field-columns {
-  padding: 0 calc(var(--space-1) + var(--image-annotation-entity-field-scrollbar-width, 0px)) 2px var(--space-2);
+  padding: 0 calc(var(--space-1) + var(--image-annotation-entity-field-scrollbar-width, 17px)) 2px var(--space-2);
   color: var(--color-text-tertiary);
   font-size: 10px;
   font-weight: var(--font-weight-semibold);
@@ -705,6 +726,10 @@
 
 .image-annotation-entity-field-columns span:nth-child(2) {
   text-align: left;
+}
+
+.image-annotation-entity-field-columns span:nth-child(n+3) {
+  justify-self: center;
 }
 
 .image-annotation-entity-field-column-toggle,
@@ -747,7 +772,8 @@
 .image-annotation-entity-field-checkbox {
   width: 14px;
   height: 14px;
-  margin: 0 auto;
+  justify-self: start;
+  margin: 0;
 }
 
 .image-annotation-entity-field-map {

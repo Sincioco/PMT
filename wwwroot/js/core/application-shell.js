@@ -9,12 +9,12 @@ import {
   restoreSession
 } from "./authentication.js?v=20260715-admin-impersonation";
 import { overflowIconHtml } from "../components/buttons.js?v=20260715-admin-impersonation";
-import { navIconHtml } from "./navigation-preferences.js?v=20260718-diagram-library-v8";
+import { navIconHtml } from "./navigation-preferences.js?v=20260725-suggestions-v1";
 import {
   preferenceKeys,
   writePreference
 } from "./preferences.js";
-import { currentView, getNavigationScreens, navigate } from "./router.js?v=20260718-diagram-library-v8";
+import { currentView, getNavigationScreens, navigate } from "./router.js?v=20260725-suggestions-v1";
 import { loadState, state } from "./store.js";
 import { appUrl } from "../shared/app-urls.js";
 
@@ -26,6 +26,8 @@ export function createApplicationShell({
   editPassword,
   hasPendingInvitation,
   inviteUsers,
+  openSuggestion,
+  openWhatsNew,
   prepareRender,
   refreshLookupOptions,
   clearLoginBackground,
@@ -185,6 +187,18 @@ export function createApplicationShell({
       if (event.target.closest("button[data-action='invite-users']")) {
         closeUserMenu();
         inviteUsers?.();
+        return;
+      }
+
+      if (event.target.closest("button[data-action='suggestion']")) {
+        closeUserMenu();
+        openSuggestion?.();
+        return;
+      }
+
+      if (event.target.closest("button[data-action='whats-new']")) {
+        closeUserMenu();
+        openWhatsNew?.();
       }
     });
 
@@ -259,6 +273,9 @@ export function createApplicationShell({
     document.getElementById("loginButton").addEventListener("click", submitLogin);
     document.getElementById("loginPassword").addEventListener("keydown", event => {
       if (event.key === "Enter") submitLogin();
+    });
+    requestAnimationFrame(() => {
+      document.getElementById("loginName")?.focus({ preventScroll: true });
     });
   }
 

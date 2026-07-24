@@ -1295,6 +1295,93 @@ body.has-pmt-diagram-ole-maximized {
   white-space: nowrap;
 }
 
+.public-link-duration-dialog {
+  width: min(420px, calc(100vw - 32px));
+}
+
+.public-link-duration-dialog .dialog-body {
+  padding-block: var(--space-5);
+}
+
+.public-link-options {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.public-link-options legend {
+  margin-bottom: var(--space-3);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+}
+
+.public-link-option {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 38px;
+  padding: 0 var(--space-4);
+  border: var(--border-width) solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  color: var(--color-text-primary);
+  cursor: pointer;
+}
+
+.public-link-option:hover,
+.public-link-option:focus-within {
+  border-color: var(--color-border-strong);
+  background: var(--color-control-hover);
+}
+
+.public-link-option input {
+  flex: 0 0 auto;
+  margin: 0;
+}
+
+.public-link-url-field {
+  margin-top: var(--space-4);
+}
+
+.public-link-url-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.public-link-url-row input {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-family: Consolas, "Courier New", monospace;
+  font-size: var(--font-size-sm);
+}
+
+.public-link-url-row button {
+  flex: 0 0 auto;
+}
+
+.public-link-status {
+  min-height: 18px;
+  margin-top: var(--space-2);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+}
+
+.public-link-status.is-success {
+  color: var(--color-success-text);
+}
+
+.public-link-status.is-warning {
+  color: var(--color-warning-text);
+}
+
+.public-link-status.is-error {
+  color: var(--color-danger-text);
+}
+
 .rich-image-menu.dropdown-menu {
   position: fixed;
   inset: auto;

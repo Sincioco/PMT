@@ -2,11 +2,11 @@
 
 ## Current Production Baseline
 
-As of July 21, 2026, PMT Database Version 1.25 and its matching application release are deployed to BDO Production and every other known PMT instance. Version 1.25 is the deployed baseline. Protecting the data and stability of those instances is the top priority.
+As of July 24, 2026, PMT Database Version 1.26 and its matching application release are deployed to BDO Production and every other known PMT instance. Version 1.26 is the deployed baseline. Protecting the data and stability of those instances is the top priority.
 
-Future work does not need new upgrade compatibility for database versions before 1.25. Keep released migrations, combined runners, and deployment runbooks through Version 1.25 under `SQL/Migrations/Migration History/`. Start the next forward migration from Version 1.25; after a later version is deployed to every known instance, that version becomes the new baseline.
+Future work does not need new upgrade compatibility for database versions before 1.26. Keep released migrations, combined runners, and deployment runbooks through Version 1.26 under `SQL/Migrations/Migration History/`. Start the next forward migration from Version 1.26; after a later version is deployed to every known instance, that version becomes the new baseline.
 
-The current source tree and fresh-rebuild scripts represent Version 1.26. Version 1.26 adds public PMT tutorial Documentation pages for Mentions and Live Cards, Diagrams, ERDs, and Image Annotations to the permanent PMT seed and to existing installs through a forward migration. Version 1.25 adds `[pmt].[GameScores]` plus `[pmt].[AddGameScore]` and `[pmt].[GetGameScores]` so shared game leaderboards can persist scores by game key and signed-in PMT user. Version 1.24 keeps the deployed Version 1.23 schema contract and refreshes the seeded public `PMT's Database Schema` Diagram so its Blog body references the current cache-versioned bundled `/assets/docs/pmt-database-schema.svg` file and duplicate seeded schema Diagram rows are soft-deleted. Version 1.23 preserved BDO's former PMT Project as `PMTQA`, restored the original SQL-seeded `PMT` Project for demos, recreated missing demo identities without public default passwords, adapted demo Bug values to active BDO lookups, seeded current-month vacation examples for shared PMT/LMS/HLS demo members and 13 shared image-annotation templates for every user, persisted manual Diagram hierarchy order through `[pmt].[Blogs].[SortOrder]` and `[pmt].[MoveBlog]`, cleared existing Documentation and Diagram pins while pinning is disabled, seeded the unpinned public database-schema Diagram with all current `[pmt]` tables and foreign-key mappings, and exposed the connected database's current `[pmt]` catalog through `[pmt].[GetPmtDatabaseSchema]` for on-demand Diagram generation by users with Documentation/Create permission. The schema Diagram SVG remains outside SQL and does not create an upload-folder file:
+The current source tree and fresh-rebuild scripts represent Version 1.27. Version 1.27 adds `[pmt].[Suggestions]` plus `[pmt].[AddSuggestion]` for user-submitted PMT suggestions, `[pmt].[PublicBlogLinks]` plus `[pmt].[CreatePublicBlogLink]` and `[pmt].[GetPublicBlog]` for GUID-based anonymous read-only public Document and Diagram links with optional expiration, and an `[pmt].[UpsertTask]` rule that lets a developer pull a linked Dev Task back from Ready for QA to In Progress when QA has not touched the linked Bug. Version 1.26 adds public PMT tutorial Documentation pages for Mentions and Live Cards, Diagrams, ERDs, and Image Annotations to the permanent PMT seed and to existing installs through a forward migration. Version 1.25 adds `[pmt].[GameScores]` plus `[pmt].[AddGameScore]` and `[pmt].[GetGameScores]` so shared game leaderboards can persist scores by game key and signed-in PMT user. Version 1.24 keeps the deployed Version 1.23 schema contract and refreshes the seeded public `PMT's Database Schema` Diagram so its Blog body references the current cache-versioned bundled `/assets/docs/pmt-database-schema.svg` file and duplicate seeded schema Diagram rows are soft-deleted. Version 1.23 preserved BDO's former PMT Project as `PMTQA`, restored the original SQL-seeded `PMT` Project for demos, recreated missing demo identities without public default passwords, adapted demo Bug values to active BDO lookups, seeded current-month vacation examples for shared PMT/LMS/HLS demo members and 13 shared image-annotation templates for every user, persisted manual Diagram hierarchy order through `[pmt].[Blogs].[SortOrder]` and `[pmt].[MoveBlog]`, cleared existing Documentation and Diagram pins while pinning is disabled, seeded the unpinned public database-schema demo Diagram with all current `[pmt]` tables and foreign-key mappings, and exposed the connected database's current `[pmt]` catalog through `[pmt].[GetPmtDatabaseSchema]` for on-demand Diagram generation by users with Documentation/Create permission. The schema Diagram SVG remains outside SQL and does not create an upload-folder file:
 
 - `SQL/01_CreateDatabase.sql`
 - `SQL/02_CreateStoredProcedures.sql`
@@ -18,15 +18,15 @@ The current source tree and fresh-rebuild scripts represent Version 1.26. Versio
 - `SQL/03_SeedData_DiagramDemo.sql`
 - `SQL/00_DropAndRebuild_PMT.sql`
 
-Deployed databases record `PMT_DatabaseVersion = 1.25`. The current source schema and fresh rebuilds record `PMT_DatabaseVersion = 1.26`. The completed `PMT_1.23_to_1.24.sql` and `PMT_1.24_to_1.25.sql` steps, with `PMT_1.23_to_1.25_All.sql` as their combined runner, are historical artifacts under `SQL/Migrations/Migration History/`. The active forward migration is `SQL/Migrations/PMT_1.25_to_1.26.sql`, with `SQL/Migrations/PMT_1.25_to_1.26_All.sql` as the operator-facing runner. `PMT_SecurityRoleDefaultsVersion` remains `1.10`. Do not manually edit either version property.
+Deployed databases record `PMT_DatabaseVersion = 1.26`; fresh rebuilds record `PMT_DatabaseVersion = 1.27`. The active forward migration is `SQL/Migrations/PMT_1.26_to_1.27.sql`, and the operator-facing SQLCMD runner is `SQL/Migrations/PMT_1.26_to_1.27_All.sql`. The completed `PMT_1.25_to_1.26.sql` step, with `PMT_1.25_to_1.26_All.sql` as its combined runner, is a historical artifact under `SQL/Migrations/Migration History/`. `PMT_SecurityRoleDefaultsVersion` remains `1.10`. Do not manually edit either version property.
 
-All migrations, combined runners, and runbooks through Version 1.25 are historical artifacts under `SQL/Migrations/Migration History/`. The Version 1.20 step includes the one-time, `ProjectId`-authoritative correction of legacy generated-prefix Sprint and work-item codes under the PMT Project. Those scripts remain available for controlled reconstruction and audit only; do not rerun them on a current Version 1.25 installation.
+All migrations, combined runners, and runbooks through Version 1.26 are historical artifacts under `SQL/Migrations/Migration History/`. The Version 1.20 step includes the one-time, `ProjectId`-authoritative correction of legacy generated-prefix Sprint and work-item codes under the PMT Project. Those scripts remain available for controlled reconstruction and audit only; do not rerun them on a current Version 1.26 installation.
 
 Fresh development or demo databases may use the rebuild scripts. Existing user databases must be upgraded with forward migrations from their deployed baseline; a source-tree rebuild change does not upgrade production.
 
 ## Required Rule
 
-From the deployed PMT Database Version 1.25 baseline forward, any change that affects the database, its SQL contract, production data, or the stability of BDO's deployed instance through database state or behavior must include a forward migration script from the immediately preceding deployed version.
+From the deployed PMT Database Version 1.26 baseline forward, any change that affects the database, its SQL contract, production data, or the stability of BDO's deployed instance through database state or behavior must include a forward migration script from the immediately preceding deployed version.
 
 This includes changes to:
 
@@ -42,14 +42,14 @@ Changing `SQL/01_CreateDatabase.sql`, `SQL/02_CreateStoredProcedures.sql`, or se
 
 Place the active forward migration chain and its combined operator runner in `SQL/Migrations/`. Store completed migration scripts and HTML runbooks in `SQL/Migrations/Migration History/`.
 
-Whenever a new deployed baseline is declared, automatically move every migration and runbook ending at or before that baseline into `Migration History/`. Keep only the forward chain from the declared baseline to the current source version, plus the matching combined runner, in the active directory. Version 1.25 is the deployed baseline and Version 1.26 is the current source version, so the 1.25-to-1.26 migration remains active.
+Whenever a new deployed baseline is declared, automatically move every migration and runbook ending at or before that baseline into `Migration History/`. Keep only the forward chain from the declared baseline to the current source version, plus the matching combined runner, in the active directory. Version 1.26 is the deployed baseline and Version 1.27 is the current source version, so `PMT_1.26_to_1.27.sql` and `PMT_1.26_to_1.27_All.sql` remain active until Version 1.27 is deployed everywhere.
 
 Use this naming pattern for the next steps:
 
 ```text
-PMT_1.25_to_1.26.sql
 PMT_1.26_to_1.27.sql
-PMT_1.25_to_1.27_All.sql
+PMT_1.27_to_1.28.sql
+PMT_1.26_to_1.28_All.sql
 ```
 
 Use one migration per released database-version step. Do not edit an already released migration except for comments or path maintenance that does not change database behavior.

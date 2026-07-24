@@ -1,4 +1,5 @@
 import { buttonContent, funnelIconHtml, pageActionsMenuHtml } from "../../components/buttons.js?v=20260717-multi-screen-header";
+import { api } from "../../core/api.js?v=20260725-public-link-v1";
 import {
   diagramCardHtml as sharedDiagramCardHtml
 } from "../../components/entity-cards.js?v=20260722-rich-entity-mentions-v1";
@@ -16,7 +17,8 @@ import {
   setAnnotationEntityCollapsedState,
   setAnnotationEntityDataTypeVisibility,
   zoomAnnotationAtPoint
-} from "../../components/image-annotation.js?v=20260721-diagram-viewer-wheel-v1";
+} from "../../components/image-annotation.js?v=20260724-day36-v3";
+import { openPublicLinkDialog } from "../../components/public-links.js?v=20260725-day36-v4";
 import {
   checkedFilterValues,
   filterCheckList,
@@ -40,8 +42,8 @@ import { formatDate } from "../../shared/dates.js";
 import { appUrl } from "../../shared/app-urls.js";
 import { canAccessResource } from "../../shared/security.js";
 import { escapeAttr, escapeHtml } from "../../shared/text-and-links.js";
-import { buildPmtDatabaseSchemaDiagram } from "./pmt-database-schema.js?v=20260722-rte-toggle-state-v1";
-import { createPmtDiagramFile, parsePmtDiagramFile } from "./pmt-diagram-file.js?v=20260722-rte-toggle-state-v1";
+import { buildPmtDatabaseSchemaDiagram } from "./pmt-database-schema.js?v=20260724-day36-v3";
+import { createPmtDiagramFile, parsePmtDiagramFile } from "./pmt-diagram-file.js?v=20260724-day36-v3";
 
 const diagramViewModes = new Set(["cards", "tree"]);
 const diagramSortModes = new Set(["latest", "oldest", "name", "custom"]);
@@ -213,6 +215,7 @@ export function createDiagramFeature({
           </div>
         </div>
         <div class="diagram-page-document-actions">
+          ${diagramPublicLinkButtonHtml(document, "secondary text-icon-button diagram-page-icon-action", "Public Link")}
           <button type="button" class="secondary text-icon-button diagram-page-icon-action" data-action="edit-diagram-info" data-id="${document.id}" title="Edit Info" aria-label="Edit Info" ${!canEdit || editingDocumentId ? "disabled" : ""}>
             ${buttonContent("&#9432;", "Edit Info")}
           </button>
@@ -409,6 +412,7 @@ export function createDiagramFeature({
         ${diagramTreeContextMenuItemHtml("edit-diagram-info", "Edit Info", "&#9432;", "data-diagram-context-requires-update")}
         ${diagramTreeContextMenuItemHtml("edit-diagram", "Edit Diagram", "&#9998;", "data-diagram-context-requires-update")}
         ${diagramTreeContextMenuItemHtml("duplicate-diagram", "Duplicate", "&#128203;", "data-diagram-context-requires-create")}
+        ${diagramTreeContextMenuItemHtml("copy-public-diagram-link", "Public Link", "&#128279;", "data-diagram-context-requires-public")}
         ${diagramTreeContextMenuItemHtml("download-diagram", "Download", diagramDownloadIconHtml())}
         ${diagramTreeContextMenuItemHtml("export-pmt-diagram", "Export PMT Diagram", "&#8681;")}
         ${diagramTreeContextMenuItemHtml("delete-diagram", "Delete", "&#128465;", "data-diagram-context-requires-delete", "is-danger")}
@@ -487,6 +491,11 @@ export function createDiagramFeature({
       if (document) await exportPmtDiagram(document);
       return true;
     }
+    if (action === "copy-public-diagram-link") {
+      const document = diagramDocuments().find(item => item.id === (id || selectedDiagramDocumentId));
+      if (document) await copyPublicDiagramLink(document, button);
+      return true;
+    }
     if (action === "edit-diagram") {
       const document = diagramDocuments().find(item => item.id === (id || selectedDiagramDocumentId));
       if (document) await editDiagram(document, { fullScreen: true });
@@ -530,6 +539,39 @@ export function createDiagramFeature({
     globalThis.document.body.appendChild(link);
     link.click();
     link.remove();
+  }
+
+  async function copyPublicDiagramLink(document) {
+    if (document?.isPrivate !== false) {
+      notify?.("Only public diagrams can be shared with a public link.");
+      return false;
+    }
+
+    return openPublicLinkDialog(async durationDays => {
+      const link = await api("/api/public-links", {
+        method: "POST",
+        body: JSON.stringify({
+          blogId: document.id,
+          durationDays
+        })
+      });
+      const token = String(link?.token || "").trim();
+      if (!token) throw new Error("The public link could not be created.");
+
+      return new URL(appUrl(`/public/diagram/${token}`), window.location.href).href;
+    }, {
+      notify,
+      copiedMessage: "Public diagram link copied.",
+      copyFailedMessage: "Public diagram link created. Copy it from the Public URL box."
+    });
+  }
+
+  function diagramPublicLinkButtonHtml(document, className = "icon-action", label = "") {
+    if (document?.isPrivate !== false) return "";
+    const content = label
+      ? buttonContent("&#128279;", label)
+      : `<span class="button-icon" aria-hidden="true">&#128279;</span>`;
+    return `<button class="${escapeAttr(className)}" type="button" data-action="copy-public-diagram-link" data-id="${document.id}" title="Public Link" aria-label="Public Link">${content}</button>`;
   }
 
   async function exportPmtDiagram(document) {
@@ -1065,6 +1107,9 @@ export function createDiagramFeature({
       });
       activeMenu.querySelectorAll("[data-diagram-context-requires-delete]").forEach(button => {
         button.disabled = !diagramCanDelete(document);
+      });
+      activeMenu.querySelectorAll("[data-diagram-context-requires-public]").forEach(button => {
+        button.disabled = document.isPrivate !== false;
       });
 
       activeMenu.hidden = false;

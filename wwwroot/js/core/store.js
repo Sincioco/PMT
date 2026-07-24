@@ -7,6 +7,7 @@ function createEmptyState() {
     sprints: [],
     tasks: [],
     devLogs: [],
+    suggestions: [],
     blogs: [],
     auditEvents: [],
     lookups: [],

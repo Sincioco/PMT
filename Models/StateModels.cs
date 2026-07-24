@@ -7,6 +7,7 @@ public sealed class AppState
     public List<SprintDto> Sprints { get; set; } = new();
     public List<WorkTaskDto> Tasks { get; set; } = new();
     public List<DevLogDto> DevLogs { get; set; } = new();
+    public List<SuggestionDto> Suggestions { get; set; } = new();
     public List<BlogPostDto> Blogs { get; set; } = new();
     public List<AuditEventDto> AuditEvents { get; set; } = new();
     public List<LookupDto> Lookups { get; set; } = new();

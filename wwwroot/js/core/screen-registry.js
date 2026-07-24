@@ -14,6 +14,7 @@ export const screenRegistry = Object.freeze([
   { view: "Backlog", label: "Backlog", feature: "backlog", showInNavigation: true },
   { view: "WFH Schedule", label: "WFH Schedule", feature: "wfh-schedule", showInNavigation: true },
   { view: "Release Notes", label: "Release Notes", feature: "release-notes", showInNavigation: true },
+  { view: "Suggestions", label: "Suggestions", feature: "suggestions", showInNavigation: true },
   { view: "About", label: "About", feature: "about", showInNavigation: true },
   { view: "Settings", label: "Settings", feature: "settings", showInNavigation: true }
 ]);

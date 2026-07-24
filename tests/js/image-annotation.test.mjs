@@ -648,7 +648,7 @@ test("entity parser reads the real PMT WorkTasks CREATE TABLE definition", () =>
   );
   assert.deepEqual(
     entity.foreignKeys.map(foreignKey => foreignKey.relationshipType),
-    Array(6).fill("one-to-many")
+    Array(6).fill("many-to-one")
   );
 });
 
@@ -668,7 +668,7 @@ test("entity parser reads the current PMT Blogs definition used by the prototype
     entity.foreignKeys.map(foreignKey => `${foreignKey.referencedSchema}.${foreignKey.referencedTable}`),
     ["pmt.Projects", "pmt.Sprints", "pmt.Blogs", "pmt.Users", "pmt.Users"]
   );
-  assert.ok(entity.foreignKeys.every(foreignKey => foreignKey.relationshipType === "one-to-many"));
+  assert.ok(entity.foreignKeys.every(foreignKey => foreignKey.relationshipType === "many-to-one"));
 });
 
 test("entity parser accepts newline and comma field lists without inventing data types", () => {
@@ -735,11 +735,11 @@ test("entity parser retains SSMS ALTER TABLE foreign keys and removes optional t
     referencedSchema: "pmt",
     referencedTable: "Parents",
     referencedColumns: ["ParentId"],
-    relationshipType: "one-to-many"
+    relationshipType: "many-to-one"
   }]);
 });
 
-test("entity parser marks inline SQL foreign keys as one-to-many", () => {
+test("entity parser marks inline SQL foreign keys as many-to-one", () => {
   const entity = parseAnnotationEntityDefinition(String.raw`
     CREATE TABLE pmt.Children (
       ChildId INT NOT NULL PRIMARY KEY,
@@ -747,7 +747,7 @@ test("entity parser marks inline SQL foreign keys as one-to-many", () => {
     );
   `);
 
-  assert.equal(entity.foreignKeys[0]?.relationshipType, "one-to-many");
+  assert.equal(entity.foreignKeys[0]?.relationshipType, "many-to-one");
 });
 
 test("entity identifier formatting removes optional brackets but keeps brackets required by spaces", () => {

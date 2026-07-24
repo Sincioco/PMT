@@ -3,7 +3,7 @@ import {
   readJsonPreference,
   writeJsonPreference
 } from "./preferences.js";
-import { screenRegistry } from "./screen-registry.js?v=20260718-diagram-library-v7";
+import { screenRegistry } from "./screen-registry.js?v=20260725-suggestions-v1";
 import { canReadView } from "../shared/security.js?v=20260718-diagram-entity-v22";
 
 const navigationVersion = 3;
@@ -130,12 +130,14 @@ function enforceFixedNavigationOrder(items) {
   const boardItem = items.find(item => item.view === "Board");
   const diagramItem = items.find(item => item.view === "Diagram");
   const logItem = items.find(item => item.view === "Log");
+  const suggestionsItem = items.find(item => item.view === "Suggestions");
   const aboutItem = items.find(item => item.view === "About");
   const settingsItem = items.find(item => item.view === "Settings");
   const orderedItems = items.filter(item =>
     item.view !== "Board"
     && item.view !== "Diagram"
     && item.view !== "Log"
+    && item.view !== "Suggestions"
     && item.view !== "About"
     && item.view !== "Settings");
 
@@ -154,6 +156,11 @@ function enforceFixedNavigationOrder(items) {
     const documentationIndex = orderedItems.findIndex(item => item.view === "Documentation");
     const insertIndex = diagramIndex >= 0 ? diagramIndex + 1 : documentationIndex >= 0 ? documentationIndex + 1 : orderedItems.length;
     orderedItems.splice(insertIndex, 0, logItem);
+  }
+
+  if (suggestionsItem) {
+    const releaseNotesIndex = orderedItems.findIndex(item => item.view === "Release Notes");
+    orderedItems.splice(releaseNotesIndex >= 0 ? releaseNotesIndex + 1 : orderedItems.length, 0, suggestionsItem);
   }
 
   if (aboutItem) orderedItems.push(aboutItem);
@@ -178,6 +185,7 @@ export function navIconHtml(view) {
     "WFH Schedule": "&#8962;",
     Diagram: "&#128208;",
     "Release Notes": "&#128227;",
+    Suggestions: "&#128161;",
     About: "&#9432;",
     Settings: "&#9881;"
   };

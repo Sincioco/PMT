@@ -74,6 +74,97 @@ public sealed partial class SqlPmtStore
         }, cancellationToken, lockBlogWrites: true);
     }
 
+    public Task<int> SaveSuggestionAsync(SuggestionInput input, int currentUserId, CancellationToken cancellationToken)
+    {
+        return ExecuteVersionedIdProcedureAsync("Suggestion", input.ExpectedRowVersion, "[pmt].[UpsertSuggestion]", "@SuggestionId", input.Id, command =>
+        {
+            Add(command, "@BodyHtml", SqlDbType.NVarChar, -1, input.BodyHtml);
+            Add(command, "@CurrentUserId", currentUserId);
+        }, cancellationToken);
+    }
+
+    public async Task<List<SuggestionDto>> GetSuggestionsAsync(CancellationToken cancellationToken)
+    {
+        await using var connection = await OpenConnectionAsync(cancellationToken);
+        await using var command = StoredProcedure(connection, "[pmt].[GetSuggestions]");
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+
+        var suggestions = new List<SuggestionDto>();
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            suggestions.Add(new SuggestionDto
+            {
+                Id = reader.GetInt32("SuggestionId"),
+                BodyHtml = reader.GetStringOrEmpty("BodyHtml"),
+                Status = reader.GetStringOrEmpty("Status"),
+                CreatedByUserId = reader.GetInt32("CreatedByUserId"),
+                UpdatedByUserId = reader.GetNullableInt32("UpdatedByUserId"),
+                CreatedAt = reader.GetUtcDateTime("CreatedAt"),
+                UpdatedAt = reader.GetUtcDateTime("UpdatedAt"),
+                RowVersion = reader.GetBytesOrEmpty("RowVersion")
+            });
+        }
+
+        return suggestions;
+    }
+
+    public async Task<PublicBlogLinkDto> CreatePublicBlogLinkAsync(PublicBlogLinkInput input, int currentUserId, CancellationToken cancellationToken)
+    {
+        await using var connection = await OpenConnectionAsync(cancellationToken);
+        await using var command = StoredProcedure(connection, "[pmt].[CreatePublicBlogLink]");
+        Add(command, "@BlogId", input.BlogId);
+        AddNullable(command, "@DurationDays", input.DurationDays);
+        Add(command, "@CurrentUserId", currentUserId);
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+
+        if (await reader.ReadAsync(cancellationToken))
+        {
+            return new PublicBlogLinkDto
+            {
+                Token = reader.GetGuid(reader.GetOrdinal("Token")),
+                ExpiresAt = reader.GetNullableUtcDateTime("ExpiresAt")
+            };
+        }
+
+        throw new InvalidOperationException("The public link could not be created.");
+    }
+
+    public async Task<BlogPostDto?> GetPublicBlogAsync(Guid token, CancellationToken cancellationToken)
+    {
+        await using var connection = await OpenConnectionAsync(cancellationToken);
+        await using var command = StoredProcedure(connection, "[pmt].[GetPublicBlog]");
+        command.Parameters.Add("@Token", SqlDbType.UniqueIdentifier).Value = token;
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+
+        BlogPostDto? blog = null;
+        if (await reader.ReadAsync(cancellationToken))
+        {
+            blog = new BlogPostDto
+            {
+                Id = reader.GetInt32("BlogId"),
+                ProjectId = reader.GetNullableInt32("ProjectId"),
+                SprintId = reader.GetNullableInt32("SprintId"),
+                ParentBlogId = reader.GetNullableInt32("ParentBlogId"),
+                Title = reader.GetStringOrEmpty("Title"),
+                BodyHtml = reader.GetStringOrEmpty("BodyHtml"),
+                IsPrivate = reader.GetBoolean("IsPrivate"),
+                IsPinned = reader.GetBoolean("IsPinned"),
+                SortOrder = reader.GetInt32("SortOrder"),
+                CreatedByUserId = reader.GetInt32("CreatedByUserId"),
+                CreatedAt = reader.GetUtcDateTime("CreatedAt"),
+                UpdatedAt = reader.GetUtcDateTime("UpdatedAt")
+            };
+        }
+
+        await reader.NextResultAsync(cancellationToken);
+        if (blog is not null)
+        {
+            blog.Attachments = await ReadAttachmentsAsync(reader, cancellationToken);
+        }
+
+        return blog;
+    }
+
     public async Task<string> DeleteBlogAttachmentAsync(int blogId, int attachmentId, int currentUserId, CancellationToken cancellationToken)
     {
         await using var connection = await OpenConnectionAsync(cancellationToken);

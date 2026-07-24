@@ -54,6 +54,18 @@ public sealed class BlogHistoryDto
     public DateTime CreatedAt { get; set; }
 }
 
+public sealed class SuggestionDto
+{
+    public int Id { get; set; }
+    public string BodyHtml { get; set; } = "";
+    public string Status { get; set; } = "New";
+    public int CreatedByUserId { get; set; }
+    public int? UpdatedByUserId { get; set; }
+    public DateTime CreatedAt { get; set; }
+    public DateTime UpdatedAt { get; set; }
+    public byte[] RowVersion { get; set; } = Array.Empty<byte>();
+}
+
 public sealed class DevLogInput
 {
     public int Id { get; set; }
@@ -84,6 +96,25 @@ public sealed class MoveBlogInput
 {
     public int? ParentBlogId { get; set; }
     public List<int> OrderedBlogIds { get; set; } = new();
+}
+
+public sealed class SuggestionInput
+{
+    public int Id { get; set; }
+    public string BodyHtml { get; set; } = "";
+    public byte[]? ExpectedRowVersion { get; set; }
+}
+
+public sealed class PublicBlogLinkInput
+{
+    public int BlogId { get; set; }
+    public int? DurationDays { get; set; }
+}
+
+public sealed class PublicBlogLinkDto
+{
+    public Guid Token { get; set; }
+    public DateTime? ExpiresAt { get; set; }
 }
 
 public sealed class UploadResult

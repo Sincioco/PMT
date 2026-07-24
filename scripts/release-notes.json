@@ -1449,5 +1449,55 @@
         ]
       }
     ]
+  },
+  {
+    "day": 36,
+    "title": "Public Sharing, Suggestions, and Diagram Refinements",
+    "sections": [
+      {
+        "title": "Public Documents and Diagrams",
+        "items": [
+          "Let users create GUID-based public links for public Documents and public Diagrams so people outside PMT can view shared content without a PMT login.",
+          "Ask whether a public link is valid forever or expires after 15, 30, 60, or 90 days, and keep the generated URL visible in the dialog for manual copying.",
+          "Show public Diagrams with the Linked Diagram viewer sized to fill the available browser content area, including Fit, Reset, Zoom, and Maximize controls.",
+          "Display useful public viewer metadata such as created or last-modified date/time instead of a generic Public Diagram label."
+        ]
+      },
+      {
+        "title": "Suggestions and What's New",
+        "items": [
+          "Add a Suggestion action under the user avatar menu with a focused rich text editor so users can include formatted text and pictures.",
+          "Add a public Suggestions screen after Release Notes using the familiar Log-style table for browsing, viewing, editing, and duplicating suggestions.",
+          "Move What's New into the avatar menu while still letting users browse the complete release history from the beginning.",
+          "Refresh What's New so the latest entry highlights outside-PMT public sharing and the new Suggestion feature."
+        ]
+      },
+      {
+        "title": "Bug Tracking, Filters, and Authentication",
+        "items": [
+          "Expand Bug Tracking report export fields with Bug ID, Created By/date/time, and last-modified by/date/time, placing Bug ID near Sprint by default.",
+          "Let Dev Tasks and Bug Tracking filters select multiple Status, Priority, Severity, and Environment values with no selection meaning all values.",
+          "Allow developers to move a Ready for QA Dev Task back to In Progress when QA has not updated the linked Bug ticket.",
+          "Remember internal PMT users longer so they are not prompted to sign in every day, and focus Nickname or Email by default on the login screen."
+        ]
+      },
+      {
+        "title": "Diagram and Rich Text Editing",
+        "items": [
+          "Align Entity PK, FK, and Important headers with their checkbox columns and rename Imp. to Important.",
+          "Improve image cropping so the selected image handles become crop handles, crop mode stays active until toggled off, and the old gray image bounds are not left behind.",
+          "Enumerate duplicated Diagram object names, allow font sizes down to 1, remove field mappings, and support many-to-one mappings with the correct relationship endpoint symbols.",
+          "Let rich-text expand/collapse blocks specify their initial expanded or collapsed read-mode state while editing."
+        ]
+      },
+      {
+        "title": "Release Readiness",
+        "items": [
+          "Advance the database to Version 1.27 with a forward migration from the Version 1.26 deployed baseline.",
+          "Provide a combined SQLCMD migration runner so deployment can use the same one-file entry point tested during release rehearsal.",
+          "Cache-bust browser-loaded JavaScript and CSS assets touched by Day 36 so users receive the updated dialogs, screens, and Diagram tools after deployment."
+        ]
+      }
+    ]
   }
 ]

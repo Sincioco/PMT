@@ -9,8 +9,10 @@ const demoMigration = read("../../SQL/Migrations/Migration History/PMT_1.22_to_1
 const demoMigrationRunner = read("../../SQL/Migrations/Migration History/PMT_1.22_to_1.23_All.sql");
 const gameScoreMigration = read("../../SQL/Migrations/Migration History/PMT_1.24_to_1.25.sql");
 const gameScoreMigrationRunner = read("../../SQL/Migrations/Migration History/PMT_1.23_to_1.25_All.sql");
-const tutorialDocsMigration = read("../../SQL/Migrations/PMT_1.25_to_1.26.sql");
-const tutorialDocsMigrationRunner = read("../../SQL/Migrations/PMT_1.25_to_1.26_All.sql");
+const tutorialDocsMigration = read("../../SQL/Migrations/Migration History/PMT_1.25_to_1.26.sql");
+const tutorialDocsMigrationRunner = read("../../SQL/Migrations/Migration History/PMT_1.25_to_1.26_All.sql");
+const day36Migration = read("../../SQL/Migrations/PMT_1.26_to_1.27.sql");
+const day36MigrationRunner = read("../../SQL/Migrations/PMT_1.26_to_1.27_All.sql");
 const sourceProcedures = read("../../SQL/02_CreateStoredProcedures.sql");
 const sourceSeed = read("../../SQL/03_SeedData.sql");
 const pmtSeed = read("../../SQL/03_SeedData_PMT.sql");
@@ -166,7 +168,6 @@ test("Version 1.26 seeds PMT tutorial Documentation for existing installs", () =
     "PMT Image Annotation Guide"
   ];
 
-  assert.match(rebuildScript, /@value = N'1\.26'/);
   assert.match(tutorialDocsMigration, /ISNULL\(@CurrentDatabaseVersion, N''\) NOT IN \(N'1\.25', N'1\.26'\)/);
   assert.match(tutorialDocsMigration, /@value = N'1\.26'/);
   assert.match(tutorialDocsMigration, /THROW 51134, 'One or more Version 1\.26 seed Documentation titles already exist in PMT/);
@@ -183,6 +184,22 @@ test("Version 1.26 seeds PMT tutorial Documentation for existing installs", () =
     assert.match(pmtSeed, new RegExp(`N'${escapedTitle}'`));
     assert.match(tutorialDocsMigration, new RegExp(`N'${escapedTitle}'`));
   }
+});
+
+test("Version 1.27 adds public sharing and Suggestions through the combined runner", () => {
+  assert.match(rebuildScript, /@value = N'1\.27'/);
+  assert.match(createDatabase, /CREATE TABLE \[pmt\]\.\[Suggestions\]/);
+  assert.match(createDatabase, /CREATE TABLE \[pmt\]\.\[PublicBlogLinks\]/);
+  assert.match(sourceProcedures, /CREATE OR ALTER PROCEDURE \[pmt\]\.\[UpsertSuggestion\]/);
+  assert.match(sourceProcedures, /CREATE OR ALTER PROCEDURE \[pmt\]\.\[GetSuggestions\]/);
+  assert.match(sourceProcedures, /CREATE OR ALTER PROCEDURE \[pmt\]\.\[CreatePublicBlogLink\]/);
+  assert.match(sourceProcedures, /CREATE OR ALTER PROCEDURE \[pmt\]\.\[GetPublicBlog\]/);
+  assert.match(day36Migration, /ISNULL\(@CurrentDatabaseVersion, N''\) NOT IN \(N'1\.26', N'1\.27'\)/);
+  assert.match(day36Migration, /DECLARE @TargetDatabaseVersion NVARCHAR\(20\) = N'1\.27'/);
+  assert.match(day36Migration, /@value = @TargetDatabaseVersion/);
+  assert.match(day36Migration, /THROW 51153, 'PMT Database Version 1\.27 objects could not be verified\.'/);
+  assert.match(day36MigrationRunner, /:on error exit/);
+  assert.match(day36MigrationRunner, /:r "\.\\PMT_1\.26_to_1\.27\.sql"/);
 });
 
 test("Diagram custom order spans root scopes while child parents remain scoped", () => {
@@ -271,6 +288,21 @@ test("historical combined migration runners resolve every SQLCMD include", () =>
 
     for (const include of includes) {
       const includeUrl = new URL(include[1].replaceAll("\\", "/"), historyUrl);
+      assert.ok(existsSync(includeUrl), `${runner} cannot resolve ${include[1]}.`);
+    }
+  }
+});
+
+test("active combined migration runner resolves every SQLCMD include", () => {
+  const migrationsUrl = new URL("../../SQL/Migrations/", import.meta.url);
+  const runners = readdirSync(migrationsUrl).filter((name) => name.endsWith("_All.sql"));
+
+  for (const runner of runners) {
+    const sql = readFileSync(new URL(runner, migrationsUrl), "utf8");
+    const includes = [...sql.matchAll(/^:r\s+"([^"]+)"/gm)];
+
+    for (const include of includes) {
+      const includeUrl = new URL(include[1].replaceAll("\\", "/"), migrationsUrl);
       assert.ok(existsSync(includeUrl), `${runner} cannot resolve ${include[1]}.`);
     }
   }

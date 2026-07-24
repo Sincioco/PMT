@@ -1,15 +1,15 @@
 import {
   releaseNoteContentHtml,
   releaseNoteNavigationHtml
-} from "./release-notes.js?v=release-notes-2026-07-22-day-35-b9e5ce970062";
-import { readPreference, writePreference } from "../core/preferences.js?v=release-notes-2026-07-22-day-35-b9e5ce970062";
+} from "./release-notes.js?v=release-notes-2026-07-24-day-36-c768b4298cb2";
+import { readPreference, writePreference } from "../core/preferences.js?v=release-notes-2026-07-24-day-36-c768b4298cb2";
 import {
   releaseNoteById,
   releaseNotes,
   releaseNotesForLogin,
   releaseNotesSeenPreferenceKey,
   refreshReleaseNotes
-} from "../shared/release-notes.js?v=release-notes-2026-07-22-day-35-b9e5ce970062";
+} from "../shared/release-notes.js?v=release-notes-2026-07-24-day-36-c768b4298cb2";
 
 export function createWhatsNew({ getUserId, onReleaseNotesUpdated, openReleaseNotes }) {
   let checkedUserId = 0;
@@ -57,7 +57,20 @@ export function createWhatsNew({ getUserId, onReleaseNotesUpdated, openReleaseNo
     }, 60_000);
   }
 
-  return { showAfterLogin };
+  async function showAll() {
+    const userId = Number(getUserId?.() || 0);
+    startUpdateChecks();
+    try {
+      if (await refreshReleaseNotes()) onReleaseNotesUpdated?.();
+    } catch {
+      // Keep the bundled notes available if the static feed is briefly unavailable.
+    }
+    if (!releaseNotes.length) return false;
+    openWhatsNewDialog(releaseNotes, userId ? releaseNotesSeenPreferenceKey(userId) : "");
+    return true;
+  }
+
+  return { showAfterLogin, showAll };
 
   function openWhatsNewDialog(notes, preferenceKey) {
     document.getElementById("whatsNewDialog")?.remove();
@@ -119,7 +132,7 @@ export function createWhatsNew({ getUserId, onReleaseNotesUpdated, openReleaseNo
     });
     modal.addEventListener("close", () => {
       const latestSeenToken = releaseNotes[0]?.seenToken || releaseNotes[0]?.id;
-      if (latestSeenToken) writePreference(preferenceKey, latestSeenToken);
+      if (latestSeenToken && preferenceKey) writePreference(preferenceKey, latestSeenToken);
       modal.remove();
     }, { once: true });
 

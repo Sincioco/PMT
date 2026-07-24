@@ -1,5 +1,5 @@
 /*
-    PMT Version 1.26 public Diagram demo seed.
+    PMT Version 1.27 public Diagram demo seed.
 
     The Blog body references the editable bundled SVG asset under
     wwwroot/assets/docs. The SVG contains every current [pmt] table, its fields,

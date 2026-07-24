@@ -1,5 +1,5 @@
 /*
-    PMT Version 1.26 database and schema script.
+    PMT Version 1.27 database and schema script.
     Run this first. It creates the database, the pmt schema, the application
     tables, and the single required administrator account. The companion
     procedure and seed scripts complete the current fresh-install contract.
@@ -859,6 +859,24 @@ BEGIN
 END;
 GO
 
+IF OBJECT_ID(N'[pmt].[PublicBlogLinks]', N'U') IS NULL
+BEGIN
+    CREATE TABLE [pmt].[PublicBlogLinks]
+    (
+        [PublicBlogLinkId] INT IDENTITY(1,1) NOT NULL CONSTRAINT [PK_pmt_PublicBlogLinks] PRIMARY KEY,
+        [BlogId] INT NOT NULL,
+        [Token] UNIQUEIDENTIFIER NOT NULL CONSTRAINT [DF_pmt_PublicBlogLinks_Token] DEFAULT (NEWID()),
+        [ExpiresAt] DATETIME2(0) NULL,
+        [LastAccessedAt] DATETIME2(0) NULL,
+        [CreatedByUserId] INT NOT NULL,
+        [CreatedAt] DATETIME2(0) NOT NULL CONSTRAINT [DF_pmt_PublicBlogLinks_CreatedAt] DEFAULT (SYSUTCDATETIME()),
+        CONSTRAINT [FK_pmt_PublicBlogLinks_Blog] FOREIGN KEY ([BlogId]) REFERENCES [pmt].[Blogs]([BlogId]),
+        CONSTRAINT [FK_pmt_PublicBlogLinks_CreatedBy] FOREIGN KEY ([CreatedByUserId]) REFERENCES [pmt].[Users]([UserId]),
+        CONSTRAINT [UQ_pmt_PublicBlogLinks_Token] UNIQUE ([Token])
+    );
+END;
+GO
+
 IF OBJECT_ID(N'[pmt].[AuditEvents]', N'U') IS NULL
 BEGIN
     CREATE TABLE [pmt].[AuditEvents]
@@ -980,6 +998,26 @@ BEGIN
 END;
 GO
 
+IF OBJECT_ID(N'[pmt].[Suggestions]', N'U') IS NULL
+BEGIN
+    CREATE TABLE [pmt].[Suggestions]
+    (
+        [SuggestionId] INT IDENTITY(1,1) NOT NULL CONSTRAINT [PK_pmt_Suggestions] PRIMARY KEY,
+        [BodyHtml] NVARCHAR(MAX) NOT NULL,
+        [Status] NVARCHAR(40) NOT NULL CONSTRAINT [DF_pmt_Suggestions_Status] DEFAULT (N'New'),
+        [CreatedByUserId] INT NOT NULL,
+        [UpdatedByUserId] INT NULL,
+        [CreatedAt] DATETIME2(0) NOT NULL CONSTRAINT [DF_pmt_Suggestions_CreatedAt] DEFAULT (SYSUTCDATETIME()),
+        [UpdatedAt] DATETIME2(0) NOT NULL CONSTRAINT [DF_pmt_Suggestions_UpdatedAt] DEFAULT (SYSUTCDATETIME()),
+        [RowVersion] ROWVERSION NOT NULL,
+        CONSTRAINT [FK_pmt_Suggestions_CreatedBy] FOREIGN KEY ([CreatedByUserId]) REFERENCES [pmt].[Users]([UserId]),
+        CONSTRAINT [FK_pmt_Suggestions_UpdatedBy] FOREIGN KEY ([UpdatedByUserId]) REFERENCES [pmt].[Users]([UserId]),
+        CONSTRAINT [CK_pmt_Suggestions_BodyHtml] CHECK (LEN(LTRIM(RTRIM([BodyHtml]))) > 0),
+        CONSTRAINT [CK_pmt_Suggestions_Status] CHECK (LEN(LTRIM(RTRIM([Status]))) > 0)
+    );
+END;
+GO
+
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE [name] = N'IX_pmt_WorkTasks_ProjectSprint' AND [object_id] = OBJECT_ID(N'[pmt].[WorkTasks]'))
 BEGIN
     CREATE INDEX [IX_pmt_WorkTasks_ProjectSprint] ON [pmt].[WorkTasks]([ProjectId], [SprintId], [IsDeleted]);
@@ -998,6 +1036,12 @@ BEGIN
 END;
 GO
 
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE [name] = N'IX_pmt_PublicBlogLinks_BlogExpires' AND [object_id] = OBJECT_ID(N'[pmt].[PublicBlogLinks]'))
+BEGIN
+    CREATE INDEX [IX_pmt_PublicBlogLinks_BlogExpires] ON [pmt].[PublicBlogLinks]([BlogId], [ExpiresAt]);
+END;
+GO
+
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE [name] = N'IX_pmt_AuditEvents_Entity' AND [object_id] = OBJECT_ID(N'[pmt].[AuditEvents]'))
 BEGIN
     CREATE INDEX [IX_pmt_AuditEvents_Entity] ON [pmt].[AuditEvents]([EntityType], [EntityId], [CreatedAt] DESC);
@@ -1013,5 +1057,11 @@ GO
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE [name] = N'IX_pmt_GameScores_Leaderboard' AND [object_id] = OBJECT_ID(N'[pmt].[GameScores]'))
 BEGIN
     CREATE INDEX [IX_pmt_GameScores_Leaderboard] ON [pmt].[GameScores]([GameKey], [Score] DESC, [DurationSeconds], [CreatedAt] DESC);
+END;
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE [name] = N'IX_pmt_Suggestions_CreatedAt' AND [object_id] = OBJECT_ID(N'[pmt].[Suggestions]'))
+BEGIN
+    CREATE INDEX [IX_pmt_Suggestions_CreatedAt] ON [pmt].[Suggestions]([CreatedAt] DESC);
 END;
 GO

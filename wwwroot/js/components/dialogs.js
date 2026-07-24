@@ -652,6 +652,10 @@ export function askForText(label, title, placeholder = "") {
     });
 
     modal.showModal();
-    setTimeout(() => modal.querySelector("[name='dialogText']").focus(), 0);
+    setTimeout(() => {
+      const input = modal.querySelector("[name='dialogText']");
+      input?.focus();
+      if (input?.value) input.select();
+    }, 0);
   });
 }

@@ -18,6 +18,10 @@ export async function api(path, options = {}) {
   }
 
   if (response.status === 204) return null;
+  const contentType = response.headers?.get?.("content-type") || "";
+  if (contentType && !contentType.toLowerCase().includes("application/json")) {
+    throw new Error("PMT returned a page instead of API data. Rebuild/restart the .NET app so the Public Link endpoint is active.");
+  }
   return response.json();
 }
 

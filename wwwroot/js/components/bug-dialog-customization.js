@@ -20,6 +20,7 @@ const dialogConfigs = Object.freeze({
     fields: Object.freeze([
       { key: "projectId", label: "Project" },
       { key: "sprintId", label: "Sprint" },
+      { key: "code", label: "Bug ID" },
       { key: "title", label: "Title" },
       { key: "status", label: "Status" },
       { key: "priority", label: "Priority" },
@@ -37,7 +38,11 @@ const dialogConfigs = Object.freeze({
       { key: "rootCauseAnalysisHtml", label: "Root Cause Analysis" },
       { key: "assigneeIds", label: "Assignees" },
       { key: "reporterIds", label: "Reporters" },
-      { key: "dependencyTaskIds", label: "Dependencies" }
+      { key: "dependencyTaskIds", label: "Dependencies" },
+      { key: "createdBy", label: "Created By" },
+      { key: "createdAt", label: "Created Date/Time" },
+      { key: "updatedBy", label: "Last Modified By" },
+      { key: "updatedAt", label: "Last Modified Date/Time" }
     ])
   }),
   task: Object.freeze({

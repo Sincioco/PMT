@@ -687,7 +687,7 @@ function annotationEntityFieldForeignKeyMapping(entity, fieldName) {
 
 function safeAnnotationEntityRelationshipType(value) {
   const normalized = String(value || "").trim().toLowerCase();
-  return ["one-to-one", "one-to-many"].includes(normalized) ? normalized : "";
+  return ["one-to-one", "one-to-many", "many-to-one"].includes(normalized) ? normalized : "";
 }
 
 function stripAnnotationSqlComments(source) {
@@ -872,7 +872,7 @@ function annotationSqlTableConstraint(definition) {
         referencedSchema: referencedParts.length > 1 ? referencedParts.at(-2) : "",
         referencedTable: referencedParts.at(-1) || "",
         referencedColumns: annotationSqlIdentifierList(foreignKey[3]),
-        relationshipType: "one-to-many"
+        relationshipType: "many-to-one"
       }
     };
   }
@@ -947,7 +947,7 @@ function parseAnnotationSqlColumn(definition, qualifiedIdentifier) {
       referencedSchema: referencedParts.length > 1 ? referencedParts.at(-2) : "",
       referencedTable: referencedParts.at(-1) || "",
       referencedColumns: annotationSqlIdentifierList(references[2]),
-      relationshipType: "one-to-many"
+      relationshipType: "many-to-one"
     };
   }
   return {
@@ -1211,12 +1211,14 @@ function openAnnotationEntityForeignKeyDialog(entity, field, entitiesInput = [])
               <option value=""${currentRelationshipType ? "" : " selected"}>Simple arrow</option>
               <option value="one-to-one"${currentRelationshipType === "one-to-one" ? " selected" : ""}>One-to-one</option>
               <option value="one-to-many"${currentRelationshipType === "one-to-many" ? " selected" : ""}>One-to-many</option>
+              <option value="many-to-one"${currentRelationshipType === "many-to-one" ? " selected" : ""}>Many-to-one</option>
             </select>
           </label>
-          <p class="image-annotation-entity-hint">The selected field points to this referenced Entity and field. Clear both target values to remove the mapping.</p>
+          <p class="image-annotation-entity-hint">The selected field points to this referenced Entity and field.</p>
           <p class="image-annotation-entity-status" role="status" aria-live="polite" data-annotation-foreign-key-status></p>
         </div>
         <div class="dialog-actions">
+          ${mapping ? `<button type="button" class="secondary text-icon-button" data-annotation-foreign-key-remove><span class="button-icon" aria-hidden="true">&#10005;</span><span>Remove Mapping</span></button>` : ""}
           <button type="button" class="secondary text-icon-button" data-annotation-foreign-key-cancel><span class="button-icon" aria-hidden="true">&#10005;</span><span>Cancel</span></button>
           <button type="submit" class="primary text-icon-button"><span class="button-icon" aria-hidden="true">&#10003;</span><span>Save Mapping</span></button>
         </div>
@@ -1258,6 +1260,11 @@ function openAnnotationEntityForeignKeyDialog(entity, field, entitiesInput = [])
     dialog.querySelectorAll("[data-annotation-foreign-key-cancel]").forEach(button => {
       button.addEventListener("click", () => finish(null));
     });
+    dialog.querySelector("[data-annotation-foreign-key-remove]")?.addEventListener("click", () => finish({
+      referencedEntity: "",
+      referencedField: "",
+      relationshipType: ""
+    }));
     dialog.addEventListener("cancel", event => {
       event.preventDefault();
       finish(null);
@@ -1397,7 +1404,7 @@ function annotationEntityForeignKeysWithExistingMappings(parsedInput, existingIn
 }
 
 function annotationEntityMetrics(object) {
-  const fontSize = clampNumber(positiveNumber(object?.fontSize, defaultEntityFontSize), 6, 240);
+  const fontSize = clampNumber(positiveNumber(object?.fontSize, defaultEntityFontSize), 1, 240);
   return {
     fontSize,
     padding: Math.max(7, fontSize * 0.5),
@@ -2247,6 +2254,36 @@ export function captureAnnotationTemplate(inputState, selectedObjectIds, _unused
   });
 }
 
+function enumerateAnnotationDuplicateTemplateNames(template, existingObjects) {
+  const usedNames = new Set(
+    (existingObjects || [])
+      .map(object => safeAnnotationName(object?.name) || annotationObjectLabel(object))
+      .filter(Boolean)
+      .map(name => name.toLowerCase())
+  );
+
+  (template?.objects || []).forEach(object => {
+    const baseName = safeAnnotationName(object.name) || annotationObjectLabel(object);
+    object.name = nextAnnotationDuplicateName(baseName, usedNames);
+  });
+}
+
+function nextAnnotationDuplicateName(baseName, usedNames) {
+  const trimmed = safeAnnotationName(baseName) || "Object";
+  const match = /^(.*?)(?:\s+(\d+))?$/.exec(trimmed);
+  const stem = safeAnnotationName(match?.[1]) || trimmed;
+  let number = Number(match?.[2] || 0) + 1;
+  let candidate = `${stem} ${number}`;
+
+  while (usedNames.has(candidate.toLowerCase())) {
+    number += 1;
+    candidate = `${stem} ${number}`;
+  }
+
+  usedNames.add(candidate.toLowerCase());
+  return candidate;
+}
+
 export async function portableAnnotationTemplate(templateInput, options = {}) {
   const template = normalizeAnnotationTemplate(templateInput);
   if (!template) return null;
@@ -2825,7 +2862,7 @@ export function annotationSvgPlaneMetrics(widthInput, heightInput, devicePixelRa
 
 export function wrapAnnotationText(text, width, fontSize) {
   const value = String(text ?? "").replaceAll("\r\n", "\n").replaceAll("\r", "\n");
-  const size = clampNumber(positiveNumber(fontSize, defaultStyles.fontSize), 6, 240);
+  const size = clampNumber(positiveNumber(fontSize, defaultStyles.fontSize), 1, 240);
   const availableWidth = Math.max(size, positiveNumber(width, size) - (size * 0.7));
   const maximumCharacters = Math.max(1, Math.floor(availableWidth / (size * 0.58)));
   const lines = [];
@@ -3216,6 +3253,7 @@ function createAnnotationDialog(context) {
       if (nextTool !== "format-painter") formatPainterTemplate = null;
       activeTool = nextTool;
       if (activeTool !== "select") marqueePreview = null;
+      if (activeTool !== "crop") cropPreview = null;
       dialog.querySelectorAll("button[data-annotation-tool]").forEach(button => {
         const pressed = button.dataset.annotationTool === activeTool;
         button.classList.toggle("is-active", pressed);
@@ -3232,7 +3270,7 @@ function createAnnotationDialog(context) {
           : activeTool === "format-painter"
             ? "Format Painter is active. Click objects to apply formatting, or click blank canvas to stop."
             : activeTool === "crop"
-              ? "Drag over the area to keep. Cropping is non-destructive and can be reset."
+              ? "Drag the image crop handles inward. Cropping is non-destructive and can be reset."
               : activeTool === "entity"
                 ? "Draw an Entity."
                 : activeTool === "rich-text"
@@ -3392,8 +3430,13 @@ function createAnnotationDialog(context) {
       const entityFieldScrollTop = entityFieldList.scrollTop;
       entityFieldList.innerHTML = singleEntity ? annotationEntityFieldListHtml(singleEntity) : "";
       entityFieldList.scrollTop = entityFieldScrollTop;
-      const fieldScrollbarWidth = Math.max(0, entityFieldList.offsetWidth - entityFieldList.clientWidth);
-      entityFieldColumns?.style.setProperty("--image-annotation-entity-field-scrollbar-width", `${fieldScrollbarWidth}px`);
+      if (entityFieldColumns && entityFieldList.offsetWidth > 0) {
+        const measuredScrollbarWidth = Math.max(0, entityFieldList.offsetWidth - entityFieldList.clientWidth);
+        const fieldScrollbarWidth = entityFieldList.scrollHeight > entityFieldList.clientHeight + 1
+          ? Math.max(measuredScrollbarWidth, 17)
+          : measuredScrollbarWidth;
+        entityFieldColumns.style.setProperty("--image-annotation-entity-field-scrollbar-width", `${fieldScrollbarWidth}px`);
+      }
       if (entityImportantToggle) {
         const fields = singleEntity?.fields || [];
         const allImportant = fields.length > 0 && fields.every(field => field.isImportant === true);
@@ -4173,7 +4216,12 @@ function createAnnotationDialog(context) {
         return;
       }
       if (!annotationImageHasReversibleCrop(state, image)) {
+        cropPreview = { ...annotationObjectBounds(image), imageId: image.id };
+        selectedIds = new Set([image.id]);
+        lastSelectedObjectId = image.id;
         setTool("crop");
+        renderWithWorkspaceExpansion();
+        setStatus("Drag the image crop handles inward. The crop cannot extend outside the image.");
         workspace.focus({ preventScroll: true });
         return;
       }
@@ -4764,12 +4812,20 @@ function createAnnotationDialog(context) {
           setStatus("Unlock the image before cropping it.");
           return;
         }
-        const start = cropPoint(point, image);
-        cropPreview = { x: start.x, y: start.y, width: 1, height: 1, imageId: image.id };
+        if (!cropPreview || cropPreview.imageId !== image.id) {
+          cropPreview = { ...annotationObjectBounds(image), imageId: image.id };
+          render();
+        }
+        if (!handle || !annotationHandlePoints(cropPreview).some(item => item.direction === handle.dataset.annotationHandle)) {
+          setStatus("Drag a crop handle inward to choose the area to keep.");
+          event.preventDefault();
+          return;
+        }
         gesture = {
-          type: "crop",
+          type: "crop-resize",
           pointerId: event.pointerId,
-          startPoint: start,
+          direction: handle.dataset.annotationHandle,
+          startCrop: { ...cropPreview },
           imageId: image.id
         };
         canvas.setPointerCapture?.(event.pointerId);
@@ -4806,6 +4862,12 @@ function createAnnotationDialog(context) {
         const image = annotationCropImage(state, gesture.imageId);
         cropPreview = {
           ...normalizedRect(gesture.startPoint, cropPoint(point, image)),
+          imageId: gesture.imageId
+        };
+      } else if (gesture.type === "crop-resize") {
+        const image = annotationCropImage(state, gesture.imageId);
+        cropPreview = {
+          ...resizedAnnotationCropBounds(gesture.startCrop, gesture.direction, point, annotationObjectBounds(image), state),
           imageId: gesture.imageId
         };
       } else if (gesture.type === "marquee") {
@@ -4952,6 +5014,27 @@ function createAnnotationDialog(context) {
         }
         cropPreview = null;
         setTool("select");
+      } else if (completed.type === "crop-resize") {
+        const image = annotationCropImage(state, completed.imageId);
+        const fullBounds = annotationObjectBounds(image);
+        const cropBounds = fullBounds && cropPreview ? intersectAnnotationBounds(fullBounds, cropPreview) : null;
+        const changed = cropBounds
+          && cropBounds.width >= minimumObjectSize
+          && cropBounds.height >= minimumObjectSize
+          && !annotationBoundsEqual(cropBounds, fullBounds)
+          && applyAnnotationCrop(state, cropBounds, completed.imageId);
+        selectedIds = new Set([completed.imageId]);
+        lastSelectedObjectId = completed.imageId;
+        cropPreview = {
+          ...(changed ? cropBounds : annotationObjectBounds(image)),
+          imageId: completed.imageId
+        };
+        setStatus(changed
+          ? "Crop applied. Drag another handle or click Crop again to close crop mode."
+          : "Drag a crop handle inward to choose a smaller area.");
+        if (changed) pushHistory();
+        renderWithWorkspaceExpansion();
+        return;
       }
       pushHistory();
       renderWithWorkspaceExpansion();
@@ -5650,6 +5733,7 @@ function createAnnotationDialog(context) {
       const template = captureAnnotationTemplate(state, selectedIds, "", "Duplicate");
       const bounds = annotationSelectionVisualBounds(selectedObjects());
       if (!template || !bounds) return false;
+      enumerateAnnotationDuplicateTemplateNames(template, state.objects);
       const distance = state.gridVisible ? state.gridSize : 10;
       const objects = insertTemplate(template, {
         x: bounds.x + (bounds.width / 2) + distance,
@@ -6390,7 +6474,14 @@ function createAnnotationDialog(context) {
         } else if (toolName === "format-painter") {
           startFormatPainter();
         } else if (toolName === "crop") {
-          await activateCropTool();
+          if (activeTool === "crop") {
+            cropPreview = null;
+            setTool("select");
+            renderWithWorkspaceExpansion();
+            setStatus("Crop mode closed.");
+          } else {
+            await activateCropTool();
+          }
         } else {
           setTool(toolName);
         }
@@ -7208,7 +7299,7 @@ function annotationDialogHtml(context = {}) {
             <div class="image-annotation-inspector-grid">
               ${annotationColorFieldHtml("textColor", "Text color", "Font Color", defaultStyles.textColor, "font")}
               <label class="field"><span>Font</span><select data-annotation-style="fontFamily">${annotationFontOptions(defaultStyles.fontFamily)}</select></label>
-              <label class="field"><span>Font size</span><input type="number" min="6" max="240" step="1" value="${defaultStyles.fontSize}" data-annotation-style="fontSize"></label>
+              <label class="field"><span>Font size</span><input type="number" min="1" max="240" step="1" value="${defaultStyles.fontSize}" data-annotation-style="fontSize"></label>
               <label class="field"><span>Horizontal alignment</span><select aria-label="Horizontal alignment" data-annotation-style="textAlign"><option value="left">Left</option><option value="center">Center</option><option value="right">Right</option></select></label>
               <label class="field"><span>Vertical alignment</span><select aria-label="Vertical alignment" data-annotation-style="textVerticalAlign"><option value="top">Top</option><option value="middle">Middle</option><option value="bottom">Bottom</option></select></label>
               <label class="field image-annotation-wide" data-annotation-text-field hidden><span>Text</span><textarea rows="5" data-annotation-text></textarea></label>
@@ -7259,7 +7350,7 @@ function annotationDialogHtml(context = {}) {
                 <label class="inline-check"><input type="checkbox" data-annotation-entity-unanchor-all><span>Unachor all Entities (global)</span></label>
               </div>
               <p class="image-annotation-entity-fields-help">Drag fields to set their original order. Mark PK, FK, or Important fields here; map PK or FK targets with Map. FK at the Top changes only the Entity view.</p>
-              <div class="image-annotation-entity-field-columns" data-annotation-entity-field-columns><span aria-hidden="true"></span><span>Field</span><span>PK</span><span>FK</span><button type="button" class="image-annotation-entity-field-column-toggle" data-annotation-entity-important-toggle aria-pressed="false" title="Mark all fields Important" aria-label="Mark all fields Important">Imp.</button><span aria-hidden="true"></span></div>
+              <div class="image-annotation-entity-field-columns" data-annotation-entity-field-columns><span aria-hidden="true"></span><span>Field</span><span>PK</span><span>FK</span><button type="button" class="image-annotation-entity-field-column-toggle" data-annotation-entity-important-toggle aria-pressed="false" title="Mark all fields Important" aria-label="Mark all fields Important">Important</button><span aria-hidden="true"></span></div>
               <div class="image-annotation-entity-fields" role="list" aria-label="Entity fields" data-annotation-entity-fields></div>
               ${typeof context.generatePmtDatabaseSchema === "function"
                 ? `<button type="button" class="image-annotation-generate-pmt-schema" data-annotation-generate-pmt-schema>Generate PMT Database Schema</button>`
@@ -7344,6 +7435,8 @@ function annotationEntityFieldListHtml(entity) {
       ? "1 to 1"
       : safeAnnotationEntityRelationshipType(mapping?.relationshipType) === "one-to-many"
         ? "1 to many"
+        : safeAnnotationEntityRelationshipType(mapping?.relationshipType) === "many-to-one"
+          ? "many to 1"
         : "arrow";
     const checkbox = (property, label, checked) => `<input class="image-annotation-entity-field-checkbox" type="checkbox" draggable="false" title="${escapeXmlAttr(label)}" aria-label="${escapeXmlAttr(label)} for ${escapeXmlAttr(fieldName)}" data-annotation-entity-field-property="${property}" data-annotation-entity-field-index="${index}" data-annotation-entity-id="${escapeXmlAttr(entity.id)}"${checked ? " checked" : ""}${entity.locked ? " disabled" : ""}>`;
     const mapTitle = mappingLabel
@@ -7660,13 +7753,17 @@ function annotationCanvasSvg(
     .map(object => annotationObjectSvg(object, { exportMode: false, zoom, clipKey }))
     .join("");
   const grid = state.gridVisible ? annotationGridSvg(workspaceBounds) : "";
+  const selectedVisibleObjects = allVisibleObjects.filter(object =>
+    selectedIds.has(object.id)
+    && (!cropPreview || object.id !== cropPreview.imageId)
+  );
   const selection = annotationSelectionSvg(
-    allVisibleObjects.filter(object => selectedIds.has(object.id)),
+    selectedVisibleObjects,
     zoom,
     null,
     allVisibleObjects
   );
-  const crop = cropPreview ? annotationCropPreviewSvg(cropPreview, state) : "";
+  const crop = cropPreview ? annotationCropPreviewSvg(cropPreview, state, zoom) : "";
   const marquee = marqueePreview ? annotationMarqueeSvg(marqueePreview) : "";
   return `${annotationCanvasDefs(state, zoom)}${background}${belowRelationships}${relationships}${aboveRelationships}${grid}${raised}${selection}${marquee}${crop}`;
 }
@@ -9852,36 +9949,72 @@ function annotationEntityRelationshipMarkerGeometry(start, end, sourceUnit, targ
       y: origin.y + (unit.y * along) + (acrossUnit.y * across)
     };
   };
-  const arrowTip = end;
   const targetPerpendicular = perpendicular(targetUnit);
   const sourcePerpendicular = perpendicular(sourceUnit);
-  const arrowBase = point(end, targetUnit, -size);
-  const arrowLeft = { x: arrowBase.x + (targetPerpendicular.x * (size / 2)), y: arrowBase.y + (targetPerpendicular.y * (size / 2)) };
-  const arrowRight = { x: arrowBase.x - (targetPerpendicular.x * (size / 2)), y: arrowBase.y - (targetPerpendicular.y * (size / 2)) };
+  const arrowAtTarget = () => {
+    const arrowTip = end;
+    const arrowBase = point(end, targetUnit, -size);
+    return [
+      arrowTip,
+      { x: arrowBase.x + (targetPerpendicular.x * (size / 2)), y: arrowBase.y + (targetPerpendicular.y * (size / 2)) },
+      { x: arrowBase.x - (targetPerpendicular.x * (size / 2)), y: arrowBase.y - (targetPerpendicular.y * (size / 2)) }
+    ];
+  };
+  const arrowAtSource = () => {
+    const arrowTip = start;
+    const arrowBase = point(start, sourceUnit, size);
+    return [
+      arrowTip,
+      { x: arrowBase.x + (sourcePerpendicular.x * (size / 2)), y: arrowBase.y + (sourcePerpendicular.y * (size / 2)) },
+      { x: arrowBase.x - (sourcePerpendicular.x * (size / 2)), y: arrowBase.y - (sourcePerpendicular.y * (size / 2)) }
+    ];
+  };
   const geometry = {
-    arrowPoints: [arrowTip, arrowLeft, arrowRight],
+    arrowPoints: relationshipType === "many-to-one" ? arrowAtSource() : arrowAtTarget(),
     lineSegments: []
   };
   if (!relationshipType) return geometry;
 
-  const targetBarCenter = point(end, targetUnit, -(size * 1.4));
-  geometry.lineSegments.push([
-    { x: targetBarCenter.x + (targetPerpendicular.x * (size * 0.7)), y: targetBarCenter.y + (targetPerpendicular.y * (size * 0.7)) },
-    { x: targetBarCenter.x - (targetPerpendicular.x * (size * 0.7)), y: targetBarCenter.y - (targetPerpendicular.y * (size * 0.7)) }
-  ]);
-  if (relationshipType === "one-to-one") {
-    const sourceBarCenter = point(start, sourceUnit, size * 0.8);
+  const addTargetBar = () => {
+    const targetBarCenter = point(end, targetUnit, -(size * 1.4));
+    geometry.lineSegments.push([
+      { x: targetBarCenter.x + (targetPerpendicular.x * (size * 0.7)), y: targetBarCenter.y + (targetPerpendicular.y * (size * 0.7)) },
+      { x: targetBarCenter.x - (targetPerpendicular.x * (size * 0.7)), y: targetBarCenter.y - (targetPerpendicular.y * (size * 0.7)) }
+    ]);
+  };
+  const addSourceBar = (distance = size * 0.8) => {
+    const sourceBarCenter = point(start, sourceUnit, distance);
     geometry.lineSegments.push([
       { x: sourceBarCenter.x + (sourcePerpendicular.x * (size * 0.7)), y: sourceBarCenter.y + (sourcePerpendicular.y * (size * 0.7)) },
       { x: sourceBarCenter.x - (sourcePerpendicular.x * (size * 0.7)), y: sourceBarCenter.y - (sourcePerpendicular.y * (size * 0.7)) }
     ]);
+  };
+  const addSourceCrow = () => {
+    const crowVertex = point(start, sourceUnit, size * 1.1);
+    const crowTop = { x: start.x + (sourcePerpendicular.x * (size * 0.8)), y: start.y + (sourcePerpendicular.y * (size * 0.8)) };
+    const crowBottom = { x: start.x - (sourcePerpendicular.x * (size * 0.8)), y: start.y - (sourcePerpendicular.y * (size * 0.8)) };
+    geometry.lineSegments.push([crowVertex, crowTop], [crowVertex, start], [crowVertex, crowBottom]);
+  };
+  const addTargetCrow = () => {
+    const crowVertex = point(end, targetUnit, -(size * 1.1));
+    const crowTop = { x: end.x + (targetPerpendicular.x * (size * 0.8)), y: end.y + (targetPerpendicular.y * (size * 0.8)) };
+    const crowBottom = { x: end.x - (targetPerpendicular.x * (size * 0.8)), y: end.y - (targetPerpendicular.y * (size * 0.8)) };
+    geometry.lineSegments.push([crowVertex, crowTop], [crowVertex, end], [crowVertex, crowBottom]);
+  };
+
+  if (relationshipType === "one-to-one") {
+    addTargetBar();
+    addSourceBar();
+    return geometry;
+  }
+  if (relationshipType === "many-to-one") {
+    addSourceBar(size * 1.4);
+    addTargetCrow();
     return geometry;
   }
 
-  const crowVertex = point(start, sourceUnit, size * 1.1);
-  const crowTop = { x: start.x + (sourcePerpendicular.x * (size * 0.8)), y: start.y + (sourcePerpendicular.y * (size * 0.8)) };
-  const crowBottom = { x: start.x - (sourcePerpendicular.x * (size * 0.8)), y: start.y - (sourcePerpendicular.y * (size * 0.8)) };
-  geometry.lineSegments.push([crowVertex, crowTop], [crowVertex, start], [crowVertex, crowBottom]);
+  addTargetBar();
+  addSourceCrow();
   return geometry;
 }
 
@@ -10337,10 +10470,12 @@ function annotationArrowSelectionSvg(object, zoom, prefix = "") {
   return `<g class="image-annotation-selection-group image-annotation-arrow-selection${lockedClass}">${prefix}<circle class="image-annotation-handle image-annotation-arrow-handle${lockedClass}"${baseHandle} cx="${formatNumber(object.x1)}" cy="${formatNumber(object.y1)}" r="${formatNumber(handleRadius)}" stroke-width="0.75"></circle><circle class="image-annotation-handle image-annotation-arrow-handle${lockedClass}"${tipHandle} cx="${formatNumber(object.x2)}" cy="${formatNumber(object.y2)}" r="${formatNumber(handleRadius)}" stroke-width="0.75"></circle></g>`;
 }
 
-function annotationCropPreviewSvg(rect, state) {
-  const image = annotationCropImage(state, rect.imageId);
-  const clip = annotationObjectBounds(image) || rect;
-  return `<path class="image-annotation-crop-mask" d="M${formatNumber(clip.x)} ${formatNumber(clip.y)}H${formatNumber(clip.x + clip.width)}V${formatNumber(clip.y + clip.height)}H${formatNumber(clip.x)}Z M${formatNumber(rect.x)} ${formatNumber(rect.y)}V${formatNumber(rect.y + rect.height)}H${formatNumber(rect.x + rect.width)}V${formatNumber(rect.y)}Z" fill-rule="evenodd" pointer-events="none"></path><rect class="image-annotation-crop-outline image-annotation-marquee" x="${formatNumber(rect.x)}" y="${formatNumber(rect.y)}" width="${formatNumber(rect.width)}" height="${formatNumber(rect.height)}" pointer-events="none"></rect>`;
+function annotationCropPreviewSvg(rect, state, zoom = 1) {
+  const handleRadius = 3.5 / Math.max(minimumZoom, zoom);
+  const handles = annotationHandlePoints(rect).map(handle =>
+    `<circle class="image-annotation-handle image-annotation-crop-handle" data-annotation-handle="${handle.direction}" cx="${formatNumber(handle.x)}" cy="${formatNumber(handle.y)}" r="${formatNumber(handleRadius)}" stroke-width="0.75"></circle>`
+  ).join("");
+  return `<g class="image-annotation-crop-selection"><rect class="image-annotation-crop-outline image-annotation-marquee" x="${formatNumber(rect.x)}" y="${formatNumber(rect.y)}" width="${formatNumber(rect.width)}" height="${formatNumber(rect.height)}" pointer-events="none"></rect>${handles}</g>`;
 }
 
 function annotationMarqueeSvg(rect) {
@@ -10735,7 +10870,7 @@ export function resizeAnnotationObjects(
     }
     if (["textbox", "entity"].includes(object.type)) {
       object.fontSize = proportionalResize
-        ? clampNumber(original.fontSize * Math.max(0.1, Math.min(scaleX, scaleY)), 6, 240)
+        ? clampNumber(original.fontSize * Math.max(0.1, Math.min(scaleX, scaleY)), 1, 240)
         : original.fontSize;
     }
     if (object.type === "entity") {
@@ -10825,6 +10960,42 @@ export function resizedAnnotationBounds(
     y: direction.includes("n") ? bottom - nextHeight : direction.includes("s") ? top : centerY - (nextHeight / 2),
     width: nextWidth,
     height: nextHeight
+  };
+}
+
+function resizedAnnotationCropBounds(start, direction, point, imageBounds, state) {
+  const bounds = imageBounds || start;
+  const boundedPoint = snapAnnotationCropPoint(
+    point,
+    bounds,
+    state.snapToGrid,
+    state.gridSize
+  );
+  const imageLeft = finiteNumber(bounds?.x, 0);
+  const imageTop = finiteNumber(bounds?.y, 0);
+  const imageRight = imageLeft + positiveNumber(bounds?.width, 1);
+  const imageBottom = imageTop + positiveNumber(bounds?.height, 1);
+  const minimumWidth = Math.min(minimumObjectSize, Math.max(1, imageRight - imageLeft));
+  const minimumHeight = Math.min(minimumObjectSize, Math.max(1, imageBottom - imageTop));
+  const startLeft = clampNumber(finiteNumber(start?.x, imageLeft), imageLeft, imageRight - minimumWidth);
+  const startTop = clampNumber(finiteNumber(start?.y, imageTop), imageTop, imageBottom - minimumHeight);
+  const startRight = clampNumber(startLeft + positiveNumber(start?.width, minimumWidth), imageLeft + minimumWidth, imageRight);
+  const startBottom = clampNumber(startTop + positiveNumber(start?.height, minimumHeight), imageTop + minimumHeight, imageBottom);
+  let left = startLeft;
+  let top = startTop;
+  let right = startRight;
+  let bottom = startBottom;
+
+  if (direction.includes("w")) left = clampNumber(boundedPoint.x, imageLeft, right - minimumWidth);
+  if (direction.includes("e")) right = clampNumber(boundedPoint.x, left + minimumWidth, imageRight);
+  if (direction.includes("n")) top = clampNumber(boundedPoint.y, imageTop, bottom - minimumHeight);
+  if (direction.includes("s")) bottom = clampNumber(boundedPoint.y, top + minimumHeight, imageBottom);
+
+  return {
+    x: left,
+    y: top,
+    width: right - left,
+    height: bottom - top
   };
 }
 
@@ -11585,7 +11756,7 @@ function applyAnnotationStyle(name, rawValue, selection, styles, state = null) {
   if (!Object.hasOwn(styles, name)) return;
   let value = rawValue;
   if (["fontSize", "strokeWidth", "arrowSize"].includes(name)) {
-    const limits = name === "fontSize" ? [6, 240] : name === "strokeWidth" ? [1, 40] : [6, 160];
+    const limits = name === "fontSize" ? [1, 240] : name === "strokeWidth" ? [1, 40] : [6, 160];
     value = clampNumber(positiveNumber(rawValue, styles[name]), limits[0], limits[1]);
   } else if (name === "opacity") {
     const percentage = String(rawValue ?? "").trim()
@@ -11963,7 +12134,7 @@ function normalizeAnnotationObject(input) {
     normalized.text = String(input.text ?? "Text").slice(0, 10000);
     normalized.textColor = safeColor(input.textColor, defaultStyles.textColor);
     normalized.fontFamily = safeFont(input.fontFamily);
-    normalized.fontSize = clampNumber(positiveNumber(input.fontSize, defaultStyles.fontSize), 6, 240);
+    normalized.fontSize = clampNumber(positiveNumber(input.fontSize, defaultStyles.fontSize), 1, 240);
     normalized.textAlign = safeTextAlign(input.textAlign);
     normalized.textVerticalAlign = safeTextVerticalAlign(input.textVerticalAlign);
   }
@@ -11995,7 +12166,7 @@ function normalizeAnnotationObject(input) {
     normalized.entityAnnotationShowArrow = input.entityAnnotationShowArrow !== false;
     normalized.entityAnnotationGroupId = safeGroupId(input.entityAnnotationGroupId);
     normalized.fontFamily = safeFont(input.fontFamily);
-    normalized.fontSize = clampNumber(positiveNumber(input.fontSize, defaultEntityFontSize), 6, 240);
+    normalized.fontSize = clampNumber(positiveNumber(input.fontSize, defaultEntityFontSize), 1, 240);
     normalized.showKeyColumn = input.showKeyColumn !== false;
     normalized.showDataTypes = input.showDataTypes === true;
     normalized.dataTypeExpandedWidth = positiveNumber(

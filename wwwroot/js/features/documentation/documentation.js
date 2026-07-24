@@ -1,6 +1,7 @@
 import { attachmentsHtml, bindAttachmentDeletion } from "../../components/attachments.js?v=20260714-attachment-delete";
 import { buttonContent, funnelIconHtml, iconButton, pageActionsMenuHtml } from "../../components/buttons.js?v=20260717-multi-screen-header";
 import { hideEmptyReadOnlyFields, initializeWindowedDialog } from "../../components/dialogs.js?v=20260714-attachment-delete";
+import { openPublicLinkDialog } from "../../components/public-links.js?v=20260725-day36-v4";
 import {
   documentationCardHtml as sharedDocumentationCardHtml
 } from "../../components/entity-cards.js?v=20260722-rich-entity-mentions-v1";
@@ -23,7 +24,7 @@ import {
   selectOptionsField,
   value
 } from "../../components/forms.js?v=20260722-rte-toggle-state-v1";
-import { sectionHead } from "../../components/sections.js?v=release-notes-2026-07-22-day-35-b9e5ce970062";
+import { sectionHead } from "../../components/sections.js?v=release-notes-2026-07-24-day-36-c768b4298cb2";
 import {
   preferenceKeys,
   readBooleanPreference,
@@ -478,6 +479,11 @@ export function createDocumentationFeature({
       if (blog) openDocumentationExportDialog(blog, { showToast });
       return true;
     }
+    if (action === "copy-public-document-link") {
+      const blog = documentationBlogForCurrentUser(id);
+      if (blog) await copyPublicDocumentationLink(blog, { saveJson, showToast });
+      return true;
+    }
     if (action === "duplicate-blog") {
       const blog = documentationBlogForCurrentUser(id);
       if (blog) await duplicateDocumentationBlog(blog);
@@ -752,6 +758,7 @@ export function createDocumentationFeature({
       <div class="dialog-actions documentation-readonly-actions">
         <div class="dialog-action-group is-left documentation-readonly-left-actions">
           <button type="button" class="secondary text-icon-button" data-view-full-screen-readonly-blog="${blog.id}">${buttonContent("&#9974;", "View Full-Screen")}</button>
+          ${documentationPublicLinkButtonHtml(blog, "secondary text-icon-button", "Public Link")}
           <button type="button" class="secondary text-icon-button documentation-dialog-export-button" data-export-readonly-blog="${blog.id}">${buttonContent(documentationExportIconHtml(), "Export")}</button>
         </div>
         <button type="button" class="secondary text-icon-button" data-edit-readonly-blog="${blog.id}" ${canAccessResource("Documentation", "Update") ? "" : "disabled"}>${buttonContent("&#9998;", "Edit")}</button>
@@ -776,6 +783,12 @@ export function createDocumentationFeature({
       const exportButton = event.target.closest("[data-export-readonly-blog]");
       if (exportButton) {
         openDocumentationExportDialog(blog, { showToast });
+        return;
+      }
+
+      const publicLinkButton = event.target.closest("[data-action='copy-public-document-link']");
+      if (publicLinkButton) {
+        void copyPublicDocumentationLink(blog, { saveJson, showToast });
         return;
       }
 
@@ -1327,6 +1340,9 @@ export function createDocumentationFeature({
       });
       activeMenu.querySelectorAll("[data-documentation-context-requires-delete]").forEach(button => {
         button.disabled = !documentationCanDelete(blog);
+      });
+      activeMenu.querySelectorAll("[data-documentation-context-requires-public]").forEach(button => {
+        button.disabled = blog.isPrivate !== false;
       });
 
       activeMenu.hidden = false;
@@ -2269,6 +2285,7 @@ function documentationTreeContextMenuHtml() {
       ${documentationTreeContextMenuItemHtml("edit-documentation-full-screen", "Edit Document", "&#9998;", "data-documentation-context-requires-update")}
       ${documentationTreeContextMenuItemHtml("duplicate-blog", "Duplicate", "&#128203;", "data-documentation-context-requires-create")}
       ${documentationTreeContextMenuItemHtml("export-blog", "Download", documentationExportIconHtml())}
+      ${documentationTreeContextMenuItemHtml("copy-public-document-link", "Public Link", "&#128279;", "data-documentation-context-requires-public")}
       ${documentationTreeContextMenuItemHtml("delete-blog", "Delete", "&#128465;", "data-documentation-context-requires-delete", "is-danger")}
     </div>
   `;
@@ -2368,6 +2385,7 @@ function documentationTreePreviewHtml(blog) {
       <div class="toolbar documentation-tree-preview-actions">
         ${documentationDeleteSelectionHtml(blog)}
         ${iconButton("delete-blog", blog.id, "Delete", "delete", canAccessResource("Documentation", "Delete"), "danger")}
+        ${documentationPublicLinkButtonHtml(blog)}
         <button class="icon-action" type="button" data-action="export-blog" data-id="${blog.id}" title="Export" aria-label="Export"><span class="button-icon" aria-hidden="true">${documentationExportIconHtml()}</span></button>
         ${iconButton("edit-blog", blog.id, "Edit", "edit", canAccessResource("Documentation", "Update"))}
       </div>
@@ -2475,6 +2493,7 @@ function documentationCardHtml(blog) {
       <div class="toolbar reveal-actions documentation-actions">
         ${documentationDeleteSelectionHtml(blog)}
         ${iconButton("delete-blog", blog.id, "Delete", "delete", canAccessResource("Documentation", "Delete"), "danger")}
+        ${documentationPublicLinkButtonHtml(blog)}
         ${iconButton("edit-blog", blog.id, "Edit", "edit", canAccessResource("Documentation", "Update"))}
       </div>
     `,
@@ -2492,6 +2511,36 @@ function documentationRichPersistAttrs(blog) {
     `data-rich-persist-id="${escapeAttr(blog.id)}"`,
     `data-rich-persist-field="bodyHtml"`
   ].join(" ");
+}
+
+async function copyPublicDocumentationLink(blog, { saveJson, showToast } = {}) {
+  if (blog?.isPrivate !== false) {
+    showToast?.("Only public documents can be shared with a public link.");
+    return false;
+  }
+
+  return openPublicLinkDialog(async durationDays => {
+    const link = await saveJson("/api/public-links", "POST", {
+      blogId: blog.id,
+      durationDays
+    });
+    const token = String(link?.token || "").trim();
+    if (!token) throw new Error("The public link could not be created.");
+
+    return new URL(appUrl(`/public/document/${token}`), window.location.href).href;
+  }, {
+    notify: showToast,
+    copiedMessage: "Public document link copied.",
+    copyFailedMessage: "Public document link created. Copy it from the Public URL box."
+  });
+}
+
+function documentationPublicLinkButtonHtml(blog, className = "icon-action", label = "") {
+  if (blog?.isPrivate !== false) return "";
+  const content = label
+    ? buttonContent("&#128279;", label)
+    : `<span class="button-icon" aria-hidden="true">&#128279;</span>`;
+  return `<button class="${escapeAttr(className)}" type="button" data-action="copy-public-document-link" data-id="${blog.id}" title="Public Link" aria-label="Public Link">${content}</button>`;
 }
 
 function documentationLockIconHtml() {

@@ -159,7 +159,7 @@ internal static class AuthenticationEndpoints
             IsPersistent = !isImpersonating,
             ExpiresUtc = isImpersonating
                 ? DateTimeOffset.UtcNow.AddHours(4)
-                : DateTimeOffset.UtcNow.AddDays(7)
+                : DateTimeOffset.UtcNow.AddDays(180)
         };
         await context.SignInAsync(
             CookieAuthenticationDefaults.AuthenticationScheme,

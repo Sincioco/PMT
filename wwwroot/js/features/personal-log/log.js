@@ -13,7 +13,7 @@ import {
   selectOptionsField,
   value
 } from "../../components/forms.js?v=20260722-rte-toggle-state-v1";
-import { sectionHead } from "../../components/sections.js?v=release-notes-2026-07-22-day-35-b9e5ce970062";
+import { sectionHead } from "../../components/sections.js?v=release-notes-2026-07-24-day-36-c768b4298cb2";
 import { createWorkItemTableMode } from "../../components/work-items.js?v=20260720-work-item-export-images-v4";
 import { currentUser } from "../../core/authentication.js?v=20260715-admin-impersonation";
 import {

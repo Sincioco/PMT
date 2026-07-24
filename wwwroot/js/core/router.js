@@ -1,6 +1,6 @@
 import { preferenceKeys, readPreference, writePreference } from "./preferences.js";
-import { visibleNavigationScreens } from "./navigation-preferences.js?v=20260718-diagram-library-v8";
-import { screenRegistry } from "./screen-registry.js?v=20260718-diagram-library-v7";
+import { visibleNavigationScreens } from "./navigation-preferences.js?v=20260725-suggestions-v1";
+import { screenRegistry } from "./screen-registry.js?v=20260725-suggestions-v1";
 import { canReadView, firstReadableView } from "../shared/security.js?v=20260718-diagram-entity-v22";
 
 const legacyViews = Object.freeze({

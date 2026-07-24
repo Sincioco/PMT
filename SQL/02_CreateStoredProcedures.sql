@@ -1,5 +1,5 @@
 /*
-    PMT Version 1.26 stored procedures.
+    PMT Version 1.27 stored procedures.
     The application uses ADO.NET and calls these procedures directly.
     The SQL is intentionally explicit so future maintainers can trace each save action.
 */
@@ -676,6 +676,11 @@ BEGIN
 
         UNION ALL
 
+        SELECT N'Suggestion', CONVERT(NVARCHAR(80), [SuggestionId]), CONVERT(VARBINARY(8), [RowVersion])
+        FROM [pmt].[Suggestions]
+
+        UNION ALL
+
         SELECT N'Blog', CONVERT(NVARCHAR(80), [BlogId]), CONVERT(VARBINARY(8), [RowVersion])
         FROM [pmt].[Blogs]
         WHERE [IsDeleted] = 0
@@ -735,6 +740,8 @@ BEGIN
         SELECT @RowVersion = [RowVersion] FROM [pmt].[WorkTasks] WITH (UPDLOCK, HOLDLOCK) WHERE [TaskId] = @EntityId AND [IsDeleted] = 0;
     ELSE IF @EntityType = N'DevLog'
         SELECT @RowVersion = [RowVersion] FROM [pmt].[DevLogs] WITH (UPDLOCK, HOLDLOCK) WHERE [DevLogId] = @EntityId AND [IsDeleted] = 0;
+    ELSE IF @EntityType = N'Suggestion'
+        SELECT @RowVersion = [RowVersion] FROM [pmt].[Suggestions] WITH (UPDLOCK, HOLDLOCK) WHERE [SuggestionId] = @EntityId;
     ELSE IF @EntityType = N'Blog'
         SELECT @RowVersion = [RowVersion] FROM [pmt].[Blogs] WITH (UPDLOCK, HOLDLOCK) WHERE [BlogId] = @EntityId AND [IsDeleted] = 0;
     ELSE IF @EntityType = N'Lookup'
@@ -3736,6 +3743,85 @@ BEGIN
         END;
     END;
 
+    -- If the developer pulls work back before QA has touched the linked Bug,
+    -- keep the Bug out of QA's queue too. A QA edit changes UpdatedByUserId,
+    -- so this will not overwrite QA's later status.
+    IF @TaskType = N'Dev'
+       AND @OldStatus = N'Ready for QA'
+       AND @Status = N'In Progress'
+    BEGIN
+        SET @LinkedBugToRetestId = @ExistingLinkedBugTaskId;
+
+        IF @LinkedBugToRetestId IS NULL
+        BEGIN
+            SELECT TOP (1) @LinkedBugToRetestId = [BugTask].[TaskId]
+            FROM [pmt].[WorkTasks] AS [BugTask]
+            WHERE [BugTask].[TaskType] = N'Bug'
+              AND [BugTask].[IsDeleted] = 0
+              AND
+              (
+                  EXISTS
+                  (
+                      SELECT 1
+                      FROM [pmt].[SplitIds](@DependencyTaskIdsCsv) AS [Ids]
+                      WHERE [Ids].[Id] = [BugTask].[TaskId]
+                  )
+                  OR EXISTS
+                  (
+                      SELECT 1
+                      FROM [pmt].[TaskDependencies] AS [Dependency]
+                      WHERE [Dependency].[TaskId] = @TaskId
+                        AND [Dependency].[DependsOnTaskId] = [BugTask].[TaskId]
+                  )
+              )
+            ORDER BY [BugTask].[TaskId];
+        END;
+
+        IF @LinkedBugToRetestId IS NOT NULL
+        BEGIN
+            SELECT
+                @LinkedOldStatus = [Status],
+                @LinkedOldPercentCompleted = [PercentCompleted]
+            FROM [pmt].[WorkTasks]
+            WHERE [TaskId] = @LinkedBugToRetestId
+              AND [TaskType] = N'Bug'
+              AND [IsDeleted] = 0
+              AND [Status] = N'Ready for QA'
+              AND [UpdatedByUserId] = @CurrentUserId;
+
+            IF @LinkedOldStatus = N'Ready for QA'
+            BEGIN
+                SET @LinkedNewStatus = N'In Progress';
+                SET @LinkedNewPercentCompleted = 50;
+
+                UPDATE [pmt].[WorkTasks]
+                SET
+                    [Status] = @LinkedNewStatus,
+                    [PercentCompleted] = @LinkedNewPercentCompleted,
+                    [UpdatedByUserId] = @CurrentUserId,
+                    [UpdatedAt] = @Now
+                WHERE [TaskId] = @LinkedBugToRetestId;
+
+                SET @AuditDetails =
+                    N'Linked Dev Task returned to In Progress before QA updates; Bug status/percent updated: ' +
+                    ISNULL(@LinkedOldStatus, N'') + N' -> ' + @LinkedNewStatus +
+                    N'; Percent: ' + CONVERT(NVARCHAR(12), ISNULL(@LinkedOldPercentCompleted, 0)) +
+                    N'% -> ' + CONVERT(NVARCHAR(12), @LinkedNewPercentCompleted) + N'%';
+
+                EXEC [pmt].[WriteAudit]
+                    N'Task',
+                    @LinkedBugToRetestId,
+                    N'Status/Percent Changed',
+                    @AuditDetails,
+                    @CurrentUserId,
+                    @LinkedOldStatus,
+                    @LinkedNewStatus,
+                    @LinkedOldPercentCompleted,
+                    @LinkedNewPercentCompleted;
+            END;
+        END;
+    END;
+
     -- When a sub-task changes, refresh the parent task's calculated percent and
     -- make sure active child work lifts a Todo parent into active work too.
     IF @ParentTaskId IS NOT NULL
@@ -6428,6 +6514,244 @@ BEGIN
 END;
 GO
 
+CREATE OR ALTER PROCEDURE [pmt].[UpsertSuggestion]
+    @SuggestionId INT OUTPUT,
+    @BodyHtml NVARCHAR(MAX),
+    @CurrentUserId INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    SET @BodyHtml = NULLIF(LTRIM(RTRIM(@BodyHtml)), N'');
+
+    IF @BodyHtml IS NULL
+    BEGIN
+        THROW 51140, 'Suggestion text is required.', 1;
+    END;
+
+    IF NOT EXISTS (SELECT 1 FROM [pmt].[Users] WHERE [UserId] = @CurrentUserId AND [IsActive] = 1)
+    BEGIN
+        THROW 51141, 'The suggestion user was not found or is inactive.', 1;
+    END;
+
+    IF @SuggestionId = 0
+    BEGIN
+        INSERT INTO [pmt].[Suggestions]
+        (
+            [BodyHtml],
+            [CreatedByUserId],
+            [UpdatedByUserId],
+            [UpdatedAt]
+        )
+        VALUES
+        (
+            @BodyHtml,
+            @CurrentUserId,
+            @CurrentUserId,
+            SYSUTCDATETIME()
+        );
+
+        SET @SuggestionId = CONVERT(INT, SCOPE_IDENTITY());
+
+        EXEC [pmt].[WriteAudit]
+            N'Suggestion',
+            @SuggestionId,
+            N'Created',
+            N'PMT suggestion submitted.',
+            @CurrentUserId;
+
+        RETURN;
+    END;
+
+    DECLARE @OwnerUserId INT;
+    SELECT @OwnerUserId = [CreatedByUserId]
+    FROM [pmt].[Suggestions]
+    WHERE [SuggestionId] = @SuggestionId;
+
+    IF @OwnerUserId IS NULL
+    BEGIN
+        THROW 51143, 'Suggestion was not found.', 1;
+    END;
+
+    IF [pmt].[IsAdmin](@CurrentUserId) = 0 AND @OwnerUserId <> @CurrentUserId
+    BEGIN
+        THROW 51145, 'You can only update your own suggestions.', 1;
+    END;
+
+    UPDATE [pmt].[Suggestions]
+    SET
+        [BodyHtml] = @BodyHtml,
+        [UpdatedByUserId] = @CurrentUserId,
+        [UpdatedAt] = SYSUTCDATETIME()
+    WHERE [SuggestionId] = @SuggestionId;
+
+    EXEC [pmt].[WriteAudit]
+        N'Suggestion',
+        @SuggestionId,
+        N'Updated',
+        N'PMT suggestion updated.',
+        @CurrentUserId;
+END;
+GO
+
+CREATE OR ALTER PROCEDURE [pmt].[AddSuggestion]
+    @BodyHtml NVARCHAR(MAX),
+    @CurrentUserId INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    DECLARE @SuggestionId INT = 0;
+    EXEC [pmt].[UpsertSuggestion]
+        @SuggestionId = @SuggestionId OUTPUT,
+        @BodyHtml = @BodyHtml,
+        @CurrentUserId = @CurrentUserId;
+
+    SELECT [SuggestionId] = @SuggestionId;
+END;
+GO
+
+CREATE OR ALTER PROCEDURE [pmt].[GetSuggestions]
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    SELECT
+        [SuggestionId],
+        [BodyHtml],
+        [Status],
+        [CreatedByUserId],
+        [UpdatedByUserId],
+        [CreatedAt],
+        [UpdatedAt],
+        CONVERT(VARBINARY(8), [RowVersion]) AS [RowVersion]
+    FROM [pmt].[Suggestions]
+    ORDER BY [CreatedAt] DESC, [SuggestionId] DESC;
+END;
+GO
+
+CREATE OR ALTER PROCEDURE [pmt].[CreatePublicBlogLink]
+    @BlogId INT,
+    @DurationDays INT = NULL,
+    @CurrentUserId INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    IF @DurationDays IS NOT NULL AND @DurationDays NOT IN (15, 30, 60, 90)
+    BEGIN
+        THROW 51154, 'Public link duration must be forever, 15, 30, 60, or 90 days.', 1;
+    END;
+
+    IF NOT EXISTS (SELECT 1 FROM [pmt].[Users] WHERE [UserId] = @CurrentUserId AND [IsActive] = 1)
+    BEGIN
+        THROW 51155, 'The public link user was not found or is inactive.', 1;
+    END;
+
+    IF NOT EXISTS
+    (
+        SELECT 1
+        FROM [pmt].[Blogs]
+        WHERE [BlogId] = @BlogId
+          AND [IsDeleted] = 0
+          AND [IsPrivate] = 0
+    )
+    BEGIN
+        THROW 51156, 'Only public documents and diagrams can be shared with a public link.', 1;
+    END;
+
+    DECLARE @Token UNIQUEIDENTIFIER = NEWID();
+    WHILE EXISTS (SELECT 1 FROM [pmt].[PublicBlogLinks] WHERE [Token] = @Token)
+    BEGIN
+        SET @Token = NEWID();
+    END;
+
+    DECLARE @ExpiresAt DATETIME2(0) = CASE
+        WHEN @DurationDays IS NULL THEN NULL
+        ELSE DATEADD(DAY, @DurationDays, SYSUTCDATETIME())
+    END;
+
+    INSERT INTO [pmt].[PublicBlogLinks]
+    (
+        [BlogId],
+        [Token],
+        [ExpiresAt],
+        [CreatedByUserId]
+    )
+    VALUES
+    (
+        @BlogId,
+        @Token,
+        @ExpiresAt,
+        @CurrentUserId
+    );
+
+    SELECT [Token] = @Token, [ExpiresAt] = @ExpiresAt;
+END;
+GO
+
+CREATE OR ALTER PROCEDURE [pmt].[GetPublicBlog]
+    @Token UNIQUEIDENTIFIER
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    DECLARE @Now DATETIME2(0) = SYSUTCDATETIME();
+
+    UPDATE [Link]
+    SET [LastAccessedAt] = @Now
+    FROM [pmt].[PublicBlogLinks] AS [Link]
+    INNER JOIN [pmt].[Blogs] AS [Blog]
+        ON [Blog].[BlogId] = [Link].[BlogId]
+    WHERE [Link].[Token] = @Token
+      AND ([Link].[ExpiresAt] IS NULL OR [Link].[ExpiresAt] >= @Now)
+      AND [Blog].[IsDeleted] = 0
+      AND [Blog].[IsPrivate] = 0;
+
+    SELECT
+        [Blog].[BlogId],
+        [Blog].[ProjectId],
+        [Blog].[SprintId],
+        [Blog].[ParentBlogId],
+        [Blog].[Title],
+        [Blog].[BodyHtml],
+        [Blog].[IsPrivate],
+        [Blog].[IsPinned],
+        [Blog].[SortOrder],
+        [Blog].[CreatedByUserId],
+        [Blog].[CreatedAt],
+        [Blog].[UpdatedAt]
+    FROM [pmt].[PublicBlogLinks] AS [Link]
+    INNER JOIN [pmt].[Blogs] AS [Blog]
+        ON [Blog].[BlogId] = [Link].[BlogId]
+    WHERE [Link].[Token] = @Token
+      AND ([Link].[ExpiresAt] IS NULL OR [Link].[ExpiresAt] >= @Now)
+      AND [Blog].[IsDeleted] = 0
+      AND [Blog].[IsPrivate] = 0;
+
+    SELECT
+        [Attachment].[AttachmentId],
+        [Attachment].[FileName],
+        [Attachment].[Url],
+        [Attachment].[ContentType],
+        [Attachment].[ByteLength],
+        [Attachment].[UploadedByUserId],
+        [Attachment].[CreatedAt]
+    FROM [pmt].[PublicBlogLinks] AS [Link]
+    INNER JOIN [pmt].[Blogs] AS [Blog]
+        ON [Blog].[BlogId] = [Link].[BlogId]
+    INNER JOIN [pmt].[BlogAttachments] AS [BlogAttachment]
+        ON [BlogAttachment].[BlogId] = [Blog].[BlogId]
+    INNER JOIN [pmt].[Attachments] AS [Attachment]
+        ON [Attachment].[AttachmentId] = [BlogAttachment].[AttachmentId]
+    WHERE [Link].[Token] = @Token
+      AND ([Link].[ExpiresAt] IS NULL OR [Link].[ExpiresAt] >= @Now)
+      AND [Blog].[IsDeleted] = 0
+      AND [Blog].[IsPrivate] = 0
+    ORDER BY [Attachment].[CreatedAt] DESC;
+END;
+GO
+
 CREATE OR ALTER PROCEDURE [pmt].[UpsertBlog]
     @BlogId INT OUTPUT,
     @Title NVARCHAR(220),
@@ -8030,6 +8354,14 @@ BEGIN
     UPDATE [pmt].[WfhSchedules] SET [CreatedByUserId] = @AdminUserId, [UpdatedByUserId] = @AdminUserId;
     UPDATE [pmt].[AttendanceEntries] SET [CreatedByUserId] = @AdminUserId, [UpdatedByUserId] = @AdminUserId;
     UPDATE [pmt].[VacationPlans] SET [CreatedByUserId] = @AdminUserId, [UpdatedByUserId] = @AdminUserId;
+    IF OBJECT_ID(N'[pmt].[PublicBlogLinks]', N'U') IS NOT NULL
+    BEGIN
+        UPDATE [pmt].[PublicBlogLinks] SET [CreatedByUserId] = @AdminUserId;
+    END;
+    IF OBJECT_ID(N'[pmt].[Suggestions]', N'U') IS NOT NULL
+    BEGIN
+        UPDATE [pmt].[Suggestions] SET [CreatedByUserId] = @AdminUserId, [UpdatedByUserId] = @AdminUserId;
+    END;
     UPDATE [pmt].[Users] SET [CreatedByUserId] = @AdminUserId, [UpdatedByUserId] = @AdminUserId;
 
     DELETE FROM [pmt].[WfhSchedules]

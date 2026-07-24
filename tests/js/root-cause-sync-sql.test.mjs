@@ -3,13 +3,14 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 
 const sourceSql = readFileSync(new URL("../../SQL/02_CreateStoredProcedures.sql", import.meta.url), "utf8");
-const migrationSql = readFileSync(new URL("../../SQL/Migrations/Migration History/PMT_1.20_to_1.21.sql", import.meta.url), "utf8");
+const migrationSql = readFileSync(new URL("../../SQL/Migrations/PMT_1.26_to_1.27.sql", import.meta.url), "utf8");
 
 function upsertTaskProcedure(sql) {
   sql = sql.replace(/\r\n/g, "\n");
   const start = sql.indexOf("CREATE OR ALTER PROCEDURE [pmt].[UpsertTask]");
   const next = sql.indexOf("CREATE OR ALTER PROCEDURE [pmt].[ReorderTasks]", start);
-  const end = next >= 0 ? next : sql.indexOf("\nBEGIN TRY\n", start);
+  const nextGo = sql.indexOf("\nGO", start);
+  const end = nextGo >= 0 && (next < 0 || nextGo < next) ? nextGo : next;
   assert.ok(start >= 0 && end > start, "UpsertTask procedure should be present");
   return sql.slice(start, end).trim();
 }
@@ -28,9 +29,9 @@ test("Root Cause Analysis sync is one-way from Dev Task to associated Bug", () =
   assert.doesNotMatch(syncBlock, /@RootCauseSyncMergedHtml|IN \(@TaskId, @RootCauseSyncTargetId\)|N'<hr>'/);
 });
 
-test("Version 1.21 migration installs the canonical UpsertTask procedure", () => {
+test("Version 1.27 migration installs the canonical UpsertTask procedure", () => {
   assert.equal(upsertTaskProcedure(migrationSql), upsertTaskProcedure(sourceSql));
-  assert.match(migrationSql, /@value = N'1\.21'/);
+  assert.match(migrationSql, /DECLARE @TargetDatabaseVersion NVARCHAR\(20\) = N'1\.27'/);
 });
 
 test("Bug URL copies only to the linked Bug Fix Dev Task", () => {

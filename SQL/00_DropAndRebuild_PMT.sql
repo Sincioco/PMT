@@ -2,7 +2,7 @@
     00_DropAndRebuild_PMT.sql
 
     Purpose:
-    Drops the existing PMT database, recreates it at the current Version 1.26,
+    Drops the existing PMT database, recreates it at the current Version 1.27,
     creates stored procedures, and loads seed/demo data using the companion scripts.
 
     IMPORTANT:
@@ -40,28 +40,28 @@ GO
 PRINT N'PMT database dropped if it existed.';
 GO
 
-:r ".\01_CreateDatabase.sql"
+:r "D:\Project Management Tool (PMT)\SQL\01_CreateDatabase.sql"
 GO
 
-:r ".\02_CreateStoredProcedures.sql"
+:r "D:\Project Management Tool (PMT)\SQL\02_CreateStoredProcedures.sql"
 GO
 
-:r ".\03_SeedData.sql"
+:r "D:\Project Management Tool (PMT)\SQL\03_SeedData.sql"
 GO
 
-:r ".\03_SeedData_ImageAnnotationTemplates.sql"
+:r "D:\Project Management Tool (PMT)\SQL\03_SeedData_ImageAnnotationTemplates.sql"
 GO
 
-:r ".\03_SeedData_PMT.sql"
+:r "D:\Project Management Tool (PMT)\SQL\03_SeedData_PMT.sql"
 GO
 
-:r ".\03_SeedData_LMS.sql"
+:r "D:\Project Management Tool (PMT)\SQL\03_SeedData_LMS.sql"
 GO
 
-:r ".\03_SeedData_HLS.sql"
+:r "D:\Project Management Tool (PMT)\SQL\03_SeedData_HLS.sql"
 GO
 
-:r ".\03_SeedData_DiagramDemo.sql"
+:r "D:\Project Management Tool (PMT)\SQL\03_SeedData_DiagramDemo.sql"
 GO
 
 USE [PMT];
@@ -77,13 +77,13 @@ IF EXISTS
 BEGIN
     EXEC sys.sp_updateextendedproperty
         @name = N'PMT_DatabaseVersion',
-        @value = N'1.26';
+        @value = N'1.27';
 END
 ELSE
 BEGIN
     EXEC sys.sp_addextendedproperty
         @name = N'PMT_DatabaseVersion',
-        @value = N'1.26';
+        @value = N'1.27';
 END;
 GO
 

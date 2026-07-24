@@ -9,7 +9,7 @@ import {
   openBugDialogCustomizationDialog,
   readBugDialogFieldPrefs,
   syncBugDialogHeaderActionsMenu
-} from "../../components/bug-dialog-customization.js?v=20260711-tsg-report";
+} from "../../components/bug-dialog-customization.js?v=20260724-day36-v3";
 import { buttonContent, chartIconHtml, funnelIconHtml, pageActionsMenuHtml } from "../../components/buttons.js?v=20260701-unified-dropdowns";
 import { VisualCharts } from "../../components/charts.js?v=20260628-chart-native-tooltips";
 import { initializeWindowedDialog } from "../../components/dialogs.js?v=20260711-tsg-report";
@@ -34,7 +34,7 @@ import {
   value
 } from "../../components/forms.js?v=20260722-rte-toggle-state-v1";
 import { progressHtml } from "../../components/progress-and-status.js?v=20260714-linked-bug-percent";
-import { sectionHead } from "../../components/sections.js?v=release-notes-2026-07-22-day-35-b9e5ce970062";
+import { sectionHead } from "../../components/sections.js?v=release-notes-2026-07-24-day-36-c768b4298cb2";
 import {
   attachmentEditorFieldHtml,
   bindAssigneeList,
@@ -544,12 +544,12 @@ export function createBugsFeature({
               ${bugSortOptionsHtml()}
             </select>
           </label>
-          ${bugFilterSelectHtml("Status", "bug-status", getStatuses().map(value => ({ value, text: value })), bugFilters.status || "", "All Statuses")}
-          ${bugFilterSelectHtml("Priority", "bug-priority", getPriorities().map(value => ({ value, text: value })), bugFilters.priority || "", "All Priorities")}
-          ${bugFilterSelectHtml("Severity", "bug-severity", getSeverities().map(value => ({ value, text: value })), bugFilters.severity || "", "All Severities")}
-          ${bugFilterSelectHtml("Environment", "bug-environment", getEnvironments().map(value => ({ value, text: value })), bugFilters.environment || "", "All Environments")}
         </div>
         <div class="filter-stack">
+          ${filterCheckList("Status", "bug-status", getStatuses().map(value => ({ value, text: value })), bugFilters.statuses)}
+          ${filterCheckList("Priority", "bug-priority", getPriorities().map(value => ({ value, text: value })), bugFilters.priorities)}
+          ${filterCheckList("Severity", "bug-severity", getSeverities().map(value => ({ value, text: value })), bugFilters.severities)}
+          ${filterCheckList("Environment", "bug-environment", getEnvironments().map(value => ({ value, text: value })), bugFilters.environments)}
           ${filterCheckList("Reporters", "bug-reporter", bugUserFilterItems(), bugFilters.reporterIds, {
             className: "user-card-check-list",
             renderItem: userCardCheckListLabelHtml
@@ -572,18 +572,6 @@ export function createBugsFeature({
     }));
   }
 
-  function bugFilterSelectHtml(label, filterName, items, selectedValue, emptyText) {
-    return `
-      <label>
-        <span>${escapeHtml(label)}</span>
-        <select data-filter="${filterName}">
-          <option value="">${escapeHtml(emptyText)}</option>
-          ${items.map(item => `<option value="${escapeAttr(item.value)}" ${String(item.value) === String(selectedValue) ? "selected" : ""}>${escapeHtml(item.text)}</option>`).join("")}
-        </select>
-      </label>
-    `;
-  }
-
   function applyBugFilterChange(target) {
     const filter = target?.dataset?.filter;
     if (!filter?.startsWith("bug-")) return false;
@@ -596,10 +584,10 @@ export function createBugsFeature({
         : "all";
     }
     if (key === "sprint") bugFilters.sprintId = target.value || "all";
-    if (key === "status") bugFilters.status = target.value;
-    if (key === "priority") bugFilters.priority = target.value;
-    if (key === "severity") bugFilters.severity = target.value;
-    if (key === "environment") bugFilters.environment = target.value;
+    if (key === "status") bugFilters.statuses = checkedFilterValues("bug-status");
+    if (key === "priority") bugFilters.priorities = checkedFilterValues("bug-priority");
+    if (key === "severity") bugFilters.severities = checkedFilterValues("bug-severity");
+    if (key === "environment") bugFilters.environments = checkedFilterValues("bug-environment");
     if (key === "search") bugFilters.search = target.value;
     if (key === "sort") bugFilters.sort = target.value;
     if (key === "reporter") bugFilters.reporterIds = checkedFilterValues("bug-reporter");
@@ -776,10 +764,10 @@ export function createBugsFeature({
   function filteredBugReports(bugs) {
     return bugs
       .filter(bug => bugMatchesSearchFilter(bug))
-      .filter(bug => !bugFilters.status || bug.status === bugFilters.status)
-      .filter(bug => !bugFilters.priority || bug.priority === bugFilters.priority)
-      .filter(bug => !bugFilters.severity || bug.severity === bugFilters.severity)
-      .filter(bug => !bugFilters.environment || bug.environment === bugFilters.environment)
+      .filter(bug => !bugFilters.statuses.length || bugFilters.statuses.includes(bug.status))
+      .filter(bug => !bugFilters.priorities.length || bugFilters.priorities.includes(bug.priority))
+      .filter(bug => !bugFilters.severities.length || bugFilters.severities.includes(bug.severity))
+      .filter(bug => !bugFilters.environments.length || bugFilters.environments.includes(bug.environment))
       .filter(bug => !bugFilters.reporterIds.length || bug.reporterIds.map(String).some(id => bugFilters.reporterIds.includes(id)))
       .filter(bug => !bugFilters.assigneeIds.length || bug.assigneeIds.map(String).some(id => bugFilters.assigneeIds.includes(id)))
       .sort(bugSortCompare);
@@ -788,6 +776,10 @@ export function createBugsFeature({
   function normalizeBugFilters(filters = {}) {
     const normalized = {
       ...filters,
+      statuses: normalizeSavedArray(filters.statuses, filters.status),
+      priorities: normalizeSavedArray(filters.priorities, filters.priority),
+      severities: normalizeSavedArray(filters.severities, filters.severity),
+      environments: normalizeSavedArray(filters.environments, filters.environment),
       reporterIds: normalizeSavedArray(filters.reporterIds, filters.reporterId),
       assigneeIds: normalizeSavedArray(filters.assigneeIds, filters.assigneeId),
       sort: filters.sort || "custom",
@@ -1775,6 +1767,7 @@ export function createBugsFeature({
   }
 
   function bugTsgReportValue(key, bug) {
+    if (key === "code") return bug.code || "";
     if (key === "projectId") return projectName(bug.projectId);
     if (key === "sprintId") return bugTableSprintLabel(bug);
     if (key === "title") return bug.title || "";
@@ -1795,6 +1788,10 @@ export function createBugsFeature({
     if (key === "assigneeIds") return userNames(bug.assignees);
     if (key === "reporterIds") return userNames(bug.reporters);
     if (key === "dependencyTaskIds") return bugDependencyLabel(bug);
+    if (key === "createdBy") return bugUserName(bug.createdByUserId);
+    if (key === "createdAt") return formatDateTime(bug.createdAt);
+    if (key === "updatedBy") return bugUserName(bug.updatedByUserId);
+    if (key === "updatedAt") return formatDateTime(bug.updatedAt);
     return bug[key] ?? "";
   }
 
