@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-test("Field Mapping Table hover does not draw outward selection chrome", async ({ page }) => {
+test("Field Mapping Table hover draws mapped handles without outward selection chrome", async ({ page }) => {
   await page.route("**/image-annotation-hover-test.html", route => route.fulfill({
     contentType: "text/html",
     body: `<!doctype html>
@@ -96,9 +96,10 @@ test("Field Mapping Table hover does not draw outward selection chrome", async (
 
   const dialog = page.locator("dialog.image-annotation-dialog");
   const canvas = dialog.locator("[data-annotation-canvas]");
-  const mappingCell = canvas.locator("[data-annotation-field-mapping-cell]");
+  const mappingCell = canvas.locator("[data-annotation-field-mapping-ui-cell]");
 
   await expect(dialog).toBeVisible();
+  await expect(canvas.locator("[data-annotation-field-mapping-cell]")).toHaveCount(2);
   await expect(mappingCell).toHaveCount(1);
   await expect(canvas.locator(".image-annotation-selection-group")).toHaveCount(0);
 
@@ -106,10 +107,10 @@ test("Field Mapping Table hover does not draw outward selection chrome", async (
   await expect.poll(() => canvas.locator(".image-annotation-object.is-field-rectangle.is-field-mapping-hover").count()).toBe(1);
   await expect.poll(() => canvas.locator(".image-annotation-entity-relationship.is-field-mapping-hover").count()).toBe(1);
   await expect(canvas.locator(".image-annotation-field-mapping-hover-relationship")).toHaveCount(1);
-  await expect(canvas.locator(".image-annotation-entity-relationship-handle")).toHaveCount(0);
-  await expect(canvas.locator(".image-annotation-selection-group")).toHaveCount(0);
+  await expect.poll(() => canvas.locator(".image-annotation-entity-relationship-handle").count()).toBeGreaterThan(0);
+  await expect(canvas.locator(".image-annotation-selection-group")).toHaveCount(2);
 
   await mappingCell.click();
-  await expect(dialog.locator("[data-annotation-selection-label]")).toHaveText("Field: Project");
-  await expect(canvas.locator(".image-annotation-selection-group")).toHaveCount(1);
+  await expect(dialog.locator("[data-annotation-selection-label]")).toHaveText("3 objects selected");
+  await expect(canvas.locator(".image-annotation-selection-group")).toHaveCount(2);
 });

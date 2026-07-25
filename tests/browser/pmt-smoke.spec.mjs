@@ -2607,6 +2607,7 @@ test("Diagram parses T-SQL Entities and exposes individual relationship Objects"
   await page.locator("#loginName").fill("Sin");
   await page.locator("#loginPassword").fill("Password1");
   await page.getByRole("button", { name: /log in/i }).click();
+  await expect(page.getByRole("heading", { name: "Dashboard", exact: true })).toBeVisible();
   await openNavView(page, "Diagram", "Diagram");
   await page.getByRole("button", { name: "New Diagram", exact: true }).click();
   await expect.poll(() => apiCalls.blogCreates?.length || 0).toBe(1);
@@ -3365,6 +3366,7 @@ test("Canceling Diagram edit refits and centers the recreated Treeview preview",
   await page.locator("#loginName").fill("Sin");
   await page.locator("#loginPassword").fill("Password1");
   await page.getByRole("button", { name: /log in/i }).click();
+  await expect(page.getByRole("heading", { name: "Dashboard", exact: true })).toBeVisible();
   await openNavView(page, "Diagram", "Diagram");
 
   await expect(page.locator("[data-diagram-page-document-head] h2")).toHaveText("Cancel Return Fit");
@@ -3453,6 +3455,7 @@ test("read-only Diagram expansion raises the Entity and moves an overlapping nei
   await page.locator("#loginName").fill("Sin");
   await page.locator("#loginPassword").fill("Password1");
   await page.getByRole("button", { name: /log in/i }).click();
+  await expect(page.getByRole("heading", { name: "Dashboard", exact: true })).toBeVisible();
   await openNavView(page, "Diagram", "Diagram");
 
   await expect(page.locator("[data-diagram-page-document-head] h2")).toHaveText("Read Mode Entity Expansion");
