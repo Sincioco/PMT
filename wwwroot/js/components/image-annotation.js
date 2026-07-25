@@ -1,6 +1,14 @@
 import { richTextToolsHtml, sharedRichColorPickerHtml } from "./forms.js?v=20260722-rte-toggle-state-v1";
 import { copyTextToClipboard } from "./clipboard.js?v=20260714-invite-email-body";
 import { normalizeRichHtml } from "../shared/text-and-links.js?v=20260722-rte-toggle-state-v1";
+import {
+  createDiagramSelectionClipboardPackage,
+  diagramSelectionClipboardPlainTextHeader,
+  normalizeDiagramTemplateLibrary,
+  parseDiagramSelectionClipboardPackage,
+  remapDiagramSelectionClipboardPackageIds,
+  serializeDiagramSelectionClipboardPackage
+} from "../shared/diagram-contracts.js?v=20260725-diagram2-day3-v1";
 
 const svgNamespace = "http://www.w3.org/2000/svg";
 const annotationVersion = 1;
@@ -170,11 +178,11 @@ export async function openImageAnnotationDialog(options) {
   });
   resolveAnnotationEntityOverlaps(state);
 
-  let templateLibrary = normalizeAnnotationTemplateLibrary(null);
+  let templateLibrary = normalizeDiagramTemplateLibrary(null);
   let templateLibraryError = "";
   if (typeof options?.loadTemplateLibrary === "function") {
     try {
-      templateLibrary = normalizeAnnotationTemplateLibrary(await options.loadTemplateLibrary());
+      templateLibrary = normalizeDiagramTemplateLibrary(await options.loadTemplateLibrary());
     } catch (error) {
       templateLibraryError = error?.message || "Your annotation templates could not be loaded.";
     }
@@ -186,7 +194,7 @@ export async function openImageAnnotationDialog(options) {
     : null;
   if (initialTemplateName && !initialTemplate && typeof options?.loadDefaultTemplateLibrary === "function") {
     try {
-      const defaultLibrary = normalizeAnnotationTemplateLibrary(await options.loadDefaultTemplateLibrary());
+      const defaultLibrary = normalizeDiagramTemplateLibrary(await options.loadDefaultTemplateLibrary());
       initialTemplate = defaultLibrary.templates.find(template =>
         String(template.name || "").trim().toLowerCase() === initialTemplateName
       ) || null;
@@ -3406,7 +3414,7 @@ function createAnnotationDialog(context) {
     let state = deepCopy(context.state);
     let originalReference = context.originalReference;
     let pendingPermanentCrop = null;
-    let templateLibrary = normalizeAnnotationTemplateLibrary(context.templateLibrary);
+    let templateLibrary = normalizeDiagramTemplateLibrary(context.templateLibrary);
     let templateBusy = false;
     let pmtSchemaBusy = false;
     let clipboardImageBusy = false;
@@ -5980,9 +5988,9 @@ function createAnnotationDialog(context) {
       if (templateStatus) templateStatus.textContent = "Saving templates...";
       syncControls();
       try {
-        const normalized = normalizeAnnotationTemplateLibrary(nextLibrary);
+        const normalized = normalizeDiagramTemplateLibrary(nextLibrary);
         const saved = await context.saveTemplateLibrary(normalized);
-        templateLibrary = normalizeAnnotationTemplateLibrary(saved || normalized);
+        templateLibrary = normalizeDiagramTemplateLibrary(saved || normalized);
         renderTemplateList();
         if (templateStatus) templateStatus.textContent = successMessage;
         setStatus(successMessage);
@@ -6013,6 +6021,7 @@ function createAnnotationDialog(context) {
       try {
         const defaults = await context.loadDefaultTemplateLibrary();
         const restored = restoreAnnotationDefaultTemplates(templateLibrary, defaults);
+        if (Object.hasOwn(templateLibrary, "extensions")) restored.library.extensions = templateLibrary.extensions || {};
         if (restored.capacityExceeded) {
           const message = `Restore needs ${restored.requiredSlots} more template slot${restored.requiredSlots === 1 ? "" : "s"}. Delete that many templates and try again.`;
           if (templateStatus) templateStatus.textContent = message;
@@ -6027,7 +6036,7 @@ function createAnnotationDialog(context) {
         }
 
         const saved = await context.saveTemplateLibrary(restored.library);
-        templateLibrary = normalizeAnnotationTemplateLibrary(saved || restored.library);
+        templateLibrary = normalizeDiagramTemplateLibrary(saved || restored.library);
         renderTemplateList();
         const message = `${restored.addedCount} default template${restored.addedCount === 1 ? "" : "s"} restored at the top of your library.`;
         if (templateStatus) templateStatus.textContent = message;
@@ -7277,36 +7286,108 @@ function createAnnotationDialog(context) {
       return true;
     };
 
-    const copyNativeSelection = () => {
+    const copyDiagramSelectionTextToClipboard = async text => {
+      try {
+        if (navigator.clipboard?.write && typeof ClipboardItem !== "undefined") {
+          await navigator.clipboard.write([
+            new ClipboardItem({
+              "text/plain": new Blob([text], { type: "text/plain" })
+            })
+          ]);
+          return true;
+        }
+      } catch {
+        // Fall through to writeText/selection fallback.
+      }
+      return copyTextToClipboard(text);
+    };
+
+    const readDiagramSelectionTextFromClipboard = async () => {
+      try {
+        if (navigator.clipboard?.readText) return await navigator.clipboard.readText();
+      } catch {
+        // Browser clipboard read permission is optional; same-tab memory remains available.
+      }
+      return "";
+    };
+
+    const insertDiagramSelectionClipboardPackage = packageInput => {
+      pasteSequence += 1;
+      const distance = state.gridVisible ? state.gridSize : 10;
+      const packageToInsert = remapDiagramSelectionClipboardPackageIds(packageInput, {
+        existingObjectIds: state.objects.map(object => object.id),
+        idFactory: (_oldId, type) => `${type || "object"}-${Date.now().toString(36)}-${++objectSequence}`,
+        pasteIndex: pasteSequence,
+        pasteOffset: { x: distance, y: distance }
+      });
+      const objects = packageToInsert.selection.objects || [];
+      if (!objects.length) return [];
+
+      pushHistory();
+      state.objects.push(...objects);
+      Object.assign(state.groupNames, packageToInsert.selection.groupNames || {});
+      Object.assign(state.groupVisibility, packageToInsert.selection.groupVisibility || {});
+      if (objects.some(object => object.type === "entity")) resolveAnnotationEntityOverlaps(state);
+      selectedIds = new Set(objects.map(object => object.id));
+      lastSelectedObjectId = objects.at(-1)?.id || "";
+      setTool("select");
+      pushHistory();
+      renderWithWorkspaceExpansion();
+      window.setTimeout(focusLastSelectedObject, 0);
+      return objects;
+    };
+
+    const copyNativeSelection = async () => {
       if (!selectedIds.size) return false;
       if ([...selectedIds].some(id => id === entityRelationshipsSelectionId || isAnnotationEntityRelationshipSelectionId(id))) {
         setStatus("Save the selected Entity relationship as a template to reuse its connector formatting.");
         return false;
       }
-      const template = captureAnnotationTemplate(state, selectedIds, "", "Clipboard");
-      const bounds = annotationSelectionVisualBounds(selectedObjects());
-      if (!template || !bounds) return false;
+      const clipboardPackage = createDiagramSelectionClipboardPackage({
+        state,
+        selectedObjectIds: selectedIds,
+        sourceFeature: "Diagram"
+      });
+      if (!clipboardPackage.selection.objects.length) return false;
       nativeClipboard = {
-        template,
-        center: { x: bounds.x + (bounds.width / 2), y: bounds.y + (bounds.height / 2) }
+        package: clipboardPackage,
+        text: serializeDiagramSelectionClipboardPackage(clipboardPackage)
       };
       pasteSequence = 0;
-      setStatus(`${template.objects.length} object${template.objects.length === 1 ? "" : "s"} copied. Press Ctrl+V to paste.`);
+      const copiedToBrowser = await copyDiagramSelectionTextToClipboard(nativeClipboard.text);
+      const objectCount = clipboardPackage.selection.objects.length;
+      setStatus(`${objectCount} object${objectCount === 1 ? "" : "s"} copied. Press Ctrl+V to paste.${copiedToBrowser ? "" : " Browser clipboard access was unavailable, so paste works in this tab only."}`);
       syncControls();
       return true;
     };
 
-    const pasteNativeSelection = () => {
-      if (!nativeClipboard) {
+    const pasteNativeSelection = async (clipboardText = "") => {
+      let packageToPaste = nativeClipboard?.package || null;
+      const text = String(clipboardText || "").trim();
+      if (text) {
+        try {
+          packageToPaste = parseDiagramSelectionClipboardPackage(text);
+        } catch (error) {
+          setStatus(error?.message || "The clipboard does not contain a supported PMT Diagram selection.");
+          return false;
+        }
+      } else if (!packageToPaste) {
+        const browserText = await readDiagramSelectionTextFromClipboard();
+        if (browserText) {
+          try {
+            packageToPaste = parseDiagramSelectionClipboardPackage(browserText);
+          } catch (error) {
+            setStatus(error?.message || "The clipboard does not contain a supported PMT Diagram selection.");
+            return false;
+          }
+        }
+      }
+
+      if (!packageToPaste) {
         setStatus("Copy canvas objects with Ctrl+C before pasting.");
         return false;
       }
-      pasteSequence += 1;
-      const distance = state.gridVisible ? state.gridSize : 10;
-      const objects = insertTemplate(nativeClipboard.template, {
-        x: nativeClipboard.center.x + (distance * pasteSequence),
-        y: nativeClipboard.center.y + (distance * pasteSequence)
-      });
+      const objects = insertDiagramSelectionClipboardPackage(packageToPaste);
       if (objects.length) setStatus(`${objects.length} object${objects.length === 1 ? "" : "s"} pasted.`);
       return objects.length > 0;
     };
@@ -8024,8 +8105,8 @@ function createAnnotationDialog(context) {
         if (action === "rename") {
           const target = resolveSelectedTreeTarget();
           if (target) await renameTreeNode(target.kind, target.id);
-        } else if (action === "copy") copyNativeSelection();
-        else if (action === "paste") pasteNativeSelection();
+        } else if (action === "copy") await copyNativeSelection();
+        else if (action === "paste") await pasteNativeSelection();
         else if (action === "delete") deleteTreeSelection();
         return;
       }
@@ -8735,9 +8816,12 @@ function createAnnotationDialog(context) {
       if (hasClipboardImage) event.preventDefault();
       const file = await annotationClipboardImageFile(event.clipboardData);
       if (!file) {
-        if (!nativeClipboard) return;
+        const clipboardText = event.clipboardData?.getData?.("text/plain") || "";
+        const hasDiagramSelectionText = clipboardText.trim().startsWith(diagramSelectionClipboardPlainTextHeader)
+          || /"format"\s*:\s*"pmt-diagram-selection"/.test(clipboardText);
+        if (!nativeClipboard && !hasDiagramSelectionText) return;
         event.preventDefault();
-        pasteNativeSelection();
+        await pasteNativeSelection(hasDiagramSelectionText ? clipboardText : "");
         return;
       }
 

@@ -77,7 +77,16 @@ test("PMT Diagram file compatibility matrix is reader neutral for Diagram and Di
 
 test("shared template contract keeps the existing Object Template schema and endpoints", async () => {
   const fixture = await readFixture("template-library-sample.json");
-  const library = normalizeDiagramTemplateLibrary(fixture);
+  const legacyLibrary = normalizeDiagramTemplateLibrary(fixture);
+  const fixtureWithExtensions = {
+    ...fixture,
+    extensions: { futureLibraryMetadata: { keep: true } },
+    templates: fixture.templates.map((template, index) => ({
+      ...template,
+      extensions: { futureTemplateMetadata: { index } }
+    }))
+  };
+  const library = normalizeDiagramTemplateLibrary(fixtureWithExtensions);
 
   assert.equal(diagramCompatibilityCapabilities.objectTemplates, true);
   assert.equal(diagramCompatibilityCapabilities.persistedRendererCaches, false);
@@ -88,6 +97,14 @@ test("shared template contract keeps the existing Object Template schema and end
   assert.equal(library.version, 1);
   assert.equal(library.templates.length, 1);
   assert.deepEqual(library.defaults, { arrow: null, rectangle: null, fieldRectangleRelationship: null });
+  assert.equal(Object.hasOwn(legacyLibrary, "extensions"), false);
+  assert.equal(Object.hasOwn(legacyLibrary.templates[0], "extensions"), false);
+  assert.deepEqual(library.extensions, { futureLibraryMetadata: { keep: true } });
+  assert.deepEqual(library.templates[0].extensions, { futureTemplateMetadata: { index: 0 } });
+
+  const roundTripped = normalizeDiagramTemplateLibrary(library);
+  assert.deepEqual(roundTripped.extensions, library.extensions);
+  assert.deepEqual(roundTripped.templates[0].extensions, library.templates[0].extensions);
 });
 
 test("Diagram selection clipboard packages serialize selected objects, relationships, and manual routes", async () => {
@@ -126,6 +143,93 @@ test("Diagram selection clipboard packages serialize selected objects, relations
   const parsed = parseDiagramSelectionClipboardPackage(serialized);
   assert.deepEqual(parsed.extensions, { futureClipboardMetadata: true });
   assert.deepEqual(parsed.selection.relationships, clipboardPackage.selection.relationships);
+});
+
+test("Diagram selection clipboard rejects newer packages with a clear version error", () => {
+  const futurePackage = {
+    format: diagramSelectionClipboardFormat,
+    formatVersion: diagramSelectionClipboardVersion + 1,
+    minimumReaderVersion: diagramSelectionClipboardVersion + 1,
+    source: { application: "PMT", feature: "Diagram 2" },
+    selection: { objects: [] },
+    extensions: {}
+  };
+  const futureText = `${diagramSelectionClipboardPlainTextHeader}\n${JSON.stringify(futurePackage)}`;
+
+  assert.throws(
+    () => parseDiagramSelectionClipboardPackage(futureText),
+    /PMT Diagram selection version 2 is not supported\./
+  );
+
+  assert.throws(
+    () => parseDiagramSelectionClipboardPackage(JSON.stringify({
+      ...futurePackage,
+      formatVersion: diagramSelectionClipboardVersion
+    })),
+    /PMT Diagram selection reader version 2 is not supported\./
+  );
+});
+
+test("Diagram selection clipboard preserves rectangle, text, and rich text objects through remap", () => {
+  const clipboardPackage = createDiagramSelectionClipboardPackage({
+    state: {
+      width: 900,
+      height: 600,
+      objects: [
+        {
+          id: "rect-a",
+          type: "rectangle",
+          x: 20,
+          y: 30,
+          width: 120,
+          height: 70,
+          fill: "#ffffff",
+          stroke: "#126bff",
+          strokeWidth: 2
+        },
+        {
+          id: "text-a",
+          type: "textbox",
+          x: 170,
+          y: 40,
+          width: 180,
+          height: 80,
+          text: "Plain Diagram text",
+          fontSize: 18,
+          textColor: "#172b4d"
+        },
+        {
+          id: "rich-a",
+          type: "rich-text",
+          x: 390,
+          y: 50,
+          width: 280,
+          height: 150,
+          html: "<p><strong>Rich</strong> Diagram note</p>",
+          fill: "none",
+          stroke: "#42526b"
+        }
+      ]
+    },
+    selectedObjectIds: ["rect-a", "text-a", "rich-a"]
+  });
+  const serialized = serializeDiagramSelectionClipboardPackage(clipboardPackage);
+  const parsed = parseDiagramSelectionClipboardPackage(serialized);
+  const remapped = remapDiagramSelectionClipboardPackageIds(parsed, {
+    idFactory: oldId => `paste-${oldId}`,
+    pasteIndex: 3,
+    pasteOffset: { x: 10, y: 12 }
+  });
+  const text = remapped.selection.objects.find(object => object.id === "paste-text-a");
+  const rich = remapped.selection.objects.find(object => object.id === "paste-rich-a");
+
+  assert.deepEqual(parsed.selection.objects.map(object => object.id), ["rect-a", "text-a", "rich-a"]);
+  assert.equal(text.text, "Plain Diagram text");
+  assert.equal(text.x, 200);
+  assert.equal(text.y, 76);
+  assert.match(rich.html, /<strong>Rich<\/strong>/);
+  assert.equal(rich.x, 420);
+  assert.equal(rich.y, 86);
 });
 
 test("Diagram selection ID remapping handles objects, groups, relationships, routes, and Field Mapping Table references", async () => {
@@ -176,30 +280,44 @@ test("Diagram selection ID remapping handles copied groups and owner references"
       groupVisibility: { "group-a": false },
       objects: [
         {
-          id: "shape-a",
-          type: "rectangle",
-          groupId: "group-a",
+          id: "entity-a",
+          type: "entity",
+          entitySchema: "pmt",
+          entityName: "Projects",
+          entityAnnotationGroupId: "group-a",
           x: 100,
           y: 120,
           width: 140,
           height: 80,
-          fill: "#ffffff",
-          stroke: "#126bff"
+          fields: [{ name: "ProjectId", dataType: "INT", nullable: false, isPrimaryKey: true, isForeignKey: false }],
+          foreignKeys: []
         },
         {
-          id: "shape-b",
+          id: "callout-a",
           type: "textbox",
           groupId: "group-a",
-          entityAnnotationOwnerId: "shape-a",
+          entityAnnotationOwnerId: "entity-a",
+          entityAnnotationRole: "callout",
           x: 260,
           y: 130,
           width: 180,
           height: 90,
           text: "Grouped note"
+        },
+        {
+          id: "callout-arrow-a",
+          type: "arrow",
+          groupId: "group-a",
+          entityAnnotationOwnerId: "entity-a",
+          entityAnnotationRole: "arrow",
+          x1: 230,
+          y1: 150,
+          x2: 260,
+          y2: 170
         }
       ]
     },
-    selectedObjectIds: ["shape-a", "shape-b"]
+    selectedObjectIds: ["entity-a", "callout-a", "callout-arrow-a"]
   });
   const remapped = remapDiagramSelectionClipboardPackageIds(clipboardPackage, {
     idFactory: oldId => `${oldId}-next`,
@@ -209,7 +327,9 @@ test("Diagram selection ID remapping handles copied groups and owner references"
   assert.deepEqual(Object.keys(remapped.selection.groupNames), ["group-a-copy"]);
   assert.equal(remapped.selection.groupNames["group-a-copy"], "Callout");
   assert.equal(remapped.selection.groupVisibility["group-a-copy"], false);
-  assert.equal(remapped.selection.objects[0].groupId, "group-a-copy");
+  assert.equal(remapped.selection.objects[0].entityAnnotationGroupId, "group-a-copy");
   assert.equal(remapped.selection.objects[0].x, 105);
-  assert.equal(remapped.selection.objects[1].entityAnnotationOwnerId, "shape-a-next");
+  assert.equal(remapped.selection.objects[1].groupId, "group-a-copy");
+  assert.equal(remapped.selection.objects[1].entityAnnotationOwnerId, "entity-a-next");
+  assert.equal(remapped.selection.objects[2].entityAnnotationOwnerId, "entity-a-next");
 });

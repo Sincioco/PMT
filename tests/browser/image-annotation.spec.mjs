@@ -1,5 +1,97 @@
 import { expect, test } from "@playwright/test";
 
+test("Diagram editable copy and paste writes the shared selection clipboard package", async ({ page }) => {
+  await page.addInitScript(() => {
+    window.__pmtClipboardWrites = [];
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: {
+        write: async items => {
+          const item = items?.[0];
+          const blob = item && typeof item.getType === "function" ? await item.getType("text/plain") : null;
+          window.__pmtClipboardWrites.push(blob ? await blob.text() : "");
+        },
+        writeText: async text => {
+          window.__pmtClipboardWrites.push(String(text || ""));
+        },
+        readText: async () => window.__pmtClipboardWrites.at(-1) || ""
+      }
+    });
+  });
+  await page.route("**/image-annotation-clipboard-test.html", route => route.fulfill({
+    contentType: "text/html",
+    body: `<!doctype html>
+      <html data-theme="light">
+        <head>
+          <title>Image Annotation Clipboard Test</title>
+          <link rel="stylesheet" href="/css/themes.css">
+          <link rel="stylesheet" href="/css/components/buttons.css">
+          <link rel="stylesheet" href="/css/components/forms.css">
+          <link rel="stylesheet" href="/css/components/dialogs.css">
+          <link rel="stylesheet" href="/css/components/image-annotation.css">
+        </head>
+        <body></body>
+      </html>`
+  }));
+  await page.goto("/image-annotation-clipboard-test.html");
+
+  await page.evaluate(async () => {
+    const annotation = await import("/js/components/image-annotation.js?v=20260725-diagram2-day3-v1");
+    const state = annotation.normalizeAnnotationState({
+      width: 600,
+      height: 400,
+      gridVisible: false,
+      objects: [{
+        id: "copy-rectangle",
+        type: "rectangle",
+        x: 80,
+        y: 70,
+        width: 160,
+        height: 90,
+        fill: "#ffffff",
+        stroke: "#126bff",
+        strokeWidth: 3
+      }]
+    });
+    const annotationUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(annotation.buildAnnotationSvg(state))}`;
+    annotation.openImageAnnotationDialog({
+      annotationUrl,
+      canvasWidth: 600,
+      canvasHeight: 400,
+      initialSelection: "none",
+      title: "Image Annotation Clipboard Test",
+      applyLabel: "Done",
+      apply: async result => result,
+      askForColor: async color => color,
+      askForText: async () => "",
+      confirm: async () => true,
+      notify: () => {}
+    });
+  });
+
+  const dialog = page.locator("dialog.image-annotation-dialog");
+  const canvas = dialog.locator("[data-annotation-canvas]");
+  const objects = canvas.locator(".image-annotation-object[data-annotation-object-id]");
+
+  await expect(dialog).toBeVisible();
+  await expect(objects).toHaveCount(1);
+
+  await canvas.click({ position: { x: 20, y: 20 } });
+  await page.keyboard.press("Control+A");
+  await expect(dialog.locator("[data-annotation-selection-label]")).toHaveText("Rectangle");
+
+  await page.keyboard.press("Control+C");
+  await expect.poll(() => page.evaluate(() => window.__pmtClipboardWrites.at(-1) || "")).toContain("PMT_DIAGRAM_SELECTION_V1");
+  await expect.poll(() => page.evaluate(() => window.__pmtClipboardWrites.at(-1) || "")).toContain('"format":"pmt-diagram-selection"');
+
+  await page.keyboard.press("Control+V");
+  await expect(objects).toHaveCount(2);
+  await expect(dialog.locator("[data-annotation-selection-label]")).toHaveText("Rectangle");
+
+  await page.keyboard.press("Control+V");
+  await expect(objects).toHaveCount(3);
+});
+
 test("Field Mapping Table hover draws yellow mapping highlights without changing mapped colors", async ({ page }) => {
   await page.route("**/image-annotation-hover-test.html", route => route.fulfill({
     contentType: "text/html",

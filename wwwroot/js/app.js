@@ -9,7 +9,7 @@ import {
   buildAnnotationSvg,
   parseAnnotationSvg,
   openImageAnnotationDialog
-} from "./components/image-annotation.js?v=20260725-field-mapping-v33";
+} from "./components/image-annotation.js?v=20260725-diagram2-day3-v1";
 import { createWhatsNew } from "./components/whats-new.js?v=20260725-day37-v2";
 import {
   htmlWithoutUserMentionMarkup,
@@ -62,6 +62,10 @@ import {
 import { state } from "./core/store.js";
 import { appUrl, storageUrl } from "./shared/app-urls.js";
 import {
+  diagramSharedDocumentContract,
+  normalizeDiagramTemplateLibrary
+} from "./shared/diagram-contracts.js?v=20260725-diagram2-day3-v1";
+import {
   createAboutAuthFlyby,
   createAboutFeature,
   createAboutScreenSaver
@@ -70,7 +74,7 @@ import { createBacklogFeature } from "./features/backlog/backlog.js?v=20260720-w
 import { createBoardFeature } from "./features/board/board.js?v=20260722-rich-entity-mentions-v1";
 import { createBugsFeature } from "./features/bugs/bugs.js?v=20260724-day36-v3";
 import { createDashboardFeature } from "./features/dashboard/dashboard.js?v=release-notes-2026-07-25-day-37-46c1811ffe7e";
-import { createDiagramFeature } from "./features/diagram/diagram.js?v=20260725-diagram2-day2-v1";
+import { createDiagramFeature } from "./features/diagram/diagram.js?v=20260725-diagram2-day3-v1";
 import { createDiagram2Feature } from "./features/diagram2/diagram2.js?v=20260725-diagram2-day1-v1";
 import { createDocumentationFeature } from "./features/documentation/documentation.js?v=20260725-day36-v5";
 import {
@@ -511,9 +515,19 @@ const diagramFeature = createDiagramFeature({
   bindRichTextButtons,
   confirm: askYesNo,
   notify: showToast,
-  loadTemplateLibrary: () => api("/api/image-annotation/template-library", { cache: "no-store" }),
-  loadDefaultTemplateLibrary: () => api("/api/image-annotation/default-template-library", { cache: "no-store" }),
-  saveTemplateLibrary: library => saveJson("/api/image-annotation/template-library", "PUT", library),
+  loadTemplateLibrary: async () => normalizeDiagramTemplateLibrary(
+    await api(diagramSharedDocumentContract.endpoints.templateLibrary, { cache: "no-store" })
+  ),
+  loadDefaultTemplateLibrary: async () => normalizeDiagramTemplateLibrary(
+    await api(diagramSharedDocumentContract.endpoints.defaultTemplateLibrary, { cache: "no-store" })
+  ),
+  saveTemplateLibrary: async library => normalizeDiagramTemplateLibrary(
+    await saveJson(
+      diagramSharedDocumentContract.endpoints.templateLibrary,
+      "PUT",
+      normalizeDiagramTemplateLibrary(library)
+    )
+  ),
   loadPmtDatabaseSchema: () => api("/api/diagram/pmt-database-schema", { cache: "no-store" }),
   uploadEmbeddedImage: uploadRichTextCanvasImage,
   persistCroppedOriginal: uploadRichTextCanvasImage,
@@ -2128,9 +2142,19 @@ async function annotateRichTextImage(image) {
       notify: showToast,
       uploadEmbeddedImage: uploadRichTextCanvasImage,
       portableImageSources: true,
-      loadTemplateLibrary: () => api("/api/image-annotation/template-library", { cache: "no-store" }),
-      loadDefaultTemplateLibrary: () => api("/api/image-annotation/default-template-library", { cache: "no-store" }),
-      saveTemplateLibrary: library => saveJson("/api/image-annotation/template-library", "PUT", library),
+      loadTemplateLibrary: async () => normalizeDiagramTemplateLibrary(
+        await api(diagramSharedDocumentContract.endpoints.templateLibrary, { cache: "no-store" })
+      ),
+      loadDefaultTemplateLibrary: async () => normalizeDiagramTemplateLibrary(
+        await api(diagramSharedDocumentContract.endpoints.defaultTemplateLibrary, { cache: "no-store" })
+      ),
+      saveTemplateLibrary: async library => normalizeDiagramTemplateLibrary(
+        await saveJson(
+          diagramSharedDocumentContract.endpoints.templateLibrary,
+          "PUT",
+          normalizeDiagramTemplateLibrary(library)
+        )
+      ),
       persistCroppedOriginal: uploadRichTextCanvasImage,
       apply: async annotation => {
         if (!image.isConnected) throw new Error("The rich-text editor is no longer open.");
@@ -4992,9 +5016,19 @@ async function insertRichTextDiagram(editor, savedSelection) {
       confirm: askYesNo,
       notify: showToast,
       uploadEmbeddedImage: uploadRichTextCanvasImage,
-      loadTemplateLibrary: () => api("/api/image-annotation/template-library", { cache: "no-store" }),
-      loadDefaultTemplateLibrary: () => api("/api/image-annotation/default-template-library", { cache: "no-store" }),
-      saveTemplateLibrary: library => saveJson("/api/image-annotation/template-library", "PUT", library),
+      loadTemplateLibrary: async () => normalizeDiagramTemplateLibrary(
+        await api(diagramSharedDocumentContract.endpoints.templateLibrary, { cache: "no-store" })
+      ),
+      loadDefaultTemplateLibrary: async () => normalizeDiagramTemplateLibrary(
+        await api(diagramSharedDocumentContract.endpoints.defaultTemplateLibrary, { cache: "no-store" })
+      ),
+      saveTemplateLibrary: async library => normalizeDiagramTemplateLibrary(
+        await saveJson(
+          diagramSharedDocumentContract.endpoints.templateLibrary,
+          "PUT",
+          normalizeDiagramTemplateLibrary(library)
+        )
+      ),
       apply: async annotation => {
         if (!editor.isConnected) throw new Error("The rich-text editor is no longer open.");
         const file = new File([annotation.svg], annotation.fileName, { type: "image/svg+xml" });

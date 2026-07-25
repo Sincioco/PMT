@@ -3,7 +3,7 @@ import {
   normalizeAnnotationState,
   normalizeAnnotationTemplateLibrary,
   parseAnnotationSvg
-} from "../components/image-annotation.js?v=20260725-field-mapping-v33";
+} from "../components/image-annotation.js?v=20260725-diagram2-day3-v1";
 
 export const pmtDiagramFileFormat = "pmt-diagram";
 export const pmtDiagramFileVersion = 1;
@@ -36,7 +36,22 @@ export function normalizeDiagramState(input, fallback = {}) {
 }
 
 export function normalizeDiagramTemplateLibrary(input) {
-  return normalizeAnnotationTemplateLibrary(input);
+  const normalized = normalizeAnnotationTemplateLibrary(input);
+  const source = input && typeof input === "object" ? input : {};
+  const sourceTemplates = Array.isArray(source.templates) ? source.templates : [];
+  const result = {
+    ...normalized,
+    templates: normalized.templates.map(template => {
+      const sourceTemplate = sourceTemplates.find(item => String(item?.id || "") === template.id);
+      if (!sourceTemplate || !Object.hasOwn(sourceTemplate, "extensions")) return template;
+      return {
+        ...template,
+        extensions: plainObject(sourceTemplate.extensions)
+      };
+    })
+  };
+  if (Object.hasOwn(source, "extensions")) result.extensions = plainObject(source.extensions);
+  return result;
 }
 
 export function createPmtDiagramFile({
