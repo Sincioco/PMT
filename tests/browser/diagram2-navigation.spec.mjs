@@ -75,6 +75,7 @@ test("Diagram 2 top navigation opens the isolated shell", async ({ page }) => {
   await assertDiagram2LiveGeometryPreview(page, transformOnlyRenderCount);
   await assertDiagram2SelectiveRoutingStress(page);
   await assertDiagram2ViewportHaloVirtualization(page);
+  await assertDiagram2LowDetailOverviewRendering(page);
   for (const zoom of ["0.5", "0.75", "0.9", "1", "1.1", "1.25", "1.5", "2"]) {
     await assertTransformOnlyZoom(page, zoom, transformOnlyRenderCount);
   }
@@ -280,7 +281,7 @@ async function assertKeyedDiagram2NodePatches(page, expectedFullRenderCount) {
 
 async function assertDiagram2SelectiveRoutingStress(page) {
   const result = await page.evaluate(async () => {
-    const { createDiagram2Renderer } = await import("/js/features/diagram2/diagram2-renderer.js?v=20260725-diagram2-day12-v1");
+    const { createDiagram2Renderer } = await import("/js/features/diagram2/diagram2-renderer.js?v=20260725-diagram2-day13-v1");
     const host = document.createElement("div");
     host.style.position = "absolute";
     host.style.left = "-12000px";
@@ -390,7 +391,7 @@ async function assertDiagram2SelectiveRoutingStress(page) {
 
 async function assertDiagram2ViewportHaloVirtualization(page) {
   const result = await page.evaluate(async () => {
-    const { createDiagram2Renderer } = await import("/js/features/diagram2/diagram2-renderer.js?v=20260725-diagram2-day12-v1");
+    const { createDiagram2Renderer } = await import("/js/features/diagram2/diagram2-renderer.js?v=20260725-diagram2-day13-v1");
     const host = document.createElement("div");
     host.style.position = "absolute";
     host.style.left = "-12000px";
@@ -592,6 +593,178 @@ async function assertDiagram2ViewportHaloVirtualization(page) {
   expect(result.forcedRelationshipCount).toBeGreaterThanOrEqual(result.sameSectorRelationshipCount);
   expect(result.forcedObjectForceCount).toBeGreaterThan(0);
   expect(result.forcedRelationshipForceCount).toBeGreaterThan(0);
+}
+
+async function assertDiagram2LowDetailOverviewRendering(page) {
+  const result = await page.evaluate(async () => {
+    const { createDiagram2Renderer } = await import("/js/features/diagram2/diagram2-renderer.js?v=20260725-diagram2-day13-v1");
+    const host = document.createElement("div");
+    host.style.position = "absolute";
+    host.style.left = "-12000px";
+    host.style.top = "0";
+    host.style.width = "1200px";
+    host.style.height = "800px";
+    document.body.appendChild(host);
+
+    const waitForViewport = () => new Promise(resolve => {
+      requestAnimationFrame(() => requestAnimationFrame(resolve));
+    });
+    const state = buildDiagram2OverviewState();
+    const renderer = createDiagram2Renderer({ host });
+    const initial = renderer.render(state, { reason: "overview initial" });
+    const initialDescendantCount = renderer.svgNode().querySelectorAll("*").length;
+    const initialFieldTextCount = host.querySelectorAll("[data-diagram2-entity-field]").length;
+    const initialRelationshipPath = host.querySelector("[data-diagram2-relationship-path]")?.getAttribute("d") || "";
+
+    renderer.setZoom("0.1");
+    await waitForViewport();
+    const low = renderer.diagnostics();
+    const lowDescendantCount = renderer.svgNode().querySelectorAll("*").length;
+    const lowFieldTextCount = host.querySelectorAll("[data-diagram2-entity-field]").length;
+    const lowTitleCount = host.querySelectorAll("[data-diagram2-entity-title]").length;
+    const lowCompactKeyCount = host.querySelectorAll("[data-diagram2-entity-compact-key]").length;
+    const lowRelationshipPaths = [...host.querySelectorAll("[data-diagram2-relationship-path]")]
+      .map(path => path.getAttribute("d") || "");
+    const lowRelationshipMaxCommandCount = Math.max(
+      0,
+      ...lowRelationshipPaths.map(path => (path.match(/[ML]/g) || []).length)
+    );
+
+    renderer.panBy(-120, 0);
+    await waitForViewport();
+    const lowPan = renderer.diagnostics();
+
+    renderer.setZoom("0.18");
+    await waitForViewport();
+    const nearThreshold = renderer.diagnostics();
+
+    renderer.setZoom("1");
+    await waitForViewport();
+    const detailed = renderer.diagnostics();
+    const restoredFieldTextCount = host.querySelectorAll("[data-diagram2-entity-field]").length;
+    const restoredDescendantCount = renderer.svgNode().querySelectorAll("*").length;
+    const restoredRelationshipPath = host.querySelector("[data-diagram2-relationship-path]")?.getAttribute("d") || "";
+    host.remove();
+
+    return {
+      initialCanonicalObjects: initial.canonicalObjectCount,
+      initialCanonicalRelationships: initial.canonicalRelationshipCount,
+      initialDetailLevel: initial.overviewDetailLevel,
+      initialDescendantCount,
+      initialFieldTextCount,
+      initialRelationshipCommandCount: (initialRelationshipPath.match(/[ML]/g) || []).length,
+      lowDetailLevel: low.overviewDetailLevel,
+      lowChanged: low.overviewDetailChanged,
+      lowProjectedRows: low.overviewDetailProjectedRowPixels,
+      lowObjectPatches: low.overviewDetailObjectPatchCount,
+      lowRelationshipPatches: low.overviewDetailRelationshipPatchCount,
+      lowDescendantCount,
+      lowFieldTextCount,
+      lowTitleCount,
+      lowCompactKeyCount,
+      lowMountedObjects: low.mountedObjectCount,
+      lowMountedRelationships: low.mountedRelationshipCount,
+      lowRelationshipPathCount: lowRelationshipPaths.length,
+      lowRelationshipMaxCommandCount,
+      lowFullRendersDuringSettle: low.fullRendersDuringSettle,
+      lowPanFullRendersDuringSettle: lowPan.fullRendersDuringSettle,
+      lowPanDetailLevel: lowPan.overviewDetailLevel,
+      nearThresholdLevel: nearThreshold.overviewDetailLevel,
+      nearThresholdChanged: nearThreshold.overviewDetailChanged,
+      nearThresholdProjectedRows: nearThreshold.overviewDetailProjectedRowPixels,
+      detailedLevel: detailed.overviewDetailLevel,
+      detailedChanged: detailed.overviewDetailChanged,
+      detailedProjectedRows: detailed.overviewDetailProjectedRowPixels,
+      restoredFieldTextCount,
+      restoredDescendantCount,
+      restoredRelationshipCommandCount: (restoredRelationshipPath.match(/[ML]/g) || []).length,
+      finalCanonicalObjects: detailed.canonicalObjectCount,
+      finalCanonicalRelationships: detailed.canonicalRelationshipCount,
+      finalFullRendersDuringSettle: detailed.fullRendersDuringSettle
+    };
+
+    function buildDiagram2OverviewState() {
+      const entityCount = 224;
+      const relationshipCount = 448;
+      const columns = 28;
+      const objects = Array.from({ length: entityCount }, (_, index) => {
+        const name = `Overview${index}`;
+        return {
+          id: `overview-entity-${index}`,
+          type: "entity",
+          x: (index % columns) * 260,
+          y: Math.floor(index / columns) * 190,
+          width: 220,
+          height: 160,
+          entitySchema: "dbo",
+          entityName: name,
+          fields: [
+            { name: `${name}Id`, dataType: "INT", nullable: false, isPrimaryKey: true, isForeignKey: false, isImportant: true },
+            { name: "Ref0Id", dataType: "INT", nullable: true, isPrimaryKey: false, isForeignKey: true },
+            { name: "Ref1Id", dataType: "INT", nullable: true, isPrimaryKey: false, isForeignKey: true },
+            { name: "Ref2Id", dataType: "INT", nullable: true, isPrimaryKey: false, isForeignKey: true },
+            { name: "Ref3Id", dataType: "INT", nullable: true, isPrimaryKey: false, isForeignKey: true },
+            { name: "Name", dataType: "NVARCHAR(240)", nullable: false },
+            { name: "CreatedAt", dataType: "DATETIME2", nullable: false },
+            { name: "UpdatedAt", dataType: "DATETIME2", nullable: false }
+          ],
+          foreignKeys: []
+        };
+      });
+
+      for (let index = 0; index < relationshipCount; index += 1) {
+        const sourceIndex = (index % (entityCount - 1)) + 1;
+        let targetIndex = (sourceIndex + 11 + (index * 13)) % entityCount;
+        if (targetIndex === sourceIndex) targetIndex = (targetIndex + 1) % entityCount;
+        const targetName = `Overview${targetIndex}`;
+        objects[sourceIndex].foreignKeys.push({
+          name: `FK_Overview_${index}`,
+          columns: [`Ref${index % 4}Id`],
+          referencedSchema: "dbo",
+          referencedTable: targetName,
+          referencedColumns: [`${targetName}Id`],
+          relationshipType: "many-to-one"
+        });
+      }
+
+      return {
+        width: columns * 260,
+        height: 8 * 190,
+        objects
+      };
+    }
+  });
+
+  expect(result.initialCanonicalObjects).toBe(224);
+  expect(result.initialCanonicalRelationships).toBe(448);
+  expect(result.initialDetailLevel).toBe("detailed");
+  expect(result.initialFieldTextCount).toBeGreaterThan(1000);
+  expect(result.lowDetailLevel).toBe("low");
+  expect(result.lowChanged).toBe(true);
+  expect(result.lowProjectedRows).toBeLessThan(4);
+  expect(result.lowObjectPatches).toBeGreaterThan(0);
+  expect(result.lowRelationshipPatches).toBeGreaterThan(0);
+  expect(result.lowDescendantCount).toBeLessThan(result.initialDescendantCount * 0.65);
+  expect(result.lowFieldTextCount).toBe(0);
+  expect(result.lowTitleCount).toBe(result.lowMountedObjects);
+  expect(result.lowCompactKeyCount).toBe(result.lowMountedObjects);
+  expect(result.lowRelationshipPathCount).toBe(result.lowMountedRelationships);
+  expect(result.lowRelationshipMaxCommandCount).toBeLessThanOrEqual(2);
+  expect(result.lowFullRendersDuringSettle).toBe(0);
+  expect(result.lowPanFullRendersDuringSettle).toBe(0);
+  expect(result.lowPanDetailLevel).toBe("low");
+  expect(result.nearThresholdLevel).toBe("low");
+  expect(result.nearThresholdChanged).toBe(false);
+  expect(result.nearThresholdProjectedRows).toBeGreaterThan(4);
+  expect(result.detailedLevel).toBe("detailed");
+  expect(result.detailedChanged).toBe(true);
+  expect(result.detailedProjectedRows).toBeGreaterThan(6);
+  expect(result.restoredFieldTextCount).toBeGreaterThan(0);
+  expect(result.restoredDescendantCount).toBeGreaterThan(result.lowDescendantCount);
+  expect(result.restoredRelationshipCommandCount).toBeGreaterThan(result.lowRelationshipMaxCommandCount);
+  expect(result.finalCanonicalObjects).toBe(224);
+  expect(result.finalCanonicalRelationships).toBe(448);
+  expect(result.finalFullRendersDuringSettle).toBe(0);
 }
 
 async function assertDiagram2LiveGeometryPreview(page, expectedFullRenderCount) {
@@ -921,7 +1094,7 @@ function testState() {
 }
 
 function pmtDatabaseSchemaBodyHtml() {
-  return `<p><img data-pmt-diagram="true" data-pmt-private-diagram="true" src="/assets/docs/pmt-database-schema.svg?v=20260725-diagram2-day12-fixture" alt="PMT Database Schema"></p>`;
+  return `<p><img data-pmt-diagram="true" data-pmt-private-diagram="true" src="/assets/docs/pmt-database-schema.svg?v=20260725-diagram2-day13-fixture" alt="PMT Database Schema"></p>`;
 }
 
 function diagramBodyHtml(title, stroke) {

@@ -21,6 +21,11 @@ const diagram2ViewportHaloSectorSize = 2048;
 const diagram2ViewportHaloSectorCount = 1;
 const diagram2ViewportHaloMinimumObjectThreshold = 80;
 const diagram2ViewportHaloFullCoverageThreshold = 0.82;
+const diagram2DetailLevelDetailed = "detailed";
+const diagram2DetailLevelLow = "low";
+const diagram2LowDetailEnterRowPixels = 4;
+const diagram2LowDetailExitRowPixels = 6;
+const diagram2LowDetailMinimumEntityCount = 80;
 const diagram2RendererPlanes = [
   ["background", "data-diagram2-background-plane"],
   ["belowRelationships", "data-diagram2-below-relationship-plane"],
@@ -39,7 +44,9 @@ export function createDiagram2LiveView() {
     objectVersionsById: new Map(),
     relationshipVersionsById: new Map(),
     objectDataById: new Map(),
-    relationshipDataById: new Map()
+    relationshipDataById: new Map(),
+    objectDetailLevelsById: new Map(),
+    relationshipDetailLevelsById: new Map()
   };
 }
 
@@ -283,6 +290,7 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
   const dirty = createDiagram2DirtyState();
   const routing = createDiagram2SelectiveRoutingState();
   const viewportHalo = createDiagram2ViewportHaloState();
+  const overviewDetail = createDiagram2OverviewDetailState();
   const planes = {};
   const viewportTransform = { scale: 1, translateX: 0, translateY: 0 };
   const committedViewportTransform = { scale: 1, translateX: 0, translateY: 0 };
@@ -311,6 +319,7 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
   let lastGeometryPreviewDiagnostics = emptyGeometryPreviewDiagnostics();
   let lastSelectiveRoutingDiagnostics = emptySelectiveRoutingDiagnostics();
   let lastViewportHaloDiagnostics = emptyViewportHaloDiagnostics();
+  let lastOverviewDetailDiagnostics = emptyOverviewDetailDiagnostics();
   let lastDiagnostics = emptyDiagnostics();
   let pendingSelectiveRoutingSectorsQueried = 0;
 
@@ -347,6 +356,7 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
     viewportHalo.canonicalRelationshipCount = relationships.length;
     viewportHalo.objectIds = new Set(visibleObjects.map(object => object.id));
     viewportHalo.relationshipIds = new Set(relationships.map(relationship => relationship.id));
+    const overviewDetailResult = reconcileOverviewDetailLevel("full render");
     mark(performanceApi, `${frameId}:relationships`);
 
     fullRenderCount += 1;
@@ -387,7 +397,8 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
       lastDirtyDiagnostics,
       lastGeometryPreviewDiagnostics,
       lastSelectiveRoutingDiagnostics,
-      lastViewportHaloDiagnostics
+      lastViewportHaloDiagnostics,
+      overviewDetailResult.diagnostics
     );
     lastDiagnostics.svgDescendantCount = svg.querySelectorAll("*").length;
     applyDiagnosticsAttributes();
@@ -671,6 +682,9 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
       routedRelationshipCount += viewportHaloResult.routedRelationshipCount;
       mergeSelectiveRoutingMetrics(routingMetrics, viewportHaloResult.selectiveDiagnostics);
     }
+    const overviewDetailResult = reconcileOverviewDetailLevel("dirty flush");
+    objectPatchCount += overviewDetailResult.objectPatchCount;
+    patchedNodeCount += overviewDetailResult.objectPatchCount + overviewDetailResult.relationshipPatchCount;
 
     const endTime = now(performanceApi);
     mark(performanceApi, `${frameId}:end`);
@@ -707,7 +721,8 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
       lastDirtyDiagnostics,
       lastGeometryPreviewDiagnostics,
       lastSelectiveRoutingDiagnostics,
-      lastViewportHaloDiagnostics
+      lastViewportHaloDiagnostics,
+      lastOverviewDetailDiagnostics
     );
     lastDiagnostics.svgDescendantCount = svg.querySelectorAll("*").length;
     applyDiagnosticsAttributes();
@@ -768,6 +783,9 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
       viewportHaloRelationshipSectorCount: viewportHalo.relationshipSectorIndex.sectors.size,
       viewportHaloObjectIds: [...viewportHalo.objectIds],
       viewportHaloRelationshipIds: [...viewportHalo.relationshipIds],
+      overviewDetailLevel: overviewDetail.level,
+      overviewDetailObjectLevelCount: liveView.objectDetailLevelsById.size,
+      overviewDetailRelationshipLevelCount: liveView.relationshipDetailLevelsById.size,
       pendingDiagramFlush: pendingDiagramFlushFrame !== 0,
       transactionDepth
     };
@@ -919,18 +937,25 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
   function patchVisibleObject(object) {
     const node = liveView.objectNodesById.get(object.id) || createObjectNode(object);
     const previousObject = liveView.objectDataById.get(object.id) || null;
+    const detailLevel = objectDetailLevel(object);
+    const previousDetailLevel = liveView.objectDetailLevelsById.get(object.id) || diagram2DetailLevelDetailed;
+    const detailChanged = previousDetailLevel !== detailLevel;
     const flags = diagram2ObjectPatchFlags(previousObject, object);
-    if (!flags.changed && liveView.objectVersionsById.has(object.id)) {
+    if (!flags.changed && !detailChanged && liveView.objectVersionsById.has(object.id)) {
       patchObjectSelection(node, object.id, liveView.selectedIds.has(object.id));
       return 0;
     }
 
     patchObjectNode(node, previousObject, object, {
       ...flags,
+      detailLevel,
+      detailChanged,
+      rebuild: flags.rebuild || detailChanged,
       selected: liveView.selectedIds.has(object.id)
     }, canonicalState);
     liveView.objectDataById.set(object.id, object);
     liveView.objectVersionsById.set(object.id, objectVersion(object));
+    liveView.objectDetailLevelsById.set(object.id, detailLevel);
     return 1;
   }
 
@@ -949,11 +974,14 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
     const styleSignature = relationshipStyleVersion(relationship);
     const previousRouteSignature = routing.relationshipRouteSignaturesById.get(relationship.id);
     const previousStyleSignature = routing.relationshipStyleSignaturesById.get(relationship.id);
+    const detailLevel = relationshipDetailLevel(relationship);
+    const previousDetailLevel = liveView.relationshipDetailLevelsById.get(relationship.id) || diagram2DetailLevelDetailed;
+    const detailChanged = previousDetailLevel !== detailLevel;
     const styleOnly = options.styleOnly === true;
     const hasCachedRoute = routing.relationshipRoutesById.has(relationship.id);
     const routeChanged = !hasCachedRoute
       || (!styleOnly && (options.forceRoute === true || previousRouteSignature !== routeSignature));
-    const styleChanged = !existing || previousStyleSignature !== styleSignature;
+    const styleChanged = !existing || previousStyleSignature !== styleSignature || detailChanged;
     const metrics = createSelectiveRoutingMetrics(1);
     if (options.countRouting !== false) {
       metrics.relationshipsConsidered = 1;
@@ -977,12 +1005,15 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
       : routing.relationshipRoutesById.get(relationship.id) || route;
     patchRelationshipNode(node, relationship, relationship, {
       route: renderedRoute,
+      detailLevel,
+      detailChanged,
       routeChanged,
       styleChanged,
       selected: liveView.selectedIds.has(relationship.id)
     });
     liveView.relationshipDataById.set(relationship.id, relationship);
-    liveView.relationshipVersionsById.set(relationship.id, relationshipRenderVersion(routeSignature, styleSignature));
+    liveView.relationshipVersionsById.set(relationship.id, relationshipRenderVersion(routeSignature, styleSignature, detailLevel));
+    liveView.relationshipDetailLevelsById.set(relationship.id, detailLevel);
     routing.relationshipRouteSignaturesById.set(relationship.id, routeSignature);
     routing.relationshipStyleSignaturesById.set(relationship.id, styleSignature);
     routing.relationshipRoutesById.set(relationship.id, renderedRoute);
@@ -1008,6 +1039,7 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
     liveView.objectNodesById.delete(id);
     liveView.objectVersionsById.delete(id);
     liveView.objectDataById.delete(id);
+    liveView.objectDetailLevelsById.delete(id);
     liveView.mountedObjectIds.delete(id);
     if (options.preserveSelection !== true) liveView.selectedIds.delete(id);
     planes.overlays?.querySelector(`[data-diagram2-selection-id="${cssEscape(id)}"]`)?.remove();
@@ -1034,6 +1066,7 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
     liveView.relationshipNodesById.delete(id);
     liveView.relationshipVersionsById.delete(id);
     liveView.relationshipDataById.delete(id);
+    liveView.relationshipDetailLevelsById.delete(id);
     liveView.mountedRelationshipIds.delete(id);
     if (options.preserveSelection !== true) liveView.selectedIds.delete(id);
     if (options.preserveRouting !== true) removeRelationshipRoutingState(id);
@@ -1311,6 +1344,20 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
     return diagram2CanonicalRelationships(canonicalState)
       .filter(relationship => objectIdSet.has(relationship.source?.id) || objectIdSet.has(relationship.target?.id))
       .map(relationship => relationship.id);
+  }
+
+  function objectDetailLevel(object) {
+    return overviewDetail.level === diagram2DetailLevelLow
+      && object?.type === "entity"
+      && !diagram2IsFieldRectangle(object)
+      ? diagram2DetailLevelLow
+      : diagram2DetailLevelDetailed;
+  }
+
+  function relationshipDetailLevel() {
+    return overviewDetail.level === diagram2DetailLevelLow
+      ? diagram2DetailLevelLow
+      : diagram2DetailLevelDetailed;
   }
 
   function rebuildViewportHaloIndexes(objects, relationships) {
@@ -1680,6 +1727,100 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
     return `selected=${selected};forced=${forced};preview=${previewIds}`;
   }
 
+  function reconcileOverviewDetailLevel(reason = "viewport") {
+    if (!canonicalState || !svg) {
+      lastOverviewDetailDiagnostics = emptyOverviewDetailDiagnostics({ reason });
+      return { objectPatchCount: 0, relationshipPatchCount: 0, diagnostics: lastOverviewDetailDiagnostics };
+    }
+
+    const frameStart = now(performanceApi);
+    const visibleObjects = canonicalState.objects.filter(object => object.visible !== false);
+    const relationships = diagram2CanonicalRelationships(canonicalState);
+    const mountedObjects = visibleObjects.filter(object => liveView.mountedObjectIds.has(object.id));
+    const mountedRelationships = relationships.filter(relationship => liveView.mountedRelationshipIds.has(relationship.id));
+    const projectedRowPixels = projectedEntityFieldRowPixels(visibleObjects);
+    const entityCount = visibleObjects
+      .filter(object => object.type === "entity" && !diagram2IsFieldRectangle(object)).length;
+    const previousLevel = overviewDetail.level;
+    const nextLevel = nextOverviewDetailLevel(previousLevel, projectedRowPixels, entityCount);
+    overviewDetail.level = nextLevel;
+
+    const objectPatchCount = patchOverviewDetailObjects(mountedObjects);
+    const relationshipPatchCount = patchOverviewDetailRelationships(mountedRelationships);
+    const duration = Math.round(Math.max(0, now(performanceApi) - frameStart) * 100) / 100;
+    lastOverviewDetailDiagnostics = overviewDetailDiagnostics({
+      reason,
+      previousLevel,
+      level: nextLevel,
+      projectedRowPixels,
+      entityCount,
+      mountedObjectCount: mountedObjects.length,
+      mountedRelationshipCount: mountedRelationships.length,
+      objectLevelsById: liveView.objectDetailLevelsById,
+      relationshipLevelsById: liveView.relationshipDetailLevelsById,
+      objectPatchCount,
+      relationshipPatchCount,
+      duration
+    });
+    return { objectPatchCount, relationshipPatchCount, diagnostics: lastOverviewDetailDiagnostics };
+  }
+
+  function patchOverviewDetailObjects(objects) {
+    let patched = 0;
+    objects.forEach(object => {
+      const nextLevel = objectDetailLevel(object);
+      if (liveView.objectDetailLevelsById.get(object.id) === nextLevel) return;
+      patched += patchVisibleObject(object);
+    });
+    return patched;
+  }
+
+  function patchOverviewDetailRelationships(relationships) {
+    let patched = 0;
+    relationships.forEach(relationship => {
+      const nextLevel = relationshipDetailLevel(relationship);
+      if (liveView.relationshipDetailLevelsById.get(relationship.id) === nextLevel) return;
+      const result = patchVisibleRelationship(relationship, {
+        mode: "overview detail",
+        countRouting: false,
+        styleOnly: true
+      });
+      patched += result.patched;
+    });
+    return patched;
+  }
+
+  function projectedEntityFieldRowPixels(objects) {
+    const rowHeights = objects
+      .filter(object => object?.type === "entity" && object.visible !== false && !diagram2IsFieldRectangle(object))
+      .map(entity => {
+        const fields = annotationEntityVisibleFields(entity);
+        const firstFieldBounds = fields.length ? annotationEntityFieldBounds(entity, fields[0]) : null;
+        return firstFieldBounds
+          ? positiveNumber(firstFieldBounds.height, 0)
+          : Math.max(14, positiveNumber(entity.fontSize, 12) * 1.35);
+      })
+      .filter(height => Number.isFinite(height) && height > 0)
+      .sort((left, right) => left - right);
+    if (!rowHeights.length) return Number.POSITIVE_INFINITY;
+    const median = rowHeights[Math.floor(rowHeights.length / 2)];
+    return Math.round(Math.max(0, median * committedViewportTransform.scale) * 100) / 100;
+  }
+
+  function nextOverviewDetailLevel(previousLevel, projectedRowPixels, entityCount) {
+    if (entityCount < diagram2LowDetailMinimumEntityCount) return diagram2DetailLevelDetailed;
+    const rowPixels = Number(projectedRowPixels);
+    if (!Number.isFinite(rowPixels)) return diagram2DetailLevelDetailed;
+    if (previousLevel === diagram2DetailLevelLow) {
+      return rowPixels < diagram2LowDetailExitRowPixels
+        ? diagram2DetailLevelLow
+        : diagram2DetailLevelDetailed;
+    }
+    return rowPixels < diagram2LowDetailEnterRowPixels
+      ? diagram2DetailLevelLow
+      : diagram2DetailLevelDetailed;
+  }
+
   function bringPreviewObjectsForward(objectIds) {
     objectIds.forEach(id => {
       const node = liveView.objectNodesById.get(id);
@@ -1788,6 +1929,7 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
       const previousObject = liveView.objectDataById.get(id) || preview.originalObjectsById.get(id) || null;
       patchObjectNode(node, previousObject, object, {
         ...diagram2ObjectPatchFlags(previousObject, object),
+        detailLevel: objectDetailLevel(object),
         selected: liveView.selectedIds.has(id)
       }, canonicalState);
       setSvgAttributes(node, {
@@ -1867,6 +2009,7 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
         if (!node) return;
         patchObjectNode(node, liveView.objectDataById.get(id), object, {
           ...diagram2ObjectPatchFlags(liveView.objectDataById.get(id), object),
+          detailLevel: objectDetailLevel(object),
           selected: liveView.selectedIds.has(id),
           rebuild: preview.mode === "resize" || object.type === "arrow" || object.type === "line"
         }, canonicalState);
@@ -2023,6 +2166,7 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
     committedViewportTransform.translateY = viewportTransform.translateY;
 
     const viewportHaloResult = reconcileViewportHalo(reason, { allowSameSectorNoop: true });
+    const overviewDetailResult = reconcileOverviewDetailLevel(reason);
 
     const screenPointAfterSettle = diagram2WorldToScreenPoint(committedViewportTransform, gesture.worldPointUnderCursor);
     const entityBoundsAfter = firstEntityBounds();
@@ -2057,6 +2201,7 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
       ...lastDiagnostics,
       ...lastTransformDiagnostics,
       ...lastViewportHaloDiagnostics,
+      ...overviewDetailResult.diagnostics,
       ...viewportHaloResult?.selectiveDiagnostics,
       mountedObjectCount: liveView.mountedObjectIds.size,
       mountedRelationshipCount: liveView.mountedRelationshipIds.size,
@@ -2210,6 +2355,21 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
     svg.dataset.diagram2ViewportHaloRoutedRelationshipCount = String(lastDiagnostics.viewportHaloRoutedRelationshipCount);
     svg.dataset.diagram2ViewportHaloSameSectorNoop = String(lastDiagnostics.viewportHaloSameSectorNoop);
     svg.dataset.diagram2ViewportHaloDuration = String(lastDiagnostics.viewportHaloDuration);
+    svg.dataset.diagram2OverviewDetailLevel = String(lastDiagnostics.overviewDetailLevel);
+    svg.dataset.diagram2OverviewDetailReason = String(lastDiagnostics.overviewDetailReason);
+    svg.dataset.diagram2OverviewDetailPreviousLevel = String(lastDiagnostics.overviewDetailPreviousLevel);
+    svg.dataset.diagram2OverviewDetailChanged = String(lastDiagnostics.overviewDetailChanged);
+    svg.dataset.diagram2OverviewDetailProjectedRowPixels = String(lastDiagnostics.overviewDetailProjectedRowPixels);
+    svg.dataset.diagram2OverviewDetailEnterRowPixels = String(lastDiagnostics.overviewDetailEnterRowPixels);
+    svg.dataset.diagram2OverviewDetailExitRowPixels = String(lastDiagnostics.overviewDetailExitRowPixels);
+    svg.dataset.diagram2OverviewDetailEntityCount = String(lastDiagnostics.overviewDetailEntityCount);
+    svg.dataset.diagram2OverviewDetailLowObjectCount = String(lastDiagnostics.overviewDetailLowObjectCount);
+    svg.dataset.diagram2OverviewDetailDetailedObjectCount = String(lastDiagnostics.overviewDetailDetailedObjectCount);
+    svg.dataset.diagram2OverviewDetailLowRelationshipCount = String(lastDiagnostics.overviewDetailLowRelationshipCount);
+    svg.dataset.diagram2OverviewDetailDetailedRelationshipCount = String(lastDiagnostics.overviewDetailDetailedRelationshipCount);
+    svg.dataset.diagram2OverviewDetailObjectPatchCount = String(lastDiagnostics.overviewDetailObjectPatchCount);
+    svg.dataset.diagram2OverviewDetailRelationshipPatchCount = String(lastDiagnostics.overviewDetailRelationshipPatchCount);
+    svg.dataset.diagram2OverviewDetailDuration = String(lastDiagnostics.overviewDetailDuration);
     svg.dataset.diagram2TransientMatrix = String(lastDiagnostics.transientMatrix);
     svg.dataset.diagram2CommittedMatrix = String(lastDiagnostics.committedMatrix);
     svg.dataset.diagram2MatrixDifference = String(lastDiagnostics.matrixDifference);
@@ -2259,6 +2419,7 @@ function patchObjectNode(node, previousObject, object, flags = {}, state) {
   setSvgAttributes(node, {
     "data-diagram2-object-id": object.id,
     "data-diagram2-object-type": object.type,
+    "data-diagram2-object-detail-level": flags.detailLevel || diagram2DetailLevelDetailed,
     "data-diagram2-object-visible": object.visible !== false ? "true" : "false",
     "data-diagram2-object-transform-x": objectTranslation(object).x,
     "data-diagram2-object-transform-y": objectTranslation(object).y,
@@ -2269,21 +2430,23 @@ function patchObjectNode(node, previousObject, object, flags = {}, state) {
 
   if (flags.rebuild || !node.hasChildNodes()) {
     node.replaceChildren();
-    renderObjectContents(node, diagram2LocalObject(object), state);
+    renderObjectContents(node, diagram2LocalObject(object), state, {
+      detailLevel: flags.detailLevel || diagram2DetailLevelDetailed
+    });
     return;
   }
 
   patchObjectSelection(node, object.id, flags.selected === true);
   if (object.type === "entity" && !diagram2IsFieldRectangle(object)) {
-    patchEntityObjectNode(node, object);
+    patchEntityObjectNode(node, object, flags.detailLevel || diagram2DetailLevelDetailed);
   } else {
     patchSimpleObjectStyles(node, object);
   }
 }
 
-function renderObjectContents(node, object, state) {
+function renderObjectContents(node, object, state, options = {}) {
   if (object.type === "entity") {
-    renderEntityObject(node, object);
+    renderEntityObject(node, object, options);
   } else if (object.type === "embedded-image") {
     renderEmbeddedImageObject(node, object);
   } else if (object.type === "rectangle") {
@@ -2317,20 +2480,22 @@ function patchRelationshipSelection(node, id, selected = null) {
   node.classList.toggle("is-selected", isSelected);
 }
 
-function patchEntityObjectNode(node, object) {
+function patchEntityObjectNode(node, object, detailLevel = diagram2DetailLevelDetailed) {
   const local = diagram2LocalObject(object);
   const fields = annotationEntityVisibleFields(local);
   const title = node.querySelector(":scope > title");
   if (title) title.textContent = `${formatEntityIdentifier(object.entitySchema, object.entityName)} (${fields.length} fields)`;
   const entityTitle = node.querySelector("[data-diagram2-entity-title]");
   if (entityTitle) entityTitle.textContent = formatEntityIdentifier(object.entitySchema, object.entityName);
-  patchEntityObjectNodeStyles(node, local);
+  patchEntityObjectNodeStyles(node, local, detailLevel);
 }
 
-function patchEntityObjectNodeStyles(node, object) {
+function patchEntityObjectNodeStyles(node, object, detailLevel = diagram2DetailLevelDetailed) {
   const stroke = object.outlineVisible === false ? "none" : object.stroke || "#2f5597";
   const textColor = object.textColor || "#172b4d";
   const fontSize = clampNumber(positiveNumber(object.fontSize, 12), 8, 64);
+  const lowDetail = detailLevel === diagram2DetailLevelLow;
+  const lowDetailFontSize = lowDetailEntityFontSize(object);
   setSvgAttributes(node.querySelector("[data-diagram2-entity-body]"), {
     fill: object.fill || "#ffffff"
   });
@@ -2354,7 +2519,7 @@ function patchEntityObjectNodeStyles(node, object) {
     setSvgAttributes(text, {
       fill: isTitle ? object.entityNameTextColor || textColor : textColor,
       "font-family": object.fontFamily || "Arial",
-      "font-size": isTitle ? fontSize : text.getAttribute("font-size")
+      "font-size": isTitle ? (lowDetail ? lowDetailFontSize : fontSize) : text.getAttribute("font-size")
     });
   });
 }
@@ -2403,9 +2568,14 @@ function patchSimpleObjectStyles(node, object) {
   }
 }
 
-function renderEntityObject(node, object) {
+function renderEntityObject(node, object, options = {}) {
   if (diagram2IsFieldRectangle(object)) {
     renderFieldRectangleObject(node, object);
+    return;
+  }
+
+  if (options.detailLevel === diagram2DetailLevelLow) {
+    renderLowDetailEntityObject(node, object);
     return;
   }
 
@@ -2576,6 +2746,94 @@ function renderEntityObject(node, object) {
       });
     }
   });
+
+  appendSvg(node, "rect", {
+    class: "diagram2-renderer-entity-outline",
+    "data-diagram2-entity-outline": "",
+    x,
+    y,
+    width,
+    height,
+    fill: "none",
+    stroke,
+    "stroke-width": positiveNumber(object.strokeWidth, 1),
+    "vector-effect": "non-scaling-stroke"
+  });
+}
+
+function renderLowDetailEntityObject(node, object) {
+  const x = finiteNumber(object.x, 0);
+  const y = finiteNumber(object.y, 0);
+  const width = positiveNumber(object.width, 1);
+  const height = positiveNumber(object.height, 1);
+  const fields = annotationEntityVisibleFields(object);
+  const stroke = object.outlineVisible === false ? "none" : object.stroke || "#2f5597";
+  const fill = object.fill || "#ffffff";
+  const headerFill = object.entityHeaderFill || "#dbeafe";
+  const textColor = object.textColor || "#172b4d";
+  const headerTextColor = object.entityNameTextColor || textColor;
+  const fontSize = lowDetailEntityFontSize(object);
+  const headerHeight = Math.min(height, Math.max(28, Math.min(height * 0.58, fontSize * 1.35)));
+  const titleClipId = `${safeSvgId(object.id)}-diagram2-low-title`;
+  const primaryKeyCount = fields.filter(field => field.isPrimaryKey).length;
+  const foreignKeyCount = fields.filter(field => field.isForeignKey).length;
+
+  const defs = appendSvg(node, "defs");
+  appendClipRect(defs, titleClipId, x + 8, y, Math.max(1, width - 16), headerHeight);
+  appendTitle(node, `${formatEntityIdentifier(object.entitySchema, object.entityName)} (${fields.length} fields)`);
+  appendSvg(node, "rect", {
+    class: "diagram2-renderer-entity-body",
+    "data-diagram2-entity-body": "",
+    x,
+    y,
+    width,
+    height,
+    fill,
+    stroke: "none"
+  });
+  appendSvg(node, "rect", {
+    class: "diagram2-renderer-entity-header",
+    "data-diagram2-entity-header": "",
+    x,
+    y,
+    width,
+    height: headerHeight,
+    fill: headerFill,
+    stroke: "none"
+  });
+  appendText(node, formatEntityIdentifier(object.entitySchema, object.entityName), {
+    class: "diagram2-renderer-entity-title",
+    "data-diagram2-entity-title": "",
+    "data-diagram2-entity-text": "",
+    x: x + (width / 2),
+    y: y + (headerHeight / 2),
+    "text-anchor": "middle",
+    "dominant-baseline": "middle",
+    "clip-path": `url(#${titleClipId})`,
+    fill: headerTextColor,
+    "font-family": object.fontFamily || "Arial",
+    "font-size": fontSize,
+    "font-weight": 700
+  });
+
+  if (primaryKeyCount > 0 || foreignKeyCount > 0) {
+    const indicatorText = [primaryKeyCount ? `PK ${primaryKeyCount}` : "", foreignKeyCount ? `FK ${foreignKeyCount}` : ""]
+      .filter(Boolean)
+      .join(" / ");
+    appendText(node, indicatorText, {
+      class: "diagram2-renderer-entity-key diagram2-renderer-entity-compact-key",
+      "data-diagram2-entity-text": "",
+      "data-diagram2-entity-compact-key": "",
+      x: x + Math.max(10, Math.min(width - 10, width * 0.5)),
+      y: y + headerHeight + Math.max(12, Math.min(height - headerHeight - 10, fontSize * 0.72)),
+      "text-anchor": "middle",
+      "dominant-baseline": "middle",
+      fill: textColor,
+      "font-family": object.fontFamily || "Arial",
+      "font-size": Math.max(18, fontSize * 0.62),
+      "font-weight": 700
+    });
+  }
 
   appendSvg(node, "rect", {
     class: "diagram2-renderer-entity-outline",
@@ -2854,10 +3112,14 @@ function patchRelationshipNode(node, previousRelationship, relationship, flags =
     "data-diagram2-relationship-id": relationship.id,
     "data-diagram2-relationship-source": relationship.source?.id || "",
     "data-diagram2-relationship-target": relationship.target?.id || "",
+    "data-diagram2-relationship-detail-level": flags.detailLevel || diagram2DetailLevelDetailed,
     class: `diagram2-renderer-relationship-node${flags.selected ? " is-selected" : ""}`
   });
 
   const route = flags.route || relationshipRoute(relationship);
+  const renderRoute = flags.detailLevel === diagram2DetailLevelLow
+    ? lowDetailRelationshipRoute(relationship, route)
+    : route;
   const style = relationshipStyle(relationship);
   let title = node.querySelector(":scope > title");
   if (!title) {
@@ -2875,7 +3137,7 @@ function patchRelationshipNode(node, previousRelationship, relationship, flags =
   setSvgAttributes(path, {
     class: "diagram2-renderer-relationship",
     "data-diagram2-relationship-path": "",
-    d: route.path,
+    d: renderRoute.path,
     fill: "none",
     stroke: style.stroke,
     "stroke-width": style.strokeWidth,
@@ -2884,6 +3146,15 @@ function patchRelationshipNode(node, previousRelationship, relationship, flags =
     "stroke-linecap": "round",
     "vector-effect": "non-scaling-stroke"
   });
+}
+
+function lowDetailRelationshipRoute(relationship, routeInput) {
+  const route = routeInput || relationshipRoute(relationship);
+  const hasManualRoute = normalizeRelationshipRouteOverride(
+    relationship.foreignKeySource?.routeOverride || relationship.foreignKey?.routeOverride
+  ).length >= 2;
+  if (hasManualRoute || relationship.source === relationship.target) return route;
+  return relationshipRouteFromPoints([route.start, route.end]);
 }
 
 function relationshipRoute(relationship, options = {}) {
@@ -2969,6 +3240,12 @@ function relationshipStyle(relationship) {
     strokeWidth: positiveNumber(override.strokeWidth, 2),
     opacity: safeOpacity(override.opacity ?? 0.88)
   };
+}
+
+function lowDetailEntityFontSize(object) {
+  const height = positiveNumber(object?.height, 1);
+  const base = Math.max(positiveNumber(object?.fontSize, 12) * 4, 42);
+  return clampNumber(base, 20, Math.max(20, height * 0.46));
 }
 
 function fieldMappingTextAttributes(object, x, y, fill) {
@@ -3058,7 +3335,8 @@ function diagnosticsFor(options) {
     ...emptyDirtyFlushDiagnostics(),
     ...emptyGeometryPreviewDiagnostics(),
     ...emptySelectiveRoutingDiagnostics(),
-    ...emptyViewportHaloDiagnostics()
+    ...emptyViewportHaloDiagnostics(),
+    ...emptyOverviewDetailDiagnostics()
   };
 }
 
@@ -3079,7 +3357,8 @@ function emptyDiagnostics() {
     ...emptyDirtyFlushDiagnostics(),
     ...emptyGeometryPreviewDiagnostics(),
     ...emptySelectiveRoutingDiagnostics(),
-    ...emptyViewportHaloDiagnostics()
+    ...emptyViewportHaloDiagnostics(),
+    ...emptyOverviewDetailDiagnostics()
   };
 }
 
@@ -3130,6 +3409,12 @@ function createDiagram2ViewportHaloState() {
     relationshipIds: new Set(),
     objectSectorIndex: createDiagram2FixedGridIndex(diagram2ViewportHaloSectorSize),
     relationshipSectorIndex: createDiagram2FixedGridIndex(diagram2ViewportHaloSectorSize)
+  };
+}
+
+function createDiagram2OverviewDetailState() {
+  return {
+    level: diagram2DetailLevelDetailed
   };
 }
 
@@ -3253,6 +3538,65 @@ function emptyViewportHaloDiagnostics(overrides = {}) {
     mountedObjectCount: Number(overrides.mountedObjectCount || overrides.objectCount || 0),
     mountedRelationshipCount: Number(overrides.mountedRelationshipCount || overrides.relationshipCount || 0)
   };
+}
+
+function overviewDetailDiagnostics(options = {}) {
+  const lowObjectCount = countMapValues(options.objectLevelsById, diagram2DetailLevelLow);
+  const detailedObjectCount = countMapValues(options.objectLevelsById, diagram2DetailLevelDetailed);
+  const lowRelationshipCount = countMapValues(options.relationshipLevelsById, diagram2DetailLevelLow);
+  const detailedRelationshipCount = countMapValues(options.relationshipLevelsById, diagram2DetailLevelDetailed);
+  return {
+    overviewDetailLevel: String(options.level || diagram2DetailLevelDetailed),
+    overviewDetailReason: String(options.reason || ""),
+    overviewDetailPreviousLevel: String(options.previousLevel || diagram2DetailLevelDetailed),
+    overviewDetailChanged: options.previousLevel !== options.level,
+    overviewDetailProjectedRowPixels: Number.isFinite(Number(options.projectedRowPixels))
+      ? Math.round(Number(options.projectedRowPixels) * 100) / 100
+      : 0,
+    overviewDetailEnterRowPixels: diagram2LowDetailEnterRowPixels,
+    overviewDetailExitRowPixels: diagram2LowDetailExitRowPixels,
+    overviewDetailEntityCount: Number(options.entityCount || 0),
+    overviewDetailLowObjectCount: lowObjectCount,
+    overviewDetailDetailedObjectCount: detailedObjectCount,
+    overviewDetailLowRelationshipCount: lowRelationshipCount,
+    overviewDetailDetailedRelationshipCount: detailedRelationshipCount,
+    overviewDetailMountedObjectCount: Number(options.mountedObjectCount || 0),
+    overviewDetailMountedRelationshipCount: Number(options.mountedRelationshipCount || 0),
+    overviewDetailObjectPatchCount: Number(options.objectPatchCount || 0),
+    overviewDetailRelationshipPatchCount: Number(options.relationshipPatchCount || 0),
+    overviewDetailDuration: Math.round(Math.max(0, Number(options.duration || 0)) * 100) / 100
+  };
+}
+
+function emptyOverviewDetailDiagnostics(overrides = {}) {
+  return {
+    overviewDetailLevel: String(overrides.level || diagram2DetailLevelDetailed),
+    overviewDetailReason: String(overrides.reason || ""),
+    overviewDetailPreviousLevel: String(overrides.previousLevel || diagram2DetailLevelDetailed),
+    overviewDetailChanged: false,
+    overviewDetailProjectedRowPixels: 0,
+    overviewDetailEnterRowPixels: diagram2LowDetailEnterRowPixels,
+    overviewDetailExitRowPixels: diagram2LowDetailExitRowPixels,
+    overviewDetailEntityCount: 0,
+    overviewDetailLowObjectCount: 0,
+    overviewDetailDetailedObjectCount: 0,
+    overviewDetailLowRelationshipCount: 0,
+    overviewDetailDetailedRelationshipCount: 0,
+    overviewDetailMountedObjectCount: 0,
+    overviewDetailMountedRelationshipCount: 0,
+    overviewDetailObjectPatchCount: 0,
+    overviewDetailRelationshipPatchCount: 0,
+    overviewDetailDuration: 0
+  };
+}
+
+function countMapValues(map, value) {
+  if (!(map instanceof Map)) return 0;
+  let count = 0;
+  map.forEach(item => {
+    if (item === value) count += 1;
+  });
+  return count;
 }
 
 function formatCoverage(value) {
@@ -3468,10 +3812,11 @@ function objectTextVersion(object) {
   return "";
 }
 
-function relationshipRenderVersion(routeSignature, styleSignature) {
+function relationshipRenderVersion(routeSignature, styleSignature, detailLevel = diagram2DetailLevelDetailed) {
   return JSON.stringify({
     routeSignature,
-    styleSignature
+    styleSignature,
+    detailLevel
   });
 }
 

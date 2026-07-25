@@ -28,7 +28,7 @@ import {
 } from "../../shared/diagram-documents.js?v=20260725-diagram2-day6-v1";
 import { formatDate } from "../../shared/dates.js";
 import { escapeAttr, escapeHtml } from "../../shared/text-and-links.js";
-import { createDiagram2Renderer } from "./diagram2-renderer.js?v=20260725-diagram2-day12-v1";
+import { createDiagram2Renderer } from "./diagram2-renderer.js?v=20260725-diagram2-day13-v1";
 
 const diagram2ViewModes = new Set(["tree", "cards"]);
 const diagram2SortModes = new Set(["latest", "oldest", "name", "custom"]);
@@ -502,6 +502,21 @@ export function createDiagram2Feature({ app, notify } = {}) {
           ${diagram2DiagnosticItemHtml("viewport-halo-routed-relationship-count", "Viewport routed relationships")}
           ${diagram2DiagnosticItemHtml("viewport-halo-same-sector-noop", "Same-sector no-op")}
           ${diagram2DiagnosticItemHtml("viewport-halo-duration", "Viewport halo duration")}
+          ${diagram2DiagnosticItemHtml("overview-detail-level", "Overview detail level")}
+          ${diagram2DiagnosticItemHtml("overview-detail-reason", "Overview detail reason")}
+          ${diagram2DiagnosticItemHtml("overview-detail-previous-level", "Previous detail level")}
+          ${diagram2DiagnosticItemHtml("overview-detail-changed", "Detail level changed")}
+          ${diagram2DiagnosticItemHtml("overview-detail-projected-row-pixels", "Projected row pixels")}
+          ${diagram2DiagnosticItemHtml("overview-detail-enter-row-pixels", "Low-detail enter px")}
+          ${diagram2DiagnosticItemHtml("overview-detail-exit-row-pixels", "Low-detail exit px")}
+          ${diagram2DiagnosticItemHtml("overview-detail-entity-count", "Overview Entity count")}
+          ${diagram2DiagnosticItemHtml("overview-detail-low-object-count", "Low-detail objects")}
+          ${diagram2DiagnosticItemHtml("overview-detail-detailed-object-count", "Detailed objects")}
+          ${diagram2DiagnosticItemHtml("overview-detail-low-relationship-count", "Low-detail relationships")}
+          ${diagram2DiagnosticItemHtml("overview-detail-detailed-relationship-count", "Detailed relationships")}
+          ${diagram2DiagnosticItemHtml("overview-detail-object-patch-count", "Detail object patches")}
+          ${diagram2DiagnosticItemHtml("overview-detail-relationship-patch-count", "Detail relationship patches")}
+          ${diagram2DiagnosticItemHtml("overview-detail-duration", "Overview detail duration")}
           ${diagram2DiagnosticItemHtml("last-frame-duration", "Last frame duration")}
           ${diagram2DiagnosticItemHtml("transient-matrix", "Transient matrix")}
           ${diagram2DiagnosticItemHtml("committed-matrix", "Committed matrix")}
@@ -588,6 +603,21 @@ export function createDiagram2Feature({ app, notify } = {}) {
       "viewport-halo-routed-relationship-count": diagnostics.viewportHaloRoutedRelationshipCount,
       "viewport-halo-same-sector-noop": diagnostics.viewportHaloSameSectorNoop,
       "viewport-halo-duration": `${diagnostics.viewportHaloDuration} ms`,
+      "overview-detail-level": diagnostics.overviewDetailLevel,
+      "overview-detail-reason": diagnostics.overviewDetailReason,
+      "overview-detail-previous-level": diagnostics.overviewDetailPreviousLevel,
+      "overview-detail-changed": diagnostics.overviewDetailChanged,
+      "overview-detail-projected-row-pixels": diagnostics.overviewDetailProjectedRowPixels,
+      "overview-detail-enter-row-pixels": diagnostics.overviewDetailEnterRowPixels,
+      "overview-detail-exit-row-pixels": diagnostics.overviewDetailExitRowPixels,
+      "overview-detail-entity-count": diagnostics.overviewDetailEntityCount,
+      "overview-detail-low-object-count": diagnostics.overviewDetailLowObjectCount,
+      "overview-detail-detailed-object-count": diagnostics.overviewDetailDetailedObjectCount,
+      "overview-detail-low-relationship-count": diagnostics.overviewDetailLowRelationshipCount,
+      "overview-detail-detailed-relationship-count": diagnostics.overviewDetailDetailedRelationshipCount,
+      "overview-detail-object-patch-count": diagnostics.overviewDetailObjectPatchCount,
+      "overview-detail-relationship-patch-count": diagnostics.overviewDetailRelationshipPatchCount,
+      "overview-detail-duration": `${diagnostics.overviewDetailDuration} ms`,
       "last-frame-duration": `${diagnostics.lastFrameDuration} ms`,
       "transient-matrix": diagnostics.transientMatrix,
       "committed-matrix": diagnostics.committedMatrix,
@@ -664,6 +694,21 @@ export function createDiagram2Feature({ app, notify } = {}) {
       "viewport-halo-routed-relationship-count": "-",
       "viewport-halo-same-sector-noop": "-",
       "viewport-halo-duration": "-",
+      "overview-detail-level": "-",
+      "overview-detail-reason": "-",
+      "overview-detail-previous-level": "-",
+      "overview-detail-changed": "-",
+      "overview-detail-projected-row-pixels": "-",
+      "overview-detail-enter-row-pixels": "-",
+      "overview-detail-exit-row-pixels": "-",
+      "overview-detail-entity-count": "-",
+      "overview-detail-low-object-count": "-",
+      "overview-detail-detailed-object-count": "-",
+      "overview-detail-low-relationship-count": "-",
+      "overview-detail-detailed-relationship-count": "-",
+      "overview-detail-object-patch-count": "-",
+      "overview-detail-relationship-patch-count": "-",
+      "overview-detail-duration": "-",
       "last-frame-duration": "-",
       "transient-matrix": "-",
       "committed-matrix": "-",
