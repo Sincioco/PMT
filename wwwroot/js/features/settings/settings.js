@@ -30,7 +30,7 @@ import {
   readNavigationConfig,
   resetNavigationConfig,
   writeNavigationConfig
-} from "../../core/navigation-preferences.js?v=20260725-diagram2-day1-v1";
+} from "../../core/navigation-preferences.js?v=20260725-diagram2-day4-v1";
 import {
   clearPmtPreferences,
   preferenceKeys,
@@ -45,7 +45,7 @@ import {
   routeForView,
   savedViewPreference,
   updateBrowserUrl
-} from "../../core/router.js?v=20260718-diagram-entity-v22";
+} from "../../core/router.js?v=20260725-diagram2-day4-v1";
 import { state } from "../../core/store.js";
 import {
   formatDate,

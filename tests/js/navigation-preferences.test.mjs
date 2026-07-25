@@ -21,6 +21,7 @@ globalThis.localStorage = {
 };
 
 const {
+  navIconHtml,
   normalizeNavigationConfig,
   readNavigationConfig,
   visibleNavigationScreens,
@@ -75,6 +76,7 @@ test("new navigation configurations place Diagram immediately after Documentatio
   assert.equal(documentationIndex + 1, diagramIndex);
   assert.equal(diagramIndex + 1, logIndex);
   assert.equal(config.items.at(-1).view, "Diagram 2");
+  assert.match(navIconHtml("Diagram 2"), />2</);
 });
 
 test("existing navigation configurations move Diagram immediately after Documentation", () => {

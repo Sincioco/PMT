@@ -37,16 +37,37 @@ test("Diagram 2 top navigation opens the isolated shell", async ({ page }) => {
   await page.getByRole("button", { name: /log in/i }).click();
   await expect(page.getByRole("heading", { name: "Dashboard", exact: true })).toBeVisible();
 
+  await openNavigationScreen(page, "Diagram");
+  await expect(page).toHaveURL(/#\/diagram$/);
+  await expect(page.locator(".diagram-screen")).toBeVisible();
+
   await openNavigationScreen(page, "Diagram 2");
-  await expect(page).toHaveURL(/#\/diagram2$/);
+  await expect(page).toHaveURL(/#\/diagram-2$/);
   await expect(page.locator("[data-diagram2-screen]")).toBeVisible();
   await expect(page.locator("[data-diagram2-screen] h1")).toHaveText("Diagram 2");
-  await expect(page.locator("[data-diagram2-screen] h2")).toHaveText("Workspace");
+  await expect(page.locator("[data-diagram2-screen] h2")).toHaveText("High-performance Diagram renderer under development.");
+  await expect(page.locator("[data-diagram2-screen]")).toContainText("Diagram 1 remains available.");
+  await expect(page.locator(".diagram-screen")).toHaveCount(0);
+
+  await page.goBack();
+  await expect(page).toHaveURL(/#\/diagram$/);
+  await expect(page.locator(".diagram-screen")).toBeVisible();
+  await page.goForward();
+  await expect(page).toHaveURL(/#\/diagram-2$/);
+  await expect(page.locator("[data-diagram2-screen]")).toBeVisible();
+  await expect(page.locator(".diagram-screen")).toHaveCount(0);
+
+  await page.evaluate(() => {
+    window.location.hash = "#/diagram-2/42";
+  });
+  await expect(page).toHaveURL(/#\/diagram-2\/42$/);
+  await expect(page.locator("[data-diagram2-screen]")).toBeVisible();
+  await expect(page.locator("[data-diagram2-screen]")).toContainText("Reserved Diagram document route: 42");
   await expect(page.locator(".diagram-screen")).toHaveCount(0);
 
   await openNavigationScreen(page, "Settings");
   await page.locator("[data-action='select-lookup-type'][data-type='Navigation']").click();
-  await expect(page.locator("[data-navigation-list] [data-nav-view='Diagram 2']")).toContainText("#/diagram2");
+  await expect(page.locator("[data-navigation-list] [data-nav-view='Diagram 2']")).toContainText("#/diagram-2");
 
   expect(browserErrors).toEqual([]);
 });

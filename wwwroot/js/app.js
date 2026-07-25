@@ -38,7 +38,7 @@ import {
   showTaskAudit,
   viewWorkItem
 } from "./components/work-items.js?v=20260722-rich-entity-mentions-v1";
-import { createApplicationShell } from "./core/application-shell.js?v=20260725-diagram2-day1-v1";
+import { createApplicationShell } from "./core/application-shell.js?v=20260725-diagram2-day4-v1";
 import {
   currentView,
   ensureCurrentViewRoute,
@@ -47,13 +47,13 @@ import {
   routeForContent,
   routeForView,
   updateBrowserUrl
-} from "./core/router.js?v=20260725-diagram2-day1-v1";
+} from "./core/router.js?v=20260725-diagram2-day4-v1";
 import {
   registeredScreenHandlers,
   registerScreen,
   screenHandlerFor,
   screenRegistry
-} from "./core/screen-registry.js?v=20260725-diagram2-day1-v1";
+} from "./core/screen-registry.js?v=20260725-diagram2-day4-v1";
 import {
   preferenceKeys,
   readBooleanPreference,
@@ -75,7 +75,7 @@ import { createBoardFeature } from "./features/board/board.js?v=20260722-rich-en
 import { createBugsFeature } from "./features/bugs/bugs.js?v=20260724-day36-v3";
 import { createDashboardFeature } from "./features/dashboard/dashboard.js?v=release-notes-2026-07-25-day-37-46c1811ffe7e";
 import { createDiagramFeature } from "./features/diagram/diagram.js?v=20260725-diagram2-day3-v1";
-import { createDiagram2Feature } from "./features/diagram2/diagram2.js?v=20260725-diagram2-day1-v1";
+import { createDiagram2Feature } from "./features/diagram2/diagram2.js?v=20260725-diagram2-day4-v1";
 import { createDocumentationFeature } from "./features/documentation/documentation.js?v=20260725-day36-v5";
 import {
   createGanttFeature,
@@ -88,7 +88,7 @@ import { createReleaseNotesFeature } from "./features/release-notes/release-note
 import { createRoadMapFeature } from "./features/roadmap/roadmap.js?v=release-notes-2026-07-25-day-37-46c1811ffe7e";
 import { createLogFeature } from "./features/personal-log/log.js?v=20260722-rte-toggle-state-v1";
 import { createScrumFeature } from "./features/scrum/scrum.js?v=20260722-ole-viewport-v1";
-import { createSettingsFeature } from "./features/settings/settings.js?v=20260725-diagram2-day1-v1";
+import { createSettingsFeature } from "./features/settings/settings.js?v=20260725-diagram2-day4-v1";
 import { createSprintsFeature } from "./features/sprints/sprints.js?v=20260719-day32-rte-diagram";
 import { createSuggestionsFeature } from "./features/suggestions/suggestions.js?v=20260725-day36-v1";
 import { createTasksFeature } from "./features/tasks/tasks.js?v=20260722-rte-toggle-state-v1";
@@ -696,6 +696,7 @@ function openRouteContent(route) {
   if (route.contentType === "backlog") return openBacklogRoute(id);
   if (route.contentType === "documentation") return openDocumentationById(id, { showMissingToast: false, updateUrl: false });
   if (route.contentType === "diagram") return diagramFeature.view?.(id) === true;
+  if (route.contentType === "diagram-2") return diagram2Feature.view?.(id) === true;
   if (route.contentType === "log") return logFeature.view?.(id) === true;
   if (route.contentType === "scrum") return scrumFeature.view?.(id) === true;
 

@@ -73,7 +73,7 @@
   transform-origin: left center;
 }
 
-.diagram2-empty {
+.diagram2-development-panel {
   position: relative;
   display: grid;
   gap: var(--space-3);
@@ -82,17 +82,21 @@
   text-align: center;
 }
 
-.diagram2-empty h2 {
+.diagram2-development-panel h2 {
   margin: 0;
   color: var(--color-text-primary);
   font-size: var(--font-size-2xl);
   line-height: var(--line-height-heading);
 }
 
-.diagram2-empty p {
+.diagram2-development-panel p {
   margin: 0;
   color: var(--color-text-secondary);
   font-size: var(--font-size-md);
+}
+
+.diagram2-route-note {
+  font-size: var(--font-size-sm);
 }
 
 @media (max-width: 720px) {
@@ -109,7 +113,7 @@
     right: 6%;
   }
 
-  .diagram2-empty {
+  .diagram2-development-panel {
     padding: var(--space-6);
   }
 }

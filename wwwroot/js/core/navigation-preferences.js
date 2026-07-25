@@ -3,10 +3,10 @@ import {
   readJsonPreference,
   writeJsonPreference
 } from "./preferences.js";
-import { screenRegistry } from "./screen-registry.js?v=20260725-diagram2-day1-v1";
+import { screenRegistry } from "./screen-registry.js?v=20260725-diagram2-day4-v1";
 import { canReadView } from "../shared/security.js?v=20260725-diagram2-day1-v1";
 
-const navigationVersion = 4;
+const navigationVersion = 5;
 const betaVisibilityVersion = 2;
 const betaNavigationViews = new Set(["Dashboard", "Road Map", "Gantt"]);
 const lockedVisibleViews = new Set(["About", "Settings"]);
@@ -187,13 +187,25 @@ export function navIconHtml(view) {
     Documentation: "&#128214;",
     "WFH Schedule": "&#8962;",
     Diagram: "&#128208;",
-    "Diagram 2": "&#128208;",
+    "Diagram 2": diagram2IconHtml(),
     "Release Notes": "&#128227;",
     Suggestions: "&#128161;",
     About: "&#9432;",
     Settings: "&#9881;"
   };
   return icons[view] || "&#9679;";
+}
+
+function diagram2IconHtml() {
+  return `
+    <svg class="button-svg-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path d="M5 4h14v16H5z"></path>
+      <path d="M8 7h8"></path>
+      <path d="M8 11h5"></path>
+      <path d="M8 15h4"></path>
+      <text x="16" y="18" text-anchor="middle" font-size="8" font-weight="700" fill="currentColor" stroke="none">2</text>
+    </svg>
+  `;
 }
 
 function bugIconHtml() {

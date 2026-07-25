@@ -9,12 +9,12 @@ import {
   restoreSession
 } from "./authentication.js?v=20260715-admin-impersonation";
 import { overflowIconHtml } from "../components/buttons.js?v=20260715-admin-impersonation";
-import { navIconHtml } from "./navigation-preferences.js?v=20260725-diagram2-day1-v1";
+import { navIconHtml } from "./navigation-preferences.js?v=20260725-diagram2-day4-v1";
 import {
   preferenceKeys,
   writePreference
 } from "./preferences.js";
-import { currentView, getNavigationScreens, navigate } from "./router.js?v=20260725-diagram2-day1-v1";
+import { currentView, getNavigationScreens, navigate } from "./router.js?v=20260725-diagram2-day4-v1";
 import { loadState, state } from "./store.js";
 import { appUrl } from "../shared/app-urls.js";
 
