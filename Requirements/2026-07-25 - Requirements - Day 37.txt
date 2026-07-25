@@ -1,0 +1,105 @@
+Project Management Tool (PMT):  Day 37 of Codex Agentic AI Coding
+-----------------------------------------------------------------
+Total Dev Time in Hours:  56
+
+AI Instructions
+--------------
+Design and Coding Methodology:
+	KISS (Keep It Simple Stupid) - The simpler the better.  Avoid over-engineering.  Avoid unnecessary complexity.  Avoid unnecessary features.  Avoid unnecessary bells and whistles.  Avoid unnecessary abstractions.  Avoid unnecessary patterns.  Avoid unnecessary frameworks.  Avoid unnecessary libraries.  Avoid unnecessary dependencies.  Avoid unnecessary code.  Avoid unnecessary files.  Avoid unnecessary folders.  Avoid unnecessary classes.  Avoid unnecessary methods.  Avoid unnecessary variables.
+
+Testing:
+	In addition to your normal testing, be sure to inform me if I have to recompile the .Net portion of the project or just Press Ctrl + F5 on the browser to reload to see the latest changes.  If making CSS / image changes, ensure that I will encounter no caching issue when testing in the browser.  Do not test the 3D About flyby unless you made changes to it.
+
+Environment:
+	You are in a dev machine.  You can drop and re-create the database as you see fit, especially when testing migrations scripts.  You don't need to preseve data in the backend or frontend.  You can also clear preferences, local storage settings and any cache as you see fit.
+
+Database:
+	If making changes to the database, that affects existing users see database-versioning.md under the docs folder.
+
+
+Commits:
+	PMT is a public repo, write a detailed commit message so people can follow its progression.  Prefix all of your commits with "Sin and Codex: ".
+
+Task Completion:
+	As you complete each task and you are ready for me to test it, highlight them in bold and echo the task and tell me when it is ready for testing.
+
+
+Bug Fixes and Enhancements
+--------------------------
+1.) Bug:  In the What's New Dialog box, if you click on a a date on the left side (left nav of the dialog), the left nav and resets back to the top. So, if I scroll down, and click on an earlier date, the content on the right becomes correct, but the left nav that contains the list of dates goes back to the latest dates showing at the top.
+
+Diagram - ERD - UI and Field Mapping Table
+------------------------------------------
+2.) Bug:  When you hover on a field in the Field Mapping Table, remove the blue outline that extends outwards.  The functionality is correct, just remove the blue outline.
+3.) Take the Day 37 svg image for the What's New and make that the Default svg going forward unless I ask for a different one.
+4.) Update the svg image using the day 37 svg image for days 31 and 30.
+5.) In the Diagram Tool bar, add a seperation between the Rich Text Box icon and the Entity icon.  I want to keep the database related stuff visually separated.
+6.) Add a button on the toolbar so the user can generate a Field Mapping Table.  Juse trigger the exact same code/functionality as the existing "Generate Field to Entity Mapping" button in the Entity tab.
+7.) When you fixed #2, it broke the funtionality.  Now, the Field Mapping Rectangle and the corresponding relationship arrow no longer show the highlight indicator.  I only wanted you to remove the rectangular boundary that was not needed.
+8.) When you generate the Field Mapping Table, there appears to be a blank row at the bottom.  Also, the borders of the table is not uniform.
+9.) Can you also make the columns dynamic so they only use the right amount of width.  Make the table size to the content.  Make the columns size to the largest/widest content.
+10.) Allow the user to click the "Generate Field Mapping Table" button on the toolbar if there is at least one Field Mapping Rectangle that is mapped to an entity on the canvas.  Otherwise, present a dialog box that says "Please place a field mapping rectangle on a screenshot and map it to an entity and field."
+11.) When I select an entity relationship arrow, and this is universally on the canvas, if I press the delete key, remove the corresponding mapping to the affected entity or objects so that relationship arrow is not drawn again.  Meaning, when the user deletes the entity relationship, they really don't want to see it.
+12.) When a Field Mapping Rectangle is actually mapped to an entity and a field, update it's name in the Objects table so it shows Field: {Field} (Entity).  For example:  Field: First Name (dbo.Customer).
+
+13.) Bug:  When you did #9, you broke the functionality of the Field Mapping Table.  Now, hovering on a Field Mapping Table no longer highlight the corresponding Field Mapping Rectangle and its relationship line/arrow.
+
+14.) Can you make the Field Mapping Table dynamic so it stays up-to-date.  Meaning, as I instantiate more Field Mapping Rectangle, add it in the table dynamically.  Don't mess up the user's existing formatting.  As I map the Field Mapping Rectangle, to a field, update the Field Name in both the Field Mapping Table and in the Objects tab and the tooltip for that field on the Field Mapping Rectangle.
+15.) When the user double clicks a row in the Field Mapping Table, it means they want to see that field on the screen.  Dynamically move the view port and adjust the zoom level appropriately so that field becomes centered on the screen.
+16.) When the cursor hovers on a row in the Field Mapping Table, extend its functionality so that after 3 seconds and they are still hovered on the same field, dynamically draw a line with an arrow head from the Field Mapping Table row to the cursor is on to the Field Mapping Rectangle for 3 seconds and make it disappear.  Please factor in scenarios to prevent multiples of these arrows from appearing on-screen.  There should only be one such arrow at any given time.
+17.) Don't break the Field Mapping Table functionality as you make changes please.
+
+18.) In the Diagram tree nav, there is already an existing "Download" right-click menu item, rename that to "Download as SVG".
+19.) In the Diagram tree nav, add a new right-click menu item "Download as PNG".  Clicking it prompts the user with 2 options:  Transparent background or White background.  Then proceed to generate a PNG version of the diagram based on the user's background choice.
+
+20.) When I map a Field Rectangle Name to a entity and then a field, update the Field Rectangle Name to the field.
+21.) In Diagram, make the Field Mapping Table highlight the corresponding Field Rectangle and its associated line/arrows and make the single click, double click, and the 3-second arrow appear.  Format it and make it behave/look exactly the same way as the edit-mode so the user gets the same experience.
+
+22.) For item 19, the Download as PNG dialog box looks different than the usual PMT dialog box.  Make the options radio buttons and put an Cancel and Download button on the footer of the dialog box and a "x" button on the upper-right.
+
+23.) Bug:  #15 does not work.  Double-clicking on a row does nothing.
+24.) Bug:  Hovering on the Field Mapping Table in read-only mode causes the diagram to redraw and display nothing.
+
+24.) Let's update the Field Mapping Table.  When you hover on it, always draw the highlight and pretend it is selected by drawing the blue lines and resize handles, as the highlight is not enough it standout.  Obviously, if they hover away, remove the highlight and selected handles/blue lines.
+25.) When the user single click a field, draw the selection handles around the Field Mapping Rectangle, it's corresponding lines/arrow and the Entity it is connected to.  Automatically trigger the 3-second arrow without delay, and dismiss it after 3 seconds.
+26.) When the user double clicks a UI field, it's effectively the same as a single click (so do all the same things that a single click does) but additionally move the viewport towards the Field Mapping Rectangle associated with that UI field.  Don't adjust the zoom level, just move the viewport so the Field Mapping Rectangle is centered.  However, if the viewport is such that the Field Mapping Rectangle cannot be seen, such as if the zoom level is too low, then adjust the zoom level.  Or, if the zoom level is too big, adjust it back to a decent size the Field Mapping Rectangle can fit in its entirety and centered on-screen.
+27.) Give the same treatment to the Database Field, double-clicking it takes the user to the field in the entity.
+28.) Do this for both read-only and edit mode.
+
+29.) That old problem is back. The outer seletion rectangle, the bounding box one, should not be rendered.  We only want to show the resize handles around the Field Mapping Rectangle, it's associated line/arrow and entity.
+
+30.) Following up on #19, functionality wise it works, can you add an option when download as a PNG (only for the PNG) to select how many pixels of margins we want around the image.  Have a dropdown choice of 1 to 200px.  Default to 20px.
+31.) Extend the same treatment on the SVG option.  Have a choice for a white background or not (default to not) and how much margins around the image.
+31a.) Bug:  I downloaded a SVG and when I previewed it in the browser, I got an error (see picture).
+
+32.) In Diagram, when a cropped image is selected, I would like some options.  Maybe dynamically create a Crop tab on the right pane.  So that I can adjust the corner radius. Some of the screen shots we capture are dialog boxes with corner edges, so we can remove elements not part of the dialog box.  Also, to manually tighten the left, top, right and bottom for those pixel-perfect crop scenarios.  Make the Crop tab appear right after the Format tab, dynamically.
+
+33.) In the Field Mapping Table, for both read-only and edit mode, when a Database Field is clicked, re-point the arrow to the beginning of the field name.  Really just to the left of the actual field name.
+34.) In the Field Mapping Table, when rendering the field UI Field names, don't underline them.
+
+35.) In the Crop tab, add a button to reset the crop (no crop).  Make sure if they reset the crop they can undo it.
+36.) In the Crop tab, add a button to permnanently crop (destructive).
+
+37.) Create a Field Mapping Table tab on the right pane so all options/styling around the Field Mapping Table are together.
+38.) For the color-related styling/options, re-use the existing color picker and behavior that is already in the Format tab.
+39.) In the Field Mapping Table tab add two buttons:  Export to Excel (native) and Export as CSV.  And actually export the content of the Field Mapping Table.
+40.) Change the Field Mapping Table tab to just "Mapping".
+
+38.) In the read-only mode of the diagram, the right-mouse click menu options...none of them work.  For the Copy as SVG and Copy as PNG option, if you can pop the same dialog box as those mentioned in items #30 and #31, so the user gets the same choices before copying a SVG or PNG on the clipbard;
+39.) The Connection Symbols menu just renders the diagram blank when selected.  Update it to "Entity Relationships" which puts a checkmark if it is on or off, then hide/show the normal arrows and diagrams between entities depending on what the user select.  By default it is on.  Exclude anything related to the Field Table Mapping, Field Rectangle Mapping and the associated lines/arrows with those. Treat those separately.
+40.) Add another menu item just below #33, but this time for the Field Mappings.  Add a menu item for "UI to DB Field Mapping" which puts a checkmark if it is on or off, then hide/show the Field Mapping Rectangle and the associated lines/arrows.
+51.) Add another menu option that reads "Relationship Lines Only" and it would be off by default.  When it is turned on, only show the lines for all the entities and never the arrow or crowsfeet, etc.  Just the lines.
+
+What's New
+---------------------------------
+For the What's New, I want you to highlight that users can now share Documents and Diagrams with people outside of PMT even if they have no PMT login.  Create a SVG picture that communicates people and sharing (both documents and diagrams).  Also highlight the new Suggestion feature.
+
+Database Migration Script Testing
+---------------------------------
+Update the migration scripts and test them by dropping and re-creating the database from the baseline and executing your combined migration script as that is how I will execute it during deployment.  Be sure it works without any errors and fix errors that you do encounter.
+
+Commit and Push
+---------------
+When all your tests are green, create a detailed commit message and push to the repo.
+Also commit the file named "2026-07-24 - Requirements - Day 36.txt" and "2026-07-25 - Requirements - Day 37.txt"
+

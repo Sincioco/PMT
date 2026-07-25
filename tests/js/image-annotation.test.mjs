@@ -3186,6 +3186,7 @@ test("a new source-backed annotation seeds one ordinary embedded Original Image"
     height: 360,
     source: sampleImageDataUrl,
     imageClip: { x: 0, y: 0, width: 640, height: 360 },
+    cropCornerRadius: 0,
     cropVisible: true,
     cropPermanent: false,
     isOriginalImage: true

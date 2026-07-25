@@ -21,6 +21,20 @@ const illustrationPalettes = [
   { background: "#edf8f8", ink: "#28555d", accent: "#d87937", secondary: "#58a3a9" },
   { background: "#fff0f3", ink: "#613e4a", accent: "#467aa6", secondary: "#cf718c" }
 ];
+const defaultReleaseIllustrationDays = new Set([30, 31]);
+const defaultReleaseIllustrationSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 180">
+  <rect width="720" height="180" rx="24" fill="#f2f8ee"/>
+  <circle cx="47" cy="42" r="18" fill="#c76d3d" opacity=".18"/>
+  <circle cx="673" cy="138" r="28" fill="#78a56a" opacity=".2"/>
+  <path d="M42 142h96M582 38h96" stroke="#78a56a" stroke-width="8" stroke-linecap="round" opacity=".28"/>
+  <g fill="none" stroke="#35543b" stroke-width="7" stroke-linecap="round" stroke-linejoin="round">
+    <path d="m272 75 103-37v91L272 92Z" fill="#fff"/>
+    <path d="M272 75h-29v36h29M298 102l14 39h31l-17-49"/>
+    <path d="m420 48 15-15M435 83h24M420 117l15 15" stroke="#c76d3d"/>
+  </g>
+</svg>
+`;
+const defaultReleaseIllustrationAlt = "Product update announcement illustration.";
 
 const summaries = JSON.parse(await readFile(summariesPath, "utf8"));
 if (!Array.isArray(summaries)) throw new Error("scripts/release-notes.json must contain an array.");
@@ -169,20 +183,25 @@ function normalizeLineEndings(value) {
 }
 
 function releaseIllustration(day, title, sections) {
+  const dayNumber = Number(day) || 0;
+  if (defaultReleaseIllustrationDays.has(dayNumber) || dayNumber >= 37) {
+    return defaultReleaseIllustration();
+  }
+
   const searchableText = [title, ...sections.map(section => section.title)].join(" ").toLowerCase();
-  const kind = Number(day) === 34
+  const kind = dayNumber === 34
     ? "technology-team"
-    : Number(day) === 35
+    : dayNumber === 35
       ? "mentions-live-cards"
-      : Number(day) === 36
+      : dayNumber === 36
         ? "public-sharing"
-        : Number(day) === 33
+        : dayNumber === 33
           ? "development-team"
-          : Number(day) === 32
+          : dayNumber === 32
             ? "diagram-screen"
             : illustrationKind(searchableText);
-  const palette = illustrationPalettes[Math.abs(Number(day) || 0) % illustrationPalettes.length];
-  const offset = 34 + ((Number(day) || 0) * 17) % 44;
+  const palette = illustrationPalettes[Math.abs(dayNumber) % illustrationPalettes.length];
+  const offset = 34 + (dayNumber * 17) % 44;
   const decoration = kind === "diagram-screen"
     ? `<rect x="42" y="136" width="96" height="8" rx="4" fill="${palette.secondary}" opacity=".28"/>
   <rect x="582" y="34" width="96" height="8" rx="4" fill="${palette.secondary}" opacity=".28"/>`
@@ -196,6 +215,13 @@ function releaseIllustration(day, title, sections) {
 </svg>
 `;
   return { svg, alt: illustrationAlt(kind) };
+}
+
+function defaultReleaseIllustration() {
+  return {
+    svg: defaultReleaseIllustrationSvg,
+    alt: defaultReleaseIllustrationAlt
+  };
 }
 
 function illustrationKind(text) {

@@ -1,15 +1,15 @@
 import {
   releaseNoteContentHtml,
   releaseNoteNavigationHtml
-} from "./release-notes.js?v=release-notes-2026-07-24-day-36-60e81e5b5748";
-import { readPreference, writePreference } from "../core/preferences.js?v=release-notes-2026-07-24-day-36-60e81e5b5748";
+} from "./release-notes.js?v=release-notes-2026-07-25-day-37-b22d811d4398";
+import { readPreference, writePreference } from "../core/preferences.js?v=release-notes-2026-07-25-day-37-b22d811d4398";
 import {
   releaseNoteById,
   releaseNotes,
   releaseNotesForLogin,
   releaseNotesSeenPreferenceKey,
   refreshReleaseNotes
-} from "../shared/release-notes.js?v=release-notes-2026-07-24-day-36-60e81e5b5748";
+} from "../shared/release-notes.js?v=release-notes-2026-07-25-day-37-b22d811d4398";
 
 export function createWhatsNew({ getUserId, onReleaseNotesUpdated, openReleaseNotes }) {
   let checkedUserId = 0;
@@ -96,7 +96,9 @@ export function createWhatsNew({ getUserId, onReleaseNotesUpdated, openReleaseNo
     const renderBody = () => {
       const selected = releaseNoteById(selectedId, notes);
       selectedId = selected?.id || "";
-      modal.querySelector(".whats-new-dialog-body").innerHTML = `
+      const body = modal.querySelector(".whats-new-dialog-body");
+      const navigationScrollTop = body.querySelector(".release-note-navigation")?.scrollTop || 0;
+      body.innerHTML = `
         <div class="whats-new-layout ${notes.length > 1 ? "has-navigation" : ""}">
           ${notes.length > 1 ? `
             <aside class="whats-new-navigation-panel">
@@ -108,6 +110,8 @@ export function createWhatsNew({ getUserId, onReleaseNotesUpdated, openReleaseNo
           </article>
         </div>
       `;
+      const navigation = body.querySelector(".release-note-navigation");
+      if (navigation) navigation.scrollTop = navigationScrollTop;
     };
 
     renderBody();

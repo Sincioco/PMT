@@ -1500,5 +1500,26 @@
         ]
       }
     ]
+  },
+  {
+    "day": 37,
+    "title": "What's New Navigation Stability",
+    "sections": [
+      {
+        "title": "What's New Dialog",
+        "items": [
+          "Keep the left-side release date list at its current scroll position when users select an earlier What's New entry.",
+          "Continue updating the selected release content on the right without jumping the date list back to the latest releases at the top.",
+          "Preserve keyboard focus on the selected date after the dialog content refreshes."
+        ]
+      },
+      {
+        "title": "Release Readiness",
+        "items": [
+          "Add browser coverage for the full-history What's New dialog so the scrolled date list behavior stays protected.",
+          "Refresh browser-loaded JavaScript cache keys for the updated dialog module."
+        ]
+      }
+    ]
   }
 ]

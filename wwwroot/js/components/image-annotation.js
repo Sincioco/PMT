@@ -17,9 +17,11 @@ const minimumScaledStrokeWidth = 0.001;
 const maximumScaledStrokeWidth = 1000000;
 const minimumScaledArrowSize = 0.001;
 const maximumScaledArrowSize = 1000000;
+const maximumAnnotationCropCornerRadius = 200;
 const annotationCoordinateScale = 1000;
 const annotationCoordinateTolerance = 1 / annotationCoordinateScale;
 let annotationEditorRenderSequence = 0;
+let annotationFieldMappingMeasureCanvas = null;
 const minimumEntityRelationshipClearance = 48;
 const maximumAnnotationTemplates = 50;
 const maximumAnnotationTemplateFileBytes = 50 * 1024 * 1024;
@@ -44,6 +46,7 @@ const defaultFieldMappingTableStyle = {
   databaseTextColor: "#172b4d",
   databaseFill: "#ffffff"
 };
+const fieldMappingTableColorStyleNames = new Set(Object.keys(defaultFieldMappingTableStyle));
 const entityRelationshipsSelectionId = "entity-relationships";
 const entityRelationshipsObjectType = "entity-relationships";
 const entityRelationshipSelectionPrefix = "entity-relationship:";
@@ -62,6 +65,7 @@ const defaultStyles = {
   textColor: "#ffffff",
   entityNameTextColor: defaultEntityTextColor,
   entityHeaderFill: defaultEntityFill,
+  ...defaultFieldMappingTableStyle,
   fontFamily: "Arial",
   fontSize: 28,
   textAlign: "left",
@@ -211,12 +215,14 @@ export async function openImageAnnotationDialog(options) {
 
 export function buildAnnotationSvg(inputState, options = {}) {
   const state = normalizeAnnotationState(inputState);
+  syncAnnotationFieldMappingTables(state);
   syncAnnotationEntityAnnotationArrows(state);
   resolveAnnotationEntityOverlaps(state);
   const metadataState = options?.metadataState
     ? normalizeAnnotationState(options.metadataState)
     : state;
   if (metadataState !== state) {
+    syncAnnotationFieldMappingTables(metadataState);
     syncAnnotationEntityAnnotationArrows(metadataState);
     resolveAnnotationEntityOverlaps(metadataState);
   }
@@ -232,6 +238,10 @@ export function buildAnnotationSvg(inputState, options = {}) {
   const relationshipLayers = annotationObjectsAroundRelationshipLayer(visibleObjects);
   const metadata = escapeXmlText(JSON.stringify(metadataState));
   const background = annotationCanvasBackgroundSvg(state, outputBounds);
+  const fieldMappingHoverIds = options?.fieldMappingHoverIds instanceof Set
+    ? options.fieldMappingHoverIds
+    : new Set(options?.fieldMappingHoverIds || []);
+  const interactiveFieldMapping = options?.interactiveFieldMapping === true;
   const relationshipOptions = {
     interactive: options?.interactiveRelationships === true,
     selectedIds: options?.selectedRelationshipIds,
@@ -239,7 +249,16 @@ export function buildAnnotationSvg(inputState, options = {}) {
     hidden: state.hideAllEntityRelationships,
     manualRoutes: state.manualEntityRelationshipRoutes,
     compactRouting: state.compactEntityRelationshipRouting,
-    relationshipRenderModel
+    relationshipRenderModel,
+    hoverIds: fieldMappingHoverIds
+  };
+  const objectRenderOptions = {
+    exportMode: true,
+    allObjects: visibleObjects,
+    interactiveEntityHeaders: options?.interactiveEntityHeaders === true,
+    entityHeaderButtonsVisible: options?.entityHeaderButtonsVisible !== false,
+    interactiveFieldMapping,
+    fieldMappingHoverIds
   };
   const relationships = annotationEntityRelationshipsSvg(visibleObjects, state.relationshipStyle, {
     ...relationshipOptions,
@@ -250,25 +269,13 @@ export function buildAnnotationSvg(inputState, options = {}) {
     fieldRectangleRelationships: "only"
   });
   const belowRelationships = relationshipLayers.below
-    .map(object => annotationObjectSvg(object, {
-      exportMode: true,
-      interactiveEntityHeaders: options?.interactiveEntityHeaders === true,
-      entityHeaderButtonsVisible: options?.entityHeaderButtonsVisible !== false
-    }))
+    .map(object => annotationObjectSvg(object, objectRenderOptions))
     .join("");
   const betweenRelationships = relationshipLayers.between
-    .map(object => annotationObjectSvg(object, {
-      exportMode: true,
-      interactiveEntityHeaders: options?.interactiveEntityHeaders === true,
-      entityHeaderButtonsVisible: options?.entityHeaderButtonsVisible !== false
-    }))
+    .map(object => annotationObjectSvg(object, objectRenderOptions))
     .join("");
   const aboveRelationships = relationshipLayers.above
-    .map(object => annotationObjectSvg(object, {
-      exportMode: true,
-      interactiveEntityHeaders: options?.interactiveEntityHeaders === true,
-      entityHeaderButtonsVisible: options?.entityHeaderButtonsVisible !== false
-    }))
+    .map(object => annotationObjectSvg(object, objectRenderOptions))
     .join("");
 
   return [
@@ -810,6 +817,20 @@ function annotationFieldRectangleDatabaseLabel(entity, objectsInput) {
   return [targetName, formatAnnotationEntityIdentifier(referencedField)].filter(Boolean).join(".");
 }
 
+function annotationFieldRectangleObjectTreeLabel(entity, objectsInput) {
+  const fieldName = annotationFieldRectangleName(entity);
+  const mapping = annotationFieldRectangleRelationship(entity);
+  if (!mapping) return `Field: ${fieldName}`;
+  const target = (objectsInput || []).find(candidate =>
+    candidate?.type === "entity"
+    && !isAnnotationFieldRectangle(candidate)
+    && annotationEntityMatchesReference(candidate, mapping.referencedSchema, mapping.referencedTable));
+  const targetName = target
+    ? formatAnnotationEntityIdentifier(target.entitySchema, target.entityName)
+    : formatAnnotationEntityIdentifier(mapping.referencedSchema, mapping.referencedTable);
+  return targetName ? `Field: ${fieldName} (${targetName})` : `Field: ${fieldName}`;
+}
+
 function annotationFieldRectangleTableRows(objectsInput, image = null) {
   const objects = Array.isArray(objectsInput) ? objectsInput : [];
   return objects
@@ -852,6 +873,45 @@ function annotationFieldMappingImages(objectsInput) {
     .filter(item => item.rows.length);
 }
 
+function sameAnnotationFieldMappingRows(leftInput, rightInput) {
+  const left = Array.isArray(leftInput) ? leftInput : [];
+  const right = Array.isArray(rightInput) ? rightInput : [];
+  if (left.length !== right.length) return false;
+  return left.every((row, index) =>
+    row.uiEntityId === right[index]?.uiEntityId
+    && row.uiField === right[index]?.uiField
+    && row.databaseField === right[index]?.databaseField);
+}
+
+function syncAnnotationFieldMappingTables(state) {
+  const objects = Array.isArray(state?.objects) ? state.objects : [];
+  const imagesById = new Map(objects
+    .filter(object => object?.type === "embedded-image")
+    .map(image => [image.id, image]));
+  let changed = false;
+  objects
+    .filter(isAnnotationFieldMappingTable)
+    .forEach(table => {
+      const image = table.sourceImageId ? imagesById.get(table.sourceImageId) : null;
+      if (table.sourceImageId && !image) return;
+      const rows = annotationFieldRectangleTableRows(objects, image);
+      if (!sameAnnotationFieldMappingRows(table.rows, rows)) {
+        table.rows = rows.map(row => ({ ...row }));
+        changed = true;
+      }
+      const layout = annotationFieldMappingTableLayout(table);
+      if (Math.abs(positiveNumber(table.width, 1) - layout.width) > annotationCoordinateTolerance) {
+        table.width = layout.width;
+        changed = true;
+      }
+      if (Math.abs(positiveNumber(table.height, 1) - layout.height) > annotationCoordinateTolerance) {
+        table.height = layout.height;
+        changed = true;
+      }
+    });
+  return changed;
+}
+
 function normalizeAnnotationFieldMappingTableRow(input) {
   if (!input || typeof input !== "object") return null;
   const uiField = safeAnnotationName(input.uiField || input.ui || "");
@@ -873,6 +933,59 @@ function normalizeAnnotationFieldMappingTableStyle(input) {
     uiFill: safeColor(source.uiFill, defaultFieldMappingTableStyle.uiFill),
     databaseTextColor: safeColor(source.databaseTextColor, defaultFieldMappingTableStyle.databaseTextColor),
     databaseFill: safeColor(source.databaseFill, defaultFieldMappingTableStyle.databaseFill)
+  };
+}
+
+function annotationFieldMappingTableTextWidth(value, fontSize, fontFamily = "Arial", bold = false) {
+  const text = String(value || "");
+  if (typeof document !== "undefined") {
+    try {
+      annotationFieldMappingMeasureCanvas ||= document.createElement("canvas");
+      const context = annotationFieldMappingMeasureCanvas.getContext("2d");
+      if (context) {
+        context.font = `${bold ? 700 : 400} ${formatNumber(fontSize)}px ${safeFont(fontFamily)}`;
+        return context.measureText(text).width;
+      }
+    } catch {
+      // Fall through to a deterministic width estimate.
+    }
+  }
+  const width = [...text].reduce((total, character) => {
+    if (/\s/.test(character)) return total + (fontSize * 0.35);
+    if (/[ilI1.,:'|]/.test(character)) return total + (fontSize * 0.3);
+    if (/[MW@#%&]/.test(character)) return total + (fontSize * 0.86);
+    if (/[A-Z0-9]/.test(character)) return total + (fontSize * 0.62);
+    return total + (fontSize * 0.54);
+  }, 0);
+  return bold ? width * 1.08 : width;
+}
+
+function annotationFieldMappingTableLayout(object) {
+  const rows = Array.isArray(object?.rows) ? object.rows : [];
+  const fontSize = clampNumber(positiveNumber(object?.fontSize, 14), 1, 240);
+  const fontFamily = safeFont(object?.fontFamily);
+  const rowHeight = Math.max(24, fontSize * 1.75);
+  const padding = Math.max(6, fontSize * 0.55);
+  const columnWidth = values => Math.ceil(Math.max(...values.map(item =>
+    annotationFieldMappingTableTextWidth(item.text, fontSize, fontFamily, item.bold)
+  )) + (padding * 2));
+  const uiColumnWidth = columnWidth([
+    { text: "UI Field", bold: true },
+    ...rows.map(row => ({ text: row.uiField, bold: false }))
+  ]);
+  const databaseColumnWidth = columnWidth([
+    { text: "Database Field", bold: true },
+    ...rows.map(row => ({ text: row.databaseField, bold: false }))
+  ]);
+  return {
+    fontSize,
+    rowHeight,
+    headerHeight: rowHeight,
+    padding,
+    uiColumnWidth,
+    databaseColumnWidth,
+    width: uiColumnWidth + databaseColumnWidth,
+    height: rowHeight * (rows.length + 1)
   };
 }
 
@@ -2305,6 +2418,40 @@ function isAnnotationEntityRelationshipSelectionType(type) {
   return [entityRelationshipsObjectType, entityRelationshipObjectType].includes(type);
 }
 
+function removeAnnotationEntityRelationshipMappings(state, relationshipIdsInput) {
+  const relationshipIds = new Set(
+    (relationshipIdsInput && typeof relationshipIdsInput[Symbol.iterator] === "function"
+      ? [...relationshipIdsInput]
+      : [])
+      .filter(isAnnotationEntityRelationshipSelectionId)
+  );
+  if (!relationshipIds.size) return { removedCount: 0, removedIds: [] };
+  const removalsByEntity = new Map();
+  resolveAnnotationEntityRelationships(annotationVisibleObjects(state)).forEach(relationship => {
+    if (!relationshipIds.has(relationship.id)
+      || !relationship.source
+      || !Array.isArray(relationship.source.foreignKeys)) return;
+    const indexes = removalsByEntity.get(relationship.source) || new Set();
+    indexes.add(relationship.foreignKeyIndex);
+    removalsByEntity.set(relationship.source, indexes);
+  });
+
+  let removedCount = 0;
+  removalsByEntity.forEach((indexes, entity) => {
+    [...indexes]
+      .filter(index => Number.isInteger(index) && index >= 0 && index < entity.foreignKeys.length)
+      .sort((left, right) => right - left)
+      .forEach(index => {
+        entity.foreignKeys.splice(index, 1);
+        removedCount += 1;
+      });
+  });
+  return {
+    removedCount,
+    removedIds: [...relationshipIds]
+  };
+}
+
 export function applyAnnotationEntityRelationshipGroupStyle(inputState, patchInput) {
   const state = inputState && typeof inputState === "object" ? inputState : {};
   const patch = patchInput && typeof patchInput === "object" ? patchInput : {};
@@ -2773,11 +2920,49 @@ function annotationEmbeddedImageEffectiveClip(object) {
   return intersectAnnotationBounds(fullBounds, object?.imageClip || fullBounds) || fullBounds;
 }
 
+function safeAnnotationCropCornerRadius(value) {
+  return clampNumber(finiteNumber(value, 0), 0, maximumAnnotationCropCornerRadius);
+}
+
+function annotationImageCropCornerRadius(object, clip = null) {
+  const radius = safeAnnotationCropCornerRadius(object?.cropCornerRadius);
+  if (!radius) return 0;
+  const bounds = clip || annotationEmbeddedImageEffectiveClip(object) || annotationObjectBounds(object);
+  return clampNumber(radius, 0, Math.max(0, Math.min(bounds.width, bounds.height) / 2));
+}
+
+function annotationImageCropInsets(object) {
+  const fullBounds = annotationObjectBounds(object);
+  const clip = annotationEmbeddedImageEffectiveClip(object);
+  if (!fullBounds || !clip) return { left: 0, top: 0, right: 0, bottom: 0 };
+  return {
+    left: Math.max(0, Math.round(clip.x - fullBounds.x)),
+    top: Math.max(0, Math.round(clip.y - fullBounds.y)),
+    right: Math.max(0, Math.round((fullBounds.x + fullBounds.width) - (clip.x + clip.width))),
+    bottom: Math.max(0, Math.round((fullBounds.y + fullBounds.height) - (clip.y + clip.height)))
+  };
+}
+
+function annotationImageHasReversibleCropObject(image) {
+  if (image?.type !== "embedded-image") return false;
+  const fullBounds = annotationObjectBounds(image);
+  if (!fullBounds) return false;
+  const clip = intersectAnnotationBounds(fullBounds, image.imageClip || fullBounds) || fullBounds;
+  return !annotationBoundsEqual(clip, fullBounds);
+}
+
+function annotationImageHasCropInspector(inputState, imageOrId = null) {
+  const image = annotationCropImage(inputState, imageOrId);
+  return image?.type === "embedded-image"
+    && (annotationImageHasReversibleCropObject(image)
+      || image.cropPermanent === true
+      || annotationImageCropCornerRadius(image) > 0);
+}
+
 export function annotationImageHasReversibleCrop(inputState, imageOrId = null) {
   const state = normalizeAnnotationState(inputState);
   const image = annotationCropImage(state, imageOrId);
-  return image?.type === "embedded-image"
-    && !annotationBoundsEqual(image.imageClip, annotationObjectBounds(image));
+  return annotationImageHasReversibleCropObject(image);
 }
 
 export function setAnnotationImageCropVisibility(state, visible, imageOrId = null) {
@@ -2837,7 +3022,9 @@ export function buildAnnotationObjectTree(inputState) {
     return {
       kind: "object",
       id: object.id,
-      name: object.name || annotationObjectLabel(object),
+      name: isAnnotationFieldRectangle(object)
+        ? annotationFieldRectangleObjectTreeLabel(object, state.objects)
+        : object.name || annotationObjectLabel(object),
       visible: object.visible !== false,
       effectiveVisible: annotationObjectIsVisible(object, state.groupVisibility),
       cropped: image && (reversibleCrop || permanentCrop),
@@ -3181,6 +3368,14 @@ function createAnnotationDialog(context) {
     let selectedIds = new Set(annotationSelectionIdsForObject(state.objects, initialObject, state.groupVisibility));
     let transientInvisibleSelectionIds = new Set();
     let fieldMappingHoverIds = new Set();
+    let fieldMappingSelectedIds = new Set();
+    let fieldMappingAttentionHoverKey = "";
+    let fieldMappingAttentionActiveKey = "";
+    let fieldMappingAttentionShownKey = "";
+    let fieldMappingAttentionTimer = 0;
+    let fieldMappingAttentionClearTimer = 0;
+    let lastFieldMappingPointerKey = "";
+    let lastFieldMappingPointerAt = 0;
     let lastSelectedObjectId = initialObject?.id || "";
     let gesture = null;
     let panGesture = null;
@@ -3245,6 +3440,10 @@ function createAnnotationDialog(context) {
     const formatPainterIndicator = dialog.querySelector("[data-annotation-format-painter-indicator]");
     const objectTree = dialog.querySelector("[data-annotation-object-tree]");
     const objectTreeSearch = dialog.querySelector("[data-annotation-object-tree-search]");
+    const cropInspectorTab = dialog.querySelector("[data-annotation-inspector-tab='crop']");
+    const cropInspectorPanel = dialog.querySelector("[data-annotation-inspector-panel='crop']");
+    const fieldMappingTableInspectorTab = dialog.querySelector("[data-annotation-inspector-tab='field-mapping-table']");
+    const fieldMappingTableInspectorPanel = dialog.querySelector("[data-annotation-inspector-panel='field-mapping-table']");
     const entityInspectorTab = dialog.querySelector("[data-annotation-inspector-tab='entity']");
     const entityInspectorPanel = dialog.querySelector("[data-annotation-inspector-panel='entity']");
     const entityFieldList = dialog.querySelector("[data-annotation-entity-fields]");
@@ -3258,6 +3457,8 @@ function createAnnotationDialog(context) {
       resolved = true;
       if (historyTimer) window.clearTimeout(historyTimer);
       if (textPreviewTimer) window.clearTimeout(textPreviewTimer);
+      if (fieldMappingAttentionTimer) window.clearTimeout(fieldMappingAttentionTimer);
+      if (fieldMappingAttentionClearTimer) window.clearTimeout(fieldMappingAttentionClearTimer);
       cancelPendingCanvasZoom();
       disposeCanvasZoom();
       disconnectCanvasResizeObserver();
@@ -3344,7 +3545,7 @@ function createAnnotationDialog(context) {
 
     const setInspectorTab = tabName => {
       const requestedTab = dialog.querySelector(`[data-annotation-inspector-tab='${tabName}']`);
-      activeInspectorTab = ["format", "entity", "template", "objects"].includes(tabName)
+      activeInspectorTab = ["format", "crop", "field-mapping-table", "entity", "template", "objects"].includes(tabName)
         && requestedTab?.hidden !== true
         ? tabName
         : "format";
@@ -3567,6 +3768,10 @@ function createAnnotationDialog(context) {
         ? selection[0]
         : null;
     };
+    const selectedCropControlsImage = () => {
+      const image = selectedCropImage();
+      return image && annotationImageHasCropInspector(state, image) ? image : null;
+    };
 
     const syncControls = () => {
       const selection = selectedObjects();
@@ -3586,6 +3791,7 @@ function createAnnotationDialog(context) {
       const allLocked = hasSelection && selection.every(object => object.locked);
       const hasLocked = selection.some(object => object.locked);
       const image = selectedCropImage();
+      const cropControlsImage = selectedCropControlsImage();
       const containsImage = Boolean(image);
       const imageLocked = image?.locked === true;
       const groupIds = new Set(selection.map(object => object.groupId).filter(Boolean));
@@ -3649,12 +3855,55 @@ function createAnnotationDialog(context) {
       setControlValue(textInput, singleText?.text || "");
       textInput.disabled = !singleText || singleText.locked;
       dialog.querySelector("[data-annotation-text-field]").hidden = !singleText;
+      if (cropInspectorTab) cropInspectorTab.hidden = !cropControlsImage;
+      if (fieldMappingTableInspectorTab) fieldMappingTableInspectorTab.hidden = !singleFieldMappingTable;
       entityInspectorTab.hidden = !singleEntity;
-      if (!singleEntity && activeInspectorTab === "entity") setInspectorTab("format");
+      if ((!cropControlsImage && activeInspectorTab === "crop")
+          || (!singleFieldMappingTable && activeInspectorTab === "field-mapping-table")
+          || (!singleEntity && activeInspectorTab === "entity")) setInspectorTab("format");
       else setInspectorTab(activeInspectorTab);
+      if (cropInspectorPanel) {
+        cropInspectorPanel.setAttribute("aria-label", cropControlsImage
+          ? `${annotationObjectLabel(cropControlsImage)} Crop settings`
+          : "Crop settings");
+      }
+      if (fieldMappingTableInspectorPanel) {
+        fieldMappingTableInspectorPanel.setAttribute("aria-label", singleFieldMappingTable
+          ? `${annotationObjectLabel(singleFieldMappingTable)} Field Mapping Table settings`
+          : "Field Mapping Table settings");
+      }
       entityInspectorPanel.setAttribute("aria-label", singleEntity
         ? `${annotationObjectLabel(singleEntity)} Entity settings`
         : "Entity settings");
+      const cropInsets = cropControlsImage ? annotationImageCropInsets(cropControlsImage) : { left: 0, top: 0, right: 0, bottom: 0 };
+      const cropReversible = Boolean(cropControlsImage) && annotationImageHasReversibleCropObject(cropControlsImage);
+      const cropHasCornerRadius = safeAnnotationCropCornerRadius(cropControlsImage?.cropCornerRadius) > 0;
+      const cropInsetEditable = Boolean(cropControlsImage)
+        && !cropControlsImage.locked
+        && cropReversible;
+      dialog.querySelectorAll("[data-annotation-crop-inset]").forEach(control => {
+        const edge = control.dataset.annotationCropInset;
+        control.value = String(cropInsets[edge] || 0);
+        control.disabled = !cropInsetEditable;
+      });
+      const cropCornerRadius = dialog.querySelector("[data-annotation-crop-corner-radius]");
+      if (cropCornerRadius) {
+        cropCornerRadius.value = String(Math.round(safeAnnotationCropCornerRadius(cropControlsImage?.cropCornerRadius)));
+        cropCornerRadius.disabled = !cropControlsImage || cropControlsImage.locked;
+      }
+      const cropResetButton = dialog.querySelector("[data-annotation-crop-reset]");
+      if (cropResetButton) {
+        cropResetButton.disabled = !cropControlsImage
+          || cropControlsImage.locked
+          || (!cropReversible && !cropHasCornerRadius);
+      }
+      const cropPermanentButton = dialog.querySelector("[data-annotation-crop-permanent]");
+      if (cropPermanentButton) {
+        cropPermanentButton.disabled = !cropControlsImage
+          || cropControlsImage.locked
+          || !cropReversible
+          || cropBusy;
+      }
       const showKeyColumn = dialog.querySelector("[data-annotation-entity-show-keys]");
       const showDataTypes = dialog.querySelector("[data-annotation-entity-show-data-types]");
       const foreignKeysAtTop = dialog.querySelector("[data-annotation-entity-fk-at-top]");
@@ -3673,9 +3922,8 @@ function createAnnotationDialog(context) {
       const fieldRectangleOptions = dialog.querySelector("[data-annotation-field-rectangle-options]");
       const fieldRectangleNameInput = dialog.querySelector("[data-annotation-field-rectangle-name]");
       const fieldRectangleConnectionSide = dialog.querySelector("[data-annotation-field-rectangle-connection-side]");
-      const generateFieldMappingTable = dialog.querySelector("[data-annotation-generate-field-mapping-table]");
+      const generateFieldMappingTables = dialog.querySelectorAll("[data-annotation-generate-field-mapping-table]");
       const generateAllFieldMappingTables = dialog.querySelector("[data-annotation-generate-all-field-mapping-tables]");
-      const fieldMappingTableFormat = dialog.querySelector("[data-annotation-field-mapping-table-format]");
       const manualRouteCount = state.objects
         .filter(object => object.type === "entity")
         .flatMap(entity => entity.foreignKeys || [])
@@ -3727,15 +3975,15 @@ function createAnnotationDialog(context) {
         fieldRectangleConnectionSide.disabled = !singleFieldRectangle || singleFieldRectangle.locked;
       }
       const fieldMappingImages = annotationFieldMappingImages(state.objects);
-      if (generateFieldMappingTable) generateFieldMappingTable.disabled = !singleFieldRectangle || singleFieldRectangle.locked;
+      generateFieldMappingTables.forEach(button => { button.disabled = false; });
       if (generateAllFieldMappingTables) generateAllFieldMappingTables.disabled = !fieldMappingImages.length;
-      if (fieldMappingTableFormat) fieldMappingTableFormat.hidden = !singleFieldMappingTable;
-      dialog.querySelectorAll("[data-annotation-field-mapping-table-color]").forEach(control => {
-        const name = control.dataset.annotationFieldMappingTableColor;
-        control.value = singleFieldMappingTable?.[name] || defaultFieldMappingTableStyle[name] || "#000000";
-        control.disabled = !singleFieldMappingTable || singleFieldMappingTable.locked;
+      fieldMappingTableColorStyleNames.forEach(name => {
+        syncStyleControl(name, singleFieldMappingTable?.[name] || defaultFieldMappingTableStyle[name] || "#000000");
+        const picker = dialog.querySelector(`[data-annotation-color-picker='${name}']`);
+        const trigger = picker?.querySelector("[data-annotation-color-trigger]");
+        if (trigger) trigger.disabled = !singleFieldMappingTable || singleFieldMappingTable.locked;
       });
-      dialog.querySelectorAll("[data-annotation-copy-field-mapping-table], [data-annotation-export-field-mapping-table-csv], [data-annotation-export-field-mapping-table-excel]").forEach(button => {
+      dialog.querySelectorAll("[data-annotation-export-field-mapping-table-csv], [data-annotation-export-field-mapping-table-excel]").forEach(button => {
         button.disabled = !singleFieldMappingTable || !singleFieldMappingTable.rows?.length;
       });
       if (singleFieldRectangle) {
@@ -3893,15 +4141,18 @@ function createAnnotationDialog(context) {
     };
 
     const syncStyleControl = (name, value) => {
-      const colorPicker = dialog.querySelector(`[data-annotation-color-picker='${name}']`);
-      if (colorPicker) {
-        colorPicker.style.setProperty("--rich-selected-color", String(value));
-        const trigger = colorPicker.querySelector("[data-annotation-color-trigger]");
-        if (trigger) trigger.dataset.richSelectedColor = String(value);
+      const colorPickers = [...dialog.querySelectorAll(`[data-annotation-color-picker='${name}']`)];
+      if (colorPickers.length) {
+        colorPickers.forEach(colorPicker => {
+          colorPicker.style.setProperty("--rich-selected-color", String(value));
+          const trigger = colorPicker.querySelector("[data-annotation-color-trigger]");
+          if (trigger) trigger.dataset.richSelectedColor = String(value);
+        });
         return;
       }
-      const control = dialog.querySelector(`[data-annotation-style='${name}']`);
-      if (control) setControlValue(control, String(value));
+      dialog.querySelectorAll(`[data-annotation-style='${name}']`).forEach(control => {
+        setControlValue(control, String(value));
+      });
     };
 
     const renderObjectTree = () => {
@@ -4214,6 +4465,7 @@ function createAnnotationDialog(context) {
     const render = () => {
       selectionUiSyncToken += 1;
       settleCanvasZoom();
+      syncAnnotationFieldMappingTables(state);
       syncAnnotationEntityAnnotationArrows(state);
       const currentRelationships = state.hideAllEntityRelationships
         ? []
@@ -4225,6 +4477,9 @@ function createAnnotationDialog(context) {
       [...selectedIds]
         .filter(id => isAnnotationEntityRelationshipSelectionId(id) && !currentRelationshipIds.has(id))
         .forEach(id => selectedIds.delete(id));
+      if (fieldMappingSelectedIds.size && [...fieldMappingSelectedIds].some(id => !selectedIds.has(id))) {
+        fieldMappingSelectedIds = new Set();
+      }
       pruneAnnotationGroupMetadata(state);
       compactAnnotationGroupLayers(state.objects);
       canvas.setAttribute("viewBox", `${formatNumber(workspaceBounds.x)} ${formatNumber(workspaceBounds.y)} ${formatNumber(workspaceBounds.width)} ${formatNumber(workspaceBounds.height)}`);
@@ -4233,17 +4488,19 @@ function createAnnotationDialog(context) {
       canvas.dataset.annotationTransientInvisibleGroup = transientInvisibleSelectionIds.size > 1
         ? "true"
         : "false";
-      const renderSelectedIds = new Set([...selectedIds, ...fieldMappingHoverIds]);
       canvas.innerHTML = annotationCanvasSvg(
         state,
-        renderSelectedIds,
+        selectedIds,
         zoom,
         workspaceBounds,
         cropPreview,
-        marqueePreview
+        marqueePreview,
+        fieldMappingHoverIds,
+        fieldMappingSelectedIds
       );
       refreshZoomTargets();
       applyCanvasZoom();
+      renderFieldMappingAttentionArrow();
       canvasWorkspaceOffset = null;
       renderObjectTree();
       syncControls();
@@ -4265,7 +4522,7 @@ function createAnnotationDialog(context) {
         ? "true"
         : "false";
       canvas.querySelectorAll(
-        ".image-annotation-selection-group, .image-annotation-entity-relationship-selection"
+        ".image-annotation-selection-group, .image-annotation-entity-relationship-selection, [data-annotation-field-mapping-selection-overlay]"
       ).forEach(element => element.remove());
       canvas.querySelectorAll(
         ".image-annotation-entity-relationships.is-selected, .image-annotation-entity-relationship.is-selected"
@@ -4278,13 +4535,16 @@ function createAnnotationDialog(context) {
           if (element) canvas.appendChild(element);
         });
       const visibleObjects = annotationVisibleObjects(state);
+      const normalSelectedIds = new Set([...selectedIds].filter(id => !fieldMappingSelectedIds.has(id)));
       const markup = annotationSelectionSvg(
-        visibleObjects.filter(object => selectedIds.has(object.id)),
+        visibleObjects.filter(object => normalSelectedIds.has(object.id)),
         zoom,
         null,
         visibleObjects
       );
       if (markup) canvas.insertAdjacentHTML("beforeend", markup);
+      const fieldMappingSelection = annotationFieldMappingSelectionSvg(state, fieldMappingSelectedIds, zoom);
+      if (fieldMappingSelection) canvas.insertAdjacentHTML("beforeend", fieldMappingSelection);
       zoomHandles = [...canvas.querySelectorAll(".image-annotation-handle")];
       zoomRelationshipSelections = [];
       applyCanvasInteractionZoom(Math.max(minimumZoom, zoom));
@@ -4456,6 +4716,7 @@ function createAnnotationDialog(context) {
     };
 
     const renderWithWorkspaceExpansion = () => {
+      syncAnnotationFieldMappingTables(state);
       const previous = workspaceBounds;
       const next = annotationExpandedWorkspaceBounds(
         previous,
@@ -4497,6 +4758,7 @@ function createAnnotationDialog(context) {
         window.clearTimeout(historyTimer);
         historyTimer = 0;
       }
+      syncAnnotationFieldMappingTables(state);
       const snapshot = annotationSnapshot(state, embeddedSources);
       if (history[historyIndex] === snapshot) return;
       history = history.slice(0, historyIndex + 1);
@@ -4626,6 +4888,8 @@ function createAnnotationDialog(context) {
     };
 
     const selectObject = (object, additive = false) => {
+      fieldMappingSelectedIds = new Set();
+      fieldMappingHoverIds = new Set();
       transientInvisibleSelectionIds.clear();
       clearEntityRelationshipSelection();
       const ids = annotationSelectionIdsForObject(state.objects, object, state.groupVisibility);
@@ -4640,6 +4904,8 @@ function createAnnotationDialog(context) {
     const selectEntityRelationships = () => {
       if (state.hideAllEntityRelationships) return false;
       if (!resolveAnnotationEntityRelationships(annotationVisibleObjects(state)).length) return false;
+      fieldMappingSelectedIds = new Set();
+      fieldMappingHoverIds = new Set();
       selectedIds = new Set([entityRelationshipsSelectionId]);
       lastSelectedObjectId = entityRelationshipsSelectionId;
       lastTreeSelectionKey = `relationships:${entityRelationshipsSelectionId}`;
@@ -4653,6 +4919,8 @@ function createAnnotationDialog(context) {
       const relationship = resolveAnnotationEntityRelationships(annotationVisibleObjects(state))
         .find(candidate => candidate.id === relationshipId);
       if (!relationship) return false;
+      fieldMappingSelectedIds = new Set();
+      fieldMappingHoverIds = new Set();
       selectedIds = new Set([relationship.id]);
       lastSelectedObjectId = relationship.id;
       lastTreeSelectionKey = `relationship:${relationship.id}`;
@@ -5423,26 +5691,26 @@ function createAnnotationDialog(context) {
     canvas.addEventListener("pointercancel", finishCanvasGesture);
     canvas.addEventListener("contextmenu", showAnnotationContextMenu);
     canvas.addEventListener("pointerdown", event => {
-      const cell = event.target.closest?.("[data-annotation-field-mapping-ui-cell]");
+      const cell = event.target.closest?.(fieldMappingCellSelector);
       if (!cell || activeTool !== "select") return;
-      if (selectFieldRectangleFromMappingCell(cell, false)) {
+      if (selectFieldMappingCell(cell, fieldMappingPointerIsDoubleClick(cell, event))) {
         event.preventDefault();
         event.stopPropagation();
       }
     }, true);
     workspace.addEventListener("pointermove", event => {
       if (gesture || panGesture) return;
-      setFieldMappingHover(event.target.closest?.("[data-annotation-field-mapping-ui-cell]") || null);
+      setFieldMappingHover(event.target.closest?.(fieldMappingCellSelector) || null);
     });
     workspace.addEventListener("pointerleave", () => setFieldMappingHover(null));
     workspace.addEventListener("dblclick", async event => {
       if (event.__pmtAnnotationDoubleClickHandled) return;
-      const mappingCell = event.target.closest?.("[data-annotation-field-mapping-ui-cell]");
+      const mappingCell = event.target.closest?.(fieldMappingCellSelector);
       if (mappingCell) {
         event.__pmtAnnotationDoubleClickHandled = true;
         event.preventDefault();
         event.stopPropagation();
-        selectFieldRectangleFromMappingCell(mappingCell, true);
+        selectFieldMappingCell(mappingCell, true);
         return;
       }
       if (event.target.closest?.("[data-annotation-entity-header-action]")) return;
@@ -5854,9 +6122,13 @@ function createAnnotationDialog(context) {
 
     const fieldMappingTableBounds = (image, rows) => {
       const imageBounds = annotationEmbeddedImageEffectiveClip(image) || annotationObjectBounds(image) || state.canvasBounds;
-      const rowHeight = 28;
-      const width = 560;
-      const height = Math.max(rowHeight * 2, rowHeight * (rows.length + 1));
+      const layout = annotationFieldMappingTableLayout({
+        rows,
+        fontFamily: styles.fontFamily,
+        fontSize: 14
+      });
+      const width = layout.width;
+      const height = layout.height;
       const rightX = imageBounds.x + imageBounds.width + 40;
       const fitsRight = rightX + width <= workspaceBounds.x + workspaceBounds.width - 40;
       return {
@@ -5926,6 +6198,35 @@ function createAnnotationDialog(context) {
       modal.querySelector("[data-choice]:not([data-choice=''])")?.focus({ preventScroll: true });
     });
 
+    const openAnnotationMessageDialog = (title, message) => new Promise(resolve => {
+      const modal = document.createElement("dialog");
+      modal.className = "dialog mini-dialog image-annotation-choice-dialog";
+      modal.innerHTML = `
+        <form method="dialog">
+          <div class="dialog-head"><h2>${escapeXmlText(title)}</h2></div>
+          <div class="dialog-body"><p>${escapeXmlText(message)}</p></div>
+          <div class="dialog-actions">
+            <button type="button" class="primary text-icon-button" data-message-ok>OK</button>
+          </div>
+        </form>
+      `;
+      document.body.appendChild(modal);
+      const finish = () => {
+        if (modal.open) modal.close();
+        modal.remove();
+        resolve();
+      };
+      modal.addEventListener("click", event => {
+        if (event.target.closest("[data-message-ok]")) finish();
+      });
+      modal.addEventListener("cancel", event => {
+        event.preventDefault();
+        finish();
+      });
+      modal.showModal();
+      modal.querySelector("[data-message-ok]")?.focus({ preventScroll: true });
+    });
+
     const chooseFieldMappingImage = async items => {
       if (items.length <= 1) return items[0]?.image || null;
       const modal = document.createElement("dialog");
@@ -5975,8 +6276,10 @@ function createAnnotationDialog(context) {
       }
       if (mode === "update" && existing.length) {
         const table = existing[0];
+        const bounds = fieldMappingTableBounds(image, rows);
         table.rows = rows.map(row => ({ ...row }));
-        table.height = Math.max(table.height, fieldMappingTableBounds(image, rows).height);
+        table.width = bounds.width;
+        table.height = bounds.height;
         table.name = `Field Mapping Table: ${safeAnnotationName(image.name) || "Screenshot"}`;
         return table;
       }
@@ -6018,7 +6321,9 @@ function createAnnotationDialog(context) {
     const generateSelectedFieldMappingTable = async () => {
       const items = annotationFieldMappingImages(state.objects);
       if (!items.length) {
-        setStatus("Map at least one Field Rectangle that touches a screenshot first.");
+        const message = "Please place a field mapping rectangle on a screenshot and map it to an entity and field.";
+        await openAnnotationMessageDialog("Field Mapping Table", message);
+        setStatus(message);
         return false;
       }
       const image = await chooseFieldMappingImage(items);
@@ -6062,16 +6367,6 @@ function createAnnotationDialog(context) {
         : null;
     };
 
-    const copySelectedFieldMappingTable = async () => {
-      const table = selectedFieldMappingTable();
-      if (!table?.rows?.length) return false;
-      const copied = await copyTextToClipboard(annotationFieldMappingTableText(table, "\t"));
-      setStatus(copied
-        ? "Field Mapping Table data copied. Paste it into Excel."
-        : "Clipboard copy failed. Try Export CSV instead.");
-      return copied;
-    };
-
     const exportSelectedFieldMappingTable = format => {
       const table = selectedFieldMappingTable();
       if (!table?.rows?.length) return false;
@@ -6090,22 +6385,213 @@ function createAnnotationDialog(context) {
       return true;
     };
 
+    const fieldMappingCellSelector = "[data-annotation-field-mapping-cell]";
+
     const fieldRectangleFromMappingCell = cell => {
       const id = String(cell?.dataset?.annotationFieldRectangleId || "");
       return state.objects.find(object => object.id === id && isAnnotationFieldRectangle(object)) || null;
     };
 
-    const fieldRectangleRelationshipIds = entity => {
-      if (!entity || state.hideAllEntityRelationships) return [];
-      return resolveAnnotationEntityRelationships(annotationVisibleObjects(state))
-        .filter(relationship => relationship.source?.id === entity.id || relationship.target?.id === entity.id)
-        .map(relationship => relationship.id);
+    const fieldMappingCellKey = cell => String(cell?.dataset?.annotationFieldMappingRowKey || "");
+    const fieldMappingCellKind = cell => String(cell?.dataset?.annotationFieldMappingCellKind || "ui");
+    const fieldMappingPointerIsDoubleClick = (cell, event) => {
+      const key = fieldMappingCellKey(cell);
+      const now = performance.now();
+      const repeated = key && key === lastFieldMappingPointerKey && now - lastFieldMappingPointerAt <= 500;
+      lastFieldMappingPointerKey = key;
+      lastFieldMappingPointerAt = now;
+      return event.detail > 1 || repeated;
+    };
+
+    const removeFieldMappingAttentionArrow = () => {
+      canvas.querySelectorAll("[data-annotation-field-mapping-attention-arrow]")
+        .forEach(element => element.remove());
+    };
+
+    const clearFieldMappingAttentionArrow = () => {
+      if (fieldMappingAttentionClearTimer) {
+        window.clearTimeout(fieldMappingAttentionClearTimer);
+        fieldMappingAttentionClearTimer = 0;
+      }
+      fieldMappingAttentionActiveKey = "";
+      removeFieldMappingAttentionArrow();
+    };
+
+    const resetFieldMappingAttention = (resetShown = true) => {
+      if (fieldMappingAttentionTimer) {
+        window.clearTimeout(fieldMappingAttentionTimer);
+        fieldMappingAttentionTimer = 0;
+      }
+      clearFieldMappingAttentionArrow();
+      fieldMappingAttentionHoverKey = "";
+      if (resetShown) fieldMappingAttentionShownKey = "";
+    };
+
+    const queueFieldMappingAttentionClear = key => {
+      if (fieldMappingAttentionClearTimer) window.clearTimeout(fieldMappingAttentionClearTimer);
+      fieldMappingAttentionClearTimer = window.setTimeout(() => {
+        fieldMappingAttentionClearTimer = 0;
+        if (fieldMappingAttentionActiveKey === key) {
+          fieldMappingAttentionActiveKey = "";
+          removeFieldMappingAttentionArrow();
+        }
+      }, 3000);
+    };
+
+    const activateFieldMappingAttention = key => {
+      if (!key) {
+        resetFieldMappingAttention(true);
+        return;
+      }
+      if (fieldMappingAttentionTimer) {
+        window.clearTimeout(fieldMappingAttentionTimer);
+        fieldMappingAttentionTimer = 0;
+      }
+      if (fieldMappingAttentionClearTimer) {
+        window.clearTimeout(fieldMappingAttentionClearTimer);
+        fieldMappingAttentionClearTimer = 0;
+      }
+      fieldMappingAttentionHoverKey = key;
+      fieldMappingAttentionActiveKey = key;
+      fieldMappingAttentionShownKey = key;
+      renderFieldMappingAttentionArrow();
+      queueFieldMappingAttentionClear(key);
+    };
+
+    const boundsCenter = bounds => ({
+      x: bounds.x + (bounds.width / 2),
+      y: bounds.y + (bounds.height / 2)
+    });
+
+    const boundsEdgePointToward = (bounds, target) => {
+      const center = boundsCenter(bounds);
+      const halfWidth = Math.max(0.5, bounds.width / 2);
+      const halfHeight = Math.max(0.5, bounds.height / 2);
+      const dx = target.x - center.x;
+      const dy = target.y - center.y;
+      if (Math.abs(dx) < annotationCoordinateTolerance && Math.abs(dy) < annotationCoordinateTolerance) return center;
+      if (Math.abs(dx) * halfHeight > Math.abs(dy) * halfWidth) {
+        const scale = halfWidth / Math.max(annotationCoordinateTolerance, Math.abs(dx));
+        return {
+          x: center.x + (Math.sign(dx) * halfWidth),
+          y: center.y + (dy * scale)
+        };
+      }
+      const scale = halfHeight / Math.max(annotationCoordinateTolerance, Math.abs(dy));
+      return {
+        x: center.x + (dx * scale),
+        y: center.y + (Math.sign(dy) * halfHeight)
+      };
+    };
+
+    const fieldMappingAttentionArrowSvg = (start, end) => {
+      const dx = end.x - start.x;
+      const dy = end.y - start.y;
+      const length = Math.hypot(dx, dy);
+      if (length < annotationCoordinateTolerance) return "";
+      const unitX = dx / length;
+      const unitY = dy / length;
+      const size = 12 / Math.max(minimumZoom, zoom);
+      const base = {
+        x: end.x - (unitX * size),
+        y: end.y - (unitY * size)
+      };
+      const wing = size * 0.46;
+      const left = {
+        x: base.x + (-unitY * wing),
+        y: base.y + (unitX * wing)
+      };
+      const right = {
+        x: base.x - (-unitY * wing),
+        y: base.y - (unitX * wing)
+      };
+      return `
+        <g class="image-annotation-field-mapping-attention-arrow" data-annotation-field-mapping-attention-arrow="true" pointer-events="none">
+          <line class="image-annotation-field-mapping-attention-arrow-line" x1="${formatNumber(start.x)}" y1="${formatNumber(start.y)}" x2="${formatNumber(base.x)}" y2="${formatNumber(base.y)}" pointer-events="none"></line>
+          <polygon class="image-annotation-field-mapping-attention-arrow-head" points="${formatNumber(end.x)},${formatNumber(end.y)} ${formatNumber(left.x)},${formatNumber(left.y)} ${formatNumber(right.x)},${formatNumber(right.y)}" pointer-events="none"></polygon>
+        </g>
+      `;
+    };
+
+    const renderFieldMappingAttentionArrow = () => {
+      removeFieldMappingAttentionArrow();
+      if (!fieldMappingAttentionActiveKey) return;
+      const cell = canvas.querySelector(`[data-annotation-field-mapping-row-key="${CSS.escape(fieldMappingAttentionActiveKey)}"]`);
+      if (!cell) return;
+      const rowBounds = {
+        x: finiteNumber(cell.dataset.annotationFieldMappingCellX, finiteNumber(cell.dataset.annotationFieldMappingRowX, Number.NaN)),
+        y: finiteNumber(cell.dataset.annotationFieldMappingCellY, finiteNumber(cell.dataset.annotationFieldMappingRowY, Number.NaN)),
+        width: positiveNumber(cell.dataset.annotationFieldMappingCellWidth, positiveNumber(cell.dataset.annotationFieldMappingRowWidth, 0)),
+        height: positiveNumber(cell.dataset.annotationFieldMappingCellHeight, positiveNumber(cell.dataset.annotationFieldMappingRowHeight, 0))
+      };
+      const fieldBounds = fieldMappingNavigationBounds(cell);
+      if (!Number.isFinite(rowBounds.x)
+        || !Number.isFinite(rowBounds.y)
+        || !rowBounds.width
+        || !rowBounds.height
+        || !fieldBounds) return;
+      const targets = fieldMappingTargets(cell);
+      const databaseFieldPoint = fieldMappingCellKind(cell) === "database"
+        ? annotationEntityFieldLabelPoint(targets.databaseEntity, targets.databaseField)
+        : null;
+      const fieldTarget = databaseFieldPoint || boundsCenter(fieldBounds);
+      const start = boundsEdgePointToward(rowBounds, fieldTarget);
+      const end = databaseFieldPoint || boundsEdgePointToward(fieldBounds, start);
+      const markup = fieldMappingAttentionArrowSvg(start, end);
+      if (markup) canvas.insertAdjacentHTML("beforeend", markup);
+    };
+
+    const scheduleFieldMappingAttention = cell => {
+      const key = fieldMappingCellKey(cell);
+      if (!key) {
+        resetFieldMappingAttention(true);
+        return;
+      }
+      if (key === fieldMappingAttentionHoverKey) return;
+      resetFieldMappingAttention(true);
+      fieldMappingAttentionHoverKey = key;
+      fieldMappingAttentionTimer = window.setTimeout(() => {
+        fieldMappingAttentionTimer = 0;
+        if (fieldMappingAttentionHoverKey !== key || fieldMappingAttentionShownKey === key) return;
+        activateFieldMappingAttention(key);
+      }, 3000);
+    };
+
+    const fieldMappingTargets = cell => {
+      const fieldRectangle = fieldRectangleFromMappingCell(cell);
+      const ids = new Set();
+      const relationships = [];
+      const connectedEntities = [];
+      let databaseEntity = null;
+      let databaseField = null;
+      if (!fieldRectangle) {
+        return { fieldRectangle: null, relationships, connectedEntities, databaseEntity, databaseField, ids };
+      }
+      ids.add(fieldRectangle.id);
+      if (!state.hideAllEntityRelationships) {
+        resolveAnnotationEntityRelationships(annotationVisibleObjects(state))
+          .filter(relationship => relationship.source?.id === fieldRectangle.id || relationship.target?.id === fieldRectangle.id)
+          .forEach(relationship => {
+            relationships.push(relationship);
+            ids.add(relationship.id);
+            const entity = relationship.source?.id === fieldRectangle.id ? relationship.target : relationship.source;
+            const field = relationship.source?.id === fieldRectangle.id ? relationship.targetField : relationship.sourceField;
+            if (entity && !isAnnotationFieldRectangle(entity)) {
+              connectedEntities.push(entity);
+              ids.add(entity.id);
+              if (!databaseEntity) {
+                databaseEntity = entity;
+                databaseField = field || null;
+              }
+            }
+          });
+      }
+      return { fieldRectangle, relationships, connectedEntities, databaseEntity, databaseField, ids };
     };
 
     const mappingCellHoverIds = cell => {
-      const entity = fieldRectangleFromMappingCell(cell);
-      if (!entity) return new Set();
-      return new Set([entity.id, ...fieldRectangleRelationshipIds(entity)]);
+      if (!cell) return new Set();
+      return fieldMappingTargets(cell).ids;
     };
 
     const sameIdSet = (left, right) => {
@@ -6117,16 +6603,51 @@ function createAnnotationDialog(context) {
     };
 
     const setFieldMappingHover = cell => {
+      scheduleFieldMappingAttention(cell);
       const nextIds = cell ? mappingCellHoverIds(cell) : new Set();
       if (sameIdSet(fieldMappingHoverIds, nextIds)) return;
       fieldMappingHoverIds = nextIds;
-      render();
+      renderWithWorkspaceExpansion();
     };
 
-    const scrollObjectIntoView = object => {
-      const bounds = annotationObjectVisualBounds(object) || annotationObjectBounds(object);
+    const fieldMappingNavigationBounds = cell => {
+      const targets = fieldMappingTargets(cell);
+      if (fieldMappingCellKind(cell) === "database") {
+        return annotationEntityFieldBounds(targets.databaseEntity, targets.databaseField)
+          || annotationObjectVisualBounds(targets.databaseEntity)
+          || annotationObjectBounds(targets.databaseEntity);
+      }
+      return annotationObjectVisualBounds(targets.fieldRectangle) || annotationObjectBounds(targets.fieldRectangle);
+    };
+
+    const adjustedZoomForBounds = bounds => {
+      const viewportWidth = Math.max(1, workspace.clientWidth);
+      const viewportHeight = Math.max(1, workspace.clientHeight);
+      const readableZoom = Math.max(
+        96 / Math.max(1, bounds.width),
+        30 / Math.max(1, bounds.height)
+      );
+      const fitZoom = Math.min(
+        (viewportWidth * 0.72) / Math.max(1, bounds.width),
+        (viewportHeight * 0.58) / Math.max(1, bounds.height)
+      );
+      let targetZoom = zoom;
+      if (zoom < readableZoom) targetZoom = Math.min(readableZoom, fitZoom);
+      else if (zoom > fitZoom) targetZoom = fitZoom;
+      return Math.round(clampNumber(targetZoom, minimumZoom, maximumZoom) / annotationZoomStep)
+        * annotationZoomStep;
+    };
+
+    const centerBoundsInWorkspace = bounds => {
       if (!bounds) return false;
       settleCanvasZoomAtCurrentDisplay();
+      hideCanvasZoomShield();
+      canvas.classList.remove("is-zooming");
+      const nextZoom = adjustedZoomForBounds(bounds);
+      if (Math.abs(nextZoom - zoom) >= 0.000001) {
+        zoom = nextZoom;
+        applyCanvasZoom();
+      }
       canvasWorkspaceOffset = null;
       const offset = measureCanvasWorkspaceOffset();
       const centerX = bounds.x + (bounds.width / 2);
@@ -6140,35 +6661,143 @@ function createAnnotationDialog(context) {
       return true;
     };
 
-    const selectFieldRectangleFromMappingCell = (cell, scrollIntoView = false) => {
-      const entity = fieldRectangleFromMappingCell(cell);
-      if (!entity) return false;
-      selectedIds = new Set([entity.id]);
-      lastSelectedObjectId = entity.id;
-      lastTreeSelectionKey = `object:${entity.id}`;
+    const selectFieldMappingCell = (cell, centerTarget = false) => {
+      const targets = fieldMappingTargets(cell);
+      if (!targets.fieldRectangle || !targets.ids.size) return false;
+      const key = fieldMappingCellKey(cell);
+      if (fieldMappingAttentionTimer) {
+        window.clearTimeout(fieldMappingAttentionTimer);
+        fieldMappingAttentionTimer = 0;
+      }
+      if (fieldMappingAttentionClearTimer) {
+        window.clearTimeout(fieldMappingAttentionClearTimer);
+        fieldMappingAttentionClearTimer = 0;
+      }
+      fieldMappingAttentionHoverKey = key;
+      fieldMappingAttentionActiveKey = key;
+      fieldMappingAttentionShownKey = key;
+      fieldMappingHoverIds = new Set();
+      fieldMappingSelectedIds = new Set(targets.ids);
+      selectedIds = new Set(targets.ids);
+      lastSelectedObjectId = targets.fieldRectangle.id;
+      lastTreeSelectionKey = `object:${targets.fieldRectangle.id}`;
       setInspectorTab("entity");
       setTool("select");
       renderWithWorkspaceExpansion();
-      if (scrollIntoView) {
+      if (key) queueFieldMappingAttentionClear(key);
+      if (centerTarget) {
         window.setTimeout(() => {
-          scrollObjectIntoView(entity);
+          centerBoundsInWorkspace(fieldMappingNavigationBounds(canvas.querySelector(`[data-annotation-field-mapping-row-key="${CSS.escape(key)}"]`)) || fieldMappingNavigationBounds(cell));
           focusLastSelectedObject();
         }, 0);
-        setStatus(`${annotationFieldRectangleName(entity)} selected and centered.`);
+        setStatus(`${annotationFieldRectangleName(targets.fieldRectangle)} selected and centered.`);
       } else {
         window.setTimeout(focusLastSelectedObject, 0);
-        setStatus(`${annotationFieldRectangleName(entity)} selected.`);
+        setStatus(`${annotationFieldRectangleName(targets.fieldRectangle)} selected.`);
       }
       return true;
     };
 
-    const updateSelectedFieldMappingTableColor = control => {
-      const table = selectedFieldMappingTable();
-      const property = control?.dataset?.annotationFieldMappingTableColor;
-      if (!table || table.locked || !Object.hasOwn(defaultFieldMappingTableStyle, property)) return false;
-      table[property] = safeColor(control.value, defaultFieldMappingTableStyle[property]);
-      control.value = table[property];
+    const updateSelectedCropCornerRadius = control => {
+      const image = selectedCropControlsImage();
+      if (!image || image.locked) return false;
+      image.cropCornerRadius = safeAnnotationCropCornerRadius(control?.value);
+      if (control) control.value = String(Math.round(image.cropCornerRadius));
       return true;
+    };
+
+    const cropInsetsFromControls = image => {
+      const current = annotationImageCropInsets(image);
+      const next = { ...current };
+      dialog.querySelectorAll("[data-annotation-crop-inset]").forEach(control => {
+        const edge = control.dataset.annotationCropInset;
+        if (!Object.hasOwn(next, edge) || control.value === "") return;
+        next[edge] = Math.round(Math.max(0, finiteNumber(control.value, current[edge])));
+      });
+      return next;
+    };
+
+    const updateSelectedCropInsets = () => {
+      const image = selectedCropControlsImage();
+      if (!image || image.locked || !annotationImageHasReversibleCrop(state, image)) return false;
+      return setAnnotationImageCropInsets(state, image, cropInsetsFromControls(image));
+    };
+
+    const resetSelectedCropFromTab = () => {
+      const image = selectedCropControlsImage();
+      if (!image || image.locked) return false;
+      pushHistory();
+      if (!resetAnnotationCrop(state, image)) {
+        setStatus("The full source is already visible.");
+        return false;
+      }
+      pushHistory();
+      selectedIds = new Set([image.id]);
+      lastSelectedObjectId = image.id;
+      setTool("select");
+      setStatus("Crop reset. Undo restores the previous crop.");
+      renderWithWorkspaceExpansion();
+      window.setTimeout(focusLastSelectedObject, 0);
+      return true;
+    };
+
+    const permanentlyCropSelectedImageFromTab = async () => {
+      if (cropBusy) return false;
+      const image = selectedCropControlsImage();
+      if (!image || image.locked || !annotationImageHasReversibleCrop(state, image)) return false;
+      let cropTemporarilyShown = false;
+      cropBusy = true;
+      setTool("select");
+      try {
+        const cropWasVisible = image.cropVisible !== false;
+        if (!cropWasVisible) {
+          setAnnotationImageCropVisibility(state, true, image);
+          cropTemporarilyShown = true;
+          renderWithWorkspaceExpansion();
+        }
+        if (!await openAnnotationPermanentCropWarningDialog()) {
+          if (cropTemporarilyShown) {
+            setAnnotationImageCropVisibility(state, false, image);
+            renderWithWorkspaceExpansion();
+          }
+          setStatus("Crop left unchanged.");
+          focusLastSelectedObject();
+          return false;
+        }
+        setStatus("Applying the crop permanently...");
+        const cropped = await permanentlyCropAnnotationImage(state, image.id);
+        embeddedSources.set(image.id, cropped.dataUrl);
+        if (image.isOriginalImage && typeof context.persistCroppedOriginal === "function") {
+          pendingPermanentCrop = {
+            blob: cropped.blob,
+            fileName: annotationPermanentCropFileName(context.originalFileName),
+            reference: ""
+          };
+        }
+        if (historyTimer) {
+          window.clearTimeout(historyTimer);
+          historyTimer = 0;
+        }
+        history = [annotationSnapshot(state, embeddedSources)];
+        historyIndex = 0;
+        selectedIds = new Set([image.id]);
+        lastSelectedObjectId = image.id;
+        setStatus(pendingPermanentCrop
+          ? "Crop permanently applied. The previous image source will become an orphan after you save the record."
+          : "Crop permanently applied to this Diagram image.");
+        renderWithWorkspaceExpansion();
+        focusLastSelectedObject();
+        return true;
+      } catch (error) {
+        if (cropTemporarilyShown) setAnnotationImageCropVisibility(state, false, image);
+        setStatus(error?.message || "The crop could not be applied permanently.");
+        renderWithWorkspaceExpansion();
+        focusLastSelectedObject();
+        return false;
+      } finally {
+        cropBusy = false;
+        syncControls();
+      }
     };
 
     const templateInsertionCenter = () => {
@@ -6718,7 +7347,7 @@ function createAnnotationDialog(context) {
       }
       pushHistory();
       setStatus(`${kind === "group" ? "Group" : "Object"} renamed to “${name}”.`);
-      render();
+      renderWithWorkspaceExpansion();
       window.setTimeout(() => focusTreeNode(kind, id), 0);
     };
 
@@ -6856,6 +7485,17 @@ function createAnnotationDialog(context) {
       const mapping = await openAnnotationEntityForeignKeyDialog(entity, field, state.objects);
       if (!mapping) return false;
       pushHistory();
+      let mappedFieldName = field.name;
+      if (isAnnotationFieldRectangle(entity) && mapping.referencedEntity && mapping.referencedField) {
+        const nextFieldName = safeAnnotationName(unquoteAnnotationSqlIdentifier(mapping.referencedField));
+        if (nextFieldName) {
+          entity.foreignKeys = setAnnotationEntityFieldForeignKeyMapping(entity.foreignKeys, field.name, null);
+          entity.fieldRectangleName = nextFieldName;
+          field.name = nextFieldName;
+          mappedFieldName = nextFieldName;
+          syncAnnotationFieldRectangle(entity);
+        }
+      }
       const mappingWithDefault = isAnnotationFieldRectangle(entity)
         && mapping.referencedEntity
         && mapping.referencedField
@@ -6865,13 +7505,14 @@ function createAnnotationDialog(context) {
             styleOverride: templateLibrary.defaults.fieldRectangleRelationship
           }
         : mapping;
-      entity.foreignKeys = setAnnotationEntityFieldForeignKeyMapping(entity.foreignKeys, field.name, mappingWithDefault);
-      if (mapping.referencedEntity && mapping.referencedField && !field.isPrimaryKey) field.isForeignKey = true;
+      entity.foreignKeys = setAnnotationEntityFieldForeignKeyMapping(entity.foreignKeys, mappedFieldName, mappingWithDefault);
+      const mappedField = entity.fields?.find(candidate => String(candidate?.name || "").toLowerCase() === mappedFieldName.toLowerCase()) || field;
+      if (mapping.referencedEntity && mapping.referencedField && !mappedField.isPrimaryKey) mappedField.isForeignKey = true;
       ensureAnnotationEntitySize(entity);
       pushHistory();
       setStatus(mapping.referencedEntity
-        ? `${formatAnnotationEntityIdentifier(field.name)} mapped to ${formatAnnotationEntityIdentifier(mapping.referencedEntity)}.${formatAnnotationEntityIdentifier(mapping.referencedField)}.`
-        : `Foreign key mapping cleared for ${formatAnnotationEntityIdentifier(field.name)}.`);
+        ? `${formatAnnotationEntityIdentifier(mappedFieldName)} mapped to ${formatAnnotationEntityIdentifier(mapping.referencedEntity)}.${formatAnnotationEntityIdentifier(mapping.referencedField)}.`
+        : `Foreign key mapping cleared for ${formatAnnotationEntityIdentifier(mappedFieldName)}.`);
       renderWithWorkspaceExpansion();
       window.setTimeout(() => {
         entityFieldList.querySelector(`[data-annotation-entity-field-map][data-annotation-entity-field-index='${fieldIndex}']`)?.focus({ preventScroll: true });
@@ -7058,11 +7699,6 @@ function createAnnotationDialog(context) {
         return;
       }
 
-      if (event.target.closest("[data-annotation-copy-field-mapping-table]")) {
-        await copySelectedFieldMappingTable();
-        return;
-      }
-
       if (event.target.closest("[data-annotation-export-field-mapping-table-csv]")) {
         exportSelectedFieldMappingTable("csv");
         return;
@@ -7073,9 +7709,9 @@ function createAnnotationDialog(context) {
         return;
       }
 
-      const fieldMappingCell = event.target.closest("[data-annotation-field-mapping-ui-cell]");
+      const fieldMappingCell = event.target.closest(fieldMappingCellSelector);
       if (fieldMappingCell) {
-        selectFieldRectangleFromMappingCell(fieldMappingCell, false);
+        selectFieldMappingCell(fieldMappingCell, false);
         return;
       }
 
@@ -7740,17 +8376,33 @@ function createAnnotationDialog(context) {
       });
       control.addEventListener("change", pushHistory);
     });
-    dialog.querySelectorAll("[data-annotation-field-mapping-table-color]").forEach(control => {
+    dialog.querySelector("[data-annotation-crop-corner-radius]")?.addEventListener("input", event => {
+      if (!updateSelectedCropCornerRadius(event.target)) return;
+      scheduleHistory();
+      renderWithWorkspaceExpansion();
+    });
+    dialog.querySelector("[data-annotation-crop-corner-radius]")?.addEventListener("change", event => {
+      if (!updateSelectedCropCornerRadius(event.target)) return;
+      pushHistory();
+      renderWithWorkspaceExpansion();
+    });
+    dialog.querySelectorAll("[data-annotation-crop-inset]").forEach(control => {
       control.addEventListener("input", () => {
-        if (!updateSelectedFieldMappingTableColor(control)) return;
+        if (!updateSelectedCropInsets()) return;
         scheduleHistory();
         renderWithWorkspaceExpansion();
       });
       control.addEventListener("change", () => {
-        if (!updateSelectedFieldMappingTableColor(control)) return;
+        if (!updateSelectedCropInsets()) return;
         pushHistory();
         renderWithWorkspaceExpansion();
       });
+    });
+    dialog.querySelector("[data-annotation-crop-reset]")?.addEventListener("click", () => {
+      resetSelectedCropFromTab();
+    });
+    dialog.querySelector("[data-annotation-crop-permanent]")?.addEventListener("click", () => {
+      void permanentlyCropSelectedImageFromTab();
     });
     bindAnnotationColorPickers(dialog, {
       apply(name, color) {
@@ -7824,11 +8476,13 @@ function createAnnotationDialog(context) {
             embeddedSources.set(originalImage.id, storedSource);
           }
         }
+        syncAnnotationFieldMappingTables(state);
         const finalState = normalizeAnnotationState(state, {
           width: state.width,
           height: state.height,
           originalReference
         });
+        syncAnnotationFieldMappingTables(finalState);
         const svg = context.portableImageSources
           ? await buildPortableAnnotationSvg(finalState)
           : buildAnnotationSvg(finalState);
@@ -8117,8 +8771,10 @@ function annotationDialogHtml(context = {}) {
           ${annotationToolButton("line", "Line (L)")}
           ${annotationToolButton("textbox", "Text Box (T)")}
           ${annotationToolButton("rich-text", "Rich Text Editor (Y)")}
+          <span class="image-annotation-toolbar-separator" role="separator" aria-hidden="true"></span>
           ${annotationToolButton("entity", "Entity (E)")}
           ${annotationToolButton("field-rectangle", "Field Rectangle")}
+          ${annotationToolbarIconButton("Generate Field Mapping Table", "data-annotation-generate-field-mapping-table", fieldMappingTableObjectType)}
         </div>
         <div class="image-annotation-tool-group" aria-label="History">
           ${annotationActionButton("undo", "Undo", "Undo (Ctrl+Z)")}
@@ -8153,6 +8809,8 @@ function annotationDialogHtml(context = {}) {
         <aside class="image-annotation-inspector" id="imageAnnotationInspector" data-annotation-inspector aria-label="Annotation right pane">
           <div class="image-annotation-inspector-tabs" role="tablist" aria-label="Annotation right pane">
             <button type="button" id="imageAnnotationFormatTab" role="tab" aria-selected="true" aria-controls="imageAnnotationFormatPanel" data-annotation-inspector-tab="format">Format</button>
+            <button type="button" id="imageAnnotationCropTab" role="tab" aria-selected="false" aria-controls="imageAnnotationCropPanel" tabindex="-1" data-annotation-inspector-tab="crop" hidden>Crop</button>
+            <button type="button" id="imageAnnotationFieldMappingTableTab" role="tab" aria-selected="false" aria-controls="imageAnnotationFieldMappingTablePanel" tabindex="-1" data-annotation-inspector-tab="field-mapping-table" hidden>Mapping</button>
             <button type="button" id="imageAnnotationEntityTab" role="tab" aria-selected="false" aria-controls="imageAnnotationEntityPanel" tabindex="-1" data-annotation-inspector-tab="entity" hidden>Entity</button>
             <button type="button" id="imageAnnotationTemplateTab" role="tab" aria-selected="false" aria-controls="imageAnnotationTemplatePanel" tabindex="-1" data-annotation-inspector-tab="template">Template</button>
             <button type="button" id="imageAnnotationObjectsTab" role="tab" aria-selected="false" aria-controls="imageAnnotationObjectsPanel" tabindex="-1" data-annotation-inspector-tab="objects">Objects</button>
@@ -8189,22 +8847,6 @@ function annotationDialogHtml(context = {}) {
               <label class="field image-annotation-wide" data-annotation-text-field hidden><span>Text</span><textarea rows="5" data-annotation-text></textarea></label>
             </div>
           </section>
-          <section class="image-annotation-format-section image-annotation-field-mapping-table-format" aria-labelledby="imageAnnotationFieldMappingTableFormat" data-annotation-field-mapping-table-format hidden>
-            <h4 id="imageAnnotationFieldMappingTableFormat">Field Mapping Table</h4>
-            <div class="image-annotation-inspector-grid">
-              <label class="field"><span>Header text</span><input type="color" value="${defaultFieldMappingTableStyle.headerTextColor}" data-annotation-field-mapping-table-color="headerTextColor"></label>
-              <label class="field"><span>Header background</span><input type="color" value="${defaultFieldMappingTableStyle.headerFill}" data-annotation-field-mapping-table-color="headerFill"></label>
-              <label class="field"><span>UI field text</span><input type="color" value="${defaultFieldMappingTableStyle.uiTextColor}" data-annotation-field-mapping-table-color="uiTextColor"></label>
-              <label class="field"><span>UI field background</span><input type="color" value="${defaultFieldMappingTableStyle.uiFill}" data-annotation-field-mapping-table-color="uiFill"></label>
-              <label class="field"><span>Database text</span><input type="color" value="${defaultFieldMappingTableStyle.databaseTextColor}" data-annotation-field-mapping-table-color="databaseTextColor"></label>
-              <label class="field"><span>Database background</span><input type="color" value="${defaultFieldMappingTableStyle.databaseFill}" data-annotation-field-mapping-table-color="databaseFill"></label>
-            </div>
-            <div class="image-annotation-field-mapping-actions">
-              <button type="button" data-annotation-copy-field-mapping-table>Copy Table Data</button>
-              <button type="button" data-annotation-export-field-mapping-table-csv>Export CSV</button>
-              <button type="button" data-annotation-export-field-mapping-table-excel>Export Excel</button>
-            </div>
-          </section>
           <div class="image-annotation-help">
             <strong>Canvas controls</strong>
             <span>${wheelZoomHelp.wheel}</span>
@@ -8220,6 +8862,39 @@ function annotationDialogHtml(context = {}) {
             <span>Ctrl + C/V/D: copy, paste, duplicate</span>
             <span>Blank-canvas drag: marquee-select</span>
           </div>
+          </div>
+          <div id="imageAnnotationCropPanel" role="tabpanel" aria-labelledby="imageAnnotationCropTab" data-annotation-inspector-panel="crop" hidden>
+            <section class="image-annotation-format-section image-annotation-crop-format" aria-labelledby="imageAnnotationCropFormat">
+              <h4 id="imageAnnotationCropFormat">Crop</h4>
+              <div class="image-annotation-inspector-grid">
+                <label class="field image-annotation-wide"><span>Corner radius</span><input type="number" min="0" max="${maximumAnnotationCropCornerRadius}" step="1" value="0" data-annotation-crop-corner-radius></label>
+                <label class="field"><span>Left</span><input type="number" min="0" step="1" value="0" data-annotation-crop-inset="left"></label>
+                <label class="field"><span>Top</span><input type="number" min="0" step="1" value="0" data-annotation-crop-inset="top"></label>
+                <label class="field"><span>Right</span><input type="number" min="0" step="1" value="0" data-annotation-crop-inset="right"></label>
+                <label class="field"><span>Bottom</span><input type="number" min="0" step="1" value="0" data-annotation-crop-inset="bottom"></label>
+              </div>
+              <div class="image-annotation-field-mapping-actions">
+                <button type="button" data-annotation-crop-reset>Reset Crop</button>
+                <button type="button" class="danger" data-annotation-crop-permanent>Permanently Crop</button>
+              </div>
+            </section>
+          </div>
+          <div id="imageAnnotationFieldMappingTablePanel" role="tabpanel" aria-labelledby="imageAnnotationFieldMappingTableTab" data-annotation-inspector-panel="field-mapping-table" hidden>
+            <section class="image-annotation-format-section image-annotation-field-mapping-table-format" aria-labelledby="imageAnnotationFieldMappingTableFormat">
+              <h4 id="imageAnnotationFieldMappingTableFormat">Field Mapping Table</h4>
+              <div class="image-annotation-inspector-grid">
+                ${annotationColorFieldHtml("headerTextColor", "Header text", "Header Text Color", defaultFieldMappingTableStyle.headerTextColor, "font")}
+                ${annotationColorFieldHtml("headerFill", "Header background", "Header Background Color", defaultFieldMappingTableStyle.headerFill, "background")}
+                ${annotationColorFieldHtml("uiTextColor", "UI field text", "UI Field Text Color", defaultFieldMappingTableStyle.uiTextColor, "font")}
+                ${annotationColorFieldHtml("uiFill", "UI field background", "UI Field Background Color", defaultFieldMappingTableStyle.uiFill, "background")}
+                ${annotationColorFieldHtml("databaseTextColor", "Database text", "Database Text Color", defaultFieldMappingTableStyle.databaseTextColor, "font")}
+                ${annotationColorFieldHtml("databaseFill", "Database background", "Database Background Color", defaultFieldMappingTableStyle.databaseFill, "background")}
+              </div>
+              <div class="image-annotation-field-mapping-actions">
+                <button type="button" data-annotation-export-field-mapping-table-excel>Export to Excel (native)</button>
+                <button type="button" data-annotation-export-field-mapping-table-csv>Export as CSV</button>
+              </div>
+            </section>
           </div>
           <div id="imageAnnotationEntityPanel" role="tabpanel" aria-labelledby="imageAnnotationEntityTab" data-annotation-inspector-panel="entity" hidden>
             <section class="image-annotation-format-section image-annotation-entity-format" aria-labelledby="imageAnnotationEntityFormat" data-annotation-entity-format>
@@ -8325,6 +9000,10 @@ function annotationDialogHtml(context = {}) {
 
 function annotationToolButton(tool, label, pressed = false) {
   return `<button type="button" data-annotation-tool="${tool}" title="${label}" aria-label="${label}" aria-pressed="${pressed}" class="${pressed ? "is-active" : ""}"><span class="button-icon" aria-hidden="true">${annotationToolIconSvg(tool)}</span></button>`;
+}
+
+function annotationToolbarIconButton(label, attributes, iconType) {
+  return `<button type="button" class="image-annotation-toolbar-icon-action" ${attributes} title="${label}" aria-label="${label}"><span class="button-icon" aria-hidden="true">${annotationToolIconSvg(iconType)}</span></button>`;
 }
 
 function safeAnnotationTool(tool) {
@@ -8459,7 +9138,8 @@ function annotationToolIconSvg(tool) {
     textbox: `<path d="M4 5h16v14H4zM8 9h8M12 9v6M9.5 15h5"></path>`,
     "rich-text": `<rect x="4" y="4" width="16" height="16" rx="2"></rect><path d="M8 9h8M8 13h5M8 17h8"></path><path d="M15 13l2 2-2 2"></path>`,
     entity: `<rect x="4" y="3" width="16" height="18"></rect><path d="M4 8h16M9 8v13M4 13h16M4 17h16"></path>`,
-    "field-rectangle": `<rect x="4" y="7" width="16" height="10"></rect><path d="M8 12h8"></path><path d="M18 5l3-3M18 19l3 3M6 5 3 2M6 19l3-2"></path>`
+    "field-rectangle": `<rect x="4" y="7" width="16" height="10"></rect><path d="M8 12h8"></path><path d="M18 5l3-3M18 19l3 3M6 5 3 2M6 19l3-2"></path>`,
+    [fieldMappingTableObjectType]: `<rect x="4" y="5" width="16" height="14" rx="1"></rect><path d="M4 10h16M4 14h16M10 5v14"></path><path d="M14 17h3M14 12h3"></path>`
   };
   return `<svg class="button-svg-icon image-annotation-tool-icon" viewBox="0 0 24 24" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${paths[tool] || ""}</svg>`;
 }
@@ -8672,12 +9352,23 @@ function annotationCanvasSvg(
   zoom,
   workspaceBounds,
   cropPreview,
-  marqueePreview
+  marqueePreview,
+  fieldMappingHoverIds = null,
+  fieldMappingSelectionIds = null
 ) {
   const clipKey = `editor-${++annotationEditorRenderSequence}`;
   const background = annotationCanvasBackgroundSvg(state, workspaceBounds);
   const allVisibleObjects = annotationVisibleObjects(state);
-  const raisedEntities = allVisibleObjects.filter(object => object.type === "entity" && selectedIds.has(object.id));
+  const hoverIds = fieldMappingHoverIds instanceof Set
+    ? fieldMappingHoverIds
+    : new Set(fieldMappingHoverIds || []);
+  const fieldMappingSelectedIds = fieldMappingSelectionIds instanceof Set
+    ? fieldMappingSelectionIds
+    : new Set(fieldMappingSelectionIds || []);
+  const activeFieldMappingIds = new Set([...fieldMappingSelectedIds, ...hoverIds]);
+  const normalSelectedIds = new Set([...selectedIds].filter(id => !fieldMappingSelectedIds.has(id)));
+  const raisedIds = new Set([...normalSelectedIds, ...activeFieldMappingIds]);
+  const raisedEntities = allVisibleObjects.filter(object => object.type === "entity" && raisedIds.has(object.id));
   const raisedEntityIds = new Set(raisedEntities.map(object => object.id));
   const relationshipLayers = annotationObjectsAroundRelationshipLayer(allVisibleObjects);
   const relationshipRenderModel = state.hideAllEntityRelationships
@@ -8690,14 +9381,16 @@ function annotationCanvasSvg(
   const relationshipOptions = {
     interactive: true,
     selected: selectedIds.has(entityRelationshipsSelectionId),
-    selectedIds,
+    selectedIds: normalSelectedIds,
     zoom,
     allowOverlappingLines: state.allowOverlappingEntityLines,
     hidden: state.hideAllEntityRelationships,
     manualRoutes: state.manualEntityRelationshipRoutes,
     compactRouting: state.compactEntityRelationshipRouting,
-    relationshipRenderModel
+    relationshipRenderModel,
+    hoverIds
   };
+  const objectRenderOptions = { exportMode: false, zoom, clipKey, fieldMappingHoverIds: hoverIds, allObjects: allVisibleObjects };
   const relationships = annotationEntityRelationshipsSvg(allVisibleObjects, state.relationshipStyle, {
     ...relationshipOptions,
     fieldRectangleRelationships: "exclude"
@@ -8708,22 +9401,22 @@ function annotationCanvasSvg(
   });
   const belowRelationships = relationshipLayers.below
     .filter(object => !raisedEntityIds.has(object.id))
-    .map(object => annotationObjectSvg(object, { exportMode: false, zoom, clipKey }))
+    .map(object => annotationObjectSvg(object, objectRenderOptions))
     .join("");
   const betweenRelationships = relationshipLayers.between
     .filter(object => !raisedEntityIds.has(object.id))
-    .map(object => annotationObjectSvg(object, { exportMode: false, zoom, clipKey }))
+    .map(object => annotationObjectSvg(object, objectRenderOptions))
     .join("");
   const aboveRelationships = relationshipLayers.above
     .filter(object => !raisedEntityIds.has(object.id))
-    .map(object => annotationObjectSvg(object, { exportMode: false, zoom, clipKey }))
+    .map(object => annotationObjectSvg(object, objectRenderOptions))
     .join("");
   const raised = raisedEntities
-    .map(object => annotationObjectSvg(object, { exportMode: false, zoom, clipKey }))
+    .map(object => annotationObjectSvg(object, objectRenderOptions))
     .join("");
   const grid = state.gridVisible ? annotationGridSvg(workspaceBounds) : "";
   const selectedVisibleObjects = allVisibleObjects.filter(object =>
-    selectedIds.has(object.id)
+    normalSelectedIds.has(object.id)
     && (!cropPreview || object.id !== cropPreview.imageId)
   );
   const selection = annotationSelectionSvg(
@@ -8732,9 +9425,10 @@ function annotationCanvasSvg(
     null,
     allVisibleObjects
   );
+  const fieldMappingSelection = annotationFieldMappingSelectionSvg(state, activeFieldMappingIds, zoom);
   const crop = cropPreview ? annotationCropPreviewSvg(cropPreview, state, zoom) : "";
   const marquee = marqueePreview ? annotationMarqueeSvg(marqueePreview) : "";
-  return `${annotationCanvasDefs(state, zoom)}${background}${belowRelationships}${relationships}${betweenRelationships}${fieldRelationships}${aboveRelationships}${grid}${raised}${selection}${marquee}${crop}`;
+  return `${annotationCanvasDefs(state, zoom)}${background}${belowRelationships}${relationships}${betweenRelationships}${fieldRelationships}${aboveRelationships}${grid}${raised}${selection}${fieldMappingSelection}${marquee}${crop}`;
 }
 
 export function annotationEntityRelationshipsSvg(objectsInput, relationshipStyleInput = null, options = {}) {
@@ -8754,6 +9448,7 @@ export function annotationEntityRelationshipsSvg(objectsInput, relationshipStyle
   const interactive = options?.interactive === true;
   const selected = interactive && options?.selected === true;
   const selectedIds = options?.selectedIds instanceof Set ? options.selectedIds : new Set(options?.selectedIds || []);
+  const hoverIds = options?.hoverIds instanceof Set ? options.hoverIds : new Set(options?.hoverIds || []);
   const zoom = Math.max(minimumZoom, positiveNumber(options?.zoom, 1));
   const visibleRoutes = annotationEntityRelationshipVisibleRoutesSvg(visibleRouteGroups);
   const groupSelection = selected
@@ -8767,6 +9462,7 @@ export function annotationEntityRelationshipsSvg(objectsInput, relationshipStyle
       {
         interactive,
         selected: selectedIds.has(item.relationship.id),
+        hovered: hoverIds.has(item.relationship.id),
         zoom,
         manualRoutes: options?.manualRoutes === true
       }
@@ -8776,6 +9472,43 @@ export function annotationEntityRelationshipsSvg(objectsInput, relationshipStyle
     ? ` data-annotation-object-id="${entityRelationshipsSelectionId}" data-annotation-object-type="${entityRelationshipsObjectType}" role="button" tabindex="0" aria-label="Entity Relationships"`
     : "";
   return `<g class="image-annotation-entity-relationships${selected ? " is-selected" : ""}"${interaction}>${visibleRoutes}${groupSelection}${body}</g>`;
+}
+
+export function annotationFieldMappingSelectionSvg(inputState, selectedIdInput, zoomInput = 1) {
+  const state = normalizeAnnotationState(inputState);
+  const selectedIds = selectedIdInput instanceof Set
+    ? selectedIdInput
+    : new Set(selectedIdInput || []);
+  if (!selectedIds.size) return "";
+  const visibleObjects = annotationVisibleObjects(state);
+  const zoom = Math.max(minimumZoom, positiveNumber(zoomInput, 1));
+  const relationshipRenderModel = state.hideAllEntityRelationships
+    ? null
+    : annotationEntityRelationshipRenderModel(visibleObjects, state.relationshipStyle, {
+        allowOverlappingLines: state.allowOverlappingEntityLines,
+        manualRoutes: state.manualEntityRelationshipRoutes,
+        compactRouting: state.compactEntityRelationshipRouting
+      });
+  const relationships = relationshipRenderModel
+    ? relationshipRenderModel.renderedRelationships
+        .filter(item => selectedIds.has(item.relationship.id))
+        .map(item => annotationEntityRelationshipSelectionDecorationSvg(item.relationship, item.geometry, zoom))
+        .join("")
+    : "";
+  const selection = visibleObjects
+    .filter(object => selectedIds.has(object.id))
+    .map(object => annotationSelectionSvg([object], zoom, null, visibleObjects))
+    .join("");
+  return relationships || selection
+    ? `<g class="image-annotation-field-mapping-selection-overlay" data-annotation-field-mapping-selection-overlay="true" pointer-events="none">${relationships}${selection}</g>`
+    : "";
+}
+
+function annotationEntityRelationshipSelectionDecorationSvg(relationship, geometry, zoom) {
+  const path = geometry?.path || "";
+  if (!path) return "";
+  const handles = annotationEntityRelationshipSegmentHandlesSvg(relationship, geometry, zoom);
+  return `<g class="image-annotation-entity-relationship is-selected" data-annotation-object-id="${escapeXmlAttr(relationship.id)}" data-annotation-object-type="${entityRelationshipObjectType}" pointer-events="none"><path class="image-annotation-entity-relationship-selection" d="${path}" fill="none" stroke-width="1" vector-effect="non-scaling-stroke" pointer-events="none"></path>${handles}</g>`;
 }
 
 function annotationEntityRelationshipRenderModel(objectsInput, relationshipStyleInput = null, options = {}) {
@@ -9714,6 +10447,9 @@ function annotationEntityRelationshipSvg(relationship, style, geometry, options 
   const selection = options.selected
     ? `<path class="image-annotation-entity-relationship-selection" d="${path}" fill="none" stroke-width="1" vector-effect="non-scaling-stroke" pointer-events="none"></path>`
     : "";
+  const hoverSelection = options.hovered && !options.selected
+    ? `<path class="image-annotation-field-mapping-hover-relationship" d="${path}" fill="none" stroke="${escapeXmlAttr(style.stroke)}" stroke-width="3" vector-effect="non-scaling-stroke" pointer-events="none"></path>`
+    : "";
   const handles = options.selected && options.interactive
     ? annotationEntityRelationshipSegmentHandlesSvg(relationship, geometry, options.zoom)
     : "";
@@ -9723,7 +10459,7 @@ function annotationEntityRelationshipSvg(relationship, style, geometry, options 
   const interaction = options.interactive
     ? ` data-annotation-object-id="${escapeXmlAttr(relationship.id)}" data-annotation-object-type="${entityRelationshipObjectType}" role="button" tabindex="0" aria-label="${escapeXmlAttr(annotationEntityRelationshipName(relationship))}"`
     : "";
-  return `<g class="image-annotation-entity-relationship${options.selected ? " is-selected" : ""}"${interaction} data-annotation-relationship-stroke-width="${formatNumber(style.strokeWidth)}" data-pmt-relationship-type="${relationshipType || "arrow"}" data-pmt-relationship-source="${escapeXmlAttr(sourceName)}" data-pmt-relationship-target="${escapeXmlAttr(targetName)}"><title>${escapeXmlText(`${sourceName} points to ${targetName}`)}</title>${selection}${markers}${hit}${handles}</g>`;
+  return `<g class="image-annotation-entity-relationship${options.selected ? " is-selected" : ""}${options.hovered ? " is-field-mapping-hover" : ""}"${interaction} data-annotation-relationship-stroke="${escapeXmlAttr(style.stroke)}" data-annotation-relationship-stroke-width="${formatNumber(style.strokeWidth)}" data-pmt-relationship-type="${relationshipType || "arrow"}" data-pmt-relationship-source="${escapeXmlAttr(sourceName)}" data-pmt-relationship-target="${escapeXmlAttr(targetName)}"><title>${escapeXmlText(`${sourceName} points to ${targetName}`)}</title>${selection}${hoverSelection}${markers}${hit}${handles}</g>`;
 }
 
 function annotationEntityRelationshipSegmentHandlesSvg(relationship, geometry, zoom) {
@@ -10927,6 +11663,43 @@ function annotationEntityFieldAnchorY(entity, field) {
     : null;
 }
 
+export function annotationEntityFieldBounds(entity, fieldOrName) {
+  if (!entity) return null;
+  const fieldName = typeof fieldOrName === "string"
+    ? fieldOrName
+    : fieldOrName?.name || "";
+  const field = annotationEntityVisibleFields(entity)
+    .find(candidate => String(candidate?.name || "").toLowerCase() === String(fieldName || "").toLowerCase());
+  const index = field ? annotationEntityVisibleFieldIndex(entity, field) : -1;
+  if (index < 0) return annotationObjectBounds(entity);
+  const metrics = annotationEntityMetrics(entity);
+  return {
+    x: finiteNumber(entity.x, 0),
+    y: finiteNumber(entity.y, 0) + metrics.headerHeight + (index * metrics.rowHeight),
+    width: positiveNumber(entity.width, 1),
+    height: metrics.rowHeight
+  };
+}
+
+export function annotationEntityFieldLabelPoint(entity, fieldOrName) {
+  if (!entity) return null;
+  const fieldName = typeof fieldOrName === "string"
+    ? fieldOrName
+    : fieldOrName?.name || "";
+  const field = annotationEntityVisibleFields(entity)
+    .find(candidate => String(candidate?.name || "").toLowerCase() === String(fieldName || "").toLowerCase());
+  const index = field ? annotationEntityVisibleFieldIndex(entity, field) : -1;
+  if (index < 0) return null;
+  const metrics = annotationEntityMetrics(entity);
+  const keyColumnWidth = entity.showKeyColumn !== false
+    ? Math.min(metrics.keyColumnWidth, positiveNumber(entity.width, 1) * 0.22)
+    : 0;
+  return {
+    x: finiteNumber(entity.x, 0) + keyColumnWidth + metrics.padding - Math.max(4, metrics.fontSize * 0.18),
+    y: finiteNumber(entity.y, 0) + metrics.headerHeight + ((index + 0.5) * metrics.rowHeight)
+  };
+}
+
 function annotationEntityRelationshipEndpoint(entity, field, side, role = "source") {
   const safeSide = ["left", "top", "right", "bottom"].includes(side) ? side : "right";
   const y = isAnnotationFieldRectangle(entity)
@@ -11139,21 +11912,29 @@ function annotationGridSvg(bounds) {
 }
 
 function annotationObjectSvg(object, options = {}) {
-  const id = options.exportMode ? "" : ` data-annotation-object-id="${escapeXmlAttr(object.id)}"`;
-  const type = options.exportMode ? "" : ` data-annotation-object-type="${escapeXmlAttr(object.type)}"`;
-  const classes = options.exportMode
-    ? ""
-    : ` class="image-annotation-object${object.locked ? " is-locked" : ""}${isAnnotationFieldRectangle(object) ? " is-field-rectangle" : ""}${isAnnotationFieldMappingTable(object) ? " is-field-mapping-table" : ""}"`;
+  const interactiveFieldMappingObject = options.interactiveFieldMapping === true
+    && (isAnnotationFieldRectangle(object) || isAnnotationFieldMappingTable(object));
+  const interactiveObject = !options.exportMode || interactiveFieldMappingObject;
+  const id = interactiveObject ? ` data-annotation-object-id="${escapeXmlAttr(object.id)}"` : "";
+  const type = interactiveObject ? ` data-annotation-object-type="${escapeXmlAttr(object.type)}"` : "";
+  const fieldMappingHover = interactiveObject
+    && options.fieldMappingHoverIds instanceof Set
+    && options.fieldMappingHoverIds.has(object.id);
+  const classes = interactiveObject
+    ? ` class="image-annotation-object${object.locked ? " is-locked" : ""}${isAnnotationFieldRectangle(object) ? " is-field-rectangle" : ""}${isAnnotationFieldMappingTable(object) ? " is-field-mapping-table" : ""}${fieldMappingHover ? " is-field-mapping-hover" : ""}"`
+    : "";
   const group = object.groupId ? ` data-pmt-annotation-group="${escapeXmlAttr(object.groupId)}"` : "";
   const locked = object.locked ? ` data-pmt-annotation-locked="true"` : "";
   const clipSuffix = options.clipKey ? `-${safeSvgId(options.clipKey)}` : "";
   if (object.type === "embedded-image") {
     const clip = annotationEmbeddedImageEffectiveClip(object);
     const fullBounds = annotationObjectBounds(object);
-    const cropped = object.cropVisible !== false && !annotationBoundsEqual(clip, fullBounds);
+    const radius = annotationImageCropCornerRadius(object, clip);
+    const cropped = object.cropVisible !== false && (!annotationBoundsEqual(clip, fullBounds) || radius > 0);
     const clipId = `pmt-annotation-image-clip-${safeSvgId(object.id)}${clipSuffix}`;
+    const radiusAttributes = radius > 0 ? ` rx="${formatNumber(radius)}" ry="${formatNumber(radius)}"` : "";
     const definition = cropped
-      ? `<defs><clipPath id="${clipId}"><rect x="${formatNumber(clip.x)}" y="${formatNumber(clip.y)}" width="${formatNumber(clip.width)}" height="${formatNumber(clip.height)}"></rect></clipPath></defs>`
+      ? `<defs><clipPath id="${clipId}"><rect x="${formatNumber(clip.x)}" y="${formatNumber(clip.y)}" width="${formatNumber(clip.width)}" height="${formatNumber(clip.height)}"${radiusAttributes}></rect></clipPath></defs>`
       : "";
     const clipPath = cropped ? ` clip-path="url(#${clipId})"` : "";
     return `${definition}<image${id}${type}${classes}${group}${locked} href="${escapeXmlAttr(object.source)}" x="${formatNumber(object.x)}" y="${formatNumber(object.y)}" width="${formatNumber(object.width)}" height="${formatNumber(object.height)}" preserveAspectRatio="none"${clipPath}></image>`;
@@ -11174,6 +11955,7 @@ function annotationObjectSvg(object, options = {}) {
       group,
       locked,
       exportMode: options.exportMode,
+      interactiveFieldMapping: options.interactiveFieldMapping === true,
       clipKey: options.clipKey
     });
   }
@@ -11187,6 +11969,7 @@ function annotationObjectSvg(object, options = {}) {
       exportMode: options.exportMode,
       clipboardMode: options.clipboardMode === true,
       clipKey: options.clipKey,
+      allObjects: options.allObjects,
       interactiveEntityHeaders: options.interactiveEntityHeaders === true,
       entityHeaderButtonsVisible: options.entityHeaderButtonsVisible !== false
     });
@@ -11232,45 +12015,58 @@ function annotationFieldMappingTableSvg(object, attributes) {
   const clipSuffix = attributes.clipKey ? `-${safeSvgId(attributes.clipKey)}` : "";
   const clipId = `pmt-annotation-field-mapping-table-clip-${safeSvgId(object.id)}${clipSuffix}`;
   const rows = Array.isArray(object.rows) ? object.rows : [];
-  const fontSize = clampNumber(positiveNumber(object.fontSize, 14), 1, 240);
-  const rowHeight = Math.max(24, fontSize * 1.75);
-  const headerHeight = rowHeight;
-  const columnWidth = object.width / 2;
-  const padding = Math.max(6, fontSize * 0.55);
+  const layout = annotationFieldMappingTableLayout(object);
+  const tableWidth = layout.width;
+  const tableHeight = layout.height;
+  const fontSize = layout.fontSize;
+  const rowHeight = layout.rowHeight;
+  const headerHeight = layout.headerHeight;
+  const uiColumnWidth = layout.uiColumnWidth;
+  const databaseColumnWidth = layout.databaseColumnWidth;
+  const padding = layout.padding;
   const stroke = object.stroke || defaultEntityStroke;
   const textY = top => top + (rowHeight * 0.66);
   const headerText = (x, label) =>
     `<text x="${formatNumber(x + padding)}" y="${formatNumber(textY(object.y))}" fill="${escapeXmlAttr(style.headerTextColor)}" font-family="${escapeXmlAttr(object.fontFamily)}" font-size="${formatNumber(fontSize)}" font-weight="700">${escapeXmlText(label)}</text>`;
-  const cellText = (x, top, width, color, value, extra = "") =>
+  const cellText = (x, top, color, value, extra = "") =>
     `<text x="${formatNumber(x + padding)}" y="${formatNumber(textY(top))}" clip-path="url(#${clipId})" fill="${escapeXmlAttr(color)}" font-family="${escapeXmlAttr(object.fontFamily)}" font-size="${formatNumber(fontSize)}"${extra}>${escapeXmlText(value)}</text>`;
   const dataRows = rows.map((row, index) => {
     const top = object.y + headerHeight + (index * rowHeight);
-    const uiInteraction = attributes.exportMode
+    const rowKey = `${object.id}:${row.uiEntityId}:${index}`;
+    const cellInteraction = (kind, x, width, label) => attributes.exportMode && attributes.interactiveFieldMapping !== true
       ? ""
-      : ` data-annotation-field-mapping-ui-cell data-annotation-field-rectangle-id="${escapeXmlAttr(row.uiEntityId)}" role="button" tabindex="0" aria-label="Select UI field ${escapeXmlAttr(row.uiField)}"`;
+      : ` data-annotation-field-mapping-cell="true" data-annotation-field-mapping-${kind}-cell="true" data-annotation-field-mapping-cell-kind="${kind}" data-annotation-field-mapping-row-key="${escapeXmlAttr(`${rowKey}:${kind}`)}" data-annotation-field-mapping-table-id="${escapeXmlAttr(object.id)}" data-annotation-field-mapping-row-index="${index}" data-annotation-field-mapping-row-x="${formatNumber(object.x)}" data-annotation-field-mapping-row-y="${formatNumber(top)}" data-annotation-field-mapping-row-width="${formatNumber(tableWidth)}" data-annotation-field-mapping-row-height="${formatNumber(rowHeight)}" data-annotation-field-mapping-cell-x="${formatNumber(x)}" data-annotation-field-mapping-cell-y="${formatNumber(top)}" data-annotation-field-mapping-cell-width="${formatNumber(width)}" data-annotation-field-mapping-cell-height="${formatNumber(rowHeight)}" data-annotation-field-rectangle-id="${escapeXmlAttr(row.uiEntityId)}" role="button" tabindex="0" aria-label="${escapeXmlAttr(label)}"`;
+    const uiInteraction = cellInteraction("ui", object.x, uiColumnWidth, `Select UI field ${row.uiField}`);
+    const databaseInteraction = cellInteraction("database", object.x + uiColumnWidth, databaseColumnWidth, `Select database field ${row.databaseField}`);
     return `
-      <g${uiInteraction}>
-        <rect x="${formatNumber(object.x)}" y="${formatNumber(top)}" width="${formatNumber(columnWidth)}" height="${formatNumber(rowHeight)}" fill="${escapeXmlAttr(style.uiFill)}"></rect>
-        <rect x="${formatNumber(object.x + columnWidth)}" y="${formatNumber(top)}" width="${formatNumber(columnWidth)}" height="${formatNumber(rowHeight)}" fill="${escapeXmlAttr(style.databaseFill)}"></rect>
-        ${cellText(object.x, top, columnWidth, style.uiTextColor, row.uiField, ` text-decoration="underline"`)}
-        ${cellText(object.x + columnWidth, top, columnWidth, style.databaseTextColor, row.databaseField)}
+      <g data-annotation-field-mapping-row="true">
+        <g${uiInteraction}>
+          <rect x="${formatNumber(object.x)}" y="${formatNumber(top)}" width="${formatNumber(uiColumnWidth)}" height="${formatNumber(rowHeight)}" fill="${escapeXmlAttr(style.uiFill)}"></rect>
+          ${cellText(object.x, top, style.uiTextColor, row.uiField)}
+          <rect x="${formatNumber(object.x)}" y="${formatNumber(top)}" width="${formatNumber(uiColumnWidth)}" height="${formatNumber(rowHeight)}" fill="transparent" pointer-events="all"></rect>
+        </g>
+        <g${databaseInteraction}>
+          <rect x="${formatNumber(object.x + uiColumnWidth)}" y="${formatNumber(top)}" width="${formatNumber(databaseColumnWidth)}" height="${formatNumber(rowHeight)}" fill="${escapeXmlAttr(style.databaseFill)}"></rect>
+          ${cellText(object.x + uiColumnWidth, top, style.databaseTextColor, row.databaseField)}
+          <rect x="${formatNumber(object.x + uiColumnWidth)}" y="${formatNumber(top)}" width="${formatNumber(databaseColumnWidth)}" height="${formatNumber(rowHeight)}" fill="transparent" pointer-events="all"></rect>
+        </g>
       </g>
     `;
   }).join("");
-  const horizontalLines = Array.from({ length: rows.length + 2 }, (_, index) => {
-    const y = object.y + (index * rowHeight);
-    return `<line x1="${formatNumber(object.x)}" y1="${formatNumber(y)}" x2="${formatNumber(object.x + object.width)}" y2="${formatNumber(y)}" stroke="${escapeXmlAttr(stroke)}" stroke-width="${formatNumber(object.strokeWidth)}"></line>`;
+  const horizontalLines = Array.from({ length: rows.length }, (_, index) => {
+    const y = object.y + headerHeight + (index * rowHeight);
+    return `<line x1="${formatNumber(object.x)}" y1="${formatNumber(y)}" x2="${formatNumber(object.x + tableWidth)}" y2="${formatNumber(y)}" stroke="${escapeXmlAttr(stroke)}" stroke-width="${formatNumber(object.strokeWidth)}" vector-effect="non-scaling-stroke" pointer-events="none"></line>`;
   }).join("");
   return `
     <g${attributes.id}${attributes.type}${attributes.classes}${attributes.group}${attributes.locked} opacity="${formatNumber(object.opacity)}">
-      <defs><clipPath id="${clipId}"><rect x="${formatNumber(object.x)}" y="${formatNumber(object.y)}" width="${formatNumber(object.width)}" height="${formatNumber(object.height)}"></rect></clipPath></defs>
-      <rect x="${formatNumber(object.x)}" y="${formatNumber(object.y)}" width="${formatNumber(object.width)}" height="${formatNumber(headerHeight)}" fill="${escapeXmlAttr(style.headerFill)}"></rect>
-      <rect x="${formatNumber(object.x)}" y="${formatNumber(object.y)}" width="${formatNumber(object.width)}" height="${formatNumber(object.height)}" fill="none" stroke="${escapeXmlAttr(stroke)}" stroke-width="${formatNumber(object.strokeWidth)}"></rect>
-      <line x1="${formatNumber(object.x + columnWidth)}" y1="${formatNumber(object.y)}" x2="${formatNumber(object.x + columnWidth)}" y2="${formatNumber(object.y + object.height)}" stroke="${escapeXmlAttr(stroke)}" stroke-width="${formatNumber(object.strokeWidth)}"></line>
+      <defs><clipPath id="${clipId}"><rect x="${formatNumber(object.x)}" y="${formatNumber(object.y)}" width="${formatNumber(tableWidth)}" height="${formatNumber(tableHeight)}"></rect></clipPath></defs>
+      <rect x="${formatNumber(object.x)}" y="${formatNumber(object.y)}" width="${formatNumber(tableWidth)}" height="${formatNumber(headerHeight)}" fill="${escapeXmlAttr(style.headerFill)}"></rect>
       ${headerText(object.x, "UI Field")}
-      ${headerText(object.x + columnWidth, "Database Field")}
+      ${headerText(object.x + uiColumnWidth, "Database Field")}
       ${dataRows}
       ${horizontalLines}
+      <line x1="${formatNumber(object.x + uiColumnWidth)}" y1="${formatNumber(object.y)}" x2="${formatNumber(object.x + uiColumnWidth)}" y2="${formatNumber(object.y + tableHeight)}" stroke="${escapeXmlAttr(stroke)}" stroke-width="${formatNumber(object.strokeWidth)}" vector-effect="non-scaling-stroke" pointer-events="none"></line>
+      <rect x="${formatNumber(object.x)}" y="${formatNumber(object.y)}" width="${formatNumber(tableWidth)}" height="${formatNumber(tableHeight)}" fill="none" stroke="${escapeXmlAttr(stroke)}" stroke-width="${formatNumber(object.strokeWidth)}" vector-effect="non-scaling-stroke" pointer-events="none"></rect>
     </g>
   `;
 }
@@ -11539,9 +12335,11 @@ function annotationFieldRectangleSvg(object, attributes) {
   const clipId = `pmt-annotation-field-rectangle-clip-${safeSvgId(object.id)}${clipSuffix}`;
   const stroke = object.outlineVisible === false ? "none" : object.stroke;
   const fieldName = annotationFieldRectangleName(object);
+  const mappingLabel = annotationFieldRectangleDatabaseLabel(object, attributes.allObjects || []);
+  const title = mappingLabel ? `Field: ${fieldName} -> ${mappingLabel}` : `Field: ${fieldName}`;
   return `
     <g${attributes.id}${attributes.type}${attributes.classes}${attributes.group}${attributes.locked} opacity="${formatNumber(object.opacity)}">
-      <title>${escapeXmlText(`Field: ${fieldName}`)}</title>
+      <title>${escapeXmlText(title)}</title>
       <defs><clipPath id="${clipId}"><rect x="${formatNumber(object.x)}" y="${formatNumber(object.y)}" width="${formatNumber(object.width)}" height="${formatNumber(object.height)}"></rect></clipPath></defs>
       <rect x="${formatNumber(object.x)}" y="${formatNumber(object.y)}" width="${formatNumber(object.width)}" height="${formatNumber(object.height)}" fill="${escapeXmlAttr(object.fill)}" stroke="${escapeXmlAttr(stroke)}" stroke-width="${formatNumber(object.strokeWidth)}"></rect>
     </g>
@@ -12196,13 +12994,34 @@ function applyAnnotationCrop(state, crop, imageOrId = null) {
   return true;
 }
 
+function setAnnotationImageCropInsets(state, imageOrId, insetsInput) {
+  const image = annotationCropImage(state, imageOrId);
+  if (!image || image.type !== "embedded-image") return false;
+  const fullBounds = annotationObjectBounds(image);
+  if (!fullBounds) return false;
+  const current = annotationImageCropInsets(image);
+  const left = clampNumber(finiteNumber(insetsInput?.left, current.left), 0, fullBounds.width - minimumObjectSize);
+  const top = clampNumber(finiteNumber(insetsInput?.top, current.top), 0, fullBounds.height - minimumObjectSize);
+  const right = clampNumber(finiteNumber(insetsInput?.right, current.right), 0, fullBounds.width - left - minimumObjectSize);
+  const bottom = clampNumber(finiteNumber(insetsInput?.bottom, current.bottom), 0, fullBounds.height - top - minimumObjectSize);
+  return applyAnnotationCrop(state, {
+    x: fullBounds.x + left,
+    y: fullBounds.y + top,
+    width: fullBounds.width - left - right,
+    height: fullBounds.height - top - bottom
+  }, image);
+}
+
 function resetAnnotationCrop(state, imageOrId = null) {
   const image = annotationCropImage(state, imageOrId);
   if (!image || image.type !== "embedded-image") return false;
   const fullImage = annotationObjectBounds(image);
-  if (annotationBoundsEqual(image.imageClip, fullImage)) return false;
+  const hasReversibleCrop = !annotationBoundsEqual(image.imageClip, fullImage);
+  const hasCornerRadius = safeAnnotationCropCornerRadius(image.cropCornerRadius) > 0;
+  if (!hasReversibleCrop && !hasCornerRadius) return false;
   image.imageClip = fullImage;
   image.cropVisible = true;
+  image.cropCornerRadius = 0;
   return true;
 }
 
@@ -12319,9 +13138,13 @@ function handleAnnotationAction(action, context) {
       && context.selectedObjects()[0]?.type === "embedded-image"
       ? context.selectedObjects()[0]
       : null;
+    if (image) context.pushHistory();
     if (image && resetAnnotationCrop(context.state, image)) {
       context.pushHistory();
-      context.setStatus("Full source restored.");
+      context.setStatus("Crop reset. Undo restores the previous crop.");
+    } else if (image) {
+      context.pushHistory();
+      context.setStatus("The full source is already visible.");
     } else {
       context.setStatus("The full source is already visible.");
     }
@@ -12330,6 +13153,16 @@ function handleAnnotationAction(action, context) {
 
   const selection = context.selectedObjects();
   if (!selection.length) return;
+  const selectedRelationshipIds = [...context.selectedIds].filter(isAnnotationEntityRelationshipSelectionId);
+  if (action === "delete" && selectedRelationshipIds.length) {
+    const result = removeAnnotationEntityRelationshipMappings(context.state, selectedRelationshipIds);
+    result.removedIds.forEach(id => context.selectedIds.delete(id));
+    context.setStatus(result.removedCount
+      ? `${result.removedCount} relationship mapping${result.removedCount === 1 ? "" : "s"} removed.`
+      : "The selected relationship mapping could not be removed.");
+    if (result.removedCount) context.pushHistory();
+    return;
+  }
   if (selection.some(object => isAnnotationEntityRelationshipSelectionType(object.type))
     && ["delete", "lock", "group", "ungroup", "front", "forward", "backward", "back"].includes(action)) {
     context.setStatus("Entity relationships are fixed connectors. Use the Format tab to change their appearance.");
@@ -12506,6 +13339,21 @@ function handleAnnotationKeyDown(event, context) {
   }
   if (["delete", "backspace"].includes(key)) {
     event.preventDefault();
+    const selectedRelationshipIds = [...context.selectedIds].filter(isAnnotationEntityRelationshipSelectionId);
+    if (selectedRelationshipIds.length) {
+      const result = removeAnnotationEntityRelationshipMappings(context.state, selectedRelationshipIds);
+      result.removedIds.forEach(id => context.selectedIds.delete(id));
+      if (result.removedCount) {
+        context.pushHistory();
+        context.setStatus(`${result.removedCount} relationship mapping${result.removedCount === 1 ? "" : "s"} removed.`);
+      } else {
+        context.setStatus("The selected relationship mapping could not be removed.");
+      }
+      context.render();
+      if (context.selectedIds.size) context.focusSelection?.();
+      else context.focusWorkspace?.();
+      return;
+    }
     const removable = new Set(context.selectedObjects()
       .filter(object => !isAnnotationEntityRelationshipSelectionType(object.type)
         && !object.locked)
@@ -12765,7 +13613,9 @@ function annotationColorSwatch(color, title) {
 }
 
 function annotationColorMemoryKey(name) {
-  return name === "textColor" ? "foreColor" : name === "fill" ? "hiliteColor" : "annotationStroke";
+  if (name === "textColor" || name.endsWith("TextColor")) return "foreColor";
+  if (name === "fill" || name.endsWith("Fill")) return "hiliteColor";
+  return "annotationStroke";
 }
 
 function readAnnotationLastColor(key, fallback) {
@@ -12844,8 +13694,8 @@ function chooseNativeAnnotationColor(current) {
 }
 
 function previewAnnotationColor(name, color, selection, styles, state, render) {
-  const colorName = ["fill", "stroke", "textColor", "entityNameTextColor", "entityHeaderFill"]
-    .includes(name)
+  const colorName = ["fill", "stroke", "textColor", "entityNameTextColor", "entityHeaderFill"].includes(name)
+    || fieldMappingTableColorStyleNames.has(name)
     ? name
     : "";
   const normalized = normalizePickerColor(color);
@@ -12853,7 +13703,14 @@ function previewAnnotationColor(name, color, selection, styles, state, render) {
 
   const styleHadValue = Object.hasOwn(styles, colorName);
   const styleValue = styleHadValue ? styles[colorName] : undefined;
-  const objectFields = ["fill", "stroke", "textColor", "entityNameTextColor", "entityHeaderFill"];
+  const objectFields = [
+    "fill",
+    "stroke",
+    "textColor",
+    "entityNameTextColor",
+    "entityHeaderFill",
+    ...fieldMappingTableColorStyleNames
+  ];
   const objectSnapshots = (Array.isArray(selection) ? selection : [])
     .filter(object => object && typeof object === "object" && !isAnnotationEntityRelationshipSelectionType(object.type))
     .map(object => ({
@@ -12939,6 +13796,7 @@ function applyAnnotationStyle(name, rawValue, selection, styles, state = null) {
     else if (["textColor", "fontFamily", "fontSize"].includes(name) && ["textbox", "entity", fieldMappingTableObjectType].includes(object.type)) object[name] = value;
     else if (name === "entityNameTextColor" && object.type === "entity") object.entityNameTextColor = value;
     else if (name === "entityHeaderFill" && object.type === "entity") object.entityHeaderFill = value;
+    else if (fieldMappingTableColorStyleNames.has(name) && object.type === fieldMappingTableObjectType) object[name] = value;
     else if (["textAlign", "textVerticalAlign"].includes(name) && object.type === "textbox") object[name] = value;
     if (object.type === "arrow" && ["strokeWidth", "arrowSize"].includes(name)) {
       Object.assign(object, fitAnnotationArrowToHead(object));
@@ -13269,6 +14127,7 @@ function normalizeAnnotationObject(input) {
       ...normalized,
       source,
       imageClip: intersectAnnotationBounds(fullBounds, requestedClip) || fullBounds,
+      cropCornerRadius: safeAnnotationCropCornerRadius(input.cropCornerRadius),
       cropVisible: input.cropVisible !== false,
       cropPermanent: input.cropPermanent === true,
       isOriginalImage: input.isOriginalImage === true
@@ -13310,6 +14169,9 @@ function normalizeAnnotationObject(input) {
     normalized.rows = Array.isArray(input.rows)
       ? input.rows.map(normalizeAnnotationFieldMappingTableRow).filter(Boolean).slice(0, 1000)
       : [];
+    const layout = annotationFieldMappingTableLayout(normalized);
+    normalized.width = layout.width;
+    normalized.height = layout.height;
   }
   if (type === "entity") {
     normalized.entityKind = input.entityKind === fieldRectangleEntityKind ? fieldRectangleEntityKind : "";
@@ -13562,6 +14424,7 @@ function imageDimensions(source) {
 
 function annotationSnapshot(state, sourceRegistry = null) {
   const snapshot = normalizeAnnotationState(state);
+  syncAnnotationFieldMappingTables(snapshot);
   snapshot.objects.forEach(object => {
     if (object.type !== "embedded-image") return;
     if (sourceRegistry && object.source) sourceRegistry.set(object.id, object.source);

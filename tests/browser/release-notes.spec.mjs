@@ -84,6 +84,41 @@ test("first login shows the latest three releases and opens the shared Release N
     .toBe(latestRelease.seenToken);
 });
 
+test("manual What's New release selection keeps the scrolled date list in place", async ({ page }) => {
+  const earlierRelease = releaseNotes[Math.min(12, releaseNotes.length - 1)];
+  await page.addInitScript(seenToken => {
+    localStorage.clear();
+    localStorage.setItem("pmt-view", "Release Notes");
+    localStorage.setItem("pmt-release-notes-last-seen:1", seenToken);
+  }, latestRelease.seenToken);
+  await installReleaseNotesMocks(page, { sessionRestored: true });
+
+  await page.goto("/");
+  await expect(page.locator("#whatsNewDialog")).toHaveCount(0);
+  await page.locator("#userMenuToggle").click();
+  await page.locator("#userMenu button[data-action='whats-new']").click();
+
+  const dialog = page.locator("#whatsNewDialog");
+  const navigation = dialog.locator(".release-note-navigation");
+  await expect(dialog).toBeVisible();
+  await expect(navigation.locator(".release-note-navigation-item")).toHaveCount(releaseNotes.length);
+  const targetDate = navigation.locator(`.release-note-navigation-item[data-release-id="${earlierRelease.id}"]`);
+  await targetDate.evaluate(button => {
+    const navigationElement = button.closest(".release-note-navigation");
+    if (navigationElement) {
+      navigationElement.scrollTop = Math.max(0, button.offsetTop - (navigationElement.clientHeight / 2));
+    }
+  });
+  const beforeClickTop = await navigation.evaluate(element => element.scrollTop);
+  expect(beforeClickTop).toBeGreaterThan(0);
+
+  await targetDate.click();
+  await expect(dialog.locator(".release-note-content h2")).toHaveText(earlierRelease.title);
+  await expect.poll(() => navigation.evaluate(element => element.scrollTop)).toBe(beforeClickTop);
+  await expect(targetDate).toBeFocused();
+  await expectPageFitsViewport(page);
+});
+
 test("returning login shows only releases newer than the user's saved release", async ({ page }) => {
   await page.addInitScript(lastSeenId => {
     localStorage.clear();

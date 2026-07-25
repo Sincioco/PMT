@@ -4469,6 +4469,11 @@ test("RTE image annotation creates, crops, groups, locks, undoes, and reopens ed
     { label: "Entity (E)", title: "Entity (E)", pressed: "false", visibleText: "", iconHidden: "true", hasSvg: true },
     { label: "Field Rectangle", title: "Field Rectangle", pressed: "false", visibleText: "", iconHidden: "true", hasSvg: true }
   ]);
+  await expect(dialog.locator(".image-annotation-toolbar-separator")).toHaveCount(1);
+  const toolbarFieldMappingButton = dialog.locator(".image-annotation-toolbar button[data-annotation-generate-field-mapping-table]");
+  await expect(toolbarFieldMappingButton).toHaveCount(1);
+  await expect(toolbarFieldMappingButton).toHaveAttribute("title", "Generate Field Mapping Table");
+  await expect(toolbarFieldMappingButton.locator("svg.image-annotation-tool-icon")).toHaveCount(1);
   await dialog.getByRole("button", { name: "Circle (O)", exact: true }).click();
   const insertedCircle = canvas.locator("[data-annotation-object-type='circle']");
   await expect(insertedCircle).toHaveCount(1);

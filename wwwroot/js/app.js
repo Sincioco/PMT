@@ -9,8 +9,8 @@ import {
   buildAnnotationSvg,
   parseAnnotationSvg,
   openImageAnnotationDialog
-} from "./components/image-annotation.js?v=20260725-field-mapping-v3";
-import { createWhatsNew } from "./components/whats-new.js?v=20260724-day36-v1";
+} from "./components/image-annotation.js?v=20260725-field-mapping-v19";
+import { createWhatsNew } from "./components/whats-new.js?v=20260725-day37-v2";
 import {
   htmlWithoutUserMentionMarkup,
   initializeUserMentions
@@ -69,18 +69,18 @@ import {
 import { createBacklogFeature } from "./features/backlog/backlog.js?v=20260720-work-item-export-images-v4";
 import { createBoardFeature } from "./features/board/board.js?v=20260722-rich-entity-mentions-v1";
 import { createBugsFeature } from "./features/bugs/bugs.js?v=20260724-day36-v3";
-import { createDashboardFeature } from "./features/dashboard/dashboard.js?v=release-notes-2026-07-24-day-36-60e81e5b5748";
-import { createDiagramFeature } from "./features/diagram/diagram.js?v=20260725-day36-v7";
+import { createDashboardFeature } from "./features/dashboard/dashboard.js?v=release-notes-2026-07-25-day-37-b22d811d4398";
+import { createDiagramFeature } from "./features/diagram/diagram.js?v=20260725-day37-v13";
 import { createDocumentationFeature } from "./features/documentation/documentation.js?v=20260725-day36-v5";
 import {
   createGanttFeature,
   currentSprintForProject,
   ganttStartDate
-} from "./features/gantt/gantt.js?v=release-notes-2026-07-24-day-36-60e81e5b5748";
+} from "./features/gantt/gantt.js?v=release-notes-2026-07-25-day-37-b22d811d4398";
 import { createInvitationsFeature } from "./features/invitations/invitations.js?v=20260722-auth-flyby-v1";
 import { createProjectsFeature } from "./features/projects/projects.js?v=20260719-day32-rte-diagram";
-import { createReleaseNotesFeature } from "./features/release-notes/release-notes.js?v=release-notes-2026-07-24-day-36-60e81e5b5748";
-import { createRoadMapFeature } from "./features/roadmap/roadmap.js?v=release-notes-2026-07-24-day-36-60e81e5b5748";
+import { createReleaseNotesFeature } from "./features/release-notes/release-notes.js?v=release-notes-2026-07-25-day-37-b22d811d4398";
+import { createRoadMapFeature } from "./features/roadmap/roadmap.js?v=release-notes-2026-07-25-day-37-b22d811d4398";
 import { createLogFeature } from "./features/personal-log/log.js?v=20260722-rte-toggle-state-v1";
 import { createScrumFeature } from "./features/scrum/scrum.js?v=20260722-ole-viewport-v1";
 import { createSettingsFeature } from "./features/settings/settings.js?v=20260725-suggestions-v1";

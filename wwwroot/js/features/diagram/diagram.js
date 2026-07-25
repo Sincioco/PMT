@@ -5,9 +5,14 @@ import {
 } from "../../components/entity-cards.js?v=20260722-rich-entity-mentions-v1";
 import {
   annotationSvgPlaneMetrics,
+  annotationEntityFieldBounds,
+  annotationEntityFieldLabelPoint,
   buildAnnotationSvg,
+  annotationFieldMappingSelectionSvg,
   buildPortableAnnotationState,
   buildPortableAnnotationSvg,
+  annotationEntityFieldSupportsMapping,
+  annotationEntityVisibleFields,
   copyAnnotationPngToClipboard,
   copyAnnotationSvgToClipboard,
   openImageAnnotationDialog,
@@ -17,7 +22,7 @@ import {
   setAnnotationEntityCollapsedState,
   setAnnotationEntityDataTypeVisibility,
   zoomAnnotationAtPoint
-} from "../../components/image-annotation.js?v=20260725-field-mapping-v3";
+} from "../../components/image-annotation.js?v=20260725-field-mapping-v19";
 import { openPublicLinkDialog } from "../../components/public-links.js?v=20260725-day36-v4";
 import {
   checkedFilterValues,
@@ -413,7 +418,8 @@ export function createDiagramFeature({
         ${diagramTreeContextMenuItemHtml("edit-diagram", "Edit Diagram", "&#9998;", "data-diagram-context-requires-update")}
         ${diagramTreeContextMenuItemHtml("duplicate-diagram", "Duplicate", "&#128203;", "data-diagram-context-requires-create")}
         ${diagramTreeContextMenuItemHtml("copy-public-diagram-link", "Public Link", "&#128279;", "data-diagram-context-requires-public")}
-        ${diagramTreeContextMenuItemHtml("download-diagram", "Download", diagramDownloadIconHtml())}
+        ${diagramTreeContextMenuItemHtml("download-diagram", "Download as SVG", diagramDownloadIconHtml())}
+        ${diagramTreeContextMenuItemHtml("download-diagram-png", "Download as PNG", diagramDownloadIconHtml())}
         ${diagramTreeContextMenuItemHtml("export-pmt-diagram", "Export PMT Diagram", "&#8681;")}
         ${diagramTreeContextMenuItemHtml("delete-diagram", "Delete", "&#128465;", "data-diagram-context-requires-delete", "is-danger")}
       </div>
@@ -508,7 +514,12 @@ export function createDiagramFeature({
     }
     if (action === "download-diagram") {
       const document = diagramDocuments().find(item => item.id === (id || selectedDiagramDocumentId));
-      if (document) downloadDiagram(document);
+      if (document) await downloadDiagram(document);
+      return true;
+    }
+    if (action === "download-diagram-png") {
+      const document = diagramDocuments().find(item => item.id === (id || selectedDiagramDocumentId));
+      if (document) await downloadDiagramPng(document);
       return true;
     }
     if (action === "duplicate-diagram") {
@@ -526,19 +537,214 @@ export function createDiagramFeature({
     return false;
   }
 
-  function downloadDiagram(document) {
+  async function downloadDiagram(document) {
+    const options = await chooseDiagramSvgDownloadOptions();
+    if (!options) return;
+
+    try {
+      const sourceSvg = await diagramDownloadSvg(document, { portable: true });
+      const svg = prepareDiagramSvgForDownload(sourceSvg, options);
+      downloadTextFile(svg, `${safeFileName(document.title)}.svg`, "image/svg+xml");
+      notify?.("Diagram downloaded as SVG.");
+    } catch (error) {
+      notify?.(error?.message || "The Diagram could not be downloaded as SVG.");
+    }
+  }
+
+  async function downloadDiagramPng(document) {
+    const options = await chooseDiagramPngDownloadOptions();
+    if (!options) return;
+
+    try {
+      const sourceSvg = await diagramDownloadSvg(document, { portable: true });
+      const pngSvg = prepareDiagramSvgForDownload(sourceSvg, options);
+      const pngBlob = await diagramSvgToPngBlob(pngSvg);
+      downloadBlobFile(pngBlob, `${safeFileName(document.title)}.png`);
+      notify?.("Diagram downloaded as PNG.");
+    } catch (error) {
+      notify?.(error?.message || "The Diagram could not be downloaded as PNG.");
+    }
+  }
+
+  async function diagramDownloadSvg(document, options = {}) {
     const source = diagramImage(document)?.source || "";
-    if (!source) {
-      notify?.("The Diagram file could not be found.");
-      return;
+    if (!source) throw new Error("The Diagram SVG could not be found.");
+
+    const svg = decodeDiagramSvgDataUrl(source) || await loadDiagramSvgSource(source);
+    if (!svg) throw new Error("The Diagram SVG could not be read.");
+    if (options.portable !== true) return svg;
+
+    const state = parseAnnotationSvg(svg);
+    if (!state) return svg;
+    return await buildPortableAnnotationSvg(state);
+  }
+
+  function chooseDiagramSvgDownloadOptions() {
+    return openDiagramDownloadOptionsDialog("svg");
+  }
+
+  function chooseDiagramPngDownloadOptions() {
+    return openDiagramDownloadOptionsDialog("png");
+  }
+
+  function openDiagramDownloadOptionsDialog(format) {
+    const safeFormat = format === "svg" ? "svg" : "png";
+    const title = safeFormat === "svg" ? "Download as SVG" : "Download as PNG";
+    const backgroundName = `diagram${safeFormat.toUpperCase()}Background`;
+    const marginName = `diagram${safeFormat.toUpperCase()}Margin`;
+    const marginOptions = Array.from({ length: 200 }, (_, index) => index + 1)
+      .map(value => `<option value="${value}"${value === 20 ? " selected" : ""}>${value}px</option>`)
+      .join("");
+    const backgroundLabels = safeFormat === "svg"
+      ? { transparent: "No white background", white: "White background" }
+      : { transparent: "Transparent background", white: "White background" };
+    return new Promise(resolve => {
+      const modal = globalThis.document.createElement("dialog");
+      modal.className = `dialog mini-dialog diagram-download-dialog diagram-${safeFormat}-download-dialog`;
+      modal.innerHTML = `
+        <form>
+          <div class="dialog-head">
+            <h2>${title}</h2>
+            <div class="dialog-head-actions">
+              <button type="button" class="icon-btn" data-diagram-download-cancel title="Close" aria-label="Close">x</button>
+            </div>
+          </div>
+          <div class="dialog-body">
+            <fieldset class="field">
+              <legend>Background</legend>
+              <label>
+                <input type="radio" name="${backgroundName}" value="transparent" checked>
+                <span>${backgroundLabels.transparent}</span>
+              </label>
+              <label>
+                <input type="radio" name="${backgroundName}" value="white">
+                <span>${backgroundLabels.white}</span>
+              </label>
+            </fieldset>
+            <label class="field">
+              <span>Margins</span>
+              <select name="${marginName}">${marginOptions}</select>
+            </label>
+          </div>
+          <div class="dialog-actions">
+            <button type="button" class="secondary text-icon-button" data-diagram-download-cancel>${buttonContent("&#10005;", "Cancel")}</button>
+            <button type="submit" class="primary text-icon-button">${buttonContent("&#8681;", "Download")}</button>
+          </div>
+        </form>
+      `;
+      const form = modal.querySelector("form");
+      const finish = value => {
+        if (modal.open) modal.close();
+        modal.remove();
+        resolve(value || null);
+      };
+      modal.querySelectorAll("[data-diagram-download-cancel]").forEach(button => {
+        button.addEventListener("click", () => finish(null));
+      });
+      form?.addEventListener("submit", event => {
+        event.preventDefault();
+        finish({
+          background: form.querySelector(`input[name='${backgroundName}']:checked`)?.value || "transparent",
+          margin: diagramDownloadMargin(form.querySelector(`select[name='${marginName}']`)?.value)
+        });
+      });
+      modal.addEventListener("cancel", event => {
+        event.preventDefault();
+        finish(null);
+      });
+      globalThis.document.body.appendChild(modal);
+      modal.showModal();
+      modal.querySelector(`input[name='${backgroundName}']:checked`)?.focus({ preventScroll: true });
+    });
+  }
+
+  function prepareDiagramSvgForDownload(svgInput, options = {}) {
+    const parser = new DOMParser();
+    const document = parser.parseFromString(String(svgInput || ""), "image/svg+xml");
+    const svg = document.documentElement;
+    if (!svg || svg.nodeName.toLowerCase() !== "svg" || document.querySelector("parsererror")) {
+      return String(svgInput || "");
     }
 
-    const link = globalThis.document.createElement("a");
-    link.href = appUrl(source);
-    link.download = `${safeFileName(document.title)}.${diagramDownloadExtension(source)}`;
-    globalThis.document.body.appendChild(link);
-    link.click();
-    link.remove();
+    const margin = diagramDownloadMargin(options.margin);
+    const currentBounds = diagramSvgViewBoxBounds(svg);
+    const outputBounds = {
+      x: currentBounds.x - margin,
+      y: currentBounds.y - margin,
+      width: currentBounds.width + (margin * 2),
+      height: currentBounds.height + (margin * 2)
+    };
+    svg.setAttribute("viewBox", `${outputBounds.x} ${outputBounds.y} ${outputBounds.width} ${outputBounds.height}`);
+    svg.setAttribute("width", String(outputBounds.width));
+    svg.setAttribute("height", String(outputBounds.height));
+    svg.querySelectorAll(".image-annotation-canvas-background").forEach(element => element.remove());
+    if (options.background === "white") {
+      const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+      rect.setAttribute("class", "image-annotation-canvas-background");
+      rect.setAttribute("x", String(outputBounds.x));
+      rect.setAttribute("y", String(outputBounds.y));
+      rect.setAttribute("width", String(outputBounds.width));
+      rect.setAttribute("height", String(outputBounds.height));
+      rect.setAttribute("fill", "#ffffff");
+      rect.setAttribute("pointer-events", "none");
+      svg.insertBefore(rect, svg.firstChild);
+    }
+
+    if (!svg.getAttribute("xmlns")) svg.setAttribute("xmlns", "http://www.w3.org/2000/svg");
+    return new XMLSerializer().serializeToString(svg);
+  }
+
+  function diagramDownloadMargin(value) {
+    const number = Number.parseInt(value, 10);
+    if (!Number.isFinite(number)) return 20;
+    return Math.max(1, Math.min(200, number));
+  }
+
+  function diagramSvgViewBoxBounds(svg) {
+    const viewBox = String(svg.getAttribute("viewBox") || "")
+      .trim()
+      .split(/[,\s]+/)
+      .map(Number);
+    if (viewBox.length === 4 && viewBox.every(Number.isFinite)) {
+      return { x: viewBox[0], y: viewBox[1], width: Math.max(1, viewBox[2]), height: Math.max(1, viewBox[3]) };
+    }
+    return {
+      x: 0,
+      y: 0,
+      width: Math.max(1, Number.parseFloat(svg.getAttribute("width") || "") || blankDiagramWidth),
+      height: Math.max(1, Number.parseFloat(svg.getAttribute("height") || "") || blankDiagramHeight)
+    };
+  }
+
+  async function diagramSvgToPngBlob(svg) {
+    const metrics = annotationSvgClipboardMetrics(svg);
+    const maximumDimension = 8192;
+    const scale = Math.min(1, maximumDimension / metrics.width, maximumDimension / metrics.height);
+    const outputWidth = Math.max(1, Math.ceil(metrics.width * scale));
+    const outputHeight = Math.max(1, Math.ceil(metrics.height * scale));
+    const url = URL.createObjectURL(new Blob([svg], { type: "image/svg+xml" }));
+    try {
+      const image = await new Promise((resolve, reject) => {
+        const element = new Image();
+        element.addEventListener("load", () => resolve(element), { once: true });
+        element.addEventListener("error", () => reject(new Error("The Diagram SVG could not be rendered as PNG.")), { once: true });
+        element.src = url;
+      });
+      const canvas = globalThis.document.createElement("canvas");
+      canvas.width = outputWidth;
+      canvas.height = outputHeight;
+      const context = canvas.getContext("2d");
+      if (!context) throw new Error("The Diagram SVG could not be rendered as PNG.");
+      context.drawImage(image, 0, 0, outputWidth, outputHeight);
+      return await new Promise((resolve, reject) => {
+        canvas.toBlob(blob => {
+          if (blob) resolve(blob);
+          else reject(new Error("The Diagram could not be converted to PNG."));
+        }, "image/png");
+      });
+    } finally {
+      URL.revokeObjectURL(url);
+    }
   }
 
   async function copyPublicDiagramLink(document) {
@@ -1292,7 +1498,11 @@ export function createDiagramFeature({
     if (readonlyState) {
       const layoutResult = resolveAnnotationEntityOverlaps(readonlyState);
       if (layoutResult.movedCount) {
-        const markup = buildAnnotationSvg(readonlyState, { interactiveEntityHeaders: true, interactiveRelationships: true });
+        const markup = buildAnnotationSvg(readonlyState, {
+          interactiveEntityHeaders: true,
+          interactiveRelationships: true,
+          interactiveFieldMapping: true
+        });
         replaceReadonlySvg(markup);
       }
     }
@@ -1376,6 +1586,18 @@ export function createDiagramFeature({
       }, { signal });
     }
 
+    let readonlySelectedRelationshipId = "";
+    let readonlyFieldMappingPinnedKey = "";
+    let readonlyFieldMappingPinnedIds = new Set();
+    let readonlyFieldMappingActiveIds = new Set();
+    let readonlyFieldMappingHoverKey = "";
+    let readonlyFieldMappingAttentionActiveKey = "";
+    let readonlyFieldMappingAttentionShownKey = "";
+    let readonlyFieldMappingAttentionTimer = 0;
+    let readonlyFieldMappingAttentionClearTimer = 0;
+    let readonlyLastFieldMappingPointerKey = "";
+    let readonlyLastFieldMappingPointerAt = 0;
+
     const viewportSize = () => ({
       width: Math.max(1, viewport.clientWidth),
       height: Math.max(1, viewport.clientHeight)
@@ -1413,13 +1635,387 @@ export function createDiagramFeature({
       if (!readonlyState || !image.matches("svg")) return;
       replaceReadonlySvg(buildAnnotationSvg(readonlyState, {
         interactiveEntityHeaders: true,
-        interactiveRelationships: true
+        interactiveRelationships: true,
+        interactiveFieldMapping: true,
+        fieldMappingHoverIds: readonlyFieldMappingActiveIds,
+        selectedRelationshipIds: readonlySelectedRelationshipId ? new Set([readonlySelectedRelationshipId]) : null
       }));
       const viewBox = image.viewBox?.baseVal;
       imageWidth = Number.parseFloat(image.getAttribute("width")) || viewBox?.width || imageWidth;
       imageHeight = Number.parseFloat(image.getAttribute("height")) || viewBox?.height || imageHeight;
       drawStage(renderedZoom, stageMetrics(renderedZoom));
       syncReadonlyConnectionSymbolsMenu();
+      applyReadonlyFieldMappingHighlight();
+    };
+
+    const readonlyFieldMappingCellSelector = "[data-annotation-field-mapping-cell]";
+    const readonlyFieldMappingCellKey = cell => String(cell?.dataset?.annotationFieldMappingRowKey || "");
+    const readonlyFieldMappingCellKind = cell => String(cell?.dataset?.annotationFieldMappingCellKind || "ui");
+    const readonlyFieldMappingPointerIsDoubleClick = (cell, event) => {
+      const key = readonlyFieldMappingCellKey(cell);
+      const now = performance.now();
+      const repeated = key && key === readonlyLastFieldMappingPointerKey && now - readonlyLastFieldMappingPointerAt <= 500;
+      readonlyLastFieldMappingPointerKey = key;
+      readonlyLastFieldMappingPointerAt = now;
+      return event.detail > 1 || repeated;
+    };
+    const readonlyFieldMappingFieldRectangle = cell => {
+      const id = String(cell?.dataset?.annotationFieldRectangleId || "");
+      return readonlyState?.objects?.find(object => object.id === id && diagramObjectIsFieldRectangle(object)) || null;
+    };
+    const sameReadonlyIdSet = (left, right) => {
+      if (left.size !== right.size) return false;
+      for (const id of left) {
+        if (!right.has(id)) return false;
+      }
+      return true;
+    };
+    const readonlyEntityMatchesReference = (entity, referencedSchema, referencedTable) => {
+      if (String(entity?.entityName || "").toLowerCase() !== String(referencedTable || "").toLowerCase()) return false;
+      return !referencedSchema
+        || String(entity?.entitySchema || "").toLowerCase() === String(referencedSchema || "").toLowerCase();
+    };
+    const readonlyEntityVisibleFieldIndex = (entity, field) =>
+      annotationEntityVisibleFields(entity)
+        .findIndex(candidate => String(candidate?.name || "").toLowerCase() === String(field?.name || "").toLowerCase());
+    const readonlyRelationshipId = relationship => {
+      const parts = [
+        relationship.source?.id,
+        ...(relationship.foreignKey?.columns || []),
+        relationship.target?.id,
+        ...(relationship.foreignKey?.referencedColumns || []),
+        relationship.foreignKey?.name || ""
+      ].map(value => encodeURIComponent(String(value || "").toLocaleLowerCase()));
+      return `entity-relationship:${parts.join(":")}`;
+    };
+    const readonlyEntityRelationships = () => {
+      const entities = (Array.isArray(readonlyState?.objects) ? readonlyState.objects : [])
+        .filter(object => object?.type === "entity" && object.visible !== false);
+      return entities.flatMap(source => (source.foreignKeys || []).map(foreignKey => {
+        const sourceField = source.fields?.find(field => (foreignKey.columns || [])
+          .some(column => String(column || "").toLowerCase() === String(field?.name || "").toLowerCase()));
+        if (!annotationEntityFieldSupportsMapping(sourceField)) return null;
+        const target = entities.find(candidate =>
+          readonlyEntityMatchesReference(candidate, foreignKey.referencedSchema, foreignKey.referencedTable));
+        if (!target || (target === source && source.showSelfRelationships !== true)) return null;
+        const targetField = target.fields?.find(field => (foreignKey.referencedColumns || [])
+          .some(column => String(column || "").toLowerCase() === String(field?.name || "").toLowerCase())) || null;
+        if (!targetField
+            || readonlyEntityVisibleFieldIndex(source, sourceField) < 0
+            || readonlyEntityVisibleFieldIndex(target, targetField) < 0) return null;
+        const relationship = { source, sourceField, target, targetField, foreignKey };
+        return { ...relationship, id: readonlyRelationshipId(relationship) };
+      }).filter(Boolean));
+    };
+    const readonlyFieldMappingTargets = cell => {
+      const fieldRectangle = readonlyFieldMappingFieldRectangle(cell);
+      const ids = new Set();
+      const relationships = [];
+      const connectedEntities = [];
+      let databaseEntity = null;
+      let databaseField = null;
+      if (!fieldRectangle) {
+        return { fieldRectangle: null, relationships, connectedEntities, databaseEntity, databaseField, ids };
+      }
+      ids.add(fieldRectangle.id);
+      if (!readonlyState?.hideAllEntityRelationships) {
+        readonlyEntityRelationships()
+          .filter(relationship => relationship.source?.id === fieldRectangle.id || relationship.target?.id === fieldRectangle.id)
+          .forEach(relationship => {
+            relationships.push(relationship);
+            ids.add(relationship.id);
+            const entity = relationship.source?.id === fieldRectangle.id ? relationship.target : relationship.source;
+            const field = relationship.source?.id === fieldRectangle.id ? relationship.targetField : relationship.sourceField;
+            if (entity && !diagramObjectIsFieldRectangle(entity)) {
+              connectedEntities.push(entity);
+              ids.add(entity.id);
+              if (!databaseEntity) {
+                databaseEntity = entity;
+                databaseField = field || null;
+              }
+            }
+          });
+      }
+      return { fieldRectangle, relationships, connectedEntities, databaseEntity, databaseField, ids };
+    };
+    const readonlyFieldMappingIds = cell => {
+      if (!cell) return new Set();
+      return readonlyFieldMappingTargets(cell).ids;
+    };
+    const readonlySvgNumber = value => {
+      const number = Number(value);
+      return Number.isFinite(number) ? String(Math.round(number * 1000) / 1000) : "0";
+    };
+    const readonlyObjectBounds = object => object
+      ? {
+          x: Number(object.x) || 0,
+          y: Number(object.y) || 0,
+          width: Math.max(1, Number(object.width) || 1),
+          height: Math.max(1, Number(object.height) || 1)
+        }
+      : null;
+    const readonlyBoundsCenter = bounds => ({
+      x: bounds.x + (bounds.width / 2),
+      y: bounds.y + (bounds.height / 2)
+    });
+    const readonlyBoundsEdgePointToward = (bounds, target) => {
+      const center = readonlyBoundsCenter(bounds);
+      const deltaX = target.x - center.x;
+      const deltaY = target.y - center.y;
+      if (!deltaX && !deltaY) return center;
+      const scale = Math.min(
+        Math.abs(deltaX) > 0 ? (bounds.width / 2) / Math.abs(deltaX) : Number.POSITIVE_INFINITY,
+        Math.abs(deltaY) > 0 ? (bounds.height / 2) / Math.abs(deltaY) : Number.POSITIVE_INFINITY
+      );
+      return {
+        x: center.x + (deltaX * scale),
+        y: center.y + (deltaY * scale)
+      };
+    };
+    const readonlyFieldMappingAttentionArrowSvg = (start, end) => {
+      const deltaX = end.x - start.x;
+      const deltaY = end.y - start.y;
+      const length = Math.hypot(deltaX, deltaY);
+      if (length < 1) return "";
+      const unitX = deltaX / length;
+      const unitY = deltaY / length;
+      const arrowLength = Math.min(20, Math.max(10, length * 0.18));
+      const arrowWidth = arrowLength * 0.65;
+      const base = {
+        x: end.x - (unitX * arrowLength),
+        y: end.y - (unitY * arrowLength)
+      };
+      const left = {
+        x: base.x + (-unitY * arrowWidth / 2),
+        y: base.y + (unitX * arrowWidth / 2)
+      };
+      const right = {
+        x: base.x - (-unitY * arrowWidth / 2),
+        y: base.y - (unitX * arrowWidth / 2)
+      };
+      return `
+        <g class="image-annotation-field-mapping-attention-arrow" data-annotation-field-mapping-attention-arrow="true" pointer-events="none">
+          <line class="image-annotation-field-mapping-attention-arrow-line" x1="${readonlySvgNumber(start.x)}" y1="${readonlySvgNumber(start.y)}" x2="${readonlySvgNumber(base.x)}" y2="${readonlySvgNumber(base.y)}" pointer-events="none"></line>
+          <polygon class="image-annotation-field-mapping-attention-arrow-head" points="${readonlySvgNumber(end.x)},${readonlySvgNumber(end.y)} ${readonlySvgNumber(left.x)},${readonlySvgNumber(left.y)} ${readonlySvgNumber(right.x)},${readonlySvgNumber(right.y)}" pointer-events="none"></polygon>
+        </g>
+      `;
+    };
+    function removeReadonlyFieldMappingAttentionArrow() {
+      image.querySelectorAll("[data-annotation-field-mapping-attention-arrow]")
+        .forEach(element => element.remove());
+    }
+    function clearReadonlyFieldMappingAttentionArrow() {
+      if (readonlyFieldMappingAttentionClearTimer) {
+        window.clearTimeout(readonlyFieldMappingAttentionClearTimer);
+        readonlyFieldMappingAttentionClearTimer = 0;
+      }
+      readonlyFieldMappingAttentionActiveKey = "";
+      removeReadonlyFieldMappingAttentionArrow();
+    }
+    function resetReadonlyFieldMappingAttention(resetShown = true) {
+      if (readonlyFieldMappingAttentionTimer) {
+        window.clearTimeout(readonlyFieldMappingAttentionTimer);
+        readonlyFieldMappingAttentionTimer = 0;
+      }
+      clearReadonlyFieldMappingAttentionArrow();
+      readonlyFieldMappingHoverKey = "";
+      if (resetShown) readonlyFieldMappingAttentionShownKey = "";
+    }
+    function queueReadonlyFieldMappingAttentionClear(key) {
+      if (readonlyFieldMappingAttentionClearTimer) window.clearTimeout(readonlyFieldMappingAttentionClearTimer);
+      readonlyFieldMappingAttentionClearTimer = window.setTimeout(() => {
+        readonlyFieldMappingAttentionClearTimer = 0;
+        if (readonlyFieldMappingAttentionActiveKey === key) {
+          readonlyFieldMappingAttentionActiveKey = "";
+          removeReadonlyFieldMappingAttentionArrow();
+        }
+      }, 3000);
+    }
+    function activateReadonlyFieldMappingAttention(key) {
+      if (!key) {
+        resetReadonlyFieldMappingAttention(true);
+        return;
+      }
+      if (readonlyFieldMappingAttentionTimer) {
+        window.clearTimeout(readonlyFieldMappingAttentionTimer);
+        readonlyFieldMappingAttentionTimer = 0;
+      }
+      if (readonlyFieldMappingAttentionClearTimer) {
+        window.clearTimeout(readonlyFieldMappingAttentionClearTimer);
+        readonlyFieldMappingAttentionClearTimer = 0;
+      }
+      readonlyFieldMappingHoverKey = key;
+      readonlyFieldMappingAttentionActiveKey = key;
+      readonlyFieldMappingAttentionShownKey = key;
+      renderReadonlyFieldMappingAttentionArrow();
+      queueReadonlyFieldMappingAttentionClear(key);
+    }
+    const readonlyFieldMappingNavigationBounds = cell => {
+      const targets = readonlyFieldMappingTargets(cell);
+      if (readonlyFieldMappingCellKind(cell) === "database") {
+        return annotationEntityFieldBounds(targets.databaseEntity, targets.databaseField)
+          || readonlyObjectBounds(targets.databaseEntity);
+      }
+      return readonlyObjectBounds(targets.fieldRectangle);
+    };
+    function renderReadonlyFieldMappingAttentionArrow() {
+      removeReadonlyFieldMappingAttentionArrow();
+      if (!readonlyFieldMappingAttentionActiveKey) return;
+      const cell = image.querySelector(`[data-annotation-field-mapping-row-key="${CSS.escape(readonlyFieldMappingAttentionActiveKey)}"]`);
+      if (!cell) return;
+      const rowBounds = {
+        x: Number(cell.dataset.annotationFieldMappingCellX || cell.dataset.annotationFieldMappingRowX),
+        y: Number(cell.dataset.annotationFieldMappingCellY || cell.dataset.annotationFieldMappingRowY),
+        width: Math.max(1, Number(cell.dataset.annotationFieldMappingCellWidth || cell.dataset.annotationFieldMappingRowWidth) || 1),
+        height: Math.max(1, Number(cell.dataset.annotationFieldMappingCellHeight || cell.dataset.annotationFieldMappingRowHeight) || 1)
+      };
+      const fieldBounds = readonlyFieldMappingNavigationBounds(cell);
+      if (!Number.isFinite(rowBounds.x) || !Number.isFinite(rowBounds.y) || !fieldBounds) return;
+      const targets = readonlyFieldMappingTargets(cell);
+      const databaseFieldPoint = readonlyFieldMappingCellKind(cell) === "database"
+        ? annotationEntityFieldLabelPoint(targets.databaseEntity, targets.databaseField)
+        : null;
+      const fieldTarget = databaseFieldPoint || readonlyBoundsCenter(fieldBounds);
+      const start = readonlyBoundsEdgePointToward(rowBounds, fieldTarget);
+      const end = databaseFieldPoint || readonlyBoundsEdgePointToward(fieldBounds, start);
+      const markup = readonlyFieldMappingAttentionArrowSvg(start, end);
+      if (markup) image.insertAdjacentHTML("beforeend", markup);
+    }
+    function applyReadonlyFieldMappingHighlight() {
+      image.querySelectorAll(".image-annotation-object.is-field-mapping-hover, .image-annotation-entity-relationship.is-field-mapping-hover")
+        .forEach(element => element.classList.remove("is-field-mapping-hover"));
+      image.querySelectorAll("[data-annotation-field-mapping-hover-path]")
+        .forEach(element => element.remove());
+      image.querySelectorAll("[data-annotation-field-mapping-selection-overlay]")
+        .forEach(element => element.remove());
+      readonlyFieldMappingActiveIds.forEach(id => {
+        const element = image.querySelector(`[data-annotation-object-id="${CSS.escape(id)}"]`);
+        if (!element) return;
+        element.classList.add("is-field-mapping-hover");
+        if (element.dataset.annotationObjectType !== "entity-relationship") return;
+        const hit = element.querySelector(".image-annotation-entity-relationship-hit");
+        const path = hit?.getAttribute("d") || "";
+        if (!path) return;
+        const stroke = element.dataset.annotationRelationshipStroke || "var(--color-focus-ring)";
+        element.insertAdjacentHTML(
+          "beforeend",
+          `<path class="image-annotation-field-mapping-hover-relationship" data-annotation-field-mapping-hover-path="true" d="${escapeAttr(path)}" fill="none" stroke="${escapeAttr(stroke)}" stroke-width="3" vector-effect="non-scaling-stroke" pointer-events="none"></path>`
+        );
+      });
+      const selection = annotationFieldMappingSelectionSvg(readonlyState, readonlyFieldMappingActiveIds, renderedZoom);
+      if (selection) image.insertAdjacentHTML("beforeend", selection);
+      renderReadonlyFieldMappingAttentionArrow();
+    }
+    const setReadonlyFieldMappingActiveIds = ids => {
+      const nextIds = ids instanceof Set ? ids : new Set(ids || []);
+      if (sameReadonlyIdSet(readonlyFieldMappingActiveIds, nextIds)) return;
+      readonlyFieldMappingActiveIds = new Set(nextIds);
+      applyReadonlyFieldMappingHighlight();
+    };
+    const scheduleReadonlyFieldMappingAttention = cell => {
+      const key = readonlyFieldMappingCellKey(cell);
+      if (!key) {
+        resetReadonlyFieldMappingAttention(true);
+        return;
+      }
+      if (key === readonlyFieldMappingHoverKey) return;
+      resetReadonlyFieldMappingAttention(true);
+      readonlyFieldMappingHoverKey = key;
+      readonlyFieldMappingAttentionTimer = window.setTimeout(() => {
+        readonlyFieldMappingAttentionTimer = 0;
+        if (readonlyFieldMappingHoverKey !== key || readonlyFieldMappingAttentionShownKey === key) return;
+        activateReadonlyFieldMappingAttention(key);
+      }, 3000);
+    };
+    const setReadonlyFieldMappingHover = cell => {
+      const validCell = cell && image.contains(cell) ? cell : null;
+      if (validCell) {
+        scheduleReadonlyFieldMappingAttention(validCell);
+        setReadonlyFieldMappingActiveIds(readonlyFieldMappingIds(validCell));
+        return;
+      }
+      resetReadonlyFieldMappingAttention(true);
+      setReadonlyFieldMappingActiveIds(readonlyFieldMappingPinnedIds);
+    };
+    const clearReadonlyFieldMappingSelection = () => {
+      readonlyFieldMappingPinnedKey = "";
+      readonlyFieldMappingPinnedIds = new Set();
+      resetReadonlyFieldMappingAttention(true);
+      setReadonlyFieldMappingActiveIds(new Set());
+    };
+    const readonlyViewBoxBounds = () => {
+      const viewBox = image.viewBox?.baseVal;
+      return {
+        x: Number(viewBox?.x) || 0,
+        y: Number(viewBox?.y) || 0,
+        width: Number(viewBox?.width) || imageWidth,
+        height: Number(viewBox?.height) || imageHeight
+      };
+    };
+    const adjustedReadonlyZoomForBounds = (bounds, size = viewportSize()) => {
+      const readableZoom = Math.max(
+        96 / Math.max(1, bounds.width),
+        30 / Math.max(1, bounds.height)
+      );
+      const fitZoom = Math.min(
+        (Math.max(1, size.width) * 0.72) / Math.max(1, bounds.width),
+        (Math.max(1, size.height) * 0.58) / Math.max(1, bounds.height)
+      );
+      let targetZoom = renderedZoom;
+      if (renderedZoom < readableZoom) targetZoom = Math.min(readableZoom, fitZoom);
+      else if (renderedZoom > fitZoom) targetZoom = fitZoom;
+      return clampDiagramZoom(targetZoom);
+    };
+    const centerReadonlyBounds = bounds => {
+      if (!bounds) return false;
+      settleZoomAtCurrentDisplay();
+      const size = viewportSize();
+      const targetZoom = adjustedReadonlyZoomForBounds(bounds, size);
+      const metrics = stageMetrics(targetZoom, size);
+      if (Math.abs(targetZoom - renderedZoom) >= 0.000001) {
+        drawStage(targetZoom, metrics);
+        renderedZoom = targetZoom;
+        previewZoom = targetZoom;
+        applyReadonlyFieldMappingHighlight();
+      }
+      const viewBox = readonlyViewBoxBounds();
+      const centerX = (bounds.x + (bounds.width / 2) - viewBox.x) * targetZoom;
+      const centerY = (bounds.y + (bounds.height / 2) - viewBox.y) * targetZoom;
+      suppressZoomScroll = true;
+      viewport.scrollLeft = Math.max(0, stage.offsetLeft + metrics.offsetX + centerX - (size.width / 2));
+      viewport.scrollTop = Math.max(0, stage.offsetTop + metrics.offsetY + centerY - (size.height / 2));
+      window.requestAnimationFrame(() => {
+        suppressZoomScroll = false;
+      });
+      return true;
+    };
+    const selectReadonlyFieldMappingCell = (cell, center = false) => {
+      if (!cell || !image.contains(cell)) return false;
+      const key = readonlyFieldMappingCellKey(cell);
+      const targets = readonlyFieldMappingTargets(cell);
+      const ids = targets.ids;
+      if (!key || !targets.fieldRectangle || !ids.size) return false;
+      if (readonlyFieldMappingAttentionTimer) {
+        window.clearTimeout(readonlyFieldMappingAttentionTimer);
+        readonlyFieldMappingAttentionTimer = 0;
+      }
+      if (readonlyFieldMappingAttentionClearTimer) {
+        window.clearTimeout(readonlyFieldMappingAttentionClearTimer);
+        readonlyFieldMappingAttentionClearTimer = 0;
+      }
+      clearReadonlyRelationshipSelection();
+      readonlyFieldMappingPinnedKey = key;
+      readonlyFieldMappingPinnedIds = ids;
+      readonlyFieldMappingHoverKey = key;
+      readonlyFieldMappingAttentionActiveKey = key;
+      readonlyFieldMappingAttentionShownKey = key;
+      setReadonlyFieldMappingActiveIds(ids);
+      renderReadonlyFieldMappingAttentionArrow();
+      if (key) queueReadonlyFieldMappingAttentionClear(key);
+      if (center) centerReadonlyBounds(readonlyFieldMappingNavigationBounds(cell));
+      const replacement = image.querySelector(`[data-annotation-field-mapping-row-key="${CSS.escape(key)}"]`);
+      replacement?.focus?.({ preventScroll: true });
+      return true;
     };
 
     let zoomGesture = null;
@@ -1680,6 +2276,7 @@ export function createDiagramFeature({
 
     const relationshipSelector = "[data-annotation-object-type='entity-relationship']";
     const clearReadonlyRelationshipSelection = () => {
+      readonlySelectedRelationshipId = "";
       image.querySelectorAll(`${relationshipSelector}.is-selected`).forEach(relationship => {
         relationship.classList.remove("is-selected");
         relationship.removeAttribute("aria-current");
@@ -1689,24 +2286,57 @@ export function createDiagramFeature({
     const selectReadonlyRelationship = relationship => {
       if (!relationship || !image.contains(relationship)) return;
       clearReadonlyRelationshipSelection();
+      readonlySelectedRelationshipId = relationship.dataset.annotationObjectId || "";
       relationship.classList.add("is-selected");
       relationship.setAttribute("aria-current", "true");
       relationship.setAttribute("aria-pressed", "true");
       relationship.focus?.({ preventScroll: true });
     };
 
+    viewport.addEventListener("pointermove", event => {
+      if (event.buttons) return;
+      const cell = event.target.closest?.(readonlyFieldMappingCellSelector);
+      setReadonlyFieldMappingHover(cell && image.contains(cell) ? cell : null);
+    });
+    viewport.addEventListener("pointerleave", () => setReadonlyFieldMappingHover(null));
+    viewport.addEventListener("pointerdown", event => {
+      const fieldMappingCell = event.target.closest?.(readonlyFieldMappingCellSelector);
+      if (!fieldMappingCell || !image.contains(fieldMappingCell) || event.button !== 0) return;
+      event.preventDefault();
+      event.stopPropagation();
+      selectReadonlyFieldMappingCell(fieldMappingCell, readonlyFieldMappingPointerIsDoubleClick(fieldMappingCell, event));
+    }, true);
+    viewport.addEventListener("dblclick", event => {
+      const fieldMappingCell = event.target.closest?.(readonlyFieldMappingCellSelector);
+      if (!fieldMappingCell || !image.contains(fieldMappingCell)) return;
+      event.preventDefault();
+      event.stopPropagation();
+      selectReadonlyFieldMappingCell(fieldMappingCell, true);
+    });
     viewport.addEventListener("click", event => {
+      const fieldMappingCell = event.target.closest?.(readonlyFieldMappingCellSelector);
+      if (fieldMappingCell && image.contains(fieldMappingCell)) {
+        event.preventDefault();
+        event.stopPropagation();
+        selectReadonlyFieldMappingCell(fieldMappingCell, false);
+        return;
+      }
       const relationship = event.target.closest?.(relationshipSelector);
       if (relationship && image.contains(relationship)) {
         event.preventDefault();
         event.stopPropagation();
-        selectReadonlyRelationship(relationship);
+        const relationshipId = relationship.dataset.annotationObjectId || "";
+        clearReadonlyFieldMappingSelection();
+        selectReadonlyRelationship(
+          image.querySelector(`[data-annotation-object-id="${CSS.escape(relationshipId)}"]`) || relationship
+        );
         return;
       }
       const control = event.target.closest?.("[data-annotation-entity-header-action]");
       if (!control) {
         if (event.target === image || event.target === stage || event.target === viewport) {
           clearReadonlyRelationshipSelection();
+          clearReadonlyFieldMappingSelection();
         }
         return;
       }
@@ -1732,6 +2362,12 @@ export function createDiagramFeature({
     });
 
     viewport.addEventListener("keydown", event => {
+      const fieldMappingCell = event.target.closest?.(readonlyFieldMappingCellSelector);
+      if (fieldMappingCell && (event.key === "Enter" || event.key === " ")) {
+        event.preventDefault();
+        selectReadonlyFieldMappingCell(fieldMappingCell, false);
+        return;
+      }
       const control = event.target.closest?.("[data-annotation-entity-header-action]");
       if (control && (event.key === "Enter" || event.key === " ")) {
         event.preventDefault();
@@ -1963,6 +2599,10 @@ function diagramSourceIsSvg(sourceInput) {
     || /\.svg(?:[?#]|$)/i.test(source);
 }
 
+function diagramObjectIsFieldRectangle(object) {
+  return object?.type === "entity" && object.entityKind === "field-rectangle";
+}
+
 function diagramOwnedByCurrentUser(document) {
   return Number(document?.createdByUserId || 0) === Number(currentUserId || 0);
 }
@@ -1998,7 +2638,11 @@ function diagramReadonlyImageHtml(sourceInput, title) {
     return `<img src="${escapeAttr(appUrl(source))}" alt="${escapeAttr(title)} preview" data-diagram-image draggable="false">`;
   }
 
-  return buildAnnotationSvg(state, { interactiveEntityHeaders: true, interactiveRelationships: true })
+  return buildAnnotationSvg(state, {
+    interactiveEntityHeaders: true,
+    interactiveRelationships: true,
+    interactiveFieldMapping: true
+  })
     .replace(/^<\?xml[^>]*>\s*/i, "")
     .replace("<svg ", `<svg class="diagram-readonly-svg" data-diagram-image `)
     .replace('aria-label="Annotated image"', `aria-label="${escapeAttr(title)} preview"`);
@@ -2094,6 +2738,17 @@ function downloadTextFile(contents, fileName, type) {
   URL.revokeObjectURL(url);
 }
 
+function downloadBlobFile(blob, fileName) {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = fileName;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
 function availableDiagramTitle(title, documents) {
   const requested = String(title || "Imported Diagram").trim() || "Imported Diagram";
   const exists = (documents || []).some(document => String(document?.title || "").trim().toLocaleLowerCase() === requested.toLocaleLowerCase());
@@ -2106,15 +2761,6 @@ function diagramDownloadIconHtml() {
       <path d="M12 3v11M8 10l4 4 4-4M5 17v3h14v-3"></path>
     </svg>
   `;
-}
-
-function diagramDownloadExtension(sourceInput) {
-  const source = String(sourceInput || "").toLowerCase();
-  const dataType = source.match(/^data:image\/(svg\+xml|png|jpeg|webp|gif)/)?.[1];
-  if (dataType) return dataType === "svg+xml" ? "svg" : dataType === "jpeg" ? "jpg" : dataType;
-
-  const fileType = source.split(/[?#]/, 1)[0].match(/\.(svg|png|jpe?g|webp|gif)$/)?.[1];
-  return fileType === "jpeg" ? "jpg" : fileType || "svg";
 }
 
 function diagramSaveConflict(error) {
