@@ -28,7 +28,7 @@ import {
 } from "../../shared/diagram-documents.js?v=20260725-diagram2-day6-v1";
 import { formatDate } from "../../shared/dates.js";
 import { escapeAttr, escapeHtml } from "../../shared/text-and-links.js";
-import { createDiagram2Renderer } from "./diagram2-renderer.js?v=20260725-diagram2-day10-v1";
+import { createDiagram2Renderer } from "./diagram2-renderer.js?v=20260725-diagram2-day11-v1";
 
 const diagram2ViewModes = new Set(["tree", "cards"]);
 const diagram2SortModes = new Set(["latest", "oldest", "name", "custom"]);
@@ -469,6 +469,13 @@ export function createDiagram2Feature({ app, notify } = {}) {
           ${diagram2DiagnosticItemHtml("geometry-preview-initial-matrix", "Preview initial matrix")}
           ${diagram2DiagnosticItemHtml("geometry-preview-settled-route-count", "Preview settled routes")}
           ${diagram2DiagnosticItemHtml("pending-geometry-preview", "Pending geometry preview")}
+          ${diagram2DiagnosticItemHtml("selective-routing-total-relationships", "Selective routing total relationships")}
+          ${diagram2DiagnosticItemHtml("selective-routing-relationships-considered", "Relationships considered")}
+          ${diagram2DiagnosticItemHtml("selective-routing-relationships-rerouted", "Relationships rerouted")}
+          ${diagram2DiagnosticItemHtml("selective-routing-cache-hits", "Route cache hits")}
+          ${diagram2DiagnosticItemHtml("selective-routing-cache-misses", "Route cache misses")}
+          ${diagram2DiagnosticItemHtml("selective-routing-spatial-sectors-queried", "Spatial sectors queried")}
+          ${diagram2DiagnosticItemHtml("selective-routing-duration", "Selective routing duration")}
           ${diagram2DiagnosticItemHtml("last-frame-duration", "Last frame duration")}
           ${diagram2DiagnosticItemHtml("transient-matrix", "Transient matrix")}
           ${diagram2DiagnosticItemHtml("committed-matrix", "Committed matrix")}
@@ -522,6 +529,13 @@ export function createDiagram2Feature({ app, notify } = {}) {
       "geometry-preview-initial-matrix": diagnostics.geometryPreviewInitialMatrix,
       "geometry-preview-settled-route-count": diagnostics.geometryPreviewSettledRouteCount,
       "pending-geometry-preview": diagnostics.pendingGeometryPreview,
+      "selective-routing-total-relationships": diagnostics.selectiveRoutingTotalRelationships,
+      "selective-routing-relationships-considered": diagnostics.selectiveRoutingRelationshipsConsidered,
+      "selective-routing-relationships-rerouted": diagnostics.selectiveRoutingRelationshipsRerouted,
+      "selective-routing-cache-hits": diagnostics.selectiveRoutingCacheHits,
+      "selective-routing-cache-misses": diagnostics.selectiveRoutingCacheMisses,
+      "selective-routing-spatial-sectors-queried": diagnostics.selectiveRoutingSpatialSectorsQueried,
+      "selective-routing-duration": `${diagnostics.selectiveRoutingDuration} ms`,
       "last-frame-duration": `${diagnostics.lastFrameDuration} ms`,
       "transient-matrix": diagnostics.transientMatrix,
       "committed-matrix": diagnostics.committedMatrix,
@@ -565,6 +579,13 @@ export function createDiagram2Feature({ app, notify } = {}) {
       "geometry-preview-initial-matrix": "-",
       "geometry-preview-settled-route-count": "-",
       "pending-geometry-preview": "-",
+      "selective-routing-total-relationships": "-",
+      "selective-routing-relationships-considered": "-",
+      "selective-routing-relationships-rerouted": "-",
+      "selective-routing-cache-hits": "-",
+      "selective-routing-cache-misses": "-",
+      "selective-routing-spatial-sectors-queried": "-",
+      "selective-routing-duration": "-",
       "last-frame-duration": "-",
       "transient-matrix": "-",
       "committed-matrix": "-",

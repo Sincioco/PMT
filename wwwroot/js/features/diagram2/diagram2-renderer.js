@@ -14,6 +14,9 @@ const defaultViewportPadding = 24;
 const minimumViewportScale = 0.05;
 const maximumViewportScale = 8;
 const allRelationshipsDirtyToken = "*";
+const diagram2RoutingSectorSize = 320;
+const diagram2ProtectedBoundsPadding = 18;
+const diagram2ImpactCorridorPadding = 96;
 const diagram2RendererPlanes = [
   ["background", "data-diagram2-background-plane"],
   ["belowRelationships", "data-diagram2-below-relationship-plane"],
@@ -48,6 +51,55 @@ export function createDiagram2DirtyState() {
     zOrder: false,
     worldBounds: false,
     sectors: false
+  };
+}
+
+export function createDiagram2FixedGridIndex(sectorSizeInput = diagram2RoutingSectorSize) {
+  const sectorSize = Math.max(32, positiveNumber(sectorSizeInput, diagram2RoutingSectorSize));
+  const sectors = new Map();
+  const keysById = new Map();
+
+  return {
+    sectorSize,
+    sectors,
+    add(id, boundsInput) {
+      const objectId = String(id || "").trim();
+      const bounds = normalizeBounds(boundsInput);
+      if (!objectId || !bounds) return 0;
+      this.remove(objectId);
+      const keys = fixedGridSectorKeys(bounds, sectorSize);
+      keysById.set(objectId, keys);
+      keys.forEach(key => {
+        if (!sectors.has(key)) sectors.set(key, new Set());
+        sectors.get(key).add(objectId);
+      });
+      return keys.length;
+    },
+    clear() {
+      sectors.clear();
+      keysById.clear();
+    },
+    remove(id) {
+      const objectId = String(id || "").trim();
+      const keys = keysById.get(objectId);
+      if (!keys) return;
+      keys.forEach(key => {
+        const ids = sectors.get(key);
+        ids?.delete(objectId);
+        if (ids && !ids.size) sectors.delete(key);
+      });
+      keysById.delete(objectId);
+    },
+    query(boundsInput) {
+      const bounds = normalizeBounds(boundsInput);
+      const ids = new Set();
+      if (!bounds) return { ids, sectorKeys: [] };
+      const sectorKeys = fixedGridSectorKeys(bounds, sectorSize);
+      sectorKeys.forEach(key => {
+        sectors.get(key)?.forEach(id => ids.add(id));
+      });
+      return { ids, sectorKeys };
+    }
   };
 }
 
@@ -225,6 +277,7 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
 
   const liveView = createDiagram2LiveView();
   const dirty = createDiagram2DirtyState();
+  const routing = createDiagram2SelectiveRoutingState();
   const planes = {};
   const viewportTransform = { scale: 1, translateX: 0, translateY: 0 };
   const committedViewportTransform = { scale: 1, translateX: 0, translateY: 0 };
@@ -251,7 +304,9 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
   let lastTransformDiagnostics = emptyTransformDiagnostics();
   let lastDirtyDiagnostics = emptyDirtyFlushDiagnostics();
   let lastGeometryPreviewDiagnostics = emptyGeometryPreviewDiagnostics();
+  let lastSelectiveRoutingDiagnostics = emptySelectiveRoutingDiagnostics();
   let lastDiagnostics = emptyDiagnostics();
+  let pendingSelectiveRoutingSectorsQueried = 0;
 
   function render(inputState, options = {}) {
     const reason = String(options.reason || "initial").trim() || "initial";
@@ -272,9 +327,12 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
     mark(performanceApi, `${frameId}:planes`);
 
     const objectsPatched = patchObjects(visibleObjects);
+    rebuildRoutingObjectIndexes(visibleObjects);
     mark(performanceApi, `${frameId}:objects`);
 
-    const relationshipsRouted = patchRelationships(relationships);
+    rebuildRelationshipLookupIndexes(relationships);
+    const relationshipResult = patchRelationships(relationships);
+    const relationshipsRouted = relationshipResult.routed;
     mark(performanceApi, `${frameId}:relationships`);
 
     fullRenderCount += 1;
@@ -298,7 +356,8 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
     });
     lastDirtyDiagnostics = emptyDirtyFlushDiagnostics();
     lastGeometryPreviewDiagnostics = emptyGeometryPreviewDiagnostics();
-    Object.assign(lastDiagnostics, lastTransformDiagnostics, lastDirtyDiagnostics, lastGeometryPreviewDiagnostics);
+    lastSelectiveRoutingDiagnostics = relationshipResult.diagnostics;
+    Object.assign(lastDiagnostics, lastTransformDiagnostics, lastDirtyDiagnostics, lastGeometryPreviewDiagnostics, lastSelectiveRoutingDiagnostics);
     lastDiagnostics.svgDescendantCount = svg.querySelectorAll("*").length;
     applyDiagnosticsAttributes();
     notifyDiagnostics();
@@ -378,7 +437,7 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
 
     const renderedObject = liveView.objectDataById.get(objectId) || previousObject;
     const flags = diagram2ObjectPatchFlags(renderedObject, nextObject);
-    markObjectDirty(objectId, flags);
+    markObjectDirty(objectId, flags, renderedObject, nextObject);
     return scheduleDiagramFlush("object update");
   }
 
@@ -525,9 +584,11 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
     const startTime = now(performanceApi);
     mark(performanceApi, `${frameId}:start`);
     const relationships = diagram2CanonicalRelationships(canonicalState);
+    rebuildRelationshipLookupIndexes(relationships);
     const dirtySnapshot = dirtyDiagnosticsSnapshot(dirty, relationships);
     const patchedObjectIds = new Set();
     const patchedRelationshipIds = new Set();
+    const routingMetrics = createSelectiveRoutingMetrics(relationships.length);
     let objectPatchCount = 0;
     let patchedNodeCount = 0;
     let routedRelationshipCount = 0;
@@ -546,14 +607,24 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
     patchObjectSet(dirty.objectGeometry);
 
     const relationshipGeometry = dirtyRelationshipSet(dirty.relationshipGeometry, relationships);
-    const geometryResult = patchDirtyRelationships(relationships, relationshipGeometry, patchedRelationshipIds);
+    const geometryResult = patchDirtyRelationships(relationships, relationshipGeometry, patchedRelationshipIds, {
+      mode: "geometry",
+      sectorsQueried: pendingSelectiveRoutingSectorsQueried
+    });
+    mergeSelectiveRoutingMetrics(routingMetrics, geometryResult.diagnostics);
     patchedNodeCount += geometryResult.patched;
     routedRelationshipCount += geometryResult.routed;
 
     const styleRelationshipIds = dirtyRelationshipSet(dirty.relationshipStyle, relationships);
-    const styleResult = patchDirtyRelationships(relationships, styleRelationshipIds, patchedRelationshipIds);
+    const styleResult = patchDirtyRelationships(relationships, styleRelationshipIds, patchedRelationshipIds, {
+      mode: "style",
+      countRouting: false,
+      styleOnly: true
+    });
+    mergeSelectiveRoutingMetrics(routingMetrics, styleResult.diagnostics);
     patchedNodeCount += styleResult.patched;
     routedRelationshipCount += styleResult.routed;
+    pendingSelectiveRoutingSectorsQueried = 0;
 
     patchObjectSet(dirty.objectStyle);
     patchedNodeCount += patchSelectionTargets(dirty.objectSelection);
@@ -576,6 +647,7 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
       pendingDiagramFlush: false,
       transactionDepth
     };
+    lastSelectiveRoutingDiagnostics = selectiveRoutingDiagnosticsFromMetrics(routingMetrics);
     clearDirtyState(dirty);
     lastDiagnostics = diagnosticsFor({
       canonicalState,
@@ -587,7 +659,7 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
       lastFrameDuration: lastDirtyDiagnostics.lastFlushDuration
     });
     if (activeGeometryPreview?.committing) clearGeometryPreview({ restoreObjects: false, reason: "preview commit" });
-    Object.assign(lastDiagnostics, lastTransformDiagnostics, lastDirtyDiagnostics, lastGeometryPreviewDiagnostics);
+    Object.assign(lastDiagnostics, lastTransformDiagnostics, lastDirtyDiagnostics, lastGeometryPreviewDiagnostics, lastSelectiveRoutingDiagnostics);
     lastDiagnostics.svgDescendantCount = svg.querySelectorAll("*").length;
     applyDiagnosticsAttributes();
     notifyDiagnostics();
@@ -636,6 +708,11 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
         ...dirty.relationshipGeometry,
         ...dirty.relationshipStyle
       ]),
+      relationshipEntityIndexCount: routing.relationshipIdsByEntityId.size,
+      relationshipFieldAnchorIndexCount: routing.relationshipIdsByFieldAnchor.size,
+      relationshipBoundsIndexCount: routing.relationshipBoundsById.size,
+      relationshipRouteSectorCount: routing.relationshipRouteSectorIndex.sectors.size,
+      routingObstacleSectorCount: routing.routingObstacleSectorIndex.sectors.size,
       pendingDiagramFlush: pendingDiagramFlushFrame !== 0,
       transactionDepth
     };
@@ -751,11 +828,15 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
 
   function patchRelationships(relationships) {
     const desiredIds = new Set();
+    const metrics = createSelectiveRoutingMetrics(relationships.length);
+    let patched = 0;
     let routedCount = 0;
 
     relationships.forEach(relationship => {
       desiredIds.add(relationship.id);
-      const result = patchVisibleRelationship(relationship);
+      const result = patchVisibleRelationship(relationship, { mode: "full" });
+      mergeSelectiveRoutingMetrics(metrics, result.diagnostics);
+      patched += result.patched;
       routedCount += result.routed;
 
       const node = liveView.relationshipNodesById.get(relationship.id);
@@ -767,12 +848,17 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
     [...liveView.relationshipNodesById.keys()].forEach(id => {
       if (desiredIds.has(id)) return;
       removeRelationshipNode(id);
+      patched += 1;
     });
 
     liveView.mountedRelationshipIds.clear();
     desiredIds.forEach(id => liveView.mountedRelationshipIds.add(id));
     if (routedCount > 0) relationshipRouteRevision += routedCount;
-    return routedCount;
+    return {
+      patched,
+      routed: routedCount,
+      diagnostics: selectiveRoutingDiagnosticsFromMetrics(metrics)
+    };
   }
 
   function patchVisibleObject(object) {
@@ -793,26 +879,61 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
     return 1;
   }
 
-  function patchVisibleRelationship(relationship) {
+  function patchVisibleRelationship(relationship, options = {}) {
     const node = liveView.relationshipNodesById.get(relationship.id) || createRelationshipNode(relationship);
-    const previousRelationship = liveView.relationshipDataById.get(relationship.id) || null;
-    const flags = diagram2RelationshipPatchFlags(previousRelationship, relationship);
-    if (!flags.changed && liveView.relationshipVersionsById.has(relationship.id)) {
+    const existing = liveView.relationshipVersionsById.has(relationship.id);
+    const route = relationshipRoute(relationship, {
+      manualRoutes: canonicalState?.manualEntityRelationshipRoutes === true
+    });
+    const routeSignature = relationshipRouteCacheSignature(relationship, {
+      canonicalState,
+      routeBounds: route.bounds,
+      obstacleGeneration: obstacleGenerationForBounds(route.bounds)
+    });
+    const styleSignature = relationshipStyleVersion(relationship);
+    const previousRouteSignature = routing.relationshipRouteSignaturesById.get(relationship.id);
+    const previousStyleSignature = routing.relationshipStyleSignaturesById.get(relationship.id);
+    const styleOnly = options.styleOnly === true;
+    const routeChanged = !existing
+      || (!styleOnly && (options.forceRoute === true || previousRouteSignature !== routeSignature));
+    const styleChanged = !existing || previousStyleSignature !== styleSignature;
+    const metrics = createSelectiveRoutingMetrics(1);
+    if (options.countRouting !== false) {
+      metrics.relationshipsConsidered = 1;
+      if (routeChanged) metrics.routeCacheMisses = 1;
+      else metrics.routeCacheHits = 1;
+    }
+
+    if (!routeChanged && !styleChanged && existing) {
       const selected = liveView.selectedIds.has(relationship.id);
       const wasSelected = node.classList.contains("is-selected");
       patchRelationshipSelection(node, relationship.id, selected);
-      return { patched: wasSelected === selected ? 0 : 1, routed: 0 };
+      return {
+        patched: wasSelected === selected ? 0 : 1,
+        routed: 0,
+        diagnostics: selectiveRoutingDiagnosticsFromMetrics(metrics)
+      };
     }
 
-    patchRelationshipNode(node, previousRelationship, relationship, {
-      ...flags,
+    const renderedRoute = routeChanged
+      ? route
+      : routing.relationshipRoutesById.get(relationship.id) || route;
+    patchRelationshipNode(node, relationship, relationship, {
+      route: renderedRoute,
+      routeChanged,
+      styleChanged,
       selected: liveView.selectedIds.has(relationship.id)
     });
     liveView.relationshipDataById.set(relationship.id, relationship);
-    liveView.relationshipVersionsById.set(relationship.id, relationshipVersion(relationship));
+    liveView.relationshipVersionsById.set(relationship.id, relationshipRenderVersion(routeSignature, styleSignature));
+    routing.relationshipRouteSignaturesById.set(relationship.id, routeSignature);
+    routing.relationshipStyleSignaturesById.set(relationship.id, styleSignature);
+    routing.relationshipRoutesById.set(relationship.id, renderedRoute);
+    updateRelationshipRouteBoundsIndex(relationship.id, renderedRoute.bounds);
     return {
       patched: 1,
-      routed: flags.created || flags.routeChanged ? 1 : 0
+      routed: routeChanged ? 1 : 0,
+      diagnostics: selectiveRoutingDiagnosticsFromMetrics(metrics)
     };
   }
 
@@ -833,6 +954,7 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
     liveView.mountedObjectIds.delete(id);
     liveView.selectedIds.delete(id);
     planes.overlays?.querySelector(`[data-diagram2-selection-id="${cssEscape(id)}"]`)?.remove();
+    removeRoutingObjectIndex(id);
   }
 
   function createRelationshipNode(relationship) {
@@ -850,6 +972,7 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
     liveView.relationshipDataById.delete(id);
     liveView.mountedRelationshipIds.delete(id);
     liveView.selectedIds.delete(id);
+    removeRelationshipRoutingState(id);
   }
 
   function patchDirtyObject(id) {
@@ -857,19 +980,24 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
     if (!object || object.visible === false) {
       const existed = liveView.objectNodesById.has(id);
       removeObjectNode(id);
+      removeRoutingObjectIndex(id);
       return existed ? 1 : 0;
     }
 
     const patched = patchVisibleObject(object);
+    updateRoutingObjectIndex(object);
     const node = liveView.objectNodesById.get(id);
     if (node?.parentNode !== planes.objects) planes.objects.appendChild(node);
     liveView.mountedObjectIds.add(id);
     return patched;
   }
 
-  function patchDirtyRelationships(relationships, relationshipIds, patchedRelationshipIds) {
+  function patchDirtyRelationships(relationships, relationshipIds, patchedRelationshipIds, options = {}) {
     const desiredIds = new Set(relationships.map(relationship => relationship.id));
     const relationshipsById = new Map(relationships.map(relationship => [relationship.id, relationship]));
+    const metrics = createSelectiveRoutingMetrics(relationships.length);
+    metrics.spatialSectorsQueried += Number(options.sectorsQueried || 0);
+    const startTime = now(performanceApi);
     let patched = 0;
     let routed = 0;
 
@@ -883,7 +1011,8 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
       if (patchedRelationshipIds.has(id)) return;
       const relationship = relationshipsById.get(id);
       if (!relationship) return;
-      const result = patchVisibleRelationship(relationship);
+      const result = patchVisibleRelationship(relationship, options);
+      mergeSelectiveRoutingMetrics(metrics, result.diagnostics);
       patchedRelationshipIds.add(id);
       patched += result.patched;
       routed += result.routed;
@@ -892,7 +1021,8 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
     });
 
     if (routed > 0) relationshipRouteRevision += routed;
-    return { patched, routed };
+    metrics.routingDuration += now(performanceApi) - startTime;
+    return { patched, routed, diagnostics: selectiveRoutingDiagnosticsFromMetrics(metrics) };
   }
 
   function reconcileMountedRelationshipIds(relationships) {
@@ -925,7 +1055,7 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
     return patched;
   }
 
-  function markObjectDirty(id, flags) {
+  function markObjectDirty(id, flags, previousObject = null, nextObject = null) {
     if (!flags.changed) return;
     if (flags.structureChanged) dirty.objectStructure.add(id);
     if (flags.transformChanged) dirty.objectGeometry.add(id);
@@ -945,7 +1075,9 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
     }
 
     if (flags.transformChanged) {
-      dirtyConnectedRelationships(id).forEach(relationshipId => dirty.relationshipGeometry.add(relationshipId));
+      const impact = impactedRelationshipIdsForObjectGeometry(id, previousObject, nextObject);
+      pendingSelectiveRoutingSectorsQueried += impact.sectorsQueried;
+      impact.relationshipIds.forEach(relationshipId => dirty.relationshipGeometry.add(relationshipId));
       dirty.worldBounds = true;
       dirty.sectors = true;
     }
@@ -961,9 +1093,118 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
   }
 
   function dirtyConnectedRelationships(objectId) {
+    const indexedIds = routing.relationshipIdsByEntityId.get(String(objectId || ""));
+    if (indexedIds) return [...indexedIds];
     return diagram2CanonicalRelationships(canonicalState)
       .filter(relationship => relationship.source?.id === objectId || relationship.target?.id === objectId)
       .map(relationship => relationship.id);
+  }
+
+  function impactedRelationshipIdsForObjectGeometry(objectId, previousObject, nextObject) {
+    const relationshipIds = new Set(dirtyConnectedRelationships(objectId));
+    const oldProtectedBounds = protectedRoutingBounds(previousObject);
+    const newProtectedBounds = protectedRoutingBounds(nextObject);
+    const corridorBounds = expandedBounds(unionBounds(oldProtectedBounds, newProtectedBounds), diagram2ImpactCorridorPadding);
+    const queryBounds = [oldProtectedBounds, newProtectedBounds, corridorBounds].filter(Boolean);
+    let sectorsQueried = 0;
+
+    queryBounds.forEach(bounds => {
+      const query = routing.relationshipRouteSectorIndex.query(bounds);
+      sectorsQueried += query.sectorKeys.length;
+      query.ids.forEach(relationshipId => {
+        const relationshipBounds = routing.relationshipBoundsById.get(relationshipId);
+        if (boundsIntersect(relationshipBounds, bounds)) relationshipIds.add(relationshipId);
+      });
+    });
+
+    const generationBounds = unionBounds(corridorBounds, unionBounds(oldProtectedBounds, newProtectedBounds));
+    const generationKeys = bumpObstacleGeneration(generationBounds);
+    sectorsQueried += generationKeys.length;
+    return { relationshipIds, sectorsQueried };
+  }
+
+  function rebuildRoutingObjectIndexes(objects) {
+    routing.entityProtectedBoundsById.clear();
+    routing.entityProtectedSectorIndex.clear();
+    routing.routingObstacleBoundsById.clear();
+    routing.routingObstacleSectorIndex.clear();
+    objects.forEach(updateRoutingObjectIndex);
+  }
+
+  function updateRoutingObjectIndex(object) {
+    removeRoutingObjectIndex(object?.id);
+    if (!object || object.visible === false) return;
+
+    const protectedBounds = protectedRoutingBounds(object);
+    if (protectedBounds && object.type === "entity") {
+      routing.entityProtectedBoundsById.set(object.id, protectedBounds);
+      routing.entityProtectedSectorIndex.add(object.id, protectedBounds);
+    }
+
+    const obstacleBounds = routingObstacleBounds(object);
+    if (obstacleBounds) {
+      routing.routingObstacleBoundsById.set(object.id, obstacleBounds);
+      routing.routingObstacleSectorIndex.add(object.id, obstacleBounds);
+    }
+  }
+
+  function removeRoutingObjectIndex(id) {
+    const objectId = String(id || "").trim();
+    if (!objectId) return;
+    routing.entityProtectedBoundsById.delete(objectId);
+    routing.entityProtectedSectorIndex.remove(objectId);
+    routing.routingObstacleBoundsById.delete(objectId);
+    routing.routingObstacleSectorIndex.remove(objectId);
+  }
+
+  function rebuildRelationshipLookupIndexes(relationships) {
+    routing.relationshipIdsByEntityId.clear();
+    routing.relationshipIdsByFieldAnchor.clear();
+    const desiredIds = new Set(relationships.map(relationship => relationship.id));
+    relationships.forEach(relationship => {
+      addToSetMap(routing.relationshipIdsByEntityId, relationship.source?.id, relationship.id);
+      addToSetMap(routing.relationshipIdsByEntityId, relationship.target?.id, relationship.id);
+      addToSetMap(routing.relationshipIdsByFieldAnchor, relationshipFieldAnchorKey(relationship.source, relationship.sourceField), relationship.id);
+      addToSetMap(routing.relationshipIdsByFieldAnchor, relationshipFieldAnchorKey(relationship.target, relationship.targetField), relationship.id);
+    });
+    [...routing.relationshipBoundsById.keys()].forEach(id => {
+      if (!desiredIds.has(id)) removeRelationshipRoutingState(id);
+    });
+  }
+
+  function updateRelationshipRouteBoundsIndex(id, boundsInput) {
+    const relationshipId = String(id || "").trim();
+    const bounds = normalizeBounds(boundsInput);
+    if (!relationshipId || !bounds) return;
+    routing.relationshipBoundsById.set(relationshipId, bounds);
+    routing.relationshipRouteSectorIndex.add(relationshipId, bounds);
+  }
+
+  function removeRelationshipRoutingState(id) {
+    const relationshipId = String(id || "").trim();
+    if (!relationshipId) return;
+    routing.relationshipBoundsById.delete(relationshipId);
+    routing.relationshipRouteSectorIndex.remove(relationshipId);
+    routing.relationshipRouteSignaturesById.delete(relationshipId);
+    routing.relationshipStyleSignaturesById.delete(relationshipId);
+    routing.relationshipRoutesById.delete(relationshipId);
+  }
+
+  function obstacleGenerationForBounds(boundsInput) {
+    const bounds = normalizeBounds(boundsInput);
+    if (!bounds) return routing.obstacleGeneration;
+    const query = routing.routingObstacleSectorIndex.query(bounds);
+    return query.sectorKeys.reduce((maximum, key) =>
+      Math.max(maximum, Number(routing.obstacleGenerationBySectorKey.get(key) || 0)), 0);
+  }
+
+  function bumpObstacleGeneration(boundsInput) {
+    const bounds = normalizeBounds(boundsInput);
+    if (!bounds) return [];
+    routing.obstacleGeneration += 1;
+    const keys = fixedGridSectorKeys(bounds, routing.routingObstacleSectorIndex.sectorSize);
+    keys.forEach(key => routing.obstacleGenerationBySectorKey.set(key, routing.obstacleGeneration));
+    return keys;
   }
 
   function addDirtyReason(reason) {
@@ -1479,6 +1720,13 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
     svg.dataset.diagram2GeometryPreviewInitialMatrix = String(lastDiagnostics.geometryPreviewInitialMatrix);
     svg.dataset.diagram2GeometryPreviewSettledRouteCount = String(lastDiagnostics.geometryPreviewSettledRouteCount);
     svg.dataset.diagram2PendingGeometryPreview = String(lastDiagnostics.pendingGeometryPreview);
+    svg.dataset.diagram2SelectiveRoutingTotalRelationships = String(lastDiagnostics.selectiveRoutingTotalRelationships);
+    svg.dataset.diagram2SelectiveRoutingRelationshipsConsidered = String(lastDiagnostics.selectiveRoutingRelationshipsConsidered);
+    svg.dataset.diagram2SelectiveRoutingRelationshipsRerouted = String(lastDiagnostics.selectiveRoutingRelationshipsRerouted);
+    svg.dataset.diagram2SelectiveRoutingCacheHits = String(lastDiagnostics.selectiveRoutingCacheHits);
+    svg.dataset.diagram2SelectiveRoutingCacheMisses = String(lastDiagnostics.selectiveRoutingCacheMisses);
+    svg.dataset.diagram2SelectiveRoutingSpatialSectorsQueried = String(lastDiagnostics.selectiveRoutingSpatialSectorsQueried);
+    svg.dataset.diagram2SelectiveRoutingDuration = String(lastDiagnostics.selectiveRoutingDuration);
     svg.dataset.diagram2TransientMatrix = String(lastDiagnostics.transientMatrix);
     svg.dataset.diagram2CommittedMatrix = String(lastDiagnostics.committedMatrix);
     svg.dataset.diagram2MatrixDifference = String(lastDiagnostics.matrixDifference);
@@ -2126,7 +2374,7 @@ function patchRelationshipNode(node, previousRelationship, relationship, flags =
     class: `diagram2-renderer-relationship-node${flags.selected ? " is-selected" : ""}`
   });
 
-  const route = relationshipRoute(relationship);
+  const route = flags.route || relationshipRoute(relationship);
   const style = relationshipStyle(relationship);
   let title = node.querySelector(":scope > title");
   if (!title) {
@@ -2155,11 +2403,18 @@ function patchRelationshipNode(node, previousRelationship, relationship, flags =
   });
 }
 
-function relationshipRoute(relationship) {
+function relationshipRoute(relationship, options = {}) {
   const source = relationship.source;
   const target = relationship.target;
   const sourceBounds = annotationEntityFieldBounds(source, relationship.sourceField) || objectBounds(source);
   const targetBounds = annotationEntityFieldBounds(target, relationship.targetField) || objectBounds(target);
+  const manualPoints = options.manualRoutes === true
+    ? normalizeRelationshipRouteOverride(relationship.foreignKeySource?.routeOverride || relationship.foreignKey?.routeOverride)
+    : [];
+  if (manualPoints.length >= 2) {
+    return relationshipRouteFromPoints(manualPoints);
+  }
+
   if (source === target) {
     const x = finiteNumber(source.x, 0) + positiveNumber(source.width, 1);
     const offset = Math.max(44, positiveNumber(source.width, 1) * 0.24) + (relationship.foreignKeyIndex * 12);
@@ -2171,11 +2426,7 @@ function relationshipRoute(relationship) {
       x,
       y: targetBounds.y + (targetBounds.height / 2)
     };
-    return {
-      start,
-      end,
-      path: `M ${formatNumber(start.x)} ${formatNumber(start.y)} H ${formatNumber(x + offset)} V ${formatNumber(end.y)} H ${formatNumber(end.x)}`
-    };
+    return relationshipRouteFromPoints([start, { x: x + offset, y: start.y }, { x: x + offset, y: end.y }, end]);
   }
 
   const sourceCenterX = finiteNumber(source.x, 0) + (positiveNumber(source.width, 1) / 2);
@@ -2190,11 +2441,42 @@ function relationshipRoute(relationship) {
     y: targetBounds.y + (targetBounds.height / 2)
   };
   const midX = start.x + ((end.x - start.x) / 2);
+  return relationshipRouteFromPoints([start, { x: midX, y: start.y }, { x: midX, y: end.y }, end]);
+}
+
+function relationshipRouteFromPoints(pointsInput) {
+  const points = (Array.isArray(pointsInput) ? pointsInput : [])
+    .map(point => ({
+      x: finiteNumber(point?.x, 0),
+      y: finiteNumber(point?.y, 0)
+    }));
+  const [start] = points;
+  const end = points[points.length - 1] || start || { x: 0, y: 0 };
   return {
-    start,
+    start: start || { x: 0, y: 0 },
     end,
-    path: `M ${formatNumber(start.x)} ${formatNumber(start.y)} H ${formatNumber(midX)} V ${formatNumber(end.y)} H ${formatNumber(end.x)}`
+    points,
+    bounds: boundsFromPoints(points, diagram2ProtectedBoundsPadding / 2),
+    path: relationshipPathFromPoints(points)
   };
+}
+
+function relationshipPathFromPoints(pointsInput) {
+  const points = Array.isArray(pointsInput) ? pointsInput : [];
+  if (!points.length) return "";
+  return points.map((point, index) => {
+    const command = index === 0 ? "M" : "L";
+    return `${command} ${formatNumber(point.x)} ${formatNumber(point.y)}`;
+  }).join(" ");
+}
+
+function normalizeRelationshipRouteOverride(input) {
+  return (Array.isArray(input) ? input : [])
+    .map(point => ({
+      x: finiteNumber(point?.x, Number.NaN),
+      y: finiteNumber(point?.y, Number.NaN)
+    }))
+    .filter(point => Number.isFinite(point.x) && Number.isFinite(point.y));
 }
 
 function relationshipStyle(relationship) {
@@ -2287,7 +2569,8 @@ function diagnosticsFor(options) {
     relationshipsRoutedInLastFlush: options.relationshipsRoutedInLastFlush,
     lastFrameDuration: Math.round(options.lastFrameDuration * 100) / 100,
     ...emptyDirtyFlushDiagnostics(),
-    ...emptyGeometryPreviewDiagnostics()
+    ...emptyGeometryPreviewDiagnostics(),
+    ...emptySelectiveRoutingDiagnostics()
   };
 }
 
@@ -2306,7 +2589,8 @@ function emptyDiagnostics() {
     lastFrameDuration: 0,
     ...emptyTransformDiagnostics(),
     ...emptyDirtyFlushDiagnostics(),
-    ...emptyGeometryPreviewDiagnostics()
+    ...emptyGeometryPreviewDiagnostics(),
+    ...emptySelectiveRoutingDiagnostics()
   };
 }
 
@@ -2326,6 +2610,74 @@ function emptyGeometryPreviewDiagnostics() {
     geometryPreviewSettledRouteCount: 0,
     pendingGeometryPreview: false
   };
+}
+
+function createDiagram2SelectiveRoutingState() {
+  return {
+    relationshipIdsByEntityId: new Map(),
+    relationshipIdsByFieldAnchor: new Map(),
+    relationshipBoundsById: new Map(),
+    relationshipRouteSignaturesById: new Map(),
+    relationshipStyleSignaturesById: new Map(),
+    relationshipRoutesById: new Map(),
+    entityProtectedBoundsById: new Map(),
+    entityProtectedSectorIndex: createDiagram2FixedGridIndex(diagram2RoutingSectorSize),
+    relationshipRouteSectorIndex: createDiagram2FixedGridIndex(diagram2RoutingSectorSize),
+    routingObstacleBoundsById: new Map(),
+    routingObstacleSectorIndex: createDiagram2FixedGridIndex(diagram2RoutingSectorSize),
+    obstacleGeneration: 0,
+    obstacleGenerationBySectorKey: new Map()
+  };
+}
+
+function createSelectiveRoutingMetrics(totalRelationshipCount = 0) {
+  return {
+    totalRelationshipCount: Number(totalRelationshipCount || 0),
+    relationshipsConsidered: 0,
+    relationshipsRerouted: 0,
+    routeCacheHits: 0,
+    routeCacheMisses: 0,
+    spatialSectorsQueried: 0,
+    routingDuration: 0
+  };
+}
+
+function mergeSelectiveRoutingMetrics(target, sourceInput) {
+  if (!target || !sourceInput) return target;
+  const source = {
+    totalRelationshipCount: sourceInput.totalRelationshipCount ?? sourceInput.selectiveRoutingTotalRelationships,
+    relationshipsConsidered: sourceInput.relationshipsConsidered ?? sourceInput.selectiveRoutingRelationshipsConsidered,
+    relationshipsRerouted: sourceInput.relationshipsRerouted ?? sourceInput.selectiveRoutingRelationshipsRerouted,
+    routeCacheHits: sourceInput.routeCacheHits ?? sourceInput.selectiveRoutingCacheHits,
+    routeCacheMisses: sourceInput.routeCacheMisses ?? sourceInput.selectiveRoutingCacheMisses,
+    spatialSectorsQueried: sourceInput.spatialSectorsQueried ?? sourceInput.selectiveRoutingSpatialSectorsQueried,
+    routingDuration: sourceInput.routingDuration ?? sourceInput.selectiveRoutingDuration
+  };
+  target.totalRelationshipCount = Math.max(target.totalRelationshipCount, Number(source.totalRelationshipCount || 0));
+  target.relationshipsConsidered += Number(source.relationshipsConsidered || 0);
+  target.relationshipsRerouted += Number(source.relationshipsRerouted || 0);
+  target.routeCacheHits += Number(source.routeCacheHits || 0);
+  target.routeCacheMisses += Number(source.routeCacheMisses || 0);
+  target.spatialSectorsQueried += Number(source.spatialSectorsQueried || 0);
+  target.routingDuration += Number(source.routingDuration || 0);
+  return target;
+}
+
+function selectiveRoutingDiagnosticsFromMetrics(metricsInput) {
+  const metrics = metricsInput || createSelectiveRoutingMetrics();
+  return {
+    selectiveRoutingTotalRelationships: Number(metrics.totalRelationshipCount || 0),
+    selectiveRoutingRelationshipsConsidered: Number(metrics.relationshipsConsidered || 0),
+    selectiveRoutingRelationshipsRerouted: Number(metrics.relationshipsRerouted || metrics.routeCacheMisses || 0),
+    selectiveRoutingCacheHits: Number(metrics.routeCacheHits || 0),
+    selectiveRoutingCacheMisses: Number(metrics.routeCacheMisses || 0),
+    selectiveRoutingSpatialSectorsQueried: Number(metrics.spatialSectorsQueried || 0),
+    selectiveRoutingDuration: Math.round(Math.max(0, Number(metrics.routingDuration || 0)) * 100) / 100
+  };
+}
+
+function emptySelectiveRoutingDiagnostics() {
+  return selectiveRoutingDiagnosticsFromMetrics(createSelectiveRoutingMetrics());
 }
 
 function emptyPreviewGeometry() {
@@ -2535,6 +2887,56 @@ function objectTextVersion(object) {
   return "";
 }
 
+function relationshipRenderVersion(routeSignature, styleSignature) {
+  return JSON.stringify({
+    routeSignature,
+    styleSignature
+  });
+}
+
+function relationshipRouteCacheSignature(relationship, options = {}) {
+  return JSON.stringify({
+    id: relationship.id,
+    source: relationshipEndpointSignature(relationship.source, relationship.sourceField),
+    target: relationshipEndpointSignature(relationship.target, relationship.targetField),
+    manualRoute: relationship.foreignKeySource?.routeOverride || relationship.foreignKey?.routeOverride || null,
+    relationshipRoutingOverride: relationshipRoutingOverrideSignature(relationship),
+    globalRoutingSettings: globalRoutingSettingsSignature(options.canonicalState),
+    obstacleRegionGeneration: Number(options.obstacleGeneration || 0)
+  });
+}
+
+function relationshipEndpointSignature(entity, field) {
+  const bounds = annotationEntityFieldBounds(entity, field) || objectBounds(entity);
+  return {
+    entityId: entity?.id || "",
+    x: finiteNumber(entity?.x, 0),
+    y: finiteNumber(entity?.y, 0),
+    width: positiveNumber(entity?.width, 1),
+    height: positiveNumber(entity?.height, 1),
+    field: field?.name || "",
+    anchor: normalizeBounds(bounds)
+  };
+}
+
+function relationshipRoutingOverrideSignature(relationship) {
+  const styleOverride = relationship.foreignKeySource?.styleOverride || relationship.foreignKey?.styleOverride || null;
+  return styleOverride ? {
+    strokeWidth: positiveNumber(styleOverride.strokeWidth, 0),
+    arrowSize: positiveNumber(styleOverride.arrowSize, 0)
+  } : null;
+}
+
+function globalRoutingSettingsSignature(state) {
+  const style = state?.relationshipStyle || {};
+  return {
+    manualRoutes: state?.manualEntityRelationshipRoutes === true,
+    compactRouting: state?.compactEntityRelationshipRouting === true,
+    strokeWidth: positiveNumber(style.strokeWidth, 0),
+    arrowSize: positiveNumber(style.arrowSize, 0)
+  };
+}
+
 function relationshipVersion(relationship) {
   return JSON.stringify({
     id: relationship.id,
@@ -2684,6 +3086,114 @@ function objectBounds(object) {
     width: positiveNumber(object?.width, 1),
     height: positiveNumber(object?.height, 1)
   };
+}
+
+function protectedRoutingBounds(object) {
+  if (!object || object.visible === false) return null;
+  return expandedBounds(objectBounds(object), diagram2ProtectedBoundsPadding);
+}
+
+function routingObstacleBounds(object) {
+  if (!object || object.visible === false) return null;
+  if (object.type === "arrow" || object.type === "line") return null;
+  return expandedBounds(objectBounds(object), diagram2ProtectedBoundsPadding);
+}
+
+function normalizeBounds(boundsInput) {
+  if (!boundsInput) return null;
+  const x = finiteNumber(boundsInput.x, Number.NaN);
+  const y = finiteNumber(boundsInput.y, Number.NaN);
+  const width = positiveNumber(boundsInput.width, Number.NaN);
+  const height = positiveNumber(boundsInput.height, Number.NaN);
+  if (![x, y, width, height].every(Number.isFinite)) return null;
+  return { x, y, width, height };
+}
+
+function expandedBounds(boundsInput, paddingInput = 0) {
+  const bounds = normalizeBounds(boundsInput);
+  if (!bounds) return null;
+  const padding = Math.max(0, finiteNumber(paddingInput, 0));
+  return {
+    x: bounds.x - padding,
+    y: bounds.y - padding,
+    width: bounds.width + (padding * 2),
+    height: bounds.height + (padding * 2)
+  };
+}
+
+function unionBounds(firstInput, secondInput) {
+  const first = normalizeBounds(firstInput);
+  const second = normalizeBounds(secondInput);
+  if (!first) return second;
+  if (!second) return first;
+  const x1 = Math.min(first.x, second.x);
+  const y1 = Math.min(first.y, second.y);
+  const x2 = Math.max(first.x + first.width, second.x + second.width);
+  const y2 = Math.max(first.y + first.height, second.y + second.height);
+  return {
+    x: x1,
+    y: y1,
+    width: Math.max(1, x2 - x1),
+    height: Math.max(1, y2 - y1)
+  };
+}
+
+function boundsIntersect(firstInput, secondInput) {
+  const first = normalizeBounds(firstInput);
+  const second = normalizeBounds(secondInput);
+  if (!first || !second) return false;
+  return first.x <= second.x + second.width
+    && first.x + first.width >= second.x
+    && first.y <= second.y + second.height
+    && first.y + first.height >= second.y;
+}
+
+function boundsFromPoints(pointsInput, paddingInput = 0) {
+  const points = Array.isArray(pointsInput) ? pointsInput : [];
+  if (!points.length) return null;
+  const xs = points.map(point => finiteNumber(point?.x, 0));
+  const ys = points.map(point => finiteNumber(point?.y, 0));
+  const x1 = Math.min(...xs);
+  const y1 = Math.min(...ys);
+  const x2 = Math.max(...xs);
+  const y2 = Math.max(...ys);
+  return expandedBounds({
+    x: x1,
+    y: y1,
+    width: Math.max(1, x2 - x1),
+    height: Math.max(1, y2 - y1)
+  }, paddingInput);
+}
+
+function fixedGridSectorKeys(boundsInput, sectorSizeInput = diagram2RoutingSectorSize) {
+  const bounds = normalizeBounds(boundsInput);
+  if (!bounds) return [];
+  const sectorSize = Math.max(32, positiveNumber(sectorSizeInput, diagram2RoutingSectorSize));
+  const minX = Math.floor(bounds.x / sectorSize);
+  const minY = Math.floor(bounds.y / sectorSize);
+  const maxX = Math.floor((bounds.x + bounds.width) / sectorSize);
+  const maxY = Math.floor((bounds.y + bounds.height) / sectorSize);
+  const keys = [];
+  for (let y = minY; y <= maxY; y += 1) {
+    for (let x = minX; x <= maxX; x += 1) {
+      keys.push(`${x}:${y}`);
+    }
+  }
+  return keys;
+}
+
+function relationshipFieldAnchorKey(entity, field) {
+  const entityId = String(entity?.id || "").trim();
+  const fieldName = String(field?.name || "").trim();
+  return entityId && fieldName ? `${entityId}:${fieldName}` : "";
+}
+
+function addToSetMap(map, keyInput, valueInput) {
+  const key = String(keyInput || "").trim();
+  const value = String(valueInput || "").trim();
+  if (!key || !value) return;
+  if (!map.has(key)) map.set(key, new Set());
+  map.get(key).add(value);
 }
 
 function appendTitle(parent, text) {

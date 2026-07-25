@@ -73,6 +73,7 @@ test("Diagram 2 top navigation opens the isolated shell", async ({ page }) => {
   const transformOnlyRenderCount = await diagram2FullRenderCount(page);
   await assertKeyedDiagram2NodePatches(page, transformOnlyRenderCount);
   await assertDiagram2LiveGeometryPreview(page, transformOnlyRenderCount);
+  await assertDiagram2SelectiveRoutingStress(page);
   for (const zoom of ["0.5", "0.75", "0.9", "1", "1.1", "1.25", "1.5", "2"]) {
     await assertTransformOnlyZoom(page, zoom, transformOnlyRenderCount);
   }
@@ -227,6 +228,10 @@ async function assertKeyedDiagram2NodePatches(page, expectedFullRenderCount) {
       styleRoutedRelationshipCount: styleDiagnostics.routedRelationshipCount,
       stylePatchedNodeCount: styleDiagnostics.patchedNodeCount,
       moveRoutedRelationshipCount: moveDiagnostics.routedRelationshipCount,
+      moveSelectiveRelationshipsConsidered: moveDiagnostics.selectiveRoutingRelationshipsConsidered,
+      moveSelectiveRelationshipsRerouted: moveDiagnostics.selectiveRoutingRelationshipsRerouted,
+      moveSelectiveTotalRelationships: moveDiagnostics.selectiveRoutingTotalRelationships,
+      moveSelectiveSpatialSectorsQueried: moveDiagnostics.selectiveRoutingSpatialSectorsQueried,
       batchFlushDelta: batchFlushAfter - batchFlushBefore,
       batchPatchedNodeCount: batchDiagnostics.patchedNodeCount,
       batchRoutedRelationshipCount: batchDiagnostics.routedRelationshipCount,
@@ -256,6 +261,10 @@ async function assertKeyedDiagram2NodePatches(page, expectedFullRenderCount) {
   expect(result.styleRoutedRelationshipCount).toBe(0);
   expect(result.stylePatchedNodeCount).toBe(1);
   expect(result.moveRoutedRelationshipCount).toBeGreaterThan(0);
+  expect(result.moveSelectiveRelationshipsConsidered).toBeGreaterThan(0);
+  expect(result.moveSelectiveRelationshipsConsidered).toBeLessThan(result.moveSelectiveTotalRelationships);
+  expect(result.moveSelectiveRelationshipsRerouted).toBe(result.moveRoutedRelationshipCount);
+  expect(result.moveSelectiveSpatialSectorsQueried).toBeGreaterThan(0);
   expect(result.batchFlushDelta).toBe(1);
   expect(result.batchPatchedNodeCount).toBe(2);
   expect(result.batchRoutedRelationshipCount).toBe(0);
@@ -266,6 +275,116 @@ async function assertKeyedDiagram2NodePatches(page, expectedFullRenderCount) {
   expect(result.largeSelectionRoutedRelationshipCount).toBe(0);
   expect(result.dirtyFlushDelta).toBe(6);
   expect(result.relationshipNodeCount).toBe(82);
+}
+
+async function assertDiagram2SelectiveRoutingStress(page) {
+  const result = await page.evaluate(async () => {
+    const { createDiagram2Renderer } = await import("/js/features/diagram2/diagram2-renderer.js?v=20260725-diagram2-day11-v1");
+    const host = document.createElement("div");
+    host.style.position = "absolute";
+    host.style.left = "-12000px";
+    host.style.top = "0";
+    host.style.width = "1200px";
+    host.style.height = "800px";
+    document.body.appendChild(host);
+
+    const state = buildDiagram2StressState();
+    const renderer = createDiagram2Renderer({ host });
+    const initial = renderer.render(state, { reason: "stress initial" });
+    const refresh = renderer.render(structuredClone(state), { reason: "stress cache refresh" });
+    renderer.updateObject("entity-7", object => ({
+      x: Number(object.x || 0) + 36,
+      y: Number(object.y || 0) + 24
+    }));
+    const move = await renderer.whenIdle();
+    renderer.updateObject("entity-8", { fill: "#f8fafc" });
+    const style = await renderer.whenIdle();
+    host.remove();
+
+    return {
+      initialRelationships: initial.canonicalRelationshipCount,
+      initialRerouted: initial.selectiveRoutingRelationshipsRerouted,
+      refreshConsidered: refresh.selectiveRoutingRelationshipsConsidered,
+      refreshCacheHits: refresh.selectiveRoutingCacheHits,
+      refreshCacheMisses: refresh.selectiveRoutingCacheMisses,
+      refreshRerouted: refresh.selectiveRoutingRelationshipsRerouted,
+      moveTotal: move.selectiveRoutingTotalRelationships,
+      moveConsidered: move.selectiveRoutingRelationshipsConsidered,
+      moveRerouted: move.selectiveRoutingRelationshipsRerouted,
+      moveCacheMisses: move.selectiveRoutingCacheMisses,
+      moveSectorsQueried: move.selectiveRoutingSpatialSectorsQueried,
+      moveDuration: move.selectiveRoutingDuration,
+      styleRerouted: style.selectiveRoutingRelationshipsRerouted,
+      styleConsidered: style.selectiveRoutingRelationshipsConsidered,
+      stylePatchedNodeCount: style.patchedNodeCount
+    };
+
+    function buildDiagram2StressState() {
+      const entityCount = 232;
+      const relationshipCount = 624;
+      const columns = 29;
+      const objects = Array.from({ length: entityCount }, (_, index) => {
+        const name = `Stress${index}`;
+        return {
+          id: `entity-${index}`,
+          type: "entity",
+          x: (index % columns) * 260,
+          y: Math.floor(index / columns) * 190,
+          width: 220,
+          height: 130,
+          entitySchema: "dbo",
+          entityName: name,
+          fields: [
+            { name: `${name}Id`, dataType: "INT", nullable: false, isPrimaryKey: true, isForeignKey: false, isImportant: true },
+            { name: "Ref0Id", dataType: "INT", nullable: true, isPrimaryKey: false, isForeignKey: true },
+            { name: "Ref1Id", dataType: "INT", nullable: true, isPrimaryKey: false, isForeignKey: true },
+            { name: "Ref2Id", dataType: "INT", nullable: true, isPrimaryKey: false, isForeignKey: true },
+            { name: "Ref3Id", dataType: "INT", nullable: true, isPrimaryKey: false, isForeignKey: true }
+          ],
+          foreignKeys: []
+        };
+      });
+
+      for (let index = 0; index < relationshipCount; index += 1) {
+        const sourceIndex = (index % (entityCount - 1)) + 1;
+        let targetIndex = (sourceIndex + 17 + (index * 19)) % entityCount;
+        if (targetIndex === sourceIndex) targetIndex = (targetIndex + 1) % entityCount;
+        const targetName = `Stress${targetIndex}`;
+        objects[sourceIndex].foreignKeys.push({
+          name: `FK_Stress_${index}`,
+          columns: [`Ref${index % 4}Id`],
+          referencedSchema: "dbo",
+          referencedTable: targetName,
+          referencedColumns: [`${targetName}Id`],
+          relationshipType: "many-to-one"
+        });
+      }
+
+      return {
+        width: columns * 260,
+        height: 8 * 190,
+        objects
+      };
+    }
+  });
+
+  expect(result.initialRelationships).toBe(624);
+  expect(result.initialRerouted).toBe(624);
+  expect(result.refreshConsidered).toBe(624);
+  expect(result.refreshCacheHits).toBe(624);
+  expect(result.refreshCacheMisses).toBe(0);
+  expect(result.refreshRerouted).toBe(0);
+  expect(result.moveTotal).toBe(624);
+  expect(result.moveConsidered).toBeGreaterThan(0);
+  expect(result.moveConsidered).toBeLessThan(624);
+  expect(result.moveRerouted).toBeGreaterThan(0);
+  expect(result.moveRerouted).toBeLessThan(624);
+  expect(result.moveCacheMisses).toBe(result.moveRerouted);
+  expect(result.moveSectorsQueried).toBeGreaterThan(0);
+  expect(result.moveDuration).toBeGreaterThanOrEqual(0);
+  expect(result.styleRerouted).toBe(0);
+  expect(result.styleConsidered).toBe(0);
+  expect(result.stylePatchedNodeCount).toBe(1);
 }
 
 async function assertDiagram2LiveGeometryPreview(page, expectedFullRenderCount) {
@@ -595,7 +714,7 @@ function testState() {
 }
 
 function pmtDatabaseSchemaBodyHtml() {
-  return `<p><img data-pmt-diagram="true" data-pmt-private-diagram="true" src="/assets/docs/pmt-database-schema.svg?v=20260725-diagram2-day10-fixture" alt="PMT Database Schema"></p>`;
+  return `<p><img data-pmt-diagram="true" data-pmt-private-diagram="true" src="/assets/docs/pmt-database-schema.svg?v=20260725-diagram2-day11-fixture" alt="PMT Database Schema"></p>`;
 }
 
 function diagramBodyHtml(title, stroke) {

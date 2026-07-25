@@ -7,6 +7,7 @@ import {
 } from "../../wwwroot/js/components/image-annotation.js";
 import {
   createDiagram2DirtyState,
+  createDiagram2FixedGridIndex,
   createDiagram2LiveView,
   diagram2CanonicalRelationships,
   diagram2CanonicalSummary,
@@ -28,6 +29,21 @@ test("Diagram 2 dirty state keeps explicit invalidation categories", () => {
   assert.equal(dirty.zOrder, false);
   assert.equal(dirty.worldBounds, false);
   assert.equal(dirty.sectors, false);
+});
+
+test("Diagram 2 fixed grid index returns only nearby route candidates", () => {
+  const index = createDiagram2FixedGridIndex(100);
+
+  index.add("near-a", { x: 20, y: 20, width: 60, height: 60 });
+  index.add("near-b", { x: 140, y: 40, width: 40, height: 40 });
+  index.add("far", { x: 640, y: 640, width: 50, height: 50 });
+
+  const local = index.query({ x: 0, y: 0, width: 220, height: 120 });
+  assert.deepEqual([...local.ids].sort(), ["near-a", "near-b"]);
+  assert.equal(local.sectorKeys.length > 0, true);
+
+  index.remove("near-a");
+  assert.deepEqual([...index.query({ x: 0, y: 0, width: 90, height: 90 }).ids], []);
 });
 
 test("Diagram 2 live view keeps renderer-only state out of the canonical model", () => {
