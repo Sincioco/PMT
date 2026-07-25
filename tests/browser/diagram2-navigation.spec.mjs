@@ -99,7 +99,7 @@ test("Diagram 2 top navigation opens the isolated shell", async ({ page }) => {
   await assertDiagram2SelectiveRoutingStress(page);
   await assertDiagram2ViewportHaloVirtualization(page);
   await assertDiagram2LowDetailOverviewRendering(page);
-  for (const zoom of ["0.5", "0.75", "0.9", "1", "1.1", "1.25", "1.5", "2"]) {
+  for (const zoom of ["0.1", "0.5", "0.75", "1", "1.25", "1.5", "2"]) {
     await assertTransformOnlyZoom(page, zoom, transformOnlyRenderCount);
   }
   await assertTransformOnlyPan(page, transformOnlyRenderCount);
@@ -431,7 +431,7 @@ async function assertKeyedDiagram2NodePatches(page, expectedFullRenderCount) {
 
 async function assertDiagram2SelectiveRoutingStress(page) {
   const result = await page.evaluate(async () => {
-    const { createDiagram2Renderer } = await import("/js/features/diagram2/diagram2-renderer.js?v=20260725-diagram2-day15-v1");
+    const { createDiagram2Renderer } = await import("/js/features/diagram2/diagram2-renderer.js?v=20260726-diagram2-day16-v1");
     const host = document.createElement("div");
     host.style.position = "absolute";
     host.style.left = "-12000px";
@@ -541,7 +541,7 @@ async function assertDiagram2SelectiveRoutingStress(page) {
 
 async function assertDiagram2ViewportHaloVirtualization(page) {
   const result = await page.evaluate(async () => {
-    const { createDiagram2Renderer } = await import("/js/features/diagram2/diagram2-renderer.js?v=20260725-diagram2-day15-v1");
+    const { createDiagram2Renderer } = await import("/js/features/diagram2/diagram2-renderer.js?v=20260726-diagram2-day16-v1");
     const host = document.createElement("div");
     host.style.position = "absolute";
     host.style.left = "-12000px";
@@ -747,7 +747,7 @@ async function assertDiagram2ViewportHaloVirtualization(page) {
 
 async function assertDiagram2LowDetailOverviewRendering(page) {
   const result = await page.evaluate(async () => {
-    const { createDiagram2Renderer } = await import("/js/features/diagram2/diagram2-renderer.js?v=20260725-diagram2-day15-v1");
+    const { createDiagram2Renderer } = await import("/js/features/diagram2/diagram2-renderer.js?v=20260726-diagram2-day16-v1");
     const host = document.createElement("div");
     host.style.position = "absolute";
     host.style.left = "-12000px";

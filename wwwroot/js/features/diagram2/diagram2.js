@@ -38,12 +38,12 @@ import {
 import {
   createDiagram2Renderer,
   normalizeDiagram2CanonicalState
-} from "./diagram2-renderer.js?v=20260725-diagram2-day15-v1";
+} from "./diagram2-renderer.js?v=20260726-diagram2-day16-v1";
 
 const diagram2ViewModes = new Set(["tree", "cards"]);
 const diagram2SortModes = new Set(["latest", "oldest", "name", "custom"]);
 const diagram2VisibilityModes = new Set(["both", "private", "public"]);
-const diagram2ZoomModes = new Set(["fit", "0.5", "0.75", "0.9", "1", "1.1", "1.25", "1.5", "2"]);
+const diagram2ZoomModes = new Set(["fit", "0.1", "0.5", "0.75", "1", "1.25", "1.5", "2"]);
 const diagram2TreePaneMinimumWidth = 220;
 const diagram2TreePaneMaximumWidth = 560;
 const diagram2Compatibility = diagram2CompatibilitySummary();
@@ -853,6 +853,7 @@ export function createDiagram2Feature({ app, notify, saveDiagramDocument } = {})
 
   function resetDiagram2Renderer() {
     abortDiagram2ViewportControls();
+    diagram2Renderer?.destroy?.();
     if (globalThis.__pmtDiagram2Renderer === diagram2Renderer) {
       globalThis.__pmtDiagram2Renderer = null;
     }
@@ -1405,11 +1406,10 @@ function normalizeDiagram2Zoom(value) {
 function diagram2ZoomOptionsHtml(selectedZoom) {
   return selectOptionsHtml([
     { value: "fit", text: "Fit" },
+    { value: "0.1", text: "10%" },
     { value: "0.5", text: "50%" },
     { value: "0.75", text: "75%" },
-    { value: "0.9", text: "90%" },
     { value: "1", text: "100%" },
-    { value: "1.1", text: "110%" },
     { value: "1.25", text: "125%" },
     { value: "1.5", text: "150%" },
     { value: "2", text: "200%" }

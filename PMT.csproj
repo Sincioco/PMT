@@ -4,6 +4,7 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>PMT</RootNamespace>
+    <DefaultItemExcludes>$(DefaultItemExcludes);artifacts\**;test-results\**</DefaultItemExcludes>
   </PropertyGroup>
 
   <ItemGroup>

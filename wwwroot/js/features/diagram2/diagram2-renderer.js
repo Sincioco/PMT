@@ -313,6 +313,7 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
   let geometryPreviewUndoEntryCount = 0;
   let pendingViewportFrame = 0;
   let pendingViewportGesture = null;
+  let destroyed = false;
   let lastViewportReason = "";
   let lastTransformDiagnostics = emptyTransformDiagnostics();
   let lastDirtyDiagnostics = emptyDirtyFlushDiagnostics();
@@ -599,6 +600,10 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
     const requestFrame = globalThis.requestAnimationFrame || (callback => globalThis.setTimeout(callback, 16));
     pendingDiagramFlushFrame = requestFrame(() => {
       pendingDiagramFlushFrame = 0;
+      if (destroyed) {
+        resolvePendingFlushes();
+        return;
+      }
       flushDiagramChanges(reason);
     });
     lastDirtyDiagnostics = {
@@ -793,6 +798,39 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
 
   function svgNode() {
     return svg;
+  }
+
+  function destroy() {
+    destroyed = true;
+    cancelDiagram2Frame(pendingDiagramFlushFrame);
+    cancelDiagram2Frame(pendingGeometryPreviewFrame);
+    cancelDiagram2Frame(pendingViewportFrame);
+    pendingDiagramFlushFrame = 0;
+    pendingGeometryPreviewFrame = 0;
+    pendingViewportFrame = 0;
+    pendingViewportGesture = null;
+    clearGeometryPreview({ restoreObjects: false, reason: "destroy" });
+    clearDirtyState(dirty);
+    transactionDepth = 0;
+    pendingSelectiveRoutingSectorsQueried = 0;
+    clearDiagram2LiveView(liveView);
+    clearDiagram2RoutingState(routing);
+    clearDiagram2ViewportHaloState(viewportHalo);
+    overviewDetail.level = diagram2DetailLevelDetailed;
+    Object.keys(planes).forEach(key => {
+      planes[key] = null;
+    });
+    host.replaceChildren();
+    svg = null;
+    viewportPlane = null;
+    canonicalState = null;
+    lastDiagnostics = emptyDiagnostics();
+    lastDirtyDiagnostics = emptyDirtyFlushDiagnostics();
+    lastGeometryPreviewDiagnostics = emptyGeometryPreviewDiagnostics();
+    lastSelectiveRoutingDiagnostics = emptySelectiveRoutingDiagnostics();
+    lastViewportHaloDiagnostics = emptyViewportHaloDiagnostics();
+    lastOverviewDetailDiagnostics = emptyOverviewDetailDiagnostics();
+    resolvePendingFlushes();
   }
 
   function viewportMatrix() {
@@ -1838,6 +1876,10 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
     const requestFrame = globalThis.requestAnimationFrame || (callback => globalThis.setTimeout(callback, 16));
     pendingGeometryPreviewFrame = requestFrame(() => {
       pendingGeometryPreviewFrame = 0;
+      if (destroyed) {
+        resolvePendingFlushes();
+        return;
+      }
       applyGeometryPreviewFrame(reason);
       resolvePendingFlushes();
     });
@@ -2137,6 +2179,7 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
     const requestFrame = globalThis.requestAnimationFrame || (callback => globalThis.setTimeout(callback, 16));
     pendingViewportFrame = requestFrame(() => {
       pendingViewportFrame = 0;
+      if (destroyed) return;
       applyViewportTransformNow(lastViewportReason);
     });
   }
@@ -2411,8 +2454,57 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
     worldToScreen,
     diagnostics,
     liveViewSnapshot,
+    destroy,
     svgNode
   };
+}
+
+function cancelDiagram2Frame(frameId) {
+  if (!frameId) return;
+  if (typeof globalThis.cancelAnimationFrame === "function") globalThis.cancelAnimationFrame(frameId);
+  else if (typeof globalThis.clearTimeout === "function") globalThis.clearTimeout(frameId);
+}
+
+function clearDiagram2LiveView(liveView) {
+  liveView.objectNodesById.clear();
+  liveView.relationshipNodesById.clear();
+  liveView.mountedObjectIds.clear();
+  liveView.mountedRelationshipIds.clear();
+  liveView.selectedIds.clear();
+  liveView.objectVersionsById.clear();
+  liveView.relationshipVersionsById.clear();
+  liveView.objectDataById.clear();
+  liveView.relationshipDataById.clear();
+  liveView.objectDetailLevelsById.clear();
+  liveView.relationshipDetailLevelsById.clear();
+}
+
+function clearDiagram2RoutingState(routing) {
+  routing.relationshipIdsByEntityId.clear();
+  routing.relationshipIdsByFieldAnchor.clear();
+  routing.relationshipBoundsById.clear();
+  routing.relationshipRouteSignaturesById.clear();
+  routing.relationshipStyleSignaturesById.clear();
+  routing.relationshipRoutesById.clear();
+  routing.entityProtectedBoundsById.clear();
+  routing.entityProtectedSectorIndex.clear();
+  routing.relationshipRouteSectorIndex.clear();
+  routing.routingObstacleBoundsById.clear();
+  routing.routingObstacleSectorIndex.clear();
+  routing.obstacleGeneration = 0;
+  routing.obstacleGenerationBySectorKey.clear();
+}
+
+function clearDiagram2ViewportHaloState(viewportHalo) {
+  viewportHalo.active = false;
+  viewportHalo.sectorSignature = "";
+  viewportHalo.forceSignature = "";
+  viewportHalo.canonicalObjectCount = 0;
+  viewportHalo.canonicalRelationshipCount = 0;
+  viewportHalo.objectIds.clear();
+  viewportHalo.relationshipIds.clear();
+  viewportHalo.objectSectorIndex.clear();
+  viewportHalo.relationshipSectorIndex.clear();
 }
 
 function patchObjectNode(node, previousObject, object, flags = {}, state) {
