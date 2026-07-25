@@ -28,7 +28,7 @@ import {
 } from "../../shared/diagram-documents.js?v=20260725-diagram2-day6-v1";
 import { formatDate } from "../../shared/dates.js";
 import { escapeAttr, escapeHtml } from "../../shared/text-and-links.js";
-import { createDiagram2Renderer } from "./diagram2-renderer.js?v=20260725-diagram2-day7-v1";
+import { createDiagram2Renderer } from "./diagram2-renderer.js?v=20260725-diagram2-day8-v1";
 
 const diagram2ViewModes = new Set(["tree", "cards"]);
 const diagram2SortModes = new Set(["latest", "oldest", "name", "custom"]);
@@ -421,6 +421,7 @@ export function createDiagram2Feature({ app, notify } = {}) {
       host: surface,
       onDiagnostics: updateDiagram2Diagnostics
     });
+    globalThis.__pmtDiagram2Renderer = diagram2Renderer;
     diagram2RendererDocumentId = document.id;
     diagram2RendererState = result.state;
     let diagnostics = diagram2Renderer.render(result.state, {
@@ -544,6 +545,9 @@ export function createDiagram2Feature({ app, notify } = {}) {
 
   function resetDiagram2Renderer() {
     abortDiagram2ViewportControls();
+    if (globalThis.__pmtDiagram2Renderer === diagram2Renderer) {
+      globalThis.__pmtDiagram2Renderer = null;
+    }
     diagram2Renderer = null;
     diagram2RendererDocumentId = 0;
     diagram2RendererState = null;

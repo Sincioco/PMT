@@ -9,6 +9,7 @@ import {
   createDiagram2LiveView,
   diagram2CanonicalRelationships,
   diagram2CanonicalSummary,
+  diagram2ObjectPatchFlags,
   diagram2ScreenToWorldPoint,
   diagram2WorldToScreenPoint,
   diagram2ZoomAtTransform
@@ -29,14 +30,19 @@ test("Diagram 2 live view keeps renderer-only state out of the canonical model",
   liveView.selectedIds.add("entity-a");
   liveView.objectVersionsById.set("entity-a", "v1");
   liveView.relationshipVersionsById.set("relationship-a", "v1");
+  liveView.objectDataById.set("entity-a", { id: "entity-a" });
+  liveView.relationshipDataById.set("relationship-a", { id: "relationship-a" });
 
   assert.equal(Object.hasOwn(canonical, "objectNodesById"), false);
   assert.equal(Object.hasOwn(canonical, "relationshipNodesById"), false);
   assert.equal(Object.hasOwn(canonical, "mountedObjectIds"), false);
   assert.equal(Object.hasOwn(canonical, "mountedRelationshipIds"), false);
   assert.equal(Object.hasOwn(canonical, "selectedIds"), false);
+  assert.equal(Object.hasOwn(canonical, "objectDataById"), false);
+  assert.equal(Object.hasOwn(canonical, "relationshipDataById"), false);
   assert.equal(liveView.objectNodesById instanceof Map, true);
   assert.equal(liveView.mountedObjectIds instanceof Set, true);
+  assert.equal(liveView.objectDataById instanceof Map, true);
 });
 
 test("Diagram 2 derives canonical entity relationships without Diagram 1 render output", () => {
@@ -127,4 +133,59 @@ test("Diagram 2 viewport zoom preserves the world point under the cursor", () =>
   assert.equal(Math.abs(screenAfter.x - cursor.x) <= 0.000001, true);
   assert.equal(Math.abs(screenAfter.y - cursor.y) <= 0.000001, true);
   assert.deepEqual(worldBefore, diagram2ScreenToWorldPoint(next, screenAfter));
+});
+
+test("Diagram 2 object patch flags keep entity moves transform-only", () => {
+  const previous = normalizeAnnotationState({
+    width: 800,
+    height: 600,
+    objects: [{
+      id: "entity-a",
+      type: "entity",
+      x: 80,
+      y: 120,
+      width: 240,
+      height: 120,
+      entitySchema: "pmt",
+      entityName: "Users",
+      fill: "#ffffff",
+      entityHeaderFill: "#dbeafe",
+      fields: [{
+        name: "UserId",
+        dataType: "INT",
+        nullable: false,
+        isPrimaryKey: true,
+        isImportant: true
+      }]
+    }]
+  }).objects[0];
+  const moved = {
+    ...previous,
+    x: previous.x + 32,
+    y: previous.y + 18
+  };
+  const recolored = {
+    ...previous,
+    fill: "#fff7ed",
+    entityHeaderFill: "#fed7aa"
+  };
+  const collapsed = {
+    ...previous,
+    collapsed: true
+  };
+
+  assert.deepEqual(diagram2ObjectPatchFlags(previous, moved), {
+    changed: true,
+    created: false,
+    typeChanged: false,
+    transformChanged: true,
+    structureChanged: false,
+    styleChanged: false,
+    textChanged: false,
+    rebuild: false
+  });
+  assert.equal(diagram2ObjectPatchFlags(previous, recolored).styleChanged, true);
+  assert.equal(diagram2ObjectPatchFlags(previous, recolored).rebuild, false);
+  assert.equal(diagram2ObjectPatchFlags(previous, collapsed).structureChanged, true);
+  assert.equal(diagram2ObjectPatchFlags(previous, collapsed).rebuild, true);
 });

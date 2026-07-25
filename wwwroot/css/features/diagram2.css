@@ -346,6 +346,18 @@
   pointer-events: none;
 }
 
+.diagram2-renderer-object.is-selected .diagram2-renderer-entity-outline,
+.diagram2-renderer-object.is-selected .diagram2-renderer-field-rectangle,
+.diagram2-renderer-object.is-selected .diagram2-renderer-rectangle,
+.diagram2-renderer-object.is-selected .diagram2-renderer-circle,
+.diagram2-renderer-object.is-selected .diagram2-renderer-textbox-frame {
+  stroke: #2563eb;
+}
+
+.diagram2-renderer-selection {
+  pointer-events: none;
+}
+
 .diagram2-renderer-entity-title,
 .diagram2-renderer-entity-field,
 .diagram2-renderer-entity-key,

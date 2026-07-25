@@ -29,7 +29,9 @@ export function createDiagram2LiveView() {
     mountedRelationshipIds: new Set(),
     selectedIds: new Set(),
     objectVersionsById: new Map(),
-    relationshipVersionsById: new Map()
+    relationshipVersionsById: new Map(),
+    objectDataById: new Map(),
+    relationshipDataById: new Map()
   };
 }
 
@@ -126,6 +128,82 @@ export function diagram2MatrixText(transform) {
   return `matrix(${formatNumber(normalized.scale)} 0 0 ${formatNumber(normalized.scale)} ${formatNumber(normalized.translateX)} ${formatNumber(normalized.translateY)})`;
 }
 
+export function diagram2ObjectPatchFlags(previousObject, nextObject) {
+  if (!nextObject) {
+    return {
+      changed: false,
+      created: false,
+      typeChanged: false,
+      transformChanged: false,
+      structureChanged: false,
+      styleChanged: false,
+      textChanged: false,
+      rebuild: false
+    };
+  }
+  if (!previousObject) {
+    return {
+      changed: true,
+      created: true,
+      typeChanged: true,
+      transformChanged: true,
+      structureChanged: true,
+      styleChanged: true,
+      textChanged: true,
+      rebuild: true
+    };
+  }
+
+  const typeChanged = previousObject.type !== nextObject.type
+    || diagram2IsFieldRectangle(previousObject) !== diagram2IsFieldRectangle(nextObject);
+  const transformChanged = objectTranslationVersion(previousObject) !== objectTranslationVersion(nextObject);
+  const structureChanged = typeChanged || objectStructureVersion(previousObject) !== objectStructureVersion(nextObject);
+  const styleChanged = objectStyleVersion(previousObject) !== objectStyleVersion(nextObject);
+  const textChanged = objectTextVersion(previousObject) !== objectTextVersion(nextObject);
+  return {
+    changed: typeChanged
+      || transformChanged
+      || structureChanged
+      || styleChanged
+      || textChanged
+      || objectVersion(previousObject) !== objectVersion(nextObject),
+    created: false,
+    typeChanged,
+    transformChanged,
+    structureChanged,
+    styleChanged,
+    textChanged,
+    rebuild: structureChanged
+  };
+}
+
+export function diagram2RelationshipPatchFlags(previousRelationship, nextRelationship) {
+  if (!nextRelationship) {
+    return {
+      changed: false,
+      created: false,
+      routeChanged: false,
+      styleChanged: false
+    };
+  }
+  if (!previousRelationship) {
+    return {
+      changed: true,
+      created: true,
+      routeChanged: true,
+      styleChanged: true
+    };
+  }
+  const routeChanged = relationshipRouteVersion(previousRelationship) !== relationshipRouteVersion(nextRelationship);
+  const styleChanged = relationshipStyleVersion(previousRelationship) !== relationshipStyleVersion(nextRelationship);
+  return {
+    changed: routeChanged || styleChanged || relationshipVersion(previousRelationship) !== relationshipVersion(nextRelationship),
+    created: false,
+    routeChanged,
+    styleChanged
+  };
+}
+
 export function createDiagram2Renderer({ host, performance: performanceApi = globalThis.performance, onDiagnostics = null } = {}) {
   if (!host) throw new Error("Diagram 2 renderer requires a host element.");
 
@@ -163,7 +241,7 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
     patchBackgroundPlane(canonicalState);
     mark(performanceApi, `${frameId}:planes`);
 
-    const objectsPatched = patchObjects(visibleObjects, canonicalState);
+    const objectsPatched = patchObjects(visibleObjects);
     mark(performanceApi, `${frameId}:objects`);
 
     const relationshipsRouted = patchRelationships(relationships);
@@ -243,6 +321,78 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
     return diagnostics();
   }
 
+  function updateObject(id, patchInput = {}) {
+    if (!canonicalState) return diagnostics();
+    const objectId = String(id || "");
+    const index = canonicalState.objects.findIndex(object => object.id === objectId);
+    if (index < 0) return diagnostics();
+
+    const previousObject = canonicalState.objects[index];
+    const patch = typeof patchInput === "function"
+      ? patchInput({ ...previousObject })
+      : patchInput;
+    const nextCandidate = {
+      ...previousObject,
+      ...(patch && typeof patch === "object" ? patch : {}),
+      id: objectId
+    };
+    const nextState = normalizeDiagram2CanonicalState({
+      ...canonicalState,
+      objects: canonicalState.objects.map((object, objectIndex) =>
+        objectIndex === index ? nextCandidate : object)
+    });
+    const nextObject = nextState.objects.find(object => object.id === objectId);
+    canonicalState = nextState;
+
+    let objectsPatched = 0;
+    if (nextObject?.visible !== false) {
+      objectsPatched = patchVisibleObject(nextObject);
+      const node = liveView.objectNodesById.get(objectId);
+      if (node?.parentNode !== planes.objects) planes.objects.appendChild(node);
+      liveView.mountedObjectIds.add(objectId);
+    } else {
+      removeObjectNode(objectId);
+    }
+
+    const relationships = diagram2CanonicalRelationships(canonicalState);
+    const relationshipsRouted = patchRelationships(relationships);
+    patchSelectionOverlays();
+    return flushPatchDiagnostics(relationships, objectsPatched, relationshipsRouted, 0);
+  }
+
+  function setSelectedIds(ids = []) {
+    liveView.selectedIds.clear();
+    (Array.isArray(ids) ? ids : [ids])
+      .map(id => String(id || "").trim())
+      .filter(Boolean)
+      .forEach(id => liveView.selectedIds.add(id));
+
+    liveView.objectNodesById.forEach((node, id) => patchObjectSelection(node, id, liveView.selectedIds.has(id)));
+    liveView.relationshipNodesById.forEach((node, id) => patchRelationshipSelection(node, id, liveView.selectedIds.has(id)));
+    patchSelectionOverlays();
+
+    const relationships = canonicalState ? diagram2CanonicalRelationships(canonicalState) : [];
+    return flushPatchDiagnostics(relationships, 0, 0, 0);
+  }
+
+  function flushPatchDiagnostics(relationships, objectsPatched, relationshipsRouted, duration) {
+    if (!canonicalState || !svg) return diagnostics();
+    lastDiagnostics = diagnosticsFor({
+      canonicalState,
+      relationships,
+      fullRenderCount,
+      fullRenderReason,
+      objectsPatchedInLastFlush: objectsPatched,
+      relationshipsRoutedInLastFlush: relationshipsRouted,
+      lastFrameDuration: duration
+    });
+    Object.assign(lastDiagnostics, lastTransformDiagnostics);
+    lastDiagnostics.svgDescendantCount = svg.querySelectorAll("*").length;
+    applyDiagnosticsAttributes();
+    notifyDiagnostics();
+    return diagnostics();
+  }
+
   function diagnostics() {
     return { ...lastDiagnostics };
   }
@@ -255,7 +405,9 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
       mountedRelationshipIds: [...liveView.mountedRelationshipIds],
       selectedIds: [...liveView.selectedIds],
       objectVersionCount: liveView.objectVersionsById.size,
-      relationshipVersionCount: liveView.relationshipVersionsById.size
+      relationshipVersionCount: liveView.relationshipVersionsById.size,
+      objectDataCount: liveView.objectDataById.size,
+      relationshipDataCount: liveView.relationshipDataById.size
     };
   }
 
@@ -342,80 +494,175 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
     });
   }
 
-  function patchObjects(objects, state) {
+  function patchObjects(objects) {
     const desiredIds = new Set();
     let patchedCount = 0;
 
     objects.forEach(object => {
       desiredIds.add(object.id);
-      let node = liveView.objectNodesById.get(object.id);
-      if (!node) {
-        node = createSvgElement(host, "g", {
-          "data-diagram2-object-id": object.id,
-          "data-diagram2-object-type": object.type
-        });
-        liveView.objectNodesById.set(object.id, node);
-      }
+      patchedCount += patchVisibleObject(object);
 
-      const version = objectVersion(object);
-      if (liveView.objectVersionsById.get(object.id) !== version) {
-        patchObjectNode(node, object, state);
-        liveView.objectVersionsById.set(object.id, version);
-        patchedCount += 1;
-      }
-
+      const node = liveView.objectNodesById.get(object.id);
       if (node.parentNode !== planes.objects || node !== planes.objects.lastChild) {
         planes.objects.appendChild(node);
       }
     });
 
-    [...liveView.objectNodesById.entries()].forEach(([id, node]) => {
+    [...liveView.objectNodesById.keys()].forEach(id => {
       if (desiredIds.has(id)) return;
-      node.remove();
-      liveView.objectNodesById.delete(id);
-      liveView.objectVersionsById.delete(id);
+      removeObjectNode(id);
     });
 
     liveView.mountedObjectIds.clear();
     desiredIds.forEach(id => liveView.mountedObjectIds.add(id));
+    patchSelectionOverlays();
     return patchedCount;
   }
 
   function patchRelationships(relationships) {
     const desiredIds = new Set();
+    let routedCount = 0;
 
     relationships.forEach(relationship => {
       desiredIds.add(relationship.id);
-      let node = liveView.relationshipNodesById.get(relationship.id);
-      if (!node) {
-        node = createSvgElement(host, "g", {
-          "data-diagram2-relationship-id": relationship.id
-        });
-        liveView.relationshipNodesById.set(relationship.id, node);
-      }
+      routedCount += patchVisibleRelationship(relationship);
 
-      const version = relationshipVersion(relationship);
-      if (liveView.relationshipVersionsById.get(relationship.id) !== version) {
-        patchRelationshipNode(node, relationship);
-        liveView.relationshipVersionsById.set(relationship.id, version);
-      }
-
+      const node = liveView.relationshipNodesById.get(relationship.id);
       if (node.parentNode !== planes.relationships || node !== planes.relationships.lastChild) {
         planes.relationships.appendChild(node);
       }
     });
 
-    [...liveView.relationshipNodesById.entries()].forEach(([id, node]) => {
+    [...liveView.relationshipNodesById.keys()].forEach(id => {
       if (desiredIds.has(id)) return;
-      node.remove();
-      liveView.relationshipNodesById.delete(id);
-      liveView.relationshipVersionsById.delete(id);
+      removeRelationshipNode(id);
     });
 
     liveView.mountedRelationshipIds.clear();
     desiredIds.forEach(id => liveView.mountedRelationshipIds.add(id));
-    relationshipRouteRevision += 1;
-    return relationships.length;
+    if (routedCount > 0) relationshipRouteRevision += routedCount;
+    return routedCount;
+  }
+
+  function patchVisibleObject(object) {
+    const node = liveView.objectNodesById.get(object.id) || createObjectNode(object);
+    const previousObject = liveView.objectDataById.get(object.id) || null;
+    const flags = diagram2ObjectPatchFlags(previousObject, object);
+    if (!flags.changed && liveView.objectVersionsById.has(object.id)) {
+      patchObjectSelection(node, object.id, liveView.selectedIds.has(object.id));
+      return 0;
+    }
+
+    patchObjectNode(node, previousObject, object, {
+      ...flags,
+      selected: liveView.selectedIds.has(object.id)
+    }, canonicalState);
+    liveView.objectDataById.set(object.id, object);
+    liveView.objectVersionsById.set(object.id, objectVersion(object));
+    return 1;
+  }
+
+  function patchVisibleRelationship(relationship) {
+    const node = liveView.relationshipNodesById.get(relationship.id) || createRelationshipNode(relationship);
+    const previousRelationship = liveView.relationshipDataById.get(relationship.id) || null;
+    const flags = diagram2RelationshipPatchFlags(previousRelationship, relationship);
+    if (!flags.changed && liveView.relationshipVersionsById.has(relationship.id)) {
+      patchRelationshipSelection(node, relationship.id, liveView.selectedIds.has(relationship.id));
+      return 0;
+    }
+
+    patchRelationshipNode(node, previousRelationship, relationship, {
+      ...flags,
+      selected: liveView.selectedIds.has(relationship.id)
+    });
+    liveView.relationshipDataById.set(relationship.id, relationship);
+    liveView.relationshipVersionsById.set(relationship.id, relationshipVersion(relationship));
+    return 1;
+  }
+
+  function createObjectNode(object) {
+    const node = createSvgElement(host, "g", {
+      "data-diagram2-object-id": object.id,
+      "data-diagram2-object-type": object.type
+    });
+    liveView.objectNodesById.set(object.id, node);
+    return node;
+  }
+
+  function removeObjectNode(id) {
+    liveView.objectNodesById.get(id)?.remove();
+    liveView.objectNodesById.delete(id);
+    liveView.objectVersionsById.delete(id);
+    liveView.objectDataById.delete(id);
+    liveView.mountedObjectIds.delete(id);
+    liveView.selectedIds.delete(id);
+    planes.overlays?.querySelector(`[data-diagram2-selection-id="${cssEscape(id)}"]`)?.remove();
+  }
+
+  function createRelationshipNode(relationship) {
+    const node = createSvgElement(host, "g", {
+      "data-diagram2-relationship-id": relationship.id
+    });
+    liveView.relationshipNodesById.set(relationship.id, node);
+    return node;
+  }
+
+  function removeRelationshipNode(id) {
+    liveView.relationshipNodesById.get(id)?.remove();
+    liveView.relationshipNodesById.delete(id);
+    liveView.relationshipVersionsById.delete(id);
+    liveView.relationshipDataById.delete(id);
+    liveView.mountedRelationshipIds.delete(id);
+    liveView.selectedIds.delete(id);
+  }
+
+  function patchSelectionOverlays() {
+    if (!planes.overlays) return;
+    const desiredIds = new Set();
+    liveView.selectedIds.forEach(id => {
+      const object = liveView.objectDataById.get(id);
+      const objectNode = liveView.objectNodesById.get(id);
+      if (!object || !objectNode?.isConnected) return;
+
+      desiredIds.add(id);
+      let overlay = planes.overlays.querySelector(`:scope > g[data-diagram2-selection-id="${cssEscape(id)}"]`);
+      if (!overlay) {
+        overlay = createSvgElement(host, "g", {
+          "data-diagram2-selection-id": id,
+          class: "diagram2-renderer-selection"
+        });
+        planes.overlays.appendChild(overlay);
+      }
+
+      const bounds = objectSelectionBounds(object);
+      setSvgAttributes(overlay, {
+        "data-diagram2-selection-id": id,
+        class: "diagram2-renderer-selection",
+        transform: objectTransformText(object)
+      });
+
+      let outline = overlay.querySelector(":scope > rect[data-diagram2-selection-outline]");
+      if (!outline) {
+        outline = appendSvg(overlay, "rect", {
+          "data-diagram2-selection-outline": ""
+        });
+      }
+      setSvgAttributes(outline, {
+        x: bounds.x - 4,
+        y: bounds.y - 4,
+        width: bounds.width + 8,
+        height: bounds.height + 8,
+        fill: "none",
+        stroke: "#2563eb",
+        "stroke-width": 2,
+        "stroke-dasharray": "6 4",
+        "vector-effect": "non-scaling-stroke"
+      });
+    });
+
+    planes.overlays.querySelectorAll(":scope > g[data-diagram2-selection-id]").forEach(overlay => {
+      if (!desiredIds.has(overlay.getAttribute("data-diagram2-selection-id"))) overlay.remove();
+    });
   }
 
   function queueViewportTransform(nextTransform, options = {}) {
@@ -598,6 +845,8 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
     svg.dataset.diagram2SvgDescendantCount = String(lastDiagnostics.svgDescendantCount);
     svg.dataset.diagram2FullRenderCount = String(lastDiagnostics.fullRenderCount);
     svg.dataset.diagram2FullRenderReason = String(lastDiagnostics.fullRenderReason);
+    svg.dataset.diagram2ObjectsPatchedInLastFlush = String(lastDiagnostics.objectsPatchedInLastFlush);
+    svg.dataset.diagram2RelationshipsRoutedInLastFlush = String(lastDiagnostics.relationshipsRoutedInLastFlush);
     svg.dataset.diagram2TransientMatrix = String(lastDiagnostics.transientMatrix);
     svg.dataset.diagram2CommittedMatrix = String(lastDiagnostics.committedMatrix);
     svg.dataset.diagram2MatrixDifference = String(lastDiagnostics.matrixDifference);
@@ -622,6 +871,9 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
     setZoom,
     zoomBy,
     panBy,
+    updateObject,
+    patchObject: updateObject,
+    setSelectedIds,
     viewportMatrix,
     screenToWorld,
     worldToScreen,
@@ -631,16 +883,33 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
   };
 }
 
-function patchObjectNode(node, object, state) {
-  node.replaceChildren();
+function patchObjectNode(node, previousObject, object, flags = {}, state) {
   setSvgAttributes(node, {
     "data-diagram2-object-id": object.id,
     "data-diagram2-object-type": object.type,
     "data-diagram2-object-visible": object.visible !== false ? "true" : "false",
+    "data-diagram2-object-transform-x": objectTranslation(object).x,
+    "data-diagram2-object-transform-y": objectTranslation(object).y,
+    class: `diagram2-renderer-object is-${cssClassName(object.type)}${flags.selected ? " is-selected" : ""}`,
+    transform: objectTransformText(object),
     opacity: safeOpacity(object.opacity)
   });
-  node.classList.add("diagram2-renderer-object", `is-${cssClassName(object.type)}`);
 
+  if (flags.rebuild || !node.hasChildNodes()) {
+    node.replaceChildren();
+    renderObjectContents(node, diagram2LocalObject(object), state);
+    return;
+  }
+
+  patchObjectSelection(node, object.id, flags.selected === true);
+  if (object.type === "entity" && !diagram2IsFieldRectangle(object)) {
+    patchEntityObjectNode(node, object);
+  } else {
+    patchSimpleObjectStyles(node, object);
+  }
+}
+
+function renderObjectContents(node, object, state) {
   if (object.type === "entity") {
     renderEntityObject(node, object);
   } else if (object.type === "embedded-image") {
@@ -661,6 +930,104 @@ function patchObjectNode(node, object, state) {
     renderFieldMappingTableObject(node, object);
   } else {
     renderUnknownObject(node, object, state);
+  }
+}
+
+function patchObjectSelection(node, id, selected = null) {
+  const isSelected = selected == null ? node.classList.contains("is-selected") : selected;
+  node.classList.toggle("is-selected", isSelected);
+}
+
+function patchRelationshipSelection(node, id, selected = null) {
+  const isSelected = selected == null
+    ? node.classList.contains("is-selected")
+    : selected;
+  node.classList.toggle("is-selected", isSelected);
+}
+
+function patchEntityObjectNode(node, object) {
+  const local = diagram2LocalObject(object);
+  const fields = annotationEntityVisibleFields(local);
+  const title = node.querySelector(":scope > title");
+  if (title) title.textContent = `${formatEntityIdentifier(object.entitySchema, object.entityName)} (${fields.length} fields)`;
+  const entityTitle = node.querySelector("[data-diagram2-entity-title]");
+  if (entityTitle) entityTitle.textContent = formatEntityIdentifier(object.entitySchema, object.entityName);
+  patchEntityObjectNodeStyles(node, local);
+}
+
+function patchEntityObjectNodeStyles(node, object) {
+  const stroke = object.outlineVisible === false ? "none" : object.stroke || "#2f5597";
+  const textColor = object.textColor || "#172b4d";
+  const fontSize = clampNumber(positiveNumber(object.fontSize, 12), 8, 64);
+  setSvgAttributes(node.querySelector("[data-diagram2-entity-body]"), {
+    fill: object.fill || "#ffffff"
+  });
+  setSvgAttributes(node.querySelector("[data-diagram2-entity-header]"), {
+    fill: object.entityHeaderFill || "#dbeafe"
+  });
+  setSvgAttributes(node.querySelector("[data-diagram2-entity-outline]"), {
+    stroke,
+    "stroke-width": positiveNumber(object.strokeWidth, 1)
+  });
+  node.querySelectorAll("[data-diagram2-entity-rule]").forEach(rule => {
+    const kind = rule.getAttribute("data-diagram2-entity-rule");
+    const scale = kind === "header" ? 0.6 : kind === "row" ? 0.28 : 0.45;
+    setSvgAttributes(rule, {
+      stroke,
+      "stroke-width": Math.max(kind === "row" ? 0.35 : 0.5, positiveNumber(object.strokeWidth, 1) * scale)
+    });
+  });
+  node.querySelectorAll("[data-diagram2-entity-text]").forEach(text => {
+    const isTitle = text.hasAttribute("data-diagram2-entity-title");
+    setSvgAttributes(text, {
+      fill: isTitle ? object.entityNameTextColor || textColor : textColor,
+      "font-family": object.fontFamily || "Arial",
+      "font-size": isTitle ? fontSize : text.getAttribute("font-size")
+    });
+  });
+}
+
+function patchSimpleObjectStyles(node, object) {
+  if (diagram2IsFieldRectangle(object)) {
+    setSvgAttributes(node.querySelector(".diagram2-renderer-field-rectangle"), {
+      fill: object.fill || "transparent",
+      stroke: object.outlineVisible === false ? "none" : object.stroke || "#f59e0b",
+      "stroke-width": positiveNumber(object.strokeWidth, 2)
+    });
+    return;
+  }
+
+  if (object.type === "rectangle") {
+    setSvgAttributes(node.querySelector(".diagram2-renderer-rectangle"), {
+      fill: object.fill || "none",
+      stroke: object.outlineVisible === false ? "none" : object.stroke || "#334155",
+      "stroke-width": positiveNumber(object.strokeWidth, 1)
+    });
+  } else if (object.type === "circle") {
+    setSvgAttributes(node.querySelector(".diagram2-renderer-circle"), {
+      fill: object.fill || "none",
+      stroke: object.outlineVisible === false ? "none" : object.stroke || "#334155",
+      "stroke-width": positiveNumber(object.strokeWidth, 1)
+    });
+  } else if (object.type === "textbox" || object.type === "rich-text") {
+    setSvgAttributes(node.querySelector(".diagram2-renderer-textbox-frame"), {
+      fill: object.fill || "none",
+      stroke: object.outlineVisible === false ? "none" : object.stroke || "#334155",
+      "stroke-width": positiveNumber(object.strokeWidth, 1)
+    });
+    setSvgAttributes(node.querySelector(".diagram2-renderer-textbox-text"), {
+      fill: object.textColor || "#172b4d",
+      "font-family": object.fontFamily || "Arial"
+    });
+  } else if (object.type === "arrow" || object.type === "line") {
+    const stroke = object.stroke || "#334155";
+    setSvgAttributes(node.querySelector(".diagram2-renderer-arrow-shaft, .diagram2-renderer-line"), {
+      stroke,
+      "stroke-width": positiveNumber(object.strokeWidth, 2)
+    });
+    setSvgAttributes(node.querySelector(".diagram2-renderer-arrow-head"), {
+      fill: stroke
+    });
   }
 }
 
@@ -703,6 +1070,7 @@ function renderEntityObject(node, object) {
   appendTitle(node, `${formatEntityIdentifier(object.entitySchema, object.entityName)} (${fields.length} fields)`);
   appendSvg(node, "rect", {
     class: "diagram2-renderer-entity-body",
+    "data-diagram2-entity-body": "",
     x,
     y,
     width,
@@ -712,6 +1080,7 @@ function renderEntityObject(node, object) {
   });
   appendSvg(node, "rect", {
     class: "diagram2-renderer-entity-header",
+    "data-diagram2-entity-header": "",
     x,
     y,
     width,
@@ -721,6 +1090,8 @@ function renderEntityObject(node, object) {
   });
   appendText(node, formatEntityIdentifier(object.entitySchema, object.entityName), {
     class: "diagram2-renderer-entity-title",
+    "data-diagram2-entity-title": "",
+    "data-diagram2-entity-text": "",
     x: x + (width / 2),
     y: y + (headerHeight / 2),
     "text-anchor": "middle",
@@ -732,6 +1103,7 @@ function renderEntityObject(node, object) {
     "font-weight": 700
   });
   appendSvg(node, "line", {
+    "data-diagram2-entity-rule": "header",
     x1: x,
     y1: y + headerHeight,
     x2: x + width,
@@ -742,6 +1114,7 @@ function renderEntityObject(node, object) {
 
   if (keyColumnWidth > 0) {
     appendSvg(node, "line", {
+      "data-diagram2-entity-rule": "key-column",
       x1: x + keyColumnWidth,
       y1: y + headerHeight,
       x2: x + keyColumnWidth,
@@ -753,6 +1126,7 @@ function renderEntityObject(node, object) {
 
   if (showDataTypes) {
     appendSvg(node, "line", {
+      "data-diagram2-entity-rule": "data-type-column",
       x1: dataTypeX,
       y1: y + headerHeight,
       x2: dataTypeX,
@@ -769,6 +1143,7 @@ function renderEntityObject(node, object) {
     const rowCenterY = rowY + (bounds.height / 2);
     if (index > 0) {
       appendSvg(node, "line", {
+        "data-diagram2-entity-rule": "row",
         x1: x,
         y1: rowY,
         x2: x + width,
@@ -783,6 +1158,8 @@ function renderEntityObject(node, object) {
       if (keyText) {
         appendText(node, keyText, {
           class: "diagram2-renderer-entity-key",
+          "data-diagram2-entity-text": "",
+          "data-diagram2-entity-key": "",
           x: x + (keyColumnWidth / 2),
           y: rowCenterY,
           "text-anchor": "middle",
@@ -800,6 +1177,8 @@ function renderEntityObject(node, object) {
     };
     appendText(node, field.name || "Field", {
       class: "diagram2-renderer-entity-field",
+      "data-diagram2-entity-text": "",
+      "data-diagram2-entity-field": "",
       x: labelPoint.x,
       y: labelPoint.y,
       "dominant-baseline": "middle",
@@ -813,6 +1192,8 @@ function renderEntityObject(node, object) {
     if (showDataTypes) {
       appendText(node, [field.dataType, field.identity].filter(Boolean).join(" "), {
         class: "diagram2-renderer-entity-data-type",
+        "data-diagram2-entity-text": "",
+        "data-diagram2-entity-data-type": "",
         x: dataTypeX + 8,
         y: rowCenterY,
         "dominant-baseline": "middle",
@@ -826,6 +1207,7 @@ function renderEntityObject(node, object) {
 
   appendSvg(node, "rect", {
     class: "diagram2-renderer-entity-outline",
+    "data-diagram2-entity-outline": "",
     x,
     y,
     width,
@@ -1095,20 +1477,32 @@ function renderUnknownObject(node, object) {
   });
 }
 
-function patchRelationshipNode(node, relationship) {
-  node.replaceChildren();
+function patchRelationshipNode(node, previousRelationship, relationship, flags = {}) {
   setSvgAttributes(node, {
     "data-diagram2-relationship-id": relationship.id,
     "data-diagram2-relationship-source": relationship.source?.id || "",
-    "data-diagram2-relationship-target": relationship.target?.id || ""
+    "data-diagram2-relationship-target": relationship.target?.id || "",
+    class: `diagram2-renderer-relationship-node${flags.selected ? " is-selected" : ""}`
   });
-  node.classList.add("diagram2-renderer-relationship-node");
 
   const route = relationshipRoute(relationship);
   const style = relationshipStyle(relationship);
-  appendTitle(node, `${formatEntityIdentifier(relationship.source?.entitySchema, relationship.source?.entityName)}.${relationship.sourceField?.name || ""} -> ${formatEntityIdentifier(relationship.target?.entitySchema, relationship.target?.entityName)}.${relationship.targetField?.name || ""}`);
-  appendSvg(node, "path", {
+  let title = node.querySelector(":scope > title");
+  if (!title) {
+    title = createSvgElement(node, "title");
+    node.insertBefore(title, node.firstChild);
+  }
+  title.textContent = `${formatEntityIdentifier(relationship.source?.entitySchema, relationship.source?.entityName)}.${relationship.sourceField?.name || ""} -> ${formatEntityIdentifier(relationship.target?.entitySchema, relationship.target?.entityName)}.${relationship.targetField?.name || ""}`;
+
+  let path = node.querySelector(":scope > path[data-diagram2-relationship-path]");
+  if (!path) {
+    path = appendSvg(node, "path", {
+      "data-diagram2-relationship-path": ""
+    });
+  }
+  setSvgAttributes(path, {
     class: "diagram2-renderer-relationship",
+    "data-diagram2-relationship-path": "",
     d: route.path,
     fill: "none",
     stroke: style.stroke,
@@ -1234,6 +1628,160 @@ function objectVersion(object) {
   return JSON.stringify(object);
 }
 
+function objectTranslation(object) {
+  if (!objectUsesLocalTransform(object)) return { x: 0, y: 0 };
+  return {
+    x: finiteNumber(object?.x, 0),
+    y: finiteNumber(object?.y, 0)
+  };
+}
+
+function objectTranslationVersion(object) {
+  const translation = objectTranslation(object);
+  return JSON.stringify(translation);
+}
+
+function objectTransformText(object) {
+  if (!objectUsesLocalTransform(object)) return null;
+  const translation = objectTranslation(object);
+  return `translate(${formatNumber(translation.x)} ${formatNumber(translation.y)})`;
+}
+
+function objectUsesLocalTransform(object) {
+  return !["arrow", "line"].includes(String(object?.type || ""));
+}
+
+function diagram2LocalObject(object) {
+  if (!objectUsesLocalTransform(object)) return object;
+  return {
+    ...object,
+    x: 0,
+    y: 0
+  };
+}
+
+function objectSelectionBounds(object) {
+  if (object?.type === "arrow" || object?.type === "line") {
+    const x1 = finiteNumber(object?.x1, 0);
+    const y1 = finiteNumber(object?.y1, 0);
+    const x2 = finiteNumber(object?.x2, 0);
+    const y2 = finiteNumber(object?.y2, 0);
+    return {
+      x: Math.min(x1, x2),
+      y: Math.min(y1, y2),
+      width: Math.max(1, Math.abs(x2 - x1)),
+      height: Math.max(1, Math.abs(y2 - y1))
+    };
+  }
+  return objectBounds(diagram2LocalObject(object));
+}
+
+function objectStructureVersion(object) {
+  const base = {
+    type: object?.type || "",
+    fieldRectangle: diagram2IsFieldRectangle(object),
+    width: positiveNumber(object?.width, 1),
+    height: positiveNumber(object?.height, 1)
+  };
+
+  if (object?.type === "entity" && !diagram2IsFieldRectangle(object)) {
+    return JSON.stringify({
+      ...base,
+      collapsed: object.collapsed === true,
+      foreignKeysAtTop: object.foreignKeysAtTop === true,
+      showKeyColumn: object.showKeyColumn !== false,
+      showDataTypes: object.showDataTypes === true,
+      fontFamily: object.fontFamily || "Arial",
+      fontSize: clampNumber(positiveNumber(object.fontSize, 12), 8, 64),
+      fields: annotationEntityVisibleFields(object).map(field => ({
+        name: field?.name || "",
+        dataType: field?.dataType || "",
+        identity: field?.identity || "",
+        isPrimaryKey: field?.isPrimaryKey === true,
+        isForeignKey: field?.isForeignKey === true,
+        isImportant: field?.isImportant === true
+      }))
+    });
+  }
+
+  if (diagram2IsFieldRectangle(object)) {
+    return JSON.stringify({
+      ...base,
+      fieldRectangleName: object.fieldRectangleName || object.entityName || "Field rectangle"
+    });
+  }
+
+  if (object?.type === "embedded-image") {
+    return JSON.stringify({
+      ...base,
+      source: object.source || "",
+      name: object.name || ""
+    });
+  }
+
+  if (object?.type === "textbox" || object?.type === "rich-text") {
+    return JSON.stringify({
+      ...base,
+      text: object.type === "rich-text" ? object.html || "" : object.text || "",
+      fontFamily: object.fontFamily || "Arial",
+      fontSize: positiveNumber(object.fontSize, 16)
+    });
+  }
+
+  if (object?.type === "field-mapping-table") {
+    return JSON.stringify({
+      ...base,
+      rows: Array.isArray(object.rows) ? object.rows : [],
+      fontFamily: object.fontFamily || "Arial",
+      fontSize: positiveNumber(object.fontSize, 14),
+      headerFill: object.headerFill || "",
+      headerTextColor: object.headerTextColor || "",
+      uiFill: object.uiFill || "",
+      databaseFill: object.databaseFill || "",
+      uiTextColor: object.uiTextColor || "",
+      databaseTextColor: object.databaseTextColor || "",
+      stroke: object.stroke || "",
+      strokeWidth: positiveNumber(object.strokeWidth, 1)
+    });
+  }
+
+  if (object?.type === "arrow" || object?.type === "line") {
+    return JSON.stringify({
+      type: object.type,
+      x1: finiteNumber(object.x1, 0),
+      y1: finiteNumber(object.y1, 0),
+      x2: finiteNumber(object.x2, 0),
+      y2: finiteNumber(object.y2, 0),
+      arrowSize: positiveNumber(object.arrowSize, 18)
+    });
+  }
+
+  return JSON.stringify(base);
+}
+
+function objectStyleVersion(object) {
+  return JSON.stringify({
+    fill: object?.fill || "",
+    stroke: object?.stroke || "",
+    strokeWidth: positiveNumber(object?.strokeWidth, 1),
+    opacity: safeOpacity(object?.opacity),
+    outlineVisible: object?.outlineVisible !== false,
+    textColor: object?.textColor || "",
+    entityHeaderFill: object?.entityHeaderFill || "",
+    entityNameTextColor: object?.entityNameTextColor || ""
+  });
+}
+
+function objectTextVersion(object) {
+  if (object?.type === "entity" && !diagram2IsFieldRectangle(object)) {
+    return JSON.stringify({
+      entitySchema: object.entitySchema || "",
+      entityName: object.entityName || ""
+    });
+  }
+  return "";
+}
+
 function relationshipVersion(relationship) {
   return JSON.stringify({
     id: relationship.id,
@@ -1251,6 +1799,28 @@ function relationshipVersion(relationship) {
     targetField: relationship.targetField?.name,
     styleOverride: relationship.foreignKeySource?.styleOverride || relationship.foreignKey?.styleOverride || null
   });
+}
+
+function relationshipRouteVersion(relationship) {
+  return JSON.stringify({
+    id: relationship.id,
+    sourceId: relationship.source?.id,
+    sourceX: relationship.source?.x,
+    sourceY: relationship.source?.y,
+    sourceWidth: relationship.source?.width,
+    sourceHeight: relationship.source?.height,
+    sourceField: relationship.sourceField?.name,
+    targetId: relationship.target?.id,
+    targetX: relationship.target?.x,
+    targetY: relationship.target?.y,
+    targetWidth: relationship.target?.width,
+    targetHeight: relationship.target?.height,
+    targetField: relationship.targetField?.name
+  });
+}
+
+function relationshipStyleVersion(relationship) {
+  return JSON.stringify(relationship.foreignKeySource?.styleOverride || relationship.foreignKey?.styleOverride || null);
 }
 
 function diagram2CanonicalEntities(canonical) {
@@ -1397,6 +1967,7 @@ function createSvgElement(contextNode, tagName, attributes = {}) {
 }
 
 function setSvgAttributes(element, attributes) {
+  if (!element) return;
   Object.entries(attributes || {}).forEach(([name, value]) => {
     if (value == null || value === false) {
       element.removeAttribute(name);
@@ -1415,6 +1986,12 @@ function safeSvgId(value) {
 
 function cssClassName(value) {
   return safeSvgId(value).toLowerCase();
+}
+
+function cssEscape(value) {
+  const text = String(value || "");
+  if (typeof globalThis.CSS?.escape === "function") return globalThis.CSS.escape(text);
+  return text.replace(/["\\]/g, "\\$&");
 }
 
 function normalizeZoomMode(value) {
