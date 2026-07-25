@@ -29,10 +29,9 @@ import {
 import { formatDate } from "../../shared/dates.js";
 import { escapeAttr, escapeHtml } from "../../shared/text-and-links.js";
 import {
-  diagram2CompatibilityProbe,
   diagram2CompatibilitySummary
 } from "./diagram2-compatibility.js?v=20260725-diagram2-day14-v1";
-import { createDiagram2Renderer } from "./diagram2-renderer.js?v=20260725-diagram2-day14-v1";
+import { createDiagram2Renderer } from "./diagram2-renderer.js?v=20260725-diagram2-day14-hotfix-v1";
 
 const diagram2ViewModes = new Set(["tree", "cards"]);
 const diagram2SortModes = new Set(["latest", "oldest", "name", "custom"]);
@@ -95,6 +94,7 @@ export function createDiagram2Feature({ app, notify } = {}) {
     const selectedMissingId = selectedDocument ? 0 : selectedDiagramDocumentId;
     const hydrationToken = ++viewerHydrationToken;
     resetDiagram2Renderer();
+    globalThis.__pmtDiagram2Compatibility = diagram2Compatibility;
 
     app.innerHTML = `
       <section class="diagram2-screen ${diagram2ViewMode === "cards" ? "is-card-view" : "is-tree-view"} ${diagram2TreePaneHidden ? "is-tree-hidden" : ""}" data-diagram2-screen ${diagram2CompatibilityAttributes()} style="--diagram2-tree-width:${diagram2TreePaneWidth}px">
@@ -439,10 +439,6 @@ export function createDiagram2Feature({ app, notify } = {}) {
       onDiagnostics: updateDiagram2Diagnostics
     });
     globalThis.__pmtDiagram2Renderer = diagram2Renderer;
-    globalThis.__pmtDiagram2Compatibility = diagram2CompatibilityProbe(result.state, {
-      title: document.title,
-      selectedObjectIds: result.state.objects.slice(0, Math.min(2, result.state.objects.length)).map(object => object.id)
-    });
     diagram2RendererDocumentId = document.id;
     diagram2RendererState = result.state;
     let diagnostics = diagram2Renderer.render(result.state, {

@@ -61,22 +61,21 @@ test("Diagram 2 top navigation opens the isolated shell", async ({ page }) => {
   await expect(page.locator("[data-diagram2-viewer-host] h2")).toHaveText("PMT Database Schema");
   await expect(page.locator("[data-diagram2-viewer-host]")).toContainText("Editing stays disabled in Diagram 2.");
   await expect(page.locator("[data-diagram2-svg]")).toBeVisible();
-  const compatibilityProbe = await page.evaluate(() => window.__pmtDiagram2Compatibility);
-  expect(compatibilityProbe).toMatchObject({
+  const compatibilitySummary = await page.evaluate(() => window.__pmtDiagram2Compatibility);
+  expect(compatibilitySummary).toMatchObject({
     feature: "Diagram 2",
     fileFormat: "pmt-diagram",
     fileFormatVersion: 1,
-    fileReadableByDiagram: true,
-    fileReadableByDiagram2: true,
     selectionClipboardFormat: "pmt-diagram-selection",
     selectionClipboardVersion: 1,
-    selectionClipboardSourceFeature: "Diagram 2",
-    templateLibraryEndpoint: "/api/image-annotation/template-library",
-    defaultTemplateLibraryEndpoint: "/api/image-annotation/default-template-library",
+    endpoints: {
+      templateLibrary: "/api/image-annotation/template-library",
+      defaultTemplateLibrary: "/api/image-annotation/default-template-library"
+    },
     persistedRendererCaches: false
   });
-  expect(compatibilityProbe.fileObjectCount).toBe(88);
-  expect(compatibilityProbe.selectionClipboardObjectCount).toBe(2);
+  expect(compatibilitySummary.fileObjectCount).toBeUndefined();
+  expect(compatibilitySummary.selectionClipboardObjectCount).toBeUndefined();
   await expect.poll(async () =>
     page.locator("[data-diagram2-object-plane] [data-diagram2-object-type='entity']").count()
   ).toBeGreaterThanOrEqual(28);
