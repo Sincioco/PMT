@@ -50,10 +50,33 @@ test("Diagram 2 top navigation opens the isolated shell", async ({ page }) => {
   await expect(page.locator("[data-diagram2-screen]")).toBeVisible();
   await expect(page.locator("[data-diagram2-screen] h1")).toHaveText("Diagram 2");
   await expect(page.locator("[data-diagram2-header]")).toContainText("Diagram 2 Beta");
+  await expect(page.locator("[data-diagram2-screen]")).toHaveAttribute("data-diagram2-file-format", "pmt-diagram");
+  await expect(page.locator("[data-diagram2-screen]")).toHaveAttribute("data-diagram2-file-format-version", "1");
+  await expect(page.locator("[data-diagram2-screen]")).toHaveAttribute("data-diagram2-selection-clipboard-format", "pmt-diagram-selection");
+  await expect(page.locator("[data-diagram2-screen]")).toHaveAttribute("data-diagram2-selection-clipboard-version", "1");
+  await expect(page.locator("[data-diagram2-screen]")).toHaveAttribute("data-diagram2-template-library-endpoint", "/api/image-annotation/template-library");
+  await expect(page.locator("[data-diagram2-screen]")).toHaveAttribute("data-diagram2-default-template-library-endpoint", "/api/image-annotation/default-template-library");
+  await expect(page.locator("[data-diagram2-screen]")).toHaveAttribute("data-diagram2-persisted-renderer-caches", "false");
   await expect(page.locator("[data-diagram2-tree] [data-action='select-diagram2-document']")).toHaveCount(2);
   await expect(page.locator("[data-diagram2-viewer-host] h2")).toHaveText("PMT Database Schema");
   await expect(page.locator("[data-diagram2-viewer-host]")).toContainText("Editing stays disabled in Diagram 2.");
   await expect(page.locator("[data-diagram2-svg]")).toBeVisible();
+  const compatibilityProbe = await page.evaluate(() => window.__pmtDiagram2Compatibility);
+  expect(compatibilityProbe).toMatchObject({
+    feature: "Diagram 2",
+    fileFormat: "pmt-diagram",
+    fileFormatVersion: 1,
+    fileReadableByDiagram: true,
+    fileReadableByDiagram2: true,
+    selectionClipboardFormat: "pmt-diagram-selection",
+    selectionClipboardVersion: 1,
+    selectionClipboardSourceFeature: "Diagram 2",
+    templateLibraryEndpoint: "/api/image-annotation/template-library",
+    defaultTemplateLibraryEndpoint: "/api/image-annotation/default-template-library",
+    persistedRendererCaches: false
+  });
+  expect(compatibilityProbe.fileObjectCount).toBe(88);
+  expect(compatibilityProbe.selectionClipboardObjectCount).toBe(2);
   await expect.poll(async () =>
     page.locator("[data-diagram2-object-plane] [data-diagram2-object-type='entity']").count()
   ).toBeGreaterThanOrEqual(28);
@@ -281,7 +304,7 @@ async function assertKeyedDiagram2NodePatches(page, expectedFullRenderCount) {
 
 async function assertDiagram2SelectiveRoutingStress(page) {
   const result = await page.evaluate(async () => {
-    const { createDiagram2Renderer } = await import("/js/features/diagram2/diagram2-renderer.js?v=20260725-diagram2-day13-v1");
+    const { createDiagram2Renderer } = await import("/js/features/diagram2/diagram2-renderer.js?v=20260725-diagram2-day14-v1");
     const host = document.createElement("div");
     host.style.position = "absolute";
     host.style.left = "-12000px";
@@ -391,7 +414,7 @@ async function assertDiagram2SelectiveRoutingStress(page) {
 
 async function assertDiagram2ViewportHaloVirtualization(page) {
   const result = await page.evaluate(async () => {
-    const { createDiagram2Renderer } = await import("/js/features/diagram2/diagram2-renderer.js?v=20260725-diagram2-day13-v1");
+    const { createDiagram2Renderer } = await import("/js/features/diagram2/diagram2-renderer.js?v=20260725-diagram2-day14-v1");
     const host = document.createElement("div");
     host.style.position = "absolute";
     host.style.left = "-12000px";
@@ -597,7 +620,7 @@ async function assertDiagram2ViewportHaloVirtualization(page) {
 
 async function assertDiagram2LowDetailOverviewRendering(page) {
   const result = await page.evaluate(async () => {
-    const { createDiagram2Renderer } = await import("/js/features/diagram2/diagram2-renderer.js?v=20260725-diagram2-day13-v1");
+    const { createDiagram2Renderer } = await import("/js/features/diagram2/diagram2-renderer.js?v=20260725-diagram2-day14-v1");
     const host = document.createElement("div");
     host.style.position = "absolute";
     host.style.left = "-12000px";
@@ -1094,7 +1117,7 @@ function testState() {
 }
 
 function pmtDatabaseSchemaBodyHtml() {
-  return `<p><img data-pmt-diagram="true" data-pmt-private-diagram="true" src="/assets/docs/pmt-database-schema.svg?v=20260725-diagram2-day13-fixture" alt="PMT Database Schema"></p>`;
+  return `<p><img data-pmt-diagram="true" data-pmt-private-diagram="true" src="/assets/docs/pmt-database-schema.svg?v=20260725-diagram2-day14-fixture" alt="PMT Database Schema"></p>`;
 }
 
 function diagramBodyHtml(title, stroke) {

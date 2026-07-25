@@ -75,7 +75,7 @@ import { createBoardFeature } from "./features/board/board.js?v=20260722-rich-en
 import { createBugsFeature } from "./features/bugs/bugs.js?v=20260724-day36-v3";
 import { createDashboardFeature } from "./features/dashboard/dashboard.js?v=release-notes-2026-07-25-day-37-46c1811ffe7e";
 import { createDiagramFeature } from "./features/diagram/diagram.js?v=20260725-diagram2-day3-v1";
-import { createDiagram2Feature } from "./features/diagram2/diagram2.js?v=20260725-diagram2-day13-v1";
+import { createDiagram2Feature } from "./features/diagram2/diagram2.js?v=20260725-diagram2-day14-v1";
 import { createDocumentationFeature } from "./features/documentation/documentation.js?v=20260725-day36-v5";
 import {
   createGanttFeature,
@@ -224,6 +224,7 @@ let boardFeature = null;
 let invitationsFeature = null;
 let whatsNew = null;
 let handlingBrowserRouteChange = false;
+let pendingBrowserRouteChange = false;
 let lastOpenedContentRouteKey = "";
 let activeAuthFlyby = null;
 let activeAuthFlybyTimer = 0;
@@ -635,18 +636,25 @@ function handlePageActionsOutsidePointer(event) {
 }
 
 function handleBrowserRouteChange() {
-  if (handlingBrowserRouteChange) return;
+  if (handlingBrowserRouteChange) {
+    pendingBrowserRouteChange = true;
+    return;
+  }
 
   handlingBrowserRouteChange = true;
-  requestAnimationFrame(() => {
-    const route = parseRouteFromLocation();
-    closeRoutedDetailDialogs();
-    const requestedView = route.view || "Dashboard";
-    const resolvedView = navigate(requestedView, { updateUrl: false });
-    if (resolvedView !== requestedView) updateBrowserUrl(routeForView(resolvedView), { replace: true });
-    render();
+  try {
+    do {
+      pendingBrowserRouteChange = false;
+      const route = parseRouteFromLocation();
+      closeRoutedDetailDialogs();
+      const requestedView = route.view || "Dashboard";
+      const resolvedView = navigate(requestedView, { updateUrl: false });
+      if (resolvedView !== requestedView) updateBrowserUrl(routeForView(resolvedView), { replace: true });
+      render();
+    } while (pendingBrowserRouteChange);
+  } finally {
     handlingBrowserRouteChange = false;
-  });
+  }
 }
 
 function handleDeepLinkDialogClose(event) {
