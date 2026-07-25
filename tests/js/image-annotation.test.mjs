@@ -6028,19 +6028,27 @@ test("Diagram tree view defers selected preview hydration and shows a loader", a
   assert.match(diagramCss, /\.diagram-preview-loader\s*{[\s\S]*position:\s*absolute;[\s\S]*top:\s*12px;[\s\S]*left:\s*12px;/);
 });
 
-test("Diagram read-only context menu toggles connection symbols", async () => {
+test("Diagram read-only context menu toggles relationship layers and copy options", async () => {
   const diagramSource = await readFile(new URL("../../wwwroot/js/features/diagram/diagram.js", import.meta.url), "utf8");
 
-  assert.match(diagramSource, /data-diagram-toggle-connection-symbols/);
+  assert.match(diagramSource, /data-diagram-toggle-entity-relationships/);
+  assert.match(diagramSource, /Entity Relationships/);
+  assert.match(diagramSource, /data-diagram-toggle-field-mappings/);
+  assert.match(diagramSource, /UI to DB Field Mapping/);
+  assert.match(diagramSource, /data-diagram-toggle-relationship-lines-only/);
+  assert.match(diagramSource, /Relationship Lines Only/);
   assert.match(diagramSource, /role="menuitemcheckbox"/);
-  assert.match(diagramSource, /Connection Symbols/);
   assert.match(diagramSource, /function diagramReadonlyImageHtml/);
   assert.match(diagramSource, /const renderReadonlyStateSvg = \(\) => \{/);
-  assert.match(diagramSource, /interactiveEntityHeaders:\s*true,\s*[\r\n\s]*interactiveRelationships:\s*true/);
-  assert.match(diagramSource, /const checked = readonlyState\?\.relationshipStyle\?\.showSymbols === true/);
+  assert.match(diagramSource, /const readonlyVisibilityRenderOptions = \(\) => \(\{/);
+  assert.match(diagramSource, /hideEntityRelationships:\s*!readonlyEntityRelationshipsVisible/);
+  assert.match(diagramSource, /hideFieldRectangleRelationships:\s*!readonlyFieldMappingsVisible/);
+  assert.match(diagramSource, /relationshipStyleOverride:\s*\{ showSymbols:\s*readonlyRelationshipLinesOnly !== true \}/);
   assert.match(diagramSource, /button\.setAttribute\("aria-checked", String\(checked\)\)/);
   assert.match(diagramSource, /button\.querySelector\("\.dropdown-menu-check"\)\.innerHTML = checked \? "&#10003;" : ""/);
-  assert.match(diagramSource, /showSymbols:\s*readonlyState\.relationshipStyle\?\.showSymbols !== true/);
+  assert.match(diagramSource, /chooseDiagramSvgCopyOptions/);
+  assert.match(diagramSource, /chooseDiagramPngCopyOptions/);
+  assert.match(diagramSource, /prepareDiagramSvgForDownload\(buildAnnotationSvg\(portableState, readonlyVisibilityRenderOptions\(\)\), options\)/);
   assert.match(diagramSource, /renderReadonlyStateSvg\(\)/);
 });
 
@@ -6248,6 +6256,54 @@ test("the global relationship-line switch persists and removes routes, markers, 
   assert.match(componentSource, /objectAlreadySelected && selectedIds\.size > objectSelectionIds\.length/);
   assert.match(componentSource, /Entity name text color/);
   assert.match(componentSource, /Header background color/);
+});
+
+test("Diagram read-only render options separate entity and field mapping relationships", () => {
+  const parent = simpleRelationshipEntity("parent", "Parent", 620, 80);
+  const child = simpleRelationshipEntity("child", "Child", 80, 80, "Parent");
+  const fieldRectangle = fieldRectangleObject("ui-parent", "Parent UI", 80, 360, {
+    foreignKeys: [{
+      name: "FK_UI_Parent",
+      columns: ["Parent UI"],
+      referencedSchema: "pmt",
+      referencedTable: "Parent",
+      referencedColumns: ["ParentId"],
+      relationshipType: "one-to-many"
+    }]
+  });
+  const state = normalizeAnnotationState({
+    width: 1100,
+    height: 700,
+    relationshipStyle: { showSymbols: false },
+    objects: [child, parent, fieldRectangle]
+  });
+
+  const allRelationships = buildAnnotationSvg(state, {
+    interactiveRelationships: true,
+    relationshipStyleOverride: { showSymbols: true }
+  });
+  assert.equal((allRelationships.match(/class="image-annotation-entity-relationship-path"/g) || []).length, 2);
+  assert.match(allRelationships, /image-annotation-entity-relationship-marker/);
+
+  const entityRelationshipsHidden = buildAnnotationSvg(state, {
+    hideEntityRelationships: true,
+    interactiveRelationships: true
+  });
+  assert.equal((entityRelationshipsHidden.match(/class="image-annotation-entity-relationship-path"/g) || []).length, 1);
+  assert.doesNotMatch(entityRelationshipsHidden, /data-pmt-relationship-source="pmt\.Child\.ParentId"/);
+  assert.match(entityRelationshipsHidden, /data-pmt-relationship-source="\[Parent UI\]\.\[Parent UI\]"/);
+
+  const fieldMappingsHidden = buildAnnotationSvg(state, {
+    hideFieldRectangleRelationships: true,
+    interactiveRelationships: true
+  });
+  assert.equal((fieldMappingsHidden.match(/class="image-annotation-entity-relationship-path"/g) || []).length, 1);
+  assert.match(fieldMappingsHidden, /data-pmt-relationship-source="pmt\.Child\.ParentId"/);
+  assert.doesNotMatch(fieldMappingsHidden, /data-pmt-relationship-source="\[Parent UI\]\.\[Parent UI\]"/);
+
+  const lineOnly = buildAnnotationSvg(state, { relationshipStyleOverride: { showSymbols: false } });
+  assert.doesNotMatch(lineOnly, /image-annotation-entity-relationship-marker|<polygon\b/);
+  assert.equal(state.relationshipStyle.showSymbols, false);
 });
 
 test("textbox double-click opens a text edit dialog instead of live-editing the canvas", async () => {

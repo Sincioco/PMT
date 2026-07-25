@@ -638,6 +638,11 @@
   font-weight: var(--font-weight-medium);
 }
 
+.image-annotation-crop-divider {
+  height: var(--border-width);
+  background: var(--color-border-subtle);
+}
+
 .image-annotation-inspector-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

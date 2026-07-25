@@ -40,28 +40,28 @@ GO
 PRINT N'PMT database dropped if it existed.';
 GO
 
-:r "D:\Project Management Tool (PMT)\SQL\01_CreateDatabase.sql"
+:r ".\01_CreateDatabase.sql"
 GO
 
-:r "D:\Project Management Tool (PMT)\SQL\02_CreateStoredProcedures.sql"
+:r ".\02_CreateStoredProcedures.sql"
 GO
 
-:r "D:\Project Management Tool (PMT)\SQL\03_SeedData.sql"
+:r ".\03_SeedData.sql"
 GO
 
-:r "D:\Project Management Tool (PMT)\SQL\03_SeedData_ImageAnnotationTemplates.sql"
+:r ".\03_SeedData_ImageAnnotationTemplates.sql"
 GO
 
-:r "D:\Project Management Tool (PMT)\SQL\03_SeedData_PMT.sql"
+:r ".\03_SeedData_PMT.sql"
 GO
 
-:r "D:\Project Management Tool (PMT)\SQL\03_SeedData_LMS.sql"
+:r ".\03_SeedData_LMS.sql"
 GO
 
-:r "D:\Project Management Tool (PMT)\SQL\03_SeedData_HLS.sql"
+:r ".\03_SeedData_HLS.sql"
 GO
 
-:r "D:\Project Management Tool (PMT)\SQL\03_SeedData_DiagramDemo.sql"
+:r ".\03_SeedData_DiagramDemo.sql"
 GO
 
 USE [PMT];

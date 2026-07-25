@@ -3307,11 +3307,14 @@ test("Diagram parses T-SQL Entities and exposes individual relationship Objects"
   expect(readonlyAt10.paintedHeight).toBeCloseTo(readonlyAt10.logicalHeight * 0.1, 1);
   expect(readonlyAt10.transform).toBe("scale(0.1)");
   expect(readonlyAt10.relationship / readonlyAt100.relationship).toBeCloseTo(0.1, 3);
-  expect(readonlyAt100.marker).toBeNull();
-  expect(readonlyAt10.marker).toBeNull();
+  expect(readonlyAt100.marker).not.toBeNull();
+  expect(readonlyAt10.marker).not.toBeNull();
+  expect(readonlyAt10.marker / readonlyAt100.marker).toBeCloseTo(0.1, 3);
   expect(readonlyAt10.entity / readonlyAt100.entity).toBeCloseTo(0.1, 3);
   expect(readonlyAt10.relationship / readonlyAt10.entity)
     .toBeCloseTo(readonlyAt100.relationship / readonlyAt100.entity, 3);
+  expect(readonlyAt10.marker / readonlyAt10.entity)
+    .toBeCloseTo(readonlyAt100.marker / readonlyAt100.entity, 3);
   expect(readonlyAt10.relationshipVectorEffect).toBeNull();
   expect(readonlyAt10.markerVectorEffect).toBeNull();
 

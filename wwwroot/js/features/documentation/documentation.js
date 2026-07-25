@@ -24,7 +24,7 @@ import {
   selectOptionsField,
   value
 } from "../../components/forms.js?v=20260722-rte-toggle-state-v1";
-import { sectionHead } from "../../components/sections.js?v=release-notes-2026-07-25-day-37-b22d811d4398";
+import { sectionHead } from "../../components/sections.js?v=release-notes-2026-07-25-day-37-8287c2ab6682";
 import {
   preferenceKeys,
   readBooleanPreference,

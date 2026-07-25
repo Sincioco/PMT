@@ -82,6 +82,38 @@
   padding: 0 var(--space-2);
 }
 
+.diagram-download-dialog fieldset.field {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.diagram-download-dialog fieldset.field legend {
+  margin: 0 0 var(--space-2);
+  padding: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-medium);
+}
+
+.diagram-download-dialog fieldset.field label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: var(--control-height-sm);
+  padding: var(--space-2) 0;
+  color: var(--color-text-primary);
+  font-weight: var(--font-weight-regular);
+}
+
+.diagram-download-dialog fieldset.field input[type="radio"] {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--color-primary);
+}
+
 .diagram-info-meta {
   grid-column: 1 / -1;
   display: grid;

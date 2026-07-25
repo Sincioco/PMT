@@ -8,7 +8,7 @@ Design and Coding Methodology:
 	KISS (Keep It Simple Stupid) - The simpler the better.  Avoid over-engineering.  Avoid unnecessary complexity.  Avoid unnecessary features.  Avoid unnecessary bells and whistles.  Avoid unnecessary abstractions.  Avoid unnecessary patterns.  Avoid unnecessary frameworks.  Avoid unnecessary libraries.  Avoid unnecessary dependencies.  Avoid unnecessary code.  Avoid unnecessary files.  Avoid unnecessary folders.  Avoid unnecessary classes.  Avoid unnecessary methods.  Avoid unnecessary variables.
 
 Testing:
-	In addition to your normal testing, be sure to inform me if I have to recompile the .Net portion of the project or just Press Ctrl + F5 on the browser to reload to see the latest changes.  If making CSS / image changes, ensure that I will encounter no caching issue when testing in the browser.  Do not test the 3D About flyby unless you made changes to it.
+	In addition to your normal testing, be sure to inform me if I have to recompile the .Net portion of the project or just Press Ctrl + F5 on the browser to reload to see the latest changes.  If making CSS / image changes, ensure that I will encounter no caching issue when testing in the browser.  Do not test the 3D About flyby unless you made changes to it.  For now, do not test.  Let me test manually.
 
 Environment:
 	You are in a dev machine.  You can drop and re-create the database as you see fit, especially when testing migrations scripts.  You don't need to preseve data in the backend or frontend.  You can also clear preferences, local storage settings and any cache as you see fit.
@@ -87,12 +87,27 @@ Diagram - ERD - UI and Field Mapping Table
 
 38.) In the read-only mode of the diagram, the right-mouse click menu options...none of them work.  For the Copy as SVG and Copy as PNG option, if you can pop the same dialog box as those mentioned in items #30 and #31, so the user gets the same choices before copying a SVG or PNG on the clipbard;
 39.) The Connection Symbols menu just renders the diagram blank when selected.  Update it to "Entity Relationships" which puts a checkmark if it is on or off, then hide/show the normal arrows and diagrams between entities depending on what the user select.  By default it is on.  Exclude anything related to the Field Table Mapping, Field Rectangle Mapping and the associated lines/arrows with those. Treat those separately.
-40.) Add another menu item just below #33, but this time for the Field Mappings.  Add a menu item for "UI to DB Field Mapping" which puts a checkmark if it is on or off, then hide/show the Field Mapping Rectangle and the associated lines/arrows.
+40.) Add another menu item, but this time for the Field Mappings.  Add a menu item for "UI to DB Field Mapping" which puts a checkmark if it is on or off, then hide/show the Field Mapping Rectangle and the associated lines/arrows.
 51.) Add another menu option that reads "Relationship Lines Only" and it would be off by default.  When it is turned on, only show the lines for all the entities and never the arrow or crowsfeet, etc.  Just the lines.
+
+52.) In the Diagram screen, the page-level overflow menu has the Left Nav menu item rendering incorrectly. The icon should on the left, matching those below it.  The text should also match those below it.  And the checkmark should be more on the right side.  Refer to the Dev Task screen's page-level overflow menu style and formatting.
+53.) In the Documentation screen, make the page-level overflow menu look and feel the same as the Dev Task Screen's page-level overflow menu style and formatting.
+
+54.) In Diagram, the Download as PNG and SVG dialog box, there seems to be no formatting applied to the Radio button group.
+
+55.) Continuing what was done in #51, when the Relationship Lines is on, it should show the arrows and crowsfeet.
+
+56.) When an Image is selected and the Crop tool is on, when the user makes fine adjustments using the Crop tab, such as in the radius, left, right, top, bottom, temporarily turn off the selection higlight and sizing handle for 3 seconds after the make adjustments so they can verify their change visually without the selection highlight and sizing handle getting in the way.  The user will be making dozens of minor adjustments, be sure the selection highlight and sizing handle does not flicker or keep coming on or off as they make adjustments.
+
+57.) In the Crop tab, move the Radius control below the top, right, left, bottom adjustments.
+58.) Expand the Radius control so that the user can control all 4 corner radius of the image, but keep the current Radius control as the master radius for all 4 corners.  Basically, as the master radius is changed, all 4 corner radius reflect.  But the moment any of the 4 radius corners are adjusted manually, the 4 corner radius override takes into affect and the master one is ignored. But if the master radius is adjusted again, it will reset the values of all 4 radius controls again.
+59.) In the Crop tab, re-arrange the controls so that the Crop and Radius has a section divider between them, and then arrange the controls for each section so they go from left to right and top to bottom as follows:  Left, Right, Top, Bottom.
+
+60.) In the Field Mapping Table, I want to experiment and try something different.  Keep your existing field / database hover logic where it renders a selected style hover effect--don't delete that code as we may revert to it.  Right now, try highlighting in yellow around the current Rectangle Field Mapping (don't over lap with it), and then try drawing a line along side the connection line, and then a yellow rectangle around the entity.  I want the original user-defined colors for the Field Rectable Mapping to still how, including the line color the user has chosen, I just want to highlight it with a yellow line.  Ask me if I am happy with the new version.  And if I say "yes" then that's the time you can get rid of the old code if you need to.
 
 What's New
 ---------------------------------
-For the What's New, I want you to highlight that users can now share Documents and Diagrams with people outside of PMT even if they have no PMT login.  Create a SVG picture that communicates people and sharing (both documents and diagrams).  Also highlight the new Suggestion feature.
+For the What's New, I want you to highlight that users can now share Documents and Diagrams with people outside of PMT even if they have no PMT login.  Also highlight the new Suggestion feature.
 
 Database Migration Script Testing
 ---------------------------------
@@ -101,5 +116,5 @@ Update the migration scripts and test them by dropping and re-creating the datab
 Commit and Push
 ---------------
 When all your tests are green, create a detailed commit message and push to the repo.
-Also commit the file named "2026-07-24 - Requirements - Day 36.txt" and "2026-07-25 - Requirements - Day 37.txt"
+Also commit the file named "2026-07-25 - Requirements - Day 37.txt"
 

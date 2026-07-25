@@ -10,6 +10,7 @@ const maximumZoom = 3;
 const annotationZoomStep = 0.05;
 const annotationZoomSmoothingMilliseconds = 30;
 const annotationZoomIdleMilliseconds = 90;
+const cropAdjustmentSelectionQuietMilliseconds = 3000;
 const annotationZoomPercentages = Array.from({ length: 59 }, (_, index) => 10 + (index * 5));
 const maximumAnnotationPlaneDevicePixels = 7680;
 const defaultGridSize = 20;
@@ -227,9 +228,12 @@ export function buildAnnotationSvg(inputState, options = {}) {
     resolveAnnotationEntityOverlaps(metadataState);
   }
   const visibleObjects = annotationVisibleObjects(state);
+  const relationshipStyle = options?.relationshipStyleOverride && typeof options.relationshipStyleOverride === "object"
+    ? normalizeAnnotationEntityRelationshipStyle({ ...state.relationshipStyle, ...options.relationshipStyleOverride })
+    : state.relationshipStyle;
   const relationshipRenderModel = state.hideAllEntityRelationships
     ? null
-    : annotationEntityRelationshipRenderModel(visibleObjects, state.relationshipStyle, {
+    : annotationEntityRelationshipRenderModel(visibleObjects, relationshipStyle, {
         allowOverlappingLines: state.allowOverlappingEntityLines,
         manualRoutes: state.manualEntityRelationshipRoutes,
         compactRouting: state.compactEntityRelationshipRouting
@@ -242,6 +246,8 @@ export function buildAnnotationSvg(inputState, options = {}) {
     ? options.fieldMappingHoverIds
     : new Set(options?.fieldMappingHoverIds || []);
   const interactiveFieldMapping = options?.interactiveFieldMapping === true;
+  const hideEntityRelationships = options?.hideEntityRelationships === true;
+  const hideFieldRectangleRelationships = options?.hideFieldRectangleRelationships === true;
   const relationshipOptions = {
     interactive: options?.interactiveRelationships === true,
     selectedIds: options?.selectedRelationshipIds,
@@ -260,12 +266,14 @@ export function buildAnnotationSvg(inputState, options = {}) {
     interactiveFieldMapping,
     fieldMappingHoverIds
   };
-  const relationships = annotationEntityRelationshipsSvg(visibleObjects, state.relationshipStyle, {
+  const relationships = annotationEntityRelationshipsSvg(visibleObjects, relationshipStyle, {
     ...relationshipOptions,
+    hidden: relationshipOptions.hidden || hideEntityRelationships,
     fieldRectangleRelationships: "exclude"
   });
-  const fieldRelationships = annotationEntityRelationshipsSvg(visibleObjects, state.relationshipStyle, {
+  const fieldRelationships = annotationEntityRelationshipsSvg(visibleObjects, relationshipStyle, {
     ...relationshipOptions,
+    hidden: relationshipOptions.hidden || hideFieldRectangleRelationships,
     fieldRectangleRelationships: "only"
   });
   const belowRelationships = relationshipLayers.below
@@ -2924,11 +2932,45 @@ function safeAnnotationCropCornerRadius(value) {
   return clampNumber(finiteNumber(value, 0), 0, maximumAnnotationCropCornerRadius);
 }
 
-function annotationImageCropCornerRadius(object, clip = null) {
-  const radius = safeAnnotationCropCornerRadius(object?.cropCornerRadius);
-  if (!radius) return 0;
+const annotationCropCornerKeys = ["topLeft", "topRight", "bottomRight", "bottomLeft"];
+
+function safeAnnotationCropCornerRadii(input, fallback = 0) {
+  if (!input || typeof input !== "object") return null;
+  const fallbackRadius = safeAnnotationCropCornerRadius(fallback);
+  let hasCorner = false;
+  const radii = {};
+  annotationCropCornerKeys.forEach(key => {
+    hasCorner ||= Object.hasOwn(input, key);
+    radii[key] = Object.hasOwn(input, key)
+      ? safeAnnotationCropCornerRadius(input[key])
+      : fallbackRadius;
+  });
+  return hasCorner ? radii : null;
+}
+
+function annotationImageCropCornerRadii(object, clip = null) {
+  const uniform = safeAnnotationCropCornerRadius(object?.cropCornerRadius);
+  const custom = safeAnnotationCropCornerRadii(object?.cropCornerRadii, uniform);
+  const source = custom || {
+    topLeft: uniform,
+    topRight: uniform,
+    bottomRight: uniform,
+    bottomLeft: uniform
+  };
   const bounds = clip || annotationEmbeddedImageEffectiveClip(object) || annotationObjectBounds(object);
-  return clampNumber(radius, 0, Math.max(0, Math.min(bounds.width, bounds.height) / 2));
+  const maximum = bounds
+    ? Math.max(0, Math.min(bounds.width, bounds.height) / 2)
+    : maximumAnnotationCropCornerRadius;
+  return {
+    topLeft: clampNumber(source.topLeft, 0, maximum),
+    topRight: clampNumber(source.topRight, 0, maximum),
+    bottomRight: clampNumber(source.bottomRight, 0, maximum),
+    bottomLeft: clampNumber(source.bottomLeft, 0, maximum)
+  };
+}
+
+function annotationImageHasCropCornerRadius(object) {
+  return Object.values(annotationImageCropCornerRadii(object)).some(radius => radius > 0);
 }
 
 function annotationImageCropInsets(object) {
@@ -2956,7 +2998,7 @@ function annotationImageHasCropInspector(inputState, imageOrId = null) {
   return image?.type === "embedded-image"
     && (annotationImageHasReversibleCropObject(image)
       || image.cropPermanent === true
-      || annotationImageCropCornerRadius(image) > 0);
+      || annotationImageHasCropCornerRadius(image));
 }
 
 export function annotationImageHasReversibleCrop(inputState, imageOrId = null) {
@@ -3387,6 +3429,9 @@ function createAnnotationDialog(context) {
     let objectSequence = state.objects.length;
     let groupSequence = 0;
     let cropPreview = null;
+    let cropAdjustmentSelectionHiddenImageId = "";
+    let cropAdjustmentSelectionHiddenUntil = 0;
+    let cropAdjustmentSelectionTimer = 0;
     let marqueePreview = null;
     let workspaceBounds = annotationWorkspaceBounds(state);
     let lastZoomPoint = null;
@@ -3457,6 +3502,7 @@ function createAnnotationDialog(context) {
       resolved = true;
       if (historyTimer) window.clearTimeout(historyTimer);
       if (textPreviewTimer) window.clearTimeout(textPreviewTimer);
+      if (cropAdjustmentSelectionTimer) window.clearTimeout(cropAdjustmentSelectionTimer);
       if (fieldMappingAttentionTimer) window.clearTimeout(fieldMappingAttentionTimer);
       if (fieldMappingAttentionClearTimer) window.clearTimeout(fieldMappingAttentionClearTimer);
       cancelPendingCanvasZoom();
@@ -3772,6 +3818,46 @@ function createAnnotationDialog(context) {
       const image = selectedCropImage();
       return image && annotationImageHasCropInspector(state, image) ? image : null;
     };
+    const cropAdjustmentSelectionIsHidden = () => cropAdjustmentSelectionHiddenImageId
+      && cropAdjustmentSelectionHiddenUntil > 0
+      && performance.now() < cropAdjustmentSelectionHiddenUntil;
+    const cropAdjustmentSelectionHiddenIds = () => {
+      return cropAdjustmentSelectionIsHidden()
+        ? new Set([cropAdjustmentSelectionHiddenImageId])
+        : new Set();
+    };
+    const syncCropPreviewToImage = image => {
+      if (!image || cropPreview?.imageId !== image.id) return;
+      const bounds = annotationEmbeddedImageEffectiveClip(image) || annotationObjectBounds(image);
+      if (bounds) cropPreview = { ...bounds, imageId: image.id };
+    };
+    const finishCropAdjustmentSelectionQuietPreview = () => {
+      cropAdjustmentSelectionTimer = 0;
+      if (resolved) {
+        cropAdjustmentSelectionHiddenImageId = "";
+        cropAdjustmentSelectionHiddenUntil = 0;
+        return;
+      }
+      const remaining = cropAdjustmentSelectionHiddenUntil - performance.now();
+      if (remaining > 0) {
+        cropAdjustmentSelectionTimer = window.setTimeout(finishCropAdjustmentSelectionQuietPreview, remaining);
+        return;
+      }
+      cropAdjustmentSelectionHiddenImageId = "";
+      cropAdjustmentSelectionHiddenUntil = 0;
+      renderWithWorkspaceExpansion();
+    };
+    const startCropAdjustmentSelectionQuietPreview = image => {
+      if (!image?.id) return;
+      syncCropPreviewToImage(image);
+      cropAdjustmentSelectionHiddenImageId = image.id;
+      cropAdjustmentSelectionHiddenUntil = performance.now() + cropAdjustmentSelectionQuietMilliseconds;
+      if (cropAdjustmentSelectionTimer) window.clearTimeout(cropAdjustmentSelectionTimer);
+      cropAdjustmentSelectionTimer = window.setTimeout(
+        finishCropAdjustmentSelectionQuietPreview,
+        cropAdjustmentSelectionQuietMilliseconds
+      );
+    };
 
     const syncControls = () => {
       const selection = selectedObjects();
@@ -3877,7 +3963,7 @@ function createAnnotationDialog(context) {
         : "Entity settings");
       const cropInsets = cropControlsImage ? annotationImageCropInsets(cropControlsImage) : { left: 0, top: 0, right: 0, bottom: 0 };
       const cropReversible = Boolean(cropControlsImage) && annotationImageHasReversibleCropObject(cropControlsImage);
-      const cropHasCornerRadius = safeAnnotationCropCornerRadius(cropControlsImage?.cropCornerRadius) > 0;
+      const cropHasCornerRadius = Boolean(cropControlsImage) && annotationImageHasCropCornerRadius(cropControlsImage);
       const cropInsetEditable = Boolean(cropControlsImage)
         && !cropControlsImage.locked
         && cropReversible;
@@ -3891,6 +3977,14 @@ function createAnnotationDialog(context) {
         cropCornerRadius.value = String(Math.round(safeAnnotationCropCornerRadius(cropControlsImage?.cropCornerRadius)));
         cropCornerRadius.disabled = !cropControlsImage || cropControlsImage.locked;
       }
+      const cropCornerRadii = cropControlsImage
+        ? annotationImageCropCornerRadii(cropControlsImage)
+        : { topLeft: 0, topRight: 0, bottomRight: 0, bottomLeft: 0 };
+      dialog.querySelectorAll("[data-annotation-crop-corner]").forEach(control => {
+        const corner = control.dataset.annotationCropCorner;
+        control.value = String(Math.round(cropCornerRadii[corner] || 0));
+        control.disabled = !cropControlsImage || cropControlsImage.locked;
+      });
       const cropResetButton = dialog.querySelector("[data-annotation-crop-reset]");
       if (cropResetButton) {
         cropResetButton.disabled = !cropControlsImage
@@ -4496,7 +4590,8 @@ function createAnnotationDialog(context) {
         cropPreview,
         marqueePreview,
         fieldMappingHoverIds,
-        fieldMappingSelectedIds
+        fieldMappingSelectedIds,
+        cropAdjustmentSelectionHiddenIds()
       );
       refreshZoomTargets();
       applyCanvasZoom();
@@ -4536,8 +4631,9 @@ function createAnnotationDialog(context) {
         });
       const visibleObjects = annotationVisibleObjects(state);
       const normalSelectedIds = new Set([...selectedIds].filter(id => !fieldMappingSelectedIds.has(id)));
+      const hiddenSelectionIds = cropAdjustmentSelectionHiddenIds();
       const markup = annotationSelectionSvg(
-        visibleObjects.filter(object => normalSelectedIds.has(object.id)),
+        visibleObjects.filter(object => normalSelectedIds.has(object.id) && !hiddenSelectionIds.has(object.id)),
         zoom,
         null,
         visibleObjects
@@ -6702,7 +6798,22 @@ function createAnnotationDialog(context) {
       const image = selectedCropControlsImage();
       if (!image || image.locked) return false;
       image.cropCornerRadius = safeAnnotationCropCornerRadius(control?.value);
+      delete image.cropCornerRadii;
       if (control) control.value = String(Math.round(image.cropCornerRadius));
+      startCropAdjustmentSelectionQuietPreview(image);
+      return true;
+    };
+
+    const updateSelectedCropCorner = control => {
+      const image = selectedCropControlsImage();
+      const corner = control?.dataset?.annotationCropCorner;
+      if (!image || image.locked || !annotationCropCornerKeys.includes(corner)) return false;
+      image.cropCornerRadii = {
+        ...annotationImageCropCornerRadii(image),
+        [corner]: safeAnnotationCropCornerRadius(control.value)
+      };
+      control.value = String(Math.round(image.cropCornerRadii[corner]));
+      startCropAdjustmentSelectionQuietPreview(image);
       return true;
     };
 
@@ -6720,7 +6831,9 @@ function createAnnotationDialog(context) {
     const updateSelectedCropInsets = () => {
       const image = selectedCropControlsImage();
       if (!image || image.locked || !annotationImageHasReversibleCrop(state, image)) return false;
-      return setAnnotationImageCropInsets(state, image, cropInsetsFromControls(image));
+      const changed = setAnnotationImageCropInsets(state, image, cropInsetsFromControls(image));
+      if (changed) startCropAdjustmentSelectionQuietPreview(image);
+      return changed;
     };
 
     const resetSelectedCropFromTab = () => {
@@ -8386,6 +8499,18 @@ function createAnnotationDialog(context) {
       pushHistory();
       renderWithWorkspaceExpansion();
     });
+    dialog.querySelectorAll("[data-annotation-crop-corner]").forEach(control => {
+      control.addEventListener("input", event => {
+        if (!updateSelectedCropCorner(event.target)) return;
+        scheduleHistory();
+        renderWithWorkspaceExpansion();
+      });
+      control.addEventListener("change", event => {
+        if (!updateSelectedCropCorner(event.target)) return;
+        pushHistory();
+        renderWithWorkspaceExpansion();
+      });
+    });
     dialog.querySelectorAll("[data-annotation-crop-inset]").forEach(control => {
       control.addEventListener("input", () => {
         if (!updateSelectedCropInsets()) return;
@@ -8867,11 +8992,19 @@ function annotationDialogHtml(context = {}) {
             <section class="image-annotation-format-section image-annotation-crop-format" aria-labelledby="imageAnnotationCropFormat">
               <h4 id="imageAnnotationCropFormat">Crop</h4>
               <div class="image-annotation-inspector-grid">
-                <label class="field image-annotation-wide"><span>Corner radius</span><input type="number" min="0" max="${maximumAnnotationCropCornerRadius}" step="1" value="0" data-annotation-crop-corner-radius></label>
                 <label class="field"><span>Left</span><input type="number" min="0" step="1" value="0" data-annotation-crop-inset="left"></label>
-                <label class="field"><span>Top</span><input type="number" min="0" step="1" value="0" data-annotation-crop-inset="top"></label>
                 <label class="field"><span>Right</span><input type="number" min="0" step="1" value="0" data-annotation-crop-inset="right"></label>
+                <label class="field"><span>Top</span><input type="number" min="0" step="1" value="0" data-annotation-crop-inset="top"></label>
                 <label class="field"><span>Bottom</span><input type="number" min="0" step="1" value="0" data-annotation-crop-inset="bottom"></label>
+              </div>
+              <div class="image-annotation-crop-divider" role="separator"></div>
+              <h4 id="imageAnnotationCropRadiusFormat">Radius</h4>
+              <div class="image-annotation-inspector-grid">
+                <label class="field image-annotation-wide"><span>Radius</span><input type="number" min="0" max="${maximumAnnotationCropCornerRadius}" step="1" value="0" data-annotation-crop-corner-radius></label>
+                <label class="field"><span>Top left</span><input type="number" min="0" max="${maximumAnnotationCropCornerRadius}" step="1" value="0" data-annotation-crop-corner="topLeft"></label>
+                <label class="field"><span>Top right</span><input type="number" min="0" max="${maximumAnnotationCropCornerRadius}" step="1" value="0" data-annotation-crop-corner="topRight"></label>
+                <label class="field"><span>Bottom left</span><input type="number" min="0" max="${maximumAnnotationCropCornerRadius}" step="1" value="0" data-annotation-crop-corner="bottomLeft"></label>
+                <label class="field"><span>Bottom right</span><input type="number" min="0" max="${maximumAnnotationCropCornerRadius}" step="1" value="0" data-annotation-crop-corner="bottomRight"></label>
               </div>
               <div class="image-annotation-field-mapping-actions">
                 <button type="button" data-annotation-crop-reset>Reset Crop</button>
@@ -9354,7 +9487,8 @@ function annotationCanvasSvg(
   cropPreview,
   marqueePreview,
   fieldMappingHoverIds = null,
-  fieldMappingSelectionIds = null
+  fieldMappingSelectionIds = null,
+  selectionHiddenIds = null
 ) {
   const clipKey = `editor-${++annotationEditorRenderSequence}`;
   const background = annotationCanvasBackgroundSvg(state, workspaceBounds);
@@ -9365,6 +9499,9 @@ function annotationCanvasSvg(
   const fieldMappingSelectedIds = fieldMappingSelectionIds instanceof Set
     ? fieldMappingSelectionIds
     : new Set(fieldMappingSelectionIds || []);
+  const hiddenSelectionIds = selectionHiddenIds instanceof Set
+    ? selectionHiddenIds
+    : new Set(selectionHiddenIds || []);
   const activeFieldMappingIds = new Set([...fieldMappingSelectedIds, ...hoverIds]);
   const normalSelectedIds = new Set([...selectedIds].filter(id => !fieldMappingSelectedIds.has(id)));
   const raisedIds = new Set([...normalSelectedIds, ...activeFieldMappingIds]);
@@ -9417,6 +9554,7 @@ function annotationCanvasSvg(
   const grid = state.gridVisible ? annotationGridSvg(workspaceBounds) : "";
   const selectedVisibleObjects = allVisibleObjects.filter(object =>
     normalSelectedIds.has(object.id)
+    && !hiddenSelectionIds.has(object.id)
     && (!cropPreview || object.id !== cropPreview.imageId)
   );
   const selection = annotationSelectionSvg(
@@ -9426,7 +9564,9 @@ function annotationCanvasSvg(
     allVisibleObjects
   );
   const fieldMappingSelection = annotationFieldMappingSelectionSvg(state, activeFieldMappingIds, zoom);
-  const crop = cropPreview ? annotationCropPreviewSvg(cropPreview, state, zoom) : "";
+  const crop = cropPreview && !hiddenSelectionIds.has(cropPreview.imageId)
+    ? annotationCropPreviewSvg(cropPreview, state, zoom)
+    : "";
   const marquee = marqueePreview ? annotationMarqueeSvg(marqueePreview) : "";
   return `${annotationCanvasDefs(state, zoom)}${background}${belowRelationships}${relationships}${betweenRelationships}${fieldRelationships}${aboveRelationships}${grid}${raised}${selection}${fieldMappingSelection}${marquee}${crop}`;
 }
@@ -11911,6 +12051,34 @@ function annotationGridSvg(bounds) {
   return `<rect class="image-annotation-grid" x="${formatNumber(bounds.x)}" y="${formatNumber(bounds.y)}" width="${formatNumber(bounds.width)}" height="${formatNumber(bounds.height)}" fill="url(#pmt-annotation-grid)" pointer-events="none"></rect>`;
 }
 
+function annotationRoundedRectPath(bounds, radii) {
+  const x = finiteNumber(bounds?.x, 0);
+  const y = finiteNumber(bounds?.y, 0);
+  const width = positiveNumber(bounds?.width, 1);
+  const height = positiveNumber(bounds?.height, 1);
+  const right = x + width;
+  const bottom = y + height;
+  const radius = annotationCropCornerKeys.reduce((accumulator, key) => ({
+    ...accumulator,
+    [key]: clampNumber(finiteNumber(radii?.[key], 0), 0, Math.min(width, height) / 2)
+  }), {});
+  const arc = (value, targetX, targetY) => value > 0
+    ? `A ${formatNumber(value)} ${formatNumber(value)} 0 0 1 ${formatNumber(targetX)} ${formatNumber(targetY)}`
+    : `L ${formatNumber(targetX)} ${formatNumber(targetY)}`;
+  return [
+    `M ${formatNumber(x + radius.topLeft)} ${formatNumber(y)}`,
+    `H ${formatNumber(right - radius.topRight)}`,
+    arc(radius.topRight, right, y + radius.topRight),
+    `V ${formatNumber(bottom - radius.bottomRight)}`,
+    arc(radius.bottomRight, right - radius.bottomRight, bottom),
+    `H ${formatNumber(x + radius.bottomLeft)}`,
+    arc(radius.bottomLeft, x, bottom - radius.bottomLeft),
+    `V ${formatNumber(y + radius.topLeft)}`,
+    arc(radius.topLeft, x + radius.topLeft, y),
+    "Z"
+  ].join(" ");
+}
+
 function annotationObjectSvg(object, options = {}) {
   const interactiveFieldMappingObject = options.interactiveFieldMapping === true
     && (isAnnotationFieldRectangle(object) || isAnnotationFieldMappingTable(object));
@@ -11929,12 +12097,18 @@ function annotationObjectSvg(object, options = {}) {
   if (object.type === "embedded-image") {
     const clip = annotationEmbeddedImageEffectiveClip(object);
     const fullBounds = annotationObjectBounds(object);
-    const radius = annotationImageCropCornerRadius(object, clip);
-    const cropped = object.cropVisible !== false && (!annotationBoundsEqual(clip, fullBounds) || radius > 0);
+    const radii = annotationImageCropCornerRadii(object, clip);
+    const hasRadius = Object.values(radii).some(radius => radius > 0);
+    const cropped = object.cropVisible !== false && (!annotationBoundsEqual(clip, fullBounds) || hasRadius);
     const clipId = `pmt-annotation-image-clip-${safeSvgId(object.id)}${clipSuffix}`;
-    const radiusAttributes = radius > 0 ? ` rx="${formatNumber(radius)}" ry="${formatNumber(radius)}"` : "";
+    const uniformRadius = annotationCropCornerKeys.every(key => radii[key] === radii.topLeft)
+      ? radii.topLeft
+      : null;
+    const clipShape = uniformRadius != null
+      ? `<rect x="${formatNumber(clip.x)}" y="${formatNumber(clip.y)}" width="${formatNumber(clip.width)}" height="${formatNumber(clip.height)}"${uniformRadius > 0 ? ` rx="${formatNumber(uniformRadius)}" ry="${formatNumber(uniformRadius)}"` : ""}></rect>`
+      : `<path d="${annotationRoundedRectPath(clip, radii)}"></path>`;
     const definition = cropped
-      ? `<defs><clipPath id="${clipId}"><rect x="${formatNumber(clip.x)}" y="${formatNumber(clip.y)}" width="${formatNumber(clip.width)}" height="${formatNumber(clip.height)}"${radiusAttributes}></rect></clipPath></defs>`
+      ? `<defs><clipPath id="${clipId}">${clipShape}</clipPath></defs>`
       : "";
     const clipPath = cropped ? ` clip-path="url(#${clipId})"` : "";
     return `${definition}<image${id}${type}${classes}${group}${locked} href="${escapeXmlAttr(object.source)}" x="${formatNumber(object.x)}" y="${formatNumber(object.y)}" width="${formatNumber(object.width)}" height="${formatNumber(object.height)}" preserveAspectRatio="none"${clipPath}></image>`;
@@ -13017,11 +13191,12 @@ function resetAnnotationCrop(state, imageOrId = null) {
   if (!image || image.type !== "embedded-image") return false;
   const fullImage = annotationObjectBounds(image);
   const hasReversibleCrop = !annotationBoundsEqual(image.imageClip, fullImage);
-  const hasCornerRadius = safeAnnotationCropCornerRadius(image.cropCornerRadius) > 0;
+  const hasCornerRadius = annotationImageHasCropCornerRadius(image);
   if (!hasReversibleCrop && !hasCornerRadius) return false;
   image.imageClip = fullImage;
   image.cropVisible = true;
   image.cropCornerRadius = 0;
+  delete image.cropCornerRadii;
   return true;
 }
 
@@ -14115,6 +14290,8 @@ function normalizeAnnotationObject(input) {
     const source = safeEmbeddedImageSource(input.source);
     if (!source) return null;
     const fullBounds = annotationObjectBounds(normalized);
+    const cropCornerRadius = safeAnnotationCropCornerRadius(input.cropCornerRadius);
+    const cropCornerRadii = safeAnnotationCropCornerRadii(input.cropCornerRadii, cropCornerRadius);
     const requestedClip = input.imageClip && typeof input.imageClip === "object"
       ? {
           x: finiteNumber(input.imageClip.x, fullBounds.x),
@@ -14127,7 +14304,8 @@ function normalizeAnnotationObject(input) {
       ...normalized,
       source,
       imageClip: intersectAnnotationBounds(fullBounds, requestedClip) || fullBounds,
-      cropCornerRadius: safeAnnotationCropCornerRadius(input.cropCornerRadius),
+      cropCornerRadius,
+      ...(cropCornerRadii ? { cropCornerRadii } : {}),
       cropVisible: input.cropVisible !== false,
       cropPermanent: input.cropPermanent === true,
       isOriginalImage: input.isOriginalImage === true

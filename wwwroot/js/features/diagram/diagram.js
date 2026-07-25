@@ -22,7 +22,7 @@ import {
   setAnnotationEntityCollapsedState,
   setAnnotationEntityDataTypeVisibility,
   zoomAnnotationAtPoint
-} from "../../components/image-annotation.js?v=20260725-field-mapping-v19";
+} from "../../components/image-annotation.js?v=20260725-field-mapping-v25";
 import { openPublicLinkDialog } from "../../components/public-links.js?v=20260725-day36-v4";
 import {
   checkedFilterValues,
@@ -360,7 +360,10 @@ export function createDiagramFeature({
   function diagramReadonlyContextMenuHtml() {
     return `
       <div class="dropdown-menu documentation-tree-context-menu diagram-readonly-context-menu" data-diagram-readonly-context-menu role="menu" aria-label="Diagram viewer options" hidden>
-        <button type="button" class="dropdown-menu-item" data-diagram-toggle-connection-symbols role="menuitemcheckbox" aria-checked="false"><span class="dropdown-menu-icon" aria-hidden="true">&#8644;</span><span class="dropdown-menu-label">Connection Symbols</span><span class="dropdown-menu-check" aria-hidden="true"></span></button>
+        <button type="button" class="dropdown-menu-item" data-diagram-toggle-entity-relationships role="menuitemcheckbox" aria-checked="true"><span class="dropdown-menu-icon" aria-hidden="true">&#8644;</span><span class="dropdown-menu-label">Entity Relationships</span><span class="dropdown-menu-check" aria-hidden="true">&#10003;</span></button>
+        <button type="button" class="dropdown-menu-item" data-diagram-toggle-field-mappings role="menuitemcheckbox" aria-checked="true"><span class="dropdown-menu-icon" aria-hidden="true">&#8863;</span><span class="dropdown-menu-label">UI to DB Field Mapping</span><span class="dropdown-menu-check" aria-hidden="true">&#10003;</span></button>
+        <button type="button" class="dropdown-menu-item" data-diagram-toggle-relationship-lines-only role="menuitemcheckbox" aria-checked="false"><span class="dropdown-menu-icon" aria-hidden="true">&#9472;</span><span class="dropdown-menu-label">Relationship Lines Only</span><span class="dropdown-menu-check" aria-hidden="true"></span></button>
+        <div class="rich-image-menu-separator" role="separator"></div>
         <button type="button" class="dropdown-menu-item" data-diagram-copy-format="svg" role="menuitem"><span class="dropdown-menu-icon" aria-hidden="true">&#128203;</span><span class="dropdown-menu-label">Copy as SVG</span><span class="dropdown-menu-check" aria-hidden="true"></span></button>
         <button type="button" class="dropdown-menu-item" data-diagram-copy-format="png" role="menuitem"><span class="dropdown-menu-icon" aria-hidden="true">&#128247;</span><span class="dropdown-menu-label">Copy as PNG</span><span class="dropdown-menu-check" aria-hidden="true"></span></button>
       </div>
@@ -580,16 +583,26 @@ export function createDiagramFeature({
   }
 
   function chooseDiagramSvgDownloadOptions() {
-    return openDiagramDownloadOptionsDialog("svg");
+    return openDiagramDownloadOptionsDialog("svg", { action: "download" });
   }
 
   function chooseDiagramPngDownloadOptions() {
-    return openDiagramDownloadOptionsDialog("png");
+    return openDiagramDownloadOptionsDialog("png", { action: "download" });
   }
 
-  function openDiagramDownloadOptionsDialog(format) {
+  function chooseDiagramSvgCopyOptions() {
+    return openDiagramDownloadOptionsDialog("svg", { action: "copy" });
+  }
+
+  function chooseDiagramPngCopyOptions() {
+    return openDiagramDownloadOptionsDialog("png", { action: "copy" });
+  }
+
+  function openDiagramDownloadOptionsDialog(format, options = {}) {
     const safeFormat = format === "svg" ? "svg" : "png";
-    const title = safeFormat === "svg" ? "Download as SVG" : "Download as PNG";
+    const isCopy = options.action === "copy";
+    const actionLabel = isCopy ? "Copy" : "Download";
+    const title = `${actionLabel} as ${safeFormat.toUpperCase()}`;
     const backgroundName = `diagram${safeFormat.toUpperCase()}Background`;
     const marginName = `diagram${safeFormat.toUpperCase()}Margin`;
     const marginOptions = Array.from({ length: 200 }, (_, index) => index + 1)
@@ -600,7 +613,7 @@ export function createDiagramFeature({
       : { transparent: "Transparent background", white: "White background" };
     return new Promise(resolve => {
       const modal = globalThis.document.createElement("dialog");
-      modal.className = `dialog mini-dialog diagram-download-dialog diagram-${safeFormat}-download-dialog`;
+      modal.className = `dialog mini-dialog diagram-download-dialog diagram-${safeFormat}-${isCopy ? "copy" : "download"}-dialog`;
       modal.innerHTML = `
         <form>
           <div class="dialog-head">
@@ -628,7 +641,7 @@ export function createDiagramFeature({
           </div>
           <div class="dialog-actions">
             <button type="button" class="secondary text-icon-button" data-diagram-download-cancel>${buttonContent("&#10005;", "Cancel")}</button>
-            <button type="submit" class="primary text-icon-button">${buttonContent("&#8681;", "Download")}</button>
+            <button type="submit" class="primary text-icon-button">${buttonContent(isCopy ? "&#128203;" : "&#8681;", actionLabel)}</button>
           </div>
         </form>
       `;
@@ -1489,6 +1502,9 @@ export function createDiagramFeature({
     const zoomSmoothingMilliseconds = 30;
     const zoomIdleMilliseconds = 90;
     let readonlyState = image.matches("svg") ? parseAnnotationSvg(image.outerHTML) : null;
+    let readonlyEntityRelationshipsVisible = true;
+    let readonlyFieldMappingsVisible = true;
+    let readonlyRelationshipLinesOnly = false;
     const replaceReadonlySvg = markup => {
       const next = new DOMParser().parseFromString(markup, "image/svg+xml").documentElement;
       ["width", "height", "viewBox", "role", "aria-label", "data-pmt-image-annotation-version"]
@@ -1508,25 +1524,29 @@ export function createDiagramFeature({
     }
 
     const copyMenu = viewer.querySelector("[data-diagram-readonly-context-menu]");
-    let syncReadonlyConnectionSymbolsMenu = () => {};
+    let syncReadonlyContextMenu = () => {};
     if (copyMenu) {
       const controller = new AbortController();
       const { signal } = controller;
       diagramReadonlyContextMenuController = controller;
       const closeCopyMenu = () => { copyMenu.hidden = true; };
-      syncReadonlyConnectionSymbolsMenu = () => {
-        const button = copyMenu.querySelector("[data-diagram-toggle-connection-symbols]");
+      const syncReadonlyCheckboxMenuItem = (selector, checked) => {
+        const button = copyMenu.querySelector(selector);
         if (!button) return;
-        const checked = readonlyState?.relationshipStyle?.showSymbols === true;
         button.disabled = !readonlyState;
         button.classList.toggle("is-checked", checked);
         button.setAttribute("aria-checked", String(checked));
         button.querySelector(".dropdown-menu-check").innerHTML = checked ? "&#10003;" : "";
       };
+      syncReadonlyContextMenu = () => {
+        syncReadonlyCheckboxMenuItem("[data-diagram-toggle-entity-relationships]", readonlyEntityRelationshipsVisible);
+        syncReadonlyCheckboxMenuItem("[data-diagram-toggle-field-mappings]", readonlyFieldMappingsVisible);
+        syncReadonlyCheckboxMenuItem("[data-diagram-toggle-relationship-lines-only]", readonlyRelationshipLinesOnly);
+      };
       viewport.addEventListener("contextmenu", event => {
         event.preventDefault();
         event.stopPropagation();
-        syncReadonlyConnectionSymbolsMenu();
+        syncReadonlyContextMenu();
         copyMenu.hidden = false;
         const margin = 8;
         copyMenu.style.left = `${Math.round(Math.max(margin, Math.min(event.clientX, window.innerWidth - copyMenu.offsetWidth - margin)))}px`;
@@ -1535,26 +1555,35 @@ export function createDiagramFeature({
       }, { signal });
       copyMenu.addEventListener("contextmenu", event => event.preventDefault(), { signal });
       copyMenu.addEventListener("click", async event => {
-        const symbolToggle = event.target.closest?.("[data-diagram-toggle-connection-symbols]");
-        if (symbolToggle) {
+        const toggleButton = event.target.closest?.("[data-diagram-toggle-entity-relationships], [data-diagram-toggle-field-mappings], [data-diagram-toggle-relationship-lines-only]");
+        if (toggleButton) {
           event.preventDefault();
           closeCopyMenu();
           if (!readonlyState) {
-            notify?.("Connection symbols are only available for editable PMT Diagram SVGs.");
+            notify?.("Diagram view options are only available for editable PMT Diagram SVGs.");
             return;
           }
-          readonlyState.relationshipStyle = {
-            ...readonlyState.relationshipStyle,
-            showSymbols: readonlyState.relationshipStyle?.showSymbols !== true
-          };
+          if (toggleButton.matches("[data-diagram-toggle-entity-relationships]")) {
+            readonlyEntityRelationshipsVisible = !readonlyEntityRelationshipsVisible;
+            if (!readonlyEntityRelationshipsVisible) clearReadonlyRelationshipSelection();
+          } else if (toggleButton.matches("[data-diagram-toggle-field-mappings]")) {
+            readonlyFieldMappingsVisible = !readonlyFieldMappingsVisible;
+            if (!readonlyFieldMappingsVisible) clearReadonlyFieldMappingSelection();
+          } else {
+            readonlyRelationshipLinesOnly = !readonlyRelationshipLinesOnly;
+          }
           renderReadonlyStateSvg();
-          notify?.(readonlyState.relationshipStyle.showSymbols ? "Connection symbols on." : "Connection symbols off.");
+          const checked = toggleButton.getAttribute("aria-checked") === "true";
+          notify?.(`${toggleButton.querySelector(".dropdown-menu-label")?.textContent || "Diagram option"} ${checked ? "on" : "off"}.`);
           return;
         }
 
         const button = event.target.closest?.("[data-diagram-copy-format]");
         if (!button) return;
         closeCopyMenu();
+        const format = button.dataset.diagramCopyFormat === "png" ? "png" : "svg";
+        const options = format === "png" ? await chooseDiagramPngCopyOptions() : await chooseDiagramSvgCopyOptions();
+        if (!options) return;
         try {
           let stateForCopy = readonlyState;
           if (!stateForCopy) {
@@ -1563,9 +1592,9 @@ export function createDiagramFeature({
             stateForCopy = parseAnnotationSvg(decodeDiagramSvgDataUrl(source) || await loadDiagramSvgSource(source));
           }
           if (!stateForCopy) throw new Error("The Diagram could not be read for copying.");
-          const portableState = await buildPortableAnnotationState(stateForCopy);
-          const svg = buildAnnotationSvg(portableState);
-          if (button.dataset.diagramCopyFormat === "png") {
+          const portableState = await buildPortableAnnotationState(readonlyDisplayState(stateForCopy));
+          const svg = prepareDiagramSvgForDownload(buildAnnotationSvg(portableState, readonlyVisibilityRenderOptions()), options);
+          if (format === "png") {
             await copyAnnotationPngToClipboard({ svg, ...annotationSvgClipboardMetrics(svg, portableState) });
             notify?.("Diagram copied as PNG.");
           } else {
@@ -1597,6 +1626,31 @@ export function createDiagramFeature({
     let readonlyFieldMappingAttentionClearTimer = 0;
     let readonlyLastFieldMappingPointerKey = "";
     let readonlyLastFieldMappingPointerAt = 0;
+    const readonlyVisibilityRenderOptions = () => ({
+      hideEntityRelationships: !readonlyEntityRelationshipsVisible,
+      hideFieldRectangleRelationships: !readonlyFieldMappingsVisible,
+      relationshipStyleOverride: { showSymbols: readonlyRelationshipLinesOnly !== true }
+    });
+    const readonlyRenderOptions = () => ({
+      ...readonlyVisibilityRenderOptions(),
+      interactiveEntityHeaders: true,
+      interactiveRelationships: true,
+      interactiveFieldMapping: readonlyFieldMappingsVisible,
+      fieldMappingHoverIds: readonlyFieldMappingsVisible ? readonlyFieldMappingActiveIds : new Set(),
+      selectedRelationshipIds: readonlyEntityRelationshipsVisible && readonlySelectedRelationshipId
+        ? new Set([readonlySelectedRelationshipId])
+        : null
+    });
+    const readonlyDisplayState = (stateInput = readonlyState) => {
+      if (readonlyFieldMappingsVisible) return stateInput;
+      return {
+        ...stateInput,
+        objects: (Array.isArray(stateInput?.objects) ? stateInput.objects : []).map(object =>
+          diagramObjectIsFieldRectangle(object) || object?.type === "field-mapping-table"
+            ? { ...object, visible: false }
+            : object)
+      };
+    };
 
     const viewportSize = () => ({
       width: Math.max(1, viewport.clientWidth),
@@ -1633,19 +1687,13 @@ export function createDiagramFeature({
 
     const renderReadonlyStateSvg = () => {
       if (!readonlyState || !image.matches("svg")) return;
-      replaceReadonlySvg(buildAnnotationSvg(readonlyState, {
-        interactiveEntityHeaders: true,
-        interactiveRelationships: true,
-        interactiveFieldMapping: true,
-        fieldMappingHoverIds: readonlyFieldMappingActiveIds,
-        selectedRelationshipIds: readonlySelectedRelationshipId ? new Set([readonlySelectedRelationshipId]) : null
-      }));
+      replaceReadonlySvg(buildAnnotationSvg(readonlyDisplayState(), readonlyRenderOptions()));
       const viewBox = image.viewBox?.baseVal;
       imageWidth = Number.parseFloat(image.getAttribute("width")) || viewBox?.width || imageWidth;
       imageHeight = Number.parseFloat(image.getAttribute("height")) || viewBox?.height || imageHeight;
       drawStage(renderedZoom, stageMetrics(renderedZoom));
-      syncReadonlyConnectionSymbolsMenu();
-      applyReadonlyFieldMappingHighlight();
+      syncReadonlyContextMenu();
+      if (readonlyFieldMappingsVisible) applyReadonlyFieldMappingHighlight();
     };
 
     const readonlyFieldMappingCellSelector = "[data-annotation-field-mapping-cell]";

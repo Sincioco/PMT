@@ -19,7 +19,7 @@ test("Field Mapping Table hover draws mapped handles without outward selection c
   await page.goto("/image-annotation-hover-test.html");
 
   await page.evaluate(async () => {
-    const annotation = await import("/js/components/image-annotation.js?v=20260725-field-mapping-v19");
+    const annotation = await import("/js/components/image-annotation.js?v=20260725-field-mapping-v25");
     const databaseEntity = {
       id: "project-entity",
       type: "entity",
