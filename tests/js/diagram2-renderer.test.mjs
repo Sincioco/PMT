@@ -6,6 +6,7 @@ import {
   parseAnnotationSvg
 } from "../../wwwroot/js/components/image-annotation.js";
 import {
+  createDiagram2DirtyState,
   createDiagram2LiveView,
   diagram2CanonicalRelationships,
   diagram2CanonicalSummary,
@@ -14,6 +15,20 @@ import {
   diagram2WorldToScreenPoint,
   diagram2ZoomAtTransform
 } from "../../wwwroot/js/features/diagram2/diagram2-renderer.js";
+
+test("Diagram 2 dirty state keeps explicit invalidation categories", () => {
+  const dirty = createDiagram2DirtyState();
+
+  assert.equal(dirty.objectGeometry instanceof Set, true);
+  assert.equal(dirty.objectStructure instanceof Set, true);
+  assert.equal(dirty.objectStyle instanceof Set, true);
+  assert.equal(dirty.objectSelection instanceof Set, true);
+  assert.equal(dirty.relationshipGeometry instanceof Set, true);
+  assert.equal(dirty.relationshipStyle instanceof Set, true);
+  assert.equal(dirty.zOrder, false);
+  assert.equal(dirty.worldBounds, false);
+  assert.equal(dirty.sectors, false);
+});
 
 test("Diagram 2 live view keeps renderer-only state out of the canonical model", () => {
   const canonical = normalizeAnnotationState({

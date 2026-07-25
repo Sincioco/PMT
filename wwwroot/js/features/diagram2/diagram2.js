@@ -28,7 +28,7 @@ import {
 } from "../../shared/diagram-documents.js?v=20260725-diagram2-day6-v1";
 import { formatDate } from "../../shared/dates.js";
 import { escapeAttr, escapeHtml } from "../../shared/text-and-links.js";
-import { createDiagram2Renderer } from "./diagram2-renderer.js?v=20260725-diagram2-day8-v1";
+import { createDiagram2Renderer } from "./diagram2-renderer.js?v=20260725-diagram2-day9-v1";
 
 const diagram2ViewModes = new Set(["tree", "cards"]);
 const diagram2SortModes = new Set(["latest", "oldest", "name", "custom"]);
@@ -449,6 +449,13 @@ export function createDiagram2Feature({ app, notify } = {}) {
           ${diagram2DiagnosticItemHtml("full-render-reason", "Full-render reason")}
           ${diagram2DiagnosticItemHtml("objects-patched-in-last-flush", "Objects patched in last flush")}
           ${diagram2DiagnosticItemHtml("relationships-routed-in-last-flush", "Relationships routed in last flush")}
+          ${diagram2DiagnosticItemHtml("dirty-flush-reason", "Dirty flush reason")}
+          ${diagram2DiagnosticItemHtml("dirty-object-ids", "Dirty object IDs")}
+          ${diagram2DiagnosticItemHtml("dirty-relationship-ids", "Dirty relationship IDs")}
+          ${diagram2DiagnosticItemHtml("patched-node-count", "Patched node count")}
+          ${diagram2DiagnosticItemHtml("routed-relationship-count", "Routed relationship count")}
+          ${diagram2DiagnosticItemHtml("dirty-flush-count", "Dirty flush count")}
+          ${diagram2DiagnosticItemHtml("last-flush-duration", "Last flush duration")}
           ${diagram2DiagnosticItemHtml("last-frame-duration", "Last frame duration")}
           ${diagram2DiagnosticItemHtml("transient-matrix", "Transient matrix")}
           ${diagram2DiagnosticItemHtml("committed-matrix", "Committed matrix")}
@@ -482,6 +489,13 @@ export function createDiagram2Feature({ app, notify } = {}) {
       "full-render-reason": diagnostics.fullRenderReason,
       "objects-patched-in-last-flush": diagnostics.objectsPatchedInLastFlush,
       "relationships-routed-in-last-flush": diagnostics.relationshipsRoutedInLastFlush,
+      "dirty-flush-reason": diagnostics.dirtyFlushReason,
+      "dirty-object-ids": diagnostics.dirtyObjectIds,
+      "dirty-relationship-ids": diagnostics.dirtyRelationshipIds,
+      "patched-node-count": diagnostics.patchedNodeCount,
+      "routed-relationship-count": diagnostics.routedRelationshipCount,
+      "dirty-flush-count": diagnostics.dirtyFlushCount,
+      "last-flush-duration": `${diagnostics.lastFlushDuration} ms`,
       "last-frame-duration": `${diagnostics.lastFrameDuration} ms`,
       "transient-matrix": diagnostics.transientMatrix,
       "committed-matrix": diagnostics.committedMatrix,
@@ -505,6 +519,13 @@ export function createDiagram2Feature({ app, notify } = {}) {
       "full-render-reason": "-",
       "objects-patched-in-last-flush": "-",
       "relationships-routed-in-last-flush": "-",
+      "dirty-flush-reason": "-",
+      "dirty-object-ids": "-",
+      "dirty-relationship-ids": "-",
+      "patched-node-count": "-",
+      "routed-relationship-count": "-",
+      "dirty-flush-count": "-",
+      "last-flush-duration": "-",
       "last-frame-duration": "-",
       "transient-matrix": "-",
       "committed-matrix": "-",

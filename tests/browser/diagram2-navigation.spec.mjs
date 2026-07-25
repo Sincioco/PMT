@@ -155,21 +155,27 @@ async function assertTransformOnlyZoom(page, zoom, expectedFullRenderCount) {
 }
 
 async function assertKeyedDiagram2NodePatches(page, expectedFullRenderCount) {
-  const result = await page.evaluate(() => {
+  const result = await page.evaluate(async () => {
     const renderer = window.__pmtDiagram2Renderer;
     const svg = document.querySelector("[data-diagram2-svg]");
     const entities = [...document.querySelectorAll("[data-diagram2-object-plane] [data-diagram2-object-type='entity']")];
-    const entityA = entities[0] || null;
-    const entityB = entities[1] || null;
-    const entityAText = entityA?.querySelector("[data-diagram2-entity-title], text") || null;
     const relationship = document.querySelector("[data-diagram2-relationship-id]");
+    const relatedEntity = relationship?.dataset.diagram2RelationshipSource
+      ? document.querySelector(`[data-diagram2-object-id="${CSS.escape(relationship.dataset.diagram2RelationshipSource)}"]`)
+      : null;
+    const entityA = relatedEntity || entities[0] || null;
+    const entityB = entities.find(entity => entity !== entityA) || null;
+    const entityAText = entityA?.querySelector("[data-diagram2-entity-title], text") || null;
     if (!renderer || !svg || !entityA || !entityB) return { ready: false };
 
     const entityAId = entityA.dataset.diagram2ObjectId;
     const entityBId = entityB.dataset.diagram2ObjectId;
+    const flushCountBefore = Number(svg.dataset.diagram2DirtyFlushCount || 0);
     renderer.setSelectedIds([entityAId]);
+    await renderer.whenIdle();
     const entityASelected = entityA.classList.contains("is-selected");
     renderer.setSelectedIds([entityBId]);
+    const selectionDiagnostics = await renderer.whenIdle();
     const selectionPatched = !entityA.classList.contains("is-selected")
       && entityB.classList.contains("is-selected")
       && document.querySelectorAll("[data-diagram2-selection-id]").length === 1;
@@ -179,6 +185,7 @@ async function assertKeyedDiagram2NodePatches(page, expectedFullRenderCount) {
       entityHeaderFill: "#fed7aa",
       textColor: "#7c2d12"
     });
+    const styleDiagnostics = await renderer.whenIdle();
     const fillPatched = entityA.querySelector("[data-diagram2-entity-body]")?.getAttribute("fill") === "#fff7ed";
     const headerPatched = entityA.querySelector("[data-diagram2-entity-header]")?.getAttribute("fill") === "#fed7aa";
     const transformBeforeMove = entityA.getAttribute("transform");
@@ -186,7 +193,21 @@ async function assertKeyedDiagram2NodePatches(page, expectedFullRenderCount) {
       x: Number(object.x || 0) + 24,
       y: Number(object.y || 0) + 16
     }));
+    const moveDiagnostics = await renderer.whenIdle();
     const transformAfterMove = entityA.getAttribute("transform");
+
+    const batchFlushBefore = Number(svg.dataset.diagram2DirtyFlushCount || 0);
+    renderer.beginDiagramUpdate("batched style test");
+    renderer.updateObject(entityAId, { fill: "#eef2ff" });
+    renderer.updateObject(entityBId, { fill: "#ecfdf5" });
+    const transactionSnapshot = renderer.liveViewSnapshot();
+    renderer.endDiagramUpdate("batched style test");
+    const batchDiagnostics = await renderer.whenIdle();
+    const batchFlushAfter = Number(svg.dataset.diagram2DirtyFlushCount || 0);
+
+    const selectionEntityIds = entities.slice(0, 28).map(entity => entity.dataset.diagram2ObjectId);
+    renderer.setSelectedIds(selectionEntityIds);
+    const largeSelectionDiagnostics = await renderer.whenIdle();
 
     return {
       ready: true,
@@ -201,6 +222,19 @@ async function assertKeyedDiagram2NodePatches(page, expectedFullRenderCount) {
       transformChanged: transformBeforeMove !== transformAfterMove,
       fullRenderCount: Number(svg.dataset.diagram2FullRenderCount || 0),
       objectPatchedCount: Number(svg.dataset.diagram2ObjectsPatchedInLastFlush || 0),
+      selectionRoutedRelationshipCount: selectionDiagnostics.routedRelationshipCount,
+      styleRoutedRelationshipCount: styleDiagnostics.routedRelationshipCount,
+      stylePatchedNodeCount: styleDiagnostics.patchedNodeCount,
+      moveRoutedRelationshipCount: moveDiagnostics.routedRelationshipCount,
+      batchFlushDelta: batchFlushAfter - batchFlushBefore,
+      batchPatchedNodeCount: batchDiagnostics.patchedNodeCount,
+      batchRoutedRelationshipCount: batchDiagnostics.routedRelationshipCount,
+      transactionQueuedDirtyIds: transactionSnapshot.dirtyObjectIds,
+      transactionPendingBeforeEnd: transactionSnapshot.pendingDiagramFlush,
+      largeSelectionCount: selectionEntityIds.length,
+      largeSelectionDuration: largeSelectionDiagnostics.lastFlushDuration,
+      largeSelectionRoutedRelationshipCount: largeSelectionDiagnostics.routedRelationshipCount,
+      dirtyFlushDelta: Number(svg.dataset.diagram2DirtyFlushCount || 0) - flushCountBefore,
       relationshipNodeCount: document.querySelectorAll("[data-diagram2-relationship-id]").length
     };
   });
@@ -216,7 +250,20 @@ async function assertKeyedDiagram2NodePatches(page, expectedFullRenderCount) {
   expect(result.headerPatched).toBe(true);
   expect(result.transformChanged).toBe(true);
   expect(result.fullRenderCount).toBe(expectedFullRenderCount);
-  expect(result.objectPatchedCount).toBe(1);
+  expect(result.objectPatchedCount).toBe(0);
+  expect(result.selectionRoutedRelationshipCount).toBe(0);
+  expect(result.styleRoutedRelationshipCount).toBe(0);
+  expect(result.stylePatchedNodeCount).toBe(1);
+  expect(result.moveRoutedRelationshipCount).toBeGreaterThan(0);
+  expect(result.batchFlushDelta).toBe(1);
+  expect(result.batchPatchedNodeCount).toBe(2);
+  expect(result.batchRoutedRelationshipCount).toBe(0);
+  expect(result.transactionQueuedDirtyIds).toContain(",");
+  expect(result.transactionPendingBeforeEnd).toBe(false);
+  expect(result.largeSelectionCount).toBe(28);
+  expect(result.largeSelectionDuration).toBeLessThan(50);
+  expect(result.largeSelectionRoutedRelationshipCount).toBe(0);
+  expect(result.dirtyFlushDelta).toBe(6);
   expect(result.relationshipNodeCount).toBe(82);
 }
 
@@ -402,7 +449,7 @@ function testState() {
 }
 
 function pmtDatabaseSchemaBodyHtml() {
-  return `<p><img data-pmt-diagram="true" data-pmt-private-diagram="true" src="/assets/docs/pmt-database-schema.svg?v=20260725-diagram2-day8-fixture" alt="PMT Database Schema"></p>`;
+  return `<p><img data-pmt-diagram="true" data-pmt-private-diagram="true" src="/assets/docs/pmt-database-schema.svg?v=20260725-diagram2-day9-fixture" alt="PMT Database Schema"></p>`;
 }
 
 function diagramBodyHtml(title, stroke) {

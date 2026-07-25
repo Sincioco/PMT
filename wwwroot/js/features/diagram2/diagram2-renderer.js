@@ -13,6 +13,7 @@ const defaultDiagram2Height = 900;
 const defaultViewportPadding = 24;
 const minimumViewportScale = 0.05;
 const maximumViewportScale = 8;
+const allRelationshipsDirtyToken = "*";
 const diagram2RendererPlanes = [
   ["background", "data-diagram2-background-plane"],
   ["belowRelationships", "data-diagram2-below-relationship-plane"],
@@ -32,6 +33,21 @@ export function createDiagram2LiveView() {
     relationshipVersionsById: new Map(),
     objectDataById: new Map(),
     relationshipDataById: new Map()
+  };
+}
+
+export function createDiagram2DirtyState() {
+  return {
+    objectGeometry: new Set(),
+    objectStructure: new Set(),
+    objectStyle: new Set(),
+    objectSelection: new Set(),
+    relationshipGeometry: new Set(),
+    relationshipStyle: new Set(),
+    reasons: new Set(),
+    zOrder: false,
+    worldBounds: false,
+    sectors: false
   };
 }
 
@@ -208,6 +224,7 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
   if (!host) throw new Error("Diagram 2 renderer requires a host element.");
 
   const liveView = createDiagram2LiveView();
+  const dirty = createDiagram2DirtyState();
   const planes = {};
   const viewportTransform = { scale: 1, translateX: 0, translateY: 0 };
   const committedViewportTransform = { scale: 1, translateX: 0, translateY: 0 };
@@ -219,10 +236,15 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
   let frameSequence = 0;
   let zoomMode = "fit";
   let relationshipRouteRevision = 0;
+  let transactionDepth = 0;
+  let pendingDiagramFlushFrame = 0;
+  let dirtyFlushCount = 0;
+  let pendingFlushResolvers = [];
   let pendingViewportFrame = 0;
   let pendingViewportGesture = null;
   let lastViewportReason = "";
   let lastTransformDiagnostics = emptyTransformDiagnostics();
+  let lastDirtyDiagnostics = emptyDirtyFlushDiagnostics();
   let lastDiagnostics = emptyDiagnostics();
 
   function render(inputState, options = {}) {
@@ -232,6 +254,7 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
     mark(performanceApi, `${frameId}:start`);
 
     canonicalState = normalizeDiagram2CanonicalState(inputState);
+    clearDirtyState(dirty);
     const visibleObjects = canonicalState.objects.filter(object => object.visible !== false);
     const relationships = diagram2CanonicalRelationships(canonicalState);
     mark(performanceApi, `${frameId}:canonical`);
@@ -266,7 +289,8 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
       relationshipsRoutedInLastFlush: relationshipsRouted,
       lastFrameDuration: Math.max(0, endTime - startTime)
     });
-    Object.assign(lastDiagnostics, lastTransformDiagnostics);
+    lastDirtyDiagnostics = emptyDirtyFlushDiagnostics();
+    Object.assign(lastDiagnostics, lastTransformDiagnostics, lastDirtyDiagnostics);
     lastDiagnostics.svgDescendantCount = svg.querySelectorAll("*").length;
     applyDiagnosticsAttributes();
     notifyDiagnostics();
@@ -344,53 +368,156 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
     const nextObject = nextState.objects.find(object => object.id === objectId);
     canonicalState = nextState;
 
-    let objectsPatched = 0;
-    if (nextObject?.visible !== false) {
-      objectsPatched = patchVisibleObject(nextObject);
-      const node = liveView.objectNodesById.get(objectId);
-      if (node?.parentNode !== planes.objects) planes.objects.appendChild(node);
-      liveView.mountedObjectIds.add(objectId);
-    } else {
-      removeObjectNode(objectId);
-    }
-
-    const relationships = diagram2CanonicalRelationships(canonicalState);
-    const relationshipsRouted = patchRelationships(relationships);
-    patchSelectionOverlays();
-    return flushPatchDiagnostics(relationships, objectsPatched, relationshipsRouted, 0);
+    const renderedObject = liveView.objectDataById.get(objectId) || previousObject;
+    const flags = diagram2ObjectPatchFlags(renderedObject, nextObject);
+    markObjectDirty(objectId, flags);
+    return scheduleDiagramFlush("object update");
   }
 
   function setSelectedIds(ids = []) {
+    const previousSelection = new Set(liveView.selectedIds);
     liveView.selectedIds.clear();
     (Array.isArray(ids) ? ids : [ids])
       .map(id => String(id || "").trim())
       .filter(Boolean)
       .forEach(id => liveView.selectedIds.add(id));
 
-    liveView.objectNodesById.forEach((node, id) => patchObjectSelection(node, id, liveView.selectedIds.has(id)));
-    liveView.relationshipNodesById.forEach((node, id) => patchRelationshipSelection(node, id, liveView.selectedIds.has(id)));
-    patchSelectionOverlays();
-
-    const relationships = canonicalState ? diagram2CanonicalRelationships(canonicalState) : [];
-    return flushPatchDiagnostics(relationships, 0, 0, 0);
+    previousSelection.forEach(id => markSelectionDirty(id));
+    liveView.selectedIds.forEach(id => markSelectionDirty(id));
+    return scheduleDiagramFlush("selection");
   }
 
-  function flushPatchDiagnostics(relationships, objectsPatched, relationshipsRouted, duration) {
-    if (!canonicalState || !svg) return diagnostics();
+  function beginDiagramUpdate(reason = "update") {
+    transactionDepth += 1;
+    addDirtyReason(reason);
+    return diagnostics();
+  }
+
+  function endDiagramUpdate(reason = "update") {
+    if (transactionDepth > 0) transactionDepth -= 1;
+    addDirtyReason(reason);
+    if (transactionDepth === 0) scheduleDiagramFlush(reason);
+    return diagnostics();
+  }
+
+  function scheduleDiagramFlush(reason = "scheduled") {
+    addDirtyReason(reason);
+    if (!dirtyStateHasChanges(dirty) || transactionDepth > 0) return diagnostics();
+    if (pendingDiagramFlushFrame) return diagnostics();
+
+    const requestFrame = globalThis.requestAnimationFrame || (callback => globalThis.setTimeout(callback, 16));
+    pendingDiagramFlushFrame = requestFrame(() => {
+      pendingDiagramFlushFrame = 0;
+      flushDiagramChanges(reason);
+    });
+    lastDirtyDiagnostics = {
+      ...lastDirtyDiagnostics,
+      pendingDiagramFlush: true,
+      transactionDepth
+    };
+    Object.assign(lastDiagnostics, lastDirtyDiagnostics);
+    applyDiagnosticsAttributes();
+    return diagnostics();
+  }
+
+  function flushDiagramChanges(reason = "manual") {
+    if (!canonicalState || !svg) {
+      clearDirtyState(dirty);
+      resolvePendingFlushes();
+      return diagnostics();
+    }
+    if (!dirtyStateHasChanges(dirty)) {
+      resolvePendingFlushes();
+      return diagnostics();
+    }
+
+    const frameId = `diagram2-dirty-flush-${++frameSequence}`;
+    const startTime = now(performanceApi);
+    mark(performanceApi, `${frameId}:start`);
+    const relationships = diagram2CanonicalRelationships(canonicalState);
+    const dirtySnapshot = dirtyDiagnosticsSnapshot(dirty, relationships);
+    const patchedObjectIds = new Set();
+    const patchedRelationshipIds = new Set();
+    let objectPatchCount = 0;
+    let patchedNodeCount = 0;
+    let routedRelationshipCount = 0;
+
+    const patchObjectSet = ids => {
+      ids.forEach(id => {
+        if (patchedObjectIds.has(id)) return;
+        const result = patchDirtyObject(id);
+        patchedObjectIds.add(id);
+        objectPatchCount += result;
+        patchedNodeCount += result;
+      });
+    };
+
+    patchObjectSet(dirty.objectStructure);
+    patchObjectSet(dirty.objectGeometry);
+
+    const relationshipGeometry = dirtyRelationshipSet(dirty.relationshipGeometry, relationships);
+    const geometryResult = patchDirtyRelationships(relationships, relationshipGeometry, patchedRelationshipIds);
+    patchedNodeCount += geometryResult.patched;
+    routedRelationshipCount += geometryResult.routed;
+
+    const styleRelationshipIds = dirtyRelationshipSet(dirty.relationshipStyle, relationships);
+    const styleResult = patchDirtyRelationships(relationships, styleRelationshipIds, patchedRelationshipIds);
+    patchedNodeCount += styleResult.patched;
+    routedRelationshipCount += styleResult.routed;
+
+    patchObjectSet(dirty.objectStyle);
+    patchedNodeCount += patchSelectionTargets(dirty.objectSelection);
+    reconcileMountedRelationshipIds(relationships);
+    if (dirty.zOrder) reconcileObjectOrder(canonicalState.objects.filter(object => object.visible !== false));
+    patchSelectionOverlays();
+
+    const endTime = now(performanceApi);
+    mark(performanceApi, `${frameId}:end`);
+    measure(performanceApi, "diagram2 dirty flush", `${frameId}:start`, `${frameId}:end`);
+    dirtyFlushCount += 1;
+    lastDirtyDiagnostics = {
+      dirtyFlushReason: dirtyReasonText(dirty, reason),
+      dirtyObjectIds: dirtySnapshot.objectIds,
+      dirtyRelationshipIds: dirtySnapshot.relationshipIds,
+      patchedNodeCount,
+      routedRelationshipCount,
+      lastFlushDuration: Math.round(Math.max(0, endTime - startTime) * 100) / 100,
+      dirtyFlushCount,
+      pendingDiagramFlush: false,
+      transactionDepth
+    };
+    clearDirtyState(dirty);
     lastDiagnostics = diagnosticsFor({
       canonicalState,
       relationships,
       fullRenderCount,
       fullRenderReason,
-      objectsPatchedInLastFlush: objectsPatched,
-      relationshipsRoutedInLastFlush: relationshipsRouted,
-      lastFrameDuration: duration
+      objectsPatchedInLastFlush: objectPatchCount,
+      relationshipsRoutedInLastFlush: routedRelationshipCount,
+      lastFrameDuration: lastDirtyDiagnostics.lastFlushDuration
     });
-    Object.assign(lastDiagnostics, lastTransformDiagnostics);
+    Object.assign(lastDiagnostics, lastTransformDiagnostics, lastDirtyDiagnostics);
     lastDiagnostics.svgDescendantCount = svg.querySelectorAll("*").length;
     applyDiagnosticsAttributes();
     notifyDiagnostics();
+    resolvePendingFlushes();
     return diagnostics();
+  }
+
+  function whenIdle() {
+    if (!pendingDiagramFlushFrame && !dirtyStateHasChanges(dirty)) {
+      return Promise.resolve(diagnostics());
+    }
+    return new Promise(resolve => {
+      pendingFlushResolvers.push(resolve);
+    });
+  }
+
+  function resolvePendingFlushes() {
+    const resolvers = pendingFlushResolvers.splice(0);
+    if (!resolvers.length) return;
+    const snapshot = diagnostics();
+    resolvers.forEach(resolve => resolve(snapshot));
   }
 
   function diagnostics() {
@@ -407,7 +534,19 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
       objectVersionCount: liveView.objectVersionsById.size,
       relationshipVersionCount: liveView.relationshipVersionsById.size,
       objectDataCount: liveView.objectDataById.size,
-      relationshipDataCount: liveView.relationshipDataById.size
+      relationshipDataCount: liveView.relationshipDataById.size,
+      dirtyObjectIds: sortedDirtyIds([
+        ...dirty.objectStructure,
+        ...dirty.objectGeometry,
+        ...dirty.objectStyle,
+        ...dirty.objectSelection
+      ]),
+      dirtyRelationshipIds: sortedDirtyIds([
+        ...dirty.relationshipGeometry,
+        ...dirty.relationshipStyle
+      ]),
+      pendingDiagramFlush: pendingDiagramFlushFrame !== 0,
+      transactionDepth
     };
   }
 
@@ -525,7 +664,8 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
 
     relationships.forEach(relationship => {
       desiredIds.add(relationship.id);
-      routedCount += patchVisibleRelationship(relationship);
+      const result = patchVisibleRelationship(relationship);
+      routedCount += result.routed;
 
       const node = liveView.relationshipNodesById.get(relationship.id);
       if (node.parentNode !== planes.relationships || node !== planes.relationships.lastChild) {
@@ -567,8 +707,10 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
     const previousRelationship = liveView.relationshipDataById.get(relationship.id) || null;
     const flags = diagram2RelationshipPatchFlags(previousRelationship, relationship);
     if (!flags.changed && liveView.relationshipVersionsById.has(relationship.id)) {
-      patchRelationshipSelection(node, relationship.id, liveView.selectedIds.has(relationship.id));
-      return 0;
+      const selected = liveView.selectedIds.has(relationship.id);
+      const wasSelected = node.classList.contains("is-selected");
+      patchRelationshipSelection(node, relationship.id, selected);
+      return { patched: wasSelected === selected ? 0 : 1, routed: 0 };
     }
 
     patchRelationshipNode(node, previousRelationship, relationship, {
@@ -577,7 +719,10 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
     });
     liveView.relationshipDataById.set(relationship.id, relationship);
     liveView.relationshipVersionsById.set(relationship.id, relationshipVersion(relationship));
-    return 1;
+    return {
+      patched: 1,
+      routed: flags.created || flags.routeChanged ? 1 : 0
+    };
   }
 
   function createObjectNode(object) {
@@ -614,6 +759,125 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
     liveView.relationshipDataById.delete(id);
     liveView.mountedRelationshipIds.delete(id);
     liveView.selectedIds.delete(id);
+  }
+
+  function patchDirtyObject(id) {
+    const object = canonicalState?.objects.find(candidate => candidate.id === id);
+    if (!object || object.visible === false) {
+      const existed = liveView.objectNodesById.has(id);
+      removeObjectNode(id);
+      return existed ? 1 : 0;
+    }
+
+    const patched = patchVisibleObject(object);
+    const node = liveView.objectNodesById.get(id);
+    if (node?.parentNode !== planes.objects) planes.objects.appendChild(node);
+    liveView.mountedObjectIds.add(id);
+    return patched;
+  }
+
+  function patchDirtyRelationships(relationships, relationshipIds, patchedRelationshipIds) {
+    const desiredIds = new Set(relationships.map(relationship => relationship.id));
+    const relationshipsById = new Map(relationships.map(relationship => [relationship.id, relationship]));
+    let patched = 0;
+    let routed = 0;
+
+    [...liveView.relationshipNodesById.keys()].forEach(id => {
+      if (desiredIds.has(id)) return;
+      removeRelationshipNode(id);
+      patched += 1;
+    });
+
+    relationshipIds.forEach(id => {
+      if (patchedRelationshipIds.has(id)) return;
+      const relationship = relationshipsById.get(id);
+      if (!relationship) return;
+      const result = patchVisibleRelationship(relationship);
+      patchedRelationshipIds.add(id);
+      patched += result.patched;
+      routed += result.routed;
+      const node = liveView.relationshipNodesById.get(id);
+      if (node?.parentNode !== planes.relationships) planes.relationships.appendChild(node);
+    });
+
+    if (routed > 0) relationshipRouteRevision += routed;
+    return { patched, routed };
+  }
+
+  function reconcileMountedRelationshipIds(relationships) {
+    liveView.mountedRelationshipIds.clear();
+    relationships.forEach(relationship => liveView.mountedRelationshipIds.add(relationship.id));
+  }
+
+  function reconcileObjectOrder(objects) {
+    objects.forEach(object => {
+      const node = liveView.objectNodesById.get(object.id);
+      if (node) planes.objects.appendChild(node);
+    });
+  }
+
+  function patchSelectionTargets(ids) {
+    let patched = 0;
+    ids.forEach(id => {
+      const selected = liveView.selectedIds.has(id);
+      const objectNode = liveView.objectNodesById.get(id);
+      if (objectNode) {
+        patchObjectSelection(objectNode, id, selected);
+        patched += 1;
+      }
+      const relationshipNode = liveView.relationshipNodesById.get(id);
+      if (relationshipNode) {
+        patchRelationshipSelection(relationshipNode, id, selected);
+        patched += 1;
+      }
+    });
+    return patched;
+  }
+
+  function markObjectDirty(id, flags) {
+    if (!flags.changed) return;
+    if (flags.structureChanged) dirty.objectStructure.add(id);
+    if (flags.transformChanged) dirty.objectGeometry.add(id);
+    if (flags.styleChanged || flags.textChanged) dirty.objectStyle.add(id);
+    if (!flags.structureChanged && !flags.transformChanged && !flags.styleChanged && !flags.textChanged) {
+      dirty.objectStructure.add(id);
+    }
+    if (liveView.selectedIds.has(id) && (flags.structureChanged || flags.transformChanged)) {
+      dirty.objectSelection.add(id);
+    }
+
+    if (flags.structureChanged) {
+      dirty.relationshipGeometry.add(allRelationshipsDirtyToken);
+      dirty.worldBounds = true;
+      dirty.sectors = true;
+      return;
+    }
+
+    if (flags.transformChanged) {
+      dirtyConnectedRelationships(id).forEach(relationshipId => dirty.relationshipGeometry.add(relationshipId));
+      dirty.worldBounds = true;
+      dirty.sectors = true;
+    }
+  }
+
+  function markSelectionDirty(id) {
+    if (liveView.objectNodesById.has(id) || liveView.objectDataById.has(id)) {
+      dirty.objectSelection.add(id);
+    }
+    if (liveView.relationshipNodesById.has(id) || liveView.relationshipDataById.has(id)) {
+      dirty.relationshipStyle.add(id);
+    }
+  }
+
+  function dirtyConnectedRelationships(objectId) {
+    return diagram2CanonicalRelationships(canonicalState)
+      .filter(relationship => relationship.source?.id === objectId || relationship.target?.id === objectId)
+      .map(relationship => relationship.id);
+  }
+
+  function addDirtyReason(reason) {
+    const text = String(reason || "").trim();
+    if (text) dirty.reasons.add(text);
   }
 
   function patchSelectionOverlays() {
@@ -847,6 +1111,15 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
     svg.dataset.diagram2FullRenderReason = String(lastDiagnostics.fullRenderReason);
     svg.dataset.diagram2ObjectsPatchedInLastFlush = String(lastDiagnostics.objectsPatchedInLastFlush);
     svg.dataset.diagram2RelationshipsRoutedInLastFlush = String(lastDiagnostics.relationshipsRoutedInLastFlush);
+    svg.dataset.diagram2DirtyFlushReason = String(lastDiagnostics.dirtyFlushReason);
+    svg.dataset.diagram2DirtyObjectIds = String(lastDiagnostics.dirtyObjectIds);
+    svg.dataset.diagram2DirtyRelationshipIds = String(lastDiagnostics.dirtyRelationshipIds);
+    svg.dataset.diagram2PatchedNodeCount = String(lastDiagnostics.patchedNodeCount);
+    svg.dataset.diagram2RoutedRelationshipCount = String(lastDiagnostics.routedRelationshipCount);
+    svg.dataset.diagram2LastFlushDuration = String(lastDiagnostics.lastFlushDuration);
+    svg.dataset.diagram2DirtyFlushCount = String(lastDiagnostics.dirtyFlushCount);
+    svg.dataset.diagram2PendingDiagramFlush = String(lastDiagnostics.pendingDiagramFlush);
+    svg.dataset.diagram2TransactionDepth = String(lastDiagnostics.transactionDepth);
     svg.dataset.diagram2TransientMatrix = String(lastDiagnostics.transientMatrix);
     svg.dataset.diagram2CommittedMatrix = String(lastDiagnostics.committedMatrix);
     svg.dataset.diagram2MatrixDifference = String(lastDiagnostics.matrixDifference);
@@ -871,6 +1144,11 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
     setZoom,
     zoomBy,
     panBy,
+    beginDiagramUpdate,
+    endDiagramUpdate,
+    scheduleDiagramFlush,
+    flushDiagramChanges,
+    whenIdle,
     updateObject,
     patchObject: updateObject,
     setSelectedIds,
@@ -1576,6 +1854,63 @@ function fieldMappingTextAttributes(object, x, y, fill) {
   };
 }
 
+function clearDirtyState(dirty) {
+  dirty.objectGeometry.clear();
+  dirty.objectStructure.clear();
+  dirty.objectStyle.clear();
+  dirty.objectSelection.clear();
+  dirty.relationshipGeometry.clear();
+  dirty.relationshipStyle.clear();
+  dirty.reasons.clear();
+  dirty.zOrder = false;
+  dirty.worldBounds = false;
+  dirty.sectors = false;
+}
+
+function dirtyStateHasChanges(dirty) {
+  return dirty.objectGeometry.size > 0
+    || dirty.objectStructure.size > 0
+    || dirty.objectStyle.size > 0
+    || dirty.objectSelection.size > 0
+    || dirty.relationshipGeometry.size > 0
+    || dirty.relationshipStyle.size > 0
+    || dirty.zOrder
+    || dirty.worldBounds
+    || dirty.sectors;
+}
+
+function dirtyDiagnosticsSnapshot(dirty, relationships) {
+  return {
+    objectIds: sortedDirtyIds([
+      ...dirty.objectStructure,
+      ...dirty.objectGeometry,
+      ...dirty.objectStyle,
+      ...dirty.objectSelection
+    ]),
+    relationshipIds: sortedDirtyIds([
+      ...dirtyRelationshipSet(dirty.relationshipGeometry, relationships),
+      ...dirtyRelationshipSet(dirty.relationshipStyle, relationships)
+    ])
+  };
+}
+
+function dirtyRelationshipSet(source, relationships) {
+  if (source.has(allRelationshipsDirtyToken)) {
+    return new Set(relationships.map(relationship => relationship.id));
+  }
+  return new Set([...source].filter(id => id && id !== allRelationshipsDirtyToken));
+}
+
+function dirtyReasonText(dirty, fallback) {
+  return [...dirty.reasons].filter(Boolean).join(", ") || String(fallback || "flush");
+}
+
+function sortedDirtyIds(ids) {
+  const unique = [...new Set(ids.map(id => String(id || "").trim()).filter(Boolean))];
+  unique.sort((left, right) => left.localeCompare(right));
+  return unique.join(", ") || "none";
+}
+
 function diagnosticsFor(options) {
   const summary = diagram2CanonicalSummary(options.canonicalState);
   return {
@@ -1587,7 +1922,8 @@ function diagnosticsFor(options) {
     fullRenderReason: options.fullRenderReason,
     objectsPatchedInLastFlush: options.objectsPatchedInLastFlush,
     relationshipsRoutedInLastFlush: options.relationshipsRoutedInLastFlush,
-    lastFrameDuration: Math.round(options.lastFrameDuration * 100) / 100
+    lastFrameDuration: Math.round(options.lastFrameDuration * 100) / 100,
+    ...emptyDirtyFlushDiagnostics()
   };
 }
 
@@ -1604,7 +1940,22 @@ function emptyDiagnostics() {
     objectsPatchedInLastFlush: 0,
     relationshipsRoutedInLastFlush: 0,
     lastFrameDuration: 0,
-    ...emptyTransformDiagnostics()
+    ...emptyTransformDiagnostics(),
+    ...emptyDirtyFlushDiagnostics()
+  };
+}
+
+function emptyDirtyFlushDiagnostics() {
+  return {
+    dirtyFlushReason: "",
+    dirtyObjectIds: "none",
+    dirtyRelationshipIds: "none",
+    patchedNodeCount: 0,
+    routedRelationshipCount: 0,
+    lastFlushDuration: 0,
+    dirtyFlushCount: 0,
+    pendingDiagramFlush: false,
+    transactionDepth: 0
   };
 }
 
@@ -1680,6 +2031,7 @@ function objectStructureVersion(object) {
   const base = {
     type: object?.type || "",
     fieldRectangle: diagram2IsFieldRectangle(object),
+    visible: object?.visible !== false,
     width: positiveNumber(object?.width, 1),
     height: positiveNumber(object?.height, 1)
   };
