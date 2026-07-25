@@ -1,7 +1,8 @@
 import { expect, test } from "@playwright/test";
 import {
   buildAnnotationSvg,
-  normalizeAnnotationState
+  normalizeAnnotationState,
+  parseAnnotationSvg
 } from "../../wwwroot/js/components/image-annotation.js";
 import { releaseNotes } from "../../wwwroot/js/shared/release-notes-data.js";
 
@@ -59,7 +60,7 @@ test("Diagram 2 top navigation opens the isolated shell", async ({ page }) => {
   await expect(page.locator("[data-diagram2-screen]")).toHaveAttribute("data-diagram2-persisted-renderer-caches", "false");
   await expect(page.locator("[data-diagram2-tree] [data-action='select-diagram2-document']")).toHaveCount(2);
   await expect(page.locator("[data-diagram2-viewer-host] h2")).toHaveText("PMT Database Schema");
-  await expect(page.locator("[data-diagram2-viewer-host]")).toContainText("Editing stays disabled in Diagram 2.");
+  await expect(page.locator("[data-diagram2-edit-state]")).toHaveText("Saved");
   await expect(page.locator("[data-diagram2-svg]")).toBeVisible();
   const compatibilitySummary = await page.evaluate(() => window.__pmtDiagram2Compatibility);
   expect(compatibilitySummary).toMatchObject({
@@ -115,7 +116,8 @@ test("Diagram 2 top navigation opens the isolated shell", async ({ page }) => {
     page.evaluate(() => document.querySelector("[data-diagram2-svg]") === window.__diagram2StableSvg)
   ).toBe(true);
   await expect(page.locator("[data-diagram2-diagnostic='full-render-reason']")).toHaveText("refresh");
-  await expect(page.locator("[data-action='diagram2-import-probe']")).toBeDisabled();
+  await expect(page.locator("[data-action='save-diagram2-document']")).toBeDisabled();
+  await expect(page.locator("[data-action='export-diagram2-pmt']")).toBeEnabled();
   await expect(page.locator(".diagram-screen")).toHaveCount(0);
 
   await page.goBack();
@@ -143,6 +145,132 @@ test("Diagram 2 top navigation opens the isolated shell", async ({ page }) => {
   await openNavigationScreen(page, "Settings");
   await page.locator("[data-action='select-lookup-type'][data-type='Navigation']").click();
   await expect(page.locator("[data-navigation-list] [data-nav-view='Diagram 2']")).toContainText("#/diagram-2");
+
+  expect(browserErrors).toEqual([]);
+});
+
+test("Diagram 2 saves the same backing document and roundtrips through Diagram 1", async ({ page }) => {
+  const browserErrors = [];
+  let apiState = roundtripState();
+  let savedPayload = null;
+  let uploadedSvg = "";
+
+  page.on("console", message => {
+    if (message.type() === "error" && !message.text().includes("status of 401")) browserErrors.push(message.text());
+  });
+  page.on("pageerror", error => browserErrors.push(error.message));
+
+  await page.addInitScript(seenToken => {
+    localStorage.clear();
+    localStorage.setItem("pmt-release-notes-last-seen:1", seenToken);
+  }, releaseNotes[0].seenToken);
+
+  await page.route("**/api/session", route => route.fulfill(jsonResponse({ error: "Unauthorized" }, 401)));
+  await page.route("**/api/login", route => route.fulfill(jsonResponse({
+    userId: 1,
+    nickname: "Sin",
+    isAdmin: true,
+    role: "Admin"
+  })));
+  await page.route("**/api/state", route => route.fulfill(jsonResponse(apiState)));
+  await page.route("**/api/audit-trail", route => route.fulfill(jsonResponse([])));
+  await page.route("**/api/maintenance/recycle-bin", route => route.fulfill(jsonResponse([])));
+  await page.route("**/api/maintenance/orphan-files", route => route.fulfill(jsonResponse({
+    files: [],
+    totalCount: 0,
+    totalByteLength: 0
+  })));
+  await page.route("**/api/uploads/richtext", route => {
+    uploadedSvg = extractMultipartSvg(route.request().postDataBuffer());
+    const source = `data:image/svg+xml;base64,${Buffer.from(uploadedSvg, "utf8").toString("base64")}`;
+    return route.fulfill(jsonResponse({ url: source }));
+  });
+  await page.route("**/api/blogs/88", route => {
+    savedPayload = route.request().postDataJSON();
+    apiState = {
+      ...apiState,
+      blogs: apiState.blogs.map(blog => blog.id === 88
+        ? {
+            ...blog,
+            ...savedPayload,
+            rowVersion: "row-2",
+            updatedAt: "2026-07-25T13:00:00Z"
+          }
+        : blog)
+    };
+    return route.fulfill(jsonResponse(apiState.blogs.find(blog => blog.id === 88)));
+  });
+
+  await page.goto("/");
+  await page.locator("#loginName").fill("Sin");
+  await page.locator("#loginPassword").fill("Password1");
+  await page.getByRole("button", { name: /log in/i }).click();
+  await expect(page.getByRole("heading", { name: "Dashboard", exact: true })).toBeVisible();
+
+  await page.evaluate(() => {
+    window.location.hash = "#/diagram-2/88";
+  });
+  await expect(page.locator("[data-diagram2-screen]")).toBeVisible();
+  await expect(page.locator("[data-diagram2-viewer-host] h2")).toHaveText("Diagram 2 Roundtrip");
+  await expect(page.locator("[data-diagram2-object-id='roundtrip-box']")).toBeVisible();
+
+  await page.locator("[data-diagram2-object-id='roundtrip-box']").click({ position: { x: 10, y: 10 } });
+  await expect(page.locator("[data-diagram2-edit-state]")).toHaveText("1 selected");
+  await expect(page.locator("[data-action='save-diagram2-document']")).toBeDisabled();
+
+  await page.getByRole("button", { name: "Move Right" }).click();
+  await expect(page.locator("[data-diagram2-save-state]")).toHaveText("Unsaved changes");
+  await expect(page.locator("[data-action='save-diagram2-document']")).toBeEnabled();
+
+  await page.getByRole("button", { name: "Undo" }).click();
+  await expect(page.locator("[data-diagram2-save-state]")).toHaveText("Saved");
+  await page.getByRole("button", { name: "Redo" }).click();
+  await expect(page.locator("[data-diagram2-save-state]")).toHaveText("Unsaved changes");
+
+  await page.getByRole("button", { name: "Copy Selection" }).click();
+  const clipboardText = await page.evaluate(() => window.__pmtDiagram2SelectionClipboard || "");
+  expect(clipboardText).toMatch(/^PMT_DIAGRAM_SELECTION_V1\n/);
+  expect(clipboardText).toContain("roundtrip-box");
+
+  await page.getByRole("button", { name: "Save Diagram" }).click();
+  await expect(page.locator("[data-diagram2-save-state]")).toHaveText("Saved");
+
+  expect(savedPayload).toMatchObject({
+    id: 88,
+    title: "Diagram 2 Roundtrip",
+    expectedRowVersion: "row-1"
+  });
+  expect(savedPayload.bodyHtml).toContain('data-pmt-diagram="true"');
+  expect(savedPayload.bodyHtml).toContain("data:image/svg+xml;base64,");
+  expect(uploadedSvg).toContain("data-pmt-image-annotation-state");
+  expect(uploadedSvg).not.toContain("diagram2LiveNodeId");
+  expect(uploadedSvg).not.toContain("diagram2RendererCache");
+  expect(uploadedSvg).not.toContain("diagram2-renderer-object");
+
+  const savedState = parseAnnotationSvg(uploadedSvg);
+  expect(savedState.objects.find(object => object.id === "roundtrip-box").x).toBe(130);
+  expect(savedState.objects.find(object => object.id === "roundtrip-box").y).toBe(96);
+
+  await page.evaluate(() => {
+    window.location.hash = "#/diagram/88";
+  });
+  await expect(page.locator(".diagram-screen")).toBeVisible();
+  await expect(page.locator("[data-diagram-readonly-viewer][data-id='88']")).toBeVisible();
+  await expect(page.locator("[data-diagram-image]")).toBeVisible();
+  await expect(page.locator(".diagram-page-document-head h2")).toHaveText("Diagram 2 Roundtrip");
+
+  await page.evaluate(() => {
+    window.location.hash = "#/diagram-2/88";
+  });
+  await expect(page.locator("[data-diagram2-screen]")).toBeVisible();
+  await expect(page.locator("[data-diagram2-object-id='roundtrip-box']")).toBeVisible();
+  const reopenedX = await page.evaluate(() => {
+    const renderer = window.__pmtDiagram2Renderer;
+    return renderer?.liveViewSnapshot?.().objectDataCount
+      ? Number(document.querySelector("[data-diagram2-object-id='roundtrip-box']")?.dataset.diagram2ObjectTransformX || 0)
+      : 0;
+  });
+  expect(reopenedX).toBe(130);
 
   expect(browserErrors).toEqual([]);
 });
@@ -303,7 +431,7 @@ async function assertKeyedDiagram2NodePatches(page, expectedFullRenderCount) {
 
 async function assertDiagram2SelectiveRoutingStress(page) {
   const result = await page.evaluate(async () => {
-    const { createDiagram2Renderer } = await import("/js/features/diagram2/diagram2-renderer.js?v=20260725-diagram2-day14-v1");
+    const { createDiagram2Renderer } = await import("/js/features/diagram2/diagram2-renderer.js?v=20260725-diagram2-day15-v1");
     const host = document.createElement("div");
     host.style.position = "absolute";
     host.style.left = "-12000px";
@@ -413,7 +541,7 @@ async function assertDiagram2SelectiveRoutingStress(page) {
 
 async function assertDiagram2ViewportHaloVirtualization(page) {
   const result = await page.evaluate(async () => {
-    const { createDiagram2Renderer } = await import("/js/features/diagram2/diagram2-renderer.js?v=20260725-diagram2-day14-v1");
+    const { createDiagram2Renderer } = await import("/js/features/diagram2/diagram2-renderer.js?v=20260725-diagram2-day15-v1");
     const host = document.createElement("div");
     host.style.position = "absolute";
     host.style.left = "-12000px";
@@ -619,7 +747,7 @@ async function assertDiagram2ViewportHaloVirtualization(page) {
 
 async function assertDiagram2LowDetailOverviewRendering(page) {
   const result = await page.evaluate(async () => {
-    const { createDiagram2Renderer } = await import("/js/features/diagram2/diagram2-renderer.js?v=20260725-diagram2-day14-v1");
+    const { createDiagram2Renderer } = await import("/js/features/diagram2/diagram2-renderer.js?v=20260725-diagram2-day15-v1");
     const host = document.createElement("div");
     host.style.position = "absolute";
     host.style.left = "-12000px";
@@ -1148,6 +1276,66 @@ function diagramBodyHtml(title, stroke) {
   const svg = buildAnnotationSvg(state);
   const source = `data:image/svg+xml;base64,${Buffer.from(svg, "utf8").toString("base64")}`;
   return `<p><img data-pmt-diagram="true" data-pmt-private-diagram="true" src="${source}" alt="${title}"></p>`;
+}
+
+function roundtripState() {
+  return {
+    users: [{
+      id: 1,
+      nickname: "Sin",
+      email: "sin@example.test",
+      role: "Admin",
+      roleCode: "Admin",
+      isAdmin: true,
+      isActive: true,
+      avatarUrl: ""
+    }],
+    projects: [{ id: 1, code: "PMT", title: "Diagram 2 Test", name: "Diagram 2 Test", isActive: true }],
+    sprints: [],
+    tasks: [],
+    devLogs: [],
+    blogs: [{
+      id: 88,
+      title: "Diagram 2 Roundtrip",
+      isPrivate: false,
+      createdByUserId: 1,
+      updatedByUserId: 1,
+      projectId: 1,
+      sprintId: null,
+      rowVersion: "row-1",
+      createdAt: "2026-07-24T10:00:00Z",
+      updatedAt: "2026-07-25T12:00:00Z",
+      bodyHtml: diagramBodyHtml("Roundtrip", "#2563eb")
+    }],
+    auditEvents: [],
+    lookups: [{
+      id: 1,
+      lookupType: "Release Type",
+      value: "Internal",
+      displayOrder: 10,
+      isActive: true
+    }],
+    roles: [{
+      id: 1,
+      lookupType: "Role",
+      value: "Admin",
+      code: "Admin",
+      displayOrder: 10,
+      isActive: true
+    }],
+    holidays: [],
+    securityResources: [],
+    rolePermissions: [],
+    userPermissions: [],
+    effectivePermissions: []
+  };
+}
+
+function extractMultipartSvg(buffer) {
+  const text = (buffer || Buffer.alloc(0)).toString("utf8");
+  const start = text.indexOf("<svg");
+  const end = text.lastIndexOf("</svg>");
+  return start >= 0 && end >= start ? text.slice(start, end + "</svg>".length) : "";
 }
 
 function jsonResponse(data, status = 200) {

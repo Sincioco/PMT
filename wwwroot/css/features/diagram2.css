@@ -40,10 +40,36 @@
 }
 
 .diagram2-view-toggle,
+.diagram2-editor-controls,
+.diagram2-nudge-controls,
 .diagram2-zoom-controls {
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
+}
+
+.diagram2-editor-controls,
+.diagram2-nudge-controls {
+  flex-wrap: wrap;
+}
+
+.diagram2-save-state {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--control-height-sm);
+  padding: 0 var(--space-3);
+  border: var(--border-width) solid var(--color-border-subtle);
+  border-radius: var(--radius-sm);
+  color: var(--color-text-secondary);
+  background: var(--color-surface);
+  font-size: var(--font-size-sm);
+  white-space: nowrap;
+}
+
+.diagram2-screen.has-unsaved-diagram2 .diagram2-save-state {
+  border-color: color-mix(in srgb, var(--color-warning, #f59e0b) 45%, var(--color-border-subtle));
+  color: var(--color-text-primary);
+  background: color-mix(in srgb, var(--color-warning, #f59e0b) 14%, var(--color-surface));
 }
 
 .diagram2-filter-bar {
@@ -311,6 +337,11 @@
 
 .diagram2-viewer-canvas.is-panning {
   cursor: grabbing;
+}
+
+.diagram2-viewer-canvas.is-moving-object,
+.diagram2-renderer-object {
+  cursor: move;
 }
 
 .diagram2-renderer-surface {
