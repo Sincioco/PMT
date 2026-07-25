@@ -46,6 +46,7 @@ const defaultFieldMappingTableStyle = {
   uiFill: "#ffffff",
   databaseTextColor: "#172b4d",
   databaseFill: "#ffffff",
+  fieldMappingRowHoverFill: "#fff59d",
   fieldMappingHighlightColor: "#facc15",
   fieldMappingHighlightStrokeWidth: 9
 };
@@ -56,6 +57,7 @@ const fieldMappingTableColorStyleNames = new Set([
   "uiFill",
   "databaseTextColor",
   "databaseFill",
+  "fieldMappingRowHoverFill",
   "fieldMappingHighlightColor"
 ]);
 const fieldMappingTableNumericStyleNames = new Set(["fieldMappingHighlightStrokeWidth"]);
@@ -139,6 +141,7 @@ const annotationTemplateStyleFields = {
     "uiFill",
     "databaseTextColor",
     "databaseFill",
+    "fieldMappingRowHoverFill",
     "fieldMappingHighlightColor",
     "fieldMappingHighlightStrokeWidth"
   ]
@@ -954,6 +957,7 @@ function normalizeAnnotationFieldMappingTableStyle(input) {
     uiFill: safeColor(source.uiFill, defaultFieldMappingTableStyle.uiFill),
     databaseTextColor: safeColor(source.databaseTextColor, defaultFieldMappingTableStyle.databaseTextColor),
     databaseFill: safeColor(source.databaseFill, defaultFieldMappingTableStyle.databaseFill),
+    fieldMappingRowHoverFill: safeColor(source.fieldMappingRowHoverFill, defaultFieldMappingTableStyle.fieldMappingRowHoverFill),
     fieldMappingHighlightColor: safeColor(source.fieldMappingHighlightColor, defaultFieldMappingTableStyle.fieldMappingHighlightColor),
     fieldMappingHighlightStrokeWidth: clampNumber(
       positiveNumber(source.fieldMappingHighlightStrokeWidth, defaultFieldMappingTableStyle.fieldMappingHighlightStrokeWidth),
@@ -6636,6 +6640,36 @@ function createAnnotationDialog(context) {
       height: positiveNumber(cell.dataset.annotationFieldMappingRowHeight, positiveNumber(cell.dataset.annotationFieldMappingCellHeight, 0))
     });
 
+    const fieldMappingCellForKind = (cell, kind) => {
+      if (!cell) return null;
+      if (fieldMappingCellKind(cell) === kind) return cell;
+      const key = fieldMappingCellKey(cell).replace(/:(ui|database)$/, `:${kind}`);
+      return key
+        ? canvas.querySelector(`[data-annotation-field-mapping-row-key="${CSS.escape(key)}"]`)
+        : null;
+    };
+
+    const fieldMappingLabelEndPoint = (cell, targetPoint) => {
+      const text = cell?.querySelector?.("text");
+      if (text) {
+        try {
+          const box = text.getBBox();
+          if (Number.isFinite(box.x) && Number.isFinite(box.y) && Number.isFinite(box.width) && Number.isFinite(box.height)) {
+            return {
+              x: box.x + box.width + (6 / Math.max(minimumZoom, zoom)),
+              y: box.y + (box.height / 2)
+            };
+          }
+        } catch {
+          // Fall back to the cell edge if the browser cannot measure the SVG text.
+        }
+      }
+      const bounds = fieldMappingCellBounds(cell);
+      return Number.isFinite(bounds.x) && Number.isFinite(bounds.y) && bounds.width && bounds.height && targetPoint
+        ? boundsEdgePointToward(bounds, targetPoint)
+        : null;
+    };
+
     const fieldMappingDatabaseFieldBounds = targets =>
       annotationEntityFieldBounds(targets.databaseEntity, targets.databaseField)
         || annotationObjectVisualBounds(targets.databaseEntity)
@@ -6647,6 +6681,21 @@ function createAnnotationDialog(context) {
       const start = boundsEdgePointToward(rowBounds, targetCenter);
       const end = boundsEdgePointToward(targetBounds, start);
       return fieldMappingAttentionArrowSvg(start, end);
+    };
+
+    const fieldMappingAttentionArrowFromLabelToBounds = (cell, targetBounds) => {
+      if (!targetBounds) return "";
+      const targetCenter = boundsCenter(targetBounds);
+      const start = fieldMappingLabelEndPoint(cell, targetCenter);
+      if (!start) return "";
+      const end = boundsEdgePointToward(targetBounds, start);
+      return fieldMappingAttentionArrowSvg(start, end);
+    };
+
+    const fieldMappingAttentionArrowFromLabelToPoint = (cell, targetPoint) => {
+      if (!targetPoint) return "";
+      const start = fieldMappingLabelEndPoint(cell, targetPoint);
+      return start ? fieldMappingAttentionArrowSvg(start, targetPoint) : "";
     };
 
     const fieldMappingAttentionArrowToPoint = (rowBounds, targetPoint) => {
@@ -6670,11 +6719,16 @@ function createAnnotationDialog(context) {
         || annotationObjectBounds(targets.fieldRectangle);
       const databaseFieldPoint = annotationEntityFieldLabelPoint(targets.databaseEntity, targets.databaseField);
       const databaseFieldBounds = fieldMappingDatabaseFieldBounds(targets);
+      const uiCell = fieldMappingCellForKind(cell, "ui") || cell;
+      const databaseCell = fieldMappingCellForKind(cell, "database") || cell;
       const markup = [
-        fieldMappingAttentionArrowToBounds(rowBounds, fieldBounds),
+        fieldMappingAttentionArrowFromLabelToBounds(uiCell, fieldBounds)
+          || fieldMappingAttentionArrowToBounds(rowBounds, fieldBounds),
         databaseFieldPoint
-          ? fieldMappingAttentionArrowToPoint(rowBounds, databaseFieldPoint)
-          : fieldMappingAttentionArrowToBounds(rowBounds, databaseFieldBounds)
+          ? fieldMappingAttentionArrowFromLabelToPoint(databaseCell, databaseFieldPoint)
+            || fieldMappingAttentionArrowToPoint(rowBounds, databaseFieldPoint)
+          : fieldMappingAttentionArrowFromLabelToBounds(databaseCell, databaseFieldBounds)
+            || fieldMappingAttentionArrowToBounds(rowBounds, databaseFieldBounds)
       ].filter(Boolean).slice(0, 2).join("");
       if (markup) canvas.insertAdjacentHTML("beforeend", markup);
     };
@@ -9049,6 +9103,7 @@ function annotationDialogHtml(context = {}) {
                 ${annotationColorFieldHtml("uiFill", "UI field background", "UI Field Background Color", defaultFieldMappingTableStyle.uiFill, "background")}
                 ${annotationColorFieldHtml("databaseTextColor", "Database text", "Database Text Color", defaultFieldMappingTableStyle.databaseTextColor, "font")}
                 ${annotationColorFieldHtml("databaseFill", "Database background", "Database Background Color", defaultFieldMappingTableStyle.databaseFill, "background")}
+                ${annotationColorFieldHtml("fieldMappingRowHoverFill", "Row hover", "Row Hover Color", defaultFieldMappingTableStyle.fieldMappingRowHoverFill, "background")}
                 ${annotationColorFieldHtml("fieldMappingHighlightColor", "Highlight color", "Highlight Color", defaultFieldMappingTableStyle.fieldMappingHighlightColor, "outline")}
                 <label class="field"><span>Highlight thickness</span><input type="number" min="1" max="40" step="1" value="${defaultFieldMappingTableStyle.fieldMappingHighlightStrokeWidth}" data-annotation-style="fieldMappingHighlightStrokeWidth"></label>
               </div>
@@ -12321,6 +12376,7 @@ function annotationFieldMappingTableSvg(object, attributes) {
   const databaseColumnWidth = layout.databaseColumnWidth;
   const padding = layout.padding;
   const stroke = object.stroke || defaultEntityStroke;
+  const rowHoverFill = escapeXmlAttr(style.fieldMappingRowHoverFill);
   const textY = top => top + (rowHeight * 0.66);
   const headerText = (x, label) =>
     `<text x="${formatNumber(x + padding)}" y="${formatNumber(textY(object.y))}" fill="${escapeXmlAttr(style.headerTextColor)}" font-family="${escapeXmlAttr(object.fontFamily)}" font-size="${formatNumber(fontSize)}" font-weight="700">${escapeXmlText(label)}</text>`;
@@ -12335,14 +12391,14 @@ function annotationFieldMappingTableSvg(object, attributes) {
     const uiInteraction = cellInteraction("ui", object.x, uiColumnWidth, `Select UI field ${row.uiField}`);
     const databaseInteraction = cellInteraction("database", object.x + uiColumnWidth, databaseColumnWidth, `Select database field ${row.databaseField}`);
     return `
-      <g data-annotation-field-mapping-row="true">
+      <g data-annotation-field-mapping-row="true" style="--annotation-field-mapping-row-hover-fill:${rowHoverFill};">
         <g${uiInteraction}>
-          <rect x="${formatNumber(object.x)}" y="${formatNumber(top)}" width="${formatNumber(uiColumnWidth)}" height="${formatNumber(rowHeight)}" fill="${escapeXmlAttr(style.uiFill)}"></rect>
+          <rect data-annotation-field-mapping-cell-fill="true" x="${formatNumber(object.x)}" y="${formatNumber(top)}" width="${formatNumber(uiColumnWidth)}" height="${formatNumber(rowHeight)}" fill="${escapeXmlAttr(style.uiFill)}"></rect>
           ${cellText(object.x, top, style.uiTextColor, row.uiField)}
           <rect x="${formatNumber(object.x)}" y="${formatNumber(top)}" width="${formatNumber(uiColumnWidth)}" height="${formatNumber(rowHeight)}" fill="transparent" pointer-events="all"></rect>
         </g>
         <g${databaseInteraction}>
-          <rect x="${formatNumber(object.x + uiColumnWidth)}" y="${formatNumber(top)}" width="${formatNumber(databaseColumnWidth)}" height="${formatNumber(rowHeight)}" fill="${escapeXmlAttr(style.databaseFill)}"></rect>
+          <rect data-annotation-field-mapping-cell-fill="true" x="${formatNumber(object.x + uiColumnWidth)}" y="${formatNumber(top)}" width="${formatNumber(databaseColumnWidth)}" height="${formatNumber(rowHeight)}" fill="${escapeXmlAttr(style.databaseFill)}"></rect>
           ${cellText(object.x + uiColumnWidth, top, style.databaseTextColor, row.databaseField)}
           <rect x="${formatNumber(object.x + uiColumnWidth)}" y="${formatNumber(top)}" width="${formatNumber(databaseColumnWidth)}" height="${formatNumber(rowHeight)}" fill="transparent" pointer-events="all"></rect>
         </g>

@@ -2,7 +2,7 @@ import {
   buildAnnotationSvg,
   normalizeAnnotationState,
   parseAnnotationSvg
-} from "../../components/image-annotation.js?v=20260725-field-mapping-v31";
+} from "../../components/image-annotation.js?v=20260725-field-mapping-v33";
 
 export const pmtDiagramFileFormat = "pmt-diagram";
 export const pmtDiagramFileVersion = 1;

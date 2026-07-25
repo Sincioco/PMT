@@ -22,7 +22,7 @@ import {
   setAnnotationEntityCollapsedState,
   setAnnotationEntityDataTypeVisibility,
   zoomAnnotationAtPoint
-} from "../../components/image-annotation.js?v=20260725-field-mapping-v31";
+} from "../../components/image-annotation.js?v=20260725-field-mapping-v33";
 import { openPublicLinkDialog } from "../../components/public-links.js?v=20260725-day36-v4";
 import {
   checkedFilterValues,
@@ -1914,6 +1914,34 @@ export function createDiagramFeature({
       width: Math.max(1, Number(cell.dataset.annotationFieldMappingRowWidth || cell.dataset.annotationFieldMappingCellWidth) || 1),
       height: Math.max(1, Number(cell.dataset.annotationFieldMappingRowHeight || cell.dataset.annotationFieldMappingCellHeight) || 1)
     });
+    const readonlyFieldMappingCellForKind = (cell, kind) => {
+      if (!cell) return null;
+      if (readonlyFieldMappingCellKind(cell) === kind) return cell;
+      const key = readonlyFieldMappingCellKey(cell).replace(/:(ui|database)$/, `:${kind}`);
+      return key
+        ? image.querySelector(`[data-annotation-field-mapping-row-key="${CSS.escape(key)}"]`)
+        : null;
+    };
+    const readonlyFieldMappingLabelEndPoint = (cell, targetPoint) => {
+      const text = cell?.querySelector?.("text");
+      if (text) {
+        try {
+          const box = text.getBBox();
+          if (Number.isFinite(box.x) && Number.isFinite(box.y) && Number.isFinite(box.width) && Number.isFinite(box.height)) {
+            return {
+              x: box.x + box.width + (6 / Math.max(0.05, renderedZoom)),
+              y: box.y + (box.height / 2)
+            };
+          }
+        } catch {
+          // Fall back to the cell edge if the browser cannot measure the SVG text.
+        }
+      }
+      const bounds = readonlyFieldMappingCellBounds(cell);
+      return Number.isFinite(bounds.x) && Number.isFinite(bounds.y) && bounds.width && bounds.height && targetPoint
+        ? readonlyBoundsEdgePointToward(bounds, targetPoint)
+        : null;
+    };
     const readonlyFieldMappingDatabaseFieldBounds = targets =>
       annotationEntityFieldBounds(targets.databaseEntity, targets.databaseField)
         || readonlyObjectBounds(targets.databaseEntity);
@@ -1923,6 +1951,19 @@ export function createDiagramFeature({
       const start = readonlyBoundsEdgePointToward(rowBounds, targetCenter);
       const end = readonlyBoundsEdgePointToward(targetBounds, start);
       return readonlyFieldMappingAttentionArrowSvg(start, end);
+    };
+    const readonlyFieldMappingAttentionArrowFromLabelToBounds = (cell, targetBounds) => {
+      if (!targetBounds) return "";
+      const targetCenter = readonlyBoundsCenter(targetBounds);
+      const start = readonlyFieldMappingLabelEndPoint(cell, targetCenter);
+      if (!start) return "";
+      const end = readonlyBoundsEdgePointToward(targetBounds, start);
+      return readonlyFieldMappingAttentionArrowSvg(start, end);
+    };
+    const readonlyFieldMappingAttentionArrowFromLabelToPoint = (cell, targetPoint) => {
+      if (!targetPoint) return "";
+      const start = readonlyFieldMappingLabelEndPoint(cell, targetPoint);
+      return start ? readonlyFieldMappingAttentionArrowSvg(start, targetPoint) : "";
     };
     const readonlyFieldMappingAttentionArrowToPoint = (rowBounds, targetPoint) => {
       if (!targetPoint) return "";
@@ -1943,11 +1984,16 @@ export function createDiagramFeature({
       const fieldBounds = readonlyObjectBounds(targets.fieldRectangle);
       const databaseFieldPoint = annotationEntityFieldLabelPoint(targets.databaseEntity, targets.databaseField);
       const databaseFieldBounds = readonlyFieldMappingDatabaseFieldBounds(targets);
+      const uiCell = readonlyFieldMappingCellForKind(cell, "ui") || cell;
+      const databaseCell = readonlyFieldMappingCellForKind(cell, "database") || cell;
       const markup = [
-        readonlyFieldMappingAttentionArrowToBounds(rowBounds, fieldBounds),
+        readonlyFieldMappingAttentionArrowFromLabelToBounds(uiCell, fieldBounds)
+          || readonlyFieldMappingAttentionArrowToBounds(rowBounds, fieldBounds),
         databaseFieldPoint
-          ? readonlyFieldMappingAttentionArrowToPoint(rowBounds, databaseFieldPoint)
-          : readonlyFieldMappingAttentionArrowToBounds(rowBounds, databaseFieldBounds)
+          ? readonlyFieldMappingAttentionArrowFromLabelToPoint(databaseCell, databaseFieldPoint)
+            || readonlyFieldMappingAttentionArrowToPoint(rowBounds, databaseFieldPoint)
+          : readonlyFieldMappingAttentionArrowFromLabelToBounds(databaseCell, databaseFieldBounds)
+            || readonlyFieldMappingAttentionArrowToBounds(rowBounds, databaseFieldBounds)
       ].filter(Boolean).slice(0, 2).join("");
       if (markup) image.insertAdjacentHTML("beforeend", markup);
     }

@@ -1503,48 +1503,31 @@
   },
   {
     "day": 37,
-    "title": "External Sharing, Suggestions, and Diagram Controls",
+    "title": "External Sharing, Suggestions, Bug Export Metadata, and UI to Database Field Mapping",
     "sections": [
       {
-        "title": "Outside-PMT Sharing and Suggestions",
+        "title": "External Sharing",
         "items": [
-          "Highlight that public Documents and Diagrams can now be shared with people outside PMT, even when they do not have a PMT login.",
-          "Promote the new Suggestion feature so users know they can submit PMT improvement ideas from inside the application.",
-          "Keep the left-side What's New release date list at its current scroll position when users select an earlier entry."
+          "Share Documents and Diagrams with people outside PMT, even when they do not have a PMT login."
         ]
       },
       {
-        "title": "Diagram Read-Only Sharing Controls",
+        "title": "Suggestions",
         "items": [
-          "Make read-only Diagram right-click Copy as SVG and Copy as PNG actions work and reuse the same margin/background choice dialogs as downloads.",
-          "Replace Connection Symbols with Entity Relationships so users can hide or show normal entity relationships without affecting UI-to-DB field mappings.",
-          "Add a separate UI to DB Field Mapping toggle so field mapping rectangles, tables, and their arrows can be shown or hidden independently.",
-          "Add Relationship Lines Only for a plain-line relationship view while restoring normal arrows and crow's-foot symbols when the option is off."
+          "Use the new Suggestion feature to send PMT improvement ideas from inside the application."
         ]
       },
       {
-        "title": "Diagram Field Mapping and Crop Tools",
+        "title": "Bug Report Exports",
         "items": [
-          "Improve Field Mapping Table interactions in read-only and edit mode, including hover highlights, selection behavior, centering navigation, and export options.",
-          "Add crop controls for precise left, right, top, and bottom image adjustments plus reversible reset and permanent crop actions.",
-          "Let users set a master image crop radius or override each individual corner radius, with the Crop tab hiding selection handles briefly while fine adjustments are made.",
-          "Clean up Diagram and Documentation page-level overflow menus so Left Nav rows align consistently with the Dev Task menu style."
+          "Export bug reports with the bug number, created by and created date/time, and updated by and updated date/time."
         ]
       },
       {
-        "title": "What's New Dialog Stability",
+        "title": "UI to Database Field Mapping",
         "items": [
-          "Continue updating selected release content on the right without jumping the date list back to the latest releases at the top.",
-          "Preserve keyboard focus on the selected date after the dialog content refreshes.",
-          "Keep the latest What's New entry focused on the features users need to notice after deployment."
-        ]
-      },
-      {
-        "title": "Release Readiness",
-        "items": [
-          "Add browser coverage for the full-history What's New dialog so the scrolled date list behavior stays protected.",
-          "Regenerate the shared Release Notes and What's New data from the Day 37 summary.",
-          "Refresh browser-loaded JavaScript and CSS cache keys for the updated Diagram, Crop, and What's New modules."
+          "PMT can now combine Diagramming and ERD capabilities into UI to Database Field Mapping, connecting screenshots, field rectangles, entities, and database fields in one Diagram workflow.",
+          "Let the IT industry rejoice: a new tool and a new concept, made and conceived by AI, Actual Intelligence, of Sin."
         ]
       }
     ]
