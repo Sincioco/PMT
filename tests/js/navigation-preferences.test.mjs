@@ -68,10 +68,13 @@ test("new navigation configurations place Diagram immediately after Documentatio
   const documentationIndex = config.items.findIndex(item => item.view === "Documentation");
   const diagramIndex = config.items.findIndex(item => item.view === "Diagram");
   const logIndex = config.items.findIndex(item => item.view === "Log");
+  const diagram2Index = config.items.findIndex(item => item.view === "Diagram 2");
 
   assert.equal(config.items[diagramIndex].visible, true);
+  assert.equal(config.items[diagram2Index].visible, true);
   assert.equal(documentationIndex + 1, diagramIndex);
   assert.equal(diagramIndex + 1, logIndex);
+  assert.equal(config.items.at(-1).view, "Diagram 2");
 });
 
 test("existing navigation configurations move Diagram immediately after Documentation", () => {
@@ -92,6 +95,7 @@ test("existing navigation configurations move Diagram immediately after Document
 
   assert.equal(documentationIndex + 1, diagramIndex);
   assert.equal(diagramIndex + 1, logIndex);
+  assert.equal(config.items.at(-1).view, "Diagram 2");
 });
 
 test("Version 2 navigation migrations preserve visible beta screens", () => {

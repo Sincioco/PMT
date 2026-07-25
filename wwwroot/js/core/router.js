@@ -1,7 +1,7 @@
 import { preferenceKeys, readPreference, writePreference } from "./preferences.js";
-import { visibleNavigationScreens } from "./navigation-preferences.js?v=20260725-suggestions-v1";
-import { screenRegistry } from "./screen-registry.js?v=20260725-suggestions-v1";
-import { canReadView, firstReadableView } from "../shared/security.js?v=20260718-diagram-entity-v22";
+import { visibleNavigationScreens } from "./navigation-preferences.js?v=20260725-diagram2-day1-v1";
+import { screenRegistry } from "./screen-registry.js?v=20260725-diagram2-day1-v1";
+import { canReadView, firstReadableView } from "../shared/security.js?v=20260725-diagram2-day1-v1";
 
 const legacyViews = Object.freeze({
   "Dev Log": "Scrum",

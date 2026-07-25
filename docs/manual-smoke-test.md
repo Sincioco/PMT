@@ -78,6 +78,8 @@ Open every screen from the top navigation or its overflow menu:
 - [ ] Bug Tracking
 - [ ] Scrum
 - [ ] Documentation
+- [ ] Diagram
+- [ ] Diagram 2
 - [ ] Backlog
 - [ ] WFH Schedule
 - [ ] Release Notes

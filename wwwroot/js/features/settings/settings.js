@@ -30,7 +30,7 @@ import {
   readNavigationConfig,
   resetNavigationConfig,
   writeNavigationConfig
-} from "../../core/navigation-preferences.js?v=20260725-suggestions-v1";
+} from "../../core/navigation-preferences.js?v=20260725-diagram2-day1-v1";
 import {
   clearPmtPreferences,
   preferenceKeys,

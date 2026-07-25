@@ -38,7 +38,7 @@ import {
   showTaskAudit,
   viewWorkItem
 } from "./components/work-items.js?v=20260722-rich-entity-mentions-v1";
-import { createApplicationShell } from "./core/application-shell.js?v=20260725-suggestions-v2";
+import { createApplicationShell } from "./core/application-shell.js?v=20260725-diagram2-day1-v1";
 import {
   currentView,
   ensureCurrentViewRoute,
@@ -47,13 +47,13 @@ import {
   routeForContent,
   routeForView,
   updateBrowserUrl
-} from "./core/router.js?v=20260725-suggestions-v1";
+} from "./core/router.js?v=20260725-diagram2-day1-v1";
 import {
   registeredScreenHandlers,
   registerScreen,
   screenHandlerFor,
   screenRegistry
-} from "./core/screen-registry.js?v=20260725-suggestions-v1";
+} from "./core/screen-registry.js?v=20260725-diagram2-day1-v1";
 import {
   preferenceKeys,
   readBooleanPreference,
@@ -71,6 +71,7 @@ import { createBoardFeature } from "./features/board/board.js?v=20260722-rich-en
 import { createBugsFeature } from "./features/bugs/bugs.js?v=20260724-day36-v3";
 import { createDashboardFeature } from "./features/dashboard/dashboard.js?v=release-notes-2026-07-25-day-37-46c1811ffe7e";
 import { createDiagramFeature } from "./features/diagram/diagram.js?v=20260725-day37-v23";
+import { createDiagram2Feature } from "./features/diagram2/diagram2.js?v=20260725-diagram2-day1-v1";
 import { createDocumentationFeature } from "./features/documentation/documentation.js?v=20260725-day36-v5";
 import {
   createGanttFeature,
@@ -83,7 +84,7 @@ import { createReleaseNotesFeature } from "./features/release-notes/release-note
 import { createRoadMapFeature } from "./features/roadmap/roadmap.js?v=release-notes-2026-07-25-day-37-46c1811ffe7e";
 import { createLogFeature } from "./features/personal-log/log.js?v=20260722-rte-toggle-state-v1";
 import { createScrumFeature } from "./features/scrum/scrum.js?v=20260722-ole-viewport-v1";
-import { createSettingsFeature } from "./features/settings/settings.js?v=20260725-suggestions-v1";
+import { createSettingsFeature } from "./features/settings/settings.js?v=20260725-diagram2-day1-v1";
 import { createSprintsFeature } from "./features/sprints/sprints.js?v=20260719-day32-rte-diagram";
 import { createSuggestionsFeature } from "./features/suggestions/suggestions.js?v=20260725-day36-v1";
 import { createTasksFeature } from "./features/tasks/tasks.js?v=20260722-rte-toggle-state-v1";
@@ -102,7 +103,7 @@ import {
 import { formatDate, toDateInput } from "./shared/dates.js";
 import { externalizeImportedHtmlImages } from "./shared/imported-html-images.js?v=20260719-rte-upload-v17";
 import { canEditTask } from "./shared/permissions.js?v=20260715-admin-impersonation";
-import { applyActionPermissions, canAccessResource, canReadView, firstReadableView } from "./shared/security.js?v=20260718-diagram-entity-v22";
+import { applyActionPermissions, canAccessResource, canReadView, firstReadableView } from "./shared/security.js?v=20260725-diagram2-day1-v1";
 import {
   projectCode,
   projectName,
@@ -523,6 +524,7 @@ const diagramFeature = createDiagramFeature({
   moveDiagramDocument: moveDiagramBackingDocument,
   deleteItem
 });
+const diagram2Feature = createDiagram2Feature({ app });
 const wfhScheduleFeature = createWfhScheduleFeature({
   app,
   render,
@@ -556,6 +558,7 @@ registerScreen("Log", logFeature);
 registerScreen("Documentation", documentationFeature);
 registerScreen("WFH Schedule", wfhScheduleFeature);
 registerScreen("Diagram", diagramFeature);
+registerScreen("Diagram 2", diagram2Feature);
 registerScreen("Release Notes", releaseNotesFeature);
 registerScreen("Suggestions", suggestionsFeature);
 
@@ -757,6 +760,7 @@ function renderCurrentScreen() {
   if (currentView !== "Suggestions") suggestionsFeature.deactivate?.();
   if (currentView !== "Documentation") documentationFeature.deactivate?.();
   if (currentView !== "Diagram") diagramFeature.deactivate();
+  if (currentView !== "Diagram 2") diagram2Feature.deactivate();
 
   const registeredScreen = screenHandlerFor(currentView);
   if (registeredScreen?.render) registeredScreen.render();

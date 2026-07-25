@@ -12,7 +12,7 @@ globalThis.localStorage = {
 const { replaceState } = await import("../../wwwroot/js/core/store.js");
 const { completeExternalLogin } = await import("../../wwwroot/js/core/authentication.js?v=20260715-admin-impersonation");
 const { canDeleteOwner, canEditOwner, canEditTask, canEditUser } = await import("../../wwwroot/js/shared/permissions.js");
-const { canAccessResource } = await import("../../wwwroot/js/shared/security.js");
+const { canAccessResource, canReadView, resourceForView } = await import("../../wwwroot/js/shared/security.js");
 
 function setUser(user, effectivePermissions = []) {
   replaceState({ users: [user], projects: [], sprints: [], tasks: [], devLogs: [], blogs: [], auditEvents: [], lookups: [], holidays: [], effectivePermissions });
@@ -93,4 +93,15 @@ test("No Access denies every effective right", () => {
   assert.equal(canAccessResource("BugTracking", "Read"), false);
   assert.equal(canAccessResource("BugTracking", "Create"), false);
   assert.equal(canEditTask({ taskType: "Bug" }), false);
+});
+
+test("Diagram screens use the Documentation permission resource", () => {
+  setUser({ id: 5, isAdmin: false, role: "Developer" }, [
+    permission("Documentation", { canRead: true })
+  ]);
+
+  assert.equal(resourceForView("Diagram"), "Documentation");
+  assert.equal(resourceForView("Diagram 2"), "Documentation");
+  assert.equal(canReadView("Diagram"), true);
+  assert.equal(canReadView("Diagram 2"), true);
 });

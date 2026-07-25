@@ -1,0 +1,237 @@
+{
+  "width": 1400,
+  "height": 900,
+  "manualEntityRelationshipRoutes": true,
+  "relationshipStyle": {
+    "stroke": "#42526b",
+    "strokeWidth": 2,
+    "arrowSize": 14,
+    "showSymbols": false
+  },
+  "objects": [
+    {
+      "id": "mixed-projects",
+      "type": "entity",
+      "x": 100,
+      "y": 160,
+      "width": 300,
+      "height": 130,
+      "entitySchema": "pmt",
+      "entityName": "Projects",
+      "collapsed": false,
+      "showDataTypes": true,
+      "fields": [
+        {
+          "name": "ProjectId",
+          "dataType": "INT",
+          "nullable": false,
+          "isPrimaryKey": true,
+          "isForeignKey": false
+        },
+        {
+          "name": "Title",
+          "dataType": "NVARCHAR(220)",
+          "nullable": false,
+          "isPrimaryKey": false,
+          "isForeignKey": false
+        }
+      ],
+      "foreignKeys": []
+    },
+    {
+      "id": "mixed-worktasks",
+      "type": "entity",
+      "x": 720,
+      "y": 160,
+      "width": 340,
+      "height": 160,
+      "entitySchema": "pmt",
+      "entityName": "WorkTasks",
+      "collapsed": true,
+      "showDataTypes": true,
+      "fields": [
+        {
+          "name": "TaskId",
+          "dataType": "INT",
+          "nullable": false,
+          "isPrimaryKey": true,
+          "isForeignKey": false
+        },
+        {
+          "name": "ProjectId",
+          "dataType": "INT",
+          "nullable": false,
+          "isPrimaryKey": false,
+          "isForeignKey": true
+        },
+        {
+          "name": "Title",
+          "dataType": "NVARCHAR(220)",
+          "nullable": false,
+          "isPrimaryKey": false,
+          "isForeignKey": false
+        }
+      ],
+      "foreignKeys": [
+        {
+          "name": "FK_pmt_WorkTasks_Project",
+          "columns": [
+            "ProjectId"
+          ],
+          "referencedSchema": "pmt",
+          "referencedTable": "Projects",
+          "referencedColumns": [
+            "ProjectId"
+          ],
+          "relationshipType": "one-to-many",
+          "routeOverride": [
+            {
+              "x": 720,
+              "y": 218
+            },
+            {
+              "x": 560,
+              "y": 218
+            },
+            {
+              "x": 560,
+              "y": 195
+            },
+            {
+              "x": 400,
+              "y": 195
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "mixed-rich-note",
+      "type": "rich-text",
+      "x": 150,
+      "y": 420,
+      "width": 380,
+      "height": 160,
+      "fill": "#ffffff",
+      "stroke": "#126bff",
+      "strokeWidth": 2,
+      "html": "<h2>Schema note</h2><p><strong>Rich text</strong> travels with the Diagram state.</p>"
+    },
+    {
+      "id": "mixed-task-screen",
+      "type": "embedded-image",
+      "x": 90,
+      "y": 610,
+      "width": 460,
+      "height": 180,
+      "source": "data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='460'%20height='180'%3E%3Crect%20width='460'%20height='180'%20fill='%23f8fafc'/%3E%3Ctext%20x='28'%20y='72'%20font-family='Arial'%20font-size='24'%20fill='%23172b4d'%3ETask%20screen%3C/text%3E%3Ctext%20x='28'%20y='122'%20font-family='Arial'%20font-size='18'%20fill='%2342526b'%3ETitle%3C/text%3E%3C/svg%3E",
+      "imageClip": {
+        "x": 90,
+        "y": 610,
+        "width": 460,
+        "height": 180
+      },
+      "cropCornerRadius": 12,
+      "cropCornerRadii": {
+        "topLeft": 12,
+        "topRight": 12,
+        "bottomRight": 4,
+        "bottomLeft": 4
+      },
+      "cropVisible": true,
+      "cropPermanent": false
+    },
+    {
+      "id": "mixed-title-field",
+      "type": "entity",
+      "entityKind": "field-rectangle",
+      "fieldRectangleName": "Title",
+      "fieldRectangleConnectionSide": "bottom",
+      "x": 210,
+      "y": 710,
+      "width": 148,
+      "height": 34,
+      "fill": "none",
+      "stroke": "#175fbd",
+      "strokeWidth": 2,
+      "fields": [
+        {
+          "name": "Title",
+          "dataType": "",
+          "nullable": null,
+          "isPrimaryKey": false,
+          "isForeignKey": true,
+          "isImportant": true
+        }
+      ],
+      "foreignKeys": [
+        {
+          "name": "FK_UI_Title_Projects",
+          "columns": [
+            "Title"
+          ],
+          "referencedSchema": "pmt",
+          "referencedTable": "Projects",
+          "referencedColumns": [
+            "Title"
+          ],
+          "relationshipType": "many-to-one",
+          "styleOverride": {
+            "stroke": "#22c55e",
+            "strokeWidth": 3,
+            "arrowSize": 16,
+            "opacity": 0.65
+          }
+        }
+      ]
+    },
+    {
+      "id": "mixed-field-map-table",
+      "type": "field-mapping-table",
+      "name": "Field Mapping Table: Task screen",
+      "sourceImageId": "mixed-task-screen",
+      "x": 610,
+      "y": 610,
+      "width": 380,
+      "height": 58,
+      "headerTextColor": "#111111",
+      "headerFill": "#d9ecff",
+      "uiTextColor": "#172b4d",
+      "uiFill": "#ffffff",
+      "databaseTextColor": "#172b4d",
+      "databaseFill": "#ffffff",
+      "fieldMappingRowHoverFill": "#fff59d",
+      "fieldMappingHighlightColor": "#facc15",
+      "fieldMappingHighlightStrokeWidth": 9,
+      "rows": [
+        {
+          "uiEntityId": "mixed-title-field",
+          "uiField": "Title",
+          "databaseField": "pmt.Projects.Title"
+        }
+      ]
+    },
+    {
+      "id": "mixed-annotation-arrow",
+      "type": "arrow",
+      "x1": 530,
+      "y1": 500,
+      "x2": 720,
+      "y2": 245,
+      "stroke": "#f59e0b",
+      "strokeWidth": 4,
+      "arrowSize": 18
+    },
+    {
+      "id": "mixed-annotation-box",
+      "type": "rectangle",
+      "x": 680,
+      "y": 420,
+      "width": 260,
+      "height": 110,
+      "fill": "none",
+      "stroke": "#ef4444",
+      "strokeWidth": 3
+    }
+  ]
+}

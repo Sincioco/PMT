@@ -3,10 +3,10 @@ import {
   readJsonPreference,
   writeJsonPreference
 } from "./preferences.js";
-import { screenRegistry } from "./screen-registry.js?v=20260725-suggestions-v1";
-import { canReadView } from "../shared/security.js?v=20260718-diagram-entity-v22";
+import { screenRegistry } from "./screen-registry.js?v=20260725-diagram2-day1-v1";
+import { canReadView } from "../shared/security.js?v=20260725-diagram2-day1-v1";
 
-const navigationVersion = 3;
+const navigationVersion = 4;
 const betaVisibilityVersion = 2;
 const betaNavigationViews = new Set(["Dashboard", "Road Map", "Gantt"]);
 const lockedVisibleViews = new Set(["About", "Settings"]);
@@ -129,6 +129,7 @@ function defaultNavigationVisible(screen) {
 function enforceFixedNavigationOrder(items) {
   const boardItem = items.find(item => item.view === "Board");
   const diagramItem = items.find(item => item.view === "Diagram");
+  const diagram2Item = items.find(item => item.view === "Diagram 2");
   const logItem = items.find(item => item.view === "Log");
   const suggestionsItem = items.find(item => item.view === "Suggestions");
   const aboutItem = items.find(item => item.view === "About");
@@ -136,6 +137,7 @@ function enforceFixedNavigationOrder(items) {
   const orderedItems = items.filter(item =>
     item.view !== "Board"
     && item.view !== "Diagram"
+    && item.view !== "Diagram 2"
     && item.view !== "Log"
     && item.view !== "Suggestions"
     && item.view !== "About"
@@ -165,6 +167,7 @@ function enforceFixedNavigationOrder(items) {
 
   if (aboutItem) orderedItems.push(aboutItem);
   if (settingsItem) orderedItems.push(settingsItem);
+  if (diagram2Item) orderedItems.push(diagram2Item);
   return orderedItems;
 }
 
@@ -184,6 +187,7 @@ export function navIconHtml(view) {
     Documentation: "&#128214;",
     "WFH Schedule": "&#8962;",
     Diagram: "&#128208;",
+    "Diagram 2": "&#128208;",
     "Release Notes": "&#128227;",
     Suggestions: "&#128161;",
     About: "&#9432;",

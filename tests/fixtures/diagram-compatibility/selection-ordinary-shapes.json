@@ -1,0 +1,47 @@
+{
+  "selectedObjectIds": [
+    "ordinary-rectangle",
+    "ordinary-arrow",
+    "ordinary-text"
+  ],
+  "state": {
+    "width": 900,
+    "height": 600,
+    "objects": [
+      {
+        "id": "ordinary-rectangle",
+        "type": "rectangle",
+        "x": 120,
+        "y": 140,
+        "width": 240,
+        "height": 130,
+        "fill": "#e8f0fb",
+        "stroke": "#126bff",
+        "strokeWidth": 3
+      },
+      {
+        "id": "ordinary-arrow",
+        "type": "arrow",
+        "x1": 390,
+        "y1": 205,
+        "x2": 620,
+        "y2": 205,
+        "stroke": "#f59e0b",
+        "strokeWidth": 5,
+        "arrowSize": 22
+      },
+      {
+        "id": "ordinary-text",
+        "type": "textbox",
+        "x": 650,
+        "y": 155,
+        "width": 180,
+        "height": 100,
+        "fill": "none",
+        "stroke": "#42526b",
+        "outlineVisible": false,
+        "text": "Copied shape"
+      }
+    ]
+  }
+}

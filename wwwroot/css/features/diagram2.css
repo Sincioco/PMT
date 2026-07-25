@@ -1,0 +1,115 @@
+.diagram2-screen {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  min-height: 100%;
+}
+
+.diagram2-status {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--control-height-sm);
+  padding: 0 var(--space-4);
+  border: var(--border-width) solid var(--color-border-subtle);
+  border-radius: var(--radius-sm);
+  color: var(--color-text-secondary);
+  background: var(--color-surface-subtle);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+}
+
+.diagram2-workspace {
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-height: 0;
+  overflow: hidden;
+  border-top: var(--border-width) solid var(--color-border-subtle);
+  background: #ffffff;
+}
+
+.diagram2-canvas-preview {
+  position: absolute;
+  inset: 0;
+  opacity: 0.18;
+  pointer-events: none;
+}
+
+.diagram2-node {
+  position: absolute;
+  width: 220px;
+  height: 132px;
+  border: 2px solid #42526b;
+  border-radius: var(--radius-sm);
+  background: #ffffff;
+  box-shadow: var(--shadow-card);
+}
+
+.diagram2-node::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  height: 34px;
+  background: #e8f0fb;
+  border-bottom: 2px solid #42526b;
+}
+
+.diagram2-node-primary {
+  top: 22%;
+  left: 18%;
+}
+
+.diagram2-node-secondary {
+  right: 18%;
+  bottom: 20%;
+}
+
+.diagram2-relationship {
+  position: absolute;
+  top: 38%;
+  left: 36%;
+  width: 28%;
+  border-top: 3px solid #126bff;
+  transform: rotate(18deg);
+  transform-origin: left center;
+}
+
+.diagram2-empty {
+  position: relative;
+  display: grid;
+  gap: var(--space-3);
+  max-width: 560px;
+  padding: var(--space-8);
+  text-align: center;
+}
+
+.diagram2-empty h2 {
+  margin: 0;
+  color: var(--color-text-primary);
+  font-size: var(--font-size-2xl);
+  line-height: var(--line-height-heading);
+}
+
+.diagram2-empty p {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-md);
+}
+
+@media (max-width: 720px) {
+  .diagram2-node {
+    width: 160px;
+    height: 104px;
+  }
+
+  .diagram2-node-primary {
+    left: 6%;
+  }
+
+  .diagram2-node-secondary {
+    right: 6%;
+  }
+
+  .diagram2-empty {
+    padding: var(--space-6);
+  }
+}

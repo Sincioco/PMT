@@ -13,6 +13,7 @@ const resourceByView = Object.freeze({
   Scrum: "Scrum",
   Documentation: "Documentation",
   Diagram: "Documentation",
+  "Diagram 2": "Documentation",
   Log: "PersonalLog",
   Backlog: "Backlog",
   "WFH Schedule": "WfhSchedule",

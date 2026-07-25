@@ -1,0 +1,45 @@
+{
+  "format": "pmt-diagram",
+  "formatVersion": 1,
+  "minimumReaderVersion": 1,
+  "exportedAt": "2026-07-25T00:00:00.000Z",
+  "generator": {
+    "name": "PMT",
+    "feature": "Diagram"
+  },
+  "diagram": {
+    "title": "Diagram 1 Synthetic Compatibility",
+    "editorState": {
+      "width": 900,
+      "height": 620,
+      "objects": [
+        {
+          "id": "compat-rectangle",
+          "type": "rectangle",
+          "x": 80,
+          "y": 80,
+          "width": 220,
+          "height": 120,
+          "fill": "#ffffff",
+          "stroke": "#126bff",
+          "strokeWidth": 4
+        },
+        {
+          "id": "compat-textbox",
+          "type": "textbox",
+          "x": 380,
+          "y": 90,
+          "width": 260,
+          "height": 110,
+          "fill": "none",
+          "stroke": "#42526b",
+          "outlineVisible": false,
+          "text": "Diagram 1 compatibility fixture"
+        }
+      ]
+    },
+    "svg": "",
+    "extensions": {}
+  },
+  "extensions": {}
+}

@@ -1,0 +1,92 @@
+{
+  "selectedObjectIds": [
+    "entity-pmt-projects",
+    "entity-pmt-worktasks"
+  ],
+  "state": {
+    "width": 1200,
+    "height": 700,
+    "relationshipStyle": {
+      "stroke": "#42526b",
+      "strokeWidth": 2,
+      "arrowSize": 14,
+      "showSymbols": false
+    },
+    "objects": [
+      {
+        "id": "entity-pmt-projects",
+        "type": "entity",
+        "x": 100,
+        "y": 140,
+        "width": 280,
+        "height": 120,
+        "entitySchema": "pmt",
+        "entityName": "Projects",
+        "fields": [
+          {
+            "name": "ProjectId",
+            "dataType": "INT",
+            "nullable": false,
+            "isPrimaryKey": true,
+            "isForeignKey": false
+          },
+          {
+            "name": "Title",
+            "dataType": "NVARCHAR(220)",
+            "nullable": false,
+            "isPrimaryKey": false,
+            "isForeignKey": false
+          }
+        ],
+        "foreignKeys": []
+      },
+      {
+        "id": "entity-pmt-worktasks",
+        "type": "entity",
+        "x": 660,
+        "y": 140,
+        "width": 320,
+        "height": 150,
+        "entitySchema": "pmt",
+        "entityName": "WorkTasks",
+        "fields": [
+          {
+            "name": "TaskId",
+            "dataType": "INT",
+            "nullable": false,
+            "isPrimaryKey": true,
+            "isForeignKey": false
+          },
+          {
+            "name": "ProjectId",
+            "dataType": "INT",
+            "nullable": false,
+            "isPrimaryKey": false,
+            "isForeignKey": true
+          },
+          {
+            "name": "Title",
+            "dataType": "NVARCHAR(220)",
+            "nullable": false,
+            "isPrimaryKey": false,
+            "isForeignKey": false
+          }
+        ],
+        "foreignKeys": [
+          {
+            "name": "FK_pmt_WorkTasks_Project",
+            "columns": [
+              "ProjectId"
+            ],
+            "referencedSchema": "pmt",
+            "referencedTable": "Projects",
+            "referencedColumns": [
+              "ProjectId"
+            ],
+            "relationshipType": "one-to-many"
+          }
+        ]
+      }
+    ]
+  }
+}
