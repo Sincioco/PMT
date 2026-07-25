@@ -1,0 +1,1184 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PMT Diagram 1 vs Diagram 2 Entity Scale Benchmark</title>
+  <style>
+    :root {
+      --ink: #1f2933;
+      --muted: #596579;
+      --line: #d9e0e8;
+      --soft: #f5f7fa;
+      --blue: #2857b8;
+      --green: #18705d;
+      --gold: #9a6700;
+      --red: #b23b3b;
+      color-scheme: light;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: Arial, Helvetica, sans-serif; color: var(--ink); background: #fff; line-height: 1.45; }
+    main { max-width: 1200px; margin: 0 auto; padding: 32px 28px 56px; }
+    h1 { font-size: 34px; margin: 0 0 10px; line-height: 1.12; }
+    h2 { font-size: 24px; margin: 34px 0 12px; padding-bottom: 8px; border-bottom: 1px solid var(--line); }
+    h3 { font-size: 18px; margin: 24px 0 8px; }
+    p { margin: 0 0 12px; }
+    .lead { font-size: 17px; max-width: 980px; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 14px; margin: 18px 0; }
+    .card { border: 1px solid var(--line); border-radius: 8px; padding: 16px; background: var(--soft); }
+    .metric { font-size: 28px; font-weight: 700; margin: 4px 0; }
+    .muted, small { color: var(--muted); }
+    code { background: #eef2f7; border-radius: 4px; padding: 1px 4px; }
+    table { width: 100%; border-collapse: collapse; margin: 14px 0 22px; font-size: 13px; }
+    th, td { border: 1px solid var(--line); padding: 8px 9px; vertical-align: top; text-align: left; }
+    th { background: #edf1f5; text-transform: uppercase; font-size: 12px; letter-spacing: .02em; }
+    .chart { border: 1px solid var(--line); border-radius: 8px; padding: 14px; margin: 16px 0 24px; }
+    .bar-row { display: grid; grid-template-columns: 250px 1fr 115px; gap: 12px; align-items: center; margin: 10px 0; }
+    .bar-label { font-size: 13px; }
+    .bar-track { height: 18px; background: #eef2f7; border-radius: 999px; overflow: hidden; }
+    .bar { height: 100%; min-width: 2px; background: var(--blue); }
+    .d1 { background: var(--gold); }
+    .d2 { background: var(--green); }
+    .timeout { background: var(--red); }
+    .callout { border-left: 4px solid var(--blue); background: #f3f7ff; padding: 10px 14px; margin: 16px 0; }
+    ul { padding-left: 20px; }
+    li { margin: 6px 0; }
+    .raw { white-space: pre-wrap; max-height: 460px; overflow: auto; background: #111827; color: #e5e7eb; padding: 14px; border-radius: 8px; font-size: 12px; }
+    @media print {
+      main { max-width: none; padding: 18px; }
+      .raw { max-height: none; overflow: visible; }
+    }
+  </style>
+</head>
+<body>
+<main>
+  <h1>PMT Diagram 1 vs Diagram 2 Entity Scale Benchmark</h1>
+  <p class="lead">This report measures real PMT routes in a local authenticated browser session against saved Diagram documents. A timeout means the route did not become usable inside the 20.00 s practical cap.</p>
+
+  <div class="grid">
+    <div class="card">
+      <div>Diagram 1 practical ceiling</div>
+      <div class="metric">3 entities</div>
+      <small>Last pass: 2 entities in 187 ms.</small>
+    </div>
+    <div class="card">
+      <div>Diagram 2 largest completed test</div>
+      <div class="metric">3,000 entities</div>
+      <small>No timeout through 3,000 entities.</small>
+    </div>
+    <div class="card">
+      <div>Diagram 2 at 3,000 entities</div>
+      <div class="metric">10.10 s</div>
+      <small>7,500 relationships, 52,516 SVG descendants.</small>
+    </div>
+  </div>
+
+  <h2>Result</h2>
+  <p>Diagram 1 became unusable at 3 entities under the current full PMT diagram library state. Diagram 2 completed the progressive ladder through 3,000 entities without reaching the 20-second cap.</p>
+  <div class="callout">The Diagram 1 result is severe because the screen does more than render the selected diagram: it also builds the legacy Diagram library and read-only SVG path in a way that blocks the browser main thread. Diagram 2 keeps the selected document path isolated and uses the new renderer diagnostics, low-detail overview, and keyed SVG rendering.</div>
+
+  <h2>Route-to-Usable Time</h2>
+  <div class="chart">
+    <div class="bar-row">
+      <div class="bar-label">Diagram 1<br><small>1 entities</small></div>
+      <div class="bar-track"><div class="bar d1" style="width:1.00%"></div></div>
+      <div><small>191 ms</small></div>
+    </div>
+    <div class="bar-row">
+      <div class="bar-label">Diagram 1<br><small>2 entities</small></div>
+      <div class="bar-track"><div class="bar d1" style="width:1.00%"></div></div>
+      <div><small>187 ms</small></div>
+    </div>
+    <div class="bar-row">
+      <div class="bar-label">Diagram 1<br><small>3 entities</small></div>
+      <div class="bar-track"><div class="bar d1 timeout" style="width:100.00%"></div></div>
+      <div><small>>20.00 s</small></div>
+    </div>
+    <div class="bar-row">
+      <div class="bar-label">Diagram 2<br><small>50 entities</small></div>
+      <div class="bar-track"><div class="bar d2" style="width:1.37%"></div></div>
+      <div><small>274 ms</small></div>
+    </div>
+    <div class="bar-row">
+      <div class="bar-label">Diagram 2<br><small>100 entities</small></div>
+      <div class="bar-track"><div class="bar d2" style="width:1.68%"></div></div>
+      <div><small>337 ms</small></div>
+    </div>
+    <div class="bar-row">
+      <div class="bar-label">Diagram 2<br><small>200 entities</small></div>
+      <div class="bar-track"><div class="bar d2" style="width:2.32%"></div></div>
+      <div><small>465 ms</small></div>
+    </div>
+    <div class="bar-row">
+      <div class="bar-label">Diagram 2<br><small>500 entities</small></div>
+      <div class="bar-track"><div class="bar d2" style="width:4.78%"></div></div>
+      <div><small>957 ms</small></div>
+    </div>
+    <div class="bar-row">
+      <div class="bar-label">Diagram 2<br><small>1,000 entities</small></div>
+      <div class="bar-track"><div class="bar d2" style="width:10.03%"></div></div>
+      <div><small>2.01 s</small></div>
+    </div>
+    <div class="bar-row">
+      <div class="bar-label">Diagram 2<br><small>1,500 entities</small></div>
+      <div class="bar-track"><div class="bar d2" style="width:17.31%"></div></div>
+      <div><small>3.46 s</small></div>
+    </div>
+    <div class="bar-row">
+      <div class="bar-label">Diagram 2<br><small>2,000 entities</small></div>
+      <div class="bar-track"><div class="bar d2" style="width:26.32%"></div></div>
+      <div><small>5.26 s</small></div>
+    </div>
+    <div class="bar-row">
+      <div class="bar-label">Diagram 2<br><small>2,500 entities</small></div>
+      <div class="bar-track"><div class="bar d2" style="width:37.44%"></div></div>
+      <div><small>7.49 s</small></div>
+    </div>
+    <div class="bar-row">
+      <div class="bar-label">Diagram 2<br><small>3,000 entities</small></div>
+      <div class="bar-track"><div class="bar d2" style="width:50.48%"></div></div>
+      <div><small>10.10 s</small></div>
+    </div></div>
+
+  <h2>Detailed Samples</h2>
+  <table>
+    <thead><tr><th>Renderer</th><th>Entities</th><th>Relationships</th><th>Row</th><th>Status</th><th>Ready time</th><th>SVG descendants</th><th>DOM nodes</th><th>Zoom avg</th><th>Detail</th></tr></thead>
+    <tbody>
+      <tr>
+        <td>Diagram 1</td>
+        <td>1</td>
+        <td>0</td>
+        <td>Blog 38</td>
+        <td>OK</td>
+        <td>191 ms</td>
+        <td>58</td>
+        <td>692</td>
+        <td>186 ms</td>
+        <td></td>
+      </tr>
+      <tr>
+        <td>Diagram 1</td>
+        <td>2</td>
+        <td>5</td>
+        <td>Blog 39</td>
+        <td>OK</td>
+        <td>187 ms</td>
+        <td>121</td>
+        <td>779</td>
+        <td>190 ms</td>
+        <td></td>
+      </tr>
+      <tr>
+        <td>Diagram 1</td>
+        <td>3</td>
+        <td>8</td>
+        <td>Blog 40</td>
+        <td>Timed out</td>
+        <td>>20.00 s</td>
+        <td>n/a</td>
+        <td>n/a</td>
+        <td>n/a</td>
+        <td></td>
+      </tr>
+      <tr>
+        <td>Diagram 2</td>
+        <td>50</td>
+        <td>125</td>
+        <td>Blog 26</td>
+        <td>OK</td>
+        <td>274 ms</td>
+        <td>1,791</td>
+        <td>2,689</td>
+        <td>42 ms</td>
+        <td>detailed</td>
+      </tr>
+      <tr>
+        <td>Diagram 2</td>
+        <td>100</td>
+        <td>250</td>
+        <td>Blog 27</td>
+        <td>OK</td>
+        <td>337 ms</td>
+        <td>1,766</td>
+        <td>2,664</td>
+        <td>75 ms</td>
+        <td>low</td>
+      </tr>
+      <tr>
+        <td>Diagram 2</td>
+        <td>200</td>
+        <td>500</td>
+        <td>Blog 28</td>
+        <td>OK</td>
+        <td>465 ms</td>
+        <td>3,516</td>
+        <td>4,414</td>
+        <td>135 ms</td>
+        <td>low</td>
+      </tr>
+      <tr>
+        <td>Diagram 2</td>
+        <td>500</td>
+        <td>1,250</td>
+        <td>Blog 30</td>
+        <td>OK</td>
+        <td>957 ms</td>
+        <td>8,766</td>
+        <td>9,664</td>
+        <td>381 ms</td>
+        <td>low</td>
+      </tr>
+      <tr>
+        <td>Diagram 2</td>
+        <td>1,000</td>
+        <td>2,500</td>
+        <td>Blog 32</td>
+        <td>OK</td>
+        <td>2.01 s</td>
+        <td>17,516</td>
+        <td>18,414</td>
+        <td>904 ms</td>
+        <td>low</td>
+      </tr>
+      <tr>
+        <td>Diagram 2</td>
+        <td>1,500</td>
+        <td>3,750</td>
+        <td>Blog 41</td>
+        <td>OK</td>
+        <td>3.46 s</td>
+        <td>26,266</td>
+        <td>27,164</td>
+        <td>1.50 s</td>
+        <td>low</td>
+      </tr>
+      <tr>
+        <td>Diagram 2</td>
+        <td>2,000</td>
+        <td>5,000</td>
+        <td>Blog 33</td>
+        <td>OK</td>
+        <td>5.26 s</td>
+        <td>35,016</td>
+        <td>35,914</td>
+        <td>2.38 s</td>
+        <td>low</td>
+      </tr>
+      <tr>
+        <td>Diagram 2</td>
+        <td>2,500</td>
+        <td>6,250</td>
+        <td>Blog 42</td>
+        <td>OK</td>
+        <td>7.49 s</td>
+        <td>43,766</td>
+        <td>44,664</td>
+        <td>2.60 s</td>
+        <td>low</td>
+      </tr>
+      <tr>
+        <td>Diagram 2</td>
+        <td>3,000</td>
+        <td>7,500</td>
+        <td>Blog 34</td>
+        <td>OK</td>
+        <td>10.10 s</td>
+        <td>52,516</td>
+        <td>53,414</td>
+        <td>3.41 s</td>
+        <td>low</td>
+      </tr></tbody>
+  </table>
+
+  <h2>SVG Pressure</h2>
+  <p>Diagram 2 remains under the cap at 3,000 entities, but the SVG tree grows linearly in this fit-view benchmark. At 3,000 entities it mounts 3,001 objects and 7,500 relationships, producing 52,516 SVG descendants.</p>
+  <div class="chart">
+    <div class="bar-row">
+      <div class="bar-label">Diagram 1 / 1 entities</div>
+      <div class="bar-track"><div class="bar" style="width:1.00%"></div></div>
+      <div><small>58</small></div>
+    </div>
+    <div class="bar-row">
+      <div class="bar-label">Diagram 1 / 2 entities</div>
+      <div class="bar-track"><div class="bar" style="width:1.00%"></div></div>
+      <div><small>121</small></div>
+    </div>
+    <div class="bar-row">
+      <div class="bar-label">Diagram 2 / 50 entities</div>
+      <div class="bar-track"><div class="bar" style="width:3.41%"></div></div>
+      <div><small>1,791</small></div>
+    </div>
+    <div class="bar-row">
+      <div class="bar-label">Diagram 2 / 100 entities</div>
+      <div class="bar-track"><div class="bar" style="width:3.36%"></div></div>
+      <div><small>1,766</small></div>
+    </div>
+    <div class="bar-row">
+      <div class="bar-label">Diagram 2 / 200 entities</div>
+      <div class="bar-track"><div class="bar" style="width:6.70%"></div></div>
+      <div><small>3,516</small></div>
+    </div>
+    <div class="bar-row">
+      <div class="bar-label">Diagram 2 / 500 entities</div>
+      <div class="bar-track"><div class="bar" style="width:16.69%"></div></div>
+      <div><small>8,766</small></div>
+    </div>
+    <div class="bar-row">
+      <div class="bar-label">Diagram 2 / 1000 entities</div>
+      <div class="bar-track"><div class="bar" style="width:33.35%"></div></div>
+      <div><small>17,516</small></div>
+    </div>
+    <div class="bar-row">
+      <div class="bar-label">Diagram 2 / 1500 entities</div>
+      <div class="bar-track"><div class="bar" style="width:50.02%"></div></div>
+      <div><small>26,266</small></div>
+    </div>
+    <div class="bar-row">
+      <div class="bar-label">Diagram 2 / 2000 entities</div>
+      <div class="bar-track"><div class="bar" style="width:66.68%"></div></div>
+      <div><small>35,016</small></div>
+    </div>
+    <div class="bar-row">
+      <div class="bar-label">Diagram 2 / 2500 entities</div>
+      <div class="bar-track"><div class="bar" style="width:83.34%"></div></div>
+      <div><small>43,766</small></div>
+    </div>
+    <div class="bar-row">
+      <div class="bar-label">Diagram 2 / 3000 entities</div>
+      <div class="bar-track"><div class="bar" style="width:100.00%"></div></div>
+      <div><small>52,516</small></div>
+    </div></div>
+
+  <h2>Zoom Interaction Cost</h2>
+  <p>The route-open benchmark measures time to usable. Zoom samples are post-load interaction checks; they rise with mounted SVG size, which shows why viewport virtualization and lower-detail rendering are still important for very large diagrams.</p>
+  <div class="chart">
+    <div class="bar-row">
+      <div class="bar-label">Diagram 1 / 1 entities</div>
+      <div class="bar-track"><div class="bar" style="width:5.46%"></div></div>
+      <div><small>186 ms</small></div>
+    </div>
+    <div class="bar-row">
+      <div class="bar-label">Diagram 1 / 2 entities</div>
+      <div class="bar-track"><div class="bar" style="width:5.58%"></div></div>
+      <div><small>190 ms</small></div>
+    </div>
+    <div class="bar-row">
+      <div class="bar-label">Diagram 2 / 50 entities</div>
+      <div class="bar-track"><div class="bar" style="width:1.24%"></div></div>
+      <div><small>42 ms</small></div>
+    </div>
+    <div class="bar-row">
+      <div class="bar-label">Diagram 2 / 100 entities</div>
+      <div class="bar-track"><div class="bar" style="width:2.20%"></div></div>
+      <div><small>75 ms</small></div>
+    </div>
+    <div class="bar-row">
+      <div class="bar-label">Diagram 2 / 200 entities</div>
+      <div class="bar-track"><div class="bar" style="width:3.97%"></div></div>
+      <div><small>135 ms</small></div>
+    </div>
+    <div class="bar-row">
+      <div class="bar-label">Diagram 2 / 500 entities</div>
+      <div class="bar-track"><div class="bar" style="width:11.17%"></div></div>
+      <div><small>381 ms</small></div>
+    </div>
+    <div class="bar-row">
+      <div class="bar-label">Diagram 2 / 1000 entities</div>
+      <div class="bar-track"><div class="bar" style="width:26.51%"></div></div>
+      <div><small>904 ms</small></div>
+    </div>
+    <div class="bar-row">
+      <div class="bar-label">Diagram 2 / 1500 entities</div>
+      <div class="bar-track"><div class="bar" style="width:43.90%"></div></div>
+      <div><small>1.50 s</small></div>
+    </div>
+    <div class="bar-row">
+      <div class="bar-label">Diagram 2 / 2000 entities</div>
+      <div class="bar-track"><div class="bar" style="width:69.84%"></div></div>
+      <div><small>2.38 s</small></div>
+    </div>
+    <div class="bar-row">
+      <div class="bar-label">Diagram 2 / 2500 entities</div>
+      <div class="bar-track"><div class="bar" style="width:76.31%"></div></div>
+      <div><small>2.60 s</small></div>
+    </div>
+    <div class="bar-row">
+      <div class="bar-label">Diagram 2 / 3000 entities</div>
+      <div class="bar-track"><div class="bar" style="width:100.00%"></div></div>
+      <div><small>3.41 s</small></div>
+    </div></div>
+
+  <h2>Why Diagram 1 Fails Earlier</h2>
+  <ul>
+    <li><strong>Legacy screen work blocks the main thread.</strong> Diagram 1 does heavyweight read-only SVG hydration and library work in the same browser context, so small selected diagrams can still suffer when the library contains very large saved diagrams.</li>
+    <li><strong>Full SVG rebuilds dominate.</strong> Diagram 1 parses saved annotation metadata and rebuilds a rich SVG tree instead of keeping a renderer-owned canonical state with keyed node maps.</li>
+    <li><strong>No renderer-local idle contract.</strong> Diagram 1 has no equivalent to <code>window.__pmtDiagram2Renderer.whenIdle()</code>, so the UI can appear visible while the main thread is still saturated.</li>
+    <li><strong>No practical large-diagram scaling path.</strong> Without low-detail overview and selective renderer diagnostics, the legacy path has no clean way to degrade gracefully as entity and relationship counts rise.</li>
+  </ul>
+
+  <h2>Why Diagram 2 Scales Better</h2>
+  <ul>
+    <li><strong>Canonical model first:</strong> Diagram 2 reads the same saved Diagram metadata but renders from normalized state instead of treating the saved SVG as the live editor surface.</li>
+    <li><strong>Keyed SVG rendering:</strong> Objects and relationships are tracked by stable IDs, allowing the renderer to update nodes predictably.</li>
+    <li><strong>Low-detail overview:</strong> From 100 entities upward in these runs, Diagram 2 used low-detail overview mode, reducing field-row detail that cannot be read at fit scale.</li>
+    <li><strong>Explicit diagnostics:</strong> The renderer reports canonical counts, mounted counts, route sectors, frame time, detail mode, and halo coverage, making performance measurable instead of anecdotal.</li>
+    <li><strong>Isolation from Diagram 1:</strong> Diagram 2 is a separate top-level route and renderer, so it does not inherit the legacy read-only SVG lifecycle.</li>
+  </ul>
+
+  <h2>Benchmark Diagrams Left In PMT</h2>
+  <table>
+    <thead><tr><th>Row</th><th>Title</th><th>Entities</th><th>Relationships</th><th>SVG URL</th><th>SVG size</th></tr></thead>
+    <tbody>
+      <tr>
+        <td>Blog 38</td>
+        <td>PMT Benchmark - 1 Entities</td>
+        <td>1</td>
+        <td>0</td>
+        <td>/uploads/richtext/pmt-benchmark-1-entities-20260726.svg</td>
+        <td>3.6 KiB</td>
+      </tr>
+      <tr>
+        <td>Blog 39</td>
+        <td>PMT Benchmark - 2 Entities</td>
+        <td>2</td>
+        <td>5</td>
+        <td>/uploads/richtext/pmt-benchmark-2-entities-20260726.svg</td>
+        <td>6.1 KiB</td>
+      </tr>
+      <tr>
+        <td>Blog 40</td>
+        <td>PMT Benchmark - 3 Entities</td>
+        <td>3</td>
+        <td>8</td>
+        <td>/uploads/richtext/pmt-benchmark-3-entities-20260726.svg</td>
+        <td>8.3 KiB</td>
+      </tr>
+      <tr>
+        <td>Blog 35</td>
+        <td>PMT Benchmark - 20 Entities</td>
+        <td>20</td>
+        <td>50</td>
+        <td>/uploads/richtext/pmt-benchmark-20-entities-20260726.svg</td>
+        <td>43.4 KiB</td>
+      </tr>
+      <tr>
+        <td>Blog 36</td>
+        <td>PMT Benchmark - 30 Entities</td>
+        <td>30</td>
+        <td>75</td>
+        <td>/uploads/richtext/pmt-benchmark-30-entities-20260726.svg</td>
+        <td>64.1 KiB</td>
+      </tr>
+      <tr>
+        <td>Blog 37</td>
+        <td>PMT Benchmark - 40 Entities</td>
+        <td>40</td>
+        <td>100</td>
+        <td>/uploads/richtext/pmt-benchmark-40-entities-20260726.svg</td>
+        <td>84.8 KiB</td>
+      </tr>
+      <tr>
+        <td>Blog 26</td>
+        <td>PMT Benchmark - 50 Entities</td>
+        <td>50</td>
+        <td>125</td>
+        <td>/uploads/richtext/pmt-benchmark-50-entities-20260726.svg</td>
+        <td>105.5 KiB</td>
+      </tr>
+      <tr>
+        <td>Blog 27</td>
+        <td>PMT Benchmark - 100 Entities</td>
+        <td>100</td>
+        <td>250</td>
+        <td>/uploads/richtext/pmt-benchmark-100-entities-20260726.svg</td>
+        <td>209.0 KiB</td>
+      </tr>
+      <tr>
+        <td>Blog 28</td>
+        <td>PMT Benchmark - 200 Entities</td>
+        <td>200</td>
+        <td>500</td>
+        <td>/uploads/richtext/pmt-benchmark-200-entities-20260726.svg</td>
+        <td>416.1 KiB</td>
+      </tr>
+      <tr>
+        <td>Blog 29</td>
+        <td>PMT Benchmark - 250 Entities</td>
+        <td>250</td>
+        <td>625</td>
+        <td>/uploads/richtext/pmt-benchmark-250-entities-20260726.svg</td>
+        <td>519.7 KiB</td>
+      </tr>
+      <tr>
+        <td>Blog 30</td>
+        <td>PMT Benchmark - 500 Entities</td>
+        <td>500</td>
+        <td>1,250</td>
+        <td>/uploads/richtext/pmt-benchmark-500-entities-20260726.svg</td>
+        <td>1.01 MiB</td>
+      </tr>
+      <tr>
+        <td>Blog 31</td>
+        <td>PMT Benchmark - 750 Entities</td>
+        <td>750</td>
+        <td>1,875</td>
+        <td>/uploads/richtext/pmt-benchmark-750-entities-20260726.svg</td>
+        <td>1.52 MiB</td>
+      </tr>
+      <tr>
+        <td>Blog 32</td>
+        <td>PMT Benchmark - 1,000 Entities</td>
+        <td>1,000</td>
+        <td>2,500</td>
+        <td>/uploads/richtext/pmt-benchmark-1000-entities-20260726.svg</td>
+        <td>2.02 MiB</td>
+      </tr>
+      <tr>
+        <td>Blog 41</td>
+        <td>PMT Benchmark - 1,500 Entities</td>
+        <td>1,500</td>
+        <td>3,750</td>
+        <td>/uploads/richtext/pmt-benchmark-1500-entities-20260726.svg</td>
+        <td>3.04 MiB</td>
+      </tr>
+      <tr>
+        <td>Blog 33</td>
+        <td>PMT Benchmark - 2,000 Entities</td>
+        <td>2,000</td>
+        <td>5,000</td>
+        <td>/uploads/richtext/pmt-benchmark-2000-entities-20260726.svg</td>
+        <td>4.05 MiB</td>
+      </tr>
+      <tr>
+        <td>Blog 42</td>
+        <td>PMT Benchmark - 2,500 Entities</td>
+        <td>2,500</td>
+        <td>6,250</td>
+        <td>/uploads/richtext/pmt-benchmark-2500-entities-20260726.svg</td>
+        <td>5.06 MiB</td>
+      </tr>
+      <tr>
+        <td>Blog 34</td>
+        <td>PMT Benchmark - 3,000 Entities</td>
+        <td>3,000</td>
+        <td>7,500</td>
+        <td>/uploads/richtext/pmt-benchmark-3000-entities-20260726.svg</td>
+        <td>6.07 MiB</td>
+      </tr></tbody>
+  </table>
+
+  <h2>Methodology</h2>
+  <ul>
+    <li>Browser: Playwright Chromium, authenticated as <code>Sin</code> against <code>http://127.0.0.1:5056</code>.</li>
+    <li>Each measurement starts after login; timing begins when the hash route changes.</li>
+    <li>Diagram 1 ready condition: selected read-only Diagram SVG visible and not busy.</li>
+    <li>Diagram 2 ready condition: selected Diagram 2 SVG visible and <code>whenIdle()</code> resolved.</li>
+    <li>Each individual run used a 20.00 s practical cap. Every shell command was kept below one minute.</li>
+  </ul>
+
+  <h2>Raw Embedded Data</h2>
+  <pre class="raw">{
+  &quot;generatedAt&quot;: &quot;2026-07-25T18:16:16.740Z&quot;,
+  &quot;practicalRouteTimeoutMs&quot;: 20000,
+  &quot;baseUrl&quot;: &quot;http://127.0.0.1:5056&quot;,
+  &quot;samples&quot;: [
+    {
+      &quot;testedAt&quot;: &quot;2026-07-25T18:07:26.327Z&quot;,
+      &quot;renderer&quot;: &quot;Diagram 1&quot;,
+      &quot;documentId&quot;: 38,
+      &quot;title&quot;: &quot;PMT Benchmark - 1 Entities&quot;,
+      &quot;route&quot;: &quot;#/diagram/38&quot;,
+      &quot;status&quot;: &quot;ok&quot;,
+      &quot;capped&quot;: false,
+      &quot;timeoutMs&quot;: 20000,
+      &quot;consoleErrors&quot;: [],
+      &quot;readyMs&quot;: 191,
+      &quot;domNodeCount&quot;: 692,
+      &quot;usedHeapBytes&quot;: 13400000,
+      &quot;svgDescendantCount&quot;: 58,
+      &quot;svgTextCount&quot;: 14,
+      &quot;svgPathCount&quot;: 0,
+      &quot;svgLineCount&quot;: 3,
+      &quot;svgGroupCount&quot;: 11,
+      &quot;canonicalObjectCount&quot;: 2,
+      &quot;canonicalEntityCount&quot;: 1,
+      &quot;canonicalRelationshipCount&quot;: 0,
+      &quot;zoomSamples&quot;: [
+        186.6,
+        185.4,
+        186.5
+      ],
+      &quot;zoomAvgMs&quot;: 186.17
+    },
+    {
+      &quot;testedAt&quot;: &quot;2026-07-25T18:07:56.231Z&quot;,
+      &quot;renderer&quot;: &quot;Diagram 1&quot;,
+      &quot;documentId&quot;: 39,
+      &quot;title&quot;: &quot;PMT Benchmark - 2 Entities&quot;,
+      &quot;route&quot;: &quot;#/diagram/39&quot;,
+      &quot;status&quot;: &quot;ok&quot;,
+      &quot;capped&quot;: false,
+      &quot;timeoutMs&quot;: 20000,
+      &quot;consoleErrors&quot;: [],
+      &quot;readyMs&quot;: 187.4,
+      &quot;domNodeCount&quot;: 779,
+      &quot;usedHeapBytes&quot;: 16100000,
+      &quot;svgDescendantCount&quot;: 121,
+      &quot;svgTextCount&quot;: 27,
+      &quot;svgPathCount&quot;: 6,
+      &quot;svgLineCount&quot;: 6,
+      &quot;svgGroupCount&quot;: 27,
+      &quot;canonicalObjectCount&quot;: 3,
+      &quot;canonicalEntityCount&quot;: 2,
+      &quot;canonicalRelationshipCount&quot;: 5,
+      &quot;zoomSamples&quot;: [
+        198.1,
+        187.3,
+        185.4
+      ],
+      &quot;zoomAvgMs&quot;: 190.27
+    },
+    {
+      &quot;testedAt&quot;: &quot;2026-07-25T18:08:42.579Z&quot;,
+      &quot;renderer&quot;: &quot;Diagram 1&quot;,
+      &quot;documentId&quot;: 40,
+      &quot;title&quot;: &quot;PMT Benchmark - 3 Entities&quot;,
+      &quot;route&quot;: &quot;#/diagram/40&quot;,
+      &quot;status&quot;: &quot;timeout&quot;,
+      &quot;capped&quot;: true,
+      &quot;timeoutMs&quot;: 20000,
+      &quot;readyMs&quot;: 20000,
+      &quot;error&quot;: &quot;Practical route cap exceeded.&quot;
+    },
+    {
+      &quot;testedAt&quot;: &quot;2026-07-25T18:09:04.104Z&quot;,
+      &quot;renderer&quot;: &quot;Diagram 2&quot;,
+      &quot;documentId&quot;: 26,
+      &quot;title&quot;: &quot;PMT Benchmark - 50 Entities&quot;,
+      &quot;route&quot;: &quot;#/diagram-2/26&quot;,
+      &quot;status&quot;: &quot;ok&quot;,
+      &quot;capped&quot;: false,
+      &quot;timeoutMs&quot;: 20000,
+      &quot;consoleErrors&quot;: [],
+      &quot;readyMs&quot;: 273.5,
+      &quot;domNodeCount&quot;: 2689,
+      &quot;usedHeapBytes&quot;: 13400000,
+      &quot;svgDescendantCount&quot;: 1791,
+      &quot;canonicalObjectCount&quot;: 51,
+      &quot;canonicalEntityCount&quot;: 50,
+      &quot;canonicalRelationshipCount&quot;: 125,
+      &quot;mountedObjectCount&quot;: 51,
+      &quot;mountedRelationshipCount&quot;: 125,
+      &quot;fullRenderCount&quot;: 1,
+      &quot;lastFrameDuration&quot;: 17.4,
+      &quot;viewportHaloActive&quot;: false,
+      &quot;viewportHaloReason&quot;: &quot;fit&quot;,
+      &quot;viewportHaloObjectCoverage&quot;: &quot;100%&quot;,
+      &quot;viewportHaloRelationshipCoverage&quot;: &quot;100%&quot;,
+      &quot;viewportHaloTargetObjectCount&quot;: 51,
+      &quot;viewportHaloTargetRelationshipCount&quot;: 125,
+      &quot;overviewDetailLevel&quot;: &quot;detailed&quot;,
+      &quot;overviewDetailDuration&quot;: 0.8,
+      &quot;relationshipRouteSectorCount&quot;: 36,
+      &quot;viewportHaloObjectSectorCount&quot;: 2,
+      &quot;viewportHaloRelationshipSectorCount&quot;: 2,
+      &quot;zoomSamples&quot;: [
+        6.4,
+        78.3,
+        42.2
+      ],
+      &quot;zoomAvgMs&quot;: 42.3
+    },
+    {
+      &quot;testedAt&quot;: &quot;2026-07-25T18:09:29.288Z&quot;,
+      &quot;renderer&quot;: &quot;Diagram 2&quot;,
+      &quot;documentId&quot;: 27,
+      &quot;title&quot;: &quot;PMT Benchmark - 100 Entities&quot;,
+      &quot;route&quot;: &quot;#/diagram-2/27&quot;,
+      &quot;status&quot;: &quot;ok&quot;,
+      &quot;capped&quot;: false,
+      &quot;timeoutMs&quot;: 20000,
+      &quot;consoleErrors&quot;: [],
+      &quot;readyMs&quot;: 336.5,
+      &quot;domNodeCount&quot;: 2664,
+      &quot;usedHeapBytes&quot;: 15200000,
+      &quot;svgDescendantCount&quot;: 1766,
+      &quot;canonicalObjectCount&quot;: 101,
+      &quot;canonicalEntityCount&quot;: 100,
+      &quot;canonicalRelationshipCount&quot;: 250,
+      &quot;mountedObjectCount&quot;: 101,
+      &quot;mountedRelationshipCount&quot;: 250,
+      &quot;fullRenderCount&quot;: 1,
+      &quot;lastFrameDuration&quot;: 28.8,
+      &quot;viewportHaloActive&quot;: false,
+      &quot;viewportHaloReason&quot;: &quot;fit&quot;,
+      &quot;viewportHaloObjectCoverage&quot;: &quot;100%&quot;,
+      &quot;viewportHaloRelationshipCoverage&quot;: &quot;100%&quot;,
+      &quot;viewportHaloTargetObjectCount&quot;: 101,
+      &quot;viewportHaloTargetRelationshipCount&quot;: 250,
+      &quot;overviewDetailLevel&quot;: &quot;low&quot;,
+      &quot;overviewDetailDuration&quot;: 15.8,
+      &quot;relationshipRouteSectorCount&quot;: 65,
+      &quot;viewportHaloObjectSectorCount&quot;: 2,
+      &quot;viewportHaloRelationshipSectorCount&quot;: 2,
+      &quot;zoomSamples&quot;: [
+        84.7,
+        73.6,
+        67.1
+      ],
+      &quot;zoomAvgMs&quot;: 75.13
+    },
+    {
+      &quot;testedAt&quot;: &quot;2026-07-25T18:09:53.712Z&quot;,
+      &quot;renderer&quot;: &quot;Diagram 2&quot;,
+      &quot;documentId&quot;: 28,
+      &quot;title&quot;: &quot;PMT Benchmark - 200 Entities&quot;,
+      &quot;route&quot;: &quot;#/diagram-2/28&quot;,
+      &quot;status&quot;: &quot;ok&quot;,
+      &quot;capped&quot;: false,
+      &quot;timeoutMs&quot;: 20000,
+      &quot;consoleErrors&quot;: [],
+      &quot;readyMs&quot;: 464.6,
+      &quot;domNodeCount&quot;: 4414,
+      &quot;usedHeapBytes&quot;: 18200000,
+      &quot;svgDescendantCount&quot;: 3516,
+      &quot;canonicalObjectCount&quot;: 201,
+      &quot;canonicalEntityCount&quot;: 200,
+      &quot;canonicalRelationshipCount&quot;: 500,
+      &quot;mountedObjectCount&quot;: 201,
+      &quot;mountedRelationshipCount&quot;: 500,
+      &quot;fullRenderCount&quot;: 1,
+      &quot;lastFrameDuration&quot;: 52.1,
+      &quot;viewportHaloActive&quot;: false,
+      &quot;viewportHaloReason&quot;: &quot;fit&quot;,
+      &quot;viewportHaloObjectCoverage&quot;: &quot;100%&quot;,
+      &quot;viewportHaloRelationshipCoverage&quot;: &quot;100%&quot;,
+      &quot;viewportHaloTargetObjectCount&quot;: 201,
+      &quot;viewportHaloTargetRelationshipCount&quot;: 500,
+      &quot;overviewDetailLevel&quot;: &quot;low&quot;,
+      &quot;overviewDetailDuration&quot;: 33.5,
+      &quot;relationshipRouteSectorCount&quot;: 126,
+      &quot;viewportHaloObjectSectorCount&quot;: 4,
+      &quot;viewportHaloRelationshipSectorCount&quot;: 3,
+      &quot;zoomSamples&quot;: [
+        169.3,
+        113.1,
+        123.2
+      ],
+      &quot;zoomAvgMs&quot;: 135.2
+    },
+    {
+      &quot;testedAt&quot;: &quot;2026-07-25T18:10:24.880Z&quot;,
+      &quot;renderer&quot;: &quot;Diagram 2&quot;,
+      &quot;documentId&quot;: 30,
+      &quot;title&quot;: &quot;PMT Benchmark - 500 Entities&quot;,
+      &quot;route&quot;: &quot;#/diagram-2/30&quot;,
+      &quot;status&quot;: &quot;ok&quot;,
+      &quot;capped&quot;: false,
+      &quot;timeoutMs&quot;: 20000,
+      &quot;consoleErrors&quot;: [],
+      &quot;readyMs&quot;: 956.5,
+      &quot;domNodeCount&quot;: 9664,
+      &quot;usedHeapBytes&quot;: 37300000,
+      &quot;svgDescendantCount&quot;: 8766,
+      &quot;canonicalObjectCount&quot;: 501,
+      &quot;canonicalEntityCount&quot;: 500,
+      &quot;canonicalRelationshipCount&quot;: 1250,
+      &quot;mountedObjectCount&quot;: 501,
+      &quot;mountedRelationshipCount&quot;: 1250,
+      &quot;fullRenderCount&quot;: 1,
+      &quot;lastFrameDuration&quot;: 151.6,
+      &quot;viewportHaloActive&quot;: false,
+      &quot;viewportHaloReason&quot;: &quot;fit&quot;,
+      &quot;viewportHaloObjectCoverage&quot;: &quot;100%&quot;,
+      &quot;viewportHaloRelationshipCoverage&quot;: &quot;100%&quot;,
+      &quot;viewportHaloTargetObjectCount&quot;: 501,
+      &quot;viewportHaloTargetRelationshipCount&quot;: 1250,
+      &quot;overviewDetailLevel&quot;: &quot;low&quot;,
+      &quot;overviewDetailDuration&quot;: 103.6,
+      &quot;relationshipRouteSectorCount&quot;: 198,
+      &quot;viewportHaloObjectSectorCount&quot;: 8,
+      &quot;viewportHaloRelationshipSectorCount&quot;: 8,
+      &quot;zoomSamples&quot;: [
+        443.5,
+        343.9,
+        354.7
+      ],
+      &quot;zoomAvgMs&quot;: 380.7
+    },
+    {
+      &quot;testedAt&quot;: &quot;2026-07-25T18:10:52.629Z&quot;,
+      &quot;renderer&quot;: &quot;Diagram 2&quot;,
+      &quot;documentId&quot;: 32,
+      &quot;title&quot;: &quot;PMT Benchmark - 1,000 Entities&quot;,
+      &quot;route&quot;: &quot;#/diagram-2/32&quot;,
+      &quot;status&quot;: &quot;ok&quot;,
+      &quot;capped&quot;: false,
+      &quot;timeoutMs&quot;: 20000,
+      &quot;consoleErrors&quot;: [],
+      &quot;readyMs&quot;: 2006,
+      &quot;domNodeCount&quot;: 18414,
+      &quot;usedHeapBytes&quot;: 47400000,
+      &quot;svgDescendantCount&quot;: 17516,
+      &quot;canonicalObjectCount&quot;: 1001,
+      &quot;canonicalEntityCount&quot;: 1000,
+      &quot;canonicalRelationshipCount&quot;: 2500,
+      &quot;mountedObjectCount&quot;: 1001,
+      &quot;mountedRelationshipCount&quot;: 2500,
+      &quot;fullRenderCount&quot;: 1,
+      &quot;lastFrameDuration&quot;: 438.4,
+      &quot;viewportHaloActive&quot;: false,
+      &quot;viewportHaloReason&quot;: &quot;fit&quot;,
+      &quot;viewportHaloObjectCoverage&quot;: &quot;100%&quot;,
+      &quot;viewportHaloRelationshipCoverage&quot;: &quot;100%&quot;,
+      &quot;viewportHaloTargetObjectCount&quot;: 1001,
+      &quot;viewportHaloTargetRelationshipCount&quot;: 2500,
+      &quot;overviewDetailLevel&quot;: &quot;low&quot;,
+      &quot;overviewDetailDuration&quot;: 279.4,
+      &quot;relationshipRouteSectorCount&quot;: 377,
+      &quot;viewportHaloObjectSectorCount&quot;: 10,
+      &quot;viewportHaloRelationshipSectorCount&quot;: 10,
+      &quot;zoomSamples&quot;: [
+        1025.3,
+        837.7,
+        848.2
+      ],
+      &quot;zoomAvgMs&quot;: 903.73
+    },
+    {
+      &quot;testedAt&quot;: &quot;2026-07-25T18:11:21.533Z&quot;,
+      &quot;renderer&quot;: &quot;Diagram 2&quot;,
+      &quot;documentId&quot;: 41,
+      &quot;title&quot;: &quot;PMT Benchmark - 1,500 Entities&quot;,
+      &quot;route&quot;: &quot;#/diagram-2/41&quot;,
+      &quot;status&quot;: &quot;ok&quot;,
+      &quot;capped&quot;: false,
+      &quot;timeoutMs&quot;: 20000,
+      &quot;consoleErrors&quot;: [],
+      &quot;readyMs&quot;: 3462.6,
+      &quot;domNodeCount&quot;: 27164,
+      &quot;usedHeapBytes&quot;: 91700000,
+      &quot;svgDescendantCount&quot;: 26266,
+      &quot;canonicalObjectCount&quot;: 1501,
+      &quot;canonicalEntityCount&quot;: 1500,
+      &quot;canonicalRelationshipCount&quot;: 3750,
+      &quot;mountedObjectCount&quot;: 1501,
+      &quot;mountedRelationshipCount&quot;: 3750,
+      &quot;fullRenderCount&quot;: 1,
+      &quot;lastFrameDuration&quot;: 860.1,
+      &quot;viewportHaloActive&quot;: false,
+      &quot;viewportHaloReason&quot;: &quot;fit&quot;,
+      &quot;viewportHaloObjectCoverage&quot;: &quot;100%&quot;,
+      &quot;viewportHaloRelationshipCoverage&quot;: &quot;100%&quot;,
+      &quot;viewportHaloTargetObjectCount&quot;: 1501,
+      &quot;viewportHaloTargetRelationshipCount&quot;: 3750,
+      &quot;overviewDetailLevel&quot;: &quot;low&quot;,
+      &quot;overviewDetailDuration&quot;: 520.4,
+      &quot;relationshipRouteSectorCount&quot;: 560,
+      &quot;viewportHaloObjectSectorCount&quot;: 21,
+      &quot;viewportHaloRelationshipSectorCount&quot;: 21,
+      &quot;zoomSamples&quot;: [
+        1723.8,
+        1363.1,
+        1402
+      ],
+      &quot;zoomAvgMs&quot;: 1496.3
+    },
+    {
+      &quot;testedAt&quot;: &quot;2026-07-25T18:11:50.757Z&quot;,
+      &quot;renderer&quot;: &quot;Diagram 2&quot;,
+      &quot;documentId&quot;: 33,
+      &quot;title&quot;: &quot;PMT Benchmark - 2,000 Entities&quot;,
+      &quot;route&quot;: &quot;#/diagram-2/33&quot;,
+      &quot;status&quot;: &quot;ok&quot;,
+      &quot;capped&quot;: false,
+      &quot;timeoutMs&quot;: 20000,
+      &quot;consoleErrors&quot;: [],
+      &quot;readyMs&quot;: 5264.9,
+      &quot;domNodeCount&quot;: 35914,
+      &quot;usedHeapBytes&quot;: 64000000,
+      &quot;svgDescendantCount&quot;: 35016,
+      &quot;canonicalObjectCount&quot;: 2001,
+      &quot;canonicalEntityCount&quot;: 2000,
+      &quot;canonicalRelationshipCount&quot;: 5000,
+      &quot;mountedObjectCount&quot;: 2001,
+      &quot;mountedRelationshipCount&quot;: 5000,
+      &quot;fullRenderCount&quot;: 1,
+      &quot;lastFrameDuration&quot;: 1414,
+      &quot;viewportHaloActive&quot;: false,
+      &quot;viewportHaloReason&quot;: &quot;fit&quot;,
+      &quot;viewportHaloObjectCoverage&quot;: &quot;100%&quot;,
+      &quot;viewportHaloRelationshipCoverage&quot;: &quot;100%&quot;,
+      &quot;viewportHaloTargetObjectCount&quot;: 2001,
+      &quot;viewportHaloTargetRelationshipCount&quot;: 5000,
+      &quot;overviewDetailLevel&quot;: &quot;low&quot;,
+      &quot;overviewDetailDuration&quot;: 905.1,
+      &quot;relationshipRouteSectorCount&quot;: 720,
+      &quot;viewportHaloObjectSectorCount&quot;: 21,
+      &quot;viewportHaloRelationshipSectorCount&quot;: 21,
+      &quot;zoomSamples&quot;: [
+        2739.7,
+        2193.2,
+        2208.5
+      ],
+      &quot;zoomAvgMs&quot;: 2380.47
+    },
+    {
+      &quot;testedAt&quot;: &quot;2026-07-25T18:12:18.029Z&quot;,
+      &quot;renderer&quot;: &quot;Diagram 2&quot;,
+      &quot;documentId&quot;: 42,
+      &quot;title&quot;: &quot;PMT Benchmark - 2,500 Entities&quot;,
+      &quot;route&quot;: &quot;#/diagram-2/42&quot;,
+      &quot;status&quot;: &quot;ok&quot;,
+      &quot;capped&quot;: false,
+      &quot;timeoutMs&quot;: 20000,
+      &quot;consoleErrors&quot;: [],
+      &quot;readyMs&quot;: 7487.8,
+      &quot;domNodeCount&quot;: 44664,
+      &quot;usedHeapBytes&quot;: 139000000,
+      &quot;svgDescendantCount&quot;: 43766,
+      &quot;canonicalObjectCount&quot;: 2501,
+      &quot;canonicalEntityCount&quot;: 2500,
+      &quot;canonicalRelationshipCount&quot;: 6250,
+      &quot;mountedObjectCount&quot;: 2501,
+      &quot;mountedRelationshipCount&quot;: 6250,
+      &quot;fullRenderCount&quot;: 1,
+      &quot;lastFrameDuration&quot;: 2128.3,
+      &quot;viewportHaloActive&quot;: false,
+      &quot;viewportHaloReason&quot;: &quot;fit&quot;,
+      &quot;viewportHaloObjectCoverage&quot;: &quot;100%&quot;,
+      &quot;viewportHaloRelationshipCoverage&quot;: &quot;100%&quot;,
+      &quot;viewportHaloTargetObjectCount&quot;: 2501,
+      &quot;viewportHaloTargetRelationshipCount&quot;: 6250,
+      &quot;overviewDetailLevel&quot;: &quot;low&quot;,
+      &quot;overviewDetailDuration&quot;: 1327.5,
+      &quot;relationshipRouteSectorCount&quot;: 900,
+      &quot;viewportHaloObjectSectorCount&quot;: 24,
+      &quot;viewportHaloRelationshipSectorCount&quot;: 24,
+      &quot;zoomSamples&quot;: [
+        3054.8,
+        2364.6,
+        2384.2
+      ],
+      &quot;zoomAvgMs&quot;: 2601.2
+    },
+    {
+      &quot;testedAt&quot;: &quot;2026-07-25T18:12:47.656Z&quot;,
+      &quot;renderer&quot;: &quot;Diagram 2&quot;,
+      &quot;documentId&quot;: 34,
+      &quot;title&quot;: &quot;PMT Benchmark - 3,000 Entities&quot;,
+      &quot;route&quot;: &quot;#/diagram-2/34&quot;,
+      &quot;status&quot;: &quot;ok&quot;,
+      &quot;capped&quot;: false,
+      &quot;timeoutMs&quot;: 20000,
+      &quot;consoleErrors&quot;: [],
+      &quot;readyMs&quot;: 10096.6,
+      &quot;domNodeCount&quot;: 53414,
+      &quot;usedHeapBytes&quot;: 148000000,
+      &quot;svgDescendantCount&quot;: 52516,
+      &quot;canonicalObjectCount&quot;: 3001,
+      &quot;canonicalEntityCount&quot;: 3000,
+      &quot;canonicalRelationshipCount&quot;: 7500,
+      &quot;mountedObjectCount&quot;: 3001,
+      &quot;mountedRelationshipCount&quot;: 7500,
+      &quot;fullRenderCount&quot;: 1,
+      &quot;lastFrameDuration&quot;: 2965.3,
+      &quot;viewportHaloActive&quot;: false,
+      &quot;viewportHaloReason&quot;: &quot;fit&quot;,
+      &quot;viewportHaloObjectCoverage&quot;: &quot;100%&quot;,
+      &quot;viewportHaloRelationshipCoverage&quot;: &quot;100%&quot;,
+      &quot;viewportHaloTargetObjectCount&quot;: 3001,
+      &quot;viewportHaloTargetRelationshipCount&quot;: 7500,
+      &quot;overviewDetailLevel&quot;: &quot;low&quot;,
+      &quot;overviewDetailDuration&quot;: 1906.8,
+      &quot;relationshipRouteSectorCount&quot;: 1100,
+      &quot;viewportHaloObjectSectorCount&quot;: 32,
+      &quot;viewportHaloRelationshipSectorCount&quot;: 32,
+      &quot;zoomSamples&quot;: [
+        3923.5,
+        3188.2,
+        3114.1
+      ],
+      &quot;zoomAvgMs&quot;: 3408.6
+    }
+  ],
+  &quot;matrix&quot;: {
+    &quot;generatedAt&quot;: &quot;2026-07-25T18:08:59.119Z&quot;,
+    &quot;relationshipDensity&quot;: 2.5,
+    &quot;diagrams&quot;: [
+      {
+        &quot;id&quot;: 38,
+        &quot;title&quot;: &quot;PMT Benchmark - 1 Entities&quot;,
+        &quot;entityCount&quot;: 1,
+        &quot;relationshipCount&quot;: 0,
+        &quot;columns&quot;: 1,
+        &quot;url&quot;: &quot;/uploads/richtext/pmt-benchmark-1-entities-20260726.svg&quot;,
+        &quot;filePath&quot;: &quot;C:\\PMT\\UploadedFiles\\richtext\\pmt-benchmark-1-entities-20260726.svg&quot;,
+        &quot;svgBytes&quot;: 3671
+      },
+      {
+        &quot;id&quot;: 39,
+        &quot;title&quot;: &quot;PMT Benchmark - 2 Entities&quot;,
+        &quot;entityCount&quot;: 2,
+        &quot;relationshipCount&quot;: 5,
+        &quot;columns&quot;: 2,
+        &quot;url&quot;: &quot;/uploads/richtext/pmt-benchmark-2-entities-20260726.svg&quot;,
+        &quot;filePath&quot;: &quot;C:\\PMT\\UploadedFiles\\richtext\\pmt-benchmark-2-entities-20260726.svg&quot;,
+        &quot;svgBytes&quot;: 6261
+      },
+      {
+        &quot;id&quot;: 40,
+        &quot;title&quot;: &quot;PMT Benchmark - 3 Entities&quot;,
+        &quot;entityCount&quot;: 3,
+        &quot;relationshipCount&quot;: 8,
+        &quot;columns&quot;: 3,
+        &quot;url&quot;: &quot;/uploads/richtext/pmt-benchmark-3-entities-20260726.svg&quot;,
+        &quot;filePath&quot;: &quot;C:\\PMT\\UploadedFiles\\richtext\\pmt-benchmark-3-entities-20260726.svg&quot;,
+        &quot;svgBytes&quot;: 8478
+      },
+      {
+        &quot;id&quot;: 35,
+        &quot;title&quot;: &quot;PMT Benchmark - 20 Entities&quot;,
+        &quot;entityCount&quot;: 20,
+        &quot;relationshipCount&quot;: 50,
+        &quot;columns&quot;: 5,
+        &quot;url&quot;: &quot;/uploads/richtext/pmt-benchmark-20-entities-20260726.svg&quot;,
+        &quot;filePath&quot;: &quot;C:\\PMT\\UploadedFiles\\richtext\\pmt-benchmark-20-entities-20260726.svg&quot;,
+        &quot;svgBytes&quot;: 44403
+      },
+      {
+        &quot;id&quot;: 36,
+        &quot;title&quot;: &quot;PMT Benchmark - 30 Entities&quot;,
+        &quot;entityCount&quot;: 30,
+        &quot;relationshipCount&quot;: 75,
+        &quot;columns&quot;: 6,
+        &quot;url&quot;: &quot;/uploads/richtext/pmt-benchmark-30-entities-20260726.svg&quot;,
+        &quot;filePath&quot;: &quot;C:\\PMT\\UploadedFiles\\richtext\\pmt-benchmark-30-entities-20260726.svg&quot;,
+        &quot;svgBytes&quot;: 65593
+      },
+      {
+        &quot;id&quot;: 37,
+        &quot;title&quot;: &quot;PMT Benchmark - 40 Entities&quot;,
+        &quot;entityCount&quot;: 40,
+        &quot;relationshipCount&quot;: 100,
+        &quot;columns&quot;: 8,
+        &quot;url&quot;: &quot;/uploads/richtext/pmt-benchmark-40-entities-20260726.svg&quot;,
+        &quot;filePath&quot;: &quot;C:\\PMT\\UploadedFiles\\richtext\\pmt-benchmark-40-entities-20260726.svg&quot;,
+        &quot;svgBytes&quot;: 86792
+      },
+      {
+        &quot;id&quot;: 26,
+        &quot;title&quot;: &quot;PMT Benchmark - 50 Entities&quot;,
+        &quot;entityCount&quot;: 50,
+        &quot;relationshipCount&quot;: 125,
+        &quot;columns&quot;: 10,
+        &quot;url&quot;: &quot;/uploads/richtext/pmt-benchmark-50-entities-20260726.svg&quot;,
+        &quot;filePath&quot;: &quot;C:\\PMT\\UploadedFiles\\richtext\\pmt-benchmark-50-entities-20260726.svg&quot;,
+        &quot;svgBytes&quot;: 107987
+      },
+      {
+        &quot;id&quot;: 27,
+        &quot;title&quot;: &quot;PMT Benchmark - 100 Entities&quot;,
+        &quot;entityCount&quot;: 100,
+        &quot;relationshipCount&quot;: 250,
+        &quot;columns&quot;: 14,
+        &quot;url&quot;: &quot;/uploads/richtext/pmt-benchmark-100-entities-20260726.svg&quot;,
+        &quot;filePath&quot;: &quot;C:\\PMT\\UploadedFiles\\richtext\\pmt-benchmark-100-entities-20260726.svg&quot;,
+        &quot;svgBytes&quot;: 213983
+      },
+      {
+        &quot;id&quot;: 28,
+        &quot;title&quot;: &quot;PMT Benchmark - 200 Entities&quot;,
+        &quot;entityCount&quot;: 200,
+        &quot;relationshipCount&quot;: 500,
+        &quot;columns&quot;: 22,
+        &quot;url&quot;: &quot;/uploads/richtext/pmt-benchmark-200-entities-20260726.svg&quot;,
+        &quot;filePath&quot;: &quot;C:\\PMT\\UploadedFiles\\richtext\\pmt-benchmark-200-entities-20260726.svg&quot;,
+        &quot;svgBytes&quot;: 426083
+      },
+      {
+        &quot;id&quot;: 29,
+        &quot;title&quot;: &quot;PMT Benchmark - 250 Entities&quot;,
+        &quot;entityCount&quot;: 250,
+        &quot;relationshipCount&quot;: 625,
+        &quot;columns&quot;: 22,
+        &quot;url&quot;: &quot;/uploads/richtext/pmt-benchmark-250-entities-20260726.svg&quot;,
+        &quot;filePath&quot;: &quot;C:\\PMT\\UploadedFiles\\richtext\\pmt-benchmark-250-entities-20260726.svg&quot;,
+        &quot;svgBytes&quot;: 532146
+      },
+      {
+        &quot;id&quot;: 30,
+        &quot;title&quot;: &quot;PMT Benchmark - 500 Entities&quot;,
+        &quot;entityCount&quot;: 500,
+        &quot;relationshipCount&quot;: 1250,
+        &quot;columns&quot;: 30,
+        &quot;url&quot;: &quot;/uploads/richtext/pmt-benchmark-500-entities-20260726.svg&quot;,
+        &quot;filePath&quot;: &quot;C:\\PMT\\UploadedFiles\\richtext\\pmt-benchmark-500-entities-20260726.svg&quot;,
+        &quot;svgBytes&quot;: 1062413
+      },
+      {
+        &quot;id&quot;: 31,
+        &quot;title&quot;: &quot;PMT Benchmark - 750 Entities&quot;,
+        &quot;entityCount&quot;: 750,
+        &quot;relationshipCount&quot;: 1875,
+        &quot;columns&quot;: 40,
+        &quot;url&quot;: &quot;/uploads/richtext/pmt-benchmark-750-entities-20260726.svg&quot;,
+        &quot;filePath&quot;: &quot;C:\\PMT\\UploadedFiles\\richtext\\pmt-benchmark-750-entities-20260726.svg&quot;,
+        &quot;svgBytes&quot;: 1592716
+      },
+      {
+        &quot;id&quot;: 32,
+        &quot;title&quot;: &quot;PMT Benchmark - 1,000 Entities&quot;,
+        &quot;entityCount&quot;: 1000,
+        &quot;relationshipCount&quot;: 2500,
+        &quot;columns&quot;: 40,
+        &quot;url&quot;: &quot;/uploads/richtext/pmt-benchmark-1000-entities-20260726.svg&quot;,
+        &quot;filePath&quot;: &quot;C:\\PMT\\UploadedFiles\\richtext\\pmt-benchmark-1000-entities-20260726.svg&quot;,
+        &quot;svgBytes&quot;: 2123062
+      },
+      {
+        &quot;id&quot;: 41,
+        &quot;title&quot;: &quot;PMT Benchmark - 1,500 Entities&quot;,
+        &quot;entityCount&quot;: 1500,
+        &quot;relationshipCount&quot;: 3750,
+        &quot;columns&quot;: 56,
+        &quot;url&quot;: &quot;/uploads/richtext/pmt-benchmark-1500-entities-20260726.svg&quot;,
+        &quot;filePath&quot;: &quot;C:\\PMT\\UploadedFiles\\richtext\\pmt-benchmark-1500-entities-20260726.svg&quot;,
+        &quot;svgBytes&quot;: 3184521
+      },
+      {
+        &quot;id&quot;: 33,
+        &quot;title&quot;: &quot;PMT Benchmark - 2,000 Entities&quot;,
+        &quot;entityCount&quot;: 2000,
+        &quot;relationshipCount&quot;: 5000,
+        &quot;columns&quot;: 56,
+        &quot;url&quot;: &quot;/uploads/richtext/pmt-benchmark-2000-entities-20260726.svg&quot;,
+        &quot;filePath&quot;: &quot;C:\\PMT\\UploadedFiles\\richtext\\pmt-benchmark-2000-entities-20260726.svg&quot;,
+        &quot;svgBytes&quot;: 4245825
+      },
+      {
+        &quot;id&quot;: 42,
+        &quot;title&quot;: &quot;PMT Benchmark - 2,500 Entities&quot;,
+        &quot;entityCount&quot;: 2500,
+        &quot;relationshipCount&quot;: 6250,
+        &quot;columns&quot;: 70,
+        &quot;url&quot;: &quot;/uploads/richtext/pmt-benchmark-2500-entities-20260726.svg&quot;,
+        &quot;filePath&quot;: &quot;C:\\PMT\\UploadedFiles\\richtext\\pmt-benchmark-2500-entities-20260726.svg&quot;,
+        &quot;svgBytes&quot;: 5307487
+      },
+      {
+        &quot;id&quot;: 34,
+        &quot;title&quot;: &quot;PMT Benchmark - 3,000 Entities&quot;,
+        &quot;entityCount&quot;: 3000,
+        &quot;relationshipCount&quot;: 7500,
+        &quot;columns&quot;: 70,
+        &quot;url&quot;: &quot;/uploads/richtext/pmt-benchmark-3000-entities-20260726.svg&quot;,
+        &quot;filePath&quot;: &quot;C:\\PMT\\UploadedFiles\\richtext\\pmt-benchmark-3000-entities-20260726.svg&quot;,
+        &quot;svgBytes&quot;: 6368887
+      }
+    ]
+  }
+}</pre>
+</main>
+</body>
+</html>
