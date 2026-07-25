@@ -87,7 +87,19 @@ export const preferenceKeys = Object.freeze({
   diagramVisibility: "pmt-diagram-visibility",
   diagramSort: "pmt-diagram-sort",
   diagramCreatorFilters: "pmt-diagram-creator-filters",
-  diagramLastEditorFilters: "pmt-diagram-last-editor-filters"
+  diagramLastEditorFilters: "pmt-diagram-last-editor-filters",
+  diagram2ViewMode: "pmt-diagram2-view-mode",
+  diagram2TreePaneWidth: "pmt-diagram2-tree-pane-width",
+  diagram2TreePaneHidden: "pmt-diagram2-tree-pane-hidden",
+  diagram2Search: "pmt-diagram2-search",
+  diagram2Project: "pmt-diagram2-project",
+  diagram2Sprint: "pmt-diagram2-sprint",
+  diagram2Visibility: "pmt-diagram2-visibility",
+  diagram2Sort: "pmt-diagram2-sort",
+  diagram2CreatorFilters: "pmt-diagram2-creator-filters",
+  diagram2LastEditorFilters: "pmt-diagram2-last-editor-filters",
+  diagram2SelectedDocument: "pmt-diagram2-selected-document",
+  diagram2ViewerZoom: "pmt-diagram2-viewer-zoom"
 });
 
 const impersonationPreferenceBackupKey = "pmt-impersonation-admin-preferences";

@@ -75,7 +75,7 @@ import { createBoardFeature } from "./features/board/board.js?v=20260722-rich-en
 import { createBugsFeature } from "./features/bugs/bugs.js?v=20260724-day36-v3";
 import { createDashboardFeature } from "./features/dashboard/dashboard.js?v=release-notes-2026-07-25-day-37-46c1811ffe7e";
 import { createDiagramFeature } from "./features/diagram/diagram.js?v=20260725-diagram2-day3-v1";
-import { createDiagram2Feature } from "./features/diagram2/diagram2.js?v=20260725-diagram2-day4-v1";
+import { createDiagram2Feature } from "./features/diagram2/diagram2.js?v=20260725-diagram2-day5-v1";
 import { createDocumentationFeature } from "./features/documentation/documentation.js?v=20260725-day36-v5";
 import {
   createGanttFeature,
@@ -538,7 +538,7 @@ const diagramFeature = createDiagramFeature({
   moveDiagramDocument: moveDiagramBackingDocument,
   deleteItem
 });
-const diagram2Feature = createDiagram2Feature({ app });
+const diagram2Feature = createDiagram2Feature({ app, notify: showToast });
 const wfhScheduleFeature = createWfhScheduleFeature({
   app,
   render,
@@ -844,6 +844,9 @@ function contentRouteForAction(action, id) {
   }
   if (action === "select-diagram-card" || action === "select-diagram-document") {
     return state.blogs.some(blog => blog.id === id) ? routeForContent("diagram", id) : "";
+  }
+  if (action === "select-diagram2-card" || action === "select-diagram2-document") {
+    return state.blogs.some(blog => blog.id === id) ? routeForContent("diagram-2", id) : "";
   }
 
   if (action === "view-personal-log") {
