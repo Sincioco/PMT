@@ -45,9 +45,20 @@ const defaultFieldMappingTableStyle = {
   uiTextColor: "#172b4d",
   uiFill: "#ffffff",
   databaseTextColor: "#172b4d",
-  databaseFill: "#ffffff"
+  databaseFill: "#ffffff",
+  fieldMappingHighlightColor: "#facc15",
+  fieldMappingHighlightStrokeWidth: 9
 };
-const fieldMappingTableColorStyleNames = new Set(Object.keys(defaultFieldMappingTableStyle));
+const fieldMappingTableColorStyleNames = new Set([
+  "headerTextColor",
+  "headerFill",
+  "uiTextColor",
+  "uiFill",
+  "databaseTextColor",
+  "databaseFill",
+  "fieldMappingHighlightColor"
+]);
+const fieldMappingTableNumericStyleNames = new Set(["fieldMappingHighlightStrokeWidth"]);
 const entityRelationshipsSelectionId = "entity-relationships";
 const entityRelationshipsObjectType = "entity-relationships";
 const entityRelationshipSelectionPrefix = "entity-relationship:";
@@ -127,7 +138,9 @@ const annotationTemplateStyleFields = {
     "uiTextColor",
     "uiFill",
     "databaseTextColor",
-    "databaseFill"
+    "databaseFill",
+    "fieldMappingHighlightColor",
+    "fieldMappingHighlightStrokeWidth"
   ]
 };
 
@@ -940,7 +953,13 @@ function normalizeAnnotationFieldMappingTableStyle(input) {
     uiTextColor: safeColor(source.uiTextColor, defaultFieldMappingTableStyle.uiTextColor),
     uiFill: safeColor(source.uiFill, defaultFieldMappingTableStyle.uiFill),
     databaseTextColor: safeColor(source.databaseTextColor, defaultFieldMappingTableStyle.databaseTextColor),
-    databaseFill: safeColor(source.databaseFill, defaultFieldMappingTableStyle.databaseFill)
+    databaseFill: safeColor(source.databaseFill, defaultFieldMappingTableStyle.databaseFill),
+    fieldMappingHighlightColor: safeColor(source.fieldMappingHighlightColor, defaultFieldMappingTableStyle.fieldMappingHighlightColor),
+    fieldMappingHighlightStrokeWidth: clampNumber(
+      positiveNumber(source.fieldMappingHighlightStrokeWidth, defaultFieldMappingTableStyle.fieldMappingHighlightStrokeWidth),
+      1,
+      40
+    )
   };
 }
 
@@ -3414,7 +3433,6 @@ function createAnnotationDialog(context) {
     let fieldMappingAttentionHoverKey = "";
     let fieldMappingAttentionActiveKey = "";
     let fieldMappingAttentionShownKey = "";
-    let fieldMappingAttentionTimer = 0;
     let fieldMappingAttentionClearTimer = 0;
     let lastFieldMappingPointerKey = "";
     let lastFieldMappingPointerAt = 0;
@@ -3503,7 +3521,6 @@ function createAnnotationDialog(context) {
       if (historyTimer) window.clearTimeout(historyTimer);
       if (textPreviewTimer) window.clearTimeout(textPreviewTimer);
       if (cropAdjustmentSelectionTimer) window.clearTimeout(cropAdjustmentSelectionTimer);
-      if (fieldMappingAttentionTimer) window.clearTimeout(fieldMappingAttentionTimer);
       if (fieldMappingAttentionClearTimer) window.clearTimeout(fieldMappingAttentionClearTimer);
       cancelPendingCanvasZoom();
       disposeCanvasZoom();
@@ -4076,6 +4093,12 @@ function createAnnotationDialog(context) {
         const picker = dialog.querySelector(`[data-annotation-color-picker='${name}']`);
         const trigger = picker?.querySelector("[data-annotation-color-trigger]");
         if (trigger) trigger.disabled = !singleFieldMappingTable || singleFieldMappingTable.locked;
+      });
+      fieldMappingTableNumericStyleNames.forEach(name => {
+        syncStyleControl(name, singleFieldMappingTable?.[name] || defaultFieldMappingTableStyle[name]);
+        dialog.querySelectorAll(`[data-annotation-style='${name}']`).forEach(control => {
+          control.disabled = !singleFieldMappingTable || singleFieldMappingTable.locked;
+        });
       });
       dialog.querySelectorAll("[data-annotation-export-field-mapping-table-csv], [data-annotation-export-field-mapping-table-excel]").forEach(button => {
         button.disabled = !singleFieldMappingTable || !singleFieldMappingTable.rows?.length;
@@ -6514,10 +6537,6 @@ function createAnnotationDialog(context) {
     };
 
     const resetFieldMappingAttention = (resetShown = true) => {
-      if (fieldMappingAttentionTimer) {
-        window.clearTimeout(fieldMappingAttentionTimer);
-        fieldMappingAttentionTimer = 0;
-      }
       clearFieldMappingAttentionArrow();
       fieldMappingAttentionHoverKey = "";
       if (resetShown) fieldMappingAttentionShownKey = "";
@@ -6534,15 +6553,15 @@ function createAnnotationDialog(context) {
       }, 3000);
     };
 
-    const activateFieldMappingAttention = key => {
+    const activateFieldMappingAttention = (key, renderNow = true) => {
       if (!key) {
         resetFieldMappingAttention(true);
-        return;
+        return false;
       }
-      if (fieldMappingAttentionTimer) {
-        window.clearTimeout(fieldMappingAttentionTimer);
-        fieldMappingAttentionTimer = 0;
-      }
+      if (key === fieldMappingAttentionHoverKey
+          && key === fieldMappingAttentionShownKey
+          && !fieldMappingAttentionActiveKey) return false;
+      if (key === fieldMappingAttentionActiveKey) return false;
       if (fieldMappingAttentionClearTimer) {
         window.clearTimeout(fieldMappingAttentionClearTimer);
         fieldMappingAttentionClearTimer = 0;
@@ -6550,8 +6569,9 @@ function createAnnotationDialog(context) {
       fieldMappingAttentionHoverKey = key;
       fieldMappingAttentionActiveKey = key;
       fieldMappingAttentionShownKey = key;
-      renderFieldMappingAttentionArrow();
+      if (renderNow) renderFieldMappingAttentionArrow();
       queueFieldMappingAttentionClear(key);
+      return true;
     };
 
     const boundsCenter = bounds => ({
@@ -6609,48 +6629,63 @@ function createAnnotationDialog(context) {
       `;
     };
 
+    const fieldMappingCellBounds = cell => ({
+      x: finiteNumber(cell.dataset.annotationFieldMappingRowX, finiteNumber(cell.dataset.annotationFieldMappingCellX, Number.NaN)),
+      y: finiteNumber(cell.dataset.annotationFieldMappingRowY, finiteNumber(cell.dataset.annotationFieldMappingCellY, Number.NaN)),
+      width: positiveNumber(cell.dataset.annotationFieldMappingRowWidth, positiveNumber(cell.dataset.annotationFieldMappingCellWidth, 0)),
+      height: positiveNumber(cell.dataset.annotationFieldMappingRowHeight, positiveNumber(cell.dataset.annotationFieldMappingCellHeight, 0))
+    });
+
+    const fieldMappingDatabaseFieldBounds = targets =>
+      annotationEntityFieldBounds(targets.databaseEntity, targets.databaseField)
+        || annotationObjectVisualBounds(targets.databaseEntity)
+        || annotationObjectBounds(targets.databaseEntity);
+
+    const fieldMappingAttentionArrowToBounds = (rowBounds, targetBounds) => {
+      if (!targetBounds) return "";
+      const targetCenter = boundsCenter(targetBounds);
+      const start = boundsEdgePointToward(rowBounds, targetCenter);
+      const end = boundsEdgePointToward(targetBounds, start);
+      return fieldMappingAttentionArrowSvg(start, end);
+    };
+
+    const fieldMappingAttentionArrowToPoint = (rowBounds, targetPoint) => {
+      if (!targetPoint) return "";
+      const start = boundsEdgePointToward(rowBounds, targetPoint);
+      return fieldMappingAttentionArrowSvg(start, targetPoint);
+    };
+
     const renderFieldMappingAttentionArrow = () => {
       removeFieldMappingAttentionArrow();
       if (!fieldMappingAttentionActiveKey) return;
       const cell = canvas.querySelector(`[data-annotation-field-mapping-row-key="${CSS.escape(fieldMappingAttentionActiveKey)}"]`);
       if (!cell) return;
-      const rowBounds = {
-        x: finiteNumber(cell.dataset.annotationFieldMappingCellX, finiteNumber(cell.dataset.annotationFieldMappingRowX, Number.NaN)),
-        y: finiteNumber(cell.dataset.annotationFieldMappingCellY, finiteNumber(cell.dataset.annotationFieldMappingRowY, Number.NaN)),
-        width: positiveNumber(cell.dataset.annotationFieldMappingCellWidth, positiveNumber(cell.dataset.annotationFieldMappingRowWidth, 0)),
-        height: positiveNumber(cell.dataset.annotationFieldMappingCellHeight, positiveNumber(cell.dataset.annotationFieldMappingRowHeight, 0))
-      };
-      const fieldBounds = fieldMappingNavigationBounds(cell);
+      const rowBounds = fieldMappingCellBounds(cell);
       if (!Number.isFinite(rowBounds.x)
         || !Number.isFinite(rowBounds.y)
         || !rowBounds.width
-        || !rowBounds.height
-        || !fieldBounds) return;
+        || !rowBounds.height) return;
       const targets = fieldMappingTargets(cell);
-      const databaseFieldPoint = fieldMappingCellKind(cell) === "database"
-        ? annotationEntityFieldLabelPoint(targets.databaseEntity, targets.databaseField)
-        : null;
-      const fieldTarget = databaseFieldPoint || boundsCenter(fieldBounds);
-      const start = boundsEdgePointToward(rowBounds, fieldTarget);
-      const end = databaseFieldPoint || boundsEdgePointToward(fieldBounds, start);
-      const markup = fieldMappingAttentionArrowSvg(start, end);
+      const fieldBounds = annotationObjectVisualBounds(targets.fieldRectangle)
+        || annotationObjectBounds(targets.fieldRectangle);
+      const databaseFieldPoint = annotationEntityFieldLabelPoint(targets.databaseEntity, targets.databaseField);
+      const databaseFieldBounds = fieldMappingDatabaseFieldBounds(targets);
+      const markup = [
+        fieldMappingAttentionArrowToBounds(rowBounds, fieldBounds),
+        databaseFieldPoint
+          ? fieldMappingAttentionArrowToPoint(rowBounds, databaseFieldPoint)
+          : fieldMappingAttentionArrowToBounds(rowBounds, databaseFieldBounds)
+      ].filter(Boolean).slice(0, 2).join("");
       if (markup) canvas.insertAdjacentHTML("beforeend", markup);
     };
 
-    const scheduleFieldMappingAttention = cell => {
+    const scheduleFieldMappingAttention = (cell, renderNow = true) => {
       const key = fieldMappingCellKey(cell);
       if (!key) {
         resetFieldMappingAttention(true);
-        return;
+        return false;
       }
-      if (key === fieldMappingAttentionHoverKey) return;
-      resetFieldMappingAttention(true);
-      fieldMappingAttentionHoverKey = key;
-      fieldMappingAttentionTimer = window.setTimeout(() => {
-        fieldMappingAttentionTimer = 0;
-        if (fieldMappingAttentionHoverKey !== key || fieldMappingAttentionShownKey === key) return;
-        activateFieldMappingAttention(key);
-      }, 3000);
+      return activateFieldMappingAttention(key, renderNow);
     };
 
     const fieldMappingTargets = cell => {
@@ -6699,9 +6734,12 @@ function createAnnotationDialog(context) {
     };
 
     const setFieldMappingHover = cell => {
-      scheduleFieldMappingAttention(cell);
+      const attentionChanged = cell ? scheduleFieldMappingAttention(cell, false) : (resetFieldMappingAttention(true), false);
       const nextIds = cell ? mappingCellHoverIds(cell) : new Set();
-      if (sameIdSet(fieldMappingHoverIds, nextIds)) return;
+      if (sameIdSet(fieldMappingHoverIds, nextIds)) {
+        if (attentionChanged) renderFieldMappingAttentionArrow();
+        return;
+      }
       fieldMappingHoverIds = nextIds;
       renderWithWorkspaceExpansion();
     };
@@ -6761,17 +6799,7 @@ function createAnnotationDialog(context) {
       const targets = fieldMappingTargets(cell);
       if (!targets.fieldRectangle || !targets.ids.size) return false;
       const key = fieldMappingCellKey(cell);
-      if (fieldMappingAttentionTimer) {
-        window.clearTimeout(fieldMappingAttentionTimer);
-        fieldMappingAttentionTimer = 0;
-      }
-      if (fieldMappingAttentionClearTimer) {
-        window.clearTimeout(fieldMappingAttentionClearTimer);
-        fieldMappingAttentionClearTimer = 0;
-      }
-      fieldMappingAttentionHoverKey = key;
-      fieldMappingAttentionActiveKey = key;
-      fieldMappingAttentionShownKey = key;
+      activateFieldMappingAttention(key, false);
       fieldMappingHoverIds = new Set();
       fieldMappingSelectedIds = new Set(targets.ids);
       selectedIds = new Set(targets.ids);
@@ -6780,7 +6808,6 @@ function createAnnotationDialog(context) {
       setInspectorTab("entity");
       setTool("select");
       renderWithWorkspaceExpansion();
-      if (key) queueFieldMappingAttentionClear(key);
       if (centerTarget) {
         window.setTimeout(() => {
           centerBoundsInWorkspace(fieldMappingNavigationBounds(canvas.querySelector(`[data-annotation-field-mapping-row-key="${CSS.escape(key)}"]`)) || fieldMappingNavigationBounds(cell));
@@ -9022,6 +9049,8 @@ function annotationDialogHtml(context = {}) {
                 ${annotationColorFieldHtml("uiFill", "UI field background", "UI Field Background Color", defaultFieldMappingTableStyle.uiFill, "background")}
                 ${annotationColorFieldHtml("databaseTextColor", "Database text", "Database Text Color", defaultFieldMappingTableStyle.databaseTextColor, "font")}
                 ${annotationColorFieldHtml("databaseFill", "Database background", "Database Background Color", defaultFieldMappingTableStyle.databaseFill, "background")}
+                ${annotationColorFieldHtml("fieldMappingHighlightColor", "Highlight color", "Highlight Color", defaultFieldMappingTableStyle.fieldMappingHighlightColor, "outline")}
+                <label class="field"><span>Highlight thickness</span><input type="number" min="1" max="40" step="1" value="${defaultFieldMappingTableStyle.fieldMappingHighlightStrokeWidth}" data-annotation-style="fieldMappingHighlightStrokeWidth"></label>
               </div>
               <div class="image-annotation-field-mapping-actions">
                 <button type="button" data-annotation-export-field-mapping-table-excel>Export to Excel (native)</button>
@@ -9503,6 +9532,7 @@ function annotationCanvasSvg(
     ? selectionHiddenIds
     : new Set(selectionHiddenIds || []);
   const activeFieldMappingIds = new Set([...fieldMappingSelectedIds, ...hoverIds]);
+  const legacyFieldMappingHoverIds = new Set();
   const normalSelectedIds = new Set([...selectedIds].filter(id => !fieldMappingSelectedIds.has(id)));
   const raisedIds = new Set([...normalSelectedIds, ...activeFieldMappingIds]);
   const raisedEntities = allVisibleObjects.filter(object => object.type === "entity" && raisedIds.has(object.id));
@@ -9525,9 +9555,9 @@ function annotationCanvasSvg(
     manualRoutes: state.manualEntityRelationshipRoutes,
     compactRouting: state.compactEntityRelationshipRouting,
     relationshipRenderModel,
-    hoverIds
+    hoverIds: legacyFieldMappingHoverIds
   };
-  const objectRenderOptions = { exportMode: false, zoom, clipKey, fieldMappingHoverIds: hoverIds, allObjects: allVisibleObjects };
+  const objectRenderOptions = { exportMode: false, zoom, clipKey, fieldMappingHoverIds: legacyFieldMappingHoverIds, allObjects: allVisibleObjects };
   const relationships = annotationEntityRelationshipsSvg(allVisibleObjects, state.relationshipStyle, {
     ...relationshipOptions,
     fieldRectangleRelationships: "exclude"
@@ -9563,12 +9593,13 @@ function annotationCanvasSvg(
     null,
     allVisibleObjects
   );
-  const fieldMappingSelection = annotationFieldMappingSelectionSvg(state, activeFieldMappingIds, zoom);
+  const fieldMappingHighlight = annotationFieldMappingAttentionHighlightSvg(state, activeFieldMappingIds, zoom, relationshipRenderModel);
+  const fieldMappingSelection = annotationFieldMappingSelectionSvg(state, fieldMappingSelectedIds, zoom, relationshipRenderModel);
   const crop = cropPreview && !hiddenSelectionIds.has(cropPreview.imageId)
     ? annotationCropPreviewSvg(cropPreview, state, zoom)
     : "";
   const marquee = marqueePreview ? annotationMarqueeSvg(marqueePreview) : "";
-  return `${annotationCanvasDefs(state, zoom)}${background}${belowRelationships}${relationships}${betweenRelationships}${fieldRelationships}${aboveRelationships}${grid}${raised}${selection}${fieldMappingSelection}${marquee}${crop}`;
+  return `${annotationCanvasDefs(state, zoom)}${background}${belowRelationships}${relationships}${betweenRelationships}${fieldRelationships}${aboveRelationships}${grid}${raised}${selection}${fieldMappingHighlight}${fieldMappingSelection}${marquee}${crop}`;
 }
 
 export function annotationEntityRelationshipsSvg(objectsInput, relationshipStyleInput = null, options = {}) {
@@ -9614,7 +9645,7 @@ export function annotationEntityRelationshipsSvg(objectsInput, relationshipStyle
   return `<g class="image-annotation-entity-relationships${selected ? " is-selected" : ""}"${interaction}>${visibleRoutes}${groupSelection}${body}</g>`;
 }
 
-export function annotationFieldMappingSelectionSvg(inputState, selectedIdInput, zoomInput = 1) {
+export function annotationFieldMappingSelectionSvg(inputState, selectedIdInput, zoomInput = 1, relationshipRenderModelInput = null) {
   const state = normalizeAnnotationState(inputState);
   const selectedIds = selectedIdInput instanceof Set
     ? selectedIdInput
@@ -9622,13 +9653,13 @@ export function annotationFieldMappingSelectionSvg(inputState, selectedIdInput, 
   if (!selectedIds.size) return "";
   const visibleObjects = annotationVisibleObjects(state);
   const zoom = Math.max(minimumZoom, positiveNumber(zoomInput, 1));
-  const relationshipRenderModel = state.hideAllEntityRelationships
+  const relationshipRenderModel = relationshipRenderModelInput || (state.hideAllEntityRelationships
     ? null
     : annotationEntityRelationshipRenderModel(visibleObjects, state.relationshipStyle, {
         allowOverlappingLines: state.allowOverlappingEntityLines,
         manualRoutes: state.manualEntityRelationshipRoutes,
         compactRouting: state.compactEntityRelationshipRouting
-      });
+      }));
   const relationships = relationshipRenderModel
     ? relationshipRenderModel.renderedRelationships
         .filter(item => selectedIds.has(item.relationship.id))
@@ -9641,6 +9672,97 @@ export function annotationFieldMappingSelectionSvg(inputState, selectedIdInput, 
     .join("");
   return relationships || selection
     ? `<g class="image-annotation-field-mapping-selection-overlay" data-annotation-field-mapping-selection-overlay="true" pointer-events="none">${relationships}${selection}</g>`
+    : "";
+}
+
+export function annotationFieldMappingAttentionHighlightSvg(inputState, selectedIdInput, zoomInput = 1, relationshipRenderModelInput = null) {
+  const state = normalizeAnnotationState(inputState);
+  const selectedIds = selectedIdInput instanceof Set
+    ? selectedIdInput
+    : new Set(selectedIdInput || []);
+  if (!selectedIds.size) return "";
+  const visibleObjects = annotationVisibleObjects(state);
+  const highlightStyle = annotationFieldMappingAttentionHighlightStyle(visibleObjects, selectedIds);
+  const relationshipRenderModel = relationshipRenderModelInput || (state.hideAllEntityRelationships
+    ? null
+    : annotationEntityRelationshipRenderModel(visibleObjects, state.relationshipStyle, {
+        allowOverlappingLines: state.allowOverlappingEntityLines,
+        manualRoutes: state.manualEntityRelationshipRoutes,
+        compactRouting: state.compactEntityRelationshipRouting
+      }));
+  const renderedRelationships = relationshipRenderModel?.renderedRelationships || [];
+  const highlightedObjectIds = new Set();
+  const outlines = [];
+  const traces = [];
+  renderedRelationships
+    .filter(item => selectedIds.has(item.relationship.id) && annotationRelationshipUsesFieldRectangle(item.relationship))
+    .forEach(item => {
+      const relationship = item.relationship;
+      const sourceIsFieldRectangle = isAnnotationFieldRectangle(relationship.source);
+      const fieldRectangle = sourceIsFieldRectangle ? relationship.source : relationship.target;
+      const databaseEntity = sourceIsFieldRectangle ? relationship.target : relationship.source;
+      if (fieldRectangle && !highlightedObjectIds.has(fieldRectangle.id)) {
+        highlightedObjectIds.add(fieldRectangle.id);
+        outlines.push(annotationFieldMappingAttentionHighlightRectSvg(fieldRectangle, highlightStyle, "field-rectangle"));
+      }
+      if (databaseEntity && !isAnnotationFieldRectangle(databaseEntity) && !highlightedObjectIds.has(databaseEntity.id)) {
+        highlightedObjectIds.add(databaseEntity.id);
+        outlines.push(annotationFieldMappingAttentionHighlightRectSvg(databaseEntity, highlightStyle, "entity"));
+      }
+      traces.push(annotationFieldMappingAttentionHighlightTraceSvg(item.geometry, item.style, highlightStyle));
+    });
+  const body = `${outlines.join("")}${traces.join("")}`;
+  return body
+    ? `<g class="image-annotation-field-mapping-attention-highlight" data-annotation-field-mapping-attention-highlight="true" style="color:${escapeXmlAttr(highlightStyle.color)}" pointer-events="none">${body}</g>`
+    : "";
+}
+
+function annotationFieldMappingAttentionHighlightStyle(visibleObjects, selectedIds) {
+  const table = (visibleObjects || []).find(object =>
+    isAnnotationFieldMappingTable(object)
+    && Array.isArray(object.rows)
+    && object.rows.some(row => selectedIds.has(row.uiEntityId)));
+  const style = normalizeAnnotationFieldMappingTableStyle(table || {});
+  return {
+    color: style.fieldMappingHighlightColor,
+    strokeWidth: style.fieldMappingHighlightStrokeWidth
+  };
+}
+
+function annotationFieldMappingAttentionHighlightRectSvg(object, highlightStyle, kind) {
+  const bounds = annotationObjectVisualBounds(object) || annotationObjectBounds(object);
+  if (!bounds) return "";
+  const sourceStrokeWidth = object.outlineVisible === false
+    ? 0
+    : positiveNumber(object.strokeWidth, defaultStyles.strokeWidth);
+  const highlightStrokeWidth = positiveNumber(highlightStyle?.strokeWidth, defaultFieldMappingTableStyle.fieldMappingHighlightStrokeWidth);
+  const offset = (sourceStrokeWidth / 2) + (highlightStrokeWidth / 2);
+  const radius = Math.min(4, Math.max(0, Math.min(bounds.width, bounds.height) / 4));
+  return `<rect class="image-annotation-field-mapping-attention-rect is-${kind}" x="${formatNumber(bounds.x - offset)}" y="${formatNumber(bounds.y - offset)}" width="${formatNumber(bounds.width + (offset * 2))}" height="${formatNumber(bounds.height + (offset * 2))}" rx="${formatNumber(radius)}" ry="${formatNumber(radius)}" fill="none" stroke-width="${formatNumber(highlightStrokeWidth)}" pointer-events="none"></rect>`;
+}
+
+function annotationFieldMappingAttentionHighlightTraceSvg(geometryInput, styleInput = null, highlightStyle = null) {
+  const points = Array.isArray(geometryInput?.points) ? geometryInput.points : [];
+  if (points.length < 2) return "";
+  const sourceStrokeWidth = positiveNumber(styleInput?.strokeWidth, defaultEntityRelationshipStyle.strokeWidth);
+  const highlightStrokeWidth = positiveNumber(highlightStyle?.strokeWidth, defaultFieldMappingTableStyle.fieldMappingHighlightStrokeWidth);
+  const offset = (sourceStrokeWidth / 2) + (highlightStrokeWidth / 2);
+  const trim = highlightStrokeWidth * 0.45;
+  const segments = points.slice(0, -1).map((point, index) => {
+    const next = points[index + 1];
+    const dx = finiteNumber(next?.x, 0) - finiteNumber(point?.x, 0);
+    const dy = finiteNumber(next?.y, 0) - finiteNumber(point?.y, 0);
+    const length = Math.hypot(dx, dy);
+    if (length < annotationCoordinateTolerance) return "";
+    const unitX = dx / length;
+    const unitY = dy / length;
+    const normalX = -dy / length;
+    const normalY = dx / length;
+    const segmentTrim = Math.min(trim, length / 3);
+    return `<line class="image-annotation-field-mapping-attention-line" x1="${formatNumber(point.x + (normalX * offset) + (unitX * segmentTrim))}" y1="${formatNumber(point.y + (normalY * offset) + (unitY * segmentTrim))}" x2="${formatNumber(next.x + (normalX * offset) - (unitX * segmentTrim))}" y2="${formatNumber(next.y + (normalY * offset) - (unitY * segmentTrim))}" stroke-width="${formatNumber(highlightStrokeWidth)}" pointer-events="none"></line>`;
+  }).join("");
+  return segments
+    ? `<g data-annotation-field-mapping-attention-trace="true">${segments}</g>`
     : "";
 }
 
@@ -13884,7 +14006,8 @@ function previewAnnotationColor(name, color, selection, styles, state, render) {
     "textColor",
     "entityNameTextColor",
     "entityHeaderFill",
-    ...fieldMappingTableColorStyleNames
+    ...fieldMappingTableColorStyleNames,
+    ...fieldMappingTableNumericStyleNames
   ];
   const objectSnapshots = (Array.isArray(selection) ? selection : [])
     .filter(object => object && typeof object === "object" && !isAnnotationEntityRelationshipSelectionType(object.type))
@@ -13943,8 +14066,12 @@ function previewAnnotationColor(name, color, selection, styles, state, render) {
 function applyAnnotationStyle(name, rawValue, selection, styles, state = null) {
   if (!Object.hasOwn(styles, name)) return;
   let value = rawValue;
-  if (["fontSize", "strokeWidth", "arrowSize"].includes(name)) {
-    const limits = name === "fontSize" ? [1, 240] : name === "strokeWidth" ? [1, 40] : [6, 160];
+  if (["fontSize", "strokeWidth", "arrowSize", "fieldMappingHighlightStrokeWidth"].includes(name)) {
+    const limits = name === "fontSize"
+      ? [1, 240]
+      : name === "arrowSize"
+        ? [6, 160]
+        : [1, 40];
     value = clampNumber(positiveNumber(rawValue, styles[name]), limits[0], limits[1]);
   } else if (name === "opacity") {
     const percentage = String(rawValue ?? "").trim()
@@ -13972,6 +14099,7 @@ function applyAnnotationStyle(name, rawValue, selection, styles, state = null) {
     else if (name === "entityNameTextColor" && object.type === "entity") object.entityNameTextColor = value;
     else if (name === "entityHeaderFill" && object.type === "entity") object.entityHeaderFill = value;
     else if (fieldMappingTableColorStyleNames.has(name) && object.type === fieldMappingTableObjectType) object[name] = value;
+    else if (fieldMappingTableNumericStyleNames.has(name) && object.type === fieldMappingTableObjectType) object[name] = value;
     else if (["textAlign", "textVerticalAlign"].includes(name) && object.type === "textbox") object[name] = value;
     if (object.type === "arrow" && ["strokeWidth", "arrowSize"].includes(name)) {
       Object.assign(object, fitAnnotationArrowToHead(object));

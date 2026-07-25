@@ -9,7 +9,7 @@ import {
   buildAnnotationSvg,
   parseAnnotationSvg,
   openImageAnnotationDialog
-} from "./components/image-annotation.js?v=20260725-field-mapping-v25";
+} from "./components/image-annotation.js?v=20260725-field-mapping-v31";
 import { createWhatsNew } from "./components/whats-new.js?v=20260725-day37-v2";
 import {
   htmlWithoutUserMentionMarkup,
@@ -70,7 +70,7 @@ import { createBacklogFeature } from "./features/backlog/backlog.js?v=20260720-w
 import { createBoardFeature } from "./features/board/board.js?v=20260722-rich-entity-mentions-v1";
 import { createBugsFeature } from "./features/bugs/bugs.js?v=20260724-day36-v3";
 import { createDashboardFeature } from "./features/dashboard/dashboard.js?v=release-notes-2026-07-25-day-37-8287c2ab6682";
-import { createDiagramFeature } from "./features/diagram/diagram.js?v=20260725-day37-v20";
+import { createDiagramFeature } from "./features/diagram/diagram.js?v=20260725-day37-v21";
 import { createDocumentationFeature } from "./features/documentation/documentation.js?v=20260725-day36-v5";
 import {
   createGanttFeature,

@@ -1427,6 +1427,8 @@ test("Field Mapping Tables render and persist UI-to-database rows and colors", (
       uiFill: "#f7fbff",
       databaseTextColor: "#334455",
       databaseFill: "#ffffff",
+      fieldMappingHighlightColor: "#f59e0b",
+      fieldMappingHighlightStrokeWidth: 13,
       rows: [{
         uiEntityId: "ui-first-name",
         uiField: "First Name",
@@ -1452,6 +1454,8 @@ test("Field Mapping Tables render and persist UI-to-database rows and colors", (
   assert.deepEqual(restoredTable.rows, table.rows);
   assert.equal(restoredTable.headerFill, "#d9ecff");
   assert.equal(restoredTable.uiFill, "#f7fbff");
+  assert.equal(restoredTable.fieldMappingHighlightColor, "#f59e0b");
+  assert.equal(restoredTable.fieldMappingHighlightStrokeWidth, 13);
 });
 
 test("Entity relationship routes never pass behind an unrelated Entity", () => {

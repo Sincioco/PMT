@@ -104,6 +104,11 @@ Diagram - ERD - UI and Field Mapping Table
 59.) In the Crop tab, re-arrange the controls so that the Crop and Radius has a section divider between them, and then arrange the controls for each section so they go from left to right and top to bottom as follows:  Left, Right, Top, Bottom.
 
 60.) In the Field Mapping Table, I want to experiment and try something different.  Keep your existing field / database hover logic where it renders a selected style hover effect--don't delete that code as we may revert to it.  Right now, try highlighting in yellow around the current Rectangle Field Mapping (don't over lap with it), and then try drawing a line along side the connection line, and then a yellow rectangle around the entity.  I want the original user-defined colors for the Field Rectable Mapping to still how, including the line color the user has chosen, I just want to highlight it with a yellow line.  Ask me if I am happy with the new version.  And if I say "yes" then that's the time you can get rid of the old code if you need to.
+61.) Bring the yellow highlight that you are drawing much closer to the original outline you are highlighting.  So, if it's the Rectangle around the field, draw a yellow highlight around it touching the rectangle.  If it's the line, trace the relationship line and draw a yellow highlight around it.  If it's the entity do the same.  Make the yellow highlight dotted lines.
+62.) Make the thickness of the yellow highlight a property of the Field Table Mapping and default it a value of 9.  Also, let me pick my own custom color.
+63.) Fix the lines so they are not rounded edges, but just flat.  Try to make it so they don't or minimize override the original line (in the diagram it's the green line).
+64.) That worked great!  Now, apply the same treatment, the new yellow highlight from steps #60-#63 when the diagram is in read-only mode.
+65.) As I hover the Field Mapping Table, in both read-only and edit mode, fire the arrows that goes to both the rectangle field mapping and the database field and show it for just 3 seconds.  Make sure no more than two such arrows show at any time as the user moves from field to field rapidly.  If the user moves to a new field, redraw the arrows to the new field the user is hovering on.
 
 What's New
 ---------------------------------

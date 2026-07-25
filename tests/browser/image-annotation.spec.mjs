@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-test("Field Mapping Table hover draws mapped handles without outward selection chrome", async ({ page }) => {
+test("Field Mapping Table hover draws yellow mapping highlights without changing mapped colors", async ({ page }) => {
   await page.route("**/image-annotation-hover-test.html", route => route.fulfill({
     contentType: "text/html",
     body: `<!doctype html>
@@ -19,7 +19,7 @@ test("Field Mapping Table hover draws mapped handles without outward selection c
   await page.goto("/image-annotation-hover-test.html");
 
   await page.evaluate(async () => {
-    const annotation = await import("/js/components/image-annotation.js?v=20260725-field-mapping-v25");
+    const annotation = await import("/js/components/image-annotation.js?v=20260725-field-mapping-v31");
     const databaseEntity = {
       id: "project-entity",
       type: "entity",
@@ -55,7 +55,8 @@ test("Field Mapping Table hover draws mapped handles without outward selection c
         referencedSchema: "pmt",
         referencedTable: "Projects",
         referencedColumns: ["Title"],
-        relationshipType: "one-to-many"
+        relationshipType: "one-to-many",
+        styleOverride: { stroke: "#22c55e", strokeWidth: 2 }
       }]
     };
     const mappingTable = {
@@ -67,6 +68,8 @@ test("Field Mapping Table hover draws mapped handles without outward selection c
       y: 48,
       width: 430,
       height: 64,
+      fieldMappingHighlightColor: "#f59e0b",
+      fieldMappingHighlightStrokeWidth: 11,
       rows: [{
         uiEntityId: "ui-project",
         uiField: "Project",
@@ -104,11 +107,22 @@ test("Field Mapping Table hover draws mapped handles without outward selection c
   await expect(canvas.locator(".image-annotation-selection-group")).toHaveCount(0);
 
   await mappingCell.hover();
-  await expect.poll(() => canvas.locator(".image-annotation-object.is-field-rectangle.is-field-mapping-hover").count()).toBe(1);
-  await expect.poll(() => canvas.locator(".image-annotation-entity-relationship.is-field-mapping-hover").count()).toBe(1);
-  await expect(canvas.locator(".image-annotation-field-mapping-hover-relationship")).toHaveCount(1);
-  await expect.poll(() => canvas.locator(".image-annotation-entity-relationship-handle").count()).toBeGreaterThan(0);
-  await expect(canvas.locator(".image-annotation-selection-group")).toHaveCount(2);
+  await expect.poll(() => canvas.locator(".image-annotation-field-mapping-attention-highlight").count()).toBe(1);
+  await expect(canvas.locator(".image-annotation-field-mapping-attention-rect")).toHaveCount(2);
+  await expect.poll(() => canvas.locator(".image-annotation-field-mapping-attention-line").count()).toBeGreaterThan(0);
+  expect(await canvas.locator(".image-annotation-field-mapping-attention-highlight").evaluate(group =>
+    group.style.color
+  )).toBe("rgb(245, 158, 11)");
+  await expect(canvas.locator(".image-annotation-field-mapping-attention-line").first()).toHaveAttribute("stroke-width", "11");
+  await expect(canvas.locator(".image-annotation-field-mapping-hover-relationship")).toHaveCount(0);
+  await expect(canvas.locator(".image-annotation-object.is-field-rectangle.is-field-mapping-hover")).toHaveCount(0);
+  await expect(canvas.locator(".image-annotation-selection-group")).toHaveCount(0);
+  expect(await canvas.locator(".image-annotation-entity-relationship-path").first().evaluate(path =>
+    path.getAttribute("stroke")
+  )).toBe("#22c55e");
+  await page.waitForTimeout(3200);
+  await expect(canvas.locator(".image-annotation-field-mapping-attention-highlight")).toHaveCount(1);
+  await expect(canvas.locator(".image-annotation-field-mapping-attention-arrow")).toHaveCount(0);
 
   await mappingCell.click();
   await expect(dialog.locator("[data-annotation-selection-label]")).toHaveText("3 objects selected");

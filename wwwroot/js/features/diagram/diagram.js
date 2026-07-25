@@ -7,8 +7,8 @@ import {
   annotationSvgPlaneMetrics,
   annotationEntityFieldBounds,
   annotationEntityFieldLabelPoint,
+  annotationFieldMappingAttentionHighlightSvg,
   buildAnnotationSvg,
-  annotationFieldMappingSelectionSvg,
   buildPortableAnnotationState,
   buildPortableAnnotationSvg,
   annotationEntityFieldSupportsMapping,
@@ -22,7 +22,7 @@ import {
   setAnnotationEntityCollapsedState,
   setAnnotationEntityDataTypeVisibility,
   zoomAnnotationAtPoint
-} from "../../components/image-annotation.js?v=20260725-field-mapping-v25";
+} from "../../components/image-annotation.js?v=20260725-field-mapping-v31";
 import { openPublicLinkDialog } from "../../components/public-links.js?v=20260725-day36-v4";
 import {
   checkedFilterValues,
@@ -1622,7 +1622,6 @@ export function createDiagramFeature({
     let readonlyFieldMappingHoverKey = "";
     let readonlyFieldMappingAttentionActiveKey = "";
     let readonlyFieldMappingAttentionShownKey = "";
-    let readonlyFieldMappingAttentionTimer = 0;
     let readonlyFieldMappingAttentionClearTimer = 0;
     let readonlyLastFieldMappingPointerKey = "";
     let readonlyLastFieldMappingPointerAt = 0;
@@ -1636,7 +1635,7 @@ export function createDiagramFeature({
       interactiveEntityHeaders: true,
       interactiveRelationships: true,
       interactiveFieldMapping: readonlyFieldMappingsVisible,
-      fieldMappingHoverIds: readonlyFieldMappingsVisible ? readonlyFieldMappingActiveIds : new Set(),
+      fieldMappingHoverIds: new Set(),
       selectedRelationshipIds: readonlyEntityRelationshipsVisible && readonlySelectedRelationshipId
         ? new Set([readonlySelectedRelationshipId])
         : null
@@ -1790,10 +1789,6 @@ export function createDiagramFeature({
       if (!cell) return new Set();
       return readonlyFieldMappingTargets(cell).ids;
     };
-    const readonlySvgNumber = value => {
-      const number = Number(value);
-      return Number.isFinite(number) ? String(Math.round(number * 1000) / 1000) : "0";
-    };
     const readonlyObjectBounds = object => object
       ? {
           x: Number(object.x) || 0,
@@ -1802,51 +1797,33 @@ export function createDiagramFeature({
           height: Math.max(1, Number(object.height) || 1)
         }
       : null;
+    const readonlySvgNumber = value => {
+      const number = Number(value);
+      return Number.isFinite(number) ? String(Math.round(number * 1000) / 1000) : "0";
+    };
     const readonlyBoundsCenter = bounds => ({
       x: bounds.x + (bounds.width / 2),
       y: bounds.y + (bounds.height / 2)
     });
     const readonlyBoundsEdgePointToward = (bounds, target) => {
       const center = readonlyBoundsCenter(bounds);
-      const deltaX = target.x - center.x;
-      const deltaY = target.y - center.y;
-      if (!deltaX && !deltaY) return center;
-      const scale = Math.min(
-        Math.abs(deltaX) > 0 ? (bounds.width / 2) / Math.abs(deltaX) : Number.POSITIVE_INFINITY,
-        Math.abs(deltaY) > 0 ? (bounds.height / 2) / Math.abs(deltaY) : Number.POSITIVE_INFINITY
-      );
+      const halfWidth = Math.max(0.5, bounds.width / 2);
+      const halfHeight = Math.max(0.5, bounds.height / 2);
+      const dx = target.x - center.x;
+      const dy = target.y - center.y;
+      if (Math.abs(dx) < 0.001 && Math.abs(dy) < 0.001) return center;
+      if (Math.abs(dx) * halfHeight > Math.abs(dy) * halfWidth) {
+        const scale = halfWidth / Math.max(0.001, Math.abs(dx));
+        return {
+          x: center.x + (Math.sign(dx) * halfWidth),
+          y: center.y + (dy * scale)
+        };
+      }
+      const scale = halfHeight / Math.max(0.001, Math.abs(dy));
       return {
-        x: center.x + (deltaX * scale),
-        y: center.y + (deltaY * scale)
+        x: center.x + (dx * scale),
+        y: center.y + (Math.sign(dy) * halfHeight)
       };
-    };
-    const readonlyFieldMappingAttentionArrowSvg = (start, end) => {
-      const deltaX = end.x - start.x;
-      const deltaY = end.y - start.y;
-      const length = Math.hypot(deltaX, deltaY);
-      if (length < 1) return "";
-      const unitX = deltaX / length;
-      const unitY = deltaY / length;
-      const arrowLength = Math.min(20, Math.max(10, length * 0.18));
-      const arrowWidth = arrowLength * 0.65;
-      const base = {
-        x: end.x - (unitX * arrowLength),
-        y: end.y - (unitY * arrowLength)
-      };
-      const left = {
-        x: base.x + (-unitY * arrowWidth / 2),
-        y: base.y + (unitX * arrowWidth / 2)
-      };
-      const right = {
-        x: base.x - (-unitY * arrowWidth / 2),
-        y: base.y - (unitX * arrowWidth / 2)
-      };
-      return `
-        <g class="image-annotation-field-mapping-attention-arrow" data-annotation-field-mapping-attention-arrow="true" pointer-events="none">
-          <line class="image-annotation-field-mapping-attention-arrow-line" x1="${readonlySvgNumber(start.x)}" y1="${readonlySvgNumber(start.y)}" x2="${readonlySvgNumber(base.x)}" y2="${readonlySvgNumber(base.y)}" pointer-events="none"></line>
-          <polygon class="image-annotation-field-mapping-attention-arrow-head" points="${readonlySvgNumber(end.x)},${readonlySvgNumber(end.y)} ${readonlySvgNumber(left.x)},${readonlySvgNumber(left.y)} ${readonlySvgNumber(right.x)},${readonlySvgNumber(right.y)}" pointer-events="none"></polygon>
-        </g>
-      `;
     };
     function removeReadonlyFieldMappingAttentionArrow() {
       image.querySelectorAll("[data-annotation-field-mapping-attention-arrow]")
@@ -1861,10 +1838,6 @@ export function createDiagramFeature({
       removeReadonlyFieldMappingAttentionArrow();
     }
     function resetReadonlyFieldMappingAttention(resetShown = true) {
-      if (readonlyFieldMappingAttentionTimer) {
-        window.clearTimeout(readonlyFieldMappingAttentionTimer);
-        readonlyFieldMappingAttentionTimer = 0;
-      }
       clearReadonlyFieldMappingAttentionArrow();
       readonlyFieldMappingHoverKey = "";
       if (resetShown) readonlyFieldMappingAttentionShownKey = "";
@@ -1879,15 +1852,15 @@ export function createDiagramFeature({
         }
       }, 3000);
     }
-    function activateReadonlyFieldMappingAttention(key) {
+    function activateReadonlyFieldMappingAttention(key, renderNow = true) {
       if (!key) {
         resetReadonlyFieldMappingAttention(true);
-        return;
+        return false;
       }
-      if (readonlyFieldMappingAttentionTimer) {
-        window.clearTimeout(readonlyFieldMappingAttentionTimer);
-        readonlyFieldMappingAttentionTimer = 0;
-      }
+      if (key === readonlyFieldMappingHoverKey
+          && key === readonlyFieldMappingAttentionShownKey
+          && !readonlyFieldMappingAttentionActiveKey) return false;
+      if (key === readonlyFieldMappingAttentionActiveKey) return false;
       if (readonlyFieldMappingAttentionClearTimer) {
         window.clearTimeout(readonlyFieldMappingAttentionClearTimer);
         readonlyFieldMappingAttentionClearTimer = 0;
@@ -1895,8 +1868,9 @@ export function createDiagramFeature({
       readonlyFieldMappingHoverKey = key;
       readonlyFieldMappingAttentionActiveKey = key;
       readonlyFieldMappingAttentionShownKey = key;
-      renderReadonlyFieldMappingAttentionArrow();
+      if (renderNow) renderReadonlyFieldMappingAttentionArrow();
       queueReadonlyFieldMappingAttentionClear(key);
+      return true;
     }
     const readonlyFieldMappingNavigationBounds = cell => {
       const targets = readonlyFieldMappingTargets(cell);
@@ -1906,27 +1880,75 @@ export function createDiagramFeature({
       }
       return readonlyObjectBounds(targets.fieldRectangle);
     };
+    const readonlyFieldMappingAttentionArrowSvg = (start, end) => {
+      const dx = end.x - start.x;
+      const dy = end.y - start.y;
+      const length = Math.hypot(dx, dy);
+      if (length < 0.001) return "";
+      const unitX = dx / length;
+      const unitY = dy / length;
+      const size = 12 / Math.max(0.05, renderedZoom);
+      const base = {
+        x: end.x - (unitX * size),
+        y: end.y - (unitY * size)
+      };
+      const wing = size * 0.46;
+      const left = {
+        x: base.x + (-unitY * wing),
+        y: base.y + (unitX * wing)
+      };
+      const right = {
+        x: base.x - (-unitY * wing),
+        y: base.y - (unitX * wing)
+      };
+      return `
+        <g class="image-annotation-field-mapping-attention-arrow" data-annotation-field-mapping-attention-arrow="true" pointer-events="none">
+          <line class="image-annotation-field-mapping-attention-arrow-line" x1="${readonlySvgNumber(start.x)}" y1="${readonlySvgNumber(start.y)}" x2="${readonlySvgNumber(base.x)}" y2="${readonlySvgNumber(base.y)}" pointer-events="none"></line>
+          <polygon class="image-annotation-field-mapping-attention-arrow-head" points="${readonlySvgNumber(end.x)},${readonlySvgNumber(end.y)} ${readonlySvgNumber(left.x)},${readonlySvgNumber(left.y)} ${readonlySvgNumber(right.x)},${readonlySvgNumber(right.y)}" pointer-events="none"></polygon>
+        </g>
+      `;
+    };
+    const readonlyFieldMappingCellBounds = cell => ({
+      x: Number(cell.dataset.annotationFieldMappingRowX || cell.dataset.annotationFieldMappingCellX),
+      y: Number(cell.dataset.annotationFieldMappingRowY || cell.dataset.annotationFieldMappingCellY),
+      width: Math.max(1, Number(cell.dataset.annotationFieldMappingRowWidth || cell.dataset.annotationFieldMappingCellWidth) || 1),
+      height: Math.max(1, Number(cell.dataset.annotationFieldMappingRowHeight || cell.dataset.annotationFieldMappingCellHeight) || 1)
+    });
+    const readonlyFieldMappingDatabaseFieldBounds = targets =>
+      annotationEntityFieldBounds(targets.databaseEntity, targets.databaseField)
+        || readonlyObjectBounds(targets.databaseEntity);
+    const readonlyFieldMappingAttentionArrowToBounds = (rowBounds, targetBounds) => {
+      if (!targetBounds) return "";
+      const targetCenter = readonlyBoundsCenter(targetBounds);
+      const start = readonlyBoundsEdgePointToward(rowBounds, targetCenter);
+      const end = readonlyBoundsEdgePointToward(targetBounds, start);
+      return readonlyFieldMappingAttentionArrowSvg(start, end);
+    };
+    const readonlyFieldMappingAttentionArrowToPoint = (rowBounds, targetPoint) => {
+      if (!targetPoint) return "";
+      const start = readonlyBoundsEdgePointToward(rowBounds, targetPoint);
+      return readonlyFieldMappingAttentionArrowSvg(start, targetPoint);
+    };
     function renderReadonlyFieldMappingAttentionArrow() {
       removeReadonlyFieldMappingAttentionArrow();
       if (!readonlyFieldMappingAttentionActiveKey) return;
       const cell = image.querySelector(`[data-annotation-field-mapping-row-key="${CSS.escape(readonlyFieldMappingAttentionActiveKey)}"]`);
       if (!cell) return;
-      const rowBounds = {
-        x: Number(cell.dataset.annotationFieldMappingCellX || cell.dataset.annotationFieldMappingRowX),
-        y: Number(cell.dataset.annotationFieldMappingCellY || cell.dataset.annotationFieldMappingRowY),
-        width: Math.max(1, Number(cell.dataset.annotationFieldMappingCellWidth || cell.dataset.annotationFieldMappingRowWidth) || 1),
-        height: Math.max(1, Number(cell.dataset.annotationFieldMappingCellHeight || cell.dataset.annotationFieldMappingRowHeight) || 1)
-      };
-      const fieldBounds = readonlyFieldMappingNavigationBounds(cell);
-      if (!Number.isFinite(rowBounds.x) || !Number.isFinite(rowBounds.y) || !fieldBounds) return;
+      const rowBounds = readonlyFieldMappingCellBounds(cell);
+      if (!Number.isFinite(rowBounds.x)
+          || !Number.isFinite(rowBounds.y)
+          || !rowBounds.width
+          || !rowBounds.height) return;
       const targets = readonlyFieldMappingTargets(cell);
-      const databaseFieldPoint = readonlyFieldMappingCellKind(cell) === "database"
-        ? annotationEntityFieldLabelPoint(targets.databaseEntity, targets.databaseField)
-        : null;
-      const fieldTarget = databaseFieldPoint || readonlyBoundsCenter(fieldBounds);
-      const start = readonlyBoundsEdgePointToward(rowBounds, fieldTarget);
-      const end = databaseFieldPoint || readonlyBoundsEdgePointToward(fieldBounds, start);
-      const markup = readonlyFieldMappingAttentionArrowSvg(start, end);
+      const fieldBounds = readonlyObjectBounds(targets.fieldRectangle);
+      const databaseFieldPoint = annotationEntityFieldLabelPoint(targets.databaseEntity, targets.databaseField);
+      const databaseFieldBounds = readonlyFieldMappingDatabaseFieldBounds(targets);
+      const markup = [
+        readonlyFieldMappingAttentionArrowToBounds(rowBounds, fieldBounds),
+        databaseFieldPoint
+          ? readonlyFieldMappingAttentionArrowToPoint(rowBounds, databaseFieldPoint)
+          : readonlyFieldMappingAttentionArrowToBounds(rowBounds, databaseFieldBounds)
+      ].filter(Boolean).slice(0, 2).join("");
       if (markup) image.insertAdjacentHTML("beforeend", markup);
     }
     function applyReadonlyFieldMappingHighlight() {
@@ -1936,22 +1958,10 @@ export function createDiagramFeature({
         .forEach(element => element.remove());
       image.querySelectorAll("[data-annotation-field-mapping-selection-overlay]")
         .forEach(element => element.remove());
-      readonlyFieldMappingActiveIds.forEach(id => {
-        const element = image.querySelector(`[data-annotation-object-id="${CSS.escape(id)}"]`);
-        if (!element) return;
-        element.classList.add("is-field-mapping-hover");
-        if (element.dataset.annotationObjectType !== "entity-relationship") return;
-        const hit = element.querySelector(".image-annotation-entity-relationship-hit");
-        const path = hit?.getAttribute("d") || "";
-        if (!path) return;
-        const stroke = element.dataset.annotationRelationshipStroke || "var(--color-focus-ring)";
-        element.insertAdjacentHTML(
-          "beforeend",
-          `<path class="image-annotation-field-mapping-hover-relationship" data-annotation-field-mapping-hover-path="true" d="${escapeAttr(path)}" fill="none" stroke="${escapeAttr(stroke)}" stroke-width="3" vector-effect="non-scaling-stroke" pointer-events="none"></path>`
-        );
-      });
-      const selection = annotationFieldMappingSelectionSvg(readonlyState, readonlyFieldMappingActiveIds, renderedZoom);
-      if (selection) image.insertAdjacentHTML("beforeend", selection);
+      image.querySelectorAll("[data-annotation-field-mapping-attention-highlight]")
+        .forEach(element => element.remove());
+      const highlight = annotationFieldMappingAttentionHighlightSvg(readonlyState, readonlyFieldMappingActiveIds, renderedZoom);
+      if (highlight) image.insertAdjacentHTML("beforeend", highlight);
       renderReadonlyFieldMappingAttentionArrow();
     }
     const setReadonlyFieldMappingActiveIds = ids => {
@@ -1960,26 +1970,24 @@ export function createDiagramFeature({
       readonlyFieldMappingActiveIds = new Set(nextIds);
       applyReadonlyFieldMappingHighlight();
     };
-    const scheduleReadonlyFieldMappingAttention = cell => {
+    const scheduleReadonlyFieldMappingAttention = (cell, renderNow = true) => {
       const key = readonlyFieldMappingCellKey(cell);
       if (!key) {
         resetReadonlyFieldMappingAttention(true);
-        return;
+        return false;
       }
-      if (key === readonlyFieldMappingHoverKey) return;
-      resetReadonlyFieldMappingAttention(true);
-      readonlyFieldMappingHoverKey = key;
-      readonlyFieldMappingAttentionTimer = window.setTimeout(() => {
-        readonlyFieldMappingAttentionTimer = 0;
-        if (readonlyFieldMappingHoverKey !== key || readonlyFieldMappingAttentionShownKey === key) return;
-        activateReadonlyFieldMappingAttention(key);
-      }, 3000);
+      return activateReadonlyFieldMappingAttention(key, renderNow);
     };
     const setReadonlyFieldMappingHover = cell => {
       const validCell = cell && image.contains(cell) ? cell : null;
       if (validCell) {
-        scheduleReadonlyFieldMappingAttention(validCell);
-        setReadonlyFieldMappingActiveIds(readonlyFieldMappingIds(validCell));
+        const attentionChanged = scheduleReadonlyFieldMappingAttention(validCell, false);
+        const nextIds = readonlyFieldMappingIds(validCell);
+        if (sameReadonlyIdSet(readonlyFieldMappingActiveIds, nextIds)) {
+          if (attentionChanged) renderReadonlyFieldMappingAttentionArrow();
+          return;
+        }
+        setReadonlyFieldMappingActiveIds(nextIds);
         return;
       }
       resetReadonlyFieldMappingAttention(true);
@@ -2043,23 +2051,11 @@ export function createDiagramFeature({
       const targets = readonlyFieldMappingTargets(cell);
       const ids = targets.ids;
       if (!key || !targets.fieldRectangle || !ids.size) return false;
-      if (readonlyFieldMappingAttentionTimer) {
-        window.clearTimeout(readonlyFieldMappingAttentionTimer);
-        readonlyFieldMappingAttentionTimer = 0;
-      }
-      if (readonlyFieldMappingAttentionClearTimer) {
-        window.clearTimeout(readonlyFieldMappingAttentionClearTimer);
-        readonlyFieldMappingAttentionClearTimer = 0;
-      }
       clearReadonlyRelationshipSelection();
       readonlyFieldMappingPinnedKey = key;
       readonlyFieldMappingPinnedIds = ids;
-      readonlyFieldMappingHoverKey = key;
-      readonlyFieldMappingAttentionActiveKey = key;
-      readonlyFieldMappingAttentionShownKey = key;
+      activateReadonlyFieldMappingAttention(key, false);
       setReadonlyFieldMappingActiveIds(ids);
-      renderReadonlyFieldMappingAttentionArrow();
-      if (key) queueReadonlyFieldMappingAttentionClear(key);
       if (center) centerReadonlyBounds(readonlyFieldMappingNavigationBounds(cell));
       const replacement = image.querySelector(`[data-annotation-field-mapping-row-key="${CSS.escape(key)}"]`);
       replacement?.focus?.({ preventScroll: true });

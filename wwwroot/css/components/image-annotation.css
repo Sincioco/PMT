@@ -461,6 +461,29 @@
   filter: drop-shadow(0 0 2px color-mix(in srgb, var(--color-focus-ring), transparent 45%));
 }
 
+.image-annotation-field-mapping-attention-highlight {
+  color: #facc15;
+  pointer-events: none;
+}
+
+.image-annotation-field-mapping-attention-rect {
+  stroke: currentColor;
+  stroke-dasharray: 4 5;
+  stroke-linecap: butt;
+  stroke-linejoin: miter;
+  opacity: 0.96;
+  filter: drop-shadow(0 0 3px color-mix(in srgb, #facc15, transparent 35%));
+}
+
+.image-annotation-field-mapping-attention-line {
+  stroke: currentColor;
+  stroke-dasharray: 4 5;
+  stroke-linecap: butt;
+  stroke-linejoin: miter;
+  opacity: 0.98;
+  filter: drop-shadow(0 0 2px color-mix(in srgb, #facc15, transparent 30%));
+}
+
 .image-annotation-field-mapping-attention-arrow {
   color: var(--color-focus-ring);
   pointer-events: none;
