@@ -70,7 +70,7 @@ import { createBacklogFeature } from "./features/backlog/backlog.js?v=20260720-w
 import { createBoardFeature } from "./features/board/board.js?v=20260722-rich-entity-mentions-v1";
 import { createBugsFeature } from "./features/bugs/bugs.js?v=20260724-day36-v3";
 import { createDashboardFeature } from "./features/dashboard/dashboard.js?v=release-notes-2026-07-25-day-37-46c1811ffe7e";
-import { createDiagramFeature } from "./features/diagram/diagram.js?v=20260725-day37-v23";
+import { createDiagramFeature } from "./features/diagram/diagram.js?v=20260725-diagram2-day2-v1";
 import { createDiagram2Feature } from "./features/diagram2/diagram2.js?v=20260725-diagram2-day1-v1";
 import { createDocumentationFeature } from "./features/documentation/documentation.js?v=20260725-day36-v5";
 import {
