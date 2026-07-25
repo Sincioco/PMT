@@ -17,6 +17,10 @@ const allRelationshipsDirtyToken = "*";
 const diagram2RoutingSectorSize = 320;
 const diagram2ProtectedBoundsPadding = 18;
 const diagram2ImpactCorridorPadding = 96;
+const diagram2ViewportHaloSectorSize = 2048;
+const diagram2ViewportHaloSectorCount = 1;
+const diagram2ViewportHaloMinimumObjectThreshold = 80;
+const diagram2ViewportHaloFullCoverageThreshold = 0.82;
 const diagram2RendererPlanes = [
   ["background", "data-diagram2-background-plane"],
   ["belowRelationships", "data-diagram2-below-relationship-plane"],
@@ -278,6 +282,7 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
   const liveView = createDiagram2LiveView();
   const dirty = createDiagram2DirtyState();
   const routing = createDiagram2SelectiveRoutingState();
+  const viewportHalo = createDiagram2ViewportHaloState();
   const planes = {};
   const viewportTransform = { scale: 1, translateX: 0, translateY: 0 };
   const committedViewportTransform = { scale: 1, translateX: 0, translateY: 0 };
@@ -305,6 +310,7 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
   let lastDirtyDiagnostics = emptyDirtyFlushDiagnostics();
   let lastGeometryPreviewDiagnostics = emptyGeometryPreviewDiagnostics();
   let lastSelectiveRoutingDiagnostics = emptySelectiveRoutingDiagnostics();
+  let lastViewportHaloDiagnostics = emptyViewportHaloDiagnostics();
   let lastDiagnostics = emptyDiagnostics();
   let pendingSelectiveRoutingSectorsQueried = 0;
 
@@ -333,6 +339,14 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
     rebuildRelationshipLookupIndexes(relationships);
     const relationshipResult = patchRelationships(relationships);
     const relationshipsRouted = relationshipResult.routed;
+    rebuildViewportHaloIndexes(visibleObjects, relationships);
+    viewportHalo.active = false;
+    viewportHalo.sectorSignature = "";
+    viewportHalo.forceSignature = "";
+    viewportHalo.canonicalObjectCount = visibleObjects.length;
+    viewportHalo.canonicalRelationshipCount = relationships.length;
+    viewportHalo.objectIds = new Set(visibleObjects.map(object => object.id));
+    viewportHalo.relationshipIds = new Set(relationships.map(relationship => relationship.id));
     mark(performanceApi, `${frameId}:relationships`);
 
     fullRenderCount += 1;
@@ -352,12 +366,29 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
       fullRenderReason,
       objectsPatchedInLastFlush: objectsPatched,
       relationshipsRoutedInLastFlush: relationshipsRouted,
+      mountedObjectCount: liveView.mountedObjectIds.size,
+      mountedRelationshipCount: liveView.mountedRelationshipIds.size,
       lastFrameDuration: Math.max(0, endTime - startTime)
     });
     lastDirtyDiagnostics = emptyDirtyFlushDiagnostics();
     lastGeometryPreviewDiagnostics = emptyGeometryPreviewDiagnostics();
     lastSelectiveRoutingDiagnostics = relationshipResult.diagnostics;
-    Object.assign(lastDiagnostics, lastTransformDiagnostics, lastDirtyDiagnostics, lastGeometryPreviewDiagnostics, lastSelectiveRoutingDiagnostics);
+    lastViewportHaloDiagnostics = emptyViewportHaloDiagnostics({
+      reason: "full render",
+      fallbackReason: "full render",
+      objectCount: visibleObjects.length,
+      relationshipCount: relationships.length,
+      mountedObjectCount: liveView.mountedObjectIds.size,
+      mountedRelationshipCount: liveView.mountedRelationshipIds.size
+    });
+    Object.assign(
+      lastDiagnostics,
+      lastTransformDiagnostics,
+      lastDirtyDiagnostics,
+      lastGeometryPreviewDiagnostics,
+      lastSelectiveRoutingDiagnostics,
+      lastViewportHaloDiagnostics
+    );
     lastDiagnostics.svgDescendantCount = svg.querySelectorAll("*").length;
     applyDiagnosticsAttributes();
     notifyDiagnostics();
@@ -631,6 +662,15 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
     reconcileMountedRelationshipIds(relationships);
     if (dirty.zOrder) reconcileObjectOrder(canonicalState.objects.filter(object => object.visible !== false));
     patchSelectionOverlays();
+    const viewportHaloResult = viewportHalo.active
+      ? reconcileViewportHalo("dirty flush", { allowSameSectorNoop: false })
+      : null;
+    if (viewportHaloResult) {
+      objectPatchCount += viewportHaloResult.objectPatchCount;
+      patchedNodeCount += viewportHaloResult.objectPatchCount + viewportHaloResult.relationshipPatchCount;
+      routedRelationshipCount += viewportHaloResult.routedRelationshipCount;
+      mergeSelectiveRoutingMetrics(routingMetrics, viewportHaloResult.selectiveDiagnostics);
+    }
 
     const endTime = now(performanceApi);
     mark(performanceApi, `${frameId}:end`);
@@ -656,10 +696,19 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
       fullRenderReason,
       objectsPatchedInLastFlush: objectPatchCount,
       relationshipsRoutedInLastFlush: routedRelationshipCount,
+      mountedObjectCount: liveView.mountedObjectIds.size,
+      mountedRelationshipCount: liveView.mountedRelationshipIds.size,
       lastFrameDuration: lastDirtyDiagnostics.lastFlushDuration
     });
     if (activeGeometryPreview?.committing) clearGeometryPreview({ restoreObjects: false, reason: "preview commit" });
-    Object.assign(lastDiagnostics, lastTransformDiagnostics, lastDirtyDiagnostics, lastGeometryPreviewDiagnostics, lastSelectiveRoutingDiagnostics);
+    Object.assign(
+      lastDiagnostics,
+      lastTransformDiagnostics,
+      lastDirtyDiagnostics,
+      lastGeometryPreviewDiagnostics,
+      lastSelectiveRoutingDiagnostics,
+      lastViewportHaloDiagnostics
+    );
     lastDiagnostics.svgDescendantCount = svg.querySelectorAll("*").length;
     applyDiagnosticsAttributes();
     notifyDiagnostics();
@@ -713,6 +762,12 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
       relationshipBoundsIndexCount: routing.relationshipBoundsById.size,
       relationshipRouteSectorCount: routing.relationshipRouteSectorIndex.sectors.size,
       routingObstacleSectorCount: routing.routingObstacleSectorIndex.sectors.size,
+      viewportHaloActive: viewportHalo.active,
+      viewportHaloSectorSignature: viewportHalo.sectorSignature,
+      viewportHaloObjectSectorCount: viewportHalo.objectSectorIndex.sectors.size,
+      viewportHaloRelationshipSectorCount: viewportHalo.relationshipSectorIndex.sectors.size,
+      viewportHaloObjectIds: [...viewportHalo.objectIds],
+      viewportHaloRelationshipIds: [...viewportHalo.relationshipIds],
       pendingDiagramFlush: pendingDiagramFlushFrame !== 0,
       transactionDepth
     };
@@ -880,8 +935,9 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
   }
 
   function patchVisibleRelationship(relationship, options = {}) {
-    const node = liveView.relationshipNodesById.get(relationship.id) || createRelationshipNode(relationship);
-    const existing = liveView.relationshipVersionsById.has(relationship.id);
+    const nodeExisted = liveView.relationshipNodesById.has(relationship.id);
+    const node = nodeExisted ? liveView.relationshipNodesById.get(relationship.id) : createRelationshipNode(relationship);
+    const existing = nodeExisted && liveView.relationshipVersionsById.has(relationship.id);
     const route = relationshipRoute(relationship, {
       manualRoutes: canonicalState?.manualEntityRelationshipRoutes === true
     });
@@ -894,7 +950,8 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
     const previousRouteSignature = routing.relationshipRouteSignaturesById.get(relationship.id);
     const previousStyleSignature = routing.relationshipStyleSignaturesById.get(relationship.id);
     const styleOnly = options.styleOnly === true;
-    const routeChanged = !existing
+    const hasCachedRoute = routing.relationshipRoutesById.has(relationship.id);
+    const routeChanged = !hasCachedRoute
       || (!styleOnly && (options.forceRoute === true || previousRouteSignature !== routeSignature));
     const styleChanged = !existing || previousStyleSignature !== styleSignature;
     const metrics = createSelectiveRoutingMetrics(1);
@@ -946,15 +1003,22 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
     return node;
   }
 
-  function removeObjectNode(id) {
+  function removeObjectNode(id, options = {}) {
     liveView.objectNodesById.get(id)?.remove();
     liveView.objectNodesById.delete(id);
     liveView.objectVersionsById.delete(id);
     liveView.objectDataById.delete(id);
     liveView.mountedObjectIds.delete(id);
-    liveView.selectedIds.delete(id);
+    if (options.preserveSelection !== true) liveView.selectedIds.delete(id);
     planes.overlays?.querySelector(`[data-diagram2-selection-id="${cssEscape(id)}"]`)?.remove();
-    removeRoutingObjectIndex(id);
+    if (options.preserveRouting !== true) removeRoutingObjectIndex(id);
+  }
+
+  function unmountViewportHaloObjectNode(id) {
+    removeObjectNode(id, {
+      preserveRouting: true,
+      preserveSelection: true
+    });
   }
 
   function createRelationshipNode(relationship) {
@@ -965,14 +1029,21 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
     return node;
   }
 
-  function removeRelationshipNode(id) {
+  function removeRelationshipNode(id, options = {}) {
     liveView.relationshipNodesById.get(id)?.remove();
     liveView.relationshipNodesById.delete(id);
     liveView.relationshipVersionsById.delete(id);
     liveView.relationshipDataById.delete(id);
     liveView.mountedRelationshipIds.delete(id);
-    liveView.selectedIds.delete(id);
-    removeRelationshipRoutingState(id);
+    if (options.preserveSelection !== true) liveView.selectedIds.delete(id);
+    if (options.preserveRouting !== true) removeRelationshipRoutingState(id);
+  }
+
+  function unmountViewportHaloRelationshipNode(id) {
+    removeRelationshipNode(id, {
+      preserveRouting: true,
+      preserveSelection: true
+    });
   }
 
   function patchDirtyObject(id) {
@@ -1027,7 +1098,9 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
 
   function reconcileMountedRelationshipIds(relationships) {
     liveView.mountedRelationshipIds.clear();
-    relationships.forEach(relationship => liveView.mountedRelationshipIds.add(relationship.id));
+    relationships.forEach(relationship => {
+      if (liveView.relationshipNodesById.has(relationship.id)) liveView.mountedRelationshipIds.add(relationship.id);
+    });
   }
 
   function reconcileObjectOrder(objects) {
@@ -1128,6 +1201,7 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
     routing.entityProtectedSectorIndex.clear();
     routing.routingObstacleBoundsById.clear();
     routing.routingObstacleSectorIndex.clear();
+    viewportHalo.objectSectorIndex.clear();
     objects.forEach(updateRoutingObjectIndex);
   }
 
@@ -1146,6 +1220,7 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
       routing.routingObstacleBoundsById.set(object.id, obstacleBounds);
       routing.routingObstacleSectorIndex.add(object.id, obstacleBounds);
     }
+    viewportHalo.objectSectorIndex.add(object.id, objectBounds(object));
   }
 
   function removeRoutingObjectIndex(id) {
@@ -1155,6 +1230,7 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
     routing.entityProtectedSectorIndex.remove(objectId);
     routing.routingObstacleBoundsById.delete(objectId);
     routing.routingObstacleSectorIndex.remove(objectId);
+    viewportHalo.objectSectorIndex.remove(objectId);
   }
 
   function rebuildRelationshipLookupIndexes(relationships) {
@@ -1178,6 +1254,7 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
     if (!relationshipId || !bounds) return;
     routing.relationshipBoundsById.set(relationshipId, bounds);
     routing.relationshipRouteSectorIndex.add(relationshipId, bounds);
+    viewportHalo.relationshipSectorIndex.add(relationshipId, bounds);
   }
 
   function removeRelationshipRoutingState(id) {
@@ -1188,6 +1265,7 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
     routing.relationshipRouteSignaturesById.delete(relationshipId);
     routing.relationshipStyleSignaturesById.delete(relationshipId);
     routing.relationshipRoutesById.delete(relationshipId);
+    viewportHalo.relationshipSectorIndex.remove(relationshipId);
   }
 
   function obstacleGenerationForBounds(boundsInput) {
@@ -1233,6 +1311,373 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
     return diagram2CanonicalRelationships(canonicalState)
       .filter(relationship => objectIdSet.has(relationship.source?.id) || objectIdSet.has(relationship.target?.id))
       .map(relationship => relationship.id);
+  }
+
+  function rebuildViewportHaloIndexes(objects, relationships) {
+    viewportHalo.objectSectorIndex.clear();
+    viewportHalo.relationshipSectorIndex.clear();
+    objects.forEach(object => {
+      if (object?.visible !== false) viewportHalo.objectSectorIndex.add(object.id, objectBounds(object));
+    });
+    relationships.forEach(relationship => {
+      const routeBounds = routing.relationshipBoundsById.get(relationship.id)
+        || relationshipRoute(relationship, {
+          manualRoutes: canonicalState?.manualEntityRelationshipRoutes === true
+        }).bounds;
+      viewportHalo.relationshipSectorIndex.add(relationship.id, routeBounds);
+    });
+  }
+
+  function reconcileViewportHalo(reason = "viewport", options = {}) {
+    if (!canonicalState || !svg) {
+      lastViewportHaloDiagnostics = emptyViewportHaloDiagnostics({ reason, fallbackReason: "no canonical state" });
+      return {
+        objectPatchCount: 0,
+        relationshipPatchCount: 0,
+        routedRelationshipCount: 0,
+        diagnostics: lastViewportHaloDiagnostics
+      };
+    }
+
+    const visibleObjects = canonicalState.objects.filter(object => object.visible !== false);
+    const relationships = diagram2CanonicalRelationships(canonicalState);
+    const plan = viewportHaloPlan(visibleObjects, relationships, reason);
+    const sameSectorNoop = options.allowSameSectorNoop === true
+      && plan.active
+      && viewportHalo.active
+      && viewportHalo.sectorSignature === plan.sectorSignature
+      && viewportHalo.forceSignature === plan.forceSignature
+      && viewportHalo.canonicalObjectCount === visibleObjects.length
+      && viewportHalo.canonicalRelationshipCount === relationships.length;
+
+    if (sameSectorNoop) {
+      lastViewportHaloDiagnostics = viewportHaloDiagnosticsFromPlan(plan, {
+        sameSectorNoop: true,
+        objectPatchCount: 0,
+        relationshipPatchCount: 0,
+        routedRelationshipCount: 0,
+        enteringObjectCount: 0,
+        leavingObjectCount: 0,
+        retainedObjectCount: liveView.mountedObjectIds.size,
+        enteringRelationshipCount: 0,
+        leavingRelationshipCount: 0,
+        retainedRelationshipCount: liveView.mountedRelationshipIds.size,
+        mountedObjectCount: liveView.mountedObjectIds.size,
+        mountedRelationshipCount: liveView.mountedRelationshipIds.size
+      });
+      return {
+        objectPatchCount: 0,
+        relationshipPatchCount: 0,
+        routedRelationshipCount: 0,
+        diagnostics: lastViewportHaloDiagnostics
+      };
+    }
+
+    const objectResult = patchViewportHaloObjects(plan.objects);
+    const relationshipResult = patchViewportHaloRelationships(plan.relationships);
+    if (relationshipResult.routed > 0) relationshipRouteRevision += relationshipResult.routed;
+
+    viewportHalo.active = plan.active;
+    viewportHalo.sectorSignature = plan.sectorSignature;
+    viewportHalo.forceSignature = plan.forceSignature;
+    viewportHalo.canonicalObjectCount = visibleObjects.length;
+    viewportHalo.canonicalRelationshipCount = relationships.length;
+    viewportHalo.objectIds = new Set(plan.objects.map(object => object.id));
+    viewportHalo.relationshipIds = new Set(plan.relationships.map(relationship => relationship.id));
+
+    lastViewportHaloDiagnostics = viewportHaloDiagnosticsFromPlan(plan, {
+      sameSectorNoop: false,
+      objectPatchCount: objectResult.patched,
+      relationshipPatchCount: relationshipResult.patched,
+      routedRelationshipCount: relationshipResult.routed,
+      enteringObjectCount: objectResult.entering,
+      leavingObjectCount: objectResult.leaving,
+      retainedObjectCount: objectResult.retained,
+      enteringRelationshipCount: relationshipResult.entering,
+      leavingRelationshipCount: relationshipResult.leaving,
+      retainedRelationshipCount: relationshipResult.retained,
+      mountedObjectCount: liveView.mountedObjectIds.size,
+      mountedRelationshipCount: liveView.mountedRelationshipIds.size
+    });
+    lastSelectiveRoutingDiagnostics = relationshipResult.diagnostics;
+    return {
+      objectPatchCount: objectResult.patched,
+      relationshipPatchCount: relationshipResult.patched,
+      routedRelationshipCount: relationshipResult.routed,
+      diagnostics: lastViewportHaloDiagnostics,
+      selectiveDiagnostics: relationshipResult.diagnostics
+    };
+  }
+
+  function viewportHaloPlan(visibleObjects, relationships, reason) {
+    const startTime = now(performanceApi);
+    const objectById = new Map(visibleObjects.map(object => [object.id, object]));
+    const relationshipById = new Map(relationships.map(relationship => [relationship.id, relationship]));
+    const viewportBounds = viewportWorldBounds();
+    const sectorSet = viewportHaloSectorSet(viewportBounds);
+    const forceObjectIds = forceMountedViewportHaloObjectIds(visibleObjects, relationships);
+    const targetObjectIds = new Set();
+    const targetRelationshipIds = new Set();
+    let routeOnlyRelationshipCount = 0;
+    let fallbackReason = "";
+
+    if (!viewportBounds || !sectorSet.bounds) fallbackReason = "unsafe viewport";
+
+    if (!fallbackReason) {
+      const objectQuery = viewportHalo.objectSectorIndex.query(sectorSet.bounds);
+      objectQuery.ids.forEach(id => {
+        const object = objectById.get(id);
+        if (object && boundsIntersect(objectBounds(object), sectorSet.bounds)) targetObjectIds.add(id);
+      });
+      forceObjectIds.forEach(id => {
+        if (objectById.has(id)) targetObjectIds.add(id);
+      });
+
+      const forcedRelationshipIds = forceMountedViewportHaloRelationshipIds(relationships, forceObjectIds, relationshipById);
+      const relationshipQuery = viewportHalo.relationshipSectorIndex.query(sectorSet.bounds);
+      relationshipQuery.ids.forEach(id => {
+        const relationship = relationshipById.get(id);
+        if (!relationship) return;
+        const routeBounds = routing.relationshipBoundsById.get(id)
+          || relationshipRoute(relationship, {
+            manualRoutes: canonicalState?.manualEntityRelationshipRoutes === true
+          }).bounds;
+        if (boundsIntersect(routeBounds, sectorSet.bounds)) {
+          targetRelationshipIds.add(id);
+          if (!targetObjectIds.has(relationship.source?.id) && !targetObjectIds.has(relationship.target?.id)) {
+            routeOnlyRelationshipCount += 1;
+          }
+        }
+      });
+      forcedRelationshipIds.forEach(id => {
+        if (relationshipById.has(id)) targetRelationshipIds.add(id);
+      });
+    }
+
+    const objectCoverage = visibleObjects.length
+      ? targetObjectIds.size / visibleObjects.length
+      : 1;
+    const relationshipCoverage = relationships.length
+      ? targetRelationshipIds.size / relationships.length
+      : 1;
+    const combinedCoverage = (visibleObjects.length + relationships.length)
+      ? (targetObjectIds.size + targetRelationshipIds.size) / (visibleObjects.length + relationships.length)
+      : 1;
+    if (!fallbackReason && visibleObjects.length < diagram2ViewportHaloMinimumObjectThreshold) {
+      fallbackReason = "small diagram";
+    } else if (!fallbackReason && combinedCoverage >= diagram2ViewportHaloFullCoverageThreshold) {
+      fallbackReason = "coverage threshold";
+    } else if (!fallbackReason && targetObjectIds.size >= visibleObjects.length) {
+      fallbackReason = "all objects required";
+    }
+
+    const active = !fallbackReason;
+    const objects = active
+      ? visibleObjects.filter(object => targetObjectIds.has(object.id))
+      : visibleObjects;
+    const relationshipTargets = active ? targetRelationshipIds : new Set(relationships.map(relationship => relationship.id));
+    const planRelationships = relationships.filter(relationship => relationshipTargets.has(relationship.id));
+    const forceSignature = viewportHaloForceSignature(forceObjectIds, liveView.selectedIds, activeGeometryPreview);
+    const duration = Math.round(Math.max(0, now(performanceApi) - startTime) * 100) / 100;
+    return {
+      active,
+      reason,
+      fallbackReason,
+      viewportBounds,
+      haloBounds: sectorSet.bounds,
+      sectorSignature: sectorSet.signature,
+      sectorCount: sectorSet.keys.length,
+      forceSignature,
+      objects,
+      relationships: planRelationships,
+      totalObjectCount: visibleObjects.length,
+      totalRelationshipCount: relationships.length,
+      targetObjectCount: objects.length,
+      targetRelationshipCount: planRelationships.length,
+      virtualizedObjectCount: Math.max(0, visibleObjects.length - objects.length),
+      virtualizedRelationshipCount: Math.max(0, relationships.length - planRelationships.length),
+      objectCoverage,
+      relationshipCoverage,
+      combinedCoverage,
+      forceMountedObjectCount: forceObjectIds.size,
+      forceMountedRelationshipCount: forceMountedViewportHaloRelationshipIds(relationships, forceObjectIds, relationshipById).size,
+      routeOnlyRelationshipCount,
+      duration
+    };
+  }
+
+  function patchViewportHaloObjects(objects) {
+    const targetIds = new Set(objects.map(object => object.id));
+    const currentIds = new Set(liveView.mountedObjectIds);
+    const entering = objects.filter(object => !currentIds.has(object.id));
+    const retained = objects.filter(object => currentIds.has(object.id));
+    const leaving = [...currentIds].filter(id => !targetIds.has(id));
+    let patched = 0;
+
+    entering.forEach(object => {
+      patched += patchVisibleObject(object);
+      const node = liveView.objectNodesById.get(object.id);
+      if (node?.parentNode !== planes.objects) planes.objects.appendChild(node);
+    });
+    retained.forEach(object => {
+      const node = liveView.objectNodesById.get(object.id);
+      if (!node) {
+        patched += patchVisibleObject(object);
+        const created = liveView.objectNodesById.get(object.id);
+        if (created?.parentNode !== planes.objects) planes.objects.appendChild(created);
+        return;
+      }
+      patchObjectSelection(node, object.id, liveView.selectedIds.has(object.id));
+    });
+    leaving.forEach(id => unmountViewportHaloObjectNode(id));
+
+    liveView.mountedObjectIds.clear();
+    targetIds.forEach(id => liveView.mountedObjectIds.add(id));
+    patchSelectionOverlays();
+    return { patched, entering: entering.length, retained: retained.length, leaving: leaving.length };
+  }
+
+  function patchViewportHaloRelationships(relationships) {
+    const targetIds = new Set(relationships.map(relationship => relationship.id));
+    const currentIds = new Set(liveView.mountedRelationshipIds);
+    const entering = relationships.filter(relationship => !currentIds.has(relationship.id));
+    const retained = relationships.filter(relationship => currentIds.has(relationship.id));
+    const leaving = [...currentIds].filter(id => !targetIds.has(id));
+    const metrics = createSelectiveRoutingMetrics(relationships.length);
+    let patched = 0;
+    let routed = 0;
+
+    entering.forEach(relationship => {
+      const result = patchVisibleRelationship(relationship, { mode: "viewport halo" });
+      mergeSelectiveRoutingMetrics(metrics, result.diagnostics);
+      patched += result.patched;
+      routed += result.routed;
+      const node = liveView.relationshipNodesById.get(relationship.id);
+      if (node?.parentNode !== planes.relationships) planes.relationships.appendChild(node);
+    });
+    retained.forEach(relationship => {
+      const node = liveView.relationshipNodesById.get(relationship.id);
+      if (!node) {
+        const result = patchVisibleRelationship(relationship, { mode: "viewport halo" });
+        mergeSelectiveRoutingMetrics(metrics, result.diagnostics);
+        patched += result.patched;
+        routed += result.routed;
+        const created = liveView.relationshipNodesById.get(relationship.id);
+        if (created?.parentNode !== planes.relationships) planes.relationships.appendChild(created);
+      }
+    });
+    leaving.forEach(id => {
+      unmountViewportHaloRelationshipNode(id);
+      patched += 1;
+    });
+
+    liveView.mountedRelationshipIds.clear();
+    targetIds.forEach(id => liveView.mountedRelationshipIds.add(id));
+    return {
+      patched,
+      routed,
+      entering: entering.length,
+      retained: retained.length,
+      leaving: leaving.length,
+      diagnostics: selectiveRoutingDiagnosticsFromMetrics(metrics)
+    };
+  }
+
+  function forceMountedViewportHaloObjectIds(visibleObjects, relationships) {
+    const objectById = new Map(visibleObjects.map(object => [object.id, object]));
+    const relationshipById = new Map(relationships.map(relationship => [relationship.id, relationship]));
+    const forced = new Set();
+    liveView.selectedIds.forEach(id => {
+      if (objectById.has(id)) forced.add(id);
+      const relationship = relationshipById.get(id);
+      if (relationship) {
+        if (relationship.source?.id) forced.add(relationship.source.id);
+        if (relationship.target?.id) forced.add(relationship.target.id);
+      }
+    });
+    (activeGeometryPreview?.objectIds || []).forEach(id => {
+      if (objectById.has(id)) forced.add(id);
+    });
+    (activeGeometryPreview?.selectedObjectIds || []).forEach(id => {
+      if (objectById.has(id)) forced.add(id);
+    });
+
+    const requiredGroupIds = new Set([...forced]
+      .map(id => objectById.get(id)?.groupId)
+      .filter(Boolean));
+    if (requiredGroupIds.size) {
+      visibleObjects.forEach(object => {
+        if (requiredGroupIds.has(object.groupId)) forced.add(object.id);
+      });
+    }
+    return forced;
+  }
+
+  function forceMountedViewportHaloRelationshipIds(relationships, forceObjectIds, relationshipById) {
+    const forced = new Set();
+    liveView.selectedIds.forEach(id => {
+      if (relationshipById.has(id)) forced.add(id);
+    });
+    (activeGeometryPreview?.relationshipIds || []).forEach(id => {
+      if (relationshipById.has(id)) forced.add(id);
+    });
+    relationships.forEach(relationship => {
+      if (forceObjectIds.has(relationship.source?.id) || forceObjectIds.has(relationship.target?.id)) {
+        forced.add(relationship.id);
+      }
+    });
+    return forced;
+  }
+
+  function viewportWorldBounds() {
+    const viewport = viewportSize();
+    const topLeft = diagram2ScreenToWorldPoint(committedViewportTransform, { x: 0, y: 0 });
+    const bottomRight = diagram2ScreenToWorldPoint(committedViewportTransform, {
+      x: viewport.width,
+      y: viewport.height
+    });
+    return normalizeBounds({
+      x: Math.min(topLeft.x, bottomRight.x),
+      y: Math.min(topLeft.y, bottomRight.y),
+      width: Math.max(1, Math.abs(bottomRight.x - topLeft.x)),
+      height: Math.max(1, Math.abs(bottomRight.y - topLeft.y))
+    });
+  }
+
+  function viewportHaloSectorSet(viewportBounds) {
+    const bounds = normalizeBounds(viewportBounds);
+    if (!bounds) return { bounds: null, keys: [], signature: "" };
+    const sectorSize = diagram2ViewportHaloSectorSize;
+    const minX = Math.floor(bounds.x / sectorSize) - diagram2ViewportHaloSectorCount;
+    const minY = Math.floor(bounds.y / sectorSize) - diagram2ViewportHaloSectorCount;
+    const maxX = Math.floor((bounds.x + bounds.width) / sectorSize) + diagram2ViewportHaloSectorCount;
+    const maxY = Math.floor((bounds.y + bounds.height) / sectorSize) + diagram2ViewportHaloSectorCount;
+    const keys = [];
+    for (let y = minY; y <= maxY; y += 1) {
+      for (let x = minX; x <= maxX; x += 1) {
+        keys.push(`${x}:${y}`);
+      }
+    }
+    return {
+      bounds: {
+        x: minX * sectorSize,
+        y: minY * sectorSize,
+        width: Math.max(1, (maxX - minX + 1) * sectorSize),
+        height: Math.max(1, (maxY - minY + 1) * sectorSize)
+      },
+      keys,
+      signature: keys.join("|")
+    };
+  }
+
+  function viewportHaloForceSignature(forceObjectIds, selectedIds, preview) {
+    const selected = [...selectedIds].sort((left, right) => left.localeCompare(right)).join(",");
+    const forced = [...forceObjectIds].sort((left, right) => left.localeCompare(right)).join(",");
+    const previewIds = [
+      ...(preview?.objectIds || []),
+      ...(preview?.relationshipIds || [])
+    ].sort((left, right) => left.localeCompare(right)).join(",");
+    return `selected=${selected};forced=${forced};preview=${previewIds}`;
   }
 
   function bringPreviewObjectsForward(objectIds) {
@@ -1577,6 +2022,8 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
     committedViewportTransform.translateX = viewportTransform.translateX;
     committedViewportTransform.translateY = viewportTransform.translateY;
 
+    const viewportHaloResult = reconcileViewportHalo(reason, { allowSameSectorNoop: true });
+
     const screenPointAfterSettle = diagram2WorldToScreenPoint(committedViewportTransform, gesture.worldPointUnderCursor);
     const entityBoundsAfter = firstEntityBounds();
     const matrixDifference = viewportMatrixDifference(viewportTransform, committedViewportTransform);
@@ -1609,8 +2056,15 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
     lastDiagnostics = {
       ...lastDiagnostics,
       ...lastTransformDiagnostics,
+      ...lastViewportHaloDiagnostics,
+      ...viewportHaloResult?.selectiveDiagnostics,
+      mountedObjectCount: liveView.mountedObjectIds.size,
+      mountedRelationshipCount: liveView.mountedRelationshipIds.size,
       svgDescendantCount: svg ? svg.querySelectorAll("*").length : 0
     };
+    if (viewportHaloResult?.selectiveDiagnostics) {
+      lastSelectiveRoutingDiagnostics = viewportHaloResult.selectiveDiagnostics;
+    }
     mark(performanceApi, `${frameId}:end`);
     measure(performanceApi, "diagram2 viewport transform", `${frameId}:start`, `${frameId}:end`);
     applyDiagnosticsAttributes();
@@ -1727,6 +2181,35 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
     svg.dataset.diagram2SelectiveRoutingCacheMisses = String(lastDiagnostics.selectiveRoutingCacheMisses);
     svg.dataset.diagram2SelectiveRoutingSpatialSectorsQueried = String(lastDiagnostics.selectiveRoutingSpatialSectorsQueried);
     svg.dataset.diagram2SelectiveRoutingDuration = String(lastDiagnostics.selectiveRoutingDuration);
+    svg.dataset.diagram2ViewportHaloActive = String(lastDiagnostics.viewportHaloActive);
+    svg.dataset.diagram2ViewportHaloReason = String(lastDiagnostics.viewportHaloReason);
+    svg.dataset.diagram2ViewportHaloFallbackReason = String(lastDiagnostics.viewportHaloFallbackReason);
+    svg.dataset.diagram2ViewportHaloSectorSize = String(lastDiagnostics.viewportHaloSectorSize);
+    svg.dataset.diagram2ViewportHaloSectorCount = String(lastDiagnostics.viewportHaloSectorCount);
+    svg.dataset.diagram2ViewportHaloSectorSignature = String(lastDiagnostics.viewportHaloSectorSignature);
+    svg.dataset.diagram2ViewportHaloBounds = String(lastDiagnostics.viewportHaloBounds);
+    svg.dataset.diagram2ViewportHaloViewportBounds = String(lastDiagnostics.viewportHaloViewportBounds);
+    svg.dataset.diagram2ViewportHaloObjectCoverage = String(lastDiagnostics.viewportHaloObjectCoverage);
+    svg.dataset.diagram2ViewportHaloRelationshipCoverage = String(lastDiagnostics.viewportHaloRelationshipCoverage);
+    svg.dataset.diagram2ViewportHaloCombinedCoverage = String(lastDiagnostics.viewportHaloCombinedCoverage);
+    svg.dataset.diagram2ViewportHaloTargetObjectCount = String(lastDiagnostics.viewportHaloTargetObjectCount);
+    svg.dataset.diagram2ViewportHaloTargetRelationshipCount = String(lastDiagnostics.viewportHaloTargetRelationshipCount);
+    svg.dataset.diagram2ViewportHaloVirtualizedObjectCount = String(lastDiagnostics.viewportHaloVirtualizedObjectCount);
+    svg.dataset.diagram2ViewportHaloVirtualizedRelationshipCount = String(lastDiagnostics.viewportHaloVirtualizedRelationshipCount);
+    svg.dataset.diagram2ViewportHaloForceMountedObjectCount = String(lastDiagnostics.viewportHaloForceMountedObjectCount);
+    svg.dataset.diagram2ViewportHaloForceMountedRelationshipCount = String(lastDiagnostics.viewportHaloForceMountedRelationshipCount);
+    svg.dataset.diagram2ViewportHaloRouteOnlyRelationshipCount = String(lastDiagnostics.viewportHaloRouteOnlyRelationshipCount);
+    svg.dataset.diagram2ViewportHaloEnteringObjectCount = String(lastDiagnostics.viewportHaloEnteringObjectCount);
+    svg.dataset.diagram2ViewportHaloLeavingObjectCount = String(lastDiagnostics.viewportHaloLeavingObjectCount);
+    svg.dataset.diagram2ViewportHaloRetainedObjectCount = String(lastDiagnostics.viewportHaloRetainedObjectCount);
+    svg.dataset.diagram2ViewportHaloEnteringRelationshipCount = String(lastDiagnostics.viewportHaloEnteringRelationshipCount);
+    svg.dataset.diagram2ViewportHaloLeavingRelationshipCount = String(lastDiagnostics.viewportHaloLeavingRelationshipCount);
+    svg.dataset.diagram2ViewportHaloRetainedRelationshipCount = String(lastDiagnostics.viewportHaloRetainedRelationshipCount);
+    svg.dataset.diagram2ViewportHaloObjectPatchCount = String(lastDiagnostics.viewportHaloObjectPatchCount);
+    svg.dataset.diagram2ViewportHaloRelationshipPatchCount = String(lastDiagnostics.viewportHaloRelationshipPatchCount);
+    svg.dataset.diagram2ViewportHaloRoutedRelationshipCount = String(lastDiagnostics.viewportHaloRoutedRelationshipCount);
+    svg.dataset.diagram2ViewportHaloSameSectorNoop = String(lastDiagnostics.viewportHaloSameSectorNoop);
+    svg.dataset.diagram2ViewportHaloDuration = String(lastDiagnostics.viewportHaloDuration);
     svg.dataset.diagram2TransientMatrix = String(lastDiagnostics.transientMatrix);
     svg.dataset.diagram2CommittedMatrix = String(lastDiagnostics.committedMatrix);
     svg.dataset.diagram2MatrixDifference = String(lastDiagnostics.matrixDifference);
@@ -2560,8 +3043,12 @@ function diagnosticsFor(options) {
   const summary = diagram2CanonicalSummary(options.canonicalState);
   return {
     ...summary,
-    mountedObjectCount: options.canonicalState.objects.filter(object => object.visible !== false).length,
-    mountedRelationshipCount: options.relationships.length,
+    mountedObjectCount: Number.isFinite(Number(options.mountedObjectCount))
+      ? Number(options.mountedObjectCount)
+      : options.canonicalState.objects.filter(object => object.visible !== false).length,
+    mountedRelationshipCount: Number.isFinite(Number(options.mountedRelationshipCount))
+      ? Number(options.mountedRelationshipCount)
+      : options.relationships.length,
     svgDescendantCount: 0,
     fullRenderCount: options.fullRenderCount,
     fullRenderReason: options.fullRenderReason,
@@ -2570,7 +3057,8 @@ function diagnosticsFor(options) {
     lastFrameDuration: Math.round(options.lastFrameDuration * 100) / 100,
     ...emptyDirtyFlushDiagnostics(),
     ...emptyGeometryPreviewDiagnostics(),
-    ...emptySelectiveRoutingDiagnostics()
+    ...emptySelectiveRoutingDiagnostics(),
+    ...emptyViewportHaloDiagnostics()
   };
 }
 
@@ -2590,7 +3078,8 @@ function emptyDiagnostics() {
     ...emptyTransformDiagnostics(),
     ...emptyDirtyFlushDiagnostics(),
     ...emptyGeometryPreviewDiagnostics(),
-    ...emptySelectiveRoutingDiagnostics()
+    ...emptySelectiveRoutingDiagnostics(),
+    ...emptyViewportHaloDiagnostics()
   };
 }
 
@@ -2627,6 +3116,20 @@ function createDiagram2SelectiveRoutingState() {
     routingObstacleSectorIndex: createDiagram2FixedGridIndex(diagram2RoutingSectorSize),
     obstacleGeneration: 0,
     obstacleGenerationBySectorKey: new Map()
+  };
+}
+
+function createDiagram2ViewportHaloState() {
+  return {
+    active: false,
+    sectorSignature: "",
+    forceSignature: "",
+    canonicalObjectCount: 0,
+    canonicalRelationshipCount: 0,
+    objectIds: new Set(),
+    relationshipIds: new Set(),
+    objectSectorIndex: createDiagram2FixedGridIndex(diagram2ViewportHaloSectorSize),
+    relationshipSectorIndex: createDiagram2FixedGridIndex(diagram2ViewportHaloSectorSize)
   };
 }
 
@@ -2678,6 +3181,84 @@ function selectiveRoutingDiagnosticsFromMetrics(metricsInput) {
 
 function emptySelectiveRoutingDiagnostics() {
   return selectiveRoutingDiagnosticsFromMetrics(createSelectiveRoutingMetrics());
+}
+
+function viewportHaloDiagnosticsFromPlan(plan, result = {}) {
+  return {
+    viewportHaloActive: plan.active === true,
+    viewportHaloReason: String(plan.reason || ""),
+    viewportHaloFallbackReason: plan.active ? "" : String(plan.fallbackReason || "full render"),
+    viewportHaloSectorSize: diagram2ViewportHaloSectorSize,
+    viewportHaloSectorCount: Number(plan.sectorCount || 0),
+    viewportHaloSectorSignature: String(plan.sectorSignature || ""),
+    viewportHaloBounds: boundsText(plan.haloBounds),
+    viewportHaloViewportBounds: boundsText(plan.viewportBounds),
+    viewportHaloObjectCoverage: formatCoverage(plan.objectCoverage),
+    viewportHaloRelationshipCoverage: formatCoverage(plan.relationshipCoverage),
+    viewportHaloCombinedCoverage: formatCoverage(plan.combinedCoverage),
+    viewportHaloTargetObjectCount: Number(plan.targetObjectCount || 0),
+    viewportHaloTargetRelationshipCount: Number(plan.targetRelationshipCount || 0),
+    viewportHaloVirtualizedObjectCount: Number(plan.virtualizedObjectCount || 0),
+    viewportHaloVirtualizedRelationshipCount: Number(plan.virtualizedRelationshipCount || 0),
+    viewportHaloForceMountedObjectCount: Number(plan.forceMountedObjectCount || 0),
+    viewportHaloForceMountedRelationshipCount: Number(plan.forceMountedRelationshipCount || 0),
+    viewportHaloRouteOnlyRelationshipCount: Number(plan.routeOnlyRelationshipCount || 0),
+    viewportHaloEnteringObjectCount: Number(result.enteringObjectCount || 0),
+    viewportHaloLeavingObjectCount: Number(result.leavingObjectCount || 0),
+    viewportHaloRetainedObjectCount: Number(result.retainedObjectCount || 0),
+    viewportHaloEnteringRelationshipCount: Number(result.enteringRelationshipCount || 0),
+    viewportHaloLeavingRelationshipCount: Number(result.leavingRelationshipCount || 0),
+    viewportHaloRetainedRelationshipCount: Number(result.retainedRelationshipCount || 0),
+    viewportHaloObjectPatchCount: Number(result.objectPatchCount || 0),
+    viewportHaloRelationshipPatchCount: Number(result.relationshipPatchCount || 0),
+    viewportHaloRoutedRelationshipCount: Number(result.routedRelationshipCount || 0),
+    viewportHaloSameSectorNoop: result.sameSectorNoop === true,
+    viewportHaloDuration: Number(plan.duration || 0),
+    mountedObjectCount: Number(result.mountedObjectCount ?? plan.targetObjectCount ?? 0),
+    mountedRelationshipCount: Number(result.mountedRelationshipCount ?? plan.targetRelationshipCount ?? 0)
+  };
+}
+
+function emptyViewportHaloDiagnostics(overrides = {}) {
+  return {
+    viewportHaloActive: false,
+    viewportHaloReason: String(overrides.reason || ""),
+    viewportHaloFallbackReason: String(overrides.fallbackReason || ""),
+    viewportHaloSectorSize: diagram2ViewportHaloSectorSize,
+    viewportHaloSectorCount: 0,
+    viewportHaloSectorSignature: "",
+    viewportHaloBounds: "n/a",
+    viewportHaloViewportBounds: "n/a",
+    viewportHaloObjectCoverage: "100%",
+    viewportHaloRelationshipCoverage: "100%",
+    viewportHaloCombinedCoverage: "100%",
+    viewportHaloTargetObjectCount: Number(overrides.objectCount || overrides.mountedObjectCount || 0),
+    viewportHaloTargetRelationshipCount: Number(overrides.relationshipCount || overrides.mountedRelationshipCount || 0),
+    viewportHaloVirtualizedObjectCount: 0,
+    viewportHaloVirtualizedRelationshipCount: 0,
+    viewportHaloForceMountedObjectCount: 0,
+    viewportHaloForceMountedRelationshipCount: 0,
+    viewportHaloRouteOnlyRelationshipCount: 0,
+    viewportHaloEnteringObjectCount: 0,
+    viewportHaloLeavingObjectCount: 0,
+    viewportHaloRetainedObjectCount: 0,
+    viewportHaloEnteringRelationshipCount: 0,
+    viewportHaloLeavingRelationshipCount: 0,
+    viewportHaloRetainedRelationshipCount: 0,
+    viewportHaloObjectPatchCount: 0,
+    viewportHaloRelationshipPatchCount: 0,
+    viewportHaloRoutedRelationshipCount: 0,
+    viewportHaloSameSectorNoop: false,
+    viewportHaloDuration: 0,
+    mountedObjectCount: Number(overrides.mountedObjectCount || overrides.objectCount || 0),
+    mountedRelationshipCount: Number(overrides.mountedRelationshipCount || overrides.relationshipCount || 0)
+  };
+}
+
+function formatCoverage(value) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return "0%";
+  return `${formatNumber(clampNumber(number, 0, 1) * 100)}%`;
 }
 
 function emptyPreviewGeometry() {

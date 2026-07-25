@@ -394,6 +394,8 @@
 
 .diagram2-diagnostics {
   min-width: 0;
+  max-height: min(220px, 28vh);
+  overflow: auto;
   border-top: var(--border-width) solid var(--color-border-subtle);
   background: var(--color-surface);
 }

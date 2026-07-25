@@ -28,7 +28,7 @@ import {
 } from "../../shared/diagram-documents.js?v=20260725-diagram2-day6-v1";
 import { formatDate } from "../../shared/dates.js";
 import { escapeAttr, escapeHtml } from "../../shared/text-and-links.js";
-import { createDiagram2Renderer } from "./diagram2-renderer.js?v=20260725-diagram2-day11-v1";
+import { createDiagram2Renderer } from "./diagram2-renderer.js?v=20260725-diagram2-day12-v1";
 
 const diagram2ViewModes = new Set(["tree", "cards"]);
 const diagram2SortModes = new Set(["latest", "oldest", "name", "custom"]);
@@ -476,6 +476,32 @@ export function createDiagram2Feature({ app, notify } = {}) {
           ${diagram2DiagnosticItemHtml("selective-routing-cache-misses", "Route cache misses")}
           ${diagram2DiagnosticItemHtml("selective-routing-spatial-sectors-queried", "Spatial sectors queried")}
           ${diagram2DiagnosticItemHtml("selective-routing-duration", "Selective routing duration")}
+          ${diagram2DiagnosticItemHtml("viewport-halo-active", "Viewport halo active")}
+          ${diagram2DiagnosticItemHtml("viewport-halo-reason", "Viewport halo reason")}
+          ${diagram2DiagnosticItemHtml("viewport-halo-fallback-reason", "Viewport halo fallback")}
+          ${diagram2DiagnosticItemHtml("viewport-halo-sector-size", "Viewport halo sector size")}
+          ${diagram2DiagnosticItemHtml("viewport-halo-sector-count", "Viewport halo sector count")}
+          ${diagram2DiagnosticItemHtml("viewport-halo-object-coverage", "Viewport object coverage")}
+          ${diagram2DiagnosticItemHtml("viewport-halo-relationship-coverage", "Viewport relationship coverage")}
+          ${diagram2DiagnosticItemHtml("viewport-halo-combined-coverage", "Viewport combined coverage")}
+          ${diagram2DiagnosticItemHtml("viewport-halo-target-object-count", "Viewport target objects")}
+          ${diagram2DiagnosticItemHtml("viewport-halo-target-relationship-count", "Viewport target relationships")}
+          ${diagram2DiagnosticItemHtml("viewport-halo-virtualized-object-count", "Virtualized objects")}
+          ${diagram2DiagnosticItemHtml("viewport-halo-virtualized-relationship-count", "Virtualized relationships")}
+          ${diagram2DiagnosticItemHtml("viewport-halo-force-mounted-object-count", "Force-mounted objects")}
+          ${diagram2DiagnosticItemHtml("viewport-halo-force-mounted-relationship-count", "Force-mounted relationships")}
+          ${diagram2DiagnosticItemHtml("viewport-halo-route-only-relationship-count", "Route-only halo relationships")}
+          ${diagram2DiagnosticItemHtml("viewport-halo-entering-object-count", "Entering objects")}
+          ${diagram2DiagnosticItemHtml("viewport-halo-leaving-object-count", "Leaving objects")}
+          ${diagram2DiagnosticItemHtml("viewport-halo-retained-object-count", "Retained objects")}
+          ${diagram2DiagnosticItemHtml("viewport-halo-entering-relationship-count", "Entering relationships")}
+          ${diagram2DiagnosticItemHtml("viewport-halo-leaving-relationship-count", "Leaving relationships")}
+          ${diagram2DiagnosticItemHtml("viewport-halo-retained-relationship-count", "Retained relationships")}
+          ${diagram2DiagnosticItemHtml("viewport-halo-object-patch-count", "Viewport object patches")}
+          ${diagram2DiagnosticItemHtml("viewport-halo-relationship-patch-count", "Viewport relationship patches")}
+          ${diagram2DiagnosticItemHtml("viewport-halo-routed-relationship-count", "Viewport routed relationships")}
+          ${diagram2DiagnosticItemHtml("viewport-halo-same-sector-noop", "Same-sector no-op")}
+          ${diagram2DiagnosticItemHtml("viewport-halo-duration", "Viewport halo duration")}
           ${diagram2DiagnosticItemHtml("last-frame-duration", "Last frame duration")}
           ${diagram2DiagnosticItemHtml("transient-matrix", "Transient matrix")}
           ${diagram2DiagnosticItemHtml("committed-matrix", "Committed matrix")}
@@ -536,6 +562,32 @@ export function createDiagram2Feature({ app, notify } = {}) {
       "selective-routing-cache-misses": diagnostics.selectiveRoutingCacheMisses,
       "selective-routing-spatial-sectors-queried": diagnostics.selectiveRoutingSpatialSectorsQueried,
       "selective-routing-duration": `${diagnostics.selectiveRoutingDuration} ms`,
+      "viewport-halo-active": diagnostics.viewportHaloActive,
+      "viewport-halo-reason": diagnostics.viewportHaloReason,
+      "viewport-halo-fallback-reason": diagnostics.viewportHaloFallbackReason,
+      "viewport-halo-sector-size": diagnostics.viewportHaloSectorSize,
+      "viewport-halo-sector-count": diagnostics.viewportHaloSectorCount,
+      "viewport-halo-object-coverage": diagnostics.viewportHaloObjectCoverage,
+      "viewport-halo-relationship-coverage": diagnostics.viewportHaloRelationshipCoverage,
+      "viewport-halo-combined-coverage": diagnostics.viewportHaloCombinedCoverage,
+      "viewport-halo-target-object-count": diagnostics.viewportHaloTargetObjectCount,
+      "viewport-halo-target-relationship-count": diagnostics.viewportHaloTargetRelationshipCount,
+      "viewport-halo-virtualized-object-count": diagnostics.viewportHaloVirtualizedObjectCount,
+      "viewport-halo-virtualized-relationship-count": diagnostics.viewportHaloVirtualizedRelationshipCount,
+      "viewport-halo-force-mounted-object-count": diagnostics.viewportHaloForceMountedObjectCount,
+      "viewport-halo-force-mounted-relationship-count": diagnostics.viewportHaloForceMountedRelationshipCount,
+      "viewport-halo-route-only-relationship-count": diagnostics.viewportHaloRouteOnlyRelationshipCount,
+      "viewport-halo-entering-object-count": diagnostics.viewportHaloEnteringObjectCount,
+      "viewport-halo-leaving-object-count": diagnostics.viewportHaloLeavingObjectCount,
+      "viewport-halo-retained-object-count": diagnostics.viewportHaloRetainedObjectCount,
+      "viewport-halo-entering-relationship-count": diagnostics.viewportHaloEnteringRelationshipCount,
+      "viewport-halo-leaving-relationship-count": diagnostics.viewportHaloLeavingRelationshipCount,
+      "viewport-halo-retained-relationship-count": diagnostics.viewportHaloRetainedRelationshipCount,
+      "viewport-halo-object-patch-count": diagnostics.viewportHaloObjectPatchCount,
+      "viewport-halo-relationship-patch-count": diagnostics.viewportHaloRelationshipPatchCount,
+      "viewport-halo-routed-relationship-count": diagnostics.viewportHaloRoutedRelationshipCount,
+      "viewport-halo-same-sector-noop": diagnostics.viewportHaloSameSectorNoop,
+      "viewport-halo-duration": `${diagnostics.viewportHaloDuration} ms`,
       "last-frame-duration": `${diagnostics.lastFrameDuration} ms`,
       "transient-matrix": diagnostics.transientMatrix,
       "committed-matrix": diagnostics.committedMatrix,
@@ -586,6 +638,32 @@ export function createDiagram2Feature({ app, notify } = {}) {
       "selective-routing-cache-misses": "-",
       "selective-routing-spatial-sectors-queried": "-",
       "selective-routing-duration": "-",
+      "viewport-halo-active": "-",
+      "viewport-halo-reason": "-",
+      "viewport-halo-fallback-reason": "-",
+      "viewport-halo-sector-size": "-",
+      "viewport-halo-sector-count": "-",
+      "viewport-halo-object-coverage": "-",
+      "viewport-halo-relationship-coverage": "-",
+      "viewport-halo-combined-coverage": "-",
+      "viewport-halo-target-object-count": "-",
+      "viewport-halo-target-relationship-count": "-",
+      "viewport-halo-virtualized-object-count": "-",
+      "viewport-halo-virtualized-relationship-count": "-",
+      "viewport-halo-force-mounted-object-count": "-",
+      "viewport-halo-force-mounted-relationship-count": "-",
+      "viewport-halo-route-only-relationship-count": "-",
+      "viewport-halo-entering-object-count": "-",
+      "viewport-halo-leaving-object-count": "-",
+      "viewport-halo-retained-object-count": "-",
+      "viewport-halo-entering-relationship-count": "-",
+      "viewport-halo-leaving-relationship-count": "-",
+      "viewport-halo-retained-relationship-count": "-",
+      "viewport-halo-object-patch-count": "-",
+      "viewport-halo-relationship-patch-count": "-",
+      "viewport-halo-routed-relationship-count": "-",
+      "viewport-halo-same-sector-noop": "-",
+      "viewport-halo-duration": "-",
       "last-frame-duration": "-",
       "transient-matrix": "-",
       "committed-matrix": "-",

@@ -74,6 +74,7 @@ test("Diagram 2 top navigation opens the isolated shell", async ({ page }) => {
   await assertKeyedDiagram2NodePatches(page, transformOnlyRenderCount);
   await assertDiagram2LiveGeometryPreview(page, transformOnlyRenderCount);
   await assertDiagram2SelectiveRoutingStress(page);
+  await assertDiagram2ViewportHaloVirtualization(page);
   for (const zoom of ["0.5", "0.75", "0.9", "1", "1.1", "1.25", "1.5", "2"]) {
     await assertTransformOnlyZoom(page, zoom, transformOnlyRenderCount);
   }
@@ -279,7 +280,7 @@ async function assertKeyedDiagram2NodePatches(page, expectedFullRenderCount) {
 
 async function assertDiagram2SelectiveRoutingStress(page) {
   const result = await page.evaluate(async () => {
-    const { createDiagram2Renderer } = await import("/js/features/diagram2/diagram2-renderer.js?v=20260725-diagram2-day11-v1");
+    const { createDiagram2Renderer } = await import("/js/features/diagram2/diagram2-renderer.js?v=20260725-diagram2-day12-v1");
     const host = document.createElement("div");
     host.style.position = "absolute";
     host.style.left = "-12000px";
@@ -385,6 +386,212 @@ async function assertDiagram2SelectiveRoutingStress(page) {
   expect(result.styleRerouted).toBe(0);
   expect(result.styleConsidered).toBe(0);
   expect(result.stylePatchedNodeCount).toBe(1);
+}
+
+async function assertDiagram2ViewportHaloVirtualization(page) {
+  const result = await page.evaluate(async () => {
+    const { createDiagram2Renderer } = await import("/js/features/diagram2/diagram2-renderer.js?v=20260725-diagram2-day12-v1");
+    const host = document.createElement("div");
+    host.style.position = "absolute";
+    host.style.left = "-12000px";
+    host.style.top = "0";
+    host.style.width = "1200px";
+    host.style.height = "800px";
+    document.body.appendChild(host);
+
+    const waitForViewport = () => new Promise(resolve => {
+      requestAnimationFrame(() => requestAnimationFrame(resolve));
+    });
+    const state = buildDiagram2HaloState();
+    const renderer = createDiagram2Renderer({ host });
+    const initial = renderer.render(state, { reason: "halo initial" });
+    renderer.setZoom("1");
+    await waitForViewport();
+    const focused = renderer.diagnostics();
+    const focusedObjectCount = host.querySelectorAll("[data-diagram2-object-id]").length;
+    const focusedRelationshipCount = host.querySelectorAll("[data-diagram2-relationship-id]").length;
+    const routeOnlyMounted = [...host.querySelectorAll("[data-diagram2-relationship-id]")]
+      .filter(node => {
+        const source = node.dataset.diagram2RelationshipSource;
+        const target = node.dataset.diagram2RelationshipTarget;
+        return source
+          && target
+          && !host.querySelector(`[data-diagram2-object-id="${CSS.escape(source)}"]`)
+          && !host.querySelector(`[data-diagram2-object-id="${CSS.escape(target)}"]`);
+      }).length;
+    const previousObjectCount = focusedObjectCount;
+    const previousRelationshipCount = focusedRelationshipCount;
+    renderer.panBy(-48, 0);
+    await waitForViewport();
+    const sameSector = renderer.diagnostics();
+    const sameSectorObjectCount = host.querySelectorAll("[data-diagram2-object-id]").length;
+    const sameSectorRelationshipCount = host.querySelectorAll("[data-diagram2-relationship-id]").length;
+
+    renderer.setSelectedIds(["halo-offscreen-selected"]);
+    await renderer.whenIdle();
+    renderer.panBy(1, 0);
+    await waitForViewport();
+    const forced = renderer.diagnostics();
+    const selectedMounted = Boolean(host.querySelector('[data-diagram2-object-id="halo-offscreen-selected"]'));
+    const selectedRelationships = [...host.querySelectorAll("[data-diagram2-relationship-id]")]
+      .filter(node => node.dataset.diagram2RelationshipSource === "halo-offscreen-selected"
+        || node.dataset.diagram2RelationshipTarget === "halo-offscreen-selected").length;
+    host.remove();
+
+    return {
+      initialCanonicalObjects: initial.canonicalObjectCount,
+      initialMountedObjects: initial.mountedObjectCount,
+      focusedActive: focused.viewportHaloActive,
+      focusedFallback: focused.viewportHaloFallbackReason,
+      focusedCanonicalObjects: focused.canonicalObjectCount,
+      focusedCanonicalRelationships: focused.canonicalRelationshipCount,
+      focusedMountedObjects: focused.mountedObjectCount,
+      focusedMountedRelationships: focused.mountedRelationshipCount,
+      focusedObjectCount,
+      focusedRelationshipCount,
+      focusedVirtualizedObjects: focused.viewportHaloVirtualizedObjectCount,
+      focusedVirtualizedRelationships: focused.viewportHaloVirtualizedRelationshipCount,
+      focusedRoutedRelationships: focused.viewportHaloRoutedRelationshipCount,
+      focusedFullRendersDuringSettle: focused.fullRendersDuringSettle,
+      routeOnlyMounted,
+      routeOnlyDiagnostics: focused.viewportHaloRouteOnlyRelationshipCount,
+      sameSectorNoop: sameSector.viewportHaloSameSectorNoop,
+      sameSectorEnteringObjects: sameSector.viewportHaloEnteringObjectCount,
+      sameSectorLeavingObjects: sameSector.viewportHaloLeavingObjectCount,
+      sameSectorObjectPatchCount: sameSector.viewportHaloObjectPatchCount,
+      sameSectorRelationshipPatchCount: sameSector.viewportHaloRelationshipPatchCount,
+      sameSectorObjectCount,
+      sameSectorRelationshipCount,
+      previousObjectCount,
+      previousRelationshipCount,
+      selectedMounted,
+      selectedRelationships,
+      forcedObjectCount: forced.mountedObjectCount,
+      forcedRelationshipCount: forced.mountedRelationshipCount,
+      forcedObjectForceCount: forced.viewportHaloForceMountedObjectCount,
+      forcedRelationshipForceCount: forced.viewportHaloForceMountedRelationshipCount
+    };
+
+    function buildDiagram2HaloState() {
+      const objects = [{
+        id: "halo-route-left",
+        type: "entity",
+        x: -3300,
+        y: 220,
+        width: 180,
+        height: 100,
+        entitySchema: "dbo",
+        entityName: "HaloLeft",
+        fields: [
+          { name: "HaloLeftId", dataType: "INT", nullable: false, isPrimaryKey: true, isImportant: true },
+          { name: "HaloRightId", dataType: "INT", nullable: true, isForeignKey: true }
+        ],
+        foreignKeys: [{
+          name: "FK_HaloLeft_HaloRight",
+          columns: ["HaloRightId"],
+          referencedSchema: "dbo",
+          referencedTable: "HaloRight",
+          referencedColumns: ["HaloRightId"],
+          relationshipType: "many-to-one",
+          routeOverride: [
+            { x: -3120, y: 272 },
+            { x: -128, y: 272 },
+            { x: 3200, y: 272 },
+            { x: 5200, y: 272 }
+          ]
+        }]
+      }, {
+        id: "halo-route-right",
+        type: "entity",
+        x: 5200,
+        y: 220,
+        width: 180,
+        height: 100,
+        entitySchema: "dbo",
+        entityName: "HaloRight",
+        fields: [
+          { name: "HaloRightId", dataType: "INT", nullable: false, isPrimaryKey: true, isImportant: true }
+        ],
+        foreignKeys: []
+      }, {
+        id: "halo-offscreen-selected",
+        type: "entity",
+        x: 9000,
+        y: 520,
+        width: 180,
+        height: 100,
+        entitySchema: "dbo",
+        entityName: "OffscreenSelected",
+        fields: [
+          { name: "OffscreenSelectedId", dataType: "INT", nullable: false, isPrimaryKey: true, isImportant: true },
+          { name: "HaloRightId", dataType: "INT", nullable: true, isForeignKey: true }
+        ],
+        foreignKeys: [{
+          name: "FK_OffscreenSelected_HaloRight",
+          columns: ["HaloRightId"],
+          referencedSchema: "dbo",
+          referencedTable: "HaloRight",
+          referencedColumns: ["HaloRightId"],
+          relationshipType: "many-to-one"
+        }]
+      }];
+
+      for (let index = 0; index < 217; index += 1) {
+        const name = `Halo${index}`;
+        objects.push({
+          id: `halo-entity-${index}`,
+          type: "entity",
+          x: -9800 + (index * 96),
+          y: 760 + ((index % 4) * 150),
+          width: 84,
+          height: 96,
+          entitySchema: "dbo",
+          entityName: name,
+          fields: [
+            { name: `${name}Id`, dataType: "INT", nullable: false, isPrimaryKey: true, isImportant: true }
+          ],
+          foreignKeys: []
+        });
+      }
+
+      return {
+        width: 19200,
+        height: 1600,
+        manualEntityRelationshipRoutes: true,
+        objects
+      };
+    }
+  });
+
+  expect(result.initialCanonicalObjects).toBe(220);
+  expect(result.initialMountedObjects).toBe(220);
+  expect(result.focusedActive).toBe(true);
+  expect(result.focusedFallback).toBe("");
+  expect(result.focusedCanonicalObjects).toBe(220);
+  expect(result.focusedCanonicalRelationships).toBe(2);
+  expect(result.focusedMountedObjects).toBeLessThan(110);
+  expect(result.focusedMountedRelationships).toBeLessThanOrEqual(2);
+  expect(result.focusedObjectCount).toBe(result.focusedMountedObjects);
+  expect(result.focusedRelationshipCount).toBe(result.focusedMountedRelationships);
+  expect(result.focusedVirtualizedObjects).toBeGreaterThan(110);
+  expect(result.focusedVirtualizedRelationships).toBeGreaterThanOrEqual(0);
+  expect(result.focusedRoutedRelationships).toBe(0);
+  expect(result.focusedFullRendersDuringSettle).toBe(0);
+  expect(result.routeOnlyMounted).toBeGreaterThan(0);
+  expect(result.routeOnlyDiagnostics).toBeGreaterThan(0);
+  expect(result.sameSectorNoop).toBe(true);
+  expect(result.sameSectorEnteringObjects).toBe(0);
+  expect(result.sameSectorLeavingObjects).toBe(0);
+  expect(result.sameSectorObjectPatchCount).toBe(0);
+  expect(result.sameSectorRelationshipPatchCount).toBe(0);
+  expect(result.sameSectorObjectCount).toBe(result.previousObjectCount);
+  expect(result.sameSectorRelationshipCount).toBe(result.previousRelationshipCount);
+  expect(result.selectedMounted).toBe(true);
+  expect(result.selectedRelationships).toBeGreaterThan(0);
+  expect(result.forcedObjectCount).toBeGreaterThan(result.sameSectorObjectCount);
+  expect(result.forcedRelationshipCount).toBeGreaterThanOrEqual(result.sameSectorRelationshipCount);
+  expect(result.forcedObjectForceCount).toBeGreaterThan(0);
+  expect(result.forcedRelationshipForceCount).toBeGreaterThan(0);
 }
 
 async function assertDiagram2LiveGeometryPreview(page, expectedFullRenderCount) {
@@ -714,7 +921,7 @@ function testState() {
 }
 
 function pmtDatabaseSchemaBodyHtml() {
-  return `<p><img data-pmt-diagram="true" data-pmt-private-diagram="true" src="/assets/docs/pmt-database-schema.svg?v=20260725-diagram2-day11-fixture" alt="PMT Database Schema"></p>`;
+  return `<p><img data-pmt-diagram="true" data-pmt-private-diagram="true" src="/assets/docs/pmt-database-schema.svg?v=20260725-diagram2-day12-fixture" alt="PMT Database Schema"></p>`;
 }
 
 function diagramBodyHtml(title, stroke) {
