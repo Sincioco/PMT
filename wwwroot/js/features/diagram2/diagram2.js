@@ -28,7 +28,7 @@ import {
 } from "../../shared/diagram-documents.js?v=20260725-diagram2-day6-v1";
 import { formatDate } from "../../shared/dates.js";
 import { escapeAttr, escapeHtml } from "../../shared/text-and-links.js";
-import { createDiagram2Renderer } from "./diagram2-renderer.js?v=20260725-diagram2-day9-v1";
+import { createDiagram2Renderer } from "./diagram2-renderer.js?v=20260725-diagram2-day10-v1";
 
 const diagram2ViewModes = new Set(["tree", "cards"]);
 const diagram2SortModes = new Set(["latest", "oldest", "name", "custom"]);
@@ -456,6 +456,19 @@ export function createDiagram2Feature({ app, notify } = {}) {
           ${diagram2DiagnosticItemHtml("routed-relationship-count", "Routed relationship count")}
           ${diagram2DiagnosticItemHtml("dirty-flush-count", "Dirty flush count")}
           ${diagram2DiagnosticItemHtml("last-flush-duration", "Last flush duration")}
+          ${diagram2DiagnosticItemHtml("geometry-preview-active", "Geometry preview active")}
+          ${diagram2DiagnosticItemHtml("geometry-preview-reason", "Geometry preview reason")}
+          ${diagram2DiagnosticItemHtml("geometry-preview-object-ids", "Preview object IDs")}
+          ${diagram2DiagnosticItemHtml("geometry-preview-relationship-ids", "Preview relationship IDs")}
+          ${diagram2DiagnosticItemHtml("geometry-preview-frame-count", "Preview frame count")}
+          ${diagram2DiagnosticItemHtml("geometry-preview-patched-object-count", "Preview patched object count")}
+          ${diagram2DiagnosticItemHtml("geometry-preview-relationship-count", "Preview relationship count")}
+          ${diagram2DiagnosticItemHtml("geometry-preview-last-duration", "Preview last duration")}
+          ${diagram2DiagnosticItemHtml("geometry-preview-commit-count", "Preview commit count")}
+          ${diagram2DiagnosticItemHtml("geometry-preview-undo-entry-count", "Preview undo entries")}
+          ${diagram2DiagnosticItemHtml("geometry-preview-initial-matrix", "Preview initial matrix")}
+          ${diagram2DiagnosticItemHtml("geometry-preview-settled-route-count", "Preview settled routes")}
+          ${diagram2DiagnosticItemHtml("pending-geometry-preview", "Pending geometry preview")}
           ${diagram2DiagnosticItemHtml("last-frame-duration", "Last frame duration")}
           ${diagram2DiagnosticItemHtml("transient-matrix", "Transient matrix")}
           ${diagram2DiagnosticItemHtml("committed-matrix", "Committed matrix")}
@@ -496,6 +509,19 @@ export function createDiagram2Feature({ app, notify } = {}) {
       "routed-relationship-count": diagnostics.routedRelationshipCount,
       "dirty-flush-count": diagnostics.dirtyFlushCount,
       "last-flush-duration": `${diagnostics.lastFlushDuration} ms`,
+      "geometry-preview-active": diagnostics.geometryPreviewActive,
+      "geometry-preview-reason": diagnostics.geometryPreviewReason,
+      "geometry-preview-object-ids": diagnostics.geometryPreviewObjectIds,
+      "geometry-preview-relationship-ids": diagnostics.geometryPreviewRelationshipIds,
+      "geometry-preview-frame-count": diagnostics.geometryPreviewFrameCount,
+      "geometry-preview-patched-object-count": diagnostics.geometryPreviewPatchedObjectCount,
+      "geometry-preview-relationship-count": diagnostics.geometryPreviewRelationshipCount,
+      "geometry-preview-last-duration": `${diagnostics.geometryPreviewLastDuration} ms`,
+      "geometry-preview-commit-count": diagnostics.geometryPreviewCommitCount,
+      "geometry-preview-undo-entry-count": diagnostics.geometryPreviewUndoEntryCount,
+      "geometry-preview-initial-matrix": diagnostics.geometryPreviewInitialMatrix,
+      "geometry-preview-settled-route-count": diagnostics.geometryPreviewSettledRouteCount,
+      "pending-geometry-preview": diagnostics.pendingGeometryPreview,
       "last-frame-duration": `${diagnostics.lastFrameDuration} ms`,
       "transient-matrix": diagnostics.transientMatrix,
       "committed-matrix": diagnostics.committedMatrix,
@@ -526,6 +552,19 @@ export function createDiagram2Feature({ app, notify } = {}) {
       "routed-relationship-count": "-",
       "dirty-flush-count": "-",
       "last-flush-duration": "-",
+      "geometry-preview-active": "-",
+      "geometry-preview-reason": "-",
+      "geometry-preview-object-ids": "-",
+      "geometry-preview-relationship-ids": "-",
+      "geometry-preview-frame-count": "-",
+      "geometry-preview-patched-object-count": "-",
+      "geometry-preview-relationship-count": "-",
+      "geometry-preview-last-duration": "-",
+      "geometry-preview-commit-count": "-",
+      "geometry-preview-undo-entry-count": "-",
+      "geometry-preview-initial-matrix": "-",
+      "geometry-preview-settled-route-count": "-",
+      "pending-geometry-preview": "-",
       "last-frame-duration": "-",
       "transient-matrix": "-",
       "committed-matrix": "-",

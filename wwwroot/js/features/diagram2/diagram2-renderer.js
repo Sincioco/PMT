@@ -240,11 +240,17 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
   let pendingDiagramFlushFrame = 0;
   let dirtyFlushCount = 0;
   let pendingFlushResolvers = [];
+  let activeGeometryPreview = null;
+  let pendingGeometryPreviewFrame = 0;
+  let geometryPreviewFrameCount = 0;
+  let geometryPreviewCommitCount = 0;
+  let geometryPreviewUndoEntryCount = 0;
   let pendingViewportFrame = 0;
   let pendingViewportGesture = null;
   let lastViewportReason = "";
   let lastTransformDiagnostics = emptyTransformDiagnostics();
   let lastDirtyDiagnostics = emptyDirtyFlushDiagnostics();
+  let lastGeometryPreviewDiagnostics = emptyGeometryPreviewDiagnostics();
   let lastDiagnostics = emptyDiagnostics();
 
   function render(inputState, options = {}) {
@@ -255,6 +261,7 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
 
     canonicalState = normalizeDiagram2CanonicalState(inputState);
     clearDirtyState(dirty);
+    clearGeometryPreview({ restoreObjects: false, reason: "full render" });
     const visibleObjects = canonicalState.objects.filter(object => object.visible !== false);
     const relationships = diagram2CanonicalRelationships(canonicalState);
     mark(performanceApi, `${frameId}:canonical`);
@@ -290,7 +297,8 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
       lastFrameDuration: Math.max(0, endTime - startTime)
     });
     lastDirtyDiagnostics = emptyDirtyFlushDiagnostics();
-    Object.assign(lastDiagnostics, lastTransformDiagnostics, lastDirtyDiagnostics);
+    lastGeometryPreviewDiagnostics = emptyGeometryPreviewDiagnostics();
+    Object.assign(lastDiagnostics, lastTransformDiagnostics, lastDirtyDiagnostics, lastGeometryPreviewDiagnostics);
     lastDiagnostics.svgDescendantCount = svg.querySelectorAll("*").length;
     applyDiagnosticsAttributes();
     notifyDiagnostics();
@@ -385,6 +393,88 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
     previousSelection.forEach(id => markSelectionDirty(id));
     liveView.selectedIds.forEach(id => markSelectionDirty(id));
     return scheduleDiagramFlush("selection");
+  }
+
+  function beginGeometryPreview(options = {}) {
+    if (!canonicalState || !svg) return diagnostics();
+    clearGeometryPreview({ restoreObjects: true, reason: "preview replace" });
+
+    const objectIds = geometryPreviewObjectIds(options);
+    if (!objectIds.length) return diagnostics();
+    const originalObjectsById = new Map();
+    objectIds.forEach(id => {
+      const object = canonicalState.objects.find(candidate => candidate.id === id && candidate.visible !== false);
+      if (object) originalObjectsById.set(id, cloneDiagram2Value(object));
+    });
+    if (!originalObjectsById.size) return diagnostics();
+
+    const relationshipIds = connectedRelationshipIds([...originalObjectsById.keys()]);
+    const relationshipsById = new Map(diagram2CanonicalRelationships(canonicalState).map(relationship => [relationship.id, relationship]));
+    const settledRoutesById = new Map(relationshipIds.map(id => {
+      const relationship = relationshipsById.get(id);
+      return [id, relationship ? relationshipRoute(relationship).path : ""];
+    }));
+    activeGeometryPreview = {
+      id: `diagram2-geometry-preview-${Date.now()}-${geometryPreviewFrameCount + 1}`,
+      mode: String(options.mode || "move") === "resize" ? "resize" : "move",
+      objectIds: [...originalObjectsById.keys()],
+      selectedObjectIds: [...liveView.selectedIds].filter(id => liveView.objectNodesById.has(id)),
+      relationshipIds,
+      originalObjectsById,
+      settledRoutesById,
+      initialViewportMatrix: { ...viewportTransform },
+      latestGeometry: emptyPreviewGeometry(),
+      previewObjectsById: new Map(originalObjectsById),
+      frameCount: 0,
+      previewRelationshipCount: 0,
+      patchedObjectCount: 0,
+      committing: false
+    };
+
+    bringPreviewObjectsForward(activeGeometryPreview.objectIds);
+    activeGeometryPreview.objectIds.forEach(id => {
+      liveView.objectNodesById.get(id)?.classList.add("is-previewing");
+    });
+    updateGeometryPreviewDiagnostics("preview start", 0, 0);
+    applyDiagnosticsAttributes();
+    notifyDiagnostics();
+    return diagnostics();
+  }
+
+  function previewGeometry(input = {}) {
+    if (!activeGeometryPreview) return diagnostics();
+    activeGeometryPreview.latestGeometry = normalizePreviewGeometry(input, activeGeometryPreview.latestGeometry);
+    return scheduleGeometryPreviewFrame("preview move");
+  }
+
+  function commitGeometryPreview(input = {}) {
+    if (!activeGeometryPreview) return diagnostics();
+    if (Object.keys(input || {}).length > 0) {
+      activeGeometryPreview.latestGeometry = normalizePreviewGeometry(input, activeGeometryPreview.latestGeometry);
+    }
+    applyGeometryPreviewFrame("preview commit");
+
+    const preview = activeGeometryPreview;
+    preview.committing = true;
+    geometryPreviewCommitCount += 1;
+    geometryPreviewUndoEntryCount += 1;
+    beginDiagramUpdate("geometry preview commit");
+    preview.objectIds.forEach(id => {
+      const nextObject = preview.previewObjectsById.get(id);
+      if (nextObject) updateObject(id, nextObject);
+    });
+    endDiagramUpdate("geometry preview commit");
+    updateGeometryPreviewDiagnostics("preview commit", preview.patchedObjectCount, preview.previewRelationshipCount);
+    return diagnostics();
+  }
+
+  function cancelGeometryPreview() {
+    if (!activeGeometryPreview) return diagnostics();
+    clearGeometryPreview({ restoreObjects: true });
+    updateGeometryPreviewDiagnostics("preview cancel", 0, 0);
+    applyDiagnosticsAttributes();
+    notifyDiagnostics();
+    return diagnostics();
   }
 
   function beginDiagramUpdate(reason = "update") {
@@ -496,7 +586,8 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
       relationshipsRoutedInLastFlush: routedRelationshipCount,
       lastFrameDuration: lastDirtyDiagnostics.lastFlushDuration
     });
-    Object.assign(lastDiagnostics, lastTransformDiagnostics, lastDirtyDiagnostics);
+    if (activeGeometryPreview?.committing) clearGeometryPreview({ restoreObjects: false, reason: "preview commit" });
+    Object.assign(lastDiagnostics, lastTransformDiagnostics, lastDirtyDiagnostics, lastGeometryPreviewDiagnostics);
     lastDiagnostics.svgDescendantCount = svg.querySelectorAll("*").length;
     applyDiagnosticsAttributes();
     notifyDiagnostics();
@@ -505,7 +596,7 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
   }
 
   function whenIdle() {
-    if (!pendingDiagramFlushFrame && !dirtyStateHasChanges(dirty)) {
+    if (!pendingDiagramFlushFrame && !pendingGeometryPreviewFrame && !dirtyStateHasChanges(dirty)) {
       return Promise.resolve(diagnostics());
     }
     return new Promise(resolve => {
@@ -880,11 +971,266 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
     if (text) dirty.reasons.add(text);
   }
 
-  function patchSelectionOverlays() {
+  function geometryPreviewObjectIds(options = {}) {
+    const selectedIds = [...liveView.selectedIds].filter(id => liveView.objectNodesById.has(id));
+    const ids = Array.isArray(options.objectIds)
+      ? options.objectIds
+      : options.objectId
+        ? [options.objectId]
+        : selectedIds;
+    const primaryObjectId = String(options.objectId || "").trim();
+    const effectiveIds = primaryObjectId && options.includeSelection !== false && selectedIds.includes(primaryObjectId)
+      ? selectedIds
+      : ids;
+    return [...new Set(effectiveIds
+      .map(id => String(id || "").trim())
+      .filter(id => id && liveView.objectNodesById.has(id)))];
+  }
+
+  function connectedRelationshipIds(objectIds) {
+    const objectIdSet = new Set(objectIds);
+    return diagram2CanonicalRelationships(canonicalState)
+      .filter(relationship => objectIdSet.has(relationship.source?.id) || objectIdSet.has(relationship.target?.id))
+      .map(relationship => relationship.id);
+  }
+
+  function bringPreviewObjectsForward(objectIds) {
+    objectIds.forEach(id => {
+      const node = liveView.objectNodesById.get(id);
+      if (node?.parentNode === planes.objects) planes.objects.appendChild(node);
+    });
+  }
+
+  function scheduleGeometryPreviewFrame(reason = "preview move") {
+    if (!activeGeometryPreview) return diagnostics();
+    if (pendingGeometryPreviewFrame) {
+      updateGeometryPreviewDiagnostics(reason, activeGeometryPreview.patchedObjectCount, activeGeometryPreview.previewRelationshipCount, true);
+      return diagnostics();
+    }
+
+    const requestFrame = globalThis.requestAnimationFrame || (callback => globalThis.setTimeout(callback, 16));
+    pendingGeometryPreviewFrame = requestFrame(() => {
+      pendingGeometryPreviewFrame = 0;
+      applyGeometryPreviewFrame(reason);
+      resolvePendingFlushes();
+    });
+    updateGeometryPreviewDiagnostics(reason, activeGeometryPreview.patchedObjectCount, activeGeometryPreview.previewRelationshipCount, true);
+    applyDiagnosticsAttributes();
+    return diagnostics();
+  }
+
+  function applyGeometryPreviewFrame(reason = "preview move") {
+    const preview = activeGeometryPreview;
+    if (!preview || !canonicalState || !svg) return diagnostics();
+
+    const frameId = `diagram2-geometry-preview-${++frameSequence}`;
+    const startTime = now(performanceApi);
+    mark(performanceApi, `${frameId}:start`);
+    const previewObjectsById = computePreviewObjectsById(preview);
+    preview.previewObjectsById = previewObjectsById;
+    let patchedObjectCount = 0;
+    preview.objectIds.forEach(id => {
+      patchedObjectCount += patchPreviewObject(id, previewObjectsById.get(id), preview);
+    });
+    const previewRelationshipCount = patchGeometryRelationshipPreviews(preview, previewObjectsById);
+    patchSelectionOverlays(previewObjectsById);
+
+    const endTime = now(performanceApi);
+    mark(performanceApi, `${frameId}:end`);
+    measure(performanceApi, "diagram2 geometry preview", `${frameId}:start`, `${frameId}:end`);
+    geometryPreviewFrameCount += 1;
+    preview.frameCount += 1;
+    preview.patchedObjectCount = patchedObjectCount;
+    preview.previewRelationshipCount = previewRelationshipCount;
+    updateGeometryPreviewDiagnostics(reason, patchedObjectCount, previewRelationshipCount, false, endTime - startTime);
+    applyDiagnosticsAttributes();
+    notifyDiagnostics();
+    return diagnostics();
+  }
+
+  function computePreviewObjectsById(preview) {
+    const objectsById = new Map();
+    preview.originalObjectsById.forEach((object, id) => {
+      objectsById.set(id, previewObjectGeometry(object, preview.latestGeometry, preview.mode));
+    });
+    return objectsById;
+  }
+
+  function previewObjectGeometry(object, geometry, mode) {
+    const deltaX = finiteNumber(geometry.deltaX, 0);
+    const deltaY = finiteNumber(geometry.deltaY, 0);
+    const deltaWidth = finiteNumber(geometry.deltaWidth, 0);
+    const deltaHeight = finiteNumber(geometry.deltaHeight, 0);
+    const next = cloneDiagram2Value(object);
+
+    if (object.type === "arrow" || object.type === "line") {
+      next.x1 = finiteNumber(object.x1, 0) + deltaX;
+      next.y1 = finiteNumber(object.y1, 0) + deltaY;
+      next.x2 = finiteNumber(object.x2, 0) + deltaX + (mode === "resize" ? deltaWidth : 0);
+      next.y2 = finiteNumber(object.y2, 0) + deltaY + (mode === "resize" ? deltaHeight : 0);
+      return next;
+    }
+
+    next.x = finiteNumber(object.x, 0) + deltaX;
+    next.y = finiteNumber(object.y, 0) + deltaY;
+    if (mode === "resize") {
+      next.width = Math.max(1, positiveNumber(object.width, 1) + deltaWidth);
+      next.height = Math.max(1, positiveNumber(object.height, 1) + deltaHeight);
+      return normalizePreviewObject(next);
+    }
+    return next;
+  }
+
+  function normalizePreviewObject(object) {
+    return normalizeDiagram2CanonicalState({
+      width: canonicalState?.width || defaultDiagram2Width,
+      height: canonicalState?.height || defaultDiagram2Height,
+      objects: [object]
+    }).objects[0] || object;
+  }
+
+  function patchPreviewObject(id, object, preview) {
+    if (!object) return 0;
+    const node = liveView.objectNodesById.get(id);
+    if (!node) return 0;
+    node.classList.add("is-previewing");
+    setSvgAttributes(node, {
+      "data-diagram2-preview-active": "true"
+    });
+
+    if (preview.mode === "resize" || object.type === "arrow" || object.type === "line") {
+      const previousObject = liveView.objectDataById.get(id) || preview.originalObjectsById.get(id) || null;
+      patchObjectNode(node, previousObject, object, {
+        ...diagram2ObjectPatchFlags(previousObject, object),
+        selected: liveView.selectedIds.has(id)
+      }, canonicalState);
+      setSvgAttributes(node, {
+        "data-diagram2-preview-active": "true"
+      });
+      node.classList.add("is-previewing");
+      return 1;
+    }
+
+    setSvgAttributes(node, {
+      transform: objectTransformText(object)
+    });
+    return 1;
+  }
+
+  function patchGeometryRelationshipPreviews(preview, previewObjectsById) {
+    if (!planes.overlays) return 0;
+    const desiredIds = new Set(preview.relationshipIds);
+    const relationshipsById = new Map(diagram2CanonicalRelationships(canonicalState).map(relationship => [relationship.id, relationship]));
+    let patched = 0;
+
+    preview.relationshipIds.forEach(id => {
+      const relationship = relationshipsById.get(id);
+      if (!relationship) return;
+      const previewRelationship = relationshipWithPreviewObjects(relationship, previewObjectsById);
+      const route = relationshipRoute(previewRelationship);
+      const style = relationshipStyle(relationship);
+      let node = planes.overlays.querySelector(`:scope > g[data-diagram2-relationship-preview-id="${cssEscape(id)}"]`);
+      if (!node) {
+        node = createSvgElement(host, "g", {
+          "data-diagram2-relationship-preview-id": id,
+          class: "diagram2-renderer-relationship-preview-node"
+        });
+        planes.overlays.appendChild(node);
+      }
+      let path = node.querySelector(":scope > path[data-diagram2-relationship-preview-path]");
+      if (!path) {
+        path = appendSvg(node, "path", {
+          "data-diagram2-relationship-preview-path": ""
+        });
+      }
+      setSvgAttributes(path, {
+        class: "diagram2-renderer-relationship-preview",
+        "data-diagram2-relationship-preview-path": "",
+        d: route.path,
+        fill: "none",
+        stroke: style.stroke,
+        "stroke-width": Math.max(1, style.strokeWidth),
+        opacity: Math.min(1, style.opacity + 0.08),
+        "stroke-dasharray": "8 6",
+        "stroke-linejoin": "round",
+        "stroke-linecap": "round",
+        "vector-effect": "non-scaling-stroke"
+      });
+      patched += 1;
+    });
+
+    planes.overlays.querySelectorAll(":scope > g[data-diagram2-relationship-preview-id]").forEach(node => {
+      if (!desiredIds.has(node.getAttribute("data-diagram2-relationship-preview-id"))) node.remove();
+    });
+    return patched;
+  }
+
+  function relationshipWithPreviewObjects(relationship, previewObjectsById) {
+    return {
+      ...relationship,
+      source: previewObjectsById.get(relationship.source?.id) || relationship.source,
+      target: previewObjectsById.get(relationship.target?.id) || relationship.target
+    };
+  }
+
+  function clearGeometryPreview({ restoreObjects = false, reason = "" } = {}) {
+    const preview = activeGeometryPreview;
+    if (preview && restoreObjects) {
+      preview.originalObjectsById.forEach((object, id) => {
+        const node = liveView.objectNodesById.get(id);
+        if (!node) return;
+        patchObjectNode(node, liveView.objectDataById.get(id), object, {
+          ...diagram2ObjectPatchFlags(liveView.objectDataById.get(id), object),
+          selected: liveView.selectedIds.has(id),
+          rebuild: preview.mode === "resize" || object.type === "arrow" || object.type === "line"
+        }, canonicalState);
+      });
+      patchSelectionOverlays();
+    }
+    preview?.objectIds.forEach(id => {
+      const node = liveView.objectNodesById.get(id);
+      node?.classList.remove("is-previewing");
+      node?.removeAttribute("data-diagram2-preview-active");
+    });
+    if (planes.objects && canonicalState?.objects?.length) {
+      reconcileObjectOrder(canonicalState.objects.filter(object => object.visible !== false));
+    }
+    planes.overlays?.querySelectorAll(":scope > g[data-diagram2-relationship-preview-id]")?.forEach(node => node.remove());
+    activeGeometryPreview = null;
+    pendingGeometryPreviewFrame = 0;
+    updateGeometryPreviewDiagnostics(reason || (restoreObjects ? "preview cancel" : "preview cleared"), 0, 0);
+  }
+
+  function updateGeometryPreviewDiagnostics(reason, patchedObjectCount, relationshipPreviewCount, pending = false, duration = 0) {
+    const preview = activeGeometryPreview;
+    lastGeometryPreviewDiagnostics = preview ? {
+      geometryPreviewActive: true,
+      geometryPreviewReason: String(reason || ""),
+      geometryPreviewObjectIds: sortedDirtyIds(preview.objectIds),
+      geometryPreviewRelationshipIds: sortedDirtyIds(preview.relationshipIds),
+      geometryPreviewFrameCount,
+      geometryPreviewPatchedObjectCount: patchedObjectCount,
+      geometryPreviewRelationshipCount: relationshipPreviewCount,
+      geometryPreviewLastDuration: Math.round(Math.max(0, duration) * 100) / 100,
+      geometryPreviewCommitCount,
+      geometryPreviewUndoEntryCount,
+      geometryPreviewInitialMatrix: diagram2MatrixText(preview.initialViewportMatrix),
+      geometryPreviewSettledRouteCount: preview.settledRoutesById.size,
+      pendingGeometryPreview: pending
+    } : {
+      ...emptyGeometryPreviewDiagnostics(),
+      geometryPreviewReason: String(reason || ""),
+      geometryPreviewCommitCount,
+      geometryPreviewUndoEntryCount
+    };
+    Object.assign(lastDiagnostics, lastGeometryPreviewDiagnostics);
+  }
+
+  function patchSelectionOverlays(previewObjectsById = null) {
     if (!planes.overlays) return;
     const desiredIds = new Set();
     liveView.selectedIds.forEach(id => {
-      const object = liveView.objectDataById.get(id);
+      const object = previewObjectsById?.get(id) || liveView.objectDataById.get(id);
       const objectNode = liveView.objectNodesById.get(id);
       if (!object || !objectNode?.isConnected) return;
 
@@ -1120,6 +1466,19 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
     svg.dataset.diagram2DirtyFlushCount = String(lastDiagnostics.dirtyFlushCount);
     svg.dataset.diagram2PendingDiagramFlush = String(lastDiagnostics.pendingDiagramFlush);
     svg.dataset.diagram2TransactionDepth = String(lastDiagnostics.transactionDepth);
+    svg.dataset.diagram2GeometryPreviewActive = String(lastDiagnostics.geometryPreviewActive);
+    svg.dataset.diagram2GeometryPreviewReason = String(lastDiagnostics.geometryPreviewReason);
+    svg.dataset.diagram2GeometryPreviewObjectIds = String(lastDiagnostics.geometryPreviewObjectIds);
+    svg.dataset.diagram2GeometryPreviewRelationshipIds = String(lastDiagnostics.geometryPreviewRelationshipIds);
+    svg.dataset.diagram2GeometryPreviewFrameCount = String(lastDiagnostics.geometryPreviewFrameCount);
+    svg.dataset.diagram2GeometryPreviewPatchedObjectCount = String(lastDiagnostics.geometryPreviewPatchedObjectCount);
+    svg.dataset.diagram2GeometryPreviewRelationshipCount = String(lastDiagnostics.geometryPreviewRelationshipCount);
+    svg.dataset.diagram2GeometryPreviewLastDuration = String(lastDiagnostics.geometryPreviewLastDuration);
+    svg.dataset.diagram2GeometryPreviewCommitCount = String(lastDiagnostics.geometryPreviewCommitCount);
+    svg.dataset.diagram2GeometryPreviewUndoEntryCount = String(lastDiagnostics.geometryPreviewUndoEntryCount);
+    svg.dataset.diagram2GeometryPreviewInitialMatrix = String(lastDiagnostics.geometryPreviewInitialMatrix);
+    svg.dataset.diagram2GeometryPreviewSettledRouteCount = String(lastDiagnostics.geometryPreviewSettledRouteCount);
+    svg.dataset.diagram2PendingGeometryPreview = String(lastDiagnostics.pendingGeometryPreview);
     svg.dataset.diagram2TransientMatrix = String(lastDiagnostics.transientMatrix);
     svg.dataset.diagram2CommittedMatrix = String(lastDiagnostics.committedMatrix);
     svg.dataset.diagram2MatrixDifference = String(lastDiagnostics.matrixDifference);
@@ -1149,6 +1508,10 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
     scheduleDiagramFlush,
     flushDiagramChanges,
     whenIdle,
+    beginGeometryPreview,
+    previewGeometry,
+    commitGeometryPreview,
+    cancelGeometryPreview,
     updateObject,
     patchObject: updateObject,
     setSelectedIds,
@@ -1923,7 +2286,8 @@ function diagnosticsFor(options) {
     objectsPatchedInLastFlush: options.objectsPatchedInLastFlush,
     relationshipsRoutedInLastFlush: options.relationshipsRoutedInLastFlush,
     lastFrameDuration: Math.round(options.lastFrameDuration * 100) / 100,
-    ...emptyDirtyFlushDiagnostics()
+    ...emptyDirtyFlushDiagnostics(),
+    ...emptyGeometryPreviewDiagnostics()
   };
 }
 
@@ -1941,7 +2305,44 @@ function emptyDiagnostics() {
     relationshipsRoutedInLastFlush: 0,
     lastFrameDuration: 0,
     ...emptyTransformDiagnostics(),
-    ...emptyDirtyFlushDiagnostics()
+    ...emptyDirtyFlushDiagnostics(),
+    ...emptyGeometryPreviewDiagnostics()
+  };
+}
+
+function emptyGeometryPreviewDiagnostics() {
+  return {
+    geometryPreviewActive: false,
+    geometryPreviewReason: "",
+    geometryPreviewObjectIds: "none",
+    geometryPreviewRelationshipIds: "none",
+    geometryPreviewFrameCount: 0,
+    geometryPreviewPatchedObjectCount: 0,
+    geometryPreviewRelationshipCount: 0,
+    geometryPreviewLastDuration: 0,
+    geometryPreviewCommitCount: 0,
+    geometryPreviewUndoEntryCount: 0,
+    geometryPreviewInitialMatrix: diagram2MatrixText({ scale: 1, translateX: 0, translateY: 0 }),
+    geometryPreviewSettledRouteCount: 0,
+    pendingGeometryPreview: false
+  };
+}
+
+function emptyPreviewGeometry() {
+  return {
+    deltaX: 0,
+    deltaY: 0,
+    deltaWidth: 0,
+    deltaHeight: 0
+  };
+}
+
+function normalizePreviewGeometry(input = {}, fallback = emptyPreviewGeometry()) {
+  return {
+    deltaX: finiteNumber(input.deltaX ?? input.dx, fallback.deltaX),
+    deltaY: finiteNumber(input.deltaY ?? input.dy, fallback.deltaY),
+    deltaWidth: finiteNumber(input.deltaWidth ?? input.dw, fallback.deltaWidth),
+    deltaHeight: finiteNumber(input.deltaHeight ?? input.dh, fallback.deltaHeight)
   };
 }
 
@@ -2344,6 +2745,11 @@ function cssEscape(value) {
   const text = String(value || "");
   if (typeof globalThis.CSS?.escape === "function") return globalThis.CSS.escape(text);
   return text.replace(/["\\]/g, "\\$&");
+}
+
+function cloneDiagram2Value(value) {
+  if (typeof globalThis.structuredClone === "function") return globalThis.structuredClone(value);
+  return JSON.parse(JSON.stringify(value));
 }
 
 function normalizeZoomMode(value) {

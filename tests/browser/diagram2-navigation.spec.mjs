@@ -72,6 +72,7 @@ test("Diagram 2 top navigation opens the isolated shell", async ({ page }) => {
 
   const transformOnlyRenderCount = await diagram2FullRenderCount(page);
   await assertKeyedDiagram2NodePatches(page, transformOnlyRenderCount);
+  await assertDiagram2LiveGeometryPreview(page, transformOnlyRenderCount);
   for (const zoom of ["0.5", "0.75", "0.9", "1", "1.1", "1.25", "1.5", "2"]) {
     await assertTransformOnlyZoom(page, zoom, transformOnlyRenderCount);
   }
@@ -267,6 +268,151 @@ async function assertKeyedDiagram2NodePatches(page, expectedFullRenderCount) {
   expect(result.relationshipNodeCount).toBe(82);
 }
 
+async function assertDiagram2LiveGeometryPreview(page, expectedFullRenderCount) {
+  const result = await page.evaluate(async () => {
+    const renderer = window.__pmtDiagram2Renderer;
+    const svg = document.querySelector("[data-diagram2-svg]");
+    const entities = [...document.querySelectorAll("[data-diagram2-object-plane] [data-diagram2-object-type='entity']")];
+    const relationship = [...document.querySelectorAll("[data-diagram2-relationship-id]")]
+      .find(candidate => candidate.dataset.diagram2RelationshipSource
+        && document.querySelector(`[data-diagram2-object-id="${CSS.escape(candidate.dataset.diagram2RelationshipSource)}"]`));
+    const entityA = relationship?.dataset.diagram2RelationshipSource
+      ? document.querySelector(`[data-diagram2-object-id="${CSS.escape(relationship.dataset.diagram2RelationshipSource)}"]`)
+      : entities[0] || null;
+    const entityB = entities.find(entity => entity !== entityA) || null;
+    const entityC = entities.find(entity => entity !== entityA && entity !== entityB) || entityB;
+    if (!renderer || !svg || !relationship || !entityA || !entityB || !entityC) return { ready: false };
+
+    const entityAId = entityA.dataset.diagram2ObjectId;
+    const entityBId = entityB.dataset.diagram2ObjectId;
+    const entityCId = entityC.dataset.diagram2ObjectId;
+    const relationshipId = relationship.dataset.diagram2RelationshipId;
+    const entityAText = entityA.querySelector("[data-diagram2-entity-title], text") || null;
+
+    renderer.setSelectedIds([entityAId]);
+    await renderer.whenIdle();
+    const dirtyFlushAfterSelection = Number(svg.dataset.diagram2DirtyFlushCount || 0);
+    const transformBeforeMove = entityA.getAttribute("transform") || "";
+    const undoBeforeMove = Number(svg.dataset.diagram2GeometryPreviewUndoEntryCount || 0);
+    const commitBeforeMove = Number(svg.dataset.diagram2GeometryPreviewCommitCount || 0);
+    const previewFrameBeforeMove = Number(svg.dataset.diagram2GeometryPreviewFrameCount || 0);
+
+    const startDiagnostics = renderer.beginGeometryPreview({ objectId: entityAId, mode: "move" });
+    renderer.previewGeometry({ deltaX: 36, deltaY: 22 });
+    const pendingAfterFirstMove = renderer.diagnostics().pendingGeometryPreview;
+    renderer.previewGeometry({ deltaX: 72, deltaY: 35 });
+    const movePreviewDiagnostics = await renderer.whenIdle();
+    const transformDuringMove = entityA.getAttribute("transform") || "";
+    const dirtyFlushDuringPreview = Number(svg.dataset.diagram2DirtyFlushCount || 0);
+    const previewPathCountDuringMove = document.querySelectorAll("[data-diagram2-relationship-preview-path]").length;
+
+    renderer.commitGeometryPreview();
+    const moveCommitDiagnostics = await renderer.whenIdle();
+    const transformAfterCommit = entityA.getAttribute("transform") || "";
+    const dirtyFlushAfterCommit = Number(svg.dataset.diagram2DirtyFlushCount || 0);
+    const fullRenderAfterCommit = Number(svg.dataset.diagram2FullRenderCount || 0);
+
+    renderer.setSelectedIds([entityAId, entityBId]);
+    await renderer.whenIdle();
+    const dirtyFlushBeforeMulti = Number(svg.dataset.diagram2DirtyFlushCount || 0);
+    const undoBeforeMulti = Number(svg.dataset.diagram2GeometryPreviewUndoEntryCount || 0);
+    const transformABeforeMulti = entityA.getAttribute("transform") || "";
+    const transformBBeforeMulti = entityB.getAttribute("transform") || "";
+
+    renderer.beginGeometryPreview({ objectId: entityAId, mode: "move" });
+    renderer.previewGeometry({ deltaX: -18, deltaY: 12 });
+    const multiPreviewDiagnostics = await renderer.whenIdle();
+    const transformADuringMulti = entityA.getAttribute("transform") || "";
+    const transformBDuringMulti = entityB.getAttribute("transform") || "";
+    renderer.cancelGeometryPreview();
+    const multiCancelDiagnostics = renderer.diagnostics();
+    const dirtyFlushAfterMultiCancel = Number(svg.dataset.diagram2DirtyFlushCount || 0);
+
+    renderer.setSelectedIds([entityCId]);
+    await renderer.whenIdle();
+    const dirtyFlushBeforeResize = Number(svg.dataset.diagram2DirtyFlushCount || 0);
+    const resizeNodeBefore = entityC;
+    const resizeBodyBefore = Number(entityC.querySelector("[data-diagram2-entity-body]")?.getAttribute("width") || 0);
+    const undoBeforeResize = Number(svg.dataset.diagram2GeometryPreviewUndoEntryCount || 0);
+
+    renderer.beginGeometryPreview({ objectId: entityCId, mode: "resize" });
+    renderer.previewGeometry({ deltaWidth: 28, deltaHeight: 14 });
+    const resizePreviewDiagnostics = await renderer.whenIdle();
+    const resizeBodyDuring = Number(entityC.querySelector("[data-diagram2-entity-body]")?.getAttribute("width") || 0);
+    renderer.cancelGeometryPreview();
+    const resizeCancelDiagnostics = renderer.diagnostics();
+    const resizeBodyAfterCancel = Number(entityC.querySelector("[data-diagram2-entity-body]")?.getAttribute("width") || 0);
+    const dirtyFlushAfterResizeCancel = Number(svg.dataset.diagram2DirtyFlushCount || 0);
+
+    return {
+      ready: true,
+      previewStarted: startDiagnostics.geometryPreviewActive,
+      pendingAfterFirstMove,
+      transformMovedDuringPreview: transformBeforeMove !== transformDuringMove,
+      previewPathCountDuringMove,
+      movePreviewRelationshipCount: movePreviewDiagnostics.geometryPreviewRelationshipCount,
+      movePreviewPatchedObjectCount: movePreviewDiagnostics.geometryPreviewPatchedObjectCount,
+      movePreviewFrameDelta: movePreviewDiagnostics.geometryPreviewFrameCount - previewFrameBeforeMove,
+      dirtyPreviewDelta: dirtyFlushDuringPreview - dirtyFlushAfterSelection,
+      fullRenderAfterCommit,
+      transformCommitted: transformAfterCommit !== transformBeforeMove,
+      moveCommitDelta: moveCommitDiagnostics.geometryPreviewCommitCount - commitBeforeMove,
+      moveUndoDelta: moveCommitDiagnostics.geometryPreviewUndoEntryCount - undoBeforeMove,
+      moveDirtyFlushDelta: dirtyFlushAfterCommit - dirtyFlushAfterSelection,
+      moveRoutedRelationshipCount: moveCommitDiagnostics.routedRelationshipCount,
+      previewActiveAfterCommit: moveCommitDiagnostics.geometryPreviewActive,
+      previewPathCountAfterCommit: document.querySelectorAll("[data-diagram2-relationship-preview-path]").length,
+      entityAStableAfterCommit: entityA === document.querySelector(`[data-diagram2-object-id="${CSS.escape(entityAId)}"]`),
+      entityATextStableAfterCommit: entityAText === entityA.querySelector("[data-diagram2-entity-title], text"),
+      relationshipStableAfterCommit: relationship === document.querySelector(`[data-diagram2-relationship-id="${CSS.escape(relationshipId)}"]`),
+      multiPreviewObjectIds: multiPreviewDiagnostics.geometryPreviewObjectIds,
+      multiMovesBothObjects: transformABeforeMulti !== transformADuringMulti && transformBBeforeMulti !== transformBDuringMulti,
+      multiCancelRestored: transformABeforeMulti === (entityA.getAttribute("transform") || "")
+        && transformBBeforeMulti === (entityB.getAttribute("transform") || ""),
+      multiCancelNoDirtyFlush: dirtyFlushAfterMultiCancel === dirtyFlushBeforeMulti,
+      multiCancelNoUndo: multiCancelDiagnostics.geometryPreviewUndoEntryCount === undoBeforeMulti,
+      resizeNodeStable: resizeNodeBefore === document.querySelector(`[data-diagram2-object-id="${CSS.escape(entityCId)}"]`),
+      resizeWidthExpanded: resizeBodyDuring > resizeBodyBefore,
+      resizeCancelRestored: resizeBodyAfterCancel === resizeBodyBefore,
+      resizePreviewPatchedObjectCount: resizePreviewDiagnostics.geometryPreviewPatchedObjectCount,
+      resizeCancelNoDirtyFlush: dirtyFlushAfterResizeCancel === dirtyFlushBeforeResize,
+      resizeCancelNoUndo: resizeCancelDiagnostics.geometryPreviewUndoEntryCount === undoBeforeResize
+    };
+  });
+
+  expect(result.ready).toBe(true);
+  expect(result.previewStarted).toBe(true);
+  expect(result.pendingAfterFirstMove).toBe(true);
+  expect(result.transformMovedDuringPreview).toBe(true);
+  expect(result.previewPathCountDuringMove).toBeGreaterThan(0);
+  expect(result.movePreviewRelationshipCount).toBeGreaterThan(0);
+  expect(result.movePreviewPatchedObjectCount).toBe(1);
+  expect(result.movePreviewFrameDelta).toBeGreaterThanOrEqual(1);
+  expect(result.dirtyPreviewDelta).toBe(0);
+  expect(result.fullRenderAfterCommit).toBe(expectedFullRenderCount);
+  expect(result.transformCommitted).toBe(true);
+  expect(result.moveCommitDelta).toBe(1);
+  expect(result.moveUndoDelta).toBe(1);
+  expect(result.moveDirtyFlushDelta).toBe(1);
+  expect(result.moveRoutedRelationshipCount).toBeGreaterThan(0);
+  expect(result.previewActiveAfterCommit).toBe(false);
+  expect(result.previewPathCountAfterCommit).toBe(0);
+  expect(result.entityAStableAfterCommit).toBe(true);
+  expect(result.entityATextStableAfterCommit).toBe(true);
+  expect(result.relationshipStableAfterCommit).toBe(true);
+  expect(result.multiPreviewObjectIds).toContain(",");
+  expect(result.multiMovesBothObjects).toBe(true);
+  expect(result.multiCancelRestored).toBe(true);
+  expect(result.multiCancelNoDirtyFlush).toBe(true);
+  expect(result.multiCancelNoUndo).toBe(true);
+  expect(result.resizeNodeStable).toBe(true);
+  expect(result.resizeWidthExpanded).toBe(true);
+  expect(result.resizeCancelRestored).toBe(true);
+  expect(result.resizePreviewPatchedObjectCount).toBe(1);
+  expect(result.resizeCancelNoDirtyFlush).toBe(true);
+  expect(result.resizeCancelNoUndo).toBe(true);
+}
+
 async function assertTransformOnlyPan(page, expectedFullRenderCount) {
   const canvas = page.locator("[data-diagram2-viewer-canvas]");
   const box = await canvas.boundingBox();
@@ -449,7 +595,7 @@ function testState() {
 }
 
 function pmtDatabaseSchemaBodyHtml() {
-  return `<p><img data-pmt-diagram="true" data-pmt-private-diagram="true" src="/assets/docs/pmt-database-schema.svg?v=20260725-diagram2-day9-fixture" alt="PMT Database Schema"></p>`;
+  return `<p><img data-pmt-diagram="true" data-pmt-private-diagram="true" src="/assets/docs/pmt-database-schema.svg?v=20260725-diagram2-day10-fixture" alt="PMT Database Schema"></p>`;
 }
 
 function diagramBodyHtml(title, stroke) {

@@ -346,6 +346,15 @@
   pointer-events: none;
 }
 
+.diagram2-renderer-object.is-previewing {
+  filter: drop-shadow(0 6px 10px rgba(37, 99, 235, 0.16));
+}
+
+.diagram2-renderer-relationship-preview-node,
+.diagram2-renderer-relationship-preview {
+  pointer-events: none;
+}
+
 .diagram2-renderer-object.is-selected .diagram2-renderer-entity-outline,
 .diagram2-renderer-object.is-selected .diagram2-renderer-field-rectangle,
 .diagram2-renderer-object.is-selected .diagram2-renderer-rectangle,
