@@ -8,7 +8,10 @@ import {
 import {
   createDiagram2LiveView,
   diagram2CanonicalRelationships,
-  diagram2CanonicalSummary
+  diagram2CanonicalSummary,
+  diagram2ScreenToWorldPoint,
+  diagram2WorldToScreenPoint,
+  diagram2ZoomAtTransform
 } from "../../wwwroot/js/features/diagram2/diagram2-renderer.js";
 
 test("Diagram 2 live view keeps renderer-only state out of the canonical model", () => {
@@ -108,4 +111,20 @@ test("Diagram 2 summarizes the current PMT schema fixture for renderer diagnosti
   assert.equal(summary.canonicalObjectCount, 88);
   assert.ok(summary.canonicalEntityCount >= 28);
   assert.equal(summary.canonicalRelationshipCount, 82);
+});
+
+test("Diagram 2 viewport zoom preserves the world point under the cursor", () => {
+  const transform = {
+    scale: 0.75,
+    translateX: 120,
+    translateY: -40
+  };
+  const cursor = { x: 420, y: 260 };
+  const worldBefore = diagram2ScreenToWorldPoint(transform, cursor);
+  const next = diagram2ZoomAtTransform(transform, 1.25, cursor);
+  const screenAfter = diagram2WorldToScreenPoint(next, worldBefore);
+
+  assert.equal(Math.abs(screenAfter.x - cursor.x) <= 0.000001, true);
+  assert.equal(Math.abs(screenAfter.y - cursor.y) <= 0.000001, true);
+  assert.deepEqual(worldBefore, diagram2ScreenToWorldPoint(next, screenAfter));
 });

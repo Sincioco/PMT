@@ -303,38 +303,43 @@
 .diagram2-viewer-canvas {
   width: 100%;
   height: 100%;
-  overflow: auto;
-  padding: var(--space-4);
+  overflow: hidden;
+  padding: 0;
+  touch-action: none;
+  cursor: grab;
+}
+
+.diagram2-viewer-canvas.is-panning {
+  cursor: grabbing;
 }
 
 .diagram2-renderer-surface {
-  min-width: max-content;
-  min-height: max-content;
-  background: #ffffff;
-  box-shadow: var(--shadow-card);
-}
-
-.diagram2-renderer-surface.is-fit {
-  display: grid;
-  place-items: center;
   width: 100%;
   height: 100%;
   min-width: 0;
   min-height: 0;
-  background: transparent;
-  box-shadow: none;
+  background: #ffffff;
+  overflow: hidden;
+}
+
+.diagram2-renderer-surface.is-fit {
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
 }
 
 .diagram2-renderer-svg {
   display: block;
+  width: 100%;
+  height: 100%;
   background: #ffffff;
   color: #172b4d;
 }
 
 .diagram2-renderer-svg.is-fit {
-  max-width: 100%;
-  max-height: 100%;
-  box-shadow: var(--shadow-card);
+  width: 100%;
+  height: 100%;
 }
 
 .diagram2-renderer-relationship {

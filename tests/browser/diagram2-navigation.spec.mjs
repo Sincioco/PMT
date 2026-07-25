@@ -66,12 +66,24 @@ test("Diagram 2 top navigation opens the isolated shell", async ({ page }) => {
 
   await page.evaluate(() => {
     window.__diagram2StableSvg = document.querySelector("[data-diagram2-svg]");
+    window.__diagram2StableEntity = document.querySelector("[data-diagram2-object-plane] [data-diagram2-object-type='entity']");
+    window.__diagram2StableText = window.__diagram2StableEntity?.querySelector("text") || null;
   });
+
+  const transformOnlyRenderCount = await diagram2FullRenderCount(page);
+  for (const zoom of ["0.5", "0.75", "0.9", "1", "1.1", "1.25", "1.5", "2"]) {
+    await assertTransformOnlyZoom(page, zoom, transformOnlyRenderCount);
+  }
+  await assertTransformOnlyPan(page, transformOnlyRenderCount);
+  await assertCursorCenteredWheelZoom(page, transformOnlyRenderCount);
+
   await page.getByRole("button", { name: "Fit Diagram" }).click();
+  await waitForViewportReason(page, "fit");
   await expect.poll(() =>
     page.evaluate(() => document.querySelector("[data-diagram2-svg]") === window.__diagram2StableSvg)
   ).toBe(true);
   await page.getByRole("button", { name: "Refresh Renderer" }).click();
+  await waitForViewportReason(page, "fit");
   await expect.poll(() =>
     page.evaluate(() => document.querySelector("[data-diagram2-svg]") === window.__diagram2StableSvg)
   ).toBe(true);
@@ -117,6 +129,146 @@ async function openNavigationScreen(page, view) {
 
   await page.locator(".nav-overflow-toggle").click();
   await page.locator(`.nav-overflow-menu button[data-view='${view}']`).click();
+}
+
+async function assertTransformOnlyZoom(page, zoom, expectedFullRenderCount) {
+  const before = await diagram2StabilitySnapshot(page);
+  await page.locator("[data-filter='diagram2-zoom']").selectOption(zoom);
+  await expect.poll(() => diagram2ViewportScale(page)).toBe(Number(zoom));
+  await waitForViewportReason(page, "toolbar zoom");
+  const afterFrame = await diagram2StabilitySnapshot(page);
+  await waitForStableAnimationFrame(page);
+  const afterSettle = await diagram2StabilitySnapshot(page);
+
+  expect(afterFrame.svgStable).toBe(true);
+  expect(afterFrame.entityStable).toBe(true);
+  expect(afterFrame.textStable).toBe(true);
+  expect(afterFrame.fullRenderCount).toBe(expectedFullRenderCount);
+  expect(afterFrame.fullRendersDuringSettle).toBe(0);
+  expect(afterFrame.routesRecalculatedDuringSettle).toBe(0);
+  expect(afterFrame.nodeIdentityBeforeAfter).toBe("true");
+  expect(afterSettle.fullRenderCount).toBe(expectedFullRenderCount);
+  expect(maxRectMovement(afterFrame.entityRect, afterSettle.entityRect).translation).toBeLessThanOrEqual(0.25);
+  expect(maxRectMovement(afterFrame.entityRect, afterSettle.entityRect).size).toBeLessThanOrEqual(0.25);
+  expect(before.fullRenderCount).toBe(expectedFullRenderCount);
+}
+
+async function assertTransformOnlyPan(page, expectedFullRenderCount) {
+  const canvas = page.locator("[data-diagram2-viewer-canvas]");
+  const box = await canvas.boundingBox();
+  const before = await diagram2StabilitySnapshot(page);
+  await page.mouse.move(box.x + (box.width / 2), box.y + (box.height / 2));
+  await page.mouse.down();
+  await page.mouse.move(box.x + (box.width / 2) + 80, box.y + (box.height / 2) + 42);
+  await page.mouse.up();
+  await waitForViewportReason(page, "pan");
+  const afterFrame = await diagram2StabilitySnapshot(page);
+  await waitForStableAnimationFrame(page);
+  const afterSettle = await diagram2StabilitySnapshot(page);
+
+  expect(afterFrame.svgStable).toBe(true);
+  expect(afterFrame.entityStable).toBe(true);
+  expect(afterFrame.textStable).toBe(true);
+  expect(afterFrame.fullRenderCount).toBe(expectedFullRenderCount);
+  expect(afterFrame.fullRendersDuringSettle).toBe(0);
+  expect(afterFrame.routesRecalculatedDuringSettle).toBe(0);
+  expect(afterFrame.translateX).not.toBe(before.translateX);
+  expect(afterFrame.translateY).not.toBe(before.translateY);
+  expect(maxRectMovement(afterFrame.entityRect, afterSettle.entityRect).translation).toBeLessThanOrEqual(0.25);
+  expect(maxRectMovement(afterFrame.entityRect, afterSettle.entityRect).size).toBeLessThanOrEqual(0.25);
+}
+
+async function assertCursorCenteredWheelZoom(page, expectedFullRenderCount) {
+  const surface = page.locator("[data-diagram2-renderer-surface]");
+  const box = await surface.boundingBox();
+  const clientX = box.x + (box.width * 0.42);
+  const clientY = box.y + (box.height * 0.37);
+  const before = await diagram2StabilitySnapshot(page);
+  await page.mouse.move(clientX, clientY);
+  await page.mouse.wheel(0, -240);
+  await waitForViewportReason(page, "wheel zoom");
+  const afterFrame = await diagram2StabilitySnapshot(page);
+  await waitForStableAnimationFrame(page);
+  const afterSettle = await diagram2StabilitySnapshot(page);
+  const cursor = parseDiagram2Point(afterFrame.cursorScreenPoint);
+  const screenAfter = parseDiagram2Point(afterFrame.screenPointAfterSettle);
+
+  expect(afterFrame.scale).toBeGreaterThan(before.scale);
+  expect(afterFrame.svgStable).toBe(true);
+  expect(afterFrame.entityStable).toBe(true);
+  expect(afterFrame.textStable).toBe(true);
+  expect(afterFrame.fullRenderCount).toBe(expectedFullRenderCount);
+  expect(afterFrame.fullRendersDuringSettle).toBe(0);
+  expect(afterFrame.routesRecalculatedDuringSettle).toBe(0);
+  expect(Math.abs(cursor.x - screenAfter.x)).toBeLessThanOrEqual(0.25);
+  expect(Math.abs(cursor.y - screenAfter.y)).toBeLessThanOrEqual(0.25);
+  expect(maxRectMovement(afterFrame.entityRect, afterSettle.entityRect).translation).toBeLessThanOrEqual(0.25);
+  expect(maxRectMovement(afterFrame.entityRect, afterSettle.entityRect).size).toBeLessThanOrEqual(0.25);
+}
+
+async function waitForViewportReason(page, reason) {
+  await expect.poll(() =>
+    page.evaluate(() => document.querySelector("[data-diagram2-svg]")?.dataset.diagram2ViewportReason || "")
+  ).toBe(reason);
+}
+
+async function diagram2ViewportScale(page) {
+  return page.evaluate(() => Number(document.querySelector("[data-diagram2-svg]")?.dataset.diagram2ViewportScale || 0));
+}
+
+async function diagram2FullRenderCount(page) {
+  return page.evaluate(() => Number(document.querySelector("[data-diagram2-svg]")?.dataset.diagram2FullRenderCount || 0));
+}
+
+async function diagram2StabilitySnapshot(page) {
+  return page.evaluate(() => {
+    const svg = document.querySelector("[data-diagram2-svg]");
+    const entity = document.querySelector("[data-diagram2-object-plane] [data-diagram2-object-type='entity']");
+    const text = entity?.querySelector("text") || null;
+    const rect = entity?.getBoundingClientRect();
+    return {
+      svgStable: svg === window.__diagram2StableSvg,
+      entityStable: entity === window.__diagram2StableEntity,
+      textStable: text === window.__diagram2StableText,
+      entityRect: rect ? {
+        x: rect.x,
+        y: rect.y,
+        width: rect.width,
+        height: rect.height
+      } : null,
+      scale: Number(svg?.dataset.diagram2ViewportScale || 0),
+      translateX: Number(svg?.dataset.diagram2ViewportTranslateX || 0),
+      translateY: Number(svg?.dataset.diagram2ViewportTranslateY || 0),
+      fullRenderCount: Number(svg?.dataset.diagram2FullRenderCount || 0),
+      fullRendersDuringSettle: Number(svg?.dataset.diagram2FullRendersDuringSettle || 0),
+      routesRecalculatedDuringSettle: Number(svg?.dataset.diagram2RoutesRecalculatedDuringSettle || 0),
+      nodeIdentityBeforeAfter: svg?.dataset.diagram2NodeIdentityBeforeAfter || "",
+      cursorScreenPoint: svg?.dataset.diagram2CursorScreenPoint || "",
+      screenPointAfterSettle: svg?.dataset.diagram2ScreenPointAfterSettle || ""
+    };
+  });
+}
+
+async function waitForStableAnimationFrame(page) {
+  await page.evaluate(() => new Promise(resolve => {
+    requestAnimationFrame(() => requestAnimationFrame(resolve));
+  }));
+}
+
+function maxRectMovement(first, second) {
+  if (!first || !second) return { translation: Number.POSITIVE_INFINITY, size: Number.POSITIVE_INFINITY };
+  return {
+    translation: Math.max(Math.abs(first.x - second.x), Math.abs(first.y - second.y)),
+    size: Math.max(Math.abs(first.width - second.width), Math.abs(first.height - second.height))
+  };
+}
+
+function parseDiagram2Point(value) {
+  const match = String(value || "").match(/\((-?\d+(?:\.\d+)?),\s*(-?\d+(?:\.\d+)?)\)/);
+  return {
+    x: Number(match?.[1] || Number.NaN),
+    y: Number(match?.[2] || Number.NaN)
+  };
 }
 
 function testState() {
@@ -183,7 +335,7 @@ function testState() {
 }
 
 function pmtDatabaseSchemaBodyHtml() {
-  return `<p><img data-pmt-diagram="true" data-pmt-private-diagram="true" src="/assets/docs/pmt-database-schema.svg?v=20260725-diagram2-day6-fixture" alt="PMT Database Schema"></p>`;
+  return `<p><img data-pmt-diagram="true" data-pmt-private-diagram="true" src="/assets/docs/pmt-database-schema.svg?v=20260725-diagram2-day7-fixture" alt="PMT Database Schema"></p>`;
 }
 
 function diagramBodyHtml(title, stroke) {

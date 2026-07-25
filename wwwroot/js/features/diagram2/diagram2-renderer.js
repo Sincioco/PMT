@@ -10,6 +10,9 @@ const svgNamespace = "http://www.w3.org/2000/svg";
 const xlinkNamespace = "http://www.w3.org/1999/xlink";
 const defaultDiagram2Width = 1600;
 const defaultDiagram2Height = 900;
+const defaultViewportPadding = 24;
+const minimumViewportScale = 0.05;
+const maximumViewportScale = 8;
 const diagram2RendererPlanes = [
   ["background", "data-diagram2-background-plane"],
   ["belowRelationships", "data-diagram2-below-relationship-plane"],
@@ -87,17 +90,61 @@ export function diagram2CanonicalRelationships(inputState) {
   return relationships;
 }
 
-export function createDiagram2Renderer({ host, performance: performanceApi = globalThis.performance } = {}) {
+export function diagram2ScreenToWorldPoint(transform, point) {
+  const scale = positiveNumber(transform?.scale, 1);
+  return {
+    x: (finiteNumber(point?.x, 0) - finiteNumber(transform?.translateX, 0)) / scale,
+    y: (finiteNumber(point?.y, 0) - finiteNumber(transform?.translateY, 0)) / scale
+  };
+}
+
+export function diagram2WorldToScreenPoint(transform, point) {
+  const scale = positiveNumber(transform?.scale, 1);
+  return {
+    x: finiteNumber(point?.x, 0) * scale + finiteNumber(transform?.translateX, 0),
+    y: finiteNumber(point?.y, 0) * scale + finiteNumber(transform?.translateY, 0)
+  };
+}
+
+export function diagram2ZoomAtTransform(transform, scaleInput, screenPoint) {
+  const current = normalizeViewportTransform(transform);
+  const scale = clampNumber(positiveNumber(scaleInput, current.scale), minimumViewportScale, maximumViewportScale);
+  const cursor = {
+    x: finiteNumber(screenPoint?.x, 0),
+    y: finiteNumber(screenPoint?.y, 0)
+  };
+  const worldPoint = diagram2ScreenToWorldPoint(current, cursor);
+  return {
+    scale,
+    translateX: cursor.x - (worldPoint.x * scale),
+    translateY: cursor.y - (worldPoint.y * scale)
+  };
+}
+
+export function diagram2MatrixText(transform) {
+  const normalized = normalizeViewportTransform(transform);
+  return `matrix(${formatNumber(normalized.scale)} 0 0 ${formatNumber(normalized.scale)} ${formatNumber(normalized.translateX)} ${formatNumber(normalized.translateY)})`;
+}
+
+export function createDiagram2Renderer({ host, performance: performanceApi = globalThis.performance, onDiagnostics = null } = {}) {
   if (!host) throw new Error("Diagram 2 renderer requires a host element.");
 
   const liveView = createDiagram2LiveView();
   const planes = {};
+  const viewportTransform = { scale: 1, translateX: 0, translateY: 0 };
+  const committedViewportTransform = { scale: 1, translateX: 0, translateY: 0 };
   let svg = null;
+  let viewportPlane = null;
   let canonicalState = null;
   let fullRenderCount = 0;
   let fullRenderReason = "";
   let frameSequence = 0;
   let zoomMode = "fit";
+  let relationshipRouteRevision = 0;
+  let pendingViewportFrame = 0;
+  let pendingViewportGesture = null;
+  let lastViewportReason = "";
+  let lastTransformDiagnostics = emptyTransformDiagnostics();
   let lastDiagnostics = emptyDiagnostics();
 
   function render(inputState, options = {}) {
@@ -141,23 +188,58 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
       relationshipsRoutedInLastFlush: relationshipsRouted,
       lastFrameDuration: Math.max(0, endTime - startTime)
     });
+    Object.assign(lastDiagnostics, lastTransformDiagnostics);
     lastDiagnostics.svgDescendantCount = svg.querySelectorAll("*").length;
     applyDiagnosticsAttributes();
-    applyZoomSizing();
+    notifyDiagnostics();
     return diagnostics();
   }
 
   function fit() {
     zoomMode = "fit";
-    applyZoomSizing();
-    refreshDescendantDiagnostic();
+    if (canonicalState) {
+      queueViewportTransform(fitViewportTransform(canonicalState, viewportSize()), {
+        reason: "fit",
+        cursorScreenPoint: viewportCenterPoint(),
+        worldPointUnderCursor: null
+      });
+    }
     return diagnostics();
   }
 
   function setZoom(value) {
     zoomMode = normalizeZoomMode(value);
-    applyZoomSizing();
-    refreshDescendantDiagnostic();
+    if (zoomMode === "fit") return fit();
+    queueViewportTransform(zoomToScale(Number(zoomMode), viewportCenterPoint()), {
+      reason: "toolbar zoom",
+      cursorScreenPoint: viewportCenterPoint(),
+      worldPointUnderCursor: null
+    });
+    return diagnostics();
+  }
+
+  function zoomBy(deltaScale, point = {}) {
+    const nextScale = viewportTransform.scale * positiveNumber(deltaScale, 1);
+    const cursorScreenPoint = localScreenPoint(point);
+    queueViewportTransform(zoomToScale(nextScale, cursorScreenPoint), {
+      reason: "wheel zoom",
+      cursorScreenPoint,
+      worldPointUnderCursor: diagram2ScreenToWorldPoint(viewportTransform, cursorScreenPoint)
+    });
+    return diagnostics();
+  }
+
+  function panBy(deltaX, deltaY) {
+    const next = {
+      scale: viewportTransform.scale,
+      translateX: viewportTransform.translateX + finiteNumber(deltaX, 0),
+      translateY: viewportTransform.translateY + finiteNumber(deltaY, 0)
+    };
+    queueViewportTransform(next, {
+      reason: "pan",
+      cursorScreenPoint: viewportCenterPoint(),
+      worldPointUnderCursor: null
+    });
     return diagnostics();
   }
 
@@ -181,6 +263,18 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
     return svg;
   }
 
+  function viewportMatrix() {
+    return { ...viewportTransform };
+  }
+
+  function screenToWorld(point) {
+    return diagram2ScreenToWorldPoint(viewportTransform, localScreenPoint(point));
+  }
+
+  function worldToScreen(point) {
+    return diagram2WorldToScreenPoint(viewportTransform, point);
+  }
+
   function ensureSvg() {
     if (svg?.isConnected && svg.parentElement === host) return svg;
 
@@ -198,15 +292,24 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
     svg.setAttribute("xmlns", svgNamespace);
     svg.setAttribute("role", "img");
     svg.setAttribute("aria-label", "Diagram 2 live renderer preview");
-    svg.setAttribute("preserveAspectRatio", "xMidYMid meet");
+    svg.setAttribute("preserveAspectRatio", "xMinYMin meet");
+    viewportPlane = svg.querySelector(":scope > g[data-diagram2-viewport-plane]");
+    if (!viewportPlane) {
+      viewportPlane = ownerDocument.createElementNS(svgNamespace, "g");
+      viewportPlane.setAttribute("data-diagram2-viewport-plane", "");
+      svg.appendChild(viewportPlane);
+    }
     diagram2RendererPlanes.forEach(([key, attribute]) => {
-      let plane = svg.querySelector(`:scope > g[${attribute}]`);
+      let plane = viewportPlane.querySelector(`:scope > g[${attribute}]`) || svg.querySelector(`:scope > g[${attribute}]`);
       if (!plane) {
         plane = ownerDocument.createElementNS(svgNamespace, "g");
         plane.setAttribute(attribute, "");
       }
       planes[key] = plane;
-      svg.appendChild(plane);
+      viewportPlane.appendChild(plane);
+    });
+    setSvgAttributes(viewportPlane, {
+      transform: diagram2MatrixText(viewportTransform)
     });
     return svg;
   }
@@ -214,11 +317,14 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
   function applySvgMetrics(state) {
     const width = positiveNumber(state.width, defaultDiagram2Width);
     const height = positiveNumber(state.height, defaultDiagram2Height);
-    svg.setAttribute("viewBox", `0 0 ${formatNumber(width)} ${formatNumber(height)}`);
-    svg.setAttribute("width", formatNumber(width));
-    svg.setAttribute("height", formatNumber(height));
+    const viewport = viewportSize();
+    svg.setAttribute("viewBox", `0 0 ${formatNumber(viewport.width)} ${formatNumber(viewport.height)}`);
+    svg.setAttribute("width", formatNumber(viewport.width));
+    svg.setAttribute("height", formatNumber(viewport.height));
     svg.dataset.diagram2Width = String(width);
     svg.dataset.diagram2Height = String(height);
+    svg.dataset.diagram2ViewportWidth = String(viewport.width);
+    svg.dataset.diagram2ViewportHeight = String(viewport.height);
   }
 
   function patchBackgroundPlane(state) {
@@ -308,34 +414,178 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
 
     liveView.mountedRelationshipIds.clear();
     desiredIds.forEach(id => liveView.mountedRelationshipIds.add(id));
+    relationshipRouteRevision += 1;
     return relationships.length;
   }
 
-  function applyZoomSizing() {
-    if (!svg || !canonicalState) return;
+  function queueViewportTransform(nextTransform, options = {}) {
+    if (!svg || !viewportPlane) return;
 
-    const width = positiveNumber(canonicalState.width, defaultDiagram2Width);
-    const height = positiveNumber(canonicalState.height, defaultDiagram2Height);
-    const fit = zoomMode === "fit";
-    const scale = fit ? 1 : Number(zoomMode || 1);
-    const renderedWidth = Math.max(1, Math.round(width * scale));
-    const renderedHeight = Math.max(1, Math.round(height * scale));
+    const normalized = normalizeViewportTransform(nextTransform);
+    viewportTransform.scale = normalized.scale;
+    viewportTransform.translateX = normalized.translateX;
+    viewportTransform.translateY = normalized.translateY;
+    lastViewportReason = String(options.reason || "viewport").trim() || "viewport";
 
-    host.classList.toggle("is-fit", fit);
-    svg.classList.toggle("is-fit", fit);
-    svg.style.width = fit ? "100%" : `${renderedWidth}px`;
-    svg.style.height = fit ? "100%" : `${renderedHeight}px`;
-    svg.style.minWidth = fit ? "0" : `${renderedWidth}px`;
-    svg.style.minHeight = fit ? "0" : `${renderedHeight}px`;
-    svg.dataset.diagram2Zoom = zoomMode;
+    if (!pendingViewportGesture) {
+      const cursorScreenPoint = options.cursorScreenPoint || viewportCenterPoint();
+      pendingViewportGesture = {
+        reason: lastViewportReason,
+        cursorScreenPoint,
+        worldPointUnderCursor: options.worldPointUnderCursor || diagram2ScreenToWorldPoint(committedViewportTransform, cursorScreenPoint),
+        entityBoundsBefore: firstEntityBounds(),
+        objectNodeBefore: firstEntityNode(),
+        textNodeBefore: firstEntityTextNode(),
+        fullRenderCount,
+        relationshipRouteRevision,
+        transientMatrix: diagram2MatrixText(viewportTransform)
+      };
+    } else {
+      pendingViewportGesture.reason = lastViewportReason;
+      pendingViewportGesture.cursorScreenPoint = options.cursorScreenPoint || pendingViewportGesture.cursorScreenPoint;
+      pendingViewportGesture.worldPointUnderCursor = options.worldPointUnderCursor || pendingViewportGesture.worldPointUnderCursor;
+      pendingViewportGesture.transientMatrix = diagram2MatrixText(viewportTransform);
+    }
+
+    if (pendingViewportFrame) return;
+    const requestFrame = globalThis.requestAnimationFrame || (callback => globalThis.setTimeout(callback, 16));
+    pendingViewportFrame = requestFrame(() => {
+      pendingViewportFrame = 0;
+      applyViewportTransformNow(lastViewportReason);
+    });
   }
 
-  function refreshDescendantDiagnostic() {
+  function applyViewportTransformNow(reason) {
+    if (!viewportPlane) return;
+
+    const frameId = `diagram2-viewport-${++frameSequence}`;
+    mark(performanceApi, `${frameId}:start`);
+    const gesture = pendingViewportGesture || {
+      reason,
+      cursorScreenPoint: viewportCenterPoint(),
+      worldPointUnderCursor: diagram2ScreenToWorldPoint(committedViewportTransform, viewportCenterPoint()),
+      entityBoundsBefore: firstEntityBounds(),
+      objectNodeBefore: firstEntityNode(),
+      textNodeBefore: firstEntityTextNode(),
+      fullRenderCount,
+      relationshipRouteRevision,
+      transientMatrix: diagram2MatrixText(viewportTransform)
+    };
+
+    setSvgAttributes(viewportPlane, {
+      transform: diagram2MatrixText(viewportTransform)
+    });
+    committedViewportTransform.scale = viewportTransform.scale;
+    committedViewportTransform.translateX = viewportTransform.translateX;
+    committedViewportTransform.translateY = viewportTransform.translateY;
+
+    const screenPointAfterSettle = diagram2WorldToScreenPoint(committedViewportTransform, gesture.worldPointUnderCursor);
+    const entityBoundsAfter = firstEntityBounds();
+    const matrixDifference = viewportMatrixDifference(viewportTransform, committedViewportTransform);
+    lastTransformDiagnostics = {
+      transientMatrix: gesture.transientMatrix,
+      committedMatrix: diagram2MatrixText(committedViewportTransform),
+      matrixDifference: matrixDifferenceText(matrixDifference),
+      cursorScreenPoint: pointText(gesture.cursorScreenPoint),
+      worldPointUnderCursor: pointText(gesture.worldPointUnderCursor),
+      screenPointAfterSettle: pointText(screenPointAfterSettle),
+      entityBoundingBoxBeforeSettle: boundsText(gesture.entityBoundsBefore),
+      entityBoundingBoxAfterSettle: boundsText(entityBoundsAfter),
+      nodeIdentityBeforeAfter: String(gesture.objectNodeBefore === firstEntityNode() && gesture.textNodeBefore === firstEntityTextNode()),
+      fullRendersDuringSettle: fullRenderCount - gesture.fullRenderCount,
+      routesRecalculatedDuringSettle: relationshipRouteRevision - gesture.relationshipRouteRevision
+    };
+    pendingViewportGesture = null;
+    if (matrixDifference.translation > 0.1 || matrixDifference.scale > 0.0001) {
+      console.warn?.("Diagram 2 viewport transform settled with a visible matrix difference.", lastTransformDiagnostics);
+    }
+
+    if (svg) {
+      svg.dataset.diagram2ViewportScale = formatNumber(committedViewportTransform.scale);
+      svg.dataset.diagram2ViewportTranslateX = formatNumber(committedViewportTransform.translateX);
+      svg.dataset.diagram2ViewportTranslateY = formatNumber(committedViewportTransform.translateY);
+      svg.dataset.diagram2ViewportMatrix = lastTransformDiagnostics.committedMatrix;
+      svg.dataset.diagram2ViewportReason = String(reason || "");
+    }
+
     lastDiagnostics = {
       ...lastDiagnostics,
+      ...lastTransformDiagnostics,
       svgDescendantCount: svg ? svg.querySelectorAll("*").length : 0
     };
+    mark(performanceApi, `${frameId}:end`);
+    measure(performanceApi, "diagram2 viewport transform", `${frameId}:start`, `${frameId}:end`);
     applyDiagnosticsAttributes();
+    notifyDiagnostics();
+  }
+
+  function fitViewportTransform(state, viewport) {
+    const worldWidth = positiveNumber(state?.width, defaultDiagram2Width);
+    const worldHeight = positiveNumber(state?.height, defaultDiagram2Height);
+    const availableWidth = Math.max(1, viewport.width - (defaultViewportPadding * 2));
+    const availableHeight = Math.max(1, viewport.height - (defaultViewportPadding * 2));
+    const scale = clampNumber(Math.min(availableWidth / worldWidth, availableHeight / worldHeight), minimumViewportScale, maximumViewportScale);
+    return {
+      scale,
+      translateX: (viewport.width - (worldWidth * scale)) / 2,
+      translateY: (viewport.height - (worldHeight * scale)) / 2
+    };
+  }
+
+  function zoomToScale(scale, cursorScreenPoint) {
+    return diagram2ZoomAtTransform(viewportTransform, scale, cursorScreenPoint);
+  }
+
+  function viewportSize() {
+    const rect = host.getBoundingClientRect?.();
+    return {
+      width: Math.max(1, Math.round(rect?.width || host.clientWidth || defaultDiagram2Width)),
+      height: Math.max(1, Math.round(rect?.height || host.clientHeight || defaultDiagram2Height))
+    };
+  }
+
+  function viewportCenterPoint() {
+    const viewport = viewportSize();
+    return {
+      x: viewport.width / 2,
+      y: viewport.height / 2
+    };
+  }
+
+  function localScreenPoint(point = {}) {
+    if (Number.isFinite(Number(point.x)) && Number.isFinite(Number(point.y))) {
+      return {
+        x: Number(point.x),
+        y: Number(point.y)
+      };
+    }
+    const rect = host.getBoundingClientRect?.();
+    if (Number.isFinite(Number(point.clientX)) && Number.isFinite(Number(point.clientY)) && rect) {
+      return {
+        x: Number(point.clientX) - rect.left,
+        y: Number(point.clientY) - rect.top
+      };
+    }
+    return viewportCenterPoint();
+  }
+
+  function firstEntityNode() {
+    return planes.objects?.querySelector?.("[data-diagram2-object-type='entity']") || null;
+  }
+
+  function firstEntityTextNode() {
+    return firstEntityNode()?.querySelector?.("text") || null;
+  }
+
+  function firstEntityBounds() {
+    const rect = firstEntityNode()?.getBoundingClientRect?.();
+    if (!rect) return null;
+    return {
+      x: rect.x,
+      y: rect.y,
+      width: rect.width,
+      height: rect.height
+    };
   }
 
   function applyDiagnosticsAttributes() {
@@ -348,12 +598,33 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
     svg.dataset.diagram2SvgDescendantCount = String(lastDiagnostics.svgDescendantCount);
     svg.dataset.diagram2FullRenderCount = String(lastDiagnostics.fullRenderCount);
     svg.dataset.diagram2FullRenderReason = String(lastDiagnostics.fullRenderReason);
+    svg.dataset.diagram2TransientMatrix = String(lastDiagnostics.transientMatrix);
+    svg.dataset.diagram2CommittedMatrix = String(lastDiagnostics.committedMatrix);
+    svg.dataset.diagram2MatrixDifference = String(lastDiagnostics.matrixDifference);
+    svg.dataset.diagram2CursorScreenPoint = String(lastDiagnostics.cursorScreenPoint);
+    svg.dataset.diagram2WorldPointUnderCursor = String(lastDiagnostics.worldPointUnderCursor);
+    svg.dataset.diagram2ScreenPointAfterSettle = String(lastDiagnostics.screenPointAfterSettle);
+    svg.dataset.diagram2EntityBoundingBoxBeforeSettle = String(lastDiagnostics.entityBoundingBoxBeforeSettle);
+    svg.dataset.diagram2EntityBoundingBoxAfterSettle = String(lastDiagnostics.entityBoundingBoxAfterSettle);
+    svg.dataset.diagram2NodeIdentityBeforeAfter = String(lastDiagnostics.nodeIdentityBeforeAfter);
+    svg.dataset.diagram2FullRendersDuringSettle = String(lastDiagnostics.fullRendersDuringSettle);
+    svg.dataset.diagram2RoutesRecalculatedDuringSettle = String(lastDiagnostics.routesRecalculatedDuringSettle);
+  }
+
+  function notifyDiagnostics() {
+    if (typeof onDiagnostics !== "function") return;
+    onDiagnostics(diagnostics());
   }
 
   return {
     render,
     fit,
     setZoom,
+    zoomBy,
+    panBy,
+    viewportMatrix,
+    screenToWorld,
+    worldToScreen,
     diagnostics,
     liveViewSnapshot,
     svgNode
@@ -938,7 +1209,24 @@ function emptyDiagnostics() {
     fullRenderReason: "",
     objectsPatchedInLastFlush: 0,
     relationshipsRoutedInLastFlush: 0,
-    lastFrameDuration: 0
+    lastFrameDuration: 0,
+    ...emptyTransformDiagnostics()
+  };
+}
+
+function emptyTransformDiagnostics() {
+  return {
+    transientMatrix: diagram2MatrixText({ scale: 1, translateX: 0, translateY: 0 }),
+    committedMatrix: diagram2MatrixText({ scale: 1, translateX: 0, translateY: 0 }),
+    matrixDifference: "translate=0 scale=0",
+    cursorScreenPoint: "(0, 0)",
+    worldPointUnderCursor: "(0, 0)",
+    screenPointAfterSettle: "(0, 0)",
+    entityBoundingBoxBeforeSettle: "n/a",
+    entityBoundingBoxAfterSettle: "n/a",
+    nodeIdentityBeforeAfter: "true",
+    fullRendersDuringSettle: 0,
+    routesRecalculatedDuringSettle: 0
   };
 }
 
@@ -1029,6 +1317,37 @@ function normalizeIdentifier(value) {
     .replace(/^\[|\]$/g, "")
     .replace(/^"|"$/g, "")
     .toLowerCase();
+}
+
+function normalizeViewportTransform(transform) {
+  return {
+    scale: clampNumber(positiveNumber(transform?.scale, 1), minimumViewportScale, maximumViewportScale),
+    translateX: finiteNumber(transform?.translateX, 0),
+    translateY: finiteNumber(transform?.translateY, 0)
+  };
+}
+
+function viewportMatrixDifference(transient, committed) {
+  const left = normalizeViewportTransform(transient);
+  const right = normalizeViewportTransform(committed);
+  return {
+    translation: Math.hypot(left.translateX - right.translateX, left.translateY - right.translateY),
+    scale: Math.abs(left.scale - right.scale)
+  };
+}
+
+function matrixDifferenceText(difference) {
+  return `translate=${formatNumber(difference?.translation || 0)} scale=${formatNumber(difference?.scale || 0)}`;
+}
+
+function pointText(point) {
+  if (!point) return "n/a";
+  return `(${formatNumber(point.x)}, ${formatNumber(point.y)})`;
+}
+
+function boundsText(bounds) {
+  if (!bounds) return "n/a";
+  return `x=${formatNumber(bounds.x)} y=${formatNumber(bounds.y)} w=${formatNumber(bounds.width)} h=${formatNumber(bounds.height)}`;
 }
 
 function formatEntityIdentifier(schema, name) {

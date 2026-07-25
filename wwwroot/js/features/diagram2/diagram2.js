@@ -28,12 +28,12 @@ import {
 } from "../../shared/diagram-documents.js?v=20260725-diagram2-day6-v1";
 import { formatDate } from "../../shared/dates.js";
 import { escapeAttr, escapeHtml } from "../../shared/text-and-links.js";
-import { createDiagram2Renderer } from "./diagram2-renderer.js?v=20260725-diagram2-day6-v1";
+import { createDiagram2Renderer } from "./diagram2-renderer.js?v=20260725-diagram2-day7-v1";
 
 const diagram2ViewModes = new Set(["tree", "cards"]);
 const diagram2SortModes = new Set(["latest", "oldest", "name", "custom"]);
 const diagram2VisibilityModes = new Set(["both", "private", "public"]);
-const diagram2ZoomModes = new Set(["fit", "0.5", "0.75", "1", "1.25", "1.5", "2"]);
+const diagram2ZoomModes = new Set(["fit", "0.5", "0.75", "0.9", "1", "1.1", "1.25", "1.5", "2"]);
 const diagram2TreePaneMinimumWidth = 220;
 const diagram2TreePaneMaximumWidth = 560;
 
@@ -62,6 +62,8 @@ export function createDiagram2Feature({ app, notify } = {}) {
   let diagram2Renderer = null;
   let diagram2RendererDocumentId = 0;
   let diagram2RendererState = null;
+  let viewportAbortController = null;
+  let viewportPanAbortController = null;
 
   function render() {
     active = true;
@@ -415,7 +417,10 @@ export function createDiagram2Feature({ app, notify } = {}) {
       return;
     }
 
-    diagram2Renderer = createDiagram2Renderer({ host: surface });
+    diagram2Renderer = createDiagram2Renderer({
+      host: surface,
+      onDiagnostics: updateDiagram2Diagnostics
+    });
     diagram2RendererDocumentId = document.id;
     diagram2RendererState = result.state;
     let diagnostics = diagram2Renderer.render(result.state, {
@@ -425,6 +430,7 @@ export function createDiagram2Feature({ app, notify } = {}) {
     viewer.querySelector("[data-diagram2-viewer-loader], .diagram2-viewer-loader")?.remove();
     viewer.classList.remove("is-loading");
     viewer.removeAttribute("aria-busy");
+    bindDiagram2ViewportControls(viewer);
     updateDiagram2Diagnostics(diagnostics);
   }
 
@@ -443,6 +449,17 @@ export function createDiagram2Feature({ app, notify } = {}) {
           ${diagram2DiagnosticItemHtml("objects-patched-in-last-flush", "Objects patched in last flush")}
           ${diagram2DiagnosticItemHtml("relationships-routed-in-last-flush", "Relationships routed in last flush")}
           ${diagram2DiagnosticItemHtml("last-frame-duration", "Last frame duration")}
+          ${diagram2DiagnosticItemHtml("transient-matrix", "Transient matrix")}
+          ${diagram2DiagnosticItemHtml("committed-matrix", "Committed matrix")}
+          ${diagram2DiagnosticItemHtml("matrix-difference", "Matrix difference")}
+          ${diagram2DiagnosticItemHtml("cursor-screen-point", "Cursor screen point")}
+          ${diagram2DiagnosticItemHtml("world-point-under-cursor", "World point under cursor")}
+          ${diagram2DiagnosticItemHtml("screen-point-after-settle", "Screen point after settle")}
+          ${diagram2DiagnosticItemHtml("entity-bounding-box-before-settle", "Entity bounding box before settle")}
+          ${diagram2DiagnosticItemHtml("entity-bounding-box-after-settle", "Entity bounding box after settle")}
+          ${diagram2DiagnosticItemHtml("node-identity-before-after", "Node identity before/after")}
+          ${diagram2DiagnosticItemHtml("full-renders-during-settle", "Full renders during settle")}
+          ${diagram2DiagnosticItemHtml("routes-recalculated-during-settle", "Routes recalculated during settle")}
         </dl>
       </section>
     `;
@@ -464,7 +481,18 @@ export function createDiagram2Feature({ app, notify } = {}) {
       "full-render-reason": diagnostics.fullRenderReason,
       "objects-patched-in-last-flush": diagnostics.objectsPatchedInLastFlush,
       "relationships-routed-in-last-flush": diagnostics.relationshipsRoutedInLastFlush,
-      "last-frame-duration": `${diagnostics.lastFrameDuration} ms`
+      "last-frame-duration": `${diagnostics.lastFrameDuration} ms`,
+      "transient-matrix": diagnostics.transientMatrix,
+      "committed-matrix": diagnostics.committedMatrix,
+      "matrix-difference": diagnostics.matrixDifference,
+      "cursor-screen-point": diagnostics.cursorScreenPoint,
+      "world-point-under-cursor": diagnostics.worldPointUnderCursor,
+      "screen-point-after-settle": diagnostics.screenPointAfterSettle,
+      "entity-bounding-box-before-settle": diagnostics.entityBoundingBoxBeforeSettle,
+      "entity-bounding-box-after-settle": diagnostics.entityBoundingBoxAfterSettle,
+      "node-identity-before-after": diagnostics.nodeIdentityBeforeAfter,
+      "full-renders-during-settle": diagnostics.fullRendersDuringSettle,
+      "routes-recalculated-during-settle": diagnostics.routesRecalculatedDuringSettle
     } : {
       "canonical-object-count": message || "-",
       "canonical-entity-count": "-",
@@ -476,7 +504,18 @@ export function createDiagram2Feature({ app, notify } = {}) {
       "full-render-reason": "-",
       "objects-patched-in-last-flush": "-",
       "relationships-routed-in-last-flush": "-",
-      "last-frame-duration": "-"
+      "last-frame-duration": "-",
+      "transient-matrix": "-",
+      "committed-matrix": "-",
+      "matrix-difference": "-",
+      "cursor-screen-point": "-",
+      "world-point-under-cursor": "-",
+      "screen-point-after-settle": "-",
+      "entity-bounding-box-before-settle": "-",
+      "entity-bounding-box-after-settle": "-",
+      "node-identity-before-after": "-",
+      "full-renders-during-settle": "-",
+      "routes-recalculated-during-settle": "-"
     };
 
     Object.entries(values).forEach(([key, value]) => {
@@ -504,6 +543,7 @@ export function createDiagram2Feature({ app, notify } = {}) {
   }
 
   function resetDiagram2Renderer() {
+    abortDiagram2ViewportControls();
     diagram2Renderer = null;
     diagram2RendererDocumentId = 0;
     diagram2RendererState = null;
@@ -512,6 +552,64 @@ export function createDiagram2Feature({ app, notify } = {}) {
   function bindDiagram2Controls() {
     bindDiagram2SearchInput();
     bindDiagram2TreeSplitter();
+  }
+
+  function bindDiagram2ViewportControls(viewer) {
+    abortDiagram2ViewportControls();
+    const canvas = viewer?.querySelector("[data-diagram2-viewer-canvas]");
+    if (!canvas) return;
+
+    viewportAbortController = new AbortController();
+    const { signal } = viewportAbortController;
+    canvas.addEventListener("wheel", event => {
+      if (!diagram2Renderer) return;
+      event.preventDefault();
+      const deltaScale = Math.exp(-event.deltaY * 0.0015);
+      const diagnostics = diagram2Renderer.zoomBy(deltaScale, {
+        clientX: event.clientX,
+        clientY: event.clientY
+      });
+      updateDiagram2Diagnostics(diagnostics);
+    }, { passive: false, signal });
+
+    canvas.addEventListener("pointerdown", event => {
+      if (!diagram2Renderer || event.button !== 0) return;
+      event.preventDefault();
+      abortDiagram2Pan();
+      viewportPanAbortController = new AbortController();
+      const panSignal = viewportPanAbortController.signal;
+      let lastPoint = { x: event.clientX, y: event.clientY };
+      canvas.classList.add("is-panning");
+      canvas.setPointerCapture?.(event.pointerId);
+
+      const move = moveEvent => {
+        const deltaX = moveEvent.clientX - lastPoint.x;
+        const deltaY = moveEvent.clientY - lastPoint.y;
+        lastPoint = { x: moveEvent.clientX, y: moveEvent.clientY };
+        const diagnostics = diagram2Renderer?.panBy(deltaX, deltaY);
+        if (diagnostics) updateDiagram2Diagnostics(diagnostics);
+      };
+      const finish = () => {
+        canvas.classList.remove("is-panning");
+        abortDiagram2Pan();
+      };
+
+      window.addEventListener("pointermove", move, { signal: panSignal });
+      window.addEventListener("pointerup", finish, { signal: panSignal, once: true });
+      window.addEventListener("pointercancel", finish, { signal: panSignal, once: true });
+    }, { signal });
+  }
+
+  function abortDiagram2ViewportControls() {
+    abortDiagram2Pan();
+    viewportAbortController?.abort();
+    viewportAbortController = null;
+  }
+
+  function abortDiagram2Pan() {
+    viewportPanAbortController?.abort();
+    viewportPanAbortController = null;
+    app.querySelector("[data-diagram2-viewer-canvas]")?.classList.remove("is-panning");
   }
 
   function bindDiagram2SearchInput() {
@@ -649,7 +747,9 @@ function diagram2ZoomOptionsHtml(selectedZoom) {
     { value: "fit", text: "Fit" },
     { value: "0.5", text: "50%" },
     { value: "0.75", text: "75%" },
+    { value: "0.9", text: "90%" },
     { value: "1", text: "100%" },
+    { value: "1.1", text: "110%" },
     { value: "1.25", text: "125%" },
     { value: "1.5", text: "150%" },
     { value: "2", text: "200%" }
