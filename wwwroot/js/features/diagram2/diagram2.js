@@ -22,13 +22,13 @@ import {
   diagramAllDocuments,
   diagramDocumentImage,
   diagramLastEditorUserId,
-  diagramReadonlyImageResult,
   diagramSourceIsSvg,
   diagramUpdatedTime,
-  loadDiagramSvgSource
-} from "../../shared/diagram-documents.js?v=20260725-diagram2-day5-v1";
+  loadDiagramCanonicalState
+} from "../../shared/diagram-documents.js?v=20260725-diagram2-day6-v1";
 import { formatDate } from "../../shared/dates.js";
 import { escapeAttr, escapeHtml } from "../../shared/text-and-links.js";
+import { createDiagram2Renderer } from "./diagram2-renderer.js?v=20260725-diagram2-day6-v1";
 
 const diagram2ViewModes = new Set(["tree", "cards"]);
 const diagram2SortModes = new Set(["latest", "oldest", "name", "custom"]);
@@ -59,6 +59,9 @@ export function createDiagram2Feature({ app, notify } = {}) {
   let diagram2ViewerZoom = normalizeDiagram2Zoom(readPreference(preferenceKeys.diagram2ViewerZoom, "fit"));
   let viewerHydrationToken = 0;
   let dragAbortController = null;
+  let diagram2Renderer = null;
+  let diagram2RendererDocumentId = 0;
+  let diagram2RendererState = null;
 
   function render() {
     active = true;
@@ -84,6 +87,7 @@ export function createDiagram2Feature({ app, notify } = {}) {
     const selectedDocument = allDocuments.find(document => document.id === selectedDiagramDocumentId) || null;
     const selectedMissingId = selectedDocument ? 0 : selectedDiagramDocumentId;
     const hydrationToken = ++viewerHydrationToken;
+    resetDiagram2Renderer();
 
     app.innerHTML = `
       <section class="diagram2-screen ${diagram2ViewMode === "cards" ? "is-card-view" : "is-tree-view"} ${diagram2TreePaneHidden ? "is-tree-hidden" : ""}" data-diagram2-screen style="--diagram2-tree-width:${diagram2TreePaneWidth}px">
@@ -109,6 +113,7 @@ export function createDiagram2Feature({ app, notify } = {}) {
     active = false;
     viewerHydrationToken += 1;
     abortTreePaneDrag();
+    resetDiagram2Renderer();
   }
 
   async function handleAction(action, id, button) {
@@ -131,7 +136,11 @@ export function createDiagram2Feature({ app, notify } = {}) {
     if (action === "fit-diagram2-viewer") {
       diagram2ViewerZoom = "fit";
       writePreference(preferenceKeys.diagram2ViewerZoom, diagram2ViewerZoom);
-      render();
+      applyDiagram2ViewerZoom();
+      return true;
+    }
+    if (action === "refresh-diagram2-renderer") {
+      refreshDiagram2Renderer();
       return true;
     }
     if (action === "diagram2-import-probe") {
@@ -172,6 +181,8 @@ export function createDiagram2Feature({ app, notify } = {}) {
     } else if (filter === "diagram2-zoom") {
       diagram2ViewerZoom = normalizeDiagram2Zoom(target.value);
       writePreference(preferenceKeys.diagram2ViewerZoom, diagram2ViewerZoom);
+      applyDiagram2ViewerZoom();
+      return true;
     } else {
       return false;
     }
@@ -215,6 +226,9 @@ export function createDiagram2Feature({ app, notify } = {}) {
         </select>
         <button type="button" class="secondary text-icon-button diagram2-page-action" data-action="fit-diagram2-viewer" title="Fit Diagram" aria-label="Fit Diagram" ${selectedDocument ? "" : "disabled"}>
           ${buttonContent("&#9633;", "Fit")}
+        </button>
+        <button type="button" class="secondary text-icon-button diagram2-page-action" data-action="refresh-diagram2-renderer" title="Refresh Renderer" aria-label="Refresh Renderer" ${selectedDocument ? "" : "disabled"}>
+          ${buttonContent("&#10227;", "Refresh")}
         </button>
       </div>
       <button type="button" class="secondary text-icon-button diagram2-page-action" data-action="diagram2-import-probe" title="Shared PMT Diagram import probe is disabled until the import phase" aria-label="PMT Diagram import probe" disabled>
@@ -355,15 +369,11 @@ export function createDiagram2Feature({ app, notify } = {}) {
       `;
     }
 
-    const image = diagramDocumentImage(document);
-    const result = diagramReadonlyImageResult(image?.source || blankDiagramSource, document.title || "Diagram", {
-      className: "diagram2-readonly-art"
-    });
     return `
       <div class="diagram2-viewer-document-head">
         <div>
           <h2>${escapeHtml(document.title || "Diagram")}</h2>
-          <p data-diagram2-edit-disabled>Read-only compatibility renderer. Editing stays disabled in Diagram 2.</p>
+          <p data-diagram2-edit-disabled>Editing stays disabled in Diagram 2.</p>
         </div>
         <dl class="diagram2-document-meta">
           <div><dt>Visibility</dt><dd>${document.isPrivate === false ? "Public" : "Private"}</dd></div>
@@ -372,47 +382,131 @@ export function createDiagram2Feature({ app, notify } = {}) {
           <div><dt>Updated</dt><dd>${escapeHtml(formatDate(document.updatedAt || document.createdAt))}</dd></div>
         </dl>
       </div>
-      <div class="diagram2-readonly-viewer ${result.needsSvgHydration ? "is-loading" : ""}" data-diagram2-readonly-viewer data-id="${document.id}" ${result.needsSvgHydration ? `aria-busy="true"` : ""}>
-        ${result.needsSvgHydration ? `<div class="diagram2-viewer-loader" role="status" aria-live="polite">Loading...</div>` : ""}
-        <div class="diagram2-viewer-canvas" data-diagram2-viewer-canvas>
-          ${diagram2ViewerArtHtml(result)}
+      <div class="diagram2-viewer-body" data-diagram2-viewer-body>
+        <div class="diagram2-live-viewer is-loading" data-diagram2-live-viewer data-id="${document.id}" aria-busy="true">
+          <div class="diagram2-viewer-loader" role="status" aria-live="polite">Loading...</div>
+          <div class="diagram2-viewer-canvas" data-diagram2-viewer-canvas>
+            <div class="diagram2-renderer-surface ${diagram2ViewerZoom === "fit" ? "is-fit" : ""}" data-diagram2-renderer-surface></div>
+          </div>
         </div>
-      </div>
-    `;
-  }
-
-  function diagram2ViewerArtHtml(result) {
-    const metrics = result.metrics || { width: 1600, height: 900 };
-    const fit = diagram2ViewerZoom === "fit";
-    const zoom = fit ? 1 : Number(diagram2ViewerZoom || 1);
-    const width = Math.max(1, Math.round(metrics.width * zoom));
-    const height = Math.max(1, Math.round(metrics.height * zoom));
-    return `
-      <div class="diagram2-viewer-artboard ${fit ? "is-fit" : ""}" style="--diagram2-art-width:${width}px; --diagram2-art-height:${height}px">
-        ${result.html}
+        ${diagram2DiagnosticsHtml()}
       </div>
     `;
   }
 
   async function hydrateDiagram2Viewer(token, document) {
     if (!document) return;
-    const source = diagramDocumentImage(document)?.source || "";
-    if (!diagramSourceIsSvg(source)) return;
-    const viewer = app.querySelector(`[data-diagram2-readonly-viewer][data-id="${document.id}"]`);
-    if (!viewer?.classList.contains("is-loading")) return;
-    await loadDiagramSvgSource(source);
+    const source = diagramDocumentImage(document)?.source || blankDiagramSource;
+    const viewer = app.querySelector(`[data-diagram2-live-viewer][data-id="${document.id}"]`);
+    const surface = viewer?.querySelector("[data-diagram2-renderer-surface]");
+    if (!viewer || !surface) return;
+
+    const result = diagramSourceIsSvg(source)
+      ? await loadDiagramCanonicalState(source)
+      : { state: null, stateLoaded: false };
     if (!active || token !== viewerHydrationToken || selectedDiagramDocumentId !== document.id) return;
 
-    const canvas = viewer?.querySelector("[data-diagram2-viewer-canvas]");
-    if (!viewer || !canvas) return;
+    if (!result.state) {
+      surface.innerHTML = `<div class="diagram2-renderer-error" role="status">Diagram 2 could not read the saved Diagram metadata.</div>`;
+      viewer.querySelector("[data-diagram2-viewer-loader], .diagram2-viewer-loader")?.remove();
+      viewer.classList.remove("is-loading");
+      viewer.removeAttribute("aria-busy");
+      updateDiagram2Diagnostics(null, "Metadata unavailable");
+      return;
+    }
 
-    const result = diagramReadonlyImageResult(source, document.title || "Diagram", {
-      className: "diagram2-readonly-art"
+    diagram2Renderer = createDiagram2Renderer({ host: surface });
+    diagram2RendererDocumentId = document.id;
+    diagram2RendererState = result.state;
+    let diagnostics = diagram2Renderer.render(result.state, {
+      reason: "initial"
     });
-    canvas.innerHTML = diagram2ViewerArtHtml(result);
+    diagnostics = diagram2Renderer.setZoom(diagram2ViewerZoom);
     viewer.querySelector("[data-diagram2-viewer-loader], .diagram2-viewer-loader")?.remove();
     viewer.classList.remove("is-loading");
     viewer.removeAttribute("aria-busy");
+    updateDiagram2Diagnostics(diagnostics);
+  }
+
+  function diagram2DiagnosticsHtml() {
+    return `
+      <section class="diagram2-diagnostics" data-diagram2-diagnostics aria-label="Diagram 2 renderer diagnostics">
+        <dl>
+          ${diagram2DiagnosticItemHtml("canonical-object-count", "Canonical object count")}
+          ${diagram2DiagnosticItemHtml("canonical-entity-count", "Canonical Entity count")}
+          ${diagram2DiagnosticItemHtml("canonical-relationship-count", "Canonical relationship count")}
+          ${diagram2DiagnosticItemHtml("mounted-object-count", "Mounted object count")}
+          ${diagram2DiagnosticItemHtml("mounted-relationship-count", "Mounted relationship count")}
+          ${diagram2DiagnosticItemHtml("svg-descendant-count", "SVG descendant count")}
+          ${diagram2DiagnosticItemHtml("full-render-count", "Full-render count")}
+          ${diagram2DiagnosticItemHtml("full-render-reason", "Full-render reason")}
+          ${diagram2DiagnosticItemHtml("objects-patched-in-last-flush", "Objects patched in last flush")}
+          ${diagram2DiagnosticItemHtml("relationships-routed-in-last-flush", "Relationships routed in last flush")}
+          ${diagram2DiagnosticItemHtml("last-frame-duration", "Last frame duration")}
+        </dl>
+      </section>
+    `;
+  }
+
+  function diagram2DiagnosticItemHtml(key, label) {
+    return `<div><dt>${escapeHtml(label)}</dt><dd data-diagram2-diagnostic="${escapeAttr(key)}">-</dd></div>`;
+  }
+
+  function updateDiagram2Diagnostics(diagnostics, message = "") {
+    const values = diagnostics ? {
+      "canonical-object-count": diagnostics.canonicalObjectCount,
+      "canonical-entity-count": diagnostics.canonicalEntityCount,
+      "canonical-relationship-count": diagnostics.canonicalRelationshipCount,
+      "mounted-object-count": diagnostics.mountedObjectCount,
+      "mounted-relationship-count": diagnostics.mountedRelationshipCount,
+      "svg-descendant-count": diagnostics.svgDescendantCount,
+      "full-render-count": diagnostics.fullRenderCount,
+      "full-render-reason": diagnostics.fullRenderReason,
+      "objects-patched-in-last-flush": diagnostics.objectsPatchedInLastFlush,
+      "relationships-routed-in-last-flush": diagnostics.relationshipsRoutedInLastFlush,
+      "last-frame-duration": `${diagnostics.lastFrameDuration} ms`
+    } : {
+      "canonical-object-count": message || "-",
+      "canonical-entity-count": "-",
+      "canonical-relationship-count": "-",
+      "mounted-object-count": "-",
+      "mounted-relationship-count": "-",
+      "svg-descendant-count": "-",
+      "full-render-count": "-",
+      "full-render-reason": "-",
+      "objects-patched-in-last-flush": "-",
+      "relationships-routed-in-last-flush": "-",
+      "last-frame-duration": "-"
+    };
+
+    Object.entries(values).forEach(([key, value]) => {
+      const node = app.querySelector(`[data-diagram2-diagnostic="${key}"]`);
+      if (node) node.textContent = String(value ?? "-");
+    });
+  }
+
+  function applyDiagram2ViewerZoom() {
+    const zoomControl = app.querySelector("[data-filter='diagram2-zoom']");
+    if (zoomControl) zoomControl.value = diagram2ViewerZoom;
+    const diagnostics = diagram2ViewerZoom === "fit"
+      ? diagram2Renderer?.fit()
+      : diagram2Renderer?.setZoom(diagram2ViewerZoom);
+    if (diagnostics) updateDiagram2Diagnostics(diagnostics);
+  }
+
+  function refreshDiagram2Renderer() {
+    if (!diagram2Renderer || !diagram2RendererState || !diagram2RendererDocumentId) return;
+    let diagnostics = diagram2Renderer.render(diagram2RendererState, {
+      reason: "refresh"
+    });
+    diagnostics = diagram2Renderer.setZoom(diagram2ViewerZoom);
+    updateDiagram2Diagnostics(diagnostics);
+  }
+
+  function resetDiagram2Renderer() {
+    diagram2Renderer = null;
+    diagram2RendererDocumentId = 0;
+    diagram2RendererState = null;
   }
 
   function bindDiagram2Controls() {

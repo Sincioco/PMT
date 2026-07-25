@@ -119,6 +119,22 @@ export async function loadDiagramSvgSource(sourceInput) {
   return load;
 }
 
+export async function loadDiagramCanonicalState(sourceInput) {
+  const source = String(sourceInput || blankDiagramSource).trim();
+  const svgSource = decodeDiagramSvgDataUrl(source)
+    || diagramSvgSourceCache.get(source)
+    || await loadDiagramSvgSource(source);
+  const state = parseAnnotationSvg(svgSource);
+  return {
+    state,
+    svg: svgSource,
+    metrics: state
+      ? { width: state.width || blankDiagramWidth, height: state.height || blankDiagramHeight }
+      : diagramSvgMetrics(svgSource, { width: blankDiagramWidth, height: blankDiagramHeight }),
+    stateLoaded: Boolean(state)
+  };
+}
+
 export function diagramReadonlyImageResult(sourceInput, title, options = {}) {
   const source = String(sourceInput || blankDiagramSource);
   const className = String(options.className || "diagram-readonly-svg").trim();

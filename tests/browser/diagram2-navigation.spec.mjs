@@ -51,9 +51,31 @@ test("Diagram 2 top navigation opens the isolated shell", async ({ page }) => {
   await expect(page.locator("[data-diagram2-screen] h1")).toHaveText("Diagram 2");
   await expect(page.locator("[data-diagram2-header]")).toContainText("Diagram 2 Beta");
   await expect(page.locator("[data-diagram2-tree] [data-action='select-diagram2-document']")).toHaveCount(2);
-  await expect(page.locator("[data-diagram2-viewer-host] h2")).toHaveText("Checkout Flow");
-  await expect(page.locator("[data-diagram2-viewer-host]")).toContainText("Read-only compatibility renderer.");
-  await expect(page.locator("[data-diagram2-viewer-host] .diagram2-readonly-art")).toBeVisible();
+  await expect(page.locator("[data-diagram2-viewer-host] h2")).toHaveText("PMT Database Schema");
+  await expect(page.locator("[data-diagram2-viewer-host]")).toContainText("Editing stays disabled in Diagram 2.");
+  await expect(page.locator("[data-diagram2-svg]")).toBeVisible();
+  await expect.poll(async () =>
+    page.locator("[data-diagram2-object-plane] [data-diagram2-object-type='entity']").count()
+  ).toBeGreaterThanOrEqual(28);
+  await expect(page.locator("[data-diagram2-diagnostic='canonical-object-count']")).toHaveText("88");
+  await expect(page.locator("[data-diagram2-diagnostic='canonical-relationship-count']")).toHaveText("82");
+  await expect(page.locator("[data-diagram2-diagnostic='mounted-relationship-count']")).toHaveText("82");
+  await expect(page.locator("[data-diagram2-diagnostic='full-render-reason']")).toHaveText("initial");
+  await expect.poll(async () => Number(await page.locator("[data-diagram2-diagnostic='svg-descendant-count']").textContent()))
+    .toBeGreaterThan(0);
+
+  await page.evaluate(() => {
+    window.__diagram2StableSvg = document.querySelector("[data-diagram2-svg]");
+  });
+  await page.getByRole("button", { name: "Fit Diagram" }).click();
+  await expect.poll(() =>
+    page.evaluate(() => document.querySelector("[data-diagram2-svg]") === window.__diagram2StableSvg)
+  ).toBe(true);
+  await page.getByRole("button", { name: "Refresh Renderer" }).click();
+  await expect.poll(() =>
+    page.evaluate(() => document.querySelector("[data-diagram2-svg]") === window.__diagram2StableSvg)
+  ).toBe(true);
+  await expect(page.locator("[data-diagram2-diagnostic='full-render-reason']")).toHaveText("refresh");
   await expect(page.locator("[data-action='diagram2-import-probe']")).toBeDisabled();
   await expect(page.locator(".diagram-screen")).toHaveCount(0);
 
@@ -65,18 +87,18 @@ test("Diagram 2 top navigation opens the isolated shell", async ({ page }) => {
   await expect(page.locator("[data-diagram2-screen]")).toBeVisible();
   await expect(page.locator(".diagram-screen")).toHaveCount(0);
 
-  await page.locator("[data-action='select-diagram2-document'][data-id='42']").click();
-  await expect(page).toHaveURL(/#\/diagram-2\/42$/);
-  await expect(page.locator("[data-diagram2-viewer-host] h2")).toHaveText("PMT Database Schema");
-  await expect(page.locator("[data-diagram2-tree-row][data-id='42']")).toHaveClass(/is-selected/);
+  await page.locator("[data-action='select-diagram2-document'][data-id='77']").click();
+  await expect(page).toHaveURL(/#\/diagram-2\/77$/);
+  await expect(page.locator("[data-diagram2-viewer-host] h2")).toHaveText("Checkout Flow");
+  await expect(page.locator("[data-diagram2-tree-row][data-id='77']")).toHaveClass(/is-selected/);
   await expect(page.locator(".diagram-screen")).toHaveCount(0);
 
   await page.evaluate(() => {
-    window.location.hash = "#/diagram-2/77";
+    window.location.hash = "#/diagram-2/42";
   });
-  await expect(page).toHaveURL(/#\/diagram-2\/77$/);
+  await expect(page).toHaveURL(/#\/diagram-2\/42$/);
   await expect(page.locator("[data-diagram2-screen]")).toBeVisible();
-  await expect(page.locator("[data-diagram2-viewer-host] h2")).toHaveText("Checkout Flow");
+  await expect(page.locator("[data-diagram2-viewer-host] h2")).toHaveText("PMT Database Schema");
   await expect(page.locator(".diagram-screen")).toHaveCount(0);
 
   await openNavigationScreen(page, "Settings");
@@ -122,8 +144,8 @@ function testState() {
       projectId: 1,
       sprintId: null,
       createdAt: "2026-07-24T10:00:00Z",
-      updatedAt: "2026-07-25T10:00:00Z",
-      bodyHtml: diagramBodyHtml("PMT Database Schema", "#126bff")
+      updatedAt: "2026-07-25T12:00:00Z",
+      bodyHtml: pmtDatabaseSchemaBodyHtml()
     }, {
       id: 77,
       title: "Checkout Flow",
@@ -158,6 +180,10 @@ function testState() {
     userPermissions: [],
     effectivePermissions: []
   };
+}
+
+function pmtDatabaseSchemaBodyHtml() {
+  return `<p><img data-pmt-diagram="true" data-pmt-private-diagram="true" src="/assets/docs/pmt-database-schema.svg?v=20260725-diagram2-day6-fixture" alt="PMT Database Schema"></p>`;
 }
 
 function diagramBodyHtml(title, stroke) {

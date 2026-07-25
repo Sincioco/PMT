@@ -12,7 +12,8 @@ import {
 import {
   diagramAllDocuments,
   diagramDocumentImage,
-  diagramReadonlyImageResult
+  diagramReadonlyImageResult,
+  loadDiagramCanonicalState
 } from "../../wwwroot/js/shared/diagram-documents.js";
 
 function diagramBodyHtml(title) {
@@ -88,6 +89,22 @@ test("Diagram 2 read-only shell renders saved canonical Diagram SVG metadata", (
   assert.equal(result.metrics.height, 360);
   assert.match(result.html, /class="diagram2-readonly-art"/);
   assert.match(result.html, /Read Only/);
+});
+
+test("Diagram 2 can load canonical state from saved Diagram SVG metadata", async () => {
+  const document = {
+    id: 10,
+    title: "Canonical Diagram",
+    isPrivate: false,
+    createdByUserId: 1,
+    bodyHtml: diagramBodyHtml("Canonical")
+  };
+  const result = await loadDiagramCanonicalState(diagramDocumentImage(document).source);
+
+  assert.equal(result.stateLoaded, true);
+  assert.equal(result.state.width, 640);
+  assert.equal(result.state.height, 360);
+  assert.equal(result.state.objects.length, 1);
 });
 
 test("Diagram 2 preferences stay separate from Diagram 1 preferences", () => {
