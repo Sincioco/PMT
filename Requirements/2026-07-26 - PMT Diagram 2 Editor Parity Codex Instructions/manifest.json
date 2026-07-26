@@ -1,0 +1,23 @@
+{
+  "title": "PMT Diagram 2 Full Editor Parity Codex Instructions",
+  "generated_for": "Louiery Sincioco",
+  "repository": "Sincioco/PMT",
+  "expected_outcome": "Diagram 2 becomes a complete Diagram 1-feature-parity editor while preserving Diagram 2's incremental high-performance renderer and two-way document compatibility.",
+  "recommended_execution_order": [
+    "01-MASTER-EXPECTED-OUTCOME-AND-PERFORMANCE-CONSTITUTION.md",
+    "02-PHASE-1-INVENTORY-AND-ARCHITECTURE.md",
+    "03-PHASE-2-EDITOR-FOUNDATION-COMMANDS-HISTORY-SHELL.md",
+    "04-PHASE-3-CORE-DRAWING-SELECTION-INSPECTOR.md",
+    "05-PHASE-4-STRUCTURE-OBJECTS-TREE-GROUPS-LAYERS-CLIPBOARD-TEMPLATES.md",
+    "06-PHASE-5-ENTITY-ERD-RELATIONSHIPS-AUTO-FORMAT.md",
+    "07-PHASE-6-IMAGES-CROP-ANNOTATIONS-FIELD-MAPPING.md",
+    "08-PHASE-7-SAVE-IMPORT-EXPORT-ROUNDTRIP-UX-PARITY.md",
+    "09-PHASE-8-PERFORMANCE-HARDENING-500-1000-ENTITY-PROMOTION.md"
+  ],
+  "supporting_files": [
+    "00-START-HERE.md",
+    "10-FEATURE-PARITY-MATRIX-TEMPLATE.md",
+    "11-CODEX-COMPLETION-REPORT-TEMPLATE.md",
+    "ALL-IN-ONE-CODEX-INSTRUCTIONS.md"
+  ]
+}
