@@ -48,18 +48,22 @@ import {
   parseDiagram2PmtDiagramFile
 } from "./diagram2-compatibility.js?v=20260725-diagram2-day14-v1";
 import { createDiagram2DocumentHostAdapter } from "./diagram2-document-host-adapter.js?v=20260726-diagram2-phase2-v1";
-import { createDiagram2EditorController } from "./diagram2-editor-controller.js?v=20260726-diagram2-phase2-closure-v1";
+import {
+  createDiagram2DefaultObject,
+  createDiagram2EditorController,
+  isDiagram2CoreDrawingTool
+} from "./diagram2-editor-controller.js?v=20260726-diagram2-phase3-create-v1";
 import {
   diagram2EditorShellHtml,
   diagram2ObjectsPaneHtml,
   setDiagram2InspectorActiveTab,
   updateDiagram2ObjectTreeSelection,
   updateDiagram2ShellStatus
-} from "./diagram2-editor-shell.js?v=20260726-d2-flat-diagnostics-v1";
+} from "./diagram2-editor-shell.js?v=20260726-diagram2-phase3-create-v1";
 import {
   createDiagram2Renderer,
   normalizeDiagram2CanonicalState
-} from "./diagram2-renderer.js?v=20260726-d2-line-parity-v1";
+} from "./diagram2-renderer.js?v=20260726-diagram2-phase3-create-v1";
 
 const diagram2ViewModes = new Set(["tree", "cards"]);
 const diagram2SortModes = new Set(["latest", "oldest", "name", "custom"]);
@@ -290,7 +294,9 @@ export function createDiagram2Feature({
     }
     if (action === "set-diagram2-tool") {
       if (!diagram2EditModeActive()) return true;
-      diagram2Controller?.setActiveTool(button?.dataset?.tool || button?.dataset?.diagram2Tool || "select");
+      const tool = button?.dataset?.tool || button?.dataset?.diagram2Tool || "select";
+      if (isDiagram2CoreDrawingTool(tool)) await addDiagram2ToolbarObject(tool);
+      else diagram2Controller?.setActiveTool(tool);
       updateDiagram2EditorControls();
       return true;
     }
@@ -1514,6 +1520,17 @@ export function createDiagram2Feature({
           void redoDiagram2();
           return;
         }
+        const shortcutTool = { v: "select", h: "pan", r: "rectangle", o: "circle", a: "arrow", l: "line", t: "textbox" }[key];
+        if (shortcutTool && !event.ctrlKey && !event.metaKey && !event.altKey) {
+          event.preventDefault();
+          if (isDiagram2CoreDrawingTool(shortcutTool)) {
+            if (!event.repeat) void addDiagram2ToolbarObject(shortcutTool);
+          } else {
+            diagram2Controller?.setActiveTool(shortcutTool);
+            updateDiagram2EditorControls();
+          }
+          return;
+        }
         const step = event.shiftKey ? 10 : 1;
         if (event.key === "ArrowUp") {
           event.preventDefault();
@@ -1884,6 +1901,7 @@ export function createDiagram2Feature({
     const result = await diagram2Controller.undo();
     diagram2RendererState = diagram2Controller.currentState();
     diagram2SelectedObjectIds = diagram2Controller.selectedObjectIds();
+    refreshDiagram2ObjectsPane();
     updateDiagram2EditorControls();
     const diagnostics = await diagram2Renderer?.whenIdle();
     if (diagnostics) updateDiagram2Diagnostics(diagnostics);
@@ -1895,10 +1913,65 @@ export function createDiagram2Feature({
     const result = await diagram2Controller.redo();
     diagram2RendererState = diagram2Controller.currentState();
     diagram2SelectedObjectIds = diagram2Controller.selectedObjectIds();
+    refreshDiagram2ObjectsPane();
     updateDiagram2EditorControls();
     const diagnostics = await diagram2Renderer?.whenIdle();
     if (diagnostics) updateDiagram2Diagnostics(diagnostics);
     return result;
+  }
+
+  async function addDiagram2ToolbarObject(type) {
+    if (!diagram2Controller || !diagram2Renderer || diagram2Busy || !diagram2CanMutateCurrentDocument()) return false;
+    const object = createDiagram2DefaultObject(type, diagram2InsertionCenter());
+    if (!object) return false;
+
+    const added = await diagram2Controller.addObject(object, {
+      label: `Add ${diagram2ToolLabel(type)}`,
+      reason: `toolbar add ${type}`
+    });
+    if (!added) return false;
+
+    diagram2Controller.setActiveTool("select");
+    diagram2RendererState = diagram2Controller.currentState();
+    diagram2SelectedObjectIds = diagram2Controller.selectedObjectIds();
+    refreshDiagram2ObjectsPane();
+    updateDiagram2EditorControls();
+    const diagnostics = await diagram2Renderer.whenIdle();
+    updateDiagram2Diagnostics(diagnostics);
+    return true;
+  }
+
+  function diagram2InsertionCenter() {
+    const canvas = app.querySelector("[data-diagram2-viewer-canvas]");
+    const rect = canvas?.getBoundingClientRect?.();
+    if (diagram2Renderer && rect?.width && rect?.height) {
+      return diagram2Renderer.screenToWorld({
+        clientX: rect.left + (rect.width / 2),
+        clientY: rect.top + (rect.height / 2)
+      });
+    }
+    const current = diagram2Controller?.currentState?.() || diagram2RendererState || {};
+    return {
+      x: finiteNumber(current.width, 1600) / 2,
+      y: finiteNumber(current.height, 900) / 2
+    };
+  }
+
+  function refreshDiagram2ObjectsPane() {
+    const pane = app.querySelector("[data-diagram2-objects-pane]");
+    const current = diagram2Controller?.state?.() || diagram2RendererState;
+    if (!pane || !current) return;
+    pane.outerHTML = diagram2ObjectsPaneHtml(current, diagram2Controller?.selectedObjectIds?.() || diagram2SelectedObjectIds);
+  }
+
+  function diagram2ToolLabel(type) {
+    return {
+      rectangle: "Rectangle",
+      circle: "Circle",
+      arrow: "Arrow",
+      line: "Line",
+      textbox: "Text Box"
+    }[String(type || "").trim().toLowerCase()] || "object";
   }
 
   function updateDiagram2EditorControls() {

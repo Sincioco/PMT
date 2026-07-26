@@ -28,7 +28,7 @@ test("Annotate 2.0 saves through the RTE upload URL and remains editable", async
     window.__diagram2RteNotifications = [];
   });
   await page.evaluate(async () => {
-    const { openDiagram2RteAnnotationHost } = await import("/js/features/diagram2/diagram2-rte-host-adapter.js?v=20260726-diagram2-phase2-closure-v1");
+    const { openDiagram2RteAnnotationHost } = await import("/js/features/diagram2/diagram2-rte-host-adapter.js?v=20260726-diagram2-phase3-create-v1");
     const image = document.querySelector("#targetImage");
     const editor = document.querySelector(".rich-editor");
     window.__diagram2RtePromise = openDiagram2RteAnnotationHost({
@@ -53,6 +53,7 @@ test("Annotate 2.0 saves through the RTE upload URL and remains editable", async
   });
 
   await expect(page.locator("[data-diagram2-rte-host]")).toBeVisible();
+  const toolbarRectangleId = await assertDiagram2RteToolbarObjectInsertion(page);
   const movedImage = await page.evaluate(async () => {
     const controller = window.__pmtDiagram2EditorCore;
     const imageObject = controller.currentState().objects.find(object => object.type === "embedded-image" && object.isOriginalImage === true);
@@ -118,6 +119,7 @@ test("Annotate 2.0 saves through the RTE upload URL and remains editable", async
   expect(uploadedViewBox[2]).toBeGreaterThan(320);
   expect(uploadedSvg).not.toContain("pmt-annotation-image-clip-");
   expect(uploadedSvg).toContain('"id":"outside-arrow"');
+  expect(uploadedSvg).toContain(`"id":"${toolbarRectangleId}"`);
   expect(uploadedSvg).toContain('"imageClip":{"x":0,"y":0,"width":320,"height":180}');
   expect(saved.src).toBe("/uploads/annotated.svg");
   expect(saved.src).not.toMatch(/^(data:|blob:)/);
@@ -130,7 +132,7 @@ test("Annotate 2.0 saves through the RTE upload URL and remains editable", async
   expect(saved.customSize).toBe("keep");
 
   await page.evaluate(async () => {
-    const { openDiagram2RteAnnotationHost } = await import("/js/features/diagram2/diagram2-rte-host-adapter.js?v=20260726-diagram2-phase2-closure-v1");
+    const { openDiagram2RteAnnotationHost } = await import("/js/features/diagram2/diagram2-rte-host-adapter.js?v=20260726-diagram2-phase3-create-v1");
     const image = document.querySelector("#targetImage");
     const editor = document.querySelector(".rich-editor");
     window.__diagram2EditPromise = openDiagram2RteAnnotationHost({
@@ -147,7 +149,7 @@ test("Annotate 2.0 saves through the RTE upload URL and remains editable", async
     });
   });
   await expect(page.locator("[data-diagram2-rte-host]")).toBeVisible();
-  const reopened = await page.evaluate(() => {
+  const reopened = await page.evaluate(toolbarRectangleId => {
     const controller = window.__pmtDiagram2EditorCore;
     const state = controller.state();
     const imageObject = state.objects.find(object => object.type === "embedded-image" && object.isOriginalImage === true);
@@ -156,14 +158,16 @@ test("Annotate 2.0 saves through the RTE upload URL and remains editable", async
       imageX: imageObject?.x,
       imageY: imageObject?.y,
       clip: imageObject?.imageClip,
-      hasOutsideArrow: state.objects.some(object => object.id === "outside-arrow" && object.type === "arrow")
+      hasOutsideArrow: state.objects.some(object => object.id === "outside-arrow" && object.type === "arrow"),
+      hasToolbarRectangle: state.objects.some(object => object.id === toolbarRectangleId && object.type === "rectangle")
     };
-  });
+  }, toolbarRectangleId);
   expect(reopened.objectCount).toBeGreaterThan(0);
   expect(reopened.imageX).toBe(0);
   expect(reopened.imageY).toBe(0);
   expect(reopened.clip).toEqual({ x: 0, y: 0, width: 320, height: 180 });
   expect(reopened.hasOutsideArrow).toBe(true);
+  expect(reopened.hasToolbarRectangle).toBe(true);
   await page.getByRole("button", { name: "Cancel" }).click();
   await page.evaluate(() => window.__diagram2EditPromise);
 });
@@ -184,7 +188,7 @@ test("Annotate 2.0 cancel performs no upload and leaves RTE image unchanged", as
   const before = await page.locator("#targetImage").evaluate(image => image.outerHTML);
 
   await page.evaluate(async () => {
-    const { openDiagram2RteAnnotationHost } = await import("/js/features/diagram2/diagram2-rte-host-adapter.js?v=20260726-diagram2-phase2-closure-v1");
+    const { openDiagram2RteAnnotationHost } = await import("/js/features/diagram2/diagram2-rte-host-adapter.js?v=20260726-diagram2-phase3-create-v1");
     const image = document.querySelector("#targetImage");
     window.__diagram2CancelApplyCount = 0;
     window.__diagram2CancelPromise = openDiagram2RteAnnotationHost({
@@ -229,7 +233,7 @@ test("Annotate 2.0 cancel cleans up renderer and controller across ten cycles", 
 
   for (let index = 0; index < 10; index += 1) {
     await page.evaluate(async cycle => {
-      const { openDiagram2RteAnnotationHost } = await import("/js/features/diagram2/diagram2-rte-host-adapter.js?v=20260726-diagram2-phase2-closure-v1");
+      const { openDiagram2RteAnnotationHost } = await import("/js/features/diagram2/diagram2-rte-host-adapter.js?v=20260726-diagram2-phase3-create-v1");
       const image = document.querySelector("#targetImage");
       window.__diagram2RteCyclePromise = openDiagram2RteAnnotationHost({
         image,
@@ -284,7 +288,7 @@ test("Annotate 2.0 cannot bypass the originating RTE update permission", async (
   `);
 
   const result = await page.evaluate(async () => {
-    const { openDiagram2RteAnnotationHost } = await import("/js/features/diagram2/diagram2-rte-host-adapter.js?v=20260726-diagram2-phase2-closure-v1");
+    const { openDiagram2RteAnnotationHost } = await import("/js/features/diagram2/diagram2-rte-host-adapter.js?v=20260726-diagram2-phase3-create-v1");
     const image = document.querySelector("#targetImage");
     const notifications = [];
     let applyCount = 0;
@@ -328,6 +332,95 @@ async function waitForDiagram2RteCleanup(page) {
   await page.evaluate(() => new Promise(resolve => {
     requestAnimationFrame(() => requestAnimationFrame(resolve));
   }));
+}
+
+async function assertDiagram2RteToolbarObjectInsertion(page) {
+  const before = await page.evaluate(() => {
+    const svg = document.querySelector("[data-diagram2-svg]");
+    return {
+      fullRenderCount: Number(svg?.dataset.diagram2FullRenderCount || 0),
+      objectCount: window.__pmtDiagram2EditorCore.currentState().objects.length,
+      objectNodeCount: document.querySelectorAll("[data-diagram2-object-plane] [data-diagram2-object-id]").length
+    };
+  });
+
+  await page.getByRole("button", { name: "Rectangle (R)" }).click();
+  await expect.poll(() =>
+    page.evaluate(() => window.__pmtDiagram2EditorCore.currentState().objects.length)
+  ).toBe(before.objectCount + 1);
+
+  const afterAdd = await page.evaluate(async beforeSnapshot => {
+    const controller = window.__pmtDiagram2EditorCore;
+    const renderer = window.__pmtDiagram2Renderer;
+    const svg = document.querySelector("[data-diagram2-svg]");
+    await renderer.whenIdle();
+    const selectedId = controller.selectedObjectIds()[0];
+    const object = controller.getObjectById(selectedId);
+    const row = document.querySelector(`[data-diagram2-object-tree-row][data-diagram2-object-id="${CSS.escape(selectedId)}"]`);
+    return {
+      selectedId,
+      selectedType: object?.type,
+      dirty: controller.historyStatus().dirty,
+      fullRenderCount: Number(svg?.dataset.diagram2FullRenderCount || 0),
+      objectCount: controller.currentState().objects.length,
+      objectNodeDelta: document.querySelectorAll("[data-diagram2-object-plane] [data-diagram2-object-id]").length
+        - beforeSnapshot.objectNodeCount,
+      objectTreeRowExists: Boolean(row),
+      objectTreeRowSelected: row?.classList.contains("is-selected") === true
+    };
+  }, before);
+
+  expect(afterAdd.selectedId).toMatch(/^rectangle-/);
+  expect(afterAdd.selectedType).toBe("rectangle");
+  expect(afterAdd.dirty).toBe(true);
+  expect(afterAdd.fullRenderCount).toBe(before.fullRenderCount);
+  expect(afterAdd.objectCount).toBe(before.objectCount + 1);
+  expect(afterAdd.objectNodeDelta).toBe(1);
+  expect(afterAdd.objectTreeRowExists).toBe(true);
+  expect(afterAdd.objectTreeRowSelected).toBe(true);
+
+  await page.locator("[data-action='undo-diagram2']").click();
+  await expect.poll(() =>
+    page.evaluate(beforeCount => window.__pmtDiagram2EditorCore.currentState().objects.length === beforeCount, before.objectCount)
+  ).toBe(true);
+  const afterUndo = await page.evaluate(async beforeSnapshot => {
+    const controller = window.__pmtDiagram2EditorCore;
+    const renderer = window.__pmtDiagram2Renderer;
+    const svg = document.querySelector("[data-diagram2-svg]");
+    await renderer.whenIdle();
+    return {
+      dirty: controller.historyStatus().dirty,
+      fullRenderCount: Number(svg?.dataset.diagram2FullRenderCount || 0),
+      objectNodeCount: document.querySelectorAll("[data-diagram2-object-plane] [data-diagram2-object-id]").length
+    };
+  }, before);
+  expect(afterUndo.dirty).toBe(false);
+  expect(afterUndo.fullRenderCount).toBe(before.fullRenderCount);
+  expect(afterUndo.objectNodeCount).toBe(before.objectNodeCount);
+
+  await page.locator("[data-action='redo-diagram2']").click();
+  await expect.poll(() =>
+    page.evaluate(beforeCount => window.__pmtDiagram2EditorCore.currentState().objects.length === beforeCount + 1, before.objectCount)
+  ).toBe(true);
+  const afterRedo = await page.evaluate(async beforeSnapshot => {
+    const controller = window.__pmtDiagram2EditorCore;
+    const renderer = window.__pmtDiagram2Renderer;
+    const svg = document.querySelector("[data-diagram2-svg]");
+    await renderer.whenIdle();
+    const selectedId = controller.selectedObjectIds()[0];
+    return {
+      selectedId,
+      selectedType: controller.getObjectById(selectedId)?.type,
+      dirty: controller.historyStatus().dirty,
+      fullRenderCount: Number(svg?.dataset.diagram2FullRenderCount || 0),
+      objectNodeCount: document.querySelectorAll("[data-diagram2-object-plane] [data-diagram2-object-id]").length
+    };
+  }, before);
+  expect(afterRedo.selectedType).toBe("rectangle");
+  expect(afterRedo.dirty).toBe(true);
+  expect(afterRedo.fullRenderCount).toBe(before.fullRenderCount);
+  expect(afterRedo.objectNodeCount).toBe(before.objectNodeCount + 1);
+  return afterRedo.selectedId;
 }
 
 async function diagram2RteCleanupSnapshot(page) {

@@ -1,7 +1,79 @@
 import { createDiagram2CommandHistory } from "./diagram2-editor-history.js?v=20260726-diagram2-phase2-v1";
-import { normalizeDiagram2CanonicalState } from "./diagram2-renderer.js?v=20260726-d2-line-parity-v1";
+import { normalizeDiagram2CanonicalState } from "./diagram2-renderer.js?v=20260726-diagram2-phase3-create-v1";
 
 const keyboardNudgeMergeWindowMilliseconds = 350;
+const diagram2CoreDrawingTools = new Set(["rectangle", "circle", "arrow", "line", "textbox"]);
+const defaultDiagram2DrawingStyles = {
+  fill: "#5aa315",
+  stroke: "#3f7f0d",
+  textColor: "#ffffff",
+  fontFamily: "Arial",
+  fontSize: 28,
+  textAlign: "left",
+  textVerticalAlign: "top",
+  outlineVisible: true,
+  opacity: 1,
+  strokeWidth: 4,
+  arrowSize: 24
+};
+const defaultDiagram2CanvasCenter = { x: 800, y: 450 };
+
+export function isDiagram2CoreDrawingTool(tool) {
+  return diagram2CoreDrawingTools.has(String(tool || "").trim().toLowerCase());
+}
+
+export function createDiagram2DefaultObject(typeInput, centerInput = {}, options = {}) {
+  const type = String(typeInput || "").trim().toLowerCase();
+  if (!isDiagram2CoreDrawingTool(type)) return null;
+
+  const center = {
+    x: finiteNumber(centerInput?.x, defaultDiagram2CanvasCenter.x),
+    y: finiteNumber(centerInput?.y, defaultDiagram2CanvasCenter.y)
+  };
+  const id = String(options.id || diagram2ObjectId(type)).trim();
+  const base = {
+    id,
+    type,
+    locked: false,
+    groupId: ""
+  };
+
+  if (type === "arrow" || type === "line") {
+    const object = {
+      ...base,
+      x1: center.x - 90,
+      y1: center.y - 90,
+      x2: center.x + 90,
+      y2: center.y + 90,
+      stroke: defaultDiagram2DrawingStyles.stroke,
+      strokeWidth: defaultDiagram2DrawingStyles.strokeWidth,
+      opacity: defaultDiagram2DrawingStyles.opacity
+    };
+    if (type === "arrow") object.arrowSize = defaultDiagram2DrawingStyles.arrowSize;
+    return object;
+  }
+
+  const width = type === "textbox" ? 320 : type === "circle" ? 180 : 240;
+  const height = type === "circle" ? 180 : 140;
+  return {
+    ...base,
+    x: center.x - (width / 2),
+    y: center.y - (height / 2),
+    width,
+    height,
+    fill: type === "textbox" ? defaultDiagram2DrawingStyles.fill : "none",
+    stroke: defaultDiagram2DrawingStyles.stroke,
+    outlineVisible: defaultDiagram2DrawingStyles.outlineVisible,
+    strokeWidth: defaultDiagram2DrawingStyles.strokeWidth,
+    opacity: defaultDiagram2DrawingStyles.opacity,
+    text: type === "textbox" ? "Text" : "",
+    textColor: defaultDiagram2DrawingStyles.textColor,
+    fontFamily: defaultDiagram2DrawingStyles.fontFamily,
+    fontSize: defaultDiagram2DrawingStyles.fontSize,
+    textAlign: defaultDiagram2DrawingStyles.textAlign,
+    textVerticalAlign: defaultDiagram2DrawingStyles.textVerticalAlign
+  };
+}
 
 export function createDiagram2EditorController(options = {}) {
   let renderer = options.renderer || null;
@@ -103,6 +175,21 @@ export function createDiagram2EditorController(options = {}) {
       rendererAlreadyUpdated: commandOptions.rendererAlreadyUpdated === true,
       mergeKey: commandOptions.coalesce === true ? `move:${ids.join("|")}` : "",
       mergeWindowMs: commandOptions.coalesce === true ? keyboardNudgeMergeWindowMilliseconds : 0
+    });
+    await history.execute(command, commandContext());
+    emit("history");
+    return true;
+  }
+
+  async function addObject(object, commandOptions = {}) {
+    if (busy || destroyed || !canMutate()) return false;
+    const objectId = String(object?.id || "").trim();
+    if (!objectId || objectIndexById.has(objectId)) return false;
+
+    const command = createDiagram2AddObjectCommand({
+      object: { ...object, id: objectId },
+      label: commandOptions.label || "Add object",
+      reason: commandOptions.reason || "add object"
     });
     await history.execute(command, commandContext());
     emit("history");
@@ -514,6 +601,7 @@ export function createDiagram2EditorController(options = {}) {
     updateObjectsCanonical,
     addObjectCanonical,
     removeObjectsCanonical,
+    addObject,
     moveSelectedObjects,
     moveObjects,
     undo,
@@ -529,6 +617,67 @@ export function createDiagram2EditorController(options = {}) {
     historyStatus: () => history.status(),
     diagnostics,
     destroy
+  };
+}
+
+export function createDiagram2AddObjectCommand(options = {}) {
+  const objectId = String(options.object?.id || "").trim();
+  const object = { ...(options.object || {}), id: objectId };
+  const reason = String(options.reason || "add object").trim() || "add object";
+  const label = String(options.label || "Add object").trim() || "Add object";
+  const createdAt = Date.now();
+  let previousSelection = [];
+
+  return {
+    kind: "add-object",
+    label,
+    objectId,
+    object,
+    reason,
+    createdAt,
+    apply(context) {
+      if (!objectId || context.getObjectById(objectId)) return false;
+      previousSelection = context.selectedObjectIds();
+      const add = context.addObjectCanonical(object, {
+        reason
+      });
+      if (add.changed !== true) return false;
+
+      const renderer = context.renderer;
+      renderer?.beginDiagramUpdate?.(reason);
+      renderer?.addObject?.(add.nextObjectsById?.get(objectId) || object);
+      context.setSelection([objectId]);
+      renderer?.endDiagramUpdate?.(reason);
+      return true;
+    },
+    undo(context) {
+      if (!objectId || !context.getObjectById(objectId)) return false;
+      const remove = context.removeObjectsCanonical([objectId], {
+        reason: `${reason} undo`
+      });
+      if (remove.changed !== true) return false;
+
+      const renderer = context.renderer;
+      renderer?.beginDiagramUpdate?.(`${reason} undo`);
+      renderer?.removeObject?.(objectId);
+      context.setSelection(previousSelection);
+      renderer?.endDiagramUpdate?.(`${reason} undo`);
+      return true;
+    },
+    redo(context) {
+      if (!objectId || context.getObjectById(objectId)) return false;
+      const add = context.addObjectCanonical(object, {
+        reason: `${reason} redo`
+      });
+      if (add.changed !== true) return false;
+
+      const renderer = context.renderer;
+      renderer?.beginDiagramUpdate?.(`${reason} redo`);
+      renderer?.addObject?.(add.nextObjectsById?.get(objectId) || object);
+      context.setSelection([objectId]);
+      renderer?.endDiagramUpdate?.(`${reason} redo`);
+      return true;
+    }
   };
 }
 
@@ -661,6 +810,10 @@ function uniqueStrings(values) {
 function finiteNumber(value, fallback = 0) {
   const number = Number(value);
   return Number.isFinite(number) ? number : fallback;
+}
+
+function diagram2ObjectId(prefix) {
+  return `${String(prefix || "object").trim() || "object"}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
 function translateDiagram2Bounds(bounds, deltaX, deltaY) {

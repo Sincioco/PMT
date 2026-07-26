@@ -509,6 +509,52 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
     return diagnostics();
   }
 
+  function addObject(objectInput = {}) {
+    if (!canonicalState) return diagnostics();
+    const objectId = String(objectInput?.id || "").trim();
+    if (!objectId) return diagnostics();
+    if (canonicalState.objects.some(object => object.id === objectId)) {
+      return updateObject(objectId, objectInput);
+    }
+
+    const nextState = normalizeDiagram2CanonicalState({
+      ...canonicalState,
+      objects: canonicalState.objects.concat({ ...objectInput, id: objectId })
+    });
+    const nextObject = nextState.objects.find(object => object.id === objectId);
+    if (!nextObject) return diagnostics();
+
+    canonicalState = nextState;
+    dirty.objectStructure.add(objectId);
+    const impact = impactedRelationshipIdsForObjectGeometry(objectId, null, nextObject);
+    pendingSelectiveRoutingSectorsQueried += impact.sectorsQueried;
+    impact.relationshipIds.forEach(relationshipId => dirty.relationshipGeometry.add(relationshipId));
+    dirty.worldBounds = true;
+    dirty.sectors = true;
+    return scheduleDiagramFlush("object add");
+  }
+
+  function removeObject(id) {
+    if (!canonicalState) return diagnostics();
+    const objectId = String(id || "").trim();
+    const previousObject = canonicalState.objects.find(object => object.id === objectId);
+    if (!previousObject) return diagnostics();
+
+    const impact = impactedRelationshipIdsForObjectGeometry(objectId, previousObject, null);
+    canonicalState = normalizeDiagram2CanonicalState({
+      ...canonicalState,
+      objects: canonicalState.objects.filter(object => object.id !== objectId)
+    });
+    liveView.selectedIds.delete(objectId);
+    dirty.objectStructure.add(objectId);
+    dirty.objectSelection.add(objectId);
+    pendingSelectiveRoutingSectorsQueried += impact.sectorsQueried;
+    impact.relationshipIds.forEach(relationshipId => dirty.relationshipGeometry.add(relationshipId));
+    dirty.worldBounds = true;
+    dirty.sectors = true;
+    return scheduleDiagramFlush("object remove");
+  }
+
   function updateObject(id, patchInput = {}) {
     if (!canonicalState) return diagnostics();
     const objectId = String(id || "");
@@ -2575,6 +2621,8 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
     previewGeometry,
     commitGeometryPreview,
     cancelGeometryPreview,
+    addObject,
+    removeObject,
     updateObject,
     patchObject: updateObject,
     setSelectedIds,

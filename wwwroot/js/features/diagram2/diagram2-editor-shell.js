@@ -186,11 +186,11 @@ function diagram2ToolbarHtml({ canUse, includeActions, selectedZoom }) {
         ${diagram2ToolButton("pan", "Pan (H)", false, disabled)}
         ${diagram2ToolButton("format-painter", "Format Painter", false, "disabled")}
         ${diagram2ToolButton("crop", "Crop (C)", false, "disabled")}
-        ${diagram2ToolButton("rectangle", "Rectangle (R)", false, "disabled")}
-        ${diagram2ToolButton("circle", "Circle (O)", false, "disabled")}
-        ${diagram2ToolButton("arrow", "Arrow (A)", false, "disabled")}
-        ${diagram2ToolButton("line", "Line (L)", false, "disabled")}
-        ${diagram2ToolButton("textbox", "Text Box (T)", false, "disabled")}
+        ${diagram2ToolButton("rectangle", "Rectangle (R)", false, `${disabled} data-diagram2-requires-update`)}
+        ${diagram2ToolButton("circle", "Circle (O)", false, `${disabled} data-diagram2-requires-update`)}
+        ${diagram2ToolButton("arrow", "Arrow (A)", false, `${disabled} data-diagram2-requires-update`)}
+        ${diagram2ToolButton("line", "Line (L)", false, `${disabled} data-diagram2-requires-update`)}
+        ${diagram2ToolButton("textbox", "Text Box (T)", false, `${disabled} data-diagram2-requires-update`)}
         ${diagram2ToolButton("rich-text", "Rich Text Editor (Y)", false, "disabled")}
         <span class="image-annotation-toolbar-separator" role="separator" aria-hidden="true"></span>
         ${diagram2ToolButton("entity", "Entity (E)", false, "disabled")}

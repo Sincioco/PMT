@@ -8,14 +8,19 @@ import { loadDiagramCanonicalState } from "../../shared/diagram-documents.js?v=2
 import {
   createDiagram2Renderer,
   normalizeDiagram2CanonicalState
-} from "./diagram2-renderer.js?v=20260726-d2-line-parity-v1";
+} from "./diagram2-renderer.js?v=20260726-diagram2-phase3-create-v1";
 import { createDiagram2SelectionClipboardText } from "./diagram2-compatibility.js?v=20260725-diagram2-day14-v1";
-import { createDiagram2EditorController } from "./diagram2-editor-controller.js?v=20260726-diagram2-phase2-closure-v1";
 import {
+  createDiagram2DefaultObject,
+  createDiagram2EditorController,
+  isDiagram2CoreDrawingTool
+} from "./diagram2-editor-controller.js?v=20260726-diagram2-phase3-create-v1";
+import {
+  diagram2ObjectsPaneHtml,
   diagram2EditorShellHtml,
   updateDiagram2ObjectTreeSelection,
   updateDiagram2ShellStatus
-} from "./diagram2-editor-shell.js?v=20260726-d2-flat-diagnostics-v1";
+} from "./diagram2-editor-shell.js?v=20260726-diagram2-phase3-create-v1";
 
 export async function openDiagram2RteAnnotationHost(options = {}) {
   const image = options.image;
@@ -306,7 +311,12 @@ function bindDiagram2RteHostEvents(options = {}) {
       return;
     }
     if (action === "set-diagram2-tool") {
-      controller.setActiveTool(actionElement.dataset.tool || actionElement.dataset.diagram2Tool || "select");
+      const tool = actionElement.dataset.tool || actionElement.dataset.diagram2Tool || "select";
+      if (isDiagram2CoreDrawingTool(tool)) {
+        void addDiagram2RteToolbarObject(tool, dialog, controller, renderer);
+      } else {
+        controller.setActiveTool(tool);
+      }
       return;
     }
     if (action === "select-diagram2-object-tree-item") {
@@ -335,11 +345,11 @@ function bindDiagram2RteHostEvents(options = {}) {
       return;
     }
     if (action === "undo-diagram2") {
-      void controller.undo();
+      void runDiagram2RteHistoryAction(dialog, controller, renderer, () => controller.undo());
       return;
     }
     if (action === "redo-diagram2") {
-      void controller.redo();
+      void runDiagram2RteHistoryAction(dialog, controller, renderer, () => controller.redo());
       return;
     }
     if (action === "copy-diagram2-selection") {
@@ -368,15 +378,26 @@ function bindDiagram2RteHostEvents(options = {}) {
     }
     if (usesCommandKey && key === "z") {
       event.preventDefault();
-      void (event.shiftKey ? controller.redo() : controller.undo());
+      void runDiagram2RteHistoryAction(dialog, controller, renderer, () =>
+        event.shiftKey ? controller.redo() : controller.undo());
       return;
     }
     if (usesCommandKey && key === "y") {
       event.preventDefault();
-      void controller.redo();
+      void runDiagram2RteHistoryAction(dialog, controller, renderer, () => controller.redo());
       return;
     }
     if (diagram2EditableEventTarget(event.target)) return;
+    const shortcutTool = { v: "select", h: "pan", r: "rectangle", o: "circle", a: "arrow", l: "line", t: "textbox" }[key];
+    if (shortcutTool && !event.ctrlKey && !event.metaKey && !event.altKey) {
+      event.preventDefault();
+      if (isDiagram2CoreDrawingTool(shortcutTool)) {
+        if (!event.repeat) void addDiagram2RteToolbarObject(shortcutTool, dialog, controller, renderer);
+      } else {
+        controller.setActiveTool(shortcutTool);
+      }
+      return;
+    }
     const step = event.shiftKey ? 10 : 1;
     if (event.key === "ArrowUp") {
       event.preventDefault();
@@ -394,6 +415,60 @@ function bindDiagram2RteHostEvents(options = {}) {
   }, { signal });
 
   bindDiagram2RtePointerEvents({ canvas, controller, renderer, signal });
+}
+
+async function addDiagram2RteToolbarObject(type, dialog, controller, renderer) {
+  const object = createDiagram2DefaultObject(type, diagram2RteInsertionCenter(dialog, controller, renderer));
+  if (!object) return false;
+  const added = await controller.addObject(object, {
+    label: `Add ${diagram2ToolLabel(type)}`,
+    reason: `toolbar add ${type}`
+  });
+  if (!added) return false;
+
+  controller.setActiveTool("select");
+  refreshDiagram2RteObjectsPane(dialog, controller);
+  await renderer.whenIdle();
+  return true;
+}
+
+async function runDiagram2RteHistoryAction(dialog, controller, renderer, action) {
+  const result = await action();
+  refreshDiagram2RteObjectsPane(dialog, controller);
+  await renderer.whenIdle();
+  return result;
+}
+
+function diagram2RteInsertionCenter(dialog, controller, renderer) {
+  const canvas = dialog.querySelector("[data-diagram2-viewer-canvas]");
+  const rect = canvas?.getBoundingClientRect?.();
+  if (renderer && rect?.width && rect?.height) {
+    return renderer.screenToWorld({
+      clientX: rect.left + (rect.width / 2),
+      clientY: rect.top + (rect.height / 2)
+    });
+  }
+  const current = controller.currentState?.() || {};
+  return {
+    x: finiteNumber(current.width, 1600) / 2,
+    y: finiteNumber(current.height, 900) / 2
+  };
+}
+
+function refreshDiagram2RteObjectsPane(dialog, controller) {
+  const pane = dialog.querySelector("[data-diagram2-objects-pane]");
+  if (!pane) return;
+  pane.outerHTML = diagram2ObjectsPaneHtml(controller.state(), controller.selectedObjectIds());
+}
+
+function diagram2ToolLabel(type) {
+  return {
+    rectangle: "Rectangle",
+    circle: "Circle",
+    arrow: "Arrow",
+    line: "Line",
+    textbox: "Text Box"
+  }[String(type || "").trim().toLowerCase()] || "object";
 }
 
 function bindDiagram2RtePointerEvents({ canvas, controller, renderer, signal }) {

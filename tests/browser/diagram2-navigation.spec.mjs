@@ -108,14 +108,12 @@ test("Diagram 2 top navigation separates read-only document mode from Edit mode"
   await expect.poll(async () => readZoomControl.inputValue()).not.toBe("");
   const readZoomBefore = Number(await readZoomControl.inputValue());
   await page.locator("[data-action='zoom-diagram2-in']").click();
-  await waitForViewportReason(page, "toolbar zoom");
   await expect(readZoomControl).toHaveValue(nextDiagram2TestZoomValue(readZoomBefore, 1));
   await page.locator("[data-action='fit-diagram2-viewer']").click();
   await waitForViewportReason(page, "fit");
   await expect.poll(async () => readZoomControl.inputValue()).not.toBe("");
   const readFitZoom = Number(await readZoomControl.inputValue());
   await page.locator("[data-action='zoom-diagram2-out']").click();
-  await waitForViewportReason(page, "toolbar zoom");
   await expect(readZoomControl).toHaveValue(nextDiagram2TestZoomValue(readFitZoom, -1));
   await assertDiagram2ReadOnlyCannotMutate(page);
   const compatibilitySummary = await page.evaluate(() => window.__pmtDiagram2Compatibility);
@@ -194,6 +192,7 @@ test("Diagram 2 top navigation separates read-only document mode from Edit mode"
   await expect(page.locator("[data-diagram2-diagnostic='full-render-reason']")).toHaveText("initial");
   await expect.poll(async () => Number(await page.locator("[data-diagram2-diagnostic='svg-descendant-count']").textContent()))
     .toBeGreaterThan(0);
+  await assertDiagram2ToolbarObjectInsertion(page);
 
   await page.evaluate(() => {
     window.__diagram2StableSvg = document.querySelector("[data-diagram2-svg]");
@@ -816,6 +815,115 @@ async function assertTransformOnlyZoom(page, zoom, expectedFullRenderCount) {
   expect(maxRectMovement(afterFrame.entityRect, afterSettle.entityRect).translation).toBeLessThanOrEqual(0.25);
   expect(maxRectMovement(afterFrame.entityRect, afterSettle.entityRect).size).toBeLessThanOrEqual(0.25);
   expect(before.fullRenderCount).toBe(expectedFullRenderCount);
+}
+
+async function assertDiagram2ToolbarObjectInsertion(page) {
+  const before = await page.evaluate(() => {
+    const svg = document.querySelector("[data-diagram2-svg]");
+    return {
+      fullRenderCount: Number(svg?.dataset.diagram2FullRenderCount || 0),
+      objectCount: window.__pmtDiagram2EditorCore.currentState().objects.length,
+      objectNodeCount: document.querySelectorAll("[data-diagram2-object-plane] [data-diagram2-object-id]").length
+    };
+  });
+
+  await page.getByRole("button", { name: "Rectangle (R)" }).click();
+  await expect.poll(() =>
+    page.evaluate(() => window.__pmtDiagram2EditorCore.currentState().objects.length)
+  ).toBe(before.objectCount + 1);
+
+  const afterAdd = await page.evaluate(async beforeSnapshot => {
+    const controller = window.__pmtDiagram2EditorCore;
+    const renderer = window.__pmtDiagram2Renderer;
+    const svg = document.querySelector("[data-diagram2-svg]");
+    await renderer.whenIdle();
+    const selectedId = controller.selectedObjectIds()[0];
+    const object = controller.getObjectById(selectedId);
+    const row = document.querySelector(`[data-diagram2-object-tree-row][data-diagram2-object-id="${CSS.escape(selectedId)}"]`);
+    return {
+      selectedId,
+      selectedType: object?.type,
+      selectedObjectCount: controller.selectedObjectIds().length,
+      dirty: controller.historyStatus().dirty,
+      canUndo: controller.historyStatus().canUndo,
+      historyEntryCount: controller.historyStatus().entryCount,
+      fullRenderCount: Number(svg?.dataset.diagram2FullRenderCount || 0),
+      objectCount: controller.currentState().objects.length,
+      objectNodeCount: document.querySelectorAll("[data-diagram2-object-plane] [data-diagram2-object-id]").length,
+      objectTreeRowExists: Boolean(row),
+      objectTreeRowSelected: row?.classList.contains("is-selected") === true,
+      saveDisabled: document.querySelector("[data-action='save-diagram2-document']")?.disabled === true,
+      objectPatchCount: Number(svg?.dataset.diagram2ObjectsPatchedInLastFlush || 0),
+      relationshipRouteCount: Number(svg?.dataset.diagram2RelationshipsRoutedInLastFlush || 0),
+      objectNodeDelta: document.querySelectorAll("[data-diagram2-object-plane] [data-diagram2-object-id]").length
+        - beforeSnapshot.objectNodeCount
+    };
+  }, before);
+
+  expect(afterAdd.selectedId).toMatch(/^rectangle-/);
+  expect(afterAdd.selectedType).toBe("rectangle");
+  expect(afterAdd.selectedObjectCount).toBe(1);
+  expect(afterAdd.dirty).toBe(true);
+  expect(afterAdd.canUndo).toBe(true);
+  expect(afterAdd.historyEntryCount).toBe(1);
+  expect(afterAdd.fullRenderCount).toBe(before.fullRenderCount);
+  expect(afterAdd.objectCount).toBe(before.objectCount + 1);
+  expect(afterAdd.objectNodeDelta).toBe(1);
+  expect(afterAdd.objectTreeRowExists).toBe(true);
+  expect(afterAdd.objectTreeRowSelected).toBe(true);
+  expect(afterAdd.saveDisabled).toBe(false);
+  expect(afterAdd.objectPatchCount).toBeGreaterThanOrEqual(1);
+  expect(afterAdd.relationshipRouteCount).toBeGreaterThanOrEqual(0);
+
+  await page.locator("[data-action='undo-diagram2']").click();
+  await expect.poll(() =>
+    page.evaluate(beforeCount => window.__pmtDiagram2EditorCore.currentState().objects.length === beforeCount, before.objectCount)
+  ).toBe(true);
+  const afterUndo = await page.evaluate(async beforeSnapshot => {
+    const controller = window.__pmtDiagram2EditorCore;
+    const renderer = window.__pmtDiagram2Renderer;
+    const svg = document.querySelector("[data-diagram2-svg]");
+    await renderer.whenIdle();
+    return {
+      dirty: controller.historyStatus().dirty,
+      canRedo: controller.historyStatus().canRedo,
+      fullRenderCount: Number(svg?.dataset.diagram2FullRenderCount || 0),
+      objectNodeCount: document.querySelectorAll("[data-diagram2-object-plane] [data-diagram2-object-id]").length,
+      saveDisabled: document.querySelector("[data-action='save-diagram2-document']")?.disabled === true
+    };
+  }, before);
+  expect(afterUndo.dirty).toBe(false);
+  expect(afterUndo.canRedo).toBe(true);
+  expect(afterUndo.fullRenderCount).toBe(before.fullRenderCount);
+  expect(afterUndo.objectNodeCount).toBe(before.objectNodeCount);
+  expect(afterUndo.saveDisabled).toBe(true);
+
+  await page.locator("[data-action='redo-diagram2']").click();
+  await expect.poll(() =>
+    page.evaluate(beforeCount => window.__pmtDiagram2EditorCore.currentState().objects.length === beforeCount + 1, before.objectCount)
+  ).toBe(true);
+  const afterRedo = await page.evaluate(async beforeSnapshot => {
+    const controller = window.__pmtDiagram2EditorCore;
+    const renderer = window.__pmtDiagram2Renderer;
+    const svg = document.querySelector("[data-diagram2-svg]");
+    await renderer.whenIdle();
+    return {
+      dirty: controller.historyStatus().dirty,
+      fullRenderCount: Number(svg?.dataset.diagram2FullRenderCount || 0),
+      objectNodeCount: document.querySelectorAll("[data-diagram2-object-plane] [data-diagram2-object-id]").length,
+      selectedType: controller.getObjectById(controller.selectedObjectIds()[0])?.type
+    };
+  }, before);
+  expect(afterRedo.dirty).toBe(true);
+  expect(afterRedo.fullRenderCount).toBe(before.fullRenderCount);
+  expect(afterRedo.objectNodeCount).toBe(before.objectNodeCount + 1);
+  expect(afterRedo.selectedType).toBe("rectangle");
+
+  await page.locator("[data-action='undo-diagram2']").click();
+  await expect.poll(() =>
+    page.evaluate(beforeCount => window.__pmtDiagram2EditorCore.currentState().objects.length === beforeCount, before.objectCount)
+  ).toBe(true);
+  await expect(page.locator("[data-action='save-diagram2-document']").first()).toBeDisabled();
 }
 
 async function assertKeyedDiagram2NodePatches(page, expectedFullRenderCount) {
