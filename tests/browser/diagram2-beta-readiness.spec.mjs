@@ -23,7 +23,7 @@ test("Diagram 2 beta shell preserves navigation, zoom matrix, and open-close cle
   await openNavigationScreen(page, "Diagram 2");
   await expect(page).toHaveURL(/#\/diagram-2$/);
   await expect(page.locator("[data-diagram2-screen] h1")).toHaveText("Diagram 2");
-  await expect(page.locator("[data-diagram2-header]")).toContainText("Diagram 2 Beta");
+  await expect(page.locator("[data-diagram2-header]")).toContainText("Diagram 2 Editor");
   await expect(page.locator(".diagram-screen")).toHaveCount(0);
   await expect(page.locator("[data-filter='diagram2-zoom'] option")).toHaveText([
     "Fit",

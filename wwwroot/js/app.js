@@ -9,7 +9,7 @@ import {
   buildAnnotationSvg,
   parseAnnotationSvg,
   openImageAnnotationDialog
-} from "./components/image-annotation.js?v=20260725-diagram2-day3-v1";
+} from "./components/image-annotation.js?v=20260726-annotation-rte-composition-v2";
 import { createWhatsNew } from "./components/whats-new.js?v=20260725-day37-v2";
 import {
   htmlWithoutUserMentionMarkup,
@@ -75,7 +75,8 @@ import { createBoardFeature } from "./features/board/board.js?v=20260722-rich-en
 import { createBugsFeature } from "./features/bugs/bugs.js?v=20260724-day36-v3";
 import { createDashboardFeature } from "./features/dashboard/dashboard.js?v=release-notes-2026-07-25-day-37-46c1811ffe7e";
 import { createDiagramFeature } from "./features/diagram/diagram.js?v=20260725-diagram2-day3-v1";
-import { createDiagram2Feature } from "./features/diagram2/diagram2.js?v=20260726-diagram2-day16-v1";
+import { createDiagram2Feature } from "./features/diagram2/diagram2.js?v=20260726-annotation-rte-composition-v2";
+import { openDiagram2RteAnnotationHost } from "./features/diagram2/diagram2-rte-host-adapter.js?v=20260726-annotation-rte-composition-v2";
 import { createDocumentationFeature } from "./features/documentation/documentation.js?v=20260725-day36-v5";
 import {
   createGanttFeature,
@@ -542,7 +543,12 @@ const diagramFeature = createDiagramFeature({
 const diagram2Feature = createDiagram2Feature({
   app,
   notify: showToast,
-  saveDiagramDocument: updateDiagramBackingDocument
+  createDiagramDocument: createDiagramBackingDocument,
+  saveDiagramDocument: updateDiagramBackingDocument,
+  openEditor,
+  saveDiagramInfo: updateDiagramBackingInfo,
+  moveDiagramDocument: moveDiagramBackingDocument,
+  deleteItem
 });
 const wfhScheduleFeature = createWfhScheduleFeature({
   app,
@@ -1322,6 +1328,7 @@ function showRichTextImageMenu(image, anchorEvent) {
   menu.innerHTML = [
     richTextImageMenuItemHtml("select", "&#9635;", "Select"),
     richTextImageMenuItemHtml("annotate", "A", image.dataset.pmtAnnotationVersion ? "Edit Annotation" : "Annotate"),
+    richTextImageMenuItemHtml("annotate2", "2.0", image.dataset.pmtAnnotationVersion ? "Edit Annotation 2.0" : "Annotate 2.0"),
     richTextImageMenuItemHtml("resize", "&#8596;", "Resize"),
     richTextImageMenuItemHtml("zoom", "&#128269;", "Open in New Tab"),
     image.dataset.pmtAnnotationSource
@@ -1367,6 +1374,12 @@ function showRichTextImageMenu(image, anchorEvent) {
     if (action === "annotate") {
       finish();
       requestAnimationFrame(() => annotateRichTextImage(image));
+      return;
+    }
+
+    if (action === "annotate2") {
+      finish();
+      requestAnimationFrame(() => annotateRichTextImage2(image));
       return;
     }
 
@@ -2158,6 +2171,9 @@ async function annotateRichTextImage(image) {
       notify: showToast,
       uploadEmbeddedImage: uploadRichTextCanvasImage,
       portableImageSources: true,
+      fixedOriginalImage: true,
+      persistOutputBoundsInMetadata: true,
+      wheelZoomsWithoutCtrl: true,
       loadTemplateLibrary: async () => normalizeDiagramTemplateLibrary(
         await api(diagramSharedDocumentContract.endpoints.templateLibrary, { cache: "no-store" })
       ),
@@ -2173,17 +2189,7 @@ async function annotateRichTextImage(image) {
       ),
       persistCroppedOriginal: uploadRichTextCanvasImage,
       apply: async annotation => {
-        if (!image.isConnected) throw new Error("The rich-text editor is no longer open.");
-        const file = new File([annotation.svg], annotation.fileName, { type: "image/svg+xml" });
-        const upload = await uploadFile("richtext", file);
-        const annotationSource = appUrl(upload.url);
-        if (!image.isConnected) throw new Error("The rich-text editor is no longer open.");
-        image.setAttribute("src", annotationSource);
-        if (annotation.originalReference) image.dataset.pmtAnnotationSource = annotation.originalReference;
-        else image.removeAttribute("data-pmt-annotation-source");
-        image.dataset.pmtAnnotationVersion = String(annotation.state.version || 1);
-        image.classList.add("rich-svg-image", "pmt-annotation-image");
-        image.setAttribute("alt", image.getAttribute("alt") || "Annotated image");
+        await applyRichTextImageAnnotation(image, annotation);
       }
     });
     if (!result || !image.isConnected) return;
@@ -2193,6 +2199,104 @@ async function annotateRichTextImage(image) {
   } catch (error) {
     showToast(error.message || "The image annotation could not be applied.");
   }
+}
+
+async function annotateRichTextImage2(image) {
+  const editor = image?.closest(".rich-editor");
+  if (!image?.isConnected || !editor) return;
+  const canEdit = richTextImageAnnotationAllowed(image);
+  if (!canEdit) {
+    showToast("You do not have permission to edit this content.");
+    return;
+  }
+
+  closeRichTextImageSelection();
+  const currentSource = storageUrl(image.getAttribute("src") || richTextImageSource(image));
+  const isAnnotated = image.dataset.pmtAnnotationVersion === "1";
+  const storedOriginalReference = storageUrl(image.dataset.pmtAnnotationSource || "");
+  const originalReference = isAnnotated ? storedOriginalReference : currentSource;
+  const restoreFocus = () => {
+    if (!image.isConnected || !editor.isConnected) return;
+    editor.focus({ preventScroll: true });
+    setRichTextImageBrowserSelection(image);
+  };
+
+  try {
+    const result = await openDiagram2RteAnnotationHost({
+      image,
+      editor,
+      originalReference,
+      source: currentSource,
+      annotated: isAnnotated,
+      canEdit,
+      security: {
+        resource: editor.dataset.securityResource || "Documentation",
+        canRead: true,
+        canUpdate: canEdit
+      },
+      originalUrl: isAnnotated ? "" : appUrl(originalReference),
+      annotationUrl: isAnnotated ? appUrl(currentSource) : "",
+      originalFileName: image.getAttribute("alt") || originalReference.split("/").pop() || "image",
+      notify: showToast,
+      restoreFocus,
+      apply: async annotation => {
+        await applyRichTextImageAnnotation(image, annotation);
+      }
+    });
+    if (!result || !image.isConnected) return;
+    restoreFocus();
+    showToast("Image annotation applied. Save the record to keep it.");
+  } catch (error) {
+    showToast(error.message || "The image annotation could not be applied.");
+  }
+}
+
+async function applyRichTextImageAnnotation(image, annotation) {
+  if (!image.isConnected) throw new Error("The rich-text editor is no longer open.");
+  const sizing = captureRichTextAnnotationImageSizing(image);
+  const file = new File([annotation.svg], annotation.fileName, { type: "image/svg+xml" });
+  const upload = await uploadFile("richtext", file);
+  const annotationSource = appUrl(upload.url);
+  if (!image.isConnected) throw new Error("The rich-text editor is no longer open.");
+  image.setAttribute("src", annotationSource);
+  applyRichTextAnnotationImageSizing(image, sizing);
+  if (annotation.originalReference) image.dataset.pmtAnnotationSource = annotation.originalReference;
+  else image.removeAttribute("data-pmt-annotation-source");
+  image.dataset.pmtAnnotationVersion = String(annotation.state.version || 1);
+  image.classList.add("rich-svg-image", "pmt-annotation-image");
+  image.setAttribute("alt", image.getAttribute("alt") || "Annotated image");
+}
+
+function captureRichTextAnnotationImageSizing(image) {
+  const width = richTextImageWidthValue(Math.round(image.getBoundingClientRect().width || 0))
+    || richTextImageCssPixelWidthValue(image.style.width)
+    || richTextImageWidthValue(image.getAttribute("width"))
+    || richTextImageWidthValue(image.width);
+  return { width };
+}
+
+function applyRichTextAnnotationImageSizing(image, sizing) {
+  const width = richTextImageWidthValue(sizing?.width);
+  if (width) {
+    applyRichTextImageWidth(image, width);
+    return;
+  }
+  image.style.removeProperty("height");
+  image.removeAttribute("height");
+}
+
+function richTextImageAnnotationAllowed(image) {
+  const editor = image?.closest?.(".rich-editor");
+  if (!image?.isConnected || !editor?.isConnected) return false;
+  if (editor.closest("[inert]") || editor.getAttribute("contenteditable") === "false") return false;
+  if (editor.getAttribute("aria-readonly") === "true" || editor.dataset.readonly === "true") return false;
+  return editor.isContentEditable !== false;
+}
+
+function richTextImageCssPixelWidthValue(value) {
+  const text = String(value || "").trim();
+  if (!text || !/^\d+(?:\.\d+)?(?:px)?$/i.test(text)) return 0;
+  return richTextImageWidthValue(text);
 }
 
 function detailField(label, html, full = false) {

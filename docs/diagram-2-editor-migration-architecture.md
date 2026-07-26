@@ -1,8 +1,8 @@
 # Diagram 2 Editor Migration Architecture
 
-This Phase 1 architecture note records the current Diagram 1 and Diagram 2 code paths, the migration boundaries, the shared contract candidates, and the performance baselines that must stay visible before Diagram 2 editor parity work begins.
+This architecture note records the Diagram 1 and Diagram 2 code paths, the migration boundaries, the shared contract candidates, and the performance baselines that must stay visible throughout the Diagram 2 editor parity work.
 
-Phase 1 changed documentation only. Diagram 1 remains the production editor, Diagram 2 remains the beta companion, and both screens continue to use the same Diagram backing documents, template endpoints, clipboard package, and PMT Diagram file format.
+Phase 1 changed documentation only. Phase 2 adds the production Diagram 2 editor shell, shared editor controller, command history, document host adapter, and RTE annotation host adapter. Diagram 1 remains available side by side, and both top-navigation Diagram screens continue to use the same Diagram backing documents, template endpoints, clipboard package, security resource, and PMT Diagram file format.
 
 The post-Phase 1 visual editor parity addendum is incorporated into this architecture. Diagram 2 should feel like the Diagram 1 editor that users already know while keeping Diagram 2's high-performance renderer and command pipeline. The final target is familiar UI, familiar behavior, identical persisted Diagram results, and a different implementation underneath.
 
@@ -13,9 +13,11 @@ The post-Phase 1 visual editor parity addendum is incorporated into this archite
 | Diagram 1 feature shell | `wwwroot/js/features/diagram/diagram.js` | Diagram document library, filters, card/tree actions, read-only viewer, editor invocation, import/export, duplicate, metadata edit. |
 | Diagram 1 editor implementation | `wwwroot/js/components/image-annotation.js` | Full annotation/editor UI, toolbar, inspector tabs, object tree, gestures, crop, templates, mapping, entity/relationship behavior, SVG/PNG/clipboard helpers, history snapshots. |
 | Diagram 1 schema helper | `wwwroot/js/features/diagram/pmt-database-schema.js` | Loads/generates PMT database schema objects for Diagram entities. |
-| Diagram 2 feature shell | `wwwroot/js/features/diagram2/diagram2.js` | Diagram 2 route/screen, same document loading, beta toolbar, basic selection/move/nudge, save, undo/redo snapshots, export/copy, renderer diagnostics. |
+| Diagram 2 feature shell | `wwwroot/js/features/diagram2/diagram2.js` | Diagram 2 route/screen, shared Diagram document library, Diagram 1-familiar editor shell, basic selection/move/nudge, command history, save, export/copy, and renderer diagnostics behind a collapsible surface. |
 | Diagram 2 live renderer | `wwwroot/js/features/diagram2/diagram2-renderer.js` | Canonical normalization, persistent keyed SVG nodes, dirty state, spatial indexes, viewport transforms, viewport halo, low-detail overview, route invalidation, lifecycle cleanup. |
 | Diagram 2 compatibility adapter | `wwwroot/js/features/diagram2/diagram2-compatibility.js` | Uses the shared file/template/clipboard contract and blocks renderer cache persistence. |
+| Diagram 2 editor core | `wwwroot/js/features/diagram2/diagram2-editor-controller.js`, `diagram2-editor-history.js`, `diagram2-editor-shell.js` | Shared controller, cached capability guard, renderer-neutral move commands, bounded undo/redo, shared shell regions, toolbar/object pane/inspector/status projection. |
+| Diagram 2 host adapters | `wwwroot/js/features/diagram2/diagram2-document-host-adapter.js`, `diagram2-rte-host-adapter.js` | Host-specific save, security capabilities, lifecycle, route/RTE concerns, and cleanup while reusing the same editor core and renderer. |
 | Shared diagram contracts | `wwwroot/js/shared/diagram-contracts.js` | `pmt-diagram` v1 file contract, `pmt-diagram-selection` v1 clipboard contract, template endpoint constants, normalization helpers. |
 | Shared document access | `wwwroot/js/shared/diagram-documents.js` | Loads/saves the same Diagram backing documents for both screens. |
 | Rich-text image annotation entry | `wwwroot/js/app.js` | Current Diagram 1 RTE image context menu, `Annotate`/current `Edit Annotation` label, selected-image save-back, cancel/focus restoration. |
@@ -33,6 +35,8 @@ The post-Phase 1 visual editor parity addendum is incorporated into this archite
 - Save/export may rebuild SVG from canonical state off-screen, but that must not become the normal live edit repaint mechanism.
 - Renderer diagnostics, benchmark counters, and refresh controls must not dominate the production editor. They belong behind a development-only or collapsible diagnostics surface.
 - Diagram 2 has two required launch hosts: the RTE image annotation host and the top-navigation Diagram document host. They must share one Diagram 2 editor core and one Diagram 2 renderer. Only host adapters may differ.
+- Diagram 2 permission resolution is session-scoped. The top-navigation host resolves Documentation and document capabilities when a document editor session opens; the RTE host receives capabilities from the originating editable RTE context. The shared core reads cached Booleans at command boundaries and defaults to read-only without an explicit `canUpdate: true`.
+- Continuous gestures check the cached update capability when the gesture starts and again at final command commit. Pointer movement, resize previews, route previews, color previews, renderer flushes, and viewport updates must not perform repeated permission resolution.
 
 ## Shared Helper Candidates
 
@@ -68,9 +72,9 @@ These should not be copied wholesale into Diagram 2. They need controller comman
 | Relationship routing side effects | Entity updates, field reorders, and route overrides are intertwined with DOM/SVG helpers. | Phase 5 makes routing invalidation explicit through renderer relationship APIs. |
 | Export/copy paths | Some helpers are safe, but they assume complete SVG materialization. | Keep off-screen export allowed; never persist or copy live renderer caches. |
 
-## Proposed Diagram 2 Modules
+## Diagram 2 Modules
 
-These names are proposals for later phases, not files created in Phase 1.
+Phase 2 created the foundation modules needed by both hosts. Remaining module names are still planned ownership boundaries for later phases.
 
 | Module | Owns | Does not own |
 | --- | --- | --- |
@@ -105,7 +109,7 @@ Host adapters:
     owns document ID, library, metadata, row version, route, permissions, save service
 ```
 
-The shared core must not assume it always has a Diagram document ID, a document library, an RTE image, a browser route, or a full-screen PMT page. Host-specific callbacks should provide source loading, save, cancel, close, permissions, and notifications.
+The shared core must not assume it always has a Diagram document ID, a document library, an RTE image, a browser route, or a full-screen PMT page. Host-specific callbacks provide source loading, save, cancel, close, cached capabilities, and notifications.
 
 Conceptual adapter shape:
 
@@ -123,7 +127,17 @@ createDiagram2Editor({
 })
 ```
 
-The shape above is intentionally conceptual. Later phases should adapt it to native PMT ES module patterns and avoid adding a framework or bundler.
+The Phase 2 implementation follows this shape through `createDiagram2EditorController`, `createDiagram2DocumentHostAdapter`, and `openDiagram2RteAnnotationHost`. Later phases should keep the same PMT ES module style and avoid adding a framework or bundler.
+
+## Phase 2 Implementation Update
+
+Phase 2 retired the temporary diagnostics-first Diagram 2 editing scaffold as the production editor surface. The new shell uses Diagram 1-familiar structure: top toolbar, left Objects pane, center Diagram 2 renderer canvas, right inspector tabs, status/save indicators, context menu scaffolding, and collapsible diagnostics. Later-phase controls remain honestly disabled or deferred where their command implementation is not part of Phase 2.
+
+The top-navigation Diagram 2 host now uses the same Diagram document library as Diagram 1. Document rows, IDs, visibility, ownership, project/Sprint grouping, search inputs, create/import/delete/save routes, public-link actions, and row-version save behavior continue to target the existing PMT Diagram backing records. Diagram 2 does not create an editor-version-specific library, field, filter, migration, or ownership model.
+
+The RTE host adds side-by-side `Annotate 2.0` and `Edit Annotation 2.0` actions while preserving the existing Diagram 1 `Annotate` and `Edit Annotation` actions. RTE annotations remain embedded rich-text images, not standalone Diagram documents. Save builds the complete annotated SVG, creates a `File`, uploads it through `uploadFile("richtext", file)`, and updates the selected image `src` to the stored upload URL. The RTE HTML persists only that uploaded URL plus lightweight annotation attributes and classes; generated SVG, Base64 data URLs, and Blob URLs are not persisted.
+
+Security remains shared with Diagram 1 through the existing Documentation resource. The top-navigation document host resolves a frozen capability context when the document session opens, including `canRead`, `canCreate`, `canUpdate`, `canDelete`, `canImport`, and `canExport`. The RTE host receives a frozen capability context from the originating editable RTE. Mutating commands, undo, redo, keyboard nudges, pointer drag commits, saves, imports, and exports read the cached capability Booleans at command boundaries. No Diagram 2 permission resolution runs in pointer-move, resize-preview, color-preview, route-preview, renderer-flush, zoom, pan, or Fit hot paths. Server APIs remain the authoritative security boundary for persistence and file operations.
 
 ## Existing RTE Annotation Launch Path
 
@@ -311,11 +325,11 @@ Later phases should append exact medians/p95s where browser tests support repeat
 | Unknown extensions | Unknown non-renderer fields are either preserved safely or not written. |
 | Renderer state persistence | Mounted nodes, dirty flags, halo state, indexes, diagnostics, and cache maps never persist. |
 
-## Phase 1 Conclusions
+## Phase 1 and 2 Conclusions
 
 - The existing Diagram 2 renderer has the right performance-oriented foundation for viewport transforms, keyed node patches, dirty state, spatial relationship routing, viewport halo, and lifecycle cleanup.
-- The current Diagram 2 feature module does not yet have the editor architecture needed to host the Diagram 1 toolbar, inspector, object tree, entity, mapping, image, template, and command-history surface.
-- The safest next step is Phase 2 only: introduce the Diagram 2 editor controller, command/history contracts, and Diagram 1-familiar shell boundaries without moving Diagram 1 behavior or falsely enabling broad editor controls.
-- Phase 2 should visually converge immediately toward the known Diagram 1 editor layout: toolbar structure, left Objects pane shell, center Diagram 2 canvas, right inspector tabs, Save/Undo/Redo placement, and diagnostics tucked behind a development/collapsible surface.
-- Phase 2 should define the shared Diagram 2 editor core plus both host adapters before wiring the RTE `Annotate 2.0` launch action. Once the RTE adapter can save/cancel/cleanup correctly, add the side-by-side RTE menu actions without redirecting or removing Diagram 1.
-- Phase 2 should not extract large portions of `image-annotation.js` yet. It should define seams and move only small pure helpers when needed by the foundation.
+- Phase 2 introduced the shared editor controller, bounded command history, Diagram 1-familiar shell, document host adapter, and RTE host adapter without rewriting the Diagram 2 renderer.
+- Phase 2 moved existing local movement and nudge behavior through command history and incremental renderer updates. Initial open/import/reset may still use full render; ordinary local move undo/redo must not.
+- Diagram 1 and Diagram 2 now share the same user-facing Diagram document library and Documentation security model. Diagram 2 has no Diagram2-only resource, role, document field, library, or storage path.
+- RTE `Annotate 2.0` and `Edit Annotation 2.0` use the shared Diagram 2 editor core and the existing rich-text upload pipeline. Cancel performs no upload and leaves the selected image unchanged.
+- The safest next step is Phase 3 only, after Sin's approval: implement core drawing, selection, resize, format inspector, text editing, and keyboard command parity inside the existing controller/shell architecture.

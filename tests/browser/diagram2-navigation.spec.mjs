@@ -18,6 +18,7 @@ test("Diagram 2 top navigation opens the isolated shell", async ({ page }) => {
   await page.addInitScript(seenToken => {
     localStorage.clear();
     localStorage.setItem("pmt-release-notes-last-seen:1", seenToken);
+    localStorage.setItem("pmt-release-notes-last-seen:2", seenToken);
   }, releaseNotes[0].seenToken);
 
   await page.route("**/api/session", route => route.fulfill(jsonResponse({ error: "Unauthorized" }, 401)));
@@ -45,12 +46,14 @@ test("Diagram 2 top navigation opens the isolated shell", async ({ page }) => {
   await openNavigationScreen(page, "Diagram");
   await expect(page).toHaveURL(/#\/diagram$/);
   await expect(page.locator(".diagram-screen")).toBeVisible();
+  const diagramDocumentIds = await page.locator("[data-diagram-tree-row]").evaluateAll(rows =>
+    rows.map(row => row.dataset.id).sort());
 
   await openNavigationScreen(page, "Diagram 2");
   await expect(page).toHaveURL(/#\/diagram-2$/);
   await expect(page.locator("[data-diagram2-screen]")).toBeVisible();
   await expect(page.locator("[data-diagram2-screen] h1")).toHaveText("Diagram 2");
-  await expect(page.locator("[data-diagram2-header]")).toContainText("Diagram 2 Beta");
+  await expect(page.locator("[data-diagram2-header]")).toContainText("Diagram 2 Editor");
   await expect(page.locator("[data-diagram2-screen]")).toHaveAttribute("data-diagram2-file-format", "pmt-diagram");
   await expect(page.locator("[data-diagram2-screen]")).toHaveAttribute("data-diagram2-file-format-version", "1");
   await expect(page.locator("[data-diagram2-screen]")).toHaveAttribute("data-diagram2-selection-clipboard-format", "pmt-diagram-selection");
@@ -58,9 +61,12 @@ test("Diagram 2 top navigation opens the isolated shell", async ({ page }) => {
   await expect(page.locator("[data-diagram2-screen]")).toHaveAttribute("data-diagram2-template-library-endpoint", "/api/image-annotation/template-library");
   await expect(page.locator("[data-diagram2-screen]")).toHaveAttribute("data-diagram2-default-template-library-endpoint", "/api/image-annotation/default-template-library");
   await expect(page.locator("[data-diagram2-screen]")).toHaveAttribute("data-diagram2-persisted-renderer-caches", "false");
-  await expect(page.locator("[data-diagram2-tree] [data-action='select-diagram2-document']")).toHaveCount(2);
+  await expect(page.locator("[data-diagram2-tree-row] [data-action='select-diagram2-document']")).toHaveCount(2);
+  const diagram2DocumentIds = await page.locator("[data-diagram2-tree-row]").evaluateAll(rows =>
+    rows.map(row => row.dataset.id).sort());
+  expect(diagram2DocumentIds).toEqual(diagramDocumentIds);
   await expect(page.locator("[data-diagram2-viewer-host] h2")).toHaveText("PMT Database Schema");
-  await expect(page.locator("[data-diagram2-edit-state]")).toHaveText("Saved");
+  await expect(page.locator("[data-diagram2-edit-state]").first()).toHaveText("Saved");
   await expect(page.locator("[data-diagram2-svg]")).toBeVisible();
   const compatibilitySummary = await page.evaluate(() => window.__pmtDiagram2Compatibility);
   expect(compatibilitySummary).toMatchObject({
@@ -117,7 +123,7 @@ test("Diagram 2 top navigation opens the isolated shell", async ({ page }) => {
   ).toBe(true);
   await expect(page.locator("[data-diagram2-diagnostic='full-render-reason']")).toHaveText("refresh");
   await expect(page.locator("[data-action='save-diagram2-document']")).toBeDisabled();
-  await expect(page.locator("[data-action='export-diagram2-pmt']")).toBeEnabled();
+  await expect(page.locator(".diagram2-editor-toolbar [data-action='export-diagram2-pmt']")).toBeEnabled();
   await expect(page.locator(".diagram-screen")).toHaveCount(0);
 
   await page.goBack();
@@ -146,6 +152,74 @@ test("Diagram 2 top navigation opens the isolated shell", async ({ page }) => {
   await page.locator("[data-action='select-lookup-type'][data-type='Navigation']").click();
   await expect(page.locator("[data-navigation-list] [data-nav-view='Diagram 2']")).toContainText("#/diagram-2");
 
+  expect(browserErrors).toEqual([]);
+});
+
+test("Diagram 2 direct URLs inherit Documentation read-only capabilities and block mutations", async ({ page }) => {
+  const browserErrors = [];
+  page.on("console", message => {
+    if (message.type() === "error" && !message.text().includes("status of 401")) browserErrors.push(message.text());
+  });
+  page.on("pageerror", error => browserErrors.push(error.message));
+
+  await page.addInitScript(seenToken => {
+    localStorage.clear();
+    localStorage.setItem("pmt-release-notes-last-seen:1", seenToken);
+    localStorage.setItem("pmt-release-notes-last-seen:2", seenToken);
+  }, releaseNotes[0].seenToken);
+
+  await page.route("**/api/session", route => route.fulfill(jsonResponse({ error: "Unauthorized" }, 401)));
+  await page.route("**/api/login", route => route.fulfill(jsonResponse({
+    userId: 2,
+    nickname: "Reader",
+    isAdmin: false,
+    role: "Developer"
+  })));
+  await page.route("**/api/state", route => route.fulfill(jsonResponse(readOnlyState())));
+  await page.route("**/api/audit-trail", route => route.fulfill(jsonResponse([])));
+  await page.route("**/api/maintenance/recycle-bin", route => route.fulfill(jsonResponse([])));
+  await page.route("**/api/maintenance/orphan-files", route => route.fulfill(jsonResponse({
+    files: [],
+    totalCount: 0,
+    totalByteLength: 0
+  })));
+
+  await page.goto("/");
+  await page.locator("#loginName").fill("Reader");
+  await page.locator("#loginPassword").fill("Password1");
+  await page.getByRole("button", { name: /log in/i }).click();
+  await expect(page.getByRole("heading", { name: "Dashboard", exact: true })).toBeVisible();
+
+  await page.evaluate(() => {
+    window.location.hash = "#/diagram-2/77";
+  });
+  await expect(page.locator("[data-diagram2-screen]")).toBeVisible();
+  await expect(page.locator("[data-diagram2-viewer-host] h2")).toHaveText("Public Read-Only Diagram");
+  await expect(page.locator("[data-diagram2-object-plane] [data-diagram2-object-id='public-read-only-diagram-box']")).toBeVisible();
+
+  const before = await page.evaluate(() => ({
+    x: Number(document.querySelector("[data-diagram2-object-plane] [data-diagram2-object-id='public-read-only-diagram-box']")?.dataset.diagram2ObjectTransformX || 0),
+    status: window.__pmtDiagram2EditorCore?.statusSnapshot?.()
+  }));
+  expect(before.status.security.resource).toBe("Documentation");
+  expect(before.status.canEdit).toBe(false);
+  expect(before.status.canSave).toBe(false);
+  expect(before.status.canExport).toBe(true);
+  await expect(page.locator("[data-action='save-diagram2-document']")).toBeDisabled();
+  await expect(page.locator(".diagram2-editor-toolbar [data-action='export-diagram2-pmt']")).toBeEnabled();
+
+  await page.locator("[data-diagram2-object-plane] [data-diagram2-object-id='public-read-only-diagram-box']").click({ position: { x: 10, y: 10 } });
+  await page.keyboard.press("Shift+ArrowRight");
+  const programmaticMove = await page.evaluate(() =>
+    window.__pmtDiagram2EditorCore.moveSelectedObjects(10, 0, { reason: "direct test" }));
+  const after = await page.evaluate(() => ({
+    x: Number(document.querySelector("[data-diagram2-object-plane] [data-diagram2-object-id='public-read-only-diagram-box']")?.dataset.diagram2ObjectTransformX || 0),
+    status: window.__pmtDiagram2EditorCore?.statusSnapshot?.()
+  }));
+
+  expect(programmaticMove).toBe(false);
+  expect(after.x).toBe(before.x);
+  expect(after.status.history.dirty).toBe(false);
   expect(browserErrors).toEqual([]);
 });
 
@@ -182,8 +256,14 @@ test("Diagram 2 saves the same backing document and roundtrips through Diagram 1
   })));
   await page.route("**/api/uploads/richtext", route => {
     uploadedSvg = extractMultipartSvg(route.request().postDataBuffer());
-    const source = `data:image/svg+xml;base64,${Buffer.from(uploadedSvg, "utf8").toString("base64")}`;
-    return route.fulfill(jsonResponse({ url: source }));
+    return route.fulfill(jsonResponse({ url: "/uploads/diagram2-roundtrip.svg" }));
+  });
+  await page.route("**/uploads/diagram2-roundtrip.svg", route => {
+    return route.fulfill({
+      status: 200,
+      contentType: "image/svg+xml",
+      body: uploadedSvg || buildAnnotationSvg(normalizeAnnotationState({ width: 1, height: 1, objects: [] }))
+    });
   });
   await page.route("**/api/blogs/88", route => {
     savedPayload = route.request().postDataJSON();
@@ -212,13 +292,13 @@ test("Diagram 2 saves the same backing document and roundtrips through Diagram 1
   });
   await expect(page.locator("[data-diagram2-screen]")).toBeVisible();
   await expect(page.locator("[data-diagram2-viewer-host] h2")).toHaveText("Diagram 2 Roundtrip");
-  await expect(page.locator("[data-diagram2-object-id='roundtrip-box']")).toBeVisible();
+  await expect(page.locator("[data-diagram2-object-plane] [data-diagram2-object-id='roundtrip-box']")).toBeVisible();
 
-  await page.locator("[data-diagram2-object-id='roundtrip-box']").click({ position: { x: 10, y: 10 } });
-  await expect(page.locator("[data-diagram2-edit-state]")).toHaveText("1 selected");
+  await page.locator("[data-diagram2-object-plane] [data-diagram2-object-id='roundtrip-box']").click({ position: { x: 10, y: 10 } });
+  await expect(page.locator("[data-diagram2-edit-state]").first()).toHaveText("1 selected");
   await expect(page.locator("[data-action='save-diagram2-document']")).toBeDisabled();
 
-  await page.getByRole("button", { name: "Move Right" }).click();
+  await page.keyboard.press("Shift+ArrowRight");
   await expect(page.locator("[data-diagram2-save-state]")).toHaveText("Unsaved changes");
   await expect(page.locator("[data-action='save-diagram2-document']")).toBeEnabled();
 
@@ -241,7 +321,8 @@ test("Diagram 2 saves the same backing document and roundtrips through Diagram 1
     expectedRowVersion: "row-1"
   });
   expect(savedPayload.bodyHtml).toContain('data-pmt-diagram="true"');
-  expect(savedPayload.bodyHtml).toContain("data:image/svg+xml;base64,");
+  expect(savedPayload.bodyHtml).toContain("/uploads/diagram2-roundtrip.svg");
+  expect(savedPayload.bodyHtml).not.toContain("data:image/svg+xml;base64,");
   expect(uploadedSvg).toContain("data-pmt-image-annotation-state");
   expect(uploadedSvg).not.toContain("diagram2LiveNodeId");
   expect(uploadedSvg).not.toContain("diagram2RendererCache");
@@ -263,11 +344,11 @@ test("Diagram 2 saves the same backing document and roundtrips through Diagram 1
     window.location.hash = "#/diagram-2/88";
   });
   await expect(page.locator("[data-diagram2-screen]")).toBeVisible();
-  await expect(page.locator("[data-diagram2-object-id='roundtrip-box']")).toBeVisible();
+  await expect(page.locator("[data-diagram2-object-plane] [data-diagram2-object-id='roundtrip-box']")).toBeVisible();
   const reopenedX = await page.evaluate(() => {
     const renderer = window.__pmtDiagram2Renderer;
     return renderer?.liveViewSnapshot?.().objectDataCount
-      ? Number(document.querySelector("[data-diagram2-object-id='roundtrip-box']")?.dataset.diagram2ObjectTransformX || 0)
+      ? Number(document.querySelector("[data-diagram2-object-plane] [data-diagram2-object-id='roundtrip-box']")?.dataset.diagram2ObjectTransformX || 0)
       : 0;
   });
   expect(reopenedX).toBe(130);
@@ -312,10 +393,11 @@ async function assertKeyedDiagram2NodePatches(page, expectedFullRenderCount) {
   const result = await page.evaluate(async () => {
     const renderer = window.__pmtDiagram2Renderer;
     const svg = document.querySelector("[data-diagram2-svg]");
-    const entities = [...document.querySelectorAll("[data-diagram2-object-plane] [data-diagram2-object-type='entity']")];
+    const objectPlane = document.querySelector("[data-diagram2-object-plane]");
+    const entities = [...(objectPlane?.querySelectorAll("[data-diagram2-object-type='entity']") || [])];
     const relationship = document.querySelector("[data-diagram2-relationship-id]");
     const relatedEntity = relationship?.dataset.diagram2RelationshipSource
-      ? document.querySelector(`[data-diagram2-object-id="${CSS.escape(relationship.dataset.diagram2RelationshipSource)}"]`)
+      ? objectPlane?.querySelector(`[data-diagram2-object-id="${CSS.escape(relationship.dataset.diagram2RelationshipSource)}"]`)
       : null;
     const entityA = relatedEntity || entities[0] || null;
     const entityB = entities.find(entity => entity !== entityA) || null;
@@ -365,8 +447,8 @@ async function assertKeyedDiagram2NodePatches(page, expectedFullRenderCount) {
 
     return {
       ready: true,
-      entityAStable: entityA === document.querySelector(`[data-diagram2-object-id="${entityAId}"]`),
-      entityBStable: entityB === document.querySelector(`[data-diagram2-object-id="${entityBId}"]`),
+      entityAStable: entityA === objectPlane.querySelector(`[data-diagram2-object-id="${entityAId}"]`),
+      entityBStable: entityB === objectPlane.querySelector(`[data-diagram2-object-id="${entityBId}"]`),
       entityATextStable: entityAText === entityA.querySelector("[data-diagram2-entity-title], text"),
       relationshipStable: !relationship || relationship === document.querySelector(`[data-diagram2-relationship-id="${relationship.dataset.diagram2RelationshipId}"]`),
       entityASelected,
@@ -921,12 +1003,13 @@ async function assertDiagram2LiveGeometryPreview(page, expectedFullRenderCount) 
   const result = await page.evaluate(async () => {
     const renderer = window.__pmtDiagram2Renderer;
     const svg = document.querySelector("[data-diagram2-svg]");
-    const entities = [...document.querySelectorAll("[data-diagram2-object-plane] [data-diagram2-object-type='entity']")];
+    const objectPlane = document.querySelector("[data-diagram2-object-plane]");
+    const entities = [...(objectPlane?.querySelectorAll("[data-diagram2-object-type='entity']") || [])];
     const relationship = [...document.querySelectorAll("[data-diagram2-relationship-id]")]
       .find(candidate => candidate.dataset.diagram2RelationshipSource
-        && document.querySelector(`[data-diagram2-object-id="${CSS.escape(candidate.dataset.diagram2RelationshipSource)}"]`));
+        && objectPlane?.querySelector(`[data-diagram2-object-id="${CSS.escape(candidate.dataset.diagram2RelationshipSource)}"]`));
     const entityA = relationship?.dataset.diagram2RelationshipSource
-      ? document.querySelector(`[data-diagram2-object-id="${CSS.escape(relationship.dataset.diagram2RelationshipSource)}"]`)
+      ? objectPlane?.querySelector(`[data-diagram2-object-id="${CSS.escape(relationship.dataset.diagram2RelationshipSource)}"]`)
       : entities[0] || null;
     const entityB = entities.find(entity => entity !== entityA) || null;
     const entityC = entities.find(entity => entity !== entityA && entity !== entityB) || entityB;
@@ -1011,7 +1094,7 @@ async function assertDiagram2LiveGeometryPreview(page, expectedFullRenderCount) 
       moveRoutedRelationshipCount: moveCommitDiagnostics.routedRelationshipCount,
       previewActiveAfterCommit: moveCommitDiagnostics.geometryPreviewActive,
       previewPathCountAfterCommit: document.querySelectorAll("[data-diagram2-relationship-preview-path]").length,
-      entityAStableAfterCommit: entityA === document.querySelector(`[data-diagram2-object-id="${CSS.escape(entityAId)}"]`),
+      entityAStableAfterCommit: entityA === objectPlane.querySelector(`[data-diagram2-object-id="${CSS.escape(entityAId)}"]`),
       entityATextStableAfterCommit: entityAText === entityA.querySelector("[data-diagram2-entity-title], text"),
       relationshipStableAfterCommit: relationship === document.querySelector(`[data-diagram2-relationship-id="${CSS.escape(relationshipId)}"]`),
       multiPreviewObjectIds: multiPreviewDiagnostics.geometryPreviewObjectIds,
@@ -1020,7 +1103,7 @@ async function assertDiagram2LiveGeometryPreview(page, expectedFullRenderCount) 
         && transformBBeforeMulti === (entityB.getAttribute("transform") || ""),
       multiCancelNoDirtyFlush: dirtyFlushAfterMultiCancel === dirtyFlushBeforeMulti,
       multiCancelNoUndo: multiCancelDiagnostics.geometryPreviewUndoEntryCount === undoBeforeMulti,
-      resizeNodeStable: resizeNodeBefore === document.querySelector(`[data-diagram2-object-id="${CSS.escape(entityCId)}"]`),
+      resizeNodeStable: resizeNodeBefore === objectPlane.querySelector(`[data-diagram2-object-id="${CSS.escape(entityCId)}"]`),
       resizeWidthExpanded: resizeBodyDuring > resizeBodyBefore,
       resizeCancelRestored: resizeBodyAfterCancel === resizeBodyBefore,
       resizePreviewPatchedObjectCount: resizePreviewDiagnostics.geometryPreviewPatchedObjectCount,
@@ -1328,6 +1411,89 @@ function roundtripState() {
     rolePermissions: [],
     userPermissions: [],
     effectivePermissions: []
+  };
+}
+
+function readOnlyState() {
+  return {
+    users: [{
+      id: 2,
+      nickname: "Reader",
+      email: "reader@example.test",
+      role: "Developer",
+      roleCode: "Developer",
+      isAdmin: false,
+      isActive: true,
+      avatarUrl: ""
+    }],
+    projects: [{ id: 1, code: "PMT", title: "Diagram 2 Test", name: "Diagram 2 Test", isActive: true }],
+    sprints: [],
+    tasks: [],
+    devLogs: [],
+    blogs: [{
+      id: 77,
+      title: "Public Read-Only Diagram",
+      isPrivate: false,
+      createdByUserId: 1,
+      updatedByUserId: 1,
+      projectId: 1,
+      sprintId: null,
+      rowVersion: "row-public",
+      createdAt: "2026-07-24T10:00:00Z",
+      updatedAt: "2026-07-25T12:00:00Z",
+      bodyHtml: diagramBodyHtml("Public Read-Only Diagram", "#64748b")
+    }, {
+      id: 78,
+      title: "Hidden Private Diagram",
+      isPrivate: true,
+      createdByUserId: 1,
+      updatedByUserId: 1,
+      projectId: 1,
+      sprintId: null,
+      rowVersion: "row-private",
+      createdAt: "2026-07-24T10:00:00Z",
+      updatedAt: "2026-07-25T12:00:00Z",
+      bodyHtml: diagramBodyHtml("Hidden Private Diagram", "#ef4444")
+    }],
+    auditEvents: [],
+    lookups: [{
+      id: 1,
+      lookupType: "Release Type",
+      value: "Internal",
+      displayOrder: 10,
+      isActive: true
+    }],
+    roles: [{
+      id: 1,
+      lookupType: "Role",
+      value: "Developer",
+      code: "Developer",
+      displayOrder: 10,
+      isActive: true
+    }],
+    holidays: [],
+    securityResources: [],
+    rolePermissions: [],
+    userPermissions: [],
+    effectivePermissions: [{
+      resourceKey: "Dashboard",
+      canRead: true,
+      canCreate: false,
+      canUpdate: false,
+      canDelete: false,
+      canImport: false,
+      canExport: false,
+      noAccess: false
+    }, {
+      resourceKey: "Documentation",
+      canRead: true,
+      canCreate: false,
+      canUpdate: false,
+      canDelete: false,
+      canImport: false,
+      canExport: true,
+      noAccess: false
+    }]
   };
 }
 

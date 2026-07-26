@@ -5298,6 +5298,53 @@ test("a cropped embedded image retains vectors beyond its crop", () => {
   assert.deepEqual(annotationOutputBounds(state), { x: 0, y: 0, width: 101, height: 50 });
 });
 
+test("export can persist expanded output bounds in editable metadata", () => {
+  const svg = buildAnnotationSvg({
+    width: 100,
+    height: 50,
+    objects: [
+      {
+        id: "source-image",
+        type: "embedded-image",
+        x: 0,
+        y: 0,
+        width: 100,
+        height: 50,
+        source: sampleImageDataUrl,
+        imageClip: { x: 0, y: 0, width: 100, height: 50 },
+        isOriginalImage: true
+      },
+      {
+        id: "outside-arrow",
+        type: "arrow",
+        x1: -40,
+        y1: 25,
+        x2: 120,
+        y2: 25,
+        stroke: "#ff0000",
+        strokeWidth: 4,
+        arrowSize: 18
+      }
+    ]
+  }, { persistOutputBoundsInMetadata: true });
+
+  const root = svg.match(/<svg\b[^>]*>/)?.[0] || "";
+  const viewBox = root.match(/viewBox="([^"]+)"/)[1].split(/\s+/).map(Number);
+  assert.ok(viewBox[0] < 0);
+  assert.ok(viewBox[2] > 100);
+  assert.doesNotMatch(svg, /pmt-annotation-image-clip-source-image/);
+  const restored = parseAnnotationSvg(svg);
+  const restoredImage = restored.objects.find(object => object.id === "source-image");
+  const restoredArrow = restored.objects.find(object => object.id === "outside-arrow");
+  assert.equal(restored.canvasBounds.x, viewBox[0]);
+  assert.equal(restored.canvasBounds.y, viewBox[1]);
+  assert.equal(restored.canvasBounds.width, viewBox[2]);
+  assert.equal(restored.canvasBounds.height, viewBox[3]);
+  assert.deepEqual(restoredImage.imageClip, { x: 0, y: 0, width: 100, height: 50 });
+  assert.equal(restoredArrow.x1, -40);
+  assert.equal(restoredArrow.x2, 120);
+});
+
 test("marquee intersection includes edge touches, grouped members, locked objects, arrows, and the image", () => {
   const objects = normalizeAnnotationState({
     width: 100,

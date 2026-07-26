@@ -5,8 +5,11 @@ import {
   filterCheckList,
   filterSelect
 } from "../../components/filters.js";
-import { buildAnnotationSvg } from "../../components/image-annotation.js?v=20260725-diagram2-day3-v1";
+import { field, optionalNumberValue, selectOptionsField, value } from "../../components/forms.js?v=20260722-rte-toggle-state-v1";
+import { buildAnnotationSvg } from "../../components/image-annotation.js?v=20260726-annotation-rte-composition-v2";
+import { openPublicLinkDialog } from "../../components/public-links.js?v=20260725-day36-v4";
 import { sectionHead } from "../../components/sections.js?v=20260725-diagram2-day4-v1";
+import { api } from "../../core/api.js?v=20260725-public-link-v1";
 import { currentUserId } from "../../core/authentication.js?v=20260715-admin-impersonation";
 import {
   preferenceKeys,
@@ -21,24 +24,37 @@ import { routeForContent, updateBrowserUrl } from "../../core/router.js?v=202607
 import { state } from "../../core/store.js";
 import {
   blankDiagramSource,
+  decodeDiagramSvgDataUrl,
   diagramAllDocuments,
   diagramDocumentImage,
   diagramLastEditorUserId,
   diagramSourceIsSvg,
   diagramUpdatedTime,
-  loadDiagramCanonicalState
+  loadDiagramCanonicalState,
+  loadDiagramSvgSource
 } from "../../shared/diagram-documents.js?v=20260725-diagram2-day6-v1";
+import { appUrl } from "../../shared/app-urls.js";
 import { formatDate } from "../../shared/dates.js";
+import { canAccessResource } from "../../shared/security.js";
 import { escapeAttr, escapeHtml } from "../../shared/text-and-links.js";
 import {
   createDiagram2PmtDiagramFile,
   createDiagram2SelectionClipboardText,
-  diagram2CompatibilitySummary
+  diagram2CompatibilitySummary,
+  parseDiagram2PmtDiagramFile
 } from "./diagram2-compatibility.js?v=20260725-diagram2-day14-v1";
+import { createDiagram2DocumentHostAdapter } from "./diagram2-document-host-adapter.js?v=20260726-diagram2-phase2-v1";
+import { createDiagram2EditorController } from "./diagram2-editor-controller.js?v=20260726-annotation-rte-composition-v2";
+import {
+  diagram2EditorShellHtml,
+  diagram2ObjectsPaneHtml,
+  updateDiagram2ObjectTreeSelection,
+  updateDiagram2ShellStatus
+} from "./diagram2-editor-shell.js?v=20260726-diagram2-phase2-v1";
 import {
   createDiagram2Renderer,
   normalizeDiagram2CanonicalState
-} from "./diagram2-renderer.js?v=20260726-diagram2-day16-v1";
+} from "./diagram2-renderer.js?v=20260726-annotation-rte-composition-v2";
 
 const diagram2ViewModes = new Set(["tree", "cards"]);
 const diagram2SortModes = new Set(["latest", "oldest", "name", "custom"]);
@@ -48,9 +64,21 @@ const diagram2TreePaneMinimumWidth = 220;
 const diagram2TreePaneMaximumWidth = 560;
 const diagram2Compatibility = diagram2CompatibilitySummary();
 const diagram2HistoryLimit = 100;
+const collapsedDiagram2DocumentIds = new Set();
+const diagram2SvgSearchTextCache = new Map();
 
-export function createDiagram2Feature({ app, notify, saveDiagramDocument } = {}) {
+export function createDiagram2Feature({
+  app,
+  notify,
+  createDiagramDocument,
+  saveDiagramDocument,
+  openEditor,
+  saveDiagramInfo,
+  moveDiagramDocument,
+  deleteItem
+} = {}) {
   let active = false;
+  let diagram2Creating = false;
   let selectedDiagramDocumentId = readNumberPreference(preferenceKeys.diagram2SelectedDocument, 0);
   let diagram2ViewMode = diagram2ViewModes.has(readPreference(preferenceKeys.diagram2ViewMode, "tree"))
     ? readPreference(preferenceKeys.diagram2ViewMode, "tree")
@@ -70,18 +98,18 @@ export function createDiagram2Feature({ app, notify, saveDiagramDocument } = {})
   let diagram2LastEditorFilters = normalizeSavedArray(readJsonPreference(preferenceKeys.diagram2LastEditorFilters, []));
   let diagram2ViewerZoom = normalizeDiagram2Zoom(readPreference(preferenceKeys.diagram2ViewerZoom, "fit"));
   let viewerHydrationToken = 0;
+  let diagram2SearchLoadToken = 0;
   let dragAbortController = null;
   let diagram2Renderer = null;
   let diagram2RendererDocumentId = 0;
   let diagram2RendererState = null;
   let diagram2SelectedObjectIds = [];
-  let diagram2History = [];
-  let diagram2HistoryIndex = -1;
-  let diagram2SavedHistoryJson = "";
-  let diagram2Dirty = false;
   let diagram2Busy = false;
   let viewportAbortController = null;
   let viewportPanAbortController = null;
+  let diagram2Controller = null;
+  let diagram2HostAdapter = null;
+  let diagram2TreeContextMenuController = null;
 
   function render() {
     active = true;
@@ -116,6 +144,7 @@ export function createDiagram2Feature({ app, notify, saveDiagramDocument } = {})
           ${sectionHead("Diagram 2", diagram2HeaderActionsHtml(selectedDocument))}
           ${diagram2FilterBarHtml()}
         </header>
+        <input type="file" accept=".pmt-diagram.json,application/json" data-diagram2-import-input hidden>
         <aside class="diagram2-tree-pane" data-diagram2-tree aria-label="Diagram 2 document library" ${diagram2TreePaneHidden ? "hidden" : ""}>
           ${diagram2DocumentLibraryHtml(documents)}
         </aside>
@@ -128,12 +157,14 @@ export function createDiagram2Feature({ app, notify, saveDiagramDocument } = {})
 
     bindDiagram2Controls();
     hydrateDiagram2Viewer(hydrationToken, selectedDocument);
+    if (diagram2Search) scheduleDiagram2SearchSourceLoad();
   }
 
   function deactivate() {
     active = false;
     viewerHydrationToken += 1;
     abortTreePaneDrag();
+    abortDiagram2TreeContextMenu();
     resetDiagram2Renderer();
   }
 
@@ -150,8 +181,69 @@ export function createDiagram2Feature({ app, notify, saveDiagramDocument } = {})
       render();
       return true;
     }
+    if (action === "new-diagram2") {
+      await createNewDiagram2();
+      return true;
+    }
+    if (action === "import-diagram2-pmt") {
+      app.querySelector("[data-diagram2-import-input]")?.click();
+      return true;
+    }
     if (action === "select-diagram2-document" || action === "select-diagram2-card") {
       selectDiagram2Document(id);
+      return true;
+    }
+    if (action === "toggle-diagram2-tree-node") {
+      if (collapsedDiagram2DocumentIds.has(id)) collapsedDiagram2DocumentIds.delete(id);
+      else collapsedDiagram2DocumentIds.add(id);
+      render();
+      return true;
+    }
+    if (action === "edit-diagram2-info") {
+      const document = diagram2AllDocuments().find(item => item.id === (id || selectedDiagramDocumentId));
+      if (document && diagram2CanEdit(document)) editDiagram2Info(document);
+      return true;
+    }
+    if (action === "delete-diagram2") {
+      const document = diagram2AllDocuments().find(item => item.id === (id || selectedDiagramDocumentId));
+      if (document && diagram2CanDelete(document)) await deleteDiagram2Document(document);
+      return true;
+    }
+    if (action === "copy-public-diagram2-link") {
+      const document = diagram2AllDocuments().find(item => item.id === (id || selectedDiagramDocumentId));
+      if (document) await copyDiagram2PublicLink(document);
+      return true;
+    }
+    if (action === "set-diagram2-tool") {
+      diagram2Controller?.setActiveTool(button?.dataset?.tool || button?.dataset?.diagram2Tool || "select");
+      updateDiagram2EditorControls();
+      return true;
+    }
+    if (action === "select-diagram2-object-tree-item") {
+      setDiagram2Selection([button?.dataset?.objectId]);
+      return true;
+    }
+    if (action === "toggle-diagram2-inspector") {
+      const main = app.querySelector("[data-diagram2-editor-main]");
+      main?.classList.toggle("is-inspector-hidden");
+      button?.setAttribute("aria-expanded", String(!main?.classList.contains("is-inspector-hidden")));
+      return true;
+    }
+    if (action === "toggle-diagram2-diagnostics") {
+      const details = app.querySelector("[data-diagram2-diagnostics-shell]");
+      if (details) details.open = !details.open;
+      return true;
+    }
+    if (action === "zoom-diagram2-in") {
+      diagram2ViewerZoom = nextDiagram2Zoom(diagram2ViewerZoom, 1);
+      writePreference(preferenceKeys.diagram2ViewerZoom, diagram2ViewerZoom);
+      applyDiagram2ViewerZoom();
+      return true;
+    }
+    if (action === "zoom-diagram2-out") {
+      diagram2ViewerZoom = nextDiagram2Zoom(diagram2ViewerZoom, -1);
+      writePreference(preferenceKeys.diagram2ViewerZoom, diagram2ViewerZoom);
+      applyDiagram2ViewerZoom();
       return true;
     }
     if (action === "fit-diagram2-viewer") {
@@ -203,6 +295,12 @@ export function createDiagram2Feature({ app, notify, saveDiagramDocument } = {})
 
   function handleFilterChange(target) {
     if (!active) return false;
+    if (target?.matches?.("[data-diagram2-import-input]")) {
+      const [file] = target.files || [];
+      target.value = "";
+      if (file) void importDiagram2PmtFile(file);
+      return true;
+    }
     const filter = target?.dataset?.filter || "";
     if (!filter.startsWith("diagram2-")) return false;
 
@@ -258,10 +356,21 @@ export function createDiagram2Feature({ app, notify, saveDiagramDocument } = {})
   }
 
   function diagram2HeaderActionsHtml(selectedDocument) {
-    const documentDisabled = selectedDocument ? "" : "disabled";
+    const hasDocument = Boolean(selectedDocument);
+    const canCreate = canAccessResource("Documentation", "Create");
+    const canImport = diagram2CanImport();
+    const canEdit = diagram2CanEdit(selectedDocument);
+    const canDelete = diagram2CanDelete(selectedDocument);
     return `
-      <span class="diagram2-status">Diagram 2 Beta</span>
+      <span class="diagram2-status">Diagram 2 Editor</span>
       <span class="diagram2-save-state" data-diagram2-save-state>Saved</span>
+      ${diagram2PublicLinkButtonHtml(selectedDocument, "secondary text-icon-button diagram2-page-action", "Public Link")}
+      <button type="button" class="primary text-icon-button diagram2-page-action" data-action="new-diagram2" title="New Diagram" aria-label="New Diagram" ${diagram2Creating || !canCreate ? "disabled" : ""}>
+        ${buttonContent("&#10010;", diagram2Creating ? "Creating..." : "New Diagram")}
+      </button>
+      <button type="button" class="secondary text-icon-button diagram2-page-action" data-action="import-diagram2-pmt" title="Import PMT Diagram" aria-label="Import PMT Diagram" ${diagram2Creating || !canImport ? "disabled" : ""}>
+        ${buttonContent("&#8679;", "Import")}
+      </button>
       <div class="documentation-view-toggle diagram2-view-toggle" aria-label="Diagram 2 library view">
         <button class="secondary text-icon-button documentation-view-toggle-button ${diagram2ViewMode === "tree" ? "is-on" : ""}" type="button" data-action="set-diagram2-view" data-mode="tree" aria-pressed="${diagram2ViewMode === "tree"}" title="Treeview" aria-label="Treeview">
           ${buttonContent("&#9776;", "Treeview")}
@@ -273,54 +382,12 @@ export function createDiagram2Feature({ app, notify, saveDiagramDocument } = {})
       <button type="button" class="secondary text-icon-button diagram2-page-action" data-action="toggle-diagram2-tree-pane" aria-pressed="${!diagram2TreePaneHidden}" title="Left Nav" aria-label="Left Nav">
         ${buttonContent("&#9776;", "Left Nav")}
       </button>
-      <div class="diagram2-editor-controls" aria-label="Diagram 2 editor actions">
-        <button type="button" class="primary text-icon-button diagram2-page-action" data-action="save-diagram2-document" data-diagram2-requires-dirty title="Save Diagram" aria-label="Save Diagram" ${documentDisabled}>
-          ${buttonContent("&#128190;", "Save")}
-        </button>
-        <button type="button" class="secondary text-icon-button diagram2-page-action" data-action="undo-diagram2" data-diagram2-requires-undo title="Undo" aria-label="Undo" ${documentDisabled}>
-          ${buttonContent("&#8630;", "Undo")}
-        </button>
-        <button type="button" class="secondary text-icon-button diagram2-page-action" data-action="redo-diagram2" data-diagram2-requires-redo title="Redo" aria-label="Redo" ${documentDisabled}>
-          ${buttonContent("&#8631;", "Redo")}
-        </button>
-        <button type="button" class="secondary text-icon-button diagram2-page-action" data-action="copy-diagram2-selection" data-diagram2-requires-selection title="Copy Selection" aria-label="Copy Selection" ${documentDisabled}>
-          ${buttonContent("&#128203;", "Copy")}
-        </button>
-        <button type="button" class="secondary text-icon-button diagram2-page-action" data-action="export-diagram2-pmt" data-diagram2-requires-document title="Export PMT Diagram" aria-label="Export PMT Diagram" ${documentDisabled}>
-          ${buttonContent("&#8681;", "PMT")}
-        </button>
-        <button type="button" class="secondary text-icon-button diagram2-page-action" data-action="export-diagram2-svg" data-diagram2-requires-document title="Export SVG" aria-label="Export SVG" ${documentDisabled}>
-          ${buttonContent("&#8681;", "SVG")}
-        </button>
-        <button type="button" class="secondary text-icon-button diagram2-page-action" data-action="export-diagram2-png" data-diagram2-requires-document title="Export PNG" aria-label="Export PNG" ${documentDisabled}>
-          ${buttonContent("&#8681;", "PNG")}
-        </button>
-      </div>
-      <div class="diagram2-nudge-controls" aria-label="Move selected object">
-        <button type="button" class="secondary text-icon-button diagram2-page-action" data-action="nudge-diagram2-selection" data-dx="0" data-dy="-10" data-diagram2-requires-selection title="Move Up" aria-label="Move Up" ${documentDisabled}>
-          ${buttonContent("&#8593;", "Up")}
-        </button>
-        <button type="button" class="secondary text-icon-button diagram2-page-action" data-action="nudge-diagram2-selection" data-dx="0" data-dy="10" data-diagram2-requires-selection title="Move Down" aria-label="Move Down" ${documentDisabled}>
-          ${buttonContent("&#8595;", "Down")}
-        </button>
-        <button type="button" class="secondary text-icon-button diagram2-page-action" data-action="nudge-diagram2-selection" data-dx="-10" data-dy="0" data-diagram2-requires-selection title="Move Left" aria-label="Move Left" ${documentDisabled}>
-          ${buttonContent("&#8592;", "Left")}
-        </button>
-        <button type="button" class="secondary text-icon-button diagram2-page-action" data-action="nudge-diagram2-selection" data-dx="10" data-dy="0" data-diagram2-requires-selection title="Move Right" aria-label="Move Right" ${documentDisabled}>
-          ${buttonContent("&#8594;", "Right")}
-        </button>
-      </div>
-      <div class="diagram2-zoom-controls" aria-label="Diagram 2 navigation">
-        <select data-filter="diagram2-zoom" aria-label="Zoom level" title="Zoom level" ${documentDisabled}>
-          ${diagram2ZoomOptionsHtml(diagram2ViewerZoom)}
-        </select>
-        <button type="button" class="secondary text-icon-button diagram2-page-action" data-action="fit-diagram2-viewer" title="Fit Diagram" aria-label="Fit Diagram" ${documentDisabled}>
-          ${buttonContent("&#9633;", "Fit")}
-        </button>
-        <button type="button" class="secondary text-icon-button diagram2-page-action" data-action="refresh-diagram2-renderer" title="Refresh Renderer" aria-label="Refresh Renderer" ${documentDisabled}>
-          ${buttonContent("&#10227;", "Refresh")}
-        </button>
-      </div>
+      <button type="button" class="secondary text-icon-button diagram2-page-action" data-action="edit-diagram2-info" data-id="${hasDocument ? selectedDocument.id : 0}" title="Edit Info" aria-label="Edit Info" ${!canEdit ? "disabled" : ""}>
+        ${buttonContent("&#9998;", "Edit Info")}
+      </button>
+      <button type="button" class="secondary text-icon-button diagram2-page-action" data-action="delete-diagram2" data-id="${hasDocument ? selectedDocument.id : 0}" title="Delete Diagram" aria-label="Delete Diagram" ${!canDelete ? "disabled" : ""}>
+        ${buttonContent("&#128465;", "Delete")}
+      </button>
     `;
   }
 
@@ -374,14 +441,16 @@ export function createDiagram2Feature({ app, notify, saveDiagramDocument } = {})
         ${peopleFiltersHtml}
         <div class="diagram2-library-empty">
           <h2>No diagrams found</h2>
-          <p>Diagram 2 reads the same Diagram documents as Diagram 1. Adjust the filters or create a Diagram in Diagram 1.</p>
+          <p>Diagram 2 reads the same Diagram documents as Diagram 1. Adjust the filters or create a Diagram.</p>
         </div>
+        ${diagram2TreeContextMenuHtml()}
       `;
     }
 
     return `
       ${peopleFiltersHtml}
       ${diagram2ViewMode === "cards" ? diagram2CardListHtml(documents) : diagram2TreeListHtml(documents)}
+      ${diagram2TreeContextMenuHtml()}
     `;
   }
 
@@ -413,19 +482,26 @@ export function createDiagram2Feature({ app, notify, saveDiagramDocument } = {})
     childrenByParent.forEach(children => children.sort(diagram2DocumentCompare));
 
     const renderChildren = (parentId, depth) => (childrenByParent.get(parentId) || [])
-      .map(document => `
-        ${diagram2TreeRowHtml(document, depth)}
-        ${renderChildren(document.id, depth + 1)}
-      `)
+      .map(document => diagram2TreeRowHtml(document, depth, childrenByParent, renderChildren))
       .join("");
 
-    return `<div class="diagram2-tree-list" role="tree" aria-label="Diagram 2 documents">${renderChildren(0, 0)}</div>`;
+    return `
+      <div class="diagram2-tree-list" role="tree" aria-label="Diagram documents">
+        <div class="diagram2-tree-root-drop" data-diagram2-root-drop aria-hidden="true"></div>
+        ${renderChildren(0, 0)}
+      </div>
+    `;
   }
 
-  function diagram2TreeRowHtml(document, depth) {
+  function diagram2TreeRowHtml(document, depth, childrenByParent, renderChildren) {
     const selected = document.id === selectedDiagramDocumentId;
+    const children = childrenByParent.get(document.id) || [];
+    const hasChildren = children.length > 0;
+    const collapsed = collapsedDiagram2DocumentIds.has(document.id);
+    const canMove = diagram2CanEdit(document);
     return `
-      <div class="diagram2-tree-row ${selected ? "is-selected" : ""}" style="--tree-depth:${depth}" role="treeitem" aria-selected="${selected}" data-diagram2-tree-row data-id="${document.id}">
+      <div class="diagram2-tree-row ${selected ? "is-selected" : ""}" style="--tree-depth:${depth}" role="treeitem" aria-selected="${selected}" ${hasChildren ? `aria-expanded="${!collapsed}"` : ""} data-diagram2-tree-row data-id="${document.id}" draggable="${canMove}">
+        <button class="diagram2-tree-node-toggle" type="button" data-action="toggle-diagram2-tree-node" data-id="${document.id}" ${hasChildren ? "" : "disabled"} aria-label="${hasChildren ? "Expand or collapse child diagrams" : "No child diagrams"}"><span aria-hidden="true">${hasChildren ? (collapsed ? "&#9656;" : "&#9662;") : ""}</span></button>
         <button class="diagram2-tree-document" type="button" data-action="select-diagram2-document" data-id="${document.id}" title="${escapeAttr(document.title)}">
           <span class="diagram2-tree-icon" aria-hidden="true">&#128208;</span>
           <span class="diagram2-tree-label">${escapeHtml(document.title || "Diagram")}</span>
@@ -433,6 +509,31 @@ export function createDiagram2Feature({ app, notify, saveDiagramDocument } = {})
           ${document.isPrivate !== false ? `<span class="diagram2-private" title="Private" aria-label="Private">Private</span>` : ""}
         </button>
       </div>
+      ${hasChildren && !collapsed ? renderChildren(document.id, depth + 1) : ""}
+    `;
+  }
+
+  function diagram2TreeContextMenuHtml() {
+    return `
+      <div class="dropdown-menu documentation-tree-context-menu diagram2-tree-context-menu" data-diagram2-tree-context-menu role="menu" aria-label="Diagram actions" hidden>
+        ${diagram2TreeContextMenuItemHtml("select-diagram2-document", "Open in Diagram 2", "&#128208;")}
+        ${diagram2TreeContextMenuItemHtml("edit-diagram2-info", "Edit Info", "&#9998;", "data-diagram2-context-requires-update")}
+        ${diagram2TreeContextMenuItemHtml("copy-public-diagram2-link", "Public Link", "&#128279;", "data-diagram2-context-requires-public")}
+        ${diagram2TreeContextMenuItemHtml("export-diagram2-pmt", "Export PMT Diagram", "&#8681;", "data-diagram2-context-requires-export")}
+        ${diagram2TreeContextMenuItemHtml("export-diagram2-svg", "Export SVG", "&#8681;", "data-diagram2-context-requires-export")}
+        ${diagram2TreeContextMenuItemHtml("export-diagram2-png", "Export PNG", "&#8681;", "data-diagram2-context-requires-export")}
+        ${diagram2TreeContextMenuItemHtml("delete-diagram2", "Delete", "&#128465;", "data-diagram2-context-requires-delete", "is-danger")}
+      </div>
+    `;
+  }
+
+  function diagram2TreeContextMenuItemHtml(action, label, icon, attributes = "", className = "") {
+    return `
+      <button type="button" class="dropdown-menu-item ${className}" data-action="${escapeAttr(action)}" ${attributes} role="menuitem" title="${escapeAttr(label)}" aria-label="${escapeAttr(label)}">
+        <span class="dropdown-menu-icon" aria-hidden="true">${icon}</span>
+        <span class="dropdown-menu-label">${escapeHtml(label)}</span>
+        <span class="dropdown-menu-check" aria-hidden="true"></span>
+      </button>
     `;
   }
 
@@ -484,11 +585,19 @@ export function createDiagram2Feature({ app, notify, saveDiagramDocument } = {})
       <div class="diagram2-viewer-body" data-diagram2-viewer-body>
         <div class="diagram2-live-viewer is-loading" data-diagram2-live-viewer data-id="${document.id}" aria-busy="true">
           <div class="diagram2-viewer-loader" role="status" aria-live="polite">Loading...</div>
-          <div class="diagram2-viewer-canvas" data-diagram2-viewer-canvas>
-            <div class="diagram2-renderer-surface ${diagram2ViewerZoom === "fit" ? "is-fit" : ""}" data-diagram2-renderer-surface></div>
-          </div>
+          ${diagram2EditorShellHtml({
+            selectedZoom: diagram2ViewerZoom,
+            state: diagram2RendererState,
+            selectedObjectIds: diagram2SelectedObjectIds,
+            status: diagram2Controller?.statusSnapshot?.() || {
+              hostKind: "diagram-document",
+              selectedCount: 0,
+              dirty: false,
+              history: {}
+            },
+            diagnosticsHtml: diagram2DiagnosticsHtml()
+          })}
         </div>
-        ${diagram2DiagnosticsHtml()}
       </div>
     `;
   }
@@ -522,7 +631,29 @@ export function createDiagram2Feature({ app, notify, saveDiagramDocument } = {})
     diagram2RendererDocumentId = document.id;
     diagram2RendererState = normalizeDiagram2CanonicalState(result.state);
     diagram2SelectedObjectIds = [];
-    initializeDiagram2History(diagram2RendererState);
+    const security = diagram2SecurityContext(document);
+    diagram2HostAdapter = createDiagram2DocumentHostAdapter({
+      document,
+      saveDiagramDocument,
+      canEdit: security.canUpdate,
+      canExport: security.canExport,
+      security
+    });
+    diagram2Controller = createDiagram2EditorController({
+      renderer: diagram2Renderer,
+      host: diagram2HostAdapter,
+      state: diagram2RendererState,
+      historyLimit: diagram2HistoryLimit
+    });
+    const objectsPane = viewer.querySelector("[data-diagram2-objects-pane]");
+    if (objectsPane) objectsPane.innerHTML = diagram2ObjectsPaneHtml(diagram2RendererState, diagram2SelectedObjectIds);
+    diagram2Controller.onChange(event => {
+      diagram2RendererState = diagram2Controller.state();
+      diagram2SelectedObjectIds = diagram2Controller.selectedObjectIds();
+      updateDiagram2EditorControls();
+      if (event.diagnostics) updateDiagram2Diagnostics(event.diagnostics);
+    });
+    globalThis.__pmtDiagram2EditorCore = diagram2Controller;
     let diagnostics = diagram2Renderer.render(diagram2RendererState, {
       reason: "initial"
     });
@@ -839,7 +970,9 @@ export function createDiagram2Feature({ app, notify, saveDiagramDocument } = {})
   }
 
   function refreshDiagram2Renderer() {
-    if (!diagram2Renderer || !diagram2RendererState || !diagram2RendererDocumentId) return;
+    if (!diagram2Renderer || !diagram2Controller || !diagram2RendererDocumentId) return;
+    diagram2RendererState = diagram2Controller.state();
+    diagram2SelectedObjectIds = diagram2Controller.selectedObjectIds();
     diagram2SelectedObjectIds = diagram2SelectedObjectIds.filter(id =>
       diagram2RendererState.objects.some(object => object.id === id));
     let diagnostics = diagram2Renderer.render(diagram2RendererState, {
@@ -853,26 +986,41 @@ export function createDiagram2Feature({ app, notify, saveDiagramDocument } = {})
 
   function resetDiagram2Renderer() {
     abortDiagram2ViewportControls();
+    diagram2Controller?.destroy?.();
     diagram2Renderer?.destroy?.();
     if (globalThis.__pmtDiagram2Renderer === diagram2Renderer) {
       globalThis.__pmtDiagram2Renderer = null;
     }
+    if (globalThis.__pmtDiagram2EditorCore === diagram2Controller) {
+      globalThis.__pmtDiagram2EditorCore = null;
+    }
     globalThis.__pmtDiagram2Compatibility = null;
     globalThis.__pmtDiagram2SelectionClipboard = null;
     diagram2Renderer = null;
+    diagram2Controller = null;
+    diagram2HostAdapter = null;
     diagram2RendererDocumentId = 0;
     diagram2RendererState = null;
     diagram2SelectedObjectIds = [];
-    diagram2History = [];
-    diagram2HistoryIndex = -1;
-    diagram2SavedHistoryJson = "";
-    diagram2Dirty = false;
     diagram2Busy = false;
   }
 
   function bindDiagram2Controls() {
     bindDiagram2SearchInput();
+    bindDiagram2ImportInput();
     bindDiagram2TreeSplitter();
+    bindDiagram2TreeContextMenu();
+    bindDiagram2TreeDragAndDrop();
+  }
+
+  function bindDiagram2ImportInput() {
+    const input = app.querySelector("[data-diagram2-import-input]");
+    if (!input) return;
+    input.addEventListener("change", event => {
+      const [file] = event.target.files || [];
+      event.target.value = "";
+      if (file) void importDiagram2PmtFile(file);
+    });
   }
 
   function bindDiagram2ViewportControls(viewer) {
@@ -905,16 +1053,16 @@ export function createDiagram2Feature({ app, notify, saveDiagramDocument } = {})
       const step = event.shiftKey ? 10 : 1;
       if (event.key === "ArrowUp") {
         event.preventDefault();
-        void moveDiagram2SelectedObjects(0, -step, { reason: "keyboard nudge" });
+        void moveDiagram2SelectedObjects(0, -step, { reason: "keyboard nudge", coalesce: true });
       } else if (event.key === "ArrowDown") {
         event.preventDefault();
-        void moveDiagram2SelectedObjects(0, step, { reason: "keyboard nudge" });
+        void moveDiagram2SelectedObjects(0, step, { reason: "keyboard nudge", coalesce: true });
       } else if (event.key === "ArrowLeft") {
         event.preventDefault();
-        void moveDiagram2SelectedObjects(-step, 0, { reason: "keyboard nudge" });
+        void moveDiagram2SelectedObjects(-step, 0, { reason: "keyboard nudge", coalesce: true });
       } else if (event.key === "ArrowRight") {
         event.preventDefault();
-        void moveDiagram2SelectedObjects(step, 0, { reason: "keyboard nudge" });
+        void moveDiagram2SelectedObjects(step, 0, { reason: "keyboard nudge", coalesce: true });
       }
     }, { signal });
 
@@ -981,6 +1129,7 @@ export function createDiagram2Feature({ app, notify, saveDiagramDocument } = {})
   function startDiagram2ObjectDrag(canvas, objectId, event) {
     const selectedIds = diagram2PointerSelection(objectId, event);
     setDiagram2Selection(selectedIds);
+    if (!diagram2CanMutateCurrentDocument()) return;
     abortDiagram2Pan();
 
     const startWorld = diagram2Renderer.screenToWorld({ clientX: event.clientX, clientY: event.clientY });
@@ -1008,10 +1157,9 @@ export function createDiagram2Feature({ app, notify, saveDiagramDocument } = {})
 
     const finish = () => {
       const renderer = diagram2Renderer;
-      const currentState = diagram2RendererState;
       canvas.classList.remove("is-moving-object");
       abortDiagram2Pan();
-      if (!renderer || !currentState) return;
+      if (!renderer || !diagram2Controller) return;
       if (!moved) {
         const diagnostics = renderer.cancelGeometryPreview();
         updateDiagram2Diagnostics(diagnostics);
@@ -1020,13 +1168,20 @@ export function createDiagram2Feature({ app, notify, saveDiagramDocument } = {})
       }
 
       let diagnostics = renderer.commitGeometryPreview(latestDelta);
-      diagram2RendererState = moveDiagram2ObjectsInState(currentState, selectedIds, latestDelta.deltaX, latestDelta.deltaY);
-      pushDiagram2History(diagram2RendererState);
       updateDiagram2Diagnostics(diagnostics);
       updateDiagram2EditorControls();
-      void renderer.whenIdle().then(idleDiagnostics => {
+      void (async () => {
+        if (!diagram2CanMutateCurrentDocument()) return;
+        await diagram2Controller.moveObjects(selectedIds, latestDelta.deltaX, latestDelta.deltaY, {
+          reason: "pointer drag",
+          rendererAlreadyUpdated: true
+        });
+        diagram2RendererState = diagram2Controller.state();
+        diagram2SelectedObjectIds = diagram2Controller.selectedObjectIds();
+        updateDiagram2EditorControls();
+        const idleDiagnostics = await renderer.whenIdle();
         if (renderer === diagram2Renderer) updateDiagram2Diagnostics(idleDiagnostics);
-      });
+      })();
     };
 
     window.addEventListener("pointermove", move, { signal });
@@ -1036,65 +1191,70 @@ export function createDiagram2Feature({ app, notify, saveDiagramDocument } = {})
 
   function diagram2PointerSelection(objectId, event) {
     const id = String(objectId || "").trim();
-    if (!id || !diagram2RendererState?.objects?.some(object => object.id === id)) return [];
+    if (!id || !diagram2Controller?.state?.().objects?.some(object => object.id === id)) return [];
     if (!event.shiftKey && !event.ctrlKey && !event.metaKey) return [id];
 
-    const selected = new Set(diagram2SelectedObjectIds);
+    const selected = new Set(diagram2Controller.selectedObjectIds());
     if (selected.has(id)) selected.delete(id);
     else selected.add(id);
     return [...selected];
   }
 
   function setDiagram2Selection(ids) {
-    const existingIds = new Set((diagram2RendererState?.objects || []).map(object => object.id));
-    diagram2SelectedObjectIds = uniqueStrings(ids).filter(id => existingIds.has(id));
-    const diagnostics = diagram2Renderer?.setSelectedIds(diagram2SelectedObjectIds);
-    if (diagnostics) updateDiagram2Diagnostics(diagnostics);
+    if (diagram2Controller) {
+      diagram2SelectedObjectIds = diagram2Controller.setSelection(ids);
+      diagram2RendererState = diagram2Controller.state();
+    } else {
+      const existingIds = new Set((diagram2RendererState?.objects || []).map(object => object.id));
+      diagram2SelectedObjectIds = uniqueStrings(ids).filter(id => existingIds.has(id));
+      const diagnostics = diagram2Renderer?.setSelectedIds(diagram2SelectedObjectIds);
+      if (diagnostics) updateDiagram2Diagnostics(diagnostics);
+    }
     updateDiagram2EditorControls();
   }
 
   async function moveDiagram2SelectedObjects(deltaX, deltaY, options = {}) {
-    if (!diagram2Renderer || !diagram2RendererState || diagram2Busy || !diagram2SelectedObjectIds.length) return false;
+    if (!diagram2Controller || !diagram2Renderer || diagram2Busy) return false;
     const dx = finiteNumber(deltaX, 0);
     const dy = finiteNumber(deltaY, 0);
     if (!dx && !dy) return false;
 
-    const selectedIds = [...diagram2SelectedObjectIds];
-    const nextState = moveDiagram2ObjectsInState(diagram2RendererState, selectedIds, dx, dy);
-    if (diagram2StateJson(nextState) === diagram2StateJson(diagram2RendererState)) return false;
-
-    diagram2Renderer.beginDiagramUpdate(options.reason || "move selection");
-    selectedIds.forEach(id => {
-      diagram2Renderer.updateObject(id, object => moveDiagram2ObjectGeometry(object, dx, dy));
+    const moved = await diagram2Controller.moveSelectedObjects(dx, dy, {
+      reason: options.reason || "move selection",
+      coalesce: options.coalesce === true
     });
-    let diagnostics = diagram2Renderer.endDiagramUpdate(options.reason || "move selection");
-    diagram2RendererState = nextState;
-    pushDiagram2History(diagram2RendererState);
-    updateDiagram2Diagnostics(diagnostics);
+    if (!moved) return false;
+    diagram2RendererState = diagram2Controller.state();
+    diagram2SelectedObjectIds = diagram2Controller.selectedObjectIds();
     updateDiagram2EditorControls();
-    diagnostics = await diagram2Renderer.whenIdle();
+    const diagnostics = await diagram2Renderer.whenIdle();
     updateDiagram2Diagnostics(diagnostics);
     return true;
   }
 
   async function saveDiagram2Document() {
-    if (diagram2Busy) return false;
+    if (diagram2Busy || !diagram2Controller) return false;
     const document = currentDiagram2Document();
-    if (!document || !diagram2RendererState) {
+    if (!document || !diagram2Controller.state()) {
       notify?.("Select a Diagram before saving.");
       return false;
     }
-    if (typeof saveDiagramDocument !== "function") {
+    if (!diagram2CanMutateCurrentDocument()) {
+      notify?.("You do not have permission to update this Diagram.");
+      return false;
+    }
+    if (typeof diagram2HostAdapter?.save !== "function") {
       notify?.("Diagram 2 save is not available.");
       return false;
     }
 
     diagram2Busy = true;
+    diagram2Controller.setBusy(true);
     updateDiagram2EditorControls();
     try {
       await diagram2Renderer?.whenIdle();
-      const stateForSave = normalizeDiagram2CanonicalState(diagram2RendererState);
-      const saved = await saveDiagramDocument(document, {
+      const stateForSave = normalizeDiagram2CanonicalState(diagram2Controller.state());
+      const saved = await diagram2HostAdapter.save({
         diagram: {
           state: stateForSave,
           svg: buildAnnotationSvg(stateForSave),
@@ -1102,13 +1262,13 @@ export function createDiagram2Feature({ app, notify, saveDiagramDocument } = {})
         }
       });
       diagram2RendererState = stateForSave;
+      diagram2Controller.setState(stateForSave, { resetHistory: false });
+      diagram2Controller.markSaved();
       if (saved?.id) {
         selectedDiagramDocumentId = Number(saved.id);
         diagram2RendererDocumentId = Number(saved.id);
         writePreference(preferenceKeys.diagram2SelectedDocument, selectedDiagramDocumentId);
       }
-      diagram2SavedHistoryJson = diagram2StateJson(diagram2RendererState);
-      updateDiagram2DirtyFromHistory();
       notify?.("Diagram 2 saved.");
       return true;
     } catch (error) {
@@ -1118,15 +1278,20 @@ export function createDiagram2Feature({ app, notify, saveDiagramDocument } = {})
       return false;
     } finally {
       diagram2Busy = false;
+      diagram2Controller?.setBusy(false);
       updateDiagram2EditorControls();
     }
   }
 
   async function exportDiagram2Pmt() {
     const document = currentDiagram2Document();
-    if (!document || !diagram2RendererState) return false;
+    if (!document || !diagram2Controller) return false;
+    if (!diagram2CurrentSecurity().canExport) {
+      notify?.("You do not have permission to export Diagrams.");
+      return false;
+    }
     await diagram2Renderer?.whenIdle();
-    const stateForExport = normalizeDiagram2CanonicalState(diagram2RendererState);
+    const stateForExport = normalizeDiagram2CanonicalState(diagram2Controller.state());
     const contents = createDiagram2PmtDiagramFile({
       title: document.title,
       state: stateForExport,
@@ -1139,9 +1304,13 @@ export function createDiagram2Feature({ app, notify, saveDiagramDocument } = {})
 
   async function exportDiagram2Svg() {
     const document = currentDiagram2Document();
-    if (!document || !diagram2RendererState) return false;
+    if (!document || !diagram2Controller) return false;
+    if (!diagram2CurrentSecurity().canExport) {
+      notify?.("You do not have permission to export Diagrams.");
+      return false;
+    }
     await diagram2Renderer?.whenIdle();
-    const svg = buildAnnotationSvg(normalizeDiagram2CanonicalState(diagram2RendererState));
+    const svg = buildAnnotationSvg(normalizeDiagram2CanonicalState(diagram2Controller.state()));
     downloadTextFile(svg, `${safeFileName(document.title)}.svg`, "image/svg+xml");
     notify?.("Diagram exported as SVG.");
     return true;
@@ -1149,10 +1318,14 @@ export function createDiagram2Feature({ app, notify, saveDiagramDocument } = {})
 
   async function exportDiagram2Png() {
     const document = currentDiagram2Document();
-    if (!document || !diagram2RendererState) return false;
+    if (!document || !diagram2Controller) return false;
+    if (!diagram2CurrentSecurity().canExport) {
+      notify?.("You do not have permission to export Diagrams.");
+      return false;
+    }
     await diagram2Renderer?.whenIdle();
     try {
-      const svg = buildAnnotationSvg(normalizeDiagram2CanonicalState(diagram2RendererState));
+      const svg = buildAnnotationSvg(normalizeDiagram2CanonicalState(diagram2Controller.state()));
       const blob = await diagram2SvgToPngBlob(svg);
       downloadBlobFile(blob, `${safeFileName(document.title)}.png`);
       notify?.("Diagram exported as PNG.");
@@ -1164,14 +1337,14 @@ export function createDiagram2Feature({ app, notify, saveDiagramDocument } = {})
   }
 
   async function copyDiagram2Selection() {
-    if (!diagram2RendererState || !diagram2SelectedObjectIds.length) {
+    if (!diagram2Controller || !diagram2Controller.selectedObjectIds().length) {
       notify?.("Select one or more Diagram objects before copying.");
       return false;
     }
     await diagram2Renderer?.whenIdle();
     const text = createDiagram2SelectionClipboardText({
-      state: normalizeDiagram2CanonicalState(diagram2RendererState),
-      selectedObjectIds: diagram2SelectedObjectIds
+      state: normalizeDiagram2CanonicalState(diagram2Controller.state()),
+      selectedObjectIds: diagram2Controller.selectedObjectIds()
     });
     globalThis.__pmtDiagram2SelectionClipboard = text;
     const copied = await copyTextToClipboard(text);
@@ -1180,92 +1353,88 @@ export function createDiagram2Feature({ app, notify, saveDiagramDocument } = {})
   }
 
   async function undoDiagram2() {
-    if (diagram2HistoryIndex <= 0 || diagram2Busy) return false;
-    return restoreDiagram2History(diagram2HistoryIndex - 1, "undo");
+    if (!diagram2Controller || diagram2Busy) return false;
+    const result = await diagram2Controller.undo();
+    diagram2RendererState = diagram2Controller.state();
+    diagram2SelectedObjectIds = diagram2Controller.selectedObjectIds();
+    updateDiagram2EditorControls();
+    const diagnostics = await diagram2Renderer?.whenIdle();
+    if (diagnostics) updateDiagram2Diagnostics(diagnostics);
+    return result;
   }
 
   async function redoDiagram2() {
-    if (diagram2HistoryIndex >= diagram2History.length - 1 || diagram2Busy) return false;
-    return restoreDiagram2History(diagram2HistoryIndex + 1, "redo");
-  }
-
-  async function restoreDiagram2History(index, reason) {
-    if (!diagram2Renderer || index < 0 || index >= diagram2History.length) return false;
-    diagram2HistoryIndex = index;
-    diagram2RendererState = diagram2StateFromJson(diagram2History[index]);
-    diagram2SelectedObjectIds = diagram2SelectedObjectIds.filter(id =>
-      diagram2RendererState.objects.some(object => object.id === id));
-    updateDiagram2DirtyFromHistory();
-    let diagnostics = diagram2Renderer.render(diagram2RendererState, { reason });
-    diagnostics = diagram2Renderer.setZoom(diagram2ViewerZoom);
-    diagnostics = diagram2Renderer.setSelectedIds(diagram2SelectedObjectIds);
-    updateDiagram2Diagnostics(diagnostics);
+    if (!diagram2Controller || diagram2Busy) return false;
+    const result = await diagram2Controller.redo();
+    diagram2RendererState = diagram2Controller.state();
+    diagram2SelectedObjectIds = diagram2Controller.selectedObjectIds();
     updateDiagram2EditorControls();
-    diagnostics = await diagram2Renderer.whenIdle();
-    updateDiagram2Diagnostics(diagnostics);
-    return true;
-  }
-
-  function initializeDiagram2History(stateInput) {
-    const json = diagram2StateJson(stateInput);
-    diagram2History = [json];
-    diagram2HistoryIndex = 0;
-    diagram2SavedHistoryJson = json;
-    updateDiagram2DirtyFromHistory();
-  }
-
-  function pushDiagram2History(stateInput) {
-    const json = diagram2StateJson(stateInput);
-    if (diagram2History[diagram2HistoryIndex] === json) {
-      updateDiagram2DirtyFromHistory();
-      return false;
-    }
-
-    diagram2History = diagram2History.slice(0, diagram2HistoryIndex + 1);
-    diagram2History.push(json);
-    if (diagram2History.length > diagram2HistoryLimit) {
-      const removed = diagram2History.shift();
-      if (diagram2SavedHistoryJson === removed) diagram2SavedHistoryJson = "";
-    }
-    diagram2HistoryIndex = diagram2History.length - 1;
-    updateDiagram2DirtyFromHistory();
-    return true;
-  }
-
-  function updateDiagram2DirtyFromHistory() {
-    diagram2Dirty = Boolean(diagram2SavedHistoryJson)
-      ? diagram2History[diagram2HistoryIndex] !== diagram2SavedHistoryJson
-      : diagram2HistoryIndex >= 0;
+    const diagnostics = await diagram2Renderer?.whenIdle();
+    if (diagnostics) updateDiagram2Diagnostics(diagnostics);
+    return result;
   }
 
   function updateDiagram2EditorControls() {
-    const hasDocument = Boolean(currentDiagram2Document() && diagram2RendererState);
-    const hasSelection = diagram2SelectedObjectIds.length > 0;
-    const canUndo = diagram2HistoryIndex > 0;
-    const canRedo = diagram2HistoryIndex >= 0 && diagram2HistoryIndex < diagram2History.length - 1;
+    const fallbackHasDocument = Boolean(currentDiagram2Document() && diagram2RendererState);
+    const status = diagram2Controller?.statusSnapshot?.() || {
+      busy: diagram2Busy,
+      canRead: fallbackHasDocument,
+      canEdit: false,
+      canExport: false,
+      dirty: false,
+      hasDocument: fallbackHasDocument,
+      selectedCount: diagram2SelectedObjectIds.length,
+      selectedObjectIds: diagram2SelectedObjectIds,
+      history: { canUndo: false, canRedo: false },
+      canSave: false
+    };
+    const hasDocument = fallbackHasDocument;
+    const hasSelection = status.selectedCount > 0;
+    const canUndo = status.history?.canUndo === true;
+    const canRedo = status.history?.canRedo === true;
+    const dirty = status.dirty === true;
+    const busy = diagram2Busy || status.busy === true;
+    const canEdit = status.canEdit !== false;
+    const canExport = status.canExport !== false;
     const saveState = app.querySelector("[data-diagram2-save-state]");
     const editState = app.querySelector("[data-diagram2-edit-state]");
-    const statusText = diagram2Busy ? "Saving..." : (diagram2Dirty ? "Unsaved changes" : "Saved");
+    const statusText = busy ? "Saving..." : (dirty ? "Unsaved changes" : "Saved");
     if (saveState) saveState.textContent = statusText;
     if (editState) editState.textContent = hasSelection
-      ? `${diagram2SelectedObjectIds.length} selected`
+      ? `${status.selectedCount} selected`
       : statusText;
-    app.querySelector("[data-diagram2-screen]")?.classList.toggle("has-unsaved-diagram2", diagram2Dirty);
+    app.querySelector("[data-diagram2-screen]")?.classList.toggle("has-unsaved-diagram2", dirty);
+    updateDiagram2ShellStatus(app.querySelector("[data-diagram2-editor-shell]"), {
+      ...status,
+      busy,
+      dirty,
+      history: { ...status.history, canUndo, canRedo }
+    });
+    updateDiagram2ObjectTreeSelection(app, status.selectedObjectIds || []);
 
     app.querySelectorAll("[data-diagram2-requires-document]").forEach(button => {
-      button.disabled = !hasDocument || diagram2Busy;
+      button.disabled = !hasDocument || busy;
+    });
+    app.querySelectorAll("[data-diagram2-requires-export]").forEach(button => {
+      button.disabled = !hasDocument || !canExport || busy;
+    });
+    app.querySelectorAll("[data-diagram2-requires-update]").forEach(button => {
+      button.disabled = !hasDocument || !canEdit || busy;
     });
     app.querySelectorAll("[data-diagram2-requires-dirty]").forEach(button => {
-      button.disabled = !hasDocument || !diagram2Dirty || diagram2Busy;
+      button.disabled = !hasDocument || !dirty || !canEdit || busy;
     });
     app.querySelectorAll("[data-diagram2-requires-selection]").forEach(button => {
-      button.disabled = !hasDocument || !hasSelection || diagram2Busy;
+      button.disabled = !hasDocument || !hasSelection || busy;
     });
     app.querySelectorAll("[data-diagram2-requires-undo]").forEach(button => {
-      button.disabled = !hasDocument || !canUndo || diagram2Busy;
+      button.disabled = !hasDocument || !canUndo || !canEdit || busy;
     });
     app.querySelectorAll("[data-diagram2-requires-redo]").forEach(button => {
-      button.disabled = !hasDocument || !canRedo || diagram2Busy;
+      button.disabled = !hasDocument || !canRedo || !canEdit || busy;
+    });
+    app.querySelectorAll("[data-diagram2-pending-command]").forEach(button => {
+      button.disabled = true;
     });
   }
 
@@ -1309,9 +1478,315 @@ export function createDiagram2Feature({ app, notify, saveDiagramDocument } = {})
     });
   }
 
+  function bindDiagram2TreeContextMenu() {
+    diagram2TreeContextMenuController?.abort();
+    diagram2TreeContextMenuController = null;
+
+    const tree = app.querySelector("[data-diagram2-tree] .diagram2-tree-list");
+    const menu = app.querySelector("[data-diagram2-tree-context-menu]");
+    if (!tree || !menu) return;
+
+    const controller = new AbortController();
+    const { signal } = controller;
+    diagram2TreeContextMenuController = controller;
+
+    const closeMenu = () => {
+      menu.hidden = true;
+    };
+
+    const showMenu = (document, clientX, clientY) => {
+      if (selectedDiagramDocumentId !== document.id) {
+        selectedDiagramDocumentId = document.id;
+        render();
+      }
+
+      const activeMenu = app.querySelector("[data-diagram2-tree-context-menu]");
+      if (!activeMenu) return;
+      activeMenu.querySelectorAll("[data-action]").forEach(button => {
+        button.dataset.id = String(document.id);
+      });
+      activeMenu.querySelectorAll("[data-diagram2-context-requires-update]").forEach(button => {
+        button.disabled = !diagram2CanEdit(document);
+      });
+      activeMenu.querySelectorAll("[data-diagram2-context-requires-delete]").forEach(button => {
+        button.disabled = !diagram2CanDelete(document);
+      });
+      activeMenu.querySelectorAll("[data-diagram2-context-requires-export]").forEach(button => {
+        button.disabled = !diagram2CanExport(document);
+      });
+      activeMenu.querySelectorAll("[data-diagram2-context-requires-public]").forEach(button => {
+        button.disabled = document.isPrivate !== false;
+      });
+
+      activeMenu.hidden = false;
+      const margin = 8;
+      const maximumLeft = Math.max(margin, window.innerWidth - activeMenu.offsetWidth - margin);
+      const maximumTop = Math.max(margin, window.innerHeight - activeMenu.offsetHeight - margin);
+      activeMenu.style.left = `${Math.round(Math.max(margin, Math.min(clientX, maximumLeft)))}px`;
+      activeMenu.style.top = `${Math.round(Math.max(margin, Math.min(clientY, maximumTop)))}px`;
+      activeMenu.querySelector("button:not(:disabled)")?.focus({ preventScroll: true });
+    };
+
+    tree.addEventListener("contextmenu", event => {
+      const documentButton = event.target.closest?.("[data-action='select-diagram2-document']");
+      const document = diagram2AllDocuments().find(item => item.id === Number(documentButton?.dataset.id || 0));
+      if (!documentButton || !document) return;
+
+      event.preventDefault();
+      event.stopPropagation();
+      showMenu(document, event.clientX, event.clientY);
+    }, { signal });
+    menu.addEventListener("contextmenu", event => event.preventDefault(), { signal });
+    menu.addEventListener("click", closeMenu, { signal });
+    window.addEventListener("pointerdown", event => {
+      if (!menu.hidden && !menu.contains(event.target)) closeMenu();
+    }, { signal });
+    window.addEventListener("scroll", closeMenu, { capture: true, passive: true, signal });
+    window.addEventListener("resize", closeMenu, { signal });
+    window.addEventListener("keydown", event => {
+      if (event.key === "Escape") closeMenu();
+    }, { signal });
+  }
+
+  function bindDiagram2TreeDragAndDrop() {
+    const tree = app.querySelector("[data-diagram2-tree] .diagram2-tree-list");
+    if (!tree) return;
+    let draggedId = 0;
+
+    tree.addEventListener("dragstart", event => {
+      const row = event.target.closest("[data-diagram2-tree-row][draggable='true']");
+      draggedId = Number(row?.dataset.id || 0);
+      if (!draggedId) {
+        event.preventDefault();
+        return;
+      }
+      row.classList.add("is-dragging");
+      event.dataTransfer.effectAllowed = "move";
+      event.dataTransfer.setData("text/plain", String(draggedId));
+    });
+
+    tree.addEventListener("dragover", event => {
+      if (!draggedId) return;
+      const rootDrop = event.target.closest("[data-diagram2-root-drop]");
+      const row = event.target.closest("[data-diagram2-tree-row]");
+      clearDiagram2DropCues(tree);
+      if (rootDrop) {
+        event.preventDefault();
+        rootDrop.classList.add("is-drop-target");
+        return;
+      }
+      if (!row || Number(row.dataset.id || 0) === draggedId) return;
+      const placement = diagram2DropPlacement(row, event.clientY);
+      if (!diagram2DropAllowed(draggedId, Number(row.dataset.id || 0), placement)) return;
+      event.preventDefault();
+      row.classList.add(`is-drop-${placement}`);
+      event.dataTransfer.dropEffect = "move";
+    });
+
+    tree.addEventListener("drop", async event => {
+      if (!draggedId) return;
+      event.preventDefault();
+      const movedId = draggedId;
+      const rootDrop = event.target.closest("[data-diagram2-root-drop]");
+      const row = event.target.closest("[data-diagram2-tree-row]");
+      const targetId = Number(row?.dataset.id || 0);
+      const placement = rootDrop ? "root" : diagram2DropPlacement(row, event.clientY);
+      clearDiagram2DropCues(tree);
+
+      const move = diagram2MoveAfterDrop(movedId, targetId, placement);
+      if (!move) return;
+      try {
+        await moveDiagramDocument?.(move.document, move);
+        diagram2Sort = "custom";
+        writePreference(preferenceKeys.diagram2Sort, diagram2Sort);
+        selectedDiagramDocumentId = movedId;
+        notify?.("Diagram moved.");
+        if (active) render();
+      } catch (error) {
+        notify?.(error?.message || "The Diagram could not be moved.");
+        if (active) render();
+      }
+    });
+
+    const finish = () => {
+      tree.querySelector(".is-dragging")?.classList.remove("is-dragging");
+      clearDiagram2DropCues(tree);
+      draggedId = 0;
+    };
+    tree.addEventListener("dragend", finish);
+    tree.addEventListener("dragleave", event => {
+      if (!tree.contains(event.relatedTarget)) clearDiagram2DropCues(tree);
+    });
+  }
+
+  async function createNewDiagram2() {
+    if (diagram2Creating) return;
+    if (!canAccessResource("Documentation", "Create")) {
+      notify?.("You do not have permission to create Diagrams.");
+      return;
+    }
+    if (typeof createDiagramDocument !== "function") {
+      notify?.("Diagram creation is not available.");
+      return;
+    }
+    diagram2Creating = true;
+    render();
+
+    try {
+      const title = nextUntitledDiagram2Title(diagram2AllDocuments().filter(diagram2OwnedByCurrentUser));
+      const diagram = createBlankDiagram2(title);
+      const result = await createDiagramDocument({
+        title,
+        diagram
+      });
+      if (!active) return;
+      selectedDiagramDocumentId = Number(result?.id || 0);
+      diagram2ViewMode = "tree";
+      writePreference(preferenceKeys.diagram2SelectedDocument, selectedDiagramDocumentId);
+      writePreference(preferenceKeys.diagram2ViewMode, diagram2ViewMode);
+      notify?.("Diagram created.");
+    } catch (error) {
+      notify?.(error?.message || "The Diagram could not be created.");
+    } finally {
+      diagram2Creating = false;
+      if (active) render();
+    }
+  }
+
+  async function importDiagram2PmtFile(file) {
+    if (!file || diagram2Creating) return false;
+    if (!diagram2CanImport()) {
+      notify?.("You do not have permission to import Diagrams.");
+      return false;
+    }
+    if (typeof createDiagramDocument !== "function") {
+      notify?.("Diagram import is not available.");
+      return false;
+    }
+
+    diagram2Creating = true;
+    render();
+    try {
+      const imported = parseDiagram2PmtDiagramFile(await file.text());
+      const title = availableDiagram2Title(imported.title, diagram2AllDocuments());
+      const result = await createDiagramDocument({
+        title,
+        diagram: {
+          state: imported.state,
+          svg: imported.svg,
+          fileName: `${safeFileName(title)}.svg`
+        }
+      });
+      if (!active) return true;
+      selectedDiagramDocumentId = Number(result?.id || 0);
+      diagram2ViewMode = "tree";
+      writePreference(preferenceKeys.diagram2SelectedDocument, selectedDiagramDocumentId);
+      writePreference(preferenceKeys.diagram2ViewMode, diagram2ViewMode);
+      notify?.("PMT Diagram imported.");
+      return true;
+    } catch (error) {
+      notify?.(error?.message || "The PMT Diagram could not be imported.");
+      return false;
+    } finally {
+      diagram2Creating = false;
+      if (active) render();
+    }
+  }
+
+  function editDiagram2Info(document) {
+    const selectedProjectId = document.projectId || "";
+    const selectedSprintId = document.sprintId || "";
+    openEditor?.("Edit Diagram Info", `
+      <div class="form-grid diagram-info-form">
+        ${field("Diagram Name", "title", document.title || "", "text", "", "", 220, { required: true })}
+        ${selectOptionsField("Visibility", "visibility", [
+          { id: "private", title: "Private" },
+          { id: "public", title: "Public" }
+        ], document.isPrivate === false ? "public" : "private")}
+        ${selectOptionsField("Project", "projectId", diagram2ProjectOptions(), selectedProjectId)}
+        ${selectOptionsField("Sprint", "sprintId", diagram2SprintOptions(selectedProjectId), selectedSprintId)}
+        ${selectOptionsField("Parent", "parentBlogId", diagram2ParentOptions(document, selectedProjectId, selectedSprintId, document.isPrivate === false), document.parentBlogId || "")}
+        ${diagram2InfoMetaHtml(document)}
+      </div>
+    `, async root => {
+      const projectId = optionalNumberValue(root, "projectId");
+      await saveDiagramInfo?.(document, {
+        title: value(root, "title"),
+        projectId,
+        sprintId: projectId ? optionalNumberValue(root, "sprintId") : null,
+        parentBlogId: optionalNumberValue(root, "parentBlogId"),
+        isPrivate: root.querySelector("[name='visibility']")?.value !== "public",
+        isPinned: false
+      });
+      selectedDiagramDocumentId = document.id;
+      writePreference(preferenceKeys.diagram2SelectedDocument, selectedDiagramDocumentId);
+      updateBrowserUrl(routeForContent("diagram-2", document.id), { replace: true });
+    }, "title", root => bindDiagram2InfoRules(root, document));
+  }
+
+  function bindDiagram2InfoRules(root, document) {
+    const projectSelect = root.querySelector("[name='projectId']");
+    const sprintSelect = root.querySelector("[name='sprintId']");
+    const parentSelect = root.querySelector("[name='parentBlogId']");
+    const visibilitySelect = root.querySelector("[name='visibility']");
+    if (!projectSelect || !sprintSelect || !parentSelect || !visibilitySelect) return;
+
+    const syncParentOptions = () => {
+      const projectId = optionalNumberValue(root, "projectId");
+      const sprintId = projectId ? optionalNumberValue(root, "sprintId") : null;
+      const currentParentId = optionalNumberValue(root, "parentBlogId");
+      const options = diagram2ParentOptions(document, projectId, sprintId, visibilitySelect.value === "public");
+      parentSelect.innerHTML = diagram2OptionsHtml(options, currentParentId);
+      if (!options.some(option => String(option.id) === String(currentParentId || ""))) parentSelect.value = "";
+    };
+
+    const syncSprintOptions = () => {
+      const projectId = optionalNumberValue(root, "projectId");
+      const currentSprintId = optionalNumberValue(root, "sprintId");
+      const options = diagram2SprintOptions(projectId);
+      sprintSelect.innerHTML = diagram2OptionsHtml(options, currentSprintId);
+      if (!projectId || !options.some(option => String(option.id) === String(currentSprintId || ""))) sprintSelect.value = "";
+      syncParentOptions();
+    };
+
+    projectSelect.addEventListener("change", syncSprintOptions);
+    sprintSelect.addEventListener("change", syncParentOptions);
+    visibilitySelect.addEventListener("change", syncParentOptions);
+  }
+
+  function diagram2InfoMetaHtml(document) {
+    const history = diagramLatestUpdatedHistory(document);
+    return `
+      <div class="diagram-info-meta">
+        <div>
+          <span>Created by</span>
+          <strong>${escapeHtml(diagramUserName(document.createdByUserId))}</strong>
+          <small>${escapeHtml(formatDate(document.createdAt))}</small>
+        </div>
+        <div>
+          <span>Last edited by</span>
+          <strong>${escapeHtml(diagramUserName(history?.userId || document.updatedByUserId || document.createdByUserId))}</strong>
+          <small>${escapeHtml(formatDate(history?.createdAt || document.updatedAt || document.createdAt))}</small>
+        </div>
+      </div>
+    `;
+  }
+
+  async function deleteDiagram2Document(document) {
+    if (!diagram2CanDelete(document)) return;
+    if (selectedDiagramDocumentId === document.id) selectedDiagramDocumentId = 0;
+    await deleteItem?.(`/api/blogs/${document.id}`, "Delete this Diagram?");
+    if (active) render();
+  }
+
   function abortTreePaneDrag() {
     dragAbortController?.abort();
     dragAbortController = null;
+  }
+
+  function abortDiagram2TreeContextMenu() {
+    diagram2TreeContextMenuController?.abort();
+    diagram2TreeContextMenuController = null;
   }
 
   function diagram2Documents(allDocuments, directDocumentId) {
@@ -1327,6 +1802,238 @@ export function createDiagram2Feature({ app, notify, saveDiagramDocument } = {})
 
   function currentDiagram2Document() {
     return diagram2AllDocuments().find(document => document.id === selectedDiagramDocumentId) || null;
+  }
+
+  function diagram2OwnedByCurrentUser(document) {
+    return Number(document?.createdByUserId || 0) === Number(currentUserId || 0);
+  }
+
+  function diagram2CanEdit(document) {
+    return Boolean(document && diagram2OwnedByCurrentUser(document) && canAccessResource("Documentation", "Update"));
+  }
+
+  function diagram2CanDelete(document) {
+    return Boolean(document && diagram2OwnedByCurrentUser(document) && canAccessResource("Documentation", "Delete"));
+  }
+
+  function diagram2CanImport() {
+    return canAccessResource("Documentation", "Import");
+  }
+
+  function diagram2CanExport(document) {
+    return Boolean(document && canAccessResource("Documentation", "Export"));
+  }
+
+  function diagram2SecurityContext(document) {
+    return Object.freeze({
+      resource: "Documentation",
+      canRead: Boolean(document),
+      canCreate: canAccessResource("Documentation", "Create"),
+      canUpdate: diagram2CanEdit(document),
+      canDelete: diagram2CanDelete(document),
+      canImport: diagram2CanImport(),
+      canExport: diagram2CanExport(document)
+    });
+  }
+
+  function diagram2CurrentSecurity() {
+    return diagram2HostAdapter?.security || Object.freeze({
+      resource: "Documentation",
+      canRead: false,
+      canCreate: false,
+      canUpdate: false,
+      canDelete: false,
+      canImport: false,
+      canExport: false
+    });
+  }
+
+  function diagram2CanMutateCurrentDocument() {
+    return diagram2CurrentSecurity().canUpdate === true;
+  }
+
+  function diagram2PublicLinkButtonHtml(document, className = "secondary text-icon-button diagram2-page-action", label = "") {
+    if (document?.isPrivate !== false) return "";
+    const content = label
+      ? buttonContent("&#128279;", label)
+      : `<span class="button-icon" aria-hidden="true">&#128279;</span>`;
+    return `<button type="button" class="${escapeAttr(className)}" data-action="copy-public-diagram2-link" data-id="${document.id}" title="Public Link" aria-label="Public Link">${content}</button>`;
+  }
+
+  async function copyDiagram2PublicLink(document) {
+    if (document?.isPrivate !== false) {
+      notify?.("Only public diagrams can be shared with a public link.");
+      return false;
+    }
+
+    return openPublicLinkDialog(async durationDays => {
+      const link = await api("/api/public-links", {
+        method: "POST",
+        body: JSON.stringify({
+          blogId: document.id,
+          durationDays
+        })
+      });
+      const token = String(link?.token || "").trim();
+      if (!token) throw new Error("The public link could not be created.");
+      return new URL(appUrl(`/public/diagram/${token}`), window.location.href).href;
+    }, {
+      notify,
+      copiedMessage: "Public diagram link copied.",
+      copyFailedMessage: "Public diagram link created. Copy it from the Public URL box."
+    });
+  }
+
+  function createBlankDiagram2(title = "Diagram") {
+    const stateForCreate = normalizeDiagram2CanonicalState({
+      version: 1,
+      width: 1600,
+      height: 900,
+      canvasBounds: { x: 0, y: 0, width: 1600, height: 900 },
+      originalReference: "",
+      objects: []
+    });
+    return {
+      state: stateForCreate,
+      svg: buildAnnotationSvg(stateForCreate),
+      fileName: `${safeFileName(title)}.svg`
+    };
+  }
+
+  function nextUntitledDiagram2Title(documents) {
+    const titles = new Set((documents || [])
+      .map(document => String(document?.title || "").trim().toLocaleLowerCase()));
+    let index = 1;
+    while (titles.has(`untitled diagram ${index}`)) index += 1;
+    return `Untitled Diagram ${index}`;
+  }
+
+  function availableDiagram2Title(title, documents) {
+    const base = String(title || "Imported Diagram").trim() || "Imported Diagram";
+    const titles = new Set((documents || []).map(document => String(document?.title || "").trim().toLocaleLowerCase()));
+    if (!titles.has(base.toLocaleLowerCase())) return base;
+    let index = 2;
+    while (titles.has(`${base} ${index}`.toLocaleLowerCase())) index += 1;
+    return `${base} ${index}`;
+  }
+
+  function diagram2ProjectOptions() {
+    return [
+      { id: "", title: "Global" },
+      ...state.projects.map(project => ({ id: project.id, title: `${project.code} - ${project.title}` }))
+    ];
+  }
+
+  function diagram2SprintOptions(projectId) {
+    const numericProjectId = Number(projectId || 0);
+    return [
+      { id: "", title: "No Sprint" },
+      ...state.sprints
+        .filter(sprint => sprint.projectId === numericProjectId)
+        .map(sprint => ({ id: sprint.id, title: `${sprint.code} - ${sprint.title}` }))
+    ];
+  }
+
+  function diagram2ParentOptions(document, projectId, sprintId, isPublic) {
+    const excludedIds = diagram2DescendantIds(document.id);
+    excludedIds.add(document.id);
+    return [
+      { id: "", title: "No parent" },
+      ...diagram2AllDocuments()
+        .filter(candidate =>
+          diagram2OwnedByCurrentUser(candidate)
+          && !excludedIds.has(candidate.id)
+          && Number(candidate.projectId || 0) === Number(projectId || 0)
+          && Number(candidate.sprintId || 0) === Number(sprintId || 0)
+          && (!isPublic || candidate.isPrivate === false)
+        )
+        .sort(diagram2DocumentCompare)
+        .map(candidate => ({ id: candidate.id, title: candidate.title }))
+    ];
+  }
+
+  function diagram2OptionsHtml(options, selectedId) {
+    return options
+      .map(option => `<option value="${escapeAttr(option.id)}" ${String(option.id) === String(selectedId ?? "") ? "selected" : ""}>${escapeHtml(option.title)}</option>`)
+      .join("");
+  }
+
+  function diagram2DescendantIds(documentId) {
+    const descendants = new Set();
+    let added = true;
+    while (added) {
+      added = false;
+      diagram2AllDocuments().forEach(document => {
+        if (document.parentBlogId && (document.parentBlogId === documentId || descendants.has(document.parentBlogId)) && !descendants.has(document.id)) {
+          descendants.add(document.id);
+          added = true;
+        }
+      });
+    }
+    return descendants;
+  }
+
+  function diagram2MoveAfterDrop(movedId, targetId, placement) {
+    const documents = diagram2AllDocuments().filter(diagram2OwnedByCurrentUser);
+    const document = documents.find(item => item.id === movedId);
+    const target = documents.find(item => item.id === targetId);
+    if (!document || !diagram2CanEdit(document)) return null;
+    if (placement !== "root" && (!target || !diagram2DropAllowed(movedId, targetId, placement))) return null;
+
+    const parentBlogId = placement === "root"
+      ? null
+      : placement === "inside"
+        ? target.id
+        : target.parentBlogId || null;
+    const siblings = documents
+      .filter(item =>
+        item.id !== movedId
+        && Number(item.parentBlogId || 0) === Number(parentBlogId || 0)
+        && (!parentBlogId || (
+          Number(item.projectId || 0) === Number(document.projectId || 0)
+          && Number(item.sprintId || 0) === Number(document.sprintId || 0)
+        ))
+      )
+      .sort(diagram2DocumentCompare);
+    let insertIndex = 0;
+    if (placement === "inside") {
+      insertIndex = 0;
+    } else if (placement !== "root") {
+      const targetIndex = siblings.findIndex(item => item.id === targetId);
+      insertIndex = Math.max(0, targetIndex + (placement === "after" ? 1 : 0));
+    }
+    siblings.splice(insertIndex, 0, document);
+    return {
+      document,
+      parentBlogId,
+      orderedBlogIds: siblings.map(item => item.id)
+    };
+  }
+
+  function diagram2DropAllowed(movedId, targetId, placement) {
+    if (!movedId || !targetId || movedId === targetId) return false;
+    const moved = diagram2AllDocuments().find(document => document.id === movedId);
+    const target = diagram2AllDocuments().find(document => document.id === targetId);
+    if (!moved || !target || !diagram2CanEdit(target)) return false;
+    const targetParentId = placement === "inside" ? target.id : target.parentBlogId || null;
+    if (targetParentId
+        && (Number(moved.projectId || 0) !== Number(target.projectId || 0)
+          || Number(moved.sprintId || 0) !== Number(target.sprintId || 0))) return false;
+    return !diagram2DescendantIds(movedId).has(targetId);
+  }
+
+  function diagram2DropPlacement(row, clientY) {
+    if (!row) return "before";
+    const rect = row.getBoundingClientRect();
+    const ratio = rect.height ? (clientY - rect.top) / rect.height : 0;
+    if (ratio < 0.3) return "before";
+    if (ratio > 0.7) return "after";
+    return "inside";
+  }
+
+  function clearDiagram2DropCues(tree) {
+    tree?.querySelectorAll(".is-drop-before, .is-drop-after, .is-drop-inside, .is-drop-target")
+      .forEach(element => element.classList.remove("is-drop-before", "is-drop-after", "is-drop-inside", "is-drop-target"));
   }
 
   function diagram2MatchesFilters(document) {
@@ -1347,8 +2054,45 @@ export function createDiagram2Feature({ app, notify, saveDiagramDocument } = {})
       project?.name,
       sprint?.code,
       sprint?.title,
-      document.isPrivate === false ? "public" : "private"
+      document.isPrivate === false ? "public" : "private",
+      diagram2SvgSearchText(document)
     ].filter(Boolean).join(" ").toLowerCase().includes(diagram2Search.toLowerCase());
+  }
+
+  function scheduleDiagram2SearchSourceLoad() {
+    const token = ++diagram2SearchLoadToken;
+    void loadDiagram2SearchSources().then(loaded => {
+      if (!loaded || !active || token !== diagram2SearchLoadToken || !diagram2Search) return;
+      render();
+    });
+  }
+
+  async function loadDiagram2SearchSources() {
+    const sources = [...new Set(diagram2AllDocuments()
+      .map(document => diagramDocumentImage(document)?.source || "")
+      .filter(source => source
+        && diagramSourceIsSvg(source)
+        && !decodeDiagramSvgDataUrl(source)
+        && !diagram2SvgSearchTextCache.has(source)))];
+    if (!sources.length) return false;
+
+    const loaded = await Promise.all(sources.map(async source => {
+      const svg = await loadDiagramSvgSource(source);
+      if (svg) diagram2SvgSearchTextCache.set(source, svg.toLowerCase());
+      return svg;
+    }));
+    return loaded.some(Boolean);
+  }
+
+  function diagram2SvgSearchText(document) {
+    const source = diagramDocumentImage(document)?.source || "";
+    if (!source || !diagramSourceIsSvg(source)) return "";
+    if (diagram2SvgSearchTextCache.has(source)) return diagram2SvgSearchTextCache.get(source);
+    const svg = decodeDiagramSvgDataUrl(source);
+    if (!svg) return "";
+    const searchText = svg.toLowerCase();
+    diagram2SvgSearchTextCache.set(source, searchText);
+    return searchText;
   }
 
   function diagram2DocumentCompare(left, right) {
@@ -1401,6 +2145,14 @@ function positiveRouteId(value) {
 function normalizeDiagram2Zoom(value) {
   const zoom = String(value || "fit");
   return diagram2ZoomModes.has(zoom) ? zoom : "fit";
+}
+
+function nextDiagram2Zoom(currentZoom, direction) {
+  const ordered = ["0.1", "0.5", "0.75", "1", "1.25", "1.5", "2"];
+  if (currentZoom === "fit") return direction > 0 ? "1.25" : "0.75";
+  const index = ordered.indexOf(String(currentZoom));
+  if (index < 0) return "1";
+  return ordered[Math.max(0, Math.min(ordered.length - 1, index + (direction > 0 ? 1 : -1)))];
 }
 
 function diagram2ZoomOptionsHtml(selectedZoom) {
@@ -1471,44 +2223,6 @@ function diagramUserName(userId) {
   return fullName || nickname || "User";
 }
 
-function diagram2StateJson(stateInput) {
-  return JSON.stringify(normalizeDiagram2CanonicalState(stateInput));
-}
-
-function diagram2StateFromJson(json) {
-  try {
-    return normalizeDiagram2CanonicalState(JSON.parse(String(json || "{}")));
-  } catch {
-    return normalizeDiagram2CanonicalState(null);
-  }
-}
-
-function moveDiagram2ObjectsInState(stateInput, objectIds, deltaX, deltaY) {
-  const state = normalizeDiagram2CanonicalState(stateInput);
-  const selectedIds = new Set(uniqueStrings(objectIds));
-  if (!selectedIds.size) return state;
-  return normalizeDiagram2CanonicalState({
-    ...state,
-    objects: state.objects.map(object =>
-      selectedIds.has(object.id) ? moveDiagram2ObjectGeometry(object, deltaX, deltaY) : object)
-  });
-}
-
-function moveDiagram2ObjectGeometry(object, deltaX, deltaY) {
-  const dx = finiteNumber(deltaX, 0);
-  const dy = finiteNumber(deltaY, 0);
-  const next = { ...object };
-  if (hasOwn(next, "x") || hasOwn(next, "y") || (!hasOwn(next, "x1") && !hasOwn(next, "x2"))) {
-    next.x = finiteNumber(next.x, 0) + dx;
-    next.y = finiteNumber(next.y, 0) + dy;
-  }
-  if (hasOwn(next, "x1")) next.x1 = finiteNumber(next.x1, 0) + dx;
-  if (hasOwn(next, "y1")) next.y1 = finiteNumber(next.y1, 0) + dy;
-  if (hasOwn(next, "x2")) next.x2 = finiteNumber(next.x2, 0) + dx;
-  if (hasOwn(next, "y2")) next.y2 = finiteNumber(next.y2, 0) + dy;
-  return next;
-}
-
 function uniqueStrings(values) {
   const result = [];
   const seen = new Set();
@@ -1526,10 +2240,6 @@ function uniqueStrings(values) {
 function finiteNumber(value, fallback = 0) {
   const number = Number(value);
   return Number.isFinite(number) ? number : fallback;
-}
-
-function hasOwn(value, key) {
-  return Object.prototype.hasOwnProperty.call(value || {}, key);
 }
 
 function safeFileName(value) {

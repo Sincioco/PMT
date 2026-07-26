@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { buildAnnotationSvg } from "../../wwwroot/js/components/image-annotation.js";
+import { buildAnnotationSvg, parseAnnotationSvg } from "../../wwwroot/js/components/image-annotation.js";
 import { releaseNotes } from "../../wwwroot/js/shared/release-notes-data.js";
 
 const statuses = [
@@ -4571,18 +4571,20 @@ test("RTE image annotation creates, crops, groups, locks, undoes, and reopens ed
   const selectionChrome = await canvas.evaluate(element => {
     const outline = element.querySelector(".image-annotation-selection");
     const handle = element.querySelector(".image-annotation-handle");
-    const handleBox = handle.getBoundingClientRect();
+    const handleBox = handle?.getBoundingClientRect();
     return {
-      handleTag: handle.tagName.toLowerCase(),
-      handleWidth: handleBox.width,
-      handleOpacity: Number(getComputedStyle(handle).opacity),
+      handleCount: element.querySelectorAll(".image-annotation-handle").length,
+      handleTag: handle?.tagName.toLowerCase() || "",
+      handleWidth: handleBox?.width || 0,
+      handleOpacity: handle ? Number(getComputedStyle(handle).opacity) : 0,
       outlineWidth: Number.parseFloat(getComputedStyle(outline).strokeWidth),
       outlineOpacity: Number(getComputedStyle(outline).opacity)
     };
   });
-  expect(selectionChrome.handleTag).toBe("circle");
-  expect(selectionChrome.handleWidth).toBeLessThanOrEqual(8);
-  expect(selectionChrome.handleOpacity).toBeLessThanOrEqual(0.9);
+  expect(selectionChrome.handleCount).toBe(0);
+  expect(selectionChrome.handleTag).toBe("");
+  expect(selectionChrome.handleWidth).toBe(0);
+  expect(selectionChrome.handleOpacity).toBe(0);
   expect(selectionChrome.outlineWidth).toBeLessThanOrEqual(1);
   expect(selectionChrome.outlineOpacity).toBeLessThanOrEqual(0.72);
 
@@ -4612,17 +4614,17 @@ test("RTE image annotation creates, crops, groups, locks, undoes, and reopens ed
     "Copy as Image"
   ]);
   await expect(annotationContextMenu.getByRole("menuitem", { name: "Crop", exact: true })).toBeEnabled();
-  await expect(annotationContextMenu.getByRole("menuitem", { name: "To Front", exact: true })).toBeEnabled();
-  await expect(annotationContextMenu.getByRole("menuitem", { name: "To Back", exact: true })).toBeEnabled();
-  await expect(annotationContextMenu.getByRole("menuitem", { name: "Forward", exact: true })).toBeEnabled();
-  await expect(annotationContextMenu.getByRole("menuitem", { name: "Backward", exact: true })).toBeEnabled();
+  await expect(annotationContextMenu.getByRole("menuitem", { name: "To Front", exact: true })).toBeDisabled();
+  await expect(annotationContextMenu.getByRole("menuitem", { name: "To Back", exact: true })).toBeDisabled();
+  await expect(annotationContextMenu.getByRole("menuitem", { name: "Forward", exact: true })).toBeDisabled();
+  await expect(annotationContextMenu.getByRole("menuitem", { name: "Backward", exact: true })).toBeDisabled();
   await expect(annotationContextMenu.getByRole("menuitem", { name: "Group", exact: true })).toBeDisabled();
   await expect(annotationContextMenu.getByRole("menuitem", { name: "Ungroup", exact: true })).toBeDisabled();
   await expect(annotationContextMenu.getByRole("menuitem", { name: "Reset Crop", exact: true })).toBeDisabled();
-  await expect(annotationContextMenu.getByRole("menuitem", { name: "Lock selected objects", exact: true })).toBeEnabled();
+  await expect(annotationContextMenu.getByRole("menuitem", { name: "Lock selected objects", exact: true })).toBeDisabled();
   await page.keyboard.press("Escape");
   await expect(annotationContextMenu).toBeHidden();
-  await expect(dialog.locator("[data-annotation-selection-label]")).toHaveText("Original Image");
+  await expect(dialog.locator("[data-annotation-selection-label]")).toHaveText("Original Image (Fixed)");
   await expect(imageObject).toBeFocused();
   await page.keyboard.press("Shift+F10");
   await expect(annotationContextMenu).toBeVisible();
@@ -4640,15 +4642,15 @@ test("RTE image annotation creates, crops, groups, locks, undoes, and reopens ed
   await expect(cropContextMenuItem).toBeFocused();
   await page.keyboard.press("Escape");
   await expect(annotationContextMenu).toBeHidden();
-  await expect(dialog.locator("[data-annotation-selection-label]")).toHaveText("Original Image");
+  await expect(dialog.locator("[data-annotation-selection-label]")).toHaveText("Original Image (Fixed)");
   await expect(imageObject).toBeFocused();
   await openAnnotationContextMenu(imageObject);
   await dialog.getByRole("tab", { name: "Format", exact: true }).click();
   await expect(annotationContextMenu).toBeHidden();
-  await expect(dialog.locator("[data-annotation-selection-label]")).toHaveText("Original Image");
+  await expect(dialog.locator("[data-annotation-selection-label]")).toHaveText("Original Image (Fixed)");
   await dragCanvas(400, 225, 520, 285);
-  await expect(imageObject).toHaveAttribute("x", "120");
-  await expect(imageObject).toHaveAttribute("y", "60");
+  await expect(imageObject).toHaveAttribute("x", "0");
+  await expect(imageObject).toHaveAttribute("y", "0");
   await expect(imageClipPath).toHaveCount(0);
   await dragCanvas(520, 285, 400, 225);
   await expect(imageObject).toHaveAttribute("x", "0");
@@ -4848,7 +4850,7 @@ test("RTE image annotation creates, crops, groups, locks, undoes, and reopens ed
   const arrowBeforeHitTesting = await readArrowGeometry(primaryArrow);
   const arrowBlankBoxPoint = await canvasClientPoint(530, 160);
   await page.mouse.click(arrowBlankBoxPoint.x, arrowBlankBoxPoint.y);
-  await expect(dialog.locator("[data-annotation-selection-label]")).toHaveText("Original Image");
+  await expect(dialog.locator("[data-annotation-selection-label]")).toHaveText(/Original Image(?: \(Fixed\))?/);
   const arrowDeltaX = arrowBeforeHitTesting.shaftEnd.x - arrowBeforeHitTesting.base.x;
   const arrowDeltaY = arrowBeforeHitTesting.shaftEnd.y - arrowBeforeHitTesting.base.y;
   const arrowShaftLength = Math.hypot(arrowDeltaX, arrowDeltaY);
@@ -4868,7 +4870,7 @@ test("RTE image annotation creates, crops, groups, locks, undoes, and reopens ed
   await page.mouse.click(arrowShaftPoint.x, arrowShaftPoint.y);
   await expect(dialog.locator("[data-annotation-selection-label]")).toHaveText("Arrow");
   await page.mouse.click(arrowBlankBoxPoint.x, arrowBlankBoxPoint.y);
-  await expect(dialog.locator("[data-annotation-selection-label]")).toHaveText("Original Image");
+  await expect(dialog.locator("[data-annotation-selection-label]")).toHaveText(/Original Image(?: \(Fixed\))?/);
   const arrowHeadPoint = await canvasClientPoint(
     arrowBeforeHitTesting.headCenter.x,
     arrowBeforeHitTesting.headCenter.y
@@ -5407,7 +5409,7 @@ test("RTE image annotation creates, crops, groups, locks, undoes, and reopens ed
 
   const croppedImageSelectionPoint = await canvasClientPoint(700, 380);
   await page.mouse.click(croppedImageSelectionPoint.x, croppedImageSelectionPoint.y);
-  await expect(dialog.locator("[data-annotation-selection-label]")).toHaveText("Original Image");
+  await expect(dialog.locator("[data-annotation-selection-label]")).toHaveText(/Original Image(?: \(Fixed\))?/);
   await dragCanvas(740, 400, 840, 460);
   await expect.poll(() => imageObject.getAttribute("width").then(Number)).toBeGreaterThan(800);
   const resizedImage = await imageObject.evaluate(element => ({
@@ -5474,7 +5476,7 @@ test("RTE image annotation creates, crops, groups, locks, undoes, and reopens ed
   }, await imageObject.getAttribute("data-annotation-object-id"));
   expect(movedImageSelectionPoint).not.toBeNull();
   await page.mouse.click(movedImageSelectionPoint.x, movedImageSelectionPoint.y);
-  await expect(dialog.locator("[data-annotation-selection-label]")).toHaveText("Original Image");
+  await expect(dialog.locator("[data-annotation-selection-label]")).toHaveText(/Original Image(?: \(Fixed\))?/);
   const movedImageX = Number(await imageObject.getAttribute("x"));
   await page.keyboard.press("ArrowRight");
   await expect.poll(() => imageObject.getAttribute("x").then(Number)).toBeCloseTo(movedImageX + 20, 2);
@@ -5528,7 +5530,7 @@ test("RTE image annotation creates, crops, groups, locks, undoes, and reopens ed
 
   const imageGroupSelectionPoint = await canvasClientPoint(900, 500);
   await page.mouse.click(imageGroupSelectionPoint.x, imageGroupSelectionPoint.y);
-  await expect(dialog.locator("[data-annotation-selection-label]")).toHaveText("Original Image");
+  await expect(dialog.locator("[data-annotation-selection-label]")).toHaveText(/Original Image(?: \(Fixed\))?/);
   await outsideRectangle.click({ modifiers: ["Shift"] });
   await expect(dialog.locator("[data-annotation-selection-label]")).toHaveText("2 objects selected");
   await openAnnotationContextMenu(outsideRectangle);
@@ -5600,7 +5602,7 @@ test("RTE image annotation creates, crops, groups, locks, undoes, and reopens ed
   await expect(reopenedCanvas.locator("[data-annotation-object-id]")).toHaveCount(6);
   await expect(reopenedCanvas.locator("text")).toHaveAttribute("text-anchor", "middle");
   expect(Number(await reopenedCanvas.locator("text").getAttribute("y"))).toBeCloseTo(textYBeforeExport, 5);
-  await expect(reopenedDialog.locator("[data-annotation-selection-label]")).toHaveText("Original Image");
+  await expect(reopenedDialog.locator("[data-annotation-selection-label]")).toHaveText(/Original Image(?: \(Fixed\))?/);
   await reopenedDialog.getByRole("tab", { name: "Objects", exact: true }).click();
   await reopenedDialog.locator(`[data-annotation-tree-kind='group'][data-annotation-tree-id='${imageGroupId}']`).click();
   await expect(reopenedDialog.locator("[data-annotation-selection-label]")).toHaveText("2 objects selected");
@@ -5663,6 +5665,312 @@ test("RTE image annotation creates, crops, groups, locks, undoes, and reopens ed
   expect(expectedTemporaryUploadErrors).toHaveLength(1);
   expect(runtimeErrors.filter(message => !/status of 401 \(Unauthorized\)/.test(message)
     && !expectedTemporaryUploadErrors.includes(message))).toEqual([]);
+});
+
+test("RTE Annotation 1.0 keeps the source image fixed and scales expanded annotations in the RTE", async ({ page }) => {
+  test.setTimeout(60_000);
+  const appState = createTestState();
+  const apiCalls = { securityReset: 0 };
+  const runtimeErrors = [];
+  page.on("pageerror", error => runtimeErrors.push(error.message));
+  page.on("console", message => {
+    if (message.type() === "error") runtimeErrors.push(message.text());
+  });
+
+  const originalSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="800" height="450" viewBox="0 0 800 450"><rect width="800" height="450" fill="#f2f2f2"/><text x="40" y="80" font-size="42">Move source image regression</text></svg>`;
+  let uploadedSvg = "";
+  let uploadCount = 0;
+
+  await markCurrentReleaseSeen(page, 1);
+  await installApiMocks(page, appState, apiCalls);
+  await page.route("**/uploads/richtext/move-source-original.svg", async route => {
+    await route.fulfill({ status: 200, contentType: "image/svg+xml", body: originalSvg });
+  });
+  await page.route("**/uploads/richtext/move-source-annotation.svg", async route => {
+    await route.fulfill({ status: 200, contentType: "image/svg+xml", body: uploadedSvg || originalSvg });
+  });
+  await page.route("**/api/uploads/richtext", async route => {
+    const requestBody = route.request().postDataBuffer()?.toString("utf8") || "";
+    const start = requestBody.indexOf("<?xml");
+    const end = requestBody.lastIndexOf("</svg>");
+    uploadedSvg = start >= 0 && end >= start ? requestBody.slice(start, end + "</svg>".length) : requestBody;
+    uploadCount += 1;
+    await route.fulfill(jsonResponse({
+      fileName: "move-source-annotation.svg",
+      url: "/uploads/richtext/move-source-annotation.svg",
+      contentType: "image/svg+xml",
+      byteLength: Buffer.byteLength(uploadedSvg)
+    }));
+  });
+
+  await page.goto("/");
+  await page.locator("#loginName").fill("Sin");
+  await page.locator("#loginPassword").fill("Password1");
+  await page.getByRole("button", { name: /log in/i }).click();
+  await openNavView(page, "Tasks", "Dev Tasks");
+  await page.locator("tr[data-task-id='1']").click();
+  await page.locator("dialog.detail-dialog").getByRole("button", { name: "Edit" }).click();
+
+  const editor = page.locator("#editorDialog [data-rich='descriptionHtml']");
+  await editor.evaluate(element => {
+    element.innerHTML = `<p>Annotation 1.0 moved image regression</p><img src="/uploads/richtext/move-source-original.svg" alt="Move source" width="240" height="135" style="width: 240px; height: 135px;">`;
+  });
+  const rteImage = editor.getByRole("img", { name: "Move source" });
+  await rteImage.evaluate(element => element.decode());
+  await rteImage.evaluate(element => {
+    element.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+  });
+  await page.getByRole("menuitem", { name: "Annotate", exact: true }).click();
+
+  const dialog = page.locator("dialog.image-annotation-dialog");
+  const canvas = dialog.locator("[data-annotation-canvas]");
+  await expect(dialog).toBeVisible();
+  const canvasClientPoint = (x, y) => canvas.evaluate((element, point) => {
+    const rect = element.getBoundingClientRect();
+    const viewBox = element.viewBox.baseVal;
+    return {
+      x: rect.left + (((point.x - viewBox.x) / viewBox.width) * rect.width),
+      y: rect.top + (((point.y - viewBox.y) / viewBox.height) * rect.height)
+    };
+  }, { x, y });
+  const dragCanvas = async (startX, startY, endX, endY) => {
+    const start = await canvasClientPoint(startX, startY);
+    const end = await canvasClientPoint(endX, endY);
+    await page.mouse.move(start.x, start.y);
+    await page.mouse.down();
+    await page.mouse.move(end.x, end.y, { steps: 5 });
+    await page.mouse.up();
+  };
+  const moveAnnotationObjectCenterTo = async (object, x, y) => {
+    const box = await object.boundingBox();
+    expect(box).not.toBeNull();
+    const target = await canvasClientPoint(x, y);
+    await page.mouse.move(box.x + (box.width / 2), box.y + (box.height / 2));
+    await page.mouse.down();
+    await page.mouse.move(target.x, target.y, { steps: 5 });
+    await page.mouse.up();
+  };
+
+  const imageObject = canvas.locator("[data-annotation-object-type='embedded-image']");
+  await expect(imageObject).toHaveCount(1);
+  await dragCanvas(400, 225, 500, 285);
+  await expect.poll(() => imageObject.getAttribute("x").then(Number)).toBe(0);
+  await expect.poll(() => imageObject.getAttribute("y").then(Number)).toBe(0);
+  await expect(dialog.locator("[data-annotation-selection-label]")).toHaveText("Original Image (Fixed)");
+  await expect(canvas.locator("clipPath[id^='pmt-annotation-image-clip-']")).toHaveCount(0);
+  const editorImageGeometry = await imageObject.evaluate(element => ({
+    x: element.getAttribute("x"),
+    y: element.getAttribute("y"),
+    width: element.getAttribute("width"),
+    height: element.getAttribute("height")
+  }));
+  await dialog.getByRole("button", { name: "Arrow (A)", exact: true }).click();
+  const outsideArrow = canvas.locator("[data-annotation-object-type='arrow']").last();
+  await expect(outsideArrow).toHaveCount(1);
+  await moveAnnotationObjectCenterTo(outsideArrow, -80, 80);
+
+  await dialog.getByRole("button", { name: "Apply to RTE", exact: true }).click();
+  await expect(dialog).toHaveCount(0);
+  expect(uploadCount).toBe(1);
+  const uploadedRoot = uploadedSvg.match(/<svg\b[^>]*>/)?.[0] || "";
+  const uploadedViewBox = uploadedRoot.match(/viewBox="([^"]+)"/)?.[1].split(/\s+/).map(Number) || [];
+  const uploadedWidth = Number(uploadedRoot.match(/width="([^"]+)"/)?.[1] || 0);
+  expect(uploadedViewBox[0]).toBeLessThan(0);
+  expect(uploadedWidth).toBeGreaterThan(800);
+  const exportedImageElement = uploadedSvg.match(/<image\b[^>]*>/)?.[0] || "";
+  expect(exportedImageElement).toContain('x="0"');
+  expect(exportedImageElement).toContain('y="0"');
+  expect(exportedImageElement).toContain('width="800"');
+  expect(exportedImageElement).toContain('height="450"');
+  const metadataJson = uploadedSvg.match(/<metadata[^>]*>(.*?)<\/metadata>/)?.[1] || "";
+  const metadataState = JSON.parse(metadataJson);
+  const metadataImage = metadataState.objects.find(object => object.type === "embedded-image");
+  expect(metadataState.canvasBounds.x).toBeCloseTo(uploadedViewBox[0], 2);
+  expect(metadataState.canvasBounds.width).toBeCloseTo(uploadedViewBox[2], 2);
+  expect(metadataImage.x).toBe(0);
+  expect(metadataImage.y).toBe(0);
+  expect(metadataImage.width).toBe(800);
+  expect(metadataImage.height).toBe(450);
+  expect(metadataImage.imageClip.x).toBe(0);
+  expect(metadataImage.imageClip.y).toBe(0);
+  expect(metadataImage.imageClip.width).toBe(metadataImage.width);
+  expect(metadataImage.imageClip.height).toBe(metadataImage.height);
+  expect(metadataState.objects.some(object => object.type === "arrow" && object.x1 < 0)).toBe(true);
+  expect(uploadedSvg).not.toContain("pmt-annotation-image-clip-");
+  await expect(rteImage).toHaveAttribute("src", /move-source-annotation\.svg$/);
+  await expect(rteImage).toHaveAttribute("data-pmt-annotation-source", "/uploads/richtext/move-source-original.svg");
+  await expect(rteImage).toHaveAttribute("data-pmt-annotation-version", "1");
+  await expect(rteImage).toHaveAttribute("width", "240");
+  await expect(rteImage).not.toHaveAttribute("height", /.+/);
+  await expect(rteImage).toHaveAttribute("style", /width:\s*240px;\s*height:\s*auto/);
+  expect(await rteImage.getAttribute("src")).not.toMatch(/^(data:|blob:)/);
+  const savedRteHtml = await editor.evaluate(element => element.innerHTML);
+  expect(savedRteHtml).not.toContain(uploadedSvg);
+  expect(savedRteHtml).not.toContain("data:image/svg+xml;base64,");
+
+  await rteImage.evaluate(element => element.decode());
+  await rteImage.evaluate(element => {
+    element.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+  });
+  await page.getByRole("menuitem", { name: "Edit Annotation", exact: true }).click();
+  const reopenedDialog = page.locator("dialog.image-annotation-dialog");
+  const reopenedCanvas = reopenedDialog.locator("[data-annotation-canvas]");
+  const reopenedImage = reopenedCanvas.locator("[data-annotation-object-type='embedded-image']");
+  await expect(reopenedDialog).toBeVisible();
+  await expect(reopenedImage).toHaveAttribute("x", editorImageGeometry.x);
+  await expect(reopenedImage).toHaveAttribute("y", editorImageGeometry.y);
+  await expect(reopenedImage).toHaveAttribute("width", editorImageGeometry.width);
+  await expect(reopenedImage).toHaveAttribute("height", editorImageGeometry.height);
+  const reopenedViewBox = (await reopenedCanvas.getAttribute("viewBox")).split(/\s+/).map(Number);
+  expect(reopenedViewBox[0]).toBeLessThan(0);
+  await expect(reopenedCanvas.locator("[data-annotation-object-type='arrow']")).toHaveCount(1);
+  await expect(reopenedCanvas.locator("clipPath[id^='pmt-annotation-image-clip-']")).toHaveCount(0);
+  await reopenedDialog.getByRole("button", { name: "Cancel", exact: true }).click();
+
+  expect(runtimeErrors.filter(message => !/status of 401 \(Unauthorized\)/.test(message))).toEqual([]);
+});
+
+test("RTE Annotation 2.0 keeps the source image fixed and scales expanded annotations in the RTE", async ({ page }) => {
+  test.setTimeout(60_000);
+  const appState = createTestState();
+  const apiCalls = { securityReset: 0 };
+  const originalSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="320" height="180" viewBox="0 0 320 180"><rect width="320" height="180" fill="#ffffff"/><text x="20" y="40" font-size="22">Annotate 2 source</text></svg>`;
+  let uploadedSvg = "";
+  let uploadCount = 0;
+
+  await markCurrentReleaseSeen(page, 1);
+  await installApiMocks(page, appState, apiCalls);
+  await page.route("**/uploads/richtext/move-source-2-original.svg", async route => {
+    await route.fulfill({ status: 200, contentType: "image/svg+xml", body: originalSvg });
+  });
+  await page.route("**/uploads/richtext/move-source-2-annotation.svg", async route => {
+    await route.fulfill({ status: 200, contentType: "image/svg+xml", body: uploadedSvg || originalSvg });
+  });
+  await page.route("**/api/uploads/richtext", async route => {
+    const requestBody = route.request().postDataBuffer()?.toString("utf8") || "";
+    const start = requestBody.indexOf("<?xml");
+    const end = requestBody.lastIndexOf("</svg>");
+    uploadedSvg = start >= 0 && end >= start ? requestBody.slice(start, end + "</svg>".length) : requestBody;
+    uploadCount += 1;
+    await route.fulfill(jsonResponse({
+      fileName: "move-source-2-annotation.svg",
+      url: "/uploads/richtext/move-source-2-annotation.svg",
+      contentType: "image/svg+xml",
+      byteLength: Buffer.byteLength(uploadedSvg)
+    }));
+  });
+
+  await page.goto("/");
+  await page.locator("#loginName").fill("Sin");
+  await page.locator("#loginPassword").fill("Password1");
+  await page.getByRole("button", { name: /log in/i }).click();
+  await openNavView(page, "Tasks", "Dev Tasks");
+  await page.locator("tr[data-task-id='1']").click();
+  await page.locator("dialog.detail-dialog").getByRole("button", { name: "Edit" }).click();
+
+  const editor = page.locator("#editorDialog [data-rich='descriptionHtml']");
+  await editor.evaluate(element => {
+    element.innerHTML = `<p>Annotation 2.0 moved image regression</p><img src="/uploads/richtext/move-source-2-original.svg" alt="Move source 2" width="160" height="90" style="width: 160px; height: 90px;">`;
+  });
+  const rteImage = editor.getByRole("img", { name: "Move source 2" });
+  await rteImage.evaluate(element => element.decode());
+  await rteImage.evaluate(element => {
+    element.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+  });
+  await page.getByRole("menuitem", { name: "Annotate 2.0", exact: true }).click();
+
+  await expect(page.locator("[data-diagram2-rte-host]")).toBeVisible();
+  const moveAttempt = await page.evaluate(async () => {
+    const controller = window.__pmtDiagram2EditorCore;
+    const image = controller.state().objects.find(object => object.type === "embedded-image" && object.isOriginalImage === true);
+    controller.setSelection([image.id]);
+    const moved = await controller.moveObjects([image.id], 80, 40, { reason: "test moved image" });
+    const afterMove = controller.state().objects.find(object => object.id === image.id);
+    controller.setState({
+      ...controller.state(),
+      objects: [
+        ...controller.state().objects,
+        {
+          id: "outside-arrow",
+          type: "arrow",
+          x1: -80,
+          y1: 60,
+          x2: 120,
+          y2: 100,
+          stroke: "#00b050",
+          strokeWidth: 6,
+          arrowSize: 24,
+          opacity: 1
+        }
+      ]
+    }, { resetHistory: false });
+    return { moved, x: afterMove.x, y: afterMove.y };
+  });
+  expect(moveAttempt).toEqual({ moved: false, x: 0, y: 0 });
+  await page.getByRole("button", { name: "Apply to RTE", exact: true }).click();
+  await expect(page.locator("[data-diagram2-rte-host]")).toHaveCount(0);
+
+  expect(uploadCount).toBe(1);
+  const uploadedRoot = uploadedSvg.match(/<svg\b[^>]*>/)?.[0] || "";
+  const uploadedViewBox = uploadedRoot.match(/viewBox="([^"]+)"/)?.[1].split(/\s+/).map(Number) || [];
+  const uploadedWidth = Number(uploadedRoot.match(/width="([^"]+)"/)?.[1] || 0);
+  expect(uploadedViewBox[0]).toBeLessThan(0);
+  expect(uploadedWidth).toBeGreaterThan(320);
+  const uploadedState = parseAnnotationSvg(uploadedSvg);
+  const uploadedImage = uploadedState.objects.find(object => object.type === "embedded-image" && object.isOriginalImage === true);
+  expect(uploadedState.canvasBounds.x).toBeCloseTo(uploadedViewBox[0], 2);
+  expect(uploadedState.canvasBounds.width).toBeCloseTo(uploadedViewBox[2], 2);
+  expect(uploadedImage).toMatchObject({
+    x: 0,
+    y: 0,
+    width: 320,
+    height: 180,
+    imageClip: { x: 0, y: 0, width: 320, height: 180 }
+  });
+  expect(uploadedState.objects.some(object => object.type === "arrow" && object.x1 < 0)).toBe(true);
+  expect(uploadedSvg).not.toContain("pmt-annotation-image-clip-");
+  await expect(rteImage).toHaveAttribute("src", /move-source-2-annotation\.svg$/);
+  await expect(rteImage).toHaveAttribute("data-pmt-annotation-source", "/uploads/richtext/move-source-2-original.svg");
+  await expect(rteImage).toHaveAttribute("data-pmt-annotation-version", "1");
+  await expect(rteImage).toHaveAttribute("width", "160");
+  await expect(rteImage).not.toHaveAttribute("height", /.+/);
+  await expect(rteImage).toHaveAttribute("style", /width:\s*160px;\s*height:\s*auto/);
+  expect(await rteImage.getAttribute("src")).not.toMatch(/^(data:|blob:)/);
+  const savedRteHtml = await editor.evaluate(element => element.innerHTML);
+  expect(savedRteHtml).not.toContain(uploadedSvg);
+  expect(savedRteHtml).not.toContain("data:image/svg+xml;base64,");
+
+  await rteImage.evaluate(element => element.decode());
+  await rteImage.evaluate(element => {
+    element.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+  });
+  await page.getByRole("menuitem", { name: "Edit Annotation 2.0", exact: true }).click();
+  const reopenedHost = page.locator("[data-diagram2-rte-host]");
+  await expect(reopenedHost).toBeVisible();
+  const reopenedImage = await page.evaluate(() => {
+    const state = window.__pmtDiagram2EditorCore.state();
+    const image = state.objects.find(object => object.type === "embedded-image" && object.isOriginalImage === true);
+    return {
+      x: image.x,
+      y: image.y,
+      width: image.width,
+      height: image.height,
+      imageClip: image.imageClip
+    };
+  });
+  expect(reopenedImage).toEqual({
+    x: 0,
+    y: 0,
+    width: 320,
+    height: 180,
+    imageClip: { x: 0, y: 0, width: 320, height: 180 }
+  });
+  const reopenedArrowCount = await page.evaluate(() => {
+    const state = window.__pmtDiagram2EditorCore.state();
+    return state.objects.filter(object => object.type === "arrow").length;
+  });
+  expect(reopenedArrowCount).toBe(1);
+  await reopenedHost.getByRole("button", { name: "Cancel", exact: true }).click();
 });
 
 test("RTE annotation templates preserve mixed native content and support keyboard workflows", async ({ page }) => {

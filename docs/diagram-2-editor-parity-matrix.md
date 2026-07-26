@@ -2,7 +2,7 @@
 
 This is the Phase 1 authoritative inventory for bringing Diagram 2 editor behavior to Diagram 1 parity. It records the visible Diagram 1 editor surface, the canonical data touched by each behavior, the likely renderer/history impact, and the phase that should own the Diagram 2 implementation.
 
-Phase 1 did not implement any editor features. `Status` is therefore `Inventoried` unless a later phase explicitly updates the row with command, renderer, history, compatibility, performance, and manual approval evidence.
+Phase 1 did not implement any editor features. Phase 2 updated the rows it owns with command, renderer, history, compatibility, performance, and automated-test evidence. Rows that still depend on later-phase behavior remain `Inventoried` or `UI Only` unless the specific behavior is complete.
 
 The post-Phase 1 visual editor parity addendum is incorporated here. Diagram 2 must visually present the familiar Diagram 1 editor by default: same layout, toolbar grouping and order, left Objects pane, center canvas, right inspector tab names and order, dialogs, context menus, selection affordances, shortcuts, and save/import/export workflows unless Sin explicitly approves a visible difference. This mandate does not permit copying Diagram 1's slow rendering lifecycle; every Diagram 2 behavior still routes through Diagram 2 commands, dirty categories, keyed SVG patches, selective routing, virtualization, and compatibility-safe persistence.
 
@@ -32,6 +32,19 @@ The post-Phase 1 visual editor parity addendum is incorporated here. Diagram 2 m
 | Phase 6 | Images, crop, entity annotations, field rectangles, field mapping tables. |
 | Phase 7 | Save/import/export, same-document roundtrip, row conflicts, dialogs, UX parity hardening. |
 | Phase 8 | Performance hardening, 500/1000 entity gates, promotion-readiness evidence. |
+
+## Phase 2 Completion Update
+
+Phase 2 completed the shared editor foundation and retired the temporary Diagram 2 renderer-development shell as the production editing surface. The implemented scope is intentionally limited to the shell, hosts, cached capability guard, command history, existing movement/nudge behavior, save/export placement, RTE upload-backed annotation save, and shared Diagram document-library/security wiring.
+
+| Parity ID(s) | Phase 2 status | Evidence |
+| --- | --- | --- |
+| HOST-RTE-001 to HOST-RTE-006 | Compatibility Complete for Phase 2 host launch/save/cancel/menu requirements; later editing tools remain in their owning phases. | `Annotate 2.0` and `Edit Annotation 2.0` launch the shared Diagram 2 editor core beside Diagram 1 actions. Save uses `uploadFile("richtext", file)` and persists the uploaded URL; cancel performs no upload. |
+| HOST-DOC-001 to HOST-DOC-002, LIB-001 | Compatibility Complete for shared document-list and host-adapter foundation. | Diagram 2 lists the same backing Diagram documents as Diagram 1 and opens the same IDs through `#/diagram-2/{documentId}`. |
+| SHELL-001 to SHELL-006 | UI Only / foundation complete. | Diagram 2 now uses a Diagram 1-familiar toolbar, Objects pane, canvas, inspector tab shell, status region, context menu shell, and collapsible diagnostics. Later-phase tool commands remain disabled where not implemented. |
+| TOOL-008, HIST-001 to HIST-002, GEO-001, GEO-005 | History Complete for existing move/nudge operations. | Move and keyboard nudge dispatch command history and incremental renderer updates; undo/redo do not call a complete live `renderer.render(...)`. |
+| SAVE-001, IO-001 to IO-003 | Compatibility Complete for existing document save/import/export placement and shared backing records. | Save/import/export continue using shared Diagram contracts and document services, with renderer caches excluded from persisted content. |
+| PERF-001 | Performance Complete for Phase 2 local movement/history operations. | Focused browser tests assert unchanged full-render count and keyed object identity for move, nudge, undo, redo, and save. |
 
 ## Visual Parity Control Register
 

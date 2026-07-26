@@ -4,7 +4,7 @@ import {
   annotationEntityFieldSupportsMapping,
   annotationEntityVisibleFields,
   normalizeAnnotationState
-} from "../../components/image-annotation.js?v=20260725-diagram2-day3-v1";
+} from "../../components/image-annotation.js?v=20260726-annotation-rte-composition-v2";
 
 const svgNamespace = "http://www.w3.org/2000/svg";
 const xlinkNamespace = "http://www.w3.org/1999/xlink";
@@ -1942,6 +1942,9 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
 
     next.x = finiteNumber(object.x, 0) + deltaX;
     next.y = finiteNumber(object.y, 0) + deltaY;
+    if (object.type === "embedded-image" && object.imageClip && typeof object.imageClip === "object") {
+      next.imageClip = translateDiagram2Bounds(object.imageClip, deltaX, deltaY);
+    }
     if (mode === "resize") {
       next.width = Math.max(1, positiveNumber(object.width, 1) + deltaWidth);
       next.height = Math.max(1, positiveNumber(object.height, 1) + deltaHeight);
@@ -4297,6 +4300,15 @@ function positiveNumber(value, fallback) {
 function finiteNumber(value, fallback) {
   const number = Number(value);
   return Number.isFinite(number) ? number : fallback;
+}
+
+function translateDiagram2Bounds(bounds, deltaX, deltaY) {
+  return {
+    x: finiteNumber(bounds?.x, 0) + finiteNumber(deltaX, 0),
+    y: finiteNumber(bounds?.y, 0) + finiteNumber(deltaY, 0),
+    width: Math.max(1, finiteNumber(bounds?.width, 1)),
+    height: Math.max(1, finiteNumber(bounds?.height, 1))
+  };
 }
 
 function clampNumber(value, min, max) {

@@ -97,11 +97,35 @@ test("No Access denies every effective right", () => {
 
 test("Diagram screens use the Documentation permission resource", () => {
   setUser({ id: 5, isAdmin: false, role: "Developer" }, [
-    permission("Documentation", { canRead: true })
+    permission("Documentation", {
+      canRead: true,
+      canCreate: true,
+      canUpdate: false,
+      canDelete: false,
+      canImport: true,
+      canExport: true
+    })
   ]);
 
   assert.equal(resourceForView("Diagram"), "Documentation");
   assert.equal(resourceForView("Diagram 2"), "Documentation");
   assert.equal(canReadView("Diagram"), true);
   assert.equal(canReadView("Diagram 2"), true);
+  assert.equal(canAccessResource(resourceForView("Diagram"), "Create"), canAccessResource(resourceForView("Diagram 2"), "Create"));
+  assert.equal(canAccessResource(resourceForView("Diagram"), "Update"), canAccessResource(resourceForView("Diagram 2"), "Update"));
+  assert.equal(canAccessResource(resourceForView("Diagram"), "Delete"), canAccessResource(resourceForView("Diagram 2"), "Delete"));
+  assert.equal(canAccessResource(resourceForView("Diagram"), "Import"), canAccessResource(resourceForView("Diagram 2"), "Import"));
+  assert.equal(canAccessResource(resourceForView("Diagram"), "Export"), canAccessResource(resourceForView("Diagram 2"), "Export"));
+
+  setUser({ id: 6, isAdmin: false, role: "Developer" }, [
+    permission("Documentation")
+  ]);
+
+  assert.equal(canReadView("Diagram"), false);
+  assert.equal(canReadView("Diagram 2"), false);
+
+  setUser({ id: 7, isAdmin: true, role: "Admin" }, []);
+  assert.equal(canReadView("Diagram"), true);
+  assert.equal(canReadView("Diagram 2"), true);
+  assert.equal(canAccessResource("Documentation", "Update"), true);
 });

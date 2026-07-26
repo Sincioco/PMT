@@ -226,6 +226,8 @@ export async function openImageAnnotationDialog(options) {
     generatePmtDatabaseSchema: options?.generatePmtDatabaseSchema,
     templateLibrary,
     templateLibraryError,
+    fixedOriginalImage: options?.fixedOriginalImage === true,
+    persistOutputBoundsInMetadata: options?.persistOutputBoundsInMetadata === true,
     apply: options?.apply,
     embedded: options?.embedded === true,
     initiallyMaximized: options?.initiallyMaximized === true,
@@ -243,14 +245,6 @@ export function buildAnnotationSvg(inputState, options = {}) {
   syncAnnotationFieldMappingTables(state);
   syncAnnotationEntityAnnotationArrows(state);
   resolveAnnotationEntityOverlaps(state);
-  const metadataState = options?.metadataState
-    ? normalizeAnnotationState(options.metadataState)
-    : state;
-  if (metadataState !== state) {
-    syncAnnotationFieldMappingTables(metadataState);
-    syncAnnotationEntityAnnotationArrows(metadataState);
-    resolveAnnotationEntityOverlaps(metadataState);
-  }
   const visibleObjects = annotationVisibleObjects(state);
   const relationshipStyle = options?.relationshipStyleOverride && typeof options.relationshipStyleOverride === "object"
     ? normalizeAnnotationEntityRelationshipStyle({ ...state.relationshipStyle, ...options.relationshipStyleOverride })
@@ -263,8 +257,19 @@ export function buildAnnotationSvg(inputState, options = {}) {
         compactRouting: state.compactEntityRelationshipRouting
       });
   const outputBounds = annotationOutputBounds(state, { relationshipRenderModel });
+  const metadataState = options?.metadataState
+    ? normalizeAnnotationState(options.metadataState)
+    : state;
+  if (metadataState !== state) {
+    syncAnnotationFieldMappingTables(metadataState);
+    syncAnnotationEntityAnnotationArrows(metadataState);
+    resolveAnnotationEntityOverlaps(metadataState);
+  }
+  const exportMetadataState = options?.persistOutputBoundsInMetadata === true
+    ? annotationStateWithCanvasBounds(metadataState, outputBounds)
+    : metadataState;
   const relationshipLayers = annotationObjectsAroundRelationshipLayer(visibleObjects);
-  const metadata = escapeXmlText(JSON.stringify(metadataState));
+  const metadata = escapeXmlText(JSON.stringify(exportMetadataState));
   const background = annotationCanvasBackgroundSvg(state, outputBounds);
   const fieldMappingHoverIds = options?.fieldMappingHoverIds instanceof Set
     ? options.fieldMappingHoverIds
@@ -2952,6 +2957,22 @@ function annotationCropImage(state, imageOrId = null) {
     || null;
 }
 
+function annotationStateWithCanvasBounds(inputState, bounds) {
+  const state = normalizeAnnotationState(inputState);
+  const canvasBounds = {
+    x: finiteNumber(bounds?.x, state.canvasBounds.x),
+    y: finiteNumber(bounds?.y, state.canvasBounds.y),
+    width: positiveNumber(bounds?.width, state.canvasBounds.width),
+    height: positiveNumber(bounds?.height, state.canvasBounds.height)
+  };
+  return normalizeAnnotationState({
+    ...state,
+    width: canvasBounds.width,
+    height: canvasBounds.height,
+    canvasBounds
+  });
+}
+
 function annotationEmbeddedImageEffectiveClip(object) {
   const fullBounds = annotationObjectBounds(object);
   if (!fullBounds) return null;
@@ -3835,8 +3856,13 @@ function createAnnotationDialog(context) {
       return state.objects.filter(object => object.type === "arrow"
         && (directIds.has(object.id) || (object.groupId && groupIds.has(object.groupId))));
     };
-    const editableSelection = () => selectedObjects()
-      .filter(object => !object.locked && !isAnnotationEntityRelationshipSelectionType(object.type));
+    const isFixedOriginalImage = object => context.fixedOriginalImage === true
+      && object?.type === "embedded-image"
+      && object.isOriginalImage === true;
+    const isPositionEditableObject = object => !object.locked
+      && !isFixedOriginalImage(object)
+      && !isAnnotationEntityRelationshipSelectionType(object.type);
+    const editableSelection = () => selectedObjects().filter(isPositionEditableObject);
     const selectedCropImage = () => {
       const selection = selectedObjects();
       return selection.length === 1 && selection[0]?.type === "embedded-image"
@@ -3905,6 +3931,7 @@ function createAnnotationDialog(context) {
       const annotationCount = selection.filter(object => !isAnnotationEntityRelationshipSelectionType(object.type)).length;
       const allLocked = hasSelection && selection.every(object => object.locked);
       const hasLocked = selection.some(object => object.locked);
+      const hasFixedOriginalImage = selection.some(isFixedOriginalImage);
       const image = selectedCropImage();
       const cropControlsImage = selectedCropControlsImage();
       const containsImage = Boolean(image);
@@ -3916,7 +3943,7 @@ function createAnnotationDialog(context) {
       dialog.querySelector("[data-annotation-selection-label]").textContent = !hasSelection
         ? "No selection"
         : selection.length === 1
-          ? `${annotationObjectLabel(first)}${first.locked ? " (Locked)" : ""}`
+          ? `${annotationObjectLabel(first)}${first.locked ? " (Locked)" : isFixedOriginalImage(first) ? " (Fixed)" : ""}`
           : `${selection.length} objects selected`;
 
       const relationshipFormatHint = dialog.querySelector("[data-annotation-relationship-format-hint]");
@@ -4208,10 +4235,10 @@ function createAnnotationDialog(context) {
       dialog.querySelector("[data-annotation-action='delete']").disabled = annotationCount === 0;
       dialog.querySelector("button[data-annotation-tool='crop']").disabled = !image || imageLocked;
       dialog.querySelector("[data-annotation-context-tool='crop']").disabled = !image || imageLocked;
-      dialog.querySelector("[data-annotation-action='group']").disabled = hasRelationshipSelection || selection.length < 2 || hasLocked || alreadyOneGroup;
-      dialog.querySelector("[data-annotation-action='ungroup']").disabled = hasRelationshipSelection || groupIds.size === 0 || hasLocked;
+      dialog.querySelector("[data-annotation-action='group']").disabled = hasRelationshipSelection || selection.length < 2 || hasLocked || hasFixedOriginalImage || alreadyOneGroup;
+      dialog.querySelector("[data-annotation-action='ungroup']").disabled = hasRelationshipSelection || groupIds.size === 0 || hasLocked || hasFixedOriginalImage;
       ["back", "backward", "forward", "front"].forEach(action => {
-        dialog.querySelector(`[data-annotation-action='${action}']`).disabled = hasRelationshipSelection || annotationCount === 0 || hasLocked;
+        dialog.querySelector(`[data-annotation-action='${action}']`).disabled = hasRelationshipSelection || annotationCount === 0 || hasLocked || hasFixedOriginalImage;
       });
       const lockButton = dialog.querySelector("[data-annotation-action='lock']");
       const lockLabel = lockButton.querySelector(".dropdown-menu-label");
@@ -4219,7 +4246,7 @@ function createAnnotationDialog(context) {
       else lockButton.textContent = allLocked ? "Unlock" : "Lock";
       lockButton.title = allLocked ? "Unlock selected objects" : "Lock selected objects";
       lockButton.setAttribute("aria-label", lockButton.title);
-      lockButton.disabled = !hasSelection || hasRelationshipSelection;
+      lockButton.disabled = !hasSelection || hasRelationshipSelection || hasFixedOriginalImage;
       dialog.querySelector("[data-annotation-action='reset-crop']").disabled = !containsImage
         || imageLocked
         || !annotationImageHasReversibleCrop(state, image);
@@ -4667,8 +4694,11 @@ function createAnnotationDialog(context) {
       const visibleObjects = annotationVisibleObjects(state);
       const normalSelectedIds = new Set([...selectedIds].filter(id => !fieldMappingSelectedIds.has(id)));
       const hiddenSelectionIds = cropAdjustmentSelectionHiddenIds();
+      const selectedSelectionObjects = visibleObjects
+        .filter(object => normalSelectedIds.has(object.id) && !hiddenSelectionIds.has(object.id))
+        .map(object => isFixedOriginalImage(object) ? { ...object, locked: true } : object);
       const markup = annotationSelectionSvg(
-        visibleObjects.filter(object => normalSelectedIds.has(object.id) && !hiddenSelectionIds.has(object.id)),
+        selectedSelectionObjects,
         zoom,
         null,
         visibleObjects
@@ -5539,6 +5569,8 @@ function createAnnotationDialog(context) {
             moved: false
           };
           canvas.setPointerCapture?.(event.pointerId);
+        } else if (objectRemainsSelected && isFixedOriginalImage(object)) {
+          setStatus("The source image is fixed. Use Crop to refine it, or add annotations around it.");
         } else if (objectRemainsSelected && object.locked) {
           setStatus("This object is locked. Select Unlock to move or resize it.");
         }
@@ -8241,6 +8273,7 @@ function createAnnotationDialog(context) {
           state,
           selectedIds,
           selectedObjects,
+          isObjectPositionFixed: isFixedOriginalImage,
           setStatus,
           pushHistory,
           restoreHistory,
@@ -8770,11 +8803,17 @@ function createAnnotationDialog(context) {
           originalReference
         });
         syncAnnotationFieldMappingTables(finalState);
+        const svgOptions = {
+          persistOutputBoundsInMetadata: context.persistOutputBoundsInMetadata === true
+        };
         const svg = context.portableImageSources
-          ? await buildPortableAnnotationSvg(finalState)
-          : buildAnnotationSvg(finalState);
+          ? await buildPortableAnnotationSvg(finalState, svgOptions)
+          : buildAnnotationSvg(finalState, svgOptions);
+        const resultState = context.persistOutputBoundsInMetadata === true
+          ? annotationStateWithCanvasBounds(finalState, annotationOutputBounds(finalState))
+          : finalState;
         const result = {
-          state: finalState,
+          state: resultState,
           svg,
           originalReference,
           fileName: annotationFileName(context.originalFileName)
@@ -8975,6 +9014,7 @@ function createAnnotationDialog(context) {
         state,
         selectedIds,
         selectedObjects,
+        isObjectPositionFixed: isFixedOriginalImage,
         setTool,
         setStatus,
         pushHistory,
@@ -13589,6 +13629,8 @@ function handleAnnotationAction(action, context) {
   }
 
   const selection = context.selectedObjects();
+  const isFixedPosition = object => typeof context.isObjectPositionFixed === "function"
+    && context.isObjectPositionFixed(object);
   if (!selection.length) return;
   const selectedRelationshipIds = [...context.selectedIds].filter(isAnnotationEntityRelationshipSelectionId);
   if (action === "delete" && selectedRelationshipIds.length) {
@@ -13608,6 +13650,7 @@ function handleAnnotationAction(action, context) {
   if (action === "delete") {
     const deletedIds = new Set(selection
       .filter(object => !isAnnotationEntityRelationshipSelectionType(object.type)
+        && object.isOriginalImage !== true
         && !object.locked)
       .map(object => object.id));
     const removalIds = annotationRemovalIdsWithEntityCallouts(context.state, deletedIds);
@@ -13621,6 +13664,10 @@ function handleAnnotationAction(action, context) {
     return;
   }
   if (action === "lock") {
+    if (selection.some(isFixedPosition)) {
+      context.setStatus("The source image is fixed. Use Crop to refine it, or add annotations around it.");
+      return;
+    }
     const shouldLock = !selection.every(object => object.locked);
     selection.forEach(object => { object.locked = shouldLock; });
     context.setStatus(shouldLock ? "Selection locked." : "Selection unlocked.");
@@ -13628,8 +13675,10 @@ function handleAnnotationAction(action, context) {
     return;
   }
   if (["group", "ungroup", "front", "forward", "backward", "back"].includes(action)
-    && selection.some(object => object.locked)) {
-    context.setStatus("Unlock the selection before grouping or arranging it.");
+    && selection.some(object => object.locked || isFixedPosition(object))) {
+    context.setStatus(selection.some(isFixedPosition)
+      ? "The source image is fixed. Use Crop to refine it, or add annotations around it."
+      : "Unlock the selection before grouping or arranging it.");
     return;
   }
   if (action === "group") {
@@ -13698,6 +13747,8 @@ function handleAnnotationKeyDown(event, context) {
   if (event.defaultPrevented) return;
   const control = event.target.closest?.("input, textarea, select, button");
   const key = event.key.toLowerCase();
+  const isFixedPosition = object => typeof context.isObjectPositionFixed === "function"
+    && context.isObjectPositionFixed(object);
   if ((event.ctrlKey || event.metaKey) && key === "z") {
     event.preventDefault();
     context.pushHistory();
@@ -13748,8 +13799,10 @@ function handleAnnotationKeyDown(event, context) {
     event.preventDefault();
     const action = event.shiftKey ? "ungroup" : "group";
     const selected = context.selectedObjects();
-    if (selected.some(object => object.locked)) {
-      context.setStatus("Unlock the selection before grouping it.");
+    if (selected.some(object => object.locked || isFixedPosition(object))) {
+      context.setStatus(selected.some(isFixedPosition)
+        ? "The source image is fixed. Use Crop to refine it, or add annotations around it."
+        : "Unlock the selection before grouping it.");
       return;
     }
     if (action === "group" && selected.length >= 2) {
@@ -13793,6 +13846,7 @@ function handleAnnotationKeyDown(event, context) {
     }
     const removable = new Set(context.selectedObjects()
       .filter(object => !isAnnotationEntityRelationshipSelectionType(object.type)
+        && object.isOriginalImage !== true
         && !object.locked)
       .map(object => object.id));
     if (!removable.size && [...context.selectedIds].some(id => id === entityRelationshipsSelectionId
@@ -13814,7 +13868,9 @@ function handleAnnotationKeyDown(event, context) {
   }
   if (["arrowleft", "arrowright", "arrowup", "arrowdown"].includes(key)) {
     const selection = context.selectedObjects()
-      .filter(object => !object.locked && !isAnnotationEntityRelationshipSelectionType(object.type));
+      .filter(object => !object.locked
+        && !isFixedPosition(object)
+        && !isAnnotationEntityRelationshipSelectionType(object.type));
     if (!selection.length || selection.length !== context.selectedIds.size) return;
     event.preventDefault();
     const distance = context.state.gridVisible ? context.state.gridSize : 1;
