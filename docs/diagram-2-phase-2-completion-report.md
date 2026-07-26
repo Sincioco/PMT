@@ -1,5 +1,11 @@
 # Diagram 2 Phase 2 Completion Report
 
+## Superseded Notice
+
+This is an earlier Phase 2 report. It has been superseded by `docs/diagram-2-phase-2-editor-foundation-completion-report.md`, committed at `c24dc5577eeeda24797c98239e1249e36f3ecb08`.
+
+Use the editor foundation completion report, the final Phase 2 implementation, and the screenshots under `docs/screenshots/diagram-2-phase-2/` as the authoritative Phase 2 baseline. Do not use this earlier report to restore a permanent left Objects pane or nonfunctional future inspector-tab placeholders.
+
 Phase completed: Phase 2 - Diagram 2 Editor Foundation, Command History, and Full Editor Shell
 
 Expected outcome status: PASS
@@ -25,9 +31,9 @@ Diagram 1 visual controls studied: `image-annotation.js`, `image-annotation.css`
 
 Toolbar groups reproduced: Select, Pan, disabled future tools, Undo, Redo, Save, Export, Zoom, and Fit are placed in the familiar top toolbar structure.
 
-Inspector tabs reproduced: Format, Crop, Mapping, Entity, Template, and Objects are present in the expected right-pane order.
+Inspector tabs reproduced: Format, Template, and Objects are present in the expected right-pane order. Crop, Mapping, Entity, and other later-phase tabs are deferred until their behavior is functional or an honest disabled control is specifically required for Diagram 1 parity.
 
-Objects pane parity: Left Objects pane shell lists canonical objects and selection state.
+Objects pane parity: The approved Phase 2 baseline places Objects in the right inspector tab/pane, where it lists canonical objects and selection state.
 
 Dialogs/context menus parity: RTE Diagram 2 editor opens in a modal annotation shell; document context menu shell is present for transferred document actions.
 
@@ -75,7 +81,7 @@ D2 document reopened in D1: PASS
 
 Ten-cycle top-navigation cleanup: PASS
 
-Ten-cycle RTE cleanup: Not separately looped in Phase 2; single open/save/cancel/permission flows passed and renderer lifecycle cleanup remains covered by the top-navigation and renderer stress specs.
+Ten-cycle RTE cleanup: PASS in the later Phase 2 closure gate. See the superseding editor foundation completion report for the 1366 and 1920 Chromium closure validation.
 
 ## Files Changed
 
@@ -163,7 +169,7 @@ Separate throttled host-mount timings were not rerun in this Phase 2 pass. The r
 ## Known Limitations
 
 - Later-phase drawing, resize, crop, entity, mapping, template, clipboard paste, and full inspector editing controls are not complete; disabled shell slots are intentional.
-- RTE ten-cycle cleanup was not separately looped in this pass.
+- RTE ten-cycle cleanup passed in the later closure gate documented by the superseding editor foundation completion report.
 - Separate CPU-throttled host timings were not rerun after introducing the shell. Renderer-level 6x evidence remains the active baseline.
 - Server-side authorization remains the authoritative boundary; the new client guard is defense-in-depth only.
 

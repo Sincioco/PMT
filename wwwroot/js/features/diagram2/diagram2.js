@@ -48,7 +48,7 @@ import {
   parseDiagram2PmtDiagramFile
 } from "./diagram2-compatibility.js?v=20260725-diagram2-day14-v1";
 import { createDiagram2DocumentHostAdapter } from "./diagram2-document-host-adapter.js?v=20260726-diagram2-phase2-v1";
-import { createDiagram2EditorController } from "./diagram2-editor-controller.js?v=20260726-d2-line-parity-v1";
+import { createDiagram2EditorController } from "./diagram2-editor-controller.js?v=20260726-diagram2-phase2-closure-v1";
 import {
   diagram2EditorShellHtml,
   diagram2ObjectsPaneHtml,
@@ -943,7 +943,7 @@ export function createDiagram2Feature({
       const objectsPanel = viewer.querySelector("[data-diagram2-inspector-panel='objects']");
       if (objectsPanel) objectsPanel.innerHTML = diagram2ObjectsPaneHtml(diagram2RendererState, diagram2SelectedObjectIds);
       diagram2Controller.onChange(event => {
-        diagram2RendererState = diagram2Controller.state();
+        diagram2RendererState = diagram2Controller.currentState();
         diagram2SelectedObjectIds = diagram2Controller.selectedObjectIds();
         updateDiagram2EditorControls();
         if (event.diagnostics) updateDiagram2Diagnostics(event.diagnostics);
@@ -1686,7 +1686,7 @@ export function createDiagram2Feature({
           reason: "pointer drag",
           rendererAlreadyUpdated: true
         });
-        diagram2RendererState = diagram2Controller.state();
+        diagram2RendererState = diagram2Controller.currentState();
         diagram2SelectedObjectIds = diagram2Controller.selectedObjectIds();
         updateDiagram2EditorControls();
         const idleDiagnostics = await renderer.whenIdle();
@@ -1701,7 +1701,7 @@ export function createDiagram2Feature({
 
   function diagram2PointerSelection(objectId, event) {
     const id = String(objectId || "").trim();
-    if (!id || !diagram2Controller?.state?.().objects?.some(object => object.id === id)) return [];
+    if (!id || !diagram2Controller?.getObjectById?.(id)) return [];
     if (!event.shiftKey && !event.ctrlKey && !event.metaKey) return [id];
 
     const selected = new Set(diagram2Controller.selectedObjectIds());
@@ -1713,7 +1713,7 @@ export function createDiagram2Feature({
   function setDiagram2Selection(ids) {
     if (diagram2Controller) {
       diagram2SelectedObjectIds = diagram2Controller.setSelection(ids);
-      diagram2RendererState = diagram2Controller.state();
+      diagram2RendererState = diagram2Controller.currentState();
     } else {
       const existingIds = new Set((diagram2RendererState?.objects || []).map(object => object.id));
       diagram2SelectedObjectIds = uniqueStrings(ids).filter(id => existingIds.has(id));
@@ -1734,7 +1734,7 @@ export function createDiagram2Feature({
       coalesce: options.coalesce === true
     });
     if (!moved) return false;
-    diagram2RendererState = diagram2Controller.state();
+    diagram2RendererState = diagram2Controller.currentState();
     diagram2SelectedObjectIds = diagram2Controller.selectedObjectIds();
     updateDiagram2EditorControls();
     const diagnostics = await diagram2Renderer.whenIdle();
@@ -1745,7 +1745,7 @@ export function createDiagram2Feature({
   async function saveDiagram2Document() {
     if (diagram2Busy || !diagram2Controller) return false;
     const document = currentDiagram2Document();
-    if (!document || !diagram2Controller.state()) {
+    if (!document || !diagram2Controller.currentState()) {
       notify?.("Select a Diagram before saving.");
       return false;
     }
@@ -1763,7 +1763,7 @@ export function createDiagram2Feature({
     updateDiagram2EditorControls();
     try {
       await diagram2Renderer?.whenIdle();
-      const stateForSave = normalizeDiagram2CanonicalState(diagram2Controller.state());
+      const stateForSave = diagram2Controller.state();
       const saved = await diagram2HostAdapter.save({
         diagram: {
           state: stateForSave,
@@ -1772,7 +1772,6 @@ export function createDiagram2Feature({
         }
       });
       diagram2RendererState = stateForSave;
-      diagram2Controller.setState(stateForSave, { resetHistory: false });
       diagram2Controller.markSaved();
       if (saved?.id) {
         selectedDiagramDocumentId = Number(saved.id);
@@ -1871,7 +1870,7 @@ export function createDiagram2Feature({
     }
     await diagram2Renderer?.whenIdle();
     const text = createDiagram2SelectionClipboardText({
-      state: normalizeDiagram2CanonicalState(diagram2Controller.state()),
+      state: diagram2Controller.state(),
       selectedObjectIds: diagram2Controller.selectedObjectIds()
     });
     globalThis.__pmtDiagram2SelectionClipboard = text;
@@ -1883,7 +1882,7 @@ export function createDiagram2Feature({
   async function undoDiagram2() {
     if (!diagram2Controller || diagram2Busy) return false;
     const result = await diagram2Controller.undo();
-    diagram2RendererState = diagram2Controller.state();
+    diagram2RendererState = diagram2Controller.currentState();
     diagram2SelectedObjectIds = diagram2Controller.selectedObjectIds();
     updateDiagram2EditorControls();
     const diagnostics = await diagram2Renderer?.whenIdle();
@@ -1894,7 +1893,7 @@ export function createDiagram2Feature({
   async function redoDiagram2() {
     if (!diagram2Controller || diagram2Busy) return false;
     const result = await diagram2Controller.redo();
-    diagram2RendererState = diagram2Controller.state();
+    diagram2RendererState = diagram2Controller.currentState();
     diagram2SelectedObjectIds = diagram2Controller.selectedObjectIds();
     updateDiagram2EditorControls();
     const diagnostics = await diagram2Renderer?.whenIdle();

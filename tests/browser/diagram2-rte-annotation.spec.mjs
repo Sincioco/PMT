@@ -28,7 +28,7 @@ test("Annotate 2.0 saves through the RTE upload URL and remains editable", async
     window.__diagram2RteNotifications = [];
   });
   await page.evaluate(async () => {
-    const { openDiagram2RteAnnotationHost } = await import("/js/features/diagram2/diagram2-rte-host-adapter.js?v=20260726-annotation-rte-composition-v2");
+    const { openDiagram2RteAnnotationHost } = await import("/js/features/diagram2/diagram2-rte-host-adapter.js?v=20260726-diagram2-phase2-closure-v1");
     const image = document.querySelector("#targetImage");
     const editor = document.querySelector(".rich-editor");
     window.__diagram2RtePromise = openDiagram2RteAnnotationHost({
@@ -55,28 +55,22 @@ test("Annotate 2.0 saves through the RTE upload URL and remains editable", async
   await expect(page.locator("[data-diagram2-rte-host]")).toBeVisible();
   const movedImage = await page.evaluate(async () => {
     const controller = window.__pmtDiagram2EditorCore;
-    const imageObject = controller.state().objects.find(object => object.type === "embedded-image" && object.isOriginalImage === true);
+    const imageObject = controller.currentState().objects.find(object => object.type === "embedded-image" && object.isOriginalImage === true);
     controller.setSelection([imageObject.id]);
     const moved = await controller.moveObjects([imageObject.id], 80, 40, { reason: "test moved image" });
-    const nextImage = controller.state().objects.find(object => object.id === imageObject.id);
-    controller.setState({
-      ...controller.state(),
-      objects: [
-        ...controller.state().objects,
-        {
-          id: "outside-arrow",
-          type: "arrow",
-          x1: -80,
-          y1: 60,
-          x2: 120,
-          y2: 100,
-          stroke: "#00b050",
-          strokeWidth: 6,
-          arrowSize: 24,
-          opacity: 1
-        }
-      ]
-    }, { resetHistory: false });
+    const nextImage = controller.getObjectById(imageObject.id);
+    controller.addObjectCanonical({
+      id: "outside-arrow",
+      type: "arrow",
+      x1: -80,
+      y1: 60,
+      x2: 120,
+      y2: 100,
+      stroke: "#00b050",
+      strokeWidth: 6,
+      arrowSize: 24,
+      opacity: 1
+    }, { reason: "test add outside arrow" });
     return {
       moved,
       x: nextImage.x,
@@ -136,7 +130,7 @@ test("Annotate 2.0 saves through the RTE upload URL and remains editable", async
   expect(saved.customSize).toBe("keep");
 
   await page.evaluate(async () => {
-    const { openDiagram2RteAnnotationHost } = await import("/js/features/diagram2/diagram2-rte-host-adapter.js?v=20260726-annotation-rte-composition-v2");
+    const { openDiagram2RteAnnotationHost } = await import("/js/features/diagram2/diagram2-rte-host-adapter.js?v=20260726-diagram2-phase2-closure-v1");
     const image = document.querySelector("#targetImage");
     const editor = document.querySelector(".rich-editor");
     window.__diagram2EditPromise = openDiagram2RteAnnotationHost({
@@ -190,7 +184,7 @@ test("Annotate 2.0 cancel performs no upload and leaves RTE image unchanged", as
   const before = await page.locator("#targetImage").evaluate(image => image.outerHTML);
 
   await page.evaluate(async () => {
-    const { openDiagram2RteAnnotationHost } = await import("/js/features/diagram2/diagram2-rte-host-adapter.js?v=20260726-annotation-rte-composition-v2");
+    const { openDiagram2RteAnnotationHost } = await import("/js/features/diagram2/diagram2-rte-host-adapter.js?v=20260726-diagram2-phase2-closure-v1");
     const image = document.querySelector("#targetImage");
     window.__diagram2CancelApplyCount = 0;
     window.__diagram2CancelPromise = openDiagram2RteAnnotationHost({
@@ -219,6 +213,68 @@ test("Annotate 2.0 cancel performs no upload and leaves RTE image unchanged", as
   expect(after.html).toBe(before);
 });
 
+test("Annotate 2.0 cancel cleans up renderer and controller across ten cycles", async ({ page }) => {
+  await page.route("**/uploads/original.svg*", route => route.fulfill({
+    status: 200,
+    contentType: "image/svg+xml",
+    body: `<svg xmlns="http://www.w3.org/2000/svg" width="320" height="180" viewBox="0 0 320 180"><rect width="320" height="180" fill="#ffffff"/></svg>`
+  }));
+
+  await page.goto("/");
+  await page.setContent(`
+    <div class="rich-editor" contenteditable="true">
+      <p><img id="targetImage" src="/uploads/original.svg" alt="Original" style="width: 160px;"></p>
+    </div>
+  `);
+
+  for (let index = 0; index < 10; index += 1) {
+    await page.evaluate(async cycle => {
+      const { openDiagram2RteAnnotationHost } = await import("/js/features/diagram2/diagram2-rte-host-adapter.js?v=20260726-diagram2-phase2-closure-v1");
+      const image = document.querySelector("#targetImage");
+      window.__diagram2RteCyclePromise = openDiagram2RteAnnotationHost({
+        image,
+        editor: document.querySelector(".rich-editor"),
+        source: `/uploads/original.svg?cycle=${cycle}`,
+        originalReference: "/uploads/original.svg",
+        originalUrl: `/uploads/original.svg?cycle=${cycle}`,
+        originalFileName: "original.svg",
+        canEdit: true,
+        apply: async () => {}
+      });
+    }, index);
+
+    await expect(page.locator("[data-diagram2-rte-host]")).toBeVisible();
+    const openSnapshot = await page.evaluate(() => ({
+      dialogCount: document.querySelectorAll("[data-diagram2-rte-host]").length,
+      svgCount: document.querySelectorAll("[data-diagram2-rte-host] [data-diagram2-svg]").length,
+      rendererLive: Boolean(window.__pmtDiagram2Renderer),
+      editorCoreLive: Boolean(window.__pmtDiagram2EditorCore),
+      rteHostLive: Boolean(window.__pmtDiagram2RteHost)
+    }));
+    expect(openSnapshot).toEqual({
+      dialogCount: 1,
+      svgCount: 1,
+      rendererLive: true,
+      editorCoreLive: true,
+      rteHostLive: true
+    });
+
+    await page.locator("[data-diagram2-rte-host]").getByRole("button", { name: "Cancel", exact: true }).click();
+    await page.evaluate(() => window.__diagram2RteCyclePromise);
+    await waitForDiagram2RteCleanup(page);
+    const closeSnapshot = await diagram2RteCleanupSnapshot(page);
+    expect(closeSnapshot).toEqual({
+      dialogCount: 0,
+      svgCount: 0,
+      selectionOverlayCount: 0,
+      relationshipPreviewCount: 0,
+      rendererLive: false,
+      editorCoreLive: false,
+      rteHostLive: false
+    });
+  }
+});
+
 test("Annotate 2.0 cannot bypass the originating RTE update permission", async ({ page }) => {
   await page.goto("/");
   await page.setContent(`
@@ -228,7 +284,7 @@ test("Annotate 2.0 cannot bypass the originating RTE update permission", async (
   `);
 
   const result = await page.evaluate(async () => {
-    const { openDiagram2RteAnnotationHost } = await import("/js/features/diagram2/diagram2-rte-host-adapter.js?v=20260726-annotation-rte-composition-v2");
+    const { openDiagram2RteAnnotationHost } = await import("/js/features/diagram2/diagram2-rte-host-adapter.js?v=20260726-diagram2-phase2-closure-v1");
     const image = document.querySelector("#targetImage");
     const notifications = [];
     let applyCount = 0;
@@ -267,3 +323,21 @@ test("Annotate 2.0 cannot bypass the originating RTE update permission", async (
   expect(result.src).toBe("/uploads/original.svg");
   expect(result.notifications).toContain("You do not have permission to edit this content.");
 });
+
+async function waitForDiagram2RteCleanup(page) {
+  await page.evaluate(() => new Promise(resolve => {
+    requestAnimationFrame(() => requestAnimationFrame(resolve));
+  }));
+}
+
+async function diagram2RteCleanupSnapshot(page) {
+  return page.evaluate(() => ({
+    dialogCount: document.querySelectorAll("[data-diagram2-rte-host]").length,
+    svgCount: document.querySelectorAll("[data-diagram2-rte-host] [data-diagram2-svg]").length,
+    selectionOverlayCount: document.querySelectorAll("[data-diagram2-rte-host] [data-diagram2-selection-id]").length,
+    relationshipPreviewCount: document.querySelectorAll("[data-diagram2-rte-host] [data-diagram2-relationship-preview-id]").length,
+    rendererLive: Boolean(window.__pmtDiagram2Renderer),
+    editorCoreLive: Boolean(window.__pmtDiagram2EditorCore),
+    rteHostLive: Boolean(window.__pmtDiagram2RteHost)
+  }));
+}

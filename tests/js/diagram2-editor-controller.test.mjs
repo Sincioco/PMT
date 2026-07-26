@@ -20,19 +20,71 @@ test("Diagram 2 editor controller records incremental move commands without full
 
   controller.setSelection(["box"]);
   assert.equal(await controller.moveSelectedObjects(10, -4), true);
-  assert.equal(controller.state().objects.find(object => object.id === "box").x, 130);
-  assert.equal(controller.state().objects.find(object => object.id === "box").y, 92);
+  assert.equal(controller.getObjectById("box").x, 130);
+  assert.equal(controller.getObjectById("box").y, 92);
   assert.equal(renderer.fullRenderCount, 0);
   assert.deepEqual(renderer.updatedObjectIds, ["box"]);
   assert.equal(controller.historyStatus().dirty, true);
 
   assert.equal(await controller.undo(), true);
-  assert.equal(controller.state().objects.find(object => object.id === "box").x, 120);
+  assert.equal(controller.getObjectById("box").x, 120);
   assert.equal(controller.historyStatus().dirty, false);
 
   assert.equal(await controller.redo(), true);
-  assert.equal(controller.state().objects.find(object => object.id === "box").x, 130);
+  assert.equal(controller.getObjectById("box").x, 130);
   assert.equal(controller.historyStatus().dirty, true);
+});
+
+test("Diagram 2 controller moves one object in a large state without full-state serialization or scans", async () => {
+  const renderer = fakeRenderer();
+  const controller = createDiagram2EditorController({
+    renderer,
+    host: editableHost(),
+    state: largeState(1200)
+  });
+  const selectedId = "box-600";
+  const selectedBefore = controller.getObjectById(selectedId);
+  const unrelatedBefore = controller.getObjectById("box-599");
+  const firstBefore = controller.getObjectById("box-0");
+  const lastBefore = controller.getObjectById("box-1199");
+  const originalStringify = JSON.stringify;
+  let stringifyCount = 0;
+  JSON.stringify = function countingStringify(...args) {
+    stringifyCount += 1;
+    return originalStringify.apply(this, args);
+  };
+
+  try {
+    controller.setSelection([selectedId]);
+    assert.equal(await controller.moveSelectedObjects(12, 8), true);
+    assert.equal(controller.getObjectById(selectedId).x, selectedBefore.x + 12);
+    assert.equal(controller.getObjectById(selectedId).y, selectedBefore.y + 8);
+    assertIndexedMoveDiagnostics(controller, selectedId);
+    assert.equal(renderer.fullRenderCount, 0);
+    assert.deepEqual(renderer.updatedObjectIds, [selectedId]);
+    assert.equal(controller.getObjectById("box-599"), unrelatedBefore);
+    assert.equal(controller.currentState().objects[599], unrelatedBefore);
+    assert.equal(controller.currentState().objects[0], firstBefore);
+    assert.equal(controller.currentState().objects[1199], lastBefore);
+
+    assert.equal(await controller.undo(), true);
+    assert.equal(controller.getObjectById(selectedId).x, selectedBefore.x);
+    assert.equal(controller.getObjectById(selectedId).y, selectedBefore.y);
+    assertIndexedMoveDiagnostics(controller, selectedId);
+    assert.deepEqual(renderer.updatedObjectIds, [selectedId, selectedId]);
+    assert.equal(controller.getObjectById("box-599"), unrelatedBefore);
+
+    assert.equal(await controller.redo(), true);
+    assert.equal(controller.getObjectById(selectedId).x, selectedBefore.x + 12);
+    assert.equal(controller.getObjectById(selectedId).y, selectedBefore.y + 8);
+    assertIndexedMoveDiagnostics(controller, selectedId);
+    assert.deepEqual(renderer.updatedObjectIds, [selectedId, selectedId, selectedId]);
+    assert.equal(controller.getObjectById("box-599"), unrelatedBefore);
+  } finally {
+    JSON.stringify = originalStringify;
+  }
+
+  assert.equal(stringifyCount, 0);
 });
 
 test("Diagram 2 read-only sessions block command, undo, and redo mutations from cached capabilities", async () => {
@@ -44,7 +96,7 @@ test("Diagram 2 read-only sessions block command, undo, and redo mutations from 
 
   controller.setSelection(["box"]);
   assert.equal(await controller.moveSelectedObjects(10, 0), true);
-  assert.equal(controller.state().objects.find(object => object.id === "box").x, 130);
+  assert.equal(controller.getObjectById("box").x, 130);
 
   controller.setHost(readOnlyHost());
   assert.equal(controller.statusSnapshot().canEdit, false);
@@ -52,7 +104,7 @@ test("Diagram 2 read-only sessions block command, undo, and redo mutations from 
   assert.equal(await controller.undo(), false);
   assert.equal(await controller.redo(), false);
   assert.equal(await controller.moveSelectedObjects(10, 0), false);
-  assert.equal(controller.state().objects.find(object => object.id === "box").x, 130);
+  assert.equal(controller.getObjectById("box").x, 130);
 });
 
 test("Diagram 2 editor controller defaults to read-only without explicit update capability", async () => {
@@ -64,7 +116,7 @@ test("Diagram 2 editor controller defaults to read-only without explicit update 
   controller.setSelection(["box"]);
   assert.equal(controller.statusSnapshot().canEdit, false);
   assert.equal(await controller.moveSelectedObjects(10, 0), false);
-  assert.equal(controller.state().objects.find(object => object.id === "box").x, 120);
+  assert.equal(controller.getObjectById("box").x, 120);
 });
 
 test("Diagram 2 moving the original image keeps its full image clip aligned", async () => {
@@ -76,7 +128,7 @@ test("Diagram 2 moving the original image keeps its full image clip aligned", as
 
   controller.setSelection(["source-image"]);
   assert.equal(await controller.moveSelectedObjects(40, 20), true);
-  const image = controller.state().objects.find(object => object.id === "source-image");
+  const image = controller.getObjectById("source-image");
   assert.equal(image.x, 40);
   assert.equal(image.y, 20);
   assert.deepEqual(image.imageClip, { x: 40, y: 20, width: 100, height: 50 });
@@ -159,6 +211,42 @@ function imageState() {
       isOriginalImage: true
     }]
   };
+}
+
+function largeState(count) {
+  return {
+    version: 1,
+    width: 4000,
+    height: 2400,
+    objects: Array.from({ length: count }, (_, index) => ({
+      id: `box-${index}`,
+      type: "rectangle",
+      x: (index % 40) * 120,
+      y: Math.floor(index / 40) * 90,
+      width: 90,
+      height: 48,
+      fill: "#ffffff",
+      stroke: "#172b4d",
+      strokeWidth: 2
+    }))
+  };
+}
+
+function assertIndexedMoveDiagnostics(controller, selectedId) {
+  const diagnostics = controller.diagnostics();
+  assert.equal(diagnostics.canonicalObjectCount, 1200);
+  assert.equal(diagnostics.canonicalIndexSize, 1200);
+  assert.equal(diagnostics.fullStateSerializationCount, 0);
+  assert.equal(diagnostics.lastCanonicalOperation.kind, "update-objects");
+  assert.equal(diagnostics.lastCanonicalOperation.changed, true);
+  assert.deepEqual(diagnostics.lastCanonicalOperation.affectedObjectIds, [selectedId]);
+  assert.equal(diagnostics.lastCanonicalOperation.requestedObjectCount, 1);
+  assert.equal(diagnostics.lastCanonicalOperation.objectLookupCount, 1);
+  assert.equal(diagnostics.lastCanonicalOperation.objectPatchCount, 1);
+  assert.equal(diagnostics.lastCanonicalOperation.objectArrayCopyCount, 1);
+  assert.equal(diagnostics.lastCanonicalOperation.objectContainerReindexed, false);
+  assert.equal(diagnostics.lastCanonicalOperation.fullStateNormalizationCount, 0);
+  assert.equal(diagnostics.lastCanonicalOperation.fullStateSerializationCount, 0);
 }
 
 function editableHost() {

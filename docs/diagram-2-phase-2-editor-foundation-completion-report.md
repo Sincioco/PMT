@@ -16,6 +16,74 @@ The phase also fixed the current production annotation save-back clipping proble
 
 Phase 2 is complete as an editor foundation. Full Diagram 1 feature parity is not complete and remains for later phases.
 
+## Phase 2 Closure Gate Update
+
+Closure update: 2026-07-26
+
+Purpose:
+
+- Resolve Phase 2 documentation conflicts before Phase 3.
+- Harden the Diagram 2 controller canonical-state hot path before adding more commands.
+- Add the missing RTE and alternating-host lifecycle coverage.
+- Restore portable SQLCMD include paths in the development rebuild runner.
+
+Documentation conflicts resolved:
+
+- `docs/diagram-2-phase-2-completion-report.md` now carries a prominent superseded notice pointing to this report and commit `c24dc5577eeeda24797c98239e1249e36f3ecb08`.
+- Architecture and parity docs now state that the approved Phase 2 shell places Objects in the right inspector tab/pane.
+- Crop, Mapping, Entity, and later-phase tabs are documented as deferred until behavior is functional or an honest disabled parity control is specifically required.
+- The approved screenshots under `docs/screenshots/diagram-2-phase-2/` remain the visual baseline.
+
+Canonical-state hot path before:
+
+- Local move created a fully normalized copy of the state.
+- It mapped the complete `objects` array.
+- It normalized the complete state again.
+- It compared complete normalized states with `JSON.stringify`.
+- The controller `setState` path normalized the complete state again.
+- Controller status recalculated relationship counts by reducing all objects.
+
+Canonical-state hot path after:
+
+- The controller owns `objectById` and `objectIndexById` maps.
+- Local move, undo, and redo call `updateObjectsCanonical` for the affected object IDs only.
+- The canonical objects container is shallow-copied once for minimum array bookkeeping; unrelated object references are preserved.
+- Ordinary move, undo, and redo perform no full-state JSON serialization and no full-state normalization.
+- Relationship counts are maintained with object updates instead of reduced across the complete object list on every status event.
+- `setState` remains available for explicit global state replacement, initial load, import/reset, and other non-command boundaries.
+
+Focused controller APIs added:
+
+- `getObjectById`
+- `getObjectsByIds`
+- `updateObjectCanonical`
+- `updateObjectsCanonical`
+- `addObjectCanonical`
+- `removeObjectsCanonical`
+- `currentState`
+- `diagnostics`
+
+Test coverage added and executed in the closure pass:
+
+- `tests/js/diagram2-editor-controller.test.mjs` now includes a 1,200-object controller fixture proving one-object move, undo, and redo patch only one object, preserve unrelated object identity, keep full-render count unchanged, and do not call `JSON.stringify`.
+- `tests/browser/diagram2-rte-annotation.spec.mjs` now includes a ten-cycle Annotate 2.0 open/cancel cleanup test.
+- `tests/browser/diagram2-beta-readiness.spec.mjs` now includes an alternating top-navigation Diagram 2 edit close and RTE Annotate 2.0 cancel lifecycle test with DOM/global/listener/object URL/animation-frame snapshots.
+
+SQL path decision:
+
+- `SQL/00_DropAndRebuild_PMT.sql` now uses portable relative SQLCMD `:r ".\..."` includes, matching the script header that expects companion files in the same folder.
+
+Closure validation status:
+
+- PASS. Sin later authorized assistant-run tests before finalizing this report.
+- `cmd /c npm.cmd run check:js` passed, syntax-checking 166 JavaScript modules.
+- `cmd /c npm.cmd run test:js` passed 362/362 tests.
+- `cmd /c npx.cmd playwright test tests/browser/diagram2-navigation.spec.mjs tests/browser/diagram2-rte-annotation.spec.mjs tests/browser/diagram2-beta-readiness.spec.mjs --project=chromium-1366` passed 12/12 tests.
+- `cmd /c npx.cmd playwright test tests/browser/diagram2-navigation.spec.mjs tests/browser/diagram2-rte-annotation.spec.mjs tests/browser/diagram2-beta-readiness.spec.mjs --project=chromium-1920` passed 12/12 tests.
+- `git diff --check` passed with only CRLF normalization warnings.
+- `dotnet build` initially failed because the Playwright PMT test server process locked `bin\Debug\net6.0\PMT.exe`; after stopping that local test server, `dotnet build` passed with only the existing `NETSDK1138` .NET 6 end-of-support warning.
+- The 3D About flyby was not tested because this closure pass did not change it.
+
 ## Phase 2 Time Spent
 
 Recorded active Phase 2 collaboration window: about 8 hours 5 minutes.
@@ -95,9 +163,9 @@ The following screenshots were generated from the local PMT app at `http://local
 | D2 annotation reopened in D1 | PARTIAL. The shared annotation SVG contract is preserved, but unsupported D2-only future features must remain visible/preserved rather than hidden. |
 | D1 document opened in D2 | PASS. D1 and D2 share the same backing Diagram document library and IDs. |
 | D2 document reopened in D1 | PASS for shared document records and canonical SVG persistence. |
-| Ten-cycle RTE cleanup | PARTIAL. RTE lifecycle cleanup was designed into the adapter; a dedicated ten-cycle browser test remains recommended before final parity completion. |
-| Ten-cycle top-navigation cleanup | PASS in browser spec coverage. The final publish verification syntax-checked the browser spec; the focused Node tests were executed. |
-| Alternating-host cleanup | PARTIAL. D2 top-navigation cleanup is covered; alternating RTE/top-nav stress cleanup remains recommended. |
+| Ten-cycle RTE cleanup | PASS. The dedicated ten-cycle Annotate 2.0 open/cancel cleanup browser test passed in the 1366 and 1920 Chromium closure runs. |
+| Ten-cycle top-navigation cleanup | PASS in browser spec coverage. The Diagram 2 beta readiness browser tests passed in the 1366 and 1920 Chromium closure runs. |
+| Alternating-host cleanup | PASS. The alternating top-navigation Diagram 2 edit close and RTE Annotate 2.0 cancel lifecycle test passed in the 1366 and 1920 Chromium closure runs. |
 
 ## Per-Host Performance Evidence
 
@@ -111,7 +179,7 @@ The following screenshots were generated from the local PMT app at `http://local
 | File | Responsibility |
 |---|---|
 | `Requirements/2026-07-25 - Requirements - Day 37.txt` | Requirement note adjustments included in the published working tree. |
-| `SQL/00_DropAndRebuild_PMT.sql` | Local rebuild SQLCMD include paths were updated in the rebuild snapshot. This is not a deployed schema migration. |
+| `SQL/00_DropAndRebuild_PMT.sql` | Local rebuild SQLCMD include paths were restored to portable relative paths. This is not a deployed schema migration. |
 | `tests/browser/diagram2-beta-readiness.spec.mjs` | Browser coverage for D2 shell readiness, navigation, zoom matrix, stress cleanup, and renderer destruction. |
 | `tests/browser/diagram2-navigation.spec.mjs` | Browser coverage for read/edit mode separation, document library parity, actions, inspector behavior, read-only mutation blocking, and lifecycle cleanup. |
 | `tests/js/diagram2-readonly-shell.test.mjs` | Unit/source coverage for D2 read-only shell, shared document preferences, downloads, diagnostics toggle, and flat no-shadow CSS. |
@@ -371,7 +439,28 @@ Results:
 Browser tests:
 
 - `tests/browser/diagram2-beta-readiness.spec.mjs` and `tests/browser/diagram2-navigation.spec.mjs` were updated and syntax-checked.
-- They were not executed in the final publish pass.
+- They were not executed in the original Phase 2 publish pass; the closure validation below executed the updated browser coverage before Phase 3.
+
+Closure validation run on 2026-07-26 before Phase 3:
+
+```powershell
+cmd /c npm.cmd run check:js
+cmd /c npm.cmd run test:js
+cmd /c npx.cmd playwright test tests/browser/diagram2-navigation.spec.mjs tests/browser/diagram2-rte-annotation.spec.mjs tests/browser/diagram2-beta-readiness.spec.mjs --project=chromium-1366
+cmd /c npx.cmd playwright test tests/browser/diagram2-navigation.spec.mjs tests/browser/diagram2-rte-annotation.spec.mjs tests/browser/diagram2-beta-readiness.spec.mjs --project=chromium-1920
+git diff --check
+dotnet build
+```
+
+Closure results:
+
+- JavaScript syntax check passed: 166 JavaScript modules.
+- JavaScript unit suite passed: 362/362 tests.
+- Diagram 2 focused browser suite passed at 1366: 12/12 tests.
+- Diagram 2 focused browser suite passed at 1920: 12/12 tests.
+- `git diff --check` passed with only CRLF normalization warnings.
+- `dotnet build` passed after stopping the local Playwright PMT test server that held `PMT.exe`; the only remaining build warnings were the existing `NETSDK1138` .NET 6 end-of-support warnings.
+- The 3D About flyby was intentionally not tested because no About flyby files changed.
 
 Screenshot evidence:
 
@@ -404,16 +493,14 @@ Manual testing:
 - D2 does not yet implement every Diagram 1 drawing tool, inspector control, crop workflow, template operation, mapping/entity editor operation, grouping/layering command, or full object-tree drag/reorder behavior.
 - D2 relationship routing does not yet use D1's full candidate route-costing algorithm. D2 currently uses a high-performance deterministic route path with caching/selective rerouting and D1-like visual painting.
 - CPU-throttled end-to-end host performance numbers were not recorded in the final publish verification.
-- Browser specs were updated and syntax-checked but not executed in the final publish verification.
 - The localhost-only D1/D2 comparison alignment shim is intentionally temporary and should be removed when local visual comparison is no longer needed.
-- SQL `00_DropAndRebuild_PMT.sql` now contains absolute include paths for the local PMT workspace. This is useful locally but should be reviewed before relying on it as a portable rebuild script.
 
 ## Required Refresh And Build
 
 | Area | Required action |
 |---|---|
 | Browser JS/CSS | `Ctrl+F5` only. Cache-bust query strings were updated. |
-| .NET runtime | No .NET rebuild is required for the Phase 2 browser-visible changes. |
+| .NET runtime | No .NET rebuild is required to see the Phase 2 browser-visible changes, though `dotnet build` was rerun and passed for validation. |
 | Database migration | No forward database migration was added for this phase. |
 
 ## Commit

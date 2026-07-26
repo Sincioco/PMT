@@ -10,7 +10,7 @@ import {
   normalizeDiagram2CanonicalState
 } from "./diagram2-renderer.js?v=20260726-d2-line-parity-v1";
 import { createDiagram2SelectionClipboardText } from "./diagram2-compatibility.js?v=20260725-diagram2-day14-v1";
-import { createDiagram2EditorController } from "./diagram2-editor-controller.js?v=20260726-d2-line-parity-v1";
+import { createDiagram2EditorController } from "./diagram2-editor-controller.js?v=20260726-diagram2-phase2-closure-v1";
 import {
   diagram2EditorShellHtml,
   updateDiagram2ObjectTreeSelection,
@@ -133,9 +133,10 @@ export async function openDiagram2RteAnnotationHost(options = {}) {
       controller.setBusy(true);
       try {
         await renderer.whenIdle();
-        const stateForSave = normalizeDiagram2RteSaveState(controller.state(), {
-          width: controller.state().width,
-          height: controller.state().height,
+        const currentState = controller.state();
+        const stateForSave = normalizeDiagram2RteSaveState(currentState, {
+          width: currentState.width,
+          height: currentState.height,
           originalReference
         });
         const payload = {
@@ -448,7 +449,7 @@ function startDiagram2RteObjectDrag(canvas, objectId, event, controller, rendere
   const selectedIds = diagram2PointerSelection(controller, objectId, event);
   controller.setSelection(selectedIds);
   if (controller.statusSnapshot().canEdit !== true) return;
-  if (selectedIds.some(id => diagram2RteSourceImageFixed(controller.state(), id))) {
+  if (selectedIds.some(id => diagram2RteSourceImageFixed(controller.getObjectById(id)))) {
     event.preventDefault();
     return;
   }
@@ -490,11 +491,10 @@ function startDiagram2RteObjectDrag(canvas, objectId, event, controller, rendere
   window.addEventListener("pointercancel", finish, { signal, once: true });
 }
 
-function diagram2RteSourceImageFixed(state, objectId) {
-  return (state?.objects || []).some(object =>
-    object.id === objectId
+function diagram2RteSourceImageFixed(object) {
+  return object
     && object.type === "embedded-image"
-    && object.isOriginalImage === true);
+    && object.isOriginalImage === true;
 }
 
 function diagram2PointerSelection(controller, objectId, event) {

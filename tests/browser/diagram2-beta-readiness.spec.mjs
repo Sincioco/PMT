@@ -177,6 +177,63 @@ test("Diagram 2 renderer destroys pending 232-entity stress work without stale l
   expect(result.afterDestroy.idleAfterDestroy.canonicalObjectCount).toBe(0);
 });
 
+test("Diagram 2 alternates top-navigation and RTE hosts without stale lifecycle artifacts", async ({ page }) => {
+  const browserErrors = [];
+  page.on("console", message => {
+    if (message.type() === "error" && !message.text().includes("status of 401")) browserErrors.push(message.text());
+  });
+  page.on("pageerror", error => browserErrors.push(error.message));
+
+  await installDiagram2LifecycleInstrumentation(page);
+  await page.route("**/uploads/original.svg*", route => route.fulfill({
+    status: 200,
+    contentType: "image/svg+xml",
+    body: `<svg xmlns="http://www.w3.org/2000/svg" width="320" height="180" viewBox="0 0 320 180"><rect width="320" height="180" fill="#ffffff"/></svg>`
+  }));
+  await signInWithDiagramState(page);
+  await openNavigationScreen(page, "Diagram");
+  await ensureDiagram2RteFixture(page);
+
+  await openNavigationScreen(page, "Diagram 2");
+  await waitForDiagram2Ready(page);
+  await page.getByRole("button", { name: "Edit Diagram" }).click();
+  await expect(page.locator("[data-diagram2-editor-shell]")).toBeVisible();
+  await page.getByRole("button", { name: "Cancel", exact: true }).click();
+  await expect(page.locator("[data-diagram2-screen]")).toHaveAttribute("data-diagram2-mode", "readonly");
+  await openNavigationScreen(page, "Diagram");
+  await expect(page.locator("[data-diagram2-screen]")).toHaveCount(0);
+  expectDiagram2NoLiveArtifacts(await diagram2LifecycleSnapshot(page));
+
+  await openDiagram2RteCycle(page, -1);
+  await expect(page.locator("[data-diagram2-rte-host]")).toBeVisible();
+  await page.locator("[data-diagram2-rte-host]").getByRole("button", { name: "Cancel", exact: true }).click();
+  await page.evaluate(() => window.__diagram2AlternatingRtePromise);
+  expectDiagram2NoLiveArtifacts(await diagram2LifecycleSnapshot(page));
+
+  const baseline = await diagram2LifecycleSnapshot(page);
+
+  for (let index = 0; index < 5; index += 1) {
+    await openNavigationScreen(page, "Diagram 2");
+    await waitForDiagram2Ready(page);
+    await page.getByRole("button", { name: "Edit Diagram" }).click();
+    await expect(page.locator("[data-diagram2-editor-shell]")).toBeVisible();
+    await expect.poll(() => page.evaluate(() => Boolean(window.__pmtDiagram2EditorCore))).toBe(true);
+    await page.getByRole("button", { name: "Cancel", exact: true }).click();
+    await expect(page.locator("[data-diagram2-screen]")).toHaveAttribute("data-diagram2-mode", "readonly");
+    await openNavigationScreen(page, "Diagram");
+    await expect(page.locator("[data-diagram2-screen]")).toHaveCount(0);
+    expectDiagram2ClosedSnapshot(await diagram2LifecycleSnapshot(page), baseline);
+
+    await openDiagram2RteCycle(page, index);
+    await expect(page.locator("[data-diagram2-rte-host]")).toBeVisible();
+    await page.locator("[data-diagram2-rte-host]").getByRole("button", { name: "Cancel", exact: true }).click();
+    await page.evaluate(() => window.__diagram2AlternatingRtePromise);
+    expectDiagram2ClosedSnapshot(await diagram2LifecycleSnapshot(page), baseline);
+  }
+
+  expect(browserErrors).toEqual([]);
+});
+
 async function signInWithDiagramState(page) {
   await page.addInitScript(seenToken => {
     localStorage.clear();
@@ -230,6 +287,159 @@ async function waitForDiagram2Ready(page) {
 
 async function diagram2ViewportScale(page) {
   return page.evaluate(() => Number(document.querySelector("[data-diagram2-svg]")?.dataset.diagram2ViewportScale || 0));
+}
+
+async function installDiagram2LifecycleInstrumentation(page) {
+  await page.addInitScript(() => {
+    if (window.__diagram2LifecycleInstrumentation) return;
+    const originalWindowAdd = window.addEventListener.bind(window);
+    const originalWindowRemove = window.removeEventListener.bind(window);
+    const originalCreateObjectUrl = URL.createObjectURL.bind(URL);
+    const originalRevokeObjectUrl = URL.revokeObjectURL.bind(URL);
+    const originalRequestAnimationFrame = window.requestAnimationFrame.bind(window);
+    const originalCancelAnimationFrame = window.cancelAnimationFrame.bind(window);
+    const windowListeners = [];
+    const objectUrls = new Set();
+    const animationFrames = new Set();
+
+    function captureValue(options) {
+      return typeof options === "boolean" ? options : Boolean(options?.capture);
+    }
+
+    window.addEventListener = function instrumentedAddEventListener(type, listener, options) {
+      const record = { type, listener, capture: captureValue(options) };
+      windowListeners.push(record);
+      const signal = options && typeof options === "object" ? options.signal : null;
+      if (signal) {
+        signal.addEventListener("abort", () => {
+          const index = windowListeners.indexOf(record);
+          if (index >= 0) windowListeners.splice(index, 1);
+        }, { once: true });
+      }
+      return originalWindowAdd(type, listener, options);
+    };
+
+    window.removeEventListener = function instrumentedRemoveEventListener(type, listener, options) {
+      const capture = captureValue(options);
+      for (let index = windowListeners.length - 1; index >= 0; index -= 1) {
+        const record = windowListeners[index];
+        if (record.type === type && record.listener === listener && record.capture === capture) {
+          windowListeners.splice(index, 1);
+          break;
+        }
+      }
+      return originalWindowRemove(type, listener, options);
+    };
+
+    URL.createObjectURL = value => {
+      const url = originalCreateObjectUrl(value);
+      objectUrls.add(url);
+      return url;
+    };
+    URL.revokeObjectURL = url => {
+      objectUrls.delete(url);
+      return originalRevokeObjectUrl(url);
+    };
+    window.requestAnimationFrame = callback => {
+      const handle = originalRequestAnimationFrame(time => {
+        animationFrames.delete(handle);
+        callback(time);
+      });
+      animationFrames.add(handle);
+      return handle;
+    };
+    window.cancelAnimationFrame = handle => {
+      animationFrames.delete(handle);
+      return originalCancelAnimationFrame(handle);
+    };
+    window.__diagram2LifecycleInstrumentation = {
+      snapshot() {
+        return {
+          windowListenerCount: windowListeners.length,
+          activeObjectUrlCount: objectUrls.size,
+          pendingAnimationFrameCount: animationFrames.size
+        };
+      }
+    };
+  });
+}
+
+async function ensureDiagram2RteFixture(page) {
+  await page.evaluate(() => {
+    let host = document.querySelector("#diagram2-rte-lifecycle-fixture");
+    if (!host) {
+      host = document.createElement("div");
+      host.id = "diagram2-rte-lifecycle-fixture";
+      host.style.position = "absolute";
+      host.style.left = "-10000px";
+      host.style.top = "0";
+      document.body.appendChild(host);
+    }
+    host.innerHTML = `
+      <div class="rich-editor" contenteditable="true">
+        <p><img id="diagram2-rte-lifecycle-image" src="/uploads/original.svg" alt="Original" style="width: 160px;"></p>
+      </div>
+    `;
+  });
+}
+
+async function openDiagram2RteCycle(page, cycle) {
+  await page.evaluate(async index => {
+    const { openDiagram2RteAnnotationHost } = await import("/js/features/diagram2/diagram2-rte-host-adapter.js?v=20260726-diagram2-phase2-closure-v1");
+    const image = document.querySelector("#diagram2-rte-lifecycle-image");
+    image.setAttribute("src", `/uploads/original.svg?cycle=${index}`);
+    window.__diagram2AlternatingRtePromise = openDiagram2RteAnnotationHost({
+      image,
+      editor: document.querySelector("#diagram2-rte-lifecycle-fixture .rich-editor"),
+      source: `/uploads/original.svg?cycle=${index}`,
+      originalReference: "/uploads/original.svg",
+      originalUrl: `/uploads/original.svg?cycle=${index}`,
+      originalFileName: "original.svg",
+      canEdit: true,
+      apply: async () => {}
+    });
+  }, cycle);
+}
+
+async function diagram2LifecycleSnapshot(page) {
+  await page.evaluate(() => new Promise(resolve => {
+    requestAnimationFrame(() => requestAnimationFrame(resolve));
+  }));
+  return page.evaluate(() => ({
+    ...(window.__diagram2LifecycleInstrumentation?.snapshot?.() || {}),
+    diagram2ScreenCount: document.querySelectorAll("[data-diagram2-screen]").length,
+    editorShellCount: document.querySelectorAll("[data-diagram2-editor-shell]").length,
+    rteDialogCount: document.querySelectorAll("[data-diagram2-rte-host]").length,
+    svgCount: document.querySelectorAll("[data-diagram2-svg]").length,
+    selectionOverlayCount: document.querySelectorAll("[data-diagram2-selection-id]").length,
+    relationshipPreviewCount: document.querySelectorAll("[data-diagram2-relationship-preview-id]").length,
+    rendererLive: Boolean(window.__pmtDiagram2Renderer),
+    editorCoreLive: Boolean(window.__pmtDiagram2EditorCore),
+    rteHostLive: Boolean(window.__pmtDiagram2RteHost),
+    compatibilityLive: Boolean(window.__pmtDiagram2Compatibility),
+    selectionClipboardLive: Boolean(window.__pmtDiagram2SelectionClipboard)
+  }));
+}
+
+function expectDiagram2NoLiveArtifacts(snapshot) {
+  expect(snapshot.diagram2ScreenCount).toBe(0);
+  expect(snapshot.editorShellCount).toBe(0);
+  expect(snapshot.rteDialogCount).toBe(0);
+  expect(snapshot.svgCount).toBe(0);
+  expect(snapshot.selectionOverlayCount).toBe(0);
+  expect(snapshot.relationshipPreviewCount).toBe(0);
+  expect(snapshot.rendererLive).toBe(false);
+  expect(snapshot.editorCoreLive).toBe(false);
+  expect(snapshot.rteHostLive).toBe(false);
+  expect(snapshot.compatibilityLive).toBe(false);
+  expect(snapshot.selectionClipboardLive).toBe(false);
+}
+
+function expectDiagram2ClosedSnapshot(snapshot, baseline) {
+  expectDiagram2NoLiveArtifacts(snapshot);
+  expect(snapshot.windowListenerCount).toBe(baseline.windowListenerCount);
+  expect(snapshot.activeObjectUrlCount).toBe(baseline.activeObjectUrlCount);
+  expect(snapshot.pendingAnimationFrameCount).toBe(baseline.pendingAnimationFrameCount);
 }
 
 function testState() {

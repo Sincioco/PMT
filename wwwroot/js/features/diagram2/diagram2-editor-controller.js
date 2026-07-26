@@ -7,15 +7,25 @@ export function createDiagram2EditorController(options = {}) {
   let renderer = options.renderer || null;
   let host = options.host || null;
   let canonicalState = normalizeDiagram2CanonicalState(options.state || null);
+  let objectById = new Map();
+  let objectIndexById = new Map();
+  let canonicalRelationshipCount = diagram2RelationshipCount(canonicalState);
   let selectedObjectIds = [];
   let activeTool = "select";
   let busy = false;
   let destroyed = false;
+  let canonicalDiagnostics = {
+    fullStateNormalizationCount: 1,
+    fullStateSerializationCount: 0,
+    stateReplacementCount: 1,
+    lastOperation: null
+  };
   const listeners = new Set();
   const history = createDiagram2CommandHistory({
     limit: options.historyLimit || 100
   });
   history.reset({ saved: options.saved !== false });
+  rebuildCanonicalObjectIndex();
 
   function attachRenderer(nextRenderer) {
     renderer = nextRenderer || null;
@@ -30,6 +40,27 @@ export function createDiagram2EditorController(options = {}) {
 
   function setState(nextState, setOptions = {}) {
     canonicalState = normalizeDiagram2CanonicalState(nextState);
+    canonicalRelationshipCount = diagram2RelationshipCount(canonicalState);
+    rebuildCanonicalObjectIndex();
+    canonicalDiagnostics = {
+      ...canonicalDiagnostics,
+      fullStateNormalizationCount: canonicalDiagnostics.fullStateNormalizationCount + 1,
+      stateReplacementCount: canonicalDiagnostics.stateReplacementCount + 1,
+      lastOperation: {
+        kind: "set-state",
+        global: true,
+        affectedObjectIds: [],
+        requestedObjectCount: 0,
+        objectLookupCount: 0,
+        objectPatchCount: 0,
+        objectArrayCopyCount: 0,
+        objectContainerReindexed: true,
+        fullStateNormalizationCount: 1,
+        fullStateSerializationCount: 0,
+        canonicalObjectCount: canonicalState.objects.length,
+        reason: String(setOptions.reason || "state replacement")
+      }
+    };
     selectedObjectIds = existingObjectIds(selectedObjectIds);
     if (setOptions.resetHistory !== false) history.reset({ saved: setOptions.saved !== false });
     if (renderer && selectedObjectIds.length) renderer.setSelectedIds(selectedObjectIds);
@@ -58,7 +89,7 @@ export function createDiagram2EditorController(options = {}) {
     if (busy || destroyed || !canMutate()) return false;
     const ids = existingObjectIds(objectIds);
     if (!ids.length) return false;
-    if (ids.some(id => objectPositionFixed(canonicalState.objects.find(object => object.id === id)))) return false;
+    if (ids.some(id => objectPositionFixed(getObjectById(id)))) return false;
     const dx = finiteNumber(deltaX, 0);
     const dy = finiteNumber(deltaY, 0);
     if (!dx && !dy) return false;
@@ -145,7 +176,7 @@ export function createDiagram2EditorController(options = {}) {
       selectedObjectIds: selectedObjectIds.slice(),
       selectedCount: selectedObjectIds.length,
       objectCount: canonicalState.objects.length,
-      relationshipCount: diagram2RelationshipCount(canonicalState),
+      relationshipCount: canonicalRelationshipCount,
       history: historyStatus
     };
   }
@@ -158,8 +189,35 @@ export function createDiagram2EditorController(options = {}) {
       get state() {
         return canonicalState;
       },
+      getObjectById,
+      getObjectsByIds,
+      updateObjectCanonical,
+      updateObjectsCanonical,
+      addObjectCanonical,
+      removeObjectsCanonical,
       setState(nextState) {
         canonicalState = normalizeDiagram2CanonicalState(nextState);
+        canonicalRelationshipCount = diagram2RelationshipCount(canonicalState);
+        rebuildCanonicalObjectIndex();
+        canonicalDiagnostics = {
+          ...canonicalDiagnostics,
+          fullStateNormalizationCount: canonicalDiagnostics.fullStateNormalizationCount + 1,
+          stateReplacementCount: canonicalDiagnostics.stateReplacementCount + 1,
+          lastOperation: {
+            kind: "set-state",
+            global: true,
+            affectedObjectIds: [],
+            requestedObjectCount: 0,
+            objectLookupCount: 0,
+            objectPatchCount: 0,
+            objectArrayCopyCount: 0,
+            objectContainerReindexed: true,
+            fullStateNormalizationCount: 1,
+            fullStateSerializationCount: 0,
+            canonicalObjectCount: canonicalState.objects.length,
+            reason: "command context state replacement"
+          }
+        };
       },
       selectedObjectIds: () => selectedObjectIds.slice(),
       setSelection,
@@ -167,6 +225,205 @@ export function createDiagram2EditorController(options = {}) {
       securityContext,
       emit
     };
+  }
+
+  function currentState() {
+    return canonicalState;
+  }
+
+  function getObjectById(id) {
+    return objectById.get(String(id || "").trim()) || null;
+  }
+
+  function getObjectsByIds(ids = []) {
+    return existingObjectIds(ids)
+      .map(id => objectById.get(id))
+      .filter(Boolean);
+  }
+
+  function updateObjectCanonical(id, updater, updateOptions = {}) {
+    return updateObjectsCanonical([id], updater, updateOptions);
+  }
+
+  function updateObjectsCanonical(ids = [], updater, updateOptions = {}) {
+    const requestedIds = uniqueStrings(ids);
+    const existingIds = requestedIds.filter(id => objectIndexById.has(id));
+    if (!existingIds.length) {
+      return recordCanonicalOperation({
+        kind: "update-objects",
+        changed: false,
+        affectedObjectIds: [],
+        requestedObjectCount: requestedIds.length,
+        objectLookupCount: requestedIds.length,
+        objectPatchCount: 0,
+        objectArrayCopyCount: 0,
+        objectContainerReindexed: false,
+        fullStateNormalizationCount: 0,
+        fullStateSerializationCount: 0,
+        canonicalObjectCount: canonicalState.objects.length,
+        reason: String(updateOptions.reason || "object update")
+      });
+    }
+
+    let nextObjects = null;
+    const previousObjectsById = new Map();
+    const nextObjectsById = new Map();
+    existingIds.forEach((id, ordinal) => {
+      const index = objectIndexById.get(id);
+      const previousObject = objectById.get(id);
+      const nextObject = resolveCanonicalObjectUpdate(previousObject, id, updater, ordinal, updateOptions);
+      if (!nextObject || nextObject === previousObject) return;
+      if (!nextObjects) nextObjects = canonicalState.objects.slice();
+      nextObjects[index] = nextObject;
+      previousObjectsById.set(id, previousObject);
+      nextObjectsById.set(id, nextObject);
+      canonicalRelationshipCount += diagram2ObjectRelationshipCount(nextObject) - diagram2ObjectRelationshipCount(previousObject);
+      objectById.set(id, nextObject);
+    });
+
+    if (!nextObjectsById.size) {
+      return recordCanonicalOperation({
+        kind: "update-objects",
+        changed: false,
+        affectedObjectIds: [],
+        requestedObjectCount: requestedIds.length,
+        objectLookupCount: existingIds.length,
+        objectPatchCount: 0,
+        objectArrayCopyCount: 0,
+        objectContainerReindexed: false,
+        fullStateNormalizationCount: 0,
+        fullStateSerializationCount: 0,
+        canonicalObjectCount: canonicalState.objects.length,
+        reason: String(updateOptions.reason || "object update")
+      });
+    }
+
+    canonicalState = {
+      ...canonicalState,
+      objects: nextObjects
+    };
+    return recordCanonicalOperation({
+      kind: "update-objects",
+      changed: true,
+      affectedObjectIds: [...nextObjectsById.keys()],
+      requestedObjectCount: requestedIds.length,
+      objectLookupCount: existingIds.length,
+      objectPatchCount: nextObjectsById.size,
+      objectArrayCopyCount: 1,
+      objectContainerReindexed: false,
+      fullStateNormalizationCount: 0,
+      fullStateSerializationCount: 0,
+      canonicalObjectCount: canonicalState.objects.length,
+      previousObjectsById,
+      nextObjectsById,
+      reason: String(updateOptions.reason || "object update")
+    });
+  }
+
+  function addObjectCanonical(object, addOptions = {}) {
+    const objectId = String(object?.id || "").trim();
+    if (!objectId) {
+      return recordCanonicalOperation({
+        kind: "add-object",
+        changed: false,
+        affectedObjectIds: [],
+        requestedObjectCount: 1,
+        objectLookupCount: 0,
+        objectPatchCount: 0,
+        objectArrayCopyCount: 0,
+        objectContainerReindexed: false,
+        fullStateNormalizationCount: 0,
+        fullStateSerializationCount: 0,
+        canonicalObjectCount: canonicalState.objects.length,
+        reason: String(addOptions.reason || "add object")
+      });
+    }
+    if (objectIndexById.has(objectId)) {
+      return updateObjectCanonical(objectId, object, {
+        ...addOptions,
+        replace: true,
+        reason: addOptions.reason || "replace object"
+      });
+    }
+
+    const nextObject = { ...object, id: objectId };
+    const nextObjects = canonicalState.objects.concat(nextObject);
+    canonicalState = {
+      ...canonicalState,
+      objects: nextObjects
+    };
+    objectIndexById.set(objectId, nextObjects.length - 1);
+    objectById.set(objectId, nextObject);
+    canonicalRelationshipCount += diagram2ObjectRelationshipCount(nextObject);
+    return recordCanonicalOperation({
+      kind: "add-object",
+      changed: true,
+      affectedObjectIds: [objectId],
+      requestedObjectCount: 1,
+      objectLookupCount: 0,
+      objectPatchCount: 1,
+      objectArrayCopyCount: 1,
+      objectContainerReindexed: false,
+      fullStateNormalizationCount: 0,
+      fullStateSerializationCount: 0,
+      canonicalObjectCount: canonicalState.objects.length,
+      previousObjectsById: new Map(),
+      nextObjectsById: new Map([[objectId, nextObject]]),
+      reason: String(addOptions.reason || "add object")
+    });
+  }
+
+  function removeObjectsCanonical(ids = [], removeOptions = {}) {
+    const idsToRemove = new Set(existingObjectIds(ids));
+    if (!idsToRemove.size) {
+      return recordCanonicalOperation({
+        kind: "remove-objects",
+        changed: false,
+        affectedObjectIds: [],
+        requestedObjectCount: uniqueStrings(ids).length,
+        objectLookupCount: uniqueStrings(ids).length,
+        objectPatchCount: 0,
+        objectArrayCopyCount: 0,
+        objectContainerReindexed: false,
+        fullStateNormalizationCount: 0,
+        fullStateSerializationCount: 0,
+        canonicalObjectCount: canonicalState.objects.length,
+        reason: String(removeOptions.reason || "remove objects")
+      });
+    }
+
+    const previousObjectsById = new Map();
+    const nextObjects = canonicalState.objects.filter(object => {
+      if (!idsToRemove.has(object.id)) return true;
+      previousObjectsById.set(object.id, object);
+      return false;
+    });
+    canonicalState = {
+      ...canonicalState,
+      objects: nextObjects
+    };
+    previousObjectsById.forEach(object => {
+      canonicalRelationshipCount -= diagram2ObjectRelationshipCount(object);
+    });
+    rebuildCanonicalObjectIndex();
+    selectedObjectIds = existingObjectIds(selectedObjectIds);
+    return recordCanonicalOperation({
+      kind: "remove-objects",
+      changed: true,
+      affectedObjectIds: [...previousObjectsById.keys()],
+      requestedObjectCount: uniqueStrings(ids).length,
+      objectLookupCount: idsToRemove.size,
+      objectPatchCount: previousObjectsById.size,
+      objectArrayCopyCount: 1,
+      objectContainerReindexed: true,
+      fullStateNormalizationCount: 0,
+      fullStateSerializationCount: 0,
+      canonicalObjectCount: canonicalState.objects.length,
+      canonicalRelationshipCount,
+      previousObjectsById,
+      nextObjectsById: new Map(),
+      reason: String(removeOptions.reason || "remove objects")
+    });
   }
 
   function securityContext() {
@@ -193,8 +450,49 @@ export function createDiagram2EditorController(options = {}) {
   }
 
   function existingObjectIds(ids) {
-    const existing = new Set(canonicalState.objects.map(object => object.id));
-    return uniqueStrings(ids).filter(id => existing.has(id));
+    return uniqueStrings(ids).filter(id => objectIndexById.has(id));
+  }
+
+  function rebuildCanonicalObjectIndex() {
+    objectById = new Map();
+    objectIndexById = new Map();
+    canonicalState.objects.forEach((object, index) => {
+      const id = String(object?.id || "").trim();
+      if (!id || objectIndexById.has(id)) return;
+      objectById.set(id, object);
+      objectIndexById.set(id, index);
+    });
+  }
+
+  function resolveCanonicalObjectUpdate(previousObject, id, updater, ordinal, updateOptions = {}) {
+    if (!previousObject) return null;
+    const patch = typeof updater === "function"
+      ? updater(previousObject, id, ordinal)
+      : updater;
+    if (!patch || typeof patch !== "object") return previousObject;
+    if (patch === previousObject) return previousObject;
+    return updateOptions.replace === true
+      ? { ...patch, id }
+      : { ...previousObject, ...patch, id };
+  }
+
+  function recordCanonicalOperation(operation) {
+    canonicalDiagnostics = {
+      ...canonicalDiagnostics,
+      lastOperation: operation
+    };
+    return operation;
+  }
+
+  function diagnostics() {
+    return {
+      canonicalObjectCount: canonicalState.objects.length,
+      canonicalIndexSize: objectIndexById.size,
+      fullStateNormalizationCount: canonicalDiagnostics.fullStateNormalizationCount,
+      fullStateSerializationCount: canonicalDiagnostics.fullStateSerializationCount,
+      stateReplacementCount: canonicalDiagnostics.stateReplacementCount,
+      lastCanonicalOperation: canonicalDiagnostics.lastOperation
+    };
   }
 
   function destroy() {
@@ -210,6 +508,12 @@ export function createDiagram2EditorController(options = {}) {
     setState,
     setSelection,
     setActiveTool,
+    getObjectById,
+    getObjectsByIds,
+    updateObjectCanonical,
+    updateObjectsCanonical,
+    addObjectCanonical,
+    removeObjectsCanonical,
     moveSelectedObjects,
     moveObjects,
     undo,
@@ -218,10 +522,12 @@ export function createDiagram2EditorController(options = {}) {
     setBusy,
     onChange,
     statusSnapshot,
+    currentState,
     state: () => normalizeDiagram2CanonicalState(canonicalState),
     selectedObjectIds: () => selectedObjectIds.slice(),
     activeTool: () => activeTool,
     historyStatus: () => history.status(),
+    diagnostics,
     destroy
   };
 }
@@ -310,9 +616,11 @@ export function moveDiagram2ObjectGeometry(object, deltaX, deltaY) {
 }
 
 async function applyDiagram2Move(context, objectIds, deltaX, deltaY, options = {}) {
-  const before = normalizeDiagram2CanonicalState(context.state);
-  const nextState = moveDiagram2ObjectsInState(before, objectIds, deltaX, deltaY);
-  if (diagram2StateJson(before) === diagram2StateJson(nextState)) return false;
+  const update = context.updateObjectsCanonical(objectIds, object =>
+    moveDiagram2ObjectGeometry(object, deltaX, deltaY), {
+      reason: options.reason || "move objects"
+    });
+  if (update.changed !== true) return false;
 
   const renderer = context.renderer;
   if (renderer && options.rendererAlreadyUpdated !== true) {
@@ -323,7 +631,6 @@ async function applyDiagram2Move(context, objectIds, deltaX, deltaY, options = {
     renderer.endDiagramUpdate(options.reason || "move objects");
   }
 
-  context.setState(nextState);
   context.setSelection(objectIds);
   return true;
 }
@@ -333,8 +640,8 @@ function diagram2RelationshipCount(state) {
     count + (Array.isArray(object.relationships) ? object.relationships.length : 0), 0);
 }
 
-function diagram2StateJson(stateInput) {
-  return JSON.stringify(normalizeDiagram2CanonicalState(stateInput));
+function diagram2ObjectRelationshipCount(object) {
+  return Array.isArray(object?.relationships) ? object.relationships.length : 0;
 }
 
 function uniqueStrings(values) {

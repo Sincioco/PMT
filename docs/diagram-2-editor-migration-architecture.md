@@ -28,7 +28,7 @@ The post-Phase 1 visual editor parity addendum is incorporated into this archite
 
 - Diagram 1 remains available and operational during every phase.
 - Diagram 2 must keep its own route, feature module, renderer, preferences, and beta label until manually promoted.
-- Visual parity is the default. Diagram 2's editor layout, toolbar grouping/order, left Objects pane, center canvas, right inspector tabs, dialogs, context menus, affordances, keyboard shortcuts, and save/import/export workflows should match Diagram 1 unless Sin explicitly approves a visible change.
+- Visual parity is the default. Diagram 2's editor layout, toolbar grouping/order, center canvas, right inspector tabs, right-pane Objects tab, dialogs, context menus, affordances, keyboard shortcuts, and save/import/export workflows should match the approved Phase 2 baseline unless Sin explicitly approves a visible change.
 - Diagram 1 and Diagram 2 must keep one Diagram backing-document model. Do not introduce a Diagram 2 table, second save endpoint, second template library, second clipboard shape, or second file format.
 - Persisted Diagram state may include canonical annotation data only. Renderer caches, mounted node maps, viewport halo state, dirty flags, diagnostics, and live indexes stay session-only.
 - Routine Diagram 2 editor operations must use command-driven canonical changes and incremental renderer patches. Full `renderer.render()` remains acceptable for initial open, import, full reset, corruption recovery, and explicit benchmark setup.
@@ -81,9 +81,9 @@ Phase 2 created the foundation modules needed by both hosts. Remaining module na
 | `diagram2-editor-controller.js` | Editor session state, active document, selected ids, current tool, command dispatch, dirty/saved status. | SVG DOM patching, document endpoints, template endpoint implementation. |
 | `diagram2-editor-commands.js` | Pure command definitions, validation, forward patches, inverse patches, dirty categories. | DOM event handling. |
 | `diagram2-editor-history.js` | Undo/redo stacks, command coalescing, transaction labels, memory limits. | Renderer internals. |
-| `diagram2-editor-shell.js` | Diagram 1-familiar modal/embedded layout, toolbar location, left Objects pane shell, center canvas host, right inspector host, status/save placement, diagnostics toggle, keyboard routing. | Object mutation rules or renderer patches. |
+| `diagram2-editor-shell.js` | Diagram 1-familiar modal/embedded layout, toolbar location, center canvas host, right inspector host with Objects tab, status/save placement, diagnostics toggle, keyboard routing. | Object mutation rules or renderer patches. |
 | `diagram2-editor-toolbar.js` | Diagram 1 toolbar grouping/order/icons/tooltips/enabled state, with not-yet-owned controls absent or clearly disabled. | Command implementations or diagnostics-first UI. |
-| `diagram2-editor-inspector.js` | Diagram 1 tab names/order and panel composition: Format, Crop, Mapping, Entity, Template, Objects. | Direct canonical mutations outside commands. |
+| `diagram2-editor-inspector.js` | Diagram 1-familiar tab names/order and panel composition. Phase 2 shows Format, Template, and Objects; Crop, Mapping, Entity, and other later-phase tabs should appear only when their behavior is functional or an honest disabled control is specifically required. | Direct canonical mutations outside commands. |
 | `diagram2-editor-objects-tree.js` | Diagram 1-familiar Objects pane presentation, tree projection, search, drag/drop intents, rename/lock/visibility actions. | Layer mutation outside commands or forced canvas mounting. |
 | `diagram2-editor-interactions.js` | Pointer gestures, marquee, drag preview, resize handles, route handles. | Persistence. |
 | `diagram2-domain-adapter.js` | Bridges existing canonical state helpers, template helpers, file/clipboard contracts, document save APIs. | Renderer live maps. |
@@ -131,7 +131,7 @@ The Phase 2 implementation follows this shape through `createDiagram2EditorContr
 
 ## Phase 2 Implementation Update
 
-Phase 2 retired the temporary diagnostics-first Diagram 2 editing scaffold as the production editor surface. The new shell uses Diagram 1-familiar structure: top toolbar, left Objects pane, center Diagram 2 renderer canvas, right inspector tabs, status/save indicators, context menu scaffolding, and collapsible diagnostics. Later-phase controls remain honestly disabled or deferred where their command implementation is not part of Phase 2.
+Phase 2 retired the temporary diagnostics-first Diagram 2 editing scaffold as the production editor surface. The new shell uses the approved Diagram 1-familiar structure: top toolbar, center Diagram 2 renderer canvas, right inspector tabs including Objects, status/save indicators, context menu scaffolding, and collapsible diagnostics. Later-phase controls remain honestly disabled or deferred where their command implementation is not part of Phase 2.
 
 The top-navigation Diagram 2 host now uses the same Diagram document library as Diagram 1. Document rows, IDs, visibility, ownership, project/Sprint grouping, search inputs, create/import/delete/save routes, public-link actions, and row-version save behavior continue to target the existing PMT Diagram backing records. Diagram 2 does not create an editor-version-specific library, field, filter, migration, or ownership model.
 
@@ -170,7 +170,7 @@ Required side-by-side labels once functional:
 | Potential conflict | Resolution |
 | --- | --- |
 | The current Diagram 2 beta screen has a compact developer-style toolbar with save/export/nudge/diagnostics actions. | Treat it as a beta viewer/editor scaffold, not the final editor UI. Phase 2 should introduce a Diagram 1-familiar editor shell and move diagnostics behind a development/collapsible surface. |
-| Phase 1 originally assigned many document dialogs and UX hardening details to Phase 7. | Keep full behavior ownership in Phase 7, but Phase 2 must still establish the final visual architecture: toolbar placement/order scaffolding, left Objects pane shell, center canvas, right inspector tabs, and correct Save/Undo/Redo placement. |
+| Phase 1 originally assigned many document dialogs and UX hardening details to Phase 7. | Keep full behavior ownership in Phase 7, but Phase 2 must still establish the approved visual architecture: toolbar placement/order scaffolding, center canvas, right inspector tabs with Objects, and correct Save/Undo/Redo placement. |
 | Reusing Diagram 1 markup/CSS could accidentally couple Diagram 2 to Diagram 1's full-render lifecycle. | Inspect and reuse visual builders/styles only when renderer-neutral. Command handlers, state mutation, canvas interactions, dirty categorization, and renderer updates stay Diagram 2-specific. |
 | Diagram 1 and current Diagram 2 use full-state snapshots for some undo/redo behavior. | Phase 2 command history supersedes routine snapshots. Snapshots remain reserved for open/import/reset/recovery boundaries. |
 | Diagram 1 relationship/entity helpers may perform broad recomputation. | Preserve visible relationship behavior, but use Diagram 2 routing invalidation, spatial indexes, route caches, and dirty relationship categories. |

@@ -131,7 +131,7 @@ Preserve, where applicable:
 - Toolbar location.
 - Toolbar grouping and separators.
 - Canvas position.
-- Left Objects pane position and behavior.
+- Objects tab position and behavior in the right inspector pane, matching the approved Phase 2 baseline.
 - Right inspector position and behavior.
 - Inspector tab order.
 - Save, Undo, and Redo placement.
@@ -392,7 +392,7 @@ Phase 2 should include, as appropriate to its existing scope:
 
 - Diagram 1-style editor layout.
 - Diagram 1-style toolbar structure, even when later feature buttons are initially disabled or gated.
-- Left Objects pane shell.
+- Right inspector Objects tab/pane shell.
 - Center Diagram 2 canvas.
 - Right inspector shell with the expected tabs.
 - Proper Save, Undo, and Redo placement.
