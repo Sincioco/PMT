@@ -33,8 +33,15 @@
     table { width: 100%; border-collapse: collapse; margin: 14px 0 22px; font-size: 13px; }
     th, td { border: 1px solid var(--line); padding: 8px 9px; vertical-align: top; text-align: left; }
     th { background: #edf1f5; text-transform: uppercase; font-size: 12px; letter-spacing: .02em; }
+    .sample-row-d1 td { background: #fff8e6; }
+    .sample-row-d1 td:first-child { border-left: 5px solid var(--gold); font-weight: 700; }
+    .sample-row-d2 td { background: #ffffff; }
+    .sample-row-d2 td:first-child { border-left: 5px solid var(--green); font-weight: 700; }
     .chart { border: 1px solid var(--line); border-radius: 8px; padding: 14px; margin: 16px 0 24px; background: #fff; }
-    .bar-row { display: grid; grid-template-columns: 220px 1fr 110px; gap: 12px; align-items: center; margin: 8px 0; }
+    .bar-row { display: grid; grid-template-columns: 220px 1fr 110px; gap: 12px; align-items: center; margin: 8px 0; padding: 6px 8px 6px 12px; border-radius: 6px; }
+    .bar-row-d1 { background: #fff8e6; box-shadow: inset 5px 0 0 var(--gold); }
+    .bar-row-d2 { background: #ffffff; box-shadow: inset 5px 0 0 var(--green); }
+    .bar-row-d1 .bar-label, .bar-row-d2 .bar-label { font-weight: 700; }
     .bar-label { font-size: 13px; }
     .bar-track { height: 18px; background: #eef2f7; border-radius: 999px; overflow: hidden; }
     .bar { height: 100%; min-width: 2px; background: var(--blue); }
@@ -56,7 +63,7 @@
 <body>
 <main>
   <h1>PMT Diagram 1 vs Diagram 2 PMT Schema Ladder Benchmark</h1>
-  <p class="lead">This corrected benchmark uses the real <strong>PMT's Database Schema</strong> diagram as the baseline, clones it, then adds one entity at a time. Each added entity contributes only 1, 2, or 3 foreign-key relationships. The test stops Diagram 1 at the first 20.00 s practical timeout.</p>
+  <p class="lead">This benchmark uses the real <strong>PMT's Database Schema</strong> diagram as the baseline, clones it, then adds one entity at a time. Each added entity contributes only 1, 2, or 3 foreign-key relationships. The test stops Diagram 1 at the first 20.00 s practical timeout, then continues Diagram 2 through 500 total entities.</p>
 
   <div class="grid">
     <div class="card">
@@ -75,16 +82,22 @@
       <small>74 total entities, 172 saved relationships.</small>
     </div>
     <div class="card">
-      <div>Diagram 2 at timeout row</div>
+      <div>Diagram 2 at D1 timeout</div>
       <div class="metric">322 ms</div>
       <small>At the same +45 row.</small>
+    </div>
+    <div class="card">
+      <div>Diagram 2 largest test</div>
+      <div class="metric">500 entities</div>
+      <small>925 ms at +471; slowest D2 row was 925 ms.</small>
     </div>
   </div>
 
   <h2>Executive Result</h2>
-  <p>Diagram 1 does load the real PMT Schema diagram. The corrected baseline clone loaded in 3.33 s, which matches the manual observation that the real schema appears in a few seconds. The earlier synthetic test was not meaningful for that claim because Diagram 1 was not reliably selecting the requested document ID and the synthetic diagrams did not match the PMT Schema shape.</p>
-  <div class="callout">With the corrected PMT Schema ladder, Diagram 1 stayed usable through <strong>+44 added entities</strong> (73 total entities / 169 saved relationships) at 19.86 s, then timed out at <strong>+45 added entities</strong> (74 total entities / 172 saved relationships). Diagram 2 loaded that same +45 document in 322 ms, making it at least 62.1x faster at the failure boundary.</div>
-  <p>Across every passing Diagram 1 row, Diagram 1 averaged 6.98 s while Diagram 2 averaged 306 ms across the same ladder. Baseline speedup was 9.25x; last-passing-row speedup was 56.2x.</p>
+  <p>The baseline PMT Schema clone loaded in Diagram 1 in 3.33 s, establishing the starting point for the scale test. From there, each benchmark document keeps the same production-shaped schema layout and progressively adds entities and relationships.</p>
+  <div class="callout">Using the PMT Schema ladder, Diagram 1 stayed usable through <strong>+44 added entities</strong> (73 total entities / 169 saved relationships) at 19.86 s, then timed out at <strong>+45 added entities</strong> (74 total entities / 172 saved relationships). Diagram 2 loaded that same +45 document in 322 ms, making it at least 62.1x faster at the Diagram 1 timeout boundary.</div>
+  <p>Diagram 2 was then extended beyond the Diagram 1 timeout boundary through 500 total entities. It did not hit the 20.00 s cap; the 500-entity checkpoint loaded in 925 ms with 1,024 saved relationships and 7,914 rendered SVG descendants.</p>
+  <p>Across every passing Diagram 1 row, Diagram 1 averaged 6.98 s while Diagram 2 averaged 357 ms across the same ladder. Baseline speedup was 9.25x; last-passing-row speedup was 56.2x.</p>
 
   <h2>Route-To-Usable Curve</h2>
   <div class="chart">
@@ -119,29 +132,33 @@
       <text x="62.0" y="302" text-anchor="middle" font-size="12" fill="#596579">+0</text>
     </g>
     <g>
-      <line x1="277.6" x2="277.6" y1="272" y2="278" stroke="#596579"></line>
-      <text x="277.6" y="302" text-anchor="middle" font-size="12" fill="#596579">+10</text>
+      <line x1="154.7" x2="154.7" y1="272" y2="278" stroke="#596579"></line>
+      <text x="154.7" y="302" text-anchor="middle" font-size="12" fill="#596579">+45</text>
     </g>
     <g>
-      <line x1="493.1" x2="493.1" y1="272" y2="278" stroke="#596579"></line>
-      <text x="493.1" y="302" text-anchor="middle" font-size="12" fill="#596579">+20</text>
+      <line x1="267.9" x2="267.9" y1="272" y2="278" stroke="#596579"></line>
+      <text x="267.9" y="302" text-anchor="middle" font-size="12" fill="#596579">+100</text>
     </g>
     <g>
-      <line x1="708.7" x2="708.7" y1="272" y2="278" stroke="#596579"></line>
-      <text x="708.7" y="302" text-anchor="middle" font-size="12" fill="#596579">+30</text>
+      <line x1="473.9" x2="473.9" y1="272" y2="278" stroke="#596579"></line>
+      <text x="473.9" y="302" text-anchor="middle" font-size="12" fill="#596579">+200</text>
     </g>
     <g>
-      <line x1="924.2" x2="924.2" y1="272" y2="278" stroke="#596579"></line>
-      <text x="924.2" y="302" text-anchor="middle" font-size="12" fill="#596579">+40</text>
+      <line x1="679.8" x2="679.8" y1="272" y2="278" stroke="#596579"></line>
+      <text x="679.8" y="302" text-anchor="middle" font-size="12" fill="#596579">+300</text>
+    </g>
+    <g>
+      <line x1="885.8" x2="885.8" y1="272" y2="278" stroke="#596579"></line>
+      <text x="885.8" y="302" text-anchor="middle" font-size="12" fill="#596579">+400</text>
     </g>
     <g>
       <line x1="1032.0" x2="1032.0" y1="272" y2="278" stroke="#596579"></line>
-      <text x="1032.0" y="302" text-anchor="middle" font-size="12" fill="#596579">+45</text>
+      <text x="1032.0" y="302" text-anchor="middle" font-size="12" fill="#596579">+471</text>
     </g>
-      <path d="M 62.0 229.7 L 83.6 223.4 L 105.1 216.4 L 126.7 208.4 L 148.2 262.3 L 169.8 261.9 L 191.3 260.7 L 212.9 260.0 L 234.4 255.4 L 256.0 253.5 L 277.6 253.3 L 299.1 251.8 L 320.7 249.3 L 342.2 247.8 L 363.8 246.3 L 385.3 242.4 L 406.9 242.6 L 428.4 241.4 L 450.0 239.8 L 471.6 235.9 L 493.1 227.6 L 514.7 223.6 L 536.2 215.4 L 557.8 211.3 L 579.3 201.8 L 600.9 195.4 L 622.4 186.0 L 644.0 178.2 L 665.6 167.9 L 687.1 154.2 L 708.7 142.2 L 730.2 142.2 L 751.8 139.4 L 773.3 139.5 L 794.9 136.1 L 816.4 122.1 L 838.0 101.9 L 859.6 94.2 L 881.1 83.2 L 902.7 76.6 L 924.2 68.7 L 945.8 57.6 L 967.3 48.0 L 988.9 34.5 L 1010.4 19.8 L 1032.0 18.0" fill="none" stroke="#9a6700" stroke-width="3"></path>
-      <path d="M 62.0 267.4 L 83.6 268.4 L 105.1 268.4 L 126.7 268.5 L 148.2 268.6 L 169.8 268.5 L 191.3 268.5 L 212.9 268.4 L 234.4 268.5 L 256.0 268.6 L 277.6 268.1 L 299.1 267.3 L 320.7 268.0 L 342.2 268.3 L 363.8 268.4 L 385.3 268.5 L 406.9 268.5 L 428.4 268.3 L 450.0 268.5 L 471.6 267.5 L 493.1 268.5 L 514.7 268.0 L 536.2 268.3 L 557.8 268.4 L 579.3 268.4 L 600.9 268.2 L 622.4 267.0 L 644.0 268.2 L 665.6 268.2 L 687.1 268.1 L 708.7 268.1 L 730.2 268.0 L 751.8 268.4 L 773.3 268.3 L 794.9 268.2 L 816.4 268.0 L 838.0 268.0 L 859.6 267.5 L 881.1 268.0 L 902.7 267.5 L 924.2 268.2 L 945.8 268.0 L 967.3 267.7 L 988.9 267.7 L 1010.4 267.5 L 1032.0 267.9" fill="none" stroke="#18705d" stroke-width="3"></path>
-      <circle cx="62.0" cy="229.7" r="3.5" fill="#9a6700"><title>Diagram 1 +0: 3.33 s</title></circle><circle cx="83.6" cy="223.4" r="3.5" fill="#9a6700"><title>Diagram 1 +1: 3.83 s</title></circle><circle cx="105.1" cy="216.4" r="3.5" fill="#9a6700"><title>Diagram 1 +2: 4.38 s</title></circle><circle cx="126.7" cy="208.4" r="3.5" fill="#9a6700"><title>Diagram 1 +3: 5.01 s</title></circle><circle cx="148.2" cy="262.3" r="3.5" fill="#9a6700"><title>Diagram 1 +4: 765 ms</title></circle><circle cx="169.8" cy="261.9" r="3.5" fill="#9a6700"><title>Diagram 1 +5: 795 ms</title></circle><circle cx="191.3" cy="260.7" r="3.5" fill="#9a6700"><title>Diagram 1 +6: 888 ms</title></circle><circle cx="212.9" cy="260.0" r="3.5" fill="#9a6700"><title>Diagram 1 +7: 949 ms</title></circle><circle cx="234.4" cy="255.4" r="3.5" fill="#9a6700"><title>Diagram 1 +8: 1.31 s</title></circle><circle cx="256.0" cy="253.5" r="3.5" fill="#9a6700"><title>Diagram 1 +9: 1.45 s</title></circle><circle cx="277.6" cy="253.3" r="3.5" fill="#9a6700"><title>Diagram 1 +10: 1.47 s</title></circle><circle cx="299.1" cy="251.8" r="3.5" fill="#9a6700"><title>Diagram 1 +11: 1.59 s</title></circle><circle cx="320.7" cy="249.3" r="3.5" fill="#9a6700"><title>Diagram 1 +12: 1.79 s</title></circle><circle cx="342.2" cy="247.8" r="3.5" fill="#9a6700"><title>Diagram 1 +13: 1.90 s</title></circle><circle cx="363.8" cy="246.3" r="3.5" fill="#9a6700"><title>Diagram 1 +14: 2.02 s</title></circle><circle cx="385.3" cy="242.4" r="3.5" fill="#9a6700"><title>Diagram 1 +15: 2.33 s</title></circle><circle cx="406.9" cy="242.6" r="3.5" fill="#9a6700"><title>Diagram 1 +16: 2.32 s</title></circle><circle cx="428.4" cy="241.4" r="3.5" fill="#9a6700"><title>Diagram 1 +17: 2.41 s</title></circle><circle cx="450.0" cy="239.8" r="3.5" fill="#9a6700"><title>Diagram 1 +18: 2.53 s</title></circle><circle cx="471.6" cy="235.9" r="3.5" fill="#9a6700"><title>Diagram 1 +19: 2.84 s</title></circle><circle cx="493.1" cy="227.6" r="3.5" fill="#9a6700"><title>Diagram 1 +20: 3.50 s</title></circle><circle cx="514.7" cy="223.6" r="3.5" fill="#9a6700"><title>Diagram 1 +21: 3.81 s</title></circle><circle cx="536.2" cy="215.4" r="3.5" fill="#9a6700"><title>Diagram 1 +22: 4.46 s</title></circle><circle cx="557.8" cy="211.3" r="3.5" fill="#9a6700"><title>Diagram 1 +23: 4.78 s</title></circle><circle cx="579.3" cy="201.8" r="3.5" fill="#9a6700"><title>Diagram 1 +24: 5.53 s</title></circle><circle cx="600.9" cy="195.4" r="3.5" fill="#9a6700"><title>Diagram 1 +25: 6.03 s</title></circle><circle cx="622.4" cy="186.0" r="3.5" fill="#9a6700"><title>Diagram 1 +26: 6.77 s</title></circle><circle cx="644.0" cy="178.2" r="3.5" fill="#9a6700"><title>Diagram 1 +27: 7.39 s</title></circle><circle cx="665.6" cy="167.9" r="3.5" fill="#9a6700"><title>Diagram 1 +28: 8.19 s</title></circle><circle cx="687.1" cy="154.2" r="3.5" fill="#9a6700"><title>Diagram 1 +29: 9.28 s</title></circle><circle cx="708.7" cy="142.2" r="3.5" fill="#9a6700"><title>Diagram 1 +30: 10.22 s</title></circle><circle cx="730.2" cy="142.2" r="3.5" fill="#9a6700"><title>Diagram 1 +31: 10.22 s</title></circle><circle cx="751.8" cy="139.4" r="3.5" fill="#9a6700"><title>Diagram 1 +32: 10.44 s</title></circle><circle cx="773.3" cy="139.5" r="3.5" fill="#9a6700"><title>Diagram 1 +33: 10.43 s</title></circle><circle cx="794.9" cy="136.1" r="3.5" fill="#9a6700"><title>Diagram 1 +34: 10.70 s</title></circle><circle cx="816.4" cy="122.1" r="3.5" fill="#9a6700"><title>Diagram 1 +35: 11.80 s</title></circle><circle cx="838.0" cy="101.9" r="3.5" fill="#9a6700"><title>Diagram 1 +36: 13.40 s</title></circle><circle cx="859.6" cy="94.2" r="3.5" fill="#9a6700"><title>Diagram 1 +37: 14.00 s</title></circle><circle cx="881.1" cy="83.2" r="3.5" fill="#9a6700"><title>Diagram 1 +38: 14.87 s</title></circle><circle cx="902.7" cy="76.6" r="3.5" fill="#9a6700"><title>Diagram 1 +39: 15.39 s</title></circle><circle cx="924.2" cy="68.7" r="3.5" fill="#9a6700"><title>Diagram 1 +40: 16.01 s</title></circle><circle cx="945.8" cy="57.6" r="3.5" fill="#9a6700"><title>Diagram 1 +41: 16.89 s</title></circle><circle cx="967.3" cy="48.0" r="3.5" fill="#9a6700"><title>Diagram 1 +42: 17.63 s</title></circle><circle cx="988.9" cy="34.5" r="3.5" fill="#9a6700"><title>Diagram 1 +43: 18.70 s</title></circle><circle cx="1010.4" cy="19.8" r="3.5" fill="#9a6700"><title>Diagram 1 +44: 19.86 s</title></circle><circle cx="1032.0" cy="18.0" r="5" fill="#b23b3b"><title>Diagram 1 +45: timeout</title></circle>
-      <circle cx="62.0" cy="267.4" r="3.5" fill="#18705d"><title>Diagram 2 +0: 360 ms</title></circle><circle cx="83.6" cy="268.4" r="3.5" fill="#18705d"><title>Diagram 2 +1: 284 ms</title></circle><circle cx="105.1" cy="268.4" r="3.5" fill="#18705d"><title>Diagram 2 +2: 284 ms</title></circle><circle cx="126.7" cy="268.5" r="3.5" fill="#18705d"><title>Diagram 2 +3: 277 ms</title></circle><circle cx="148.2" cy="268.6" r="3.5" fill="#18705d"><title>Diagram 2 +4: 269 ms</title></circle><circle cx="169.8" cy="268.5" r="3.5" fill="#18705d"><title>Diagram 2 +5: 279 ms</title></circle><circle cx="191.3" cy="268.5" r="3.5" fill="#18705d"><title>Diagram 2 +6: 279 ms</title></circle><circle cx="212.9" cy="268.4" r="3.5" fill="#18705d"><title>Diagram 2 +7: 281 ms</title></circle><circle cx="234.4" cy="268.5" r="3.5" fill="#18705d"><title>Diagram 2 +8: 276 ms</title></circle><circle cx="256.0" cy="268.6" r="3.5" fill="#18705d"><title>Diagram 2 +9: 269 ms</title></circle><circle cx="277.6" cy="268.1" r="3.5" fill="#18705d"><title>Diagram 2 +10: 303 ms</title></circle><circle cx="299.1" cy="267.3" r="3.5" fill="#18705d"><title>Diagram 2 +11: 369 ms</title></circle><circle cx="320.7" cy="268.0" r="3.5" fill="#18705d"><title>Diagram 2 +12: 315 ms</title></circle><circle cx="342.2" cy="268.3" r="3.5" fill="#18705d"><title>Diagram 2 +13: 289 ms</title></circle><circle cx="363.8" cy="268.4" r="3.5" fill="#18705d"><title>Diagram 2 +14: 283 ms</title></circle><circle cx="385.3" cy="268.5" r="3.5" fill="#18705d"><title>Diagram 2 +15: 275 ms</title></circle><circle cx="406.9" cy="268.5" r="3.5" fill="#18705d"><title>Diagram 2 +16: 277 ms</title></circle><circle cx="428.4" cy="268.3" r="3.5" fill="#18705d"><title>Diagram 2 +17: 295 ms</title></circle><circle cx="450.0" cy="268.5" r="3.5" fill="#18705d"><title>Diagram 2 +18: 274 ms</title></circle><circle cx="471.6" cy="267.5" r="3.5" fill="#18705d"><title>Diagram 2 +19: 356 ms</title></circle><circle cx="493.1" cy="268.5" r="3.5" fill="#18705d"><title>Diagram 2 +20: 278 ms</title></circle><circle cx="514.7" cy="268.0" r="3.5" fill="#18705d"><title>Diagram 2 +21: 312 ms</title></circle><circle cx="536.2" cy="268.3" r="3.5" fill="#18705d"><title>Diagram 2 +22: 292 ms</title></circle><circle cx="557.8" cy="268.4" r="3.5" fill="#18705d"><title>Diagram 2 +23: 287 ms</title></circle><circle cx="579.3" cy="268.4" r="3.5" fill="#18705d"><title>Diagram 2 +24: 286 ms</title></circle><circle cx="600.9" cy="268.2" r="3.5" fill="#18705d"><title>Diagram 2 +25: 301 ms</title></circle><circle cx="622.4" cy="267.0" r="3.5" fill="#18705d"><title>Diagram 2 +26: 393 ms</title></circle><circle cx="644.0" cy="268.2" r="3.5" fill="#18705d"><title>Diagram 2 +27: 300 ms</title></circle><circle cx="665.6" cy="268.2" r="3.5" fill="#18705d"><title>Diagram 2 +28: 302 ms</title></circle><circle cx="687.1" cy="268.1" r="3.5" fill="#18705d"><title>Diagram 2 +29: 305 ms</title></circle><circle cx="708.7" cy="268.1" r="3.5" fill="#18705d"><title>Diagram 2 +30: 310 ms</title></circle><circle cx="730.2" cy="268.0" r="3.5" fill="#18705d"><title>Diagram 2 +31: 311 ms</title></circle><circle cx="751.8" cy="268.4" r="3.5" fill="#18705d"><title>Diagram 2 +32: 286 ms</title></circle><circle cx="773.3" cy="268.3" r="3.5" fill="#18705d"><title>Diagram 2 +33: 292 ms</title></circle><circle cx="794.9" cy="268.2" r="3.5" fill="#18705d"><title>Diagram 2 +34: 298 ms</title></circle><circle cx="816.4" cy="268.0" r="3.5" fill="#18705d"><title>Diagram 2 +35: 312 ms</title></circle><circle cx="838.0" cy="268.0" r="3.5" fill="#18705d"><title>Diagram 2 +36: 314 ms</title></circle><circle cx="859.6" cy="267.5" r="3.5" fill="#18705d"><title>Diagram 2 +37: 354 ms</title></circle><circle cx="881.1" cy="268.0" r="3.5" fill="#18705d"><title>Diagram 2 +38: 312 ms</title></circle><circle cx="902.7" cy="267.5" r="3.5" fill="#18705d"><title>Diagram 2 +39: 358 ms</title></circle><circle cx="924.2" cy="268.2" r="3.5" fill="#18705d"><title>Diagram 2 +40: 299 ms</title></circle><circle cx="945.8" cy="268.0" r="3.5" fill="#18705d"><title>Diagram 2 +41: 319 ms</title></circle><circle cx="967.3" cy="267.7" r="3.5" fill="#18705d"><title>Diagram 2 +42: 339 ms</title></circle><circle cx="988.9" cy="267.7" r="3.5" fill="#18705d"><title>Diagram 2 +43: 342 ms</title></circle><circle cx="1010.4" cy="267.5" r="3.5" fill="#18705d"><title>Diagram 2 +44: 353 ms</title></circle><circle cx="1032.0" cy="267.9" r="3.5" fill="#18705d"><title>Diagram 2 +45: 322 ms</title></circle>
+      <path d="M 62.0 229.7 L 64.1 223.4 L 66.1 216.4 L 68.2 208.4 L 70.2 262.3 L 72.3 261.9 L 74.4 260.7 L 76.4 260.0 L 78.5 255.4 L 80.5 253.5 L 82.6 253.3 L 84.7 251.8 L 86.7 249.3 L 88.8 247.8 L 90.8 246.3 L 92.9 242.4 L 95.0 242.6 L 97.0 241.4 L 99.1 239.8 L 101.1 235.9 L 103.2 227.6 L 105.2 223.6 L 107.3 215.4 L 109.4 211.3 L 111.4 201.8 L 113.5 195.4 L 115.5 186.0 L 117.6 178.2 L 119.7 167.9 L 121.7 154.2 L 123.8 142.2 L 125.8 142.2 L 127.9 139.4 L 130.0 139.5 L 132.0 136.1 L 134.1 122.1 L 136.1 101.9 L 138.2 94.2 L 140.3 83.2 L 142.3 76.6 L 144.4 68.7 L 146.4 57.6 L 148.5 48.0 L 150.6 34.5 L 152.6 19.8 L 154.7 18.0" fill="none" stroke="#9a6700" stroke-width="3"></path>
+      <path d="M 62.0 267.4 L 64.1 268.4 L 66.1 268.4 L 68.2 268.5 L 70.2 268.6 L 72.3 268.5 L 74.4 268.5 L 76.4 268.4 L 78.5 268.5 L 80.5 268.6 L 82.6 268.1 L 84.7 267.3 L 86.7 268.0 L 88.8 268.3 L 90.8 268.4 L 92.9 268.5 L 95.0 268.5 L 97.0 268.3 L 99.1 268.5 L 101.1 267.5 L 103.2 268.5 L 105.2 268.0 L 107.3 268.3 L 109.4 268.4 L 111.4 268.4 L 113.5 268.2 L 115.5 267.0 L 117.6 268.2 L 119.7 268.2 L 121.7 268.1 L 123.8 268.1 L 125.8 268.0 L 127.9 268.4 L 130.0 268.3 L 132.0 268.2 L 134.1 268.0 L 136.1 268.0 L 138.2 267.5 L 140.3 268.0 L 142.3 267.5 L 144.4 268.2 L 146.4 268.0 L 148.5 267.7 L 150.6 267.7 L 152.6 267.5 L 154.7 267.9 L 208.2 267.2 L 311.2 265.4 L 414.2 266.3 L 517.1 265.1 L 620.1 264.6 L 723.1 262.9 L 826.1 263.2 L 929.0 262.5 L 1032.0 260.3" fill="none" stroke="#18705d" stroke-width="3"></path>
+      <circle cx="62.0" cy="229.7" r="3.5" fill="#9a6700"><title>Diagram 1 +0: 3.33 s</title></circle><circle cx="64.1" cy="223.4" r="3.5" fill="#9a6700"><title>Diagram 1 +1: 3.83 s</title></circle><circle cx="66.1" cy="216.4" r="3.5" fill="#9a6700"><title>Diagram 1 +2: 4.38 s</title></circle><circle cx="68.2" cy="208.4" r="3.5" fill="#9a6700"><title>Diagram 1 +3: 5.01 s</title></circle><circle cx="70.2" cy="262.3" r="3.5" fill="#9a6700"><title>Diagram 1 +4: 765 ms</title></circle><circle cx="72.3" cy="261.9" r="3.5" fill="#9a6700"><title>Diagram 1 +5: 795 ms</title></circle><circle cx="74.4" cy="260.7" r="3.5" fill="#9a6700"><title>Diagram 1 +6: 888 ms</title></circle><circle cx="76.4" cy="260.0" r="3.5" fill="#9a6700"><title>Diagram 1 +7: 949 ms</title></circle><circle cx="78.5" cy="255.4" r="3.5" fill="#9a6700"><title>Diagram 1 +8: 1.31 s</title></circle><circle cx="80.5" cy="253.5" r="3.5" fill="#9a6700"><title>Diagram 1 +9: 1.45 s</title></circle><circle cx="82.6" cy="253.3" r="3.5" fill="#9a6700"><title>Diagram 1 +10: 1.47 s</title></circle><circle cx="84.7" cy="251.8" r="3.5" fill="#9a6700"><title>Diagram 1 +11: 1.59 s</title></circle><circle cx="86.7" cy="249.3" r="3.5" fill="#9a6700"><title>Diagram 1 +12: 1.79 s</title></circle><circle cx="88.8" cy="247.8" r="3.5" fill="#9a6700"><title>Diagram 1 +13: 1.90 s</title></circle><circle cx="90.8" cy="246.3" r="3.5" fill="#9a6700"><title>Diagram 1 +14: 2.02 s</title></circle><circle cx="92.9" cy="242.4" r="3.5" fill="#9a6700"><title>Diagram 1 +15: 2.33 s</title></circle><circle cx="95.0" cy="242.6" r="3.5" fill="#9a6700"><title>Diagram 1 +16: 2.32 s</title></circle><circle cx="97.0" cy="241.4" r="3.5" fill="#9a6700"><title>Diagram 1 +17: 2.41 s</title></circle><circle cx="99.1" cy="239.8" r="3.5" fill="#9a6700"><title>Diagram 1 +18: 2.53 s</title></circle><circle cx="101.1" cy="235.9" r="3.5" fill="#9a6700"><title>Diagram 1 +19: 2.84 s</title></circle><circle cx="103.2" cy="227.6" r="3.5" fill="#9a6700"><title>Diagram 1 +20: 3.50 s</title></circle><circle cx="105.2" cy="223.6" r="3.5" fill="#9a6700"><title>Diagram 1 +21: 3.81 s</title></circle><circle cx="107.3" cy="215.4" r="3.5" fill="#9a6700"><title>Diagram 1 +22: 4.46 s</title></circle><circle cx="109.4" cy="211.3" r="3.5" fill="#9a6700"><title>Diagram 1 +23: 4.78 s</title></circle><circle cx="111.4" cy="201.8" r="3.5" fill="#9a6700"><title>Diagram 1 +24: 5.53 s</title></circle><circle cx="113.5" cy="195.4" r="3.5" fill="#9a6700"><title>Diagram 1 +25: 6.03 s</title></circle><circle cx="115.5" cy="186.0" r="3.5" fill="#9a6700"><title>Diagram 1 +26: 6.77 s</title></circle><circle cx="117.6" cy="178.2" r="3.5" fill="#9a6700"><title>Diagram 1 +27: 7.39 s</title></circle><circle cx="119.7" cy="167.9" r="3.5" fill="#9a6700"><title>Diagram 1 +28: 8.19 s</title></circle><circle cx="121.7" cy="154.2" r="3.5" fill="#9a6700"><title>Diagram 1 +29: 9.28 s</title></circle><circle cx="123.8" cy="142.2" r="3.5" fill="#9a6700"><title>Diagram 1 +30: 10.22 s</title></circle><circle cx="125.8" cy="142.2" r="3.5" fill="#9a6700"><title>Diagram 1 +31: 10.22 s</title></circle><circle cx="127.9" cy="139.4" r="3.5" fill="#9a6700"><title>Diagram 1 +32: 10.44 s</title></circle><circle cx="130.0" cy="139.5" r="3.5" fill="#9a6700"><title>Diagram 1 +33: 10.43 s</title></circle><circle cx="132.0" cy="136.1" r="3.5" fill="#9a6700"><title>Diagram 1 +34: 10.70 s</title></circle><circle cx="134.1" cy="122.1" r="3.5" fill="#9a6700"><title>Diagram 1 +35: 11.80 s</title></circle><circle cx="136.1" cy="101.9" r="3.5" fill="#9a6700"><title>Diagram 1 +36: 13.40 s</title></circle><circle cx="138.2" cy="94.2" r="3.5" fill="#9a6700"><title>Diagram 1 +37: 14.00 s</title></circle><circle cx="140.3" cy="83.2" r="3.5" fill="#9a6700"><title>Diagram 1 +38: 14.87 s</title></circle><circle cx="142.3" cy="76.6" r="3.5" fill="#9a6700"><title>Diagram 1 +39: 15.39 s</title></circle><circle cx="144.4" cy="68.7" r="3.5" fill="#9a6700"><title>Diagram 1 +40: 16.01 s</title></circle><circle cx="146.4" cy="57.6" r="3.5" fill="#9a6700"><title>Diagram 1 +41: 16.89 s</title></circle><circle cx="148.5" cy="48.0" r="3.5" fill="#9a6700"><title>Diagram 1 +42: 17.63 s</title></circle><circle cx="150.6" cy="34.5" r="3.5" fill="#9a6700"><title>Diagram 1 +43: 18.70 s</title></circle><circle cx="152.6" cy="19.8" r="3.5" fill="#9a6700"><title>Diagram 1 +44: 19.86 s</title></circle><circle cx="154.7" cy="18.0" r="5" fill="#b23b3b"><title>Diagram 1 +45: timeout</title></circle>
+      <circle cx="62.0" cy="267.4" r="3.5" fill="#18705d"><title>Diagram 2 +0: 360 ms</title></circle><circle cx="64.1" cy="268.4" r="3.5" fill="#18705d"><title>Diagram 2 +1: 284 ms</title></circle><circle cx="66.1" cy="268.4" r="3.5" fill="#18705d"><title>Diagram 2 +2: 284 ms</title></circle><circle cx="68.2" cy="268.5" r="3.5" fill="#18705d"><title>Diagram 2 +3: 277 ms</title></circle><circle cx="70.2" cy="268.6" r="3.5" fill="#18705d"><title>Diagram 2 +4: 269 ms</title></circle><circle cx="72.3" cy="268.5" r="3.5" fill="#18705d"><title>Diagram 2 +5: 279 ms</title></circle><circle cx="74.4" cy="268.5" r="3.5" fill="#18705d"><title>Diagram 2 +6: 279 ms</title></circle><circle cx="76.4" cy="268.4" r="3.5" fill="#18705d"><title>Diagram 2 +7: 281 ms</title></circle><circle cx="78.5" cy="268.5" r="3.5" fill="#18705d"><title>Diagram 2 +8: 276 ms</title></circle><circle cx="80.5" cy="268.6" r="3.5" fill="#18705d"><title>Diagram 2 +9: 269 ms</title></circle><circle cx="82.6" cy="268.1" r="3.5" fill="#18705d"><title>Diagram 2 +10: 303 ms</title></circle><circle cx="84.7" cy="267.3" r="3.5" fill="#18705d"><title>Diagram 2 +11: 369 ms</title></circle><circle cx="86.7" cy="268.0" r="3.5" fill="#18705d"><title>Diagram 2 +12: 315 ms</title></circle><circle cx="88.8" cy="268.3" r="3.5" fill="#18705d"><title>Diagram 2 +13: 289 ms</title></circle><circle cx="90.8" cy="268.4" r="3.5" fill="#18705d"><title>Diagram 2 +14: 283 ms</title></circle><circle cx="92.9" cy="268.5" r="3.5" fill="#18705d"><title>Diagram 2 +15: 275 ms</title></circle><circle cx="95.0" cy="268.5" r="3.5" fill="#18705d"><title>Diagram 2 +16: 277 ms</title></circle><circle cx="97.0" cy="268.3" r="3.5" fill="#18705d"><title>Diagram 2 +17: 295 ms</title></circle><circle cx="99.1" cy="268.5" r="3.5" fill="#18705d"><title>Diagram 2 +18: 274 ms</title></circle><circle cx="101.1" cy="267.5" r="3.5" fill="#18705d"><title>Diagram 2 +19: 356 ms</title></circle><circle cx="103.2" cy="268.5" r="3.5" fill="#18705d"><title>Diagram 2 +20: 278 ms</title></circle><circle cx="105.2" cy="268.0" r="3.5" fill="#18705d"><title>Diagram 2 +21: 312 ms</title></circle><circle cx="107.3" cy="268.3" r="3.5" fill="#18705d"><title>Diagram 2 +22: 292 ms</title></circle><circle cx="109.4" cy="268.4" r="3.5" fill="#18705d"><title>Diagram 2 +23: 287 ms</title></circle><circle cx="111.4" cy="268.4" r="3.5" fill="#18705d"><title>Diagram 2 +24: 286 ms</title></circle><circle cx="113.5" cy="268.2" r="3.5" fill="#18705d"><title>Diagram 2 +25: 301 ms</title></circle><circle cx="115.5" cy="267.0" r="3.5" fill="#18705d"><title>Diagram 2 +26: 393 ms</title></circle><circle cx="117.6" cy="268.2" r="3.5" fill="#18705d"><title>Diagram 2 +27: 300 ms</title></circle><circle cx="119.7" cy="268.2" r="3.5" fill="#18705d"><title>Diagram 2 +28: 302 ms</title></circle><circle cx="121.7" cy="268.1" r="3.5" fill="#18705d"><title>Diagram 2 +29: 305 ms</title></circle><circle cx="123.8" cy="268.1" r="3.5" fill="#18705d"><title>Diagram 2 +30: 310 ms</title></circle><circle cx="125.8" cy="268.0" r="3.5" fill="#18705d"><title>Diagram 2 +31: 311 ms</title></circle><circle cx="127.9" cy="268.4" r="3.5" fill="#18705d"><title>Diagram 2 +32: 286 ms</title></circle><circle cx="130.0" cy="268.3" r="3.5" fill="#18705d"><title>Diagram 2 +33: 292 ms</title></circle><circle cx="132.0" cy="268.2" r="3.5" fill="#18705d"><title>Diagram 2 +34: 298 ms</title></circle><circle cx="134.1" cy="268.0" r="3.5" fill="#18705d"><title>Diagram 2 +35: 312 ms</title></circle><circle cx="136.1" cy="268.0" r="3.5" fill="#18705d"><title>Diagram 2 +36: 314 ms</title></circle><circle cx="138.2" cy="267.5" r="3.5" fill="#18705d"><title>Diagram 2 +37: 354 ms</title></circle><circle cx="140.3" cy="268.0" r="3.5" fill="#18705d"><title>Diagram 2 +38: 312 ms</title></circle><circle cx="142.3" cy="267.5" r="3.5" fill="#18705d"><title>Diagram 2 +39: 358 ms</title></circle><circle cx="144.4" cy="268.2" r="3.5" fill="#18705d"><title>Diagram 2 +40: 299 ms</title></circle><circle cx="146.4" cy="268.0" r="3.5" fill="#18705d"><title>Diagram 2 +41: 319 ms</title></circle><circle cx="148.5" cy="267.7" r="3.5" fill="#18705d"><title>Diagram 2 +42: 339 ms</title></circle><circle cx="150.6" cy="267.7" r="3.5" fill="#18705d"><title>Diagram 2 +43: 342 ms</title></circle><circle cx="152.6" cy="267.5" r="3.5" fill="#18705d"><title>Diagram 2 +44: 353 ms</title></circle><circle cx="154.7" cy="267.9" r="3.5" fill="#18705d"><title>Diagram 2 +45: 322 ms</title></circle><circle cx="208.2" cy="267.2" r="3.5" fill="#18705d"><title>Diagram 2 +71: 376 ms</title></circle><circle cx="311.2" cy="265.4" r="3.5" fill="#18705d"><title>Diagram 2 +121: 516 ms</title></circle><circle cx="414.2" cy="266.3" r="3.5" fill="#18705d"><title>Diagram 2 +171: 447 ms</title></circle><circle cx="517.1" cy="265.1" r="3.5" fill="#18705d"><title>Diagram 2 +221: 540 ms</title></circle><circle cx="620.1" cy="264.6" r="3.5" fill="#18705d"><title>Diagram 2 +271: 581 ms</title></circle><circle cx="723.1" cy="262.9" r="3.5" fill="#18705d"><title>Diagram 2 +321: 718 ms</title></circle><circle cx="826.1" cy="263.2" r="3.5" fill="#18705d"><title>Diagram 2 +371: 693 ms</title></circle><circle cx="929.0" cy="262.5" r="3.5" fill="#18705d"><title>Diagram 2 +421: 748 ms</title></circle><circle cx="1032.0" cy="260.3" r="3.5" fill="#18705d"><title>Diagram 2 +471: 925 ms</title></circle>
       <text x="62" y="14" font-size="13" fill="#596579">Route ready time, 20s cap</text>
       <rect x="840" y="18" width="12" height="12" fill="#9a6700"></rect>
       <text x="858" y="29" font-size="13" fill="#1f2933">Diagram 1</text>
@@ -149,145 +166,200 @@
       <text x="958" y="29" font-size="13" fill="#1f2933">Diagram 2</text>
     </svg></div>
   <div class="chart">
-    <div class="bar-row">
+    <div class="bar-row bar-row-d1">
       <div class="bar-label">Diagram 1 +0<br><small>29 entities</small></div>
       <div class="bar-track"><div class="bar d1" style="width:16.66%"></div></div>
       <div><small>3.33 s</small></div>
     </div>
-    <div class="bar-row">
+    <div class="bar-row bar-row-d2">
       <div class="bar-label">Diagram 2 +0<br><small>29 entities</small></div>
       <div class="bar-track"><div class="bar d2" style="width:1.80%"></div></div>
       <div><small>360 ms</small></div>
     </div>
-    <div class="bar-row">
+    <div class="bar-row bar-row-d1">
       <div class="bar-label">Diagram 1 +5<br><small>34 entities</small></div>
       <div class="bar-track"><div class="bar d1" style="width:3.98%"></div></div>
       <div><small>795 ms</small></div>
     </div>
-    <div class="bar-row">
+    <div class="bar-row bar-row-d2">
       <div class="bar-label">Diagram 2 +5<br><small>34 entities</small></div>
       <div class="bar-track"><div class="bar d2" style="width:1.40%"></div></div>
       <div><small>279 ms</small></div>
     </div>
-    <div class="bar-row">
+    <div class="bar-row bar-row-d1">
       <div class="bar-label">Diagram 1 +10<br><small>39 entities</small></div>
       <div class="bar-track"><div class="bar d1" style="width:7.35%"></div></div>
       <div><small>1.47 s</small></div>
     </div>
-    <div class="bar-row">
+    <div class="bar-row bar-row-d2">
       <div class="bar-label">Diagram 2 +10<br><small>39 entities</small></div>
       <div class="bar-track"><div class="bar d2" style="width:1.52%"></div></div>
       <div><small>303 ms</small></div>
     </div>
-    <div class="bar-row">
+    <div class="bar-row bar-row-d1">
       <div class="bar-label">Diagram 1 +15<br><small>44 entities</small></div>
       <div class="bar-track"><div class="bar d1" style="width:11.66%"></div></div>
       <div><small>2.33 s</small></div>
     </div>
-    <div class="bar-row">
+    <div class="bar-row bar-row-d2">
       <div class="bar-label">Diagram 2 +15<br><small>44 entities</small></div>
       <div class="bar-track"><div class="bar d2" style="width:1.38%"></div></div>
       <div><small>275 ms</small></div>
     </div>
-    <div class="bar-row">
+    <div class="bar-row bar-row-d1">
       <div class="bar-label">Diagram 1 +20<br><small>49 entities</small></div>
       <div class="bar-track"><div class="bar d1" style="width:17.49%"></div></div>
       <div><small>3.50 s</small></div>
     </div>
-    <div class="bar-row">
+    <div class="bar-row bar-row-d2">
       <div class="bar-label">Diagram 2 +20<br><small>49 entities</small></div>
       <div class="bar-track"><div class="bar d2" style="width:1.39%"></div></div>
       <div><small>278 ms</small></div>
     </div>
-    <div class="bar-row">
+    <div class="bar-row bar-row-d1">
+      <div class="bar-label">Diagram 1 +21<br><small>50 entities</small></div>
+      <div class="bar-track"><div class="bar d1" style="width:19.04%"></div></div>
+      <div><small>3.81 s</small></div>
+    </div>
+    <div class="bar-row bar-row-d2">
+      <div class="bar-label">Diagram 2 +21<br><small>50 entities</small></div>
+      <div class="bar-track"><div class="bar d2" style="width:1.56%"></div></div>
+      <div><small>312 ms</small></div>
+    </div>
+    <div class="bar-row bar-row-d1">
       <div class="bar-label">Diagram 1 +25<br><small>54 entities</small></div>
       <div class="bar-track"><div class="bar d1" style="width:30.14%"></div></div>
       <div><small>6.03 s</small></div>
     </div>
-    <div class="bar-row">
+    <div class="bar-row bar-row-d2">
       <div class="bar-label">Diagram 2 +25<br><small>54 entities</small></div>
       <div class="bar-track"><div class="bar d2" style="width:1.51%"></div></div>
       <div><small>301 ms</small></div>
     </div>
-    <div class="bar-row">
+    <div class="bar-row bar-row-d1">
       <div class="bar-label">Diagram 1 +30<br><small>59 entities</small></div>
       <div class="bar-track"><div class="bar d1" style="width:51.10%"></div></div>
       <div><small>10.22 s</small></div>
     </div>
-    <div class="bar-row">
+    <div class="bar-row bar-row-d2">
       <div class="bar-label">Diagram 2 +30<br><small>59 entities</small></div>
       <div class="bar-track"><div class="bar d2" style="width:1.55%"></div></div>
       <div><small>310 ms</small></div>
     </div>
-    <div class="bar-row">
+    <div class="bar-row bar-row-d1">
       <div class="bar-label">Diagram 1 +35<br><small>64 entities</small></div>
       <div class="bar-track"><div class="bar d1" style="width:59.00%"></div></div>
       <div><small>11.80 s</small></div>
     </div>
-    <div class="bar-row">
+    <div class="bar-row bar-row-d2">
       <div class="bar-label">Diagram 2 +35<br><small>64 entities</small></div>
       <div class="bar-track"><div class="bar d2" style="width:1.56%"></div></div>
       <div><small>312 ms</small></div>
     </div>
-    <div class="bar-row">
+    <div class="bar-row bar-row-d1">
       <div class="bar-label">Diagram 1 +40<br><small>69 entities</small></div>
       <div class="bar-track"><div class="bar d1" style="width:80.04%"></div></div>
       <div><small>16.01 s</small></div>
     </div>
-    <div class="bar-row">
+    <div class="bar-row bar-row-d2">
       <div class="bar-label">Diagram 2 +40<br><small>69 entities</small></div>
       <div class="bar-track"><div class="bar d2" style="width:1.49%"></div></div>
       <div><small>299 ms</small></div>
     </div>
-    <div class="bar-row">
+    <div class="bar-row bar-row-d1">
       <div class="bar-label">Diagram 1 +41<br><small>70 entities</small></div>
       <div class="bar-track"><div class="bar d1" style="width:84.43%"></div></div>
       <div><small>16.89 s</small></div>
     </div>
-    <div class="bar-row">
+    <div class="bar-row bar-row-d2">
       <div class="bar-label">Diagram 2 +41<br><small>70 entities</small></div>
       <div class="bar-track"><div class="bar d2" style="width:1.59%"></div></div>
       <div><small>319 ms</small></div>
     </div>
-    <div class="bar-row">
+    <div class="bar-row bar-row-d1">
       <div class="bar-label">Diagram 1 +42<br><small>71 entities</small></div>
       <div class="bar-track"><div class="bar d1" style="width:88.17%"></div></div>
       <div><small>17.63 s</small></div>
     </div>
-    <div class="bar-row">
+    <div class="bar-row bar-row-d2">
       <div class="bar-label">Diagram 2 +42<br><small>71 entities</small></div>
       <div class="bar-track"><div class="bar d2" style="width:1.70%"></div></div>
       <div><small>339 ms</small></div>
     </div>
-    <div class="bar-row">
+    <div class="bar-row bar-row-d1">
       <div class="bar-label">Diagram 1 +43<br><small>72 entities</small></div>
       <div class="bar-track"><div class="bar d1" style="width:93.51%"></div></div>
       <div><small>18.70 s</small></div>
     </div>
-    <div class="bar-row">
+    <div class="bar-row bar-row-d2">
       <div class="bar-label">Diagram 2 +43<br><small>72 entities</small></div>
       <div class="bar-track"><div class="bar d2" style="width:1.71%"></div></div>
       <div><small>342 ms</small></div>
     </div>
-    <div class="bar-row">
+    <div class="bar-row bar-row-d1">
       <div class="bar-label">Diagram 1 +44<br><small>73 entities</small></div>
       <div class="bar-track"><div class="bar d1" style="width:99.30%"></div></div>
       <div><small>19.86 s</small></div>
     </div>
-    <div class="bar-row">
+    <div class="bar-row bar-row-d2">
       <div class="bar-label">Diagram 2 +44<br><small>73 entities</small></div>
       <div class="bar-track"><div class="bar d2" style="width:1.77%"></div></div>
       <div><small>353 ms</small></div>
     </div>
-    <div class="bar-row">
+    <div class="bar-row bar-row-d1">
       <div class="bar-label">Diagram 1 +45<br><small>74 entities</small></div>
       <div class="bar-track"><div class="bar d1 timeout" style="width:100.00%"></div></div>
       <div><small>>20.00 s</small></div>
     </div>
-    <div class="bar-row">
+    <div class="bar-row bar-row-d2">
       <div class="bar-label">Diagram 2 +45<br><small>74 entities</small></div>
       <div class="bar-track"><div class="bar d2" style="width:1.61%"></div></div>
       <div><small>322 ms</small></div>
+    </div>
+    <div class="bar-row bar-row-d2">
+      <div class="bar-label">Diagram 2 +71<br><small>100 entities</small></div>
+      <div class="bar-track"><div class="bar d2" style="width:1.88%"></div></div>
+      <div><small>376 ms</small></div>
+    </div>
+    <div class="bar-row bar-row-d2">
+      <div class="bar-label">Diagram 2 +121<br><small>150 entities</small></div>
+      <div class="bar-track"><div class="bar d2" style="width:2.58%"></div></div>
+      <div><small>516 ms</small></div>
+    </div>
+    <div class="bar-row bar-row-d2">
+      <div class="bar-label">Diagram 2 +171<br><small>200 entities</small></div>
+      <div class="bar-track"><div class="bar d2" style="width:2.23%"></div></div>
+      <div><small>447 ms</small></div>
+    </div>
+    <div class="bar-row bar-row-d2">
+      <div class="bar-label">Diagram 2 +221<br><small>250 entities</small></div>
+      <div class="bar-track"><div class="bar d2" style="width:2.70%"></div></div>
+      <div><small>540 ms</small></div>
+    </div>
+    <div class="bar-row bar-row-d2">
+      <div class="bar-label">Diagram 2 +271<br><small>300 entities</small></div>
+      <div class="bar-track"><div class="bar d2" style="width:2.91%"></div></div>
+      <div><small>581 ms</small></div>
+    </div>
+    <div class="bar-row bar-row-d2">
+      <div class="bar-label">Diagram 2 +321<br><small>350 entities</small></div>
+      <div class="bar-track"><div class="bar d2" style="width:3.59%"></div></div>
+      <div><small>718 ms</small></div>
+    </div>
+    <div class="bar-row bar-row-d2">
+      <div class="bar-label">Diagram 2 +371<br><small>400 entities</small></div>
+      <div class="bar-track"><div class="bar d2" style="width:3.47%"></div></div>
+      <div><small>693 ms</small></div>
+    </div>
+    <div class="bar-row bar-row-d2">
+      <div class="bar-label">Diagram 2 +421<br><small>450 entities</small></div>
+      <div class="bar-track"><div class="bar d2" style="width:3.74%"></div></div>
+      <div><small>748 ms</small></div>
+    </div>
+    <div class="bar-row bar-row-d2">
+      <div class="bar-label">Diagram 2 +471<br><small>500 entities</small></div>
+      <div class="bar-track"><div class="bar d2" style="width:4.62%"></div></div>
+      <div><small>925 ms</small></div>
     </div></div>
 
   <h2>Milestones</h2>
@@ -349,6 +421,78 @@
       <td>>20.00 s</td>
       <td>322 ms</td>
       <td>62.1x</td>
+    </tr>
+    <tr>
+      <td>+71</td>
+      <td>100</td>
+      <td>223</td>
+      <td></td>
+      <td>376 ms</td>
+      <td></td>
+    </tr>
+    <tr>
+      <td>+121</td>
+      <td>150</td>
+      <td>323</td>
+      <td></td>
+      <td>516 ms</td>
+      <td></td>
+    </tr>
+    <tr>
+      <td>+171</td>
+      <td>200</td>
+      <td>424</td>
+      <td></td>
+      <td>447 ms</td>
+      <td></td>
+    </tr>
+    <tr>
+      <td>+221</td>
+      <td>250</td>
+      <td>523</td>
+      <td></td>
+      <td>540 ms</td>
+      <td></td>
+    </tr>
+    <tr>
+      <td>+271</td>
+      <td>300</td>
+      <td>623</td>
+      <td></td>
+      <td>581 ms</td>
+      <td></td>
+    </tr>
+    <tr>
+      <td>+321</td>
+      <td>350</td>
+      <td>724</td>
+      <td></td>
+      <td>718 ms</td>
+      <td></td>
+    </tr>
+    <tr>
+      <td>+371</td>
+      <td>400</td>
+      <td>823</td>
+      <td></td>
+      <td>693 ms</td>
+      <td></td>
+    </tr>
+    <tr>
+      <td>+421</td>
+      <td>450</td>
+      <td>923</td>
+      <td></td>
+      <td>748 ms</td>
+      <td></td>
+    </tr>
+    <tr>
+      <td>+471</td>
+      <td>500</td>
+      <td>1,024</td>
+      <td></td>
+      <td>925 ms</td>
+      <td></td>
     </tr></tbody>
   </table>
 
@@ -366,118 +510,175 @@
     <li><strong>Keyed SVG nodes reduce churn.</strong> Objects and relationships are tracked by stable IDs, so the renderer can build predictable object, relationship, overlay, and diagnostic planes without rehydrating the full legacy read-only viewer stack.</li>
     <li><strong>The renderer exposes an idle boundary.</strong> The benchmark waits for <code>window.__pmtDiagram2Renderer.whenIdle()</code>, so the recorded time is tied to the renderer finishing its own work rather than to an inferred DOM condition.</li>
     <li><strong>Relationship rendering is isolated.</strong> Diagram 2 reports mounted object and relationship counts, frame duration, and SVG descendant counts. At the Diagram 1 failure row, it mounted 134 objects and 157 relationships with 2,998 SVG descendants and still finished in 322 ms.</li>
+    <li><strong>The high-count extension stays under one second.</strong> At 500 total entities, Diagram 2 mounted 560 objects and 867 relationships, emitted 7,914 SVG descendants, and became usable in 925 ms.</li>
     <li><strong>It scales inside the current PMT route shell.</strong> The same PMT data, same saved documents, same local app, and same authenticated UI session were used. The difference is the Diagram 2 rendering path, not a different database or simplified data source.</li>
   </ul>
 
   <h2>SVG And DOM Pressure</h2>
   <p>Diagram 1 has more SVG descendants than Diagram 2 for the same saved document because the legacy exported SVG carries the read-only visual representation directly. Diagram 2 still emits SVG, but its renderer output is more compact for this ladder.</p>
   <div class="chart">
-    <div class="bar-row">
+    <div class="bar-row bar-row-d1">
       <div class="bar-label">Diagram 1 +0</div>
-      <div class="bar-track"><div class="bar" style="width:50.22%"></div></div>
+      <div class="bar-track"><div class="bar" style="width:28.01%"></div></div>
       <div><small>2,217</small></div>
     </div>
-    <div class="bar-row">
+    <div class="bar-row bar-row-d2">
       <div class="bar-label">Diagram 2 +0</div>
-      <div class="bar-track"><div class="bar" style="width:35.29%"></div></div>
+      <div class="bar-track"><div class="bar" style="width:19.69%"></div></div>
       <div><small>1,558</small></div>
     </div>
-    <div class="bar-row">
+    <div class="bar-row bar-row-d1">
       <div class="bar-label">Diagram 1 +10</div>
-      <div class="bar-track"><div class="bar" style="width:61.47%"></div></div>
+      <div class="bar-track"><div class="bar" style="width:34.29%"></div></div>
       <div><small>2,714</small></div>
     </div>
-    <div class="bar-row">
+    <div class="bar-row bar-row-d2">
       <div class="bar-label">Diagram 2 +10</div>
-      <div class="bar-track"><div class="bar" style="width:42.47%"></div></div>
+      <div class="bar-track"><div class="bar" style="width:23.69%"></div></div>
       <div><small>1,875</small></div>
     </div>
-    <div class="bar-row">
+    <div class="bar-row bar-row-d1">
       <div class="bar-label">Diagram 1 +20</div>
-      <div class="bar-track"><div class="bar" style="width:72.82%"></div></div>
+      <div class="bar-track"><div class="bar" style="width:40.62%"></div></div>
       <div><small>3,215</small></div>
     </div>
-    <div class="bar-row">
+    <div class="bar-row bar-row-d2">
       <div class="bar-label">Diagram 2 +20</div>
-      <div class="bar-track"><div class="bar" style="width:49.74%"></div></div>
+      <div class="bar-track"><div class="bar" style="width:27.75%"></div></div>
       <div><small>2,196</small></div>
     </div>
-    <div class="bar-row">
+    <div class="bar-row bar-row-d1">
+      <div class="bar-label">Diagram 1 +21</div>
+      <div class="bar-track"><div class="bar" style="width:41.28%"></div></div>
+      <div><small>3,267</small></div>
+    </div>
+    <div class="bar-row bar-row-d2">
+      <div class="bar-label">Diagram 2 +21</div>
+      <div class="bar-track"><div class="bar" style="width:28.18%"></div></div>
+      <div><small>2,230</small></div>
+    </div>
+    <div class="bar-row bar-row-d1">
       <div class="bar-label">Diagram 1 +30</div>
-      <div class="bar-track"><div class="bar" style="width:84.19%"></div></div>
+      <div class="bar-track"><div class="bar" style="width:46.97%"></div></div>
       <div><small>3,717</small></div>
     </div>
-    <div class="bar-row">
+    <div class="bar-row bar-row-d2">
       <div class="bar-label">Diagram 2 +30</div>
-      <div class="bar-track"><div class="bar" style="width:57.03%"></div></div>
+      <div class="bar-track"><div class="bar" style="width:31.82%"></div></div>
       <div><small>2,518</small></div>
     </div>
-    <div class="bar-row">
+    <div class="bar-row bar-row-d1">
       <div class="bar-label">Diagram 1 +40</div>
-      <div class="bar-track"><div class="bar" style="width:95.45%"></div></div>
+      <div class="bar-track"><div class="bar" style="width:53.25%"></div></div>
       <div><small>4,214</small></div>
     </div>
-    <div class="bar-row">
+    <div class="bar-row bar-row-d2">
       <div class="bar-label">Diagram 2 +40</div>
-      <div class="bar-track"><div class="bar" style="width:64.21%"></div></div>
+      <div class="bar-track"><div class="bar" style="width:35.82%"></div></div>
       <div><small>2,835</small></div>
     </div>
-    <div class="bar-row">
+    <div class="bar-row bar-row-d1">
       <div class="bar-label">Diagram 1 +41</div>
-      <div class="bar-track"><div class="bar" style="width:96.60%"></div></div>
+      <div class="bar-track"><div class="bar" style="width:53.89%"></div></div>
       <div><small>4,265</small></div>
     </div>
-    <div class="bar-row">
+    <div class="bar-row bar-row-d2">
       <div class="bar-label">Diagram 2 +41</div>
-      <div class="bar-track"><div class="bar" style="width:64.96%"></div></div>
+      <div class="bar-track"><div class="bar" style="width:36.24%"></div></div>
       <div><small>2,868</small></div>
     </div>
-    <div class="bar-row">
+    <div class="bar-row bar-row-d1">
       <div class="bar-label">Diagram 1 +42</div>
-      <div class="bar-track"><div class="bar" style="width:97.78%"></div></div>
+      <div class="bar-track"><div class="bar" style="width:54.55%"></div></div>
       <div><small>4,317</small></div>
     </div>
-    <div class="bar-row">
+    <div class="bar-row bar-row-d2">
       <div class="bar-label">Diagram 2 +42</div>
-      <div class="bar-track"><div class="bar" style="width:65.73%"></div></div>
+      <div class="bar-track"><div class="bar" style="width:36.67%"></div></div>
       <div><small>2,902</small></div>
     </div>
-    <div class="bar-row">
+    <div class="bar-row bar-row-d1">
       <div class="bar-label">Diagram 1 +43</div>
-      <div class="bar-track"><div class="bar" style="width:98.84%"></div></div>
+      <div class="bar-track"><div class="bar" style="width:55.14%"></div></div>
       <div><small>4,364</small></div>
     </div>
-    <div class="bar-row">
+    <div class="bar-row bar-row-d2">
       <div class="bar-label">Diagram 2 +43</div>
-      <div class="bar-track"><div class="bar" style="width:66.39%"></div></div>
+      <div class="bar-track"><div class="bar" style="width:37.04%"></div></div>
       <div><small>2,931</small></div>
     </div>
-    <div class="bar-row">
+    <div class="bar-row bar-row-d1">
       <div class="bar-label">Diagram 1 +44</div>
-      <div class="bar-track"><div class="bar" style="width:100.00%"></div></div>
+      <div class="bar-track"><div class="bar" style="width:55.79%"></div></div>
       <div><small>4,415</small></div>
     </div>
-    <div class="bar-row">
+    <div class="bar-row bar-row-d2">
       <div class="bar-label">Diagram 2 +44</div>
-      <div class="bar-track"><div class="bar" style="width:67.13%"></div></div>
+      <div class="bar-track"><div class="bar" style="width:37.45%"></div></div>
       <div><small>2,964</small></div>
     </div>
-    <div class="bar-row">
+    <div class="bar-row bar-row-d2">
       <div class="bar-label">Diagram 2 +45</div>
-      <div class="bar-track"><div class="bar" style="width:67.90%"></div></div>
+      <div class="bar-track"><div class="bar" style="width:37.88%"></div></div>
       <div><small>2,998</small></div>
+    </div>
+    <div class="bar-row bar-row-d2">
+      <div class="bar-label">Diagram 2 +71</div>
+      <div class="bar-track"><div class="bar" style="width:24.17%"></div></div>
+      <div><small>1,913</small></div>
+    </div>
+    <div class="bar-row bar-row-d2">
+      <div class="bar-label">Diagram 2 +121</div>
+      <div class="bar-track"><div class="bar" style="width:33.64%"></div></div>
+      <div><small>2,662</small></div>
+    </div>
+    <div class="bar-row bar-row-d2">
+      <div class="bar-label">Diagram 2 +171</div>
+      <div class="bar-track"><div class="bar" style="width:43.14%"></div></div>
+      <div><small>3,414</small></div>
+    </div>
+    <div class="bar-row bar-row-d2">
+      <div class="bar-label">Diagram 2 +221</div>
+      <div class="bar-track"><div class="bar" style="width:52.60%"></div></div>
+      <div><small>4,163</small></div>
+    </div>
+    <div class="bar-row bar-row-d2">
+      <div class="bar-label">Diagram 2 +271</div>
+      <div class="bar-track"><div class="bar" style="width:62.07%"></div></div>
+      <div><small>4,912</small></div>
+    </div>
+    <div class="bar-row bar-row-d2">
+      <div class="bar-label">Diagram 2 +321</div>
+      <div class="bar-track"><div class="bar" style="width:71.57%"></div></div>
+      <div><small>5,664</small></div>
+    </div>
+    <div class="bar-row bar-row-d2">
+      <div class="bar-label">Diagram 2 +371</div>
+      <div class="bar-track"><div class="bar" style="width:81.03%"></div></div>
+      <div><small>6,413</small></div>
+    </div>
+    <div class="bar-row bar-row-d2">
+      <div class="bar-label">Diagram 2 +421</div>
+      <div class="bar-track"><div class="bar" style="width:90.50%"></div></div>
+      <div><small>7,162</small></div>
+    </div>
+    <div class="bar-row bar-row-d2">
+      <div class="bar-label">Diagram 2 +471</div>
+      <div class="bar-track"><div class="bar" style="width:100.00%"></div></div>
+      <div><small>7,914</small></div>
     </div></div>
 
   <h2>Detailed Samples</h2>
   <table>
-    <thead><tr><th>Renderer</th><th>Added</th><th>Total entities</th><th>Saved rel.</th><th>Renderer rel.</th><th>Row</th><th>Status</th><th>Ready</th><th>SVG descendants</th><th>DOM nodes</th><th>Zoom avg</th></tr></thead>
+    <thead><tr><th>Renderer</th><th>Added</th><th>Total entities</th><th>Saved rel.</th><th>Renderer rel.</th><th>Render mode</th><th>Row</th><th>Status</th><th>Ready</th><th>SVG descendants</th><th>DOM nodes</th><th>Zoom avg</th></tr></thead>
     <tbody>
-      <tr>
+      <tr class="sample-row-d1">
         <td>Diagram 1</td>
         <td>+0</td>
         <td>29</td>
         <td>82</td>
         <td>82</td>
+        <td>full</td>
         <td>Blog 43</td>
         <td>OK</td>
         <td>3.33 s</td>
@@ -485,12 +686,13 @@
         <td>3,127</td>
         <td>200 ms</td>
       </tr>
-      <tr>
+      <tr class="sample-row-d2">
         <td>Diagram 2</td>
         <td>+0</td>
         <td>29</td>
         <td>82</td>
         <td>82</td>
+        <td>full</td>
         <td>Blog 43</td>
         <td>OK</td>
         <td>360 ms</td>
@@ -498,12 +700,13 @@
         <td>2,732</td>
         <td>36.4 ms</td>
       </tr>
-      <tr>
+      <tr class="sample-row-d1">
         <td>Diagram 1</td>
         <td>+1</td>
         <td>30</td>
         <td>83</td>
         <td>83</td>
+        <td>full</td>
         <td>Blog 44</td>
         <td>OK</td>
         <td>3.83 s</td>
@@ -511,12 +714,13 @@
         <td>3,174</td>
         <td>188 ms</td>
       </tr>
-      <tr>
+      <tr class="sample-row-d2">
         <td>Diagram 2</td>
         <td>+1</td>
         <td>30</td>
         <td>83</td>
         <td>83</td>
+        <td>full</td>
         <td>Blog 44</td>
         <td>OK</td>
         <td>284 ms</td>
@@ -524,12 +728,13 @@
         <td>2,761</td>
         <td>26.8 ms</td>
       </tr>
-      <tr>
+      <tr class="sample-row-d1">
         <td>Diagram 1</td>
         <td>+2</td>
         <td>31</td>
         <td>85</td>
         <td>85</td>
+        <td>full</td>
         <td>Blog 45</td>
         <td>OK</td>
         <td>4.38 s</td>
@@ -537,12 +742,13 @@
         <td>3,225</td>
         <td>189 ms</td>
       </tr>
-      <tr>
+      <tr class="sample-row-d2">
         <td>Diagram 2</td>
         <td>+2</td>
         <td>31</td>
         <td>85</td>
         <td>85</td>
+        <td>full</td>
         <td>Blog 45</td>
         <td>OK</td>
         <td>284 ms</td>
@@ -550,12 +756,13 @@
         <td>2,794</td>
         <td>23.7 ms</td>
       </tr>
-      <tr>
+      <tr class="sample-row-d1">
         <td>Diagram 1</td>
         <td>+3</td>
         <td>32</td>
         <td>88</td>
         <td>88</td>
+        <td>full</td>
         <td>Blog 46</td>
         <td>OK</td>
         <td>5.01 s</td>
@@ -563,12 +770,13 @@
         <td>3,277</td>
         <td>198 ms</td>
       </tr>
-      <tr>
+      <tr class="sample-row-d2">
         <td>Diagram 2</td>
         <td>+3</td>
         <td>32</td>
         <td>88</td>
         <td>87</td>
+        <td>full</td>
         <td>Blog 46</td>
         <td>OK</td>
         <td>277 ms</td>
@@ -576,12 +784,13 @@
         <td>2,828</td>
         <td>31.7 ms</td>
       </tr>
-      <tr>
+      <tr class="sample-row-d1">
         <td>Diagram 1</td>
         <td>+4</td>
         <td>33</td>
         <td>89</td>
         <td>89</td>
+        <td>full</td>
         <td>Blog 47</td>
         <td>OK</td>
         <td>765 ms</td>
@@ -589,12 +798,13 @@
         <td>3,324</td>
         <td>194 ms</td>
       </tr>
-      <tr>
+      <tr class="sample-row-d2">
         <td>Diagram 2</td>
         <td>+4</td>
         <td>33</td>
         <td>89</td>
         <td>88</td>
+        <td>full</td>
         <td>Blog 47</td>
         <td>OK</td>
         <td>269 ms</td>
@@ -602,12 +812,13 @@
         <td>2,857</td>
         <td>32.6 ms</td>
       </tr>
-      <tr>
+      <tr class="sample-row-d1">
         <td>Diagram 1</td>
         <td>+5</td>
         <td>34</td>
         <td>91</td>
         <td>91</td>
+        <td>full</td>
         <td>Blog 48</td>
         <td>OK</td>
         <td>795 ms</td>
@@ -615,12 +826,13 @@
         <td>3,375</td>
         <td>194 ms</td>
       </tr>
-      <tr>
+      <tr class="sample-row-d2">
         <td>Diagram 2</td>
         <td>+5</td>
         <td>34</td>
         <td>91</td>
         <td>90</td>
+        <td>full</td>
         <td>Blog 48</td>
         <td>OK</td>
         <td>279 ms</td>
@@ -628,12 +840,13 @@
         <td>2,890</td>
         <td>39.2 ms</td>
       </tr>
-      <tr>
+      <tr class="sample-row-d1">
         <td>Diagram 1</td>
         <td>+6</td>
         <td>35</td>
         <td>94</td>
         <td>94</td>
+        <td>full</td>
         <td>Blog 49</td>
         <td>OK</td>
         <td>888 ms</td>
@@ -641,12 +854,13 @@
         <td>3,427</td>
         <td>191 ms</td>
       </tr>
-      <tr>
+      <tr class="sample-row-d2">
         <td>Diagram 2</td>
         <td>+6</td>
         <td>35</td>
         <td>94</td>
         <td>92</td>
+        <td>full</td>
         <td>Blog 49</td>
         <td>OK</td>
         <td>279 ms</td>
@@ -654,12 +868,13 @@
         <td>2,924</td>
         <td>27.2 ms</td>
       </tr>
-      <tr>
+      <tr class="sample-row-d1">
         <td>Diagram 1</td>
         <td>+7</td>
         <td>36</td>
         <td>95</td>
         <td>95</td>
+        <td>full</td>
         <td>Blog 50</td>
         <td>OK</td>
         <td>949 ms</td>
@@ -667,12 +882,13 @@
         <td>3,474</td>
         <td>199 ms</td>
       </tr>
-      <tr>
+      <tr class="sample-row-d2">
         <td>Diagram 2</td>
         <td>+7</td>
         <td>36</td>
         <td>95</td>
         <td>93</td>
+        <td>full</td>
         <td>Blog 50</td>
         <td>OK</td>
         <td>281 ms</td>
@@ -680,12 +896,13 @@
         <td>2,953</td>
         <td>15.7 ms</td>
       </tr>
-      <tr>
+      <tr class="sample-row-d1">
         <td>Diagram 1</td>
         <td>+8</td>
         <td>37</td>
         <td>97</td>
         <td>97</td>
+        <td>full</td>
         <td>Blog 51</td>
         <td>OK</td>
         <td>1.31 s</td>
@@ -693,12 +910,13 @@
         <td>3,525</td>
         <td>197 ms</td>
       </tr>
-      <tr>
+      <tr class="sample-row-d2">
         <td>Diagram 2</td>
         <td>+8</td>
         <td>37</td>
         <td>97</td>
         <td>95</td>
+        <td>full</td>
         <td>Blog 51</td>
         <td>OK</td>
         <td>276 ms</td>
@@ -706,12 +924,13 @@
         <td>2,986</td>
         <td>16.6 ms</td>
       </tr>
-      <tr>
+      <tr class="sample-row-d1">
         <td>Diagram 1</td>
         <td>+9</td>
         <td>38</td>
         <td>100</td>
         <td>100</td>
+        <td>full</td>
         <td>Blog 52</td>
         <td>OK</td>
         <td>1.45 s</td>
@@ -719,12 +938,13 @@
         <td>3,577</td>
         <td>194 ms</td>
       </tr>
-      <tr>
+      <tr class="sample-row-d2">
         <td>Diagram 2</td>
         <td>+9</td>
         <td>38</td>
         <td>100</td>
         <td>97</td>
+        <td>full</td>
         <td>Blog 52</td>
         <td>OK</td>
         <td>269 ms</td>
@@ -732,12 +952,13 @@
         <td>3,020</td>
         <td>26.2 ms</td>
       </tr>
-      <tr>
+      <tr class="sample-row-d1">
         <td>Diagram 1</td>
         <td>+10</td>
         <td>39</td>
         <td>101</td>
         <td>101</td>
+        <td>full</td>
         <td>Blog 53</td>
         <td>OK</td>
         <td>1.47 s</td>
@@ -745,12 +966,13 @@
         <td>3,624</td>
         <td>192 ms</td>
       </tr>
-      <tr>
+      <tr class="sample-row-d2">
         <td>Diagram 2</td>
         <td>+10</td>
         <td>39</td>
         <td>101</td>
         <td>98</td>
+        <td>full</td>
         <td>Blog 53</td>
         <td>OK</td>
         <td>303 ms</td>
@@ -758,12 +980,13 @@
         <td>3,049</td>
         <td>34.5 ms</td>
       </tr>
-      <tr>
+      <tr class="sample-row-d1">
         <td>Diagram 1</td>
         <td>+11</td>
         <td>40</td>
         <td>103</td>
         <td>103</td>
+        <td>full</td>
         <td>Blog 54</td>
         <td>OK</td>
         <td>1.59 s</td>
@@ -771,12 +994,13 @@
         <td>3,675</td>
         <td>192 ms</td>
       </tr>
-      <tr>
+      <tr class="sample-row-d2">
         <td>Diagram 2</td>
         <td>+11</td>
         <td>40</td>
         <td>103</td>
         <td>100</td>
+        <td>full</td>
         <td>Blog 54</td>
         <td>OK</td>
         <td>369 ms</td>
@@ -784,12 +1008,13 @@
         <td>3,082</td>
         <td>46.3 ms</td>
       </tr>
-      <tr>
+      <tr class="sample-row-d1">
         <td>Diagram 1</td>
         <td>+12</td>
         <td>41</td>
         <td>106</td>
         <td>106</td>
+        <td>full</td>
         <td>Blog 55</td>
         <td>OK</td>
         <td>1.79 s</td>
@@ -797,12 +1022,13 @@
         <td>3,727</td>
         <td>189 ms</td>
       </tr>
-      <tr>
+      <tr class="sample-row-d2">
         <td>Diagram 2</td>
         <td>+12</td>
         <td>41</td>
         <td>106</td>
         <td>102</td>
+        <td>full</td>
         <td>Blog 55</td>
         <td>OK</td>
         <td>315 ms</td>
@@ -810,12 +1036,13 @@
         <td>3,116</td>
         <td>26.4 ms</td>
       </tr>
-      <tr>
+      <tr class="sample-row-d1">
         <td>Diagram 1</td>
         <td>+13</td>
         <td>42</td>
         <td>107</td>
         <td>107</td>
+        <td>full</td>
         <td>Blog 56</td>
         <td>OK</td>
         <td>1.90 s</td>
@@ -823,12 +1050,13 @@
         <td>3,774</td>
         <td>196 ms</td>
       </tr>
-      <tr>
+      <tr class="sample-row-d2">
         <td>Diagram 2</td>
         <td>+13</td>
         <td>42</td>
         <td>107</td>
         <td>103</td>
+        <td>full</td>
         <td>Blog 56</td>
         <td>OK</td>
         <td>289 ms</td>
@@ -836,12 +1064,13 @@
         <td>3,145</td>
         <td>28.2 ms</td>
       </tr>
-      <tr>
+      <tr class="sample-row-d1">
         <td>Diagram 1</td>
         <td>+14</td>
         <td>43</td>
         <td>109</td>
         <td>109</td>
+        <td>full</td>
         <td>Blog 57</td>
         <td>OK</td>
         <td>2.02 s</td>
@@ -849,12 +1078,13 @@
         <td>3,825</td>
         <td>200 ms</td>
       </tr>
-      <tr>
+      <tr class="sample-row-d2">
         <td>Diagram 2</td>
         <td>+14</td>
         <td>43</td>
         <td>109</td>
         <td>105</td>
+        <td>full</td>
         <td>Blog 57</td>
         <td>OK</td>
         <td>283 ms</td>
@@ -862,12 +1092,13 @@
         <td>3,178</td>
         <td>38.8 ms</td>
       </tr>
-      <tr>
+      <tr class="sample-row-d1">
         <td>Diagram 1</td>
         <td>+15</td>
         <td>44</td>
         <td>112</td>
         <td>112</td>
+        <td>full</td>
         <td>Blog 58</td>
         <td>OK</td>
         <td>2.33 s</td>
@@ -875,12 +1106,13 @@
         <td>3,877</td>
         <td>193 ms</td>
       </tr>
-      <tr>
+      <tr class="sample-row-d2">
         <td>Diagram 2</td>
         <td>+15</td>
         <td>44</td>
         <td>112</td>
         <td>107</td>
+        <td>full</td>
         <td>Blog 58</td>
         <td>OK</td>
         <td>275 ms</td>
@@ -888,12 +1120,13 @@
         <td>3,212</td>
         <td>23.0 ms</td>
       </tr>
-      <tr>
+      <tr class="sample-row-d1">
         <td>Diagram 1</td>
         <td>+16</td>
         <td>45</td>
         <td>113</td>
         <td>113</td>
+        <td>full</td>
         <td>Blog 59</td>
         <td>OK</td>
         <td>2.32 s</td>
@@ -901,12 +1134,13 @@
         <td>3,924</td>
         <td>198 ms</td>
       </tr>
-      <tr>
+      <tr class="sample-row-d2">
         <td>Diagram 2</td>
         <td>+16</td>
         <td>45</td>
         <td>113</td>
         <td>108</td>
+        <td>full</td>
         <td>Blog 59</td>
         <td>OK</td>
         <td>277 ms</td>
@@ -914,12 +1148,13 @@
         <td>3,241</td>
         <td>28.4 ms</td>
       </tr>
-      <tr>
+      <tr class="sample-row-d1">
         <td>Diagram 1</td>
         <td>+17</td>
         <td>46</td>
         <td>115</td>
         <td>115</td>
+        <td>full</td>
         <td>Blog 60</td>
         <td>OK</td>
         <td>2.41 s</td>
@@ -927,12 +1162,13 @@
         <td>3,975</td>
         <td>202 ms</td>
       </tr>
-      <tr>
+      <tr class="sample-row-d2">
         <td>Diagram 2</td>
         <td>+17</td>
         <td>46</td>
         <td>115</td>
         <td>110</td>
+        <td>full</td>
         <td>Blog 60</td>
         <td>OK</td>
         <td>295 ms</td>
@@ -940,12 +1176,13 @@
         <td>3,274</td>
         <td>38.5 ms</td>
       </tr>
-      <tr>
+      <tr class="sample-row-d1">
         <td>Diagram 1</td>
         <td>+18</td>
         <td>47</td>
         <td>118</td>
         <td>118</td>
+        <td>full</td>
         <td>Blog 61</td>
         <td>OK</td>
         <td>2.53 s</td>
@@ -953,12 +1190,13 @@
         <td>4,027</td>
         <td>196 ms</td>
       </tr>
-      <tr>
+      <tr class="sample-row-d2">
         <td>Diagram 2</td>
         <td>+18</td>
         <td>47</td>
         <td>118</td>
         <td>112</td>
+        <td>full</td>
         <td>Blog 61</td>
         <td>OK</td>
         <td>274 ms</td>
@@ -966,12 +1204,13 @@
         <td>3,308</td>
         <td>18.8 ms</td>
       </tr>
-      <tr>
+      <tr class="sample-row-d1">
         <td>Diagram 1</td>
         <td>+19</td>
         <td>48</td>
         <td>119</td>
         <td>119</td>
+        <td>full</td>
         <td>Blog 62</td>
         <td>OK</td>
         <td>2.84 s</td>
@@ -979,12 +1218,13 @@
         <td>4,086</td>
         <td>194 ms</td>
       </tr>
-      <tr>
+      <tr class="sample-row-d2">
         <td>Diagram 2</td>
         <td>+19</td>
         <td>48</td>
         <td>119</td>
         <td>113</td>
+        <td>full</td>
         <td>Blog 62</td>
         <td>OK</td>
         <td>356 ms</td>
@@ -992,12 +1232,13 @@
         <td>3,337</td>
         <td>29.3 ms</td>
       </tr>
-      <tr>
+      <tr class="sample-row-d1">
         <td>Diagram 1</td>
         <td>+20</td>
         <td>49</td>
         <td>121</td>
         <td>121</td>
+        <td>full</td>
         <td>Blog 63</td>
         <td>OK</td>
         <td>3.50 s</td>
@@ -1005,12 +1246,13 @@
         <td>4,149</td>
         <td>203 ms</td>
       </tr>
-      <tr>
+      <tr class="sample-row-d2">
         <td>Diagram 2</td>
         <td>+20</td>
         <td>49</td>
         <td>121</td>
         <td>115</td>
+        <td>full</td>
         <td>Blog 63</td>
         <td>OK</td>
         <td>278 ms</td>
@@ -1018,12 +1260,13 @@
         <td>3,370</td>
         <td>18.3 ms</td>
       </tr>
-      <tr>
+      <tr class="sample-row-d1">
         <td>Diagram 1</td>
         <td>+21</td>
         <td>50</td>
         <td>124</td>
         <td>124</td>
+        <td>full</td>
         <td>Blog 64</td>
         <td>OK</td>
         <td>3.81 s</td>
@@ -1031,12 +1274,13 @@
         <td>4,213</td>
         <td>199 ms</td>
       </tr>
-      <tr>
+      <tr class="sample-row-d2">
         <td>Diagram 2</td>
         <td>+21</td>
         <td>50</td>
         <td>124</td>
         <td>117</td>
+        <td>full</td>
         <td>Blog 64</td>
         <td>OK</td>
         <td>312 ms</td>
@@ -1044,12 +1288,13 @@
         <td>3,404</td>
         <td>19.3 ms</td>
       </tr>
-      <tr>
+      <tr class="sample-row-d1">
         <td>Diagram 1</td>
         <td>+22</td>
         <td>51</td>
         <td>125</td>
         <td>125</td>
+        <td>full</td>
         <td>Blog 65</td>
         <td>OK</td>
         <td>4.46 s</td>
@@ -1057,12 +1302,13 @@
         <td>4,272</td>
         <td>197 ms</td>
       </tr>
-      <tr>
+      <tr class="sample-row-d2">
         <td>Diagram 2</td>
         <td>+22</td>
         <td>51</td>
         <td>125</td>
         <td>118</td>
+        <td>full</td>
         <td>Blog 65</td>
         <td>OK</td>
         <td>292 ms</td>
@@ -1070,12 +1316,13 @@
         <td>3,433</td>
         <td>30.6 ms</td>
       </tr>
-      <tr>
+      <tr class="sample-row-d1">
         <td>Diagram 1</td>
         <td>+23</td>
         <td>52</td>
         <td>127</td>
         <td>127</td>
+        <td>full</td>
         <td>Blog 66</td>
         <td>OK</td>
         <td>4.78 s</td>
@@ -1083,12 +1330,13 @@
         <td>4,335</td>
         <td>195 ms</td>
       </tr>
-      <tr>
+      <tr class="sample-row-d2">
         <td>Diagram 2</td>
         <td>+23</td>
         <td>52</td>
         <td>127</td>
         <td>120</td>
+        <td>full</td>
         <td>Blog 66</td>
         <td>OK</td>
         <td>287 ms</td>
@@ -1096,12 +1344,13 @@
         <td>3,466</td>
         <td>31.3 ms</td>
       </tr>
-      <tr>
+      <tr class="sample-row-d1">
         <td>Diagram 1</td>
         <td>+24</td>
         <td>53</td>
         <td>130</td>
         <td>130</td>
+        <td>full</td>
         <td>Blog 67</td>
         <td>OK</td>
         <td>5.53 s</td>
@@ -1109,12 +1358,13 @@
         <td>4,399</td>
         <td>187 ms</td>
       </tr>
-      <tr>
+      <tr class="sample-row-d2">
         <td>Diagram 2</td>
         <td>+24</td>
         <td>53</td>
         <td>130</td>
         <td>122</td>
+        <td>full</td>
         <td>Blog 67</td>
         <td>OK</td>
         <td>286 ms</td>
@@ -1122,12 +1372,13 @@
         <td>3,500</td>
         <td>31.2 ms</td>
       </tr>
-      <tr>
+      <tr class="sample-row-d1">
         <td>Diagram 1</td>
         <td>+25</td>
         <td>54</td>
         <td>131</td>
         <td>131</td>
+        <td>full</td>
         <td>Blog 68</td>
         <td>OK</td>
         <td>6.03 s</td>
@@ -1135,12 +1386,13 @@
         <td>4,458</td>
         <td>192 ms</td>
       </tr>
-      <tr>
+      <tr class="sample-row-d2">
         <td>Diagram 2</td>
         <td>+25</td>
         <td>54</td>
         <td>131</td>
         <td>123</td>
+        <td>full</td>
         <td>Blog 68</td>
         <td>OK</td>
         <td>301 ms</td>
@@ -1148,12 +1400,13 @@
         <td>3,529</td>
         <td>31.4 ms</td>
       </tr>
-      <tr>
+      <tr class="sample-row-d1">
         <td>Diagram 1</td>
         <td>+26</td>
         <td>55</td>
         <td>133</td>
         <td>133</td>
+        <td>full</td>
         <td>Blog 69</td>
         <td>OK</td>
         <td>6.77 s</td>
@@ -1161,12 +1414,13 @@
         <td>4,521</td>
         <td>199 ms</td>
       </tr>
-      <tr>
+      <tr class="sample-row-d2">
         <td>Diagram 2</td>
         <td>+26</td>
         <td>55</td>
         <td>133</td>
         <td>125</td>
+        <td>full</td>
         <td>Blog 69</td>
         <td>OK</td>
         <td>393 ms</td>
@@ -1174,12 +1428,13 @@
         <td>3,562</td>
         <td>40.8 ms</td>
       </tr>
-      <tr>
+      <tr class="sample-row-d1">
         <td>Diagram 1</td>
         <td>+27</td>
         <td>56</td>
         <td>136</td>
         <td>136</td>
+        <td>full</td>
         <td>Blog 70</td>
         <td>OK</td>
         <td>7.39 s</td>
@@ -1187,12 +1442,13 @@
         <td>4,585</td>
         <td>192 ms</td>
       </tr>
-      <tr>
+      <tr class="sample-row-d2">
         <td>Diagram 2</td>
         <td>+27</td>
         <td>56</td>
         <td>136</td>
         <td>127</td>
+        <td>full</td>
         <td>Blog 70</td>
         <td>OK</td>
         <td>300 ms</td>
@@ -1200,12 +1456,13 @@
         <td>3,596</td>
         <td>40.9 ms</td>
       </tr>
-      <tr>
+      <tr class="sample-row-d1">
         <td>Diagram 1</td>
         <td>+28</td>
         <td>57</td>
         <td>137</td>
         <td>137</td>
+        <td>full</td>
         <td>Blog 71</td>
         <td>OK</td>
         <td>8.19 s</td>
@@ -1213,12 +1470,13 @@
         <td>4,644</td>
         <td>196 ms</td>
       </tr>
-      <tr>
+      <tr class="sample-row-d2">
         <td>Diagram 2</td>
         <td>+28</td>
         <td>57</td>
         <td>137</td>
         <td>128</td>
+        <td>full</td>
         <td>Blog 71</td>
         <td>OK</td>
         <td>302 ms</td>
@@ -1226,12 +1484,13 @@
         <td>3,625</td>
         <td>41.0 ms</td>
       </tr>
-      <tr>
+      <tr class="sample-row-d1">
         <td>Diagram 1</td>
         <td>+29</td>
         <td>58</td>
         <td>139</td>
         <td>139</td>
+        <td>full</td>
         <td>Blog 72</td>
         <td>OK</td>
         <td>9.28 s</td>
@@ -1239,12 +1498,13 @@
         <td>4,707</td>
         <td>192 ms</td>
       </tr>
-      <tr>
+      <tr class="sample-row-d2">
         <td>Diagram 2</td>
         <td>+29</td>
         <td>58</td>
         <td>139</td>
         <td>130</td>
+        <td>full</td>
         <td>Blog 72</td>
         <td>OK</td>
         <td>305 ms</td>
@@ -1252,12 +1512,13 @@
         <td>3,658</td>
         <td>39.1 ms</td>
       </tr>
-      <tr>
+      <tr class="sample-row-d1">
         <td>Diagram 1</td>
         <td>+30</td>
         <td>59</td>
         <td>142</td>
         <td>142</td>
+        <td>full</td>
         <td>Blog 73</td>
         <td>OK</td>
         <td>10.22 s</td>
@@ -1265,12 +1526,13 @@
         <td>4,771</td>
         <td>193 ms</td>
       </tr>
-      <tr>
+      <tr class="sample-row-d2">
         <td>Diagram 2</td>
         <td>+30</td>
         <td>59</td>
         <td>142</td>
         <td>132</td>
+        <td>full</td>
         <td>Blog 73</td>
         <td>OK</td>
         <td>310 ms</td>
@@ -1278,12 +1540,13 @@
         <td>3,692</td>
         <td>33.5 ms</td>
       </tr>
-      <tr>
+      <tr class="sample-row-d1">
         <td>Diagram 1</td>
         <td>+31</td>
         <td>60</td>
         <td>143</td>
         <td>143</td>
+        <td>full</td>
         <td>Blog 74</td>
         <td>OK</td>
         <td>10.22 s</td>
@@ -1291,12 +1554,13 @@
         <td>4,830</td>
         <td>193 ms</td>
       </tr>
-      <tr>
+      <tr class="sample-row-d2">
         <td>Diagram 2</td>
         <td>+31</td>
         <td>60</td>
         <td>143</td>
         <td>133</td>
+        <td>full</td>
         <td>Blog 74</td>
         <td>OK</td>
         <td>311 ms</td>
@@ -1304,12 +1568,13 @@
         <td>3,721</td>
         <td>32.5 ms</td>
       </tr>
-      <tr>
+      <tr class="sample-row-d1">
         <td>Diagram 1</td>
         <td>+32</td>
         <td>61</td>
         <td>145</td>
         <td>145</td>
+        <td>full</td>
         <td>Blog 75</td>
         <td>OK</td>
         <td>10.44 s</td>
@@ -1317,12 +1582,13 @@
         <td>4,893</td>
         <td>198 ms</td>
       </tr>
-      <tr>
+      <tr class="sample-row-d2">
         <td>Diagram 2</td>
         <td>+32</td>
         <td>61</td>
         <td>145</td>
         <td>135</td>
+        <td>full</td>
         <td>Blog 75</td>
         <td>OK</td>
         <td>286 ms</td>
@@ -1330,12 +1596,13 @@
         <td>3,754</td>
         <td>49.3 ms</td>
       </tr>
-      <tr>
+      <tr class="sample-row-d1">
         <td>Diagram 1</td>
         <td>+33</td>
         <td>62</td>
         <td>148</td>
         <td>148</td>
+        <td>full</td>
         <td>Blog 76</td>
         <td>OK</td>
         <td>10.43 s</td>
@@ -1343,12 +1610,13 @@
         <td>4,957</td>
         <td>201 ms</td>
       </tr>
-      <tr>
+      <tr class="sample-row-d2">
         <td>Diagram 2</td>
         <td>+33</td>
         <td>62</td>
         <td>148</td>
         <td>137</td>
+        <td>full</td>
         <td>Blog 76</td>
         <td>OK</td>
         <td>292 ms</td>
@@ -1356,12 +1624,13 @@
         <td>3,788</td>
         <td>46.2 ms</td>
       </tr>
-      <tr>
+      <tr class="sample-row-d1">
         <td>Diagram 1</td>
         <td>+34</td>
         <td>63</td>
         <td>149</td>
         <td>149</td>
+        <td>full</td>
         <td>Blog 77</td>
         <td>OK</td>
         <td>10.70 s</td>
@@ -1369,12 +1638,13 @@
         <td>5,016</td>
         <td>197 ms</td>
       </tr>
-      <tr>
+      <tr class="sample-row-d2">
         <td>Diagram 2</td>
         <td>+34</td>
         <td>63</td>
         <td>149</td>
         <td>138</td>
+        <td>full</td>
         <td>Blog 77</td>
         <td>OK</td>
         <td>298 ms</td>
@@ -1382,12 +1652,13 @@
         <td>3,817</td>
         <td>51.5 ms</td>
       </tr>
-      <tr>
+      <tr class="sample-row-d1">
         <td>Diagram 1</td>
         <td>+35</td>
         <td>64</td>
         <td>151</td>
         <td>151</td>
+        <td>full</td>
         <td>Blog 78</td>
         <td>OK</td>
         <td>11.80 s</td>
@@ -1395,12 +1666,13 @@
         <td>5,079</td>
         <td>201 ms</td>
       </tr>
-      <tr>
+      <tr class="sample-row-d2">
         <td>Diagram 2</td>
         <td>+35</td>
         <td>64</td>
         <td>151</td>
         <td>140</td>
+        <td>full</td>
         <td>Blog 78</td>
         <td>OK</td>
         <td>312 ms</td>
@@ -1408,12 +1680,13 @@
         <td>3,850</td>
         <td>43.6 ms</td>
       </tr>
-      <tr>
+      <tr class="sample-row-d1">
         <td>Diagram 1</td>
         <td>+36</td>
         <td>65</td>
         <td>154</td>
         <td>154</td>
+        <td>full</td>
         <td>Blog 79</td>
         <td>OK</td>
         <td>13.40 s</td>
@@ -1421,12 +1694,13 @@
         <td>5,143</td>
         <td>193 ms</td>
       </tr>
-      <tr>
+      <tr class="sample-row-d2">
         <td>Diagram 2</td>
         <td>+36</td>
         <td>65</td>
         <td>154</td>
         <td>142</td>
+        <td>full</td>
         <td>Blog 79</td>
         <td>OK</td>
         <td>314 ms</td>
@@ -1434,12 +1708,13 @@
         <td>3,884</td>
         <td>23.8 ms</td>
       </tr>
-      <tr>
+      <tr class="sample-row-d1">
         <td>Diagram 1</td>
         <td>+37</td>
         <td>66</td>
         <td>155</td>
         <td>155</td>
+        <td>full</td>
         <td>Blog 80</td>
         <td>OK</td>
         <td>14.00 s</td>
@@ -1447,12 +1722,13 @@
         <td>5,202</td>
         <td>204 ms</td>
       </tr>
-      <tr>
+      <tr class="sample-row-d2">
         <td>Diagram 2</td>
         <td>+37</td>
         <td>66</td>
         <td>155</td>
         <td>143</td>
+        <td>full</td>
         <td>Blog 80</td>
         <td>OK</td>
         <td>354 ms</td>
@@ -1460,12 +1736,13 @@
         <td>3,913</td>
         <td>22.5 ms</td>
       </tr>
-      <tr>
+      <tr class="sample-row-d1">
         <td>Diagram 1</td>
         <td>+38</td>
         <td>67</td>
         <td>157</td>
         <td>157</td>
+        <td>full</td>
         <td>Blog 81</td>
         <td>OK</td>
         <td>14.87 s</td>
@@ -1473,12 +1750,13 @@
         <td>5,265</td>
         <td>194 ms</td>
       </tr>
-      <tr>
+      <tr class="sample-row-d2">
         <td>Diagram 2</td>
         <td>+38</td>
         <td>67</td>
         <td>157</td>
         <td>145</td>
+        <td>full</td>
         <td>Blog 81</td>
         <td>OK</td>
         <td>312 ms</td>
@@ -1486,12 +1764,13 @@
         <td>3,946</td>
         <td>43.4 ms</td>
       </tr>
-      <tr>
+      <tr class="sample-row-d1">
         <td>Diagram 1</td>
         <td>+39</td>
         <td>68</td>
         <td>160</td>
         <td>160</td>
+        <td>full</td>
         <td>Blog 82</td>
         <td>OK</td>
         <td>15.39 s</td>
@@ -1499,12 +1778,13 @@
         <td>5,329</td>
         <td>198 ms</td>
       </tr>
-      <tr>
+      <tr class="sample-row-d2">
         <td>Diagram 2</td>
         <td>+39</td>
         <td>68</td>
         <td>160</td>
         <td>147</td>
+        <td>full</td>
         <td>Blog 82</td>
         <td>OK</td>
         <td>358 ms</td>
@@ -1512,12 +1792,13 @@
         <td>3,980</td>
         <td>42.3 ms</td>
       </tr>
-      <tr>
+      <tr class="sample-row-d1">
         <td>Diagram 1</td>
         <td>+40</td>
         <td>69</td>
         <td>161</td>
         <td>161</td>
+        <td>full</td>
         <td>Blog 83</td>
         <td>OK</td>
         <td>16.01 s</td>
@@ -1525,12 +1806,13 @@
         <td>5,388</td>
         <td>194 ms</td>
       </tr>
-      <tr>
+      <tr class="sample-row-d2">
         <td>Diagram 2</td>
         <td>+40</td>
         <td>69</td>
         <td>161</td>
         <td>148</td>
+        <td>full</td>
         <td>Blog 83</td>
         <td>OK</td>
         <td>299 ms</td>
@@ -1538,12 +1820,13 @@
         <td>4,009</td>
         <td>37.0 ms</td>
       </tr>
-      <tr>
+      <tr class="sample-row-d1">
         <td>Diagram 1</td>
         <td>+41</td>
         <td>70</td>
         <td>163</td>
         <td>163</td>
+        <td>full</td>
         <td>Blog 84</td>
         <td>OK</td>
         <td>16.89 s</td>
@@ -1551,12 +1834,13 @@
         <td>5,451</td>
         <td>194 ms</td>
       </tr>
-      <tr>
+      <tr class="sample-row-d2">
         <td>Diagram 2</td>
         <td>+41</td>
         <td>70</td>
         <td>163</td>
         <td>150</td>
+        <td>full</td>
         <td>Blog 84</td>
         <td>OK</td>
         <td>319 ms</td>
@@ -1564,12 +1848,13 @@
         <td>4,042</td>
         <td>34.1 ms</td>
       </tr>
-      <tr>
+      <tr class="sample-row-d1">
         <td>Diagram 1</td>
         <td>+42</td>
         <td>71</td>
         <td>166</td>
         <td>166</td>
+        <td>full</td>
         <td>Blog 85</td>
         <td>OK</td>
         <td>17.63 s</td>
@@ -1577,12 +1862,13 @@
         <td>5,515</td>
         <td>202 ms</td>
       </tr>
-      <tr>
+      <tr class="sample-row-d2">
         <td>Diagram 2</td>
         <td>+42</td>
         <td>71</td>
         <td>166</td>
         <td>152</td>
+        <td>full</td>
         <td>Blog 85</td>
         <td>OK</td>
         <td>339 ms</td>
@@ -1590,12 +1876,13 @@
         <td>4,076</td>
         <td>32.8 ms</td>
       </tr>
-      <tr>
+      <tr class="sample-row-d1">
         <td>Diagram 1</td>
         <td>+43</td>
         <td>72</td>
         <td>167</td>
         <td>167</td>
+        <td>full</td>
         <td>Blog 86</td>
         <td>OK</td>
         <td>18.70 s</td>
@@ -1603,12 +1890,13 @@
         <td>5,574</td>
         <td>204 ms</td>
       </tr>
-      <tr>
+      <tr class="sample-row-d2">
         <td>Diagram 2</td>
         <td>+43</td>
         <td>72</td>
         <td>167</td>
         <td>153</td>
+        <td>full</td>
         <td>Blog 86</td>
         <td>OK</td>
         <td>342 ms</td>
@@ -1616,12 +1904,13 @@
         <td>4,105</td>
         <td>33.5 ms</td>
       </tr>
-      <tr>
+      <tr class="sample-row-d1">
         <td>Diagram 1</td>
         <td>+44</td>
         <td>73</td>
         <td>169</td>
         <td>169</td>
+        <td>full</td>
         <td>Blog 87</td>
         <td>OK</td>
         <td>19.86 s</td>
@@ -1629,12 +1918,13 @@
         <td>5,637</td>
         <td>197 ms</td>
       </tr>
-      <tr>
+      <tr class="sample-row-d2">
         <td>Diagram 2</td>
         <td>+44</td>
         <td>73</td>
         <td>169</td>
         <td>155</td>
+        <td>full</td>
         <td>Blog 87</td>
         <td>OK</td>
         <td>353 ms</td>
@@ -1642,12 +1932,13 @@
         <td>4,138</td>
         <td>35.0 ms</td>
       </tr>
-      <tr>
+      <tr class="sample-row-d1">
         <td>Diagram 1</td>
         <td>+45</td>
         <td>74</td>
         <td>172</td>
         <td></td>
+        <td>full</td>
         <td>Blog 88</td>
         <td>Timed out</td>
         <td>>20.00 s</td>
@@ -1655,25 +1946,152 @@
         <td></td>
         <td></td>
       </tr>
-      <tr>
+      <tr class="sample-row-d2">
         <td>Diagram 2</td>
         <td>+45</td>
         <td>74</td>
         <td>172</td>
         <td>157</td>
+        <td>full</td>
         <td>Blog 88</td>
         <td>OK</td>
         <td>322 ms</td>
         <td>2,998</td>
         <td>4,172</td>
         <td>37.8 ms</td>
+      </tr>
+      <tr class="sample-row-d2">
+        <td>Diagram 2</td>
+        <td>+71</td>
+        <td>100</td>
+        <td>223</td>
+        <td>200</td>
+        <td>full</td>
+        <td>Blog 89</td>
+        <td>OK</td>
+        <td>376 ms</td>
+        <td>1,913</td>
+        <td>3,093</td>
+        <td>72.0 ms</td>
+      </tr>
+      <tr class="sample-row-d2">
+        <td>Diagram 2</td>
+        <td>+121</td>
+        <td>150</td>
+        <td>323</td>
+        <td>283</td>
+        <td>metadata</td>
+        <td>Blog 90</td>
+        <td>OK</td>
+        <td>516 ms</td>
+        <td>2,662</td>
+        <td>3,890</td>
+        <td>86.1 ms</td>
+      </tr>
+      <tr class="sample-row-d2">
+        <td>Diagram 2</td>
+        <td>+171</td>
+        <td>200</td>
+        <td>424</td>
+        <td>367</td>
+        <td>metadata</td>
+        <td>Blog 91</td>
+        <td>OK</td>
+        <td>447 ms</td>
+        <td>3,414</td>
+        <td>4,642</td>
+        <td>104 ms</td>
+      </tr>
+      <tr class="sample-row-d2">
+        <td>Diagram 2</td>
+        <td>+221</td>
+        <td>250</td>
+        <td>523</td>
+        <td>450</td>
+        <td>metadata</td>
+        <td>Blog 92</td>
+        <td>OK</td>
+        <td>540 ms</td>
+        <td>4,163</td>
+        <td>5,391</td>
+        <td>176 ms</td>
+      </tr>
+      <tr class="sample-row-d2">
+        <td>Diagram 2</td>
+        <td>+271</td>
+        <td>300</td>
+        <td>623</td>
+        <td>533</td>
+        <td>metadata</td>
+        <td>Blog 93</td>
+        <td>OK</td>
+        <td>581 ms</td>
+        <td>4,912</td>
+        <td>6,140</td>
+        <td>106 ms</td>
+      </tr>
+      <tr class="sample-row-d2">
+        <td>Diagram 2</td>
+        <td>+321</td>
+        <td>350</td>
+        <td>724</td>
+        <td>617</td>
+        <td>metadata</td>
+        <td>Blog 94</td>
+        <td>OK</td>
+        <td>718 ms</td>
+        <td>5,664</td>
+        <td>6,892</td>
+        <td>150 ms</td>
+      </tr>
+      <tr class="sample-row-d2">
+        <td>Diagram 2</td>
+        <td>+371</td>
+        <td>400</td>
+        <td>823</td>
+        <td>700</td>
+        <td>metadata</td>
+        <td>Blog 95</td>
+        <td>OK</td>
+        <td>693 ms</td>
+        <td>6,413</td>
+        <td>7,641</td>
+        <td>165 ms</td>
+      </tr>
+      <tr class="sample-row-d2">
+        <td>Diagram 2</td>
+        <td>+421</td>
+        <td>450</td>
+        <td>923</td>
+        <td>783</td>
+        <td>metadata</td>
+        <td>Blog 96</td>
+        <td>OK</td>
+        <td>748 ms</td>
+        <td>7,162</td>
+        <td>8,390</td>
+        <td>136 ms</td>
+      </tr>
+      <tr class="sample-row-d2">
+        <td>Diagram 2</td>
+        <td>+471</td>
+        <td>500</td>
+        <td>1,024</td>
+        <td>867</td>
+        <td>metadata</td>
+        <td>Blog 97</td>
+        <td>OK</td>
+        <td>925 ms</td>
+        <td>7,914</td>
+        <td>9,142</td>
+        <td>166 ms</td>
       </tr></tbody>
   </table>
 
   <h2>Benchmark Documents Left In PMT</h2>
-  <p>All generated benchmark diagrams were left intact for inspection, from Blog 43 through Blog 88. Each diagram includes a visible benchmark note textbox.</p>
+  <p>All generated benchmark diagrams were left intact for inspection, from Blog 43 through Blog 97. Each diagram includes a visible benchmark note textbox.</p>
   <table>
-    <thead><tr><th>Row</th><th>Title</th><th>Added</th><th>Entities</th><th>Relationships</th><th>SVG size</th><th>SVG URL</th></tr></thead>
+    <thead><tr><th>Row</th><th>Title</th><th>Added</th><th>Entities</th><th>Relationships</th><th>Render mode</th><th>SVG size</th><th>SVG URL</th></tr></thead>
     <tbody>
       <tr>
         <td>Blog 43</td>
@@ -1681,6 +2099,7 @@
         <td>+0</td>
         <td>29</td>
         <td>82</td>
+        <td>full</td>
         <td>363.9 KB</td>
         <td><code>/uploads/richtext/pmt-schema-benchmark-plus-000-entities-20260726.svg</code></td>
       </tr>
@@ -1690,6 +2109,7 @@
         <td>+1</td>
         <td>30</td>
         <td>83</td>
+        <td>full</td>
         <td>371.0 KB</td>
         <td><code>/uploads/richtext/pmt-schema-benchmark-plus-001-entities-20260726.svg</code></td>
       </tr>
@@ -1699,6 +2119,7 @@
         <td>+2</td>
         <td>31</td>
         <td>85</td>
+        <td>full</td>
         <td>379.4 KB</td>
         <td><code>/uploads/richtext/pmt-schema-benchmark-plus-002-entities-20260726.svg</code></td>
       </tr>
@@ -1708,6 +2129,7 @@
         <td>+3</td>
         <td>32</td>
         <td>88</td>
+        <td>full</td>
         <td>388.4 KB</td>
         <td><code>/uploads/richtext/pmt-schema-benchmark-plus-003-entities-20260726.svg</code></td>
       </tr>
@@ -1717,6 +2139,7 @@
         <td>+4</td>
         <td>33</td>
         <td>89</td>
+        <td>full</td>
         <td>395.4 KB</td>
         <td><code>/uploads/richtext/pmt-schema-benchmark-plus-004-entities-20260726.svg</code></td>
       </tr>
@@ -1726,6 +2149,7 @@
         <td>+5</td>
         <td>34</td>
         <td>91</td>
+        <td>full</td>
         <td>403.9 KB</td>
         <td><code>/uploads/richtext/pmt-schema-benchmark-plus-005-entities-20260726.svg</code></td>
       </tr>
@@ -1735,6 +2159,7 @@
         <td>+6</td>
         <td>35</td>
         <td>94</td>
+        <td>full</td>
         <td>412.9 KB</td>
         <td><code>/uploads/richtext/pmt-schema-benchmark-plus-006-entities-20260726.svg</code></td>
       </tr>
@@ -1744,6 +2169,7 @@
         <td>+7</td>
         <td>36</td>
         <td>95</td>
+        <td>full</td>
         <td>420.0 KB</td>
         <td><code>/uploads/richtext/pmt-schema-benchmark-plus-007-entities-20260726.svg</code></td>
       </tr>
@@ -1753,6 +2179,7 @@
         <td>+8</td>
         <td>37</td>
         <td>97</td>
+        <td>full</td>
         <td>428.5 KB</td>
         <td><code>/uploads/richtext/pmt-schema-benchmark-plus-008-entities-20260726.svg</code></td>
       </tr>
@@ -1762,6 +2189,7 @@
         <td>+9</td>
         <td>38</td>
         <td>100</td>
+        <td>full</td>
         <td>437.5 KB</td>
         <td><code>/uploads/richtext/pmt-schema-benchmark-plus-009-entities-20260726.svg</code></td>
       </tr>
@@ -1771,6 +2199,7 @@
         <td>+10</td>
         <td>39</td>
         <td>101</td>
+        <td>full</td>
         <td>444.6 KB</td>
         <td><code>/uploads/richtext/pmt-schema-benchmark-plus-010-entities-20260726.svg</code></td>
       </tr>
@@ -1780,6 +2209,7 @@
         <td>+11</td>
         <td>40</td>
         <td>103</td>
+        <td>full</td>
         <td>453.1 KB</td>
         <td><code>/uploads/richtext/pmt-schema-benchmark-plus-011-entities-20260726.svg</code></td>
       </tr>
@@ -1789,6 +2219,7 @@
         <td>+12</td>
         <td>41</td>
         <td>106</td>
+        <td>full</td>
         <td>462.1 KB</td>
         <td><code>/uploads/richtext/pmt-schema-benchmark-plus-012-entities-20260726.svg</code></td>
       </tr>
@@ -1798,6 +2229,7 @@
         <td>+13</td>
         <td>42</td>
         <td>107</td>
+        <td>full</td>
         <td>469.2 KB</td>
         <td><code>/uploads/richtext/pmt-schema-benchmark-plus-013-entities-20260726.svg</code></td>
       </tr>
@@ -1807,6 +2239,7 @@
         <td>+14</td>
         <td>43</td>
         <td>109</td>
+        <td>full</td>
         <td>477.7 KB</td>
         <td><code>/uploads/richtext/pmt-schema-benchmark-plus-014-entities-20260726.svg</code></td>
       </tr>
@@ -1816,6 +2249,7 @@
         <td>+15</td>
         <td>44</td>
         <td>112</td>
+        <td>full</td>
         <td>486.6 KB</td>
         <td><code>/uploads/richtext/pmt-schema-benchmark-plus-015-entities-20260726.svg</code></td>
       </tr>
@@ -1825,6 +2259,7 @@
         <td>+16</td>
         <td>45</td>
         <td>113</td>
+        <td>full</td>
         <td>493.7 KB</td>
         <td><code>/uploads/richtext/pmt-schema-benchmark-plus-016-entities-20260726.svg</code></td>
       </tr>
@@ -1834,6 +2269,7 @@
         <td>+17</td>
         <td>46</td>
         <td>115</td>
+        <td>full</td>
         <td>502.3 KB</td>
         <td><code>/uploads/richtext/pmt-schema-benchmark-plus-017-entities-20260726.svg</code></td>
       </tr>
@@ -1843,6 +2279,7 @@
         <td>+18</td>
         <td>47</td>
         <td>118</td>
+        <td>full</td>
         <td>511.3 KB</td>
         <td><code>/uploads/richtext/pmt-schema-benchmark-plus-018-entities-20260726.svg</code></td>
       </tr>
@@ -1852,6 +2289,7 @@
         <td>+19</td>
         <td>48</td>
         <td>119</td>
+        <td>full</td>
         <td>518.4 KB</td>
         <td><code>/uploads/richtext/pmt-schema-benchmark-plus-019-entities-20260726.svg</code></td>
       </tr>
@@ -1861,6 +2299,7 @@
         <td>+20</td>
         <td>49</td>
         <td>121</td>
+        <td>full</td>
         <td>527.0 KB</td>
         <td><code>/uploads/richtext/pmt-schema-benchmark-plus-020-entities-20260726.svg</code></td>
       </tr>
@@ -1870,6 +2309,7 @@
         <td>+21</td>
         <td>50</td>
         <td>124</td>
+        <td>full</td>
         <td>536.0 KB</td>
         <td><code>/uploads/richtext/pmt-schema-benchmark-plus-021-entities-20260726.svg</code></td>
       </tr>
@@ -1879,6 +2319,7 @@
         <td>+22</td>
         <td>51</td>
         <td>125</td>
+        <td>full</td>
         <td>543.0 KB</td>
         <td><code>/uploads/richtext/pmt-schema-benchmark-plus-022-entities-20260726.svg</code></td>
       </tr>
@@ -1888,6 +2329,7 @@
         <td>+23</td>
         <td>52</td>
         <td>127</td>
+        <td>full</td>
         <td>551.4 KB</td>
         <td><code>/uploads/richtext/pmt-schema-benchmark-plus-023-entities-20260726.svg</code></td>
       </tr>
@@ -1897,6 +2339,7 @@
         <td>+24</td>
         <td>53</td>
         <td>130</td>
+        <td>full</td>
         <td>560.5 KB</td>
         <td><code>/uploads/richtext/pmt-schema-benchmark-plus-024-entities-20260726.svg</code></td>
       </tr>
@@ -1906,6 +2349,7 @@
         <td>+25</td>
         <td>54</td>
         <td>131</td>
+        <td>full</td>
         <td>567.6 KB</td>
         <td><code>/uploads/richtext/pmt-schema-benchmark-plus-025-entities-20260726.svg</code></td>
       </tr>
@@ -1915,6 +2359,7 @@
         <td>+26</td>
         <td>55</td>
         <td>133</td>
+        <td>full</td>
         <td>576.1 KB</td>
         <td><code>/uploads/richtext/pmt-schema-benchmark-plus-026-entities-20260726.svg</code></td>
       </tr>
@@ -1924,6 +2369,7 @@
         <td>+27</td>
         <td>56</td>
         <td>136</td>
+        <td>full</td>
         <td>585.2 KB</td>
         <td><code>/uploads/richtext/pmt-schema-benchmark-plus-027-entities-20260726.svg</code></td>
       </tr>
@@ -1933,6 +2379,7 @@
         <td>+28</td>
         <td>57</td>
         <td>137</td>
+        <td>full</td>
         <td>592.3 KB</td>
         <td><code>/uploads/richtext/pmt-schema-benchmark-plus-028-entities-20260726.svg</code></td>
       </tr>
@@ -1942,6 +2389,7 @@
         <td>+29</td>
         <td>58</td>
         <td>139</td>
+        <td>full</td>
         <td>600.8 KB</td>
         <td><code>/uploads/richtext/pmt-schema-benchmark-plus-029-entities-20260726.svg</code></td>
       </tr>
@@ -1951,6 +2399,7 @@
         <td>+30</td>
         <td>59</td>
         <td>142</td>
+        <td>full</td>
         <td>609.9 KB</td>
         <td><code>/uploads/richtext/pmt-schema-benchmark-plus-030-entities-20260726.svg</code></td>
       </tr>
@@ -1960,6 +2409,7 @@
         <td>+31</td>
         <td>60</td>
         <td>143</td>
+        <td>full</td>
         <td>617.0 KB</td>
         <td><code>/uploads/richtext/pmt-schema-benchmark-plus-031-entities-20260726.svg</code></td>
       </tr>
@@ -1969,6 +2419,7 @@
         <td>+32</td>
         <td>61</td>
         <td>145</td>
+        <td>full</td>
         <td>625.4 KB</td>
         <td><code>/uploads/richtext/pmt-schema-benchmark-plus-032-entities-20260726.svg</code></td>
       </tr>
@@ -1978,6 +2429,7 @@
         <td>+33</td>
         <td>62</td>
         <td>148</td>
+        <td>full</td>
         <td>634.5 KB</td>
         <td><code>/uploads/richtext/pmt-schema-benchmark-plus-033-entities-20260726.svg</code></td>
       </tr>
@@ -1987,6 +2439,7 @@
         <td>+34</td>
         <td>63</td>
         <td>149</td>
+        <td>full</td>
         <td>641.6 KB</td>
         <td><code>/uploads/richtext/pmt-schema-benchmark-plus-034-entities-20260726.svg</code></td>
       </tr>
@@ -1996,6 +2449,7 @@
         <td>+35</td>
         <td>64</td>
         <td>151</td>
+        <td>full</td>
         <td>650.0 KB</td>
         <td><code>/uploads/richtext/pmt-schema-benchmark-plus-035-entities-20260726.svg</code></td>
       </tr>
@@ -2005,6 +2459,7 @@
         <td>+36</td>
         <td>65</td>
         <td>154</td>
+        <td>full</td>
         <td>659.0 KB</td>
         <td><code>/uploads/richtext/pmt-schema-benchmark-plus-036-entities-20260726.svg</code></td>
       </tr>
@@ -2014,6 +2469,7 @@
         <td>+37</td>
         <td>66</td>
         <td>155</td>
+        <td>full</td>
         <td>666.1 KB</td>
         <td><code>/uploads/richtext/pmt-schema-benchmark-plus-037-entities-20260726.svg</code></td>
       </tr>
@@ -2023,6 +2479,7 @@
         <td>+38</td>
         <td>67</td>
         <td>157</td>
+        <td>full</td>
         <td>674.6 KB</td>
         <td><code>/uploads/richtext/pmt-schema-benchmark-plus-038-entities-20260726.svg</code></td>
       </tr>
@@ -2032,6 +2489,7 @@
         <td>+39</td>
         <td>68</td>
         <td>160</td>
+        <td>full</td>
         <td>683.7 KB</td>
         <td><code>/uploads/richtext/pmt-schema-benchmark-plus-039-entities-20260726.svg</code></td>
       </tr>
@@ -2041,6 +2499,7 @@
         <td>+40</td>
         <td>69</td>
         <td>161</td>
+        <td>full</td>
         <td>690.8 KB</td>
         <td><code>/uploads/richtext/pmt-schema-benchmark-plus-040-entities-20260726.svg</code></td>
       </tr>
@@ -2050,6 +2509,7 @@
         <td>+41</td>
         <td>70</td>
         <td>163</td>
+        <td>full</td>
         <td>699.4 KB</td>
         <td><code>/uploads/richtext/pmt-schema-benchmark-plus-041-entities-20260726.svg</code></td>
       </tr>
@@ -2059,6 +2519,7 @@
         <td>+42</td>
         <td>71</td>
         <td>166</td>
+        <td>full</td>
         <td>708.5 KB</td>
         <td><code>/uploads/richtext/pmt-schema-benchmark-plus-042-entities-20260726.svg</code></td>
       </tr>
@@ -2068,6 +2529,7 @@
         <td>+43</td>
         <td>72</td>
         <td>167</td>
+        <td>full</td>
         <td>715.6 KB</td>
         <td><code>/uploads/richtext/pmt-schema-benchmark-plus-043-entities-20260726.svg</code></td>
       </tr>
@@ -2077,6 +2539,7 @@
         <td>+44</td>
         <td>73</td>
         <td>169</td>
+        <td>full</td>
         <td>724.1 KB</td>
         <td><code>/uploads/richtext/pmt-schema-benchmark-plus-044-entities-20260726.svg</code></td>
       </tr>
@@ -2086,15 +2549,107 @@
         <td>+45</td>
         <td>74</td>
         <td>172</td>
+        <td>full</td>
         <td>733.3 KB</td>
         <td><code>/uploads/richtext/pmt-schema-benchmark-plus-045-entities-20260726.svg</code></td>
+      </tr>
+      <tr>
+        <td>Blog 89</td>
+        <td>PMT Schema Benchmark + 071 Entities</td>
+        <td>+71</td>
+        <td>100</td>
+        <td>223</td>
+        <td>full</td>
+        <td>945.5 KB</td>
+        <td><code>/uploads/richtext/pmt-schema-benchmark-plus-071-entities-20260726.svg</code></td>
+      </tr>
+      <tr>
+        <td>Blog 90</td>
+        <td>PMT Schema D2 Benchmark + 121 Entities</td>
+        <td>+121</td>
+        <td>150</td>
+        <td>323</td>
+        <td>metadata</td>
+        <td>422.8 KB</td>
+        <td><code>/uploads/richtext/pmt-schema-d2-benchmark-plus-121-entities-20260726.svg</code></td>
+      </tr>
+      <tr>
+        <td>Blog 91</td>
+        <td>PMT Schema D2 Benchmark + 171 Entities</td>
+        <td>+171</td>
+        <td>200</td>
+        <td>424</td>
+        <td>metadata</td>
+        <td>548.5 KB</td>
+        <td><code>/uploads/richtext/pmt-schema-d2-benchmark-plus-171-entities-20260726.svg</code></td>
+      </tr>
+      <tr>
+        <td>Blog 92</td>
+        <td>PMT Schema D2 Benchmark + 221 Entities</td>
+        <td>+221</td>
+        <td>250</td>
+        <td>523</td>
+        <td>metadata</td>
+        <td>673.6 KB</td>
+        <td><code>/uploads/richtext/pmt-schema-d2-benchmark-plus-221-entities-20260726.svg</code></td>
+      </tr>
+      <tr>
+        <td>Blog 93</td>
+        <td>PMT Schema D2 Benchmark + 271 Entities</td>
+        <td>+271</td>
+        <td>300</td>
+        <td>623</td>
+        <td>metadata</td>
+        <td>799.0 KB</td>
+        <td><code>/uploads/richtext/pmt-schema-d2-benchmark-plus-271-entities-20260726.svg</code></td>
+      </tr>
+      <tr>
+        <td>Blog 94</td>
+        <td>PMT Schema D2 Benchmark + 321 Entities</td>
+        <td>+321</td>
+        <td>350</td>
+        <td>724</td>
+        <td>metadata</td>
+        <td>924.7 KB</td>
+        <td><code>/uploads/richtext/pmt-schema-d2-benchmark-plus-321-entities-20260726.svg</code></td>
+      </tr>
+      <tr>
+        <td>Blog 95</td>
+        <td>PMT Schema D2 Benchmark + 371 Entities</td>
+        <td>+371</td>
+        <td>400</td>
+        <td>823</td>
+        <td>metadata</td>
+        <td>1.03 MB</td>
+        <td><code>/uploads/richtext/pmt-schema-d2-benchmark-plus-371-entities-20260726.svg</code></td>
+      </tr>
+      <tr>
+        <td>Blog 96</td>
+        <td>PMT Schema D2 Benchmark + 421 Entities</td>
+        <td>+421</td>
+        <td>450</td>
+        <td>923</td>
+        <td>metadata</td>
+        <td>1.15 MB</td>
+        <td><code>/uploads/richtext/pmt-schema-d2-benchmark-plus-421-entities-20260726.svg</code></td>
+      </tr>
+      <tr>
+        <td>Blog 97</td>
+        <td>PMT Schema D2 Benchmark + 471 Entities</td>
+        <td>+471</td>
+        <td>500</td>
+        <td>1,024</td>
+        <td>metadata</td>
+        <td>1.27 MB</td>
+        <td><code>/uploads/richtext/pmt-schema-d2-benchmark-plus-471-entities-20260726.svg</code></td>
       </tr></tbody>
   </table>
 
   <h2>Methodology</h2>
   <ul>
     <li>Baseline: <code>PMT&#39;s Database Schema</code>, Blog 20, source file <code>D:\Project Management Tool (PMT)\wwwroot\assets\docs\pmt-database-schema.svg</code>.</li>
-    <li>Clone ladder: +0 through +45 added entities. Each added entity contributes 1, 2, or 3 relationships in a repeating pattern.</li>
+    <li>Clone ladder: +0 through +45 added entities for the Diagram 1 threshold, then Diagram 2-only checkpoints through 500 total entities. Each added entity contributes 1, 2, or 3 relationships in a repeating pattern.</li>
+    <li>High-count Diagram 2 checkpoints use lightweight SVG shells with full PMT annotation metadata. This avoids measuring the offline legacy SVG export generator, which exceeded the one-minute test-command cap at 150 total entities, while still feeding Diagram 2 the full canonical object and relationship state.</li>
     <li>Browser: Playwright Chromium, authenticated as <code>Sin</code> against <code>http://127.0.0.1:5056</code>.</li>
     <li>Diagram 1 ready condition: selected read-only Diagram SVG visible, selected viewer not deferred, and viewport not busy.</li>
     <li>Diagram 2 ready condition: selected Diagram 2 live SVG visible and <code>whenIdle()</code> resolved.</li>
@@ -2103,10 +2658,10 @@
 
   <h2>Raw Embedded Data</h2>
   <pre class="raw">{
-  &quot;generatedAt&quot;: &quot;2026-07-25T19:06:59.203Z&quot;,
+  &quot;generatedAt&quot;: &quot;2026-07-26T03:01:48.024Z&quot;,
   &quot;practicalRouteTimeoutMs&quot;: 20000,
   &quot;baseUrl&quot;: &quot;http://127.0.0.1:5056&quot;,
-  &quot;correctedMethodology&quot;: &quot;PMT Schema baseline clone ladder, adding one entity at a time with 1-3 relationships per added entity.&quot;,
+  &quot;methodology&quot;: &quot;PMT Schema baseline clone ladder, adding one entity at a time with 1-3 relationships per added entity. Diagram 2 was extended through 500 total entities using metadata checkpoints for the higher-count rows.&quot;,
   &quot;samples&quot;: [
     {
       &quot;testedAt&quot;: &quot;2026-07-25T18:41:06.342Z&quot;,
@@ -4759,10 +5314,328 @@
         56.8
       ],
       &quot;zoomAvgMs&quot;: 37.83
+    },
+    {
+      &quot;testedAt&quot;: &quot;2026-07-25T19:11:02.106Z&quot;,
+      &quot;renderer&quot;: &quot;Diagram 2&quot;,
+      &quot;documentId&quot;: 89,
+      &quot;title&quot;: &quot;PMT Schema Benchmark + 071 Entities&quot;,
+      &quot;route&quot;: &quot;#/diagram-2/89&quot;,
+      &quot;status&quot;: &quot;ok&quot;,
+      &quot;capped&quot;: false,
+      &quot;timeoutMs&quot;: 20000,
+      &quot;consoleErrors&quot;: [],
+      &quot;readyMs&quot;: 372.5,
+      &quot;domNodeCount&quot;: 3093,
+      &quot;usedHeapBytes&quot;: 17100000,
+      &quot;svgDescendantCount&quot;: 1913,
+      &quot;canonicalObjectCount&quot;: 160,
+      &quot;canonicalEntityCount&quot;: 100,
+      &quot;canonicalRelationshipCount&quot;: 200,
+      &quot;mountedObjectCount&quot;: 160,
+      &quot;mountedRelationshipCount&quot;: 200,
+      &quot;fullRenderCount&quot;: 1,
+      &quot;lastFrameDuration&quot;: 29.2,
+      &quot;viewportHaloActive&quot;: false,
+      &quot;viewportHaloReason&quot;: &quot;fit&quot;,
+      &quot;viewportHaloObjectCoverage&quot;: &quot;100%&quot;,
+      &quot;viewportHaloRelationshipCoverage&quot;: &quot;100%&quot;,
+      &quot;viewportHaloTargetObjectCount&quot;: 160,
+      &quot;viewportHaloTargetRelationshipCount&quot;: 200,
+      &quot;overviewDetailLevel&quot;: &quot;low&quot;,
+      &quot;overviewDetailDuration&quot;: 15.5,
+      &quot;relationshipRouteSectorCount&quot;: 327,
+      &quot;viewportHaloObjectSectorCount&quot;: 12,
+      &quot;viewportHaloRelationshipSectorCount&quot;: 12,
+      &quot;zoomSamples&quot;: [
+        93.6,
+        7.7,
+        140.5
+      ],
+      &quot;zoomAvgMs&quot;: 80.6
+    },
+    {
+      &quot;testedAt&quot;: &quot;2026-07-25T19:11:31.850Z&quot;,
+      &quot;renderer&quot;: &quot;Diagram 2&quot;,
+      &quot;documentId&quot;: 89,
+      &quot;title&quot;: &quot;PMT Schema Benchmark + 071 Entities&quot;,
+      &quot;route&quot;: &quot;#/diagram-2/89&quot;,
+      &quot;status&quot;: &quot;ok&quot;,
+      &quot;capped&quot;: false,
+      &quot;timeoutMs&quot;: 20000,
+      &quot;consoleErrors&quot;: [],
+      &quot;readyMs&quot;: 376,
+      &quot;domNodeCount&quot;: 3093,
+      &quot;usedHeapBytes&quot;: 18200000,
+      &quot;svgDescendantCount&quot;: 1913,
+      &quot;canonicalObjectCount&quot;: 160,
+      &quot;canonicalEntityCount&quot;: 100,
+      &quot;canonicalRelationshipCount&quot;: 200,
+      &quot;mountedObjectCount&quot;: 160,
+      &quot;mountedRelationshipCount&quot;: 200,
+      &quot;fullRenderCount&quot;: 1,
+      &quot;lastFrameDuration&quot;: 30.3,
+      &quot;viewportHaloActive&quot;: false,
+      &quot;viewportHaloReason&quot;: &quot;fit&quot;,
+      &quot;viewportHaloObjectCoverage&quot;: &quot;100%&quot;,
+      &quot;viewportHaloRelationshipCoverage&quot;: &quot;100%&quot;,
+      &quot;viewportHaloTargetObjectCount&quot;: 160,
+      &quot;viewportHaloTargetRelationshipCount&quot;: 200,
+      &quot;overviewDetailLevel&quot;: &quot;low&quot;,
+      &quot;overviewDetailDuration&quot;: 16.3,
+      &quot;relationshipRouteSectorCount&quot;: 327,
+      &quot;viewportHaloObjectSectorCount&quot;: 12,
+      &quot;viewportHaloRelationshipSectorCount&quot;: 12,
+      &quot;zoomSamples&quot;: [
+        98,
+        8.4,
+        109.6
+      ],
+      &quot;zoomAvgMs&quot;: 72
+    },
+    {
+      &quot;testedAt&quot;: &quot;2026-07-25T19:15:53.600Z&quot;,
+      &quot;renderer&quot;: &quot;Diagram 2&quot;,
+      &quot;documentId&quot;: 90,
+      &quot;title&quot;: &quot;PMT Schema D2 Benchmark + 121 Entities&quot;,
+      &quot;route&quot;: &quot;#/diagram-2/90&quot;,
+      &quot;status&quot;: &quot;ok&quot;,
+      &quot;capped&quot;: false,
+      &quot;timeoutMs&quot;: 20000,
+      &quot;consoleErrors&quot;: [],
+      &quot;readyMs&quot;: 516.4,
+      &quot;domNodeCount&quot;: 3890,
+      &quot;usedHeapBytes&quot;: 19300000,
+      &quot;svgDescendantCount&quot;: 2662,
+      &quot;canonicalObjectCount&quot;: 210,
+      &quot;canonicalEntityCount&quot;: 150,
+      &quot;canonicalRelationshipCount&quot;: 283,
+      &quot;mountedObjectCount&quot;: 210,
+      &quot;mountedRelationshipCount&quot;: 283,
+      &quot;fullRenderCount&quot;: 1,
+      &quot;lastFrameDuration&quot;: 42.3,
+      &quot;overviewDetailLevel&quot;: &quot;low&quot;,
+      &quot;overviewDetailDuration&quot;: 25.1,
+      &quot;zoomSamples&quot;: [
+        127.5,
+        11.6,
+        119.3
+      ],
+      &quot;zoomAvgMs&quot;: 86.13
+    },
+    {
+      &quot;testedAt&quot;: &quot;2026-07-25T19:15:54.370Z&quot;,
+      &quot;renderer&quot;: &quot;Diagram 2&quot;,
+      &quot;documentId&quot;: 91,
+      &quot;title&quot;: &quot;PMT Schema D2 Benchmark + 171 Entities&quot;,
+      &quot;route&quot;: &quot;#/diagram-2/91&quot;,
+      &quot;status&quot;: &quot;ok&quot;,
+      &quot;capped&quot;: false,
+      &quot;timeoutMs&quot;: 20000,
+      &quot;consoleErrors&quot;: [],
+      &quot;readyMs&quot;: 446.95,
+      &quot;domNodeCount&quot;: 4642,
+      &quot;usedHeapBytes&quot;: 19300000,
+      &quot;svgDescendantCount&quot;: 3414,
+      &quot;canonicalObjectCount&quot;: 260,
+      &quot;canonicalEntityCount&quot;: 200,
+      &quot;canonicalRelationshipCount&quot;: 367,
+      &quot;mountedObjectCount&quot;: 260,
+      &quot;mountedRelationshipCount&quot;: 367,
+      &quot;fullRenderCount&quot;: 1,
+      &quot;lastFrameDuration&quot;: 38,
+      &quot;overviewDetailLevel&quot;: &quot;low&quot;,
+      &quot;overviewDetailDuration&quot;: 26.8,
+      &quot;zoomSamples&quot;: [
+        142.6,
+        10.8,
+        157.3
+      ],
+      &quot;zoomAvgMs&quot;: 103.57
+    },
+    {
+      &quot;testedAt&quot;: &quot;2026-07-25T19:15:55.452Z&quot;,
+      &quot;renderer&quot;: &quot;Diagram 2&quot;,
+      &quot;documentId&quot;: 92,
+      &quot;title&quot;: &quot;PMT Schema D2 Benchmark + 221 Entities&quot;,
+      &quot;route&quot;: &quot;#/diagram-2/92&quot;,
+      &quot;status&quot;: &quot;ok&quot;,
+      &quot;capped&quot;: false,
+      &quot;timeoutMs&quot;: 20000,
+      &quot;consoleErrors&quot;: [],
+      &quot;readyMs&quot;: 539.59,
+      &quot;domNodeCount&quot;: 5391,
+      &quot;usedHeapBytes&quot;: 19300000,
+      &quot;svgDescendantCount&quot;: 4163,
+      &quot;canonicalObjectCount&quot;: 310,
+      &quot;canonicalEntityCount&quot;: 250,
+      &quot;canonicalRelationshipCount&quot;: 450,
+      &quot;mountedObjectCount&quot;: 310,
+      &quot;mountedRelationshipCount&quot;: 450,
+      &quot;fullRenderCount&quot;: 1,
+      &quot;lastFrameDuration&quot;: 44.9,
+      &quot;overviewDetailLevel&quot;: &quot;low&quot;,
+      &quot;overviewDetailDuration&quot;: 35.2,
+      &quot;zoomSamples&quot;: [
+        199.9,
+        174,
+        152.9
+      ],
+      &quot;zoomAvgMs&quot;: 175.6
+    },
+    {
+      &quot;testedAt&quot;: &quot;2026-07-25T19:15:56.364Z&quot;,
+      &quot;renderer&quot;: &quot;Diagram 2&quot;,
+      &quot;documentId&quot;: 93,
+      &quot;title&quot;: &quot;PMT Schema D2 Benchmark + 271 Entities&quot;,
+      &quot;route&quot;: &quot;#/diagram-2/93&quot;,
+      &quot;status&quot;: &quot;ok&quot;,
+      &quot;capped&quot;: false,
+      &quot;timeoutMs&quot;: 20000,
+      &quot;consoleErrors&quot;: [],
+      &quot;readyMs&quot;: 581.33,
+      &quot;domNodeCount&quot;: 6140,
+      &quot;usedHeapBytes&quot;: 19300000,
+      &quot;svgDescendantCount&quot;: 4912,
+      &quot;canonicalObjectCount&quot;: 360,
+      &quot;canonicalEntityCount&quot;: 300,
+      &quot;canonicalRelationshipCount&quot;: 533,
+      &quot;mountedObjectCount&quot;: 360,
+      &quot;mountedRelationshipCount&quot;: 533,
+      &quot;fullRenderCount&quot;: 1,
+      &quot;lastFrameDuration&quot;: 64.8,
+      &quot;overviewDetailLevel&quot;: &quot;low&quot;,
+      &quot;overviewDetailDuration&quot;: 58,
+      &quot;zoomSamples&quot;: [
+        136.8,
+        85.5,
+        95.3
+      ],
+      &quot;zoomAvgMs&quot;: 105.87
+    },
+    {
+      &quot;testedAt&quot;: &quot;2026-07-25T19:16:21.483Z&quot;,
+      &quot;renderer&quot;: &quot;Diagram 2&quot;,
+      &quot;documentId&quot;: 94,
+      &quot;title&quot;: &quot;PMT Schema D2 Benchmark + 321 Entities&quot;,
+      &quot;route&quot;: &quot;#/diagram-2/94&quot;,
+      &quot;status&quot;: &quot;ok&quot;,
+      &quot;capped&quot;: false,
+      &quot;timeoutMs&quot;: 20000,
+      &quot;consoleErrors&quot;: [],
+      &quot;readyMs&quot;: 718.21,
+      &quot;domNodeCount&quot;: 6892,
+      &quot;usedHeapBytes&quot;: 31200000,
+      &quot;svgDescendantCount&quot;: 5664,
+      &quot;canonicalObjectCount&quot;: 410,
+      &quot;canonicalEntityCount&quot;: 350,
+      &quot;canonicalRelationshipCount&quot;: 617,
+      &quot;mountedObjectCount&quot;: 410,
+      &quot;mountedRelationshipCount&quot;: 617,
+      &quot;fullRenderCount&quot;: 1,
+      &quot;lastFrameDuration&quot;: 69.2,
+      &quot;overviewDetailLevel&quot;: &quot;low&quot;,
+      &quot;overviewDetailDuration&quot;: 52.8,
+      &quot;zoomSamples&quot;: [
+        219.9,
+        26.4,
+        203.4
+      ],
+      &quot;zoomAvgMs&quot;: 149.9
+    },
+    {
+      &quot;testedAt&quot;: &quot;2026-07-25T19:16:22.696Z&quot;,
+      &quot;renderer&quot;: &quot;Diagram 2&quot;,
+      &quot;documentId&quot;: 95,
+      &quot;title&quot;: &quot;PMT Schema D2 Benchmark + 371 Entities&quot;,
+      &quot;route&quot;: &quot;#/diagram-2/95&quot;,
+      &quot;status&quot;: &quot;ok&quot;,
+      &quot;capped&quot;: false,
+      &quot;timeoutMs&quot;: 20000,
+      &quot;consoleErrors&quot;: [],
+      &quot;readyMs&quot;: 693.32,
+      &quot;domNodeCount&quot;: 7641,
+      &quot;usedHeapBytes&quot;: 31200000,
+      &quot;svgDescendantCount&quot;: 6413,
+      &quot;canonicalObjectCount&quot;: 460,
+      &quot;canonicalEntityCount&quot;: 400,
+      &quot;canonicalRelationshipCount&quot;: 700,
+      &quot;mountedObjectCount&quot;: 460,
+      &quot;mountedRelationshipCount&quot;: 700,
+      &quot;fullRenderCount&quot;: 1,
+      &quot;lastFrameDuration&quot;: 80.9,
+      &quot;overviewDetailLevel&quot;: &quot;low&quot;,
+      &quot;overviewDetailDuration&quot;: 57.1,
+      &quot;zoomSamples&quot;: [
+        201.9,
+        158.9,
+        134.2
+      ],
+      &quot;zoomAvgMs&quot;: 165
+    },
+    {
+      &quot;testedAt&quot;: &quot;2026-07-25T19:16:23.868Z&quot;,
+      &quot;renderer&quot;: &quot;Diagram 2&quot;,
+      &quot;documentId&quot;: 96,
+      &quot;title&quot;: &quot;PMT Schema D2 Benchmark + 421 Entities&quot;,
+      &quot;route&quot;: &quot;#/diagram-2/96&quot;,
+      &quot;status&quot;: &quot;ok&quot;,
+      &quot;capped&quot;: false,
+      &quot;timeoutMs&quot;: 20000,
+      &quot;consoleErrors&quot;: [],
+      &quot;readyMs&quot;: 747.83,
+      &quot;domNodeCount&quot;: 8390,
+      &quot;usedHeapBytes&quot;: 31200000,
+      &quot;svgDescendantCount&quot;: 7162,
+      &quot;canonicalObjectCount&quot;: 510,
+      &quot;canonicalEntityCount&quot;: 450,
+      &quot;canonicalRelationshipCount&quot;: 783,
+      &quot;mountedObjectCount&quot;: 510,
+      &quot;mountedRelationshipCount&quot;: 783,
+      &quot;fullRenderCount&quot;: 1,
+      &quot;lastFrameDuration&quot;: 72.8,
+      &quot;overviewDetailLevel&quot;: &quot;low&quot;,
+      &quot;overviewDetailDuration&quot;: 65.2,
+      &quot;zoomSamples&quot;: [
+        209,
+        158.7,
+        39.8
+      ],
+      &quot;zoomAvgMs&quot;: 135.83
+    },
+    {
+      &quot;testedAt&quot;: &quot;2026-07-25T19:16:25.314Z&quot;,
+      &quot;renderer&quot;: &quot;Diagram 2&quot;,
+      &quot;documentId&quot;: 97,
+      &quot;title&quot;: &quot;PMT Schema D2 Benchmark + 471 Entities&quot;,
+      &quot;route&quot;: &quot;#/diagram-2/97&quot;,
+      &quot;status&quot;: &quot;ok&quot;,
+      &quot;capped&quot;: false,
+      &quot;timeoutMs&quot;: 20000,
+      &quot;consoleErrors&quot;: [],
+      &quot;readyMs&quot;: 924.82,
+      &quot;domNodeCount&quot;: 9142,
+      &quot;usedHeapBytes&quot;: 31200000,
+      &quot;svgDescendantCount&quot;: 7914,
+      &quot;canonicalObjectCount&quot;: 560,
+      &quot;canonicalEntityCount&quot;: 500,
+      &quot;canonicalRelationshipCount&quot;: 867,
+      &quot;mountedObjectCount&quot;: 560,
+      &quot;mountedRelationshipCount&quot;: 867,
+      &quot;fullRenderCount&quot;: 1,
+      &quot;lastFrameDuration&quot;: 92.2,
+      &quot;overviewDetailLevel&quot;: &quot;low&quot;,
+      &quot;overviewDetailDuration&quot;: 75.4,
+      &quot;zoomSamples&quot;: [
+        219.5,
+        148.7,
+        128.3
+      ],
+      &quot;zoomAvgMs&quot;: 165.5
     }
   ],
   &quot;matrix&quot;: {
-    &quot;generatedAt&quot;: &quot;2026-07-25T19:05:18.366Z&quot;,
+    &quot;generatedAt&quot;: &quot;2026-07-25T19:15:37.044Z&quot;,
     &quot;baselineBlogId&quot;: 20,
     &quot;baselineTitle&quot;: &quot;PMT&#39;s Database Schema&quot;,
     &quot;baselineSvgPath&quot;: &quot;D:\\Project Management Tool (PMT)\\wwwroot\\assets\\docs\\pmt-database-schema.svg&quot;,
@@ -5275,6 +6148,113 @@
         &quot;url&quot;: &quot;/uploads/richtext/pmt-schema-benchmark-plus-045-entities-20260726.svg&quot;,
         &quot;filePath&quot;: &quot;C:\\PMT\\UploadedFiles\\richtext\\pmt-schema-benchmark-plus-045-entities-20260726.svg&quot;,
         &quot;svgBytes&quot;: 750849
+      },
+      {
+        &quot;id&quot;: 89,
+        &quot;title&quot;: &quot;PMT Schema Benchmark + 071 Entities&quot;,
+        &quot;addedEntities&quot;: 71,
+        &quot;entityCount&quot;: 100,
+        &quot;relationshipCount&quot;: 223,
+        &quot;addedRelationshipCount&quot;: 141,
+        &quot;url&quot;: &quot;/uploads/richtext/pmt-schema-benchmark-plus-071-entities-20260726.svg&quot;,
+        &quot;filePath&quot;: &quot;C:\\PMT\\UploadedFiles\\richtext\\pmt-schema-benchmark-plus-071-entities-20260726.svg&quot;,
+        &quot;svgBytes&quot;: 968148
+      },
+      {
+        &quot;id&quot;: 90,
+        &quot;title&quot;: &quot;PMT Schema D2 Benchmark + 121 Entities&quot;,
+        &quot;addedEntities&quot;: 121,
+        &quot;entityCount&quot;: 150,
+        &quot;relationshipCount&quot;: 323,
+        &quot;addedRelationshipCount&quot;: 241,
+        &quot;renderMode&quot;: &quot;metadata&quot;,
+        &quot;url&quot;: &quot;/uploads/richtext/pmt-schema-d2-benchmark-plus-121-entities-20260726.svg&quot;,
+        &quot;filePath&quot;: &quot;C:\\PMT\\UploadedFiles\\richtext\\pmt-schema-d2-benchmark-plus-121-entities-20260726.svg&quot;,
+        &quot;svgBytes&quot;: 432934
+      },
+      {
+        &quot;id&quot;: 91,
+        &quot;title&quot;: &quot;PMT Schema D2 Benchmark + 171 Entities&quot;,
+        &quot;addedEntities&quot;: 171,
+        &quot;entityCount&quot;: 200,
+        &quot;relationshipCount&quot;: 424,
+        &quot;addedRelationshipCount&quot;: 342,
+        &quot;renderMode&quot;: &quot;metadata&quot;,
+        &quot;url&quot;: &quot;/uploads/richtext/pmt-schema-d2-benchmark-plus-171-entities-20260726.svg&quot;,
+        &quot;filePath&quot;: &quot;C:\\PMT\\UploadedFiles\\richtext\\pmt-schema-d2-benchmark-plus-171-entities-20260726.svg&quot;,
+        &quot;svgBytes&quot;: 561637
+      },
+      {
+        &quot;id&quot;: 92,
+        &quot;title&quot;: &quot;PMT Schema D2 Benchmark + 221 Entities&quot;,
+        &quot;addedEntities&quot;: 221,
+        &quot;entityCount&quot;: 250,
+        &quot;relationshipCount&quot;: 523,
+        &quot;addedRelationshipCount&quot;: 441,
+        &quot;renderMode&quot;: &quot;metadata&quot;,
+        &quot;url&quot;: &quot;/uploads/richtext/pmt-schema-d2-benchmark-plus-221-entities-20260726.svg&quot;,
+        &quot;filePath&quot;: &quot;C:\\PMT\\UploadedFiles\\richtext\\pmt-schema-d2-benchmark-plus-221-entities-20260726.svg&quot;,
+        &quot;svgBytes&quot;: 689749
+      },
+      {
+        &quot;id&quot;: 93,
+        &quot;title&quot;: &quot;PMT Schema D2 Benchmark + 271 Entities&quot;,
+        &quot;addedEntities&quot;: 271,
+        &quot;entityCount&quot;: 300,
+        &quot;relationshipCount&quot;: 623,
+        &quot;addedRelationshipCount&quot;: 541,
+        &quot;renderMode&quot;: &quot;metadata&quot;,
+        &quot;url&quot;: &quot;/uploads/richtext/pmt-schema-d2-benchmark-plus-271-entities-20260726.svg&quot;,
+        &quot;filePath&quot;: &quot;C:\\PMT\\UploadedFiles\\richtext\\pmt-schema-d2-benchmark-plus-271-entities-20260726.svg&quot;,
+        &quot;svgBytes&quot;: 818180
+      },
+      {
+        &quot;id&quot;: 94,
+        &quot;title&quot;: &quot;PMT Schema D2 Benchmark + 321 Entities&quot;,
+        &quot;addedEntities&quot;: 321,
+        &quot;entityCount&quot;: 350,
+        &quot;relationshipCount&quot;: 724,
+        &quot;addedRelationshipCount&quot;: 642,
+        &quot;renderMode&quot;: &quot;metadata&quot;,
+        &quot;url&quot;: &quot;/uploads/richtext/pmt-schema-d2-benchmark-plus-321-entities-20260726.svg&quot;,
+        &quot;filePath&quot;: &quot;C:\\PMT\\UploadedFiles\\richtext\\pmt-schema-d2-benchmark-plus-321-entities-20260726.svg&quot;,
+        &quot;svgBytes&quot;: 946897
+      },
+      {
+        &quot;id&quot;: 95,
+        &quot;title&quot;: &quot;PMT Schema D2 Benchmark + 371 Entities&quot;,
+        &quot;addedEntities&quot;: 371,
+        &quot;entityCount&quot;: 400,
+        &quot;relationshipCount&quot;: 823,
+        &quot;addedRelationshipCount&quot;: 741,
+        &quot;renderMode&quot;: &quot;metadata&quot;,
+        &quot;url&quot;: &quot;/uploads/richtext/pmt-schema-d2-benchmark-plus-371-entities-20260726.svg&quot;,
+        &quot;filePath&quot;: &quot;C:\\PMT\\UploadedFiles\\richtext\\pmt-schema-d2-benchmark-plus-371-entities-20260726.svg&quot;,
+        &quot;svgBytes&quot;: 1075009
+      },
+      {
+        &quot;id&quot;: 96,
+        &quot;title&quot;: &quot;PMT Schema D2 Benchmark + 421 Entities&quot;,
+        &quot;addedEntities&quot;: 421,
+        &quot;entityCount&quot;: 450,
+        &quot;relationshipCount&quot;: 923,
+        &quot;addedRelationshipCount&quot;: 841,
+        &quot;renderMode&quot;: &quot;metadata&quot;,
+        &quot;url&quot;: &quot;/uploads/richtext/pmt-schema-d2-benchmark-plus-421-entities-20260726.svg&quot;,
+        &quot;filePath&quot;: &quot;C:\\PMT\\UploadedFiles\\richtext\\pmt-schema-d2-benchmark-plus-421-entities-20260726.svg&quot;,
+        &quot;svgBytes&quot;: 1203440
+      },
+      {
+        &quot;id&quot;: 97,
+        &quot;title&quot;: &quot;PMT Schema D2 Benchmark + 471 Entities&quot;,
+        &quot;addedEntities&quot;: 471,
+        &quot;entityCount&quot;: 500,
+        &quot;relationshipCount&quot;: 1024,
+        &quot;addedRelationshipCount&quot;: 942,
+        &quot;renderMode&quot;: &quot;metadata&quot;,
+        &quot;url&quot;: &quot;/uploads/richtext/pmt-schema-d2-benchmark-plus-471-entities-20260726.svg&quot;,
+        &quot;filePath&quot;: &quot;C:\\PMT\\UploadedFiles\\richtext\\pmt-schema-d2-benchmark-plus-471-entities-20260726.svg&quot;,
+        &quot;svgBytes&quot;: 1332157
       }
     ]
   }
