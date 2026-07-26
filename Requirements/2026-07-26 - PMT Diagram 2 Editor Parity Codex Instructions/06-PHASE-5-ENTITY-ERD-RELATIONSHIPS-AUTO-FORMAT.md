@@ -1,5 +1,8 @@
 # PMT Diagram 2 Editor Parity Program
 
+> Package revision: `2026-07-26-integrated-visual-parity-dual-entry`. Visual parity and dual-entry-point requirements are integrated into this file.
+
+
 ## Repository context
 
 Repository: `Sincioco/PMT`
@@ -219,6 +222,57 @@ Requirements:
 - Apply final positions in one batched transaction.
 - Reroute after final layout, not per intermediate object.
 - Preserve manual-route policy and locked objects according to Diagram 1 behavior.
+
+<!-- INTEGRATED-ADDENDA-UPDATE-START -->
+
+## Visual and dual-host parity requirements for this phase
+
+Entity and ERD functionality belongs to the shared Diagram 2 editor core.
+
+If Diagram 1 supports an Entity or relationship inside an RTE annotation, Diagram 2 must support it through `Annotate 2.0` and `Edit Annotate 2.0`, not only through standalone Diagram documents.
+
+### Visual parity
+
+Match the familiar:
+
+- Entity toolbar action.
+- Entity inspector tab.
+- Field list and field-edit controls.
+- PK/FK/identity/nullable/important controls.
+- Collapse/data-type visibility controls.
+- Relationship tools and inspector.
+- Manual-route handles.
+- Relationship symbols and hover/selection treatment.
+- Auto Format command and progress/error behavior.
+
+### Shared command rules
+
+- Entity field edits rebuild only the affected Entity's internal structure when needed.
+- Anchor changes reroute only connected or spatially affected relationships.
+- Collapse/data-type visibility updates affected bounds/sectors and relationships incrementally.
+- Manual route editing uses preview state and one final command.
+- Auto Format may use a worker/global snapshot because it is genuinely global, but the live transition and history must remain controlled.
+
+### Required RTE compatibility flow
+
+Test:
+
+```text
+Create an Entity annotation with Diagram 1
+→ select the RTE image
+→ Edit Annotate 2.0
+→ modify Entity fields/relationship
+→ Save
+→ Edit Annotate
+→ verify Diagram 1 reopens supported content
+```
+
+Also test the reverse direction and top-navigation document round-trips.
+
+### Stress tests in both hosts
+
+Use large ERD fixtures in the document host and representative embedded ERD annotations in the RTE host. Confirm selective routing, virtualization, low detail, command history, and cleanup remain active.
+<!-- INTEGRATED-ADDENDA-UPDATE-END -->
 
 ## Stress tests
 

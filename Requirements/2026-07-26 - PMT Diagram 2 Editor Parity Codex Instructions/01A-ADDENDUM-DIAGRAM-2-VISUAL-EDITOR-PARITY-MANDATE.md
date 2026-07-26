@@ -1,5 +1,8 @@
 # PMT Diagram 2 Editor Parity Program
 
+> Package revision: `2026-07-26-integrated-visual-parity-dual-entry`. Visual parity and dual-entry-point requirements are integrated into this file.
+
+
 # Addendum — Diagram 2 Visual Editor Parity Mandate
 
 ## Placement and execution order
@@ -682,6 +685,26 @@ This addendum is successfully applied when:
 - Visual parity and performance parity evidence are included in each phase report.
 
 ---
+
+<!-- INTEGRATED-ADDENDA-UPDATE-START -->
+
+## Integration status in the regenerated package
+
+This mandate is no longer isolated guidance. Its requirements are integrated directly into:
+
+- Phase 2 editor foundation and shell.
+- Phase 3 drawing, selection, resize, text, and inspector.
+- Phase 4 Objects pane, groups, layers, clipboard, and templates.
+- Phase 5 Entity/ERD and relationship editing.
+- Phase 6 images, crop, annotation, and field mapping.
+- Phase 7 persistence, dialogs, keyboard, context menus, and round-trip UX.
+- Phase 8 performance hardening and promotion criteria.
+- The feature-parity matrix.
+- The Codex completion-report template.
+- The all-in-one instruction file.
+
+Codex must still read this addendum before each phase because it remains the authoritative detailed visual-parity specification.
+<!-- INTEGRATED-ADDENDA-UPDATE-END -->
 
 # Final instruction to Codex
 

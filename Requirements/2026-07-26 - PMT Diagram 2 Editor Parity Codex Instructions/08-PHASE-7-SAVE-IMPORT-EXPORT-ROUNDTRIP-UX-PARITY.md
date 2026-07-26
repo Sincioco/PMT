@@ -1,5 +1,8 @@
 # PMT Diagram 2 Editor Parity Program
 
+> Package revision: `2026-07-26-integrated-visual-parity-dual-entry`. Visual parity and dual-entry-point requirements are integrated into this file.
+
+
 ## Repository context
 
 Repository: `Sincioco/PMT`
@@ -207,6 +210,91 @@ Ensure:
 - High-contrast-safe selection indicators
 - No focus loss during keyed reconciliation or virtualization
 - Read-only versus edit semantics
+
+<!-- INTEGRATED-ADDENDA-UPDATE-START -->
+
+## Complete visual and dual-host UX parity
+
+Phase 7 is the final integration gate for both Diagram 2 launch contexts.
+
+### Host-specific persistence
+
+#### RTE annotation host
+
+Save must:
+
+1. Commit active gestures.
+2. Flush pending dirty state.
+3. Validate complete canonical annotation state.
+4. Build complete full-detail annotation SVG/metadata.
+5. Update the selected RTE image through the established safe RTE workflow.
+6. Restore RTE focus/context.
+7. Avoid creating/updating a standalone Diagram record unless explicitly requested.
+
+Cancel must leave RTE content unchanged.
+
+#### Diagram document host
+
+Save must use the same backing service and row-version collision handling as Diagram 1.
+
+### Dialog, keyboard, context-menu, and accessibility parity
+
+Validate both hosts for:
+
+- Familiar toolbar and inspector UI.
+- Save/Cancel/Close placement.
+- Escape behavior.
+- Keyboard shortcuts.
+- Context-menu actions.
+- Focus trapping/restoration.
+- Screen-reader labels.
+- Disabled-state explanations.
+- Unsaved-change prompts appropriate to each host.
+- No route change for normal RTE annotation.
+- Correct route behavior for top-navigation documents.
+
+### Required complete round-trip matrices
+
+#### Diagram documents
+
+```text
+D1 save → D1 open
+D1 save → D2 open
+D2 save → D1 open
+D2 save → D2 open
+```
+
+#### RTE annotations
+
+```text
+Annotate → Edit Annotate
+Annotate → Edit Annotate 2.0
+Annotate 2.0 → Edit Annotate 2.0
+Annotate 2.0 → Edit Annotate
+```
+
+#### Cross-host Diagram 2
+
+Where semantically valid:
+
+```text
+RTE selection copy → Diagram document paste
+Diagram document selection copy → RTE annotation paste
+Template create/apply in either host
+```
+
+### No false parity claims
+
+A feature is not complete unless:
+
+- It visually matches or has an approved difference.
+- It works in every applicable host.
+- It uses shared commands/editor core.
+- History works.
+- Save/cancel works.
+- Diagram 1 compatibility works.
+- Performance gates pass.
+<!-- INTEGRATED-ADDENDA-UPDATE-END -->
 
 ## Full round-trip matrix
 

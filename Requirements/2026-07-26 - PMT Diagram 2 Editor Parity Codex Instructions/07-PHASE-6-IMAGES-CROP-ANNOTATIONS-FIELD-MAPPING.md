@@ -1,5 +1,8 @@
 # PMT Diagram 2 Editor Parity Program
 
+> Package revision: `2026-07-26-integrated-visual-parity-dual-entry`. Visual parity and dual-entry-point requirements are integrated into this file.
+
+
 ## Repository context
 
 Repository: `Sincioco/PMT`
@@ -237,6 +240,104 @@ Run regression checks for:
 - Rich text
 - Annotation save
 - Existing Diagram 1 advanced features
+
+<!-- INTEGRATED-ADDENDA-UPDATE-START -->
+
+## RTE annotation workflow is a first-class deliverable
+
+This phase must complete the practical `Annotate 2.0` and `Edit Annotate 2.0` workflows.
+
+### Context-menu labels
+
+For a supported unannotated image:
+
+```text
+Annotate
+Annotate 2.0
+```
+
+For a supported image containing editable annotation metadata:
+
+```text
+Edit Annotate
+Edit Annotate 2.0
+```
+
+Use the existing trusted annotation-metadata detection. Do not infer editability from filename or visible text alone.
+
+### New annotation workflow
+
+```text
+RTE
+→ select image
+→ right-click
+→ Annotate 2.0
+→ Diagram 2 RTE host
+→ add/edit objects
+→ Save
+→ update same RTE image with complete editable metadata
+→ restore RTE focus/context
+```
+
+Opening alone must not modify the RTE.
+
+### Existing annotation workflow
+
+```text
+RTE
+→ select annotated image
+→ Edit Annotate 2.0
+→ parse complete canonical metadata
+→ edit through shared commands
+→ Save back to same image
+```
+
+Do not flatten editable content.
+
+### Cancel workflow
+
+Cancel must:
+
+- Leave the source image and RTE HTML unchanged.
+- Release temporary images/object URLs.
+- Dispose editor/renderer resources.
+- Restore RTE focus and selection.
+
+### Visual parity
+
+The RTE-hosted editor should look like the existing Diagram 1 annotation editor for applicable tools and tabs. Omit only standalone document-library/metadata controls that do not apply.
+
+### Images, crop, annotation, and mapping implementation
+
+All Phase 6 tools must use the same shared editor core in both hosts:
+
+- Image insertion/assets.
+- Crop/inset/radius.
+- Entity annotations.
+- Field Rectangles.
+- UI-to-database mappings.
+- Field Mapping Tables.
+- Mapping tab and hover/selection behavior.
+
+Crop and mapping gestures must use preview/commit behavior and localized invalidation.
+
+### Cross-version RTE matrix
+
+Run:
+
+```text
+Annotate → Edit Annotate
+Annotate → Edit Annotate 2.0
+Annotate 2.0 → Edit Annotate 2.0
+Annotate 2.0 → Edit Annotate
+```
+
+Document any feature that cannot round-trip and obtain Sin's approval before deferral.
+
+### Lifecycle/performance
+
+Test ten RTE open/save/cancel/close cycles and alternating RTE/top-navigation sessions. Confirm no continuing memory growth and no fallback to the Diagram 1 full-render path.
+<!-- INTEGRATED-ADDENDA-UPDATE-END -->
 
 ## Performance tests
 

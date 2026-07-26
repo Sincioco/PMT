@@ -1,5 +1,8 @@
 # Diagram 1 → Diagram 2 Feature Parity Matrix
 
+> Package revision: `2026-07-26-integrated-visual-parity-dual-entry`. Visual parity and dual-entry-point requirements are integrated into this file.
+
+
 ## Status legend
 
 | Status | Meaning |
@@ -17,8 +20,53 @@
 
 ## Required columns
 
-| ID | Category | Diagram 1 feature | UI location | Action/handler | Canonical reads/writes | Diagram 2 strategy | Dirty category | Routing impact | History command | D1→D2 | D2→D1 | Performance test | Status | Notes |
-|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+Use the expanded integrated table in **Integrated visual and host-parity columns** below.
+
+
+<!-- INTEGRATED-ADDENDA-UPDATE-START -->
+
+## Integrated visual and host-parity columns
+
+The authoritative matrix must use these expanded columns:
+
+| ID | Category | Diagram 1 feature | UI location | Visual source/CSS | Visual parity | Intentional difference approved | Action/handler | Canonical reads/writes | Shared editor command | Dirty category | Routing impact | History command | Top-nav D2 | RTE Annotate 2.0 | RTE Edit Annotate 2.0 | RTE save/cancel | D1→D2 | D2→D1 | Cross-host | Performance test | Status | Notes |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+
+### Host applicability values
+
+Use:
+
+```text
+Required
+Not applicable
+Deferred with Sin approval
+```
+
+Do not mark a feature complete because it works only in the top-navigation host when it is also applicable to RTE annotation.
+
+### Additional seed items
+
+| ID | Category | Diagram 1 feature | Status |
+|---|---|---|---|
+| HOST-001 | Hosting | Shared Diagram 2 editor core | Not Started |
+| HOST-002 | Hosting | RTE annotation host adapter | Not Started |
+| HOST-003 | Hosting | Diagram document host adapter | Not Started |
+| HOST-004 | RTE context menu | Preserve Annotate | Not Started |
+| HOST-005 | RTE context menu | Preserve Edit Annotate | Not Started |
+| HOST-006 | RTE context menu | Add Annotate 2.0 | Not Started |
+| HOST-007 | RTE context menu | Add Edit Annotate 2.0 | Not Started |
+| HOST-008 | RTE lifecycle | Save back to selected image | Not Started |
+| HOST-009 | RTE lifecycle | Cancel without content change | Not Started |
+| HOST-010 | RTE lifecycle | Restore RTE focus/selection | Not Started |
+| HOST-011 | Lifecycle | Ten-cycle RTE cleanup | Not Started |
+| HOST-012 | Lifecycle | Ten-cycle top-navigation cleanup | Not Started |
+| VIS-001 | Visual parity | Toolbar grouping/order/icons | Not Started |
+| VIS-002 | Visual parity | Objects pane | Not Started |
+| VIS-003 | Visual parity | Inspector tabs/controls | Not Started |
+| VIS-004 | Visual parity | Canvas handles/overlays | Not Started |
+| VIS-005 | Visual parity | Dialogs/context menus | Not Started |
+| VIS-006 | Visual parity | Responsive layout comparison | Not Started |
+<!-- INTEGRATED-ADDENDA-UPDATE-END -->
 
 ## Seed inventory
 

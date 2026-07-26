@@ -1,5 +1,8 @@
 # PMT Diagram 2 Editor Parity Program
 
+> Package revision: `2026-07-26-integrated-visual-parity-dual-entry`. Visual parity and dual-entry-point requirements are integrated into this file.
+
+
 # Addendum — Diagram 2 Dual Entry Points: RTE Annotation and Top-Navigation Diagram Editor
 
 ## Placement and execution order
@@ -771,6 +774,23 @@ The intended result is:
 > **One high-performance Diagram 2 editor with two first-class launch experiences: `Annotate 2.0` from an RTE image and `Diagram 2` from PMT's top navigation. Diagram 1 remains available side by side during testing through `Annotate`, `Edit Annotate`, and the original `Diagram` screen.**
 
 ---
+
+<!-- INTEGRATED-ADDENDA-UPDATE-START -->
+
+## Integration status in the regenerated package
+
+This dual-entry-point requirement is integrated directly into the updated Phase 2–8 files, parity matrix, completion report, Start Here file, master constitution, and all-in-one instructions.
+
+The authoritative product requirement remains:
+
+```text
+One Diagram 2 editor core
+    ├── RTE host: Annotate 2.0 / Edit Annotate 2.0
+    └── Document host: top-navigation Diagram 2
+```
+
+Codex must preserve the original Diagram 1 commands and screen side by side until Sin separately approves replacement.
+<!-- INTEGRATED-ADDENDA-UPDATE-END -->
 
 # Final instruction to Codex
 

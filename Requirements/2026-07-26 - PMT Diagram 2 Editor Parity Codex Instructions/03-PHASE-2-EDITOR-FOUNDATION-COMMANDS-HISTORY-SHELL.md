@@ -1,5 +1,8 @@
 # PMT Diagram 2 Editor Parity Program
 
+> Package revision: `2026-07-26-integrated-visual-parity-dual-entry`. Visual parity and dual-entry-point requirements are integrated into this file.
+
+
 ## Repository context
 
 Repository: `Sincioco/PMT`
@@ -219,6 +222,127 @@ Keep existing features working:
 - Copy selection
 
 Migrate them to the new controller and history foundation before adding more tools.
+
+<!-- INTEGRATED-ADDENDA-UPDATE-START -->
+
+## Integrated visual-parity and dual-entry-point requirements
+
+This phase must establish the final hosting architecture. Do not build a top-navigation-only editor that must later be dismantled for RTE embedding.
+
+### Shared editor core
+
+Create or establish one shared Diagram 2 editor core responsible for:
+
+- Editor controller.
+- Renderer-neutral commands.
+- Command-based history and coalescing.
+- Selection and active-tool state.
+- Toolbar command definitions.
+- Inspector state and validation.
+- Objects-pane synchronization contracts.
+- Canonical-state mutation.
+- Dirty classification.
+- Diagram 2 renderer integration.
+- Cleanup and diagnostics.
+
+The editor core must not assume a backing Diagram document exists.
+
+### Required host adapters
+
+Establish two host adapters:
+
+#### RTE annotation host
+
+Responsibilities:
+
+- Receive the selected RTE image and originating RTE context.
+- Parse existing annotation metadata or initialize a blank annotation.
+- Mount the shared editor in modal/maximized/embedded annotation mode.
+- Save the complete annotation back to the selected image.
+- Cancel without altering the RTE.
+- Restore RTE focus and selection.
+- Avoid normal route changes.
+- Dispose all renderer/editor resources.
+
+#### Diagram document host
+
+Responsibilities:
+
+- Provide Diagram library, route, document ID, metadata, permissions, and row version.
+- Mount the same shared editor core.
+- Save through the existing Diagram backing-document service.
+- Handle document navigation and stale-record conflicts.
+- Dispose on document change or navigation.
+
+### Side-by-side RTE commands
+
+Inspect the existing image context menu and add:
+
+```text
+Unannotated supported image:
+    Annotate
+    Annotate 2.0
+
+Annotated supported image:
+    Edit Annotate
+    Edit Annotate 2.0
+```
+
+Existing Diagram 1 actions must remain unchanged.
+
+During Phase 2, `Annotate 2.0` and `Edit Annotate 2.0` must launch the real shared Diagram 2 editor shell, even if later phase tools are still disabled or unavailable. Do not launch the top-navigation route as a workaround.
+
+### Visual shell mandate
+
+The Phase 2 shell should immediately converge toward Diagram 1:
+
+- Familiar toolbar placement and grouping.
+- Left Objects-pane shell.
+- Center Diagram 2 canvas.
+- Right inspector shell with expected tab order.
+- Familiar Save/Undo/Redo placement.
+- Selection-aware states.
+- Development diagnostics behind a toggle or collapsible area.
+
+Do not preserve the current minimal renderer/demo toolbar as the intended final UI.
+
+It is acceptable for later-phase controls to be honestly disabled or omitted. Do not present nonfunctional controls as complete.
+
+### History migration
+
+Replace routine full-state snapshot undo with command/delta history for local operations.
+
+At minimum, Phase 2 must prove:
+
+- One drag equals one command.
+- One keyboard nudge equals one command or a correctly coalesced series.
+- Undo/redo applies the smallest dirty update.
+- Ordinary move undo/redo does not call complete live `renderer.render(...)`.
+- Global snapshots remain reserved for import/Auto Format/global restore operations.
+
+### Phase 2 dual-host tests
+
+Test:
+
+1. Top-navigation Diagram 2 mounts the shared editor.
+2. RTE `Annotate 2.0` mounts the same editor-core identity/configuration.
+3. RTE `Edit Annotate 2.0` parses existing annotation metadata.
+4. RTE Cancel leaves the source image unchanged.
+5. Existing `Annotate` and `Edit Annotate` still open Diagram 1.
+6. Ten open/close cycles in each host leave no stale SVG, listeners, maps, or global references.
+7. Both hosts preserve the accepted renderer benchmark within the regression threshold.
+
+### Revised Phase 2 expected outcome
+
+At completion:
+
+- Diagram 2 has a Diagram 1-familiar production editor shell.
+- The same editor core runs in both hosts.
+- Both RTE Diagram versions can be launched side by side.
+- Top-navigation Diagram and Diagram 2 remain side by side.
+- Command-based incremental history replaces local snapshot restores.
+- No feature requires a full live rebuild merely because the shell and host adapters were introduced.
+<!-- INTEGRATED-ADDENDA-UPDATE-END -->
 
 ## Browser tests
 

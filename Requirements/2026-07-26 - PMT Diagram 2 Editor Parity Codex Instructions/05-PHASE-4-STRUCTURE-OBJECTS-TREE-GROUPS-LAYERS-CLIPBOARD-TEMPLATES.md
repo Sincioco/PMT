@@ -1,5 +1,8 @@
 # PMT Diagram 2 Editor Parity Program
 
+> Package revision: `2026-07-26-integrated-visual-parity-dual-entry`. Visual parity and dual-entry-point requirements are integrated into this file.
+
+
 ## Repository context
 
 Repository: `Sincioco/PMT`
@@ -217,6 +220,70 @@ Implement Diagram 2 UI for:
 Do not create a Diagram 2-only canonical template store.
 
 Template application must execute as one composite command and patch only added/changed objects.
+
+<!-- INTEGRATED-ADDENDA-UPDATE-START -->
+
+## Visual and dual-host parity requirements for this phase
+
+### Objects pane in both hosts
+
+The top-navigation host should provide the normal Diagram 1-familiar Objects pane.
+
+The RTE host must use the same Objects model and commands. It may present the pane as collapsible or space-adapted, but must preserve:
+
+- Selection synchronization.
+- Rename.
+- Visibility.
+- Locking.
+- Ordering.
+- Group hierarchy.
+- Expand/collapse state.
+- Center/reveal object.
+- Incremental updates.
+
+Selecting an off-screen object in the Objects pane may center/reveal it through a viewport command. It must not force all canonical objects to mount.
+
+### Groups, layers, and ordering
+
+Use shared commands in both hosts. Reordering must patch z-order only; it must not rebuild object geometry or reroute unrelated relationships.
+
+### Clipboard across screens and hosts
+
+Test:
+
+```text
+Diagram 1 → Diagram 2 top-navigation
+Diagram 2 top-navigation → Diagram 1
+Diagram 1 RTE annotation → Edit Annotate 2.0
+Diagram 2 RTE annotation → Edit Annotate
+Diagram 2 RTE host ↔ Diagram 2 document host
+Diagram 2 document A → Diagram 2 document B
+```
+
+Continue using the shared `pmt-diagram-selection` format and safe ID remapping.
+
+### Templates across both hosts
+
+Both hosts use the same template library and normalization rules.
+
+Do not create:
+
+```text
+RTE Diagram 2 templates
+Diagram document Diagram 2 templates
+```
+
+as separate libraries.
+
+A template created or updated through either applicable host must be available through the other host and Diagram 1 according to the shared contract.
+
+### Performance gates
+
+- Objects-pane selection must not cause geometry/routing work.
+- Tree updates should be keyed/incremental where practical.
+- Group/layer operations invalidate only affected objects, order, relationships, bounds, and sectors.
+- Copy/template serialization occurs on explicit user action, not on every selection change.
+<!-- INTEGRATED-ADDENDA-UPDATE-END -->
 
 ## Performance requirements
 

@@ -1,5 +1,8 @@
 # Start Here — PMT Diagram 2 Full Editor Parity Instructions
 
+> Package revision: `2026-07-26-integrated-visual-parity-dual-entry`. Visual parity and dual-entry-point requirements are integrated into this file.
+
+
 ## What this package is for
 
 Diagram 2 already has a substantially faster rendering engine, but its current editing layer is too limited to replace Diagram 1. This instruction series directs Codex to turn Diagram 2 into a complete high-performance Diagram editor.
@@ -24,6 +27,60 @@ When Codex finishes every phase:
 6. Diagram 2 preserves its high-performance architecture. Routine operations remain incremental and do not reintroduce Diagram 1's full-render and full-routing problems.
 7. Diagram 1 remains available until Sin separately approves Diagram 2 as the default or replacement.
 8. A complete feature-parity matrix and benchmark report prove the result.
+
+<!-- INTEGRATED-ADDENDA-UPDATE-START -->
+
+## Integrated requirements added after Phase 1
+
+The instruction package now contains two mandatory addenda that apply to Phase 2 and every later phase:
+
+1. `01A-ADDENDUM-DIAGRAM-2-VISUAL-EDITOR-PARITY-MANDATE.md`
+2. `01B-ADDENDUM-DIAGRAM-2-DUAL-ENTRY-POINTS-RTE-ANNOTATE-AND-TOP-NAVIGATION.md`
+
+These requirements are also integrated directly into the updated Phase 2–8 files, parity matrix, completion report, and all-in-one instructions.
+
+### Mandatory visual outcome
+
+Diagram 2 must visually present the familiar Diagram 1 editor unless Sin explicitly approves a deliberate difference. Preserve the recognizable toolbar, tool order, icons, tooltips, Objects pane, inspector tabs, dialogs, context menus, selection affordances, and keyboard behavior.
+
+Visual parity does **not** authorize copying Diagram 1's slow rendering lifecycle. Each operation must be implemented through Diagram 2's command system and incremental renderer.
+
+### Mandatory two-entry-point outcome
+
+One shared Diagram 2 editor core must support two first-class hosts:
+
+```text
+RTE image context menu:
+    Annotate 2.0
+    Edit Annotate 2.0
+
+Top navigation:
+    Diagram 2
+```
+
+The existing Diagram 1 commands remain available side by side during testing:
+
+```text
+Annotate
+Edit Annotate
+Diagram
+```
+
+The two Diagram 2 hosts share the editor controller, commands, history, canonical state, toolbar/inspector logic, and high-performance renderer. Only host-specific concerns differ: source, save target, cancel/close behavior, routing, document library, metadata, and row-version handling.
+
+### Reading order before every phase
+
+Before beginning or continuing a phase, Codex must read:
+
+1. `01-MASTER-EXPECTED-OUTCOME-AND-PERFORMANCE-CONSTITUTION.md`
+2. `01A-ADDENDUM-DIAGRAM-2-VISUAL-EDITOR-PARITY-MANDATE.md`
+3. `01B-ADDENDUM-DIAGRAM-2-DUAL-ENTRY-POINTS-RTE-ANNOTATE-AND-TOP-NAVIGATION.md`
+4. The current phase file
+5. The current feature-parity matrix
+6. The latest completed phase report
+
+Phase 1 is complete. Do not rerun it wholesale. Reconcile its architecture deliverables with the two addenda, then proceed to the updated Phase 2.
+<!-- INTEGRATED-ADDENDA-UPDATE-END -->
 
 ## What Codex is allowed to change internally
 
@@ -56,20 +113,20 @@ Codex is explicitly authorized to:
 Feed Codex these files in order:
 
 1. `01-MASTER-EXPECTED-OUTCOME-AND-PERFORMANCE-CONSTITUTION.md`
-2. `02-PHASE-1-INVENTORY-AND-ARCHITECTURE.md`
-3. `03-PHASE-2-EDITOR-FOUNDATION-COMMANDS-HISTORY-SHELL.md`
-4. `04-PHASE-3-CORE-DRAWING-SELECTION-INSPECTOR.md`
-5. `05-PHASE-4-STRUCTURE-OBJECTS-TREE-GROUPS-LAYERS-CLIPBOARD-TEMPLATES.md`
-6. `06-PHASE-5-ENTITY-ERD-RELATIONSHIPS-AUTO-FORMAT.md`
-7. `07-PHASE-6-IMAGES-CROP-ANNOTATIONS-FIELD-MAPPING.md`
-8. `08-PHASE-7-SAVE-IMPORT-EXPORT-ROUNDTRIP-UX-PARITY.md`
-9. `09-PHASE-8-PERFORMANCE-HARDENING-500-1000-ENTITY-PROMOTION.md`
+2. `01A-ADDENDUM-DIAGRAM-2-VISUAL-EDITOR-PARITY-MANDATE.md`
+3. `01B-ADDENDUM-DIAGRAM-2-DUAL-ENTRY-POINTS-RTE-ANNOTATE-AND-TOP-NAVIGATION.md`
+4. `02-PHASE-1-INVENTORY-AND-ARCHITECTURE.md` — already completed; retain as the architectural record and amend only missing addendum-related findings
+5. `03-PHASE-2-EDITOR-FOUNDATION-COMMANDS-HISTORY-SHELL.md`
+6. `04-PHASE-3-CORE-DRAWING-SELECTION-INSPECTOR.md`
+7. `05-PHASE-4-STRUCTURE-OBJECTS-TREE-GROUPS-LAYERS-CLIPBOARD-TEMPLATES.md`
+8. `06-PHASE-5-ENTITY-ERD-RELATIONSHIPS-AUTO-FORMAT.md`
+9. `07-PHASE-6-IMAGES-CROP-ANNOTATIONS-FIELD-MAPPING.md`
+10. `08-PHASE-7-SAVE-IMPORT-EXPORT-ROUNDTRIP-UX-PARITY.md`
+11. `09-PHASE-8-PERFORMANCE-HARDENING-500-1000-ENTITY-PROMOTION.md`
 
-Use:
+Use throughout:
 
 - `10-FEATURE-PARITY-MATRIX-TEMPLATE.md`
 - `11-CODEX-COMPLETION-REPORT-TEMPLATE.md`
 
-throughout the program.
-
-`ALL-IN-ONE-CODEX-INSTRUCTIONS.md` contains the same program as one large reference file. Phase-by-phase execution is safer because it creates review checkpoints.
+`ALL-IN-ONE-CODEX-INSTRUCTIONS.md` is regenerated from this complete updated package. Phase-by-phase execution remains safer because every phase ends with manual, compatibility, visual-parity, dual-host, and performance gates.

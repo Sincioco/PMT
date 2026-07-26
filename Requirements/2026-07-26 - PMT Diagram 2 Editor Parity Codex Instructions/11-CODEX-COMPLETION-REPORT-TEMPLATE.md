@@ -1,5 +1,8 @@
 # Codex Completion Report Template — Diagram 2 Editor Parity
 
+> Package revision: `2026-07-26-integrated-visual-parity-dual-entry`. Visual parity and dual-entry-point requirements are integrated into this file.
+
+
 ## Executive summary
 
 State exactly what became usable and whether the phase met its expected outcome.
@@ -16,6 +19,71 @@ PARTIAL
 FAIL
 DEFERRED WITH SIN APPROVAL
 ```
+
+<!-- INTEGRATED-ADDENDA-UPDATE-START -->
+
+## Visual parity evidence
+
+Report:
+
+```text
+Diagram 1 visual controls studied:
+Toolbar groups reproduced:
+Inspector tabs reproduced:
+Objects pane parity:
+Dialogs/context menus parity:
+Canvas handles/overlays parity:
+Intentional visual differences:
+Sin approval for differences:
+1920×1080 comparison:
+1366×768 comparison:
+```
+
+Do not claim visual parity based only on matching labels.
+
+## Dual-entry-point evidence
+
+Report separately:
+
+```text
+Shared Diagram 2 editor core used by both hosts:
+RTE annotation host adapter:
+Diagram document host adapter:
+
+Diagram 1 Annotate preserved:
+Diagram 1 Edit Annotate preserved:
+Diagram 2 Annotate 2.0 available:
+Diagram 2 Edit Annotate 2.0 available:
+Top-navigation Diagram 2 available:
+
+RTE new annotation save-back:
+RTE existing annotation edit:
+RTE cancel leaves content unchanged:
+RTE focus/selection restored:
+RTE route unchanged:
+No standalone Diagram record created by normal RTE annotation:
+
+D1 annotation opened in D2:
+D2 annotation reopened in D1:
+D1 document opened in D2:
+D2 document reopened in D1:
+
+Ten-cycle RTE cleanup:
+Ten-cycle top-navigation cleanup:
+Alternating-host cleanup:
+```
+
+## Per-host performance evidence
+
+Provide separate normal and throttled measurements for:
+
+```text
+Top-navigation document host
+RTE annotation host
+```
+
+Include end-to-end host mount boundaries, not only detached renderer timings.
+<!-- INTEGRATED-ADDENDA-UPDATE-END -->
 
 ## Files changed
 

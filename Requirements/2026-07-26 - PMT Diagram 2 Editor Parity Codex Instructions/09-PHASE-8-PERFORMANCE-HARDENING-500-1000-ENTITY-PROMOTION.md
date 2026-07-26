@@ -1,5 +1,8 @@
 # PMT Diagram 2 Editor Parity Program
 
+> Package revision: `2026-07-26-integrated-visual-parity-dual-entry`. Visual parity and dual-entry-point requirements are integrated into this file.
+
+
 ## Repository context
 
 Repository: `Sincioco/PMT`
@@ -141,6 +144,80 @@ Use a production-shaped fixture with:
 - Complete Fit
 - Save/export
 - Ten lifecycle cycles
+
+<!-- INTEGRATED-ADDENDA-UPDATE-START -->
+
+## Dual-host benchmark and promotion requirements
+
+Final performance and promotion testing must cover both Diagram 2 entry points.
+
+### Top-navigation document host
+
+Use the normal, 232-, 500-, and 1,000-Entity production-shaped fixtures. Measure the full editor, not a detached renderer alone:
+
+- Route/navigation to first useful editor frame.
+- Shell/toolbar/inspector readiness.
+- Selection.
+- Drag/resize start and preview.
+- Inspector changes.
+- Relationship editing/routing.
+- Zoom/pan/settle.
+- Fit/low-detail.
+- Save/export.
+- Open/close lifecycle.
+
+### RTE annotation host
+
+Use representative annotations containing:
+
+- Large image assets.
+- Many shapes/text objects.
+- Rich text.
+- Crop data.
+- Entities and relationships.
+- Field Rectangles and mappings.
+- Field Mapping Tables.
+
+Measure:
+
+- Context-menu command to first useful frame.
+- Parse and editor mount.
+- Selection/drag/resize/crop.
+- Inspector edits.
+- Mapping interactions.
+- Save-back time.
+- Cancel/close time.
+- Reopen time.
+- Memory after repeated cycles.
+
+### Controlled comparisons
+
+Compare equivalent boundaries. Do not compare a complete Diagram 1 route against a detached Diagram 2 renderer and call it an end-to-end speedup.
+
+Report median, p90/p95, maximum, full-render count, routing counts, mounted/canonical counts, DOM descendants, and memory behavior.
+
+### Separate promotion gates
+
+Report independently:
+
+```text
+Top-navigation Diagram 2 editor readiness
+RTE Annotate 2.0 editor readiness
+Diagram 1 document compatibility readiness
+Diagram 1 RTE annotation compatibility readiness
+```
+
+The program is not fully promotable until both hosts pass.
+
+### Replacement remains a separate approval
+
+Even after Phase 8:
+
+- Keep `Diagram` and `Diagram 2` side by side.
+- Keep `Annotate` / `Edit Annotate`.
+- Keep `Annotate 2.0` / `Edit Annotate 2.0`.
+- Do not rename or redirect the original commands without Sin's separate approval.
+<!-- INTEGRATED-ADDENDA-UPDATE-END -->
 
 ## Required operations
 

@@ -1,5 +1,8 @@
 # PMT Diagram 2 Editor Parity Program
 
+> Package revision: `2026-07-26-integrated-visual-parity-dual-entry`. Visual parity and dual-entry-point requirements are integrated into this file.
+
+
 ## Repository context
 
 Repository: `Sincioco/PMT`
@@ -332,6 +335,78 @@ Measure:
 - DOM descendants
 - Memory after ten cycles
 - Full-render count
+
+<!-- INTEGRATED-ADDENDA-UPDATE-START -->
+
+## Post-Phase-1 reconciliation required by the addenda
+
+Phase 1 has already been completed. Do not repeat the entire inventory.
+
+Before Phase 2 code changes, amend the Phase 1 deliverables only where necessary so they explicitly record:
+
+### Visual-source mapping
+
+For every inventoried Diagram 1 feature, add or confirm:
+
+- Markup/UI builder source.
+- CSS source.
+- Toolbar group/order/icon/tooltip.
+- Inspector tab, field order, and enabled/disabled rules.
+- Context-menu and keyboard entry points.
+- Canvas overlay/handle appearance.
+- Whether the visible component can be reused safely or must be reproduced.
+
+### Dual-host ownership
+
+For every feature, classify applicability:
+
+```text
+Shared editor core
+RTE host only
+Diagram document host only
+Both hosts with different presentation
+```
+
+Add the historical Diagram 1 RTE path to the inventory:
+
+```text
+Selected RTE image
+    → right-click
+    → Annotate / Edit Annotate
+```
+
+Add the Diagram 2 parallel path:
+
+```text
+Selected RTE image
+    → right-click
+    → Annotate 2.0 / Edit Annotate 2.0
+```
+
+Record the top-navigation Diagram 2 path separately.
+
+### Architecture amendment
+
+The approved Phase 1 architecture must include:
+
+- One shared Diagram 2 editor core.
+- One RTE annotation host adapter.
+- One Diagram document host adapter.
+- Injected save/cancel/close behavior.
+- No assumption in the editor core that a Blog/Diagram document ID always exists.
+- No assumption that Save always changes a route or backing document.
+- No duplicate toolbar, inspector, history, or renderer implementation.
+
+### Phase 1 amendment acceptance
+
+Before Phase 2, Codex must be able to point to the updated Phase 1 artifact and answer:
+
+1. Which code launches Diagram 1 `Annotate` and `Edit Annotate`?
+2. How will `Annotate 2.0` and `Edit Annotate 2.0` be added without redirecting Diagram 1?
+3. Which UI builders/styles define Diagram 1's visual editor?
+4. Which responsibilities belong to the shared editor core versus each host adapter?
+5. Which current Diagram 2 APIs are sufficient, and which incremental APIs are missing?
+<!-- INTEGRATED-ADDENDA-UPDATE-END -->
 
 ## Acceptance criteria
 

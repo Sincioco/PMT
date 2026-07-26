@@ -1,5 +1,8 @@
 # PMT Diagram 2 Editor Parity Program
 
+> Package revision: `2026-07-26-integrated-visual-parity-dual-entry`. Visual parity and dual-entry-point requirements are integrated into this file.
+
+
 ## Repository context
 
 Repository: `Sincioco/PMT`
@@ -101,6 +104,96 @@ A Diagram 2 user must be able to:
 - Use Object Templates and the existing template library.
 - Save, import, export, copy, paste, undo, and redo without leaking live renderer state.
 - Open a Diagram 2 save in Diagram 1, edit it there, and reopen it in Diagram 2.
+
+<!-- INTEGRATED-ADDENDA-UPDATE-START -->
+
+## Visual parity and dual-host editor constitution
+
+### Visual parity is mandatory
+
+Diagram 2's editor should look and feel like Diagram 1's editor unless Sin approves an intentional improvement.
+
+Preserve, where applicable:
+
+- Overall editor layout.
+- Toolbar grouping, order, labels, icons, tooltips, active states, and disabled states.
+- Objects pane behavior.
+- Inspector tab names, order, fields, grouping, and mixed-selection behavior.
+- Dialogs, context menus, keyboard shortcuts, and selection affordances.
+- Canvas cursors, drag/resize handles, crop handles, relationship handles, mapping highlights, and hover behavior.
+
+The visible UI may be shared or reproduced. The implementation behind it must be Diagram 2-specific when Diagram 1's implementation would cause broad rendering, global routing, unstable nodes, or hot-path canonical serialization.
+
+The required result is:
+
+```text
+Same familiar editor
+Same user-visible behavior
+Same canonical saved result
+Different high-performance implementation
+```
+
+### One editor core, two first-class hosts
+
+Diagram 2 must be launchable from:
+
+```text
+1. RTE image context menu:
+   Annotate 2.0
+   Edit Annotate 2.0
+
+2. PMT top navigation:
+   Diagram 2
+```
+
+Diagram 1 remains available side by side:
+
+```text
+Annotate
+Edit Annotate
+Diagram
+```
+
+Both Diagram 2 entry points must share:
+
+- Editor controller.
+- Renderer-neutral commands.
+- Command-based history.
+- Selection model.
+- Toolbar and inspector command definitions.
+- Canonical state.
+- Templates and clipboard logic.
+- Diagram 2 renderer.
+- Performance diagnostics and cleanup rules.
+
+Only host adapters may differ:
+
+| Responsibility | RTE annotation host | Diagram document host |
+|---|---|---|
+| Source | Selected RTE image/annotation | Selected Diagram document |
+| Save target | Update the originating RTE image | Save the backing Diagram record |
+| Cancel/close | Restore RTE without modifying content | Discard/retain document state according to normal navigation rules |
+| Route | Normally unchanged | `#/diagram-2` or `#/diagram-2/{id}` |
+| Document library | Not required | Required |
+| Metadata and row version | Usually not applicable | Required |
+| Editor core | Shared | Shared |
+
+Do not build two separate Diagram 2 editors.
+
+### Dual-host definition of done
+
+The program is not complete until:
+
+- `Annotate 2.0` creates a new editable annotation from a selected RTE image.
+- `Edit Annotate 2.0` opens existing shared annotation metadata.
+- Save writes back to the same RTE image only after the user confirms Save.
+- Cancel leaves the RTE content unchanged and restores focus/context.
+- Top-navigation Diagram 2 edits the same backing documents as Diagram 1.
+- Diagram 1 annotations/documents open in Diagram 2.
+- Diagram 2 saves reopen in Diagram 1 for supported shared features.
+- Both hosts pass repeated lifecycle and memory-cleanup tests.
+- Performance protections apply equally to both hosts.
+<!-- INTEGRATED-ADDENDA-UPDATE-END -->
 
 ## Compatibility contract
 

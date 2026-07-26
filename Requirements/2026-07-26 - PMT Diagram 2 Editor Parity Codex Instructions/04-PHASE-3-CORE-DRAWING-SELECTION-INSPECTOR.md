@@ -1,5 +1,8 @@
 # PMT Diagram 2 Editor Parity Program
 
+> Package revision: `2026-07-26-integrated-visual-parity-dual-entry`. Visual parity and dual-entry-point requirements are integrated into this file.
+
+
 ## Repository context
 
 Repository: `Sincioco/PMT`
@@ -234,6 +237,65 @@ Requirements:
 - Cross-screen Diagram 1 ↔ Diagram 2.
 - Browser-tab fallback behavior.
 - No live DOM or renderer state.
+
+<!-- INTEGRATED-ADDENDA-UPDATE-START -->
+
+## Visual and dual-host parity requirements for this phase
+
+Every applicable Phase 3 feature must be implemented once in the shared editor core and exercised in both hosts.
+
+### Visual parity
+
+Match Diagram 1 for:
+
+- Toolbar tool position, grouping, icon, tooltip, active state, and shortcut.
+- Selection outline and handles.
+- Marquee appearance.
+- Resize cursors and previews.
+- Inspector tab names, field order, labels, controls, and mixed-value states.
+- Text/Rich Text editing affordances.
+- Format Painter state and feedback.
+
+Any approved visual difference must be documented.
+
+### Dual-host feature matrix
+
+For each feature, record:
+
+```text
+Top-navigation Diagram 2: PASS/PARTIAL/FAIL
+RTE Annotate 2.0: PASS/PARTIAL/FAIL
+RTE Edit Annotate 2.0: PASS/PARTIAL/FAIL
+Shared command implementation: YES/NO
+Shared renderer path: YES/NO
+```
+
+The RTE host may omit document-library/metadata UI, but drawing tools, selection, movement, resize, styles, text, clipboard, and history must use the same implementation.
+
+### Performance-safe implementation examples
+
+- Object creation adds only the new keyed node and required overlays.
+- Selection patches only selection state/overlays.
+- Resize uses preview geometry and commits once.
+- Color/text inspector previews are coalesced.
+- Style changes do not reroute relationships unless route geometry actually depends on the style.
+- Objects outside the viewport remain virtualized.
+- The editor shell is not rebuilt during pointer movement or inspector input.
+
+### Required cross-host tests
+
+Create the same small annotation/Diagram in both hosts and compare:
+
+- Canonical state.
+- SVG export.
+- Undo/redo result.
+- Selection behavior.
+- Inspector values.
+- Save/reopen behavior.
+- Full-render and routing counts.
+
+An object created through `Annotate 2.0` must remain editable through `Edit Annotate 2.0`. Shared-supported content should also reopen in Diagram 1.
+<!-- INTEGRATED-ADDENDA-UPDATE-END -->
 
 ## Performance tests
 
