@@ -2,20 +2,20 @@ import { copyTextToClipboard } from "../../components/clipboard.js?v=20260714-in
 import {
   buildPortableAnnotationSvg,
   normalizeAnnotationState
-} from "../../components/image-annotation.js?v=20260726-annotation-rte-composition-v2";
+} from "../../components/image-annotation.js?v=20260726-d2-line-parity-v1";
 import { appUrl } from "../../shared/app-urls.js";
 import { loadDiagramCanonicalState } from "../../shared/diagram-documents.js?v=20260725-diagram2-day6-v1";
 import {
   createDiagram2Renderer,
   normalizeDiagram2CanonicalState
-} from "./diagram2-renderer.js?v=20260726-annotation-rte-composition-v2";
+} from "./diagram2-renderer.js?v=20260726-d2-line-parity-v1";
 import { createDiagram2SelectionClipboardText } from "./diagram2-compatibility.js?v=20260725-diagram2-day14-v1";
-import { createDiagram2EditorController } from "./diagram2-editor-controller.js?v=20260726-annotation-rte-composition-v2";
+import { createDiagram2EditorController } from "./diagram2-editor-controller.js?v=20260726-d2-line-parity-v1";
 import {
   diagram2EditorShellHtml,
   updateDiagram2ObjectTreeSelection,
   updateDiagram2ShellStatus
-} from "./diagram2-editor-shell.js?v=20260726-annotation-rte-composition-v2";
+} from "./diagram2-editor-shell.js?v=20260726-d2-flat-diagnostics-v1";
 
 export async function openDiagram2RteAnnotationHost(options = {}) {
   const image = options.image;

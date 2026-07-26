@@ -63,23 +63,23 @@ test("visible navigation screens follow saved order and hidden items", () => {
   assert.equal(visibleNavigationScreens().some(screen => screen.view === "Settings"), true);
 });
 
-test("new navigation configurations place Diagram immediately after Documentation", () => {
+test("new navigation configurations place Diagram 2 next to Diagram", () => {
   storage.clear();
   const config = readNavigationConfig();
   const documentationIndex = config.items.findIndex(item => item.view === "Documentation");
   const diagramIndex = config.items.findIndex(item => item.view === "Diagram");
-  const logIndex = config.items.findIndex(item => item.view === "Log");
   const diagram2Index = config.items.findIndex(item => item.view === "Diagram 2");
+  const logIndex = config.items.findIndex(item => item.view === "Log");
 
   assert.equal(config.items[diagramIndex].visible, true);
   assert.equal(config.items[diagram2Index].visible, true);
   assert.equal(documentationIndex + 1, diagramIndex);
-  assert.equal(diagramIndex + 1, logIndex);
-  assert.equal(config.items.at(-1).view, "Diagram 2");
-  assert.match(navIconHtml("Diagram 2"), />2</);
+  assert.equal(diagramIndex + 1, diagram2Index);
+  assert.equal(diagram2Index + 1, logIndex);
+  assert.equal(navIconHtml("Diagram 2"), navIconHtml("Diagram"));
 });
 
-test("existing navigation configurations move Diagram immediately after Documentation", () => {
+test("existing navigation configurations migrate Diagram 2 next to Diagram", () => {
   const config = normalizeNavigationConfig({
     version: 2,
     items: [
@@ -93,11 +93,31 @@ test("existing navigation configurations move Diagram immediately after Document
   });
   const documentationIndex = config.items.findIndex(item => item.view === "Documentation");
   const diagramIndex = config.items.findIndex(item => item.view === "Diagram");
+  const diagram2Index = config.items.findIndex(item => item.view === "Diagram 2");
   const logIndex = config.items.findIndex(item => item.view === "Log");
 
   assert.equal(documentationIndex + 1, diagramIndex);
-  assert.equal(diagramIndex + 1, logIndex);
-  assert.equal(config.items.at(-1).view, "Diagram 2");
+  assert.equal(diagramIndex + 1, diagram2Index);
+  assert.equal(diagram2Index + 1, logIndex);
+});
+
+test("current navigation configurations preserve a saved Diagram 2 order", () => {
+  const config = normalizeNavigationConfig({
+    version: 6,
+    items: [
+      { view: "Dashboard", visible: true },
+      { view: "Diagram 2", visible: true },
+      { view: "Tasks", visible: true },
+      { view: "Documentation", visible: true },
+      { view: "Diagram", visible: true },
+      { view: "Log", visible: true },
+      { view: "About", visible: true },
+      { view: "Settings", visible: true }
+    ]
+  });
+
+  assert.equal(config.items.findIndex(item => item.view === "Diagram 2"), 1);
+  assert.equal(config.items.findIndex(item => item.view === "Diagram"), 4);
 });
 
 test("Version 2 navigation migrations preserve visible beta screens", () => {

@@ -14,6 +14,7 @@ import {
   applyAnnotationFieldRectangleRelationshipDefaultStyle,
   applyAnnotationEntityRelationshipGroupStyle,
   applyAnnotationTemplateFormatting,
+  annotationContentBounds,
   annotationArrowGeometry,
   annotationEntityRelationshipsSvg,
   annotationEntityRelationshipRoutingObstacles,
@@ -3166,6 +3167,26 @@ test("diagram canvas persists a white background without an Original Image objec
 
   const restored = parseAnnotationSvg(svg);
   assert.equal(restored?.objects.some(object => object.type === "embedded-image"), false);
+});
+
+test("annotation content bounds exclude the empty canvas used by Diagram fit", () => {
+  const state = normalizeAnnotationState({
+    width: 1600,
+    height: 900,
+    objects: [{
+      id: "hello",
+      type: "textbox",
+      x: 700,
+      y: 420,
+      width: 120,
+      height: 40,
+      text: "Hello World",
+      outlineVisible: false
+    }]
+  });
+
+  assert.deepEqual(annotationContentBounds(state), { x: 700, y: 420, width: 120, height: 40 });
+  assert.deepEqual(annotationOutputBounds(state), { x: 0, y: 0, width: 1600, height: 900 });
 });
 
 test("a new source-backed annotation seeds one ordinary embedded Original Image", () => {

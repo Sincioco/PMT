@@ -8,7 +8,7 @@ import { releaseNotes } from "../../wwwroot/js/shared/release-notes-data.js";
 
 test.use({ timezoneId: "Asia/Taipei" });
 
-test("Diagram 2 top navigation opens the isolated shell", async ({ page }) => {
+test("Diagram 2 top navigation separates read-only document mode from Edit mode", async ({ page }) => {
   const browserErrors = [];
   page.on("console", message => {
     if (message.type() === "error" && !message.text().includes("status of 401")) browserErrors.push(message.text());
@@ -52,8 +52,10 @@ test("Diagram 2 top navigation opens the isolated shell", async ({ page }) => {
   await openNavigationScreen(page, "Diagram 2");
   await expect(page).toHaveURL(/#\/diagram-2$/);
   await expect(page.locator("[data-diagram2-screen]")).toBeVisible();
+  await expect(page.locator(".diagram-screen[data-diagram2-screen]")).toBeVisible();
+  await expect(page.locator("[data-diagram2-screen]")).toHaveAttribute("data-diagram2-mode", "readonly");
   await expect(page.locator("[data-diagram2-screen] h1")).toHaveText("Diagram 2");
-  await expect(page.locator("[data-diagram2-header]")).toContainText("Diagram 2 Editor");
+  await expect(page.locator("[data-diagram2-page-document-head]")).toBeVisible();
   await expect(page.locator("[data-diagram2-screen]")).toHaveAttribute("data-diagram2-file-format", "pmt-diagram");
   await expect(page.locator("[data-diagram2-screen]")).toHaveAttribute("data-diagram2-file-format-version", "1");
   await expect(page.locator("[data-diagram2-screen]")).toHaveAttribute("data-diagram2-selection-clipboard-format", "pmt-diagram-selection");
@@ -65,9 +67,56 @@ test("Diagram 2 top navigation opens the isolated shell", async ({ page }) => {
   const diagram2DocumentIds = await page.locator("[data-diagram2-tree-row]").evaluateAll(rows =>
     rows.map(row => row.dataset.id).sort());
   expect(diagram2DocumentIds).toEqual(diagramDocumentIds);
-  await expect(page.locator("[data-diagram2-viewer-host] h2")).toHaveText("PMT Database Schema");
-  await expect(page.locator("[data-diagram2-edit-state]").first()).toHaveText("Saved");
+  await expect(page.locator("[data-diagram2-page-document-head] h2")).toHaveText("PMT Database Schema");
+  await expect(page.locator("[data-diagram2-page-document-head]")).toContainText("Public Diagram");
+  await expect(page.locator("[data-diagram2-readonly-shell]")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Fit Diagram" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Edit Diagram" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Edit Info" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Public Link" })).toBeVisible();
+  await page.getByRole("button", { name: "Edit Info", exact: true }).click();
+  await expect(page.locator("#editorDialog")).toBeVisible();
+  await expect(page.locator("#dialogTitle")).toHaveText("Edit Diagram Info");
+  await expect(page.locator("#editorDialog [name='title']")).toHaveValue("PMT Database Schema");
+  await page.locator("#editorDialog").getByRole("button", { name: "Cancel", exact: true }).click();
+  await expect(page.locator("#editorDialog")).not.toBeVisible();
+  const firstDiagram2TreeRow = page.locator("[data-diagram2-tree-row][data-id='42']");
+  const firstDiagram2TreeBox = await firstDiagram2TreeRow.boundingBox();
+  expect(firstDiagram2TreeBox).toBeTruthy();
+  await page.mouse.click(firstDiagram2TreeBox.x + 42, firstDiagram2TreeBox.y + 16, { button: "right" });
+  await expect(page.locator("[data-diagram2-tree-context-menu]")).toBeVisible();
+  await page.locator("[data-diagram2-tree-context-menu] [data-action='edit-diagram2-info']").click();
+  await expect(page.locator("#editorDialog")).toBeVisible();
+  await expect(page.locator("#dialogTitle")).toHaveText("Edit Diagram Info");
+  await page.locator("#editorDialog").getByRole("button", { name: "Cancel", exact: true }).click();
+  await expect(page.locator("#editorDialog")).not.toBeVisible();
+  await expect(page.locator("[data-diagram2-editor-shell]")).toHaveCount(0);
+  await expect(page.locator(".diagram2-editor-toolbar")).toHaveCount(0);
+  await expect(page.locator("[data-diagram2-objects-pane]")).toHaveCount(0);
+  await expect(page.locator("[data-diagram2-inspector]")).toHaveCount(0);
+  await expect(page.locator("[data-diagram2-diagnostics-shell]")).toHaveCount(0);
+  await expect(page.locator("[data-action='undo-diagram2']")).toHaveCount(0);
+  await expect(page.locator("[data-action='redo-diagram2']")).toHaveCount(0);
+  await expect(page.locator("[data-action='save-diagram2-document']")).toHaveCount(0);
+  await expect(page.locator("[data-filter='diagram2-grid']")).toHaveCount(0);
+  await expect(page.locator("[data-filter='diagram2-snap']")).toHaveCount(0);
+  await expect(page.locator("[data-diagram2-context-menu]")).toHaveCount(0);
   await expect(page.locator("[data-diagram2-svg]")).toBeVisible();
+  const readZoomControl = page.locator("[data-filter='diagram2-zoom']");
+  await waitForViewportReason(page, "fit");
+  await expect.poll(async () => readZoomControl.inputValue()).not.toBe("");
+  const readZoomBefore = Number(await readZoomControl.inputValue());
+  await page.locator("[data-action='zoom-diagram2-in']").click();
+  await waitForViewportReason(page, "toolbar zoom");
+  await expect(readZoomControl).toHaveValue(nextDiagram2TestZoomValue(readZoomBefore, 1));
+  await page.locator("[data-action='fit-diagram2-viewer']").click();
+  await waitForViewportReason(page, "fit");
+  await expect.poll(async () => readZoomControl.inputValue()).not.toBe("");
+  const readFitZoom = Number(await readZoomControl.inputValue());
+  await page.locator("[data-action='zoom-diagram2-out']").click();
+  await waitForViewportReason(page, "toolbar zoom");
+  await expect(readZoomControl).toHaveValue(nextDiagram2TestZoomValue(readFitZoom, -1));
+  await assertDiagram2ReadOnlyCannotMutate(page);
   const compatibilitySummary = await page.evaluate(() => window.__pmtDiagram2Compatibility);
   expect(compatibilitySummary).toMatchObject({
     feature: "Diagram 2",
@@ -86,6 +135,58 @@ test("Diagram 2 top navigation opens the isolated shell", async ({ page }) => {
   await expect.poll(async () =>
     page.locator("[data-diagram2-object-plane] [data-diagram2-object-type='entity']").count()
   ).toBeGreaterThanOrEqual(28);
+  await page.getByRole("button", { name: "Cards" }).click();
+  await expect(page.locator(".diagram2-card-list")).toBeVisible();
+  await expect(page.locator("[data-diagram2-tree]")).toHaveCount(0);
+  await expect(page.locator("[data-diagram2-viewer-host]")).toHaveCount(0);
+  await page.getByRole("button", { name: "Treeview" }).click();
+  await expect(page.locator("[data-diagram2-tree-row] [data-action='select-diagram2-document']")).toHaveCount(2);
+  await expect(page.locator("[data-diagram2-readonly-shell]")).toBeVisible();
+
+  await page.getByRole("button", { name: "Edit Diagram" }).click();
+  await expect(page.locator("[data-diagram2-screen]")).toHaveAttribute("data-diagram2-mode", "edit");
+  await expect(page.locator("[data-diagram2-screen] h1")).toHaveCount(0);
+  await expect(page.locator("[data-diagram2-page-document-head]")).toHaveCount(0);
+  await expect(page.locator("[data-diagram2-tree]")).toHaveCount(0);
+  await expect(page.locator(".diagram2-card-list")).toHaveCount(0);
+  await expect(page.locator("[data-diagram2-live-viewer]")).toHaveAttribute("data-diagram2-live-mode", "edit");
+  await expect(page.locator("[data-diagram2-editor-shell]")).toBeVisible();
+  await expect(page.locator(".diagram2-editor-toolbar")).toBeVisible();
+  await expect(page.locator("[data-diagram2-objects-pane]")).toHaveCount(1);
+  await expect(page.locator("[data-diagram2-inspector]")).toBeVisible();
+  await expect(page.locator("[data-diagram2-diagnostics-shell]")).toHaveCount(1);
+  await expect(page.locator("[data-action='undo-diagram2']")).toHaveCount(1);
+  await expect(page.locator("[data-action='redo-diagram2']")).toHaveCount(1);
+  await expect(page.locator("[data-action='save-diagram2-document']")).toHaveCount(1);
+  await expect(page.locator("[data-action='cancel-diagram2-editor']")).toHaveCount(1);
+  await expect(page.locator("[data-diagram2-empty-selection]")).toBeVisible();
+  await expect(page.locator("[data-diagram2-selection-format]").first()).toBeHidden();
+  const visibleInspectorTabs = await page.locator("[data-diagram2-inspector-tab]").evaluateAll(tabs =>
+    tabs.filter(tab => !tab.hidden).map(tab => tab.textContent.trim()));
+  expect(visibleInspectorTabs).toEqual(["Format", "Template", "Objects"]);
+  await assertDiagram2InspectorTabsDoNotOverlap(page);
+  await page.locator("[data-diagram2-inspector-tab='template']").click();
+  await expect(page.locator("[data-diagram2-inspector-tab='template']")).toHaveAttribute("aria-selected", "true");
+  await page.locator("[data-diagram2-inspector-tab='objects']").click();
+  await expect(page.locator("[data-diagram2-inspector-tab='objects']")).toHaveAttribute("aria-selected", "true");
+  await expect(page.locator("[data-diagram2-objects-pane]")).toBeVisible();
+  await page.locator("[data-diagram2-object-tree-row][data-diagram2-object-type='entity']").first().click();
+  await page.locator("[data-diagram2-inspector-tab='format']").click();
+  await expect(page.locator("[data-diagram2-empty-selection]")).toBeHidden();
+  await expect(page.locator("[data-diagram2-selection-format]").first()).toBeVisible();
+  await expect(page.locator("[data-diagram2-inspector-tab='entity']")).toBeVisible();
+  await page.locator("[data-annotation-color-picker='fill'] [data-annotation-color-trigger]").first().click();
+  await expect(page.locator("[data-annotation-color-picker='fill'] [data-rich-color-palette]").first()).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(page.locator("[data-annotation-color-picker='fill'] [data-rich-color-palette]").first()).toBeHidden();
+  const editZoomControl = page.locator("[data-filter='diagram2-zoom']");
+  const editZoomBefore = await editZoomControl.inputValue();
+  const editCanvasBox = await page.locator("[data-diagram2-viewer-canvas]").boundingBox();
+  expect(editCanvasBox).toBeTruthy();
+  await page.mouse.move(editCanvasBox.x + editCanvasBox.width / 2, editCanvasBox.y + editCanvasBox.height / 2);
+  await page.mouse.wheel(0, -120);
+  await expect.poll(async () => (await editZoomControl.inputValue()) !== editZoomBefore).toBe(true);
+  await expect.poll(() => page.evaluate(() => Boolean(window.__pmtDiagram2EditorCore))).toBe(true);
   await expect(page.locator("[data-diagram2-diagnostic='canonical-object-count']")).toHaveText("88");
   await expect(page.locator("[data-diagram2-diagnostic='canonical-relationship-count']")).toHaveText("82");
   await expect(page.locator("[data-diagram2-diagnostic='mounted-relationship-count']")).toHaveText("82");
@@ -116,15 +217,16 @@ test("Diagram 2 top navigation opens the isolated shell", async ({ page }) => {
   await expect.poll(() =>
     page.evaluate(() => document.querySelector("[data-diagram2-svg]") === window.__diagram2StableSvg)
   ).toBe(true);
+  await page.locator("[data-diagram2-diagnostics-shell] summary").click();
   await page.getByRole("button", { name: "Refresh Renderer" }).click();
   await waitForViewportReason(page, "fit");
   await expect.poll(() =>
     page.evaluate(() => document.querySelector("[data-diagram2-svg]") === window.__diagram2StableSvg)
   ).toBe(true);
   await expect(page.locator("[data-diagram2-diagnostic='full-render-reason']")).toHaveText("refresh");
-  await expect(page.locator("[data-action='save-diagram2-document']")).toBeDisabled();
-  await expect(page.locator(".diagram2-editor-toolbar [data-action='export-diagram2-pmt']")).toBeEnabled();
-  await expect(page.locator(".diagram-screen")).toHaveCount(0);
+  await expect(page.locator("[data-action='save-diagram2-document']").first()).toBeDisabled();
+  await expect(page.locator(".diagram-screen[data-diagram2-screen]")).toBeVisible();
+  await expect(page.locator(".diagram-screen:not([data-diagram2-screen])")).toHaveCount(0);
 
   await page.goBack();
   await expect(page).toHaveURL(/#\/diagram$/);
@@ -132,25 +234,44 @@ test("Diagram 2 top navigation opens the isolated shell", async ({ page }) => {
   await page.goForward();
   await expect(page).toHaveURL(/#\/diagram-2$/);
   await expect(page.locator("[data-diagram2-screen]")).toBeVisible();
-  await expect(page.locator(".diagram-screen")).toHaveCount(0);
+  await expect(page.locator(".diagram-screen[data-diagram2-screen]")).toBeVisible();
+  await expect(page.locator(".diagram-screen:not([data-diagram2-screen])")).toHaveCount(0);
 
   await page.locator("[data-action='select-diagram2-document'][data-id='77']").click();
   await expect(page).toHaveURL(/#\/diagram-2\/77$/);
-  await expect(page.locator("[data-diagram2-viewer-host] h2")).toHaveText("Checkout Flow");
+  await waitForViewportReason(page, "fit");
+  await expect(page.locator("[data-diagram2-page-document-head] h2")).toHaveText("Checkout Flow");
   await expect(page.locator("[data-diagram2-tree-row][data-id='77']")).toHaveClass(/is-selected/);
-  await expect(page.locator(".diagram-screen")).toHaveCount(0);
+  await expect(page.locator(".diagram-screen[data-diagram2-screen]")).toBeVisible();
 
   await page.evaluate(() => {
     window.location.hash = "#/diagram-2/42";
   });
   await expect(page).toHaveURL(/#\/diagram-2\/42$/);
   await expect(page.locator("[data-diagram2-screen]")).toBeVisible();
-  await expect(page.locator("[data-diagram2-viewer-host] h2")).toHaveText("PMT Database Schema");
-  await expect(page.locator(".diagram-screen")).toHaveCount(0);
+  await expect(page.locator("[data-diagram2-page-document-head] h2")).toHaveText("PMT Database Schema");
+  await expect(page.locator(".diagram-screen[data-diagram2-screen]")).toBeVisible();
+
+  await page.evaluate(() => {
+    window.location.hash = "#/diagram-2/9999";
+  });
+  await expect(page).toHaveURL(/#\/diagram-2\/42$/);
+  await expect(page.locator("[data-diagram2-page-document-head] h2")).toHaveText("PMT Database Schema");
+  await expect(page.getByText("Diagram not found")).toHaveCount(0);
+  await expect(page.locator("[data-diagram2-tree-row][data-id='42']")).toHaveClass(/is-selected/);
 
   await openNavigationScreen(page, "Settings");
   await page.locator("[data-action='select-lookup-type'][data-type='Navigation']").click();
   await expect(page.locator("[data-navigation-list] [data-nav-view='Diagram 2']")).toContainText("#/diagram-2");
+  await dragNavigationItemBefore(page, "Diagram 2", "Log");
+  const navigationOrder = await page.locator("[data-navigation-list] [data-nav-view]").evaluateAll(rows =>
+    rows.map(row => row.dataset.navView));
+  expect(navigationOrder.indexOf("Diagram 2")).toBe(navigationOrder.indexOf("Diagram") + 1);
+  expect(navigationOrder.indexOf("Log")).toBe(navigationOrder.indexOf("Diagram 2") + 1);
+  const savedNavigationOrder = await page.evaluate(() =>
+    JSON.parse(localStorage.getItem("pmt-navigation") || "{}").items?.map(item => item.view) || []);
+  expect(savedNavigationOrder.indexOf("Diagram 2")).toBe(savedNavigationOrder.indexOf("Diagram") + 1);
+  expect(savedNavigationOrder.indexOf("Log")).toBe(savedNavigationOrder.indexOf("Diagram 2") + 1);
 
   expect(browserErrors).toEqual([]);
 });
@@ -194,32 +315,199 @@ test("Diagram 2 direct URLs inherit Documentation read-only capabilities and blo
     window.location.hash = "#/diagram-2/77";
   });
   await expect(page.locator("[data-diagram2-screen]")).toBeVisible();
-  await expect(page.locator("[data-diagram2-viewer-host] h2")).toHaveText("Public Read-Only Diagram");
+  await expect(page.locator("[data-diagram2-screen]")).toHaveAttribute("data-diagram2-mode", "readonly");
+  await expect(page.locator("[data-diagram2-page-document-head] h2")).toHaveText("Public Read-Only Diagram");
   await expect(page.locator("[data-diagram2-object-plane] [data-diagram2-object-id='public-read-only-diagram-box']")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Edit Diagram" })).toBeDisabled();
+  await expect(page.locator("[data-diagram2-editor-shell]")).toHaveCount(0);
 
   const before = await page.evaluate(() => ({
     x: Number(document.querySelector("[data-diagram2-object-plane] [data-diagram2-object-id='public-read-only-diagram-box']")?.dataset.diagram2ObjectTransformX || 0),
-    status: window.__pmtDiagram2EditorCore?.statusSnapshot?.()
+    editorCoreLive: Boolean(window.__pmtDiagram2EditorCore)
   }));
-  expect(before.status.security.resource).toBe("Documentation");
-  expect(before.status.canEdit).toBe(false);
-  expect(before.status.canSave).toBe(false);
-  expect(before.status.canExport).toBe(true);
-  await expect(page.locator("[data-action='save-diagram2-document']")).toBeDisabled();
-  await expect(page.locator(".diagram2-editor-toolbar [data-action='export-diagram2-pmt']")).toBeEnabled();
+  expect(before.editorCoreLive).toBe(false);
+  await expect(page.locator("[data-action='save-diagram2-document']")).toHaveCount(0);
+  await expect(page.locator("[data-action='export-diagram2-pmt']").first()).toBeEnabled();
 
   await page.locator("[data-diagram2-object-plane] [data-diagram2-object-id='public-read-only-diagram-box']").click({ position: { x: 10, y: 10 } });
   await page.keyboard.press("Shift+ArrowRight");
+  await page.keyboard.press("Delete");
+  await page.keyboard.press("Control+Z");
+  await page.keyboard.press("Control+Y");
   const programmaticMove = await page.evaluate(() =>
-    window.__pmtDiagram2EditorCore.moveSelectedObjects(10, 0, { reason: "direct test" }));
+    window.__pmtDiagram2EditorCore?.moveSelectedObjects?.(10, 0, { reason: "direct test" }) ?? "no-editor-core");
   const after = await page.evaluate(() => ({
     x: Number(document.querySelector("[data-diagram2-object-plane] [data-diagram2-object-id='public-read-only-diagram-box']")?.dataset.diagram2ObjectTransformX || 0),
-    status: window.__pmtDiagram2EditorCore?.statusSnapshot?.()
+    editorCoreLive: Boolean(window.__pmtDiagram2EditorCore),
+    selectionOverlays: document.querySelectorAll("[data-diagram2-selection-id]").length
   }));
 
-  expect(programmaticMove).toBe(false);
+  expect(programmaticMove).toBe("no-editor-core");
   expect(after.x).toBe(before.x);
-  expect(after.status.history.dirty).toBe(false);
+  expect(after.editorCoreLive).toBe(false);
+  expect(after.selectionOverlays).toBe(0);
+  expect(browserErrors).toEqual([]);
+});
+
+test("Diagram 2 New creates a shared Diagram document and opens it in Edit mode", async ({ page }) => {
+  const browserErrors = [];
+  let apiState = testState();
+  let createdPayload = null;
+  let uploadedSvg = "";
+
+  page.on("console", message => {
+    if (message.type() === "error" && !message.text().includes("status of 401")) browserErrors.push(message.text());
+  });
+  page.on("pageerror", error => browserErrors.push(error.message));
+
+  await page.addInitScript(seenToken => {
+    localStorage.clear();
+    localStorage.setItem("pmt-release-notes-last-seen:1", seenToken);
+    localStorage.setItem("pmt-release-notes-last-seen:2", seenToken);
+  }, releaseNotes[0].seenToken);
+
+  await page.route("**/api/session", route => route.fulfill(jsonResponse({ error: "Unauthorized" }, 401)));
+  await page.route("**/api/login", route => route.fulfill(jsonResponse({
+    userId: 1,
+    nickname: "Sin",
+    isAdmin: true,
+    role: "Admin"
+  })));
+  await page.route("**/api/state", route => route.fulfill(jsonResponse(apiState)));
+  await page.route("**/api/audit-trail", route => route.fulfill(jsonResponse([])));
+  await page.route("**/api/maintenance/recycle-bin", route => route.fulfill(jsonResponse([])));
+  await page.route("**/api/maintenance/orphan-files", route => route.fulfill(jsonResponse({
+    files: [],
+    totalCount: 0,
+    totalByteLength: 0
+  })));
+  await page.route("**/api/uploads/richtext", route => {
+    uploadedSvg = extractMultipartSvg(route.request().postDataBuffer());
+    return route.fulfill(jsonResponse({ url: "/uploads/diagram2-new.svg" }));
+  });
+  await page.route("**/uploads/diagram2-new.svg", route => route.fulfill({
+    status: 200,
+    contentType: "image/svg+xml",
+    body: uploadedSvg || buildAnnotationSvg(normalizeAnnotationState({ width: 640, height: 360, objects: [] }))
+  }));
+  await page.route("**/api/blogs", route => {
+    createdPayload = route.request().postDataJSON();
+    const created = {
+      ...createdPayload,
+      id: 123,
+      createdByUserId: 1,
+      updatedByUserId: 1,
+      createdAt: "2026-07-26T10:00:00Z",
+      updatedAt: "2026-07-26T10:00:00Z",
+      rowVersion: "row-new"
+    };
+    apiState = {
+      ...apiState,
+      blogs: [...apiState.blogs, created]
+    };
+    return route.fulfill(jsonResponse(created));
+  });
+
+  await page.goto("/");
+  await page.locator("#loginName").fill("Sin");
+  await page.locator("#loginPassword").fill("Password1");
+  await page.getByRole("button", { name: /log in/i }).click();
+  await expect(page.getByRole("heading", { name: "Dashboard", exact: true })).toBeVisible();
+
+  await openNavigationScreen(page, "Diagram 2");
+  await expect(page.locator("[data-diagram2-screen]")).toHaveAttribute("data-diagram2-mode", "readonly");
+  await expect(page.locator("[data-diagram2-page-document-head] h2")).toHaveText("PMT Database Schema");
+
+  await page.getByRole("button", { name: "New Diagram" }).click();
+  await expect(page).toHaveURL(/#\/diagram-2\/123$/);
+  await expect(page.locator("[data-diagram2-screen]")).toHaveAttribute("data-diagram2-mode", "edit");
+  await expect(page.locator("[data-diagram2-live-viewer]")).toHaveAttribute("data-id", "123");
+  await expect(page.locator("[data-diagram2-editor-shell]")).toBeVisible();
+  await expect(page.locator("[data-diagram2-tree]")).toHaveCount(0);
+  expect(createdPayload).toMatchObject({
+    id: 0,
+    title: "Untitled 1",
+    isPrivate: true
+  });
+  expect(uploadedSvg).toContain("data-pmt-image-annotation-state");
+
+  await page.locator("[data-action='cancel-diagram2-editor']").click();
+  await expect(page.locator("[data-diagram2-screen]")).toHaveAttribute("data-diagram2-mode", "readonly");
+  await expect(page.locator("[data-diagram2-page-document-head] h2")).toHaveText("Untitled 1");
+  await expect(page.locator("[data-diagram2-tree-row][data-id='123']")).toHaveClass(/is-selected/);
+  await expect(page.locator("[data-diagram2-live-viewer]")).toHaveAttribute("data-id", "123");
+
+  expect(browserErrors).toEqual([]);
+});
+
+test("Diagram 2 read-only mode positions a simple text box like Diagram 1", async ({ page }) => {
+  const browserErrors = [];
+  const apiState = simpleTextBoxParityState();
+
+  page.on("console", message => {
+    if (message.type() === "error" && !message.text().includes("status of 401")) browserErrors.push(message.text());
+  });
+  page.on("pageerror", error => browserErrors.push(error.message));
+
+  await page.addInitScript(seenToken => {
+    localStorage.clear();
+    localStorage.setItem("pmt-release-notes-last-seen:1", seenToken);
+    localStorage.setItem("pmt-release-notes-last-seen:2", seenToken);
+  }, releaseNotes[0].seenToken);
+
+  await page.route("**/api/session", route => route.fulfill(jsonResponse({ error: "Unauthorized" }, 401)));
+  await page.route("**/api/login", route => route.fulfill(jsonResponse({
+    userId: 1,
+    nickname: "Sin",
+    isAdmin: true,
+    role: "Admin"
+  })));
+  await page.route("**/api/state", route => route.fulfill(jsonResponse(apiState)));
+  await page.route("**/api/audit-trail", route => route.fulfill(jsonResponse([])));
+  await page.route("**/api/maintenance/recycle-bin", route => route.fulfill(jsonResponse([])));
+  await page.route("**/api/maintenance/orphan-files", route => route.fulfill(jsonResponse({
+    files: [],
+    totalCount: 0,
+    totalByteLength: 0
+  })));
+
+  await page.goto("/");
+  await page.locator("#loginName").fill("Sin");
+  await page.locator("#loginPassword").fill("Password1");
+  await page.getByRole("button", { name: /log in/i }).click();
+  await expect(page.getByRole("heading", { name: "Dashboard", exact: true })).toBeVisible();
+
+  await page.evaluate(() => {
+    window.location.hash = "#/diagram/22";
+  });
+  await expect(page.locator(".diagram-screen")).toBeVisible();
+  await expect(page.locator("[data-diagram-page-document-head] h2")).toHaveText("Simple Text Box");
+  await expect(page.locator("[data-diagram-image] > g > rect")).toBeVisible();
+  const diagram1Frame = await viewportRelativeBounds(
+    page,
+    "[data-diagram-viewport]",
+    "[data-diagram-image] > g > rect"
+  );
+  expect(diagram1Frame).toBeTruthy();
+
+  await page.evaluate(() => {
+    window.location.hash = "#/diagram-2/22";
+  });
+  await expect(page.locator("[data-diagram2-screen]")).toBeVisible();
+  await expect(page.locator("[data-diagram2-screen]")).toHaveAttribute("data-diagram2-mode", "readonly");
+  await expect(page.locator("[data-diagram2-page-document-head] h2")).toHaveText("Simple Text Box");
+  await expect(page.locator("[data-diagram2-object-id='simple-textbox'] .diagram2-renderer-textbox-frame")).toBeVisible();
+  const diagram2Frame = await viewportRelativeBounds(
+    page,
+    "[data-diagram2-viewer-canvas]",
+    "[data-diagram2-object-id='simple-textbox'] .diagram2-renderer-textbox-frame"
+  );
+  expect(diagram2Frame).toBeTruthy();
+
+  expect(Math.abs(diagram2Frame.x - diagram1Frame.x)).toBeLessThanOrEqual(3);
+  expect(Math.abs(diagram2Frame.y - diagram1Frame.y)).toBeLessThanOrEqual(3);
+  expect(Math.abs(diagram2Frame.width - diagram1Frame.width)).toBeLessThanOrEqual(3);
+  expect(Math.abs(diagram2Frame.height - diagram1Frame.height)).toBeLessThanOrEqual(3);
   expect(browserErrors).toEqual([]);
 });
 
@@ -291,29 +579,60 @@ test("Diagram 2 saves the same backing document and roundtrips through Diagram 1
     window.location.hash = "#/diagram-2/88";
   });
   await expect(page.locator("[data-diagram2-screen]")).toBeVisible();
-  await expect(page.locator("[data-diagram2-viewer-host] h2")).toHaveText("Diagram 2 Roundtrip");
+  await expect(page.locator("[data-diagram2-page-document-head] h2")).toHaveText("Diagram 2 Roundtrip");
   await expect(page.locator("[data-diagram2-object-plane] [data-diagram2-object-id='roundtrip-box']")).toBeVisible();
+  await expect(page.locator("[data-diagram2-screen]")).toHaveAttribute("data-diagram2-mode", "readonly");
+  await expect(page.locator("[data-diagram2-editor-shell]")).toHaveCount(0);
 
+  const readZoomControl = page.locator("[data-filter='diagram2-zoom']");
+  await readZoomControl.selectOption("2");
+  await waitForViewportReason(page, "toolbar zoom");
+  await expect(readZoomControl).toHaveValue("2");
+
+  await page.getByRole("button", { name: "Edit Diagram" }).click();
+  await expect(page.locator("[data-diagram2-screen]")).toHaveAttribute("data-diagram2-mode", "edit");
+  await waitForViewportReason(page, "fit");
+  await expect.poll(async () => page.locator("[data-filter='diagram2-zoom']").inputValue()).not.toBe("2");
   await page.locator("[data-diagram2-object-plane] [data-diagram2-object-id='roundtrip-box']").click({ position: { x: 10, y: 10 } });
   await expect(page.locator("[data-diagram2-edit-state]").first()).toHaveText("1 selected");
-  await expect(page.locator("[data-action='save-diagram2-document']")).toBeDisabled();
+  await expect(page.locator("[data-action='save-diagram2-document']").first()).toBeDisabled();
 
   await page.keyboard.press("Shift+ArrowRight");
-  await expect(page.locator("[data-diagram2-save-state]")).toHaveText("Unsaved changes");
-  await expect(page.locator("[data-action='save-diagram2-document']")).toBeEnabled();
+  await expect(page.locator("[data-diagram2-save-state]").first()).toHaveText("Unsaved changes");
+  await page.locator("[data-filter='diagram2-zoom']").selectOption("2");
+  await waitForViewportReason(page, "toolbar zoom");
+  await page.locator("[data-action='cancel-diagram2-editor']").click();
+  await expect(page.locator("[data-diagram2-screen]")).toHaveAttribute("data-diagram2-mode", "readonly");
+  await waitForViewportReason(page, "fit");
+  await expect.poll(async () => page.locator("[data-filter='diagram2-zoom']").inputValue()).not.toBe("2");
+  await expect(page.locator("[data-diagram2-editor-shell]")).toHaveCount(0);
+  expect(savedPayload).toBeNull();
+  const canceledX = await page.evaluate(() =>
+    Number(document.querySelector("[data-diagram2-object-plane] [data-diagram2-object-id='roundtrip-box']")?.dataset.diagram2ObjectTransformX || 0));
+  expect(canceledX).toBe(120);
+
+  await page.getByRole("button", { name: "Edit Diagram" }).click();
+  await expect(page.locator("[data-diagram2-screen]")).toHaveAttribute("data-diagram2-mode", "edit");
+  await page.locator("[data-diagram2-object-plane] [data-diagram2-object-id='roundtrip-box']").click({ position: { x: 10, y: 10 } });
+  await page.keyboard.press("Shift+ArrowRight");
+  await expect(page.locator("[data-diagram2-save-state]").first()).toHaveText("Unsaved changes");
+  await expect(page.locator("[data-action='save-diagram2-document']").first()).toBeEnabled();
 
   await page.getByRole("button", { name: "Undo" }).click();
-  await expect(page.locator("[data-diagram2-save-state]")).toHaveText("Saved");
+  await expect(page.locator("[data-diagram2-save-state]").first()).toHaveText("Saved");
   await page.getByRole("button", { name: "Redo" }).click();
-  await expect(page.locator("[data-diagram2-save-state]")).toHaveText("Unsaved changes");
+  await expect(page.locator("[data-diagram2-save-state]").first()).toHaveText("Unsaved changes");
 
-  await page.getByRole("button", { name: "Copy Selection" }).click();
+  await page.locator("[data-diagram2-inspector-tab='objects']").click();
+  await page.locator("[data-diagram2-objects-pane] [data-action='copy-diagram2-selection']").click();
   const clipboardText = await page.evaluate(() => window.__pmtDiagram2SelectionClipboard || "");
   expect(clipboardText).toMatch(/^PMT_DIAGRAM_SELECTION_V1\n/);
   expect(clipboardText).toContain("roundtrip-box");
 
   await page.getByRole("button", { name: "Save Diagram" }).click();
-  await expect(page.locator("[data-diagram2-save-state]")).toHaveText("Saved");
+  await expect(page.locator("[data-diagram2-screen]")).toHaveAttribute("data-diagram2-mode", "readonly");
+  await expect(page.locator("[data-diagram2-editor-shell]")).toHaveCount(0);
+  await expect(page.locator("[data-diagram2-object-plane] [data-diagram2-object-id='roundtrip-box']")).toBeVisible();
 
   expect(savedPayload).toMatchObject({
     id: 88,
@@ -365,6 +684,114 @@ async function openNavigationScreen(page, view) {
 
   await page.locator(".nav-overflow-toggle").click();
   await page.locator(`.nav-overflow-menu button[data-view='${view}']`).click();
+}
+
+async function dragNavigationItemBefore(page, sourceView, targetView) {
+  const source = page.locator(`[data-navigation-list] [data-nav-view='${sourceView}'] [data-navigation-drag-handle]`);
+  const target = page.locator(`[data-navigation-list] [data-nav-view='${targetView}']`);
+  await expect(source).toBeVisible();
+  await expect(target).toBeVisible();
+  await source.scrollIntoViewIfNeeded();
+  await target.scrollIntoViewIfNeeded();
+
+  const sourceBox = await source.boundingBox();
+  const targetBox = await target.boundingBox();
+  expect(sourceBox).not.toBeNull();
+  expect(targetBox).not.toBeNull();
+
+  await page.mouse.move(sourceBox.x + sourceBox.width / 2, sourceBox.y + sourceBox.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(targetBox.x + targetBox.width / 2, targetBox.y + 4, { steps: 8 });
+  await page.mouse.up();
+}
+
+async function assertDiagram2ReadOnlyCannotMutate(page) {
+  const before = await page.evaluate(() => {
+    const object = document.querySelector("[data-diagram2-object-plane] [data-diagram2-object-id]");
+    return {
+      id: object?.dataset.diagram2ObjectId || "",
+      x: Number(object?.dataset.diagram2ObjectTransformX || 0),
+      y: Number(object?.dataset.diagram2ObjectTransformY || 0),
+      editorCoreLive: Boolean(window.__pmtDiagram2EditorCore),
+      editorShellCount: document.querySelectorAll("[data-diagram2-editor-shell]").length,
+      contextMenuCount: document.querySelectorAll("[data-diagram2-context-menu]").length
+    };
+  });
+  expect(before.id).toBeTruthy();
+  expect(before.editorCoreLive).toBe(false);
+  expect(before.editorShellCount).toBe(0);
+  expect(before.contextMenuCount).toBe(0);
+
+  const object = page.locator(`[data-diagram2-object-plane] [data-diagram2-object-id='${before.id}']`);
+  const box = await object.boundingBox();
+  expect(box).toBeTruthy();
+  await page.mouse.move(box.x + Math.min(12, box.width / 2), box.y + Math.min(12, box.height / 2));
+  await page.mouse.down();
+  await page.mouse.move(box.x + 80, box.y + 42);
+  await page.mouse.up();
+  await page.keyboard.press("Shift+ArrowRight");
+  await page.keyboard.press("Delete");
+  await page.keyboard.press("Backspace");
+  await page.keyboard.press("Control+Z");
+  await page.keyboard.press("Control+Y");
+  await page.keyboard.press("Control+V");
+  const programmaticMove = await page.evaluate(() =>
+    window.__pmtDiagram2EditorCore?.moveSelectedObjects?.(10, 0, { reason: "read-only helper" }) ?? "no-editor-core");
+  const after = await page.evaluate(id => {
+    const object = document.querySelector(`[data-diagram2-object-plane] [data-diagram2-object-id="${CSS.escape(id)}"]`);
+    return {
+      x: Number(object?.dataset.diagram2ObjectTransformX || 0),
+      y: Number(object?.dataset.diagram2ObjectTransformY || 0),
+      editorCoreLive: Boolean(window.__pmtDiagram2EditorCore),
+      editorShellCount: document.querySelectorAll("[data-diagram2-editor-shell]").length,
+      selectionOverlays: document.querySelectorAll("[data-diagram2-selection-id]").length,
+      contextMenuCount: document.querySelectorAll("[data-diagram2-context-menu]").length
+    };
+  }, before.id);
+  expect(programmaticMove).toBe("no-editor-core");
+  expect(after.x).toBe(before.x);
+  expect(after.y).toBe(before.y);
+  expect(after.editorCoreLive).toBe(false);
+  expect(after.editorShellCount).toBe(0);
+  expect(after.selectionOverlays).toBe(0);
+  expect(after.contextMenuCount).toBe(0);
+}
+
+async function assertDiagram2InspectorTabsDoNotOverlap(page) {
+  const tabRects = await page.locator("[data-diagram2-inspector-tab]").evaluateAll(tabs =>
+    tabs.filter(tab => !tab.hidden).map(tab => {
+      const rect = tab.getBoundingClientRect();
+      return {
+        text: tab.textContent.trim(),
+        left: Math.round(rect.left),
+        right: Math.round(rect.right),
+        width: Math.round(rect.width)
+      };
+    }));
+  expect(tabRects.length).toBeGreaterThan(0);
+  tabRects.forEach(rect => {
+    expect(rect.width).toBeGreaterThan(20);
+    expect(rect.text).toBeTruthy();
+  });
+  for (let index = 1; index < tabRects.length; index += 1) {
+    expect(tabRects[index].left).toBeGreaterThanOrEqual(tabRects[index - 1].right - 1);
+  }
+}
+
+async function viewportRelativeBounds(page, viewportSelector, objectSelector) {
+  return page.evaluate(({ viewportSelector, objectSelector }) => {
+    const viewport = document.querySelector(viewportSelector);
+    const object = document.querySelector(objectSelector);
+    const viewportRect = viewport?.getBoundingClientRect();
+    const objectRect = object?.getBoundingClientRect();
+    if (!viewportRect || !objectRect) return null;
+    return {
+      x: objectRect.x - viewportRect.x,
+      y: objectRect.y - viewportRect.y,
+      width: objectRect.width,
+      height: objectRect.height
+    };
+  }, { viewportSelector, objectSelector });
 }
 
 async function assertTransformOnlyZoom(page, zoom, expectedFullRenderCount) {
@@ -513,7 +940,7 @@ async function assertKeyedDiagram2NodePatches(page, expectedFullRenderCount) {
 
 async function assertDiagram2SelectiveRoutingStress(page) {
   const result = await page.evaluate(async () => {
-    const { createDiagram2Renderer } = await import("/js/features/diagram2/diagram2-renderer.js?v=20260726-diagram2-day16-v1");
+    const { createDiagram2Renderer } = await import("/js/features/diagram2/diagram2-renderer.js?v=20260726-diagram2-renderer-parity-v1");
     const host = document.createElement("div");
     host.style.position = "absolute";
     host.style.left = "-12000px";
@@ -623,7 +1050,7 @@ async function assertDiagram2SelectiveRoutingStress(page) {
 
 async function assertDiagram2ViewportHaloVirtualization(page) {
   const result = await page.evaluate(async () => {
-    const { createDiagram2Renderer } = await import("/js/features/diagram2/diagram2-renderer.js?v=20260726-diagram2-day16-v1");
+    const { createDiagram2Renderer } = await import("/js/features/diagram2/diagram2-renderer.js?v=20260726-diagram2-renderer-parity-v1");
     const host = document.createElement("div");
     host.style.position = "absolute";
     host.style.left = "-12000px";
@@ -829,7 +1256,7 @@ async function assertDiagram2ViewportHaloVirtualization(page) {
 
 async function assertDiagram2LowDetailOverviewRendering(page) {
   const result = await page.evaluate(async () => {
-    const { createDiagram2Renderer } = await import("/js/features/diagram2/diagram2-renderer.js?v=20260726-diagram2-day16-v1");
+    const { createDiagram2Renderer } = await import("/js/features/diagram2/diagram2-renderer.js?v=20260726-diagram2-renderer-parity-v1");
     const host = document.createElement("div");
     host.style.position = "absolute";
     host.style.left = "-12000px";
@@ -1204,6 +1631,12 @@ async function waitForViewportReason(page, reason) {
   ).toBe(reason);
 }
 
+function nextDiagram2TestZoomValue(currentZoom, direction) {
+  const current = Math.round((Number(currentZoom) || 1) / 0.05) * 0.05;
+  const next = Math.min(3, Math.max(0.1, current + (direction > 0 ? 0.05 : -0.05)));
+  return String(Number(next.toFixed(2)));
+}
+
 async function diagram2ViewportScale(page) {
   return page.evaluate(() => Number(document.querySelector("[data-diagram2-svg]")?.dataset.diagram2ViewportScale || 0));
 }
@@ -1359,6 +1792,85 @@ function diagramBodyHtml(title, stroke) {
   const svg = buildAnnotationSvg(state);
   const source = `data:image/svg+xml;base64,${Buffer.from(svg, "utf8").toString("base64")}`;
   return `<p><img data-pmt-diagram="true" data-pmt-private-diagram="true" src="${source}" alt="${title}"></p>`;
+}
+
+function simpleTextBoxBodyHtml() {
+  const state = normalizeAnnotationState({
+    width: 640,
+    height: 360,
+    objects: [{
+      id: "simple-textbox",
+      type: "textbox",
+      x: 120,
+      y: 96,
+      width: 260,
+      height: 86,
+      text: "Simple Text Box",
+      fill: "#ffffff",
+      stroke: "#2563eb",
+      strokeWidth: 2,
+      fontSize: 28,
+      textColor: "#172b4d",
+      textAlign: "center",
+      textVerticalAlign: "middle"
+    }]
+  });
+  const svg = buildAnnotationSvg(state);
+  const source = `data:image/svg+xml;base64,${Buffer.from(svg, "utf8").toString("base64")}`;
+  return `<p><img data-pmt-diagram="true" data-pmt-private-diagram="true" src="${source}" alt="Simple Text Box"></p>`;
+}
+
+function simpleTextBoxParityState() {
+  return {
+    users: [{
+      id: 1,
+      nickname: "Sin",
+      email: "sin@example.test",
+      role: "Admin",
+      roleCode: "Admin",
+      isAdmin: true,
+      isActive: true,
+      avatarUrl: ""
+    }],
+    projects: [{ id: 1, code: "PMT", title: "Diagram 2 Test", name: "Diagram 2 Test", isActive: true }],
+    sprints: [],
+    tasks: [],
+    devLogs: [],
+    blogs: [{
+      id: 22,
+      title: "Simple Text Box",
+      isPrivate: false,
+      createdByUserId: 1,
+      updatedByUserId: 1,
+      projectId: 1,
+      sprintId: null,
+      rowVersion: "row-1",
+      createdAt: "2026-07-24T10:00:00Z",
+      updatedAt: "2026-07-25T12:00:00Z",
+      bodyHtml: simpleTextBoxBodyHtml()
+    }],
+    auditEvents: [],
+    lookups: [{
+      id: 1,
+      lookupType: "Release Type",
+      value: "Internal",
+      displayOrder: 10,
+      isActive: true
+    }],
+    roles: [{
+      id: 1,
+      lookupType: "Role",
+      value: "Admin",
+      code: "Admin",
+      displayOrder: 10,
+      isActive: true
+    }],
+    holidays: [],
+    securityResources: [],
+    rolePermissions: [],
+    userPermissions: [],
+    effectivePermissions: []
+  };
 }
 
 function roundtripState() {

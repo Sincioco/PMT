@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
+import { performance } from "node:perf_hooks";
 import test from "node:test";
 import {
+  annotationArrowGeometry,
   normalizeAnnotationState,
   parseAnnotationSvg
 } from "../../wwwroot/js/components/image-annotation.js";
@@ -11,6 +13,8 @@ import {
   createDiagram2LiveView,
   diagram2CanonicalRelationships,
   diagram2CanonicalSummary,
+  diagram2ContentBounds,
+  diagram2FitViewportTransform,
   diagram2ObjectPatchFlags,
   diagram2ScreenToWorldPoint,
   diagram2WorldToScreenPoint,
@@ -116,6 +120,11 @@ test("Diagram 2 derives canonical entity relationships without Diagram 1 render 
         dataType: "INT",
         nullable: true,
         isForeignKey: true
+      }, {
+        name: "ParentTaskId",
+        dataType: "INT",
+        nullable: true,
+        isForeignKey: true
       }],
       foreignKeys: [{
         name: "FK_pmt_Tasks_AssignedTo",
@@ -123,6 +132,13 @@ test("Diagram 2 derives canonical entity relationships without Diagram 1 render 
         referencedSchema: "pmt",
         referencedTable: "Users",
         referencedColumns: ["UserId"],
+        relationshipType: "many-to-one"
+      }, {
+        name: "FK_pmt_Tasks_ParentTask",
+        columns: ["ParentTaskId"],
+        referencedSchema: "pmt",
+        referencedTable: "Tasks",
+        referencedColumns: ["TaskId"],
         relationshipType: "many-to-one"
       }]
     }]
@@ -135,6 +151,7 @@ test("Diagram 2 derives canonical entity relationships without Diagram 1 render 
   assert.equal(relationships[0].sourceField.name, "AssignedToUserId");
   assert.equal(relationships[0].target.id, "entity-users");
   assert.equal(relationships[0].targetField.name, "UserId");
+  assert.equal(relationships.some(item => item.source === item.target), false);
 });
 
 test("Diagram 2 summarizes the current PMT schema fixture for renderer diagnostics", async () => {
@@ -147,7 +164,29 @@ test("Diagram 2 summarizes the current PMT schema fixture for renderer diagnosti
 
   assert.equal(summary.canonicalObjectCount, 88);
   assert.ok(summary.canonicalEntityCount >= 28);
-  assert.equal(summary.canonicalRelationshipCount, 82);
+  assert.equal(summary.canonicalRelationshipCount, 78);
+});
+
+test("Diagram 2 PMT schema fixture generation stays under one second", async () => {
+  const svg = await readFile(
+    new URL("../../wwwroot/assets/docs/pmt-database-schema.svg", import.meta.url),
+    "utf8"
+  );
+
+  const startedAt = performance.now();
+  const state = parseAnnotationSvg(svg);
+  const summary = diagram2CanonicalSummary(state);
+  const bounds = diagram2ContentBounds(state);
+  const transform = diagram2FitViewportTransform(state, { width: 1536, height: 740 }, {
+    padding: 0,
+    scaleStep: 0.05
+  });
+  const elapsed = performance.now() - startedAt;
+
+  assert.equal(summary.canonicalRelationshipCount, 78);
+  assert.ok(bounds);
+  assert.equal(Number.isFinite(transform.scale), true);
+  assert.equal(elapsed < 1000, true, `Diagram 2 PMT schema generation took ${Math.round(elapsed)}ms`);
 });
 
 test("Diagram 2 viewport zoom preserves the world point under the cursor", () => {
@@ -164,6 +203,170 @@ test("Diagram 2 viewport zoom preserves the world point under the cursor", () =>
   assert.equal(Math.abs(screenAfter.x - cursor.x) <= 0.000001, true);
   assert.equal(Math.abs(screenAfter.y - cursor.y) <= 0.000001, true);
   assert.deepEqual(worldBefore, diagram2ScreenToWorldPoint(next, screenAfter));
+});
+
+test("Diagram 2 fit uses visible content bounds instead of the full canvas", () => {
+  const state = normalizeAnnotationState({
+    width: 1600,
+    height: 900,
+    objects: [{
+      id: "hello",
+      type: "textbox",
+      x: 700,
+      y: 420,
+      width: 120,
+      height: 40,
+      text: "Hello World",
+      outlineVisible: false
+    }]
+  });
+
+  assert.deepEqual(diagram2ContentBounds(state), { x: 700, y: 420, width: 120, height: 40 });
+  const transform = diagram2FitViewportTransform(state, { width: 1000, height: 700 }, { padding: 16 });
+
+  assert.equal(transform.scale, 2);
+  assert.equal(diagram2WorldToScreenPoint(transform, { x: 760, y: 440 }).x, 500);
+  assert.equal(diagram2WorldToScreenPoint(transform, { x: 760, y: 440 }).y, 350);
+});
+
+test("Diagram 2 fit falls back to canvas bounds for empty diagrams", () => {
+  const state = normalizeAnnotationState({
+    width: 1600,
+    height: 900,
+    objects: []
+  });
+  const transform = diagram2FitViewportTransform(state, { width: 1000, height: 700 }, { padding: 16 });
+
+  assert.equal(transform.scale, 0.605);
+  assert.equal(Math.round(transform.translateX), 16);
+  assert.equal(Math.round(transform.translateY), 78);
+});
+
+test("Diagram 2 renderer fit stays off Diagram 1 output-bound and export paths", async () => {
+  const source = await readFile(
+    new URL("../../wwwroot/js/features/diagram2/diagram2-renderer.js", import.meta.url),
+    "utf8"
+  );
+
+  assert.equal(source.includes("annotationOutputBounds"), false);
+  assert.equal(source.includes("buildAnnotationSvg"), false);
+  assert.equal(source.includes("annotationEntityRelationshipRenderModel"), false);
+});
+
+test("Diagram 2 simple object strokes scale like Diagram 1 SVG output", async () => {
+  const source = await readFile(
+    new URL("../../wwwroot/js/features/diagram2/diagram2-renderer.js", import.meta.url),
+    "utf8"
+  );
+  const simpleObjectSource = source.slice(
+    source.indexOf("function renderFieldRectangleObject"),
+    source.indexOf("function renderFieldMappingTableObject")
+  );
+  const renderConnectorSource = source.slice(
+    source.indexOf("function renderConnector"),
+    source.indexOf("function renderTextboxObject")
+  );
+  const entitySource = source.slice(
+    source.indexOf("function renderEntityObject"),
+    source.indexOf("function renderFieldRectangleObject")
+  );
+
+  assert.match(renderConnectorSource, /annotationArrowGeometry\(object\)/);
+  assert.doesNotMatch(simpleObjectSource, /"vector-effect": "non-scaling-stroke"/);
+  assert.doesNotMatch(renderConnectorSource, /"vector-effect": "non-scaling-stroke"/);
+  assert.doesNotMatch(entitySource, /"vector-effect": "non-scaling-stroke"/);
+});
+
+test("Diagram 2 relationship lines adopt Diagram 1 route painting rules", async () => {
+  const source = await readFile(
+    new URL("../../wwwroot/js/features/diagram2/diagram2-renderer.js", import.meta.url),
+    "utf8"
+  );
+  const relationshipPatchSource = source.slice(
+    source.indexOf("function patchRelationshipNode"),
+    source.indexOf("function lowDetailRelationshipRoute")
+  );
+  const relationshipRouteSource = source.slice(
+    source.indexOf("function relationshipRoute"),
+    source.indexOf("function diagram2PointListText")
+  );
+
+  assert.match(source, /function diagram2MergedRelationshipRouteGroups/);
+  assert.match(relationshipPatchSource, /diagram2-renderer-relationship-hit-path/);
+  assert.match(relationshipPatchSource, /"vector-effect": null/);
+  assert.doesNotMatch(relationshipPatchSource, /"vector-effect": "non-scaling-stroke"/);
+  assert.match(relationshipRouteSource, /relationshipLane\(start\.x, end\.x, relationship, relationships\)/);
+  assert.match(relationshipRouteSource, /relationshipPairIndex\(relationship, relationships\)/);
+  assert.match(relationshipRouteSource, /snapRelationshipRouteValue/);
+  assert.match(relationshipRouteSource, /compactRelationshipRoutePoints/);
+});
+
+test("Diagram 2 style patches remove stale non-scaling strokes from simple objects", async () => {
+  const source = await readFile(
+    new URL("../../wwwroot/js/features/diagram2/diagram2-renderer.js", import.meta.url),
+    "utf8"
+  );
+  const patchSource = source.slice(
+    source.indexOf("function patchSimpleObjectStyles"),
+    source.indexOf("function renderEntityObject")
+  );
+  const entityPatchSource = source.slice(
+    source.indexOf("function patchEntityObjectNodeStyles"),
+    source.indexOf("function patchSimpleObjectStyles")
+  );
+
+  ["diagram2-renderer-field-rectangle", "diagram2-renderer-rectangle", "diagram2-renderer-circle",
+    "diagram2-renderer-textbox-frame", "diagram2-renderer-arrow-shaft", "diagram2-renderer-line"].forEach(className => {
+    assert.match(patchSource, new RegExp(className));
+  });
+  assert.match(patchSource, /"vector-effect": null/);
+  assert.match(entityPatchSource, /"vector-effect": null/);
+});
+
+test("Diagram 2 detailed Entity rendering follows Diagram 1 visual layout", async () => {
+  const source = await readFile(
+    new URL("../../wwwroot/js/features/diagram2/diagram2-renderer.js", import.meta.url),
+    "utf8"
+  );
+  const renderEntitySource = source.slice(
+    source.indexOf("function renderEntityObject"),
+    source.indexOf("function renderLowDetailEntityObject")
+  );
+
+  assert.match(renderEntitySource, /annotationEntityMetrics\(object\)/);
+  assert.match(renderEntitySource, /metrics\.headerHeight \* 0\.68/);
+  assert.match(renderEntitySource, /metrics\.rowHeight \* 0\.68/);
+  assert.match(renderEntitySource, /metrics\.fontSize \* 1\.05/);
+  assert.match(renderEntitySource, /"text-decoration": field\.isPrimaryKey \? "underline" : null/);
+  assert.match(renderEntitySource, /"data-diagram2-entity-rule": "primary-key"/);
+  assert.doesNotMatch(renderEntitySource, /"data-diagram2-entity-rule": "row"/);
+});
+
+test("Diagram 2 content bounds include the actual arrow head geometry", () => {
+  const arrow = {
+    id: "red-arrow",
+    type: "arrow",
+    x1: 100,
+    y1: 100,
+    x2: 260,
+    y2: 100,
+    stroke: "#ff0000",
+    strokeWidth: 20,
+    arrowSize: 60
+  };
+  const bounds = diagram2ContentBounds(normalizeAnnotationState({
+    width: 1600,
+    height: 900,
+    objects: [arrow]
+  }));
+  const geometry = annotationArrowGeometry(arrow);
+
+  assert.equal(bounds.x <= arrow.x1, true);
+  assert.equal(bounds.x + bounds.width >= arrow.x2, true);
+  geometry.headPoints.forEach(point => {
+    assert.equal(point.x >= bounds.x && point.x <= bounds.x + bounds.width, true);
+    assert.equal(point.y >= bounds.y && point.y <= bounds.y + bounds.height, true);
+  });
 });
 
 test("Diagram 2 object patch flags keep entity moves transform-only", () => {

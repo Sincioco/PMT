@@ -6,7 +6,8 @@ import {
 import { screenRegistry } from "./screen-registry.js?v=20260725-diagram2-day4-v1";
 import { canReadView } from "../shared/security.js?v=20260725-diagram2-day1-v1";
 
-const navigationVersion = 5;
+const navigationVersion = 6;
+const diagram2OrderMigrationVersion = 6;
 const betaVisibilityVersion = 2;
 const betaNavigationViews = new Set(["Dashboard", "Road Map", "Gantt"]);
 const lockedVisibleViews = new Set(["About", "Settings"]);
@@ -59,7 +60,7 @@ export function normalizeNavigationConfig(value = {}) {
 
   return {
     version: navigationVersion,
-    items: enforceFixedNavigationOrder(items)
+    items: migrateDiagram2Order(enforceFixedNavigationOrder(items), savedVersion)
   };
 }
 
@@ -129,7 +130,6 @@ function defaultNavigationVisible(screen) {
 function enforceFixedNavigationOrder(items) {
   const boardItem = items.find(item => item.view === "Board");
   const diagramItem = items.find(item => item.view === "Diagram");
-  const diagram2Item = items.find(item => item.view === "Diagram 2");
   const logItem = items.find(item => item.view === "Log");
   const suggestionsItem = items.find(item => item.view === "Suggestions");
   const aboutItem = items.find(item => item.view === "About");
@@ -137,7 +137,6 @@ function enforceFixedNavigationOrder(items) {
   const orderedItems = items.filter(item =>
     item.view !== "Board"
     && item.view !== "Diagram"
-    && item.view !== "Diagram 2"
     && item.view !== "Log"
     && item.view !== "Suggestions"
     && item.view !== "About"
@@ -156,7 +155,11 @@ function enforceFixedNavigationOrder(items) {
   if (logItem) {
     const diagramIndex = orderedItems.findIndex(item => item.view === "Diagram");
     const documentationIndex = orderedItems.findIndex(item => item.view === "Documentation");
-    const insertIndex = diagramIndex >= 0 ? diagramIndex + 1 : documentationIndex >= 0 ? documentationIndex + 1 : orderedItems.length;
+    const insertIndex = diagramIndex >= 0
+      ? diagramIndex + (orderedItems[diagramIndex + 1]?.view === "Diagram 2" ? 2 : 1)
+      : documentationIndex >= 0
+        ? documentationIndex + 1
+        : orderedItems.length;
     orderedItems.splice(insertIndex, 0, logItem);
   }
 
@@ -167,7 +170,19 @@ function enforceFixedNavigationOrder(items) {
 
   if (aboutItem) orderedItems.push(aboutItem);
   if (settingsItem) orderedItems.push(settingsItem);
-  if (diagram2Item) orderedItems.push(diagram2Item);
+  return orderedItems;
+}
+
+function migrateDiagram2Order(items, savedVersion) {
+  if (savedVersion >= diagram2OrderMigrationVersion) return items;
+
+  const diagram2Index = items.findIndex(item => item.view === "Diagram 2");
+  if (diagram2Index < 0) return items;
+
+  const diagram2Item = items[diagram2Index];
+  const orderedItems = items.filter((_, index) => index !== diagram2Index);
+  const diagramIndex = orderedItems.findIndex(item => item.view === "Diagram");
+  orderedItems.splice(diagramIndex >= 0 ? diagramIndex + 1 : orderedItems.length, 0, diagram2Item);
   return orderedItems;
 }
 
@@ -187,25 +202,13 @@ export function navIconHtml(view) {
     Documentation: "&#128214;",
     "WFH Schedule": "&#8962;",
     Diagram: "&#128208;",
-    "Diagram 2": diagram2IconHtml(),
+    "Diagram 2": "&#128208;",
     "Release Notes": "&#128227;",
     Suggestions: "&#128161;",
     About: "&#9432;",
     Settings: "&#9881;"
   };
   return icons[view] || "&#9679;";
-}
-
-function diagram2IconHtml() {
-  return `
-    <svg class="button-svg-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-      <path d="M5 4h14v16H5z"></path>
-      <path d="M8 7h8"></path>
-      <path d="M8 11h5"></path>
-      <path d="M8 15h4"></path>
-      <text x="16" y="18" text-anchor="middle" font-size="8" font-weight="700" fill="currentColor" stroke="none">2</text>
-    </svg>
-  `;
 }
 
 function bugIconHtml() {

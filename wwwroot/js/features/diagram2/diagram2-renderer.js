@@ -1,22 +1,28 @@
 import {
+  annotationArrowGeometry,
   annotationEntityFieldBounds,
-  annotationEntityFieldLabelPoint,
+  annotationEntityMetrics,
   annotationEntityFieldSupportsMapping,
   annotationEntityVisibleFields,
-  normalizeAnnotationState
-} from "../../components/image-annotation.js?v=20260726-annotation-rte-composition-v2";
+  formatAnnotationEntityIdentifier,
+  normalizeAnnotationState,
+  wrapAnnotationText
+} from "../../components/image-annotation.js?v=20260726-d2-line-parity-v1";
 
 const svgNamespace = "http://www.w3.org/2000/svg";
 const xlinkNamespace = "http://www.w3.org/1999/xlink";
 const defaultDiagram2Width = 1600;
 const defaultDiagram2Height = 900;
-const defaultViewportPadding = 24;
+const defaultViewportPadding = 16;
 const minimumViewportScale = 0.05;
 const maximumViewportScale = 8;
+const maximumFitViewportScale = 2;
 const allRelationshipsDirtyToken = "*";
 const diagram2RoutingSectorSize = 320;
 const diagram2ProtectedBoundsPadding = 18;
 const diagram2ImpactCorridorPadding = 96;
+const diagram2RelationshipGridSize = 20;
+const diagram2MinimumRelationshipClearance = 48;
 const diagram2ViewportHaloSectorSize = 2048;
 const diagram2ViewportHaloSectorCount = 1;
 const diagram2ViewportHaloMinimumObjectThreshold = 80;
@@ -137,6 +143,7 @@ export function diagram2CanonicalRelationships(inputState) {
   if (canonical.hideAllEntityRelationships === true) return [];
 
   const entities = diagram2CanonicalEntities(canonical);
+  const globalRelationshipStyle = canonical.relationshipStyle || {};
   const relationships = [];
   entities.forEach(source => {
     (Array.isArray(source.foreignKeys) ? source.foreignKeys : []).forEach((foreignKeySource, foreignKeyIndex) => {
@@ -148,14 +155,14 @@ export function diagram2CanonicalRelationships(inputState) {
 
       const target = entities.find(candidate =>
         diagram2EntityMatchesReference(candidate, foreignKey.referencedSchema, foreignKey.referencedTable));
-      if (!target) return;
+      if (!target || (target === source && source.showSelfRelationships !== true)) return;
 
       const targetField = findEntityField(target, foreignKey.referencedColumns);
       if (!targetField) return;
       if (annotationEntityVisibleFields(source).indexOf(sourceField) < 0) return;
       if (annotationEntityVisibleFields(target).indexOf(targetField) < 0) return;
 
-      const relationship = {
+      relationships.push({
         id: diagram2RelationshipId(source, sourceField, target, targetField, foreignKey),
         source,
         sourceField,
@@ -163,9 +170,9 @@ export function diagram2CanonicalRelationships(inputState) {
         targetField,
         foreignKey,
         foreignKeySource,
-        foreignKeyIndex
-      };
-      relationships.push(relationship);
+        foreignKeyIndex,
+        diagram2EffectiveStyle: diagram2EffectiveRelationshipStyle(foreignKeySource, foreignKey, globalRelationshipStyle)
+      });
     });
   });
   return relationships;
@@ -184,6 +191,51 @@ export function diagram2WorldToScreenPoint(transform, point) {
   return {
     x: finiteNumber(point?.x, 0) * scale + finiteNumber(transform?.translateX, 0),
     y: finiteNumber(point?.y, 0) * scale + finiteNumber(transform?.translateY, 0)
+  };
+}
+
+export function diagram2ContentBounds(inputState) {
+  const canonical = normalizeDiagram2CanonicalState(inputState);
+  const visibleObjects = canonical.objects.filter(object => diagram2ObjectVisible(object, canonical));
+  const relationships = diagram2CanonicalRelationships(canonical);
+  const routeOptions = relationshipRouteOptions(relationships, canonical);
+  let bounds = null;
+  visibleObjects.forEach(object => {
+    bounds = unionBounds(bounds, diagram2ObjectContentBounds(object));
+  });
+  relationships.forEach(relationship => {
+    const route = relationshipRoute(relationship, routeOptions);
+    bounds = unionBounds(bounds, route.bounds);
+  });
+  return bounds;
+}
+
+export function diagram2FitViewportTransform(inputState, viewportInput, options = {}) {
+  const state = normalizeDiagram2CanonicalState(inputState);
+  const viewport = {
+    width: Math.max(1, finiteNumber(viewportInput?.width, defaultDiagram2Width)),
+    height: Math.max(1, finiteNumber(viewportInput?.height, defaultDiagram2Height))
+  };
+  const padding = Math.max(0, finiteNumber(options?.padding, defaultViewportPadding));
+  const scaleStep = Math.max(0, finiteNumber(options?.scaleStep, 0));
+  const contentBounds = diagram2ContentBounds(state);
+  const fitBounds = contentBounds || {
+    x: 0,
+    y: 0,
+    width: positiveNumber(state?.width, defaultDiagram2Width),
+    height: positiveNumber(state?.height, defaultDiagram2Height)
+  };
+  const availableWidth = Math.max(1, viewport.width - (padding * 2));
+  const availableHeight = Math.max(1, viewport.height - (padding * 2));
+  const rawScale = Math.min(availableWidth / fitBounds.width, availableHeight / fitBounds.height);
+  const steppedScale = scaleStep > 0
+    ? Math.min(rawScale, Math.round(rawScale / scaleStep) * scaleStep)
+    : rawScale;
+  const scale = clampNumber(steppedScale, minimumViewportScale, maximumFitViewportScale);
+  return {
+    scale,
+    translateX: ((viewport.width - (fitBounds.width * scale)) / 2) - (fitBounds.x * scale),
+    translateY: ((viewport.height - (fitBounds.height * scale)) / 2) - (fitBounds.y * scale)
   };
 }
 
@@ -283,9 +335,11 @@ export function diagram2RelationshipPatchFlags(previousRelationship, nextRelatio
   };
 }
 
-export function createDiagram2Renderer({ host, performance: performanceApi = globalThis.performance, onDiagnostics = null } = {}) {
+export function createDiagram2Renderer({ host, performance: performanceApi = globalThis.performance, onDiagnostics = null, viewportPadding = defaultViewportPadding, fitScaleStep = 0 } = {}) {
   if (!host) throw new Error("Diagram 2 renderer requires a host element.");
 
+  const fitViewportPadding = Math.max(0, finiteNumber(viewportPadding, defaultViewportPadding));
+  const fitViewportScaleStep = Math.max(0, finiteNumber(fitScaleStep, 0));
   const liveView = createDiagram2LiveView();
   const dirty = createDiagram2DirtyState();
   const routing = createDiagram2SelectiveRoutingState();
@@ -511,10 +565,12 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
     if (!originalObjectsById.size) return diagnostics();
 
     const relationshipIds = connectedRelationshipIds([...originalObjectsById.keys()]);
-    const relationshipsById = new Map(diagram2CanonicalRelationships(canonicalState).map(relationship => [relationship.id, relationship]));
+    const relationships = diagram2CanonicalRelationships(canonicalState);
+    const routeOptions = relationshipRouteOptions(relationships, canonicalState);
+    const relationshipsById = new Map(relationships.map(relationship => [relationship.id, relationship]));
     const settledRoutesById = new Map(relationshipIds.map(id => {
       const relationship = relationshipsById.get(id);
-      return [id, relationship ? relationshipRoute(relationship).path : ""];
+      return [id, relationship ? relationshipRoute(relationship, routeOptions).path : ""];
     }));
     activeGeometryPreview = {
       id: `diagram2-geometry-preview-${Date.now()}-${geometryPreviewFrameCount + 1}`,
@@ -940,12 +996,13 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
   function patchRelationships(relationships) {
     const desiredIds = new Set();
     const metrics = createSelectiveRoutingMetrics(relationships.length);
+    const routeOptions = relationshipRouteOptions(relationships, canonicalState);
     let patched = 0;
     let routedCount = 0;
 
     relationships.forEach(relationship => {
       desiredIds.add(relationship.id);
-      const result = patchVisibleRelationship(relationship, { mode: "full" });
+      const result = patchVisibleRelationship(relationship, { mode: "full", routeOptions });
       mergeSelectiveRoutingMetrics(metrics, result.diagnostics);
       patched += result.patched;
       routedCount += result.routed;
@@ -964,12 +1021,72 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
 
     liveView.mountedRelationshipIds.clear();
     desiredIds.forEach(id => liveView.mountedRelationshipIds.add(id));
+    patchMergedRelationshipRoutes(relationships, routeOptions);
     if (routedCount > 0) relationshipRouteRevision += routedCount;
     return {
       patched,
       routed: routedCount,
       diagnostics: selectiveRoutingDiagnosticsFromMetrics(metrics)
     };
+  }
+
+  function patchMergedRelationshipRoutes(relationships, routeOptionsInput = null) {
+    if (!planes.relationships) return 0;
+
+    let group = planes.relationships.querySelector(":scope > g[data-diagram2-merged-relationship-routes]");
+    if (!group) {
+      group = createSvgElement(host, "g", {
+        "data-diagram2-merged-relationship-routes": "",
+        class: "diagram2-renderer-merged-relationship-routes"
+      });
+      planes.relationships.prepend(group);
+    }
+
+    const routeOptions = routeOptionsInput || relationshipRouteOptions(relationships, canonicalState);
+    const renderedRelationships = relationships
+      .filter(relationship => liveView.mountedRelationshipIds.has(relationship.id))
+      .map(relationship => {
+        const route = routing.relationshipRoutesById.get(relationship.id)
+          || relationshipRoute(relationship, routeOptions);
+        const detailLevel = liveView.relationshipDetailLevelsById.get(relationship.id)
+          || relationshipDetailLevel(relationship);
+        return {
+          relationship,
+          style: relationshipStyle(relationship),
+          geometry: detailLevel === diagram2DetailLevelLow
+            ? lowDetailRelationshipRoute(relationship, route)
+            : route
+        };
+      })
+      .filter(item => item.geometry?.points?.length && item.geometry.path);
+    const routeGroups = diagram2MergedRelationshipRouteGroups(renderedRelationships);
+
+    while (group.childNodes.length > routeGroups.length) {
+      group.lastChild?.remove();
+    }
+    routeGroups.forEach((routeGroup, index) => {
+      let path = group.childNodes[index];
+      if (!path) {
+        path = appendSvg(group, "path", {
+          "data-diagram2-merged-relationship-path": ""
+        });
+      }
+      setSvgAttributes(path, {
+        class: "diagram2-renderer-relationship diagram2-renderer-merged-relationship",
+        "data-diagram2-merged-relationship-path": "",
+        d: routeGroup.path,
+        fill: "none",
+        stroke: routeGroup.style.stroke,
+        "stroke-width": routeGroup.style.strokeWidth,
+        opacity: routeGroup.style.opacity,
+        "stroke-linejoin": "round",
+        "stroke-linecap": "round",
+        "vector-effect": null,
+        "pointer-events": "none"
+      });
+    });
+
+    return routeGroups.length;
   }
 
   function patchVisibleObject(object) {
@@ -1001,12 +1118,11 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
     const nodeExisted = liveView.relationshipNodesById.has(relationship.id);
     const node = nodeExisted ? liveView.relationshipNodesById.get(relationship.id) : createRelationshipNode(relationship);
     const existing = nodeExisted && liveView.relationshipVersionsById.has(relationship.id);
-    const route = relationshipRoute(relationship, {
-      manualRoutes: canonicalState?.manualEntityRelationshipRoutes === true
-    });
+    const route = relationshipRoute(relationship, options.routeOptions || relationshipRouteOptions(null, canonicalState));
     const routeSignature = relationshipRouteCacheSignature(relationship, {
       canonicalState,
       routeBounds: route.bounds,
+      routePath: route.path,
       obstacleGeneration: obstacleGenerationForBounds(route.bounds)
     });
     const styleSignature = relationshipStyleVersion(relationship);
@@ -1137,6 +1253,7 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
   function patchDirtyRelationships(relationships, relationshipIds, patchedRelationshipIds, options = {}) {
     const desiredIds = new Set(relationships.map(relationship => relationship.id));
     const relationshipsById = new Map(relationships.map(relationship => [relationship.id, relationship]));
+    const routeOptions = relationshipRouteOptions(relationships, canonicalState);
     const metrics = createSelectiveRoutingMetrics(relationships.length);
     metrics.spatialSectorsQueried += Number(options.sectorsQueried || 0);
     const startTime = now(performanceApi);
@@ -1153,7 +1270,7 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
       if (patchedRelationshipIds.has(id)) return;
       const relationship = relationshipsById.get(id);
       if (!relationship) return;
-      const result = patchVisibleRelationship(relationship, options);
+      const result = patchVisibleRelationship(relationship, { ...options, routeOptions });
       mergeSelectiveRoutingMetrics(metrics, result.diagnostics);
       patchedRelationshipIds.add(id);
       patched += result.patched;
@@ -1163,6 +1280,7 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
     });
 
     if (routed > 0) relationshipRouteRevision += routed;
+    patchMergedRelationshipRoutes(relationships, routeOptions);
     metrics.routingDuration += now(performanceApi) - startTime;
     return { patched, routed, diagnostics: selectiveRoutingDiagnosticsFromMetrics(metrics) };
   }
@@ -1401,14 +1519,13 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
   function rebuildViewportHaloIndexes(objects, relationships) {
     viewportHalo.objectSectorIndex.clear();
     viewportHalo.relationshipSectorIndex.clear();
+    const routeOptions = relationshipRouteOptions(relationships, canonicalState);
     objects.forEach(object => {
       if (object?.visible !== false) viewportHalo.objectSectorIndex.add(object.id, objectBounds(object));
     });
     relationships.forEach(relationship => {
       const routeBounds = routing.relationshipBoundsById.get(relationship.id)
-        || relationshipRoute(relationship, {
-          manualRoutes: canonicalState?.manualEntityRelationshipRoutes === true
-        }).bounds;
+        || relationshipRoute(relationship, routeOptions).bounds;
       viewportHalo.relationshipSectorIndex.add(relationship.id, routeBounds);
     });
   }
@@ -1426,6 +1543,7 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
 
     const visibleObjects = canonicalState.objects.filter(object => object.visible !== false);
     const relationships = diagram2CanonicalRelationships(canonicalState);
+    const routeOptions = relationshipRouteOptions(relationships, canonicalState);
     const plan = viewportHaloPlan(visibleObjects, relationships, reason);
     const sameSectorNoop = options.allowSameSectorNoop === true
       && plan.active
@@ -1524,9 +1642,7 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
         const relationship = relationshipById.get(id);
         if (!relationship) return;
         const routeBounds = routing.relationshipBoundsById.get(id)
-          || relationshipRoute(relationship, {
-            manualRoutes: canonicalState?.manualEntityRelationshipRoutes === true
-          }).bounds;
+          || relationshipRoute(relationship, routeOptions).bounds;
         if (boundsIntersect(routeBounds, sectorSet.bounds)) {
           targetRelationshipIds.add(id);
           if (!targetObjectIds.has(relationship.source?.id) && !targetObjectIds.has(relationship.target?.id)) {
@@ -1628,12 +1744,13 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
     const entering = relationships.filter(relationship => !currentIds.has(relationship.id));
     const retained = relationships.filter(relationship => currentIds.has(relationship.id));
     const leaving = [...currentIds].filter(id => !targetIds.has(id));
+    const routeOptions = relationshipRouteOptions(relationships, canonicalState);
     const metrics = createSelectiveRoutingMetrics(relationships.length);
     let patched = 0;
     let routed = 0;
 
     entering.forEach(relationship => {
-      const result = patchVisibleRelationship(relationship, { mode: "viewport halo" });
+      const result = patchVisibleRelationship(relationship, { mode: "viewport halo", routeOptions });
       mergeSelectiveRoutingMetrics(metrics, result.diagnostics);
       patched += result.patched;
       routed += result.routed;
@@ -1643,7 +1760,7 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
     retained.forEach(relationship => {
       const node = liveView.relationshipNodesById.get(relationship.id);
       if (!node) {
-        const result = patchVisibleRelationship(relationship, { mode: "viewport halo" });
+        const result = patchVisibleRelationship(relationship, { mode: "viewport halo", routeOptions });
         mergeSelectiveRoutingMetrics(metrics, result.diagnostics);
         patched += result.patched;
         routed += result.routed;
@@ -1658,6 +1775,7 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
 
     liveView.mountedRelationshipIds.clear();
     targetIds.forEach(id => liveView.mountedRelationshipIds.add(id));
+    patchMergedRelationshipRoutes(relationships, routeOptions);
     return {
       patched,
       routed,
@@ -1814,6 +1932,7 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
   }
 
   function patchOverviewDetailRelationships(relationships) {
+    const routeOptions = relationshipRouteOptions(relationships, canonicalState);
     let patched = 0;
     relationships.forEach(relationship => {
       const nextLevel = relationshipDetailLevel(relationship);
@@ -1821,10 +1940,12 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
       const result = patchVisibleRelationship(relationship, {
         mode: "overview detail",
         countRouting: false,
-        styleOnly: true
+        styleOnly: true,
+        routeOptions
       });
       patched += result.patched;
     });
+    if (patched > 0) patchMergedRelationshipRoutes(relationships, routeOptions);
     return patched;
   }
 
@@ -1993,14 +2114,20 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
   function patchGeometryRelationshipPreviews(preview, previewObjectsById) {
     if (!planes.overlays) return 0;
     const desiredIds = new Set(preview.relationshipIds);
-    const relationshipsById = new Map(diagram2CanonicalRelationships(canonicalState).map(relationship => [relationship.id, relationship]));
+    const previewState = {
+      ...canonicalState,
+      objects: canonicalState.objects.map(object => previewObjectsById.get(object.id) || object)
+    };
+    const previewRelationships = diagram2CanonicalRelationships(previewState);
+    const routeOptions = relationshipRouteOptions(previewRelationships, previewState);
+    const relationshipsById = new Map(previewRelationships.map(relationship => [relationship.id, relationship]));
     let patched = 0;
 
     preview.relationshipIds.forEach(id => {
       const relationship = relationshipsById.get(id);
       if (!relationship) return;
       const previewRelationship = relationshipWithPreviewObjects(relationship, previewObjectsById);
-      const route = relationshipRoute(previewRelationship);
+      const route = relationshipRoute(previewRelationship, routeOptions);
       const style = relationshipStyle(relationship);
       let node = planes.overlays.querySelector(`:scope > g[data-diagram2-relationship-preview-id="${cssEscape(id)}"]`);
       if (!node) {
@@ -2039,10 +2166,15 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
   }
 
   function relationshipWithPreviewObjects(relationship, previewObjectsById) {
-    return {
+    const previewState = {
+      ...canonicalState,
+      objects: canonicalState.objects.map(object => previewObjectsById.get(object.id) || object)
+    };
+    return diagram2CanonicalRelationships(previewState).find(item => item.id === relationship.id) || {
       ...relationship,
       source: previewObjectsById.get(relationship.source?.id) || relationship.source,
-      target: previewObjectsById.get(relationship.target?.id) || relationship.target
+      target: previewObjectsById.get(relationship.target?.id) || relationship.target,
+      diagram2RouteGeometry: null
     };
   }
 
@@ -2263,16 +2395,10 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
   }
 
   function fitViewportTransform(state, viewport) {
-    const worldWidth = positiveNumber(state?.width, defaultDiagram2Width);
-    const worldHeight = positiveNumber(state?.height, defaultDiagram2Height);
-    const availableWidth = Math.max(1, viewport.width - (defaultViewportPadding * 2));
-    const availableHeight = Math.max(1, viewport.height - (defaultViewportPadding * 2));
-    const scale = clampNumber(Math.min(availableWidth / worldWidth, availableHeight / worldHeight), minimumViewportScale, maximumViewportScale);
-    return {
-      scale,
-      translateX: (viewport.width - (worldWidth * scale)) / 2,
-      translateY: (viewport.height - (worldHeight * scale)) / 2
-    };
+    return diagram2FitViewportTransform(state, viewport, {
+      padding: fitViewportPadding,
+      scaleStep: fitViewportScaleStep
+    });
   }
 
   function zoomToScale(scale, cursorScreenPoint) {
@@ -2586,35 +2712,41 @@ function patchEntityObjectNode(node, object, detailLevel = diagram2DetailLevelDe
 }
 
 function patchEntityObjectNodeStyles(node, object, detailLevel = diagram2DetailLevelDetailed) {
-  const stroke = object.outlineVisible === false ? "none" : object.stroke || "#2f5597";
+  const metrics = annotationEntityMetrics(object);
+  const stroke = object.outlineVisible === false ? "none" : object.stroke || "#42526b";
   const textColor = object.textColor || "#172b4d";
-  const fontSize = clampNumber(positiveNumber(object.fontSize, 12), 8, 64);
   const lowDetail = detailLevel === diagram2DetailLevelLow;
   const lowDetailFontSize = lowDetailEntityFontSize(object);
   setSvgAttributes(node.querySelector("[data-diagram2-entity-body]"), {
     fill: object.fill || "#ffffff"
   });
   setSvgAttributes(node.querySelector("[data-diagram2-entity-header]"), {
-    fill: object.entityHeaderFill || "#dbeafe"
+    fill: object.entityHeaderFill || ((object.fill || "#ffffff") === "none" ? "#ffffff" : object.fill || "#ffffff")
   });
   setSvgAttributes(node.querySelector("[data-diagram2-entity-outline]"), {
     stroke,
-    "stroke-width": positiveNumber(object.strokeWidth, 1)
+    "stroke-width": positiveNumber(object.strokeWidth, 1),
+    "vector-effect": null
   });
   node.querySelectorAll("[data-diagram2-entity-rule]").forEach(rule => {
-    const kind = rule.getAttribute("data-diagram2-entity-rule");
-    const scale = kind === "header" ? 0.6 : kind === "row" ? 0.28 : 0.45;
     setSvgAttributes(rule, {
       stroke,
-      "stroke-width": Math.max(kind === "row" ? 0.35 : 0.5, positiveNumber(object.strokeWidth, 1) * scale)
+      "stroke-width": Math.max(0.5, positiveNumber(object.strokeWidth, 1) * 0.55)
     });
   });
   node.querySelectorAll("[data-diagram2-entity-text]").forEach(text => {
     const isTitle = text.hasAttribute("data-diagram2-entity-title");
+    const isKey = text.hasAttribute("data-diagram2-entity-key");
+    const isDataType = text.hasAttribute("data-diagram2-entity-data-type");
+    const isNullability = text.hasAttribute("data-diagram2-entity-nullability");
     setSvgAttributes(text, {
       fill: isTitle ? object.entityNameTextColor || textColor : textColor,
       "font-family": object.fontFamily || "Arial",
-      "font-size": isTitle ? (lowDetail ? lowDetailFontSize : fontSize) : text.getAttribute("font-size")
+      "font-size": lowDetail ? lowDetailFontSize
+        : isTitle ? metrics.fontSize * 1.05
+          : isKey || isNullability ? metrics.fontSize * 0.82
+            : isDataType ? metrics.fontSize * 0.86
+              : metrics.fontSize
     });
   });
 }
@@ -2624,7 +2756,8 @@ function patchSimpleObjectStyles(node, object) {
     setSvgAttributes(node.querySelector(".diagram2-renderer-field-rectangle"), {
       fill: object.fill || "transparent",
       stroke: object.outlineVisible === false ? "none" : object.stroke || "#f59e0b",
-      "stroke-width": positiveNumber(object.strokeWidth, 2)
+      "stroke-width": positiveNumber(object.strokeWidth, 2),
+      "vector-effect": null
     });
     return;
   }
@@ -2633,32 +2766,51 @@ function patchSimpleObjectStyles(node, object) {
     setSvgAttributes(node.querySelector(".diagram2-renderer-rectangle"), {
       fill: object.fill || "none",
       stroke: object.outlineVisible === false ? "none" : object.stroke || "#334155",
-      "stroke-width": positiveNumber(object.strokeWidth, 1)
+      "stroke-width": positiveNumber(object.strokeWidth, 1),
+      "vector-effect": null
     });
   } else if (object.type === "circle") {
     setSvgAttributes(node.querySelector(".diagram2-renderer-circle"), {
       fill: object.fill || "none",
       stroke: object.outlineVisible === false ? "none" : object.stroke || "#334155",
-      "stroke-width": positiveNumber(object.strokeWidth, 1)
+      "stroke-width": positiveNumber(object.strokeWidth, 1),
+      "vector-effect": null
     });
   } else if (object.type === "textbox" || object.type === "rich-text") {
     setSvgAttributes(node.querySelector(".diagram2-renderer-textbox-frame"), {
       fill: object.fill || "none",
       stroke: object.outlineVisible === false ? "none" : object.stroke || "#334155",
-      "stroke-width": positiveNumber(object.strokeWidth, 1)
+      "stroke-width": positiveNumber(object.strokeWidth, 1),
+      "vector-effect": null
     });
     setSvgAttributes(node.querySelector(".diagram2-renderer-textbox-text"), {
       fill: object.textColor || "#172b4d",
       "font-family": object.fontFamily || "Arial"
     });
-  } else if (object.type === "arrow" || object.type === "line") {
+  } else if (object.type === "arrow") {
     const stroke = object.stroke || "#334155";
-    setSvgAttributes(node.querySelector(".diagram2-renderer-arrow-shaft, .diagram2-renderer-line"), {
+    const geometry = annotationArrowGeometry(object);
+    const shaft = node.querySelector(".diagram2-renderer-arrow-shaft");
+    setSvgAttributes(shaft, {
+      x1: finiteNumber(object.x1, 0),
+      y1: finiteNumber(object.y1, 0),
+      x2: geometry.shaftEnd.x,
+      y2: geometry.shaftEnd.y,
       stroke,
-      "stroke-width": positiveNumber(object.strokeWidth, 2)
+      "stroke-width": positiveNumber(object.strokeWidth, 2),
+      "stroke-linecap": "round",
+      "vector-effect": null
     });
     setSvgAttributes(node.querySelector(".diagram2-renderer-arrow-head"), {
+      points: diagram2PointListText(geometry.headPoints),
       fill: stroke
+    });
+  } else if (object.type === "line") {
+    const stroke = object.stroke || "#334155";
+    setSvgAttributes(node.querySelector(".diagram2-renderer-line"), {
+      stroke,
+      "stroke-width": positiveNumber(object.strokeWidth, 2),
+      "vector-effect": null
     });
   }
 }
@@ -2678,30 +2830,45 @@ function renderEntityObject(node, object, options = {}) {
   const y = finiteNumber(object.y, 0);
   const width = positiveNumber(object.width, 1);
   const height = positiveNumber(object.height, 1);
-  const fontSize = clampNumber(positiveNumber(object.fontSize, 12), 8, 64);
+  const metrics = annotationEntityMetrics(object);
   const fields = annotationEntityVisibleFields(object);
-  const firstFieldBounds = fields.length ? annotationEntityFieldBounds(object, fields[0]) : null;
-  const headerHeight = firstFieldBounds
-    ? Math.max(18, firstFieldBounds.y - y)
-    : Math.max(24, fontSize * 1.65);
-  const rowHeight = firstFieldBounds ? Math.max(14, firstFieldBounds.height) : Math.max(18, fontSize * 1.35);
-  const stroke = object.outlineVisible === false ? "none" : object.stroke || "#2f5597";
+  const stroke = object.outlineVisible === false ? "none" : object.stroke || "#42526b";
   const fill = object.fill || "#ffffff";
-  const headerFill = object.entityHeaderFill || "#dbeafe";
+  const headerFill = object.entityHeaderFill || (fill === "none" ? "#ffffff" : fill);
   const textColor = object.textColor || "#172b4d";
   const headerTextColor = object.entityNameTextColor || textColor;
-  const keyColumnWidth = object.showKeyColumn !== false ? Math.min(42, width * 0.22) : 0;
+  const headerY = y + metrics.headerHeight;
+  const showKeyColumn = object.showKeyColumn !== false;
   const showDataTypes = object.showDataTypes === true;
-  const dataTypeX = showDataTypes ? x + (width * 0.6) : width + x;
+  const keyColumnWidth = showKeyColumn ? Math.min(metrics.keyColumnWidth, width * 0.22) : 0;
+  const detailWidth = Math.max(0, width - keyColumnWidth);
+  const notColumnWidth = showDataTypes ? Math.min(metrics.notColumnWidth, detailWidth * 0.13) : 0;
+  const nullColumnWidth = showDataTypes ? Math.min(metrics.nullColumnWidth, detailWidth * 0.15) : 0;
+  const dataTypeColumnWidth = showDataTypes ? Math.min(metrics.dataTypeColumnWidth, detailWidth * 0.38) : 0;
+  const fieldX = x + keyColumnWidth;
+  const dataTypeX = x + width - dataTypeColumnWidth - notColumnWidth - nullColumnWidth;
+  const notX = dataTypeX + dataTypeColumnWidth;
+  const nullX = notX + notColumnWidth;
+  const fieldWidth = Math.max(0, dataTypeX - fieldX);
+  const bodyHeight = Math.max(0, height - metrics.headerHeight);
+  const gridLineWidth = Math.max(0.5, positiveNumber(object.strokeWidth, 1) * 0.55);
+  const firstNonPrimaryKeyIndex = fields.findIndex(field => !field.isPrimaryKey);
+  const leadingPrimaryKeyCount = firstNonPrimaryKeyIndex < 0 ? fields.length : firstNonPrimaryKeyIndex;
   const fieldClipId = `${safeSvgId(object.id)}-diagram2-fields`;
   const titleClipId = `${safeSvgId(object.id)}-diagram2-title`;
-  const detailsClipId = `${safeSvgId(object.id)}-diagram2-details`;
+  const keyClipId = `${safeSvgId(object.id)}-diagram2-keys`;
+  const dataTypeClipId = `${safeSvgId(object.id)}-diagram2-data-types`;
+  const notClipId = `${safeSvgId(object.id)}-diagram2-not`;
+  const nullClipId = `${safeSvgId(object.id)}-diagram2-null`;
 
   const defs = appendSvg(node, "defs");
-  appendClipRect(defs, titleClipId, x + 8, y, Math.max(1, width - 16), headerHeight);
-  appendClipRect(defs, fieldClipId, x + keyColumnWidth, y + headerHeight, Math.max(1, showDataTypes ? dataTypeX - x - keyColumnWidth : width - keyColumnWidth), Math.max(1, height - headerHeight));
+  appendClipRect(defs, titleClipId, x + metrics.padding, y, Math.max(1, width - (metrics.padding * 2)), metrics.headerHeight);
+  if (showKeyColumn) appendClipRect(defs, keyClipId, x, headerY, Math.max(1, keyColumnWidth), Math.max(1, bodyHeight));
+  appendClipRect(defs, fieldClipId, fieldX, headerY, Math.max(1, fieldWidth), Math.max(1, bodyHeight));
   if (showDataTypes) {
-    appendClipRect(defs, detailsClipId, dataTypeX, y + headerHeight, Math.max(1, x + width - dataTypeX), Math.max(1, height - headerHeight));
+    appendClipRect(defs, dataTypeClipId, dataTypeX, headerY, Math.max(1, dataTypeColumnWidth), Math.max(1, bodyHeight));
+    appendClipRect(defs, notClipId, notX, headerY, Math.max(1, notColumnWidth), Math.max(1, bodyHeight));
+    appendClipRect(defs, nullClipId, nullX, headerY, Math.max(1, nullColumnWidth), Math.max(1, bodyHeight));
   }
 
   appendTitle(node, `${formatEntityIdentifier(object.entitySchema, object.entityName)} (${fields.length} fields)`);
@@ -2721,7 +2888,7 @@ function renderEntityObject(node, object, options = {}) {
     x,
     y,
     width,
-    height: headerHeight,
+    height: metrics.headerHeight,
     fill: headerFill,
     stroke: "none"
   });
@@ -2730,67 +2897,90 @@ function renderEntityObject(node, object, options = {}) {
     "data-diagram2-entity-title": "",
     "data-diagram2-entity-text": "",
     x: x + (width / 2),
-    y: y + (headerHeight / 2),
+    y: y + (metrics.headerHeight * 0.68),
     "text-anchor": "middle",
-    "dominant-baseline": "middle",
     "clip-path": `url(#${titleClipId})`,
     fill: headerTextColor,
     "font-family": object.fontFamily || "Arial",
-    "font-size": fontSize,
+    "font-size": metrics.fontSize * 1.05,
     "font-weight": 700
   });
   appendSvg(node, "line", {
     "data-diagram2-entity-rule": "header",
     x1: x,
-    y1: y + headerHeight,
+    y1: headerY,
     x2: x + width,
-    y2: y + headerHeight,
+    y2: headerY,
     stroke,
-    "stroke-width": Math.max(0.5, positiveNumber(object.strokeWidth, 1) * 0.6)
+    "stroke-width": gridLineWidth
   });
 
-  if (keyColumnWidth > 0) {
+  if (showKeyColumn) {
     appendSvg(node, "line", {
       "data-diagram2-entity-rule": "key-column",
-      x1: x + keyColumnWidth,
-      y1: y + headerHeight,
-      x2: x + keyColumnWidth,
+      x1: fieldX,
+      y1: headerY,
+      x2: fieldX,
       y2: y + height,
       stroke,
-      "stroke-width": Math.max(0.5, positiveNumber(object.strokeWidth, 1) * 0.45)
+      "stroke-width": gridLineWidth
     });
   }
 
-  if (showDataTypes) {
+  if (showDataTypes && dataTypeColumnWidth > 0) {
     appendSvg(node, "line", {
       "data-diagram2-entity-rule": "data-type-column",
       x1: dataTypeX,
-      y1: y + headerHeight,
+      y1: headerY,
       x2: dataTypeX,
       y2: y + height,
       stroke,
-      "stroke-width": Math.max(0.5, positiveNumber(object.strokeWidth, 1) * 0.45)
+      "stroke-width": gridLineWidth
+    });
+  }
+
+  if (showDataTypes && notColumnWidth > 0) {
+    appendSvg(node, "line", {
+      "data-diagram2-entity-rule": "not-column",
+      x1: notX,
+      y1: headerY,
+      x2: notX,
+      y2: y + height,
+      stroke,
+      "stroke-width": gridLineWidth
+    });
+  }
+
+  if (showDataTypes && nullColumnWidth > 0) {
+    appendSvg(node, "line", {
+      "data-diagram2-entity-rule": "null-column",
+      x1: nullX,
+      y1: headerY,
+      x2: nullX,
+      y2: y + height,
+      stroke,
+      "stroke-width": gridLineWidth
+    });
+  }
+
+  if (leadingPrimaryKeyCount > 0 && leadingPrimaryKeyCount < fields.length) {
+    const primaryKeyDividerY = headerY + (leadingPrimaryKeyCount * metrics.rowHeight);
+    appendSvg(node, "line", {
+      "data-diagram2-entity-rule": "primary-key",
+      x1: x,
+      y1: primaryKeyDividerY,
+      x2: x + width,
+      y2: primaryKeyDividerY,
+      stroke,
+      "stroke-width": gridLineWidth
     });
   }
 
   fields.forEach((field, index) => {
-    const bounds = annotationEntityFieldBounds(object, field);
-    if (!bounds) return;
-    const rowY = bounds.y;
-    const rowCenterY = rowY + (bounds.height / 2);
-    if (index > 0) {
-      appendSvg(node, "line", {
-        "data-diagram2-entity-rule": "row",
-        x1: x,
-        y1: rowY,
-        x2: x + width,
-        y2: rowY,
-        stroke,
-        "stroke-width": Math.max(0.35, positiveNumber(object.strokeWidth, 1) * 0.28)
-      });
-    }
+    const rowTop = headerY + (index * metrics.rowHeight);
+    const textY = rowTop + (metrics.rowHeight * 0.68);
 
-    if (keyColumnWidth > 0) {
+    if (showKeyColumn) {
       const keyText = [field.isPrimaryKey ? "PK" : "", field.isForeignKey ? "FK" : ""].filter(Boolean).join("/");
       if (keyText) {
         appendText(node, keyText, {
@@ -2798,47 +2988,74 @@ function renderEntityObject(node, object, options = {}) {
           "data-diagram2-entity-text": "",
           "data-diagram2-entity-key": "",
           x: x + (keyColumnWidth / 2),
-          y: rowCenterY,
+          y: textY,
           "text-anchor": "middle",
-          "dominant-baseline": "middle",
+          "clip-path": `url(#${keyClipId})`,
           fill: textColor,
           "font-family": object.fontFamily || "Arial",
-          "font-size": Math.max(8, fontSize * 0.72)
+          "font-size": metrics.fontSize * 0.82
         });
       }
     }
 
-    const labelPoint = annotationEntityFieldLabelPoint(object, field) || {
-      x: x + keyColumnWidth + 8,
-      y: rowCenterY
-    };
-    appendText(node, field.name || "Field", {
+    const fieldName = formatAnnotationEntityIdentifier(field.name);
+    appendText(node, fieldName || "Field", {
       class: "diagram2-renderer-entity-field",
       "data-diagram2-entity-text": "",
       "data-diagram2-entity-field": "",
-      x: labelPoint.x,
-      y: labelPoint.y,
-      "dominant-baseline": "middle",
+      x: fieldX + metrics.padding,
+      y: textY,
       "clip-path": `url(#${fieldClipId})`,
       fill: textColor,
       "font-family": object.fontFamily || "Arial",
-      "font-size": Math.max(8, fontSize * 0.88),
-      "font-weight": field.isPrimaryKey ? 700 : 400
+      "font-size": metrics.fontSize,
+      "font-weight": field.isPrimaryKey ? 700 : null,
+      "text-decoration": field.isPrimaryKey ? "underline" : null
     });
 
     if (showDataTypes) {
-      appendText(node, [field.dataType, field.identity].filter(Boolean).join(" "), {
+      const visibleDataType = [field.dataType, field.identity || (field.isIdentity ? "IDENTITY" : "")]
+        .filter(Boolean)
+        .join(" ");
+      appendText(node, visibleDataType, {
         class: "diagram2-renderer-entity-data-type",
         "data-diagram2-entity-text": "",
         "data-diagram2-entity-data-type": "",
         x: dataTypeX + 8,
-        y: rowCenterY,
-        "dominant-baseline": "middle",
-        "clip-path": `url(#${detailsClipId})`,
+        y: textY,
+        "clip-path": `url(#${dataTypeClipId})`,
         fill: textColor,
         "font-family": object.fontFamily || "Arial",
-        "font-size": Math.max(8, fontSize * 0.78)
+        "font-size": metrics.fontSize * 0.86
       });
+      if (field.nullable === false) {
+        appendText(node, "NOT", {
+          class: "diagram2-renderer-entity-nullability",
+          "data-diagram2-entity-text": "",
+          "data-diagram2-entity-nullability": "not",
+          x: notX + (notColumnWidth / 2),
+          y: textY,
+          "text-anchor": "middle",
+          "clip-path": `url(#${notClipId})`,
+          fill: textColor,
+          "font-family": object.fontFamily || "Arial",
+          "font-size": metrics.fontSize * 0.82
+        });
+      }
+      if (field.nullable != null) {
+        appendText(node, "NULL", {
+          class: "diagram2-renderer-entity-nullability",
+          "data-diagram2-entity-text": "",
+          "data-diagram2-entity-nullability": "null",
+          x: nullX + (nullColumnWidth / 2),
+          y: textY,
+          "text-anchor": "middle",
+          "clip-path": `url(#${nullClipId})`,
+          fill: textColor,
+          "font-family": object.fontFamily || "Arial",
+          "font-size": metrics.fontSize * 0.82
+        });
+      }
     }
   });
 
@@ -2851,8 +3068,7 @@ function renderEntityObject(node, object, options = {}) {
     height,
     fill: "none",
     stroke,
-    "stroke-width": positiveNumber(object.strokeWidth, 1),
-    "vector-effect": "non-scaling-stroke"
+    "stroke-width": positiveNumber(object.strokeWidth, 1)
   });
 }
 
@@ -2939,8 +3155,7 @@ function renderLowDetailEntityObject(node, object) {
     height,
     fill: "none",
     stroke,
-    "stroke-width": positiveNumber(object.strokeWidth, 1),
-    "vector-effect": "non-scaling-stroke"
+    "stroke-width": positiveNumber(object.strokeWidth, 1)
   });
 }
 
@@ -2958,8 +3173,7 @@ function renderFieldRectangleObject(node, object) {
     height,
     fill: object.fill || "transparent",
     stroke: object.outlineVisible === false ? "none" : object.stroke || "#f59e0b",
-    "stroke-width": positiveNumber(object.strokeWidth, 2),
-    "vector-effect": "non-scaling-stroke"
+    "stroke-width": positiveNumber(object.strokeWidth, 2)
   });
 }
 
@@ -2986,8 +3200,7 @@ function renderRectangleObject(node, object) {
     height: positiveNumber(object.height, 1),
     fill: object.fill || "none",
     stroke: object.outlineVisible === false ? "none" : object.stroke || "#334155",
-    "stroke-width": positiveNumber(object.strokeWidth, 1),
-    "vector-effect": "non-scaling-stroke"
+    "stroke-width": positiveNumber(object.strokeWidth, 1)
   });
 }
 
@@ -3004,8 +3217,7 @@ function renderCircleObject(node, object) {
     ry: height / 2,
     fill: object.fill || "none",
     stroke: object.outlineVisible === false ? "none" : object.stroke || "#334155",
-    "stroke-width": positiveNumber(object.strokeWidth, 1),
-    "vector-effect": "non-scaling-stroke"
+    "stroke-width": positiveNumber(object.strokeWidth, 1)
   });
 }
 
@@ -3024,34 +3236,24 @@ function renderConnector(node, object, arrow) {
   const y2 = finiteNumber(object.y2, 0);
   const stroke = object.stroke || "#334155";
   const strokeWidth = positiveNumber(object.strokeWidth, 2);
+  const geometry = arrow ? annotationArrowGeometry(object) : null;
 
   appendSvg(node, "line", {
     class: arrow ? "diagram2-renderer-arrow-shaft" : "diagram2-renderer-line",
     x1,
     y1,
-    x2,
-    y2,
+    x2: geometry ? geometry.shaftEnd.x : x2,
+    y2: geometry ? geometry.shaftEnd.y : y2,
     stroke,
     "stroke-width": strokeWidth,
     "stroke-linecap": "round",
-    "vector-effect": "non-scaling-stroke"
+    "vector-effect": null
   });
 
   if (!arrow) return;
-  const angle = Math.atan2(y2 - y1, x2 - x1);
-  const arrowSize = positiveNumber(object.arrowSize, 18);
-  const wing = Math.PI / 7;
-  const left = {
-    x: x2 - (Math.cos(angle - wing) * arrowSize),
-    y: y2 - (Math.sin(angle - wing) * arrowSize)
-  };
-  const right = {
-    x: x2 - (Math.cos(angle + wing) * arrowSize),
-    y: y2 - (Math.sin(angle + wing) * arrowSize)
-  };
   appendSvg(node, "polygon", {
     class: "diagram2-renderer-arrow-head",
-    points: `${formatNumber(x2)},${formatNumber(y2)} ${formatNumber(left.x)},${formatNumber(left.y)} ${formatNumber(right.x)},${formatNumber(right.y)}`,
+    points: diagram2PointListText(geometry.headPoints),
     fill: stroke
   });
 }
@@ -3062,6 +3264,29 @@ function renderTextboxObject(node, object) {
   const width = positiveNumber(object.width, 1);
   const height = positiveNumber(object.height, 1);
   const fontSize = positiveNumber(object.fontSize, 16);
+  const padding = Math.max(4, fontSize * 0.35);
+  const lineHeight = fontSize * 1.2;
+  const lines = wrapAnnotationText(object.text, width, fontSize);
+  const maximumLines = Math.max(1, Math.floor(Math.max(1, height - (padding * 2)) / lineHeight));
+  const visibleLines = lines.slice(0, maximumLines);
+  const textAlign = safeDiagram2TextAlign(object.textAlign);
+  const textVerticalAlign = safeDiagram2TextVerticalAlign(object.textVerticalAlign);
+  const textX = textAlign === "center"
+    ? x + (width / 2)
+    : textAlign === "right"
+      ? x + width - padding
+      : x + padding;
+  const textAnchor = textAlign === "center" ? "middle" : textAlign === "right" ? "end" : "start";
+  const textAscent = fontSize * 0.8;
+  const textBlockHeight = fontSize + (Math.max(0, visibleLines.length - 1) * lineHeight);
+  const innerHeight = Math.max(0, height - (padding * 2));
+  const freeSpace = Math.max(0, innerHeight - textBlockHeight);
+  const verticalOffset = textVerticalAlign === "middle"
+    ? freeSpace / 2
+    : textVerticalAlign === "bottom"
+      ? freeSpace
+      : 0;
+  const textY = y + padding + verticalOffset + textAscent;
   const clipId = `${safeSvgId(object.id)}-diagram2-text`;
   appendSvg(node, "defs").appendChild(svgClipRect(node, clipId, x, y, width, height));
   appendSvg(node, "rect", {
@@ -3072,24 +3297,23 @@ function renderTextboxObject(node, object) {
     height,
     fill: object.fill || "none",
     stroke: object.outlineVisible === false ? "none" : object.stroke || "#334155",
-    "stroke-width": positiveNumber(object.strokeWidth, 1),
-    "vector-effect": "non-scaling-stroke"
+    "stroke-width": positiveNumber(object.strokeWidth, 1)
   });
 
-  const lines = String(object.text || "").split(/\r?\n/).slice(0, 24);
   const text = appendSvg(node, "text", {
     class: "diagram2-renderer-textbox-text",
-    x: x + 10,
-    y: y + 10 + (fontSize * 0.8),
+    x: textX,
+    y: textY,
+    "text-anchor": textAnchor,
     fill: object.textColor || "#172b4d",
     "font-family": object.fontFamily || "Arial",
     "font-size": fontSize,
     "clip-path": `url(#${clipId})`
   });
-  lines.forEach((line, index) => {
+  visibleLines.forEach((line, index) => {
     appendText(text, line || " ", {
-      x: x + 10,
-      dy: index === 0 ? 0 : fontSize * 1.25
+      x: textX,
+      dy: index === 0 ? 0 : lineHeight
     }, "tspan");
   });
 }
@@ -3230,75 +3454,135 @@ function patchRelationshipNode(node, previousRelationship, relationship, flags =
     });
   }
   setSvgAttributes(path, {
-    class: "diagram2-renderer-relationship",
+    class: "diagram2-renderer-relationship diagram2-renderer-relationship-hit-path",
     "data-diagram2-relationship-path": "",
     d: renderRoute.path,
     fill: "none",
-    stroke: style.stroke,
+    stroke: "transparent",
     "stroke-width": style.strokeWidth,
-    opacity: style.opacity,
+    opacity: 0,
     "stroke-linejoin": "round",
     "stroke-linecap": "round",
-    "vector-effect": "non-scaling-stroke"
+    "vector-effect": null
   });
 }
 
 function lowDetailRelationshipRoute(relationship, routeInput) {
-  const route = routeInput || relationshipRoute(relationship);
-  const hasManualRoute = normalizeRelationshipRouteOverride(
-    relationship.foreignKeySource?.routeOverride || relationship.foreignKey?.routeOverride
-  ).length >= 2;
-  if (hasManualRoute || relationship.source === relationship.target) return route;
-  return relationshipRouteFromPoints([route.start, route.end]);
+  return routeInput || relationshipRoute(relationship);
 }
 
 function relationshipRoute(relationship, options = {}) {
+  if (relationship?.diagram2RouteGeometry?.points?.length) {
+    return relationshipRouteFromPoints(relationship.diagram2RouteGeometry.points);
+  }
+
   const source = relationship.source;
   const target = relationship.target;
-  const sourceBounds = annotationEntityFieldBounds(source, relationship.sourceField) || objectBounds(source);
-  const targetBounds = annotationEntityFieldBounds(target, relationship.targetField) || objectBounds(target);
-  const manualPoints = options.manualRoutes === true
-    ? normalizeRelationshipRouteOverride(relationship.foreignKeySource?.routeOverride || relationship.foreignKey?.routeOverride)
-    : [];
-  if (manualPoints.length >= 2) {
-    return relationshipRouteFromPoints(manualPoints);
+  const sourceCenter = objectCenter(source);
+  const targetCenter = objectCenter(target);
+  const relationships = Array.isArray(options.relationships) && options.relationships.length
+    ? options.relationships
+    : [relationship];
+  const style = relationshipStyle(relationship);
+  const fieldRectangleRoute = source !== target
+    ? relationshipFieldRectangleRoute(relationship, style)
+    : null;
+  if (fieldRectangleRoute) {
+    const manualPoints = options.manualRoutes === true
+      ? manualRelationshipRoute(relationship, fieldRectangleRoute.start, fieldRectangleRoute.end)
+      : null;
+    return relationshipRouteFromPoints(manualPoints || fieldRectangleRoute.points);
   }
 
   if (source === target) {
     const x = finiteNumber(source.x, 0) + positiveNumber(source.width, 1);
-    const offset = Math.max(44, positiveNumber(source.width, 1) * 0.24) + (relationship.foreignKeyIndex * 12);
+    const margin = relationshipSelfMargin(source, style) + (relationship.foreignKeyIndex * 12);
     const start = {
       x,
-      y: sourceBounds.y + (sourceBounds.height / 2)
+      y: relationshipFieldAnchorY(source, relationship.sourceField)
     };
     const end = {
-      x,
-      y: targetBounds.y + (targetBounds.height / 2)
+      x: finiteNumber(source.x, 0),
+      y: relationshipFieldAnchorY(target, relationship.targetField)
     };
-    return relationshipRouteFromPoints([start, { x: x + offset, y: start.y }, { x: x + offset, y: end.y }, end]);
+    const points = compactRelationshipRoutePoints([
+      start,
+      { x: finiteNumber(source.x, 0) + positiveNumber(source.width, 1) + margin, y: start.y },
+      { x: finiteNumber(source.x, 0) + positiveNumber(source.width, 1) + margin, y: finiteNumber(source.y, 0) - margin },
+      { x: finiteNumber(source.x, 0) - margin, y: finiteNumber(source.y, 0) - margin },
+      { x: finiteNumber(source.x, 0) - margin, y: end.y },
+      end
+    ]);
+    const manualPoints = options.manualRoutes === true
+      ? manualRelationshipRoute(relationship, start, end)
+      : null;
+    return relationshipRouteFromPoints(manualPoints || points);
   }
 
-  const sourceCenterX = finiteNumber(source.x, 0) + (positiveNumber(source.width, 1) / 2);
-  const targetCenterX = finiteNumber(target.x, 0) + (positiveNumber(target.width, 1) / 2);
-  const sourceOnRight = sourceCenterX <= targetCenterX;
-  const start = {
-    x: sourceOnRight ? finiteNumber(source.x, 0) + positiveNumber(source.width, 1) : finiteNumber(source.x, 0),
-    y: sourceBounds.y + (sourceBounds.height / 2)
-  };
-  const end = {
-    x: sourceOnRight ? finiteNumber(target.x, 0) : finiteNumber(target.x, 0) + positiveNumber(target.width, 1),
-    y: targetBounds.y + (targetBounds.height / 2)
-  };
-  const midX = start.x + ((end.x - start.x) / 2);
-  return relationshipRouteFromPoints([start, { x: midX, y: start.y }, { x: midX, y: end.y }, end]);
+  const allowSharedRoute = options.allowOverlappingLines === true
+    || (source?.anchorTable === true && target?.anchorTable === true);
+  let start;
+  let end;
+  let middleX;
+
+  if (finiteNumber(target.x, 0) >= finiteNumber(source.x, 0) + positiveNumber(source.width, 1)
+    || finiteNumber(source.x, 0) >= finiteNumber(target.x, 0) + positiveNumber(target.width, 1)) {
+    const direction = targetCenter.x >= sourceCenter.x ? 1 : -1;
+    start = {
+      x: direction > 0 ? finiteNumber(source.x, 0) + positiveNumber(source.width, 1) : finiteNumber(source.x, 0),
+      y: relationshipFieldAnchorY(source, relationship.sourceField)
+    };
+    end = {
+      x: direction > 0 ? finiteNumber(target.x, 0) : finiteNumber(target.x, 0) + positiveNumber(target.width, 1),
+      y: relationshipFieldAnchorY(target, relationship.targetField)
+    };
+    middleX = snapRelationshipRouteValue(
+      allowSharedRoute
+        ? (start.x + end.x) / 2
+        : relationshipLane(start.x, end.x, relationship, relationships)
+    );
+  } else {
+    const margin = Math.max(48, style.arrowSize * 2, style.strokeWidth * 4);
+    const leftLane = Math.min(finiteNumber(source.x, 0), finiteNumber(target.x, 0)) - margin;
+    const rightLane = Math.max(
+      finiteNumber(source.x, 0) + positiveNumber(source.width, 1),
+      finiteNumber(target.x, 0) + positiveNumber(target.width, 1)
+    ) + margin;
+    const leftDistance = (finiteNumber(source.x, 0) - leftLane) + (finiteNumber(target.x, 0) - leftLane);
+    const rightDistance = (rightLane - (finiteNumber(source.x, 0) + positiveNumber(source.width, 1)))
+      + (rightLane - (finiteNumber(target.x, 0) + positiveNumber(target.width, 1)));
+    const useRightLane = rightDistance < leftDistance;
+    const laneIndex = allowSharedRoute ? 0 : relationshipPairIndex(relationship, relationships);
+    const laneOffset = laneIndex * relationshipClearance(style);
+    middleX = snapRelationshipRouteValue(useRightLane ? rightLane + laneOffset : leftLane - laneOffset);
+    start = {
+      x: useRightLane ? finiteNumber(source.x, 0) + positiveNumber(source.width, 1) : finiteNumber(source.x, 0),
+      y: relationshipFieldAnchorY(source, relationship.sourceField)
+    };
+    end = {
+      x: useRightLane ? finiteNumber(target.x, 0) + positiveNumber(target.width, 1) : finiteNumber(target.x, 0),
+      y: relationshipFieldAnchorY(target, relationship.targetField)
+    };
+  }
+
+  const points = compactRelationshipRoutePoints([
+    start,
+    { x: middleX, y: start.y },
+    { x: middleX, y: end.y },
+    end
+  ]);
+  const manualPoints = options.manualRoutes === true
+    ? manualRelationshipRoute(relationship, start, end)
+    : null;
+  return relationshipRouteFromPoints(manualPoints || points);
 }
 
 function relationshipRouteFromPoints(pointsInput) {
-  const points = (Array.isArray(pointsInput) ? pointsInput : [])
+  const points = compactRelationshipRoutePoints((Array.isArray(pointsInput) ? pointsInput : [])
     .map(point => ({
       x: finiteNumber(point?.x, 0),
       y: finiteNumber(point?.y, 0)
-    }));
+    })));
   const [start] = points;
   const end = points[points.length - 1] || start || { x: 0, y: 0 };
   return {
@@ -3313,10 +3597,270 @@ function relationshipRouteFromPoints(pointsInput) {
 function relationshipPathFromPoints(pointsInput) {
   const points = Array.isArray(pointsInput) ? pointsInput : [];
   if (!points.length) return "";
-  return points.map((point, index) => {
-    const command = index === 0 ? "M" : "L";
-    return `${command} ${formatNumber(point.x)} ${formatNumber(point.y)}`;
-  }).join(" ");
+  return points.slice(1).reduce((path, point, index) => {
+    const previous = points[index];
+    if (previous.y === point.y) return `${path} H ${formatNumber(point.x)}`;
+    if (previous.x === point.x) return `${path} V ${formatNumber(point.y)}`;
+    return `${path} L ${formatNumber(point.x)} ${formatNumber(point.y)}`;
+  }, `M ${formatNumber(points[0].x)} ${formatNumber(points[0].y)}`);
+}
+
+function relationshipRouteOptions(relationshipsInput, state) {
+  const relationships = Array.isArray(relationshipsInput) ? relationshipsInput : [];
+  return {
+    relationships,
+    allowOverlappingLines: state?.allowOverlappingEntityLines === true,
+    manualRoutes: state?.manualEntityRelationshipRoutes === true
+  };
+}
+
+function objectCenter(object) {
+  return {
+    x: finiteNumber(object?.x, 0) + (positiveNumber(object?.width, 1) / 2),
+    y: finiteNumber(object?.y, 0) + (positiveNumber(object?.height, 1) / 2)
+  };
+}
+
+function relationshipFieldAnchorY(entity, field) {
+  const bounds = annotationEntityFieldBounds(entity, field) || objectBounds(entity);
+  return finiteNumber(bounds?.y, 0) + (positiveNumber(bounds?.height, 1) / 2);
+}
+
+function relationshipEndpoint(entity, field, side, role = "source") {
+  const safeSide = ["left", "top", "right", "bottom"].includes(side) ? side : "right";
+  const x = finiteNumber(entity?.x, 0);
+  const y = finiteNumber(entity?.y, 0);
+  const width = positiveNumber(entity?.width, 1);
+  const height = positiveNumber(entity?.height, 1);
+  const centerX = x + (width / 2);
+  const anchorY = diagram2IsFieldRectangle(entity) ? y + (height / 2) : relationshipFieldAnchorY(entity, field);
+  const source = role !== "target";
+  if (safeSide === "left") return {
+    point: { x, y: anchorY },
+    unit: source ? { x: -1, y: 0 } : { x: 1, y: 0 }
+  };
+  if (safeSide === "top") return {
+    point: { x: centerX, y },
+    unit: source ? { x: 0, y: -1 } : { x: 0, y: 1 }
+  };
+  if (safeSide === "bottom") return {
+    point: { x: centerX, y: y + height },
+    unit: source ? { x: 0, y: 1 } : { x: 0, y: -1 }
+  };
+  return {
+    point: { x: x + width, y: anchorY },
+    unit: source ? { x: 1, y: 0 } : { x: -1, y: 0 }
+  };
+}
+
+function relationshipFieldRectangleRoute(relationship, style) {
+  const { source, sourceField, target, targetField } = relationship;
+  if (!diagram2IsFieldRectangle(source) && !diagram2IsFieldRectangle(target)) return null;
+  const sourceCenter = objectCenter(source);
+  const targetCenter = objectCenter(target);
+  const defaultSourceSide = targetCenter.x >= sourceCenter.x ? "right" : "left";
+  const defaultTargetSide = targetCenter.x >= sourceCenter.x ? "left" : "right";
+  const sourceEndpoint = relationshipEndpoint(
+    source,
+    sourceField,
+    diagram2IsFieldRectangle(source) ? source.fieldRectangleConnectionSide : defaultSourceSide,
+    "source"
+  );
+  const targetEndpoint = relationshipEndpoint(
+    target,
+    targetField,
+    diagram2IsFieldRectangle(target) ? target.fieldRectangleConnectionSide : defaultTargetSide,
+    "target"
+  );
+  const clearance = relationshipClearance(style);
+  const start = sourceEndpoint.point;
+  const end = targetEndpoint.point;
+  const startEscape = {
+    x: start.x + (sourceEndpoint.unit.x * clearance),
+    y: start.y + (sourceEndpoint.unit.y * clearance)
+  };
+  const endEscape = {
+    x: end.x - (targetEndpoint.unit.x * clearance),
+    y: end.y - (targetEndpoint.unit.y * clearance)
+  };
+  const bend = Math.abs(startEscape.x - endEscape.x) >= Math.abs(startEscape.y - endEscape.y)
+    ? { x: startEscape.x, y: endEscape.y }
+    : { x: endEscape.x, y: startEscape.y };
+  return {
+    start,
+    end,
+    points: compactRelationshipRoutePoints([start, startEscape, bend, endEscape, end])
+  };
+}
+
+function manualRelationshipRoute(relationship, start, end) {
+  const route = normalizeRelationshipRouteOverride(
+    relationship?.foreignKeySource?.routeOverride || relationship?.foreignKey?.routeOverride
+  );
+  if (route.length < 2) return null;
+  const samePoint = (first, second) => Math.abs(first.x - second.x) <= 1
+    && Math.abs(first.y - second.y) <= 1;
+  if (!samePoint(route[0], start) || !samePoint(route.at(-1), end)) return null;
+  return compactRelationshipRoutePoints(route.map((point, index) => {
+    if (index === 0) return { x: start.x, y: start.y };
+    if (index === route.length - 1) return { x: end.x, y: end.y };
+    return point;
+  }));
+}
+
+function relationshipSelfMargin(entity, style) {
+  const metrics = annotationEntityMetrics(entity);
+  return Math.max(
+    48,
+    metrics.rowHeight * 2,
+    style.arrowSize * 2,
+    style.strokeWidth * 4
+  );
+}
+
+function relationshipClearance(style) {
+  return Math.max(diagram2MinimumRelationshipClearance, positiveNumber(style?.strokeWidth, 2) * 4);
+}
+
+function relationshipLane(start, end, relationship, relationshipsInput) {
+  const samePair = relationshipSamePair(relationship, relationshipsInput);
+  const index = Math.max(0, samePair.indexOf(relationship));
+  return start + ((end - start) * ((index + 1) / (samePair.length + 1)));
+}
+
+function relationshipPairIndex(relationship, relationshipsInput) {
+  return Math.max(0, relationshipSamePair(relationship, relationshipsInput).indexOf(relationship));
+}
+
+function relationshipSamePair(relationship, relationshipsInput) {
+  return (Array.isArray(relationshipsInput) ? relationshipsInput : [])
+    .filter(candidate => candidate.source === relationship.source && candidate.target === relationship.target)
+    .sort(compareDiagram2Relationships);
+}
+
+function compareDiagram2Relationships(first, second) {
+  const key = relationship => [
+    formatAnnotationEntityIdentifier(relationship.source?.entitySchema, relationship.source?.entityName),
+    relationship.sourceField?.name || "",
+    formatAnnotationEntityIdentifier(relationship.target?.entitySchema, relationship.target?.entityName),
+    relationship.targetField?.name || ""
+  ].join(".").toLocaleLowerCase();
+  return key(first).localeCompare(key(second));
+}
+
+function snapRelationshipRouteValue(value) {
+  const size = diagram2RelationshipGridSize;
+  return Math.round(finiteNumber(value, 0) / size) * size;
+}
+
+function compactRelationshipRoutePoints(pointsInput) {
+  const points = [];
+  (Array.isArray(pointsInput) ? pointsInput : []).forEach(point => {
+    const normalized = {
+      x: Number(formatNumber(point?.x)),
+      y: Number(formatNumber(point?.y))
+    };
+    if (!Number.isFinite(normalized.x) || !Number.isFinite(normalized.y)) return;
+    const previous = points.at(-1);
+    if (previous && previous.x === normalized.x && previous.y === normalized.y) return;
+    points.push(normalized);
+    while (points.length >= 3) {
+      const first = points.at(-3);
+      const middle = points.at(-2);
+      const last = points.at(-1);
+      if ((first.x === middle.x && middle.x === last.x)
+        || (first.y === middle.y && middle.y === last.y)) {
+        points.splice(points.length - 2, 1);
+      } else break;
+    }
+  });
+  return points;
+}
+
+function diagram2RelationshipPaintKey(style) {
+  return JSON.stringify({
+    stroke: String(style?.stroke || ""),
+    strokeWidth: formatNumber(style?.strokeWidth),
+    opacity: formatNumber(style?.opacity)
+  });
+}
+
+function diagram2MergedRelationshipRouteGroups(renderedRelationships) {
+  const paintGroups = new Map();
+  renderedRelationships.forEach(item => {
+    const paintKey = diagram2RelationshipPaintKey(item.style);
+    let group = paintGroups.get(paintKey);
+    if (!group) {
+      group = {
+        style: item.style,
+        routes: [],
+        horizontal: new Map(),
+        vertical: new Map(),
+        diagonal: new Map()
+      };
+      paintGroups.set(paintKey, group);
+    }
+    group.routes.push(item.geometry.path);
+
+    item.geometry.points.slice(1).forEach((point, index) => {
+      const previous = item.geometry.points[index];
+      if (previous.x === point.x) {
+        const key = formatNumber(previous.x);
+        const intervals = group.vertical.get(key) || [];
+        intervals.push([Math.min(previous.y, point.y), Math.max(previous.y, point.y)]);
+        group.vertical.set(key, intervals);
+        return;
+      }
+      if (previous.y === point.y) {
+        const key = formatNumber(previous.y);
+        const intervals = group.horizontal.get(key) || [];
+        intervals.push([Math.min(previous.x, point.x), Math.max(previous.x, point.x)]);
+        group.horizontal.set(key, intervals);
+        return;
+      }
+      const firstKey = `${formatNumber(previous.x)},${formatNumber(previous.y)}`;
+      const secondKey = `${formatNumber(point.x)},${formatNumber(point.y)}`;
+      const key = firstKey < secondKey ? `${firstKey}|${secondKey}` : `${secondKey}|${firstKey}`;
+      group.diagonal.set(key, [previous, point]);
+    });
+  });
+
+  const mergeIntervals = intervals => intervals
+    .sort((first, second) => first[0] - second[0] || first[1] - second[1])
+    .reduce((merged, interval) => {
+      const previous = merged.at(-1);
+      if (previous && interval[0] <= previous[1]) {
+        previous[1] = Math.max(previous[1], interval[1]);
+      } else {
+        merged.push([...interval]);
+      }
+      return merged;
+    }, []);
+
+  return [...paintGroups.values()].map(group => {
+    if (group.routes.length === 1) return { style: group.style, path: group.routes[0] };
+    const commands = [];
+    group.horizontal.forEach((intervals, y) => {
+      mergeIntervals(intervals).forEach(([start, end]) => {
+        commands.push(`M ${formatNumber(start)} ${y} H ${formatNumber(end)}`);
+      });
+    });
+    group.vertical.forEach((intervals, x) => {
+      mergeIntervals(intervals).forEach(([start, end]) => {
+        commands.push(`M ${x} ${formatNumber(start)} V ${formatNumber(end)}`);
+      });
+    });
+    group.diagonal.forEach(([first, second]) => {
+      commands.push(`M ${formatNumber(first.x)} ${formatNumber(first.y)} L ${formatNumber(second.x)} ${formatNumber(second.y)}`);
+    });
+    return { style: group.style, path: commands.join(" ") };
+  }).filter(group => group.path);
+}
+
+function diagram2PointListText(pointsInput) {
+  return (Array.isArray(pointsInput) ? pointsInput : [])
+    .map(point => `${formatNumber(point?.x)},${formatNumber(point?.y)}`)
+    .join(" ");
 }
 
 function normalizeRelationshipRouteOverride(input) {
@@ -3329,11 +3873,22 @@ function normalizeRelationshipRouteOverride(input) {
 }
 
 function relationshipStyle(relationship) {
+  if (relationship?.diagram2EffectiveStyle) {
+    const style = relationship.diagram2EffectiveStyle;
+    return {
+      stroke: style.stroke || "#42526b",
+      strokeWidth: positiveNumber(style.strokeWidth, 2),
+      arrowSize: positiveNumber(style.arrowSize, 10),
+      opacity: safeOpacity(style.opacity ?? 1)
+    };
+  }
+
   const override = relationship.foreignKeySource?.styleOverride || relationship.foreignKey?.styleOverride || {};
   return {
-    stroke: override.stroke || "#52667d",
+    stroke: override.stroke || "#42526b",
     strokeWidth: positiveNumber(override.strokeWidth, 2),
-    opacity: safeOpacity(override.opacity ?? 0.88)
+    arrowSize: positiveNumber(override.arrowSize, 10),
+    opacity: safeOpacity(override.opacity ?? 1)
   };
 }
 
@@ -3849,7 +4404,9 @@ function objectStructureVersion(object) {
       ...base,
       text: object.type === "rich-text" ? object.html || "" : object.text || "",
       fontFamily: object.fontFamily || "Arial",
-      fontSize: positiveNumber(object.fontSize, 16)
+      fontSize: positiveNumber(object.fontSize, 16),
+      textAlign: safeDiagram2TextAlign(object.textAlign),
+      textVerticalAlign: safeDiagram2TextVerticalAlign(object.textVerticalAlign)
     });
   }
 
@@ -3923,6 +4480,7 @@ function relationshipRouteCacheSignature(relationship, options = {}) {
     manualRoute: relationship.foreignKeySource?.routeOverride || relationship.foreignKey?.routeOverride || null,
     relationshipRoutingOverride: relationshipRoutingOverrideSignature(relationship),
     globalRoutingSettings: globalRoutingSettingsSignature(options.canonicalState),
+    routePath: String(options.routePath || relationship.diagram2RouteGeometry?.path || ""),
     obstacleRegionGeneration: Number(options.obstacleGeneration || 0)
   });
 }
@@ -3951,6 +4509,7 @@ function relationshipRoutingOverrideSignature(relationship) {
 function globalRoutingSettingsSignature(state) {
   const style = state?.relationshipStyle || {};
   return {
+    allowOverlappingLines: state?.allowOverlappingEntityLines === true,
     manualRoutes: state?.manualEntityRelationshipRoutes === true,
     compactRouting: state?.compactEntityRelationshipRouting === true,
     strokeWidth: positiveNumber(style.strokeWidth, 0),
@@ -3996,7 +4555,7 @@ function relationshipRouteVersion(relationship) {
 }
 
 function relationshipStyleVersion(relationship) {
-  return JSON.stringify(relationship.foreignKeySource?.styleOverride || relationship.foreignKey?.styleOverride || null);
+  return JSON.stringify(relationship.diagram2EffectiveStyle || relationship.foreignKeySource?.styleOverride || relationship.foreignKey?.styleOverride || null);
 }
 
 function diagram2CanonicalEntities(canonical) {
@@ -4057,6 +4616,28 @@ function diagram2RelationshipId(source, sourceField, target, targetField, foreig
   ].map(part => encodeURIComponent(String(part || "").toLowerCase())).join(":");
 }
 
+function diagram2EffectiveRelationshipStyle(foreignKeySource, foreignKey, globalRelationshipStyle = {}) {
+  const override = foreignKeySource?.styleOverride || foreignKey?.styleOverride || {};
+  const hasOverrideOpacity = override && Object.hasOwn(override, "opacity");
+  const hasGlobalOpacity = globalRelationshipStyle && Object.hasOwn(globalRelationshipStyle, "opacity");
+  return {
+    stroke: override.stroke || globalRelationshipStyle.stroke || "#42526b",
+    strokeWidth: positiveNumber(
+      override.strokeWidth,
+      positiveNumber(globalRelationshipStyle.strokeWidth, 2)
+    ),
+    arrowSize: positiveNumber(
+      override.arrowSize,
+      positiveNumber(globalRelationshipStyle.arrowSize, 10)
+    ),
+    opacity: safeOpacity(hasOverrideOpacity
+      ? override.opacity
+      : hasGlobalOpacity
+        ? globalRelationshipStyle.opacity
+        : 1)
+  };
+}
+
 function normalizeIdentifier(value) {
   return String(value || "")
     .trim()
@@ -4107,6 +4688,41 @@ function objectBounds(object) {
     width: positiveNumber(object?.width, 1),
     height: positiveNumber(object?.height, 1)
   };
+}
+
+function diagram2ObjectVisible(object, state = null) {
+  if (!object || object.visible === false) return false;
+  return !object.groupId || state?.groupVisibility?.[object.groupId] !== false;
+}
+
+function diagram2ObjectContentBounds(object) {
+  if (!object) return null;
+  if (object.type === "arrow") {
+    const geometry = annotationArrowGeometry(object);
+    const shaftBounds = boundsFromPoints([
+      { x: finiteNumber(object.x1, 0), y: finiteNumber(object.y1, 0) },
+      geometry.shaftEnd
+    ], positiveNumber(object.strokeWidth, 1) / 2);
+    return unionBounds(shaftBounds, boundsFromPoints(geometry.headPoints));
+  }
+  if (object.type === "line") {
+    const padding = Math.max(
+      positiveNumber(object.strokeWidth, 1) / 2,
+      0
+    );
+    return boundsFromPoints([
+      { x: finiteNumber(object.x1, 0), y: finiteNumber(object.y1, 0) },
+      { x: finiteNumber(object.x2, 0), y: finiteNumber(object.y2, 0) }
+    ], padding);
+  }
+  if (object.type === "embedded-image" && object.cropVisible !== false) {
+    return normalizeBounds(object.imageClip) || objectBounds(object);
+  }
+  const strokeRadius = ["rectangle", "circle", "textbox", "rich-text", "entity", "field-mapping-table"].includes(object.type)
+    && object.outlineVisible !== false
+    ? positiveNumber(object.strokeWidth, 1) / 2
+    : 0;
+  return expandedBounds(objectBounds(object), strokeRadius);
 }
 
 function protectedRoutingBounds(object) {
@@ -4290,6 +4906,16 @@ function normalizeZoomMode(value) {
 
 function safeOpacity(value) {
   return clampNumber(Number(value ?? 1), 0, 1);
+}
+
+function safeDiagram2TextAlign(value) {
+  const alignment = String(value || "left").toLowerCase();
+  return ["left", "center", "right"].includes(alignment) ? alignment : "left";
+}
+
+function safeDiagram2TextVerticalAlign(value) {
+  const alignment = String(value || "top").toLowerCase();
+  return ["top", "middle", "bottom"].includes(alignment) ? alignment : "top";
 }
 
 function positiveNumber(value, fallback) {

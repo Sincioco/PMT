@@ -4,6 +4,7 @@ import {
   diagramCardHtml as sharedDiagramCardHtml
 } from "../../components/entity-cards.js?v=20260722-rich-entity-mentions-v1";
 import {
+  annotationContentBounds,
   annotationSvgPlaneMetrics,
   annotationEntityFieldBounds,
   annotationEntityFieldLabelPoint,
@@ -22,7 +23,7 @@ import {
   setAnnotationEntityCollapsedState,
   setAnnotationEntityDataTypeVisibility,
   zoomAnnotationAtPoint
-} from "../../components/image-annotation.js?v=20260726-annotation-rte-composition-v2";
+} from "../../components/image-annotation.js?v=20260726-d2-entity-parity-v1";
 import { openPublicLinkDialog } from "../../components/public-links.js?v=20260725-day36-v4";
 import {
   checkedFilterValues,
@@ -58,6 +59,7 @@ const blankDiagramHeight = 900;
 const diagramSvgSourceCache = new Map();
 const diagramSvgSourceLoads = new Map();
 const diagramSvgSearchTextCache = new Map();
+const diagramLocalD2ComparisonOffset = { x: 8, y: 9 };
 const blankDiagramSource = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(`
   <svg xmlns="http://www.w3.org/2000/svg" width="${blankDiagramWidth}" height="${blankDiagramHeight}" viewBox="0 0 ${blankDiagramWidth} ${blankDiagramHeight}">
     <rect width="${blankDiagramWidth}" height="${blankDiagramHeight}" fill="#ffffff"/>
@@ -80,11 +82,35 @@ let diagramSort = diagramSortModes.has(readPreference(preferenceKeys.diagramSort
   : "latest";
 let diagramCreatorFilters = readJsonPreference(preferenceKeys.diagramCreatorFilters, []);
 let diagramLastEditorFilters = readJsonPreference(preferenceKeys.diagramLastEditorFilters, []);
-let selectedDiagramDocumentId = 0;
+let selectedDiagramDocumentId = readNumberPreference(preferenceKeys.diagramSelectedDocument, 0);
 let sharedDiagramDocumentId = 0;
 let previewDiagramDocumentId = 0;
 let previewZoom = 1;
 const collapsedDiagramDocumentIds = new Set();
+
+function syncDiagramLeftNavContextFromStorage() {
+  const viewMode = readPreference(preferenceKeys.diagramViewMode, "tree");
+  diagramViewMode = diagramViewModes.has(viewMode) ? viewMode : "tree";
+  diagramTreePaneWidth = readNumberPreference(preferenceKeys.diagramTreePaneWidth, 300);
+  diagramTreePaneHidden = readBooleanPreference(preferenceKeys.diagramTreePaneHidden, false);
+  diagramSearch = readPreference(preferenceKeys.diagramSearch, "").trim();
+  diagramProjectId = readNumberPreference(preferenceKeys.diagramProject, 0);
+  diagramSprintId = readPreference(preferenceKeys.diagramSprint, "all");
+  const visibility = readPreference(preferenceKeys.diagramVisibility, "both");
+  diagramVisibility = diagramVisibilityModes.has(visibility) ? visibility : "both";
+  const sort = readPreference(preferenceKeys.diagramSort, "latest");
+  diagramSort = diagramSortModes.has(sort) ? sort : "latest";
+  diagramCreatorFilters = readJsonPreference(preferenceKeys.diagramCreatorFilters, []);
+  diagramLastEditorFilters = readJsonPreference(preferenceKeys.diagramLastEditorFilters, []);
+  selectedDiagramDocumentId = readNumberPreference(preferenceKeys.diagramSelectedDocument, selectedDiagramDocumentId);
+}
+
+function diagramReadOnlyD2ComparisonOffset() {
+  const hostname = String(globalThis.window?.location?.hostname || "").toLowerCase();
+  const localHost = hostname === "localhost" || hostname === "127.0.0.1" || hostname === "::1";
+  // Remove the localhost D1/D2 comparison alignment shim.
+  return localHost ? diagramLocalD2ComparisonOffset : { x: 0, y: 0 };
+}
 
 export function createDiagramFeature({
   app,
@@ -119,6 +145,7 @@ export function createDiagramFeature({
   function renderDiagram() {
     const wasActive = active;
     active = true;
+    if (!wasActive) syncDiagramLeftNavContextFromStorage();
     if (!wasActive) previewDiagramDocumentId = 0;
     if (editingDocumentId && app.querySelector("[data-diagram-editor-host]")) return;
     const previewHydrationToken = ++diagramPreviewHydrationToken;
@@ -131,6 +158,7 @@ export function createDiagramFeature({
         updateBrowserUrl(routeForContent("diagram", selectedDiagramDocumentId), { replace: true });
       }
     }
+    writePreference(preferenceKeys.diagramSelectedDocument, selectedDiagramDocumentId || "");
     if (editingDocumentId && !documentIds.has(editingDocumentId)) cancelEmbeddedEditor();
     const selectedDocument = documents.find(document => document.id === selectedDiagramDocumentId) || null;
 
@@ -533,7 +561,10 @@ export function createDiagramFeature({
     if (action === "delete-diagram") {
       const document = diagramDocuments().find(item => item.id === (id || selectedDiagramDocumentId));
       if (!diagramCanDelete(document)) return true;
-      if (selectedDiagramDocumentId === document.id) selectedDiagramDocumentId = 0;
+      if (selectedDiagramDocumentId === document.id) {
+        selectedDiagramDocumentId = 0;
+        writePreference(preferenceKeys.diagramSelectedDocument, "");
+      }
       await deleteItem?.(`/api/blogs/${document.id}`, "Delete this Diagram?");
       return true;
     }
@@ -1309,6 +1340,7 @@ export function createDiagramFeature({
       if (selectedDiagramDocumentId !== document.id) {
         selectedDiagramDocumentId = document.id;
         previewDiagramDocumentId = 0;
+        writePreference(preferenceKeys.diagramSelectedDocument, selectedDiagramDocumentId);
         renderDiagram();
       }
 
@@ -1682,6 +1714,22 @@ export function createDiagramFeature({
       image.style.transform = `scale(${zoom / plane.baseScale})`;
       image.style.visibility = "";
       zoomSelect.value = String(Math.round(zoom * 100));
+    };
+
+    const readonlyViewportScrollForContent = (metrics, contentScrollLeft, contentScrollTop) => {
+      const offset = diagramReadOnlyD2ComparisonOffset();
+      return {
+        left: Math.max(0, stage.offsetLeft + metrics.offsetX + contentScrollLeft - offset.x),
+        top: Math.max(0, stage.offsetTop + metrics.offsetY + contentScrollTop - offset.y)
+      };
+    };
+
+    const readonlyCurrentContentScroll = metrics => {
+      const offset = diagramReadOnlyD2ComparisonOffset();
+      return {
+        left: viewport.scrollLeft + offset.x - stage.offsetLeft - metrics.offsetX,
+        top: viewport.scrollTop + offset.y - stage.offsetTop - metrics.offsetY
+      };
     };
 
     const renderReadonlyStateSvg = () => {
@@ -2083,12 +2131,54 @@ export function createDiagramFeature({
       const viewBox = readonlyViewBoxBounds();
       const centerX = (bounds.x + (bounds.width / 2) - viewBox.x) * targetZoom;
       const centerY = (bounds.y + (bounds.height / 2) - viewBox.y) * targetZoom;
+      const scroll = readonlyViewportScrollForContent(
+        metrics,
+        centerX - (size.width / 2),
+        centerY - (size.height / 2)
+      );
       suppressZoomScroll = true;
-      viewport.scrollLeft = Math.max(0, stage.offsetLeft + metrics.offsetX + centerX - (size.width / 2));
-      viewport.scrollTop = Math.max(0, stage.offsetTop + metrics.offsetY + centerY - (size.height / 2));
+      viewport.scrollLeft = scroll.left;
+      viewport.scrollTop = scroll.top;
       window.requestAnimationFrame(() => {
         suppressZoomScroll = false;
       });
+      return true;
+    };
+    const readonlyContentBounds = () => {
+      if (!readonlyState) return readonlyViewBoxBounds();
+      return annotationContentBounds(readonlyDisplayState()) || readonlyViewBoxBounds();
+    };
+    const fitReadonlyBounds = (bounds, settleImmediately = false) => {
+      if (!bounds) return false;
+      cancelTransientZoom();
+      const size = viewportSize();
+      const availableWidth = Math.max(1, size.width - 32);
+      const availableHeight = Math.max(1, size.height - 32);
+      const targetZoom = Math.min(2, clampDiagramZoom(Math.min(
+        availableWidth / Math.max(1, bounds.width),
+        availableHeight / Math.max(1, bounds.height)
+      )));
+      const metrics = stageMetrics(targetZoom, size);
+      drawStage(targetZoom, metrics);
+      renderedZoom = targetZoom;
+      previewZoom = targetZoom;
+      applyReadonlyFieldMappingHighlight();
+      const viewBox = readonlyViewBoxBounds();
+      const centerX = (bounds.x + (bounds.width / 2) - viewBox.x) * targetZoom;
+      const centerY = (bounds.y + (bounds.height / 2) - viewBox.y) * targetZoom;
+      const scroll = readonlyViewportScrollForContent(
+        metrics,
+        centerX - (size.width / 2),
+        centerY - (size.height / 2)
+      );
+      suppressZoomScroll = true;
+      viewport.scrollLeft = scroll.left;
+      viewport.scrollTop = scroll.top;
+      const releaseScrollSuppression = () => {
+        suppressZoomScroll = false;
+      };
+      if (settleImmediately) releaseScrollSuppression();
+      else window.requestAnimationFrame(releaseScrollSuppression);
       return true;
     };
     const selectReadonlyFieldMappingCell = (cell, center = false) => {
@@ -2156,15 +2246,14 @@ export function createDiagramFeature({
       const metrics = stageMetrics(gesture.targetZoom, gesture.viewportSize);
       drawStage(gesture.targetZoom, metrics);
       renderedZoom = gesture.targetZoom;
+      const scroll = readonlyViewportScrollForContent(
+        metrics,
+        gesture.targetContentScrollLeft,
+        gesture.targetContentScrollTop
+      );
       suppressZoomScroll = true;
-      viewport.scrollLeft = Math.max(
-        0,
-        stage.offsetLeft + metrics.offsetX + gesture.targetContentScrollLeft
-      );
-      viewport.scrollTop = Math.max(
-        0,
-        stage.offsetTop + metrics.offsetY + gesture.targetContentScrollTop
-      );
+      viewport.scrollLeft = scroll.left;
+      viewport.scrollTop = scroll.top;
       window.requestAnimationFrame(() => {
         suppressZoomScroll = false;
       });
@@ -2191,6 +2280,16 @@ export function createDiagramFeature({
       settleZoom();
     };
 
+    const cancelTransientZoom = () => {
+      zoomGesture = null;
+      if (zoomFrame) window.cancelAnimationFrame(zoomFrame);
+      if (zoomIdleTimer) window.clearTimeout(zoomIdleTimer);
+      zoomFrame = 0;
+      zoomIdleTimer = 0;
+      viewer.classList.remove("is-zooming");
+      image.style.willChange = "";
+    };
+
     const scheduleZoom = (nextZoom, anchor = null, center = false, settleImmediately = false) => {
       const zoom = clampDiagramZoom(nextZoom);
       const currentTargetZoom = zoomGesture?.targetZoom ?? renderedZoom;
@@ -2203,20 +2302,21 @@ export function createDiagramFeature({
         const size = viewportSize();
         const metrics = stageMetrics(renderedZoom, size);
         const viewportStyle = window.getComputedStyle(viewport);
+        const currentContentScroll = readonlyCurrentContentScroll(metrics);
         zoomGesture = {
           viewportSize: size,
           stageOffsetLeft: stage.offsetLeft,
           stageOffsetTop: stage.offsetTop,
           paddingRight: Number.parseFloat(viewportStyle.paddingRight) || 0,
           paddingBottom: Number.parseFloat(viewportStyle.paddingBottom) || 0,
-          contentScrollLeft: viewport.scrollLeft - stage.offsetLeft - metrics.offsetX,
-          contentScrollTop: viewport.scrollTop - stage.offsetTop - metrics.offsetY,
+          contentScrollLeft: currentContentScroll.left,
+          contentScrollTop: currentContentScroll.top,
           targetZoom: renderedZoom,
-          targetContentScrollLeft: viewport.scrollLeft - stage.offsetLeft - metrics.offsetX,
-          targetContentScrollTop: viewport.scrollTop - stage.offsetTop - metrics.offsetY,
+          targetContentScrollLeft: currentContentScroll.left,
+          targetContentScrollTop: currentContentScroll.top,
           displayZoom: renderedZoom,
-          displayContentScrollLeft: viewport.scrollLeft - stage.offsetLeft - metrics.offsetX,
-          displayContentScrollTop: viewport.scrollTop - stage.offsetTop - metrics.offsetY,
+          displayContentScrollLeft: currentContentScroll.left,
+          displayContentScrollTop: currentContentScroll.top,
           lastFrameAt: performance.now(),
           inputIdle: false
         };
@@ -2302,15 +2402,7 @@ export function createDiagramFeature({
     };
 
     const fit = (settleImmediately = false) => {
-      const size = viewportSize();
-      const availableWidth = Math.max(1, size.width - 32);
-      const availableHeight = Math.max(1, size.height - 32);
-      scheduleZoom(
-        Math.min(availableWidth / imageWidth, availableHeight / imageHeight),
-        null,
-        true,
-        settleImmediately
-      );
+      fitReadonlyBounds(readonlyContentBounds(), settleImmediately);
     };
 
     const initialize = () => {
@@ -2541,6 +2633,7 @@ export function createDiagramFeature({
         selectedDiagramDocumentId = document.id;
         previewDiagramDocumentId = 0;
         diagramViewMode = "tree";
+        writePreference(preferenceKeys.diagramSelectedDocument, selectedDiagramDocumentId);
         writePreference(preferenceKeys.diagramViewMode, diagramViewMode);
         if (active) renderDiagram();
       }

@@ -1,4 +1,4 @@
-import { readNavigationConfig } from "../core/navigation-preferences.js?v=20260725-diagram2-day4-v1";
+import { readNavigationConfig } from "../core/navigation-preferences.js?v=20260726-diagram2-nav-icon-v1";
 import { screenRegistry } from "../core/screen-registry.js?v=20260725-diagram2-day4-v1";
 import { escapeHtml } from "../shared/text-and-links.js";
 

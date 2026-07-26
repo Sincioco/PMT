@@ -1,5 +1,5 @@
 import { createDiagram2CommandHistory } from "./diagram2-editor-history.js?v=20260726-diagram2-phase2-v1";
-import { normalizeDiagram2CanonicalState } from "./diagram2-renderer.js?v=20260726-annotation-rte-composition-v2";
+import { normalizeDiagram2CanonicalState } from "./diagram2-renderer.js?v=20260726-d2-line-parity-v1";
 
 const keyboardNudgeMergeWindowMilliseconds = 350;
 

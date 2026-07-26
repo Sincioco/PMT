@@ -1,15 +1,5 @@
+import { sharedRichColorPickerHtml } from "../../components/forms.js?v=20260722-rte-toggle-state-v1";
 import { escapeAttr, escapeHtml } from "../../shared/text-and-links.js";
-
-const defaultZoomOptions = [
-  { value: "fit", text: "Fit" },
-  { value: "0.1", text: "10%" },
-  { value: "0.5", text: "50%" },
-  { value: "0.75", text: "75%" },
-  { value: "1", text: "100%" },
-  { value: "1.25", text: "125%" },
-  { value: "1.5", text: "150%" },
-  { value: "2", text: "200%" }
-];
 
 export function diagram2EditorShellHtml(options = {}) {
   const status = options.status || {};
@@ -36,11 +26,12 @@ export function diagram2EditorShellHtml(options = {}) {
           </div>
         </div>
       ` : ""}
-      ${diagram2ToolbarHtml({ canUse, selectedZoom })}
+      ${diagram2ToolbarHtml({
+        canUse,
+        includeActions: options.includeToolbarActions === true || !includeFooter,
+        selectedZoom
+      })}
       <div class="image-annotation-main diagram2-editor-main" data-diagram2-editor-main>
-        <aside class="image-annotation-inspector diagram2-editor-objects-pane" data-diagram2-objects-pane aria-label="Diagram 2 Objects pane">
-          ${diagram2ObjectsPaneHtml(state, selectedIds)}
-        </aside>
         <div class="diagram2-editor-center" data-diagram2-editor-center>
           <div class="image-annotation-workspace diagram2-editor-workspace" data-diagram2-workspace tabindex="0" aria-label="Diagram 2 canvas">
             <div class="image-annotation-canvas-stage diagram2-editor-canvas-stage" data-diagram2-canvas-stage>
@@ -49,11 +40,11 @@ export function diagram2EditorShellHtml(options = {}) {
               </div>
             </div>
           </div>
-          ${diagram2DiagnosticsShellHtml(options.diagnosticsHtml || "")}
+          ${options.showDiagnostics === true ? diagram2DiagnosticsShellHtml(options.diagnosticsHtml || "") : ""}
         </div>
         <div class="image-annotation-inspector-splitter diagram2-editor-inspector-splitter" data-diagram2-inspector-splitter role="separator" aria-orientation="vertical" aria-label="Resize right pane" tabindex="0"></div>
         <aside class="image-annotation-inspector diagram2-editor-inspector" data-diagram2-inspector aria-label="Diagram 2 right pane">
-          ${diagram2InspectorHtml(status)}
+          ${diagram2InspectorHtml(status, state, selectedIds)}
         </aside>
       </div>
       ${diagram2ContextMenuHtml()}
@@ -79,22 +70,22 @@ export function diagram2ObjectsPaneHtml(state, selectedObjectIds = []) {
   }).join("");
 
   return `
-    <div class="diagram2-editor-pane-title">
-      <h3>Objects</h3>
-      <span data-diagram2-object-count>${objects.length}</span>
-    </div>
-    <div class="image-annotation-object-tree-actions" role="toolbar" aria-label="Object tree actions">
-      <button type="button" data-action="rename-diagram2-object" data-diagram2-pending-command disabled>Rename</button>
-      <button type="button" data-action="copy-diagram2-selection" data-diagram2-requires-selection>Copy</button>
-      <button type="button" data-action="paste-diagram2-selection" disabled>Paste</button>
-      <button type="button" data-action="delete-diagram2-selection" data-diagram2-pending-command disabled>Delete</button>
-    </div>
-    <label class="image-annotation-object-tree-search">
-      <span>Search objects</span>
-      <input type="search" placeholder="Search objects" aria-label="Search objects" autocomplete="off" data-filter="diagram2-object-search" disabled>
-    </label>
-    <div class="image-annotation-object-tree diagram2-object-tree" data-diagram2-object-tree role="tree" tabindex="0" aria-label="Diagram 2 objects, topmost first">
-      ${rows || `<p class="image-annotation-object-tree-empty">No objects.</p>`}
+    <div class="diagram2-editor-objects-pane" data-diagram2-objects-pane>
+      <div class="image-annotation-object-tree-actions" role="toolbar" aria-label="Object tree actions">
+        <button type="button" data-action="rename-diagram2-object" data-diagram2-pending-command disabled>Rename</button>
+        <button type="button" data-action="copy-diagram2-selection" data-diagram2-requires-selection>Copy</button>
+        <button type="button" data-action="paste-diagram2-selection" disabled>Paste</button>
+        <button type="button" data-action="delete-diagram2-selection" data-diagram2-pending-command disabled>Delete</button>
+      </div>
+      <label class="image-annotation-object-tree-search">
+        <span>Search objects</span>
+        <input type="search" placeholder="Search objects" aria-label="Search objects" autocomplete="off" data-filter="diagram2-object-search" disabled>
+      </label>
+      <p class="image-annotation-object-tree-help">Top items appear in front. The line shows where a dragged row will land. Drop above a group header to keep it at the root, or below the header to move it into that group.</p>
+      <button type="button" class="image-annotation-object-tree-root-drop" disabled>Move to root (top)</button>
+      <div class="image-annotation-object-tree diagram2-object-tree" data-diagram2-object-tree role="tree" tabindex="0" aria-label="Diagram 2 objects, topmost first">
+        ${rows || `<p class="image-annotation-object-tree-empty">No objects.</p>`}
+      </div>
     </div>
   `;
 }
@@ -106,7 +97,7 @@ export function updateDiagram2ShellStatus(root, status = {}) {
   const hasDocument = status.hasDocument !== false && status.canRead !== false;
   const selectedText = status.selectedCount
     ? `${status.selectedCount} selected`
-    : (status.dirty ? "Unsaved changes" : "Saved");
+    : "No selection";
   root.querySelectorAll("[data-diagram2-edit-state]").forEach(node => {
     node.textContent = selectedText;
   });
@@ -145,6 +136,36 @@ export function updateDiagram2ShellStatus(root, status = {}) {
   root.querySelectorAll("[data-diagram2-pending-command]").forEach(control => {
     control.disabled = true;
   });
+  const hasSelection = Number(status.selectedCount || 0) > 0;
+  root.querySelectorAll("[data-diagram2-empty-selection]").forEach(node => {
+    node.hidden = hasSelection;
+  });
+  root.querySelectorAll("[data-diagram2-selection-format]").forEach(node => {
+    node.hidden = !hasSelection;
+  });
+  syncDiagram2InspectorTabVisibility(root, status.selectedObjects || []);
+}
+
+export function setDiagram2InspectorActiveTab(root, tabName) {
+  if (!root) return "";
+  const tabs = [...root.querySelectorAll("[data-diagram2-inspector-tab]")];
+  const visibleTabs = tabs.filter(tab => !tab.hidden);
+  if (!visibleTabs.length) return "";
+  const requested = String(tabName || "").trim();
+  const activeTab = visibleTabs.find(tab => tab.dataset.diagram2InspectorTab === requested)
+    || visibleTabs.find(tab => tab.getAttribute("aria-selected") === "true")
+    || visibleTabs[0];
+  const activeName = activeTab.dataset.diagram2InspectorTab || "format";
+
+  tabs.forEach(tab => {
+    const selected = tab === activeTab;
+    tab.setAttribute("aria-selected", String(selected));
+    tab.tabIndex = selected ? 0 : -1;
+  });
+  root.querySelectorAll("[data-diagram2-inspector-panel]").forEach(panel => {
+    panel.hidden = panel.dataset.diagram2InspectorPanel !== activeName;
+  });
+  return activeName;
 }
 
 export function updateDiagram2ObjectTreeSelection(root, selectedObjectIds = []) {
@@ -156,7 +177,7 @@ export function updateDiagram2ObjectTreeSelection(root, selectedObjectIds = []) 
   });
 }
 
-function diagram2ToolbarHtml({ canUse, selectedZoom }) {
+function diagram2ToolbarHtml({ canUse, includeActions, selectedZoom }) {
   const disabled = canUse ? "" : "disabled";
   return `
     <div class="image-annotation-toolbar diagram2-editor-toolbar" role="toolbar" aria-label="Diagram 2 tools">
@@ -181,72 +202,107 @@ function diagram2ToolbarHtml({ canUse, selectedZoom }) {
         ${diagram2TextButton("redo-diagram2", "Redo", "Redo (Ctrl+Y)", "data-diagram2-requires-redo data-diagram2-requires-update")}
         ${diagram2TextButton("delete-diagram2-selection", "Delete", "Delete selected objects", "data-diagram2-pending-command disabled")}
       </div>
-      <div class="image-annotation-tool-group" aria-label="File">
-        ${diagram2TextButton("save-diagram2-document", "Save", "Save Diagram", "data-diagram2-requires-dirty data-diagram2-requires-update")}
-        ${diagram2TextButton("copy-diagram2-selection", "Copy", "Copy Selection", "data-diagram2-requires-selection")}
-        ${diagram2TextButton("export-diagram2-pmt", "PMT", "Export PMT Diagram", "data-diagram2-requires-document data-diagram2-requires-export")}
-        ${diagram2TextButton("export-diagram2-svg", "SVG", "Export SVG", "data-diagram2-requires-document data-diagram2-requires-export")}
-        ${diagram2TextButton("export-diagram2-png", "PNG", "Export PNG", "data-diagram2-requires-document data-diagram2-requires-export")}
-      </div>
       <div class="image-annotation-tool-group image-annotation-view-tools" aria-label="Canvas view">
         <label class="inline-check"><input type="checkbox" data-filter="diagram2-grid" disabled><span>Grid</span></label>
         <label class="inline-check"><input type="checkbox" data-filter="diagram2-snap" disabled><span>Snap</span></label>
         <button type="button" data-action="zoom-diagram2-out" title="Zoom Out" aria-label="Zoom Out" ${disabled}>-</button>
-        <select data-filter="diagram2-zoom" class="image-annotation-zoom-select" aria-label="Zoom percentage" ${disabled}>
+        <select data-filter="diagram2-zoom" class="image-annotation-zoom-select" aria-label="Zoom level" title="Zoom level" ${disabled}>
           ${diagram2ZoomOptionsHtml(selectedZoom)}
         </select>
         <button type="button" data-action="zoom-diagram2-in" title="Zoom In" aria-label="Zoom In" ${disabled}>+</button>
         <button type="button" data-action="fit-diagram2-viewer" title="Fit Diagram" aria-label="Fit Diagram" ${disabled}>Fit</button>
         <button type="button" data-action="toggle-diagram2-inspector" aria-controls="diagram2Inspector" aria-expanded="true" title="Hide Right Pane" aria-label="Hide Right Pane" ${disabled}>Hide Right Pane</button>
       </div>
-      <div class="image-annotation-tool-group diagram2-developer-tools" aria-label="Developer diagnostics">
-        <button type="button" data-action="refresh-diagram2-renderer" title="Refresh Renderer" aria-label="Refresh Renderer" ${disabled}>Refresh</button>
-        <button type="button" data-action="toggle-diagram2-diagnostics" title="Diagnostics" aria-label="Diagnostics" ${disabled}>Diagnostics</button>
-      </div>
+      <span class="image-annotation-mode-indicator diagram2-editor-status" data-diagram2-save-state data-diagram2-shell-save-state role="status" aria-live="polite">Saved</span>
+      ${includeActions ? `
+        <div class="image-annotation-tool-group image-annotation-maximized-actions diagram2-editor-top-actions" aria-label="Editor actions">
+          ${diagram2TextButton("cancel-diagram2-editor", "Cancel", "Cancel", "")}
+          ${diagram2TextButton("save-diagram2-document", "Save", "Save Diagram", "data-diagram2-requires-dirty data-diagram2-requires-update")}
+        </div>
+      ` : ""}
     </div>
   `;
 }
 
-function diagram2InspectorHtml(status = {}) {
+function diagram2InspectorHtml(status = {}, state = null, selectedIds = []) {
   return `
     <div class="image-annotation-inspector-tabs" role="tablist" aria-label="Diagram 2 right pane">
       ${diagram2InspectorTab("format", "Format", true)}
-      ${diagram2InspectorTab("crop", "Crop", false, true)}
-      ${diagram2InspectorTab("field-mapping-table", "Mapping", false, true)}
-      ${diagram2InspectorTab("entity", "Entity", false, true)}
-      ${diagram2InspectorTab("template", "Template", false, true)}
+      ${diagram2InspectorTab("crop", "Crop", false, false, true)}
+      ${diagram2InspectorTab("field-mapping-table", "Mapping", false, false, true)}
+      ${diagram2InspectorTab("entity", "Entity", false, false, true)}
+      ${diagram2InspectorTab("template", "Template", false)}
       ${diagram2InspectorTab("objects", "Objects", false)}
     </div>
-    <p class="image-annotation-selection-label" data-diagram2-selection-label data-diagram2-edit-state>${status.selectedCount ? `${status.selectedCount} selected` : "Saved"}</p>
+    <p class="image-annotation-selection-label" data-diagram2-selection-label data-diagram2-edit-state>${status.selectedCount ? `${status.selectedCount} selected` : "No selection"}</p>
     <div id="diagram2FormatPanel" role="tabpanel" aria-labelledby="diagram2FormatTab" data-diagram2-inspector-panel="format">
-      <p class="image-annotation-format-status" data-diagram2-shell-save-state role="status" aria-live="polite">Saved</p>
-      <section class="image-annotation-format-section" aria-labelledby="diagram2ShapeFormat">
+      <p class="image-annotation-format-status diagram2-empty-selection" data-diagram2-empty-selection>Select an object on the canvas or in the Objects pane to edit its available properties.</p>
+      <section class="image-annotation-format-section" aria-labelledby="diagram2ShapeFormat" data-diagram2-selection-format hidden>
         <h4 id="diagram2ShapeFormat">Shape</h4>
         <div class="image-annotation-inspector-grid">
-          <label class="field"><span>Fill</span><input type="color" value="#ffffff" disabled></label>
-          <label class="field"><span>Outline color</span><input type="color" value="#42526b" disabled></label>
+          ${diagram2ColorFieldHtml("fill", "Fill", "Background Color", "#ffffff", "background")}
+          ${diagram2ColorFieldHtml("stroke", "Outline color", "Outline Color", "#42526b", "outline")}
           <label class="inline-check image-annotation-wide"><input type="checkbox" checked disabled><span>Outline</span></label>
+          <label class="inline-check image-annotation-wide"><input type="checkbox" disabled><span>Transparent fill</span></label>
+          <label class="field image-annotation-wide"><span>Opacity (%)</span><input type="number" min="0" max="100" step="1" value="100" disabled></label>
           <label class="field"><span>Line width</span><input type="number" min="1" max="40" value="2" disabled></label>
           <label class="field"><span>Arrow head</span><input type="number" min="6" max="160" value="10" disabled></label>
         </div>
       </section>
-      <section class="image-annotation-format-section" aria-labelledby="diagram2TextFormat">
+      <section class="image-annotation-format-section" aria-labelledby="diagram2TextFormat" data-diagram2-selection-format hidden>
         <h4 id="diagram2TextFormat">Text</h4>
         <div class="image-annotation-inspector-grid">
+          ${diagram2ColorFieldHtml("textColor", "Text color", "Font Color", "#172b4d", "font")}
           <label class="field"><span>Font</span><select disabled><option>Arial</option></select></label>
           <label class="field"><span>Font size</span><input type="number" min="1" max="240" value="18" disabled></label>
+          <label class="field"><span>Horizontal alignment</span><select disabled><option>Left</option><option>Center</option><option>Right</option></select></label>
+          <label class="field"><span>Vertical alignment</span><select disabled><option>Top</option><option>Middle</option><option>Bottom</option></select></label>
         </div>
       </section>
     </div>
-    <div id="diagram2CropPanel" role="tabpanel" aria-labelledby="diagram2CropTab" data-diagram2-inspector-panel="crop" hidden></div>
-    <div id="diagram2MappingPanel" role="tabpanel" aria-labelledby="diagram2MappingTab" data-diagram2-inspector-panel="field-mapping-table" hidden></div>
-    <div id="diagram2EntityPanel" role="tabpanel" aria-labelledby="diagram2EntityTab" data-diagram2-inspector-panel="entity" hidden></div>
-    <div id="diagram2TemplatePanel" role="tabpanel" aria-labelledby="diagram2TemplateTab" data-diagram2-inspector-panel="template" hidden></div>
-    <div id="diagram2ObjectsPanel" role="tabpanel" aria-labelledby="diagram2ObjectsTab" data-diagram2-inspector-panel="objects" hidden>
-      <section class="image-annotation-format-section">
-        <h4>Objects</h4>
-        <p class="image-annotation-format-status"><span data-diagram2-selected-count>${status.selectedCount || 0}</span> selected</p>
+    <div id="diagram2CropPanel" role="tabpanel" aria-labelledby="diagram2CropTab" data-diagram2-inspector-panel="crop" hidden>
+      <section class="image-annotation-format-section" aria-labelledby="diagram2CropFormat">
+        <h4 id="diagram2CropFormat">Crop</h4>
+        <p class="image-annotation-format-status">Crop controls appear for selected embedded images.</p>
       </section>
+    </div>
+    <div id="diagram2MappingPanel" role="tabpanel" aria-labelledby="diagram2MappingTab" data-diagram2-inspector-panel="field-mapping-table" hidden>
+      <section class="image-annotation-format-section" aria-labelledby="diagram2MappingFormat">
+        <h4 id="diagram2MappingFormat">Field Mapping Table</h4>
+        <div class="image-annotation-inspector-grid">
+          ${diagram2ColorFieldHtml("headerTextColor", "Header text", "Header Text Color", "#172b4d", "font")}
+          ${diagram2ColorFieldHtml("headerFill", "Header background", "Header Background Color", "#d9ecff", "background")}
+          ${diagram2ColorFieldHtml("uiTextColor", "UI field text", "UI Field Text Color", "#172b4d", "font")}
+          ${diagram2ColorFieldHtml("uiFill", "UI field background", "UI Field Background Color", "#ffffff", "background")}
+          ${diagram2ColorFieldHtml("databaseTextColor", "Database text", "Database Text Color", "#172b4d", "font")}
+          ${diagram2ColorFieldHtml("databaseFill", "Database background", "Database Background Color", "#ffffff", "background")}
+        </div>
+      </section>
+    </div>
+    <div id="diagram2EntityPanel" role="tabpanel" aria-labelledby="diagram2EntityTab" data-diagram2-inspector-panel="entity" hidden>
+      <section class="image-annotation-format-section image-annotation-entity-format" aria-labelledby="diagram2EntityFormat">
+        <h4 id="diagram2EntityFormat">Entity</h4>
+        <div class="field image-annotation-entity-annotation-field">
+          <span>Entity Annotation</span>
+          <button type="button" disabled>Add Entity Annotation</button>
+          <small>No annotation</small>
+        </div>
+        <div class="image-annotation-inspector-grid">
+          ${diagram2ColorFieldHtml("entityNameTextColor", "Entity name text color", "Entity Name Text Color", "#172b4d", "font")}
+          ${diagram2ColorFieldHtml("entityHeaderFill", "Header background color", "Entity Header Background Color", "#ffffff", "background")}
+        </div>
+      </section>
+    </div>
+    <div id="diagram2TemplatePanel" role="tabpanel" aria-labelledby="diagram2TemplateTab" data-diagram2-inspector-panel="template" hidden>
+      <div class="image-annotation-template-actions">
+        <p>Templates use Diagram 1-compatible template storage. Template mutation commands are enabled in a later parity phase.</p>
+        <button type="button" disabled>Save Selection as Template</button>
+        <button type="button" disabled>Upload Template</button>
+        <button type="button" disabled>Restore Default Templates</button>
+      </div>
+    </div>
+    <div id="diagram2ObjectsPanel" role="tabpanel" aria-labelledby="diagram2ObjectsTab" data-diagram2-inspector-panel="objects" hidden>
+      ${diagram2ObjectsPaneHtml(state, selectedIds)}
     </div>
   `;
 }
@@ -267,6 +323,9 @@ function diagram2DiagnosticsShellHtml(diagnosticsHtml) {
   return `
     <details class="diagram2-diagnostics-shell" data-diagram2-diagnostics-shell>
       <summary>Diagnostics</summary>
+      <div class="diagram2-diagnostics-actions">
+        <button type="button" data-action="refresh-diagram2-renderer" title="Refresh Renderer" aria-label="Refresh Renderer">Refresh Renderer</button>
+      </div>
       ${diagnosticsHtml}
     </details>
   `;
@@ -305,16 +364,51 @@ function diagram2TextButton(action, label, title, attributes = "") {
   return `<button type="button" data-action="${escapeAttr(action)}" title="${escapeAttr(title)}" aria-label="${escapeAttr(title)}" ${attributes}>${escapeHtml(label)}</button>`;
 }
 
-function diagram2InspectorTab(name, label, selected = false, disabled = false) {
+function diagram2InspectorTab(name, label, selected = false, disabled = false, hidden = false) {
   const id = `diagram2${label.replace(/[^a-z0-9]+/gi, "")}Tab`;
   const panel = `diagram2${label.replace(/[^a-z0-9]+/gi, "")}Panel`;
-  return `<button type="button" id="${id}" role="tab" aria-selected="${selected}" aria-controls="${panel}" tabindex="${selected ? "0" : "-1"}" data-action="set-diagram2-inspector-tab" data-diagram2-inspector-tab="${escapeAttr(name)}" ${disabled ? "aria-disabled=\"true\" disabled" : ""}>${escapeHtml(label)}</button>`;
+  return `<button type="button" id="${id}" role="tab" aria-selected="${selected}" aria-controls="${panel}" tabindex="${selected ? "0" : "-1"}" data-action="set-diagram2-inspector-tab" data-diagram2-inspector-tab="${escapeAttr(name)}" ${disabled ? "aria-disabled=\"true\" disabled" : ""} ${hidden ? "hidden" : ""}>${escapeHtml(label)}</button>`;
+}
+
+function syncDiagram2InspectorTabVisibility(root, selectedObjects = []) {
+  const single = Array.isArray(selectedObjects) && selectedObjects.length === 1 ? selectedObjects[0] : null;
+  const type = String(single?.type || "");
+  const visibleTabs = {
+    format: true,
+    crop: type === "embedded-image",
+    "field-mapping-table": type === "field-mapping-table",
+    entity: type === "entity" || type === "field-rectangle",
+    template: true,
+    objects: true
+  };
+
+  root.querySelectorAll("[data-diagram2-inspector-tab]").forEach(tab => {
+    const name = tab.dataset.diagram2InspectorTab || "";
+    tab.hidden = visibleTabs[name] !== true;
+  });
+  setDiagram2InspectorActiveTab(root, root.querySelector("[data-diagram2-inspector-tab][aria-selected='true']")?.dataset.diagram2InspectorTab);
+}
+
+function diagram2ColorFieldHtml(name, label, title, selectedColor, icon) {
+  return `<div class="image-annotation-color-field"><span>${escapeHtml(label)}</span><div class="image-annotation-color-controls">${sharedRichColorPickerHtml({ name, title, selectedColor, icon })}<div class="image-annotation-recent-colors" data-annotation-recent-colors="${escapeAttr(name)}" aria-label="Recent ${escapeAttr(label)} colors" hidden></div></div></div>`;
 }
 
 function diagram2ZoomOptionsHtml(selectedZoom) {
-  return defaultZoomOptions.map(option =>
-    `<option value="${escapeAttr(option.value)}" ${String(option.value) === String(selectedZoom) ? "selected" : ""}>${escapeHtml(option.text)}</option>`
-  ).join("");
+  const selectedValue = String(selectedZoom || "fit") === "fit"
+    ? ""
+    : diagram2ZoomOptionValue(selectedZoom);
+  return Array.from({ length: 59 }, (_, index) => 10 + (index * 5))
+    .map(percent => {
+      const value = diagram2ZoomOptionValue(percent / 100);
+      return `<option value="${escapeAttr(value)}" ${value === selectedValue ? "selected" : ""}>${escapeHtml(`${percent}%`)}</option>`;
+    })
+    .join("");
+}
+
+function diagram2ZoomOptionValue(value) {
+  const zoom = Number(value);
+  const rounded = Math.round((Number.isFinite(zoom) && zoom > 0 ? zoom : 1) * 20) / 20;
+  return String(Number(Math.min(3, Math.max(0.1, rounded)).toFixed(2)));
 }
 
 function diagram2ObjectLabel(object) {

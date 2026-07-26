@@ -1765,7 +1765,7 @@ function annotationEntityForeignKeysWithExistingMappings(parsedInput, existingIn
   return [...existing, ...parsed];
 }
 
-function annotationEntityMetrics(object) {
+export function annotationEntityMetrics(object) {
   const fontSize = clampNumber(positiveNumber(object?.fontSize, defaultEntityFontSize), 1, 240);
   return {
     fontSize,
@@ -2932,12 +2932,16 @@ export function annotationExpandedWorkspaceBounds(currentBounds, inputState, vie
 
 export function annotationOutputBounds(inputState, options = {}) {
   const state = normalizeAnnotationState(inputState);
+  const bounds = [state.canvasBounds, annotationContentBounds(state, options)].filter(Boolean);
+  return unionAnnotationBounds(bounds) || state.canvasBounds;
+}
+
+export function annotationContentBounds(inputState, options = {}) {
+  const state = normalizeAnnotationState(inputState);
   syncAnnotationEntityAnnotationArrows(state);
   const visibleObjects = annotationVisibleObjects(state);
   const bounds = [
-    state.canvasBounds,
-    ...visibleObjects
-    .map(object => annotationObjectVisualBounds(object)),
+    ...visibleObjects.map(object => annotationObjectVisualBounds(object)),
     ...(state.hideAllEntityRelationships
       ? []
       : annotationEntityRelationshipVisualBounds(visibleObjects, state.relationshipStyle, {
@@ -2945,7 +2949,7 @@ export function annotationOutputBounds(inputState, options = {}) {
           relationshipRenderModel: options?.relationshipRenderModel
         }))
   ].filter(Boolean);
-  return unionAnnotationBounds(bounds) || state.canvasBounds;
+  return unionAnnotationBounds(bounds);
 }
 
 function annotationCropImage(state, imageOrId = null) {
@@ -6133,34 +6137,58 @@ function createAnnotationDialog(context) {
       }, `Template “${name}” saved for your PMT account.`);
     };
 
-    const uploadTemplate = async file => {
-      if (!file) return;
-      if (templateLibrary.templates.length >= maximumAnnotationTemplates) {
+    const uploadTemplates = async filesInput => {
+      const files = Array.from(filesInput || []).filter(Boolean);
+      if (!files.length) return;
+      const availableSlots = maximumAnnotationTemplates - templateLibrary.templates.length;
+      if (availableSlots <= 0) {
         const message = `You can save up to ${maximumAnnotationTemplates} annotation templates.`;
         if (templateStatus) templateStatus.textContent = message;
         setStatus(message);
         return;
       }
-      if (file.size > maximumAnnotationTemplateFileBytes) {
-        const message = "The template file cannot exceed 50 MiB.";
+      const selectedFiles = files.slice(0, availableSlots);
+      const skippedFiles = [];
+      const extraFileCount = files.length - selectedFiles.length;
+      if (extraFileCount > 0) {
+        skippedFiles.push(`${extraFileCount} file${extraFileCount === 1 ? "" : "s"} skipped because only ${availableSlots} template slot${availableSlots === 1 ? "" : "s"} remain.`);
+      }
+      const uploadedTemplates = [];
+      for (const file of selectedFiles) {
+        const fileName = String(file?.name || "Template file");
+        if (file.size > maximumAnnotationTemplateFileBytes) {
+          skippedFiles.push(`${fileName}: file cannot exceed 50 MiB.`);
+          continue;
+        }
+        try {
+          const template = parseAnnotationTemplateUpload(await file.text());
+          const now = new Date().toISOString();
+          template.id = annotationObjectId("template");
+          template.createdAt = now;
+          template.updatedAt = now;
+          uploadedTemplates.push(template);
+        } catch (error) {
+          skippedFiles.push(`${fileName}: ${error?.message || "The template could not be uploaded."}`);
+        }
+      }
+      if (!uploadedTemplates.length) {
+        const message = skippedFiles[0] || "No valid template files were uploaded.";
         if (templateStatus) templateStatus.textContent = message;
         setStatus(message);
         return;
       }
-      try {
-        const template = parseAnnotationTemplateUpload(await file.text());
-        const now = new Date().toISOString();
-        template.id = annotationObjectId("template");
-        template.createdAt = now;
-        template.updatedAt = now;
-        await persistTemplateLibrary({
-          ...templateLibrary,
-          templates: [...templateLibrary.templates, template]
-        }, `Template "${template.name}" uploaded.`);
-      } catch (error) {
-        const message = error?.message || "The template could not be uploaded.";
-        if (templateStatus) templateStatus.textContent = message;
-        setStatus(message);
+      const skippedMessage = skippedFiles.length
+        ? ` ${skippedFiles.length} file${skippedFiles.length === 1 ? "" : "s"} skipped.`
+        : "";
+      const successMessage = uploadedTemplates.length === 1
+        ? `Template "${uploadedTemplates[0].name}" uploaded.${skippedMessage}`
+        : `${uploadedTemplates.length} templates uploaded.${skippedMessage}`;
+      const saved = await persistTemplateLibrary({
+        ...templateLibrary,
+        templates: [...templateLibrary.templates, ...uploadedTemplates]
+      }, successMessage);
+      if (saved && templateStatus) {
+        templateStatus.title = skippedFiles.join("\n");
       }
     };
 
@@ -8454,9 +8482,12 @@ function createAnnotationDialog(context) {
       queueCanvasZoom(Number(event.target.value) / 100, zoomPoint.x, zoomPoint.y);
     });
     templateUploadInput?.addEventListener("change", async event => {
-      const file = event.target.files?.[0] || null;
-      event.target.value = "";
-      await uploadTemplate(file);
+      const files = event.target.files ? Array.from(event.target.files) : [];
+      try {
+        await uploadTemplates(files);
+      } finally {
+        event.target.value = "";
+      }
     });
     dialog.querySelector("[data-annotation-entity-allow-overlapping-lines]").addEventListener("change", event => {
       pushHistory();
@@ -9297,7 +9328,7 @@ function annotationDialogHtml(context = {}) {
               <p>Clicking a template always adds a new object instance on the canvas. Use Format Painter on the toolbar when you want to copy formatting between objects. You can also save personal templates or restore missing shared defaults.</p>
               <button type="button" class="primary" data-annotation-template-save>Save Selection as Template</button>
               <button type="button" data-annotation-template-upload>Upload Template</button>
-              <input type="file" accept=".json,.pmt-template.json,application/json" data-annotation-template-upload-input hidden>
+              <input type="file" accept=".json,.pmt-template.json,application/json" data-annotation-template-upload-input multiple hidden>
               <button type="button" data-annotation-template-action="restore-defaults">Restore Default Templates</button>
             </div>
             <section class="image-annotation-format-section" aria-labelledby="imageAnnotationDrawingDefaults">
@@ -9952,7 +9983,7 @@ function annotationEntityRelationshipSelectionDecorationSvg(relationship, geomet
   return `<g class="image-annotation-entity-relationship is-selected" data-annotation-object-id="${escapeXmlAttr(relationship.id)}" data-annotation-object-type="${entityRelationshipObjectType}" pointer-events="none"><path class="image-annotation-entity-relationship-selection" d="${path}" fill="none" stroke-width="1" vector-effect="non-scaling-stroke" pointer-events="none"></path>${handles}</g>`;
 }
 
-function annotationEntityRelationshipRenderModel(objectsInput, relationshipStyleInput = null, options = {}) {
+export function annotationEntityRelationshipRenderModel(objectsInput, relationshipStyleInput = null, options = {}) {
   const relationships = resolveAnnotationEntityRelationships(objectsInput);
   if (!relationships.length) return { relationships, renderedRelationships: [], visibleRouteGroups: [] };
   const entities = annotationEntityRelationshipRoutingObstacles(objectsInput);

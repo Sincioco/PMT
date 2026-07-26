@@ -114,6 +114,13 @@ Diagram - ERD - UI and Field Mapping Table
 
 67.) Now that we have implemented Diagram 2.  Generate some real benchmarks between Diagram 1 and Diagram 2.  You can use http://localhost:505676/#/diagram/20 and http://localhost:5056/#/diagram-2/20 since they render the same output.  Give me some stats to see if Diagram 2 is really faster than Diagram 1, and if so by how much and in what categories.  Produce a detailed HTML or PDF report of the before and after benchmarks.  Summarize why Diagram 1 was slow compared to Diagram 2.  And why Diagram 2 is faster.  Discuss in great detail what makes it faster.  Go deep and technical.  Save your report in "D:\Project Management Tool (PMT)\Requirements\2026-07-22 - PMT Diagram 2 Daily Codex Instructions" so it can be permanently filed with the project.  Impress the audience with performance numbers and stats, put some graphs and charts if you can.
 
+
+Diagram 2
+---------
+Local Host Adjustment so D1 and D2 renders the Red Arrow in the exact same spot.
+	To have Codex remove this local host change give it the prompt:
+		Remove the localhost D1/D2 comparison alignment shim.
+
 What's New
 ---------------------------------
 For the What's New, I want you to highlight that users can now share Documents and Diagrams with people outside of PMT even if they have no PMT login.  In a separate login, highlight the new Suggestion feature.  Also highlight and mention that when exporting bug reports, you can now include the bug #, created by and date/time, and updated by and date/time.  On a separate section, highlight that PMT can now do UI to Database Field Mapping a revolutionary feature that does not exist anywhere.  Now we can combine PMT's Diagramming Prowess with its ERD Capabilities to produce a UI to Database Field Mapping.  Let the whole IT industry rejoice!  A new tool.  A new concept made and concept by AI (Actual Intelligence) of Sin.  Don't add anymore highlights after this.  Highlight only what I mention here.

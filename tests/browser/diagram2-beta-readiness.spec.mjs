@@ -23,18 +23,12 @@ test("Diagram 2 beta shell preserves navigation, zoom matrix, and open-close cle
   await openNavigationScreen(page, "Diagram 2");
   await expect(page).toHaveURL(/#\/diagram-2$/);
   await expect(page.locator("[data-diagram2-screen] h1")).toHaveText("Diagram 2");
-  await expect(page.locator("[data-diagram2-header]")).toContainText("Diagram 2 Editor");
-  await expect(page.locator(".diagram-screen")).toHaveCount(0);
-  await expect(page.locator("[data-filter='diagram2-zoom'] option")).toHaveText([
-    "Fit",
-    "10%",
-    "50%",
-    "75%",
-    "100%",
-    "125%",
-    "150%",
-    "200%"
-  ]);
+  await expect(page.locator("[data-diagram2-page-document-head]")).toBeVisible();
+  await expect(page.locator(".diagram-screen[data-diagram2-screen]")).toBeVisible();
+  await expect(page.locator(".diagram-screen:not([data-diagram2-screen])")).toHaveCount(0);
+  await expect(page.locator("[data-filter='diagram2-zoom'] option")).toHaveText(
+    Array.from({ length: 59 }, (_, index) => `${10 + (index * 5)}%`)
+  );
 
   await page.locator("[data-filter='diagram2-zoom']").selectOption("0.1");
   await expect.poll(() => diagram2ViewportScale(page)).toBe(0.1);
@@ -75,7 +69,7 @@ test("Diagram 2 beta shell preserves navigation, zoom matrix, and open-close cle
 test("Diagram 2 renderer destroys pending 232-entity stress work without stale live maps", async ({ page }) => {
   await page.goto("/");
   const result = await page.evaluate(async () => {
-    const { createDiagram2Renderer } = await import("/js/features/diagram2/diagram2-renderer.js?v=20260726-diagram2-day16-v1");
+    const { createDiagram2Renderer } = await import("/js/features/diagram2/diagram2-renderer.js?v=20260726-diagram2-renderer-parity-v1");
     const host = document.createElement("div");
     host.style.position = "absolute";
     host.style.left = "-12000px";
