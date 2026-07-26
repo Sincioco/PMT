@@ -1,6 +1,12 @@
 import { sharedRichColorPickerHtml } from "../../components/forms.js?v=20260722-rte-toggle-state-v1";
 import { escapeAttr, escapeHtml } from "../../shared/text-and-links.js";
 
+const diagram2LastColorsStorageKey = "pmt-rich-last-colors";
+const diagram2CustomColorsStorageKey = "pmt-rich-custom-colors";
+const diagram2LastColorStoragePrefix = "pmt-rich-last-color-";
+const diagram2StoredColorLimit = 10;
+const diagram2RecentColorLimit = 6;
+
 export function diagram2EditorShellHtml(options = {}) {
   const status = options.status || {};
   const title = escapeHtml(options.title || "Diagram 2");
@@ -143,6 +149,7 @@ export function updateDiagram2ShellStatus(root, status = {}) {
   root.querySelectorAll("[data-diagram2-selection-format]").forEach(node => {
     node.hidden = !hasSelection;
   });
+  syncDiagram2ColorPickerControls(root, status.selectedObjects || []);
   syncDiagram2InspectorTabVisibility(root, status.selectedObjects || []);
 }
 
@@ -174,6 +181,76 @@ export function updateDiagram2ObjectTreeSelection(root, selectedObjectIds = []) 
     const isSelected = selected.has(String(row.dataset.objectId || row.dataset.diagram2ObjectId || ""));
     row.classList.toggle("is-selected", isSelected);
     row.setAttribute("aria-selected", String(isSelected));
+  });
+}
+
+export function bindDiagram2EditorColorPickers(root, options = {}) {
+  if (!root) return;
+  renderDiagram2ColorMemory(root);
+  if (root.dataset.diagram2ColorPickersBound === "true") return;
+  root.dataset.diagram2ColorPickersBound = "true";
+
+  const closeAll = except => {
+    root.querySelectorAll("[data-annotation-color-picker]").forEach(tool => {
+      if (tool === except) return;
+      closeDiagram2ColorPicker(tool);
+    });
+  };
+
+  root.addEventListener("click", event => {
+    const trigger = event.target?.closest?.("[data-annotation-color-trigger]");
+    if (trigger && root.contains(trigger)) {
+      event.preventDefault();
+      const picker = trigger.closest("[data-annotation-color-picker]");
+      if (!picker) return;
+      const name = picker.dataset.annotationColorPicker || "";
+      const defaultColor = normalizeDiagram2PickerColor(trigger.dataset.richColorDefault) || "#111827";
+      const memoryKey = diagram2ColorMemoryKey(name);
+      if (diagram2ColorTriggerApplyHalf(event, trigger)) {
+        void applyDiagram2PickerColor(root, picker, readDiagram2LastColor(memoryKey, trigger.dataset.richSelectedColor || defaultColor), options);
+        return;
+      }
+
+      const shouldOpen = !picker.classList.contains("is-open");
+      closeAll(picker);
+      if (shouldOpen) openDiagram2ColorPicker(picker);
+      else closeDiagram2ColorPicker(picker);
+      return;
+    }
+
+    const customButton = event.target?.closest?.("[data-rich-color-custom]");
+    if (customButton && root.contains(customButton)) {
+      event.preventDefault();
+      const picker = customButton.closest("[data-annotation-color-picker]");
+      if (picker) void chooseDiagram2CustomPickerColor(root, picker, options);
+      return;
+    }
+
+    const swatch = event.target?.closest?.("[data-rich-color-value]");
+    if (swatch && root.contains(swatch)) {
+      const picker = swatch.closest("[data-annotation-color-picker]");
+      const recentColors = swatch.closest("[data-annotation-recent-colors]");
+      const targetPicker = picker || (recentColors
+        ? root.querySelector(`[data-annotation-color-picker='${cssEscapeSelector(recentColors.dataset.annotationRecentColors || "")}']`)
+        : null);
+      if (!targetPicker) return;
+      event.preventDefault();
+      void applyDiagram2PickerColor(root, targetPicker, swatch.dataset.richColorValue, options);
+      return;
+    }
+
+    if (!event.target?.closest?.("[data-annotation-color-picker], [data-annotation-recent-colors]")) closeAll();
+  });
+
+  root.addEventListener("pointerdown", event => {
+    if (!event.target?.closest?.("[data-annotation-color-picker], [data-annotation-recent-colors]")) closeAll();
+  });
+
+  root.addEventListener("keydown", event => {
+    if (event.key !== "Escape" || !root.querySelector("[data-annotation-color-picker].is-open")) return;
+    event.preventDefault();
+    event.stopPropagation();
+    closeAll();
   });
 }
 
@@ -391,6 +468,248 @@ function syncDiagram2InspectorTabVisibility(root, selectedObjects = []) {
 
 function diagram2ColorFieldHtml(name, label, title, selectedColor, icon) {
   return `<div class="image-annotation-color-field"><span>${escapeHtml(label)}</span><div class="image-annotation-color-controls">${sharedRichColorPickerHtml({ name, title, selectedColor, icon })}<div class="image-annotation-recent-colors" data-annotation-recent-colors="${escapeAttr(name)}" aria-label="Recent ${escapeAttr(label)} colors" hidden></div></div></div>`;
+}
+
+function syncDiagram2ColorPickerControls(root, selectedObjects = []) {
+  const objects = Array.isArray(selectedObjects) ? selectedObjects : [];
+  root.querySelectorAll("[data-annotation-color-picker]").forEach(picker => {
+    const trigger = picker.querySelector("[data-annotation-color-trigger]");
+    const fallback = normalizeDiagram2PickerColor(trigger?.dataset.richColorDefault) || "#111827";
+    const color = diagram2SelectedColorValue(picker.dataset.annotationColorPicker, objects, fallback);
+    syncDiagram2ColorPicker(picker, color);
+  });
+}
+
+function diagram2SelectedColorValue(name, selectedObjects, fallback) {
+  const colorName = String(name || "").trim();
+  const object = selectedObjects.find(item => normalizeDiagram2PickerColor(item?.[colorName]));
+  return normalizeDiagram2PickerColor(object?.[colorName]) || fallback;
+}
+
+async function chooseDiagram2CustomPickerColor(root, picker, options = {}) {
+  closeDiagram2ColorPicker(picker);
+  const trigger = picker.querySelector("[data-annotation-color-trigger]");
+  const current = normalizeDiagram2PickerColor(trigger?.dataset.richSelectedColor)
+    || normalizeDiagram2PickerColor(trigger?.dataset.richColorDefault)
+    || "#126BFF";
+  const custom = typeof options.askForColor === "function"
+    ? await options.askForColor(current, picker.dataset.annotationColorPicker || "")
+    : await chooseNativeDiagram2Color(current);
+  if (!custom) return;
+
+  const normalized = normalizeDiagram2PickerColor(custom);
+  if (!normalized) {
+    options.notify?.("Enter a valid HEX or RGB color.");
+    return;
+  }
+  rememberDiagram2CustomColor(normalized);
+  await applyDiagram2PickerColor(root, picker, normalized, options);
+  trigger?.focus?.({ preventScroll: true });
+}
+
+async function applyDiagram2PickerColor(root, picker, colorInput, options = {}) {
+  const name = picker?.dataset?.annotationColorPicker || "";
+  const trigger = picker?.querySelector?.("[data-annotation-color-trigger]");
+  const fallback = normalizeDiagram2PickerColor(trigger?.dataset.richColorDefault) || "#111827";
+  const color = normalizeDiagram2PickerColor(colorInput) || fallback;
+  if (!name || !color) return false;
+
+  const applied = typeof options.applyColor === "function"
+    ? await options.applyColor(name, color)
+    : true;
+  if (applied === false) return false;
+
+  syncDiagram2ColorPicker(picker, color);
+  rememberDiagram2Color(diagram2ColorMemoryKey(name), color);
+  renderDiagram2ColorMemory(root);
+  closeDiagram2ColorPicker(picker);
+  return true;
+}
+
+function syncDiagram2ColorPicker(picker, colorInput) {
+  const color = normalizeDiagram2PickerColor(colorInput);
+  if (!picker || !color) return;
+  picker.style.setProperty("--rich-selected-color", color);
+  const trigger = picker.querySelector("[data-annotation-color-trigger]");
+  if (trigger) trigger.dataset.richSelectedColor = color;
+}
+
+function openDiagram2ColorPicker(tool) {
+  const palette = tool.querySelector("[data-rich-color-palette]");
+  const trigger = tool.querySelector("[data-annotation-color-trigger]");
+  if (!palette || !trigger) return;
+  tool.classList.add("is-open");
+  palette.hidden = false;
+  trigger.setAttribute("aria-expanded", "true");
+  tool.closest(".dialog")?.classList.add("rich-color-palette-open");
+  positionDiagram2ColorPalette(tool, palette, trigger);
+}
+
+function closeDiagram2ColorPicker(tool) {
+  const palette = tool.querySelector("[data-rich-color-palette]");
+  tool.classList.remove("is-open");
+  if (palette) {
+    palette.hidden = true;
+    palette.style.removeProperty("--rich-palette-left");
+    palette.style.removeProperty("--rich-palette-top");
+  }
+  tool.querySelector("[data-annotation-color-trigger]")?.setAttribute("aria-expanded", "false");
+  const dialog = tool.closest(".dialog");
+  if (dialog && !dialog.querySelector("[data-annotation-color-picker].is-open")) {
+    dialog.classList.remove("rich-color-palette-open");
+  }
+}
+
+function positionDiagram2ColorPalette(tool, palette, trigger) {
+  const triggerRect = trigger.getBoundingClientRect();
+  const paletteRect = palette.getBoundingClientRect();
+  const padding = 8;
+  const gap = 4;
+  const left = clampDiagram2Number(triggerRect.left, padding, Math.max(padding, window.innerWidth - paletteRect.width - padding));
+  const below = triggerRect.bottom + gap;
+  const above = triggerRect.top - paletteRect.height - gap;
+  const top = below + paletteRect.height <= window.innerHeight - padding
+    ? below
+    : Math.max(padding, above);
+  palette.style.setProperty("--rich-palette-left", `${Math.round(left)}px`);
+  palette.style.setProperty("--rich-palette-top", `${Math.round(top)}px`);
+  tool.classList.add("is-open");
+}
+
+function renderDiagram2ColorMemory(root) {
+  const lastColors = readDiagram2ColorList(diagram2LastColorsStorageKey);
+  const recentColors = lastColors.slice(0, diagram2RecentColorLimit);
+  const customColors = readDiagram2ColorList(diagram2CustomColorsStorageKey);
+  root.querySelectorAll("[data-annotation-recent-colors]").forEach(container => {
+    const title = container.closest(".image-annotation-color-controls")
+      ?.querySelector("[data-annotation-color-trigger]")
+      ?.getAttribute("aria-label") || "Color";
+    container.hidden = recentColors.length === 0;
+    container.innerHTML = recentColors.map(color => diagram2ColorSwatchHtml(color, title)).join("");
+  });
+  root.querySelectorAll("[data-rich-last-colors]").forEach(container => {
+    const title = container.closest("[data-rich-color-palette]")?.previousElementSibling?.getAttribute("aria-label") || "Color";
+    const section = container.closest("[data-rich-color-palette]")?.querySelector("[data-rich-last-colors-title]");
+    if (section) section.hidden = lastColors.length === 0;
+    container.hidden = lastColors.length === 0;
+    container.innerHTML = lastColors.map(color => diagram2ColorSwatchHtml(color, title)).join("");
+  });
+  root.querySelectorAll("[data-rich-custom-colors]").forEach(container => {
+    const title = container.closest("[data-rich-color-palette]")?.previousElementSibling?.getAttribute("aria-label") || "Color";
+    container.hidden = customColors.length === 0;
+    container.innerHTML = customColors.map(color => diagram2ColorSwatchHtml(color, title)).join("");
+  });
+}
+
+function diagram2ColorSwatchHtml(color, title) {
+  const label = `${title} ${color} ${diagram2RgbText(color)}`;
+  return `<button type="button" class="rich-color-swatch" data-rich-color-value="${escapeAttr(color)}" title="${escapeAttr(label)}" aria-label="${escapeAttr(label)}" style="--rich-swatch-color: ${escapeAttr(color)}"></button>`;
+}
+
+function diagram2ColorMemoryKey(name) {
+  if (name === "textColor" || name.endsWith("TextColor")) return "foreColor";
+  if (name === "fill" || name.endsWith("Fill")) return "hiliteColor";
+  return "annotationStroke";
+}
+
+function readDiagram2LastColor(key, fallback) {
+  try {
+    return normalizeDiagram2PickerColor(localStorage.getItem(`${diagram2LastColorStoragePrefix}${key}`)) || fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function rememberDiagram2Color(key, color) {
+  const normalized = normalizeDiagram2PickerColor(color);
+  if (!normalized) return;
+  const colors = [normalized, ...readDiagram2ColorList(diagram2LastColorsStorageKey).filter(item => item !== normalized)]
+    .slice(0, diagram2StoredColorLimit);
+  try {
+    localStorage.setItem(diagram2LastColorsStorageKey, JSON.stringify(colors));
+    localStorage.setItem(`${diagram2LastColorStoragePrefix}${key}`, normalized);
+  } catch {
+    // Color memory is optional when browser storage is unavailable.
+  }
+}
+
+function rememberDiagram2CustomColor(color) {
+  const normalized = normalizeDiagram2PickerColor(color);
+  if (!normalized) return;
+  const colors = [normalized, ...readDiagram2ColorList(diagram2CustomColorsStorageKey).filter(item => item !== normalized)]
+    .slice(0, diagram2StoredColorLimit);
+  try {
+    localStorage.setItem(diagram2CustomColorsStorageKey, JSON.stringify(colors));
+  } catch {
+    // Color memory is optional when browser storage is unavailable.
+  }
+}
+
+function readDiagram2ColorList(key) {
+  try {
+    const values = JSON.parse(localStorage.getItem(key) || "[]");
+    return Array.isArray(values)
+      ? [...new Set(values.map(normalizeDiagram2PickerColor).filter(Boolean))].slice(0, diagram2StoredColorLimit)
+      : [];
+  } catch {
+    return [];
+  }
+}
+
+function normalizeDiagram2PickerColor(value) {
+  const text = String(value || "").trim();
+  const hex = text.match(/^#?([0-9a-f]{3}|[0-9a-f]{6})$/i);
+  if (hex) {
+    const digits = hex[1].length === 3
+      ? hex[1].split("").map(part => part + part).join("")
+      : hex[1];
+    return `#${digits.toUpperCase()}`;
+  }
+  const rgb = text.match(/^(?:rgb\s*\()?\s*(\d{1,3})\s*[, ]\s*(\d{1,3})\s*[, ]\s*(\d{1,3})\s*\)?$/i);
+  if (!rgb) return "";
+  const channels = rgb.slice(1).map(Number);
+  if (channels.some(channel => channel < 0 || channel > 255)) return "";
+  return `#${channels.map(channel => channel.toString(16).padStart(2, "0")).join("").toUpperCase()}`;
+}
+
+function diagram2RgbText(color) {
+  const normalized = normalizeDiagram2PickerColor(color);
+  if (!normalized) return "";
+  return `rgb(${Number.parseInt(normalized.slice(1, 3), 16)}, ${Number.parseInt(normalized.slice(3, 5), 16)}, ${Number.parseInt(normalized.slice(5, 7), 16)})`;
+}
+
+function diagram2ColorTriggerApplyHalf(event, trigger) {
+  if (!event.clientX) return false;
+  const rect = trigger.getBoundingClientRect();
+  return event.clientX <= rect.left + (rect.width / 2);
+}
+
+function chooseNativeDiagram2Color(current) {
+  return new Promise(resolve => {
+    const input = document.createElement("input");
+    input.type = "color";
+    input.value = normalizeDiagram2PickerColor(current) || "#126BFF";
+    input.hidden = true;
+    document.body.appendChild(input);
+    const finish = value => {
+      input.remove();
+      resolve(value);
+    };
+    input.addEventListener("change", () => finish(input.value), { once: true });
+    input.addEventListener("cancel", () => finish(""), { once: true });
+    input.click();
+  });
+}
+
+function clampDiagram2Number(value, min, max) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return min;
+  return Math.min(max, Math.max(min, number));
+}
+
+function cssEscapeSelector(value) {
+  if (globalThis.CSS?.escape) return globalThis.CSS.escape(String(value || ""));
+  return String(value || "").replace(/['\\]/g, "\\$&");
 }
 
 function diagram2ZoomOptionsHtml(selectedZoom) {

@@ -36,6 +36,33 @@ test("Diagram 2 editor controller records incremental move commands without full
   assert.equal(controller.historyStatus().dirty, true);
 });
 
+test("Diagram 2 editor controller applies color styles through command history without full renders", async () => {
+  const renderer = fakeRenderer();
+  const controller = createDiagram2EditorController({
+    renderer,
+    host: editableHost(),
+    state: styleState()
+  });
+
+  controller.setSelection(["box"]);
+  assert.equal(await controller.updateSelectedObjectsStyle("fill", "#abc"), true);
+  assert.equal(controller.getObjectById("box").fill, "#AABBCC");
+  assert.equal(renderer.fullRenderCount, 0);
+  assert.deepEqual(renderer.updatedObjectIds, ["box"]);
+  assert.equal(controller.historyStatus().dirty, true);
+
+  assert.equal(await controller.undo(), true);
+  assert.equal(controller.getObjectById("box").fill, "#FFFFFF");
+  assert.equal(controller.historyStatus().dirty, false);
+
+  assert.equal(await controller.redo(), true);
+  assert.equal(controller.getObjectById("box").fill, "#AABBCC");
+  assert.deepEqual(renderer.updatedObjectIds, ["box", "box", "box"]);
+  assert.equal(controller.historyStatus().dirty, true);
+
+  assert.equal(await controller.updateSelectedObjectsStyle("headerFill", "#123456"), false);
+});
+
 test("Diagram 2 default drawing objects match Diagram 1 toolbar insertion geometry", () => {
   assert.deepEqual(createDiagram2DefaultObject("rectangle", { x: 320, y: 180 }, { id: "new-rectangle" }), {
     id: "new-rectangle",
@@ -337,6 +364,24 @@ function imageState() {
       source: sampleImageDataUrl,
       imageClip: { x: 0, y: 0, width: 100, height: 50 },
       isOriginalImage: true
+    }]
+  };
+}
+
+function styleState() {
+  return {
+    version: 1,
+    width: 640,
+    height: 360,
+    objects: [{
+      id: "box",
+      type: "rectangle",
+      x: 120,
+      y: 96,
+      width: 280,
+      height: 120,
+      fill: "#FFFFFF",
+      stroke: "#172B4D"
     }]
   };
 }

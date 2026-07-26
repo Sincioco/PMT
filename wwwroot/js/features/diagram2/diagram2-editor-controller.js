@@ -17,6 +17,21 @@ const defaultDiagram2DrawingStyles = {
   arrowSize: 24
 };
 const defaultDiagram2CanvasCenter = { x: 800, y: 450 };
+const diagram2ColorStyleTargets = new Map([
+  ["fill", new Set(["rectangle", "circle", "textbox", "rich-text", "entity", "field-rectangle", "field-mapping-table"])],
+  ["stroke", new Set(["rectangle", "circle", "textbox", "rich-text", "entity", "field-rectangle", "field-mapping-table", "arrow", "line"])],
+  ["textColor", new Set(["textbox", "rich-text", "entity", "field-rectangle", "field-mapping-table"])],
+  ["entityNameTextColor", new Set(["entity", "field-rectangle"])],
+  ["entityHeaderFill", new Set(["entity", "field-rectangle"])],
+  ["headerTextColor", new Set(["field-mapping-table"])],
+  ["headerFill", new Set(["field-mapping-table"])],
+  ["uiTextColor", new Set(["field-mapping-table"])],
+  ["uiFill", new Set(["field-mapping-table"])],
+  ["databaseTextColor", new Set(["field-mapping-table"])],
+  ["databaseFill", new Set(["field-mapping-table"])],
+  ["fieldMappingRowHoverFill", new Set(["field-mapping-table"])],
+  ["fieldMappingHighlightColor", new Set(["field-mapping-table"])]
+]);
 
 export function isDiagram2CoreDrawingTool(tool) {
   return diagram2CoreDrawingTools.has(String(tool || "").trim().toLowerCase());
@@ -155,6 +170,32 @@ export function createDiagram2EditorController(options = {}) {
 
   async function moveSelectedObjects(deltaX, deltaY, commandOptions = {}) {
     return moveObjects(selectedObjectIds, deltaX, deltaY, commandOptions);
+  }
+
+  async function updateSelectedObjectsStyle(styleNameInput, valueInput, commandOptions = {}) {
+    if (busy || destroyed || !canMutate()) return false;
+    const styleName = normalizeDiagram2StyleName(styleNameInput);
+    const value = normalizeDiagram2Color(valueInput);
+    if (!styleName || !value) return false;
+    const ids = selectedObjectIds.filter(id => {
+      const object = getObjectById(id);
+      return object
+        && object.locked !== true
+        && !objectPositionFixed(object)
+        && diagram2ObjectSupportsColorStyle(object, styleName);
+    });
+    if (!ids.length) return false;
+
+    const command = createDiagram2StyleCommand({
+      objectIds: ids,
+      styleName,
+      value,
+      label: commandOptions.label || "Change object color",
+      reason: commandOptions.reason || `change ${styleName}`
+    });
+    await history.execute(command, commandContext());
+    emit("history");
+    return true;
   }
 
   async function moveObjects(objectIds, deltaX, deltaY, commandOptions = {}) {
@@ -603,6 +644,7 @@ export function createDiagram2EditorController(options = {}) {
     removeObjectsCanonical,
     addObject,
     moveSelectedObjects,
+    updateSelectedObjectsStyle,
     moveObjects,
     undo,
     redo,
@@ -735,6 +777,46 @@ export function createDiagram2MoveCommand(options = {}) {
   };
 }
 
+export function createDiagram2StyleCommand(options = {}) {
+  const objectIds = uniqueStrings(options.objectIds);
+  const styleName = normalizeDiagram2StyleName(options.styleName);
+  const value = normalizeDiagram2Color(options.value);
+  const reason = String(options.reason || "change object color").trim() || "change object color";
+  const label = String(options.label || "Change object color").trim() || "Change object color";
+  const createdAt = Date.now();
+  const previousValuesById = new Map();
+  let appliedObjectIds = objectIds.slice();
+
+  return {
+    kind: "style-objects",
+    label,
+    objectIds,
+    styleName,
+    value,
+    reason,
+    createdAt,
+    apply(context) {
+      previousValuesById.clear();
+      return applyDiagram2Style(context, objectIds, styleName, id => value, {
+        reason,
+        capturePrevious: previousValuesById
+      });
+    },
+    undo(context) {
+      if (!appliedObjectIds.length) return false;
+      return applyDiagram2Style(context, appliedObjectIds, styleName, id => previousValuesById.get(id), {
+        reason: `${reason} undo`
+      });
+    },
+    redo(context) {
+      if (!appliedObjectIds.length) return false;
+      return applyDiagram2Style(context, appliedObjectIds, styleName, id => value, {
+        reason: `${reason} redo`
+      });
+    }
+  };
+}
+
 export function moveDiagram2ObjectsInState(stateInput, objectIds, deltaX, deltaY) {
   const state = normalizeDiagram2CanonicalState(stateInput);
   const selectedIds = new Set(uniqueStrings(objectIds));
@@ -784,6 +866,33 @@ async function applyDiagram2Move(context, objectIds, deltaX, deltaY, options = {
   return true;
 }
 
+function applyDiagram2Style(context, objectIds, styleName, valueProvider, options = {}) {
+  const reason = options.reason || "change object color";
+  const update = context.updateObjectsCanonical(objectIds, (object, id) => {
+    if (!diagram2ObjectSupportsColorStyle(object, styleName)) return object;
+    const value = typeof valueProvider === "function" ? valueProvider(id) : valueProvider;
+    if (!normalizeDiagram2Color(value)) return object;
+    options.capturePrevious?.set?.(id, object?.[styleName]);
+    return { [styleName]: normalizeDiagram2Color(value) };
+  }, {
+    reason
+  });
+  if (update.changed !== true) return false;
+
+  const affectedObjectIds = update.affectedObjectIds || objectIds;
+  const renderer = context.renderer;
+  if (renderer) {
+    renderer.beginDiagramUpdate(reason);
+    affectedObjectIds.forEach(id => {
+      const value = typeof valueProvider === "function" ? valueProvider(id) : valueProvider;
+      renderer.updateObject(id, { [styleName]: normalizeDiagram2Color(value) });
+    });
+    renderer.endDiagramUpdate(reason);
+  }
+  context.setSelection(affectedObjectIds);
+  return true;
+}
+
 function diagram2RelationshipCount(state) {
   return state.objects.reduce((count, object) =>
     count + (Array.isArray(object.relationships) ? object.relationships.length : 0), 0);
@@ -805,6 +914,33 @@ function uniqueStrings(values) {
       result.push(value);
     });
   return result;
+}
+
+function normalizeDiagram2StyleName(value) {
+  const name = String(value || "").trim();
+  return diagram2ColorStyleTargets.has(name) ? name : "";
+}
+
+function diagram2ObjectSupportsColorStyle(object, styleName) {
+  const type = String(object?.type || "").trim().toLowerCase();
+  const targets = diagram2ColorStyleTargets.get(styleName);
+  return Boolean(object && styleName && (targets?.has(type) || hasOwn(object, styleName)));
+}
+
+function normalizeDiagram2Color(value) {
+  const text = String(value || "").trim();
+  const hex = text.match(/^#?([0-9a-f]{3}|[0-9a-f]{6})$/i);
+  if (hex) {
+    const digits = hex[1].length === 3
+      ? hex[1].split("").map(part => part + part).join("")
+      : hex[1];
+    return `#${digits.toUpperCase()}`;
+  }
+  const rgb = text.match(/^(?:rgb\s*\()?\s*(\d{1,3})\s*[, ]\s*(\d{1,3})\s*[, ]\s*(\d{1,3})\s*\)?$/i);
+  if (!rgb) return "";
+  const channels = rgb.slice(1).map(Number);
+  if (channels.some(channel => channel < 0 || channel > 255)) return "";
+  return `#${channels.map(channel => channel.toString(16).padStart(2, "0")).join("").toUpperCase()}`;
 }
 
 function finiteNumber(value, fallback = 0) {

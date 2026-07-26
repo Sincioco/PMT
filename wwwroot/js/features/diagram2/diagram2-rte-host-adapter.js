@@ -14,13 +14,14 @@ import {
   createDiagram2DefaultObject,
   createDiagram2EditorController,
   isDiagram2CoreDrawingTool
-} from "./diagram2-editor-controller.js?v=20260726-diagram2-phase3-create-v1";
+} from "./diagram2-editor-controller.js?v=20260727-diagram2-color-picker-v1";
 import {
+  bindDiagram2EditorColorPickers,
   diagram2ObjectsPaneHtml,
   diagram2EditorShellHtml,
   updateDiagram2ObjectTreeSelection,
   updateDiagram2ShellStatus
-} from "./diagram2-editor-shell.js?v=20260726-diagram2-phase3-create-v1";
+} from "./diagram2-editor-shell.js?v=20260727-diagram2-color-picker-v1";
 
 export async function openDiagram2RteAnnotationHost(options = {}) {
   const image = options.image;
@@ -99,12 +100,12 @@ export async function openDiagram2RteAnnotationHost(options = {}) {
     controller.attachRenderer(renderer);
     controller.markSaved();
     exposeDebugGlobals(controller, renderer, hostAdapter);
-    updateDiagram2ShellStatus(dialog, controller.statusSnapshot());
+    updateDiagram2ShellStatus(dialog, diagram2RteShellStatus(controller));
 
     const abortController = new AbortController();
     const { signal } = abortController;
     controller.onChange(event => {
-      updateDiagram2ShellStatus(dialog, event.status);
+      updateDiagram2ShellStatus(dialog, diagram2RteShellStatus(controller, event.status));
       updateDiagram2ObjectTreeSelection(dialog, event.status.selectedObjectIds);
     });
     bindDiagram2RteHostEvents({
@@ -297,6 +298,10 @@ function diagram2RteBoundsEqual(firstInput, secondInput) {
 function bindDiagram2RteHostEvents(options = {}) {
   const { dialog, editor, image, controller, renderer, signal, notify } = options;
   const canvas = dialog.querySelector("[data-diagram2-viewer-canvas]");
+  bindDiagram2EditorColorPickers(dialog, {
+    applyColor: (name, color) => applyDiagram2RteSelectedColor(dialog, controller, renderer, name, color),
+    notify
+  });
 
   dialog.addEventListener("click", event => {
     const actionElement = event.target.closest("[data-action]");
@@ -415,6 +420,26 @@ function bindDiagram2RteHostEvents(options = {}) {
   }, { signal });
 
   bindDiagram2RtePointerEvents({ canvas, controller, renderer, signal });
+}
+
+function diagram2RteShellStatus(controller, statusInput = null) {
+  const status = statusInput || controller.statusSnapshot();
+  const selected = new Set((status.selectedObjectIds || []).map(String));
+  return {
+    ...status,
+    selectedObjects: (controller.currentState?.().objects || [])
+      .filter(object => selected.has(String(object.id || "")))
+  };
+}
+
+async function applyDiagram2RteSelectedColor(dialog, controller, renderer, name, color) {
+  const applied = await controller.updateSelectedObjectsStyle(name, color, {
+    reason: `color picker ${name}`
+  });
+  if (!applied) return false;
+  updateDiagram2ShellStatus(dialog, diagram2RteShellStatus(controller));
+  await renderer.whenIdle();
+  return true;
 }
 
 async function addDiagram2RteToolbarObject(type, dialog, controller, renderer) {

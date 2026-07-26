@@ -52,14 +52,15 @@ import {
   createDiagram2DefaultObject,
   createDiagram2EditorController,
   isDiagram2CoreDrawingTool
-} from "./diagram2-editor-controller.js?v=20260726-diagram2-phase3-create-v1";
+} from "./diagram2-editor-controller.js?v=20260727-diagram2-color-picker-v1";
 import {
+  bindDiagram2EditorColorPickers,
   diagram2EditorShellHtml,
   diagram2ObjectsPaneHtml,
   setDiagram2InspectorActiveTab,
   updateDiagram2ObjectTreeSelection,
   updateDiagram2ShellStatus
-} from "./diagram2-editor-shell.js?v=20260726-diagram2-phase3-create-v1";
+} from "./diagram2-editor-shell.js?v=20260727-diagram2-color-picker-v1";
 import {
   createDiagram2Renderer,
   normalizeDiagram2CanonicalState
@@ -1440,45 +1441,24 @@ export function createDiagram2Feature({
   function bindDiagram2ColorPickers() {
     const shell = app.querySelector("[data-diagram2-editor-shell]");
     if (!shell) return;
-    const closeAll = () => {
-      shell.querySelectorAll("[data-annotation-color-picker]").forEach(tool => {
-        tool.classList.remove("is-open");
-        tool.querySelector("[data-rich-color-palette]")?.setAttribute("hidden", "");
-        tool.querySelector("[data-annotation-color-trigger]")?.setAttribute("aria-expanded", "false");
-      });
-    };
-
-    shell.addEventListener("click", event => {
-      const trigger = event.target?.closest?.("[data-annotation-color-trigger]");
-      if (trigger && shell.contains(trigger)) {
-        const picker = trigger.closest("[data-annotation-color-picker]");
-        const wasOpen = picker?.classList.contains("is-open");
-        closeAll();
-        if (picker && !wasOpen) {
-          picker.classList.add("is-open");
-          picker.querySelector("[data-rich-color-palette]")?.removeAttribute("hidden");
-          trigger.setAttribute("aria-expanded", "true");
-        }
-        event.preventDefault();
-        return;
-      }
-
-      const swatch = event.target?.closest?.("[data-rich-color-value]");
-      if (swatch && shell.contains(swatch)) {
-        const picker = swatch.closest("[data-annotation-color-picker]");
-        const color = String(swatch.dataset.richColorValue || swatch.getAttribute("data-rich-color-value") || "").trim();
-        if (picker && color) picker.style.setProperty("--rich-selected-color", color);
-        closeAll();
-        event.preventDefault();
-        return;
-      }
-
-      if (!event.target?.closest?.("[data-annotation-color-picker]")) closeAll();
+    bindDiagram2EditorColorPickers(shell, {
+      applyColor: (name, color) => applyDiagram2SelectedColor(name, color),
+      notify
     });
+  }
 
-    shell.addEventListener("keydown", event => {
-      if (event.key === "Escape") closeAll();
+  async function applyDiagram2SelectedColor(name, color) {
+    if (!diagram2Controller || !diagram2Renderer || diagram2Busy) return false;
+    const applied = await diagram2Controller.updateSelectedObjectsStyle(name, color, {
+      reason: `color picker ${name}`
     });
+    if (!applied) return false;
+    diagram2RendererState = diagram2Controller.currentState();
+    diagram2SelectedObjectIds = diagram2Controller.selectedObjectIds();
+    updateDiagram2EditorControls();
+    const diagnostics = await diagram2Renderer.whenIdle();
+    updateDiagram2Diagnostics(diagnostics);
+    return true;
   }
 
   function bindDiagram2ImportInput() {
@@ -1589,12 +1569,16 @@ export function createDiagram2Feature({
       event.preventDefault();
 
       const objectNode = event.target.closest?.("[data-diagram2-object-id]");
-      if (editMode && event.button === 0 && objectNode && canvas.contains(objectNode)) {
+      const activeEditTool = diagram2Controller?.activeTool?.() || "select";
+      if (editMode && event.button === 0 && objectNode && canvas.contains(objectNode) && activeEditTool !== "pan") {
         startDiagram2ObjectDrag(canvas, objectNode.dataset.diagram2ObjectId, event);
         return;
       }
 
-      if (editMode && event.button === 0) setDiagram2Selection([]);
+      if (editMode && event.button === 0 && activeEditTool !== "pan") {
+        setDiagram2Selection([]);
+        return;
+      }
       abortDiagram2Pan();
       viewportPanAbortController = new AbortController();
       const panSignal = viewportPanAbortController.signal;

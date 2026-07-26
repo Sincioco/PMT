@@ -20,6 +20,8 @@ test("Diagram 2 top navigation separates read-only document mode from Edit mode"
     localStorage.setItem("pmt-release-notes-last-seen:1", seenToken);
     localStorage.setItem("pmt-release-notes-last-seen:2", seenToken);
     localStorage.setItem("pmt-diagram2-diagnostics-visible", "true");
+    localStorage.setItem("pmt-rich-last-colors", JSON.stringify(["#123456", "#654321"]));
+    localStorage.setItem("pmt-rich-last-color-hiliteColor", "#123456");
   }, releaseNotes[0].seenToken);
 
   await page.route("**/api/session", route => route.fulfill(jsonResponse({ error: "Unauthorized" }, 401)));
@@ -158,6 +160,8 @@ test("Diagram 2 top navigation separates read-only document mode from Edit mode"
   await expect(page.locator("[data-action='redo-diagram2']")).toHaveCount(1);
   await expect(page.locator("[data-action='save-diagram2-document']")).toHaveCount(1);
   await expect(page.locator("[data-action='cancel-diagram2-editor']")).toHaveCount(1);
+  await expect(page.locator("[data-diagram2-tool='select']")).toHaveAttribute("aria-pressed", "true");
+  await expect(page.locator("[data-diagram2-tool='pan']")).toHaveAttribute("aria-pressed", "false");
   await expect(page.locator("[data-diagram2-empty-selection]")).toBeVisible();
   await expect(page.locator("[data-diagram2-selection-format]").first()).toBeHidden();
   const visibleInspectorTabs = await page.locator("[data-diagram2-inspector-tab]").evaluateAll(tabs =>
@@ -174,10 +178,7 @@ test("Diagram 2 top navigation separates read-only document mode from Edit mode"
   await expect(page.locator("[data-diagram2-empty-selection]")).toBeHidden();
   await expect(page.locator("[data-diagram2-selection-format]").first()).toBeVisible();
   await expect(page.locator("[data-diagram2-inspector-tab='entity']")).toBeVisible();
-  await page.locator("[data-annotation-color-picker='fill'] [data-annotation-color-trigger]").first().click();
-  await expect(page.locator("[data-annotation-color-picker='fill'] [data-rich-color-palette]").first()).toBeVisible();
-  await page.keyboard.press("Escape");
-  await expect(page.locator("[data-annotation-color-picker='fill'] [data-rich-color-palette]").first()).toBeHidden();
+  await assertDiagram2ColorPickerBehavior(page);
   const editZoomControl = page.locator("[data-filter='diagram2-zoom']");
   const editZoomBefore = await editZoomControl.inputValue();
   const editCanvasBox = await page.locator("[data-diagram2-viewer-canvas]").boundingBox();
@@ -923,6 +924,82 @@ async function assertDiagram2ToolbarObjectInsertion(page) {
   await expect.poll(() =>
     page.evaluate(beforeCount => window.__pmtDiagram2EditorCore.currentState().objects.length === beforeCount, before.objectCount)
   ).toBe(true);
+  await expect(page.locator("[data-action='save-diagram2-document']").first()).toBeDisabled();
+}
+
+async function assertDiagram2ColorPickerBehavior(page) {
+  const trigger = page.locator("[data-annotation-color-picker='fill'] [data-annotation-color-trigger]").first();
+  const palette = page.locator("[data-annotation-color-picker='fill'] [data-rich-color-palette]").first();
+  const triggerBox = await trigger.boundingBox();
+  expect(triggerBox).toBeTruthy();
+
+  await page.mouse.click(triggerBox.x + (triggerBox.width * 0.75), triggerBox.y + (triggerBox.height / 2));
+  await expect(palette).toBeVisible();
+  const palettePosition = await page.evaluate(() => {
+    const trigger = document.querySelector("[data-annotation-color-picker='fill'] [data-annotation-color-trigger]");
+    const palette = document.querySelector("[data-annotation-color-picker='fill'] [data-rich-color-palette]");
+    const triggerRect = trigger.getBoundingClientRect();
+    const paletteRect = palette.getBoundingClientRect();
+    return {
+      triggerLeft: triggerRect.left,
+      triggerBottom: triggerRect.bottom,
+      paletteLeft: paletteRect.left,
+      paletteTop: paletteRect.top
+    };
+  });
+  expect(palettePosition.paletteLeft).toBeGreaterThan(0);
+  expect(palettePosition.paletteTop).toBeGreaterThan(0);
+  expect(Math.abs(palettePosition.paletteLeft - palettePosition.triggerLeft)).toBeLessThanOrEqual(16);
+  expect(Math.abs(palettePosition.paletteTop - palettePosition.triggerBottom)).toBeLessThanOrEqual(16);
+  await expect(page.locator("[data-annotation-color-picker='fill'] [data-rich-last-colors] [data-rich-color-value='#123456']").first()).toBeVisible();
+  await expect(page.locator("[data-annotation-recent-colors='fill'] [data-rich-color-value='#123456']").first()).toBeVisible();
+
+  await page.keyboard.press("Escape");
+  await expect(palette).toBeHidden();
+
+  const before = await page.evaluate(() => {
+    const controller = window.__pmtDiagram2EditorCore;
+    const id = controller.selectedObjectIds()[0];
+    const svg = document.querySelector("[data-diagram2-svg]");
+    return {
+      id,
+      fill: controller.getObjectById(id)?.fill,
+      fullRenderCount: Number(svg?.dataset.diagram2FullRenderCount || 0),
+      objectCount: controller.currentState().objects.length,
+      flushCount: Number(svg?.dataset.diagram2DirtyFlushCount || 0)
+    };
+  });
+
+  await page.mouse.click(triggerBox.x + (triggerBox.width * 0.25), triggerBox.y + (triggerBox.height / 2));
+  await expect(palette).toBeHidden();
+  await expect.poll(() => page.evaluate(id =>
+    window.__pmtDiagram2EditorCore.getObjectById(id)?.fill, before.id
+  )).toBe("#123456");
+  const after = await page.evaluate(async id => {
+    const controller = window.__pmtDiagram2EditorCore;
+    const renderer = window.__pmtDiagram2Renderer;
+    const svg = document.querySelector("[data-diagram2-svg]");
+    await renderer.whenIdle();
+    return {
+      fill: controller.getObjectById(id)?.fill,
+      dirty: controller.historyStatus().dirty,
+      fullRenderCount: Number(svg?.dataset.diagram2FullRenderCount || 0),
+      objectCount: controller.currentState().objects.length,
+      flushCount: Number(svg?.dataset.diagram2DirtyFlushCount || 0),
+      renderedFill: document.querySelector(`[data-diagram2-object-id="${CSS.escape(id)}"] [data-diagram2-entity-body]`)?.getAttribute("fill")
+    };
+  }, before.id);
+  expect(after.fill).toBe("#123456");
+  expect(after.renderedFill).toBe("#123456");
+  expect(after.dirty).toBe(true);
+  expect(after.fullRenderCount).toBe(before.fullRenderCount);
+  expect(after.objectCount).toBe(before.objectCount);
+  expect(after.flushCount).toBeGreaterThan(before.flushCount);
+
+  await page.locator("[data-action='undo-diagram2']").click();
+  await expect.poll(() => page.evaluate(({ id, fill }) =>
+    String(window.__pmtDiagram2EditorCore.getObjectById(id)?.fill || "").toUpperCase() === String(fill || "").toUpperCase(), before
+  )).toBe(true);
   await expect(page.locator("[data-action='save-diagram2-document']").first()).toBeDisabled();
 }
 
@@ -1692,6 +1769,8 @@ async function assertDiagram2LiveGeometryPreview(page, expectedFullRenderCount) 
 async function assertTransformOnlyPan(page, expectedFullRenderCount) {
   const canvas = page.locator("[data-diagram2-viewer-canvas]");
   const box = await canvas.boundingBox();
+  await page.locator("[data-diagram2-tool='pan']").click();
+  await expect(page.locator("[data-diagram2-tool='pan']")).toHaveAttribute("aria-pressed", "true");
   const before = await diagram2StabilitySnapshot(page);
   await page.mouse.move(box.x + (box.width / 2), box.y + (box.height / 2));
   await page.mouse.down();
@@ -1712,6 +1791,8 @@ async function assertTransformOnlyPan(page, expectedFullRenderCount) {
   expect(afterFrame.translateY).not.toBe(before.translateY);
   expect(maxRectMovement(afterFrame.entityRect, afterSettle.entityRect).translation).toBeLessThanOrEqual(0.25);
   expect(maxRectMovement(afterFrame.entityRect, afterSettle.entityRect).size).toBeLessThanOrEqual(0.25);
+  await page.locator("[data-diagram2-tool='select']").click();
+  await expect(page.locator("[data-diagram2-tool='select']")).toHaveAttribute("aria-pressed", "true");
 }
 
 async function assertCursorCenteredWheelZoom(page, expectedFullRenderCount) {
