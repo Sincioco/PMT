@@ -1166,6 +1166,8 @@ body.has-pmt-diagram-ole-maximized {
   flex: 1 1 auto;
   min-height: 0;
   overflow: hidden;
+  contain: paint;
+  isolation: isolate;
   background: var(--color-surface);
   cursor: grab;
   user-select: none;
@@ -1183,8 +1185,11 @@ body.has-pmt-diagram-ole-maximized {
 }
 
 .pmt-diagram-ole img,
+.pmt-diagram-ole-surface > svg,
 .rich-editor .pmt-diagram-ole img,
-.rich-readonly .pmt-diagram-ole img {
+.rich-editor .pmt-diagram-ole-surface > svg,
+.rich-readonly .pmt-diagram-ole img,
+.rich-readonly .pmt-diagram-ole-surface > svg {
   display: block;
   width: auto;
   max-width: none;
@@ -1197,7 +1202,9 @@ body.has-pmt-diagram-ole-maximized {
 }
 
 .pmt-diagram-ole-viewport:active img,
-.pmt-diagram-ole-viewport.is-panning img {
+.pmt-diagram-ole-viewport.is-panning img,
+.pmt-diagram-ole-viewport:active .pmt-diagram-ole-surface > svg,
+.pmt-diagram-ole-viewport.is-panning .pmt-diagram-ole-surface > svg {
   cursor: grabbing !important;
 }
 

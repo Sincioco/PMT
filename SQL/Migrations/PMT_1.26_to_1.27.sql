@@ -3,7 +3,8 @@
 
     Adds user Suggestions, GUID-based anonymous public read-only Document/Diagram links,
     linked Dev/Bug rollback behavior when QA has not touched the linked Bug,
-    and Suggestion/public-link-safe development user cleanup.
+    Suggestion/public-link-safe development user cleanup, and the public editable
+    PMT Field Mapping example Diagram.
 */
 
 USE [PMT];
@@ -15,6 +16,7 @@ SET XACT_ABORT ON;
 IF SCHEMA_ID(N'pmt') IS NULL
    OR OBJECT_ID(N'[pmt].[Users]', N'U') IS NULL
    OR OBJECT_ID(N'[pmt].[Blogs]', N'U') IS NULL
+   OR OBJECT_ID(N'[pmt].[BlogHistory]', N'U') IS NULL
    OR OBJECT_ID(N'[pmt].[WorkTasks]', N'U') IS NULL
    OR OBJECT_ID(N'[pmt].[WriteAudit]', N'P') IS NULL
 BEGIN
@@ -1582,6 +1584,173 @@ BEGIN
 END;
 GO
 
+DECLARE @FieldMappingDiagramOwnerId INT =
+(
+    SELECT TOP (1) [UserId]
+    FROM [pmt].[Users]
+    WHERE [IsAdmin] = 1
+      AND [IsActive] = 1
+    ORDER BY
+        CASE WHEN [Email] = N'louiery@gmail.com' THEN 0 ELSE 1 END,
+        [UserId]
+);
+DECLARE @FieldMappingDiagramBodyHtml NVARCHAR(MAX) =
+    N'<p><img class="rich-svg-image pmt-annotation-image" src="/assets/docs/pmt-field-mapping-example.svg?v=db21ca4c61a8" alt="PMT Field Mapping Example" data-pmt-diagram="true" data-pmt-private-diagram="true" data-pmt-seeded-diagram="pmt-field-mapping-example-v1" data-pmt-annotation-version="1"></p>';
+DECLARE @FieldMappingDiagramNow DATETIME2(0) = SYSUTCDATETIME();
+DECLARE @FieldMappingDiagramBlogId INT;
+
+IF @FieldMappingDiagramOwnerId IS NULL
+BEGIN
+    THROW 51180, 'An active PMT administrator is required to seed the PMT Field Mapping example Diagram.', 1;
+END;
+
+BEGIN TRY
+    BEGIN TRANSACTION;
+
+    IF
+    (
+        SELECT COUNT_BIG(*)
+        FROM [pmt].[Blogs] WITH (UPDLOCK, HOLDLOCK)
+        WHERE [IsDeleted] = 0
+          AND [BodyHtml] LIKE N'%data-pmt-seeded-diagram="pmt-field-mapping-example-v1"%'
+    ) > 1
+    BEGIN
+        THROW 51181, 'Multiple active PMT Field Mapping example seed Diagrams were found. Investigate without deleting user data.', 1;
+    END;
+
+    SELECT @FieldMappingDiagramBlogId = [BlogId]
+    FROM [pmt].[Blogs]
+    WHERE [IsDeleted] = 0
+      AND [BodyHtml] LIKE N'%data-pmt-seeded-diagram="pmt-field-mapping-example-v1"%';
+
+    IF @FieldMappingDiagramBlogId IS NULL
+    BEGIN
+        DECLARE @FieldMappingTitleCount BIGINT =
+        (
+            SELECT COUNT_BIG(*)
+            FROM [pmt].[Blogs] WITH (UPDLOCK, HOLDLOCK)
+            WHERE [Title] = N'PMT Field Mapping Example'
+              AND [IsDeleted] = 0
+        );
+
+        IF @FieldMappingTitleCount > 1
+        BEGIN
+            THROW 51182, 'Multiple active Diagrams use the PMT Field Mapping Example title. Investigate without deleting user data.', 1;
+        END;
+
+        IF @FieldMappingTitleCount = 1
+        BEGIN
+            SELECT @FieldMappingDiagramBlogId = [BlogId]
+            FROM [pmt].[Blogs]
+            WHERE [Title] = N'PMT Field Mapping Example'
+              AND [IsDeleted] = 0
+              AND ([BodyHtml] LIKE N'%data-pmt-diagram="true"%'
+                   OR [BodyHtml] LIKE N'%data-pmt-private-diagram="true"%');
+
+            IF @FieldMappingDiagramBlogId IS NULL
+            BEGIN
+                THROW 51183, 'A non-Diagram row uses the PMT Field Mapping Example seed title. Investigate without overwriting user data.', 1;
+            END;
+
+        END
+        ELSE
+        BEGIN
+            INSERT INTO [pmt].[Blogs]
+            (
+                [ProjectId],
+                [SprintId],
+                [ParentBlogId],
+                [Title],
+                [BodyHtml],
+                [IsPrivate],
+                [IsPinned],
+                [SortOrder],
+                [CreatedByUserId],
+                [UpdatedByUserId],
+                [CreatedAt],
+                [UpdatedAt]
+            )
+            VALUES
+            (
+                NULL,
+                NULL,
+                NULL,
+                N'PMT Field Mapping Example',
+                @FieldMappingDiagramBodyHtml,
+                0,
+                0,
+                0,
+                @FieldMappingDiagramOwnerId,
+                @FieldMappingDiagramOwnerId,
+                @FieldMappingDiagramNow,
+                @FieldMappingDiagramNow
+            );
+
+            SET @FieldMappingDiagramBlogId = SCOPE_IDENTITY();
+
+            INSERT INTO [pmt].[BlogHistory]
+            (
+                [BlogId],
+                [Action],
+                [UserId],
+                [CreatedByUserId],
+                [CreatedAt]
+            )
+            VALUES
+            (
+                @FieldMappingDiagramBlogId,
+                N'Created',
+                @FieldMappingDiagramOwnerId,
+                @FieldMappingDiagramOwnerId,
+                @FieldMappingDiagramNow
+            );
+        END;
+    END;
+
+    UPDATE [pmt].[Blogs]
+    SET
+        [ProjectId] = NULL,
+        [SprintId] = NULL,
+        [ParentBlogId] = NULL,
+        [BodyHtml] = @FieldMappingDiagramBodyHtml,
+        [IsPrivate] = 0,
+        [IsPinned] = 0,
+        [SortOrder] = 0,
+        [UpdatedByUserId] = @FieldMappingDiagramOwnerId,
+        [UpdatedAt] = @FieldMappingDiagramNow
+    WHERE [BlogId] = @FieldMappingDiagramBlogId
+      AND
+      (
+          [ProjectId] IS NOT NULL
+          OR [SprintId] IS NOT NULL
+          OR [ParentBlogId] IS NOT NULL
+          OR [BodyHtml] <> @FieldMappingDiagramBodyHtml
+          OR [IsPrivate] <> 0
+          OR [IsPinned] <> 0
+          OR [SortOrder] <> 0
+      );
+
+    IF
+    (
+        SELECT COUNT_BIG(*)
+        FROM [pmt].[Blogs]
+        WHERE [IsDeleted] = 0
+          AND [IsPrivate] = 0
+          AND [Title] = N'PMT Field Mapping Example'
+          AND [BodyHtml] = @FieldMappingDiagramBodyHtml
+    ) <> 1
+    BEGIN
+        THROW 51184, 'The public PMT Field Mapping example seed Diagram could not be verified.', 1;
+    END;
+
+    COMMIT TRANSACTION;
+END TRY
+BEGIN CATCH
+    IF XACT_STATE() <> 0 ROLLBACK TRANSACTION;
+    THROW;
+END CATCH;
+GO
+
 DECLARE @TargetDatabaseVersion NVARCHAR(20) = N'1.27';
 
 IF EXISTS
@@ -1625,6 +1794,15 @@ IF OBJECT_ID(N'[pmt].[Suggestions]', N'U') IS NULL
    OR OBJECT_ID(N'[pmt].[GetPublicBlog]', N'P') IS NULL
    OR OBJECT_ID(N'[pmt].[UpsertTask]', N'P') IS NULL
    OR OBJECT_ID(N'[pmt].[DevelopmentClearUsers]', N'P') IS NULL
+   OR
+   (
+       SELECT COUNT_BIG(*)
+       FROM [pmt].[Blogs]
+       WHERE [IsDeleted] = 0
+         AND [IsPrivate] = 0
+         AND [Title] = N'PMT Field Mapping Example'
+         AND [BodyHtml] LIKE N'%data-pmt-seeded-diagram="pmt-field-mapping-example-v1"%'
+   ) <> 1
 BEGIN
     THROW 51153, 'PMT Database Version 1.27 objects could not be verified.', 1;
 END;

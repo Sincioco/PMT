@@ -16,6 +16,7 @@ const day36MigrationRunner = read("../../SQL/Migrations/PMT_1.26_to_1.27_All.sql
 const sourceProcedures = read("../../SQL/02_CreateStoredProcedures.sql");
 const sourceSeed = read("../../SQL/03_SeedData.sql");
 const pmtSeed = read("../../SQL/03_SeedData_PMT.sql");
+const diagramDemoSeed = read("../../SQL/03_SeedData_DiagramDemo.sql");
 const developmentStore = read("../../Data/SqlPmtStore.Development.cs");
 const createDatabase = read("../../SQL/01_CreateDatabase.sql");
 const gameScoreStore = read("../../Data/SqlPmtStore.GameScores.cs");
@@ -186,7 +187,7 @@ test("Version 1.26 seeds PMT tutorial Documentation for existing installs", () =
   }
 });
 
-test("Version 1.27 adds public sharing and Suggestions through the combined runner", () => {
+test("Version 1.27 adds public sharing, Suggestions, and the Field Mapping demo through the combined runner", () => {
   assert.match(rebuildScript, /@value = N'1\.27'/);
   assert.match(createDatabase, /CREATE TABLE \[pmt\]\.\[Suggestions\]/);
   assert.match(createDatabase, /CREATE TABLE \[pmt\]\.\[PublicBlogLinks\]/);
@@ -198,6 +199,21 @@ test("Version 1.27 adds public sharing and Suggestions through the combined runn
   assert.match(day36Migration, /DECLARE @TargetDatabaseVersion NVARCHAR\(20\) = N'1\.27'/);
   assert.match(day36Migration, /@value = @TargetDatabaseVersion/);
   assert.match(day36Migration, /THROW 51153, 'PMT Database Version 1\.27 objects could not be verified\.'/);
+  assert.match(day36Migration, /N'PMT Field Mapping Example'/);
+  assert.match(day36Migration, /pmt-field-mapping-example\.svg\?v=db21ca4c61a8/);
+  assert.match(day36Migration, /\[IsPrivate\] = 0/);
+  assert.match(day36Migration, /data-pmt-seeded-diagram="pmt-field-mapping-example-v1"/);
+  assert.match(diagramDemoSeed, /N'PMT Field Mapping Example'/);
+  assert.match(diagramDemoSeed, /pmt-field-mapping-example\.svg\?v=db21ca4c61a8/);
+  assert.match(diagramDemoSeed, /DATEADD\(SECOND, 1, @Now\)/);
+  const fieldMappingAsset = readFileSync(new URL(
+    "../../wwwroot/assets/docs/pmt-field-mapping-example.svg",
+    import.meta.url
+  ));
+  assert.equal(
+    createHash("sha256").update(fieldMappingAsset).digest("hex"),
+    "db21ca4c61a831bd4c5719cdff7e3570035fe40f22f0d64cfd589d56f43d684e"
+  );
   assert.match(day36MigrationRunner, /:on error exit/);
   assert.match(day36MigrationRunner, /:r "\.\\PMT_1\.26_to_1\.27\.sql"/);
 });

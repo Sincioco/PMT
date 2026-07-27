@@ -7,7 +7,7 @@ import {
   formatAnnotationEntityIdentifier,
   normalizeAnnotationState,
   wrapAnnotationText
-} from "../../components/image-annotation.js?v=20260728-diagram-png-raster-v1";
+} from "../../components/image-annotation.js?v=20260728-phase3-closeout-v1";
 import { normalizeRichHtml } from "../../shared/text-and-links.js?v=20260722-rte-toggle-state-v1";
 
 const svgNamespace = "http://www.w3.org/2000/svg";

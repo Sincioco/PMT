@@ -15,8 +15,10 @@ import {
   cleanAnnotationSvgForExternalUse,
   copyAnnotationPngToClipboard,
   copyAnnotationSvgToClipboard,
+  annotationClipboardHasImage,
+  annotationClipboardImageFile,
   annotationSvgToPngBlob
-} from "../../components/image-annotation.js?v=20260728-diagram-png-raster-v1";
+} from "../../components/image-annotation.js?v=20260728-phase3-closeout-v1";
 import { openPublicLinkDialog } from "../../components/public-links.js?v=20260725-day36-v4";
 import { sectionHead } from "../../components/sections.js?v=20260726-diagram2-nav-icon-v1";
 import { api } from "../../core/api.js?v=20260725-public-link-v1";
@@ -96,6 +98,7 @@ export function createDiagram2Feature({
   saveDiagramDocument,
   openEditor,
   bindRichTextButtons,
+  uploadEmbeddedImage,
   saveDiagramInfo,
   moveDiagramDocument,
   deleteItem
@@ -142,6 +145,7 @@ export function createDiagram2Feature({
   let diagram2TreeContextMenuController = null;
   let diagram2DocumentMode = "readonly";
   let diagram2ModeDocumentId = 0;
+  let diagram2ClipboardImageBusy = false;
 
   function syncDiagram2LeftNavContextFromStorage() {
     selectedDiagramDocumentId = readNumberPreference(preferenceKeys.diagramSelectedDocument, selectedDiagramDocumentId);
@@ -1572,6 +1576,7 @@ export function createDiagram2Feature({
         onEditText: editDiagram2ObjectText,
         onCopy: copyDiagram2Selection,
         onPaste: pasteDiagram2Selection,
+        onPasteEvent: pasteDiagram2ClipboardEvent,
         onDuplicate: duplicateDiagram2Selection,
         onDelete: deleteDiagram2Selection,
         onWheel: event => {
@@ -1988,6 +1993,135 @@ export function createDiagram2Feature({
     await finishDiagram2ObjectCommand();
     notify?.("Diagram objects pasted.");
     return true;
+  }
+
+  async function pasteDiagram2ClipboardEvent(event) {
+    if (!diagram2Controller || !diagram2CanMutateCurrentDocument()) return false;
+    const clipboardData = event?.clipboardData;
+    if (!clipboardData) return false;
+
+    if (annotationClipboardHasImage(clipboardData)) {
+      event.preventDefault();
+      if (diagram2ClipboardImageBusy) {
+        notify?.("Wait for the current image upload to finish.");
+        return false;
+      }
+
+      const file = await annotationClipboardImageFile(clipboardData);
+      if (!file) {
+        notify?.("The clipboard image could not be read.");
+        return false;
+      }
+
+      diagram2ClipboardImageBusy = true;
+      notify?.("Uploading the pasted image...");
+      try {
+        const added = await addDiagram2ClipboardImage(file);
+        if (added) notify?.(`${file.name || "Image"} uploaded and added to the canvas.`);
+        return added;
+      } catch (error) {
+        notify?.(error?.message || "The pasted image could not be uploaded.");
+        return false;
+      } finally {
+        diagram2ClipboardImageBusy = false;
+      }
+    }
+
+    const text = String(clipboardData.getData?.("text/plain") || "");
+    if (!text.trim().startsWith("PMT_DIAGRAM_SELECTION_V1")
+      && !/"format"\s*:\s*"pmt-diagram-selection"/.test(text)) {
+      return false;
+    }
+
+    event.preventDefault();
+    const pasted = await diagram2Controller.pasteSelectionClipboardText(text);
+    if (!pasted) {
+      notify?.("The clipboard does not contain compatible Diagram objects.");
+      return false;
+    }
+    await finishDiagram2ObjectCommand();
+    notify?.("Diagram objects pasted.");
+    return true;
+  }
+
+  async function addDiagram2ClipboardImage(file) {
+    if (typeof uploadEmbeddedImage !== "function") {
+      throw new Error("Image uploads are not available in Diagram 2.");
+    }
+
+    const stored = await uploadEmbeddedImage(file);
+    const source = String(stored?.url || stored || "").trim();
+    if (!source) throw new Error("The uploaded image URL is invalid.");
+
+    const dimensions = await diagram2ImageDimensions(source);
+    const center = diagram2Controller.snapPoint(diagram2InsertionCenter());
+    const x = center.x - (dimensions.width / 2);
+    const y = center.y - (dimensions.height / 2);
+    const object = {
+      id: diagram2ClipboardImageId(),
+      type: "embedded-image",
+      name: diagram2UniqueImageName(file.name || "Image"),
+      x,
+      y,
+      width: dimensions.width,
+      height: dimensions.height,
+      source,
+      imageClip: {
+        x,
+        y,
+        width: dimensions.width,
+        height: dimensions.height
+      },
+      isOriginalImage: false,
+      locked: false,
+      groupId: ""
+    };
+
+    const added = await diagram2Controller.addObject(object, {
+      label: "Paste image",
+      reason: "clipboard paste image"
+    });
+    if (!added) throw new Error("The pasted image could not be added to the canvas.");
+
+    diagram2Controller.setActiveTool("select");
+    await finishDiagram2ObjectCommand();
+    return true;
+  }
+
+  function diagram2ClipboardImageId() {
+    let id = "";
+    do {
+      id = `embedded-image-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+    } while (diagram2Controller?.getObjectById?.(id));
+    return id;
+  }
+
+  function diagram2UniqueImageName(nameInput) {
+    const name = String(nameInput || "Image").trim() || "Image";
+    const names = new Set((diagram2Controller?.currentState?.().objects || [])
+      .map(object => String(object?.name || "").trim().toLowerCase())
+      .filter(Boolean));
+    if (!names.has(name.toLowerCase())) return name;
+    let suffix = 1;
+    while (names.has(`${name} ${suffix}`.toLowerCase())) suffix += 1;
+    return `${name} ${suffix}`;
+  }
+
+  function diagram2ImageDimensions(source) {
+    return new Promise((resolve, reject) => {
+      const image = new Image();
+      image.addEventListener("load", () => {
+        const width = image.naturalWidth || image.width;
+        const height = image.naturalHeight || image.height;
+        if (!width || !height) {
+          reject(new Error("The image dimensions could not be read."));
+          return;
+        }
+        resolve({ width, height });
+      }, { once: true });
+      image.addEventListener("error", () => reject(new Error("The pasted image could not be decoded.")), { once: true });
+      image.src = source;
+    });
   }
 
   async function duplicateDiagram2Selection() {

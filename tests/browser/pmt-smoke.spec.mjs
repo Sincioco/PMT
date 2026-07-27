@@ -1067,7 +1067,7 @@ test("Scrum auto-refresh updates the table and attendance without reload or inte
   await openNavView(page, "Scrum", "Scrum");
   await expect(scrumTodayStatus(page, 2, "Home")).toBeVisible();
   const linkedDiagramOle = page.locator(".scrum-table [data-block-id='scrum-auto-refresh-ole']");
-  await expect(linkedDiagramOle.locator("[data-diagram-ole-viewport] img")).toBeVisible();
+  await expect(linkedDiagramOle.locator("[data-diagram-ole-viewport] svg[data-diagram-ole-media]")).toBeVisible();
   await expect(linkedDiagramOle.locator("[data-diagram-ole-header]")).toHaveText("Linked Diagram tabs");
   await expect(linkedDiagramOle.locator("[data-diagram-ole-tab]")).toHaveCount(2);
   await expect(linkedDiagramOle.locator("[data-diagram-ole-tab].is-active")).toContainText("Overview");
@@ -1077,6 +1077,38 @@ test("Scrum auto-refresh updates the table and attendance without reload or inte
   await expect(linkedDiagramOle.locator("[data-diagram-ole-tab].is-active")).toContainText("Details");
   await expect.poll(() => linkedDiagramOle.locator("[data-diagram-ole-surface]").evaluate(node => node.style.transform))
     .toBe("translate(-18px, -12px) scale(0.75)");
+  await linkedDiagramOle.locator("[data-diagram-ole-zoom-in]").click();
+  await linkedDiagramOle.locator("[data-diagram-ole-zoom-in]").click();
+  await linkedDiagramOle.locator("[data-diagram-ole-zoom-in]").click();
+  await linkedDiagramOle.locator("[data-diagram-ole-zoom-in]").click();
+  const linkedViewport = linkedDiagramOle.locator("[data-diagram-ole-viewport]");
+  const linkedViewportBox = await linkedViewport.boundingBox();
+  expect(linkedViewportBox).toBeTruthy();
+  await linkedDiagramOle.locator("svg[data-diagram-ole-media]").evaluate(node => {
+    window.__pmtLinkedDiagramMedia = node;
+  });
+  await page.mouse.move(
+    linkedViewportBox.x + (linkedViewportBox.width * 0.72),
+    linkedViewportBox.y + (linkedViewportBox.height * 0.28)
+  );
+  await page.mouse.down();
+  for (let step = 1; step <= 8; step += 1) {
+    await page.mouse.move(
+      linkedViewportBox.x + (linkedViewportBox.width * 0.72) - (step * 8),
+      linkedViewportBox.y + (linkedViewportBox.height * 0.28) + (step * 5)
+    );
+  }
+  await page.mouse.up();
+  await expect(linkedDiagramOle.locator("[data-diagram-ole-surface] > [data-diagram-ole-media]")).toHaveCount(1);
+  expect(await linkedDiagramOle.locator("svg[data-diagram-ole-media]").evaluate(node =>
+    node === window.__pmtLinkedDiagramMedia
+  )).toBe(true);
+  const linkedPannedTransform = await linkedDiagramOle.locator("[data-diagram-ole-surface]")
+    .evaluate(node => node.style.transform);
+  expect(linkedPannedTransform).not.toBe("translate(-18px, -12px) scale(0.75)");
+  const linkedPannedView = linkedPannedTransform.match(
+    /^translate\((-?\d+(?:\.\d+)?)px, (-?\d+(?:\.\d+)?)px\) scale\((\d+(?:\.\d+)?)\)$/
+  ).slice(1).map(Number);
   await expect(page.locator(".scrum-table [data-block-id='scrum-single-ole'] [data-diagram-ole-tab]")).toHaveCount(0);
   const refreshCollapsible = page.locator(".scrum-table [data-collapsible-id='scrum-refresh-collapsible']");
   await expect(refreshCollapsible).toHaveCount(1);
@@ -1164,7 +1196,7 @@ test("Scrum auto-refresh updates the table and attendance without reload or inte
   await page.clock.fastForward(1);
   await expect.poll(() => apiCalls.stateGets).toBe(stateGetsBeforeRefresh + 1);
   await expect(page.locator(".scrum-table tbody")).toContainText("Five-second refreshed Scrum entry");
-  await expect(linkedDiagramOle.locator("[data-diagram-ole-viewport] img")).toBeVisible();
+  await expect(linkedDiagramOle.locator("[data-diagram-ole-viewport] svg[data-diagram-ole-media]")).toBeVisible();
   await expect(linkedDiagramOle.locator("[data-diagram-ole-header]")).toHaveText("Linked Diagram tabs");
   await expect(linkedDiagramOle.locator("[data-diagram-ole-tab]")).toHaveCount(2);
   await expect(linkedDiagramOle.locator("[data-diagram-ole-tab].is-active")).toContainText("Details");
@@ -1172,8 +1204,14 @@ test("Scrum auto-refresh updates the table and attendance without reload or inte
   await expect(linkedDiagramOle).toHaveClass(/is-maximized/);
   await expect(linkedDiagramOle.locator("[data-diagram-ole-maximize]")).toHaveText("Restore");
   await expect(page.locator("body")).toHaveClass(/has-pmt-diagram-ole-maximized/);
-  await expect.poll(() => linkedDiagramOle.locator("[data-diagram-ole-surface]").evaluate(node => node.style.transform))
-    .toBe("translate(-18px, -12px) scale(0.75)");
+  const refreshedLinkedTransform = await linkedDiagramOle.locator("[data-diagram-ole-surface]")
+    .evaluate(node => node.style.transform);
+  const refreshedLinkedView = refreshedLinkedTransform.match(
+    /^translate\((-?\d+(?:\.\d+)?)px, (-?\d+(?:\.\d+)?)px\) scale\((\d+(?:\.\d+)?)\)$/
+  ).slice(1).map(Number);
+  expect(refreshedLinkedView[0]).toBe(linkedPannedView[0]);
+  expect(refreshedLinkedView[1]).toBe(linkedPannedView[1]);
+  expect(refreshedLinkedView[2]).toBeCloseTo(linkedPannedView[2], 3);
   await expect.poll(() => refreshCollapsible.evaluate(node => node.open)).toBe(true);
   await expect(refreshCollapsible.locator(".rich-collapsible-actions")).toHaveCount(0);
   await expect.poll(() => refreshCodeBlock.evaluate(node => node.open)).toBe(true);

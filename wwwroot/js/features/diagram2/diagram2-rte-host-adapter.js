@@ -2,7 +2,7 @@ import { copyTextToClipboard } from "../../components/clipboard.js?v=20260714-in
 import {
   buildPortableAnnotationSvg,
   normalizeAnnotationState
-} from "../../components/image-annotation.js?v=20260728-diagram-png-raster-v1";
+} from "../../components/image-annotation.js?v=20260728-phase3-closeout-v1";
 import { appUrl } from "../../shared/app-urls.js";
 import { loadDiagramCanonicalState } from "../../shared/diagram-documents.js?v=20260725-diagram2-day6-v1";
 import {

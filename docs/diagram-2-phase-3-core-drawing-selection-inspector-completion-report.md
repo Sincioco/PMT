@@ -1,6 +1,6 @@
 # Diagram 2 Phase 3 Core Drawing, Selection, and Inspector Completion Report
 
-Generated: 2026-07-27
+Generated: 2026-07-27; final closeout corrections validated 2026-07-28
 
 Status: **COMPLETE - CLOSED**
 
@@ -10,6 +10,17 @@ Diagram 2 Phase 3 is complete for the authorized core drawing, selection, geomet
 
 Phase 4 has not started.
 
+## Final Closeout Corrections
+
+The final 2026-07-28 closeout pass corrected four integration gaps found after the original Phase 3 implementation commit:
+
+- Diagram 2 Edit mode now accepts an image from the native clipboard paste event, uploads it through the existing Rich Text upload path, creates one editable `embedded-image` object at the viewport center, selects it, and records one undoable command.
+- Linked Diagram viewers now render editable Diagram SVG as one inline SVG so Field Mapping rows can expose the same read-only relationship highlight and attention-arrow behavior used by Diagram 1.
+- Linked Diagram panning updates only the existing surface transform during pointer movement and persists once at pointer release. Paint containment and a single inline SVG prevent stale frames from appearing as smears.
+- The exact `PMT Field Mapping Example` Diagram is bundled as a public editable seed. Fresh Version 1.27 installs create it as Diagram ID 21 under the current seed order; the active `1.26 -> 1.27` migration inserts or safely adopts it for existing installs. Normal Latest sorting makes the newly inserted/updated Diagram appear first without forcing future selection.
+
+These corrections do not implement Phase 4 Groups, Layers, Templates, Entity editing, relationship routing, Auto Format, Crop, or Diagram 2 Field Mapping authoring.
+
 ## Source Control
 
 - Starting commit: `d8343d1d938d79952b25ea84819b7c566b26c6bc`
@@ -18,7 +29,7 @@ Phase 4 has not started.
 - Final implementation commit subject: `Sin and Codex: complete Diagram 2 Phase 3 core editing parity`
 - Closeout authorization: Sin authorized formal Phase 3 closeout on 2026-07-27 after green automated validation.
 - Elapsed collaboration time: approximately 16 hours of wall-clock time from the starting commit timestamp through final validation, including implementation, user feedback, and test execution. This is not a continuous stopwatch measurement.
-- Database changes: none
+- Database changes: the active Version 1.27 seed and `1.26 -> 1.27` migration add the public `PMT Field Mapping Example` Diagram without deleting unrelated data.
 - Backend contract changes: none
 
 ## Completed Behavior
@@ -37,7 +48,7 @@ Phase 4 has not started.
 | Text Box editing | PASS | Text content and formatting commit through one undoable Diagram 2 command. |
 | Rich Text editing | PASS | Both hosts use the shared D1 rich-text binder and expose the full supported toolbar, source editing, tables, history, apply/render, and undo behavior without per-keystroke document serialization. |
 | Format Painter | PASS | Captures supported source style and applies it through the shared style command. |
-| Clipboard | PASS | Copy, Paste, Duplicate, repeated paste offsets, ID remap, and same-tab fallback use the shared `pmt-diagram-selection` v1 package. |
+| Clipboard | PASS | Copy, Paste, Duplicate, repeated paste offsets, ID remap, and same-tab fallback use the shared `pmt-diagram-selection` v1 package. Native image paste uploads and creates one editable image object through the existing upload contract. |
 | Diagram 1 interoperability | PASS | Diagram 1 to Diagram 2 and Diagram 2 to Diagram 1 core-object clipboard paths remain compatible. |
 | Object context menu | PASS | To Front, To Back, Forward, Backward, Lock/Unlock, Copy Selection, Paste, Duplicate, Delete, Copy as SVG, and Copy as Image use Diagram 2 commands and keyed rendering. |
 | Canvas context menu | PASS | In read-only and Edit mode, right-clicking empty canvas offers Copy as SVG and Copy as PNG through the existing SVG/PNG options dialogs and clipboard helpers. |
@@ -45,6 +56,9 @@ Phase 4 has not started.
 | Undo/redo | PASS | Add, delete, duplicate, paste, move, resize, arrange, lock, style, and text commands have inverse operations; gestures and rapid style changes are coalesced appropriately. |
 | Dual-host lifecycle | PASS | Top navigation, `Annotate 2.0`, and `Edit Annotation 2.0` share the editor core and pass repeated open/use/close lifecycle coverage. |
 | Save/reopen compatibility | PASS | Canonical document data remains compatible and renderer indexes, mounted-node state, and other live caches are not persisted. |
+| Linked Diagram panning | PASS | Pointer movement transforms one persistent inline SVG and stores the final view only at pointer release, preventing stale-image smearing. |
+| Linked Diagram Field Mapping | PASS | Read-only Field Mapping rows show base relationships, row emphasis, target highlights, and two attention arrows on hover/click. |
+| Public demo distribution | PASS | Fresh installs and the active migration provide one public editable bundled Field Mapping example under normal Latest sorting. |
 
 No Phase 3 feature is recorded as PARTIAL or FAIL.
 
@@ -144,6 +158,14 @@ Application and compatibility integration:
 - `wwwroot/js/components/image-annotation.js`
 - `wwwroot/js/features/diagram/diagram.js`
 - `wwwroot/index.html`
+- `wwwroot/css/components/forms.css`
+- `wwwroot/css/components/image-annotation.css`
+
+Database and bundled demo:
+
+- `SQL/03_SeedData_DiagramDemo.sql`
+- `SQL/Migrations/PMT_1.26_to_1.27.sql`
+- `wwwroot/assets/docs/pmt-field-mapping-example.svg`
 
 Tests and evidence:
 
@@ -151,6 +173,8 @@ Tests and evidence:
 - `tests/browser/diagram2-beta-readiness.spec.mjs`
 - `tests/browser/diagram2-navigation.spec.mjs`
 - `tests/browser/diagram2-rte-annotation.spec.mjs`
+- `tests/browser/pmt-smoke.spec.mjs`
+- `tests/js/project-code-migration.test.mjs`
 - `docs/screenshots/diagram-2-phase-3/chromium-1366.png`
 - `docs/screenshots/diagram-2-phase-3/chromium-1920.png`
 
@@ -173,6 +197,11 @@ The remaining modified release-note consumers and generated release-note data co
 | `tests/browser/image-annotation.spec.mjs --project=chromium-1366` | PASS, 2/2 tests in the final complete run |
 | PNG correction: `tests/browser/diagram2-navigation.spec.mjs` | PASS, 14/14 tests across 1366px and 1920px Chromium projects |
 | PNG correction: `tests/browser/image-annotation.spec.mjs` | PASS, 4/4 tests across 1366px and 1920px Chromium projects |
+| Final D2 clipboard image and linked-viewer pan regression | PASS, 4/4 focused Chromium tests across 1366px and 1920px |
+| Field Mapping Link Viewer live verification with Diagram 21 | PASS, 6 interactive cells, 6 base relationships, 1 pinned row, 1 highlight, and 2 attention arrows |
+| Exact Version 1.26 migration rehearsal | PASS; Version 1.27 reached, sentinel preserved, one public/latest demo and one Created history row; rerun remained idempotent |
+| Fresh Version 1.27 rebuild and seed rerun | PASS; Diagram ID 21 created public/latest, bundled asset verified, rerun retained one row and timestamp |
+| `DBCC CHECKDB ('PMT')` after migration and fresh rebuild | PASS, no consistency errors |
 | `dotnet build` | PASS, 0 errors; 2 existing .NET 6 end-of-support warnings |
 | `git diff --check` | PASS; line-ending conversion warnings only |
 | About 3D flyby | Not run by instruction because it was not changed |
@@ -205,11 +234,13 @@ The required Diagram 2 browser coverage includes the full shared RTE toolbar, ex
 14. Repeat the main workflow through `Annotate 2.0` and `Edit Annotation 2.0`, including save and cancel.
 15. Confirm D1/D2 round-trip compatibility for supported core objects and verify Diagram 1's normal annotation workflow remains unchanged.
 16. Use a large relationship-heavy document and confirm selection, marquee, drag, resize, style, pan/zoom, and close/reopen remain responsive.
+17. Copy a PNG or screenshot from another application, focus the Diagram 2 Edit canvas, press Ctrl+V, and confirm one editable image appears and Undo removes it.
+18. In Scrum, open the linked `PMT Field Mapping Example`, pan repeatedly, and confirm no stale Diagram frame remains. Click each Field Mapping row and confirm its UI field, database field, relationships, highlights, and arrows respond.
 
 ## Known Limitations
 
 - The stress fixture's mounted-object ratio is 56.3% because relationship-connected endpoints are retained by the existing route halo. Phase 8 owns further virtualization/performance hardening.
-- Image insertion remains coupled to the image asset/crop/export pipeline and is intentionally owned by Phase 6.
+- Toolbar-driven image insertion, image formatting, and Crop remain owned by Phase 6. Native clipboard image paste is present as a narrow closeout compatibility correction.
 - The manual checklist remains available as a post-closeout regression reference.
 
 ## Approved Deferrals and Explicit Exclusions
@@ -224,7 +255,7 @@ The following were not implemented in Phase 3:
 - Relationship creation, editing, manual routing, or routing redesign
 - Auto Format, including `Auto Format -> Compact`
 - Image insertion and Crop
-- Field Mapping, Field Rectangles, and Field Mapping Tables
+- Diagram 2 Field Mapping authoring, Field Rectangles, and Field Mapping Tables. The read-only Linked Diagram viewer only displays and interacts with existing Diagram 1 Field Mapping content.
 
 The narrow selected-object arrange commands and canvas artwork-copy commands completed in Phase 3 do not implement the excluded full Layers or export-workflow phases.
 
@@ -238,6 +269,6 @@ There is no known technical blocker to Phase 4. Phase 4 must not begin automatic
 
 ## Browser Refresh and Build Guidance
 
-This phase changes frontend JavaScript and CSS only. If PMT is already running, **no .NET recompile is required for manual testing**. Press **Ctrl+F5** in the browser.
+The final closeout changes frontend JavaScript/CSS, a bundled SVG asset, and SQL seed/migration files. **No .NET recompile is required for browser testing when PMT is already running.** Press **Ctrl+F5** in the browser.
 
-The Diagram 2 CSS and module graph use cache key `20260727-diagram2-phase3-final-v2`, so the browser will request the final assets instead of reusing an older Phase 3 file. A .NET rebuild is needed only if the application is not currently running or Sin wants to launch a newly built server process.
+The changed CSS and JavaScript module graph use cache key `20260728-phase3-closeout-v1`, so the browser requests the corrected assets instead of reusing an older file. Existing Version 1.26 deployments must run `SQL/Migrations/PMT_1.26_to_1.27_All.sql` and deploy `wwwroot/assets/docs/pmt-field-mapping-example.svg`; fresh installations receive the Diagram from the normal rebuild seed.

@@ -3,7 +3,7 @@ import {
   normalizeAnnotationState,
   normalizeAnnotationTemplateLibrary,
   parseAnnotationSvg
-} from "../components/image-annotation.js?v=20260728-diagram-png-raster-v1";
+} from "../components/image-annotation.js?v=20260728-phase3-closeout-v1";
 
 export const pmtDiagramFileFormat = "pmt-diagram";
 export const pmtDiagramFileVersion = 1;

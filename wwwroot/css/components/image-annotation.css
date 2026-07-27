@@ -405,6 +405,10 @@
   fill: var(--annotation-field-mapping-row-hover-fill);
 }
 
+.image-annotation-object.is-field-mapping-table [data-annotation-field-mapping-row].is-pinned [data-annotation-field-mapping-cell-fill] {
+  fill: var(--annotation-field-mapping-row-hover-fill);
+}
+
 .image-annotation-object.is-field-mapping-table [data-annotation-field-mapping-cell]:hover text {
   font-weight: var(--font-weight-semibold);
 }

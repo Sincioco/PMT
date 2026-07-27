@@ -14642,7 +14642,7 @@ function safeEmbeddedImageSource(value) {
   return "";
 }
 
-function annotationClipboardHasImage(clipboardData) {
+export function annotationClipboardHasImage(clipboardData) {
   if (!clipboardData) return false;
   if ([...(clipboardData.items || [])].some(item => item.kind === "file"
       && /^image\//i.test(item.type || ""))) return true;
@@ -14655,7 +14655,7 @@ function annotationClipboardHasImage(clipboardData) {
   return /<img\b[^>]*\bsrc\s*=\s*["']?data:image\//i.test(html);
 }
 
-async function annotationClipboardImageFile(clipboardData) {
+export async function annotationClipboardImageFile(clipboardData) {
   if (!clipboardData) return null;
 
   const files = [

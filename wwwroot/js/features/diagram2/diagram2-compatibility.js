@@ -1,6 +1,6 @@
 import {
   buildAnnotationSvg
-} from "../../components/image-annotation.js?v=20260728-diagram-png-raster-v1";
+} from "../../components/image-annotation.js?v=20260728-phase3-closeout-v1";
 import {
   canDiagramFeatureReadPmtDiagramFile,
   createDiagramSelectionClipboardPackage,

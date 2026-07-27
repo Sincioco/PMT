@@ -5,11 +5,15 @@ import { bindAttachmentDeletion } from "./components/attachments.js?v=20260714-a
 import { buttonContent } from "./components/buttons.js?v=20260715-admin-impersonation";
 import { copyHtmlToClipboard, copyTextToClipboard } from "./components/clipboard.js?v=20260714-invite-email-body";
 import {
+  annotationEntityFieldLabelPoint,
+  annotationEntityFieldSupportsMapping,
+  annotationEntityVisibleFields,
+  annotationFieldMappingAttentionHighlightSvg,
   annotationSvgDataUrl,
   buildAnnotationSvg,
   parseAnnotationSvg,
   openImageAnnotationDialog
-} from "./components/image-annotation.js?v=20260728-diagram-png-raster-v1";
+} from "./components/image-annotation.js?v=20260728-phase3-closeout-v1";
 import { createWhatsNew } from "./components/whats-new.js?v=release-notes-2026-07-26-day-38-07b177344021";
 import {
   htmlWithoutUserMentionMarkup,
@@ -75,8 +79,8 @@ import { createBoardFeature } from "./features/board/board.js?v=20260722-rich-en
 import { createBugsFeature } from "./features/bugs/bugs.js?v=20260724-day36-v3";
 import { createDashboardFeature } from "./features/dashboard/dashboard.js?v=release-notes-2026-07-26-day-38-07b177344021";
 import { createDiagramFeature } from "./features/diagram/diagram.js?v=20260728-diagram-png-raster-v1";
-import { createDiagram2Feature } from "./features/diagram2/diagram2.js?v=20260728-diagram-png-raster-v1";
-import { openDiagram2RteAnnotationHost } from "./features/diagram2/diagram2-rte-host-adapter.js?v=20260728-diagram-png-raster-v1";
+import { createDiagram2Feature } from "./features/diagram2/diagram2.js?v=20260728-phase3-closeout-v1";
+import { openDiagram2RteAnnotationHost } from "./features/diagram2/diagram2-rte-host-adapter.js?v=20260728-phase3-closeout-v1";
 import { createDocumentationFeature } from "./features/documentation/documentation.js?v=20260725-day36-v5";
 import {
   createGanttFeature,
@@ -544,6 +548,7 @@ const diagram2Feature = createDiagram2Feature({
   app,
   notify: showToast,
   bindRichTextButtons,
+  uploadEmbeddedImage: uploadRichTextCanvasImage,
   createDiagramDocument: createDiagramBackingDocument,
   saveDiagramDocument: updateDiagramBackingDocument,
   openEditor,
@@ -5270,7 +5275,8 @@ async function diagramOleViewerSourceUrl(blog) {
       }
 
       const viewerSource = annotationSvgDataUrl(buildAnnotationSvg(diagramState, {
-        entityHeaderButtonsVisible: false
+        entityHeaderButtonsVisible: false,
+        interactiveFieldMapping: true
       }));
       diagramOleViewerSourceCache.set(cacheKey, viewerSource);
       return viewerSource;
@@ -5537,7 +5543,7 @@ function hydrateRichDiagramOleBlock(block) {
     <div class="pmt-diagram-ole-viewport" data-diagram-ole-viewport tabindex="0" aria-label="${escapeAttr(`${title} linked Diagram viewer`)}">
       ${diagram
         ? `<div class="pmt-diagram-ole-surface" data-diagram-ole-surface>
-            <img src="${escapeAttr(sourceUrl)}" alt="${escapeAttr(title)}" draggable="false">
+            <img src="${escapeAttr(sourceUrl)}" alt="${escapeAttr(title)}" draggable="false" data-diagram-ole-media="true">
           </div>`
         : `<div class="pmt-diagram-ole-placeholder">This linked Diagram tab could not be found or you do not have permission to view it.</div>`}
     </div>
@@ -5594,10 +5600,291 @@ function refreshRichDiagramOleViewerSource(block, diagram, fallbackSourceUrl, ac
   block.dataset.diagramOleSourceRequestKey = requestKey;
   diagramOleViewerSourceUrl(diagram).then(viewerSourceUrl => {
     if (!block.isConnected || block.dataset.diagramOleSourceRequestKey !== requestKey) return;
-    const image = block.querySelector("[data-diagram-ole-surface] img");
-    if (!image || !viewerSourceUrl || image.getAttribute("src") === viewerSourceUrl) return;
-    image.setAttribute("src", viewerSourceUrl);
+    const surface = block.querySelector("[data-diagram-ole-surface]");
+    const media = surface?.querySelector("[data-diagram-ole-media], img, svg");
+    if (!surface || !media || !viewerSourceUrl || media.dataset.diagramOleSourceKey === requestKey) return;
+
+    const svgMarkup = decodeDiagramOleSvgDataUrl(viewerSourceUrl);
+    if (svgMarkup) {
+      const parsed = new DOMParser().parseFromString(svgMarkup, "image/svg+xml");
+      if (!parsed.querySelector("parsererror") && parsed.documentElement?.localName === "svg") {
+        const svg = document.importNode(parsed.documentElement, true);
+        svg.setAttribute("data-diagram-ole-media", "true");
+        svg.dataset.diagramOleSourceKey = requestKey;
+        media.replaceWith(svg);
+        bindRichDiagramOleFieldMappingInteractions(svg, parseAnnotationSvg(svgMarkup));
+        block.dispatchEvent(new CustomEvent("diagram-ole-source-ready"));
+        return;
+      }
+    }
+
+    let image = media;
+    if (!image.matches("img")) {
+      image = document.createElement("img");
+      image.setAttribute("alt", activeTab?.title || diagram?.title || "Diagram");
+      image.setAttribute("draggable", "false");
+      image.setAttribute("data-diagram-ole-media", "true");
+      media.replaceWith(image);
+    }
+    image.dataset.diagramOleSourceKey = requestKey;
+    if (image.getAttribute("src") !== viewerSourceUrl) image.setAttribute("src", viewerSourceUrl);
   });
+}
+
+function bindRichDiagramOleFieldMappingInteractions(svg, diagramState) {
+  if (!svg || svg.dataset.diagramOleFieldMappingBound === "true") return;
+  svg.dataset.diagramOleFieldMappingBound = diagramState?.objects?.length ? "true" : "missing-state";
+  if (!diagramState?.objects?.length) return;
+  const cellSelector = "[data-annotation-field-mapping-cell]";
+  let hoveredCell = null;
+  let pinnedCell = null;
+
+  const clearRenderedAttention = () => {
+    svg.querySelectorAll(
+      "[data-annotation-field-mapping-attention-highlight], [data-annotation-field-mapping-attention-arrow]"
+    ).forEach(element => element.remove());
+    svg.querySelectorAll("[data-annotation-field-mapping-row].is-pinned")
+      .forEach(element => element.classList.remove("is-pinned"));
+  };
+
+  const renderAttention = cell => {
+    clearRenderedAttention();
+    if (!cell) return;
+    const row = cell.closest("[data-annotation-field-mapping-row]");
+    row?.classList.add("is-pinned");
+    const targets = richDiagramOleFieldMappingTargets(diagramState, cell);
+    const highlight = annotationFieldMappingAttentionHighlightSvg(diagramState, targets.ids, 1);
+    if (highlight) svg.insertAdjacentHTML("beforeend", highlight);
+    const arrows = richDiagramOleFieldMappingAttentionArrows(svg, cell, targets);
+    if (arrows) svg.insertAdjacentHTML("beforeend", arrows);
+  };
+
+  svg.addEventListener("pointermove", event => {
+    const cell = event.target.closest?.(cellSelector);
+    if (cell === hoveredCell) return;
+    hoveredCell = cell && svg.contains(cell) ? cell : null;
+    renderAttention(hoveredCell || pinnedCell);
+  });
+  svg.addEventListener("pointerleave", () => {
+    hoveredCell = null;
+    renderAttention(pinnedCell);
+  });
+  svg.addEventListener("click", event => {
+    const cell = event.target.closest?.(cellSelector);
+    if (!cell || !svg.contains(cell)) {
+      pinnedCell = null;
+      renderAttention(null);
+      return;
+    }
+    event.preventDefault();
+    event.stopPropagation();
+    pinnedCell = cell;
+    renderAttention(cell);
+    cell.focus?.({ preventScroll: true });
+  });
+  svg.addEventListener("keydown", event => {
+    const cell = event.target.closest?.(cellSelector);
+    if (cell && ["Enter", " "].includes(event.key)) {
+      event.preventDefault();
+      pinnedCell = cell;
+      renderAttention(cell);
+      return;
+    }
+    if (event.key === "Escape" && pinnedCell) {
+      event.preventDefault();
+      pinnedCell = null;
+      renderAttention(null);
+    }
+  });
+}
+
+function richDiagramOleFieldMappingTargets(diagramState, cell) {
+  const fieldRectangleId = String(cell?.dataset?.annotationFieldRectangleId || "");
+  const fieldRectangle = diagramState.objects.find(object =>
+    object?.id === fieldRectangleId
+      && object?.type === "entity"
+      && object?.entityKind === "field-rectangle"
+  ) || null;
+  const ids = new Set();
+  let databaseEntity = null;
+  let databaseField = null;
+  if (!fieldRectangle) return { fieldRectangle, databaseEntity, databaseField, ids };
+
+  ids.add(fieldRectangle.id);
+  richDiagramOleEntityRelationships(diagramState)
+    .filter(relationship =>
+      relationship.source?.id === fieldRectangle.id
+        || relationship.target?.id === fieldRectangle.id
+    )
+    .forEach(relationship => {
+      ids.add(relationship.id);
+      const entity = relationship.source?.id === fieldRectangle.id
+        ? relationship.target
+        : relationship.source;
+      const field = relationship.source?.id === fieldRectangle.id
+        ? relationship.targetField
+        : relationship.sourceField;
+      if (entity?.entityKind !== "field-rectangle") {
+        ids.add(entity.id);
+        if (!databaseEntity) {
+          databaseEntity = entity;
+          databaseField = field || null;
+        }
+      }
+    });
+
+  return { fieldRectangle, databaseEntity, databaseField, ids };
+}
+
+function richDiagramOleEntityRelationships(diagramState) {
+  const entities = diagramState.objects.filter(object => object?.type === "entity" && object.visible !== false);
+  return entities.flatMap(source => (source.foreignKeys || []).map(foreignKey => {
+    const sourceField = source.fields?.find(field => (foreignKey.columns || [])
+      .some(column => String(column || "").toLowerCase() === String(field?.name || "").toLowerCase()));
+    if (!annotationEntityFieldSupportsMapping(sourceField)) return null;
+    const target = entities.find(candidate =>
+      String(candidate.entityName || "").toLowerCase() === String(foreignKey.referencedTable || "").toLowerCase()
+        && (!foreignKey.referencedSchema
+          || String(candidate.entitySchema || "").toLowerCase() === String(foreignKey.referencedSchema || "").toLowerCase())
+    );
+    if (!target || (target === source && source.showSelfRelationships !== true)) return null;
+    const targetField = target.fields?.find(field => (foreignKey.referencedColumns || [])
+      .some(column => String(column || "").toLowerCase() === String(field?.name || "").toLowerCase())) || null;
+    const sourceVisible = annotationEntityVisibleFields(source)
+      .some(field => String(field?.name || "").toLowerCase() === String(sourceField?.name || "").toLowerCase());
+    const targetVisible = annotationEntityVisibleFields(target)
+      .some(field => String(field?.name || "").toLowerCase() === String(targetField?.name || "").toLowerCase());
+    if (!targetField || !sourceVisible || !targetVisible) return null;
+    const relationship = { source, sourceField, target, targetField, foreignKey };
+    return {
+      ...relationship,
+      id: richDiagramOleRelationshipId(relationship)
+    };
+  }).filter(Boolean));
+}
+
+function richDiagramOleRelationshipId(relationship) {
+  const parts = [
+    relationship.source?.id,
+    ...(relationship.foreignKey?.columns || []),
+    relationship.target?.id,
+    ...(relationship.foreignKey?.referencedColumns || []),
+    relationship.foreignKey?.name || ""
+  ].map(value => encodeURIComponent(String(value || "").toLocaleLowerCase()));
+  return `entity-relationship:${parts.join(":")}`;
+}
+
+function richDiagramOleFieldMappingAttentionArrows(svg, cell, targets) {
+  const uiCell = richDiagramOleFieldMappingCellForKind(svg, cell, "ui") || cell;
+  const databaseCell = richDiagramOleFieldMappingCellForKind(svg, cell, "database") || cell;
+  const fieldBounds = richDiagramOleObjectBounds(targets.fieldRectangle);
+  const databasePoint = annotationEntityFieldLabelPoint(targets.databaseEntity, targets.databaseField);
+  const databaseBounds = richDiagramOleObjectBounds(targets.databaseEntity);
+  return [
+    richDiagramOleAttentionArrowToBounds(richDiagramOleFieldMappingCellBounds(uiCell), fieldBounds),
+    databasePoint
+      ? richDiagramOleAttentionArrowToPoint(richDiagramOleFieldMappingCellBounds(databaseCell), databasePoint)
+      : richDiagramOleAttentionArrowToBounds(richDiagramOleFieldMappingCellBounds(databaseCell), databaseBounds)
+  ].filter(Boolean).join("");
+}
+
+function richDiagramOleFieldMappingCellForKind(svg, cell, kind) {
+  if (String(cell?.dataset?.annotationFieldMappingCellKind || "ui") === kind) return cell;
+  const key = String(cell?.dataset?.annotationFieldMappingRowKey || "").replace(/:(ui|database)$/, `:${kind}`);
+  return key
+    ? svg.querySelector(`[data-annotation-field-mapping-row-key="${CSS.escape(key)}"]`)
+    : null;
+}
+
+function richDiagramOleFieldMappingCellBounds(cell) {
+  return {
+    x: Number(cell?.dataset?.annotationFieldMappingCellX) || 0,
+    y: Number(cell?.dataset?.annotationFieldMappingCellY) || 0,
+    width: Math.max(1, Number(cell?.dataset?.annotationFieldMappingCellWidth) || 1),
+    height: Math.max(1, Number(cell?.dataset?.annotationFieldMappingCellHeight) || 1)
+  };
+}
+
+function richDiagramOleObjectBounds(object) {
+  if (!object) return null;
+  return {
+    x: Number(object.x) || 0,
+    y: Number(object.y) || 0,
+    width: Math.max(1, Number(object.width) || 1),
+    height: Math.max(1, Number(object.height) || 1)
+  };
+}
+
+function richDiagramOleBoundsCenter(bounds) {
+  return {
+    x: bounds.x + (bounds.width / 2),
+    y: bounds.y + (bounds.height / 2)
+  };
+}
+
+function richDiagramOleBoundsEdgePointToward(bounds, target) {
+  const center = richDiagramOleBoundsCenter(bounds);
+  const halfWidth = Math.max(0.5, bounds.width / 2);
+  const halfHeight = Math.max(0.5, bounds.height / 2);
+  const dx = target.x - center.x;
+  const dy = target.y - center.y;
+  if (Math.abs(dx) < 0.001 && Math.abs(dy) < 0.001) return center;
+  if (Math.abs(dx) * halfHeight > Math.abs(dy) * halfWidth) {
+    const scale = halfWidth / Math.max(0.001, Math.abs(dx));
+    return {
+      x: center.x + (Math.sign(dx) * halfWidth),
+      y: center.y + (dy * scale)
+    };
+  }
+  const scale = halfHeight / Math.max(0.001, Math.abs(dy));
+  return {
+    x: center.x + (dx * scale),
+    y: center.y + (Math.sign(dy) * halfHeight)
+  };
+}
+
+function richDiagramOleAttentionArrowToBounds(sourceBounds, targetBounds) {
+  if (!sourceBounds || !targetBounds) return "";
+  const targetCenter = richDiagramOleBoundsCenter(targetBounds);
+  const start = richDiagramOleBoundsEdgePointToward(sourceBounds, targetCenter);
+  const end = richDiagramOleBoundsEdgePointToward(targetBounds, start);
+  return richDiagramOleAttentionArrowSvg(start, end);
+}
+
+function richDiagramOleAttentionArrowToPoint(sourceBounds, targetPoint) {
+  if (!sourceBounds || !targetPoint) return "";
+  const start = richDiagramOleBoundsEdgePointToward(sourceBounds, targetPoint);
+  return richDiagramOleAttentionArrowSvg(start, targetPoint);
+}
+
+function richDiagramOleAttentionArrowSvg(start, end) {
+  const dx = end.x - start.x;
+  const dy = end.y - start.y;
+  const length = Math.hypot(dx, dy);
+  if (length < 0.001) return "";
+  const unitX = dx / length;
+  const unitY = dy / length;
+  const size = 12;
+  const base = {
+    x: end.x - (unitX * size),
+    y: end.y - (unitY * size)
+  };
+  const wing = size * 0.46;
+  const left = {
+    x: base.x + (-unitY * wing),
+    y: base.y + (unitX * wing)
+  };
+  const right = {
+    x: base.x - (-unitY * wing),
+    y: base.y - (unitX * wing)
+  };
+  const number = value => String(Math.round(Number(value || 0) * 1000) / 1000);
+  return `
+    <g class="image-annotation-field-mapping-attention-arrow" data-annotation-field-mapping-attention-arrow="true" pointer-events="none">
+      <line class="image-annotation-field-mapping-attention-arrow-line" x1="${number(start.x)}" y1="${number(start.y)}" x2="${number(base.x)}" y2="${number(base.y)}" pointer-events="none"></line>
+      <polygon class="image-annotation-field-mapping-attention-arrow-head" points="${number(end.x)},${number(end.y)} ${number(left.x)},${number(left.y)} ${number(right.x)},${number(right.y)}" pointer-events="none"></polygon>
+    </g>
+  `;
 }
 
 function bindRichDiagramOleViewer(block, diagram, activeTab, tabs) {
@@ -5641,11 +5928,12 @@ function bindRichDiagramOleViewer(block, diagram, activeTab, tabs) {
   };
   const fitView = (options = {}) => {
     if (!surface || !diagram) return;
-    const image = surface.querySelector("img");
+    const media = richDiagramOleMedia(surface);
+    const mediaSize = richDiagramOleMediaSize(media);
     const viewportWidth = Math.round(viewport.clientWidth || 0);
     const viewportHeight = Math.round(viewport.clientHeight || 0);
-    const imageWidth = Math.max(1, image?.naturalWidth || image?.clientWidth || 0);
-    const imageHeight = Math.max(1, image?.naturalHeight || image?.clientHeight || 0);
+    const imageWidth = Math.max(1, mediaSize.width);
+    const imageHeight = Math.max(1, mediaSize.height);
     if (!richDiagramOleViewportHasLayout(viewport) || !viewportWidth || !viewportHeight || !imageWidth || !imageHeight) return;
 
     const zoom = clampZoom(Math.min(viewportWidth / imageWidth, viewportHeight / imageHeight));
@@ -5856,6 +6144,7 @@ function bindRichDiagramOleViewer(block, diagram, activeTab, tabs) {
   });
   viewport.addEventListener("pointerdown", event => {
     if ((event.button !== 0 && event.button !== 1) || event.target.closest("button")) return;
+    if (event.target.closest?.("[data-annotation-field-mapping-cell]")) return;
     if (richDiagramOlePointerIsInResizeCorner(block, event)) return;
     event.preventDefault();
     event.stopPropagation();
@@ -5874,7 +6163,7 @@ function bindRichDiagramOleViewer(block, diagram, activeTab, tabs) {
     event.preventDefault();
     view.x = drag.viewX + event.clientX - drag.startX;
     view.y = drag.viewY + event.clientY - drag.startY;
-    render({ remember: true });
+    render();
   });
   ["pointerup", "pointercancel"].forEach(eventName => {
     viewport.addEventListener(eventName, event => {
@@ -5895,14 +6184,21 @@ function bindRichDiagramOleViewer(block, diagram, activeTab, tabs) {
 
   if (!diagram) return;
 
+  block.addEventListener("diagram-ole-source-ready", () => {
+    if (hasStoredView) render();
+    else fitView();
+  });
+
   if (hasStoredView) {
     render();
-    const image = surface.querySelector("img");
-    if (image && !richDiagramOleImageHasSize(image)) image.addEventListener("load", () => render(), { once: true });
+    const media = richDiagramOleMedia(surface);
+    if (media?.matches("img") && !richDiagramOleMediaHasSize(media)) {
+      media.addEventListener("load", () => render(), { once: true });
+    }
   } else {
-    const image = surface.querySelector("img");
-    if (image?.complete) fitView();
-    else image?.addEventListener("load", () => fitView(), { once: true });
+    const media = richDiagramOleMedia(surface);
+    if (!media?.matches("img") || media.complete) fitView();
+    else media.addEventListener("load", () => fitView(), { once: true });
   }
 }
 
@@ -6156,11 +6452,11 @@ function deleteRichDiagramOleBlock(editor, block) {
 }
 
 function clampRichDiagramOleViewport(block, viewport, surface, view) {
-  const image = surface.querySelector("img");
+  const mediaSize = richDiagramOleMediaSize(richDiagramOleMedia(surface));
   const viewportWidth = Math.round(viewport.clientWidth || 0);
   const viewportHeight = Math.round(viewport.clientHeight || 0);
-  const imageWidth = Math.max(0, image?.naturalWidth || image?.clientWidth || 0);
-  const imageHeight = Math.max(0, image?.naturalHeight || image?.clientHeight || 0);
+  const imageWidth = Math.max(0, mediaSize.width);
+  const imageHeight = Math.max(0, mediaSize.height);
   if (!richDiagramOleViewportHasLayout(viewport) || !viewportWidth || !viewportHeight || !imageWidth || !imageHeight) return false;
 
   const zoom = Math.min(RICH_DIAGRAM_OLE_MAX_ZOOM, Math.max(RICH_DIAGRAM_OLE_MIN_ZOOM, Number(view.zoom || 1)));
@@ -6174,8 +6470,28 @@ function clampRichDiagramOleViewport(block, viewport, surface, view) {
   return true;
 }
 
-function richDiagramOleImageHasSize(image) {
-  return Boolean(image && (image.naturalWidth || image.clientWidth) && (image.naturalHeight || image.clientHeight));
+function richDiagramOleMedia(surface) {
+  return surface?.querySelector?.("[data-diagram-ole-media], img, svg") || null;
+}
+
+function richDiagramOleMediaSize(media) {
+  if (!media) return { width: 0, height: 0 };
+  if (media.matches?.("svg")) {
+    const viewBox = media.viewBox?.baseVal;
+    return {
+      width: Math.max(0, Number(media.getAttribute("width")) || viewBox?.width || media.clientWidth || 0),
+      height: Math.max(0, Number(media.getAttribute("height")) || viewBox?.height || media.clientHeight || 0)
+    };
+  }
+  return {
+    width: Math.max(0, media.naturalWidth || media.clientWidth || 0),
+    height: Math.max(0, media.naturalHeight || media.clientHeight || 0)
+  };
+}
+
+function richDiagramOleMediaHasSize(media) {
+  const size = richDiagramOleMediaSize(media);
+  return Boolean(size.width && size.height);
 }
 
 function richDiagramOleViewportHasLayout(viewport) {

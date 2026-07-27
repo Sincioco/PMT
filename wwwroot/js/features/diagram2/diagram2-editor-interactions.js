@@ -291,6 +291,7 @@ export function bindDiagram2EditorInteractions(options = {}) {
       return;
     }
     if (command && key === "v") {
+      if (typeof options.onPasteEvent === "function") return;
       event.preventDefault();
       void options.onPaste?.();
       return;
@@ -335,6 +336,13 @@ export function bindDiagram2EditorInteractions(options = {}) {
       return null;
     });
   }, { signal });
+
+  if (typeof options.onPasteEvent === "function") {
+    eventWindow.addEventListener("paste", event => {
+      if (options.isActive?.() === false || editableEventTarget(event.target)) return;
+      void options.onPasteEvent(event);
+    }, { signal });
+  }
 
   function startPan(event) {
     event.preventDefault();

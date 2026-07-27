@@ -57,6 +57,8 @@ test("Diagram PNG rasterizer copies rich text without tainting the canvas", asyn
 
 test("Diagram 2 top navigation separates read-only document mode from Edit mode", async ({ page }) => {
   const browserErrors = [];
+  const clipboardImageBytes = await readFile(new URL("../../wwwroot/assets/pmt-logo-full.png", import.meta.url));
+  const clipboardImageBase64 = clipboardImageBytes.toString("base64");
   page.on("console", message => {
     if (message.type() === "error" && !message.text().includes("status of 401")) browserErrors.push(message.text());
   });
@@ -87,6 +89,16 @@ test("Diagram 2 top navigation separates read-only document mode from Edit mode"
     totalCount: 0,
     totalByteLength: 0
   })));
+  let pastedImageUploadCount = 0;
+  await page.route("**/api/uploads/richtext", route => {
+    pastedImageUploadCount += 1;
+    return route.fulfill(jsonResponse({ url: "/uploads/diagram2-clipboard.png" }));
+  });
+  await page.route("**/uploads/diagram2-clipboard.png", route => route.fulfill({
+    status: 200,
+    contentType: "image/png",
+    body: clipboardImageBytes
+  }));
 
   await page.goto("/");
   await page.locator("#loginName").fill("Sin");
@@ -252,6 +264,8 @@ test("Diagram 2 top navigation separates read-only document mode from Edit mode"
   await assertDiagram2ToolbarObjectInsertion(page);
   await assertDiagram2RichTextEditorParity(page);
   await assertDiagram2ObjectContextMenuParity(page);
+  await assertDiagram2ClipboardImagePaste(page, clipboardImageBase64);
+  expect(pastedImageUploadCount).toBe(1);
 
   await page.evaluate(() => {
     window.__diagram2StableSvg = document.querySelector("[data-diagram2-svg]");
@@ -1689,6 +1703,48 @@ async function assertFreshPngClipboard(page) {
       && bitmap.width > 0
       && bitmap.height > 0;
   })).toBe(true);
+}
+
+async function assertDiagram2ClipboardImagePaste(page, clipboardImageBase64) {
+  const beforeCount = await page.evaluate(() =>
+    window.__pmtDiagram2EditorCore.currentState().objects
+      .filter(object => object.type === "embedded-image").length
+  );
+  const prevented = await page.evaluate(imageBase64 => {
+    const png = Uint8Array.from(
+      atob(imageBase64),
+      character => character.charCodeAt(0)
+    );
+    const file = new File([png], "Clipboard image.png", { type: "image/png" });
+    const clipboardData = new DataTransfer();
+    clipboardData.items.add(file);
+    const event = new Event("paste", { bubbles: true, cancelable: true });
+    Object.defineProperty(event, "clipboardData", { value: clipboardData });
+    document.querySelector("[data-diagram2-viewer-canvas]").dispatchEvent(event);
+    return event.defaultPrevented;
+  }, clipboardImageBase64);
+
+  expect(prevented).toBe(true);
+  await expect.poll(() => page.evaluate(() =>
+    window.__pmtDiagram2EditorCore.currentState().objects
+      .filter(object => object.type === "embedded-image").length
+  )).toBe(beforeCount + 1);
+  const pastedImage = await page.evaluate(() =>
+    window.__pmtDiagram2EditorCore.currentState().objects
+      .find(object => object.type === "embedded-image" && object.name === "Clipboard image.png")
+  );
+  expect(pastedImage).toMatchObject({
+    type: "embedded-image",
+    name: "Clipboard image.png",
+    source: "/uploads/diagram2-clipboard.png",
+    width: 1920,
+    height: 1080
+  });
+  await page.locator("[data-action='undo-diagram2']").click();
+  await expect.poll(() => page.evaluate(() =>
+    window.__pmtDiagram2EditorCore.currentState().objects
+      .filter(object => object.type === "embedded-image").length
+  )).toBe(beforeCount);
 }
 
 async function assertPngDownload(download) {
