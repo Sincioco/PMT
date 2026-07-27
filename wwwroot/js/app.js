@@ -14,7 +14,7 @@ import {
   parseAnnotationSvg,
   openImageAnnotationDialog
 } from "./components/image-annotation.js?v=20260728-phase3-closeout-v1";
-import { createWhatsNew } from "./components/whats-new.js?v=release-notes-2026-07-26-day-38-07b177344021";
+import { createWhatsNew } from "./components/whats-new.js?v=release-notes-2026-07-26-day-38-981a6afcc0bd";
 import {
   htmlWithoutUserMentionMarkup,
   initializeUserMentions
@@ -77,7 +77,7 @@ import {
 import { createBacklogFeature } from "./features/backlog/backlog.js?v=20260720-work-item-export-images-v4";
 import { createBoardFeature } from "./features/board/board.js?v=20260722-rich-entity-mentions-v1";
 import { createBugsFeature } from "./features/bugs/bugs.js?v=20260724-day36-v3";
-import { createDashboardFeature } from "./features/dashboard/dashboard.js?v=release-notes-2026-07-26-day-38-07b177344021";
+import { createDashboardFeature } from "./features/dashboard/dashboard.js?v=release-notes-2026-07-26-day-38-981a6afcc0bd";
 import { createDiagramFeature } from "./features/diagram/diagram.js?v=20260728-diagram-png-raster-v1";
 import { createDiagram2Feature } from "./features/diagram2/diagram2.js?v=20260728-phase3-closeout-v1";
 import { openDiagram2RteAnnotationHost } from "./features/diagram2/diagram2-rte-host-adapter.js?v=20260728-phase3-closeout-v1";
@@ -86,11 +86,11 @@ import {
   createGanttFeature,
   currentSprintForProject,
   ganttStartDate
-} from "./features/gantt/gantt.js?v=release-notes-2026-07-26-day-38-07b177344021";
+} from "./features/gantt/gantt.js?v=release-notes-2026-07-26-day-38-981a6afcc0bd";
 import { createInvitationsFeature } from "./features/invitations/invitations.js?v=20260722-auth-flyby-v1";
 import { createProjectsFeature } from "./features/projects/projects.js?v=20260719-day32-rte-diagram";
-import { createReleaseNotesFeature } from "./features/release-notes/release-notes.js?v=release-notes-2026-07-26-day-38-07b177344021";
-import { createRoadMapFeature } from "./features/roadmap/roadmap.js?v=release-notes-2026-07-26-day-38-07b177344021";
+import { createReleaseNotesFeature } from "./features/release-notes/release-notes.js?v=release-notes-2026-07-26-day-38-981a6afcc0bd";
+import { createRoadMapFeature } from "./features/roadmap/roadmap.js?v=release-notes-2026-07-26-day-38-981a6afcc0bd";
 import { createLogFeature } from "./features/personal-log/log.js?v=20260722-rte-toggle-state-v1";
 import { createScrumFeature } from "./features/scrum/scrum.js?v=20260722-ole-viewport-v1";
 import { createSettingsFeature } from "./features/settings/settings.js?v=20260726-diagram2-nav-icon-v1";

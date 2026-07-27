@@ -2,13 +2,13 @@
 export const releaseNotes = Object.freeze([
   {
     "id": "2026-07-26-day-38",
-    "version": "07b177344021",
-    "seenToken": "2026-07-26-day-38@07b177344021",
+    "version": "981a6afcc0bd",
+    "seenToken": "2026-07-26-day-38@981a6afcc0bd",
     "date": "2026-07-26",
     "day": 38,
     "title": "External Sharing, Suggestions, Bug Export Metadata, and UI to Database Field Mapping",
     "illustration": {
-      "url": "/assets/release-notes/2026-07-26-day-38.svg?v=07b177344021",
+      "url": "/assets/release-notes/2026-07-26-day-38.svg?v=981a6afcc0bd",
       "alt": "Product update announcement illustration."
     },
     "sourceFile": "2026-07-26 - Requirements - Day 38.txt",
@@ -34,8 +34,8 @@ export const releaseNotes = Object.freeze([
       {
         "title": "UI to Database Field Mapping",
         "items": [
-          "PMT can now combine Diagramming and ERD capabilities into UI to Database Field Mapping, connecting screenshots, field rectangles, entities, and database fields in one Diagram workflow.",
-          "Let the IT industry rejoice: a new tool and a new concept, made and conceived by AI, Actual Intelligence, of Sin."
+          "PMT can now combine its Diagramming prowess with its ERD capabilities to produce UI to Database Field Mapping, a revolutionary feature that does not exist anywhere else.",
+          "Let the whole IT industry rejoice! A new tool. A new concept, made and conceived by AI (Actual Intelligence) of Sin."
         ]
       }
     ],
