@@ -193,9 +193,11 @@ test("Diagram 2 download actions expose Diagram 1-style SVG and PNG options", as
   assert.match(source, /Background/);
   assert.match(source, /Margins/);
   assert.match(svgExportSource, /chooseDiagram2SvgDownloadOptions\(\)/);
-  assert.match(svgExportSource, /prepareDiagram2SvgForDownload\(buildAnnotationSvg\(stateForExport\), options\)/);
+  assert.match(svgExportSource, /const portableState = await buildPortableAnnotationState\(stateForExport\)/);
+  assert.match(svgExportSource, /prepareDiagram2SvgForDownload\(buildAnnotationSvg\(portableState\), options\)/);
   assert.match(pngExportSource, /chooseDiagram2PngDownloadOptions\(\)/);
-  assert.match(pngExportSource, /prepareDiagram2SvgForDownload\(buildAnnotationSvg\(stateForExport\), options\)/);
+  assert.match(pngExportSource, /const portableState = await buildPortableAnnotationState\(stateForExport\)/);
+  assert.match(pngExportSource, /prepareDiagram2SvgForDownload\(buildAnnotationSvg\(portableState\), options\)/);
 });
 
 test("Diagram 2 import probe parses the existing PMT Diagram fixture through the shared codec", async () => {

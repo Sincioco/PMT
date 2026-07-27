@@ -6,7 +6,7 @@ import {
   buildPortableAnnotationSelectionSvg,
   copyAnnotationPngToClipboard,
   copyAnnotationSvgToClipboard
-} from "../../components/image-annotation.js?v=20260727-diagram2-phase3-final-v2";
+} from "../../components/image-annotation.js?v=20260727-diagram-clipboard-export-v1";
 import { escapeAttr, escapeHtml, normalizeRichHtml } from "../../shared/text-and-links.js?v=20260722-rte-toggle-state-v1";
 
 const diagram2LastColorsStorageKey = "pmt-rich-last-colors";

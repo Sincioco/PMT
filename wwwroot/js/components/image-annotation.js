@@ -9598,17 +9598,6 @@ function downloadAnnotationTextFile(contents, fileName, type = "text/plain") {
   window.setTimeout(() => URL.revokeObjectURL(url), 0);
 }
 
-function downloadAnnotationBlobFile(blob, fileName) {
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = fileName;
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  window.setTimeout(() => URL.revokeObjectURL(url), 0);
-}
-
 function annotationFieldMappingTableExcelHtml(table) {
   const style = normalizeAnnotationFieldMappingTableStyle(table);
   const rows = Array.isArray(table?.rows) ? table.rows : [];
@@ -9659,15 +9648,45 @@ function annotationEntityRelationshipStylePreviewSvg(styleInput, width, height) 
   return `<g class="image-annotation-entity-relationships"><path class="image-annotation-entity-relationship-path" d="M ${formatNumber(start.x)} ${formatNumber(start.y)} H ${formatNumber(pathEnd)}" fill="none" stroke="${escapeXmlAttr(style.stroke)}" stroke-width="${formatNumber(style.strokeWidth)}" opacity="${formatNumber(style.opacity)}" stroke-linecap="round"></path>${annotationEntityRelationshipMarkers(start, end, { x: 1, y: 0 }, { x: 1, y: 0 }, "", style)}</g>`;
 }
 
+export function cleanAnnotationSvgForExternalUse(svgInput) {
+  const source = String(svgInput || "");
+  if (typeof DOMParser === "undefined" || typeof XMLSerializer === "undefined") {
+    return source;
+  }
+
+  const parsed = new DOMParser().parseFromString(source, "image/svg+xml");
+  const svg = parsed.documentElement;
+  if (!svg || svg.nodeName.toLowerCase() !== "svg" || parsed.querySelector("parsererror")) {
+    return source;
+  }
+
+  svg.querySelectorAll("metadata, title, desc").forEach(element => element.remove());
+  [svg, ...svg.querySelectorAll("*")].forEach(element => {
+    [...element.attributes].forEach(attribute => {
+      const name = attribute.name.toLowerCase();
+      if (name.startsWith("data-")
+        || name.startsWith("aria-")
+        || name === "role"
+        || name === "tabindex"
+        || name === "focusable") {
+        element.removeAttribute(attribute.name);
+      }
+    });
+  });
+  if (!svg.getAttribute("xmlns")) svg.setAttribute("xmlns", svgNamespace);
+  return new XMLSerializer().serializeToString(svg);
+}
+
 export async function copyAnnotationSvgToClipboard(svg) {
+  const cleanSvg = cleanAnnotationSvgForExternalUse(svg);
   try {
     if (navigator.clipboard?.write && typeof ClipboardItem !== "undefined") {
       const clipboardData = {
-        "text/plain": new Blob([svg], { type: "text/plain" }),
-        "text/html": new Blob([svg], { type: "text/html" })
+        "text/plain": new Blob([cleanSvg], { type: "text/plain" }),
+        "text/html": new Blob([cleanSvg], { type: "text/html" })
       };
       if (typeof ClipboardItem.supports === "function" && ClipboardItem.supports("image/svg+xml")) {
-        clipboardData["image/svg+xml"] = new Blob([svg], { type: "image/svg+xml" });
+        clipboardData["image/svg+xml"] = new Blob([cleanSvg], { type: "image/svg+xml" });
       }
       await navigator.clipboard.write([new ClipboardItem(clipboardData)]);
       return;
@@ -9676,33 +9695,27 @@ export async function copyAnnotationSvgToClipboard(svg) {
     // Fall through to the plain SVG source copy supported by older browsers.
   }
 
-  if (await copyTextToClipboard(svg)) return;
+  if (await copyTextToClipboard(cleanSvg)) return;
   throw new Error("Clipboard access is unavailable. The SVG was not copied.");
 }
 
-export async function copyAnnotationPngToClipboard(selectionExport, options = {}) {
-  const pngBlob = annotationSelectionPngBlob(selectionExport);
-  const downloadFileName = String(options.downloadFileName || "").trim();
-  const downloadFallback = async () => {
-    const blob = await pngBlob;
-    downloadAnnotationBlobFile(blob, downloadFileName);
-    return { copied: false, downloaded: true };
-  };
+export async function copyAnnotationPngToClipboard(selectionExport) {
   if (!navigator.clipboard?.write || typeof ClipboardItem === "undefined") {
-    if (downloadFileName) return downloadFallback();
     throw new Error("This browser does not support copying images to the clipboard.");
+  }
+  let pngBlob;
+  try {
+    pngBlob = await annotationSelectionPngBlob(selectionExport);
+  } catch (error) {
+    throw new Error(error?.message || "The image could not be converted to PNG.");
   }
   try {
     await navigator.clipboard.write([new ClipboardItem({ "image/png": pngBlob })]);
-    return { copied: true, downloaded: false };
-  } catch {
-    try {
-      await pngBlob;
-    } catch (error) {
-      throw error;
-    }
-    if (downloadFileName) return downloadFallback();
-    throw new Error("Clipboard image access was denied. The image was not copied.");
+  } catch (error) {
+    const detail = [error?.name, error?.message].filter(Boolean).join(": ");
+    throw new Error(detail
+      ? `Clipboard image access was denied. ${detail}`
+      : "Clipboard image access was denied. The image was not copied.");
   }
 }
 

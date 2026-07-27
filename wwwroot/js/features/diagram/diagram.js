@@ -12,6 +12,7 @@ import {
   buildAnnotationSvg,
   buildPortableAnnotationState,
   buildPortableAnnotationSvg,
+  cleanAnnotationSvgForExternalUse,
   annotationEntityFieldSupportsMapping,
   annotationEntityVisibleFields,
   copyAnnotationPngToClipboard,
@@ -23,7 +24,7 @@ import {
   setAnnotationEntityCollapsedState,
   setAnnotationEntityDataTypeVisibility,
   zoomAnnotationAtPoint
-} from "../../components/image-annotation.js?v=20260727-diagram-png-fallback-v2";
+} from "../../components/image-annotation.js?v=20260727-diagram-clipboard-export-v1";
 import { openPublicLinkDialog } from "../../components/public-links.js?v=20260725-day36-v4";
 import {
   checkedFilterValues,
@@ -735,7 +736,7 @@ export function createDiagramFeature({
     }
 
     if (!svg.getAttribute("xmlns")) svg.setAttribute("xmlns", "http://www.w3.org/2000/svg");
-    return new XMLSerializer().serializeToString(svg);
+    return cleanAnnotationSvgForExternalUse(new XMLSerializer().serializeToString(svg));
   }
 
   function diagramDownloadMargin(value) {
@@ -1617,9 +1618,9 @@ export function createDiagramFeature({
         const options = format === "png" ? await chooseDiagramPngCopyOptions() : await chooseDiagramSvgCopyOptions();
         if (!options) return;
         try {
-          const document = diagramAllDocuments().find(item => item.id === documentId);
           let stateForCopy = readonlyState;
           if (!stateForCopy) {
+            const document = diagramAllDocuments().find(item => item.id === documentId);
             const source = diagramImage(document)?.source || "";
             stateForCopy = parseAnnotationSvg(decodeDiagramSvgDataUrl(source) || await loadDiagramSvgSource(source));
           }
@@ -1627,13 +1628,8 @@ export function createDiagramFeature({
           const portableState = await buildPortableAnnotationState(readonlyDisplayState(stateForCopy));
           const svg = prepareDiagramSvgForDownload(buildAnnotationSvg(portableState, readonlyVisibilityRenderOptions()), options);
           if (format === "png") {
-            const result = await copyAnnotationPngToClipboard(
-              { svg, ...annotationSvgClipboardMetrics(svg, portableState) },
-              { downloadFileName: `${safeFileName(document?.title)}.png` }
-            );
-            notify?.(result.downloaded
-              ? "The Diagram could not be copied. It was downloaded as PNG instead."
-              : "Diagram copied as PNG.");
+            await copyAnnotationPngToClipboard({ svg, ...annotationSvgClipboardMetrics(svg, portableState) });
+            notify?.("Diagram copied as PNG.");
           } else {
             await copyAnnotationSvgToClipboard(svg);
             notify?.("Diagram copied as SVG.");

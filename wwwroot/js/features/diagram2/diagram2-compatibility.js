@@ -1,6 +1,6 @@
 import {
   buildAnnotationSvg
-} from "../../components/image-annotation.js?v=20260726-annotation-rte-composition-v2";
+} from "../../components/image-annotation.js?v=20260727-diagram-clipboard-export-v1";
 import {
   canDiagramFeatureReadPmtDiagramFile,
   createDiagramSelectionClipboardPackage,
