@@ -72,23 +72,29 @@ test("Diagram editable copy and paste writes the shared selection clipboard pack
   const dialog = page.locator("dialog.image-annotation-dialog");
   const canvas = dialog.locator("[data-annotation-canvas]");
   const objects = canvas.locator(".image-annotation-object[data-annotation-object-id]");
+  const pressCanvasShortcut = key => canvas.dispatchEvent("keydown", {
+    key,
+    ctrlKey: true,
+    bubbles: true,
+    cancelable: true
+  });
 
   await expect(dialog).toBeVisible();
   await expect(objects).toHaveCount(1);
 
   await canvas.click({ position: { x: 20, y: 20 } });
-  await page.keyboard.press("Control+A");
+  await pressCanvasShortcut("a");
   await expect(dialog.locator("[data-annotation-selection-label]")).toHaveText("Rectangle");
 
-  await page.keyboard.press("Control+C");
+  await pressCanvasShortcut("c");
   await expect.poll(() => page.evaluate(() => window.__pmtClipboardWrites.at(-1) || "")).toContain("PMT_DIAGRAM_SELECTION_V1");
   await expect.poll(() => page.evaluate(() => window.__pmtClipboardWrites.at(-1) || "")).toContain('"format":"pmt-diagram-selection"');
 
-  await page.keyboard.press("Control+V");
+  await pressCanvasShortcut("v");
   await expect(objects).toHaveCount(2);
   await expect(dialog.locator("[data-annotation-selection-label]")).toHaveText("Rectangle");
 
-  await page.keyboard.press("Control+V");
+  await pressCanvasShortcut("v");
   await expect(objects).toHaveCount(3);
 });
 

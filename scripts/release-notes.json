@@ -1531,5 +1531,36 @@
         ]
       }
     ]
+  },
+  {
+    "day": 38,
+    "title": "External Sharing, Suggestions, Bug Export Metadata, and UI to Database Field Mapping",
+    "sections": [
+      {
+        "title": "External Sharing",
+        "items": [
+          "Share Documents and Diagrams with people outside PMT, even when they do not have a PMT login."
+        ]
+      },
+      {
+        "title": "Suggestions",
+        "items": [
+          "Use the new Suggestion feature to send PMT improvement ideas from inside the application."
+        ]
+      },
+      {
+        "title": "Bug Report Exports",
+        "items": [
+          "Export bug reports with the bug number, created by and created date/time, and updated by and updated date/time."
+        ]
+      },
+      {
+        "title": "UI to Database Field Mapping",
+        "items": [
+          "PMT can now combine Diagramming and ERD capabilities into UI to Database Field Mapping, connecting screenshots, field rectangles, entities, and database fields in one Diagram workflow.",
+          "Let the IT industry rejoice: a new tool and a new concept, made and conceived by AI, Actual Intelligence, of Sin."
+        ]
+      }
+    ]
   }
 ]

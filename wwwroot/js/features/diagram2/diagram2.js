@@ -14,8 +14,9 @@ import {
   buildPortableAnnotationState,
   cleanAnnotationSvgForExternalUse,
   copyAnnotationPngToClipboard,
-  copyAnnotationSvgToClipboard
-} from "../../components/image-annotation.js?v=20260727-diagram-clipboard-export-v1";
+  copyAnnotationSvgToClipboard,
+  annotationSvgToPngBlob
+} from "../../components/image-annotation.js?v=20260728-diagram-png-raster-v1";
 import { openPublicLinkDialog } from "../../components/public-links.js?v=20260725-day36-v4";
 import { sectionHead } from "../../components/sections.js?v=20260726-diagram2-nav-icon-v1";
 import { api } from "../../core/api.js?v=20260725-public-link-v1";
@@ -69,7 +70,7 @@ import {
   setDiagram2InspectorActiveTab,
   updateDiagram2ObjectTreeSelection,
   updateDiagram2ShellStatus
-} from "./diagram2-editor-shell.js?v=20260727-diagram-clipboard-export-v1";
+} from "./diagram2-editor-shell.js?v=20260728-diagram-png-raster-v1";
 import {
   createDiagram2Renderer,
   normalizeDiagram2CanonicalState
@@ -1890,7 +1891,7 @@ export function createDiagram2Feature({
       await diagram2Renderer?.whenIdle();
       const portableState = await buildPortableAnnotationState(stateForExport);
       const svg = prepareDiagram2SvgForDownload(buildAnnotationSvg(portableState), options);
-      const blob = await diagram2SvgToPngBlob(svg);
+      const blob = await annotationSvgToPngBlob({ svg, ...diagram2SvgMetrics(svg) });
       downloadBlobFile(blob, `${safeFileName(document.title)}.png`);
       notify?.("Diagram exported as PNG.");
       return true;
@@ -3279,37 +3280,6 @@ function diagram2SvgViewBoxBounds(svg) {
     width: Math.max(1, Number.parseFloat(svg.getAttribute("width") || "") || 1),
     height: Math.max(1, Number.parseFloat(svg.getAttribute("height") || "") || 1)
   };
-}
-
-async function diagram2SvgToPngBlob(svg) {
-  const metrics = diagram2SvgMetrics(svg);
-  const maximumDimension = 8192;
-  const scale = Math.min(1, maximumDimension / metrics.width, maximumDimension / metrics.height);
-  const outputWidth = Math.max(1, Math.ceil(metrics.width * scale));
-  const outputHeight = Math.max(1, Math.ceil(metrics.height * scale));
-  const url = URL.createObjectURL(new Blob([svg], { type: "image/svg+xml" }));
-  try {
-    const image = await new Promise((resolve, reject) => {
-      const element = new Image();
-      element.addEventListener("load", () => resolve(element), { once: true });
-      element.addEventListener("error", () => reject(new Error("Diagram 2 could not render the SVG as PNG.")), { once: true });
-      element.src = url;
-    });
-    const canvas = document.createElement("canvas");
-    canvas.width = outputWidth;
-    canvas.height = outputHeight;
-    const context = canvas.getContext("2d");
-    if (!context) throw new Error("Diagram 2 could not create the PNG canvas.");
-    context.drawImage(image, 0, 0, outputWidth, outputHeight);
-    return await new Promise((resolve, reject) => {
-      canvas.toBlob(blob => {
-        if (blob) resolve(blob);
-        else reject(new Error("Diagram 2 could not create the PNG file."));
-      }, "image/png");
-    });
-  } finally {
-    URL.revokeObjectURL(url);
-  }
 }
 
 function diagram2SvgMetrics(svgInput) {

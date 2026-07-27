@@ -17,6 +17,7 @@ import {
   annotationEntityVisibleFields,
   copyAnnotationPngToClipboard,
   copyAnnotationSvgToClipboard,
+  annotationSvgToPngBlob,
   openImageAnnotationDialog,
   parseAnnotationSvg,
   resolveAnnotationEntityOverlaps,
@@ -24,7 +25,7 @@ import {
   setAnnotationEntityCollapsedState,
   setAnnotationEntityDataTypeVisibility,
   zoomAnnotationAtPoint
-} from "../../components/image-annotation.js?v=20260727-diagram-clipboard-export-v1";
+} from "../../components/image-annotation.js?v=20260728-diagram-png-raster-v1";
 import { openPublicLinkDialog } from "../../components/public-links.js?v=20260725-day36-v4";
 import {
   checkedFilterValues,
@@ -593,7 +594,7 @@ export function createDiagramFeature({
     try {
       const sourceSvg = await diagramDownloadSvg(document, { portable: true });
       const pngSvg = prepareDiagramSvgForDownload(sourceSvg, options);
-      const pngBlob = await diagramSvgToPngBlob(pngSvg);
+      const pngBlob = await annotationSvgToPngBlob({ svg: pngSvg, ...annotationSvgClipboardMetrics(pngSvg) });
       downloadBlobFile(pngBlob, `${safeFileName(document.title)}.png`);
       notify?.("Diagram downloaded as PNG.");
     } catch (error) {
@@ -759,37 +760,6 @@ export function createDiagramFeature({
       width: Math.max(1, Number.parseFloat(svg.getAttribute("width") || "") || blankDiagramWidth),
       height: Math.max(1, Number.parseFloat(svg.getAttribute("height") || "") || blankDiagramHeight)
     };
-  }
-
-  async function diagramSvgToPngBlob(svg) {
-    const metrics = annotationSvgClipboardMetrics(svg);
-    const maximumDimension = 8192;
-    const scale = Math.min(1, maximumDimension / metrics.width, maximumDimension / metrics.height);
-    const outputWidth = Math.max(1, Math.ceil(metrics.width * scale));
-    const outputHeight = Math.max(1, Math.ceil(metrics.height * scale));
-    const url = URL.createObjectURL(new Blob([svg], { type: "image/svg+xml" }));
-    try {
-      const image = await new Promise((resolve, reject) => {
-        const element = new Image();
-        element.addEventListener("load", () => resolve(element), { once: true });
-        element.addEventListener("error", () => reject(new Error("The Diagram SVG could not be rendered as PNG.")), { once: true });
-        element.src = url;
-      });
-      const canvas = globalThis.document.createElement("canvas");
-      canvas.width = outputWidth;
-      canvas.height = outputHeight;
-      const context = canvas.getContext("2d");
-      if (!context) throw new Error("The Diagram SVG could not be rendered as PNG.");
-      context.drawImage(image, 0, 0, outputWidth, outputHeight);
-      return await new Promise((resolve, reject) => {
-        canvas.toBlob(blob => {
-          if (blob) resolve(blob);
-          else reject(new Error("The Diagram could not be converted to PNG."));
-        }, "image/png");
-      });
-    } finally {
-      URL.revokeObjectURL(url);
-    }
   }
 
   async function copyPublicDiagramLink(document) {

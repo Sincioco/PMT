@@ -9705,7 +9705,7 @@ export async function copyAnnotationPngToClipboard(selectionExport) {
   }
   let pngBlob;
   try {
-    pngBlob = await annotationSelectionPngBlob(selectionExport);
+    pngBlob = await annotationSvgToPngBlob(selectionExport);
   } catch (error) {
     throw new Error(error?.message || "The image could not be converted to PNG.");
   }
@@ -9719,14 +9719,14 @@ export async function copyAnnotationPngToClipboard(selectionExport) {
   }
 }
 
-async function annotationSelectionPngBlob(selectionExport) {
+export async function annotationSvgToPngBlob(selectionExport) {
   const width = positiveNumber(selectionExport?.width, 1);
   const height = positiveNumber(selectionExport?.height, 1);
   const maximumDimension = 8192;
   const scale = Math.min(1, maximumDimension / width, maximumDimension / height);
   const outputWidth = Math.max(1, Math.ceil(width * scale));
   const outputHeight = Math.max(1, Math.ceil(height * scale));
-  const svgBlob = new Blob([selectionExport.svg], { type: "image/svg+xml" });
+  const svgBlob = new Blob([annotationPngSafeSvg(selectionExport?.svg)], { type: "image/svg+xml" });
   const objectUrl = URL.createObjectURL(svgBlob);
   try {
     const image = await new Promise((resolve, reject) => {
@@ -9750,6 +9750,176 @@ async function annotationSelectionPngBlob(selectionExport) {
   } finally {
     URL.revokeObjectURL(objectUrl);
   }
+}
+
+function annotationPngSafeSvg(svgInput) {
+  const source = String(svgInput || "");
+  if (!source.includes("<foreignObject")) return source;
+
+  const parsed = new DOMParser().parseFromString(source, "image/svg+xml");
+  const svg = parsed.documentElement;
+  if (!svg || svg.nodeName.toLowerCase() !== "svg" || parsed.querySelector("parsererror")) return source;
+
+  svg.querySelectorAll("foreignObject").forEach(foreignObject => {
+    foreignObject.replaceWith(annotationForeignObjectTextGroup(parsed, foreignObject));
+  });
+  return new XMLSerializer().serializeToString(svg);
+}
+
+function annotationForeignObjectTextGroup(document, foreignObject) {
+  const group = document.createElementNS(svgNamespace, "g");
+  group.setAttribute("pointer-events", "none");
+  const clipPath = foreignObject.getAttribute("clip-path");
+  if (clipPath) group.setAttribute("clip-path", clipPath);
+
+  const x = Number.parseFloat(foreignObject.getAttribute("x") || "") || 0;
+  const y = Number.parseFloat(foreignObject.getAttribute("y") || "") || 0;
+  const width = Math.max(1, Number.parseFloat(foreignObject.getAttribute("width") || "") || 1);
+  const height = Math.max(1, Number.parseFloat(foreignObject.getAttribute("height") || "") || 1);
+  const blocks = annotationForeignObjectTextBlocks(foreignObject);
+  const textX = x + 10;
+  const maximumTextWidth = Math.max(1, width - 20);
+  const maximumY = y + height - 6;
+  let cursorY = y + 10;
+  let complete = false;
+
+  for (const block of blocks) {
+    cursorY += block.marginBefore;
+    const lines = annotationPngWrappedText(block.text, maximumTextWidth, block);
+    for (const line of lines) {
+      const baseline = cursorY + block.fontSize;
+      if (baseline > maximumY) {
+        complete = true;
+        break;
+      }
+      if (line) {
+        const text = document.createElementNS(svgNamespace, "text");
+        text.setAttribute("x", formatNumber(textX));
+        text.setAttribute("y", formatNumber(baseline));
+        text.setAttribute("fill", block.color);
+        text.setAttribute("font-family", block.fontFamily);
+        text.setAttribute("font-size", formatNumber(block.fontSize));
+        if (block.bold) text.setAttribute("font-weight", "700");
+        if (block.italic) text.setAttribute("font-style", "italic");
+        text.textContent = line;
+        group.appendChild(text);
+      }
+      cursorY += block.lineHeight;
+    }
+    if (complete) break;
+    cursorY += block.marginAfter;
+  }
+  return group;
+}
+
+function annotationForeignObjectTextBlocks(foreignObject) {
+  const root = foreignObject.firstElementChild || foreignObject;
+  const blocks = [];
+  const append = (element, prefix = "") => {
+    const tag = String(element?.localName || "").toLowerCase();
+    if (tag === "ul" || tag === "ol") {
+      [...element.children].filter(child => child.localName?.toLowerCase() === "li")
+        .forEach((item, index) => append(item, tag === "ol" ? `${index + 1}. ` : "- "));
+      return;
+    }
+    if (tag === "table") {
+      element.querySelectorAll("tr").forEach(row => {
+        const cells = [...row.children]
+          .filter(cell => ["td", "th"].includes(cell.localName?.toLowerCase()))
+          .map(cell => annotationPngNodeText(cell).trim());
+        if (cells.length) blocks.push(annotationPngTextBlock(row, cells.join(" | ")));
+      });
+      return;
+    }
+    if (tag === "div" && [...element.children].some(child =>
+      annotationPngBlockTag(child.localName))) {
+      [...element.children].forEach(child => append(child));
+      return;
+    }
+
+    const text = `${prefix}${annotationPngNodeText(element)}`.replace(/\u00a0/g, " ").trim();
+    if (text || tag === "br" || tag === "p") blocks.push(annotationPngTextBlock(element, text));
+  };
+
+  [...root.children].forEach(child => append(child));
+  if (!blocks.length) append(root);
+  return blocks;
+}
+
+function annotationPngBlockTag(tagName) {
+  return ["p", "div", "h1", "h2", "h3", "ul", "ol", "table", "pre", "details", "blockquote"]
+    .includes(String(tagName || "").toLowerCase());
+}
+
+function annotationPngNodeText(node) {
+  if (!node) return "";
+  if (node.nodeType === 3) return node.nodeValue || "";
+  const tag = String(node.localName || "").toLowerCase();
+  if (tag === "br") return "\n";
+  if (tag === "input" && String(node.getAttribute?.("type") || "").toLowerCase() === "checkbox") {
+    return node.hasAttribute("checked") ? "[x] " : "[ ] ";
+  }
+  if (tag === "img") {
+    const alt = String(node.getAttribute?.("alt") || "").trim();
+    return alt ? `[${alt}]` : "[Image]";
+  }
+  return [...node.childNodes].map(annotationPngNodeText).join("");
+}
+
+function annotationPngTextBlock(element, text) {
+  const tag = String(element?.localName || "").toLowerCase();
+  const headingSize = tag === "h1" ? 28 : tag === "h2" ? 22 : tag === "h3" ? 18 : 0;
+  const isCode = tag === "pre" || tag === "code";
+  const fontSize = headingSize || (isCode ? 13 : 16);
+  const inlineStyle = String(element?.getAttribute?.("style") || "");
+  const color = annotationPngInlineStyleValue(inlineStyle, "color") || "#172b4d";
+  const fontFamily = isCode
+    ? 'Consolas, "Courier New", monospace'
+    : annotationPngInlineStyleValue(inlineStyle, "font-family") || "Arial, Helvetica, sans-serif";
+  return {
+    text: String(text || "").replace(/[ \t\r\f\v]+/g, " ").replace(/\n +/g, "\n"),
+    color,
+    fontFamily,
+    fontSize,
+    lineHeight: fontSize * 1.35,
+    bold: Boolean(headingSize || element?.querySelector?.("strong, b")),
+    italic: Boolean(element?.querySelector?.("em, i")),
+    marginBefore: headingSize ? 6 : 0,
+    marginAfter: ["p", "ul", "ol", "table", "pre", "details", "blockquote"].includes(tag) ? 8 : 2
+  };
+}
+
+function annotationPngInlineStyleValue(style, property) {
+  const match = String(style || "").match(new RegExp(`(?:^|;)\\s*${property}\\s*:\\s*([^;]+)`, "i"));
+  return String(match?.[1] || "").trim();
+}
+
+function annotationPngWrappedText(text, maximumWidth, style) {
+  const lines = [];
+  String(text || "").split("\n").forEach(sourceLine => {
+    const words = sourceLine.trim().split(/\s+/).filter(Boolean);
+    if (!words.length) {
+      lines.push("");
+      return;
+    }
+    let line = "";
+    words.forEach(word => {
+      const candidate = line ? `${line} ${word}` : word;
+      if (!line || annotationFieldMappingTableTextWidth(
+        candidate,
+        style.fontSize,
+        style.fontFamily,
+        style.bold
+      ) <= maximumWidth) {
+        line = candidate;
+        return;
+      }
+      lines.push(line);
+      line = word;
+    });
+    if (line) lines.push(line);
+  });
+  return lines.length ? lines : [""];
 }
 
 function annotationFontOptions(selectedFont) {

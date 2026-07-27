@@ -2,7 +2,7 @@ import { copyTextToClipboard } from "../../components/clipboard.js?v=20260714-in
 import {
   buildPortableAnnotationSvg,
   normalizeAnnotationState
-} from "../../components/image-annotation.js?v=20260727-diagram-clipboard-export-v1";
+} from "../../components/image-annotation.js?v=20260728-diagram-png-raster-v1";
 import { appUrl } from "../../shared/app-urls.js";
 import { loadDiagramCanonicalState } from "../../shared/diagram-documents.js?v=20260725-diagram2-day6-v1";
 import {
@@ -24,7 +24,7 @@ import {
   openDiagram2TextEditor,
   updateDiagram2ObjectTreeSelection,
   updateDiagram2ShellStatus
-} from "./diagram2-editor-shell.js?v=20260727-diagram-clipboard-export-v1";
+} from "./diagram2-editor-shell.js?v=20260728-diagram-png-raster-v1";
 
 export async function openDiagram2RteAnnotationHost(options = {}) {
   const image = options.image;

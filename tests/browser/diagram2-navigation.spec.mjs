@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { mkdir } from "node:fs/promises";
+import { mkdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import {
   buildAnnotationSvg,
@@ -9,6 +9,51 @@ import {
 import { releaseNotes } from "../../wwwroot/js/shared/release-notes-data.js";
 
 test.use({ timezoneId: "Asia/Taipei" });
+
+test("Diagram PNG rasterizer copies rich text without tainting the canvas", async ({ page }) => {
+  await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
+  await page.goto("/css/base.css");
+  const result = await page.evaluate(async () => {
+    const annotation = await import("/js/components/image-annotation.js?v=20260728-diagram-png-raster-v1");
+    const state = {
+      version: 1,
+      width: 480,
+      height: 280,
+      objects: [{
+        id: "png-rich-text",
+        type: "rich-text",
+        x: 30,
+        y: 30,
+        width: 400,
+        height: 180,
+        html: "<h2>PNG Rich Text</h2><p><strong>Fresh clipboard bytes</strong> without a tainted canvas.</p><p><input type=\"checkbox\" checked> Verified</p>",
+        fill: "#ffffff",
+        stroke: "#172b4d",
+        strokeWidth: 2,
+        opacity: 1
+      }]
+    };
+    const svg = annotation.buildAnnotationSvg(state);
+    await navigator.clipboard.writeText("PMT_PNG_SENTINEL");
+    await annotation.copyAnnotationPngToClipboard({ svg, width: 480, height: 280 });
+    const items = await navigator.clipboard.read();
+    const item = items.find(candidate => candidate.types.includes("image/png"));
+    const blob = item ? await item.getType("image/png") : null;
+    const bytes = blob ? new Uint8Array(await blob.arrayBuffer()) : new Uint8Array();
+    const bitmap = blob ? await createImageBitmap(blob) : null;
+    return {
+      signature: [...bytes.slice(0, 8)],
+      size: blob?.size || 0,
+      width: bitmap?.width || 0,
+      height: bitmap?.height || 0
+    };
+  });
+
+  expect(result.signature).toEqual([137, 80, 78, 71, 13, 10, 26, 10]);
+  expect(result.size).toBeGreaterThan(100);
+  expect(result.width).toBe(480);
+  expect(result.height).toBe(280);
+});
 
 test("Diagram 2 top navigation separates read-only document mode from Edit mode", async ({ page }) => {
   const browserErrors = [];
@@ -53,6 +98,7 @@ test("Diagram 2 top navigation separates read-only document mode from Edit mode"
   await expect(page).toHaveURL(/#\/diagram$/);
   await expect(page.locator(".diagram-screen")).toBeVisible();
   await assertDiagram1ClipboardExports(page);
+  await assertDiagram1PngDownload(page);
   const diagramDocumentIds = await page.locator("[data-diagram-tree-row]").evaluateAll(rows =>
     rows.map(row => row.dataset.id).sort());
 
@@ -110,6 +156,7 @@ test("Diagram 2 top navigation separates read-only document mode from Edit mode"
   await expect(page.locator("[data-diagram2-context-menu]")).toHaveCount(0);
   await expect(page.locator("[data-diagram2-svg]")).toBeVisible();
   await assertDiagram2CanvasCopyMenu(page, { copyToClipboard: true });
+  await assertDiagram2PngDownload(page);
   const readZoomControl = page.locator("[data-filter='diagram2-zoom']");
   await waitForViewportReason(page, "fit");
   await expect.poll(async () => readZoomControl.inputValue()).not.toBe("");
@@ -1497,11 +1544,9 @@ async function assertDiagram2ObjectContextMenuParity(page) {
     navigator.clipboard.readText()
   )).toContain("<svg");
   await rectangle.click({ button: "right" });
+  await clearPngClipboard(page);
   await menu.locator("[data-action='copy-diagram2-selection-image']").click();
-  await expect.poll(() => page.evaluate(async () => {
-    const items = await navigator.clipboard.read();
-    return items.flatMap(item => item.types);
-  })).toContain("image/png");
+  await assertFreshPngClipboard(page);
 
   await page.locator("[data-action='undo-diagram2']").click();
   await expect.poll(() => page.evaluate(count =>
@@ -1561,11 +1606,9 @@ async function assertDiagram2CanvasCopyMenu(page, options = {}) {
   await expect(pngDialog).toBeVisible();
   await expect(pngDialog.getByRole("heading")).toHaveText("Copy as PNG");
   if (options.copyToClipboard === true) {
+    await clearPngClipboard(page);
     await pngDialog.getByRole("button", { name: "Copy", exact: true }).click();
-    await expect.poll(() => page.evaluate(async () => {
-      const items = await navigator.clipboard.read();
-      return items.flatMap(item => item.types);
-    })).toContain("image/png");
+    await assertFreshPngClipboard(page);
   } else {
     await pngDialog.getByRole("button", { name: "Cancel", exact: true }).click();
   }
@@ -1598,11 +1641,62 @@ async function assertDiagram1ClipboardExports(page) {
   await menu.locator("[data-diagram-copy-format='png']").click();
   const dialog = page.locator(".diagram-png-copy-dialog");
   await expect(dialog).toBeVisible();
+  await clearPngClipboard(page);
   await dialog.getByRole("button", { name: "Copy", exact: true }).click();
+  await assertFreshPngClipboard(page);
+}
+
+async function assertDiagram1PngDownload(page) {
+  const row = page.locator("[data-diagram-tree-row].is-selected");
+  await row.click({ button: "right" });
+  const menu = page.locator("[data-diagram-tree-context-menu]");
+  await expect(menu).toBeVisible();
+  await menu.locator("[data-action='download-diagram-png']").click();
+  const dialog = page.locator(".diagram-png-download-dialog");
+  await expect(dialog).toBeVisible();
+  const downloadPromise = page.waitForEvent("download");
+  await dialog.getByRole("button", { name: "Download", exact: true }).click();
+  await assertPngDownload(await downloadPromise);
+}
+
+async function assertDiagram2PngDownload(page) {
+  const row = page.locator("[data-diagram2-tree-row].is-selected");
+  await row.click({ button: "right" });
+  const menu = page.locator("[data-diagram2-tree-context-menu]");
+  await expect(menu).toBeVisible();
+  await menu.locator("[data-action='export-diagram2-png']").click();
+  const dialog = page.locator(".diagram2-png-download-dialog");
+  await expect(dialog).toBeVisible();
+  const downloadPromise = page.waitForEvent("download");
+  await dialog.getByRole("button", { name: "Download", exact: true }).click();
+  await assertPngDownload(await downloadPromise);
+}
+
+async function clearPngClipboard(page) {
+  await page.evaluate(async () => navigator.clipboard.writeText("PMT_PNG_SENTINEL"));
+}
+
+async function assertFreshPngClipboard(page) {
   await expect.poll(() => page.evaluate(async () => {
     const items = await navigator.clipboard.read();
-    return items.flatMap(item => item.types);
-  })).toContain("image/png");
+    const item = items.find(candidate => candidate.types.includes("image/png"));
+    if (!item) return false;
+    const blob = await item.getType("image/png");
+    const bytes = new Uint8Array(await blob.arrayBuffer());
+    const bitmap = await createImageBitmap(blob);
+    return [...bytes.slice(0, 8)].join(",") === "137,80,78,71,13,10,26,10"
+      && blob.size > 100
+      && bitmap.width > 0
+      && bitmap.height > 0;
+  })).toBe(true);
+}
+
+async function assertPngDownload(download) {
+  const filePath = await download.path();
+  expect(filePath).toBeTruthy();
+  const bytes = await readFile(filePath);
+  expect([...bytes.subarray(0, 8)]).toEqual([137, 80, 78, 71, 13, 10, 26, 10]);
+  expect(bytes.length).toBeGreaterThan(100);
 }
 
 async function assertCleanSvgClipboard(page) {

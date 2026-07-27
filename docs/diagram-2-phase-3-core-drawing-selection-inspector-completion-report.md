@@ -41,6 +41,7 @@ Phase 4 has not started.
 | Diagram 1 interoperability | PASS | Diagram 1 to Diagram 2 and Diagram 2 to Diagram 1 core-object clipboard paths remain compatible. |
 | Object context menu | PASS | To Front, To Back, Forward, Backward, Lock/Unlock, Copy Selection, Paste, Duplicate, Delete, Copy as SVG, and Copy as Image use Diagram 2 commands and keyed rendering. |
 | Canvas context menu | PASS | In read-only and Edit mode, right-clicking empty canvas offers Copy as SVG and Copy as PNG through the existing SVG/PNG options dialogs and clipboard helpers. |
+| PNG copy and download | PASS | D1 and D2 use one origin-clean PNG rasterizer for canvas copy, selected-object copy, and left-navigation download. Rich Text is converted to SVG-native text for PNG encoding so `<foreignObject>` cannot taint the canvas. |
 | Undo/redo | PASS | Add, delete, duplicate, paste, move, resize, arrange, lock, style, and text commands have inverse operations; gestures and rapid style changes are coalesced appropriately. |
 | Dual-host lifecycle | PASS | Top navigation, `Annotate 2.0`, and `Edit Annotation 2.0` share the editor core and pass repeated open/use/close lifecycle coverage. |
 | Save/reopen compatibility | PASS | Canonical document data remains compatible and renderer indexes, mounted-node state, and other live caches are not persisted. |
@@ -170,11 +171,21 @@ The remaining modified release-note consumers and generated release-note data co
 | Required Diagram 2 Playwright files, `chromium-1366` | PASS, 14/14 tests in 2.4 minutes |
 | Required Diagram 2 Playwright files, `chromium-1920` | PASS, 14/14 tests in 2.5 minutes |
 | `tests/browser/image-annotation.spec.mjs --project=chromium-1366` | PASS, 2/2 tests in the final complete run |
+| PNG correction: `tests/browser/diagram2-navigation.spec.mjs` | PASS, 14/14 tests across 1366px and 1920px Chromium projects |
+| PNG correction: `tests/browser/image-annotation.spec.mjs` | PASS, 4/4 tests across 1366px and 1920px Chromium projects |
 | `dotnet build` | PASS, 0 errors; 2 existing .NET 6 end-of-support warnings |
 | `git diff --check` | PASS; line-ending conversion warnings only |
 | About 3D flyby | Not run by instruction because it was not changed |
 
-The required Diagram 2 browser coverage includes the full shared RTE toolbar, exact marquee origin, move/resize handles, object context ordering, lock, SVG/PNG clipboard output, sequential object names, read-only and Edit-mode canvas copy dialogs, ten lifecycle cycles, D1/D2 clipboard compatibility, and the production stress fixture.
+The required Diagram 2 browser coverage includes the full shared RTE toolbar, exact marquee origin, move/resize handles, object context ordering, lock, SVG/PNG clipboard output, sequential object names, read-only and Edit-mode canvas copy dialogs, ten lifecycle cycles, D1/D2 clipboard compatibility, and the production stress fixture. The PNG correction tests clear the clipboard first, validate fresh PNG signatures and dimensions, and read downloaded files from disk instead of trusting an existing clipboard type.
+
+## Live PNG Verification
+
+- D1 read-only canvas Copy as PNG pasted the newly copied full Rich Text diagram into a new blank Paint window.
+- D1 Edit-mode Copy as Image pasted the newly copied Rich Text object into a new blank Paint window.
+- D2 read-only and Edit-mode canvas Copy as PNG each pasted the newly copied full Rich Text diagram into separate new blank Paint windows.
+- Before each PNG copy, Copy as SVG replaced the prior clipboard contents so an older image could not produce a false positive.
+- D1 and D2 left-navigation Download as PNG both completed without a tainted-canvas error. The live `Box.png` and `Box (1).png` files were each 74,383 bytes and had the valid PNG signature `137,80,78,71,13,10,26,10`.
 
 ## Manual Acceptance Checklist
 
