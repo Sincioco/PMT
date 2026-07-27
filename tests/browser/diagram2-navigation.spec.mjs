@@ -52,6 +52,7 @@ test("Diagram 2 top navigation separates read-only document mode from Edit mode"
   await openNavigationScreen(page, "Diagram");
   await expect(page).toHaveURL(/#\/diagram$/);
   await expect(page.locator(".diagram-screen")).toBeVisible();
+  await assertDiagram1PngDownloadFallback(page);
   const diagramDocumentIds = await page.locator("[data-diagram-tree-row]").evaluateAll(rows =>
     rows.map(row => row.dataset.id).sort());
 
@@ -108,7 +109,10 @@ test("Diagram 2 top navigation separates read-only document mode from Edit mode"
   await expect(page.locator("[data-filter='diagram2-snap']")).toHaveCount(0);
   await expect(page.locator("[data-diagram2-context-menu]")).toHaveCount(0);
   await expect(page.locator("[data-diagram2-svg]")).toBeVisible();
-  await assertDiagram2CanvasCopyMenu(page, { copyToClipboard: true });
+  await assertDiagram2CanvasCopyMenu(page, {
+    copyToClipboard: true,
+    verifyDeniedPngFallback: true
+  });
   const readZoomControl = page.locator("[data-filter='diagram2-zoom']");
   await waitForViewportReason(page, "fit");
   await expect.poll(async () => readZoomControl.inputValue()).not.toBe("");
@@ -1568,6 +1572,70 @@ async function assertDiagram2CanvasCopyMenu(page, options = {}) {
   } else {
     await pngDialog.getByRole("button", { name: "Cancel", exact: true }).click();
   }
+
+  if (options.verifyDeniedPngFallback === true) {
+    await denyClipboardWrites(page);
+    try {
+      await openMenu();
+      await menu.locator("[data-action='copy-diagram2-png']").click();
+      const fallbackDialog = page.locator(".diagram2-png-download-dialog");
+      await expect(fallbackDialog).toBeVisible();
+      const downloadPromise = page.waitForEvent("download");
+      await fallbackDialog.getByRole("button", { name: "Copy", exact: true }).click();
+      const download = await downloadPromise;
+      expect(download.suggestedFilename()).toBe("PMT-Database-Schema.png");
+      await expect(page.locator("#toast")).toContainText("downloaded as PNG instead");
+    } finally {
+      await restoreClipboardWrites(page);
+    }
+  }
+}
+
+async function assertDiagram1PngDownloadFallback(page) {
+  const canvas = page.locator("[data-diagram-viewport]");
+  const menu = page.locator("[data-diagram-readonly-context-menu]");
+  await expect(canvas).toBeVisible();
+  await denyClipboardWrites(page);
+  try {
+    const box = await canvas.boundingBox();
+    expect(box).toBeTruthy();
+    await canvas.dispatchEvent("contextmenu", {
+      button: 2,
+      clientX: box.x + Math.min(80, box.width / 2),
+      clientY: box.y + Math.min(80, box.height / 2)
+    });
+    await expect(menu).toBeVisible();
+    await menu.locator("[data-diagram-copy-format='png']").click();
+    const dialog = page.locator(".diagram-png-copy-dialog");
+    await expect(dialog).toBeVisible();
+    const downloadPromise = page.waitForEvent("download");
+    await dialog.getByRole("button", { name: "Copy", exact: true }).click();
+    const download = await downloadPromise;
+    expect(download.suggestedFilename()).toBe("PMT Database Schema.png");
+    await expect(page.locator("#toast")).toContainText("downloaded as PNG instead");
+  } finally {
+    await restoreClipboardWrites(page);
+  }
+}
+
+async function denyClipboardWrites(page) {
+  await page.evaluate(() => {
+    window.__pmtClipboardWriteDescriptor = Object.getOwnPropertyDescriptor(Clipboard.prototype, "write");
+    Object.defineProperty(Clipboard.prototype, "write", {
+      configurable: true,
+      value: async () => {
+        throw new DOMException("Clipboard write denied.", "NotAllowedError");
+      }
+    });
+  });
+}
+
+async function restoreClipboardWrites(page) {
+  await page.evaluate(() => {
+    const descriptor = window.__pmtClipboardWriteDescriptor;
+    if (descriptor) Object.defineProperty(Clipboard.prototype, "write", descriptor);
+    delete window.__pmtClipboardWriteDescriptor;
+  });
 }
 
 async function assertDiagram2ColorPickerBehavior(page) {

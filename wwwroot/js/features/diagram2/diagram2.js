@@ -13,7 +13,7 @@ import {
   buildAnnotationSvg,
   copyAnnotationPngToClipboard,
   copyAnnotationSvgToClipboard
-} from "../../components/image-annotation.js?v=20260727-diagram2-phase3-final-v2";
+} from "../../components/image-annotation.js?v=20260727-diagram-png-fallback-v2";
 import { openPublicLinkDialog } from "../../components/public-links.js?v=20260725-day36-v4";
 import { sectionHead } from "../../components/sections.js?v=20260726-diagram2-nav-icon-v1";
 import { api } from "../../core/api.js?v=20260725-public-link-v1";
@@ -1914,6 +1914,7 @@ export function createDiagram2Feature({
   }
 
   async function copyDiagram2Png() {
+    const document = currentDiagram2Document();
     const stateForExport = diagram2CurrentOutputState();
     if (!stateForExport || !diagram2CurrentSecurity().canExport) return false;
     const options = await openDiagram2DownloadOptionsDialog("png", { action: "copy" });
@@ -1921,11 +1922,16 @@ export function createDiagram2Feature({
     try {
       await diagram2Renderer?.whenIdle();
       const svg = prepareDiagram2SvgForDownload(buildAnnotationSvg(stateForExport), options);
-      await copyAnnotationPngToClipboard({ svg, ...diagram2SvgMetrics(svg) });
-      notify?.("Diagram copied as PNG.");
+      const result = await copyAnnotationPngToClipboard(
+        { svg, ...diagram2SvgMetrics(svg) },
+        { downloadFileName: `${safeFileName(document?.title)}.png` }
+      );
+      notify?.(result.downloaded
+        ? "The Diagram could not be copied. It was downloaded as PNG instead."
+        : "Diagram copied as PNG.");
       return true;
     } catch (error) {
-      notify?.(error?.message || "Diagram 2 could not copy the PNG.");
+      notify?.(error?.message || "Diagram 2 could not copy or download the PNG.");
       return false;
     }
   }

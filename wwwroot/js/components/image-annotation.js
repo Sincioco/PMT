@@ -9598,6 +9598,17 @@ function downloadAnnotationTextFile(contents, fileName, type = "text/plain") {
   window.setTimeout(() => URL.revokeObjectURL(url), 0);
 }
 
+function downloadAnnotationBlobFile(blob, fileName) {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = fileName;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 0);
+}
+
 function annotationFieldMappingTableExcelHtml(table) {
   const style = normalizeAnnotationFieldMappingTableStyle(table);
   const rows = Array.isArray(table?.rows) ? table.rows : [];
@@ -9669,14 +9680,28 @@ export async function copyAnnotationSvgToClipboard(svg) {
   throw new Error("Clipboard access is unavailable. The SVG was not copied.");
 }
 
-export async function copyAnnotationPngToClipboard(selectionExport) {
+export async function copyAnnotationPngToClipboard(selectionExport, options = {}) {
+  const pngBlob = annotationSelectionPngBlob(selectionExport);
+  const downloadFileName = String(options.downloadFileName || "").trim();
+  const downloadFallback = async () => {
+    const blob = await pngBlob;
+    downloadAnnotationBlobFile(blob, downloadFileName);
+    return { copied: false, downloaded: true };
+  };
   if (!navigator.clipboard?.write || typeof ClipboardItem === "undefined") {
+    if (downloadFileName) return downloadFallback();
     throw new Error("This browser does not support copying images to the clipboard.");
   }
-  const pngBlob = annotationSelectionPngBlob(selectionExport);
   try {
     await navigator.clipboard.write([new ClipboardItem({ "image/png": pngBlob })]);
+    return { copied: true, downloaded: false };
   } catch {
+    try {
+      await pngBlob;
+    } catch (error) {
+      throw error;
+    }
+    if (downloadFileName) return downloadFallback();
     throw new Error("Clipboard image access was denied. The image was not copied.");
   }
 }
