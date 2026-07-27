@@ -2,26 +2,29 @@ import { copyTextToClipboard } from "../../components/clipboard.js?v=20260714-in
 import {
   buildPortableAnnotationSvg,
   normalizeAnnotationState
-} from "../../components/image-annotation.js?v=20260726-d2-line-parity-v1";
+} from "../../components/image-annotation.js?v=20260727-diagram2-phase3-final-v2";
 import { appUrl } from "../../shared/app-urls.js";
 import { loadDiagramCanonicalState } from "../../shared/diagram-documents.js?v=20260725-diagram2-day6-v1";
 import {
   createDiagram2Renderer,
   normalizeDiagram2CanonicalState
-} from "./diagram2-renderer.js?v=20260726-diagram2-phase3-create-v1";
-import { createDiagram2SelectionClipboardText } from "./diagram2-compatibility.js?v=20260725-diagram2-day14-v1";
+} from "./diagram2-renderer.js?v=20260727-diagram2-phase3-final-v2";
 import {
   createDiagram2DefaultObject,
   createDiagram2EditorController,
   isDiagram2CoreDrawingTool
-} from "./diagram2-editor-controller.js?v=20260727-diagram2-color-picker-v1";
+} from "./diagram2-editor-controller.js?v=20260727-diagram2-phase3-final-v2";
+import { bindDiagram2EditorInteractions } from "./diagram2-editor-interactions.js?v=20260727-diagram2-phase3-final-v2";
 import {
   bindDiagram2EditorColorPickers,
+  bindDiagram2EditorFormatControls,
+  copyDiagram2SelectionArtwork,
   diagram2ObjectsPaneHtml,
   diagram2EditorShellHtml,
+  openDiagram2TextEditor,
   updateDiagram2ObjectTreeSelection,
   updateDiagram2ShellStatus
-} from "./diagram2-editor-shell.js?v=20260727-diagram2-color-picker-v1";
+} from "./diagram2-editor-shell.js?v=20260727-diagram2-phase3-final-v2";
 
 export async function openDiagram2RteAnnotationHost(options = {}) {
   const image = options.image;
@@ -299,7 +302,11 @@ function bindDiagram2RteHostEvents(options = {}) {
   const { dialog, editor, image, controller, renderer, signal, notify } = options;
   const canvas = dialog.querySelector("[data-diagram2-viewer-canvas]");
   bindDiagram2EditorColorPickers(dialog, {
-    applyColor: (name, color) => applyDiagram2RteSelectedColor(dialog, controller, renderer, name, color),
+    applyColor: (name, color) => applyDiagram2RteSelectedStyle(dialog, controller, renderer, name, color),
+    notify
+  });
+  bindDiagram2EditorFormatControls(dialog, {
+    applyStyle: (name, value) => applyDiagram2RteSelectedStyle(dialog, controller, renderer, name, value),
     notify
   });
 
@@ -319,6 +326,9 @@ function bindDiagram2RteHostEvents(options = {}) {
       const tool = actionElement.dataset.tool || actionElement.dataset.diagram2Tool || "select";
       if (isDiagram2CoreDrawingTool(tool)) {
         void addDiagram2RteToolbarObject(tool, dialog, controller, renderer);
+      } else if (tool === "format-painter") {
+        if (controller.activeTool() === "format-painter") controller.cancelFormatPainter();
+        else controller.beginFormatPainter();
       } else {
         controller.setActiveTool(tool);
       }
@@ -359,67 +369,82 @@ function bindDiagram2RteHostEvents(options = {}) {
     }
     if (action === "copy-diagram2-selection") {
       void copyDiagram2RteSelection(controller, notify);
+      return;
+    }
+    if (action === "copy-diagram2-selection-svg" || action === "copy-diagram2-selection-image") {
+      void copyDiagram2RteSelectionAsArtwork(
+        controller,
+        renderer,
+        notify,
+        action.endsWith("-image") ? "image" : "svg"
+      );
+      return;
+    }
+    if (action === "paste-diagram2-selection") {
+      void pasteDiagram2RteSelection(dialog, controller, renderer, notify);
+      return;
+    }
+    if (action === "duplicate-diagram2-selection") {
+      void duplicateDiagram2RteSelection(dialog, controller, renderer);
+      return;
+    }
+    if (action === "delete-diagram2-selection") {
+      void deleteDiagram2RteSelection(dialog, controller, renderer);
+      return;
+    }
+    if (action === "lock-diagram2-selection") {
+      void toggleDiagram2RteSelectionLock(dialog, controller, renderer, notify);
+      return;
+    }
+    if (action.startsWith("arrange-diagram2-selection-")) {
+      void arrangeDiagram2RteSelection(
+        dialog,
+        controller,
+        renderer,
+        action.slice("arrange-diagram2-selection-".length)
+      );
     }
   }, { signal });
 
   dialog.addEventListener("change", event => {
-    if (event.target?.dataset?.filter !== "diagram2-zoom") return;
+    const filter = event.target?.dataset?.filter;
+    if (filter === "diagram2-grid") {
+      void controller.setGridVisible(event.target.checked === true).then(() => {
+        updateDiagram2ShellStatus(dialog, diagram2RteShellStatus(controller));
+      });
+      return;
+    }
+    if (filter === "diagram2-snap") {
+      void controller.setSnapToGrid(event.target.checked === true).then(() => {
+        updateDiagram2ShellStatus(dialog, diagram2RteShellStatus(controller));
+      });
+      return;
+    }
+    if (filter !== "diagram2-zoom") return;
     const value = String(event.target.value || "fit");
     if (value === "fit") renderer.fit();
     else renderer.setZoom(value);
   }, { signal });
 
-  dialog.addEventListener("keydown", event => {
-    if (!image.isConnected || !editor.isConnected) {
-      dialog.__diagram2Finish?.(null);
-      return;
-    }
-    const key = String(event.key || "").toLowerCase();
-    const usesCommandKey = event.ctrlKey || event.metaKey;
-    if (usesCommandKey && key === "s") {
-      event.preventDefault();
-      void options.save().catch(error => notify?.(error?.message || "Diagram 2 annotation could not be applied."));
-      return;
-    }
-    if (usesCommandKey && key === "z") {
-      event.preventDefault();
-      void runDiagram2RteHistoryAction(dialog, controller, renderer, () =>
-        event.shiftKey ? controller.redo() : controller.undo());
-      return;
-    }
-    if (usesCommandKey && key === "y") {
-      event.preventDefault();
-      void runDiagram2RteHistoryAction(dialog, controller, renderer, () => controller.redo());
-      return;
-    }
-    if (diagram2EditableEventTarget(event.target)) return;
-    const shortcutTool = { v: "select", h: "pan", r: "rectangle", o: "circle", a: "arrow", l: "line", t: "textbox" }[key];
-    if (shortcutTool && !event.ctrlKey && !event.metaKey && !event.altKey) {
-      event.preventDefault();
-      if (isDiagram2CoreDrawingTool(shortcutTool)) {
-        if (!event.repeat) void addDiagram2RteToolbarObject(shortcutTool, dialog, controller, renderer);
-      } else {
-        controller.setActiveTool(shortcutTool);
-      }
-      return;
-    }
-    const step = event.shiftKey ? 10 : 1;
-    if (event.key === "ArrowUp") {
-      event.preventDefault();
-      void controller.moveSelectedObjects(0, -step, { reason: "keyboard nudge", coalesce: true });
-    } else if (event.key === "ArrowDown") {
-      event.preventDefault();
-      void controller.moveSelectedObjects(0, step, { reason: "keyboard nudge", coalesce: true });
-    } else if (event.key === "ArrowLeft") {
-      event.preventDefault();
-      void controller.moveSelectedObjects(-step, 0, { reason: "keyboard nudge", coalesce: true });
-    } else if (event.key === "ArrowRight") {
-      event.preventDefault();
-      void controller.moveSelectedObjects(step, 0, { reason: "keyboard nudge", coalesce: true });
-    }
-  }, { signal });
-
-  bindDiagram2RtePointerEvents({ canvas, controller, renderer, signal });
+  bindDiagram2EditorInteractions({
+    root: dialog,
+    canvas,
+    controller,
+    renderer,
+    signal,
+    isActive: () => dialog.open && image.isConnected && editor.isConnected,
+    canMutate: () => controller.statusSnapshot().canEdit === true,
+    onStateChange: () => updateDiagram2ShellStatus(dialog, diagram2RteShellStatus(controller)),
+    onSave: () => options.save().catch(error => notify?.(error?.message || "Diagram 2 annotation could not be applied.")),
+    onUndo: () => runDiagram2RteHistoryAction(dialog, controller, renderer, () => controller.undo()),
+    onRedo: () => runDiagram2RteHistoryAction(dialog, controller, renderer, () => controller.redo()),
+    onAddObject: type => addDiagram2RteToolbarObject(type, dialog, controller, renderer),
+    onEditText: object => editDiagram2RteObjectText(dialog, controller, renderer, object, options.bindRichTextButtons),
+    onCopy: () => copyDiagram2RteSelection(controller, notify),
+    onPaste: () => pasteDiagram2RteSelection(dialog, controller, renderer, notify),
+    onDuplicate: () => duplicateDiagram2RteSelection(dialog, controller, renderer),
+    onDelete: () => deleteDiagram2RteSelection(dialog, controller, renderer)
+  });
 }
 
 function diagram2RteShellStatus(controller, statusInput = null) {
@@ -432,9 +457,9 @@ function diagram2RteShellStatus(controller, statusInput = null) {
   };
 }
 
-async function applyDiagram2RteSelectedColor(dialog, controller, renderer, name, color) {
-  const applied = await controller.updateSelectedObjectsStyle(name, color, {
-    reason: `color picker ${name}`
+async function applyDiagram2RteSelectedStyle(dialog, controller, renderer, name, value) {
+  const applied = await controller.updateSelectedObjectsStyle(name, value, {
+    reason: `format ${name}`
   });
   if (!applied) return false;
   updateDiagram2ShellStatus(dialog, diagram2RteShellStatus(controller));
@@ -443,7 +468,10 @@ async function applyDiagram2RteSelectedColor(dialog, controller, renderer, name,
 }
 
 async function addDiagram2RteToolbarObject(type, dialog, controller, renderer) {
-  const object = createDiagram2DefaultObject(type, diagram2RteInsertionCenter(dialog, controller, renderer));
+  const object = createDiagram2DefaultObject(
+    type,
+    controller.snapPoint(diagram2RteInsertionCenter(dialog, controller, renderer))
+  );
   if (!object) return false;
   const added = await controller.addObject(object, {
     label: `Add ${diagram2ToolLabel(type)}`,
@@ -492,119 +520,57 @@ function diagram2ToolLabel(type) {
     circle: "Circle",
     arrow: "Arrow",
     line: "Line",
-    textbox: "Text Box"
+    textbox: "Text Box",
+    "rich-text": "Rich Text"
   }[String(type || "").trim().toLowerCase()] || "object";
 }
 
-function bindDiagram2RtePointerEvents({ canvas, controller, renderer, signal }) {
-  if (!canvas) return;
-  let panAbortController = null;
-  const abortPan = () => {
-    panAbortController?.abort();
-    panAbortController = null;
-    canvas.classList.remove("is-panning", "is-moving-object");
-  };
-  signal.addEventListener("abort", abortPan, { once: true });
-
-  canvas.addEventListener("wheel", event => {
-    event.preventDefault();
-    renderer.zoomBy(Math.exp(-event.deltaY * 0.0015), {
-      clientX: event.clientX,
-      clientY: event.clientY
-    });
-  }, { passive: false, signal });
-
-  canvas.addEventListener("pointerdown", event => {
-    if (event.button !== 0 && event.button !== 1) return;
-    const objectNode = event.target.closest?.("[data-diagram2-object-id]");
-    if (objectNode && controller.activeTool() !== "pan" && event.button === 0) {
-      startDiagram2RteObjectDrag(canvas, objectNode.dataset.diagram2ObjectId, event, controller, renderer, abortPan);
-      return;
-    }
-    if (event.button === 0 && controller.activeTool() !== "pan") {
-      controller.setSelection([]);
-      return;
-    }
-
-    event.preventDefault();
-    abortPan();
-    const start = { x: event.clientX, y: event.clientY };
-    panAbortController = new AbortController();
-    const panSignal = panAbortController.signal;
-    canvas.classList.add("is-panning");
-    canvas.setPointerCapture?.(event.pointerId);
-    const move = moveEvent => {
-      renderer.panBy(moveEvent.clientX - start.x, moveEvent.clientY - start.y);
-      start.x = moveEvent.clientX;
-      start.y = moveEvent.clientY;
-    };
-    const finish = () => abortPan();
-    window.addEventListener("pointermove", move, { signal: panSignal });
-    window.addEventListener("pointerup", finish, { signal: panSignal, once: true });
-    window.addEventListener("pointercancel", finish, { signal: panSignal, once: true });
-  }, { signal });
+async function editDiagram2RteObjectText(dialog, controller, renderer, object, bindRichTextButtons) {
+  const value = await openDiagram2TextEditor({
+    object,
+    bindRichTextButtons
+  });
+  if (value == null) return false;
+  const updated = await controller.updateObjectText(object.id, value);
+  if (!updated) return false;
+  await finishDiagram2RteObjectCommand(dialog, controller, renderer);
+  return true;
 }
 
-function startDiagram2RteObjectDrag(canvas, objectId, event, controller, renderer, abortPan) {
-  const selectedIds = diagram2PointerSelection(controller, objectId, event);
-  controller.setSelection(selectedIds);
-  if (controller.statusSnapshot().canEdit !== true) return;
-  if (selectedIds.some(id => diagram2RteSourceImageFixed(controller.getObjectById(id)))) {
-    event.preventDefault();
-    return;
+async function pasteDiagram2RteSelection(dialog, controller, renderer, notify) {
+  const text = await readDiagram2SelectionClipboard();
+  if (!text) {
+    notify?.("Copy Diagram objects before pasting.");
+    return false;
   }
-  abortPan();
-  event.preventDefault();
-
-  const startWorld = renderer.screenToWorld({ clientX: event.clientX, clientY: event.clientY });
-  let latestDelta = { deltaX: 0, deltaY: 0 };
-  let moved = false;
-  renderer.beginGeometryPreview({ objectIds: selectedIds, mode: "move" });
-  canvas.classList.add("is-moving-object");
-  canvas.setPointerCapture?.(event.pointerId);
-  const dragAbortController = new AbortController();
-  const { signal } = dragAbortController;
-  const move = moveEvent => {
-    const currentWorld = renderer.screenToWorld({ clientX: moveEvent.clientX, clientY: moveEvent.clientY });
-    latestDelta = {
-      deltaX: currentWorld.x - startWorld.x,
-      deltaY: currentWorld.y - startWorld.y
-    };
-    moved = moved || Math.abs(latestDelta.deltaX) > 0.5 || Math.abs(latestDelta.deltaY) > 0.5;
-    renderer.previewGeometry(latestDelta);
-  };
-  const finish = () => {
-    canvas.classList.remove("is-moving-object");
-    dragAbortController.abort();
-    if (!moved) {
-      renderer.cancelGeometryPreview();
-      return;
-    }
-    renderer.commitGeometryPreview(latestDelta);
-    void controller.moveObjects(selectedIds, latestDelta.deltaX, latestDelta.deltaY, {
-      reason: "pointer drag",
-      rendererAlreadyUpdated: true
-    });
-  };
-  window.addEventListener("pointermove", move, { signal });
-  window.addEventListener("pointerup", finish, { signal, once: true });
-  window.addEventListener("pointercancel", finish, { signal, once: true });
+  const pasted = await controller.pasteSelectionClipboardText(text);
+  if (!pasted) {
+    notify?.("The clipboard does not contain compatible Diagram objects.");
+    return false;
+  }
+  await finishDiagram2RteObjectCommand(dialog, controller, renderer);
+  return true;
 }
 
-function diagram2RteSourceImageFixed(object) {
-  return object
-    && object.type === "embedded-image"
-    && object.isOriginalImage === true;
+async function duplicateDiagram2RteSelection(dialog, controller, renderer) {
+  const duplicated = await controller.duplicateSelectedObjects();
+  if (!duplicated) return false;
+  await finishDiagram2RteObjectCommand(dialog, controller, renderer);
+  return true;
 }
 
-function diagram2PointerSelection(controller, objectId, event) {
-  const id = String(objectId || "").trim();
-  if (!id) return [];
-  if (!event.shiftKey && !event.ctrlKey && !event.metaKey) return [id];
-  const selected = new Set(controller.selectedObjectIds());
-  if (selected.has(id)) selected.delete(id);
-  else selected.add(id);
-  return [...selected];
+async function deleteDiagram2RteSelection(dialog, controller, renderer) {
+  const deleted = await controller.deleteSelectedObjects();
+  if (!deleted) return false;
+  await finishDiagram2RteObjectCommand(dialog, controller, renderer);
+  return true;
+}
+
+async function finishDiagram2RteObjectCommand(dialog, controller, renderer) {
+  refreshDiagram2RteObjectsPane(dialog, controller);
+  updateDiagram2ShellStatus(dialog, diagram2RteShellStatus(controller));
+  await renderer.whenIdle();
+  updateDiagram2ShellStatus(dialog, diagram2RteShellStatus(controller));
 }
 
 async function copyDiagram2RteSelection(controller, notify) {
@@ -613,14 +579,63 @@ async function copyDiagram2RteSelection(controller, notify) {
     notify?.("Select one or more Diagram objects before copying.");
     return false;
   }
-  const text = createDiagram2SelectionClipboardText({
-    state: controller.state(),
-    selectedObjectIds
-  });
+  const text = controller.selectionClipboardText();
   globalThis.__pmtDiagram2SelectionClipboard = text;
+  globalThis.__pmtDiagramSelectionClipboard = text;
   const copied = await copyTextToClipboard(text);
   notify?.(copied ? "Diagram selection copied." : "Diagram selection is ready, but the browser blocked clipboard copy.");
   return copied;
+}
+
+async function copyDiagram2RteSelectionAsArtwork(controller, renderer, notify, format) {
+  const selectedObjectIds = controller.selectedObjectIds();
+  if (!selectedObjectIds.length) {
+    notify?.("Select one or more Diagram objects before copying.");
+    return false;
+  }
+  await renderer.whenIdle();
+  try {
+    const copied = await copyDiagram2SelectionArtwork(controller.currentState(), selectedObjectIds, format);
+    notify?.(copied
+      ? `Diagram selection copied as ${format === "image" ? "an image" : "SVG"}.`
+      : "Select one or more Diagram objects before copying.");
+    return copied;
+  } catch (error) {
+    notify?.(error?.message || `The Diagram selection could not be copied as ${format === "image" ? "an image" : "SVG"}.`);
+    return false;
+  }
+}
+
+async function toggleDiagram2RteSelectionLock(dialog, controller, renderer, notify) {
+  const selection = controller.getObjectsByIds(controller.selectedObjectIds());
+  if (!selection.length) return false;
+  const lock = !selection.every(object => object.locked === true);
+  const changed = await controller.setSelectedObjectsLocked(lock);
+  if (!changed) return false;
+  await finishDiagram2RteObjectCommand(dialog, controller, renderer);
+  notify?.(`${selection.length === 1 ? "Object" : "Objects"} ${lock ? "locked" : "unlocked"}.`);
+  return true;
+}
+
+async function arrangeDiagram2RteSelection(dialog, controller, renderer, action) {
+  const arranged = await controller.arrangeSelectedObjects(action);
+  if (!arranged) return false;
+  await finishDiagram2RteObjectCommand(dialog, controller, renderer);
+  return true;
+}
+
+async function readDiagram2SelectionClipboard() {
+  try {
+    const text = await globalThis.navigator?.clipboard?.readText?.();
+    if (text) return text;
+  } catch {
+    // Use PMT's same-tab fallback when clipboard read permission is unavailable.
+  }
+  return String(
+    globalThis.__pmtDiagramSelectionClipboard
+    || globalThis.__pmtDiagram2SelectionClipboard
+    || ""
+  );
 }
 
 async function loadOriginalImage(sourceInput) {
@@ -653,10 +668,6 @@ function clearDebugGlobals(controller, renderer, hostAdapter) {
   if (globalThis.__pmtDiagram2EditorCore === controller) globalThis.__pmtDiagram2EditorCore = null;
   if (globalThis.__pmtDiagram2Renderer === renderer) globalThis.__pmtDiagram2Renderer = null;
   if (globalThis.__pmtDiagram2RteHost === hostAdapter) globalThis.__pmtDiagram2RteHost = null;
-}
-
-function diagram2EditableEventTarget(target) {
-  return Boolean(target?.closest?.("input, textarea, select, button, [contenteditable='true'], [contenteditable='']"));
 }
 
 function positiveNumber(value, fallback) {

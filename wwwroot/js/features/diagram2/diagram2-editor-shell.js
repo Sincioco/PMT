@@ -1,11 +1,76 @@
-import { sharedRichColorPickerHtml } from "../../components/forms.js?v=20260722-rte-toggle-state-v1";
-import { escapeAttr, escapeHtml } from "../../shared/text-and-links.js";
+import {
+  richTextToolsHtml,
+  sharedRichColorPickerHtml
+} from "../../components/forms.js?v=20260722-rte-toggle-state-v1";
+import {
+  buildPortableAnnotationSelectionSvg,
+  copyAnnotationPngToClipboard,
+  copyAnnotationSvgToClipboard
+} from "../../components/image-annotation.js?v=20260727-diagram2-phase3-final-v2";
+import { escapeAttr, escapeHtml, normalizeRichHtml } from "../../shared/text-and-links.js?v=20260722-rte-toggle-state-v1";
 
 const diagram2LastColorsStorageKey = "pmt-rich-last-colors";
 const diagram2CustomColorsStorageKey = "pmt-rich-custom-colors";
 const diagram2LastColorStoragePrefix = "pmt-rich-last-color-";
 const diagram2StoredColorLimit = 10;
 const diagram2RecentColorLimit = 6;
+const defaultDiagram2ShellStyles = {
+  fill: "#5aa315",
+  stroke: "#3f7f0d",
+  textColor: "#ffffff",
+  fontFamily: "Arial",
+  fontSize: 28,
+  textAlign: "left",
+  textVerticalAlign: "top",
+  outlineVisible: true,
+  opacity: 1,
+  strokeWidth: 4,
+  arrowSize: 24,
+  entityNameTextColor: "#172b4d",
+  entityHeaderFill: "#ffffff",
+  headerTextColor: "#000000",
+  headerFill: "#d9ecff",
+  uiTextColor: "#172b4d",
+  uiFill: "#ffffff",
+  databaseTextColor: "#172b4d",
+  databaseFill: "#ffffff",
+  fieldMappingRowHoverFill: "#fff59d",
+  fieldMappingHighlightColor: "#facc15",
+  fieldMappingHighlightStrokeWidth: 9
+};
+const diagram2ShellStyleTargets = new Map([
+  ["fill", new Set(["rectangle", "circle", "textbox", "rich-text", "entity", "field-rectangle"])],
+  ["stroke", new Set(["rectangle", "circle", "textbox", "rich-text", "entity", "field-rectangle", "field-mapping-table", "arrow", "line"])],
+  ["outlineVisible", new Set(["rectangle", "circle", "textbox", "rich-text", "entity", "field-rectangle", "field-mapping-table"])],
+  ["strokeWidth", new Set(["rectangle", "circle", "textbox", "rich-text", "entity", "field-rectangle", "field-mapping-table", "arrow", "line"])],
+  ["arrowSize", new Set(["arrow"])],
+  ["opacity", new Set(["rectangle", "circle", "textbox", "rich-text", "entity", "field-rectangle", "field-mapping-table", "arrow", "line"])],
+  ["textColor", new Set(["textbox", "entity", "field-mapping-table"])],
+  ["fontFamily", new Set(["textbox", "entity", "field-mapping-table"])],
+  ["fontSize", new Set(["textbox", "entity", "field-mapping-table"])],
+  ["textAlign", new Set(["textbox"])],
+  ["textVerticalAlign", new Set(["textbox"])],
+  ["entityNameTextColor", new Set(["entity"])],
+  ["entityHeaderFill", new Set(["entity"])],
+  ["headerTextColor", new Set(["field-mapping-table"])],
+  ["headerFill", new Set(["field-mapping-table"])],
+  ["uiTextColor", new Set(["field-mapping-table"])],
+  ["uiFill", new Set(["field-mapping-table"])],
+  ["databaseTextColor", new Set(["field-mapping-table"])],
+  ["databaseFill", new Set(["field-mapping-table"])],
+  ["fieldMappingRowHoverFill", new Set(["field-mapping-table"])],
+  ["fieldMappingHighlightColor", new Set(["field-mapping-table"])],
+  ["fieldMappingHighlightStrokeWidth", new Set(["field-mapping-table"])]
+]);
+const diagram2ShellFontFamilies = [
+  "Arial",
+  "Georgia",
+  "Times New Roman",
+  "Verdana",
+  "Tahoma",
+  "Trebuchet MS",
+  "Courier New"
+];
 
 export function diagram2EditorShellHtml(options = {}) {
   const status = options.status || {};
@@ -80,8 +145,9 @@ export function diagram2ObjectsPaneHtml(state, selectedObjectIds = []) {
       <div class="image-annotation-object-tree-actions" role="toolbar" aria-label="Object tree actions">
         <button type="button" data-action="rename-diagram2-object" data-diagram2-pending-command disabled>Rename</button>
         <button type="button" data-action="copy-diagram2-selection" data-diagram2-requires-selection>Copy</button>
-        <button type="button" data-action="paste-diagram2-selection" disabled>Paste</button>
-        <button type="button" data-action="delete-diagram2-selection" data-diagram2-pending-command disabled>Delete</button>
+        <button type="button" data-action="paste-diagram2-selection" data-diagram2-requires-update>Paste</button>
+        <button type="button" data-action="duplicate-diagram2-selection" data-diagram2-requires-selection data-diagram2-requires-update>Duplicate</button>
+        <button type="button" data-action="delete-diagram2-selection" data-diagram2-requires-selection data-diagram2-requires-update>Delete</button>
       </div>
       <label class="image-annotation-object-tree-search">
         <span>Search objects</span>
@@ -94,6 +160,91 @@ export function diagram2ObjectsPaneHtml(state, selectedObjectIds = []) {
       </div>
     </div>
   `;
+}
+
+export function openDiagram2TextEditor(options = {}) {
+  const object = options.object;
+  if (!object || !["textbox", "rich-text"].includes(object.type)) return Promise.resolve(null);
+  const richText = object.type === "rich-text";
+  const dialog = document.createElement("dialog");
+  dialog.className = richText
+    ? "dialog image-annotation-rich-text-dialog diagram2-text-editor-dialog"
+    : "dialog diagram2-text-editor-dialog";
+  dialog.innerHTML = `
+    <form method="dialog" data-diagram2-text-editor-form>
+      <div class="dialog-head">
+        <div>
+          <h2>${richText ? "Edit Rich Text" : "Edit Text"}</h2>
+          <p>${escapeHtml(String(object.name || (richText ? "Rich Text" : "Text Box")))}</p>
+        </div>
+        <button type="button" class="icon-btn" data-diagram2-text-cancel title="Close" aria-label="Close">Close</button>
+      </div>
+      <div class="dialog-body diagram2-text-editor-body${richText ? " image-annotation-rich-text-dialog-body" : ""}">
+        ${richText ? `
+          <div class="field full" data-rich-editor-root>
+            <label>Rich Text</label>
+            ${richTextToolsHtml({ disableLinkedDiagram: true, linkedDiagramDisabledReason: "Linked Diagrams are not available inside a Diagram object." })}
+            <div class="rich-editor image-annotation-rich-text-editor diagram2-rich-text-editor" contenteditable="true" role="textbox" aria-label="Diagram Rich Text" aria-multiline="true" data-rich="diagram2RichText" data-diagram2-rich-text-editor>${normalizeDiagram2TextEditorHtml(object.html)}</div>
+          </div>
+        ` : `
+          <label class="field">
+            <span>Text</span>
+            <textarea rows="10" data-diagram2-plain-text-editor>${escapeHtml(String(object.text || ""))}</textarea>
+          </label>
+        `}
+      </div>
+      <div class="dialog-actions">
+        <button type="button" class="secondary" data-diagram2-text-cancel>Cancel</button>
+        <button type="submit" class="primary">Apply</button>
+      </div>
+    </form>
+  `;
+  document.body.appendChild(dialog);
+  if (richText) options.bindRichTextButtons?.(dialog);
+
+  return new Promise(resolve => {
+    let result = null;
+    const finish = value => {
+      result = value;
+      dialog.close();
+    };
+    dialog.querySelectorAll("[data-diagram2-text-cancel]").forEach(button => {
+      button.addEventListener("click", () => finish(null));
+    });
+    dialog.querySelector("[data-diagram2-text-editor-form]")?.addEventListener("submit", event => {
+      event.preventDefault();
+      const value = richText
+        ? normalizeDiagram2TextEditorHtml(dialog.querySelector("[data-diagram2-rich-text-editor]")?.innerHTML)
+        : String(dialog.querySelector("[data-diagram2-plain-text-editor]")?.value || "");
+      finish(value);
+    });
+    dialog.addEventListener("cancel", event => {
+      event.preventDefault();
+      finish(null);
+    });
+    dialog.addEventListener("close", () => {
+      dialog.remove();
+      resolve(result);
+    }, { once: true });
+    dialog.showModal();
+    const editor = dialog.querySelector("[data-diagram2-rich-text-editor], [data-diagram2-plain-text-editor]");
+    editor?.focus();
+    if (!richText) editor?.select?.();
+  });
+}
+
+export async function copyDiagram2SelectionArtwork(state, selectedObjectIds, format = "svg") {
+  const ids = Array.isArray(selectedObjectIds) ? selectedObjectIds.filter(Boolean) : [];
+  if (!ids.length) return false;
+  const svg = await buildPortableAnnotationSelectionSvg(state, ids);
+  if (!svg) return false;
+  if (format === "image") {
+    const dimensions = diagram2SelectionSvgDimensions(svg);
+    await copyAnnotationPngToClipboard({ svg, ...dimensions });
+  } else {
+    await copyAnnotationSvgToClipboard(svg);
+  }
+  return true;
 }
 
 export function updateDiagram2ShellStatus(root, status = {}) {
@@ -117,6 +268,9 @@ export function updateDiagram2ShellStatus(root, status = {}) {
   root.querySelectorAll("[data-diagram2-tool]").forEach(button => {
     button.classList.toggle("is-active", button.dataset.diagram2Tool === status.activeTool);
     button.setAttribute("aria-pressed", String(button.dataset.diagram2Tool === status.activeTool));
+  });
+  root.querySelectorAll("[data-diagram2-workspace], [data-diagram2-viewer-canvas]").forEach(node => {
+    node.dataset.diagram2ActiveTool = status.activeTool || "select";
   });
   root.querySelectorAll("[data-diagram2-requires-document]").forEach(control => {
     control.disabled = !hasDocument || status.busy === true;
@@ -142,6 +296,12 @@ export function updateDiagram2ShellStatus(root, status = {}) {
   root.querySelectorAll("[data-diagram2-pending-command]").forEach(control => {
     control.disabled = true;
   });
+  root.querySelectorAll("[data-filter='diagram2-grid']").forEach(control => {
+    control.checked = status.gridVisible === true;
+  });
+  root.querySelectorAll("[data-filter='diagram2-snap']").forEach(control => {
+    control.checked = status.snapToGrid === true;
+  });
   const hasSelection = Number(status.selectedCount || 0) > 0;
   root.querySelectorAll("[data-diagram2-empty-selection]").forEach(node => {
     node.hidden = hasSelection;
@@ -149,8 +309,23 @@ export function updateDiagram2ShellStatus(root, status = {}) {
   root.querySelectorAll("[data-diagram2-selection-format]").forEach(node => {
     node.hidden = !hasSelection;
   });
-  syncDiagram2ColorPickerControls(root, status.selectedObjects || []);
+  syncDiagram2FormatControls(root, status.selectedObjects || [], { busy: status.busy === true, canEdit });
+  syncDiagram2ColorPickerControls(root, status.selectedObjects || [], { busy: status.busy === true, canEdit });
   syncDiagram2InspectorTabVisibility(root, status.selectedObjects || []);
+  syncDiagram2ContextMenu(root, status.selectedObjects || [], { busy: status.busy === true, canEdit, canExport });
+}
+
+function normalizeDiagram2TextEditorHtml(value) {
+  const source = String(value || "").trim() || "<p><br></p>";
+  try {
+    return normalizeRichHtml(source) || "<p><br></p>";
+  } catch {
+    return source
+      .replace(/<script\b[\s\S]*?<\/script>/gi, "")
+      .replace(/<style\b[\s\S]*?<\/style>/gi, "")
+      .replace(/\s+on[a-z]+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, "")
+      .slice(0, 200000) || "<p><br></p>";
+  }
 }
 
 export function setDiagram2InspectorActiveTab(root, tabName) {
@@ -254,6 +429,31 @@ export function bindDiagram2EditorColorPickers(root, options = {}) {
   });
 }
 
+export function bindDiagram2EditorFormatControls(root, options = {}) {
+  if (!root || root.dataset.diagram2FormatControlsBound === "true") return;
+  root.dataset.diagram2FormatControlsBound = "true";
+
+  root.addEventListener("change", event => {
+    const target = event.target;
+    if (!target || !root.contains(target)) return;
+
+    if (target.matches("[data-diagram2-outline]")) {
+      void applyDiagram2FormatStyle(root, "outlineVisible", target.checked === true, options);
+      return;
+    }
+
+    if (target.matches("[data-diagram2-transparent-fill]")) {
+      const color = target.checked ? "none" : diagram2CurrentFillColor(root);
+      void applyDiagram2FormatStyle(root, "fill", color, options);
+      return;
+    }
+
+    const styleControl = target.closest("[data-diagram2-style]");
+    if (!styleControl || !root.contains(styleControl)) return;
+    void applyDiagram2FormatStyle(root, styleControl.dataset.diagram2Style, styleControl.value, options);
+  });
+}
+
 function diagram2ToolbarHtml({ canUse, includeActions, selectedZoom }) {
   const disabled = canUse ? "" : "disabled";
   return `
@@ -261,14 +461,14 @@ function diagram2ToolbarHtml({ canUse, includeActions, selectedZoom }) {
       <div class="image-annotation-tool-group" aria-label="Drawing tools">
         ${diagram2ToolButton("select", "Select (V)", true, disabled)}
         ${diagram2ToolButton("pan", "Pan (H)", false, disabled)}
-        ${diagram2ToolButton("format-painter", "Format Painter", false, "disabled")}
+        ${diagram2ToolButton("format-painter", "Format Painter", false, `${disabled} data-diagram2-requires-selection data-diagram2-requires-update`)}
         ${diagram2ToolButton("crop", "Crop (C)", false, "disabled")}
         ${diagram2ToolButton("rectangle", "Rectangle (R)", false, `${disabled} data-diagram2-requires-update`)}
         ${diagram2ToolButton("circle", "Circle (O)", false, `${disabled} data-diagram2-requires-update`)}
         ${diagram2ToolButton("arrow", "Arrow (A)", false, `${disabled} data-diagram2-requires-update`)}
         ${diagram2ToolButton("line", "Line (L)", false, `${disabled} data-diagram2-requires-update`)}
         ${diagram2ToolButton("textbox", "Text Box (T)", false, `${disabled} data-diagram2-requires-update`)}
-        ${diagram2ToolButton("rich-text", "Rich Text Editor (Y)", false, "disabled")}
+        ${diagram2ToolButton("rich-text", "Rich Text Editor (Y)", false, `${disabled} data-diagram2-requires-update`)}
         <span class="image-annotation-toolbar-separator" role="separator" aria-hidden="true"></span>
         ${diagram2ToolButton("entity", "Entity (E)", false, "disabled")}
         ${diagram2ToolButton("field-rectangle", "Field Rectangle", false, "disabled")}
@@ -277,11 +477,11 @@ function diagram2ToolbarHtml({ canUse, includeActions, selectedZoom }) {
       <div class="image-annotation-tool-group" aria-label="History">
         ${diagram2TextButton("undo-diagram2", "Undo", "Undo (Ctrl+Z)", "data-diagram2-requires-undo data-diagram2-requires-update")}
         ${diagram2TextButton("redo-diagram2", "Redo", "Redo (Ctrl+Y)", "data-diagram2-requires-redo data-diagram2-requires-update")}
-        ${diagram2TextButton("delete-diagram2-selection", "Delete", "Delete selected objects", "data-diagram2-pending-command disabled")}
+        ${diagram2TextButton("delete-diagram2-selection", "Delete", "Delete selected objects", "data-diagram2-requires-selection data-diagram2-requires-update")}
       </div>
       <div class="image-annotation-tool-group image-annotation-view-tools" aria-label="Canvas view">
-        <label class="inline-check"><input type="checkbox" data-filter="diagram2-grid" disabled><span>Grid</span></label>
-        <label class="inline-check"><input type="checkbox" data-filter="diagram2-snap" disabled><span>Snap</span></label>
+        <label class="inline-check"><input type="checkbox" data-filter="diagram2-grid" data-diagram2-requires-update><span>Grid</span></label>
+        <label class="inline-check"><input type="checkbox" data-filter="diagram2-snap" data-diagram2-requires-update><span>Snap</span></label>
         <button type="button" data-action="zoom-diagram2-out" title="Zoom Out" aria-label="Zoom Out" ${disabled}>-</button>
         <select data-filter="diagram2-zoom" class="image-annotation-zoom-select" aria-label="Zoom level" title="Zoom level" ${disabled}>
           ${diagram2ZoomOptionsHtml(selectedZoom)}
@@ -317,23 +517,23 @@ function diagram2InspectorHtml(status = {}, state = null, selectedIds = []) {
       <section class="image-annotation-format-section" aria-labelledby="diagram2ShapeFormat" data-diagram2-selection-format hidden>
         <h4 id="diagram2ShapeFormat">Shape</h4>
         <div class="image-annotation-inspector-grid">
-          ${diagram2ColorFieldHtml("fill", "Fill", "Background Color", "#ffffff", "background")}
-          ${diagram2ColorFieldHtml("stroke", "Outline color", "Outline Color", "#42526b", "outline")}
-          <label class="inline-check image-annotation-wide"><input type="checkbox" checked disabled><span>Outline</span></label>
-          <label class="inline-check image-annotation-wide"><input type="checkbox" disabled><span>Transparent fill</span></label>
-          <label class="field image-annotation-wide"><span>Opacity (%)</span><input type="number" min="0" max="100" step="1" value="100" disabled></label>
-          <label class="field"><span>Line width</span><input type="number" min="1" max="40" value="2" disabled></label>
-          <label class="field"><span>Arrow head</span><input type="number" min="6" max="160" value="10" disabled></label>
+          ${diagram2ColorFieldHtml("fill", "Fill", "Background Color", defaultDiagram2ShellStyles.fill, "background")}
+          ${diagram2ColorFieldHtml("stroke", "Outline color", "Outline Color", defaultDiagram2ShellStyles.stroke, "outline")}
+          <label class="inline-check image-annotation-wide"><input type="checkbox" data-diagram2-outline checked><span>Outline</span></label>
+          <label class="inline-check image-annotation-wide"><input type="checkbox" data-diagram2-transparent-fill><span>Transparent fill</span></label>
+          <label class="field image-annotation-wide"><span>Opacity (%)</span><input type="number" min="0" max="100" step="1" value="100" data-diagram2-style="opacity"></label>
+          <label class="field"><span>Line width</span><input type="number" min="1" max="40" value="${escapeAttr(defaultDiagram2ShellStyles.strokeWidth)}" data-diagram2-style="strokeWidth"></label>
+          <label class="field" data-diagram2-style-field="arrowSize"><span>Arrow head</span><input type="number" min="6" max="160" value="${escapeAttr(defaultDiagram2ShellStyles.arrowSize)}" data-diagram2-style="arrowSize"></label>
         </div>
       </section>
       <section class="image-annotation-format-section" aria-labelledby="diagram2TextFormat" data-diagram2-selection-format hidden>
         <h4 id="diagram2TextFormat">Text</h4>
         <div class="image-annotation-inspector-grid">
-          ${diagram2ColorFieldHtml("textColor", "Text color", "Font Color", "#172b4d", "font")}
-          <label class="field"><span>Font</span><select disabled><option>Arial</option></select></label>
-          <label class="field"><span>Font size</span><input type="number" min="1" max="240" value="18" disabled></label>
-          <label class="field"><span>Horizontal alignment</span><select disabled><option>Left</option><option>Center</option><option>Right</option></select></label>
-          <label class="field"><span>Vertical alignment</span><select disabled><option>Top</option><option>Middle</option><option>Bottom</option></select></label>
+          ${diagram2ColorFieldHtml("textColor", "Text color", "Font Color", defaultDiagram2ShellStyles.textColor, "font")}
+          <label class="field"><span>Font</span><select data-diagram2-style="fontFamily">${diagram2FontOptions(defaultDiagram2ShellStyles.fontFamily)}</select></label>
+          <label class="field"><span>Font size</span><input type="number" min="1" max="240" value="${escapeAttr(defaultDiagram2ShellStyles.fontSize)}" data-diagram2-style="fontSize"></label>
+          <label class="field"><span>Horizontal alignment</span><select data-diagram2-style="textAlign"><option value="left">Left</option><option value="center">Center</option><option value="right">Right</option></select></label>
+          <label class="field"><span>Vertical alignment</span><select data-diagram2-style="textVerticalAlign"><option value="top">Top</option><option value="middle">Middle</option><option value="bottom">Bottom</option></select></label>
         </div>
       </section>
     </div>
@@ -347,12 +547,15 @@ function diagram2InspectorHtml(status = {}, state = null, selectedIds = []) {
       <section class="image-annotation-format-section" aria-labelledby="diagram2MappingFormat">
         <h4 id="diagram2MappingFormat">Field Mapping Table</h4>
         <div class="image-annotation-inspector-grid">
-          ${diagram2ColorFieldHtml("headerTextColor", "Header text", "Header Text Color", "#172b4d", "font")}
-          ${diagram2ColorFieldHtml("headerFill", "Header background", "Header Background Color", "#d9ecff", "background")}
-          ${diagram2ColorFieldHtml("uiTextColor", "UI field text", "UI Field Text Color", "#172b4d", "font")}
-          ${diagram2ColorFieldHtml("uiFill", "UI field background", "UI Field Background Color", "#ffffff", "background")}
-          ${diagram2ColorFieldHtml("databaseTextColor", "Database text", "Database Text Color", "#172b4d", "font")}
-          ${diagram2ColorFieldHtml("databaseFill", "Database background", "Database Background Color", "#ffffff", "background")}
+          ${diagram2ColorFieldHtml("headerTextColor", "Header text", "Header Text Color", defaultDiagram2ShellStyles.headerTextColor, "font")}
+          ${diagram2ColorFieldHtml("headerFill", "Header background", "Header Background Color", defaultDiagram2ShellStyles.headerFill, "background")}
+          ${diagram2ColorFieldHtml("uiTextColor", "UI field text", "UI Field Text Color", defaultDiagram2ShellStyles.uiTextColor, "font")}
+          ${diagram2ColorFieldHtml("uiFill", "UI field background", "UI Field Background Color", defaultDiagram2ShellStyles.uiFill, "background")}
+          ${diagram2ColorFieldHtml("databaseTextColor", "Database text", "Database Text Color", defaultDiagram2ShellStyles.databaseTextColor, "font")}
+          ${diagram2ColorFieldHtml("databaseFill", "Database background", "Database Background Color", defaultDiagram2ShellStyles.databaseFill, "background")}
+          ${diagram2ColorFieldHtml("fieldMappingRowHoverFill", "Row hover", "Row Hover Color", defaultDiagram2ShellStyles.fieldMappingRowHoverFill, "background")}
+          ${diagram2ColorFieldHtml("fieldMappingHighlightColor", "Highlight", "Highlight Color", defaultDiagram2ShellStyles.fieldMappingHighlightColor, "outline")}
+          <label class="field"><span>Highlight thickness</span><input type="number" min="1" max="40" value="${escapeAttr(defaultDiagram2ShellStyles.fieldMappingHighlightStrokeWidth)}" data-diagram2-style="fieldMappingHighlightStrokeWidth"></label>
         </div>
       </section>
     </div>
@@ -411,10 +614,20 @@ function diagram2DiagnosticsShellHtml(diagnosticsHtml) {
 function diagram2ContextMenuHtml() {
   return `
     <div class="image-annotation-context-menu rich-image-menu dropdown-menu" data-diagram2-context-menu role="menu" aria-label="Selected object actions" hidden>
-      ${diagram2ContextMenuItemHtml("crop", "Crop", diagram2ToolIconSvg("crop"), true)}
+      ${diagram2ContextMenuItemHtml("arrange-diagram2-selection-front", "To Front", "&#8677;")}
+      ${diagram2ContextMenuItemHtml("arrange-diagram2-selection-back", "To Back", "&#8676;")}
+      ${diagram2ContextMenuItemHtml("arrange-diagram2-selection-forward", "Forward", "&#8593;")}
+      ${diagram2ContextMenuItemHtml("arrange-diagram2-selection-backward", "Backward", "&#8595;")}
+      <div class="rich-image-menu-separator" role="separator"></div>
+      ${diagram2ContextMenuItemHtml("lock-diagram2-selection", "Lock", diagram2ObjectTreeLockIcon())}
+      <div class="rich-image-menu-separator" role="separator"></div>
       ${diagram2ContextMenuItemHtml("copy-diagram2-selection", "Copy Selection", "&#128203;")}
-      ${diagram2ContextMenuItemHtml("export-diagram2-svg", "Export SVG", "&#10697;")}
-      ${diagram2ContextMenuItemHtml("export-diagram2-png", "Export PNG", "&#9635;")}
+      ${diagram2ContextMenuItemHtml("paste-diagram2-selection", "Paste", "&#128203;")}
+      ${diagram2ContextMenuItemHtml("duplicate-diagram2-selection", "Duplicate", "&#128203;")}
+      ${diagram2ContextMenuItemHtml("delete-diagram2-selection", "Delete", "&#128465;")}
+      <div class="rich-image-menu-separator" role="separator"></div>
+      ${diagram2ContextMenuItemHtml("copy-diagram2-selection-svg", "Copy as SVG", "&#10697;")}
+      ${diagram2ContextMenuItemHtml("copy-diagram2-selection-image", "Copy as Image", "&#9635;")}
     </div>
   `;
 }
@@ -427,6 +640,53 @@ function diagram2ContextMenuItemHtml(action, label, icon, disabled = false) {
       <span class="dropdown-menu-check" aria-hidden="true"></span>
     </button>
   `;
+}
+
+function syncDiagram2ContextMenu(root, selectedObjects, options = {}) {
+  const selection = Array.isArray(selectedObjects) ? selectedObjects : [];
+  const hasSelection = selection.length > 0;
+  const allLocked = hasSelection && selection.every(object => object?.locked === true);
+  const containsFixedOriginalImage = selection.some(object =>
+    object?.type === "embedded-image" && object?.isOriginalImage === true);
+  const hasLocked = selection.some(object => object?.locked === true);
+  root.querySelectorAll("[data-action^='arrange-diagram2-selection-']").forEach(button => {
+    button.disabled = !hasSelection
+      || hasLocked
+      || containsFixedOriginalImage
+      || options.busy === true
+      || options.canEdit === false;
+  });
+  const lockButton = root.querySelector("[data-action='lock-diagram2-selection']");
+  if (lockButton) {
+    const label = allLocked ? "Unlock" : "Lock";
+    lockButton.querySelector(".dropdown-menu-label").textContent = label;
+    lockButton.title = `${label} selected objects`;
+    lockButton.setAttribute("aria-label", lockButton.title);
+    lockButton.disabled = !hasSelection || containsFixedOriginalImage || options.busy === true || options.canEdit === false;
+  }
+  root.querySelectorAll("[data-action='copy-diagram2-selection-svg'], [data-action='copy-diagram2-selection-image']").forEach(button => {
+    button.disabled = !hasSelection || options.busy === true || options.canExport === false;
+  });
+}
+
+function diagram2SelectionSvgDimensions(svg) {
+  const documentNode = new DOMParser().parseFromString(svg, "image/svg+xml");
+  const root = documentNode.documentElement;
+  const viewBox = String(root?.getAttribute("viewBox") || "").trim().split(/\s+/).map(Number);
+  const width = viewBox.length === 4 && Number.isFinite(viewBox[2])
+    ? viewBox[2]
+    : Number.parseFloat(root?.getAttribute("width") || "1");
+  const height = viewBox.length === 4 && Number.isFinite(viewBox[3])
+    ? viewBox[3]
+    : Number.parseFloat(root?.getAttribute("height") || "1");
+  return {
+    width: Math.max(1, Number.isFinite(width) ? width : 1),
+    height: Math.max(1, Number.isFinite(height) ? height : 1)
+  };
+}
+
+function diagram2ObjectTreeLockIcon() {
+  return `<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="5" y="10" width="14" height="10" rx="2"></rect><path d="M8 10V7a4 4 0 0 1 8 0v3"></path></svg>`;
 }
 
 function diagram2ToolButton(tool, label, pressed = false, attributes = "") {
@@ -470,12 +730,135 @@ function diagram2ColorFieldHtml(name, label, title, selectedColor, icon) {
   return `<div class="image-annotation-color-field"><span>${escapeHtml(label)}</span><div class="image-annotation-color-controls">${sharedRichColorPickerHtml({ name, title, selectedColor, icon })}<div class="image-annotation-recent-colors" data-annotation-recent-colors="${escapeAttr(name)}" aria-label="Recent ${escapeAttr(label)} colors" hidden></div></div></div>`;
 }
 
-function syncDiagram2ColorPickerControls(root, selectedObjects = []) {
+function diagram2FontOptions(selectedFont) {
+  const selected = String(selectedFont || defaultDiagram2ShellStyles.fontFamily);
+  return diagram2ShellFontFamilies.map(font => `<option value="${escapeAttr(font)}" ${font === selected ? "selected" : ""}>${escapeHtml(font)}</option>`).join("");
+}
+
+function syncDiagram2FormatControls(root, selectedObjects = [], options = {}) {
   const objects = Array.isArray(selectedObjects) ? selectedObjects : [];
+  const canUse = options.canEdit !== false && options.busy !== true;
+  syncDiagram2CheckboxStyleControl(root, "[data-diagram2-outline]", "outlineVisible", objects, canUse);
+  syncDiagram2TransparentFillControl(root, objects, canUse);
+  root.querySelectorAll("[data-diagram2-style]").forEach(control => {
+    const styleName = control.dataset.diagram2Style || "";
+    const supportedObjects = objects.filter(object => diagram2ShellObjectSupportsStyle(object, styleName));
+    const canStyle = canUse && supportedObjects.length > 0;
+    const field = control.closest("[data-diagram2-style-field]");
+    if (field) field.hidden = supportedObjects.length === 0;
+    control.disabled = !canStyle;
+    if (!supportedObjects.length) {
+      setDiagram2StyleControlValue(control, diagram2DefaultShellStyleValue(styleName));
+      return;
+    }
+    const values = supportedObjects.map(object => diagram2ShellStyleValue(object, styleName));
+    control.dataset.diagram2MixedValue = values.some(value => value !== values[0]) ? "true" : "false";
+    setDiagram2StyleControlValue(control, values[0]);
+  });
+}
+
+function syncDiagram2CheckboxStyleControl(root, selector, styleName, selectedObjects, canUse) {
+  root.querySelectorAll(selector).forEach(control => {
+    const supportedObjects = selectedObjects.filter(object => diagram2ShellObjectSupportsStyle(object, styleName));
+    control.disabled = !canUse || supportedObjects.length === 0;
+    if (!supportedObjects.length) {
+      control.indeterminate = false;
+      control.checked = Boolean(diagram2DefaultShellStyleValue(styleName));
+      return;
+    }
+    const values = supportedObjects.map(object => Boolean(diagram2ShellStyleValue(object, styleName)));
+    control.checked = values[0] === true;
+    control.indeterminate = values.some(value => value !== values[0]);
+  });
+}
+
+function syncDiagram2TransparentFillControl(root, selectedObjects, canUse) {
+  root.querySelectorAll("[data-diagram2-transparent-fill]").forEach(control => {
+    const supportedObjects = selectedObjects.filter(object => diagram2ShellObjectSupportsStyle(object, "fill"));
+    control.disabled = !canUse || supportedObjects.length === 0;
+    if (!supportedObjects.length) {
+      control.indeterminate = false;
+      control.checked = false;
+      return;
+    }
+    const values = supportedObjects.map(object => String(diagram2ShellStyleValue(object, "fill") || "").toLowerCase() === "none");
+    control.checked = values[0] === true;
+    control.indeterminate = values.some(value => value !== values[0]);
+  });
+}
+
+function setDiagram2StyleControlValue(control, value) {
+  if (!control) return;
+  if (control.type === "checkbox") {
+    control.checked = value === true;
+    return;
+  }
+  control.value = String(value ?? "");
+}
+
+function diagram2ShellObjectSupportsStyle(object, styleName) {
+  const targets = diagram2ShellStyleTargets.get(String(styleName || ""));
+  if (!targets) return false;
+  return targets.has(diagram2ShellObjectStyleType(object));
+}
+
+function diagram2ShellObjectStyleType(object) {
+  const type = String(object?.type || "").trim().toLowerCase();
+  if (type === "entity" && String(object?.entityKind || "").trim().toLowerCase() === "field-rectangle") return "field-rectangle";
+  return type;
+}
+
+function diagram2ShellStyleValue(object, styleName) {
+  if (styleName === "fill" && String(object?.fill || "").trim().toLowerCase() === "none") return "none";
+  if (styleName === "opacity") {
+    const opacity = Number(object?.opacity);
+    return Math.round((Number.isFinite(opacity) ? opacity : defaultDiagram2ShellStyles.opacity) * 100);
+  }
+  const value = object?.[styleName];
+  if (value !== undefined && value !== null && value !== "") return value;
+  return diagram2DefaultShellStyleValue(styleName, object);
+}
+
+function diagram2DefaultShellStyleValue(styleName, object = null) {
+  if (styleName === "fill" && ["rectangle", "circle"].includes(diagram2ShellObjectStyleType(object))) return "none";
+  if (Object.prototype.hasOwnProperty.call(defaultDiagram2ShellStyles, styleName)) return defaultDiagram2ShellStyles[styleName];
+  return "";
+}
+
+function diagram2CurrentFillColor(root) {
+  const trigger = root.querySelector("[data-annotation-color-picker='fill'] [data-annotation-color-trigger]");
+  const color = normalizeDiagram2PickerColor(trigger?.dataset.richSelectedColor)
+    || normalizeDiagram2PickerColor(trigger?.dataset.richColorDefault)
+    || normalizeDiagram2PickerColor(defaultDiagram2ShellStyles.fill);
+  return color || defaultDiagram2ShellStyles.fill;
+}
+
+async function applyDiagram2FormatStyle(root, styleName, value, options = {}) {
+  const name = String(styleName || "").trim();
+  if (!name || typeof options.applyStyle !== "function") return false;
+  const applied = await options.applyStyle(name, value);
+  if (applied === false) return false;
+  if (name === "fill" && String(value || "").toLowerCase() !== "none") {
+    const picker = root.querySelector("[data-annotation-color-picker='fill']");
+    if (picker) {
+      syncDiagram2ColorPicker(picker, value);
+      rememberDiagram2Color(diagram2ColorMemoryKey(name), value);
+      renderDiagram2ColorMemory(root);
+    }
+  }
+  return true;
+}
+
+function syncDiagram2ColorPickerControls(root, selectedObjects = [], options = {}) {
+  const objects = Array.isArray(selectedObjects) ? selectedObjects : [];
+  const canUse = options.canEdit !== false && options.busy !== true;
   root.querySelectorAll("[data-annotation-color-picker]").forEach(picker => {
     const trigger = picker.querySelector("[data-annotation-color-trigger]");
     const fallback = normalizeDiagram2PickerColor(trigger?.dataset.richColorDefault) || "#111827";
-    const color = diagram2SelectedColorValue(picker.dataset.annotationColorPicker, objects, fallback);
+    const name = picker.dataset.annotationColorPicker || "";
+    const supportedObjects = objects.filter(object => diagram2ShellObjectSupportsStyle(object, name));
+    if (trigger) trigger.disabled = !canUse || supportedObjects.length === 0;
+    const color = diagram2SelectedColorValue(name, supportedObjects, fallback);
     syncDiagram2ColorPicker(picker, color);
   });
 }

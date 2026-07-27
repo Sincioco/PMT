@@ -1,4 +1,6 @@
 import { expect, test } from "@playwright/test";
+import { mkdir } from "node:fs/promises";
+import path from "node:path";
 import {
   buildAnnotationSvg,
   normalizeAnnotationState,
@@ -14,6 +16,7 @@ test("Diagram 2 top navigation separates read-only document mode from Edit mode"
     if (message.type() === "error" && !message.text().includes("status of 401")) browserErrors.push(message.text());
   });
   page.on("pageerror", error => browserErrors.push(error.message));
+  await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
 
   await page.addInitScript(seenToken => {
     localStorage.clear();
@@ -105,6 +108,7 @@ test("Diagram 2 top navigation separates read-only document mode from Edit mode"
   await expect(page.locator("[data-filter='diagram2-snap']")).toHaveCount(0);
   await expect(page.locator("[data-diagram2-context-menu]")).toHaveCount(0);
   await expect(page.locator("[data-diagram2-svg]")).toBeVisible();
+  await assertDiagram2CanvasCopyMenu(page, { copyToClipboard: true });
   const readZoomControl = page.locator("[data-filter='diagram2-zoom']");
   await waitForViewportReason(page, "fit");
   await expect.poll(async () => readZoomControl.inputValue()).not.toBe("");
@@ -162,6 +166,8 @@ test("Diagram 2 top navigation separates read-only document mode from Edit mode"
   await expect(page.locator("[data-action='cancel-diagram2-editor']")).toHaveCount(1);
   await expect(page.locator("[data-diagram2-tool='select']")).toHaveAttribute("aria-pressed", "true");
   await expect(page.locator("[data-diagram2-tool='pan']")).toHaveAttribute("aria-pressed", "false");
+  await assertDiagram2EditModeCursor(page);
+  await assertDiagram2CanvasCopyMenu(page);
   await expect(page.locator("[data-diagram2-empty-selection]")).toBeVisible();
   await expect(page.locator("[data-diagram2-selection-format]").first()).toBeHidden();
   const visibleInspectorTabs = await page.locator("[data-diagram2-inspector-tab]").evaluateAll(tabs =>
@@ -179,6 +185,8 @@ test("Diagram 2 top navigation separates read-only document mode from Edit mode"
   await expect(page.locator("[data-diagram2-selection-format]").first()).toBeVisible();
   await expect(page.locator("[data-diagram2-inspector-tab='entity']")).toBeVisible();
   await assertDiagram2ColorPickerBehavior(page);
+  await assertDiagram2FormatControlsBehavior(page);
+  await assertDiagram2ResizeBehavior(page);
   const editZoomControl = page.locator("[data-filter='diagram2-zoom']");
   const editZoomBefore = await editZoomControl.inputValue();
   const editCanvasBox = await page.locator("[data-diagram2-viewer-canvas]").boundingBox();
@@ -194,6 +202,8 @@ test("Diagram 2 top navigation separates read-only document mode from Edit mode"
   await expect.poll(async () => Number(await page.locator("[data-diagram2-diagnostic='svg-descendant-count']").textContent()))
     .toBeGreaterThan(0);
   await assertDiagram2ToolbarObjectInsertion(page);
+  await assertDiagram2RichTextEditorParity(page);
+  await assertDiagram2ObjectContextMenuParity(page);
 
   await page.evaluate(() => {
     window.__diagram2StableSvg = document.querySelector("[data-diagram2-svg]");
@@ -274,6 +284,338 @@ test("Diagram 2 top navigation separates read-only document mode from Edit mode"
   expect(savedNavigationOrder.indexOf("Diagram 2")).toBe(savedNavigationOrder.indexOf("Diagram") + 1);
   expect(savedNavigationOrder.indexOf("Log")).toBe(savedNavigationOrder.indexOf("Diagram 2") + 1);
 
+  expect(browserErrors).toEqual([]);
+});
+
+test("Diagram 2 Phase 3 core editor interactions stay incremental", async ({ page }, testInfo) => {
+  const browserErrors = [];
+  page.on("console", message => {
+    if (message.type() === "error") browserErrors.push(message.text());
+  });
+  page.on("pageerror", error => browserErrors.push(error.message));
+
+  await page.goto("/css/base.css");
+  await page.setContent(`
+    <link rel="stylesheet" href="/css/tokens.css">
+    <link rel="stylesheet" href="/css/base.css">
+    <link rel="stylesheet" href="/css/components/buttons.css">
+    <link rel="stylesheet" href="/css/components/forms.css">
+    <link rel="stylesheet" href="/css/components/dialogs.css">
+    <link rel="stylesheet" href="/css/components/image-annotation.css">
+    <link rel="stylesheet" href="/css/features/diagram2.css">
+    <main id="phase3Harness" style="width:100vw;height:100vh;display:grid;"></main>
+  `);
+  await page.evaluate(async () => {
+    const [
+      controllerModule,
+      interactionModule,
+      rendererModule,
+      shellModule
+    ] = await Promise.all([
+      import("/js/features/diagram2/diagram2-editor-controller.js?v=20260727-diagram2-phase3-final-v2"),
+      import("/js/features/diagram2/diagram2-editor-interactions.js?v=20260727-diagram2-phase3-final-v2"),
+      import("/js/features/diagram2/diagram2-renderer.js?v=20260727-diagram2-phase3-final-v2"),
+      import("/js/features/diagram2/diagram2-editor-shell.js?v=20260727-diagram2-phase3-final-v2")
+    ]);
+    const state = {
+      version: 1,
+      width: 1000,
+      height: 620,
+      gridSize: 20,
+      objects: [
+        { id: "rect-a", type: "rectangle", x: 80, y: 80, width: 180, height: 110, fill: "#f8fafc", stroke: "#172b4d", strokeWidth: 3, opacity: 1 },
+        { id: "circle-a", type: "circle", x: 340, y: 80, width: 150, height: 150, fill: "#dbeafe", stroke: "#1d4ed8", strokeWidth: 3, opacity: 1 },
+        { id: "text-a", type: "textbox", x: 80, y: 300, width: 260, height: 120, text: "Phase 3 text", fill: "#ffffff", stroke: "#334155", strokeWidth: 2, textColor: "#172b4d", fontFamily: "Arial", fontSize: 24, textAlign: "left", textVerticalAlign: "top" },
+        { id: "rich-a", type: "rich-text", x: 430, y: 300, width: 390, height: 180, html: "<h2>Phase 3 Rich Text</h2><p><strong>Persistent</strong> PMT formatting.</p>", fill: "#ffffff", stroke: "#64748b", strokeWidth: 2, textColor: "#172b4d", fontFamily: "Arial", fontSize: 16 },
+        { id: "line-a", type: "line", x1: 560, y1: 110, x2: 770, y2: 190, stroke: "#334155", strokeWidth: 4, opacity: 1 },
+        { id: "arrow-a", type: "arrow", x1: 560, y1: 230, x2: 790, y2: 240, stroke: "#0f766e", strokeWidth: 4, arrowSize: 24, opacity: 1 }
+      ]
+    };
+    const root = document.querySelector("#phase3Harness");
+    const host = {
+      kind: "diagram-document",
+      canEdit: true,
+      canExport: true,
+      security: {
+        canRead: true,
+        canCreate: true,
+        canUpdate: true,
+        canDelete: true,
+        canImport: true,
+        canExport: true
+      },
+      async save() {}
+    };
+    const controller = controllerModule.createDiagram2EditorController({ host, state });
+    root.innerHTML = shellModule.diagram2EditorShellHtml({
+      state: controller.state(),
+      selectedObjectIds: [],
+      status: controller.statusSnapshot()
+    });
+    const renderer = rendererModule.createDiagram2Renderer({
+      host: root.querySelector("[data-diagram2-renderer-surface]")
+    });
+    renderer.render(controller.state(), { reason: "phase3 browser harness" });
+    renderer.setZoom("1");
+    controller.attachRenderer(renderer);
+
+    const sync = () => {
+      const status = controller.statusSnapshot();
+      const selected = new Set(status.selectedObjectIds);
+      shellModule.updateDiagram2ShellStatus(root, {
+        ...status,
+        selectedObjects: controller.state().objects.filter(object => selected.has(object.id))
+      });
+      shellModule.updateDiagram2ObjectTreeSelection(root, status.selectedObjectIds);
+    };
+    const finish = async () => {
+      await renderer.whenIdle();
+      sync();
+    };
+    const addObject = async type => {
+      const object = controllerModule.createDiagram2DefaultObject(type, { x: 500, y: 260 });
+      await controller.addObject(object);
+      await finish();
+      return object.id;
+    };
+    const copy = async () => {
+      globalThis.__pmtDiagramSelectionClipboard = controller.selectionClipboardText();
+      return true;
+    };
+    const paste = async () => {
+      await controller.pasteSelectionClipboardText(globalThis.__pmtDiagramSelectionClipboard || "");
+      await finish();
+    };
+    const duplicate = async () => {
+      await controller.duplicateSelectedObjects();
+      await finish();
+    };
+    const remove = async () => {
+      await controller.deleteSelectedObjects();
+      await finish();
+    };
+    const abortController = new AbortController();
+    interactionModule.bindDiagram2EditorInteractions({
+      root,
+      canvas: root.querySelector("[data-diagram2-viewer-canvas]"),
+      controller,
+      renderer,
+      signal: abortController.signal,
+      isActive: () => true,
+      canMutate: () => true,
+      onStateChange: sync,
+      onAddObject: addObject,
+      onCopy: copy,
+      onPaste: paste,
+      onDuplicate: duplicate,
+      onDelete: remove,
+      onUndo: async () => { await controller.undo(); await finish(); },
+      onRedo: async () => { await controller.redo(); await finish(); },
+      onEditText: async object => {
+        await controller.updateObjectText(
+          object.id,
+          object.type === "rich-text"
+            ? "<h2>Edited Rich Text</h2><p><strong>Bold</strong> and <em>italic</em>.</p>"
+            : "Edited Phase 3 text"
+        );
+        await finish();
+      }
+    });
+    controller.onChange(sync);
+    sync();
+    globalThis.__diagram2Phase3Harness = {
+      controller,
+      renderer,
+      abortController,
+      sync,
+      finish
+    };
+  });
+
+  const canvas = page.locator("[data-diagram2-viewer-canvas]");
+  await expect(canvas).toHaveAttribute("data-diagram2-active-tool", "select");
+  const fullRenderCount = await page.locator("[data-diagram2-svg]").getAttribute("data-diagram2-full-render-count");
+
+  await page.evaluate(async () => {
+    const { controller, finish } = window.__diagram2Phase3Harness;
+    controller.setSelection(["rect-a"]);
+    await finish();
+  });
+  await expect(page.locator("[data-diagram2-selection-id='rect-a']")).toBeVisible();
+  await page.locator("[data-diagram2-object-plane] [data-diagram2-object-id='circle-a']").click({ modifiers: ["Shift"] });
+  await expect.poll(() => page.evaluate(() =>
+    window.__diagram2Phase3Harness.controller.selectedObjectIds().length
+  )).toBe(2);
+
+  const marqueeBounds = await page.evaluate(() => {
+    const first = document.querySelector("[data-diagram2-object-plane] [data-diagram2-object-id='rect-a']").getBoundingClientRect();
+    const second = document.querySelector("[data-diagram2-object-plane] [data-diagram2-object-id='circle-a']").getBoundingClientRect();
+    return {
+      left: Math.min(first.left, second.left) - 8,
+      top: Math.min(first.top, second.top) - 8,
+      right: Math.max(first.right, second.right) + 8,
+      bottom: Math.max(first.bottom, second.bottom) + 8
+    };
+  });
+  await page.mouse.move(marqueeBounds.left, marqueeBounds.top);
+  await page.mouse.down();
+  await page.mouse.move(marqueeBounds.right, marqueeBounds.bottom, { steps: 5 });
+  await expect(page.locator("[data-diagram2-marquee]")).toBeVisible();
+  const marqueeBox = await page.locator("[data-diagram2-marquee]").boundingBox();
+  expect(Math.abs(marqueeBox.x - marqueeBounds.left)).toBeLessThanOrEqual(2);
+  expect(Math.abs(marqueeBox.y - marqueeBounds.top)).toBeLessThanOrEqual(2);
+  await page.mouse.up();
+  await expect(page.locator("[data-diagram2-marquee]")).toHaveCount(0);
+  await expect.poll(() => page.evaluate(() =>
+    window.__diagram2Phase3Harness.controller.selectedObjectIds().includes("rect-a")
+      && window.__diagram2Phase3Harness.controller.selectedObjectIds().includes("circle-a")
+  )).toBe(true);
+
+  const rectBeforeMove = await page.evaluate(() => {
+    const object = window.__diagram2Phase3Harness.controller.getObjectById("rect-a");
+    return { x: object.x, y: object.y };
+  });
+  const rectBox = await page.locator("[data-diagram2-object-plane] [data-diagram2-object-id='rect-a']").boundingBox();
+  await page.mouse.move(rectBox.x + 30, rectBox.y + 30);
+  await page.mouse.down();
+  await page.mouse.move(rectBox.x + 75, rectBox.y + 55, { steps: 5 });
+  await page.mouse.up();
+  await expect.poll(() => page.evaluate(before => {
+    const object = window.__diagram2Phase3Harness.controller.getObjectById("rect-a");
+    return object.x !== before.x && object.y !== before.y;
+  }, rectBeforeMove)).toBe(true);
+
+  await page.evaluate(async () => {
+    const { controller, finish } = window.__diagram2Phase3Harness;
+    controller.setSelection(["rect-a"]);
+    await finish();
+  });
+  const widthBefore = await page.evaluate(() => window.__diagram2Phase3Harness.controller.getObjectById("rect-a").width);
+  const eastHandle = page.locator("[data-diagram2-selection-id='rect-a'] [data-diagram2-resize-handle='e']");
+  const handleBox = await eastHandle.boundingBox();
+  await page.mouse.move(handleBox.x + (handleBox.width / 2), handleBox.y + (handleBox.height / 2));
+  await page.mouse.down();
+  await page.mouse.move(handleBox.x + 50, handleBox.y + (handleBox.height / 2), { steps: 5 });
+  await page.mouse.up();
+  await expect.poll(() => page.evaluate(width =>
+    window.__diagram2Phase3Harness.controller.getObjectById("rect-a").width > width, widthBefore
+  )).toBe(true);
+
+  const cancelledPosition = await page.evaluate(() => {
+    const object = window.__diagram2Phase3Harness.controller.getObjectById("rect-a");
+    return { x: object.x, y: object.y };
+  });
+  const movedRectBox = await page.locator("[data-diagram2-object-plane] [data-diagram2-object-id='rect-a']").boundingBox();
+  await page.mouse.move(movedRectBox.x + 20, movedRectBox.y + 20);
+  await page.mouse.down();
+  await page.mouse.move(movedRectBox.x + 80, movedRectBox.y + 50, { steps: 3 });
+  await page.keyboard.press("Escape");
+  await page.mouse.up();
+  expect(await page.evaluate(() => {
+    const object = window.__diagram2Phase3Harness.controller.getObjectById("rect-a");
+    return { x: object.x, y: object.y };
+  })).toEqual(cancelledPosition);
+
+  await page.evaluate(async () => {
+    const { controller, finish } = window.__diagram2Phase3Harness;
+    await controller.setGridVisible(true);
+    await controller.setSnapToGrid(true);
+    await finish();
+  });
+  await expect(page.locator("[data-diagram2-grid]")).toBeVisible();
+  await expect(page.locator("[data-filter='diagram2-grid']")).toBeChecked();
+  await expect(page.locator("[data-filter='diagram2-snap']")).toBeChecked();
+
+  await page.evaluate(async () => {
+    const { controller, finish } = window.__diagram2Phase3Harness;
+    controller.setSelection(["rect-a"]);
+    await controller.updateSelectedObjectsStyle("fill", "#DC2626");
+    controller.beginFormatPainter();
+    await finish();
+  });
+  await page.locator("[data-diagram2-object-plane] [data-diagram2-object-id='circle-a']").click();
+  await expect.poll(() => page.evaluate(() =>
+    window.__diagram2Phase3Harness.controller.getObjectById("circle-a").fill
+  )).toBe("#DC2626");
+  await page.keyboard.press("Escape");
+
+  await page.locator("[data-diagram2-object-plane] [data-diagram2-object-id='text-a']").dblclick();
+  await expect.poll(() => page.evaluate(() =>
+    window.__diagram2Phase3Harness.controller.getObjectById("text-a").text
+  )).toBe("Edited Phase 3 text");
+  await page.locator("[data-diagram2-object-plane] [data-diagram2-object-id='rich-a']").dispatchEvent("dblclick");
+  await expect.poll(() => page.evaluate(() =>
+    window.__diagram2Phase3Harness.controller.getObjectById("rich-a").html.includes("Edited Rich Text")
+  )).toBe(true);
+  await expect(page.locator("[data-diagram2-object-plane] [data-diagram2-object-id='rich-a'] foreignObject .diagram2-renderer-rich-text-surface")).toContainText("Edited Rich Text");
+
+  const beforeTools = await page.evaluate(() => window.__diagram2Phase3Harness.controller.currentState().objects.length);
+  for (const key of ["r", "o", "a", "l", "t", "y"]) await page.keyboard.press(key);
+  await expect.poll(() => page.evaluate(() =>
+    window.__diagram2Phase3Harness.controller.currentState().objects.length
+  )).toBe(beforeTools + 6);
+  expect(await page.evaluate(() => {
+    const objects = window.__diagram2Phase3Harness.controller.currentState().objects.slice(-6);
+    return objects.map(object => object.type);
+  })).toEqual(["rectangle", "circle", "arrow", "line", "textbox", "rich-text"]);
+
+  await page.keyboard.press("Control+a");
+  await expect.poll(() => page.evaluate(() => {
+    const controller = window.__diagram2Phase3Harness.controller;
+    return controller.selectedObjectIds().length === controller.currentState().objects.length;
+  })).toBe(true);
+  await page.evaluate(() => window.__diagram2Phase3Harness.controller.setSelection(["rect-a"]));
+  await page.keyboard.press("Control+c");
+  const beforeClipboard = await page.evaluate(() => window.__diagram2Phase3Harness.controller.currentState().objects.length);
+  await page.keyboard.press("Control+v");
+  await expect.poll(() => page.evaluate(() =>
+    window.__diagram2Phase3Harness.controller.currentState().objects.length
+  )).toBe(beforeClipboard + 1);
+  await page.keyboard.press("Control+d");
+  await expect.poll(() => page.evaluate(() =>
+    window.__diagram2Phase3Harness.controller.currentState().objects.length
+  )).toBe(beforeClipboard + 2);
+  await page.keyboard.press("Delete");
+  await expect.poll(() => page.evaluate(() =>
+    window.__diagram2Phase3Harness.controller.currentState().objects.length
+  )).toBe(beforeClipboard + 1);
+  await page.keyboard.press("Control+z");
+  await expect.poll(() => page.evaluate(() =>
+    window.__diagram2Phase3Harness.controller.currentState().objects.length
+  )).toBe(beforeClipboard + 2);
+  await page.keyboard.press("Control+y");
+  await expect.poll(() => page.evaluate(() =>
+    window.__diagram2Phase3Harness.controller.currentState().objects.length
+  )).toBe(beforeClipboard + 1);
+
+  await page.evaluate(async () => {
+    const { controller, finish } = window.__diagram2Phase3Harness;
+    controller.setSelection(["circle-a"]);
+    await controller.updateSelectedObjectsStyle("strokeWidth", 9, { reason: "mixed inspector test" });
+    controller.setSelection(["rect-a", "circle-a"]);
+    await finish();
+  });
+  await expect(page.locator("[data-diagram2-style='strokeWidth']").first()).toHaveAttribute("data-diagram2-mixed-value", "true");
+  await expect(page.locator("[data-annotation-color-picker='fill'] [data-annotation-color-trigger]").first()).toBeEnabled();
+
+  const contextBox = await page.locator("[data-diagram2-object-plane] [data-diagram2-object-id='rect-a']").boundingBox();
+  await page.mouse.click(contextBox.x + 20, contextBox.y + 20, { button: "right" });
+  await expect(page.locator("[data-diagram2-context-menu]")).toBeVisible();
+  await page.keyboard.press("Escape");
+
+  await expect(page.locator("[data-diagram2-svg]")).toHaveAttribute("data-diagram2-full-render-count", fullRenderCount);
+  await mkdir(path.join(process.cwd(), "docs", "screenshots", "diagram-2-phase-3"), { recursive: true });
+  await page.screenshot({
+    path: path.join(process.cwd(), "docs", "screenshots", "diagram-2-phase-3", `${testInfo.project.name}.png`),
+    fullPage: true
+  });
+
+  await page.evaluate(() => {
+    window.__diagram2Phase3Harness.abortController.abort();
+    window.__diagram2Phase3Harness.renderer.destroy();
+    window.__diagram2Phase3Harness.controller.destroy();
+    window.__diagram2Phase3Harness = null;
+  });
   expect(browserErrors).toEqual([]);
 });
 
@@ -927,6 +1269,307 @@ async function assertDiagram2ToolbarObjectInsertion(page) {
   await expect(page.locator("[data-action='save-diagram2-document']").first()).toBeDisabled();
 }
 
+async function assertDiagram2RichTextEditorParity(page) {
+  const before = await page.evaluate(() => {
+    const controller = window.__pmtDiagram2EditorCore;
+    const svg = document.querySelector("[data-diagram2-svg]");
+    return {
+      objectCount: controller.currentState().objects.length,
+      historyEntryCount: controller.historyStatus().entryCount,
+      historyIndex: controller.historyStatus().index,
+      fullRenderCount: Number(svg?.dataset.diagram2FullRenderCount || 0)
+    };
+  });
+
+  await page.getByRole("button", { name: "Rich Text Editor (Y)" }).click();
+  await expect.poll(() => page.evaluate(() =>
+    window.__pmtDiagram2EditorCore.currentState().objects.length
+  )).toBe(before.objectCount + 1);
+  const richTextId = await page.evaluate(() => window.__pmtDiagram2EditorCore.selectedObjectIds()[0]);
+  await page.locator(`[data-diagram2-object-plane] [data-diagram2-object-id="${richTextId}"]`).dispatchEvent("dblclick");
+
+  const dialog = page.locator(".diagram2-text-editor-dialog");
+  const editor = dialog.locator("[data-diagram2-rich-text-editor]");
+  await expect(dialog).toBeVisible();
+  await expect(dialog.locator("[data-rich-editor-root]")).toBeVisible();
+  await expect(dialog.locator("[data-command='bold']")).toBeEnabled();
+  await expect(dialog.locator("[data-command='insertRichTable']")).toBeEnabled();
+  await expect(dialog.locator("[data-command='insertCheckbox']")).toBeEnabled();
+  await expect(dialog.locator("[data-rich-source]")).toBeEnabled();
+
+  await editor.evaluate(node => {
+    const paragraph = node.querySelector("p:last-child") || node;
+    const range = document.createRange();
+    range.selectNodeContents(paragraph);
+    const selection = window.getSelection();
+    selection.removeAllRanges();
+    selection.addRange(range);
+  });
+  await dialog.locator("[data-command='bold']").click();
+  await expect(editor.locator("p:last-child b, p:last-child strong")).toHaveCount(1);
+
+  await editor.evaluate(node => {
+    const paragraph = node.querySelector("p:last-child") || node;
+    const range = document.createRange();
+    range.selectNodeContents(paragraph);
+    const selection = window.getSelection();
+    selection.removeAllRanges();
+    selection.addRange(range);
+  });
+  await dialog.locator("[data-rich-font]").selectOption("Georgia");
+  await expect(editor.locator("font[face='Georgia']")).toHaveCount(1);
+
+  await editor.evaluate(node => {
+    const range = document.createRange();
+    range.selectNodeContents(node);
+    range.collapse(false);
+    const selection = window.getSelection();
+    selection.removeAllRanges();
+    selection.addRange(range);
+  });
+  await dialog.locator("[data-command='insertHorizontalRule']").click();
+  await dialog.locator("[data-command='insertCheckbox']").click();
+  await dialog.locator("[data-command='insertRichTable']").click();
+  const tableDialog = page.locator("dialog.mini-dialog");
+  await expect(tableDialog.getByRole("heading", { name: "Insert Table" })).toBeVisible();
+  await tableDialog.locator("[name='rows']").selectOption("2");
+  await tableDialog.locator("[name='columns']").selectOption("2");
+  await tableDialog.getByRole("button", { name: "Insert" }).click();
+  await expect(editor.locator("table")).toHaveCount(1);
+  await expect(editor.locator(".rich-check-item")).toHaveCount(1);
+  await expect(editor.locator("hr")).toHaveCount(1);
+
+  await dialog.locator("[data-rich-source]").click();
+  const sourceDialog = page.locator("dialog.rich-source-dialog");
+  await expect(sourceDialog).toBeVisible();
+  const source = sourceDialog.locator("[name='sourceHtml']");
+  await source.fill(`${await source.inputValue()}<p data-phase3-source="true">Source parity works.</p>`);
+  await sourceDialog.getByRole("button", { name: "Apply" }).click();
+  await expect(sourceDialog).toHaveCount(0);
+  await expect(editor).toContainText("Source parity works.");
+
+  await dialog.getByRole("button", { name: "Apply" }).click();
+  await expect(dialog).toHaveCount(0);
+  await expect.poll(() => page.evaluate(id => {
+    const object = window.__pmtDiagram2EditorCore.getObjectById(id);
+    return Boolean(
+      object?.html?.includes("data-phase3-source")
+      && object.html.includes("<table")
+      && object.html.includes("rich-check-item")
+    );
+  }, richTextId)).toBe(true);
+  await expect(page.locator(`[data-diagram2-object-plane] [data-diagram2-object-id="${richTextId}"] .diagram2-renderer-rich-text-surface`))
+    .toContainText("Source parity works.");
+
+  const afterApply = await page.evaluate(async ({ id, baseline }) => {
+    const controller = window.__pmtDiagram2EditorCore;
+    const renderer = window.__pmtDiagram2Renderer;
+    await renderer.whenIdle();
+    const svg = document.querySelector("[data-diagram2-svg]");
+    return {
+      selected: controller.selectedObjectIds().includes(id),
+      historyEntryDelta: controller.historyStatus().entryCount - baseline.historyEntryCount,
+      historyIndexDelta: controller.historyStatus().index - baseline.historyIndex,
+      fullRenderCount: Number(svg?.dataset.diagram2FullRenderCount || 0)
+    };
+  }, { id: richTextId, baseline: before });
+  expect(afterApply.selected).toBe(true);
+  expect(afterApply.historyEntryDelta).toBe(1);
+  expect(afterApply.historyIndexDelta).toBe(2);
+  expect(afterApply.fullRenderCount).toBe(before.fullRenderCount);
+
+  await page.locator("[data-action='undo-diagram2']").click();
+  await page.locator("[data-action='undo-diagram2']").click();
+  await expect.poll(() => page.evaluate(count =>
+    window.__pmtDiagram2EditorCore.currentState().objects.length
+  , before.objectCount)).toBe(before.objectCount);
+  await expect(page.locator("[data-action='save-diagram2-document']").first()).toBeDisabled();
+}
+
+async function assertDiagram2ObjectContextMenuParity(page) {
+  const before = await page.evaluate(() => {
+    const controller = window.__pmtDiagram2EditorCore;
+    const svg = document.querySelector("[data-diagram2-svg]");
+    window.__diagram2ContextUnrelatedNode = document.querySelector("[data-diagram2-object-plane] [data-diagram2-object-type='entity']");
+    return {
+      objectCount: controller.currentState().objects.length,
+      historyIndex: controller.historyStatus().index,
+      fullRenderCount: Number(svg?.dataset.diagram2FullRenderCount || 0)
+    };
+  });
+
+  await page.getByRole("button", { name: "Rectangle (R)" }).click();
+  const rectangleId = await page.evaluate(() => window.__pmtDiagram2EditorCore.selectedObjectIds()[0]);
+  const rectangle = page.locator(`[data-diagram2-object-plane] [data-diagram2-object-id="${rectangleId}"]`);
+  const rectangleName = await page.evaluate(id =>
+    window.__pmtDiagram2EditorCore.getObjectById(id)?.name, rectangleId);
+  expect(rectangleName).toMatch(/^Rectangle \d+$/);
+  await expect(page.locator(
+    `[data-diagram2-object-tree-row][data-object-id="${rectangleId}"] .image-annotation-object-tree-label`
+  )).toHaveText(rectangleName);
+  await rectangle.click({ button: "right" });
+  const menu = page.locator("[data-diagram2-context-menu]");
+  await expect(menu).toBeVisible();
+  expect(await menu.locator("button").evaluateAll(buttons => buttons.map(button =>
+    button.querySelector(".dropdown-menu-label")?.textContent?.trim()
+  ))).toEqual([
+    "To Front",
+    "To Back",
+    "Forward",
+    "Backward",
+    "Lock",
+    "Copy Selection",
+    "Paste",
+    "Duplicate",
+    "Delete",
+    "Copy as SVG",
+    "Copy as Image"
+  ]);
+
+  const objectOrder = () => page.evaluate(() =>
+    window.__pmtDiagram2EditorCore.currentState().objects.map(object => object.id));
+  await menu.locator("[data-action='arrange-diagram2-selection-back']").click();
+  await expect.poll(async () => (await objectOrder())[0]).toBe(rectangleId);
+
+  await rectangle.click({ button: "right" });
+  await menu.locator("[data-action='arrange-diagram2-selection-forward']").click();
+  await expect.poll(async () => (await objectOrder())[1]).toBe(rectangleId);
+
+  await rectangle.click({ button: "right" });
+  await menu.locator("[data-action='arrange-diagram2-selection-front']").click();
+  await expect.poll(async () => (await objectOrder()).at(-1)).toBe(rectangleId);
+
+  await rectangle.click({ button: "right" });
+  await menu.locator("[data-action='arrange-diagram2-selection-backward']").click();
+  await expect.poll(async () => (await objectOrder()).at(-2)).toBe(rectangleId);
+
+  for (let index = 0; index < 4; index += 1) {
+    await page.locator("[data-action='undo-diagram2']").click();
+  }
+  await expect.poll(async () => (await objectOrder()).at(-1)).toBe(rectangleId);
+
+  await rectangle.click({ button: "right" });
+  await menu.locator("[data-action='lock-diagram2-selection']").click();
+  await expect.poll(() => page.evaluate(id =>
+    window.__pmtDiagram2EditorCore.getObjectById(id)?.locked, rectangleId
+  )).toBe(true);
+  await expect(rectangle).toHaveAttribute("data-diagram2-object-locked", "true");
+  await expect(page.locator(`[data-diagram2-selection-id="${rectangleId}"] [data-diagram2-resize-handle]`)).toHaveCount(0);
+
+  await rectangle.click({ button: "right" });
+  await expect(menu.locator("[data-action='lock-diagram2-selection'] .dropdown-menu-label")).toHaveText("Unlock");
+  await expect(menu.locator("[data-action^='arrange-diagram2-selection-']").first()).toBeDisabled();
+  await page.locator("[data-action='undo-diagram2']").click();
+  await expect.poll(() => page.evaluate(id =>
+    window.__pmtDiagram2EditorCore.getObjectById(id)?.locked, rectangleId
+  )).toBe(false);
+
+  await rectangle.click({ button: "right" });
+  await menu.locator("[data-action='copy-diagram2-selection']").click();
+  await expect.poll(() => page.evaluate(() =>
+    String(window.__pmtDiagramSelectionClipboard || "").startsWith("PMT_DIAGRAM_SELECTION_V1")
+  )).toBe(true);
+  await rectangle.click({ button: "right" });
+  await menu.locator("[data-action='paste-diagram2-selection']").click();
+  await expect.poll(() => page.evaluate(count =>
+    window.__pmtDiagram2EditorCore.currentState().objects.length, before.objectCount
+  )).toBe(before.objectCount + 2);
+  await page.locator("[data-action='undo-diagram2']").click();
+
+  await rectangle.click({ button: "right" });
+  await menu.locator("[data-action='duplicate-diagram2-selection']").click();
+  await expect.poll(() => page.evaluate(count =>
+    window.__pmtDiagram2EditorCore.currentState().objects.length, before.objectCount
+  )).toBe(before.objectCount + 2);
+  const duplicateId = await page.evaluate(() => window.__pmtDiagram2EditorCore.selectedObjectIds()[0]);
+  await page.locator(`[data-diagram2-object-plane] [data-diagram2-object-id="${duplicateId}"]`).click({ button: "right" });
+  await menu.locator("[data-action='delete-diagram2-selection']").click();
+  await expect.poll(() => page.evaluate(count =>
+    window.__pmtDiagram2EditorCore.currentState().objects.length, before.objectCount
+  )).toBe(before.objectCount + 1);
+  await page.locator("[data-action='undo-diagram2']").click();
+  await page.locator("[data-action='undo-diagram2']").click();
+
+  await rectangle.click({ button: "right" });
+  await menu.locator("[data-action='copy-diagram2-selection-svg']").click();
+  await expect.poll(() => page.evaluate(async () =>
+    navigator.clipboard.readText()
+  )).toContain("<svg");
+  await rectangle.click({ button: "right" });
+  await menu.locator("[data-action='copy-diagram2-selection-image']").click();
+  await expect.poll(() => page.evaluate(async () => {
+    const items = await navigator.clipboard.read();
+    return items.flatMap(item => item.types);
+  })).toContain("image/png");
+
+  await page.locator("[data-action='undo-diagram2']").click();
+  await expect.poll(() => page.evaluate(count =>
+    window.__pmtDiagram2EditorCore.currentState().objects.length, before.objectCount
+  )).toBe(before.objectCount);
+  const after = await page.evaluate(async () => {
+    const controller = window.__pmtDiagram2EditorCore;
+    const renderer = window.__pmtDiagram2Renderer;
+    await renderer.whenIdle();
+    const svg = document.querySelector("[data-diagram2-svg]");
+    return {
+      historyIndex: controller.historyStatus().index,
+      fullRenderCount: Number(svg?.dataset.diagram2FullRenderCount || 0),
+      unrelatedNodePreserved: document.querySelector("[data-diagram2-object-plane] [data-diagram2-object-type='entity']")
+        === window.__diagram2ContextUnrelatedNode
+    };
+  });
+  expect(after.historyIndex).toBe(before.historyIndex);
+  expect(after.fullRenderCount).toBe(before.fullRenderCount);
+  expect(after.unrelatedNodePreserved).toBe(true);
+  await expect(page.locator("[data-action='save-diagram2-document']").first()).toBeDisabled();
+}
+
+async function assertDiagram2CanvasCopyMenu(page, options = {}) {
+  const canvas = page.locator("[data-diagram2-viewer-canvas]");
+  const menu = page.locator("[data-diagram2-canvas-context-menu]");
+  const openMenu = async () => {
+    const box = await canvas.boundingBox();
+    expect(box).toBeTruthy();
+    await canvas.dispatchEvent("contextmenu", {
+      button: 2,
+      clientX: box.x + Math.min(80, box.width / 2),
+      clientY: box.y + Math.min(80, box.height / 2)
+    });
+    await expect(menu).toBeVisible();
+    expect(await menu.locator("button").evaluateAll(buttons => buttons.map(button =>
+      button.querySelector(".dropdown-menu-label")?.textContent?.trim()
+    ))).toEqual(["Copy as SVG", "Copy as PNG"]);
+  };
+
+  await openMenu();
+  await menu.locator("[data-action='copy-diagram2-svg']").click();
+  const svgDialog = page.locator(".diagram2-svg-download-dialog");
+  await expect(svgDialog).toBeVisible();
+  await expect(svgDialog.getByRole("heading")).toHaveText("Copy as SVG");
+  if (options.copyToClipboard === true) {
+    await svgDialog.locator("select").selectOption("12");
+    await svgDialog.getByRole("button", { name: "Copy", exact: true }).click();
+    await expect.poll(() => page.evaluate(async () => navigator.clipboard.readText())).toContain("<svg");
+  } else {
+    await svgDialog.getByRole("button", { name: "Cancel", exact: true }).click();
+  }
+
+  await openMenu();
+  await menu.locator("[data-action='copy-diagram2-png']").click();
+  const pngDialog = page.locator(".diagram2-png-download-dialog");
+  await expect(pngDialog).toBeVisible();
+  await expect(pngDialog.getByRole("heading")).toHaveText("Copy as PNG");
+  if (options.copyToClipboard === true) {
+    await pngDialog.getByRole("button", { name: "Copy", exact: true }).click();
+    await expect.poll(() => page.evaluate(async () => {
+      const items = await navigator.clipboard.read();
+      return items.flatMap(item => item.types);
+    })).toContain("image/png");
+  } else {
+    await pngDialog.getByRole("button", { name: "Cancel", exact: true }).click();
+  }
+}
+
 async function assertDiagram2ColorPickerBehavior(page) {
   const trigger = page.locator("[data-annotation-color-picker='fill'] [data-annotation-color-trigger]").first();
   const palette = page.locator("[data-annotation-color-picker='fill'] [data-rich-color-palette]").first();
@@ -1000,6 +1643,140 @@ async function assertDiagram2ColorPickerBehavior(page) {
   await expect.poll(() => page.evaluate(({ id, fill }) =>
     String(window.__pmtDiagram2EditorCore.getObjectById(id)?.fill || "").toUpperCase() === String(fill || "").toUpperCase(), before
   )).toBe(true);
+  await expect(page.locator("[data-action='save-diagram2-document']").first()).toBeDisabled();
+}
+
+async function assertDiagram2EditModeCursor(page) {
+  const canvas = page.locator("[data-diagram2-viewer-canvas]").first();
+  await expect.poll(() => canvas.evaluate(element => element.dataset.diagram2ActiveTool)).toBe("select");
+  await expect.poll(() => canvas.evaluate(element => getComputedStyle(element).cursor)).toBe("default");
+
+  await page.locator("[data-diagram2-tool='pan']").click();
+  await expect(page.locator("[data-diagram2-tool='pan']")).toHaveAttribute("aria-pressed", "true");
+  await expect.poll(() => canvas.evaluate(element => element.dataset.diagram2ActiveTool)).toBe("pan");
+  await expect.poll(() => canvas.evaluate(element => getComputedStyle(element).cursor)).toBe("grab");
+
+  await page.locator("[data-diagram2-tool='select']").click();
+  await expect(page.locator("[data-diagram2-tool='select']")).toHaveAttribute("aria-pressed", "true");
+  await expect.poll(() => canvas.evaluate(element => element.dataset.diagram2ActiveTool)).toBe("select");
+  await expect.poll(() => canvas.evaluate(element => getComputedStyle(element).cursor)).toBe("default");
+}
+
+async function assertDiagram2FormatControlsBehavior(page) {
+  const lineWidth = page.locator("[data-diagram2-style='strokeWidth']").first();
+  const fontSize = page.locator("[data-diagram2-style='fontSize']").first();
+  const textAlign = page.locator("[data-diagram2-style='textAlign']").first();
+  await expect(lineWidth).toBeEnabled();
+  await expect(fontSize).toBeEnabled();
+  await expect(textAlign).toBeDisabled();
+  await expect(page.locator("[data-diagram2-style-field='arrowSize']")).toBeHidden();
+
+  const before = await page.evaluate(() => {
+    const controller = window.__pmtDiagram2EditorCore;
+    const id = controller.selectedObjectIds()[0];
+    const object = controller.getObjectById(id);
+    const svg = document.querySelector("[data-diagram2-svg]");
+    return {
+      id,
+      strokeWidth: object?.strokeWidth,
+      fontSize: object?.fontSize,
+      fullRenderCount: Number(svg?.dataset.diagram2FullRenderCount || 0),
+      flushCount: Number(svg?.dataset.diagram2DirtyFlushCount || 0)
+    };
+  });
+
+  await setDiagram2FormatControlValue(lineWidth, "7");
+  await expect.poll(() => page.evaluate(id =>
+    window.__pmtDiagram2EditorCore.getObjectById(id)?.strokeWidth, before.id
+  )).toBe(7);
+  const afterLineWidth = await page.evaluate(async id => {
+    const renderer = window.__pmtDiagram2Renderer;
+    const svg = document.querySelector("[data-diagram2-svg]");
+    await renderer.whenIdle();
+    return {
+      fullRenderCount: Number(svg?.dataset.diagram2FullRenderCount || 0),
+      flushCount: Number(svg?.dataset.diagram2DirtyFlushCount || 0),
+      renderedStrokeWidth: document.querySelector(`[data-diagram2-object-id="${CSS.escape(id)}"] .diagram2-renderer-entity-outline`)?.getAttribute("stroke-width")
+    };
+  }, before.id);
+  expect(afterLineWidth.renderedStrokeWidth).toBe("7");
+  expect(afterLineWidth.fullRenderCount).toBe(before.fullRenderCount);
+  expect(afterLineWidth.flushCount).toBeGreaterThan(before.flushCount);
+
+  await setDiagram2FormatControlValue(fontSize, "22");
+  await expect.poll(() => page.evaluate(id =>
+    window.__pmtDiagram2EditorCore.getObjectById(id)?.fontSize, before.id
+  )).toBe(22);
+  const afterFontSize = await page.evaluate(async () => {
+    const renderer = window.__pmtDiagram2Renderer;
+    const svg = document.querySelector("[data-diagram2-svg]");
+    await renderer.whenIdle();
+    return Number(svg?.dataset.diagram2FullRenderCount || 0);
+  });
+  expect(afterFontSize).toBe(before.fullRenderCount);
+
+  await page.locator("[data-action='undo-diagram2']").click();
+  await expect.poll(() => page.evaluate(({ id, fontSize }) =>
+    window.__pmtDiagram2EditorCore.getObjectById(id)?.fontSize, before
+  )).toBe(before.fontSize);
+  await page.locator("[data-action='undo-diagram2']").click();
+  await expect.poll(() => page.evaluate(({ id, strokeWidth }) =>
+    window.__pmtDiagram2EditorCore.getObjectById(id)?.strokeWidth, before
+  )).toBe(before.strokeWidth);
+  await expect(page.locator("[data-action='save-diagram2-document']").first()).toBeDisabled();
+}
+
+async function setDiagram2FormatControlValue(locator, value) {
+  await locator.evaluate((element, nextValue) => {
+    element.value = String(nextValue);
+    element.dispatchEvent(new Event("input", { bubbles: true }));
+    element.dispatchEvent(new Event("change", { bubbles: true }));
+  }, String(value));
+}
+
+async function assertDiagram2ResizeBehavior(page) {
+  const before = await page.evaluate(() => {
+    const controller = window.__pmtDiagram2EditorCore;
+    const id = controller.selectedObjectIds()[0];
+    const object = controller.getObjectById(id);
+    const svg = document.querySelector("[data-diagram2-svg]");
+    return {
+      id,
+      width: object?.width,
+      fullRenderCount: Number(svg?.dataset.diagram2FullRenderCount || 0)
+    };
+  });
+  const handle = page.locator(`[data-diagram2-selection-id='${before.id}'] [data-diagram2-resize-handle='e']`).first();
+  await expect(handle).toBeVisible();
+  const box = await handle.boundingBox();
+  expect(box).toBeTruthy();
+
+  await page.mouse.move(box.x + (box.width / 2), box.y + (box.height / 2));
+  await page.mouse.down();
+  await page.mouse.move(box.x + (box.width / 2) + 48, box.y + (box.height / 2), { steps: 4 });
+  await page.mouse.up();
+
+  await expect.poll(() => page.evaluate(id =>
+    window.__pmtDiagram2EditorCore.getObjectById(id)?.width, before.id
+  )).toBeGreaterThan(before.width);
+  const after = await page.evaluate(async id => {
+    const renderer = window.__pmtDiagram2Renderer;
+    const svg = document.querySelector("[data-diagram2-svg]");
+    await renderer.whenIdle();
+    return {
+      dirty: window.__pmtDiagram2EditorCore.historyStatus().dirty,
+      fullRenderCount: Number(svg?.dataset.diagram2FullRenderCount || 0),
+      handleCount: document.querySelectorAll(`[data-diagram2-selection-id="${CSS.escape(id)}"] [data-diagram2-resize-handle]`).length
+    };
+  }, before.id);
+  expect(after.dirty).toBe(true);
+  expect(after.fullRenderCount).toBe(before.fullRenderCount);
+  expect(after.handleCount).toBe(8);
+
+  await page.locator("[data-action='undo-diagram2']").click();
+  await expect.poll(() => page.evaluate(({ id, width }) =>
+    window.__pmtDiagram2EditorCore.getObjectById(id)?.width, before
+  )).toBe(before.width);
   await expect(page.locator("[data-action='save-diagram2-document']").first()).toBeDisabled();
 }
 

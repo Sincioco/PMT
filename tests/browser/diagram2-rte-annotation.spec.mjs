@@ -54,6 +54,7 @@ test("Annotate 2.0 saves through the RTE upload URL and remains editable", async
 
   await expect(page.locator("[data-diagram2-rte-host]")).toBeVisible();
   const toolbarRectangleId = await assertDiagram2RteToolbarObjectInsertion(page);
+  await assertDiagram2RtePhase3CoreEditing(page, toolbarRectangleId);
   const movedImage = await page.evaluate(async () => {
     const controller = window.__pmtDiagram2EditorCore;
     const imageObject = controller.currentState().objects.find(object => object.type === "embedded-image" && object.isOriginalImage === true);
@@ -171,6 +172,101 @@ test("Annotate 2.0 saves through the RTE upload URL and remains editable", async
   await page.getByRole("button", { name: "Cancel" }).click();
   await page.evaluate(() => window.__diagram2EditPromise);
 });
+
+async function assertDiagram2RtePhase3CoreEditing(page, rectangleId) {
+  const dialog = page.locator("[data-diagram2-rte-host]");
+  const baselineCount = await page.evaluate(() => window.__pmtDiagram2EditorCore.currentState().objects.length);
+
+  await dialog.locator("[data-filter='diagram2-grid']").check();
+  await dialog.locator("[data-filter='diagram2-snap']").check();
+  await expect(dialog.locator("[data-diagram2-grid]")).toBeVisible();
+  await expect(dialog.locator("[data-filter='diagram2-grid']")).toBeChecked();
+  await expect(dialog.locator("[data-filter='diagram2-snap']")).toBeChecked();
+  await dialog.locator("[data-diagram2-workspace]").focus();
+
+  const rectangle = dialog.locator(`[data-diagram2-object-plane] [data-diagram2-object-id='${rectangleId}']`);
+  const rectangleBox = await rectangle.boundingBox();
+  await rectangle.dispatchEvent("contextmenu", {
+    button: 2,
+    clientX: rectangleBox.x + (rectangleBox.width / 2),
+    clientY: rectangleBox.y + (rectangleBox.height / 2)
+  });
+  const contextMenu = dialog.locator("[data-diagram2-context-menu]");
+  await expect(contextMenu).toBeVisible();
+  await expect(contextMenu.locator("[data-action='lock-diagram2-selection']")).toContainText("Lock");
+  await expect(contextMenu.locator("[data-action='copy-diagram2-selection-svg']")).toBeEnabled();
+  await contextMenu.locator("[data-action='lock-diagram2-selection']").dispatchEvent("click");
+  await expect.poll(() => page.evaluate(id =>
+    window.__pmtDiagram2EditorCore.getObjectById(id)?.locked, rectangleId
+  )).toBe(true);
+  await page.keyboard.press("Control+z");
+  await expect.poll(() => page.evaluate(id =>
+    window.__pmtDiagram2EditorCore.getObjectById(id)?.locked, rectangleId
+  )).toBe(false);
+
+  await page.evaluate(id => window.__pmtDiagram2EditorCore.setSelection([id]), rectangleId);
+  await page.keyboard.press("Control+d");
+  await expect.poll(() => page.evaluate(() => window.__pmtDiagram2EditorCore.currentState().objects.length)).toBe(baselineCount + 1);
+  await page.keyboard.press("Delete");
+  await expect.poll(() => page.evaluate(() => window.__pmtDiagram2EditorCore.currentState().objects.length)).toBe(baselineCount);
+  await page.keyboard.press("Control+z");
+  await page.keyboard.press("Control+z");
+  await expect.poll(() => page.evaluate(() => window.__pmtDiagram2EditorCore.currentState().objects.length)).toBe(baselineCount);
+
+  await dialog.locator("[data-diagram2-tool='circle']").click();
+  const circleId = await page.evaluate(() => window.__pmtDiagram2EditorCore.selectedObjectIds()[0]);
+  await page.evaluate(async ({ rectangleId, circleId }) => {
+    const controller = window.__pmtDiagram2EditorCore;
+    const renderer = window.__pmtDiagram2Renderer;
+    await controller.moveObjects([circleId], 300, 0, { reason: "RTE painter target placement" });
+    renderer.fit();
+    await renderer.whenIdle();
+    controller.setSelection([rectangleId]);
+    await controller.updateSelectedObjectsStyle("fill", "#0EA5E9");
+  }, { rectangleId, circleId });
+  await dialog.locator("[data-diagram2-tool='format-painter']").click();
+  await dialog.locator(`[data-diagram2-object-plane] [data-diagram2-object-id='${circleId}']`)
+    .dispatchEvent("pointerdown", { button: 0 });
+  await expect.poll(() => page.evaluate(id =>
+    window.__pmtDiagram2EditorCore.getObjectById(id)?.fill, circleId
+  )).toBe("#0EA5E9");
+  await page.keyboard.press("Escape");
+  await page.keyboard.press("Control+z");
+  await page.keyboard.press("Control+z");
+  await page.keyboard.press("Control+z");
+  await page.keyboard.press("Control+z");
+  await expect.poll(() => page.evaluate(() => window.__pmtDiagram2EditorCore.currentState().objects.length)).toBe(baselineCount);
+
+  await dialog.locator("[data-diagram2-tool='rich-text']").click();
+  const richTextId = await page.evaluate(() => window.__pmtDiagram2EditorCore.selectedObjectIds()[0]);
+  await page.evaluate(async id => {
+    const controller = window.__pmtDiagram2EditorCore;
+    const renderer = window.__pmtDiagram2Renderer;
+    await controller.moveObjects([id], 340, 220, { reason: "RTE rich text placement" });
+    renderer.fit();
+    await renderer.whenIdle();
+  }, richTextId);
+  await dialog.locator(`[data-diagram2-object-plane] [data-diagram2-object-id='${richTextId}']`).dispatchEvent("dblclick");
+  await expect(page.locator(".diagram2-text-editor-dialog")).toBeVisible();
+  await page.locator("[data-diagram2-rich-text-editor]").evaluate(editor => {
+    editor.innerHTML = "<h2>RTE Phase 3</h2><p><strong>Shared editor path</strong></p>";
+  });
+  await page.locator(".diagram2-text-editor-dialog").getByRole("button", { name: "Apply", exact: true }).click();
+  await expect(page.locator(".diagram2-text-editor-dialog")).toHaveCount(0);
+  await expect.poll(() => page.evaluate(id =>
+    window.__pmtDiagram2EditorCore.getObjectById(id)?.html.includes("RTE Phase 3"), richTextId
+  )).toBe(true);
+  await expect(dialog.locator(`[data-diagram2-object-id='${richTextId}'] .diagram2-renderer-rich-text-surface`)).toContainText("RTE Phase 3");
+  await page.keyboard.press("Control+z");
+  await page.keyboard.press("Control+z");
+  await page.keyboard.press("Control+z");
+  await expect.poll(() => page.evaluate(() => window.__pmtDiagram2EditorCore.currentState().objects.length)).toBe(baselineCount);
+
+  await page.keyboard.press("Control+z");
+  await page.keyboard.press("Control+z");
+  await expect(dialog.locator("[data-filter='diagram2-grid']")).not.toBeChecked();
+  await expect(dialog.locator("[data-filter='diagram2-snap']")).not.toBeChecked();
+}
 
 test("Annotate 2.0 cancel performs no upload and leaves RTE image unchanged", async ({ page }) => {
   await page.route("**/uploads/original.svg", route => route.fulfill({

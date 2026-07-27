@@ -7,9 +7,11 @@ import {
   formatAnnotationEntityIdentifier,
   normalizeAnnotationState,
   wrapAnnotationText
-} from "../../components/image-annotation.js?v=20260726-d2-line-parity-v1";
+} from "../../components/image-annotation.js?v=20260727-diagram2-phase3-final-v2";
+import { normalizeRichHtml } from "../../shared/text-and-links.js?v=20260722-rte-toggle-state-v1";
 
 const svgNamespace = "http://www.w3.org/2000/svg";
+const xhtmlNamespace = "http://www.w3.org/1999/xhtml";
 const xlinkNamespace = "http://www.w3.org/1999/xlink";
 const defaultDiagram2Width = 1600;
 const defaultDiagram2Height = 900;
@@ -377,6 +379,11 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
   let lastOverviewDetailDiagnostics = emptyOverviewDetailDiagnostics();
   let lastDiagnostics = emptyDiagnostics();
   let pendingSelectiveRoutingSectorsQueried = 0;
+  let canvasOptions = {
+    gridVisible: false,
+    snapToGrid: false,
+    gridSize: 20
+  };
 
   function render(inputState, options = {}) {
     const reason = String(options.reason || "initial").trim() || "initial";
@@ -534,6 +541,36 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
     return scheduleDiagramFlush("object add");
   }
 
+  function addObjects(objectsInput = [], options = {}) {
+    if (!canonicalState) return diagnostics();
+    const existingIds = new Set(canonicalState.objects.map(object => object.id));
+    const objects = (Array.isArray(objectsInput) ? objectsInput : [objectsInput])
+      .filter(object => object && typeof object === "object")
+      .map(object => ({ ...object, id: String(object.id || "").trim() }))
+      .filter(object => object.id && !existingIds.has(object.id));
+    if (!objects.length) return diagnostics();
+
+    const nextObjects = canonicalState.objects.slice();
+    const indexesById = options.indexesById instanceof Map ? options.indexesById : null;
+    objects.forEach(object => {
+      const requestedIndex = Number(indexesById?.get(object.id));
+      const index = Number.isInteger(requestedIndex)
+        ? Math.max(0, Math.min(nextObjects.length, requestedIndex))
+        : nextObjects.length;
+      nextObjects.splice(index, 0, object);
+    });
+    canonicalState = normalizeDiagram2CanonicalState({
+      ...canonicalState,
+      objects: nextObjects
+    });
+    objects.forEach(object => dirty.objectStructure.add(object.id));
+    dirty.relationshipGeometry.add(allRelationshipsDirtyToken);
+    dirty.worldBounds = true;
+    dirty.sectors = true;
+    dirty.zOrder = indexesById instanceof Map;
+    return scheduleDiagramFlush(options.reason || "object batch add");
+  }
+
   function removeObject(id) {
     if (!canonicalState) return diagnostics();
     const objectId = String(id || "").trim();
@@ -553,6 +590,49 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
     dirty.worldBounds = true;
     dirty.sectors = true;
     return scheduleDiagramFlush("object remove");
+  }
+
+  function removeObjects(idsInput = [], options = {}) {
+    if (!canonicalState) return diagnostics();
+    const ids = new Set((Array.isArray(idsInput) ? idsInput : [idsInput])
+      .map(id => String(id || "").trim())
+      .filter(Boolean));
+    const existingIds = canonicalState.objects
+      .filter(object => ids.has(object.id))
+      .map(object => object.id);
+    if (!existingIds.length) return diagnostics();
+
+    canonicalState = normalizeDiagram2CanonicalState({
+      ...canonicalState,
+      objects: canonicalState.objects.filter(object => !ids.has(object.id))
+    });
+    existingIds.forEach(id => {
+      liveView.selectedIds.delete(id);
+      dirty.objectStructure.add(id);
+      dirty.objectSelection.add(id);
+    });
+    dirty.relationshipGeometry.add(allRelationshipsDirtyToken);
+    dirty.worldBounds = true;
+    dirty.sectors = true;
+    return scheduleDiagramFlush(options.reason || "object batch remove");
+  }
+
+  function setObjectOrder(idsInput = [], options = {}) {
+    if (!canonicalState) return diagnostics();
+    const requestedOrder = [...new Set((Array.isArray(idsInput) ? idsInput : [idsInput])
+      .map(id => String(id || "").trim())
+      .filter(Boolean))];
+    const objectsById = new Map(canonicalState.objects.map(object => [object.id, object]));
+    if (requestedOrder.length !== canonicalState.objects.length
+      || requestedOrder.some(id => !objectsById.has(id))) return diagnostics();
+    if (requestedOrder.every((id, index) => canonicalState.objects[index]?.id === id)) return diagnostics();
+
+    canonicalState = {
+      ...canonicalState,
+      objects: requestedOrder.map(id => objectsById.get(id))
+    };
+    dirty.zOrder = true;
+    return scheduleDiagramFlush(options.reason || "object order");
   }
 
   function updateObject(id, patchInput = {}) {
@@ -597,6 +677,66 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
     return scheduleDiagramFlush("selection");
   }
 
+  function setCanvasOptions(options = {}) {
+    canvasOptions = {
+      gridVisible: options.gridVisible === true,
+      snapToGrid: options.snapToGrid === true,
+      gridSize: positiveNumber(options.gridSize, canvasOptions.gridSize || 20)
+    };
+    if (canonicalState) {
+      canonicalState = {
+        ...canonicalState,
+        gridVisible: canvasOptions.gridVisible,
+        snapToGrid: canvasOptions.snapToGrid,
+        gridSize: canvasOptions.gridSize
+      };
+    }
+    if (svg && canonicalState) patchBackgroundPlane(canonicalState);
+    return { ...canvasOptions };
+  }
+
+  function objectIdsInBounds(boundsInput) {
+    if (!canonicalState) return [];
+    const bounds = normalizedSelectionBounds(boundsInput);
+    if (!bounds) return [];
+    const indexed = viewportHalo.objectSectorIndex.query(bounds);
+    const objectsById = new Map(canonicalState.objects.map(object => [object.id, object]));
+    return [...indexed.ids].filter(id => {
+      const object = objectsById.get(id);
+      return object
+        && object.visible !== false
+        && boundsIntersect(diagram2ObjectContentBounds(object), bounds);
+    });
+  }
+
+  function previewMarquee(boundsInput) {
+    if (!planes.overlays) return [];
+    const bounds = normalizedSelectionBounds(boundsInput);
+    let marquee = planes.overlays.querySelector(":scope > rect[data-diagram2-marquee]");
+    if (!bounds) {
+      marquee?.remove();
+      return [];
+    }
+    if (!marquee) {
+      marquee = createSvgElement(host, "rect", {
+        "data-diagram2-marquee": "",
+        class: "diagram2-renderer-marquee"
+      });
+      planes.overlays.appendChild(marquee);
+    }
+    setSvgAttributes(marquee, {
+      x: bounds.x,
+      y: bounds.y,
+      width: bounds.width,
+      height: bounds.height
+    });
+    return objectIdsInBounds(bounds);
+  }
+
+  function clearMarquee() {
+    planes.overlays?.querySelector(":scope > rect[data-diagram2-marquee]")?.remove();
+  }
+
   function beginGeometryPreview(options = {}) {
     if (!canonicalState || !svg) return diagnostics();
     clearGeometryPreview({ restoreObjects: true, reason: "preview replace" });
@@ -635,6 +775,7 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
       committing: false
     };
 
+    setGeometryPreviewRelationshipsHidden(activeGeometryPreview, true);
     bringPreviewObjectsForward(activeGeometryPreview.objectIds);
     activeGeometryPreview.objectIds.forEach(id => {
       liveView.objectNodesById.get(id)?.classList.add("is-previewing");
@@ -912,6 +1053,7 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
     pendingViewportFrame = 0;
     pendingViewportGesture = null;
     clearGeometryPreview({ restoreObjects: false, reason: "destroy" });
+    clearMarquee();
     clearDirtyState(dirty);
     transactionDepth = 0;
     pendingSelectiveRoutingSectorsQueried = 0;
@@ -1000,17 +1142,70 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
   }
 
   function patchBackgroundPlane(state) {
+    let definitions = planes.background.querySelector(":scope > defs[data-diagram2-background-definitions]");
+    if (!definitions) {
+      definitions = createSvgElement(host, "defs", { "data-diagram2-background-definitions": "" });
+      planes.background.prepend(definitions);
+    }
     let background = planes.background.querySelector(":scope > rect[data-diagram2-background]");
     if (!background) {
       background = createSvgElement(host, "rect", { "data-diagram2-background": "" });
-      planes.background.replaceChildren(background);
+      planes.background.appendChild(background);
     }
+    const gridSize = positiveNumber(state.gridSize, canvasOptions.gridSize || 20);
+    const gridVisible = state.gridVisible === true || canvasOptions.gridVisible === true;
     setSvgAttributes(background, {
       x: 0,
       y: 0,
       width: positiveNumber(state.width, defaultDiagram2Width),
       height: positiveNumber(state.height, defaultDiagram2Height),
       fill: state.backgroundFill || "#ffffff"
+    });
+
+    let gridPattern = definitions.querySelector(":scope > pattern[data-diagram2-grid-pattern]");
+    let grid = planes.background.querySelector(":scope > rect[data-diagram2-grid]");
+    if (!gridVisible) {
+      gridPattern?.remove();
+      grid?.remove();
+      return;
+    }
+    if (!gridPattern) {
+      gridPattern = createSvgElement(host, "pattern", {
+        id: "diagram2-editor-grid-pattern",
+        "data-diagram2-grid-pattern": "",
+        patternUnits: "userSpaceOnUse"
+      });
+      definitions.appendChild(gridPattern);
+    }
+    setSvgAttributes(gridPattern, {
+      width: gridSize,
+      height: gridSize
+    });
+    let gridPath = gridPattern.querySelector(":scope > path");
+    if (!gridPath) {
+      gridPath = createSvgElement(host, "path");
+      gridPattern.appendChild(gridPath);
+    }
+    setSvgAttributes(gridPath, {
+      d: `M ${formatNumber(gridSize)} 0 L 0 0 0 ${formatNumber(gridSize)}`,
+      fill: "none",
+      stroke: "#d7dde5",
+      "stroke-width": 1,
+      "vector-effect": "non-scaling-stroke"
+    });
+    if (!grid) {
+      grid = createSvgElement(host, "rect", {
+        "data-diagram2-grid": "",
+        "pointer-events": "none"
+      });
+      planes.background.appendChild(grid);
+    }
+    setSvgAttributes(grid, {
+      x: 0,
+      y: 0,
+      width: positiveNumber(state.width, defaultDiagram2Width),
+      height: positiveNumber(state.height, defaultDiagram2Height),
+      fill: "url(#diagram2-editor-grid-pattern)"
     });
   }
 
@@ -2087,7 +2282,10 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
   function computePreviewObjectsById(preview) {
     const objectsById = new Map();
     preview.originalObjectsById.forEach((object, id) => {
-      objectsById.set(id, previewObjectGeometry(object, preview.latestGeometry, preview.mode));
+      const explicitObject = preview.latestGeometry.objectsById?.get(id);
+      objectsById.set(id, explicitObject
+        ? normalizePreviewObject({ ...explicitObject, id })
+        : previewObjectGeometry(object, preview.latestGeometry, preview.mode));
     });
     return objectsById;
   }
@@ -2158,7 +2356,8 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
   }
 
   function patchGeometryRelationshipPreviews(preview, previewObjectsById) {
-    if (!planes.overlays) return 0;
+    const previewPlane = planes.relationships || planes.overlays;
+    if (!previewPlane) return 0;
     const desiredIds = new Set(preview.relationshipIds);
     const previewState = {
       ...canonicalState,
@@ -2175,13 +2374,13 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
       const previewRelationship = relationshipWithPreviewObjects(relationship, previewObjectsById);
       const route = relationshipRoute(previewRelationship, routeOptions);
       const style = relationshipStyle(relationship);
-      let node = planes.overlays.querySelector(`:scope > g[data-diagram2-relationship-preview-id="${cssEscape(id)}"]`);
+      let node = previewPlane.querySelector(`:scope > g[data-diagram2-relationship-preview-id="${cssEscape(id)}"]`);
       if (!node) {
         node = createSvgElement(host, "g", {
           "data-diagram2-relationship-preview-id": id,
           class: "diagram2-renderer-relationship-preview-node"
         });
-        planes.overlays.appendChild(node);
+        previewPlane.appendChild(node);
       }
       let path = node.querySelector(":scope > path[data-diagram2-relationship-preview-path]");
       if (!path) {
@@ -2205,10 +2404,42 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
       patched += 1;
     });
 
-    planes.overlays.querySelectorAll(":scope > g[data-diagram2-relationship-preview-id]").forEach(node => {
+    previewPlane.querySelectorAll(":scope > g[data-diagram2-relationship-preview-id]").forEach(node => {
       if (!desiredIds.has(node.getAttribute("data-diagram2-relationship-preview-id"))) node.remove();
     });
     return patched;
+  }
+
+  function setGeometryPreviewRelationshipsHidden(preview, hidden) {
+    if (!preview?.relationshipIds?.length) return;
+    const mergedRoutes = planes.relationships?.querySelector(":scope > g[data-diagram2-merged-relationship-routes]");
+    if (mergedRoutes) {
+      mergedRoutes.classList.toggle("is-geometry-preview-hidden", hidden);
+      if (hidden) {
+        setSvgAttributes(mergedRoutes, {
+          "data-diagram2-geometry-preview-hidden": "true",
+          visibility: "hidden"
+        });
+      } else {
+        mergedRoutes.removeAttribute("data-diagram2-geometry-preview-hidden");
+        mergedRoutes.removeAttribute("visibility");
+      }
+    }
+
+    preview.relationshipIds.forEach(id => {
+      const node = liveView.relationshipNodesById.get(id);
+      if (!node) return;
+      node.classList.toggle("is-geometry-preview-hidden", hidden);
+      if (hidden) {
+        setSvgAttributes(node, {
+          "data-diagram2-geometry-preview-hidden": "true",
+          visibility: "hidden"
+        });
+        return;
+      }
+      node.removeAttribute("data-diagram2-geometry-preview-hidden");
+      node.removeAttribute("visibility");
+    });
   }
 
   function relationshipWithPreviewObjects(relationship, previewObjectsById) {
@@ -2226,6 +2457,7 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
 
   function clearGeometryPreview({ restoreObjects = false, reason = "" } = {}) {
     const preview = activeGeometryPreview;
+    setGeometryPreviewRelationshipsHidden(preview, false);
     if (preview && restoreObjects) {
       preview.originalObjectsById.forEach((object, id) => {
         const node = liveView.objectNodesById.get(id);
@@ -2247,6 +2479,7 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
     if (planes.objects && canonicalState?.objects?.length) {
       reconcileObjectOrder(canonicalState.objects.filter(object => object.visible !== false));
     }
+    planes.relationships?.querySelectorAll(":scope > g[data-diagram2-relationship-preview-id]")?.forEach(node => node.remove());
     planes.overlays?.querySelectorAll(":scope > g[data-diagram2-relationship-preview-id]")?.forEach(node => node.remove());
     activeGeometryPreview = null;
     pendingGeometryPreviewFrame = 0;
@@ -2291,7 +2524,8 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
       if (!overlay) {
         overlay = createSvgElement(host, "g", {
           "data-diagram2-selection-id": id,
-          class: "diagram2-renderer-selection"
+          class: "diagram2-renderer-selection",
+          "pointer-events": "none"
         });
         planes.overlays.appendChild(overlay);
       }
@@ -2318,8 +2552,27 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
         stroke: "#2563eb",
         "stroke-width": 2,
         "stroke-dasharray": "6 4",
-        "vector-effect": "non-scaling-stroke"
+        "vector-effect": "non-scaling-stroke",
+        "pointer-events": "none"
       });
+
+      overlay.querySelectorAll(":scope > [data-diagram2-resize-handle]").forEach(handle => handle.remove());
+      if (object.locked !== true) {
+        diagram2SelectionHandlePoints(object, bounds).forEach(handle => {
+          appendSvg(overlay, "circle", {
+            class: "image-annotation-handle diagram2-renderer-resize-handle",
+            "data-annotation-handle": handle.direction,
+            "data-diagram2-resize-handle": handle.direction,
+            cx: handle.x,
+            cy: handle.y,
+            r: diagram2SelectionHandleRadius(committedViewportTransform.scale),
+            fill: "#2563eb",
+            stroke: "#ffffff",
+            "stroke-width": 0.75,
+            "pointer-events": "all"
+          });
+        });
+      }
     });
 
     planes.overlays.querySelectorAll(":scope > g[data-diagram2-selection-id]").forEach(overlay => {
@@ -2468,17 +2721,17 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
   }
 
   function localScreenPoint(point = {}) {
-    if (Number.isFinite(Number(point.x)) && Number.isFinite(Number(point.y))) {
-      return {
-        x: Number(point.x),
-        y: Number(point.y)
-      };
-    }
     const rect = host.getBoundingClientRect?.();
     if (Number.isFinite(Number(point.clientX)) && Number.isFinite(Number(point.clientY)) && rect) {
       return {
         x: Number(point.clientX) - rect.left,
         y: Number(point.clientY) - rect.top
+      };
+    }
+    if (Number.isFinite(Number(point.x)) && Number.isFinite(Number(point.y))) {
+      return {
+        x: Number(point.x),
+        y: Number(point.y)
       };
     }
     return viewportCenterPoint();
@@ -2622,10 +2875,17 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
     commitGeometryPreview,
     cancelGeometryPreview,
     addObject,
+    addObjects,
     removeObject,
+    removeObjects,
+    setObjectOrder,
     updateObject,
     patchObject: updateObject,
     setSelectedIds,
+    setCanvasOptions,
+    objectIdsInBounds,
+    previewMarquee,
+    clearMarquee,
     viewportMatrix,
     screenToWorld,
     worldToScreen,
@@ -2690,9 +2950,10 @@ function patchObjectNode(node, previousObject, object, flags = {}, state) {
     "data-diagram2-object-type": object.type,
     "data-diagram2-object-detail-level": flags.detailLevel || diagram2DetailLevelDetailed,
     "data-diagram2-object-visible": object.visible !== false ? "true" : "false",
+    "data-diagram2-object-locked": object.locked === true ? "true" : "false",
     "data-diagram2-object-transform-x": objectTranslation(object).x,
     "data-diagram2-object-transform-y": objectTranslation(object).y,
-    class: `diagram2-renderer-object is-${cssClassName(object.type)}${flags.selected ? " is-selected" : ""}`,
+    class: `diagram2-renderer-object is-${cssClassName(object.type)}${flags.selected ? " is-selected" : ""}${object.locked === true ? " is-locked" : ""}`,
     transform: objectTransformText(object),
     opacity: safeOpacity(object.opacity)
   });
@@ -2824,7 +3085,7 @@ function patchSimpleObjectStyles(node, object) {
       "stroke-width": positiveNumber(object.strokeWidth, 1),
       "vector-effect": null
     });
-  } else if (object.type === "textbox" || object.type === "rich-text") {
+  } else if (object.type === "textbox") {
     setSvgAttributes(node.querySelector(".diagram2-renderer-textbox-frame"), {
       fill: object.fill || "none",
       stroke: object.outlineVisible === false ? "none" : object.stroke || "#334155",
@@ -2835,6 +3096,19 @@ function patchSimpleObjectStyles(node, object) {
       fill: object.textColor || "#172b4d",
       "font-family": object.fontFamily || "Arial"
     });
+  } else if (object.type === "rich-text") {
+    setSvgAttributes(node.querySelector(".diagram2-renderer-rich-text-frame"), {
+      fill: object.fill === "none" ? "transparent" : object.fill || "transparent",
+      stroke: object.outlineVisible === false ? "none" : object.stroke || "#334155",
+      "stroke-width": positiveNumber(object.strokeWidth, 1),
+      "vector-effect": null
+    });
+    const surface = node.querySelector(".diagram2-renderer-rich-text-surface");
+    if (surface) {
+      surface.style.color = object.textColor || "#172b4d";
+      surface.style.fontFamily = object.fontFamily || "Arial";
+      surface.style.fontSize = `${positiveNumber(object.fontSize, 16)}px`;
+    }
   } else if (object.type === "arrow") {
     const stroke = object.stroke || "#334155";
     const geometry = annotationArrowGeometry(object);
@@ -3248,7 +3522,8 @@ function renderRectangleObject(node, object) {
     height: positiveNumber(object.height, 1),
     fill: object.fill || "none",
     stroke: object.outlineVisible === false ? "none" : object.stroke || "#334155",
-    "stroke-width": positiveNumber(object.strokeWidth, 1)
+    "stroke-width": positiveNumber(object.strokeWidth, 1),
+    "pointer-events": "all"
   });
 }
 
@@ -3265,7 +3540,8 @@ function renderCircleObject(node, object) {
     ry: height / 2,
     fill: object.fill || "none",
     stroke: object.outlineVisible === false ? "none" : object.stroke || "#334155",
-    "stroke-width": positiveNumber(object.strokeWidth, 1)
+    "stroke-width": positiveNumber(object.strokeWidth, 1),
+    "pointer-events": "all"
   });
 }
 
@@ -3345,7 +3621,8 @@ function renderTextboxObject(node, object) {
     height,
     fill: object.fill || "none",
     stroke: object.outlineVisible === false ? "none" : object.stroke || "#334155",
-    "stroke-width": positiveNumber(object.strokeWidth, 1)
+    "stroke-width": positiveNumber(object.strokeWidth, 1),
+    "pointer-events": "all"
   });
 
   const text = appendSvg(node, "text", {
@@ -3367,19 +3644,37 @@ function renderTextboxObject(node, object) {
 }
 
 function renderRichTextObject(node, object) {
-  const text = String(object.html || "")
-    .replace(/<script[\s\S]*?<\/script>/gi, "")
-    .replace(/<style[\s\S]*?<\/style>/gi, "")
-    .replace(/<[^>]+>/g, " ")
-    .replace(/\s+/g, " ")
-    .trim() || "Rich text";
-  renderTextboxObject(node, {
-    ...object,
-    text,
-    fill: object.fill || "none",
-    textColor: object.textColor || "#172b4d",
-    fontSize: object.fontSize || 16
+  const x = finiteNumber(object.x, 0);
+  const y = finiteNumber(object.y, 0);
+  const width = positiveNumber(object.width, 1);
+  const height = positiveNumber(object.height, 1);
+  const frame = appendSvg(node, "rect", {
+    class: "diagram2-renderer-rich-text-frame",
+    x,
+    y,
+    width,
+    height,
+    fill: object.fill === "none" ? "transparent" : object.fill || "transparent",
+    stroke: object.outlineVisible === false ? "none" : object.stroke || "#334155",
+    "stroke-width": positiveNumber(object.strokeWidth, 1)
   });
+  frame.setAttribute("pointer-events", "all");
+
+  const foreignObject = appendSvg(node, "foreignObject", {
+    class: "diagram2-renderer-rich-text",
+    x,
+    y,
+    width,
+    height,
+    "pointer-events": "none"
+  });
+  const surface = node.ownerDocument.createElementNS(xhtmlNamespace, "div");
+  surface.setAttribute("class", "diagram2-renderer-rich-text-surface rich-readonly");
+  surface.style.color = object.textColor || "#172b4d";
+  surface.style.fontFamily = object.fontFamily || "Arial";
+  surface.style.fontSize = `${positiveNumber(object.fontSize, 16)}px`;
+  surface.innerHTML = normalizeDiagram2RendererRichTextHtml(object.html);
+  foreignObject.appendChild(surface);
 }
 
 function renderFieldMappingTableObject(node, object) {
@@ -3394,6 +3689,7 @@ function renderFieldMappingTableObject(node, object) {
   const uiColumnWidth = width * 0.46;
   const databaseColumnWidth = width - uiColumnWidth;
   const stroke = object.stroke || "#334155";
+  const rowHoverFill = object.fieldMappingRowHoverFill || "#fff59d";
   appendTitle(node, object.name || "Field Mapping Table");
   appendSvg(node, "rect", {
     class: "diagram2-renderer-field-mapping-header",
@@ -3410,22 +3706,28 @@ function renderFieldMappingTableObject(node, object) {
   rows.forEach((row, index) => {
     const top = y + headerHeight + (index * rowHeight);
     if (top > y + height) return;
-    appendSvg(node, "rect", {
+    const rowGroup = appendSvg(node, "g", {
+      "data-diagram2-field-mapping-row": "true",
+      style: `--diagram2-field-mapping-row-hover-fill: ${rowHoverFill}`
+    });
+    appendSvg(rowGroup, "rect", {
+      "data-diagram2-field-mapping-cell-fill": "true",
       x,
       y: top,
       width: uiColumnWidth,
       height: rowHeight,
       fill: object.uiFill || "#f8fafc"
     });
-    appendSvg(node, "rect", {
+    appendSvg(rowGroup, "rect", {
+      "data-diagram2-field-mapping-cell-fill": "true",
       x: x + uiColumnWidth,
       y: top,
       width: databaseColumnWidth,
       height: rowHeight,
       fill: object.databaseFill || "#ffffff"
     });
-    appendText(node, row.uiField || "", fieldMappingTextAttributes(object, x + 8, top + (rowHeight / 2), object.uiTextColor || "#172b4d"));
-    appendText(node, row.databaseField || "", fieldMappingTextAttributes(object, x + uiColumnWidth + 8, top + (rowHeight / 2), object.databaseTextColor || "#172b4d"));
+    appendText(rowGroup, row.uiField || "", fieldMappingTextAttributes(object, x + 8, top + (rowHeight / 2), object.uiTextColor || "#172b4d"));
+    appendText(rowGroup, row.databaseField || "", fieldMappingTextAttributes(object, x + uiColumnWidth + 8, top + (rowHeight / 2), object.databaseTextColor || "#172b4d"));
     appendSvg(node, "line", {
       x1: x,
       y1: top,
@@ -3589,6 +3891,7 @@ function relationshipRoute(relationship, options = {}) {
         ? (start.x + end.x) / 2
         : relationshipLane(start.x, end.x, relationship, relationships)
     );
+    middleX = clampNumber(middleX, Math.min(start.x, end.x), Math.max(start.x, end.x));
   } else {
     const margin = Math.max(48, style.arrowSize * 2, style.strokeWidth * 4);
     const leftLane = Math.min(finiteNumber(source.x, 0), finiteNumber(target.x, 0)) - margin;
@@ -4308,7 +4611,8 @@ function emptyPreviewGeometry() {
     deltaX: 0,
     deltaY: 0,
     deltaWidth: 0,
-    deltaHeight: 0
+    deltaHeight: 0,
+    objectsById: null
   };
 }
 
@@ -4317,8 +4621,29 @@ function normalizePreviewGeometry(input = {}, fallback = emptyPreviewGeometry())
     deltaX: finiteNumber(input.deltaX ?? input.dx, fallback.deltaX),
     deltaY: finiteNumber(input.deltaY ?? input.dy, fallback.deltaY),
     deltaWidth: finiteNumber(input.deltaWidth ?? input.dw, fallback.deltaWidth),
-    deltaHeight: finiteNumber(input.deltaHeight ?? input.dh, fallback.deltaHeight)
+    deltaHeight: finiteNumber(input.deltaHeight ?? input.dh, fallback.deltaHeight),
+    objectsById: normalizePreviewObjectsById(input.objectsById ?? input.objects ?? input.previewObjects, fallback.objectsById)
   };
+}
+
+function normalizePreviewObjectsById(input, fallback = null) {
+  if (input == null) return fallback instanceof Map ? new Map(fallback) : null;
+  if (input instanceof Map) {
+    return new Map([...input.entries()]
+      .map(([id, object]) => [String(id || object?.id || "").trim(), object])
+      .filter(([id, object]) => id && object && typeof object === "object"));
+  }
+  if (Array.isArray(input)) {
+    return new Map(input
+      .map(object => [String(object?.id || "").trim(), object])
+      .filter(([id, object]) => id && object && typeof object === "object"));
+  }
+  if (typeof input === "object") {
+    return new Map(Object.entries(input)
+      .map(([id, object]) => [String(id || object?.id || "").trim(), object])
+      .filter(([id, object]) => id && object && typeof object === "object"));
+  }
+  return fallback instanceof Map ? new Map(fallback) : null;
 }
 
 function emptyDirtyFlushDiagnostics() {
@@ -4403,6 +4728,41 @@ function objectSelectionBounds(object) {
   return objectBounds(diagram2LocalObject(object));
 }
 
+function diagram2SelectionHandlePoints(object, bounds) {
+  if (object?.type === "arrow" || object?.type === "line") {
+    return [{
+      direction: "arrow-base",
+      x: finiteNumber(object.x1, 0),
+      y: finiteNumber(object.y1, 0)
+    }, {
+      direction: "arrow-tip",
+      x: finiteNumber(object.x2, 0),
+      y: finiteNumber(object.y2, 0)
+    }];
+  }
+
+  const left = bounds.x;
+  const centerX = bounds.x + (bounds.width / 2);
+  const right = bounds.x + bounds.width;
+  const top = bounds.y;
+  const centerY = bounds.y + (bounds.height / 2);
+  const bottom = bounds.y + bounds.height;
+  return [
+    { direction: "nw", x: left, y: top },
+    { direction: "n", x: centerX, y: top },
+    { direction: "ne", x: right, y: top },
+    { direction: "e", x: right, y: centerY },
+    { direction: "se", x: right, y: bottom },
+    { direction: "s", x: centerX, y: bottom },
+    { direction: "sw", x: left, y: bottom },
+    { direction: "w", x: left, y: centerY }
+  ];
+}
+
+function diagram2SelectionHandleRadius(viewportScale) {
+  return 3.5 / Math.max(minimumViewportScale, positiveNumber(viewportScale, 1));
+}
+
 function objectStructureVersion(object) {
   const base = {
     type: object?.type || "",
@@ -4470,6 +4830,9 @@ function objectStructureVersion(object) {
       databaseFill: object.databaseFill || "",
       uiTextColor: object.uiTextColor || "",
       databaseTextColor: object.databaseTextColor || "",
+      fieldMappingRowHoverFill: object.fieldMappingRowHoverFill || "",
+      fieldMappingHighlightColor: object.fieldMappingHighlightColor || "",
+      fieldMappingHighlightStrokeWidth: positiveNumber(object.fieldMappingHighlightStrokeWidth, 9),
       stroke: object.stroke || "",
       strokeWidth: positiveNumber(object.strokeWidth, 1)
     });
@@ -4498,7 +4861,8 @@ function objectStyleVersion(object) {
     outlineVisible: object?.outlineVisible !== false,
     textColor: object?.textColor || "",
     entityHeaderFill: object?.entityHeaderFill || "",
-    entityNameTextColor: object?.entityNameTextColor || ""
+    entityNameTextColor: object?.entityNameTextColor || "",
+    locked: object?.locked === true
   });
 }
 
@@ -4730,6 +5094,18 @@ function formatEntityIdentifier(schema, name) {
 }
 
 function objectBounds(object) {
+  if (object?.type === "arrow" || object?.type === "line") {
+    const x1 = finiteNumber(object.x1, 0);
+    const y1 = finiteNumber(object.y1, 0);
+    const x2 = finiteNumber(object.x2, x1);
+    const y2 = finiteNumber(object.y2, y1);
+    return {
+      x: Math.min(x1, x2),
+      y: Math.min(y1, y2),
+      width: Math.max(1, Math.abs(x2 - x1)),
+      height: Math.max(1, Math.abs(y2 - y1))
+    };
+  }
   return {
     x: finiteNumber(object?.x, 0),
     y: finiteNumber(object?.y, 0),
@@ -4792,6 +5168,39 @@ function normalizeBounds(boundsInput) {
   const height = positiveNumber(boundsInput.height, Number.NaN);
   if (![x, y, width, height].every(Number.isFinite)) return null;
   return { x, y, width, height };
+}
+
+function normalizedSelectionBounds(boundsInput) {
+  if (!boundsInput) return null;
+  const x1 = finiteNumber(boundsInput.x, Number.NaN);
+  const y1 = finiteNumber(boundsInput.y, Number.NaN);
+  const x2 = Number.isFinite(Number(boundsInput.x2))
+    ? finiteNumber(boundsInput.x2, Number.NaN)
+    : x1 + finiteNumber(boundsInput.width, Number.NaN);
+  const y2 = Number.isFinite(Number(boundsInput.y2))
+    ? finiteNumber(boundsInput.y2, Number.NaN)
+    : y1 + finiteNumber(boundsInput.height, Number.NaN);
+  if (![x1, y1, x2, y2].every(Number.isFinite)) return null;
+  return {
+    x: Math.min(x1, x2),
+    y: Math.min(y1, y2),
+    width: Math.max(0.01, Math.abs(x2 - x1)),
+    height: Math.max(0.01, Math.abs(y2 - y1))
+  };
+}
+
+function normalizeDiagram2RendererRichTextHtml(value) {
+  const source = String(value || "").trim() || "<p><br></p>";
+  try {
+    return normalizeRichHtml(source) || "<p><br></p>";
+  } catch {
+    return source
+      .replace(/<script\b[\s\S]*?<\/script>/gi, "")
+      .replace(/<style\b[\s\S]*?<\/style>/gi, "")
+      .replace(/\s+on[a-z]+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, "")
+      .replace(/\s+(href|src)\s*=\s*(["'])\s*javascript:[\s\S]*?\2/gi, "")
+      .slice(0, 200000) || "<p><br></p>";
+  }
 }
 
 function expandedBounds(boundsInput, paddingInput = 0) {

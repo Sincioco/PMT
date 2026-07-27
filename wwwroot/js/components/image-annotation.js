@@ -7413,6 +7413,7 @@ function createAnnotationDialog(context) {
         package: clipboardPackage,
         text: serializeDiagramSelectionClipboardPackage(clipboardPackage)
       };
+      globalThis.__pmtDiagramSelectionClipboard = nativeClipboard.text;
       pasteSequence = 0;
       const copiedToBrowser = await copyDiagramSelectionTextToClipboard(nativeClipboard.text);
       const objectCount = clipboardPackage.selection.objects.length;
@@ -7432,7 +7433,8 @@ function createAnnotationDialog(context) {
           return false;
         }
       } else if (!packageToPaste) {
-        const browserText = await readDiagramSelectionTextFromClipboard();
+        const browserText = String(globalThis.__pmtDiagramSelectionClipboard || "")
+          || await readDiagramSelectionTextFromClipboard();
         if (browserText) {
           try {
             packageToPaste = parseDiagramSelectionClipboardPackage(browserText);

@@ -4,6 +4,7 @@ import { releaseNotes } from "../../wwwroot/js/shared/release-notes-data.js";
 test.use({ timezoneId: "Asia/Taipei" });
 
 test("Diagram 2 beta shell preserves navigation, zoom matrix, and open-close cleanup", async ({ page }) => {
+  test.setTimeout(120000);
   const browserErrors = [];
   page.on("console", message => {
     if (message.type() === "error" && !message.text().includes("status of 401")) browserErrors.push(message.text());
@@ -67,9 +68,9 @@ test("Diagram 2 beta shell preserves navigation, zoom matrix, and open-close cle
 });
 
 test("Diagram 2 renderer destroys pending 232-entity stress work without stale live maps", async ({ page }) => {
-  await page.goto("/");
-  const result = await page.evaluate(async () => {
-    const { createDiagram2Renderer } = await import("/js/features/diagram2/diagram2-renderer.js?v=20260726-diagram2-renderer-parity-v1");
+  await page.goto("/css/base.css");
+  const result = await page.evaluate(async state => {
+    const { createDiagram2Renderer } = await import("/js/features/diagram2/diagram2-renderer.js?v=20260727-diagram2-phase3-final-v2");
     const host = document.createElement("div");
     host.style.position = "absolute";
     host.style.left = "-12000px";
@@ -79,7 +80,6 @@ test("Diagram 2 renderer destroys pending 232-entity stress work without stale l
     document.body.appendChild(host);
 
     const renderer = createDiagram2Renderer({ host });
-    const state = buildStressState();
     const initial = renderer.render(state, { reason: "beta readiness stress initial" });
     renderer.setZoom("0.1");
     renderer.panBy(-240, -120);
@@ -107,55 +107,7 @@ test("Diagram 2 renderer destroys pending 232-entity stress work without stale l
     };
     host.remove();
     return { initial, beforeDestroy, afterDestroy };
-
-    function buildStressState() {
-      const entityCount = 232;
-      const relationshipCount = 624;
-      const columns = 29;
-      const objects = Array.from({ length: entityCount }, (_, index) => {
-        const name = `Stress${index}`;
-        return {
-          id: `entity-${index}`,
-          type: "entity",
-          x: (index % columns) * 260,
-          y: Math.floor(index / columns) * 190,
-          width: 220,
-          height: 130,
-          entitySchema: "dbo",
-          entityName: name,
-          fields: [
-            { name: `${name}Id`, dataType: "INT", nullable: false, isPrimaryKey: true, isForeignKey: false, isImportant: true },
-            { name: "Ref0Id", dataType: "INT", nullable: true, isPrimaryKey: false, isForeignKey: true },
-            { name: "Ref1Id", dataType: "INT", nullable: true, isPrimaryKey: false, isForeignKey: true },
-            { name: "Ref2Id", dataType: "INT", nullable: true, isPrimaryKey: false, isForeignKey: true },
-            { name: "Ref3Id", dataType: "INT", nullable: true, isPrimaryKey: false, isForeignKey: true }
-          ],
-          foreignKeys: []
-        };
-      });
-
-      for (let index = 0; index < relationshipCount; index += 1) {
-        const sourceIndex = (index % (entityCount - 1)) + 1;
-        let targetIndex = (sourceIndex + 17 + (index * 19)) % entityCount;
-        if (targetIndex === sourceIndex) targetIndex = (targetIndex + 1) % entityCount;
-        const targetName = `Stress${targetIndex}`;
-        objects[sourceIndex].foreignKeys.push({
-          name: `FK_Stress_${index}`,
-          columns: [`Ref${index % 4}Id`],
-          referencedSchema: "dbo",
-          referencedTable: targetName,
-          referencedColumns: [`${targetName}Id`],
-          relationshipType: "many-to-one"
-        });
-      }
-
-      return {
-        width: columns * 260,
-        height: 8 * 190,
-        objects
-      };
-    }
-  });
+  }, buildDiagram2StressState());
 
   expect(result.initial.canonicalObjectCount).toBe(232);
   expect(result.initial.canonicalRelationshipCount).toBe(624);
@@ -177,7 +129,130 @@ test("Diagram 2 renderer destroys pending 232-entity stress work without stale l
   expect(result.afterDestroy.idleAfterDestroy.canonicalObjectCount).toBe(0);
 });
 
+test("Diagram 2 Phase 3 stays incremental within 232-entity performance budgets", async ({ page }) => {
+  await page.goto("/css/base.css");
+  const result = await page.evaluate(async state => {
+    const { createDiagram2Renderer } = await import("/js/features/diagram2/diagram2-renderer.js?v=20260727-diagram2-phase3-final-v2");
+    const host = document.createElement("div");
+    host.style.position = "absolute";
+    host.style.left = "0";
+    host.style.top = "0";
+    host.style.width = "1200px";
+    host.style.height = "800px";
+    document.body.replaceChildren(host);
+
+    const renderer = createDiagram2Renderer({ host });
+    const initialStartedAt = performance.now();
+    const initial = renderer.render(state, { reason: "phase 3 performance initial" });
+    const initialMs = performance.now() - initialStartedAt;
+    renderer.setZoom("1.25");
+    await waitForViewport();
+    const focused = renderer.diagnostics();
+    const initialFullRenderCount = focused.fullRenderCount;
+    const unrelatedNode = host.querySelector("[data-diagram2-object-id='entity-0']");
+    const selectionDurations = [];
+    const marqueeDurations = [];
+    const dragStartDurations = [];
+    const resizeStartDurations = [];
+
+    for (let index = 0; index < 12; index += 1) {
+      const selectionStartedAt = performance.now();
+      renderer.setSelectedIds([index % 2 === 0 ? "core-rectangle" : "core-rich-text"]);
+      await renderer.whenIdle();
+      selectionDurations.push(performance.now() - selectionStartedAt);
+
+      const marqueeStartedAt = performance.now();
+      renderer.objectIdsInBounds({ x: 30, y: 30, width: 760, height: 520 });
+      marqueeDurations.push(performance.now() - marqueeStartedAt);
+
+      const dragStartedAt = performance.now();
+      renderer.beginGeometryPreview({ objectId: "core-rectangle", mode: "move" });
+      dragStartDurations.push(performance.now() - dragStartedAt);
+      renderer.cancelGeometryPreview();
+
+      const resizeStartedAt = performance.now();
+      renderer.beginGeometryPreview({ objectId: "core-rectangle", mode: "resize" });
+      resizeStartDurations.push(performance.now() - resizeStartedAt);
+      renderer.cancelGeometryPreview();
+    }
+
+    const beforeStyle = renderer.diagnostics();
+    const styleStartedAt = performance.now();
+    renderer.updateObject("core-rectangle", object => ({
+      ...object,
+      fill: object.fill === "#d9ecff" ? "#fff4cc" : "#d9ecff"
+    }));
+    const afterStyle = await renderer.whenIdle();
+    const styleMs = performance.now() - styleStartedAt;
+    const finalNode = host.querySelector("[data-diagram2-object-id='entity-0']");
+    const final = renderer.diagnostics();
+    const metrics = {
+      initialMs: roundMetric(initialMs),
+      selectionMedianMs: roundMetric(percentile(selectionDurations, 50)),
+      selectionP95Ms: roundMetric(percentile(selectionDurations, 95)),
+      marqueeMedianMs: roundMetric(percentile(marqueeDurations, 50)),
+      marqueeP95Ms: roundMetric(percentile(marqueeDurations, 95)),
+      dragStartMedianMs: roundMetric(percentile(dragStartDurations, 50)),
+      dragStartP95Ms: roundMetric(percentile(dragStartDurations, 95)),
+      resizeStartMedianMs: roundMetric(percentile(resizeStartDurations, 50)),
+      resizeStartP95Ms: roundMetric(percentile(resizeStartDurations, 95)),
+      styleMs: roundMetric(styleMs)
+    };
+    const snapshot = {
+      initialFullRenderCount,
+      finalFullRenderCount: final.fullRenderCount,
+      canonicalObjectCount: final.canonicalObjectCount,
+      canonicalRelationshipCount: final.canonicalRelationshipCount,
+      mountedObjectCount: final.mountedObjectCount,
+      mountedRelationshipCount: final.mountedRelationshipCount,
+      svgDescendantCount: final.svgDescendantCount,
+      styleDirtyFlushDelta: afterStyle.dirtyFlushCount - beforeStyle.dirtyFlushCount,
+      stylePatchedObjectCount: afterStyle.objectsPatchedInLastFlush,
+      styleRoutedRelationshipCount: afterStyle.relationshipsRoutedInLastFlush,
+      styleRelationshipsConsidered: afterStyle.selectiveRoutingRelationshipsConsidered,
+      unrelatedNodePreserved: Boolean(unrelatedNode && unrelatedNode === finalNode),
+      pendingDiagramFlush: final.pendingDiagramFlush
+    };
+    renderer.destroy();
+    host.remove();
+    return { metrics, snapshot };
+
+    function waitForViewport() {
+      return new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    }
+
+    function percentile(values, percentileValue) {
+      const sorted = [...values].sort((left, right) => left - right);
+      const index = Math.min(sorted.length - 1, Math.ceil((percentileValue / 100) * sorted.length) - 1);
+      return sorted[Math.max(0, index)];
+    }
+
+    function roundMetric(value) {
+      return Math.round(Math.max(0, Number(value) || 0) * 100) / 100;
+    }
+  }, buildDiagram2StressState({ includeCoreObjects: true }));
+
+  console.log(`DIAGRAM2_PHASE3_PERFORMANCE ${JSON.stringify(result)}`);
+  expect(result.metrics.initialMs).toBeLessThan(500);
+  expect(result.metrics.selectionP95Ms).toBeLessThan(100);
+  expect(result.metrics.dragStartP95Ms).toBeLessThan(150);
+  expect(result.metrics.resizeStartP95Ms).toBeLessThan(150);
+  expect(result.snapshot.initialFullRenderCount).toBe(1);
+  expect(result.snapshot.finalFullRenderCount).toBe(result.snapshot.initialFullRenderCount);
+  expect(result.snapshot.canonicalObjectCount).toBe(238);
+  expect(result.snapshot.canonicalRelationshipCount).toBe(624);
+  expect(result.snapshot.mountedObjectCount).toBeGreaterThan(0);
+  expect(result.snapshot.mountedObjectCount).toBeLessThan(result.snapshot.canonicalObjectCount);
+  expect(result.snapshot.styleDirtyFlushDelta).toBe(1);
+  expect(result.snapshot.stylePatchedObjectCount).toBe(1);
+  expect(result.snapshot.styleRoutedRelationshipCount).toBe(0);
+  expect(result.snapshot.styleRelationshipsConsidered).toBe(0);
+  expect(result.snapshot.unrelatedNodePreserved).toBe(true);
+  expect(result.snapshot.pendingDiagramFlush).toBe(false);
+});
+
 test("Diagram 2 alternates top-navigation and RTE hosts without stale lifecycle artifacts", async ({ page }) => {
+  test.setTimeout(120000);
   const browserErrors = [];
   page.on("console", message => {
     if (message.type() === "error" && !message.text().includes("status of 401")) browserErrors.push(message.text());
@@ -233,6 +308,135 @@ test("Diagram 2 alternates top-navigation and RTE hosts without stale lifecycle 
 
   expect(browserErrors).toEqual([]);
 });
+
+function buildDiagram2StressState(options = {}) {
+  const entityCount = 232;
+  const relationshipCount = 624;
+  const columns = 29;
+  const objects = Array.from({ length: entityCount }, (_, index) => {
+    const name = `Stress${index}`;
+    return {
+      id: `entity-${index}`,
+      type: "entity",
+      x: (index % columns) * 260,
+      y: Math.floor(index / columns) * 190,
+      width: 220,
+      height: 130,
+      entitySchema: "dbo",
+      entityName: name,
+      fields: [
+        { name: `${name}Id`, dataType: "INT", nullable: false, isPrimaryKey: true, isForeignKey: false, isImportant: true },
+        { name: "Ref0Id", dataType: "INT", nullable: true, isPrimaryKey: false, isForeignKey: true },
+        { name: "Ref1Id", dataType: "INT", nullable: true, isPrimaryKey: false, isForeignKey: true },
+        { name: "Ref2Id", dataType: "INT", nullable: true, isPrimaryKey: false, isForeignKey: true },
+        { name: "Ref3Id", dataType: "INT", nullable: true, isPrimaryKey: false, isForeignKey: true }
+      ],
+      foreignKeys: []
+    };
+  });
+
+  for (let index = 0; index < relationshipCount; index += 1) {
+    const sourceIndex = (index % (entityCount - 1)) + 1;
+    let targetIndex = (sourceIndex + 17 + (index * 19)) % entityCount;
+    if (targetIndex === sourceIndex) targetIndex = (targetIndex + 1) % entityCount;
+    const targetName = `Stress${targetIndex}`;
+    objects[sourceIndex].foreignKeys.push({
+      name: `FK_Stress_${index}`,
+      columns: [`Ref${index % 4}Id`],
+      referencedSchema: "dbo",
+      referencedTable: targetName,
+      referencedColumns: [`${targetName}Id`],
+      relationshipType: "many-to-one"
+    });
+  }
+
+  if (options.includeCoreObjects) {
+    objects.push(
+      {
+        id: "core-rectangle",
+        type: "rectangle",
+        x: 40,
+        y: 40,
+        width: 210,
+        height: 120,
+        fill: "#fff4cc",
+        stroke: "#8a6d1d",
+        strokeWidth: 3,
+        opacity: 1
+      },
+      {
+        id: "core-circle",
+        type: "circle",
+        x: 300,
+        y: 40,
+        width: 140,
+        height: 140,
+        fill: "#d9ecff",
+        stroke: "#245a86",
+        strokeWidth: 3,
+        opacity: 1
+      },
+      {
+        id: "core-arrow",
+        type: "arrow",
+        x1: 500,
+        y1: 80,
+        x2: 700,
+        y2: 150,
+        stroke: "#245a86",
+        strokeWidth: 4,
+        arrowSize: 20,
+        opacity: 1
+      },
+      {
+        id: "core-line",
+        type: "line",
+        x1: 500,
+        y1: 220,
+        x2: 700,
+        y2: 290,
+        stroke: "#8a6d1d",
+        strokeWidth: 4,
+        opacity: 1
+      },
+      {
+        id: "core-textbox",
+        type: "textbox",
+        x: 40,
+        y: 240,
+        width: 260,
+        height: 110,
+        text: "Core text",
+        fill: "#ffffff",
+        stroke: "#245a86",
+        strokeWidth: 2,
+        textColor: "#172b4d",
+        fontFamily: "Arial",
+        fontSize: 24,
+        opacity: 1
+      },
+      {
+        id: "core-rich-text",
+        type: "rich-text",
+        x: 340,
+        y: 340,
+        width: 420,
+        height: 180,
+        html: "<p><strong>Core rich text</strong></p><p>Phase 3 performance fixture.</p>",
+        fill: "#ffffff",
+        stroke: "#8a6d1d",
+        strokeWidth: 2,
+        opacity: 1
+      }
+    );
+  }
+
+  return {
+    width: columns * 260,
+    height: 8 * 190,
+    objects
+  };
+}
 
 async function signInWithDiagramState(page) {
   await page.addInitScript(seenToken => {

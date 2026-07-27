@@ -23,7 +23,7 @@ import {
   setAnnotationEntityCollapsedState,
   setAnnotationEntityDataTypeVisibility,
   zoomAnnotationAtPoint
-} from "../../components/image-annotation.js?v=20260726-d2-entity-parity-v1";
+} from "../../components/image-annotation.js?v=20260727-diagram2-phase3-final-v2";
 import { openPublicLinkDialog } from "../../components/public-links.js?v=20260725-day36-v4";
 import {
   checkedFilterValues,

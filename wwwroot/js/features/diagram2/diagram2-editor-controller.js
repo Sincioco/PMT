@@ -1,8 +1,16 @@
 import { createDiagram2CommandHistory } from "./diagram2-editor-history.js?v=20260726-diagram2-phase2-v1";
-import { normalizeDiagram2CanonicalState } from "./diagram2-renderer.js?v=20260726-diagram2-phase3-create-v1";
+import { normalizeDiagram2CanonicalState } from "./diagram2-renderer.js?v=20260727-diagram2-phase3-final-v2";
+import {
+  createDiagram2SelectionClipboardText,
+  parseDiagram2SelectionClipboardText,
+  remapDiagram2SelectionClipboardPackageIds
+} from "./diagram2-compatibility.js?v=20260725-diagram2-day14-v1";
+import { normalizeRichHtml } from "../../shared/text-and-links.js?v=20260722-rte-toggle-state-v1";
 
 const keyboardNudgeMergeWindowMilliseconds = 350;
-const diagram2CoreDrawingTools = new Set(["rectangle", "circle", "arrow", "line", "textbox"]);
+const styleMergeWindowMilliseconds = 500;
+const minimumDiagram2ObjectSize = 8;
+const diagram2CoreDrawingTools = new Set(["rectangle", "circle", "arrow", "line", "textbox", "rich-text"]);
 const defaultDiagram2DrawingStyles = {
   fill: "#5aa315",
   stroke: "#3f7f0d",
@@ -17,12 +25,31 @@ const defaultDiagram2DrawingStyles = {
   arrowSize: 24
 };
 const defaultDiagram2CanvasCenter = { x: 800, y: 450 };
-const diagram2ColorStyleTargets = new Map([
-  ["fill", new Set(["rectangle", "circle", "textbox", "rich-text", "entity", "field-rectangle", "field-mapping-table"])],
+const defaultDiagram2FieldMappingStyles = {
+  headerTextColor: "#000000",
+  headerFill: "#d9ecff",
+  uiTextColor: "#172b4d",
+  uiFill: "#ffffff",
+  databaseTextColor: "#172b4d",
+  databaseFill: "#ffffff",
+  fieldMappingRowHoverFill: "#fff59d",
+  fieldMappingHighlightColor: "#facc15",
+  fieldMappingHighlightStrokeWidth: 9
+};
+const diagram2StyleTargets = new Map([
+  ["fill", new Set(["rectangle", "circle", "textbox", "rich-text", "entity", "field-rectangle"])],
   ["stroke", new Set(["rectangle", "circle", "textbox", "rich-text", "entity", "field-rectangle", "field-mapping-table", "arrow", "line"])],
-  ["textColor", new Set(["textbox", "rich-text", "entity", "field-rectangle", "field-mapping-table"])],
-  ["entityNameTextColor", new Set(["entity", "field-rectangle"])],
-  ["entityHeaderFill", new Set(["entity", "field-rectangle"])],
+  ["outlineVisible", new Set(["rectangle", "circle", "textbox", "rich-text", "entity", "field-rectangle", "field-mapping-table"])],
+  ["strokeWidth", new Set(["rectangle", "circle", "textbox", "rich-text", "entity", "field-rectangle", "field-mapping-table", "arrow", "line"])],
+  ["arrowSize", new Set(["arrow"])],
+  ["opacity", new Set(["rectangle", "circle", "textbox", "rich-text", "entity", "field-rectangle", "field-mapping-table", "arrow", "line"])],
+  ["textColor", new Set(["textbox", "entity", "field-mapping-table"])],
+  ["fontFamily", new Set(["textbox", "entity", "field-mapping-table"])],
+  ["fontSize", new Set(["textbox", "entity", "field-mapping-table"])],
+  ["textAlign", new Set(["textbox"])],
+  ["textVerticalAlign", new Set(["textbox"])],
+  ["entityNameTextColor", new Set(["entity"])],
+  ["entityHeaderFill", new Set(["entity"])],
   ["headerTextColor", new Set(["field-mapping-table"])],
   ["headerFill", new Set(["field-mapping-table"])],
   ["uiTextColor", new Set(["field-mapping-table"])],
@@ -30,7 +57,23 @@ const diagram2ColorStyleTargets = new Map([
   ["databaseTextColor", new Set(["field-mapping-table"])],
   ["databaseFill", new Set(["field-mapping-table"])],
   ["fieldMappingRowHoverFill", new Set(["field-mapping-table"])],
-  ["fieldMappingHighlightColor", new Set(["field-mapping-table"])]
+  ["fieldMappingHighlightColor", new Set(["field-mapping-table"])],
+  ["fieldMappingHighlightStrokeWidth", new Set(["field-mapping-table"])]
+]);
+const diagram2ColorStyleNames = new Set([
+  "fill",
+  "stroke",
+  "textColor",
+  "entityNameTextColor",
+  "entityHeaderFill",
+  "headerTextColor",
+  "headerFill",
+  "uiTextColor",
+  "uiFill",
+  "databaseTextColor",
+  "databaseFill",
+  "fieldMappingRowHoverFill",
+  "fieldMappingHighlightColor"
 ]);
 
 export function isDiagram2CoreDrawingTool(tool) {
@@ -68,8 +111,8 @@ export function createDiagram2DefaultObject(typeInput, centerInput = {}, options
     return object;
   }
 
-  const width = type === "textbox" ? 320 : type === "circle" ? 180 : 240;
-  const height = type === "circle" ? 180 : 140;
+  const width = type === "rich-text" ? 520 : type === "textbox" ? 320 : type === "circle" ? 180 : 240;
+  const height = type === "rich-text" ? 260 : type === "circle" ? 180 : 140;
   return {
     ...base,
     x: center.x - (width / 2),
@@ -82,6 +125,9 @@ export function createDiagram2DefaultObject(typeInput, centerInput = {}, options
     strokeWidth: defaultDiagram2DrawingStyles.strokeWidth,
     opacity: defaultDiagram2DrawingStyles.opacity,
     text: type === "textbox" ? "Text" : "",
+    ...(type === "rich-text"
+      ? { html: "<p><strong>Rich Text</strong></p><p>Double-click to edit this PMT rich-text object.</p>" }
+      : {}),
     textColor: defaultDiagram2DrawingStyles.textColor,
     fontFamily: defaultDiagram2DrawingStyles.fontFamily,
     fontSize: defaultDiagram2DrawingStyles.fontSize,
@@ -99,6 +145,8 @@ export function createDiagram2EditorController(options = {}) {
   let canonicalRelationshipCount = diagram2RelationshipCount(canonicalState);
   let selectedObjectIds = [];
   let activeTool = "select";
+  let formatPainterStyles = null;
+  let pasteSequence = 0;
   let busy = false;
   let destroyed = false;
   let canonicalDiagnostics = {
@@ -116,6 +164,11 @@ export function createDiagram2EditorController(options = {}) {
 
   function attachRenderer(nextRenderer) {
     renderer = nextRenderer || null;
+    renderer?.setCanvasOptions?.({
+      gridVisible: canonicalState.gridVisible === true,
+      snapToGrid: canonicalState.snapToGrid === true,
+      gridSize: positiveNumber(canonicalState.gridSize, 20)
+    });
     if (renderer && selectedObjectIds.length) renderer.setSelectedIds(selectedObjectIds);
     emit("renderer");
   }
@@ -150,6 +203,11 @@ export function createDiagram2EditorController(options = {}) {
     };
     selectedObjectIds = existingObjectIds(selectedObjectIds);
     if (setOptions.resetHistory !== false) history.reset({ saved: setOptions.saved !== false });
+    renderer?.setCanvasOptions?.({
+      gridVisible: canonicalState.gridVisible === true,
+      snapToGrid: canonicalState.snapToGrid === true,
+      gridSize: positiveNumber(canonicalState.gridSize, 20)
+    });
     if (renderer && selectedObjectIds.length) renderer.setSelectedIds(selectedObjectIds);
     emit("state");
   }
@@ -163,9 +221,95 @@ export function createDiagram2EditorController(options = {}) {
 
   function setActiveTool(tool) {
     const nextTool = String(tool || "select").trim().toLowerCase();
-    activeTool = ["select", "pan"].includes(nextTool) ? nextTool : "select";
+    activeTool = nextTool === "format-painter" && formatPainterStyles
+      ? "format-painter"
+      : ["select", "pan"].includes(nextTool) ? nextTool : "select";
+    if (activeTool !== "format-painter") formatPainterStyles = null;
     emit("tool");
     return activeTool;
+  }
+
+  async function setGridVisible(value) {
+    const nextValue = value === true;
+    if (canonicalState.gridVisible === nextValue) return nextValue;
+    await history.execute(createDiagram2CanvasOptionCommand({
+      optionName: "gridVisible",
+      value: nextValue,
+      label: nextValue ? "Show grid" : "Hide grid"
+    }), commandContext());
+    emit("history");
+    return nextValue;
+  }
+
+  async function setSnapToGrid(value) {
+    const nextValue = value === true;
+    if (canonicalState.snapToGrid === nextValue) return nextValue;
+    await history.execute(createDiagram2CanvasOptionCommand({
+      optionName: "snapToGrid",
+      value: nextValue,
+      label: nextValue ? "Enable snap to grid" : "Disable snap to grid"
+    }), commandContext());
+    emit("history");
+    return nextValue;
+  }
+
+  function setCanvasOptionCanonical(optionName, value) {
+    if (!["gridVisible", "snapToGrid"].includes(optionName)) return false;
+    canonicalState = {
+      ...canonicalState,
+      [optionName]: value === true
+    };
+    renderer?.setCanvasOptions?.({
+      gridVisible: canonicalState.gridVisible === true,
+      snapToGrid: canonicalState.snapToGrid === true,
+      gridSize: positiveNumber(canonicalState.gridSize, 20)
+    });
+    return true;
+  }
+
+  function snapPoint(pointInput = {}) {
+    const point = {
+      x: finiteNumber(pointInput?.x, 0),
+      y: finiteNumber(pointInput?.y, 0)
+    };
+    if (canonicalState.snapToGrid !== true) return point;
+    const size = positiveNumber(canonicalState.gridSize, 20);
+    return {
+      x: Math.round(point.x / size) * size,
+      y: Math.round(point.y / size) * size
+    };
+  }
+
+  function snapMovement(objectIds, deltaX, deltaY) {
+    const ids = existingObjectIds(objectIds);
+    const objects = ids.map(getObjectById).filter(Boolean);
+    const bounds = diagram2SelectionResizeBounds(objects);
+    const raw = {
+      deltaX: finiteNumber(deltaX, 0),
+      deltaY: finiteNumber(deltaY, 0)
+    };
+    if (canonicalState.snapToGrid !== true || !bounds) return raw;
+    const snapped = snapPoint({
+      x: bounds.x + raw.deltaX,
+      y: bounds.y + raw.deltaY
+    });
+    return {
+      deltaX: snapped.x - bounds.x,
+      deltaY: snapped.y - bounds.y
+    };
+  }
+
+  function keyboardNudgeStep(large = false) {
+    if (canonicalState.snapToGrid === true || canonicalState.gridVisible === true) {
+      return positiveNumber(canonicalState.gridSize, 20);
+    }
+    return large ? 10 : 1;
+  }
+
+  function selectAll() {
+    return setSelection(canonicalState.objects
+      .filter(object => object?.visible !== false)
+      .map(object => object.id));
   }
 
   async function moveSelectedObjects(deltaX, deltaY, commandOptions = {}) {
@@ -175,14 +319,14 @@ export function createDiagram2EditorController(options = {}) {
   async function updateSelectedObjectsStyle(styleNameInput, valueInput, commandOptions = {}) {
     if (busy || destroyed || !canMutate()) return false;
     const styleName = normalizeDiagram2StyleName(styleNameInput);
-    const value = normalizeDiagram2Color(valueInput);
-    if (!styleName || !value) return false;
+    const value = normalizeDiagram2StyleValue(styleName, valueInput);
+    if (!styleName || value === undefined) return false;
     const ids = selectedObjectIds.filter(id => {
       const object = getObjectById(id);
       return object
         && object.locked !== true
         && !objectPositionFixed(object)
-        && diagram2ObjectSupportsColorStyle(object, styleName);
+        && diagram2ObjectSupportsStyle(object, styleName);
     });
     if (!ids.length) return false;
 
@@ -190,8 +334,10 @@ export function createDiagram2EditorController(options = {}) {
       objectIds: ids,
       styleName,
       value,
-      label: commandOptions.label || "Change object color",
-      reason: commandOptions.reason || `change ${styleName}`
+      label: commandOptions.label || "Change object style",
+      reason: commandOptions.reason || `change ${styleName}`,
+      mergeKey: commandOptions.coalesce === false ? "" : `style:${styleName}:${ids.join("|")}`,
+      mergeWindowMs: commandOptions.coalesce === false ? 0 : styleMergeWindowMilliseconds
     });
     await history.execute(command, commandContext());
     emit("history");
@@ -202,7 +348,10 @@ export function createDiagram2EditorController(options = {}) {
     if (busy || destroyed || !canMutate()) return false;
     const ids = existingObjectIds(objectIds);
     if (!ids.length) return false;
-    if (ids.some(id => objectPositionFixed(getObjectById(id)))) return false;
+    if (ids.some(id => {
+      const object = getObjectById(id);
+      return object?.locked === true || objectPositionFixed(object);
+    })) return false;
     const dx = finiteNumber(deltaX, 0);
     const dy = finiteNumber(deltaY, 0);
     if (!dx && !dy) return false;
@@ -222,17 +371,250 @@ export function createDiagram2EditorController(options = {}) {
     return true;
   }
 
+  async function resizeObjects(objectsInput = [], commandOptions = {}) {
+    if (busy || destroyed || !canMutate()) return false;
+    const objects = Array.isArray(objectsInput) ? objectsInput : [objectsInput];
+    const nextObjectsById = new Map(objects
+      .map(object => [String(object?.id || "").trim(), object])
+      .filter(([id, object]) => id && object && typeof object === "object"));
+    const ids = existingObjectIds([...nextObjectsById.keys()]);
+    if (!ids.length) return false;
+    if (ids.some(id => {
+      const object = getObjectById(id);
+      return object?.locked === true || objectPositionFixed(object);
+    })) return false;
+
+    const changedObjects = ids
+      .map(id => ({ current: getObjectById(id), next: nextObjectsById.get(id) }))
+      .filter(pair => pair.current && pair.next && JSON.stringify(pair.current) !== JSON.stringify({ ...pair.next, id: pair.current.id }));
+    if (!changedObjects.length) return false;
+
+    const command = createDiagram2ResizeCommand({
+      objects: changedObjects.map(pair => ({ ...pair.next, id: pair.current.id })),
+      label: commandOptions.label || "Resize objects",
+      reason: commandOptions.reason || "resize objects",
+      rendererAlreadyUpdated: commandOptions.rendererAlreadyUpdated === true
+    });
+    await history.execute(command, commandContext());
+    emit("history");
+    return true;
+  }
+
   async function addObject(object, commandOptions = {}) {
     if (busy || destroyed || !canMutate()) return false;
     const objectId = String(object?.id || "").trim();
     if (!objectId || objectIndexById.has(objectId)) return false;
+    const nextObject = { ...object, id: objectId };
+    if (isDiagram2CoreDrawingTool(nextObject.type) && !String(nextObject.name || "").trim()) {
+      nextObject.name = nextDiagram2DrawingObjectName(nextObject.type, canonicalState.objects);
+    }
 
     const command = createDiagram2AddObjectCommand({
-      object: { ...object, id: objectId },
+      object: nextObject,
       label: commandOptions.label || "Add object",
       reason: commandOptions.reason || "add object"
     });
     await history.execute(command, commandContext());
+    emit("history");
+    return true;
+  }
+
+  async function addObjects(objectsInput = [], commandOptions = {}) {
+    if (busy || destroyed || !canMutate()) return false;
+    const objects = uniqueDiagram2Objects(objectsInput)
+      .filter(object => !objectIndexById.has(object.id));
+    if (!objects.length) return false;
+
+    const command = createDiagram2AddObjectsCommand({
+      objects,
+      label: commandOptions.label || "Add objects",
+      reason: commandOptions.reason || "add objects"
+    });
+    await history.execute(command, commandContext());
+    emit("history");
+    return true;
+  }
+
+  async function deleteSelectedObjects(commandOptions = {}) {
+    if (busy || destroyed || !canMutate()) return false;
+    const ids = selectedObjectIds.filter(id => {
+      const object = getObjectById(id);
+      return object && object.locked !== true && !objectPositionFixed(object);
+    });
+    if (!ids.length) return false;
+    const command = createDiagram2DeleteObjectsCommand({
+      objects: ids.map(id => ({
+        object: cloneDiagram2Value(getObjectById(id)),
+        index: objectIndexById.get(id)
+      })),
+      selectionBefore: selectedObjectIds,
+      label: commandOptions.label || "Delete objects",
+      reason: commandOptions.reason || "delete objects"
+    });
+    await history.execute(command, commandContext());
+    emit("history");
+    return true;
+  }
+
+  async function duplicateSelectedObjects(commandOptions = {}) {
+    if (busy || destroyed || !canMutate() || !selectedObjectIds.length) return false;
+    const text = selectionClipboardText();
+    if (!text) return false;
+    return pasteSelectionClipboardText(text, {
+      ...commandOptions,
+      label: commandOptions.label || "Duplicate objects",
+      reason: commandOptions.reason || "duplicate objects"
+    });
+  }
+
+  function selectionClipboardText() {
+    if (!selectedObjectIds.length) return "";
+    return createDiagram2SelectionClipboardText({
+      state: canonicalState,
+      selectedObjectIds
+    });
+  }
+
+  async function pasteSelectionClipboardText(contents, commandOptions = {}) {
+    if (busy || destroyed || !canMutate()) return false;
+    let parsed;
+    try {
+      parsed = typeof contents === "string"
+        ? parseDiagram2SelectionClipboardText(contents)
+        : contents;
+    } catch {
+      return false;
+    }
+    pasteSequence += 1;
+    const offset = canonicalState.gridVisible === true
+      ? positiveNumber(canonicalState.gridSize, 20)
+      : 10;
+    const remapped = remapDiagram2SelectionClipboardPackageIds(parsed, {
+      existingObjectIds: canonicalState.objects.map(object => object.id),
+      idFactory: (_oldId, type) => diagram2ObjectId(type || "object"),
+      pasteIndex: pasteSequence,
+      pasteOffset: { x: offset, y: offset }
+    });
+    const objects = uniqueDiagram2Objects(remapped?.selection?.objects || []);
+    if (!objects.length) return false;
+    assignUniqueDiagram2ObjectNames(objects, canonicalState.objects);
+    return addObjects(objects, {
+      label: commandOptions.label || "Paste objects",
+      reason: commandOptions.reason || "paste objects"
+    });
+  }
+
+  async function updateObjectText(objectId, value, commandOptions = {}) {
+    if (busy || destroyed || !canMutate()) return false;
+    const object = getObjectById(objectId);
+    if (!object || object.locked === true || !["textbox", "rich-text"].includes(object.type)) return false;
+    const property = object.type === "rich-text" ? "html" : "text";
+    const nextValue = property === "html"
+      ? normalizeDiagram2RichTextHtml(value)
+      : String(value ?? "");
+    if (String(object[property] ?? "") === nextValue) return false;
+    const command = createDiagram2TextCommand({
+      objectId: object.id,
+      property,
+      value: nextValue,
+      label: commandOptions.label || (property === "html" ? "Edit rich text" : "Edit text"),
+      reason: commandOptions.reason || "edit text"
+    });
+    await history.execute(command, commandContext());
+    emit("history");
+    return true;
+  }
+
+  function beginFormatPainter(sourceId = selectedObjectIds[0]) {
+    const source = getObjectById(sourceId);
+    if (!source || source.locked === true) return false;
+    const styles = {};
+    diagram2StyleTargets.forEach((_targets, styleName) => {
+      if (!diagram2ObjectSupportsStyle(source, styleName)) return;
+      styles[styleName] = diagram2StylePreviousValue(source, styleName);
+    });
+    if (!Object.keys(styles).length) return false;
+    formatPainterStyles = styles;
+    activeTool = "format-painter";
+    emit("tool");
+    return true;
+  }
+
+  function cancelFormatPainter() {
+    const changed = activeTool === "format-painter" || formatPainterStyles;
+    formatPainterStyles = null;
+    activeTool = "select";
+    if (changed) emit("tool");
+    return changed;
+  }
+
+  async function applyFormatPainter(targetIdsInput = []) {
+    if (busy || destroyed || !canMutate() || !formatPainterStyles) return false;
+    const requestedIds = existingObjectIds(targetIdsInput);
+    const targetIds = requestedIds.length > 1
+      ? requestedIds
+      : selectedObjectIds.length > 1 && requestedIds.some(id => selectedObjectIds.includes(id))
+        ? selectedObjectIds.slice()
+        : requestedIds;
+    const nextObjects = targetIds
+      .map(id => getObjectById(id))
+      .filter(object => object && object.locked !== true && !objectPositionFixed(object))
+      .map(object => {
+        const patch = {};
+        Object.entries(formatPainterStyles).forEach(([styleName, value]) => {
+          if (diagram2ObjectSupportsStyle(object, styleName)) patch[styleName] = value;
+        });
+        return Object.keys(patch).length ? { ...object, ...patch } : null;
+      })
+      .filter(Boolean);
+    if (!nextObjects.length) return false;
+    const command = createDiagram2PatchObjectsCommand({
+      objects: nextObjects,
+      label: "Apply Format Painter",
+      reason: "apply format painter"
+    });
+    await history.execute(command, commandContext());
+    emit("history");
+    return true;
+  }
+
+  async function setSelectedObjectsLocked(lockedInput) {
+    if (busy || destroyed || !canMutate()) return false;
+    const locked = lockedInput === true;
+    const nextObjects = selectedObjectIds
+      .map(id => getObjectById(id))
+      .filter(object => object && !objectPositionFixed(object) && object.locked !== locked)
+      .map(object => ({ ...object, locked }));
+    if (!nextObjects.length) return false;
+    const command = createDiagram2PatchObjectsCommand({
+      objects: nextObjects,
+      label: locked ? "Lock objects" : "Unlock objects",
+      reason: locked ? "lock objects" : "unlock objects"
+    });
+    await history.execute(command, commandContext());
+    emit("history");
+    return true;
+  }
+
+  async function arrangeSelectedObjects(actionInput) {
+    if (busy || destroyed || !canMutate()) return false;
+    const action = normalizeDiagram2LayerAction(actionInput);
+    if (!action || !selectedObjectIds.length) return false;
+    const selection = selectedObjectIds.map(getObjectById).filter(Boolean);
+    if (!selection.length || selection.some(object =>
+      object.locked === true || objectPositionFixed(object))) return false;
+
+    const previousOrder = canonicalState.objects.map(object => object.id);
+    const nextOrder = diagram2LayerOrder(previousOrder, selectedObjectIds, action);
+    if (previousOrder.every((id, index) => id === nextOrder[index])) return false;
+
+    await history.execute(createDiagram2ArrangeObjectsCommand({
+      objectIds: selectedObjectIds,
+      previousOrder,
+      nextOrder,
+      label: diagram2LayerActionLabel(action),
+      reason: `arrange objects ${action}`
+    }), commandContext());
     emit("history");
     return true;
   }
@@ -291,6 +673,10 @@ export function createDiagram2EditorController(options = {}) {
     const canEdit = canMutate();
     return {
       activeTool,
+      formatPainterActive: activeTool === "format-painter" && Boolean(formatPainterStyles),
+      gridVisible: canonicalState.gridVisible === true,
+      snapToGrid: canonicalState.snapToGrid === true,
+      gridSize: positiveNumber(canonicalState.gridSize, 20),
       busy,
       canRead: security.canRead !== false,
       canEdit,
@@ -322,7 +708,10 @@ export function createDiagram2EditorController(options = {}) {
       updateObjectCanonical,
       updateObjectsCanonical,
       addObjectCanonical,
+      addObjectsCanonical,
       removeObjectsCanonical,
+      setObjectOrderCanonical,
+      setCanvasOptionCanonical,
       setState(nextState) {
         canonicalState = normalizeDiagram2CanonicalState(nextState);
         canonicalRelationshipCount = diagram2RelationshipCount(canonicalState);
@@ -501,6 +890,66 @@ export function createDiagram2EditorController(options = {}) {
     });
   }
 
+  function addObjectsCanonical(objectsInput = [], addOptions = {}) {
+    const objects = uniqueDiagram2Objects(objectsInput)
+      .filter(object => !objectIndexById.has(object.id));
+    if (!objects.length) {
+      return recordCanonicalOperation({
+        kind: "add-objects",
+        changed: false,
+        affectedObjectIds: [],
+        requestedObjectCount: 0,
+        objectLookupCount: 0,
+        objectPatchCount: 0,
+        objectArrayCopyCount: 0,
+        objectContainerReindexed: false,
+        fullStateNormalizationCount: 0,
+        fullStateSerializationCount: 0,
+        canonicalObjectCount: canonicalState.objects.length,
+        reason: String(addOptions.reason || "add objects")
+      });
+    }
+
+    const indexesById = addOptions.indexesById instanceof Map ? addOptions.indexesById : new Map();
+    const nextObjects = canonicalState.objects.slice();
+    objects
+      .slice()
+      .sort((left, right) =>
+        finiteNumber(indexesById.get(left.id), nextObjects.length)
+        - finiteNumber(indexesById.get(right.id), nextObjects.length))
+      .forEach(object => {
+        const index = clampNumber(
+          finiteNumber(indexesById.get(object.id), nextObjects.length),
+          0,
+          nextObjects.length
+        );
+        nextObjects.splice(index, 0, object);
+      });
+    canonicalState = {
+      ...canonicalState,
+      objects: nextObjects
+    };
+    rebuildCanonicalObjectIndex();
+    objects.forEach(object => {
+      canonicalRelationshipCount += diagram2ObjectRelationshipCount(object);
+    });
+    return recordCanonicalOperation({
+      kind: "add-objects",
+      changed: true,
+      affectedObjectIds: objects.map(object => object.id),
+      requestedObjectCount: objects.length,
+      objectLookupCount: 0,
+      objectPatchCount: objects.length,
+      objectArrayCopyCount: 1,
+      objectContainerReindexed: true,
+      fullStateNormalizationCount: 0,
+      fullStateSerializationCount: 0,
+      canonicalObjectCount: canonicalState.objects.length,
+      nextObjectsById: new Map(objects.map(object => [object.id, object])),
+      reason: String(addOptions.reason || "add objects")
+    });
+  }
+
   function removeObjectsCanonical(ids = [], removeOptions = {}) {
     const idsToRemove = new Set(existingObjectIds(ids));
     if (!idsToRemove.size) {
@@ -521,9 +970,11 @@ export function createDiagram2EditorController(options = {}) {
     }
 
     const previousObjectsById = new Map();
+    const previousIndexesById = new Map();
     const nextObjects = canonicalState.objects.filter(object => {
       if (!idsToRemove.has(object.id)) return true;
       previousObjectsById.set(object.id, object);
+      previousIndexesById.set(object.id, objectIndexById.get(object.id));
       return false;
     });
     canonicalState = {
@@ -549,8 +1000,69 @@ export function createDiagram2EditorController(options = {}) {
       canonicalObjectCount: canonicalState.objects.length,
       canonicalRelationshipCount,
       previousObjectsById,
+      previousIndexesById,
       nextObjectsById: new Map(),
       reason: String(removeOptions.reason || "remove objects")
+    });
+  }
+
+  function setObjectOrderCanonical(idsInput = [], orderOptions = {}) {
+    const requestedOrder = uniqueStrings(idsInput);
+    const currentOrder = canonicalState.objects.map(object => object.id);
+    if (requestedOrder.length !== currentOrder.length
+      || requestedOrder.some(id => !objectIndexById.has(id))) {
+      return recordCanonicalOperation({
+        kind: "arrange-objects",
+        changed: false,
+        affectedObjectIds: [],
+        requestedObjectCount: requestedOrder.length,
+        objectLookupCount: requestedOrder.length,
+        objectPatchCount: 0,
+        objectArrayCopyCount: 0,
+        objectContainerReindexed: false,
+        fullStateNormalizationCount: 0,
+        fullStateSerializationCount: 0,
+        canonicalObjectCount: canonicalState.objects.length,
+        reason: String(orderOptions.reason || "arrange objects")
+      });
+    }
+
+    const affectedObjectIds = requestedOrder.filter((id, index) => currentOrder[index] !== id);
+    if (!affectedObjectIds.length) {
+      return recordCanonicalOperation({
+        kind: "arrange-objects",
+        changed: false,
+        affectedObjectIds: [],
+        requestedObjectCount: requestedOrder.length,
+        objectLookupCount: requestedOrder.length,
+        objectPatchCount: 0,
+        objectArrayCopyCount: 0,
+        objectContainerReindexed: false,
+        fullStateNormalizationCount: 0,
+        fullStateSerializationCount: 0,
+        canonicalObjectCount: canonicalState.objects.length,
+        reason: String(orderOptions.reason || "arrange objects")
+      });
+    }
+
+    canonicalState = {
+      ...canonicalState,
+      objects: requestedOrder.map(id => objectById.get(id))
+    };
+    rebuildCanonicalObjectIndex();
+    return recordCanonicalOperation({
+      kind: "arrange-objects",
+      changed: true,
+      affectedObjectIds,
+      requestedObjectCount: requestedOrder.length,
+      objectLookupCount: requestedOrder.length,
+      objectPatchCount: 0,
+      objectArrayCopyCount: 1,
+      objectContainerReindexed: true,
+      fullStateNormalizationCount: 0,
+      fullStateSerializationCount: 0,
+      canonicalObjectCount: canonicalState.objects.length,
+      reason: String(orderOptions.reason || "arrange objects")
     });
   }
 
@@ -636,16 +1148,35 @@ export function createDiagram2EditorController(options = {}) {
     setState,
     setSelection,
     setActiveTool,
+    setGridVisible,
+    setSnapToGrid,
+    snapPoint,
+    snapMovement,
+    keyboardNudgeStep,
+    selectAll,
     getObjectById,
     getObjectsByIds,
     updateObjectCanonical,
     updateObjectsCanonical,
     addObjectCanonical,
+    addObjectsCanonical,
     removeObjectsCanonical,
     addObject,
+    addObjects,
+    deleteSelectedObjects,
+    duplicateSelectedObjects,
+    selectionClipboardText,
+    pasteSelectionClipboardText,
+    updateObjectText,
+    beginFormatPainter,
+    cancelFormatPainter,
+    applyFormatPainter,
+    setSelectedObjectsLocked,
+    arrangeSelectedObjects,
     moveSelectedObjects,
     updateSelectedObjectsStyle,
     moveObjects,
+    resizeObjects,
     undo,
     redo,
     markSaved,
@@ -656,6 +1187,7 @@ export function createDiagram2EditorController(options = {}) {
     state: () => normalizeDiagram2CanonicalState(canonicalState),
     selectedObjectIds: () => selectedObjectIds.slice(),
     activeTool: () => activeTool,
+    formatPainterActive: () => activeTool === "format-painter" && Boolean(formatPainterStyles),
     historyStatus: () => history.status(),
     diagnostics,
     destroy
@@ -723,6 +1255,251 @@ export function createDiagram2AddObjectCommand(options = {}) {
   };
 }
 
+export function createDiagram2AddObjectsCommand(options = {}) {
+  const objects = uniqueDiagram2Objects(options.objects).map(cloneDiagram2Value);
+  const objectIds = objects.map(object => object.id);
+  const reason = String(options.reason || "add objects").trim() || "add objects";
+  const label = String(options.label || "Add objects").trim() || "Add objects";
+  const createdAt = Date.now();
+  let previousSelection = [];
+
+  return {
+    kind: "add-objects",
+    label,
+    objectIds,
+    reason,
+    createdAt,
+    apply(context) {
+      previousSelection = context.selectedObjectIds();
+      const add = context.addObjectsCanonical(objects, { reason });
+      if (add.changed !== true) return false;
+      patchDiagram2RendererObjectAdd(context.renderer, objects, reason);
+      context.setSelection(objectIds);
+      return true;
+    },
+    undo(context) {
+      const remove = context.removeObjectsCanonical(objectIds, { reason: `${reason} undo` });
+      if (remove.changed !== true) return false;
+      patchDiagram2RendererObjectRemove(context.renderer, objectIds, `${reason} undo`);
+      context.setSelection(previousSelection);
+      return true;
+    },
+    redo(context) {
+      const add = context.addObjectsCanonical(objects, { reason: `${reason} redo` });
+      if (add.changed !== true) return false;
+      patchDiagram2RendererObjectAdd(context.renderer, objects, `${reason} redo`);
+      context.setSelection(objectIds);
+      return true;
+    }
+  };
+}
+
+export function createDiagram2DeleteObjectsCommand(options = {}) {
+  const entries = (Array.isArray(options.objects) ? options.objects : [])
+    .map(entry => ({
+      object: cloneDiagram2Value(entry?.object),
+      index: finiteNumber(entry?.index, 0)
+    }))
+    .filter(entry => entry.object?.id);
+  const objects = entries.map(entry => entry.object);
+  const objectIds = objects.map(object => object.id);
+  const indexesById = new Map(entries.map(entry => [entry.object.id, entry.index]));
+  const selectionBefore = uniqueStrings(options.selectionBefore || objectIds);
+  const reason = String(options.reason || "delete objects").trim() || "delete objects";
+  const label = String(options.label || "Delete objects").trim() || "Delete objects";
+  const createdAt = Date.now();
+
+  return {
+    kind: "delete-objects",
+    label,
+    objectIds,
+    reason,
+    createdAt,
+    apply(context) {
+      const remove = context.removeObjectsCanonical(objectIds, { reason });
+      if (remove.changed !== true) return false;
+      patchDiagram2RendererObjectRemove(context.renderer, objectIds, reason);
+      context.setSelection(selectionBefore.filter(id => !objectIds.includes(id)));
+      return true;
+    },
+    undo(context) {
+      const add = context.addObjectsCanonical(objects, {
+        indexesById,
+        reason: `${reason} undo`
+      });
+      if (add.changed !== true) return false;
+      patchDiagram2RendererObjectAdd(context.renderer, objects, `${reason} undo`, indexesById);
+      context.setSelection(objectIds);
+      return true;
+    },
+    redo(context) {
+      const remove = context.removeObjectsCanonical(objectIds, { reason: `${reason} redo` });
+      if (remove.changed !== true) return false;
+      patchDiagram2RendererObjectRemove(context.renderer, objectIds, `${reason} redo`);
+      context.setSelection([]);
+      return true;
+    }
+  };
+}
+
+export function createDiagram2PatchObjectsCommand(options = {}) {
+  const nextObjectsById = new Map(uniqueDiagram2Objects(options.objects)
+    .map(object => [object.id, cloneDiagram2Value(object)]));
+  const objectIds = [...nextObjectsById.keys()];
+  const reason = String(options.reason || "patch objects").trim() || "patch objects";
+  const label = String(options.label || "Patch objects").trim() || "Patch objects";
+  const createdAt = Date.now();
+  const previousObjectsById = new Map();
+
+  const applyObjects = (context, valuesById, operationReason, capturePrevious = false) => {
+    const update = context.updateObjectsCanonical(objectIds, (object, id) => {
+      const next = valuesById.get(id);
+      if (!next) return object;
+      if (capturePrevious) previousObjectsById.set(id, cloneDiagram2Value(object));
+      return cloneDiagram2Value(next);
+    }, {
+      replace: true,
+      reason: operationReason
+    });
+    if (update.changed !== true) return false;
+    const renderer = context.renderer;
+    renderer?.beginDiagramUpdate?.(operationReason);
+    update.affectedObjectIds.forEach(id => renderer?.updateObject?.(id, cloneDiagram2Value(valuesById.get(id))));
+    renderer?.endDiagramUpdate?.(operationReason);
+    context.setSelection(update.affectedObjectIds);
+    return true;
+  };
+
+  return {
+    kind: "patch-objects",
+    label,
+    objectIds,
+    reason,
+    createdAt,
+    apply(context) {
+      previousObjectsById.clear();
+      return applyObjects(context, nextObjectsById, reason, true);
+    },
+    undo(context) {
+      return applyObjects(context, previousObjectsById, `${reason} undo`);
+    },
+    redo(context) {
+      return applyObjects(context, nextObjectsById, `${reason} redo`);
+    }
+  };
+}
+
+export function createDiagram2TextCommand(options = {}) {
+  const objectId = String(options.objectId || "").trim();
+  const property = options.property === "html" ? "html" : "text";
+  const value = property === "html"
+    ? normalizeDiagram2RichTextHtml(options.value)
+    : String(options.value ?? "");
+  const reason = String(options.reason || "edit text").trim() || "edit text";
+  const label = String(options.label || "Edit text").trim() || "Edit text";
+  const createdAt = Date.now();
+  let previousValue = "";
+
+  const applyValue = (context, nextValue, operationReason, capturePrevious = false) => {
+    const update = context.updateObjectCanonical(objectId, object => {
+      if (!object || !["textbox", "rich-text"].includes(object.type)) return object;
+      if (capturePrevious) previousValue = String(object[property] ?? "");
+      return { [property]: nextValue };
+    }, {
+      reason: operationReason
+    });
+    if (update.changed !== true) return false;
+    const renderer = context.renderer;
+    renderer?.beginDiagramUpdate?.(operationReason);
+    renderer?.updateObject?.(objectId, { [property]: nextValue });
+    renderer?.endDiagramUpdate?.(operationReason);
+    context.setSelection([objectId]);
+    return true;
+  };
+
+  return {
+    kind: "edit-text",
+    label,
+    objectId,
+    property,
+    reason,
+    createdAt,
+    apply(context) {
+      return applyValue(context, value, reason, true);
+    },
+    undo(context) {
+      return applyValue(context, previousValue, `${reason} undo`);
+    },
+    redo(context) {
+      return applyValue(context, value, `${reason} redo`);
+    }
+  };
+}
+
+export function createDiagram2CanvasOptionCommand(options = {}) {
+  const optionName = ["gridVisible", "snapToGrid"].includes(options.optionName)
+    ? options.optionName
+    : "";
+  const value = options.value === true;
+  let previousValue = false;
+  return {
+    kind: "canvas-option",
+    label: options.label || "Change canvas option",
+    optionName,
+    value,
+    async apply(context) {
+      if (!optionName) return false;
+      previousValue = context.state?.[optionName] === true;
+      return context.setCanvasOptionCanonical?.(optionName, value) !== false;
+    },
+    async undo(context) {
+      return context.setCanvasOptionCanonical?.(optionName, previousValue) !== false;
+    },
+    async redo(context) {
+      return context.setCanvasOptionCanonical?.(optionName, value) !== false;
+    }
+  };
+}
+
+export function createDiagram2ArrangeObjectsCommand(options = {}) {
+  const objectIds = uniqueStrings(options.objectIds);
+  const previousOrder = uniqueStrings(options.previousOrder);
+  const nextOrder = uniqueStrings(options.nextOrder);
+  const reason = String(options.reason || "arrange objects").trim() || "arrange objects";
+  const label = String(options.label || "Arrange objects").trim() || "Arrange objects";
+  const createdAt = Date.now();
+
+  const applyOrder = (context, order, operationReason) => {
+    const update = context.setObjectOrderCanonical(order, { reason: operationReason });
+    if (update.changed !== true) return false;
+    const renderer = context.renderer;
+    renderer?.beginDiagramUpdate?.(operationReason);
+    renderer?.setObjectOrder?.(order, { reason: operationReason });
+    context.setSelection(objectIds);
+    renderer?.endDiagramUpdate?.(operationReason);
+    return true;
+  };
+
+  return {
+    kind: "arrange-objects",
+    label,
+    objectIds,
+    previousOrder,
+    nextOrder,
+    reason,
+    createdAt,
+    apply(context) {
+      return applyOrder(context, nextOrder, reason);
+    },
+    undo(context) {
+      return applyOrder(context, previousOrder, `${reason} undo`);
+    },
+    redo(context) {
+      return applyOrder(context, nextOrder, `${reason} redo`);
+    }
+  };
+}
+
 export function createDiagram2MoveCommand(options = {}) {
   const objectIds = uniqueStrings(options.objectIds);
   const deltaX = finiteNumber(options.deltaX, 0);
@@ -777,14 +1554,93 @@ export function createDiagram2MoveCommand(options = {}) {
   };
 }
 
+export function createDiagram2ResizeCommand(options = {}) {
+  const objectsById = new Map((Array.isArray(options.objects) ? options.objects : [])
+    .map(object => [String(object?.id || "").trim(), cloneDiagram2Value(object)])
+    .filter(([id, object]) => id && object && typeof object === "object"));
+  const objectIds = uniqueStrings(options.objectIds || [...objectsById.keys()])
+    .filter(id => objectsById.has(id));
+  const reason = String(options.reason || "resize objects").trim() || "resize objects";
+  const label = String(options.label || "Resize objects").trim() || "Resize objects";
+  const createdAt = Date.now();
+  const rendererAlreadyUpdated = options.rendererAlreadyUpdated === true;
+  const previousObjectsById = new Map();
+  let appliedObjectIds = objectIds.slice();
+
+  return {
+    kind: "resize-objects",
+    label,
+    objectIds,
+    reason,
+    createdAt,
+    apply(context) {
+      previousObjectsById.clear();
+      const update = context.updateObjectsCanonical(objectIds, (object, id) => {
+        const next = objectsById.get(id);
+        if (!next) return object;
+        previousObjectsById.set(id, cloneDiagram2Value(object));
+        return cloneDiagram2Value(next);
+      }, {
+        reason
+      });
+      if (update.changed !== true) return false;
+
+      appliedObjectIds = update.affectedObjectIds.slice();
+      const renderer = context.renderer;
+      if (renderer && rendererAlreadyUpdated !== true) {
+        renderer.beginDiagramUpdate(reason);
+        appliedObjectIds.forEach(id => renderer.updateObject(id, cloneDiagram2Value(objectsById.get(id))));
+        renderer.endDiagramUpdate(reason);
+      }
+      context.setSelection(appliedObjectIds);
+      return true;
+    },
+    undo(context) {
+      if (!appliedObjectIds.length) return false;
+      const update = context.updateObjectsCanonical(appliedObjectIds, (object, id) =>
+        cloneDiagram2Value(previousObjectsById.get(id) || object), {
+          reason: `${reason} undo`
+        });
+      if (update.changed !== true) return false;
+
+      const renderer = context.renderer;
+      renderer?.beginDiagramUpdate?.(`${reason} undo`);
+      appliedObjectIds.forEach(id => renderer?.updateObject?.(id, cloneDiagram2Value(previousObjectsById.get(id))));
+      renderer?.endDiagramUpdate?.(`${reason} undo`);
+      context.setSelection(appliedObjectIds);
+      return true;
+    },
+    redo(context) {
+      if (!appliedObjectIds.length) return false;
+      const update = context.updateObjectsCanonical(appliedObjectIds, (object, id) =>
+        cloneDiagram2Value(objectsById.get(id) || object), {
+          reason: `${reason} redo`
+        });
+      if (update.changed !== true) return false;
+
+      const renderer = context.renderer;
+      renderer?.beginDiagramUpdate?.(`${reason} redo`);
+      appliedObjectIds.forEach(id => renderer?.updateObject?.(id, cloneDiagram2Value(objectsById.get(id))));
+      renderer?.endDiagramUpdate?.(`${reason} redo`);
+      context.setSelection(appliedObjectIds);
+      return true;
+    }
+  };
+}
+
 export function createDiagram2StyleCommand(options = {}) {
   const objectIds = uniqueStrings(options.objectIds);
   const styleName = normalizeDiagram2StyleName(options.styleName);
-  const value = normalizeDiagram2Color(options.value);
-  const reason = String(options.reason || "change object color").trim() || "change object color";
-  const label = String(options.label || "Change object color").trim() || "Change object color";
-  const createdAt = Date.now();
-  const previousValuesById = new Map();
+  const value = normalizeDiagram2StyleValue(styleName, options.value);
+  const reason = String(options.reason || "change object style").trim() || "change object style";
+  const label = String(options.label || "Change object style").trim() || "Change object style";
+  const createdAt = finiteNumber(options.createdAt, Date.now());
+  const mergeKey = String(options.mergeKey || "");
+  const mergeWindowMs = finiteNumber(options.mergeWindowMs, 0);
+  const previousValuesById = options.previousValuesById instanceof Map
+    ? new Map(options.previousValuesById)
+    : new Map();
+  const capturePreviousOnApply = options.capturePreviousOnApply !== false;
   let appliedObjectIds = objectIds.slice();
 
   return {
@@ -795,11 +1651,13 @@ export function createDiagram2StyleCommand(options = {}) {
     value,
     reason,
     createdAt,
+    mergeKey,
+    mergeWindowMs,
     apply(context) {
-      previousValuesById.clear();
+      if (capturePreviousOnApply) previousValuesById.clear();
       return applyDiagram2Style(context, objectIds, styleName, id => value, {
         reason,
-        capturePrevious: previousValuesById
+        capturePrevious: capturePreviousOnApply ? previousValuesById : null
       });
     },
     undo(context) {
@@ -812,6 +1670,23 @@ export function createDiagram2StyleCommand(options = {}) {
       if (!appliedObjectIds.length) return false;
       return applyDiagram2Style(context, appliedObjectIds, styleName, id => value, {
         reason: `${reason} redo`
+      });
+    },
+    mergeWith(next) {
+      if (!next || next.kind !== "style-objects") return null;
+      if (styleName !== next.styleName) return null;
+      if (objectIds.join("|") !== uniqueStrings(next.objectIds).join("|")) return null;
+      return createDiagram2StyleCommand({
+        objectIds,
+        styleName,
+        value: next.value,
+        label,
+        reason,
+        mergeKey,
+        mergeWindowMs,
+        createdAt: next.createdAt,
+        previousValuesById,
+        capturePreviousOnApply: false
       });
     }
   };
@@ -846,6 +1721,262 @@ export function moveDiagram2ObjectGeometry(object, deltaX, deltaY) {
   return next;
 }
 
+export function resizeDiagram2ObjectsGeometry(objectsInput = [], directionInput, pointInput = {}, options = {}) {
+  const objects = (Array.isArray(objectsInput) ? objectsInput : [objectsInput])
+    .filter(object => object && typeof object === "object")
+    .map(cloneDiagram2Value);
+  if (!objects.length) return [];
+
+  const direction = normalizeDiagram2ResizeHandle(directionInput);
+  if (!direction) return objects;
+  const point = {
+    x: finiteNumber(pointInput?.x, 0),
+    y: finiteNumber(pointInput?.y, 0)
+  };
+
+  if (["arrow-base", "arrow-tip"].includes(direction)) {
+    const object = objects.length === 1 && ["arrow", "line"].includes(objects[0]?.type) ? objects[0] : null;
+    if (!object) return objects;
+    return [resizeDiagram2LineEndpoint(object, direction, point)];
+  }
+
+  const startBounds = normalizeDiagram2Bounds(options.startBounds) || diagram2SelectionResizeBounds(objects);
+  const nextBounds = resizedDiagram2Bounds(startBounds, direction, point, options.centerAnchored === true);
+  if (!startBounds || !nextBounds) return objects;
+  const scaleX = nextBounds.width / Math.max(1, startBounds.width);
+  const scaleY = nextBounds.height / Math.max(1, startBounds.height);
+  const proportional = diagram2ResizeHandleIsCorner(direction);
+
+  return objects.map(object => resizeDiagram2ObjectFromBounds(object, startBounds, nextBounds, scaleX, scaleY, proportional));
+}
+
+export function diagram2SelectionResizeBounds(objectsInput = []) {
+  const objects = Array.isArray(objectsInput) ? objectsInput : [objectsInput];
+  return objects.reduce((bounds, object) =>
+    unionDiagram2Bounds(bounds, diagram2ObjectResizeBounds(object)), null);
+}
+
+function resizeDiagram2LineEndpoint(object, direction, point) {
+  const next = cloneDiagram2Value(object);
+  if (direction === "arrow-base") {
+    next.x1 = point.x;
+    next.y1 = point.y;
+  } else {
+    next.x2 = point.x;
+    next.y2 = point.y;
+  }
+  return enforceDiagram2LineMinimum(next);
+}
+
+function resizeDiagram2ObjectFromBounds(object, startBounds, nextBounds, scaleX, scaleY, proportional) {
+  const next = cloneDiagram2Value(object);
+  if (["arrow", "line"].includes(next.type)) {
+    next.x1 = nextBounds.x + ((finiteNumber(object.x1, 0) - startBounds.x) * scaleX);
+    next.y1 = nextBounds.y + ((finiteNumber(object.y1, 0) - startBounds.y) * scaleY);
+    next.x2 = nextBounds.x + ((finiteNumber(object.x2, 0) - startBounds.x) * scaleX);
+    next.y2 = nextBounds.y + ((finiteNumber(object.y2, 0) - startBounds.y) * scaleY);
+    if (proportional) scaleDiagram2LineStyle(next, Math.max(0.1, Math.min(Math.abs(scaleX), Math.abs(scaleY))));
+    return enforceDiagram2LineMinimum(next);
+  }
+
+  next.x = nextBounds.x + ((finiteNumber(object.x, 0) - startBounds.x) * scaleX);
+  next.y = nextBounds.y + ((finiteNumber(object.y, 0) - startBounds.y) * scaleY);
+  next.width = Math.max(minimumDiagram2ObjectSize, positiveNumber(object.width, minimumDiagram2ObjectSize) * scaleX);
+  next.height = Math.max(minimumDiagram2ObjectSize, positiveNumber(object.height, minimumDiagram2ObjectSize) * scaleY);
+  if (next.type === "embedded-image" && object.imageClip && typeof object.imageClip === "object") {
+    next.imageClip = scaleDiagram2Bounds(object.imageClip, startBounds, nextBounds, scaleX, scaleY);
+  }
+  if (proportional && ["textbox", "entity", "field-mapping-table"].includes(next.type)) {
+    next.fontSize = clampNumber(positiveNumber(object.fontSize, 16) * Math.max(0.1, Math.min(Math.abs(scaleX), Math.abs(scaleY))), 1, 240);
+  }
+  if (next.type === "entity") {
+    next.expandedHeight = next.collapsed === true
+      ? Math.max(minimumDiagram2ObjectSize, positiveNumber(object.expandedHeight, object.height) * scaleY)
+      : next.height;
+    if (next.showDataTypes === true) next.dataTypeExpandedWidth = next.width;
+  }
+  return next;
+}
+
+function resizedDiagram2Bounds(start, direction, point, centerAnchored = false) {
+  const width = positiveNumber(start?.width, minimumDiagram2ObjectSize);
+  const height = positiveNumber(start?.height, minimumDiagram2ObjectSize);
+  const left = finiteNumber(start?.x, 0);
+  const top = finiteNumber(start?.y, 0);
+  const right = left + width;
+  const bottom = top + height;
+  const centerX = left + (width / 2);
+  const centerY = top + (height / 2);
+  const horizontal = direction.includes("w") || direction.includes("e");
+  const vertical = direction.includes("n") || direction.includes("s");
+  if (!horizontal && !vertical) return { x: left, y: top, width, height };
+
+  const requestedWidth = direction.includes("w")
+    ? (centerAnchored ? (centerX - finiteNumber(point?.x, centerX)) * 2 : right - finiteNumber(point?.x, left))
+    : direction.includes("e")
+      ? (centerAnchored ? (finiteNumber(point?.x, centerX) - centerX) * 2 : finiteNumber(point?.x, right) - left)
+      : width;
+  const requestedHeight = direction.includes("n")
+    ? (centerAnchored ? (centerY - finiteNumber(point?.y, centerY)) * 2 : bottom - finiteNumber(point?.y, top))
+    : direction.includes("s")
+      ? (centerAnchored ? (finiteNumber(point?.y, centerY) - centerY) * 2 : finiteNumber(point?.y, bottom) - top)
+      : height;
+
+  if (horizontal !== vertical) {
+    const nextWidth = Math.max(minimumDiagram2ObjectSize, Math.max(0, requestedWidth));
+    const nextHeight = Math.max(minimumDiagram2ObjectSize, Math.max(0, requestedHeight));
+    return {
+      x: centerAnchored ? centerX - (nextWidth / 2) : direction.includes("w") ? right - nextWidth : left,
+      y: centerAnchored ? centerY - (nextHeight / 2) : direction.includes("n") ? bottom - nextHeight : top,
+      width: nextWidth,
+      height: nextHeight
+    };
+  }
+
+  const scaleX = Math.max(0, requestedWidth) / width;
+  const scaleY = Math.max(0, requestedHeight) / height;
+  const minimumScale = Math.max(minimumDiagram2ObjectSize / width, minimumDiagram2ObjectSize / height);
+  const scale = Math.max(minimumScale, Math.abs(scaleX - 1) >= Math.abs(scaleY - 1) ? scaleX : scaleY);
+  const nextWidth = width * scale;
+  const nextHeight = height * scale;
+  return {
+    x: centerAnchored ? centerX - (nextWidth / 2) : direction.includes("w") ? right - nextWidth : left,
+    y: centerAnchored ? centerY - (nextHeight / 2) : direction.includes("n") ? bottom - nextHeight : top,
+    width: nextWidth,
+    height: nextHeight
+  };
+}
+
+function normalizeDiagram2ResizeHandle(value) {
+  const handle = String(value || "").trim().toLowerCase();
+  return ["nw", "n", "ne", "e", "se", "s", "sw", "w", "arrow-base", "arrow-tip"].includes(handle) ? handle : "";
+}
+
+function diagram2ResizeHandleIsCorner(handle) {
+  return ["nw", "ne", "se", "sw"].includes(String(handle || ""));
+}
+
+function diagram2ObjectResizeBounds(object) {
+  if (!object) return null;
+  if (object.type === "arrow" || object.type === "line") {
+    const x1 = finiteNumber(object.x1, 0);
+    const y1 = finiteNumber(object.y1, 0);
+    const x2 = finiteNumber(object.x2, 0);
+    const y2 = finiteNumber(object.y2, 0);
+    return {
+      x: Math.min(x1, x2),
+      y: Math.min(y1, y2),
+      width: Math.max(1, Math.abs(x2 - x1)),
+      height: Math.max(1, Math.abs(y2 - y1))
+    };
+  }
+  return {
+    x: finiteNumber(object.x, 0),
+    y: finiteNumber(object.y, 0),
+    width: positiveNumber(object.width, minimumDiagram2ObjectSize),
+    height: positiveNumber(object.height, minimumDiagram2ObjectSize)
+  };
+}
+
+function normalizeDiagram2Bounds(bounds) {
+  if (!bounds) return null;
+  const x = finiteNumber(bounds.x, Number.NaN);
+  const y = finiteNumber(bounds.y, Number.NaN);
+  const width = positiveNumber(bounds.width, Number.NaN);
+  const height = positiveNumber(bounds.height, Number.NaN);
+  if (![x, y, width, height].every(Number.isFinite)) return null;
+  return { x, y, width, height };
+}
+
+function unionDiagram2Bounds(firstInput, secondInput) {
+  const first = normalizeDiagram2Bounds(firstInput);
+  const second = normalizeDiagram2Bounds(secondInput);
+  if (!first) return second;
+  if (!second) return first;
+  const x1 = Math.min(first.x, second.x);
+  const y1 = Math.min(first.y, second.y);
+  const x2 = Math.max(first.x + first.width, second.x + second.width);
+  const y2 = Math.max(first.y + first.height, second.y + second.height);
+  return {
+    x: x1,
+    y: y1,
+    width: Math.max(1, x2 - x1),
+    height: Math.max(1, y2 - y1)
+  };
+}
+
+function scaleDiagram2Bounds(bounds, startBounds, nextBounds, scaleX, scaleY) {
+  return {
+    x: nextBounds.x + ((finiteNumber(bounds.x, 0) - startBounds.x) * scaleX),
+    y: nextBounds.y + ((finiteNumber(bounds.y, 0) - startBounds.y) * scaleY),
+    width: Math.max(1, positiveNumber(bounds.width, 1) * scaleX),
+    height: Math.max(1, positiveNumber(bounds.height, 1) * scaleY)
+  };
+}
+
+function scaleDiagram2LineStyle(object, scale) {
+  object.strokeWidth = clampNumber(positiveNumber(object.strokeWidth, 1) * scale, 1, 40);
+  if (object.type === "arrow") object.arrowSize = clampNumber(positiveNumber(object.arrowSize, 24) * scale, 6, 160);
+}
+
+function enforceDiagram2LineMinimum(object) {
+  const next = cloneDiagram2Value(object);
+  const x1 = finiteNumber(next.x1, 0);
+  const y1 = finiteNumber(next.y1, 0);
+  const x2 = finiteNumber(next.x2, x1);
+  const y2 = finiteNumber(next.y2, y1);
+  const length = Math.hypot(x2 - x1, y2 - y1);
+  if (length >= minimumDiagram2ObjectSize) return next;
+  const angle = length > 0 ? Math.atan2(y2 - y1, x2 - x1) : 0;
+  next.x2 = x1 + Math.cos(angle) * minimumDiagram2ObjectSize;
+  next.y2 = y1 + Math.sin(angle) * minimumDiagram2ObjectSize;
+  return next;
+}
+
+function diagram2LayerOrder(objectIdsInput, selectedIdsInput, actionInput) {
+  const layers = uniqueStrings(objectIdsInput);
+  const selectedIds = new Set(uniqueStrings(selectedIdsInput));
+  const action = normalizeDiagram2LayerAction(actionInput);
+  if (!action || !selectedIds.size) return layers;
+
+  if (action === "front" || action === "back") {
+    const moving = layers.filter(id => selectedIds.has(id));
+    const remaining = layers.filter(id => !selectedIds.has(id));
+    return action === "front"
+      ? [...remaining, ...moving]
+      : [...moving, ...remaining];
+  }
+  if (action === "forward") {
+    for (let index = layers.length - 2; index >= 0; index -= 1) {
+      if (selectedIds.has(layers[index]) && !selectedIds.has(layers[index + 1])) {
+        [layers[index], layers[index + 1]] = [layers[index + 1], layers[index]];
+      }
+    }
+  }
+  if (action === "backward") {
+    for (let index = 1; index < layers.length; index += 1) {
+      if (selectedIds.has(layers[index]) && !selectedIds.has(layers[index - 1])) {
+        [layers[index], layers[index - 1]] = [layers[index - 1], layers[index]];
+      }
+    }
+  }
+  return layers;
+}
+
+function normalizeDiagram2LayerAction(value) {
+  const action = String(value || "").trim().toLowerCase();
+  return ["front", "back", "forward", "backward"].includes(action) ? action : "";
+}
+
+function diagram2LayerActionLabel(action) {
+  return {
+    front: "Move objects to front",
+    back: "Move objects to back",
+    forward: "Move objects forward",
+    backward: "Move objects backward"
+  }[action] || "Arrange objects";
+}
+
 async function applyDiagram2Move(context, objectIds, deltaX, deltaY, options = {}) {
   const update = context.updateObjectsCanonical(objectIds, object =>
     moveDiagram2ObjectGeometry(object, deltaX, deltaY), {
@@ -867,13 +1998,14 @@ async function applyDiagram2Move(context, objectIds, deltaX, deltaY, options = {
 }
 
 function applyDiagram2Style(context, objectIds, styleName, valueProvider, options = {}) {
-  const reason = options.reason || "change object color";
+  const reason = options.reason || "change object style";
   const update = context.updateObjectsCanonical(objectIds, (object, id) => {
-    if (!diagram2ObjectSupportsColorStyle(object, styleName)) return object;
+    if (!diagram2ObjectSupportsStyle(object, styleName)) return object;
     const value = typeof valueProvider === "function" ? valueProvider(id) : valueProvider;
-    if (!normalizeDiagram2Color(value)) return object;
-    options.capturePrevious?.set?.(id, object?.[styleName]);
-    return { [styleName]: normalizeDiagram2Color(value) };
+    const normalized = normalizeDiagram2StyleValue(styleName, value);
+    if (normalized === undefined) return object;
+    options.capturePrevious?.set?.(id, diagram2StylePreviousValue(object, styleName));
+    return { [styleName]: normalized };
   }, {
     reason
   });
@@ -885,7 +2017,7 @@ function applyDiagram2Style(context, objectIds, styleName, valueProvider, option
     renderer.beginDiagramUpdate(reason);
     affectedObjectIds.forEach(id => {
       const value = typeof valueProvider === "function" ? valueProvider(id) : valueProvider;
-      renderer.updateObject(id, { [styleName]: normalizeDiagram2Color(value) });
+      renderer.updateObject(id, { [styleName]: normalizeDiagram2StyleValue(styleName, value) });
     });
     renderer.endDiagramUpdate(reason);
   }
@@ -918,13 +2050,75 @@ function uniqueStrings(values) {
 
 function normalizeDiagram2StyleName(value) {
   const name = String(value || "").trim();
-  return diagram2ColorStyleTargets.has(name) ? name : "";
+  return diagram2StyleTargets.has(name) ? name : "";
 }
 
-function diagram2ObjectSupportsColorStyle(object, styleName) {
-  const type = String(object?.type || "").trim().toLowerCase();
-  const targets = diagram2ColorStyleTargets.get(styleName);
+function diagram2ObjectSupportsStyle(object, styleName) {
+  const type = diagram2ObjectStyleType(object);
+  const targets = diagram2StyleTargets.get(styleName);
   return Boolean(object && styleName && (targets?.has(type) || hasOwn(object, styleName)));
+}
+
+function diagram2ObjectStyleType(object) {
+  if (object?.type === "entity" && object.entityKind === "field-rectangle") return "field-rectangle";
+  return String(object?.type || "").trim().toLowerCase();
+}
+
+function normalizeDiagram2StyleValue(styleName, value) {
+  if (!styleName) return undefined;
+  if (diagram2ColorStyleNames.has(styleName)) {
+    if (styleName === "fill" && String(value || "").trim().toLowerCase() === "none") return "none";
+    return normalizeDiagram2Color(value) || undefined;
+  }
+  if (["fontSize", "strokeWidth", "arrowSize", "fieldMappingHighlightStrokeWidth"].includes(styleName)) {
+    const limits = styleName === "fontSize"
+      ? [1, 240]
+      : styleName === "arrowSize"
+        ? [6, 160]
+        : [1, 40];
+    return clampNumber(positiveNumber(value, diagram2DefaultStyleValue(styleName)), limits[0], limits[1]);
+  }
+  if (styleName === "opacity") {
+    const raw = finiteNumber(value, defaultDiagram2DrawingStyles.opacity);
+    const opacity = raw > 1 ? raw / 100 : raw;
+    return clampNumber(opacity, 0, 1);
+  }
+  if (styleName === "outlineVisible") {
+    if (typeof value === "boolean") return value;
+    const text = String(value || "").trim().toLowerCase();
+    return ["true", "1", "yes", "on"].includes(text);
+  }
+  if (styleName === "textAlign") {
+    const align = String(value || "").trim().toLowerCase();
+    return ["left", "center", "right"].includes(align) ? align : defaultDiagram2DrawingStyles.textAlign;
+  }
+  if (styleName === "textVerticalAlign") {
+    const align = String(value || "").trim().toLowerCase();
+    return ["top", "middle", "bottom"].includes(align) ? align : defaultDiagram2DrawingStyles.textVerticalAlign;
+  }
+  if (styleName === "fontFamily") {
+    const font = String(value || "").trim();
+    return font || defaultDiagram2DrawingStyles.fontFamily;
+  }
+  return undefined;
+}
+
+function diagram2StylePreviousValue(object, styleName) {
+  if (hasOwn(object, styleName)) {
+    const value = normalizeDiagram2StyleValue(styleName, object?.[styleName]);
+    if (value !== undefined) return value;
+  }
+  return diagram2DefaultStyleValue(styleName, object);
+}
+
+function diagram2DefaultStyleValue(styleName, object = null) {
+  if (styleName === "fill" && ["rectangle", "circle"].includes(diagram2ObjectStyleType(object))) return "none";
+  if (hasOwn(defaultDiagram2FieldMappingStyles, styleName)) return defaultDiagram2FieldMappingStyles[styleName];
+  if (hasOwn(defaultDiagram2DrawingStyles, styleName)) return defaultDiagram2DrawingStyles[styleName];
+  if (styleName === "entityNameTextColor") return "#172b4d";
+  if (styleName === "entityHeaderFill") return "#ffffff";
+  if (styleName === "outlineVisible") return true;
+  return "";
 }
 
 function normalizeDiagram2Color(value) {
@@ -943,6 +2137,22 @@ function normalizeDiagram2Color(value) {
   return `#${channels.map(channel => channel.toString(16).padStart(2, "0")).join("").toUpperCase()}`;
 }
 
+function positiveNumber(value, fallback = 0) {
+  const number = finiteNumber(value, fallback);
+  return number > 0 ? number : fallback;
+}
+
+function clampNumber(value, min, max) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return min;
+  return Math.min(max, Math.max(min, number));
+}
+
+function cloneDiagram2Value(value) {
+  if (value == null || typeof value !== "object") return value;
+  return JSON.parse(JSON.stringify(value));
+}
+
 function finiteNumber(value, fallback = 0) {
   const number = Number(value);
   return Number.isFinite(number) ? number : fallback;
@@ -950,6 +2160,93 @@ function finiteNumber(value, fallback = 0) {
 
 function diagram2ObjectId(prefix) {
   return `${String(prefix || "object").trim() || "object"}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function uniqueDiagram2Objects(objectsInput = []) {
+  const objects = Array.isArray(objectsInput) ? objectsInput : [objectsInput];
+  const seen = new Set();
+  return objects
+    .filter(object => object && typeof object === "object")
+    .map(object => cloneDiagram2Value(object))
+    .filter(object => {
+      object.id = String(object.id || "").trim();
+      if (!object.id || seen.has(object.id)) return false;
+      seen.add(object.id);
+      return true;
+    });
+}
+
+function assignUniqueDiagram2ObjectNames(objects, existingObjects) {
+  const used = new Set((Array.isArray(existingObjects) ? existingObjects : [])
+    .map(object => String(object?.name || "").trim())
+    .filter(Boolean));
+  objects.forEach(object => {
+    const name = String(object?.name || "").trim();
+    if (!name) return;
+    let candidate = `${name} Copy`;
+    let suffix = 2;
+    while (used.has(candidate)) candidate = `${name} Copy ${suffix++}`;
+    object.name = candidate;
+    used.add(candidate);
+  });
+}
+
+function nextDiagram2DrawingObjectName(typeInput, existingObjects) {
+  const baseName = {
+    rectangle: "Rectangle",
+    circle: "Circle",
+    arrow: "Arrow",
+    line: "Line",
+    textbox: "Text Box",
+    "rich-text": "Rich Text"
+  }[String(typeInput || "").trim().toLowerCase()] || "Object";
+  const escapedBaseName = baseName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const pattern = new RegExp(`^${escapedBaseName}\\s+(\\d+)$`, "i");
+  const highestNumber = (Array.isArray(existingObjects) ? existingObjects : [])
+    .reduce((highest, object) => {
+      const match = pattern.exec(String(object?.name || "").trim());
+      return match ? Math.max(highest, Number(match[1]) || 0) : highest;
+    }, 0);
+  return `${baseName} ${highestNumber + 1}`;
+}
+
+function normalizeDiagram2RichTextHtml(value) {
+  const source = String(value || "").trim() || "<p><br></p>";
+  if (typeof document !== "undefined") {
+    try {
+      return normalizeRichHtml(source) || "<p><br></p>";
+    } catch {
+      // Use the bounded fallback below when DOM normalization is unavailable.
+    }
+  }
+  return source
+    .replace(/<script\b[\s\S]*?<\/script>/gi, "")
+    .replace(/<style\b[\s\S]*?<\/style>/gi, "")
+    .replace(/\s+on[a-z]+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, "")
+    .replace(/\s+(href|src)\s*=\s*(["'])\s*javascript:[\s\S]*?\2/gi, "")
+    .slice(0, 200000) || "<p><br></p>";
+}
+
+function patchDiagram2RendererObjectAdd(renderer, objects, reason, indexesById = null) {
+  if (!renderer) return;
+  if (typeof renderer.addObjects === "function") {
+    renderer.addObjects(objects, { reason, indexesById });
+    return;
+  }
+  renderer.beginDiagramUpdate?.(reason);
+  objects.forEach(object => renderer.addObject?.(object));
+  renderer.endDiagramUpdate?.(reason);
+}
+
+function patchDiagram2RendererObjectRemove(renderer, objectIds, reason) {
+  if (!renderer) return;
+  if (typeof renderer.removeObjects === "function") {
+    renderer.removeObjects(objectIds, { reason });
+    return;
+  }
+  renderer.beginDiagramUpdate?.(reason);
+  objectIds.forEach(id => renderer.removeObject?.(id));
+  renderer.endDiagramUpdate?.(reason);
 }
 
 function translateDiagram2Bounds(bounds, deltaX, deltaY) {

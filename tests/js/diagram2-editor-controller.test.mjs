@@ -3,7 +3,8 @@ import assert from "node:assert/strict";
 
 import {
   createDiagram2DefaultObject,
-  createDiagram2EditorController
+  createDiagram2EditorController,
+  resizeDiagram2ObjectsGeometry
 } from "../../wwwroot/js/features/diagram2/diagram2-editor-controller.js";
 import {
   normalizeDiagram2RteSaveState
@@ -61,6 +62,89 @@ test("Diagram 2 editor controller applies color styles through command history w
   assert.equal(controller.historyStatus().dirty, true);
 
   assert.equal(await controller.updateSelectedObjectsStyle("headerFill", "#123456"), false);
+});
+
+test("Diagram 2 editor controller applies Diagram 1 format styles by object type", async () => {
+  const renderer = fakeRenderer();
+  const controller = createDiagram2EditorController({
+    renderer,
+    host: editableHost(),
+    state: formatState()
+  });
+
+  controller.setSelection(["box"]);
+  assert.equal(await controller.updateSelectedObjectsStyle("strokeWidth", "7"), true);
+  assert.equal(controller.getObjectById("box").strokeWidth, 7);
+  assert.equal(await controller.updateSelectedObjectsStyle("opacity", "45"), true);
+  assert.equal(controller.getObjectById("box").opacity, 0.45);
+  assert.equal(await controller.updateSelectedObjectsStyle("outlineVisible", false), true);
+  assert.equal(controller.getObjectById("box").outlineVisible, false);
+  assert.equal(await controller.updateSelectedObjectsStyle("fill", "none"), true);
+  assert.equal(controller.getObjectById("box").fill, "none");
+
+  controller.setSelection(["arrow"]);
+  assert.equal(await controller.updateSelectedObjectsStyle("arrowSize", "44"), true);
+  assert.equal(controller.getObjectById("arrow").arrowSize, 44);
+  assert.equal(await controller.updateSelectedObjectsStyle("textAlign", "right"), false);
+
+  controller.setSelection(["text"]);
+  assert.equal(await controller.updateSelectedObjectsStyle("fontFamily", "Georgia"), true);
+  assert.equal(controller.getObjectById("text").fontFamily, "Georgia");
+  assert.equal(await controller.updateSelectedObjectsStyle("fontSize", "32"), true);
+  assert.equal(controller.getObjectById("text").fontSize, 32);
+  assert.equal(await controller.updateSelectedObjectsStyle("textAlign", "center"), true);
+  assert.equal(controller.getObjectById("text").textAlign, "center");
+  assert.equal(await controller.updateSelectedObjectsStyle("textVerticalAlign", "bottom"), true);
+  assert.equal(controller.getObjectById("text").textVerticalAlign, "bottom");
+
+  controller.setSelection(["mapping"]);
+  assert.equal(await controller.updateSelectedObjectsStyle("headerFill", "#123456"), true);
+  assert.equal(controller.getObjectById("mapping").headerFill, "#123456");
+  assert.equal(await controller.updateSelectedObjectsStyle("fieldMappingRowHoverFill", "#ffe08a"), true);
+  assert.equal(controller.getObjectById("mapping").fieldMappingRowHoverFill, "#FFE08A");
+  assert.equal(await controller.updateSelectedObjectsStyle("fieldMappingHighlightColor", "#facc15"), true);
+  assert.equal(controller.getObjectById("mapping").fieldMappingHighlightColor, "#FACC15");
+  assert.equal(await controller.updateSelectedObjectsStyle("fieldMappingHighlightStrokeWidth", "12"), true);
+  assert.equal(controller.getObjectById("mapping").fieldMappingHighlightStrokeWidth, 12);
+
+  controller.setSelection(["mapping", "text"]);
+  assert.equal(await controller.updateSelectedObjectsStyle("fontSize", "18"), true);
+  assert.equal(controller.getObjectById("mapping").fontSize, 18);
+  assert.equal(controller.getObjectById("text").fontSize, 18);
+  assert.equal(renderer.fullRenderCount, 0);
+});
+
+test("Diagram 2 editor controller resizes object geometry with undoable incremental commands", async () => {
+  const renderer = fakeRenderer();
+  const controller = createDiagram2EditorController({
+    renderer,
+    host: editableHost(),
+    state: formatState()
+  });
+  const box = controller.getObjectById("box");
+  const resizedBox = resizeDiagram2ObjectsGeometry([box], "e", { x: box.x + box.width + 40, y: box.y + 20 })[0];
+
+  controller.setSelection(["box"]);
+  assert.equal(await controller.resizeObjects([resizedBox]), true);
+  assert.equal(controller.getObjectById("box").width, 200);
+  assert.equal(controller.getObjectById("box").height, 100);
+  assert.equal(renderer.fullRenderCount, 0);
+  assert.deepEqual(renderer.updatedObjectIds, ["box"]);
+  assert.equal(controller.historyStatus().dirty, true);
+
+  assert.equal(await controller.undo(), true);
+  assert.equal(controller.getObjectById("box").width, 160);
+  assert.equal(controller.historyStatus().dirty, false);
+
+  assert.equal(await controller.redo(), true);
+  assert.equal(controller.getObjectById("box").width, 200);
+  assert.equal(controller.historyStatus().dirty, true);
+
+  const arrow = controller.getObjectById("arrow");
+  const resizedArrow = resizeDiagram2ObjectsGeometry([arrow], "arrow-tip", { x: 390, y: 210 })[0];
+  assert.equal(await controller.resizeObjects([resizedArrow]), true);
+  assert.equal(controller.getObjectById("arrow").x2, 390);
+  assert.equal(controller.getObjectById("arrow").y2, 210);
 });
 
 test("Diagram 2 default drawing objects match Diagram 1 toolbar insertion geometry", () => {
@@ -169,6 +253,7 @@ test("Diagram 2 editor controller adds one object through command history withou
   assert.equal(await controller.addObject(object, { reason: "test add object" }), true);
   assert.equal(controller.currentState().objects.length, 2);
   assert.equal(controller.getObjectById("new-box").x, 200);
+  assert.equal(controller.getObjectById("new-box").name, "Rectangle 1");
   assert.deepEqual(controller.selectedObjectIds(), ["new-box"]);
   assert.deepEqual(renderer.addedObjectIds, ["new-box"]);
   assert.deepEqual(renderer.selectedIds, ["new-box"]);
@@ -188,6 +273,196 @@ test("Diagram 2 editor controller adds one object through command history withou
   assert.deepEqual(renderer.addedObjectIds, ["new-box", "new-box"]);
   assert.equal(renderer.fullRenderCount, 0);
   assert.equal(controller.historyStatus().dirty, true);
+});
+
+test("Diagram 2 enumerates new drawing object names for the Objects tab", async () => {
+  const controller = createDiagram2EditorController({
+    renderer: fakeRenderer(),
+    host: editableHost(),
+    state: simpleState()
+  });
+  const add = async (type, id, name = "") => {
+    const object = createDiagram2DefaultObject(type, { x: 320, y: 180 }, { id });
+    if (name) object.name = name;
+    assert.equal(await controller.addObject(object), true);
+    return controller.getObjectById(id).name;
+  };
+
+  assert.equal(await add("rectangle", "rectangle-1"), "Rectangle 1");
+  assert.equal(await add("rectangle", "rectangle-2"), "Rectangle 2");
+  assert.equal(await add("circle", "circle-1"), "Circle 1");
+  assert.equal(await add("arrow", "arrow-1"), "Arrow 1");
+  assert.equal(await add("line", "line-1"), "Line 1");
+  assert.equal(await add("textbox", "textbox-1"), "Text Box 1");
+  assert.equal(await add("rich-text", "rich-text-1"), "Rich Text 1");
+  assert.equal(await add("circle", "named-circle", "Architecture Hub"), "Architecture Hub");
+});
+
+test("Diagram 2 editor controller batches duplicate, paste, and delete into one undo entry each", async () => {
+  const renderer = fakeRenderer();
+  const controller = createDiagram2EditorController({
+    renderer,
+    host: editableHost(),
+    state: formatState()
+  });
+
+  controller.setSelection(["box", "text"]);
+  assert.equal(await controller.duplicateSelectedObjects(), true);
+  const duplicatedIds = controller.selectedObjectIds();
+  assert.equal(duplicatedIds.length, 2);
+  assert.equal(controller.currentState().objects.length, 6);
+  assert.equal(renderer.addedObjectBatches.length, 1);
+  assert.deepEqual(renderer.addedObjectBatches[0].sort(), duplicatedIds.slice().sort());
+  assert.equal(controller.historyStatus().entryCount, 1);
+
+  assert.equal(await controller.deleteSelectedObjects(), true);
+  assert.equal(controller.currentState().objects.length, 4);
+  assert.equal(renderer.removedObjectBatches.length, 1);
+  assert.equal(controller.historyStatus().entryCount, 2);
+
+  assert.equal(await controller.undo(), true);
+  assert.equal(controller.currentState().objects.length, 6);
+  assert.deepEqual(controller.selectedObjectIds().sort(), duplicatedIds.slice().sort());
+
+  const clipboardText = controller.selectionClipboardText();
+  assert.equal(await controller.pasteSelectionClipboardText(clipboardText), true);
+  assert.equal(controller.currentState().objects.length, 8);
+  assert.equal(controller.selectedObjectIds().length, 2);
+  assert.equal(controller.historyStatus().entryCount, 2);
+  assert.equal(renderer.fullRenderCount, 0);
+});
+
+test("Diagram 2 text commands and Format Painter are undoable and stay renderer-local", async () => {
+  const renderer = fakeRenderer();
+  const controller = createDiagram2EditorController({
+    renderer,
+    host: editableHost(),
+    state: {
+      version: 1,
+      width: 640,
+      height: 360,
+      objects: [
+        { id: "source", type: "rectangle", x: 20, y: 20, width: 100, height: 80, fill: "#123456", stroke: "#654321", strokeWidth: 7 },
+        { id: "target", type: "rectangle", x: 180, y: 20, width: 100, height: 80, fill: "#ffffff", stroke: "#000000", strokeWidth: 1 },
+        { id: "text", type: "textbox", x: 20, y: 140, width: 180, height: 80, text: "Before" },
+        { id: "rich", type: "rich-text", x: 240, y: 140, width: 240, height: 120, html: "<p>Before</p>" }
+      ]
+    }
+  });
+
+  assert.equal(await controller.updateObjectText("text", "After"), true);
+  assert.equal(controller.getObjectById("text").text, "After");
+  assert.equal(await controller.updateObjectText("rich", "<p><strong>After</strong></p><script>bad()</script>"), true);
+  assert.equal(controller.getObjectById("rich").html.includes("<script"), false);
+
+  controller.setSelection(["source"]);
+  assert.equal(controller.beginFormatPainter(), true);
+  assert.equal(controller.activeTool(), "format-painter");
+  assert.equal(await controller.applyFormatPainter(["target"]), true);
+  assert.equal(controller.getObjectById("target").fill, "#123456");
+  assert.equal(controller.getObjectById("target").stroke, "#654321");
+  assert.equal(controller.getObjectById("target").strokeWidth, 7);
+  assert.equal(controller.activeTool(), "format-painter");
+  assert.equal(controller.cancelFormatPainter(), true);
+  assert.equal(controller.activeTool(), "select");
+  assert.equal(renderer.fullRenderCount, 0);
+});
+
+test("Diagram 2 Grid and Snap settings persist in state, snap geometry, and undo", async () => {
+  const renderer = fakeRenderer();
+  const controller = createDiagram2EditorController({
+    renderer,
+    host: editableHost(),
+    state: simpleState()
+  });
+
+  assert.equal(await controller.setGridVisible(true), true);
+  assert.equal(await controller.setSnapToGrid(true), true);
+  assert.equal(controller.currentState().gridVisible, true);
+  assert.equal(controller.currentState().snapToGrid, true);
+  assert.deepEqual(controller.snapPoint({ x: 29, y: 31 }), { x: 20, y: 40 });
+  assert.deepEqual(controller.snapMovement(["box"], 13, 15), { deltaX: 20, deltaY: 24 });
+  assert.equal(controller.keyboardNudgeStep(false), 20);
+  assert.equal(controller.historyStatus().entryCount, 2);
+  assert.equal(renderer.canvasOptions.at(-1).snapToGrid, true);
+
+  assert.equal(await controller.undo(), true);
+  assert.equal(controller.currentState().snapToGrid, false);
+  assert.equal(controller.currentState().gridVisible, true);
+});
+
+test("Diagram 2 coalesces rapid style changes into one history entry", async () => {
+  const controller = createDiagram2EditorController({
+    renderer: fakeRenderer(),
+    host: editableHost(),
+    state: styleState()
+  });
+
+  controller.setSelection(["box"]);
+  assert.equal(await controller.updateSelectedObjectsStyle("fill", "#111111"), true);
+  assert.equal(await controller.updateSelectedObjectsStyle("fill", "#222222"), true);
+  assert.equal(controller.historyStatus().entryCount, 1);
+  assert.equal(controller.getObjectById("box").fill, "#222222");
+  assert.equal(await controller.undo(), true);
+  assert.equal(controller.getObjectById("box").fill, "#FFFFFF");
+});
+
+test("Diagram 2 context-menu locking is undoable and blocks object mutation", async () => {
+  const renderer = fakeRenderer();
+  const controller = createDiagram2EditorController({
+    renderer,
+    host: editableHost(),
+    state: simpleState()
+  });
+
+  controller.setSelection(["box"]);
+  assert.equal(await controller.setSelectedObjectsLocked(true), true);
+  assert.equal(controller.getObjectById("box").locked, true);
+  assert.equal(controller.historyStatus().entryCount, 1);
+  assert.equal(await controller.moveSelectedObjects(10, 0), false);
+  assert.equal(await controller.deleteSelectedObjects(), false);
+  assert.equal(await controller.undo(), true);
+  assert.equal(controller.getObjectById("box").locked, false);
+  assert.equal(await controller.redo(), true);
+  assert.equal(controller.getObjectById("box").locked, true);
+  assert.equal(renderer.fullRenderCount, 0);
+});
+
+test("Diagram 2 context-menu layer commands match Diagram 1 ordering and undo locally", async () => {
+  const renderer = fakeRenderer();
+  const controller = createDiagram2EditorController({
+    renderer,
+    host: editableHost(),
+    state: formatState()
+  });
+  const order = () => controller.currentState().objects.map(object => object.id);
+
+  controller.setSelection(["arrow", "text"]);
+  assert.equal(await controller.arrangeSelectedObjects("back"), true);
+  assert.deepEqual(order(), ["arrow", "text", "box", "mapping"]);
+  assert.equal(await controller.arrangeSelectedObjects("front"), true);
+  assert.deepEqual(order(), ["box", "mapping", "arrow", "text"]);
+  assert.equal(await controller.undo(), true);
+  assert.deepEqual(order(), ["arrow", "text", "box", "mapping"]);
+  assert.equal(await controller.undo(), true);
+  assert.deepEqual(order(), ["box", "arrow", "text", "mapping"]);
+
+  assert.equal(await controller.arrangeSelectedObjects("forward"), true);
+  assert.deepEqual(order(), ["box", "mapping", "arrow", "text"]);
+  assert.equal(await controller.arrangeSelectedObjects("backward"), true);
+  assert.deepEqual(order(), ["box", "arrow", "text", "mapping"]);
+  assert.equal(renderer.fullRenderCount, 0);
+  assert.deepEqual(renderer.objectOrders, [
+    ["arrow", "text", "box", "mapping"],
+    ["box", "mapping", "arrow", "text"],
+    ["arrow", "text", "box", "mapping"],
+    ["box", "arrow", "text", "mapping"],
+    ["box", "mapping", "arrow", "text"],
+    ["box", "arrow", "text", "mapping"]
+  ]);
+
+  await controller.setSelectedObjectsLocked(true);
+  assert.equal(await controller.arrangeSelectedObjects("front"), false);
 });
 
 test("Diagram 2 controller moves one object in a large state without full-state serialization or scans", async () => {
@@ -386,6 +661,72 @@ function styleState() {
   };
 }
 
+function formatState() {
+  return {
+    version: 1,
+    width: 640,
+    height: 360,
+    objects: [{
+      id: "box",
+      type: "rectangle",
+      x: 40,
+      y: 40,
+      width: 160,
+      height: 100,
+      fill: "#ffffff",
+      stroke: "#172b4d",
+      strokeWidth: 2,
+      outlineVisible: true,
+      opacity: 1
+    }, {
+      id: "arrow",
+      type: "arrow",
+      x1: 220,
+      y1: 80,
+      x2: 340,
+      y2: 140,
+      stroke: "#172b4d",
+      strokeWidth: 3,
+      arrowSize: 24,
+      opacity: 1
+    }, {
+      id: "text",
+      type: "textbox",
+      x: 80,
+      y: 180,
+      width: 220,
+      height: 90,
+      text: "Format me",
+      fill: "#ffffff",
+      stroke: "#172b4d",
+      strokeWidth: 2,
+      textColor: "#172b4d",
+      fontFamily: "Arial",
+      fontSize: 24,
+      textAlign: "left",
+      textVerticalAlign: "top"
+    }, {
+      id: "mapping",
+      type: "field-mapping-table",
+      x: 340,
+      y: 160,
+      width: 240,
+      height: 140,
+      rows: [{ uiField: "Task", databaseField: "pmt.Tasks" }],
+      stroke: "#172b4d",
+      strokeWidth: 2,
+      fontFamily: "Arial",
+      fontSize: 14,
+      headerFill: "#d9ecff",
+      headerTextColor: "#000000",
+      uiFill: "#ffffff",
+      uiTextColor: "#172b4d",
+      databaseFill: "#ffffff",
+      databaseTextColor: "#172b4d"
+    }]
+  };
+}
+
 function largeState(count) {
   return {
     version: 1,
@@ -478,13 +819,26 @@ function fakeRenderer() {
     updatedObjectIds: [],
     addedObjectIds: [],
     removedObjectIds: [],
+    addedObjectBatches: [],
+    removedObjectBatches: [],
+    objectOrders: [],
+    canvasOptions: [],
     beginDiagramUpdate() {},
     endDiagramUpdate() {},
     addObject(object) {
       this.addedObjectIds.push(object.id);
     },
+    addObjects(objects) {
+      this.addedObjectBatches.push(objects.map(object => object.id));
+    },
     removeObject(id) {
       this.removedObjectIds.push(id);
+    },
+    removeObjects(ids) {
+      this.removedObjectBatches.push(ids.slice());
+    },
+    setObjectOrder(ids) {
+      this.objectOrders.push(ids.slice());
     },
     updateObject(id) {
       this.updatedObjectIds.push(id);
@@ -492,6 +846,9 @@ function fakeRenderer() {
     setSelectedIds(ids) {
       this.selectedIds = ids.slice();
       return {};
+    },
+    setCanvasOptions(options) {
+      this.canvasOptions.push({ ...options });
     }
   };
 }

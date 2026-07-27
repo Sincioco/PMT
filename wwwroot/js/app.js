@@ -9,7 +9,7 @@ import {
   buildAnnotationSvg,
   parseAnnotationSvg,
   openImageAnnotationDialog
-} from "./components/image-annotation.js?v=20260726-d2-line-parity-v1";
+} from "./components/image-annotation.js?v=20260727-diagram2-phase3-final-v2";
 import { createWhatsNew } from "./components/whats-new.js?v=20260725-day37-v2";
 import {
   htmlWithoutUserMentionMarkup,
@@ -73,20 +73,20 @@ import {
 import { createBacklogFeature } from "./features/backlog/backlog.js?v=20260720-work-item-export-images-v4";
 import { createBoardFeature } from "./features/board/board.js?v=20260722-rich-entity-mentions-v1";
 import { createBugsFeature } from "./features/bugs/bugs.js?v=20260724-day36-v3";
-import { createDashboardFeature } from "./features/dashboard/dashboard.js?v=release-notes-2026-07-25-day-37-46c1811ffe7e";
-import { createDiagramFeature } from "./features/diagram/diagram.js?v=20260726-local-d1-d2-align-v4";
-import { createDiagram2Feature } from "./features/diagram2/diagram2.js?v=20260727-diagram2-color-picker-v1";
-import { openDiagram2RteAnnotationHost } from "./features/diagram2/diagram2-rte-host-adapter.js?v=20260727-diagram2-color-picker-v1";
+import { createDashboardFeature } from "./features/dashboard/dashboard.js?v=release-notes-2026-07-25-day-37-0c7a100379c9";
+import { createDiagramFeature } from "./features/diagram/diagram.js?v=20260727-diagram2-phase3-final-v2";
+import { createDiagram2Feature } from "./features/diagram2/diagram2.js?v=20260727-diagram2-phase3-final-v2";
+import { openDiagram2RteAnnotationHost } from "./features/diagram2/diagram2-rte-host-adapter.js?v=20260727-diagram2-phase3-final-v2";
 import { createDocumentationFeature } from "./features/documentation/documentation.js?v=20260725-day36-v5";
 import {
   createGanttFeature,
   currentSprintForProject,
   ganttStartDate
-} from "./features/gantt/gantt.js?v=release-notes-2026-07-25-day-37-46c1811ffe7e";
+} from "./features/gantt/gantt.js?v=release-notes-2026-07-25-day-37-0c7a100379c9";
 import { createInvitationsFeature } from "./features/invitations/invitations.js?v=20260722-auth-flyby-v1";
 import { createProjectsFeature } from "./features/projects/projects.js?v=20260719-day32-rte-diagram";
-import { createReleaseNotesFeature } from "./features/release-notes/release-notes.js?v=release-notes-2026-07-25-day-37-46c1811ffe7e";
-import { createRoadMapFeature } from "./features/roadmap/roadmap.js?v=release-notes-2026-07-25-day-37-46c1811ffe7e";
+import { createReleaseNotesFeature } from "./features/release-notes/release-notes.js?v=release-notes-2026-07-25-day-37-0c7a100379c9";
+import { createRoadMapFeature } from "./features/roadmap/roadmap.js?v=release-notes-2026-07-25-day-37-0c7a100379c9";
 import { createLogFeature } from "./features/personal-log/log.js?v=20260722-rte-toggle-state-v1";
 import { createScrumFeature } from "./features/scrum/scrum.js?v=20260722-ole-viewport-v1";
 import { createSettingsFeature } from "./features/settings/settings.js?v=20260726-diagram2-nav-icon-v1";
@@ -543,6 +543,7 @@ const diagramFeature = createDiagramFeature({
 const diagram2Feature = createDiagram2Feature({
   app,
   notify: showToast,
+  bindRichTextButtons,
   createDiagramDocument: createDiagramBackingDocument,
   saveDiagramDocument: updateDiagramBackingDocument,
   openEditor,
@@ -2238,6 +2239,7 @@ async function annotateRichTextImage2(image) {
       annotationUrl: isAnnotated ? appUrl(currentSource) : "",
       originalFileName: image.getAttribute("alt") || originalReference.split("/").pop() || "image",
       notify: showToast,
+      bindRichTextButtons,
       restoreFocus,
       apply: async annotation => {
         await applyRichTextImageAnnotation(image, annotation);

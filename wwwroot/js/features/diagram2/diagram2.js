@@ -9,7 +9,11 @@ import {
   filterSelect
 } from "../../components/filters.js";
 import { field, optionalNumberValue, selectOptionsField, value } from "../../components/forms.js?v=20260722-rte-toggle-state-v1";
-import { buildAnnotationSvg } from "../../components/image-annotation.js?v=20260726-d2-line-parity-v1";
+import {
+  buildAnnotationSvg,
+  copyAnnotationPngToClipboard,
+  copyAnnotationSvgToClipboard
+} from "../../components/image-annotation.js?v=20260727-diagram2-phase3-final-v2";
 import { openPublicLinkDialog } from "../../components/public-links.js?v=20260725-day36-v4";
 import { sectionHead } from "../../components/sections.js?v=20260726-diagram2-nav-icon-v1";
 import { api } from "../../core/api.js?v=20260725-public-link-v1";
@@ -43,7 +47,6 @@ import { canAccessResource } from "../../shared/security.js";
 import { escapeAttr, escapeHtml } from "../../shared/text-and-links.js";
 import {
   createDiagram2PmtDiagramFile,
-  createDiagram2SelectionClipboardText,
   diagram2CompatibilitySummary,
   parseDiagram2PmtDiagramFile
 } from "./diagram2-compatibility.js?v=20260725-diagram2-day14-v1";
@@ -52,19 +55,23 @@ import {
   createDiagram2DefaultObject,
   createDiagram2EditorController,
   isDiagram2CoreDrawingTool
-} from "./diagram2-editor-controller.js?v=20260727-diagram2-color-picker-v1";
+} from "./diagram2-editor-controller.js?v=20260727-diagram2-phase3-final-v2";
+import { bindDiagram2EditorInteractions } from "./diagram2-editor-interactions.js?v=20260727-diagram2-phase3-final-v2";
 import {
   bindDiagram2EditorColorPickers,
+  bindDiagram2EditorFormatControls,
+  copyDiagram2SelectionArtwork,
   diagram2EditorShellHtml,
   diagram2ObjectsPaneHtml,
+  openDiagram2TextEditor,
   setDiagram2InspectorActiveTab,
   updateDiagram2ObjectTreeSelection,
   updateDiagram2ShellStatus
-} from "./diagram2-editor-shell.js?v=20260727-diagram2-color-picker-v1";
+} from "./diagram2-editor-shell.js?v=20260727-diagram2-phase3-final-v2";
 import {
   createDiagram2Renderer,
   normalizeDiagram2CanonicalState
-} from "./diagram2-renderer.js?v=20260726-diagram2-phase3-create-v1";
+} from "./diagram2-renderer.js?v=20260727-diagram2-phase3-final-v2";
 
 const diagram2ViewModes = new Set(["tree", "cards"]);
 const diagram2SortModes = new Set(["latest", "oldest", "name", "custom"]);
@@ -85,6 +92,7 @@ export function createDiagram2Feature({
   createDiagramDocument,
   saveDiagramDocument,
   openEditor,
+  bindRichTextButtons,
   saveDiagramInfo,
   moveDiagramDocument,
   deleteItem
@@ -297,6 +305,10 @@ export function createDiagram2Feature({
       if (!diagram2EditModeActive()) return true;
       const tool = button?.dataset?.tool || button?.dataset?.diagram2Tool || "select";
       if (isDiagram2CoreDrawingTool(tool)) await addDiagram2ToolbarObject(tool);
+      else if (tool === "format-painter") {
+        if (diagram2Controller?.activeTool() === "format-painter") diagram2Controller.cancelFormatPainter();
+        else diagram2Controller?.beginFormatPainter();
+      }
       else diagram2Controller?.setActiveTool(tool);
       updateDiagram2EditorControls();
       return true;
@@ -381,9 +393,47 @@ export function createDiagram2Feature({
       await exportDiagram2Png();
       return true;
     }
+    if (action === "copy-diagram2-svg") {
+      await copyDiagram2Svg();
+      return true;
+    }
+    if (action === "copy-diagram2-png") {
+      await copyDiagram2Png();
+      return true;
+    }
     if (action === "copy-diagram2-selection") {
       if (!diagram2EditModeActive()) return true;
       await copyDiagram2Selection();
+      return true;
+    }
+    if (action === "copy-diagram2-selection-svg" || action === "copy-diagram2-selection-image") {
+      if (!diagram2EditModeActive()) return true;
+      await copyDiagram2SelectionAsArtwork(action.endsWith("-image") ? "image" : "svg");
+      return true;
+    }
+    if (action === "paste-diagram2-selection") {
+      if (!diagram2EditModeActive()) return true;
+      await pasteDiagram2Selection();
+      return true;
+    }
+    if (action === "duplicate-diagram2-selection") {
+      if (!diagram2EditModeActive()) return true;
+      await duplicateDiagram2Selection();
+      return true;
+    }
+    if (action === "delete-diagram2-selection") {
+      if (!diagram2EditModeActive()) return true;
+      await deleteDiagram2Selection();
+      return true;
+    }
+    if (action === "lock-diagram2-selection") {
+      if (!diagram2EditModeActive()) return true;
+      await toggleDiagram2SelectionLock();
+      return true;
+    }
+    if (action.startsWith("arrange-diagram2-selection-")) {
+      if (!diagram2EditModeActive()) return true;
+      await arrangeDiagram2Selection(action.slice("arrange-diagram2-selection-".length));
       return true;
     }
     if (action === "nudge-diagram2-selection") {
@@ -424,6 +474,12 @@ export function createDiagram2Feature({
     } else if (filter === "diagram2-sort") {
       diagram2Sort = diagram2SortModes.has(target.value) ? target.value : "latest";
       writePreference(preferenceKeys.diagramSort, diagram2Sort);
+    } else if (filter === "diagram2-grid") {
+      void diagram2Controller?.setGridVisible(target.checked === true).then(syncDiagram2InteractionState);
+      return true;
+    } else if (filter === "diagram2-snap") {
+      void diagram2Controller?.setSnapToGrid(target.checked === true).then(syncDiagram2InteractionState);
+      return true;
     } else if (filter === "diagram2-creator") {
       diagram2CreatorFilters = checkedDiagram2FilterValues("diagram2-creator");
       writeJsonPreference(preferenceKeys.diagramCreatorFilters, diagram2CreatorFilters);
@@ -727,6 +783,7 @@ export function createDiagram2Feature({
           ${diagram2ViewerHtml(selectedDocument, selectedMissingId)}
         </section>
         ${diagram2TreeContextMenuHtml()}
+        ${diagram2CanvasContextMenuHtml()}
       </div>
     `;
   }
@@ -791,6 +848,15 @@ export function createDiagram2Feature({
         ${diagram2TreeContextMenuItemHtml("export-diagram2-svg", "Download as SVG", "&#8681;", "data-diagram2-context-requires-export")}
         ${diagram2TreeContextMenuItemHtml("export-diagram2-png", "Download as PNG", "&#8681;", "data-diagram2-context-requires-export")}
         ${diagram2TreeContextMenuItemHtml("delete-diagram2", "Delete", "&#128465;", "data-diagram2-context-requires-delete", "is-danger")}
+      </div>
+    `;
+  }
+
+  function diagram2CanvasContextMenuHtml() {
+    return `
+      <div class="dropdown-menu documentation-tree-context-menu diagram2-canvas-context-menu" data-diagram2-canvas-context-menu role="menu" aria-label="Diagram canvas actions" hidden>
+        ${diagram2TreeContextMenuItemHtml("copy-diagram2-svg", "Copy as SVG", "&#10697;", "data-diagram2-context-requires-export")}
+        ${diagram2TreeContextMenuItemHtml("copy-diagram2-png", "Copy as PNG", "&#9635;", "data-diagram2-context-requires-export")}
       </div>
     `;
   }
@@ -888,6 +954,7 @@ export function createDiagram2Feature({
     return `
       <div class="diagram2-edit-workspace" data-diagram2-viewer-host>
         ${diagram2ViewerHtml(document, 0)}
+        ${diagram2CanvasContextMenuHtml()}
       </div>
     `;
   }
@@ -1442,15 +1509,19 @@ export function createDiagram2Feature({
     const shell = app.querySelector("[data-diagram2-editor-shell]");
     if (!shell) return;
     bindDiagram2EditorColorPickers(shell, {
-      applyColor: (name, color) => applyDiagram2SelectedColor(name, color),
+      applyColor: (name, color) => applyDiagram2SelectedStyle(name, color),
+      notify
+    });
+    bindDiagram2EditorFormatControls(shell, {
+      applyStyle: (name, value) => applyDiagram2SelectedStyle(name, value),
       notify
     });
   }
 
-  async function applyDiagram2SelectedColor(name, color) {
+  async function applyDiagram2SelectedStyle(name, value) {
     if (!diagram2Controller || !diagram2Renderer || diagram2Busy) return false;
-    const applied = await diagram2Controller.updateSelectedObjectsStyle(name, color, {
-      reason: `color picker ${name}`
+    const applied = await diagram2Controller.updateSelectedObjectsStyle(name, value, {
+      reason: `format ${name}`
     });
     if (!applied) return false;
     diagram2RendererState = diagram2Controller.currentState();
@@ -1479,55 +1550,41 @@ export function createDiagram2Feature({
     const editMode = options.editMode === true;
     viewportAbortController = new AbortController();
     const { signal } = viewportAbortController;
+    bindDiagram2CanvasContextMenu(viewer, canvas, signal, { editMode });
     if (editMode) {
-      window.addEventListener("keydown", event => {
-        if (!active || !diagram2Renderer || diagram2Busy || diagram2EditableEventTarget(event.target)) return;
-
-        const key = String(event.key || "").toLowerCase();
-        const usesCommandKey = event.ctrlKey || event.metaKey;
-        if (usesCommandKey && key === "s") {
-          event.preventDefault();
-          void saveDiagram2Document();
-          return;
+      bindDiagram2EditorInteractions({
+        root: viewer,
+        canvas,
+        controller: diagram2Controller,
+        renderer: diagram2Renderer,
+        signal,
+        isActive: () => active && diagram2EditModeActive() && !diagram2Busy,
+        canMutate: diagram2CanMutateCurrentDocument,
+        onStateChange: syncDiagram2InteractionState,
+        onDiagnostics: updateDiagram2Diagnostics,
+        onSave: saveDiagram2Document,
+        onUndo: undoDiagram2,
+        onRedo: redoDiagram2,
+        onAddObject: addDiagram2ToolbarObject,
+        onEditText: editDiagram2ObjectText,
+        onCopy: copyDiagram2Selection,
+        onPaste: pasteDiagram2Selection,
+        onDuplicate: duplicateDiagram2Selection,
+        onDelete: deleteDiagram2Selection,
+        onWheel: event => {
+          const currentScale = diagram2CurrentViewportScale();
+          const nextZoom = nextDiagram2Zoom(currentScale, event.deltaY < 0 ? 1 : -1);
+          const nextScale = Number(nextZoom || currentScale);
+          if (!Number.isFinite(nextScale) || nextScale <= 0) return;
+          diagram2ViewerZoom = diagram2ZoomOptionValue(nextScale);
+          writePreference(preferenceKeys.diagram2ViewerZoom, diagram2ViewerZoom);
+          updateDiagram2Diagnostics(diagram2Renderer.zoomBy(nextScale / currentScale, event));
+          syncDiagram2ZoomControl();
+          scheduleDiagram2ZoomControlSync();
         }
-        if (usesCommandKey && key === "z") {
-          event.preventDefault();
-          void (event.shiftKey ? redoDiagram2() : undoDiagram2());
-          return;
-        }
-        if (usesCommandKey && key === "y") {
-          event.preventDefault();
-          void redoDiagram2();
-          return;
-        }
-        const shortcutTool = { v: "select", h: "pan", r: "rectangle", o: "circle", a: "arrow", l: "line", t: "textbox" }[key];
-        if (shortcutTool && !event.ctrlKey && !event.metaKey && !event.altKey) {
-          event.preventDefault();
-          if (isDiagram2CoreDrawingTool(shortcutTool)) {
-            if (!event.repeat) void addDiagram2ToolbarObject(shortcutTool);
-          } else {
-            diagram2Controller?.setActiveTool(shortcutTool);
-            updateDiagram2EditorControls();
-          }
-          return;
-        }
-        const step = event.shiftKey ? 10 : 1;
-        if (event.key === "ArrowUp") {
-          event.preventDefault();
-          void moveDiagram2SelectedObjects(0, -step, { reason: "keyboard nudge", coalesce: true });
-        } else if (event.key === "ArrowDown") {
-          event.preventDefault();
-          void moveDiagram2SelectedObjects(0, step, { reason: "keyboard nudge", coalesce: true });
-        } else if (event.key === "ArrowLeft") {
-          event.preventDefault();
-          void moveDiagram2SelectedObjects(-step, 0, { reason: "keyboard nudge", coalesce: true });
-        } else if (event.key === "ArrowRight") {
-          event.preventDefault();
-          void moveDiagram2SelectedObjects(step, 0, { reason: "keyboard nudge", coalesce: true });
-        }
-      }, { signal });
+      });
+      return;
     }
-
     canvas.addEventListener("wheel", event => {
       if (!diagram2Renderer) return;
       event.preventDefault();
@@ -1549,7 +1606,7 @@ export function createDiagram2Feature({
     }, { passive: false, signal });
 
     canvas.addEventListener("scroll", () => {
-      if (editMode || !diagram2Renderer) return;
+      if (!diagram2Renderer) return;
       const nextPosition = {
         left: canvas.scrollLeft,
         top: canvas.scrollTop
@@ -1568,17 +1625,6 @@ export function createDiagram2Feature({
       if (!diagram2Renderer || (event.button !== 0 && event.button !== 1)) return;
       event.preventDefault();
 
-      const objectNode = event.target.closest?.("[data-diagram2-object-id]");
-      const activeEditTool = diagram2Controller?.activeTool?.() || "select";
-      if (editMode && event.button === 0 && objectNode && canvas.contains(objectNode) && activeEditTool !== "pan") {
-        startDiagram2ObjectDrag(canvas, objectNode.dataset.diagram2ObjectId, event);
-        return;
-      }
-
-      if (editMode && event.button === 0 && activeEditTool !== "pan") {
-        setDiagram2Selection([]);
-        return;
-      }
       abortDiagram2Pan();
       viewportPanAbortController = new AbortController();
       const panSignal = viewportPanAbortController.signal;
@@ -1590,7 +1636,7 @@ export function createDiagram2Feature({
         const deltaX = moveEvent.clientX - lastPoint.x;
         const deltaY = moveEvent.clientY - lastPoint.y;
         lastPoint = { x: moveEvent.clientX, y: moveEvent.clientY };
-        if (!editMode) shiftDiagram2ReadonlyScrollbars(canvas, deltaX, deltaY);
+        shiftDiagram2ReadonlyScrollbars(canvas, deltaX, deltaY);
         const diagnostics = diagram2Renderer?.panBy(deltaX, deltaY);
         if (diagnostics) updateDiagram2Diagnostics(diagnostics);
       };
@@ -1607,6 +1653,64 @@ export function createDiagram2Feature({
     canvas.addEventListener("auxclick", event => {
       if (event.button === 1) event.preventDefault();
     }, { signal });
+  }
+
+  function bindDiagram2CanvasContextMenu(viewer, canvas, signal, options = {}) {
+    const menu = app.querySelector("[data-diagram2-canvas-context-menu]");
+    if (!menu) return;
+    const closeMenu = () => {
+      menu.hidden = true;
+      viewer?.classList?.remove("rich-image-menu-open");
+    };
+    canvas.addEventListener("contextmenu", event => {
+      const objectTarget = event.target.closest?.("[data-diagram2-object-id], [data-diagram2-selection-id]");
+      if (options.editMode === true && objectTarget) return;
+      if (!diagram2CurrentOutputState() || !diagram2CurrentSecurity().canExport) return;
+      event.preventDefault();
+      event.stopPropagation();
+      app.querySelector("[data-diagram2-tree-context-menu]")?.setAttribute("hidden", "");
+      closeDiagram2EditorContextMenu(viewer);
+      menu.hidden = false;
+      menu.style.position = "fixed";
+      viewer?.classList?.add("rich-image-menu-open");
+      const margin = 8;
+      const maximumLeft = Math.max(margin, window.innerWidth - menu.offsetWidth - margin);
+      const maximumTop = Math.max(margin, window.innerHeight - menu.offsetHeight - margin);
+      menu.style.left = `${Math.round(Math.max(margin, Math.min(event.clientX, maximumLeft)))}px`;
+      menu.style.top = `${Math.round(Math.max(margin, Math.min(event.clientY, maximumTop)))}px`;
+      menu.querySelector("button:not(:disabled)")?.focus({ preventScroll: true });
+    }, { signal });
+    menu.addEventListener("contextmenu", event => event.preventDefault(), { signal });
+    menu.addEventListener("click", closeMenu, { signal });
+    window.addEventListener("pointerdown", event => {
+      if (!menu.hidden && !menu.contains(event.target)) closeMenu();
+    }, { signal });
+    window.addEventListener("scroll", closeMenu, { capture: true, passive: true, signal });
+    window.addEventListener("keydown", event => {
+      if (menu.hidden) return;
+      if (event.key === "Escape" || event.key === "Tab") {
+        event.preventDefault();
+        closeMenu();
+        canvas.focus({ preventScroll: true });
+        return;
+      }
+      const items = [...menu.querySelectorAll("button:not(:disabled)")];
+      const currentIndex = items.indexOf(document.activeElement);
+      const direction = event.key === "ArrowDown" ? 1 : event.key === "ArrowUp" ? -1 : 0;
+      if (!direction || !items.length) return;
+      event.preventDefault();
+      const nextIndex = currentIndex < 0
+        ? (direction > 0 ? 0 : items.length - 1)
+        : (currentIndex + direction + items.length) % items.length;
+      items[nextIndex]?.focus({ preventScroll: true });
+    }, { signal });
+  }
+
+  function closeDiagram2EditorContextMenu(viewer) {
+    const menu = viewer?.querySelector?.("[data-diagram2-context-menu]");
+    if (!menu) return;
+    menu.hidden = true;
+    viewer?.classList?.remove("rich-image-menu-open");
   }
 
   function shiftDiagram2ReadonlyScrollbars(canvas, deltaX, deltaY) {
@@ -1635,80 +1739,7 @@ export function createDiagram2Feature({
     viewportPanAbortController = null;
     app.querySelector("[data-diagram2-viewer-canvas]")?.classList.remove("is-panning");
     app.querySelector("[data-diagram2-viewer-canvas]")?.classList.remove("is-moving-object");
-  }
-
-  function startDiagram2ObjectDrag(canvas, objectId, event) {
-    const selectedIds = diagram2PointerSelection(objectId, event);
-    setDiagram2Selection(selectedIds);
-    if (!diagram2CanMutateCurrentDocument()) return;
-    abortDiagram2Pan();
-
-    const startWorld = diagram2Renderer.screenToWorld({ clientX: event.clientX, clientY: event.clientY });
-    let latestDelta = { deltaX: 0, deltaY: 0 };
-    let moved = false;
-    diagram2Renderer.beginGeometryPreview({ objectIds: selectedIds, mode: "move" });
-    canvas.classList.add("is-moving-object");
-    canvas.setPointerCapture?.(event.pointerId);
-    viewportPanAbortController = new AbortController();
-    const { signal } = viewportPanAbortController;
-
-    const move = moveEvent => {
-      const currentWorld = diagram2Renderer?.screenToWorld({ clientX: moveEvent.clientX, clientY: moveEvent.clientY });
-      if (!currentWorld) return;
-      latestDelta = {
-        deltaX: currentWorld.x - startWorld.x,
-        deltaY: currentWorld.y - startWorld.y
-      };
-      moved = moved
-        || Math.abs(latestDelta.deltaX) > 0.5
-        || Math.abs(latestDelta.deltaY) > 0.5;
-      const diagnostics = diagram2Renderer?.previewGeometry(latestDelta);
-      if (diagnostics) updateDiagram2Diagnostics(diagnostics);
-    };
-
-    const finish = () => {
-      const renderer = diagram2Renderer;
-      canvas.classList.remove("is-moving-object");
-      abortDiagram2Pan();
-      if (!renderer || !diagram2Controller) return;
-      if (!moved) {
-        const diagnostics = renderer.cancelGeometryPreview();
-        updateDiagram2Diagnostics(diagnostics);
-        updateDiagram2EditorControls();
-        return;
-      }
-
-      let diagnostics = renderer.commitGeometryPreview(latestDelta);
-      updateDiagram2Diagnostics(diagnostics);
-      updateDiagram2EditorControls();
-      void (async () => {
-        if (!diagram2CanMutateCurrentDocument()) return;
-        await diagram2Controller.moveObjects(selectedIds, latestDelta.deltaX, latestDelta.deltaY, {
-          reason: "pointer drag",
-          rendererAlreadyUpdated: true
-        });
-        diagram2RendererState = diagram2Controller.currentState();
-        diagram2SelectedObjectIds = diagram2Controller.selectedObjectIds();
-        updateDiagram2EditorControls();
-        const idleDiagnostics = await renderer.whenIdle();
-        if (renderer === diagram2Renderer) updateDiagram2Diagnostics(idleDiagnostics);
-      })();
-    };
-
-    window.addEventListener("pointermove", move, { signal });
-    window.addEventListener("pointerup", finish, { signal, once: true });
-    window.addEventListener("pointercancel", finish, { signal, once: true });
-  }
-
-  function diagram2PointerSelection(objectId, event) {
-    const id = String(objectId || "").trim();
-    if (!id || !diagram2Controller?.getObjectById?.(id)) return [];
-    if (!event.shiftKey && !event.ctrlKey && !event.metaKey) return [id];
-
-    const selected = new Set(diagram2Controller.selectedObjectIds());
-    if (selected.has(id)) selected.delete(id);
-    else selected.add(id);
-    return [...selected];
+    app.querySelector("[data-diagram2-viewer-canvas]")?.classList.remove("is-resizing-object");
   }
 
   function setDiagram2Selection(ids) {
@@ -1722,6 +1753,7 @@ export function createDiagram2Feature({
       if (diagnostics) updateDiagram2Diagnostics(diagnostics);
     }
     updateDiagram2EditorControls();
+    return diagram2SelectedObjectIds.slice();
   }
 
   async function moveDiagram2SelectedObjects(deltaX, deltaY, options = {}) {
@@ -1864,20 +1896,169 @@ export function createDiagram2Feature({
     }
   }
 
+  async function copyDiagram2Svg() {
+    const stateForExport = diagram2CurrentOutputState();
+    if (!stateForExport || !diagram2CurrentSecurity().canExport) return false;
+    const options = await openDiagram2DownloadOptionsDialog("svg", { action: "copy" });
+    if (!options) return false;
+    try {
+      await diagram2Renderer?.whenIdle();
+      const svg = prepareDiagram2SvgForDownload(buildAnnotationSvg(stateForExport), options);
+      await copyAnnotationSvgToClipboard(svg);
+      notify?.("Diagram copied as SVG.");
+      return true;
+    } catch (error) {
+      notify?.(error?.message || "Diagram 2 could not copy the SVG.");
+      return false;
+    }
+  }
+
+  async function copyDiagram2Png() {
+    const stateForExport = diagram2CurrentOutputState();
+    if (!stateForExport || !diagram2CurrentSecurity().canExport) return false;
+    const options = await openDiagram2DownloadOptionsDialog("png", { action: "copy" });
+    if (!options) return false;
+    try {
+      await diagram2Renderer?.whenIdle();
+      const svg = prepareDiagram2SvgForDownload(buildAnnotationSvg(stateForExport), options);
+      await copyAnnotationPngToClipboard({ svg, ...diagram2SvgMetrics(svg) });
+      notify?.("Diagram copied as PNG.");
+      return true;
+    } catch (error) {
+      notify?.(error?.message || "Diagram 2 could not copy the PNG.");
+      return false;
+    }
+  }
+
   async function copyDiagram2Selection() {
     if (!diagram2Controller || !diagram2Controller.selectedObjectIds().length) {
       notify?.("Select one or more Diagram objects before copying.");
       return false;
     }
     await diagram2Renderer?.whenIdle();
-    const text = createDiagram2SelectionClipboardText({
-      state: diagram2Controller.state(),
-      selectedObjectIds: diagram2Controller.selectedObjectIds()
-    });
+    const text = diagram2Controller.selectionClipboardText();
     globalThis.__pmtDiagram2SelectionClipboard = text;
+    globalThis.__pmtDiagramSelectionClipboard = text;
     const copied = await copyTextToClipboard(text);
     notify?.(copied ? "Diagram selection copied." : "Diagram selection is ready, but the browser blocked clipboard copy.");
     return copied;
+  }
+
+  async function copyDiagram2SelectionAsArtwork(format) {
+    if (!diagram2Controller || !diagram2Controller.selectedObjectIds().length) {
+      notify?.("Select one or more Diagram objects before copying.");
+      return false;
+    }
+    await diagram2Renderer?.whenIdle();
+    try {
+      const copied = await copyDiagram2SelectionArtwork(
+        diagram2Controller.currentState(),
+        diagram2Controller.selectedObjectIds(),
+        format
+      );
+      notify?.(copied
+        ? `Diagram selection copied as ${format === "image" ? "an image" : "SVG"}.`
+        : "Select one or more Diagram objects before copying.");
+      return copied;
+    } catch (error) {
+      notify?.(error?.message || `The Diagram selection could not be copied as ${format === "image" ? "an image" : "SVG"}.`);
+      return false;
+    }
+  }
+
+  async function pasteDiagram2Selection() {
+    if (!diagram2Controller || !diagram2CanMutateCurrentDocument()) return false;
+    const text = await readDiagram2SelectionClipboard();
+    if (!text) {
+      notify?.("Copy Diagram objects before pasting.");
+      return false;
+    }
+    const pasted = await diagram2Controller.pasteSelectionClipboardText(text);
+    if (!pasted) {
+      notify?.("The clipboard does not contain compatible Diagram objects.");
+      return false;
+    }
+    await finishDiagram2ObjectCommand();
+    notify?.("Diagram objects pasted.");
+    return true;
+  }
+
+  async function duplicateDiagram2Selection() {
+    if (!diagram2Controller || !diagram2CanMutateCurrentDocument()) return false;
+    const duplicated = await diagram2Controller.duplicateSelectedObjects();
+    if (!duplicated) return false;
+    await finishDiagram2ObjectCommand();
+    return true;
+  }
+
+  async function deleteDiagram2Selection() {
+    if (!diagram2Controller || !diagram2CanMutateCurrentDocument()) return false;
+    const deleted = await diagram2Controller.deleteSelectedObjects();
+    if (!deleted) return false;
+    await finishDiagram2ObjectCommand();
+    return true;
+  }
+
+  async function toggleDiagram2SelectionLock() {
+    if (!diagram2Controller || !diagram2CanMutateCurrentDocument()) return false;
+    const selection = diagram2Controller.getObjectsByIds(diagram2Controller.selectedObjectIds());
+    if (!selection.length) return false;
+    const lock = !selection.every(object => object.locked === true);
+    const changed = await diagram2Controller.setSelectedObjectsLocked(lock);
+    if (!changed) return false;
+    await finishDiagram2ObjectCommand();
+    notify?.(`${selection.length === 1 ? "Object" : "Objects"} ${lock ? "locked" : "unlocked"}.`);
+    return true;
+  }
+
+  async function arrangeDiagram2Selection(action) {
+    if (!diagram2Controller || !diagram2CanMutateCurrentDocument()) return false;
+    const arranged = await diagram2Controller.arrangeSelectedObjects(action);
+    if (!arranged) return false;
+    await finishDiagram2ObjectCommand();
+    return true;
+  }
+
+  async function editDiagram2ObjectText(object) {
+    if (!diagram2Controller || !diagram2CanMutateCurrentDocument()) return false;
+    const value = await openDiagram2TextEditor({
+      object,
+      bindRichTextButtons
+    });
+    if (value == null) return false;
+    const updated = await diagram2Controller.updateObjectText(object.id, value);
+    if (!updated) return false;
+    await finishDiagram2ObjectCommand();
+    return true;
+  }
+
+  async function finishDiagram2ObjectCommand() {
+    syncDiagram2InteractionState();
+    refreshDiagram2ObjectsPane();
+    const diagnostics = await diagram2Renderer?.whenIdle();
+    if (diagnostics) updateDiagram2Diagnostics(diagnostics);
+    syncDiagram2InteractionState();
+  }
+
+  async function readDiagram2SelectionClipboard() {
+    try {
+      const text = await globalThis.navigator?.clipboard?.readText?.();
+      if (text) return text;
+    } catch {
+      // Use PMT's same-tab fallback when clipboard read permission is unavailable.
+    }
+    return String(
+      globalThis.__pmtDiagramSelectionClipboard
+      || globalThis.__pmtDiagram2SelectionClipboard
+      || ""
+    );
+  }
+
+  function syncDiagram2InteractionState() {
+    if (!diagram2Controller) return;
+    diagram2RendererState = diagram2Controller.currentState();
+    diagram2SelectedObjectIds = diagram2Controller.selectedObjectIds();
+    updateDiagram2EditorControls();
   }
 
   async function undoDiagram2() {
@@ -1906,7 +2087,7 @@ export function createDiagram2Feature({
 
   async function addDiagram2ToolbarObject(type) {
     if (!diagram2Controller || !diagram2Renderer || diagram2Busy || !diagram2CanMutateCurrentDocument()) return false;
-    const object = createDiagram2DefaultObject(type, diagram2InsertionCenter());
+    const object = createDiagram2DefaultObject(type, diagram2Controller.snapPoint(diagram2InsertionCenter()));
     if (!object) return false;
 
     const added = await diagram2Controller.addObject(object, {
@@ -1954,7 +2135,8 @@ export function createDiagram2Feature({
       circle: "Circle",
       arrow: "Arrow",
       line: "Line",
-      textbox: "Text Box"
+      textbox: "Text Box",
+      "rich-text": "Rich Text"
     }[String(type || "").trim().toLowerCase()] || "object";
   }
 
@@ -2016,6 +2198,7 @@ export function createDiagram2Feature({
       button.disabled = !hasDocument || !dirty || !canEdit || busy;
     });
     app.querySelectorAll("[data-diagram2-requires-selection]").forEach(button => {
+      if (button.closest("[data-diagram2-context-menu]")) return;
       button.disabled = !hasDocument || !hasSelection || busy;
     });
     app.querySelectorAll("[data-diagram2-requires-undo]").forEach(button => {
@@ -2930,10 +3113,6 @@ function safeFileName(value) {
     .replace(/[^a-z0-9_.-]+/gi, "-")
     .replace(/^-+|-+$/g, "")
     .slice(0, 80) || "diagram";
-}
-
-function diagram2EditableEventTarget(target) {
-  return Boolean(target?.closest?.("input, textarea, select, button, [contenteditable='true'], [contenteditable='']"));
 }
 
 function diagram2SaveConflict(error) {
