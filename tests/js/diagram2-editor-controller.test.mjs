@@ -1,11 +1,15 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { performance } from "node:perf_hooks";
 
 import {
   createDiagram2DefaultObject,
   createDiagram2EditorController,
   resizeDiagram2ObjectsGeometry
 } from "../../wwwroot/js/features/diagram2/diagram2-editor-controller.js";
+import {
+  diagram2ObjectTreeNodes
+} from "../../wwwroot/js/features/diagram2/diagram2-editor-structure.js";
 import {
   captureDiagram2SelectionTemplate
 } from "../../wwwroot/js/features/diagram2/diagram2-editor-templates.js";
@@ -547,6 +551,103 @@ test("Diagram 2 Phase 4 structure and templates stay command-based and renderer-
   assert.equal(renderer.fullRenderCount, 0);
 });
 
+test("Diagram 2 Phase 4 Objects tree handles 1,000 structured objects through shared incremental commands", async t => {
+  const state = phase4ClosureState(1000);
+  const renderer = fakeRenderer();
+  const controller = createDiagram2EditorController({
+    renderer,
+    host: editableHost(),
+    state
+  });
+  const treeStart = performance.now();
+  const treeNodes = diagram2ObjectTreeNodes(controller.state());
+  const treeProjectionMs = performance.now() - treeStart;
+  const flatTree = flattenDiagram2TreeNodes(treeNodes);
+
+  assert.equal(controller.currentState().objects.length, 1000);
+  assert.ok(flatTree.length > 1000);
+  assert.ok(flatTree.some(node => node.kind === "group" && node.id === "closure-group-0"));
+  assert.ok(flatTree.some(node => node.kind === "relationships"));
+  assert.ok(flatTree.some(node => node.kind === "object" && node.id === "closure-search-target"));
+  assert.ok(treeProjectionMs < 250);
+
+  const selected = controller.selectStructureNode("object", "closure-search-target");
+  assert.deepEqual(selected, ["closure-search-target"]);
+  assert.deepEqual(controller.selectedObjectIds(), ["closure-search-target"]);
+  assert.equal(renderer.fullRenderCount, 0);
+  assert.deepEqual(renderer.updatedObjectIds, []);
+  assert.deepEqual(renderer.structureStates, []);
+
+  const searchStart = performance.now();
+  const searchNodes = diagram2ObjectTreeNodes(controller.state(), "Search Target 777");
+  const searchProjectionMs = performance.now() - searchStart;
+  const flatSearchTree = flattenDiagram2TreeNodes(searchNodes);
+  assert.ok(flatSearchTree.some(node => node.id === "closure-search-target"));
+  assert.ok(flatSearchTree.length < flatTree.length);
+  assert.ok(searchProjectionMs < 125);
+
+  const historyStart = controller.historyStatus().entryCount;
+  assert.equal(await controller.renameStructureNode("object", "closure-search-target", "Closure Renamed Target 777"), true);
+  assert.equal(controller.getObjectById("closure-search-target").name, "Closure Renamed Target 777");
+  assert.equal(controller.historyStatus().entryCount, historyStart + 1);
+  assert.equal(renderer.fullRenderCount, 0);
+  assert.deepEqual(renderer.structureStates.at(-1).affectedObjectIds, ["closure-search-target"]);
+  assertStructureObjectPatchDiagnostics(controller, ["closure-search-target"], false);
+
+  assert.equal(await controller.undo(), true);
+  assert.equal(controller.getObjectById("closure-search-target").name, "Closure Search Target 777");
+  assert.equal(await controller.redo(), true);
+  assert.equal(controller.getObjectById("closure-search-target").name, "Closure Renamed Target 777");
+  assert.equal(renderer.fullRenderCount, 0);
+
+  const lockUpdatesBefore = renderer.updatedObjectIds.length;
+  assert.equal(await controller.setStructureNodeLocked("object", "closure-lock-target", true), true);
+  assert.equal(controller.getObjectById("closure-lock-target").locked, true);
+  assert.deepEqual(renderer.updatedObjectIds.slice(lockUpdatesBefore), ["closure-lock-target"]);
+  assertIndexedObjectPatchDiagnostics(controller, ["closure-lock-target"]);
+  assert.equal(renderer.fullRenderCount, 0);
+
+  const groupMembers = controller.currentState().objects
+    .filter(object => object.groupId === "closure-group-0")
+    .map(object => object.id);
+  assert.ok(groupMembers.length > 1);
+  assert.equal(await controller.setStructureNodeVisibility("group", "closure-group-0", false), true);
+  assert.equal(controller.currentState().groupVisibility["closure-group-0"], false);
+  assert.deepEqual(renderer.structureStates.at(-1).affectedObjectIds, groupMembers);
+  assertStructureObjectPatchDiagnostics(controller, groupMembers, false);
+  assert.equal(renderer.fullRenderCount, 0);
+
+  assert.equal(await controller.reorderStructureNode({
+    draggedKind: "object",
+    draggedId: "closure-reorder-target",
+    targetKind: "group",
+    targetId: "closure-group-1",
+    targetPlacement: "inside"
+  }), true);
+  assert.equal(controller.getObjectById("closure-reorder-target").groupId, "closure-group-1");
+  assert.equal(controller.diagnostics().lastCanonicalOperation.kind, "structure-state");
+  assert.equal(controller.diagnostics().lastCanonicalOperation.objectContainerReindexed, true);
+  assert.equal(controller.diagnostics().lastCanonicalOperation.fullStateSerializationCount, 0);
+  assert.equal(renderer.fullRenderCount, 0);
+
+  assert.equal(await controller.undo(), true);
+  assert.notEqual(controller.getObjectById("closure-reorder-target").groupId, "closure-group-1");
+  assert.equal(await controller.redo(), true);
+  assert.equal(controller.getObjectById("closure-reorder-target").groupId, "closure-group-1");
+  assert.equal(renderer.fullRenderCount, 0);
+
+  t.diagnostic(`DIAGRAM2_PHASE4_TREE_1000_METRICS ${JSON.stringify({
+    canonicalObjectCount: controller.currentState().objects.length,
+    flattenedTreeNodeCount: flatTree.length,
+    objectTreeProjectionMs: Number(treeProjectionMs.toFixed(2)),
+    searchProjectionMs: Number(searchProjectionMs.toFixed(2)),
+    structureStateUpdateCount: renderer.structureStates.length,
+    objectPatchUpdateCount: renderer.updatedObjectIds.length,
+    historyEntryCount: controller.historyStatus().entryCount,
+    fullRenderCount: renderer.fullRenderCount
+  })}`);
+});
+
 test("Diagram 2 controller moves one object in a large state without full-state serialization or scans", async () => {
   const renderer = fakeRenderer();
   const controller = createDiagram2EditorController({
@@ -809,6 +910,197 @@ function formatState() {
   };
 }
 
+function phase4ClosureState(count) {
+  const groupNames = {};
+  const groupVisibility = {};
+  const objects = [];
+  let previousEntityName = "";
+  for (let index = 0; index < count; index += 1) {
+    const namedTarget = index === 777
+      ? "search"
+      : index === 888
+        ? "reorder"
+        : index === 901
+          ? "lock"
+          : "";
+    const groupId = namedTarget
+      ? ""
+      : index % 30 < 12
+        ? `closure-group-${Math.floor(index / 30)}`
+        : "";
+    if (groupId) {
+      groupNames[groupId] = `Closure Group ${Math.floor(index / 30) + 1}`;
+      if (!Object.hasOwn(groupVisibility, groupId)) {
+        groupVisibility[groupId] = Math.floor(index / 30) % 7 !== 3;
+      }
+    }
+    const x = (index % 40) * 130;
+    const y = Math.floor(index / 40) * 92;
+    const base = {
+      id: `closure-object-${index}`,
+      name: `Closure Object ${index}`,
+      groupId,
+      groupHitTransparent: Boolean(groupId),
+      visible: index % 53 !== 0,
+      locked: false,
+      x,
+      y,
+      width: 92,
+      height: 54,
+      fill: "#ffffff",
+      stroke: "#172b4d",
+      strokeWidth: 2,
+      opacity: 1
+    };
+    if (namedTarget === "search") {
+      objects.push({
+        ...base,
+        id: "closure-search-target",
+        name: "Closure Search Target 777",
+        groupId: "",
+        groupHitTransparent: false,
+        visible: true,
+        locked: false,
+        type: "textbox",
+        text: "Search target",
+        textColor: "#172b4d"
+      });
+      continue;
+    }
+    if (namedTarget === "reorder") {
+      objects.push({
+        ...base,
+        id: "closure-reorder-target",
+        name: "Closure Reorder Target",
+        groupId: "",
+        groupHitTransparent: false,
+        visible: true,
+        locked: false,
+        type: "rectangle"
+      });
+      continue;
+    }
+    if (namedTarget === "lock") {
+      objects.push({
+        ...base,
+        id: "closure-lock-target",
+        name: "Closure Lock Target",
+        groupId: "",
+        groupHitTransparent: false,
+        visible: true,
+        locked: false,
+        type: "rectangle"
+      });
+      continue;
+    }
+
+    if (index % 40 === 0) {
+      const entityName = `ClosureEntity${index}`;
+      const foreignKeys = previousEntityName
+        ? [{
+            name: `FK_${entityName}_${previousEntityName}`,
+            columns: ["ParentId"],
+            referencedSchema: "dbo",
+            referencedTable: previousEntityName,
+            referencedColumns: ["Id"],
+            relationshipType: "many-to-one"
+          }]
+        : [];
+      objects.push({
+        ...base,
+        type: "entity",
+        width: 210,
+        height: 118,
+        entitySchema: "dbo",
+        entityName,
+        fields: [
+          { name: "Id", dataType: "INT", nullable: false, isPrimaryKey: true },
+          { name: "ParentId", dataType: "INT", nullable: true, isForeignKey: Boolean(previousEntityName) }
+        ],
+        foreignKeys
+      });
+      previousEntityName = entityName;
+    } else if (index % 40 === 1) {
+      objects.push({
+        ...base,
+        type: "entity",
+        entityKind: "field-rectangle",
+        fieldRectangleName: `Field ${index}`,
+        fields: [{ name: `Field${index}`, isImportant: index % 3 === 0 }]
+      });
+    } else if (index % 40 === 2) {
+      objects.push({
+        ...base,
+        type: "field-mapping-table",
+        width: 220,
+        height: 120,
+        sourceImageId: "closure-object-3",
+        rows: [{
+          uiEntityId: `closure-object-${index - 1}`,
+          uiField: `Field${index - 1}`,
+          databaseField: `dbo.ClosureEntity${Math.max(0, index - 2)}.Name`
+        }]
+      });
+    } else if (index % 40 === 3) {
+      objects.push({
+        ...base,
+        type: "embedded-image",
+        width: 120,
+        height: 70,
+        source: sampleImageDataUrl
+      });
+    } else if (index % 5 === 0) {
+      objects.push({
+        ...base,
+        type: "arrow",
+        x1: x,
+        y1: y,
+        x2: x + 92,
+        y2: y + 54,
+        arrowSize: 18
+      });
+    } else if (index % 5 === 1) {
+      objects.push({
+        ...base,
+        type: "line",
+        x1: x,
+        y1: y,
+        x2: x + 96,
+        y2: y
+      });
+    } else if (index % 5 === 2) {
+      objects.push({
+        ...base,
+        type: "rich-text",
+        width: 150,
+        height: 76,
+        html: `<p><strong>Closure ${index}</strong></p>`
+      });
+    } else if (index % 5 === 3) {
+      objects.push({
+        ...base,
+        type: "circle",
+        width: 64,
+        height: 64
+      });
+    } else {
+      objects.push({
+        ...base,
+        type: "rectangle"
+      });
+    }
+  }
+  return {
+    version: 1,
+    width: 5400,
+    height: 2400,
+    manualEntityRelationshipRoutes: true,
+    groupNames,
+    groupVisibility,
+    objects
+  };
+}
+
 function largeState(count) {
   return {
     version: 1,
@@ -826,6 +1118,37 @@ function largeState(count) {
       strokeWidth: 2
     }))
   };
+}
+
+function flattenDiagram2TreeNodes(nodes) {
+  return (Array.isArray(nodes) ? nodes : []).flatMap(node => [
+    node,
+    ...flattenDiagram2TreeNodes(node.children || [])
+  ]);
+}
+
+function assertStructureObjectPatchDiagnostics(controller, affectedObjectIds, objectContainerReindexed) {
+  const diagnostics = controller.diagnostics();
+  assert.equal(diagnostics.lastCanonicalOperation.kind, "structure-state");
+  assert.equal(diagnostics.lastCanonicalOperation.changed, true);
+  assert.deepEqual(diagnostics.lastCanonicalOperation.affectedObjectIds, affectedObjectIds);
+  assert.equal(diagnostics.lastCanonicalOperation.objectPatchCount, affectedObjectIds.length);
+  assert.equal(diagnostics.lastCanonicalOperation.objectArrayCopyCount, 1);
+  assert.equal(diagnostics.lastCanonicalOperation.objectContainerReindexed, objectContainerReindexed);
+  assert.equal(diagnostics.lastCanonicalOperation.fullStateNormalizationCount, 0);
+  assert.equal(diagnostics.lastCanonicalOperation.fullStateSerializationCount, 0);
+}
+
+function assertIndexedObjectPatchDiagnostics(controller, affectedObjectIds) {
+  const diagnostics = controller.diagnostics();
+  assert.equal(diagnostics.lastCanonicalOperation.kind, "update-objects");
+  assert.equal(diagnostics.lastCanonicalOperation.changed, true);
+  assert.deepEqual(diagnostics.lastCanonicalOperation.affectedObjectIds, affectedObjectIds);
+  assert.equal(diagnostics.lastCanonicalOperation.objectPatchCount, affectedObjectIds.length);
+  assert.equal(diagnostics.lastCanonicalOperation.objectArrayCopyCount, 1);
+  assert.equal(diagnostics.lastCanonicalOperation.objectContainerReindexed, false);
+  assert.equal(diagnostics.lastCanonicalOperation.fullStateNormalizationCount, 0);
+  assert.equal(diagnostics.lastCanonicalOperation.fullStateSerializationCount, 0);
 }
 
 function assertIndexedMoveDiagnostics(controller, selectedId) {

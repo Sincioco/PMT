@@ -700,7 +700,7 @@ test("Diagram 2 Phase 3 core editor interactions stay incremental", async ({ pag
   expect(browserErrors).toEqual([]);
 });
 
-test("Diagram 2 Phase 4 structure, objects tree, layers, and templates stay shared and incremental", async ({ page }) => {
+test("Diagram 2 Phase 4 structure, objects tree, layers, and templates stay shared and incremental", async ({ page }, testInfo) => {
   const browserErrors = [];
   page.on("console", message => {
     if (message.type() === "error") browserErrors.push(message.text());
@@ -981,6 +981,7 @@ test("Diagram 2 Phase 4 structure, objects tree, layers, and templates stay shar
   await expect.poll(() => rectTreeRow.locator(".image-annotation-object-tree-lock-toggle")
     .evaluate(element => Number(getComputedStyle(element).opacity))).toBeLessThan(0.8);
   await expect(rectTreeRow.locator(".image-annotation-object-tree-delete")).toBeEnabled();
+  await captureDiagram2Phase4Screenshot(page, testInfo, "chromium-1366", "diagram2-phase4-topnav-objects-1366x768.png");
   await page.evaluate(async () => {
     const { controller, finish } = window.__diagram2Phase4Harness;
     controller.setSelection(["arrow-a"], { expandGroups: false });
@@ -1044,6 +1045,7 @@ test("Diagram 2 Phase 4 structure, objects tree, layers, and templates stay shar
     }));
     refreshPanes();
   });
+  await captureDiagram2Phase4Screenshot(page, testInfo, "chromium-1920", "diagram2-phase4-topnav-templates-1920x1080.png");
   await page.locator("[data-diagram2-template-pane] .diagram2-editor-left-pane-scroll").evaluate(element => {
     element.scrollTop = element.scrollHeight;
   });
@@ -1075,6 +1077,439 @@ test("Diagram 2 Phase 4 structure, objects tree, layers, and templates stay shar
     window.__diagram2Phase4Harness.controller.destroy();
     window.__diagram2Phase4Harness = null;
   });
+  expect(browserErrors).toEqual([]);
+});
+
+test("Diagram 2 Phase 4 Objects tree stays fast and renderer-local with 1,000 objects", async ({ page }) => {
+  test.setTimeout(120000);
+  const browserErrors = [];
+  page.on("console", message => {
+    if (message.type() === "error") browserErrors.push(message.text());
+  });
+  page.on("pageerror", error => browserErrors.push(error.message));
+
+  await page.goto("/css/base.css");
+  await page.setContent(`
+    <link rel="stylesheet" href="/css/tokens.css">
+    <link rel="stylesheet" href="/css/base.css">
+    <link rel="stylesheet" href="/css/components/buttons.css">
+    <link rel="stylesheet" href="/css/components/forms.css">
+    <link rel="stylesheet" href="/css/components/image-annotation.css">
+    <link rel="stylesheet" href="/css/features/diagram2.css?v=20260728-diagram2-phase4-v5">
+    <main id="phase4TreeHarness" style="width:100vw;height:100vh;display:grid;"></main>
+  `);
+
+  const metrics = await page.evaluate(async () => {
+    const [
+      controllerModule,
+      rendererModule,
+      shellModule,
+      structureModule
+    ] = await Promise.all([
+      import("/js/features/diagram2/diagram2-editor-controller.js?v=20260728-diagram2-phase4-v5"),
+      import("/js/features/diagram2/diagram2-renderer.js?v=20260728-diagram2-phase4-v5"),
+      import("/js/features/diagram2/diagram2-editor-shell.js?v=20260728-diagram2-phase4-v5"),
+      import("/js/features/diagram2/diagram2-editor-structure.js?v=20260728-diagram2-phase4-v5")
+    ]);
+    const root = document.querySelector("#phase4TreeHarness");
+    const state = buildPhase4TreeStressState(1000);
+    const host = {
+      kind: "diagram-document",
+      canEdit: true,
+      canExport: true,
+      security: { canRead: true, canUpdate: true, canExport: true },
+      async save() {}
+    };
+    const controller = controllerModule.createDiagram2EditorController({ host, state });
+    root.innerHTML = shellModule.diagram2EditorShellHtml({
+      state: controller.state(),
+      selectedObjectIds: controller.selectedObjectIds(),
+      status: controller.statusSnapshot()
+    });
+    shellModule.setDiagram2ObjectsPaneOpen(root);
+    const renderer = rendererModule.createDiagram2Renderer({
+      host: root.querySelector("[data-diagram2-renderer-surface]")
+    });
+    renderer.render(controller.state(), { reason: "phase4 tree closure initial" });
+    renderer.setZoom("1");
+    controller.attachRenderer(renderer);
+    await renderer.whenIdle();
+
+    const readSvgMetrics = () => {
+      const svg = root.querySelector("[data-diagram2-svg]");
+      return {
+        fullRenderCount: Number(svg?.dataset.diagram2FullRenderCount || 0),
+        fullRenderReason: svg?.dataset.diagram2FullRenderReason || "",
+        viewportReason: svg?.dataset.diagram2ViewportReason || "",
+        mountedObjectCount: Number(svg?.dataset.diagram2MountedObjectCount || 0),
+        canonicalObjectCount: Number(svg?.dataset.diagram2CanonicalObjectCount || 0),
+        svgDescendantCount: Number(svg?.dataset.diagram2SvgDescendantCount || 0),
+        patchedNodeCount: Number(svg?.dataset.diagram2ObjectsPatchedInLastFlush || 0),
+        relationshipsConsidered: Number(svg?.dataset.diagram2SelectiveRoutingRelationshipsConsidered || 0),
+        relationshipsRerouted: Number(svg?.dataset.diagram2SelectiveRoutingRelationshipsRerouted || 0),
+        translateX: Number(svg?.dataset.diagram2ViewportTranslateX || 0),
+        translateY: Number(svg?.dataset.diagram2ViewportTranslateY || 0)
+      };
+    };
+    const renderObjectsPane = search => {
+      const pane = root.querySelector("[data-diagram2-objects-pane]");
+      pane.outerHTML = shellModule.diagram2ObjectsPaneHtml(
+        controller.state(),
+        controller.selectedObjectIds(),
+        { search }
+      );
+    };
+    const syncSelection = () => {
+      const status = controller.statusSnapshot();
+      const selected = new Set(status.selectedObjectIds);
+      shellModule.updateDiagram2ShellStatus(root, {
+        ...status,
+        selectedObjects: controller.state().objects.filter(object => selected.has(object.id))
+      });
+      shellModule.updateDiagram2ObjectTreeSelection(root, status.selectedObjectIds);
+    };
+
+    const projectionStart = performance.now();
+    const projectedNodes = structureModule.diagram2ObjectTreeNodes(controller.state());
+    const projectionMs = performance.now() - projectionStart;
+    const initialTreeRows = root.querySelectorAll("[data-diagram2-object-tree-row]").length;
+    const flattenedProjectionCount = flattenTree(projectedNodes).length;
+    const initial = readSvgMetrics();
+
+    const searchStart = performance.now();
+    const searchNodes = structureModule.diagram2ObjectTreeNodes(controller.state(), "Closure Search Target");
+    renderObjectsPane("Closure Search Target");
+    const searchMs = performance.now() - searchStart;
+    const searchRows = root.querySelectorAll("[data-diagram2-object-tree-row]").length;
+
+    renderObjectsPane("");
+    const beforeSelection = readSvgMetrics();
+    controller.selectStructureNode("object", "closure-search-target");
+    syncSelection();
+    await renderer.whenIdle();
+    const afterSelection = readSvgMetrics();
+
+    renderer.panBy(-900, -420);
+    await renderer.whenIdle();
+    const beforeFocus = readSvgMetrics();
+    renderer.focusObjectIds(controller.selectedObjectIds(), { reason: "object tree focus" });
+    await renderer.whenIdle();
+    const afterFocus = readSvgMetrics();
+
+    const beforeRename = readSvgMetrics();
+    await controller.renameStructureNode("object", "closure-search-target", "Closure Renamed Target");
+    syncSelection();
+    renderObjectsPane("Closure Renamed Target");
+    await renderer.whenIdle();
+    const afterRename = readSvgMetrics();
+    const renameOperation = controller.diagnostics().lastCanonicalOperation;
+
+    const beforeLock = readSvgMetrics();
+    await controller.setStructureNodeLocked("object", "closure-lock-target", true);
+    await renderer.whenIdle();
+    const afterLock = readSvgMetrics();
+    const lockOperation = controller.diagnostics().lastCanonicalOperation;
+
+    const beforeVisibility = readSvgMetrics();
+    await controller.setStructureNodeVisibility("group", "closure-group-0", false);
+    renderObjectsPane("");
+    await renderer.whenIdle();
+    const afterVisibility = readSvgMetrics();
+    const visibilityOperation = controller.diagnostics().lastCanonicalOperation;
+
+    const beforeReorder = readSvgMetrics();
+    await controller.reorderStructureNode({
+      draggedKind: "object",
+      draggedId: "closure-reorder-target",
+      targetKind: "group",
+      targetId: "closure-group-1",
+      targetPlacement: "inside"
+    });
+    renderObjectsPane("");
+    await renderer.whenIdle();
+    const afterReorder = readSvgMetrics();
+    const reorderOperation = controller.diagnostics().lastCanonicalOperation;
+    const reorderedGroupId = controller.getObjectById("closure-reorder-target")?.groupId || "";
+
+    const beforeUndo = readSvgMetrics();
+    await controller.undo();
+    await renderer.whenIdle();
+    const afterUndo = readSvgMetrics();
+    const undoGroupId = controller.getObjectById("closure-reorder-target")?.groupId || "";
+
+    const beforeRedo = readSvgMetrics();
+    await controller.redo();
+    await renderer.whenIdle();
+    const afterRedo = readSvgMetrics();
+    const redoGroupId = controller.getObjectById("closure-reorder-target")?.groupId || "";
+
+    renderer.destroy();
+    controller.destroy();
+    root.innerHTML = "";
+
+    return {
+      canonicalObjectCount: initial.canonicalObjectCount,
+      initialMountedObjectCount: initial.mountedObjectCount,
+      initialTreeRows,
+      flattenedProjectionCount,
+      projectionMs,
+      searchProjectionCount: flattenTree(searchNodes).length,
+      searchRows,
+      searchMs,
+      svgDescendantCount: initial.svgDescendantCount,
+      selectionFullRenderDelta: afterSelection.fullRenderCount - beforeSelection.fullRenderCount,
+      selectionRelationshipsRerouted: afterSelection.relationshipsRerouted,
+      focusFullRenderDelta: afterFocus.fullRenderCount - beforeFocus.fullRenderCount,
+      focusReason: afterFocus.viewportReason,
+      focusMoved: afterFocus.translateX !== beforeFocus.translateX || afterFocus.translateY !== beforeFocus.translateY,
+      renameFullRenderDelta: afterRename.fullRenderCount - beforeRename.fullRenderCount,
+      renamePatchedNodeCount: afterRename.patchedNodeCount,
+      renameOperation,
+      lockFullRenderDelta: afterLock.fullRenderCount - beforeLock.fullRenderCount,
+      lockPatchedNodeCount: afterLock.patchedNodeCount,
+      lockOperation,
+      visibilityFullRenderDelta: afterVisibility.fullRenderCount - beforeVisibility.fullRenderCount,
+      visibilityOperation,
+      reorderFullRenderDelta: afterReorder.fullRenderCount - beforeReorder.fullRenderCount,
+      reorderOperation,
+      reorderedGroupId,
+      undoFullRenderDelta: afterUndo.fullRenderCount - beforeUndo.fullRenderCount,
+      undoGroupId,
+      redoFullRenderDelta: afterRedo.fullRenderCount - beforeRedo.fullRenderCount,
+      redoGroupId,
+      remainingObjectNodesAfterDestroy: root.querySelectorAll("[data-diagram2-object-plane] [data-diagram2-object-id]").length
+    };
+
+    function buildPhase4TreeStressState(count) {
+      const groupNames = {};
+      const groupVisibility = {};
+      const objects = [];
+      let previousEntityName = "";
+      const imageSource = "data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='80'%20height='48'%3E%3Crect%20width='80'%20height='48'%20fill='%23f8fafc'/%3E%3C/svg%3E";
+      for (let index = 0; index < count; index += 1) {
+        const namedTarget = index === 777
+          ? "search"
+          : index === 888
+            ? "reorder"
+            : index === 901
+              ? "lock"
+              : "";
+        const groupId = namedTarget
+          ? ""
+          : index % 30 < 12
+            ? `closure-group-${Math.floor(index / 30)}`
+            : "";
+        if (groupId) {
+          groupNames[groupId] = `Closure Group ${Math.floor(index / 30) + 1}`;
+          if (!Object.hasOwn(groupVisibility, groupId)) {
+            groupVisibility[groupId] = Math.floor(index / 30) % 7 !== 3;
+          }
+        }
+        const x = (index % 50) * 150;
+        const y = Math.floor(index / 50) * 110;
+        const base = {
+          id: `closure-object-${index}`,
+          name: `Closure Object ${index}`,
+          groupId,
+          groupHitTransparent: Boolean(groupId),
+          visible: index % 53 !== 0,
+          locked: false,
+          x,
+          y,
+          width: 96,
+          height: 58,
+          fill: "#ffffff",
+          stroke: "#172b4d",
+          strokeWidth: 2,
+          opacity: 1
+        };
+        if (namedTarget === "search") {
+          objects.push({
+            ...base,
+            id: "closure-search-target",
+            name: "Closure Search Target",
+            groupId: "",
+            groupHitTransparent: false,
+            visible: true,
+            type: "textbox",
+            text: "Search target",
+            textColor: "#172b4d"
+          });
+          continue;
+        }
+        if (namedTarget === "reorder") {
+          objects.push({
+            ...base,
+            id: "closure-reorder-target",
+            name: "Closure Reorder Target",
+            groupId: "",
+            groupHitTransparent: false,
+            visible: true,
+            type: "rectangle"
+          });
+          continue;
+        }
+        if (namedTarget === "lock") {
+          objects.push({
+            ...base,
+            id: "closure-lock-target",
+            name: "Closure Lock Target",
+            groupId: "",
+            groupHitTransparent: false,
+            visible: true,
+            type: "rectangle"
+          });
+          continue;
+        }
+        if (index % 40 === 0) {
+          const entityName = `ClosureEntity${index}`;
+          const foreignKeys = previousEntityName
+            ? [{
+                name: `FK_${entityName}_${previousEntityName}`,
+                columns: ["ParentId"],
+                referencedSchema: "dbo",
+                referencedTable: previousEntityName,
+                referencedColumns: ["Id"],
+                relationshipType: "many-to-one"
+              }]
+            : [];
+          objects.push({
+            ...base,
+            type: "entity",
+            width: 210,
+            height: 118,
+            entitySchema: "dbo",
+            entityName,
+            fields: [
+              { name: "Id", dataType: "INT", nullable: false, isPrimaryKey: true },
+              { name: "ParentId", dataType: "INT", nullable: true, isForeignKey: Boolean(previousEntityName) }
+            ],
+            foreignKeys
+          });
+          previousEntityName = entityName;
+        } else if (index % 40 === 1) {
+          objects.push({
+            ...base,
+            type: "entity",
+            entityKind: "field-rectangle",
+            fieldRectangleName: `Field ${index}`,
+            fields: [{ name: `Field${index}`, isImportant: true }]
+          });
+        } else if (index % 40 === 2) {
+          objects.push({
+            ...base,
+            type: "field-mapping-table",
+            width: 220,
+            height: 120,
+            sourceImageId: "closure-object-3",
+            rows: [{
+              uiEntityId: `closure-object-${index - 1}`,
+              uiField: `Field${index - 1}`,
+              databaseField: "dbo.ClosureEntity.Field"
+            }]
+          });
+        } else if (index % 40 === 3) {
+          objects.push({
+            ...base,
+            type: "embedded-image",
+            width: 120,
+            height: 70,
+            source: imageSource
+          });
+        } else if (index % 5 === 0) {
+          objects.push({
+            ...base,
+            type: "arrow",
+            x1: x,
+            y1: y,
+            x2: x + 96,
+            y2: y + 58,
+            arrowSize: 18
+          });
+        } else if (index % 5 === 1) {
+          objects.push({
+            ...base,
+            type: "line",
+            x1: x,
+            y1: y,
+            x2: x + 96,
+            y2: y
+          });
+        } else if (index % 5 === 2) {
+          objects.push({
+            ...base,
+            type: "rich-text",
+            width: 150,
+            height: 76,
+            html: `<p><strong>Closure ${index}</strong></p>`
+          });
+        } else if (index % 5 === 3) {
+          objects.push({
+            ...base,
+            type: "circle",
+            width: 64,
+            height: 64
+          });
+        } else {
+          objects.push({ ...base, type: "rectangle" });
+        }
+      }
+      return {
+        version: 1,
+        width: 7600,
+        height: 2300,
+        groupNames,
+        groupVisibility,
+        objects
+      };
+    }
+    function flattenTree(nodes) {
+      return (Array.isArray(nodes) ? nodes : []).flatMap(node => [
+        node,
+        ...flattenTree(node.children || [])
+      ]);
+    }
+  });
+
+  expect(metrics.canonicalObjectCount).toBe(1000);
+  expect(metrics.initialMountedObjectCount).toBeLessThan(metrics.canonicalObjectCount);
+  expect(metrics.initialTreeRows).toBeGreaterThan(1000);
+  expect(metrics.flattenedProjectionCount).toBe(metrics.initialTreeRows);
+  expect(metrics.projectionMs).toBeLessThan(500);
+  expect(metrics.searchProjectionCount).toBeGreaterThan(0);
+  expect(metrics.searchRows).toBeGreaterThan(0);
+  expect(metrics.searchRows).toBeLessThan(metrics.initialTreeRows);
+  expect(metrics.searchMs).toBeLessThan(500);
+  expect(metrics.svgDescendantCount).toBeGreaterThan(0);
+  expect(metrics.selectionFullRenderDelta).toBe(0);
+  expect(metrics.selectionRelationshipsRerouted).toBe(0);
+  expect(metrics.focusFullRenderDelta).toBe(0);
+  expect(metrics.focusReason).toBe("object tree focus");
+  expect(metrics.focusMoved).toBe(true);
+  expect(metrics.renameFullRenderDelta).toBe(0);
+  expect(metrics.renameOperation.kind).toBe("structure-state");
+  expect(metrics.renameOperation.affectedObjectIds).toEqual(["closure-search-target"]);
+  expect(metrics.renameOperation.objectPatchCount).toBe(1);
+  expect(metrics.renameOperation.objectContainerReindexed).toBe(false);
+  expect(metrics.renameOperation.fullStateSerializationCount).toBe(0);
+  expect(metrics.lockFullRenderDelta).toBe(0);
+  expect(metrics.lockPatchedNodeCount).toBe(1);
+  expect(metrics.lockOperation.kind).toBe("update-objects");
+  expect(metrics.lockOperation.affectedObjectIds).toEqual(["closure-lock-target"]);
+  expect(metrics.lockOperation.fullStateSerializationCount).toBe(0);
+  expect(metrics.visibilityFullRenderDelta).toBe(0);
+  expect(metrics.visibilityOperation.kind).toBe("structure-state");
+  expect(metrics.visibilityOperation.affectedObjectIds.length).toBeGreaterThan(1);
+  expect(metrics.visibilityOperation.fullStateSerializationCount).toBe(0);
+  expect(metrics.reorderFullRenderDelta).toBe(0);
+  expect(metrics.reorderOperation.kind).toBe("structure-state");
+  expect(metrics.reorderOperation.objectContainerReindexed).toBe(true);
+  expect(metrics.reorderedGroupId).toBe("closure-group-1");
+  expect(metrics.undoFullRenderDelta).toBe(0);
+  expect(metrics.undoGroupId).not.toBe("closure-group-1");
+  expect(metrics.redoFullRenderDelta).toBe(0);
+  expect(metrics.redoGroupId).toBe("closure-group-1");
+  expect(metrics.remainingObjectNodesAfterDestroy).toBe(0);
   expect(browserErrors).toEqual([]);
 });
 
@@ -1150,6 +1585,16 @@ test("Diagram 2 direct URLs inherit Documentation read-only capabilities and blo
   expect(after.selectionOverlays).toBe(0);
   expect(browserErrors).toEqual([]);
 });
+
+async function captureDiagram2Phase4Screenshot(page, testInfo, projectName, fileName) {
+  if (testInfo.project.name !== projectName) return;
+  const directory = path.join(process.cwd(), "docs", "screenshots", "diagram-2-phase-4");
+  await mkdir(directory, { recursive: true });
+  await page.screenshot({
+    path: path.join(directory, fileName),
+    fullPage: true
+  });
+}
 
 test("Diagram 2 New creates a shared Diagram document and opens it in Edit mode", async ({ page }) => {
   const browserErrors = [];

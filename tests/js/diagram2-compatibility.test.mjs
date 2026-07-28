@@ -15,6 +15,9 @@ import {
   saveDiagram2TemplateLibrary
 } from "../../wwwroot/js/features/diagram2/diagram2-compatibility.js";
 import {
+  createDiagram2EditorController
+} from "../../wwwroot/js/features/diagram2/diagram2-editor-controller.js";
+import {
   createDiagramSelectionClipboardPackage,
   createPmtDiagramFile,
   diagramSelectionClipboardFormat,
@@ -134,6 +137,97 @@ test("Diagram 2 clipboard text can be parsed and remapped by Diagram 1, and Diag
   assert.equal(diagram2Parsed.selection.objects.some(object => object.locked), true);
   assert.equal(diagram2FieldRectangle.foreignKeys[0].relationshipType, "many-to-one");
   assert.equal(diagram2FieldRectangle.foreignKeys[0].styleOverride.stroke, "#22c55e");
+});
+
+test("Diagram 2 advanced structured clipboard preserves Phase 4 metadata and pastes as one undoable command", async () => {
+  const state = normalizeDiagramState(complexClipboardState());
+  const selectedObjectIds = state.objects.map(object => object.id);
+  const diagram1Package = createDiagramSelectionClipboardPackage({
+    state,
+    selectedObjectIds,
+    sourceFeature: "Diagram"
+  });
+  const diagram1Text = serializeDiagramSelectionClipboardPackage(diagram1Package);
+  const parsedByDiagram2 = parseDiagram2SelectionClipboardText(diagram1Text);
+  const serializedSelection = JSON.stringify(parsedByDiagram2.selection);
+
+  assert.equal(diagram1Text.startsWith(`${diagramSelectionClipboardPlainTextHeader}\n`), true);
+  assert.equal(parsedByDiagram2.format, diagramSelectionClipboardFormat);
+  assert.equal(parsedByDiagram2.formatVersion, 1);
+  assert.equal(parsedByDiagram2.minimumReaderVersion, 1);
+  assert.equal(parsedByDiagram2.source.feature, "Diagram");
+  assert.doesNotMatch(
+    serializedSelection,
+    /diagram2RendererCache|diagram2LiveNodeId|mountedObjectIds|dirtyFlush|selectionOverlay|routeCache|worker|diagnostic/i
+  );
+
+  const remapped = remapDiagram2SelectionClipboardPackageIds(parsedByDiagram2, {
+    existingObjectIds: ["d2docB-projects"],
+    idFactory: oldId => `d2docB-${oldId}`,
+    pasteIndex: 3,
+    pasteOffset: { x: 15, y: 25 }
+  });
+  const remappedIds = remapped.selection.objects.map(object => object.id);
+  const remappedIdSet = new Set(remappedIds);
+  const remappedGroups = new Set(remapped.selection.objects.map(object => object.groupId).filter(Boolean));
+  const remappedFieldRectangle = remapped.selection.objects.find(object => object.id === "d2docB-ui-title");
+  const remappedMappingTable = remapped.selection.objects.find(object => object.id === "d2docB-mapping-table");
+  const remappedImage = remapped.selection.objects.find(object => object.id === "d2docB-screen");
+  const remappedProjects = remapped.selection.objects.find(object => object.entityName === "Projects");
+  const remappedWorkTasks = remapped.selection.objects.find(object => object.id === "d2docB-worktasks");
+  const remappedCallout = remapped.selection.objects.find(object => object.id === "d2docB-callout");
+  const routeKeys = Object.keys(remapped.selection.manualRelationshipRoutes);
+
+  assert.equal(remappedIdSet.size, remappedIds.length);
+  assert.equal(remappedIds.every(id => id.startsWith("d2docB-")), true);
+  assert.equal(remappedIds.includes("projects"), false);
+  assert.equal(remapped.selection.groupNames["shape-group-copy"], "Mixed shapes");
+  assert.equal(remapped.selection.groupNames["callout-group-copy"], "Entity annotation");
+  assert.equal(remapped.selection.groupVisibility["shape-group-copy"], false);
+  assert.ok(remappedGroups.has("shape-group-copy"));
+  assert.ok(remappedGroups.has("callout-group-copy"));
+  assert.equal(remappedImage.locked, true);
+  assert.equal(remappedImage.x, 125);
+  assert.equal(remappedImage.y, 635);
+  assert.equal(remappedMappingTable.sourceImageId, "d2docB-screen");
+  assert.equal(remappedMappingTable.rows[0].uiEntityId, "d2docB-ui-title");
+  assert.equal(remappedMappingTable.rows[0].databaseField, "pmt.Projects.Title");
+  assert.equal(remappedFieldRectangle.foreignKeys[0].relationshipType, "many-to-one");
+  assert.equal(remappedFieldRectangle.foreignKeys[0].styleOverride.stroke, "#22c55e");
+  assert.equal(remappedProjects.id, "d2docB-projects-1");
+  assert.equal(remappedWorkTasks.foreignKeys[0].routeOverride[0].x, 745);
+  assert.equal(remappedWorkTasks.foreignKeys[0].routeOverride[0].y, 393);
+  assert.equal(remappedCallout.entityAnnotationOwnerId, remappedProjects.id);
+  assert.equal(routeKeys.length, 1);
+  assert.ok(remapped.selection.manualRelationshipRoutes[routeKeys[0]].every(point =>
+    Number.isFinite(point.x) && Number.isFinite(point.y)
+  ));
+  assert.equal(remapped.selection.relationships.every(relationship =>
+    remappedIdSet.has(relationship.sourceObjectId) && remappedIdSet.has(relationship.targetObjectId)
+  ), true);
+
+  const renderer = clipboardFakeRenderer();
+  const controller = createDiagram2EditorController({
+    renderer,
+    host: clipboardEditableHost(),
+    state: { version: 1, width: 1400, height: 900, objects: [] }
+  });
+  assert.equal(await controller.pasteSelectionClipboardText(diagram1Text), true);
+  const pastedState = controller.currentState();
+  const pastedIds = pastedState.objects.map(object => object.id);
+  assert.equal(pastedState.objects.length, selectedObjectIds.length);
+  assert.equal(new Set(pastedIds).size, pastedIds.length);
+  assert.equal(controller.historyStatus().entryCount, 1);
+  assert.equal(renderer.fullRenderCount, 0);
+  assert.equal(renderer.addedObjectBatches.length, 1);
+  assert.equal(renderer.addedObjectBatches[0].length, selectedObjectIds.length);
+
+  assert.equal(await controller.undo(), true);
+  assert.equal(controller.currentState().objects.length, 0);
+  assert.equal(await controller.redo(), true);
+  assert.deepEqual(controller.currentState().objects, pastedState.objects);
+  assert.deepEqual(controller.currentState().groupNames, pastedState.groupNames);
+  assert.deepEqual(controller.currentState().groupVisibility, pastedState.groupVisibility);
 });
 
 test("Diagram 2 clipboard adapter rejects newer packages clearly", () => {
@@ -371,5 +465,42 @@ function complexClipboardState() {
         }]
       }
     ]
+  };
+}
+
+function clipboardEditableHost() {
+  return {
+    kind: "diagram-document",
+    canEdit: true,
+    canExport: true,
+    security: Object.freeze({
+      resource: "Documentation",
+      canRead: true,
+      canCreate: true,
+      canUpdate: true,
+      canDelete: true,
+      canImport: true,
+      canExport: true
+    }),
+    async save() {}
+  };
+}
+
+function clipboardFakeRenderer() {
+  return {
+    fullRenderCount: 0,
+    addedObjectBatches: [],
+    removedObjectBatches: [],
+    addObjects(objects) {
+      this.addedObjectBatches.push(objects.map(object => object.id));
+    },
+    removeObjects(ids) {
+      this.removedObjectBatches.push(ids.slice());
+    },
+    beginDiagramUpdate() {},
+    endDiagramUpdate() {},
+    setSelectedIds() {
+      return {};
+    }
   };
 }

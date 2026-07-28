@@ -1,8 +1,10 @@
 import { expect, test } from "@playwright/test";
+import { mkdir } from "node:fs/promises";
+import path from "node:path";
 
 test.use({ timezoneId: "Asia/Taipei" });
 
-test("Annotate 2.0 saves through the RTE upload URL and remains editable", async ({ page }) => {
+test("Annotate 2.0 saves through the RTE upload URL and remains editable", async ({ page }, testInfo) => {
   let uploadedSvg = "";
   let applyCount = 0;
 
@@ -78,6 +80,7 @@ test("Annotate 2.0 saves through the RTE upload URL and remains editable", async
   await expect(page.locator("[data-diagram2-rte-host] [data-diagram2-template-card] .image-annotation-template-preview").first()).toBeVisible();
   await expect(page.locator("[data-diagram2-rte-host] [data-diagram2-template-card] .image-annotation-template-preview img").first())
     .toHaveAttribute("src", /^data:image\/svg\+xml;charset=utf-8,/);
+  await captureDiagram2RtePhase4Screenshot(page, testInfo, "chromium-1366", "diagram2-phase4-rte-annotate-1366x768.png");
   await page.evaluate(() => window.__pmtDiagram2EditorCore.markSaved());
   const toolbarRectangleId = await assertDiagram2RteToolbarObjectInsertion(page);
   await assertDiagram2RtePhase3CoreEditing(page, toolbarRectangleId);
@@ -195,9 +198,21 @@ test("Annotate 2.0 saves through the RTE upload URL and remains editable", async
   expect(reopened.clip).toEqual({ x: 0, y: 0, width: 320, height: 180 });
   expect(reopened.hasOutsideArrow).toBe(true);
   expect(reopened.hasToolbarRectangle).toBe(true);
+  await ensureDiagram2RteObjectsPaneOpen(page.locator("[data-diagram2-rte-host]"));
+  await captureDiagram2RtePhase4Screenshot(page, testInfo, "chromium-1920", "diagram2-phase4-rte-edit-1920x1080.png");
   await page.getByRole("button", { name: "Cancel" }).click();
   await page.evaluate(() => window.__diagram2EditPromise);
 });
+
+async function captureDiagram2RtePhase4Screenshot(page, testInfo, projectName, fileName) {
+  if (testInfo.project.name !== projectName) return;
+  const directory = path.join(process.cwd(), "docs", "screenshots", "diagram-2-phase-4");
+  await mkdir(directory, { recursive: true });
+  await page.screenshot({
+    path: path.join(directory, fileName),
+    fullPage: true
+  });
+}
 
 async function assertDiagram2RtePhase3CoreEditing(page, rectangleId) {
   const dialog = page.locator("[data-diagram2-rte-host]");
