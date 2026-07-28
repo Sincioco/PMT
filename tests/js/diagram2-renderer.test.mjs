@@ -20,6 +20,11 @@ import {
   diagram2WorldToScreenPoint,
   diagram2ZoomAtTransform
 } from "../../wwwroot/js/features/diagram2/diagram2-renderer.js";
+import {
+  createDiagram2RelationshipRouteModel,
+  diagram2RelationshipRouteFromModel,
+  diagram2RelationshipRouteKey
+} from "../../wwwroot/js/features/diagram2/diagram2-routing.js";
 
 test("Diagram 2 dirty state keeps explicit invalidation categories", () => {
   const dirty = createDiagram2DirtyState();
@@ -152,6 +157,60 @@ test("Diagram 2 derives canonical entity relationships without Diagram 1 render 
   assert.equal(relationships[0].target.id, "entity-users");
   assert.equal(relationships[0].targetField.name, "UserId");
   assert.equal(relationships.some(item => item.source === item.target), false);
+});
+
+test("Diagram 2 relationship routing module returns stable normalized route geometry", () => {
+  const state = normalizeAnnotationState({
+    width: 900,
+    height: 560,
+    compactEntityRelationshipRouting: true,
+    relationshipStyle: { showSymbols: true },
+    objects: [{
+      id: "entity-projects",
+      type: "entity",
+      x: 80,
+      y: 90,
+      width: 260,
+      height: 120,
+      entitySchema: "pmt",
+      entityName: "Projects",
+      fields: [{ name: "ProjectId", dataType: "INT", nullable: false, isPrimaryKey: true }]
+    }, {
+      id: "entity-tasks",
+      type: "entity",
+      x: 560,
+      y: 270,
+      width: 280,
+      height: 150,
+      entitySchema: "pmt",
+      entityName: "Tasks",
+      fields: [
+        { name: "TaskId", dataType: "INT", nullable: false, isPrimaryKey: true },
+        { name: "ProjectId", dataType: "INT", nullable: false, isForeignKey: true }
+      ],
+      foreignKeys: [{
+        name: "FK_Tasks_Projects",
+        columns: ["ProjectId"],
+        referencedSchema: "pmt",
+        referencedTable: "Projects",
+        referencedColumns: ["ProjectId"],
+        relationshipType: "many-to-one"
+      }]
+    }]
+  });
+
+  const relationship = diagram2CanonicalRelationships(state)[0];
+  const model = createDiagram2RelationshipRouteModel(state, { compactRouting: true });
+  const route = diagram2RelationshipRouteFromModel(relationship, model);
+
+  assert.ok(diagram2RelationshipRouteKey(relationship));
+  assert.ok(route);
+  assert.equal(route.relationshipType, "many-to-one");
+  assert.equal(route.points.length >= 2, true);
+  assert.match(route.path, /^M /);
+  assert.equal(route.bounds.width > 0, true);
+  assert.equal(route.bounds.height > 0, true);
+  assert.equal(model.geometryByKey.has(diagram2RelationshipRouteKey(relationship)), true);
 });
 
 test("Diagram 2 summarizes the current PMT schema fixture for renderer diagnostics", async () => {

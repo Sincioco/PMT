@@ -8,6 +8,9 @@ import {
   resizeDiagram2ObjectsGeometry
 } from "../../wwwroot/js/features/diagram2/diagram2-editor-controller.js";
 import {
+  parseDiagram2EntityDefinition
+} from "../../wwwroot/js/features/diagram2/diagram2-editor-entities.js";
+import {
   diagram2ObjectTreeNodes
 } from "../../wwwroot/js/features/diagram2/diagram2-editor-structure.js";
 import {
@@ -548,6 +551,131 @@ test("Diagram 2 Phase 4 structure and templates stay command-based and renderer-
   assert.equal(controller.resetDrawingDefault("rectangle"), true);
   const reset = controller.createDefaultObject("rectangle", { x: 700, y: 380 }, { id: "reset-rect" });
   assert.equal(reset.fill, "none");
+  assert.equal(renderer.fullRenderCount, 0);
+});
+
+test("Diagram 2 Phase 5 entity, relationship, manual route, and compact commands stay shared and undoable", async () => {
+  const renderer = fakeRenderer();
+  const controller = createDiagram2EditorController({
+    renderer,
+    host: editableHost(),
+    state: phase5EntityState()
+  });
+  const sprintDefinition = parseDiagram2EntityDefinition(`
+CREATE TABLE [pmt].[Sprints](
+  [SprintId] [int] IDENTITY(1,1) NOT NULL,
+  [ProjectId] [int] NOT NULL,
+  [SprintName] [nvarchar](200) NULL,
+  CONSTRAINT [PK_Sprints] PRIMARY KEY CLUSTERED ([SprintId] ASC)
+);
+`, "", { foreignKeysAtTop: true });
+
+  assert.equal(await controller.addEntity(sprintDefinition, { x: 540, y: 140 }, { id: "entity-sprints" }), true);
+  assert.equal(controller.getObjectById("entity-sprints").entitySchema, "pmt");
+  assert.equal(controller.getObjectById("entity-sprints").entityName, "Sprints");
+  assert.equal(controller.getObjectById("entity-sprints").fields[0].isIdentity, true);
+  assert.equal(controller.getObjectById("entity-sprints").foreignKeysAtTop, true);
+  assert.equal(renderer.fullRenderCount, 0);
+  assert.deepEqual(renderer.addedObjectIds, ["entity-sprints"]);
+
+  assert.equal(await controller.updateEntityField("entity-sprints", 1, {
+    name: "ProjectId",
+    dataType: "int",
+    nullable: false,
+    isForeignKey: true,
+    isImportant: true
+  }), true);
+  assert.equal(await controller.addEntityField("entity-sprints", { name: "ProjectId", dataType: "uniqueidentifier" }), true);
+  assert.equal(controller.getObjectById("entity-sprints").fields.at(-1).name, "ProjectId2");
+  assert.equal(await controller.updateEntityDefinition("entity-sprints", {
+    schema: "pmt",
+    name: "Sprints",
+    foreignKeysAtTop: true,
+    fields: [
+      { name: "SprintName", dataType: "nvarchar(200)", nullable: true },
+      { name: "SprintId", dataType: "int", nullable: false, isPrimaryKey: true, isIdentity: true },
+      { name: "ProjectId", dataType: "int", nullable: false, isForeignKey: true, isImportant: true },
+      { name: "ProjectId2", dataType: "uniqueidentifier", nullable: true }
+    ],
+    foreignKeys: []
+  }), true);
+  assert.deepEqual(controller.getObjectById("entity-sprints").fields.map(field => field.name), [
+    "SprintName",
+    "SprintId",
+    "ProjectId",
+    "ProjectId2"
+  ]);
+  assert.equal(renderer.structureStates.at(-1).affectedObjectIds[0], "entity-sprints");
+
+  assert.equal(await controller.addRelationship({
+    sourceEntityId: "entity-sprints",
+    sourceFieldName: "ProjectId",
+    targetEntityId: "entity-projects",
+    targetFieldName: "ProjectId",
+    relationshipType: "many-to-one"
+  }), true);
+  const relationshipId = controller.selectedRelationshipIds()[0];
+  assert.ok(relationshipId);
+  assert.equal(controller.statusSnapshot().relationshipCount, 1);
+  assert.equal(controller.selectedRelationshipObjects()[0].sourceEntityId, "entity-sprints");
+  assert.ok(flattenDiagram2TreeNodes(diagram2ObjectTreeNodes(controller.state()))
+    .some(node => node.kind === "relationship" && node.id === relationshipId));
+
+  assert.equal(await controller.updateSelectedObjectsStyle("strokeWidth", 7, { coalesce: false }), true);
+  assert.equal(controller.getObjectById("entity-sprints").foreignKeys[0].styleOverride.strokeWidth, 7);
+  assert.deepEqual(renderer.structureStates.at(-1).affectedRelationshipIds, [relationshipId]);
+  assert.equal(renderer.fullRenderCount, 0);
+
+  assert.equal(await controller.updateRelationshipsStyle([relationshipId], "opacity", 55), true);
+  assert.equal(controller.getObjectById("entity-sprints").foreignKeys[0].styleOverride.opacity, 0.55);
+  assert.equal(await controller.setRelationshipType(relationshipId, "one-to-one"), true);
+  assert.equal(controller.getObjectById("entity-sprints").foreignKeys[0].relationshipType, "one-to-one");
+  assert.equal(await controller.updateRelationshipsStyle(["entity-relationships"], "showSymbols", true, { global: true }), true);
+  assert.equal(controller.currentState().relationshipStyle.showSymbols, true);
+
+  assert.equal(await controller.setRelationshipRoutingOptions({
+    manualEntityRelationshipRoutes: true,
+    allowOverlappingEntityLines: true
+  }), true);
+  assert.equal(controller.currentState().manualEntityRelationshipRoutes, true);
+  assert.equal(controller.currentState().allowOverlappingEntityLines, true);
+  assert.equal(await controller.useRelationshipRoute(relationshipId), true);
+  const routeBeforeMove = controller.getObjectById("entity-sprints").foreignKeys[0].routeOverride;
+  assert.ok(routeBeforeMove.length > 1);
+  const segmentIndex = routeBeforeMove.findIndex((point, index) => {
+    const next = routeBeforeMove[index + 1];
+    return next && (point.x === next.x || point.y === next.y);
+  });
+  assert.ok(segmentIndex >= 0);
+  const axis = routeBeforeMove[segmentIndex].x === routeBeforeMove[segmentIndex + 1].x ? "x" : "y";
+  const coordinate = routeBeforeMove[segmentIndex][axis] + 24;
+  assert.equal(await controller.adjustRelationshipRoute(relationshipId, segmentIndex, axis, coordinate), true);
+  assert.notDeepEqual(controller.getObjectById("entity-sprints").foreignKeys[0].routeOverride, routeBeforeMove);
+  assert.equal(await controller.clearRelationshipRoutes([relationshipId]), true);
+  assert.equal(Object.hasOwn(controller.getObjectById("entity-sprints").foreignKeys[0], "routeOverride"), false);
+
+  const beforeCompact = controller.getObjectById("entity-sprints");
+  controller.setSelection(["entity-projects"]);
+  assert.equal(await controller.autoFormatCompact(), true);
+  assert.equal(controller.getObjectById("entity-projects").x, 80);
+  assert.equal(controller.getObjectById("entity-projects").y, 90);
+  assert.equal(controller.currentState().compactEntityRelationshipRouting, true);
+  assert.notDeepEqual({
+    x: controller.getObjectById("entity-sprints").x,
+    y: controller.getObjectById("entity-sprints").y
+  }, {
+    x: beforeCompact.x,
+    y: beforeCompact.y
+  });
+
+  controller.setSelection([relationshipId]);
+  assert.equal(await controller.deleteSelectedObjects(), true);
+  assert.equal(controller.statusSnapshot().relationshipCount, 0);
+  assert.equal(controller.getObjectById("entity-sprints").fields.find(field => field.name === "ProjectId").isForeignKey, false);
+  assert.equal(await controller.undo(), true);
+  assert.equal(controller.statusSnapshot().relationshipCount, 1);
+  assert.equal(await controller.redo(), true);
+  assert.equal(controller.statusSnapshot().relationshipCount, 0);
   assert.equal(renderer.fullRenderCount, 0);
 });
 
@@ -1101,6 +1229,34 @@ function phase4ClosureState(count) {
   };
 }
 
+function phase5EntityState() {
+  return {
+    version: 1,
+    width: 1000,
+    height: 620,
+    objects: [{
+      id: "entity-projects",
+      type: "entity",
+      x: 80,
+      y: 90,
+      width: 520,
+      height: 130,
+      fill: "#ffffff",
+      stroke: "#42526b",
+      strokeWidth: 2,
+      opacity: 1,
+      entitySchema: "pmt",
+      entityName: "Projects",
+      fields: [
+        { name: "ProjectId", dataType: "int", nullable: false, isPrimaryKey: true, isIdentity: true },
+        { name: "ProjectName", dataType: "nvarchar(200)", nullable: false }
+      ],
+      foreignKeys: [],
+      locked: true
+    }]
+  };
+}
+
 function largeState(count) {
   return {
     version: 1,
@@ -1252,6 +1408,7 @@ function fakeRenderer() {
         groupNames: { ...(state?.groupNames || {}) },
         groupVisibility: { ...(state?.groupVisibility || {}) },
         affectedObjectIds: [...(options.affectedObjectIds || [])],
+        affectedRelationshipIds: [...(options.affectedRelationshipIds || [])],
         reason: options.reason || ""
       });
     },

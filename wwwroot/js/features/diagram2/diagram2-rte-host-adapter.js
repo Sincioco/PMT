@@ -8,12 +8,12 @@ import { loadDiagramCanonicalState } from "../../shared/diagram-documents.js?v=2
 import {
   createDiagram2Renderer,
   normalizeDiagram2CanonicalState
-} from "./diagram2-renderer.js?v=20260728-diagram2-phase4-v5";
+} from "./diagram2-renderer.js?v=20260729-diagram2-phase5-v1";
 import {
   createDiagram2EditorController,
   isDiagram2CoreDrawingTool
-} from "./diagram2-editor-controller.js?v=20260728-diagram2-phase4-v5";
-import { bindDiagram2EditorInteractions } from "./diagram2-editor-interactions.js?v=20260728-diagram2-phase4-v5";
+} from "./diagram2-editor-controller.js?v=20260729-diagram2-phase5-v1";
+import { bindDiagram2EditorInteractions } from "./diagram2-editor-interactions.js?v=20260729-diagram2-phase5-v1";
 import {
   bindDiagram2EditorColorPickers,
   bindDiagram2EditorFormatControls,
@@ -23,6 +23,8 @@ import {
   diagram2ObjectsPaneHtml,
   diagram2EditorShellHtml,
   diagram2TemplatePaneHtml,
+  openDiagram2EntityEditor,
+  openDiagram2RelationshipEditor,
   openDiagram2TextEditor,
   setDiagram2InspectorActiveTab,
   setDiagram2ObjectsPaneOpen,
@@ -31,7 +33,7 @@ import {
   syncDiagram2RendererViewportInset,
   updateDiagram2ObjectTreeSelection,
   updateDiagram2ShellStatus
-} from "./diagram2-editor-shell.js?v=20260728-diagram2-phase4-v5";
+} from "./diagram2-editor-shell.js?v=20260729-diagram2-phase5-v1";
 import {
   captureDiagram2SelectionTemplate,
   createDiagram2TemplateState,
@@ -339,6 +341,10 @@ function bindDiagram2RteHostEvents(options = {}) {
   bindDiagram2EditorFormatControls(dialog, {
     applyStyle: (name, value) => applyDiagram2RteSelectedStyle(dialog, controller, renderer, name, value),
     applyGeometry: (name, value) => applyDiagram2RteSelectedGeometry(dialog, controller, renderer, name, value),
+    applyEntityOption: (name, value) => applyDiagram2RteSelectedEntityOption(dialog, controller, renderer, name, value),
+    applyRelationshipOption: (name, value) => applyDiagram2RteRelationshipOption(dialog, controller, renderer, name, value),
+    applyRelationshipStyle: (name, value) => applyDiagram2RteSelectedRelationshipStyle(dialog, controller, renderer, name, value),
+    applyRelationshipType: value => applyDiagram2RteSelectedRelationshipType(dialog, controller, renderer, value),
     notify
   });
   bindDiagram2EditorInspectorResize(dialog, {
@@ -367,7 +373,9 @@ function bindDiagram2RteHostEvents(options = {}) {
     }
     if (action === "set-diagram2-tool") {
       const tool = actionElement.dataset.tool || actionElement.dataset.diagram2Tool || "select";
-      if (isDiagram2CoreDrawingTool(tool)) {
+      if (tool === "entity") {
+        void addDiagram2RteEntityFromDialog(dialog, controller, renderer);
+      } else if (isDiagram2CoreDrawingTool(tool)) {
         void addDiagram2RteToolbarObject(tool, dialog, controller, renderer);
       } else if (tool === "format-painter") {
         if (controller.activeTool() === "format-painter") controller.cancelFormatPainter();
@@ -375,6 +383,26 @@ function bindDiagram2RteHostEvents(options = {}) {
       } else {
         controller.setActiveTool(tool);
       }
+      return;
+    }
+    if (action === "edit-diagram2-entity") {
+      void editDiagram2RteSelectedEntity(dialog, controller, renderer);
+      return;
+    }
+    if (action === "add-diagram2-relationship") {
+      void addDiagram2RteRelationshipFromDialog(dialog, controller, renderer);
+      return;
+    }
+    if (action === "auto-format-diagram2-compact") {
+      void autoFormatDiagram2RteCompact(dialog, controller, renderer, notify);
+      return;
+    }
+    if (action === "use-diagram2-relationship-route") {
+      void useDiagram2RteSelectedRelationshipRoute(dialog, controller, renderer);
+      return;
+    }
+    if (action === "clear-diagram2-relationship-route") {
+      void clearDiagram2RteSelectedRelationshipRoute(dialog, controller, renderer);
       return;
     }
     if (action === "select-diagram2-object-tree-item") {
@@ -638,8 +666,11 @@ function bindDiagram2RteHostEvents(options = {}) {
     onSave: () => options.save().catch(error => notify?.(error?.message || "Diagram 2 annotation could not be applied.")),
     onUndo: () => runDiagram2RteHistoryAction(dialog, controller, renderer, () => controller.undo()),
     onRedo: () => runDiagram2RteHistoryAction(dialog, controller, renderer, () => controller.redo()),
-    onAddObject: type => addDiagram2RteToolbarObject(type, dialog, controller, renderer),
+    onAddObject: type => type === "entity"
+      ? addDiagram2RteEntityFromDialog(dialog, controller, renderer)
+      : addDiagram2RteToolbarObject(type, dialog, controller, renderer),
     onEditText: object => editDiagram2RteObjectText(dialog, controller, renderer, object, options.bindRichTextButtons),
+    onEditEntity: () => editDiagram2RteSelectedEntity(dialog, controller, renderer),
     onCopy: () => copyDiagram2RteSelection(controller, notify),
     onPaste: () => pasteDiagram2RteSelection(dialog, controller, renderer, notify),
     onDuplicate: () => duplicateDiagram2RteSelection(dialog, controller, renderer),
@@ -664,10 +695,14 @@ function syncDiagram2RteInspectorToggleState(dialog) {
 function diagram2RteShellStatus(controller, statusInput = null) {
   const status = statusInput || controller.statusSnapshot();
   const selected = new Set((status.selectedObjectIds || []).map(String));
+  const state = controller.currentState?.() || {};
+  const selectedObjects = (state.objects || [])
+    .filter(object => selected.has(String(object.id || "")));
+  selectedObjects.push(...(controller.selectedRelationshipObjects?.() || []));
   return {
     ...status,
-    selectedObjects: (controller.currentState?.().objects || [])
-      .filter(object => selected.has(String(object.id || "")))
+    state,
+    selectedObjects
   };
 }
 
@@ -695,6 +730,111 @@ async function applyDiagram2RteSelectedGeometry(dialog, controller, renderer, na
   if (!applied) return false;
   updateDiagram2ShellStatus(dialog, diagram2RteShellStatus(controller));
   await renderer.whenIdle();
+  return true;
+}
+
+async function applyDiagram2RteSelectedEntityOption(dialog, controller, renderer, name, value) {
+  const entity = controller.getObjectsByIds(controller.selectedObjectIds())
+    .find(object => object?.type === "entity");
+  if (!entity) return false;
+  const applied = await controller.setEntityOption(entity.id, name, value, {
+    reason: `entity ${name}`
+  });
+  if (!applied) return false;
+  await finishDiagram2RteObjectCommand(dialog, controller, renderer);
+  return true;
+}
+
+async function applyDiagram2RteRelationshipOption(dialog, controller, renderer, name, value) {
+  const applied = await controller.setRelationshipRoutingOptions({ [name]: value }, {
+    reason: `relationship option ${name}`
+  });
+  if (!applied) return false;
+  await finishDiagram2RteObjectCommand(dialog, controller, renderer);
+  return true;
+}
+
+async function applyDiagram2RteSelectedRelationshipStyle(dialog, controller, renderer, name, value) {
+  const applied = await controller.updateRelationshipsStyle(controller.selectedRelationshipIds(), name, value, {
+    global: name === "showSymbols",
+    reason: `relationship style ${name}`
+  });
+  if (!applied) return false;
+  await finishDiagram2RteObjectCommand(dialog, controller, renderer);
+  return true;
+}
+
+async function applyDiagram2RteSelectedRelationshipType(dialog, controller, renderer, value) {
+  const [relationshipId] = controller.selectedRelationshipIds();
+  if (!relationshipId) return false;
+  const applied = await controller.setRelationshipType(relationshipId, value);
+  if (!applied) return false;
+  await finishDiagram2RteObjectCommand(dialog, controller, renderer);
+  return true;
+}
+
+async function editDiagram2RteSelectedEntity(dialog, controller, renderer) {
+  const entity = controller.getObjectsByIds(controller.selectedObjectIds())
+    .find(object => object?.type === "entity");
+  if (!entity) return false;
+  const definition = await openDiagram2EntityEditor({ object: entity });
+  if (!definition) return false;
+  const updated = await controller.updateEntityDefinition(entity.id, definition);
+  if (!updated) return false;
+  await finishDiagram2RteObjectCommand(dialog, controller, renderer);
+  return true;
+}
+
+async function addDiagram2RteEntityFromDialog(dialog, controller, renderer) {
+  const definition = await openDiagram2EntityEditor({});
+  if (!definition) return false;
+  const added = await controller.addEntity(
+    definition,
+    controller.snapPoint(diagram2RteInsertionCenter(dialog, controller, renderer))
+  );
+  if (!added) return false;
+  controller.setActiveTool("select");
+  await finishDiagram2RteObjectCommand(dialog, controller, renderer);
+  return true;
+}
+
+async function addDiagram2RteRelationshipFromDialog(dialog, controller, renderer) {
+  const selectedEntityId = controller.getObjectsByIds(controller.selectedObjectIds())
+    .find(object => object?.type === "entity")?.id || "";
+  const relationship = await openDiagram2RelationshipEditor({
+    state: controller.currentState(),
+    selectedEntityId
+  });
+  if (!relationship) return false;
+  const added = await controller.addRelationship(relationship);
+  if (!added) return false;
+  await finishDiagram2RteObjectCommand(dialog, controller, renderer);
+  return true;
+}
+
+async function autoFormatDiagram2RteCompact(dialog, controller, renderer, notify) {
+  const applied = await controller.autoFormatCompact();
+  if (!applied) return false;
+  await finishDiagram2RteObjectCommand(dialog, controller, renderer);
+  notify?.("Diagram 2 entities compacted.");
+  return true;
+}
+
+async function useDiagram2RteSelectedRelationshipRoute(dialog, controller, renderer) {
+  const [relationshipId] = controller.selectedRelationshipIds();
+  if (!relationshipId) return false;
+  const applied = await controller.useRelationshipRoute(relationshipId);
+  if (!applied) return false;
+  await finishDiagram2RteObjectCommand(dialog, controller, renderer);
+  return true;
+}
+
+async function clearDiagram2RteSelectedRelationshipRoute(dialog, controller, renderer) {
+  const relationshipIds = controller.selectedRelationshipIds();
+  if (!relationshipIds.length) return false;
+  const applied = await controller.clearRelationshipRoutes(relationshipIds);
+  if (!applied) return false;
+  await finishDiagram2RteObjectCommand(dialog, controller, renderer);
   return true;
 }
 
@@ -774,7 +914,8 @@ function diagram2ToolLabel(type) {
     arrow: "Arrow",
     line: "Line",
     textbox: "Text Box",
-    "rich-text": "Rich Text"
+    "rich-text": "Rich Text",
+    entity: "Entity"
   }[String(type || "").trim().toLowerCase()] || "object";
 }
 

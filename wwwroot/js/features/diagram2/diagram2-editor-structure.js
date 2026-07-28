@@ -4,10 +4,18 @@ import {
   filterAnnotationObjectTree,
   reorderAnnotationObjectTree
 } from "../../components/image-annotation.js?v=20260728-diagram2-phase4-v5";
-import { normalizeDiagram2CanonicalState } from "./diagram2-renderer.js?v=20260728-diagram2-phase4-v5";
+import {
+  diagram2CanonicalRelationships,
+  normalizeDiagram2CanonicalState
+} from "./diagram2-renderer.js?v=20260729-diagram2-phase5-v1";
+import { diagram2RelationshipRouteKey } from "./diagram2-routing.js?v=20260729-diagram2-phase5-v1";
 
 export function diagram2ObjectTreeNodes(stateInput, query = "") {
-  const nodes = buildAnnotationObjectTree(normalizeDiagram2CanonicalState(stateInput));
+  const state = normalizeDiagram2CanonicalState(stateInput);
+  const nodes = normalizeDiagram2RelationshipTreeNodes(
+    buildAnnotationObjectTree(state),
+    diagram2CanonicalRelationships(state)
+  );
   return filterAnnotationObjectTree(nodes, query);
 }
 
@@ -23,6 +31,12 @@ export function diagram2ObjectTreeNodeSelectionIds(stateInput, kindInput, idInpu
   }
   if (kind === "object") {
     return state.objects.some(object => object.id === id) ? [id] : [];
+  }
+  if (kind === "relationships") {
+    return diagram2CanonicalRelationships(state).map(relationship => relationship.id);
+  }
+  if (kind === "relationship") {
+    return diagram2CanonicalRelationships(state).some(relationship => relationship.id === id) ? [id] : [];
   }
   return [];
 }
@@ -273,6 +287,7 @@ export function diagram2LayerActionLabel(action) {
 export function createDiagram2StructureStateCommand(options = {}) {
   const nextState = normalizeDiagram2CanonicalState(options.nextState);
   const affectedObjectIds = uniqueStrings(options.affectedObjectIds);
+  const affectedRelationshipIds = uniqueStrings(options.affectedRelationshipIds);
   const selectionAfter = uniqueStrings(options.selectionAfter);
   const label = String(options.label || "Change structure").trim() || "Change structure";
   const reason = String(options.reason || "change structure").trim() || "change structure";
@@ -287,6 +302,7 @@ export function createDiagram2StructureStateCommand(options = {}) {
     }
     const update = context.setStructureStateCanonical(state, {
       affectedObjectIds,
+      affectedRelationshipIds,
       reason: operationReason
     });
     if (update.changed !== true) return false;
@@ -294,6 +310,7 @@ export function createDiagram2StructureStateCommand(options = {}) {
     renderer?.beginDiagramUpdate?.(operationReason);
     renderer?.setStructureState?.(context.state, {
       affectedObjectIds: update.affectedObjectIds,
+      affectedRelationshipIds,
       reason: operationReason
     });
     context.setSelection(selectedIds, { expandGroups: false });
@@ -306,6 +323,7 @@ export function createDiagram2StructureStateCommand(options = {}) {
     label,
     reason,
     affectedObjectIds,
+    affectedRelationshipIds,
     createdAt,
     apply(context) {
       return applyState(context, nextState, selectionAfter, reason, true);
@@ -363,6 +381,40 @@ export function pruneDiagram2GroupMetadata(stateInput) {
     groupNames,
     groupVisibility
   };
+}
+
+function normalizeDiagram2RelationshipTreeNodes(nodesInput = [], relationshipsInput = []) {
+  const relationshipIdByKey = new Map((Array.isArray(relationshipsInput) ? relationshipsInput : [])
+    .map(relationship => [diagram2RelationshipRouteKey(relationship), relationship.id]));
+  const normalizeNode = node => {
+    if (!node || typeof node !== "object") return node;
+    if (node.kind === "relationship") {
+      const id = relationshipIdByKey.get(diagram2RelationshipRouteKey(node.relationship)) || node.id;
+      return {
+        ...node,
+        id,
+        object: node.object && typeof node.object === "object"
+          ? { ...node.object, id, type: "entity-relationship" }
+          : node.object
+      };
+    }
+    if (node.kind === "relationships") {
+      const children = (Array.isArray(node.children) ? node.children : []).map(normalizeNode);
+      return {
+        ...node,
+        children,
+        allChildren: children,
+        count: children.length
+      };
+    }
+    if (node.kind === "group") {
+      const children = (Array.isArray(node.children) ? node.children : []).map(normalizeNode);
+      const allChildren = (Array.isArray(node.allChildren) ? node.allChildren : node.children || []).map(normalizeNode);
+      return { ...node, children, allChildren };
+    }
+    return node;
+  };
+  return (Array.isArray(nodesInput) ? nodesInput : []).map(normalizeNode);
 }
 
 function normalizeStructureKind(value, fallback = "object") {

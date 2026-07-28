@@ -55,7 +55,7 @@ test("Diagram PNG rasterizer copies rich text without tainting the canvas", asyn
   expect(result.height).toBe(280);
 });
 
-test("Diagram 2 top navigation separates read-only document mode from Edit mode", async ({ page }) => {
+test("Diagram 2 top navigation separates read-only document mode from Edit mode", async ({ page }, testInfo) => {
   const browserErrors = [];
   const clipboardImageBytes = await readFile(new URL("../../wwwroot/assets/pmt-logo-full.png", import.meta.url));
   const clipboardImageBase64 = clipboardImageBytes.toString("base64");
@@ -302,6 +302,7 @@ test("Diagram 2 top navigation separates read-only document mode from Edit mode"
   }
   await assertTransformOnlyPan(page, transformOnlyRenderCount);
   await assertCursorCenteredWheelZoom(page, transformOnlyRenderCount);
+  await assertDiagram2Phase5EntityErdEditing(page, testInfo);
 
   await page.getByRole("button", { name: "Fit Diagram" }).click();
   await waitForViewportReason(page, "fit");
@@ -392,10 +393,10 @@ test("Diagram 2 Phase 3 core editor interactions stay incremental", async ({ pag
       rendererModule,
       shellModule
     ] = await Promise.all([
-      import("/js/features/diagram2/diagram2-editor-controller.js?v=20260728-diagram2-phase4-v5"),
-      import("/js/features/diagram2/diagram2-editor-interactions.js?v=20260728-diagram2-phase4-v5"),
-      import("/js/features/diagram2/diagram2-renderer.js?v=20260728-diagram2-phase4-v5"),
-      import("/js/features/diagram2/diagram2-editor-shell.js?v=20260728-diagram2-phase4-v5")
+      import("/js/features/diagram2/diagram2-editor-controller.js?v=20260729-diagram2-phase5-v1"),
+      import("/js/features/diagram2/diagram2-editor-interactions.js?v=20260729-diagram2-phase5-v1"),
+      import("/js/features/diagram2/diagram2-renderer.js?v=20260729-diagram2-phase5-v1"),
+      import("/js/features/diagram2/diagram2-editor-shell.js?v=20260729-diagram2-phase5-v1")
     ]);
     const state = {
       version: 1,
@@ -714,7 +715,7 @@ test("Diagram 2 Phase 4 structure, objects tree, layers, and templates stay shar
     <link rel="stylesheet" href="/css/components/buttons.css">
     <link rel="stylesheet" href="/css/components/forms.css">
     <link rel="stylesheet" href="/css/components/image-annotation.css">
-    <link rel="stylesheet" href="/css/features/diagram2.css?v=20260728-diagram2-phase4-v5">
+    <link rel="stylesheet" href="/css/features/diagram2.css?v=20260729-diagram2-phase5-v1">
     <main id="phase4Harness" style="width:100vw;height:100vh;display:grid;"></main>
   `);
   await page.evaluate(async () => {
@@ -725,10 +726,10 @@ test("Diagram 2 Phase 4 structure, objects tree, layers, and templates stay shar
       shellModule,
       templateModule
     ] = await Promise.all([
-      import("/js/features/diagram2/diagram2-editor-controller.js?v=20260728-diagram2-phase4-v5"),
-      import("/js/features/diagram2/diagram2-editor-interactions.js?v=20260728-diagram2-phase4-v5"),
-      import("/js/features/diagram2/diagram2-renderer.js?v=20260728-diagram2-phase4-v5"),
-      import("/js/features/diagram2/diagram2-editor-shell.js?v=20260728-diagram2-phase4-v5"),
+      import("/js/features/diagram2/diagram2-editor-controller.js?v=20260729-diagram2-phase5-v1"),
+      import("/js/features/diagram2/diagram2-editor-interactions.js?v=20260729-diagram2-phase5-v1"),
+      import("/js/features/diagram2/diagram2-renderer.js?v=20260729-diagram2-phase5-v1"),
+      import("/js/features/diagram2/diagram2-editor-shell.js?v=20260729-diagram2-phase5-v1"),
       import("/js/features/diagram2/diagram2-editor-templates.js?v=20260728-diagram2-phase4-v5")
     ]);
     const root = document.querySelector("#phase4Harness");
@@ -1095,7 +1096,7 @@ test("Diagram 2 Phase 4 Objects tree stays fast and renderer-local with 1,000 ob
     <link rel="stylesheet" href="/css/components/buttons.css">
     <link rel="stylesheet" href="/css/components/forms.css">
     <link rel="stylesheet" href="/css/components/image-annotation.css">
-    <link rel="stylesheet" href="/css/features/diagram2.css?v=20260728-diagram2-phase4-v5">
+    <link rel="stylesheet" href="/css/features/diagram2.css?v=20260729-diagram2-phase5-v1">
     <main id="phase4TreeHarness" style="width:100vw;height:100vh;display:grid;"></main>
   `);
 
@@ -1106,10 +1107,10 @@ test("Diagram 2 Phase 4 Objects tree stays fast and renderer-local with 1,000 ob
       shellModule,
       structureModule
     ] = await Promise.all([
-      import("/js/features/diagram2/diagram2-editor-controller.js?v=20260728-diagram2-phase4-v5"),
-      import("/js/features/diagram2/diagram2-renderer.js?v=20260728-diagram2-phase4-v5"),
-      import("/js/features/diagram2/diagram2-editor-shell.js?v=20260728-diagram2-phase4-v5"),
-      import("/js/features/diagram2/diagram2-editor-structure.js?v=20260728-diagram2-phase4-v5")
+      import("/js/features/diagram2/diagram2-editor-controller.js?v=20260729-diagram2-phase5-v1"),
+      import("/js/features/diagram2/diagram2-renderer.js?v=20260729-diagram2-phase5-v1"),
+      import("/js/features/diagram2/diagram2-editor-shell.js?v=20260729-diagram2-phase5-v1"),
+      import("/js/features/diagram2/diagram2-editor-structure.js?v=20260729-diagram2-phase5-v1")
     ]);
     const root = document.querySelector("#phase4TreeHarness");
     const state = buildPhase4TreeStressState(1000);
@@ -1594,6 +1595,203 @@ async function captureDiagram2Phase4Screenshot(page, testInfo, projectName, file
     path: path.join(directory, fileName),
     fullPage: true
   });
+}
+
+async function captureDiagram2Phase5Screenshot(page, testInfo, projectName, fileName) {
+  if (testInfo.project.name !== projectName) return;
+  const directory = path.join(process.cwd(), "docs", "screenshots", "diagram-2-phase-5");
+  await mkdir(directory, { recursive: true });
+  await page.screenshot({
+    path: path.join(directory, fileName),
+    fullPage: true
+  });
+}
+
+async function assertDiagram2Phase5EntityErdEditing(page, testInfo) {
+  await page.evaluate(() => {
+    window.__diagram2Phase5OriginalState = window.__pmtDiagram2EditorCore.state();
+  });
+  await ensureDiagram2ToolsPaneOpen(page);
+  await page.locator("[data-diagram2-tool='entity']").click();
+  const dialog = page.locator(".diagram2-entity-editor-dialog");
+  await expect(dialog).toBeVisible();
+  await dialog.locator("[data-diagram2-entity-name]").fill("pmt.Phase5Browser");
+  await dialog.locator("[data-diagram2-entity-source]").fill(`
+CREATE TABLE [pmt].[Phase5Browser](
+  [Phase5Id] [int] IDENTITY(1,1) NOT NULL,
+  [ProjectId] [int] NOT NULL,
+  [BrowserName] [nvarchar](80) NULL,
+  CONSTRAINT [PK_Phase5Browser] PRIMARY KEY CLUSTERED ([Phase5Id] ASC)
+);
+`);
+  await dialog.locator("[data-diagram2-entity-fk-top]").check();
+  await dialog.getByRole("button", { name: "Apply", exact: true }).click();
+  await expect(dialog).toHaveCount(0);
+  const entityId = await page.evaluate(() => {
+    const selectedId = window.__pmtDiagram2EditorCore?.selectedObjectIds?.()[0] || "";
+    window.__diagram2Phase5EntityId = selectedId;
+    return selectedId;
+  });
+  expect(entityId).toMatch(/^entity-/);
+  await expect.poll(() =>
+    page.evaluate(id => window.__pmtDiagram2EditorCore?.getObjectById(id)?.type || "", entityId)
+  ).toBe("entity");
+  await page.locator("[data-diagram2-inspector-tab='entity']").click();
+  const inspectorCompactButton = page.locator("[data-diagram2-inspector] [data-action='auto-format-diagram2-compact']");
+  await expect(page.locator("[data-action='edit-diagram2-entity']")).toBeEnabled();
+  await expect(inspectorCompactButton).toHaveText("Compact");
+  await expect(inspectorCompactButton).toHaveAttribute(
+    "title",
+    "Optimize Entity placement and relationship routes for a compact, readable Diagram. Large Diagrams may take several minutes."
+  );
+  await page.locator("[data-diagram2-entity-option='showDataTypes']").check();
+  await expect.poll(() =>
+    page.evaluate(id => window.__pmtDiagram2EditorCore.getObjectById(id)?.showDataTypes === true, entityId)
+  ).toBe(true);
+  await captureDiagram2Phase5Screenshot(page, testInfo, "chromium-1366", "diagram2-phase5-entity-inspector-1366x768.png");
+
+  const relationshipSetup = await page.evaluate(async () => {
+    const controller = window.__pmtDiagram2EditorCore;
+    const renderer = window.__pmtDiagram2Renderer;
+    controller.setState({
+      version: 1,
+      width: 1000,
+      height: 560,
+      objects: [{
+        id: "phase5-browser-child",
+        type: "entity",
+        x: 80,
+        y: 140,
+        width: 520,
+        height: 150,
+        entitySchema: "pmt",
+        entityName: "Phase5BrowserChild",
+        fields: [
+          { name: "Phase5Id", dataType: "int", nullable: false, isPrimaryKey: true, isIdentity: true },
+          { name: "ProjectId", dataType: "int", nullable: false, isForeignKey: true },
+          { name: "BrowserName", dataType: "nvarchar(80)", nullable: true }
+        ],
+        foreignKeys: []
+      }, {
+        id: "phase5-browser-parent",
+        type: "entity",
+        x: 620,
+        y: 180,
+        width: 520,
+        height: 130,
+        entitySchema: "pmt",
+        entityName: "Phase5BrowserParent",
+        fields: [
+          { name: "Phase5ParentId", dataType: "int", nullable: false, isPrimaryKey: true, isIdentity: true },
+          { name: "ParentName", dataType: "nvarchar(80)", nullable: true }
+        ],
+        foreignKeys: []
+      }]
+    }, { reason: "phase5 route fixture", saved: false });
+    renderer.render(controller.state(), { reason: "phase5 route fixture" });
+    renderer.fit();
+    await renderer.whenIdle();
+    await controller.addRelationship({
+      sourceEntityId: "phase5-browser-child",
+      sourceFieldName: "ProjectId",
+      targetEntityId: "phase5-browser-parent",
+      targetFieldName: "Phase5ParentId",
+      relationshipType: "many-to-one"
+    });
+    const relationshipId = controller.selectedRelationshipIds()[0];
+    await controller.updateRelationshipsStyle([relationshipId], "strokeWidth", 5);
+    await controller.updateRelationshipsStyle(["entity-relationships"], "showSymbols", true, { global: true });
+    await controller.setRelationshipRoutingOptions({ manualEntityRelationshipRoutes: true });
+    await controller.useRelationshipRoute(relationshipId);
+    let source = controller.getObjectById("phase5-browser-child");
+    const route = source.foreignKeys[0]?.routeOverride || [];
+    if (route.length >= 2) {
+      const start = route[0];
+      const end = route.at(-1);
+      const midX = Math.round((start.x + end.x) / 2);
+      const manualRoute = [
+        start,
+        { x: midX, y: start.y },
+        { x: midX, y: end.y },
+        end
+      ];
+      const state = controller.currentState();
+      controller.setState({
+        ...state,
+        manualEntityRelationshipRoutes: true,
+        objects: state.objects.map(object => object.id === "phase5-browser-child"
+          ? {
+              ...object,
+              foreignKeys: object.foreignKeys.map((foreignKey, index) =>
+                index === 0 ? { ...foreignKey, routeOverride: manualRoute } : foreignKey)
+            }
+          : object)
+      }, { reason: "phase5 seed manual route", resetHistory: false });
+      renderer.render(controller.state(), { reason: "phase5 seed manual route" });
+      renderer.setSelectedIds([relationshipId]);
+      await renderer.whenIdle();
+      source = controller.getObjectById("phase5-browser-child");
+    }
+    window.__diagram2Phase5RelationshipId = relationshipId;
+    window.__diagram2Phase5RouteBefore = JSON.stringify(source.foreignKeys[0]?.routeOverride || []);
+    renderer.fit();
+    await renderer.whenIdle();
+    return {
+      relationshipId,
+      relationshipCount: controller.statusSnapshot().relationshipCount,
+      manualRoutes: controller.currentState().manualEntityRelationshipRoutes,
+      symbols: controller.currentState().relationshipStyle?.showSymbols === true,
+      routePointCount: source.foreignKeys[0]?.routeOverride?.length || 0,
+      fullRenderCount: Number(document.querySelector("[data-diagram2-svg]")?.dataset.diagram2FullRenderCount || 0)
+    };
+  });
+  expect(relationshipSetup.relationshipId).toBeTruthy();
+  expect(relationshipSetup.relationshipCount).toBe(1);
+  expect(relationshipSetup.manualRoutes).toBe(true);
+  expect(relationshipSetup.symbols).toBe(true);
+  expect(relationshipSetup.routePointCount).toBeGreaterThan(1);
+  await expect(page.locator("[data-diagram2-relationship-route-handle]").first()).toBeVisible();
+  await page.locator("[data-diagram2-inspector-tab='entity']").click();
+  await expect(page.locator("[data-diagram2-relationship-type]")).toBeEnabled();
+  await captureDiagram2Phase5Screenshot(page, testInfo, "chromium-1920", "diagram2-phase5-relationship-manual-route-1920x1080.png");
+
+  const handle = page.locator("[data-diagram2-relationship-route-handle]").first();
+  const handleBox = await handle.boundingBox();
+  expect(handleBox).toBeTruthy();
+  const handleAxis = await handle.getAttribute("data-diagram2-relationship-segment-axis");
+  await page.mouse.move(handleBox.x + handleBox.width / 2, handleBox.y + handleBox.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(
+    handleBox.x + handleBox.width / 2 + (handleAxis === "x" ? 28 : 0),
+    handleBox.y + handleBox.height / 2 + (handleAxis === "y" ? 28 : 0)
+  );
+  await expect(page.locator("[data-diagram2-relationship-route-preview]")).toHaveCount(1);
+  await page.mouse.up();
+  await expect(page.locator("[data-diagram2-relationship-route-preview]")).toHaveCount(0);
+  await expect.poll(() =>
+    page.evaluate(() => {
+      const controller = window.__pmtDiagram2EditorCore;
+      const route = controller.getObjectById("phase5-browser-child")?.foreignKeys?.[0]?.routeOverride || [];
+      return JSON.stringify(route) !== window.__diagram2Phase5RouteBefore;
+    })
+  ).toBe(true);
+
+  await inspectorCompactButton.click();
+  await expect.poll(() =>
+    page.evaluate(() => window.__pmtDiagram2EditorCore.currentState().compactEntityRelationshipRouting === true)
+  ).toBe(true);
+  await captureDiagram2Phase5Screenshot(page, testInfo, "chromium-1920", "diagram2-phase5-auto-format-compact-1920x1080.png");
+  await page.evaluate(async () => {
+    const controller = window.__pmtDiagram2EditorCore;
+    const renderer = window.__pmtDiagram2Renderer;
+    controller.setState(window.__diagram2Phase5OriginalState, { reason: "phase5 restore PMT schema", saved: true });
+    renderer.render(controller.state(), { reason: "phase5 restore PMT schema" });
+    renderer.fit();
+    await renderer.whenIdle();
+    controller.markSaved();
+  });
+  await expect(page.locator("[data-diagram2-diagnostic='canonical-object-count']")).toHaveText("88");
+  await expect(page.locator("[data-diagram2-diagnostic='canonical-relationship-count']")).toHaveText("78");
 }
 
 test("Diagram 2 New creates a shared Diagram document and opens it in Edit mode", async ({ page }) => {
@@ -2172,7 +2370,7 @@ async function diagram2VisibleFitMetrics(page) {
     const renderer = window.__pmtDiagram2Renderer;
     const state = window.__pmtDiagram2EditorCore?.currentState?.();
     await renderer?.whenIdle?.();
-    const rendererModule = await import("/js/features/diagram2/diagram2-renderer.js?v=20260728-diagram2-phase4-v5");
+    const rendererModule = await import("/js/features/diagram2/diagram2-renderer.js?v=20260729-diagram2-phase5-v1");
     const contentBounds = rendererModule.diagram2ContentBounds(state);
     const topLeft = contentBounds && renderer?.worldToScreen?.({ x: contentBounds.x, y: contentBounds.y });
     const bottomRight = contentBounds && renderer?.worldToScreen?.({

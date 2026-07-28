@@ -1,7 +1,11 @@
 import {
   diagram2SelectionResizeBounds,
   resizeDiagram2ObjectsGeometry
-} from "./diagram2-editor-controller.js?v=20260728-diagram2-phase4-v5";
+} from "./diagram2-editor-controller.js?v=20260729-diagram2-phase5-v1";
+import {
+  adjustDiagram2RelationshipRoutePoints,
+  diagram2RelationshipPath
+} from "./diagram2-routing.js?v=20260729-diagram2-phase5-v1";
 
 const diagram2ShortcutTools = {
   v: "select",
@@ -11,7 +15,8 @@ const diagram2ShortcutTools = {
   a: "arrow",
   l: "line",
   t: "textbox",
-  y: "rich-text"
+  y: "rich-text",
+  e: "entity"
 };
 
 export function bindDiagram2EditorInteractions(options = {}) {
@@ -72,6 +77,20 @@ export function bindDiagram2EditorInteractions(options = {}) {
       return;
     }
 
+    if (active.kind === "relationship-route") {
+      clearRelationshipRoutePreview(active);
+      if (!commit || !active.changed) return;
+      const applied = await controller.adjustRelationshipRoute?.(
+        active.relationshipId,
+        active.segmentIndex,
+        active.axis,
+        active.coordinate,
+        { reason: "pointer relationship route" }
+      );
+      if (applied) await afterMutation(options);
+      return;
+    }
+
     if (active.kind === "marquee" && commit) {
       controller.setSelection(active.selection);
       options.onStateChange?.();
@@ -98,6 +117,9 @@ export function bindDiagram2EditorInteractions(options = {}) {
   canvas.addEventListener("pointerdown", event => {
     if (event.button !== 0 && event.button !== 1) return;
     const handle = event.target.closest?.("[data-diagram2-resize-handle]");
+    const relationshipRouteHandle = event.target.closest?.("[data-diagram2-relationship-route-handle]");
+    const relationshipNode = event.target.closest?.("[data-diagram2-relationship-id]");
+    const relationshipId = String(relationshipNode?.dataset?.diagram2RelationshipId || "").trim();
     const objectNode = event.target.closest?.("[data-diagram2-object-id]");
     const objectId = String(objectNode?.dataset?.diagram2ObjectId || "").trim();
     const activeTool = controller.activeTool();
@@ -116,11 +138,32 @@ export function bindDiagram2EditorInteractions(options = {}) {
         void options.onEditText?.(object);
         return;
       }
+      if (object?.type === "entity") {
+        event.preventDefault();
+        lastObjectPointerDown = { id: "", time: 0 };
+        controller.setSelection([object.id]);
+        options.onStateChange?.();
+        void options.onEditEntity?.(object);
+        return;
+      }
     }
     if (event.button === 0 && objectId && activeTool !== "pan") {
       lastObjectPointerDown = { id: objectId, time: pointerTime };
     } else if (event.button === 0) {
       lastObjectPointerDown = { id: "", time: 0 };
+    }
+
+    if (event.button === 0 && relationshipRouteHandle && canvas.contains(relationshipRouteHandle)) {
+      startRelationshipRoute(event, relationshipRouteHandle);
+      return;
+    }
+
+    if (event.button === 0 && relationshipId && canvas.contains(relationshipNode) && activeTool !== "pan") {
+      event.preventDefault();
+      controller.setSelection([relationshipId], { expandGroups: false });
+      controller.setActiveTool("select");
+      options.onStateChange?.();
+      return;
     }
 
     if (event.button === 0 && handle && canvas.contains(handle)) {
@@ -164,11 +207,12 @@ export function bindDiagram2EditorInteractions(options = {}) {
   canvas.addEventListener("dblclick", event => {
     const objectNode = event.target.closest?.("[data-diagram2-object-id]");
     const object = controller.getObjectById(objectNode?.dataset?.diagram2ObjectId);
-    if (!object || !["textbox", "rich-text"].includes(object.type)) return;
+    if (!object || !["textbox", "rich-text", "entity"].includes(object.type)) return;
     event.preventDefault();
     controller.setSelection([object.id]);
     options.onStateChange?.();
-    void options.onEditText?.(object);
+    if (object.type === "entity") void options.onEditEntity?.(object);
+    else void options.onEditText?.(object);
   }, { signal });
 
   canvas.addEventListener("auxclick", event => {
@@ -312,10 +356,20 @@ export function bindDiagram2EditorInteractions(options = {}) {
       return;
     }
 
+    const step = controller.keyboardNudgeStep(event.shiftKey);
+    const focusedRouteHandle = canvas.ownerDocument.activeElement?.closest?.("[data-diagram2-relationship-route-handle]");
+    if (focusedRouteHandle && canvas.contains(focusedRouteHandle)) {
+      const nudged = nudgeRelationshipRouteHandle(focusedRouteHandle, event, step);
+      if (nudged) {
+        event.preventDefault();
+        return;
+      }
+    }
+
     const shortcutTool = diagram2ShortcutTools[key];
     if (shortcutTool && !command && !event.altKey) {
       event.preventDefault();
-      if (["rectangle", "circle", "arrow", "line", "textbox", "rich-text"].includes(shortcutTool)) {
+      if (["rectangle", "circle", "arrow", "line", "textbox", "rich-text", "entity"].includes(shortcutTool)) {
         if (!event.repeat) void options.onAddObject?.(shortcutTool);
       } else {
         controller.setActiveTool(shortcutTool);
@@ -324,7 +378,6 @@ export function bindDiagram2EditorInteractions(options = {}) {
       return;
     }
 
-    const step = controller.keyboardNudgeStep(event.shiftKey);
     const delta = {
       ArrowUp: [0, -step],
       ArrowDown: [0, step],
@@ -410,6 +463,57 @@ export function bindDiagram2EditorInteractions(options = {}) {
       options.onDiagnostics?.(renderer.previewGeometry(delta));
     }, { signal: abortController.signal });
     bindGestureEnd(event.pointerId, abortController.signal);
+  }
+
+  function startRelationshipRoute(event, handle) {
+    event.preventDefault();
+    cancelGesture();
+    if (options.canMutate?.() === false) return;
+    const relationshipId = String(handle?.dataset?.diagram2RelationshipId || "").trim();
+    const segmentIndex = Number.parseInt(handle?.dataset?.diagram2RelationshipSegmentIndex || "", 10);
+    const axis = handle?.dataset?.diagram2RelationshipSegmentAxis === "x" ? "x" : handle?.dataset?.diagram2RelationshipSegmentAxis === "y" ? "y" : "";
+    if (!relationshipId || !Number.isInteger(segmentIndex) || !axis) return;
+    controller.setSelection([relationshipId], { expandGroups: false });
+    options.onStateChange?.();
+    const coordinate = relationshipRouteCoordinate(event, axis);
+    const relationshipNode = handle.closest("[data-diagram2-relationship-id]");
+    const originalPoints = parseRelationshipRoutePoints(handle);
+    const originalPath = diagram2RelationshipPath(originalPoints);
+    const abortController = new AbortController();
+    gesture = {
+      kind: "relationship-route",
+      abortController,
+      relationshipId,
+      segmentIndex,
+      axis,
+      coordinate,
+      startCoordinate: coordinate,
+      originalPoints,
+      originalPath,
+      relationshipNode,
+      changed: false
+    };
+    capturePointer(event);
+    eventWindow.addEventListener("pointermove", moveEvent => {
+      if (gesture?.kind !== "relationship-route") return;
+      const nextCoordinate = relationshipRouteCoordinate(moveEvent, axis);
+      gesture.coordinate = nextCoordinate;
+      const nextPoints = adjustDiagram2RelationshipRoutePoints(
+        gesture.originalPoints,
+        segmentIndex,
+        axis,
+        nextCoordinate
+      );
+      const nextPath = diagram2RelationshipPath(nextPoints);
+      gesture.changed = gesture.changed || (nextPath && nextPath !== gesture.originalPath);
+      previewRelationshipRoute(gesture, nextPath);
+    }, { signal: abortController.signal });
+    bindGestureEnd(event.pointerId, abortController.signal);
+  }
+
+  function relationshipRouteCoordinate(event, axis) {
+    const point = renderer.screenToWorld?.(event) || { x: Number(event.clientX || 0), y: Number(event.clientY || 0) };
+    return Number(axis === "x" ? point.x : point.y);
   }
 
   function startResize(event, objectId, handleName) {
@@ -554,6 +658,73 @@ export function bindDiagram2EditorInteractions(options = {}) {
   }
 
   return cancelGesture;
+
+  function nudgeRelationshipRouteHandle(handle, event, step) {
+    const relationshipId = String(handle?.dataset?.diagram2RelationshipId || "").trim();
+    const segmentIndex = Number.parseInt(handle?.dataset?.diagram2RelationshipSegmentIndex || "", 10);
+    const axis = handle?.dataset?.diagram2RelationshipSegmentAxis === "x" ? "x" : handle?.dataset?.diagram2RelationshipSegmentAxis === "y" ? "y" : "";
+    if (!relationshipId || !Number.isInteger(segmentIndex) || !axis) return false;
+    const direction = axis === "x"
+      ? event.key === "ArrowLeft"
+        ? -1
+        : event.key === "ArrowRight"
+          ? 1
+          : 0
+      : event.key === "ArrowUp"
+        ? -1
+        : event.key === "ArrowDown"
+          ? 1
+          : 0;
+    if (!direction) return false;
+    const coordinate = finiteNumber(axis === "x" ? handle.getAttribute("cx") : handle.getAttribute("cy"), 0)
+      + (direction * step);
+    void controller.adjustRelationshipRoute?.(relationshipId, segmentIndex, axis, coordinate, {
+      reason: "keyboard relationship route"
+    }).then(applied => {
+      if (applied) return afterMutation(options).then(() => {
+        canvas.ownerDocument
+          .querySelector(`[data-diagram2-relationship-id="${cssEscapeSelector(relationshipId)}"] [data-diagram2-relationship-segment-index="${segmentIndex}"]`)
+          ?.focus({ preventScroll: true });
+      });
+      return null;
+    });
+    return true;
+  }
+}
+
+function parseRelationshipRoutePoints(handle) {
+  const source = handle?.closest?.("[data-diagram2-relationship-route-handles]")
+    ?.dataset?.diagram2RelationshipRoutePoints || "[]";
+  try {
+    const parsed = JSON.parse(source);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function previewRelationshipRoute(active, path) {
+  if (!active?.relationshipNode || !path) return;
+  let preview = active.relationshipNode.querySelector(":scope > path[data-diagram2-relationship-route-preview]");
+  if (!preview) {
+    preview = active.relationshipNode.ownerDocument.createElementNS("http://www.w3.org/2000/svg", "path");
+    preview.setAttribute("data-diagram2-relationship-route-preview", "");
+    active.relationshipNode.append(preview);
+  }
+  preview.setAttribute("d", path);
+  preview.setAttribute("fill", "none");
+  preview.setAttribute("stroke", "#0c66e4");
+  preview.setAttribute("stroke-width", "5");
+  preview.setAttribute("opacity", "0.55");
+  preview.setAttribute("stroke-linejoin", "round");
+  preview.setAttribute("stroke-linecap", "round");
+  preview.setAttribute("pointer-events", "none");
+}
+
+function clearRelationshipRoutePreview(active) {
+  active?.relationshipNode
+    ?.querySelector?.(":scope > path[data-diagram2-relationship-route-preview]")
+    ?.remove();
 }
 
 async function afterMutation(options) {
@@ -596,6 +767,11 @@ function objectPositionFixed(object) {
 
 function objectResizable(object) {
   return Boolean(object && object.locked !== true && !objectPositionFixed(object));
+}
+
+function cssEscapeSelector(value) {
+  if (globalThis.CSS?.escape) return globalThis.CSS.escape(String(value || ""));
+  return String(value || "").replace(/["\\]/g, "\\$&");
 }
 
 function objectsChanged(originals, nextObjects) {

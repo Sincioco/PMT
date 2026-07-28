@@ -281,6 +281,19 @@ body.diagram2-edit-mode-active #app {
   cursor: crosshair;
 }
 
+.diagram2-renderer-relationship-route-handle {
+  fill: var(--color-focus-ring);
+  stroke: var(--color-surface-raised);
+  opacity: 0.92;
+  pointer-events: all;
+  cursor: grab;
+  vector-effect: non-scaling-stroke;
+}
+
+.diagram2-renderer-relationship-route-handle:hover {
+  fill: var(--color-accent, var(--color-focus-ring));
+}
+
 .diagram2-renderer-object.is-field-mapping-table [data-diagram2-field-mapping-row]:hover [data-diagram2-field-mapping-cell-fill] {
   fill: var(--diagram2-field-mapping-row-hover-fill);
 }

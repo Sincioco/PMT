@@ -1,10 +1,21 @@
 import { createDiagram2CommandHistory } from "./diagram2-editor-history.js?v=20260726-diagram2-phase2-v1";
-import { normalizeDiagram2CanonicalState } from "./diagram2-renderer.js?v=20260728-diagram2-phase4-v5";
+import {
+  diagram2CanonicalRelationships,
+  normalizeDiagram2CanonicalState
+} from "./diagram2-renderer.js?v=20260729-diagram2-phase5-v1";
 import {
   createDiagram2SelectionClipboardText,
   parseDiagram2SelectionClipboardText,
   remapDiagram2SelectionClipboardPackageIds
 } from "./diagram2-compatibility.js?v=20260728-diagram2-phase4-v5";
+import {
+  createDiagram2EntityObject,
+  diagram2AddEntityFieldPlan,
+  diagram2ApplyEntityDefinitionPlan,
+  diagram2RemoveEntityFieldPlan,
+  diagram2SetEntityOptionPlan,
+  diagram2UpdateEntityFieldPlan
+} from "./diagram2-editor-entities.js?v=20260729-diagram2-phase5-v1";
 import {
   createDiagram2StructureStateCommand,
   diagram2ExpandGroupSelectionIds,
@@ -17,7 +28,7 @@ import {
   diagram2SetStructureVisibilityPlan,
   diagram2UngroupSelectionPlan,
   pruneDiagram2GroupMetadata
-} from "./diagram2-editor-structure.js?v=20260728-diagram2-phase4-v5";
+} from "./diagram2-editor-structure.js?v=20260729-diagram2-phase5-v1";
 import {
   applyDiagram2DrawingDefault,
   applyDiagram2TemplateFormat,
@@ -25,12 +36,26 @@ import {
   instantiateDiagram2TemplateObjects,
   normalizeDiagram2DrawingDefaults
 } from "./diagram2-editor-templates.js?v=20260728-diagram2-phase4-v5";
+import {
+  diagram2AddRelationshipPlan,
+  diagram2AdjustRelationshipRoutePlan,
+  diagram2AutoFormatCompactPlan,
+  diagram2ClearRelationshipRoutePlan,
+  diagram2DeleteRelationshipsPlan,
+  diagram2RelationshipById,
+  diagram2RelationshipSelectionObjects,
+  diagram2SelectableRelationshipIds,
+  diagram2SetRelationshipRoutingOptionsPlan,
+  diagram2SetRelationshipStylePlan,
+  diagram2SetRelationshipTypePlan,
+  diagram2UseCurrentRelationshipRoutePlan
+} from "./diagram2-editor-relationships.js?v=20260729-diagram2-phase5-v1";
 import { normalizeRichHtml } from "../../shared/text-and-links.js?v=20260722-rte-toggle-state-v1";
 
 const keyboardNudgeMergeWindowMilliseconds = 350;
 const styleMergeWindowMilliseconds = 500;
 const minimumDiagram2ObjectSize = 8;
-const diagram2CoreDrawingTools = new Set(["rectangle", "circle", "arrow", "line", "textbox", "rich-text"]);
+const diagram2CoreDrawingTools = new Set(["rectangle", "circle", "arrow", "line", "textbox", "rich-text", "entity"]);
 const defaultDiagram2DrawingStyles = {
   fill: "#5aa315",
   stroke: "#3f7f0d",
@@ -58,11 +83,11 @@ const defaultDiagram2FieldMappingStyles = {
 };
 const diagram2StyleTargets = new Map([
   ["fill", new Set(["rectangle", "circle", "textbox", "rich-text", "entity", "field-rectangle"])],
-  ["stroke", new Set(["rectangle", "circle", "textbox", "rich-text", "entity", "field-rectangle", "field-mapping-table", "arrow", "line"])],
+  ["stroke", new Set(["rectangle", "circle", "textbox", "rich-text", "entity", "field-rectangle", "field-mapping-table", "arrow", "line", "entity-relationship", "entity-relationships"])],
   ["outlineVisible", new Set(["rectangle", "circle", "textbox", "rich-text", "entity", "field-rectangle", "field-mapping-table"])],
-  ["strokeWidth", new Set(["rectangle", "circle", "textbox", "rich-text", "entity", "field-rectangle", "field-mapping-table", "arrow", "line"])],
-  ["arrowSize", new Set(["arrow"])],
-  ["opacity", new Set(["rectangle", "circle", "textbox", "rich-text", "entity", "field-rectangle", "field-mapping-table", "arrow", "line"])],
+  ["strokeWidth", new Set(["rectangle", "circle", "textbox", "rich-text", "entity", "field-rectangle", "field-mapping-table", "arrow", "line", "entity-relationship", "entity-relationships"])],
+  ["arrowSize", new Set(["arrow", "entity-relationship", "entity-relationships"])],
+  ["opacity", new Set(["rectangle", "circle", "textbox", "rich-text", "entity", "field-rectangle", "field-mapping-table", "arrow", "line", "entity-relationship", "entity-relationships"])],
   ["textColor", new Set(["textbox", "entity", "field-mapping-table"])],
   ["fontFamily", new Set(["textbox", "entity", "field-mapping-table"])],
   ["fontSize", new Set(["textbox", "entity", "field-mapping-table"])],
@@ -78,7 +103,8 @@ const diagram2StyleTargets = new Map([
   ["databaseFill", new Set(["field-mapping-table"])],
   ["fieldMappingRowHoverFill", new Set(["field-mapping-table"])],
   ["fieldMappingHighlightColor", new Set(["field-mapping-table"])],
-  ["fieldMappingHighlightStrokeWidth", new Set(["field-mapping-table"])]
+  ["fieldMappingHighlightStrokeWidth", new Set(["field-mapping-table"])],
+  ["showSymbols", new Set(["entity-relationship", "entity-relationships"])]
 ]);
 const diagram2ColorStyleNames = new Set([
   "fill",
@@ -129,6 +155,13 @@ export function createDiagram2DefaultObject(typeInput, centerInput = {}, options
     };
     if (type === "arrow") object.arrowSize = defaultDiagram2DrawingStyles.arrowSize;
     return applyDiagram2DrawingDefault(object, options.drawingDefaults);
+  }
+
+  if (type === "entity") {
+    return createDiagram2EntityObject({
+      name: options.entityName || "Entity",
+      fields: [{ name: "Id", dataType: "int", nullable: false, isPrimaryKey: true }]
+    }, center, { id });
   }
 
   const width = type === "rich-text" ? 520 : type === "textbox" ? 320 : type === "circle" ? 180 : 240;
@@ -223,7 +256,7 @@ export function createDiagram2EditorController(options = {}) {
         reason: String(setOptions.reason || "state replacement")
       }
     };
-    selectedObjectIds = existingObjectIds(selectedObjectIds);
+    selectedObjectIds = existingSelectableIds(selectedObjectIds);
     if (setOptions.resetHistory !== false) history.reset({ saved: setOptions.saved !== false });
     renderer?.setCanvasOptions?.({
       gridVisible: canonicalState.gridVisible === true,
@@ -235,10 +268,10 @@ export function createDiagram2EditorController(options = {}) {
   }
 
   function setSelection(ids = [], selectionOptions = {}) {
-    const exactIds = existingObjectIds(ids);
+    const exactIds = existingSelectableIds(ids);
     selectedObjectIds = selectionOptions.expandGroups === false
       ? exactIds
-      : diagram2ExpandGroupSelectionIds(canonicalState, exactIds);
+      : expandDiagram2SelectableSelectionIds(exactIds);
     const diagnostics = renderer?.setSelectedIds?.(selectedObjectIds);
     emit("selection", { diagnostics });
     return selectedObjectIds.slice();
@@ -353,6 +386,12 @@ export function createDiagram2EditorController(options = {}) {
         && !objectPositionFixed(object)
         && diagram2ObjectSupportsStyle(object, styleName);
     });
+    if (!ids.length) {
+      const relationshipIds = selectedRelationshipIds();
+      if (relationshipIds.length && diagram2RelationshipSupportsStyle(styleName)) {
+        return updateRelationshipsStyle(relationshipIds, styleName, value, commandOptions);
+      }
+    }
     if (!ids.length) return false;
 
     const command = createDiagram2StyleCommand({
@@ -464,6 +503,14 @@ export function createDiagram2EditorController(options = {}) {
 
   async function deleteSelectedObjects(commandOptions = {}) {
     if (busy || destroyed || !canMutate()) return false;
+    const relationshipIds = selectedRelationshipIds();
+    if (relationshipIds.length && relationshipIds.length === selectedObjectIds.length) {
+      const plan = diagram2DeleteRelationshipsPlan(canonicalState, relationshipIds);
+      return executeDiagram2StatePlan(plan, {
+        label: commandOptions.label || "Delete relationship",
+        reason: commandOptions.reason || "delete relationship"
+      });
+    }
     const ids = selectedObjectIds.filter(id => {
       const object = getObjectById(id);
       return object && object.locked !== true && !objectPositionFixed(object);
@@ -760,6 +807,14 @@ export function createDiagram2EditorController(options = {}) {
     });
   }
 
+  function selectedRelationshipIds(idsInput = selectedObjectIds) {
+    return uniqueStrings(idsInput).filter(id => diagram2RelationshipById(canonicalState, id));
+  }
+
+  function selectedRelationshipObjects(idsInput = selectedObjectIds) {
+    return diagram2RelationshipSelectionObjects(canonicalState, selectedRelationshipIds(idsInput));
+  }
+
   function createDefaultObject(type, centerInput = {}, options = {}) {
     return createDiagram2DefaultObject(type, centerInput, {
       ...options,
@@ -840,12 +895,167 @@ export function createDiagram2EditorController(options = {}) {
     return true;
   }
 
+  async function addEntity(definition, centerInput = null, commandOptions = {}) {
+    if (busy || destroyed || !canMutate()) return false;
+    const object = createDiagram2EntityObject(
+      definition,
+      centerInput || snapPoint(defaultDiagram2CanvasCenter),
+      { id: commandOptions.id }
+    );
+    if (!object) return false;
+    return addObject(object, {
+      label: commandOptions.label || "Add entity",
+      reason: commandOptions.reason || "add entity"
+    });
+  }
+
+  async function updateEntityDefinition(objectId, definition, commandOptions = {}) {
+    if (busy || destroyed || !canMutate()) return false;
+    const plan = diagram2ApplyEntityDefinitionPlan(canonicalState, objectId, definition);
+    return executeDiagram2StatePlan(plan, {
+      label: commandOptions.label || "Update entity",
+      reason: commandOptions.reason || "update entity"
+    });
+  }
+
+  async function setEntityOption(objectId, optionName, value, commandOptions = {}) {
+    if (busy || destroyed || !canMutate()) return false;
+    const plan = diagram2SetEntityOptionPlan(canonicalState, objectId, optionName, value);
+    return executeDiagram2StatePlan(plan, {
+      label: commandOptions.label || "Update entity display",
+      reason: commandOptions.reason || `entity ${optionName}`
+    });
+  }
+
+  async function updateEntityField(objectId, fieldIndex, patch, commandOptions = {}) {
+    if (busy || destroyed || !canMutate()) return false;
+    const plan = diagram2UpdateEntityFieldPlan(canonicalState, objectId, fieldIndex, patch);
+    return executeDiagram2StatePlan(plan, {
+      label: commandOptions.label || "Update entity field",
+      reason: commandOptions.reason || "update entity field"
+    });
+  }
+
+  async function addEntityField(objectId, field, commandOptions = {}) {
+    if (busy || destroyed || !canMutate()) return false;
+    const plan = diagram2AddEntityFieldPlan(canonicalState, objectId, field);
+    return executeDiagram2StatePlan(plan, {
+      label: commandOptions.label || "Add entity field",
+      reason: commandOptions.reason || "add entity field"
+    });
+  }
+
+  async function removeEntityField(objectId, fieldIndex, commandOptions = {}) {
+    if (busy || destroyed || !canMutate()) return false;
+    const plan = diagram2RemoveEntityFieldPlan(canonicalState, objectId, fieldIndex);
+    return executeDiagram2StatePlan(plan, {
+      label: commandOptions.label || "Remove entity field",
+      reason: commandOptions.reason || "remove entity field"
+    });
+  }
+
+  async function addRelationship(input, commandOptions = {}) {
+    if (busy || destroyed || !canMutate()) return false;
+    const plan = diagram2AddRelationshipPlan(canonicalState, input);
+    return executeDiagram2StatePlan(plan, {
+      label: commandOptions.label || "Add relationship",
+      reason: commandOptions.reason || "add relationship"
+    });
+  }
+
+  async function updateRelationshipsStyle(relationshipIds, styleName, value, commandOptions = {}) {
+    if (busy || destroyed || !canMutate()) return false;
+    const plan = diagram2SetRelationshipStylePlan(canonicalState, relationshipIds, styleName, value, {
+      global: commandOptions.global === true
+    });
+    return executeDiagram2StatePlan(plan, {
+      label: commandOptions.label || "Update relationship style",
+      reason: commandOptions.reason || `relationship ${styleName}`
+    });
+  }
+
+  async function setRelationshipType(relationshipId, relationshipType, commandOptions = {}) {
+    if (busy || destroyed || !canMutate()) return false;
+    const plan = diagram2SetRelationshipTypePlan(canonicalState, relationshipId, relationshipType);
+    return executeDiagram2StatePlan(plan, {
+      label: commandOptions.label || "Update relationship type",
+      reason: commandOptions.reason || "relationship type"
+    });
+  }
+
+  async function setRelationshipRoutingOptions(patch, commandOptions = {}) {
+    if (busy || destroyed || !canMutate()) return false;
+    const plan = diagram2SetRelationshipRoutingOptionsPlan(canonicalState, patch);
+    return executeDiagram2StatePlan(plan, {
+      label: commandOptions.label || "Update relationship routing",
+      reason: commandOptions.reason || "relationship routing"
+    });
+  }
+
+  async function useRelationshipRoute(relationshipId, commandOptions = {}) {
+    if (busy || destroyed || !canMutate()) return false;
+    const plan = diagram2UseCurrentRelationshipRoutePlan(canonicalState, relationshipId);
+    return executeDiagram2StatePlan(plan, {
+      label: commandOptions.label || "Use manual relationship route",
+      reason: commandOptions.reason || "use manual relationship route"
+    });
+  }
+
+  async function adjustRelationshipRoute(relationshipId, segmentIndex, axis, coordinate, commandOptions = {}) {
+    if (busy || destroyed || !canMutate()) return false;
+    const plan = diagram2AdjustRelationshipRoutePlan(canonicalState, relationshipId, segmentIndex, axis, coordinate);
+    return executeDiagram2StatePlan(plan, {
+      label: commandOptions.label || "Adjust manual relationship route",
+      reason: commandOptions.reason || "adjust relationship route"
+    });
+  }
+
+  async function clearRelationshipRoutes(relationshipIds, commandOptions = {}) {
+    if (busy || destroyed || !canMutate()) return false;
+    const plan = diagram2ClearRelationshipRoutePlan(canonicalState, relationshipIds);
+    return executeDiagram2StatePlan(plan, {
+      label: commandOptions.label || "Clear manual relationship route",
+      reason: commandOptions.reason || "clear relationship route"
+    });
+  }
+
+  async function autoFormatCompact(commandOptions = {}) {
+    if (busy || destroyed || !canMutate()) return false;
+    const preferredRootId = selectedObjectIds
+      .map(id => getObjectById(id))
+      .find(object => object?.type === "entity")?.id || "";
+    const plan = diagram2AutoFormatCompactPlan(canonicalState, {
+      preferredRootId,
+      selectionAfter: selectedObjectIds
+    });
+    return executeDiagram2StatePlan(plan, {
+      label: commandOptions.label || "Auto Format - Compact",
+      reason: commandOptions.reason || "auto format compact"
+    });
+  }
+
+  async function executeDiagram2StatePlan(plan, commandOptions = {}) {
+    if (!plan?.nextState) return false;
+    await history.execute(createDiagram2StructureStateCommand({
+      nextState: plan.nextState,
+      affectedObjectIds: plan.affectedObjectIds,
+      affectedRelationshipIds: plan.affectedRelationshipIds,
+      selectionAfter: plan.selectionAfter,
+      label: commandOptions.label || plan.label || "Update diagram",
+      reason: commandOptions.reason || plan.label || "update diagram"
+    }), commandContext());
+    emit("history", {
+      diagnostics: plan.diagnostics || null
+    });
+    return true;
+  }
+
   async function undo() {
     if (busy || destroyed || !canMutate()) return false;
     const before = history.status();
     if (!before.canUndo) return false;
     await history.undo(commandContext());
-    selectedObjectIds = existingObjectIds(selectedObjectIds);
+    selectedObjectIds = existingSelectableIds(selectedObjectIds);
     renderer?.setSelectedIds?.(selectedObjectIds);
     emit("history");
     return true;
@@ -856,7 +1066,7 @@ export function createDiagram2EditorController(options = {}) {
     const before = history.status();
     if (!before.canRedo) return false;
     await history.redo(commandContext());
-    selectedObjectIds = existingObjectIds(selectedObjectIds);
+    selectedObjectIds = existingSelectableIds(selectedObjectIds);
     renderer?.setSelectedIds?.(selectedObjectIds);
     emit("history");
     return true;
@@ -910,6 +1120,7 @@ export function createDiagram2EditorController(options = {}) {
       mode: host?.mode || "diagram-document",
       selectedObjectIds: selectedObjectIds.slice(),
       selectedCount: selectedObjectIds.length,
+      selectedRelationships: selectedRelationshipObjects(),
       objectCount: canonicalState.objects.length,
       relationshipCount: canonicalRelationshipCount,
       history: historyStatus
@@ -1016,7 +1227,6 @@ export function createDiagram2EditorController(options = {}) {
       nextObjects[index] = nextObject;
       previousObjectsById.set(id, previousObject);
       nextObjectsById.set(id, nextObject);
-      canonicalRelationshipCount += diagram2ObjectRelationshipCount(nextObject) - diagram2ObjectRelationshipCount(previousObject);
       objectById.set(id, nextObject);
     });
 
@@ -1041,6 +1251,7 @@ export function createDiagram2EditorController(options = {}) {
       ...canonicalState,
       objects: nextObjects
     };
+    canonicalRelationshipCount = diagram2RelationshipCount(canonicalState);
     return recordCanonicalOperation({
       kind: "update-objects",
       changed: true,
@@ -1093,7 +1304,7 @@ export function createDiagram2EditorController(options = {}) {
     };
     objectIndexById.set(objectId, nextObjects.length - 1);
     objectById.set(objectId, nextObject);
-    canonicalRelationshipCount += diagram2ObjectRelationshipCount(nextObject);
+    canonicalRelationshipCount = diagram2RelationshipCount(canonicalState);
     return recordCanonicalOperation({
       kind: "add-object",
       changed: true,
@@ -1161,9 +1372,7 @@ export function createDiagram2EditorController(options = {}) {
     };
     canonicalState = pruneDiagram2GroupMetadata(canonicalState);
     rebuildCanonicalObjectIndex();
-    objects.forEach(object => {
-      canonicalRelationshipCount += diagram2ObjectRelationshipCount(object);
-    });
+    canonicalRelationshipCount = diagram2RelationshipCount(canonicalState);
     return recordCanonicalOperation({
       kind: "add-objects",
       changed: true,
@@ -1213,11 +1422,9 @@ export function createDiagram2EditorController(options = {}) {
       objects: nextObjects
     };
     canonicalState = pruneDiagram2GroupMetadata(canonicalState);
-    previousObjectsById.forEach(object => {
-      canonicalRelationshipCount -= diagram2ObjectRelationshipCount(object);
-    });
     rebuildCanonicalObjectIndex();
-    selectedObjectIds = existingObjectIds(selectedObjectIds);
+    canonicalRelationshipCount = diagram2RelationshipCount(canonicalState);
+    selectedObjectIds = existingSelectableIds(selectedObjectIds);
     return recordCanonicalOperation({
       kind: "remove-objects",
       changed: true,
@@ -1306,6 +1513,7 @@ export function createDiagram2EditorController(options = {}) {
     const currentOrder = canonicalState.objects.map(object => object.id);
     const nextOrder = nextState.objects.map(object => object.id);
     const requestedAffectedIds = uniqueStrings(structureOptions.affectedObjectIds);
+    const requestedAffectedRelationshipIds = uniqueStrings(structureOptions.affectedRelationshipIds);
     const affectedObjectIds = requestedAffectedIds.length
       ? requestedAffectedIds
       : uniqueStrings([
@@ -1320,12 +1528,15 @@ export function createDiagram2EditorController(options = {}) {
       || JSON.stringify(canonicalState.groupVisibility || {}) !== JSON.stringify(nextState.groupVisibility || {});
     const orderChanged = currentOrder.length !== nextOrder.length
       || currentOrder.some((id, index) => id !== nextOrder[index]);
-    const changed = Boolean(affectedObjectIds.length || groupChanged || orderChanged);
+    const globalRelationshipChanged = ["relationshipStyle", "allowOverlappingEntityLines", "hideAllEntityRelationships", "manualEntityRelationshipRoutes", "compactEntityRelationshipRouting"]
+      .some(key => JSON.stringify(canonicalState[key] ?? null) !== JSON.stringify(nextState[key] ?? null));
+    const changed = Boolean(affectedObjectIds.length || requestedAffectedRelationshipIds.length || groupChanged || orderChanged || globalRelationshipChanged);
     if (!changed) {
       return recordCanonicalOperation({
         kind: "structure-state",
         changed: false,
         affectedObjectIds: [],
+        affectedRelationshipIds: [],
         requestedObjectCount: requestedAffectedIds.length,
         objectLookupCount: requestedAffectedIds.length,
         objectPatchCount: 0,
@@ -1341,11 +1552,12 @@ export function createDiagram2EditorController(options = {}) {
     canonicalState = nextState;
     canonicalRelationshipCount = diagram2RelationshipCount(canonicalState);
     rebuildCanonicalObjectIndex();
-    selectedObjectIds = existingObjectIds(selectedObjectIds);
+    selectedObjectIds = existingSelectableIds(selectedObjectIds);
     return recordCanonicalOperation({
       kind: "structure-state",
       changed: true,
       affectedObjectIds,
+      affectedRelationshipIds: requestedAffectedRelationshipIds,
       requestedObjectCount: requestedAffectedIds.length,
       objectLookupCount: requestedAffectedIds.length,
       objectPatchCount: affectedObjectIds.length,
@@ -1384,6 +1596,21 @@ export function createDiagram2EditorController(options = {}) {
 
   function existingObjectIds(ids) {
     return uniqueStrings(ids).filter(id => objectIndexById.has(id));
+  }
+
+  function existingSelectableIds(ids) {
+    const relationshipIds = new Set(diagram2SelectableRelationshipIds(canonicalState));
+    return uniqueStrings(ids).filter(id => objectIndexById.has(id) || relationshipIds.has(id));
+  }
+
+  function expandDiagram2SelectableSelectionIds(ids) {
+    const exactIds = uniqueStrings(ids);
+    const objectIds = exactIds.filter(id => objectIndexById.has(id));
+    const relationshipIds = exactIds.filter(id => !objectIndexById.has(id));
+    return [
+      ...diagram2ExpandGroupSelectionIds(canonicalState, objectIds),
+      ...relationshipIds
+    ];
   }
 
   function rebuildCanonicalObjectIndex() {
@@ -1458,6 +1685,20 @@ export function createDiagram2EditorController(options = {}) {
     setStructureStateCanonical,
     addObject,
     addObjects,
+    addEntity,
+    updateEntityDefinition,
+    setEntityOption,
+    updateEntityField,
+    addEntityField,
+    removeEntityField,
+    addRelationship,
+    updateRelationshipsStyle,
+    setRelationshipType,
+    setRelationshipRoutingOptions,
+    useRelationshipRoute,
+    adjustRelationshipRoute,
+    clearRelationshipRoutes,
+    autoFormatCompact,
     deleteSelectedObjects,
     duplicateSelectedObjects,
     selectionClipboardText,
@@ -1494,6 +1735,8 @@ export function createDiagram2EditorController(options = {}) {
     currentState,
     state: () => normalizeDiagram2CanonicalState(canonicalState),
     selectedObjectIds: () => selectedObjectIds.slice(),
+    selectedRelationshipIds,
+    selectedRelationshipObjects,
     activeTool: () => activeTool,
     formatPainterActive: () => activeTool === "format-painter" && Boolean(formatPainterStyles),
     historyStatus: () => history.status(),
@@ -2376,12 +2619,7 @@ function applyDiagram2Style(context, objectIds, styleName, valueProvider, option
 }
 
 function diagram2RelationshipCount(state) {
-  return state.objects.reduce((count, object) =>
-    count + (Array.isArray(object.relationships) ? object.relationships.length : 0), 0);
-}
-
-function diagram2ObjectRelationshipCount(object) {
-  return Array.isArray(object?.relationships) ? object.relationships.length : 0;
+  return diagram2CanonicalRelationships(state).length;
 }
 
 function uniqueStrings(values) {
@@ -2409,6 +2647,10 @@ function diagram2ObjectSupportsStyle(object, styleName) {
   return Boolean(object && styleName && (targets?.has(type) || hasOwn(object, styleName)));
 }
 
+function diagram2RelationshipSupportsStyle(styleName) {
+  return ["stroke", "strokeWidth", "arrowSize", "opacity", "showSymbols"].includes(styleName);
+}
+
 function diagram2ObjectStyleType(object) {
   if (object?.type === "entity" && object.entityKind === "field-rectangle") return "field-rectangle";
   return String(object?.type || "").trim().toLowerCase();
@@ -2416,6 +2658,7 @@ function diagram2ObjectStyleType(object) {
 
 function normalizeDiagram2StyleValue(styleName, value) {
   if (!styleName) return undefined;
+  if (styleName === "showSymbols") return value === true || String(value).trim().toLowerCase() === "true";
   if (diagram2ColorStyleNames.has(styleName)) {
     if (styleName === "fill" && String(value || "").trim().toLowerCase() === "none") return "none";
     return normalizeDiagram2Color(value) || undefined;
@@ -2548,7 +2791,8 @@ function nextDiagram2DrawingObjectName(typeInput, existingObjects) {
     arrow: "Arrow",
     line: "Line",
     textbox: "Text Box",
-    "rich-text": "Rich Text"
+    "rich-text": "Rich Text",
+    entity: "Entity"
   }[String(typeInput || "").trim().toLowerCase()] || "Object";
   const escapedBaseName = baseName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const pattern = new RegExp(`^${escapedBaseName}\\s+(\\d+)$`, "i");

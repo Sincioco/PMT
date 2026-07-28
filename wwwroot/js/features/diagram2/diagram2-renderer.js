@@ -9,6 +9,10 @@ import {
   wrapAnnotationText
 } from "../../components/image-annotation.js?v=20260728-diagram2-phase4-v5";
 import { normalizeRichHtml } from "../../shared/text-and-links.js?v=20260722-rte-toggle-state-v1";
+import {
+  createDiagram2RelationshipRouteModel,
+  diagram2RelationshipRouteFromModel
+} from "./diagram2-routing.js?v=20260729-diagram2-phase5-v1";
 
 const svgNamespace = "http://www.w3.org/2000/svg";
 const xhtmlNamespace = "http://www.w3.org/1999/xhtml";
@@ -724,7 +728,9 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
         dirty.sectors = true;
         return;
       }
-      markObjectDirty(id, flags, previousObject, nextObject);
+      markObjectDirty(id, flags, previousObject, nextObject, {
+        affectedRelationshipIds: options.affectedRelationshipIds
+      });
     });
 
     if (previousOrder !== nextOrder) dirty.zOrder = true;
@@ -1501,7 +1507,8 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
       detailChanged,
       routeChanged,
       styleChanged,
-      selected: liveView.selectedIds.has(relationship.id)
+      selected: liveView.selectedIds.has(relationship.id),
+      manualRoutes: canonicalState?.manualEntityRelationshipRoutes === true
     });
     liveView.relationshipDataById.set(relationship.id, relationship);
     liveView.relationshipVersionsById.set(relationship.id, relationshipRenderVersion(routeSignature, styleSignature, detailLevel));
@@ -1655,7 +1662,7 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
     return patched;
   }
 
-  function markObjectDirty(id, flags, previousObject = null, nextObject = null) {
+  function markObjectDirty(id, flags, previousObject = null, nextObject = null, options = {}) {
     if (!flags.changed) return;
     if (flags.structureChanged) dirty.objectStructure.add(id);
     if (flags.transformChanged) dirty.objectGeometry.add(id);
@@ -1668,7 +1675,9 @@ export function createDiagram2Renderer({ host, performance: performanceApi = glo
     }
 
     if (flags.structureChanged) {
-      dirty.relationshipGeometry.add(allRelationshipsDirtyToken);
+      const scopedRelationshipIds = uniqueDiagram2RendererStrings(options.affectedRelationshipIds);
+      if (scopedRelationshipIds.length) scopedRelationshipIds.forEach(relationshipId => dirty.relationshipGeometry.add(relationshipId));
+      else dirty.relationshipGeometry.add(allRelationshipsDirtyToken);
       dirty.worldBounds = true;
       dirty.sectors = true;
       return;
@@ -3974,6 +3983,29 @@ function patchRelationshipNode(node, previousRelationship, relationship, flags =
   }
   title.textContent = `${formatEntityIdentifier(relationship.source?.entitySchema, relationship.source?.entityName)}.${relationship.sourceField?.name || ""} -> ${formatEntityIdentifier(relationship.target?.entitySchema, relationship.target?.entityName)}.${relationship.targetField?.name || ""}`;
 
+  let selectionPath = node.querySelector(":scope > path[data-diagram2-relationship-selection-path]");
+  if (flags.selected) {
+    if (!selectionPath) {
+      selectionPath = appendSvg(node, "path", {
+        "data-diagram2-relationship-selection-path": ""
+      });
+    }
+    setSvgAttributes(selectionPath, {
+      class: "diagram2-renderer-relationship-selection-path",
+      "data-diagram2-relationship-selection-path": "",
+      d: renderRoute.path,
+      fill: "none",
+      stroke: "#0c66e4",
+      "stroke-width": Math.max(style.strokeWidth + 6, 8),
+      opacity: 0.35,
+      "stroke-linejoin": "round",
+      "stroke-linecap": "round",
+      "pointer-events": "none"
+    });
+  } else {
+    selectionPath?.remove();
+  }
+
   let path = node.querySelector(":scope > path[data-diagram2-relationship-path]");
   if (!path) {
     path = appendSvg(node, "path", {
@@ -3981,27 +4013,243 @@ function patchRelationshipNode(node, previousRelationship, relationship, flags =
     });
   }
   setSvgAttributes(path, {
-    class: "diagram2-renderer-relationship diagram2-renderer-relationship-hit-path",
+    class: "diagram2-renderer-relationship-hit-path",
     "data-diagram2-relationship-path": "",
     d: renderRoute.path,
     fill: "none",
     stroke: "transparent",
-    "stroke-width": style.strokeWidth,
-    opacity: 0,
+    "stroke-width": Math.max(style.strokeWidth + 12, 14),
+    opacity: 0.01,
     "stroke-linejoin": "round",
     "stroke-linecap": "round",
-    "vector-effect": null
+    "vector-effect": null,
+    "pointer-events": "stroke"
   });
+  patchRelationshipSymbols(node, relationship, renderRoute, style);
+  patchRelationshipRouteHandles(node, relationship, renderRoute, flags.selected === true && flags.manualRoutes === true);
 }
 
 function lowDetailRelationshipRoute(relationship, routeInput) {
   return routeInput || relationshipRoute(relationship);
 }
 
+function patchRelationshipSymbols(node, relationship, route, style) {
+  let group = node.querySelector(":scope > g[data-diagram2-relationship-symbols]");
+  if (style.showSymbols !== true || !route?.points?.length) {
+    group?.remove();
+    return;
+  }
+  if (!group) {
+    group = appendSvg(node, "g", {
+      "data-diagram2-relationship-symbols": ""
+    });
+  }
+  const geometry = relationshipMarkerGeometry(
+    route.start,
+    route.end,
+    route.sourceUnit || endpointUnit(route.points[0], route.points[1]),
+    route.targetUnit || endpointUnit(route.points.at(-1), route.points.at(-2), true),
+    route.relationshipType || relationship.foreignKey?.relationshipType || "",
+    style
+  );
+  let lineMarkers = group.querySelector(":scope > path[data-diagram2-relationship-symbol-lines]");
+  if (geometry.lineSegments.length) {
+    if (!lineMarkers) {
+      lineMarkers = appendSvg(group, "path", {
+        "data-diagram2-relationship-symbol-lines": ""
+      });
+    }
+    setSvgAttributes(lineMarkers, {
+      class: "diagram2-renderer-relationship-symbol",
+      d: geometry.lineSegments.map(([first, second]) =>
+        `M ${formatNumber(first.x)} ${formatNumber(first.y)} L ${formatNumber(second.x)} ${formatNumber(second.y)}`).join(" "),
+      fill: "none",
+      stroke: style.stroke,
+      "stroke-width": style.strokeWidth,
+      opacity: style.opacity,
+      "pointer-events": "none"
+    });
+  } else {
+    lineMarkers?.remove();
+  }
+
+  let arrow = group.querySelector(":scope > polygon[data-diagram2-relationship-symbol-arrow]");
+  if (!arrow) {
+    arrow = appendSvg(group, "polygon", {
+      "data-diagram2-relationship-symbol-arrow": ""
+    });
+  }
+  setSvgAttributes(arrow, {
+    class: "diagram2-renderer-relationship-symbol",
+    points: geometry.arrowPoints.map(point => `${formatNumber(point.x)},${formatNumber(point.y)}`).join(" "),
+    fill: style.stroke,
+    opacity: style.opacity,
+    "pointer-events": "none"
+  });
+}
+
+function patchRelationshipRouteHandles(node, relationship, route, selected) {
+  let group = node.querySelector(":scope > g[data-diagram2-relationship-route-handles]");
+  const points = Array.isArray(route?.points) ? route.points : [];
+  if (!selected || points.length < 2) {
+    group?.remove();
+    return;
+  }
+  if (!group) {
+    group = appendSvg(node, "g", {
+      "data-diagram2-relationship-route-handles": ""
+    });
+  }
+  setSvgAttributes(group, {
+    "data-diagram2-relationship-route-points": JSON.stringify(points.map(point => ({
+      x: point.x,
+      y: point.y
+    })))
+  });
+  const handles = points.slice(0, -1)
+    .map((point, index) => {
+      const next = points[index + 1];
+      const vertical = Math.abs(point.x - next.x) <= 0.001;
+      const horizontal = Math.abs(point.y - next.y) <= 0.001;
+      if (!vertical && !horizontal) return null;
+      if (Math.abs(point.x - next.x) + Math.abs(point.y - next.y) < 12) return null;
+      return {
+        index,
+        axis: vertical ? "x" : "y",
+        x: (point.x + next.x) / 2,
+        y: (point.y + next.y) / 2
+      };
+    })
+    .filter(Boolean);
+  while (group.childNodes.length > handles.length) group.lastChild?.remove();
+  handles.forEach((handle, index) => {
+    let circle = group.childNodes[index];
+    if (!circle) {
+      circle = appendSvg(group, "circle", {
+        "data-diagram2-relationship-route-handle": ""
+      });
+    }
+    setSvgAttributes(circle, {
+      class: "diagram2-renderer-relationship-route-handle",
+      "data-diagram2-relationship-route-handle": "",
+      "data-diagram2-relationship-id": relationship.id,
+      "data-diagram2-relationship-segment-index": handle.index,
+      "data-diagram2-relationship-segment-axis": handle.axis,
+      cx: handle.x,
+      cy: handle.y,
+      r: 6,
+      tabindex: 0,
+      role: "button",
+      "aria-label": "Adjust relationship route segment"
+    });
+  });
+}
+
+function relationshipMarkerGeometry(start, end, sourceUnit, targetUnit, relationshipTypeInput, styleInput) {
+  const style = styleInput || { arrowSize: 10 };
+  const size = positiveNumber(style.arrowSize, 10);
+  const relationshipType = ["one-to-one", "one-to-many", "many-to-one"].includes(relationshipTypeInput)
+    ? relationshipTypeInput
+    : "";
+  const perpendicular = unit => ({ x: -finiteNumber(unit?.y, 0), y: finiteNumber(unit?.x, 1) });
+  const point = (origin, unit, along, across = 0) => {
+    const acrossUnit = perpendicular(unit);
+    return {
+      x: finiteNumber(origin?.x, 0) + (finiteNumber(unit?.x, 1) * along) + (acrossUnit.x * across),
+      y: finiteNumber(origin?.y, 0) + (finiteNumber(unit?.y, 0) * along) + (acrossUnit.y * across)
+    };
+  };
+  const targetPerpendicular = perpendicular(targetUnit);
+  const sourcePerpendicular = perpendicular(sourceUnit);
+  const arrowAtTarget = () => {
+    const arrowBase = point(end, targetUnit, -size);
+    return [
+      end,
+      { x: arrowBase.x + (targetPerpendicular.x * (size / 2)), y: arrowBase.y + (targetPerpendicular.y * (size / 2)) },
+      { x: arrowBase.x - (targetPerpendicular.x * (size / 2)), y: arrowBase.y - (targetPerpendicular.y * (size / 2)) }
+    ];
+  };
+  const arrowAtSource = () => {
+    const arrowBase = point(start, sourceUnit, size);
+    return [
+      start,
+      { x: arrowBase.x + (sourcePerpendicular.x * (size / 2)), y: arrowBase.y + (sourcePerpendicular.y * (size / 2)) },
+      { x: arrowBase.x - (sourcePerpendicular.x * (size / 2)), y: arrowBase.y - (sourcePerpendicular.y * (size / 2)) }
+    ];
+  };
+  const geometry = {
+    arrowPoints: relationshipType === "many-to-one" ? arrowAtSource() : arrowAtTarget(),
+    lineSegments: []
+  };
+  if (!relationshipType) return geometry;
+  const addTargetBar = () => {
+    const center = point(end, targetUnit, -(size * 1.4));
+    geometry.lineSegments.push([
+      { x: center.x + (targetPerpendicular.x * (size * 0.7)), y: center.y + (targetPerpendicular.y * (size * 0.7)) },
+      { x: center.x - (targetPerpendicular.x * (size * 0.7)), y: center.y - (targetPerpendicular.y * (size * 0.7)) }
+    ]);
+  };
+  const addSourceBar = (distance = size * 0.8) => {
+    const center = point(start, sourceUnit, distance);
+    geometry.lineSegments.push([
+      { x: center.x + (sourcePerpendicular.x * (size * 0.7)), y: center.y + (sourcePerpendicular.y * (size * 0.7)) },
+      { x: center.x - (sourcePerpendicular.x * (size * 0.7)), y: center.y - (sourcePerpendicular.y * (size * 0.7)) }
+    ]);
+  };
+  const addSourceCrow = () => {
+    const vertex = point(start, sourceUnit, size * 1.1);
+    geometry.lineSegments.push(
+      [vertex, { x: start.x + (sourcePerpendicular.x * (size * 0.8)), y: start.y + (sourcePerpendicular.y * (size * 0.8)) }],
+      [vertex, start],
+      [vertex, { x: start.x - (sourcePerpendicular.x * (size * 0.8)), y: start.y - (sourcePerpendicular.y * (size * 0.8)) }]
+    );
+  };
+  const addTargetCrow = () => {
+    const vertex = point(end, targetUnit, -(size * 1.1));
+    geometry.lineSegments.push(
+      [vertex, { x: end.x + (targetPerpendicular.x * (size * 0.8)), y: end.y + (targetPerpendicular.y * (size * 0.8)) }],
+      [vertex, end],
+      [vertex, { x: end.x - (targetPerpendicular.x * (size * 0.8)), y: end.y - (targetPerpendicular.y * (size * 0.8)) }]
+    );
+  };
+  if (relationshipType === "one-to-one") {
+    addTargetBar();
+    addSourceBar();
+    return geometry;
+  }
+  if (relationshipType === "many-to-one") {
+    addSourceBar(size * 1.4);
+    addTargetCrow();
+    return geometry;
+  }
+  addTargetBar();
+  addSourceCrow();
+  return geometry;
+}
+
+function endpointUnit(first, second, reverse = false) {
+  const dx = finiteNumber(first?.x, 0) - finiteNumber(second?.x, 0);
+  const dy = finiteNumber(first?.y, 0) - finiteNumber(second?.y, 0);
+  if (Math.abs(dx) >= Math.abs(dy)) return { x: (dx >= 0 ? 1 : -1) * (reverse ? -1 : 1), y: 0 };
+  return { x: 0, y: (dy >= 0 ? 1 : -1) * (reverse ? -1 : 1) };
+}
+
 function relationshipRoute(relationship, options = {}) {
   if (relationship?.diagram2RouteGeometry?.points?.length) {
     return relationshipRouteFromPoints(relationship.diagram2RouteGeometry.points);
   }
+
+  const sharedRoute = diagram2RelationshipRouteFromModel(relationship, options.routeModel);
+  if (sharedRoute) return {
+    start: sharedRoute.start,
+    end: sharedRoute.end,
+    sourceUnit: sharedRoute.sourceUnit,
+    targetUnit: sharedRoute.targetUnit,
+    points: sharedRoute.points,
+    bounds: sharedRoute.bounds,
+    path: sharedRoute.path,
+    relationshipType: sharedRoute.relationshipType
+  };
 
   const source = relationship.source;
   const target = relationship.target;
@@ -4116,9 +4364,12 @@ function relationshipRouteFromPoints(pointsInput) {
   return {
     start: start || { x: 0, y: 0 },
     end,
+    sourceUnit: points.length > 1 ? endpointUnit(points[0], points[1]) : { x: 1, y: 0 },
+    targetUnit: points.length > 1 ? endpointUnit(points.at(-1), points.at(-2), true) : { x: 1, y: 0 },
     points,
     bounds: boundsFromPoints(points, diagram2ProtectedBoundsPadding / 2),
-    path: relationshipPathFromPoints(points)
+    path: relationshipPathFromPoints(points),
+    relationshipType: String(pointsInput?.relationshipType || "")
   };
 }
 
@@ -4135,10 +4386,21 @@ function relationshipPathFromPoints(pointsInput) {
 
 function relationshipRouteOptions(relationshipsInput, state) {
   const relationships = Array.isArray(relationshipsInput) ? relationshipsInput : [];
+  const useSharedRouteModel = relationships.length <= 32
+    || state?.manualEntityRelationshipRoutes === true
+    || state?.compactEntityRelationshipRouting === true;
   return {
     relationships,
     allowOverlappingLines: state?.allowOverlappingEntityLines === true,
-    manualRoutes: state?.manualEntityRelationshipRoutes === true
+    manualRoutes: state?.manualEntityRelationshipRoutes === true,
+    compactRouting: state?.compactEntityRelationshipRouting === true,
+    routeModel: useSharedRouteModel
+      ? createDiagram2RelationshipRouteModel(state, {
+          allowOverlappingLines: state?.allowOverlappingEntityLines === true,
+          manualRoutes: state?.manualEntityRelationshipRoutes === true,
+          compactRouting: state?.compactEntityRelationshipRouting === true
+        })
+      : null
   };
 }
 
@@ -4407,7 +4669,8 @@ function relationshipStyle(relationship) {
       stroke: style.stroke || "#42526b",
       strokeWidth: positiveNumber(style.strokeWidth, 2),
       arrowSize: positiveNumber(style.arrowSize, 10),
-      opacity: safeOpacity(style.opacity ?? 1)
+      opacity: safeOpacity(style.opacity ?? 1),
+      showSymbols: style.showSymbols === true
     };
   }
 
@@ -4416,7 +4679,8 @@ function relationshipStyle(relationship) {
     stroke: override.stroke || "#42526b",
     strokeWidth: positiveNumber(override.strokeWidth, 2),
     arrowSize: positiveNumber(override.arrowSize, 10),
-    opacity: safeOpacity(override.opacity ?? 1)
+    opacity: safeOpacity(override.opacity ?? 1),
+    showSymbols: false
   };
 }
 
@@ -5147,6 +5411,18 @@ function relationshipStyleVersion(relationship) {
   return JSON.stringify(relationship.diagram2EffectiveStyle || relationship.foreignKeySource?.styleOverride || relationship.foreignKey?.styleOverride || null);
 }
 
+function uniqueDiagram2RendererStrings(values = []) {
+  const seen = new Set();
+  const result = [];
+  (Array.isArray(values) ? values : [values]).forEach(value => {
+    const text = String(value || "").trim();
+    if (!text || seen.has(text)) return;
+    seen.add(text);
+    result.push(text);
+  });
+  return result;
+}
+
 function diagram2CanonicalEntities(canonical) {
   return (Array.isArray(canonical?.objects) ? canonical.objects : [])
     .filter(object => object?.type === "entity" && diagram2ObjectVisible(object, canonical) && !diagram2IsFieldRectangle(object));
@@ -5223,7 +5499,8 @@ function diagram2EffectiveRelationshipStyle(foreignKeySource, foreignKey, global
       ? override.opacity
       : hasGlobalOpacity
         ? globalRelationshipStyle.opacity
-        : 1)
+        : 1),
+    showSymbols: globalRelationshipStyle.showSymbols === true
   };
 }
 

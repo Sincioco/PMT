@@ -30,7 +30,7 @@ test("Annotate 2.0 saves through the RTE upload URL and remains editable", async
     window.__diagram2RteNotifications = [];
   });
   await page.evaluate(async () => {
-    const { openDiagram2RteAnnotationHost } = await import("/js/features/diagram2/diagram2-rte-host-adapter.js?v=20260728-diagram2-phase4-v5");
+    const { openDiagram2RteAnnotationHost } = await import("/js/features/diagram2/diagram2-rte-host-adapter.js?v=20260729-diagram2-phase5-v1");
     const image = document.querySelector("#targetImage");
     const editor = document.querySelector(".rich-editor");
     window.__diagram2RtePromise = openDiagram2RteAnnotationHost({
@@ -84,6 +84,7 @@ test("Annotate 2.0 saves through the RTE upload URL and remains editable", async
   await page.evaluate(() => window.__pmtDiagram2EditorCore.markSaved());
   const toolbarRectangleId = await assertDiagram2RteToolbarObjectInsertion(page);
   await assertDiagram2RtePhase3CoreEditing(page, toolbarRectangleId);
+  await assertDiagram2RtePhase5EntityEditing(page, testInfo);
   const movedImage = await page.evaluate(async () => {
     const controller = window.__pmtDiagram2EditorCore;
     const imageObject = controller.currentState().objects.find(object => object.type === "embedded-image" && object.isOriginalImage === true);
@@ -162,7 +163,7 @@ test("Annotate 2.0 saves through the RTE upload URL and remains editable", async
   expect(saved.customSize).toBe("keep");
 
   await page.evaluate(async () => {
-    const { openDiagram2RteAnnotationHost } = await import("/js/features/diagram2/diagram2-rte-host-adapter.js?v=20260728-diagram2-phase4-v5");
+    const { openDiagram2RteAnnotationHost } = await import("/js/features/diagram2/diagram2-rte-host-adapter.js?v=20260729-diagram2-phase5-v1");
     const image = document.querySelector("#targetImage");
     const editor = document.querySelector(".rich-editor");
     window.__diagram2EditPromise = openDiagram2RteAnnotationHost({
@@ -212,6 +213,100 @@ async function captureDiagram2RtePhase4Screenshot(page, testInfo, projectName, f
     path: path.join(directory, fileName),
     fullPage: true
   });
+}
+
+async function captureDiagram2RtePhase5Screenshot(page, testInfo, projectName, fileName) {
+  if (testInfo.project.name !== projectName) return;
+  const directory = path.join(process.cwd(), "docs", "screenshots", "diagram-2-phase-5");
+  await mkdir(directory, { recursive: true });
+  await page.screenshot({
+    path: path.join(directory, fileName),
+    fullPage: true
+  });
+}
+
+async function assertDiagram2RtePhase5EntityEditing(page, testInfo) {
+  const dialog = page.locator("[data-diagram2-rte-host]");
+  const result = await page.evaluate(async () => {
+    const controller = window.__pmtDiagram2EditorCore;
+    const renderer = window.__pmtDiagram2Renderer;
+    await controller.addEntity({
+      schema: "pmt",
+      name: "RtePhase5",
+      fields: [
+        { name: "RtePhase5Id", dataType: "int", nullable: false, isPrimaryKey: true, isIdentity: true },
+        { name: "ParentRtePhase5Id", dataType: "int", nullable: true, isForeignKey: true },
+        { name: "DisplayName", dataType: "nvarchar(80)", nullable: true, isImportant: true }
+      ],
+      foreignKeysAtTop: true
+    }, { x: 180, y: 260 }, { id: "rte-phase5-entity" });
+    await controller.addEntity({
+      schema: "pmt",
+      name: "RtePhase5Parent",
+      fields: [
+        { name: "RteParentId", dataType: "int", nullable: false, isPrimaryKey: true, isIdentity: true },
+        { name: "ParentName", dataType: "nvarchar(80)", nullable: true }
+      ]
+    }, { x: 620, y: 260 }, { id: "rte-phase5-parent" });
+    await controller.setEntityOption("rte-phase5-entity", "showDataTypes", true);
+    await controller.addRelationship({
+      sourceEntityId: "rte-phase5-entity",
+      sourceFieldName: "ParentRtePhase5Id",
+      targetEntityId: "rte-phase5-parent",
+      targetFieldName: "RteParentId",
+      relationshipType: "many-to-one"
+    });
+    const relationshipId = controller.selectedRelationshipIds()[0];
+    await controller.setRelationshipRoutingOptions({ manualEntityRelationshipRoutes: true });
+    await controller.useRelationshipRoute(relationshipId);
+    let source = controller.getObjectById("rte-phase5-entity");
+    const route = source.foreignKeys[0]?.routeOverride || [];
+    if (route.length >= 2) {
+      const start = route[0];
+      const end = route.at(-1);
+      const midX = Math.round((start.x + end.x) / 2);
+      const manualRoute = [
+        start,
+        { x: midX, y: start.y },
+        { x: midX, y: end.y },
+        end
+      ];
+      const state = controller.currentState();
+      controller.setState({
+        ...state,
+        manualEntityRelationshipRoutes: true,
+        objects: state.objects.map(object => object.id === "rte-phase5-entity"
+          ? {
+              ...object,
+              foreignKeys: object.foreignKeys.map((foreignKey, index) =>
+                index === 0 ? { ...foreignKey, routeOverride: manualRoute } : foreignKey)
+            }
+          : object)
+      }, { reason: "phase5 RTE seed manual route", resetHistory: false });
+      renderer.render(controller.state(), { reason: "phase5 RTE seed manual route" });
+      source = controller.getObjectById("rte-phase5-entity");
+    }
+    await controller.setEntityOption("rte-phase5-entity", "anchorTable", true);
+    renderer.fit();
+    await renderer.whenIdle();
+    return {
+      selectedId: controller.selectedObjectIds()[0],
+      relationshipId,
+      routePointCount: source.foreignKeys[0]?.routeOverride?.length || 0,
+      objectCount: controller.statusSnapshot().objectCount,
+      relationshipCount: controller.statusSnapshot().relationshipCount
+    };
+  });
+
+  expect(result.selectedId).toBe("rte-phase5-entity");
+  expect(result.relationshipId).toBeTruthy();
+  expect(result.routePointCount).toBeGreaterThan(1);
+  expect(result.objectCount).toBeGreaterThan(0);
+  expect(result.relationshipCount).toBe(1);
+  await dialog.locator("[data-diagram2-inspector-tab='entity']").click();
+  await expect(dialog.locator("[data-diagram2-inspector] [data-action='auto-format-diagram2-compact']")).toHaveText("Compact");
+  await expect(dialog.locator("[data-diagram2-entity-option='showDataTypes']")).toBeChecked();
+  await captureDiagram2RtePhase5Screenshot(page, testInfo, "chromium-1366", "diagram2-phase5-rte-entity-editing-1366x768.png");
 }
 
 async function assertDiagram2RtePhase3CoreEditing(page, rectangleId) {
@@ -326,7 +421,7 @@ test("Annotate 2.0 cancel performs no upload and leaves RTE image unchanged", as
   const before = await page.locator("#targetImage").evaluate(image => image.outerHTML);
 
   await page.evaluate(async () => {
-    const { openDiagram2RteAnnotationHost } = await import("/js/features/diagram2/diagram2-rte-host-adapter.js?v=20260728-diagram2-phase4-v5");
+    const { openDiagram2RteAnnotationHost } = await import("/js/features/diagram2/diagram2-rte-host-adapter.js?v=20260729-diagram2-phase5-v1");
     const image = document.querySelector("#targetImage");
     window.__diagram2CancelApplyCount = 0;
     window.__diagram2CancelPromise = openDiagram2RteAnnotationHost({
@@ -371,7 +466,7 @@ test("Annotate 2.0 cancel cleans up renderer and controller across ten cycles", 
 
   for (let index = 0; index < 10; index += 1) {
     await page.evaluate(async cycle => {
-      const { openDiagram2RteAnnotationHost } = await import("/js/features/diagram2/diagram2-rte-host-adapter.js?v=20260728-diagram2-phase4-v5");
+      const { openDiagram2RteAnnotationHost } = await import("/js/features/diagram2/diagram2-rte-host-adapter.js?v=20260729-diagram2-phase5-v1");
       const image = document.querySelector("#targetImage");
       window.__diagram2RteCyclePromise = openDiagram2RteAnnotationHost({
         image,
@@ -426,7 +521,7 @@ test("Annotate 2.0 cannot bypass the originating RTE update permission", async (
   `);
 
   const result = await page.evaluate(async () => {
-    const { openDiagram2RteAnnotationHost } = await import("/js/features/diagram2/diagram2-rte-host-adapter.js?v=20260728-diagram2-phase4-v5");
+    const { openDiagram2RteAnnotationHost } = await import("/js/features/diagram2/diagram2-rte-host-adapter.js?v=20260729-diagram2-phase5-v1");
     const image = document.querySelector("#targetImage");
     const notifications = [];
     let applyCount = 0;

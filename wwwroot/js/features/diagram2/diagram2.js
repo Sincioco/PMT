@@ -59,8 +59,8 @@ import { createDiagram2DocumentHostAdapter } from "./diagram2-document-host-adap
 import {
   createDiagram2EditorController,
   isDiagram2CoreDrawingTool
-} from "./diagram2-editor-controller.js?v=20260728-diagram2-phase4-v5";
-import { bindDiagram2EditorInteractions } from "./diagram2-editor-interactions.js?v=20260728-diagram2-phase4-v5";
+} from "./diagram2-editor-controller.js?v=20260729-diagram2-phase5-v1";
+import { bindDiagram2EditorInteractions } from "./diagram2-editor-interactions.js?v=20260729-diagram2-phase5-v1";
 import {
   bindDiagram2EditorColorPickers,
   bindDiagram2EditorFormatControls,
@@ -70,6 +70,8 @@ import {
   diagram2EditorShellHtml,
   diagram2ObjectsPaneHtml,
   diagram2TemplatePaneHtml,
+  openDiagram2EntityEditor,
+  openDiagram2RelationshipEditor,
   openDiagram2TextEditor,
   setDiagram2InspectorActiveTab,
   setDiagram2ObjectsPaneOpen,
@@ -78,7 +80,7 @@ import {
   syncDiagram2RendererViewportInset,
   updateDiagram2ObjectTreeSelection,
   updateDiagram2ShellStatus
-} from "./diagram2-editor-shell.js?v=20260728-diagram2-phase4-v5";
+} from "./diagram2-editor-shell.js?v=20260729-diagram2-phase5-v1";
 import {
   captureDiagram2SelectionTemplate,
   createDiagram2TemplateState,
@@ -91,7 +93,7 @@ import {
 import {
   createDiagram2Renderer,
   normalizeDiagram2CanonicalState
-} from "./diagram2-renderer.js?v=20260728-diagram2-phase4-v5";
+} from "./diagram2-renderer.js?v=20260729-diagram2-phase5-v1";
 
 const diagram2ViewModes = new Set(["tree", "cards"]);
 const diagram2SortModes = new Set(["latest", "oldest", "name", "custom"]);
@@ -330,13 +332,39 @@ export function createDiagram2Feature({
     if (action === "set-diagram2-tool") {
       if (!diagram2EditModeActive()) return true;
       const tool = button?.dataset?.tool || button?.dataset?.diagram2Tool || "select";
-      if (isDiagram2CoreDrawingTool(tool)) await addDiagram2ToolbarObject(tool);
+      if (tool === "entity") await addDiagram2EntityFromDialog();
+      else if (isDiagram2CoreDrawingTool(tool)) await addDiagram2ToolbarObject(tool);
       else if (tool === "format-painter") {
         if (diagram2Controller?.activeTool() === "format-painter") diagram2Controller.cancelFormatPainter();
         else diagram2Controller?.beginFormatPainter();
       }
       else diagram2Controller?.setActiveTool(tool);
       updateDiagram2EditorControls();
+      return true;
+    }
+    if (action === "edit-diagram2-entity") {
+      if (!diagram2EditModeActive()) return true;
+      await editDiagram2SelectedEntity();
+      return true;
+    }
+    if (action === "add-diagram2-relationship") {
+      if (!diagram2EditModeActive()) return true;
+      await addDiagram2RelationshipFromDialog();
+      return true;
+    }
+    if (action === "auto-format-diagram2-compact") {
+      if (!diagram2EditModeActive()) return true;
+      await autoFormatDiagram2Compact();
+      return true;
+    }
+    if (action === "use-diagram2-relationship-route") {
+      if (!diagram2EditModeActive()) return true;
+      await useDiagram2SelectedRelationshipRoute();
+      return true;
+    }
+    if (action === "clear-diagram2-relationship-route") {
+      if (!diagram2EditModeActive()) return true;
+      await clearDiagram2SelectedRelationshipRoute();
       return true;
     }
     if (action === "select-diagram2-object-tree-item") {
@@ -1691,6 +1719,10 @@ export function createDiagram2Feature({
     bindDiagram2EditorFormatControls(shell, {
       applyStyle: (name, value) => applyDiagram2SelectedStyle(name, value),
       applyGeometry: (name, value) => applyDiagram2SelectedGeometry(name, value),
+      applyEntityOption: (name, value) => applyDiagram2SelectedEntityOption(name, value),
+      applyRelationshipOption: (name, value) => applyDiagram2RelationshipOption(name, value),
+      applyRelationshipStyle: (name, value) => applyDiagram2SelectedRelationshipStyle(name, value),
+      applyRelationshipType: value => applyDiagram2SelectedRelationshipType(value),
       notify
     });
   }
@@ -1879,6 +1911,51 @@ export function createDiagram2Feature({
     return true;
   }
 
+  async function applyDiagram2SelectedEntityOption(name, value) {
+    if (!diagram2Controller || !diagram2Renderer || diagram2Busy) return false;
+    const entity = diagram2Controller.getObjectsByIds(diagram2Controller.selectedObjectIds())
+      .find(object => object?.type === "entity");
+    if (!entity) return false;
+    const applied = await diagram2Controller.setEntityOption(entity.id, name, value, {
+      reason: `entity ${name}`
+    });
+    if (!applied) return false;
+    await finishDiagram2ObjectCommand();
+    return true;
+  }
+
+  async function applyDiagram2RelationshipOption(name, value) {
+    if (!diagram2Controller || !diagram2Renderer || diagram2Busy) return false;
+    const applied = await diagram2Controller.setRelationshipRoutingOptions({ [name]: value }, {
+      reason: `relationship option ${name}`
+    });
+    if (!applied) return false;
+    await finishDiagram2ObjectCommand();
+    return true;
+  }
+
+  async function applyDiagram2SelectedRelationshipStyle(name, value) {
+    if (!diagram2Controller || !diagram2Renderer || diagram2Busy) return false;
+    const relationshipIds = diagram2Controller.selectedRelationshipIds();
+    const applied = await diagram2Controller.updateRelationshipsStyle(relationshipIds, name, value, {
+      global: name === "showSymbols",
+      reason: `relationship style ${name}`
+    });
+    if (!applied) return false;
+    await finishDiagram2ObjectCommand();
+    return true;
+  }
+
+  async function applyDiagram2SelectedRelationshipType(value) {
+    if (!diagram2Controller || !diagram2Renderer || diagram2Busy) return false;
+    const [relationshipId] = diagram2Controller.selectedRelationshipIds();
+    if (!relationshipId) return false;
+    const applied = await diagram2Controller.setRelationshipType(relationshipId, value);
+    if (!applied) return false;
+    await finishDiagram2ObjectCommand();
+    return true;
+  }
+
   function bindDiagram2ImportInput() {
     const input = app.querySelector("[data-diagram2-import-input]");
     if (!input) return;
@@ -1912,8 +1989,9 @@ export function createDiagram2Feature({
         onSave: saveDiagram2Document,
         onUndo: undoDiagram2,
         onRedo: redoDiagram2,
-        onAddObject: addDiagram2ToolbarObject,
+        onAddObject: type => type === "entity" ? addDiagram2EntityFromDialog() : addDiagram2ToolbarObject(type),
         onEditText: editDiagram2ObjectText,
+        onEditEntity: editDiagram2SelectedEntity,
         onCopy: copyDiagram2Selection,
         onPaste: pasteDiagram2Selection,
         onPasteEvent: pasteDiagram2ClipboardEvent,
@@ -2873,6 +2951,77 @@ export function createDiagram2Feature({
     return true;
   }
 
+  async function editDiagram2SelectedEntity() {
+    if (!diagram2Controller || !diagram2CanMutateCurrentDocument()) return false;
+    const entity = diagram2Controller.getObjectsByIds(diagram2Controller.selectedObjectIds())
+      .find(object => object?.type === "entity");
+    if (!entity) return false;
+    const definition = await openDiagram2EntityEditor({ object: entity });
+    if (!definition) return false;
+    const updated = await diagram2Controller.updateEntityDefinition(entity.id, definition);
+    if (!updated) return false;
+    await finishDiagram2ObjectCommand();
+    return true;
+  }
+
+  async function addDiagram2EntityFromDialog() {
+    if (!diagram2Controller || !diagram2Renderer || diagram2Busy || !diagram2CanMutateCurrentDocument()) return false;
+    const definition = await openDiagram2EntityEditor({});
+    if (!definition) return false;
+    const added = await diagram2Controller.addEntity(
+      definition,
+      diagram2Controller.snapPoint(diagram2InsertionCenter())
+    );
+    if (!added) return false;
+    diagram2Controller.setActiveTool("select");
+    await finishDiagram2ObjectCommand();
+    return true;
+  }
+
+  async function addDiagram2RelationshipFromDialog() {
+    if (!diagram2Controller || !diagram2Renderer || diagram2Busy || !diagram2CanMutateCurrentDocument()) return false;
+    const selectedEntityId = diagram2Controller.getObjectsByIds(diagram2Controller.selectedObjectIds())
+      .find(object => object?.type === "entity")?.id || "";
+    const relationship = await openDiagram2RelationshipEditor({
+      state: diagram2Controller.currentState(),
+      selectedEntityId
+    });
+    if (!relationship) return false;
+    const added = await diagram2Controller.addRelationship(relationship);
+    if (!added) return false;
+    await finishDiagram2ObjectCommand();
+    return true;
+  }
+
+  async function autoFormatDiagram2Compact() {
+    if (!diagram2Controller || !diagram2Renderer || diagram2Busy || !diagram2CanMutateCurrentDocument()) return false;
+    const applied = await diagram2Controller.autoFormatCompact();
+    if (!applied) return false;
+    await finishDiagram2ObjectCommand();
+    notify?.("Diagram 2 entities compacted.");
+    return true;
+  }
+
+  async function useDiagram2SelectedRelationshipRoute() {
+    if (!diagram2Controller || !diagram2Renderer || diagram2Busy || !diagram2CanMutateCurrentDocument()) return false;
+    const [relationshipId] = diagram2Controller.selectedRelationshipIds();
+    if (!relationshipId) return false;
+    const applied = await diagram2Controller.useRelationshipRoute(relationshipId);
+    if (!applied) return false;
+    await finishDiagram2ObjectCommand();
+    return true;
+  }
+
+  async function clearDiagram2SelectedRelationshipRoute() {
+    if (!diagram2Controller || !diagram2Renderer || diagram2Busy || !diagram2CanMutateCurrentDocument()) return false;
+    const relationshipIds = diagram2Controller.selectedRelationshipIds();
+    if (!relationshipIds.length) return false;
+    const applied = await diagram2Controller.clearRelationshipRoutes(relationshipIds);
+    if (!applied) return false;
+    await finishDiagram2ObjectCommand();
+    return true;
+  }
+
   async function finishDiagram2ObjectCommand() {
     syncDiagram2InteractionState();
     refreshDiagram2ObjectsPane();
@@ -3061,7 +3210,8 @@ export function createDiagram2Feature({
       arrow: "Arrow",
       line: "Line",
       textbox: "Text Box",
-      "rich-text": "Rich Text"
+      "rich-text": "Rich Text",
+      entity: "Entity"
     }[String(type || "").trim().toLowerCase()] || "object";
   }
 
@@ -3083,6 +3233,7 @@ export function createDiagram2Feature({
     const selectedObjectIdSet = new Set((status.selectedObjectIds || diagram2SelectedObjectIds).map(String));
     const selectedObjects = (diagram2Controller?.state?.().objects || diagram2RendererState?.objects || [])
       .filter(object => selectedObjectIdSet.has(String(object.id || "")));
+    selectedObjects.push(...(diagram2Controller?.selectedRelationshipObjects?.() || []));
     const hasDocument = fallbackHasDocument;
     const hasSelection = status.selectedCount > 0;
     const canUndo = status.history?.canUndo === true;
@@ -3106,6 +3257,7 @@ export function createDiagram2Feature({
       busy,
       dirty,
       history: { ...status.history, canUndo, canRedo },
+      state: diagram2Controller?.currentState?.() || diagram2RendererState || {},
       selectedObjects
     });
     updateDiagram2ObjectTreeSelection(app, status.selectedObjectIds || []);
