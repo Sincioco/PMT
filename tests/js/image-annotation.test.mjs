@@ -5941,6 +5941,10 @@ test("RTE Insert Linked Diagram stores a database-backed Diagram OLE reference",
   const appSource = await readFile(new URL("../../wwwroot/js/app.js", import.meta.url), "utf8");
   const formsCss = await readFile(new URL("../../wwwroot/css/components/forms.css", import.meta.url), "utf8");
   const formsSource = await readFile(new URL("../../wwwroot/js/components/forms.js", import.meta.url), "utf8");
+  const fieldMappingSource = await readFile(
+    new URL("../../wwwroot/js/components/diagram-field-mapping-interactions.js", import.meta.url),
+    "utf8"
+  );
   const textSource = await readFile(new URL("../../wwwroot/js/shared/text-and-links.js", import.meta.url), "utf8");
   const documentationSource = await readFile(new URL("../../wwwroot/js/features/documentation/documentation.js", import.meta.url), "utf8");
   const scrumSource = await readFile(new URL("../../wwwroot/js/features/scrum/scrum.js", import.meta.url), "utf8");
@@ -5979,7 +5983,9 @@ test("RTE Insert Linked Diagram stores a database-backed Diagram OLE reference",
   assert.match(appSource, /function richDiagramOleCurrentViewport/);
   assert.match(appSource, /function rememberRichDiagramOleViewport/);
   assert.match(appSource, /function diagramOleViewerSourceUrl/);
-  assert.match(appSource, /buildAnnotationSvg\(diagramState,\s*{[\s\S]*entityHeaderButtonsVisible:\s*false/);
+  assert.match(appSource, /buildInteractiveDiagramViewerSvg\(svg\)/);
+  assert.match(fieldMappingSource, /buildAnnotationSvg\(diagramState,\s*{[\s\S]*entityHeaderButtonsVisible:\s*false/);
+  assert.match(fieldMappingSource, /interactiveFieldMapping:\s*true/);
   assert.match(appSource, /function refreshRichDiagramOleViewerSource/);
   assert.match(appSource, /data-diagram-ole-fit/);
   assert.match(appSource, /const zoom = clampZoom\(Math\.min\(viewportWidth \/ imageWidth, viewportHeight \/ imageHeight\)\)/);

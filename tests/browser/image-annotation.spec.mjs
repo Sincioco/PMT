@@ -226,3 +226,115 @@ test("Field Mapping Table hover draws yellow mapping highlights without changing
   await expect(dialog.locator("[data-annotation-selection-label]")).toHaveText("3 objects selected");
   await expect(canvas.locator(".image-annotation-selection-group")).toHaveCount(2);
 });
+
+test("public Diagram viewer hydrates Field Mapping Table highlights and arrows", async ({ page }) => {
+  await page.route("**/public-field-mapping-test.html", route => route.fulfill({
+    contentType: "text/html",
+    body: `<!doctype html>
+      <html data-theme="light">
+        <head>
+          <title>Public Field Mapping Test</title>
+          <link rel="stylesheet" href="/css/themes.css">
+          <link rel="stylesheet" href="/css/components/forms.css">
+          <link rel="stylesheet" href="/css/components/image-annotation.css">
+        </head>
+        <body></body>
+      </html>`
+  }));
+  await page.goto("/public-field-mapping-test.html");
+
+  await page.evaluate(async () => {
+    const annotation = await import("/js/components/image-annotation.js?v=20260728-phase3-closeout-v1");
+    const state = annotation.normalizeAnnotationState({
+      width: 1000,
+      height: 650,
+      objects: [{
+        id: "project-mapping-table",
+        type: "field-mapping-table",
+        name: "Field Mapping Table: Task screen",
+        sourceImageId: "task-screen",
+        x: 48,
+        y: 48,
+        width: 430,
+        height: 64,
+        fieldMappingHighlightColor: "#f59e0b",
+        fieldMappingHighlightStrokeWidth: 11,
+        rows: [{
+          uiEntityId: "ui-project",
+          uiField: "Project",
+          databaseField: "pmt.Projects.Title"
+        }]
+      }, {
+        id: "ui-project",
+        type: "entity",
+        entityKind: "field-rectangle",
+        fieldRectangleName: "Project",
+        fieldRectangleConnectionSide: "bottom",
+        x: 100,
+        y: 360,
+        width: 360,
+        height: 52,
+        fill: "none",
+        stroke: "#ef4444",
+        strokeWidth: 2,
+        fields: [{ name: "Project", dataType: "", nullable: null, isForeignKey: true, isImportant: true }],
+        foreignKeys: [{
+          name: "FK_UI_Project_Projects",
+          columns: ["Project"],
+          referencedSchema: "pmt",
+          referencedTable: "Projects",
+          referencedColumns: ["Title"],
+          relationshipType: "one-to-many",
+          styleOverride: { stroke: "#22c55e", strokeWidth: 2 }
+        }]
+      }, {
+        id: "project-entity",
+        type: "entity",
+        x: 650,
+        y: 120,
+        width: 260,
+        height: 160,
+        entitySchema: "pmt",
+        entityName: "Projects",
+        fields: [
+          { name: "ProjectId", dataType: "INT", nullable: false, isPrimaryKey: true, isForeignKey: false },
+          { name: "Title", dataType: "NVARCHAR(200)", nullable: false, isPrimaryKey: false, isForeignKey: false }
+        ],
+        foreignKeys: []
+      }]
+    });
+    const source = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(annotation.buildAnnotationSvg(state))}`;
+    document.body.innerHTML = `
+      <figure class="pmt-diagram-ole" data-public-linked-diagram data-header="Linked Diagram: Field Mapping">
+        <template data-public-diagram-source>
+          <img data-pmt-diagram="true" src="${source}" alt="Field Mapping">
+        </template>
+      </figure>
+    `;
+    await new Promise((resolve, reject) => {
+      const script = document.createElement("script");
+      script.src = "/js/public-linked-diagram-viewer.js?v=20260728-public-field-mapping-v1";
+      script.onload = resolve;
+      script.onerror = reject;
+      document.body.appendChild(script);
+    });
+  });
+
+  const viewer = page.locator("[data-public-linked-diagram]");
+  const svg = viewer.locator("[data-diagram-ole-surface] > svg");
+  const mappingCell = svg.locator("[data-annotation-field-mapping-ui-cell]");
+
+  await expect(svg).toHaveCount(1);
+  await expect(viewer.locator("[data-diagram-ole-surface] > img")).toHaveCount(0);
+  await expect(mappingCell).toHaveCount(1);
+
+  await mappingCell.hover();
+  await expect(svg.locator(".image-annotation-field-mapping-attention-highlight")).toHaveCount(1);
+  await expect(svg.locator(".image-annotation-field-mapping-attention-arrow")).toHaveCount(2);
+
+  await mappingCell.click();
+  await page.locator(".pmt-diagram-ole-caption").hover();
+  await expect(svg.locator("[data-annotation-field-mapping-row].is-pinned")).toHaveCount(1);
+  await expect(svg.locator(".image-annotation-field-mapping-attention-highlight")).toHaveCount(1);
+  await expect(svg.locator(".image-annotation-field-mapping-attention-arrow")).toHaveCount(2);
+});

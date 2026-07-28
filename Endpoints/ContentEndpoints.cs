@@ -216,6 +216,7 @@ internal static class ContentEndpoints
             $"  <link rel=\"stylesheet\" href=\"{HtmlAttr(PublicPath(context, "/css/tokens.css?v=20260620-token-depth"))}\">",
             $"  <link rel=\"stylesheet\" href=\"{HtmlAttr(PublicPath(context, "/css/themes.css?v=20260621-paper-links"))}\">",
             $"  <link rel=\"stylesheet\" href=\"{HtmlAttr(PublicPath(context, "/css/components/forms.css?v=20260725-public-link-dialog-v2"))}\">",
+            $"  <link rel=\"stylesheet\" href=\"{HtmlAttr(PublicPath(context, "/css/components/image-annotation.css?v=20260728-public-field-mapping-v1"))}\">",
             "");
     }
 
@@ -246,7 +247,7 @@ internal static class ContentEndpoints
     {
         if (!isDiagram) return "";
 
-        return $"  <script src=\"{HtmlAttr(PublicPath(context, "/js/public-linked-diagram-viewer.js?v=20260725-day36-v2"))}\"></script>";
+        return $"  <script src=\"{HtmlAttr(PublicPath(context, "/js/public-linked-diagram-viewer.js?v=20260728-public-field-mapping-v1"))}\"></script>";
     }
 
     private static string PublicAttachmentsHtml(HttpContext context, IReadOnlyCollection<AttachmentDto> attachments)

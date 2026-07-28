@@ -1,11 +1,16 @@
 (() => {
   const minZoom = 0.01;
   const maxZoom = 5;
+  const scriptUrl = document.currentScript?.src || window.location.href;
+  const fieldMappingModuleUrl = new URL(
+    "./components/diagram-field-mapping-interactions.js?v=20260728-public-field-mapping-v1",
+    scriptUrl
+  ).href;
 
   document.querySelectorAll("[data-public-linked-diagram]").forEach(hydratePublicLinkedDiagram);
 
-  function hydratePublicLinkedDiagram(block) {
-    const source = publicDiagramSource(block);
+  async function hydratePublicLinkedDiagram(block) {
+    let source = publicDiagramSource(block);
     const header = String(block.dataset.header || "Linked Diagram: Diagram").trim();
     block.classList.add("pmt-diagram-ole");
     block.setAttribute("contenteditable", "false");
@@ -35,8 +40,43 @@
     source.setAttribute("draggable", "false");
     if (!source.getAttribute("alt")) source.setAttribute("alt", header.replace(/^Linked Diagram:\s*/i, "") || "Diagram");
     surface.appendChild(source);
+    source = await interactivePublicDiagramSource(source);
 
     bindPublicLinkedDiagramViewer(block, viewport, surface, source);
+  }
+
+  async function interactivePublicDiagramSource(source) {
+    let svg = source instanceof SVGElement ? source : null;
+    let svgMarkup = svg?.outerHTML || "";
+
+    if (!svg && source instanceof HTMLImageElement) {
+      try {
+        const response = await fetch(source.currentSrc || source.src, { credentials: "same-origin" });
+        if (!response.ok) return source;
+        svgMarkup = await response.text();
+      } catch {
+        return source;
+      }
+    }
+
+    if (!svgMarkup) return source;
+    try {
+      const {
+        bindDiagramFieldMappingInteractions,
+        buildInteractiveDiagramViewerSvg
+      } = await import(fieldMappingModuleUrl);
+      const interactiveMarkup = buildInteractiveDiagramViewerSvg(svgMarkup) || svgMarkup;
+      const parsed = new DOMParser().parseFromString(interactiveMarkup, "image/svg+xml");
+      if (parsed.querySelector("parsererror") || parsed.documentElement?.localName !== "svg") return source;
+      const interactiveSvg = document.importNode(parsed.documentElement, true);
+      interactiveSvg.setAttribute("data-diagram-ole-media", "true");
+      source.replaceWith(interactiveSvg);
+      svg = interactiveSvg;
+      bindDiagramFieldMappingInteractions(svg, interactiveMarkup);
+    } catch {
+      return source;
+    }
+    return svg;
   }
 
   function publicDiagramSource(block) {
@@ -110,6 +150,7 @@
     }, { passive: false });
     viewport.addEventListener("pointerdown", event => {
       if (event.button !== 0 && event.button !== 1) return;
+      if (event.target.closest?.("[data-annotation-field-mapping-cell]")) return;
       event.preventDefault();
       drag = {
         pointerId: event.pointerId,
